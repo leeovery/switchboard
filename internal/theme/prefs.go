@@ -42,8 +42,8 @@ type Prefs struct {
 }
 
 // HistoryPrefs are what History's views show, each by its name: the view
-// shown, of year, weeks, days and tokens; what the Year shows, a model
-// version by its name, as Opus 5.5, or an account by its id, "" for all use;
+// shown, of year, weeks, days and tokens; what the Year shows, all for all
+// use, a model version by its name, as Opus 5.5, or an account by its id;
 // Weeks' shape, table or columns; and Tokens' period and split. A name the
 // dashboard doesn't know reads as the default, as does a version or an
 // account no longer there to show.

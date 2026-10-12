@@ -19,7 +19,8 @@ import (
 
 // daysLedger reads as a request ledger holding the days from first on to
 // today, by the test's clock, each as days holds it by its date, else of no
-// requests; and notes the day each read of them was from.
+// requests, and tells that it begins on first; and notes the day each read
+// of its days was from.
 type daysLedger struct {
 	ledger.Empty
 	clock *fakeClock
@@ -42,6 +43,11 @@ func (l *daysLedger) Days(from time.Time) []ledger.Summary {
 		days = append(days, d)
 	}
 	return days
+}
+
+func (l *daysLedger) FirstDay(time.Time) (time.Time, error) {
+	start, _, _ := dayfile.Day(l.first)
+	return start, nil
 }
 
 // requested is a day of n requests of Opus 5.5 on work, in one session.
@@ -195,6 +201,18 @@ func TestTheYearReadsEachCalendarYearOnceAndStopsWhereTheLedgerBegan(t *testing.
 	}
 }
 
+// Of a ledger that doesn't tell where it begins, < steps back to this
+// calendar year alone, which the last 12 months reach.
+func TestTheYearStepsBackToThisYearAloneWhereTheLedgerDoesntSayWhereItBegan(t *testing.T) {
+	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
+	h.model.cfg.Ledger = struct{ views.Ledger }{l}
+	h.start()
+	h.typed("<", "<")
+	if got := h.model.past.page.Period(); got != "2026" || len(l.reads) != 1 {
+		t.Errorf("< twice, the Year shows %q, the ledger read from %v; want 2026, the year alone", got, l.reads)
+	}
+}
+
 // A version kept from a run before that the last 12 months didn't use is
 // let go once they're read, the Year showing all use; one they used stays.
 func TestAVersionKeptThatTheYearDidntUseShowsAllUse(t *testing.T) {
@@ -241,14 +259,14 @@ func TestHistorysKeysChangeWhatItShowsAndThePreferencesKeepIt(t *testing.T) {
 		key  string
 		kept theme.HistoryPrefs
 	}{
-		{key: "]", kept: theme.HistoryPrefs{View: "weeks", Weeks: "table", Tokens: theme.TokensPrefs{Period: "week", Split: "account"}}},
-		{key: "v", kept: theme.HistoryPrefs{View: "weeks", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "week", Split: "account"}}},
-		{key: "]", kept: theme.HistoryPrefs{View: "days", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "week", Split: "account"}}},
-		{key: "]", kept: theme.HistoryPrefs{View: "tokens", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "week", Split: "account"}}},
-		{key: "<", kept: theme.HistoryPrefs{View: "tokens", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "day", Split: "account"}}},
-		{key: "v", kept: theme.HistoryPrefs{View: "tokens", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "day", Split: "model"}}},
-		{key: "]", kept: theme.HistoryPrefs{View: "year", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "day", Split: "model"}}},
-		{key: "<", kept: theme.HistoryPrefs{View: "year", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "day", Split: "model"}}},
+		{key: "]", kept: theme.HistoryPrefs{View: "weeks", Year: "all", Weeks: "table", Tokens: theme.TokensPrefs{Period: "week", Split: "account"}}},
+		{key: "v", kept: theme.HistoryPrefs{View: "weeks", Year: "all", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "week", Split: "account"}}},
+		{key: "]", kept: theme.HistoryPrefs{View: "days", Year: "all", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "week", Split: "account"}}},
+		{key: "]", kept: theme.HistoryPrefs{View: "tokens", Year: "all", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "week", Split: "account"}}},
+		{key: "<", kept: theme.HistoryPrefs{View: "tokens", Year: "all", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "day", Split: "account"}}},
+		{key: "v", kept: theme.HistoryPrefs{View: "tokens", Year: "all", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "day", Split: "model"}}},
+		{key: "]", kept: theme.HistoryPrefs{View: "year", Year: "all", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "day", Split: "model"}}},
+		{key: "<", kept: theme.HistoryPrefs{View: "year", Year: "all", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "day", Split: "model"}}},
 		{key: "v", kept: theme.HistoryPrefs{View: "year", Year: "work", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "day", Split: "model"}}},
 		{key: "right", kept: theme.HistoryPrefs{View: "year", Year: "personal", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "day", Split: "model"}}},
 	}

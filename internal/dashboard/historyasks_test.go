@@ -14,8 +14,8 @@ import (
 var threeConfigured = config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal"}, {ID: "side"}}
 
 // What the preferences keep of History's views reads back as it was kept:
-// each by its name; the Year's version by its name and an account by its id,
-// neither for all use; never a calendar year stepped back to.
+// each by its name; the Year's all use as all, a version by its name and an
+// account by its id; never a calendar year stepped back to.
 func TestHistorysChoicesAreKeptByNameAndReadBack(t *testing.T) {
 	tests := []struct {
 		name string
@@ -24,7 +24,7 @@ func TestHistorysChoicesAreKeptByNameAndReadBack(t *testing.T) {
 	}{
 		{
 			name: "as History opens",
-			kept: theme.HistoryPrefs{View: "year", Weeks: "table", Tokens: theme.TokensPrefs{Period: "week", Split: "account"}},
+			kept: theme.HistoryPrefs{View: "year", Year: "all", Weeks: "table", Tokens: theme.TokensPrefs{Period: "week", Split: "account"}},
 		},
 		{
 			name: "every choice made",
@@ -53,20 +53,23 @@ func TestHistorysChoicesAreKeptByNameAndReadBack(t *testing.T) {
 		})
 	}
 	stepped := HistoryPage{YearAsk: views.YearAsk{Year: 2025}}
-	if got := stepped.Kept(); got.Year != "" || got.View != "year" {
-		t.Errorf("Kept() of a calendar year stepped back to = %+v, want the year left out", got)
+	if got := stepped.Kept(); got.Year != "all" || got.View != "year" {
+		t.Errorf("Kept() of a calendar year stepped back to = %+v, want all use, the calendar year left out", got)
 	}
 }
 
-// Names the dashboard doesn't know read as History opens; and an account
-// kept that isn't one v cycles through, as one no longer configured, or the
-// one of one account alone, is taken for a version's name, for the watch to
-// find none used, and show all use.
+// Names the dashboard doesn't know, and none, as preferences kept before
+// History's were, read as History opens; and an account kept that isn't one
+// v cycles through, as one no longer configured, or the one of one account
+// alone, is taken for a version's name, for the watch to find none used, and
+// show all use.
 func TestHistorysChoicesKeptThatNameNothingReadAsItOpens(t *testing.T) {
 	kept := theme.HistoryPrefs{View: "months", Weeks: "bars", Tokens: theme.TokensPrefs{Period: "year", Split: "session"}}
-	if got := HistoryKept(kept, threeConfigured); got.Shown != HistoryYear || got.WeeksShape != WeeksTable ||
-		got.TokensAsk.Period != views.TokensByWeek || got.TokensSplit != TokensByAccount {
-		t.Errorf("HistoryKept(%+v) = %+v, want History as it opens", kept, got)
+	for _, kept := range []theme.HistoryPrefs{kept, {}} {
+		if got := HistoryKept(kept, threeConfigured); got.Shown != HistoryYear || got.YearAsk != (views.YearAsk{}) || got.WeeksShape != WeeksTable ||
+			got.TokensAsk.Period != views.TokensByWeek || got.TokensSplit != TokensByAccount {
+			t.Errorf("HistoryKept(%+v) = %+v, want History as it opens", kept, got)
+		}
 	}
 	for _, accounts := range []config.Accounts{threeConfigured[1:], threeConfigured[:1]} {
 		if got := HistoryKept(theme.HistoryPrefs{Year: "work"}, accounts).YearAsk; got != (views.YearAsk{Version: "work"}) {

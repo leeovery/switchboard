@@ -82,6 +82,15 @@ func (f *Follower) firstDay(now time.Time) (time.Time, error) {
 	return f.first.listed(f.days.files.Dir, now, f.days.first)
 }
 
+// FirstDay returns the start of the first local day the ledger holds, at
+// now, as Days reads from it: it fails with fs.ErrNotExist where it holds
+// none.
+func (f *Follower) FirstDay(now time.Time) (time.Time, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.firstDay(now)
+}
+
 // readingsDates returns the dates of the local days the readings history
 // holds readings of, as its Dates gives them, at now, held as
 // heldListing.listed says while its directory looks as it did.

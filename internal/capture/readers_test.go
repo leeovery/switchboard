@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // readersNow is when the readers' tests read: the frames' moment, in the
@@ -146,6 +147,29 @@ func TestTheRecordsLedgerGivesTheDaysBeforeTodaysAsHeldAndTodaysSummarised(t *te
 	}
 	if got := l.Days(readersNow); len(got) != 1 || got[0].Day != today {
 		t.Errorf("Days(today) = %+v, want today's alone", got)
+	}
+}
+
+// The records' ledger begins on the first day it holds a summary of, else
+// today, as Days gives them.
+func TestTheRecordsLedgerBeginsOnTheFirstDayItGives(t *testing.T) {
+	r := heldRecords(t)
+	l, _, _ := r.readers(func() time.Time { return readersNow })
+	start, ok := l.(views.LedgerStart)
+	if !ok {
+		t.Fatal("the records' ledger doesn't tell where it begins, want it to, as a Follower does")
+	}
+	for _, tt := range []struct {
+		days []ledger.Summary
+		want time.Time
+	}{
+		{want: dayfile.DayStart(readersNow, 0)},
+		{days: []ledger.Summary{{Version: 4, Day: dayfile.DateOf(readersAt(-2, 12, 0, 0))}, {Version: 4, Day: dayfile.DateOf(readersAt(-1, 12, 0, 0))}}, want: dayfile.DayStart(readersNow, -2)},
+	} {
+		r.days = tt.days
+		if got, err := start.FirstDay(readersNow); err != nil || !got.Equal(tt.want) {
+			t.Errorf("of %d days, FirstDay() = %v, %v; want %v", len(tt.days), got, err, tt.want)
+		}
 	}
 }
 

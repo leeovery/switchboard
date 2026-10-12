@@ -11,6 +11,10 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
+// allUse is the name the preferences and the key line give the Year shown
+// for all use, every version and every account.
+const allUse = "all"
+
 // The names the preferences keep Weeks' shapes and Tokens' splits by, in
 // v's order, and the key line's words for Tokens' splits.
 var (
@@ -25,10 +29,11 @@ var tokensPeriods = []views.TokensPeriod{views.TokensByDay, views.TokensByWeek, 
 
 // HistoryKept is what History's views show as the preferences kept them, the
 // accounts configured given: the sub-tab, Weeks' shape, and Tokens' period
-// and split, each by its name; and what the Year shows, an account by its
-// id, where it's one v cycles through, else a version by its name, for the
-// watch to check against those used once it reads them. What names nothing
-// there is, as an account no longer configured, shows as History opens.
+// and split, each by its name; and what the Year shows, all use, an account
+// by its id, where it's one v cycles through, else a version by its name,
+// for the watch to check against those used once it reads them. What names
+// nothing there is, as an account no longer configured, shows as History
+// opens.
 func HistoryKept(kept theme.HistoryPrefs, accounts config.Accounts) HistoryPage {
 	p := HistoryPage{
 		Shown:       HistoryView(placeAmong(kept.View, historyNames())),
@@ -37,7 +42,7 @@ func HistoryKept(kept theme.HistoryPrefs, accounts config.Accounts) HistoryPage 
 		TokensSplit: TokensSplit(placeAmong(kept.Tokens.Split, tokensSplitNames)),
 	}
 	switch {
-	case kept.Year == "":
+	case kept.Year == "" || kept.Year == allUse:
 	case len(accounts) > 1 && slices.Contains(accounts.IDs(), kept.Year):
 		p.YearAsk.Account = kept.Year
 	default:
@@ -51,7 +56,7 @@ func HistoryKept(kept theme.HistoryPrefs, accounts config.Accounts) HistoryPage 
 func (p HistoryPage) Kept() theme.HistoryPrefs {
 	return theme.HistoryPrefs{
 		View:   historyNames()[p.Shown],
-		Year:   cmp.Or(p.YearAsk.Version, p.YearAsk.Account),
+		Year:   cmp.Or(p.YearAsk.Version, p.YearAsk.Account, allUse),
 		Weeks:  weeksShapeNames[p.WeeksShape],
 		Tokens: theme.TokensPrefs{Period: p.TokensAsk.Period.Name(), Split: tokensSplitNames[p.TokensSplit]},
 	}
@@ -103,7 +108,7 @@ func (p HistoryPage) Period() string {
 func (p HistoryPage) Split() string {
 	switch p.Shown {
 	case HistoryYear:
-		return cmp.Or(p.yearShown(), "all")
+		return cmp.Or(p.yearShown(), allUse)
 	case HistoryWeeks:
 		return weeksShapeNames[p.WeeksShape]
 	case HistoryTokens:

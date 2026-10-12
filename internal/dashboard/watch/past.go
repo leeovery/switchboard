@@ -17,7 +17,7 @@ import (
 // sub-tab shown built of the days held; the days of the last 12 months, read
 // once a run, as History is first shown, and of the earliest calendar year
 // the Year steps back to that they don't reach, each brought up to today at
-// each look since; the day the ledger began, where a read found it; the day
+// each look since; the day the ledger began, where it tells it; the day
 // weeks start on; and the reads of the ledger asked for, one under way at a
 // time, and whether a look since the last asks for the days since.
 type historyTab struct {
@@ -43,16 +43,16 @@ func (d heldDays) held() bool {
 }
 
 // reach reports whether the days reach back to from: read from it or
-// before, or from where the ledger began, where that's known, as began is,
-// or before it, the ledger holding nothing earlier.
+// before, or from where the ledger began, where it's known, as began is, or
+// before it, the ledger holding nothing earlier.
 func (d heldDays) reach(from, began time.Time) bool {
 	return d.held() && (!from.Before(d.from) || !began.IsZero() && !began.Before(d.from))
 }
 
 // yearReadMsg is a read of the ledger's days for History, the asked'th: the
 // days of the last 12 months, or, back, of a calendar year stepped back to;
-// and where they begin after the day they were read from, as the ledger
-// does, where it begins: zero where it isn't found.
+// and the start of the ledger's first day, as LedgerStart tells it: zero
+// where the ledger doesn't.
 type yearReadMsg struct {
 	asked int
 	days  heldDays
@@ -101,7 +101,8 @@ func (m Model) asking() (Model, int) {
 // readYear reads the days the Year of the year given shows, 0 for the last
 // 12 months, else a calendar year, from its grid's first day, as YearFrom
 // has it, to today, at now, and prices them, as each is read once: where the
-// ledger holds nothing so far back, they begin where it does.
+// ledger holds nothing so far back, they begin where it does, which it
+// tells, where it's a LedgerStart, alongside.
 func (m Model) readYear(year int, now time.Time) (Model, tea.Cmd) {
 	from := views.YearFrom(views.YearAsk{Year: year}, now, m.cfg.WeekStarts)
 	in := views.HistoryInput{
@@ -111,20 +112,14 @@ func (m Model) readYear(year int, now time.Time) (Model, tea.Cmd) {
 	m, asked := m.asking()
 	l := m.cfg.Ledger
 	return m, func() tea.Msg {
-		days := l.Days(from)
-		return yearReadMsg{asked: asked, days: heldDays{past: views.NewPast(in, days), from: from, to: now}, back: year != 0, began: beganOf(days, from)}
+		msg := yearReadMsg{asked: asked, days: heldDays{past: views.NewPast(in, l.Days(from)), from: from, to: now}, back: year != 0}
+		if start, ok := l.(views.LedgerStart); ok {
+			if first, err := start.FirstDay(now); err == nil {
+				msg.began = first
+			}
+		}
+		return msg
 	}
-}
-
-// beganOf is the start of the first of the days read from from, where it's
-// a day after from's, as the ledger's reads begin where it does: zero where
-// they begin at from, the ledger holding it and maybe days before it too.
-func beganOf(days []ledger.Summary, from time.Time) time.Time {
-	if len(days) == 0 || days[0].Day <= dayfile.DateOf(from) {
-		return time.Time{}
-	}
-	start, _, _ := dayfile.Day(days[0].Day)
-	return start
 }
 
 // readSince reads the days since those held were read to, from the start of
@@ -258,21 +253,13 @@ func (t historyTab) reaching(year int) (views.Past, bool) {
 	return views.Past{}, false
 }
 
-// earliest is the earliest calendar year the Year steps back to, at now: the
-// ledger's first, where a read found where it began; else that of the
-// earliest day read, whose year it holds, and maybe those before it, which
-// stepping back to it reads; else, before any read, this one.
+// earliest is the earliest calendar year the Year steps back to, at now:
+// the ledger's first, where it tells where it began; else this one.
 func (t historyTab) earliest(now time.Time) int {
-	if !t.began.IsZero() {
-		return t.began.Year()
+	if t.began.IsZero() {
+		return now.Year()
 	}
-	first := now
-	for _, d := range []heldDays{t.last, t.back} {
-		if d.held() && d.from.Before(first) {
-			first = d.from
-		}
-	}
-	return first.Year()
+	return t.began.Year()
 }
 
 // historyKey acts on a key of History's, reporting false for a key it
