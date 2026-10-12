@@ -60,7 +60,7 @@ type Sent struct {
 func (t Traces) Read(lines []ledger.Held, now time.Time) Traces {
 	var sent []Sent
 	for _, l := range lines {
-		if l.Kind == ledger.KindMessage && l.Attempts > 0 {
+		if l.Upstream() {
 			sent = append(sent, Sent{Request: l.Request, Session: l.Session, Account: l.Account, At: l.At})
 		}
 	}
