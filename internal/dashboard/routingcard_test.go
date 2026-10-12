@@ -262,6 +262,12 @@ func TestTheOutcomeSaysWhatApplyingChangesInSentences(t *testing.T) {
 		{name: "m, none moving", card: RoutingCard{Picked: []string{"personal"}, Move: true, Cost: dollars(0)}, want: []string{
 			"New sessions go to personal. When it's full, the router chooses.",
 		}},
+		{name: "an account picked that's left unsent, named not", card: RoutingCard{Picked: []string{"personal", "side"}, Unsent: []string{"personal"}}, want: []string{
+			"New sessions go to side. When it's full, the router chooses.",
+		}},
+		{name: "every account picked left unsent, which is auto", card: RoutingCard{Picked: []string{"personal"}, Unsent: []string{"personal"}, Move: true, Moving: 4}, want: []string{
+			"The router chooses an account for each new session.",
+		}},
 		{name: "m, with auto picked, which moves nothing", card: RoutingCard{Move: true, Moving: 4, Cost: dollars(620)}, want: []string{
 			"The router chooses an account for each new session.",
 		}},

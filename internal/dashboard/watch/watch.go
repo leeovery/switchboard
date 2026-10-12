@@ -676,15 +676,11 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 }
 
 // resized takes in the size the terminal gives, keeping the size drawn at for
-// a width or height it gives as zero; lists help's keys afresh while it's
-// open, as the page behind it may scroll at the new size or no longer; and
-// closes the theme picker should it no longer fit.
+// a width or height it gives as zero; and closes the theme picker should it
+// no longer fit.
 func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	given := Size{Width: msg.Width, Height: msg.Height}
 	m.size = given.or(m.size)
-	if m.open == helpOpen {
-		m = m.relistHelp()
-	}
 	m, closed := m.fitPicker()
 	if m.size == given {
 		return m, closed
