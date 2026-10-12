@@ -76,9 +76,10 @@ type AccountNow struct {
 	Reserve, Cap, Floor float64
 	ReserveHolds        bool
 	// Pinned is set where the global pin names it, Next where new sessions go
-	// to it, which ▲ marks, and OutOfPool where the pool leaves it out, as
-	// the global pin names others, each as read.
-	Pinned, Next, OutOfPool bool
+	// to it, which ▲ marks, InPool where it's one of the pool's accounts, as
+	// Pool has them, and OutOfPool where the pool leaves it out, as the
+	// global pin names others, each as read.
+	Pinned, Next, InPool, OutOfPool bool
 	// TokenSet is set where its token is usable, Read where its usage was
 	// read, whatever windows it reported, and ReadAt is when: zero where it
 	// never was. Error says why its last read failed, cleaned, Failures are
@@ -278,6 +279,12 @@ func (m Moment) Text(sessions ...Session) string {
 	return m.doc.Text(m.Now, m.policy, sessions...)
 }
 
+// Destination says where a pin to the accounts with the given ids sends
+// sessions, as the document's Destination says it.
+func (m Moment) Destination(ids []string) string {
+	return m.doc.Destination(ids)
+}
+
 // Account is the account with the given id, reporting false where the
 // document has none.
 func (m Moment) Account(id string) (AccountNow, bool) {
@@ -375,7 +382,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 	an := AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.Floor(a), ReserveHolds: d.ReserveHolds(a),
-		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, OutOfPool: d.pooled() && !d.inPool(a.ID),
+		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Hold: s.stood.held, Held: s.stood.limited, LimitSince: eventAt(d.limitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,

@@ -119,16 +119,15 @@ type Figure struct {
 func RoutingRows(doc status.Document, sessions []status.Session, now time.Time, policy score.Policy) []RoutingRow {
 	m := doc.At(now, policy)
 	rows := []RoutingRow{{Key: "0", Name: "auto", Open: true, Pickable: true}}
-	for i, a := range doc.Accounts {
-		at := m.Accounts[i]
-		session, _ := at.Window(policy.Started)
-		week, _ := sharedWeek(at)
+	for i, a := range m.Accounts {
+		session, _ := a.Window(policy.Started)
+		week, _ := sharedWeek(a)
 		row := RoutingRow{
-			Account: a.ID, Name: name(at), Pickable: pickable(at),
+			Account: a.ID, Name: name(a), Pickable: pickable(a),
 			Session: figureOf(session), Week: figureOf(week),
 			Running: running(sessions, a.ID, now),
 		}
-		row.Reason, row.Capped = closedBy(doc, a, now, policy)
+		row.Reason, row.Capped = closedBy(a, now)
 		row.Open = row.Reason == ""
 		if i < numbered {
 			row.Key = strconv.Itoa(i + 1)
@@ -144,23 +143,22 @@ func pickable(a status.AccountNow) bool {
 	return a.TokenSet && !a.TokenRefused && !limited(a)
 }
 
-// closedBy says why doc's account a takes no new session at now, and
-// whether its own cap closed it rather than Anthropic: no usable token; a
-// limit holding back its every request, till it's back; its token refused;
-// or its cap holding it back from the router's own choices, till the
-// windows at it reset. It's "" where the account is open.
-func closedBy(doc status.Document, a status.Account, now time.Time, policy score.Policy) (reason string, capped bool) {
-	hold, held := a.Held(now, policy)
+// closedBy says why the account takes no new session as it stands, its times
+// in now's time zone, and whether its own cap closed it rather than
+// Anthropic: no usable token; a limit holding back its every request, till
+// it's back; its token refused; or its cap holding it back from the router's
+// own choices, till the windows at it reset. It's "" where the account is
+// open.
+func closedBy(a status.AccountNow, now time.Time) (reason string, capped bool) {
 	switch {
 	case !a.TokenSet:
 		return "no token", false
-	case held && hold.Every:
-		return till("at its limit", hold.Until, now), false
-	case a.TokenRefused(now):
-		return "token " + a.Refused.Answer(), false
-	case doc.CapHolds(a, now, policy):
-		back, _ := score.LetGo(a.Windows, a.Reserve, policy.IsShared, now)
-		return till("at its cap", back, now), true
+	case limited(a):
+		return till("at its limit", a.Hold.Until, now), false
+	case a.TokenRefused:
+		return "token " + a.Refusal.Answer(), false
+	case a.CapHolds:
+		return till("at its cap", a.CapBack, now), true
 	}
 	return "", false
 }

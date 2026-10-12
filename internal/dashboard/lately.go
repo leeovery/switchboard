@@ -45,17 +45,18 @@ func eventMark(s views.Sentence) span {
 // Its sentences are told only as its draw, its fold, or a layout made
 // afresh asks for them, as latelyTelling tells them.
 func (f Frame) latelySection(doc status.Document, now time.Time) section {
+	m := f.moment(doc, now)
 	told := latelyTelling(doc, now)
 	return section{
 		Section: SectionLately, least: linesRows(0),
 		lines: func() int { return len(told(mostLines)) },
 		draw: func(c *canvas, body bounds) {
-			f.drawLately(c, doc, told(body.rows), now, body)
+			f.drawLately(c, m, told(body.rows), body)
 		},
 		folded: func() line {
-			first := f.latelyLines(doc, told(1), now)
+			first := f.latelyLines(m, told(1))
 			if len(first) == 0 {
-				return f.quiet(doc)
+				return f.quiet(m)
 			}
 			return first[0]
 		},
@@ -85,33 +86,32 @@ func latelyTelling(doc status.Document, now time.Time) func(n int) []views.Sente
 
 // drawLately draws the sentences given, those body has rows for, a line each
 // from its top, each picked out while it's fresh; or, where there are none,
-// why LATELY has none.
-func (f Frame) drawLately(c *canvas, doc status.Document, sentences []views.Sentence, now time.Time, body bounds) {
+// why LATELY has none, of the document as m has it.
+func (f Frame) drawLately(c *canvas, m status.Moment, sentences []views.Sentence, body bounds) {
 	end := body.x + body.width
 	if len(sentences) == 0 {
-		f.quietly(c, doc, body.x, body.y, end)
+		f.quietly(c, m, body.x, body.y, end)
 		return
 	}
-	for i, l := range f.latelyLines(doc, sentences, now) {
+	for i, l := range f.latelyLines(m, sentences) {
 		c.line(body.x, body.y+i, l.fit(body.width))
 		f.freshen(c, sentences[i].ID, body.x, body.y+i, end)
 	}
 }
 
-// latelyLines are the sentences given as LATELY's lines at now: each its
-// time, in a column as wide as the widest, the first's in text.secondary and
-// the rest's in text.subtle; its mark; and its words, as saidLine draws them,
-// short on a phone.
-func (f Frame) latelyLines(doc status.Document, sentences []views.Sentence, now time.Time) []line {
-	m := f.moment(doc, now)
+// latelyLines are the sentences given as LATELY's lines at m's moment: each
+// its time, in a column as wide as the widest, the first's in text.secondary
+// and the rest's in text.subtle; its mark; and its words, as saidLine draws
+// them, short on a phone.
+func (f Frame) latelyLines(m status.Moment, sentences []views.Sentence) []line {
 	names := overviewNames(m)
 	column := 0
 	for _, s := range sentences {
-		column = max(column, len(status.Dated(now, s.At)))
+		column = max(column, len(status.Dated(m.Now, s.At)))
 	}
 	lines := make([]line, len(sentences))
 	for i, s := range sentences {
-		at := span{padded(status.Dated(now, s.At), column) + afterTime, dimInk}
+		at := span{padded(status.Dated(m.Now, s.At), column) + afterTime, dimInk}
 		if i == 0 {
 			at.ink = secondaryInk
 		}

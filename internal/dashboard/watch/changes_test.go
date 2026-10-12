@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 )
 
 // limitedWork is the router's document of three, work at the limit of its
@@ -354,5 +355,40 @@ func TestAWindowsWordsTheClockTurnsToOutArePickedOutAsItTicks(t *testing.T) {
 	h.tickUntil(start.Add(11 * time.Second))
 	if got, reads := h.turnedOut(), h.source.reads; !slices.Equal(got, []dashboard.Ref{workWeek}) || reads != 1 {
 		t.Errorf("once work's limit lifted, with %d reads, picked out %v, want work's week, out ~ as the second ticked, with no read since the first", reads, got)
+	}
+}
+
+// At each hard moment, the cues on an account's state and a window's words
+// compare the moments of the two looks they come between, each look's facts
+// its own moment's: a look as the document was built, then the clock ticking
+// on to the hard moment, picks out each account whose state differs between
+// the two moments, and each window whose words turn to out ~ between them.
+func TestTheCuesCompareTheMomentsOfTheirTwoLooksAtEachHardMoment(t *testing.T) {
+	for _, hm := range statustest.HardMoments(policy) {
+		t.Run(hm.Name, func(t *testing.T) {
+			built := hm.Doc.GeneratedAt
+			c := changes{}.looked(hm.Doc, router.Health{}, built, policy).ticked(hm.Doc, hm.Now, policy)
+			was, is := hm.Doc.At(built, policy), hm.Doc.At(hm.Now, policy)
+			var states []string
+			outs := map[dashboard.Ref]float64{}
+			for i, a := range is.Accounts {
+				then := was.Accounts[i]
+				if stateOf(a.Routing) != stateOf(then.Routing) {
+					states = append(states, a.ID)
+				}
+				for j, w := range a.Windows {
+					if w.RunsOut && !then.Windows[j].RunsOut {
+						outs[dashboard.Ref{Account: a.ID, Window: w.Key}] = 0
+					}
+				}
+			}
+			slices.Sort(states)
+			if got := slices.Sorted(maps.Keys(c.faded(hm.Now))); !slices.Equal(got, states) {
+				t.Errorf("states picked out: %v, want %v, as the two moments' differ", got, states)
+			}
+			if got := c.turnedOut(hm.Now); !maps.Equal(got, outs) {
+				t.Errorf("windows' words picked out: %v, want %v, as they turn to out ~ between the two moments", got, outs)
+			}
+		})
 	}
 }
