@@ -189,7 +189,7 @@ func TestTheChartsDrawNoReadingTheRoutersHistoryCoversAlready(t *testing.T) {
 		{At: sessionStart.Add(10 * time.Minute).UTC(), Utilization: 0.2},
 		{At: sessionStart.Add(40 * time.Minute), Utilization: 0.3},
 	}
-	if got := h.drawn(doc, start)[ref].Readings; !slices.EqualFunc(got, want, sameReading) {
+	if got := h.drawn(doc, start, policy)[ref].Readings; !slices.EqualFunc(got, want, sameReading) {
 		t.Errorf("the trail's readings are %+v, want %+v: in order, none from before the session, nor the router's last", got, want)
 	}
 }
@@ -205,7 +205,7 @@ func TestTheChartsDrawNoSessionThatHasLapsedSinceItWasRead(t *testing.T) {
 	}}
 	doc := document(account("work", "Work", session(0.2, 4*time.Hour), week(0.5)))
 
-	drawn := h.drawn(doc, start.Add(4*time.Hour+time.Second))
+	drawn := h.drawn(doc, start.Add(4*time.Hour+time.Second), policy)
 	if trail, ok := drawn[dashboard.Ref{Account: "work", Window: "5h"}]; ok {
 		t.Errorf("work's session draws %+v, want no trail, as it has lapsed", trail)
 	}
@@ -224,40 +224,44 @@ func heldSinceItReset(reset time.Time) status.Account {
 	}
 }
 
-// GRAPHS charts a window over its span at now, so a session the router's
-// limit holds, reset since it was read, is charted from its reset, with
-// nothing read of it since, however the router's history ran before.
-func TestGRAPHSChartsAHeldSessionResetSinceItWasReadOverItsNewSpan(t *testing.T) {
+// GRAPHS charts a window as it stands at now, so a session the router's limit
+// holds, reset since it was read, has lapsed, as the router's next document
+// has it: its chart is its name alone, with no axis and no history, however
+// the router's history ran before.
+func TestGRAPHSChartsAHeldSessionResetSinceItWasReadAsNotStarted(t *testing.T) {
 	h := routedHarness(t, routerDocument(heldSinceItReset(at(13, 0, 0))))
 	h.source.history = map[string]router.History{"5h": historyOf("work", at(8, 0, 0), 0.1, 0.2, 0.97)}
 	h.start()
 	h.deliver(h.press("g")...)
 
 	screen := h.view()
-	if !strings.Contains(screen, "5-HOUR ┄") || !regexp.MustCompile(`(?m)^ {14}13:00 +18:00$`).MatchString(screen) {
-		t.Errorf("the screen is\n%s\nwant GRAPHS to chart work's session from its reset, 13:00, to its next, 18:00", screen)
+	if !strings.Contains(screen, "5-HOUR ┄") || regexp.MustCompile(`(?m)^ {14}\d\d:\d\d +\d\d:\d\d$`).MatchString(screen) {
+		t.Errorf("the screen is\n%s\nwant GRAPHS to chart work's session by its name alone, with no axis, as it has lapsed", screen)
 	}
 	if !strings.Contains(screen, "no history yet") {
-		t.Errorf("the screen is\n%s\nwant work's session charted with no history yet, nothing read since it reset", screen)
+		t.Errorf("the screen is\n%s\nwant work's session charted with no history yet", screen)
 	}
 }
 
 // The readings history's files are read from the day the earliest span the
-// charts draw started: a session the router's limit holds, reset since it
-// was read, is charted from its reset, so the files of the day before, when
-// it started before it reset, aren't read.
-func TestTheReadingsHistorysFilesAreReadFromTheDayAHeldSessionResetSinceItWasReadStartedAgain(t *testing.T) {
+// charts draw started: a week reset since it was read is charted from its
+// reset, so the files of the days before, when it started before it reset,
+// aren't read.
+func TestTheReadingsHistorysFilesAreReadFromTheDayAWeekResetSinceItWasReadStartedAgain(t *testing.T) {
 	reset := time.Date(2026, 10, 14, 2, 0, 0, 0, time.Local)
-	work := heldSinceItReset(reset)
+	work := status.Account{
+		ID: "work", Label: "Work", TokenSet: true, FetchedAt: reset.Add(-time.Minute).UTC(),
+		Windows: []quota.Window{{Key: "7d", Label: "Week", Utilization: 0.6, ResetsAt: reset.UTC()}},
+	}
 	doc := status.Document{GeneratedAt: work.FetchedAt, Source: status.SourceRouter, Accounts: []status.Account{work}}
-	files := &filedReadings{held: []readings.Reading{filedOn("work", "5h", reset.Add(-4*time.Hour), 0.5)}}
+	files := &filedReadings{held: []readings.Reading{filedOn("work", "7d", reset.Add(-4*time.Hour), 0.5)}}
 
-	got := filedOf(files, doc, reset.Add(time.Second))
+	got := filedOf(files, doc, reset.Add(time.Second), policy)
 	if day := time.Date(2026, 10, 14, 0, 0, 0, 0, time.Local); !files.from.Equal(day) {
-		t.Errorf("the files are read from %v, want from %v, the day the session started again as it reset, not the day before", files.from, day)
+		t.Errorf("the files are read from %v, want from %v, the day the week started again as it reset, not the days before", files.from, day)
 	}
 	if len(got) != 0 {
-		t.Errorf("the files gave %+v, want nothing of the session from before it reset", got)
+		t.Errorf("the files gave %+v, want nothing of the week from before it reset", got)
 	}
 }
 

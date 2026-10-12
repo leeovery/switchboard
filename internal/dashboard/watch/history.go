@@ -143,21 +143,21 @@ func (m Model) readFiled(doc status.Document, now time.Time) (Model, tea.Cmd) {
 	}
 	m.history.asked++
 	m.history.filedSince = true
-	asked, files := m.history.asked, m.cfg.Readings
+	asked, files, policy := m.history.asked, m.cfg.Readings, m.cfg.Policy
 	return m, func() tea.Msg {
-		return filedMsg{asked: asked, got: filedOf(files, doc, now)}
+		return filedMsg{asked: asked, got: filedOf(files, doc, now, policy)}
 	}
 }
 
 // filedOf are the readings the readings history's files hold of doc's
 // windows, by account and window, read as the history verb reads them, from
 // the day the earliest of the spans the charts draw them over at now, as
-// ChartSpan has them, started.
-func filedOf(files views.Readings, doc status.Document, now time.Time) map[dashboard.Ref][]score.Reading {
+// ChartSpan has them, as policy judges the windows, started.
+func filedOf(files views.Readings, doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref][]score.Reading {
 	from := now
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
-			if start, _, ok := dashboard.ChartSpan(w, now); ok {
+			if start, _, ok := dashboard.ChartSpan(a, w.Key, now, policy); ok {
 				from = score.Earlier(from, start)
 			}
 		}
@@ -205,11 +205,12 @@ func (h history) answered(msg historyMsg) history {
 }
 
 // saw takes in the readings of doc's windows the charts draw at now, each
-// over its span then, as ChartSpan has it: each window's use as read, when
-// its account was read, one reading the same use again carrying the last on
-// to then; but none read before its span starts, as of one that has reset
-// since. A window's readings from before its span starts go.
-func (h history) saw(doc status.Document, now time.Time) history {
+// over its span then, as ChartSpan has it, as policy judges the windows: each
+// window's use as read, when its account was read, one reading the same use
+// again carrying the last on to then; but none read before its span starts,
+// as of one that has reset since, nor of one without a span, as of one not
+// started. A window's readings from before its span starts go.
+func (h history) saw(doc status.Document, now time.Time, policy score.Policy) history {
 	seen := maps.Clone(h.seen)
 	if seen == nil {
 		seen = make(map[dashboard.Ref][]score.Reading)
@@ -219,7 +220,7 @@ func (h history) saw(doc status.Document, now time.Time) history {
 			continue
 		}
 		for _, w := range a.Windows {
-			start, _, ok := dashboard.ChartSpan(w, now)
+			start, _, ok := dashboard.ChartSpan(a, w.Key, now, policy)
 			if !ok || a.FetchedAt.Before(start) {
 				continue
 			}
@@ -250,16 +251,16 @@ func record(readings []score.Reading, r score.Reading) []score.Reading {
 }
 
 // drawn is the history the charts draw of doc's windows at now, each over its
-// span then, as ChartSpan has it, its readings in order from when that
-// started, so none of one that has reset since it was read: those the router
-// gave, or where it gave none, those the readings history's files held; then
-// those the watch has seen after the last of them; or those the watch has
-// seen alone, where neither holds any.
-func (h history) drawn(doc status.Document, now time.Time) dashboard.Trails {
+// span then, as ChartSpan has it, as policy judges the windows, its readings
+// in order from when that started, so none of one that has reset since it was
+// read: those the router gave, or where it gave none, those the readings
+// history's files held; then those the watch has seen after the last of them;
+// or those the watch has seen alone, where neither holds any.
+func (h history) drawn(doc status.Document, now time.Time, policy score.Policy) dashboard.Trails {
 	drawn := make(dashboard.Trails)
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
-			start, _, ok := dashboard.ChartSpan(w, now)
+			start, _, ok := dashboard.ChartSpan(a, w.Key, now, policy)
 			if !ok {
 				continue
 			}

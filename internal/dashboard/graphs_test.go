@@ -269,11 +269,34 @@ func TestAWindowWithNoHistorySaysSo(t *testing.T) {
 
 func TestAWindowResetSinceItWasReadIsChartedFromItsReset(t *testing.T) {
 	work, _ := trio().Account("work")
-	window, _ := work.Window("5h")
+	window, _ := work.Window("7d")
 	before := Trail{Readings: []score.Reading{{At: window.ResetsAt.Add(-time.Hour), Utilization: 0.5}}}
-	got := chartOf(work, shownWindow{key: "5h", name: "5-hour"}, before, window.ResetsAt.Add(time.Hour))
+	got := chartOf(work, shownWindow{key: "7d", name: "Week"}, before, window.ResetsAt.Add(time.Hour), claudeLike)
 	if len(got.readings) != 0 || !got.start.Equal(window.ResetsAt) {
 		t.Errorf("charted from %v with %d readings, want from its reset, %v, with none of before it", got.start, len(got.readings), window.ResetsAt)
+	}
+}
+
+// GRAPHS charts a window as the router's next document has it: on the tick
+// after work's session resets, before it's read again, the session has
+// lapsed, and its chart is its name alone, with no history, as once the
+// router's next document has it empty, without a reset, rather than an axis
+// and even pace over a span it hasn't started.
+func TestOnTheTickASessionLapsesItsChartIsAsTheRoutersNextDocumentHasIt(t *testing.T) {
+	work, _ := trio().Account("work")
+	session, _ := work.Window("5h")
+	after := session.ResetsAt.Add(time.Second)
+	trail := Trail{Readings: []score.Reading{{At: session.ResetsAt.Add(-time.Hour), Utilization: 0.5}}}
+	shown := shownWindow{key: "5h", name: "5-hour"}
+	nord := Screen(builtin(t, "nord"))
+
+	tick := chartOf(work, shown, trail, after, claudeLike)
+	next := chartOf(work.AsOf(claudeLike, after), shown, trail, after, claudeLike)
+	if tick.spanned {
+		t.Errorf("the session is charted from %v over %v, want no span, as it has lapsed", tick.start, tick.length)
+	}
+	if got, want := chartIn(tick, nord, 30, 5).rows(nord), chartIn(next, nord, 30, 5).rows(nord); !slices.Equal(got, want) {
+		t.Errorf("on the tick, the chart is\n%s\nwant it as the router's next document has it\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 

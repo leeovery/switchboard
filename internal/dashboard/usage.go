@@ -195,14 +195,14 @@ func nameOfWindow(key, label string) string {
 // accountGauge is account a's window with the given key, standing as st says
 // at now, as its row draws it: empty, and nothing on it, where the account
 // has no usable token or nothing is read of the window; else filled to its
-// use, with its cap's mark and even pace's, and faded where it's stale.
+// use, with its cap's mark and even pace's, as st reads them, and faded where
+// it's stale.
 func accountGauge(a status.Account, key string, st status.WindowState, now time.Time) gauge {
-	w, _ := a.Window(key)
-	bar := usageBar{used: st.Used, capAt: 1 - a.Reserve, pace: w.Pace, stale: st.Kind == status.WindowStale}
+	bar := usageBar{used: st.Used, capAt: 1 - a.Reserve, pace: st.Pace, stale: st.Kind == status.WindowStale}
 	if drawsEmpty(st) {
 		bar = usageBar{empty: true}
 	}
-	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(st, w.Allowance, now), runsOut: st.Kind == status.WindowRunsOut}
+	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(st, now), runsOut: st.Kind == status.WindowRunsOut}
 }
 
 // drawsEmpty reports whether a window standing as st draws an empty bar:

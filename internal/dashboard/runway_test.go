@@ -334,6 +334,22 @@ func TestAWeekResettingBeyondTheWeekShownHasRoomAllWeek(t *testing.T) {
 	}
 }
 
+// A week reset since it was read, before it's read again, resets next a week
+// on, as the router's next read has it: beyond the week shown, it has room
+// all week, rather than resetting, ┃, at a time already past.
+func TestAWeekResetSinceItWasReadResetsNextAWeekOn(t *testing.T) {
+	work := readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.4, -2*time.Hour))
+	work.FetchedAt = now.Add(-3 * time.Hour).UTC()
+	rows, l := drawnRunway(runwayFrame(t, Week, 160, 26), routerDoc("", 1, work))
+
+	if got, want := strings.TrimSpace(rows[l.top+1]), "room all week  ·  resets Mon 11:12"; got != want {
+		t.Errorf("work's words read %q, want %q", got, want)
+	}
+	if strings.Contains(rows[l.top], resetGlyph) {
+		t.Errorf("work's lane reads %q, want no reset in the week shown", rows[l.top])
+	}
+}
+
 func TestALaneDrainingAllDaySaysWhenItRunsOut(t *testing.T) {
 	doc := routerDoc("", 1, readAccount("work", sessionOf(0.1, 4*time.Hour), weekRunningOut(2*day, 3*day)))
 	rows, l := drawnRunway(runwayFrame(t, Day, 160, 26), doc)

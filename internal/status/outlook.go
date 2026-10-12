@@ -96,15 +96,13 @@ func (d Document) AccountWorkedOut(id string, policy score.Policy) (Account, boo
 }
 
 // standing is how an account stands at a moment, as what's worked out of the
-// document reads it: the account, the moment and the policy that judges its
-// windows, which says which have lapsed, and aren't running; what limit holds
-// it, as Held says; whether its cap holds it back from every request, a
-// window every model shares having reached its reserve, which holds it back,
-// as ReserveHolds says; and whether its token is refused.
+// document reads it: which of its windows have lapsed, and aren't running, as
+// lapsedAt has them; what limit holds it, as Held says; whether its cap holds
+// it back from every request, a window every model shares having reached its
+// reserve, which holds it back, as ReserveHolds says; and whether its token
+// is refused.
 type standing struct {
-	account Account
-	at      time.Time
-	policy  score.Policy
+	lapsed  []string
 	held    Hold
 	limited bool
 	capped  bool
@@ -114,7 +112,7 @@ type standing struct {
 // standingAt is how doc's account a stands at the moment given, as policy
 // judges its windows.
 func (d Document) standingAt(a Account, at time.Time, policy score.Policy) standing {
-	s := standing{account: a, at: at, policy: policy, refused: a.TokenRefused(at)}
+	s := standing{lapsed: a.lapsedAt(at, policy), refused: a.TokenRefused(at)}
 	s.held, s.limited = a.Held(at, policy)
 	s.capped = d.ReserveHolds(a) && slices.ContainsFunc(score.AtReserve(a.Windows, a.Reserve, at), policy.IsShared)
 	return s
@@ -125,11 +123,67 @@ func (d Document) standingAt(a Account, at time.Time, policy score.Policy) stand
 // or its own window by that key has lapsed by then, as policy's HasLapsed
 // judges it. It isn't running, and reads empty, until a request starts it.
 func (a Account) HasLapsed(key string, at time.Time, policy score.Policy) bool {
-	if slices.Contains(a.Lapsed, key) {
-		return true
-	}
 	w, ok := a.Window(key)
-	return ok && policy.HasLapsed(w, at)
+	if !ok {
+		w = quota.Window{Key: key}
+	}
+	return a.lapsed(w, at, policy)
+}
+
+// lapsed reports whether the account's window w has lapsed at the moment
+// given, as HasLapsed judges it.
+func (a Account) lapsed(w quota.Window, at time.Time, policy score.Policy) bool {
+	return slices.Contains(a.Lapsed, w.Key) || policy.HasLapsed(w, at)
+}
+
+// lapsedAt are the keys of the account's windows that have lapsed at the
+// moment given, in Usage's order, as HasLapsed judges each.
+func (a Account) lapsedAt(at time.Time, policy score.Policy) []string {
+	var keys []string
+	for _, w := range a.Windows {
+		if a.lapsed(w, at, policy) {
+			keys = append(keys, w.Key)
+		}
+	}
+	return keys
+}
+
+// WindowAt is the account's window with the given key as it stands at the
+// moment given, as policy judges it: lapsed, as HasLapsed judges it, empty,
+// with no reset, as the router's AsOf has it, as it isn't running until a
+// request starts it; else as it runs then, as score.Current has it, so once
+// it has reset since it was read, empty, its next reset a length on. It
+// reports false where the account has no such window.
+func (a Account) WindowAt(key string, at time.Time, policy score.Policy) (quota.Window, bool) {
+	w, ok := a.Window(key)
+	if !ok {
+		return quota.Window{}, false
+	}
+	return a.asItStands(w, at, policy), true
+}
+
+// asItStands is the account's window w as it stands at the moment given, as
+// WindowAt has it.
+func (a Account) asItStands(w quota.Window, at time.Time, policy score.Policy) quota.Window {
+	return windowAsOf(w, a.lapsed(w, at, policy), at)
+}
+
+// windowAsOf is window w as it stands at at, as WindowAt has it, lapsed or
+// not as given.
+func windowAsOf(w quota.Window, lapsed bool, at time.Time) quota.Window {
+	if lapsed {
+		return quota.Window{Key: w.Key, Label: w.Label}
+	}
+	return score.Current(w, at)
+}
+
+// paceOf is the even pace of a window standing at now as stands, as WindowAt
+// has a window: where even use across it would have put its use as of when
+// doc was read, as readAt has it, so it stays put while the document does,
+// as its projection does, and 0 where it reset after then; reporting false
+// where it isn't running, or its length or reset isn't known.
+func (d Document) paceOf(stands quota.Window, now time.Time) (float64, bool) {
+	return score.Elapsed(stands, d.readAt(now))
 }
 
 // idleAt reports whether the account is idle at the moment given: its window
@@ -139,9 +193,15 @@ func (a Account) idleAt(at time.Time, policy score.Policy) bool {
 }
 
 // running reports whether the account's window with the given key is
-// running: it hasn't lapsed, as HasLapsed judges it.
+// running: it hasn't lapsed, as lapsedAt judged it.
 func (s standing) running(key string) bool {
-	return !s.account.HasLapsed(key, s.at, s.policy)
+	return !slices.Contains(s.lapsed, key)
+}
+
+// stands is the account's window w as it stands at at, standing as s says,
+// as WindowAt has it.
+func (s standing) stands(w quota.Window, at time.Time) quota.Window {
+	return windowAsOf(w, !s.running(w.Key), at)
 }
 
 // every reports whether a limit holds the account back from every request.
@@ -203,10 +263,9 @@ type member struct {
 }
 
 // PoolAt is the accounts new sessions can go to, as one, as they stand at
-// now, as policy judges their windows: the room each has left, and what its
-// cap or a limit holds back, judged then, where the document's Pool is
-// judged as of when it was built; their windows' even paces the document's
-// own, as each account's are.
+// now, as policy judges their windows: the room each has left, what its cap
+// or a limit holds back, and their windows' even paces, as paceOf has them,
+// judged then, where the document's Pool is judged as of when it was built.
 func (d Document) PoolAt(now time.Time, policy score.Policy) Pool {
 	standings := make([]standing, len(d.Accounts))
 	for i, a := range d.Accounts {
@@ -216,8 +275,8 @@ func (d Document) PoolAt(now time.Time, policy score.Policy) Pool {
 }
 
 // pool is the accounts new sessions can go to at at, as one, each standing
-// as standings says, in the accounts' order, their windows' even paces as
-// measured says: zero with one account, whose own windows say the same.
+// as standings says, in the accounts' order: zero with one account, whose own
+// windows say the same.
 func (d Document) pool(standings []standing, at time.Time, policy score.Policy) Pool {
 	members := d.poolMembers(standings)
 	if len(d.Accounts) < 2 || len(members) == 0 {
@@ -254,9 +313,9 @@ func (d Document) poolMembers(standings []standing) []member {
 }
 
 // poolWindow is the window with the given key of the members given, as one,
-// at at: the room each has left in it, as poolRoom says, summed; what that leaves
-// its bar filled to; and their even paces in it, where it's running,
-// averaged.
+// at at: the room each has left in it, as poolRoom says, summed; what that
+// leaves its bar filled to; and their even paces in it, as it stands then,
+// where it's running, as paceOf has each, averaged.
 func (d Document) poolWindow(members []member, key string, at time.Time, policy score.Policy) PoolWindow {
 	pw := PoolWindow{Key: key}
 	var paces float64
@@ -268,8 +327,8 @@ func (d Document) poolWindow(members []member, key string, at time.Time, policy 
 		}
 		pw.Label = cmp.Or(pw.Label, w.Label)
 		pw.Room += d.poolRoom(m, w, at, policy)
-		if w.Pace != nil {
-			paces, running = paces+*w.Pace, running+1
+		if pace, ok := d.paceOf(m.standing.stands(w, at), at); ok {
+			paces, running = paces+pace, running+1
 		}
 	}
 	pw.Used = 1 - pw.Room/float64(len(members))

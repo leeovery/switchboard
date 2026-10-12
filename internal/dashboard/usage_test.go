@@ -393,6 +393,36 @@ func TestAStaleReadingShowsAsItWasLastReadFaded(t *testing.T) {
 	}
 }
 
+// USAGE marks a window's even pace as it stands: on the tick after work's
+// session resets, before it's read again, the session has lapsed, and its
+// bar has no pace mark, as once the router's next document has it empty,
+// without a reset, rather than the mark the document worked out at its end.
+func TestOnTheTickASessionLapsesUSAGEMarksNoEvenPaceOnIt(t *testing.T) {
+	doc := threeRouted()
+	work := doc.Accounts[0]
+	session, _ := work.Window("5h")
+	after := session.ResetsAt.Add(time.Second)
+
+	if g := accountGauge(work, "5h", doc.WindowStatesOf(work, after, claudeLike).Of("5h"), after); g.bar.pace != nil {
+		t.Errorf("work's session is marked at even pace %v, want no mark, as it has lapsed", *g.bar.pace)
+	}
+}
+
+// USAGE words a window's allowance as it stands, as of when the document was
+// read: on the tick after work's week resets, before it's read again, the
+// week counts from empty, its allowance its whole room to its next reset, a
+// week on, not the room it had left before, till a time already past.
+func TestOnTheTickAWeekResetsUSAGEWordsItsAllowanceFromEmpty(t *testing.T) {
+	doc := routerDoc("work", 0, readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.6, 2*time.Hour)))
+	work := doc.Accounts[0]
+	after := now.Add(2*time.Hour + time.Second)
+
+	g := accountGauge(work, "7d", doc.WindowStatesOf(work, after, claudeLike).Of("7d"), after)
+	if got, want := g.words.full.plain(), "14%/day till Mon 15:12"; got != want {
+		t.Errorf("work's week's words read %q, want %q", got, want)
+	}
+}
+
 func TestThePoolIsLastAndCountsTheAccountsNewSessionsCanGoTo(t *testing.T) {
 	pinned := trio(pinnedTo("personal", "side"))
 	rows := printed(pinned, 160, ByWindow)

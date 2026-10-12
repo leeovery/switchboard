@@ -44,13 +44,22 @@ const (
 // WindowState is how a window of an account stands at a moment.
 type WindowState struct {
 	Kind WindowKind
-	// Used is how much of the window is used, as it runs at the moment, as
-	// score.Current has it: none once it has reset since it was read, stale
-	// or not; none of one not started; and none where nothing is read of it.
-	// It's the one reading of the window that whatever draws its use draws.
+	// Used is how much of the window is used, as it stands at the moment, as
+	// Account.WindowAt has it: none once it has reset since it was read,
+	// stale or not; none of one not started; and none where nothing is read
+	// of it. Pace is its even pace, of the window so standing, as of when the
+	// document was read, as paceOf has it: nil where it isn't running, its
+	// reset isn't known, or nothing is read of it. They're the one reading of
+	// the window that whatever draws its use or its pace draws.
 	Used float64
+	Pace *float64
 	// At is when what Kind says comes, or came: zero where Kind says no time.
 	At time.Time
+	// Allowance is what can be spent of an open window, so standing, and
+	// still last to its reset, At, as of when the document was read, as its
+	// pace is: counting from empty once it has reset since it was read. It's
+	// zero of any other kind, and where nothing can be.
+	Allowance quota.Allowance
 }
 
 // WindowStates are how the windows of an account of a document stand at a
@@ -68,7 +77,8 @@ type WindowStates struct {
 
 // WindowStatesOf are how doc's account a's windows stand at now, as policy
 // judges them, as usage's words say them. Their projections go from when doc
-// was built, as RunsOut's does, and so do the resets their allowances run to.
+// was built, as RunsOut's does, and so do their even paces and allowances, of
+// the windows as they stand at now.
 func (d Document) WindowStatesOf(a Account, now time.Time, policy score.Policy) WindowStates {
 	hold, held := a.Held(now, policy)
 	s := WindowStates{doc: d, account: a, now: now, policy: policy, hold: hold, held: held}
@@ -93,34 +103,39 @@ func (s WindowStates) Of(key string) WindowState {
 	case !reported || a.FetchedAt.IsZero():
 		return WindowState{Kind: WindowUnread}
 	}
-	kind, at := s.standing(key, w)
-	if kind == WindowNotStarted {
-		return WindowState{Kind: kind}
+	stands := a.asItStands(w, s.now, s.policy)
+	st := WindowState{Used: stands.Utilization}
+	st.Kind, st.At = s.standing(key, w, stands)
+	if pace, ok := s.doc.paceOf(stands, s.now); ok {
+		st.Pace = &pace
 	}
-	return WindowState{Kind: kind, Used: score.Current(w, s.now).Utilization, At: at}
+	if st.Kind == WindowOpen {
+		st.Allowance, _ = score.AllowanceOf(stands, s.doc.Floor(a), s.doc.readAt(s.now))
+	}
+	return st
 }
 
 // standing is the kind of the account's window w, with the given key, read,
-// as it stands, and when what the kind says comes: the first that holds of a
-// limit, its token refused, not started, its last read failed, the cap,
-// running out, and open. It projects the window only where none before
-// running out holds.
-func (s WindowStates) standing(key string, w quota.Window) (WindowKind, time.Time) {
+// as it stands, as stands, and when what the kind says comes: the first that
+// holds of a limit, its token refused, not started, its last read failed, the
+// cap, back at its reset, running out, and open, its allowance running to its
+// reset. It projects the window only where none before running out holds.
+func (s WindowStates) standing(key string, w, stands quota.Window) (WindowKind, time.Time) {
 	d, a, now := s.doc, s.account, s.now
 	switch {
 	case s.held && s.hold.Holds(key):
 		return WindowLimited, s.hold.Lifts(key)
 	case a.TokenRefused(now):
 		return WindowStale, a.FetchedAt
-	case a.HasLapsed(key, now, s.policy):
+	case a.lapsed(w, now, s.policy):
 		return WindowNotStarted, time.Time{}
 	case a.Error != "":
 		return WindowStale, a.FetchedAt
 	case slices.Contains(s.capped, key):
-		return WindowCapped, w.ResetsAt
+		return WindowCapped, stands.ResetsAt
 	}
 	if out, ok := d.RunsOut(a, w, now); ok {
 		return WindowRunsOut, out.At
 	}
-	return WindowOpen, score.Current(w, d.readAt(now)).ResetsAt
+	return WindowOpen, stands.ResetsAt
 }

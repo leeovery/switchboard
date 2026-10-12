@@ -200,25 +200,26 @@ type lane struct {
 }
 
 // laneOf is doc's account a's lane at now, its room going by the windows the
-// span counts, as counts says: without a usable token, as its state says, or
-// with its usage unreadable, as Unread says, whatever holds it back, it has
-// none all along, and nothing is known of one not read yet. Read, it has
-// none while a window counted holds it back, as causesOf says, nor, over the
-// day, while the upstream refuses its every request; and from now, it's
-// heading to run out until the last of those windows that run out before
-// they reset does.
+// span counts, as counts says: nothing is known of one not read yet; without
+// a usable token, as NoToken says, or with its usage unreadable, as Unread
+// says, whatever holds it back, it has none all along, its windows standing
+// as last read, which its week's badge and reset draw. Read, it has none
+// while a window counted holds it back, as causesOf says, nor, over the day,
+// while the upstream refuses its every request; and from now, it's heading
+// to run out until the last of those windows that run out before they reset
+// does.
 func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane {
-	l := lane{account: a, place: place(doc, a.ID), states: doc.WindowStatesOf(a, now, f.Policy), known: true}
-	state := doc.StateOf(a, now, f.Policy)
-	if unread, ok := a.Unread(); ok && a.TokenSet {
-		state = unread
+	l := lane{account: a, place: place(doc, a.ID)}
+	state, unknown := a.NoToken()
+	if !unknown {
+		state, unknown = a.Unread()
 	}
-	switch state.Condition {
-	case status.Tokenless, status.Unreadable:
-		l.stretches = merged([]cause{{says: state.Says, then: state.Then}})
+	if unknown && state.Condition == status.Unread {
 		return l
-	case status.Unread:
-		l.known = false
+	}
+	l.known, l.states = true, doc.WindowStatesOf(a, now, f.Policy)
+	if unknown {
+		l.stretches = merged([]cause{{says: state.Says, then: state.Then}})
 		return l
 	}
 	var causes []cause
