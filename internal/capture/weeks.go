@@ -96,10 +96,14 @@ type weekClock struct {
 	hour, minute int
 }
 
-// weekResets are when each account's week resets, as the frames have it.
+// weekResets are when each account's week resets, as the frames have it, but
+// spare's: the Overview's frames reset it on Thursdays at 18:00 with their
+// even pace two days in, and History's frame of ten draws its peak of the
+// week of 21 September, which it can't have ended by now where its week runs
+// to a Thursday evening, so it resets on Tuesdays at 14:00.
 var weekResets = map[string]weekClock{
 	"work": {time.Sunday, 21, 0}, "personal": {time.Sunday, 2, 0}, "side": {time.Monday, 10, 0},
-	"client": {time.Sunday, 23, 0}, "spare": {time.Thursday, 18, 0}, "lab": {time.Monday, 8, 0},
+	"client": {time.Sunday, 23, 0}, "spare": {time.Tuesday, 14, 0}, "lab": {time.Monday, 8, 0},
 	"team": {time.Saturday, 22, 0}, "extra": {time.Wednesday, 7, 0}, "ops": {time.Monday, 14, 0},
 	"studio": {time.Sunday, 6, 0},
 }

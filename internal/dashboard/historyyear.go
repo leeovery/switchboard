@@ -74,8 +74,9 @@ func (f Frame) historyYear(c *canvas, top int) {
 
 // phone draws the Year as a phone has it: the latest weeks that fit, under
 // their months' names; the key cut short; the numbers, the first six, in two
-// columns of three; and BY MONTH, the last six months, its heads on its own
-// row.
+// columns of three, the first's cut short a cell before the second's, as
+// limits of two windows run past it; and BY MONTH, the last six months, its
+// heads on its own row.
 func (y yearDrawn) phone(c *canvas, top int) {
 	weeks := y.page.Weeks
 	first := max(len(weeks)-yearPhoneWeeks, 0)
@@ -84,11 +85,12 @@ func (y yearDrawn) phone(c *canvas, top int) {
 	y.heading(c, 0, top+yearPhoneNumbersRow)
 	figures := y.figures()
 	for i, figure := range figures[:min(len(figures), 2*yearPhoneFigures)] {
-		x, row := 0, top+yearPhoneNumbersRow+1+i
-		if i >= yearPhoneFigures {
-			x, row = yearPhoneSecondX, row-yearPhoneFigures
+		l := slices.Concat(line{{padded(figure.short, yearPhoneLabelCells), dimInk}}, figure.value)
+		if row := top + yearPhoneNumbersRow + 1 + i; i < yearPhoneFigures {
+			c.line(0, row, l.fit(yearPhoneSecondX-1))
+		} else {
+			c.line(yearPhoneSecondX, row-yearPhoneFigures, l)
 		}
-		c.line(x, row, slices.Concat(line{{padded(figure.short, yearPhoneLabelCells), dimInk}}, figure.value))
 	}
 	y.byMonth(c, top+yearPhoneByMonthRow, byMonthPhone)
 }

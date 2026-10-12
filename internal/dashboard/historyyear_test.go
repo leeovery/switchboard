@@ -474,6 +474,19 @@ func TestByMonthsNotesAndTheRowBefore(t *testing.T) {
 	}
 }
 
+// On a phone, the numbers' first column is cut short a cell before the
+// second's, with an ellipsis, where the limits of two windows would run into
+// it.
+func TestAPhonesFirstColumnOfNumbersIsCutShortOfTheSecond(t *testing.T) {
+	page := plainYear()
+	page.Numbers.Limits = map[string]int{"5h": 412, "7d": 3}
+	rows := textOf(historyDrawn(yearFrame(t, 52, 35, views.YearAsk{}, page)).rows(Look{}))
+	i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "limits") })
+	if want := "limits    5-hour ×412 · … against   3.8×"; i < 0 || rows[i] != want {
+		t.Errorf("the phone's limits row reads %q, want %q", rows[max(i, 0)], want)
+	}
+}
+
 // A phone's key writes a thousand as k.
 func TestAPhonesKeyWritesAThousandAsK(t *testing.T) {
 	for n, want := range map[int]string{450: "450", 1000: "1k", 1250: "1.25k", 12000: "12k"} {

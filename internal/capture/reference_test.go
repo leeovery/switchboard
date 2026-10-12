@@ -26,8 +26,6 @@ var owed = []string{
 	"accounts-compare-160", "accounts-compare-bad-hour-160", "accounts-compare-month-160", "accounts-compare-ten-160",
 	"accounts-detail-all-160", "accounts-detail-limit-160", "accounts-detail-one-160", "accounts-detail-sessions-160",
 	"accounts-detail-work-160", "accounts-phone-compare-52", "accounts-phone-detail-52",
-	"history-days-160", "history-days-ten-160", "history-phone-year-52", "history-tokens-160", "history-tokens-models-160",
-	"history-weeks-160", "history-weeks-columns-160", "history-weeks-ten-160", "history-year-160", "history-year-opus-160",
 	"log-event-details-160", "log-events-160", "log-events-filter-160", "log-not-live-160", "log-request-details-160",
 	"log-requests-160", "log-requests-filter-160", "log-requests-filtered-160", "log-requests-phone-52",
 	"routing-session-160",
@@ -96,10 +94,16 @@ func blankCells(n, from, to int) passing {
 // in: from an eighth of a cell to a whole one.
 const eighths = "▁▂▃▄▅▆▇█"
 
+// drawnIn passes over row n's cells from and to, where the frame draws the
+// glyphs given, and blanks.
+func drawnIn(n, from, to int, glyphs string) passing {
+	return passing{row: n, from: from, to: to, glyphs: glyphs}
+}
+
 // traced passes over row n's cells from and to, where the frame draws a
 // trace.
 func traced(n, from, to int) passing {
-	return passing{row: n, from: from, to: to, glyphs: eighths}
+	return drawnIn(n, from, to, eighths)
 }
 
 // charted passes over the cells from and to of rows top to bottom, where the
@@ -108,7 +112,7 @@ func traced(n, from, to int) passing {
 func charted(top, bottom, from, to int) []passing {
 	var p []passing
 	for n := top; n <= bottom; n++ {
-		p = append(p, passing{row: n, from: from, to: to, glyphs: eighths + "╌·│"})
+		p = append(p, drawnIn(n, from, to, eighths+"╌·│"))
 	}
 	return p
 }
@@ -120,12 +124,69 @@ const (
 	overviewKeys = "tab views     u usage"
 	// accountsKeys starts the key line of Accounts wider than a phone.
 	accountsKeys = "tab views   [ ] view     p period"
-	// historyKeys starts the key line of History wider than a phone.
-	historyKeys = "tab views   [ ] view   p period"
 	// pinnedRouting starts ROUTING's heading under a pin, which ends with
 	// its key back to auto, 0.
 	pinnedRouting = "ROUTING   pinned to"
 )
+
+// historyKeys passes over History's key line wider than a phone, row 37, from
+// column 24, where the frames' p period starts and the dashboard's keys
+// leave a cell more after [ ] view, to column to, the last cell either
+// draws otherwise: tab views and [ ] view, and the help and quit's keys
+// where both end the line there, are held.
+func historyKeys(to int) passing {
+	return cellsOf(37, 24, to, "p period")
+}
+
+// currentMonth passes over where the frames light September, the month
+// before the moment drawn, where the design lights today's, October: over
+// the grid, September's name on row grid from column september, lit, and
+// October's, eight columns on, left out; and in BY MONTH, September's name on
+// row byMonth from column name, bold, and October's under it, not.
+func currentMonth(grid, september, byMonth, name int) []passing {
+	return []passing{
+		cellsOf(grid, september, september+2, "Sep"), blankCells(grid, september+8, september+10),
+		cellsOf(byMonth, name, name+2, "Sep"), cellsOf(byMonth+1, name, name+2, "Oct"),
+	}
+}
+
+// unrouted passes over the ▲ after side, at column 6 of row n, where new
+// sessions go, which the frames mark, where History shows no routing.
+func unrouted(n int) passing {
+	return cellsOf(n, 6, 6, "▲")
+}
+
+// squares passes over the Year's squares, ■, on row n at the columns given,
+// a cell each, which the frame shades from its generator's days, where the
+// world's records shade them otherwise.
+func squares(n int, columns ...int) []passing {
+	var p []passing
+	for _, c := range columns {
+		p = append(p, drawnIn(n, c, c, "■"))
+	}
+	return p
+}
+
+// days passes over the days of Days' strip on row n from each of the columns
+// given, 2 cells each, which the frame shades from its generator's days,
+// where the world's records shade them otherwise: blank in the frame.
+func days(n int, firsts ...int) []passing {
+	var p []passing
+	for _, c := range firsts {
+		p = append(p, blankCells(n, c, c+1))
+	}
+	return p
+}
+
+// marked passes over days of Days' strip as days does, where the frame marks
+// each ▪, a day it hit a 5-hour limit.
+func marked(n int, firsts ...int) []passing {
+	var p []passing
+	for _, c := range firsts {
+		p = append(p, drawnIn(n, c, c+1, "▪"))
+	}
+	return p
+}
 
 // period passes over the period on a heading row 160 wide, its key, p, at
 // column p: the period and its key, with the rule's last two cells, as the
@@ -312,18 +373,115 @@ func extrasPaces(c int) []passing {
 // extras, client, spare and lab, in the compact matrix at 160 columns, its
 // bars from column c, 17 or, of ten, 18, which the frames typed and their
 // world gives otherwise: client's 5-hour window's words and its weeks'
-// allowances; spare's 5-hour window's rate, and its weeks' even paces and
-// words, as its world has them reset today at 18:00; and lab's 5-hour
+// allowances; spare's 5-hour window's rate, and its weeks' words, as its
+// world has them reset on Tuesdays at 14:00; and lab's 5-hour
 // window's even pace, its window starting later in its world, its week's
 // words and its Fable week's allowance.
 func extrasFigures(c int) []passing {
 	return []passing{
 		cellsOf(15, c+23, c+38, "16%/h till 17:40"), cellsOf(15, c+71, c+77, "14%/day"), cellsOf(15, c+119, c+125, "25%/day"),
-		cellsOf(17, c+23, c+27, "19%/h"), cellsOf(17, c+53, c+63, "┃"), cellsOf(17, c+71, c+92, "20%/day till Thu 18:00"),
-		cellsOf(17, c+101, c+111, "┃"), cellsOf(17, c+119, c+140, "20%/day till Thu 18:00"),
+		cellsOf(17, c+23, c+27, "19%/h"), cellsOf(17, c+71, c+92, "20%/day till Thu 18:00"), cellsOf(17, c+119, c+140, "20%/day till Thu 18:00"),
 		cellsOf(19, c+9, c+10, "┃"), cellsOf(19, c+71, c+92, "11%/day till Mon 08:00"), cellsOf(19, c+119, c+125, "20%/day"),
 	}
 }
+
+// The Year's squares its frames shade otherwise than the world's records, of
+// all use, weekdays alone, the frames' weekends shaded as the world's are;
+// filtered to Opus 5.5; and the latest 22 weeks of all use on a phone.
+var (
+	yearSquares = slices.Concat(
+		squares(8, 21, 29, 37, 41, 59, 81, 89, 111, 119),
+		squares(9, 33, 39, 43, 45, 47, 51, 53, 59, 67),
+		squares(10, 21, 39, 41, 75, 87, 103, 115),
+		squares(11, 15, 35, 37, 41, 49, 73, 77, 83, 111),
+		squares(12, 27, 29, 35, 51, 73, 95, 103, 105, 117),
+	)
+	opusSquares = slices.Concat(
+		squares(8, 109, 111, 119), squares(9, 103, 117), squares(10, 103, 109, 115), squares(11, 109, 111, 115),
+		squares(12, 91, 97, 103, 105, 109, 115),
+	)
+	phoneSquares = slices.Concat(squares(10, 9, 17, 39, 47), squares(12, 15, 31, 43), squares(13, 5, 11, 39), squares(14, 23, 31, 33, 45))
+)
+
+// The days of Days' strips its frames shade otherwise than the world's
+// records, by the first of each day's 2 columns: BY MODEL's, rows 11 to 17, a
+// family every other row, and BY ACCOUNT's, from row 22, of three accounts,
+// and of ten, its first six.
+var (
+	daysStrips = slices.Concat(
+		days(11, 15, 21, 25, 27, 30, 57, 66, 72, 87, 98, 100, 102, 113, 117, 120),
+		days(13, 17, 25, 27, 47, 51, 57, 60, 64, 66, 72, 77, 94, 96, 98, 100, 105, 107, 117, 124, 126),
+		days(15, 17, 25, 27, 32, 34, 42, 47, 49, 51, 57, 62, 72, 79, 83, 92, 98, 100, 105, 113, 117, 120, 122, 124, 126),
+		days(17, 25, 27, 30, 32, 51, 60, 68, 72, 79, 92, 100, 107, 113, 117, 120, 122, 124),
+		days(22, 21, 25, 27, 40, 55, 57, 72, 85, 87, 100, 115, 117, 120, 124), marked(22, 107, 126),
+		days(24, 17, 21, 25, 27, 32, 34, 49, 51, 53, 64, 72, 75, 100, 115, 117, 120, 124), marked(24, 79),
+		days(26, 15, 17, 19, 21, 23, 25, 27, 32, 34, 38, 42, 45, 49, 57, 64, 66, 68, 72, 83, 87, 96, 100, 102, 109, 117),
+	)
+	daysTenStrips = slices.Concat(
+		days(11, 15, 21, 25, 27, 53, 57, 72, 87, 100, 102, 117, 126),
+		days(13, 25, 27, 32, 36, 47, 49, 57, 60, 66, 72, 75, 77, 79, 94, 100, 105, 107, 117, 120, 122, 124, 126),
+		days(15, 17, 25, 27, 32, 34, 47, 49, 72, 100, 107, 109, 117, 120, 122, 126),
+		days(17, 25, 27, 62, 72, 77, 79, 100, 105, 107, 117, 122, 124, 126),
+		days(22, 25, 27, 40, 55, 57, 70, 72, 85, 87, 100, 115, 117, 124), marked(22, 23, 30, 38, 122, 126),
+		days(24, 25, 27, 45, 72, 81, 85, 96, 100, 113, 115, 117, 124, 126),
+		days(26, 17, 23, 25, 27, 30, 42, 53, 57, 60, 62, 72, 81, 85, 87, 90, 98, 100, 102, 105, 113, 115, 117, 126),
+		marked(26, 47, 79),
+		days(28, 21, 23, 25, 27, 34, 36, 40, 42, 45, 53, 55, 57, 70, 72, 85, 100, 113, 117, 120, 122, 126), marked(28, 68),
+		days(30, 17, 25, 27, 30, 32, 34, 42, 51, 55, 57, 60, 62, 64, 66, 72, 79, 81, 85, 87, 98, 100, 102, 105, 107, 109, 111,
+			113, 115, 117),
+		days(32, 19, 21, 25, 27, 40, 51, 53, 55, 70, 72, 85, 100, 117),
+	)
+)
+
+// The figures of Tokens' periods its frames give otherwise than the world's
+// records, each a figure or a run of them: by account, and by model.
+var (
+	byAccountFigures = []passing{
+		cellsOf(9, 39, 66, "4.2M"), cellsOf(9, 77, 80, "615M"), cellsOf(9, 91, 94, "660M"),
+		cellsOf(10, 39, 66, "1.2M"), cellsOf(10, 77, 80, "178M"), cellsOf(10, 91, 94, "191M"),
+		cellsOf(11, 39, 42, "1.6M"), cellsOf(11, 62, 66, "14.2M"), cellsOf(11, 77, 80, "241M"), cellsOf(11, 91, 94, "258M"),
+		cellsOf(12, 51, 80, "0.9M"), cellsOf(12, 91, 94, "211M"),
+		cellsOf(14, 39, 110, "6.7M"),
+		cellsOf(15, 39, 100, "3.5M"),
+		cellsOf(16, 15, 15, "4"), cellsOf(16, 39, 100, "2.1M"),
+		cellsOf(17, 63, 66, "9.8M"), cellsOf(17, 77, 80, "151M"), cellsOf(17, 91, 100, "162M"),
+		cellsOf(19, 39, 80, "5.9M"), cellsOf(19, 91, 110, "934M"),
+		cellsOf(20, 39, 100, "2.9M"),
+		cellsOf(21, 15, 15, "4"), cellsOf(21, 39, 100, "2.2M"),
+		cellsOf(22, 39, 42, "0.8M"), cellsOf(22, 63, 66, "7.7M"), cellsOf(22, 77, 80, "118M"), cellsOf(22, 91, 100, "127M"),
+		cellsOf(24, 39, 110, "6.1M"),
+		cellsOf(25, 39, 100, "3.5M"),
+		cellsOf(26, 15, 15, "4"), cellsOf(26, 39, 66, "1.7M"), cellsOf(26, 77, 80, "252M"), cellsOf(26, 91, 100, "270M"),
+		cellsOf(27, 39, 66, "0.9M"), cellsOf(27, 77, 80, "131M"), cellsOf(27, 91, 100, "141M"),
+		cellsOf(29, 39, 110, "5.7M"),
+		cellsOf(30, 39, 100, "3.3M"),
+		cellsOf(31, 15, 15, "4"), cellsOf(31, 39, 66, "1.9M"), cellsOf(31, 77, 100, "281M"),
+		cellsOf(32, 15, 15, "4"), cellsOf(32, 39, 42, "0.5M"), cellsOf(32, 63, 100, "4.9M"),
+	}
+	byModelFigures = []passing{
+		cellsOf(9, 39, 66, "4.2M"), cellsOf(9, 77, 80, "615M"), cellsOf(9, 91, 94, "660M"),
+		cellsOf(10, 15, 23, "work side"), cellsOf(10, 39, 100, "1.8M"),
+		cellsOf(11, 39, 42, "0.2M"), cellsOf(11, 63, 99, "1.5M"),
+		cellsOf(12, 39, 66, "1.7M"), cellsOf(12, 77, 80, "252M"), cellsOf(12, 91, 100, "271M"),
+		cellsOf(13, 39, 42, "0.2M"), cellsOf(13, 63, 99, "1.9M"),
+		cellsOf(14, 63, 99, "0.8M"),
+		cellsOf(15, 39, 42, "0.2M"), cellsOf(15, 63, 99, "1.5M"),
+		cellsOf(17, 39, 110, "6.7M"),
+		cellsOf(18, 39, 100, "2.9M"),
+		cellsOf(19, 39, 66, "0.3M"), cellsOf(19, 76, 99, "39.4M"),
+		cellsOf(20, 39, 100, "2.7M"),
+		cellsOf(21, 39, 99, "0.3M"),
+		cellsOf(22, 20, 32, "side"), cellsOf(22, 63, 99, "1.2M"),
+		cellsOf(23, 39, 99, "0.3M"),
+		cellsOf(25, 39, 80, "5.9M"), cellsOf(25, 91, 110, "934M"),
+		cellsOf(26, 39, 66, "2.6M"), cellsOf(26, 77, 100, "383M"),
+		cellsOf(27, 39, 99, "0.2M"),
+		cellsOf(28, 39, 100, "2.4M"),
+		cellsOf(29, 39, 66, "0.3M"), cellsOf(29, 76, 99, "43.5M"),
+		cellsOf(30, 20, 32, "side"), cellsOf(30, 90, 99, "18.7M"),
+		cellsOf(31, 39, 66, "0.2M"), cellsOf(31, 76, 99, "34.8M"),
+	}
+)
 
 // passedOver is, by stem, the rows and cells each frame drew otherwise than
 // the design says, or than its world gives, which testdata/vhs/README.md
@@ -417,32 +575,83 @@ var passedOver = map[string][]passing{
 	"accounts-phone-compare-52":     {phonePeriod("this week")},
 	"accounts-phone-detail-52":      {phonePeriod("this week")},
 
-	"history-days-160":          {period(148, "eight weeks"), wholeRow(37, historyKeys)},
-	"history-days-ten-160":      {period(148, "eight weeks"), wholeRow(37, historyKeys)},
-	"history-phone-year-52":     {phonePeriod("last 12 months")},
-	"history-tokens-160":        {period(152, "by week"), wholeRow(37, historyKeys)},
-	"history-tokens-models-160": {period(152, "by week"), wholeRow(37, historyKeys)},
+	"history-year-160": slices.Concat(
+		[]passing{period(145, "last 12 months")}, currentMonth(7, 111, 31, 3), yearSquares,
+		[]passing{
+			cellsOf(8, 140, 146, "236,410"), cellsOf(10, 140, 160, "5-hour ×402"), cellsOf(11, 140, 146, "$27,480"),
+			cellsOf(13, 140, 143, "3.8×"), cellsOf(14, 140, 149, "Tue 22 Sep"), cellsOf(15, 140, 146, "58 days"),
+			cellsOf(16, 32, 91, "450   ■ 450–750"),
+			cellsOf(30, 49, 50, "55"),
+			cellsOf(31, 49, 50, "60"), drawnIn(31, 77, 78, "▅"), drawnIn(31, 89, 89, "▅"),
+			cellsOf(32, 15, 19, "1,548"), cellsOf(32, 27, 30, "$180"), cellsOf(32, 49, 49, "2"),
+			cellsOf(32, 62, 70, "▅  so far"),
+			historyKeys(93),
+		},
+	),
+	"history-year-opus-160": slices.Concat(
+		[]passing{period(145, "last 12 months")}, currentMonth(7, 111, 24, 3), opusSquares,
+		[]passing{
+			cellsOf(8, 140, 145, "48,880"), cellsOf(9, 140, 142, "352"), cellsOf(10, 140, 145, "$5,760"),
+			cellsOf(11, 140, 142, "21%"), cellsOf(13, 140, 149, "Tue 22 Sep"),
+			cellsOf(16, 32, 71, "400   ■ 400–600"),
+			cellsOf(21, 15, 19, "3,120"), cellsOf(21, 27, 30, "$380"), cellsOf(21, 67, 82, "from the 22nd"),
+			cellsOf(22, 15, 20, "12,940"), cellsOf(22, 27, 32, "$1,520"), cellsOf(22, 39, 41, "57%"), blankCells(22, 84, 85),
+			cellsOf(23, 15, 20, "14,860"), cellsOf(23, 27, 32, "$1,730"), cellsOf(23, 39, 41, "60%"), blankCells(23, 87, 89),
+			cellsOf(24, 15, 20, "17,320"), cellsOf(24, 27, 32, "$2,010"), cellsOf(24, 39, 41, "64%"),
+			cellsOf(25, 15, 19, "640"), cellsOf(25, 27, 30, "$120"), cellsOf(25, 39, 42, "67%"),
+			historyKeys(82),
+		},
+	),
+	"history-phone-year-52": slices.Concat(
+		[]passing{phonePeriod("last 12 months")}, currentMonth(9, 39, 30, 2), phoneSquares,
+		[]passing{
+			cellsOf(18, 8, 52, "450 ■ 450–750"),
+			cellsOf(21, 11, 17, "236,410"), cellsOf(21, 37, 43, "$27,480"),
+			cellsOf(23, 11, 25, "5-hour ×402"), cellsOf(23, 37, 40, "3.8×"),
+			blankCells(29, 49, 49),
+			drawnIn(30, 43, 43, "▅"), cellsOf(31, 13, 16, "$180"),
+		},
+	),
 	"history-weeks-160": {
 		period(148, "eight weeks"),
-		cellsOf(15, 137, 137, "6"), cellsOf(16, 138, 138, "5"), cellsOf(17, 139, 139, "3"),
-		wholeRow(37, historyKeys),
+		cellsOf(15, 137, 137, "6"), cellsOf(16, 138, 138, "5"), unrouted(17), cellsOf(17, 139, 139, "3"),
+		cellsOf(35, 57, 58, "59"),
+		historyKeys(92),
 	},
 	"history-weeks-columns-160": {
 		period(148, "eight weeks"),
-		cellsOf(15, 114, 114, "6"), cellsOf(21, 114, 114, "5"), cellsOf(27, 114, 114, "3"),
-		wholeRow(37, historyKeys),
+		drawnIn(8, 31, 35, "█"), cellsOf(8, 121, 142, ", each time work alone"),
+		cellsOf(15, 114, 114, "6"), drawnIn(20, 71, 75, "█"), cellsOf(21, 114, 114, "5"), unrouted(25), cellsOf(27, 114, 114, "3"),
+		cellsOf(35, 48, 125, "100% it hit its limit"),
+		historyKeys(94),
 	},
 	"history-weeks-ten-160": {
 		period(148, "eight weeks"),
-		cellsOf(8, 18, 18, "4"), cellsOf(8, 96, 96, "4"), cellsOf(8, 150, 150, "6"),
+		cellsOf(8, 9, 38, "short on 4 of the last 7 weeks"), cellsOf(8, 87, 117, "short on 4 of 7, the same weeks"),
+		cellsOf(8, 150, 150, "6"),
 		cellsOf(9, 36, 42, "5% used"),
-		cellsOf(13, 92, 92, "4"),
+		cellsOf(13, 42, 42, "4"), cellsOf(13, 92, 92, "4"),
+		unrouted(17),
 		cellsOf(19, 93, 99, "5% used"),
 		cellsOf(22, 96, 114, "80% left at a reset"),
-		wholeRow(37, historyKeys),
+		historyKeys(92),
 	},
-	"history-year-160":      {period(145, "last 12 months"), wholeRow(37, historyKeys)},
-	"history-year-opus-160": {period(145, "last 12 months"), wholeRow(37, historyKeys)},
+	"history-days-160": slices.Concat(
+		[]passing{period(148, "eight weeks"), cellsOf(11, 138, 139, "59"), cellsOf(13, 138, 139, "37")},
+		daysStrips,
+		[]passing{cellsOf(24, 140, 140, "1"), unrouted(26), historyKeys(75)},
+	),
+	"history-days-ten-160": slices.Concat(
+		[]passing{period(148, "eight weeks"), cellsOf(15, 139, 139, "1")},
+		daysTenStrips,
+		[]passing{cellsOf(24, 140, 140, "1"), unrouted(26), historyKeys(75)},
+	),
+	"history-tokens-160": slices.Concat(
+		[]passing{period(152, "by week")}, byAccountFigures, []passing{cellsOf(33, 3, 41, "3 more weeks below"), historyKeys(77)},
+	),
+	"history-tokens-models-160": slices.Concat(
+		[]passing{period(152, "by week")}, byModelFigures, []passing{cellsOf(32, 3, 41, "5 more weeks below"), historyKeys(75)},
+	),
 
 	"routing-auto-160": slices.Concat(routingFigures, []passing{cursorRow(14, "■ 0 auto")}, behindTheCard("0/min", "2/min", "15/min")),
 	"routing-two-160":  slices.Concat(routingFigures, []passing{cursorRow(17, "■ 3 side")}, behindTheCard("0/min", "2/min", "15/min")),
@@ -581,7 +790,6 @@ func heldTabbed(tabs int, within area) partial {
 // Overview's, and of Sessions on a phone.
 var holds = map[string]partial{
 	"accounts-compare-160":     heldTabbed(1, chrome),
-	"history-year-160":         heldTabbed(2, chrome),
 	"sessions-switchboard-160": heldTabbed(3, chrome),
 	"runway-5-hour-160":        heldTabbed(4, chrome),
 	"log-requests-160":         heldTabbed(5, chrome),

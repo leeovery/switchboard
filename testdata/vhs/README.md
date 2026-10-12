@@ -102,10 +102,10 @@ frame, with the cells `cells_test.go` reads and compares:
   `cells_test.go`), passing over the same cells. Stage 6, the page, held the chrome and the routing
   card's box; stage 7 draws the Overview's frames and the routing card's whole, so `holds` keeps
   **the chrome** alone, rows 1 to 4, the title row and the status line, or 1 to 5 on a phone, whose
-  tabs take a row of their own: of `accounts-compare-160`, `history-year-160`,
-  `sessions-switchboard-160`, `runway-5-hour-160` and `log-requests-160`, over the auto world, its
-  tab reached with `tab`, and of `sessions-phone-52`. A frame's stem leaves `holds` as a fixture
-  comes to draw it whole.
+  tabs take a row of their own: of `accounts-compare-160`, `sessions-switchboard-160`,
+  `runway-5-hour-160` and `log-requests-160`, over the auto world, its tab reached with `tab`, and
+  of `sessions-phone-52`. A frame's stem leaves `holds` as a fixture comes to draw it whole, as
+  `history-year-160` did at stage 8.
 - **The cells passed over** are `passedOver`, by stem: a row, or a row's cells from one column to
   another, each with what the frame's `.txt` reads there: the words it starts with; or blank; or,
   where the frame draws a trace or a chart from data no world gives, those glyphs alone, a chart's
@@ -165,23 +165,29 @@ as Keys has them:
   `history-days-ten-160`; and 141 to 160 of `history-year-160` and `history-year-opus-160`
   (`< last 12 months >`). On a phone, the period's own row, row 7, under the heading:
   `accounts-phone-compare-52`, `accounts-phone-detail-52` and `history-phone-year-52`.
-- **Accounts' and History's key line,** row 37, of each frame wider than a phone, as its period,
-  its pin and its groups' spacing all differ. The dashboard draws Compare's
+- **Accounts' key line,** row 37, of each frame wider than a phone, as its period, its pin and its
+  groups' spacing all differ. The dashboard draws Compare's
   `tab views   [ ] view    < > period: this week    ←→ account  enter its page    p pin    ? help  q quit`,
   and Detail's the same with `↑↓ account`, in `accounts-compare-160`,
   `accounts-compare-bad-hour-160`, `accounts-compare-month-160` (`30 days`),
   `accounts-compare-ten-160`, `accounts-detail-all-160`, `accounts-detail-limit-160`,
   `accounts-detail-sessions-160` and `accounts-detail-work-160`; and with one account, in
-  `accounts-detail-one-160`, `tab views   < > period: this week    ? help  q quit`. History's
-  Year, in `history-year-160`,
+  `accounts-detail-one-160`, `tab views   < > period: this week    ? help  q quit`.
+- **History's key line,** row 37, of each frame wider than a phone, as its period, its pin and its
+  groups' spacing differ: from column 24, where the frames' `p period` starts and the dashboard
+  leaves a cell more after `[ ] view`, to the last cell either draws otherwise,
+  `tab views   [ ] view` held, and `? help  q quit` where both end the line there. The dashboard
+  draws the Year's
   `tab views   [ ] view    < > period: last 12 months    v split: all    p pin    ? help  q quit`,
-  and in `history-year-opus-160` `v split: Opus 5.5`; Weeks, in `history-weeks-160` and
-  `history-weeks-ten-160`, `tab views   [ ] view    v split: table    p pin    ? help  q quit`,
-  and in `history-weeks-columns-160` `v split: columns`; Days, in `history-days-160` and
-  `history-days-ten-160`, `tab views   [ ] view    p pin    ? help  q quit`; and Tokens, in
-  `history-tokens-160`,
+  to column 93 of `history-year-160`, and with `v split: Opus 5.5` to column 82 of
+  `history-year-opus-160`; Weeks',
+  `tab views   [ ] view    v split: table    p pin    ? help  q quit`, to column 92 of
+  `history-weeks-160` and `history-weeks-ten-160`, and with `v split: columns` to 94 of
+  `history-weeks-columns-160`; Days', `tab views   [ ] view    p pin    ? help  q quit`, to column
+  75 of `history-days-160` and `history-days-ten-160`; and Tokens',
   `tab views   [ ] view    < > period: by week    v split: by account    p pin    ? help  q quit`,
-  and in `history-tokens-models-160` `v split: by model`.
+  to column 77 of `history-tokens-160`, and with `v split: by model` to 75 of
+  `history-tokens-models-160`.
 - **`session-phone-52`'s key line,** row 32, which lacks `q quit`: a phone's line always ends
   `? keys   q quit`.
 - **`session-turn-opened-160`'s key line,** row 37, which lacks `enter open`:
@@ -197,12 +203,102 @@ as Keys has them:
   and `side`, at row 15 column 137, row 16 column 138 and row 17 column 139, where the capacity
   replay gives 7, 7 and 6.
 - **`history-weeks-columns-160`'s,** the same counts, at column 114 of rows 15, 21 and 27.
-- **`history-weeks-ten-160`,** whose headline the replay bears out: its short weeks, drawn 4 as
-  now (row 8, column 18), 4 with one fewer (row 8, column 96) and 6 with two fewer (row 8, column
-  150), and 4 in `all accounts`' row (row 13, column 92), where the replay gives 3 each; `spare`'s
-  `5% used`, in the line naming it to drop (row 9, columns 36 to 42) and in its verdict (row 19,
-  columns 93 to 99), where its weeks average 6%, `6% used`; and `extra`'s `80% left at a reset`
-  (row 22, columns 96 to 114), where its weeks average 78%, `78% left at a reset`.
+- **`history-weeks-ten-160`,** whose headline the replay bears out, over the seven weeks its world
+  gives spare: its short weeks, drawn 4 as now, 4 with one fewer and 6 with two fewer, and 4 in
+  `all accounts`' row (row 13, column 92), where the replay gives 3 each, so all three are the
+  worst, tied, and each bold `accent.attention`, where the frame bolds the 6 alone: as now's
+  `short on 4 of the last 7 weeks` (row 8, columns 9 to 38), one fewer's
+  `short on 4 of 7, the same weeks` (columns 87 to 117) and two fewer's count (column 150);
+  `spare`'s `5% used`, in the line naming it to drop (row 9, columns 36 to 42) and in its verdict
+  (row 19, columns 93 to 99), where its seven weeks average 6%, `6% used`; and `extra`'s
+  `80% left at a reset` (row 22, columns 96 to 114), where its weeks average 78%,
+  `78% left at a reset`.
+
+**History, where its frames and the design part** (see History in `docs/design.md`):
+
+- **The current month,** today's, October, where the frames light September, the month before:
+  over the grid, September's name, which the dashboard draws in `text.faint`, and October's, which
+  the frames leave out, over the first week holding four of its days, its days to come counted,
+  in `text.secondary`: row 7, columns 111 to 113 and 119 to 121, of `history-year-160` and
+  `history-year-opus-160`, and row 9, columns 39 to 41 and 47 to 49, of `history-phone-year-52`;
+  and in BY MONTH, September's name, bold in the frames, and October's, bold in the dashboard:
+  columns 3 to 5 of rows 31 and 32 of `history-year-160`, and of rows 24 and 25 of
+  `history-year-opus-160`, and columns 2 to 4 of rows 30 and 31 of `history-phone-year-52`.
+- **`▲` after side,** where new sessions go, which the frames mark beside its name, where Accounts
+  and History show no routing, as the rules they share have it: column 6 of row 17 of
+  `history-weeks-160` and `history-weeks-ten-160`, of row 25 of `history-weeks-columns-160`, and of
+  row 26 of `history-days-160` and `history-days-ten-160`.
+- **The legend,** row 35: its sample of this week, which `history-weeks-160` draws `59%…`, columns
+  57 and 58, where the design and the frame of ten draw `34%…`; and in `history-weeks-columns-160`,
+  columns 48 to 125, where the frame drops `each week at its peak` and draws `59%…`, the dashboard
+  draws the full legend, led by `short: a week some account hit its limit   ·   `, as the design
+  has it, with `34%…`.
+- **`, each time work alone`** after as now's count, in `text.subtle` in
+  `history-weeks-columns-160`, row 8, columns 121 to 142, where the dashboard draws it in
+  `text.muted`, as part of the count, as the table's frame does.
+- **A column's top cell filled to its eighth eighth,** `█████` in the frame, of every account's
+  week of 24 Aug, at 66%, row 8, columns 31 to 35, and personal's this week, at 66%, row 20,
+  columns 71 to 75, of `history-weeks-columns-160`: the dashboard fills a row as full as that the
+  way it fills the rows under it, blanks on the row's colour, which looks the same.
+- **Tokens' scroll line,** whose `·` the frames draw in `text.muted`, where the design has every
+  ` · ` on the page in `text.faint`; its count, too, the world's (see below): row 33, columns 3 to
+  41, of `history-tokens-160`, and row 32 of `history-tokens-models-160`.
+
+**History, where its worlds give otherwise** (see What the worlds give otherwise than the frames),
+which the dashboard draws as its world gives it:
+
+- **The Year's numbers:** in `history-year-160`, `requests`, `236,410`, row 8, columns 140 to 146;
+  `limits hit`, `5-hour ×402`, row 10, columns 140 to 160, which the world gives
+  `5-hour ×412 · week ×3`; `worth`, `$27,480`, row 11, columns 140 to 146; `against it`, `3.8×`,
+  row 13, columns 140 to 143; `busiest day`, `Tue 22 Sep`, row 14, columns 140 to 149; and
+  `longest run`, `58 days`, row 15, columns 140 to 146. On a phone, `history-phone-year-52`'s
+  `requests` and `worth`, row 21, columns 11 to 17 and 37 to 43, and `limits` and `against`, row
+  23, columns 11 to 25 and 37 to 40, the world's two windows' limits cut short a cell before
+  `against`.
+- **The Year's cuts, and the squares they shade:** the key, `under 450`, `450–750`, `750–1,000` and
+  `over 1,000`, which the world's active days cut at 361, 631 and 927, rounded `350`, `650` and
+  `950`: row 16, columns 32 to 91, of `history-year-160`, and row 18, columns 8 to 52, of
+  `history-phone-year-52`. The squares the frames shade otherwise, every one a weekday, drawn as
+  the world's records shade them (`yearSquares` and `phoneSquares` in `reference_test.go`): 43 of
+  `history-year-160`'s, of rows 8 to 12, and of the phone's, the same days among its 22 weeks, 14
+  of rows 10 to 14.
+- **BY MONTH:** August's and September's limits, `55` and `60`, rows 30 and 31, columns 49 and 50,
+  of `history-year-160`; September's bar's split by family, row 31, columns 77, 78 and 89, as the
+  world's last 30 days are Accounts' versions, and on a phone row 30, column 43; October so far,
+  `1,548` requests, `$180` and `2` limits, row 32, columns 15 to 19, 27 to 30 and 49, where today's
+  lines give 1,239, $126 and none, and its bar and `so far`, columns 62 to 70, a cell shorter, and
+  on a phone its `$180`, row 31, columns 13 to 16; and August's phone bar, row 29, column 49, 18 ×
+  $2,860 ÷ $3,120 = 16.5 cells, which the frame rounds to even, 16, where the world's worths, each
+  a hair over the frame's through their tokens, August's the more, give a hair over the half, 17.
+- **The Year filtered to Opus 5.5,** `history-year-opus-160`: its numbers, `48,880` requests, `352`
+  sessions, `$5,760`, `21%` of all use and its busiest day, `Tue 22 Sep`, rows 8 to 11 and 13,
+  columns 140 to 149; its cuts, `400`, `600` and `700`, which its active days cut at 312, 485 and
+  590, rounded `300`, `500` and `600`, row 16, columns 32 to 71; 17 of its squares (`opusSquares`),
+  of rows 8 to 12; and BY MONTH's rows from June, their requests, worth and share where they differ,
+  columns 15 to 20, 27 to 32 and 39 to 42, of rows 21 to 25, and its bars where they're longer, row
+  21, columns 67 to 82, with `from the 22nd`, row 22, columns 84 and 85, and row 23, columns 87 to
+  89.
+- **Weeks:** every account's week of 31 Aug in `history-weeks-ten-160`, row 13, column 42, the
+  mean of the ten's peaks, 54.5%, which the frame rounds to even, `54%`, where the dashboard's
+  rounding of it, a hair over the half as a float, gives `55%`.
+- **Days' strips, their shares and limits:** in `history-days-160` and `history-days-ten-160`, the
+  days the frames shade otherwise than the world's records, each 2 cells, among them the days its
+  accounts used nothing, Saturday 15 and Sunday 16 August, Sunday 6 September and Sunday 27
+  September, which the frames shade and the world, as the Year's frames do, leaves at level 0, and
+  this week's limits, work's on Wednesday and personal's, as the Log tells of them, where the
+  frames mark work's on Thursday (`daysStrips` and `daysTenStrips`, rows 11 to 17 and from row
+  22); BY MODEL's shares, Opus's and Sonnet's `59%` and `37%`, rows 11 and 13, columns 138 and 139,
+  of `history-days-160`, and Fable's `1%`, row 15, column 139, of `history-days-ten-160`; and
+  personal's limits, `11`, row 24, column 140, of both, where the world counts yesterday's.
+- **Tokens:** each period's counts, worth and against its price, and each account's or version's,
+  that the frames give otherwise, a figure or a run of them (`byAccountFigures` and
+  `byModelFigures`), from column 39 to 110 of rows 9 to 12, 14 to 17, 19 to 22, 24 to 27 and 29
+  to 32 of `history-tokens-160`, and of rows 9 to 15, 17 to 23 and 25 to 31 of
+  `history-tokens-models-160`; personal's and side's models counts, `4`, column 15 of rows 16, 21,
+  26, 31 and 32 of `history-tokens-160`; the accounts each version ran on, row 10, columns 15 to
+  23, and rows 22 and 30, columns 20 to 32, of `history-tokens-models-160`; and the weeks below
+  those shown, `3` and `5` in the frames, which drew eight weeks, where the world holds the 12
+  months, 48 and 50 below, in the scroll line passed over above.
 
 **The Overview, and the page behind the routing card, where their frames and the design part:**
 
@@ -261,22 +357,22 @@ the worlds give otherwise than the frames), which the dashboard draws as its wor
   auto world's does, though they say the limit lifts at 15:54, when the world's window, primed at
   10:54, resets: its even pace, row 11, columns 27 to 29, and the pool's, row 15, columns 23 and 24
   of `overview-bad-hour-160` and 24 and 25 of `routing-limit-160`.
-- **The extras' typed figures,** in `overview-six-accounts-160`, and in
-  `overview-ten-accounts-160` a column on: client's 5-hour words, `16%/h till 17:40`, row 15,
-  columns 40 to 55, where the world has it running out ~16:40, and so under pressure in ROUTING,
-  row 30, columns 17 to 45 (row 38 of ten), the frame's `● open`; its week's and Fable week's
-  allowances, `14%/day` and `25%/day`, columns 88 to 94 and 136 to 142; spare's 5-hour rate,
-  `19%/h`, row 17, columns 40 to 44, and its week and Fable week, which the frames reset `Thu 18:00`
-  with their even pace two days in, where the world resets them today at 18:00: their even paces,
-  columns 70 to 80 and 118 to 128, and words, 88 to 109 and 136 to 157; lab's 5-hour even pace, row
-  19, columns 26 and 27, its window starting at 11:55 in the world, later than the frame's; its
-  week's words, `11%/day till Mon 08:00`, columns 88 to 109, where the world has it run out ~Sat
-  23:41; its Fable week's allowance, `20%/day`, columns 136 to 142; and the pool's week's and Fable
-  week's even paces, the mean of its accounts', row 21, columns 73 to 75 and 121 to 123 (row 29 of
-  ten). Of ten alone: team's week's words, `4%/day till Sat 22:00`, row 21, columns 89 to 109, where
-  the world has it run out ~Fri 13:47, and its Fable week's allowance, columns 137 to 143; and the
-  5-hour rates and the weeks' allowances of extra, ops and studio, rows 23, 25 and 27, columns 41 to
-  45, 89 to 95 and 137 to 143.
+- **The extras' typed figures,** in `overview-six-accounts-160`, and in `overview-ten-accounts-160`
+  a column on: client's 5-hour words, `16%/h till 17:40`, row 15, columns 40 to 55, where the world
+  has it running out ~16:40, and so under pressure in ROUTING, row 30, columns 17 to 45 (row 38 of
+  ten), the frame's `● open`; its week's and Fable week's allowances, `14%/day` and `25%/day`,
+  columns 88 to 94 and 136 to 142; spare's 5-hour rate, `19%/h`, row 17, columns 40 to 44, and its
+  week's and Fable week's words, which the frames reset `Thu 18:00` with their even pace two days
+  in, where the world resets them on Tuesdays at 14:00, as that pace places them and History's Weeks
+  needs, columns 88 to 109 and 136 to 157; lab's 5-hour even pace, row 19, columns 26 and 27, its
+  window starting at 11:55 in the world, later than the frame's; its week's words,
+  `11%/day till Mon 08:00`, columns 88 to 109, where the world has it run out ~Sat 23:41; its Fable
+  week's allowance, `20%/day`, columns 136 to 142; and the pool's week's and Fable week's even
+  paces, the mean of its accounts', row 21, columns 73 to 75 and 121 to 123 (row 29 of ten). Of ten
+  alone: team's week's words, `4%/day till Sat 22:00`, row 21, columns 89 to 109, where the world
+  has it run out ~Fri 13:47, and its Fable week's allowance, columns 137 to 143; and the 5-hour
+  rates and the weeks' allowances of extra, ops and studio, rows 23, 25 and 27, columns 41 to 45, 89
+  to 95 and 137 to 143.
 - **COMING UP,** as each world's status document gives it: at 216 columns, side's week running out
   comes fourth, so the frames' lines from their fourth are a line early, columns 1 to 97, rows 58
   to 62 of `overview-default-216`, 67 and 68 of `overview-sessions-216`, and 91 to 95 of
@@ -366,8 +462,8 @@ cell by cell, listing each under The cells passed over with what the dashboard d
   limit, where the frame's card draws 64%; the six and ten accounts' COMING UP lists what their
   worlds give, lab running out ~16:05 and, of ten, team back from its limit at 15:30, where the
   frames list the auto world's three; and the extras' rates, allowances and run-outs (client, lab,
-  team, spare, extra, ops, studio) differ from what their rows draw: spare's weeks reset today at
-  18:00, lab's 5-hour window starts at 11:55, and client runs out ~16:40, so it's under pressure.
+  team, spare, extra, ops, studio) differ from what their rows draw: spare's weeks reset on Tuesdays
+  at 14:00, lab's 5-hour window starts at 11:55, and client runs out ~16:40, so it's under pressure.
   Fitted rather than passed over: the bad hour's 7f3a starts on side at 13:55:30, under the pin,
   before personal's limit, as the frame's LATELY tells nothing between that limit and work's
   refusal; the pinned world's cap moves work's sessions to side, as the frame draws it, where a
@@ -378,16 +474,32 @@ cell by cell, listing each under The cells passed over with what the dashboard d
   sonnet answering, 7f3a sonnet idle) and the List's and the Log's (every session opus, 41e0 idle,
   7f3a answering) are two listings at one moment: each frame's world holds its own.
 - **History (stage 8):** the year's $27,480 and 236,410 requests, where its own months and today
-  come to $24,736 and 212,885; against 3.8× (3.4×); limits; the busiest day (Tue 22 Sep, the
-  world's Wed 30 Sep); the longest run (58 days, the world's 20); the Year's cuts; August's and
-  September's limits; October so far, drawn 1,548 requests, $180 and 2 limits, where today's lines
-  give 1,239, $126 and none, and Opus 5.5's October, drawn 640, $120 and 67%, today's lines being
-  nearly all Opus 5.5; Opus 5.5's 48,880 requests, $5,760 and 21% (40,749, $4,761, 19%), and its
-  352 sessions, which no summary holds by version; Tokens this week, work's drawn 1.2M, 0.8M,
-  11.0M, 178M and 191M (the world's 0.83M, 1.13M, 9.1M, 177M and 188M, today's lines writing the
-  hour's cache and putting out more), and all accounts' 4.2M, 2.9M, 38.0M, 615M and 660M (3.3M,
-  3.4M, 33.8M, 618M and 658M), and earlier weeks' Tokens against BY MONTH; the weeks' 5-hour limits
-  where one weekday holds two; the ten's capacity, counting six weeks where spare's column is empty.
+  come to $24,736 and 212,885; against 3.8× (3.4×); limits (5-hour ×402, the world's ×412 and
+  work's week ×3); the busiest day (Tue 22 Sep, the world's Wed 30 Sep); the longest run (58 days,
+  the world's 20); the Year's cuts (450, 750 and 1,000, where the world's active days cut at 361,
+  631 and 927), and the squares the frames shade from the generator's own days; August's and
+  September's limits, and September's bar's split by family, its last 30 days Accounts' versions;
+  October so far, drawn 1,548 requests, $180 and 2 limits, where today's lines give 1,239, $126
+  and none, and Opus 5.5's October, drawn 640, $120 and 67%, today's lines being nearly all Opus
+  5.5 (1,170, $126, 100%), which makes today its busiest day; Opus 5.5's 48,880 requests, $5,760
+  and 21% (41,368, $4,822, 19%), its 352 sessions (543, each counted once, as summaries of version
+  4 name each version's sessions), its months from June (July to September 48%, 52% and 50% of the
+  month, drawn 57%, 60% and 64%), and its cuts (400, 600 and 700, the world's 312, 485 and 590);
+  Days' strips, which the frames shade from the generator's own days, among them days no account
+  used, 15 and 16 August and 6 and 27 September, and work's 26 September, when its week rose none;
+  Days' BY MODEL shares (Opus 59% and Sonnet 37%, the world's 55% and 41%, and of ten, Fable 1%,
+  the world's 2%); personal's 5-hour limits in the eight weeks, 11, where the world counts the
+  Log's of yesterday, 12, and this week's limits, work's on Thursday in the frames, Tuesday and
+  Wednesday in the Log; Tokens this week, work's drawn 1.2M, 0.8M, 11.0M, 178M and 191M (the
+  world's 0.83M, 1.13M, 9.1M, 177M and 188M, today's lines writing the hour's cache and putting out
+  more), and all accounts' 4.2M, 2.9M, 38.0M, 615M and 660M (3.3M, 3.4M, 33.8M, 618M and 658M),
+  earlier weeks' Tokens against BY MONTH, personal's versions, Fable 5.1 among them in September,
+  and the accounts a version ran on, most worth first, side first on Opus 5.5 this week, as
+  Accounts' versions give it; the weeks' 5-hour limits where one weekday holds two; the mean of the
+  ten's peaks of 31 August, 54.5%, and August's bar on a phone, 16.5 cells, each a half the frames
+  round to even, the world's float or tokens a hair over it. Fitted rather than passed over:
+  spare's week resets on Tuesdays at 14:00, so its seventh week is whole, under 21 September, as
+  the frame of ten draws its peaks, where the Overview's frames reset it on Thursdays at 18:00.
 - **The Log (stage 9):** 1,275 lines and 1,240 requests today, where the lines are 1,274 and
   1,239, c61b's fifth request still answering; the Log's rows of d28c and 9c2e in its tail and
   around the cap, against the sessions' own lines (d28c at 14:31:49 in the Log, 14:31:58 on its
@@ -456,6 +568,14 @@ limit, where the router lists all six on side. `routing-session-160`, the card o
 page, is owed until stage 10 builds the page. Tapes of their names screenshot
 `overview-default-160`, `overview-by-account-160`, `overview-everything-216x106`,
 `overview-phone-52` and `routing-move-160`, to judge by eye.
+
+Stage 8's, `history-*`, draw History's frames, each over its frame's world, History reached from
+the Overview with `tab` twice: `history-year-160` and, on a phone, `history-phone-year-52`, as
+it opens, on the Year; `history-year-opus-160` with `v`, the Year filtered to Opus 5.5;
+`history-weeks-160` with `]`, and `history-weeks-columns-160` with `]` and `v`; `history-days-160`
+with `]` twice; and `history-tokens-160` with `]` three times, and `history-tokens-models-160` with
+`v` after them; all over the auto world, but `history-weeks-ten-160` and `history-days-ten-160`,
+over ten accounts'. A tape of each name screenshots it, to judge by eye.
 
 Stage 6's, `page-*`, draw the page as it's built, to judge by eye where no frame draws it yet, each
 with a tape of its name: `page-routing`, the routing card over the Overview of the auto world at

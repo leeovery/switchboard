@@ -636,11 +636,11 @@ func (w weeksDrawn) columnPeak(row views.WeeksRow, p views.WeekPeak) line {
 	return line{{status.Percent(*p.Share), mutedInk}}
 }
 
-// column draws a week's column, filled from the bottom to its peak, its top
-// cell in eighths, from row y down columnRows, as look draws its cells: each
-// row in the ramp's colour at its middle, mixed from the canvas toward it; a
-// week of no use ▁▁▁▁▁ in text.faint along the bottom; and one whose peak
-// isn't known, nothing.
+// column draws a week's column, filled from the bottom to its peak as it's
+// written under it, a whole percent, its top cell in eighths, from row y down
+// columnRows, as look draws its cells: each row in the ramp's colour at its
+// middle, mixed from the canvas toward it; a week of no use ▁▁▁▁▁ in
+// text.faint along the bottom; and one whose peak isn't known, nothing.
 func (w weeksDrawn) column(c *canvas, look Look, x, y int, p views.WeekPeak) {
 	if p.Share == nil {
 		return
@@ -650,7 +650,7 @@ func (w weeksDrawn) column(c *canvas, look Look, x, y int, p views.WeekPeak) {
 		c.text(x, bottom, strings.Repeat(levels[1], columnCells), faintInk)
 		return
 	}
-	filled := halfEven(min(*p.Share, 1) * columnRows * 8)
+	filled := halfEven(min(float64(status.WholePercent(*p.Share))/100, 1) * columnRows * 8)
 	for r := range columnRows {
 		eighths := min(max(filled-8*r, 0), 8)
 		if eighths == 0 {
