@@ -1009,6 +1009,32 @@ func TestOnTheTickASessionResetsItsPanelHasItNotStarted(t *testing.T) {
 	}
 }
 
+// Sessions' panels draw a session not started only where the usage block
+// does, as WindowStates stand it: work, its last read failed, on the tick
+// after its session resets, before it's read again, has it as last read, with
+// its bar, as its stale reading is.
+func TestOnTheTickASessionResetsAStaleAccountsPanelHasItAsLastRead(t *testing.T) {
+	doc := threeRouted()
+	doc.Accounts[0].Error = "HTTP 529 · Overloaded"
+	session, _ := doc.Accounts[0].Window("5h")
+	after := session.ResetsAt.Add(time.Second).In(now.Location())
+	f := switchboard(160, 40, flippingSessions(), Traffic{})
+	b, ok := f.bayOf(doc, after, f.top())
+	if !ok {
+		t.Fatal("the view is a plain list, want a switchboard")
+	}
+	c := newCanvas(f.Width, b.content)
+	f.drawBay(c, doc, b, after)
+	p := b.panels[0]
+
+	if row := strings.TrimSpace(ansi.Cut(rowOf(c, p.top+1), b.x, b.x+b.width)); strings.Contains(row, "not started") || !strings.Contains(row, "58%") {
+		t.Errorf("work's session reads %q, want it as last read, 58%%, not as not started", row)
+	}
+	if used, ok := f.Filled(doc, after)[Ref{Account: "work", Window: "5h"}]; !ok || used != session.Utilization {
+		t.Errorf("work's session fills %v, drawn %t, want its bar as last read, %v", used, ok, session.Utilization)
+	}
+}
+
 func TestTheLineOverTheSessionsKeyLineIsARule(t *testing.T) {
 	rows := switchboard(160, 40, flippingSessions(), Traffic{}).Draw(threeRouted(), now)
 

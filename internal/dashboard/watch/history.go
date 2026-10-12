@@ -151,13 +151,14 @@ func (m Model) readFiled(doc status.Document, now time.Time) (Model, tea.Cmd) {
 
 // filedOf are the readings the readings history's files hold of doc's
 // windows, by account and window, read as the history verb reads them, from
-// the day the earliest of those running at now, as policy judges them,
+// the day the earliest of those the charts draw at now, as drawn has them,
 // started.
 func filedOf(files views.Readings, doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref][]score.Reading {
 	from := now
 	for _, a := range doc.Accounts {
+		states := doc.WindowStatesOf(a, now, policy)
 		for _, w := range a.Windows {
-			if start, _, ok := w.Span(); ok && !a.HasLapsed(w, now, policy) {
+			if start, _, ok := w.Span(); ok && !states.Unstarted(w.Key) {
 				from = score.Earlier(from, start)
 			}
 		}
@@ -204,8 +205,8 @@ func (h history) answered(msg historyMsg) history {
 	return h
 }
 
-// saw takes in the readings of doc's windows running at now, as policy
-// judges them: each window's use as read, when its account was read, one
+// saw takes in the readings of doc's windows the charts draw at now, as
+// drawn has them: each window's use as read, when its account was read, one
 // reading the same use again carrying the last on to then. A window's
 // readings from before it last started go.
 func (h history) saw(doc status.Document, now time.Time, policy score.Policy) history {
@@ -214,9 +215,13 @@ func (h history) saw(doc status.Document, now time.Time, policy score.Policy) hi
 		seen = make(map[dashboard.Ref][]score.Reading)
 	}
 	for _, a := range doc.Accounts {
+		if a.FetchedAt.IsZero() {
+			continue
+		}
+		states := doc.WindowStatesOf(a, now, policy)
 		for _, w := range a.Windows {
 			start, _, ok := w.Span()
-			if !ok || a.HasLapsed(w, now, policy) || a.FetchedAt.IsZero() {
+			if !ok || states.Unstarted(w.Key) {
 				continue
 			}
 			ref := dashboard.Ref{Account: a.ID, Window: w.Key}
@@ -245,17 +250,19 @@ func record(readings []score.Reading, r score.Reading) []score.Reading {
 	}
 }
 
-// drawn is the history the charts draw of doc's windows, each running now,
-// as policy judges it, its readings in order: those the router gave, from
-// when it started, or where it gave none, those the readings history's files
-// held; then those the watch has seen after the last of them; or those the
-// watch has seen alone, where neither holds any.
+// drawn is the history the charts draw of doc's windows at now, as policy
+// judges them, of each that doesn't stand not started, as Unstarted says, its
+// readings in order: those the router gave, from when it started, or where it
+// gave none, those the readings history's files held; then those the watch
+// has seen after the last of them; or those the watch has seen alone, where
+// neither holds any.
 func (h history) drawn(doc status.Document, now time.Time, policy score.Policy) dashboard.Trails {
 	drawn := make(dashboard.Trails)
 	for _, a := range doc.Accounts {
+		states := doc.WindowStatesOf(a, now, policy)
 		for _, w := range a.Windows {
 			start, _, ok := w.Span()
-			if !ok || a.HasLapsed(w, now, policy) {
+			if !ok || states.Unstarted(w.Key) {
 				continue
 			}
 			ref := dashboard.Ref{Account: a.ID, Window: w.Key}

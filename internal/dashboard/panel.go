@@ -282,7 +282,7 @@ func (p linePanel) resets(now time.Time) []string {
 	for _, key := range p.windows {
 		w, ok := p.account.Window(key)
 		switch {
-		case !ok || w.ResetsAt.IsZero() || p.account.HasLapsed(w, now, p.policy):
+		case !ok || w.ResetsAt.IsZero() || p.account.HasLapsed(key, now, p.policy):
 		case key == p.policy.Started:
 			said = append(said, status.InProse(w.Label)+" "+status.Dated(now, w.ResetsAt))
 		default:
