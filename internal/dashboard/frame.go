@@ -69,6 +69,10 @@ type Frame struct {
 	// Focus is the account the Overview's focus is on, by id, which ↑ and ↓
 	// move and GRAPHS follows: "" while it's on none.
 	Focus string
+	// Layout is the Overview's layout as the watch keeps it from look to
+	// look, as LayoutOf gave it, so it changes only on a key or a resize:
+	// the zero Layout, or one made for another frame, lays it out afresh.
+	Layout Layout
 	// KeyLine is the keys that work on the page, as its last row lists them,
 	// or the note a key left in their place.
 	KeyLine KeyLine
@@ -171,24 +175,36 @@ const (
 	// UnderCard is a cell of the card open over the page, its edges
 	// included.
 	UnderCard
-	// UnderView is a cell of the view's rows, while no card is open.
+	// UnderView is a cell of what of the view scrolls, while no card is
+	// open.
 	UnderView
 )
 
-// Under is what's under the cell at x along row y, as the frame draws it:
-// while a card is open, the card, in its box, and nothing outside it; else
-// the view, in its rows, where the page has room for it, as cramped says.
-func (f Frame) Under(x, y int) Under {
+// Under is what's under the cell at x along row y, as the frame draws doc at
+// now: while a card is open, the card, in its box, and nothing outside it;
+// else what of the view scrolls, as scrolls has it, where the page has room
+// for the view, as cramped says.
+func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 	inside := func(left, top, width, height int) bool {
 		return left <= x && x < left+width && top <= y && y < top+height
 	}
 	switch {
 	case f.Card != nil && inside(f.Card.card(f).box(f.Width, f.Height)):
 		return UnderCard
-	case f.Card == nil && !f.cramped() && inside(0, f.top(), f.Width, f.viewRows()):
+	case f.Card == nil && !f.cramped() && inside(f.scrolls(doc, now)):
 		return UnderView
 	}
 	return UnderNothing
+}
+
+// scrolls is what of the view of doc at now scrolls, from column x along row
+// y, width cells wide and rows tall: on the Overview, USAGE's body, as
+// overviewScrolls has it; elsewhere, the view's rows.
+func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
+	if f.View == Overview {
+		return f.overviewScrolls(doc, now)
+	}
+	return 0, f.top(), f.Width, f.viewRows()
 }
 
 // cramped reports whether the terminal is too short for the page's fixed
