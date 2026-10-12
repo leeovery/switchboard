@@ -516,6 +516,69 @@ func TestTheScreenAKeyLeavesIsLaidOutAsTheKeyLaysItOut(t *testing.T) {
 	}
 }
 
+// clickWhere clicks the first of the page's targets on says it's on,
+// failing the test where there's none.
+func (h *harness) clickWhere(on func(dashboard.Target) bool) {
+	h.t.Helper()
+	i := slices.IndexFunc(h.targets(), on)
+	if i < 0 {
+		h.t.Fatalf("the page has no such target among %+v", h.targets())
+	}
+	h.click(h.targets()[i].X, h.targets()[i].Y)
+}
+
+func TestAClickOrTheWheelLaysTheOverviewOutAsItsKeyDoes(t *testing.T) {
+	key := func(k string) func(*harness) {
+		return func(h *harness) { h.deliver(h.press(k)...) }
+	}
+	wheel := func(button tea.MouseButton) func(*harness) {
+		return func(h *harness) {
+			x, y := h.drawnAt("1 Work")
+			h.wheel(button, x, y)
+		}
+	}
+	tests := []struct {
+		name       string
+		key, mouse func(*harness)
+	}{
+		{name: "↓, and a click on an account's row", key: key("down"), mouse: func(h *harness) {
+			h.clickWhere(func(t dashboard.Target) bool { return t.On == dashboard.OnAccount && t.Account == "personal" })
+		}},
+		{name: "a section's key, and a click on its heading", key: key("c"), mouse: func(h *harness) {
+			h.clickWhere(func(t dashboard.Target) bool {
+				return t.On == dashboard.OnSection && t.Section == dashboard.SectionComing
+			})
+		}},
+		{name: "tab, and a click on the next tab", key: key("tab"), mouse: func(h *harness) {
+			tab := h.tabTarget(dashboard.Accounts)
+			h.click(tab.X, tab.Y)
+		}},
+		{name: "j, and the wheel turned down", key: key("j"), mouse: wheel(tea.MouseWheelDown)},
+		{name: "k, and the wheel turned up", key: key("k"), mouse: wheel(tea.MouseWheelUp)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var laid [2]dashboard.Layout
+			for i, input := range []func(*harness){tt.key, tt.mouse} {
+				h := routedHarness(t, routerDocument(three()...))
+				h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+				h.start()
+				h.deliver(h.press("s")...)
+				h.source.sessions = threeRunning()
+				h.tickUntilAsked()
+				kept := h.model.layout
+				input(h)
+				if laid[i] = h.model.layout; laid[i] == kept {
+					t.Errorf("input %d left the layout as kept, want it laid out afresh, SESSIONS a row a session", i+1)
+				}
+			}
+			if laid[0] != laid[1] {
+				t.Errorf("the mouse laid the Overview out as %+v, want it as the key does, %+v", laid[1], laid[0])
+			}
+		})
+	}
+}
+
 // usageRows are the rows of the screen the Overview's USAGE is drawn on, from
 // its heading's to ROUTING's.
 func (h *harness) usageRows() []string {

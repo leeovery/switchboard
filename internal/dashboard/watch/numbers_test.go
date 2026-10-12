@@ -205,6 +205,92 @@ func TestANumberTheStreamChangesBrightens(t *testing.T) {
 	}
 }
 
+// What the stream tells as the watch joins it, the requests in flight then,
+// is part of the join's first look, as today's lines read for the traces
+// are: it brightens nothing, a request sent after it brightening as any.
+func TestWhatAJoinTellsBrightensNothing(t *testing.T) {
+	inFlight := func(request, account string) router.StreamEvent {
+		return alter(told(router.StreamInFlight, request, account, -10*time.Second), func(e *router.StreamEvent) { e.SentAt = e.At })
+	}
+	joining := []router.StreamEvent{inFlight("r1", "work"), inFlight("r2", "side")}
+	sent := told(router.StreamSent, "r3", "work", 0)
+	sideRate := dashboard.Number{Kind: dashboard.NumberRate, Account: "side"}
+	tests := []struct {
+		name     string
+		rejoined bool
+		heard    [][]router.StreamEvent
+		want     []dashboard.Number
+	}{
+		{name: "the requests in flight as it opens", heard: [][]router.StreamEvent{joining}},
+		{name: "the requests in flight as it's joined again", rejoined: true, heard: [][]router.StreamEvent{joining}},
+		{name: "a request sent after them", heard: [][]router.StreamEvent{joining, {sent}}, want: []dashboard.Number{workRate}},
+		{name: "a request sent behind them, as they're told", heard: [][]router.StreamEvent{append(slices.Clone(joining), sent)}, want: []dashboard.Number{workRate}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := streamingOn(t, dashboard.Sections{})
+			h.settle()
+			if tt.rejoined {
+				h.endStream()
+				rejoin, ok := h.pendingRejoin()
+				if !ok {
+					t.Fatal("once the stream ended, no rejoin was armed")
+				}
+				h.fire(rejoin)
+			}
+			for _, events := range tt.heard {
+				h.hear(events...)
+			}
+			if got := h.drawnNumber(sideRate); got != "1/min" {
+				t.Fatalf("side's rate reads %q, want 1/min, the request in flight there counted", got)
+			}
+			if got := slices.Collect(maps.Keys(h.brightened())); !sameNumbers(got, tt.want) {
+				t.Errorf("brightened %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// The page is drawn twice to compare its numbers, for what the stream tells,
+// only where that can change one: a request sent, or a seat moved, on a page
+// that draws what they change, as StreamNumbered says; never Sessions',
+// whose switchboard the stream is busiest on.
+func TestTheStreamHasNumbersComparedOnlyWhereThePageDrawsOneItChanges(t *testing.T) {
+	sent := told(router.StreamSent, "r1", "work", 0)
+	moved := alter(told(router.StreamMoved, "r1", "side", 0), func(e *router.StreamEvent) { e.From, e.To, e.Reason = "work", "side", "pinned" })
+	progress := alter(told(router.StreamProgress, "r1", "work", 0), func(e *router.StreamEvent) { e.Chars = 4800 })
+	sessionsAlone := dashboard.Sections{}.Toggled(dashboard.SectionRouting).Toggled(dashboard.SectionSessions)
+	tests := []struct {
+		name     string
+		view     dashboard.View
+		sections dashboard.Sections
+		told     router.StreamEvent
+		want     bool
+	}{
+		{name: "a request sent, ROUTING shown", view: dashboard.Overview, told: sent, want: true},
+		{name: "a seat moved, ROUTING shown", view: dashboard.Overview, told: moved, want: true},
+		{name: "a request sent, SESSIONS shown alone", view: dashboard.Overview, sections: sessionsAlone, told: sent, want: true},
+		{name: "an answer's progress, ROUTING shown", view: dashboard.Overview, told: progress},
+		{name: "a request sent, on Sessions", view: dashboard.Sessions, told: sent},
+		{name: "a seat moved, on Sessions", view: dashboard.Sessions, told: moved},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := streamingOn(t, tt.sections)
+			h.model.view = tt.view
+			if got := h.model.numbering([]router.StreamEvent{tt.told}, h.clock.now); got != tt.want {
+				t.Errorf("the numbers are compared: %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
+// sameNumbers reports whether got and want hold the same numbers, in any
+// order.
+func sameNumbers(got, want []dashboard.Number) bool {
+	return len(got) == len(want) && !slices.ContainsFunc(want, func(n dashboard.Number) bool { return !slices.Contains(got, n) })
+}
+
 // An answer's tokens count up as it streams, told every quarter second, as
 // the clock's numbers move: they'd hold frames running for as long as
 // anything streams, and say nothing ↓ doesn't.

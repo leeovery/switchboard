@@ -250,8 +250,9 @@ type Model struct {
 	by       dashboard.By
 	span     dashboard.Span
 	// layout is the Overview's layout as it was last made, kept from look to
-	// look, as keepLayout keeps it, so it changes only on a key the page acts
-	// on, a resize, or a section's shape changing.
+	// look, as keepLayout keeps it, so it changes only on an input the page
+	// acts on, a key, a click or the wheel, a resize, or a section's shape
+	// changing.
 	layout dashboard.Layout
 	// scroll is how many rows the view shown is scrolled down by, where it
 	// doesn't fit, or on the Overview, how many accounts USAGE is, within its
@@ -378,11 +379,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // keepLayout keeps the Overview's layout as the page lays it out at now, for
-// the looks after: as it was kept, but laid out afresh where a key the page
-// acts on let it go, as pageKey does, on a resize, or as a section's shape
-// changes, as LayoutOf has it.
+// the looks after: as it was kept, but laid out afresh where an input the
+// page acts on let it go, as acting does, on a resize, or as a section's
+// shape changes, as LayoutOf has it.
 func (m Model) keepLayout(now time.Time) Model {
 	m.layout = m.frame(now).LayoutOf(m.doc, now)
+	return m
+}
+
+// acting is m as the page acts on an input, its Overview's layout let go,
+// to be laid out afresh: whichever input asks, a key, a click or the wheel,
+// so the page is laid out alike whichever way it's asked.
+func (m Model) acting() Model {
+	m.layout = dashboard.Layout{}
 	return m
 }
 

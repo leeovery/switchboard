@@ -37,26 +37,27 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 }
 
 // clickedOn does what a click on the target does, which is what its key
-// does: on a tab, it shows it, unless the theme picker is open, as the tab
-// key does nothing then; on a key of the key line, it presses it, as
-// pressOf says; on an Overview's section's heading, it hides the section, as
-// its key does; and on an account's row there, it moves the focus to it, as
-// focusOn has it. Nothing else on the page takes a click yet.
+// does, the page acting as acting has it: on a tab, it shows it, unless the
+// theme picker is open, as the tab key does nothing then; on a key of the
+// key line, it presses it, as pressOf says; on an Overview's section's
+// heading, it hides the section, as its key does; and on an account's row
+// there, it moves the focus to it, as focusOn has it. Nothing else on the
+// page takes a click yet.
 func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 	switch t.On {
 	case dashboard.OnTab:
 		if m.picker.open {
 			return m, nil
 		}
-		return m.showTab(t.Tab), nil
+		return m.acting().showTab(t.Tab), nil
 	case dashboard.OnKey:
 		if press, ok := pressOf(t.Key); ok {
 			return m.pressed(press)
 		}
 	case dashboard.OnSection:
-		return m.toggle(t.Section), nil
+		return m.acting().toggle(t.Section), nil
 	case dashboard.OnAccount:
-		return m.focusOn(t.Account), nil
+		return m.acting().focusOn(t.Account), nil
 	}
 	return m, nil
 }
