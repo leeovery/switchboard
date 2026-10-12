@@ -350,6 +350,39 @@ func TestAWeekResetSinceItWasReadResetsNextAWeekOn(t *testing.T) {
 	}
 }
 
+// A week at its reserve when the document was built, reset since, before
+// it's read again, is no longer at it: its lane has no stretch ending at the
+// reset now past, and its words say what its state does, room.
+func TestAWeekAtItsReserveResetSinceItWasReadHasRoom(t *testing.T) {
+	work := reserving(readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.95, -2*time.Hour)), 0.1)
+	work.FetchedAt = now.Add(-3 * time.Hour).UTC()
+	work.AtReserve = []string{"7d"}
+	doc := routerDoc("", 1, work)
+	doc.GeneratedAt = work.FetchedAt
+
+	for _, tt := range []struct {
+		name string
+		span Span
+		want string
+	}{
+		{"day", Day, "room all day"},
+		{"week", Week, "room all week  ·  resets Mon 11:12"},
+	} {
+		f := runwayFrame(t, tt.span, 160, 26)
+		ln := f.laneOf(doc, work, now)
+		if len(ln.stretches) != 0 {
+			t.Errorf("over the %s, work's lane has stretches %v, want none", tt.name, ln.stretches)
+		}
+		if got := ln.states.Of("7d").Kind; got != status.WindowOpen {
+			t.Errorf("over the %s, work's week stands as kind %d, want WindowOpen", tt.name, got)
+		}
+		rows, l := drawnRunway(f, doc)
+		if got := strings.TrimSpace(rows[l.top+1]); got != tt.want {
+			t.Errorf("over the %s, work's words read %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
 func TestALaneDrainingAllDaySaysWhenItRunsOut(t *testing.T) {
 	doc := routerDoc("", 1, readAccount("work", sessionOf(0.1, 4*time.Hour), weekRunningOut(2*day, 3*day)))
 	rows, l := drawnRunway(runwayFrame(t, Day, 160, 26), doc)
