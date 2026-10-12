@@ -2,6 +2,7 @@ package watch
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -13,45 +14,35 @@ import (
 // noteFor is how long the key line says what a key did, in its place.
 const noteFor = 4 * time.Second
 
-// orderedMsg is how an order the routing card gave went.
+// errOrdering is why an order is dropped while the router still carries out
+// the last.
+var errOrdering = errors.New("the router is still carrying out the last order")
+
+// orderedMsg is how an order went, given by the routing card numbered card.
 type orderedMsg struct {
 	order order
+	card  int
 	err   error
 }
 
 // order is what the routing card tells the router: send new sessions to the
-// best of accounts, and with move, running ones on another account too; with
-// no accounts, route every session on its merits again; or, of one session
-// alone, send it to the account to, or with none, clear its own pin.
+// best of accounts, and with move, running ones on another account too; or
+// with no accounts, route every session on its merits again.
 type order struct {
 	accounts []string
 	move     bool
-	// session is the id of the session the order is of alone, "" for an
-	// order of every session, and to the id of the account it sends it to.
-	session, to string
 }
 
 // give has the source carry the order out.
 func (o order) give(ctx context.Context, s Source) error {
-	switch {
-	case o.session != "" && o.to != "":
-		return s.PinSession(ctx, o.session, o.to)
-	case o.session != "":
-		return s.UnpinSession(ctx, o.session)
-	case len(o.accounts) == 0:
+	if len(o.accounts) == 0 {
 		return s.Unpin(ctx)
-	default:
-		return s.Pin(ctx, o.accounts, o.move)
 	}
+	return s.Pin(ctx, o.accounts, o.move)
 }
 
-// log notes how the order went, naming the accounts by their ids alone, and
-// a session by its id cut short, as the router logs it.
+// log notes how the order went, naming the accounts by their ids alone.
 func (o order) log(err error) {
-	if o.session != "" {
-		o.logSession(err)
-		return
-	}
 	accounts := strings.Join(o.accounts, ",")
 	switch {
 	case err != nil:
@@ -63,65 +54,61 @@ func (o order) log(err error) {
 	}
 }
 
-// logSession notes how an order of one session went: the session, and the
-// account it sends it to, where it sends it to one.
-func (o order) logSession(err error) {
-	attrs := []any{"session", status.ShortID(o.session)}
-	if o.to != "" {
-		attrs = append(attrs, "account", o.to)
-	}
-	switch {
-	case err != nil:
-		logger.Warn("the router didn't take an order", append(attrs, "error", err)...)
-	case o.to != "":
-		logger.Info("pinned a session", attrs...)
-	default:
-		logger.Info("unpinned a session", attrs...)
-	}
-}
-
-// command has the router carry out an order, while it isn't still carrying
-// out the last, as ordered takes in once it has; or, while the router
-// doesn't answer, says so, as a refusal is said.
+// command has the router carry out an order, given by the routing card
+// open last, as ordered takes in once it has: while the router doesn't
+// answer, or still carries out the last order, it's dropped, saying why, as
+// a refusal is said.
 func (m Model) command(o order) (Model, tea.Cmd) {
+	card := m.routing.card
 	switch {
 	case !m.answering():
-		return m.refused(status.ErrNoRouter)
+		return m.refused(card, status.ErrNoRouter)
 	case m.ordering:
-		return m, nil
+		return m.refused(card, errOrdering)
 	}
 	m.ordering = true
 	ctx, source := m.ctx, m.cfg.Source
 	return m, func() tea.Msg {
-		return orderedMsg{order: o, err: o.give(ctx, source)}
+		return orderedMsg{order: o, card: card, err: o.give(ctx, source)}
 	}
 }
 
-// ordered takes in how an order went: taken, the routing card closes;
-// refused, the router's reason is said, as refused says. Either way, the
-// router's document is read again at once, to show what it did.
+// ordered takes in how an order went: taken, the routing card that gave it
+// closes, while it's open; refused, the router's reason is said, as refused
+// says. Either way, the router's document is read again at once, to show
+// what it did, and the routing card open no longer says the router is still
+// carrying it out.
 func (m Model) ordered(msg orderedMsg) (tea.Model, tea.Cmd) {
 	m.ordering = false
 	msg.order.log(msg.err)
+	if errors.Is(m.routing.refused, errOrdering) {
+		m.routing.refused = nil
+	}
 	var said tea.Cmd
 	switch {
 	case msg.err != nil:
-		m, said = m.refused(msg.err)
-	case m.open == routingOpen:
+		m, said = m.refused(msg.card, msg.err)
+	case m.cardOpen(msg.card):
 		m = m.uncover()
 	}
 	m, read := m.reread()
 	return m, tea.Batch(said, read)
 }
 
-// refused says why the router didn't take an order: in the routing card,
-// while it's open, until its picks change; else in the key line's place.
-func (m Model) refused(err error) (Model, tea.Cmd) {
-	if m.open == routingOpen {
-		m.routing.refused = err.Error()
+// refused says why an order the routing card numbered card gave wasn't
+// carried out: in that card, while it's open, until its picks change; else
+// in the key line's place.
+func (m Model) refused(card int, err error) (Model, tea.Cmd) {
+	if m.cardOpen(card) {
+		m.routing.refused = err
 		return m, nil
 	}
 	return m.noting(err.Error())
+}
+
+// cardOpen reports whether the routing card numbered card is open.
+func (m Model) cardOpen(card int) bool {
+	return m.open == routingOpen && m.routing.card == card
 }
 
 // noting has the key line say note in its place for noteFor, and returns

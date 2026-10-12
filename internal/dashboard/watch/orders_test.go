@@ -3,7 +3,6 @@ package watch
 import (
 	"errors"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -78,69 +77,18 @@ func TestAnOrderIsGivenAndTheRoutersDocumentLookedAtAgain(t *testing.T) {
 	}
 }
 
-func TestAnOrderOfOneSessionPinsItOrTakesItsPinOff(t *testing.T) {
-	log := logstest.Capture(t)
-	h := gridHarness(t)
-	looks := h.source.looks()
-
-	h.deliver(h.commanded(order{session: idD28C, to: "side"})...)
-	if want := []string{"pin " + idD28C + " to side"}; !slices.Equal(h.source.orders, want) {
-		t.Errorf("orders = %q, want %q", h.source.orders, want)
-	}
-	if got := h.source.looks(); got != looks+1 {
-		t.Errorf("looked at the router's document %d times after the order, want once", got-looks)
-	}
-	if !h.source.router.Pin.IsZero() {
-		t.Errorf("the router's pin is %+v, want none: the session's pin is its own", h.source.router.Pin)
-	}
-	if want := []string{"level=INFO", `msg="pinned a session"`, "session=d28c5e17", "account=side"}; !log.Has(want...) {
-		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
-	}
-
-	h.deliver(h.commanded(order{session: idD28C})...)
-	if want := []string{"pin " + idD28C + " to side", "unpin " + idD28C}; !slices.Equal(h.source.orders, want) {
-		t.Errorf("orders = %q, want %q", h.source.orders, want)
-	}
-	if want := []string{"level=INFO", `msg="unpinned a session"`, "session=d28c5e17"}; !log.Has(want...) {
-		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
-	}
-	if strings.Contains(log.String(), idD28C) {
-		t.Errorf("log reads\n%s\nwant the session's id cut short, as the router logs it", log)
-	}
-}
-
 func TestARefusalOnceTheRoutingCardHasClosedSaysWhyInTheKeyLinesPlace(t *testing.T) {
 	refusal := errors.New("account personal has no usable token, so nothing can go out on it: token missing")
-	tests := []struct {
-		name    string
-		order   order
-		wantLog []string
-	}{
-		{
-			name:    "a pin",
-			order:   order{accounts: []string{"personal"}},
-			wantLog: []string{"level=WARN", `msg="the router didn't take an order"`, "accounts=personal", "move=false", "error="},
-		},
-		{
-			name:    "a session's pin",
-			order:   order{session: idD28C, to: "personal"},
-			wantLog: []string{"level=WARN", `msg="the router didn't take an order"`, "session=d28c5e17", "account=personal", "error="},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			log := logstest.Capture(t)
-			h := gridHarness(t)
-			h.source.refuse = refusal
+	log := logstest.Capture(t)
+	h := gridHarness(t)
+	h.source.refuse = refusal
 
-			h.deliver(h.commanded(tt.order)...)
-			if got, want := h.keyLine(), refusal.Error(); got != want {
-				t.Errorf("the key line reads %q, want %q", got, want)
-			}
-			if !log.Has(tt.wantLog...) {
-				t.Errorf("log reads\n%s\nwant a line with %q", log, tt.wantLog)
-			}
-		})
+	h.deliver(h.commanded(order{accounts: []string{"personal"}})...)
+	if got, want := h.keyLine(), refusal.Error(); got != want {
+		t.Errorf("the key line reads %q, want %q", got, want)
+	}
+	if want := []string{"level=WARN", `msg="the router didn't take an order"`, "accounts=personal", "move=false", "error="}; !log.Has(want...) {
+		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 	}
 }
 

@@ -57,6 +57,33 @@ func TestNoCardOpensOverThePicker(t *testing.T) {
 	}
 }
 
+func TestThePickerNeverOpensOverACard(t *testing.T) {
+	for _, tt := range []struct {
+		key  string
+		card opened
+	}{{key: "p", card: routingOpen}, {key: "?", card: helpOpen}} {
+		t.Run(tt.key, func(t *testing.T) {
+			h, _ := themedHarness(t, theme.One("amber"))
+			h.startRouter(routerDocument(three()...))
+			h.start()
+			h.answer(darkBackground)
+
+			listing := h.press("t")
+			h.press(tt.key)
+			h.deliver(listing...)
+			if h.model.open != tt.card || h.model.picker.open {
+				t.Fatalf("the themes listed once %s opened its card, the card is %v, the picker open %v; want the card alone", tt.key, h.model.open, h.model.picker.open)
+			}
+
+			h.update(escKey)
+			h.typed("t")
+			if !h.model.picker.open {
+				t.Error("the card closed, t left the picker shut, want it open")
+			}
+		})
+	}
+}
+
 func TestThePageUnderACardStandsStill(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()

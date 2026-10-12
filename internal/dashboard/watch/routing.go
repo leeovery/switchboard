@@ -11,17 +11,19 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// routing is the routing card's picker while it's open: the ids of the
-// accounts picked, in the config's order, none picking auto, and those
-// picked as it opened; the row the cursor is on; whether m is ticked; and
-// why the router refused the last apply, until the picks change. listed are
-// the sessions the router lists, as views listed them to price their moves,
-// for the document that arrived at costed.
+// routing is the routing card's picker while it's open: card numbers the
+// routing cards opened, this one the last; the ids of the accounts picked,
+// in the config's order, none picking auto, and those picked as it opened;
+// the row the cursor is on; whether m is ticked; and why its last apply sent
+// nothing, or the router refused it, until the picks change. listed are the
+// sessions the router lists, as views listed them to price their moves, for
+// the document that arrived at costed.
 type routing struct {
+	card           int
 	picked, opened []string
 	cursor         int
 	move           bool
-	refused        string
+	refused        error
 	listed         []views.ListedSession
 	costed         time.Time
 }
@@ -47,7 +49,7 @@ func (m Model) openRouting() (tea.Model, tea.Cmd) {
 	picked := m.standing()
 	rows := m.routingRows(m.now())
 	cursor := max(slices.IndexFunc(rows, func(row dashboard.RoutingRow) bool { return slices.Contains(picked, row.Account) }), 0)
-	m.routing = routing{picked: picked, opened: picked, cursor: cursor}
+	m.routing = routing{card: m.routing.card + 1, picked: picked, opened: picked, cursor: cursor}
 	return m.cover(routingOpen), nil
 }
 
@@ -84,7 +86,7 @@ func (m Model) routingKey(key string) (tea.Model, tea.Cmd) {
 	case "space":
 		r = r.picking(rows, r.cursor)
 	case "m":
-		r.move, r.refused = !r.move, ""
+		r.move, r.refused = !r.move, nil
 	default:
 		r = r.numbered(rows, key)
 	}
@@ -117,7 +119,7 @@ func (r routing) picking(rows []dashboard.RoutingRow, i int) routing {
 	default:
 		r.picked = toggled(r.picked, row.Account, rows)
 	}
-	r.refused = ""
+	r.refused = nil
 	return r
 }
 
@@ -135,17 +137,25 @@ func toggled(picked []string, id string, rows []dashboard.RoutingRow) []string {
 
 // apply gives the router the picks, as enter does: the accounts picked, in
 // the config's order, moving the sessions running as m is ticked; or, with
-// none picked, auto, which moves none, m ticked or not. With the picks as
-// the card opened and m clear, it sends nothing, and closes the card.
+// none picked, auto, which moves none, m ticked or not. Where it changes
+// nothing, it sends nothing, and closes the card.
 func (m Model) apply() (Model, tea.Cmd) {
 	r := m.routing
 	switch {
-	case slices.Equal(r.picked, r.opened) && !r.move:
+	case !r.changes():
 		return m.uncover(), nil
 	case len(r.picked) == 0:
 		return m.command(order{})
 	}
 	return m.command(order{accounts: r.picked, move: r.move})
+}
+
+// changes reports whether applying the picks changes anything: they're not
+// as the card opened, or m is ticked with accounts picked, to move the
+// sessions running elsewhere to them. Auto moves none, so with none picked,
+// m alone changes nothing.
+func (r routing) changes() bool {
+	return !slices.Equal(r.picked, r.opened) || r.move && len(r.picked) > 0
 }
 
 // routingRows are the routing card's rows, read afresh from the document on
@@ -160,10 +170,14 @@ func (m Model) routingCard(now time.Time) dashboard.RoutingCard {
 	r := m.routing
 	rows := m.routingRows(now)
 	moving := m.moving()
-	return dashboard.RoutingCard{
+	card := dashboard.RoutingCard{
 		Rows: rows, Picked: r.picked, Cursor: min(r.cursor, len(rows)-1), Move: r.move,
-		Moving: moving.Sessions, Cost: moving.Cost, Refused: r.refused,
+		Moving: moving.Sessions, Cost: moving.Cost,
 	}
+	if r.refused != nil {
+		card.Refused = r.refused.Error()
+	}
+	return card
 }
 
 // moving is what the picks move, of the sessions listed, priced as views
@@ -201,8 +215,10 @@ func (m Model) costed(msg costedMsg) Model {
 
 // pinKey is p as the key line and help list it, and whether they list it:
 // where there's more than one account to pin to, or a pin stands, to clear
-// it. It's faint while the router doesn't answer, as p then opens nothing.
+// it; but never while the source probes as asked, reading no router to pin
+// through, whether one answers or not. It's faint while the router doesn't
+// answer, as p then opens nothing.
 func (m Model) pinKey() (dashboard.Key, bool) {
 	key := dashboard.Key{Key: "p", Does: "pin", Off: !m.answering()}
-	return key, len(m.doc.Accounts) > 1 || !m.doc.Pin.IsZero()
+	return key, !m.cfg.ProbeOnly && (len(m.doc.Accounts) > 1 || !m.doc.Pin.IsZero())
 }
