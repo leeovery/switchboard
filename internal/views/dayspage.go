@@ -233,12 +233,11 @@ func fiveHourLimits(limits []ledger.Limit) int {
 	return n
 }
 
-// appendActive appends to active the values of days that are active, above
-// nothing.
+// appendActive appends to active the values of days that are active, those
+// shade draws above level 0.
 func appendActive[V cmp.Ordered](active, values []V) []V {
-	var none V
 	for _, value := range values {
-		if value > none {
+		if shade(value, nil) > 0 {
 			active = append(active, value)
 		}
 	}

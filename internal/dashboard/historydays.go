@@ -289,5 +289,5 @@ func familyName(family string) line {
 	if first, size := utf8.DecodeRuneInString(family); size > 0 {
 		name = string(unicode.ToUpper(first)) + family[size:]
 	}
-	return line{{"●", ink{token: familyHue(family).token}}, {" " + status.Clean(name), secondaryInk}}
+	return line{{"●", familyHue(family).ink()}, {" " + status.Clean(name), secondaryInk}}
 }

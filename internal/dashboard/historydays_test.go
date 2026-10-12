@@ -104,6 +104,53 @@ func TestDaysDrawsItsFramesText(t *testing.T) {
 	}
 }
 
+// Days draws its frames cell for cell, in nord, from row 7 to the key on row
+// 35: but the days of each strip, whose levels are the world's, which F's
+// fixtures hold; and the accounts' marks, the router's, which the view isn't
+// given.
+func TestDaysHoldsToItsFramesCells(t *testing.T) {
+	tests := []struct {
+		stem string
+		page views.DaysPage
+	}{
+		{stem: "history-days-160", page: daysWorld(workDays, personalDays, sideDays)},
+		{stem: "history-days-ten-160", page: daysShared([4]float64{0.57, 0.39, 0.01, 0.03}, tenDays...)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.stem, func(t *testing.T) {
+			f := daysFrame(t, tt.page, 160, 37)
+			passed := []spot{{row: 23, first: 9, last: 9}, {row: 25, first: 5, last: 5}}
+			for _, row := range []int{10, 12, 14, 16, 21, 23, 25, 27, 29, 31} {
+				passed = append(passed, spot{row: row, first: daysAt, last: 126})
+			}
+			drawn := screenOf(t, daysDrawn(f).rows(f.Look))
+			heldTo(t, tt.stem, reference(t, tt.stem), drawn, region{top: 6, bottom: 34, left: 0, right: 159}, shadeOf(f.Look.Canvas()), passed, nil)
+		})
+	}
+}
+
+// A family's days take its own colour in four steps, and an account's the
+// days' shades, as the frames draw them in nord.
+func TestDaysShadesEachStripsDays(t *testing.T) {
+	f := daysFrame(t, daysWorld(workDays), 160, 37)
+	drawn := screenOf(t, daysDrawn(f).rows(f.Look))
+	tests := []struct {
+		name string
+		y    int
+		want []string
+	}{
+		{name: "Opus's steps", y: 10, want: []string{"#495B76", "#546E91", "#5E81AC", "#B7C6DA"}},
+		{name: "work's shades", y: 21, want: []string{"#44587A", "#5E81AC", "#88C0D0", "#D8EEF5"}},
+	}
+	for _, tt := range tests {
+		for level, want := range tt.want {
+			if got := seenAt(drawn, daysAt+swatchCells*level+1, tt.y).bg.String(); got != want {
+				t.Errorf("%s: level %d is on %s, want %s", tt.name, level+1, got, want)
+			}
+		}
+	}
+}
+
 // Each part of Days is in the ink the design gives it.
 func TestDaysDrawsEachPartInItsInk(t *testing.T) {
 	f := daysFrame(t, daysWorld(workDays, personalDays, sideDays, views.DaysStrip{Of: "spare", Days: stripOf("0")}), 160, 37)
@@ -201,6 +248,7 @@ func TestDaysByAccountScrollsPastSixAccounts(t *testing.T) {
 			says: "▲ 2 more accounts above   ·   ▼ 2 more accounts below" + toScroll, shownAccounts: 6,
 		},
 		{name: "ten, scrolled to the last", accounts: tenDays, height: 37, scroll: 9, want: Scrolling{Most: 4, Page: 6}, first: "spare", says: "▲ 4 more accounts above" + toScroll, shownAccounts: 6},
+		{name: "a taller terminal shows six still", accounts: tenDays, height: 45, want: Scrolling{Most: 4, Page: 6}, first: "work", says: "▼ 4 more accounts below" + toScroll, shownAccounts: 6},
 		{name: "a shorter terminal fits fewer", accounts: tenDays, height: 33, want: Scrolling{Most: 6, Page: 4}, first: "work", says: "▼ 6 more accounts below" + toScroll, shownAccounts: 4},
 	}
 	for _, tt := range tests {
