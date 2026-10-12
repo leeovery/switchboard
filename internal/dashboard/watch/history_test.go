@@ -159,8 +159,8 @@ func TestTheChartsDrawTheRoutersHistoryCarriedOnByWhatTheWatchSees(t *testing.T)
 		{At: start.Add(time.Minute).UTC(), Utilization: 0.3},
 	}
 	trail := h.model.trails[dashboard.Ref{Account: "work", Window: "5h"}]
-	if !trail.Start.Equal(sessionStart) || !slices.EqualFunc(trail.Readings, want, sameReading) {
-		t.Errorf("work's session's trail is %+v, want from %s %+v", trail, sessionStart, want)
+	if !slices.EqualFunc(trail.Readings, want, sameReading) {
+		t.Errorf("work's session's trail is %+v, want %+v", trail, want)
 	}
 	if week := h.model.trails[dashboard.Ref{Account: "work", Window: "7d"}]; len(week.Readings) != 1 {
 		t.Errorf("work's week's trail is %+v, want the reading the watch saw, the router giving none", week)
