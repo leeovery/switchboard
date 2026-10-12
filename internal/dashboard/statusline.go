@@ -44,7 +44,7 @@ func (f Frame) routerStatus(c *canvas, doc status.Document, now time.Time) {
 	if f.phone() {
 		forms = forms[1:]
 	}
-	c.line(0, y, fitted(forms, f.Width))
+	c.line(0, y, firstFit(f.Width, forms...))
 }
 
 // pageStatus is the page's status line of doc at now: the router's, as
@@ -169,18 +169,7 @@ func bestOf(doc status.Document) string {
 // sessions go, then without a restart due, so the state and the mode show,
 // then with its state shortened; and where even that doesn't fit, cut short.
 func (s statusLine) fit(width int) line {
-	return fitted(s.forms(), width)
-}
-
-// fitted is the first of the forms that fits in width cells, else the last,
-// cut short.
-func fitted(forms []line, width int) line {
-	for _, l := range forms {
-		if l.width() <= width {
-			return l
-		}
-	}
-	return forms[len(forms)-1].fit(width)
+	return firstFit(width, s.forms()...)
 }
 
 // forms are the line's forms, as fit tries them, each shorter than the one

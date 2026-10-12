@@ -191,9 +191,9 @@ type Model struct {
 	// again asks for a look at the router's document as soon as the read
 	// under way lands.
 	again bool
-	// lost is when the router stopped answering, while the dashboard shows
-	// its last document, or has read nothing since: zero once a read lands,
-	// and before any document, once one fails for a reason of its own.
+	// lost is when the router was first found not answering, while the
+	// dashboard shows its last document, or has read nothing since: zero once
+	// a read lands.
 	lost time.Time
 	// failed is why the last read failed, while it's the last: "" once one
 	// lands, and for a look that found the router gone.
@@ -664,7 +664,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lost, Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
+		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus:      m.focus,
@@ -737,12 +737,13 @@ func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 // router first, as awaitsRouter has it, the status line says the latest
 // read's news either way: a question after the router, or a look at its
 // document, that found it gone has no why of its own, and clears the last
-// read's, the status line saying the router isn't answering; and a read that
-// failed for a reason of its own clears the router's loss, the status line
-// saying that reason. Elsewhere a read that found the router gone leaves the
-// last read's why standing, as nothing new was found. Each read starts a new
-// chain of ticks at the pace it calls for, and lets a look at the router's
-// document asked for while it was under way go ahead.
+// read's, the status line saying the router isn't answering, since it was
+// first found gone; and a read that failed for a reason of its own has the
+// status line say that reason, as lostShown has it. Elsewhere a read that
+// found the router gone leaves the last read's why standing, as nothing new
+// was found. Each read starts a new chain of ticks at the pace it calls for,
+// and lets a look at the router's document asked for while it was under way
+// go ahead.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching = false
@@ -757,9 +758,6 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	case msg.err != nil:
 		m.plan = m.plan.failed(m.doc, now)
 		m.failed = redact.Text(msg.err.Error())
-		if m.awaitsRouter() {
-			m.lost = time.Time{}
-		}
 		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
 		m = m.lose(now)
 	default:
@@ -885,6 +883,17 @@ func (m Model) lose(now time.Time) Model {
 	}
 	m.lost = now
 	return m
+}
+
+// lostShown is when the router was lost, for the status line: zero before
+// any document while the latest read failed for a reason of its own, which
+// the status line says instead, keeping when the router was first found gone
+// for a later read that finds it gone again.
+func (m Model) lostShown() time.Time {
+	if m.awaitsRouter() && m.failed != "" {
+		return time.Time{}
+	}
+	return m.lost
 }
 
 // awaitsRouter reports whether nothing has been read, from a source that asks

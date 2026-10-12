@@ -66,10 +66,16 @@ func (p Printout) Draw(doc status.Document, now time.Time) []string {
 // row: the badge and when doc was read, then the status line, its mode shown
 // only while the router has a global pin. From 120 columns it's one line, the
 // status ending at the last column; narrower, two, the status from column 0
-// after a blank line. The status shortens to fit, as a phone's does.
+// after a blank line. The status shortens to fit, as a phone's does; the
+// badge's line leaves off the date, as a phone's title row does, then the
+// badge, before it's cut.
 func (p Printout) header(c *canvas, doc status.Document, now time.Time) int {
-	read := line{spaces(2), {doc.GeneratedAt.In(now.Location()).Format("Mon 2 Jan  15:04"), titleInk}}
-	end := c.line(0, 0, slices.Concat(pill, read))
+	at := doc.GeneratedAt.In(now.Location())
+	gap, clock := line{spaces(2)}, line{{at.Format("15:04"), titleInk}}
+	end := c.line(0, 0, firstFit(p.Width,
+		slices.Concat(pill, gap, line{{at.Format("Mon 2 Jan  15:04"), titleInk}}),
+		slices.Concat(pill, gap, clock),
+		clock))
 	s := newStatusLine(doc)
 	if p.Width >= oneLineHeader {
 		c.right(p.Width, 0, s.fit(p.Width-end-headerGap))
