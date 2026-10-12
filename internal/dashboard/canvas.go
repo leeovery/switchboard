@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"strings"
+	"unique"
 
 	"github.com/charmbracelet/x/ansi"
 )
@@ -19,11 +20,13 @@ type canvas struct {
 	clip  *bounds
 }
 
-// cell is a glyph and the ink it's drawn in. A glyph two cells wide covers
-// the cell after it too, whose glyph is "".
+// cell is a glyph, the ink it's drawn in, and the number it's part of, where
+// it's part of one the page brightens as it changes. A glyph two cells wide
+// covers the cell after it too, whose glyph is "".
 type cell struct {
-	glyph string
-	ink   ink
+	glyph  string
+	ink    ink
+	number unique.Handle[Number]
 }
 
 // blank is a cell with nothing drawn in it.
@@ -95,8 +98,10 @@ func (c *canvas) text(x, y int, text string, k ink) int {
 	return x
 }
 
-// put draws a glyph width cells wide at x along row y. Half a wide glyph it
-// covers is left blank, as is a wide glyph the canvas's edge cuts.
+// put draws a glyph width cells wide at x along row y, the number its ink
+// names noted on its cells rather than in their ink, as it changes nothing of
+// how they're drawn. Half a wide glyph it covers is left blank, as is a wide
+// glyph the canvas's edge cuts.
 func (c *canvas) put(x, y int, glyph string, width int, k ink) {
 	for i := range width {
 		c.clear(x+i, y)
@@ -105,9 +110,11 @@ func (c *canvas) put(x, y int, glyph string, width int, k ink) {
 	if first == nil || last == nil {
 		return
 	}
-	*first = cell{glyph: glyph, ink: k}
+	number := k.number
+	k.number = unique.Handle[Number]{}
+	*first = cell{glyph: glyph, ink: k, number: number}
 	if width == 2 {
-		*last = cell{ink: k}
+		*last = cell{ink: k, number: number}
 	}
 }
 

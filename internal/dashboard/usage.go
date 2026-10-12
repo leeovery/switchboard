@@ -103,10 +103,12 @@ type usageRow struct {
 	pool   bool
 }
 
-// gauge is a window of an account, or the pool's, as a row draws it: its bar;
+// gauge is a window of an account, or the pool's, as a row draws it: the
+// window it is, by its account's id, "" for the pool's, and its key; its bar;
 // its words, and whether they say it runs out; and, while the Overview cues
 // its words, how far their cue has faded, nil where they aren't cued.
 type gauge struct {
+	of      Ref
 	bar     usageBar
 	words   usageWords
 	runsOut bool
@@ -181,7 +183,7 @@ func accountGauge(a status.Account, key string, st status.WindowState, now time.
 	if st.Kind == status.WindowTokenless || st.Kind == status.WindowUnread {
 		bar = usageBar{empty: true}
 	}
-	return gauge{bar: bar, words: wordsOf(st, w.Allowance, now), runsOut: st.Kind == status.WindowRunsOut}
+	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(st, w.Allowance, now), runsOut: st.Kind == status.WindowRunsOut}
 }
 
 // poolRow is the pool's row of doc, of the windows shown, its Σ in a column
@@ -202,6 +204,7 @@ func poolRow(doc status.Document, windows []shownWindow, digits int) (usageRow, 
 		}
 		p := doc.Pool.Windows[j]
 		row.gauges = append(row.gauges, gauge{
+			of:    Ref{Window: w.key},
 			bar:   usageBar{used: p.Used, capAt: 1, pace: p.Pace},
 			words: poolWords(p.Room, len(doc.Pool.Accounts), doc.Pool.Pinned && i == 0),
 		})
@@ -493,11 +496,37 @@ func (b usageBlock) gauge(c *canvas, g gauge, x, y, bar int) {
 	bar = max(bar, 0)
 	g.bar.draw(c, b.look, x, y, bar)
 	at := x + bar + 1
-	c.right(at+percentCells, y, g.bar.percentage())
+	c.right(at+percentCells, y, g.percentage())
 	words := at + percentCells + 2
-	if end := c.line(words, y, g.words.pick(b.width)); g.cue != nil {
+	if end := c.line(words, y, g.said(b.width)); g.cue != nil {
 		cue(c, b.look, words, y, end-words, *g.cue)
 	}
+}
+
+// percentage is g's percentage, as its bar has it, numbered as its window's
+// use where it shows one.
+func (g gauge) percentage() line {
+	shown := g.bar.percentage()
+	if g.bar.empty {
+		return shown
+	}
+	return shown.numbered(g.number(NumberUsed))
+}
+
+// said are g's words as a block width columns wide draws them, as pick has
+// them, the number they lead with, where they lead with one, numbered as
+// their window's.
+func (g gauge) said(width int) line {
+	said := g.words.pick(width)
+	if g.words.leads == 0 || len(said) == 0 {
+		return said
+	}
+	return slices.Concat(line{said[0].numbered(g.number(g.words.leads))}, said[1:])
+}
+
+// number is g's window's number of the kind given.
+func (g gauge) number(kind NumberKind) Number {
+	return Number{Kind: kind, Account: g.of.Account, Of: g.of.Window}
 }
 
 // key draws the block's key line at row y, saying what its marks mean: from

@@ -11,9 +11,11 @@ import (
 
 // usageWords are what a window's words say of it, in full and short, as the
 // usage block draws them: the full form from fullWords columns, the short
-// below.
+// below; and the figure they lead with in either, where they lead with one,
+// an allowance or the pool's room.
 type usageWords struct {
 	full, short line
+	leads       NumberKind
 }
 
 // fullWords is the fewest columns the usage block draws its words in full at.
@@ -77,6 +79,7 @@ func allowed(a quota.Allowance, reset time.Time, now time.Time) usageWords {
 	return usageWords{
 		full:  line{rate, {" till ", dimInk}, {status.Dated(now, reset), mutedInk}},
 		short: line{rate, {" · ", dimInk}, {brief(now, reset), mutedInk}},
+		leads: NumberAllowance,
 	}
 }
 
@@ -94,7 +97,7 @@ func poolWords(room float64, accounts int, pinned bool) usageWords {
 	if pinned {
 		l = append(l, span{" · pinned", mutedInk})
 	}
-	return usageWords{full: l, short: l}
+	return usageWords{full: l, short: l, leads: NumberRoom}
 }
 
 // tenths is room, in accounts' worth, to a tenth, as in "1.5".
@@ -105,7 +108,8 @@ func tenths(room float64) string {
 // faint is the words in text.faint, whatever their colours, as the Overview
 // words a window of an account out of the pool.
 func (w usageWords) faint() usageWords {
-	return usageWords{full: inFaint(w.full), short: inFaint(w.short)}
+	w.full, w.short = inFaint(w.full), inFaint(w.short)
+	return w
 }
 
 // inFaint is the line in text.faint, span for span.

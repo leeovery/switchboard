@@ -218,9 +218,9 @@ func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows 
 		end = pinnedAt
 	}
 	f.drawStanding(c, r, t.names, y, end-wordsGap-t.names, false)
-	c.line(sessionsAt, y, line{sessionsSpan(r.sessions)})
+	c.line(sessionsAt, y, line{r.sessionsCounted()})
 	f.drawTrace(c, r.trace, t.now, bounds{x: traceFrom, y: y, width: f.accountTraceCells(t.names), rows: rows}, t.scale, r.faded)
-	c.right(f.Width, y+rows-1, line{traceRate(r.trace, t.now, r.faded)})
+	c.right(f.Width, y+rows-1, line{r.rate(t.now)})
 }
 
 // narrowRouting draws account r's two rows of ROUTING under routingRows
@@ -237,7 +237,7 @@ func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int)
 	}
 	f.drawStanding(c, r, t.names, y, end-wordsGap-t.names, true)
 	f.drawTrace(c, r.trace, t.now, bounds{x: t.names, y: y + 1, width: f.accountTraceCells(t.names), rows: 1}, t.scale, r.faded)
-	c.right(f.Width, y+1, line{sessionsSpan(r.sessions), spaces(2), traceRate(r.trace, t.now, r.faded)})
+	c.right(f.Width, y+1, line{r.sessionsCounted(), spaces(2), r.rate(t.now)})
 }
 
 // drawStanding draws how account r stands from x along row y, its words, or
@@ -325,6 +325,18 @@ func cue(c *canvas, look Look, x, y, width int, fade float64) {
 	}
 }
 
+// sessionsCounted are how many sessions are on the account, as sessionsSpan
+// says it, numbered as its sessions.
+func (r accountRouting) sessionsCounted() span {
+	return sessionsSpan(r.sessions).numbered(Number{Kind: NumberSessions, Account: r.id})
+}
+
+// rate is the account's rate at now, as traceRate says it, numbered as its
+// rate.
+func (r accountRouting) rate(now time.Time) span {
+	return traceRate(r.trace, now, r.faded).numbered(Number{Kind: NumberRate, Account: r.id})
+}
+
 // sessionsSpan is how many sessions are on an account, as in "2 sessions"
 // or "1 session", in text.muted; "0 sessions" in text.faint.
 func sessionsSpan(n int) span {
@@ -378,21 +390,21 @@ func (f Frame) besideAccount(c *canvas, t routingTable, r accountRouting, x int,
 		return
 	}
 	f.drawTrace(c, r.trace, t.now, f.besideTrace(x, rows[2]), t.scale, r.faded)
-	c.right(f.Width, rows[2], line{traceRate(r.trace, t.now, r.faded)})
+	c.right(f.Width, rows[2], line{r.rate(t.now)})
 }
 
 // besidePool draws the pool's lines beside its block from column x, on the
 // rows given, as routingBeside has them: its trace only where it has its row.
 func (f Frame) besidePool(c *canvas, t routingTable, doc status.Document, x int, rows []int) {
 	c.line(x, rows[0], countedStates(t.pool, f.Width-wordsGap-x))
-	c.line(x, rows[1], line{sessionsSpan(summedSessions(t.pool))})
+	c.line(x, rows[1], line{sessionsSpan(summedSessions(t.pool)).numbered(Number{Kind: NumberSessions})})
 	if len(rows) < 3 {
 		return
 	}
 	trace := f.besideTrace(x, rows[2])
 	pool := summed(f.accountTraces(poolAccounts(doc)), func(tr views.Trace) []float64 { return tr.Cells(trace.width, t.now) })
 	f.drawCells(c, pool, trace, t.scale, false)
-	c.right(f.Width, rows[2], line{rateOf(summedRate(t.pool, t.now), false)})
+	c.right(f.Width, rows[2], line{rateOf(summedRate(t.pool, t.now), false).numbered(Number{Kind: NumberRate})})
 }
 
 // besideTrace is where a trace beside a block lies along row y, from column
@@ -418,9 +430,9 @@ func besideRows(rows int) []int {
 // and a dot, where the global pin names it.
 func besideSessions(r accountRouting) line {
 	if !r.pinned {
-		return line{sessionsSpan(r.sessions)}
+		return line{r.sessionsCounted()}
 	}
-	return line{pinnedSpan, {"  ·  ", faintInk}, sessionsSpan(r.sessions)}
+	return line{pinnedSpan, {"  ·  ", faintInk}, r.sessionsCounted()}
 }
 
 // countedWords are the words the pool's accounts' states are counted in, in
@@ -447,14 +459,20 @@ func countedStates(accounts []accountRouting, width int) line {
 	var counted line
 	for _, w := range countedWords {
 		if n := counting(accounts, w.kinds); n > 0 {
-			counted = joined(span{" · ", faintInk}, counted, line{{fmt.Sprintf("%d %s", n, w.word), w.ink}})
+			counted = joined(span{" · ", faintInk}, counted, line{statesCounted(n, w.word, w.ink)})
 		}
 	}
 	if counted.width() <= width {
 		return counted
 	}
 	open := counting(accounts, slices.Concat(countedWords[0].kinds, []status.RoutingKind{status.RoutingPressed}))
-	return line{{fmt.Sprintf("%d of %d open", open, len(accounts)), secondaryInk}}.fit(width)
+	return line{statesCounted(open, fmt.Sprintf("of %d open", len(accounts)), secondaryInk)}.fit(width)
+}
+
+// statesCounted is n of the pool's accounts counted in the words given, in
+// k, as in "2 open", numbered as the pool's states counted in those words.
+func statesCounted(n int, words string, k ink) span {
+	return span{fmt.Sprintf("%d %s", n, words), k}.numbered(Number{Kind: NumberStates, Of: words})
 }
 
 // counting is how many of the accounts stand as one of the kinds given.

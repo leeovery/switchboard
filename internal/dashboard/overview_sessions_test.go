@@ -206,16 +206,17 @@ func TestASessionsWhyIsCutToEndBeforeItsTrace(t *testing.T) {
 func TestASessionRunningSaysWhatItsDoing(t *testing.T) {
 	plug := Plug{Account: "side", Seat: Seat{Session: idD28C, Model: opus}}
 	other := Plug{Account: "side", Seat: Seat{Session: idD28C, Model: haiku}}
+	tokens := doingInk.numbered(Number{Kind: NumberTokens, Account: "side", Of: idD28C})
 	tests := []struct {
 		name     string
 		calls    map[Plug]Call
 		inFlight string
 		want     span
 	}{
-		{name: "answering, as the stream counts it", calls: map[Plug]Call{plug: {Doing: Streaming, Tokens: 1234}}, want: span{"↓ ~1.2k", doingInk}},
-		{name: "answering, exact", calls: map[Plug]Call{plug: {Doing: Streaming, Tokens: 1321, Exact: true}}, want: span{"↓ 1.3k", doingInk}},
+		{name: "answering, as the stream counts it", calls: map[Plug]Call{plug: {Doing: Streaming, Tokens: 1234}}, want: span{"↓ ~1.2k", tokens}},
+		{name: "answering, exact", calls: map[Plug]Call{plug: {Doing: Streaming, Tokens: 1321, Exact: true}}, want: span{"↓ 1.3k", tokens}},
 		{name: "answering, nothing counted yet", calls: map[Plug]Call{plug: {Doing: Streaming}}, want: span{"↓", doingInk}},
-		{name: "answering on one model, asking on another: answering", calls: map[Plug]Call{other: {Doing: Asking}, plug: {Doing: Streaming, Tokens: 860}}, want: span{"↓ ~860", doingInk}},
+		{name: "answering on one model, asking on another: answering", calls: map[Plug]Call{other: {Doing: Asking}, plug: {Doing: Streaming, Tokens: 860}}, want: span{"↓ ~860", tokens}},
 		{name: "asking, as the stream tells", calls: map[Plug]Call{plug: {Doing: Asking}}, want: span{"↑ ask", doingInk}},
 		{name: "throttled, to be sent again: asking still", calls: map[Plug]Call{plug: {Doing: Throttled}}, want: span{"↑ ask", doingInk}},
 		{name: "its answer ended, as the stream tells, though listed answering", calls: map[Plug]Call{plug: {Doing: Answered, Tokens: 900}}, inFlight: status.Answering, want: span{"idle", faintInk}},

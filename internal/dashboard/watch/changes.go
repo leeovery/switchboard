@@ -34,12 +34,7 @@ type cues[K comparable, V comparable] struct {
 // turned says of what it was and is, is picked out from now, and each
 // already picked out stays so while it's picked out still.
 func (c cues[K, V]) seen(found map[K]V, now time.Time, turned func(was, is V) bool) cues[K, V] {
-	since := make(map[K]time.Time)
-	for key, at := range c.since {
-		if now.Sub(at) < highlightFor {
-			since[key] = at
-		}
-	}
+	since := lasting(c.since, now, highlightFor)
 	for key, is := range found {
 		if was, ok := c.found[key]; ok && turned(was, is) {
 			since[key] = now
@@ -107,15 +102,15 @@ func outsOf(doc status.Document, now time.Time) map[dashboard.Ref]bool {
 }
 
 // faded is how far the cue on each account's state picked out at now has
-// faded, by its account's id, as fading says.
+// faded, by its account's id, as fading says over highlightFor.
 func (c changes) faded(now time.Time) map[string]float64 {
-	return fading(c.states.since, now)
+	return fading(c.states.since, now, highlightFor)
 }
 
 // turnedOut is how far the cue on each window's words picked out at now has
-// faded, by its account and key, as fading says.
+// faded, by its account and key, as fading says over highlightFor.
 func (c changes) turnedOut(now time.Time) map[dashboard.Ref]float64 {
-	return fading(c.outs.since, now)
+	return fading(c.outs.since, now, highlightFor)
 }
 
 // cueing reports whether any cue, on a state or on a window's words, is

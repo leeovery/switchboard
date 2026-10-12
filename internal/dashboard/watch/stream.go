@@ -188,15 +188,19 @@ func hear(gen int, events <-chan router.StreamEvent) streamHeardMsg {
 }
 
 // heard takes in what the request stream told, the requests it told of going
-// upstream counted for the traces, and listens on; or, where it ended, as a
-// router ends it as it restarts, asks for it again after rejoinAfter,
-// keeping what it told until it opens again.
+// upstream counted for the traces, each number on the page it changed
+// brightening, and listens on; or, where it ended, as a router ends it as it
+// restarts, asks for it again after rejoinAfter, keeping what it told until
+// it opens again.
 func (m Model) heard(msg streamHeardMsg) (Model, tea.Cmd) {
 	if msg.gen != m.stream.gen || !m.stream.open {
 		return m, nil
 	}
-	m.traffic = m.traffic.took(msg.events, m.held, m.now())
+	now := m.now()
+	was := m.numbersDrawn(now)
+	m.traffic = m.traffic.took(msg.events, m.held, now)
 	m = m.toldTraces(msg.events)
+	m.numbers = m.numbers.changed(was, m.numbersDrawn(now), now)
 	if !msg.ended {
 		return m, m.listen()
 	}

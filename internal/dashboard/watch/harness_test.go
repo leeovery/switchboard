@@ -295,6 +295,15 @@ func (h *harness) settle() {
 	}
 }
 
+// framesUntil fires the frames armed, each in turn, until the next is due
+// after t, or none is armed.
+func (h *harness) framesUntil(t time.Time) {
+	h.t.Helper()
+	for tm, ok := h.pendingFrame(); ok && !tm.due.After(t); tm, ok = h.pendingFrame() {
+		h.fire(tm)
+	}
+}
+
 // tickUntilRead fires the live chain's ticks until one reads the source, and
 // returns the time it did.
 func (h *harness) tickUntilRead() time.Time {

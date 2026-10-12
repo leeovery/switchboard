@@ -130,7 +130,7 @@ func (f Frame) wideRunning(c *canvas, doc status.Document, r views.Running, colu
 		{padded(truncate(r.Family, familyCells), familyCells), mutedInk},
 		{strings.Repeat(" ", seenCells-len(seen)) + seen, dimInk},
 		spaces(beforeDoing),
-		{padded(doing.text, doingCells), doing.ink},
+		doing, spaces(doingCells - line{doing}.width()),
 	})
 	why := column + runningWhy
 	c.line(why, y, line{{r.Why.String(), dimInk}}.fit(traceFrom-beforeTraceAt-why))
@@ -177,14 +177,14 @@ func runningSeen(seen, now time.Time) string {
 
 // runningDoing is what the session running r is doing, as the request
 // stream tells of its models, where it tells of any; else as the router
-// listed it: answering, with its tokens so far where the stream has counted
-// any, as "↓ ~1.2k", or "↓" alone; asking, "↑ ask"; else idle.
+// listed it: answering, as answering says it, or as listed, "↓" alone;
+// asking, "↑ ask"; else idle.
 func (f Frame) runningDoing(r views.Running) span {
 	told, asking := false, false
 	for _, model := range r.Models {
 		c, ok := f.Traffic.call(runningPlug(r, model))
 		if ok && c.Doing == Streaming {
-			return span{answered(c), doingInk}
+			return answering(r, c)
 		}
 		told, asking = told || ok, asking || ok && c.Doing.InFlight()
 	}
@@ -195,6 +195,17 @@ func (f Frame) runningDoing(r views.Running) span {
 		return span{"↓", doingInk}
 	}
 	return span{"idle", faintInk}
+}
+
+// answering is the session running r answering as its call c streams back,
+// as answered says it, numbered as its tokens on its account once the
+// stream has counted any.
+func answering(r views.Running, c Call) span {
+	said := span{answered(c), doingInk}
+	if c.Tokens == 0 {
+		return said
+	}
+	return said.numbered(Number{Kind: NumberTokens, Account: r.Account, Of: r.Session})
 }
 
 // answered is how much of the call's answer has streamed, as "↓ ~1.2k": "↓"

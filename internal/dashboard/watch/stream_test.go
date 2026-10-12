@@ -342,8 +342,9 @@ func TestTheCordsDrawFramesOnSessionsSwitchboardAlone(t *testing.T) {
 			h.keys(tt.keys...)
 			h.settle()
 			h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamFirst, "r1", "work", 0))
+			h.framesUntil(h.clock.now.Add(brightFor + frameEvery))
 			if _, framing := h.pendingFrame(); framing != tt.want {
-				t.Errorf("as d28c's answer streams, a frame is armed: %v, want %v", framing, tt.want)
+				t.Errorf("as d28c's answer streams, work's rate brightened by its request faded back, a frame is armed: %v, want %v", framing, tt.want)
 			}
 		})
 	}

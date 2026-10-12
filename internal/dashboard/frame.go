@@ -39,6 +39,10 @@ type Frame struct {
 	// key, while they ease to the document's readings after a read: nil once
 	// they're there. Everything else is drawn from the document's own.
 	Eased map[Ref]float64
+	// Brightened are how bright each number a read or the request stream
+	// changed is still, as Numbers names them: from 1, just changed, to 0,
+	// faded back.
+	Brightened map[Number]float64
 	// Sections are the Overview's sections shown, as u, g, r, s, c and l
 	// show and hide them, and By how its windows are grouped, as b switches
 	// it: by window, or by account.
@@ -88,12 +92,24 @@ type Frame struct {
 
 // Draw draws the frame of doc at now: a string for each of its rows, each,
 // where the look paints its canvas, the terminal's whole width. It draws the
-// page from the top, its title row, its status line, its heading row, the
-// view, the view's state line and the key line, but for the heading row and
-// the view where the terminal is too short for them, as cramped says; then,
+// page, as page has it, its numbers brightened as Brightened says; then,
 // where a card is open, fades the page and draws the card over it.
 // Countdowns run from now, and times show in now's time zone.
 func (f Frame) Draw(doc status.Document, now time.Time) []string {
+	c := f.page(doc, now)
+	c.brighten(f.Brightened, f.Look)
+	if f.Card != nil {
+		c.fade()
+		f.Card.card(f).draw(c)
+	}
+	return c.rows(f.Look)
+}
+
+// page draws the frame's page of doc at now from the top: its title row, its
+// status line, its heading row, the view, the view's state line and the key
+// line, but for the heading row and the view where the terminal is too short
+// for them, as cramped says.
+func (f Frame) page(doc status.Document, now time.Time) *canvas {
 	c := newCanvas(f.Width, f.Height)
 	f.title(c, now)
 	f.routerStatus(c, doc, now)
@@ -101,11 +117,7 @@ func (f Frame) Draw(doc status.Document, now time.Time) []string {
 	f.view(c, doc, now)
 	f.stateLine(c)
 	f.keyLine(c)
-	if f.Card != nil {
-		c.fade()
-		f.Card.card(f).draw(c)
-	}
-	return c.rows(f.Look)
+	return c
 }
 
 // view draws the tab shown of doc at now from row top, where the page has
