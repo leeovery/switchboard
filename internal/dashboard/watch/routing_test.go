@@ -310,8 +310,8 @@ func TestProbingAsAskedThereIsNoP(t *testing.T) {
 	h.model.cfg.ProbeOnly = true
 	h.start()
 
-	if slices.Contains(h.listed(), "p") || slices.Contains(listedKeys(h.model.helpKeys()), "p") {
-		t.Errorf("the key line lists %q, and help %q; want neither to list p: there's no router to pin through", h.listed(), listedKeys(h.model.helpKeys()))
+	if slices.Contains(h.listed(), "p") || slices.Contains(listedKeys(h.model.helpKeys(h.clock.now)), "p") {
+		t.Errorf("the key line lists %q, and help %q; want neither to list p: there's no router to pin through", h.listed(), listedKeys(h.model.helpKeys(h.clock.now)))
 	}
 	h.keyed("p")
 	if h.model.open != nothingOpen || h.model.note != "" {
@@ -650,11 +650,94 @@ func TestTheCardPricesTheMovesOnceMIsTicked(t *testing.T) {
 	if l.reads != 1 {
 		t.Errorf("once a look found the sessions as they were, the ledger was read %d times, want once still", l.reads)
 	}
-	h.source.sessions[1] = sessionOn(id9E21, "claude-sonnet-5-5", "client", 0)
+	h.source.sessions[1] = sessionOn(id9E21, "claude-opus-5-5", "client", 0)
 	h.tickUntilAsked()
 	if l.reads != 2 {
-		t.Errorf("once a look found 9e21 seen again, the ledger was read %d times, want twice", l.reads)
+		t.Errorf("once a look found 9e21 on another model, the ledger was read %d times, want twice", l.reads)
 	}
+}
+
+func TestTheCardPricesTheMovesAgainOnlyAsTheSessionsPlacesChange(t *testing.T) {
+	tests := []struct {
+		name string
+		// look changes the sessions the router lists, a look on.
+		look      func(sessions []status.Session) []status.Session
+		wantReads int
+	}{
+		{name: "as they were", look: func(s []status.Session) []status.Session { return s }, wantReads: 1},
+		{
+			name: "each seen again",
+			look: func(s []status.Session) []status.Session {
+				for i := range s {
+					s[i].Assignments[0].LastSeen = start.Add(time.Minute).UTC()
+				}
+				return s
+			},
+			wantReads: 1,
+		},
+		{
+			name:      "one busy",
+			look:      func(s []status.Session) []status.Session { s[0].Assignments[0].InFlight = status.Answering; return s },
+			wantReads: 1,
+		},
+		{name: "in another order", look: func(s []status.Session) []status.Session { slices.Reverse(s); return s }, wantReads: 1},
+		{
+			name: "one with its models listed in another order",
+			look: func(s []status.Session) []status.Session {
+				s[0].Assignments = []status.Assignment{s[0].Assignments[1], s[0].Assignments[0]}
+				return s
+			},
+			wantReads: 1,
+		},
+		{
+			name: "one new",
+			look: func(s []status.Session) []status.Session {
+				return append(s, sessionOn("5b0c2e91-7d3a-4c18-9f42-0a6e8d1b3c57", "claude-sonnet-5-5", "client", 0))
+			},
+			wantReads: 2,
+		},
+		{name: "one gone", look: func(s []status.Session) []status.Session { return s[:2] }, wantReads: 2},
+		{
+			name:      "one on another account",
+			look:      func(s []status.Session) []status.Session { s[1].Assignments[0].Account = "side"; return s },
+			wantReads: 2,
+		},
+		{
+			name:      "one with a model on another account",
+			look:      func(s []status.Session) []status.Session { s[0].Assignments[1].Account = "client"; return s },
+			wantReads: 2,
+		},
+		{name: "one pinned", look: func(s []status.Session) []status.Session { s[0].Pin = "work"; return s }, wantReads: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, l := pricedHarness(t)
+			// d28c also asks Claude Haiku 4.5, on work.
+			d28c := &h.source.sessions[0]
+			d28c.Assignments = append(d28c.Assignments, sessionOn(idD28C, "claude-haiku-4-5", "work", time.Minute).Assignments...)
+			h.tickUntilAsked()
+			h.keyed("p 2 m")
+			if l.reads != 1 {
+				t.Fatalf("m ticked, the ledger was read %d times, want once", l.reads)
+			}
+
+			h.source.sessions = tt.look(apart(h.source.sessions))
+			h.tickUntilAsked()
+			if l.reads != tt.wantReads {
+				t.Errorf("a look on, the ledger was read %d times, want %d", l.reads, tt.wantReads)
+			}
+		})
+	}
+}
+
+// apart is a copy of the sessions that shares no assignments with them, for
+// a look to change without changing those listed before.
+func apart(sessions []status.Session) []status.Session {
+	copied := slices.Clone(sessions)
+	for i := range copied {
+		copied[i].Assignments = slices.Clone(copied[i].Assignments)
+	}
+	return copied
 }
 
 func TestTheCardListsTheSessionsToPriceOnceAtATime(t *testing.T) {
@@ -669,7 +752,7 @@ func TestTheCardListsTheSessionsToPriceOnceAtATime(t *testing.T) {
 		{
 			name: "a look finding the sessions changed, which are listed again once it lands",
 			meanwhile: func(h *harness) {
-				h.source.sessions[1] = sessionOn(id9E21, "claude-sonnet-5-5", "client", 0)
+				h.source.sessions[1] = sessionOn(id9E21, "claude-opus-5-5", "client", 0)
 				h.tickUntilAsked()
 			},
 			wantReads: 2,

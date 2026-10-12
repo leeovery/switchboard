@@ -50,7 +50,7 @@ func TestTheKeyLineGroupsTheKeysOfEachTab(t *testing.T) {
 			h.model.view = tt.view
 			h.start()
 
-			l := h.model.keyLine(h.clock.now)
+			l := h.model.live(h.clock.now).KeyLine
 			var got [][]string
 			for _, group := range l.Groups {
 				got = append(got, listedKeys(group))
@@ -85,7 +85,7 @@ func TestTheEmptyTabsListPPinOnlyWhereThereIsAPinToSet(t *testing.T) {
 				h.start()
 
 				var got [][]string
-				for _, group := range h.model.keyLine(h.clock.now).Groups {
+				for _, group := range h.model.live(h.clock.now).KeyLine.Groups {
 					got = append(got, listedKeys(group))
 				}
 				if !slices.EqualFunc(got, tt.want, slices.Equal) {
