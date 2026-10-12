@@ -55,13 +55,17 @@ func (e easing) standing(doc status.Document, now time.Time) map[dashboard.Ref]f
 }
 
 // utilizations are how much of each of doc's windows is used, by its
-// account and key.
+// account and key, and of each of its pool's, by its key alone, as the
+// pool's bars fill to.
 func utilizations(doc status.Document) map[dashboard.Ref]float64 {
 	used := make(map[dashboard.Ref]float64)
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
 			used[dashboard.Ref{Account: a.ID, Window: w.Key}] = w.Utilization
 		}
+	}
+	for _, p := range doc.Pool.Windows {
+		used[dashboard.Ref{Window: p.Key}] = p.Used
 	}
 	return used
 }

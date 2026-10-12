@@ -257,6 +257,48 @@ func TestUSAGEHoldsItsPoolAndKeyLineAtTheFootOfItsRowsHoweverFarItsScrolled(t *t
 	}
 }
 
+func TestStackedUSAGEHoldsEveryWindowsHeadingOnItsRowHoweverFarItsScrolled(t *testing.T) {
+	withFable := manyRead(10)
+	for i := range withFable.Accounts {
+		a := &withFable.Accounts[i]
+		a.Windows = append(a.Windows, windowOf("7d_oi", "Fable week", 0.3, 4*day))
+	}
+	withFable = withFable.WorkedOut(claudeLike)
+	tests := []struct {
+		name     string
+		doc      status.Document
+		rows     int
+		headings []string
+	}{
+		{name: "two windows", doc: manyRead(10), rows: 26, headings: []string{"5-HOUR", "WEEK"}},
+		{name: "three, the rows spare not shared evenly", doc: withFable, rows: 35, headings: []string{"5-HOUR", "WEEK", "FABLE WEEK"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(120, 60)
+			most := f.usageSection(tt.doc, now).scrolling(tt.rows, 0).Most
+			if most < 2 {
+				t.Fatalf("in %d rows, USAGE scrolls %d accounts at most, want it to scroll past its top and short of its end", tt.rows, most)
+			}
+			var at []int
+			for _, scroll := range []int{0, 1, most} {
+				f.Scroll = scroll
+				rows, _ := usageBody(f, tt.doc, now, tt.rows)
+				var got []int
+				for _, heading := range tt.headings {
+					got = append(got, slices.Index(rows, heading))
+				}
+				if scroll == 0 {
+					at = got
+				}
+				if !slices.Equal(got, at) || slices.Contains(got, -1) {
+					t.Errorf("scrolled %d down, the windows' headings are on rows %v, want %v, as at the top:\n%s", scroll, got, at, strings.Join(rows, "\n"))
+				}
+			}
+		})
+	}
+}
+
 func TestUSAGEEndsAtItsLastPoolAndKeyLineInEveryLayoutHoweverFarItsScrolled(t *testing.T) {
 	doc := manyRead(10)
 	tests := []struct {
@@ -570,6 +612,34 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 		if s.ink != inks[i] {
 			t.Errorf("%q is drawn in %+v, want %+v", s.text, s.ink, inks[i])
 		}
+	}
+}
+
+func TestAcrossAResetBetweenReadsOneAccountsRoomLeftAndROUTINGAgree(t *testing.T) {
+	// Work is at its cap in its 5-hour, read at now, which resets in an hour.
+	a := readAccount("work", sessionOf(0.9, time.Hour), weekOf(0.4, 3*day))
+	a.Reserve = 0.2
+	doc := routerDoc("work", 0, a)
+	reset := now.Add(time.Hour)
+	f := frameOf(160, 60)
+	tests := []struct {
+		name   string
+		now    time.Time
+		capped bool
+		want   string
+	}{
+		{name: "a moment before it resets", now: reset.Add(-time.Second), capped: true, want: "room left  5h 0.0 of 1  ·  week 0.4 of 1"},
+		{name: "a moment after, before it's read again", now: reset.Add(time.Second), want: "room left  5h 0.8 of 1  ·  week 0.4 of 1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if capped := f.routingTableOf(doc, tt.now).accounts[0].standing.Kind == status.RoutingCapped; capped != tt.capped {
+				t.Errorf("ROUTING has work capped %t, want %t", capped, tt.capped)
+			}
+			if got := f.usageSection(doc, tt.now).description().plain(); got != tt.want {
+				t.Errorf("USAGE's description reads %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

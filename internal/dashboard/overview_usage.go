@@ -28,24 +28,25 @@ const (
 // ROUTING's beside them, moves the focus to it.
 func (f Frame) usageSection(doc status.Document, now time.Time) section {
 	block := f.overviewBlock(doc, now)
+	views := block.views()
 	aside := 0
 	if f.routingBesideUsage() {
 		aside = block.routingAt()
 	}
 	return section{
-		Section: SectionUsage, least: sectionHead + block.height(), most: sectionHead + block.enlarged().height(), aside: aside,
-		description: func() line { return f.roomLeft(doc) },
+		Section: SectionUsage, least: sectionHead + views.all, most: sectionHead + views.big, aside: aside,
+		description: func() line { return f.roomLeft(doc, now) },
 		draw: func(c *canvas, body bounds) {
-			shown := block.fitted(body.rows, f.Scroll)
+			shown := views.fitted(body.rows, f.Scroll)
 			shown.drawIn(c, body)
 			if aside > 0 {
 				f.routingBeside(c, doc, now, shown.beside(aside, body))
 			}
 		},
 		targets: func(body bounds) []Target {
-			return block.fitted(body.rows, f.Scroll).targets(body)
+			return views.fitted(body.rows, f.Scroll).targets(body)
 		},
-		scrolling: block.scrolling,
+		scrolling: views.scrolling,
 	}
 }
 
@@ -66,10 +67,10 @@ func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	if f.Sections.Has(SectionGraphs) {
 		b.focus = f.Focus
 	}
-	for i, n := range names {
-		row := b.rows[i]
+	for i, row := range b.rows {
+		out := i < len(names) && names[i].out
 		for j, g := range row.gauges {
-			row.gauges[j] = f.overviewGauge(g, Ref{Account: row.id, Window: b.windows[j].key}, n.out)
+			row.gauges[j] = f.overviewGauge(g, out)
 		}
 	}
 	return b
@@ -115,20 +116,20 @@ func overviewNamed(doc status.Document, names []accountName, id string, k ink) s
 	return span{status.Clean(id), k}
 }
 
-// overviewGauge is g, the window ref names, as the Overview draws it: where
-// its account is out of the pool, its bar faded as a stale reading's is, the
-// two fades compounding where it's stale too, and its percentage and words
-// faint; its bar filled as far as it has eased, while it eases after a read;
-// and its words cued while their cue for turning to out ~ fades back, as the
-// frame's TurnedOut says, where they say it still.
-func (f Frame) overviewGauge(g gauge, ref Ref, out bool) gauge {
+// overviewGauge is g, an account's window or the pool's, as the Overview
+// draws it: where its account is out of the pool, its bar faded as a stale
+// reading's is, the two fades compounding where it's stale too, and its
+// percentage and words faint; its bar filled as far as it has eased, while
+// it eases after a read; and its words cued while their cue for turning to
+// out ~ fades back, as the frame's TurnedOut says, where they say it still.
+func (f Frame) overviewGauge(g gauge, out bool) gauge {
 	if out {
 		g.bar.out, g.words = true, g.words.faint()
 	}
-	if used, ok := f.Eased[ref]; ok {
+	if used, ok := f.Eased[g.of]; ok {
 		g.bar.eased = &used
 	}
-	if fade, ok := f.TurnedOut[ref]; ok && g.runsOut {
+	if fade, ok := f.TurnedOut[g.of]; ok && g.runsOut {
 		g.cue = &fade
 	}
 	return g
@@ -152,19 +153,19 @@ func keyMarks(names []accountName, phone bool) []line {
 	return marks
 }
 
-// roomLeft is USAGE's description of doc: with one account, which has no
-// pool, the room it has left in its 5-hour window and its week, each summed
-// as the pool's room is, and numbered as its window's room, as in "room
+// roomLeft is USAGE's description of doc at now: with one account, which has
+// no pool, the room it has left in its 5-hour window and its week at now, as
+// RoomOf judges it, and numbered as its window's room, as in "room
 // left  5h 0.4 of 1  ·  week 0.6 of 1"; none on a phone, nor with more
 // accounts, whose pool's row says the room.
-func (f Frame) roomLeft(doc status.Document) line {
+func (f Frame) roomLeft(doc status.Document, now time.Time) line {
 	if len(doc.Accounts) != 1 || f.phone() {
 		return nil
 	}
 	a := doc.Accounts[0]
 	var parts []line
 	for _, w := range []struct{ key, word string }{{f.Policy.Started, "5h"}, {sharedWeek(f.Policy), "week"}} {
-		if room, ok := doc.RoomOf(a, w.key, f.Policy); ok {
+		if room, ok := doc.RoomOf(a, w.key, now, f.Policy); ok {
 			left := span{tenths(room), strongInk}.numbered(Number{Kind: NumberRoom, Account: a.ID, Of: w.key})
 			parts = append(parts, line{{w.word + " ", dimInk}, left, {" of 1", dimInk}})
 		}
@@ -191,14 +192,59 @@ func (b usageBlock) enlarged() usageBlock {
 	return b
 }
 
+// usageViews are the block's views, as USAGE shows it in however many rows
+// it's given, scrolled however far: the block; the rows it takes with its big
+// bars, and as it's laid out; how many accounts it has; and the rows each
+// account in view adds, and each mark, ▲ or ▼, as of counts them.
+type usageViews struct {
+	block         usageBlock
+	big, all      int
+	accounts      int
+	account, mark int
+}
+
+// views are the block's views, worked out from three layouts of it at most,
+// as every account's rows are alike, and ▲ and ▼ take a row each in each
+// window's section: every account in view, all but the last, and all but the
+// last two. With two accounts, a view of one has a mark, so the account's
+// rows count the mark's.
+func (b usageBlock) views() usageViews {
+	accounts, _ := b.split()
+	n := len(accounts)
+	v := usageViews{block: b, big: b.enlarged().height(), all: b.height(), accounts: n}
+	if n < 2 {
+		return v
+	}
+	oneBelow := b.shows(0, n-1).height()
+	v.account = v.all - oneBelow
+	if n > 2 {
+		v.account = oneBelow - b.shows(0, n-2).height()
+		v.mark = oneBelow + v.account - v.all
+	}
+	return v
+}
+
+// of is how many rows the block takes, as height has them, with above
+// accounts' rows out of view above, shown in view, and the rest below.
+func (v usageViews) of(above, shown int) int {
+	marks := 0
+	if above > 0 {
+		marks++
+	}
+	if v.accounts-above-shown > 0 {
+		marks++
+	}
+	return v.all - (v.accounts-shown)*v.account + marks*v.mark
+}
+
 // fitted is the block as USAGE draws it in rows rows, scrolled offset
 // accounts' rows down: with its big bars, where they fit; else as it's laid
 // out, scrolled within the rows where it doesn't fit.
-func (b usageBlock) fitted(rows, offset int) usageBlock {
-	if big := b.enlarged(); big.height() <= rows {
-		return big
+func (v usageViews) fitted(rows, offset int) usageBlock {
+	if v.big <= rows {
+		return v.block.enlarged()
 	}
-	return b.scrolled(rows, offset)
+	return v.scrolled(rows, offset)
 }
 
 // scrolling is how far the block scrolls in rows rows, scrolled offset
@@ -206,40 +252,39 @@ func (b usageBlock) fitted(rows, offset int) usageBlock {
 // last account, a page being as many as show at the offset, taken no further
 // than it goes: more at the top or the foot, with no ▲ or ▼ by them, than
 // between; nowhere where it fits.
-func (b usageBlock) scrolling(rows, offset int) Scrolling {
-	accounts, _ := b.split()
-	n := len(accounts)
-	if n < 2 || b.height() <= rows {
+func (v usageViews) scrolling(rows, offset int) Scrolling {
+	n := v.accounts
+	if n < 2 || v.all <= rows {
 		return Scrolling{}
 	}
 	last := 1
-	for last < n-1 && b.shows(n-last-1, last+1).height() <= rows {
+	for last < n-1 && v.of(n-last-1, last+1) <= rows {
 		last++
 	}
 	most := n - last
-	return Scrolling{Most: most, Page: b.shownFrom(rows, min(max(offset, 0), most))}
+	return Scrolling{Most: most, Page: v.shownFrom(rows, min(max(offset, 0), most))}
 }
 
 // scrolled is the block in rows rows, scrolled offset accounts' rows down, no
 // further than scrolling says it goes, showing as many as fit, at least one,
 // the rows they leave spare under them, so its pool and its key line keep
 // their rows at the foot however far it's scrolled.
-func (b usageBlock) scrolled(rows, offset int) usageBlock {
-	s := b.scrolling(rows, offset)
+func (v usageViews) scrolled(rows, offset int) usageBlock {
+	s := v.scrolling(rows, offset)
 	if s.Most == 0 {
-		return b
+		return v.block
 	}
-	shown := b.shows(min(max(offset, 0), s.Most), s.Page)
-	shown.spare = max(rows-shown.height(), 0)
+	above := min(max(offset, 0), s.Most)
+	shown := v.block.shows(above, s.Page)
+	shown.spare = max(rows-v.of(above, s.Page), 0)
 	return shown
 }
 
 // shownFrom is how many accounts' rows show in rows rows, from the one at
 // first: as many as fit, at least one.
-func (b usageBlock) shownFrom(rows, first int) int {
-	accounts, _ := b.split()
+func (v usageViews) shownFrom(rows, first int) int {
 	shown := 1
-	for shown < len(accounts)-first && b.shows(first, shown+1).height() <= rows {
+	for shown < v.accounts-first && v.of(first, shown+1) <= rows {
 		shown++
 	}
 	return shown

@@ -420,8 +420,10 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 
 // stacked draws the block's windows one under another, each a section, its
 // heading, then a row an account, the pool last, from row y, two blank lines
-// between sections. The block's spare rows go in its last section, over the
-// pool it ends with.
+// between sections. The block's spare rows are shared out among its sections,
+// each's over the pool it ends with, the last's the rows left over too: as
+// every section shows the same accounts, each is then as tall however far the
+// block's scrolled, and every heading keeps its row.
 func (b usageBlock) stacked(c *canvas, y int) laid {
 	bar := b.bar()
 	all := laid{end: y}
@@ -431,8 +433,9 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 		}
 		c.line(0, y, line{{strings.ToUpper(w.name), dimInk}})
 		in := b
-		if i < len(b.windows)-1 {
-			in.spare = 0
+		in.spare = b.spare / len(b.windows)
+		if i == len(b.windows)-1 {
+			in.spare = b.spare - i*in.spare
 		}
 		section := in.each(c, 1, y+2, 2, func(r usageRow, y int) int {
 			c.line(1, y, r.name)

@@ -311,6 +311,35 @@ func TestFramesRunOnWhereTheClockReadsALittleBehindTheirTimers(t *testing.T) {
 	checkScreen(t, h, 0.5, 0.25)
 }
 
+func TestThePoolsBarsEaseAsTheAccountsDo(t *testing.T) {
+	both := func(used float64) status.Document {
+		return document(
+			account("work", "Work", session(used, 3*time.Hour), week(0.5)),
+			account("personal", "Personal", session(used, 4*time.Hour), week(0.5)),
+		).WorkedOut(policy)
+	}
+	h := newHarness(t, both(0.5))
+	h.start()
+	h.settle()
+
+	h.clock.now = h.clock.now.Add(time.Minute)
+	h.read(both(0.75))
+	h.clock.now = h.clock.now.Add(easeFor / 2)
+	h.redraw()
+
+	pool := dashboard.Ref{Window: "5h"}
+	from, to := both(0.5).Pool.Windows[0].Used, both(0.75).Pool.Windows[0].Used
+	now := h.model.now()
+	f := h.model.live(now)
+	if got, want := f.Eased[pool], lerp(from, to, easeOutCubic(0.5)); got != want {
+		t.Fatalf("half way, the pool's 5-hour bar fills %v, want %v, eased from %v to %v", got, want, from, to)
+	}
+	delete(f.Eased, pool)
+	if got, asRead := h.view(), ansi.Strip(strings.Join(f.Draw(h.model.doc, now), "\n")); got == asRead {
+		t.Errorf("half way, the screen is\n%s\nwant the pool's bar eased, not filled as read", got)
+	}
+}
+
 func TestEasingLeavesTheDocumentAlone(t *testing.T) {
 	doc := sessionAndWeek(0.5, 0.25)
 	h := newHarness(t, doc)

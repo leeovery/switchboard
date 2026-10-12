@@ -90,11 +90,14 @@ func (m Model) notch(way int) scrollStep {
 
 // scrollView scrolls the view shown by, the page acting as acting has it
 // only where that moves it from where it's drawn: a scroll that moves
-// nothing leaves the Overview's layout as it's kept.
+// nothing leaves the Overview's layout as it's kept, but the view scrolled
+// no further than it's drawn, so an offset past where it now goes doesn't
+// come back once it goes further again.
 func (m Model) scrollView(by scrollStep) Model {
 	s := m.scrolling()
 	to := by.from(m.scroll, s)
 	if to == min(m.scroll, s.Most) {
+		m.scroll = to
 		return m
 	}
 	m = m.acting()
