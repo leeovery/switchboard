@@ -103,18 +103,18 @@ type hardMoment struct {
 
 // accountWant is what's wanted of an account at a hard moment.
 type accountWant struct {
-	routing                       status.RoutingKind
-	held, capHolds, idle, canRise bool
-	underPressure                 bool
-	limitSince                    time.Time
+	routing                                   status.RoutingKind
+	held, capHolds, idle, outOfQuota, canRise bool
+	underPressure                             bool
+	limitSince                                time.Time
 	// windows are what's wanted of each of its windows, by key.
 	windows map[string]windowWant
 }
 
 // String says what's wanted of the account, its times as sinceBuilt has them.
 func (a accountWant) String() string {
-	return fmt.Sprintf("{routing:%d held:%v capHolds:%v idle:%v canRise:%v underPressure:%v limitSince:%s}",
-		a.routing, a.held, a.capHolds, a.idle, a.canRise, a.underPressure, sinceBuilt(a.limitSince))
+	return fmt.Sprintf("{routing:%d held:%v capHolds:%v idle:%v outOfQuota:%v canRise:%v underPressure:%v limitSince:%s}",
+		a.routing, a.held, a.capHolds, a.idle, a.outOfQuota, a.canRise, a.underPressure, sinceBuilt(a.limitSince))
 }
 
 // windowWant is what's wanted of a window at a hard moment.
@@ -271,7 +271,7 @@ func hardMoments() []hardMoment {
 			now:  built.Add(10 * time.Minute),
 			next: "side",
 			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingCapped, capHolds: true, windows: map[string]windowWant{
+				"work": {routing: status.RoutingCapped, capHolds: true, outOfQuota: true, windows: map[string]windowWant{
 					"5h": {kind: status.WindowOpen, at: built.Add(3 * time.Hour), used: 0.3, next: built.Add(3 * time.Hour)},
 					"7d": {kind: status.WindowCapped, at: built.Add(time.Hour), used: 0.92, next: built.Add(time.Hour), capped: true, cappedAsRead: true},
 				}},
@@ -297,7 +297,7 @@ func hardMoments() []hardMoment {
 			now:  built.Add(10 * time.Minute),
 			next: "side",
 			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingLimited, held: true, limitSince: built.Add(-20 * time.Minute), windows: map[string]windowWant{
+				"work": {routing: status.RoutingLimited, held: true, outOfQuota: true, limitSince: built.Add(-20 * time.Minute), windows: map[string]windowWant{
 					"5h": {
 						kind: status.WindowLimited, at: built.Add(40 * time.Minute), used: 1, next: built.Add(40 * time.Minute),
 						held: true, since: built.Add(-20 * time.Minute),
@@ -345,7 +345,7 @@ func hardMoments() []hardMoment {
 			now:  built.Add(time.Minute),
 			next: "work",
 			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingLimited, held: true, windows: map[string]windowWant{
+				"work": {routing: status.RoutingLimited, held: true, outOfQuota: true, windows: map[string]windowWant{
 					"5h": {kind: status.WindowOpen, at: built.Add(3 * time.Hour), used: 0.3, next: built.Add(3 * time.Hour)},
 					"7d": {kind: status.WindowLimited, at: built.Add(2 * day), used: 1, next: built.Add(2 * day), held: true},
 				}},
@@ -378,7 +378,7 @@ func checkWanted(t *testing.T, tt hardMoment, m status.Moment) {
 	for _, a := range m.Accounts {
 		want := tt.accounts[a.ID]
 		got := accountWant{
-			routing: a.Routing.Kind, held: a.Held, capHolds: a.CapHolds, idle: a.Idle, canRise: a.CanRise,
+			routing: a.Routing.Kind, held: a.Held, capHolds: a.CapHolds, idle: a.Idle, outOfQuota: a.OutOfQuota, canRise: a.CanRise,
 			underPressure: a.Pressure.Under, limitSince: a.LimitSince,
 		}
 		wantFacts := want
@@ -475,7 +475,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 	session, _ := a.Window(a.Pressure.Window)
 	pressureOut, _ := doc.RunsOut(a, session, now)
 	pool := m.Pool()
-	shut := held && hold.Every || doc.CapHolds(a, now, policy) || a.TokenRefused(now)
+	outOfQuota := held && hold.Every || doc.CapHolds(a, now, policy)
 	want := status.AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: doc.Floor(a), ReserveHolds: doc.ReserveHolds(a),
@@ -487,7 +487,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		Refusal: refusal, TokenRefused: a.TokenRefused(now),
 		Pressure: status.PressureNow{Under: doc.Pressed(a, now) != "", Window: a.Pressure.Window, Out: pressureOut},
 		Idle:     a.HasLapsed(policy.Started, now, policy), NextPrime: primeOf(doc, a.ID),
-		CanRise: !shut,
+		OutOfQuota: outOfQuota, CanRise: !outOfQuota && !a.TokenRefused(now),
 		Windows: got.Windows,
 	}
 	if gotFacts := withoutUnreported(got); !reflect.DeepEqual(gotFacts, want) {
@@ -509,7 +509,7 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitSince: a.LimitSince,
 		ReachedReserve: a.ReachedReserve, CapHolds: a.CapHolds, CapBack: a.CapBack,
 		Refusal: a.Refusal, TokenRefused: a.TokenRefused, Pressure: a.Pressure,
-		Idle: a.Idle, NextPrime: a.NextPrime, CanRise: a.CanRise, Windows: a.Windows,
+		Idle: a.Idle, NextPrime: a.NextPrime, OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Windows: a.Windows,
 	}
 }
 
@@ -1051,5 +1051,83 @@ func TestAnAccountIsInThePoolWhereThePoolTakesItIn(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAnAccountIsOutOfQuotaWhereALimitOrItsCapHoldsItBackFromEveryRequest(t *testing.T) {
+	limit := func(windows ...string) func(*status.Account) {
+		return func(a *status.Account) {
+			a.Limit = status.Limit{ID: 1, Windows: windows, Until: built.Add(time.Hour)}
+		}
+	}
+	refused := func(a *status.Account) {
+		a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401}
+	}
+	session, week, fableWeek := windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.5, 2*day), windowIn("7d_oi", 0.2, 4*day)
+	atItsReserve := with(readAt("work", session, windowIn("7d", 0.92, 2*day)), reserving)
+	tests := []struct {
+		name    string
+		account status.Account
+		pinned  bool
+		// outOfQuota is whether its quota has run out a minute after the
+		// document was built, and canRise whether it can take a request then.
+		outOfQuota, canRise bool
+	}{
+		{name: "nothing holding it back", account: readAt("work", session, week), canRise: true},
+		{name: "a limit naming no window, its windows read with room", account: with(readAt("work", session, week), limit()), outOfQuota: true},
+		{name: "a limit naming the week, which every model shares", account: with(readAt("work", session, week), limit("7d")), outOfQuota: true},
+		{name: "a limit naming a model's own week", account: with(readAt("work", session, week, fableWeek), limit("7d_oi")), canRise: true},
+		{name: "a window every model shares read spent", account: readAt("work", spentIn("5h", 1, 3*time.Hour), week), outOfQuota: true},
+		{name: "a window every model shares read spent, reset since", account: readAt("work", spentIn("5h", 1, 30*time.Second), week), canRise: true},
+		{name: "a model's own window read spent", account: readAt("work", session, week, spentIn("7d_oi", 1, 4*day)), canRise: true},
+		{name: "at its reserve", account: atItsReserve, outOfQuota: true},
+		{name: "at its reserve, pinned, which spends it", account: atItsReserve, pinned: true, canRise: true},
+		{name: "its token refused alone, which isn't quota", account: with(readAt("work", session, week), refused)},
+		{name: "its token refused, and a window every model shares read spent", account: with(readAt("work", spentIn("5h", 1, 3*time.Hour), week), refused), outOfQuota: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var pinned []string
+			if tt.pinned {
+				pinned = []string{tt.account.ID}
+			}
+			m := asTheRouterBuilds(built, pinned, routed{Account: tt.account}).WorkedOut(policy).At(built.Add(time.Minute), policy)
+			if a := m.Accounts[0]; a.OutOfQuota != tt.outOfQuota || a.CanRise != tt.canRise {
+				t.Errorf("OutOfQuota = %v, CanRise = %v; want %v, %v", a.OutOfQuota, a.CanRise, tt.outOfQuota, tt.canRise)
+			}
+		})
+	}
+}
+
+func TestAMomentAtAnotherNowIsItsDocumentAtThatNow(t *testing.T) {
+	for _, tt := range hardMoments() {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := tt.doc.WorkedOut(policy)
+			got, want := doc.At(built, policy).At(tt.now), doc.At(tt.now, policy)
+			if !reflect.DeepEqual(factsOf(got), factsOf(want)) {
+				t.Errorf("as built, then at now, the moment is\n%+v\nwant\n%+v", factsOf(got), factsOf(want))
+			}
+			if !reflect.DeepEqual(got.Pool(), want.Pool()) {
+				t.Errorf("as built, then at now, the pool is %+v, want %+v", got.Pool(), want.Pool())
+			}
+		})
+	}
+}
+
+// factsOf is the moment m as its fields alone have it.
+func factsOf(m status.Moment) status.Moment {
+	return status.Moment{
+		Now: m.Now, ReadAt: m.ReadAt, Routed: m.Routed, Probed: m.Probed, Fallback: m.Fallback, Health: m.Health, Restart: m.Restart, Pin: m.Pin,
+		Events: m.Events, Sessions: m.Sessions, ComingUp: m.ComingUp, Next: m.Next, Accounts: m.Accounts,
+		Shown: m.Shown, Hidden: m.Hidden, Coming: m.Coming,
+	}
+}
+
+func TestAnAccountAtAMomentIsTitledAsItsAccountIs(t *testing.T) {
+	work := readAt("work", windowIn("5h", 0.3, 3*time.Hour))
+	work.Label = "Work\tplace"
+	a := asProbed(built, work).At(built, policy).Accounts[0]
+	if got, want := a.Title(), "work · Work place"; got != want || got != work.Title() {
+		t.Errorf("Title() = %q, want %q, as the account's Title has it, %q", got, want, work.Title())
 	}
 }

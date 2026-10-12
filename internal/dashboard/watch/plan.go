@@ -90,19 +90,19 @@ func (p plan) landed(r status.Read, doc status.Document, now time.Time) plan {
 	p.asked = now
 	var wait time.Duration
 	if !routed(doc) {
-		p.failures, wait = backoff(p.failures, incomplete(doc), p.interval)
-		p.due = nextFetch(doc, now, wait)
+		p.failures, wait = backoff(p.failures, doc.IncompleteAsRead(), p.interval)
+		p.due = doc.NextFetchAsRead(now, wait)
 		return p
 	}
 	if r.Refresh > 0 {
-		p.failures, wait = backoff(p.failures, incomplete(doc), p.interval)
+		p.failures, wait = backoff(p.failures, doc.IncompleteAsRead(), p.interval)
 		p.due = now.Add(wait)
 	}
 	if r.Refresh > 0 && r.Refresh <= status.FreshFor {
 		p.fresh = now
 	}
 	p.next = now.Add(lookEvery)
-	p.reset = rereadAfterReset(doc, p.fresh)
+	p.reset = doc.RereadAfterResetAsRead(p.fresh)
 	return p
 }
 
@@ -113,7 +113,7 @@ func (p plan) failed(doc status.Document, now time.Time) plan {
 	p.asked = now
 	var wait time.Duration
 	p.failures, wait = backoff(p.failures, true, p.interval)
-	p.due = nextFetch(doc, now, wait)
+	p.due = doc.NextFetchAsRead(now, wait)
 	return p
 }
 

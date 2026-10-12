@@ -782,9 +782,10 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
 		m = m.lose(now)
 	default:
+		look := msg.doc.At(now, m.cfg.Policy)
 		m.plan = m.plan.landed(msg.read, msg.doc, now)
-		m, shown = m.show(msg, now)
-		logRead(msg, m.plan.due)
+		m, shown = m.show(msg, look)
+		logRead(msg, look, m.plan.due)
 	}
 	m.chain++
 	var again tea.Cmd
@@ -796,12 +797,13 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 }
 
 // logRead notes a read: where it came from, the accounts it read and those it
-// couldn't, and when the next full read is due. A look at the router's
-// document as it stands, every few seconds, is noted only at debug.
-func logRead(msg fetchedMsg, next time.Time) {
+// couldn't, as look has them, and when the next full read is due. A look at
+// the router's document as it stands, every few seconds, is noted only at
+// debug.
+func logRead(msg fetchedMsg, look status.Moment, next time.Time) {
 	var read, failed []string
-	for _, a := range msg.doc.Accounts {
-		if wasRead(a) {
+	for _, a := range look.Accounts {
+		if a.Read {
 			read = append(read, a.ID)
 		} else {
 			failed = append(failed, a.ID)
@@ -815,35 +817,35 @@ func logRead(msg fetchedMsg, next time.Time) {
 		"read", strings.Join(read, ","), "failed", strings.Join(failed, ","), "next", next)
 }
 
-// show puts the document a read found at now on screen, with the sessions
-// the router listed, Sessions' calls keeping the order they ran in, each
-// move they show done no longer re-patching them; or where it couldn't list
-// them, those it listed last, while the router that listed them answers, as
-// a router restarted or replaced lists its own; and none while probing. It
-// posts what the change calls for, unless the router is there to post its
-// own, as nothing is to be told twice; follows the router as it goes and
-// comes back; notes the events new to it, and the readings it gives; asks
+// show puts the document a read found on screen, as look has it at its moment,
+// with the sessions the router listed, Sessions' calls keeping the order they
+// ran in, each move they show done no longer re-patching them; or where it
+// couldn't list them, those it listed last, while the router that listed them
+// answers, as a router restarted or replaced lists its own; and none while
+// probing. It posts what the change calls for, unless the router is there to
+// post its own, as nothing is to be told twice; follows the router as it goes
+// and comes back; notes the events new to it, and the readings it gives; asks
 // the router for its history with a full read, and as the router answers
 // again, or another router does, as one restarted, or probing, reads the
-// readings history's files with the first full read since probing began;
-// keeps the focus where its
-// account still is, else puts it on the first; eases the bars to it from
-// where they stand; and brightens each number on the page it changed.
-func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
-	doc := msg.doc
+// readings history's files with the first full read since probing began; keeps
+// the focus where its account still is, else puts it on the first; eases the
+// bars to it from where they stand; and brightens each number on the page it
+// changed.
+func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
+	doc, now := msg.doc, look.Now
 	was := m.numbersDrawn(now)
 	var post, asked tea.Cmd
 	if !routed(doc) {
-		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy, m.cfg.Notifications), probedAsAsked(doc))
+		post = m.post(m.readings.alerts(look, m.cfg.Notifications), probedAsAsked(doc))
 	}
 	ask := routed(doc) && (full(msg.read) || !m.answering() || m.news.another(msg.router))
 	if routed(doc) {
 		m = m.answeredAgain(msg.router)
 		m.history.filedSince = false
 	}
-	m.readings = m.readings.with(doc, now)
+	m.readings = m.readings.with(look)
 	m = m.follow(doc)
-	m.news = m.news.looked(doc, msg.router, now)
+	m.news = m.news.looked(look, msg.router)
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
 	m.history = m.history.saw(doc, now, m.cfg.Policy)
 	m.ease = easing{from: m.ease.standing(m.frame(now), m.doc, now), start: now}
@@ -856,7 +858,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	case !msg.router.Same(m.listedBy):
 		m.sessions = nil
 	}
-	m = m.stillThere()
+	m = m.stillThere(look)
 	m.trails = m.history.drawn(doc, now, m.cfg.Policy)
 	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), originOf(doc, msg.router), now)
 	switch {

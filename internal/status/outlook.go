@@ -209,10 +209,16 @@ func (s standing) every() bool {
 	return s.limited && s.held.Every
 }
 
-// shut reports whether the account can take no request: a limit or its cap
-// holds it back from every one, or its token is refused.
+// outOfQuota reports whether the account's quota for a request of any model
+// has run out: a limit or its cap holds it back from every one.
+func (s standing) outOfQuota() bool {
+	return s.every() || s.capped
+}
+
+// shut reports whether the account can take no request: it's out of quota,
+// as outOfQuota says, or its token is refused.
 func (s standing) shut() bool {
-	return s.every() || s.capped || s.refused
+	return s.outOfQuota() || s.refused
 }
 
 // holds reports whether a limit holds the account's window with the given
@@ -350,7 +356,7 @@ func (d Document) poolRoom(a Account, s standing, w quota.Window, at time.Time, 
 	switch {
 	case a.FetchedAt.IsZero() || s.refused:
 		return 0
-	case w.Key == policy.Started && (s.every() || s.capped):
+	case w.Key == policy.Started && s.outOfQuota():
 		return 0
 	case s.holds(w.Key):
 		return 0
@@ -397,7 +403,7 @@ func (d Document) comingTo(j judgedAccount) []Upcoming {
 // window holding back theirs alone lifts, as backsOfModels says.
 func (d Document) backs(j judgedAccount) []Upcoming {
 	var backs []Upcoming
-	if s := j.states.stood; s.every() || s.capped {
+	if j.states.stood.outOfQuota() {
 		backs = j.backFromEvery()
 	}
 	return append(backs, d.backsOfModels(j)...)
