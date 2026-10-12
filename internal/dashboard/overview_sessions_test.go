@@ -198,7 +198,7 @@ func TestASessionsWhyIsCutToEndBeforeItsTrace(t *testing.T) {
 	}}}
 	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: []status.Session{long}}
 	want := "3 side ▲        d28c  opus    now   idle     its pin to personal yields: personal has no…"
-	if got := sessionsDrawn(f, doc, 1)[0]; got != want {
+	if got := strings.TrimRight(string([]rune(sessionsDrawn(f, doc, 1)[0])[:traceFrom]), " "); got != want {
 		t.Errorf("drew\n  %q\nwant\n  %q, its why cut short two cells or more before the trace at column %d", got, want, traceFrom)
 	}
 }

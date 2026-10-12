@@ -256,9 +256,6 @@ func framedEvents(events ...status.Event) []status.Event {
 	return events
 }
 
-// reasonCapped is the router's reason for a move off work at its cap.
-const reasonCapped = "moved: work is at its reserve"
-
 // startedAt is a session starting on an account at the time given on 1
 // October, for the reason given.
 func startedAt(hour, minute int, session, account, reason string) status.Event {

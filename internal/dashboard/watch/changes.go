@@ -17,17 +17,8 @@ type changes struct {
 	read   bool
 	routed bool
 	router router.Health
-	states map[string]accountState
+	states map[string]string
 	since  map[string]time.Time
-}
-
-// accountState is an account's state as its words say it, for telling
-// whether it changed: its condition, and what holds it back or what it's
-// doing, without what that means, whose countdowns move on with nothing
-// changed.
-type accountState struct {
-	condition status.Condition
-	says      string
 }
 
 // looked takes in doc, read at now from the router whose health check said
@@ -62,7 +53,7 @@ func (c changes) ticked(doc status.Document, now time.Time, policy score.Policy)
 // changed are when each account picked out was seen to change at now, of
 // states as found against those found last: those already picked out while
 // they're picked out still, and those whose states differ, from now.
-func (c changes) changed(states map[string]accountState, now time.Time) map[string]time.Time {
+func (c changes) changed(states map[string]string, now time.Time) map[string]time.Time {
 	since := make(map[string]time.Time)
 	for id, at := range c.since {
 		if now.Sub(at) < highlightFor {
@@ -78,18 +69,19 @@ func (c changes) changed(states map[string]accountState, now time.Time) map[stri
 }
 
 // statesOf are the states of doc's accounts at now, as policy judges them,
-// by id.
-func statesOf(doc status.Document, now time.Time, policy score.Policy) map[string]accountState {
-	states := make(map[string]accountState, len(doc.Accounts))
+// by id: the first words ROUTING says each in, without the clauses after
+// them, whose times move on with nothing changed; nor whether new sessions
+// come to it, or the pin spends its cap, which the page marks besides.
+func statesOf(doc status.Document, now time.Time, policy score.Policy) map[string]string {
+	states := make(map[string]string, len(doc.Accounts))
 	for _, a := range doc.Accounts {
-		s := doc.StateOf(a, now, policy)
-		states[a.ID] = accountState{condition: s.Condition, says: s.Says}
+		states[a.ID] = doc.RoutingOf(a, now, policy).Says
 	}
 	return states
 }
 
-// faded is how far the highlight on each card picked out at now has faded,
-// by its account's id, as fading says.
+// faded is how far the cue on each account's state picked out at now has
+// faded, by its account's id, as fading says.
 func (c changes) faded(now time.Time) map[string]float64 {
 	return fading(c.since, now)
 }

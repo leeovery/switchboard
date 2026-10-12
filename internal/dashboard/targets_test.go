@@ -43,7 +43,8 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 					want = heading
 				}
 			case OnAccount:
-				if row := under(rows, tt); strings.Contains(row, " "+tt.Account+" ") {
+				named := func(y int) bool { return y >= 0 && strings.Contains(rows[y], " "+tt.Account+" ") }
+				if row := under(rows, tt); named(tt.Y) || named(tt.Y-1) && strings.HasSuffix(row, "/min") {
 					want = row
 				}
 			}
