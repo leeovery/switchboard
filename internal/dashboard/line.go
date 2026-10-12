@@ -57,6 +57,19 @@ func (l line) fit(width int) line {
 	return kept
 }
 
+// figureFit is the line, a figure, where it fits width cells, else an
+// ellipsis alone, in its first span's ink: never the figure cut part-way,
+// which would read as another, as $1,234,5… reads as a smaller sum.
+func (l line) figureFit(width int) line {
+	switch {
+	case l.width() <= width:
+		return l
+	case width < 1:
+		return nil
+	}
+	return line{{ellipsis, l[0].ink}}
+}
+
 // wrap breaks the line at its spaces onto as many lines width cells wide as
 // it takes, each word in its ink, and a word wider than width cut short.
 func (l line) wrap(width int) []line {

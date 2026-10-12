@@ -146,11 +146,11 @@ func (f Frame) history(c *canvas, top int) {
 }
 
 // phoneForm reports whether a sub-tab of History draws its phone form: on a
-// phone, or where its wide form's widest row, ending before the column reach
-// gives, runs past the column edge, where the sub-tab ends its rows, as its
-// parts are at fixed columns.
-func (f Frame) phoneForm(reach func() int, edge int) bool {
-	return f.phone() || reach() > edge
+// phone, or where the width its wide form takes, as reach gives it, its
+// widest row and any column after it it keeps clear, is wider than the
+// frame, as its parts are at fixed columns.
+func (f Frame) phoneForm(reach func() int) bool {
+	return f.phone() || reach() > f.Width
 }
 
 // historyScrolling is how far History's sub-tab shown, from row top,
@@ -203,13 +203,34 @@ func moreBelow(n int, noun, toScroll string) line {
 
 // accountsOutOfView says how many of a view's accounts are out of view above
 // and below, and how to scroll to them, in the longest of its forms that fits
-// width cells, as outOfViewForms lists them.
+// width cells, as outOfViewForms lists them, each built in turn; where none
+// does, one count alone, as oneOutOfView has it.
 func accountsOutOfView(above, below, width int) line {
-	forms := make([]line, len(outOfViewForms))
-	for i, form := range outOfViewForms {
-		forms[i] = form.said(above, below)
+	for _, form := range outOfViewForms {
+		if said := form.said(above, below); said.width() <= width {
+			return said
+		}
 	}
-	return firstFit(width, forms...)
+	return oneOutOfView(above, below, width)
+}
+
+// oneOutOfView says, as the last of outOfViewForms does, how many accounts
+// are out of view below, where any are and it fits width cells, else above,
+// where that fits: a count whole, never one cut part-way, below first, as
+// what's below is what a line cut short loses. Where neither fits, it's cut
+// short, as nothing else is left to say it.
+func oneOutOfView(above, below, width int) line {
+	shortest := outOfViewForms[len(outOfViewForms)-1]
+	under, over := shortest.said(0, below), shortest.said(above, 0)
+	switch {
+	case under != nil && under.width() <= width:
+		return under
+	case over != nil && over.width() <= width:
+		return over
+	case under != nil:
+		return under.fit(width)
+	}
+	return over.fit(width)
 }
 
 // outForm is a form of the line saying what's out of view: its parts gap

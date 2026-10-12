@@ -553,16 +553,35 @@ func TestAPhonesKeyWritesAThousandAsK(t *testing.T) {
 	}
 }
 
-// Each of BY MONTH's columns is cut a cell short of the next, with an
-// ellipsis: on a phone, a month worth $1,234,567 leaves a gap before its
-// worth against what the plans cost.
-func TestByMonthsColumnsAreCutShortOfTheNext(t *testing.T) {
-	page := plainYear()
-	september := &page.ByMonth[len(page.ByMonth)-2]
-	september.Amount, september.Ratio = usd(1_234_567), new(0.4)
-	rows := textOf(historyDrawn(yearFrame(t, 52, 37, views.YearAsk{}, page)).rows(Look{}))
-	i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, " Sep") })
-	if want := " Sep        $1,234,5… 0.4×"; i < 0 || !strings.HasPrefix(rows[i], want) {
-		t.Errorf("September's row reads %q, want it to start %q", rows[max(i, 0)], want)
+// A figure in BY MONTH is drawn whole, a cell short of the next column, or
+// of the bars, or where it doesn't fit, as an ellipsis alone, as one cut
+// part-way would read as another, money and counts alike: on a phone, a
+// month worth $1,234,567; wide, a month of 1,234,567,890 requests.
+func TestByMonthsFiguresAreDrawnWholeOrAsAnEllipsis(t *testing.T) {
+	tests := []struct {
+		name  string
+		width int
+		month func(m *views.MonthRow)
+		want  string
+	}{
+		{
+			name: "worth, on a phone", width: 52,
+			month: func(m *views.MonthRow) { m.Amount, m.Ratio = usd(1_234_567), new(0.4) },
+			want:  " Sep        …         0.4×",
+		},
+		{
+			name: "requests, wide", width: 160,
+			month: func(m *views.MonthRow) { m.Requests = 1_234_567_890 },
+			want:  "  Sep         …           $3,120",
+		},
+	}
+	for _, tt := range tests {
+		page := plainYear()
+		tt.month(&page.ByMonth[len(page.ByMonth)-2])
+		rows := textOf(historyDrawn(yearFrame(t, tt.width, 37, views.YearAsk{}, page)).rows(Look{}))
+		i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(strings.TrimSpace(row), "Sep ") })
+		if i < 0 || !strings.HasPrefix(rows[i], tt.want) {
+			t.Errorf("%s, September's row reads %q, want it to start %q", tt.name, rows[max(i, 0)], tt.want)
+		}
 	}
 }

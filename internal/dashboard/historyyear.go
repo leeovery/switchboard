@@ -93,12 +93,12 @@ func (f Frame) yearHeight() int {
 	return y.height()
 }
 
-// reach is the column the Year's wide form ends before, where its widest row
-// ends: the grid's, a number's whose length is bounded, at the widest its
-// format draws, so the form never hangs on the data, BY MONTH's or the bars'
-// key's. The rest of the numbers, the heading over them, which may name an
-// account by its label, and the shades' key are cut at the frame's width, so
-// they're left out.
+// reach is the width the Year's wide form takes, drawn to the frame's width:
+// where its widest row ends, the grid's, a number's whose length is bounded,
+// at the widest its format draws, so the form never hangs on the data, BY
+// MONTH's or the bars' key's. The rest of the numbers, the heading over
+// them, which may name an account by its label, and the shades' key are cut
+// at the frame's width, so they're left out.
 func (y yearDrawn) reach() int {
 	ends := []int{y.gridReach(), y.byMonthReach(), byMonthBarX + y.familyDots().width()}
 	for _, figure := range y.figures() {
@@ -188,7 +188,7 @@ func (f Frame) yearDrawn() (yearDrawn, bool) {
 		return yearDrawn{}, false
 	}
 	y := yearDrawn{Frame: f, page: *page, ask: f.History.YearAsk, form: byMonthWide}
-	if f.phoneForm(y.reach, f.Width) {
+	if f.phoneForm(y.reach) {
 		y.form = byMonthPhone
 	}
 	return y, true
@@ -624,7 +624,8 @@ func (y yearDrawn) byMonthSays() string {
 
 // month draws a month's row along row: its name, bold for the month so far;
 // its columns, those a look can change numbered in the month so far, each
-// cut a cell short of the next, or of the bars; its bar, against the largest
+// drawn whole a cell short of the next, or of the bars, or where it doesn't
+// fit, as an ellipsis, as figureFit has it; its bar, against the largest
 // month's worth; and, wide, two cells after it, so far, or from the day the
 // ledger began, or the version was first used.
 func (y yearDrawn) month(c *canvas, row int, m views.MonthRow, withYear bool, columns []monthColumn, f byMonthForm, largest ledger.Picodollars) {
@@ -642,7 +643,7 @@ func (y yearDrawn) month(c *canvas, row int, m views.MonthRow, withYear bool, co
 		if i+1 < len(columns) {
 			next = columns[i+1].x
 		}
-		c.line(col.x, row, said.fit(next-col.x-1))
+		c.line(col.x, row, said.figureFit(next-col.x-1))
 	}
 	end := c.line(f.barX, row, y.monthBar(m, largest, f.barCells))
 	if note := monthNote(m); note != "" && !f.phone {

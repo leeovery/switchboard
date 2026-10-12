@@ -51,6 +51,28 @@ func TestFit(t *testing.T) {
 	}
 }
 
+// A figure is drawn whole where it fits, else as an ellipsis alone, in its
+// first span's ink, never cut part-way.
+func TestFigureFitDrawsAFigureWholeOrAnEllipsis(t *testing.T) {
+	worth := line{{"$1,234,567", secondaryInk}, {"+", faintInk}}
+	tests := []struct {
+		name  string
+		width int
+		want  line
+	}{
+		{name: "fits", width: 11, want: worth},
+		{name: "a cell short", width: 10, want: line{{"…", secondaryInk}}},
+		{name: "no room", width: 0, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := worth.figureFit(tt.width); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("figureFit(%d) = %q, want %q", tt.width, got.plain(), tt.want.plain())
+			}
+		})
+	}
+}
+
 func TestFitWholeLeavesOffWholeSpans(t *testing.T) {
 	says := line{{"runs out ~16:05", exhaustedInk}, {"  ·  back 17:10", mutedInk}, {", as it resets", mutedInk}}
 	tests := []struct {

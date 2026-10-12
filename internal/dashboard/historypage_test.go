@@ -243,7 +243,8 @@ func TestMoreBelowSaysWhatsOutOfViewAndHowToScrollToIt(t *testing.T) {
 // history-days-ten-160 draws it, ▲ and ▼ in accent.key, the words muted, the
 // · between them faint, and j/k bold accent.key; spaced as USAGE's scroll
 // line is; without how to scroll; and as USAGE's rows say it; and where
-// none fits, the last, cut short.
+// none fits, as the last, one count, never cut part-way: below where it
+// fits, else above; and where neither fits, below, cut short.
 func TestWhatsOutOfViewOfTheAccountsIsSaidInTheLongestFormThatFits(t *testing.T) {
 	key, words, apart, keys := ink{token: theme.AccentKey}, ink{token: theme.TextMuted}, ink{token: theme.TextFaint}, ink{token: theme.AccentKey, bold: true}
 	tests := []struct {
@@ -269,7 +270,10 @@ func TestWhatsOutOfViewOfTheAccountsIsSaidInTheLongestFormThatFits(t *testing.T)
 		},
 		{above: 2, below: 4, width: 51, want: line{{"▲", key}, {" 2 more accounts above", words}, {" · ", apart}, {"▼", key}, {" 4 more accounts below", words}}},
 		{above: 2, below: 4, width: 48, want: line{{"▲", key}, {" 2 more accounts", words}, {" · ", apart}, {"▼", key}, {" 4 more accounts", words}}},
-		{above: 2, below: 4, width: 20, want: line{{"▲", key}, {" 2 more accounts", words}, {" ·…", apart}}},
+		{above: 2, below: 4, width: 20, want: line{{"▼", key}, {" 4 more accounts", words}}},
+		{above: 2, below: 12, width: 17, want: line{{"▲", key}, {" 2 more accounts", words}}},
+		{above: 2, below: 4, width: 12, want: line{{"▼", key}, {" 4 more ac…", words}}},
+		{above: 2, width: 12, want: line{{"▲", key}, {" 2 more ac…", words}}},
 	}
 	for _, tt := range tests {
 		got := accountsOutOfView(tt.above, tt.below, tt.width)
