@@ -3,6 +3,7 @@ package status
 import (
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
 
@@ -49,13 +50,6 @@ type WindowState struct {
 	At time.Time
 }
 
-// WindowStateOf is how doc's account a's window with the given key stands at
-// now, as WindowStatesOf says. To stand more than one window of an account,
-// WindowStatesOf works out its hold once for them all.
-func (d Document) WindowStateOf(a Account, key string, now time.Time) WindowState {
-	return d.WindowStatesOf(a, now).Of(key)
-}
-
 // WindowStates are how the windows of an account of a document stand at a
 // moment, what holds it back at its limit worked out once for them all.
 type WindowStates struct {
@@ -79,7 +73,7 @@ func (d Document) WindowStatesOf(a Account, now time.Time) WindowStates {
 // Of is how the account's window with the given key stands: the first that
 // holds of the kinds, in their order.
 func (s WindowStates) Of(key string) WindowState {
-	d, a, now := s.doc, s.account, s.now
+	a, now := s.account, s.now
 	w, reported := a.Window(key)
 	switch {
 	case !a.TokenSet:
@@ -89,19 +83,27 @@ func (s WindowStates) Of(key string) WindowState {
 	case a.TokenRefused(now) || a.Error != "":
 		return WindowState{Kind: WindowStale, Used: w.Utilization, At: a.FetchedAt}
 	}
-	state := WindowState{Kind: WindowOpen, Used: score.Current(w, now).Utilization}
-	out, runsOut := d.RunsOut(a, w, now)
+	kind, at := s.standing(key, w)
+	return WindowState{Kind: kind, Used: score.Current(w, now).Utilization, At: at}
+}
+
+// standing is the kind of the account's window w, with the given key, as it
+// was read and stands, and when what the kind says comes: the first that
+// holds of a limit, the cap, running out, not started, and open. It projects
+// the window only once neither a limit nor the cap holds it.
+func (s WindowStates) standing(key string, w quota.Window) (WindowKind, time.Time) {
+	d, a, now := s.doc, s.account, s.now
 	switch {
 	case s.held && s.hold.Holds(key):
-		state.Kind, state.At = WindowLimited, s.hold.Lifts(key)
+		return WindowLimited, s.hold.Lifts(key)
 	case d.ReserveHolds(a) && score.HeldByReserve(w, a.Reserve) && !w.ResetBy(now):
-		state.Kind, state.At = WindowCapped, w.ResetsAt
-	case runsOut:
-		state.Kind, state.At = WindowRunsOut, out.At
-	case a.HasLapsed(w):
-		state.Kind = WindowNotStarted
-	default:
-		state.At = score.Current(w, d.readAt(now)).ResetsAt
+		return WindowCapped, w.ResetsAt
 	}
-	return state
+	if out, ok := d.RunsOut(a, w, now); ok {
+		return WindowRunsOut, out.At
+	}
+	if a.HasLapsed(w) {
+		return WindowNotStarted, time.Time{}
+	}
+	return WindowOpen, score.Current(w, d.readAt(now)).ResetsAt
 }

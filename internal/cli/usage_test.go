@@ -154,6 +154,8 @@ func TestUsagePrintsTheWindowsGivenLaidOutAsAsked(t *testing.T) {
 		{name: "by account, as --by says", args: []string{"--by", "account"}, by: dashboard.ByAccount},
 		{name: "by window, as --by says over the config", layout: "account", args: []string{"--by", "window"}, by: dashboard.ByWindow},
 		{name: "by account, as --by says over the config", layout: "window", args: []string{"--by=account"}, by: dashboard.ByAccount},
+		{name: "by account, as --by says in any case", args: []string{"--by", "Account"}, by: dashboard.ByAccount},
+		{name: "by account, as the config says in any case", layout: "ACCOUNT", by: dashboard.ByAccount},
 		{name: "the 5-hour window alone", args: []string{"--5h"}, windows: []string{"5h"}},
 		{name: "the week alone", args: []string{"--week"}, windows: []string{"7d"}},
 		{name: "Fable's week alone, by its model's name", args: []string{"--fable"}, windows: []string{"7d_oi"}},
@@ -243,7 +245,7 @@ func TestUsagePrintsEveryAccountBeforeAnyWindowIsRead(t *testing.T) {
 }
 
 func TestUsageRefusesALayoutItHasNone(t *testing.T) {
-	for _, given := range []string{"matrix", "Account", "accounts", ""} {
+	for _, given := range []string{"matrix", "accounts", " account", ""} {
 		got := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "usage", "--by", given)
 		want := fmt.Sprintf("Error: invalid argument %q for \"--by\" flag: must be window or account\n", given)
 		if got.code != 1 || got.stdout == "" || !strings.HasPrefix(got.stderr, want) {
