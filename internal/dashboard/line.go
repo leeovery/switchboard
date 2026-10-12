@@ -131,49 +131,89 @@ func pieces(parts []part) []part {
 	return split
 }
 
+// wordsIn is text as words, in the ink given.
+func wordsIn(text string, k ink) part {
+	return wordsPart(line{{text, k}})
+}
+
+// figureIn is text as a figure, in the ink given, as no number.
+func figureIn(text string, k ink) part {
+	return figurePart(line{{text, k}}, Number{})
+}
+
+// joinedParts are the groups of parts one after another, apart between each
+// two, as joined joins lines: a group with nothing in it left out.
+func joinedParts(apart span, groups ...[]part) []part {
+	var joined []part
+	for _, g := range groups {
+		if len(g) == 0 {
+			continue
+		}
+		if joined != nil {
+			joined = append(joined, wordsPart(line{apart}))
+		}
+		joined = append(joined, g...)
+	}
+	return joined
+}
+
 // wrap breaks the line at its spaces onto as many lines width cells wide as
 // it takes, each word in its ink, and a word wider than width cut short.
 func (l line) wrap(width int) []line {
+	return wrapParts(width, wordsPart(l))
+}
+
+// wrapParts breaks the parts at the spaces in their words onto as many lines
+// width cells wide as it takes, a figure never broken: each line cut as
+// fitParts cuts it, where a word, or a figure, is wider than width.
+func wrapParts(width int, parts ...part) []line {
 	var lines []line
-	var row line
-	for i, w := range l.words() {
+	var row []part
+	for i, w := range partWords(parts) {
 		switch {
 		case i == 0:
 			row = w.word
-		case row.width()+1+w.word.width() <= width:
-			row = slices.Concat(row, line{w.gap}, w.word)
+		case partsWidth(row)+1+partsWidth(w.word) <= width:
+			row = slices.Concat(row, []part{wordsPart(line{w.gap})}, w.word)
 		default:
-			lines, row = append(lines, row.fit(width)), w.word
+			lines, row = append(lines, fitParts(width, row...)), w.word
 		}
 	}
 	if row != nil {
-		lines = append(lines, row.fit(width))
+		lines = append(lines, fitParts(width, row...))
 	}
 	return lines
 }
 
-// worded is a word of a line, its spans' parts up to a space, and the space
-// before it, in its ink.
+// worded is a word of parts, its words' spans up to a space and any figure
+// among them, and the space before it, in its ink.
 type worded struct {
-	word line
+	word []part
 	gap  span
 }
 
-// words are the line's words, as wrap breaks it between them: a word may
-// run across spans, as a name in its ink and the full stop after it.
-func (l line) words() []worded {
+// partWords are the parts' words, as wrapParts breaks them between: a word may
+// run across spans, as a name in its ink and the full stop after it, and a
+// figure is a word whole, or part of one, spaces and all.
+func partWords(parts []part) []worded {
 	var words []worded
 	var w worded
-	for _, s := range l {
-		for i, part := range strings.Split(s.text, " ") {
-			if i > 0 && len(w.word) > 0 {
-				words, w = append(words, w), worded{}
-			}
-			if i > 0 {
-				w.gap = span{" ", s.ink}
-			}
-			if part != "" {
-				w.word = append(w.word, span{part, s.ink})
+	for _, p := range parts {
+		if p.figure {
+			w.word = append(w.word, p)
+			continue
+		}
+		for _, s := range p.said {
+			for i, piece := range strings.Split(s.text, " ") {
+				if i > 0 && len(w.word) > 0 {
+					words, w = append(words, w), worded{}
+				}
+				if i > 0 {
+					w.gap = span{" ", s.ink}
+				}
+				if piece != "" {
+					w.word = append(w.word, wordsIn(piece, s.ink))
+				}
 			}
 		}
 	}

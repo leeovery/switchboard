@@ -153,11 +153,12 @@ func familyDot(family string, name ink) line {
 
 // historyAccount is an account as History's rows name it, in room cells: its
 // name, as labelled gives it, bold text.primary, cut to keep the ◆ after
-// the primary's, in text.tertiary. History shows no routing, so no ▲.
+// the primary's, in text.tertiary, where there's room for it. History
+// shows no routing, so no ▲.
 func historyAccount(name string, primary bool, room int) line {
 	var mark line
 	if primary {
 		mark = line{{" ◆", primaryInk}}
 	}
-	return append(line{{truncate(name, room-mark.width()), titleInk}}, mark...)
+	return append(line{{truncate(name, room-mark.width()), titleInk}}, mark...).fit(room)
 }

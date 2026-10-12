@@ -543,3 +543,39 @@ func TestAgainstItsPriceAsTokensWritesIt(t *testing.T) {
 		})
 	}
 }
+
+// Narrower than a phone, Tokens cuts each column at the frame's width: a
+// period's name and its counts are figures, drawn whole or as an ellipsis,
+// numbered only where drawn whole, a count's ellipsis at the edge; the heads
+// are words, cut; and the footnote's date, a figure, is never broken across
+// its rows.
+func TestTokensCutsEachColumnAtTheWidth(t *testing.T) {
+	total := Number{Kind: NumberTokens, Of: "total"}
+	tests := []struct {
+		name     string
+		width    int
+		row      int
+		want     string
+		numbered string
+	}{
+		{name: "a count's head, cut", width: 28, row: 0, want: "week                     to…"},
+		{name: "a count, an ellipsis", width: 28, row: 2, want: "28 Sep                     …"},
+		{name: "a count, whole", width: 30, row: 2, want: "28 Sep                    660M", numbered: "660M"},
+		{name: "a period's name, an ellipsis", width: 5, row: 2, want: "…"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := tokensFrame(tt.width, 37, TokensUnsplit)
+			if got := tokensRowsOf(f)[tt.row]; got != tt.want {
+				t.Errorf("at %d columns, row %d reads %q, want %q", tt.width, tt.row, got, tt.want)
+			}
+			if got := f.Numbers(threeRouted(), now)[total]; got != tt.numbered {
+				t.Errorf("at %d columns, its total is numbered %q, want %q", tt.width, got, tt.numbered)
+			}
+		})
+	}
+	rows := tokensRowsOf(tokensFrame(40, 37, TokensUnsplit))
+	if got := rows[len(rows)-1]; got != "1 Oct 2026" {
+		t.Errorf("at 40 columns, the footnote's last row reads %q, want the date whole, %q", got, "1 Oct 2026")
+	}
+}

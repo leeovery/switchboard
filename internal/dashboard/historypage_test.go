@@ -213,27 +213,32 @@ func TestAScrolledYearShowsItsRowsFromWhereItsScrolledTo(t *testing.T) {
 
 // What's out of view below says how many more rows there are, each counted
 // one or many, and how to scroll to them: ▼ in accent.key, the words muted,
-// the · between them faint, and j/k bold accent.key.
+// the · between them faint, and j/k bold accent.key; cut to the width, its
+// count a figure, drawn whole with ▼, its words cut, else ▼ alone.
 func TestMoreBelowSaysWhatsOutOfViewAndHowToScrollToIt(t *testing.T) {
 	key, words, apart, keys := ink{token: theme.AccentKey}, ink{token: theme.TextMuted}, ink{token: theme.TextFaint}, ink{token: theme.AccentKey, bold: true}
 	tests := []struct {
 		name           string
-		n              int
+		n, width       int
 		noun, toScroll string
 		want           line
 	}{
 		{
-			name: "Tokens' weeks, as history-tokens-160 draws them", n: 3, noun: "week", toScroll: " to scroll",
+			name: "Tokens' weeks, as history-tokens-160 draws them", n: 3, width: 160, noun: "week", toScroll: " to scroll",
 			want: line{{"▼", key}, {" 3 more weeks below", words}, {"   ·   ", apart}, {"j/k", keys}, {" to scroll", words}},
 		},
 		{
-			name: "one", n: 1, noun: "month", toScroll: " to scroll",
+			name: "one", n: 1, width: 160, noun: "month", toScroll: " to scroll",
 			want: line{{"▼", key}, {" 1 more month below", words}, {"   ·   ", apart}, {"j/k", keys}, {" to scroll", words}},
 		},
+		{name: "its words cut", n: 12, width: 12, noun: "week", toScroll: " to scroll", want: line{{"▼", key}, {" 12 more w…", words}}},
+		{name: "its count filling it", n: 12, width: 4, noun: "week", toScroll: " to scroll", want: line{{"▼", key}, {" 12", words}}},
+		{name: "its count a cell short", n: 12, width: 3, noun: "week", toScroll: " to scroll", want: line{{"▼", key}}},
+		{name: "no room", n: 12, noun: "week", toScroll: " to scroll"},
 	}
 	for _, tt := range tests {
-		if got := moreBelow(tt.n, tt.noun, tt.toScroll); !slices.Equal(got, tt.want) {
-			t.Errorf("%s: moreBelow(%d, %q, %q) = %+v, want %+v", tt.name, tt.n, tt.noun, tt.toScroll, got, tt.want)
+		if got := moreBelow(tt.n, tt.noun, tt.toScroll, tt.width); !slices.Equal(got.inked(), tt.want) {
+			t.Errorf("%s: moreBelow(%d, %q, %q, %d) reads %q, %+v, want %q, %+v", tt.name, tt.n, tt.noun, tt.toScroll, tt.width, got.plain(), got, tt.want.plain(), tt.want)
 		}
 	}
 }

@@ -306,7 +306,7 @@ func TestWeeksSaysWhyTheOneToDropIsAsFarAsItsKnown(t *testing.T) {
 			if !tt.used {
 				page.Accounts[4].Used = nil
 			}
-			if got := (weeksDrawn{page: page}).dropped(); !slices.Equal(got, line{{tt.want, mutedInk}}) {
+			if got := fitParts(200, (weeksDrawn{page: page}).dropped()...).inked(); !slices.Equal(got, line{{tt.want, mutedInk}}) {
 				t.Errorf("the line naming the one to drop is %+v, want %q in text.muted", got, tt.want)
 			}
 		})
@@ -339,7 +339,7 @@ func TestWeeksTablesVerdictsSayEachAccountsWeeks(t *testing.T) {
 			if tt.many {
 				page = tenWeeks()
 			}
-			if got := (weeksDrawn{page: page}).tableVerdict(tt.row); !slices.Equal(got, tt.want) {
+			if got := fitParts(200, (weeksDrawn{page: page}).tableVerdict(tt.row)...).inked(); !slices.Equal(got, tt.want.inked()) {
 				t.Errorf("the verdict is %+v, want %+v", got, tt.want)
 			}
 		})
@@ -361,11 +361,11 @@ func TestWeeksPeaksAreColouredByLevelThisWeeksSoFarBold(t *testing.T) {
 	}
 	w := weeksDrawn{page: threeWeeks()}
 	for _, tt := range tests {
-		if got := w.peak(w.page.Accounts[0], tt.peak); !slices.Equal(got, tt.want) {
+		if got := fitParts(peakCells, w.peak(w.page.Accounts[0], tt.peak)); !slices.Equal(got, tt.want) {
 			t.Errorf("%s: the peak is %+v, want %+v", tt.name, got, tt.want)
 		}
 	}
-	if so := w.peak(w.page.Accounts[0], peak(0.34, true)); len(so) != 1 || so[0].text != "34%…" || so[0].ink.token != theme.TextSecondary || !so[0].ink.bold {
+	if so := w.peak(w.page.Accounts[0], peak(0.34, true)).said; len(so) != 1 || so[0].text != "34%…" || so[0].ink.token != theme.TextSecondary || !so[0].ink.bold {
 		t.Errorf("this week's peak so far is %+v, want 34%%… in bold text.secondary", so)
 	}
 }
@@ -499,7 +499,7 @@ func TestWeeksColumnsFillFromTheBottomTheirTopCellInEighths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newCanvas(peaksFrom+peakLabelCells, columnRows+1)
-			w := weeksDrawn{page: views.WeeksPage{Weeks: eightWeeks[:1]}}
+			w := weeksDrawn{page: views.WeeksPage{Weeks: eightWeeks[:1]}, edge: peaksFrom + peakLabelCells}
 			w.block(c, tt.look, 0, views.WeeksRow{Peaks: []views.WeekPeak{tt.peak}})
 			rows := textOf(c.rows(Look{}))
 			for r, want := range tt.want {
@@ -547,5 +547,46 @@ func TestWeeksCutsItsRowsShortAtTheEdgeOfANarrowerTerminal(t *testing.T) {
 	}
 	if got, want := rows[weeksFirstRow], "work            72%     88%    100%     94%    100%     81%    100%    34%…       hits its limit most weeks  9% left…"; got != want {
 		t.Errorf("work's row reads %q, want %q", got, want)
+	}
+}
+
+// Narrower than a phone, Weeks' table shows the latest of its four weeks
+// that fit short of the edge, this week's among them, its peak whole and
+// numbered.
+func TestWeeksOnANarrowPhoneShowsTheLatestWeeksThatFit(t *testing.T) {
+	f := weeksFrame(threeWeeks(), WeeksTable, 40, 40, NoColour())
+	rows := textOf(historyDrawn(f).rows(Look{}))
+	if want := "              14 Sep  21 Sep  28 Sep"; !slices.Contains(rows, want) {
+		t.Errorf("at 40 columns, Weeks reads\n%s\nwant its heads %q", strings.Join(rows, "\n"), want)
+	}
+	if got := f.Numbers(threeRouted(), now)[Number{Kind: NumberUsed, Account: "work", Of: "7d"}]; got != "34%…" {
+		t.Errorf("at 40 columns, work's week so far is numbered %q, want %q", got, "34%…")
+	}
+}
+
+// What Weeks says beside its weeks cuts its words, but each figure in it, a
+// count, a share or a price, is drawn whole or as an ellipsis, never cut
+// part-way: the headline's count, the one to drop's price, an account's
+// verdict's share and its record's.
+func TestWeeksWordsKeepTheirFiguresWhole(t *testing.T) {
+	few, many := weeksDrawn{page: threeWeeks()}, weeksDrawn{page: tenWeeks()}
+	plenty := weeksRow("side", nil, views.PlentyToSpare, 0, 59, 3)
+	tests := []struct {
+		name  string
+		said  []part
+		width int
+		want  string
+	}{
+		{name: "the headline's count", said: few.headline(), width: 3, want: "…"},
+		{name: "the one to drop's price", said: many.dropped(), width: 30, want: "spare is the one to drop: …"},
+		{name: "a verdict's share", said: few.tableVerdict(plenty), width: 30, want: "plenty to spare most weeks  …"},
+		{name: "a record's share, filling it", said: few.accountAside(few.page.Accounts[0])[1], width: 27, want: "limit hit 3 of 7 weeks · 9%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := fitParts(tt.width, tt.said...).plain(); got != tt.want {
+				t.Errorf("in %d cells, it reads %q, want %q", tt.width, got, tt.want)
+			}
+		})
 	}
 }
