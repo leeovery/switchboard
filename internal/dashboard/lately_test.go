@@ -200,14 +200,10 @@ func TestLATELYTakesItsLinesAndTwoRows(t *testing.T) {
 	}
 }
 
-// overviewAt is when the Overview's frames count down from: 14:42, where
-// their clocks read 14:42:07.
-var overviewAt = time.Date(2026, 10, 1, 14, 42, 0, 0, time.UTC)
-
 // framedAccount is an account of the Overview's frames, labelled as its id,
 // its 5-hour window and its week resetting as given.
 func framedAccount(id string, session, week time.Time) status.Account {
-	return status.Account{ID: id, Label: id, TokenSet: true, FetchedAt: overviewAt, Windows: []quota.Window{
+	return status.Account{ID: id, Label: id, TokenSet: true, FetchedAt: routedAt, Windows: []quota.Window{
 		{Key: "5h", Label: "Session", ResetsAt: session}, {Key: "7d", Label: "Week", ResetsAt: week},
 	}}
 }
@@ -217,7 +213,7 @@ func framedAccount(id string, session, week time.Time) status.Account {
 // given.
 func framedDoc(coming []status.Upcoming, events []status.Event) status.Document {
 	return status.Document{
-		GeneratedAt: overviewAt, Source: status.SourceRouter, Best: "side", Router: status.Health{Healthy: true},
+		GeneratedAt: routedAt, Source: status.SourceRouter, Best: "side", Router: status.Health{Healthy: true},
 		Accounts: []status.Account{
 			framedAccount("work", routedClock(1, 17, 10), routedClock(4, 21, 0)),
 			framedAccount("personal", routedClock(1, 16, 30), routedClock(4, 2, 0)),
@@ -317,8 +313,8 @@ func TestCOMINGUPAndLATELYAreDrawnAsTheirFrames(t *testing.T) {
 		body bounds
 		of   func(Frame, status.Document) section
 	}
-	coming := func(f Frame, doc status.Document) section { return f.comingSection(doc, overviewAt) }
-	lately := func(f Frame, doc status.Document) section { return f.latelySection(doc, overviewAt) }
+	coming := func(f Frame, doc status.Document) section { return f.comingSection(doc, routedAt) }
+	lately := func(f Frame, doc status.Document) section { return f.latelySection(doc, routedAt) }
 	tests := []struct {
 		stem          string
 		width, height int
@@ -365,8 +361,8 @@ func TestCOMINGUPAndLATELYFoldAsTheirFrames(t *testing.T) {
 	f := Frame{Width: 160, Height: 39, Look: nord, View: Overview, Policy: claudeLike}
 	doc := framedDoc(framedComing, onAuto())
 	c := newCanvas(f.Width, f.Height)
-	c.line(12, 36, f.comingSection(doc, overviewAt).folded())
-	c.line(91, 36, f.latelySection(doc, overviewAt).folded())
+	c.line(12, 36, f.comingSection(doc, routedAt).folded())
+	c.line(91, 36, f.latelySection(doc, routedAt).folded())
 
 	// The frame draws the folded LATELY's object, side, in text.muted, not
 	// bold, where its rows, and the design, draw it bold text.secondary.

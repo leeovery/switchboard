@@ -1119,15 +1119,21 @@ func TestWhenShowsTheDayOnlyBeyondADay(t *testing.T) {
 	}
 }
 
-func TestUntilPadsTheMinutesAfterHoursToTwoDigits(t *testing.T) {
-	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+func TestUntilRoundsUpToTheMinuteAndPadsTheMinutesAfterHours(t *testing.T) {
+	now := time.Date(2026, 9, 28, 13, 12, 7, 0, time.FixedZone("UTC+1", 60*60))
 	tests := []struct {
 		name  string
 		until time.Duration
 		want  string
 	}{
-		{name: "hours and minutes, rounded down", until: 71*time.Minute + 53*time.Second, want: "in 1h 11m"},
-		{name: "minutes under ten after hours, padded", until: 4*time.Hour + 8*time.Minute, want: "in 4h 08m"},
+		{name: "exactly on a minute", until: 4*time.Hour + 8*time.Minute, want: "in 4h 08m"},
+		{name: "a second past a minute, rounded up", until: 4*time.Hour + 8*time.Minute + time.Second, want: "in 4h 09m"},
+		{name: "a second short of a minute, rounded up", until: 4*time.Hour + 7*time.Minute + 59*time.Second, want: "in 4h 08m"},
+		{name: "the frames' 16:30 from 14:42:07", until: time.Hour + 47*time.Minute + 53*time.Second, want: "in 1h 48m"},
+		{name: "under a minute left", until: 30 * time.Second, want: "in 1m"},
+		{name: "a moment left", until: time.Nanosecond, want: "in 1m"},
+		{name: "rounded up into the next hour", until: 59*time.Minute + 30*time.Second, want: "in 1h"},
+		{name: "rounded up into the next day", until: 23*time.Hour + 59*time.Minute + 30*time.Second, want: "in 1d"},
 		{name: "whole hours, no minutes to pad", until: 4 * time.Hour, want: "in 4h"},
 		{name: "minutes alone, unpadded", until: 7 * time.Minute, want: "in 7m"},
 		{name: "hours after days, unpadded", until: 3*24*time.Hour + 6*time.Hour, want: "in 3d 6h"},
