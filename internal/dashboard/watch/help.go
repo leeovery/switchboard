@@ -55,39 +55,6 @@ func (m Model) scrollHelp(by scrollStep) Model {
 	return m
 }
 
-// unseen reports whether msg, taken in by m, changes nothing on screen: what
-// the request stream tells while help is open, as help shows nothing it tells
-// and the page behind it stands still. The stream stays open all the same,
-// so the traces count every request.
-func (m Model) unseen(msg tea.Msg) bool {
-	_, heard := msg.(streamHeardMsg)
-	return heard && m.open == helpOpen
-}
-
-// kept is the screen last drawn under help, which a model with the stamp of
-// the one that drew it shows again rather than drawing it anew; stamps
-// counts the stamps handed out, and draws the screens drawn under help.
-// The models a watch's updates make of each other share one.
-type kept struct {
-	stamps, stamp, draws int
-	view                 tea.View
-}
-
-// restamp hands out a new stamp, for a model whose screen may differ from
-// any drawn before.
-func (k *kept) restamp() int {
-	k.stamps++
-	return k.stamps
-}
-
-// keep keeps v, the screen drawn under help by the model with the stamp
-// given, and returns it.
-func (k *kept) keep(stamp int, v tea.View) tea.View {
-	k.stamp, k.view = stamp, v
-	k.draws++
-	return v
-}
-
 // helpCard is the page's help: its keys, and how far it's scrolled.
 func (m Model) helpCard() dashboard.Help {
 	return dashboard.Help{Keys: m.help.keys, Scroll: m.help.scroll}

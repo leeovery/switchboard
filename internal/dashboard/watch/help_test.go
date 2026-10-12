@@ -8,7 +8,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -150,26 +149,6 @@ func TestHelpListsTheScrollingKeysOfThePageAtTheSizeItsDrawnAt(t *testing.T) {
 	h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
 	if got := listedKeys(h.model.help.keys); slices.ContainsFunc(scrolling, func(k string) bool { return slices.Contains(got, k) }) {
 		t.Errorf("help over a page grown till it fits again lists %q, want no scrolling keys", got)
-	}
-}
-
-func TestTheStreamTellingUnderHelpDrawsNothingAnew(t *testing.T) {
-	h := streamingHarness(t)
-	h.keys(toSessions...)
-	h.press("?")
-	before, draws := h.view(), h.model.drawn.draws
-
-	h.hear(told(router.StreamSent, "r1", "work", 0))
-	if !h.listening() {
-		t.Fatal("under help, the model no longer listens to the stream, want it to, so the traces count every request")
-	}
-	if got := h.view(); got != before || h.model.drawn.draws != draws {
-		t.Errorf("as the stream tells under help, the screen was drawn %d times more, reading\n%s\nwant it shown again as drawn\n%s", h.model.drawn.draws-draws, got, before)
-	}
-
-	h.press("j")
-	if h.view(); h.model.drawn.draws != draws+1 {
-		t.Errorf("as a key scrolls help, the screen was drawn %d times more, want once", h.model.drawn.draws-draws)
 	}
 }
 

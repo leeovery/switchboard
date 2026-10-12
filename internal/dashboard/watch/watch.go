@@ -264,11 +264,6 @@ type Model struct {
 	routing routing
 	help    helping
 	page    frozen
-	// stamp marks the screen the model draws: an update that changes nothing
-	// on screen, as unseen says, keeps the last one's, any other takes a new
-	// one; and drawn is the screen last drawn under help, by stamp.
-	stamp int
-	drawn *kept
 }
 
 // opened is which card is open over the page.
@@ -321,9 +316,7 @@ func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), featured: cfg.Featured, chart: cfg.Chart,
-		drawn: &kept{},
 	}
-	m.stamp = m.drawn.restamp()
 	if m.after == nil {
 		m.after = after
 	}
@@ -350,16 +343,12 @@ func (m Model) Init() tea.Cmd {
 // router's request stream while it wants it, and only then, price the moves
 // the routing card would make while it wants them, and draw frames while
 // anything on screen moves. The view is drawn again after each, which is all
-// a note's lapsing asks, but for one that changes nothing on screen, as
-// unseen says.
+// a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.take(msg)
 	tuned, stream := next.(Model).tune()
 	tuned, costs := tuned.costing()
 	tuned, frames := tuned.startFrames(tuned.now())
-	if !m.unseen(msg) {
-		tuned.stamp = tuned.drawn.restamp()
-	}
 	return tuned, tea.Batch(cmd, stream, costs, frames)
 }
 
@@ -419,20 +408,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 // to, so it never shows one theme then another: in the theme shown, its
 // canvas painted on every cell, and set as the terminal's background too, as
 // background says. The mouse is on while it runs, for clicks and the wheel,
-// so the terminal's own selecting takes its modifier. Under help, which
-// stands still, a screen drawn already is shown again as it was drawn.
+// so the terminal's own selecting takes its modifier.
 func (m Model) View() tea.View {
-	if m.open != helpOpen {
-		return m.draw()
-	}
-	if m.drawn.stamp == m.stamp {
-		return m.drawn.view
-	}
-	return m.drawn.keep(m.stamp, m.draw())
-}
-
-// draw draws the screen, as View says.
-func (m Model) draw() tea.View {
 	v := tea.NewView("")
 	v.AltScreen = true
 	if m.coloured() && !m.backdrop.settled {
