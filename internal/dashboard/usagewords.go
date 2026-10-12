@@ -33,30 +33,30 @@ func alike(words string, k ink) usageWords {
 	return usageWords{full: l, short: l}
 }
 
-// wordsOf are the words of a window standing as st says at now: what holds
-// it back, and until when; when it runs out; that it isn't started; or its
-// allowance, to its reset. A time reads as Dated has it in full, and short,
-// its time today and only its weekday for another day; but a reading's, as
-// lastRead has it.
-func wordsOf(st status.WindowState, now time.Time) usageWords {
-	switch st.Kind {
+// wordsOf are the words of the window w as it stands at now, as its Kind and
+// At say them: what holds it back, and until when; when it runs out; that it
+// isn't started; or its allowance, to its reset. A time reads as Dated has it
+// in full, and short, its time today and only its weekday for another day;
+// but a reading's, as lastRead has it.
+func wordsOf(w status.WindowNow, now time.Time) usageWords {
+	switch w.Kind {
 	case status.WindowTokenless:
 		return alike("no token", errorInk)
 	case status.WindowUnread:
 		return usageWords{full: line{{"not read yet", dimInk}}, short: line{{"not read", dimInk}}}
 	case status.WindowStale:
-		full, short := lastRead(now, st.At)
+		full, short := lastRead(now, w.At)
 		return usageWords{full: line{{"not read since " + full, dimInk}}, short: line{{"read " + short, dimInk}}}
 	case status.WindowLimited:
-		return heldBack("limit", st.At, now, errorInk)
+		return heldBack("limit", w.At, now, errorInk)
 	case status.WindowCapped:
-		return heldBack("at cap", st.At, now, warningInk)
+		return heldBack("at cap", w.At, now, warningInk)
 	case status.WindowRunsOut:
-		return usageWords{full: line{{"out ~" + status.Dated(now, st.At), warningInk}}, short: line{{"out ~" + brief(now, st.At), warningInk}}}
+		return usageWords{full: line{{"out ~" + status.Dated(now, w.At), warningInk}}, short: line{{"out ~" + brief(now, w.At), warningInk}}}
 	case status.WindowNotStarted:
 		return alike("not started", mutedInk)
 	default:
-		return allowed(st.Allowance, st.At, now)
+		return allowed(w.Allowance, w.At, now)
 	}
 }
 

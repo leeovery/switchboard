@@ -21,9 +21,9 @@ type Moment struct {
 	// projections, even paces and allowances go from: when it was built,
 	// else Now.
 	Now, ReadAt time.Time
-	// Routed is set on the router's document, as read, and clear on one
-	// built by probing.
-	Routed bool
+	// Routed is set on the router's document, as read, and Probed on one
+	// built by probing: neither before any document is.
+	Routed, Probed bool
 	// Fallback, Health, Restart, Pin, Events and Sessions are the document's
 	// records, as read: why it was probed rather than the router's, the
 	// router's health, a restart it has due, its global pin, what has
@@ -247,7 +247,7 @@ type AsRead struct {
 func (d Document) At(now time.Time, policy score.Policy) Moment {
 	judged := d.judgeAll(now, policy)
 	m := Moment{
-		Now: now, ReadAt: d.readAt(now), Routed: d.Source == SourceRouter,
+		Now: now, ReadAt: d.readAt(now), Routed: d.Source == SourceRouter, Probed: d.Source == SourceProbe,
 		Fallback: d.Fallback, Health: d.Router, Restart: d.Restart, Pin: d.Pin, Events: d.Events, Sessions: d.Sessions,
 		ComingUp: comingAfter(d.ComingUp, now), Next: d.next(),
 		doc: d, policy: policy, judged: judged,
@@ -475,20 +475,20 @@ func (d Document) windowNames() map[string]WindowName {
 	}
 	names := make(map[string]WindowName, len(labels))
 	for key, label := range labels {
-		label = cmp.Or(label, key)
-		names[key] = WindowName{Key: key, Label: label, Name: nameOf(key, label)}
+		names[key] = WindowName{Key: key, Label: cmp.Or(label, key), Name: NameOfWindow(key, label)}
 	}
 	return names
 }
 
-// nameOf is what the window with the given key and label is called: of a
-// window of whole hours shorter than a day, its length, as "5-hour"; else its
-// label, cleaned.
-func nameOf(key, label string) string {
+// NameOfWindow is what the window with the given key and label is called,
+// wherever a window is named by them: of a window of whole hours shorter than
+// a day, its length, as "5-hour"; else its label, cleaned, as "Week" or
+// "Fable week", or its key where it has none.
+func NameOfWindow(key, label string) string {
 	if length, ok := quota.Length(key); ok && length%time.Hour == 0 && length < day {
 		return fmt.Sprintf("%d-hour", length/time.Hour)
 	}
-	return Clean(label)
+	return Clean(cmp.Or(label, key))
 }
 
 // windowsShown are the windows of the accounts at the moment, in quota's

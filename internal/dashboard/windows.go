@@ -9,14 +9,14 @@ import (
 
 // windowNamed is the window with the given key as m names it, as its Shown
 // and Hidden name theirs: one none of its accounts has, by its key, as
-// nameOfWindow names it.
+// status.NameOfWindow names it.
 func windowNamed(m status.Moment, key string) status.WindowName {
 	for _, windows := range [][]status.WindowName{m.Shown, m.Hidden} {
 		if i := slices.IndexFunc(windows, func(w status.WindowName) bool { return w.Key == key }); i >= 0 {
 			return windows[i]
 		}
 	}
-	return status.WindowName{Key: key, Label: key, Name: nameOfWindow(key, key)}
+	return status.WindowName{Key: key, Label: key, Name: status.NameOfWindow(key, key)}
 }
 
 // labelsOf names m's windows by their keys by their labels, as windowNamed

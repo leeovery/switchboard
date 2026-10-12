@@ -1048,7 +1048,7 @@ func TestOnTheTickASessionResetsAFailedReadAccountsSessionHasntStartedAsROUTINGH
 	if routing := doc.RoutingOf(work, after, claudeLike); routing.Kind != status.RoutingIdle {
 		t.Errorf("ROUTING says work is %q, want it idle", routing.Says)
 	}
-	if words := wordsOf(doc.WindowStatesOf(work, after, claudeLike).Of("5h"), after).full.plain(); words != "not started" {
+	if words := wordsOf(windowNowOf(doc, work.ID, "5h", after), after).full.plain(); words != "not started" {
 		t.Errorf("USAGE says work's session is %q, want it not started", words)
 	}
 	if used, ok := frameOf(160, 40).Filled(doc, after)[ref]; !ok || used != 0 {

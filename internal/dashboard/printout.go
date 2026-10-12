@@ -55,11 +55,11 @@ type Printout struct {
 func (p Printout) Draw(doc status.Document, now time.Time) []string {
 	m := doc.At(now, p.Policy)
 	c := growing(p.Width)
-	y := p.header(c, doc, now) + 2
+	y := p.header(c, m) + 2
 	if p.By == ByAccount {
 		y++
 	}
-	block := newUsageBlock(doc, m, p.Policy, p.Width, p.Look, p.By, usageWindows(doc, p.Windows, p.Policy.Shared, p.namer(m)))
+	block := newUsageBlock(m, p.Width, p.Look, p.By, usageWindows(m, p.Windows, p.Policy.Shared, p.namer(m)))
 	block.key(c, block.draw(c, y)+1)
 	return c.rows(p.Look)
 }
@@ -73,21 +73,21 @@ func (p Printout) namer(m status.Moment) func(key string) string {
 	return labelsOf(m)
 }
 
-// header draws the printout's header of doc at now, and returns its last
-// row: the badge and when doc was read, then the status line, its mode shown
-// only while the router has a global pin. From 120 columns it's one line, the
-// status ending at the last column; narrower, two, the status from column 0
-// after a blank line. The status shortens to fit, as a phone's does; the
-// badge's line leaves off the date, as a phone's title row does, then the
-// badge, before it's cut.
-func (p Printout) header(c *canvas, doc status.Document, now time.Time) int {
-	at := doc.GeneratedAt.In(now.Location())
+// header draws the printout's header of the moment m, and returns its last
+// row: the badge and when its document was read, then the status line, its
+// mode shown only while the router has a global pin. From 120 columns it's
+// one line, the status ending at the last column; narrower, two, the status
+// from column 0 after a blank line. The status shortens to fit, as a phone's
+// does; the badge's line leaves off the date, as a phone's title row does,
+// then the badge, before it's cut.
+func (p Printout) header(c *canvas, m status.Moment) int {
+	at := m.ReadAt.In(m.Now.Location())
 	gap, clock := line{spaces(2)}, line{{at.Format("15:04"), titleInk}}
 	end := c.line(0, 0, firstFit(p.Width,
 		slices.Concat(pill, gap, line{{at.Format("Mon 2 Jan  15:04"), titleInk}}),
 		slices.Concat(pill, gap, clock),
 		clock))
-	s := newStatusLine(doc)
+	s := newStatusLine(m)
 	if p.Width >= oneLineHeader {
 		c.right(p.Width, 0, s.fit(p.Width-end-headerGap))
 		return 0

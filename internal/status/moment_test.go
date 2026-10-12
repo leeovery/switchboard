@@ -410,11 +410,11 @@ func checkMomentAgainstStatus(t *testing.T, doc status.Document, m status.Moment
 		t.Errorf("ReadAt = %v, want %v: when the document was built", m.ReadAt, want)
 	}
 	records := status.Moment{
-		Now: now, ReadAt: m.ReadAt, Routed: doc.Source == status.SourceRouter, Fallback: doc.Fallback, Health: doc.Router,
+		Now: now, ReadAt: m.ReadAt, Routed: doc.Source == status.SourceRouter, Probed: doc.Source == status.SourceProbe, Fallback: doc.Fallback, Health: doc.Router,
 		Restart: doc.Restart, Pin: doc.Pin, Events: doc.Events, Sessions: doc.Sessions,
 	}
 	got := status.Moment{
-		Now: m.Now, ReadAt: m.ReadAt, Routed: m.Routed, Fallback: m.Fallback, Health: m.Health,
+		Now: m.Now, ReadAt: m.ReadAt, Routed: m.Routed, Probed: m.Probed, Fallback: m.Fallback, Health: m.Health,
 		Restart: m.Restart, Pin: m.Pin, Events: m.Events, Sessions: m.Sessions,
 	}
 	if !reflect.DeepEqual(got, records) {
@@ -650,6 +650,27 @@ func TestADocumentWorkedOutIsAsItStoodWhenItWasBuilt(t *testing.T) {
 							a.ID, w.Key, paceOf(w.Pace), w.Allowance, paceOf(now.Pace), now.Allowance)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestAWindowIsNamedByItsHoursElseByItsLabelElseByItsKey(t *testing.T) {
+	tests := []struct {
+		name, key, label, want string
+	}{
+		{name: "whole hours under a day, by them", key: "5h", label: "Session", want: "5-hour"},
+		{name: "whole hours under a day, unlabelled", key: "5h", want: "5-hour"},
+		{name: "a week, by its label", key: "7d", label: "Week", want: "Week"},
+		{name: "a model's week, by its label", key: "7d_oi", label: "Fable week", want: "Fable week"},
+		{name: "a day, by its label, as it's no shorter than one", key: "1d", label: "Day", want: "Day"},
+		{name: "unlabelled, by its key", key: "7d", want: "7d"},
+		{name: "its label cleaned", key: "7d", label: "\x1bWeek\a", want: "Week"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.NameOfWindow(tt.key, tt.label); got != tt.want {
+				t.Errorf("NameOfWindow(%q, %q) = %q, want %q", tt.key, tt.label, got, tt.want)
 			}
 		})
 	}

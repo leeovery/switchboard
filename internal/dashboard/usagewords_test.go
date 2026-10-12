@@ -10,12 +10,12 @@ import (
 )
 
 func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
-	state := func(kind status.WindowKind, at time.Time) status.WindowState {
-		return status.WindowState{Kind: kind, At: at}
+	state := func(kind status.WindowKind, at time.Time) status.WindowNow {
+		return status.WindowNow{Kind: kind, At: at}
 	}
 	tests := []struct {
 		name        string
-		state       status.WindowState
+		state       status.WindowNow
 		allowance   quota.Allowance
 		full, short string
 		ink         ink
@@ -70,7 +70,7 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 }
 
 func TestWordsAreInFullFrom70ColumnsWhereTheyFitTheirRoom(t *testing.T) {
-	w := wordsOf(status.WindowState{Kind: status.WindowStale, At: on(30, 12, 42).AddDate(0, -1, 0)}, printNow)
+	w := wordsOf(status.WindowNow{Kind: status.WindowStale, At: on(30, 12, 42).AddDate(0, -1, 0)}, printNow)
 	tests := []struct {
 		name        string
 		width, room int
@@ -90,7 +90,7 @@ func TestWordsAreInFullFrom70ColumnsWhereTheyFitTheirRoom(t *testing.T) {
 }
 
 func TestAnAllowancesTillAndDotAreSubtlerThanItsRateAndTime(t *testing.T) {
-	w := wordsOf(status.WindowState{Kind: status.WindowOpen, At: on(4, 21, 0), Allowance: quota.Allowance{Share: 0.19, Per: quota.PerDay}}, printNow)
+	w := wordsOf(status.WindowNow{Kind: status.WindowOpen, At: on(4, 21, 0), Allowance: quota.Allowance{Share: 0.19, Per: quota.PerDay}}, printNow)
 	for _, l := range []line{w.full, w.short} {
 		if len(l) != 3 || l[0].ink != mutedInk || l[1].ink != dimInk || l[2].ink != mutedInk {
 			t.Errorf("the allowance's words are %+v, want the rate and the time in text.muted, between them text.subtle", l)
@@ -130,9 +130,9 @@ func TestThePercentageIsColouredByThePercentageShown(t *testing.T) {
 
 func TestFaintWordsAreAllInTextFaintInFullAndShort(t *testing.T) {
 	for _, w := range []usageWords{
-		wordsOf(status.WindowState{Kind: status.WindowOpen, At: on(4, 21, 0), Allowance: quota.Allowance{Share: 0.19, Per: quota.PerDay}}, printNow),
-		wordsOf(status.WindowState{Kind: status.WindowCapped, At: on(1, 17, 10)}, printNow),
-		wordsOf(status.WindowState{Kind: status.WindowTokenless}, printNow),
+		wordsOf(status.WindowNow{Kind: status.WindowOpen, At: on(4, 21, 0), Allowance: quota.Allowance{Share: 0.19, Per: quota.PerDay}}, printNow),
+		wordsOf(status.WindowNow{Kind: status.WindowCapped, At: on(1, 17, 10)}, printNow),
+		wordsOf(status.WindowNow{Kind: status.WindowTokenless}, printNow),
 	} {
 		faint := w.faint()
 		for _, form := range []struct{ was, is line }{{w.full, faint.full}, {w.short, faint.short}} {

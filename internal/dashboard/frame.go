@@ -99,7 +99,7 @@ type Frame struct {
 	Policy score.Policy
 	// WindowName names a window by its key wherever the Overview names one,
 	// as "5-hour" or "Fable week": nil names it by its label in the
-	// document, as nameOfWindow has it.
+	// document, as status.NameOfWindow has it.
 	WindowName func(key string) string
 	// History is History's sub-tab shown, what each of its views shows, and
 	// their pages.
