@@ -23,6 +23,10 @@ type Frame struct {
 	// Lost is when the router stopped answering, while its last document
 	// stays on screen, or before any has been read: zero otherwise.
 	Lost time.Time
+	// Failed is why the last read failed, and when the next is due, while it's
+	// the last: zero otherwise. The status line says it, but where it says
+	// the router isn't answering.
+	Failed Failure
 	// Outdated is set when the router is from before it told of events and
 	// gave its history: RECENT asks for it to be restarted.
 	Outdated bool
@@ -51,7 +55,7 @@ type Frame struct {
 	// Traces are the requests the Overview's traces draw, by account and by
 	// session, as the watch counts them; and TraceScale the requests a
 	// minute that fill a trace's height, 0 for the live rule, the busiest
-	// column of every trace on the page, never less than 8.
+	// column of every trace that shows on the page, never less than 8.
 	Traces     views.Traces
 	TraceScale float64
 	// Span is how far ahead Runway looks, as w switches it.
@@ -136,8 +140,8 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 }
 
 // view draws the tab shown of doc at now from row top, where the page has
-// room for it, as cramped says: the Overview, its traces scaled alike, as
-// scaled says; Sessions and Runway; and nothing of a tab not built yet.
+// room for it, as cramped says: the Overview, Sessions and Runway; and
+// nothing of a tab not built yet.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
@@ -145,7 +149,7 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	top := f.top()
 	switch f.View {
 	case Overview:
-		f.scaled(doc, now).overview(c, doc, now, top)
+		f.overview(c, doc, now, top)
 	case Sessions:
 		f.sessions(c, doc, now, top)
 	case Runway:

@@ -166,11 +166,56 @@ func TestTheTrafficChangesNoNumberButByItsMoves(t *testing.T) {
 	if slices.Equal(f.Draw(doc, routedAt), quiet.Draw(doc, routedAt)) {
 		t.Fatal("the page is drawn alike with the traffic and without it, want SESSIONS drawing what it tells")
 	}
-	without := quiet.Numbers(doc, routedAt)
-	for n, drawn := range f.Numbers(doc, routedAt) {
-		if was, ok := without[n]; ok && was != drawn {
-			t.Errorf("%+v reads %q with the traffic, want %q, as without it", n, drawn, was)
+	if changed := changedOf(quiet.Numbers(doc, routedAt), f.Numbers(doc, routedAt)); len(changed) > 0 {
+		t.Errorf("the traffic changed %+v, want no number changed", changed)
+	}
+}
+
+// changedOf are the numbers drawn both before, was, and after, is, that
+// read differently, as the watch brightens them.
+func changedOf(was, is map[Number]string) []Number {
+	var changed []Number
+	for n, drawn := range is {
+		if before, ok := was[n]; ok && before != drawn {
+			changed = append(changed, n)
 		}
+	}
+	return changed
+}
+
+// The watch compares the page's numbers for a request sent, or a move, only
+// where StreamNumbered says the page may draw one they change: every page,
+// with any sections shown, grouped either way, is held to it.
+func TestOnlyAPageStreamNumberedDrawsANumberTheStreamChanges(t *testing.T) {
+	sent := []views.Sent{
+		{Request: "a", Session: idC61B, Account: "side", At: routedAt},
+		{Request: "b", Session: id41E0, Account: "personal", At: routedAt},
+	}
+	move := Move{Seat: Seat{Session: idD28C, Model: opus}, From: "side", To: "personal", At: routedAt}
+	usageAlone := Sections{}.Toggled(SectionRouting).Toggled(SectionComing).Toggled(SectionLately)
+	shown := []Sections{{}, Sections{}.Toggled(SectionSessions), usageAlone, usageAlone.Toggled(SectionRouting), usageAlone.Toggled(SectionSessions)}
+	changing := 0
+	for _, view := range Views() {
+		for _, sections := range shown {
+			for _, by := range []By{ByWindow, ByAccount} {
+				quiet, doc := sessionsShown(160, 60)
+				quiet.View, quiet.Sections, quiet.By = view, sections, by
+				streamed := quiet
+				streamed.Traces = views.Traces{}.Told(sent, routedAt)
+				streamed.Traffic.Moves = []Move{move}
+				changed := changedOf(quiet.Numbers(doc, routedAt), streamed.Numbers(doc, routedAt))
+				if len(changed) == 0 {
+					continue
+				}
+				changing++
+				if !streamed.StreamNumbered() {
+					t.Errorf("on %s, %v shown, by %v, the stream changed %+v; want the page StreamNumbered", view, sections.Names(), by, changed)
+				}
+			}
+		}
+	}
+	if changing == 0 {
+		t.Fatal("the stream changed no number on any page, want it changing ROUTING's and SESSIONS'")
 	}
 }
 

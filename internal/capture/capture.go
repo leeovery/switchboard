@@ -90,9 +90,10 @@ func ByName(name string) (Fixture, error) {
 // local is every fixture drawn in the local time zone, built once.
 var local = sync.OnceValue(func() fixtureSet { return fixturesIn(time.Local) })
 
-// fixtureSet is every fixture drawn in a time zone, by name, each built as
-// it's asked for: usage's printouts and the pages are drawn over the worlds,
-// whose year takes a while, so no set builds them before one is asked for.
+// fixtureSet is every fixture drawn in a time zone, by name, each built the
+// first time it's asked for: usage's printouts and the pages are drawn over
+// the worlds, whose year takes a while, so no set builds them before one is
+// asked for.
 type fixtureSet map[string]func() Fixture
 
 // fixturesIn is every fixture drawn in the time zone given, as fixtures,
@@ -122,8 +123,9 @@ func overWorlds() []overWorld {
 }
 
 // setOf is the watch's fixtures given and those given over the worlds, by
-// name, one over the worlds drawn over what worlds gives once it's asked
-// for. It panics on a name given twice, as the second would hide the first.
+// name, one over the worlds drawn over what worlds gives the first time it's
+// asked for, and only then. It panics on a name given twice, as the second
+// would hide the first.
 func setOf(watched []Fixture, over []overWorld, worlds func() accountWorlds) fixtureSet {
 	set := make(fixtureSet, len(watched)+len(over))
 	add := func(name string, build func() Fixture) {
@@ -136,7 +138,7 @@ func setOf(watched []Fixture, over []overWorld, worlds func() accountWorlds) fix
 		add(f.Name, func() Fixture { return f })
 	}
 	for _, o := range over {
-		add(o.called(), func() Fixture { return o.fixture(worlds()) })
+		add(o.called(), sync.OnceValue(func() Fixture { return o.fixture(worlds()) }))
 	}
 	return set
 }

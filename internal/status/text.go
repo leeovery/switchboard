@@ -101,7 +101,7 @@ func (d Document) writePriming(b *strings.Builder, now time.Time) {
 // pressure, and how many sessions the router has sent it.
 func (d Document) writeNotes(b *strings.Builder, a Account, now time.Time) {
 	notes := a.HeldBy(now)
-	if reserved := d.Reserved(a); reserved != "" {
+	if reserved := d.Reserved(a, now); reserved != "" {
 		notes = append(notes, reserved)
 	}
 	if pressed := d.pressureNote(a, now); pressed != "" {
@@ -115,13 +115,14 @@ func (d Document) writeNotes(b *strings.Builder, a Account, now time.Time) {
 	}
 }
 
-// Reserved says how the account's reserve stands once a window has reached
-// it: "at its reserve (90%)", the router's own choices passing the account
-// over from that share of a window on, or, with the global pin naming it,
-// "spending its reserve (pinned)". It's "" while no window has reached it.
-func (d Document) Reserved(a Account) string {
+// Reserved says how the account's reserve stands at now once a window has
+// reached it, as ReachedReserve judges: "at its reserve (90%)", the router's
+// own choices passing the account over from that share of a window on, or,
+// with the global pin naming it, "spending its reserve (pinned)". It's ""
+// while no window has reached it.
+func (d Document) Reserved(a Account, now time.Time) string {
 	switch {
-	case len(a.AtReserve) == 0:
+	case len(a.ReachedReserve(now)) == 0:
 		return ""
 	case d.Pin.Has(a.ID):
 		return "spending its reserve (pinned)"

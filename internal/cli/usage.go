@@ -119,6 +119,8 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Look:    a.printLook(out, colors.Profile, t, t.kept().Choice),
 		By:      opts.by.or(cfg.Usage.By),
 		Windows: windows,
+		Policy:  claude.Policy,
+		Name:    claude.WindowName,
 	}.Draw(doc, a.Now())
 	logger.Debug("drew the printout", "width", width, "colors", colors.Profile.String())
 	_, err = io.WriteString(colors, "\n"+strings.Join(rows, "\n")+"\n")
@@ -224,7 +226,8 @@ func (ws windowFlags) keys(doc status.Document) ([]string, error) {
 }
 
 // unreported is the error of the window flag f, for a window no account
-// reports, naming the flags of those reported.
+// reports, naming the flags of those reported, or where none is reported at
+// all, saying so.
 func (ws windowFlags) unreported(f *windowFlag, reported map[string]bool) error {
 	var there []string
 	for _, w := range ws {
@@ -232,10 +235,14 @@ func (ws windowFlags) unreported(f *windowFlag, reported map[string]bool) error 
 			there = append(there, "--"+w.name)
 		}
 	}
-	if len(there) == 0 {
+	switch {
+	case len(there) > 0:
+		return fmt.Errorf("no account reports %s: give %s", f.what, strings.Join(there, " or "))
+	case len(reported) == 0:
 		return fmt.Errorf("no account reports %s, nor any other window", f.what)
+	default:
+		return fmt.Errorf("no account reports %s", f.what)
 	}
-	return fmt.Errorf("no account reports %s: give %s", f.what, strings.Join(there, " or "))
 }
 
 // IsTerminal reports whether out is a terminal: Deps.Terminal, for the

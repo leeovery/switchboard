@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -74,10 +75,19 @@ func pinnedTo(ids ...string) func(*status.Document) {
 	return func(d *status.Document) { d.Pin = status.Pin{Accounts: ids, Since: printNow.UTC()} }
 }
 
+// printNames are the names printName gives Claude's windows.
+var printNames = map[string]string{"5h": "5-hour", "7d": "Week", "7d_oi": "Fable week", "7d_sonnet": "Sonnet week"}
+
+// printName names a window by its key as Claude's are named, or by its key
+// where it isn't one of Claude's.
+func printName(key string) string {
+	return cmp.Or(printNames[key], key)
+}
+
 // printed is doc's printout width columns wide, grouped by, of the windows
-// with the keys given, as text alone.
+// with the keys given, as text alone, its windows named as Claude's are.
 func printed(doc status.Document, width int, by By, windows ...string) []string {
-	return Printout{Width: width, By: by, Windows: windows}.Draw(doc, printNow)
+	return Printout{Width: width, By: by, Windows: windows, Policy: printPolicy, Name: printName}.Draw(doc, printNow)
 }
 
 // colAt is the n cells of row from column col: fewer where it ends sooner.
@@ -98,7 +108,7 @@ func blockOn(t *testing.T, doc status.Document, width int, slug string) *canvas 
 		t.Fatalf("no built-in theme %s", slug)
 	}
 	c := growing(width)
-	newUsageBlock(doc, printNow, width, Print(th, nil), ByWindow, nil).draw(c, 0)
+	newUsageBlock(doc, printNow, width, Print(th, nil), ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).draw(c, 0)
 	return c
 }
 
@@ -458,20 +468,112 @@ func TestTheKeyLineSaysWhatTheMarksMean(t *testing.T) {
 		name  string
 		doc   status.Document
 		width int
+		by    By
 		want  []string
 	}{
 		{name: "from 150 columns, one line from the name column", doc: trio(), width: 160, want: []string{strings.Repeat(" ", 16) + pace + "    ╎ cap: work at 95%"}},
 		{name: "narrower, two lines from column 0", doc: trio(), width: 149, want: []string{pace, "╎ cap: work at 95%"}},
 		{name: "no account with a cap", doc: trio(capped("work", 0)), width: 120, want: []string{pace}},
 		{name: "several caps, in the config's order", doc: trio(capped("side", 0.1)), width: 120, want: []string{pace, "╎ cap: work at 95%, side at 90%"}},
+		{
+			name: "a cap whose mark is off the bars, unnamed", doc: trio(capped("work", 0.004)), width: 160,
+			want: []string{strings.Repeat(" ", 16) + pace},
+		},
+		{
+			name: "the same cap, named where the bars are long enough to draw its mark", doc: trio(capped("work", 0.004)), width: 300, by: ByAccount,
+			want: []string{strings.Repeat(" ", 16) + pace + "    ╎ cap: work at 100%"},
+		},
+		{
+			name: "a cap of an account nothing is read of, its bars empty, unnamed", width: 120, want: []string{pace},
+			doc: trio(account("work", func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil })),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rows := printed(tt.doc, tt.width, ByWindow)
+			rows := printed(tt.doc, tt.width, tt.by)
 			got := rows[len(rows)-len(tt.want):]
 			if !slices.Equal(got, tt.want) || rows[len(rows)-len(tt.want)-1] != "" {
 				t.Errorf("the printout ends\n%s\nwant a blank line, then\n%s", strings.Join(rows[len(rows)-len(tt.want)-1:], "\n"), strings.Join(tt.want, "\n"))
 			}
 		})
+	}
+}
+
+func TestEveryAccountKeepsItsRowsBeforeAnyWindowIsRead(t *testing.T) {
+	unread := func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil }
+	doc := trio(func(d *status.Document) { d.Accounts, d.Best = d.Accounts[:2], "" }, account("work", unread), account("personal", unread))
+	names := map[By][]string{ByWindow: {"5-HOUR", "WEEK"}, ByAccount: {"5-hour", "Week"}}
+	for _, by := range []By{ByWindow, ByAccount} {
+		for _, width := range []int{160, 80} {
+			t.Run(fmt.Sprintf("by %d at %d columns", by, width), func(t *testing.T) {
+				text := strings.Join(printed(doc, width, by), "\n")
+				for _, want := range append([]string{"1 work", "2 personal ◆"}, names[by]...) {
+					if !strings.Contains(text, want) {
+						t.Errorf("the printout has no %q:\n%s", want, text)
+					}
+				}
+				if got := strings.Count(text, "not read yet"); got != 4 {
+					t.Errorf("the printout reads \"not read yet\" %d times, want 4, each account's 5-hour window and week:\n%s", got, text)
+				}
+			})
+		}
+	}
+}
+
+func TestTheWindowsAreNamedAsNameNamesThem(t *testing.T) {
+	tests := []struct {
+		name   string
+		namer  func(string) string
+		shared []string
+		want   []shownWindow
+	}{
+		{
+			name: "by Name, over their labels", namer: printName,
+			want: []shownWindow{{"5h", "5-hour"}, {"7d", "Week"}, {"7d_oi", "Fable week"}},
+		},
+		{
+			name: "by Name, cleaned", namer: func(key string) string { return "\x1b" + key + "\a" },
+			want: []shownWindow{{"5h", "5h"}, {"7d", "7d"}, {"7d_oi", "7d_oi"}},
+		},
+		{
+			name: "without Name, by their labels",
+			want: []shownWindow{{"5h", "Session"}, {"7d", "Week"}, {"7d_oi", "Fable week"}},
+		},
+		{
+			name: "a window every model shares that no account reports, by Name", namer: printName, shared: []string{"5h", "1d"},
+			want: []shownWindow{{"5h", "5-hour"}, {"1d", "1d"}, {"7d", "Week"}, {"7d_oi", "Fable week"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := usageWindows(trio(), nil, tt.shared, tt.namer); !slices.Equal(got, tt.want) {
+				t.Errorf("the windows are %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAStaleReadingFromAnotherDayReadsInFullWhereItsWordsHaveRoom(t *testing.T) {
+	stale := trio(account("work", func(a *status.Account) {
+		a.Error, a.FetchedAt = "HTTP 529 · Overloaded", on(30, 12, 42).AddDate(0, -1, 0).UTC()
+	}))
+	if got, want := colAt(printed(stale, 160, ByWindow)[4], 39, 25), "not read since Wed 12:42 "; got != want {
+		t.Errorf("in the matrix, the stale account's words read %q, want %q, in full in the cells before the next group", got, want)
+	}
+	if got, want := colAt(printed(stale, 120, ByWindow)[4], 97, 23), "read Wed"; got != want {
+		t.Errorf("stacked, the stale account's words read %q, want %q, short, as in full they'd run past the edge", got, want)
+	}
+}
+
+func TestAProbedPrintoutMarksNoneOfSeveralAccountsAsWhereNewSessionsGo(t *testing.T) {
+	probed := func(d *status.Document) {
+		d.Source, d.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterNotRunning}
+	}
+	if rows := printed(trio(probed), 160, ByWindow); slices.ContainsFunc(rows, func(r string) bool { return strings.Contains(r, "▲") }) {
+		t.Errorf("a probed printout of three accounts marks one ▲:\n%s", strings.Join(rows, "\n"))
+	}
+	lone := trio(probed, func(d *status.Document) { d.Accounts = d.Accounts[:1] })
+	if got, want := colAt(printed(lone, 160, ByWindow)[4], 0, 9), "1 work ▲ "; got != want {
+		t.Errorf("a probed printout's lone account's row starts %q, want %q, as there's nowhere else new sessions go", got, want)
 	}
 }

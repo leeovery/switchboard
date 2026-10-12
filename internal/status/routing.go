@@ -145,7 +145,7 @@ func (d Document) heldRouting(a Account, now time.Time, policy score.Policy) (Ro
 		return Routing{Kind: RoutingRefused, Says: answer, Clauses: []string{"its token needs renewing"}, Short: []string{answer}}, true
 	case !limited && !a.Refused.Holds(now):
 		return Routing{}, false
-	case d.capHoldsBack(a, now, policy):
+	case d.CapHolds(a, now, policy):
 		return d.cappedRouting(a, now, policy)
 	case limited:
 		says := Short(a.label(held.Windows[0])) + " limit"
@@ -155,27 +155,20 @@ func (d Document) heldRouting(a Account, now time.Time, policy score.Policy) (Ro
 	return Routing{Kind: RoutingModelRefused, Says: a.Refused.Answer(), Clauses: []string{stillComes}, Short: []string{short}}, true
 }
 
-// capHoldsBack reports whether account a's cap holds it back from every
-// request at now: a window every model shares, as policy says, has reached
-// it, and the global pin doesn't spend it.
-func (d Document) capHoldsBack(a Account, now time.Time, policy score.Policy) bool {
-	return d.ReserveHolds(a) && slices.ContainsFunc(score.AtReserve(a.Windows, a.Reserve, now), policy.IsShared)
-}
-
 // cappedRouting is how account a stands at its cap at now, as policy says
 // which windows every model shares, reporting false while no window of it
-// has reached its cap: at it in a window every model shares, which holds it
-// back from every request, as in "at its cap · back 17:10 · new sessions go
-// elsewhere", back as the last of those resets; else in a model's own, as
-// Fable's week, which holds back that model's requests alone, as in "Fable wk
-// at its cap · back Mon 21:00 · other models still come here". The global
-// pin naming it spends its cap, so new sessions still come here.
+// has reached its cap, as ReachedReserve judges: at it in a window every model
+// shares, which holds it back from every request, as in "at its cap · back
+// 17:10 · new sessions go elsewhere", back as the last of those resets; else
+// in a model's own, as Fable's week, which holds back that model's requests
+// alone, as in "Fable wk at its cap · back Mon 21:00 · other models still
+// come here". The global pin naming it spends its cap, so new sessions still
+// come here.
 func (d Document) cappedRouting(a Account, now time.Time, policy score.Policy) (Routing, bool) {
-	keys := score.AtReserve(a.Windows, a.Reserve, now)
+	keys := slices.SortedStableFunc(slices.Values(a.ReachedReserve(now)), func(x, y string) int { return sharedFirst(policy, x, y) })
 	if len(keys) == 0 {
 		return Routing{}, false
 	}
-	slices.SortStableFunc(keys, func(x, y string) int { return sharedFirst(policy, x, y) })
 	shared := policy.IsShared(keys[0])
 	says := "at its cap"
 	if !shared {

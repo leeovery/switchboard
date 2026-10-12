@@ -101,7 +101,7 @@ func TestAFrameFullScreenPaintsTheCanvasOnEveryCell(t *testing.T) {
 	}
 }
 
-func TestAFrameWithoutColourTellsStateByGlyphsAndBold(t *testing.T) {
+func TestAFrameWithoutColourTellsStateByGlyphsBoldAndReverse(t *testing.T) {
 	for name, f := range frames() {
 		t.Run(name, func(t *testing.T) {
 			plain := strings.Join(drawn(f, dashboard.Look{}), "\n")
@@ -110,8 +110,8 @@ func TestAFrameWithoutColourTellsStateByGlyphsAndBold(t *testing.T) {
 				t.Errorf("drawn without colour, stripped of its escapes =\n%s\nwant the frame as text\n%s", stripped, plain)
 			}
 			for _, sgr := range regexp.MustCompile(`\x1b\[[0-9;]*m`).FindAllString(frame, -1) {
-				if sgr != "\x1b[1m" && sgr != "\x1b[m" && sgr != "\x1b[0m" {
-					t.Errorf("drawn without colour, it has %q, want bold alone", sgr)
+				if !slices.Contains([]string{"\x1b[1m", "\x1b[7m", "\x1b[1;7m", "\x1b[m", "\x1b[0m"}, sgr) {
+					t.Errorf("drawn without colour, it has %q, want bold and a selected row's reverse alone", sgr)
 				}
 			}
 			if !strings.Contains(frame, "\x1b[1m") {
@@ -278,6 +278,45 @@ func TestTextFromElsewhereShowsItsControlCharactersAsSpaces(t *testing.T) {
 	for _, want := range []string{"Work [31m team", "HTTP 500 · bad gateway", "config [2J changed"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("drew\n%s\nwant it to say %q, its control characters as spaces", frame, want)
+		}
+	}
+}
+
+func TestTextFromElsewherePrintsItsControlCharactersAsSpaces(t *testing.T) {
+	doc := threeAccounts()
+	doc.Accounts[0].Label = "Work\x1b[31m\ateam"
+	doc.Accounts[2].Windows[2].Label = "Fable\x1b\aOI"
+	doc.Router = status.Health{Reason: "7 of\x1b[31m the 9\afailed"}
+	doc.Restart = status.Restart{Reason: "config\x1b[2J\achanged", Since: now.Add(-time.Hour).UTC()}
+	doc.Pin = status.Pin{Accounts: []string{"work", "gone\x1b[1m\aaway"}}
+	probed := threeAccounts()
+	probed.Accounts[1].Label = "Personal\x1b[31m\aplan"
+	probed.Source, probed.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterUnhealthy, Reason: "the router\x1b[31m\aanswered 404"}
+	tests := []struct {
+		name string
+		doc  status.Document
+		// want is in lower case, as by window the windows' names are in capitals.
+		want []string
+	}{
+		{name: "from the router", doc: doc, want: []string{"work [31m team", "fable oi", "config [2j changed", "gone [1m away"}},
+		{name: "probing past it", doc: probed, want: []string{"personal [31m plan", "the router [31m answered 404"}},
+	}
+	for _, tt := range tests {
+		for _, p := range []dashboard.Printout{{Width: 160}, {Width: 160, By: dashboard.ByAccount}, {Width: 80}} {
+			t.Run(fmt.Sprintf("%s, %d columns, by %d", tt.name, p.Width, p.By), func(t *testing.T) {
+				printed := strings.Join(p.Draw(tt.doc, now), "\n")
+				if strings.ContainsAny(printed, "\x1b\a") {
+					t.Errorf("printed %q, want no control characters from the document", printed)
+				}
+				if p.Width < 160 {
+					return
+				}
+				for _, want := range tt.want {
+					if !strings.Contains(strings.ToLower(printed), want) {
+						t.Errorf("printed\n%s\nwant it to say %q, its control characters as spaces", printed, want)
+					}
+				}
+			})
 		}
 	}
 }

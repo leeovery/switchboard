@@ -272,7 +272,7 @@ func TestAFirstReadThatFailsSaysTheRouterIsntAnswering(t *testing.T) {
 	}
 }
 
-func TestProbingAsAskedAReadThatFailsSaysNothingOfTheRouter(t *testing.T) {
+func TestProbingAsAskedAReadThatFailsSaysWhyAndNothingOfTheRouter(t *testing.T) {
 	h := newHarness(t, calm())
 	h.model.cfg.ProbeOnly = true
 	h.source.probing = true
@@ -280,8 +280,15 @@ func TestProbingAsAskedAReadThatFailsSaysNothingOfTheRouter(t *testing.T) {
 	h.start()
 	h.tickUntilAsked() // A question after the router, which a source probing as asked never reads.
 
-	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); got != "" || !h.model.lost.IsZero() {
-		t.Errorf("the status line reads %q, the router lost at %v; want it blank, nothing read, with no router to lose", got, h.model.lost)
+	want := "! couldn't read usage: connection refused  ·  next 13:14"
+	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); got != want || !h.model.lost.IsZero() {
+		t.Errorf("the status line reads %q, the router lost at %v; want %q, why and when it reads next, with no router to lose", got, h.model.lost, want)
+	}
+
+	h.source.err = nil
+	h.tickUntilRead()
+	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); got != "○ probed, as asked" {
+		t.Errorf("once a read lands, the status line reads %q, want it probed, as asked", got)
 	}
 }
 

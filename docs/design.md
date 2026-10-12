@@ -3870,8 +3870,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
 - **Fewer colours:** the frame is drawn in the theme's colours and brought down to what the
   terminal shows by `colorprofile`. With `NO_COLOR` set, there's no canvas and no colour: state is
   told by its glyphs and bold, a bar's fill is drawn in `█` and the eighth blocks, as `usage`, the
-  printout says, a day's shade by a glyph's density, as the `terminal` theme draws it, and `t` does
-  nothing.
+  printout says, a day's shade by a glyph's density, as the `terminal` theme draws it, a row on
+  `bg.selection` in reverse video, as the `terminal` theme draws it, and `t` does nothing.
 
 ### Live updates
 

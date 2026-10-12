@@ -89,7 +89,7 @@ func (m Model) ordered(msg orderedMsg) (tea.Model, tea.Cmd) {
 	case msg.err != nil:
 		m, said = m.refused(msg.card, msg.err)
 	case m.cardOpen(msg.card):
-		m = m.uncover()
+		m, said = m.uncover()
 	}
 	m, read := m.reread()
 	return m, tea.Batch(said, read)
@@ -97,7 +97,7 @@ func (m Model) ordered(msg orderedMsg) (tea.Model, tea.Cmd) {
 
 // refused says why an order the routing card numbered card gave wasn't
 // carried out: in that card, while it's open, until its picks change; else
-// in the key line's place.
+// in the key line's place, as noting has it.
 func (m Model) refused(card int, err error) (Model, tea.Cmd) {
 	if m.cardOpen(card) {
 		m.routing.refused = err
@@ -112,10 +112,26 @@ func (m Model) cardOpen(card int) bool {
 }
 
 // noting has the key line say note in its place for noteFor, and returns
-// what redraws it once that's passed.
+// what redraws it once that's passed. While a card covers the page, whose
+// key line stands still behind it, the note's held, its time unstarted,
+// until the page shows again, as seen has it.
 func (m Model) noting(note string) (Model, tea.Cmd) {
-	m.note, m.noteUntil = note, m.now().Add(noteFor)
+	m.note = note
+	if m.open != nothingOpen {
+		m.noteUntil = time.Time{}
+		return m, nil
+	}
+	m.noteUntil = m.now().Add(noteFor)
 	return m, m.after(noteFor, noteMsg{})
+}
+
+// seen starts the time of a note held while a card covered the page, now
+// the page shows again, as noting does.
+func (m Model) seen() (Model, tea.Cmd) {
+	if m.note == "" || !m.noteUntil.IsZero() {
+		return m, nil
+	}
+	return m.noting(m.note)
 }
 
 // noteMsg wakes the model to redraw once a note has had its time.

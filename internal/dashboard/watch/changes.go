@@ -111,8 +111,9 @@ func statesOf(doc status.Document, now time.Time, policy score.Policy) map[strin
 func outsOf(doc status.Document, now time.Time) map[dashboard.Ref]bool {
 	outs := make(map[dashboard.Ref]bool)
 	for _, a := range doc.Accounts {
+		states := doc.WindowStatesOf(a, now)
 		for _, w := range a.Windows {
-			outs[dashboard.Ref{Account: a.ID, Window: w.Key}] = doc.WindowStateOf(a, w.Key, now).Kind == status.WindowRunsOut
+			outs[dashboard.Ref{Account: a.ID, Window: w.Key}] = states.Of(w.Key).Kind == status.WindowRunsOut
 		}
 	}
 	return outs

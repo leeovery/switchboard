@@ -74,12 +74,11 @@ func tenRouting() status.Document {
 }
 
 // routingDrawn are the cells ROUTING of doc at routedAt draws in f, as a
-// terminal shows them, its body from row y, rows tall, its traces scaled as
-// the frame's are.
+// terminal shows them, its body from row y, rows tall.
 func routingDrawn(t *testing.T, f Frame, doc status.Document, y, rows int) [][]seen {
 	t.Helper()
 	c := newCanvas(f.Width, f.Height)
-	f.scaled(doc, routedAt).routingSection(doc, routedAt).draw(c, bounds{y: y, width: f.Width, rows: rows})
+	f.routingSection(doc, routedAt).draw(c, bounds{y: y, width: f.Width, rows: rows})
 	return screenOf(t, c.rows(f.Look))
 }
 
@@ -134,7 +133,7 @@ func TestROUTINGBesideUSAGEsBlocksIsDrawnAsItsFrameIs(t *testing.T) {
 	doc, sessions := autoRouting()
 	f := Frame{Width: 160, Height: 42, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, By: ByAccount}
 	c := newCanvas(f.Width, f.Height)
-	f.scaled(doc, routedAt).routingBeside(c, doc, routedAt, blocksBeside{x: 107, blocks: []rowAt{{"work", 6, 5}, {"personal", 13, 5}, {"side", 20, 5}, {"", 27, 5}}})
+	f.routingBeside(c, doc, routedAt, blocksBeside{x: 107, blocks: []rowAt{{"work", 6, 5}, {"personal", 13, 5}, {"side", 20, 5}, {"", 27, 5}}})
 
 	// The frame draws work's state whole to the edge, where the design cuts
 	// its words by whole clauses to end two cells short of it.
@@ -365,6 +364,29 @@ func TestROUTINGIsBesideUSAGEOnlyWhereBothShowByAccountFrom150Columns(t *testing
 	for _, tt := range tests {
 		if s := tt.frame.routingSection(doc, routedAt); s.least != tt.least || s.most != tt.most {
 			t.Errorf("%s: least %d, most %d; want %d and %d", tt.name, s.least, s.most, tt.least, tt.most)
+		}
+	}
+}
+
+func TestAcrossAResetBetweenReadsROUTINGUSAGEAndTheRoutingCardAgree(t *testing.T) {
+	// Work is at its cap in its 5-hour, read at 14:42, which resets at 17:10.
+	doc, _ := autoRouting()
+	work, reset := doc.Accounts[0], routedClock(1, 17, 10)
+	f := Frame{Width: 160, Height: 40, View: Overview, Policy: claudeLike}
+	tests := []struct {
+		name   string
+		now    time.Time
+		capped bool
+	}{
+		{name: "a moment before it resets", now: reset.Add(-time.Second), capped: true},
+		{name: "a moment after, before it's read again", now: reset.Add(time.Second)},
+	}
+	for _, tt := range tests {
+		routing := f.routingTableOf(doc, tt.now).accounts[0].standing.Kind == status.RoutingCapped
+		usage := strings.HasPrefix(wordsOf(doc.WindowStateOf(work, "5h", tt.now), quota.Allowance{}, tt.now).full.plain(), "at cap")
+		card := RoutingRows(doc, nil, tt.now, claudeLike)[1].Capped
+		if routing != tt.capped || usage != tt.capped || card != tt.capped {
+			t.Errorf("%s: ROUTING capped %t, USAGE's words %t, the routing card %t; want each %t", tt.name, routing, usage, card, tt.capped)
 		}
 	}
 }

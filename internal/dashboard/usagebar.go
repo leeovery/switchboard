@@ -6,12 +6,6 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// The marks on a usage bar: where its account's cap is, and even pace.
-const (
-	capMark  = "╎"
-	paceMark = "┃"
-)
-
 // staleFade is how far a stale reading's bar fades into the colour beneath:
 // it keeps 35% of its colour. The Overview fades an account out of the pool
 // as far, and one both stale and out of the pool keeps 35% of 35%.
@@ -50,7 +44,7 @@ func (b usageBar) draw(c *canvas, look Look, x, y, cells int) {
 	if b.empty || cells <= 0 {
 		return
 	}
-	if at := halfEven(b.capAt * float64(cells)); at < cells {
+	if at, ok := b.capCell(cells); ok {
 		k := ink{token: theme.VizReserve}
 		if look.blends() {
 			_, under := barCell(look, min(max(filled-8*at, 0), 8), rampStep(at, cells))
@@ -61,6 +55,17 @@ func (b usageBar) draw(c *canvas, look Look, x, y, cells int) {
 	if b.pace != nil {
 		c.text(x+min(halfEven(*b.pace*float64(cells)), cells-1), y, paceMark, b.faded(ink{token: theme.VizPace, bold: true}))
 	}
+}
+
+// capCell is the cell of the bar, cells long, its cap's mark is drawn at,
+// round(cap × cells), reporting false where it draws none: where that's off
+// the bar, or the bar is empty or has no cells.
+func (b usageBar) capCell(cells int) (int, bool) {
+	if b.empty || cells <= 0 {
+		return 0, false
+	}
+	at := halfEven(b.capAt * float64(cells))
+	return at, at < cells
 }
 
 // barCell is a cell of a bar filled eighths of it, from 0 to 8, at a step t
@@ -126,12 +131,9 @@ func (b usageBar) fade() float64 {
 }
 
 // rampStep is where cell i of a bar cells long sits along the ramp, to the
-// nearest of its nine steps: round(8i / (cells − 1)) / 8.
+// nearest of its nine steps, a half to the even one, as the frames are drawn.
 func rampStep(i, cells int) float64 {
-	if cells < 2 {
-		return 0
-	}
-	return float64(halfEven(float64(rampSteps*i)/float64(cells-1))) / rampSteps
+	return float64(halfEven(along(i, cells)*rampSteps)) / rampSteps
 }
 
 // halfEven is x rounded to the nearest whole number, a half to the even one,

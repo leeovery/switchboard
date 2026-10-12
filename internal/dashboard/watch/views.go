@@ -43,7 +43,7 @@ func (m Model) showTab(tab dashboard.View) Model {
 		return m
 	}
 	m.view, m.scroll = tab, 0
-	m.keepPrefs("the view shown", func(p *theme.Prefs) { p.View = string(m.view) }, "view", m.view)
+	m.keepPrefs("the view shown", func(p *theme.Prefs) { p.Tab = string(m.view) }, "view", m.view)
 	return m
 }
 

@@ -22,10 +22,13 @@ const prefsName = "prefs.json"
 // shows, the Overview's sections shown, and how its windows are grouped.
 type Prefs struct {
 	Choice
-	// View names the tab shown, one of overview, accounts, history,
-	// sessions, runway and log, for a watch to open on: "" for the default,
-	// the Overview, as one it doesn't name reads.
-	View string `json:"view,omitempty"`
+	// Tab names the tab shown, one of overview, accounts, history, sessions,
+	// runway and log, for a watch to open on: "" for the default, the
+	// Overview, as one it doesn't name reads. Milestone 5 kept its card view
+	// under "view", as "accounts", which the Overview shows now: a file of
+	// then is read as having no tab, its "view" kept as a key these don't
+	// know.
+	Tab string `json:"tab,omitempty"`
 	// Sections name the Overview's sections shown, of usage, graphs,
 	// routing, sessions, coming and lately: nil, as a file without them
 	// reads, for those shown at first, and none, kept as [], for none.

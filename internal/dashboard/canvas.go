@@ -18,6 +18,11 @@ type canvas struct {
 	cells [][]cell
 	grows bool
 	clip  *bounds
+	// traces are the traces drawn on the canvas, and on those within it,
+	// where it holds them to be painted at the scale they share once every
+	// one is drawn, as holdingTraces has it: nil where each is painted as
+	// it's drawn.
+	traces *[]tracing
 }
 
 // cell is a glyph, the ink it's drawn in, and what of the page it draws

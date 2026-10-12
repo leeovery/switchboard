@@ -535,6 +535,42 @@ func TestAnUpstreamRequestWhoseAnswerGaveNoUsageIsCounted(t *testing.T) {
 	}
 }
 
+func TestALineThatWentUpstreamIsTalliedUpstreamWhateverItsKindButACheckOrACount(t *testing.T) {
+	type tally struct{ upstream, unsent, checks, counts int }
+	tests := []struct {
+		name     string
+		kind     string
+		attempts int
+		want     tally
+	}{
+		{name: "a message sent on", kind: ledger.KindMessage, attempts: 1, want: tally{upstream: 1}},
+		{name: "a message the router answered itself", kind: ledger.KindMessage, want: tally{unsent: 1}},
+		{name: "a line of no kind sent on", attempts: 1, want: tally{upstream: 1}},
+		{name: "a line of no kind the router answered itself", want: tally{unsent: 1}},
+		{name: "a kind a later router adds, sent on", kind: "batch", attempts: 2, want: tally{upstream: 1}},
+		{name: "a kind a later router adds, answered by the router", kind: "batch", want: tally{unsent: 1}},
+		{name: "the client's quota check sent on", kind: ledger.KindCheck, attempts: 1, want: tally{checks: 1}},
+		{name: "the client's quota check answered by the router", kind: ledger.KindCheck, want: tally{checks: 1}},
+		{name: "a count of tokens sent on", kind: ledger.KindCount, attempts: 1, want: tally{counts: 1}},
+		{name: "a count of tokens answered by the router", kind: ledger.KindCount, want: tally{counts: 1}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := asked("1", on(0, 9, 0))
+			l.Kind, l.Attempts = tt.kind, tt.attempts
+			got := summarised(t, noReadings, l)
+			if len(got.Accounts) != 1 || len(got.Accounts[0].Models) != 1 {
+				t.Fatalf("the summary is %+v, want work's request of one model", got)
+			}
+			m := got.Accounts[0].Models[0]
+			tallied := tally{upstream: m.Upstream, unsent: m.Unsent, checks: m.Checks, counts: m.Counts}
+			if tallied != tt.want {
+				t.Errorf("the request is tallied %+v, want %+v", tallied, tt.want)
+			}
+		})
+	}
+}
+
 func TestADateThatIsntOneIsntSummarised(t *testing.T) {
 	if _, err := ledger.Summarise("2026-10-32", slices.Values([]ledger.Line(nil)), noReadings.of, nil, caps, dayDone); err == nil {
 		t.Error("Summarise() of 2026-10-32 succeeded, want it to fail: it isn't a date")
