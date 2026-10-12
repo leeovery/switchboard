@@ -79,16 +79,16 @@ type AccountNow struct {
 	// to it, which ▲ marks, and OutOfPool where the pool leaves it out, as
 	// the global pin names others, each as read.
 	Pinned, Next, OutOfPool bool
-	// TokenSet is set where its token is usable, and ReadAt is when its usage
-	// was read: zero where it never was. Error says why its last read
-	// failed, cleaned, Failures are the windows its last probe expected but
-	// couldn't read, and Sessions how many sessions the router sent it in the
-	// last hour, each as read.
-	TokenSet bool
-	ReadAt   time.Time
-	Error    string
-	Failures []quota.Failure
-	Sessions int
+	// TokenSet is set where its token is usable, Read where its usage was
+	// read, whatever windows it reported, and ReadAt is when: zero where it
+	// never was. Error says why its last read failed, cleaned, Failures are
+	// the windows its last probe expected but couldn't read, and Sessions how
+	// many sessions the router sent it in the last hour, each as read.
+	TokenSet, Read bool
+	ReadAt         time.Time
+	Error          string
+	Failures       []quota.Failure
+	Sessions       int
 	// Routing is how it stands with the router at Now, as RoutingOf says it.
 	Routing Routing
 	// Hold is what holds it back at its limit at Now, as Held has it, and
@@ -376,7 +376,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.Floor(a), ReserveHolds: d.ReserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, OutOfPool: d.pooled() && !d.inPool(a.ID),
-		TokenSet: a.TokenSet, ReadAt: a.FetchedAt, Error: Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
+		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Hold: s.stood.held, Held: s.stood.limited, LimitSince: eventAt(d.limitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), CanRise: !s.stood.shut(),
