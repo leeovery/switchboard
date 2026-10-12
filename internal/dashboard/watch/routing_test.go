@@ -366,30 +366,38 @@ func TestAnAccountThatCantBePickedPinnedOpensPicked(t *testing.T) {
 	}
 }
 
-func TestAPinNamingAnAccountWithoutATokenIsSentWithoutIt(t *testing.T) {
+func TestAPinNamingAnAccountWithoutATokenShowsItPickedAndIsSentWithoutItOnceChanged(t *testing.T) {
 	doc := routerDocument(three()[0], tokenless("personal", "Personal"), three()[2])
 	tests := []struct {
 		name       string
 		pin        []string
 		keys       string
 		wantPicked []string
+		// wantOrders are the orders sent, as fakeSource notes them: none
+		// where nothing is sent.
 		wantOrders []string
 	}{
-		{name: "it opens with the rest picked alone", pin: []string{"personal", "side"}, wantPicked: []string{"side"}},
-		{name: "its number picking it no more", pin: []string{"personal", "side"}, keys: "2", wantPicked: []string{"side"}},
-		{name: "another picked", pin: []string{"personal", "side"}, keys: "1 enter", wantOrders: []string{"pin work,side"}},
-		{name: "m ticked", pin: []string{"personal", "side"}, keys: "m enter", wantOrders: []string{"move side"}},
-		{name: "nothing changed, which drops it from the pin", pin: []string{"personal", "side"}, keys: "enter", wantOrders: []string{"pin side"}},
-		{name: "alone, which opens on auto, and clears the pin", pin: []string{"personal"}, keys: "enter", wantOrders: []string{"unpin"}},
+		{name: "it opens picked with the rest", pin: []string{"personal", "side"}, wantPicked: []string{"personal", "side"}},
+		{name: "alone, it opens picked", pin: []string{"personal"}, wantPicked: []string{"personal"}},
+		{name: "its number clearing it, never to pick it again", pin: []string{"personal", "side"}, keys: "2 2", wantPicked: []string{"side"}},
+		{name: "nothing changed, which sends nothing", pin: []string{"personal", "side"}, keys: "enter"},
+		{name: "alone, nothing changed, which sends nothing", pin: []string{"personal"}, keys: "enter"},
+		{name: "another picked, sent without it", pin: []string{"personal", "side"}, keys: "1 enter", wantOrders: []string{"pin work,side"}},
+		{name: "m ticked, sent without it", pin: []string{"personal", "side"}, keys: "m enter", wantOrders: []string{"move side"}},
+		{name: "its number clearing it", pin: []string{"personal", "side"}, keys: "2 enter", wantOrders: []string{"pin side"}},
+		{name: "alone, m ticked, which sends auto", pin: []string{"personal"}, keys: "m enter", wantOrders: []string{"unpin"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := routedHarness(t, pinnedTo(doc, tt.pin...))
 			h.start()
 			h.keyed("p " + tt.keys)
-			if len(tt.wantOrders) > 0 {
-				if !slices.Equal(h.source.orders, tt.wantOrders) {
-					t.Errorf("orders = %q, want %q", h.source.orders, tt.wantOrders)
+			if !slices.Equal(h.source.orders, tt.wantOrders) {
+				t.Errorf("after %q, orders = %q, want %q", tt.keys, h.source.orders, tt.wantOrders)
+			}
+			if strings.HasSuffix(tt.keys, "enter") {
+				if h.model.open != nothingOpen {
+					t.Errorf("after %q, the card is still open, want it closed", tt.keys)
 				}
 				return
 			}
@@ -397,6 +405,26 @@ func TestAPinNamingAnAccountWithoutATokenIsSentWithoutIt(t *testing.T) {
 				t.Errorf("after %q, the card picks %q, want %q", tt.keys, got, tt.wantPicked)
 			}
 		})
+	}
+}
+
+func TestTheCardsOutcomeAndCostAreOfTheOrderEnterSends(t *testing.T) {
+	h, _ := pricedHarness(t)
+	doc := four()
+	doc.Accounts[0] = tokenless("work", "Work")
+	h.source.router = new(pinnedTo(doc, "work", "side"))
+	h.tickUntilAsked()
+	h.keyed("p m")
+
+	got := h.card()
+	if !slices.Equal(got.Picked, []string{"work", "side"}) || !slices.Equal(got.Unsent, []string{"work"}) {
+		t.Errorf("the card picks %q, leaving %q unsent; want work and side picked, work unsent", got.Picked, got.Unsent)
+	}
+	if got.Moving != 3 || got.Cost == nil || got.Cost.Cents() != "$0.81" {
+		t.Errorf("the card moves %d sessions at %v, want work's two and client's one at $0.81, as the order pins side alone", got.Moving, got.Cost)
+	}
+	if view := h.view(); !strings.Contains(view, "New sessions go to Side. When it's full, the router chooses.") {
+		t.Errorf("the card says\n%s\nwant new sessions sent to side alone", view)
 	}
 }
 
