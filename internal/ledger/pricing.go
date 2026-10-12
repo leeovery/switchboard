@@ -50,7 +50,7 @@ var plans = []Plan{
 }
 
 // versions are the version table's rows.
-var versions = []Version{
+var versions = shaded([]Version{
 	version("Opus 5.5", "opus", "claude-opus-5-5"),
 	version("Opus 5", "opus", "claude-opus-5"),
 	version("Opus 4.8", "opus", "claude-opus-4-8"),
@@ -67,7 +67,7 @@ var versions = []Version{
 	version("Haiku 4.5", "haiku", "claude-haiku-4-5-20251001", "claude-haiku-4-5"),
 	version("Mythos 5.1", "mythos", "claude-mythos-5-1"),
 	version("Mythos 5", "mythos", "claude-mythos-5"),
-}
+})
 
 const (
 	// usOnly is what a token costs where a request asks for US-only

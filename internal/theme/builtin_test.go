@@ -32,7 +32,7 @@ func TestTheBuiltIns(t *testing.T) {
 func TestEveryBuiltInGivesEveryToken(t *testing.T) {
 	for _, b := range theme.Builtins() {
 		t.Run(b.Slug, func(t *testing.T) {
-			for tok := theme.TextPrimary; tok <= theme.VizSeries6; tok++ {
+			for tok := theme.TextPrimary; tok.String() != ""; tok++ {
 				if b.Colour(tok) == nil && !b.Faint(tok) && !b.Reversed(tok) && !leftToTheTerminal(b, tok) {
 					t.Errorf("%s has no %s", b.Slug, tok)
 				}
@@ -50,12 +50,13 @@ func leftToTheTerminal(b theme.Theme, tok theme.Token) bool {
 	return slices.Contains([]theme.Token{
 		theme.TextPrimary, theme.TextSecondary, theme.TextTertiary, theme.TextOnSelection,
 		theme.Canvas, theme.BgSubtle, theme.VizPace, theme.VizSeries5,
+		theme.VizFamily4, theme.VizVersion6, theme.VizDay0,
 	}, tok)
 }
 
 func TestTheTerminalThemeLeansOnNoColourThatsDimOnlySomewhere(t *testing.T) {
 	term, _ := theme.Builtin(theme.Terminal)
-	for tok := theme.TextPrimary; tok <= theme.VizSeries6; tok++ {
+	for tok := theme.TextPrimary; tok.String() != ""; tok++ {
 		if term.Colour(tok) == ansi.BrightBlack {
 			t.Errorf("the terminal theme's %s is the terminal's bright black, which is Solarized Dark's background", tok)
 		}
@@ -71,7 +72,7 @@ func TestTheTerminalThemeLeansOnNoColourThatsDimOnlySomewhere(t *testing.T) {
 		}
 	}
 	for _, b := range theme.Builtins() {
-		for tok := theme.TextPrimary; tok <= theme.VizSeries6 && b.Slug != theme.Terminal; tok++ {
+		for tok := theme.TextPrimary; tok.String() != "" && b.Slug != theme.Terminal; tok++ {
 			if b.Faint(tok) || b.Reversed(tok) {
 				t.Errorf("%s draws its %s faint or reversed, want it in its own colour", b.Slug, tok)
 			}
@@ -120,10 +121,57 @@ func TestNordIsNordTunedWithTheDashboardsOwnBars(t *testing.T) {
 		theme.VizPace:          "#ECEFF4",
 		theme.VizReserve:       "#EBCB8B",
 		theme.VizSeries1:       "#81A1C1",
+		theme.VizFamily1:       "#5E81AC",
+		theme.VizFamily2:       "#88C0D0",
+		theme.VizFamily3:       "#B48EAD",
+		theme.VizFamily4:       "#D8DEE9",
+		theme.VizVersion1:      "#5E81AC",
+		theme.VizVersion2:      "#45648C",
+		theme.VizVersion3:      "#88C0D0",
+		theme.VizVersion4:      "#6A9FAF",
+		theme.VizVersion5:      "#B48EAD",
+		theme.VizVersion6:      "#D8DEE9",
+		theme.VizDay0:          "#3B4252",
+		theme.VizDay1:          "#44587A",
+		theme.VizDay2:          "#5E81AC",
+		theme.VizDay3:          "#88C0D0",
+		theme.VizDay4:          "#D8EEF5",
 	} {
 		if got := hex(nord.Colour(tok)); got != want {
 			t.Errorf("nord's %s = %s, want %s", tok, got, want)
 		}
+	}
+}
+
+// The terminal theme mixes no colour toward a canvas it doesn't paint: an
+// older version is drawn faint in its family's colour, and every step of the
+// days' shades in accent.key, a glyph's density telling them apart.
+func TestTheTerminalThemeDrawsAnOlderVersionFaintAndADaysShadesInOneHue(t *testing.T) {
+	term, _ := theme.Builtin(theme.Terminal)
+	for _, tt := range []struct {
+		version, family theme.Token
+		older           bool
+	}{
+		{version: theme.VizVersion1, family: theme.VizFamily1},
+		{version: theme.VizVersion2, family: theme.VizFamily1, older: true},
+		{version: theme.VizVersion3, family: theme.VizFamily2},
+		{version: theme.VizVersion4, family: theme.VizFamily2, older: true},
+		{version: theme.VizVersion5, family: theme.VizFamily3},
+	} {
+		if got, want := term.Colour(tt.version), term.Colour(tt.family); got != want {
+			t.Errorf("the terminal theme's %s is %v, want its family's colour, %v", tt.version, got, want)
+		}
+		if got := term.Faint(tt.version); got != tt.older {
+			t.Errorf("the terminal theme draws %s faint: %v, want %v", tt.version, got, tt.older)
+		}
+	}
+	for tok := theme.VizDay1; tok <= theme.VizDay4; tok++ {
+		if got := term.Colour(tok); got != ansi.Blue {
+			t.Errorf("the terminal theme's %s is %v, want accent.key, the terminal's blue", tok, got)
+		}
+	}
+	if got := term.Steps(ansi.Cyan); got != [4]color.Color{ansi.Cyan, ansi.Cyan, ansi.Cyan, ansi.Cyan} {
+		t.Errorf("the terminal theme's steps toward cyan are %v, want cyan at each", got)
 	}
 }
 
@@ -214,7 +262,7 @@ func TestTheTerminalThemeIsTheTerminalsOwn(t *testing.T) {
 	if term.Paints() {
 		t.Error("the terminal theme paints its canvas, want the terminal's own background left as it is")
 	}
-	for tok := theme.TextPrimary; tok <= theme.VizSeries6; tok++ {
+	for tok := theme.TextPrimary; tok.String() != ""; tok++ {
 		c := term.Colour(tok)
 		if _, basic := c.(ansi.BasicColor); c != nil && !basic {
 			t.Errorf("the terminal theme's %s is %#v, want one of the terminal's own sixteen colours, or its own", tok, c)
