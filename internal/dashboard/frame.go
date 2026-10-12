@@ -76,8 +76,9 @@ type Frame struct {
 	// move and GRAPHS follows: "" while it's on none.
 	Focus string
 	// Layout is the Overview's layout as the watch keeps it from look to
-	// look, as LayoutOf gave it, so it changes only on a key or a resize:
-	// the zero Layout, or one made for another frame, lays it out afresh.
+	// look, as LayoutOf gave it, so it changes only on a key or a resize, or
+	// a section's shape changing: the zero Layout, or one made for another
+	// frame or shape, lays it out afresh.
 	Layout Layout
 	// KeyLine is the keys that work on the page, as its last row lists them,
 	// or the note a key left in their place.

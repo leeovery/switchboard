@@ -465,27 +465,34 @@ func latelyAt(width int) int {
 }
 
 // Layout is the Overview's layout as it was made: the rows each section shown
-// was given, its heading's among them, and which fold; and the frame and
-// document it was made for, as layoutFor says. The watch keeps it from look
-// to look, as LayoutOf gives it, so the layout changes only on a key or a
-// resize, never on its own as sessions start and lines come: SESSIONS keeps
-// the rows it was given however many sessions run, and COMING UP and LATELY
+// was given, its heading's among them, and which fold; and what it was made
+// for, as layoutFor says. The watch keeps it from look to look, as LayoutOf
+// gives it, so the layout changes only on a key or a resize, or a section's
+// shape changing, never as sessions start and lines come: SESSIONS keeps the
+// rows it was given however many sessions run, and COMING UP and LATELY
 // theirs however many lines they have. A frame lays the Overview out afresh
 // where its Layout is the zero Layout, or one made for another frame or
-// document.
+// shape.
 type Layout struct {
 	made     layoutFor
 	allotted [len(sectionWords)]allotment
 }
 
 // layoutFor is what a layout is made for: a frame of a size, showing the
-// sections it shows, grouped as it groups them, and a document of as many
-// accounts, so a layout made before the first read, of none, isn't kept
-// once they're read.
+// sections it shows, grouped as it groups them; and the shape of each section
+// shown whose rows don't fill with what comes and goes, so a layout isn't
+// kept once one changes shape, as USAGE's block grows as its accounts'
+// windows are first read.
 type layoutFor struct {
-	width, height, accounts int
-	sections                Sections
-	by                      By
+	width, height int
+	sections      Sections
+	by            By
+	shapes        [len(sectionWords)]shape
+}
+
+// shape is the fewest rows a section takes, and the most.
+type shape struct {
+	least, most int
 }
 
 // allotment is the rows a layout gives a section, and whether it folds.
@@ -494,31 +501,50 @@ type allotment struct {
 	fold bool
 }
 
+// fills reports whether the section's rows fill with what comes and goes, as
+// SESSIONS' do with the sessions running, and COMING UP's and LATELY's with
+// their lines: a layout kept keeps the rows it gave them, however many they
+// hold.
+func (s Section) fills() bool {
+	return s == SectionSessions || s.lists()
+}
+
 // LayoutOf is the Overview's layout as the frame lays it out of doc at now,
 // for the watch to keep for the next look: the zero Layout off the Overview.
 func (f Frame) LayoutOf(doc status.Document, now time.Time) Layout {
-	switch {
-	case f.View != Overview:
+	if f.View != Overview {
 		return Layout{}
-	case f.keeps(doc):
+	}
+	units := f.unitsOf(f.sectionsOf(doc, now))
+	made := f.layoutFor(units)
+	if f.keeps(made) {
 		return f.Layout
 	}
-	l := Layout{made: f.layoutFor(doc)}
-	for _, u := range f.allotted(doc, now) {
+	l := Layout{made: made}
+	for _, u := range allot(units, f.viewRows()) {
 		l.allotted[u.sections[0].Section] = allotment{rows: u.rows, fold: u.fold}
 	}
 	return l
 }
 
-// layoutFor is what a layout of the frame's of doc is made for.
-func (f Frame) layoutFor(doc status.Document) layoutFor {
-	return layoutFor{width: f.Width, height: f.Height, accounts: len(doc.Accounts), sections: f.Sections, by: f.By}
+// layoutFor is what a layout of the units, as the frame lays them out, is
+// made for.
+func (f Frame) layoutFor(units []unit) layoutFor {
+	made := layoutFor{width: f.Width, height: f.Height, sections: f.Sections, by: f.By}
+	for _, u := range units {
+		for _, s := range u.sections {
+			if !s.fills() {
+				made.shapes[s.Section] = shape{least: s.least, most: s.most}
+			}
+		}
+	}
+	return made
 }
 
-// keeps reports whether the frame keeps its Layout for doc: one made for the
-// frame and doc, which isn't the zero Layout.
-func (f Frame) keeps(doc status.Document) bool {
-	return f.Layout != (Layout{}) && f.Layout.made == f.layoutFor(doc)
+// keeps reports whether the frame keeps its Layout for a layout made for
+// made: one made for it, which isn't the zero Layout.
+func (f Frame) keeps(made layoutFor) bool {
+	return f.Layout != (Layout{}) && f.Layout.made == made
 }
 
 // allotted are the units of the Overview's sections of doc at now, each
@@ -526,7 +552,7 @@ func (f Frame) keeps(doc status.Document) bool {
 // afresh, as allot gives them in the view's rows.
 func (f Frame) allotted(doc status.Document, now time.Time) []unit {
 	units := f.unitsOf(f.sectionsOf(doc, now))
-	if f.keeps(doc) {
+	if f.keeps(f.layoutFor(units)) {
 		return f.Layout.give(units)
 	}
 	return allot(units, f.viewRows())

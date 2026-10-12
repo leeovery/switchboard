@@ -450,3 +450,34 @@ func TestTheOverviewKeepsItsLayoutAsSessionsStartTillAKeyOrAResize(t *testing.T)
 		t.Errorf("after a resize, SESSIONS takes %d rows, want it laid out afresh, a row saying none run", r)
 	}
 }
+
+// usageRows are the rows of the screen the Overview's USAGE is drawn on, from
+// its heading's to ROUTING's.
+func (h *harness) usageRows() []string {
+	screen := strings.Split(h.view(), "\n")
+	first := slices.IndexFunc(screen, func(r string) bool { return strings.HasPrefix(r, "USAGE ") })
+	routing := slices.IndexFunc(screen, func(r string) bool { return strings.HasPrefix(r, "ROUTING ") })
+	if first < 0 || routing < first {
+		h.t.Fatalf("the screen is\n%s\nwant USAGE shown, and ROUTING under it", h.view())
+	}
+	return screen[first:routing]
+}
+
+func TestTheOverviewIsLaidOutAfreshAsTheAccountsWindowsAreFirstRead(t *testing.T) {
+	unread := routerDocument(three()...)
+	for i, a := range unread.Accounts {
+		unread.Accounts[i] = status.Account{ID: a.ID, Label: a.Label, TokenSet: true}
+	}
+	h := routedHarness(t, unread)
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	h.start()
+
+	h.startRouter(routerDocument(three()...))
+	h.tickUntilAsked()
+	usage := strings.Join(h.usageRows(), "\n")
+	for _, name := range []string{"1 Work", "2 Personal", "3 Side"} {
+		if !strings.Contains(usage, name) {
+			t.Errorf("the accounts' windows read, with no key pressed, USAGE is\n%s\nwant %s among the accounts shown, laid out afresh, as there's room for every one", usage, name)
+		}
+	}
+}
