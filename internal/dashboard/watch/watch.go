@@ -540,7 +540,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.eased(now),
+		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.ease.eased(m.doc, now),
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus:  m.focus,
@@ -683,7 +683,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.news = m.news.looked(doc, msg.router, now)
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
 	m.history = m.history.saw(doc)
-	m.ease = easing{from: utilizations(m.shown(now)), start: now}
+	m.ease = easing{from: m.ease.standing(m.doc, now), start: now}
 	m.doc, m.updated = doc, now
 	switch {
 	case msg.listed || !routed(doc):
@@ -695,7 +695,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	}
 	m = m.stillThere()
 	m.trails = m.history.drawn(doc)
-	m.numbers = m.numbers.changed(was, m.numbersDrawn(now), now)
+	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), originOf(doc, msg.router), now)
 	switch {
 	case ask:
 		m, asked = m.askHistory(doc)
@@ -740,28 +740,6 @@ func (m Model) lose(now time.Time) Model {
 	}
 	m.lost = now
 	return m
-}
-
-// shown is the document as its bars stand at now, part way along their
-// easing.
-func (m Model) shown(now time.Time) status.Document {
-	return m.ease.apply(m.doc, now)
-}
-
-// eased are how much of each window the bars fill at now, by its account
-// and key, while they ease to the document's readings: nil once they're
-// there.
-func (m Model) eased(now time.Time) map[dashboard.Ref]float64 {
-	if m.ease.done(now) || !m.ease.moves(m.doc) {
-		return nil
-	}
-	eased := make(map[dashboard.Ref]float64)
-	for _, a := range m.shown(now).Accounts {
-		for _, w := range a.Windows {
-			eased[dashboard.Ref{Account: a.ID, Window: w.Key}] = w.Utilization
-		}
-	}
-	return eased
 }
 
 // ticked reads again once a read is due. Every tick redraws, as every message
@@ -829,19 +807,19 @@ func (m Model) framed(msg frameMsg) Model {
 
 // nextFrame is how long after now what moves on screen next changes, and
 // whether anything does: nothing while a card is open, as the page behind it
-// stands still; else frameEvery while anything moves frame by frame, a bar
-// easing to its reading, the highlight on an event, or the cue on an
-// account's state or a window's words, fading back, or as Motion says, what
-// travels the cords, or a number on the page brightened, fading back; else as
-// soon as the shimmer down a cord steps on, on the clock's steps of it, or a
-// move yet to show re-patches Sessions' calls. Sessions' plain list is drawn
-// again as the stream tells of more, and as the clock ticks.
+// stands still; else frameEvery while anything moves frame by frame, the
+// highlight on an event, or the cue on an account's state or a window's
+// words, fading back, or as Motion says, what travels the cords, or on the
+// page, a bar easing to its reading, or a number brightened, fading back;
+// else as soon as the shimmer down a cord steps on, on the clock's steps of
+// it, or a move yet to show re-patches Sessions' calls. Sessions' plain list
+// is drawn again as the stream tells of more, and as the clock ticks.
 func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
 	if m.open != nothingOpen {
 		return 0, false
 	}
 	moving := m.frame(now).Motion(m.doc, now)
-	if moving.Smooth || m.ease.moves(m.doc) && !m.ease.done(now) || m.news.faded(now) != nil || m.changes.cueing(now) {
+	if moving.Smooth || m.news.faded(now) != nil || m.changes.cueing(now) {
 		return frameEvery, true
 	}
 	var next []time.Duration

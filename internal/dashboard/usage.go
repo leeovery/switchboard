@@ -488,13 +488,14 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 	})
 }
 
-// gauge draws g from x along row y: its bar, bar cells long; a cell; its
-// percentage, right-aligned in its cells; two cells; and its words, in the
-// form the block's width has them, picked out while they're cued, as cue
-// picks them out.
+// gauge draws g from x along row y: its bar, bar cells long, marked as its
+// window's; a cell; its percentage, right-aligned in its cells; two cells;
+// and its words, in the form the block's width has them, picked out while
+// they're cued, as cue picks them out.
 func (b usageBlock) gauge(c *canvas, g gauge, x, y, bar int) {
 	bar = max(bar, 0)
 	g.bar.draw(c, b.look, x, y, bar)
+	c.barred(x, y, bar, g.of)
 	at := x + bar + 1
 	c.right(at+percentCells, y, g.percentage())
 	words := at + percentCells + 2

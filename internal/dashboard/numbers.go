@@ -23,15 +23,12 @@ const (
 	// NumberSessions are the sessions on an account, as ROUTING counts them,
 	// or on the pool's accounts, summed.
 	NumberSessions
-	// NumberRate is an account's requests of the last minute, as in
-	// "15/min", or the pool's accounts', summed.
+	// NumberRate is requests of the last minute, as in "15/min": an
+	// account's, the pool's accounts' summed, or a session's, of its account.
 	NumberRate
 	// NumberStates are how many of the pool's accounts stand as the words
 	// they're counted in say, as in "2 open".
 	NumberStates
-	// NumberTokens are how many tokens a session's answer has streamed, as
-	// in "↓ ~1.2k".
-	NumberTokens
 	// NumberRouted are the sessions the router has routed in the last hour,
 	// as the status line counts them.
 	NumberRouted
@@ -51,7 +48,7 @@ type Number struct {
 // numbered is the ink as the number n's, which the page brightens as it
 // changes.
 func (k ink) numbered(n Number) ink {
-	k.number = unique.Make(n)
+	k.mark = unique.Make(mark{number: n})
 	return k
 }
 
@@ -73,10 +70,11 @@ func (l line) numbered(n Number) line {
 // numbered is the number the cell is part of, reporting false where it's
 // part of none.
 func (c cell) numbered() (Number, bool) {
-	if c.number == (unique.Handle[Number]{}) {
+	if c.mark == (unique.Handle[mark]{}) {
 		return Number{}, false
 	}
-	return c.number.Value(), true
+	n := c.mark.Value().number
+	return n, n != Number{}
 }
 
 // Numbers are the numbers the frame's page draws of doc at now that brighten
@@ -85,20 +83,6 @@ func (c cell) numbered() (Number, bool) {
 // row left off for want of room.
 func (f Frame) Numbers(doc status.Document, now time.Time) map[Number]string {
 	return f.page(doc, now).numbers()
-}
-
-// brightening reports whether any number the frame's page draws of doc at
-// now brightens still, as its Brightened says.
-func (f Frame) brightening(doc status.Document, now time.Time) bool {
-	if len(f.Brightened) == 0 {
-		return false
-	}
-	for n := range f.Numbers(doc, now) {
-		if f.Brightened[n] > 0 {
-			return true
-		}
-	}
-	return false
 }
 
 // numbers are the numbers drawn on the canvas, by the number each is, each

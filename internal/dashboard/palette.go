@@ -119,11 +119,12 @@ type ink struct {
 	// the colour beneath; or, in a look that blends nothing, faint, on no
 	// surface.
 	behind bool
-	// number is the number a span in the ink is, where it's one the page
-	// brightens as it changes: the canvas notes it on the cells it draws the
-	// span in, and leaves it out of their ink. It's held by its handle, a
-	// word, as every cell of every frame has an ink.
-	number unique.Handle[Number]
+	// mark is what of the page a span in the ink draws that moves as it
+	// changes, where it draws any, as a number the page brightens: the
+	// canvas notes it on the cells it draws the span in, and leaves it out of
+	// their ink. It's held by its handle, a word, as every cell of every
+	// frame has an ink.
+	mark unique.Handle[mark]
 }
 
 // behindFade is how far the page behind a card fades into the colour

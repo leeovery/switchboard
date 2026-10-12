@@ -11,9 +11,23 @@ import (
 const brightFor = time.Second
 
 // numbers are when each number the page draws that a read or the request
-// stream changed did, by the number it is, while it brightens.
+// stream changed did, by the number it is, while it brightens, and where
+// the last look read its document from.
 type numbers struct {
+	from  origin
 	since map[dashboard.Number]time.Time
+}
+
+// looked takes in the numbers the page draws at now before and after a look
+// from read, was and is, as changed does; but a look that doesn't follow on
+// from the last, as follows says, brightens none: its numbers start afresh,
+// as the cues do.
+func (n numbers) looked(was, is map[dashboard.Number]string, read origin, now time.Time) numbers {
+	if !read.follows(n.from) {
+		return numbers{from: read}
+	}
+	n.from = read
+	return n.changed(was, is, now)
 }
 
 // changed takes in the numbers the page draws at now as they were before a
@@ -22,15 +36,15 @@ type numbers struct {
 // brightening already stays so while it does. Both are drawn at the one
 // moment, so nothing the clock moves is a change, as a countdown, or a
 // rate's last minute moving on; nor is a number in only one, appearing or
-// going; nor any on the first look, with nothing drawn before it.
+// going.
 func (n numbers) changed(was, is map[dashboard.Number]string, now time.Time) numbers {
-	since := lasting(n.since, now, brightFor)
+	n.since = lasting(n.since, now, brightFor)
 	for key, drawn := range is {
 		if before, ok := was[key]; ok && before != drawn {
-			since[key] = now
+			n.since[key] = now
 		}
 	}
-	return numbers{since: since}
+	return n
 }
 
 // brightened is how bright each number changed is at now, by the number it

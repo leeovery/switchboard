@@ -3,6 +3,7 @@ package dashboard
 import (
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,6 +34,8 @@ func TestTheOverviewNamesEachNumberItDrawsByWhatItIs(t *testing.T) {
 	byAccount.By = ByAccount
 	alone := routerDoc("work", 0, readAccount("work", sessionOf(0.6, 2*time.Hour), weekOf(0.4, 3*day)))
 	withSessions, overview := sessionsShown(160, 60)
+	sent := []views.Sent{{Request: "a", Session: idC61B, Account: "side", At: routedAt}, {Request: "b", Session: idC61B, Account: "side", At: routedAt}}
+	withSessions.Traces = views.Traces{}.Told(sent, routedAt)
 	tests := []struct {
 		name string
 		f    Frame
@@ -70,10 +73,11 @@ func TestTheOverviewNamesEachNumberItDrawsByWhatItIs(t *testing.T) {
 			want: map[Number]string{{Kind: NumberSessions, Account: "work"}: "0 sessions", workRate: "0/min"},
 		},
 		{
-			name: "SESSIONS' tokens, as the stream counts them",
+			name: "SESSIONS' rates, each session's of its account, by its id",
 			f:    withSessions, doc: overview, at: routedAt,
 			want: map[Number]string{
-				{Kind: NumberTokens, Account: "side", Of: idC61B}: "↓ ~1.2k", {Kind: NumberTokens, Account: "personal", Of: id41E0}: "↓ ~860",
+				{Kind: NumberRate, Account: "side", Of: idC61B}: "2/min", {Kind: NumberRate, Account: "side", Of: idD28C}: "0/min",
+				{Kind: NumberRate, Account: "personal", Of: id41E0}: "0/min", {Kind: NumberRate, Account: "side"}: "2/min",
 			},
 		},
 	}
@@ -94,7 +98,6 @@ func TestWhatIsntANumberIsNeverNamed(t *testing.T) {
 	tokenless.Accounts[2].TokenSet = false
 	quiet := threeRouted()
 	quiet.Sessions = 0
-	withSessions, overview := sessionsShown(160, 60)
 	tests := []struct {
 		name string
 		f    Frame
@@ -110,10 +113,6 @@ func TestWhatIsntANumberIsNeverNamed(t *testing.T) {
 			name: "the status line's sessions, where it has none", f: frameOf(160, 60), doc: quiet, at: now,
 			none: func(n Number) bool { return n.Kind == NumberRouted },
 		},
-		{
-			name: "what a session asking is doing, ↑ ask", f: withSessions, doc: overview, at: routedAt,
-			none: func(n Number) bool { return n.Kind == NumberTokens && n.Of == idD28C },
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -124,13 +123,17 @@ func TestWhatIsntANumberIsNeverNamed(t *testing.T) {
 	}
 }
 
-func TestAnsweringWithNothingCountedIsNoNumber(t *testing.T) {
-	plug := Plug{Account: "side", Seat: Seat{Session: idD28C, Model: opus}}
-	f := Frame{Traffic: Traffic{Live: true, Calls: map[Plug]Call{plug: {Doing: Streaming}}}}
-	c := newCanvas(10, 1)
-	c.line(0, 0, line{f.runningDoing(views.Running{Account: "side", Session: idD28C, Models: []string{opus}})})
-	if got := c.numbers(); len(got) > 0 {
-		t.Errorf("↓ alone is drawn as %v, want no number", got)
+// An answer's tokens count up as it streams, as the clock's numbers do: as
+// a number, they'd hold the page lit for as long as anything streams.
+func TestAnAnswersTokensAreNoNumber(t *testing.T) {
+	f, doc := sessionsShown(160, 60)
+	if view := strings.Join(f.Draw(doc, routedAt), "\n"); !strings.Contains(view, "↓ ~1.2k") {
+		t.Fatalf("SESSIONS is drawn\n%s\nwant c61b's answer counted, ↓ ~1.2k", view)
+	}
+	for n, drawn := range f.Numbers(doc, routedAt) {
+		if strings.Contains(drawn, "↓") {
+			t.Errorf("%+v reads %q, want an answer's tokens no number", n, drawn)
+		}
 	}
 }
 
@@ -165,7 +168,7 @@ func TestOnlyTheNumbersOnScreenAreNamed(t *testing.T) {
 		{
 			name: "SESSIONS folded to its heading",
 			f:    folded, doc: overview, at: routedAt,
-			shown: Number{Kind: NumberSessions, Account: "side"}, unseen: Number{Kind: NumberTokens, Account: "side", Of: idC61B},
+			shown: Number{Kind: NumberSessions, Account: "side"}, unseen: Number{Kind: NumberRate, Account: "side", Of: idC61B},
 		},
 	}
 	for _, tt := range tests {
@@ -218,30 +221,6 @@ func TestANumberBrightensItsCellsAloneAsFarAsItsBrightened(t *testing.T) {
 			}
 			if lit != len("0/min") {
 				t.Errorf("%d of work's rate's cells are brightened, want all %d", lit, len("0/min"))
-			}
-		})
-	}
-}
-
-func TestANumberBrighteningOnScreenMovesTheFrame(t *testing.T) {
-	ten := tenRouting()
-	scrolled := frameOf(160, 30)
-	scrolled.Sections = Sections{}.Toggled(SectionRouting).Toggled(SectionComing).Toggled(SectionLately)
-	tests := []struct {
-		name       string
-		brightened map[Number]float64
-		want       bool
-	}{
-		{name: "none brightening"},
-		{name: "a number on screen brightening", brightened: map[Number]float64{workSession: 0.5}, want: true},
-		{name: "a number scrolled out of view brightening", brightened: map[Number]float64{{Kind: NumberUsed, Account: "studio", Of: "5h"}: 0.5}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := scrolled
-			f.Brightened = tt.brightened
-			if got := f.Motion(ten, routedAt); got.Smooth != tt.want {
-				t.Errorf("Motion is %+v, want Smooth %t", got, tt.want)
 			}
 		})
 	}

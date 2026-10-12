@@ -13,11 +13,7 @@ import (
 // windows' words: where the last look read them from, and the cues on each
 // account's state and each window's words that looks saw change.
 type changes struct {
-	// read is set once a document has been read; routed whether it was the
-	// router's, and router which router's, as its health check said.
-	read   bool
-	routed bool
-	router router.Health
+	from   origin
 	states cues[string, string]
 	outs   cues[dashboard.Ref, bool]
 }
@@ -44,15 +40,14 @@ func (c cues[K, V]) seen(found map[K]V, now time.Time, turned func(was, is V) bo
 }
 
 // looked takes in doc, read at now from the router whose health check said
-// from, or by probing, as found says. The first look picks out nothing, there
-// being no look before it, and nor does one read from elsewhere than the
-// last, the router after probing or probing after it, or another router, as
-// one restarted: what they find starts afresh.
+// from, or by probing, as found says. A look that doesn't follow on from the
+// last, as follows says, picks out nothing: what it finds starts afresh.
 func (c changes) looked(doc status.Document, from router.Health, now time.Time, policy score.Policy) changes {
-	if !c.read || c.routed != routed(doc) || c.routed && !from.Same(c.router) {
+	read := originOf(doc, from)
+	if !read.follows(c.from) {
 		c = changes{}
 	}
-	c.read, c.routed, c.router = true, routed(doc), from
+	c.from = read
 	return c.found(doc, now, policy)
 }
 
@@ -61,7 +56,7 @@ func (c changes) looked(doc status.Document, from router.Health, now time.Time, 
 // window's use heading past its floor before it resets has its words turn to
 // out ~. Before anything is read, there's nothing to tell apart.
 func (c changes) ticked(doc status.Document, now time.Time, policy score.Policy) changes {
-	if !c.read {
+	if !c.from.read {
 		return c
 	}
 	return c.found(doc, now, policy)

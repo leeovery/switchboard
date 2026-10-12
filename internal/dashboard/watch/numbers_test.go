@@ -3,6 +3,7 @@ package watch
 import (
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ var (
 	workRate             = dashboard.Number{Kind: dashboard.NumberRate, Account: "work"}
 	poolOpen             = dashboard.Number{Kind: dashboard.NumberStates, Of: "open"}
 	routedSessions       = dashboard.Number{Kind: dashboard.NumberRouted}
-	d28cTokens           = dashboard.Number{Kind: dashboard.NumberTokens, Account: "work", Of: idD28C}
+	d28cRate             = dashboard.Number{Kind: dashboard.NumberRate, Account: "work", Of: idD28C}
 )
 
 // brightened are the numbers brightening at now, by the number each is.
@@ -52,6 +53,63 @@ func TestTheFirstLookBrightensNoNumber(t *testing.T) {
 
 	if got := h.brightened(); len(got) > 0 {
 		t.Errorf("the first look brightened %v, want none: there's nothing before it to change from", got)
+	}
+}
+
+func TestNumbersReadElsewhereThanTheLastLookStartAfresh(t *testing.T) {
+	started := start.Add(-time.Hour).UTC()
+	moved := routedThree(func(d *status.Document) { d.Accounts[0].Windows[0].Utilization = 0.3 })
+	readTheRouter := func(h *harness) {
+		h.startRouter(moved)
+		h.tickUntilAsked()
+	}
+	tests := []struct {
+		name      string
+		before    func(h *harness)
+		to        func(h *harness)
+		brightens bool
+	}{
+		{name: "the same router", to: readTheRouter, brightens: true},
+		{
+			name: "another router, as one restarted",
+			to: func(h *harness) {
+				h.source.health = router.Health{PID: 8, StartedAt: started}
+				readTheRouter(h)
+			},
+		},
+		{
+			name: "probing after the router",
+			to: func(h *harness) {
+				h.stopRouter()
+				h.source.doc = probedWithoutTheRouter()
+				h.source.doc.Accounts[0].Windows[0].Utilization = 0.3
+				h.deliver(h.press("R")...)
+			},
+		},
+		{name: "the router after probing", before: (*harness).stopRouter, to: readTheRouter},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, routedThree(func(*status.Document) {}))
+			h.source.health = router.Health{PID: 7, StartedAt: started}
+			if tt.before != nil {
+				tt.before(h)
+			}
+			h.start()
+			was := h.drawnNumber(workSessionUsed)
+
+			tt.to(h)
+			if is := h.drawnNumber(workSessionUsed); was == "" || is == "" || is == was {
+				t.Fatalf("work's session is drawn %q, where it was drawn %q, want it drawn, and changed", is, was)
+			}
+			got := h.brightened()
+			if tt.brightens && got[workSessionUsed] != 1 {
+				t.Errorf("brightened %v, want work's session at 1", got)
+			}
+			if !tt.brightens && len(got) > 0 {
+				t.Errorf("brightened %v, want none: the numbers start afresh", got)
+			}
+		})
 	}
 }
 
@@ -108,29 +166,58 @@ func TestANumberALookChangesBrightensFadingBackOverASecond(t *testing.T) {
 	}
 }
 
+// sessionsStreaming is a model streaming the router's requests, SESSIONS
+// shown, on a terminal tall enough to draw it.
+func sessionsStreaming(t *testing.T) *harness {
+	t.Helper()
+	h := streamingOn(t, dashboard.Sections{}.Toggled(dashboard.SectionSessions))
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 80})
+	return h
+}
+
 func TestANumberTheStreamChangesBrightens(t *testing.T) {
-	t.Run("ROUTING's rate, as a request goes out", func(t *testing.T) {
-		h := streamingOn(t, dashboard.Sections{})
-		h.hear(told(router.StreamSent, "r1", "work", 0))
-		if got := h.brightened()[workRate]; got != 1 {
-			t.Errorf("work's rate, %q, is %v bright, want 1", h.drawnNumber(workRate), got)
-		}
-	})
-	t.Run("SESSIONS' tokens, as more of the answer streams", func(t *testing.T) {
-		h := streamingOn(t, dashboard.Sections{}.Toggled(dashboard.SectionSessions))
-		h.update(tea.WindowSizeMsg{Width: 160, Height: 80})
-		progress := func(chars int) router.StreamEvent {
-			return alter(told(router.StreamProgress, "r1", "work", 0), func(e *router.StreamEvent) { e.Chars = chars })
-		}
-		h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamFirst, "r1", "work", 0), progress(4800))
-		if got, ok := h.brightened()[d28cTokens]; ok {
-			t.Errorf("d28c's tokens first counted, %q, are %v bright, want them not: they appear", h.drawnNumber(d28cTokens), got)
-		}
-		h.hear(progress(6000))
-		if got := h.brightened()[d28cTokens]; got != 1 {
-			t.Errorf("d28c's tokens counted again, %q, are %v bright, want 1", h.drawnNumber(d28cTokens), got)
-		}
-	})
+	tests := []struct {
+		name    string
+		harness func(t *testing.T) *harness
+		numbers []dashboard.Number
+	}{
+		{name: "ROUTING's rate, as a request goes out", harness: func(t *testing.T) *harness { return streamingOn(t, dashboard.Sections{}) }, numbers: []dashboard.Number{workRate}},
+		{name: "SESSIONS' rate, as its session's request goes out, and its account's", harness: sessionsStreaming, numbers: []dashboard.Number{d28cRate, workRate}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := tt.harness(t)
+			h.hear(told(router.StreamSent, "r1", "work", 0))
+			for _, n := range tt.numbers {
+				if got := h.brightened()[n]; got != 1 {
+					t.Errorf("%+v, %q, is %v bright, want 1", n, h.drawnNumber(n), got)
+				}
+			}
+		})
+	}
+}
+
+// An answer's tokens count up as it streams, told every quarter second, as
+// the clock's numbers move: they'd hold frames running for as long as
+// anything streams, and say nothing ↓ doesn't.
+func TestAnAnswersTokensNeverBrighten(t *testing.T) {
+	h := sessionsStreaming(t)
+	progress := func(chars int) router.StreamEvent {
+		return alter(told(router.StreamProgress, "r1", "work", 0), func(e *router.StreamEvent) { e.Chars = chars })
+	}
+	h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamFirst, "r1", "work", 0), progress(4800))
+	h.settle()
+
+	h.hear(progress(6000))
+	if !strings.Contains(h.view(), "↓ ~1.5k") {
+		t.Fatalf("the screen is\n%s\nwant d28c's answer counted on, ↓ ~1.5k", h.view())
+	}
+	if got := h.brightened(); len(got) > 0 {
+		t.Errorf("more of the answer streaming brightened %v, want none", got)
+	}
+	if _, framing := h.pendingFrame(); framing {
+		t.Error("more of the answer streaming armed a frame, want none")
+	}
 }
 
 func TestWhatTheClockMovesNeverBrightens(t *testing.T) {
