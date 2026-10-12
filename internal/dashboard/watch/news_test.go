@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
@@ -70,6 +71,39 @@ func TestAnEventNewerThanTheLastLookSawIsPickedOutFadingBack(t *testing.T) {
 	h.tickUntilAsked()
 	if got := h.fresh(); len(got) > 0 {
 		t.Errorf("a look seeing nothing newer picked out %v, want none", got)
+	}
+}
+
+func TestAFreshEventsCueDrawsFramesOnlyOnScreen(t *testing.T) {
+	tests := []struct {
+		name   string
+		height int
+		keys   []string
+		frames bool
+	}{
+		{name: "its row on screen, in LATELY", height: 60, frames: true},
+		{name: "LATELY folded to its heading", height: 26},
+		{name: "its row under help's card", height: 60, keys: []string{"?"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, withEvents(2, 1))
+			h.update(tea.WindowSizeMsg{Width: 160, Height: tt.height})
+			h.start()
+			h.settle()
+			for _, key := range tt.keys {
+				h.deliver(h.press(key)...)
+			}
+
+			h.startRouter(withEvents(3, 2, 1))
+			h.tickUntilAsked()
+			if got := h.fresh(); !slices.Equal(got, []int{3}) {
+				t.Fatalf("picked out %v, want the event new to the look, 3", got)
+			}
+			if _, framing := h.pendingFrame(); framing != tt.frames {
+				t.Errorf("a frame is armed: %t, want %t", framing, tt.frames)
+			}
+		})
 	}
 }
 

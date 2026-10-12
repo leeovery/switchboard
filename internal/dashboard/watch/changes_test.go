@@ -253,6 +253,36 @@ func TestAWindowsWordsALookSeesTurnToOutArePickedOutFadingBack(t *testing.T) {
 	}
 }
 
+func TestAWindowsWordsCueDrawsFramesOnlyOnScreen(t *testing.T) {
+	// runsOut has an account's week used lately fast enough to run out long
+	// before it resets, its bar and its numbers as they were.
+	runsOut := func(a *status.Account) {
+		a.Rates = []status.Rate{{Window: "7d", Rate: 0.05, Since: start.Add(-30 * time.Minute).UTC()}}
+	}
+	h := tenOnAShortScreen(t, tenWith(runsOut))
+	for _, read := range []struct {
+		name   string
+		moved  []string
+		words  string
+		frames bool
+	}{
+		{name: "a read cueing words scrolled out of view", moved: []string{"studio"}, words: "studio"},
+		{name: "a read cueing words on screen", moved: []string{"studio", "work"}, words: "work", frames: true},
+	} {
+		h.startRouter(tenWith(runsOut, read.moved...))
+		seen := h.tickUntilAsked()
+		if _, ok := h.model.changes.turnedOut(seen)[dashboard.Ref{Account: read.words, Window: "7d"}]; !ok {
+			t.Fatalf("%s: %s's week's words aren't cued, want them turned to out ~", read.name, read.words)
+		}
+		if eased, bright := h.model.ease.eased(h.model.doc, seen), h.brightened(); len(eased)+len(bright) > 0 {
+			t.Fatalf("%s: the look eased %v and brightened %v, want the cue alone", read.name, eased, bright)
+		}
+		if _, framing := h.pendingFrame(); framing != read.frames {
+			t.Errorf("%s: a frame is armed: %t, want %t", read.name, framing, read.frames)
+		}
+	}
+}
+
 func TestWindowsWordsThatDontTurnToOutArentPickedOut(t *testing.T) {
 	tests := []struct {
 		name         string

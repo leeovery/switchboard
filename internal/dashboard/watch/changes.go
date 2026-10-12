@@ -107,9 +107,3 @@ func (c changes) faded(now time.Time) map[string]float64 {
 func (c changes) turnedOut(now time.Time) map[dashboard.Ref]float64 {
 	return fading(c.outs.since, now, highlightFor)
 }
-
-// cueing reports whether any cue, on a state or on a window's words, is
-// fading back at now.
-func (c changes) cueing(now time.Time) bool {
-	return c.faded(now) != nil || c.turnedOut(now) != nil
-}

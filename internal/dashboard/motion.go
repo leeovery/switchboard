@@ -9,9 +9,9 @@ import (
 
 // Motion is what moves on screen in a frame, which a watch draws frames of:
 // Smooth while anything moves frame by frame, as a pulse along a cord, a
-// cord a move let go fading, a number brightened fading back, or a bar
-// easing to a new reading; and Shimmer while the shimmer down a cord steps
-// on as its answer streams back, a step at a time.
+// cord a move let go fading, a number brightened or a cue fading back, or a
+// bar easing to a new reading; and Shimmer while the shimmer down a cord
+// steps on as its answer streams back, a step at a time.
 type Motion struct {
 	Smooth, Shimmer bool
 }
@@ -30,11 +30,14 @@ func (f Frame) Motion(doc status.Document, now time.Time) Motion {
 }
 
 // settling reports whether anything the frame's page draws of doc at now
-// settles still: a number brightening, as its Brightened says, or a bar
-// easing, as its Eased says. What the page doesn't draw never does, as one
-// scrolled out of view, or left off for want of room.
+// settles still: a number brightening, as its Brightened says; a bar
+// easing, as its Eased says; or a cue fading back, on an event fresh, as its
+// Fresh says, an account's state changed, as its Changed says, or a window's
+// words turned to out ~, as its TurnedOut says. What the page doesn't draw
+// never does, as one scrolled out of view, in a section folded, or left off
+// for want of room.
 func (f Frame) settling(doc status.Document, now time.Time) bool {
-	if len(f.Brightened) == 0 && len(f.Eased) == 0 {
+	if len(f.Brightened)+len(f.Eased)+len(f.Fresh)+len(f.Changed)+len(f.TurnedOut) == 0 {
 		return false
 	}
 	for _, row := range f.page(doc, now).cells {
@@ -47,9 +50,12 @@ func (f Frame) settling(doc status.Document, now time.Time) bool {
 	return false
 }
 
-// settles reports whether what m marks settles still in the frame: a bar
-// easing, or a number brightening.
+// settles reports whether what m marks settles still in the frame: a cue,
+// drawn only while it fades back; a bar easing; or a number brightening.
 func (f Frame) settles(m mark) bool {
+	if m.cued {
+		return true
+	}
 	if m.bar != (Ref{}) {
 		_, easing := f.Eased[m.bar]
 		return easing
