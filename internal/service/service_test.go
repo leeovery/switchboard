@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -77,6 +78,54 @@ func TestInstallReplacesAPlistThere(t *testing.T) {
 
 	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
 		t.Fatalf("Install() error = %v", err)
+	}
+	s.checkPlist(t, s.binary, "")
+}
+
+func TestInstallReplacesAPlistWholeNeverCuttingTheOldOneShort(t *testing.T) {
+	s := newSetup(t, nil, upOnceStarted(4242))
+	s.putPlist(t, "<plist/>\n")
+	// A reader that opened the plist before the install, as launchd might
+	// have, goes on reading the old one whole.
+	old, err := os.Open(s.plist)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = old.Close() }()
+
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if read, err := io.ReadAll(old); err != nil || string(read) != "<plist/>\n" {
+		t.Errorf("the plist opened before the install reads %q (%v), want the old one whole, the new one written beside it and put in its place", read, err)
+	}
+	s.checkPlist(t, s.binary, "")
+	if entries, err := os.ReadDir(filepath.Dir(s.plist)); err != nil || len(entries) != 1 {
+		t.Errorf("the LaunchAgents directory holds %v (%v), want the plist alone, nothing left beside it", entries, err)
+	}
+}
+
+func TestInstallWritesALinkedPlistWhereItsLinkLeads(t *testing.T) {
+	s := newSetup(t, nil, upOnceStarted(4242))
+	kept := filepath.Join(s.root, "dotfiles", service.Label+".plist")
+	if err := os.MkdirAll(filepath.Dir(kept), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(kept, []byte("<plist/>\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(s.plist), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(kept, s.plist); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if dest, err := os.Readlink(s.plist); err != nil || dest != kept {
+		t.Errorf("the plist's place links to %q (%v), want the link to %q kept", dest, err, kept)
 	}
 	s.checkPlist(t, s.binary, "")
 }

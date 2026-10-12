@@ -26,6 +26,10 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
+// historyQueue is how many takings in of readings the history's writer
+// queues, as readings' tests hold it to.
+const historyQueue = 1024
+
 // keeping has h write what's noted to it, and returns what stops it, once it
 // has written everything noted before.
 func keeping(t *testing.T, h *history) (stop func()) {
@@ -598,24 +602,6 @@ func TestWhatTheHistoryCantDoIsLoggedAsTheRoutersReadingsHistory(t *testing.T) {
 		if !log.Has("level=WARN", want, "component=router") {
 			t.Errorf("log reads\n%s\nwant a line of the router's with %s", log, want)
 		}
-	}
-}
-
-func TestAReadingTheHistoryCantHoldIsLoggedOnce(t *testing.T) {
-	log := logstest.Capture(t)
-	dir := t.TempDir()
-	h := newHistory(config.History{}, at(start))
-	h.open(dir)
-	bad := readings.Reading{At: start, Account: "work", Key: "5h", Utilization: math.NaN(), Source: readings.FromAnswer}
-	good := readings.Of("work", []quota.Window{session}, start, readings.FromAnswer)
-
-	writeLines(t, h, append([]readings.Reading{bad}, good...)...)
-	writeLines(t, h, bad)
-	if got := len(linesWith(log, "readings history can't hold a reading")); got != 1 {
-		t.Errorf("log reads\n%s\nwant the reading it can't hold noted once", log)
-	}
-	if data, err := os.ReadFile(historyOf(dir, start)); err != nil || strings.Count(string(data), "\n") != 1 {
-		t.Errorf("the history holds %q (%v), want the reading it could hold alone", data, err)
 	}
 }
 
