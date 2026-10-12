@@ -202,7 +202,7 @@ func TestUSAGEScrollsAnAccountAtATimeAsTheFocusTheKeysAndTheWheelOverItMoveIt(t 
 
 	x, y := h.drawnAt("Account A")
 	h.wheel(tea.MouseWheelDown, x, y)
-	scrolled("a turn of the wheel down over USAGE", min(wheelRows, s.Most))
+	scrolled("a turn of the wheel down over USAGE, an account", 1)
 	h.wheel(tea.MouseWheelUp, x, y)
 	scrolled("a turn up", 0)
 	x, y = h.drawnAt("ROUTING ")
@@ -367,5 +367,53 @@ func TestOnlyTheWheelScrolls(t *testing.T) {
 		if h.model.scroll != 0 {
 			t.Errorf("button %v scrolled the lanes %d rows, want none", button, h.model.scroll)
 		}
+	}
+}
+
+func TestAScrollLaysTheOverviewOutAfreshOnlyWhereItMoves(t *testing.T) {
+	over := func(button tea.MouseButton) func(*harness) {
+		return func(h *harness) {
+			x, y := h.drawnAt("Account A")
+			h.wheel(button, x, y)
+		}
+	}
+	tests := []struct {
+		name   string
+		input  func(*harness)
+		scroll int
+		afresh bool
+	}{
+		{name: "k at the top", input: func(h *harness) { h.keys(tea.KeyPressMsg{Code: 'k', Text: "k"}) }},
+		{name: "PgUp at the top", input: func(h *harness) { h.keys(tea.KeyPressMsg{Code: tea.KeyPgUp}) }},
+		{name: "the wheel turned up over USAGE at the top", input: over(tea.MouseWheelUp)},
+		{name: "j", input: func(h *harness) { h.keys(tea.KeyPressMsg{Code: 'j', Text: "j"}) }, scroll: 1, afresh: true},
+		{name: "the wheel turned down over USAGE", input: over(tea.MouseWheelDown), scroll: 1, afresh: true},
+	}
+	var laid []dashboard.Layout
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, tenRouted())
+			h.update(tea.WindowSizeMsg{Width: 160, Height: 30})
+			h.start()
+			h.deliver(h.press("s")...)
+			h.source.sessions = []status.Session{
+				sessionOn(idD28C, "claude-opus-5-5", "a", 10*time.Second), sessionOn(id7F3A, "claude-sonnet-5-5", "b", time.Minute),
+			}
+			h.tickUntilAsked()
+			kept := h.model.layout
+			tt.input(h)
+			if h.model.scroll != tt.scroll {
+				t.Fatalf("USAGE is scrolled %d accounts, want %d", h.model.scroll, tt.scroll)
+			}
+			if afresh := h.model.layout != kept; afresh != tt.afresh {
+				t.Errorf("laid out afresh %v, want %v: only a scroll that moves USAGE lets the layout kept go, as sessions started", afresh, tt.afresh)
+			}
+			if tt.afresh {
+				laid = append(laid, h.model.layout)
+			}
+		})
+	}
+	if len(laid) == 2 && laid[0] != laid[1] {
+		t.Errorf("the wheel laid the Overview out as %+v, want it as j does, %+v", laid[1], laid[0])
 	}
 }

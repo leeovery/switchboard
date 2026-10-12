@@ -620,6 +620,23 @@ func TestByAccountUSAGEsBarsLeaveROUTINGItsRoomBesideThem(t *testing.T) {
 	}
 }
 
+func TestByAccountUSAGEsWordsEndBeforeTheGapBeforeROUTINGBesideThem(t *testing.T) {
+	stale := trio(account("work", func(a *status.Account) {
+		a.Error, a.FetchedAt = "HTTP 529 · Overloaded", on(30, 12, 42).AddDate(0, -1, 0).UTC()
+	}))
+	f := frameOf(160, 60)
+	f.By = ByAccount
+	b := f.overviewBlock(stale, printNow)
+	words, gap := b.names+windowLabelCells+b.accountBar+afterBar, b.routingAt()-besideCells
+	rows, _ := usageBody(f, stale, printNow, 30)
+	if got := strings.TrimRight(colAt(rows[0], words, gap-words), " "); got != "read Wed" {
+		t.Errorf("work's stale 5-hour reads %q from column %d, want %q, short, as in full it'd run into the gap before ROUTING", got, words, "read Wed")
+	}
+	if got := colAt(rows[0], gap, besideCells); got != strings.Repeat(" ", besideCells) {
+		t.Errorf("the gap before ROUTING reads %q from column %d, want it blank", got, gap)
+	}
+}
+
 func TestUSAGELeavesROUTINGItsColumnsBesideItsBlocksWhileItShowsByAccountFrom150Columns(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -686,7 +703,7 @@ func TestROUTINGBesideUSAGEsBlocksFollowsThemAsTheyScroll(t *testing.T) {
 func TestROUTINGBesideBlocksOfOneWindowLeavesTheirTracesOff(t *testing.T) {
 	doc := routerDoc("a1", 0, readAccount("a1", sessionOf(0.1, time.Hour)), readAccount("a2", sessionOf(0.2, time.Hour)))
 	f := frameOf(160, 40)
-	f.By = ByAccount
+	f.By, f.Policy.Shared = ByAccount, []string{"5h"}
 	x := f.overviewBlock(doc, now).routingAt()
 	rows, _ := usageBody(f, doc, now, 10)
 	want := map[int]string{0: "● open · new sessions come here", 1: "0 sessions", 2: "", 3: "● open", 4: "0 sessions", 6: "2 open", 7: "0 sessions"}
@@ -700,6 +717,36 @@ func TestROUTINGBesideBlocksOfOneWindowLeavesTheirTracesOff(t *testing.T) {
 	}
 	if key := rows[8]; strings.Contains(key, "/min") {
 		t.Errorf("the key line reads %q, want no trace over it", key)
+	}
+}
+
+func TestTheOverviewShowsEachAccountsRowsUnderTheWindowsEveryModelSharesBeforeAnyIsRead(t *testing.T) {
+	doc := unreadOf(threeRouted())
+	names := map[By][]string{ByWindow: {"5-HOUR", "WEEK"}, ByAccount: {"5-hour", "Week"}}
+	for _, by := range []By{ByWindow, ByAccount} {
+		for _, width := range []int{160, 80} {
+			t.Run(fmt.Sprintf("by %d at %d columns", by, width), func(t *testing.T) {
+				f := frameOf(width, 60)
+				f.By, f.WindowName = by, printName
+				rows, _ := usageBody(f, doc, now, 40)
+				text := strings.Join(rows, "\n")
+				for _, want := range append([]string{"1 work", "2 personal", "3 side"}, names[by]...) {
+					if !strings.Contains(text, want) {
+						t.Errorf("USAGE has no %q:\n%s", want, text)
+					}
+				}
+				if got := strings.Count(text, "—  not read"); got != 6 {
+					t.Errorf("USAGE's gauges read \"not read\" %d times, want 6, each account's 5-hour window and week:\n%s", got, text)
+				}
+				var charts []string
+				for _, ch := range f.graphsOf(doc, now).charts {
+					charts = append(charts, ch.name)
+				}
+				if want := []string{"5-HOUR", "WEEK"}; !slices.Equal(charts, want) {
+					t.Errorf("GRAPHS charts %q, want %q", charts, want)
+				}
+			})
+		}
 	}
 }
 

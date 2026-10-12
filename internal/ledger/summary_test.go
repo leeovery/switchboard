@@ -519,6 +519,10 @@ func TestAnUpstreamRequestWhoseAnswerGaveNoUsageIsCounted(t *testing.T) {
 		upstream("2", func(l *ledger.Line) { l.Canceled = true }),
 		upstream("3", func(l *ledger.Line) { l.CutOff = true }),
 		upstream("4", func(l *ledger.Line) { l.Status, l.Answer.Error = 529, ledger.Error{Type: "overloaded_error"} }),
+		// Tallied upstream whatever their kinds, so their missing usage is
+		// counted too: a line of none, and one of a kind a later router adds.
+		upstream("8", func(l *ledger.Line) { l.Kind, l.CutOff = "", true }),
+		upstream("9", func(l *ledger.Line) { l.Kind, l.CutOff = "batch", true }),
 		// None of these is counted in upstream: one the router answered itself,
 		// a count of tokens, and a quota check.
 		upstream("5", func(l *ledger.Line) { l.Attempts, l.Status = 0, 429 }),
@@ -530,8 +534,8 @@ func TestAnUpstreamRequestWhoseAnswerGaveNoUsageIsCounted(t *testing.T) {
 	if len(got.Accounts) != 1 || len(got.Accounts[0].Models) != 1 {
 		t.Fatalf("the summary is %+v, want work's requests of one model", got)
 	}
-	if m := got.Accounts[0].Models[0]; m.Upstream != 4 || m.NoUsage != 3 || m.Tokens() != (quota.Tokens{Input: 10, Output: 20}) {
-		t.Errorf("work's day of %s is %+v, want 4 requests upstream, the 3 whose answers gave no usage counted, and the usage of the one that gave it", opus, m)
+	if m := got.Accounts[0].Models[0]; m.Upstream != 6 || m.NoUsage != 5 || m.Tokens() != (quota.Tokens{Input: 10, Output: 20}) {
+		t.Errorf("work's day of %s is %+v, want 6 requests upstream, the 5 whose answers gave no usage counted, and the usage of the one that gave it", opus, m)
 	}
 }
 

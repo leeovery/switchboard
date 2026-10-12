@@ -6,7 +6,8 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 )
 
-// wheelRows is how many rows a turn of the wheel scrolls.
+// wheelRows is how many rows a turn of the wheel scrolls help, and a view
+// that scrolls by rows.
 const wheelRows = 3
 
 // scrollStep is how far a key or a turn of the wheel scrolls, down where more
@@ -31,16 +32,16 @@ func scrollKey(key string) (scrollStep, bool) {
 	return scrollStep{}, false
 }
 
-// wheelTurn is how far the wheel turned scrolls, reporting false for a
-// button that isn't the wheel's.
-func wheelTurn(button tea.MouseButton) (scrollStep, bool) {
+// wheelTurn is the way the wheel turned, 1 down and -1 up, reporting false
+// for a button that isn't the wheel's.
+func wheelTurn(button tea.MouseButton) (int, bool) {
 	switch button {
 	case tea.MouseWheelDown:
-		return scrollStep{rows: wheelRows}, true
+		return 1, true
 	case tea.MouseWheelUp:
-		return scrollStep{rows: -wheelRows}, true
+		return -1, true
 	}
-	return scrollStep{}, false
+	return 0, false
 }
 
 // from is where what's scrolled at, and scrolls as s says, is scrolled to:
@@ -52,12 +53,13 @@ func (by scrollStep) from(at int, s dashboard.Scrolling) int {
 
 // wheeled scrolls what the wheel turns under the pointer, as the screen
 // draws it: help, over its card; the view, over what of it scrolls, while no
-// card is open, the page acting as acting has it, as on j and k; and nothing
-// else, the routing card among it, nor anything while the theme picker is
-// open. What's under the pointer with no card open is found from the frame
-// alone, which the key line doesn't move.
+// card is open, as far as notch says, as scrollView scrolls it, as on j and
+// k; and nothing else, the routing card among it, nor anything while the
+// theme picker is open. A turn scrolls help wheelRows rows. What's under the
+// pointer with no card open is found from the frame alone, which the key line
+// doesn't move.
 func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
-	by, ok := wheelTurn(msg.Button)
+	way, ok := wheelTurn(msg.Button)
 	if !ok || m.picker.open {
 		return m
 	}
@@ -65,19 +67,37 @@ func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 	switch m.open {
 	case helpOpen:
 		if f, doc, at := m.screen(now); f.Under(doc, at, msg.X, msg.Y) == dashboard.UnderCard {
-			m.help.scroll = by.from(m.help.scroll, f.CardScrolling())
+			m.help.scroll = scrollStep{rows: way * wheelRows}.from(m.help.scroll, f.CardScrolling())
 		}
 	case nothingOpen:
 		if m.frame(now).Under(m.doc, now, msg.X, msg.Y) == dashboard.UnderView {
-			return m.acting().scrollView(by)
+			return m.scrollView(m.notch(way))
 		}
 	}
 	return m
 }
 
-// scrollView scrolls the view shown by.
+// notch is how far a turn of the wheel the way given scrolls the view shown:
+// on the Overview, an account, as its USAGE scrolls an account at a time, as
+// j and k do; else wheelRows rows.
+func (m Model) notch(way int) scrollStep {
+	if m.view == dashboard.Overview {
+		return scrollStep{rows: way}
+	}
+	return scrollStep{rows: way * wheelRows}
+}
+
+// scrollView scrolls the view shown by, the page acting as acting has it
+// only where that moves it from where it's drawn: a scroll that moves
+// nothing leaves the Overview's layout as it's kept.
 func (m Model) scrollView(by scrollStep) Model {
-	m.scroll = by.from(m.scroll, m.scrolling())
+	s := m.scrolling()
+	to := by.from(m.scroll, s)
+	if to == min(m.scroll, s.Most) {
+		return m
+	}
+	m = m.acting()
+	m.scroll = to
 	return m
 }
 

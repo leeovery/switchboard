@@ -605,14 +605,20 @@ func TestTheLayoutIsMadeAfreshAsASectionsShapeMovesNeverAsSessionsStartOrLinesCo
 	f := frameOf(160, 40)
 	f.Sections = Sections{}.Toggled(SectionSessions)
 	f.Layout = f.LayoutOf(unreadOf(doc), now)
-
 	fresh := f
 	fresh.Layout = Layout{}
-	if got, want := f.LayoutOf(doc, now), fresh.LayoutOf(doc, now); got != want || got == f.Layout {
-		t.Errorf("as the accounts' windows are first read, the layout is %+v, want it made afresh, %+v", got, want)
+	if got, want := f.LayoutOf(doc, now), fresh.LayoutOf(doc, now); got != want || got != f.Layout {
+		t.Errorf("as the accounts' windows every model shares are first read, the layout is %+v, want it as kept, %+v, each account's rows shown before any read", got, f.Layout)
 	}
-	if got := f.overviewScrolling(doc, now); got.Most != 0 {
-		t.Errorf("as the accounts' windows are first read, USAGE scrolls %+v, want every account shown, as there's room for them", got)
+
+	fabled := doc
+	fabled.Accounts = slices.Clone(doc.Accounts)
+	fabled.Accounts[2].Windows = append(slices.Clone(doc.Accounts[2].Windows), fableOf(0.1, 5*day))
+	if got, want := f.LayoutOf(fabled, now), fresh.LayoutOf(fabled, now); got != want || got == f.Layout {
+		t.Errorf("as a model's own window is first read, the layout is %+v, want it made afresh, %+v", got, want)
+	}
+	if got := f.overviewScrolling(fabled, now); got.Most != 0 {
+		t.Errorf("as a model's own window is first read, USAGE scrolls %+v, want every account shown, as there's room for them", got)
 	}
 
 	f.Layout = f.LayoutOf(doc, now)

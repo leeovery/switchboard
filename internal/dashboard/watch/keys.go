@@ -9,19 +9,19 @@ import (
 )
 
 // pageKey acts on a key of the page, as pressed hands it on: j, k, PgDn and
-// PgUp scroll the view where it doesn't fit; on the Overview, u, g, r, s, c
-// and l show and hide its sections, b switches how its windows are grouped,
-// and ↑ and ↓ move the focus, as overviewKey says; tab and shift-tab show the
-// next tab and the one before; t opens the theme picker; and w, in Runway,
-// switches between the day and the week, each as acting has the page act.
-// The rest do nothing: the number keys and m among them, which act in the
-// routing card alone.
+// PgUp scroll the view where it doesn't fit, as scrollView has it; and the
+// rest each as acting has the page act: on the Overview, u, g, r, s, c and l
+// show and hide its sections, b switches how its windows are grouped, and ↑
+// and ↓ move the focus, as overviewKey says; tab and shift-tab show the next
+// tab and the one before; t opens the theme picker; and w, in Runway,
+// switches between the day and the week. The rest do nothing: the number
+// keys and m among them, which act in the routing card alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
-	afresh := m.acting()
 	if by, ok := scrollKey(k); ok {
-		return afresh.scrollView(by), nil
+		return m.scrollView(by), nil
 	}
+	afresh := m.acting()
 	if next, ok := afresh.overviewKey(k); ok {
 		return next, nil
 	}

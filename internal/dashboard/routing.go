@@ -294,7 +294,7 @@ func routingInk(kind status.RoutingKind) ink {
 	switch kind {
 	case status.RoutingTokenless, status.RoutingLimited, status.RoutingRefused, status.RoutingUnreadable:
 		return errorInk
-	case status.RoutingModelLimited, status.RoutingModelRefused, status.RoutingCapped, status.RoutingCappedPinned, status.RoutingPressed:
+	case status.RoutingModelLimited, status.RoutingModelRefused, status.RoutingCapped, status.RoutingCappedPinned, status.RoutingModelCapped, status.RoutingPressed:
 		return warningInk
 	case status.RoutingUnread, status.RoutingIdle:
 		return dimInk
@@ -441,13 +441,14 @@ func besideSessions(r accountRouting) line {
 
 // countedWords are the words the pool's accounts' states are counted in, in
 // their order, each in its state's colour, and the kinds each counts: an
-// account held back from some models' requests alone is open to the rest.
+// account held back from some models' requests alone, by a limit, a refusal
+// or its cap in a model's own window, is open to the rest.
 var countedWords = []struct {
 	word  string
 	ink   ink
 	kinds []status.RoutingKind
 }{
-	{"open", secondaryInk, []status.RoutingKind{status.RoutingOpen, status.RoutingNext, status.RoutingIdle, status.RoutingModelLimited, status.RoutingModelRefused}},
+	{"open", secondaryInk, []status.RoutingKind{status.RoutingOpen, status.RoutingNext, status.RoutingIdle, status.RoutingModelLimited, status.RoutingModelRefused, status.RoutingModelCapped}},
 	{"pressure", warningInk, []status.RoutingKind{status.RoutingPressed}},
 	{"at cap", warningInk, []status.RoutingKind{status.RoutingCapped, status.RoutingCappedPinned}},
 	{"limit", errorInk, []status.RoutingKind{status.RoutingLimited}},

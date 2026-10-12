@@ -144,6 +144,14 @@ func TestDashboardReadsWhatStatusReads(t *testing.T) {
 	if want := (score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h", Pressure: "5h"}); !reflect.DeepEqual(cfg.Policy, want) {
 		t.Errorf("policy = %+v, want Claude's %+v", cfg.Policy, want)
 	}
+	if cfg.WindowName == nil {
+		t.Fatal("the dashboard names no window, want Claude's names")
+	}
+	for key, want := range map[string]string{"5h": "5-hour", "7d": "Week", "7d_oi": "Fable week"} {
+		if got := cfg.WindowName(key); got != want {
+			t.Errorf("the dashboard names window %s %q, want %q, as usage names it", key, got, want)
+		}
+	}
 }
 
 func TestDashboardReadsTheLedgerTheReadingsAndTheEventsInTheStateDirectory(t *testing.T) {

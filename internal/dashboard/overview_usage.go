@@ -58,7 +58,7 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 // overviewNames its name.
 func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	names := overviewNames(doc)
-	b := blockOf(doc, now, f.Width, f.Look, f.By, overviewWindows(doc), names)
+	b := blockOf(doc, now, f.Width, f.Look, f.By, f.overviewWindows(doc), names)
 	b.marks = keyMarks(names, f.phone())
 	if f.By == ByAccount && f.Width >= matrixWidth {
 		b.accountBar = besideBar - (b.names - matrixNames)
@@ -76,10 +76,22 @@ func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 }
 
 // overviewWindows are the windows of doc the Overview shows, in USAGE and
-// GRAPHS: every one any account reports, in Claude's order, each named as
-// nameOfWindow names it by its label, as labelOf has it.
-func overviewWindows(doc status.Document) []shownWindow {
-	return usageWindows(doc, nil, nil, func(key string) string { return nameOfWindow(key, labelOf(doc, key)) })
+// GRAPHS, as usage prints them: those every model shares, as the frame's
+// Policy has them, so every account keeps its rows before any is read, and
+// every other any account reports, in Claude's order, each named as
+// windowNamer names it.
+func (f Frame) overviewWindows(doc status.Document) []shownWindow {
+	return usageWindows(doc, nil, f.Policy.Shared, f.windowNamer(doc))
+}
+
+// windowNamer names doc's windows by their keys as the Overview names them
+// wherever it does: as the frame's WindowName has it, else as nameOfWindow
+// names one by its label, as labelOf has it.
+func (f Frame) windowNamer(doc status.Document) func(key string) string {
+	if f.WindowName != nil {
+		return f.WindowName
+	}
+	return func(key string) string { return nameOfWindow(key, labelOf(doc, key)) }
 }
 
 // overviewNames are the names of doc's accounts as the Overview names them
