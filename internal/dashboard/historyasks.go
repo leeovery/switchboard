@@ -126,13 +126,14 @@ func (p HistoryPage) yearShown() string {
 	return status.Clean(p.YearAsk.Version)
 }
 
-// label is the account with the given id as History names it: by its label,
-// as the config gives it, else its id, cleaned.
+// label is the account with the given id as History names it: by its label
+// as the config gives it, as labelled names it.
 func (p HistoryPage) label(id string) string {
+	var label string
 	if i := slices.IndexFunc(p.Accounts, func(a config.Account) bool { return a.ID == id }); i >= 0 {
-		id = cmp.Or(p.Accounts[i].Label, id)
+		label = p.Accounts[i].Label
 	}
-	return status.Clean(id)
+	return labelled(label, id)
 }
 
 // Showing is the page with its sub-tab i shown, as a click on it shows it. It

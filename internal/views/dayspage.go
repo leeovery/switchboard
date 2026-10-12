@@ -30,8 +30,8 @@ type DaysPage struct {
 // name, as the version table gives it, or the account's id; its days, the
 // eight weeks' from the first, those still to come among them; of a family,
 // Share, its share of the eight weeks' worth; and of an account, Limits, the
-// 5-hour limits it hit, Label, what it's called, its id unless the config
-// gives it another, and Primary, set on the primary.
+// 5-hour limits it hit, Label, its label, as the config gives it, and
+// Primary, set on the primary.
 type DaysStrip struct {
 	Of      string
 	Days    []StripDay
@@ -179,7 +179,7 @@ func (w eightWeeks) byAccount(accounts config.Accounts, week string) []DaysStrip
 	cuts := quarterCuts(active)
 	strips := make([]DaysStrip, len(accounts))
 	for i, a := range accounts {
-		strips[i] = DaysStrip{Of: a.ID, Label: cmp.Or(a.Label, a.ID), Primary: a.Primary, Days: levelled(rises[i], cuts)}
+		strips[i] = DaysStrip{Of: a.ID, Label: a.Label, Primary: a.Primary, Days: levelled(rises[i], cuts)}
 		for d, n := range limits[i] {
 			strips[i].Days[d].Limit = n > 0
 			strips[i].Limits += n

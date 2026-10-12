@@ -103,7 +103,7 @@ func TestDaysByModelIsAStripAFamilyOnOneScaleOfWorth(t *testing.T) {
 }
 
 // BY ACCOUNT is a strip a configured account, in the config's order, by its
-// label, or its id where the config gives none, the primary marked, each day
+// id and the config's label, the primary marked, each day
 // the rise of its week on one scale, every account's, and the 5-hour limits
 // it hit.
 func TestDaysByAccountIsAStripAnAccountOnOneScaleOfItsWeek(t *testing.T) {
@@ -119,7 +119,7 @@ func TestDaysByAccountIsAStripAnAccountOnOneScaleOfItsWeek(t *testing.T) {
 	in.Accounts = config.Accounts{{ID: "work", Label: "Work", Primary: true}, {ID: "side"}, {ID: "spare", Label: "Spare"}}
 	want := []views.DaysStrip{
 		{Of: "work", Label: "Work", Primary: true, Days: stripDays(map[int]int{0: 2, 50: 4}, 50), Limits: 2},
-		{Of: "side", Label: "side", Days: stripDays(map[int]int{51: 3}, 51), Limits: 1},
+		{Of: "side", Days: stripDays(map[int]int{51: 3}, 51), Limits: 1},
 		{Of: "spare", Label: "Spare", Days: stripDays(nil)},
 	}
 	if got := views.NewPast(in, days).Days().ByAccount; !reflect.DeepEqual(got, want) {

@@ -28,9 +28,9 @@ type WeeksPage struct {
 	// did each time: none where they differed, or none was short.
 	ShortEach []string
 	// SameWeeks is set where the replay without Capacity's Drop finds short
-	// the very weeks short as the accounts stand; and NoneShortWithout where
-	// it finds none short that weren't already. Each is unset where none is
-	// named to drop.
+	// the very weeks short as the accounts stand, and some are; and
+	// NoneShortWithout where it finds none short that weren't already. Each
+	// is unset where none is named to drop.
 	SameWeeks, NoneShortWithout bool
 	// DropPrice is what the plan of Capacity's Drop costs a month, as of
 	// today: nil where its plan isn't known, or none is named to drop.
@@ -71,9 +71,10 @@ func (p Past) weeksPage() WeeksPage {
 	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
 	isWhole := wholeWeek(days, this)
 	pl := plans{accounts: in.Accounts, table: in.Prices}
+	j := judgingOf(placed, isWhole, in.Accounts, pl, in.WeekWindow)
 	page := WeeksPage{
 		Weeks:    weekDates(first, weeksShown),
-		Capacity: capacityOf(placed, isWhole, in.Accounts, pl, in.WeekWindow),
+		Capacity: j.capacity(in.Accounts),
 		Window:   in.WeekWindow,
 	}
 	byWeek := make(map[string]Week, len(placed))
@@ -82,14 +83,14 @@ func (p Past) weeksPage() WeeksPage {
 	}
 	for x, a := range in.Accounts {
 		row := WeeksRow{AccountVerdict: page.Capacity.Accounts[x], Label: a.Label, Primary: a.Primary, Peaks: page.peaksOf(byWeek, x)}
-		if rec := recordOf(placed, isWhole, x, in.WeekWindow); rec.weeks > 0 {
+		if rec := j.records[x]; rec.weeks > 0 {
 			used := meanOf(rec.used, rec.weeks)
 			row.Used = &used
 		}
 		page.Accounts = append(page.Accounts, row)
 	}
 	page.All = WeeksRow{AccountVerdict: page.Capacity.Accounts[len(in.Accounts)], Peaks: page.peaksOf(byWeek, len(in.Accounts))}
-	page.judge(replayOf(placed, isWhole, in.Accounts, pl, in.WeekWindow), pl, today.Format(time.DateOnly))
+	page.judge(j.r, pl, today.Format(time.DateOnly))
 	return page
 }
 

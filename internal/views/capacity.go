@@ -72,7 +72,30 @@ type AccountVerdict struct {
 // whole, of the accounts given, their plans p, their week the window with the
 // given key.
 func capacityOf(placed []placedWeek, isWhole func(week string) bool, accounts config.Accounts, p plans, key string) Capacity {
-	r := replayOf(placed, isWhole, accounts, p, key)
+	return judgingOf(placed, isWhole, accounts, p, key).capacity(accounts)
+}
+
+// judging is what Weeks judges the accounts by: the replay, and each
+// account's record, in the config's order.
+type judging struct {
+	r       replay
+	records []record
+}
+
+// judgingOf is what Weeks judges by over the weeks of placed that isWhole
+// reports are whole, of the accounts given, their plans p, their week the
+// window with the given key.
+func judgingOf(placed []placedWeek, isWhole func(week string) bool, accounts config.Accounts, p plans, key string) judging {
+	j := judging{r: replayOf(placed, isWhole, accounts, p, key), records: make([]record, len(accounts))}
+	for x := range accounts {
+		j.records[x] = recordOf(placed, isWhole, x, key)
+	}
+	return j
+}
+
+// capacity is Capacity of the accounts judged.
+func (j judging) capacity(accounts config.Accounts) Capacity {
+	r := j.r
 	c := Capacity{Weeks: len(r.weeks), Short: r.count(r.shortAsNow), WithOneMore: r.count(r.shortWithOneMore)}
 	without := make([]int, len(accounts))
 	for x := range accounts {
@@ -82,7 +105,7 @@ func capacityOf(placed []placedWeek, isWhole func(week string) bool, accounts co
 	c.Accounts = make([]AccountVerdict, 0, len(accounts)+1)
 	several := len(accounts) > 1
 	for x, a := range accounts {
-		v := recordOf(placed, isWhole, x, key).verdict(c.Verdict == OneMoreThanYouNeed && without[x] <= c.Short)
+		v := j.records[x].verdict(c.Verdict == OneMoreThanYouNeed && without[x] <= c.Short)
 		v.Account = a.ID
 		if several {
 			v.WithoutIt = &without[x]
@@ -274,15 +297,18 @@ func (r replay) shortEach() []int {
 
 // without compares the weeks a replay without the account with index x
 // finds short with those short as the accounts stand: same, where they're
-// the very weeks; and noneNew, where none it finds short wasn't already.
+// the very weeks, and some are short; and noneNew, where none it finds short
+// wasn't already.
 func (r replay) without(x int) (same, noneNew bool) {
 	same, noneNew = true, true
+	some := false
 	for _, week := range r.weeks {
 		was, is := r.shortAsNow(week), r.shortWithout(week, x)
 		same = same && was == is
 		noneNew = noneNew && (was || !is)
+		some = some || was
 	}
-	return same, noneNew
+	return same && some, noneNew
 }
 
 // shortWithOneMore reports whether the week would have been short with one
