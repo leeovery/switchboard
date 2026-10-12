@@ -13,6 +13,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/dashboard"
 )
@@ -169,7 +170,7 @@ func TestUsagePrintsTheWindowsGivenLaidOutAsAsked(t *testing.T) {
 			deps := statusDeps(t, upstream, map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, text), "COLUMNS": "160"})
 
 			got := run(t, deps, append([]string{"usage", "--pretty"}, tt.args...)...)
-			rows := dashboard.Printout{Width: 160, Look: dashboard.NoColour(), By: tt.by, Windows: tt.windows}.Draw(statusJSON(t, deps), testNow)
+			rows := dashboard.Printout{Width: 160, Look: dashboard.NoColour(), By: tt.by, Windows: tt.windows, Policy: claude.Policy, Name: claude.WindowName}.Draw(statusJSON(t, deps), testNow)
 			if want := (result{stdout: ansi.Strip("\n" + strings.Join(rows, "\n") + "\n")}); got != want {
 				t.Errorf("switchboard usage --pretty %s =\n%+v\nwant the printout by %v of %q, off a terminal, without colour\n%+v",
 					strings.Join(tt.args, " "), got, tt.by, tt.windows, want)
@@ -201,6 +202,10 @@ func TestUsageRefusesAWindowNoAccountReportsNamingThoseThereAre(t *testing.T) {
 			name: "the first given in Claude's order, where no account reports any", upstream: refusingAPI, args: []string{"--fable", "--5h"},
 			want: "no account reports the 5-hour window, nor any other window",
 		},
+		{
+			name: "a window every model shares, where the accounts report only windows no flag names", upstream: opusWeekAPI, args: []string{"--week"},
+			want: "no account reports the week",
+		},
 	}
 	for _, tt := range tests {
 		for _, form := range prettyForms() {
@@ -210,6 +215,20 @@ func TestUsageRefusesAWindowNoAccountReportsNamingThoseThereAre(t *testing.T) {
 					t.Errorf("switchboard usage %s %s, %s, = %+v, want %+v", strings.Join(tt.args, " "), strings.Join(form.args, " "), form.name, got, want)
 				}
 			})
+		}
+	}
+}
+
+func TestUsagePrintsEveryAccountBeforeAnyWindowIsRead(t *testing.T) {
+	deps := statusDeps(t, refusingAPI(t), map[string]string{"COLUMNS": "120"})
+
+	got := run(t, deps, "usage", "--pretty")
+	words := map[string]string{"Work": "not read yet", "Personal": "no token", "Side": "not read yet"}
+	for _, heading := range []string{"5-HOUR", "WEEK"} {
+		for label, want := range words {
+			if row := printedRow(got.stdout, heading, label); !strings.HasSuffix(row, "—  "+want) {
+				t.Errorf("switchboard usage --pretty, no account read, printed %s's row under %s as %q, want it to end %q:\n%s", label, heading, row, "—  "+want, got.stdout)
+			}
 		}
 	}
 }
@@ -229,16 +248,32 @@ func TestUsageRefusesALayoutItHasNone(t *testing.T) {
 // the API's URL.
 func sharedWindowsAPI(t *testing.T) string {
 	t.Helper()
+	return reportingAPI(t, "5h", "7d")
+}
+
+// opusWeekAPI serves a probe of the work account, of any model, with Opus's
+// week alone, a window no flag of usage's names, and rejects anything else.
+// It returns the API's URL.
+func opusWeekAPI(t *testing.T) string {
+	t.Helper()
+	return reportingAPI(t, "7d_opus")
+}
+
+// reportingAPI serves a probe of the work account, of any model, with the
+// windows with the keys given alone, each a fifth used, and rejects anything
+// else. It returns the API's URL.
+func reportingAPI(t *testing.T, keys ...string) string {
+	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer test-token-work" {
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = io.WriteString(w, `{"type":"error","error":{"type":"authentication_error","message":"Invalid bearer token"}}`)
 			return
 		}
-		w.Header().Set("anthropic-ratelimit-unified-5h-utilization", "0.23")
-		w.Header().Set("anthropic-ratelimit-unified-5h-reset", "1790619000")
-		w.Header().Set("anthropic-ratelimit-unified-7d-utilization", "0.41")
-		w.Header().Set("anthropic-ratelimit-unified-7d-reset", "1790974800")
+		for _, key := range keys {
+			w.Header().Set("anthropic-ratelimit-unified-"+key+"-utilization", "0.2")
+			w.Header().Set("anthropic-ratelimit-unified-"+key+"-reset", "1790974800")
+		}
 		_, _ = io.WriteString(w, `{"type":"message"}`)
 	}))
 	t.Cleanup(srv.Close)

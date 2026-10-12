@@ -1,9 +1,7 @@
 package dashboard
 
 import (
-	"cmp"
 	"fmt"
-	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -66,10 +64,8 @@ type usageBlock struct {
 	// rows are the accounts', in the config's order, then the pool's, where
 	// there's one.
 	rows []usageRow
-	// names is the name column's cells, and caps the key line's cap part:
-	// nil where no account has a cap.
+	// names is the name column's cells.
 	names int
-	caps  line
 }
 
 // shownWindow is a window the block shows: its key, and its name, as in
@@ -78,12 +74,14 @@ type shownWindow struct {
 	key, name string
 }
 
-// usageRow is a row of the block, an account's or the pool's: its name, and a
-// gauge for each window shown.
+// usageRow is a row of the block, an account's or the pool's: its name, a
+// gauge for each window shown, and its account's cap as the key line names
+// it, as "work at 95%", "" where it has none.
 type usageRow struct {
 	name   line
 	gauges []gauge
 	pool   bool
+	cap    string
 }
 
 // gauge is a window of an account, or the pool's, as a row draws it: its bar,
@@ -94,14 +92,16 @@ type gauge struct {
 }
 
 // newUsageBlock is the usage block of doc at now, width cells wide, drawn in
-// look, grouped by, of the windows with the keys given, every window any
-// account reports where none is.
-func newUsageBlock(doc status.Document, now time.Time, width int, look Look, by By, keys []string) usageBlock {
-	b := usageBlock{width: width, look: look, by: by, windows: usageWindows(doc, keys), caps: capsOf(doc)}
+// look, grouped by, of the windows given.
+func newUsageBlock(doc status.Document, now time.Time, width int, look Look, by By, windows []shownWindow) usageBlock {
+	b := usageBlock{width: width, look: look, by: by, windows: windows}
 	names := namesOf(doc)
 	b.names = nameColumn(names, width)
 	for i, a := range doc.Accounts {
 		row := usageRow{name: names[i].line(b.names)}
+		if a.Reserve > 0 {
+			row.cap = fmt.Sprintf("%s at %d%%", name(a), wholePercent(1-a.Reserve))
+		}
 		for _, w := range b.windows {
 			st := doc.WindowStateOf(a, w.key, now)
 			row.gauges = append(row.gauges, accountGauge(a, w.key, st, now))
@@ -114,36 +114,29 @@ func newUsageBlock(doc status.Document, now time.Time, width int, look Look, by 
 	return b
 }
 
-// usageWindows are the windows with the keys given, or with none, every
-// window any of doc's accounts reports, in Claude's order, each named as
-// nameOfWindow names it.
-func usageWindows(doc status.Document, keys []string) []shownWindow {
-	labels := make(map[string]string)
-	for _, a := range doc.Accounts {
-		for _, w := range a.Windows {
-			labels[w.Key] = cmp.Or(labels[w.Key], w.Label)
+// usageWindows are the windows of doc with the keys given, or with none,
+// those every model shares, as shared has them, and every other any account
+// reports, so every account keeps its rows before any is read; in Claude's
+// order, each named as name names it, cleaned, or where name is nil, by its
+// label as labelOf has it.
+func usageWindows(doc status.Document, keys, shared []string, name func(key string) string) []shownWindow {
+	if len(keys) == 0 {
+		keys = slices.Clone(shared)
+		for _, a := range doc.Accounts {
+			for _, w := range a.Windows {
+				keys = append(keys, w.Key)
+			}
 		}
 	}
-	keys = slices.Clone(keys)
-	if len(keys) == 0 {
-		keys = slices.Collect(maps.Keys(labels))
+	if name == nil {
+		name = func(key string) string { return labelOf(doc, key) }
 	}
-	slices.SortFunc(keys, quota.CompareKeys)
+	keys = slices.SortedFunc(slices.Values(keys), quota.CompareKeys)
 	shown := make([]shownWindow, 0, len(keys))
 	for _, key := range slices.Compact(keys) {
-		shown = append(shown, shownWindow{key: key, name: nameOfWindow(key, labels[key])})
+		shown = append(shown, shownWindow{key: key, name: status.Clean(name(key))})
 	}
 	return shown
-}
-
-// nameOfWindow names a window by its key and label: one of whole hours,
-// under a day, by them, as "5-hour", and any other by its label, cleaned, as
-// "Week" or "Fable week", or its key where it has none.
-func nameOfWindow(key, label string) string {
-	if length, ok := quota.Length(key); ok && length%time.Hour == 0 && length < day {
-		return fmt.Sprintf("%d-hour", length/time.Hour)
-	}
-	return status.Clean(cmp.Or(label, key))
 }
 
 // accountGauge is account a's window with the given key, standing as st says
@@ -184,20 +177,31 @@ func poolRow(doc status.Document, windows []shownWindow, digits int) (usageRow, 
 	return row, true
 }
 
-// capsOf is the key line's cap part of doc: ╎ and each account with a cap,
-// in the config's order, where it is, as in "cap: work at 95%, side at 90%";
-// nil where none has one.
-func capsOf(doc status.Document) line {
+// caps is the key line's cap part: ╎ and the cap of each account whose bars,
+// bar cells long, draw its mark, in the config's order, as in "cap: work at
+// 95%, side at 90%"; nil where none does, as where every cap is off its bars.
+func (b usageBlock) caps(bar int) line {
 	var caps []string
-	for _, a := range doc.Accounts {
-		if a.Reserve > 0 {
-			caps = append(caps, fmt.Sprintf("%s at %d%%", name(a), wholePercent(1-a.Reserve)))
+	for _, r := range b.rows {
+		if r.cap != "" && slices.ContainsFunc(r.gauges, func(g gauge) bool { _, ok := g.bar.capCell(bar); return ok }) {
+			caps = append(caps, r.cap)
 		}
 	}
 	if len(caps) == 0 {
 		return nil
 	}
 	return line{{capMark, reserveInk}, {" cap: " + strings.Join(caps, ", "), mutedInk}}
+}
+
+// capCell is the cell of the bar, cells long, its cap's mark is drawn at,
+// round(cap × cells), reporting false where it draws none: where that's off
+// the bar, or the bar is empty or has no cells.
+func (b usageBar) capCell(cells int) (int, bool) {
+	if b.empty || cells <= 0 {
+		return 0, false
+	}
+	at := halfEven(b.capAt * float64(cells))
+	return at, at < cells
 }
 
 // accountName is an account's name as a row of the block heads it: its
@@ -279,16 +283,35 @@ func (b usageBlock) wordCells() int {
 
 // draw draws the block's rows from row y, as its grouping and its width lay
 // them out, and returns the row after the last: by account; else as a
-// matrix, from 150 columns, where its bars would be 12 cells or more; else
-// its windows stacked.
+// matrix; else its windows stacked.
 func (b usageBlock) draw(c *canvas, y int) int {
 	switch {
 	case b.by == ByAccount:
 		return b.byAccount(c, y)
-	case b.width >= matrixWidth && b.matrixBar() >= leastMatrixBar:
+	case b.matrixed():
 		return b.matrix(c, y)
 	default:
 		return b.stacked(c, y)
+	}
+}
+
+// matrixed reports whether the block, by window, draws as a matrix: from 150
+// columns, where its bars would be 12 cells or more.
+func (b usageBlock) matrixed() bool {
+	return b.width >= matrixWidth && b.matrixBar() >= leastMatrixBar
+}
+
+// bar is the cells of the block's bars, as its layout has them, none where
+// the width leaves none.
+func (b usageBlock) bar() int {
+	switch {
+	case b.by == ByAccount:
+		labelAt, cells := b.labels()
+		return max(b.width-labelAt-cells-afterBar-b.wordCells()-afterWords, 0)
+	case b.matrixed():
+		return b.matrixBar()
+	default:
+		return max(b.width-b.names-afterBar-b.wordCells()-afterWords, 0)
 	}
 }
 
@@ -308,7 +331,7 @@ func (b usageBlock) matrixBar() int {
 // column, its heading over it, and a row an account, the pool last, from row
 // y, and returns the row after the last.
 func (b usageBlock) matrix(c *canvas, y int) int {
-	bar := b.matrixBar()
+	bar := b.bar()
 	group := bar + groupCells
 	for i, w := range b.windows {
 		c.line(b.names+i*group, y, line{{strings.ToUpper(w.name), dimInk}})
@@ -316,7 +339,8 @@ func (b usageBlock) matrix(c *canvas, y int) int {
 	return b.rowsFrom(c, y+2, func(r usageRow, y int) {
 		c.line(0, y, r.name)
 		for i, g := range r.gauges {
-			b.gauge(c, g, b.names+i*group, y, bar)
+			next := b.names + (i+1)*group
+			b.gauge(c, g, next-group, y, bar, min(next-1, b.width))
 		}
 	})
 }
@@ -325,7 +349,7 @@ func (b usageBlock) matrix(c *canvas, y int) int {
 // heading, then a row an account, the pool last, from row y, two blank lines
 // between sections, and returns the row after the last.
 func (b usageBlock) stacked(c *canvas, y int) int {
-	bar := b.width - b.names - afterBar - b.wordCells() - afterWords
+	bar := b.bar()
 	for i, w := range b.windows {
 		if i > 0 {
 			y += 2
@@ -333,7 +357,7 @@ func (b usageBlock) stacked(c *canvas, y int) int {
 		c.line(0, y, line{{strings.ToUpper(w.name), dimInk}})
 		y = b.rowsFrom(c, y+2, func(r usageRow, y int) {
 			c.line(1, y, r.name)
-			b.gauge(c, r.gauges[i], b.names, y, bar)
+			b.gauge(c, r.gauges[i], b.names, y, bar, b.width)
 		})
 	}
 	return y
@@ -361,11 +385,8 @@ func (b usageBlock) rowsFrom(c *canvas, y int, draw func(r usageRow, y int)) int
 // name beside its first window's row and each label in the name column; else
 // the name on a line of its own above, and the labels a cell in.
 func (b usageBlock) byAccount(c *canvas, y int) int {
-	labelAt, cells := b.names, windowLabelCells
-	if b.width < wideAccounts {
-		labelAt, cells = 1, windowLabelCells+1
-	}
-	bar := b.width - labelAt - cells - afterBar - b.wordCells() - afterWords
+	labelAt, cells := b.labels()
+	bar := b.bar()
 	for i, r := range b.rows {
 		if i > 0 {
 			y += 3
@@ -382,21 +403,31 @@ func (b usageBlock) byAccount(c *canvas, y int) int {
 				y += 2
 			}
 			c.line(labelAt, y, line{{truncate(status.Short(b.windows[j].name), cells-1), dimInk}})
-			b.gauge(c, g, labelAt+cells, y, bar)
+			b.gauge(c, g, labelAt+cells, y, bar, b.width)
 		}
 	}
 	return y + 1
 }
 
+// labels are the column a block by account's window labels start at, and the
+// cells they take: wide, from 110 columns, the name column and 10 cells;
+// else a cell in, and a cell more.
+func (b usageBlock) labels() (at, cells int) {
+	if b.width < wideAccounts {
+		return 1, windowLabelCells + 1
+	}
+	return b.names, windowLabelCells
+}
+
 // gauge draws g from x along row y: its bar, bar cells long; a cell; its
 // percentage, right-aligned in its cells; two cells; and its words, in the
-// form the block's width has them.
-func (b usageBlock) gauge(c *canvas, g gauge, x, y, bar int) {
-	bar = max(bar, 0)
+// form the block's width has them, ending before column end.
+func (b usageBlock) gauge(c *canvas, g gauge, x, y, bar, end int) {
 	g.bar.draw(c, b.look, x, y, bar)
 	at := x + bar + 1
 	c.right(at+percentCells, y, g.bar.percentage())
-	c.line(at+percentCells+2, y, g.words.pick(b.width))
+	words := at + percentCells + 2
+	c.line(words, y, g.words.pick(b.width, end-words))
 }
 
 // key draws the block's key line at row y, saying what its marks mean: from
@@ -404,12 +435,13 @@ func (b usageBlock) gauge(c *canvas, g gauge, x, y, bar int) {
 // pace's; narrower, two lines from column 0, the cap's part on the second.
 func (b usageBlock) key(c *canvas, y int) {
 	pace := line{{paceMark, paceInk}, {" even pace: where you would be now, used evenly", mutedInk}}
+	caps := b.caps(b.bar())
 	if b.width >= matrixWidth {
-		c.line(b.names, y, joined(span{"    ", mutedInk}, pace, b.caps).fit(b.width-b.names))
+		c.line(b.names, y, joined(span{"    ", mutedInk}, pace, caps).fit(b.width-b.names))
 		return
 	}
 	c.line(0, y, pace.fit(b.width))
-	if b.caps != nil {
-		c.line(0, y+1, b.caps.fit(b.width))
+	if caps != nil {
+		c.line(0, y+1, caps.fit(b.width))
 	}
 }
