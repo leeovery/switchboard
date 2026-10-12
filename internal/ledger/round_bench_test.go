@@ -3,6 +3,7 @@ package ledger_test
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -11,8 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/readings"
 )
 
 // BenchmarkARoundOverAYearOfHeavyDays times a round of the ledger over 400
@@ -47,6 +50,116 @@ func BenchmarkARoundOverAYearOfHeavyDays(b *testing.B) {
 
 	for b.Loop() {
 		l.SummariseEnded(now)
+	}
+}
+
+// BenchmarkSummarisingAYearOfHeavyDaysAgain times what a release that moves
+// the summaries' version on costs, once: the router's first round under it,
+// over 400 days that have ended, the ledger's keep and the readings
+// history's, each a heavy day, as heavyDay gives it, with a day of the
+// history's readings beside it, as heavyReadings gives them, its summary of
+// the version before, as that release's router left it, so each is
+// summarised again from its lines and its readings; and a reader's read of
+// the days before that round, which summarises each again as it reads it, at
+// every read, as the router alone writes summaries. It writes some 600 MB.
+func BenchmarkSummarisingAYearOfHeavyDaysAgain(b *testing.B) {
+	const days, lines, read = 400, 16000, 5000
+	now := time.Date(2026, 10, 7, 13, 12, 0, 0, time.Local)
+	state := b.TempDir()
+	dir, history := ledger.Dir(state), readings.Dir(state)
+	for _, d := range []string{dir, history} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			b.Fatal(err)
+		}
+	}
+	day := heavyDay(b, lines)
+	for back := range days {
+		date := now.AddDate(0, 0, -1-back).Format(time.DateOnly)
+		if err := os.WriteFile(filepath.Join(dir, "requests-"+date+".jsonl.gz"), day, 0o600); err != nil {
+			b.Fatal(err)
+		}
+	}
+	// The readings of today, of each day, and of the week before the first
+	// and the day before that, as its summary reads them.
+	for back := range days + 9 {
+		start := dayfile.DayStart(now, -back)
+		name := filepath.Join(history, "readings-"+start.Format(time.DateOnly)+".jsonl.gz")
+		if err := os.WriteFile(name, gzipped(b, string(heavyReadings(b, start, read))), 0o600); err != nil {
+			b.Fatal(err)
+		}
+	}
+	round := func() {
+		ledger.Open(dir, 400*24*time.Hour, func() time.Time { return now }, historyIn(history), caps, logs.For("router")).SummariseEnded(now)
+	}
+	round()
+	older := olderSummaries(b, dir)
+
+	b.Run("the router's round", func(b *testing.B) {
+		for b.Loop() {
+			b.StopTimer()
+			older()
+			b.StartTimer()
+			round()
+		}
+	})
+	b.Run("a reader's read before it", func(b *testing.B) {
+		older()
+		from := now.AddDate(0, 0, -days)
+		for b.Loop() {
+			readerAt(state, now).Days(from)
+		}
+	})
+}
+
+// olderSummaries returns what writes the summaries the ledger in dir holds
+// back as the release before version 4 wrote them, whole and marked: of
+// version 3, its models' sessions never named, and stamped a second sooner,
+// as that release stamped them.
+func olderSummaries(b *testing.B, dir string) (write func()) {
+	b.Helper()
+	paths, err := filepath.Glob(filepath.Join(dir, "day-*.json"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	type written struct {
+		path  string
+		data  []byte
+		stamp time.Time
+	}
+	held := make([]written, 0, len(paths))
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			b.Fatal(err)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			b.Fatal(err)
+		}
+		var s ledger.Summary
+		if err := json.Unmarshal(data, &s); err != nil {
+			b.Fatal(err)
+		}
+		s.Version = 3
+		for _, a := range s.Accounts {
+			for i := range a.Models {
+				a.Models[i].SessionIDs = nil
+			}
+		}
+		if data, err = json.Marshal(s); err != nil {
+			b.Fatal(err)
+		}
+		held = append(held, written{path: path, data: append(data, '\n'), stamp: info.ModTime().Add(-time.Second)})
+	}
+	return func() {
+		for _, w := range held {
+			if err := os.WriteFile(w.path, w.data, 0o600); err != nil {
+				b.Fatal(err)
+			}
+			if err := os.Chtimes(w.path, time.Time{}, w.stamp); err != nil {
+				b.Fatal(err)
+			}
+		}
 	}
 }
 
