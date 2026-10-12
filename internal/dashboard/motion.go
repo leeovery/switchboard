@@ -57,12 +57,12 @@ func (f Frame) MaySettle() bool {
 
 // Filled are how much of each bar the frame's view draws of doc at now it
 // fills, as drawn without easing, by its window's account and key, the
-// pool's by its key alone, for a watch to ease each bar from and to: on the
-// Overview, as USAGE draws them, each account's window as it stands at now,
-// which reads empty once it has reset since it was read, and the pool's as
+// pool's by its key alone, for a watch to ease each bar from and to: each
+// account's window as it stands at now, which reads empty once it has reset
+// since it was read; on the Overview, as USAGE draws them, and the pool's as
 // the frame judges it at now, but none of a bar USAGE draws empty, which has
-// nothing to ease; on Sessions, as last read, but none of a window its panel
-// draws without a bar; and none on a view that draws no bar.
+// nothing to ease; on Sessions, as its panels draw them, but none of a window
+// a panel draws without a bar; and none on a view that draws no bar.
 func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
 	switch f.View {
 	case Overview:
@@ -92,16 +92,16 @@ func (f Frame) overviewFilled(doc status.Document, now time.Time) map[Ref]float6
 }
 
 // sessionsFilled are how much of each bar Sessions' panels draw of doc at
-// now it fills, as Filled has them: each window as last read, by its account
-// and key, where its panel draws it a bar: where it doesn't stand not
-// started, as Unstarted says.
+// now it fills, as Filled has them, by its account and key: each window as
+// its state reads it, where its panel draws it a bar, as it does where it
+// doesn't stand not started.
 func (f Frame) sessionsFilled(doc status.Document, now time.Time) map[Ref]float64 {
 	used := make(map[Ref]float64)
 	for _, a := range doc.Accounts {
 		states := doc.WindowStatesOf(a, now, f.Policy)
 		for _, w := range a.Windows {
-			if !states.Unstarted(w.Key) {
-				used[Ref{Account: a.ID, Window: w.Key}] = w.Utilization
+			if st := states.Of(w.Key); st.Kind != status.WindowNotStarted {
+				used[Ref{Account: a.ID, Window: w.Key}] = st.Used
 			}
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -188,7 +189,7 @@ func TestTheChartsDrawNoReadingTheRoutersHistoryCoversAlready(t *testing.T) {
 		{At: sessionStart.Add(10 * time.Minute).UTC(), Utilization: 0.2},
 		{At: sessionStart.Add(40 * time.Minute), Utilization: 0.3},
 	}
-	if got := h.drawn(doc, start, policy)[ref].Readings; !slices.EqualFunc(got, want, sameReading) {
+	if got := h.drawn(doc, start)[ref].Readings; !slices.EqualFunc(got, want, sameReading) {
 		t.Errorf("the trail's readings are %+v, want %+v: in order, none from before the session, nor the router's last", got, want)
 	}
 }
@@ -204,7 +205,7 @@ func TestTheChartsDrawNoSessionThatHasLapsedSinceItWasRead(t *testing.T) {
 	}}
 	doc := document(account("work", "Work", session(0.2, 4*time.Hour), week(0.5)))
 
-	drawn := h.drawn(doc, start.Add(4*time.Hour+time.Second), policy)
+	drawn := h.drawn(doc, start.Add(4*time.Hour+time.Second))
 	if trail, ok := drawn[dashboard.Ref{Account: "work", Window: "5h"}]; ok {
 		t.Errorf("work's session draws %+v, want no trail, as it has lapsed", trail)
 	}
@@ -213,34 +214,50 @@ func TestTheChartsDrawNoSessionThatHasLapsedSinceItWasRead(t *testing.T) {
 	}
 }
 
-// The charts draw a window wherever Sessions' panels draw it a bar, as
-// WindowStates stand it: a session read running, on the tick after it resets,
-// before it's read again, that the router's limit holds stands held, not
-// lapsed, so it keeps its trail, the watch records its reading, and the
-// readings history's files are read from the day it started, the day before.
-func TestTheChartsKeepASessionLapsedAtNowThatALimitHolds(t *testing.T) {
-	now := time.Date(2026, 10, 14, 2, 0, 0, 0, time.Local)
-	reset := now.Add(-time.Second)
-	sessionStart := reset.Add(-5 * time.Hour)
-	work := status.Account{
+// heldSinceItReset is work, whose session, read at 0.97 a minute before it
+// reset at reset, the router's limit holds an hour past it.
+func heldSinceItReset(reset time.Time) status.Account {
+	return status.Account{
 		ID: "work", Label: "Work", TokenSet: true, FetchedAt: reset.Add(-time.Minute).UTC(),
 		Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.97, ResetsAt: reset.UTC()}},
-		Limit:   status.Limit{Windows: []string{"5h"}, Until: now.Add(time.Hour).UTC()},
+		Limit:   status.Limit{Windows: []string{"5h"}, Until: reset.Add(time.Hour).UTC()},
 	}
-	doc := status.Document{GeneratedAt: work.FetchedAt, Source: status.SourceRouter, Accounts: []status.Account{work}}
-	ref := dashboard.Ref{Account: "work", Window: "5h"}
-	h := history{router: map[string]router.History{"5h": historyOf("work", sessionStart, 0.1, 0.2)}}
+}
 
-	if trail, ok := h.drawn(doc, now, policy)[ref]; !ok || len(trail.Readings) != 2 {
-		t.Errorf("work's session draws %+v, want the router's trail, as the limit holding it stands it held", trail)
+// GRAPHS charts a window over its span at now, so a session the router's
+// limit holds, reset since it was read, is charted from its reset, with
+// nothing read of it since, however the router's history ran before.
+func TestGRAPHSChartsAHeldSessionResetSinceItWasReadOverItsNewSpan(t *testing.T) {
+	h := routedHarness(t, routerDocument(heldSinceItReset(at(13, 0, 0))))
+	h.source.history = map[string]router.History{"5h": historyOf("work", at(8, 0, 0), 0.1, 0.2, 0.97)}
+	h.start()
+	h.deliver(h.press("g")...)
+
+	screen := h.view()
+	if !strings.Contains(screen, "5-HOUR ┄") || !regexp.MustCompile(`(?m)^ {14}13:00 +18:00$`).MatchString(screen) {
+		t.Errorf("the screen is\n%s\nwant GRAPHS to chart work's session from its reset, 13:00, to its next, 18:00", screen)
 	}
-	want := []score.Reading{{At: work.FetchedAt, Utilization: 0.97}}
-	if got := h.saw(doc, now, policy).seen[ref]; !slices.EqualFunc(got, want, sameReading) {
-		t.Errorf("the watch saw %+v of work's session, want %+v, its reading", got, want)
+	if !strings.Contains(screen, "no history yet") {
+		t.Errorf("the screen is\n%s\nwant work's session charted with no history yet, nothing read since it reset", screen)
 	}
-	files := &filedReadings{held: []readings.Reading{filedOn("work", "5h", sessionStart.Add(time.Hour), 0.5)}}
-	if got := filedOf(files, doc, now, policy)[ref]; len(got) != 1 {
-		t.Errorf("the files gave %+v of work's session, want its reading of the day before, the day it started", got)
+}
+
+// The readings history's files are read from the day the earliest span the
+// charts draw started: a session the router's limit holds, reset since it
+// was read, is charted from its reset, so the files of the day before, when
+// it started before it reset, aren't read.
+func TestTheReadingsHistorysFilesAreReadFromTheDayAHeldSessionResetSinceItWasReadStartedAgain(t *testing.T) {
+	reset := time.Date(2026, 10, 14, 2, 0, 0, 0, time.Local)
+	work := heldSinceItReset(reset)
+	doc := status.Document{GeneratedAt: work.FetchedAt, Source: status.SourceRouter, Accounts: []status.Account{work}}
+	files := &filedReadings{held: []readings.Reading{filedOn("work", "5h", reset.Add(-4*time.Hour), 0.5)}}
+
+	got := filedOf(files, doc, reset.Add(time.Second))
+	if day := time.Date(2026, 10, 14, 0, 0, 0, 0, time.Local); !files.from.Equal(day) {
+		t.Errorf("the files are read from %v, want from %v, the day the session started again as it reset, not the day before", files.from, day)
+	}
+	if len(got) != 0 {
+		t.Errorf("the files gave %+v, want nothing of the session from before it reset", got)
 	}
 }
 
@@ -279,15 +296,18 @@ func TestProbingTheChartsDrawTheReadingsTheWatchSees(t *testing.T) {
 }
 
 // filedReadings are a readings history's files as the watch reads them,
-// holding the readings given; reads counts the times they're read.
+// holding the readings given; reads counts the times they're read, and from
+// is where the last read started.
 type filedReadings struct {
 	held  []readings.Reading
 	reads int
+	from  time.Time
 }
 
 // Between gives the readings held of times from from up to to.
 func (f *filedReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
 	f.reads++
+	f.from = from
 	return func(yield func(readings.Reading) bool) {
 		for _, r := range f.held {
 			if !r.At.Before(from) && r.At.Before(to) && !yield(r) {

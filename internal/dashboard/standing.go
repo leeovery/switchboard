@@ -11,12 +11,14 @@ import (
 )
 
 // standing is how an account's window stands at a moment, as its panel shows
-// it: where it's heading, where it runs out, and whether it's at its limit or
-// has lapsed.
+// it: how much of it is used, where it's heading, where it runs out, and
+// whether it's at its limit or has lapsed.
 type standing struct {
 	// account is the id of the account whose window it is.
 	account string
 	window  quota.Window
+	// used is how much of it is used, as its state reads it.
+	used float64
 	// heading is where it's heading, as doc's Project says; and out where it
 	// runs out before it resets, as RunsOut says, runsOut set where it does.
 	heading status.Heading
@@ -27,25 +29,29 @@ type standing struct {
 	// of its reaching the limit that holds it, zero otherwise.
 	held        bool
 	back, since time.Time
-	// lapsed is set where it stands not started, as Unstarted says: it isn't
-	// running, and reads empty, until a request starts it.
+	// lapsed is set where it stands not started: it isn't running, and reads
+	// empty, until a request starts it.
 	lapsed bool
 	// floor is the share of it used where its account runs out: where its
 	// reserve starts, where that holds the account back, else its limit.
 	floor float64
 }
 
-// standingOf is how doc's account a's window w stands at now, as policy says
-// which windows every model shares. Held at its limit, it's held until the
-// hold lifts off it, as Lifts says; lapsed where it stands not started, as
-// Unstarted says.
-func standingOf(doc status.Document, a status.Account, w quota.Window, now time.Time, policy score.Policy) standing {
-	s := standing{account: a.ID, window: w, heading: doc.Project(a, w, now), floor: doc.Floor(a)}
+// standingOf is how doc's account a's window w stands at now, its account's
+// windows standing as states has them: used as its state reads it; held where
+// it stands limited, until the hold lifts off it; and lapsed where it stands
+// not started.
+func standingOf(doc status.Document, a status.Account, w quota.Window, states status.WindowStates, now time.Time) standing {
+	st := states.Of(w.Key)
+	s := standing{account: a.ID, window: w, used: st.Used, floor: doc.Floor(a)}
 	s.out, s.runsOut = doc.RunsOut(a, w, now)
-	if held, ok := a.Held(now, policy); ok && held.Holds(w.Key) {
-		s.held, s.back, s.since = true, held.Lifts(w.Key), limitedSince(doc, a, w, now)
+	s.heading = s.out.Heading
+	switch st.Kind {
+	case status.WindowLimited:
+		s.held, s.back, s.since = true, st.At, limitedSince(doc, a, w, now)
+	case status.WindowNotStarted:
+		s.lapsed = true
 	}
-	s.lapsed = doc.WindowStatesOf(a, now, policy).Unstarted(w.Key)
 	return s
 }
 
@@ -145,7 +151,7 @@ func (s standing) use(k ink) span {
 		k = dimInk
 	}
 	k.bold = true
-	return span{status.Percent(s.window.Utilization), k}
+	return span{status.Percent(s.used), k}
 }
 
 // headed says where the window is heading at now, its times as when shows

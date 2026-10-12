@@ -553,12 +553,13 @@ func TestTextSaysASessionThatResetSinceItWasReadHasntStarted(t *testing.T) {
 	}
 }
 
-// status says a window hasn't started only where the dashboard draws it so,
-// as WindowStates stand it: read running, on the tick after its session
-// resets, before it's read again, an account the router's limit holds in its
-// session has it held, and one whose last read failed, or whose token is
-// refused, has it as last read, neither empty nor not started.
-func TestTextSaysASessionLapsedAtNowHasntStartedOnlyWhereNothingComesFirst(t *testing.T) {
+// status says a window hasn't started where the dashboard draws it so, as
+// WindowStates stand it, in ROUTING's order: read running, on the tick after
+// its session resets, before it's read again, an account the router's limit
+// holds in its session has it held, and one whose token is refused has it
+// stale, each reading empty, as it has reset since it was read; while one
+// whose last read failed, nothing read since the reset, has it not started.
+func TestTextSaysASessionLapsedAtNowHasntStartedUnlessALimitOrARefusalComesFirst(t *testing.T) {
 	read := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	reset := time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)
 	now := reset.Add(time.Second).In(read.Location())
@@ -572,17 +573,17 @@ func TestTextSaysASessionLapsedAtNowHasntStartedOnlyWhereNothingComesFirst(t *te
 			change: func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"5h"}, Until: reset.Add(40 * time.Minute)}
 			},
-			want: "  Session  97%  resets now · Mon 17:10\n  limit until Mon 17:50\n",
+			want: "  Session   0%  resets now · Mon 17:10\n  limit until Mon 17:50\n",
 		},
 		{
 			name:   "its last read failed",
 			change: func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" },
-			want:   "  Session  97%  resets now · Mon 17:10\n  HTTP 529 · Overloaded\n",
+			want:   "  Session   0%  not started\n  HTTP 529 · Overloaded\n",
 		},
 		{
 			name:   "its token refused",
 			change: func(a *status.Account) { a.Refused = status.Refusal{Until: reset.Add(time.Hour), Status: 401} },
-			want:   "  Session  97%  resets now · Mon 17:10\n  refused (401) until 18:10\n",
+			want:   "  Session   0%  resets now · Mon 17:10\n  refused (401) until 18:10\n",
 		},
 	}
 	for _, tt := range tests {
@@ -599,6 +600,31 @@ func TestTextSaysASessionLapsedAtNowHasntStartedOnlyWhereNothingComesFirst(t *te
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
+	}
+}
+
+// status says a session the router notes has lapsed hasn't started, and when
+// it's primed, though the account's last probe failed: the router doesn't
+// probe a lapsed account, so its error stands until the prime, and nothing has
+// been read since the session reset.
+func TestTextSaysASessionNotedLapsedHasntStartedThoughItsProbeFailed(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	doc := status.Document{
+		GeneratedAt: now.UTC(),
+		Source:      status.SourceRouter,
+		Router:      status.Health{Healthy: true},
+		Prime:       status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "16:20", Next: time.Date(2026, 9, 28, 15, 20, 0, 0, time.UTC)}}},
+		Accounts: []status.Account{{
+			ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.Add(-2 * time.Hour).UTC(), Error: "HTTP 529 · Overloaded",
+			Windows: []quota.Window{{Key: "5h", Label: "Session"}},
+			Lapsed:  []string{"5h"},
+		}},
+	}
+	want := "work · Work\n" +
+		"  Session   0%  not started · next prime Mon 16:20\n" +
+		"  HTTP 529 · Overloaded\n"
+	if got := doc.Text(now, policy); !strings.HasPrefix(got, want) {
+		t.Errorf("Text() =\n%s\nwant it to start\n%s", got, want)
 	}
 }
 
@@ -793,7 +819,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 	// clear clears the screen, as a terminal shown it takes it.
 	const clear = "\x1b[2J"
 	work := status.Account{
-		ID: "work", Label: "Work" + clear, TokenSet: true,
+		ID: "work", Label: "Work" + clear, TokenSet: true, FetchedAt: now.Add(-time.Minute),
 		Windows:  []quota.Window{{Key: "5h", Label: "Session" + clear, Utilization: 0.23}},
 		Failures: []quota.Failure{{Label: "Fable" + clear, Window: "7d_oi", Error: "HTTP 529 · " + clear + "Overloaded"}},
 		Error:    "HTTP 401 · " + clear + "Invalid bearer token",

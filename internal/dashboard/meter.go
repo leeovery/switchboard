@@ -4,7 +4,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -36,18 +35,17 @@ func (f Frame) bar(c *canvas, s standing, reserve float64, now time.Time, x, y, 
 	if !ok {
 		share = 0
 	}
-	f.fill(c, x, y, cells, f.eased(s.account, s.window), share, reserveCell(reserve, cells), s.paceCell(now, cells))
+	f.fill(c, x, y, cells, f.eased(s), share, reserveCell(reserve, cells), s.paceCell(now, cells))
 	c.barred(x, y, cells, Ref{Account: s.account, Window: s.window.Key})
 }
 
-// eased is how much of the account with the given id's window w its bar
-// fills: as far as the bars have eased to its reading, while they ease, else
-// as read.
-func (f Frame) eased(id string, w quota.Window) float64 {
-	if used, ok := f.Eased[Ref{Account: id, Window: w.Key}]; ok {
+// eased is how much of a window standing as s its bar fills: as far as the
+// bars have eased to its use, while they ease, else its use.
+func (f Frame) eased(s standing) float64 {
+	if used, ok := f.Eased[Ref{Account: s.account, Window: s.window.Key}]; ok {
 		return used
 	}
-	return w.Utilization
+	return s.used
 }
 
 // fill draws a bar cells long from x along row y: used filled in eighths, each

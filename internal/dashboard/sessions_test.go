@@ -12,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -494,7 +495,7 @@ func TestAPanelsUseIsTonedAsItRises(t *testing.T) {
 		{used: 0.9, want: theme.VizRamp4}, {used: 1, want: theme.VizRamp4},
 	}
 	for _, tt := range tests {
-		s := standing{window: weekOf(tt.used, day)}
+		s := standing{window: weekOf(tt.used, day), used: tt.used}
 		if got := panelUse(s); got.ink != (ink{token: tt.want, bold: true}) {
 			t.Errorf("at %.0f%%, the use is %+v, want %s, bold", tt.used*100, got.ink, tt.want)
 		}
@@ -1009,29 +1010,107 @@ func TestOnTheTickASessionResetsItsPanelHasItNotStarted(t *testing.T) {
 	}
 }
 
-// Sessions' panels draw a session not started only where the usage block
-// does, as WindowStates stand it: work, its last read failed, on the tick
-// after its session resets, before it's read again, has it as last read, with
-// its bar, as its stale reading is.
-func TestOnTheTickASessionResetsAStaleAccountsPanelHasItAsLastRead(t *testing.T) {
-	doc := threeRouted()
-	doc.Accounts[0].Error = "HTTP 529 · Overloaded"
-	session, _ := doc.Accounts[0].Window("5h")
-	after := session.ResetsAt.Add(time.Second).In(now.Location())
-	f := switchboard(160, 40, flippingSessions(), Traffic{})
-	b, ok := f.bayOf(doc, after, f.top())
+// sessionRow is the row of work's session on its panel, the first, of
+// Sessions' switchboard f lays doc out as at now, drawn, trimmed to the
+// panels' bounds.
+func sessionRow(t *testing.T, f Frame, doc status.Document, now time.Time) string {
+	t.Helper()
+	b, ok := f.bayOf(doc, now, f.top())
 	if !ok {
 		t.Fatal("the view is a plain list, want a switchboard")
 	}
 	c := newCanvas(f.Width, b.content)
-	f.drawBay(c, doc, b, after)
-	p := b.panels[0]
+	f.drawBay(c, doc, b, now)
+	return strings.TrimSpace(ansi.Cut(rowOf(c, b.panels[0].top+1), b.x, b.x+b.width))
+}
 
-	if row := strings.TrimSpace(ansi.Cut(rowOf(c, p.top+1), b.x, b.x+b.width)); strings.Contains(row, "not started") || !strings.Contains(row, "58%") {
-		t.Errorf("work's session reads %q, want it as last read, 58%%, not as not started", row)
+// statusOf is what status's text says of work, the first account, in doc at
+// now: its lines, to the blank line after them.
+func statusOf(doc status.Document, now time.Time) string {
+	text, _, _ := strings.Cut(doc.Text(now, claudeLike), "\n\n")
+	return text
+}
+
+// A window stands as one rule has it everywhere, in ROUTING's order: work,
+// read before, its last read failed, on the tick after its session resets,
+// before it's read again, is idle in ROUTING, nothing read since the reset,
+// and its session not started in USAGE, in Sessions' panel, with no bar, so
+// none eases, and in status's text.
+func TestOnTheTickASessionResetsAFailedReadAccountsSessionHasntStartedAsROUTINGHasItIdle(t *testing.T) {
+	doc := threeRouted()
+	doc.Accounts[0].Error = "HTTP 529 · Overloaded"
+	work := doc.Accounts[0]
+	session, _ := work.Window("5h")
+	after := session.ResetsAt.Add(time.Second).In(now.Location())
+	f := switchboard(160, 40, flippingSessions(), Traffic{})
+	ref := Ref{Account: "work", Window: "5h"}
+
+	if routing := doc.RoutingOf(work, after, claudeLike); routing.Kind != status.RoutingIdle {
+		t.Errorf("ROUTING says work is %q, want it idle", routing.Says)
 	}
-	if used, ok := f.Filled(doc, after)[Ref{Account: "work", Window: "5h"}]; !ok || used != session.Utilization {
-		t.Errorf("work's session fills %v, drawn %t, want its bar as last read, %v", used, ok, session.Utilization)
+	if words := wordsOf(doc.WindowStatesOf(work, after, claudeLike).Of("5h"), quota.Allowance{}, after).full.plain(); words != "not started" {
+		t.Errorf("USAGE says work's session is %q, want it not started", words)
+	}
+	if used, ok := frameOf(160, 40).Filled(doc, after)[ref]; !ok || used != 0 {
+		t.Errorf("USAGE fills work's session to %v, drawn %t, want it drawn empty", used, ok)
+	}
+	if row := sessionRow(t, f, doc, after); !strings.Contains(row, "Session  not started") || strings.ContainsAny(row, "█▒░┃") {
+		t.Errorf("work's session reads %q on its panel, want it not started, with no bar", row)
+	}
+	if used, eased := f.Filled(doc, after)[ref]; eased {
+		t.Errorf("work's session fills %v on its panel, to be eased to, want no bar", used)
+	}
+	if text := statusOf(doc, after); !strings.Contains(text, "Session   0%  not started\n") {
+		t.Errorf("status says\n%s\nwant work's session not started", text)
+	}
+}
+
+// A session the router notes has lapsed hasn't started, though the account's
+// last probe failed: the router doesn't probe a lapsed account, so its error
+// stands until the prime, and its window reads empty, without a reset.
+// Sessions' panel says so, with no bar, as status's text does.
+func TestASessionNotedLapsedOnAnAccountWhoseProbeFailedHasntStarted(t *testing.T) {
+	doc := threeRouted()
+	work := &doc.Accounts[0]
+	work.Error = "HTTP 529 · Overloaded"
+	work.Windows[0] = quota.Window{Key: "5h", Label: "Session"}
+	work.Lapsed = []string{"5h"}
+	f := switchboard(160, 40, flippingSessions(), Traffic{})
+
+	if row := sessionRow(t, f, doc, now); !strings.Contains(row, "Session  not started") || strings.ContainsAny(row, "█▒░┃") {
+		t.Errorf("work's session reads %q on its panel, want it not started, with no bar", row)
+	}
+	if used, eased := f.Filled(doc, now)[Ref{Account: "work", Window: "5h"}]; eased {
+		t.Errorf("work's session fills %v on its panel, to be eased to, want no bar", used)
+	}
+	if text := statusOf(doc, now); !strings.Contains(text, "Session   0%  not started\n") {
+		t.Errorf("status says\n%s\nwant work's session not started", text)
+	}
+}
+
+// A window has one reading wherever its use is drawn: work, its session held
+// by the router's limit past its reset, on the tick after the reset, before
+// it's read again, reads its session empty, as it runs, in USAGE, on its
+// panel, its bar and its percentage, and in status's text.
+func TestASessionHeldPastItsResetReadsEmptyWhereverItsUseIsDrawn(t *testing.T) {
+	doc := threeRouted()
+	session, _ := doc.Accounts[0].Window("5h")
+	doc.Accounts[0].Limit = status.Limit{Windows: []string{"5h"}, Until: session.ResetsAt.Add(time.Hour)}
+	after := session.ResetsAt.Add(time.Second).In(now.Location())
+	f := switchboard(160, 40, flippingSessions(), Traffic{})
+	ref := Ref{Account: "work", Window: "5h"}
+
+	if used, ok := frameOf(160, 40).Filled(doc, after)[ref]; !ok || used != 0 {
+		t.Errorf("USAGE fills work's session to %v, drawn %t, want it empty", used, ok)
+	}
+	if used, ok := f.Filled(doc, after)[ref]; !ok || used != 0 {
+		t.Errorf("work's panel fills its session to %v, drawn %t, want it empty", used, ok)
+	}
+	if row := sessionRow(t, f, doc, after); !strings.Contains(row, " 0%  back ") || strings.Contains(row, "58%") {
+		t.Errorf("work's session reads %q on its panel, want it held, empty, 0%%", row)
+	}
+	if text := statusOf(doc, after); !strings.Contains(text, "Session   0%  ") {
+		t.Errorf("status says\n%s\nwant work's session empty", text)
 	}
 }
 

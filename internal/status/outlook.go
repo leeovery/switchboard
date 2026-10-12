@@ -96,13 +96,15 @@ func (d Document) AccountWorkedOut(id string, policy score.Policy) (Account, boo
 }
 
 // standing is how an account stands at a moment, as what's worked out of the
-// document reads it: the keys of its windows that have lapsed,
-// and aren't running; what limit holds it, as Held says; whether its cap
-// holds it back from every request, a window every model shares having
-// reached its reserve, which holds it back, as ReserveHolds says; and whether
-// its token is refused.
+// document reads it: the account, the moment and the policy that judges its
+// windows, which says which have lapsed, and aren't running; what limit holds
+// it, as Held says; whether its cap holds it back from every request, a
+// window every model shares having reached its reserve, which holds it back,
+// as ReserveHolds says; and whether its token is refused.
 type standing struct {
-	lapsed  []string
+	account Account
+	at      time.Time
+	policy  score.Policy
 	held    Hold
 	limited bool
 	capped  bool
@@ -110,25 +112,12 @@ type standing struct {
 }
 
 // standingAt is how doc's account a stands at the moment given, as policy
-// judges its windows: those the document notes have lapsed have, and so has
-// any other policy judges lapsed by then.
+// judges its windows.
 func (d Document) standingAt(a Account, at time.Time, policy score.Policy) standing {
-	s := standing{lapsed: a.lapsedAt(at, policy), refused: a.TokenRefused(at)}
+	s := standing{account: a, at: at, policy: policy, refused: a.TokenRefused(at)}
 	s.held, s.limited = a.Held(at, policy)
 	s.capped = d.ReserveHolds(a) && slices.ContainsFunc(score.AtReserve(a.Windows, a.Reserve, at), policy.IsShared)
 	return s
-}
-
-// lapsedAt are the keys of the account's windows that have lapsed at the
-// moment given, as HasLapsed judges each.
-func (a Account) lapsedAt(at time.Time, policy score.Policy) []string {
-	var keys []string
-	for _, w := range a.Windows {
-		if a.HasLapsed(w.Key, at, policy) {
-			keys = append(keys, w.Key)
-		}
-	}
-	return keys
 }
 
 // HasLapsed reports whether the account's window with the given key has
@@ -150,9 +139,9 @@ func (a Account) idleAt(at time.Time, policy score.Policy) bool {
 }
 
 // running reports whether the account's window with the given key is
-// running: it hasn't lapsed.
+// running: it hasn't lapsed, as HasLapsed judges it.
 func (s standing) running(key string) bool {
-	return !slices.Contains(s.lapsed, key)
+	return !s.account.HasLapsed(key, s.at, s.policy)
 }
 
 // every reports whether a limit holds the account back from every request.

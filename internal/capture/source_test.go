@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -208,11 +209,14 @@ func TestHistoryRisesAsTheFramesChartsDo(t *testing.T) {
 	}
 }
 
+// Every window the charts draw a reading of has a history that ends at it:
+// those whose reading falls in the span GRAPHS charts them over, as
+// ChartSpan has it.
 func TestEveryWindowsHistoryEndsAtItsUse(t *testing.T) {
 	for _, f := range fixtures(time.UTC) {
 		for _, a := range f.router.doc.Accounts {
 			for _, w := range a.Windows {
-				if a.HasLapsed(w.Key, f.router.doc.GeneratedAt, claude.Policy) {
+				if start, _, ok := dashboard.ChartSpan(w, f.router.doc.GeneratedAt); !ok || a.FetchedAt.Before(start) {
 					continue
 				}
 				h, err := f.router.History(t.Context(), w.Key, time.Minute)

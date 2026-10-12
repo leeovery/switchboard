@@ -105,7 +105,7 @@ type RoutingRow struct {
 
 // Figure is a window's use as the routing card shows it, from 0 to 1, its
 // level coloured as usage colours it: none where Read says the window
-// hasn't been read, and faded where Stale says it's as last read, the
+// hasn't been read, and faded where Stale says its reading is stale, the
 // account's token refused or its last read failed.
 type Figure struct {
 	Used        float64
@@ -180,7 +180,7 @@ func running(sessions []status.Session, id string, now time.Time) int {
 
 // figureOf is the use of an account's window with the given key, as states
 // stand it and usage reads it: none where the account has no usable token or
-// nothing is read of the window; as last read where that's stale.
+// nothing is read of the window; else as its state reads it, stale or not.
 func figureOf(states status.WindowStates, key string) Figure {
 	switch st := states.Of(key); st.Kind {
 	case status.WindowTokenless, status.WindowUnread:

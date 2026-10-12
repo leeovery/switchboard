@@ -42,10 +42,22 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			want:    status.WindowState{Kind: status.WindowUnread},
 		},
 		{
-			name:    "its last read failed, before its limit: as last read",
+			name:    "its last read failed: as last read",
+			account: with(readNow(0.97, 0.3, 0), failing),
+			key:     "5h",
+			want:    status.WindowState{Kind: status.WindowStale, Used: 0.97, At: read},
+		},
+		{
+			name:    "its last read failed, at its cap: as last read, before the cap",
+			account: with(with(readNow(0.95, 0.3, 0), capped), failing),
+			key:     "5h",
+			want:    status.WindowState{Kind: status.WindowStale, Used: 0.95, At: read},
+		},
+		{
+			name:    "its last read failed, a limit holding the window: the limit, said even where its last read failed",
 			account: with(with(readNow(1, 0.3, 0), limited("5h")), failing),
 			key:     "5h",
-			want:    status.WindowState{Kind: status.WindowStale, Used: 1, At: read},
+			want:    status.WindowState{Kind: status.WindowLimited, Used: 1, At: at(1, 17, 10).UTC()},
 		},
 		{
 			name:    "its token refused: as last read",
@@ -54,10 +66,10 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			want:    status.WindowState{Kind: status.WindowStale, Used: 0.97, At: read},
 		},
 		{
-			name:    "a stale week that has reset since it was read: as last read",
+			name:    "a stale week that has reset since it was read: stale, and empty, as it runs",
 			account: with(readNow(0.2, 0.6, 0), func(a *status.Account) { failing(a); a.Windows[1].ResetsAt = at(1, 9, 0).UTC() }),
 			key:     "7d",
-			want:    status.WindowState{Kind: status.WindowStale, Used: 0.6, At: read},
+			want:    status.WindowState{Kind: status.WindowStale, At: read},
 		},
 		{
 			name:    "read spent, at its cap too: the limit, back at its reset",
@@ -142,22 +154,40 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			want:    status.WindowState{Kind: status.WindowLimited, At: at(1, 15, 54).UTC()},
 		},
 		{
-			name:    "the session reset since it was read, its last read failed: as last read, not lapsed",
+			name:    "the session reset since it was read, its last read failed: lapsed, not started, before the failed read",
 			account: with(with(readNow(0.97, 0.3, 0), resetSince), failing),
 			key:     "5h",
-			want:    status.WindowState{Kind: status.WindowStale, Used: 0.97, At: read},
+			want:    status.WindowState{Kind: status.WindowNotStarted},
+		},
+		{
+			name: "the session noted lapsed, its probe failed: not started, before the failed read",
+			account: with(readNow(0, 0.3, 0), func(a *status.Account) {
+				failing(a)
+				a.Windows[0] = quota.Window{Key: "5h", Label: "Session"}
+				a.Lapsed = []string{"5h"}
+			}),
+			key:  "5h",
+			want: status.WindowState{Kind: status.WindowNotStarted},
+		},
+		{
+			name:    "the session reset since it was read, its token refused: stale, before not started, and empty",
+			account: with(with(readNow(0.97, 0.3, 0), resetSince), refused),
+			key:     "5h",
+			want:    status.WindowState{Kind: status.WindowStale, At: read},
+		},
+		{
+			name:    "its token refused, the router's limit naming the window: the limit, before the refusal",
+			account: with(with(readNow(0.9, 0.3, 0), refused), limited("5h")),
+			key:     "5h",
+			want:    status.WindowState{Kind: status.WindowLimited, Used: 0.9, At: at(1, 15, 54).UTC()},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{GeneratedAt: stateNow.UTC(), Accounts: []status.Account{tt.account}, Pin: status.Pin{Accounts: tt.pin}}
-			states := doc.WindowStatesOf(tt.account, stateNow, policy)
-			got := states.Of(tt.key)
+			got := doc.WindowStatesOf(tt.account, stateNow, policy).Of(tt.key)
 			if got.Kind != tt.want.Kind || !near(got.Used, tt.want.Used) || !got.At.Equal(tt.want.At) {
 				t.Errorf("the window stands as %+v, want %+v", got, tt.want)
-			}
-			if unstarted, want := states.Unstarted(tt.key), tt.want.Kind == status.WindowNotStarted; unstarted != want {
-				t.Errorf("Unstarted() = %t, want %t, as it stands", unstarted, want)
 			}
 		})
 	}

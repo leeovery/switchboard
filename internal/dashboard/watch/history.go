@@ -143,22 +143,21 @@ func (m Model) readFiled(doc status.Document, now time.Time) (Model, tea.Cmd) {
 	}
 	m.history.asked++
 	m.history.filedSince = true
-	asked, files, policy := m.history.asked, m.cfg.Readings, m.cfg.Policy
+	asked, files := m.history.asked, m.cfg.Readings
 	return m, func() tea.Msg {
-		return filedMsg{asked: asked, got: filedOf(files, doc, now, policy)}
+		return filedMsg{asked: asked, got: filedOf(files, doc, now)}
 	}
 }
 
 // filedOf are the readings the readings history's files hold of doc's
 // windows, by account and window, read as the history verb reads them, from
-// the day the earliest of those the charts draw at now, as drawn has them,
-// started.
-func filedOf(files views.Readings, doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref][]score.Reading {
+// the day the earliest of the spans the charts draw them over at now, as
+// ChartSpan has them, started.
+func filedOf(files views.Readings, doc status.Document, now time.Time) map[dashboard.Ref][]score.Reading {
 	from := now
 	for _, a := range doc.Accounts {
-		states := doc.WindowStatesOf(a, now, policy)
 		for _, w := range a.Windows {
-			if start, _, ok := w.Span(); ok && !states.Unstarted(w.Key) {
+			if start, _, ok := dashboard.ChartSpan(w, now); ok {
 				from = score.Earlier(from, start)
 			}
 		}
@@ -205,11 +204,12 @@ func (h history) answered(msg historyMsg) history {
 	return h
 }
 
-// saw takes in the readings of doc's windows the charts draw at now, as
-// drawn has them: each window's use as read, when its account was read, one
-// reading the same use again carrying the last on to then. A window's
-// readings from before it last started go.
-func (h history) saw(doc status.Document, now time.Time, policy score.Policy) history {
+// saw takes in the readings of doc's windows the charts draw at now, each
+// over its span then, as ChartSpan has it: each window's use as read, when
+// its account was read, one reading the same use again carrying the last on
+// to then; but none read before its span starts, as of one that has reset
+// since. A window's readings from before its span starts go.
+func (h history) saw(doc status.Document, now time.Time) history {
 	seen := maps.Clone(h.seen)
 	if seen == nil {
 		seen = make(map[dashboard.Ref][]score.Reading)
@@ -218,10 +218,9 @@ func (h history) saw(doc status.Document, now time.Time, policy score.Policy) hi
 		if a.FetchedAt.IsZero() {
 			continue
 		}
-		states := doc.WindowStatesOf(a, now, policy)
 		for _, w := range a.Windows {
-			start, _, ok := w.Span()
-			if !ok || states.Unstarted(w.Key) {
+			start, _, ok := dashboard.ChartSpan(w, now)
+			if !ok || a.FetchedAt.Before(start) {
 				continue
 			}
 			ref := dashboard.Ref{Account: a.ID, Window: w.Key}
@@ -250,19 +249,18 @@ func record(readings []score.Reading, r score.Reading) []score.Reading {
 	}
 }
 
-// drawn is the history the charts draw of doc's windows at now, as policy
-// judges them, of each that doesn't stand not started, as Unstarted says, its
-// readings in order: those the router gave, from when it started, or where it
-// gave none, those the readings history's files held; then those the watch
-// has seen after the last of them; or those the watch has seen alone, where
-// neither holds any.
-func (h history) drawn(doc status.Document, now time.Time, policy score.Policy) dashboard.Trails {
+// drawn is the history the charts draw of doc's windows at now, each over its
+// span then, as ChartSpan has it, its readings in order from when that
+// started, so none of one that has reset since it was read: those the router
+// gave, or where it gave none, those the readings history's files held; then
+// those the watch has seen after the last of them; or those the watch has
+// seen alone, where neither holds any.
+func (h history) drawn(doc status.Document, now time.Time) dashboard.Trails {
 	drawn := make(dashboard.Trails)
 	for _, a := range doc.Accounts {
-		states := doc.WindowStatesOf(a, now, policy)
 		for _, w := range a.Windows {
-			start, _, ok := w.Span()
-			if !ok || states.Unstarted(w.Key) {
+			start, _, ok := dashboard.ChartSpan(w, now)
+			if !ok {
 				continue
 			}
 			ref := dashboard.Ref{Account: a.ID, Window: w.Key}
