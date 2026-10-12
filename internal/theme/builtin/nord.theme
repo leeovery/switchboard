@@ -7,7 +7,10 @@
 # invented: text.muted and text.subtle, between its bright greys and its dark
 # ones, and bg.attention, a faint blend of its yellow into the canvas,
 # settled by eye. The bars fill along the dashboard's ramp from before
-# themes: Nord's Aurora green, yellow, orange and red.
+# themes: Nord's Aurora green, yellow, orange and red. History's families,
+# versions and days take the shades its frames are drawn in: Opus in Nord's
+# darkest Frost, an older version a darker blend of its family's hue, and the
+# days stepping up Frost to a pale ice.
 
 # Text, bright to faint.
 text.primary = #ECEFF4
@@ -39,3 +42,25 @@ viz.ramp.1 = #A3BE8C
 viz.ramp.2 = #EBCB8B
 viz.ramp.3 = #D08770
 viz.ramp.4 = #BF616A
+
+# The model families' hues: Opus, Sonnet, Fable and Haiku.
+viz.family.1 = #5E81AC
+viz.family.2 = #88C0D0
+viz.family.3 = #B48EAD
+viz.family.4 = #D8DEE9
+
+# The versions' shades: Opus 5.5 and Opus 5, Sonnet 5.5 and Sonnet 5, Fable
+# 5.1, and Haiku 5.5.
+viz.version.1 = #5E81AC
+viz.version.2 = #45648C
+viz.version.3 = #88C0D0
+viz.version.4 = #6A9FAF
+viz.version.5 = #B48EAD
+viz.version.6 = #D8DEE9
+
+# A day's shades, from a day with nothing on it to the busiest quarter.
+viz.day.0 = #3B4252
+viz.day.1 = #44587A
+viz.day.2 = #5E81AC
+viz.day.3 = #88C0D0
+viz.day.4 = #D8EEF5
