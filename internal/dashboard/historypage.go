@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -216,14 +217,20 @@ func accountsOutOfView(above, below, width int) line {
 
 // oneOutOfView says, as the last of outOfViewForms does, how many accounts
 // are out of view below, where any are, else above, cut to width cells:
-// below first, as what's below is what a line cut short loses, and is said
-// cut short sooner than not at all.
+// below first, as what's below is what a line cut short loses. The count is
+// a figure, drawn whole with its mark, "▼ 12", the words after it cut; where
+// that doesn't fit, the mark alone says some are, as a count cut short would
+// say fewer.
 func oneOutOfView(above, below, width int) line {
-	shortest := outOfViewForms[len(outOfViewForms)-1]
+	mark, n := span{"▲", keyMarkInk}, above
 	if below > 0 {
-		return shortest.said(0, below).fit(width)
+		mark, n = span{"▼", keyMarkInk}, below
 	}
-	return shortest.said(above, 0).fit(width)
+	said := slices.Concat([]part{wordsPart(line{mark, {" ", mutedInk}})}, countedParts(n, "more account", mutedInk))
+	if partsWidth(said[:2]) > width {
+		return line{mark}.fit(width)
+	}
+	return fitParts(width, said...)
 }
 
 // outForm is a form of the line saying what's out of view: its parts gap

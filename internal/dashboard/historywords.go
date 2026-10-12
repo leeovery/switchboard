@@ -3,6 +3,7 @@ package dashboard
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -88,6 +89,26 @@ func worthSaid(w views.Worth, k ink) line {
 		return line{{w.Amount.GroupedDollars(), k}, {"+", faintInk}}
 	}
 	return line{{w.Amount.GroupedDollars(), k}}
+}
+
+// worthPart is a worth as worthSaid writes it, as a part of a line: a
+// figure, but unpriced, which is words.
+func worthPart(w views.Worth, k ink) part {
+	if w.Amount == nil && len(w.Unpriced) > 0 {
+		return wordsPart(worthSaid(w, k))
+	}
+	return figurePart(worthSaid(w, k), Number{})
+}
+
+// countedParts count n of the thing a noun names, as prose.Counted does, in
+// the ink given: the count a figure, as "1,240", and the words after it, as
+// " requests".
+func countedParts(n int, noun string, k ink) []part {
+	count := prose.Grouped(n)
+	return []part{
+		figurePart(line{{count, k}}, Number{}),
+		wordsPart(line{{strings.TrimPrefix(prose.Counted(n, noun), count), k}}),
+	}
 }
 
 // againstSaid is a worth against its price, as "3.8×", bold, in

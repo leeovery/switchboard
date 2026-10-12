@@ -405,15 +405,15 @@ func (y yearDrawn) figures() []yearFigure {
 			figures[i].value = line{noFigure}
 		}
 		if figure.changes {
-			figures[i].value = y.numbered(figure.label, figures[i].value)
+			figures[i].value = figures[i].value.numbered(y.number(figure.label))
 		}
 	}
 	return figures
 }
 
-// numbered is the figure l says, named of, numbered as the Year's.
-func (y yearDrawn) numbered(of string, l line) line {
-	return l.numbered(Number{Kind: NumberYear, Account: y.ask.Account, Of: strings.TrimSpace(y.ask.Version + " " + of)})
+// number is the Year's number of the figure named of.
+func (y yearDrawn) number(of string) Number {
+	return Number{Kind: NumberYear, Account: y.ask.Account, Of: strings.TrimSpace(y.ask.Version + " " + of)}
 }
 
 // limitsSaid says the limits hit, by window, in state.destructive, those of
@@ -623,11 +623,10 @@ func (y yearDrawn) byMonthSays() string {
 }
 
 // month draws a month's row along row: its name, bold for the month so far;
-// its columns, those a look can change numbered in the month so far, each
-// drawn whole a cell short of the next, or of the bars, or where it doesn't
-// fit, as an ellipsis, as figureFit has it; its bar, against the largest
-// month's worth; and, wide, two cells after it, so far, or from the day the
-// ledger began, or the version was first used.
+// its columns, those a look can change numbered in the month so far, each a
+// figure fitParts fits a cell short of the next, or of the bars; its bar,
+// against the largest month's worth; and, wide, two cells after it, so far,
+// or from the day the ledger began, or the version was first used.
 func (y yearDrawn) month(c *canvas, row int, m views.MonthRow, withYear bool, columns []monthColumn, f byMonthForm, largest ledger.Picodollars) {
 	name := secondaryInk
 	if m.SoFar {
@@ -635,15 +634,15 @@ func (y yearDrawn) month(c *canvas, row int, m views.MonthRow, withYear bool, co
 	}
 	c.text(f.nameX, row, monthName(m.Month.Month, withYear), name)
 	for i, col := range columns {
-		said := col.of(m)
+		var n Number
 		if m.SoFar && col.changes {
-			said = y.numbered(m.Month.Month+" "+col.head, said)
+			n = y.number(m.Month.Month + " " + col.head)
 		}
 		next := f.barX
 		if i+1 < len(columns) {
 			next = columns[i+1].x
 		}
-		c.line(col.x, row, said.figureFit(next-col.x-1))
+		c.line(col.x, row, fitParts(next-col.x-1, figurePart(col.of(m), n)))
 	}
 	end := c.line(f.barX, row, y.monthBar(m, largest, f.barCells))
 	if note := monthNote(m); note != "" && !f.phone {

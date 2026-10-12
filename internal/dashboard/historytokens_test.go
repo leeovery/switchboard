@@ -328,8 +328,9 @@ func TestTokensInks(t *testing.T) {
 }
 
 // Every figure of the period still running brightens as a look changes it,
-// each as the number it is, the period's own and each row it's split into;
-// a period over has none.
+// each as the number it is, the period's own and each row it's split into,
+// its figures alone, never its words: a count's noun, against its price's
+// words, or the accounts a version ran on; a period over has none.
 func TestTokensPeriodSoFarBrightensItsFigures(t *testing.T) {
 	split := func(account, of string) Number { return Number{Kind: NumberTokensSplit, Account: account, Of: of} }
 	tests := []struct {
@@ -340,18 +341,18 @@ func TestTokensPeriodSoFarBrightensItsFigures(t *testing.T) {
 		{
 			name: "the period's own", split: TokensUnsplit,
 			want: map[Number]string{
-				{Kind: NumberTokens, Of: "models"}: "2 models", {Kind: NumberTokens, Of: "input"}: "4.2M", {Kind: NumberTokens, Of: "output"}: "2.9M",
+				{Kind: NumberTokens, Of: "models"}: "2", {Kind: NumberTokens, Of: "input"}: "4.2M", {Kind: NumberTokens, Of: "output"}: "2.9M",
 				{Kind: NumberTokens, Of: "cache write"}: "38.0M", {Kind: NumberTokens, Of: "cache read"}: "615M", {Kind: NumberTokens, Of: "total"}: "660M",
-				{Kind: NumberTokens, Of: "worth"}: "$635+", {Kind: NumberTokens, Of: "against"}: "4.6× its $138 week",
+				{Kind: NumberTokens, Of: "worth"}: "$635+", {Kind: NumberTokens, Of: "against"}: "4.6×$138",
 			},
 		},
 		{
 			name: "an account's", split: TokensByAccount,
-			want: map[Number]string{split("side", "models"): "1 model", split("side", "total"): "211M", split("side", "worth"): "$239+"},
+			want: map[Number]string{split("side", "models"): "1", split("side", "total"): "211M", split("side", "worth"): "$239+"},
 		},
 		{
 			name: "a version's, and the accounts it ran on", split: TokensByModel,
-			want: map[Number]string{split("", "claude-opus-5-5 on"): "side work", split("", "claude-opus-5-5 input"): "2.4M", split("", "claude-opus-5-5 worth"): "$389+"},
+			want: map[Number]string{split("", "claude-opus-5-5 on"): "", split("", "claude-opus-5-5 input"): "2.4M", split("", "claude-opus-5-5 worth"): "$389+"},
 		},
 		{
 			name: "an account's version's", split: TokensByAccountAndModel,
@@ -466,30 +467,47 @@ func TestTokenCounts(t *testing.T) {
 
 // A row's worth, and in against its price the ratio and the price, are drawn
 // whole or as an ellipsis, never cut part-way, as $12,3… would read as a
-// smaller sum, while against its price's words may cut: a phone's worth,
-// at the frame's width; and against its price at the narrowest the wide form
-// is drawn, and a cell wider. An ellipsis is no number.
+// smaller sum, while words may cut, unpriced among them: a phone's worth, at
+// the frame's width; wide, a worth a cell short of against its price, and
+// against its price at the narrowest the wide form is drawn, its price
+// filling it, and a cell wider. Only a figure drawn whole is numbered, never
+// an ellipsis or the words.
 func TestTokensFiguresAreDrawnWholeOrAsAnEllipsis(t *testing.T) {
+	unpriced := views.Worth{Unpriced: []string{"claude-opus-9"}}
 	tests := []struct {
-		name  string
-		width int
-		want  string
-		worth string
+		name           string
+		width          int
+		worth          views.Worth
+		want           string
+		numbered       string
+		againstNumbers string
 	}{
-		{name: "a phone's worth", width: 38, want: "28 Sep                    660M  …"},
-		{name: "a phone's worth, fitting", width: 39, want: "28 Sep                    660M  $12,345", worth: "$12,345"},
-		{name: "against its price, its price cut", width: 123, want: "660M  $12,345   14.6× its …", worth: "$12,345"},
-		{name: "against its price, its words cut", width: 124, want: "660M  $12,345   14.6× its $12,345…", worth: "$12,345"},
+		{name: "a phone's worth", width: 38, worth: worthIn(12345), want: "28 Sep                    660M  …"},
+		{name: "a phone's worth, fitting", width: 39, worth: worthIn(12345), want: "28 Sep                    660M  $12,345", numbered: "$12,345"},
+		{name: "a phone's worth, unpriced", width: 38, worth: unpriced, want: "28 Sep                    660M  unpri…"},
+		{name: "a worth short of against its price", width: 160, worth: worthIn(1234567), want: "660M  …         14.6× its $12,345 week", againstNumbers: "14.6×$12,345"},
+		{
+			name: "against its price, its price filling it", width: 123, worth: worthIn(12345),
+			want: "660M  $12,345   14.6× its $12,345", numbered: "$12,345", againstNumbers: "14.6×$12,345",
+		},
+		{
+			name: "against its price, its words cut", width: 124, worth: worthIn(12345),
+			want: "660M  $12,345   14.6× its $12,345…", numbered: "$12,345", againstNumbers: "14.6×$12,345",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := tokensFrame(tt.width, 37, TokensUnsplit)
-			f.History.Tokens.Periods[0].Worth, f.History.Tokens.Periods[0].Against = worthIn(12345), againstAt(14.6, 12345)
+			f.History.Tokens.Periods[0].Worth, f.History.Tokens.Periods[0].Against = tt.worth, againstAt(14.6, 12345)
 			if got := tokensRowsOf(f)[2]; !strings.HasSuffix(got, tt.want) {
 				t.Errorf("the period reads %q, want it to end %q", got, tt.want)
 			}
-			if got := f.Numbers(threeRouted(), now)[Number{Kind: NumberTokens, Of: "worth"}]; got != tt.worth {
-				t.Errorf("its worth is numbered %q, want %q", got, tt.worth)
+			numbers := f.Numbers(threeRouted(), now)
+			if got := numbers[Number{Kind: NumberTokens, Of: "worth"}]; got != tt.numbered {
+				t.Errorf("its worth is numbered %q, want %q", got, tt.numbered)
+			}
+			if got := numbers[Number{Kind: NumberTokens, Of: "against"}]; got != tt.againstNumbers {
+				t.Errorf("against its price is numbered %q, want %q", got, tt.againstNumbers)
 			}
 		})
 	}
@@ -500,15 +518,19 @@ func TestTokensFiguresAreDrawnWholeOrAsAnEllipsis(t *testing.T) {
 // price its figures; a faint dash where no plan is known.
 func TestAgainstItsPriceAsTokensWritesIt(t *testing.T) {
 	said := func(ratio span, price, unit string) []part {
-		return []part{{line{ratio}, true}, {line{{" its ", dimInk}}, false}, {line{{price, dimInk}}, true}, {line{{" " + unit, dimInk}}, false}}
+		return []part{
+			figurePart(line{ratio}, Number{}), wordsPart(line{{" its ", dimInk}}),
+			figurePart(line{{price, dimInk}}, Number{}), wordsPart(line{{" " + unit, dimInk}}),
+		}
 	}
+	dash := []part{figurePart(line{noFigure}, Number{})}
 	tests := []struct {
 		name string
 		got  []part
 		want []part
 	}{
-		{name: "no plan known", got: againstItsPrice(views.Against{}, "week"), want: []part{{line{noFigure}, true}}},
-		{name: "plans that cost nothing", got: againstItsPrice(views.Against{Cost: new(ledger.Picodollars)}, "month"), want: []part{{line{noFigure}, true}}},
+		{name: "no plan known", got: againstItsPrice(views.Against{}, "week"), want: dash},
+		{name: "plans that cost nothing", got: againstItsPrice(views.Against{Cost: new(ledger.Picodollars)}, "month"), want: dash},
 		{name: "a week's", got: againstItsPrice(againstAt(4.6, 138), "week"), want: said(span{"4.6×", boldPositiveInk}, "$138", "week")},
 		{name: "a month's, short of it", got: againstItsPrice(againstAt(0.94, 600), "month"), want: said(span{"0.9×", alertInk}, "$600", "month")},
 		{name: "a month's of a thousand or more", got: againstItsPrice(againstAt(1.2, 1800), "month"), want: said(span{"1.2×", boldPositiveInk}, "$1,800", "month")},

@@ -244,7 +244,8 @@ func TestMoreBelowSaysWhatsOutOfViewAndHowToScrollToIt(t *testing.T) {
 // · between them faint, and j/k bold accent.key; spaced as USAGE's scroll
 // line is; without how to scroll; and as USAGE's rows say it; and where
 // none fits, as the last, one count: below where any are, cut short where it
-// doesn't fit rather than above, else above.
+// doesn't fit rather than above, else above; its count a figure, drawn whole
+// with its mark, its words cut, and where that doesn't fit, the mark alone.
 func TestWhatsOutOfViewOfTheAccountsIsSaidInTheLongestFormThatFits(t *testing.T) {
 	key, words, apart, keys := ink{token: theme.AccentKey}, ink{token: theme.TextMuted}, ink{token: theme.TextFaint}, ink{token: theme.AccentKey, bold: true}
 	tests := []struct {
@@ -274,11 +275,15 @@ func TestWhatsOutOfViewOfTheAccountsIsSaidInTheLongestFormThatFits(t *testing.T)
 		{above: 2, below: 12, width: 17, want: line{{"▼", key}, {" 12 more accoun…", words}}},
 		{above: 2, below: 4, width: 12, want: line{{"▼", key}, {" 4 more ac…", words}}},
 		{above: 2, width: 12, want: line{{"▲", key}, {" 2 more ac…", words}}},
+		{above: 2, below: 12, width: 5, want: line{{"▼", key}, {" 12…", words}}},
+		{above: 2, below: 12, width: 4, want: line{{"▼", key}, {" 12", words}}},
+		{above: 2, below: 12, width: 3, want: line{{"▼", key}}},
+		{above: 2, below: 12, width: 0},
 	}
 	for _, tt := range tests {
 		got := accountsOutOfView(tt.above, tt.below, tt.width)
-		if !slices.Equal(got, tt.want) || got.width() > tt.width {
-			t.Errorf("%d above and %d below, in %d cells, the line reads %+v, want %+v", tt.above, tt.below, tt.width, got, tt.want)
+		if !slices.Equal(got.inked(), tt.want) || got.width() > tt.width {
+			t.Errorf("%d above and %d below, in %d cells, the line reads %q, %+v, want %q, %+v", tt.above, tt.below, tt.width, got.plain(), got, tt.want.plain(), tt.want)
 		}
 	}
 }
