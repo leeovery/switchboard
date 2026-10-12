@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -187,16 +188,16 @@ func TestUSAGEScrollsItsAccountsWithinItsRowsItsHeadingsPoolAndKeyLineHeld(t *te
 		want   map[int]string
 	}{
 		{
-			name: "at the top, ▼ under the last row shown", scroll: 0,
-			want: map[int]string{2: " 1 a1 ▲", 4: " 2 a2", 6: " 3 a3", 8: " 4 a4", 9: "▼ 6 more accounts", 10: "────", 11: " Σ pool", 13: key},
+			name: "at the top, ▼ under the last row shown, the row spare under it", scroll: 0,
+			want: map[int]string{2: " 1 a1 ▲", 4: " 2 a2", 6: " 3 a3", 8: " 4 a4", 9: "▼ 6 more accounts", 11: "────", 12: " Σ pool", 14: key},
 		},
 		{
 			name: "part way, ▲ over the first row shown", scroll: 3,
 			want: map[int]string{2: "▲ 3 more accounts", 3: " 4 a4", 5: " 5 a5", 7: " 6 a6", 9: " 7 a7", 10: "▼ 3 more accounts", 11: "────", 12: " Σ pool", 14: key},
 		},
 		{
-			name: "past the end, no further than shows the last", scroll: 99,
-			want: map[int]string{2: "▲ 6 more accounts", 3: " 7 a7", 5: " 8 a8", 7: " 9 a9", 9: "10 a10", 10: "────", 11: " Σ pool", 13: key},
+			name: "past the end, no further than shows the last, the row spare under it", scroll: 99,
+			want: map[int]string{2: "▲ 6 more accounts", 3: " 7 a7", 5: " 8 a8", 7: " 9 a9", 9: "10 a10", 11: "────", 12: " Σ pool", 14: key},
 		},
 	}
 	for _, tt := range tests {
@@ -212,6 +213,92 @@ func TestUSAGEScrollsItsAccountsWithinItsRowsItsHeadingsPoolAndKeyLineHeld(t *te
 					if k := c.at(0, y).ink; k != dimInk {
 						t.Errorf("row %d's scroll line is drawn in %+v, want text.subtle", y, k)
 					}
+				}
+			}
+		})
+	}
+}
+
+// accountsRow matches what may take a row among USAGE's accounts as it
+// scrolls: an account's, ▲ or ▼ and how many more, or a blank row.
+var accountsRow = regexp.MustCompile(`^(\s?\d+ a\d+\s.*|[▲▼] \d+ more accounts?|)$`)
+
+func TestUSAGEHoldsItsPoolAndKeyLineAtTheFootOfItsRowsHoweverFarItsScrolled(t *testing.T) {
+	doc := manyRead(10)
+	f := frameOf(160, 30)
+	most := f.Scrolling(doc, now).Most
+	if most < 2 {
+		t.Fatalf("ten accounts at 160×30 scroll %d accounts at most, want USAGE to scroll past its top and short of its end", most)
+	}
+	keyRow := func(rows []string) int {
+		return slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "┃ even pace") })
+	}
+	f.Scroll = 0
+	top := textOf(f.Draw(doc, now))
+	headings := slices.IndexFunc(top, func(r string) bool { return strings.Contains(r, "5-HOUR") })
+	rule := slices.IndexFunc(top, func(r string) bool { return strings.HasPrefix(r, "────") })
+	if headings < 0 || rule < headings {
+		t.Fatalf("at the top, USAGE reads\n%s\nwant its windows' headings over its accounts, then the pool's rule", strings.Join(top, "\n"))
+	}
+	for _, scroll := range []int{1, most} {
+		f.Scroll = scroll
+		rows := textOf(f.Draw(doc, now))
+		if got, want := keyRow(rows), keyRow(top); got != want {
+			t.Errorf("scrolled %d down, USAGE's key line is on row %d, want row %d, where it is at the top:\n%s", scroll, got, want, strings.Join(rows, "\n"))
+		}
+		for y, row := range rows {
+			switch among := y > headings+1 && y < rule; {
+			case among && !accountsRow.MatchString(row):
+				t.Errorf("scrolled %d down, row %d, among the accounts, reads %q, want an account's, ▲ or ▼, or blank", scroll, y, row)
+			case !among && row != top[y]:
+				t.Errorf("scrolled %d down, row %d reads %q, want %q, as at the top: only the accounts move", scroll, y, row, top[y])
+			}
+		}
+	}
+}
+
+func TestUSAGEEndsAtItsLastPoolAndKeyLineInEveryLayoutHoweverFarItsScrolled(t *testing.T) {
+	doc := manyRead(10)
+	tests := []struct {
+		name  string
+		width int
+		by    By
+		rows  int
+	}{
+		{name: "the matrix", width: 160, rows: 16},
+		{name: "stacked, under 150 columns, the key line on two rows", width: 120, rows: 26},
+		{name: "by account", width: 160, by: ByAccount, rows: 22},
+	}
+	last := func(rows []string, text string) int {
+		for y, row := range slices.Backward(rows) {
+			if strings.Contains(row, text) {
+				return y
+			}
+		}
+		return -1
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(tt.width, 60)
+			f.By = tt.by
+			most := f.usageSection(doc, now).scrolling(tt.rows, 0).Most
+			if most < 2 {
+				t.Fatalf("in %d rows, USAGE scrolls %d accounts at most, want it to scroll past its top and short of its end", tt.rows, most)
+			}
+			var pool, key int
+			for _, scroll := range []int{0, 1, most} {
+				f.Scroll = scroll
+				rows, _ := usageBody(f, doc, now, tt.rows)
+				if rows[len(rows)-1] == "" {
+					t.Errorf("scrolled %d down, USAGE reads\n%s\nwant its key line on its last row", scroll, strings.Join(rows, "\n"))
+				}
+				p, k := last(rows, "Σ pool"), last(rows, "┃ even pace")
+				if scroll == 0 {
+					pool, key = p, k
+				}
+				if p != pool || k != key {
+					t.Errorf("scrolled %d down, the last pool and the key line are on rows %d and %d, want %d and %d, as at the top:\n%s",
+						scroll, p, k, pool, key, strings.Join(rows, "\n"))
 				}
 			}
 		})

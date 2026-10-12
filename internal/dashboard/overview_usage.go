@@ -221,14 +221,17 @@ func (b usageBlock) scrolling(rows, offset int) Scrolling {
 }
 
 // scrolled is the block in rows rows, scrolled offset accounts' rows down, no
-// further than scrolling says it goes, showing as many as fit, at least one.
+// further than scrolling says it goes, showing as many as fit, at least one,
+// the rows they leave spare under them, so its pool and its key line keep
+// their rows at the foot however far it's scrolled.
 func (b usageBlock) scrolled(rows, offset int) usageBlock {
 	s := b.scrolling(rows, offset)
 	if s.Most == 0 {
 		return b
 	}
-	first := min(max(offset, 0), s.Most)
-	return b.shows(first, s.Page)
+	shown := b.shows(min(max(offset, 0), s.Most), s.Page)
+	shown.spare = max(rows-shown.height(), 0)
+	return shown
 }
 
 // shownFrom is how many accounts' rows show in rows rows, from the one at

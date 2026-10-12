@@ -75,14 +75,17 @@ type usageBlock struct {
 	// values: big stacks its windows from 150 columns, as its big bars;
 	// accountBar is its bars' cells by account, where it sets them; focus is
 	// the account whose number and name the matrix picks out; marks are the
-	// marks the key line names after the cap's; and above and below are how
+	// marks the key line names after the cap's; above and below are how
 	// many accounts' rows are scrolled out of view above those shown, and
-	// below.
+	// below; and spare are the rows those shown leave blank under them, over
+	// the pool's, so the pool and the key line keep their rows however far
+	// the block's scrolled.
 	big          bool
 	accountBar   int
 	focus        string
 	marks        []line
 	above, below int
+	spare        int
 }
 
 // shownWindow is a window the block shows: its key, and its name, as in
@@ -417,7 +420,8 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 
 // stacked draws the block's windows one under another, each a section, its
 // heading, then a row an account, the pool last, from row y, two blank lines
-// between sections.
+// between sections. The block's spare rows go in its last section, over the
+// pool it ends with.
 func (b usageBlock) stacked(c *canvas, y int) laid {
 	bar := b.bar()
 	all := laid{end: y}
@@ -426,7 +430,11 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 			y += 2
 		}
 		c.line(0, y, line{{strings.ToUpper(w.name), dimInk}})
-		section := b.each(c, 1, y+2, 2, func(r usageRow, y int) int {
+		in := b
+		if i < len(b.windows)-1 {
+			in.spare = 0
+		}
+		section := in.each(c, 1, y+2, 2, func(r usageRow, y int) int {
 			c.line(1, y, r.name)
 			b.gauge(c, r.gauges[i], b.names, y, bar, b.width)
 			return y
@@ -441,8 +449,8 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 // given, returning its last, a row's first apart rows on from the last of
 // the row before. Where accounts' rows are scrolled out of view, ▲ and how
 // many are above comes over the first row shown, and ▼ and how many below
-// under the last, from column x. The pool's row comes last, its rule in the
-// row above it.
+// under the last, from column x, then the block's spare rows. The pool's row
+// comes last, its rule in the row above it.
 func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int) int) laid {
 	accounts, pool := b.split()
 	var l laid
@@ -461,6 +469,7 @@ func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int
 		c.line(x, last, outOfSight("▼", b.below))
 		next = last + apart
 	}
+	last, next = last+b.spare, next+b.spare
 	if pool != nil {
 		c.line(0, next-1, line{{rule(b.width), borderInk}})
 		last = draw(*pool, next)
