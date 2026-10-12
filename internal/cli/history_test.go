@@ -21,18 +21,28 @@ import (
 // limit in the week of the 14th.
 func weeksDeps(t *testing.T) cli.Deps {
 	t.Helper()
-	deps, _ := ledgerDeps(t)
-	peaks := []struct {
-		day        int
-		month      time.Month
-		work, side float64
-	}{
+	return mondaysDeps(t, []mondayPeaks{
 		{day: 14, month: time.September, work: 0.7, side: 0.4},
 		{day: 21, month: time.September, work: 1, side: 0.2},
 		{day: 28, month: time.September, work: 0.6, side: 0.3},
 		{day: 5, month: time.October, work: 0.5, side: 0.1},
-	}
-	for _, p := range peaks {
+	})
+}
+
+// mondayPeaks are work's and side's peaks of the weeks ending as their weeks
+// reset at 00:30 on a Monday, by its day of the month.
+type mondayPeaks struct {
+	day        int
+	month      time.Month
+	work, side float64
+}
+
+// mondaysDeps are ledgerDeps whose ledger also holds the summaries of the
+// Mondays given, of no requests, on which work's and side's weeks reset.
+func mondaysDeps(t *testing.T, mondays []mondayPeaks) cli.Deps {
+	t.Helper()
+	deps, _ := ledgerDeps(t)
+	for _, p := range mondays {
 		at := time.Date(2026, p.month, p.day, 0, 30, 0, 0, time.Local)
 		date := at.Format(time.DateOnly)
 		reset := func(id string, before float64) ledger.AccountDay {
@@ -74,6 +84,31 @@ Weeks: two is one more than you need
 	got := run(t, deps, "history", "--pretty", "--since", "2026-09-14")
 	if !strings.HasSuffix(got.stdout, want) || got.code != 0 {
 		t.Errorf("switchboard history --since 2026-09-14 printed\n%s(%d, %s)\nwant it to end\n%s", got.stdout, got.code, got.stderr, want)
+	}
+}
+
+func TestHistorySaysTooFewWhereOneMoreWouldStillLeaveWeeksShort(t *testing.T) {
+	// Work's week peaked at twice its room each week from the 7th: with one
+	// more account every peak falls by a third, still over its room.
+	deps := mondaysDeps(t, []mondayPeaks{
+		{day: 7, month: time.September, work: 0.5, side: 0.1},
+		{day: 14, month: time.September, work: 2, side: 0.1},
+		{day: 21, month: time.September, work: 2, side: 0.1},
+		{day: 28, month: time.September, work: 2, side: 0.1},
+		{day: 5, month: time.October, work: 2, side: 0.1},
+	})
+
+	text := run(t, deps, "history", "--pretty", "--since", "2026-09-07")
+	want := "\nWeeks: two is too few\n  as now: short on 4 of 4 weeks  ·  with one fewer: short on 4  ·  with one more: short on 4\n"
+	if !strings.Contains(text.stdout, want) || text.code != 0 {
+		t.Errorf("switchboard history --since 2026-09-07 printed\n%s(%d, %s)\nwant it to say\n%s", text.stdout, text.code, text.stderr, want)
+	}
+	got := run(t, deps, "history", "--json", "--since", "2026-09-07")
+	var doc struct {
+		Capacity views.Capacity `json:"capacity"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 || doc.Capacity.Verdict != "too few" {
+		t.Errorf("switchboard history --json gives the verdict %q (%v, %d), want too few", doc.Capacity.Verdict, err, got.code)
 	}
 }
 
