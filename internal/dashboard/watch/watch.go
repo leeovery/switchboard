@@ -189,7 +189,8 @@ type Model struct {
 	// ordering is set while the router carries out an order the routing
 	// card gave.
 	ordering bool
-	// note says what the last key did, till noteUntil.
+	// note says what the last key did, till noteUntil: zero while it's held
+	// for a card covering the page, as noting holds it.
 	note      string
 	noteUntil time.Time
 
@@ -494,10 +495,11 @@ func (m Model) cover(card opened) Model {
 	return m
 }
 
-// uncover closes the card open over the page, which is live again.
-func (m Model) uncover() Model {
+// uncover closes the card open over the page, which is live again, and
+// starts the time of a note held while it was covered, as seen has it.
+func (m Model) uncover() (Model, tea.Cmd) {
 	m.open, m.page = nothingOpen, frozen{}
-	return m
+	return m.seen()
 }
 
 // frame is the dashboard's frame as the model stands at now, but for its key

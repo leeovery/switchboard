@@ -319,26 +319,37 @@ func TestProbingAsAskedThereIsNoP(t *testing.T) {
 	}
 }
 
+// atItsLimit is a, a limit holding back its every request till an hour after
+// the clock starts.
+func atItsLimit(a status.Account) status.Account {
+	a.Limit = status.Limit{Windows: []string{"5h"}, Until: start.Add(time.Hour).UTC()}
+	return a
+}
+
 func TestAnAccountThatCantBePickedPinnedOpensPicked(t *testing.T) {
-	doc := pinnedTo(routerDocument(three()[0], tokenless("personal", "Personal"), three()[2]), "personal", "side")
+	doc := pinnedTo(routerDocument(atItsLimit(three()[0]), three()[1], three()[2]), "work", "side")
 	tests := []struct {
 		name       string
 		keys       string
 		wantPicked []string
 		wantOrders []string
 	}{
-		{name: "its number and space taking nothing", keys: "2 space", wantPicked: []string{"personal", "side"}},
-		{name: "sent with the rest", keys: "3 enter", wantOrders: []string{"pin personal"}},
+		{name: "its number clearing it", keys: "1 enter", wantOrders: []string{"pin side"}},
+		{name: "space clearing it", keys: "space enter", wantOrders: []string{"pin side"}},
+		{name: "cleared, its number picking it no more", keys: "1 1", wantPicked: []string{"side"}},
+		{name: "cleared, space picking it no more", keys: "space space", wantPicked: []string{"side"}},
+		{name: "sent with the rest", keys: "2 enter", wantOrders: []string{"pin work,personal,side"}},
+		{name: "kept as another is cleared", keys: "3 enter", wantOrders: []string{"pin work"}},
 		{name: "cleared by auto", keys: "0", wantPicked: nil},
-		{name: "kept as another is picked", keys: "1 enter", wantOrders: []string{"pin work,personal,side"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := routedHarness(t, doc)
 			h.start()
 			h.keyed("p")
-			if got := h.card(); !slices.Equal(got.Picked, []string{"personal", "side"}) || got.Cursor != 2 {
-				t.Fatalf("the card opens picking %q, on row %d; want personal and side, on personal's", got.Picked, got.Cursor)
+			if got := h.card(); !slices.Equal(got.Picked, []string{"work", "side"}) || got.Cursor != 1 || got.Rows[1].Pickable {
+				t.Fatalf("the card opens picking %q, on row %d, work pickable %v; want work and side, on work's, which can't be picked",
+					got.Picked, got.Cursor, got.Rows[1].Pickable)
 			}
 
 			h.keyed(tt.keys)
@@ -350,6 +361,105 @@ func TestAnAccountThatCantBePickedPinnedOpensPicked(t *testing.T) {
 			}
 			if got := h.card().Picked; !slices.Equal(got, tt.wantPicked) {
 				t.Errorf("after %q, the card picks %q, want %q", tt.keys, got, tt.wantPicked)
+			}
+		})
+	}
+}
+
+func TestAPinNamingAnAccountWithoutATokenIsSentWithoutIt(t *testing.T) {
+	doc := routerDocument(three()[0], tokenless("personal", "Personal"), three()[2])
+	tests := []struct {
+		name       string
+		pin        []string
+		keys       string
+		wantPicked []string
+		wantOrders []string
+	}{
+		{name: "it opens with the rest picked alone", pin: []string{"personal", "side"}, wantPicked: []string{"side"}},
+		{name: "its number picking it no more", pin: []string{"personal", "side"}, keys: "2", wantPicked: []string{"side"}},
+		{name: "another picked", pin: []string{"personal", "side"}, keys: "1 enter", wantOrders: []string{"pin work,side"}},
+		{name: "m ticked", pin: []string{"personal", "side"}, keys: "m enter", wantOrders: []string{"move side"}},
+		{name: "nothing changed, which drops it from the pin", pin: []string{"personal", "side"}, keys: "enter", wantOrders: []string{"pin side"}},
+		{name: "alone, which opens on auto, and clears the pin", pin: []string{"personal"}, keys: "enter", wantOrders: []string{"unpin"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, pinnedTo(doc, tt.pin...))
+			h.start()
+			h.keyed("p " + tt.keys)
+			if len(tt.wantOrders) > 0 {
+				if !slices.Equal(h.source.orders, tt.wantOrders) {
+					t.Errorf("orders = %q, want %q", h.source.orders, tt.wantOrders)
+				}
+				return
+			}
+			if got := h.card().Picked; !slices.Equal(got, tt.wantPicked) {
+				t.Errorf("after %q, the card picks %q, want %q", tt.keys, got, tt.wantPicked)
+			}
+		})
+	}
+}
+
+func TestACardOpenedBeforeAnOrderLandsFollowsThePinItSets(t *testing.T) {
+	tests := []struct {
+		name string
+		keys string
+		want []string
+	}{
+		{name: "nothing changed", keys: "enter", want: []string{"pin personal"}},
+		{name: "auto picked", keys: "0 enter", want: []string{"pin personal", "unpin"}},
+		{name: "another account picked", keys: "3 enter", want: []string{"pin personal", "pin personal,side"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(three()...))
+			h.start()
+			h.keyed("p 2")
+			answer := h.update(namedKeys["enter"])
+			h.keyed("esc p")
+			h.deliver(answer...)
+			if got := h.card().Picked; h.model.open != routingOpen || !slices.Equal(got, []string{"personal"}) {
+				t.Fatalf("once the order landed, the card is open %v, picking %q; want it open, picking personal, as the pin now stands",
+					h.model.open == routingOpen, got)
+			}
+
+			h.keyed(tt.keys)
+			if !slices.Equal(h.source.orders, tt.want) {
+				t.Errorf("orders = %q, want %q", h.source.orders, tt.want)
+			}
+		})
+	}
+}
+
+func TestTheCardFollowsAPinSetFromTheCommandLineTillAKeyPicks(t *testing.T) {
+	tests := []struct {
+		name       string
+		keys       string
+		wantPicked []string
+		// wantOrders are the orders enter sends then, against the pin as it
+		// stands.
+		wantOrders []string
+	}{
+		{name: "untouched", wantPicked: []string{"side"}},
+		{name: "the cursor moved and m ticked, which pick nothing", keys: "down m", wantPicked: []string{"side"}, wantOrders: []string{"move side"}},
+		{name: "an account picked", keys: "2", wantPicked: []string{"personal"}, wantOrders: []string{"pin personal"}},
+		{name: "the pin's account picked", keys: "3", wantPicked: []string{"side"}},
+		{name: "an account picked and cleared again", keys: "2 2", wantOrders: []string{"unpin"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(three()...))
+			h.start()
+			h.keyed("p " + tt.keys)
+			h.source.router.Pin = status.Pin{Accounts: []string{"side"}, Since: start.UTC()}
+			h.tickUntilAsked()
+
+			if got := h.card().Picked; !slices.Equal(got, tt.wantPicked) {
+				t.Errorf("once a look found side pinned, the card picks %q, want %q", got, tt.wantPicked)
+			}
+			h.keyed("enter")
+			if !slices.Equal(h.source.orders, tt.wantOrders) {
+				t.Errorf("orders = %q, want %q", h.source.orders, tt.wantOrders)
 			}
 		})
 	}
@@ -537,8 +647,57 @@ func TestTheCardPricesTheMovesOnceMIsTicked(t *testing.T) {
 	}
 
 	h.tickUntilAsked()
+	if l.reads != 1 {
+		t.Errorf("once a look found the sessions as they were, the ledger was read %d times, want once still", l.reads)
+	}
+	h.source.sessions[1] = sessionOn(id9E21, "claude-sonnet-5-5", "client", 0)
+	h.tickUntilAsked()
 	if l.reads != 2 {
-		t.Errorf("once a look read the document again, the ledger was read %d times, want twice", l.reads)
+		t.Errorf("once a look found 9e21 seen again, the ledger was read %d times, want twice", l.reads)
+	}
+}
+
+func TestTheCardListsTheSessionsToPriceOnceAtATime(t *testing.T) {
+	tests := []struct {
+		name string
+		// meanwhile is what happens while the listing runs.
+		meanwhile func(h *harness)
+		// wantReads is how many times the ledger has been read once the
+		// listing lands, and anything it calls for after.
+		wantReads int
+	}{
+		{
+			name: "a look finding the sessions changed, which are listed again once it lands",
+			meanwhile: func(h *harness) {
+				h.source.sessions[1] = sessionOn(id9E21, "claude-sonnet-5-5", "client", 0)
+				h.tickUntilAsked()
+			},
+			wantReads: 2,
+		},
+		{name: "the card opened again, which takes the listing", meanwhile: func(h *harness) { h.keyed("esc p 2 m") }, wantReads: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, l := pricedHarness(t)
+			h.keyed("p 2")
+			listing := h.update(tea.KeyPressMsg{Code: 'm', Text: "m"})
+			tt.meanwhile(h)
+			if l.reads != 1 {
+				t.Fatalf("while a listing ran, the ledger was read %d times, want once: none starts while one runs", l.reads)
+			}
+
+			var after []tea.Msg
+			for _, msg := range listing {
+				after = append(after, h.update(msg)...)
+			}
+			if got := h.card(); got.Cost == nil || got.Cost.Cents() != "$0.81" {
+				t.Errorf("once the listing landed, the card prices its moves at %v, want $0.81, as it listed them", got.Cost)
+			}
+			h.deliver(after...)
+			if l.reads != tt.wantReads {
+				t.Errorf("once it landed, the ledger was read %d times, want %d", l.reads, tt.wantReads)
+			}
+		})
 	}
 }
 
