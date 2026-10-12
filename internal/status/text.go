@@ -132,22 +132,27 @@ func (d Document) Reserved(a Account, now time.Time) string {
 	}
 }
 
-// Pressed says the account is under pressure, and when, at the rate the
-// router saw its pressure window used, it runs out for the router, in now's
-// time zone: "under pressure: runs out ~18:21", or, with its reserve holding
-// it back there, "under pressure: at its reserve ~18:21". It's "" while it
-// isn't under pressure at now, as underPressure judges it. The router says
-// an account is under pressure only where it can take a request of some
-// model: of one that can take none, pressure isn't what passes it over.
+// Pressed says the account is under pressure, and when its pressure window
+// runs out, as pressureOut has it, in now's time zone: "under pressure: runs
+// out ~18:21", or, with its reserve holding it back there, "under pressure:
+// at its reserve ~18:21"; "under pressure" alone where it doesn't before it
+// resets. It's "" while it isn't under pressure at now, as underPressure
+// judges it. The router says an account is under pressure only where it can
+// take a request of some model: of one that can take none, pressure isn't
+// what passes it over.
 func (d Document) Pressed(a Account, now time.Time) string {
 	if !a.underPressure(now) {
 		return ""
 	}
-	out := "runs out"
-	if d.ReserveHolds(a) {
-		out = "at its reserve"
+	out := d.pressureOut(a, now)
+	switch {
+	case out.At.IsZero():
+		return "under pressure"
+	case out.Reserve:
+		return "under pressure: at its reserve ~" + TimeOfDay(now, out.At)
+	default:
+		return "under pressure: runs out ~" + TimeOfDay(now, out.At)
 	}
-	return "under pressure: " + out + " ~" + TimeOfDay(now, a.Pressure.RunsOut)
 }
 
 // pressureNote says the account is under pressure, as Pressed does, and why:

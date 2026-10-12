@@ -2,6 +2,7 @@ package status_test
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"reflect"
 	"slices"
 	"testing"
@@ -841,6 +842,52 @@ func TestAWindowRunsOutWhereNothingBeforeItHolds(t *testing.T) {
 				t.Errorf("the week runs out at %v, want %v, as its projection has it", w.At, w.Out.At)
 			}
 		})
+	}
+}
+
+// The pressure line's time comes from where the pressure window runs out,
+// as RunsOut has it, not from the time the router gave: for any document
+// the router builds, they're one time, as the router's pressure goes by the
+// same projection (design, how the numbers are worked out). One time to the
+// nanosecond's rounding: the router goes to where the account runs out at
+// once, and RunsOut to the window's limit, then back to it, rounding twice.
+func TestThePressureLinesTimeIsTheRoutersForAnyDocumentItBuilds(t *testing.T) {
+	const rounding = time.Nanosecond
+	r := rand.New(rand.NewPCG(1, 2))
+	reserves := []float64{0, 0.05, 0.1, 0.2}
+	for i := range 2000 {
+		session := windowIn("5h", r.Float64()*0.99, time.Duration(r.Int64N(int64(6*time.Hour)))-time.Hour)
+		account := routed{Account: with(readAt("work", session, windowIn("7d", r.Float64(), 3*day)), func(a *status.Account) {
+			a.Reserve = reserves[r.IntN(len(reserves))]
+		})}
+		if r.IntN(3) > 0 {
+			account.rate = r.Float64() * 0.6
+		}
+		var pinned []string
+		if r.IntN(2) == 0 {
+			pinned = []string{"work"}
+		}
+		doc := asTheRouterBuilds(built, pinned, account, routed{Account: readAt("side", windowIn("5h", 0.1, 4*time.Hour))}).WorkedOut(policy)
+		stored := doc.Accounts[0].Pressure
+		want := stored.RunsOut
+		if !want.Before(session.ResetsAt) {
+			want = time.Time{}
+		}
+		a, _ := doc.At(built, policy).Account("work")
+		if got := a.Pressure.Out.At; got.IsZero() != want.IsZero() || got.Sub(want).Abs() > rounding {
+			t.Fatalf("case %d, %+v, rate %v, reserve %v, pinned %v: the pressure window runs out at %v, want %v, as the router gave it",
+				i, session, account.rate, a.Reserve, pinned != nil, got, want)
+		}
+		if !stored.Under {
+			continue
+		}
+		verb := "runs out"
+		if a.Pressure.Out.Reserve {
+			verb = "at its reserve"
+		}
+		if got, want := doc.Pressed(doc.Accounts[0], built), "under pressure: "+verb+" ~"+status.TimeOfDay(built, stored.RunsOut); got != want {
+			t.Fatalf("case %d: Pressed() = %q, want %q", i, got, want)
+		}
 	}
 }
 

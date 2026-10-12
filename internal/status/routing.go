@@ -102,19 +102,18 @@ const (
 // says which windows every model shares: the first of the kinds that holds,
 // as its WindowStates' routing says it.
 func (d Document) RoutingOf(a Account, now time.Time, policy score.Policy) Routing {
-	s := d.WindowStatesOf(a, now, policy)
-	return s.routing(s.pressureOut())
+	return d.WindowStatesOf(a, now, policy).routing(d.pressureOut(a, now))
 }
 
-// pressureOut is where the account's pressure window, as the router judged
-// it, runs out at now, as RunsOut has it: At zero where it doesn't before it
+// pressureOut is where account a's pressure window, as the router named it,
+// runs out at now, as RunsOut has it: At zero where it doesn't before it
 // resets, or the account has no such window.
-func (s WindowStates) pressureOut() RunOut {
-	w, ok := s.account.Window(s.account.Pressure.Window)
+func (d Document) pressureOut(a Account, now time.Time) RunOut {
+	w, ok := a.Window(a.Pressure.Window)
 	if !ok {
 		return RunOut{}
 	}
-	out, _ := s.doc.RunsOut(s.account, w, s.now)
+	out, _ := d.RunsOut(a, w, now)
 	return out
 }
 

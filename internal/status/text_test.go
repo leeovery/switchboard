@@ -415,7 +415,14 @@ func TestReserved(t *testing.T) {
 
 func TestPressed(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
-	under := status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 17, 21, 0, 0, time.UTC), Under: true}
+	// The session, 40% used, resets at 18:12, having started at 13:12: at its
+	// rate over the last half hour, 30% an hour, it runs out at 16:12, and a
+	// reserve of a tenth is reached at 15:52.
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)}
+	pressed := status.Account{
+		ID: "work", Windows: []quota.Window{session}, Rates: []status.Rate{{Window: "5h", Rate: 0.3}},
+		Pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 15, 12, 0, 0, time.UTC), Under: true},
+	}
 	tests := []struct {
 		name    string
 		account status.Account
@@ -423,22 +430,33 @@ func TestPressed(t *testing.T) {
 		pin  []string
 		want string
 	}{
-		{name: "running out", account: status.Account{ID: "work", Pressure: under}, want: "under pressure: runs out ~18:21"},
-		{name: "reaching its reserve", account: status.Account{ID: "work", Reserve: 0.1, Pressure: under}, want: "under pressure: at its reserve ~18:21"},
-		{name: "running out, its reserve spent by the global pin", account: status.Account{ID: "work", Reserve: 0.1, Pressure: under}, pin: []string{"work"}, want: "under pressure: runs out ~18:21"},
-		{name: "running out after its reset", account: status.Account{ID: "work", Pressure: status.Pressure{Window: "5h", Rate: 0.1, RunsOut: under.RunsOut}}},
+		{name: "running out", account: pressed, want: "under pressure: runs out ~16:12"},
+		{name: "reaching its reserve", account: with(pressed, reserving), want: "under pressure: at its reserve ~15:52"},
+		{name: "running out, its reserve spent by the global pin", account: with(pressed, reserving), pin: []string{"work"}, want: "under pressure: runs out ~16:12"},
+		{
+			name:    "when its window runs out, whatever time the router gave",
+			account: with(pressed, func(a *status.Account) { a.Pressure.RunsOut = time.Date(2026, 9, 28, 17, 21, 0, 0, time.UTC) }),
+			want:    "under pressure: runs out ~16:12",
+		},
+		{
+			name:    "under pressure as the router says, its window not running out before it resets at the rate it goes by",
+			account: with(pressed, func(a *status.Account) { a.Rates = []status.Rate{{Window: "5h", Rate: 0.05}} }),
+			want:    "under pressure",
+		},
+		{name: "running out after its reset", account: with(pressed, func(a *status.Account) { a.Pressure.Under = false })},
 		{
 			name: "its window reset since it was read, before it's read again",
-			account: status.Account{
-				ID: "work", Pressure: under,
-				Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: now.Add(-time.Second).UTC()}},
-			},
+			account: with(pressed, func(a *status.Account) {
+				a.Windows = []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: now.Add(-time.Second).UTC()}}
+			}),
 		},
 		{name: "its pace unknown", account: status.Account{ID: "work"}},
 		{
-			name:    "held back from one model's requests, under pressure as the router says",
-			account: status.Account{ID: "work", Pressure: under, Refused: status.Refusal{Until: now.Add(time.Minute), Status: 403, Family: "opus"}},
-			want:    "under pressure: runs out ~18:21",
+			name: "held back from one model's requests, under pressure as the router says",
+			account: with(pressed, func(a *status.Account) {
+				a.Refused = status.Refusal{Until: now.Add(time.Minute), Status: 403, Family: "opus"}
+			}),
+			want: "under pressure: runs out ~16:12",
 		},
 	}
 	for _, tt := range tests {
