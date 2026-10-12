@@ -126,10 +126,18 @@ func (a Account) lapsedAt(at time.Time, policy score.Policy) []string {
 	return slices.Concat(a.Lapsed, policy.Lapsed(a.Windows, at))
 }
 
-// idleAt reports whether the account is idle at the moment given: the window
-// a request starts, as policy names it, has lapsed, as lapsedAt says.
+// HasLapsed reports whether the account's window w has lapsed at the moment
+// given, as lapsedAt judges it: it isn't running, and reads empty, until a
+// request starts it.
+func (a Account) HasLapsed(w quota.Window, at time.Time, policy score.Policy) bool {
+	return slices.Contains(a.lapsedAt(at, policy), w.Key)
+}
+
+// idleAt reports whether the account is idle at the moment given: its window
+// a request starts, as policy names it, has lapsed, as HasLapsed judges it.
 func (a Account) idleAt(at time.Time, policy score.Policy) bool {
-	return slices.Contains(a.lapsedAt(at, policy), policy.Started)
+	w, ok := a.Window(policy.Started)
+	return ok && a.HasLapsed(w, at, policy)
 }
 
 // running reports whether the account's window with the given key is

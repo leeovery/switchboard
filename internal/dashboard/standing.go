@@ -49,10 +49,10 @@ func standingOf(doc status.Document, a status.Account, w quota.Window, now time.
 }
 
 // lapsedOf reports whether account a's window w has lapsed at now, as a
-// panel draws it, with no bar: the account notes it lapsed, and no limit
-// holds it at now, as policy judges, as no request can start it then.
+// panel draws it, with no bar: it has lapsed then, as HasLapsed judges it,
+// and no limit holds it, as no request can start it then.
 func lapsedOf(a status.Account, w quota.Window, now time.Time, policy score.Policy) bool {
-	if !a.HasLapsed(w) {
+	if !a.HasLapsed(w, now, policy) {
 		return false
 	}
 	held, ok := a.Held(now, policy)

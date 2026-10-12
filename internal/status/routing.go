@@ -103,9 +103,10 @@ const (
 // A limit or a refusal is said even where its last read failed, as
 // heldRouting says; its usage unreadable only where nothing was read of it
 // before, as otherwise its windows as last read say how it stands; its cap
-// as cappedRouting says; under pressure, when its pressure window runs out;
-// idle at now, as idleAt judges it, when a prime starts it; and open, where new sessions go, of several
-// accounts. Words from elsewhere show cleaned, and times as Dated shows them.
+// as cappedRouting says; under pressure at now, as underPressure judges it,
+// when its pressure window runs out; idle at now, as idleAt judges it, when
+// a prime starts it; and open, where new sessions go, of several accounts.
+// Words from elsewhere show cleaned, and times as Dated shows them.
 func (d Document) RoutingOf(a Account, now time.Time, policy score.Policy) Routing {
 	if !a.TokenSet {
 		return Routing{Kind: RoutingTokenless, Says: "no token", Clauses: []string{"switchboard accounts token " + Clean(a.ID)}, Short: []string{"no token"}}
@@ -123,7 +124,7 @@ func (d Document) RoutingOf(a Account, now time.Time, policy score.Policy) Routi
 		return capped
 	}
 	switch {
-	case a.Pressure.Under:
+	case a.underPressure(now):
 		return d.pressedRouting(a, now)
 	case a.idleAt(now, policy):
 		return Routing{Kind: RoutingIdle, Says: "idle", Clauses: []string{d.StartsAt(a.ID, now)}, Short: []string{"idle"}}

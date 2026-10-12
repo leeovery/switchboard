@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 func TestAnAccountsWindowsStandOnTheHoldWorkedOutOnceForThemAll(t *testing.T) {
@@ -16,7 +17,7 @@ func TestAnAccountsWindowsStandOnTheHoldWorkedOutOnceForThemAll(t *testing.T) {
 			{Key: "7d", Utilization: 0.3, ResetsAt: now.Add(4 * 24 * time.Hour)},
 		},
 	}
-	states := Document{GeneratedAt: now, Accounts: []Account{spent}}.WindowStatesOf(spent, now)
+	states := Document{GeneratedAt: now, Accounts: []Account{spent}}.WindowStatesOf(spent, now, score.Policy{Started: "5h"})
 	if got := states.Of("5h").Kind; got != WindowLimited {
 		t.Fatalf("a window read spent stands as kind %d, want WindowLimited", got)
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -39,11 +40,11 @@ const (
 // linePanel is an account's panel among the lines: the account and its
 // place, its state, whether new sessions go to it and whether the global
 // pin names it, when the router next primes it, zero where unknown; the
-// windows it shows, and the key of the one a request starts among them; its
-// top edge's row, and how many rows it has between its edges, a jack each:
-// one for each window shown, and one more for each of its calls past those.
-// A boxed panel, as the plain list has, has no jacks, its left side a side
-// like its right.
+// windows it shows, and the policy that judges them, which names the one a
+// request starts; its top edge's row, and how many rows it has between its
+// edges, a jack each: one for each window shown, and one more for each of
+// its calls past those. A boxed panel, as the plain list has, has no jacks,
+// its left side a side like its right.
 type linePanel struct {
 	account      status.Account
 	place        int
@@ -51,7 +52,7 @@ type linePanel struct {
 	next, pinned bool
 	primed       time.Time
 	windows      []string
-	started      string
+	policy       score.Policy
 	top, rows    int
 	boxed        bool
 }
@@ -62,7 +63,7 @@ func (f Frame) linePanelOf(doc status.Document, a status.Account, now time.Time,
 	return linePanel{
 		account: a, place: place(doc, a.ID), state: doc.StateOf(a, now, f.Policy),
 		next: len(doc.Accounts) > 1 && doc.Best == a.ID, pinned: doc.Pin.Has(a.ID), primed: primedNext(doc, a.ID),
-		windows: shown, started: f.Policy.Started,
+		windows: shown, policy: f.Policy,
 	}
 }
 
@@ -272,16 +273,17 @@ func resetsSays(p linePanel, now time.Time, brief bool) line {
 }
 
 // resets says when the panel's windows reset, of those it shows: the window
-// a request starts, while it runs, as in "session 17:10"; then the rest,
-// together where they reset at once, as weeksReset has them.
+// a request starts, while it runs, not having lapsed at now, as HasLapsed
+// judges it, as in "session 17:10"; then the rest, together where they reset
+// at once, as weeksReset has them.
 func (p linePanel) resets(now time.Time) []string {
 	var said []string
 	var rest []quota.Window
 	for _, key := range p.windows {
 		w, ok := p.account.Window(key)
 		switch {
-		case !ok || w.ResetsAt.IsZero() || p.account.HasLapsed(w):
-		case key == p.started:
+		case !ok || w.ResetsAt.IsZero() || p.account.HasLapsed(w, now, p.policy):
+		case key == p.policy.Started:
 			said = append(said, status.InProse(w.Label)+" "+status.Dated(now, w.ResetsAt))
 		default:
 			rest = append(rest, w)

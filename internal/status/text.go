@@ -40,9 +40,9 @@ const notStarted = "not started"
 
 // Text renders the document for a terminal: each account, the primary marked,
 // with its windows, when they reset and where they're heading, or that one
-// that has lapsed hasn't started, and when it's primed, whatever couldn't be
-// read, what holds it back, whether it's under pressure, and how many
-// sessions the router has sent it;
+// that has lapsed at now, as policy judges it, hasn't started, and when it's
+// primed, whatever couldn't be read, what holds it back, whether it's under
+// pressure, and how many sessions the router has sent it;
 // then the sessions given, as the router lists those it has routed in the
 // last hour, a line each; then the priming schedule, and what comes next of
 // it; then the account to use next; then where the usage came from, and last
@@ -50,11 +50,11 @@ const notStarted = "not started"
 // Countdowns run from now, and times show in now's time zone. Every text it
 // shows that came from elsewhere, such as the config's labels or the
 // upstream's errors, it shows cleaned.
-func (d Document) Text(now time.Time, sessions ...Session) string {
+func (d Document) Text(now time.Time, policy score.Policy, sessions ...Session) string {
 	width := labelWidth(d.Accounts)
 	var b strings.Builder
 	for _, account := range d.Accounts {
-		d.writeAccount(&b, account, width, now)
+		d.writeAccount(&b, account, width, now, policy)
 		d.writeNotes(&b, account, now)
 		b.WriteString("\n")
 	}
@@ -136,11 +136,11 @@ func (d Document) Reserved(a Account, now time.Time) string {
 // router saw its pressure window used, it runs out for the router, in now's
 // time zone: "under pressure: runs out ~18:21", or, with its reserve holding
 // it back there, "under pressure: at its reserve ~18:21". It's "" while it
-// isn't under pressure, which the router says of an account that can take a
-// request of some model alone: of one that can take none, pressure isn't
-// what passes it over.
+// isn't under pressure at now, as underPressure judges it. The router says
+// an account is under pressure only where it can take a request of some
+// model: of one that can take none, pressure isn't what passes it over.
 func (d Document) Pressed(a Account, now time.Time) string {
-	if !a.Pressure.Under {
+	if !a.underPressure(now) {
 		return ""
 	}
 	out := "runs out"
@@ -304,16 +304,17 @@ func (r Refusal) Answer() string {
 }
 
 // writeAccount writes the account's title, marking the primary, its windows
-// with their labels width wide, and whatever couldn't be read.
-func (d Document) writeAccount(b *strings.Builder, a Account, width int, now time.Time) {
+// with their labels width wide, those that have lapsed at now, as policy
+// judges them, empty and not started, and whatever couldn't be read.
+func (d Document) writeAccount(b *strings.Builder, a Account, width int, now time.Time, policy score.Policy) {
 	title := a.Title()
 	if a.Primary {
 		title += " (primary)"
 	}
 	fmt.Fprintf(b, "%s\n", title)
-	for _, w := range a.Windows {
+	for _, w := range policy.AsOf(a.Windows, now) {
 		notes := d.windowNotes(a, w, now)
-		if a.HasLapsed(w) {
+		if a.HasLapsed(w, now, policy) {
 			notes = []string{d.NotStarted(a.ID, now)}
 		}
 		fmt.Fprintf(b, "  %s\n", windowLine(w, width, notes))
