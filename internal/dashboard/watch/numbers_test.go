@@ -278,7 +278,7 @@ func TestTheStreamHasNumbersComparedOnlyWhereThePageDrawsOneItChanges(t *testing
 		t.Run(tt.name, func(t *testing.T) {
 			h := streamingOn(t, tt.sections)
 			h.model.view = tt.view
-			if got := h.model.numbering([]router.StreamEvent{tt.told}, h.clock.now); got != tt.want {
+			if got := h.model.numbering([]router.StreamEvent{tt.told}); got != tt.want {
 				t.Errorf("the numbers are compared: %t, want %t", got, tt.want)
 			}
 		})
