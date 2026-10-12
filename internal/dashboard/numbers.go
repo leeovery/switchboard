@@ -38,6 +38,13 @@ const (
 	// NumberLimitsHit are the limits of a window an account hit in History's
 	// Days, its eight weeks.
 	NumberLimitsHit
+	// NumberTokens is a figure of Tokens' period still running, by its
+	// column, as "input" or "against".
+	NumberTokens
+	// NumberTokensSplit is a figure of a row Tokens splits its period still
+	// running into: of an account, or of a model version, by its id before
+	// the column, as "claude-opus-5-5 input", or of both.
+	NumberTokensSplit
 )
 
 // Number names a number the page draws, which brightens as it changes:

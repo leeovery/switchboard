@@ -13,13 +13,13 @@ import (
 
 // Days' columns: where its days start, a day's cells and a week's, its days'
 // and the cell after them; and where a strip's count, its share of use or
-// its 5-hour limits, starts, right-aligned in countCells.
+// its 5-hour limits, starts, right-aligned in daysCountCells.
 const (
-	daysAt      = 14
-	swatchCells = 2
-	weekCells   = 7*swatchCells + 1
-	daysCount   = 136
-	countCells  = 4
+	daysAt         = 14
+	swatchCells    = 2
+	weekCells      = 7*swatchCells + 1
+	daysCount      = 136
+	daysCountCells = 4
 )
 
 // Days' rows from its top: the weeks' first days, then this week's days'
@@ -195,7 +195,7 @@ func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name func(room int) lin
 	if l.phone {
 		strip, room = y+1, c.right(f.edge(), y, count)-1
 	} else {
-		c.line(daysCount+countCells-count[:1].width(), y, count)
+		c.line(daysCount+daysCountCells-count[:1].width(), y, count)
 	}
 	c.line(0, y, name(room))
 	coming := len(days) - l.page.ToCome

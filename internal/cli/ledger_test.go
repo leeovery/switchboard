@@ -604,15 +604,15 @@ const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","reque
 	`"by_model":[{"model":"claude-opus-5-5","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]}],` +
 	`"by_model":[{"model":"claude-opus-5-5","on":["work"],"input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]},` +
 	`{"week":"2026-10-05","input":125,"output":906,"cache_write":3120,"cache_read":202340,"total":206491,"worth":0.093409,"unpriced":["claude-opus-9","no_usage"],` +
-	`"by_account":[{"input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0,` +
-	`"by_model":[{"model":"claude-opus-5-5","input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0}]},` +
-	`{"account":"side","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"],` +
-	`"by_model":[{"model":"claude-opus-5-5","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"]}]},` +
-	`{"account":"work","input":120,"output":856,"cache_write":3120,"cache_read":182340,"total":186436,"worth":0.078389,"unpriced":["claude-opus-9"],` +
+	`"by_account":[{"account":"work","input":120,"output":856,"cache_write":3120,"cache_read":182340,"total":186436,"worth":0.078389,"unpriced":["claude-opus-9"],` +
 	`"by_model":[{"model":"claude-opus-5-5","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376},` +
 	`{"model":"claude-haiku-4-5","input":8,"output":1,"cache_write":0,"cache_read":0,"total":9,"worth":0.000013},` +
-	`{"model":"claude-opus-9","input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]}],` +
-	`"by_model":[{"model":"claude-opus-5-5","on":["side","work"],"input":17,"output":895,"cache_write":3120,"cache_read":202340,"total":206372,` +
+	`{"model":"claude-opus-9","input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]},` +
+	`{"account":"side","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"],` +
+	`"by_model":[{"model":"claude-opus-5-5","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"]}]},` +
+	`{"input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0,` +
+	`"by_model":[{"model":"claude-opus-5-5","input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0}]}],` +
+	`"by_model":[{"model":"claude-opus-5-5","on":["work","side"],"input":17,"output":895,"cache_write":3120,"cache_read":202340,"total":206372,` +
 	`"worth":0.093396,"unpriced":["no_usage"]},` +
 	`{"model":"claude-haiku-4-5","on":["work"],"input":8,"output":1,"cache_write":0,"cache_read":0,"total":9,"worth":0.000013},` +
 	`{"model":"claude-opus-9","on":["work"],"input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]}],` +
