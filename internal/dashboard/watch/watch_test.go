@@ -436,7 +436,7 @@ func TestTheOverviewKeepsItsLayoutAsSessionsStartTillAKeyOrAResize(t *testing.T)
 			r, f+1, rows, first+1)
 	}
 
-	h.deliver(h.press("j")...)
+	h.deliver(h.press("down")...)
 	if _, r := h.sessionsRows(); r != 5 {
 		t.Errorf("after a key, SESSIONS takes %d rows, want it laid out afresh, a row a session", r)
 	}
@@ -468,6 +468,7 @@ func TestOnlyAKeyThePageActsOnLaysTheOverviewOutAfresh(t *testing.T) {
 		{name: "help's keys: scrolling it, and closing it", keys: []string{"?", "j", "pgdown", "k", "esc"}},
 		{name: "the routing card's: moving in it, and closing it", keys: []string{"p", "down", "esc"}},
 		{name: "keys the page doesn't take", keys: []string{"w", "1", "m", "x"}},
+		{name: "j and k, every account in view, which scroll nothing", keys: []string{"j", "k"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -514,7 +515,7 @@ func TestTheScreenAKeyLeavesIsLaidOutAsTheKeyLaysItOut(t *testing.T) {
 		t.Fatalf("three sessions started, SESSIONS takes %d rows, want the 3 it was given kept", r)
 	}
 
-	h.deliver(h.press("j")...)
+	h.deliver(h.press("down")...)
 	if _, r := h.sessionsRows(); r != 5 {
 		t.Errorf("after a key, SESSIONS is drawn on %d rows, want it as the key lays it out afresh, a row a session", r)
 	}
@@ -535,12 +536,6 @@ func TestAClickOrTheWheelLaysTheOverviewOutAsItsKeyDoes(t *testing.T) {
 	key := func(k string) func(*harness) {
 		return func(h *harness) { h.deliver(h.press(k)...) }
 	}
-	wheel := func(button tea.MouseButton) func(*harness) {
-		return func(h *harness) {
-			x, y := h.drawnAt("1 Work")
-			h.wheel(button, x, y)
-		}
-	}
 	tests := []struct {
 		name       string
 		key, mouse func(*harness)
@@ -557,8 +552,6 @@ func TestAClickOrTheWheelLaysTheOverviewOutAsItsKeyDoes(t *testing.T) {
 			tab := h.tabTarget(dashboard.Accounts)
 			h.click(tab.X, tab.Y)
 		}},
-		{name: "j, and the wheel turned down", key: key("j"), mouse: wheel(tea.MouseWheelDown)},
-		{name: "k, and the wheel turned up", key: key("k"), mouse: wheel(tea.MouseWheelUp)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

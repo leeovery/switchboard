@@ -275,6 +275,7 @@ func TestAStatesGlyphAndFirstWordsAreInItsColourTheRestMuted(t *testing.T) {
 		{kind: status.RoutingModelRefused, want: line{{"■ says", warningInk}, rest}},
 		{kind: status.RoutingCapped, want: line{{"● says", warningInk}, rest}},
 		{kind: status.RoutingCappedPinned, want: line{{"● says", warningInk}, rest}},
+		{kind: status.RoutingModelCapped, want: line{{"● says", warningInk}, rest}},
 		{kind: status.RoutingPressed, want: line{{"● says", warningInk}, rest}},
 		{kind: status.RoutingUnread, want: line{{"○ says", dimInk}, rest}},
 		{kind: status.RoutingIdle, want: line{{"○ says", dimInk}, rest}},
@@ -479,8 +480,8 @@ func TestThePoolsStatesAreCountedInTheirOrderAndColours(t *testing.T) {
 			},
 		},
 		{
-			name: "held back from some models' requests alone: open to the rest", accounts: of(status.RoutingModelLimited, status.RoutingModelRefused), width: 51,
-			want: line{{"2 open", counted(secondaryInk, "open")}},
+			name: "held back from some models' requests alone: open to the rest", accounts: of(status.RoutingModelLimited, status.RoutingModelRefused, status.RoutingModelCapped), width: 51,
+			want: line{{"3 open", counted(secondaryInk, "open")}},
 		},
 		{
 			name: "too wide: how many are open, pressure counting as open", accounts: of(status.RoutingOpen, status.RoutingPressed, status.RoutingLimited), width: 20,

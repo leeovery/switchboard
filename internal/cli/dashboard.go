@@ -140,6 +140,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Now:           a.Now,
 		Interval:      opts.interval,
 		Policy:        claude.Policy,
+		WindowName:    claude.WindowName,
 		Size:          a.environSize(),
 		View:          dashboard.View(kept.Tab),
 		Sections:      dashboard.SectionsNamed(kept.Sections),

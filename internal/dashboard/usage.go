@@ -490,10 +490,15 @@ func (b usageBlock) split() ([]usageRow, *usageRow) {
 // second: wide, from 110 columns, the name beside its first window's row and
 // each label in the name column; else the name on a line of its own above,
 // and the labels a cell in. Its bars take what the block's width leaves
-// them, but where the Overview sets them.
+// them, and its words end at the edge, but where the Overview sets its bars:
+// then its words end besideCells before routingAt, the gap before ROUTING's
+// blocks beside them.
 func (b usageBlock) byAccount(c *canvas, y int) laid {
 	labelAt, cells := b.labels()
-	bar := b.bar()
+	bar, end := b.bar(), b.width
+	if b.accountBar > 0 {
+		end = b.routingAt() - besideCells
+	}
 	return b.each(c, 0, y, 3, func(r usageRow, y int) int {
 		c.line(0, y, r.name)
 		if b.width < wideAccounts {
@@ -504,7 +509,7 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 				y += 2
 			}
 			c.line(labelAt, y, line{{truncate(status.Short(b.windows[j].name), cells-1), dimInk}})
-			b.gauge(c, g, labelAt+cells, y, bar, b.width)
+			b.gauge(c, g, labelAt+cells, y, bar, end)
 		}
 		return y
 	})

@@ -121,6 +121,10 @@ type Config struct {
 	// Policy is the provider's say in which windows leave an account without
 	// room.
 	Policy score.Policy
+	// WindowName names a window by its key wherever the Overview names one,
+	// as "5-hour" or "Fable week": nil names it by its label in the
+	// document.
+	WindowName func(key string) string
 	// Size is what to draw at until the terminal gives its size, and in place
 	// of a width or height it gives as zero, which means it doesn't know.
 	Size Size
@@ -660,8 +664,9 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Lost: m.lost, Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.ease.eased(m.doc, now),
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
-		Focus:  m.focus,
-		Policy: m.cfg.Policy,
+		Focus:      m.focus,
+		Policy:     m.cfg.Policy,
+		WindowName: m.cfg.WindowName,
 	}
 }
 

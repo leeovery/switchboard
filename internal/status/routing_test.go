@@ -166,7 +166,15 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 			name:    "a model's own window at its cap, other models still coming here",
 			account: with(readNow(0.2, 0.3, 0.92), capped(0.1)),
 			want: status.Routing{
-				Kind: status.RoutingCapped, Says: "Fable wk at its cap", Clauses: []string{"back Mon 21:00", "other models still come here"}, Short: []string{"Fable wk at its cap", "Mon 21:00"},
+				Kind: status.RoutingModelCapped, Says: "Fable wk at its cap", Clauses: []string{"back Mon 21:00", "other models still come here"}, Short: []string{"Fable wk at its cap", "Mon 21:00"},
+			},
+		},
+		{
+			name:    "a model's own window at its cap, the global pin naming it: of its own kind still",
+			account: with(readNow(0.2, 0.3, 0.92), capped(0.1)),
+			pin:     []string{"work"},
+			want: status.Routing{
+				Kind: status.RoutingModelCapped, Says: "Fable wk at its cap", Clauses: []string{"pinned, so new sessions still come here"}, Short: []string{"Fable wk at its cap", "pinned"},
 			},
 		},
 		{
@@ -293,6 +301,7 @@ func TestEachKindLeadsWithItsGlyph(t *testing.T) {
 		status.RoutingUnread:       "○",
 		status.RoutingCapped:       "●",
 		status.RoutingCappedPinned: "●",
+		status.RoutingModelCapped:  "●",
 		status.RoutingPressed:      "●",
 		status.RoutingIdle:         "○",
 		status.RoutingNext:         "●",
