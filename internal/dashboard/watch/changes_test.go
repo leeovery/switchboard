@@ -136,6 +136,44 @@ func TestAStateWhoseFirstWordsStayIsNoChange(t *testing.T) {
 	}
 }
 
+func TestARefusalOfOneFamilyTurningToTheTokensIsPickedOut(t *testing.T) {
+	refusedBy := func(family string) status.Document {
+		doc := routerDocument(three()...)
+		doc.Accounts[0].Refused = status.Refusal{Until: start.Add(time.Hour).UTC(), Status: 403, Family: family}
+		return doc
+	}
+	h := routedHarness(t, refusedBy("opus"))
+	h.start()
+	h.startRouter(refusedBy(""))
+	h.tickUntilAsked()
+
+	if got := h.changed(); !slices.Equal(got, []string{"work"}) {
+		t.Errorf("as work's token was refused, after one family's requests, picked out %v, want work", got)
+	}
+}
+
+func TestAStatesCueComparesItsKindAndItsWords(t *testing.T) {
+	routing := func(kind status.RoutingKind, says string) status.Routing {
+		return status.Routing{Kind: kind, Says: says, Clauses: []string{"back 15:54"}}
+	}
+	tests := []struct {
+		name    string
+		was, is status.Routing
+		turned  bool
+	}{
+		{name: "another kind in the same words", was: routing(status.RoutingModelRefused, "refused (403)"), is: routing(status.RoutingRefused, "refused (403)"), turned: true},
+		{name: "the same kind in other words", was: routing(status.RoutingCapped, "at its cap"), is: routing(status.RoutingCapped, "Fable wk at its cap"), turned: true},
+		{name: "the same kind and words, its clauses moving on", was: routing(status.RoutingLimited, "limit reached"), is: status.Routing{Kind: status.RoutingLimited, Says: "limit reached"}},
+		{name: "open, new sessions coming to it", was: routing(status.RoutingOpen, "open"), is: routing(status.RoutingNext, "open")},
+		{name: "at its cap, the pin spending it", was: routing(status.RoutingCapped, "at its cap"), is: routing(status.RoutingCappedPinned, "at its cap")},
+	}
+	for _, tt := range tests {
+		if got := stateOf(tt.was) != stateOf(tt.is); got != tt.turned {
+			t.Errorf("%s: turned = %v, want %v", tt.name, got, tt.turned)
+		}
+	}
+}
+
 func TestAReadFailingWhileALimitHoldsPicksOutNoState(t *testing.T) {
 	h := routedHarness(t, limitedWork())
 	h.start()
