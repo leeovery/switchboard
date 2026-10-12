@@ -21,9 +21,10 @@ type Moment struct {
 	// projections, even paces and allowances go from: when it was built,
 	// else Now.
 	Now, ReadAt time.Time
-	// Routed is set on the router's document, as read, and clear on one
-	// built by probing.
-	Routed bool
+	// Routed is set on the router's document, and Probed on one built by
+	// probing, as read: neither on a document of neither, as before any is
+	// read.
+	Routed, Probed bool
 	// Fallback, Health, Restart, Pin, Events and Sessions are the document's
 	// records, as read: why it was probed rather than the router's, the
 	// router's health, a restart it has due, its global pin, what has
@@ -76,9 +77,10 @@ type AccountNow struct {
 	Reserve, Cap, Floor float64
 	ReserveHolds        bool
 	// Pinned is set where the global pin names it, Next where new sessions go
-	// to it, which ▲ marks, and OutOfPool where the pool leaves it out, as
-	// the global pin names others, each as read.
-	Pinned, Next, OutOfPool bool
+	// to it, which ▲ marks, InPool where it's one of the pool's accounts, as
+	// Pool has them, and OutOfPool where the pool leaves it out, as the
+	// global pin names others, each as read.
+	Pinned, Next, InPool, OutOfPool bool
 	// TokenSet is set where its token is usable, Read where its usage was
 	// read, whatever windows it reported, and ReadAt is when: zero where it
 	// never was. Error says why its last read failed, cleaned, Failures are
@@ -247,7 +249,7 @@ type AsRead struct {
 func (d Document) At(now time.Time, policy score.Policy) Moment {
 	judged := d.judgeAll(now, policy)
 	m := Moment{
-		Now: now, ReadAt: d.readAt(now), Routed: d.Source == SourceRouter,
+		Now: now, ReadAt: d.readAt(now), Routed: d.Source == SourceRouter, Probed: d.Source == SourceProbe,
 		Fallback: d.Fallback, Health: d.Router, Restart: d.Restart, Pin: d.Pin, Events: d.Events, Sessions: d.Sessions,
 		ComingUp: comingAfter(d.ComingUp, now), Next: d.next(),
 		doc: d, policy: policy, judged: judged,
@@ -276,6 +278,12 @@ func (m Moment) Pool() Pool {
 // sessions given.
 func (m Moment) Text(sessions ...Session) string {
 	return m.doc.Text(m.Now, m.policy, sessions...)
+}
+
+// Destination says where a pin to the accounts with the given ids sends
+// sessions, as the document's Destination says it.
+func (m Moment) Destination(ids []string) string {
+	return m.doc.Destination(ids)
 }
 
 // Account is the account with the given id, reporting false where the
@@ -375,7 +383,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 	an := AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.Floor(a), ReserveHolds: d.ReserveHolds(a),
-		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, OutOfPool: d.pooled() && !d.inPool(a.ID),
+		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Hold: s.stood.held, Held: s.stood.limited, LimitSince: eventAt(d.limitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,

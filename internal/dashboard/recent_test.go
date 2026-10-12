@@ -269,7 +269,7 @@ func TestRECENTSaysWhyThereAreNone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := (Frame{Outdated: tt.outdated}).quiet(tt.doc).plain(); got != tt.want {
+			if got := (Frame{Outdated: tt.outdated}).quiet(tt.doc.At(now, claudeLike)).plain(); got != tt.want {
 				t.Errorf("quiet() = %q, want %q", got, tt.want)
 			}
 		})

@@ -319,7 +319,7 @@ func TestTheModeIsROUTINGsDescription(t *testing.T) {
 		{name: "probed: no mode", doc: probe},
 	}
 	for _, tt := range tests {
-		if got := routingMode(tt.doc, routedAt, tt.alone); !slices.Equal(got, tt.want) {
+		if got := routingMode(tt.doc.At(routedAt, claudeLike), tt.alone); !slices.Equal(got, tt.want) {
 			t.Errorf("%s: %v, want %v", tt.name, got, tt.want)
 		}
 	}
@@ -327,7 +327,7 @@ func TestTheModeIsROUTINGsDescription(t *testing.T) {
 
 func TestROUTINGsHeadingSaysTheModeAloneBesideUSAGEOnAPhoneAndFolded(t *testing.T) {
 	doc := pinnedRouting()
-	full, alone := routingMode(doc, routedAt, false), routingMode(doc, routedAt, true)
+	full, alone := routingMode(doc.At(routedAt, claudeLike), false), routingMode(doc.At(routedAt, claudeLike), true)
 	tests := []struct {
 		name        string
 		frame       Frame

@@ -55,33 +55,40 @@ func (m Model) openRouting() (tea.Model, tea.Cmd) {
 	case key.Off:
 		return m.noting(status.ErrNoRouter.Error())
 	}
-	picked := m.standing()
-	rows := m.routingRows(m.now())
+	now := m.now()
+	picked := standing(m.moment(now))
+	rows := m.routingRows(now)
 	cursor := max(slices.IndexFunc(rows, func(row dashboard.RoutingRow) bool { return slices.Contains(picked, row.Account) }), 0)
 	m.routing = routing{card: m.routing.card + 1, cursor: cursor, priced: pricing{listing: m.routing.priced.listing}}
 	return m.cover(routingOpen), nil
 }
 
-// standing are the ids of the accounts the pin standing now names, in the
-// config's order, whether they can be picked or not.
-func (m Model) standing() []string {
+// moment is the document on screen as it stands at now, as the policy
+// judges it.
+func (m Model) moment(now time.Time) status.Moment {
+	return m.doc.At(now, m.cfg.Policy)
+}
+
+// standing are the ids of the accounts the pin standing at the moment mo
+// names, in the config's order, whether they can be picked or not.
+func standing(mo status.Moment) []string {
 	var ids []string
-	for _, a := range m.doc.Accounts {
-		if m.doc.Pin.Has(a.ID) {
+	for _, a := range mo.Accounts {
+		if a.Pinned {
 			ids = append(ids, a.ID)
 		}
 	}
 	return ids
 }
 
-// sendable are the ids given that a pin can be sent with, in the config's
-// order: those of the accounts with a usable token, as the router refuses a
-// pin naming any without, as one that lost its token since it was pinned.
-// One held at its limit, or its token refused, can be sent, as the router
-// takes it.
-func (m Model) sendable(ids []string) []string {
+// sendable are the ids given that a pin can be sent with at the moment mo,
+// in the config's order: those of the accounts with a usable token, as the
+// router refuses a pin naming any without, as one that lost its token since
+// it was pinned. One held at its limit, or its token refused, can be sent,
+// as the router takes it.
+func sendable(mo status.Moment, ids []string) []string {
 	var sent []string
-	for _, a := range m.doc.Accounts {
+	for _, a := range mo.Accounts {
 		if a.TokenSet && slices.Contains(ids, a.ID) {
 			sent = append(sent, a.ID)
 		}
@@ -89,15 +96,15 @@ func (m Model) sendable(ids []string) []string {
 	return sent
 }
 
-// picks are the ids of the accounts the routing card picks, in the config's
-// order, none picking auto: those a key picked, once one has; till then,
-// those the pin standing now names, so a card opened before an order lands,
-// or before a pin's set from the command line, follows the pin.
-func (m Model) picks() []string {
+// picks are the ids of the accounts the routing card picks at the moment
+// mo, in the config's order, none picking auto: those a key picked, once one
+// has; till then, those the pin standing names, so a card opened before an
+// order lands, or before a pin's set from the command line, follows the pin.
+func (m Model) picks(mo status.Moment) []string {
 	if m.routing.chosen {
 		return m.routing.picked
 	}
-	return m.standing()
+	return standing(mo)
 }
 
 // routingKey acts on a key while the routing card is open, which takes
@@ -106,9 +113,10 @@ func (m Model) picks() []string {
 // m ticks or clears moving the sessions running; enter applies the picks;
 // and esc closes the card, changing nothing. The rest do nothing.
 func (m Model) routingKey(key string) (tea.Model, tea.Cmd) {
-	rows := m.routingRows(m.now())
+	now := m.now()
+	rows := m.routingRows(now)
 	r := m.routing
-	r.cursor, r.picked = min(r.cursor, len(rows)-1), m.picks()
+	r.cursor, r.picked = min(r.cursor, len(rows)-1), m.picks(m.moment(now))
 	switch key {
 	case "esc":
 		return m.uncover()
@@ -182,9 +190,10 @@ func toggled(picked []string, id string, rows []dashboard.RoutingRow) []string {
 // ticked or not. Where it changes nothing of the pin standing, an account
 // it names without a token and all, it sends nothing, and closes the card.
 func (m Model) apply() (Model, tea.Cmd) {
-	picked, move := m.picks(), m.routing.move
-	sent := m.sendable(picked)
-	if !alters(picked, m.standing(), sent, move) {
+	mo := m.moment(m.now())
+	picked, move := m.picks(mo), m.routing.move
+	sent := sendable(mo, picked)
+	if !alters(picked, standing(mo), sent, move) {
 		return m.uncover()
 	}
 	if len(sent) > 0 {
@@ -212,10 +221,10 @@ func (m Model) routingRows(now time.Time) []dashboard.RoutingRow {
 // from the document on screen at now: those picked, those of them enter
 // leaves out of the order, as sendable says, and what the order moves.
 func (m Model) routingCard(now time.Time) dashboard.RoutingCard {
-	r := m.routing
+	r, mo := m.routing, m.moment(now)
 	rows := m.routingRows(now)
-	picked := m.picks()
-	sent := m.sendable(picked)
+	picked := m.picks(mo)
+	sent := sendable(mo, picked)
 	moving := m.moving(sent)
 	card := dashboard.RoutingCard{
 		Rows: rows, Picked: picked, Unsent: slices.DeleteFunc(slices.Clone(picked), func(id string) bool { return slices.Contains(sent, id) }),
@@ -245,7 +254,10 @@ func (m Model) moving(sent []string) views.Moving {
 // once it lands, where they've changed since.
 func (m Model) costing() (Model, tea.Cmd) {
 	p := m.routing.priced
-	if m.open != routingOpen || p.listing || m.moving(m.sendable(m.picks())).Sessions == 0 || samePlaces(m.sessions, p.of) {
+	if m.open != routingOpen || p.listing || samePlaces(m.sessions, p.of) {
+		return m, nil
+	}
+	if mo := m.moment(m.now()); m.moving(sendable(mo, m.picks(mo))).Sessions == 0 {
 		return m, nil
 	}
 	m.routing.priced.listing = true
@@ -296,5 +308,9 @@ func samePlace(a, b status.Session) bool {
 // answer, as p then opens nothing.
 func (m Model) pinKey() (dashboard.Key, bool) {
 	key := dashboard.Key{Key: "p", Does: "pin", Off: !m.answering()}
-	return key, !m.cfg.ProbeOnly && (len(m.doc.Accounts) > 1 || !m.doc.Pin.IsZero())
+	if m.cfg.ProbeOnly {
+		return key, false
+	}
+	mo := m.moment(m.now())
+	return key, len(mo.Accounts) > 1 || !mo.Pin.IsZero()
 }

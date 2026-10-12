@@ -58,15 +58,16 @@ type happening struct {
 	runsOut bool
 }
 
-// upcoming are the things coming up after now, as doc's COMING UP lists
-// them, in its order, soonest first, each as happening says it, its account
-// named as the Overview names it, and its windows as windowNamer names them.
+// upcoming are the things coming up after now, as the moment of doc at now
+// has them, in their order, soonest first, each as happening says it, its
+// account named as the Overview names it, and its windows as windowNamer
+// names them.
 func (f Frame) upcoming(doc status.Document, now time.Time) []happening {
 	m := f.moment(doc, now)
 	t := comingTeller{moment: m, names: overviewNames(m), window: f.windowNamer(m), policy: f.Policy}
 	var all []happening
-	for _, u := range doc.ComingUp {
-		if h, ok := t.happening(u); ok && h.at.After(now) {
+	for _, u := range m.ComingUp {
+		if h, ok := t.happening(u); ok {
 			all = append(all, h)
 		}
 	}

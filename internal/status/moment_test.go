@@ -410,11 +410,11 @@ func checkMomentAgainstStatus(t *testing.T, doc status.Document, m status.Moment
 		t.Errorf("ReadAt = %v, want %v: when the document was built", m.ReadAt, want)
 	}
 	records := status.Moment{
-		Now: now, ReadAt: m.ReadAt, Routed: doc.Source == status.SourceRouter, Fallback: doc.Fallback, Health: doc.Router,
+		Now: now, ReadAt: m.ReadAt, Routed: doc.Source == status.SourceRouter, Probed: doc.Source == status.SourceProbe, Fallback: doc.Fallback, Health: doc.Router,
 		Restart: doc.Restart, Pin: doc.Pin, Events: doc.Events, Sessions: doc.Sessions,
 	}
 	got := status.Moment{
-		Now: m.Now, ReadAt: m.ReadAt, Routed: m.Routed, Fallback: m.Fallback, Health: m.Health,
+		Now: m.Now, ReadAt: m.ReadAt, Routed: m.Routed, Probed: m.Probed, Fallback: m.Fallback, Health: m.Health,
 		Restart: m.Restart, Pin: m.Pin, Events: m.Events, Sessions: m.Sessions,
 	}
 	if !reflect.DeepEqual(got, records) {
@@ -434,6 +434,13 @@ func checkMomentAgainstStatus(t *testing.T, doc status.Document, m status.Moment
 	}
 	if got, want := m.Text(), doc.Text(now, policy); got != want {
 		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
+	}
+	ids := make([]string, len(doc.Accounts))
+	for i, a := range doc.Accounts {
+		ids[i] = a.ID
+	}
+	if got, want := m.Destination(ids), doc.Destination(ids); got != want {
+		t.Errorf("Destination(%q) = %q, want %q", ids, got, want)
 	}
 	shown, hidden := dashboardWindowsOf(doc, now)
 	if got := keysOf(m.Shown); !slices.Equal(got, shown) {
@@ -472,7 +479,8 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 	want := status.AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: doc.Floor(a), ReserveHolds: doc.ReserveHolds(a),
-		Pinned: doc.Pin.Has(a.ID), Next: a.ID == m.Next, OutOfPool: len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, a.ID),
+		Pinned: doc.Pin.Has(a.ID), Next: a.ID == m.Next,
+		InPool: slices.Contains(pool.Accounts, a.ID), OutOfPool: len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: status.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Routing: doc.RoutingOf(a, now, policy), Hold: hold, Held: held, LimitSince: got.LimitSince,
 		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapBack: capBack,
@@ -496,7 +504,7 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 	return status.AccountNow{
 		ID: a.ID, Label: a.Label, Place: a.Place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: a.Cap, Floor: a.Floor, ReserveHolds: a.ReserveHolds,
-		Pinned: a.Pinned, Next: a.Next, OutOfPool: a.OutOfPool,
+		Pinned: a.Pinned, Next: a.Next, InPool: a.InPool, OutOfPool: a.OutOfPool,
 		TokenSet: a.TokenSet, Read: a.Read, ReadAt: a.ReadAt, Error: a.Error, Failures: a.Failures, Sessions: a.Sessions,
 		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitSince: a.LimitSince,
 		ReachedReserve: a.ReachedReserve, CapHolds: a.CapHolds, CapBack: a.CapBack,
@@ -974,6 +982,52 @@ func TestNewSessionsGoWhereTheRouterSendsThem(t *testing.T) {
 			}
 			if got := doc.StateOf(tt.account, stateNow, policy).String(); got != tt.state {
 				t.Errorf("StateOf() = %q, want %q", got, tt.state)
+			}
+		})
+	}
+}
+
+func TestAMomentSaysWhereItsDocumentCameFrom(t *testing.T) {
+	tests := []struct {
+		source         string
+		routed, probed bool
+	}{
+		{source: status.SourceRouter, routed: true},
+		{source: status.SourceProbe, probed: true},
+		{source: ""},
+	}
+	for _, tt := range tests {
+		m := status.Document{Source: tt.source}.At(built, policy)
+		if m.Routed != tt.routed || m.Probed != tt.probed {
+			t.Errorf("of a document from %q, Routed = %v and Probed = %v; want %v and %v", tt.source, m.Routed, m.Probed, tt.routed, tt.probed)
+		}
+	}
+}
+
+func TestAnAccountIsInThePoolWhereThePoolTakesItIn(t *testing.T) {
+	work, side := readAt("work", windowIn("5h", 0.2, 3*time.Hour)), readAt("side", windowIn("5h", 0.1, 4*time.Hour))
+	tests := []struct {
+		name     string
+		accounts []status.Account
+		pin      []string
+		in, out  []string
+	}{
+		{name: "several, nothing pinned: every one", accounts: []status.Account{work, side}, in: []string{"work", "side"}},
+		{name: "several, one pinned: that one", accounts: []status.Account{work, side}, pin: []string{"side"}, in: []string{"side"}, out: []string{"work"}},
+		{name: "several, pinned to none of them: no pool", accounts: []status.Account{work, side}, pin: []string{"spare"}},
+		{name: "one: no pool", accounts: []status.Account{work}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := routerDocOf(tt.accounts...)
+			if tt.pin != nil {
+				doc.Pin = status.Pin{Accounts: tt.pin}
+			}
+			for _, a := range doc.At(built, policy).Accounts {
+				in, out := slices.Contains(tt.in, a.ID), slices.Contains(tt.out, a.ID)
+				if a.InPool != in || a.OutOfPool != out {
+					t.Errorf("%s: InPool = %v, OutOfPool = %v; want %v and %v", a.ID, a.InPool, a.OutOfPool, in, out)
+				}
 			}
 		})
 	}

@@ -72,7 +72,8 @@ switchboard service install (or switchboard serve).
 			if a.printsJSON(form, out) {
 				return writeJSON(out, doc)
 			}
-			_, err = io.WriteString(out, a.unrouted()+doc.Text(a.Now(), claude.Policy, a.running(cmd.Context(), doc)...))
+			m := doc.At(a.Now(), claude.Policy)
+			_, err = io.WriteString(out, a.unrouted()+m.Text(a.running(cmd.Context(), m)...))
 			return err
 		},
 	}
@@ -98,11 +99,11 @@ func (a *app) unrouted() string {
 	return "claude on PATH isn't switchboard, so the sessions it starts don't go through the router: run switchboard setup\n\n"
 }
 
-// running lists the sessions the router has routed in the last hour, when doc
-// is the router's: none otherwise, nor when the router, gone meanwhile, can't
-// say.
-func (a *app) running(ctx context.Context, doc status.Document) []status.Session {
-	if doc.Source != status.SourceRouter {
+// running lists the sessions the router has routed in the last hour, when the
+// document m is a moment of is the router's: none otherwise, nor when the
+// router, gone meanwhile, can't say.
+func (a *app) running(ctx context.Context, m status.Moment) []status.Session {
+	if !m.Routed {
 		return nil
 	}
 	sessions, err := a.routerSessions(ctx)

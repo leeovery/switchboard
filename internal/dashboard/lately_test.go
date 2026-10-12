@@ -68,7 +68,7 @@ func TestLATELYsLinesAreInTheirInks(t *testing.T) {
 	for i, label := range []string{"Work", "Personal", "Side"} {
 		doc.Accounts[i].Label = label
 	}
-	lines := frameOf(160, 40).latelyLines(doc, views.Lately(doc, now, 2), now)
+	lines := frameOf(160, 40).latelyLines(doc.At(now, claudeLike), views.Lately(doc, now, 2))
 	want := []line{
 		{{"13:11  ", secondaryInk}, {"▲", accentInk}, spaces(1), {"c61b", titleInk}, {" started on ", mutedInk}, {"Side", strongInk}},
 		{{"13:02  ", dimInk}, {"╎", warningInk}, spaces(1), {"Work", titleInk}, {" reached its cap: ", mutedInk}, {"3 sessions", strongInk}, {" moved to ", mutedInk}, {"Side", mutedInk}},
@@ -251,7 +251,7 @@ func TestLATELYNamesAnAccountOutOfThePoolFaint(t *testing.T) {
 		status.Event{At: now.Add(-2 * time.Minute).UTC(), Kind: status.EventRoom, Account: "work"},
 	)
 	doc.Pin = status.Pin{Accounts: []string{"work"}}
-	lines := frameOf(160, 40).latelyLines(doc, views.Lately(doc, now, 2), now)
+	lines := frameOf(160, 40).latelyLines(doc.At(now, claudeLike), views.Lately(doc, now, 2))
 	tests := []struct {
 		line int
 		want span
