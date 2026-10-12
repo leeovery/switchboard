@@ -33,6 +33,8 @@ const (
 	// groupCells are a matrix group's cells beyond its bar: a cell, the
 	// percentage, two cells, the words and three cells before the next.
 	groupCells = 32
+	// groupGap are the cells after a matrix group's words, before the next.
+	groupGap = 3
 	// leastMatrixBar is the fewest cells a matrix's bars may be; shorter,
 	// the windows stack.
 	leastMatrixBar = 12
@@ -142,7 +144,7 @@ func blockOf(doc status.Document, now time.Time, pool status.Pool, width int, lo
 		}
 		b.rows = append(b.rows, row)
 	}
-	if row, ok := poolRow(pool, len(doc.Accounts), b.windows); ok {
+	if row, ok := poolRow(pool, names, b.windows); ok {
 		b.rows = append(b.rows, row)
 	}
 	return b
@@ -162,9 +164,9 @@ func UsageWindows(doc status.Document, shared []string) []string {
 	return slices.Compact(slices.SortedFunc(slices.Values(keys), quota.CompareKeys))
 }
 
-// usageWindows are the windows of doc with the keys given, or with none,
-// those UsageWindows has, in Claude's order, each named as name names it,
-// cleaned, or where name is nil, by its label as labelOf has it.
+// usageWindows are the windows of doc with the keys given, in their order,
+// which is Claude's, or with none, those UsageWindows has, each named as name
+// names it, cleaned, or where name is nil, by its label as labelOf has it.
 func usageWindows(doc status.Document, keys, shared []string, name func(key string) string) []shownWindow {
 	if len(keys) == 0 {
 		keys = UsageWindows(doc, shared)
@@ -172,9 +174,8 @@ func usageWindows(doc status.Document, keys, shared []string, name func(key stri
 	if name == nil {
 		name = func(key string) string { return labelOf(doc, key) }
 	}
-	keys = slices.SortedFunc(slices.Values(keys), quota.CompareKeys)
 	shown := make([]shownWindow, 0, len(keys))
-	for _, key := range slices.Compact(keys) {
+	for _, key := range keys {
 		shown = append(shown, shownWindow{key: key, name: status.Clean(name(key))})
 	}
 	return shown
@@ -203,19 +204,19 @@ func accountGauge(a status.Account, key string, st status.WindowState, now time.
 	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(st, w.Allowance, now), runsOut: st.Kind == status.WindowRunsOut}
 }
 
-// poolRow is pool's row under accounts accounts' rows, of the windows shown,
-// its Σ in a column as wide as their numbers, reporting false where there's
-// no pool, as with one account:
-// each window's bar filled to what the pool has used, with its accounts' even
-// pace and no cap's mark, and its words its room, the first window's saying
-// it's pinned, where it is.
-func poolRow(pool status.Pool, accounts int, windows []shownWindow) (usageRow, bool) {
-	if accounts < 2 || len(pool.Accounts) == 0 {
+// poolRow is pool's row under the rows of accounts named as names has them,
+// of the windows shown, its Σ in their number column, reporting false where
+// there's no pool, as with one account: each window's bar filled to what the
+// pool has used, with its accounts' even pace and no cap's mark, and its
+// words its room, the first it has words for saying it's pinned, where it is.
+func poolRow(pool status.Pool, names []accountName, windows []shownWindow) (usageRow, bool) {
+	if len(names) < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
 	}
-	digits := len(strconv.Itoa(accounts))
+	digits := len(names[0].number)
 	row := usageRow{name: line{{strings.Repeat(" ", digits-1) + "Σ", dimInk}, {" pool", noteInk}}, pool: true}
-	for i, w := range windows {
+	pinned := pool.Pinned
+	for _, w := range windows {
 		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindow) bool { return p.Key == w.key })
 		if j < 0 {
 			row.gauges = append(row.gauges, gauge{bar: usageBar{empty: true}})
@@ -225,8 +226,9 @@ func poolRow(pool status.Pool, accounts int, windows []shownWindow) (usageRow, b
 		row.gauges = append(row.gauges, gauge{
 			of:    Ref{Window: w.key},
 			bar:   usageBar{used: p.Used, capAt: 1, pace: p.Pace},
-			words: poolWords(p.Room, len(pool.Accounts), pool.Pinned && i == 0),
+			words: poolWords(p.Room, len(pool.Accounts), pinned),
 		})
+		pinned = false
 	}
 	return row, true
 }
@@ -403,7 +405,7 @@ func (b usageBlock) matrixBar() int {
 	if k == 0 {
 		return 0
 	}
-	room := b.width - matrixNames - groupCells*k + 3
+	room := b.width - matrixNames - groupCells*k + groupGap
 	return min(mostMatrixBar, room/k) - (b.names-matrixNames+k-1)/k
 }
 
@@ -423,7 +425,7 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 		}
 		for i, g := range r.gauges {
 			next := b.names + (i+1)*group
-			b.gauge(c, g, next-group, y, bar, min(next-1, b.width))
+			b.gauge(c, g, next-group, y, bar, next-groupGap)
 		}
 		return y
 	})
@@ -450,7 +452,7 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 		}
 		section := in.each(c, 1, y+2, 2, func(r usageRow, y int) int {
 			c.line(1, y, r.name)
-			b.gauge(c, r.gauges[i], b.names, y, bar, b.width)
+			b.gauge(c, r.gauges[i], b.names, y, bar, b.width-afterWords)
 			return y
 		})
 		all.placed = append(all.placed, section.placed...)
@@ -513,12 +515,12 @@ func (b usageBlock) split() ([]usageRow, *usageRow) {
 // second: wide, from 110 columns, the name beside its first window's row and
 // each label in the name column; else the name on a line of its own above,
 // and the labels a cell in. Its bars take what the block's width leaves
-// them, and its words end at the edge, but where the Overview sets its bars:
-// then its words end besideCells before routingAt, the gap before ROUTING's
-// blocks beside them.
+// them, and its words end a cell before the edge, but where the Overview sets
+// its bars: then its words end besideCells before routingAt, the gap before
+// ROUTING's blocks beside them.
 func (b usageBlock) byAccount(c *canvas, y int) laid {
 	labelAt, cells := b.labels()
-	bar, end := b.bar(), b.width
+	bar, end := b.bar(), b.width-afterWords
 	if b.accountBar > 0 {
 		end = b.routingAt() - besideCells
 	}

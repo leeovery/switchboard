@@ -242,7 +242,8 @@ type fileKeep struct {
 
 // fileUsage is the [usage] table as it's written.
 type fileUsage struct {
-	By string `toml:"by"`
+	// By is nil when the table doesn't give one.
+	By *string `toml:"by"`
 }
 
 // Load reads the config file at path, validates it and fills in its defaults.

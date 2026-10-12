@@ -67,7 +67,7 @@ func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
 	case Overview:
 		return f.overviewFilled(doc, now)
 	case Sessions:
-		return lastRead(doc)
+		return usedAsRead(doc)
 	}
 	return nil
 }
@@ -88,9 +88,9 @@ func (f Frame) overviewFilled(doc status.Document, now time.Time) map[Ref]float6
 	return filled
 }
 
-// lastRead are how much of each of doc's windows was used as last read, by
+// usedAsRead are how much of each of doc's windows was used as last read, by
 // its account and key.
-func lastRead(doc status.Document) map[Ref]float64 {
+func usedAsRead(doc status.Document) map[Ref]float64 {
 	used := make(map[Ref]float64)
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
