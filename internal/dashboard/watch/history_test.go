@@ -252,7 +252,7 @@ func filedOn(id, key string, at time.Time, used float64) readings.Reading {
 	return readings.Reading{At: at.UTC(), Account: id, Key: key, Utilization: used, Source: readings.FromProbe}
 }
 
-func TestProbingTheChartsDrawTheReadingsHistorysFilesWithEachFullRead(t *testing.T) {
+func TestProbingTheChartsDrawTheReadingsHistorysFilesReadAsProbingBegins(t *testing.T) {
 	sessionStart := start.Add(-2 * time.Hour)
 	work := account("work", "Work", session(0.3, 3*time.Hour), week(0.5))
 	doc := probedWithoutTheRouter()
@@ -275,28 +275,42 @@ func TestProbingTheChartsDrawTheReadingsHistorysFilesWithEachFullRead(t *testing
 	if got := h.model.trails[dashboard.Ref{Account: "work", Window: "5h"}].Readings; !slices.EqualFunc(got, want, sameReading) {
 		t.Errorf("work's session's readings are %+v, want %+v: the files' since the session started, then the watch's own", got, want)
 	}
-	if files.reads == 0 || len(h.source.histories) > 0 {
-		t.Errorf("read the files %d times and asked the router for %q, probing; want the files read, the router asked nothing", files.reads, h.source.histories)
+	if len(h.source.histories) > 0 {
+		t.Errorf("asked the router for %q, probing, want nothing", h.source.histories)
 	}
-	reads := files.reads
 	h.tickUntil(at(13, 13, 0))
-	if files.reads != reads {
-		t.Errorf("a minute of looks read the files %d times more, want none", files.reads-reads)
+	h.deliver(h.press("R")...)
+	h.deliver(h.press("R")...)
+	if files.reads != 1 {
+		t.Errorf("a minute of looks and several full reads, probing, read the files %d times, want once, as probing began", files.reads)
 	}
 }
 
-func TestWithTheRouterTheChartsAskItAndNeverTheFiles(t *testing.T) {
+func TestTheChartsAskTheRouterAndReadTheFilesOnceProbingBeginsAgain(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	files := &filedReadings{held: []readings.Reading{filedOn("work", "5h", start.Add(-time.Hour), 0.9)}}
 	h.model.cfg.Readings = files
 	h.start()
 	h.deliver(h.press("R")...)
-
 	if want := slices.Concat(asksOfThree, asksOfThree); !slices.Equal(h.source.histories, want) {
 		t.Errorf("asked for the history of %q, want %q: GET /history with each full read", h.source.histories, want)
 	}
 	if files.reads > 0 {
 		t.Errorf("read the readings history's files %d times, want none while the router answers", files.reads)
+	}
+
+	h.stopRouter()
+	h.deliver(h.press("R")...)
+	h.deliver(h.press("R")...)
+	if files.reads != 1 {
+		t.Errorf("probing once the router went, read the files %d times, want once", files.reads)
+	}
+	h.startRouter(routerDocument(three()...))
+	h.deliver(h.press("R")...)
+	h.stopRouter()
+	h.deliver(h.press("R")...)
+	if files.reads != 2 {
+		t.Errorf("probing again once the router came back and went, read the files %d times, want once more, 2", files.reads)
 	}
 }
 
