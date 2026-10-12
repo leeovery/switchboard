@@ -51,6 +51,9 @@ func TestSetup(t *testing.T) {
 	s.setenv("PATH", bin+string(filepath.ListSeparator)+filepath.Dir(realClaude))
 	s.setenv("CLAUDE_CONFIG_DIR", claudeConfig)
 	atATerminal(&s.srv.deps)
+	// Setup prints usage as it stands, which the router's first probes may
+	// not have reached: here they have, so it prints them.
+	s.launchd.probed = true
 	answers := strings.Join([]string{
 		"", // no token for personal, for now
 		"", // no more accounts
