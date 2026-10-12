@@ -218,26 +218,68 @@ func TestUSAGEScrollsItsAccountsWithinItsRowsItsHeadingsPoolAndKeyLineHeld(t *te
 	}
 }
 
-func TestUSAGEScrollsAnAccountsRowsAtATimeAPageBeingThoseBetweenItsScrollLines(t *testing.T) {
+func TestUSAGEScrollsAnAccountsRowsAtATimeAPageBeingThoseShownAtItsOffset(t *testing.T) {
 	tests := []struct {
-		name  string
-		width int
-		by    By
-		n     int
-		rows  int
-		want  Scrolling
+		name   string
+		width  int
+		by     By
+		n      int
+		rows   int
+		scroll int
+		want   Scrolling
 	}{
 		{name: "fitting, nowhere", width: 160, n: 10, rows: 25},
 		{name: "the matrix", width: 160, n: 10, rows: 15, want: Scrolling{Most: 6, Page: 4}},
-		{name: "stacked, under 150 columns", width: 120, n: 6, rows: 25, want: Scrolling{Most: 3, Page: 2}},
+		{name: "the matrix at the top, no ▲ over it", width: 160, n: 10, rows: 14, want: Scrolling{Most: 6, Page: 4}},
+		{name: "the matrix between ▲ and ▼", width: 160, n: 10, rows: 14, scroll: 1, want: Scrolling{Most: 6, Page: 3}},
+		{name: "the matrix at the foot, no ▼ under it", width: 160, n: 10, rows: 14, scroll: 6, want: Scrolling{Most: 6, Page: 4}},
+		{name: "the matrix scrolled past the foot, as the frame now has it", width: 160, n: 10, rows: 14, scroll: 9, want: Scrolling{Most: 6, Page: 4}},
+		{name: "stacked, under 150 columns, at the top", width: 120, n: 6, rows: 25, want: Scrolling{Most: 3, Page: 3}},
+		{name: "stacked, under 150 columns, between ▲ and ▼", width: 120, n: 6, rows: 25, scroll: 1, want: Scrolling{Most: 3, Page: 2}},
 		{name: "by account", width: 160, by: ByAccount, n: 6, rows: 20, want: Scrolling{Most: 4, Page: 2}},
+		{name: "by account at the top", width: 160, by: ByAccount, n: 6, rows: 21, want: Scrolling{Most: 3, Page: 3}},
+		{name: "by account between ▲ and ▼", width: 160, by: ByAccount, n: 6, rows: 21, scroll: 1, want: Scrolling{Most: 3, Page: 2}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(tt.width, 60)
-			f.By = tt.by
+			f.By, f.Scroll = tt.by, tt.scroll
 			if got := f.usageSection(manyRead(tt.n), now).scrolling(bounds{width: tt.width, rows: tt.rows}); got != tt.want {
-				t.Errorf("in %d rows, %d accounts scroll %+v, want %+v", tt.rows, tt.n, got, tt.want)
+				t.Errorf("in %d rows, scrolled %d down, %d accounts scroll %+v, want %+v", tt.rows, tt.scroll, tt.n, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRevealingAnAccountInUSAGEScrollsOnlyWhereItIsntShownAndThenTillItIs(t *testing.T) {
+	accounts := make([]status.Account, 8)
+	for i := range accounts {
+		accounts[i] = readAccount(fmt.Sprintf("a%d", i+1), sessionOf(0.1, time.Hour), weekOf(0.2, 3*day), windowOf("7d_opus", "Opus", 0.3, 3*day))
+	}
+	doc := routerDoc("a1", 0, accounts...)
+	// Stacked, under 150 columns, three windows: at the top, with no ▲ over
+	// each, a1 to a4 show; between ▲ and ▼, three; at the foot, from a5, four.
+	f := frameOf(120, 54)
+	if s := f.Scrolling(doc, now); s != (Scrolling{Most: 4, Page: 4}) {
+		t.Fatalf("USAGE scrolls %+v, want 4 accounts at the top, as far as 4", s)
+	}
+	tests := []struct {
+		name   string
+		scroll int
+		id     string
+		want   int
+	}{
+		{name: "the fourth, shown at the top: where it is", id: "a4", want: 0},
+		{name: "the fifth, below the top: till it shows, between ▲ and ▼", id: "a5", want: 2},
+		{name: "the last: to the foot", id: "a8", want: 4},
+		{name: "below the page between ▲ and ▼: till it's the last shown", scroll: 1, id: "a6", want: 3},
+		{name: "above the page: till it's the first shown", scroll: 3, id: "a2", want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f.Scroll = tt.scroll
+			if got := f.Revealing(doc, now, tt.id); got != tt.want {
+				t.Errorf("scrolled %d down, revealing %s scrolls to %d, want %d", tt.scroll, tt.id, got, tt.want)
 			}
 		})
 	}

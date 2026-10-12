@@ -45,7 +45,7 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 		targets: func(body bounds) []Target {
 			return block.fitted(body.rows, f.Scroll).targets(body)
 		},
-		scrolling: func(body bounds) Scrolling { return block.scrolling(body.rows) },
+		scrolling: func(body bounds) Scrolling { return block.scrolling(body.rows, f.Scroll) },
 	}
 }
 
@@ -182,10 +182,12 @@ func (b usageBlock) fitted(rows, offset int) usageBlock {
 	return b.scrolled(rows, offset)
 }
 
-// scrolling is how far the block scrolls in rows rows, an account's rows at a
-// time: no further than shows the last account, a page being as many as
-// show between ▲ and ▼; nowhere where it fits.
-func (b usageBlock) scrolling(rows int) Scrolling {
+// scrolling is how far the block scrolls in rows rows, scrolled offset
+// accounts' rows down, an account's rows at a time: no further than shows the
+// last account, a page being as many as show at the offset, taken no further
+// than it goes: more at the top or the foot, with no ▲ or ▼ by them, than
+// between; nowhere where it fits.
+func (b usageBlock) scrolling(rows, offset int) Scrolling {
 	accounts, _ := b.split()
 	n := len(accounts)
 	if n < 2 || b.height() <= rows {
@@ -195,18 +197,19 @@ func (b usageBlock) scrolling(rows int) Scrolling {
 	for last < n-1 && b.shows(n-last-1, last+1).height() <= rows {
 		last++
 	}
-	return Scrolling{Most: n - last, Page: b.shownFrom(rows, 1)}
+	most := n - last
+	return Scrolling{Most: most, Page: b.shownFrom(rows, min(max(offset, 0), most))}
 }
 
 // scrolled is the block in rows rows, scrolled offset accounts' rows down, no
 // further than scrolling says it goes, showing as many as fit, at least one.
 func (b usageBlock) scrolled(rows, offset int) usageBlock {
-	s := b.scrolling(rows)
+	s := b.scrolling(rows, offset)
 	if s.Most == 0 {
 		return b
 	}
 	first := min(max(offset, 0), s.Most)
-	return b.shows(first, b.shownFrom(rows, first))
+	return b.shows(first, s.Page)
 }
 
 // shownFrom is how many accounts' rows show in rows rows, from the one at
