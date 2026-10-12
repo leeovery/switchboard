@@ -86,6 +86,16 @@ func overviewNames(doc status.Document) []accountName {
 	return names
 }
 
+// overviewNamed is the account of doc with the given id as the Overview names
+// it in a line, in k: its label, as names, overviewNames' of doc, have it,
+// faint where it's out of the pool; where doc lacks it, its id, cleaned.
+func overviewNamed(doc status.Document, names []accountName, id string, k ink) span {
+	if i := place(doc, id); i > 0 {
+		return span{names[i-1].label, names[i-1].inked(k)}
+	}
+	return span{status.Clean(id), k}
+}
+
 // overviewGauge is g, the window ref names, as the Overview draws it: where
 // its account is out of the pool, its bar faded as a stale reading's is, the
 // two fades compounding where it's stale too, and its percentage and words

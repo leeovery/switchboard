@@ -267,14 +267,14 @@ func (n accountName) cells(label int) int {
 // to keep its number, its marks and ▲'s cells.
 func (n accountName) line(column int) line {
 	label := truncate(n.label, column-nameGap-n.cells(0))
-	number, labelled, primary, best := dimInk, titleInk, primaryInk, accentInk
+	number, primary, best := dimInk, primaryInk, accentInk
 	if n.out {
 		number = faintInk
 	}
 	if n.faint {
-		labelled.token, primary, best = theme.TextFaint, faintInk, faintInk
+		primary, best = faintInk, faintInk
 	}
-	l := line{{n.number, number}, {" " + label, labelled}}
+	l := line{{n.number, number}, {" " + label, n.inked(titleInk)}}
 	if n.primary {
 		l = append(l, span{" ◆", primary})
 	}
@@ -282,6 +282,15 @@ func (n accountName) line(column int) line {
 		l = append(l, span{" ▲", best})
 	}
 	return l
+}
+
+// inked is k as the name's label is drawn in it: in text.faint, k's weight
+// kept, where the name is faint.
+func (n accountName) inked(k ink) ink {
+	if n.faint {
+		k.token = theme.TextFaint
+	}
+	return k
 }
 
 // nameColumn is the cells of the name column of a block width columns wide:

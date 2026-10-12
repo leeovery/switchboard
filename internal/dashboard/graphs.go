@@ -20,7 +20,7 @@ const chartGap = 3
 // a window that USAGE shows, side by side from USAGE's name column, names
 // cells, or stacked on a phone.
 type graphs struct {
-	account status.Account
+	name    span
 	focused bool
 	charts  []chart
 	names   int
@@ -42,19 +42,22 @@ func (f Frame) graphsSection(doc status.Document, now time.Time) section {
 }
 
 // graphsOf are the GRAPHS of doc at now of the account the frame's focus is
-// on, or where it's on none of doc's, the first: by window or by account
-// alike, each window's chart drawn from its trail.
+// on, or where it's on none of doc's, the first, named in bold text.primary
+// as the Overview names it: by window or by account alike, each window's
+// chart drawn from its trail.
 func (f Frame) graphsOf(doc status.Document, now time.Time) graphs {
-	g := graphs{names: nameColumn(namesOf(doc), f.Width), phone: f.phone(), look: f.Look}
-	g.account, g.focused = doc.Account(f.Focus)
-	if !g.focused && len(doc.Accounts) > 0 {
-		g.account, g.focused = doc.Accounts[0], true
+	names := overviewNames(doc)
+	g := graphs{names: nameColumn(names, f.Width), phone: f.phone(), look: f.Look}
+	account, focused := doc.Account(f.Focus)
+	if !focused && len(doc.Accounts) > 0 {
+		account, focused = doc.Accounts[0], true
 	}
-	if !g.focused {
+	if !focused {
 		return g
 	}
+	g.name, g.focused = overviewNamed(doc, names, account.ID, titleInk), true
 	for _, w := range usageWindows(doc, nil) {
-		g.charts = append(g.charts, chartOf(g.account, w, f.Trails[Ref{Account: g.account.ID, Window: w.key}], now))
+		g.charts = append(g.charts, chartOf(account, w, f.Trails[Ref{Account: account.ID, Window: w.key}], now))
 	}
 	return g
 }
@@ -100,7 +103,7 @@ func (g graphs) description() line {
 		return nil
 	}
 	return line{
-		{name(g.account), titleInk}, spaces(5),
+		g.name, spaces(5),
 		{paceDot, dimInk}, {" even pace   ", faintInk}, {capLine, reserveInk}, {" cap   " + limitLine + " limit", faintInk},
 	}
 }
@@ -111,5 +114,5 @@ func (g graphs) folded() line {
 	if !g.focused {
 		return nil
 	}
-	return line{{name(g.account), titleInk}}
+	return line{g.name}
 }

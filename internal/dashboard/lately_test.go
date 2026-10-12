@@ -126,25 +126,46 @@ func TestLATELYDrawsAsManyAsItsBodyHoldsFromItsLeftCutAtItsRight(t *testing.T) {
 	}
 }
 
-func TestLATELYPicksOutAFreshRowAcrossItsBodyFadingBack(t *testing.T) {
+func TestLATELYCuesAFreshRowAcrossItsBodyFadingBack(t *testing.T) {
 	doc := eventsOf(
 		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventRoom, Account: "work"},
 		status.Event{At: now.Add(-2 * time.Minute).UTC(), Kind: status.EventRoom, Account: "side"},
 	)
-	f := frameOf(160, 10)
-	f.Fresh = map[int]float64{2: 0.25}
 	body := bounds{x: 82, y: 1, width: 78, rows: 3}
-	c := latelyDrawn(f, doc, now, body)
-
 	want := hue{token: theme.BgAttention, fade: 0.25}
-	for x := range f.Width {
-		picked := body.x <= x && x < body.x+body.width
-		if got := c.cells[1][x].ink.on; (got == want) != picked {
-			t.Errorf("the fresh row's cell %d is on %+v, want %v on bg.attention", x, got, picked)
-		}
-		if got := c.cells[2][x].ink.on; got != (hue{}) {
-			t.Errorf("the row seen before's cell %d is on %+v, want the canvas", x, got)
-		}
+	tests := []struct {
+		name string
+		look Look
+		bold bool
+	}{
+		{name: "on bg.attention, as far faded back as it's gone", look: Screen(builtin(t, "nord"))},
+		{name: "without colour, bold too", look: NoColour(), bold: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(160, 10)
+			f.Look, f.Fresh = tt.look, map[int]float64{2: 0.25}
+			c := latelyDrawn(f, doc, now, body)
+			for x := range f.Width {
+				picked := body.x <= x && x < body.x+body.width
+				fresh, seen := c.cells[1][x].ink, c.cells[2][x].ink
+				if (fresh.on == want) != picked {
+					t.Errorf("the fresh row's cell %d is on %+v, want %v on bg.attention", x, fresh.on, picked)
+				}
+				if picked && tt.bold && !fresh.bold {
+					t.Errorf("the fresh row's cell %d is in %+v, want it bold", x, fresh)
+				}
+				if seen.on != (hue{}) {
+					t.Errorf("the row seen before's cell %d is on %+v, want the canvas", x, seen.on)
+				}
+			}
+			if got := c.cells[1][body.x].ink.bold; got != tt.bold {
+				t.Errorf("the fresh row's time is bold %t, want %t", got, tt.bold)
+			}
+			if c.cells[2][body.x].ink.bold || c.cells[1][body.x-1].ink.bold {
+				t.Errorf("the row seen before's time, or the cell before the fresh row's, is bold, want neither cued")
+			}
+		})
 	}
 }
 
@@ -165,22 +186,51 @@ func TestLATELYSaysWhyItHasNone(t *testing.T) {
 			if got := strings.TrimSpace(c.row(1, Look{})); got != tt.want {
 				t.Errorf("LATELY says %q, want %q", got, tt.want)
 			}
-			if got := f.latelySection(threeRouted(), now).folded().plain(); got != tt.want {
-				t.Errorf("folded, LATELY says %q, want %q", got, tt.want)
+			if got := f.says(planned{section: f.latelySection(threeRouted(), now), fold: true}).plain(); got != tt.want {
+				t.Errorf("folded, LATELY's heading says %q, want %q, with no ellipsis", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestLATELYFoldsToItsFirstLine(t *testing.T) {
+func TestLATELYFoldsToItsFirstLineThenAnEllipsisWhereItHasMore(t *testing.T) {
+	started := status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventStarted, Account: "side", Session: "c61b2f8d", Reason: status.ReasonNew}
+	room := status.Event{At: now.Add(-25 * time.Hour).UTC(), Kind: status.EventRoom, Account: "work"}
+	first := line{{"13:11  ", secondaryInk}, {"▲", accentInk}, spaces(1), {"c61b", titleInk}, {" started on ", mutedInk}, {"side", strongInk}}
+	tests := []struct {
+		name   string
+		events []status.Event
+		want   line
+	}{
+		{name: "more than one sentence", events: []status.Event{started, room}, want: slices.Concat(first, line{{"  …", dimInk}})},
+		{name: "one sentence", events: []status.Event{started}, want: first},
+	}
+	f := frameOf(160, 40)
+	for _, tt := range tests {
+		if got := f.says(planned{section: f.latelySection(eventsOf(tt.events...), now), fold: true}); !slices.Equal(got, tt.want) {
+			t.Errorf("folded with %s, LATELY's heading says %+v, want %+v: its first line as drawn", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestLATELYNamesAnAccountOutOfThePoolFaint(t *testing.T) {
 	doc := eventsOf(
 		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventStarted, Account: "side", Session: "c61b2f8d", Reason: status.ReasonNew},
-		status.Event{At: now.Add(-25 * time.Hour).UTC(), Kind: status.EventRoom, Account: "work"},
+		status.Event{At: now.Add(-2 * time.Minute).UTC(), Kind: status.EventRoom, Account: "work"},
 	)
-	folded := frameOf(160, 40).latelySection(doc, now).folded()
-	want := line{{"13:11  ", secondaryInk}, {"▲", accentInk}, spaces(1), {"c61b", titleInk}, {" started on ", mutedInk}, {"side", strongInk}, {"  …", dimInk}}
-	if !slices.Equal(folded, want) {
-		t.Errorf("folded, LATELY says %+v, want %+v: its first line as drawn, then …", folded, want)
+	doc.Pool.Accounts = []string{"work"}
+	lines := frameOf(160, 40).latelyLines(doc, views.Lately(doc, now, 2), now)
+	tests := []struct {
+		line int
+		want span
+	}{
+		{line: 0, want: span{"side", ink{token: theme.TextFaint, bold: true}}},
+		{line: 1, want: span{"work", titleInk}},
+	}
+	for _, tt := range tests {
+		if !slices.Contains(lines[tt.line], tt.want) {
+			t.Errorf("with the pool work alone, LATELY's line %d is %+v, want it to name %+v", tt.line+1, lines[tt.line], tt.want)
+		}
 	}
 }
 
@@ -361,8 +411,8 @@ func TestCOMINGUPAndLATELYFoldAsTheirFrames(t *testing.T) {
 	f := Frame{Width: 160, Height: 39, Look: nord, View: Overview, Policy: claudeLike}
 	doc := framedDoc(framedComing, onAuto())
 	c := newCanvas(f.Width, f.Height)
-	c.line(12, 36, f.comingSection(doc, routedAt).folded())
-	c.line(91, 36, f.latelySection(doc, routedAt).folded())
+	c.line(12, 36, f.says(planned{section: f.comingSection(doc, routedAt), fold: true}))
+	c.line(91, 36, f.says(planned{section: f.latelySection(doc, routedAt), fold: true}))
 
 	// The frame draws the folded LATELY's object, side, in text.muted, not
 	// bold, where its rows, and the design, draw it bold text.secondary.

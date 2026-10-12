@@ -8,6 +8,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // trailFilled is the trail of a window from start, length long, that a chart
@@ -325,6 +326,23 @@ func TestGRAPHSChartsTheFocusedAccountOrTheFirst(t *testing.T) {
 	}
 	if s := (Frame{Width: 160, Height: 39}).graphsSection(status.Document{}, printNow); s.description() != nil || s.folded() != nil {
 		t.Errorf("with no account, GRAPHS says %+v, folded %+v, want nothing", s.description(), s.folded())
+	}
+}
+
+func TestGRAPHSNamesAFocusedAccountOutOfThePoolFaint(t *testing.T) {
+	doc := trio(pinnedTo("work"))
+	tests := []struct {
+		focus string
+		want  span
+	}{
+		{focus: "work", want: span{"work", titleInk}},
+		{focus: "personal", want: span{"personal", ink{token: theme.TextFaint, bold: true}}},
+	}
+	for _, tt := range tests {
+		g := Frame{Width: 160, Height: 39, Focus: tt.focus}.graphsSection(doc, printNow)
+		if said, folded := g.description(), g.folded(); said[0] != tt.want || !slices.Equal(folded, line{tt.want}) {
+			t.Errorf("with work alone pinned, focused on %s, GRAPHS says %+v, folded %+v, want each to name %+v", tt.focus, said, folded, tt.want)
+		}
 	}
 }
 

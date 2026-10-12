@@ -9,7 +9,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // passedOver ends the reason the router gives for a choice that passed over
@@ -331,9 +330,9 @@ func (f Frame) quietly(c *canvas, doc status.Document, x, y, end int) int {
 }
 
 // freshen picks out the row of the event with the given id, from x along
-// row y until the column end, while it's fresh: its highlight fading back.
+// row y until the column end, while it's fresh: cued, its cue fading back.
 func (f Frame) freshen(c *canvas, id, x, y, end int) {
 	if fade, ok := f.Fresh[id]; ok {
-		c.surface(x, y, end-x, hue{token: theme.BgAttention, fade: fade})
+		cue(c, f.Look, x, y, end-x, fade)
 	}
 }
