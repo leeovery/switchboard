@@ -709,15 +709,7 @@ func (y yearDrawn) dots(c *canvas, x, row int) {
 		if i > 0 {
 			l = append(l, span{"   ", dimInk})
 		}
-		l = append(l, span{"●", familyHue(family).ink()}, span{" " + familyName(family), dimInk})
+		l = append(l, familyDot(family, dimInk)...)
 	}
 	c.line(x, row, l)
-}
-
-// familyName is a family's name as the views show it, as Opus.
-func familyName(family string) string {
-	if family == "" {
-		return family
-	}
-	return strings.ToUpper(family[:1]) + family[1:]
 }

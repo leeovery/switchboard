@@ -35,7 +35,7 @@ func (p Past) Weeks() WeeksPage {
 
 // Days is Days' page: the eight weeks to this one, a day at a time.
 func (p Past) Days() DaysPage {
-	return DaysPage{}
+	return daysPageOf(p.in, p.days)
 }
 
 // Tokens is Tokens' page, as asked for.

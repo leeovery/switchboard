@@ -491,7 +491,7 @@ func (y yearView) numbers() YearNumbers {
 func (y yearView) versionNumbers(first string) YearNumbers {
 	t := y.totals()
 	return YearNumbers{
-		Requests: t.Requests, Sessions: t.Sessions, Worth: t.Worth, Share: shareOf(t.Worth, y.all.worth()),
+		Requests: t.Requests, Sessions: t.Sessions, Worth: t.Worth, Share: shareOf(t.Worth, y.all.worth().amount()),
 		BusiestDay: t.BusiestDay, LongestRun: t.LongestRun, FirstUsed: first,
 	}
 }
@@ -525,9 +525,9 @@ func (y yearView) months() []MonthRow {
 // it was used in, with its share of the month's worth, the month it was
 // first used in, on the day with the date first, from then.
 func (y yearView) versionMonths(first string) []MonthRow {
-	whole := make(map[string]Worth)
+	whole := make(map[string]ledger.Picodollars)
 	for _, s := range spansOf(y.all, monthKey) {
-		whole[s.key] = yearDays(s.days).worth()
+		whole[s.key] = yearDays(s.days).worth().amount()
 	}
 	var rows []MonthRow
 	for _, m := range monthsOf(y.shown, plans{}, y.v, y.span.first, y.span.today) {
@@ -610,16 +610,6 @@ func (y yearView) families(rows []MonthRow) []string {
 		names[i] = f.Family
 	}
 	return names
-}
-
-// shareOf is part's share of whole, at API prices: none where either is
-// unpriced, or whole is worth nothing.
-func shareOf(part, whole Worth) *float64 {
-	if part.Amount == nil || whole.amount() <= 0 {
-		return nil
-	}
-	share := float64(*part.Amount) / float64(whole.amount())
-	return &share
 }
 
 // dateText is the date of a day as civil gives it, as 2026-10-01.

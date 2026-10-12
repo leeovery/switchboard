@@ -3,8 +3,11 @@ package dashboard
 import (
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -120,6 +123,22 @@ func (f Frame) history(c *canvas, top int) {
 	case HistoryTokens:
 		f.historyTokens(c, top)
 	}
+}
+
+// familyName is a family's name as History shows it, its first letter
+// capital: Opus.
+func familyName(family string) string {
+	name := status.Clean(family)
+	if first, size := utf8.DecodeRuneInString(name); size > 0 {
+		name = string(unicode.ToUpper(first)) + name[size:]
+	}
+	return name
+}
+
+// familyDot is a family as History's keys and strips name it: its dot in
+// its hue, then its name in the ink given, as ● Opus.
+func familyDot(family string, name ink) line {
+	return line{{"●", familyHue(family).ink()}, {" " + familyName(family), name}}
 }
 
 // moreBelow says how many more of a view's rows, each one of the thing noun

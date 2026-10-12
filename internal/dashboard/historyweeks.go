@@ -17,14 +17,14 @@ import (
 // Weeks' columns: the weeks' from peaksFrom, peaksApart apart, a table's
 // peak right-aligned in peakCells; the verdicts' at verdictsAt; a name cut
 // to the cells before the weeks, less one; and on a phone, the last
-// phoneWeeks of them.
+// weeksPhoneWeeks of them.
 const (
-	peaksFrom      = 14
-	peaksApart     = 8
-	peakCells      = 5
-	verdictsAt     = 82
-	weeksNameCells = peaksFrom - 1
-	phoneWeeks     = 4
+	peaksFrom       = 14
+	peaksApart      = 8
+	peakCells       = 5
+	verdictsAt      = 82
+	weeksNameCells  = peaksFrom - 1
+	weeksPhoneWeeks = 4
 )
 
 // Weeks' column shape: a block an account, blockRows apart, each week a
@@ -201,7 +201,7 @@ func (f Frame) weeksOnAPhone(c *canvas, w weeksDrawn, top, foot int) {
 		c.line(0, top+i, l)
 	}
 	shown, below := f.weeksShown(w)
-	w.table(c, top+len(verdict)+1, min(phoneWeeks, len(w.page.Weeks)), shown, false)
+	w.table(c, top+len(verdict)+1, min(weeksPhoneWeeks, len(w.page.Weeks)), shown, false)
 	w.accountsBelow(c, foot, below)
 }
 
