@@ -2,8 +2,12 @@ package dashboard
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // sessionsKeys are the keys help lists on Sessions, as the key line words
@@ -154,5 +158,130 @@ func TestHelpIsNoTallerThanThePageLessTwoRows(t *testing.T) {
 		if top < 0 || bottom < 0 || bottom+1 > height-2 {
 			t.Errorf("at %d rows, help is %d rows tall from row %d, want %d at most", height, bottom+1, top+1, height-2)
 		}
+	}
+}
+
+// overviewHelping is the Overview's help, open at width columns, tall
+// enough to show it whole, listing keys.
+func overviewHelping(width int, keys ...Key) Card {
+	f := frameOf(width, 400)
+	f.Card = Help{Keys: keys}
+	return f.Card.card(f)
+}
+
+// helpGlyphs are the glyphs the Overview's help explains under the section
+// headed heading.
+func helpGlyphs(heading string) []glyph {
+	parts := overviewHelp()
+	if i := slices.IndexFunc(parts, func(p helpPart) bool { return p.heading == heading }); i >= 0 {
+		return parts[i].glyphs
+	}
+	return nil
+}
+
+func TestOverviewHelpListsItsKeysThenEachSectionInThePagesOrder(t *testing.T) {
+	card := overviewHelping(160, tabViews, helpQuit[0], helpQuit[1])
+	if card.title != "HELP · OVERVIEW" {
+		t.Errorf("help is titled %q, want HELP · OVERVIEW", card.title)
+	}
+	if got := plainLines(card.body[:2]); !slices.Equal(got, []string{"tab views   ? help   q quit", ""}) {
+		t.Errorf("help opens %q, want its keys, then a blank row", got)
+	}
+	var headings, want []string
+	for i, row := range card.body[1:] {
+		if len(card.body[i]) == 0 && len(row) == 1 && row[0].ink == dimInk {
+			headings = append(headings, row[0].text)
+		}
+	}
+	for _, s := range EverySection() {
+		want = append(want, s.heading())
+	}
+	if !slices.Equal(headings, want) {
+		t.Errorf("help explains %q, want each section in the page's order, %q, each headed in text.subtle after a blank row", headings, want)
+	}
+}
+
+func TestOverviewHelpKeysEachMarkAsThePageDrawsIt(t *testing.T) {
+	explains := func(t *testing.T, heading string, drawn line) {
+		t.Helper()
+		if !slices.ContainsFunc(helpGlyphs(heading), func(g glyph) bool { return slices.Equal(g.drawn, drawn) }) {
+			t.Errorf("%s's help explains %v, want %v among them, as the page draws it", heading, helpGlyphs(heading), drawn)
+		}
+	}
+	t.Run("USAGE's marks, as its key line names them", func(t *testing.T) {
+		explains(t, "USAGE", line{{paceMark, paceInk}})
+		explains(t, "USAGE", line{{capMark, reserveInk}})
+		for _, mark := range keyMarks([]accountName{{primary: true}, {best: true}}, false) {
+			explains(t, "USAGE", mark[:1])
+		}
+	})
+	t.Run("GRAPHS' lines, as its charts draw them", func(t *testing.T) {
+		for _, drawn := range []line{{{paceDot, dimInk}}, {{capLine, reserveInk}}, {{limitLine, faintInk}}, {{nowLine, faintInk}}} {
+			explains(t, "GRAPHS", drawn)
+		}
+	})
+	t.Run("every state's glyph, in its colour, and the pin's", func(t *testing.T) {
+		for kind := status.RoutingTokenless; kind <= status.RoutingOpen; kind++ {
+			explains(t, "ROUTING", line{{kind.Glyph(), standingWords(status.Routing{Kind: kind, Says: "says"}, false, 80)[0].ink}})
+		}
+		explains(t, "ROUTING", line{pinnedSpan})
+	})
+	t.Run("what a session is doing", func(t *testing.T) {
+		explains(t, "SESSIONS", line{frameOf(160, 40).runningDoing(views.Running{InFlight: status.Asking})})
+		explains(t, "SESSIONS", line{{answered(Call{Tokens: 1200}), doingInk}})
+	})
+	t.Run("every event's mark", func(t *testing.T) {
+		for kind, mark := range eventMarks {
+			t.Run(kind, func(t *testing.T) { explains(t, "LATELY", line{mark}) })
+		}
+	})
+}
+
+func TestOverviewHelpGivesTheTracesScale(t *testing.T) {
+	said := strings.Join(plainLines(overviewHelping(160).body), " ")
+	if want := "never less than " + strconv.Itoa(leastScale) + " requests a minute"; !strings.Contains(said, want) {
+		t.Errorf("help reads\n%s\nwant it to say a trace's height is %q", said, want)
+	}
+}
+
+func TestOverviewHelpFitsTheCardAtEveryWidth(t *testing.T) {
+	for _, width := range []int{216, 160, 100, 52} {
+		card := overviewHelping(width, tabViews, helpQuit[0], helpQuit[1])
+		inside := card.width - 2*cardInset
+		for i, row := range card.body {
+			if row.width() > inside || strings.Contains(row.plain(), ellipsis) {
+				t.Errorf("at %d columns, help's row %d is %q, %d cells; want it whole within %d", width, i+1, row.plain(), row.width(), inside)
+			}
+		}
+	}
+}
+
+func TestHelpWrapsWhatItSaysToTheCardAndAGlyphsMeaningUnderItself(t *testing.T) {
+	parts := []helpPart{{
+		heading: "PART",
+		says:    []line{said("words that wrap at twenty cells, `k` bold")},
+		glyphs: []glyph{
+			{drawn: line{{"●━◉", positiveInk}}, means: "a meaning that wraps"},
+			{drawn: line{{"○", dimInk}}, means: "fits"},
+		},
+	}}
+	want := []string{
+		"",
+		"PART",
+		"words that wrap at",
+		"twenty cells, k bold",
+		"●━◉   a meaning that",
+		"      wraps",
+		"○     fits",
+	}
+	rows := helpRows(parts, 20)
+	if got := plainLines(rows); !slices.Equal(got, want) {
+		t.Fatalf("help's rows read\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if k := rows[3][slices.IndexFunc(rows[3], func(s span) bool { return s.text == "k" })]; k.ink != keyInk {
+		t.Errorf("the key in what it says is drawn %v, want bold accent.key", k.ink)
+	}
+	if got := rows[6]; !slices.Equal(got, line{{"○", dimInk}, spaces(5), {"fits", secondaryInk}}) {
+		t.Errorf("a meaning that fits is drawn %v, want its glyph, then the meaning in text.secondary, in the glyphs' column", got)
 	}
 }

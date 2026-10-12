@@ -59,6 +59,7 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 	pinned := routerDocument(three()[0])
 	pinned.Pin = status.Pin{Accounts: []string{"work"}}
 	toggles := []string{"u", "g", "r", "s", "c", "l", "b"}
+	scrolling := []string{"j k", "PgUp PgDn", "wheel"}
 	tests := []struct {
 		name string
 		h    func(t *testing.T) *harness
@@ -69,8 +70,18 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 		{
 			name:     "the router of three",
 			h:        func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()...)) },
-			wantHelp: slices.Concat([]string{"tab"}, toggles, []string{"↑↓", "p", "R", "?", "q"}),
+			wantHelp: slices.Concat([]string{"tab"}, toggles, []string{"↑↓"}, scrolling, []string{"p", "R", "?", "q"}),
 			wantLine: slices.Concat([]string{"tab"}, toggles, []string{"↑↓", "p", "?", "q"}),
+		},
+		{
+			name: "the router of three in Sessions, which doesn't scroll",
+			h: func(t *testing.T) *harness {
+				h := routedHarness(t, routerDocument(three()...))
+				h.model.view = dashboard.Sessions
+				return h
+			},
+			wantHelp: []string{"tab", "p", "R", "?", "q"},
+			wantLine: []string{"tab", "p", "?", "q"},
 		},
 		{
 			name: "probing twelve in Runway, which scroll",
@@ -86,13 +97,13 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 		{
 			name:     "one account, with nowhere else to pin",
 			h:        func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()[0])) },
-			wantHelp: slices.Concat([]string{"tab"}, toggles, []string{"R", "?", "q"}),
+			wantHelp: slices.Concat([]string{"tab"}, toggles, scrolling, []string{"R", "?", "q"}),
 			wantLine: slices.Concat([]string{"tab"}, toggles, []string{"?", "q"}),
 		},
 		{
 			name:     "one account, pinned from the command line",
 			h:        func(t *testing.T) *harness { return routedHarness(t, pinned) },
-			wantHelp: slices.Concat([]string{"tab"}, toggles, []string{"p", "R", "?", "q"}),
+			wantHelp: slices.Concat([]string{"tab"}, toggles, scrolling, []string{"p", "R", "?", "q"}),
 			wantLine: slices.Concat([]string{"tab"}, toggles, []string{"p", "?", "q"}),
 		},
 	}

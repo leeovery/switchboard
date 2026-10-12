@@ -72,10 +72,12 @@ type keyListing struct {
 // its word saying how the windows are grouped; and with more than one
 // account, ↑↓, which the key line sets with p, ? and q; w, in Runway,
 // switching between the day and the week, its word saying which it shows;
-// and j and k, PgUp and PgDn, and the wheel, where the view scrolls, which
-// the key line leaves to help.
+// and j and k, PgUp and PgDn, and the wheel, which the key line leaves to
+// help, where the view scrolls, and on the Overview always, as USAGE scrolls
+// once its accounts outgrow it.
 func (m Model) listings() []keyListing {
-	overview, scrolls := m.view == dashboard.Overview, m.scrolling().Most > 0
+	overview := m.view == dashboard.Overview
+	scrolls := overview || m.scrolling().Most > 0
 	var listed []keyListing
 	for _, s := range dashboard.EverySection() {
 		listed = append(listed, keyListing{Key: dashboard.Key{Key: s.Key(), Does: s.Word(), Hidden: !m.sections.Has(s)}, works: overview})
