@@ -3,6 +3,7 @@ package watch
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -196,11 +197,7 @@ func (m Model) heard(msg streamHeardMsg) (Model, tea.Cmd) {
 	if msg.gen != m.stream.gen || !m.stream.open {
 		return m, nil
 	}
-	now := m.now()
-	was := m.numbersDrawn(now)
-	m.traffic = m.traffic.took(msg.events, m.held, now)
-	m = m.toldTraces(msg.events)
-	m.numbers = m.numbers.changed(was, m.numbersDrawn(now), now)
+	m = m.told(msg.events, m.now())
 	if !msg.ended {
 		return m, m.listen()
 	}
@@ -208,6 +205,39 @@ func (m Model) heard(msg streamHeardMsg) (Model, tea.Cmd) {
 	m.stream.end()
 	m.stream.open, m.stream.events = false, nil
 	return m.rejoinIn(rejoinAfter)
+}
+
+// told takes in the events the stream told, at now, as took does, each
+// number on the page they change brightening: the page is drawn to compare
+// its numbers only where they can change one, as numbering says.
+func (m Model) told(events []router.StreamEvent, now time.Time) Model {
+	if !numbering(events) {
+		return m.took(events, now)
+	}
+	was := m.numbersDrawn(now)
+	m = m.took(events, now)
+	m.numbers = m.numbers.changed(was, m.numbersDrawn(now), now)
+	return m
+}
+
+// took takes in the events the stream told, at now: what each seat is doing,
+// for the traffic, and the requests going upstream, for the traces.
+func (m Model) took(events []router.StreamEvent, now time.Time) Model {
+	m.traffic = m.traffic.took(events, m.held, now)
+	m.traces = m.traces.Told(sentOf(events), now)
+	return m
+}
+
+// numbering reports whether the events can change a number the page draws:
+// one sending a request, which the traces count, or moving a seat, which
+// re-patches the sessions each account counts. An answer's progress, its
+// end and the rest change none, as the dashboard's tests hold the traffic
+// to changing no number but by its moves.
+func numbering(events []router.StreamEvent) bool {
+	return slices.ContainsFunc(events, func(e router.StreamEvent) bool {
+		_, sent := sentAt(e)
+		return sent || e.Kind == router.StreamMoved
+	})
 }
 
 // rejoinIn has the request stream asked for again once wait has passed.

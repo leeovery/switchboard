@@ -60,11 +60,9 @@ func (m Model) keepPrefs(what string, change func(*theme.Prefs), attrs ...any) {
 }
 
 // nextSpan switches how far ahead Runway looks, as w does there, from the
-// day to the week, and back: elsewhere, it does nothing.
+// day to the week, and back.
 func (m Model) nextSpan() Model {
-	if m.view == dashboard.Runway {
-		m.span = m.span.Next()
-	}
+	m.span = m.span.Next()
 	return m
 }
 

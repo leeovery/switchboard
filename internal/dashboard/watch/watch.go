@@ -250,7 +250,8 @@ type Model struct {
 	by       dashboard.By
 	span     dashboard.Span
 	// layout is the Overview's layout as it was last made, kept from look to
-	// look, as keepLayout keeps it, so it changes only on a key or a resize.
+	// look, as keepLayout keeps it, so it changes only on a key the page acts
+	// on, a resize, or a section's shape changing.
 	layout dashboard.Layout
 	// scroll is how many rows the view shown is scrolled down by, where it
 	// doesn't fit, or on the Overview, how many accounts USAGE is, within its
@@ -269,6 +270,19 @@ type Model struct {
 	routing routing
 	help    helping
 	page    frozen
+
+	// shown is what render made of the screen once the last message was
+	// taken in.
+	shown shown
+}
+
+// shown is what render made of the screen: what moves on it, which has
+// frames drawn; and where it drew the screen to know, as drawn says, the
+// view drawn, which View shows rather than drawing it again.
+type shown struct {
+	moving dashboard.Motion
+	view   tea.View
+	drawn  bool
 }
 
 // opened is which card is open over the page.
@@ -346,27 +360,48 @@ func (m Model) Init() tea.Cmd {
 
 // Update takes in a message, as take says, then has the watch read the
 // router's request stream while it wants it, and only then, price the moves
-// the routing card would make while it wants them, and draw frames while
-// anything on screen moves. The view is drawn again after each, which is all
-// a note's lapsing asks.
+// the routing card would make while it wants them; keeps the Overview's
+// layout, but for a frame, which takes nothing in to lay it out afresh by;
+// and only then, so frames see the layout the page will draw, draws frames
+// while anything on screen moves. The view is drawn again after each, which
+// is all a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.take(msg)
 	tuned, stream := next.(Model).tune()
 	tuned, costs := tuned.costing()
-	tuned, frames := tuned.startFrames(tuned.now())
-	return tuned.keepLayout(msg), tea.Batch(cmd, stream, costs, frames)
+	now := tuned.now()
+	if _, frame := msg.(frameMsg); !frame {
+		tuned = tuned.keepLayout(now)
+	}
+	tuned, frames := tuned.startFrames(now)
+	return tuned, tea.Batch(cmd, stream, costs, frames)
 }
 
-// keepLayout keeps the Overview's layout as the page lays it out once msg is
-// taken in, for the looks after: as it was kept, but after a key, which lays
-// it out afresh, as a resize does, and the sections shown, b and the
-// accounts read changing.
-func (m Model) keepLayout(msg tea.Msg) Model {
-	if _, key := msg.(tea.KeyPressMsg); key {
-		m.layout = dashboard.Layout{}
-	}
-	now := m.now()
+// keepLayout keeps the Overview's layout as the page lays it out at now, for
+// the looks after: as it was kept, but laid out afresh where a key the page
+// acts on let it go, as pageKey does, on a resize, or as a section's shape
+// changes, as LayoutOf has it.
+func (m Model) keepLayout(now time.Time) Model {
 	m.layout = m.frame(now).LayoutOf(m.doc, now)
+	return m
+}
+
+// render works out what moves on screen at now, for frames to be drawn
+// while anything does. Where anything the page draws may be settling, it
+// draws the screen once to know, and keeps it for View to show; else what
+// moves needs no drawing, and View draws the screen. Nothing moves behind a
+// card, nor on a screen blank till the terminal says what its background is.
+func (m Model) render(now time.Time) Model {
+	if m.open != nothingOpen || m.blank() {
+		return m
+	}
+	live := m.live(now)
+	if !live.MaySettle() {
+		m.shown.moving = live.Motion(m.doc, now)
+		return m
+	}
+	lines, moving := live.Rendered(m.doc, now)
+	m.shown = shown{view: m.viewOf(lines, live.Look), moving: moving, drawn: true}
 	return m
 }
 
@@ -425,25 +460,46 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View draws the dashboard full screen, as screen has it at the clock's
-// time, the theme picker over its right while it's open. In colour, it's
-// drawn once the terminal has said what its background is, or had its time
-// to, so it never shows one theme then another: in the theme shown, its
-// canvas painted on every cell, and set as the terminal's background too, as
-// background says. The mouse is on while it runs, for clicks and the wheel,
-// so the terminal's own selecting takes its modifier.
+// time: or shows it as render drew it, where render drew it as the last
+// message was taken in. In colour, it's drawn once the terminal has said
+// what its background is, or had its time to, so it never shows one theme
+// then another.
 func (m Model) View() tea.View {
-	v := tea.NewView("")
-	v.AltScreen = true
-	if m.coloured() && !m.backdrop.settled {
-		return v
+	switch {
+	case m.shown.drawn:
+		return m.shown.view
+	case m.blank():
+		return blankView()
 	}
 	f, doc, at := m.screen(m.now())
-	lines := f.Draw(doc, at)
+	return m.viewOf(f.Draw(doc, at), f.Look)
+}
+
+// blank reports whether the screen is blank: in colour, till the terminal
+// has said what its background is, or had its time to.
+func (m Model) blank() bool {
+	return m.coloured() && !m.backdrop.settled
+}
+
+// blankView is the screen full and blank.
+func blankView() tea.View {
+	v := tea.NewView("")
+	v.AltScreen = true
+	return v
+}
+
+// viewOf is the screen of the lines drawn in look, full, the theme picker
+// over its right while it's open: in the theme shown, its canvas painted on
+// every cell, and set as the terminal's background too, as background says.
+// The mouse is on while it runs, for clicks and the wheel, so the terminal's
+// own selecting takes its modifier.
+func (m Model) viewOf(lines []string, look dashboard.Look) tea.View {
 	if m.picker.open {
-		lines = m.picker.drawn(m.choice).Over(lines, m.size.Width, f.Look)
+		lines = m.picker.drawn(m.choice).Over(lines, m.size.Width, look)
 	}
+	v := blankView()
 	v.SetContent(strings.Join(lines, "\n"))
-	v.BackgroundColor = m.background(f.Look)
+	v.BackgroundColor = m.background(look)
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
@@ -778,13 +834,16 @@ func (m Model) armTick(now time.Time) tea.Cmd {
 const stepSlack = time.Millisecond
 
 // startFrames arms the next frame, while anything on screen moves at now,
-// as nextFrame has it, unless the one armed already comes as soon. One armed
-// to come within frameEvery stands without asking nextFrame, which lays a
-// whole frame out.
+// as nextFrame has it once render has worked out what does, unless the one
+// armed already comes as soon, as one armed to come within frameEvery does,
+// which asks nothing of render. Whatever render drew for a message before
+// is let go, View drawing the screen afresh where render draws none.
 func (m Model) startFrames(now time.Time) (Model, tea.Cmd) {
+	m.shown = shown{}
 	if m.framing && !m.frameDue.After(now.Add(frameEvery)) {
 		return m, nil
 	}
+	m = m.render(now)
 	next, moving := m.nextFrame(now)
 	if !moving || m.framing && !m.frameDue.After(now.Add(next)) {
 		return m, nil
@@ -807,18 +866,18 @@ func (m Model) framed(msg frameMsg) Model {
 
 // nextFrame is how long after now what moves on screen next changes, and
 // whether anything does: nothing while a card is open, as the page behind it
-// stands still; else frameEvery while anything moves frame by frame, as
-// Motion says: what travels the cords, or on the page, a bar easing to its
-// reading, or a number brightened, or the cue on an event, an account's
-// state or a window's words, fading back; else as soon as the shimmer down
-// a cord steps on, on the clock's steps of it, or a move yet to show
-// re-patches Sessions' calls. Sessions' plain list is drawn again as the
-// stream tells of more, and as the clock ticks.
+// stands still; else frameEvery while anything moves frame by frame on the
+// screen render drew at now: what travels the cords, or on the page, a bar
+// easing to its reading, or a number brightened, or the cue on an event, an
+// account's state or a window's words, fading back; else as soon as the
+// shimmer down a cord steps on, on the clock's steps of it, or a move yet to
+// show re-patches Sessions' calls. Sessions' plain list is drawn again as
+// the stream tells of more, and as the clock ticks.
 func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
 	if m.open != nothingOpen {
 		return 0, false
 	}
-	moving := m.frame(now).Motion(m.doc, now)
+	moving := m.shown.moving
 	if moving.Smooth {
 		return frameEvery, true
 	}

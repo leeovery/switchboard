@@ -13,25 +13,30 @@ import (
 // and l show and hide its sections, b switches how its windows are grouped,
 // and ↑ and ↓ move the focus, as overviewKey says; tab and shift-tab show the
 // next tab and the one before; t opens the theme picker; and w, in Runway,
-// switches between the day and the week. The rest do nothing: the number
-// keys and m among them, which act in the routing card alone.
+// switches between the day and the week. A key it acts on lets the
+// Overview's layout go, to be laid out afresh. The rest do nothing: the
+// number keys and m among them, which act in the routing card alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
+	afresh := m
+	afresh.layout = dashboard.Layout{}
 	if by, ok := scrollKey(k); ok {
-		return m.scrollView(by), nil
+		return afresh.scrollView(by), nil
 	}
-	if next, ok := m.overviewKey(k); ok {
+	if next, ok := afresh.overviewKey(k); ok {
 		return next, nil
 	}
 	switch k {
 	case "tab":
-		return m.turn(1)
+		return afresh.turn(1)
 	case "shift+tab":
-		return m.turn(-1)
+		return afresh.turn(-1)
 	case "t":
-		return m.openPicker()
+		return afresh.openPicker()
 	case "w":
-		return m.nextSpan(), nil
+		if m.view == dashboard.Runway {
+			return afresh.nextSpan(), nil
+		}
 	}
 	return m, nil
 }

@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"maps"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -133,6 +134,42 @@ func TestAnAnswersTokensAreNoNumber(t *testing.T) {
 	for n, drawn := range f.Numbers(doc, routedAt) {
 		if strings.Contains(drawn, "↓") {
 			t.Errorf("%+v reads %q, want an answer's tokens no number", n, drawn)
+		}
+	}
+}
+
+// The watch compares the page's numbers for the request stream's events only
+// where they send a request, which the traces count, or move a seat, which
+// re-patches the sessions counted: whatever else the stream tells, as the
+// traffic, has to change no number, or it'd change unlit. So every field of
+// the traffic but its moves is set here, each call doing one thing of each.
+func TestTheTrafficChangesNoNumberButByItsMoves(t *testing.T) {
+	f, doc := sessionsShown(160, 60)
+	plug := func(account, session, model string) Plug {
+		return Plug{Account: account, Seat: Seat{Session: session, Model: model}}
+	}
+	maps.Copy(f.Traffic.Calls, map[Plug]Call{
+		plug("side", idD28C, haiku):    {Doing: Asking, Since: routedAt, New: true, Pulse: Pulse{Along: 0.5}, Pulsing: true},
+		plug("side", id7F3A, sonnet):   {Doing: Answered, Tokens: 3400, Exact: true},
+		plug("side", idDB8A, opus):     {Doing: Refused, Status: 429, Pulse: Pulse{Along: 0.5, Back: true, Red: true}, Pulsing: true},
+		plug("personal", id9C2E, opus): {Doing: Throttled, Status: 529, Shimmer: 3},
+	})
+	f.Traffic.Seen = map[Plug]time.Time{plug("side", idDB8A, opus): routedAt}
+	traffic := reflect.ValueOf(f.Traffic)
+	for i := range traffic.NumField() {
+		if name := traffic.Type().Field(i).Name; name != "Moves" && traffic.Field(i).IsZero() {
+			t.Fatalf("the traffic leaves %s unset, want it set, for the test to hold it to changing no number", name)
+		}
+	}
+	quiet := f
+	quiet.Traffic = Traffic{}
+	if slices.Equal(f.Draw(doc, routedAt), quiet.Draw(doc, routedAt)) {
+		t.Fatal("the page is drawn alike with the traffic and without it, want SESSIONS drawing what it tells")
+	}
+	without := quiet.Numbers(doc, routedAt)
+	for n, drawn := range f.Numbers(doc, routedAt) {
+		if was, ok := without[n]; ok && was != drawn {
+			t.Errorf("%+v reads %q with the traffic, want %q, as without it", n, drawn, was)
 		}
 	}
 }
