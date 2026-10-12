@@ -289,7 +289,7 @@ func TestAFirstReadThatFindsNoRouterSaysTheRouterIsntAnsweringTillAReadLands(t *
 	}
 }
 
-func TestAFirstReadThatFailsOtherwiseSaysWhyNotThatTheRouterIsntAnswering(t *testing.T) {
+func TestAFirstReadThatFailsOtherwiseSaysWhyTillAReadFindsTheRouterGone(t *testing.T) {
 	h := newHarness(t, probedWithoutTheRouter())
 	h.source.err = errors.New("the keychain is locked")
 	h.start()
@@ -298,9 +298,10 @@ func TestAFirstReadThatFailsOtherwiseSaysWhyNotThatTheRouterIsntAnswering(t *tes
 	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); got != want || !h.model.lost.IsZero() {
 		t.Errorf("the status line reads %q, the router lost at %v; want %q, why and when it reads next, the router not lost", got, h.model.lost, want)
 	}
-	h.tickUntilAsked() // A question after the router, which finds it gone.
-	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); got != want || !h.model.lost.IsZero() {
-		t.Errorf("once a question finds the router gone, the status line reads %q, the router lost at %v; want %q still", got, h.model.lost, want)
+	asked := h.tickUntilAsked() // A question after the router, which finds it gone.
+	want = "■ the router isn't answering  ·  since " + asked.Format("15:04:05")
+	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); got != want {
+		t.Errorf("once a question finds the router gone, the status line reads %q; want %q, what the latest read found", got, want)
 	}
 
 	h.source.err = nil

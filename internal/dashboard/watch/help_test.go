@@ -94,7 +94,7 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := tt.h(t)
 			h.start()
-			if got := listedKeys(h.model.helpKeys(h.clock.now)); !slices.Equal(got, tt.wantHelp) {
+			if got := listedKeys(helpOver(h.model)); !slices.Equal(got, tt.wantHelp) {
 				t.Errorf("help lists %q, want %q", got, tt.wantHelp)
 			}
 			if got := h.listed(); !slices.Equal(got, tt.wantLine) {
@@ -108,9 +108,30 @@ func TestHelpListsTheThemePickerInColour(t *testing.T) {
 	h := newHarness(t, calm())
 	h.model.cfg.Themes = &fakeThemes{}
 	h.start()
-	if got := listedKeys(h.model.helpKeys(h.clock.now)); !slices.Contains(got, "t") || slices.Contains(h.listed(), "t") {
+	if got := listedKeys(helpOver(h.model)); !slices.Contains(got, "t") || slices.Contains(h.listed(), "t") {
 		t.Errorf("in colour, help lists %q and the key line %q, want t in help alone", got, h.listed())
 	}
+}
+
+func TestADocumentLandingUnderHelpMovesNothingInIt(t *testing.T) {
+	h := newHarness(t, calm())
+	h.start()
+	h.press("?")
+	before := h.view()
+
+	h.source.doc = twelve()
+	h.tickUntilRead()
+	if len(h.model.doc.Accounts) != len(twelve().Accounts) {
+		t.Fatalf("the watch has %d accounts after the read, want the twelve it read", len(h.model.doc.Accounts))
+	}
+	if got := h.view(); got != before {
+		t.Errorf("once a document that scrolls lands under help, the screen is\n%s\nwant it as help opened\n%s", got, before)
+	}
+}
+
+// helpOver is the keys help lists, opened over the page as m stands.
+func helpOver(m Model) []dashboard.Key {
+	return m.openHelp().help.keys
 }
 
 // listedKeys are the keys of keys, in order.

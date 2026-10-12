@@ -489,7 +489,7 @@ func (m Model) card(now time.Time) dashboard.Opened {
 	if m.open == routingOpen {
 		return m.routingCard(now)
 	}
-	return m.helpCard(now)
+	return m.helpCard()
 }
 
 // cover opens the card given over the page, which stands still behind it as
@@ -581,9 +581,12 @@ func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 // fetched takes in a read: the document to show from now on, or why there's
 // none, and plans the next read by it. A read that fails notes why, and the
 // router lost, as lose does: a question after the router, or a look at its
-// document, that found it gone does nothing more. Each read starts a new
-// chain of ticks at the pace it calls for, and lets a look at the router's
-// document asked for while it was under way go ahead.
+// document, that found it gone has no why of its own, and clears the last
+// read's, as the status line says what the latest read found; though not
+// where the source probes as asked, which never asks the router, so finds
+// nothing of it. Each read starts a new chain of ticks at the pace it calls
+// for, and lets a look at the router's document asked for while it was under
+// way go ahead.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching = false
@@ -591,6 +594,9 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case errors.Is(msg.err, status.ErrNoRouter):
 		m.plan = m.plan.missed(now)
+		if !m.cfg.ProbeOnly {
+			m.failed = ""
+		}
 		m = m.lose(now)
 	case msg.err != nil:
 		m.plan = m.plan.failed(m.doc, now)
