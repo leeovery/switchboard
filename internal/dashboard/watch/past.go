@@ -123,26 +123,29 @@ func (m Model) readYear(year int, now time.Time) (Model, tea.Cmd) {
 		From: from, Now: now, Began: m.past.began, Prices: m.cfg.Prices, Accounts: m.cfg.Accounts,
 		WeekStarts: m.cfg.WeekStarts, WeekWindow: m.cfg.WeekWindow, Family: m.cfg.Family,
 	}
-	began := m.past.beganAsked(m.cfg.Ledger)
-	m, asked := m.asking()
 	l := m.cfg.Ledger
+	start := m.past.beganAsked(l)
+	m, asked := m.asking()
 	return m, func() tea.Msg {
-		msg := yearReadMsg{asked: asked, back: year != 0, beginning: began(now)}
+		msg := yearReadMsg{asked: asked, back: year != 0}
+		if start != nil {
+			msg.beginning = ledgerBegan(start, now)
+		}
 		msg.days = heldDays{past: views.NewPast(in, l.Days(from)), from: from, to: now}
 		return msg
 	}
 }
 
-// beganAsked is how a read of the ledger asks where it began, at the moment
-// given: while that's unknown, as on a fresh install, or after a failure to
-// say, of a ledger that's a LedgerStart, as ledgerBegan has it; else not at
-// all.
-func (t historyTab) beganAsked(l views.Ledger) func(now time.Time) beginning {
+// beganAsked is what a read of the ledger asks where it began, as
+// ledgerBegan asks it: while that's unknown, as on a fresh install, or after
+// a failure to say, the ledger, where it's a LedgerStart; else nil, not
+// asking.
+func (t historyTab) beganAsked(l views.Ledger) views.LedgerStart {
 	start, ok := l.(views.LedgerStart)
 	if !ok || !t.began.IsZero() {
-		return func(time.Time) beginning { return beginning{} }
+		return nil
 	}
-	return func(now time.Time) beginning { return ledgerBegan(start, now) }
+	return start
 }
 
 // ledgerBegan is where the ledger began, at now, as it tells it: the start
@@ -164,11 +167,14 @@ func ledgerBegan(start views.LedgerStart, now time.Time) beginning {
 // the ledger began, as beganAsked has it.
 func (m Model) readSince(now time.Time) (Model, tea.Cmd) {
 	from := dayfile.DayStart(m.past.readTo(now).Local(), 0)
-	began := m.past.beganAsked(m.cfg.Ledger)
-	m, asked := m.asking()
 	l := m.cfg.Ledger
+	start := m.past.beganAsked(l)
+	m, asked := m.asking()
 	return m, func() tea.Msg {
-		msg := sinceMsg{asked: asked, at: now, beginning: began(now)}
+		msg := sinceMsg{asked: asked, at: now}
+		if start != nil {
+			msg.beginning = ledgerBegan(start, now)
+		}
 		msg.days = l.Days(from)
 		return msg
 	}

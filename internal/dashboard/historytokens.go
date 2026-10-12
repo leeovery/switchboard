@@ -84,7 +84,7 @@ type tokensRow struct {
 	tokens      views.Tokens
 	worth       views.Worth
 	ink         ink
-	against     line
+	against     []part
 	lit, split  bool
 	account, id string
 }
@@ -206,10 +206,19 @@ func (cols tokensColumns) draw(c *canvas, y int, r tokensRow) {
 	for _, count := range cols.counts {
 		c.right(count.end, y, r.figure(count.head, line{{tokenCount(count.count(r.tokens)), r.ink}}))
 	}
-	c.line(cols.worth, y, r.figure("worth", worthSaid(r.worth, r.ink).fit(cols.width-cols.worth)))
+	c.line(cols.worth, y, r.figure("worth", worthSaid(r.worth, r.ink)).figureFit(cols.width-cols.worth))
 	if cols.against > 0 && r.against != nil {
-		c.line(cols.against, y, r.figure("against", r.against.fit(cols.width-cols.against)))
+		c.line(cols.against, y, fitParts(cols.width-cols.against, r.figures("against", r.against)...))
 	}
+}
+
+// figures are the parts, each as figure draws it in the column named.
+func (r tokensRow) figures(column string, parts []part) []part {
+	numbered := make([]part, len(parts))
+	for i, p := range parts {
+		numbered[i] = part{r.figure(column, p.said), p.figure}
+	}
+	return numbered
 }
 
 // tokensRows are the period's rows: its own, then those Tokens splits it
@@ -321,13 +330,18 @@ func tokenCount(n int) string {
 
 // againstItsPrice is a period's worth against what the plans cost over it,
 // as againstSaid writes it, then the price, the period named by unit:
-// "4.6× its $138 week". It's a dash where no plan is known, or they cost
-// nothing.
-func againstItsPrice(a views.Against, unit string) line {
+// "4.6× its $138 week", the ratio and the price its figures, the rest its
+// words. It's a dash where no plan is known, or they cost nothing.
+func againstItsPrice(a views.Against, unit string) []part {
 	if a.Ratio == nil || a.Cost == nil {
-		return line{noFigure}
+		return []part{{line{noFigure}, true}}
 	}
-	return append(againstSaid(a.Ratio), span{" its " + a.Cost.GroupedDollars() + " " + unit, dimInk})
+	return []part{
+		{againstSaid(a.Ratio), true},
+		{line{{" its ", dimInk}}, false},
+		{line{{a.Cost.GroupedDollars(), dimInk}}, true},
+		{line{{" " + unit, dimInk}}, false},
+	}
 }
 
 // tokensPlaced is how Tokens' periods fit in the rows they have, from row

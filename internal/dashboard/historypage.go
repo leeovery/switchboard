@@ -215,22 +215,15 @@ func accountsOutOfView(above, below, width int) line {
 }
 
 // oneOutOfView says, as the last of outOfViewForms does, how many accounts
-// are out of view below, where any are and it fits width cells, else above,
-// where that fits: a count whole, never one cut part-way, below first, as
-// what's below is what a line cut short loses. Where neither fits, it's cut
-// short, as nothing else is left to say it.
+// are out of view below, where any are, else above, cut to width cells:
+// below first, as what's below is what a line cut short loses, and is said
+// cut short sooner than not at all.
 func oneOutOfView(above, below, width int) line {
 	shortest := outOfViewForms[len(outOfViewForms)-1]
-	under, over := shortest.said(0, below), shortest.said(above, 0)
-	switch {
-	case under != nil && under.width() <= width:
-		return under
-	case over != nil && over.width() <= width:
-		return over
-	case under != nil:
-		return under.fit(width)
+	if below > 0 {
+		return shortest.said(0, below).fit(width)
 	}
-	return over.fit(width)
+	return shortest.said(above, 0).fit(width)
 }
 
 // outForm is a form of the line saying what's out of view: its parts gap

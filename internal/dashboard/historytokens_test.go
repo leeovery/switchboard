@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -463,24 +464,58 @@ func TestTokenCounts(t *testing.T) {
 	}
 }
 
-// Against its price is the ratio as History writes it, then the price, to
-// the dollar, its thousands set apart, the period named; a faint dash where
-// no plan is known.
-func TestAgainstItsPriceAsTokensWritesIt(t *testing.T) {
+// A row's worth, and in against its price the ratio and the price, are drawn
+// whole or as an ellipsis, never cut part-way, as $12,3… would read as a
+// smaller sum, while against its price's words may cut: a phone's worth,
+// at the frame's width; and against its price at the narrowest the wide form
+// is drawn, and a cell wider. An ellipsis is no number.
+func TestTokensFiguresAreDrawnWholeOrAsAnEllipsis(t *testing.T) {
 	tests := []struct {
-		name string
-		got  line
-		want line
+		name  string
+		width int
+		want  string
+		worth string
 	}{
-		{name: "no plan known", got: againstItsPrice(views.Against{}, "week"), want: line{noFigure}},
-		{name: "plans that cost nothing", got: againstItsPrice(views.Against{Cost: new(ledger.Picodollars)}, "month"), want: line{noFigure}},
-		{name: "a week's", got: againstItsPrice(againstAt(4.6, 138), "week"), want: line{{"4.6×", boldPositiveInk}, {" its $138 week", dimInk}}},
-		{name: "a month's, short of it", got: againstItsPrice(againstAt(0.94, 600), "month"), want: line{{"0.9×", alertInk}, {" its $600 month", dimInk}}},
-		{name: "a month's of a thousand or more", got: againstItsPrice(againstAt(1.2, 1800), "month"), want: line{{"1.2×", boldPositiveInk}, {" its $1,800 month", dimInk}}},
+		{name: "a phone's worth", width: 38, want: "28 Sep                    660M  …"},
+		{name: "a phone's worth, fitting", width: 39, want: "28 Sep                    660M  $12,345", worth: "$12,345"},
+		{name: "against its price, its price cut", width: 123, want: "660M  $12,345   14.6× its …", worth: "$12,345"},
+		{name: "against its price, its words cut", width: 124, want: "660M  $12,345   14.6× its $12,345…", worth: "$12,345"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if !slices.Equal(tt.got, tt.want) {
+			f := tokensFrame(tt.width, 37, TokensUnsplit)
+			f.History.Tokens.Periods[0].Worth, f.History.Tokens.Periods[0].Against = worthIn(12345), againstAt(14.6, 12345)
+			if got := tokensRowsOf(f)[2]; !strings.HasSuffix(got, tt.want) {
+				t.Errorf("the period reads %q, want it to end %q", got, tt.want)
+			}
+			if got := f.Numbers(threeRouted(), now)[Number{Kind: NumberTokens, Of: "worth"}]; got != tt.worth {
+				t.Errorf("its worth is numbered %q, want %q", got, tt.worth)
+			}
+		})
+	}
+}
+
+// Against its price is the ratio as History writes it, then the price, to
+// the dollar, its thousands set apart, the period named, the ratio and the
+// price its figures; a faint dash where no plan is known.
+func TestAgainstItsPriceAsTokensWritesIt(t *testing.T) {
+	said := func(ratio span, price, unit string) []part {
+		return []part{{line{ratio}, true}, {line{{" its ", dimInk}}, false}, {line{{price, dimInk}}, true}, {line{{" " + unit, dimInk}}, false}}
+	}
+	tests := []struct {
+		name string
+		got  []part
+		want []part
+	}{
+		{name: "no plan known", got: againstItsPrice(views.Against{}, "week"), want: []part{{line{noFigure}, true}}},
+		{name: "plans that cost nothing", got: againstItsPrice(views.Against{Cost: new(ledger.Picodollars)}, "month"), want: []part{{line{noFigure}, true}}},
+		{name: "a week's", got: againstItsPrice(againstAt(4.6, 138), "week"), want: said(span{"4.6×", boldPositiveInk}, "$138", "week")},
+		{name: "a month's, short of it", got: againstItsPrice(againstAt(0.94, 600), "month"), want: said(span{"0.9×", alertInk}, "$600", "month")},
+		{name: "a month's of a thousand or more", got: againstItsPrice(againstAt(1.2, 1800), "month"), want: said(span{"1.2×", boldPositiveInk}, "$1,800", "month")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !reflect.DeepEqual(tt.got, tt.want) {
 				t.Errorf("reads %+v, want %+v", tt.got, tt.want)
 			}
 		})
