@@ -34,7 +34,8 @@ func alike(words string, k ink) usageWords {
 // wordsOf are the words of a window standing as st says at now, its
 // allowance a: what holds it back, and until when; when it runs out; that it
 // isn't started; or the allowance, to its reset. A time reads as Dated has it
-// in full, and short, its time today and only its weekday for another day.
+// in full, and short, its time today and only its weekday for another day;
+// but a reading's, as lastRead has it.
 func wordsOf(st status.WindowState, a quota.Allowance, now time.Time) usageWords {
 	switch st.Kind {
 	case status.WindowTokenless:
@@ -42,7 +43,8 @@ func wordsOf(st status.WindowState, a quota.Allowance, now time.Time) usageWords
 	case status.WindowUnread:
 		return usageWords{full: line{{"not read yet", dimInk}}, short: line{{"not read", dimInk}}}
 	case status.WindowStale:
-		return usageWords{full: line{{"not read since " + status.Dated(now, st.At), dimInk}}, short: line{{"read " + brief(now, st.At), dimInk}}}
+		full, short := lastRead(now, st.At)
+		return usageWords{full: line{{"not read since " + full, dimInk}}, short: line{{"read " + short, dimInk}}}
 	case status.WindowLimited:
 		return heldBack("limit", st.At, now, errorInk)
 	case status.WindowCapped:
@@ -54,6 +56,17 @@ func wordsOf(st status.WindowState, a quota.Allowance, now time.Time) usageWords
 	default:
 		return allowed(a, st.At, now)
 	}
+}
+
+// lastRead shows when a reading was taken, at t, before now, in full and
+// short: within the week, as Dated and brief show a time; else by its date,
+// as Past shows a day over a week back, "22 Sep 14:20", and short, "22 Sep",
+// as a weekday alone would read as this week's.
+func lastRead(now, t time.Time) (full, short string) {
+	if status.WithinWeek(now, t) {
+		return status.Dated(now, t), brief(now, t)
+	}
+	return status.Past(now, t), t.In(now.Location()).Format("2 Jan")
 }
 
 // heldBack is the words of a window held back as what says, until back, zero
