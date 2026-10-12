@@ -16,79 +16,16 @@ import (
 // an account under pressure, as in "new, work under pressure".
 const passedOver = " under pressure"
 
-// recent are the events RECENT lists at now, newest first, n at most: those
-// of the kinds it tells of, but a move a limit counts while that limit's
-// line is among them, as newest has them.
-func recent(doc status.Document, now time.Time, n int) []status.Event {
-	var events []status.Event
-	for _, e := range doc.Events {
-		if _, _, ok := told(e, doc, now); ok {
-			events = append(events, e)
-		}
-	}
-	return newest(events, n, countedIn, countingOf)
-}
-
-// newest are as many of items as n allows, in their order, the newest
-// first, but a move a limit counts, as counted says, while a line counting
-// that limit's moves, as counting says, is among them: a move whose limit's
-// line doesn't show, as it's too old to, shows itself.
-func newest[T any](items []T, n int, counted, counting func(T) int) []T {
-	shows := make(map[int]bool)
-	for {
-		var kept []T
-		told := make(map[int]bool)
-		for _, item := range items {
-			if len(kept) == n {
-				break
-			}
-			if limit := counted(item); limit != 0 && !shows[limit] {
-				continue
-			}
-			kept = append(kept, item)
-			told[counting(item)] = true
-		}
-		more := false
-		for _, item := range items {
-			if limit := counted(item); limit != 0 && !shows[limit] && !told[limit] {
-				shows[limit], more = true, true
-			}
-		}
-		if !more {
-			return kept
-		}
-	}
-}
-
 // counted reports whether an event is a move a limit forced, which the
 // limit's own line counts.
 func counted(e status.Event) bool {
 	return e.Kind == status.EventMoved && e.Limit != 0
 }
 
-// countedIn is the id of the limit's event that counts the move e tells of,
-// as counted has it: zero for any other event, a limit's own, whose Limit is
-// its identity, among them.
-func countedIn(e status.Event) int {
-	if counted(e) {
-		return e.Limit
-	}
-	return 0
-}
-
-// countingOf is the id of the limit's event e, whose line counts the moves
-// it forced: zero for any other event.
-func countingOf(e status.Event) int {
-	if e.Kind == status.EventLimit {
-		return e.ID
-	}
-	return 0
-}
-
-// quiet is what RECENT says where it lists no events: that the router isn't
-// running, or answering as it should, while probing for want of it; that
-// probing as asked reads none; that the router, from before it told of
-// events, wants restarting; or that it has told of none lately. It's nil
+// quiet is what LATELY and LOG say where they list no events: that the
+// router isn't running, or answering as it should, while probing for want of
+// it; that probing as asked reads none; that the router, from before it told
+// of events, wants restarting; or that it has told of none lately. It's nil
 // while nothing has been read.
 func (f Frame) quiet(doc status.Document) line {
 	switch {
@@ -373,8 +310,8 @@ func (f Frame) tellingsOf(events []status.Event, doc status.Document, now time.T
 	return tellings
 }
 
-// timeGap is the blanks after a column of times, as RECENT and COMING UP
-// have them: two, but on a phone, one.
+// timeGap is the blanks after a column of times, as LOG has them: two, but
+// on a phone, one.
 func (f Frame) timeGap() string {
 	if f.phone() {
 		return " "
@@ -382,8 +319,8 @@ func (f Frame) timeGap() string {
 	return "  "
 }
 
-// quietly draws why RECENT lists no events, from x along row y until the
-// column end, where it says, and returns the lines it drew.
+// quietly draws why LATELY or LOG lists no events, from x along row y until
+// the column end, where it says, and returns the lines it drew.
 func (f Frame) quietly(c *canvas, doc status.Document, x, y, end int) int {
 	quiet := f.quiet(doc)
 	if quiet == nil {

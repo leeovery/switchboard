@@ -328,6 +328,12 @@ func (d Document) writeAccount(b *strings.Builder, a Account, width int, now tim
 // from a day away, "4h 57m" from an hour, else "7m"; "now" once t has come.
 // A second unit of zero is left off, as in "6d" and "4h".
 func Countdown(now, t time.Time) string {
+	return countdown(now, t, "%dm")
+}
+
+// countdown says how long it is from now until t as Countdown does, the
+// minutes after hours as the format given writes them.
+func countdown(now, t time.Time, minutesAfterHours string) string {
 	d := t.Sub(now)
 	if d <= 0 {
 		return "now"
@@ -335,21 +341,21 @@ func Countdown(now, t time.Time) string {
 	hours, minutes := int(d/time.Hour), int(d%time.Hour/time.Minute)
 	switch {
 	case hours >= 24:
-		return withRest(fmt.Sprintf("%dd", hours/24), hours%24, "h")
+		return withRest(fmt.Sprintf("%dd", hours/24), hours%24, "%dh")
 	case hours >= 1:
-		return withRest(fmt.Sprintf("%dh", hours), minutes, "m")
+		return withRest(fmt.Sprintf("%dh", hours), minutes, minutesAfterHours)
 	default:
 		return fmt.Sprintf("%dm", minutes)
 	}
 }
 
-// withRest follows a count with what's left over in the next unit down,
-// unless nothing is: "5d 12h", but "6d".
-func withRest(count string, rest int, unit string) string {
+// withRest follows a count with what's left over in the next unit down, as
+// the format given writes it, unless nothing is: "5d 12h", but "6d".
+func withRest(count string, rest int, format string) string {
 	if rest == 0 {
 		return count
 	}
-	return fmt.Sprintf("%s %d%s", count, rest, unit)
+	return count + " " + fmt.Sprintf(format, rest)
 }
 
 // Clock shows t as its weekday and 24-hour time in now's time zone, such as
@@ -412,12 +418,14 @@ func daysBetween(t, now time.Time) int {
 	return int(noon(now).Sub(noon(t)).Round(day) / day)
 }
 
-// Until counts down from now to t, as "in 1h 12m": "now" once t has come.
+// Until counts down from now to t, as "in 1h 12m", the minutes after hours
+// two digits, as "in 4h 08m", so a column of them reads evenly: "now" once t
+// has come.
 func Until(now, t time.Time) string {
 	if !t.After(now) {
 		return "now"
 	}
-	return "in " + Countdown(now, t)
+	return "in " + countdown(now, t, "%02dm")
 }
 
 // InProse is a window's label as a sentence has it, cleaned: one word, as
