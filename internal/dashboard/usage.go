@@ -104,13 +104,13 @@ type usageRow struct {
 }
 
 // gauge is a window of an account, or the pool's, as a row draws it: its bar;
-// its words, and whether they say it runs out; and the surface its words are
-// cued on, as the Overview cues them, the zero hue for none.
+// its words, and whether they say it runs out; and, while the Overview cues
+// its words, how far their cue has faded, nil where they aren't cued.
 type gauge struct {
 	bar     usageBar
 	words   usageWords
 	runsOut bool
-	cue     hue
+	cue     *float64
 }
 
 // newUsageBlock is the usage block of doc at now, width cells wide, drawn in
@@ -478,15 +478,16 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 
 // gauge draws g from x along row y: its bar, bar cells long; a cell; its
 // percentage, right-aligned in its cells; two cells; and its words, in the
-// form the block's width has them.
+// form the block's width has them, picked out while they're cued, as cue
+// picks them out.
 func (b usageBlock) gauge(c *canvas, g gauge, x, y, bar int) {
 	bar = max(bar, 0)
 	g.bar.draw(c, b.look, x, y, bar)
 	at := x + bar + 1
 	c.right(at+percentCells, y, g.bar.percentage())
 	words := at + percentCells + 2
-	if end := c.line(words, y, g.words.pick(b.width)); g.cue != (hue{}) {
-		c.surface(words, y, end-words, g.cue)
+	if end := c.line(words, y, g.words.pick(b.width)); g.cue != nil {
+		cue(c, b.look, words, y, end-words, *g.cue)
 	}
 }
 

@@ -104,7 +104,7 @@ func (f Frame) drawRunning(c *canvas, doc status.Document, running []views.Runni
 	if shown*form.rows > body.rows {
 		shown = max(body.rows-1, 0) / form.rows
 	}
-	names := namesOf(doc)
+	names := overviewNames(doc)
 	column := nameColumn(names, f.Width)
 	for i, r := range running[:shown] {
 		y := body.y + i*form.rows

@@ -5,17 +5,15 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // The cells of USAGE by account from 150 columns, beside ROUTING: its bars
 // are besideBar cells with a name column of matrixNames, a cell fewer for
-// each cell the column is wider; ROUTING's blocks start besideCells after
-// its words, and its heading ends routingApart before ROUTING's.
+// each cell the column is wider, and ROUTING's blocks start besideCells after
+// its words.
 const (
-	besideBar    = 50
-	besideCells  = 4
-	routingApart = 3
+	besideBar   = 50
+	besideCells = 4
 )
 
 // usageSection is the Overview's USAGE of doc at now: usage's block, as
@@ -24,21 +22,30 @@ const (
 // matrix, 2a + 7 rows for a accounts and the pool; at its most, from 150
 // columns, by window, the big bars, its windows stacked as sections at the
 // full width; otherwise its least. USAGE never folds: given fewer rows than
-// its least, it scrolls within them.
+// its least, it scrolls within them, an account at a time. By account from
+// 150 columns, ROUTING is drawn beside its blocks, from routingAt, and
+// follows them as they scroll; a click along an account's rows, its own or
+// ROUTING's beside them, moves the focus to it.
 func (f Frame) usageSection(doc status.Document, now time.Time) section {
 	block := f.overviewBlock(doc, now)
+	aside := 0
+	if f.routingBesideUsage() {
+		aside = block.routingAt()
+	}
 	return section{
-		Section: SectionUsage, least: sectionHead + block.height(), most: sectionHead + block.enlarged().height(),
+		Section: SectionUsage, least: sectionHead + block.height(), most: sectionHead + block.enlarged().height(), aside: aside,
 		description: func() line { return f.roomLeft(doc) },
 		draw: func(c *canvas, body bounds) {
-			block.fitted(body.rows, f.Scroll).drawIn(c, body)
+			shown := block.fitted(body.rows, f.Scroll)
+			shown.drawIn(c, body)
+			if aside > 0 {
+				f.routingBeside(c, doc, now, shown.beside(aside, body))
+			}
 		},
 		targets: func(body bounds) []Target {
-			return block.fitted(body.rows, f.Scroll).targets(body, f.usageAcross(block))
+			return block.fitted(body.rows, f.Scroll).targets(body)
 		},
-		scrolling: func(body bounds) Scrolling {
-			return block.scrolling(body.rows)
-		},
+		scrolling: func(body bounds) Scrolling { return block.scrolling(body.rows) },
 	}
 }
 
@@ -83,8 +90,8 @@ func overviewNames(doc status.Document) []accountName {
 // its account is out of the pool, its bar faded as a stale reading's is, the
 // two fades compounding where it's stale too, and its percentage and words
 // faint; its bar filled as far as it has eased, while it eases after a read;
-// and, where its words say it runs out, those words cued on bg.attention,
-// fading as its account's highlight does, while its change is picked out.
+// and its words cued while their cue for turning to out ~ fades back, as the
+// frame's TurnedOut says, where they say it still.
 func (f Frame) overviewGauge(g gauge, ref Ref, out bool) gauge {
 	if out {
 		g.bar.out, g.words = true, g.words.faint()
@@ -92,8 +99,8 @@ func (f Frame) overviewGauge(g gauge, ref Ref, out bool) gauge {
 	if used, ok := f.Eased[ref]; ok {
 		g.bar.eased = &used
 	}
-	if fade, ok := f.Changed[ref.Account]; ok && g.runsOut {
-		g.cue = hue{token: theme.BgAttention, fade: fade}
+	if fade, ok := f.TurnedOut[ref]; ok && g.runsOut {
+		g.cue = &fade
 	}
 	return g
 }
@@ -134,16 +141,6 @@ func (f Frame) roomLeft(doc status.Document) line {
 		return nil
 	}
 	return slices.Concat(line{{"room left  ", faintInk}}, joined(span{"  ·  ", faintInk}, parts...))
-}
-
-// usageAcross is the cells USAGE takes across the frame, its block b: by
-// account from 150 columns, with ROUTING beside it, to where its heading
-// ends, routingApart before ROUTING's; else the frame's width.
-func (f Frame) usageAcross(b usageBlock) int {
-	if b.accountBar > 0 && f.Sections.Has(SectionRouting) {
-		return b.routingAt() - routingApart
-	}
-	return f.Width
 }
 
 // routingAt is the column ROUTING's blocks start at beside the block's, by
@@ -232,16 +229,27 @@ func (b usageBlock) placed() []rowAt {
 	return b.lay(growing(b.width), 0).placed
 }
 
+// beside is where the block draws its rows in body, for ROUTING to be drawn
+// beside them from column x.
+func (b usageBlock) beside(x int, body bounds) blocksBeside {
+	at := blocksBeside{x: x}
+	for _, p := range b.placed() {
+		p.y += body.y
+		at.blocks = append(at.blocks, p)
+	}
+	return at
+}
+
 // targets are the block's click targets as it's drawn in body: each row of
-// an account's, width cells across, which moves the focus to it.
-func (b usageBlock) targets(body bounds, width int) []Target {
+// an account's, across the body, which moves the focus to it.
+func (b usageBlock) targets(body bounds) []Target {
 	var targets []Target
 	for _, p := range b.placed() {
 		if p.id == "" {
 			continue
 		}
 		for y := p.y; y < min(p.y+p.rows, body.rows); y++ {
-			targets = append(targets, Target{X: body.x, Y: body.y + y, Width: width, On: OnAccount, Account: p.id})
+			targets = append(targets, Target{X: body.x, Y: body.y + y, Width: body.width, On: OnAccount, Account: p.id})
 		}
 	}
 	return targets

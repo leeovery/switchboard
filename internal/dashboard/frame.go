@@ -26,11 +26,13 @@ type Frame struct {
 	// Outdated is set when the router is from before it told of events and
 	// gave its history: RECENT asks for it to be restarted.
 	Outdated bool
-	// Fresh are the events looks saw newly, by id, and Changed the accounts
-	// whose states looks saw change, by id, each as far as the highlight on
-	// its row has faded, from 0, just seen, to 1, gone.
-	Fresh   map[int]float64
-	Changed map[string]float64
+	// Fresh are the events looks saw newly, by id; Changed the accounts whose
+	// states looks saw change, by id; and TurnedOut the windows whose words
+	// looks saw turn to out ~, by account and key: each as far as the cue on
+	// it has faded, from 0, just seen, to 1, gone.
+	Fresh     map[int]float64
+	Changed   map[string]float64
+	TurnedOut map[Ref]float64
 	// Trails are how the accounts' windows have been used, for the charts.
 	Trails Trails
 	// Eased are how much of each window the bars fill, by its account and
@@ -63,8 +65,8 @@ type Frame struct {
 	// and one new to its account joins its group's foot.
 	Order Order
 	// Scroll is how many rows the view is scrolled down by, where it doesn't
-	// fit, or on the Overview, USAGE within its section: no further than
-	// Scrolling says it goes.
+	// fit, or on the Overview, how many accounts USAGE is scrolled down by
+	// within its section: no further than Scrolling says it goes.
 	Scroll int
 	// Focus is the account the Overview's focus is on, by id, which ↑ and ↓
 	// move and GRAPHS follows: "" while it's on none.
