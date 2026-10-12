@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
 )
 
@@ -23,8 +24,10 @@ const (
 // the times it has opened it, or closed it, so what an earlier time sends is
 // dropped; cancel ends the one open or opening; events are what the one open
 // tells; whether one is open, or opening, or due to be asked for again; how
-// many times in a row it has failed to open; and whether the router, the one
-// whose health check said absentOf, is from before the stream, so has none.
+// many times in a row it has failed to open; whether the router, the one
+// whose health check said absentOf, is from before the stream, so has none;
+// and how far today's lines are read, as it opened, for the traces it goes
+// on from.
 type streaming struct {
 	gen                      int
 	cancel                   context.CancelFunc
@@ -33,13 +36,15 @@ type streaming struct {
 	fails                    int
 	absent                   bool
 	absentOf                 router.Health
+	read                     ledger.Mark
 }
 
-// streamOpenedMsg is the request stream, opened, with what it tells, or why
-// it couldn't be.
+// streamOpenedMsg is the request stream, opened, with what it tells, and
+// today's lines read for the traces once it had, or why it couldn't be.
 type streamOpenedMsg struct {
 	gen    int
 	events <-chan router.StreamEvent
+	traced tracedLines
 	err    error
 }
 
@@ -80,25 +85,31 @@ func (m Model) tune() (Model, tea.Cmd) {
 }
 
 // openStream opens the router's request stream, under its own context, and
-// reads the requests today's lines tell of for the traces, as readTraces
-// does, for the stream to go on from.
+// once it has, reads the requests today's lines tell of for the traces, as
+// readTraces does, for the stream to go on from.
 func (m Model) openStream() (Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.stream.gen++
 	m.stream.cancel, m.stream.opening = cancel, true
-	gen, source := m.stream.gen, m.cfg.Source
+	gen, source, trace := m.stream.gen, m.cfg.Source, m.readTraces()
 	open := func() tea.Msg {
 		events, err := source.Stream(ctx)
-		return streamOpenedMsg{gen: gen, events: events, err: err}
+		msg := streamOpenedMsg{gen: gen, events: events, err: err}
+		if err == nil {
+			msg.traced = trace()
+		}
+		return msg
 	}
-	return m, tea.Batch(open, m.readTraces())
+	return m, open
 }
 
 // closeStream closes the request stream, forgetting what it told of the
-// requests, which is past telling once the watch no longer hears it.
+// requests, which is past telling once the watch no longer hears it, but
+// for the requests the traces count, and how far they've read today's
+// lines, for the stream to go on from as it opens again.
 func (m Model) closeStream() Model {
 	m.stream.end()
-	m.stream = streaming{gen: m.stream.gen + 1, absent: m.stream.absent, absentOf: m.stream.absentOf}
+	m.stream = streaming{gen: m.stream.gen + 1, absent: m.stream.absent, absentOf: m.stream.absentOf, read: m.stream.read}
 	m.traffic = m.traffic.afresh()
 	return m
 }
@@ -112,10 +123,11 @@ func (s streaming) end() {
 
 // opened takes in the request stream opening, or why it couldn't, forgetting
 // what it told before of the requests: what it tells as it opens tells of
-// those in flight afresh. Open, the watch listens to it, what it draws live.
-// From a router from before it, the watch goes without it until another
-// router answers. Otherwise it asks for it again, later each time it fails
-// in a row.
+// those in flight afresh. Open, the watch counts the requests today's lines
+// told of for the traces, and listens to it, what it draws live. From a
+// router from before it, the watch goes without it until another router
+// answers. Otherwise it asks for it again, later each time it fails in a
+// row.
 func (m Model) opened(msg streamOpenedMsg) (Model, tea.Cmd) {
 	if msg.gen != m.stream.gen {
 		return m, nil
@@ -126,6 +138,7 @@ func (m Model) opened(msg streamOpenedMsg) (Model, tea.Cmd) {
 	case msg.err == nil:
 		m.stream.open, m.stream.events, m.stream.fails = true, msg.events, 0
 		m.traffic.live = true
+		m = m.traced(msg.traced)
 		logger.Debug("reading the router's request stream")
 		return m, m.listen()
 	case errors.Is(msg.err, router.ErrNoStream):
@@ -174,14 +187,16 @@ func hear(gen int, events <-chan router.StreamEvent) streamHeardMsg {
 	}
 }
 
-// heard takes in what the request stream told, and listens on; or, where it
-// ended, as a router ends it as it restarts, asks for it again after
-// rejoinAfter, keeping what it told until it opens again.
+// heard takes in what the request stream told, the requests it told of going
+// upstream counted for the traces, and listens on; or, where it ended, as a
+// router ends it as it restarts, asks for it again after rejoinAfter,
+// keeping what it told until it opens again.
 func (m Model) heard(msg streamHeardMsg) (Model, tea.Cmd) {
 	if msg.gen != m.stream.gen || !m.stream.open {
 		return m, nil
 	}
 	m.traffic = m.traffic.took(msg.events, m.held, m.now())
+	m = m.toldTraces(msg.events)
 	if !msg.ended {
 		return m, m.listen()
 	}
