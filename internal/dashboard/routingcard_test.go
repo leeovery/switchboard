@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // routedAt is the moment the routing frames were drawn at: Thu 1 Oct 2026,
@@ -90,7 +91,7 @@ func TestTheRoutingCardIsDrawnAsItsFrames(t *testing.T) {
 		whole []spot
 	}{
 		{stem: "routing-auto-160", card: RoutingCard{}},
-		{stem: "routing-two-160", card: RoutingCard{Picked: []string{"personal", "side"}, Cursor: 2}},
+		{stem: "routing-two-160", card: RoutingCard{Picked: []string{"personal", "side"}, Cursor: 3}},
 		{stem: "routing-move-160", card: RoutingCard{Picked: []string{"personal"}, Cursor: 2, Move: true, Moving: 4, Cost: dollars(620)}},
 		// The frame's card draws personal's week 64%, where its page, and
 		// the world, have 66%.
@@ -102,7 +103,11 @@ func TestTheRoutingCardIsDrawnAsItsFrames(t *testing.T) {
 			tt.card.Rows = RoutingRows(doc, sessions, routedAt, claudeLike)
 			f := Frame{Width: 160, Height: 37, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Card: tt.card}
 			drawn := screenOf(t, f.Draw(doc, routedAt))
-			heldTo(t, tt.stem, reference(t, tt.stem), drawn, region{top: 9, bottom: 26, left: 39, right: 120}, shadeOf(nord.Canvas()), tt.whole, figures)
+			// The frames light no row, where the design lights the cursor's,
+			// its rows from row 13, from a cell before the card's content to
+			// a cell after it.
+			lit := spot{row: 13 + tt.card.Cursor, first: 41, last: 118}
+			heldTo(t, tt.stem, reference(t, tt.stem), drawn, region{top: 9, bottom: 26, left: 39, right: 120}, shadeOf(nord.Canvas()), append(tt.whole, lit), figures)
 		})
 	}
 }
@@ -579,6 +584,107 @@ func choiceNamed(l string) string {
 		return l
 	}
 	return strings.Fields(string([]rune(l)[choiceName+2:]))[0]
+}
+
+func TestTheRowTheCursorsOnIsLitAndNoOther(t *testing.T) {
+	accounts := make([]status.Account, 12)
+	for i := range accounts {
+		accounts[i] = readAccount("a"+strconv.Itoa(i+1), sessionOf(0.1, time.Hour))
+	}
+	twelve := RoutingCard{Rows: RoutingRows(routerDoc("a1", 0, accounts...), nil, now, claudeLike)}
+	// The third account, at its limit, can't be picked, but takes the cursor
+	// as the rest do.
+	closed := RoutingCard{Rows: RoutingRows(routerDoc("", 0, namedAccounts(3)...), nil, now, claudeLike)}
+	if closed.Rows[3].Pickable {
+		t.Fatalf("%s can be picked, want it at its limit", closed.Rows[3].Name)
+	}
+	tests := []struct {
+		name          string
+		width, height int
+		card          RoutingCard
+		cursors       []int
+	}{
+		{name: "at 160 columns", width: 160, height: 37, card: routedCard(nil), cursors: []int{0, 1, 2, 3}},
+		{name: "on a phone, an account's both lines", width: 52, height: 40, card: routedCard(nil), cursors: []int{0, 1, 2, 3}},
+		{name: "a row that can't be picked", width: 160, height: 37, card: closed, cursors: []int{3}},
+		{name: "scrolled, the cursor kept in view", width: 160, height: 30, card: twelve, cursors: []int{0, 11, 12}},
+	}
+	selection := hue{token: theme.BgSelection}
+	for _, tt := range tests {
+		for _, cursor := range tt.cursors {
+			t.Run(fmt.Sprintf("%s, the cursor on row %d", tt.name, cursor+1), func(t *testing.T) {
+				r := tt.card
+				r.Cursor = cursor
+				f := Frame{Width: tt.width, Height: tt.height}
+				lit, unlit := drawnLit(f, r)
+				left, _, width, _ := r.card(f).box(f.Width, f.Height)
+				row := r.Rows[cursor]
+				first := rowSaying(lit, left+cardInset+choiceName, padded(row.Key, 2)+row.Name+" ")
+				if first < 0 {
+					t.Fatalf("no row of the card names %s", row.Name)
+				}
+				last := first
+				if f.phone() && row.Account != "" {
+					last++
+				}
+				for y := range f.Height {
+					for x := range f.Width {
+						want := y >= first && y <= last && x >= left+cardInset-1 && x <= left+width-cardInset
+						if got := lit.at(x, y).ink.on == selection; got != want {
+							t.Errorf("cell %d of row %d is on bg.selection: %v, want %v", x+1, y+1, got, want)
+						}
+						kept := *lit.at(x, y)
+						kept.ink.on = unlit.at(x, y).ink.on
+						if kept != *unlit.at(x, y) {
+							t.Errorf("cell %d of row %d is drawn %+v, want it as unlit, %+v, but for its surface", x+1, y+1, *lit.at(x, y), *unlit.at(x, y))
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestTheCursorsRowIsLitAsTheLookDrawsBgSelection(t *testing.T) {
+	r := routedCard(func(r *RoutingCard) { r.Cursor = 2 })
+	f := Frame{Width: 160, Height: 37}
+	lit, unlit := drawnLit(f, r)
+	y := rowSaying(lit, 39+cardInset+choiceName, "2 personal ")
+	nord, terminal := Screen(builtin(t, "nord")), Screen(builtin(t, theme.Terminal))
+	for x := 41; x <= 118; x++ {
+		k := lit.at(x, y).ink
+		if got, want := shadeOf(nord.surface(k)), shadeOf(nord.theme.Colour(theme.BgSelection)); got != want {
+			t.Errorf("in nord, cell %d is on %s, want bg.selection, %s", x+1, got, want)
+		}
+		if !terminal.reversed(k) {
+			t.Errorf("in the terminal theme, cell %d isn't reversed, as it draws bg.selection", x+1)
+		}
+	}
+	if got, want := lit.rows(NoColour()), unlit.rows(NoColour()); !slices.Equal(got, want) {
+		t.Errorf("under NO_COLOR, the card is drawn\n%s\nwant it as it is unlit, as NO_COLOR draws no surface\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// drawnLit is the routing card drawn alone on a canvas of the frame's size,
+// and drawn as it would be with no row lit.
+func drawnLit(f Frame, r RoutingCard) (lit, unlit *canvas) {
+	k := r.card(f)
+	lit, unlit = newCanvas(f.Width, f.Height), newCanvas(f.Width, f.Height)
+	k.draw(lit)
+	k.lit = bodyRows{}
+	k.draw(unlit)
+	return lit, unlit
+}
+
+// rowSaying is the first row of c that says text from column x: -1 where
+// none does.
+func rowSaying(c *canvas, x int, text string) int {
+	for y, row := range c.rows(Look{}) {
+		if cells := []rune(row); len(cells) > x && strings.HasPrefix(string(cells[x:]), text) {
+			return y
+		}
+	}
+	return -1
 }
 
 func TestOnAPhoneAnAccountsWindowsTakeARowOfTheirOwn(t *testing.T) {
