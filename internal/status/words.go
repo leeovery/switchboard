@@ -54,7 +54,13 @@ type Facts struct {
 	// at its rate, as its pressure event's until gives it: zero where that
 	// isn't known, which leaves it unsaid.
 	Until time.Time
-	// Now gives the time zone Until is shown in.
+	// At is when the session went to the account it's on, as a session
+	// running says it: zero where that isn't known, which leaves it unsaid.
+	At time.Time
+	// Best is set while the account the session is on is where new sessions
+	// go.
+	Best bool
+	// Now gives the time zone Until and At are shown in.
 	Now time.Time
 }
 
@@ -85,6 +91,48 @@ func RoutingWords(reason string, f Facts) Words {
 // reason not in the dashboard's words reads as the router gives it, cleaned.
 func SessionWords(reason string, f Facts) Words {
 	return wordsOf(reason, f).session
+}
+
+// RunningWords are the reason as a session running reads, with when it went
+// to its account: "started here 14:41", ending ", the best" while that's where
+// new sessions go; "pinned here 14:39", its own pin; "its pin to side yields:
+// side has no room"; "moved from work 14:31: work reached its cap", the
+// account it left the reason's own where it names one; else "here since
+// 14:39: " and its words as an event reads them. Any reason not in the
+// dashboard's words reads as the router gives it, cleaned.
+func RunningWords(reason string, f Facts) Words {
+	reason = Clean(reason)
+	at := ""
+	if !f.At.IsZero() {
+		at = " " + When(f.Now, f.At)
+	}
+	switch {
+	case isNew(reason) && f.Best:
+		return Words{plain("started here" + at + ", the best")}
+	case isNew(reason):
+		return Words{plain("started here" + at)}
+	case reason == ReasonPinned:
+		return Words{plain("pinned here" + at)}
+	case strings.HasPrefix(reason, ReasonPinYields):
+		return EventWords(reason, f)
+	}
+	if left, _, ok := cutAccount(reason, ReasonMovedOff); ok {
+		f.From = left
+	}
+	var came Words
+	switch {
+	case f.From != "":
+		came = Words{plain("moved from "), named(f.From), plain(at)}
+	case at != "":
+		came = Words{plain("here since" + at)}
+	}
+	switch {
+	case reason == "":
+		return came
+	case came == nil:
+		return EventWords(reason, f)
+	}
+	return slices.Concat(came, Words{plain(": ")}, EventWords(reason, f))
 }
 
 // forms are a reason's words in each place the dashboard says it: routed is
@@ -244,9 +292,8 @@ var offWords = map[string]struct{ event, routed string }{
 // why the dashboard has no words for reads as the router gives it, the
 // account named apart all the same.
 func movedOff(reason string, _ Facts) (forms, bool) {
-	rest, ok := strings.CutPrefix(reason, ReasonMovedOff)
-	account, why, cut := strings.Cut(rest, " ")
-	if !ok || !cut {
+	account, why, ok := cutAccount(reason, ReasonMovedOff)
+	if !ok {
 		return forms{}, false
 	}
 	said, known := offWords[why]
@@ -261,10 +308,18 @@ func movedOff(reason string, _ Facts) (forms, bool) {
 // sends it, "pin yields: side has no room", as "its pin to side yields: side
 // has no room".
 func pinYields(reason string, _ Facts) (forms, bool) {
-	rest, ok := strings.CutPrefix(reason, ReasonPinYields)
-	account, why, cut := strings.Cut(rest, " ")
-	if !ok || !cut {
+	account, why, ok := cutAccount(reason, ReasonPinYields)
+	if !ok {
 		return forms{}, false
 	}
 	return alike(Words{plain("its pin to "), named(account), plain(" yields: "), named(account), plain(" " + why)}), true
+}
+
+// cutAccount cuts a reason that starts as given and names an account, as
+// "moved: work hit its limit" does after ReasonMovedOff, into the account and
+// why, reporting false for any other reason.
+func cutAccount(reason, start string) (account, why string, ok bool) {
+	rest, started := strings.CutPrefix(reason, start)
+	account, why, cut := strings.Cut(rest, " ")
+	return account, why, started && cut
 }
