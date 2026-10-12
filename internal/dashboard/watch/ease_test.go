@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -224,6 +225,28 @@ func TestAReadLeavingABarEmptyStartsNoFrames(t *testing.T) {
 	}
 	if _, framing := h.pendingFrame(); framing {
 		t.Error("a read leaving work's bars empty started frames")
+	}
+}
+
+// Sessions' panels draw a lapsed window as not started, with no bar: a read
+// that changes its use, here as it lapses, moves nothing on screen, so it
+// eases nothing and starts no frames.
+func TestOnSessionsAReadChangingALapsedWindowsUseStartsNoFrames(t *testing.T) {
+	h := easingHarness(t, sessionAndWeek(0.5, 0.25))
+	h.settle()
+
+	work := account("work", "Work", quota.Window{Key: "5h", Label: "Session"}, week(0.25))
+	work.Lapsed = []string{"5h"}
+	h.read(document(work))
+	if !strings.Contains(h.view(), "not started") {
+		t.Fatalf("the screen is\n%s\nwant work's session not started", h.view())
+	}
+	now := h.model.now()
+	if got := h.model.ease.eased(h.model.frame(now), h.model.doc, now); len(got) > 0 {
+		t.Errorf("the read eased %v, want no bar easing, work's session drawn without one", got)
+	}
+	if _, framing := h.pendingFrame(); framing {
+		t.Error("a read changing the use of work's lapsed session started frames")
 	}
 }
 
