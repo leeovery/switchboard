@@ -197,7 +197,7 @@ func TestTheListIsTodaysSessionsAsTheRouterAndTheLedgerTellThem(t *testing.T) {
 // the ones its events tell of.
 func TestTheRoutersEventsTellOfTheSessionsLines(t *testing.T) {
 	now := localMoment()
-	held, told := autoWorld().records.lines, autoWorld().records.events
+	held, told := autoWorld().records().lines, autoWorld().records().events
 	lines := make([]ledger.Line, len(held))
 	for i, h := range held {
 		lines[i] = h.Line

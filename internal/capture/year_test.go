@@ -87,7 +87,7 @@ func TestTheEightWeeksAreThoseWeeksDraws(t *testing.T) {
 	}
 	tests := []struct {
 		name  string
-		world recordedWorld
+		world accountWorld
 		// weeks are how many of the eight's first the frames' peaks hold of:
 		// spare's week resets on a Thursday: its week from 17 September is
 		// placed under 14 September's and its week from 24 September, still
@@ -213,7 +213,7 @@ func TestEachSessionADaysLinesNameIsInItsSummary(t *testing.T) {
 	days := w.ledger().Days(dayStart(now, today-1))
 	type named struct{ date, account, session string }
 	seen := make(map[named]bool)
-	for _, f := range w.records.lines {
+	for _, f := range w.records().lines {
 		if f.Kind == ledger.KindCheck || f.Session == "" || f.At.After(now) {
 			continue
 		}
@@ -244,7 +244,7 @@ func hoursMinutes(minutes int) string {
 // account's, requests, sessions, moves off and on, 5-hour limits, time at its
 // cap or a limit, the share of its week left at its week's last reset, worth,
 // and that worth against its plan's week.
-func weekWords(t *testing.T, w recordedWorld) []string {
+func weekWords(t *testing.T, w accountWorld) []string {
 	t.Helper()
 	h := historyFrom(w, thisWeek)
 	var words []string
@@ -288,7 +288,7 @@ func weekWords(t *testing.T, w recordedWorld) []string {
 func TestThisWeekIsAccountsTodaysLinesAndAll(t *testing.T) {
 	tests := []struct {
 		name  string
-		world recordedWorld
+		world accountWorld
 		words []string
 	}{
 		{
@@ -852,7 +852,7 @@ func TestEachDayOfTheYearReadsAsTheYearMadeIt(t *testing.T) {
 	y := worldsNow().year
 	tests := []struct {
 		name  string
-		world recordedWorld
+		world accountWorld
 	}{
 		{name: "three accounts", world: autoWorld()},
 		{name: "ten accounts", world: tenWorld()},
