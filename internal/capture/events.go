@@ -314,19 +314,22 @@ func (h happenings) atPersonalsLimit() []status.Event {
 
 // badHour are the bad hour's events: the auto world's to side's prime at
 // 13:50, personal primed at 10:54; new sessions pinned to personal and side
-// at 13:40; personal's limit at 14:12 moving 41e0 and 9c2e to side; 7f3a
-// started on side at 14:12:30, as pinned, personal at its limit; work's token
-// refused at 14:20, as refusal says, moving d28c and db8a to side; and c61b
-// started on side, as pinned. Work reached its cap at 14:15, which no event
-// tells, as the frame tells none.
+// at 13:40; 7f3a started on side at 13:55:30, as pinned, before personal's
+// limit, as the frame's LATELY tells nothing between that limit and work's
+// refusal; personal's limit at 14:12 moving 41e0 and 9c2e to side; work's
+// token refused at 14:20, as refusal says, moving d28c and db8a to side; and
+// c61b started on side, as pinned. Work reached its cap at 14:15, which no
+// event tells, as the frame tells none.
 func (h happenings) badHour(refusal status.Refusal) []status.Event {
 	refused := h.today(14, 20, 0)
 	return slices.Concat(
 		h.yesterday(), h.morning(h.personalPrimedToItsLimit()),
-		[]status.Event{h.pinned(h.today(13, 40, 0), "personal", "side")},
+		[]status.Event{
+			h.pinned(h.today(13, 40, 0), "personal", "side"),
+			h.started(h.today(13, 55, 30), id7F3A, "side", status.ReasonGlobalPin),
+		},
 		h.personalsLimit(),
 		[]status.Event{
-			h.started(h.today(14, 12, 30), id7F3A, "side", status.ReasonGlobalPin),
 			{Kind: status.EventRefused, At: refused, Account: "work", Until: refusal.Until, Status: refusal.Status, Count: 2, To: "side"},
 			h.forcedOff(refused, idD28C, "work", "side", reasonRefused),
 			h.forcedOff(h.today(14, 20, 41), idDB8A, "work", "side", reasonRefused),

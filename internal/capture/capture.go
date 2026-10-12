@@ -293,17 +293,41 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys),
-		theme: framesTheme(), records: worlds.recordsOf(w),
+		theme: framesTheme(), records: w.records(),
 	}
 }
 
-// pages are the page as stage 6 builds it, over the auto world, the frames'
-// tabs and cards not yet drawn as their frames are, to judge by eye: the
-// routing card over the Overview, two accounts picked and m ticked, at
-// 160×40, and on a phone, one picked and m ticked; the Log's empty tab, its
-// title row lit there; and the router gone, R having found it so, the status
-// line saying since when and p pin faint.
+// pages are the pages the watch draws over the worlds. The Overview's frames
+// and the routing card's over it, each named after its frame, at its size,
+// over its world, with the keys that reach it: on auto, pinned and in the bad
+// hour; by account; USAGE alone; GRAPHS and SESSIONS shown, the rest folded;
+// six accounts and ten; at 216 columns, with SESSIONS, with SESSIONS and
+// GRAPHS, and everything shown; on a phone; and the routing card opened on
+// auto, with two picked, with one picked and m ticked, and over routing's
+// world of a limit, with side picked. Then the page as stage 6 builds it,
+// over the auto world, where no frame draws it, to judge by eye: the routing
+// card over the Overview, two accounts picked and m ticked, at 160×40, and on
+// a phone, one picked and m ticked; the Log's empty tab, its title row lit
+// there; and the router gone, R having found it so, the status line saying
+// since when and p pin faint.
 var pages = []page{
+	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
+	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
+	{name: "overview-bad-hour-160", size: wide(37), world: accountWorlds.badHour},
+	{name: "overview-by-account-160", size: wide(42), world: accountWorlds.auto, keys: keysOf("b")},
+	{name: "overview-usage-alone-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("r", "c", "l")},
+	{name: "overview-everything-160x39", size: wide(39), world: accountWorlds.auto, keys: keysOf("g", "s")},
+	{name: "overview-six-accounts-160", size: wide(41), world: manyAccounts(6)},
+	{name: "overview-ten-accounts-160", size: wide(53), world: manyAccounts(10)},
+	{name: "overview-default-216", size: broad(70), world: accountWorlds.auto},
+	{name: "overview-sessions-216", size: broad(70), world: accountWorlds.auto, keys: keysOf("s")},
+	{name: "overview-sessions-graphs-216", size: broad(70), world: accountWorlds.auto, keys: keysOf("s", "g")},
+	{name: "overview-everything-216x106", size: broad(106), world: accountWorlds.auto, keys: keysOf("g", "s")},
+	{name: "overview-phone-52", size: watch.Size{Width: 52, Height: 66}, world: accountWorlds.auto},
+	{name: "routing-auto-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p")},
+	{name: "routing-two-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "3")},
+	{name: "routing-move-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
+	{name: "routing-limit-160", size: wide(37), world: accountWorlds.limit, keys: keysOf("p", "3")},
 	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: keysOf("p", "2", "3", "m")},
 	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
 	{name: "page-log", size: wide(37), world: accountWorlds.auto, keys: []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}},
@@ -323,4 +347,15 @@ func keysOf(text ...string) []tea.KeyPressMsg {
 // given.
 func wide(height int) watch.Size {
 	return watch.Size{Width: 160, Height: height}
+}
+
+// broad is a terminal as wide as the Overview's widest frames, 216 columns,
+// and as tall as given.
+func broad(height int) watch.Size {
+	return watch.Size{Width: 216, Height: height}
+}
+
+// manyAccounts picks the world of n accounts of the worlds.
+func manyAccounts(n int) func(accountWorlds) accountWorld {
+	return func(a accountWorlds) accountWorld { return a.many(n) }
 }

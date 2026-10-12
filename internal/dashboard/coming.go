@@ -170,13 +170,13 @@ func (h happening) said(now time.Time, column int) line {
 }
 
 // when is when it comes, as its line says it, in now's time zone: as in
-// "16:30", or "Sun 02:00" beyond a day; a window running out, projected,
-// after a ~, as in "~Sat 06:00".
+// "16:30" today, or "Sun 02:00" on another day; a window running out,
+// projected, after a ~, as in "~Sat 06:00".
 func (h happening) when(now time.Time) string {
 	if h.runsOut {
-		return "~" + status.When(now, h.at)
+		return "~" + status.Dated(now, h.at)
 	}
-	return status.When(now, h.at)
+	return status.Dated(now, h.at)
 }
 
 // inks are the inks of what's coming's time, its words and its countdown:

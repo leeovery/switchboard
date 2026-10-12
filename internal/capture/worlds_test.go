@@ -4,7 +4,6 @@ import (
 	"maps"
 	"math"
 	"slices"
-	"sync"
 	"testing"
 	"time"
 
@@ -16,31 +15,23 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// recordedWorld is a world with its records, as a fixture over it holds them.
-type recordedWorld struct {
-	accountWorld
-	records *records
+// autoWorld is the auto world, as the worlds keep it.
+func autoWorld() accountWorld {
+	return worldsNow().auto()
 }
 
-// recorded is the world given with its records.
-func recorded(w accountWorld) recordedWorld {
-	return recordedWorld{accountWorld: w, records: worldsNow().recordsOf(w)}
+// tenWorld is the world of ten accounts, as the worlds keep it.
+func tenWorld() accountWorld {
+	return worldsNow().many(10)
 }
-
-// The auto world and the ten's with their records, each built once for the
-// tests, as building the year's days takes a while.
-var (
-	autoWorld = sync.OnceValue(func() recordedWorld { return recorded(worldsNow().auto()) })
-	tenWorld  = sync.OnceValue(func() recordedWorld { return recorded(worldsNow().many(10)) })
-)
 
 // readers are the world's records' readers, read at the frames' moment.
-func (w recordedWorld) readers() (views.Ledger, views.Readings, views.Events) {
-	return w.records.readers(func() time.Time { return worldsNow().now })
+func (w accountWorld) readers() (views.Ledger, views.Readings, views.Events) {
+	return w.records().readers(func() time.Time { return worldsNow().now })
 }
 
 // ledger is the world's records' request ledger, read at the frames' moment.
-func (w recordedWorld) ledger() views.Ledger {
+func (w accountWorld) ledger() views.Ledger {
 	l, _, _ := w.readers()
 	return l
 }
@@ -49,7 +40,7 @@ func (w recordedWorld) ledger() views.Ledger {
 // of the year to today, through its records' ledger, of its accounts, at the
 // frames' prices, as History and Accounts read it: weeks from Monday, the
 // accounts' weeks Claude's.
-func historyFrom(w recordedWorld, d int) views.History {
+func historyFrom(w accountWorld, d int) views.History {
 	now := worldsNow().now
 	return views.NewHistory(views.HistoryInput{
 		Ledger: w.ledger(), From: dayStart(now, d), Now: now, Prices: drawnPrices, Accounts: w.accounts,
@@ -113,7 +104,7 @@ func TestEachWorldsRecordsAreItsDaysReadingsCapsAndTraffic(t *testing.T) {
 	worlds := worldsNow()
 	tests := []struct {
 		name  string
-		world recordedWorld
+		world accountWorld
 		// traffic is whether today's traffic of the three, the sessions'
 		// world's lines and the router's events, is the world's.
 		traffic bool
@@ -124,12 +115,12 @@ func TestEachWorldsRecordsAreItsDaysReadingsCapsAndTraffic(t *testing.T) {
 		minutes map[string]atCapAndLimit
 	}{
 		{name: "auto", world: autoWorld(), traffic: true, minutes: map[string]atCapAndLimit{"work": {11, 0}, "personal": {}}},
-		{name: "pinned", world: recorded(worlds.pinned()), minutes: map[string]atCapAndLimit{"work": {11, 0}}},
-		{name: "routing's limit", world: recorded(worlds.limit()), minutes: map[string]atCapAndLimit{"work": {11, 0}, "personal": {0, 30}}},
-		{name: "the bad hour", world: recorded(worlds.badHour()), minutes: map[string]atCapAndLimit{"work": {27, 0}, "personal": {0, 30}}},
-		{name: "six accounts", world: recorded(worlds.many(6)), traffic: true, minutes: map[string]atCapAndLimit{"work": {11, 0}, "lab": {}}},
+		{name: "pinned", world: worlds.pinned(), minutes: map[string]atCapAndLimit{"work": {11, 0}}},
+		{name: "routing's limit", world: worlds.limit(), minutes: map[string]atCapAndLimit{"work": {11, 0}, "personal": {0, 30}}},
+		{name: "the bad hour", world: worlds.badHour(), minutes: map[string]atCapAndLimit{"work": {27, 0}, "personal": {0, 30}}},
+		{name: "six accounts", world: worlds.many(6), traffic: true, minutes: map[string]atCapAndLimit{"work": {11, 0}, "lab": {}}},
 		{name: "ten accounts", world: tenWorld(), traffic: true, minutes: map[string]atCapAndLimit{"work": {11, 0}, "team": {0, 44}}},
-		{name: "work alone", world: recorded(worlds.one()), minutes: map[string]atCapAndLimit{"work": {}}},
+		{name: "work alone", world: worlds.one(), minutes: map[string]atCapAndLimit{"work": {}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -148,7 +139,7 @@ func TestEachWorldsRecordsAreItsDaysReadingsCapsAndTraffic(t *testing.T) {
 			if got, want := slices.Sorted(maps.Keys(summarised)), slices.Sorted(slices.Values(tt.world.accounts.IDs())); !slices.Equal(got, want) {
 				t.Errorf("the days summarise %v, want the world's accounts, %v", got, want)
 			}
-			if !slices.IsSortedFunc(tt.world.records.readings, func(a, b readings.Reading) int { return a.At.Compare(b.At) }) {
+			if !slices.IsSortedFunc(tt.world.records().readings, func(a, b readings.Reading) int { return a.At.Compare(b.At) }) {
 				t.Error("the world's readings aren't in the order they were read, which its reader searches them by")
 			}
 			if n := len(slices.Collect(read.Between(time.Time{}, worlds.now))); n != len(tt.world.history) {

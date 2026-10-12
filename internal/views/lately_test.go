@@ -61,6 +61,8 @@ func TestLATELYTellsEachKindOfEventInItsSentence(t *testing.T) {
 			full: "db8a moved side → work: rescored after 15h idle", subject: "db8a"},
 		{name: "an account under pressure", event: status.Event{Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}, Until: at(17, 5)},
 			full: "personal came under pressure: its 5-hour runs out ~17:05", short: "personal under pressure: out ~17:05", subject: "personal", object: "~17:05"},
+		{name: "an account under pressure, running out tomorrow, within a day", event: status.Event{Kind: status.EventPressure, Account: "personal", Windows: []string{"7d"}, Until: now.Add(20 * time.Hour)},
+			full: "personal came under pressure: its week runs out ~Thu 12:00", short: "personal under pressure: out ~Thu 12:00", subject: "personal", object: "~Thu 12:00"},
 		{name: "an account under pressure, not saying when it runs out", event: status.Event{Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}},
 			full: "personal came under pressure", short: "personal under pressure", subject: "personal"},
 		{name: "a cap moving sessions to one account", event: status.Event{Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Reserve: 0.05, Count: 3, To: "side"},
