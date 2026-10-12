@@ -124,32 +124,32 @@ const (
 	// week and the 52 before it.
 	yearWeeks = 53
 	// labelDays are how many of a month's days a week holds for the month's
-	// name to sit over it, the first such week.
-	labelDays = 4
+	// name to sit over it, the first such week; and labelWeeks the fewest
+	// weeks apart two months' names sit, as a name runs past the week after
+	// its own.
+	labelDays  = 4
+	labelWeeks = 2
 	// keyRounding is what the key rounds the cuts to, in requests a day.
 	keyRounding = 50
 )
 
-// YearFrom is the first day the Year asked for at now shows, weeks starting
-// on the day given, at its local midnight: its grid's first week's first
-// day, from which the ledger's days are read for it.
+// YearFrom is the first day the Year asked for at now reads, weeks starting
+// on the day given, at its local midnight: the earlier of its grid's first
+// day and its period's, from which the ledger's days are read for it.
 func YearFrom(ask YearAsk, now time.Time, weekStarts time.Weekday) time.Time {
-	first := yearSpanOf(ask.Year, dateOf(now), weekStarts).grid
+	first, _ := civil(yearSpanOf(ask.Year, dateOf(now), weekStarts).earliest())
 	return time.Date(first.Year(), first.Month(), first.Day(), 0, 0, 0, 0, time.Local)
 }
 
 // year is the Year's page asked for, of the days held.
 func (p Past) year(ask YearAsk) YearPage {
-	v := versions{table: p.in.Prices, family: p.in.Family}
+	v := p.versions()
 	span := yearSpanOf(ask.Year, dateOf(p.in.Now), p.in.WeekStarts)
 	filter := yearFilter{YearAsk: ask, v: v}
-	drawn := yearDays(filter.days(between(p.days, min(span.first, span.gridFirst()), span.gridLast())))
+	drawn := yearDays(filter.days(between(p.days, span.earliest(), span.gridLast())))
 	y := yearView{
 		ask: ask, span: span, v: v, plans: shownPlans(ask.Account, p.in.Accounts, p.in.Prices),
-		all: between(p.days, span.first, span.last), shown: between(drawn, span.first, span.last),
-	}
-	if len(p.days) > 0 {
-		y.began = p.days[0].Day
+		all: between(p.days, span.first, span.last), shown: between(drawn, span.first, span.last), began: p.began(),
 	}
 	cuts := quarterCuts(y.shown.active())
 	page := YearPage{
@@ -183,15 +183,15 @@ type yearSpan struct {
 
 // yearSpanOf is the span of the last 12 months, to the day with the date
 // today, of 0, or else of the calendar year given, weeks starting on the day
-// given: the last 12 months' from a year before today, a day on, their grid
-// this week and the 52 before it, every day of it drawn, as the first
-// week's days before the 12 months are; a calendar year's from 1 January to
-// 31 December, their grid from the week of the first to the week of the
-// last, the days outside the year left out.
+// given: the last 12 months' from the day after today's date a year back,
+// their grid this week and the 52 before it, every day of it drawn, as the
+// first week's days before the 12 months are; a calendar year's from 1
+// January to 31 December, their grid from the week of the first to the week
+// of the last, the days outside the year left out.
 func yearSpanOf(year int, today time.Time, weekStarts time.Weekday) yearSpan {
 	s := yearSpan{today: today.Format(time.DateOnly)}
 	if year == 0 {
-		s.first, s.last, s.end = today.AddDate(-1, 0, 1).Format(time.DateOnly), s.today, s.today
+		s.first, s.last, s.end = yearAfter(today).Format(time.DateOnly), s.today, s.today
 		s.grid, s.weeks = weeksTo(today, weekStarts, yearWeeks), yearWeeks
 		s.from, s.to = s.gridFirst(), s.gridLast()
 		return s
@@ -200,9 +200,21 @@ func yearSpanOf(year int, today time.Time, weekStarts time.Weekday) yearSpan {
 	s.first, s.end = jan1.Format(time.DateOnly), dec31.Format(time.DateOnly)
 	s.last = min(s.end, s.today)
 	s.grid = weekOf(jan1, weekStarts)
-	s.weeks = int(weekOf(dec31, weekStarts).Sub(s.grid)/(7*24*time.Hour)) + 1
+	s.weeks = s.weekHolding(dec31) + 1
 	s.from, s.to = s.first, s.end
 	return s
+}
+
+// yearAfter is the first of the 12 months to today: the day after its date a
+// year back, 1 March where today is 29 February.
+func yearAfter(today time.Time) time.Time {
+	back := today.AddDate(-1, 0, 0)
+	if back.Day() != today.Day() {
+		// A 29 February a year back, in a year without one, is taken to 1
+		// March: already the day after the 28th.
+		return back
+	}
+	return back.AddDate(0, 0, 1)
 }
 
 // day is the date of day i of the grid's week w.
@@ -210,9 +222,22 @@ func (s yearSpan) day(w, i int) string {
 	return s.grid.AddDate(0, 0, 7*w+i).Format(time.DateOnly)
 }
 
+// weekHolding is the index among the grid's weeks of the one holding the day
+// given.
+func (s yearSpan) weekHolding(day time.Time) int {
+	return int(day.Sub(s.grid) / (7 * 24 * time.Hour))
+}
+
 // gridFirst and gridLast are the dates of the grid's first day and its last.
 func (s yearSpan) gridFirst() string { return s.day(0, 0) }
 func (s yearSpan) gridLast() string  { return s.day(s.weeks-1, 6) }
+
+// earliest is the date of the first day the Year reads: the earlier of its
+// grid's first and its period's, as the 12 months begin before the grid on a
+// week's first day where they hold a 29 February.
+func (s yearSpan) earliest() string {
+	return min(s.first, s.gridFirst())
+}
 
 // drawn reports whether the grid draws the day with the given date, but for
 // its being still to come.
@@ -248,9 +273,13 @@ func (s yearSpan) weeksOf(requests map[string]int, cuts []int) []GridWeek {
 	return weeks
 }
 
-// labels are the months' names over the grid: each over the first week that
-// holds labelDays of its days the grid draws, days still to come among them,
-// today's month the current one.
+// labels are the months' names over the grid, oldest first: each over the
+// first week that holds labelDays of its days the grid draws, days still to
+// come among them, today's month the current one; and today's month, where
+// no week holds as many of its days yet, over the week holding its 1st, the
+// grid's last, 3 weeks or more after the month before's name. A name a week
+// before the next would run into it, and is left out: only the month the
+// grid begins part-way through, its last days in the first week, can be.
 func (s yearSpan) labels() []MonthLabel {
 	var labels []MonthLabel
 	labelled := make(map[string]bool)
@@ -268,7 +297,24 @@ func (s yearSpan) labels() []MonthLabel {
 			}
 		}
 	}
+	if current, ok := s.currentLabel(); ok && !labelled[current.Month] {
+		labels = append(labels, current)
+	}
+	if len(labels) > 1 && labels[1].Week-labels[0].Week < labelWeeks {
+		return labels[1:]
+	}
 	return labels
+}
+
+// currentLabel is today's month's name over the week holding its 1st,
+// reporting false where the grid doesn't draw that day.
+func (s yearSpan) currentLabel() (MonthLabel, bool) {
+	month := s.today[:len(monthLayout)]
+	first, _ := civil(month + "-01")
+	if !s.drawn(first.Format(time.DateOnly)) {
+		return MonthLabel{}, false
+	}
+	return MonthLabel{Month: month, Week: s.weekHolding(first), Current: true}, true
 }
 
 // running reports whether the month, as Month names it, is today's.
@@ -329,9 +375,9 @@ func (f yearFilter) days(days []Day) []Day {
 // account is what's shown of an account's day, reporting false where it's
 // none of it: the whole of the account shown; or of a version shown, the
 // account's requests of it alone, with no limits, which are the account's,
-// and the sessions they were of, by their ids, each once, or of a summary
-// that names no model's, as one from before version 4, their count, which
-// can't be counted distinct.
+// and the sessions they were of: those named, by their ids, each once, and
+// besides them, the count of each model's day that names none, as one of a
+// summary from before version 4, which can't be counted distinct.
 func (f yearFilter) account(a ledger.PricedAccount) (ledger.PricedAccount, bool) {
 	if f.Version == "" {
 		return a, a.Account == f.Account
@@ -352,6 +398,7 @@ func (f yearFilter) account(a ledger.PricedAccount) (ledger.PricedAccount, bool)
 		slices.Sort(kept.SessionIDs)
 		kept.SessionIDs = slices.Compact(kept.SessionIDs)
 	}
+	kept.Sessions += len(kept.SessionIDs)
 	return kept, len(kept.Models) > 0
 }
 
@@ -457,8 +504,8 @@ func (days yearDays) versions(v versions) []string {
 
 // yearView is the Year's period as asked for: what it is, the plans of the
 // accounts shown, the period's days, every account's use and as narrowed to
-// what's shown, and the date of the first day held, which, after the
-// period's first, the ledger began recording on.
+// what's shown, and the date the ledger began recording on, where it tells
+// it: "" where it doesn't.
 type yearView struct {
 	ask   YearAsk
 	span  yearSpan
@@ -497,8 +544,8 @@ func (y yearView) versionNumbers(first string) YearNumbers {
 }
 
 // against is what the shown accounts' plans cost over the period, a day
-// each, from the later of its first day and the first day held to its end,
-// and the worth against it: none where nothing is held of it.
+// each, from the later of its first day and the day the ledger began to its
+// end, and the worth against it: none where the ledger began after it.
 func (y yearView) against() Against {
 	from := max(y.span.first, y.began)
 	start, _ := civil(from)

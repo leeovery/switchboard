@@ -143,9 +143,9 @@ func (f Frame) history(c *canvas, top int) {
 }
 
 // wholeYear is the Year drawn whole on a canvas of its own, from its first
-// row, as tall as it runs.
+// row, as tall as yearHeight lays it out.
 func (f Frame) wholeYear() *canvas {
-	year := growing(f.Width)
+	year := newCanvas(f.Width, f.yearHeight())
 	f.historyYear(year, 0)
 	return year
 }
@@ -158,7 +158,7 @@ func (f Frame) historyScrolling(top int) func(offset int) Scrolling {
 	var s Scrolling
 	switch f.History.Shown {
 	case HistoryYear:
-		s = byRows(f.wholeYear().height(), f.viewRows())
+		s = byRows(f.yearHeight(), f.viewRows())
 	case HistoryWeeks:
 		s = f.weeksScrolling()
 	case HistoryDays:
