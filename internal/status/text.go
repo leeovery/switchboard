@@ -418,9 +418,10 @@ func daysBetween(t, now time.Time) int {
 }
 
 // Until counts down from now to t, as "in 1h 12m", rounded up to the whole
-// minute, so it never says less time is left than is, and the minutes after
-// hours two digits, as "in 4h 08m", so a column of them reads evenly: "now"
-// once t has come.
+// minute, so within a day it never says less time is left than is, and the
+// minutes after hours two digits, as "in 4h 08m", so a column of them reads
+// evenly; from a day out, in days and whole hours, as "in 1d 15h", the
+// minutes left off, as the frames count them: "now" once t has come.
 func Until(now, t time.Time) string {
 	left := t.Sub(now)
 	if left <= 0 {
