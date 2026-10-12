@@ -644,7 +644,8 @@ func logRead(msg fetchedMsg, next time.Time) {
 // comes back; notes the events new to it, and the readings it gives; asks
 // the router for its history with a full read, and as the router answers
 // again, or another router does, as one restarted, or probing, reads the
-// readings history's files with a full read; keeps the focus where its
+// readings history's files with the first full read since probing began;
+// keeps the focus where its
 // account still is, else puts it on the first; and eases the bars to it from
 // where they stand.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
@@ -656,6 +657,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	ask := routed(doc) && (full(msg.read) || !m.answering() || m.news.another(msg.router))
 	if routed(doc) {
 		m = m.answeredAgain(msg.router)
+		m.history.filedSince = false
 	}
 	m.readings = m.readings.with(doc, now)
 	m = m.follow(doc, now)
@@ -677,7 +679,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	switch {
 	case ask:
 		m, asked = m.askHistory(doc)
-	case !routed(doc) && full(msg.read):
+	case !routed(doc) && full(msg.read) && !m.history.filedSince:
 		m, asked = m.readFiled(doc, now)
 	}
 	return m, tea.Batch(post, asked)

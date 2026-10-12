@@ -48,6 +48,10 @@ type history struct {
 	// filed are the readings of each account's windows the readings
 	// history's files held when last read, the oldest first.
 	filed map[dashboard.Ref][]score.Reading
+	// filedSince is set once the files have been read since probing began:
+	// the readings the watch sees itself carry them on from then, so they're
+	// read again only once probing begins again.
+	filedSince bool
 	// outdated is set while the router is from before GET /history.
 	outdated bool
 	// seen are the readings of each account's windows the watch has seen
@@ -135,6 +139,7 @@ func histories(ctx context.Context, source Source, doc status.Document, asked in
 // ask.
 func (m Model) readFiled(doc status.Document, now time.Time) (Model, tea.Cmd) {
 	m.history.asked++
+	m.history.filedSince = true
 	asked, files := m.history.asked, m.cfg.Readings
 	return m, func() tea.Msg {
 		return filedMsg{asked: asked, got: filedOf(files, doc, now)}
