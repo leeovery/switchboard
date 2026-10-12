@@ -195,17 +195,18 @@ func sharedWeek(policy score.Policy) string {
 }
 
 // card is the routing card on the frame: titled as m stands; its opening
-// line; its rows, those that fit in view; m's row; the outcome; and its keys,
-// a blank row between each. It's as tall as all its rows, up to the frame's
-// height less routingSpare, past which its rows scroll, the one the cursor
-// is on kept in view.
+// line; its rows, those that fit in view, the one the cursor is on lit; m's
+// row; the outcome; and its keys, a blank row between each. It's as tall as
+// all its rows, up to the frame's height less routingSpare, past which its
+// rows scroll, the one the cursor is on kept in view.
 func (r RoutingCard) card(f Frame) Card {
 	width := f.cardWidth(routingWidth)
 	content := width - 2*cardInset
 	above := slices.Concat(r.opening(content), []line{nil})
 	below := slices.Concat([]line{nil, r.moveRow(), nil}, r.outcome(content))
-	rows, scroll := r.inView(f.phone(), content, f.bodyRoom(routingSpare, true)-len(above)-len(below))
-	return Card{title: r.title(), width: width, body: slices.Concat(above, rows, below), keys: r.keys(content), scroll: scroll}
+	rows, lit, scroll := r.inView(f.phone(), content, f.bodyRoom(routingSpare, true)-len(above)-len(below))
+	lit.first += len(above)
+	return Card{title: r.title(), width: width, body: slices.Concat(above, rows, below), keys: r.keys(content), scroll: scroll, lit: lit}
 }
 
 // title is the card's title: what it routes, running sessions too while m
@@ -241,30 +242,38 @@ func atLeast(lines []line, rows int) []line {
 }
 
 // inView are the card's rows as they show in room lines, as choice lays each
-// out, and how far they're scrolled: all of them where they fit; else those
-// around the cursor, with "▲ 2 more" over them while some are above, and
-// "▼ 3 more" under them while some are below, in all room's lines, so a
-// phone's rows of two lines never move the card as the cursor does.
-func (r RoutingCard) inView(phone bool, width, room int) ([]line, cardScroll) {
+// out, the lines of them the cursor's row takes, and how far they're
+// scrolled: all of them where they fit; else those around the cursor, with
+// "▲ 2 more" over them while some are above, and "▼ 3 more" under them while
+// some are below, in all room's lines, so a phone's rows of two lines never
+// move the card as the cursor does.
+func (r RoutingCard) inView(phone bool, width, room int) ([]line, bodyRows, cardScroll) {
 	choices := make([][]line, len(r.Rows))
 	heights := make([]int, len(r.Rows))
 	for i, row := range r.Rows {
 		choices[i] = r.choice(row, phone, width)
 		heights[i] = len(choices[i])
 	}
-	first, end := scrolledTo(heights, min(max(r.Cursor, 0), len(heights)-1), room)
+	cursor := min(max(r.Cursor, 0), len(heights)-1)
+	first, end := scrolledTo(heights, cursor, room)
 	var lines []line
+	var lit bodyRows
 	if first > 0 {
 		lines = append(lines, line{{"▲ " + strconv.Itoa(first) + " more", dimInk}})
 	}
-	lines = append(lines, slices.Concat(choices[first:end]...)...)
+	for i := first; i < end; i++ {
+		if i == cursor {
+			lit = bodyRows{first: len(lines), n: heights[i]}
+		}
+		lines = append(lines, choices[i]...)
+	}
 	if end < len(choices) {
 		lines = append(lines, line{{"▼ " + strconv.Itoa(len(choices)-end) + " more", dimInk}})
 	}
 	if first > 0 || end < len(choices) {
 		lines = atLeast(lines, room)
 	}
-	return lines, cardScroll{above: first, below: len(choices) - end}
+	return lines, lit, cardScroll{above: first, below: len(choices) - end}
 }
 
 // scrolledTo is which of the choices, each heights[i] lines tall, show in room
