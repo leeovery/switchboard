@@ -80,7 +80,7 @@ func (f Frame) helpParts() []helpPart {
 	case Overview:
 		return overviewHelp()
 	case History:
-		return historyHelp()
+		return f.historyHelp()
 	}
 	var parts []helpPart
 	for _, group := range f.glyphs() {
