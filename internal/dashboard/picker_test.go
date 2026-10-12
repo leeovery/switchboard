@@ -159,6 +159,17 @@ func TestThePickerPaintsItsSelectedRow(t *testing.T) {
 	}
 }
 
+func TestWithoutColourThePickersSelectedRowIsReversed(t *testing.T) {
+	p := dashboard.Picker{Rows: themes, Cursor: 3}
+	lines := p.Over(blankScreen(80, 16, ""), 80, dashboard.NoColour())
+
+	for i, line := range lines {
+		if got, want := strings.Contains(line, "\x1b[7m"), i == 6; got != want {
+			t.Errorf("line %d, %q, is reversed: %v, want %v, the selected row's alone", i, line, got, want)
+		}
+	}
+}
+
 // blankScreen is a screen of height lines, each width cells wide, saying
 // what at its left.
 func blankScreen(width, height int, what string) []string {

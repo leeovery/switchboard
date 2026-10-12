@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -659,9 +661,17 @@ func TestTheCursorsRowIsLitAsTheLookDrawsBgSelection(t *testing.T) {
 		if !terminal.reversed(k) {
 			t.Errorf("in the terminal theme, cell %d isn't reversed, as it draws bg.selection", x+1)
 		}
+		if !NoColour().reversed(k) {
+			t.Errorf("under NO_COLOR, cell %d isn't reversed, as the terminal theme draws bg.selection", x+1)
+		}
 	}
-	if got, want := lit.rows(NoColour()), unlit.rows(NoColour()); !slices.Equal(got, want) {
-		t.Errorf("under NO_COLOR, the card is drawn\n%s\nwant it as it is unlit, as NO_COLOR draws no surface\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	got, want := lit.rows(NoColour()), unlit.rows(NoColour())
+	if !strings.Contains(got[y], "\x1b[7m") || ansi.Strip(got[y]) != ansi.Strip(want[y]) {
+		t.Errorf("under NO_COLOR, the cursor's row is drawn %q, want it reversed, its text as unlit, %q", got[y], want[y])
+	}
+	got[y], want[y] = "", ""
+	if !slices.Equal(got, want) {
+		t.Errorf("under NO_COLOR, the card is drawn\n%s\nwant it as it is unlit but for the cursor's row\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 

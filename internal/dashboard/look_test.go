@@ -101,7 +101,7 @@ func TestAFrameFullScreenPaintsTheCanvasOnEveryCell(t *testing.T) {
 	}
 }
 
-func TestAFrameWithoutColourTellsStateByGlyphsAndBold(t *testing.T) {
+func TestAFrameWithoutColourTellsStateByGlyphsBoldAndReverse(t *testing.T) {
 	for name, f := range frames() {
 		t.Run(name, func(t *testing.T) {
 			plain := strings.Join(drawn(f, dashboard.Look{}), "\n")
@@ -110,8 +110,8 @@ func TestAFrameWithoutColourTellsStateByGlyphsAndBold(t *testing.T) {
 				t.Errorf("drawn without colour, stripped of its escapes =\n%s\nwant the frame as text\n%s", stripped, plain)
 			}
 			for _, sgr := range regexp.MustCompile(`\x1b\[[0-9;]*m`).FindAllString(frame, -1) {
-				if sgr != "\x1b[1m" && sgr != "\x1b[m" && sgr != "\x1b[0m" {
-					t.Errorf("drawn without colour, it has %q, want bold alone", sgr)
+				if !slices.Contains([]string{"\x1b[1m", "\x1b[7m", "\x1b[1;7m", "\x1b[m", "\x1b[0m"}, sgr) {
+					t.Errorf("drawn without colour, it has %q, want bold and a selected row's reverse alone", sgr)
 				}
 			}
 			if !strings.Contains(frame, "\x1b[1m") {

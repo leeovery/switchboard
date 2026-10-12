@@ -175,6 +175,122 @@ func TestASurfaceShowsInALookThatCantBlendUntilHalfFaded(t *testing.T) {
 	}
 }
 
+func TestWithoutColourASurfaceShowsOnlyOnBgSelectionAndThereReversed(t *testing.T) {
+	for tok := theme.TextPrimary; tok <= theme.VizSeries6; tok++ {
+		c := newCanvas(4, 1)
+		c.text(0, 0, "ab", ink{})
+		c.surface(0, 0, 2, hue{token: tok})
+		want := "ab"
+		if tok == theme.BgSelection {
+			want = "\x1b[7mab\x1b[m"
+		}
+		if got := c.rows(NoColour())[0]; got != want {
+			t.Errorf("on %s, drew %q, want %q", tok, got, want)
+		}
+	}
+	for _, tt := range []struct {
+		name string
+		on   hue
+		draw func(*canvas)
+	}{
+		{name: "a bar's ramp", on: hue{ramp: true, at: 0.5}},
+		{name: "bg.selection faded halfway", on: hue{token: theme.BgSelection, fade: 0.5}},
+		{name: "bg.selection behind a card", on: hue{token: theme.BgSelection}, draw: (*canvas).fade},
+	} {
+		c := newCanvas(4, 1)
+		c.text(0, 0, "ab", ink{})
+		c.surface(0, 0, 2, tt.on)
+		if tt.draw != nil {
+			tt.draw(c)
+		}
+		if got := c.rows(NoColour())[0]; got != "ab" {
+			t.Errorf("%s, drew %q, want %q, on no surface", tt.name, got, "ab")
+		}
+	}
+	if got := NoColour().Canvas(); got != nil {
+		t.Errorf("Canvas() = %v, want none painted", got)
+	}
+}
+
+func TestEachSelectedRowIsReversedWithoutColourAndOnBgSelectionInColour(t *testing.T) {
+	nord, terminal := Screen(builtin(t, "nord")), Screen(builtin(t, theme.Terminal))
+	selection := hue{token: theme.BgSelection}
+	cursor := routedCard(func(r *RoutingCard) { r.Cursor = 2 })
+	card, _ := drawnLit(Frame{Width: 160, Height: 37}, cursor)
+	phoneCard, _ := drawnLit(Frame{Width: 52, Height: 40}, cursor)
+	focused := frameOf(160, 60)
+	focused.Sections, focused.Focus = Sections{}.Toggled(SectionGraphs), "personal"
+	_, usage := usageBody(focused, threeRouted(), now, 11)
+	titled := func(width int) *canvas {
+		f := Frame{Width: width, Height: 2, View: Sessions}
+		c := newCanvas(f.Width, f.Height)
+		f.title(c, now)
+		return c
+	}
+	tests := []struct {
+		name string
+		c    *canvas
+		// rows are the rows on bg.selection.
+		rows []int
+	}{
+		{name: "the routing card's cursor", c: card, rows: []int{15}},
+		{name: "on a phone, the cursor's account's both lines", c: phoneCard, rows: []int{16, 17}},
+		{name: "the Overview's focus", c: usage, rows: []int{4}},
+		{name: "the title's tab", c: titled(160), rows: []int{0}},
+		{name: "on a phone, the title's tab", c: titled(52), rows: []int{1}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var selected []int
+			for y, row := range tt.c.cells {
+				lit := false
+				for x, here := range row {
+					k := here.ink
+					if k.on != selection {
+						if NoColour().reversed(k) {
+							t.Errorf("cell %d of row %d is reversed under NO_COLOR, on %+v, want only bg.selection reversed", x+1, y+1, k.on)
+						}
+						continue
+					}
+					lit = true
+					if !NoColour().reversed(k) {
+						t.Errorf("cell %d of row %d isn't reversed under NO_COLOR, as the terminal theme draws bg.selection", x+1, y+1)
+					}
+					if nord.reversed(k) || !sameColor(nord.surface(k), nord.theme.Colour(theme.BgSelection)) {
+						t.Errorf("in nord, cell %d of row %d is on %v, reversed %v, want bg.selection's colour", x+1, y+1, nord.surface(k), nord.reversed(k))
+					}
+					if !terminal.reversed(k) {
+						t.Errorf("in the terminal theme, cell %d of row %d isn't reversed", x+1, y+1)
+					}
+				}
+				if lit {
+					selected = append(selected, y)
+				}
+			}
+			if !slices.Equal(selected, tt.rows) {
+				t.Errorf("rows %v are on bg.selection, want %v", selected, tt.rows)
+			}
+			if got := reversedRows(tt.c.rows(NoColour())); !slices.Equal(got, tt.rows) {
+				t.Errorf("under NO_COLOR, rows %v are drawn reversed, want %v, those on bg.selection", got, tt.rows)
+			}
+		})
+	}
+}
+
+// reversedRows are the rows, by index, drawn with an SGR that reverses.
+func reversedRows(rows []string) []int {
+	var reversed []int
+	for y, row := range rows {
+		for _, sgr := range regexp.MustCompile(`\x1b\[([0-9;]*)m`).FindAllStringSubmatch(row, -1) {
+			if slices.Contains(strings.Split(sgr[1], ";"), "7") {
+				reversed = append(reversed, y)
+				break
+			}
+		}
+	}
+	return reversed
+}
+
 func TestThePageBehindACardIsFadedAsItsFrameDrawsIt(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
 	doc, sessions := routedWorld(false)
