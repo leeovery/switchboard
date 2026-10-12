@@ -74,3 +74,14 @@ func (w Worth) amount() ledger.Picodollars {
 	}
 	return *w.Amount
 }
+
+// shareOf is the worth as a share of whole, as a family's of every family's,
+// or a version's of all use's: none where none of the worth is priced, or
+// whole is worth nothing.
+func (w Worth) shareOf(whole ledger.Picodollars) *float64 {
+	if w.Amount == nil || whole <= 0 {
+		return nil
+	}
+	share := float64(*w.Amount) / float64(whole)
+	return &share
+}

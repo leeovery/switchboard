@@ -101,10 +101,7 @@ func (p TokensPeriod) shape(weekStarts time.Weekday) periodShape {
 		}
 	case TokensByMonth:
 		return periodShape{
-			of: func(date string) (string, bool) {
-				day, ok := civil(date)
-				return day.Format(monthLayout), ok
-			},
+			of: monthOf,
 			dates: func(key string) (string, string) {
 				first, _ := civil(key + "-01")
 				return first.Format(time.DateOnly), first.AddDate(0, 1, -1).Format(time.DateOnly)

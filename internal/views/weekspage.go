@@ -63,26 +63,22 @@ type WeekPeak struct {
 // lookBack before them telling the week still running as they begin; and
 // the capacity verdict over those of them that are whole.
 func (p Past) weeksPage() WeeksPage {
-	const shown = 8
 	in := p.in
 	today := dateOf(in.Now)
-	this := weekOf(today, in.WeekStarts)
-	first := this.AddDate(0, 0, -7*(shown-1))
+	this, first := weekOf(today, in.WeekStarts), weeksTo(today, in.WeekStarts, weeksShown)
 	before, days := splitAt(p.days, first.Format(time.DateOnly))
 	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
 	isWhole := wholeWeek(days, this)
 	pl := plans{accounts: in.Accounts, table: in.Prices}
 	page := WeeksPage{
+		Weeks:    weekDates(first, weeksShown),
 		Capacity: capacityOf(placed, isWhole, in.Accounts, pl, in.WeekWindow),
 		Window:   in.WeekWindow,
 	}
 	byWeek := make(map[string]Week, len(placed))
 	for _, w := range weeksOf(placed, in.Accounts) {
 		byWeek[w.Week] = w
-	}
-	for i := range shown {
-		page.Weeks = append(page.Weeks, first.AddDate(0, 0, 7*i).Format(time.DateOnly))
 	}
 	for x, a := range in.Accounts {
 		row := WeeksRow{AccountVerdict: page.Capacity.Accounts[x], Label: a.Label, Primary: a.Primary, Peaks: page.peaksOf(byWeek, x)}

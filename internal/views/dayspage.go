@@ -56,10 +56,6 @@ func (p DaysPage) Recorded() bool {
 	})
 }
 
-// daysWeeks are the weeks Days shows: the week so far and the seven before
-// it.
-const daysWeeks = 8
-
 // eightWeeks are Days' days, from the first day of the week seven before
 // this one to the last of this one, those to come among them: each day's
 // summary, nil where there's none, and the index of today's.
@@ -73,7 +69,7 @@ type eightWeeks struct {
 // days, which run to today.
 func eightWeeksOf(days []Day, now time.Time, starts time.Weekday) eightWeeks {
 	today := dateOf(now)
-	w := eightWeeks{first: weekOf(today, starts).AddDate(0, 0, -7*(daysWeeks-1)), days: make([]*Day, 7*daysWeeks)}
+	w := eightWeeks{first: weeksTo(today, starts, weeksShown), days: make([]*Day, 7*weeksShown)}
 	w.today = w.index(today)
 	for i := range days {
 		if day, ok := civil(days[i].Day); ok && !day.Before(w.first) && !day.After(today) {
@@ -89,21 +85,12 @@ func (w eightWeeks) index(day time.Time) int {
 	return int(day.Sub(w.first) / (24 * time.Hour))
 }
 
-// weeks are the eight weeks' first days' dates, oldest first.
-func (w eightWeeks) weeks() []string {
-	weeks := make([]string, daysWeeks)
-	for i := range weeks {
-		weeks[i] = w.first.AddDate(0, 0, 7*i).Format(time.DateOnly)
-	}
-	return weeks
-}
-
 // daysPageOf is Days' page of days, which run to now's day, priced: the eight
 // weeks to now's, from the day weeks start on.
 func daysPageOf(in HistoryInput, days []Day) DaysPage {
 	w := eightWeeksOf(days, in.Now, in.WeekStarts)
 	return DaysPage{
-		Weeks:     w.weeks(),
+		Weeks:     weekDates(w.first, weeksShown),
 		ToCome:    len(w.days) - 1 - w.today,
 		ByModel:   w.byFamily(versions{table: in.Prices, family: in.Family}),
 		ByAccount: w.byAccount(in.Accounts, in.WeekWindow),
@@ -148,7 +135,7 @@ func (w eightWeeks) byFamily(v versions) []DaysStrip {
 	strips := make([]DaysStrip, len(names))
 	for i, name := range names {
 		f := families[name]
-		strips[i] = DaysStrip{Of: name, Days: levelled(f.worth, cuts), Share: shareOf(f.sum, total)}
+		strips[i] = DaysStrip{Of: name, Days: levelled(f.worth, cuts), Share: f.sum.shareOf(total)}
 	}
 	return strips
 }
@@ -171,16 +158,6 @@ func (w eightWeeks) addModel(families map[string]*familyDays, v versions, i int,
 	}
 	f.sum.addModel(m)
 	f.used = f.used || m.Requests() > 0
-}
-
-// shareOf is a family's worth, sum, as a share of total, every family's:
-// none where none of either is priced.
-func shareOf(sum Worth, total ledger.Picodollars) *float64 {
-	if sum.Amount == nil || total <= 0 {
-		return nil
-	}
-	share := float64(*sum.Amount) / float64(total)
-	return &share
 }
 
 // byAccount are BY ACCOUNT's strips: a configured account each, in the

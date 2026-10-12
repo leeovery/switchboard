@@ -189,15 +189,15 @@ type yearSpan struct {
 // 31 December, their grid from the week of the first to the week of the
 // last, the days outside the year left out.
 func yearSpanOf(year int, today time.Time, weekStarts time.Weekday) yearSpan {
-	s := yearSpan{today: dateText(today)}
+	s := yearSpan{today: today.Format(time.DateOnly)}
 	if year == 0 {
-		s.first, s.last, s.end = dateText(today.AddDate(-1, 0, 1)), s.today, s.today
-		s.grid, s.weeks = weekOf(today, weekStarts).AddDate(0, 0, -7*(yearWeeks-1)), yearWeeks
+		s.first, s.last, s.end = today.AddDate(-1, 0, 1).Format(time.DateOnly), s.today, s.today
+		s.grid, s.weeks = weeksTo(today, weekStarts, yearWeeks), yearWeeks
 		s.from, s.to = s.gridFirst(), s.gridLast()
 		return s
 	}
 	jan1, dec31 := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC), time.Date(year, time.December, 31, 0, 0, 0, 0, time.UTC)
-	s.first, s.end = dateText(jan1), dateText(dec31)
+	s.first, s.end = jan1.Format(time.DateOnly), dec31.Format(time.DateOnly)
 	s.last = min(s.end, s.today)
 	s.grid = weekOf(jan1, weekStarts)
 	s.weeks = int(weekOf(dec31, weekStarts).Sub(s.grid)/(7*24*time.Hour)) + 1
@@ -207,7 +207,7 @@ func yearSpanOf(year int, today time.Time, weekStarts time.Weekday) yearSpan {
 
 // day is the date of day i of the grid's week w.
 func (s yearSpan) day(w, i int) string {
-	return dateText(s.grid.AddDate(0, 0, 7*w+i))
+	return s.grid.AddDate(0, 0, 7*w+i).Format(time.DateOnly)
 }
 
 // gridFirst and gridLast are the dates of the grid's first day and its last.
@@ -491,7 +491,7 @@ func (y yearView) numbers() YearNumbers {
 func (y yearView) versionNumbers(first string) YearNumbers {
 	t := y.totals()
 	return YearNumbers{
-		Requests: t.Requests, Sessions: t.Sessions, Worth: t.Worth, Share: shareOf(t.Worth, y.all.worth().amount()),
+		Requests: t.Requests, Sessions: t.Sessions, Worth: t.Worth, Share: t.Worth.shareOf(y.all.worth().amount()),
 		BusiestDay: t.BusiestDay, LongestRun: t.LongestRun, FirstUsed: first,
 	}
 }
@@ -532,7 +532,7 @@ func (y yearView) versionMonths(first string) []MonthRow {
 	var rows []MonthRow
 	for _, m := range monthsOf(y.shown, plans{}, y.v, y.span.first, y.span.today) {
 		if m.Requests > 0 {
-			rows = append(rows, MonthRow{Month: m, Share: shareOf(m.Worth, whole[m.Month]), From: y.span.partWay(m.Month, first), SoFar: y.span.running(m.Month)})
+			rows = append(rows, MonthRow{Month: m, Share: m.Worth.shareOf(whole[m.Month]), From: y.span.partWay(m.Month, first), SoFar: y.span.running(m.Month)})
 		}
 	}
 	return rows
@@ -610,9 +610,4 @@ func (y yearView) families(rows []MonthRow) []string {
 		names[i] = f.Family
 	}
 	return names
-}
-
-// dateText is the date of a day as civil gives it, as 2026-10-01.
-func dateText(day time.Time) string {
-	return day.Format(time.DateOnly)
 }

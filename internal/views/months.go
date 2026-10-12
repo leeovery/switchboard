@@ -67,6 +67,12 @@ func (m *Month) addDay(d Day) {
 
 // monthKey is the month the day falls in, as Month names it.
 func monthKey(d Day) (string, bool) {
-	day, ok := civil(d.Day)
+	return monthOf(d.Day)
+}
+
+// monthOf is the month the day with the date given falls in, as Month names
+// it, reporting false for a date that isn't one.
+func monthOf(date string) (string, bool) {
+	day, ok := civil(date)
 	return day.Format(monthLayout), ok
 }
