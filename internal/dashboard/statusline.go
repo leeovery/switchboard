@@ -147,10 +147,15 @@ func destination(doc status.Document) line {
 
 // bestOf is the id of the account ▲ marks as where new sessions go:
 // doc's best, "" where none has room; or with one account, that one, whatever
-// its room, as there's nowhere else for them to go.
+// its room, as there's nowhere else for them to go. A probed document marks
+// none of several, as where new sessions go is the router's to say, and its
+// best is worked out without the router's pin.
 func bestOf(doc status.Document) string {
-	if len(doc.Accounts) == 1 {
+	switch {
+	case len(doc.Accounts) == 1:
 		return doc.Accounts[0].ID
+	case doc.Source != status.SourceRouter:
+		return ""
 	}
 	return doc.Best
 }

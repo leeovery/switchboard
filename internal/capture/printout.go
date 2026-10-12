@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -16,7 +17,7 @@ import (
 func (f Fixture) printout(width int) string {
 	// The fixture's router answers every read, so Read never fails.
 	doc, _, _ := f.router.Read(context.Background(), status.Read{Probe: true})
-	p := dashboard.Printout{Width: width, Look: f.printLook(), By: f.by, Windows: f.windows}
+	p := dashboard.Printout{Width: width, Look: f.printLook(), By: f.by, Windows: f.windows, Policy: claude.Policy, Name: claude.WindowName}
 	return strings.Join(p.Draw(doc, f.now), "\n") + "\n"
 }
 

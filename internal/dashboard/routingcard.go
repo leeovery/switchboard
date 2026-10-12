@@ -114,9 +114,10 @@ type Figure struct {
 func RoutingRows(doc status.Document, sessions []status.Session, now time.Time, policy score.Policy) []RoutingRow {
 	rows := []RoutingRow{{Key: "0", Name: "auto", Open: true, Pickable: true}}
 	for i, a := range doc.Accounts {
+		states := doc.WindowStatesOf(a, now)
 		row := RoutingRow{
 			Account: a.ID, Name: name(a), Pickable: pickable(a, now, policy),
-			Session: figureOf(doc, a, policy.Started, now), Week: figureOf(doc, a, sharedWeek(policy), now),
+			Session: figureOf(states, policy.Started), Week: figureOf(states, sharedWeek(policy)),
 			Running: running(sessions, a.ID, now),
 		}
 		row.Reason, row.Capped = closedBy(doc, a, now, policy)
@@ -172,11 +173,11 @@ func running(sessions []status.Session, id string, now time.Time) int {
 	return len(Frame{}.busy(sessions, id, now))
 }
 
-// figureOf is doc's account a's use of its window with the given key at now,
-// as usage reads it: none where the account has no usable token or nothing
-// is read of the window; as last read where that's stale.
-func figureOf(doc status.Document, a status.Account, key string, now time.Time) Figure {
-	switch st := doc.WindowStateOf(a, key, now); st.Kind {
+// figureOf is the use of an account's window with the given key, as states
+// stand it and usage reads it: none where the account has no usable token or
+// nothing is read of the window; as last read where that's stale.
+func figureOf(states status.WindowStates, key string) Figure {
+	switch st := states.Of(key); st.Kind {
 	case status.WindowTokenless, status.WindowUnread:
 		return Figure{}
 	default:

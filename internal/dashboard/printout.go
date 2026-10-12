@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -34,6 +35,13 @@ type Printout struct {
 	// Windows are the windows' keys to print, in Claude's order; none prints
 	// every one.
 	Windows []string
+	// Policy is the provider's say in which windows every model shares,
+	// which print whatever is read, so every account keeps its rows before
+	// any is.
+	Policy score.Policy
+	// Name names a window by its key, as "5-hour" or "Fable week"; where
+	// it's nil, a window is named by its label in the document.
+	Name func(key string) string
 }
 
 // Draw draws the printout of doc at now: a string for each of its rows, as
@@ -46,7 +54,7 @@ func (p Printout) Draw(doc status.Document, now time.Time) []string {
 	if p.By == ByAccount {
 		y++
 	}
-	block := newUsageBlock(doc, now, p.Width, p.Look, p.By, p.Windows)
+	block := newUsageBlock(doc, now, p.Width, p.Look, p.By, usageWindows(doc, p.Windows, p.Policy.Shared, p.Name))
 	block.key(c, block.draw(c, y)+1)
 	return c.rows(p.Look)
 }

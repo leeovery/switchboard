@@ -86,6 +86,14 @@ func TestOnlyAFixtureOverTheWorldsBuildsThem(t *testing.T) {
 			t.Errorf("having asked for %s, the worlds were built %d times in all, want %d", name, built, i+1)
 		}
 	}
+	for _, name := range []string{"usage-160", "page-routing"} {
+		if _, err := set.named(name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if built != 2 {
+		t.Errorf("having asked for a printout and a page twice each, the worlds were built %d times in all, want twice: each is built the first time", built)
+	}
 }
 
 func TestAFixtureChangedChangesNoOtherCallers(t *testing.T) {
