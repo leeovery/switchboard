@@ -134,9 +134,8 @@ func (f Frame) wideRunning(c *canvas, doc status.Document, r views.Running, colu
 	})
 	why := column + runningWhy
 	c.line(why, y, line{{r.Why.String(), dimInk}}.fit(traceFrom-beforeTraceAt-why))
-	cells, faded := f.Width-traceTail-traceFrom, outOfPool(doc, r.Account)
-	t := f.Traces.Sessions[r.Session]
-	f.drawTrace(c, t, now, bounds{x: traceFrom, y: y, width: cells, rows: 1}, f.traceScale(), faded)
+	faded, t := outOfPool(doc, r.Account), f.Traces.Sessions[r.Session]
+	f.drawTrace(c, t, now, bounds{x: traceFrom, y: y, width: f.wideTraceCells(), rows: 1}, f.traceScale(), faded)
 	c.right(f.Width, y, line{traceRate(t, now, faded)})
 }
 

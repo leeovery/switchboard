@@ -211,7 +211,7 @@ func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows 
 	}
 	f.drawStanding(c, r, t.names, y, end-wordsGap-t.names, false)
 	c.line(sessionsAt, y, line{sessionsSpan(r.sessions)})
-	f.drawTrace(c, r.trace, t.now, bounds{x: traceFrom, y: y, width: f.Width - traceTail - traceFrom, rows: rows}, t.scale, r.faded)
+	f.drawTrace(c, r.trace, t.now, bounds{x: traceFrom, y: y, width: f.accountTraceCells(t.names), rows: rows}, t.scale, r.faded)
 	c.right(f.Width, y+rows-1, line{traceRate(r.trace, t.now, r.faded)})
 }
 
@@ -228,7 +228,7 @@ func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int)
 		end = c.right(f.Width, y, line{pinnedSpan})
 	}
 	f.drawStanding(c, r, t.names, y, end-wordsGap-t.names, true)
-	f.drawTrace(c, r.trace, t.now, bounds{x: t.names, y: y + 1, width: f.Width - narrowTail - t.names, rows: 1}, t.scale, r.faded)
+	f.drawTrace(c, r.trace, t.now, bounds{x: t.names, y: y + 1, width: f.accountTraceCells(t.names), rows: 1}, t.scale, r.faded)
 	c.right(f.Width, y+1, line{sessionsSpan(r.sessions), spaces(2), traceRate(r.trace, t.now, r.faded)})
 }
 

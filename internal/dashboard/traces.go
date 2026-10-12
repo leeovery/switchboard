@@ -52,51 +52,73 @@ func (f Frame) traceScale() float64 {
 }
 
 // busiestColumn is the most requests a minute in any column of every trace
-// the page draws of doc at now, each as many cells wide as an account's trace
-// is, as traceCells says, as busiestOf says.
+// the page draws of doc at now, each as many cells wide as it's drawn, never
+// less than leastScale: ROUTING's, and SESSIONS', as routingColumns and
+// sessionsColumns say.
 func (f Frame) busiestColumn(doc status.Document, now time.Time) float64 {
-	cells := f.traceCells(doc)
-	return f.busiestOf(doc, func(t views.Trace) []float64 { return t.Cells(cells, now) })
-}
-
-// busiestOf is the most requests a minute in any column of every trace the
-// page draws of doc, each's columns as columnsOf gives them, never less than
-// leastScale: ROUTING's accounts', and the pool's, theirs summed, beside
-// USAGE's blocks by account, while ROUTING shows; and the sessions', while
-// SESSIONS shows.
-func (f Frame) busiestOf(doc status.Document, columnsOf func(views.Trace) []float64) float64 {
-	var columns [][]float64
-	if f.Sections.Has(SectionRouting) {
-		for _, t := range f.accountTraces(doc.Accounts) {
-			columns = append(columns, columnsOf(t))
-		}
-		if f.routingBesideUsage() {
-			columns = append(columns, summed(f.accountTraces(poolAccounts(doc)), columnsOf))
-		}
-	}
-	if f.Sections.Has(SectionSessions) {
-		for _, t := range f.Traces.Sessions {
-			columns = append(columns, columnsOf(t))
-		}
-	}
 	most := float64(leastScale)
-	for _, c := range columns {
-		if len(c) > 0 {
-			most = max(most, slices.Max(c))
+	for _, columns := range slices.Concat(f.routingColumns(doc, now), f.sessionsColumns(doc, now)) {
+		if len(columns) > 0 {
+			most = max(most, slices.Max(columns))
 		}
 	}
 	return most
 }
 
-// traceCells are the cells an account's trace takes in ROUTING by window, as
-// wide as the frame is: from traceFrom to traceTail short of its edge, from
-// routingRows columns; narrower, from the name column of doc's accounts to
-// narrowTail short of it. Never fewer than one.
-func (f Frame) traceCells(doc status.Document) int {
-	if f.Width >= routingRows {
-		return max(f.Width-traceTail-traceFrom, 1)
+// routingColumns are the columns of ROUTING's traces of doc at now, while it
+// shows: each account's, and beside USAGE's blocks by account, the pool's,
+// its accounts' summed.
+func (f Frame) routingColumns(doc status.Document, now time.Time) [][]float64 {
+	if !f.Sections.Has(SectionRouting) {
+		return nil
 	}
-	return max(f.Width-narrowTail-nameColumn(namesOf(doc), f.Width), 1)
+	cellsOf := cellsAt(f.accountTraceCells(nameColumn(namesOf(doc), f.Width)), now)
+	var columns [][]float64
+	for _, t := range f.accountTraces(doc.Accounts) {
+		columns = append(columns, cellsOf(t))
+	}
+	if f.routingBesideUsage() {
+		columns = append(columns, summed(f.accountTraces(poolAccounts(doc)), cellsOf))
+	}
+	return columns
+}
+
+// sessionsColumns are the columns of SESSIONS' traces of doc at now, while it
+// shows: each running session's, a trace a row it's on, from routingRows
+// columns; under them, it draws none.
+func (f Frame) sessionsColumns(doc status.Document, now time.Time) [][]float64 {
+	if !f.Sections.Has(SectionSessions) || f.Width < routingRows {
+		return nil
+	}
+	cellsOf := cellsAt(f.wideTraceCells(), now)
+	var columns [][]float64
+	for _, r := range f.running(doc, now) {
+		columns = append(columns, cellsOf(f.Traces.Sessions[r.Session]))
+	}
+	return columns
+}
+
+// cellsAt gives a trace's cells, cells wide at now.
+func cellsAt(cells int, now time.Time) func(views.Trace) []float64 {
+	return func(t views.Trace) []float64 { return t.Cells(cells, now) }
+}
+
+// wideTraceCells are the cells a trace takes on its row from routingRows
+// columns, an account's in ROUTING or a session's in SESSIONS: from
+// traceFrom to traceTail short of the frame's edge.
+func (f Frame) wideTraceCells() int {
+	return f.Width - traceTail - traceFrom
+}
+
+// accountTraceCells are the cells an account's trace takes in ROUTING as a
+// section of its own, the name column given: as wideTraceCells says, from
+// routingRows columns; narrower, from the name column to narrowTail short
+// of the frame's edge.
+func (f Frame) accountTraceCells(names int) int {
+	if f.Width >= routingRows {
+		return f.wideTraceCells()
+	}
+	return f.Width - narrowTail - names
 }
 
 // accountTraces are the traces of the accounts given, in their order.
@@ -148,20 +170,10 @@ func (f Frame) drawCells(c *canvas, cells []float64, at bounds, scale float64, f
 			continue
 		}
 		for r := 0; r < at.rows && eighths > 8*r; r++ {
-			glyph, k := f.traceCell(min(eighths-8*r, 8), fill)
+			glyph, k := filledCell(f.Look, min(eighths-8*r, 8), fill)
 			c.text(at.x+i, floor-r, glyph, k)
 		}
 	}
-}
-
-// traceCell is a cell of a trace filled eighths of it, from 1 to 8, in the
-// fill's ink: full, a blank on the fill's colour where the look blends, else
-// █; else its eighth block.
-func (f Frame) traceCell(eighths int, fill ink) (string, ink) {
-	if eighths == 8 && f.Look.blends() {
-		return " ", ink{on: fill.hue()}
-	}
-	return levels[eighths], fill
 }
 
 // traceInks are the inks a trace is drawn in: its fill's, accent.key mixed
