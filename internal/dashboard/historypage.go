@@ -1,11 +1,11 @@
 package dashboard
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -190,15 +190,11 @@ func (f Frame) historyScrolls() (y, rows int) {
 
 // moreBelow says how many more of a view's rows, each one of the thing noun
 // names, are out of view below, and how to scroll to them, what toScroll says
-// following j/k: "▼ 3 more weeks below   ·   j/k to scroll".
-func moreBelow(n int, noun, toScroll string) line {
-	return line{
-		{"▼", keyMarkInk},
-		{" " + prose.Counted(n, "more "+noun) + " below", mutedInk},
-		{"   ·   ", faintInk},
-		{"j/k", keyInk},
-		{toScroll, mutedInk},
-	}
+// following j/k, "▼ 3 more weeks below   ·   j/k to scroll", cut to width
+// cells as countOutOfView cuts it.
+func moreBelow(n int, noun, toScroll string, width int) line {
+	return countOutOfView(width, span{"▼", keyMarkInk}, n, "more "+noun,
+		wordsPart(line{{" below", mutedInk}, {"   ·   ", faintInk}, {"j/k", keyInk}, {toScroll, mutedInk}}))
 }
 
 // accountsOutOfView says how many of a view's accounts are out of view above
@@ -215,15 +211,27 @@ func accountsOutOfView(above, below, width int) line {
 }
 
 // oneOutOfView says, as the last of outOfViewForms does, how many accounts
-// are out of view below, where any are, else above, cut to width cells:
-// below first, as what's below is what a line cut short loses, and is said
-// cut short sooner than not at all.
+// are out of view below, where any are, else above, cut to width cells as
+// countOutOfView cuts it: below first, as what's below is what a line cut
+// short loses.
 func oneOutOfView(above, below, width int) line {
-	shortest := outOfViewForms[len(outOfViewForms)-1]
 	if below > 0 {
-		return shortest.said(0, below).fit(width)
+		return countOutOfView(width, span{"▼", keyMarkInk}, below, "more account")
 	}
-	return shortest.said(above, 0).fit(width)
+	return countOutOfView(width, span{"▲", keyMarkInk}, above, "more account")
+}
+
+// countOutOfView says, after its mark, how many of the thing noun names are
+// out of view, n of them, then what follows, cut to width cells: the count a
+// figure, drawn whole with its mark, "▼ 12", the words after it cut; where
+// that doesn't fit, the mark alone says some are, as a count cut short
+// would say fewer.
+func countOutOfView(width int, mark span, n int, noun string, after ...part) line {
+	said := slices.Concat([]part{wordsPart(line{mark, {" ", mutedInk}})}, countedParts(n, noun, mutedInk), after)
+	if partsWidth(said[:2]) > width {
+		return line{mark}.fit(width)
+	}
+	return fitParts(width, said...)
 }
 
 // outForm is a form of the line saying what's out of view: its parts gap
