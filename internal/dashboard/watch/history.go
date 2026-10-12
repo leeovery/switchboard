@@ -136,8 +136,11 @@ func histories(ctx context.Context, source Source, doc status.Document, asked in
 
 // readFiled reads the readings history's files for the readings of doc's
 // windows as they run at now, as the next asking, where there's no router to
-// ask.
+// ask: nothing where the watch has no readings history to read.
 func (m Model) readFiled(doc status.Document, now time.Time) (Model, tea.Cmd) {
+	if m.cfg.Readings == nil {
+		return m, nil
+	}
 	m.history.asked++
 	m.history.filedSince = true
 	asked, files := m.history.asked, m.cfg.Readings

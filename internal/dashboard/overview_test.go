@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -586,6 +587,55 @@ func TestTheLayoutChangesOnlyOnAKeyOrAResizeNeverOnItsOwn(t *testing.T) {
 	}
 	if off := f; func() bool { off.View = Sessions; return off.LayoutOf(doc, now) != (Layout{}) }() {
 		t.Errorf("off the Overview, LayoutOf gives a layout, want none")
+	}
+}
+
+// unreadOf is doc with nothing read yet of its accounts, as the router
+// lists them before its first read: no windows.
+func unreadOf(doc status.Document) status.Document {
+	doc.Accounts = slices.Clone(doc.Accounts)
+	for i, a := range doc.Accounts {
+		doc.Accounts[i] = status.Account{ID: a.ID, Label: a.Label, TokenSet: true}
+	}
+	return doc
+}
+
+func TestTheLayoutIsMadeAfreshAsASectionsShapeMovesNeverAsSessionsStartOrLinesCome(t *testing.T) {
+	doc := threeRouted()
+	f := frameOf(160, 40)
+	f.Sections = Sections{}.Toggled(SectionSessions)
+	f.Layout = f.LayoutOf(unreadOf(doc), now)
+
+	fresh := f
+	fresh.Layout = Layout{}
+	if got, want := f.LayoutOf(doc, now), fresh.LayoutOf(doc, now); got != want || got == f.Layout {
+		t.Errorf("as the accounts' windows are first read, the layout is %+v, want it made afresh, %+v", got, want)
+	}
+	if got := f.overviewScrolling(doc, now); got.Most != 0 {
+		t.Errorf("as the accounts' windows are first read, USAGE scrolls %+v, want every account shown, as there's room for them", got)
+	}
+
+	f.Layout = f.LayoutOf(doc, now)
+	busy := doc
+	busy.Events = []status.Event{
+		{ID: 1, At: now.Add(-time.Minute).UTC(), Kind: status.EventRoom, Account: "work"},
+		{ID: 2, At: now.Add(-2 * time.Minute).UTC(), Kind: status.EventRoom, Account: "side"},
+		{ID: 3, At: now.Add(-3 * time.Minute).UTC(), Kind: status.EventRoom, Account: "personal"},
+		{ID: 4, At: now.Add(-4 * time.Minute).UTC(), Kind: status.EventRoom, Account: "work"},
+	}
+	ran := f
+	ran.Sessions = flippingSessions()
+	tests := map[string]struct {
+		f   Frame
+		doc status.Document
+	}{
+		"sessions starting": {f: ran, doc: doc},
+		"lines coming":      {f: f, doc: busy},
+	}
+	for name, tt := range tests {
+		if got := tt.f.LayoutOf(tt.doc, now); got != f.Layout {
+			t.Errorf("after %s, the layout is %+v, want it kept, %+v", name, got, f.Layout)
+		}
 	}
 }
 

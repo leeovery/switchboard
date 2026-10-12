@@ -14,7 +14,7 @@ import (
 // account's state and each window's words that looks saw change.
 type changes struct {
 	from   origin
-	states cues[string, string]
+	states cues[string, state]
 	outs   cues[dashboard.Ref, bool]
 }
 
@@ -67,19 +67,41 @@ func (c changes) ticked(doc status.Document, now time.Time, policy score.Policy)
 // differs from what was found last is picked out from now, and each window
 // whose words turn to out ~.
 func (c changes) found(doc status.Document, now time.Time, policy score.Policy) changes {
-	c.states = c.states.seen(statesOf(doc, now, policy), now, func(was, is string) bool { return was != is })
+	c.states = c.states.seen(statesOf(doc, now, policy), now, func(was, is state) bool { return was != is })
 	c.outs = c.outs.seen(outsOf(doc, now), now, func(was, is bool) bool { return is && !was })
 	return c
 }
 
+// state is an account's state as its cue tells states apart: its kind,
+// which its glyph and colour follow, and the first words ROUTING says it in,
+// without the clauses after them, whose times move on with nothing changed;
+// nor whether new sessions come to it, or the pin spends its cap, which the
+// page marks besides.
+type state struct {
+	kind status.RoutingKind
+	says string
+}
+
+// stateOf is the state routing says, as its cue tells states apart: an
+// account new sessions come to is open, and one the pin spends the cap of
+// is at its cap.
+func stateOf(routing status.Routing) state {
+	kind := routing.Kind
+	switch kind {
+	case status.RoutingNext:
+		kind = status.RoutingOpen
+	case status.RoutingCappedPinned:
+		kind = status.RoutingCapped
+	}
+	return state{kind: kind, says: routing.Says}
+}
+
 // statesOf are the states of doc's accounts at now, as policy judges them,
-// by id: the first words ROUTING says each in, without the clauses after
-// them, whose times move on with nothing changed; nor whether new sessions
-// come to it, or the pin spends its cap, which the page marks besides.
-func statesOf(doc status.Document, now time.Time, policy score.Policy) map[string]string {
-	states := make(map[string]string, len(doc.Accounts))
+// by id, as stateOf tells them apart.
+func statesOf(doc status.Document, now time.Time, policy score.Policy) map[string]state {
+	states := make(map[string]state, len(doc.Accounts))
 	for _, a := range doc.Accounts {
-		states[a.ID] = doc.RoutingOf(a, now, policy).Says
+		states[a.ID] = stateOf(doc.RoutingOf(a, now, policy))
 	}
 	return states
 }
