@@ -42,6 +42,10 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 				if heading := under(rows, tt); strings.HasPrefix(heading, tt.Section.heading()+" ") && strings.HasSuffix(heading, "─ "+tt.Section.Key()) {
 					want = heading
 				}
+			case OnAccount:
+				if row := under(rows, tt); strings.Contains(row, " "+tt.Account+" ") {
+					want = row
+				}
 			}
 			if got := under(rows, tt); got != want || want == "" {
 				t.Errorf("at %d columns on %s, target %+v is over %q, want %q", f.Width, f.View, tt, got, want)

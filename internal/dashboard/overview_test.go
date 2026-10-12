@@ -108,7 +108,7 @@ func TestEachSectionsLeastAndMostRows(t *testing.T) {
 		least, most int
 	}{
 		{name: "USAGE from 150 columns: the compact matrix, 2a + 7, to the big bars, a window's heading, its accounts and the pool", section: at(160, ByWindow).usageSection(doc, now), least: 13, most: 24},
-		{name: "USAGE under 150 columns: stacked, as usage is", section: at(149, ByWindow).usageSection(doc, now), least: 24, most: 24},
+		{name: "USAGE under 150 columns: stacked, as usage is, its key line's marks on a line of their own", section: at(149, ByWindow).usageSection(doc, now), least: 25, most: 25},
 		{name: "USAGE by account: a block an account", section: at(160, ByAccount).usageSection(doc, now), least: 22, most: 22},
 		{name: "GRAPHS: h + 4, 5 rows of chart to 19", section: at(160, ByWindow).graphsSection(doc, now), least: 9, most: 23},
 		{name: "ROUTING: a + 3, to 3a + 2", section: at(160, ByWindow).routingSection(doc, now), least: 6, most: 11},

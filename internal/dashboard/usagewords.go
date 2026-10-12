@@ -88,13 +88,33 @@ var perWords = map[string]string{quota.PerHour: "/h", quota.PerDay: "/day"}
 // where pinned is set, " · pinned" after.
 func poolWords(room float64, accounts int, pinned bool) usageWords {
 	l := line{
-		{strconv.FormatFloat(float64(halfEven(room*10))/10, 'f', 1, 64), strongInk},
+		{tenths(room), strongInk},
 		{" of " + strconv.Itoa(accounts) + " left", mutedInk},
 	}
 	if pinned {
 		l = append(l, span{" · pinned", mutedInk})
 	}
 	return usageWords{full: l, short: l}
+}
+
+// tenths is room, in accounts' worth, to a tenth, as in "1.5".
+func tenths(room float64) string {
+	return strconv.FormatFloat(float64(halfEven(room*10))/10, 'f', 1, 64)
+}
+
+// faint is the words in text.faint, whatever their colours, as the Overview
+// words a window of an account out of the pool.
+func (w usageWords) faint() usageWords {
+	return usageWords{full: inFaint(w.full), short: inFaint(w.short)}
+}
+
+// inFaint is the line in text.faint, span for span.
+func inFaint(l line) line {
+	faint := make(line, len(l))
+	for i, s := range l {
+		faint[i] = span{s.text, faintInk}
+	}
+	return faint
 }
 
 // pick is the words as a block width columns wide draws them, in the cells
@@ -114,14 +134,18 @@ func (w usageWords) pick(width int) line {
 
 // percentage is the bar's use as the usage block shows it: as a whole
 // percentage, in bold, in the ramp's last stop from 90%, its second from 70%,
-// and its first below, judged on the percentage shown; a stale reading's in
-// text.subtle, not bold; and of an empty bar, none, as — in text.faint.
+// and its first below, judged on the percentage shown; on the Overview, of an
+// account out of the pool, in bold text.faint, stale or not, as faint wins
+// over any colour; a stale reading's in text.subtle, not bold; and of an
+// empty bar, none, as — in text.faint.
 func (b usageBar) percentage() line {
 	shown := wholePercent(b.used)
 	k := ink{token: theme.VizRamp1, bold: true}
 	switch {
 	case b.empty:
 		return line{{"—", faintInk}}
+	case b.out:
+		k.token = theme.TextFaint
 	case b.stale:
 		k = dimInk
 	case shown >= 90:

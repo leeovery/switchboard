@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -149,6 +150,44 @@ func TestAStaleBarKeeps35PercentOfItsColourAndNothingBold(t *testing.T) {
 		if k.fade != staleFade || k.bold || !k.dim || (k.on != (hue{}) && k.on.fade != staleFade) {
 			t.Errorf("cell %d is drawn in %+v, want it and its surface faded 65%% toward the canvas, dim, not bold", x, k)
 		}
+	}
+}
+
+func TestABarOutOfThePoolFadesAsAStaleOneAndTheTwoCompound(t *testing.T) {
+	half := 0.5
+	tests := []struct {
+		name       string
+		stale, out bool
+		// kept is how much of its colour the bar keeps.
+		kept float64
+	}{
+		{name: "neither", kept: 1},
+		{name: "stale", stale: true, kept: 0.35},
+		{name: "out of the pool", out: true, kept: 0.35},
+		{name: "both, 35% of 35%", stale: true, out: true, kept: 0.35 * 0.35},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := barIn(usageBar{used: 0.33, capAt: 0.9, pace: &half, stale: tt.stale, out: tt.out}, themed(t, "nord"), 10)
+			faded := tt.kept < 1
+			for x := range 10 {
+				k := c.at(x, 0).ink
+				if math.Abs(1-k.fade-tt.kept) > 1e-9 || k.dim != faded || (faded && k.bold) || (k.on != (hue{}) && math.Abs(1-k.on.fade-tt.kept) > 1e-9) {
+					t.Errorf("cell %d is drawn in %+v, want it and its surface keeping %v of its colour, dim and not bold where faded", x, k, tt.kept)
+				}
+			}
+		})
+	}
+}
+
+func TestABarEasingFillsAsFarAsItHasEased(t *testing.T) {
+	eased := 0.25
+	bar := usageBar{used: 0.75, capAt: 1, eased: &eased}
+	if got, want := glyphs(barIn(bar, Look{}, 8)), "██      "; got != want {
+		t.Errorf("easing at 25%% to 75%%, the bar reads %q, want %q", got, want)
+	}
+	if got := bar.percentage().plain(); got != "75%" {
+		t.Errorf("easing, the percentage reads %q, want the reading, 75%%", got)
 	}
 }
 
