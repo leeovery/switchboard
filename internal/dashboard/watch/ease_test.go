@@ -82,6 +82,7 @@ func TestBarsRiseFromNothingOnTheFirstRead(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h.clock.now = start.Add(tt.after)
+			h.redraw()
 			checkScreen(t, h, tt.session, tt.week)
 			if view := h.view(); !strings.Contains(view, "  25%  → 44%") {
 				t.Errorf("the screen is\n%s\nwant the room left as read, the bars alone easing", view)
@@ -264,6 +265,29 @@ func TestTheScreenUpdateDrawsIsTheScreenDrawnAfresh(t *testing.T) {
 		if got, want := h.model.View().Content, h.drawnAfresh(); got != want {
 			t.Errorf("%s: the screen is\n%s\nwant it as drawn afresh\n%s", step.name, ansi.Strip(got), ansi.Strip(want))
 		}
+	}
+}
+
+// Where Update draws nothing, View draws the live page Update built the
+// sections of, at the moment it took the message in, so they're built once a
+// message: the clock moving since moves nothing on screen till a message
+// comes, as Bubble Tea draws after each.
+func TestViewDrawsThePageAsTheLastMessageLeftIt(t *testing.T) {
+	h := newHarness(t, calm())
+	h.start()
+	h.settle()
+	h.redraw()
+	if h.model.shown.drawn {
+		t.Fatal("Update drew the screen with nothing settling, want View to draw the page it built")
+	}
+	was := h.view()
+	h.clock.now = h.clock.now.Add(time.Minute)
+	if got := h.view(); got != was {
+		t.Errorf("a minute on, no message since, the screen is\n%s\nwant it as the last message left it\n%s", got, was)
+	}
+	h.redraw()
+	if got := h.view(); got == was {
+		t.Errorf("a message a minute on, the screen is\n%s\nwant it drawn then", got)
 	}
 }
 

@@ -29,6 +29,7 @@ func TestLATELYPicksOutAnEventNewToTheOverviewAlone(t *testing.T) {
 		t.Errorf("the row seen before is %q, want it on the canvas", row)
 	}
 	h.clock.now = h.clock.now.Add(highlightFor)
+	h.redraw()
 	if row := rowWith(h.model.View().Content, "13:05"); strings.Contains(row, attention) {
 		t.Errorf("once its time is over, the new event's row is %q, want it back on the canvas", row)
 	}

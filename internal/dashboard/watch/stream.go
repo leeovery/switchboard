@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // rejoinAfter is how long after the request stream ends, or fails to open,
@@ -209,20 +210,25 @@ func (m Model) heard(msg streamHeardMsg) (Model, tea.Cmd) {
 
 // told takes in the events the stream told, at now, as took does: those of
 // the requests in flight as the watch joined it, as joined counts them, as
-// part of the join's first look, brightening nothing; then the rest, each
-// number on the page they change brightening, the page drawn to compare its
-// numbers only where they can change one, as numbering says.
+// part of the join's first look, brightening nothing; then the rest, keeping
+// what the stream had told before them where they can change a number the
+// page draws, as numbering says, for compared to brighten each they change
+// once the message is taken in.
 func (m Model) told(events []router.StreamEvent, now time.Time) Model {
 	if n := joined(events); n > 0 {
 		m, events = m.took(events[:n], now), events[n:]
 	}
-	if !m.numbering(events, now) {
-		return m.took(events, now)
+	if m.numbering(events, now) {
+		m.toldBefore = &toldSoFar{traffic: m.traffic, traces: m.traces}
 	}
-	was := m.numbersDrawn(now)
-	m = m.took(events, now)
-	m.numbers = m.numbers.changed(was, m.numbersDrawn(now), now)
-	return m
+	return m.took(events, now)
+}
+
+// toldSoFar is what the request stream has told, as the watch keeps it: what
+// each seat is doing, and the requests the traces count.
+type toldSoFar struct {
+	traffic traffic
+	traces  views.Traces
 }
 
 // joined is how many of the events lead them telling of the requests in

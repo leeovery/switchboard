@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
@@ -41,15 +42,18 @@ func eventMark(s views.Sentence) span {
 // latelySection is the Overview's LATELY of doc at now: what's happened,
 // newest first, as many of its sentences as it has, leastLines of them at its
 // least, or a line saying why it has none; folded, its first, as it's drawn.
+// Its sentences are told only as its draw, its fold, or a layout made
+// afresh asks for them, as latelyTelling tells them.
 func (f Frame) latelySection(doc status.Document, now time.Time) section {
-	most := views.Lately(doc, now, mostLines)
+	told := latelyTelling(doc, now)
 	return section{
-		Section: SectionLately, least: linesRows(0), most: linesRows(len(most)), more: len(most) > 1,
+		Section: SectionLately, least: linesRows(0),
+		lines: func() int { return len(told(mostLines)) },
 		draw: func(c *canvas, body bounds) {
-			f.drawLately(c, doc, latelyIn(doc, most, now, body.rows), now, body)
+			f.drawLately(c, doc, told(body.rows), now, body)
 		},
 		folded: func() line {
-			first := f.latelyLines(doc, latelyIn(doc, most, now, 1), now)
+			first := f.latelyLines(doc, told(1), now)
 			if len(first) == 0 {
 				return f.quiet(doc)
 			}
@@ -58,15 +62,25 @@ func (f Frame) latelySection(doc status.Document, now time.Time) section {
 	}
 }
 
-// latelyIn are LATELY's sentences of doc at now in n lines, most its
-// sentences in the most lines it takes: most itself, where they all fit;
-// else told afresh, as a move folded into a line that doesn't show then
-// shows alone, so the first n of most aren't always them.
-func latelyIn(doc status.Document, most []views.Sentence, now time.Time, n int) []views.Sentence {
-	if len(most) <= n {
-		return most
+// latelyTelling tells LATELY's sentences of doc at now in n lines, mostLines
+// at most, each n told once: those it has in mostLines, where they're told
+// and all fit; else told for n, as a move folded into a line that doesn't
+// show then shows alone, so the first n of them aren't always them.
+func latelyTelling(doc status.Document, now time.Time) func(n int) []views.Sentence {
+	var mu sync.Mutex
+	told := make(map[int][]views.Sentence)
+	return func(n int) []views.Sentence {
+		mu.Lock()
+		defer mu.Unlock()
+		n = min(n, mostLines)
+		if all, ok := told[mostLines]; ok && len(all) <= n {
+			return all
+		}
+		if _, ok := told[n]; !ok {
+			told[n] = views.Lately(doc, now, n)
+		}
+		return told[n]
 	}
-	return views.Lately(doc, now, n)
 }
 
 // drawLately draws the sentences given, those body has rows for, a line each
