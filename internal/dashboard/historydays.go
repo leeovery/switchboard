@@ -68,12 +68,12 @@ func (f Frame) historyDays(c *canvas, top int) {
 	c.line(0, top+byModelRow, groupHead("BY MODEL", "every account, weighed at API prices, on one scale", l.phone))
 	for i, s := range p.ByModel {
 		hue := familyHue(s.Of)
-		f.daysStrip(c, l, l.familyRow(i), familyName(s.Of), shareOfUse(s), func(level int) ink { return stepInk(hue, level) }, s.Days)
+		f.daysStrip(c, l, l.familyRow(i), familyName(s.Of).fit, shareOfUse(s), func(level int) ink { return stepInk(hue, level) }, s.Days)
 	}
 	c.line(0, l.byAccount, groupHead("BY ACCOUNT", "the share of its week each day used, on one scale", l.phone))
 	from, to := l.shown()
 	for i, s := range p.ByAccount[from:to] {
-		f.daysStrip(c, l, l.accountRow(i), line{{status.Clean(s.Of), titleInk}}, f.limitsHit(s), dayInk, s.Days)
+		f.daysStrip(c, l, l.accountRow(i), func(room int) line { return stripName(s, room) }, f.limitsHit(s), dayInk, s.Days)
 	}
 	if above, below := from, len(p.ByAccount)-to; above+below > 0 {
 		c.line(0, l.scrollRow, accountsOutOfView(above, below))
@@ -187,18 +187,18 @@ func initials(c *canvas, from time.Time, x, y int) {
 }
 
 // daysStrip draws a strip along row y, or on a phone, its name on row y and
-// the strip under it: its name at column 0, cut to leave a blank cell before
-// what follows it; each of its days shown, in the ink shade gives at the
-// day's level, those to come ··; and its count, at column 136, or on a phone
-// at the right.
-func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name, count line, shade func(level int) ink, days []views.StripDay) {
+// the strip under it: its name at column 0, as name gives it in the cells
+// that leave a blank one before what follows it; each of its days shown, in
+// the ink shade gives at the day's level, those to come ··; and its count, at
+// column 136, or on a phone at the right.
+func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name func(room int) line, count line, shade func(level int) ink, days []views.StripDay) {
 	strip, room := y, l.x-1
 	if l.phone {
 		strip, room = y+1, c.right(f.edge(), y, count)-1
 	} else {
 		c.line(daysCount+countCells-count[:1].width(), y, count)
 	}
-	c.line(0, y, name.fit(room))
+	c.line(0, y, name(room))
 	coming := len(days) - l.page.ToCome
 	for i := l.first; i < len(days); i++ {
 		x := l.x + (i-l.first)/7*weekCells + (i-l.first)%7*swatchCells
@@ -280,6 +280,17 @@ func (f Frame) daysKey(c *canvas, l daysLayout) {
 		return
 	}
 	c.line(0, l.keyRow, slices.Concat(shades, line{{"  " + daysShadesNote, faintInk}, {"    ", ink{}}}, marks))
+}
+
+// stripName is an account's name as BY ACCOUNT shows it, in room cells: its
+// label, bold text.primary, cut to keep the ◆ after the primary's, in
+// text.tertiary. History shows no routing, so no ▲.
+func stripName(s views.DaysStrip, room int) line {
+	var mark line
+	if s.Primary {
+		mark = line{{" ◆", primaryInk}}
+	}
+	return append(line{{truncate(status.Clean(s.Label), room-mark.width()), titleInk}}, mark...)
 }
 
 // familyName is a family's name as Days shows it, its dot in its hue, then

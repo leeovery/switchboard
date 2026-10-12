@@ -30,12 +30,15 @@ type DaysPage struct {
 // name, as the version table gives it, or the account's id; its days, the
 // eight weeks' from the first, those still to come among them; of a family,
 // Share, its share of the eight weeks' worth; and of an account, Limits, the
-// 5-hour limits it hit.
+// 5-hour limits it hit, Label, what it's called, its id unless the config
+// gives it another, and Primary, set on the primary.
 type DaysStrip struct {
-	Of     string
-	Days   []StripDay
-	Share  *float64
-	Limits int
+	Of      string
+	Days    []StripDay
+	Share   *float64
+	Limits  int
+	Label   string
+	Primary bool
 }
 
 // StripDay is a day of a strip: its level, 0 to 4, on the strips' scale; and
@@ -181,9 +184,9 @@ func shareOf(sum Worth, total ledger.Picodollars) *float64 {
 }
 
 // byAccount are BY ACCOUNT's strips: a configured account each, in the
-// config's order, each day the points of its week, the window with the key
-// week, it used that day, every account on one scale; and the 5-hour limits
-// it hit, each day and in all.
+// config's order, by its label, the primary marked, each day the points of
+// its week, the window with the key week, it used that day, every account on
+// one scale; and the 5-hour limits it hit, each day and in all.
 func (w eightWeeks) byAccount(accounts config.Accounts, week string) []DaysStrip {
 	rises := make([][]float64, len(accounts))
 	limits := make([][]int, len(accounts))
@@ -199,7 +202,7 @@ func (w eightWeeks) byAccount(accounts config.Accounts, week string) []DaysStrip
 	cuts := quarterCuts(active)
 	strips := make([]DaysStrip, len(accounts))
 	for i, a := range accounts {
-		strips[i] = DaysStrip{Of: a.ID, Days: levelled(rises[i], cuts)}
+		strips[i] = DaysStrip{Of: a.ID, Label: cmp.Or(a.Label, a.ID), Primary: a.Primary, Days: levelled(rises[i], cuts)}
 		for d, n := range limits[i] {
 			strips[i].Days[d].Limit = n > 0
 			strips[i].Limits += n

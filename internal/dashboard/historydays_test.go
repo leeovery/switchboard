@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"maps"
 	"slices"
 	"strings"
@@ -36,8 +37,13 @@ func daysWorld(accounts ...views.DaysStrip) views.DaysPage {
 }
 
 // daysShared is daysWorld with the four families' shares given, Opus's to
-// Haiku's.
+// Haiku's, each account labelled by its id where it isn't given a label, as
+// views labels one the config doesn't.
 func daysShared(shares [4]float64, accounts ...views.DaysStrip) views.DaysPage {
+	accounts = slices.Clone(accounts)
+	for i := range accounts {
+		accounts[i].Label = cmp.Or(accounts[i].Label, accounts[i].Of)
+	}
 	families := make([]views.DaysStrip, len(shares))
 	for i, family := range []string{"opus", "sonnet", "fable", "haiku"} {
 		families[i] = views.DaysStrip{Of: family, Days: stripOf(busy), Share: &shares[i]}
@@ -50,7 +56,7 @@ func daysShared(shares [4]float64, accounts ...views.DaysStrip) views.DaysPage {
 // frames mark them.
 var (
 	workDays     = views.DaysStrip{Of: "work", Limits: 33, Days: stripOf(busy, 0, 2, 4, 7, 9, 10, 11, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 35, 36, 37, 39, 42, 43, 44, 45, 46, 50, 52)}
-	personalDays = views.DaysStrip{Of: "personal", Limits: 11, Days: stripOf(busy, 0, 7, 10, 22, 25, 30, 35, 37, 39, 42, 45)}
+	personalDays = views.DaysStrip{Of: "personal", Primary: true, Limits: 11, Days: stripOf(busy, 0, 7, 10, 22, 25, 30, 35, 37, 39, 42, 45)}
 	sideDays     = views.DaysStrip{Of: "side", Limits: 4, Days: stripOf(busy, 15, 30, 45, 50)}
 	tenDays      = []views.DaysStrip{
 		workDays, personalDays, sideDays,
@@ -79,8 +85,8 @@ func daysDrawn(f Frame) *canvas {
 }
 
 // Days draws its frames' text, from the weeks' first days on row 7 to the
-// key on row 35. The accounts' marks, ◆ and ▲, are the router's, which the
-// view isn't given: they're passed over.
+// key on row 35. The frames' ▲ after side, where new sessions go, is
+// routing, which History never shows, as the design holds: it's passed over.
 func TestDaysDrawsItsFramesText(t *testing.T) {
 	tests := []struct {
 		stem string
@@ -93,7 +99,7 @@ func TestDaysDrawsItsFramesText(t *testing.T) {
 		t.Run(tt.stem, func(t *testing.T) {
 			f := daysFrame(t, tt.page, 160, 37)
 			drawn, frame := textOf(daysDrawn(f).rows(f.Look)), referenceRows(t, tt.stem, "txt")
-			unmarked := strings.NewReplacer("◆", " ", "▲", " ")
+			unmarked := strings.NewReplacer(" ▲", "  ")
 			for y := 6; y < 35; y++ {
 				want := strings.TrimRight(unmarked.Replace(frame[y]), " ")
 				if drawn[y] != want {
@@ -106,8 +112,8 @@ func TestDaysDrawsItsFramesText(t *testing.T) {
 
 // Days draws its frames cell for cell, in nord, from row 7 to the key on row
 // 35: but the days of each strip, whose levels are the world's, which F's
-// fixtures hold; and the accounts' marks, the router's, which the view isn't
-// given.
+// fixtures hold; and the two cells of the ▲ after side, where new sessions
+// go, which is routing, and History shows no routing, as the design holds.
 func TestDaysHoldsToItsFramesCells(t *testing.T) {
 	tests := []struct {
 		stem string
@@ -119,7 +125,7 @@ func TestDaysHoldsToItsFramesCells(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.stem, func(t *testing.T) {
 			f := daysFrame(t, tt.page, 160, 37)
-			passed := []spot{{row: 23, first: 9, last: 9}, {row: 25, first: 5, last: 5}}
+			passed := []spot{{row: 25, first: 4, last: 5}}
 			for _, row := range []int{10, 12, 14, 16, 21, 23, 25, 27, 29, 31} {
 				passed = append(passed, spot{row: row, first: daysAt, last: 126})
 			}
@@ -177,6 +183,7 @@ func TestDaysDrawsEachPartInItsInk(t *testing.T) {
 		{name: "of use", x: 141, y: 10, want: dimInk},
 		{name: "BY ACCOUNT", x: 0, y: 19, want: dimInk},
 		{name: "an account's name", x: 0, y: 21, want: titleInk},
+		{name: "the primary's ◆", x: 9, y: 23, want: primaryInk},
 		{name: "a day it hit a 5-hour limit, ▪ over its shade", x: 14, y: 21, want: limitOn(1)},
 		{name: "the rest of that day", x: 15, y: 21, want: ink{on: dayInk(1).hue()}},
 		{name: "an account's day in the days' shades", x: 16, y: 21, want: ink{on: dayInk(2).hue()}},
@@ -368,22 +375,28 @@ func TestDaysNamesEachFamily(t *testing.T) {
 	}
 }
 
-// A name too long for its room is cut, a blank cell kept before its strip,
-// or on a phone before its count.
-func TestDaysCutsANameTooLongForItsRoom(t *testing.T) {
+// An account is named by its label, the primary's ◆ after it in
+// text.tertiary, and never ▲, which is routing. A name too long for its room
+// is cut, keeping ◆ and a blank cell before its strip, or on a phone before
+// its count.
+func TestDaysNamesEachAccount(t *testing.T) {
 	long := views.DaysStrip{Of: "a-long-account-name-for-days", Limits: 12, Days: stripOf(busy)}
 	tests := []struct {
-		name  string
-		width int
-		want  string
+		name    string
+		account views.DaysStrip
+		width   int
+		want    string
 	}{
-		{name: "beside its strip", width: 160, want: "a-long-accou… "},
-		{name: "on a phone, room beside its count", width: 52, want: "a-long-account-name-for-days       12 5-hour limits"},
-		{name: "on a narrower phone, beside its count", width: 40, want: "a-long-account-name-f… 12 5-hour limits"},
+		{name: "by its label", account: views.DaysStrip{Of: "work", Label: "Work", Days: stripOf(busy)}, width: 160, want: "Work "},
+		{name: "the primary marked", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Days: stripOf(busy)}, width: 160, want: "Work ◆ "},
+		{name: "cut beside its strip", account: long, width: 160, want: "a-long-accou… "},
+		{name: "cut, keeping its ◆", account: views.DaysStrip{Of: long.Of, Primary: true, Days: long.Days}, width: 160, want: "a-long-acc… ◆ "},
+		{name: "on a phone, room beside its count", account: long, width: 52, want: "a-long-account-name-for-days       12 5-hour limits"},
+		{name: "on a narrower phone, cut beside its count", account: long, width: 40, want: "a-long-account-name-f… 12 5-hour limits"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := daysFrame(t, daysWorld(long), tt.width, 37)
+			f := daysFrame(t, daysWorld(tt.account), tt.width, 37)
 			row := f.layOutDays(*f.History.Days, f.top()).accountRow(0)
 			if got := textOf(daysDrawn(f).rows(f.Look))[row]; !strings.HasPrefix(got, tt.want) {
 				t.Errorf("the account's row reads %q, want it to start %q", got, tt.want)

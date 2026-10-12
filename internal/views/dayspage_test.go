@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -101,6 +102,10 @@ func TestDaysByModelIsAStripAFamilyOnOneScaleOfWorth(t *testing.T) {
 	}
 }
 
+// BY ACCOUNT is a strip a configured account, in the config's order, by its
+// label, or its id where the config gives none, the primary marked, each day
+// the rise of its week on one scale, every account's, and the 5-hour limits
+// it hit.
 func TestDaysByAccountIsAStripAnAccountOnOneScaleOfItsWeek(t *testing.T) {
 	days := daysFrom("2026-08-10",
 		day("2026-08-16", rose("work", map[string]float64{"7d": 0.9}, limit("5h", "2026-08-16", "10:00"))),
@@ -110,12 +115,14 @@ func TestDaysByAccountIsAStripAnAccountOnOneScaleOfItsWeek(t *testing.T) {
 			rose("work", map[string]float64{"7d": 0.3}, limit("5h", "2026-10-06", "10:00"), limit("5h", "2026-10-06", "15:00"), limit("7d", "2026-10-06", "16:00"))),
 		day("2026-10-07", rose("side", map[string]float64{"7d": 0.2}, limit("5h", "2026-10-07", "11:00"))),
 	)
+	in := input(days)
+	in.Accounts = config.Accounts{{ID: "work", Label: "Work", Primary: true}, {ID: "side"}, {ID: "spare", Label: "Spare"}}
 	want := []views.DaysStrip{
-		{Of: "work", Days: stripDays(map[int]int{0: 2, 50: 4}, 50), Limits: 2},
-		{Of: "side", Days: stripDays(map[int]int{51: 3}, 51), Limits: 1},
-		{Of: "spare", Days: stripDays(nil)},
+		{Of: "work", Label: "Work", Primary: true, Days: stripDays(map[int]int{0: 2, 50: 4}, 50), Limits: 2},
+		{Of: "side", Label: "side", Days: stripDays(map[int]int{51: 3}, 51), Limits: 1},
+		{Of: "spare", Label: "Spare", Days: stripDays(nil)},
 	}
-	if got := daysOf(days).ByAccount; !reflect.DeepEqual(got, want) {
+	if got := views.NewPast(in, days).Days().ByAccount; !reflect.DeepEqual(got, want) {
 		t.Errorf("BY ACCOUNT is\n%+v\nwant\n%+v", got, want)
 	}
 }
