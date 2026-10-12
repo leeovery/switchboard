@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -406,7 +405,7 @@ func (f Frame) badge(doc status.Document, l lane, now time.Time) line {
 	if len(weeks) == 0 {
 		return nil
 	}
-	s := standingOf(doc, l.account, weeks[0], l.states, now)
+	s := standingOf(doc, l.account, weeks[0].window, l.states, now)
 	if s.runsOut {
 		return line{s.use(warningInk)}
 	}
@@ -434,8 +433,7 @@ func (f Frame) runwayLane(c *canvas, doc status.Document, ln lane, cells []room,
 		c.text(l.x+col, y, glyph, k)
 	}
 	for _, w := range f.weeks(ln) {
-		stands, _ := ln.account.WindowAt(w.Key, now, f.Policy)
-		if col := l.timeline.column(stands.ResetsAt); col >= 0 && col < l.timeline.columns {
+		if col := l.timeline.column(w.next); col >= 0 && col < l.timeline.columns {
 			c.text(l.x+col, y, resetGlyph, titleInk)
 		}
 	}
@@ -463,11 +461,11 @@ func (f Frame) cellOf(r room) (string, ink) {
 
 // weeks are the windows of lane l's account the week counts, in the
 // account's order: none over the day, nor of an account nothing is known of.
-func (f Frame) weeks(l lane) []quota.Window {
-	if f.Span != Week || !l.known {
+func (f Frame) weeks(l lane) []laneWindow {
+	if f.Span != Week {
 		return nil
 	}
-	return slices.DeleteFunc(slices.Clone(l.account.Windows), func(w quota.Window) bool { return !f.counts(w) })
+	return l.counted
 }
 
 // placed is words placed under a lane, from its column col of the timeline.
@@ -491,14 +489,12 @@ func (f Frame) laneWords(c *canvas, doc status.Document, ln lane, l runwayLayout
 		words = append(words, placedTold(s, tl, now)...)
 	}
 	for _, w := range f.weeks(ln) {
-		stands, _ := ln.account.WindowAt(w.Key, now, f.Policy)
-		next := stands.ResetsAt
-		col := tl.column(next)
-		back := slices.ContainsFunc(ln.stretches, func(s stretch) bool { return s.until.Equal(next) })
+		col := tl.column(w.next)
+		back := slices.ContainsFunc(ln.stretches, func(s stretch) bool { return s.until.Equal(w.next) })
 		if col < 0 || col >= tl.columns || back {
 			continue
 		}
-		says := resetSays(standingOf(doc, ln.account, w, ln.states, now), next, now)
+		says := resetSays(standingOf(doc, ln.account, w.window, ln.states, now), w.next, now)
 		words = append(words, placed{col: max(col-says.width()+1, 0), words: says})
 	}
 	if len(words) == 0 {
@@ -560,8 +556,7 @@ func resetSays(s standing, next, now time.Time) line {
 func (f Frame) allAlong(l lane, now time.Time) line {
 	var next time.Time
 	if weeks := f.weeks(l); len(weeks) > 0 {
-		stands, _ := l.account.WindowAt(weeks[0].Key, now, f.Policy)
-		next = stands.ResetsAt
+		next = weeks[0].next
 	}
 	switch {
 	case !l.known:
