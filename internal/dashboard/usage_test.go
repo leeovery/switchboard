@@ -108,7 +108,7 @@ func blockOn(t *testing.T, doc status.Document, width int, slug string) *canvas 
 		t.Fatalf("no built-in theme %s", slug)
 	}
 	c := growing(width)
-	newUsageBlock(doc, printNow, width, Print(th, nil), ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).draw(c, 0)
+	newUsageBlock(doc, printNow, printPolicy, width, Print(th, nil), ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).draw(c, 0)
 	return c
 }
 
@@ -517,6 +517,30 @@ func TestEveryAccountKeepsItsRowsBeforeAnyWindowIsRead(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestUsageShowsTheSharedWindowsAndEveryOneReportedOnceInClaudesOrder(t *testing.T) {
+	unread := func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil }
+	tests := []struct {
+		name   string
+		doc    status.Document
+		shared []string
+		want   []string
+	}{
+		{name: "every one reported", doc: trio(), shared: []string{"5h", "7d"}, want: []string{"5h", "7d", "7d_oi"}},
+		{name: "one shared that no account reports", doc: trio(), shared: []string{"5h", "1d"}, want: []string{"5h", "1d", "7d", "7d_oi"}},
+		{
+			name: "the shared alone, before any is read", shared: []string{"7d", "5h"}, want: []string{"5h", "7d"},
+			doc: trio(account("work", unread), account("personal", unread), account("side", unread)),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := UsageWindows(tt.doc, tt.shared); !slices.Equal(got, tt.want) {
+				t.Errorf("UsageWindows() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

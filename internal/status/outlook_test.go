@@ -366,11 +366,14 @@ func TestAnAccountsRoomIsWhatThePoolCountsOfIt(t *testing.T) {
 		pinnedTo(routerDocOf(work, limited, side), "work", "side"),
 	} {
 		doc = doc.WorkedOut(policy)
+		if got, want := poolLines(doc.PoolAt(built, policy)), poolLines(doc.Pool); !slices.Equal(got, want) {
+			t.Errorf("of %q, the pool at when the document was built is %q, want %q, as the document has it", doc.Pool.Accounts, got, want)
+		}
 		for _, w := range doc.Pool.Windows {
 			var summed float64
 			for _, id := range doc.Pool.Accounts {
 				a, _ := doc.Account(id)
-				room, _ := doc.RoomOf(a, w.Key, policy)
+				room, _ := doc.RoomOf(a, w.Key, built, policy)
 				summed += room
 			}
 			if math.Abs(summed-w.Room) > 1e-9 {
@@ -389,7 +392,7 @@ func TestAnAccountsRoomIsWhatThePoolCountsOfIt(t *testing.T) {
 		{key: "7d_oi"},
 	}
 	for _, tt := range tests {
-		if got, ok := alone.RoomOf(alone.Accounts[0], tt.key, policy); math.Abs(got-tt.want) > 1e-9 || ok != tt.ok {
+		if got, ok := alone.RoomOf(alone.Accounts[0], tt.key, built, policy); math.Abs(got-tt.want) > 1e-9 || ok != tt.ok {
 			t.Errorf("alone, with no pool, work's %s room is %v, %v; want %v, %v, to its cap", tt.key, got, ok, tt.want, tt.ok)
 		}
 	}

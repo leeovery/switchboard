@@ -210,6 +210,26 @@ func TestUSAGEScrollsAnAccountAtATimeAsTheFocusTheKeysAndTheWheelOverItMoveIt(t 
 	scrolled("a turn down over ROUTING's heading", 0)
 }
 
+func TestAScrollThatMovesNothingLeavesUSAGEScrolledNoFurtherThanItsDrawn(t *testing.T) {
+	short, tall := tea.WindowSizeMsg{Width: 160, Height: 24}, tea.WindowSizeMsg{Width: 160, Height: 80}
+	h := routedHarness(t, tenRouted())
+	h.update(short)
+	h.start()
+	h.keys(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	if h.model.scroll == 0 {
+		t.Fatal("PgDn left USAGE unscrolled, want it scrolled down")
+	}
+	h.update(tall)
+	if most := h.model.scrolling().Most; most != 0 {
+		t.Fatalf("a tall terminal scrolls USAGE %d accounts, want it to fit", most)
+	}
+	h.keys(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	h.update(short)
+	if h.model.scroll != 0 || moreAbove.MatchString(h.view()) {
+		t.Errorf("j, where USAGE fit, then a short terminal again: USAGE is scrolled %d accounts, the screen\n%s\nwant it unscrolled, as it was drawn when j moved nothing", h.model.scroll, h.view())
+	}
+}
+
 func TestTheMouseIsOnWhileTheDashboardRuns(t *testing.T) {
 	h := newHarness(t, twelve())
 	h.start()

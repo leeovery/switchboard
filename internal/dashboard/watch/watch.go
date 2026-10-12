@@ -642,7 +642,7 @@ func (m Model) card(now time.Time) dashboard.Opened {
 	if m.open == routingOpen {
 		return m.routingCard(now)
 	}
-	return m.helpCard(now)
+	return m.helpCard()
 }
 
 // cover opens the card given over the page, which stands still behind it as
@@ -672,7 +672,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lost, Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.ease.eased(m.doc, now),
+		Lost: m.lost, Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.ease.eased(m.doc, now, m.cfg.Policy),
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus:      m.focus,
@@ -737,7 +737,10 @@ func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 // fetched takes in a read: the document to show from now on, or why there's
 // none, and plans the next read by it. A read that fails notes why, and the
 // router lost, as lose does: a question after the router, or a look at its
-// document, that found it gone does nothing more. Each read starts a new
+// document, that found it gone has no why of its own, and clears the last
+// read's only where the status line then says the router isn't answering, as
+// awaitsRouter has it, the newer news replacing the older; elsewhere the
+// last read's why stands, as nothing new was found. Each read starts a new
 // chain of ticks at the pace it calls for, and lets a look at the router's
 // document asked for while it was under way go ahead.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
@@ -747,6 +750,9 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case errors.Is(msg.err, status.ErrNoRouter):
 		m.plan = m.plan.missed(now)
+		if m.awaitsRouter() {
+			m.failed = ""
+		}
 		m = m.lose(now)
 	case msg.err != nil:
 		m.plan = m.plan.failed(m.doc, now)
@@ -818,7 +824,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.news = m.news.looked(doc, msg.router, now)
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
 	m.history = m.history.saw(doc)
-	m.ease = easing{from: m.ease.standing(m.doc, now), start: now}
+	m.ease = easing{from: m.ease.standing(m.doc, now, m.cfg.Policy), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
 	switch {
 	case msg.listed || !routed(doc):
@@ -869,13 +875,20 @@ func (m Model) lose(now time.Time) Model {
 		return m
 	case m.routed():
 		logger.Warn("the router stopped answering; showing its last document")
-	case m.updated.IsZero() && m.failed == "" && !m.cfg.ProbeOnly:
+	case m.awaitsRouter() && m.failed == "":
 		logger.Warn("the router isn't answering, and nothing has been read")
 	default:
 		return m
 	}
 	m.lost = now
 	return m
+}
+
+// awaitsRouter reports whether nothing has been read, from a source that asks
+// the router first: a read that then finds the router gone has the status
+// line say it isn't answering.
+func (m Model) awaitsRouter() bool {
+	return m.updated.IsZero() && !m.cfg.ProbeOnly
 }
 
 // failure is why the last read failed, and when the next is due, for the

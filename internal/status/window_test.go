@@ -133,7 +133,7 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{GeneratedAt: stateNow.UTC(), Accounts: []status.Account{tt.account}, Pin: status.Pin{Accounts: tt.pin}}
-			got := doc.WindowStateOf(tt.account, tt.key, stateNow)
+			got := doc.WindowStatesOf(tt.account, stateNow).Of(tt.key)
 			if got.Kind != tt.want.Kind || !near(got.Used, tt.want.Used) || !got.At.Equal(tt.want.At) {
 				t.Errorf("the window stands as %+v, want %+v", got, tt.want)
 			}

@@ -40,8 +40,8 @@ type Frame struct {
 	// Trails are how the accounts' windows have been used, for the charts.
 	Trails Trails
 	// Eased are how much of each window whose bar eases to the document's
-	// reading after a read the bar fills, by its account and key: nil once
-	// they're there. Everything else is drawn from the document's own.
+	// reading after a read the bar fills, by its account and key, the
+	// pool's by its key alone: nil once they're there. Everything else is drawn from the document's own.
 	Eased map[Ref]float64
 	// Brightened are how bright each number a read or the request stream
 	// changed is still, as Numbers names them: from 1, just changed, to 0,

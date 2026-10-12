@@ -257,6 +257,48 @@ func TestUSAGEHoldsItsPoolAndKeyLineAtTheFootOfItsRowsHoweverFarItsScrolled(t *t
 	}
 }
 
+func TestStackedUSAGEHoldsEveryWindowsHeadingOnItsRowHoweverFarItsScrolled(t *testing.T) {
+	withFable := manyRead(10)
+	for i := range withFable.Accounts {
+		a := &withFable.Accounts[i]
+		a.Windows = append(a.Windows, windowOf("7d_oi", "Fable week", 0.3, 4*day))
+	}
+	withFable = withFable.WorkedOut(claudeLike)
+	tests := []struct {
+		name     string
+		doc      status.Document
+		rows     int
+		headings []string
+	}{
+		{name: "two windows", doc: manyRead(10), rows: 26, headings: []string{"5-HOUR", "WEEK"}},
+		{name: "three, the rows spare not shared evenly", doc: withFable, rows: 35, headings: []string{"5-HOUR", "WEEK", "FABLE WEEK"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(120, 60)
+			most := f.usageSection(tt.doc, now).scrolling(tt.rows, 0).Most
+			if most < 2 {
+				t.Fatalf("in %d rows, USAGE scrolls %d accounts at most, want it to scroll past its top and short of its end", tt.rows, most)
+			}
+			var at []int
+			for _, scroll := range []int{0, 1, most} {
+				f.Scroll = scroll
+				rows, _ := usageBody(f, tt.doc, now, tt.rows)
+				var got []int
+				for _, heading := range tt.headings {
+					got = append(got, slices.Index(rows, heading))
+				}
+				if scroll == 0 {
+					at = got
+				}
+				if !slices.Equal(got, at) || slices.Contains(got, -1) {
+					t.Errorf("scrolled %d down, the windows' headings are on rows %v, want %v, as at the top:\n%s", scroll, got, at, strings.Join(rows, "\n"))
+				}
+			}
+		})
+	}
+}
+
 func TestUSAGEEndsAtItsLastPoolAndKeyLineInEveryLayoutHoweverFarItsScrolled(t *testing.T) {
 	doc := manyRead(10)
 	tests := []struct {
@@ -573,6 +615,65 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 	}
 }
 
+func TestAcrossAResetBetweenReadsOneAccountsRoomLeftAndROUTINGAgree(t *testing.T) {
+	// Work is at its cap in its 5-hour, read at now, which resets in an hour.
+	a := readAccount("work", sessionOf(0.9, time.Hour), weekOf(0.4, 3*day))
+	a.Reserve = 0.2
+	doc := routerDoc("work", 0, a)
+	reset := now.Add(time.Hour)
+	f := frameOf(160, 60)
+	tests := []struct {
+		name   string
+		now    time.Time
+		capped bool
+		want   string
+	}{
+		{name: "a moment before it resets", now: reset.Add(-time.Second), capped: true, want: "room left  5h 0.0 of 1  ·  week 0.4 of 1"},
+		{name: "a moment after, before it's read again", now: reset.Add(time.Second), want: "room left  5h 0.8 of 1  ·  week 0.4 of 1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if capped := f.routingTableOf(doc, tt.now).accounts[0].standing.Kind == status.RoutingCapped; capped != tt.capped {
+				t.Errorf("ROUTING has work capped %t, want %t", capped, tt.capped)
+			}
+			if got := f.usageSection(doc, tt.now).description().plain(); got != tt.want {
+				t.Errorf("USAGE's description reads %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAcrossAResetBetweenReadsThePoolsRoomAndROUTINGAgree(t *testing.T) {
+	// Work is at its cap in its 5-hour, read at now, which resets in an hour;
+	// side has half its 5-hour left.
+	work := readAccount("work", sessionOf(0.9, time.Hour), weekOf(0.4, 3*day))
+	work.Reserve = 0.2
+	doc := routerDoc("side", 0, work, readAccount("side", sessionOf(0.5, 3*time.Hour), weekOf(0.3, 3*day)))
+	reset := now.Add(time.Hour)
+	f := frameOf(160, 60)
+	tests := []struct {
+		name   string
+		now    time.Time
+		capped bool
+		room   string
+	}{
+		{name: "a moment before it resets", now: reset.Add(-time.Second), capped: true, room: "0.5 of 2 left"},
+		{name: "a moment after, before it's read again", now: reset.Add(time.Second), room: "1.3 of 2 left"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if capped := f.routingTableOf(doc, tt.now).accounts[0].standing.Kind == status.RoutingCapped; capped != tt.capped {
+				t.Errorf("ROUTING has work capped %t, want %t", capped, tt.capped)
+			}
+			rows, _ := usageBody(f, doc, tt.now, 20)
+			i := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "Σ pool") })
+			if i < 0 || !strings.Contains(rows[i], "  "+tt.room) {
+				t.Errorf("USAGE reads\n%s\nwant the pool's 5-hour room %q", strings.Join(rows, "\n"), tt.room)
+			}
+		})
+	}
+}
+
 func TestAnAccountOutOfThePoolIsNamedFaintOnTheOverviewAlone(t *testing.T) {
 	doc := trio(pinnedTo("side"))
 	faintLabel := ink{token: theme.TextFaint, bold: true}
@@ -582,7 +683,7 @@ func TestAnAccountOutOfThePoolIsNamedFaintOnTheOverviewAlone(t *testing.T) {
 		number, label, marks ink
 	}{
 		{name: "on the Overview", row: frameOf(160, 60).overviewBlock(doc, printNow).rows[1], number: faintInk, label: faintLabel, marks: faintInk},
-		{name: "in the printout, its number alone", row: newUsageBlock(doc, printNow, 160, Look{}, ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).rows[1], number: faintInk, label: titleInk, marks: primaryInk},
+		{name: "in the printout, its number alone", row: newUsageBlock(doc, printNow, printPolicy, 160, Look{}, ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).rows[1], number: faintInk, label: titleInk, marks: primaryInk},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -601,7 +702,7 @@ func TestTheOverviewFadesAnAccountOutOfThePoolWhereThePrintoutDoesnt(t *testing.
 		out   bool
 	}{
 		{name: "on the Overview", block: frameOf(160, 60).overviewBlock(doc, printNow), out: true},
-		{name: "in the printout", block: newUsageBlock(doc, printNow, 160, Look{}, ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName))},
+		{name: "in the printout", block: newUsageBlock(doc, printNow, printPolicy, 160, Look{}, ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

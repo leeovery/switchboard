@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -118,15 +119,15 @@ type gauge struct {
 	cue     *float64
 }
 
-// newUsageBlock is the usage block of doc at now, width cells wide, drawn in
-// look, grouped by, of the windows given.
-func newUsageBlock(doc status.Document, now time.Time, width int, look Look, by By, windows []shownWindow) usageBlock {
-	return blockOf(doc, now, width, look, by, windows, namesOf(doc))
+// newUsageBlock is the usage block of doc at now, as policy judges its
+// windows, width cells wide, drawn in look, grouped by, of the windows given.
+func newUsageBlock(doc status.Document, now time.Time, policy score.Policy, width int, look Look, by By, windows []shownWindow) usageBlock {
+	return blockOf(doc, now, policy, width, look, by, windows, namesOf(doc))
 }
 
 // blockOf is the usage block of doc at now, as newUsageBlock has it, its
 // accounts named as names has them.
-func blockOf(doc status.Document, now time.Time, width int, look Look, by By, windows []shownWindow, names []accountName) usageBlock {
+func blockOf(doc status.Document, now time.Time, policy score.Policy, width int, look Look, by By, windows []shownWindow, names []accountName) usageBlock {
 	b := usageBlock{width: width, look: look, by: by, windows: windows}
 	b.names = nameColumn(names, width)
 	for i, a := range doc.Accounts {
@@ -140,25 +141,32 @@ func blockOf(doc status.Document, now time.Time, width int, look Look, by By, wi
 		}
 		b.rows = append(b.rows, row)
 	}
-	if pool, ok := poolRow(doc, b.windows, len(strconv.Itoa(len(doc.Accounts)))); ok {
+	if pool, ok := poolRow(doc.PoolAt(now, policy), len(doc.Accounts), b.windows); ok {
 		b.rows = append(b.rows, pool)
 	}
 	return b
 }
 
+// UsageWindows are the keys of the windows usage shows of doc where none is
+// given: those every model shares, as shared has them, and every other any
+// account reports, so every account keeps its rows before any is read; in
+// Claude's order.
+func UsageWindows(doc status.Document, shared []string) []string {
+	keys := slices.Clone(shared)
+	for _, a := range doc.Accounts {
+		for _, w := range a.Windows {
+			keys = append(keys, w.Key)
+		}
+	}
+	return slices.Compact(slices.SortedFunc(slices.Values(keys), quota.CompareKeys))
+}
+
 // usageWindows are the windows of doc with the keys given, or with none,
-// those every model shares, as shared has them, and every other any account
-// reports, so every account keeps its rows before any is read; in Claude's
-// order, each named as name names it, cleaned, or where name is nil, by its
-// label as labelOf has it.
+// those UsageWindows has, in Claude's order, each named as name names it,
+// cleaned, or where name is nil, by its label as labelOf has it.
 func usageWindows(doc status.Document, keys, shared []string, name func(key string) string) []shownWindow {
 	if len(keys) == 0 {
-		keys = slices.Clone(shared)
-		for _, a := range doc.Accounts {
-			for _, w := range a.Windows {
-				keys = append(keys, w.Key)
-			}
-		}
+		keys = UsageWindows(doc, shared)
 	}
 	if name == nil {
 		name = func(key string) string { return labelOf(doc, key) }
@@ -194,27 +202,29 @@ func accountGauge(a status.Account, key string, st status.WindowState, now time.
 	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(st, w.Allowance, now), runsOut: st.Kind == status.WindowRunsOut}
 }
 
-// poolRow is the pool's row of doc, of the windows shown, its Σ in a column
-// digits wide, reporting false where doc has no pool, as with one account:
+// poolRow is pool's row under accounts accounts' rows, of the windows shown,
+// its Σ in a column as wide as their numbers, reporting false where there's
+// no pool, as with one account:
 // each window's bar filled to what the pool has used, with its accounts' even
 // pace and no cap's mark, and its words its room, the first window's saying
 // it's pinned, where it is.
-func poolRow(doc status.Document, windows []shownWindow, digits int) (usageRow, bool) {
-	if len(doc.Accounts) < 2 || len(doc.Pool.Accounts) == 0 {
+func poolRow(pool status.Pool, accounts int, windows []shownWindow) (usageRow, bool) {
+	if accounts < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
 	}
+	digits := len(strconv.Itoa(accounts))
 	row := usageRow{name: line{{strings.Repeat(" ", digits-1) + "Σ", dimInk}, {" pool", noteInk}}, pool: true}
 	for i, w := range windows {
-		j := slices.IndexFunc(doc.Pool.Windows, func(p status.PoolWindow) bool { return p.Key == w.key })
+		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindow) bool { return p.Key == w.key })
 		if j < 0 {
 			row.gauges = append(row.gauges, gauge{bar: usageBar{empty: true}})
 			continue
 		}
-		p := doc.Pool.Windows[j]
+		p := pool.Windows[j]
 		row.gauges = append(row.gauges, gauge{
 			of:    Ref{Window: w.key},
 			bar:   usageBar{used: p.Used, capAt: 1, pace: p.Pace},
-			words: poolWords(p.Room, len(doc.Pool.Accounts), doc.Pool.Pinned && i == 0),
+			words: poolWords(p.Room, len(pool.Accounts), pool.Pinned && i == 0),
 		})
 	}
 	return row, true
@@ -420,8 +430,10 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 
 // stacked draws the block's windows one under another, each a section, its
 // heading, then a row an account, the pool last, from row y, two blank lines
-// between sections. The block's spare rows go in its last section, over the
-// pool it ends with.
+// between sections. The block's spare rows are shared out among its sections,
+// each's over the pool it ends with, the last's the rows left over too: as
+// every section shows the same accounts, each is then as tall however far the
+// block's scrolled, and every heading keeps its row.
 func (b usageBlock) stacked(c *canvas, y int) laid {
 	bar := b.bar()
 	all := laid{end: y}
@@ -431,8 +443,9 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 		}
 		c.line(0, y, line{{strings.ToUpper(w.name), dimInk}})
 		in := b
-		if i < len(b.windows)-1 {
-			in.spare = 0
+		in.spare = b.spare / len(b.windows)
+		if i == len(b.windows)-1 {
+			in.spare = b.spare - i*in.spare
 		}
 		section := in.each(c, 1, y+2, 2, func(r usageRow, y int) int {
 			c.line(1, y, r.name)

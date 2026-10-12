@@ -310,8 +310,8 @@ func TestProbingAsAskedThereIsNoP(t *testing.T) {
 	h.model.cfg.ProbeOnly = true
 	h.start()
 
-	if slices.Contains(h.listed(), "p") || slices.Contains(listedKeys(h.model.helpKeys(h.clock.now)), "p") {
-		t.Errorf("the key line lists %q, and help %q; want neither to list p: there's no router to pin through", h.listed(), listedKeys(h.model.helpKeys(h.clock.now)))
+	if slices.Contains(h.listed(), "p") || slices.Contains(listedKeys(helpOver(h.model)), "p") {
+		t.Errorf("the key line lists %q, and help %q; want neither to list p: there's no router to pin through", h.listed(), listedKeys(helpOver(h.model)))
 	}
 	h.keyed("p")
 	if h.model.open != nothingOpen || h.model.note != "" {
