@@ -71,8 +71,8 @@ func dotted(parts ...string) string {
 // says, even where its last read failed; that its usage couldn't be read, or
 // hasn't been, as Unread says; its reserve, as reservedState says; that it's
 // under pressure, and whether new sessions go elsewhere, else when it runs
-// out, as RunsOut has it; its lapsed window, and when a prime starts it,
-// where the router says; and last that it's open, its week nearing its
+// out, as RunsOut has it; that it's idle at now, as idleAt judges it, and
+// when a prime starts it, where the router says; and last that it's open, its week nearing its
 // reserve, or new sessions coming here. Words from elsewhere show cleaned,
 // and times as Dated shows them.
 func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
@@ -91,7 +91,7 @@ func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
 	if a.Pressure.Under {
 		return d.pressed(a, now)
 	}
-	if slices.Contains(a.Lapsed, policy.Started) {
+	if a.idleAt(now, policy) {
 		return State{Condition: Idle, Says: "idle", Then: d.StartsAt(a.ID, now)}
 	}
 	return d.open(a)

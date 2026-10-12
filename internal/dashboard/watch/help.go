@@ -6,11 +6,10 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 )
 
-// helping is help while it's open over the page: the keys it lists, those of
-// the page as it stood when help opened, at the size it's drawn at now; how
-// many rows it's scrolled down by; and over, what lists the keys of that page.
+// helping is help while it's open over the page: how many rows it's
+// scrolled down by; and over, what lists the keys of the page as it stood
+// when help opened.
 type helping struct {
-	keys   []dashboard.Key
 	scroll int
 	over   pageKeys
 }
@@ -21,15 +20,6 @@ type helping struct {
 func (m Model) openHelp() Model {
 	m = m.cover(helpOpen)
 	m.help = helping{over: m.keys()}
-	return m.relistHelp()
-}
-
-// relistHelp lists help's keys of the page it stands still over, drawn at
-// the size drawn at, which says whether the page scrolls.
-func (m Model) relistHelp() Model {
-	f := m.page.frame
-	f.Width, f.Height = m.size.Width, m.size.Height
-	m.help.keys = m.help.over.helpKeys(f.Scrolling(m.page.doc, m.page.at).Most > 0)
 	return m
 }
 
@@ -55,5 +45,13 @@ func (m Model) scrollHelp(by scrollStep) Model {
 
 // helpCard is the page's help: its keys, and how far it's scrolled.
 func (m Model) helpCard() dashboard.Help {
-	return dashboard.Help{Keys: m.help.keys, Scroll: m.help.scroll}
+	return dashboard.Help{Keys: m.helpKeys(), Scroll: m.help.scroll}
+}
+
+// helpKeys are the keys help lists, those of the page it stands still over,
+// drawn at the size drawn at now, which says whether the page scrolls.
+func (m Model) helpKeys() []dashboard.Key {
+	f := m.page.frame
+	f.Width, f.Height = m.size.Width, m.size.Height
+	return m.help.over.helpKeys(f.Scrolling(m.page.doc, m.page.at).Most > 0)
 }

@@ -113,10 +113,23 @@ type standing struct {
 // judges its windows: those the document notes have lapsed have, and so has
 // any other policy judges lapsed by then.
 func (d Document) standingAt(a Account, at time.Time, policy score.Policy) standing {
-	s := standing{lapsed: slices.Concat(a.Lapsed, policy.Lapsed(a.Windows, at)), refused: a.TokenRefused(at)}
+	s := standing{lapsed: a.lapsedAt(at, policy), refused: a.TokenRefused(at)}
 	s.held, s.limited = a.Held(at, policy)
 	s.capped = d.ReserveHolds(a) && slices.ContainsFunc(score.AtReserve(a.Windows, a.Reserve, at), policy.IsShared)
 	return s
+}
+
+// lapsedAt are the keys of the account's windows that have lapsed at the
+// moment given, as policy judges them: those it notes have, and any other
+// that has reset since it was read.
+func (a Account) lapsedAt(at time.Time, policy score.Policy) []string {
+	return slices.Concat(a.Lapsed, policy.Lapsed(a.Windows, at))
+}
+
+// idleAt reports whether the account is idle at the moment given: the window
+// a request starts, as policy names it, has lapsed, as lapsedAt says.
+func (a Account) idleAt(at time.Time, policy score.Policy) bool {
+	return slices.Contains(a.lapsedAt(at, policy), policy.Started)
 }
 
 // running reports whether the account's window with the given key is

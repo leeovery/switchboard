@@ -106,12 +106,6 @@ func (m Model) keys() pageKeys {
 	return pageKeys{own: own, overview: overview, pin: pin, pinned: pinned, coloured: m.coloured()}
 }
 
-// listings are the page's own keys, as m stands at now, its page drawn as f,
-// as pageKeys' listings has them.
-func (m Model) listings(f dashboard.Frame, now time.Time) []keyListing {
-	return m.keys().listings(f.Scrolling(m.doc, now).Most > 0)
-}
-
 // listings are the page's own keys, where its view scrolls or not, in the
 // design's order: those that don't scroll it, as keys has them; then j and k,
 // PgUp and PgDn, and the wheel, which the key line leaves to help, where the
@@ -139,8 +133,9 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	if m.picker.open {
 		return dashboard.KeyLine{Groups: [][]dashboard.Key{m.picker.keys(), {dashboard.Quit}}, Lead: dashboard.KeysAfter, Note: m.noted(now)}
 	}
+	keys := m.keys()
 	var page, ends []dashboard.Key
-	for _, k := range m.listings(f, now) {
+	for _, k := range keys.listings(f.Scrolling(m.doc, now).Most > 0) {
 		switch {
 		case !k.works || k.helpful:
 		case k.withEnds:
@@ -149,22 +144,21 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 			page = append(page, k.Key)
 		}
 	}
-	pin, pins := m.pinKey()
 	l := dashboard.KeyLine{Groups: [][]dashboard.Key{{tabViews}}, Lead: 3, PhoneHelp: "keys", Note: m.noted(now)}
 	if len(page) > 0 {
 		l.Groups = append(l.Groups, page)
 	}
 	if m.view == dashboard.Overview {
-		if pins {
-			ends = append(ends, pin)
+		if keys.pinned {
+			ends = append(ends, keys.pin)
 		}
 		l.Lead, l.After, l.PhoneHelp = overviewApart, overviewApart, "keys and toggles"
 		l.Groups = append(l.Groups, append(ends, helpKey, dashboard.Quit))
 		return l
 	}
 	l.Phone = page
-	if pins {
-		l.Groups = append(l.Groups, []dashboard.Key{pin})
+	if keys.pinned {
+		l.Groups = append(l.Groups, []dashboard.Key{keys.pin})
 	}
 	l.Groups = append(l.Groups, []dashboard.Key{helpKey, dashboard.Quit})
 	return l

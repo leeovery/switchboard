@@ -153,7 +153,7 @@ func TestHelpListsTheScrollingKeysOfThePageAtTheSizeItsDrawnAt(t *testing.T) {
 	h.model.view = dashboard.Runway
 	h.start()
 	h.press("?")
-	if got := listedKeys(h.model.help.keys); slices.ContainsFunc(scrolling, func(k string) bool { return slices.Contains(got, k) }) {
+	if got := listedKeys(h.model.helpCard().Keys); slices.ContainsFunc(scrolling, func(k string) bool { return slices.Contains(got, k) }) {
 		t.Fatalf("help over a page that fits lists %q, want no scrolling keys", got)
 	}
 
@@ -161,12 +161,12 @@ func TestHelpListsTheScrollingKeysOfThePageAtTheSizeItsDrawnAt(t *testing.T) {
 	if f, doc, at := h.model.screen(h.clock.now); f.Scrolling(doc, at).Most == 0 {
 		t.Fatal("the page behind help doesn't scroll at 150x20, want it to")
 	}
-	if got := listedKeys(h.model.help.keys); !h.inHelp() || !containsInOrder(got, scrolling) {
+	if got := listedKeys(h.model.helpCard().Keys); !h.inHelp() || !containsInOrder(got, scrolling) {
 		t.Errorf("help over a page shrunk till it scrolls lists %q, open %v; want %q, still open", got, h.inHelp(), scrolling)
 	}
 
 	h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
-	if got := listedKeys(h.model.help.keys); slices.ContainsFunc(scrolling, func(k string) bool { return slices.Contains(got, k) }) {
+	if got := listedKeys(h.model.helpCard().Keys); slices.ContainsFunc(scrolling, func(k string) bool { return slices.Contains(got, k) }) {
 		t.Errorf("help over a page grown till it fits again lists %q, want no scrolling keys", got)
 	}
 }
@@ -179,7 +179,7 @@ func containsInOrder(got, want []string) bool {
 
 // helpOver is the keys help lists, opened over the page as m stands.
 func helpOver(m Model) []dashboard.Key {
-	return m.openHelp().help.keys
+	return m.openHelp().helpCard().Keys
 }
 
 // listedKeys are the keys of keys, in order.

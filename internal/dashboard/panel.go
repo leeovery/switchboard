@@ -196,7 +196,7 @@ func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string,
 	s := standingOf(doc, p.account, w, now, f.Policy)
 	c.line(x, y, line{{truncate(status.Short(w.Label), labelColumn-1), panelLabelInk}})
 	at := x + labelColumn
-	if !s.drawsBar() {
+	if s.lapsed {
 		c.line(at, y, line{{"not started", dimInk}})
 		return
 	}
@@ -207,13 +207,6 @@ func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string,
 	c.right(at+useColumn, y, line{panelUse(s)})
 	whither := x + width - (at + useColumn + whitherGap)
 	c.line(at+useColumn+whitherGap, y, line{s.headed(now, "~", status.Dated)}.fit(whither))
-}
-
-// drawsBar reports whether a panel draws the window standing as s a bar,
-// where its panel draws bars: not once it has lapsed, as it says it hasn't
-// started there instead.
-func (s standing) drawsBar() bool {
-	return !s.lapsed
 }
 
 // panelUse is how much of a window standing as s is used, bold, as a panel
