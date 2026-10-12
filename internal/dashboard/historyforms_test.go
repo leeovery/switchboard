@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -11,13 +12,16 @@ import (
 )
 
 // formCase is a sub-tab of History of a page: its frame of a terminal the
-// width given, the column its wide form ends before, and what of it its
-// phone form and its wide form draw, each drawn as that form lays it out.
+// width given, the column its wide form ends before, what of it its phone
+// form and its wide form draw, each drawn as that form lays it out, and its
+// wide form drawn whole on the canvas given, where the Year's isn't cut at
+// the frame's width as History's own canvas for it is.
 type formCase struct {
 	name        string
 	frame       func(t *testing.T, width int) Frame
 	reach       func(f Frame) int
 	phone, wide func(f Frame) *canvas
+	whole       func(c *canvas, f Frame)
 }
 
 // formCases are each sub-tab of the pages the frames draw.
@@ -61,24 +65,37 @@ func formCases() []formCase {
 		cases = append(cases, formCase{name: name, frame: frame})
 	}
 	for i, c := range cases {
+		cases[i].whole = func(c *canvas, f Frame) { f.history(c, f.top()) }
 		switch {
 		case strings.HasPrefix(c.name, "the year"):
 			cases[i].reach, cases[i].phone, cases[i].wide = yearReach, yearForm(yearDrawn.phone), yearForm(yearDrawn.wide)
+			cases[i].whole = func(c *canvas, f Frame) { yearOf(f).wide(c, f.top()) }
 		case strings.HasPrefix(c.name, "weeks"):
 			cases[i].reach, cases[i].phone, cases[i].wide = weeksReach, weeksForm(true), weeksForm(false)
 		case strings.HasPrefix(c.name, "days"):
 			cases[i].reach, cases[i].phone, cases[i].wide = daysReachOf, daysForm(true), daysForm(false)
 		default:
-			cases[i].reach, cases[i].phone, cases[i].wide = Frame.tokensReach, tokensForm(phoneTokens), tokensForm(wideTokens)
+			cases[i].reach, cases[i].phone, cases[i].wide = tokensReach, tokensForm(phoneTokens), tokensForm(wideTokens)
 		}
 	}
 	return cases
 }
 
+// tokensReach is the column Tokens' wide form ends before, as the frame
+// works it out.
+func tokensReach(Frame) int {
+	return wideTokens.reach()
+}
+
+// yearOf is the Year the frame shows, as it draws it.
+func yearOf(f Frame) yearDrawn {
+	return yearDrawn{Frame: f, page: *f.History.Year, ask: f.History.YearAsk}
+}
+
 // yearReach is the column the Year's wide form ends before, as the frame
 // works it out.
 func yearReach(f Frame) int {
-	return yearDrawn{Frame: f, page: *f.History.Year, ask: f.History.YearAsk}.reach()
+	return yearOf(f).reach()
 }
 
 // yearForm is the Year of the frame as the form given draws it, from the
@@ -86,7 +103,7 @@ func yearReach(f Frame) int {
 func yearForm(form func(yearDrawn, *canvas, int)) func(f Frame) *canvas {
 	return func(f Frame) *canvas {
 		c := newCanvas(f.Width, f.Height)
-		form(yearDrawn{Frame: f, page: *f.History.Year, ask: f.History.YearAsk}, c, f.top())
+		form(yearOf(f), c, f.top())
 		return c
 	}
 }
@@ -135,10 +152,11 @@ func daysForm(phone bool) func(f Frame) *canvas {
 	}
 }
 
-// tokensForm is what of Tokens, at the columns given, tells the forms apart:
-// its heads and its newest period's first row.
+// tokensForm is what of Tokens, at the columns given, cut at the frame's
+// width, tells the forms apart: its heads and its newest period's first row.
 func tokensForm(cols tokensColumns) func(f Frame) *canvas {
 	return func(f Frame) *canvas {
+		cols.width = f.Width
 		c := newCanvas(f.Width, f.Height)
 		f.tokensHeads(c, f.top(), cols)
 		cols.draw(c, f.top()+2, f.tokensRows(f.History.Tokens.Periods[0])[0])
@@ -185,21 +203,20 @@ func TestEachSubTabDrawsItsWideFormWhereItsWidestRowFits(t *testing.T) {
 }
 
 // The column each sub-tab's wide form is worked out to end before is where
-// its widest row, drawn, ends. In a frame a column wider than that, or a
+// its widest row, drawn, ends. Drawn whole in a frame that wide, or a
 // phone's width where that's wider, on a canvas wider than the frame, no
-// row runs past the frame; and where the frame is a column wider, the
-// widest row ends at that column, where a row worked out short would run
-// into it, or one worked out long would end short of it. Weeks' verdicts are
-// cut at the frame's edge, its last column, so of Weeks as a table, whose
-// widest row is shorter than a phone's width, this holds only that none
-// runs past it.
+// row runs past the frame, as one worked out short would; and in a frame
+// that wide, the widest row reaches its last column, as one worked out long
+// wouldn't. Rows cut at the width, or as Weeks' verdicts, at the edge, end
+// short of it or at it. Of Weeks as a table, whose widest row is shorter
+// than a phone's width, this holds only that none runs past the frame.
 func TestEachSubTabsWidestRowEndsWhereItsWorkedOutToEnd(t *testing.T) {
 	for _, tt := range formCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			reach := tt.reach(tt.frame(t, 160))
-			f := tt.frame(t, max(reach+1, phoneUnder))
+			f := tt.frame(t, max(reach, phoneUnder))
 			c := newCanvas(f.Width+40, f.Height)
-			f.history(c, f.top())
+			tt.whole(c, f)
 			drawn := 0
 			for _, row := range textOf(c.rows(Look{})) {
 				drawn = max(drawn, ansi.StringWidth(row))
@@ -207,10 +224,47 @@ func TestEachSubTabsWidestRowEndsWhereItsWorkedOutToEnd(t *testing.T) {
 			if drawn > f.Width {
 				t.Errorf("at %d columns, its widest row ends before column %d, past the frame", f.Width, drawn)
 			}
-			if f.Width == reach+1 && drawn != reach {
+			if f.Width == reach && drawn != reach {
 				t.Errorf("its widest row ends before column %d, worked out as %d", drawn, reach)
 			}
 		})
+	}
+}
+
+// The Year's numbers run as long as the ledger makes them, so they're cut at
+// the frame's width, with an ellipsis, rather than reckoned in its widest
+// row: at 160 columns, a Year of a world of many limits still draws its wide
+// form, its limits cut short.
+func TestTheYearsNumbersAreCutAtTheWidthNotDrawnOnAPhone(t *testing.T) {
+	page := plainYear()
+	page.Numbers.Limits = map[string]int{"5h": 4120, "7d": 3, "7d_oi": 2}
+	f := yearFrame(t, 160, 50, views.YearAsk{}, page)
+	named := f.WindowName
+	f.WindowName = func(key string) string {
+		if key == "7d_oi" {
+			return "Fable week"
+		}
+		return named(key)
+	}
+	if differs := drawsAsTheForm(f, yearForm(yearDrawn.wide)(f)); differs != "" {
+		t.Errorf("at 160 columns, its wide form isn't drawn:\n%s", differs)
+	}
+	rows := textOf(historyDrawn(f).rows(Look{}))
+	limits := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "limits hit") })
+	if want := "limits hit   5-hour ×4,120 · week…"; limits < 0 || !strings.HasSuffix(rows[limits], want) || ansi.StringWidth(rows[limits]) != 160 {
+		t.Errorf("the limits row reads %q, want it to end %q at column 160", rows[max(limits, 0)], want)
+	}
+}
+
+// Tokens' worth against its price runs as long as the plans' cost makes it,
+// so it's cut at the frame's width, with an ellipsis, rather than reckoned in
+// its widest row: as wide as its heads, Tokens draws its wide form, its
+// newest week's against its price cut short.
+func TestTokensAgainstItsPriceIsCutAtTheWidth(t *testing.T) {
+	f := tokensFrame(wideTokens.reach(), 37, TokensByAccount)
+	row := tokensRowsOf(f)[2]
+	if want := "4.6× its $138 we…"; !strings.HasSuffix(row, want) || ansi.StringWidth(row) != f.Width {
+		t.Errorf("the newest week's row reads %q, want it to end %q at column %d", row, want, f.Width)
 	}
 }
 

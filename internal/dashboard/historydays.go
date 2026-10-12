@@ -123,8 +123,10 @@ func (f Frame) daysLaidOut(p views.DaysPage, top int, phone bool) daysLayout {
 
 // daysReach is the column Days' wide form of the page given ends before,
 // where its widest row ends: the weeks' heads, a group's heading, a strip's
-// days or its count, or the key. What's out of view of BY ACCOUNT never runs
-// as far as a phone's width, so it's left out.
+// days or its count, whose number is right-aligned, so it ends where its
+// words do, or the key. A strip's name is cut short of its days, and what's
+// out of view of BY ACCOUNT never runs as far as a phone's width, so they're
+// left out.
 func (f Frame) daysReach(p views.DaysPage) int {
 	l := daysLayout{page: p, x: daysAt}
 	end := max(groupHead("BY MODEL", byModelSays, false).width(), groupHead("BY ACCOUNT", byAccountSays, false).width(), f.wideDaysKey().width())

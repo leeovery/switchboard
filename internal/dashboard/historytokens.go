@@ -39,12 +39,14 @@ var (
 
 // tokensColumns are where Tokens' columns are: the column a row's split
 // names its versions' count or the accounts it ran on at, its counts, and
-// the columns worth and against its price start at, a column at 0 not shown.
+// the columns worth and against its price start at, a column at 0 not shown;
+// and the width, the frame's, a row's worth and against its price are cut at.
 type tokensColumns struct {
 	of      int
 	counts  []tokensCount
 	worth   int
 	against int
+	width   int
 }
 
 var (
@@ -59,29 +61,15 @@ var (
 	phoneTokens = tokensColumns{counts: []tokensCount{{"total", 30, totalCount.count}}, worth: 32}
 )
 
-// tokensColumns are the frame's columns of Tokens: the wide ones where they
-// fit, else a phone's.
+// tokensColumns are the frame's columns of Tokens, cut at its width: the wide
+// ones where their heads fit, else a phone's.
 func (f Frame) tokensColumns() tokensColumns {
-	if f.phoneForm(f.tokensReach) {
-		return phoneTokens
+	cols := wideTokens
+	if f.phoneForm(wideTokens.reach) {
+		cols = phoneTokens
 	}
-	return wideTokens
-}
-
-// tokensReach is the column Tokens' wide form ends before, where its widest
-// row ends: its heads', or a row's, of every period, as the frame splits it.
-// What names a row, and its split, is cut short of the counts, and the
-// footnote wraps, so they're left out.
-func (f Frame) tokensReach() int {
-	end := wideTokens.headsReach()
-	if page := f.History.Tokens; page != nil {
-		for _, period := range page.Periods {
-			for _, r := range f.tokensRows(period) {
-				end = max(end, wideTokens.reach(r))
-			}
-		}
-	}
-	return end
+	cols.width = f.Width
+	return cols
 }
 
 // tokensRow is a row of Tokens, a period's, or one it's split into: what it
@@ -179,32 +167,18 @@ const (
 	againstHead = "against its price"
 )
 
-// headsReach is the column Tokens' heads, at the columns, end before: the
-// last count's, worth's, or against its price's.
-func (cols tokensColumns) headsReach() int {
-	end := max(cols.countsReach(), cols.worth+ansi.StringWidth(worthHead))
-	if cols.against > 0 {
-		end = max(end, cols.against+ansi.StringWidth(againstHead))
-	}
-	return end
-}
-
-// reach is the column the row, at the columns, ends before: its last
-// count's, its worth's, or against its price's.
-func (cols tokensColumns) reach(r tokensRow) int {
-	end := max(cols.countsReach(), cols.worth+worthSaid(r.worth, r.ink).width())
-	if cols.against > 0 && r.against != nil {
-		end = max(end, cols.against+r.against.width())
-	}
-	return end
-}
-
-// countsReach is the column the counts end before, each right-aligned to
-// its column's end.
-func (cols tokensColumns) countsReach() int {
-	end := 0
+// reach is the column Tokens, at the columns, ends before, where its widest
+// row ends: its heads', or the counts', each right-aligned to its column's
+// end. A row's worth and against its price are cut at the frame's width,
+// what names it and its split short of the counts, and the footnote wraps,
+// so they're left out.
+func (cols tokensColumns) reach() int {
+	end := cols.worth + ansi.StringWidth(worthHead)
 	for _, count := range cols.counts {
 		end = max(end, count.end)
+	}
+	if cols.against > 0 {
+		end = max(end, cols.against+ansi.StringWidth(againstHead))
 	}
 	return end
 }
@@ -233,9 +207,9 @@ func (cols tokensColumns) draw(c *canvas, y int, r tokensRow) {
 	for _, count := range cols.counts {
 		c.right(count.end, y, r.figure(count.head, line{{tokenCount(count.count(r.tokens)), r.ink}}))
 	}
-	c.line(cols.worth, y, r.figure("worth", worthSaid(r.worth, r.ink)))
+	c.line(cols.worth, y, r.figure("worth", worthSaid(r.worth, r.ink).fit(cols.width-cols.worth)))
 	if cols.against > 0 && r.against != nil {
-		c.line(cols.against, y, r.figure("against", r.against))
+		c.line(cols.against, y, r.figure("against", r.against.fit(cols.width-cols.against)))
 	}
 }
 
