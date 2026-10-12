@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -48,22 +50,6 @@ func plainLines(t *testing.T, dir string) {
 // summaries' day, of its two requests, and its session's highest use.
 var heldVersionOne = versionOne(date, 2, 2, `,"highest":{"5h":0.9}`)
 
-// markVersionOne writes heldVersionOne as the ledger in dir holds it, marked
-// with the day's files as they stand, and stamped, where the day has a
-// compressed file, as that release stamped it: when the file was last
-// modified.
-func markVersionOne(t *testing.T, dir string) {
-	t.Helper()
-	sizes := dayBytes(t, dir, date)
-	marked := strings.Replace(heldVersionOne, `"lines":2,`, fmt.Sprintf(`"lines":2,"bytes":{"plain":%d,"compressed":%d},`, sizes.Plain, sizes.Compressed), 1)
-	writeFile(t, dir, "day-"+date+".json", []byte(marked+"\n"))
-	if info, err := os.Stat(filepath.Join(dir, "requests-"+date+".jsonl.gz")); err == nil {
-		if err := os.Chtimes(summaryFile(dir, date), time.Time{}, info.ModTime()); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
 // wholeSeconds has the file at path last modified at the second it was, as
 // a file system that keeps whole seconds keeps it.
 func wholeSeconds(t *testing.T, path string) {
@@ -77,7 +63,15 @@ func wholeSeconds(t *testing.T, path string) {
 	}
 }
 
-func TestADaySummarisedUnderVersionOneIsSummarisedAgainOnceWhileItsLinesAreKept(t *testing.T) {
+func TestADaySummarisedUnderAnOlderVersionIsSummarisedAgainOnceWhileItsLinesAreKept(t *testing.T) {
+	// The day's summary as each older version made it, of its two requests
+	// and its session's highest use, none of them naming its model's
+	// sessions.
+	read := windowsRead{highest: `{"5h":0.9}`}
+	older := []struct {
+		version int
+		held    string
+	}{{1, heldVersionOne}, {2, ofVersion(summaryOf(date, 2, 2, read), 2)}, {3, ofVersion(summaryOf(date, 2, 2, read), 3)}}
 	tests := []struct {
 		name string
 		// lay lays the day's lines out in dir.
@@ -89,53 +83,73 @@ func TestADaySummarisedUnderVersionOneIsSummarisedAgainOnceWhileItsLinesAreKept(
 		{name: "its lines plain", lay: plainLines, unread: []string{"requests-*"}},
 		{name: "its lines compressed, on a file system that keeps whole seconds", lay: compressedLines, unread: []string{"requests-*", "day-*"}},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			log := logstest.Capture(t)
-			dir := t.TempDir()
-			tt.lay(t, dir)
-			markVersionOne(t, dir)
-			l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(3, 10, 0) }, noReadings, caps, logs.For("router"))
+	for _, o := range older {
+		for _, tt := range tests {
+			t.Run(fmt.Sprintf("of version %d, %s", o.version, tt.name), func(t *testing.T) {
+				log := logstest.Capture(t)
+				dir := t.TempDir()
+				tt.lay(t, dir)
+				markOfVersion(t, dir, o.held, o.version)
+				l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(3, 10, 0) }, noReadings, caps, logs.For("router"))
 
-			// The readings history holds none of the day's readings any longer,
-			// pruned by a keep shorter than the ledger's.
-			l.SummariseEnded(on(3, 10, 0))
-			if got, want := heldSummary(t, dir, date), summaryOfTwo(windowsRead{highest: `{"5h":0.9}`}); got != want {
-				t.Fatalf("the day's summary is\n%s\nwant it summarised again from its lines, as version 3, knowing what the one before did, "+
-					"its windows' rises, resets and minutes never read, rather than none\n%s", got, want)
-			}
-			wholeSeconds(t, summaryFile(dir, date))
-			for _, pattern := range tt.unread {
-				unopenable(t, dir, pattern)
-			}
-			l.SummariseEnded(on(3, 11, 0))
-			if n, summarised := opened(log), strings.Count(log.String(), `msg="summarised a day of the request ledger"`); n != 0 || summarised != 1 {
-				t.Errorf("log reads\n%s\nthe round after opened %d of the day's files, and the day was summarised %d times; want none opened, "+
-					"and the day summarised once: its summary is of version 3 now", log, n, summarised)
-			}
-		})
+				// The readings history holds none of the day's readings any
+				// longer, pruned by a keep shorter than the ledger's.
+				l.SummariseEnded(on(3, 10, 0))
+				if got, want := heldSummary(t, dir, date), summaryOfTwo(read); got != want {
+					t.Fatalf("the day's summary is\n%s\nwant it summarised again from its lines, as version 4, its model's sessions named, knowing "+
+						"what the one before did, its windows' rises, resets and minutes never read, rather than none\n%s", got, want)
+				}
+				wholeSeconds(t, summaryFile(dir, date))
+				for _, pattern := range tt.unread {
+					unopenable(t, dir, pattern)
+				}
+				l.SummariseEnded(on(3, 11, 0))
+				if n, summarised := opened(log), strings.Count(log.String(), `msg="summarised a day of the request ledger"`); n != 0 || summarised != 1 {
+					t.Errorf("log reads\n%s\nthe round after opened %d of the day's files, and the day was summarised %d times; want none opened, "+
+						"and the day summarised once: its summary is of version 4 now", log, n, summarised)
+				}
+			})
+		}
 	}
 }
 
-// markVersionTwo writes held, a summary of the summaries' day of version 2,
-// as the ledger in dir holds it, marked with the day's files as they stand,
-// and stamped, where the day has a compressed file, as that release stamped
-// it: a second after the file was last modified.
-func markVersionTwo(t *testing.T, dir, held string) {
+// markOfVersion writes held, a summary of the summaries' day of two lines,
+// of the version given, as the ledger in dir holds it, marked with the day's
+// files as they stand, and stamped, where the day has a compressed file, as
+// that release stamped it: a second after the file was last modified for
+// each version past the first.
+func markOfVersion(t *testing.T, dir, held string, version int) {
 	t.Helper()
 	sizes := dayBytes(t, dir, date)
 	marked := strings.Replace(held, `"lines":2,`, fmt.Sprintf(`"lines":2,"bytes":{"plain":%d,"compressed":%d},`, sizes.Plain, sizes.Compressed), 1)
 	writeFile(t, dir, "day-"+date+".json", []byte(marked+"\n"))
 	if info, err := os.Stat(filepath.Join(dir, "requests-"+date+".jsonl.gz")); err == nil {
-		if err := os.Chtimes(summaryFile(dir, date), time.Time{}, info.ModTime().Add(time.Second)); err != nil {
+		if err := os.Chtimes(summaryFile(dir, date), time.Time{}, info.ModTime().Add(time.Duration(version-1)*time.Second)); err != nil {
 			t.Fatal(err)
 		}
 	}
 }
 
-// ofVersion is summary, as its JSON gives it, of the version given.
+// ofVersion is summary, one of version 4, as its JSON gives it, as a release
+// of the version given wrote it: of that version, its models' sessions never
+// named before version 4, as unnamedModels gives it.
 func ofVersion(summary string, version int) string {
-	return strings.Replace(summary, `{"version":3,`, fmt.Sprintf(`{"version":%d,`, version), 1)
+	summary = strings.Replace(summary, `{"version":4,`, fmt.Sprintf(`{"version":%d,`, version), 1)
+	if version < 4 {
+		return unnamedModels(summary)
+	}
+	return summary
+}
+
+// modelsIDs are the ids of a model's sessions in a summary's JSON, and what
+// follows them, its usage or its end: an account's are followed by its moves.
+var modelsIDs = regexp.MustCompile(`,"session_ids":\[[^\]]*\](,"usage"|\})`)
+
+// unnamedModels is summary, as its JSON gives it, its models' sessions never
+// named, as a summary of a version before 4 gave them, or one since kept
+// them as such a summary gave them.
+func unnamedModels(summary string) string {
+	return modelsIDs.ReplaceAllString(summary, "$1")
 }
 
 func TestADaySummarisedUnderVersionTwoIsSummarisedAgainOnceFromWhatsKept(t *testing.T) {
@@ -146,10 +160,10 @@ func TestADaySummarisedUnderVersionTwoIsSummarisedAgainOnceFromWhatsKept(t *test
 	personal := quietDayJSON("personal", windowsRead{read: true, highest: `{"7d":0.82}`, rise: `{"7d":0}`, resets: `[` + resetJSON("7d", on(0, 10, 0), 0.82) + `]`,
 		before: `["7d"]`})
 	work := workDayJSON(2, windowsRead{read: true, highest: `{"5h":0.4}`, rise: `{"5h":0.4}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.4) + `]`})
-	// whole is the day as version 3 summarises it from its lines and its
+	// whole is the day as version 4 summarises it from its lines and its
 	// readings, and blind as version 2 did while the readings history couldn't
 	// be read; read as it did with its readings.
-	whole := fmt.Sprintf(`{"version":3,"day":"%s","lines":2,"accounts":[%s,%s]}`, date, personal, work)
+	whole := fmt.Sprintf(`{"version":4,"day":"%s","lines":2,"accounts":[%s,%s]}`, date, personal, work)
 	blind, read := ofVersion(summaryOf(date, 2, 2, windowsRead{}), 2), ofVersion(whole, 2)
 	tests := []struct {
 		name string
@@ -161,8 +175,8 @@ func TestADaySummarisedUnderVersionTwoIsSummarisedAgainOnceFromWhatsKept(t *test
 		want     string
 	}{
 		{name: "its lines and readings kept, summarised again from both", held: blind, readings: kept, want: whole},
-		{name: "its lines pruned, its readings kept, summarised again from them, knowing its requests as it did", held: blind, pruned: true, readings: kept,
-			want: whole},
+		{name: "its lines pruned, its readings kept, summarised again from them, knowing its requests as it did, its model's sessions unnamed",
+			held: blind, pruned: true, readings: kept, want: unnamedModels(whole)},
 		{name: "its lines kept, its readings pruned, summarised again from its lines, knowing what it did of the readings", held: read, want: whole},
 		{name: "its lines and readings pruned, kept as it was", held: read, pruned: true, want: read},
 	}
@@ -171,7 +185,7 @@ func TestADaySummarisedUnderVersionTwoIsSummarisedAgainOnceFromWhatsKept(t *test
 			log := logstest.Capture(t)
 			dir := t.TempDir()
 			compressedLines(t, dir)
-			markVersionTwo(t, dir, tt.held)
+			markOfVersion(t, dir, tt.held, 2)
 			if tt.pruned {
 				removeFile(t, dir, "requests-"+date+".jsonl.gz")
 			}
@@ -234,7 +248,7 @@ func TestADaySummarisedUnderVersionTwoKeepsWhatItCountedOfALateReading(t *testin
 		t.Run(tt.name, func(t *testing.T) {
 			_, dir, history := stateDirs(t)
 			holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
-			markVersionTwo(t, dir, tt.held)
+			markOfVersion(t, dir, tt.held, 2)
 			for _, r := range tt.readings {
 				holdReadings(t, history, r.At.Local().Format(time.DateOnly), r)
 			}
@@ -251,7 +265,7 @@ func TestADaySummarisedUnderVersionTwoKeepsWhatItCountedOfALateReading(t *testin
 
 			summariseAt(dir, history, on(1, 11, 0))
 			if got, want := strings.TrimSuffix(heldSummary(t, dir, date), "\n"), summaryOf(date, 2, 2, tt.want); got != want {
-				t.Errorf("the day's summary is\n%s\nwant it of version 3, knowing no less than the one before\n%s", got, want)
+				t.Errorf("the day's summary is\n%s\nwant it of version 4, knowing no less than the one before\n%s", got, want)
 			}
 		})
 	}
@@ -287,14 +301,74 @@ func TestSessionsASummaryOfVersionOneNeverNamedAreNamedOnlyWhereTheIDsAccountFor
 				t.Fatal(err)
 			}
 			var got ledger.Summary
-			if err := json.Unmarshal(data, &got); err != nil || got.Version != 3 || len(got.Accounts) != 1 {
-				t.Fatalf("the day's summary is %s (%v), want work's day, of version 3", data, err)
+			if err := json.Unmarshal(data, &got); err != nil || got.Version != 4 || len(got.Accounts) != 1 {
+				t.Fatalf("the day's summary is %s (%v), want work's day, of version 4", data, err)
 			}
 			if a := got.Accounts[0]; !reflect.DeepEqual(a.SessionIDs, tt.ids) || a.Sessions != tt.sessions {
 				t.Errorf("work's sessions are %d, named %#v; want %d, named %#v: never named but where their ids account for their count",
 					a.Sessions, a.SessionIDs, tt.sessions, tt.ids)
 			}
 		})
+	}
+}
+
+// heldOf is the summaries' day as a release of the version given, older
+// than 4, summarised it: work's two requests of Opus, of as many sessions as
+// it gives, "one" and those lost since, never naming the model's, and naming
+// work's from version 2 on.
+func heldOf(t *testing.T, version, sessions int) string {
+	t.Helper()
+	ids := []string{"one"}
+	for i := 1; i < sessions; i++ {
+		ids = append(ids, fmt.Sprintf("lost-%d", i))
+	}
+	slices.Sort(ids)
+	work := ledger.AccountDay{Account: "work", Sessions: sessions,
+		Models: []ledger.ModelDay{{Model: opus, Upstream: 2, Sessions: sessions, Usage: usage(`{"input_tokens":20,"output_tokens":40}`)}}}
+	if version > 1 {
+		work.SessionIDs = ids
+	}
+	data, err := json.Marshal(ledger.Summary{Version: version, Day: date, Lines: 2, Accounts: []ledger.AccountDay{work}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+func TestAModelsSessionsASummaryOfAnOlderVersionNeverNamedAreNamedOnlyWhereTheIDsAccountForItsCount(t *testing.T) {
+	tests := []struct {
+		name string
+		// sessions are those the summary before counted of the model, and
+		// lines lays the day's lines out in dir, where they're kept.
+		sessions int
+		lines    func(t *testing.T, dir string)
+		ids      []string
+	}{
+		{name: "its lines pruned, its readings alone naming none", sessions: 1, lines: func(*testing.T, string) {}},
+		{name: "its lines kept, naming fewer than it counted", sessions: 2, lines: plainLines},
+		{name: "its lines kept, naming as many as it counted", sessions: 1, lines: plainLines, ids: []string{"one"}},
+	}
+	kept := []readings.Reading{historyBegan, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)}
+	for version := 1; version < 4; version++ {
+		for _, tt := range tests {
+			for _, by := range []string{"the router", "a reader"} {
+				t.Run(fmt.Sprintf("of version %d, %s, by %s", version, tt.name, by), func(t *testing.T) {
+					state, dir, _ := stateDirs(t)
+					tt.lines(t, dir)
+					writeFile(t, dir, "day-"+date+".json", []byte(heldOf(t, version, tt.sessions)+"\n"))
+
+					got := summaryAgain(t, by, state, dir, on(3, 10, 0), kept)
+					var day ledger.Summary
+					if err := json.Unmarshal([]byte(got), &day); err != nil || len(day.Accounts) != 1 || len(day.Accounts[0].Models) != 1 {
+						t.Fatalf("the day's summary is %s (%v), want work's day, of its one model", got, err)
+					}
+					if m := day.Accounts[0].Models[0]; !reflect.DeepEqual(m.SessionIDs, tt.ids) || m.Sessions != tt.sessions {
+						t.Errorf("Opus's sessions are %d, named %#v; want %d, named %#v: never named but where their ids account for their count",
+							m.Sessions, m.SessionIDs, tt.sessions, tt.ids)
+					}
+				})
+			}
+		}
 	}
 }
 
@@ -359,7 +433,7 @@ func waitFor(t *testing.T, done <-chan struct{}, failure string) {
 func TestARoundFinishesAsAPruneOfTheReadingsWaitsOnItsRead(t *testing.T) {
 	_, dir, history := stateDirs(t)
 	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
-	markVersionTwo(t, dir, ofVersion(summaryOf(date, 2, 2, windowsRead{}), 2))
+	markOfVersion(t, dir, ofVersion(summaryOf(date, 2, 2, windowsRead{}), 2), 2)
 	// The day after, its lines not yet summarised, so the read of the two
 	// goes on past the first's end as the first is summarised.
 	holdLines(t, dir, "2026-10-06", asked("3", on(1, 9, 0)))
@@ -376,8 +450,8 @@ func TestARoundFinishesAsAPruneOfTheReadingsWaitsOnItsRead(t *testing.T) {
 	}()
 	waitFor(t, summarised, "the round hung as the prune waited on its read: it took a lock of the readings history as its read held one")
 	waitFor(t, h.pruned, "the prune never came: the round never read the readings history")
-	if got := heldSummary(t, dir, date); !strings.Contains(got, `"version":3`) {
-		t.Errorf("the day's summary is\n%s\nwant it summarised again, as version 3", got)
+	if got := heldSummary(t, dir, date); !strings.Contains(got, `"version":4`) {
+		t.Errorf("the day's summary is\n%s\nwant it summarised again, as version 4", got)
 	}
 }
 
@@ -395,7 +469,7 @@ func TestAReaderReadsASummaryOfVersionOneAsItIsOnceItsLinesAreGone(t *testing.T)
 		t.Run(tt.name, func(t *testing.T) {
 			state, dir, _ := stateDirs(t)
 			tt.lay(t, dir)
-			markVersionOne(t, dir)
+			markOfVersion(t, dir, heldVersionOne, 1)
 			held := heldSummary(t, dir, date)
 
 			days := readerAt(state, on(3, 10, 0)).Days(on(0, 0, 0))
@@ -436,7 +510,7 @@ func TestAReaderTakesASummaryOfADayWithNoLinesAsItStandsWhateverItsVersion(t *te
 
 func TestASummaryOfVersionOneWhoseLinesAreGoneHoldsNoneOfWhatItNeverRead(t *testing.T) {
 	state, dir, _ := stateDirs(t)
-	markVersionOne(t, dir)
+	markOfVersion(t, dir, heldVersionOne, 1)
 
 	got := readerAt(state, on(3, 10, 0)).Days(on(0, 0, 0))[0]
 	if len(got.Accounts) != 1 {

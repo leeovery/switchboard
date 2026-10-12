@@ -25,7 +25,8 @@ const (
 	// each account's session ids, rises, resets and minutes at its cap and at
 	// a limit. Version 3 gives a day of no requests the accounts the readings
 	// history tells of, as any day's, and climbs each window as Climb does.
-	summaryVersion = 3
+	// Version 4 adds each model's session ids.
+	summaryVersion = 4
 	// readingsBefore is how far before a day the readings that say the use
 	// each window began it at are looked for: a week, the longest a window
 	// runs, so a window read before then has reset since.
@@ -125,6 +126,12 @@ type AccountDay struct {
 
 // ModelDay is a model's day on an account: its requests, by how each went,
 // the sessions they were of, and their usage.
+//
+// SessionIDs, which version 4 added, is nil where the model's sessions were
+// never named: in a summary of an older version; of a model a summary made
+// since kept as one of those gave it; and where a summary made since, of a
+// day one of those summarised, found the ids of fewer than it counted, as
+// knowing says. A summary of version 4 gives none as empty.
 type ModelDay struct {
 	// Model is the model the requests asked for, left out of those whose
 	// bodies couldn't be read, and InferenceGeo where they asked for their
@@ -720,7 +727,7 @@ func byModel(a, b modelKey) int {
 // summary returns the model's day on the account.
 func (m *modelTally) summary() ModelDay {
 	day := m.day
-	day.Sessions = len(m.sessions)
+	day.Sessions, day.SessionIDs = len(m.sessions), m.sessions.ids()
 	if len(m.usage) > 0 {
 		// A map of counts and maps of them always marshals.
 		day.Usage, _ = json.Marshal(m.usage)
