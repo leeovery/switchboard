@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -204,6 +205,48 @@ func TestFramesRunOnlyWhileBarsOnScreenMove(t *testing.T) {
 		if _, framing := h.pendingFrame(); framing != read.frames {
 			t.Errorf("%s: a frame is armed: %t, want %t", read.name, framing, read.frames)
 		}
+	}
+}
+
+// USAGE draws a window of an account without a usable token as an empty
+// bar, whatever was read of it before: a read that empties it moves nothing
+// on screen, so it eases nothing and starts no frames.
+func TestAReadLeavingABarEmptyStartsNoFrames(t *testing.T) {
+	using := func(a *status.Account) { a.Windows[0].Utilization = 0.75 }
+	h := tenOnAShortScreen(t, tenWith(using))
+	tokenless := func(a *status.Account) {
+		using(a)
+		a.TokenSet = false
+	}
+	h.startRouter(tenWith(tokenless, "work"))
+	seen := h.tickUntilAsked()
+	if got := h.model.ease.eased(h.model.frame(seen), h.model.doc, seen); len(got) > 0 {
+		t.Errorf("the read eased %v, want no bar easing, work's left empty", got)
+	}
+	if _, framing := h.pendingFrame(); framing {
+		t.Error("a read leaving work's bars empty started frames")
+	}
+}
+
+// Sessions' panels draw a lapsed window as not started, with no bar: a read
+// that changes its use, here as it lapses, moves nothing on screen, so it
+// eases nothing and starts no frames.
+func TestOnSessionsAReadChangingALapsedWindowsUseStartsNoFrames(t *testing.T) {
+	h := easingHarness(t, sessionAndWeek(0.5, 0.25))
+	h.settle()
+
+	work := account("work", "Work", quota.Window{Key: "5h", Label: "Session"}, week(0.25))
+	work.Lapsed = []string{"5h"}
+	h.read(document(work))
+	if !strings.Contains(h.view(), "not started") {
+		t.Fatalf("the screen is\n%s\nwant work's session not started", h.view())
+	}
+	now := h.model.now()
+	if got := h.model.ease.eased(h.model.frame(now), h.model.doc, now); len(got) > 0 {
+		t.Errorf("the read eased %v, want no bar easing, work's session drawn without one", got)
+	}
+	if _, framing := h.pendingFrame(); framing {
+		t.Error("a read changing the use of work's lapsed session started frames")
 	}
 }
 

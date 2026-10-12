@@ -357,16 +357,15 @@ type blocksBeside struct {
 	blocks []rowAt
 }
 
-// routingBeside draws ROUTING of doc at now beside USAGE's blocks by account,
-// as at says they lie, from its column to the edge, three lines beside each,
+// routingBeside draws ROUTING's table t beside USAGE's blocks by account, as
+// at says they lie, from its column to the edge, three lines beside each,
 // as besideRows places them: an account's state, its words cut by whole
 // clauses to end wordsGap cells short of the edge; ● pinned, where the
 // global pin names it, then its sessions; and a trace a row tall to
 // traceTail cells short of the edge, its rate right-aligned. Beside the
 // pool's block, its accounts' states counted, as countedStates says; their
 // sessions summed; and their traces and rates summed.
-func (f Frame) routingBeside(c *canvas, doc status.Document, now time.Time, at blocksBeside) {
-	t := f.routingTableOf(doc, now)
+func (f Frame) routingBeside(c *canvas, t routingTable, at blocksBeside) {
 	for _, block := range at.blocks {
 		rows := besideRows(block.rows)
 		for i := range rows {

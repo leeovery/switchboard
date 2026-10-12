@@ -198,10 +198,16 @@ func nameOfWindow(key, label string) string {
 func accountGauge(a status.Account, key string, st status.WindowState, now time.Time) gauge {
 	w, _ := a.Window(key)
 	bar := usageBar{used: st.Used, capAt: 1 - a.Reserve, pace: w.Pace, stale: st.Kind == status.WindowStale}
-	if st.Kind == status.WindowTokenless || st.Kind == status.WindowUnread {
+	if drawsEmpty(st) {
 		bar = usageBar{empty: true}
 	}
 	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(st, w.Allowance, now), runsOut: st.Kind == status.WindowRunsOut}
+}
+
+// drawsEmpty reports whether a window standing as st draws an empty bar:
+// where its account has no usable token or nothing is read of it.
+func drawsEmpty(st status.WindowState) bool {
+	return st.Kind == status.WindowTokenless || st.Kind == status.WindowUnread
 }
 
 // poolRow is pool's row under the rows of accounts named as names has them,

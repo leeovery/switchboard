@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -71,29 +72,58 @@ type keyListing struct {
 	works, helpful, withEnds bool
 }
 
-// listings are the page's own keys, as m stands at now, its page drawn as f,
-// in the design's order: on the Overview, its toggles, each word faint where
-// its section is hidden; b, its word saying how the windows are grouped; and
-// with more than one account, ↑↓, which the key line sets with p, ? and q;
-// w, in Runway, switching between the day and the week, its word saying
-// which it shows; and j and k, PgUp and PgDn, and the wheel, which the key
-// line leaves to help, where the view scrolls, and on the Overview always,
-// as USAGE scrolls once its accounts outgrow it.
-func (m Model) listings(f dashboard.Frame, now time.Time) []keyListing {
+// pageKeys is what lists the page's keys, as it stands, but for whether its
+// view scrolls, which follows the size it's drawn at: its own keys but those
+// that scroll it, as keys has them; whether it's the Overview, which lists
+// those always; p, and whether it's listed, as pinKey has it; and whether the
+// dashboard is drawn in colour.
+type pageKeys struct {
+	own      []keyListing
+	overview bool
+	pin      dashboard.Key
+	pinned   bool
+	coloured bool
+}
+
+// keys is what lists the page's keys as m stands, its own but those that
+// scroll it in the design's order: on the Overview, its toggles, each word
+// faint where its section is hidden; b, its word saying how the windows are
+// grouped; and with more than one account, ↑↓, which the key line sets with
+// p, ? and q; and w, in Runway, switching between the day and the week, its
+// word saying which it shows.
+func (m Model) keys() pageKeys {
 	overview := m.view == dashboard.Overview
-	scrolls := overview || f.Scrolling(m.doc, now).Most > 0
-	var listed []keyListing
+	var own []keyListing
 	for _, s := range dashboard.EverySection() {
-		listed = append(listed, keyListing{Key: dashboard.Key{Key: s.Key(), Does: s.Word(), Hidden: !m.sections.Has(s)}, works: overview})
+		own = append(own, keyListing{Key: dashboard.Key{Key: s.Key(), Does: s.Word(), Hidden: !m.sections.Has(s)}, works: overview})
 	}
-	return append(listed,
+	own = append(own,
 		keyListing{Key: dashboard.Key{Key: "b", Does: "by", State: string(layoutOf(m.by))}, works: overview},
 		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && len(m.doc.Accounts) > 1, withEnds: true},
 		keyListing{Key: dashboard.Key{Key: "w", Does: "window: " + m.span.Name()}, works: m.view == dashboard.Runway},
-		keyListing{Key: dashboard.Key{Key: "j k", Does: "scroll"}, works: scrolls, helpful: true},
-		keyListing{Key: dashboard.Key{Key: "PgUp PgDn", Does: "page"}, works: scrolls, helpful: true},
-		keyListing{Key: dashboard.Key{Key: "wheel", Does: "scroll"}, works: scrolls, helpful: true},
 	)
+	pin, pinned := m.pinKey()
+	return pageKeys{own: own, overview: overview, pin: pin, pinned: pinned, coloured: m.coloured()}
+}
+
+// listings are the page's own keys, as m stands at now, its page drawn as f,
+// as pageKeys' listings has them.
+func (m Model) listings(f dashboard.Frame, now time.Time) []keyListing {
+	return m.keys().listings(f.Scrolling(m.doc, now).Most > 0)
+}
+
+// listings are the page's own keys, where its view scrolls or not, in the
+// design's order: those that don't scroll it, as keys has them; then j and k,
+// PgUp and PgDn, and the wheel, which the key line leaves to help, where the
+// view scrolls, and on the Overview always, as USAGE scrolls once its
+// accounts outgrow it.
+func (p pageKeys) listings(scrolls bool) []keyListing {
+	scrolls = scrolls || p.overview
+	return slices.Concat(p.own, []keyListing{
+		{Key: dashboard.Key{Key: "j k", Does: "scroll"}, works: scrolls, helpful: true},
+		{Key: dashboard.Key{Key: "PgUp PgDn", Does: "page"}, works: scrolls, helpful: true},
+		{Key: dashboard.Key{Key: "wheel", Does: "scroll"}, works: scrolls, helpful: true},
+	})
 }
 
 // keyLine is the key line as m stands at now, under its page drawn as f:
@@ -151,21 +181,21 @@ var (
 // its groups apart by, tab views among them.
 const overviewApart = 5
 
-// helpKeys are the keys help lists, as m stands at now, its page drawn as f,
+// helpKeys are the keys help lists, where the page's view scrolls or not,
 // worded as the key line words them: tab; every key of the page's own that
 // works, those the key line leaves to help among them; p, where a pin can be
 // set; t, in colour; and R, ? and q.
-func (m Model) helpKeys(f dashboard.Frame, now time.Time) []dashboard.Key {
+func (p pageKeys) helpKeys(scrolls bool) []dashboard.Key {
 	keys := []dashboard.Key{tabViews}
-	for _, k := range m.listings(f, now) {
+	for _, k := range p.listings(scrolls) {
 		if k.works {
 			keys = append(keys, k.Key)
 		}
 	}
-	if pin, ok := m.pinKey(); ok {
-		keys = append(keys, pin)
+	if p.pinned {
+		keys = append(keys, p.pin)
 	}
-	if m.coloured() {
+	if p.coloured {
 		keys = append(keys, dashboard.Key{Key: "t", Does: "themes"})
 	}
 	return append(keys, dashboard.Key{Key: "R", Does: "refresh"}, helpKey, dashboard.Quit)

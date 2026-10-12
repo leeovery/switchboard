@@ -60,14 +60,15 @@ func (f Frame) MaySettle() bool {
 // pool's by its key alone, for a watch to ease each bar from and to: on the
 // Overview, as USAGE draws them, each account's window as it stands at now,
 // which reads empty once it has reset since it was read, and the pool's as
-// the frame judges it at now; on Sessions, as last read; and none on a view
-// that draws no bar.
+// the frame judges it at now, but none of a bar USAGE draws empty, which has
+// nothing to ease; on Sessions, as last read, but none of a window its panel
+// draws without a bar; and none on a view that draws no bar.
 func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
 	switch f.View {
 	case Overview:
 		return f.overviewFilled(doc, now)
 	case Sessions:
-		return usedAsRead(doc)
+		return f.sessionsFilled(doc, now)
 	}
 	return nil
 }
@@ -79,7 +80,9 @@ func (f Frame) overviewFilled(doc status.Document, now time.Time) map[Ref]float6
 	for _, a := range doc.Accounts {
 		states := doc.WindowStatesOf(a, now)
 		for _, w := range a.Windows {
-			filled[Ref{Account: a.ID, Window: w.Key}] = states.Of(w.Key).Used
+			if st := states.Of(w.Key); !drawsEmpty(st) {
+				filled[Ref{Account: a.ID, Window: w.Key}] = st.Used
+			}
 		}
 	}
 	for _, p := range f.pool(doc, now).Windows {
@@ -88,13 +91,16 @@ func (f Frame) overviewFilled(doc status.Document, now time.Time) map[Ref]float6
 	return filled
 }
 
-// usedAsRead are how much of each of doc's windows was used as last read, by
-// its account and key.
-func usedAsRead(doc status.Document) map[Ref]float64 {
+// sessionsFilled are how much of each bar Sessions' panels draw of doc at
+// now it fills, as Filled has them: each window as last read, by its account
+// and key, where its panel draws it a bar, as drawsBar says.
+func (f Frame) sessionsFilled(doc status.Document, now time.Time) map[Ref]float64 {
 	used := make(map[Ref]float64)
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
-			used[Ref{Account: a.ID, Window: w.Key}] = w.Utilization
+			if standingOf(doc, a, w, now, f.Policy).drawsBar() {
+				used[Ref{Account: a.ID, Window: w.Key}] = w.Utilization
+			}
 		}
 	}
 	return used

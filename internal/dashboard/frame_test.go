@@ -290,3 +290,23 @@ func TestATabNotBuiltDrawsItsHeadingRowAloneAndExplainsNoGlyphs(t *testing.T) {
 		}
 	}
 }
+
+// twoWithRoom is the healthy router's document of work and side, both with
+// room, read a minute before threeRouted: another document, whose pool isn't
+// threeRouted's.
+func twoWithRoom() status.Document {
+	doc := routerDoc("work", 2, readAccount("work", sessionOf(0.5, 2*time.Hour), weekOf(0.2, 3*day)), readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.4, 5*day)))
+	doc.GeneratedAt = now.Add(-time.Minute).UTC()
+	return doc
+}
+
+func TestAFrameJudgedJudgesAnotherDocumentsPoolAfresh(t *testing.T) {
+	other := twoWithRoom()
+	want := other.PoolAt(now, claudeLike)
+	if first := threeRouted().PoolAt(now, claudeLike); slices.Equal(first.Accounts, want.Accounts) {
+		t.Fatalf("both documents pool %v, want pools that differ", want.Accounts)
+	}
+	if got := frameOf(160, 40).Judged(threeRouted(), now).pool(other, now); !slices.Equal(got.Accounts, want.Accounts) {
+		t.Errorf("judged of one document, the pool of another at the same moment is of %v, want its own, of %v", got.Accounts, want.Accounts)
+	}
+}

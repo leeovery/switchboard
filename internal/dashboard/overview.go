@@ -217,7 +217,7 @@ func (s section) mostRows() int {
 // them, of a document at a moment: built once, the first time they're asked
 // for.
 type sectionsBuilt struct {
-	at       time.Time
+	of       docAt
 	sections func() []section
 }
 
@@ -228,19 +228,20 @@ type sectionsBuilt struct {
 // its pool judged at now, as Judged has it, so a copy whose Layout, KeyLine,
 // Brightened or Card change draws them as a frame built afresh would, as
 // they draw none of those, and a copy changed otherwise draws them as they
-// were built. A look at another moment builds them afresh.
+// were built. A look at another moment, or of another document, builds them
+// afresh.
 func (f Frame) Built(doc status.Document, now time.Time) Frame {
 	f = f.Judged(doc, now)
 	of := f
-	f.built = &sectionsBuilt{at: now, sections: sync.OnceValue(func() []section { return of.buildSections(doc, now) })}
+	f.built = &sectionsBuilt{of: docAtOf(doc, now), sections: sync.OnceValue(func() []section { return of.buildSections(doc, now) })}
 	return f
 }
 
 // sectionsOf are the Overview's sections the frame shows, of doc at now, in
-// the order the page draws them: as Built built them, where it built them at
-// now, else afresh.
+// the order the page draws them: as Built built them, where it built them of
+// doc at now, else afresh.
 func (f Frame) sectionsOf(doc status.Document, now time.Time) []section {
-	if f.built != nil && f.built.at.Equal(now) {
+	if f.built != nil && f.built.of.is(doc, now) {
 		return f.built.sections()
 	}
 	return f.buildSections(doc, now)

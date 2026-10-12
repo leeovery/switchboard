@@ -313,7 +313,7 @@ func TestAFirstReadThatFailsOtherwiseSaysWhyTillAReadFindsTheRouterGone(t *testi
 	}
 }
 
-func TestAFirstReadSaysTheLatestReadsNewsTheRouterGoneOrAProbesOwnReason(t *testing.T) {
+func TestAFirstReadSaysTheLatestReadsNewsTheRouterGoneSinceFirstFoundOrAProbesOwnReason(t *testing.T) {
 	h := newHarness(t, probedWithoutTheRouter())
 	h.source.err = errors.New("the keychain is locked")
 	h.start()
@@ -324,13 +324,16 @@ func TestAFirstReadSaysTheLatestReadsNewsTheRouterGoneOrAProbesOwnReason(t *test
 
 	h.tickUntilRead() // A full read, whose probe fails for its own reason.
 	want := "! couldn't read usage: the keychain is locked  ·  next "
-	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); !strings.HasPrefix(got, want) || !h.model.lost.IsZero() {
-		t.Errorf("once a probe fails for its own reason, the status line reads %q, the router lost at %v; want it to start %q, the router not lost", got, h.model.lost, want)
+	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); !strings.HasPrefix(got, want) {
+		t.Errorf("once a probe fails for its own reason, the status line reads %q; want it to start %q", got, want)
 	}
 
-	asked = h.tickUntilAsked()
+	again := h.tickUntilAsked()
+	if again.Format("15:04:05") == asked.Format("15:04:05") {
+		t.Fatalf("the second question after the router came at %v, the first's second; want a later one, to tell them apart", again)
+	}
 	if got, want := strings.TrimSpace(strings.Split(h.view(), "\n")[2]), "■ the router isn't answering  ·  since "+asked.Format("15:04:05"); got != want {
-		t.Errorf("once a question finds the router gone again, the status line reads %q; want %q", got, want)
+		t.Errorf("once a question finds the router gone again, the status line reads %q; want %q, since it was first found gone", got, want)
 	}
 }
 
