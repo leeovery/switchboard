@@ -118,6 +118,21 @@ func TestACardWithAsMuchBodyAsItHasRoomForTakesAllButTheRowsSpare(t *testing.T) 
 	}
 }
 
+func TestACardTallerThanThePageShowsItsTopAndCutsItsFoot(t *testing.T) {
+	f := frameOf(160, 12)
+	f.Card = laidCard{body: make([]line, 13), keys: []Key{{Key: "esc", Does: "cancel"}}}
+	rows := f.Draw(threeRouted(), now)
+
+	if got := string([]rune(rows[0])[39:66]); got != "╭─ ROUTING · NEW SESSIONS ─" {
+		t.Errorf("row 1 reads %q, want the card's top edge, its title in it", rows[0])
+	}
+	for i, row := range rows {
+		if strings.ContainsAny(row, "╰╯") {
+			t.Errorf("row %d reads %q, want the card's foot cut, below the page", i+1, row)
+		}
+	}
+}
+
 func TestTheRoutingCardIsTitledAsWhatItRoutes(t *testing.T) {
 	f := frameOf(160, 40)
 	f.Card = RoutingCard{}

@@ -60,8 +60,8 @@ func TestTabShowsTheNextTabAndKeepsIt(t *testing.T) {
 		{key: "shift+tab", want: dashboard.Log},
 	} {
 		h.press(step.key)
-		if h.model.view != step.want || prefs.kept.View != string(step.want) {
-			t.Errorf("%s showed %q and kept %q, want %q kept", step.key, h.model.view, prefs.kept.View, step.want)
+		if h.model.view != step.want || prefs.kept.Tab != string(step.want) {
+			t.Errorf("%s showed %q and kept %q, want %q kept", step.key, h.model.view, prefs.kept.Tab, step.want)
 		}
 	}
 }
@@ -251,8 +251,8 @@ func TestBSwitchesHowTheWindowsAreGroupedAndKeepsIt(t *testing.T) {
 			t.Errorf("after b, grouped by %v, kept %q, the key line %q; want by %s, kept, and said", h.model.by, prefs.kept.By, h.keyLine(), want.kept)
 		}
 	}
-	if prefs.kept.Sections != nil || prefs.kept.View != "" {
-		t.Errorf("b kept the sections %q and the view %q, want neither touched", prefs.kept.Sections, prefs.kept.View)
+	if prefs.kept.Sections != nil || prefs.kept.Tab != "" {
+		t.Errorf("b kept the sections %q and the tab %q, want neither touched", prefs.kept.Sections, prefs.kept.Tab)
 	}
 }
 

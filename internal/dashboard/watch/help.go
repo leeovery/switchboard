@@ -23,7 +23,7 @@ func (m Model) openHelp() Model {
 // page; and the rest do nothing.
 func (m Model) helpKey(key string) (tea.Model, tea.Cmd) {
 	if key == "?" || key == "esc" {
-		return m.uncover(), nil
+		return m.uncover()
 	}
 	if by, ok := scrollKey(key); ok {
 		return m.scrollHelp(by), nil

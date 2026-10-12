@@ -30,6 +30,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -189,11 +190,15 @@ type Model struct {
 	// lost is when the router stopped answering, while the dashboard has
 	// probed since, shows its last document, or has read nothing since.
 	lost time.Time
+	// failed is why the last read failed, while it's the last: "" once one
+	// lands, and for a look that found the router gone.
+	failed string
 
 	// ordering is set while the router carries out an order the routing
 	// card gave.
 	ordering bool
-	// note says what the last key did, till noteUntil.
+	// note says what the last key did, till noteUntil: zero while it's held
+	// for a card covering the page, as noting holds it.
 	note      string
 	noteUntil time.Time
 
@@ -300,8 +305,8 @@ const (
 
 // frozen is the page as it stood when a card opened over it: its frame and
 // the document it was drawn of, at the moment it was drawn. Only its size
-// follows the terminal's while the card is open, so nothing behind the card
-// moves, the clock included.
+// and its look follow the terminal's while the card is open, so nothing
+// behind the card moves, the clock included.
 type frozen struct {
 	frame dashboard.Frame
 	doc   status.Document
@@ -550,14 +555,15 @@ func (m Model) refresh() (Model, tea.Cmd) {
 
 // screen is what's on screen at now: the frame drawn, and the document and
 // the moment it's drawn of. With a card open, it's the page frozen as the
-// card opened, at the size drawn at now, the card over it; else the page as
-// the model stands at now, its key line listing the keys that work.
+// card opened, at the size drawn at now and in the look as it stands, the
+// card over it; else the page as the model stands at now, its key line
+// listing the keys that work.
 func (m Model) screen(now time.Time) (dashboard.Frame, status.Document, time.Time) {
 	if m.open == nothingOpen {
 		return m.live(now), m.doc, now
 	}
 	f := m.page.frame
-	f.Width, f.Height = m.size.Width, m.size.Height
+	f.Width, f.Height, f.Look = m.size.Width, m.size.Height, m.look()
 	f.Card = m.card(now)
 	return f, m.page.doc, m.page.at
 }
@@ -587,10 +593,11 @@ func (m Model) cover(card opened) Model {
 	return m
 }
 
-// uncover closes the card open over the page, which is live again.
-func (m Model) uncover() Model {
+// uncover closes the card open over the page, which is live again, and
+// starts the time of a note held while it was covered, as seen has it.
+func (m Model) uncover() (Model, tea.Cmd) {
 	m.open, m.page = nothingOpen, frozen{}
-	return m
+	return m.seen()
 }
 
 // frame is the dashboard's frame as the model stands at now, but for its key
@@ -605,7 +612,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.ease.eased(m.doc, now),
+		Lost: m.lost, Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.ease.eased(m.doc, now),
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus:  m.focus,
@@ -666,8 +673,8 @@ func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 }
 
 // fetched takes in a read: the document to show from now on, or why there's
-// none, and plans the next read by it. A read that fails notes the router
-// lost, as lose does: a question after the router, or a look at its
+// none, and plans the next read by it. A read that fails notes why, and the
+// router lost, as lose does: a question after the router, or a look at its
 // document, that found it gone does nothing more. Each read starts a new
 // chain of ticks at the pace it calls for, and lets a look at the router's
 // document asked for while it was under way go ahead.
@@ -681,6 +688,7 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 		m = m.lose(now)
 	case msg.err != nil:
 		m.plan = m.plan.failed(m.doc, now)
+		m.failed = redact.Text(msg.err.Error())
 		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
 		m = m.lose(now)
 	default:
@@ -749,7 +757,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
 	m.history = m.history.saw(doc)
 	m.ease = easing{from: m.ease.standing(m.doc, now), start: now}
-	m.doc, m.updated = doc, now
+	m.doc, m.updated, m.failed = doc, now, ""
 	switch {
 	case msg.listed || !routed(doc):
 		m.order = m.frame(now).OrderOf(doc)
@@ -790,8 +798,8 @@ func (m Model) follow(doc status.Document, now time.Time) Model {
 // saying since when the router hasn't answered, until it answers again, or a
 // full read probes; and before any document, the status line saying that
 // alone, unless the source probes as asked, with no router to lose. A read
-// that fails while probing says nothing of the router: a probe's failures
-// show by account.
+// that fails while probing says nothing of the router: the status line says
+// why it failed instead.
 func (m Model) lose(now time.Time) Model {
 	switch {
 	case !m.lost.IsZero():
@@ -805,6 +813,15 @@ func (m Model) lose(now time.Time) Model {
 	}
 	m.lost = now
 	return m
+}
+
+// failure is why the last read failed, and when the next is due, for the
+// status line: zero where it didn't fail.
+func (m Model) failure() dashboard.Failure {
+	if m.failed == "" {
+		return dashboard.Failure{}
+	}
+	return dashboard.Failure{Reason: m.failed, Next: m.plan.due}
 }
 
 // ticked reads again once a read is due. Every tick redraws, as every message

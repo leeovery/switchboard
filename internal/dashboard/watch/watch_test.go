@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 func TestStartsByReading(t *testing.T) {
@@ -282,6 +283,9 @@ func TestAFailedReadKeepsWhatWasReadOnScreen(t *testing.T) {
 	}
 	if got, want := h.nextRead(), "13:22"; got != want {
 		t.Errorf("the next read is due at %s, want %s", got, want)
+	}
+	if got, want := strings.TrimSpace(strings.Split(h.view(), "\n")[2]), "! couldn't read usage: connection refused  ·  next 13:22"; got != want {
+		t.Errorf("the status line reads %q, want %q, in the probed line's place", got, want)
 	}
 }
 
@@ -607,5 +611,22 @@ func TestTheOverviewIsLaidOutAfreshAsTheAccountsWindowsAreFirstRead(t *testing.T
 		if !strings.Contains(usage, name) {
 			t.Errorf("the accounts' windows read, with no key pressed, USAGE is\n%s\nwant %s among the accounts shown, laid out afresh, as there's room for every one", usage, name)
 		}
+	}
+}
+
+func TestThePageBehindACardTakesTheLookAsItStands(t *testing.T) {
+	h, _ := themedHarness(t, theme.Choice{})
+	h.start()
+	h.answer(nil)
+	h.press("?")
+	h.deliver(tea.BackgroundColorMsg{Color: lightBackground})
+
+	canvas := hexOf(h.model.showing.Colour(theme.Canvas))
+	f, _, _ := h.model.screen(h.model.now())
+	if got := hexOf(f.Look.Canvas()); h.drawnIn() != "tokyo-night-day" || got != canvas {
+		t.Errorf("with help open, the light terminal's answer has the page drawn on %s, want %s, the canvas of %s, the theme it's drawn in", got, canvas, h.drawnIn())
+	}
+	if got := hexOf(h.model.View().BackgroundColor); got != canvas {
+		t.Errorf("the terminal's background is set to %s, want %s, the canvas of the theme it's drawn in", got, canvas)
 	}
 }

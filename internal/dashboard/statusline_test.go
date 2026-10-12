@@ -264,6 +264,47 @@ func TestThePagesStatusLine(t *testing.T) {
 	}
 }
 
+func TestThePagesStatusLineSaysWhyAReadFailed(t *testing.T) {
+	failed := Failure{Reason: "connection\nrefused", Next: printNow.Add(2 * time.Minute)}
+	probed := routed(func(d *status.Document) { d.Source = status.SourceProbe })
+	tests := []struct {
+		name  string
+		doc   status.Document
+		width int
+		lost  time.Time
+		want  string
+	}{
+		{name: "before the first document, why and when it reads next", width: 160, want: "! couldn't read usage: connection refused  ·  next 14:44"},
+		{name: "probed, in the probed line's place", doc: probed, width: 160, want: "! couldn't read usage: connection refused  ·  next 14:44"},
+		{name: "probed, the router lost before: in the probed line's place", doc: probed, width: 160, lost: lostAt, want: "! couldn't read usage: connection refused  ·  next 14:44"},
+		{name: "the router not answering, which says it", doc: routed(), width: 160, lost: lostAt, want: "■ the router isn't answering  ·  since 14:40:55  ·  auto  ·  6 sessions  ·  new sessions → ▲ side"},
+		{name: "on a phone, shortened", width: 40, want: "! couldn't read usage next 14:44"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Width: tt.width, Height: 8, Lost: tt.lost, Failed: failed}
+			c := newCanvas(f.Width, f.Height)
+			f.routerStatus(c, tt.doc, printNow)
+			if got := strings.TrimRight(c.rows(Look{})[f.statusRow()], " "); got != tt.want {
+				t.Errorf("the status line reads %q, want %q", got, tt.want)
+			}
+		})
+	}
+
+	f := Frame{Width: 160, Height: 8, Failed: failed}
+	c := newCanvas(f.Width, f.Height)
+	f.routerStatus(c, status.Document{}, printNow)
+	for _, tt := range []struct {
+		name string
+		x    int
+		want ink
+	}{{name: "!", x: 0, want: errorInk}, {name: "couldn't read usage", x: 2, want: secondaryInk}, {name: "next 14:44", x: 47, want: mutedInk}} {
+		if got := c.at(tt.x, f.statusRow()).ink; got != tt.want {
+			t.Errorf("%q, at column %d, is in %+v, want %+v", tt.name, tt.x, got, tt.want)
+		}
+	}
+}
+
 func TestThePagesStatusLineSaysItInItsInks(t *testing.T) {
 	c, y := pageStatusOf(routed(), 160, lostAt)
 	tests := []struct {

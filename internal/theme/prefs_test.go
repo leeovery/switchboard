@@ -70,37 +70,37 @@ func TestUpdateKeepsWhatAnotherDashboardWroteSince(t *testing.T) {
 	}
 }
 
-func TestTheViewShownIsKeptBesideTheThemes(t *testing.T) {
+func TestTheTabShownIsKeptBesideTheThemes(t *testing.T) {
 	state := t.TempDir()
 	prefs := theme.NewPrefsFile(state, clock)
 	if err := prefs.Update(func(p *theme.Prefs) { p.Choice = theme.One("amber") }); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := prefs.Update(func(p *theme.Prefs) { p.View = "accounts" }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "accounts" }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), View: "accounts"}); !reflect.DeepEqual(got, want) {
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Tab: "accounts"}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
 	data, err := os.ReadFile(filepath.Join(state, "prefs.json"))
-	if err != nil || !strings.Contains(string(data), `"view": "accounts"`) {
-		t.Errorf("prefs.json holds %s, %v; want the view kept", data, err)
+	if err != nil || !strings.Contains(string(data), `"tab": "accounts"`) {
+		t.Errorf("prefs.json holds %s, %v; want the tab kept", data, err)
 	}
 }
 
-func TestTheOverviewsSectionsAndGroupingAreKeptBesideTheView(t *testing.T) {
+func TestTheOverviewsSectionsAndGroupingAreKeptBesideTheTab(t *testing.T) {
 	state := t.TempDir()
 	path := filepath.Join(state, "prefs.json")
 	prefs := theme.NewPrefsFile(state, clock)
-	if err := prefs.Update(func(p *theme.Prefs) { p.View = "overview" }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "overview" }); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := prefs.Update(func(p *theme.Prefs) { p.Sections, p.By = []string{"usage", "graphs"}, "account" }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{View: "overview", Sections: []string{"usage", "graphs"}, By: "account"}); !reflect.DeepEqual(got, want) {
+	if got, want := prefs.Read(), (theme.Prefs{Tab: "overview", Sections: []string{"usage", "graphs"}, By: "account"}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
 	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), "\"sections\": [\n    \"usage\",\n    \"graphs\"\n  ]") || !strings.Contains(string(data), `"by": "account"`) {
@@ -185,18 +185,36 @@ func TestUpdateKeepsTheKeysOfAnOlderOrANewerBuild(t *testing.T) {
 	write(t, path, `{"theme": "amber", "featured": "7d", "chart": "hourglass", "lens": "wide", "pane": {"split": 0.5}}`)
 	prefs := theme.NewPrefsFile(state, clock)
 
-	if err := prefs.Update(func(p *theme.Prefs) { p.View = "accounts" }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "accounts" }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), View: "accounts"}); !reflect.DeepEqual(got, want) {
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Tab: "accounts"}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{\n  \"chart\": \"hourglass\",\n  \"featured\": \"7d\",\n  \"lens\": \"wide\",\n  \"pane\": {\n    \"split\": 0.5\n  },\n  \"theme\": \"amber\",\n  \"view\": \"accounts\"\n}\n"
+	want := "{\n  \"chart\": \"hourglass\",\n  \"featured\": \"7d\",\n  \"lens\": \"wide\",\n  \"pane\": {\n    \"split\": 0.5\n  },\n  \"tab\": \"accounts\",\n  \"theme\": \"amber\"\n}\n"
 	if string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+}
+
+func TestMilestone5sCardViewKeptAsTheViewIsNoTab(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "view": "accounts"}`)
+	prefs := theme.NewPrefsFile(state, clock)
+
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber")}); !reflect.DeepEqual(got, want) {
+		t.Errorf("Read() = %+v, want %+v: no tab, for the Overview that shows the cards now", got, want)
+	}
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "runway" }); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if want := "{\n  \"tab\": \"runway\",\n  \"theme\": \"amber\",\n  \"view\": \"accounts\"\n}\n"; err != nil || string(data) != want {
 		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
 	}
 }

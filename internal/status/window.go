@@ -10,7 +10,7 @@ import (
 // WindowKind is how a window of an account stands, as a WindowState says.
 type WindowKind int
 
-// The kinds of WindowState, in the order WindowStateOf tries them: the first
+// The kinds of WindowState, in the order WindowStates.Of tries them: the first
 // that holds is the one said.
 const (
 	// WindowTokenless is a window of an account without a usable token.
@@ -51,10 +51,42 @@ type WindowState struct {
 }
 
 // WindowStateOf is how doc's account a's window with the given key stands at
-// now, as usage's words say it: the first that holds of the kinds, in their
-// order. Its projection goes from when doc was built, as RunsOut's does, and
-// so does the reset its allowance runs to.
+// now, as WindowStatesOf says. To stand more than one window of an account,
+// WindowStatesOf works out its hold and its cap once for them all.
 func (d Document) WindowStateOf(a Account, key string, now time.Time) WindowState {
+	return d.WindowStatesOf(a, now).Of(key)
+}
+
+// WindowStates are how the windows of an account of a document stand at a
+// moment, what holds it back at its limit, and which windows its cap holds,
+// worked out once for them all.
+type WindowStates struct {
+	doc     Document
+	account Account
+	now     time.Time
+	hold    Hold
+	held    bool
+	capped  []string
+}
+
+// WindowStatesOf are how doc's account a's windows stand at now, as usage's
+// words say them. Their projections go from when doc was built, as RunsOut's
+// does, and so do the resets their allowances run to.
+func (d Document) WindowStatesOf(a Account, now time.Time) WindowStates {
+	// Which windows every model shares, which a policy says, has no say in
+	// whether a hold holds a window, or when it lifts off it.
+	hold, held := a.Held(now, score.Policy{})
+	s := WindowStates{doc: d, account: a, now: now, hold: hold, held: held}
+	if d.ReserveHolds(a) {
+		s.capped = a.ReachedReserve(now)
+	}
+	return s
+}
+
+// Of is how the account's window with the given key stands: the first that
+// holds of the kinds, in their order.
+func (s WindowStates) Of(key string) WindowState {
+	d, a, now := s.doc, s.account, s.now
 	w, reported := a.Window(key)
 	switch {
 	case !a.TokenSet:
@@ -65,14 +97,11 @@ func (d Document) WindowStateOf(a Account, key string, now time.Time) WindowStat
 		return WindowState{Kind: WindowStale, Used: w.Utilization, At: a.FetchedAt}
 	}
 	state := WindowState{Kind: WindowOpen, Used: score.Current(w, now).Utilization}
-	// Which windows every model shares, which a policy says, has no say in
-	// whether a hold holds a window, or when it lifts off it.
-	hold, held := a.Held(now, score.Policy{})
 	out, runsOut := d.RunsOut(a, w, now)
 	switch {
-	case held && hold.Holds(key):
-		state.Kind, state.At = WindowLimited, hold.Lifts(key)
-	case d.ReserveHolds(a) && slices.Contains(a.ReachedReserve(now), key):
+	case s.held && s.hold.Holds(key):
+		state.Kind, state.At = WindowLimited, s.hold.Lifts(key)
+	case slices.Contains(s.capped, key):
 		state.Kind, state.At = WindowCapped, w.ResetsAt
 	case runsOut:
 		state.Kind, state.At = WindowRunsOut, out.At

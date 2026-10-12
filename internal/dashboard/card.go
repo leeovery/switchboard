@@ -99,10 +99,11 @@ func (f Frame) CardScrolling() Scrolling {
 
 // box is the cells the card takes on a page width × height, its edges
 // included: from x along row y, w cells across and h down, centred across
-// the page and down it.
+// the page and down it; or, taller than the page, from its top, so its
+// title shows and its foot is cut.
 func (k Card) box(width, height int) (x, y, w, h int) {
 	h = len(k.body) + chrome(len(k.keys) > 0)
-	return (width - k.width) / 2, (height - h) / 2, k.width, h
+	return (width - k.width) / 2, max((height-h)/2, 0), k.width, h
 }
 
 // draw draws the card over what's drawn on c, in its box, the cells inside

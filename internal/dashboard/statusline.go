@@ -52,13 +52,14 @@ func (f Frame) routerStatus(c *canvas, doc status.Document, now time.Time) {
 // sessions it has routed numbered as such, where it has routed any; or
 // probed, as probedLine has it. While the router doesn't answer, from when
 // the frame lost it, its state says so, the rest as its last document had
-// them, or before any document, that alone. Before any document, and before
-// the router is lost, it's blank.
+// them, or before any document, that alone. A read that failed otherwise
+// says why in the state's place, as failing has it. Before any document, and
+// before either, it's blank.
 func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
 	var s statusLine
 	switch doc.Source {
 	case status.SourceProbe:
-		return probedLine(doc)
+		return f.failing(probedLine(doc), now)
 	case status.SourceRouter:
 		s = newStatusLine(doc)
 		if s.mode == nil {
@@ -68,12 +69,32 @@ func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
 			s.sessions = s.sessions.numbered(Number{Kind: NumberRouted})
 		}
 	}
-	if !f.Lost.IsZero() {
-		lost := f.Lost.In(now.Location())
-		s.state = line{{"■ ", errorInk}, {"the router isn't answering", secondaryInk}}
-		s.since = line{{"since " + lost.Format("15:04:05"), mutedInk}}
-		s.short = line{{"■ ", errorInk}, {"no router", secondaryInk}, {" since " + lost.Format("15:04"), mutedInk}}
+	if f.Lost.IsZero() {
+		return f.failing(s, now)
 	}
+	lost := f.Lost.In(now.Location())
+	s.state = line{{"■ ", errorInk}, {"the router isn't answering", secondaryInk}}
+	s.since = line{{"since " + lost.Format("15:04:05"), mutedInk}}
+	s.short = line{{"■ ", errorInk}, {"no router", secondaryInk}, {" since " + lost.Format("15:04"), mutedInk}}
+	return s
+}
+
+// Failure is why a read failed, and when the next is due.
+type Failure struct {
+	Reason string
+	Next   time.Time
+}
+
+// failing is s with the frame's failed read, where it has one, in its
+// state's place: why, and when the next read is due, at now.
+func (f Frame) failing(s statusLine, now time.Time) statusLine {
+	if f.Failed.Reason == "" {
+		return s
+	}
+	next := "next " + status.TimeOfDay(now, f.Failed.Next)
+	s.state = line{{"! ", errorInk}, {"couldn't read usage: " + status.Clean(f.Failed.Reason), secondaryInk}}
+	s.since = line{{next, mutedInk}}
+	s.short = line{{"! ", errorInk}, {"couldn't read usage", secondaryInk}, {" " + next, mutedInk}}
 	return s
 }
 
@@ -130,10 +151,15 @@ func destination(doc status.Document) line {
 
 // bestOf is the id of the account ▲ marks as where new sessions go:
 // doc's best, "" where none has room; or with one account, that one, whatever
-// its room, as there's nowhere else for them to go.
+// its room, as there's nowhere else for them to go. A probed document marks
+// none of several, as where new sessions go is the router's to say, and its
+// best is worked out without the router's pin.
 func bestOf(doc status.Document) string {
-	if len(doc.Accounts) == 1 {
+	switch {
+	case len(doc.Accounts) == 1:
 		return doc.Accounts[0].ID
+	case doc.Source != status.SourceRouter:
+		return ""
 	}
 	return doc.Best
 }

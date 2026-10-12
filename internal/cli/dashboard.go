@@ -141,7 +141,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Interval:      opts.interval,
 		Policy:        claude.Policy,
 		Size:          a.environSize(),
-		View:          dashboard.View(kept.View),
+		View:          dashboard.View(kept.Tab),
 		Sections:      dashboard.SectionsNamed(kept.Sections),
 		By:            keptBy(kept.By, cfg.Usage.By),
 		Prices:        pricing(cfg),

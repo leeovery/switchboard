@@ -495,7 +495,7 @@ func TestAnAccountOutOfThePoolIsNamedFaintOnTheOverviewAlone(t *testing.T) {
 		number, label, marks ink
 	}{
 		{name: "on the Overview", row: frameOf(160, 60).overviewBlock(doc, printNow).rows[1], number: faintInk, label: faintLabel, marks: faintInk},
-		{name: "in the printout, its number alone", row: newUsageBlock(doc, printNow, 160, Look{}, ByWindow, nil).rows[1], number: faintInk, label: titleInk, marks: primaryInk},
+		{name: "in the printout, its number alone", row: newUsageBlock(doc, printNow, 160, Look{}, ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).rows[1], number: faintInk, label: titleInk, marks: primaryInk},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -514,7 +514,7 @@ func TestTheOverviewFadesAnAccountOutOfThePoolWhereThePrintoutDoesnt(t *testing.
 		out   bool
 	}{
 		{name: "on the Overview", block: frameOf(160, 60).overviewBlock(doc, printNow), out: true},
-		{name: "in the printout", block: newUsageBlock(doc, printNow, 160, Look{}, ByWindow, nil)},
+		{name: "in the printout", block: newUsageBlock(doc, printNow, 160, Look{}, ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -58,7 +58,7 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 // overviewNames its name.
 func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	names := overviewNames(doc)
-	b := blockOf(doc, now, f.Width, f.Look, f.By, nil, names)
+	b := blockOf(doc, now, f.Width, f.Look, f.By, overviewWindows(doc), names)
 	b.marks = keyMarks(names, f.phone())
 	if f.By == ByAccount && f.Width >= matrixWidth {
 		b.accountBar = besideBar - (b.names - matrixNames)
@@ -73,6 +73,13 @@ func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 		}
 	}
 	return b
+}
+
+// overviewWindows are the windows of doc the Overview shows, in USAGE and
+// GRAPHS: every one any account reports, in Claude's order, each named as
+// nameOfWindow names it by its label, as labelOf has it.
+func overviewWindows(doc status.Document) []shownWindow {
+	return usageWindows(doc, nil, nil, func(key string) string { return nameOfWindow(key, labelOf(doc, key)) })
 }
 
 // overviewNames are the names of doc's accounts as the Overview names them
