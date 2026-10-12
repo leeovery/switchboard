@@ -491,6 +491,7 @@ func TestWeeksColumnsFillFromTheBottomTheirTopCellInEighths(t *testing.T) {
 	}{
 		{name: "72%: two rows whole and an eighth", look: nord, peak: views.WeekPeak{Share: new(0.72)}, want: [columnRows]string{"▁▁▁▁▁"}, under: " 72%"},
 		{name: "a look that can't blend fills in blocks", peak: views.WeekPeak{Share: new(0.72)}, want: [columnRows]string{"▁▁▁▁▁", "█████", "█████"}, under: " 72%"},
+		{name: "filled to the whole percent under it", look: nord, peak: views.WeekPeak{Share: new(0.7267)}, want: [columnRows]string{"▂▂▂▂▂"}, under: " 73%"},
 		{name: "over its limit", look: nord, peak: views.WeekPeak{Share: new(1.3)}, under: " 130%"},
 		{name: "no use", look: nord, peak: views.WeekPeak{Share: new(0.0)}, want: [columnRows]string{2: "▁▁▁▁▁"}, under: "  0%"},
 		{name: "not known", look: nord, under: "  —"},

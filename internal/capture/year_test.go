@@ -89,10 +89,9 @@ func TestTheEightWeeksAreThoseWeeksDraws(t *testing.T) {
 		name  string
 		world accountWorld
 		// weeks are how many of the eight's first the frames' peaks hold of:
-		// spare's week resets on a Thursday: its week from 17 September is
-		// placed under 14 September's and its week from 24 September, still
-		// running, under this week's, leaving 21 September's without, and the
-		// pool of the ten that week a mean of nine.
+		// the seven whole weeks, spare's among them, as its week resets on a
+		// Tuesday, so its week from 22 September has ended, placed under 21
+		// September's, where the frame of ten draws its peak.
 		weeks int
 		// pool is every account's peak, the accounts' mean, in tenths of a
 		// percent.
@@ -112,16 +111,16 @@ func TestTheEightWeeksAreThoseWeeksDraws(t *testing.T) {
 			},
 		},
 		{
-			name: "ten accounts", world: tenWorld(), weeks: 6,
-			pool: [7]int{433, 524, 528, 545, 576, 565},
+			name: "ten accounts", world: tenWorld(), weeks: 7,
+			pool: [7]int{433, 524, 528, 545, 576, 565, 612},
 			peaks: []accountPeaks{
-				{"client", [7]int{40, 52, 48, 61, 55, 58}, [7]int{0, 0, 0, 1, 0, 0}},
-				{"spare", [7]int{5, 8, 3, 10, 6, 4}, [7]int{}},
-				{"lab", [7]int{60, 72, 70, 66, 81, 75}, [7]int{1, 2, 1, 1, 3, 2}},
-				{"team", [7]int{80, 92, 100, 88, 100, 95}, [7]int{2, 3, 5, 3, 5, 4}},
-				{"extra", [7]int{15, 22, 18, 30, 25, 19}, [7]int{}},
-				{"ops", [7]int{30, 35, 28, 41, 33, 38}, [7]int{}},
-				{"studio", [7]int{45, 50, 62, 48, 55, 58}, [7]int{0, 1, 0, 0, 1, 0}},
+				{"client", [7]int{40, 52, 48, 61, 55, 58, 63}, [7]int{0, 0, 0, 1, 0, 0, 1}},
+				{"spare", [7]int{5, 8, 3, 10, 6, 4, 9}, [7]int{}},
+				{"lab", [7]int{60, 72, 70, 66, 81, 75, 79}, [7]int{1, 2, 1, 1, 3, 2, 2}},
+				{"team", [7]int{80, 92, 100, 88, 100, 95, 100}, [7]int{2, 3, 5, 3, 5, 4, 5}},
+				{"extra", [7]int{15, 22, 18, 30, 25, 19, 28}, [7]int{}},
+				{"ops", [7]int{30, 35, 28, 41, 33, 38, 36}, [7]int{}},
+				{"studio", [7]int{45, 50, 62, 48, 55, 58, 52}, [7]int{0, 1, 0, 0, 1, 0, 0}},
 			},
 		},
 	}
@@ -179,8 +178,14 @@ func TestTheCapacityIsTheOneWeeksDraws(t *testing.T) {
 			t.Errorf("%s's verdict is %q, %d limits, %v left, want %q, %d, %d%%", a.Account, a.Verdict, a.Limits, a.LeftAtReset, w.verdict, w.limits, w.left)
 		}
 	}
-	if ten := historyFrom(tenWorld(), eightWeeks).Capacity; ten.Drop != "spare" {
-		t.Errorf("of the ten, the one to drop is %q, want spare", ten.Drop)
+	// The ten's replay, which its frame draws 4, 4 and 6: 3 each, as
+	// testdata/vhs/README.md says.
+	ten := historyFrom(tenWorld(), eightWeeks).Capacity
+	if ten.Weeks != 7 || ten.Short != 3 || ten.WithOneFewer == nil || *ten.WithOneFewer != 3 || ten.WithTwoFewer == nil || *ten.WithTwoFewer != 3 {
+		t.Errorf("the ten's capacity is %+v, want short on 3 of 7 weeks as now, with one fewer and with two fewer", ten)
+	}
+	if ten.Verdict != views.OneMoreThanYouNeed || ten.Drop != "spare" {
+		t.Errorf("of the ten, the verdict is %q, dropping %q, want %q, dropping spare", ten.Verdict, ten.Drop, views.OneMoreThanYouNeed)
 	}
 }
 
@@ -228,6 +233,33 @@ func TestEachSessionADaysLinesNameIsInItsSummary(t *testing.T) {
 		if a := dayOfAccount(t, days[i], n.account); !slices.Contains(a.SessionIDs, n.session) {
 			t.Errorf("%s's lines name %s on %s, which its summary doesn't: %v", n.date, n.session, n.account, a.SessionIDs)
 		}
+	}
+}
+
+// Each model version's requests of an account's day name their sessions, as
+// a summary of version 4 does, so a version's sessions are counted once over
+// the days they ran: some of the account's day's, one a request at most.
+func TestEachVersionsSessionsAreNamedAmongItsAccounts(t *testing.T) {
+	days := autoWorld().ledger().Days(dayStart(worldsNow().now, 0))
+	named := 0
+	for _, s := range days {
+		for _, a := range s.Accounts {
+			for _, m := range a.Models {
+				if len(m.SessionIDs) != m.Sessions || m.Sessions == 0 || m.Sessions > m.Upstream {
+					t.Errorf("%s's %s on %s names %d sessions, counts %d, of %d requests, want as many named as counted, one a request at most",
+						s.Day, m.Model, a.Account, len(m.SessionIDs), m.Sessions, m.Upstream)
+				}
+				for _, id := range m.SessionIDs {
+					if !slices.Contains(a.SessionIDs, id) {
+						t.Errorf("%s's %s on %s names %s, which isn't one of the account's day's", s.Day, m.Model, a.Account, id)
+					}
+				}
+				named++
+			}
+		}
+	}
+	if named == 0 {
+		t.Fatal("no version of any day names its sessions")
 	}
 }
 
