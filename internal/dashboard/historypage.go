@@ -122,17 +122,20 @@ func yearPeriod(year int) string {
 }
 
 // history draws History's sub-tab shown from row top, once the year's days
-// are read: till then, the view is blank. The Year is drawn whole, then as
-// many of its rows as the view has, from as far down as it's scrolled.
+// are read: till then, the view is blank. The Year is drawn whole, once its
+// page is built, then as many of its rows as the view has, from as far down
+// as it's scrolled.
 func (f Frame) history(c *canvas, top int) {
 	if !f.History.Read {
 		return
 	}
 	switch f.History.Shown {
 	case HistoryYear:
-		year := f.wholeYear()
-		scrolled := byRows(year.height(), f.viewRows())
-		c.paste(year, scrolled.clamped(f.Scroll), top, scrolled.Page)
+		if y, ok := f.yearDrawn(); ok {
+			year := y.whole()
+			scrolled := byRows(year.height(), f.viewRows())
+			c.paste(year, scrolled.clamped(f.Scroll), top, scrolled.Page)
+		}
 	case HistoryWeeks:
 		f.historyWeeks(c, top)
 	case HistoryDays:
@@ -144,17 +147,10 @@ func (f Frame) history(c *canvas, top int) {
 
 // phoneForm reports whether a sub-tab of History draws its phone form: on a
 // phone, or where its wide form's widest row, ending before the column reach
-// gives, doesn't fit the frame's width, as its parts are at fixed columns.
-func (f Frame) phoneForm(reach func() int) bool {
-	return f.phone() || reach() > f.Width
-}
-
-// wholeYear is the Year drawn whole on a canvas of its own, from its first
-// row, as tall as yearHeight lays it out.
-func (f Frame) wholeYear() *canvas {
-	year := newCanvas(f.Width, f.yearHeight())
-	f.historyYear(year, 0)
-	return year
+// gives, runs past the column edge, where the sub-tab ends its rows, as its
+// parts are at fixed columns.
+func (f Frame) phoneForm(reach func() int, edge int) bool {
+	return f.phone() || reach() > edge
 }
 
 // historyScrolling is how far History's sub-tab shown, from row top,
@@ -205,22 +201,60 @@ func moreBelow(n int, noun, toScroll string) line {
 	}
 }
 
-// accountsToScroll is how History says to scroll to its accounts out of
-// view, following j/k.
-const accountsToScroll = " or the wheel to scroll them"
-
 // accountsOutOfView says how many of a view's accounts are out of view above
-// and below, and how to scroll to them: "▼ 4 more accounts below   ·   j/k
-// or the wheel to scroll them".
-func accountsOutOfView(above, below int) line {
-	var l line
-	if above > 0 {
-		l = line{{"▲", keyMarkInk}, {" " + moreAccounts(above) + " above", mutedInk}, {"   ·   ", faintInk}}
+// and below, and how to scroll to them, in the longest of its forms that fits
+// width cells, as outOfViewForms lists them.
+func accountsOutOfView(above, below, width int) line {
+	forms := make([]line, len(outOfViewForms))
+	for i, form := range outOfViewForms {
+		forms[i] = form.said(above, below)
 	}
-	if below > 0 {
-		return append(l, moreBelow(below, "account", accountsToScroll)...)
+	return firstFit(width, forms...)
+}
+
+// outForm is a form of the line saying what's out of view: its parts gap
+// apart; after each count, where it's out of view, where says it; and after
+// j/k, how to scroll, where it says it.
+type outForm struct {
+	gap      string
+	where    bool
+	toScroll string
+}
+
+// outOfViewForms are the forms of the line saying how many accounts are out of
+// view, each shorter than the one before: the design's, "▼ 4 more accounts
+// below   ·   j/k or the wheel to scroll them"; spaced as USAGE's scroll line
+// is, "▼ 4 more accounts below · j/k or wheel to scroll"; without how to
+// scroll; and as USAGE's rows say it, "▼ 4 more accounts".
+var outOfViewForms = []outForm{
+	{gap: "   ·   ", where: true, toScroll: " or the wheel to scroll them"},
+	{gap: " · ", where: true, toScroll: " or wheel to scroll"},
+	{gap: " · ", where: true},
+	{gap: " · "},
+}
+
+// said is what's out of view, above and below, as the form says it: each
+// count, where any is out of view there, its mark in accent.key and its
+// words in text.muted; then j/k, bold accent.key, and how to scroll.
+func (o outForm) said(above, below int) line {
+	var parts []line
+	for _, out := range []struct {
+		n           int
+		mark, where string
+	}{{above, "▲", " above"}, {below, "▼", " below"}} {
+		if out.n == 0 {
+			continue
+		}
+		words := " " + moreAccounts(out.n)
+		if o.where {
+			words += out.where
+		}
+		parts = append(parts, line{{out.mark, keyMarkInk}, {words, mutedInk}})
 	}
-	return append(l, span{"j/k", keyInk}, span{accountsToScroll, mutedInk})
+	if o.toScroll != "" {
+		parts = append(parts, line{{"j/k", keyInk}, {o.toScroll, mutedInk}})
+	}
+	return joined(span{o.gap, faintInk}, parts...)
 }
 
 // groupHead is a group's heading, as BY MONTH and BY MODEL, in text.subtle,

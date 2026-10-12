@@ -72,21 +72,22 @@ type AccountVerdict struct {
 // whole, of the accounts given, their plans p, their week the window with the
 // given key.
 func capacityOf(placed []placedWeek, isWhole func(week string) bool, accounts config.Accounts, p plans, key string) Capacity {
-	return judgingOf(placed, isWhole, accounts, p, key).capacity(accounts)
+	return judgingOf(placed, isWhole, accounts, p, key).capacity()
 }
 
-// judging is what Weeks judges the accounts by: the replay, and each
-// account's record, in the config's order.
+// judging is what Weeks judges the accounts by: the accounts, the replay,
+// and each account's record, in the config's order.
 type judging struct {
-	r       replay
-	records []record
+	accounts config.Accounts
+	r        replay
+	records  []record
 }
 
 // judgingOf is what Weeks judges by over the weeks of placed that isWhole
 // reports are whole, of the accounts given, their plans p, their week the
 // window with the given key.
 func judgingOf(placed []placedWeek, isWhole func(week string) bool, accounts config.Accounts, p plans, key string) judging {
-	j := judging{r: replayOf(placed, isWhole, accounts, p, key), records: make([]record, len(accounts))}
+	j := judging{accounts: accounts, r: replayOf(placed, isWhole, accounts, p, key), records: make([]record, len(accounts))}
 	for x := range accounts {
 		j.records[x] = recordOf(placed, isWhole, x, key)
 	}
@@ -94,8 +95,8 @@ func judgingOf(placed []placedWeek, isWhole func(week string) bool, accounts con
 }
 
 // capacity is Capacity of the accounts judged.
-func (j judging) capacity(accounts config.Accounts) Capacity {
-	r := j.r
+func (j judging) capacity() Capacity {
+	r, accounts := j.r, j.accounts
 	c := Capacity{Weeks: len(r.weeks), Short: r.count(r.shortAsNow), WithOneMore: r.count(r.shortWithOneMore)}
 	without := make([]int, len(accounts))
 	for x := range accounts {

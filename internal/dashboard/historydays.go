@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -52,6 +54,14 @@ const (
 	limitMark      = "▪"
 )
 
+// The words after a strip's count: a family's share of use; and the 5-hour
+// limits an account hit, the one, or any other count, which is the widest.
+const (
+	ofUse          = " of use"
+	fiveHourLimit  = " 5-hour limit"
+	fiveHourLimits = " 5-hour limits"
+)
+
 // historyDays draws Days from row top: the weeks over the days, BY MODEL's
 // strips and BY ACCOUNT's, its accounts scrolled as the frame has them, and
 // the key on the view's last row; or, where nothing is recorded in its eight
@@ -75,7 +85,7 @@ func (f Frame) historyDays(c *canvas, top int) {
 		f.daysStrip(c, l, l.accountRow(i), func(room int) line { return historyAccount(labelled(s.Label, s.Of), s.Primary, room) }, f.limitsHit(s), dayInk, s.Days)
 	}
 	if above, below := from, len(p.ByAccount)-to; above+below > 0 {
-		c.line(0, l.scrollRow, accountsOutOfView(above, below))
+		c.line(0, l.scrollRow, accountsOutOfView(above, below, f.edge()))
 	}
 	f.daysKey(c, l)
 }
@@ -100,7 +110,7 @@ type daysLayout struct {
 // layOutDays lays out Days of the page given from row top: wide where it
 // fits, else in its phone form.
 func (f Frame) layOutDays(p views.DaysPage, top int) daysLayout {
-	return f.daysLaidOut(p, top, f.phoneForm(func() int { return f.daysReach(p) }))
+	return f.daysLaidOut(p, top, f.phoneForm(func() int { return f.daysReach(p) }, f.Width))
 }
 
 // daysLaidOut lays out Days of the page given from row top: in its phone
@@ -124,9 +134,9 @@ func (f Frame) daysLaidOut(p views.DaysPage, top int, phone bool) daysLayout {
 // daysReach is the column Days' wide form of the page given ends before,
 // where its widest row ends: the weeks' heads, a group's heading, a strip's
 // days or its count, whose number is right-aligned, so it ends where its
-// words do, or the key. A strip's name is cut short of its days, and what's
-// out of view of BY ACCOUNT never runs as far as a phone's width, so they're
-// left out.
+// words do, at the widest they're drawn, so the form never hangs on the
+// count, or the key. A strip's name is cut short of its days, and what's out
+// of view of BY ACCOUNT fits the width it's drawn at, so they're left out.
 func (f Frame) daysReach(p views.DaysPage) int {
 	l := daysLayout{page: p, x: daysAt}
 	end := max(groupHead("BY MODEL", byModelSays, false).width(), groupHead("BY ACCOUNT", byAccountSays, false).width(), f.wideDaysKey().width())
@@ -134,18 +144,18 @@ func (f Frame) daysReach(p views.DaysPage) int {
 		end = max(end, daysAt+i*weekCells+weekHead(week, i == len(p.Weeks)-1).width())
 	}
 	for _, s := range p.ByModel {
-		end = max(end, l.stripReach(s.Days, shareOfUse(s)))
+		end = max(end, l.stripReach(s.Days, ofUse))
 	}
 	for _, s := range p.ByAccount {
-		end = max(end, l.stripReach(s.Days, f.limitsHit(s)))
+		end = max(end, l.stripReach(s.Days, fiveHourLimits))
 	}
 	return end
 }
 
 // stripReach is the column a wide strip of the days given ends before: its
-// last day's, or its count's.
-func (l daysLayout) stripReach(days []views.StripDay, count line) int {
-	end := countAt(count) + count.width()
+// last day's, or its count's, its words those given.
+func (l daysLayout) stripReach(days []views.StripDay, words string) int {
+	end := daysCount + daysCountCells + ansi.StringWidth(words)
 	if len(days) > 0 {
 		end = max(end, l.dayAt(len(days)-1)+swatchCells)
 	}
@@ -274,18 +284,18 @@ func (f Frame) swatch(k ink, level int, limited bool) line {
 // text.secondary, or — where none of it is priced, then of use.
 func shareOfUse(s views.DaysStrip) line {
 	share := shareSaid(s.Share, strongInk).numbered(Number{Kind: NumberShareOfUse, Of: s.Of})
-	return append(share, span{" of use", dimInk})
+	return append(share, span{ofUse, dimInk})
 }
 
 // limitsHit is how many 5-hour limits an account hit in the eight weeks,
 // bold state.destructive, or text.faint at none, then 5-hour limits.
 func (f Frame) limitsHit(s views.DaysStrip) line {
-	count, noun := exhaustedInk, " 5-hour limits"
+	count, noun := exhaustedInk, fiveHourLimits
 	switch s.Limits {
 	case 0:
 		count = ink{token: theme.TextFaint, bold: true}
 	case 1:
-		noun = " 5-hour limit"
+		noun = fiveHourLimit
 	}
 	return line{{strconv.Itoa(s.Limits), count.numbered(Number{Kind: NumberLimitsHit, Account: s.Of, Of: f.Policy.Started})}, {noun, dimInk}}
 }

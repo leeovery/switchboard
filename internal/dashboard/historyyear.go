@@ -51,13 +51,17 @@ const (
 	byMonthPhoneMonths   = 6
 )
 
-// historyYear draws the Year from row top, once its page is built: wide
-// where it fits, else as a phone lays it out.
-func (f Frame) historyYear(c *canvas, top int) {
-	y, ok := f.yearDrawn()
-	if !ok {
-		return
-	}
+// whole is the Year drawn whole on a canvas of its own, from its first row,
+// as tall as height lays it out.
+func (y yearDrawn) whole() *canvas {
+	c := newCanvas(y.Width, y.height())
+	y.draw(c, 0)
+	return c
+}
+
+// draw draws the Year from row top in its form: wide, or as a phone lays it
+// out.
+func (y yearDrawn) draw(c *canvas, top int) {
 	if y.form.phone {
 		y.phone(c, top)
 		return
@@ -90,15 +94,16 @@ func (f Frame) yearHeight() int {
 }
 
 // reach is the column the Year's wide form ends before, where its widest row
-// ends: the grid's, a number's whose length is bounded, BY MONTH's or the
-// bars' key's. The rest of the numbers, the heading over them, which may name
-// an account by its label, and the shades' key are cut at the frame's width,
-// so they're left out.
+// ends: the grid's, a number's whose length is bounded, at the widest its
+// format draws, so the form never hangs on the data, BY MONTH's or the bars'
+// key's. The rest of the numbers, the heading over them, which may name an
+// account by its label, and the shades' key are cut at the frame's width, so
+// they're left out.
 func (y yearDrawn) reach() int {
 	ends := []int{y.gridReach(), y.byMonthReach(), byMonthBarX + y.familyDots().width()}
 	for _, figure := range y.figures() {
-		if figure.bounded {
-			ends = append(ends, yearNumbersX+figure.labelled().width())
+		if figure.widest > 0 {
+			ends = append(ends, yearNumbersX+ansi.StringWidth(padded(figure.label, yearLabelCells))+figure.widest)
 		}
 	}
 	return slices.Max(ends)
@@ -183,7 +188,7 @@ func (f Frame) yearDrawn() (yearDrawn, bool) {
 		return yearDrawn{}, false
 	}
 	y := yearDrawn{Frame: f, page: *page, ask: f.History.YearAsk, form: byMonthWide}
-	if f.phoneForm(y.reach) {
+	if f.phoneForm(y.reach, f.Width) {
 		y.form = byMonthPhone
 	}
 	return y, true
@@ -348,13 +353,15 @@ func (y yearDrawn) heading(c *canvas, x, row int) {
 }
 
 // yearFigure is a number beside the grid: its label, and a phone's, what it
-// says, whether a look can change it, and whether what it is bounds how long
-// it runs, as a day, a run of the year's days or a share do, where a count
-// or a sum of dollars runs as long as the ledger makes it.
+// says, and whether a look can change it; and where what it is bounds how
+// long it runs, as a day, a run of the year's days or a share do, the cells
+// the widest its format draws takes: none for a count or a sum of dollars,
+// which runs as long as the ledger makes it.
 type yearFigure struct {
-	label, short     string
-	value            line
-	changes, bounded bool
+	label, short string
+	value        line
+	changes      bool
+	widest       int
 }
 
 // labelled is the figure as the wide numbers have it: its label, padded to
@@ -379,9 +386,9 @@ func (y yearDrawn) figures() []yearFigure {
 	if y.ofVersion() {
 		figures = append(figures,
 			yearFigure{label: "worth", short: "worth", value: worthSaid(n.Worth, secondaryInk), changes: true},
-			yearFigure{label: "of all use", short: "share", value: shareSaid(n.Share, secondaryInk), changes: true, bounded: true},
-			yearFigure{label: "first used", short: "first", value: daySaid(n.FirstUsed), changes: true, bounded: true},
-			yearFigure{label: "busiest day", short: "busiest", value: daySaid(n.BusiestDay), changes: true, bounded: true},
+			yearFigure{label: "of all use", short: "share", value: shareSaid(n.Share, secondaryInk), changes: true, widest: widestShare},
+			yearFigure{label: "first used", short: "first", value: daySaid(n.FirstUsed), changes: true, widest: widestDay},
+			yearFigure{label: "busiest day", short: "busiest", value: daySaid(n.BusiestDay), changes: true, widest: widestDay},
 		)
 	} else {
 		figures = append(figures,
@@ -389,8 +396,8 @@ func (y yearDrawn) figures() []yearFigure {
 			yearFigure{label: "worth", short: "worth", value: worthSaid(n.Worth, secondaryInk), changes: true},
 			yearFigure{label: "plans cost", short: "plans", value: costSaid(n.Cost)},
 			yearFigure{label: "against it", short: "against", value: againstSaid(n.Ratio), changes: true},
-			yearFigure{label: "busiest day", short: "busiest", value: daySaid(n.BusiestDay), changes: true, bounded: true},
-			yearFigure{label: "longest run", short: "run", value: runSaid(n.LongestRun), changes: true, bounded: true},
+			yearFigure{label: "busiest day", short: "busiest", value: daySaid(n.BusiestDay), changes: true, widest: widestDay},
+			yearFigure{label: "longest run", short: "run", value: runSaid(n.LongestRun), changes: true, widest: widestRun},
 		)
 	}
 	for i, figure := range figures {
@@ -616,21 +623,26 @@ func (y yearDrawn) byMonthSays() string {
 }
 
 // month draws a month's row along row: its name, bold for the month so far;
-// its columns, those a look can change numbered in the month so far; its
-// bar, against the largest month's worth; and, wide, two cells after it, so
-// far, or from the day the ledger began, or the version was first used.
+// its columns, those a look can change numbered in the month so far, each
+// cut a cell short of the next, or of the bars; its bar, against the largest
+// month's worth; and, wide, two cells after it, so far, or from the day the
+// ledger began, or the version was first used.
 func (y yearDrawn) month(c *canvas, row int, m views.MonthRow, withYear bool, columns []monthColumn, f byMonthForm, largest ledger.Picodollars) {
 	name := secondaryInk
 	if m.SoFar {
 		name = strongInk
 	}
 	c.text(f.nameX, row, monthName(m.Month.Month, withYear), name)
-	for _, col := range columns {
+	for i, col := range columns {
 		said := col.of(m)
 		if m.SoFar && col.changes {
 			said = y.numbered(m.Month.Month+" "+col.head, said)
 		}
-		c.line(col.x, row, said)
+		next := f.barX
+		if i+1 < len(columns) {
+			next = columns[i+1].x
+		}
+		c.line(col.x, row, said.fit(next-col.x-1))
 	}
 	end := c.line(f.barX, row, y.monthBar(m, largest, f.barCells))
 	if note := monthNote(m); note != "" && !f.phone {

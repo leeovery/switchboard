@@ -523,7 +523,8 @@ func TestTheYearsHeightIsTheRowsItDraws(t *testing.T) {
 	for _, tt := range tests {
 		f := yearFrame(t, tt.width, 37, tt.ask, tt.page)
 		drawn := growing(f.Width)
-		f.historyYear(drawn, 0)
+		y, _ := f.yearDrawn()
+		y.draw(drawn, 0)
 		if got := f.yearHeight(); got != drawn.height() || got != tt.want {
 			t.Errorf("%s: the Year's height is %d, and it draws %d rows; want %d", tt.name, got, drawn.height(), tt.want)
 		}
@@ -549,5 +550,19 @@ func TestAPhonesKeyWritesAThousandAsK(t *testing.T) {
 		if got := kilo(n); got != want {
 			t.Errorf("kilo(%d) = %q, want %q", n, got, want)
 		}
+	}
+}
+
+// Each of BY MONTH's columns is cut a cell short of the next, with an
+// ellipsis: on a phone, a month worth $1,234,567 leaves a gap before its
+// worth against what the plans cost.
+func TestByMonthsColumnsAreCutShortOfTheNext(t *testing.T) {
+	page := plainYear()
+	september := &page.ByMonth[len(page.ByMonth)-2]
+	september.Amount, september.Ratio = usd(1_234_567), new(0.4)
+	rows := textOf(historyDrawn(yearFrame(t, 52, 37, views.YearAsk{}, page)).rows(Look{}))
+	i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, " Sep") })
+	if want := " Sep        $1,234,5… 0.4×"; i < 0 || !strings.HasPrefix(rows[i], want) {
+		t.Errorf("September's row reads %q, want it to start %q", rows[max(i, 0)], want)
 	}
 }

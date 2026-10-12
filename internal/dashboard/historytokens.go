@@ -64,7 +64,7 @@ var (
 // ones where their heads fit, else a phone's.
 func (f Frame) tokensColumns() tokensColumns {
 	cols := wideTokens
-	if f.phoneForm(wideTokens.reach) {
+	if f.phoneForm(wideTokens.reach, f.Width) {
 		cols = phoneTokens
 	}
 	cols.width = f.Width

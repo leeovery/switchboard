@@ -74,7 +74,7 @@ func (p Past) weeksPage() WeeksPage {
 	j := judgingOf(placed, isWhole, in.Accounts, pl, in.WeekWindow)
 	page := WeeksPage{
 		Weeks:    weekDates(first, weeksShown),
-		Capacity: j.capacity(in.Accounts),
+		Capacity: j.capacity(),
 		Window:   in.WeekWindow,
 	}
 	byWeek := make(map[string]Week, len(placed))

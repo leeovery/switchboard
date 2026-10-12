@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"io/fs"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -247,9 +248,66 @@ func TestTheYearTakesTheDayTheLedgerBeganAsTheLedgerTellsIt(t *testing.T) {
 	}
 }
 
+// freshLedger reads as the ledger it holds, but tells that it begins on the
+// first day it holds requests on, failing as one that holds nothing does
+// till then.
+type freshLedger struct {
+	*daysLedger
+}
+
+func (l freshLedger) FirstDay(time.Time) (time.Time, error) {
+	if len(l.days) == 0 {
+		return time.Time{}, fs.ErrNotExist
+	}
+	start, _, _ := dayfile.Day(slices.Min(slices.Collect(maps.Keys(l.days))))
+	return start, nil
+}
+
+// History opened on an empty ledger, as on a fresh install, learns where the
+// ledger began from the read that first finds a request recorded: BY MONTH's
+// month says it's from that day, and the plans are priced from it, not over
+// the 12 months.
+func TestHistoryOpenedOnAnEmptyLedgerLearnsWhereItBeganOnceARequestLands(t *testing.T) {
+	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
+	today := dayfile.DateOf(start)
+	l.first = today
+	h.model.cfg.Ledger = freshLedger{l}
+	h.model.cfg.Accounts = config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "personal", Plan: "max5x"}}
+	h.start()
+	if h.model.past.page.Year == nil || !h.model.past.began.IsZero() {
+		t.Fatalf("History opened on an empty ledger, the Year drawn %v, the ledger begun %s; want it drawn, where it began unknown",
+			h.model.past.page.Year != nil, h.model.past.began)
+	}
+
+	l.days[today] = requested(today, 10)
+	now := h.tickUntilAsked()
+	page := h.model.past.page.Year
+	months := page.ByMonth
+	if i := slices.IndexFunc(months, func(m views.MonthRow) bool { return m.Month.Month == today[:7] }); i < 0 || months[i].From != today {
+		t.Errorf("BY MONTH is %+v, want %s from the %s", months, today[:7], today)
+	}
+	in := views.HistoryInput{
+		From: yearFrom, Now: now, Began: todayStart, Prices: ledger.Pricing, Accounts: h.model.cfg.Accounts,
+		WeekStarts: time.Monday, WeekWindow: "7d",
+	}
+	want := views.NewPast(in, []ledger.Summary{requested(today, 10)}).Year(views.YearAsk{}).Numbers
+	if got := page.Numbers; got.Cost == nil || want.Cost == nil || *got.Cost != *want.Cost || got.Ratio == nil || *got.Ratio != *want.Ratio {
+		t.Errorf("the plans cost %v, against it %v; want %v and %v, priced from today",
+			deref(got.Cost), deref(got.Ratio), deref(want.Cost), deref(want.Ratio))
+	}
+}
+
+// deref is what p points at, nil where it's nil.
+func deref[T any](p *T) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
 // A ledger that fails to say where it begins, but for holding nothing, has
-// it logged, the once; and the year read as it would be, the Year stepping
-// back to this calendar year alone.
+// it logged, the once, the looks after it not asking again; and the year
+// read as it would be, the Year stepping back to this calendar year alone.
 func TestALedgerThatFailsToSayWhereItBeginsIsLogged(t *testing.T) {
 	tests := []struct {
 		name   string

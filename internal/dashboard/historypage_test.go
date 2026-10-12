@@ -223,10 +223,6 @@ func TestMoreBelowSaysWhatsOutOfViewAndHowToScrollToIt(t *testing.T) {
 		want           line
 	}{
 		{
-			name: "Days' accounts, as history-days-ten-160 draws them", n: 4, noun: "account", toScroll: " or the wheel to scroll them",
-			want: line{{"▼", key}, {" 4 more accounts below", words}, {"   ·   ", apart}, {"j/k", keys}, {" or the wheel to scroll them", words}},
-		},
-		{
 			name: "Tokens' weeks, as history-tokens-160 draws them", n: 3, noun: "week", toScroll: " to scroll",
 			want: line{{"▼", key}, {" 3 more weeks below", words}, {"   ·   ", apart}, {"j/k", keys}, {" to scroll", words}},
 		},
@@ -238,6 +234,47 @@ func TestMoreBelowSaysWhatsOutOfViewAndHowToScrollToIt(t *testing.T) {
 	for _, tt := range tests {
 		if got := moreBelow(tt.n, tt.noun, tt.toScroll); !slices.Equal(got, tt.want) {
 			t.Errorf("%s: moreBelow(%d, %q, %q) = %+v, want %+v", tt.name, tt.n, tt.noun, tt.toScroll, got, tt.want)
+		}
+	}
+}
+
+// What's out of view of a view's accounts, above and below, is said in the
+// longest of its forms that fits the width given: the design's, as
+// history-days-ten-160 draws it, ▲ and ▼ in accent.key, the words muted, the
+// · between them faint, and j/k bold accent.key; spaced as USAGE's scroll
+// line is; without how to scroll; and as USAGE's rows say it; and where
+// none fits, the last, cut short.
+func TestWhatsOutOfViewOfTheAccountsIsSaidInTheLongestFormThatFits(t *testing.T) {
+	key, words, apart, keys := ink{token: theme.AccentKey}, ink{token: theme.TextMuted}, ink{token: theme.TextFaint}, ink{token: theme.AccentKey, bold: true}
+	tests := []struct {
+		above, below, width int
+		want                line
+	}{
+		{below: 4, width: 160, want: line{{"▼", key}, {" 4 more accounts below", words}, {"   ·   ", apart}, {"j/k", keys}, {" or the wheel to scroll them", words}}},
+		{above: 2, width: 160, want: line{{"▲", key}, {" 2 more accounts above", words}, {"   ·   ", apart}, {"j/k", keys}, {" or the wheel to scroll them", words}}},
+		{
+			above: 2, below: 4, width: 91,
+			want: line{
+				{"▲", key}, {" 2 more accounts above", words}, {"   ·   ", apart},
+				{"▼", key}, {" 4 more accounts below", words}, {"   ·   ", apart}, {"j/k", keys}, {" or the wheel to scroll them", words},
+			},
+		},
+		{below: 4, width: 60, want: line{{"▼", key}, {" 4 more accounts below", words}, {" · ", apart}, {"j/k", keys}, {" or wheel to scroll", words}}},
+		{
+			above: 2, below: 4, width: 90,
+			want: line{
+				{"▲", key}, {" 2 more accounts above", words}, {" · ", apart},
+				{"▼", key}, {" 4 more accounts below", words}, {" · ", apart}, {"j/k", keys}, {" or wheel to scroll", words},
+			},
+		},
+		{above: 2, below: 4, width: 51, want: line{{"▲", key}, {" 2 more accounts above", words}, {" · ", apart}, {"▼", key}, {" 4 more accounts below", words}}},
+		{above: 2, below: 4, width: 48, want: line{{"▲", key}, {" 2 more accounts", words}, {" · ", apart}, {"▼", key}, {" 4 more accounts", words}}},
+		{above: 2, below: 4, width: 20, want: line{{"▲", key}, {" 2 more accounts", words}, {" ·…", apart}}},
+	}
+	for _, tt := range tests {
+		got := accountsOutOfView(tt.above, tt.below, tt.width)
+		if !slices.Equal(got, tt.want) || got.width() > tt.width {
+			t.Errorf("%d above and %d below, in %d cells, the line reads %+v, want %+v", tt.above, tt.below, tt.width, got, tt.want)
 		}
 	}
 }

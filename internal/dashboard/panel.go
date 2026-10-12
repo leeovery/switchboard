@@ -215,8 +215,7 @@ func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string,
 // panelUse is how much of a window standing as s is used, a whole
 // percentage, bold, toned as usedInk tones it, below 70% in text.primary.
 func panelUse(s standing) span {
-	shown := status.WholePercent(s.used)
-	return span{strconv.Itoa(shown) + "%", usedInk(shown, ink{token: theme.TextPrimary, bold: true})}
+	return span{status.Percent(s.used), usedInk(s.used, ink{token: theme.TextPrimary, bold: true})}
 }
 
 // panelBottom draws the panel's bottom edge from x along row y, width cells

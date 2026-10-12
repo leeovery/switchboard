@@ -12,16 +12,24 @@ import (
 )
 
 // formCase is a sub-tab of History of a page: its frame of a terminal the
-// width given, the column its wide form ends before, what of it its phone
-// form and its wide form draw, each drawn as that form lays it out, and its
-// wide form drawn whole on the canvas given, where the Year's isn't cut at
-// the frame's width as History's own canvas for it is.
+// width given, the column its wide form ends before, and the cells after its
+// rows it keeps clear, Weeks' margin; what of it its phone form and its wide
+// form draw, each drawn as that form lays it out, and its wide form drawn
+// whole on the canvas given, where the Year's isn't cut at the frame's width
+// as History's own canvas for it is.
 type formCase struct {
 	name        string
 	frame       func(t *testing.T, width int) Frame
 	reach       func(f Frame) int
+	clear       int
 	phone, wide func(f Frame) *canvas
 	whole       func(c *canvas, f Frame)
+}
+
+// needs is the width the sub-tab's wide form takes: its reach, and the
+// cells after it it keeps clear.
+func (tt formCase) needs(t *testing.T) int {
+	return tt.reach(tt.frame(t, 160)) + tt.clear
 }
 
 // formCases are each sub-tab of the pages the frames draw.
@@ -71,7 +79,7 @@ func formCases() []formCase {
 			cases[i].reach, cases[i].phone, cases[i].wide = yearReach, yearForm(yearDrawn.phone, byMonthPhone), yearForm(yearDrawn.wide, byMonthWide)
 			cases[i].whole = func(c *canvas, f Frame) { yearOf(f, byMonthWide).wide(c, f.top()) }
 		case strings.HasPrefix(c.name, "weeks"):
-			cases[i].reach, cases[i].phone, cases[i].wide = weeksReach, weeksForm(true), weeksForm(false)
+			cases[i].reach, cases[i].phone, cases[i].wide, cases[i].clear = weeksReach, weeksForm(true), weeksForm(false), margin
 		case strings.HasPrefix(c.name, "days"):
 			cases[i].reach, cases[i].phone, cases[i].wide = daysReachOf, daysForm(true), daysForm(false)
 		default:
@@ -179,22 +187,23 @@ func drawsAsTheForm(f Frame, form *canvas) string {
 }
 
 // Each of History's sub-tabs draws its wide form, as the design lays it out
-// at 160 columns, where its widest row fits the frame's width, and its phone
-// form where it doesn't, as its wide form's parts are at fixed columns, and
-// would fall off the frame. Each fits at 160.
+// at 160 columns, where its widest row fits the frame's width, short of the
+// cells after its rows it keeps clear, and its phone form where it doesn't,
+// as its wide form's parts are at fixed columns, and would fall off the
+// frame. Each fits at 160.
 func TestEachSubTabDrawsItsWideFormWhereItsWidestRowFits(t *testing.T) {
 	for _, tt := range formCases() {
 		t.Run(tt.name, func(t *testing.T) {
-			reach := tt.reach(tt.frame(t, 160))
-			if reach > 160 {
-				t.Fatalf("its wide form ends before column %d, past 160 columns", reach)
+			needs := tt.needs(t)
+			if needs > 160 {
+				t.Fatalf("its wide form takes %d columns, past 160", needs)
 			}
-			for _, wide := range []Frame{tt.frame(t, 160), tt.frame(t, max(reach, phoneUnder))} {
+			for _, wide := range []Frame{tt.frame(t, 160), tt.frame(t, max(needs, phoneUnder))} {
 				if differs := drawsAsTheForm(wide, tt.wide(wide)); differs != "" {
 					t.Errorf("at %d columns, its wide form isn't drawn:\n%s", wide.Width, differs)
 				}
 			}
-			phone := tt.frame(t, reach-1)
+			phone := tt.frame(t, needs-1)
 			if differs := drawsAsTheForm(phone, tt.phone(phone)); differs != "" {
 				t.Errorf("at %d columns, its phone form isn't drawn:\n%s", phone.Width, differs)
 			}
@@ -203,28 +212,29 @@ func TestEachSubTabDrawsItsWideFormWhereItsWidestRowFits(t *testing.T) {
 }
 
 // The column each sub-tab's wide form is worked out to end before is where
-// its widest row, drawn, ends. Drawn whole in a frame that wide, or a
-// phone's width where that's wider, on a canvas wider than the frame, no
-// row runs past the frame, as one worked out short would; and in a frame
-// that wide, the widest row reaches its last column, as one worked out long
-// wouldn't. Rows cut at the width, or as Weeks' verdicts, at the edge, end
-// short of it or at it. Of Weeks as a table, whose widest row is shorter
-// than a phone's width, this holds only that none runs past the frame.
+// its widest row, drawn, ends. Drawn whole in a frame as wide as it needs,
+// or a phone's width where that's wider, on a canvas wider than the frame,
+// no row runs into the cells after its rows it keeps clear, or past the
+// frame, as one worked out short would; and in a frame as wide as it needs,
+// the widest row reaches its last column, as one worked out long wouldn't.
+// Rows cut at the width, or as Weeks' verdicts, at the edge, end short of it
+// or at it. Of Weeks as a table, whose widest row is shorter than a phone's
+// width, this holds only that none runs past its rows' end.
 func TestEachSubTabsWidestRowEndsWhereItsWorkedOutToEnd(t *testing.T) {
 	for _, tt := range formCases() {
 		t.Run(tt.name, func(t *testing.T) {
-			reach := tt.reach(tt.frame(t, 160))
-			f := tt.frame(t, max(reach, phoneUnder))
+			reach, needs := tt.reach(tt.frame(t, 160)), tt.needs(t)
+			f := tt.frame(t, max(needs, phoneUnder))
 			c := newCanvas(f.Width+40, f.Height)
 			tt.whole(c, f)
 			drawn := 0
 			for _, row := range textOf(c.rows(Look{})) {
 				drawn = max(drawn, ansi.StringWidth(row))
 			}
-			if drawn > f.Width {
-				t.Errorf("at %d columns, its widest row ends before column %d, past the frame", f.Width, drawn)
+			if drawn > f.Width-tt.clear {
+				t.Errorf("at %d columns, its widest row ends before column %d, past where its rows end", f.Width, drawn)
 			}
-			if f.Width == reach && drawn != reach {
+			if f.Width == needs && drawn != reach {
 				t.Errorf("its widest row ends before column %d, worked out as %d", drawn, reach)
 			}
 		})
@@ -305,5 +315,97 @@ func TestASubTabInItsPhoneFormScrollsWhatThatFormDraws(t *testing.T) {
 				t.Errorf("at %d columns, row %d reads %q, want it to start %q", f.Width, row+1, drawn[row], tt.reads)
 			}
 		})
+	}
+}
+
+// A sub-tab's form never hangs on its data: each row whose length is
+// bounded is reckoned at the widest its format draws, not at the width it's
+// drawn, so at the one width, the Year of a period with use and of one
+// without, and Days of accounts that hit one 5-hour limit each and of
+// accounts that hit more, each take the one form.
+func TestASubTabsFormNeverHangsOnItsData(t *testing.T) {
+	unused := plainYear()
+	unused.Numbers = views.YearNumbers{}
+	oneEach := daysWorld(workDays, personalDays, sideDays)
+	oneEach.ByAccount = slices.Clone(oneEach.ByAccount)
+	for i := range oneEach.ByAccount {
+		oneEach.ByAccount[i].Limits = 1
+	}
+	yearPhone := func(f Frame) bool {
+		y, _ := f.yearDrawn()
+		return y.form.phone
+	}
+	daysPhone := func(f Frame) bool { return f.layOutDays(*f.History.Days, f.top()).phone }
+	tests := []struct {
+		name   string
+		width  int
+		phone  func(f Frame) bool
+		frames map[string]Frame
+	}{
+		{
+			name: "the year", width: 145, phone: yearPhone,
+			frames: map[string]Frame{
+				"with use":    yearFrame(t, 145, 50, views.YearAsk{}, plainYear()),
+				"without use": yearFrame(t, 145, 50, views.YearAsk{}, unused),
+			},
+		},
+		{
+			name: "days", width: 153, phone: daysPhone,
+			frames: map[string]Frame{
+				"of limits hit many times": daysFrame(t, daysWorld(workDays, personalDays, sideDays), 153, 40),
+				"of a limit hit once each": daysFrame(t, oneEach, 153, 40),
+			},
+		},
+	}
+	for _, tt := range tests {
+		forms := map[bool][]string{}
+		for name, f := range tt.frames {
+			forms[tt.phone(f)] = append(forms[tt.phone(f)], name)
+		}
+		if len(forms) > 1 {
+			t.Errorf("at %d columns, %s draws its phone form %v, and its wide form %v; want the one form", tt.width, tt.name, forms[true], forms[false])
+		}
+	}
+}
+
+// Weeks ends its rows a margin short of the frame's width, so it takes its
+// wide form only where its widest row ends there: at the width where its
+// reach meets its edge, and a cell narrower, nothing of it is drawn in the
+// margin column.
+func TestWeeksDrawsNothingInTheMarginColumn(t *testing.T) {
+	for name, page := range map[string]func() views.WeeksPage{"three": threeWeeks, "ten": tenWeeks} {
+		reach := weeksReach(weeksFrame(page(), WeeksColumns, 160, 40, NoColour()))
+		for _, width := range []int{reach + margin, reach} {
+			f := weeksFrame(page(), WeeksColumns, width, 40, NoColour())
+			for y, row := range textOf(historyDrawn(f).rows(Look{})) {
+				if ansi.StringWidth(row) > f.edge() {
+					t.Errorf("weeks of %s at %d columns, row %d runs into the margin column:\n%q", name, width, y+1, row)
+				}
+			}
+		}
+	}
+}
+
+// On a phone, Weeks and Days scrolled to accounts above and below say what's
+// out of view in the longest form that fits, short of the margin, cut
+// nowhere.
+func TestAPhoneSaysWhatsOutOfViewInALineThatFits(t *testing.T) {
+	days := daysFrame(t, daysShared([4]float64{0.57, 0.39, 0.01, 0.03}, tenDays...), 52, 37)
+	tests := []struct {
+		name  string
+		frame Frame
+		want  string
+	}{
+		{name: "weeks", frame: weeksFrame(tenWeeks(), WeeksTable, 52, 30, NoColour()), want: "▲ 2 more accounts above · ▼ 1 more account below"},
+		{name: "days", frame: days, want: "▲ 2 more accounts above · ▼ 3 more accounts below"},
+	}
+	for _, tt := range tests {
+		f := tt.frame
+		f.Scroll = 2
+		rows := textOf(historyDrawn(f).rows(Look{}))
+		i := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "more account") })
+		if i < 0 || rows[i] != tt.want || ansi.StringWidth(rows[i]) > f.edge() {
+			t.Errorf("%s scrolled on a phone reads\n%s\nwant a row %q", tt.name, strings.Join(rows, "\n"), tt.want)
+		}
 	}
 }

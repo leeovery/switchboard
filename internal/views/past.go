@@ -43,6 +43,13 @@ func (p Past) Since(days []ledger.Summary, now time.Time) Past {
 	return p
 }
 
+// Begun is the Past, the ledger having begun at began, the start of its
+// first day, as LedgerStart tells it, once that's learned.
+func (p Past) Begun(began time.Time) Past {
+	p.in.Began = began
+	return p
+}
+
 // Year is the Year's page, as asked for.
 func (p Past) Year(ask YearAsk) YearPage {
 	return p.year(ask)

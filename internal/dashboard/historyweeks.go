@@ -76,7 +76,7 @@ func (f Frame) historyWeeks(c *canvas, top int) {
 // where that fits, else in its phone form.
 func (f Frame) weeksDrawn(p views.WeeksPage) weeksDrawn {
 	w := weeksDrawn{page: p, columns: f.History.WeeksShape == WeeksColumns, edge: f.edge()}
-	w.phone = f.phoneForm(w.reach)
+	w.phone = f.phoneForm(w.reach, w.edge)
 	w.columns = w.columns && !w.phone
 	return w
 }
@@ -84,7 +84,7 @@ func (f Frame) weeksDrawn(p views.WeeksPage) weeksDrawn {
 // reach is the column Weeks' wide form, in its shape, ends before, where its
 // widest row ends: its headline, its weeks or its legend. What's beside the
 // weeks is cut at the frame's edge, so it's left out; as is what's out of
-// view, which never runs as far as a phone's width.
+// view, which takes a form that fits there.
 func (w weeksDrawn) reach() int {
 	if !w.columns {
 		return max(w.legend().width(), w.headline().width(), peaksFrom+peaksApart*(len(w.page.Weeks)-1)+peakCells+1)
@@ -174,10 +174,11 @@ func (f Frame) weeksShown(w weeksDrawn) (shown []views.WeeksRow, above, below in
 }
 
 // accountsOut draws, on row y, how many more accounts there are above those
-// shown, and below, where there are any, as Days and USAGE say it.
-func (weeksDrawn) accountsOut(c *canvas, y, above, below int) {
+// shown, and below, where there are any, as Days says it, ending before the
+// edge.
+func (w weeksDrawn) accountsOut(c *canvas, y, above, below int) {
 	if above+below > 0 {
-		c.line(0, y, accountsOutOfView(above, below))
+		c.line(0, y, accountsOutOfView(above, below, w.edge))
 	}
 }
 
@@ -614,15 +615,14 @@ func (w weeksDrawn) peak(row views.WeeksRow, p views.WeekPeak) line {
 	if p.Share == nil {
 		return line{noFigure}
 	}
-	shown := status.WholePercent(*p.Share)
-	text := strconv.Itoa(shown) + "%"
+	text := status.Percent(*p.Share)
 	if p.Open {
 		return line{{text + "…", w.thisWeekInk()}}.numbered(w.number(row))
 	}
-	if shown >= 100 {
+	if status.WholePercent(*p.Share) >= 100 {
 		return line{{text, exhaustedInk}}
 	}
-	return line{{text, usedInk(shown, ink{token: theme.VizRamp1})}}
+	return line{{text, usedInk(*p.Share, ink{token: theme.VizRamp1})}}
 }
 
 // number is the number this week's peak of the row's account is, or of

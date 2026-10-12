@@ -7,6 +7,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -21,6 +24,15 @@ const (
 	monthLayout = "2006-01"
 	weekLayout  = "2 Jan"
 	dayLayout   = "Mon 2 Jan"
+)
+
+// The cells the widest of a bounded figure takes, as its format draws it: a
+// day, as dayLayout writes one of two figures; a run of a year's days, a leap
+// year's whole; and a share, all of it.
+var (
+	widestDay   = ansi.StringWidth(time.Date(2026, time.September, 22, 0, 0, 0, 0, time.UTC).Format(dayLayout))
+	widestRun   = ansi.StringWidth(prose.Counted(366, "day"))
+	widestShare = ansi.StringWidth(status.Percent(1))
 )
 
 // civilDay is the day with the given date, reporting false for one that
