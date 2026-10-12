@@ -65,15 +65,11 @@ func windowsOf(doc status.Document, now time.Time, policy score.Policy) (shown, 
 // inUse reports whether doc's account a has used its window w this period
 // at now, as policy judges it, or is heading to: some of it is used, as it
 // stands then, as WindowAt has it, so none once it has lapsed or reset since
-// it was read; or, where it hasn't, its projection, as doc's Project says,
-// has some used by its reset.
+// it was read; or its projection, as doc's Project says, has some used by its
+// reset, which none has once it has reset since.
 func inUse(doc status.Document, a status.Account, w quota.Window, now time.Time, policy score.Policy) bool {
-	stands, _ := a.WindowAt(w.Key, now, policy)
-	switch {
-	case stands.Utilization > 0:
+	if stands, _ := a.WindowAt(w.Key, now, policy); stands.Utilization > 0 {
 		return true
-	case resetSince(w, stands.ResetsAt):
-		return false
 	}
 	switch p := doc.Project(a, w, now).Projection; p.Kind {
 	case score.RunsOut, score.Exhausted:
@@ -83,14 +79,6 @@ func inUse(doc status.Document, a status.Account, w quota.Window, now time.Time,
 	default:
 		return false
 	}
-}
-
-// resetSince reports whether the window read has reset since it was read,
-// next being its next reset as it stands at a moment, as WindowAt has it:
-// next isn't the reset it was read with, as it's none once the window has
-// lapsed, and a length on once that reset has passed.
-func resetSince(read quota.Window, next time.Time) bool {
-	return !next.Equal(read.ResetsAt)
 }
 
 // hiddenNote says which windows hide, as in "Fable wk hidden: unused on

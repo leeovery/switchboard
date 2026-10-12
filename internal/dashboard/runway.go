@@ -513,10 +513,10 @@ func (f Frame) laneWords(c *canvas, doc status.Document, ln lane, l runwayLayout
 }
 
 // placedTold places what's told of the stretch s, as stretch.told has it, on
-// the timeline: its first cause's words from the column the stretch shows
-// from, and each other's from the column it shows from, none before the
-// first's; a cause that shows in none, as one starting after the timeline,
-// left untold.
+// the timeline: the first cause said from the column the stretch shows from,
+// and each other from the column it shows from, none before the first's. A
+// cause over at now, as over says, isn't said, so neither is a stretch over;
+// nor is one that shows in no column, as one starting after the timeline.
 func placedTold(s stretch, tl timeline, now time.Time) []placed {
 	first, ok := s.column(tl)
 	if !ok {
@@ -524,9 +524,13 @@ func placedTold(s stretch, tl timeline, now time.Time) []placed {
 	}
 	var told []placed
 	for i, says := range s.told(now) {
+		c := s.causes[i]
+		if c.over(now) {
+			continue
+		}
 		col := first
-		if i > 0 {
-			if col, ok = s.causes[i].column(tl); !ok {
+		if len(told) > 0 {
+			if col, ok = c.column(tl); !ok {
 				continue
 			}
 			col = max(col, first)

@@ -74,6 +74,20 @@ func routerDoc(best string, sessions int, accounts ...status.Account) status.Doc
 	}.WorkedOut(claudeLike)
 }
 
+// builtAt is the healthy router's document of the accounts as it built it
+// at the moment given, each as it stood then, as AsOf has it, with what's
+// worked out of it.
+func builtAt(at time.Time, accounts ...status.Account) status.Document {
+	built := make([]status.Account, len(accounts))
+	for i, a := range accounts {
+		built[i] = a.AsOf(claudeLike, at.UTC())
+	}
+	return status.Document{
+		GeneratedAt: at.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true},
+		Accounts: built,
+	}.WorkedOut(claudeLike)
+}
+
 // probed is a document of the accounts built by probing, the router not
 // running, with what's worked out of it, as the dashboard is given it.
 func probed(accounts ...status.Account) status.Document {

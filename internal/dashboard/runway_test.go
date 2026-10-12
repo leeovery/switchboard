@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -350,15 +351,47 @@ func TestAWeekResetSinceItWasReadResetsNextAWeekOn(t *testing.T) {
 	}
 }
 
+// A window the router found at its reserve, reset since, before it's read
+// again: its lane's past columns are history, drawn by the account's state
+// then, so it had no room until that reset; and the stretch, over, isn't
+// said.
+func TestAStretchAtItsReserveOverSinceItWasReadIsDrawnButNotSaid(t *testing.T) {
+	built := now.Add(-time.Hour)
+	for _, tt := range []struct {
+		name string
+		span Span
+		work status.Account
+		want string
+	}{
+		{"its 5-hour window, over the day", Day, readAccount("work", sessionOf(0.95, -30*time.Minute), weekOf(0.3, 4*day)), "room all day"},
+		{"its week, over the week", Week, readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.95, -30*time.Minute)), "room all week  ·  resets Mon 12:42"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			work := reserving(tt.work, 0.1)
+			work.FetchedAt = built.UTC()
+			doc := builtAt(built, work)
+			f := runwayFrame(t, tt.span, 160, 26)
+			rows, l := drawnRunway(f, doc)
+
+			tl := l.timeline
+			col := tl.column(now.Add(-45 * time.Minute))
+			if got := f.laneOf(doc, doc.Accounts[0], now).cells(tl)[col]; got != roomNone {
+				t.Errorf("at column %d, before the reset, work's lane stands %v, want no room, at its reserve", col, got)
+			}
+			if got := strings.TrimSpace(rows[l.top+1]); got != tt.want {
+				t.Errorf("work's words read %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // A week at its reserve when the document was built, reset since, before
-// it's read again, is no longer at it: its lane has no stretch ending at the
-// reset now past, and its words say what its state does, room.
-func TestAWeekAtItsReserveResetSinceItWasReadHasRoom(t *testing.T) {
+// it's read again: its words carry no "back" at that reset, now past, but
+// say what its state does, room.
+func TestAWeekAtItsReserveResetSinceItWasReadSaysItHasRoom(t *testing.T) {
 	work := reserving(readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.95, -2*time.Hour)), 0.1)
 	work.FetchedAt = now.Add(-3 * time.Hour).UTC()
-	work.AtReserve = []string{"7d"}
-	doc := routerDoc("", 1, work)
-	doc.GeneratedAt = work.FetchedAt
+	doc := builtAt(now.Add(-3*time.Hour), work)
 
 	for _, tt := range []struct {
 		name string
@@ -369,17 +402,46 @@ func TestAWeekAtItsReserveResetSinceItWasReadHasRoom(t *testing.T) {
 		{"week", Week, "room all week  ·  resets Mon 11:12"},
 	} {
 		f := runwayFrame(t, tt.span, 160, 26)
-		ln := f.laneOf(doc, work, now)
-		if len(ln.stretches) != 0 {
-			t.Errorf("over the %s, work's lane has stretches %v, want none", tt.name, ln.stretches)
-		}
-		if got := ln.states.Of("7d").Kind; got != status.WindowOpen {
+		if got := f.laneOf(doc, doc.Accounts[0], now).states.Of("7d").Kind; got != status.WindowOpen {
 			t.Errorf("over the %s, work's week stands as kind %d, want WindowOpen", tt.name, got)
 		}
 		rows, l := drawnRunway(f, doc)
 		if got := strings.TrimSpace(rows[l.top+1]); got != tt.want {
 			t.Errorf("over the %s, work's words read %q, want %q", tt.name, got, tt.want)
 		}
+	}
+}
+
+// What's said under a lane is of now and after: a stretch over isn't said,
+// nor a cause over within a stretch under way, whose words start where the
+// stretch does.
+func TestWhatsOverIsntSaid(t *testing.T) {
+	at := func(minutes int) time.Time { return now.Add(time.Duration(minutes) * time.Minute) }
+	reserve := cause{until: at(-30), says: "week at its reserve", resets: at(-30)}
+	limit := cause{from: at(-50), until: at(60), says: "limit reached 12:22"}
+	tests := []struct {
+		name   string
+		causes []cause
+		want   []string
+	}{
+		{name: "a stretch over", causes: []cause{reserve}},
+		{name: "a stretch ending at now", causes: []cause{{until: now, says: "at its reserve", resets: now}}},
+		{name: "a cause over within a stretch under way", causes: []cause{reserve, limit}, want: []string{"0 limit reached 12:22  ·  back 14:12"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stretches := merged(tt.causes)
+			if len(stretches) != 1 {
+				t.Fatalf("the causes run together into %d stretches, want 1", len(stretches))
+			}
+			var got []string
+			for _, p := range placedTold(stretches[0], timelineOf(Day, now, 136), now) {
+				got = append(got, fmt.Sprintf("%d %s", p.col, p.words.plain()))
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("under the lane, said %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
