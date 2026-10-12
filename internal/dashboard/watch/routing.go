@@ -183,22 +183,23 @@ func toggled(picked []string, id string, rows []dashboard.RoutingRow) []string {
 // it names without a token and all, it sends nothing, and closes the card.
 func (m Model) apply() (Model, tea.Cmd) {
 	picked, move := m.picks(), m.routing.move
-	if !alters(picked, m.standing(), move) {
+	sent := m.sendable(picked)
+	if !alters(picked, m.standing(), sent, move) {
 		return m.uncover()
 	}
-	if sent := m.sendable(picked); len(sent) > 0 {
+	if len(sent) > 0 {
 		return m.command(order{accounts: sent, move: move})
 	}
 	return m.command(order{})
 }
 
-// alters reports whether applying the accounts picked, with m ticked as
-// move says, changes anything of the pin standing now, which names those
-// named: they're not those, or m is ticked with accounts picked, to move the
-// sessions running elsewhere to them. Auto moves none, so with none picked,
-// m alone changes nothing.
-func alters(picked, named []string, move bool) bool {
-	return !slices.Equal(picked, named) || move && len(picked) > 0
+// alters reports whether applying the accounts picked, of which those sent
+// can be sent, with m ticked as move says, changes anything of the pin
+// standing now, which names those named: they're not those, or m is ticked
+// with accounts to send, to move the sessions running elsewhere to them.
+// With none to send, the order moves none, so m alone changes nothing.
+func alters(picked, named, sent []string, move bool) bool {
+	return !slices.Equal(picked, named) || move && len(sent) > 0
 }
 
 // routingRows are the routing card's rows, read afresh from the document on
@@ -213,8 +214,9 @@ func (m Model) routingRows(now time.Time) []dashboard.RoutingRow {
 func (m Model) routingCard(now time.Time) dashboard.RoutingCard {
 	r := m.routing
 	rows := m.routingRows(now)
-	picked, moving := m.picks(), m.moving()
+	picked := m.picks()
 	sent := m.sendable(picked)
+	moving := m.moving(sent)
 	card := dashboard.RoutingCard{
 		Rows: rows, Picked: picked, Unsent: slices.DeleteFunc(slices.Clone(picked), func(id string) bool { return slices.Contains(sent, id) }),
 		Cursor: min(r.cursor, len(rows)-1), Move: r.move, Moving: moving.Sessions, Cost: moving.Cost,
@@ -226,13 +228,13 @@ func (m Model) routingCard(now time.Time) dashboard.RoutingCard {
 }
 
 // moving is what the order enter sends moves, of the sessions listed,
-// priced as views listed them last: the picks it can be sent with, as
-// sendable says; nothing while m is clear.
-func (m Model) moving() views.Moving {
+// priced as views listed them last: to the picks sent, those it can be sent
+// with, as sendable says; nothing while m is clear.
+func (m Model) moving(sent []string) views.Moving {
 	if !m.routing.move {
 		return views.Moving{}
 	}
-	return views.MovingTo(m.sendable(m.picks()), m.sessions, m.routing.priced.listed)
+	return views.MovingTo(sent, m.sessions, m.routing.priced.listed)
 }
 
 // costing has views list the sessions the router lists, pricing their
@@ -243,7 +245,7 @@ func (m Model) moving() views.Moving {
 // once it lands, where they've changed since.
 func (m Model) costing() (Model, tea.Cmd) {
 	p := m.routing.priced
-	if m.open != routingOpen || p.listing || m.moving().Sessions == 0 || samePlaces(m.sessions, p.of) {
+	if m.open != routingOpen || p.listing || m.moving(m.sendable(m.picks())).Sessions == 0 || samePlaces(m.sessions, p.of) {
 		return m, nil
 	}
 	m.routing.priced.listing = true
