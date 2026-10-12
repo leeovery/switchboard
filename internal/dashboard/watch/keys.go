@@ -46,18 +46,41 @@ type keyListing struct {
 	works, helpful bool
 }
 
+// pageKeys is what lists the page's keys, as it stands, but for whether its
+// view scrolls, which follows the size it's drawn at: w, as wKey has it;
+// whether the Overview's cards are shown; p, and whether it's listed, as
+// pinKey has it; and whether the dashboard is drawn in colour.
+type pageKeys struct {
+	w        keyListing
+	cards    bool
+	pin      dashboard.Key
+	pinned   bool
+	coloured bool
+}
+
+// keysAt is what lists the page's keys as m stands at now.
+func (m Model) keysAt(now time.Time) pageKeys {
+	pin, pinned := m.pinKey()
+	return pageKeys{w: m.wKey(now), cards: m.view == dashboard.Overview, pin: pin, pinned: pinned, coloured: m.coloured()}
+}
+
 // listings are the page's own keys, as m stands at now, its page drawn as f,
-// in the design's order: w, as wKey says; on the Overview, the arrows and
-// space, s, and g; and j and k, PgUp and PgDn, and the wheel, where the view
-// scrolls, which the key line leaves to help, as it does s.
+// as pageKeys' listings has them.
 func (m Model) listings(f dashboard.Frame, now time.Time) []keyListing {
-	cards, scrolls := m.view == dashboard.Overview, f.Scrolling(m.doc, now).Most > 0
+	return m.keysAt(now).listings(f.Scrolling(m.doc, now).Most > 0)
+}
+
+// listings are the page's own keys, where its view scrolls or not, in the
+// design's order: w; on the Overview, the arrows and space, s, and g; and j
+// and k, PgUp and PgDn, and the wheel, where the view scrolls, which the key
+// line leaves to help, as it does s.
+func (p pageKeys) listings(scrolls bool) []keyListing {
 	return []keyListing{
-		m.wKey(now),
-		{key: "←→", word: "focus", works: cards},
-		{key: "space", word: "flip", works: cards},
-		{key: "s", word: "flip all", works: cards, helpful: true},
-		{key: "g", word: "chart", works: cards},
+		p.w,
+		{key: "←→", word: "focus", works: p.cards},
+		{key: "space", word: "flip", works: p.cards},
+		{key: "s", word: "flip all", works: p.cards, helpful: true},
+		{key: "g", word: "chart", works: p.cards},
 		{key: "j k", word: "scroll", works: scrolls, helpful: true},
 		{key: "PgUp PgDn", word: "page", works: scrolls, helpful: true},
 		{key: "wheel", word: "scroll", works: scrolls, helpful: true},
@@ -107,21 +130,21 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	return l
 }
 
-// helpKeys are the keys help lists, as m stands at now, its page drawn as f,
+// helpKeys are the keys help lists, where the page's view scrolls or not,
 // worded as the key line words them: tab; every key of the page's own that
 // works, those the key line leaves to help among them; p, where a pin can be
 // set; t, in colour; and R, ? and q.
-func (m Model) helpKeys(f dashboard.Frame, now time.Time) []dashboard.Key {
+func (p pageKeys) helpKeys(scrolls bool) []dashboard.Key {
 	keys := []dashboard.Key{{Key: "tab", Does: "views"}}
-	for _, k := range m.listings(f, now) {
+	for _, k := range p.listings(scrolls) {
 		if k.works {
 			keys = append(keys, dashboard.Key{Key: k.key, Does: k.word})
 		}
 	}
-	if pin, ok := m.pinKey(); ok {
-		keys = append(keys, pin)
+	if p.pinned {
+		keys = append(keys, p.pin)
 	}
-	if m.coloured() {
+	if p.coloured {
 		keys = append(keys, dashboard.Key{Key: "t", Does: "themes"})
 	}
 	return append(keys, dashboard.Key{Key: "R", Does: "refresh"}, dashboard.Key{Key: "?", Does: "help"}, dashboard.Quit)

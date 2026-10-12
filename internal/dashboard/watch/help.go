@@ -8,12 +8,11 @@ import (
 
 // helping is help while it's open over the page: the keys it lists, those of
 // the page as it stood when help opened, at the size it's drawn at now; how
-// many rows it's scrolled down by; and of, which lists the keys of that page
-// drawn as the frame given.
+// many rows it's scrolled down by; and over, what lists the keys of that page.
 type helping struct {
 	keys   []dashboard.Key
 	scroll int
-	of     func(f dashboard.Frame) []dashboard.Key
+	over   pageKeys
 }
 
 // openHelp opens the page's help over it, as ? does, from its top, listing
@@ -21,8 +20,7 @@ type helping struct {
 // it's open moves nothing in it.
 func (m Model) openHelp() Model {
 	m = m.cover(helpOpen)
-	still, at := m, m.page.at
-	m.help = helping{of: func(f dashboard.Frame) []dashboard.Key { return still.helpKeys(f, at) }}
+	m.help = helping{over: m.keysAt(m.page.at)}
 	return m.relistHelp()
 }
 
@@ -31,7 +29,7 @@ func (m Model) openHelp() Model {
 func (m Model) relistHelp() Model {
 	f := m.page.frame
 	f.Width, f.Height = m.size.Width, m.size.Height
-	m.help.keys = m.help.of(f)
+	m.help.keys = m.help.over.helpKeys(f.Scrolling(m.page.doc, m.page.at).Most > 0)
 	return m
 }
 
