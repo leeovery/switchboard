@@ -384,6 +384,10 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.history = m.history.answered(msg)
 		m.trails = m.history.drawn(m.doc)
 		return m, nil
+	case filedMsg:
+		m.history = m.history.filedAs(msg)
+		m.trails = m.history.drawn(m.doc)
+		return m, nil
 	case orderedMsg:
 		return m.ordered(msg)
 	case costedMsg:
@@ -639,7 +643,8 @@ func logRead(msg fetchedMsg, next time.Time) {
 // own, as nothing is to be told twice; follows the router as it goes and
 // comes back; notes the events new to it, and the readings it gives; asks
 // the router for its history with a full read, and as the router answers
-// again, or another router does, as one restarted; keeps the focus where its
+// again, or another router does, as one restarted, or probing, reads the
+// readings history's files with a full read; keeps the focus where its
 // account still is, else puts it on the first; and eases the bars to it from
 // where they stand.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
@@ -669,8 +674,11 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	}
 	m = m.stillThere()
 	m.trails = m.history.drawn(doc)
-	if ask {
+	switch {
+	case ask:
 		m, asked = m.askHistory(doc)
+	case !routed(doc) && full(msg.read):
+		m, asked = m.readFiled(doc, now)
 	}
 	return m, tea.Batch(post, asked)
 }

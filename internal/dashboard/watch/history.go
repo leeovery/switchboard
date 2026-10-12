@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // The steps GET /history is asked for, as the charts draw them: the 5-hour
@@ -34,15 +35,19 @@ const mostSeen = 1000
 
 // history is how the accounts' windows have been used, as the watch keeps it
 // for the charts: each window's as the router gave it at the last full read,
-// and the readings the watch has seen itself, which carry the router's on
-// since, or, without the router, stand in for it.
+// or without the router, as the readings history's files held it at the
+// last; and the readings the watch has seen itself, which carry those on
+// since.
 type history struct {
-	// asked counts the times the router has been asked: an answer to one a
-	// later asking overtook is dropped.
+	// asked counts the times the router, or the readings history's files,
+	// have been asked: an answer to one a later asking overtook is dropped.
 	asked int
 	// router is each window's history, by its key, as the router last gave
 	// it.
 	router map[string]router.History
+	// filed are the readings of each account's windows the readings
+	// history's files held when last read, the oldest first.
+	filed map[dashboard.Ref][]score.Reading
 	// outdated is set while the router is from before GET /history.
 	outdated bool
 	// seen are the readings of each account's windows the watch has seen
@@ -56,6 +61,13 @@ type historyMsg struct {
 	asked int
 	got   map[string]router.History
 	err   error
+}
+
+// filedMsg is what reading the readings history's files found: each
+// account's windows' readings, the oldest first.
+type filedMsg struct {
+	asked int
+	got   map[dashboard.Ref][]score.Reading
 }
 
 // stepFor is the step the history of the window with the given key is asked
@@ -116,6 +128,48 @@ func histories(ctx context.Context, source Source, doc status.Document, asked in
 		msg.got[key] = got
 	}
 	return msg
+}
+
+// readFiled reads the readings history's files for the readings of doc's
+// windows as they run at now, as the next asking, where there's no router to
+// ask.
+func (m Model) readFiled(doc status.Document, now time.Time) (Model, tea.Cmd) {
+	m.history.asked++
+	asked, files := m.history.asked, m.cfg.Readings
+	return m, func() tea.Msg {
+		return filedMsg{asked: asked, got: filedOf(files, doc, now)}
+	}
+}
+
+// filedOf are the readings the readings history's files hold of doc's
+// windows, by account and window, read as the history verb reads them, from
+// the day the earliest of those running at now started.
+func filedOf(files views.Readings, doc status.Document, now time.Time) map[dashboard.Ref][]score.Reading {
+	from := now
+	for _, a := range doc.Accounts {
+		for _, w := range a.Windows {
+			if start, _, ok := w.Span(); ok && !a.HasLapsed(w) {
+				from = score.Earlier(from, start)
+			}
+		}
+	}
+	got := make(map[dashboard.Ref][]score.Reading)
+	for _, w := range views.NewWindows(files, nil, from, now).Windows {
+		ref := dashboard.Ref{Account: w.Account, Window: w.Window}
+		for _, r := range w.Readings {
+			got[ref] = append(got[ref], score.Reading{At: r.At, Utilization: r.Utilization})
+		}
+	}
+	return got
+}
+
+// filedAs takes in what reading the readings history's files found, unless a
+// later asking overtook it.
+func (h history) filedAs(msg filedMsg) history {
+	if msg.asked == h.asked {
+		h.filed = msg.got
+	}
+	return h
 }
 
 // answered takes in what asking the router found, unless a later asking
@@ -182,9 +236,10 @@ func record(readings []score.Reading, r score.Reading) []score.Reading {
 }
 
 // drawn is the history the charts draw of doc's windows, each running now,
-// its readings in order: those the router gave, from when it started, then
-// those the watch has seen after the router's last; or those the watch has
-// seen alone, where the router gave none.
+// its readings in order: those the router gave, from when it started, or
+// where it gave none, those the readings history's files held; then those
+// the watch has seen after the last of them; or those the watch has seen
+// alone, where neither holds any.
 func (h history) drawn(doc status.Document) dashboard.Trails {
 	drawn := make(dashboard.Trails)
 	for _, a := range doc.Accounts {
@@ -195,6 +250,9 @@ func (h history) drawn(doc status.Document) dashboard.Trails {
 			}
 			ref := dashboard.Ref{Account: a.ID, Window: w.Key}
 			readings, seen := h.routers(ref, start), since(h.seen[ref], start)
+			if len(readings) == 0 {
+				readings = slices.Clone(since(h.filed[ref], start))
+			}
 			if n := len(readings); n > 0 {
 				seen = beyond(seen, readings[n-1].At)
 			}
