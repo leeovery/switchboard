@@ -47,9 +47,14 @@ func (p piece) target() Target {
 	return t
 }
 
-// heading is the heading row of the tab shown: its name alone, as the views
-// milestone 5 built and the tabs not built yet have it.
+// heading is the heading row of the tab shown: History's, as its page has
+// it; else its name alone, as the views milestone 5 built and the tabs not
+// built yet have it.
 func (f Frame) heading() heading {
+	switch f.View {
+	case History:
+		return f.History.heading()
+	}
 	return heading{name: strings.ToUpper(f.View.Title())}
 }
 

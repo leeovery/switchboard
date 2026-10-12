@@ -26,6 +26,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -59,8 +60,10 @@ type Fixture struct {
 	// colourless draws it without colour, as NO_COLOR asks.
 	colourless bool
 	// records are what its world's readers serve the watch: nil serves
-	// none.
-	records *records
+	// none. accounts are its world's, as configured, whose plans History
+	// prices against: none where it has no records to price.
+	records  *records
+	accounts config.Accounts
 }
 
 // InTheme is the fixture drawn in t, as the one theme chosen.
@@ -295,7 +298,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys),
-		theme: framesTheme(), records: w.records(),
+		theme: framesTheme(), records: w.records(), accounts: w.accounts,
 	}
 }
 

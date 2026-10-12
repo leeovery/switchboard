@@ -271,7 +271,7 @@ func TestATerminalOfAFewRowsDrawsWhatFits(t *testing.T) {
 }
 
 func TestATabNotBuiltDrawsItsHeadingRowAloneAndExplainsNoGlyphs(t *testing.T) {
-	for _, v := range []View{Accounts, History, Log, "a-later-view"} {
+	for _, v := range []View{Accounts, Log, "a-later-view"} {
 		f := frameOf(160, 40)
 		f.View = v
 		rows := f.Draw(threeRouted(), now)

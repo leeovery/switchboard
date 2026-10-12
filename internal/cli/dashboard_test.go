@@ -190,6 +190,35 @@ func TestDashboardReadsTheLedgerTheReadingsAndTheEventsInTheStateDirectory(t *te
 	}
 }
 
+// History is given what the history command builds its blocks of: the
+// configured accounts, whose plans its worth is priced against, the day the
+// config starts its weeks on, Claude's week, and Claude's families.
+func TestDashboardGivesHistoryTheAccountsTheWeeksAndTheFamilies(t *testing.T) {
+	path := writeConfig(t, "week_starts = \"sunday\"\n\n[[account]]\nid = \"work\"\nplan = \"max20x\"\n\n[[account]]\nid = \"side\"\n")
+	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())
+	cfg := recordWatch(t, &deps)
+
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	var accounts []string
+	for _, a := range cfg.Accounts {
+		accounts = append(accounts, a.ID+":"+a.Plan)
+	}
+	if want := []string{"work:max20x", "side:"}; !slices.Equal(accounts, want) {
+		t.Errorf("the dashboard is given the accounts %q, want the config's, %q", accounts, want)
+	}
+	if cfg.WeekStarts != time.Sunday || cfg.WeekWindow != "7d" {
+		t.Errorf("the dashboard's weeks start on %s, its accounts' the window %q; want Sunday, as the config says, and Claude's week, 7d", cfg.WeekStarts, cfg.WeekWindow)
+	}
+	if cfg.Family == nil {
+		t.Fatal("the dashboard reads no model's family, want Claude's")
+	}
+	if got := cfg.Family("claude-opus-5-5"); got != "opus" {
+		t.Errorf("the dashboard reads claude-opus-5-5's family as %q, want opus", got)
+	}
+}
+
 func TestDashboardReadsNothingWithoutAStateDirectory(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -59,6 +59,27 @@ const (
 	VizSeries4
 	VizSeries5
 	VizSeries6
+	// VizFamily1 to VizFamily4 are the model families' hues, in the version
+	// table's order: Opus, Sonnet, Fable, Haiku.
+	VizFamily1
+	VizFamily2
+	VizFamily3
+	VizFamily4
+	// VizVersion1 to VizVersion6 are the model versions' shades, as the
+	// version table assigns them, a family's newest first.
+	VizVersion1
+	VizVersion2
+	VizVersion3
+	VizVersion4
+	VizVersion5
+	VizVersion6
+	// VizDay0 to VizDay4 are a day's shades by how busy it was: VizDay0 a day
+	// with nothing on it, then the active days' quarters, the busiest last.
+	VizDay0
+	VizDay1
+	VizDay2
+	VizDay3
+	VizDay4
 	tokens
 )
 
@@ -104,6 +125,21 @@ var names = [tokens]string{
 	VizSeries4:       "viz.series.4",
 	VizSeries5:       "viz.series.5",
 	VizSeries6:       "viz.series.6",
+	VizFamily1:       "viz.family.1",
+	VizFamily2:       "viz.family.2",
+	VizFamily3:       "viz.family.3",
+	VizFamily4:       "viz.family.4",
+	VizVersion1:      "viz.version.1",
+	VizVersion2:      "viz.version.2",
+	VizVersion3:      "viz.version.3",
+	VizVersion4:      "viz.version.4",
+	VizVersion5:      "viz.version.5",
+	VizVersion6:      "viz.version.6",
+	VizDay0:          "viz.day.0",
+	VizDay1:          "viz.day.1",
+	VizDay2:          "viz.day.2",
+	VizDay3:          "viz.day.3",
+	VizDay4:          "viz.day.4",
 }
 
 // String is the token's key in a .theme file, such as text.primary.
@@ -204,6 +240,16 @@ func (t *Theme) derive() {
 	or(VizReserve, c[AccentAttention])
 	for i, from := range []Token{AccentKey, StatePositive, AccentPrimary, AccentMode, TextSecondary, AccentAttention} {
 		or(VizSeries1+Token(i), c[from])
+	}
+	for i, from := range []Token{AccentKey, AccentMode, AccentPrimary, TextTertiary} {
+		or(VizFamily1+Token(i), c[from])
+	}
+	for i, family := range []Token{VizFamily1, VizFamily1, VizFamily2, VizFamily2, VizFamily3, VizFamily4} {
+		or(VizVersion1+Token(i), c[family])
+	}
+	or(VizDay0, c[BgSubtle])
+	for tok := VizDay1; tok <= VizDay4; tok++ {
+		or(tok, c[AccentKey])
 	}
 }
 

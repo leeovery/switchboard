@@ -26,6 +26,10 @@ const interval = 30 * time.Minute
 // frames, which pin it, where the live page scales as its rule says.
 const framesTraceScale = 16
 
+// framesWeekStarts is the day the frames' calendar weeks start on, as their
+// worlds' config sets it.
+const framesWeekStarts = time.Monday
+
 // Frame draws the fixture as a terminal of the given size shows it: a line
 // for each of its rows, styled as the dashboard draws them, each ending in a
 // newline. A printout is drawn as usage prints it instead.
@@ -81,6 +85,10 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		Interval:   interval,
 		Policy:     claude.Policy,
 		WindowName: claude.WindowName,
+		Accounts:   f.accounts,
+		WeekStarts: framesWeekStarts,
+		WeekWindow: claude.WeekWindow,
+		Family:     claude.Provider{}.Family,
 		Size:       size,
 		View:       f.view,
 		Prices:     drawnPrices,

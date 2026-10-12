@@ -125,6 +125,15 @@ type Config struct {
 	// as "5-hour" or "Fable week": nil names it by its label in the
 	// document.
 	WindowName func(key string) string
+	// Accounts are the configured accounts, whose plans History prices its
+	// worth against, and WeekStarts the day its calendar weeks start on.
+	Accounts   config.Accounts
+	WeekStarts time.Weekday
+	// WeekWindow is the key of the window a week long every model shares,
+	// the accounts' own weeks, which History's Weeks counts; and Family reads
+	// a model's family from its id, for one the version table doesn't name.
+	WeekWindow string
+	Family     func(model string) string
 	// Size is what to draw at until the terminal gives its size, and in place
 	// of a width or height it gives as zero, which means it doesn't know.
 	Size Size
@@ -276,6 +285,8 @@ type Model struct {
 	// the first, in the config's order, till ↑ and ↓ move it, and "" while
 	// the document has none.
 	focus string
+	// past is what the watch holds of History.
+	past historyTab
 
 	// open is the card open over the page, if any: the routing card, its
 	// picker as routing holds it, or help, scrolled as help holds it. page is
@@ -667,6 +678,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
+		History:    m.past.page,
 	}
 }
 

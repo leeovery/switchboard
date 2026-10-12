@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"slices"
 	"testing"
 	"time"
 )
@@ -13,6 +14,32 @@ func TestAFixturePinsTheTracesScaleAsTheFramesDo(t *testing.T) {
 		if got := f.config(wide(37), now).TraceScale; got != 16 {
 			t.Errorf("%q has the watch scale its traces at %v requests a minute, want 16", f.Name, got)
 		}
+	}
+}
+
+// A page gives History what the dashboard gives it, of its world: the world's
+// accounts, as configured, the frames' weeks from Monday, Claude's week and
+// Claude's families.
+func TestAPageGivesHistoryItsWorldsAccountsTheWeeksAndTheFamilies(t *testing.T) {
+	now := func() time.Time { return localMoment() }
+	f := page{name: "a page", size: wide(37), world: accountWorlds.auto}.fixture(worldsNow())
+	cfg := f.config(wide(37), now)
+
+	var accounts []string
+	for _, a := range cfg.Accounts {
+		accounts = append(accounts, a.ID+":"+a.Plan)
+	}
+	if want := []string{"work:max20x", "personal:max20x", "side:max20x"}; !slices.Equal(accounts, want) {
+		t.Errorf("the page's watch is given the accounts %q, want its world's, %q", accounts, want)
+	}
+	if cfg.WeekStarts != time.Monday || cfg.WeekWindow != "7d" {
+		t.Errorf("the page's weeks start on %s, its accounts' the window %q; want Monday, as the frames' do, and Claude's week, 7d", cfg.WeekStarts, cfg.WeekWindow)
+	}
+	if cfg.Family == nil {
+		t.Fatal("the page's watch reads no model's family, want Claude's")
+	}
+	if got := cfg.Family("claude-opus-5-5"); got != "opus" {
+		t.Errorf("the page's watch reads claude-opus-5-5's family as %q, want opus", got)
 	}
 }
 
