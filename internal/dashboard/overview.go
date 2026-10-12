@@ -494,8 +494,11 @@ type allotment struct {
 // LayoutOf is the Overview's layout as the frame lays it out of doc at now,
 // for the watch to keep for the next look: the zero Layout off the Overview.
 func (f Frame) LayoutOf(doc status.Document, now time.Time) Layout {
-	if f.View != Overview {
+	switch {
+	case f.View != Overview:
 		return Layout{}
+	case f.keeps(doc):
+		return f.Layout
 	}
 	l := Layout{made: f.layoutFor(doc)}
 	for _, u := range f.allotted(doc, now) {
@@ -509,13 +512,19 @@ func (f Frame) layoutFor(doc status.Document) layoutFor {
 	return layoutFor{width: f.Width, height: f.Height, accounts: len(doc.Accounts), sections: f.Sections, by: f.By}
 }
 
+// keeps reports whether the frame keeps its Layout for doc: one made for the
+// frame and doc, which isn't the zero Layout.
+func (f Frame) keeps(doc status.Document) bool {
+	return f.Layout != (Layout{}) && f.Layout.made == f.layoutFor(doc)
+}
+
 // allotted are the units of the Overview's sections of doc at now, each
-// given its rows: as the frame's Layout gives them, where it's made for the
-// frame and doc; else afresh, as allot gives them in the view's rows.
+// given its rows: as the frame's Layout gives them, where it keeps it; else
+// afresh, as allot gives them in the view's rows.
 func (f Frame) allotted(doc status.Document, now time.Time) []unit {
 	units := f.unitsOf(f.sectionsOf(doc, now))
-	if kept := f.Layout; kept != (Layout{}) && kept.made == f.layoutFor(doc) {
-		return kept.give(units)
+	if f.keeps(doc) {
+		return f.Layout.give(units)
 	}
 	return allot(units, f.viewRows())
 }

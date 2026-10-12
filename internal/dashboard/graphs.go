@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
@@ -19,8 +18,7 @@ const chartGap = 3
 
 // graphs are the Overview's GRAPHS: the focused account's use so far, a chart
 // a window that USAGE shows, side by side from USAGE's name column, names
-// cells, or stacked on a phone; and the terminal's height, which its folded
-// heading names.
+// cells, or stacked on a phone.
 type graphs struct {
 	account status.Account
 	focused bool
@@ -28,7 +26,6 @@ type graphs struct {
 	names   int
 	phone   bool
 	look    Look
-	height  int
 }
 
 // graphsSection is the Overview's GRAPHS of doc at now: the focused
@@ -48,7 +45,7 @@ func (f Frame) graphsSection(doc status.Document, now time.Time) section {
 // on, or where it's on none of doc's, the first: by window or by account
 // alike, each window's chart drawn from its trail.
 func (f Frame) graphsOf(doc status.Document, now time.Time) graphs {
-	g := graphs{names: nameColumn(namesOf(doc), f.Width), phone: f.phone(), look: f.Look, height: f.Height}
+	g := graphs{names: nameColumn(namesOf(doc), f.Width), phone: f.phone(), look: f.Look}
 	g.account, g.focused = doc.Account(f.Focus)
 	if !g.focused && len(doc.Accounts) > 0 {
 		g.account, g.focused = doc.Accounts[0], true
@@ -108,11 +105,11 @@ func (g graphs) description() line {
 	}
 }
 
-// folded is what GRAPHS' heading says folded: the focused account, and that
-// the terminal's rows have no room for its charts.
+// folded is what GRAPHS holds, as its heading says it folded: the focused
+// account.
 func (g graphs) folded() line {
 	if !g.focused {
 		return nil
 	}
-	return line{{name(g.account), titleInk}, spaces(3), {fmt.Sprintf("no room at %d rows", g.height), dimInk}}
+	return line{{name(g.account), titleInk}}
 }

@@ -247,6 +247,9 @@ type Model struct {
 	sections dashboard.Sections
 	by       dashboard.By
 	span     dashboard.Span
+	// layout is the Overview's layout as it was last made, kept from look to
+	// look, as keepLayout keeps it, so it changes only on a key or a resize.
+	layout dashboard.Layout
 	// scroll is how many rows the view shown is scrolled down by, where it
 	// doesn't fit, or on the Overview, how many accounts USAGE is, within its
 	// section.
@@ -349,7 +352,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, stream := next.(Model).tune()
 	tuned, costs := tuned.costing()
 	tuned, frames := tuned.startFrames(tuned.now())
-	return tuned, tea.Batch(cmd, stream, costs, frames)
+	return tuned.keepLayout(msg), tea.Batch(cmd, stream, costs, frames)
+}
+
+// keepLayout keeps the Overview's layout as the page lays it out once msg is
+// taken in, for the looks after: as it was kept, but after a key, which lays
+// it out afresh, as a resize does, and the sections shown, b and the
+// accounts read changing.
+func (m Model) keepLayout(msg tea.Msg) Model {
+	if _, key := msg.(tea.KeyPressMsg); key {
+		m.layout = dashboard.Layout{}
+	}
+	now := m.now()
+	m.layout = m.frame(now).LayoutOf(m.doc, now)
+	return m
 }
 
 // take takes in a message: a key, a click, the wheel, a resize, the
@@ -509,17 +525,17 @@ func (m Model) uncover() Model {
 // frame is the dashboard's frame as the model stands at now, but for its key
 // line and any card over it: at the size drawn at, in the look, showing the
 // tab shown, with what the watch knows of the router, its events and its
-// history, the Overview's sections shown, how its windows are grouped and
-// the requests its traces count, how far ahead Runway looks, the sessions
-// listed, what the request stream tells of their requests and the order
-// Sessions' calls keep, how far the view is scrolled, and the account the
-// focus is on.
+// history, the Overview's sections shown, how its windows are grouped, the
+// requests its traces count and its layout as kept, how far ahead Runway
+// looks, the sessions listed, what the request stream tells of their
+// requests and the order Sessions' calls keep, how far the view is
+// scrolled, and the account the focus is on.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
 		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), Trails: m.trails, Eased: m.eased(now),
-		Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Span: m.span,
+		Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus:  m.focus,
 		Policy: m.cfg.Policy,
