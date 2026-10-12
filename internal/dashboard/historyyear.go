@@ -139,15 +139,20 @@ func (y yearDrawn) grid(c *canvas, x, top int, weeks []views.GridWeek, first int
 	}
 }
 
-// square is a day at its level, as the grid and the key draw it: ■ in its
-// shade, or, filtered to a version, in its step of the version's shade; or,
-// in a look that draws no shades of its own, its level's glyph.
+// square is a day at its level, as the grid and the key draw it, in its
+// shade, or, filtered to a version, in its step of the version's shade.
 func (y yearDrawn) square(level int) span {
 	k := dayInk(level)
 	if y.ofVersion() {
 		k = stepInk(versionHue(y.page.Version), level)
 	}
-	if !y.Look.blends() {
+	return y.daySquare(k, level)
+}
+
+// daySquare is a day at its level as the Year draws it, in its shade's ink,
+// k: ■; or, in a look that draws no shades of its own, its level's glyph.
+func (f Frame) daySquare(k ink, level int) span {
+	if !f.Look.blends() {
 		return span{shadeGlyph(level), k}
 	}
 	return span{"■", k}

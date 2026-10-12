@@ -3,7 +3,7 @@ package dashboard
 import (
 	"strings"
 
-	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // historyHelp are History's parts as help explains them, after its keys, in
@@ -35,7 +35,7 @@ func (f Frame) historyHelp() []helpPart {
 			},
 			glyphs: []glyph{
 				{drawn: familyBar(), means: "a month's worth, by family"},
-				{drawn: line{{"—", faintInk}}, means: "against, for the month so far"},
+				{drawn: line{noFigure}, means: "against, for the month so far"},
 			},
 		},
 		{
@@ -48,10 +48,10 @@ func (f Frame) historyHelp() []helpPart {
 					"size, is shared among the rest by their sizes; with one more, of the plan most of the accounts have, every " +
 					"peak falls in proportion, the same use over more room. A replayed week is short where any account would " +
 					"reach 100%."),
-				said("The verdict: one more than you need, where one fewer would be short on no more weeks than now, naming " +
-					"the account to drop; one too few, where now is short on 4 or more of the 7 and one more would halve that; " +
-					"too few, where one more wouldn't, the row under it saying how short one more would still be; else about " +
-					"right."),
+				said("The verdict: " + views.OneMoreThanYouNeed + ", where one fewer would be short on no more weeks than now, " +
+					"naming the account to drop; " + views.OneTooFew + ", where now is short on 4 or more of the 7 and one more " +
+					"would halve that; " + views.TooFew + ", where one more wouldn't, the row under it saying how short one more " +
+					"would still be; else " + views.AboutRight + "."),
 				said("An account's: hits its limit most weeks, in 3 or more of the 7; plenty to spare most weeks, 40% or more " +
 					"left at a reset on average; else ends most weeks with room. Could go, where the rest would cover it with " +
 					"no more weeks short, as it hit no limit and used 10% or less on average; barely used, 75% or more left at " +
@@ -62,7 +62,7 @@ func (f Frame) historyHelp() []helpPart {
 				{drawn: line{{"100%", exhaustedInk}}, means: "it hit its limit"},
 				{drawn: line{{"34%…", strongInk}}, means: "this week, so far"},
 				{drawn: line{{"▁▁▁▁▁", faintInk}}, means: "a week with no use"},
-				{drawn: line{{"—", faintInk}}, means: "a week whose peak isn't known"},
+				{drawn: line{noFigure}, means: "a week whose peak isn't known"},
 			},
 		},
 		{
@@ -74,8 +74,8 @@ func (f Frame) historyHelp() []helpPart {
 					"account used each day, in the five shades, every account on one scale, and the 5-hour limits it hit."),
 			},
 			glyphs: []glyph{
-				{drawn: line{{"▪ ", ink{token: theme.StateDestructive, on: dayInk(2).hue()}}}, means: "a day it hit a 5-hour limit"},
-				{drawn: line{{"··", faintInk}}, means: "a day still to come"},
+				{drawn: f.swatch(dayInk(2), 2, true), means: daysLimitNote},
+				{drawn: line{{toCome, faintInk}}, means: "a day still to come"},
 			},
 		},
 		{
@@ -110,11 +110,7 @@ func (f Frame) shadesHelp() []glyph {
 	}
 	glyphs := make([]glyph, 0, shadeLevels)
 	for level, m := range means {
-		square := "■"
-		if !f.Look.blends() {
-			square = shadeGlyph(level)
-		}
-		glyphs = append(glyphs, glyph{drawn: line{{square, dayInk(level)}}, means: m})
+		glyphs = append(glyphs, glyph{drawn: line{f.daySquare(dayInk(level), level)}, means: m})
 	}
 	return glyphs
 }
@@ -124,7 +120,7 @@ func (f Frame) shadesHelp() []glyph {
 func familyBar() line {
 	var bar line
 	for _, family := range []string{"opus", "sonnet", "fable", "haiku"} {
-		bar = append(bar, span{"▅", ink{token: familyHue(family).token}})
+		bar = append(bar, span{"▅", familyHue(family).ink()})
 	}
 	return bar
 }
