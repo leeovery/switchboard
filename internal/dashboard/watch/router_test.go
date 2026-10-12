@@ -312,6 +312,19 @@ func TestAFirstReadThatFailsOtherwiseSaysWhyTillAReadFindsTheRouterGone(t *testi
 	}
 }
 
+func TestAProbeThatFailsUnderAProbedDocumentSaysWhyThoughTheRouterIsFoundGone(t *testing.T) {
+	h := newHarness(t, probedWithoutTheRouter())
+	h.start()
+	h.source.err = errors.New("the keychain is locked")
+	h.tickUntilRead()
+	h.tickUntilAsked() // A question after the router, which finds it gone.
+
+	want := "! couldn't read usage: the keychain is locked  ·  next "
+	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); !strings.HasPrefix(got, want) {
+		t.Errorf("once a question finds the router gone, the status line reads %q; want it to start %q, as it said the router gone already", got, want)
+	}
+}
+
 func TestProbingAsAskedAReadThatFailsSaysWhyAndNothingOfTheRouter(t *testing.T) {
 	h := newHarness(t, calm())
 	h.model.cfg.ProbeOnly = true

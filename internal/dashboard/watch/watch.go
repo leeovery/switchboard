@@ -582,11 +582,11 @@ func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 // none, and plans the next read by it. A read that fails notes why, and the
 // router lost, as lose does: a question after the router, or a look at its
 // document, that found it gone has no why of its own, and clears the last
-// read's, as the status line says what the latest read found; though not
-// where the source probes as asked, which never asks the router, so finds
-// nothing of it. Each read starts a new chain of ticks at the pace it calls
-// for, and lets a look at the router's document asked for while it was under
-// way go ahead.
+// read's only where the status line then says the router isn't answering, as
+// awaitsRouter has it, the newer news replacing the older; elsewhere the
+// last read's why stands, as nothing new was found. Each read starts a new
+// chain of ticks at the pace it calls for, and lets a look at the router's
+// document asked for while it was under way go ahead.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching = false
@@ -594,7 +594,7 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case errors.Is(msg.err, status.ErrNoRouter):
 		m.plan = m.plan.missed(now)
-		if !m.cfg.ProbeOnly {
+		if m.awaitsRouter() {
 			m.failed = ""
 		}
 		m = m.lose(now)
@@ -711,13 +711,20 @@ func (m Model) lose(now time.Time) Model {
 		return m
 	case m.routed():
 		logger.Warn("the router stopped answering; showing its last document")
-	case m.updated.IsZero() && m.failed == "" && !m.cfg.ProbeOnly:
+	case m.awaitsRouter() && m.failed == "":
 		logger.Warn("the router isn't answering, and nothing has been read")
 	default:
 		return m
 	}
 	m.lost = now
 	return m
+}
+
+// awaitsRouter reports whether nothing has been read, from a source that asks
+// the router first: a read that then finds the router gone has the status
+// line say it isn't answering.
+func (m Model) awaitsRouter() bool {
+	return m.updated.IsZero() && !m.cfg.ProbeOnly
 }
 
 // failure is why the last read failed, and when the next is due, for the
