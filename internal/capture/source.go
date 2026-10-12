@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
@@ -20,7 +21,8 @@ import (
 // answers from; and what its request stream tells, as GET /stream does. It's
 // the watch's Source, every read giving the document, and an order a key
 // gives changing nothing. Where it's gone, it stops answering then, by the
-// fixture's clock: a read fails, mid-read, from then on.
+// fixture's clock: a read fails, mid-read, from then on. Read by a watch, it
+// knows whether that watch has opened its stream before.
 type source struct {
 	doc      status.Document
 	health   router.Health
@@ -30,6 +32,7 @@ type source struct {
 	now      time.Time
 	gone     time.Time
 	clock    func() time.Time
+	joined   *atomic.Bool
 }
 
 // errGone is a read of the router once it has gone: it took the read, and
@@ -63,10 +66,11 @@ func newSource(now time.Time, samples []sample, best string, events ...status.Ev
 
 // routerOf is the router of the world w at now: its status document and its
 // health check's answer, started at noon, which are all usage reads of it;
-// and the sessions it lists, where the world has them. It keeps no history
-// and tells nothing on its stream.
+// the history of its accounts' windows, from their readings; what its
+// request stream tells; and the sessions it lists, where the world has them.
 func routerOf(w accountWorld, now time.Time) source {
-	s := source{doc: w.document(now), health: startedAtNoon(now), now: now}
+	doc := w.document(now)
+	s := source{doc: doc, health: startedAtNoon(now), trails: w.trails(doc, now), stream: w.stream, now: now}
 	if w.routed != nil {
 		s.sessions = w.routed(now)
 	}
@@ -79,9 +83,10 @@ func (s source) goneAt(t time.Time) source {
 	return s
 }
 
-// by is the source, read by the clock given, which says whether it's gone.
+// by is the source as a watch reads it, by the clock given, which says
+// whether it's gone: its stream not yet opened.
 func (s source) by(clock func() time.Time) source {
-	s.clock = clock
+	s.clock, s.joined = clock, new(atomic.Bool)
 	return s
 }
 
@@ -155,17 +160,21 @@ func (s source) History(_ context.Context, window string, step time.Duration) (r
 	return h, nil
 }
 
-// Stream opens the router's request stream, as GET /stream does: it tells of
-// the requests the fixture has in flight, and what has befallen them, then
-// ends, as a router ends it. The watch keeps what it told until it asks for
-// it again, which a capture never has it do, as its timers never fire. Each
-// opening tells all of it again, moves too, as no router does: a fixture
-// drawing a view that reads the stream opens on it, as the Overview reads it
-// too, and passing through it, the stream opened twice, would tell its
-// moves twice.
+// Stream opens the router's request stream, as GET /stream does, then ends,
+// as a router ends it: the first time the watch reading it opens it, telling
+// of the requests the fixture has in flight, and all that has befallen them;
+// each time after, only of those still in flight then, by the clock, each as
+// it stands, as a router tells a reader joining it, so what it told before,
+// a move among it, isn't told again. The watch keeps what it told until it
+// asks for it again, which a capture never has it do, as its timers never
+// fire. A source no watch reads tells all of it each time.
 func (s source) Stream(context.Context) (<-chan router.StreamEvent, error) {
-	events := make(chan router.StreamEvent, len(s.stream))
-	for _, e := range s.stream {
+	told := s.stream
+	if s.joined != nil && s.joined.Swap(true) {
+		told = flying(s.stream, s.clock())
+	}
+	events := make(chan router.StreamEvent, len(told))
+	for _, e := range told {
 		events <- e
 	}
 	close(events)
@@ -180,7 +189,9 @@ func (s source) telling(events ...router.StreamEvent) source {
 }
 
 // forced marks a move among the events a source is given as one a limit
-// forced, which numbered counts in that limit.
+// forced, which numbered counts in that limit; and, as its ForcedBy, a move a
+// world's router tells of as one a cap, a limit or a refusal forced, which
+// ofTheRun counts in it.
 const forced = -1
 
 // numbered is events, the newest first, each with its id, as the router

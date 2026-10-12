@@ -22,6 +22,10 @@ import (
 // otherwise.
 const interval = 30 * time.Minute
 
+// framesTraceScale is the requests a minute that fill a trace's height in the
+// frames, which pin it, where the live page scales as its rule says.
+const framesTraceScale = 16
+
 // Frame draws the fixture as a terminal of the given size shows it: a line
 // for each of its rows, styled as the dashboard draws them, each ending in a
 // newline. A printout is drawn as usage prints it instead.
@@ -69,15 +73,16 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 // by now's clock, as dashboard configures it, its seams the fixture's.
 func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 	cfg := watch.Config{
-		Source:   f.router.by(now),
-		Notifier: quiet{},
-		Now:      now,
-		After:    held,
-		Interval: interval,
-		Policy:   claude.Policy,
-		Size:     size,
-		View:     f.view,
-		Prices:   drawnPrices,
+		Source:     f.router.by(now),
+		Notifier:   quiet{},
+		Now:        now,
+		After:      held,
+		Interval:   interval,
+		Policy:     claude.Policy,
+		Size:       size,
+		View:       f.view,
+		Prices:     drawnPrices,
+		TraceScale: framesTraceScale,
 	}
 	cfg.Ledger, cfg.Readings, cfg.Events = f.readers(now)
 	dressed(&cfg, f.theme, f.colourless)
