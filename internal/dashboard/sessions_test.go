@@ -977,6 +977,38 @@ func TestAnUnreadAccountsPanelSaysSoAsItsCardDoes(t *testing.T) {
 	}
 }
 
+// Sessions judges a session at now, as ROUTING does: work, under pressure in
+// its session, on the tick after the session resets, before it's read again,
+// is idle, its session not started, with no bar, so none eases, and its
+// bottom edge lists no reset already past.
+func TestOnTheTickASessionResetsItsPanelHasItNotStarted(t *testing.T) {
+	doc := threeRouted()
+	session, _ := doc.Accounts[0].Window("5h")
+	after := session.ResetsAt.Add(time.Second).In(now.Location())
+	f := switchboard(160, 40, flippingSessions(), Traffic{})
+	b, ok := f.bayOf(doc, after, f.top())
+	if !ok {
+		t.Fatal("the view is a plain list, want a switchboard")
+	}
+	c := newCanvas(f.Width, b.content)
+	f.drawBay(c, doc, b, after)
+	p := b.panels[0]
+	panel := func(y int) string { return strings.TrimSpace(ansi.Cut(rowOf(c, y), b.x, b.x+b.width)) }
+
+	if top := panel(p.top); !strings.Contains(top, "○ idle") {
+		t.Errorf("work's top edge reads %q, want it idle", top)
+	}
+	if row := panel(p.top + 1); !strings.Contains(row, "Session  not started") || strings.ContainsAny(row, "█▒░┃") {
+		t.Errorf("work's session reads %q, want it not started, with no bar", row)
+	}
+	if bottom := panel(p.bottom()); strings.Contains(bottom, "session") {
+		t.Errorf("work's bottom edge reads %q, want no session reset, its own past", bottom)
+	}
+	if used, eased := f.Filled(doc, after)[Ref{Account: "work", Window: "5h"}]; eased {
+		t.Errorf("work's session fills %v, to be eased to, want no bar", used)
+	}
+}
+
 func TestTheLineOverTheSessionsKeyLineIsARule(t *testing.T) {
 	rows := switchboard(160, 40, flippingSessions(), Traffic{}).Draw(threeRouted(), now)
 

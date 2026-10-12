@@ -55,7 +55,7 @@ func TestText(t *testing.T) {
   Fable offline: HTTP 529 · Overloaded
 
 side · Side
-  Session    100%  resets now · Mon 14:00
+  Session      0%  not started
   Fable week 104%  resets in 7m · Mon 14:19 · exhausted
   30d          5%
   burst      100%  exhausted
@@ -297,7 +297,7 @@ probed directly: the router is unhealthy, no answer within 500ms
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.doc.Text(now); got != tt.want {
+			if got := tt.doc.Text(now, policy); got != tt.want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, tt.want)
 			}
 		})
@@ -355,7 +355,7 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 				"  Session  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +
 				"\n" +
 				"from the router: healthy  ·  2 sessions  ·  " + doc.Routing() + "\n"
-			if got := doc.Text(now); got != want {
+			if got := doc.Text(now, policy); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
@@ -374,7 +374,7 @@ func TestTextKeepsItsWordsForAModelsOwnWindowAtItsReserve(t *testing.T) {
 	}
 	doc := status.Document{GeneratedAt: now.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: []status.Account{work}}
 
-	if got := doc.Text(now); !strings.Contains(got, "\n  at its reserve (90%)\n") || strings.Contains(got, "other models") {
+	if got := doc.Text(now, policy); !strings.Contains(got, "\n  at its reserve (90%)\n") || strings.Contains(got, "other models") {
 		t.Errorf("Text() =\n%s\nwant it to say \"at its reserve (90%%)\" as it always has, as the card alone names the window", got)
 	}
 	if got := doc.StateOf(work, now, policy); got.Says != "Fable wk at its reserve (90%)" {
@@ -427,6 +427,13 @@ func TestPressed(t *testing.T) {
 		{name: "reaching its reserve", account: status.Account{ID: "work", Reserve: 0.1, Pressure: under}, want: "under pressure: at its reserve ~18:21"},
 		{name: "running out, its reserve spent by the global pin", account: status.Account{ID: "work", Reserve: 0.1, Pressure: under}, pin: []string{"work"}, want: "under pressure: runs out ~18:21"},
 		{name: "running out after its reset", account: status.Account{ID: "work", Pressure: status.Pressure{Window: "5h", Rate: 0.1, RunsOut: under.RunsOut}}},
+		{
+			name: "its window reset since it was read, before it's read again",
+			account: status.Account{
+				ID: "work", Pressure: under,
+				Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: now.Add(-time.Second).UTC()}},
+			},
+		},
 		{name: "its pace unknown", account: status.Account{ID: "work"}},
 		{
 			name:    "held back from one model's requests, under pressure as the router says",
@@ -514,10 +521,35 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 				"  Session  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
 				tt.notes + "\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
-			if got := doc.Text(now); got != want {
+			if got := doc.Text(now, policy); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
+	}
+}
+
+// status judges a session at now, as the dashboard does: read running and
+// under pressure, on the tick after it resets, before it's read again, it's
+// empty and not started, and nothing says it's under pressure.
+func TestTextSaysASessionThatResetSinceItWasReadHasntStarted(t *testing.T) {
+	read := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	reset := time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)
+	doc := status.Document{
+		GeneratedAt: read.UTC(),
+		Source:      status.SourceRouter,
+		Router:      status.Health{Healthy: true},
+		Accounts: []status.Account{{
+			ID: "work", Label: "Work", TokenSet: true, FetchedAt: read.UTC(),
+			Windows:  []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: reset}},
+			Pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
+		}},
+	}
+	want := "work · Work\n" +
+		"  Session   0%  not started\n" +
+		"\n" +
+		"from the router: healthy  ·  no sessions  ·  routing automatically\n"
+	if got := doc.Text(reset.Add(time.Second).In(read.Location()), policy); got != want {
+		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 	}
 }
 
@@ -555,7 +587,7 @@ func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
 			want := "work · Work\n" +
 				"  Week  99%  resets in 4d · Fri 14:12 · " + tt.heading + "\n\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
-			if got := doc.Text(now); got != want {
+			if got := doc.Text(now, policy); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
@@ -604,10 +636,10 @@ sessions
 best next: work · Work
 from the router: healthy  ·  2 sessions  ·  routing automatically
 `
-	if got := doc.Text(now, sessions...); got != want {
+	if got := doc.Text(now, policy, sessions...); got != want {
 		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 	}
-	if got, without := doc.Text(now, []status.Session{}...), doc.Text(now); got != without || strings.Contains(got, "sessions\n  ") {
+	if got, without := doc.Text(now, policy, []status.Session{}...), doc.Text(now, policy); got != without || strings.Contains(got, "sessions\n  ") {
 		t.Errorf("Text() given no sessions =\n%s\nwant it as without them, listing none\n%s", got, without)
 	}
 }
@@ -728,7 +760,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 		Pin:      status.Pin{Accounts: []string{"gone" + clear}},
 		Router:   status.Health{Reason: clear + "6 of the 8 requests in the last 5 minutes failed"},
 		Accounts: []status.Account{work},
-	}.Text(now, running)
+	}.Text(now, policy, running)
 	shown := map[string]string{
 		"the router's document, and its sessions": routers,
 		"a session, as its line reads":            running.Line(now),
@@ -736,7 +768,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 			Source:   status.SourceProbe,
 			Fallback: status.Fallback{Router: status.RouterUnhealthy, Reason: "answered " + clear},
 			Accounts: []status.Account{work},
-		}.Text(now),
+		}.Text(now, policy),
 	}
 	for name, text := range shown {
 		if strings.ContainsFunc(text, func(r rune) bool { return unicode.IsControl(r) && r != '\n' }) {

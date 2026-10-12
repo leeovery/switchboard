@@ -124,16 +124,22 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			want:    status.WindowState{Kind: status.WindowOpen, Used: 0.3, At: at(5, 21, 0).UTC()},
 		},
 		{
-			name:    "reset since it was read: empty, its allowance to its next reset",
+			name:    "a week reset since it was read: empty, its allowance to its next reset",
+			account: with(readNow(0.2, 0.3, 0), func(a *status.Account) { a.Windows[1].ResetsAt = at(1, 14, 0).UTC() }),
+			key:     "7d",
+			want:    status.WindowState{Kind: status.WindowOpen, At: at(8, 14, 0).UTC()},
+		},
+		{
+			name:    "the session reset since it was read, nothing noting it lapsed: lapsed at now, not started",
 			account: with(readNow(0.2, 0.3, 0), func(a *status.Account) { a.Windows[0].ResetsAt = at(1, 14, 0).UTC() }),
 			key:     "5h",
-			want:    status.WindowState{Kind: status.WindowOpen, At: at(1, 19, 0).UTC()},
+			want:    status.WindowState{Kind: status.WindowNotStarted},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{GeneratedAt: stateNow.UTC(), Accounts: []status.Account{tt.account}, Pin: status.Pin{Accounts: tt.pin}}
-			got := doc.WindowStatesOf(tt.account, stateNow).Of(tt.key)
+			got := doc.WindowStatesOf(tt.account, stateNow, policy).Of(tt.key)
 			if got.Kind != tt.want.Kind || !near(got.Used, tt.want.Used) || !got.At.Equal(tt.want.At) {
 				t.Errorf("the window stands as %+v, want %+v", got, tt.want)
 			}

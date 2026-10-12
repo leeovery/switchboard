@@ -70,11 +70,12 @@ func dotted(parts ...string) string {
 // one; a limit, or a refusal, holding it back, and until when, as heldBack
 // says, even where its last read failed; that its usage couldn't be read, or
 // hasn't been, as Unread says; its reserve, as reservedState says; that it's
-// under pressure, and whether new sessions go elsewhere, else when it runs
-// out, as RunsOut has it; that it's idle at now, as idleAt judges it, and
-// when a prime starts it, where the router says; and last that it's open, its week nearing its
-// reserve, or new sessions coming here. Words from elsewhere show cleaned,
-// and times as Dated shows them.
+// under pressure at now, as underPressure judges it, and whether new
+// sessions go elsewhere, else when it runs out, as RunsOut has it; that it's
+// idle at now, as idleAt judges it, and when a prime starts it, where the
+// router says; and last that it's open, its week nearing its reserve, or new
+// sessions coming here. Words from elsewhere show cleaned, and times as Dated
+// shows them.
 func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
 	if !a.TokenSet {
 		return State{Condition: Tokenless, Says: "no token", Then: "switchboard accounts token " + Clean(a.ID)}
@@ -88,7 +89,7 @@ func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
 	if reserved := d.Reserved(a, now); reserved != "" {
 		return d.reservedState(a, reserved, now, policy)
 	}
-	if a.Pressure.Under {
+	if a.underPressure(now) {
 		return d.pressed(a, now)
 	}
 	if a.idleAt(now, policy) {

@@ -383,9 +383,10 @@ func TestThePoolsBarsEaseAsTheAccountsDo(t *testing.T) {
 	}
 }
 
-// The Overview draws a session read before its reset empty once it resets,
-// where Sessions' panels draw it as last read: each view's bar eases from
-// the bar that view drew, whichever view showed as the read landed.
+// A session read before its reset has lapsed once it resets: the Overview
+// draws it empty, and Sessions' panels draw it not started, with no bar.
+// Each view's bar eases from the bar that view drew, whichever view showed as
+// the read landed: from nothing, never from the use last read.
 func TestAcrossAResetEachViewEasesItsBarFromTheBarItDrew(t *testing.T) {
 	before := document(account("work", "Work", session(0.75, 10*time.Minute), week(0.5)))
 	after := document(account("work", "Work", session(0.25, 20*time.Minute+5*time.Hour), week(0.5)))
@@ -393,11 +394,10 @@ func TestAcrossAResetEachViewEasesItsBarFromTheBarItDrew(t *testing.T) {
 	tests := []struct {
 		name            string
 		readOn, shownOn dashboard.View
-		from            float64
 	}{
-		{name: "the Overview", readOn: dashboard.Overview, shownOn: dashboard.Overview, from: 0},
-		{name: "Sessions", readOn: dashboard.Sessions, shownOn: dashboard.Sessions, from: 0.75},
-		{name: "the Overview, shown after Sessions as the read landed", readOn: dashboard.Sessions, shownOn: dashboard.Overview, from: 0},
+		{name: "the Overview", readOn: dashboard.Overview, shownOn: dashboard.Overview},
+		{name: "Sessions", readOn: dashboard.Sessions, shownOn: dashboard.Sessions},
+		{name: "the Overview, shown after Sessions as the read landed", readOn: dashboard.Sessions, shownOn: dashboard.Overview},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -410,12 +410,12 @@ func TestAcrossAResetEachViewEasesItsBarFromTheBarItDrew(t *testing.T) {
 			h.read(after)
 			h.model.view = tt.shownOn
 			landed := h.model.now()
-			if got, ok := h.model.live(landed).Eased[bar]; !ok || got != tt.from {
-				t.Errorf("as the read lands, work's session bar fills %v, easing %t, want %v, as the view drew it", got, ok, tt.from)
+			if got, ok := h.model.live(landed).Eased[bar]; !ok || got != 0 {
+				t.Errorf("as the read lands, work's session bar fills %v, easing %t, want it rising from nothing, as the view drew it", got, ok)
 			}
 			h.clock.now = landed.Add(easeFor / 2)
-			if got, want := h.model.live(h.clock.now).Eased[bar], lerp(tt.from, 0.25, easeOutCubic(0.5)); got != want {
-				t.Errorf("half way, work's session bar fills %v, want %v, eased from %v to 0.25", got, want, tt.from)
+			if got, want := h.model.live(h.clock.now).Eased[bar], lerp(0, 0.25, easeOutCubic(0.5)); got != want {
+				t.Errorf("half way, work's session bar fills %v, want %v, eased from nothing to 0.25", got, want)
 			}
 		})
 	}

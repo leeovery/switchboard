@@ -323,6 +323,33 @@ func TestAnOpenAccountIsIdleOnTheTickItsSessionResets(t *testing.T) {
 	}
 }
 
+// Pressure holds while its window runs: an account under pressure in its
+// session, read before the session resets, is idle on the tick after the
+// reset, before it's read again, in ROUTING and in its state, as the router,
+// judging pressure afresh, finds none in a window that has reset.
+func TestAnAccountUnderPressureIsIdleOnTheTickItsSessionResets(t *testing.T) {
+	reset := at(1, 17, 10)
+	a := with(readNow(0.58, 0.34, 0.12), pressing).AsOf(policy, stateNow)
+	doc := status.Document{GeneratedAt: stateNow.UTC(), Source: status.SourceRouter, Best: "side", Accounts: []status.Account{a, {ID: "side"}}}
+	tests := []struct {
+		name    string
+		now     time.Time
+		routing status.RoutingKind
+		state   status.Condition
+	}{
+		{name: "the tick before it resets", now: reset.Add(-time.Second), routing: status.RoutingPressed, state: status.Pressed},
+		{name: "the tick after it resets", now: reset.Add(time.Second), routing: status.RoutingIdle, state: status.Idle},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			routing, state := doc.RoutingOf(a, tt.now, policy), doc.StateOf(a, tt.now, policy)
+			if routing.Kind != tt.routing || state.Condition != tt.state {
+				t.Errorf("ROUTING says %q, its state %q; want kinds %d and %d", routing, state, tt.routing, tt.state)
+			}
+		})
+	}
+}
+
 func TestEachKindLeadsWithItsGlyph(t *testing.T) {
 	tests := map[status.RoutingKind]string{
 		status.RoutingTokenless:    "✕",

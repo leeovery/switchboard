@@ -64,7 +64,7 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	pool := f.pool(doc, now)
 	names := overviewNames(doc, pool)
-	b := blockOf(doc, now, pool, f.Width, f.Look, f.By, f.overviewWindows(doc), names)
+	b := blockOf(doc, now, f.Policy, pool, f.Width, f.Look, f.By, f.overviewWindows(doc), names)
 	b.marks = keyMarks(names, f.phone())
 	if f.By == ByAccount && f.Width >= matrixWidth {
 		b.accountBar = besideBar - (b.names - matrixNames)
