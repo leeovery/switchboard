@@ -1,0 +1,153 @@
+package views_test
+
+import (
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
+)
+
+// The sessions SESSIONS' tests list.
+const (
+	answering = "41e0b6c2-8d3f-4a71-95e4-2c7b0f9a1d68"
+	asking    = "d28c5e17-3a9b-4f60-8c21-7e4d9b0a6f13"
+	idler     = "9c2e47b1-0d5a-4e83-b6f2-8a1c3e9d0f57"
+	gone      = "7f3a0c94-5d2e-4b18-a6f7-31c8e9d24b05"
+)
+
+// seatOn is a session's model on an account, as the router lists it: put there
+// made before now, for the reason given, last seen seen before now, and
+// doing what its request in flight does.
+func seatOn(model, family, account, reason string, made, seen time.Duration, inFlight string) status.Assignment {
+	return status.Assignment{
+		Model: model, Family: family, Account: account, Reason: reason, InFlight: inFlight,
+		AssignedAt: now.Add(-made), LastSeen: now.Add(-seen),
+	}
+}
+
+// runningDoc is the router's document of work, personal and side, new
+// sessions going to side.
+func runningDoc() status.Document {
+	return status.Document{
+		Source: status.SourceRouter, Best: "side",
+		Accounts: []status.Account{{ID: "work"}, {ID: "personal"}, {ID: "side"}},
+	}
+}
+
+// running is a row of RunningOf's, its words run together.
+type running struct {
+	account, session, family string
+	seen                     time.Duration
+	why                      string
+	models                   []string
+	inFlight                 string
+}
+
+// rowsOf are RunningOf's rows, as running has them.
+func rowsOf(rows []views.Running) []running {
+	got := make([]running, len(rows))
+	for i, r := range rows {
+		got[i] = running{
+			account: r.Account, session: r.Session, family: r.Family, seen: now.Sub(r.LastSeen),
+			why: r.Why.String(), models: r.Models, inFlight: r.InFlight,
+		}
+	}
+	return got
+}
+
+func TestTheSessionsRunningAreGroupedByAccountInTheConfigsOrderTheOneSeenLastFirst(t *testing.T) {
+	sessions := []status.Session{
+		{ID: idler, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "personal", status.ReasonNew, 3*time.Hour, 9*time.Minute, "")}},
+		{ID: answering, Assignments: []status.Assignment{seatOn("claude-sonnet-5-5", "sonnet", "personal", status.ReasonNew, 2*time.Hour, 0, status.Answering)}},
+		{ID: asking, Assignments: []status.Assignment{
+			seatOn("claude-opus-5-5", "opus", "side", "moved: work is at its reserve", 11*time.Minute, time.Second, status.Asking),
+			seatOn("claude-haiku-4-5", "haiku", "work", status.ReasonNew, 50*time.Minute, 40*time.Minute, ""),
+		}},
+		{ID: gone, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, 3*time.Hour, 61*time.Minute, "")}},
+	}
+	want := []running{
+		{account: "work", session: asking, family: "haiku", seen: 40 * time.Minute, why: "started here 12:22", models: []string{"claude-haiku-4-5"}},
+		{account: "personal", session: answering, family: "sonnet", why: "started here 11:12", models: []string{"claude-sonnet-5-5"}, inFlight: status.Answering},
+		{account: "personal", session: idler, family: "opus", seen: 9 * time.Minute, why: "started here 10:12", models: []string{"claude-opus-5-5"}},
+		{account: "side", session: asking, family: "opus", seen: time.Second, why: "moved from work 13:01: work reached its cap", models: []string{"claude-opus-5-5"}, inFlight: status.Asking},
+	}
+	if got := rowsOf(views.RunningOf(runningDoc(), sessions, now)); !reflect.DeepEqual(got, want) {
+		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
+	}
+}
+
+func TestASessionsModelsOnOneAccountAreOneRowItsModelSeenLastLeading(t *testing.T) {
+	sessions := []status.Session{{ID: asking, Assignments: []status.Assignment{
+		seatOn("claude-haiku-4-5", "haiku", "side", status.ReasonNew, 10*time.Minute, 2*time.Minute, status.Asking),
+		seatOn("claude-opus-5-5", "opus", "side", status.ReasonPinned, 30*time.Minute, time.Minute, ""),
+		seatOn("claude-sonnet-5-5", "sonnet", "side", status.ReasonNew, 20*time.Minute, 3*time.Minute, status.Answering),
+	}}}
+	want := []running{{
+		account: "side", session: asking, family: "opus", seen: time.Minute, why: "pinned here 12:42",
+		models: []string{"claude-opus-5-5", "claude-haiku-4-5", "claude-sonnet-5-5"}, inFlight: status.Answering,
+	}}
+	if got := rowsOf(views.RunningOf(runningDoc(), sessions, now)); !reflect.DeepEqual(got, want) {
+		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
+	}
+}
+
+func TestASessionRunsWhereItWasRoutedWithinTheHour(t *testing.T) {
+	tests := []struct {
+		name       string
+		made, seen time.Duration
+		runs       bool
+	}{
+		{name: "seen within the hour", made: 3 * time.Hour, seen: 59 * time.Minute, runs: true},
+		{name: "seen an hour ago, to the second", made: 3 * time.Hour, seen: time.Hour, runs: true},
+		{name: "seen longer ago", made: 3 * time.Hour, seen: time.Hour + time.Second},
+		{name: "seen longer ago, but put there since, as a move puts it", made: 10 * time.Minute, seen: 2 * time.Hour, runs: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessions := []status.Session{{ID: idler, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, tt.made, tt.seen, "")}}}
+			if got := len(views.RunningOf(runningDoc(), sessions, now)) == 1; got != tt.runs {
+				t.Errorf("runs = %t, want %t", got, tt.runs)
+			}
+		})
+	}
+}
+
+func TestWhyASessionRunsWhereItDoes(t *testing.T) {
+	movedByPin := seatOn("claude-opus-5-5", "opus", "side", status.ReasonMovedByPin, 3*time.Minute, time.Minute, "")
+	pinnedAsItRan := seatOn("claude-opus-5-5", "opus", "side", status.ReasonPinned, 50*time.Minute, time.Minute, "")
+	pinnedAsItRan.Pinned, pinnedAsItRan.PinnedAt = true, now.Add(-5*time.Minute)
+	moves := []status.Event{
+		{ID: 3, Kind: status.EventMoved, At: now.Add(-3 * time.Minute), Session: asking, Model: "claude-opus-5-5", From: "personal", To: "side", Reason: status.ReasonMovedByPin},
+		{ID: 2, Kind: status.EventMoved, At: now.Add(-20 * time.Minute), Session: asking, Model: "claude-opus-5-5", From: "work", To: "side", Reason: status.ReasonMovedByPin},
+		{ID: 1, Kind: status.EventMoved, At: now.Add(-25 * time.Minute), Session: asking, Model: "claude-haiku-4-5", From: "work", To: "side", Reason: status.ReasonMovedByPin},
+	}
+	tests := []struct {
+		name   string
+		seat   status.Assignment
+		events []status.Event
+		want   string
+	}{
+		{name: "started on the account new sessions go to", seat: seatOn("claude-opus-5-5", "opus", "side", status.ReasonNew, 3*time.Minute, 0, ""), want: "started here 13:09, the best"},
+		{name: "started on another", seat: seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, 3*time.Minute, 0, ""), want: "started here 13:09"},
+		{name: "moved by the pin, from the account its newest move there tells", seat: movedByPin, events: moves, want: "moved from personal 13:09: pinned to side"},
+		{name: "moved by the pin, no move told", seat: movedByPin, want: "here since 13:09: pinned to side"},
+		{name: "pinned as it ran: since its pin", seat: pinnedAsItRan, want: "pinned here 13:07"},
+		{name: "pinned as it started: since it came", seat: seatOn("claude-opus-5-5", "opus", "side", status.ReasonPinned, 50*time.Minute, time.Minute, ""), want: "pinned here 12:22"},
+		{name: "its pin yielding", seat: seatOn("claude-opus-5-5", "opus", "side", "pin yields: personal has no room", 50*time.Minute, time.Minute, ""), want: "its pin to personal yields: personal has no room"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := runningDoc()
+			doc.Events = tt.events
+			rows := views.RunningOf(doc, []status.Session{{ID: asking, Assignments: []status.Assignment{tt.seat}}}, now)
+			if len(rows) != 1 {
+				t.Fatalf("RunningOf gave %d rows, want 1", len(rows))
+			}
+			if got := rows[0].Why.String(); got != tt.want {
+				t.Errorf("Why = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

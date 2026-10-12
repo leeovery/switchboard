@@ -318,3 +318,35 @@ func TestPassedOverIsTheAccountUnderPressureAChoicePassedOver(t *testing.T) {
 		}
 	}
 }
+
+func TestRunningWordsSayWhyASessionIsOnItsAccountAndSinceWhen(t *testing.T) {
+	now := time.Date(2026, 10, 1, 14, 42, 7, 0, time.FixedZone("UTC+1", 60*60))
+	at := time.Date(2026, 10, 1, 13, 31, 13, 0, time.UTC)
+	tests := []struct {
+		name   string
+		reason string
+		facts  status.Facts
+		want   string
+	}{
+		{name: "a new session", reason: status.ReasonNew, facts: status.Facts{At: at, Now: now}, want: "started here 14:31"},
+		{name: "a new session on the account new sessions still go to", reason: status.ReasonNew, facts: status.Facts{At: at, Best: true, Now: now}, want: "started here 14:31, the best"},
+		{name: "a new session that passed an account over: started, all the same", reason: "new, personal under pressure", facts: status.Facts{At: at, Now: now}, want: "started here 14:31"},
+		{name: "its own pin, never the best", reason: status.ReasonPinned, facts: status.Facts{At: at, Best: true, Now: now}, want: "pinned here 14:31"},
+		{name: "a move off an account at its reserve, the account it left the reason's", reason: "moved: work is at its reserve", facts: status.Facts{To: "side", At: at, Now: now}, want: "moved from [work] 14:31: [work] reached its cap"},
+		{name: "a move by the global pin, the account it left the event's", reason: status.ReasonMovedByPin, facts: status.Facts{From: "work", To: "side", At: at, Now: now}, want: "moved from [work] 14:31: pinned to [side]"},
+		{name: "its pin yielding: no when", reason: "pin yields: side has no room", facts: status.Facts{At: at, Now: now}, want: "its pin to [side] yields: [side] has no room"},
+		{name: "chosen afresh under the global pin, from nowhere told", reason: status.ReasonGlobalPin, facts: status.Facts{To: "side", At: at, Now: now}, want: "here since 14:31: pinned to [side]"},
+		{name: "a reason from a later router, cleaned", reason: "balanced\x1b", facts: status.Facts{At: at, Now: now}, want: "here since 14:31: balanced"},
+		{name: "no reason", facts: status.Facts{At: at, Now: now}, want: "here since 14:31"},
+		{name: "no reason, from an account told", facts: status.Facts{From: "work", At: at, Now: now}, want: "moved from [work] 14:31"},
+		{name: "when unknown: unsaid", reason: status.ReasonGlobalPin, facts: status.Facts{To: "side", Now: now}, want: "pinned to [side]"},
+		{name: "on another day: its weekday too", reason: status.ReasonNew, facts: status.Facts{At: at.Add(-48 * time.Hour), Now: now}, want: "started here Tue 14:31"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := marked(status.RunningWords(tt.reason, tt.facts)); got != tt.want {
+				t.Errorf("RunningWords(%q) = %q, want %q", tt.reason, got, tt.want)
+			}
+		})
+	}
+}
