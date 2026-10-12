@@ -32,8 +32,8 @@ type Printout struct {
 	Width int
 	Look  Look
 	By    By
-	// Windows are the windows' keys to print, in Claude's order; none prints
-	// every one.
+	// Windows are the windows' keys to print, each once, in Claude's order;
+	// none prints every one.
 	Windows []string
 	// Policy is the provider's say in which windows every model shares,
 	// which print whatever is read, so every account keeps its rows before

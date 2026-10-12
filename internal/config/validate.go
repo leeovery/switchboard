@@ -301,14 +301,14 @@ func parseWeekStart(given string) (time.Weekday, error) {
 
 // parseUsageBy reads [usage] by: a layout, by its name. None given is
 // ByWindow.
-func parseUsageBy(given string) (Layout, error) {
-	if given == "" {
+func parseUsageBy(given *string) (Layout, error) {
+	if given == nil {
 		return ByWindow, nil
 	}
-	if layout, ok := ParseLayout(given); ok {
+	if layout, ok := ParseLayout(*given); ok {
 		return layout, nil
 	}
-	return ByWindow, wrongValue("usage.by", given, "must be window, the accounts compared a window at a time, or account, each account's windows together")
+	return ByWindow, wrongValue("usage.by", *given, "must be window, the accounts compared a window at a time, or account, each account's windows together")
 }
 
 // MostDays is the most whole days a time.Duration holds, some 292 years: a

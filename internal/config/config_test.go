@@ -796,6 +796,7 @@ func TestLoadReportsProblems(t *testing.T) {
 		{name: "a week starting on a day with a space", config: "week_starts = \" monday\"\n" + work, want: []string{weekStarts(" monday")}},
 		{name: "a layout of several", config: work + "\n[usage]\nby = \"windows\"\n", want: []string{by("windows")}},
 		{name: "a layout usage has none of", config: work + "\n[usage]\nby = \"matrix\"\n", want: []string{by("matrix")}},
+		{name: "a layout given empty", config: work + "\n[usage]\nby = \"\"\n", want: []string{by("")}},
 		{name: "a plan the table doesn't know", config: work + "plan = \"max10x\"\n", want: []string{plan("work", "max10x")}},
 		{name: "a plan in another case", config: work + "plan = \"Max5x\"\n", want: []string{plan("work", "Max5x")}},
 		{name: "a plan by the name it's shown by", config: work + accountTOML("side") + "plan = \"Max 20x\"\n", want: []string{plan("side", "Max 20x")}},
