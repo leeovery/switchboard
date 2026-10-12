@@ -2,6 +2,8 @@ package watch
 
 import (
 	"cmp"
+	"errors"
+	"io/fs"
 	"slices"
 	"strings"
 	"testing"
@@ -13,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -210,6 +213,75 @@ func TestTheYearStepsBackToThisYearAloneWhereTheLedgerDoesntSayWhereItBegan(t *t
 	h.typed("<", "<")
 	if got := h.model.past.page.Period(); got != "2026" || len(l.reads) != 1 {
 		t.Errorf("< twice, the Year shows %q, the ledger read from %v; want 2026, the year alone", got, l.reads)
+	}
+}
+
+// begunOn reads as the ledger it holds, but tells that it began on the day
+// with the date given, or fails to with the error given.
+type begunOn struct {
+	*daysLedger
+	began string
+	err   error
+}
+
+func (l begunOn) FirstDay(time.Time) (time.Time, error) {
+	if l.err != nil {
+		return time.Time{}, l.err
+	}
+	start, _, _ := dayfile.Day(l.began)
+	return start, nil
+}
+
+// The Year takes the day the ledger began as the ledger tells it, never the
+// first day it holds: of a ledger begun on 15 September that holds nothing
+// before the 20th, BY MONTH's September is from the 15th.
+func TestTheYearTakesTheDayTheLedgerBeganAsTheLedgerTellsIt(t *testing.T) {
+	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
+	l.first = "2026-09-20"
+	l.days["2026-09-20"] = requested("2026-09-20", 10)
+	h.model.cfg.Ledger = begunOn{daysLedger: l, began: "2026-09-15"}
+	h.start()
+	months := h.model.past.page.Year.ByMonth
+	if i := slices.IndexFunc(months, func(m views.MonthRow) bool { return m.Month.Month == "2026-09" }); i < 0 || months[i].From != "2026-09-15" {
+		t.Errorf("BY MONTH is %+v, want September from the 15th", months)
+	}
+}
+
+// A ledger that fails to say where it begins, but for holding nothing, has
+// it logged, the once; and the year read as it would be, the Year stepping
+// back to this calendar year alone.
+func TestALedgerThatFailsToSayWhereItBeginsIsLogged(t *testing.T) {
+	tests := []struct {
+		name   string
+		err    error
+		logged int
+	}{
+		{name: "failing", err: errors.New("permission denied"), logged: 1},
+		{name: "holding nothing", err: fs.ErrNotExist},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
+			l.days[yesterday] = requested(yesterday, 10)
+			h.model.cfg.Ledger = begunOn{daysLedger: l, err: tt.err}
+			h.start()
+			h.typed("<", "<")
+			h.tickUntilAsked()
+
+			if p := h.model.past.page; p.Period() != "2026" || p.Year == nil || p.Year.Numbers.Requests != 10 {
+				t.Errorf("the Year shows %q, drawn %v; want 2026, its 10 requests drawn", p.Period(), p.Year != nil)
+			}
+			var logged []string
+			for _, line := range log.Lines() {
+				if strings.Contains(line, `msg="couldn't read where the request ledger begins"`) {
+					logged = append(logged, line)
+				}
+			}
+			if len(logged) != tt.logged || tt.logged > 0 && !log.Has("level=WARN", "component=watch", `error="permission denied"`) {
+				t.Errorf("the log reads\n%s\nwant %d warning that the ledger couldn't say where it begins", log, tt.logged)
+			}
+		})
 	}
 }
 

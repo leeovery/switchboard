@@ -59,10 +59,10 @@ func TestHistorysChoicesAreKeptByNameAndReadBack(t *testing.T) {
 }
 
 // Names the dashboard doesn't know, and none, as preferences kept before
-// History's were, read as History opens; and an account kept that isn't one
-// v cycles through, as one no longer configured, or the one of one account
-// alone, is taken for a version's name, for the watch to find none used, and
-// show all use.
+// History's were, read as History opens; an account kept that's the one of
+// one configured alone shows all use, as v doesn't cycle through it; and one
+// no longer configured is taken for a version's name, for the watch to find
+// none used, and show all use.
 func TestHistorysChoicesKeptThatNameNothingReadAsItOpens(t *testing.T) {
 	kept := theme.HistoryPrefs{View: "months", Weeks: "bars", Tokens: theme.TokensPrefs{Period: "year", Split: "session"}}
 	for _, kept := range []theme.HistoryPrefs{kept, {}} {
@@ -71,9 +71,16 @@ func TestHistorysChoicesKeptThatNameNothingReadAsItOpens(t *testing.T) {
 			t.Errorf("HistoryKept(%+v) = %+v, want History as it opens", kept, got)
 		}
 	}
-	for _, accounts := range []config.Accounts{threeConfigured[1:], threeConfigured[:1]} {
-		if got := HistoryKept(theme.HistoryPrefs{Year: "work"}, accounts).YearAsk; got != (views.YearAsk{Version: "work"}) {
-			t.Errorf("HistoryKept() of work among %v shows %+v, want it taken for a version", accounts.IDs(), got)
+	tests := []struct {
+		accounts config.Accounts
+		want     views.YearAsk
+	}{
+		{accounts: threeConfigured[:1], want: views.YearAsk{}},
+		{accounts: threeConfigured[1:], want: views.YearAsk{Version: "work"}},
+	}
+	for _, tt := range tests {
+		if got := HistoryKept(theme.HistoryPrefs{Year: "work"}, tt.accounts).YearAsk; got != tt.want {
+			t.Errorf("HistoryKept() of work among %v shows %+v, want %+v", tt.accounts.IDs(), got, tt.want)
 		}
 	}
 }
@@ -142,7 +149,7 @@ func TestHistorysPeriodsStep(t *testing.T) {
 // each account, and back to all; Weeks between a table and columns; and
 // Tokens' split; but on Days, or the Year before its page is built, nothing.
 func TestVCyclesWhatEachSubTabShows(t *testing.T) {
-	year := HistoryPage{Accounts: threeConfigured, Year: &views.YearPage{Versions: []string{"Opus 5.5", "Sonnet 5"}, Accounts: []string{"work", "side"}}}
+	year := HistoryPage{Accounts: threeConfigured, Read: true, Year: &views.YearPage{Versions: []string{"Opus 5.5", "Sonnet 5"}, Accounts: []string{"work", "side"}}}
 	var shown []string
 	for range 6 {
 		year, _ = year.Cycled()
@@ -197,14 +204,16 @@ func TestArrowsStepTheYearShownForOneAccount(t *testing.T) {
 }
 
 // The key line names each sub-tab's period and what v has it show, as the
-// heading names them: Days has neither, and Weeks no period.
+// heading names them: Days has neither, Weeks no period, and the Year no
+// version till the last 12 months are read.
 func TestHistorysPeriodsAndSplitsAsTheKeyLineNamesThem(t *testing.T) {
 	tests := []struct {
 		page          HistoryPage
 		period, split string
 	}{
 		{page: HistoryPage{}, period: "last 12 months", split: "all"},
-		{page: HistoryPage{YearAsk: views.YearAsk{Year: 2025, Version: "Opus 5.5"}}, period: "2025", split: "Opus 5.5"},
+		{page: HistoryPage{Read: true, YearAsk: views.YearAsk{Year: 2025, Version: "Opus 5.5"}}, period: "2025", split: "Opus 5.5"},
+		{page: HistoryPage{YearAsk: views.YearAsk{Version: "Opus 5.5"}}, period: "last 12 months", split: "all"},
 		{page: HistoryPage{Shown: HistoryWeeks}, split: "table"},
 		{page: HistoryPage{Shown: HistoryDays}},
 		{page: HistoryPage{Shown: HistoryTokens, TokensSplit: TokensByModel}, period: "by week", split: "by model"},

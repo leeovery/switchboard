@@ -53,23 +53,32 @@ const (
 // historyYear draws the Year from row top, once its page is built: on a
 // phone, as phone lays it out.
 func (f Frame) historyYear(c *canvas, top int) {
-	page := f.History.Year
-	if page == nil {
+	y, ok := f.yearDrawn()
+	if !ok {
 		return
 	}
-	y := yearDrawn{Frame: f, page: *page, ask: f.History.YearAsk}
-	if f.phone() {
+	if y.form.phone {
 		y.phone(c, top)
 		return
 	}
-	y.grid(c, yearGridX, top, page.Weeks, 0, dayAbbreviation)
+	y.grid(c, yearGridX, top, y.page.Weeks, 0, dayAbbreviation)
 	y.key(c, top+yearKeyRow, keyWide)
 	y.heading(c, yearNumbersX, top)
 	for i, figure := range y.figures() {
 		c.line(yearNumbersX, top+1+i, slices.Concat(line{{padded(figure.label, yearLabelCells), dimInk}}, figure.value))
 	}
-	last := y.byMonth(c, top+yearByMonthRow, byMonthWide)
-	y.dots(c, byMonthBarX, last+2)
+	y.byMonth(c, top)
+	y.dots(c, byMonthBarX, top+y.dotsRow())
+}
+
+// yearHeight is how many rows the Year takes, as it's laid out: none before
+// its page is built.
+func (f Frame) yearHeight() int {
+	y, ok := f.yearDrawn()
+	if !ok {
+		return 0
+	}
+	return y.height()
 }
 
 // phone draws the Year as a phone has it: the latest weeks that fit, under
@@ -92,15 +101,46 @@ func (y yearDrawn) phone(c *canvas, top int) {
 			c.line(yearPhoneSecondX, row-yearPhoneFigures, l)
 		}
 	}
-	y.byMonth(c, top+yearPhoneByMonthRow, byMonthPhone)
+	y.byMonth(c, top)
 }
 
-// yearDrawn is the Year as the frame draws it: its page, and what it was
-// asked to show.
+// yearDrawn is the Year as the frame draws it: its page, what it was asked
+// to show, and how it's laid out, on a phone or wide, as BY MONTH's form
+// gives it.
 type yearDrawn struct {
 	Frame
 	page views.YearPage
 	ask  views.YearAsk
+	form byMonthForm
+}
+
+// yearDrawn is the Year as the frame draws it, reporting false before its
+// page is built.
+func (f Frame) yearDrawn() (yearDrawn, bool) {
+	page := f.History.Year
+	if page == nil {
+		return yearDrawn{}, false
+	}
+	form := byMonthWide
+	if f.phone() {
+		form = byMonthPhone
+	}
+	return yearDrawn{Frame: f, page: *page, ask: f.History.YearAsk, form: form}, true
+}
+
+// height is how many rows the Year takes under its top: to BY MONTH's last
+// month, and wide, to the bars' key under it, where there are bars to key.
+func (y yearDrawn) height() int {
+	if y.form.phone || len(y.page.Families) == 0 {
+		return y.placed().last() + 1
+	}
+	return y.dotsRow() + 1
+}
+
+// dotsRow is the row under the Year's top the bars' key is on, wide: two
+// under BY MONTH's last month.
+func (y yearDrawn) dotsRow() int {
+	return y.placed().last() + 2
 }
 
 // ofVersion reports whether the Year shows a version alone.
@@ -371,20 +411,59 @@ func ordinal(day int) string {
 }
 
 // byMonthForm is how BY MONTH is laid out: wide, or on a phone, its heads on
-// its own row, its last months alone and none of its notes; the column its
-// months' names are at, and its bars', the most cells a bar takes, and how
-// many of the last months it shows, 0 for all.
+// its own row, its last months alone and none of its notes; the row under
+// the Year's top it starts at; the column its months' names are at, and its
+// bars', the most cells a bar takes, and how many of the last months it
+// shows, 0 for all.
 type byMonthForm struct {
 	phone                 bool
+	row                   int
 	nameX, barX, barCells int
 	months                int
 }
 
 // BY MONTH's forms, wide and on a phone.
 var (
-	byMonthWide  = byMonthForm{nameX: byMonthNameX, barX: byMonthBarX, barCells: byMonthBarCells}
-	byMonthPhone = byMonthForm{phone: true, nameX: byMonthPhoneNameX, barX: byMonthPhoneBarX, barCells: byMonthPhoneBarCells, months: byMonthPhoneMonths}
+	byMonthWide  = byMonthForm{row: yearByMonthRow, nameX: byMonthNameX, barX: byMonthBarX, barCells: byMonthBarCells}
+	byMonthPhone = byMonthForm{
+		phone: true, row: yearPhoneByMonthRow, nameX: byMonthPhoneNameX, barX: byMonthPhoneBarX, barCells: byMonthPhoneBarCells, months: byMonthPhoneMonths,
+	}
 )
+
+// byMonthPlaced is where BY MONTH's rows are under the Year's top: its
+// heads', on a phone its heading's, else the one under it; whether the row
+// under them is the one for the months before a version was first used, as
+// it is wide where there are any; and the months it shows, oldest first, on
+// a phone the last of them alone, a row each from first.
+type byMonthPlaced struct {
+	heads  int
+	before bool
+	first  int
+	months []views.MonthRow
+}
+
+// placed is where BY MONTH's rows are under the Year's top, as its form lays
+// them out.
+func (y yearDrawn) placed() byMonthPlaced {
+	f := y.form
+	p := byMonthPlaced{heads: f.row + 1, before: y.page.Before != nil && !f.phone, months: y.page.ByMonth}
+	if f.phone {
+		p.heads = f.row
+	}
+	if p.first = p.heads + 1; p.before {
+		p.first++
+	}
+	if f.months > 0 {
+		p.months = p.months[max(len(p.months)-f.months, 0):]
+	}
+	return p
+}
+
+// last is the row of the last month shown: where none is, the row over
+// where the first would be.
+func (p byMonthPlaced) last() int {
+	return p.first + len(p.months) - 1
+}
 
 // monthColumn is a column of BY MONTH: its head, the column it's at, what it
 // says of a month, and whether a look can change it, in the month so far.
@@ -428,40 +507,30 @@ func (y yearDrawn) monthColumns(f byMonthForm) []monthColumn {
 	return columns
 }
 
-// byMonth draws BY MONTH from row row, as the form lays it out, and returns
-// the row of its last month: its heading, wide with what it shows after it;
-// its heads, and over its bars, by model, or a version's worth; then a row a
-// month, oldest first, the first with its year, wide, and filtered to a
-// version, a row before them for the months before it was used.
-func (y yearDrawn) byMonth(c *canvas, row int, f byMonthForm) int {
-	heads := row + 1
-	if f.phone {
-		heads = row
-	}
-	c.line(0, row, groupHead("BY MONTH", y.byMonthSays(), f.phone))
+// byMonth draws BY MONTH under the Year's top, where placed puts its rows:
+// its heading, wide with what it shows after it; its heads, and over its
+// bars, by model, or a version's worth; then a row a month, oldest first,
+// the first with its year, wide, and filtered to a version, a row before
+// them for the months before it was used.
+func (y yearDrawn) byMonth(c *canvas, top int) {
+	f, at := y.form, y.placed()
+	c.line(0, top+f.row, groupHead("BY MONTH", y.byMonthSays(), f.phone))
 	columns := y.monthColumns(f)
 	for _, col := range columns {
-		c.text(col.x, heads, col.head, dimInk)
+		c.text(col.x, top+at.heads, col.head, dimInk)
 	}
 	barHead := "by model"
 	if y.ofVersion() {
 		barHead = "worth"
 	}
-	c.text(f.barX, heads, barHead, dimInk)
-	at, withYear := heads+1, !f.phone
-	if b := y.page.Before; b != nil && !f.phone {
-		monthsBefore(c, at, *b)
-		at, withYear = at+1, false
-	}
-	rows := y.page.ByMonth
-	if f.months > 0 {
-		rows = rows[max(len(rows)-f.months, 0):]
+	c.text(f.barX, top+at.heads, barHead, dimInk)
+	if at.before {
+		monthsBefore(c, top+at.heads+1, *y.page.Before)
 	}
 	largest := largestWorth(y.page.ByMonth)
-	for i, m := range rows {
-		y.month(c, at+i, m, withYear && i == 0, columns, f, largest)
+	for i, m := range at.months {
+		y.month(c, top+at.first+i, m, i == 0 && !f.phone && !at.before, columns, f, largest)
 	}
-	return at + len(rows) - 1
 }
 
 // byMonthSays is what BY MONTH shows, after its heading: the worth and what

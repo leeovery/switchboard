@@ -32,6 +32,10 @@ type HistoryInput struct {
 	// From is when the days asked for start, and Now the time now: they're
 	// the local days from From's to today's, those the ledger holds.
 	From, Now time.Time
+	// Began is the start of the ledger's first day, as LedgerStart tells it,
+	// for a Past to take as the day the ledger began recording: zero where
+	// it's unknown.
+	Began time.Time
 	// Prices price the days' requests, at today's prices, and the plans, and
 	// name the models' versions and families.
 	Prices ledger.Table

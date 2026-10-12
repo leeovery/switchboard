@@ -66,9 +66,21 @@ var overTheYear = daysFrom("2025-10-06",
 		usedBy("work", sessionsOf(sent("claude-opus-5-5", 2, inputUsage), sessionE))),
 )
 
-// yearOf is the Year's page asked for of the days given, at now.
+// yearOf is the Year's page asked for of the days given, at now, of a ledger
+// that doesn't tell where it began.
 func yearOf(days []ledger.Summary, ask views.YearAsk) views.YearPage {
-	return views.NewPast(input(days), days).Year(ask)
+	return yearBegun(days, "", ask)
+}
+
+// yearBegun is the Year's page asked for of the days given, at now, of a
+// ledger that tells it began on the day with the date given: of "", one that
+// doesn't tell.
+func yearBegun(days []ledger.Summary, began string, ask views.YearAsk) views.YearPage {
+	in := input(days)
+	if began != "" {
+		in.Began = on(began)
+	}
+	return views.NewPast(in, days).Year(ask)
 }
 
 // gridOf is the grid's weeks, a string each, a day a character: its level,
@@ -143,6 +155,75 @@ func TestEachMonthsNameSitsOverTheFirstWeekHoldingFourOfItsDays(t *testing.T) {
 	}
 }
 
+// Today's month, where no week holds 4 of its days yet, is named over the
+// week holding its 1st: on Saturday 1 August 2026, weeks from Monday, the
+// grid's last week holds two of August's days, and Aug sits over it, at 118,
+// July's name 4 weeks before it.
+func TestTheCurrentMonthIsNamedOverTheWeekOfItsFirstTillAWeekHoldsFourOfItsDays(t *testing.T) {
+	at := time.Date(2026, 8, 1, 10, 0, 0, 0, time.Local)
+	days := daysTo("2025-07-28", at)
+	in := input(days)
+	in.Now = at
+	months := views.NewPast(in, days).Year(views.YearAsk{}).Months
+
+	last := months[len(months)-2:]
+	want := []views.MonthLabel{{Month: "2026-07", Week: 48}, {Month: "2026-08", Week: 52, Current: true}}
+	if !slices.Equal(last, want) {
+		t.Errorf("the last months' names are %+v, want %+v", last, want)
+	}
+}
+
+// The months' names never run into each other, each three cells over weeks
+// two cells apart, and today's month is always named, on each day of a leap
+// year, weeks from Monday or from Sunday: the month the grid begins part-way
+// through, whose name would sit a week before the next's, left out.
+func TestTheMonthsNamesNeverRunIntoEachOther(t *testing.T) {
+	for at := onAt("2028-01-01", "10:00"); at.Year() == 2028; at = at.AddDate(0, 0, 1) {
+		in := input(nil)
+		in.Now = at
+		for _, starts := range []time.Weekday{time.Monday, time.Sunday} {
+			in.WeekStarts = starts
+			months := views.NewPast(in, nil).Year(views.YearAsk{}).Months
+			for i := 1; i < len(months); i++ {
+				if months[i].Week-months[i-1].Week < 2 {
+					t.Fatalf("on %s, weeks from %s, %s's name is over week %d and %s's week %d: they run into each other",
+						at.Format(time.DateOnly), starts, months[i-1].Month, months[i-1].Week, months[i].Month, months[i].Week)
+				}
+			}
+			if !slices.ContainsFunc(months, func(l views.MonthLabel) bool { return l.Month == at.Format("2006-01") && l.Current }) {
+				t.Fatalf("on %s, weeks from %s, the months named are %+v, want today's among them, the current one", at.Format(time.DateOnly), starts, months)
+			}
+		}
+	}
+}
+
+// The month the grid begins part-way through is named over its first week
+// where the next month's name is 2 weeks or more on, and left out where it's
+// a week on: on Friday 1 January 2027, weeks from Sunday, the first week
+// holds 28 to 31 December and 1 to 3 January.
+func TestTheMonthTheGridBeginsPartWayThroughIsNamedWhereThereIsRoom(t *testing.T) {
+	tests := []struct {
+		name   string
+		at     time.Time
+		starts time.Weekday
+		want   []string
+	}{
+		{name: "room", at: onAt("2026-10-01", "10:00"), starts: time.Monday, want: []string{"2025-10@0", "2025-11@5"}},
+		{name: "a week on", at: onAt("2027-01-01", "10:00"), starts: time.Sunday, want: []string{"2026-01@1", "2026-02@5"}},
+	}
+	for _, tt := range tests {
+		in := input(nil)
+		in.Now, in.WeekStarts = tt.at, tt.starts
+		var got []string
+		for _, l := range views.NewPast(in, nil).Year(views.YearAsk{}).Months[:2] {
+			got = append(got, fmt.Sprintf("%s@%d", l.Month, l.Week))
+		}
+		if !slices.Equal(got, tt.want) {
+			t.Errorf("%s: the first months' names sit at %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
 // A calendar year's grid runs from the week of 1 January to the week of 31
 // December, the days outside it left out, and its numbers count its days
 // alone, against its plans priced to its end, though it's still running,
@@ -154,6 +235,7 @@ func TestACalendarYearsGridIsItsWeeksAndItsNumbersItsDays(t *testing.T) {
 	tests := []struct {
 		name        string
 		days        []ledger.Summary
+		began       string
 		year        int
 		first, last string
 		months      string
@@ -161,24 +243,24 @@ func TestACalendarYearsGridIsItsWeeksAndItsNumbersItsDays(t *testing.T) {
 		cost        string
 	}{
 		{
-			name: "last year", days: sinceLastYear, year: 2025,
+			name: "last year", days: sinceLastYear, began: "2024-12-30", year: 2025,
 			first: "2024-12-30 --40000", last: "2025-12-29 002----", months: "2025-01@0 … 2025-12@48", requests: 12, cost: "2640",
 		},
 		{
-			name: "this year, so far", days: sinceLastYear, year: 2026,
+			name: "this year, so far", days: sinceLastYear, began: "2024-12-30", year: 2026,
 			first: "2025-12-29 ---0400", last: "2026-12-28 -------", months: "2026-01@0 … 2026-12@48", requests: 2, cost: "2640",
 		},
 		{
 			// The days before the ledger began are empty squares, like any
 			// other; its plans cost from 6 October to 31 December, 87 ×
 			// 12/365 of $220.
-			name: "the year the ledger began in", days: overTheYear, year: 2025,
+			name: "the year the ledger began in", days: overTheYear, began: "2025-10-06", year: 2025,
 			first: "2024-12-30 --00000", last: "2025-12-29 000----", months: "2025-01@0 … 2025-12@48", requests: 910, cost: "629.260273972603",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			page := yearOf(tt.days, views.YearAsk{Year: tt.year})
+			page := yearBegun(tt.days, tt.began, views.YearAsk{Year: tt.year})
 
 			grid := gridOf(page.Weeks)
 			if len(grid) != 53 || grid[0] != tt.first || grid[len(grid)-1] != tt.last {
@@ -239,6 +321,27 @@ func TestTheYearsNumbersCountTheTwelveMonths(t *testing.T) {
 	}
 }
 
+// Filtered to a version, a day's sessions are those it names, each once over
+// the days, and besides them the count of each model's day that names none:
+// side's day of Haiku 4.5 holds one model's day naming session D, and
+// another's of 3 sessions, kept from a summary of version 3, naming none;
+// and the day after, D again.
+func TestAVersionsSessionsAddTheCountOfAModelsDayThatNamesNone(t *testing.T) {
+	days := daysFrom("2026-10-06",
+		day("2026-10-06", ledger.AccountDay{
+			Account: "side", Sessions: 4, SessionIDs: []string{sessionA, sessionB, sessionC, sessionD},
+			Models: []ledger.ModelDay{
+				sessionsOf(sent("claude-haiku-4-5", 1, inputUsage), sessionD),
+				{Model: "claude-haiku-4-5-20251001", Upstream: 3, Sessions: 3, Usage: []byte(inputUsage)},
+			},
+		}),
+		day("2026-10-07", usedBy("side", sessionsOf(sent("claude-haiku-4-5", 1, inputUsage), sessionD))))
+
+	if got := yearOf(days, views.YearAsk{Version: "Haiku 4.5"}).Numbers.Sessions; got != 4 {
+		t.Errorf("Haiku 4.5's sessions are %d, want 4: D once, and the 3 named by none", got)
+	}
+}
+
 // Filtered, the grid shades what's shown alone, its cuts re-scaled to its
 // active days.
 func TestAFilteredGridShadesWhatsShownAlone(t *testing.T) {
@@ -268,35 +371,47 @@ func TestAFilteredGridShadesWhatsShownAlone(t *testing.T) {
 }
 
 // BY MONTH is a row a month, the first of the 12 months priced from their
-// first day, the month the ledger began recording in from then, and the
-// month so far marked so.
+// first day, the month the ledger began recording in from then, as the
+// ledger tells it, never as the first day it holds, and the month so far
+// marked so.
 func TestByMonthMarksTheMonthTheLedgerBeganAndTheMonthSoFar(t *testing.T) {
 	tests := []struct {
-		name string
-		days []ledger.Summary
-		want []string
+		name  string
+		days  []ledger.Summary
+		began string
+		want  []string
 	}{
 		{
 			// The 12 months begin on 8 October 2025: its 24 days of the
 			// plans' $220 a month cost 24 × 12/365 of it.
 			name: "a ledger from before the 12 months",
-			days: overTheYear,
+			days: overTheYear, began: "2025-10-06",
 			want: []string{"2025-10 cost 173.58904109589 from  so far false", "2026-10 cost 220 from  so far true"},
 		},
 		{
 			name: "a ledger begun on 15 September",
-			days: daysFrom("2026-09-15", busy("2026-09-15", 3)),
+			days: daysFrom("2026-09-15", busy("2026-09-15", 3)), began: "2026-09-15",
+			want: []string{"2026-09 cost 220 from 2026-09-15 so far false", "2026-10 cost 220 from  so far true"},
+		},
+		{
+			name: "a ledger begun on 15 September, holding nothing before the 20th",
+			days: daysFrom("2026-09-20", busy("2026-09-20", 3)), began: "2026-09-15",
 			want: []string{"2026-09 cost 220 from 2026-09-15 so far false", "2026-10 cost 220 from  so far true"},
 		},
 		{
 			name: "a ledger begun on the first of a month",
-			days: daysFrom("2026-09-01", busy("2026-09-01", 3)),
+			days: daysFrom("2026-09-01", busy("2026-09-01", 3)), began: "2026-09-01",
+			want: []string{"2026-09 cost 220 from  so far false", "2026-10 cost 220 from  so far true"},
+		},
+		{
+			name: "a ledger that doesn't tell where it began",
+			days: daysFrom("2026-09-15", busy("2026-09-15", 3)),
 			want: []string{"2026-09 cost 220 from  so far false", "2026-10 cost 220 from  so far true"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rows := yearOf(tt.days, views.YearAsk{}).ByMonth
+			rows := yearBegun(tt.days, tt.began, views.YearAsk{}).ByMonth
 			got := []string{monthRowOf(t, rows[0]), monthRowOf(t, rows[len(rows)-1])}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("BY MONTH's first and last rows are\n%q\nwant\n%q", got, tt.want)
@@ -398,6 +513,24 @@ func TestVCyclesTheVersionsUsedAndTheAccounts(t *testing.T) {
 	}
 }
 
+// The Past's versions are those the last 12 months used, as the Year's page
+// of them lists them: not those of the grid's days before them alone, as
+// Opus 4.5's of 6 October 2025.
+func TestThePastsVersionsAreThoseTheTwelveMonthsUsed(t *testing.T) {
+	days := daysFrom("2025-10-06",
+		day("2025-10-06", account("work", sent("claude-opus-4-5", 1, inputUsage))),
+		day("2026-10-07", account("work", sent("claude-sonnet-5-5", 1, inputUsage), sent("claude-opus-5-5", 1, inputUsage))))
+	past := views.NewPast(input(days), days)
+
+	want := []string{"Opus 5.5", "Sonnet 5.5"}
+	if got := past.Versions(); !slices.Equal(got, want) {
+		t.Errorf("Versions() = %v, want %v", got, want)
+	}
+	if got := past.Year(views.YearAsk{}).Versions; !slices.Equal(got, want) {
+		t.Errorf("the Year's page lists %v, want %v, as Versions has them", got, want)
+	}
+}
+
 // BY MONTH's bars are split by the families whose requests were worth
 // anything in its months, in the version table's order.
 func TestTheBarsFamiliesAreThoseOfAnyWorth(t *testing.T) {
@@ -442,22 +575,64 @@ func TestAnEmptyLedgersYearIsAllLevelZero(t *testing.T) {
 	}
 }
 
-// The Year's days are read from its grid's first day: the first of the week a
-// year back, or of the week of a calendar year's 1 January.
+// The Year's days are read from its grid's first day, the first of the week a
+// year back, or of the week of a calendar year's 1 January; or from the 12
+// months' first, where that's before it, as on Monday 6 March 2028, weeks
+// from Monday, the 12 months holding 29 February.
 func TestTheYearIsReadFromItsGridsFirstDay(t *testing.T) {
 	tests := []struct {
 		name   string
 		ask    views.YearAsk
+		now    time.Time
 		starts time.Weekday
 		want   string
 	}{
-		{name: "the last 12 months", starts: time.Monday, want: "2025-10-06"},
-		{name: "weeks starting on Sunday", starts: time.Sunday, want: "2025-10-05"},
-		{name: "a calendar year", ask: views.YearAsk{Year: 2025}, starts: time.Monday, want: "2024-12-30"},
+		{name: "the last 12 months", now: now, starts: time.Monday, want: "2025-10-06"},
+		{name: "weeks starting on Sunday", now: now, starts: time.Sunday, want: "2025-10-05"},
+		{name: "a calendar year", ask: views.YearAsk{Year: 2025}, now: now, starts: time.Monday, want: "2024-12-30"},
+		{name: "the 12 months before the grid", now: onAt("2028-03-06", "10:00"), starts: time.Monday, want: "2027-03-07"},
 	}
 	for _, tt := range tests {
-		if got, want := views.YearFrom(tt.ask, now, tt.starts), on(tt.want); !got.Equal(want) {
+		if got, want := views.YearFrom(tt.ask, tt.now, tt.starts), on(tt.want); !got.Equal(want) {
 			t.Errorf("%s: read from %v, want %v", tt.name, got, want)
 		}
+	}
+}
+
+// The 12 months begin the day after today's date a year back, 1 March where
+// today is 29 February, and count from then: their requests, and their plans,
+// priced over their days, 366 of them over a 29 February; the month they
+// begin in noted from no day, the ledger having begun before it. On Monday 6
+// March 2028, weeks from Monday, they begin a day before the grid, and are
+// read from then.
+func TestTheTwelveMonthsBeginTheDayAfterTodaysDateAYearBack(t *testing.T) {
+	tests := []struct {
+		name  string
+		now   time.Time
+		first string
+	}{
+		{name: "Monday 6 March 2028", now: onAt("2028-03-06", "10:00"), first: "2027-03-07"},
+		{name: "29 February 2028", now: onAt("2028-02-29", "10:00"), first: "2027-03-01"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			read := views.YearFrom(views.YearAsk{}, tt.now, time.Monday)
+			today := tt.now.Format(time.DateOnly)
+			days := daysTo(read.Format(time.DateOnly), tt.now, busy(tt.first, 5), busy(today, 2))
+			in := input(days)
+			in.Now, in.Began = tt.now, on("2026-06-01")
+			page := views.NewPast(in, days).Year(views.YearAsk{})
+
+			if got := page.Numbers.Requests; got != 7 {
+				t.Errorf("the 12 months' requests are %d, want 7, their first day's 5 among them", got)
+			}
+			// 366 days of the plans' $220 a month, 366 × 12/365 of it.
+			if got, want := jsonOf(t, page.Numbers.Cost), "2647.232876712328"; got != want {
+				t.Errorf("the 12 months' plans cost %s, want %s, 366 days of them", got, want)
+			}
+			if first := page.ByMonth[0]; first.Month.Month != tt.first[:7] || first.From != "" {
+				t.Errorf("BY MONTH's first row is %s from %q, want %s noted from no day", first.Month.Month, first.From, tt.first[:7])
+			}
+		})
 	}
 }

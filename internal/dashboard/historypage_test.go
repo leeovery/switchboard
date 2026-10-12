@@ -75,10 +75,14 @@ func TestHistorysHeadingRow(t *testing.T) {
 
 // Shown for one version, or one account, the Year's heading says so after
 // [ ], in text.faint, its v bold accent.key, the rule from a cell after it, as
-// history-year-opus-160 draws it: an account by its label. Nothing's said of
-// all use, nor on another sub-tab.
+// history-year-opus-160 draws it: an account by its label, and a version once
+// the last 12 months are read, as one kept is checked against those they
+// used. Nothing's said of all use, nor on another sub-tab; nor of a version
+// till then, nor of an account kept that's taken for one, as one no longer
+// configured is, or that's the one of one alone, which shows all use.
 func TestHistorysHeadingSaysWhatTheYearIsShownForAlone(t *testing.T) {
 	const named = "HISTORY    Year  Weeks  Days  Tokens  [ ]   "
+	nothing := "HISTORY    Year  Weeks  Days  Tokens  [ ]  " + rule(97) + "  < last 12 months >"
 	labelled := config.Accounts{{ID: "work", Label: "Work"}, {ID: "side"}}
 	tests := []struct {
 		name string
@@ -88,9 +92,12 @@ func TestHistorysHeadingSaysWhatTheYearIsShownForAlone(t *testing.T) {
 		v int
 	}{
 		{
-			name: "a version", page: HistoryPage{YearAsk: views.YearAsk{Version: "Opus 5.5"}}, v: 77,
+			name: "a version", page: HistoryPage{Read: true, YearAsk: views.YearAsk{Version: "Opus 5.5"}}, v: 77,
 			want: named + "Opus 5.5 only, every account  ·  v for all, a model or an account " + rule(30) + "  < last 12 months >",
 		},
+		{name: "a version, till the last 12 months are read", page: HistoryPage{YearAsk: views.YearAsk{Version: "Opus 5.5"}}, want: nothing},
+		{name: "an account kept since removed, till then", page: HistoryKept(theme.HistoryPrefs{Year: "personal"}, labelled), want: nothing},
+		{name: "the account kept of one alone", page: HistoryKept(theme.HistoryPrefs{Year: "work"}, labelled[:1]), want: nothing},
 		{
 			name: "an account, by its label", page: HistoryPage{YearAsk: views.YearAsk{Account: "work"}, Accounts: labelled}, v: 71,
 			want: named + "Work only, every model  ·  v for all, a model or an account " + rule(36) + "  < last 12 months >",

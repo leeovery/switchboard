@@ -30,10 +30,10 @@ var tokensPeriods = []views.TokensPeriod{views.TokensByDay, views.TokensByWeek, 
 // HistoryKept is what History's views show as the preferences kept them, the
 // accounts configured given: the sub-tab, Weeks' shape, and Tokens' period
 // and split, each by its name; and what the Year shows, all use, an account
-// by its id, where it's one v cycles through, else a version by its name,
-// for the watch to check against those used once it reads them. What names
-// nothing there is, as an account no longer configured, shows as History
-// opens.
+// by its id, where it's one v cycles through, else, but a configured
+// account's id, a version by its name, for the watch to check against those
+// used once it reads them. What names nothing there is, as an account no
+// longer configured, or the one of one alone, shows as History opens.
 func HistoryKept(kept theme.HistoryPrefs, accounts config.Accounts) HistoryPage {
 	p := HistoryPage{
 		Shown:       HistoryView(placeAmong(kept.View, historyNames())),
@@ -41,11 +41,12 @@ func HistoryKept(kept theme.HistoryPrefs, accounts config.Accounts) HistoryPage 
 		TokensAsk:   views.TokensAsk{Period: keptPeriod(kept.Tokens.Period)},
 		TokensSplit: TokensSplit(placeAmong(kept.Tokens.Split, tokensSplitNames)),
 	}
+	configured := slices.Contains(accounts.IDs(), kept.Year)
 	switch {
 	case kept.Year == "" || kept.Year == allUse:
-	case len(accounts) > 1 && slices.Contains(accounts.IDs(), kept.Year):
+	case configured && len(accounts) > 1:
 		p.YearAsk.Account = kept.Year
-	default:
+	case !configured:
 		p.YearAsk.Version = kept.Year
 	}
 	return p
@@ -117,13 +118,18 @@ func (p HistoryPage) Split() string {
 	return ""
 }
 
-// yearShown names what the Year is shown for alone: a version, by its name,
-// as Opus 5.5, or an account, as label names it; "" for all use.
+// yearShown names what the Year is shown for alone: an account, as label
+// names it, or a version, by its name, as Opus 5.5, once the last 12 months
+// are read, as one kept is checked against those they used; "" for all use,
+// and for a version till then.
 func (p HistoryPage) yearShown() string {
-	if p.YearAsk.Account != "" {
+	switch {
+	case p.YearAsk.Account != "":
 		return p.label(p.YearAsk.Account)
+	case p.Read:
+		return status.Clean(p.YearAsk.Version)
 	}
-	return status.Clean(p.YearAsk.Version)
+	return ""
 }
 
 // label is the account with the given id as History names it: by its label,

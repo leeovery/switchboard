@@ -474,6 +474,39 @@ func TestByMonthsNotesAndTheRowBefore(t *testing.T) {
 	}
 }
 
+// The Year's height, as it's laid out, is the rows it draws: wide, to the
+// bars' key two rows under BY MONTH's last month, or to that month where
+// there are no bars to key, as filtered to a version, with the row before
+// its months and without; and on a phone, to the last of its six months.
+func TestTheYearsHeightIsTheRowsItDraws(t *testing.T) {
+	unpriced := plainYear()
+	unpriced.Families = nil
+	before := opusYear()
+	before.Before = &views.MonthsBefore{From: "2025-10", To: "2026-05", Then: "Opus 5"}
+	opus := views.YearAsk{Version: "Opus 5.5"}
+	tests := []struct {
+		name  string
+		width int
+		ask   views.YearAsk
+		page  views.YearPage
+		want  int
+	}{
+		{name: "all use", width: 160, page: plainYear(), want: 28},
+		{name: "no bars to key", width: 160, page: unpriced, want: 26},
+		{name: "a version", width: 160, ask: opus, page: opusYear(), want: 18},
+		{name: "a version, with the months before it", width: 160, ask: opus, page: before, want: 19},
+		{name: "a phone", width: 52, page: plainYear(), want: 23},
+	}
+	for _, tt := range tests {
+		f := yearFrame(t, tt.width, 37, tt.ask, tt.page)
+		drawn := growing(f.Width)
+		f.historyYear(drawn, 0)
+		if got := f.yearHeight(); got != drawn.height() || got != tt.want {
+			t.Errorf("%s: the Year's height is %d, and it draws %d rows; want %d", tt.name, got, drawn.height(), tt.want)
+		}
+	}
+}
+
 // On a phone, the numbers' first column is cut short a cell before the
 // second's, with an ellipsis, where the limits of two windows would run into
 // it.

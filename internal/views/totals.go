@@ -86,7 +86,7 @@ func accountTotalsOf(days []Day, accounts config.Accounts, v versions) Totals {
 }
 
 // totalling is an account's totals as they're counted, day by day: the ids
-// of its sessions, and how many of days that never named theirs; each
+// of its sessions, and how many days counted beyond those they named; each
 // window's last reset; its minutes at its cap and at a limit, and whether
 // any day read them and any never did; its worth by model version; and how
 // many days in a row it's had requests, and its most in a day.
@@ -107,11 +107,11 @@ func newTotalling(totals AccountTotals) *totalling {
 	return &totalling{AccountTotals: totals, ids: make(map[string]bool), resets: make(map[string]ledger.Reset), models: modelTally{}}
 }
 
-// add counts an account's day, returning its requests. A day of a summary
-// of version 1, which never named its sessions, has them counted as
-// distinct, as the nearest there is. The requests no account answered have
-// no windows, so no minutes to count; and every account's totals give no
-// share left at a reset, so count no resets.
+// add counts an account's day, returning its requests. The sessions a day
+// counts beyond those it names, as one of a summary of version 1 names none,
+// are counted as distinct, as the nearest there is. The requests no account
+// answered have no windows, so no minutes to count; and every account's
+// totals give no share left at a reset, so count no resets.
 func (t *totalling) add(a ledger.PricedAccount, v versions) int {
 	requests := 0
 	for _, m := range a.Models {
@@ -120,9 +120,7 @@ func (t *totalling) add(a ledger.PricedAccount, v versions) int {
 		t.models.add(v, m, m.Tokens(), "")
 	}
 	t.Requests += requests
-	if a.SessionIDs == nil {
-		t.unnamed += a.Sessions
-	}
+	t.unnamed += max(a.Sessions-len(a.SessionIDs), 0)
 	for _, id := range a.SessionIDs {
 		t.ids[id] = true
 	}
