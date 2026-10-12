@@ -20,14 +20,14 @@ import (
 // once a run, as History is first shown, and of the earliest calendar year
 // the Year steps back to that they don't reach, each brought up to today at
 // each look since; the day the ledger began, where it tells it, and whether
-// it failed to; the day weeks start on; and the reads of the ledger asked
-// for, one under way at a time, and whether a look since the last asks for
-// the days since.
+// a failure to has been logged, the once; the day weeks start on; and the
+// reads of the ledger asked for, one under way at a time, and whether a look
+// since the last asks for the days since.
 type historyTab struct {
 	page       dashboard.HistoryPage
 	last, back heldDays
 	began      time.Time
-	untold     bool
+	warned     bool
 	starts     time.Weekday
 	asked      int
 	reading    bool
@@ -75,10 +75,10 @@ type sinceMsg struct {
 
 // beginning is where the ledger began, as a read asked it: the start of its
 // first day, as LedgerStart tells it, zero where it doesn't, or wasn't
-// asked; and whether it failed to say, which is logged.
+// asked; and why it failed to say, where it did.
 type beginning struct {
-	began  time.Time
-	failed bool
+	began time.Time
+	err   error
 }
 
 // readHistory has the watch read the ledger's days for History while it's
@@ -115,57 +115,60 @@ func (m Model) asking() (Model, int) {
 // 12 months, else a calendar year, from the first day it reads, as YearFrom
 // has it, to today, at now, and prices them, as each is read once, knowing
 // where the ledger began, as it was known: where the ledger holds nothing so
-// far back, they begin where it does, which it tells alongside, where it's a
-// LedgerStart, for yearRead to have them priced knowing it.
+// far back, they begin where it does, which it asks alongside, as
+// beganAsked has it, for yearRead to have them priced knowing it.
 func (m Model) readYear(year int, now time.Time) (Model, tea.Cmd) {
 	from := views.YearFrom(views.YearAsk{Year: year}, now, m.cfg.WeekStarts)
 	in := views.HistoryInput{
 		From: from, Now: now, Began: m.past.began, Prices: m.cfg.Prices, Accounts: m.cfg.Accounts,
 		WeekStarts: m.cfg.WeekStarts, WeekWindow: m.cfg.WeekWindow, Family: m.cfg.Family,
 	}
+	began := m.past.beganAsked(m.cfg.Ledger)
 	m, asked := m.asking()
 	l := m.cfg.Ledger
 	return m, func() tea.Msg {
-		msg := yearReadMsg{asked: asked, back: year != 0, beginning: ledgerBegan(l, now)}
+		msg := yearReadMsg{asked: asked, back: year != 0, beginning: began(now)}
 		msg.days = heldDays{past: views.NewPast(in, l.Days(from)), from: from, to: now}
 		return msg
 	}
 }
 
-// ledgerBegan is where the ledger began, at now, as it tells it, where it's a
-// LedgerStart: the start of its first day, zero where it doesn't tell, holds
-// nothing, or fails to say, which is logged.
-func ledgerBegan(l views.Ledger, now time.Time) beginning {
+// beganAsked is how a read of the ledger asks where it began, at the moment
+// given: while that's unknown, as on a fresh install, or after a failure to
+// say, of a ledger that's a LedgerStart, as ledgerBegan has it; else not at
+// all.
+func (t historyTab) beganAsked(l views.Ledger) func(now time.Time) beginning {
 	start, ok := l.(views.LedgerStart)
-	if !ok {
-		return beginning{}
+	if !ok || !t.began.IsZero() {
+		return func(time.Time) beginning { return beginning{} }
 	}
+	return func(now time.Time) beginning { return ledgerBegan(start, now) }
+}
+
+// ledgerBegan is where the ledger began, at now, as it tells it: the start
+// of its first day; zero where it holds nothing, or fails to say, and why.
+func ledgerBegan(start views.LedgerStart, now time.Time) beginning {
 	first, err := start.FirstDay(now)
-	if err == nil {
-		return beginning{began: first}
-	}
-	if errors.Is(err, fs.ErrNotExist) {
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
 		return beginning{}
+	case err != nil:
+		return beginning{err: err}
 	}
-	logger.Warn("couldn't read where the request ledger begins", "error", err)
-	return beginning{failed: true}
+	return beginning{began: first}
 }
 
 // readSince reads the days since those held were read to, from the start of
 // that day, at now: today's alone, but at the first look on a new date,
-// which reads the days before it it hadn't finished, and today's. While
-// where the ledger began is unknown, as on a fresh install, it asks that
-// too, as the year's read does, but of a ledger that failed to say.
+// which reads the days before it it hadn't finished, and today's; and where
+// the ledger began, as beganAsked has it.
 func (m Model) readSince(now time.Time) (Model, tea.Cmd) {
 	from := dayfile.DayStart(m.past.readTo(now).Local(), 0)
-	ask := m.past.began.IsZero() && !m.past.untold
+	began := m.past.beganAsked(m.cfg.Ledger)
 	m, asked := m.asking()
 	l := m.cfg.Ledger
 	return m, func() tea.Msg {
-		msg := sinceMsg{asked: asked, at: now}
-		if ask {
-			msg.beginning = ledgerBegan(l, now)
-		}
+		msg := sinceMsg{asked: asked, at: now, beginning: began(now)}
 		msg.days = l.Days(from)
 		return msg
 	}
@@ -206,9 +209,13 @@ func (m Model) yearRead(msg yearReadMsg) Model {
 
 // learned is the tab once a read has asked where the ledger began: where it
 // told, held, and taken by every Past held, the 12 months' and a calendar
-// year's alike; where it failed to say, not asked again by a read since.
+// year's alike; where it failed to say, logged, the first time alone, as
+// each read after asks again.
 func (t historyTab) learned(b beginning) historyTab {
-	t.untold = t.untold || b.failed
+	if b.err != nil && !t.warned {
+		logger.Warn("couldn't read where the request ledger begins", "error", b.err)
+		t.warned = true
+	}
 	if b.began.IsZero() {
 		return t
 	}
@@ -233,18 +240,19 @@ func (t historyTab) checked() dashboard.HistoryPage {
 
 // sinceRead takes in the days read since those held were read to, and where
 // the ledger began, where the read learned it, but those of a read another
-// overtook: the page drawn before them and after, at the one moment, now,
-// each number on it they change brightens, as changed has it, as a look's
-// changes do.
+// overtook: the page drawn before the days and after, at the one moment,
+// now, both knowing where the ledger began, each number on it the days
+// change brightens, as changed has it, as a look's changes do.
 func (m Model) sinceRead(msg sinceMsg) Model {
 	if msg.asked != m.past.asked {
 		return m
 	}
+	m.past = m.past.learned(msg.beginning)
 	m.past.reading = false
 	now := m.now()
 	was := m
 	was.past = m.past.since(nil, now, now)
-	m.past = m.past.learned(msg.beginning).since(msg.days, msg.at, now)
+	m.past = m.past.since(msg.days, msg.at, now)
 	m.numbers = m.numbers.changed(was.numbersDrawn(now), m.numbersDrawn(now), now)
 	return m
 }

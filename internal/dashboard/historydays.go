@@ -110,7 +110,7 @@ type daysLayout struct {
 // layOutDays lays out Days of the page given from row top: wide where it
 // fits, else in its phone form.
 func (f Frame) layOutDays(p views.DaysPage, top int) daysLayout {
-	return f.daysLaidOut(p, top, f.phoneForm(func() int { return f.daysReach(p) }, f.Width))
+	return f.daysLaidOut(p, top, f.phoneForm(func() int { return f.daysReach(p) }))
 }
 
 // daysLaidOut lays out Days of the page given from row top: in its phone
@@ -131,13 +131,20 @@ func (f Frame) daysLaidOut(p views.DaysPage, top int, phone bool) daysLayout {
 	return l
 }
 
-// daysReach is the column Days' wide form of the page given ends before,
+// daysReach is the width Days' wide form of the page given takes: where its
+// widest row ends, and the margin after it, as Days ends its rows at the
+// edge, as its scroll line does.
+func (f Frame) daysReach(p views.DaysPage) int {
+	return f.daysWidest(p) + margin
+}
+
+// daysWidest is the column Days' wide form of the page given ends before,
 // where its widest row ends: the weeks' heads, a group's heading, a strip's
 // days or its count, whose number is right-aligned, so it ends where its
 // words do, at the widest they're drawn, so the form never hangs on the
 // count, or the key. A strip's name is cut short of its days, and what's out
 // of view of BY ACCOUNT fits the width it's drawn at, so they're left out.
-func (f Frame) daysReach(p views.DaysPage) int {
+func (f Frame) daysWidest(p views.DaysPage) int {
 	l := daysLayout{page: p, x: daysAt}
 	end := max(groupHead("BY MODEL", byModelSays, false).width(), groupHead("BY ACCOUNT", byAccountSays, false).width(), f.wideDaysKey().width())
 	for i, week := range p.Weeks {

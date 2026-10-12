@@ -64,7 +64,7 @@ var (
 // ones where their heads fit, else a phone's.
 func (f Frame) tokensColumns() tokensColumns {
 	cols := wideTokens
-	if f.phoneForm(wideTokens.reach, f.Width) {
+	if f.phoneForm(wideTokens.reach) {
 		cols = phoneTokens
 	}
 	cols.width = f.Width
@@ -166,11 +166,11 @@ const (
 	againstHead = "against its price"
 )
 
-// reach is the column Tokens, at the columns, ends before, where its widest
-// row ends: its heads', or the counts', each right-aligned to its column's
-// end. A row's worth and against its price are cut at the frame's width,
-// what names it and its split short of the counts, and the footnote wraps,
-// so they're left out.
+// reach is the width Tokens, at the columns, takes, drawn to the frame's
+// width: where its widest row ends, its heads', or the counts', each
+// right-aligned to its column's end. A row's worth and against its price
+// are cut at the frame's width, what names it and its split short of the
+// counts, and the footnote wraps, so they're left out.
 func (cols tokensColumns) reach() int {
 	end := cols.worth + ansi.StringWidth(worthHead)
 	for _, count := range cols.counts {

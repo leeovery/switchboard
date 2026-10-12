@@ -2,6 +2,7 @@ package watch
 
 import (
 	"cmp"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"maps"
@@ -306,7 +307,7 @@ func deref[T any](p *T) any {
 }
 
 // A ledger that fails to say where it begins, but for holding nothing, has
-// it logged, the once, the looks after it not asking again; and the year
+// it logged, the once, though the looks after it ask again; and the year
 // read as it would be, the Year stepping back to this calendar year alone.
 func TestALedgerThatFailsToSayWhereItBeginsIsLogged(t *testing.T) {
 	tests := []struct {
@@ -330,16 +331,105 @@ func TestALedgerThatFailsToSayWhereItBeginsIsLogged(t *testing.T) {
 			if p := h.model.past.page; p.Period() != "2026" || p.Year == nil || p.Year.Numbers.Requests != 10 {
 				t.Errorf("the Year shows %q, drawn %v; want 2026, its 10 requests drawn", p.Period(), p.Year != nil)
 			}
-			var logged []string
-			for _, line := range log.Lines() {
-				if strings.Contains(line, `msg="couldn't read where the request ledger begins"`) {
-					logged = append(logged, line)
-				}
-			}
-			if len(logged) != tt.logged || tt.logged > 0 && !log.Has("level=WARN", "component=watch", `error="permission denied"`) {
+			if got := beginningsUntold(log); got != tt.logged || tt.logged > 0 && !log.Has("level=WARN", "component=watch", `error="permission denied"`) {
 				t.Errorf("the log reads\n%s\nwant %d warning that the ledger couldn't say where it begins", log, tt.logged)
 			}
 		})
+	}
+}
+
+// beginningsUntold is how many times the log warns that the ledger couldn't
+// say where it begins.
+func beginningsUntold(log *logstest.Log) int {
+	n := 0
+	for _, line := range log.Lines() {
+		if strings.Contains(line, `msg="couldn't read where the request ledger begins"`) {
+			n++
+		}
+	}
+	return n
+}
+
+// flakyStart reads as the ledger it holds, but fails to say where it begins
+// the first fails times it's asked, as of too many files open, then tells it
+// as the ledger it holds does; and counts the times it's asked.
+type flakyStart struct {
+	*daysLedger
+	fails, asked int
+}
+
+func (l *flakyStart) FirstDay(now time.Time) (time.Time, error) {
+	l.asked++
+	if l.asked <= l.fails {
+		return time.Time{}, errors.New("too many open files")
+	}
+	return l.daysLedger.FirstDay(now)
+}
+
+// A failure to say where the ledger begins is passing: each look after it
+// asks again, till the ledger says, the failures logged the once; then no
+// read asks again.
+func TestALedgerThatFailsToSayWhereItBeginsIsAskedAgainTillItSays(t *testing.T) {
+	log := logstest.Capture(t)
+	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
+	flaky := &flakyStart{daysLedger: l, fails: 2}
+	h.model.cfg.Ledger = flaky
+	h.start()
+	h.tickUntilAsked()
+	if !h.model.past.began.IsZero() {
+		t.Fatalf("the ledger failed to say where it began twice, but it's taken as %s", h.model.past.began)
+	}
+
+	h.tickUntilAsked()
+	if began, _, _ := dayfile.Day(l.first); !h.model.past.began.Equal(began) || flaky.asked != 3 {
+		t.Errorf("at the third read, the ledger is taken to begin %s, asked %d times; want %s, at each read", h.model.past.began, flaky.asked, began)
+	}
+	if got := beginningsUntold(log); got != 1 {
+		t.Errorf("the log reads\n%s\nwant one warning that the ledger couldn't say where it begins, of two failures", log)
+	}
+	h.typed("<")
+	h.tickUntilAsked()
+	if flaky.asked != 3 {
+		t.Errorf("once the ledger said where it began, it was asked %d times more, want none", flaky.asked-3)
+	}
+}
+
+// Once the ledger has said where it began, no read asks again: neither a
+// look's nor a calendar year's stepped back to.
+func TestNoReadAsksWhereTheLedgerBeganOnceItsSaid(t *testing.T) {
+	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
+	flaky := &flakyStart{daysLedger: l}
+	h.model.cfg.Ledger = flaky
+	h.start()
+	h.typed("<", "<")
+	h.tickUntilAsked()
+	if p := h.model.past.page; p.Period() != "2025" || flaky.asked != 1 {
+		t.Errorf("the Year shows %q, the ledger asked where it began %d times; want 2025, asked once, by the first read", p.Period(), flaky.asked)
+	}
+}
+
+// Learning where the ledger began brightens nothing a look's days didn't
+// change: a look that learns it, of a ledger begun yesterday, and finds
+// nothing new, prices the plans from yesterday, its worth against them
+// rising, but brightens nothing.
+func TestLearningWhereTheLedgerBeganBrightensNothing(t *testing.T) {
+	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
+	l.first = yesterday
+	day := requested(yesterday, 10)
+	day.Accounts[0].Models[0].Usage = json.RawMessage(`{"input_tokens":10000000}`)
+	l.days[yesterday] = day
+	h.model.cfg.Ledger = &flakyStart{daysLedger: l, fails: 1}
+	h.model.cfg.Accounts = config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "personal", Plan: "max5x"}}
+	h.start()
+	against := dashboard.Number{Kind: dashboard.NumberYear, Of: "against it"}
+	was := h.drawnNumber(against)
+	h.tickUntilAsked()
+	if is := h.drawnNumber(against); h.model.past.began.IsZero() || is == was {
+		t.Fatalf("the look learned the ledger began %s, the worth against the plans drawn %q, as before; want it learned, and the plans priced from it",
+			h.model.past.began, is)
+	}
+	if got := h.brightened(); len(got) > 0 {
+		t.Errorf("a look that learned where the ledger began, and found nothing new, brightened %v, want none", got)
 	}
 }
 

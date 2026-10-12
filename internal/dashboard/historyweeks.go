@@ -76,16 +76,22 @@ func (f Frame) historyWeeks(c *canvas, top int) {
 // where that fits, else in its phone form.
 func (f Frame) weeksDrawn(p views.WeeksPage) weeksDrawn {
 	w := weeksDrawn{page: p, columns: f.History.WeeksShape == WeeksColumns, edge: f.edge()}
-	w.phone = f.phoneForm(w.reach, w.edge)
+	w.phone = f.phoneForm(w.reach)
 	w.columns = w.columns && !w.phone
 	return w
 }
 
-// reach is the column Weeks' wide form, in its shape, ends before, where its
-// widest row ends: its headline, its weeks or its legend. What's beside the
-// weeks is cut at the frame's edge, so it's left out; as is what's out of
-// view, which takes a form that fits there.
+// reach is the width Weeks' wide form, in its shape, takes: where its widest
+// row ends, and the margin after it, as Weeks ends its rows at the edge.
 func (w weeksDrawn) reach() int {
+	return w.widest() + margin
+}
+
+// widest is the column Weeks' wide form, in its shape, ends before, where
+// its widest row ends: its headline, its weeks or its legend. What's beside
+// the weeks is cut at the frame's edge, so it's left out; as is what's out
+// of view, which takes a form that fits there.
+func (w weeksDrawn) widest() int {
 	if !w.columns {
 		return max(w.legend().width(), w.headline().width(), peaksFrom+peaksApart*(len(w.page.Weeks)-1)+peakCells+1)
 	}
