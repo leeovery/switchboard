@@ -14,14 +14,15 @@ import (
 )
 
 // threeKeys are the keys the Overview's key line lists of three accounts,
-// p among them, and oneKeys those it lists of one, which has none other to
-// pin to.
+// ↑↓ and p among them, and oneKeys those it lists of one, which has none
+// other to focus or pin to: each after tab views and the toggles.
 const (
-	threeKeys = "tab views · p pin · ? help · q quit"
-	oneKeys   = "tab views · ? help · q quit"
-	// unreadKeys are those listed before anything is read, p doing nothing
-	// till there are accounts to pin to.
-	unreadKeys = "tab views · ? help · q quit"
+	toggles   = "tab views · u usage · g graphs · r routing · s sessions · c coming up · l lately · b by: window · "
+	threeKeys = toggles + "↑↓ focus · p pin · ? help · q quit"
+	oneKeys   = toggles + "? help · q quit"
+	// unreadKeys are those listed before anything is read, ↑↓ and p doing
+	// nothing till there are accounts to focus and pin to.
+	unreadKeys = oneKeys
 )
 
 func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {

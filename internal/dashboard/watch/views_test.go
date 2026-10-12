@@ -173,6 +173,109 @@ func TestAViewThatCantBeKeptIsShownAllTheSame(t *testing.T) {
 	}
 }
 
+func TestASectionsKeyShowsOrHidesItAndKeepsTheSectionsShown(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	prefs := &fakePrefs{}
+	h.model.cfg.Prefs = prefs
+	h.start()
+
+	for _, step := range []struct {
+		key        string
+		want       []string
+		wantShown  string
+		wantHidden string
+	}{
+		{key: "g", want: []string{"usage", "graphs", "routing", "coming", "lately"}, wantShown: "GRAPHS"},
+		{key: "u", want: []string{"graphs", "routing", "coming", "lately"}, wantHidden: "USAGE"},
+		{key: "s", want: []string{"graphs", "routing", "sessions", "coming", "lately"}, wantShown: "SESSIONS"},
+		{key: "c", want: []string{"graphs", "routing", "sessions", "lately"}, wantHidden: "COMING UP"},
+		{key: "u", want: []string{"usage", "graphs", "routing", "sessions", "lately"}, wantShown: "USAGE"},
+	} {
+		h.typed(step.key)
+		if got := h.model.sections.Names(); !slices.Equal(got, step.want) || !slices.Equal(prefs.kept.Sections, step.want) {
+			t.Errorf("after %s, showing %q, kept %q; want %q shown and kept", step.key, got, prefs.kept.Sections, step.want)
+		}
+		if shown := h.view(); step.wantShown != "" && !strings.Contains(shown, step.wantShown) || step.wantHidden != "" && strings.Contains(shown, step.wantHidden) {
+			t.Errorf("after %s, the screen is\n%s\nwant %q on it, and no %q", step.key, shown, step.wantShown, step.wantHidden)
+		}
+	}
+}
+
+func TestHidingROUTINGAndSESSIONSClosesTheStreamAndShowingEitherOpensIt(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	for _, step := range []struct {
+		key string
+		// opened is how many times the stream has been opened since the
+		// start, and open whether the last is open.
+		opened int
+		open   bool
+	}{
+		{key: "s", opened: 1, open: true},
+		{key: "r", opened: 1, open: true},
+		{key: "s", opened: 1},
+		{key: "r", opened: 2, open: true},
+	} {
+		h.typed(step.key)
+		if open := h.opened() > 0 && !h.closed(h.opened()); h.opened() != step.opened || open != step.open {
+			t.Errorf("after %s, showing %q, the stream was opened %d times, the last open %v; want %d, open %v",
+				step.key, h.model.sections.Names(), h.opened(), open, step.opened, step.open)
+		}
+	}
+}
+
+func TestEverySectionHiddenIsKeptAsNone(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	prefs := &fakePrefs{}
+	h.model.cfg.Prefs = prefs
+	h.start()
+
+	h.typed("u", "r", "c", "l")
+	if prefs.kept.Sections == nil || len(prefs.kept.Sections) > 0 {
+		t.Errorf("every section hidden, the preferences keep %#v, want none, kept apart from the defaults", prefs.kept.Sections)
+	}
+}
+
+func TestBSwitchesHowTheWindowsAreGroupedAndKeepsIt(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	prefs := &fakePrefs{}
+	h.model.cfg.Prefs = prefs
+	h.start()
+
+	for _, want := range []struct {
+		by   dashboard.By
+		kept string
+	}{{by: dashboard.ByAccount, kept: "account"}, {by: dashboard.ByWindow, kept: "window"}} {
+		h.typed("b")
+		if h.model.by != want.by || prefs.kept.By != want.kept || !strings.Contains(h.keyLine(), "b by: "+want.kept) {
+			t.Errorf("after b, grouped by %v, kept %q, the key line %q; want by %s, kept, and said", h.model.by, prefs.kept.By, h.keyLine(), want.kept)
+		}
+	}
+	if prefs.kept.Sections != nil || prefs.kept.View != "" {
+		t.Errorf("b kept the sections %q and the view %q, want neither touched", prefs.kept.Sections, prefs.kept.View)
+	}
+}
+
+func TestTheSectionsOrGroupingThatCantBeKeptAreShownAllTheSame(t *testing.T) {
+	log := logstest.Capture(t)
+	h := routedHarness(t, routerDocument(three()...))
+	h.model.cfg.Prefs = &fakePrefs{err: errors.New("keep the preferences: read-only file system")}
+	h.start()
+
+	h.typed("g", "b")
+	if !h.model.sections.Has(dashboard.SectionGraphs) || h.model.by != dashboard.ByAccount {
+		t.Errorf("showing %q, by %v; want GRAPHS shown and by account all the same", h.model.sections.Names(), h.model.by)
+	}
+	for _, want := range [][]string{
+		{"level=WARN", `msg="couldn't keep the sections shown"`, "sections=usage,graphs,routing,coming,lately"},
+		{"level=WARN", `msg="couldn't keep how the windows are grouped"`, "by=account"},
+	} {
+		if !log.Has(want...) {
+			t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+		}
+	}
+}
+
 // fakePrefs keeps the preferences each update makes of them, or fails to with
 // err, counting the updates.
 type fakePrefs struct {

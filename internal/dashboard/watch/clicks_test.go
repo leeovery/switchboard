@@ -112,7 +112,7 @@ func TestAClickOffEveryTargetDoesNothing(t *testing.T) {
 			if _, on := targetAt(targets, x, y); on {
 				continue
 			}
-			if h.click(x, y) || h.model.view != was.view || h.model.open != nothingOpen || h.model.focus != "" ||
+			if h.click(x, y) || h.model.view != was.view || h.model.open != nothingOpen || h.model.focus != was.focus ||
 				h.model.sections != was.sections || h.model.by != was.by || h.model.picker.open || len(h.source.orders) > 0 {
 				t.Fatalf("a click at %d,%d, on no target, acted: showing %q, open %v, focus on %q, sections %v, by %v, orders %q",
 					x, y, h.model.view, h.model.open, h.model.focus, h.model.sections.Names(), h.model.by, h.source.orders)
@@ -213,6 +213,47 @@ func TestAClickOnTheCellsOfAKeyOnTheKeyLineActsAsTheKey(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAClickOnTheOverviewsKeysActsAsTheKey(t *testing.T) {
+	tests := []struct {
+		drawn string
+		// acted reports whether the key acted, as the model now stands.
+		acted func(m Model) bool
+	}{
+		{drawn: "g graphs", acted: func(m Model) bool { return m.sections.Has(dashboard.SectionGraphs) }},
+		{drawn: "l lately", acted: func(m Model) bool { return !m.sections.Has(dashboard.SectionLately) }},
+		{drawn: "b by: window", acted: func(m Model) bool { return m.by == dashboard.ByAccount }},
+		{drawn: "↑↓ focus", acted: func(m Model) bool { return m.focus == "personal" }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.drawn, func(t *testing.T) {
+			for _, at := range []string{"first", "last"} {
+				h := routedHarness(t, routerDocument(three()...))
+				h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+				h.start()
+				x, y := h.drawnAt(tt.drawn)
+				if at == "last" {
+					x += ansi.StringWidth(tt.drawn) - 1
+				}
+				if h.click(x, y) || !tt.acted(h.model) {
+					t.Errorf("a click on the %s cell of %q, at %d,%d, didn't act as its key does", at, tt.drawn, x, y)
+				}
+			}
+		})
+	}
+}
+
+func TestAClickOnASectionsHeadingHidesIt(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	prefs := &fakePrefs{}
+	h.model.cfg.Prefs = prefs
+	h.start()
+
+	h.clickOn(dashboard.Target{On: dashboard.OnSection, Section: dashboard.SectionRouting})
+	if h.model.sections.Has(dashboard.SectionRouting) || slices.Contains(prefs.kept.Sections, "routing") {
+		t.Errorf("a click on ROUTING's heading left it shown, %q, kept %q; want it hidden, and kept so", h.model.sections.Names(), prefs.kept.Sections)
 	}
 }
 

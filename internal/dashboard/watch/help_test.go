@@ -45,7 +45,7 @@ func TestHelpTakesEveryKeyButCtrlC(t *testing.T) {
 			t.Errorf("with help open, %q quit, want it taken by help", key)
 		}
 	}
-	if !h.inHelp() || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow || h.model.focus != "" || h.model.view != dashboard.Overview ||
+	if !h.inHelp() || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow || h.model.focus != "work" || h.model.view != dashboard.Overview ||
 		len(h.source.orders) > 0 || h.model.fetching || h.model.picker.open {
 		t.Errorf("with help open, keys acted: sections %v, by %v, focus %q, showing %q, orders %q, reading %v, picker open %v; want them all taken by help",
 			h.model.sections.Names(), h.model.by, h.model.focus, h.model.view, h.source.orders, h.model.fetching, h.model.picker.open)
@@ -58,6 +58,7 @@ func TestHelpTakesEveryKeyButCtrlC(t *testing.T) {
 func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 	pinned := routerDocument(three()[0])
 	pinned.Pin = status.Pin{Accounts: []string{"work"}}
+	toggles := []string{"u", "g", "r", "s", "c", "l", "b"}
 	tests := []struct {
 		name string
 		h    func(t *testing.T) *harness
@@ -68,8 +69,8 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 		{
 			name:     "the router of three",
 			h:        func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()...)) },
-			wantHelp: []string{"tab", "p", "R", "?", "q"},
-			wantLine: []string{"tab", "p", "?", "q"},
+			wantHelp: slices.Concat([]string{"tab"}, toggles, []string{"↑↓", "p", "R", "?", "q"}),
+			wantLine: slices.Concat([]string{"tab"}, toggles, []string{"↑↓", "p", "?", "q"}),
 		},
 		{
 			name: "probing twelve in Runway, which scroll",
@@ -85,14 +86,14 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 		{
 			name:     "one account, with nowhere else to pin",
 			h:        func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()[0])) },
-			wantHelp: []string{"tab", "R", "?", "q"},
-			wantLine: []string{"tab", "?", "q"},
+			wantHelp: slices.Concat([]string{"tab"}, toggles, []string{"R", "?", "q"}),
+			wantLine: slices.Concat([]string{"tab"}, toggles, []string{"?", "q"}),
 		},
 		{
 			name:     "one account, pinned from the command line",
 			h:        func(t *testing.T) *harness { return routedHarness(t, pinned) },
-			wantHelp: []string{"tab", "p", "R", "?", "q"},
-			wantLine: []string{"tab", "p", "?", "q"},
+			wantHelp: slices.Concat([]string{"tab"}, toggles, []string{"p", "R", "?", "q"}),
+			wantLine: slices.Concat([]string{"tab"}, toggles, []string{"p", "?", "q"}),
 		},
 	}
 	for _, tt := range tests {

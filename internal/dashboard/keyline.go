@@ -113,10 +113,11 @@ func (f Frame) keyLineRow() (y int, keys []keyAt, ok bool) {
 
 // keysAt are the key line's keys as it lays them out from column 0, each
 // where its words start, as many as fit whole in the frame's width: on a
-// phone, as phone chooses them, else as wide sets them apart.
+// phone, or wherever the wide line doesn't fit whole, as phone chooses them,
+// else as wide sets them apart.
 func (f Frame) keysAt() []keyAt {
 	keys := f.KeyLine.wide()
-	if f.phone() && f.KeyLine.PhoneHelp != "" {
+	if f.KeyLine.PhoneHelp != "" && (f.phone() || widthOf(keys) > f.Width) {
 		keys = f.KeyLine.phone(f.Width)
 	}
 	var laid []keyAt

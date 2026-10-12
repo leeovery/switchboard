@@ -248,10 +248,12 @@ type Model struct {
 	by       dashboard.By
 	span     dashboard.Span
 	// scroll is how many rows the view shown is scrolled down by, where it
-	// doesn't fit, or on the Overview, USAGE within its section.
+	// doesn't fit, or on the Overview, how many accounts USAGE is, within its
+	// section.
 	scroll int
-	// focus is the account the Overview's focus is on, which GRAPHS follows,
-	// "" while it's on none.
+	// focus is the account the Overview's focus is on, which GRAPHS follows:
+	// the first, in the config's order, till ↑ and ↓ move it, and "" while
+	// the document has none.
 	focus string
 
 	// open is the card open over the page, if any: the routing card, its
@@ -638,7 +640,8 @@ func logRead(msg fetchedMsg, next time.Time) {
 // comes back; notes the events new to it, and the readings it gives; asks
 // the router for its history with a full read, and as the router answers
 // again, or another router does, as one restarted; keeps the focus where its
-// account still is; and eases the bars to it from where they stand.
+// account still is, else puts it on the first; and eases the bars to it from
+// where they stand.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	doc := msg.doc
 	var post, asked tea.Cmd
