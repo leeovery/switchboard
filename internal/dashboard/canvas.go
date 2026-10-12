@@ -11,11 +11,12 @@ import (
 // signed off for it were drawn, and which draws itself in a look a row at a
 // time. What's drawn past its edges isn't drawn, but for one that grows,
 // which takes in the rows drawn past its foot, as usage's printout has no
-// height to fit.
+// height to fit; nor what's drawn outside its clip, where it has one.
 type canvas struct {
 	width int
 	cells [][]cell
 	grows bool
+	clip  *bounds
 }
 
 // cell is a glyph and the ink it's drawn in. A glyph two cells wide covers
@@ -58,13 +59,22 @@ func (c *canvas) grow(height int) {
 	}
 }
 
-// at is the cell at x along row y, or nil off the canvas. A canvas that
-// grows takes in the row first, where it's past its foot.
+// within is the canvas, one that doesn't grow, drawn on only in the bounds
+// given, as a section's body is in those the planner gives it: what's drawn
+// outside them isn't drawn.
+func (c *canvas) within(b bounds) *canvas {
+	in := *c
+	in.clip = &b
+	return &in
+}
+
+// at is the cell at x along row y, or nil off the canvas, or outside its
+// clip. A canvas that grows takes in the row first, where it's past its foot.
 func (c *canvas) at(x, y int) *cell {
 	if c.grows && x >= 0 && x < c.width {
 		c.grow(y + 1)
 	}
-	if x < 0 || x >= c.width || y < 0 || y >= len(c.cells) {
+	if x < 0 || x >= c.width || y < 0 || y >= len(c.cells) || c.clip != nil && !c.clip.holds(x, y) {
 		return nil
 	}
 	return &c.cells[y][x]

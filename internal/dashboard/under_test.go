@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 func TestUnderTheViewsRowsIsTheViewAndElsewhereNothing(t *testing.T) {
@@ -12,10 +14,8 @@ func TestUnderTheViewsRowsIsTheViewAndElsewhereNothing(t *testing.T) {
 		width int
 		view  View
 	}{
-		{width: 160, view: Overview},
 		{width: 160, view: Sessions},
 		{width: 160, view: Runway},
-		{width: 52, view: Overview},
 		{width: 52, view: Sessions},
 		{width: 52, view: Runway},
 	}
@@ -25,32 +25,66 @@ func TestUnderTheViewsRowsIsTheViewAndElsewhereNothing(t *testing.T) {
 			f.View = tt.view
 			rows := textOf(f.Draw(runwayThree(), now))
 
-			status := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "● healthy") })
-			first := status + 2
-			if heading := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, strings.ToUpper(tt.view.Title())) }); tt.view != Overview {
-				first = heading + 2
-			}
+			first := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, strings.ToUpper(tt.view.Title())) }) + 2
 			last := len(rows) - 3
-			if status < 0 || rows[first] == "" || rows[len(rows)-1] == "" {
-				t.Fatalf("the frame reads\n%s\nwant a status line, the view drawn from row %d, and the key line", strings.Join(rows, "\n"), first+1)
+			if first < 2 || rows[first] == "" || rows[len(rows)-1] == "" {
+				t.Fatalf("the frame reads\n%s\nwant a heading row, the view drawn from row %d, and the key line", strings.Join(rows, "\n"), first+1)
 			}
-			for y := range rows {
-				want := UnderNothing
-				if first <= y && y <= last {
-					want = UnderView
-				}
-				for _, x := range []int{0, tt.width / 2, tt.width - 1} {
-					if got := f.Under(x, y); got != want {
-						t.Errorf("under %d,%d, reading %q, is %v; want %v", x, y, rows[y], got, want)
-					}
-				}
-			}
-			for _, cell := range [][2]int{{-1, first}, {tt.width, first}, {0, -1}, {0, len(rows)}} {
-				if got := f.Under(cell[0], cell[1]); got != UnderNothing {
-					t.Errorf("under %d,%d, off the frame, is %v; want nothing", cell[0], cell[1], got)
-				}
-			}
+			heldUnder(t, f, runwayThree(), rows, first, last)
 		})
+	}
+}
+
+func TestUnderTheOverviewIsTheViewOverUSAGEsBodyAloneAsItScrollsAndElsewhereNothing(t *testing.T) {
+	tests := []struct {
+		name  string
+		width int
+		shown Sections
+	}{
+		{name: "wide", width: 160},
+		{name: "on a phone", width: 52},
+		{name: "every section shown", width: 160, shown: SectionsNamed([]string{"usage", "graphs", "routing", "sessions", "coming", "lately"})},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(tt.width, 60)
+			f.Sections = tt.shown
+			rows := textOf(f.Draw(runwayThree(), now))
+
+			usage := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "USAGE ") })
+			next := usage + 1 + slices.IndexFunc(rows[usage+1:], func(r string) bool { return strings.HasPrefix(r, "GRAPHS ") || strings.HasPrefix(r, "ROUTING ") })
+			if usage < 0 || next <= usage {
+				t.Fatalf("the frame reads\n%s\nwant USAGE's heading, and a section's under it", strings.Join(rows, "\n"))
+			}
+			heldUnder(t, f, runwayThree(), rows, usage+sectionHead, next-2)
+		})
+	}
+
+	hidden := frameOf(160, 60)
+	hidden.Sections = SectionsNamed([]string{"routing", "coming", "lately"})
+	heldUnder(t, hidden, runwayThree(), textOf(hidden.Draw(runwayThree(), now)), 1, 0)
+}
+
+// heldUnder holds the frame's cells under the pointer, its rows drawn of
+// doc: the view's from row first to last, those that scroll, along each,
+// and nothing on any other row, nor off the frame.
+func heldUnder(t *testing.T, f Frame, doc status.Document, rows []string, first, last int) {
+	t.Helper()
+	for y := range rows {
+		want := UnderNothing
+		if first <= y && y <= last {
+			want = UnderView
+		}
+		for _, x := range []int{0, f.Width / 2, f.Width - 1} {
+			if got := f.Under(doc, now, x, y); got != want {
+				t.Errorf("under %d,%d, reading %q, is %v; want %v", x, y, rows[y], got, want)
+			}
+		}
+	}
+	for _, cell := range [][2]int{{-1, first}, {f.Width, first}, {0, -1}, {0, len(rows)}} {
+		if got := f.Under(doc, now, cell[0], cell[1]); got != UnderNothing {
+			t.Errorf("under %d,%d, off the frame, is %v; want nothing", cell[0], cell[1], got)
+		}
 	}
 }
 
@@ -58,7 +92,7 @@ func TestUnderAFrameTooShortForItsViewIsNothing(t *testing.T) {
 	f := frameOf(160, 9)
 	f.View = Runway
 	for y := range f.Height {
-		if got := f.Under(10, y); got != UnderNothing {
+		if got := f.Under(threeRouted(), now, 10, y); got != UnderNothing {
 			t.Errorf("under 10,%d of a frame too short for its view is %v, want nothing", y, got)
 		}
 	}
@@ -98,7 +132,7 @@ func TestUnderACardIsTheCardInItsBoxAndElsewhereNothing(t *testing.T) {
 					if left <= x && x <= right && top <= y && y <= foot {
 						want = UnderCard
 					}
-					if got := f.Under(x, y); got != want {
+					if got := f.Under(runwayThree(), now, x, y); got != want {
 						t.Fatalf("under %d,%d is %v, want %v: the card's drawn from %d,%d to %d,%d", x, y, got, want, left, top, right, foot)
 					}
 				}
