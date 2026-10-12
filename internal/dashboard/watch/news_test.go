@@ -161,6 +161,7 @@ func TestAFreshEventIsPickedOutOnScreen(t *testing.T) {
 		t.Errorf("the new event's row is %q, want it on bg.attention", row)
 	}
 	h.clock.now = h.clock.now.Add(highlightFor)
+	h.redraw()
 	if row := rowWith(h.model.View().Content, "13:05"); strings.Contains(row, attention) {
 		t.Errorf("once its time is over, the new event's row is %q, want it back on the canvas", row)
 	}

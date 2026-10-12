@@ -42,18 +42,19 @@ func (s Scenario) play(ctx context.Context, elapsed func() time.Duration, wait f
 	now := func() time.Time { return s.start.Add(elapsed()) }
 	t := &timeline{scenario: s, now: now, wait: wait}
 	cfg := watch.Config{
-		Source:   t,
-		Notifier: quiet{},
-		Now:      now,
-		After:    after,
-		Await:    await,
-		Interval: interval,
-		Policy:   claude.Policy,
-		Size:     s.Size,
-		Ledger:   ledger.NewEmpty(now, ledger.Caps{Shared: claude.SharedWindows}),
-		Readings: readings.Empty{},
-		Events:   events.Empty{},
-		Prices:   drawnPrices,
+		Source:     t,
+		Notifier:   quiet{},
+		Now:        now,
+		After:      after,
+		Await:      await,
+		Interval:   interval,
+		Policy:     claude.Policy,
+		WindowName: claude.WindowName,
+		Size:       s.Size,
+		Ledger:     ledger.NewEmpty(now, ledger.Caps{Shared: claude.SharedWindows}),
+		Readings:   readings.Empty{},
+		Events:     events.Empty{},
+		Prices:     drawnPrices,
 	}
 	dressed(&cfg, s.theme, s.colourless)
 	return live{Model: watch.New(ctx, cfg), now: now, after: after, theme: s.theme, coloured: !s.colourless}

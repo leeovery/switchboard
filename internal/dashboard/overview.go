@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
@@ -179,27 +180,74 @@ const sectionHead = 2
 // them. Each is built in the section's own file.
 type section struct {
 	Section
+	// least and most are the fewest rows the section takes and the most,
+	// but for one that lists lines, whose most lines tells, as mostRows has
+	// it.
 	least, most int
 	// aside is the column a section of no rows of its own is drawn from
 	// beside this one, in its rows, as ROUTING is beside USAGE's blocks by
 	// account: 0 where none can be.
 	aside int
-	// more reports, of a section that lists lines, whether it holds more than
-	// its first, as its heading says folded.
-	more        bool
+	// lines is how many lines a section that lists them holds: it takes a
+	// row a line at its most, as linesRows has it, and folded, its heading
+	// says where it holds more than its first. Its rows fill with what comes
+	// and goes, so only a layout made afresh, or its heading folded, asks.
+	lines       func() int
 	description func() line
 	draw        func(c *canvas, body bounds)
 	folded      func() line
 	targets     func(body bounds) []Target
-	// scrolling is how far the body scrolls in the bounds given, as USAGE's
-	// does where its accounts are many: Most, the most accounts it scrolls
-	// out of view, and Page, how many show at once. Nil where it doesn't.
-	scrolling func(body bounds) Scrolling
+	// scrolling is how far the body scrolls in rows rows, scrolled offset
+	// accounts down, as USAGE's does where its accounts are many: Most, the
+	// most accounts it scrolls out of view, and Page, how many show at once
+	// from the offset. Nil where it doesn't.
+	scrolling func(rows, offset int) Scrolling
+}
+
+// mostRows is the most rows the section takes: its most, or for one that
+// lists lines, a row a line it holds, as linesRows has it.
+func (s section) mostRows() int {
+	if s.lists() {
+		return linesRows(s.lines())
+	}
+	return s.most
+}
+
+// sectionsBuilt are the Overview's sections of a frame, as Built builds
+// them, of a document at a moment: built once, the first time they're asked
+// for.
+type sectionsBuilt struct {
+	at       time.Time
+	sections func() []section
+}
+
+// Built is the frame with the Overview's sections of doc at now built once,
+// the first time a look at them asks, and shared by every look it, or a copy
+// of it, takes of doc at now after: its layout, its page and its numbers, its
+// click targets and how it scrolls. They're built of the frame as it stands,
+// so a copy whose Layout, KeyLine, Brightened or Card change draws them as a
+// frame built afresh would, as they draw none of those, and a copy changed
+// otherwise draws them as they were built. A look at another moment builds
+// them afresh.
+func (f Frame) Built(doc status.Document, now time.Time) Frame {
+	of := f
+	f.built = &sectionsBuilt{at: now, sections: sync.OnceValue(func() []section { return of.buildSections(doc, now) })}
+	return f
 }
 
 // sectionsOf are the Overview's sections the frame shows, of doc at now, in
-// the order the page draws them.
+// the order the page draws them: as Built built them, where it built them at
+// now, else afresh.
 func (f Frame) sectionsOf(doc status.Document, now time.Time) []section {
+	if f.built != nil && f.built.at.Equal(now) {
+		return f.built.sections()
+	}
+	return f.buildSections(doc, now)
+}
+
+// buildSections builds the Overview's sections the frame shows, of doc at
+// now, in the order the page draws them.
+func (f Frame) buildSections(doc status.Document, now time.Time) []section {
 	builds := [...]func(status.Document, time.Time) section{
 		SectionUsage:    f.usageSection,
 		SectionGraphs:   f.graphsSection,
@@ -249,18 +297,28 @@ var growth = []struct {
 
 // unit is sections that share rows: a section alone; USAGE with a section
 // beside it; or COMING UP and LATELY side by side. It takes rows rows, its
-// headings' among them, from least to most; or where it folds, its
-// headings' row alone.
+// headings' among them, from least to most, as its sections' most rows; or
+// where it folds, its headings' row alone.
 type unit struct {
-	sections          []section
-	least, most, rows int
-	fold              bool
+	sections    []section
+	least, rows int
+	fold        bool
 }
 
 // join has s share the unit's rows, beside its sections.
 func (u *unit) join(s section) {
 	u.sections = append(u.sections, s)
-	u.least, u.most = max(u.least, s.least), max(u.most, s.most)
+	u.least = max(u.least, s.least)
+}
+
+// most is the most rows the unit takes: the most its sections take, as
+// mostRows has each.
+func (u unit) most() int {
+	most := 0
+	for _, s := range u.sections {
+		most = max(most, s.mostRows())
+	}
+	return most
 }
 
 // ledBy reports whether the unit's first section is among those given: a
@@ -309,7 +367,7 @@ func (f Frame) unitsOf(sections []section) []unit {
 		case joins:
 			units[i].join(s)
 		case s.least > 0:
-			units = append(units, unit{sections: []section{s}, least: s.least, most: s.most})
+			units = append(units, unit{sections: []section{s}, least: s.least})
 		}
 	}
 	return units
@@ -381,7 +439,7 @@ func rowByRow(units []*unit, spare int) int {
 	for grew := true; grew && spare > 0; {
 		grew = false
 		for _, u := range units {
-			if u.rows < u.most && spare > 0 {
+			if u.rows < u.most() && spare > 0 {
 				u.rows, spare, grew = u.rows+1, spare-1, true
 			}
 		}
@@ -393,8 +451,8 @@ func rowByRow(units []*unit, spare int) int {
 // spare, and returns how many are left.
 func whole(units []*unit, spare int) int {
 	for _, u := range units {
-		if need := u.most - u.rows; need > 0 && need <= spare {
-			u.rows, spare = u.most, spare-need
+		if need := u.most() - u.rows; need > 0 && need <= spare {
+			u.rows, spare = u.rows+need, spare-need
 		}
 	}
 	return spare
@@ -534,7 +592,7 @@ func (f Frame) layoutFor(units []unit) layoutFor {
 	for _, u := range units {
 		for _, s := range u.sections {
 			if !s.fills() {
-				made.shapes[s.Section] = shape{least: s.least, most: s.most}
+				made.shapes[s.Section] = shape{least: s.least, most: s.mostRows()}
 			}
 		}
 	}
@@ -640,7 +698,7 @@ func (f Frame) says(p planned) line {
 	}
 	holds := saying(p.folded)
 	switch {
-	case p.lists() && p.more:
+	case p.lists() && p.lines() > 1:
 		return slices.Concat(holds, line{{"  " + ellipsis, dimInk}})
 	case p.lists():
 		return holds
@@ -697,21 +755,24 @@ func (f Frame) targetsOf(laid []planned) []Target {
 }
 
 // overviewScrolling is how far the Overview's USAGE of doc at now scrolls
-// within its section, an account at a time, as scrollingOf has it of its
-// sections as laidOut lays them out on the page.
-func (f Frame) overviewScrolling(doc status.Document, now time.Time) Scrolling {
-	return scrollingOf(f.laidOut(doc, now, f.top()))
+// within its section, an account at a time, scrolled to each offset given, as
+// scrollingOf has it of its sections as laidOut lays them out on the page,
+// once for every offset.
+func (f Frame) overviewScrolling(doc status.Document, now time.Time) func(offset int) Scrolling {
+	laid := f.laidOut(doc, now, f.top())
+	return func(offset int) Scrolling { return scrollingOf(laid, offset) }
 }
 
 // scrollingOf is how far USAGE, of the sections as they're laid out, scrolls
-// within its section, as its scrolling says in the body it's given: nowhere
-// where it's hidden, or doesn't scroll.
-func scrollingOf(laid []planned) Scrolling {
+// within its section, scrolled offset accounts down, as its scrolling says
+// in the rows of body it's given: nowhere where it's hidden, or doesn't
+// scroll.
+func scrollingOf(laid []planned, offset int) Scrolling {
 	usage := usageOf(laid)
 	if usage.scrolling == nil {
 		return Scrolling{}
 	}
-	return usage.scrolling(usage.body)
+	return usage.scrolling(usage.body.rows, offset)
 }
 
 // overviewScrolls is what of the Overview of doc at now scrolls, from column

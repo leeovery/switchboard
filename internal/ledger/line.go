@@ -202,11 +202,20 @@ func (l *Line) Upstream() bool {
 	return l.Kind == KindMessage && l.Attempts > 0
 }
 
-// unmetered reports whether the line's request, one that spends quota, went
-// upstream, but its answer gave no usage, as one cut short or an error gives
+// sentOn reports whether the line's request went upstream as a day's summary
+// tallies it: of whatever kind but a quota check or a count of tokens, none or
+// one a later router adds included, the router having sent it on at least
+// once. The router has always written a kind, so it differs from Upstream
+// only for a line without one, or of a kind a later router adds.
+func (l *Line) sentOn() bool {
+	return l.Kind != KindCheck && l.Kind != KindCount && l.Attempts > 0
+}
+
+// unmetered reports whether the line's request went upstream, as sentOn
+// says, but its answer gave no usage, as one cut short or an error gives
 // none: what it spent is unknown, which is never taken for none.
 func (l *Line) unmetered() bool {
-	return l.Upstream() && len(l.Usage) == 0
+	return l.sentOn() && len(l.Usage) == 0
 }
 
 // Tokens returns the tokens the reply's usage counts, reporting false where

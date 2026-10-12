@@ -93,6 +93,15 @@ type Frame struct {
 	// Policy is the provider's say in which windows every model shares, which
 	// a session's 5-hour window is, and which its week.
 	Policy score.Policy
+	// WindowName names a window by its key wherever the Overview names one,
+	// as "5-hour" or "Fable week": nil names it by its label in the
+	// document, as nameOfWindow has it.
+	WindowName func(key string) string
+
+	// built are the Overview's sections as Built built them, for every look
+	// the frame takes of their document at their moment to share: nil, where
+	// each look builds them afresh.
+	built *sectionsBuilt
 }
 
 // Draw draws the frame of doc at now: a string for each of its rows, each,

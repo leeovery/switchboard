@@ -180,9 +180,14 @@ func planOf(f Frame, sections []section, top, rows int) []planned {
 }
 
 // sized is a section of the kind given that takes least rows to most, its
-// body drawing nothing.
+// body drawing nothing: one that lists lines, holding a line each row of its
+// most but its heading's.
 func sized(s Section, least, most int) section {
-	return section{Section: s, least: least, most: most, draw: func(*canvas, bounds) {}}
+	sized := section{Section: s, least: least, most: most, draw: func(*canvas, bounds) {}}
+	if s.lists() {
+		sized.lines = func() int { return most - sectionHead }
+	}
+	return sized
 }
 
 // lastRow is the last row the section takes as it's laid out, counted from 0:
@@ -232,9 +237,7 @@ func (w planWorld) sections(width int, by By, shown Sections) []section {
 		sessions = sized(SectionSessions, 2+2*w.running, 2+2*w.running)
 	}
 	lines := func(s Section, n int) section {
-		listed := sized(s, 2+3, 2+min(max(n, 3), 12))
-		listed.more = n > 1
-		return listed
+		return section{Section: s, least: 2 + 3, lines: func() int { return n }, draw: func(*canvas, bounds) {}}
 	}
 	all := []section{usage, sized(SectionGraphs, 2+1+5+1, 2+1+19+1), routing, sessions, lines(SectionComing, w.coming), lines(SectionLately, w.lately)}
 	return slices.DeleteFunc(all, func(s section) bool { return !shown.Has(s.Section) })
@@ -605,14 +608,20 @@ func TestTheLayoutIsMadeAfreshAsASectionsShapeMovesNeverAsSessionsStartOrLinesCo
 	f := frameOf(160, 40)
 	f.Sections = Sections{}.Toggled(SectionSessions)
 	f.Layout = f.LayoutOf(unreadOf(doc), now)
-
 	fresh := f
 	fresh.Layout = Layout{}
-	if got, want := f.LayoutOf(doc, now), fresh.LayoutOf(doc, now); got != want || got == f.Layout {
-		t.Errorf("as the accounts' windows are first read, the layout is %+v, want it made afresh, %+v", got, want)
+	if got, want := f.LayoutOf(doc, now), fresh.LayoutOf(doc, now); got != want || got != f.Layout {
+		t.Errorf("as the accounts' windows every model shares are first read, the layout is %+v, want it as kept, %+v, each account's rows shown before any read", got, f.Layout)
 	}
-	if got := f.overviewScrolling(doc, now); got.Most != 0 {
-		t.Errorf("as the accounts' windows are first read, USAGE scrolls %+v, want every account shown, as there's room for them", got)
+
+	fabled := doc
+	fabled.Accounts = slices.Clone(doc.Accounts)
+	fabled.Accounts[2].Windows = append(slices.Clone(doc.Accounts[2].Windows), fableOf(0.1, 5*day))
+	if got, want := f.LayoutOf(fabled, now), fresh.LayoutOf(fabled, now); got != want || got == f.Layout {
+		t.Errorf("as a model's own window is first read, the layout is %+v, want it made afresh, %+v", got, want)
+	}
+	if got := f.Scrolling(fabled, now); got.Most != 0 {
+		t.Errorf("as a model's own window is first read, USAGE scrolls %+v, want every account shown, as there's room for them", got)
 	}
 
 	f.Layout = f.LayoutOf(doc, now)
@@ -636,6 +645,62 @@ func TestTheLayoutIsMadeAfreshAsASectionsShapeMovesNeverAsSessionsStartOrLinesCo
 		if got := tt.f.LayoutOf(tt.doc, now); got != f.Layout {
 			t.Errorf("after %s, the layout is %+v, want it kept, %+v", name, got, f.Layout)
 		}
+	}
+}
+
+// A frame built builds its sections once, and each look it takes after
+// shares them: a copy of it changed after it was built, here with sessions
+// started, which SESSIONS lists and ROUTING counts, draws them, lays them out
+// and numbers them as they were built.
+func TestAFrameBuiltLooksAtTheSectionsItBuilt(t *testing.T) {
+	doc := threeRouted()
+	f := frameOf(160, 50)
+	f.Sections = Sections{}.Toggled(SectionSessions)
+	ran := f
+	ran.Sessions = flippingSessions()
+	built := f.Built(doc, now)
+	built.Sessions = ran.Sessions
+
+	if got, want, ran := textOf(built.Draw(doc, now)), textOf(f.Draw(doc, now)), textOf(ran.Draw(doc, now)); !slices.Equal(got, want) || slices.Equal(got, ran) {
+		t.Errorf("drew\n%s\nwant it as built, with no sessions running\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if got, want := built.LayoutOf(doc, now), f.LayoutOf(doc, now); got != want || got == ran.LayoutOf(doc, now) {
+		t.Errorf("laid out %+v, want it as built, with no sessions running, %+v", got, want)
+	}
+	if got, want := built.Numbers(doc, now), f.Numbers(doc, now); !maps.Equal(got, want) || maps.Equal(got, ran.Numbers(doc, now)) {
+		t.Errorf("numbered %v, want them as built, with no sessions running, %v", got, want)
+	}
+}
+
+// The watch sets a frame's Layout, KeyLine and Brightened as it stands
+// since the frame was built, and a card opens over it: the sections draw
+// none of them, so a frame built draws as one built afresh with them.
+func TestAFrameBuiltDrawsAsOneAfreshWhatItsSectionsDrawNoneOf(t *testing.T) {
+	doc := threeRouted()
+	f := frameOf(160, 40)
+	f.Sections = Sections{}.Toggled(SectionSessions)
+	kept := f.LayoutOf(doc, now)
+	f.Sessions = flippingSessions()
+	set := func(f Frame) Frame {
+		f.Layout, f.KeyLine = kept, KeyLine{Note: "pinned to work"}
+		f.Brightened = map[Number]float64{{Kind: NumberSessions, Account: "work"}: 1}
+		return f
+	}
+	for _, card := range []Opened{nil, Help{}} {
+		built, afresh := set(f.Built(doc, now)), set(f)
+		built.Card, afresh.Card = card, card
+		if got, want := built.Draw(doc, now), afresh.Draw(doc, now); !slices.Equal(got, want) {
+			t.Errorf("under %T, drew\n%s\nwant it as a frame built afresh draws it\n%s", card, strings.Join(textOf(got), "\n"), strings.Join(textOf(want), "\n"))
+		}
+	}
+}
+
+func TestAFrameBuiltBuildsItsSectionsAfreshAtAnotherMoment(t *testing.T) {
+	doc := comingOf(status.Upcoming{At: now.Add(time.Hour).UTC(), Account: "work", Kind: status.UpcomingReset, Window: "5h"})
+	f := frameOf(160, 40)
+	later := now.Add(time.Minute)
+	if got, want := textOf(f.Built(doc, now).Draw(doc, later)), textOf(f.Draw(doc, later)); !slices.Equal(got, want) {
+		t.Errorf("built at %s and drawn a minute on, drew\n%s\nwant it as drawn then, COMING UP's countdown a minute on\n%s", now.Format("15:04"), strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 
@@ -695,6 +760,7 @@ func TestWhatAHeadingSaysIsCutToKeepACellOfRuleBeforeItsKey(t *testing.T) {
 func TestAFoldedHeadingSaysWhatItHoldsThenWhyOrThatItHasMore(t *testing.T) {
 	holds := func(text string) func() line { return func() line { return line{{text, mutedInk}} } }
 	nothing := func() line { return nil }
+	lines := func(n int) func() int { return func() int { return n } }
 	tests := []struct {
 		name    string
 		section section
@@ -704,11 +770,11 @@ func TestAFoldedHeadingSaysWhatItHoldsThenWhyOrThatItHasMore(t *testing.T) {
 		{name: "SESSIONS, there being no room at the frame's height", section: section{Section: SectionSessions, folded: holds("6 running")}, fold: true, want: "6 running   no room at 39 rows"},
 		{name: "GRAPHS, holding nothing to say", section: section{Section: SectionGraphs, folded: nothing}, fold: true, want: "no room at 39 rows"},
 		{name: "ROUTING, saying nothing it holds", section: section{Section: SectionRouting}, fold: true, want: "no room at 39 rows"},
-		{name: "COMING UP, its first line and more", section: section{Section: SectionComing, folded: holds("16:30  personal's 5-hour resets"), more: true}, fold: true, want: "16:30  personal's 5-hour resets  …"},
-		{name: "COMING UP, its first line alone", section: section{Section: SectionComing, folded: holds("16:30  personal's 5-hour resets")}, fold: true, want: "16:30  personal's 5-hour resets"},
-		{name: "LATELY, its first line and more", section: section{Section: SectionLately, folded: holds("14:41  ▲ c61b started on side"), more: true}, fold: true, want: "14:41  ▲ c61b started on side  …"},
-		{name: "LATELY, saying why it has none", section: section{Section: SectionLately, folded: holds("nothing lately")}, fold: true, want: "nothing lately"},
-		{name: "LATELY, with nothing to show", section: section{Section: SectionLately, folded: nothing}, fold: true, want: ""},
+		{name: "COMING UP, its first line and more", section: section{Section: SectionComing, folded: holds("16:30  personal's 5-hour resets"), lines: lines(2)}, fold: true, want: "16:30  personal's 5-hour resets  …"},
+		{name: "COMING UP, its first line alone", section: section{Section: SectionComing, folded: holds("16:30  personal's 5-hour resets"), lines: lines(1)}, fold: true, want: "16:30  personal's 5-hour resets"},
+		{name: "LATELY, its first line and more", section: section{Section: SectionLately, folded: holds("14:41  ▲ c61b started on side"), lines: lines(2)}, fold: true, want: "14:41  ▲ c61b started on side  …"},
+		{name: "LATELY, saying why it has none", section: section{Section: SectionLately, folded: holds("nothing lately"), lines: lines(0)}, fold: true, want: "nothing lately"},
+		{name: "LATELY, with nothing to show", section: section{Section: SectionLately, folded: nothing, lines: lines(0)}, fold: true, want: ""},
 		{name: "ROUTING unfolded, its description", section: section{Section: SectionRouting, description: holds("auto"), folded: holds("held")}, want: "auto"},
 		{name: "USAGE, with no description", section: section{Section: SectionUsage}, want: ""},
 	}
@@ -819,12 +885,12 @@ func TestTheBodyOfASectionNotFoldedHasItsTargetsWhereItsLaidOut(t *testing.T) {
 
 func TestUSAGEScrollsWithinTheBodyItsLaidOutIn(t *testing.T) {
 	usage := sized(SectionUsage, 30, 30)
-	usage.scrolling = func(b bounds) Scrolling { return Scrolling{Most: 30 - sectionHead - b.rows, Page: b.rows} }
+	usage.scrolling = func(rows, _ int) Scrolling { return Scrolling{Most: 30 - sectionHead - rows, Page: rows} }
 	laid := planOf(frameOf(160, 40), []section{usage, sized(SectionRouting, 6, 6)}, 4, 20)
-	if got, want := scrollingOf(laid), (Scrolling{Most: 12, Page: 16}); got != want {
+	if got, want := scrollingOf(laid, 0), (Scrolling{Most: 12, Page: 16}); got != want {
 		t.Errorf("USAGE scrolls %+v, want %+v, as its scrolling has it in the 16 rows of body it's given, squeezed, ROUTING folded", got, want)
 	}
-	if got := scrollingOf(planOf(frameOf(160, 40), []section{sized(SectionRouting, 6, 6)}, 4, 20)); got != (Scrolling{}) {
+	if got := scrollingOf(planOf(frameOf(160, 40), []section{sized(SectionRouting, 6, 6)}, 4, 20), 0); got != (Scrolling{}) {
 		t.Errorf("with USAGE hidden, the Overview scrolls %+v, want it not to", got)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -506,9 +507,9 @@ func TestWhileThePickerIsOpenTheKeyLineListsItsKeysAlone(t *testing.T) {
 	if got, want := h.grouped(), [][]string{{"↑↓ preview", "enter set theme", "d set as dark", "l set as light", "esc close"}, {"q quit"}}; !slices.EqualFunc(got, want, slices.Equal) {
 		t.Errorf("with the picker open, the key line lists %q, want the picker's keys alone, enter by its name, then q, %q", got, want)
 	}
-	if l := h.model.keyLine(h.clock.now); l.Lead != keysAfter || l.Phone != nil || l.PhoneHelp != "" {
+	if l := h.model.live(h.clock.now).KeyLine; l.Lead != dashboard.KeysAfter || l.Phone != nil || l.PhoneHelp != "" {
 		t.Errorf("with the picker open, q quit is %d cells after the picker's keys, a phone keeping %q, ? saying %q; want %d, as after any group, and a phone's line as a wide one's",
-			l.Lead, listedKeys(l.Phone), l.PhoneHelp, keysAfter)
+			l.Lead, listedKeys(l.Phone), l.PhoneHelp, dashboard.KeysAfter)
 	}
 	h.typed("down", "l")
 	if got, want := h.grouped(), [][]string{{"y confirm", "n cancel"}, {"q quit"}}; !slices.EqualFunc(got, want, slices.Equal) {

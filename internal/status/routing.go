@@ -40,6 +40,9 @@ const (
 	// RoutingCappedPinned is an account at its cap that the global pin
 	// names, so new sessions still go to it.
 	RoutingCappedPinned
+	// RoutingModelCapped is an account at its cap in a model's own window
+	// alone, as Fable's week, which holds back that model's requests alone.
+	RoutingModelCapped
 	// RoutingPressed is an account under pressure.
 	RoutingPressed
 	// RoutingIdle is an account whose 5-hour window has lapsed.
@@ -162,27 +165,26 @@ func (d Document) heldRouting(a Account, now time.Time, policy score.Policy) (Ro
 // 17:10 · new sessions go elsewhere", back as the last of those resets; else
 // in a model's own, as Fable's week, which holds back that model's requests
 // alone, as in "Fable wk at its cap · back Mon 21:00 · other models still
-// come here". The global pin naming it spends its cap, so new sessions still
-// come here.
+// come here", of its own kind, pinned or not. The global pin naming it spends
+// its cap, so new sessions still come here.
 func (d Document) cappedRouting(a Account, now time.Time, policy score.Policy) (Routing, bool) {
 	keys := slices.SortedStableFunc(slices.Values(a.ReachedReserve(now)), func(x, y string) int { return sharedFirst(policy, x, y) })
 	if len(keys) == 0 {
 		return Routing{}, false
 	}
 	shared := policy.IsShared(keys[0])
-	says := "at its cap"
+	kind, says, then := RoutingCapped, "at its cap", goElsewhere
 	if !shared {
-		says = Short(a.label(keys[0])) + " " + says
+		kind, says, then = RoutingModelCapped, Short(a.label(keys[0]))+" at its cap", stillComes
 	}
 	if d.Pin.Has(a.ID) {
-		return Routing{Kind: RoutingCappedPinned, Says: says, Clauses: []string{stillPinned}, Short: []string{says, "pinned"}}, true
+		if shared {
+			kind = RoutingCappedPinned
+		}
+		return Routing{Kind: kind, Says: says, Clauses: []string{stillPinned}, Short: []string{says, "pinned"}}, true
 	}
 	back, _ := score.LetGo(a.Windows, a.Reserve, func(key string) bool { return policy.IsShared(key) == shared }, now)
-	then := goElsewhere
-	if !shared {
-		then = stillComes
-	}
-	return Routing{Kind: RoutingCapped, Says: says, Clauses: append(backAt(now, back), then), Short: shortBack(says, now, back)}, true
+	return Routing{Kind: kind, Says: says, Clauses: append(backAt(now, back), then), Short: shortBack(says, now, back)}, true
 }
 
 // pressedRouting is how account a stands under pressure at now: when its

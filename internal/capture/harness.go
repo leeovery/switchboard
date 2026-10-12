@@ -80,6 +80,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		After:      held,
 		Interval:   interval,
 		Policy:     claude.Policy,
+		WindowName: claude.WindowName,
 		Size:       size,
 		View:       f.view,
 		Prices:     drawnPrices,

@@ -45,7 +45,7 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 		targets: func(body bounds) []Target {
 			return block.fitted(body.rows, f.Scroll).targets(body)
 		},
-		scrolling: func(body bounds) Scrolling { return block.scrolling(body.rows, f.Scroll) },
+		scrolling: block.scrolling,
 	}
 }
 
@@ -58,7 +58,7 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 // overviewNames its name.
 func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	names := overviewNames(doc)
-	b := blockOf(doc, now, f.Width, f.Look, f.By, overviewWindows(doc), names)
+	b := blockOf(doc, now, f.Width, f.Look, f.By, f.overviewWindows(doc), names)
 	b.marks = keyMarks(names, f.phone())
 	if f.By == ByAccount && f.Width >= matrixWidth {
 		b.accountBar = besideBar - (b.names - matrixNames)
@@ -76,10 +76,22 @@ func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 }
 
 // overviewWindows are the windows of doc the Overview shows, in USAGE and
-// GRAPHS: every one any account reports, in Claude's order, each named as
-// nameOfWindow names it by its label, as labelOf has it.
-func overviewWindows(doc status.Document) []shownWindow {
-	return usageWindows(doc, nil, nil, func(key string) string { return nameOfWindow(key, labelOf(doc, key)) })
+// GRAPHS, as usage prints them: those every model shares, as the frame's
+// Policy has them, so every account keeps its rows before any is read, and
+// every other any account reports, in Claude's order, each named as
+// windowNamer names it.
+func (f Frame) overviewWindows(doc status.Document) []shownWindow {
+	return usageWindows(doc, nil, f.Policy.Shared, f.windowNamer(doc))
+}
+
+// windowNamer names doc's windows by their keys as the Overview names them
+// wherever it does: as the frame's WindowName has it, else as nameOfWindow
+// names one by its label, as labelOf has it.
+func (f Frame) windowNamer(doc status.Document) func(key string) string {
+	if f.WindowName != nil {
+		return f.WindowName
+	}
+	return func(key string) string { return nameOfWindow(key, labelOf(doc, key)) }
 }
 
 // overviewNames are the names of doc's accounts as the Overview names them
@@ -209,14 +221,17 @@ func (b usageBlock) scrolling(rows, offset int) Scrolling {
 }
 
 // scrolled is the block in rows rows, scrolled offset accounts' rows down, no
-// further than scrolling says it goes, showing as many as fit, at least one.
+// further than scrolling says it goes, showing as many as fit, at least one,
+// the rows they leave spare under them, so its pool and its key line keep
+// their rows at the foot however far it's scrolled.
 func (b usageBlock) scrolled(rows, offset int) usageBlock {
 	s := b.scrolling(rows, offset)
 	if s.Most == 0 {
 		return b
 	}
-	first := min(max(offset, 0), s.Most)
-	return b.shows(first, s.Page)
+	shown := b.shows(min(max(offset, 0), s.Most), s.Page)
+	shown.spare = max(rows-shown.height(), 0)
+	return shown
 }
 
 // shownFrom is how many accounts' rows show in rows rows, from the one at

@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -187,16 +188,16 @@ func TestUSAGEScrollsItsAccountsWithinItsRowsItsHeadingsPoolAndKeyLineHeld(t *te
 		want   map[int]string
 	}{
 		{
-			name: "at the top, ▼ under the last row shown", scroll: 0,
-			want: map[int]string{2: " 1 a1 ▲", 4: " 2 a2", 6: " 3 a3", 8: " 4 a4", 9: "▼ 6 more accounts", 10: "────", 11: " Σ pool", 13: key},
+			name: "at the top, ▼ under the last row shown, the row spare under it", scroll: 0,
+			want: map[int]string{2: " 1 a1 ▲", 4: " 2 a2", 6: " 3 a3", 8: " 4 a4", 9: "▼ 6 more accounts", 11: "────", 12: " Σ pool", 14: key},
 		},
 		{
 			name: "part way, ▲ over the first row shown", scroll: 3,
 			want: map[int]string{2: "▲ 3 more accounts", 3: " 4 a4", 5: " 5 a5", 7: " 6 a6", 9: " 7 a7", 10: "▼ 3 more accounts", 11: "────", 12: " Σ pool", 14: key},
 		},
 		{
-			name: "past the end, no further than shows the last", scroll: 99,
-			want: map[int]string{2: "▲ 6 more accounts", 3: " 7 a7", 5: " 8 a8", 7: " 9 a9", 9: "10 a10", 10: "────", 11: " Σ pool", 13: key},
+			name: "past the end, no further than shows the last, the row spare under it", scroll: 99,
+			want: map[int]string{2: "▲ 6 more accounts", 3: " 7 a7", 5: " 8 a8", 7: " 9 a9", 9: "10 a10", 11: "────", 12: " Σ pool", 14: key},
 		},
 	}
 	for _, tt := range tests {
@@ -212,6 +213,92 @@ func TestUSAGEScrollsItsAccountsWithinItsRowsItsHeadingsPoolAndKeyLineHeld(t *te
 					if k := c.at(0, y).ink; k != dimInk {
 						t.Errorf("row %d's scroll line is drawn in %+v, want text.subtle", y, k)
 					}
+				}
+			}
+		})
+	}
+}
+
+// accountsRow matches what may take a row among USAGE's accounts as it
+// scrolls: an account's, ▲ or ▼ and how many more, or a blank row.
+var accountsRow = regexp.MustCompile(`^(\s?\d+ a\d+\s.*|[▲▼] \d+ more accounts?|)$`)
+
+func TestUSAGEHoldsItsPoolAndKeyLineAtTheFootOfItsRowsHoweverFarItsScrolled(t *testing.T) {
+	doc := manyRead(10)
+	f := frameOf(160, 30)
+	most := f.Scrolling(doc, now).Most
+	if most < 2 {
+		t.Fatalf("ten accounts at 160×30 scroll %d accounts at most, want USAGE to scroll past its top and short of its end", most)
+	}
+	keyRow := func(rows []string) int {
+		return slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "┃ even pace") })
+	}
+	f.Scroll = 0
+	top := textOf(f.Draw(doc, now))
+	headings := slices.IndexFunc(top, func(r string) bool { return strings.Contains(r, "5-HOUR") })
+	rule := slices.IndexFunc(top, func(r string) bool { return strings.HasPrefix(r, "────") })
+	if headings < 0 || rule < headings {
+		t.Fatalf("at the top, USAGE reads\n%s\nwant its windows' headings over its accounts, then the pool's rule", strings.Join(top, "\n"))
+	}
+	for _, scroll := range []int{1, most} {
+		f.Scroll = scroll
+		rows := textOf(f.Draw(doc, now))
+		if got, want := keyRow(rows), keyRow(top); got != want {
+			t.Errorf("scrolled %d down, USAGE's key line is on row %d, want row %d, where it is at the top:\n%s", scroll, got, want, strings.Join(rows, "\n"))
+		}
+		for y, row := range rows {
+			switch among := y > headings+1 && y < rule; {
+			case among && !accountsRow.MatchString(row):
+				t.Errorf("scrolled %d down, row %d, among the accounts, reads %q, want an account's, ▲ or ▼, or blank", scroll, y, row)
+			case !among && row != top[y]:
+				t.Errorf("scrolled %d down, row %d reads %q, want %q, as at the top: only the accounts move", scroll, y, row, top[y])
+			}
+		}
+	}
+}
+
+func TestUSAGEEndsAtItsLastPoolAndKeyLineInEveryLayoutHoweverFarItsScrolled(t *testing.T) {
+	doc := manyRead(10)
+	tests := []struct {
+		name  string
+		width int
+		by    By
+		rows  int
+	}{
+		{name: "the matrix", width: 160, rows: 16},
+		{name: "stacked, under 150 columns, the key line on two rows", width: 120, rows: 26},
+		{name: "by account", width: 160, by: ByAccount, rows: 22},
+	}
+	last := func(rows []string, text string) int {
+		for y, row := range slices.Backward(rows) {
+			if strings.Contains(row, text) {
+				return y
+			}
+		}
+		return -1
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(tt.width, 60)
+			f.By = tt.by
+			most := f.usageSection(doc, now).scrolling(tt.rows, 0).Most
+			if most < 2 {
+				t.Fatalf("in %d rows, USAGE scrolls %d accounts at most, want it to scroll past its top and short of its end", tt.rows, most)
+			}
+			var pool, key int
+			for _, scroll := range []int{0, 1, most} {
+				f.Scroll = scroll
+				rows, _ := usageBody(f, doc, now, tt.rows)
+				if rows[len(rows)-1] == "" {
+					t.Errorf("scrolled %d down, USAGE reads\n%s\nwant its key line on its last row", scroll, strings.Join(rows, "\n"))
+				}
+				p, k := last(rows, "Σ pool"), last(rows, "┃ even pace")
+				if scroll == 0 {
+					pool, key = p, k
+				}
+				if p != pool || k != key {
+					t.Errorf("scrolled %d down, the last pool and the key line are on rows %d and %d, want %d and %d, as at the top:\n%s",
+						scroll, p, k, pool, key, strings.Join(rows, "\n"))
 				}
 			}
 		})
@@ -243,8 +330,8 @@ func TestUSAGEScrollsAnAccountsRowsAtATimeAPageBeingThoseShownAtItsOffset(t *tes
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(tt.width, 60)
-			f.By, f.Scroll = tt.by, tt.scroll
-			if got := f.usageSection(manyRead(tt.n), now).scrolling(bounds{width: tt.width, rows: tt.rows}); got != tt.want {
+			f.By = tt.by
+			if got := f.usageSection(manyRead(tt.n), now).scrolling(tt.rows, tt.scroll); got != tt.want {
 				t.Errorf("in %d rows, scrolled %d down, %d accounts scroll %+v, want %+v", tt.rows, tt.scroll, tt.n, got, tt.want)
 			}
 		})
@@ -620,6 +707,23 @@ func TestByAccountUSAGEsBarsLeaveROUTINGItsRoomBesideThem(t *testing.T) {
 	}
 }
 
+func TestByAccountUSAGEsWordsEndBeforeTheGapBeforeROUTINGBesideThem(t *testing.T) {
+	stale := trio(account("work", func(a *status.Account) {
+		a.Error, a.FetchedAt = "HTTP 529 · Overloaded", on(30, 12, 42).AddDate(0, -1, 0).UTC()
+	}))
+	f := frameOf(160, 60)
+	f.By = ByAccount
+	b := f.overviewBlock(stale, printNow)
+	words, gap := b.names+windowLabelCells+b.accountBar+afterBar, b.routingAt()-besideCells
+	rows, _ := usageBody(f, stale, printNow, 30)
+	if got := strings.TrimRight(colAt(rows[0], words, gap-words), " "); got != "read Wed" {
+		t.Errorf("work's stale 5-hour reads %q from column %d, want %q, short, as in full it'd run into the gap before ROUTING", got, words, "read Wed")
+	}
+	if got := colAt(rows[0], gap, besideCells); got != strings.Repeat(" ", besideCells) {
+		t.Errorf("the gap before ROUTING reads %q from column %d, want it blank", got, gap)
+	}
+}
+
 func TestUSAGELeavesROUTINGItsColumnsBesideItsBlocksWhileItShowsByAccountFrom150Columns(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -686,7 +790,7 @@ func TestROUTINGBesideUSAGEsBlocksFollowsThemAsTheyScroll(t *testing.T) {
 func TestROUTINGBesideBlocksOfOneWindowLeavesTheirTracesOff(t *testing.T) {
 	doc := routerDoc("a1", 0, readAccount("a1", sessionOf(0.1, time.Hour)), readAccount("a2", sessionOf(0.2, time.Hour)))
 	f := frameOf(160, 40)
-	f.By = ByAccount
+	f.By, f.Policy.Shared = ByAccount, []string{"5h"}
 	x := f.overviewBlock(doc, now).routingAt()
 	rows, _ := usageBody(f, doc, now, 10)
 	want := map[int]string{0: "● open · new sessions come here", 1: "0 sessions", 2: "", 3: "● open", 4: "0 sessions", 6: "2 open", 7: "0 sessions"}
@@ -700,6 +804,36 @@ func TestROUTINGBesideBlocksOfOneWindowLeavesTheirTracesOff(t *testing.T) {
 	}
 	if key := rows[8]; strings.Contains(key, "/min") {
 		t.Errorf("the key line reads %q, want no trace over it", key)
+	}
+}
+
+func TestTheOverviewShowsEachAccountsRowsUnderTheWindowsEveryModelSharesBeforeAnyIsRead(t *testing.T) {
+	doc := unreadOf(threeRouted())
+	names := map[By][]string{ByWindow: {"5-HOUR", "WEEK"}, ByAccount: {"5-hour", "Week"}}
+	for _, by := range []By{ByWindow, ByAccount} {
+		for _, width := range []int{160, 80} {
+			t.Run(fmt.Sprintf("by %d at %d columns", by, width), func(t *testing.T) {
+				f := frameOf(width, 60)
+				f.By, f.WindowName = by, printName
+				rows, _ := usageBody(f, doc, now, 40)
+				text := strings.Join(rows, "\n")
+				for _, want := range append([]string{"1 work", "2 personal", "3 side"}, names[by]...) {
+					if !strings.Contains(text, want) {
+						t.Errorf("USAGE has no %q:\n%s", want, text)
+					}
+				}
+				if got := strings.Count(text, "—  not read"); got != 6 {
+					t.Errorf("USAGE's gauges read \"not read\" %d times, want 6, each account's 5-hour window and week:\n%s", got, text)
+				}
+				var charts []string
+				for _, ch := range f.graphsOf(doc, now).charts {
+					charts = append(charts, ch.name)
+				}
+				if want := []string{"5-HOUR", "WEEK"}; !slices.Equal(charts, want) {
+					t.Errorf("GRAPHS charts %q, want %q", charts, want)
+				}
+			})
+		}
 	}
 }
 

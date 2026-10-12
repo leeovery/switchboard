@@ -79,14 +79,15 @@ var namedPresses = map[string]tea.KeyPressMsg{
 }
 
 // pressOf is the key press a click on a key of the key line, named as the
-// line names it, is taken as, reporting false for one a click never
-// presses: p and q, so a stray click neither routes nor quits.
+// line names it, is taken as, reporting false for a name that's no key. The
+// key line gives p and q no target, so a stray click neither routes nor
+// quits.
 func pressOf(name string) (tea.KeyPressMsg, bool) {
 	if press, ok := namedPresses[name]; ok {
 		return press, true
 	}
 	r, size := utf8.DecodeRuneInString(name)
-	if size == 0 || size != len(name) || name == "p" || name == "q" {
+	if size == 0 || size != len(name) {
 		return tea.KeyPressMsg{}, false
 	}
 	return tea.KeyPressMsg{Code: r, Text: name}, true

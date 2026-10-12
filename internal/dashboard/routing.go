@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
@@ -85,13 +86,6 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	return t
 }
 
-// poolAccounts are doc's accounts in its pool, in the config's order.
-func poolAccounts(doc status.Document) []status.Account {
-	return slices.DeleteFunc(slices.Clone(doc.Accounts), func(a status.Account) bool {
-		return !slices.Contains(doc.Pool.Accounts, a.ID)
-	})
-}
-
 // routingBesideUsage reports whether ROUTING is drawn beside USAGE's blocks
 // rather than as a section of its own: by account, from matrixWidth columns,
 // while both show.
@@ -106,7 +100,7 @@ func (f Frame) routingBesideUsage() bool {
 // account and a blank row, 3a + 2. Under routingRows columns, and on a
 // phone, it's two rows an account and a blank row, 3a + 1 at its least and
 // its most. Beside USAGE's blocks, it's as routingAside has it. Folded, its
-// heading says the mode alone.
+// heading says the mode alone. Its table is built only as it's first drawn.
 func (f Frame) routingSection(doc status.Document, now time.Time) section {
 	if f.routingBesideUsage() {
 		return routingAside(doc, now)
@@ -116,19 +110,19 @@ func (f Frame) routingSection(doc status.Document, now time.Time) section {
 	if f.Width < routingRows {
 		least, most = 3*a+1, 3*a+1
 	}
-	t := f.routingTableOf(doc, now)
+	t := sync.OnceValue(func() routingTable { return f.routingTableOf(doc, now) })
 	return section{
 		Section: SectionRouting, least: least, most: most,
 		description: func() line { return routingMode(doc, now, f.phone()) },
 		folded:      func() line { return routingMode(doc, now, true) },
 		draw: func(c *canvas, body bounds) {
-			f.drawRouting(c, t, body)
+			f.drawRouting(c, t(), body)
 		},
 		targets: func(body bounds) []Target {
 			var targets []Target
-			for i, r := range t.accounts {
-				for _, y := range f.accountRows(i, len(t.accounts), body) {
-					targets = append(targets, Target{Y: y, Width: f.Width, On: OnAccount, Account: r.id})
+			for i, a := range doc.Accounts {
+				for _, y := range f.accountRows(i, len(doc.Accounts), body) {
+					targets = append(targets, Target{Y: y, Width: f.Width, On: OnAccount, Account: a.ID})
 				}
 			}
 			return targets
@@ -294,7 +288,7 @@ func routingInk(kind status.RoutingKind) ink {
 	switch kind {
 	case status.RoutingTokenless, status.RoutingLimited, status.RoutingRefused, status.RoutingUnreadable:
 		return errorInk
-	case status.RoutingModelLimited, status.RoutingModelRefused, status.RoutingCapped, status.RoutingCappedPinned, status.RoutingPressed:
+	case status.RoutingModelLimited, status.RoutingModelRefused, status.RoutingCapped, status.RoutingCappedPinned, status.RoutingModelCapped, status.RoutingPressed:
 		return warningInk
 	case status.RoutingUnread, status.RoutingIdle:
 		return dimInk
@@ -380,7 +374,7 @@ func (f Frame) routingBeside(c *canvas, doc status.Document, now time.Time, at b
 			f.besideAccount(c, t, t.accounts[i], at.x, rows)
 			continue
 		}
-		f.besidePool(c, t, doc, at.x, rows)
+		f.besidePool(c, t, at.x, rows)
 	}
 }
 
@@ -398,17 +392,27 @@ func (f Frame) besideAccount(c *canvas, t routingTable, r accountRouting, x int,
 }
 
 // besidePool draws the pool's lines beside its block from column x, on the
-// rows given, as routingBeside has them: its trace only where it has its row.
-func (f Frame) besidePool(c *canvas, t routingTable, doc status.Document, x int, rows []int) {
+// rows given, as routingBeside has them, each of the pool's accounts' rows
+// of t: its trace only where it has its row.
+func (f Frame) besidePool(c *canvas, t routingTable, x int, rows []int) {
 	c.line(x, rows[0], countedStates(t.pool, f.Width-wordsGap-x))
 	c.line(x, rows[1], line{sessionsSpan(summedSessions(t.pool)).numbered(Number{Kind: NumberSessions})})
 	if len(rows) < 3 {
 		return
 	}
 	trace := f.besideTrace(x, rows[2])
-	pool := summed(f.accountTraces(poolAccounts(doc)), func(tr views.Trace) []float64 { return tr.Cells(trace.width, t.now) })
+	pool := summed(tracesOf(t.pool), func(tr views.Trace) []float64 { return tr.Cells(trace.width, t.now) })
 	f.drawCells(c, pool, trace, false)
 	c.right(f.Width, rows[2], line{rateOf(summedRate(t.pool, t.now), false).numbered(Number{Kind: NumberRate})})
+}
+
+// tracesOf are the accounts' traces, in their order.
+func tracesOf(accounts []accountRouting) []views.Trace {
+	traces := make([]views.Trace, len(accounts))
+	for i, r := range accounts {
+		traces[i] = r.trace
+	}
+	return traces
 }
 
 // besideTrace is where a trace beside a block lies along row y, from column
@@ -441,13 +445,14 @@ func besideSessions(r accountRouting) line {
 
 // countedWords are the words the pool's accounts' states are counted in, in
 // their order, each in its state's colour, and the kinds each counts: an
-// account held back from some models' requests alone is open to the rest.
+// account held back from some models' requests alone, by a limit, a refusal
+// or its cap in a model's own window, is open to the rest.
 var countedWords = []struct {
 	word  string
 	ink   ink
 	kinds []status.RoutingKind
 }{
-	{"open", secondaryInk, []status.RoutingKind{status.RoutingOpen, status.RoutingNext, status.RoutingIdle, status.RoutingModelLimited, status.RoutingModelRefused}},
+	{"open", secondaryInk, []status.RoutingKind{status.RoutingOpen, status.RoutingNext, status.RoutingIdle, status.RoutingModelLimited, status.RoutingModelRefused, status.RoutingModelCapped}},
 	{"pressure", warningInk, []status.RoutingKind{status.RoutingPressed}},
 	{"at cap", warningInk, []status.RoutingKind{status.RoutingCapped, status.RoutingCappedPinned}},
 	{"limit", errorInk, []status.RoutingKind{status.RoutingLimited}},

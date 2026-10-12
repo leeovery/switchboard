@@ -33,9 +33,9 @@ func linesRows(lines int) int {
 // next, soonest first, as many of its things as it has, leastLines of them at
 // its least; folded, its first, as it's drawn, but for its countdown.
 func (f Frame) comingSection(doc status.Document, now time.Time) section {
-	things := upcoming(doc, now, f.Policy)
+	things := f.upcoming(doc, now)
 	return section{
-		Section: SectionComing, least: linesRows(0), most: linesRows(len(things)), more: len(things) > 1,
+		Section: SectionComing, least: linesRows(0), lines: func() int { return len(things) },
 		draw: func(c *canvas, body bounds) {
 			comingLines(c, things, now, body)
 		},
@@ -59,35 +59,44 @@ type happening struct {
 }
 
 // upcoming are the things coming up after now, as doc's COMING UP lists
-// them, in its order, soonest first, each as happeningOf says it, its
-// account named as the Overview names it.
-func upcoming(doc status.Document, now time.Time, policy score.Policy) []happening {
-	names := overviewNames(doc)
+// them, in its order, soonest first, each as happening says it, its account
+// named as the Overview names it, and its windows as windowNamer names them.
+func (f Frame) upcoming(doc status.Document, now time.Time) []happening {
+	t := comingTeller{doc: doc, names: overviewNames(doc), window: f.windowNamer(doc), policy: f.Policy}
 	var all []happening
 	for _, u := range doc.ComingUp {
-		if h, ok := happeningOf(doc, names, u, policy); ok && h.at.After(now) {
+		if h, ok := t.happening(u); ok && h.at.After(now) {
 			all = append(all, h)
 		}
 	}
 	return all
 }
 
-// happeningOf is what doc's COMING UP says comes of u: its account back from
+// comingTeller tells of doc's things coming up, as COMING UP says them: its
+// accounts named as names, overviewNames' of doc, have them; its windows as
+// window names them; and the window a request starts as policy says.
+type comingTeller struct {
+	doc    status.Document
+	names  []accountName
+	window func(key string) string
+	policy score.Policy
+}
+
+// happening is what doc's COMING UP says comes of u: its account back from
 // its limit, as in "back from its limit", or from one of some models alone,
 // named by its window, as in "back from its Fable wk limit", or from its
 // cap; a window running out, as runningOut says; a window resetting, as in
 // "'s 5-hour resets"; or its being primed. It reports false for a kind it
-// doesn't tell of, as one from a later router. Its account is named as
-// names, overviewNames' of doc, have it.
-func happeningOf(doc status.Document, names []accountName, u status.Upcoming, policy score.Policy) (happening, bool) {
-	h := happening{at: u.At, name: overviewNamed(doc, names, u.Account, titleInk)}
+// doesn't tell of, as one from a later router.
+func (t comingTeller) happening(u status.Upcoming) (happening, bool) {
+	h := happening{at: u.At, name: overviewNamed(t.doc, t.names, u.Account, titleInk)}
 	switch u.Kind {
 	case status.UpcomingBack:
-		h.what = " back from its " + holder(doc, u)
+		h.what = " back from its " + t.holder(u)
 	case status.UpcomingRunsOut:
-		h.what, h.runsOut = runningOut(doc, u, policy), true
+		h.what, h.runsOut = t.runningOut(u), true
 	case status.UpcomingReset:
-		h.what = "'s " + comingWindow(doc, u.Account, u.Window) + " resets"
+		h.what = "'s " + t.windowOf(u.Window) + " resets"
 	case status.UpcomingPrime:
 		h.what = " is primed"
 	default:
@@ -99,7 +108,7 @@ func happeningOf(doc status.Document, names []accountName, u status.Upcoming, po
 // holder names what held back the account u is back from: its cap, or its
 // limit, each named by the window that held back some models' requests
 // alone, as in "Fable wk cap".
-func holder(doc status.Document, u status.Upcoming) string {
+func (t comingTeller) holder(u status.Upcoming) string {
 	what := "limit"
 	if u.Cap {
 		what = "cap"
@@ -107,7 +116,7 @@ func holder(doc status.Document, u status.Upcoming) string {
 	if u.Window == "" {
 		return what
 	}
-	return comingWindow(doc, u.Account, u.Window) + " " + what
+	return t.windowOf(u.Window) + " " + what
 }
 
 // runningOut says what befalls an account as its window runs out, as u
@@ -115,28 +124,22 @@ func holder(doc status.Document, u status.Upcoming) string {
 // back; as the window a request starts does, unnamed, as in "work runs out
 // at its pace", or as any other, named, as in "client's week reaches its
 // cap".
-func runningOut(doc status.Document, u status.Upcoming, policy score.Policy) string {
+func (t comingTeller) runningOut(u status.Upcoming) string {
 	what := " runs out at its pace"
 	if u.Cap {
 		what = " reaches its cap"
 	}
-	if u.Window == policy.Started {
+	if u.Window == t.policy.Started {
 		return what
 	}
-	return "'s " + comingWindow(doc, u.Account, u.Window) + what
+	return "'s " + t.windowOf(u.Window) + what
 }
 
-// comingWindow names an account's window as COMING UP has it in a sentence:
-// as usage's block names it, a model's own week short, as "5-hour", "week"
+// windowOf names the window with the given key as COMING UP has it in a
+// sentence: as USAGE names it, a model's own week short, as "5-hour", "week"
 // or "Fable wk".
-func comingWindow(doc status.Document, account, key string) string {
-	var label string
-	if a, ok := doc.Account(account); ok {
-		if w, ok := a.Window(key); ok {
-			label = w.Label
-		}
-	}
-	return status.InProse(status.Short(nameOfWindow(key, label)))
+func (t comingTeller) windowOf(key string) string {
+	return status.InProse(status.Short(t.window(key)))
 }
 
 // limited reports whether a limit holds the account back from every request

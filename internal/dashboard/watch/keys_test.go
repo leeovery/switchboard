@@ -53,7 +53,7 @@ func TestTheKeyLineGroupsTheKeysOfEachTab(t *testing.T) {
 			h.model.view = tt.view
 			h.start()
 
-			l := h.model.keyLine(h.clock.now)
+			l := h.model.live(h.clock.now).KeyLine
 			var got [][]string
 			for _, group := range l.Groups {
 				got = append(got, listedKeys(group))
@@ -110,11 +110,11 @@ func TestTheOverviewsKeyLineSaysWhichSectionsShowAndHowTheWindowsAreGrouped(t *t
 		{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"},
 		{Key: "b", Does: "by", State: "account"},
 	}
-	if got := h.model.keyLine(h.clock.now).Groups[1]; !slices.Equal(got, want) {
+	if got := h.model.live(h.clock.now).KeyLine.Groups[1]; !slices.Equal(got, want) {
 		t.Errorf("with GRAPHS shown, USAGE hidden and the windows grouped by account, the toggles are\n%+v\nwant\n%+v", got, want)
 	}
-	if !slices.ContainsFunc(h.model.helpKeys(), func(k dashboard.Key) bool { return k == want[0] }) {
-		t.Errorf("help lists %+v, want the toggles worded as the key line words them", h.model.helpKeys())
+	if !slices.ContainsFunc(h.model.helpKeys(h.clock.now), func(k dashboard.Key) bool { return k == want[0] }) {
+		t.Errorf("help lists %+v, want the toggles worded as the key line words them", h.model.helpKeys(h.clock.now))
 	}
 }
 
@@ -138,7 +138,7 @@ func TestTheEmptyTabsListPPinOnlyWhereThereIsAPinToSet(t *testing.T) {
 				h.start()
 
 				var got [][]string
-				for _, group := range h.model.keyLine(h.clock.now).Groups {
+				for _, group := range h.model.live(h.clock.now).KeyLine.Groups {
 					got = append(got, listedKeys(group))
 				}
 				if !slices.EqualFunc(got, tt.want, slices.Equal) {

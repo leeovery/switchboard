@@ -228,6 +228,7 @@ func TestTheClockRunsFromTheScenariosStart(t *testing.T) {
 		t.Fatalf("starting, it draws\n%s\nwant it drawn at once, at the scenario's start", frame)
 	}
 	clock.advance(12 * time.Second)
+	l = drive(l, nil, reached{})
 	if frame := ansi.Strip(l.View().Content); !strings.Contains(frame, "Thu 1 Oct  14:42:19") {
 		t.Errorf("12s in, it draws\n%s\nwant its clock 12s on", frame)
 	}

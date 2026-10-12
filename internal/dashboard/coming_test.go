@@ -112,7 +112,7 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 			doc := tt.doc
 			doc.Prime = status.Prime{Day: "08:00-22:00", Window: "5h", Slots: tt.slots}
 			var got []string
-			for _, h := range upcoming(doc.WorkedOut(claudeLike), now, claudeLike) {
+			for _, h := range (Frame{Policy: claudeLike}).upcoming(doc.WorkedOut(claudeLike), now) {
 				got = append(got, status.Dated(now, h.at)+" "+h.name.text+h.what)
 			}
 			if !slices.Equal(got, tt.want) {
@@ -131,7 +131,7 @@ func TestCOMINGUPDrawsWhatTheDocumentGivesAfterNow(t *testing.T) {
 		{At: now.Add(2 * time.Hour).UTC(), Account: "work", Kind: status.UpcomingReset, Window: "5h"},
 	}
 	var got []string
-	for _, h := range upcoming(doc, now, claudeLike) {
+	for _, h := range (Frame{Policy: claudeLike}).upcoming(doc, now) {
 		got = append(got, status.Dated(now, h.at)+" "+h.name.text+h.what)
 	}
 	if want := []string{"15:12 work's 5-hour resets"}; !slices.Equal(got, want) {
@@ -152,7 +152,7 @@ func TestCOMINGUPListsEverythingTheDocumentGivesWhateverItsWindow(t *testing.T) 
 	}
 
 	var got []string
-	for _, h := range upcoming(doc, now, claudeLike) {
+	for _, h := range (Frame{Policy: claudeLike}).upcoming(doc, now) {
 		got = append(got, status.Dated(now, h.at)+" "+h.name.text+h.what)
 	}
 	want := []string{
@@ -305,8 +305,8 @@ func TestCOMINGUPTakesItsLinesAndTwoRows(t *testing.T) {
 	}
 	for _, tt := range []struct{ things, least, most int }{{0, 5, 5}, {2, 5, 5}, {7, 5, 9}, {20, 5, 14}} {
 		s := frameOf(160, 40).comingSection(things(tt.things), now)
-		if s.least != tt.least || s.most != tt.most {
-			t.Errorf("with %d things coming, COMING UP takes %d rows to %d, want %d to %d", tt.things, s.least, s.most, tt.least, tt.most)
+		if s.least != tt.least || s.mostRows() != tt.most {
+			t.Errorf("with %d things coming, COMING UP takes %d rows to %d, want %d to %d", tt.things, s.least, s.mostRows(), tt.least, tt.most)
 		}
 	}
 }
@@ -341,7 +341,7 @@ func TestCOMINGUPNamesAnAccountOutOfThePoolFaint(t *testing.T) {
 	faint := ink{token: theme.TextFaint, bold: true}
 	want := []span{{"work", titleInk}, {"personal", faint}}
 	var got []span
-	for _, h := range upcoming(doc, now, claudeLike) {
+	for _, h := range (Frame{Policy: claudeLike}).upcoming(doc, now) {
 		got = append(got, h.said(now, 0)[1])
 	}
 	if !slices.Equal(got, want) {

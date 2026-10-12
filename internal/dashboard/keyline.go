@@ -9,9 +9,12 @@ import (
 // after one, and on a phone's line, between any two.
 const (
 	keysInGroup = 2
-	keysAfter   = 4
+	KeysAfter   = 4
 	keysApart   = 3
 )
+
+// Quit is q, which quits, as the key line and help list it.
+var Quit = Key{Key: "q", Does: "quit"}
 
 // KeyLine is the key line, the page's last row: the keys that work where
 // they are, in their groups, or a note in their place.
@@ -22,7 +25,7 @@ type KeyLine struct {
 	Groups [][]Key
 	// Lead is the blank cells after the first group, tab views: three, or
 	// five on the Overview; and After those after each group past it: five
-	// on the Overview, or where it's 0, keysAfter. Within a group, keys are
+	// on the Overview, or where it's 0, KeysAfter. Within a group, keys are
 	// keysInGroup apart.
 	Lead, After int
 	// Phone are the keys a phone's line keeps between the first group, tab
@@ -146,7 +149,7 @@ func (l KeyLine) wide() []spaced {
 			keys = append(keys, spaced{key: k, gap: gap})
 			gap = keysInGroup
 		}
-		gap = cmp.Or(l.After, keysAfter)
+		gap = cmp.Or(l.After, KeysAfter)
 		if i == 0 {
 			gap = l.Lead
 		}
@@ -165,7 +168,7 @@ func (l KeyLine) phone(width int) []spaced {
 		lead = l.Groups[0]
 	}
 	page := l.Phone
-	ends := []Key{{Key: "?", Does: l.PhoneHelp}, {Key: "q", Does: "quit"}}
+	ends := []Key{{Key: "?", Does: l.PhoneHelp}, Quit}
 	for {
 		keys := evenly(slices.Concat(lead, page, ends))
 		switch {

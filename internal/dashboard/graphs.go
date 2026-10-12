@@ -56,7 +56,7 @@ func (f Frame) graphsOf(doc status.Document, now time.Time) graphs {
 		return g
 	}
 	g.name, g.focused = overviewNamed(doc, names, account.ID, titleInk), true
-	for _, w := range overviewWindows(doc) {
+	for _, w := range f.overviewWindows(doc) {
 		g.charts = append(g.charts, chartOf(account, w, f.Trails[Ref{Account: account.ID, Window: w.key}], now))
 	}
 	return g

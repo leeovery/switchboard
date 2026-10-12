@@ -65,7 +65,9 @@ func TestEveryReadOfTheRouterListsItsSessions(t *testing.T) {
 	if h.source.listed != 2 {
 		t.Errorf("listed the sessions %d times, want again with a look at the router's document", h.source.listed)
 	}
-	if h.model.view = dashboard.Sessions; !strings.Contains(h.view(), "d28c") || !strings.Contains(h.view(), "7f3a") {
+	h.model.view = dashboard.Sessions
+	h.redraw()
+	if !strings.Contains(h.view(), "d28c") || !strings.Contains(h.view(), "7f3a") {
 		t.Errorf("the screen is\n%s\nwant Sessions listing d28c and 7f3a", h.view())
 	}
 }
@@ -255,13 +257,51 @@ func TestAReadThatFailsWhileTheRoutersDocumentShowsSaysTheRouterIsntAnswering(t 
 	}
 }
 
-func TestAFirstReadThatFailsSaysTheRouterIsntAnswering(t *testing.T) {
+func TestAFirstReadThatFindsNoRouterSaysTheRouterIsntAnsweringTillAReadLands(t *testing.T) {
+	tests := []struct {
+		name string
+		// lands has a read land: probed, or the router's.
+		lands func(h *harness)
+		// wantStatus is how the status line then starts.
+		wantStatus string
+	}{
+		{name: "probed", lands: func(h *harness) { h.tickUntilRead() }, wantStatus: "○ probed · router not running"},
+		{
+			name:       "the router's",
+			lands:      func(h *harness) { h.startRouter(routerDocument(three()...)); h.tickUntilAsked() },
+			wantStatus: "● healthy  ·  auto  ·  ",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, probedWithoutTheRouter())
+			h.source.err = status.ErrNoRouter
+			h.start()
+			if got, want := strings.TrimSpace(strings.Split(h.view(), "\n")[2]), "■ the router isn't answering  ·  since 13:12:00"; got != want {
+				t.Errorf("the status line reads %q, want %q: nothing read, that alone", got, want)
+			}
+
+			h.source.err = nil
+			tt.lands(h)
+			if got := strings.Split(h.view(), "\n")[2]; !strings.HasPrefix(got, tt.wantStatus) || !h.model.lost.IsZero() {
+				t.Errorf("once a read lands, the status line reads %q, the router lost at %v; want it to start %q, and the router lost no more", got, h.model.lost, tt.wantStatus)
+			}
+		})
+	}
+}
+
+func TestAFirstReadThatFailsOtherwiseSaysWhyNotThatTheRouterIsntAnswering(t *testing.T) {
 	h := newHarness(t, probedWithoutTheRouter())
-	h.source.err = errors.New("connection refused")
+	h.source.err = errors.New("the keychain is locked")
 	h.start()
 
-	if got, want := strings.TrimSpace(strings.Split(h.view(), "\n")[2]), "■ the router isn't answering  ·  since 13:12:00"; got != want {
-		t.Errorf("the status line reads %q, want %q: nothing read, that alone", got, want)
+	want := "! couldn't read usage: the keychain is locked  ·  next 13:14"
+	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); got != want || !h.model.lost.IsZero() {
+		t.Errorf("the status line reads %q, the router lost at %v; want %q, why and when it reads next, the router not lost", got, h.model.lost, want)
+	}
+	h.tickUntilAsked() // A question after the router, which finds it gone.
+	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); got != want || !h.model.lost.IsZero() {
+		t.Errorf("once a question finds the router gone, the status line reads %q, the router lost at %v; want %q still", got, h.model.lost, want)
 	}
 
 	h.source.err = nil

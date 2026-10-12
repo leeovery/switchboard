@@ -377,8 +377,13 @@ func TestARequestThatWentUpstreamWithoutUsageIsUnpricedNeverFree(t *testing.T) {
 		{name: "one whose answer gave its usage", edit: func(*ledger.Line) {}, want: ledger.Worth{Cost: dollars(10*4e-6 + 20*20e-6)}},
 		{name: "one cut short", edit: func(l *ledger.Line) { l.Usage, l.CutOff = nil, true }, want: ledger.Worth{Unpriced: []string{"no_usage"}}},
 		{name: "one the API answered with an error", edit: func(l *ledger.Line) { l.Usage, l.Status = nil, 529 }, want: ledger.Worth{Unpriced: []string{"no_usage"}}},
+		{name: "a line of no kind cut short, as the summary tallies it upstream", edit: func(l *ledger.Line) { l.Usage, l.Kind, l.CutOff = nil, "", true },
+			want: ledger.Worth{Unpriced: []string{"no_usage"}}},
+		{name: "a kind a later router adds, cut short", edit: func(l *ledger.Line) { l.Usage, l.Kind, l.CutOff = nil, "batch", true },
+			want: ledger.Worth{Unpriced: []string{"no_usage"}}},
 		{name: "one the router answered itself", edit: func(l *ledger.Line) { l.Usage, l.Attempts, l.Status = nil, 0, 429 }},
 		{name: "a count of tokens, which spends nothing", edit: func(l *ledger.Line) { l.Usage, l.Kind = nil, ledger.KindCount }},
+		{name: "the client's quota check", edit: func(l *ledger.Line) { l.Usage, l.Kind = nil, ledger.KindCheck }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -121,6 +121,10 @@ type Config struct {
 	// Policy is the provider's say in which windows leave an account without
 	// room.
 	Policy score.Policy
+	// WindowName names a window by its key wherever the Overview names one,
+	// as "5-hour" or "Fable week": nil names it by its label in the
+	// document.
+	WindowName func(key string) string
 	// Size is what to draw at until the terminal gives its size, and in place
 	// of a width or height it gives as zero, which means it doesn't know.
 	Size Size
@@ -187,8 +191,8 @@ type Model struct {
 	// again asks for a look at the router's document as soon as the read
 	// under way lands.
 	again bool
-	// lost is when the router stopped answering, while the dashboard has
-	// probed since, shows its last document, or has read nothing since.
+	// lost is when the router stopped answering, while the dashboard shows
+	// its last document, or has read nothing since: zero once a read lands.
 	lost time.Time
 	// failed is why the last read failed, while it's the last: "" once one
 	// lands, and for a look that found the router gone.
@@ -249,6 +253,11 @@ type Model struct {
 	stream  streaming
 	traffic traffic
 	traces  views.Traces
+	// toldBefore is what the stream had told before the message taken in
+	// told what can change a number the page draws, for compared to compare
+	// the numbers drawn of it with those drawn since: nil where it told
+	// nothing that can.
+	toldBefore *toldSoFar
 	// sections are the Overview's sections shown, and by how its windows are
 	// grouped; span is how far ahead Runway looks.
 	sections dashboard.Sections
@@ -282,10 +291,16 @@ type Model struct {
 	shown shown
 }
 
-// shown is what render made of the screen: what moves on it, which has
-// frames drawn; and where it drew the screen to know, as drawn says, the
-// view drawn, which View shows rather than drawing it again.
+// shown is the screen as the last message left it, for View to show, and
+// what moves on it, which has frames drawn: the live page, its sections built
+// once at the moment the message was taken in, as at says, which View draws
+// at that moment; and where render drew it, to know what moves, as drawn
+// says, the view drawn, which View shows rather than drawing it again.
+// Behind a card, and on a screen blank till the terminal says what its
+// background is, there's no page, and View draws the screen itself.
 type shown struct {
+	page   *dashboard.Frame
+	at     time.Time
 	moving dashboard.Motion
 	view   tea.View
 	drawn  bool
@@ -366,30 +381,43 @@ func (m Model) Init() tea.Cmd {
 
 // Update takes in a message, as take says, then has the watch read the
 // router's request stream while it wants it, and only then, price the moves
-// the routing card would make while it wants them; keeps the Overview's
-// layout, but for a frame, which takes nothing in to lay it out afresh by;
-// and only then, so frames see the layout the page will draw, draws frames
-// while anything on screen moves. The view is drawn again after each, which
-// is all a note's lapsing asks.
+// the routing card would make while it wants them. Then, of the page as it
+// stands at one moment, its Overview's sections built once for each to
+// share, it keeps the Overview's layout, but for a frame, which takes
+// nothing in to lay it out afresh by; brightens the numbers what the stream
+// told changed, as compared has it; and only then, so the screen and its
+// frames see the layout the page will draw and the numbers it brightens,
+// shows the page, drawing frames while anything on it moves. The view is
+// drawn again after each, which is all a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.take(msg)
 	tuned, stream := next.(Model).tune()
 	tuned, costs := tuned.costing()
 	now := tuned.now()
+	page := tuned.frame(now).Built(tuned.doc, now)
 	if _, frame := msg.(frameMsg); !frame {
-		tuned = tuned.keepLayout(now)
+		tuned = tuned.keepLayout(page, now)
 	}
-	tuned, frames := tuned.startFrames(now)
+	tuned = tuned.compared(page, now)
+	tuned, frames := tuned.startFrames(page, now)
 	return tuned, tea.Batch(cmd, stream, costs, frames)
 }
 
-// keepLayout keeps the Overview's layout as the page lays it out at now, for
-// the looks after: as it was kept, but laid out afresh where an input the
-// page acts on let it go, as acting does, on a resize, or as a section's
+// keepLayout keeps the Overview's layout as page, built at now, lays it out,
+// for the looks after: as it was kept, but laid out afresh where an input
+// the page acts on let it go, as acting does, on a resize, or as a section's
 // shape changes, as LayoutOf has it.
-func (m Model) keepLayout(now time.Time) Model {
-	m.layout = m.frame(now).LayoutOf(m.doc, now)
+func (m Model) keepLayout(page dashboard.Frame, now time.Time) Model {
+	m.layout = page.LayoutOf(m.doc, now)
 	return m
+}
+
+// laidOut is page, built at now, as the model stands since: its Overview
+// laid out as kept, and its numbers as bright as they are at now, neither of
+// which its sections draw.
+func (m Model) laidOut(page dashboard.Frame, now time.Time) dashboard.Frame {
+	page.Layout, page.Brightened = m.layout, m.numbers.brightened(now)
+	return page
 }
 
 // acting is m as the page acts on an input, its Overview's layout let go,
@@ -400,22 +428,39 @@ func (m Model) acting() Model {
 	return m
 }
 
-// render works out what moves on screen at now, for frames to be drawn
-// while anything does. Where anything the page draws may be settling, it
-// draws the screen once to know, and keeps it for View to show; else what
-// moves needs no drawing, and View draws the screen. Nothing moves behind a
-// card, nor on a screen blank till the terminal says what its background is.
-func (m Model) render(now time.Time) Model {
+// shownOf is the screen page, built at now, shows, for View to draw: the
+// live page as the model stands since; but no page behind a card, nor on a
+// screen blank till the terminal says what its background is.
+func (m Model) shownOf(page dashboard.Frame, now time.Time) shown {
 	if m.open != nothingOpen || m.blank() {
-		return m
+		return shown{}
 	}
-	live := m.live(now)
-	if !live.MaySettle() {
-		m.shown.moving = live.Motion(m.doc, now)
-		return m
+	live := m.laidOut(page, now)
+	return shown{page: &live, at: now}
+}
+
+// shownPage is the live page shown, as it's drawn: its key line listing the
+// keys that work on it as the message was taken in.
+func (m Model) shownPage() dashboard.Frame {
+	page := *m.shown.page
+	page.KeyLine = m.keyLine(page, m.shown.at)
+	return page
+}
+
+// render works out what moves on the page shown, for frames to be drawn
+// while anything does. Where anything it draws may be settling, it draws the
+// screen once to know, and keeps it for View to show; else what moves needs
+// no drawing, and View draws the page. Nothing moves where there's no page.
+func (m Model) render() Model {
+	switch page, at := m.shown.page, m.shown.at; {
+	case page == nil:
+	case !page.MaySettle():
+		m.shown.moving = page.Motion(m.doc, at)
+	default:
+		live := m.shownPage()
+		lines, moving := live.Rendered(m.doc, at)
+		m.shown.view, m.shown.moving, m.shown.drawn = m.viewOf(lines, live.Look), moving, true
 	}
-	lines, moving := live.Rendered(m.doc, now)
-	m.shown = shown{view: m.viewOf(lines, live.Look), moving: moving, drawn: true}
 	return m
 }
 
@@ -473,15 +518,19 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View draws the dashboard full screen, as screen has it at the clock's
-// time: or shows it as render drew it, where render drew it as the last
-// message was taken in. In colour, it's drawn once the terminal has said
-// what its background is, or had its time to, so it never shows one theme
-// then another.
+// View draws the dashboard full screen as the last message left it: as
+// render drew it, where it did; else its live page, at the moment the
+// message was taken in, its sections as they were built then; else, as
+// behind a card, as screen has it at the clock's time. In colour, it's drawn
+// once the terminal has said what its background is, or had its time to, so
+// it never shows one theme then another.
 func (m Model) View() tea.View {
 	switch {
 	case m.shown.drawn:
 		return m.shown.view
+	case m.shown.page != nil:
+		live := m.shownPage()
+		return m.viewOf(live.Draw(m.doc, m.shown.at), live.Look)
 	case m.blank():
 		return blankView()
 	}
@@ -572,7 +621,7 @@ func (m Model) screen(now time.Time) (dashboard.Frame, status.Document, time.Tim
 // listing the keys that work.
 func (m Model) live(now time.Time) dashboard.Frame {
 	f := m.frame(now)
-	f.KeyLine = m.keyLine(now)
+	f.KeyLine = m.keyLine(f, now)
 	return f
 }
 
@@ -582,7 +631,7 @@ func (m Model) card(now time.Time) dashboard.Opened {
 	if m.open == routingOpen {
 		return m.routingCard(now)
 	}
-	return m.helpCard()
+	return m.helpCard(now)
 }
 
 // cover opens the card given over the page, which stands still behind it as
@@ -615,8 +664,9 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Lost: m.lost, Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.ease.eased(m.doc, now),
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
-		Focus:  m.focus,
-		Policy: m.cfg.Policy,
+		Focus:      m.focus,
+		Policy:     m.cfg.Policy,
+		WindowName: m.cfg.WindowName,
 	}
 }
 
@@ -752,7 +802,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 		m.history.filedSince = false
 	}
 	m.readings = m.readings.with(doc, now)
-	m = m.follow(doc, now)
+	m = m.follow(doc)
 	m.news = m.news.looked(doc, msg.router, now)
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
 	m.history = m.history.saw(doc)
@@ -778,35 +828,36 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	return m, tea.Batch(post, asked)
 }
 
-// follow notes where doc, read at now, came from, against where the document
-// on screen did: the router lost when it stops answering, unless a look lost
-// it first, and found again.
-func (m Model) follow(doc status.Document, now time.Time) Model {
+// follow notes where doc came from, against where the document on screen
+// did, as the router stops answering or answers again; and, a document having
+// landed from whatever source, that the router is lost no more.
+func (m Model) follow(doc status.Document) Model {
 	switch was, is := m.routed(), routed(doc); {
 	case was && !is:
-		m.lost = cmp.Or(m.lost, now)
 		logger.Warn("the router stopped answering; probing directly", "router", doc.Fallback.Router, "reason", doc.Fallback.Reason)
 	case is && (!was || !m.lost.IsZero()):
-		m.lost = time.Time{}
 		logger.Info("reading the router")
 	}
+	m.lost = time.Time{}
 	return m
 }
 
 // lose notes a read at now that failed, as the router not answering it:
 // while its document is on screen, which stays there, the status line
-// saying since when the router hasn't answered, until it answers again, or a
-// full read probes; and before any document, the status line saying that
-// alone, unless the source probes as asked, with no router to lose. A read
-// that fails while probing says nothing of the router: the status line says
-// why it failed instead.
+// saying since when the router hasn't answered, until a read lands, as a read
+// then asks the router first, failing only where it doesn't answer; and
+// before any document, the status line saying that alone, unless the source
+// probes as asked, with no router to lose, or a read has failed for a reason
+// of its own, as a probe can, which the status line says instead. A read that
+// fails while probing says nothing of the router: the status line says why
+// it failed.
 func (m Model) lose(now time.Time) Model {
 	switch {
 	case !m.lost.IsZero():
 		return m
 	case m.routed():
 		logger.Warn("the router stopped answering; showing its last document")
-	case m.updated.IsZero() && !m.cfg.ProbeOnly:
+	case m.updated.IsZero() && m.failed == "" && !m.cfg.ProbeOnly:
 		logger.Warn("the router isn't answering, and nothing has been read")
 	default:
 		return m
@@ -859,17 +910,17 @@ func (m Model) armTick(now time.Time) tea.Cmd {
 // behind the timer that brings it, has turned over.
 const stepSlack = time.Millisecond
 
-// startFrames arms the next frame, while anything on screen moves at now,
-// as nextFrame has it once render has worked out what does, unless the one
-// armed already comes as soon, as one armed to come within frameEvery does,
-// which asks nothing of render. Whatever render drew for a message before
-// is let go, View drawing the screen afresh where render draws none.
-func (m Model) startFrames(now time.Time) (Model, tea.Cmd) {
-	m.shown = shown{}
+// startFrames shows the screen of page, built at now, as shownOf has it, in
+// place of whatever a message before left, and arms the next frame, while
+// anything on screen moves at now, as nextFrame has it once render has worked
+// out what does, unless the one armed already comes as soon, as one armed to
+// come within frameEvery does, which asks nothing of render.
+func (m Model) startFrames(page dashboard.Frame, now time.Time) (Model, tea.Cmd) {
+	m.shown = m.shownOf(page, now)
 	if m.framing && !m.frameDue.After(now.Add(frameEvery)) {
 		return m, nil
 	}
-	m = m.render(now)
+	m = m.render()
 	next, moving := m.nextFrame(now)
 	if !moving || m.framing && !m.frameDue.After(now.Add(next)) {
 		return m, nil
