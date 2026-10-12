@@ -22,11 +22,28 @@ type routed struct {
 	rate float64
 }
 
+// trails are how the router has read the account's session lately, as
+// score.Noted keeps them, where it has a recent rate of it: from where rate
+// puts its use the half hour before gen, never below none, to where it was
+// last read.
+func (r routed) trails(gen time.Time) map[string][]score.Reading {
+	session, ok := r.Window(policy.Pressure)
+	if !ok || r.rate == 0 {
+		return nil
+	}
+	from := gen.Add(-score.Recent)
+	return map[string][]score.Reading{session.Key: {
+		{At: from, Utilization: max(session.Utilization-r.rate*score.Recent.Hours(), 0)},
+		{At: r.FetchedAt, Utilization: session.Utilization},
+	}}
+}
+
 // asTheRouterBuilds is the router's document at gen of the accounts given,
 // before it's worked out, the global pin naming those pinned, built as the
 // router builds its own: each account as it stands at gen, as AsOf has it;
-// with a usable token, its pressure and recent rates, as pressureOf has
-// them; the best of those not shut; and the primary.
+// with a usable token, its pressure, as status.PressureFrom has it, and its
+// recent rates, as status.RatesOf has them, over its trails; the best of
+// those not shut; and the primary.
 func asTheRouterBuilds(gen time.Time, pinned []string, accounts ...routed) status.Document {
 	doc := status.Document{GeneratedAt: gen, Source: status.SourceRouter, Router: status.Health{Healthy: true}}
 	if len(pinned) > 0 {
@@ -36,7 +53,11 @@ func asTheRouterBuilds(gen time.Time, pinned []string, accounts ...routed) statu
 	for _, r := range accounts {
 		a := r.AsOf(policy, gen)
 		if a.TokenSet {
-			a.Pressure, a.Rates = pressureOf(r, a, slices.Contains(pinned, a.ID), gen)
+			trails := r.trails(gen)
+			a.Pressure = status.PressureFrom(policy, status.Pressing{
+				ID: a.ID, Reserve: a.Reserve, Latest: r.Windows, Trails: trails, Spent: slices.Contains(pinned, a.ID), Shut: a.Shut(gen, policy),
+			}, gen)
+			a.Rates = status.RatesOf(r.Windows, trails, gen)
 		}
 		doc.Accounts = append(doc.Accounts, a)
 		if !a.Shut(gen, policy) {
@@ -45,34 +66,6 @@ func asTheRouterBuilds(gen time.Time, pinned []string, accounts ...routed) statu
 	}
 	doc.Best, doc.Primary = status.Best(policy, open, pinned, gen), status.PrimaryOf(doc.Accounts)
 	return doc
-}
-
-// pressureOf is the pressure and the recent rates the router gives account
-// r, standing at gen as a, as it works them out: its session at its recent
-// rate, where it has one, else at its use since it started, as score.PaceOf
-// has it; reaching its reserve, but where the global pin spends it; and
-// under pressure only while it takes a request of some model, as takesAny
-// says.
-func pressureOf(r routed, a status.Account, pinned bool, gen time.Time) (status.Pressure, []status.Rate) {
-	session, _ := r.Window(policy.Pressure)
-	pace, ok := score.PaceOf(session, nil, gen)
-	var rates []status.Rate
-	if r.rate > 0 && !session.ResetBy(gen) {
-		since := gen.Add(-score.Recent)
-		pace, ok = score.Pace{Rate: r.rate, Recent: true, Since: since}, true
-		rates = []status.Rate{{Window: policy.Pressure, Rate: r.rate, Since: since}}
-	}
-	if !ok {
-		return status.Pressure{}, rates
-	}
-	c := score.Candidate{ID: a.ID, Windows: a.Windows, Reserve: a.Reserve, Rate: pace.Rate}
-	if pinned {
-		c.Reserve = 0
-	}
-	takesAny := func(reserve float64) bool {
-		return !a.Shut(gen, policy) && score.Available(a.Windows, reserve, policy.IsShared, gen)
-	}
-	return status.PressureOf(policy, pace, c, takesAny, gen), rates
 }
 
 // asProbed is the document probing builds at gen of the accounts given, each
@@ -906,7 +899,7 @@ func TestThePressureLinesTimeIsTheRoutersForAnyDocumentItBuilds(t *testing.T) {
 		a, _ := doc.At(built, policy).Account("work")
 		if got := a.Pressure.Out.At; got.IsZero() != want.IsZero() || got.Sub(want).Abs() > rounding {
 			t.Fatalf("case %d, %+v, rate %v, reserve %v, pinned %v: the pressure window runs out at %v, want %v, as the router gave it",
-				i, session, account.rate, a.Reserve, pinned != nil, got, want)
+				i, session, stored.Rate, a.Reserve, pinned != nil, got, want)
 		}
 		if !stored.Under {
 			continue
