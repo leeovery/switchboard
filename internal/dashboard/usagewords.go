@@ -97,17 +97,13 @@ func poolWords(room float64, accounts int, pinned bool) usageWords {
 	return usageWords{full: l, short: l}
 }
 
-// pick is the words as a block width columns wide draws them, in the cells
-// they take there and the one after them: in full from 70 columns, where they
-// fit; else short, whole spans left off their end where even that doesn't
-// fit, or cut short.
-func (w usageWords) pick(width int) line {
-	room := shortCells + 1
-	if width >= fullWords {
-		room = fullCells + 1
-		if w.full.width() <= room {
-			return w.full
-		}
+// pick is the words as a block width columns wide draws them, in room cells,
+// those up to what follows them: in full from 70 columns, where they fit;
+// else short, whole spans left off their end where even that doesn't fit, or
+// cut short.
+func (w usageWords) pick(width, room int) line {
+	if width >= fullWords && w.full.width() <= room {
+		return w.full
 	}
 	return w.short.fitWhole(room)
 }

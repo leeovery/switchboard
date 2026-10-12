@@ -23,8 +23,8 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 		{name: "no token", state: state(status.WindowTokenless, time.Time{}), full: "no token", short: "no token", ink: errorInk},
 		{name: "nothing read", state: state(status.WindowUnread, time.Time{}), full: "not read yet", short: "not read", ink: dimInk},
 		{name: "stale since today", state: state(status.WindowStale, on(1, 14, 20)), full: "not read since 14:20", short: "read 14:20", ink: dimInk},
-		{name: "stale since another day, too long in full", state: state(status.WindowStale, on(30, 22, 10).AddDate(0, -1, 0)), full: "read Wed", short: "read Wed", ink: dimInk},
-		{name: "stale since this day last week", state: state(status.WindowStale, on(1, 9, 5).AddDate(0, 0, -7)), full: "read Thu", short: "read Thu", ink: dimInk},
+		{name: "stale since another day", state: state(status.WindowStale, on(30, 22, 10).AddDate(0, -1, 0)), full: "not read since Wed 22:10", short: "read Wed", ink: dimInk},
+		{name: "stale since this day last week", state: state(status.WindowStale, on(1, 9, 5).AddDate(0, 0, -7)), full: "not read since Thu 09:05", short: "read Thu", ink: dimInk},
 		{name: "at Claude's limit", state: state(status.WindowLimited, on(1, 15, 54)), full: "limit · back 15:54", short: "back 15:54", ink: errorInk},
 		{name: "at Claude's limit, back none knows when", state: state(status.WindowLimited, time.Time{}), full: "limit", short: "limit", ink: errorInk},
 		{name: "at its cap, back tomorrow", state: state(status.WindowCapped, on(2, 2, 0)), full: "at cap · back Fri 02:00", short: "back Fri", ink: warningInk},
@@ -52,14 +52,34 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := wordsOf(tt.state, tt.allowance, printNow)
-			if got := w.pick(fullWords).plain(); got != tt.full {
+			if got := w.full.plain(); got != tt.full {
 				t.Errorf("in full the words read %q, want %q", got, tt.full)
 			}
-			if got := w.pick(fullWords - 1).plain(); got != tt.short {
+			if got := w.short.plain(); got != tt.short {
 				t.Errorf("short the words read %q, want %q", got, tt.short)
 			}
 			if len(w.full) > 0 && w.full[0].ink != tt.ink {
 				t.Errorf("the words lead in %+v, want %+v", w.full[0].ink, tt.ink)
+			}
+		})
+	}
+}
+
+func TestWordsAreInFullFrom70ColumnsWhereTheyFitTheirRoom(t *testing.T) {
+	w := wordsOf(status.WindowState{Kind: status.WindowStale, At: on(30, 12, 42).AddDate(0, -1, 0)}, quota.Allowance{}, printNow)
+	tests := []struct {
+		name        string
+		width, room int
+		want        string
+	}{
+		{name: "in full, filling their room", width: fullWords, room: 24, want: "not read since Wed 12:42"},
+		{name: "short, a cell short of room in full", width: fullWords, room: 23, want: "read Wed"},
+		{name: "short under 70 columns, whatever their room", width: fullWords - 1, room: 40, want: "read Wed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := w.pick(tt.width, tt.room).plain(); got != tt.want {
+				t.Errorf("at %d columns in %d cells, the words read %q, want %q", tt.width, tt.room, got, tt.want)
 			}
 		})
 	}
@@ -108,16 +128,17 @@ func TestThePoolsWordsAreItsRoomToATenth(t *testing.T) {
 		accounts int
 		pinned   bool
 		width    int
+		cells    int
 		want     string
 	}{
-		{name: "on auto", room: 1.48, accounts: 3, width: 160, want: "1.5 of 3 left"},
-		{name: "a half, to the even tenth", room: 0.25, accounts: 3, width: 160, want: "0.2 of 3 left"},
-		{name: "pinned", room: 0.9, accounts: 2, pinned: true, width: 160, want: "0.9 of 2 left · pinned"},
-		{name: "pinned, short of room", room: 0.9, accounts: 2, pinned: true, width: 52, want: "0.9 of 2 left"},
+		{name: "on auto", room: 1.48, accounts: 3, width: 160, cells: 24, want: "1.5 of 3 left"},
+		{name: "a half, to the even tenth", room: 0.25, accounts: 3, width: 160, cells: 24, want: "0.2 of 3 left"},
+		{name: "pinned", room: 0.9, accounts: 2, pinned: true, width: 160, cells: 24, want: "0.9 of 2 left · pinned"},
+		{name: "pinned, short of room", room: 0.9, accounts: 2, pinned: true, width: 52, cells: 15, want: "0.9 of 2 left"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := poolWords(tt.room, tt.accounts, tt.pinned).pick(tt.width)
+			l := poolWords(tt.room, tt.accounts, tt.pinned).pick(tt.width, tt.cells)
 			if got := l.plain(); got != tt.want {
 				t.Errorf("the pool's words read %q, want %q", got, tt.want)
 			}

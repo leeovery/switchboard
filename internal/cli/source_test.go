@@ -148,11 +148,12 @@ func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 		args   []string
 		probes bool
 		// status is the printout's status line, and next the account new
-		// sessions go to, which carries ▲.
+		// sessions go to, which carries ▲: none probed, as where they go is
+		// the router's to say, and it's pinned to Side.
 		status, next string
 	}{
 		{status: "● healthy  ·  pinned to Side  ·  1 session  ·  new sessions → ▲ Side", next: "Side"},
-		{args: []string{"--probe"}, probes: true, status: "○ probed, as asked", next: "Work"},
+		{args: []string{"--probe"}, probes: true, status: "○ probed, as asked"},
 	}
 	for _, tt := range tests {
 		before := len(api.questions())
@@ -168,7 +169,7 @@ func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 		for _, label := range []string{"Work", "Personal", "Side"} {
 			row := printedRow(got.stdout, "5-HOUR", label)
 			if marked := strings.Contains(row, "▲"); marked != (label == tt.next) {
-				t.Errorf("switchboard usage %s printed %s's row as %q, marked ▲: %v, want ▲ on %s alone", strings.Join(tt.args, " "), label, row, marked, tt.next)
+				t.Errorf("switchboard usage %s printed %s's row as %q, marked ▲: %v, want ▲ on %q alone", strings.Join(tt.args, " "), label, row, marked, tt.next)
 			}
 		}
 	}
