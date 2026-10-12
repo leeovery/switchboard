@@ -18,12 +18,6 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// NumberYear is a figure of History's Year a look can change within a day:
-// one of LAST 12 MONTHS', or a calendar year's, or of BY MONTH's month so
-// far, which Of names as its label does, after the month's, as 2026-10, and
-// after the version shown's name, its Account the account shown.
-const NumberYear = NumberRouted + 1
-
 // Where the Year is drawn, as the design lays it out at 160 columns, and on
 // a phone.
 const (
