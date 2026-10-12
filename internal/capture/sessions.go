@@ -23,16 +23,17 @@ func assigned(model, account, dir, reason string, since, seen time.Time, inFligh
 // 9m; on side c61b, opus, answering, started at 14:41, and, each moved from
 // work as it reached its cap at 14:31, d28c, opus, asking, its haiku going to
 // side too, 7f3a, sonnet, idle 1m, and db8a, opus, idle 4m; each in its
-// directory (log1.DIRS).
+// directory (log1.DIRS). Those with a request in flight were last seen as
+// it was sent, as the stream tells of it.
 func routedSessions(now time.Time) []status.Session {
 	at := func(hour, minute, second int) time.Time { return clockAt(now, 0, hour, minute, second) }
 	return []status.Session{
 		{ID: idD28C, Assignments: []status.Assignment{
-			assigned(opus, "side", "~/Code/switchboard", reasonCapped, at(14, 31, 13), now, status.Asking),
+			assigned(opus, "side", "~/Code/switchboard", reasonCapped, at(14, 31, 13), ago(now, sentD28C), status.Asking),
 			assigned(haikuShort, "side", "~/Code/switchboard", status.ReasonNew, at(14, 31, 44), at(14, 31, 44), ""),
 		}},
-		{ID: idC61B, Assignments: []status.Assignment{assigned(opus, "side", "~/Code/mobile", status.ReasonNew, at(14, 41, 11), now, status.Answering)}},
-		{ID: id41E0, Assignments: []status.Assignment{assigned(sonnet, "personal", "~/Code/docs", status.ReasonNew, at(12, 47, 12), now, status.Answering)}},
+		{ID: idC61B, Assignments: []status.Assignment{assigned(opus, "side", "~/Code/mobile", status.ReasonNew, at(14, 41, 11), ago(now, sentC61B), status.Answering)}},
+		{ID: id41E0, Assignments: []status.Assignment{assigned(sonnet, "personal", "~/Code/docs", status.ReasonNew, at(12, 47, 12), ago(now, sent41E0), status.Answering)}},
 		{ID: id7F3A, Assignments: []status.Assignment{assigned(sonnet, "side", "~/Code/api", reasonCapped, at(14, 31, 20), ago(now, time.Minute), "")}},
 		{ID: idDB8A, Assignments: []status.Assignment{assigned(opus, "side", "~/Code/infra", reasonCapped, at(14, 31, 40), ago(now, 4*time.Minute), "")}},
 		{ID: id9C2E, Assignments: []status.Assignment{assigned(opus, "personal", "~/Code/website", status.ReasonNew, at(11, 55, 31), at(14, 33, 7), "")}},

@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -22,8 +23,10 @@ import (
 // last read an account it couldn't read since, how many sessions it sent
 // each in the last hour, and where it sends new sessions, where the frames
 // say so; the sessions it lists at a moment, as GET /sessions gives them,
-// where the world has them; and whether today's traffic of the three, the
-// sessions' world's, is the world's.
+// where the world has them; what it has told of since it started, its events,
+// oldest first, as it numbers them; what its request stream tells as it's
+// opened, where anything's in flight; and whether today's traffic of the
+// three, the sessions' world's, is the world's.
 type accountWorld struct {
 	accounts config.Accounts
 	history  history
@@ -34,6 +37,8 @@ type accountWorld struct {
 	sessions map[string]int
 	best     string
 	routed   func(now time.Time) []status.Session
+	events   []status.Event
+	stream   []router.StreamEvent
 	traffic  bool
 }
 
@@ -43,11 +48,12 @@ type accountWorld struct {
 // how fast each has been used lately, as a router that took up the readings
 // history judges it, and the pressure that puts the account under; the
 // accounts pinned spending their reserves; and the best account to use next,
-// but where the world says where new sessions go.
+// but where the world says where new sessions go; and the newest of its
+// events, by then.
 func (w accountWorld) document(now time.Time) status.Document {
 	at := now.Add(-readAgo)
 	doc := status.Document{
-		GeneratedAt: at.UTC(), Source: status.SourceRouter, Pin: w.pin, Router: status.Health{Healthy: true},
+		GeneratedAt: at.UTC(), Source: status.SourceRouter, Pin: w.pin, Router: status.Health{Healthy: true}, Events: toldAt(w.events, at),
 	}
 	var open []status.Account
 	held := w.history.byAccount()
@@ -69,10 +75,7 @@ func (w accountWorld) document(now time.Time) status.Document {
 // unable to read it since a time, then, its rates and pressure worked out
 // from its readings to then.
 func (w accountWorld) account(a config.Account, h history, at time.Time) status.Account {
-	read := at
-	if stale, ok := w.stale[a.ID]; ok {
-		read = stale
-	}
+	read := w.readAt(a.ID, at)
 	st := status.Configured(a)
 	st.TokenSet, st.FetchedAt = true, read.UTC()
 	held := h.before(read)
@@ -84,6 +87,42 @@ func (w accountWorld) account(a config.Account, h history, at time.Time) status.
 	st.Rates = status.RatesOf(latest, trails, at)
 	st.Pressure = pressureOf(st, latest, trails, w.pin.Has(a.ID), at)
 	return st
+}
+
+// readAt is when the router last read the account with the given id, as of
+// at: then, or where the world has it unable to read the account since a
+// time, that time.
+func (w accountWorld) readAt(id string, at time.Time) time.Time {
+	if stale, ok := w.stale[id]; ok {
+		return stale
+	}
+	return at
+}
+
+// trails are each account's use of each of its windows as it runs at now, as
+// the router answers GET /history from the readings it took of them: from when
+// the window, as the document doc reads it, started, each reading of it taken
+// since, to when the account was last read; none of a window that has lapsed.
+func (w accountWorld) trails(doc status.Document, now time.Time) []trail {
+	held := w.history.byAccount()
+	var trails []trail
+	for _, a := range doc.Accounts {
+		read := held[a.ID].before(w.readAt(a.ID, now.Add(-readAgo)))
+		for _, window := range a.Windows {
+			start, _, ok := window.Span()
+			if !ok || !window.ResetsAt.After(now) {
+				continue
+			}
+			t := trail{account: a.ID, window: window.Key, start: start}
+			for _, r := range read {
+				if r.Key == window.Key && !r.At.Before(start) && !r.Window().ResetBy(start) {
+					t.readings = append(t.readings, router.HistoryPoint{At: r.At, Utilization: r.Utilization})
+				}
+			}
+			trails = append(trails, t)
+		}
+	}
+	return trails
 }
 
 // trails are how each of the windows of the account whose readings history h
@@ -260,18 +299,20 @@ const framesChoice = "side"
 // auto is the world of most frames, routing on its merits (DASHBOARD-
 // OVERVIEW-SPEC.md, "The sample data"): work at its cap till 17:10;
 // personal, the primary, open; side open, where new sessions go. The router
-// lists the Overview's six sessions, and today's traffic is the sessions'
+// lists the Overview's six sessions, three with a request in flight, and
+// tells of its day as the Log does, and today's traffic is the sessions'
 // world's.
 func (a accountWorlds) auto() accountWorld {
 	accounts := firstAccounts(3)
 	return accountWorld{
 		accounts: accounts, history: a.today().three(true).history(accounts), sessions: autoSessions, best: framesChoice,
-		routed: routedSessions, traffic: true,
+		routed: routedSessions, events: autoEvents(a.now), stream: inFlight(a.now), traffic: true,
 	}
 }
 
 // pinned is the auto world's accounts, read as it reads them, with new
-// sessions pinned to personal since 14:02, three of the sessions on it.
+// sessions pinned to personal since 14:02, three of the sessions on it, the
+// router telling of it as happenings' pinnedToPersonal has it.
 func (a accountWorlds) pinned() accountWorld {
 	accounts := firstAccounts(3)
 	return accountWorld{
@@ -279,12 +320,13 @@ func (a accountWorlds) pinned() accountWorld {
 		history:  a.today().three(true).history(accounts),
 		pin:      status.Pin{Accounts: []string{"personal"}, Since: dayAt(a.now, today, 14, 2, 0).UTC()},
 		sessions: map[string]int{"personal": 3, "side": 3},
+		events:   ofTheRun(happenings{a.now}.pinnedToPersonal()),
 	}
 }
 
 // limit is routing's world of a limit: the auto world with personal at its
 // 5-hour limit since 14:12 till 15:54, its sessions moved to side, where the
-// router lists all six.
+// router lists all six, telling of it as happenings' atPersonalsLimit has it.
 func (a accountWorlds) limit() accountWorld {
 	accounts := firstAccounts(3)
 	return accountWorld{
@@ -293,19 +335,20 @@ func (a accountWorlds) limit() accountWorld {
 		limits:   map[string]status.Limit{"personal": personalLimited(a.now)},
 		sessions: map[string]int{"side": 6},
 		routed:   routedPastPersonalsLimit,
+		events:   ofTheRun(happenings{a.now}.atPersonalsLimit()),
 	}
 }
 
 // personalLimited is personal's limit, reached at 14:12, till 15:54.
 func personalLimited(now time.Time) status.Limit {
-	return status.Limit{ID: personalLimit, Windows: []string{sessionKey}, Until: dayAt(now, today, 15, 54, 0).UTC()}
+	return status.Limit{ID: todaysLimit, Windows: []string{sessionKey}, Until: dayAt(now, today, 15, 54, 0).UTC()}
 }
 
 // badHour is the world of a bad hour: new sessions pinned to personal and
 // side since 13:40; personal at its 5-hour limit since 14:12 till 15:54; and
 // work's token refused, with a 401, since 14:20, nothing read of it since,
 // its 5-hour window having reached its cap at 14:15. Every session is on
-// side.
+// side. The router tells of it as happenings' badHour has it.
 func (a accountWorlds) badHour() accountWorld {
 	accounts := firstAccounts(3)
 	t := a.today()
@@ -317,23 +360,24 @@ func (a accountWorlds) badHour() accountWorld {
 	t.session("side", t.at(8, 47, 0), true, level{t.at(12, 47, 0), .20})
 	t.session("side", t.at(13, 50, 0), true, level{t.at(14, 10, 0), .03}, level{t.at(14, 31, 0), .03}, level{t.at(14, 41, 30), .13})
 	t.week("side", .04, level{t.at(14, 40, 0), .78})
-	refused := dayAt(a.now, today, 14, 41, 0)
+	refused := status.Refusal{Until: dayAt(a.now, today, 14, 51, 0).UTC(), Status: 401}
 	return accountWorld{
 		accounts: accounts,
 		history:  t.history(accounts),
 		pin:      status.Pin{Accounts: []string{"personal", "side"}, Since: dayAt(a.now, today, 13, 40, 0).UTC()},
 		limits:   map[string]status.Limit{"personal": personalLimited(a.now)},
-		refused:  map[string]status.Refusal{"work": {Until: refused.Add(10 * time.Minute).UTC(), Status: 401}},
+		refused:  map[string]status.Refusal{"work": refused},
 		stale:    map[string]time.Time{"work": dayAt(a.now, today, 14, 20, 0)},
 		sessions: map[string]int{"side": 6},
+		events:   ofTheRun(happenings{a.now}.badHour(refused)),
 	}
 }
 
 // many is the world of the frames of six or ten accounts: the auto world's
 // three and the first n−3 of the seven more (dash3.EXTRA): client, spare,
 // lab, under pressure, running out about 16:05, team, at its 5-hour limit
-// since 13:58 till 15:30, extra, ops and studio. Today's traffic is the
-// auto world's, the seven having none.
+// since 13:58 till 15:30, extra, ops and studio. Today's traffic, and the
+// router's events, are the auto world's, the seven having none.
 func (a accountWorlds) many(n int) accountWorld {
 	accounts := firstAccounts(n)
 	t := a.today().three(true)
@@ -356,9 +400,9 @@ func (a accountWorlds) many(n int) accountWorld {
 	t.session("studio", t.at(6, 15, 0), false, level{t.at(10, 15, 0), .30})
 	t.session("studio", t.at(11, 20, 0), false, level{t.at(14, 41, 59), .33})
 	t.week("studio", .10, level{t.at(14, 41, 59), .41})
-	w := accountWorld{accounts: accounts, history: t.history(accounts), sessions: autoSessions, best: framesChoice, traffic: true}
+	w := accountWorld{accounts: accounts, history: t.history(accounts), sessions: autoSessions, best: framesChoice, events: autoEvents(a.now), traffic: true}
 	if n > slices.IndexFunc(tenAccounts, func(a config.Account) bool { return a.ID == "team" }) {
-		w.limits = map[string]status.Limit{"team": {ID: 1, Windows: []string{sessionKey}, Until: dayAt(a.now, today, 15, 30, 0).UTC()}}
+		w.limits = map[string]status.Limit{"team": {ID: todaysLimit, Windows: []string{sessionKey}, Until: dayAt(a.now, today, 15, 30, 0).UTC()}}
 	}
 	return w
 }
