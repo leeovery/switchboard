@@ -3,9 +3,6 @@ package watch
 import (
 	"testing"
 	"time"
-
-	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/status"
 )
 
 func TestBackoff(t *testing.T) {
@@ -34,66 +31,6 @@ func TestBackoff(t *testing.T) {
 			failures, wait := backoff(tt.failures, tt.failed, tt.interval)
 			if failures != tt.wantFailures || wait != tt.wantWait {
 				t.Errorf("backoff(%d, %v, %v) = %d, %v; want %d, %v", tt.failures, tt.failed, tt.interval, failures, wait, tt.wantFailures, tt.wantWait)
-			}
-		})
-	}
-}
-
-func TestIncomplete(t *testing.T) {
-	tokenless := status.Account{ID: "personal", Label: "Personal", Error: "token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal"}
-	tests := []struct {
-		name string
-		doc  status.Document
-		want bool
-	}{
-		{name: "every account read", doc: calm(), want: false},
-		{name: "an account that couldn't be read", doc: document(account("work", "Work", session(0.25, 3*time.Hour)), unreadable("side", "Side")), want: true},
-		{name: "a window that couldn't be read", doc: document(partlyRead("work", "Work")), want: true},
-		{name: "a missing token, which a retry can't mend", doc: document(account("work", "Work", session(0.25, 3*time.Hour)), tokenless), want: false},
-		{name: "no accounts", doc: document(), want: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := incomplete(tt.doc); got != tt.want {
-				t.Errorf("incomplete() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestNextFetch(t *testing.T) {
-	tests := []struct {
-		name string
-		doc  status.Document
-		wait time.Duration
-		want time.Duration
-	}{
-		{name: "the wait", doc: calm(), wait: interval, want: interval},
-		{name: "a minute after a reset within it", doc: document(account("work", "Work", session(0.4, 10*time.Minute), week(0.5))), wait: interval, want: 11 * time.Minute},
-		{
-			name: "a minute after the soonest of several resets",
-			doc: document(
-				account("work", "Work", session(0.4, 20*time.Minute), week(0.5)),
-				account("side", "Side", session(0.7, 10*time.Minute), week(0.5)),
-			),
-			wait: interval,
-			want: 11 * time.Minute,
-		},
-		{name: "a reset after the wait", doc: document(account("work", "Work", session(0.4, 45*time.Minute), week(0.5))), wait: interval, want: interval},
-		{name: "a reset the grace would carry past the wait", doc: document(account("work", "Work", session(0.4, interval-time.Second), week(0.5))), wait: interval, want: interval},
-		{name: "a reset already past", doc: document(account("work", "Work", refused(session(1, -5*time.Minute)), week(0.5))), wait: interval, want: interval},
-		{name: "a reset past by less than the grace", doc: document(account("work", "Work", refused(session(1, -30*time.Second)), week(0.5))), wait: interval, want: interval},
-		{name: "a reset at the moment of the read", doc: document(account("work", "Work", refused(session(1, 0)), week(0.5))), wait: interval, want: interval},
-		{name: "a reset that isn't known", doc: document(account("work", "Work", quota.Window{Key: "5h", Label: "Session", Utilization: 0.4})), wait: interval, want: interval},
-		{name: "nothing read", doc: document(), wait: retryReadAfter, want: retryReadAfter},
-		{name: "a retry sooner than a reset", doc: document(account("work", "Work", session(0.4, 10*time.Minute))), wait: retryReadAfter, want: retryReadAfter},
-		{name: "a reset sooner than a retry", doc: document(account("work", "Work", session(0.4, 30*time.Second))), wait: retryReadAfter, want: 90 * time.Second},
-		{name: "a reset sooner than a long retry", doc: document(account("work", "Work", session(0.4, 10*time.Minute))), wait: 16 * time.Minute, want: 11 * time.Minute},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got, want := nextFetch(tt.doc, start, tt.wait), start.Add(tt.want); !got.Equal(want) {
-				t.Errorf("nextFetch() = %s, want %s", got.Format(time.Kitchen), want.Format(time.Kitchen))
 			}
 		})
 	}

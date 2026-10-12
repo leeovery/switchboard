@@ -506,7 +506,12 @@ func WholePercent(utilization float64) int {
 // Title names an account by its id and label, such as "work · Work", each
 // cleaned.
 func (a Account) Title() string {
-	return Clean(a.ID) + " · " + Clean(a.Label)
+	return title(a.ID, a.Label)
+}
+
+// title names the account with the given id and label, as Title does.
+func title(id, label string) string {
+	return Clean(id) + " · " + Clean(label)
 }
 
 // Clean makes text safe to show on one line of a terminal: control

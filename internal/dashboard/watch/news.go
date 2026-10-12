@@ -23,18 +23,18 @@ type news struct {
 	since  map[int]time.Time
 }
 
-// looked takes in doc, read at now from the router whose health check said
-// from: each of its events newer than the newest seen is news, picked out
-// from now. The first router's document read is no news, there being no look
-// before it; one from another router, its ids starting again from 1 as it
-// started, has every event news. A document built by probing tells of none,
-// and changes nothing.
-func (n news) looked(doc status.Document, from router.Health, now time.Time) news {
-	if !routed(doc) {
+// looked takes in look, a look at a document read from the router whose
+// health check said from: each of its events newer than the newest seen is
+// news, picked out from the look's moment. The first router's document read
+// is no news, there being no look before it; one from another router, its
+// ids starting again from 1 as it started, has every event news. A document
+// built by probing tells of none, and changes nothing.
+func (n news) looked(look status.Moment, from router.Health) news {
+	if !look.Routed {
 		return n
 	}
 	newest := 0
-	for _, e := range doc.Events {
+	for _, e := range look.Events {
 		newest = max(newest, e.ID)
 	}
 	since := make(map[int]time.Time)
@@ -42,13 +42,13 @@ func (n news) looked(doc status.Document, from router.Health, now time.Time) new
 	case !n.told:
 		return news{told: true, router: from, last: newest, since: since}
 	case from.Same(n.router):
-		since = lasting(n.since, now, highlightFor)
+		since = lasting(n.since, look.Now, highlightFor)
 	default:
 		n.last = 0
 	}
-	for _, e := range doc.Events {
+	for _, e := range look.Events {
 		if e.ID > n.last {
-			since[e.ID] = now
+			since[e.ID] = look.Now
 		}
 	}
 	return news{told: true, router: from, last: max(n.last, newest), since: since}

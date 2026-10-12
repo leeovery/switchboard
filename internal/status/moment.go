@@ -120,10 +120,12 @@ type AccountNow struct {
 	// and it starts with its next request.
 	Idle      bool
 	NextPrime time.Time
-	// CanRise is set where it can take a request of some model at Now, so
-	// its use can rise: no limit or cap holds it back from every request,
-	// and its token isn't refused.
-	CanRise bool
+	// OutOfQuota is set where its quota for a request of any model has run
+	// out at Now: a limit or its cap holds it back from every request,
+	// whatever its token. CanRise is set where it can take a request of some
+	// model at Now, so its use can rise: it isn't out of quota, and its token
+	// isn't refused.
+	OutOfQuota, CanRise bool
 	// Windows are its windows, in its order, each as it stands at Now.
 	Windows []WindowNow
 
@@ -263,6 +265,12 @@ func (d Document) At(now time.Time, policy score.Policy) Moment {
 	return m
 }
 
+// At is the moment's document as it stands at now instead, as the same
+// policy judges it, as the document's At has it.
+func (m Moment) At(now time.Time) Moment {
+	return m.doc.At(now, m.policy)
+}
+
 // Pool is the accounts new sessions can go to at Now, as one, as PoolAt has
 // it: zero with one account, whose own windows say the same.
 func (m Moment) Pool() Pool {
@@ -286,6 +294,11 @@ func (m Moment) Account(id string) (AccountNow, bool) {
 		return AccountNow{}, false
 	}
 	return m.Accounts[i], true
+}
+
+// Title names the account by its id and label, as the account's Title does.
+func (a AccountNow) Title() string {
+	return title(a.ID, a.Label)
 }
 
 // Window is the account's window with the given key; or, reporting false,
@@ -379,7 +392,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Hold: s.stood.held, Held: s.stood.limited, LimitSince: eventAt(d.limitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
-		Idle: s.idle, NextPrime: d.primeOf(a.ID), CanRise: !s.stood.shut(),
+		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(), CanRise: !s.stood.shut(),
 		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},
 	}
 	an.unreported, _ = s.unknown(false)

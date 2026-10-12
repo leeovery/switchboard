@@ -67,10 +67,13 @@ func TestNextFetchAsRead(t *testing.T) {
 		{name: "a reset after the wait", doc: probedOf(sessionIn(45 * time.Minute)), wait: readEvery, want: readEvery},
 		{name: "a reset the grace would carry past the wait", doc: probedOf(sessionIn(readEvery - time.Second)), wait: readEvery, want: readEvery},
 		{name: "a reset already past", doc: probedOf(readAt("work", spentIn("5h", 1, -5*time.Minute), week)), wait: readEvery, want: readEvery},
+		{name: "a reset past by less than the grace", doc: probedOf(readAt("work", spentIn("5h", 1, -30*time.Second), week)), wait: readEvery, want: readEvery},
 		{name: "a reset at the moment of the read", doc: probedOf(readAt("work", spentIn("5h", 1, 0), week)), wait: readEvery, want: readEvery},
 		{name: "a reset that isn't known", doc: probedOf(readAt("work", quota.Window{Key: "5h", Label: "Session", Utilization: 0.4})), wait: readEvery, want: readEvery},
 		{name: "nothing read", doc: probedOf(), wait: 2 * time.Minute, want: 2 * time.Minute},
+		{name: "a retry sooner than a reset", doc: probedOf(sessionIn(10 * time.Minute)), wait: 2 * time.Minute, want: 2 * time.Minute},
 		{name: "a reset sooner than a retry", doc: probedOf(sessionIn(30 * time.Second)), wait: 2 * time.Minute, want: 90 * time.Second},
+		{name: "a reset sooner than a long retry", doc: probedOf(sessionIn(10 * time.Minute)), wait: 16 * time.Minute, want: 11 * time.Minute},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

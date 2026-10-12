@@ -2,90 +2,76 @@ package watch
 
 import (
 	"maps"
-	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/notify"
-	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// reading is an account as it was last read, and when.
-type reading struct {
-	account status.Account
-	at      time.Time
-}
+// lastReads are the looks that last read each account, by its id, each at
+// the moment it was taken. A look is compared with them rather than with the
+// look before it, so an account that couldn't be read for a while is
+// compared with how it last stood.
+type lastReads map[string]status.Moment
 
-// lastReads are each account as it was last read, by id. A new document is
-// compared with them rather than with the document before it, so an account
-// that couldn't be read for a while is compared with how it last stood.
-type lastReads map[string]reading
-
-// alerts are the notifications doc, read at now, calls for, of those settings
-// asks for: each account that had no room under the windows every model
-// shares and now has some, and each window that has passed the warning. An
-// account is only compared with an earlier reading, so the first document
-// calls for none.
-func (r lastReads) alerts(doc status.Document, now time.Time, policy score.Policy, settings config.Notifications) []notify.Notice {
+// alerts are the notifications look calls for, of those settings asks for:
+// each account that has room again since it was last read, as roomAgain has
+// it, and each window that has passed the warning, as passed has it. An
+// account is only compared with an earlier reading, so the first look calls
+// for none.
+func (r lastReads) alerts(look status.Moment, settings config.Notifications) []notify.Notice {
 	var alerts []notify.Notice
-	for _, a := range doc.Accounts {
+	for _, a := range look.Accounts {
 		last, ok := r[a.ID]
-		if !ok || !wasRead(a) {
+		if !ok || !a.Read {
 			continue
 		}
-		if settings.Room && roomAgain(last, reading{account: a, at: now}, policy) {
-			alerts = append(alerts, notify.RoomAgain(a))
+		if settings.Room && roomAgain(last, a) {
+			alerts = append(alerts, notify.RoomAgain(a.ID, a.Title()))
 		}
-		for _, w := range passed(last.account, a, settings.Warning, now, policy) {
-			alerts = append(alerts, notify.Warning(a, w))
+		for _, w := range passed(last.At(look.Now), a, settings.Warning) {
+			alerts = append(alerts, notify.Warning(a.ID, a.Title(), w.Label, w.Used))
 		}
 	}
 	return alerts
 }
 
-// with returns the readings updated with each account doc read at now.
-func (r lastReads) with(doc status.Document, now time.Time) lastReads {
+// with returns the readings updated with each account look read.
+func (r lastReads) with(look status.Moment) lastReads {
 	updated := make(lastReads, len(r))
 	maps.Copy(updated, r)
-	for _, a := range doc.Accounts {
-		if wasRead(a) {
-			updated[a.ID] = reading{account: a, at: now}
+	for _, a := range look.Accounts {
+		if a.Read {
+			updated[a.ID] = look
 		}
 	}
 	return updated
 }
 
-// wasRead reports whether an account's usage was read: a reading always has
-// windows.
-func wasRead(a status.Account) bool {
-	return len(a.Windows) > 0
+// roomAgain reports whether account a, as a look has it, has room again
+// since last, the look that last read it: its quota had run out then, and it
+// can take a request now, its token not refused. A refusal isn't quota, so
+// one lifting is no news. Each look is judged at its own moment: judged now,
+// a window spent then that has since reset would count as having had room,
+// and the account's return would pass unannounced.
+func roomAgain(last status.Moment, a status.AccountNow) bool {
+	was, _ := last.Account(a.ID)
+	return was.OutOfQuota && a.CanRise
 }
 
-// roomAgain reports whether an account had no room under the policy's shared
-// windows at its last reading, its reserve left unused, and has at this one.
-// Each reading is judged at the time it was taken: judged now, a window
-// exhausted then that has since reset would count as having had room, and the
-// account's return would pass unannounced.
-func roomAgain(last, this reading, policy score.Policy) bool {
-	return !score.Available(last.account.Windows, last.account.Reserve, policy.IsShared, last.at) &&
-		score.Available(this.account.Windows, this.account.Reserve, policy.IsShared, this.at)
-}
-
-// passed lists the windows of account a, read at now, that have passed
-// warning since it was read as last: each, in both readings, as it stands at
-// now, as policy judges it, as WindowAt has it, so one that has reset since
-// either was read counts from empty. Passing warning in its period after the
-// reset is news, however much of the period before it had used; a reading
-// still of the period before, as one taken before the window is read again
-// carries, is none.
-func passed(last, a status.Account, warning float64, now time.Time, policy score.Policy) []quota.Window {
-	var up []quota.Window
+// passed lists the windows of account a, as a look has it, that have passed
+// warning since then, the look that last read it, taken to the same moment:
+// each window, in both, as it stands at that moment, so one that has reset
+// since either was read counts from empty. Passing warning in its period
+// after the reset is news, however much of the period before it had used; a
+// reading still of the period before, as one taken before the window is read
+// again carries, is none.
+func passed(then status.Moment, a status.AccountNow, warning float64) []status.WindowNow {
+	was, _ := then.Account(a.ID)
+	var up []status.WindowNow
 	for _, w := range a.Windows {
-		was, ok := last.WindowAt(w.Key, now, policy)
-		is, _ := a.WindowAt(w.Key, now, policy)
-		if ok && notify.Passed(was.Utilization, is.Utilization, warning) {
-			up = append(up, is)
+		if before, ok := was.Window(w.Key); ok && notify.Passed(before.Used, w.Used, warning) {
+			up = append(up, w)
 		}
 	}
 	return up
