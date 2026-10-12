@@ -128,14 +128,14 @@ func (f Frame) wideRunning(c *canvas, doc status.Document, r views.Running, colu
 	c.line(column, y, line{
 		f.runningID(r, now),
 		{padded(truncate(r.Family, familyCells), familyCells), mutedInk},
-		{strings.Repeat(" ", seenCells-len(seen)) + seen, dimInk},
+		{strings.Repeat(" ", max(seenCells-len(seen), 0)) + seen, dimInk},
 		spaces(beforeDoing),
 		{padded(doing.text, doingCells), doing.ink},
 	})
 	why := column + runningWhy
 	c.line(why, y, line{{r.Why.String(), dimInk}}.fit(traceFrom-beforeTraceAt-why))
 	faded, t := outOfPool(doc, r.Account), f.Traces.Sessions[r.Session]
-	f.drawTrace(c, t, now, bounds{x: traceFrom, y: y, width: f.wideTraceCells(), rows: 1}, f.traceScale(), faded)
+	f.drawTrace(c, t, now, bounds{x: traceFrom, y: y, width: f.wideTraceCells(), rows: 1}, faded)
 	c.right(f.Width, y, line{traceRate(t, now, faded).numbered(Number{Kind: NumberRate, Account: r.Account, Of: r.Session})})
 }
 

@@ -16,7 +16,7 @@ func TestATracesCellsFillEighthsOfItsRowsToItsScale(t *testing.T) {
 	// Two rows are 16 eighths: a request a minute fills two, at a scale of 8.
 	cells := []float64{0, 0.25, 1, 0.75, 4, 6, 8, 20}
 	c := newCanvas(len(cells), 2)
-	Frame{Look: Screen(builtin(t, "nord"))}.drawCells(c, cells, bounds{width: len(cells), rows: 2}, 8, false)
+	Frame{Look: Screen(builtin(t, "nord")), TraceScale: 8}.drawCells(c, cells, bounds{width: len(cells), rows: 2}, false)
 	fill, lane := traceInks(false)
 	full := cell{glyph: " ", ink: ink{on: fill.hue()}}
 	tests := []struct {
@@ -57,7 +57,7 @@ func TestATraceIsDrawnInTheFramesColours(t *testing.T) {
 	}
 	for _, tt := range tests {
 		c := newCanvas(3, 1)
-		Frame{Look: nord}.drawCells(c, []float64{8, 4, 0}, bounds{width: 3, rows: 1}, 8, tt.faded)
+		Frame{Look: nord, TraceScale: 8}.drawCells(c, []float64{8, 4, 0}, bounds{width: 3, rows: 1}, tt.faded)
 		cells := screenOf(t, c.rows(nord))[0]
 		if got := cells[0].bg; !got.near(tt.fill) {
 			t.Errorf("%s: a full cell is on %s, want %s", tt.name, got, tt.fill)
@@ -73,7 +73,7 @@ func TestATraceIsDrawnInTheFramesColours(t *testing.T) {
 
 func TestWithoutBlendingATracesFullCellIsABlock(t *testing.T) {
 	c := newCanvas(1, 1)
-	Frame{Look: NoColour()}.drawCells(c, []float64{8}, bounds{width: 1, rows: 1}, 8, false)
+	Frame{Look: NoColour(), TraceScale: 8}.drawCells(c, []float64{8}, bounds{width: 1, rows: 1}, false)
 	if got := c.at(0, 0).glyph; got != levels[8] {
 		t.Errorf("a full cell is %q, want %q", got, levels[8])
 	}
@@ -222,56 +222,133 @@ func TestAFramesTracesDrawItsRequestsAMinuteToItsScale(t *testing.T) {
 	}
 }
 
-func TestEveryTraceOnThePageSharesTheBusiestColumnAsItsScale(t *testing.T) {
-	doc, listed, traces := tracedWorld()
-	routing, routingAndSessions := SectionsNamed([]string{"routing"}), SectionsNamed([]string{"routing", "sessions"})
-	tests := []struct {
-		name  string
-		frame Frame
-		quiet bool
-		want  float64
-	}{
-		{name: "ROUTING's accounts', side's newest", frame: Frame{Width: 160, Sections: routing}, want: 16},
-		{name: "and the running sessions', side-1's, on two accounts at once, never gone's", frame: Frame{Width: 160, Sections: routingAndSessions}, want: 24},
-		{name: "the sessions' alone, ROUTING hidden", frame: Frame{Width: 160, Sections: SectionsNamed([]string{"sessions"})}, want: 24},
-		{name: "beside USAGE's blocks, the pool's, its accounts' summed", frame: Frame{Width: 160, By: ByAccount}, want: 30},
-		{name: "with no trace shown, the least", frame: Frame{Width: 160, Sections: SectionsNamed([]string{"usage"})}, want: leastScale},
-		{name: "a quiet page, never less than 8", frame: Frame{Width: 160, Sections: routing}, quiet: true, want: leastScale},
+// pageScale is the scale the traces share on the Overview of doc at
+// routedAt, as f draws it.
+func pageScale(f Frame, doc status.Document) float64 {
+	return f.traceScale(*f.overviewDrawn(doc, routedAt).traces)
+}
+
+// burst are n requests of the session given on the account given at 14:32:15,
+// 15 seconds into a 40-second slice of the clock's: so a trace 45 cells wide,
+// as beside USAGE's blocks at 160 columns, has no column whose four samples
+// all fall in the minute after it, its busiest ¾ of n, where 60 cells wide,
+// as ROUTING's own at 160 columns, its busiest is n.
+func burst(session, account string, n int) views.Traces {
+	sent := make([]views.Sent, n)
+	for i := range sent {
+		sent[i] = views.Sent{Request: fmt.Sprintf("%s-%d", session, i), Session: session, Account: account, At: tracedClock(14, 32, 15)}
 	}
+	return views.Traces{}.Told(sent, routedAt)
+}
+
+func TestEveryTraceOnScreenSharesTheBusiestColumnAsItsScale(t *testing.T) {
+	doc, listed, traces := tracedWorld()
 	quiet := views.Traces{}.Told([]views.Sent{{Request: "a", Session: "personal-0", Account: "personal", At: tracedClock(14, 30, 1)}}, routedAt)
+	routingAndSessions := SectionsNamed([]string{"routing", "sessions"})
+	tests := []struct {
+		name          string
+		width, height int
+		shown         Sections
+		by            By
+		quiet         bool
+		want          float64
+	}{
+		{name: "ROUTING's accounts', side's newest", width: 160, height: 60, shown: SectionsNamed([]string{"routing"}), want: 16},
+		{name: "and the running sessions', side-1's, on two accounts at once, never gone's", width: 160, height: 60, shown: routingAndSessions, want: 24},
+		{name: "the sessions' alone, ROUTING hidden", width: 160, height: 60, shown: SectionsNamed([]string{"sessions"}), want: 24},
+		{name: "under 110 columns, where SESSIONS draws no trace: ROUTING's alone", width: 109, height: 60, shown: routingAndSessions, want: 16},
+		{name: "beside USAGE's blocks, the pool's, its accounts' summed", width: 160, height: 60, by: ByAccount, want: 30},
+		{name: "SESSIONS folded, its rows run short: ROUTING's alone", width: 160, height: 20, shown: routingAndSessions, want: 16},
+		{name: "ROUTING folded too: none, the least", width: 160, height: 12, shown: routingAndSessions, want: leastScale},
+		{name: "with no trace shown, the least", width: 160, height: 60, shown: SectionsNamed([]string{"usage"}), want: leastScale},
+		{name: "a quiet page, never less than 8", width: 160, height: 60, shown: SectionsNamed([]string{"routing"}), quiet: true, want: leastScale},
+	}
 	for _, tt := range tests {
-		tt.frame.Sessions, tt.frame.Traces = listed, traces
+		f := frameOf(tt.width, tt.height)
+		f.Sections, f.By, f.Sessions, f.Traces = tt.shown, tt.by, listed, traces
 		if tt.quiet {
-			tt.frame.Traces = quiet
+			f.Traces = quiet
 		}
-		if got := tt.frame.scaled(doc, routedAt).traceScale(); got != tt.want {
+		if got := pageScale(f, doc); got != tt.want {
 			t.Errorf("%s: scaled to %v, want %v", tt.name, got, tt.want)
 		}
 	}
 }
 
-func TestTheSessionsTracesScaleOnlyWhereSESSIONSDrawsThem(t *testing.T) {
-	doc, listed, traces := tracedWorld()
-	// Six rows, the sessions listed on personal and side; gone's never.
-	tests := []struct{ width, want int }{{width: 110, want: 6}, {width: 109}}
+func TestBesideUSAGEsBlocksTheScaleIsTheBusiestColumnAtTheWidthTheTracesAreDrawn(t *testing.T) {
+	doc, listed := autoRouting()
+	f := frameOf(160, 60)
+	f.By, f.Sessions, f.Traces = ByAccount, listed, burst("side-0", "side", 16)
+	if x := f.overviewBlock(doc, routedAt).routingAt(); f.Width-traceTail-x != 45 {
+		t.Fatalf("the traces beside USAGE's blocks are %d cells, want 45", f.Width-traceTail-x)
+	}
+	view := f.overviewDrawn(doc, routedAt)
+	if got := f.traceScale(*view.traces); got != 12 {
+		t.Errorf("scaled to %v, want 12, side's busiest column 45 cells wide, not 16, as 60 cells wide", got)
+	}
+	fullest := 0
+	for _, tr := range *view.traces {
+		fullest = max(fullest, slices.Max(tracedOf(view, tr.at.x, len(tr.cells), tr.at.y)))
+	}
+	if fullest != 8 {
+		t.Errorf("the fullest column beside the blocks fills %d eighths of its row, want 8", fullest)
+	}
+}
+
+func TestABusyAccountScrolledOutOfUSAGEDoesNotSetTheScale(t *testing.T) {
+	doc, listed := autoRouting()
+	doc.Pin = status.Pin{Accounts: []string{"personal", "side"}}
+	doc = doc.WorkedOut(claudeLike)
+	// Work, out of the pool, sends 40 at once, its busiest column 30, 45
+	// cells wide; the pool's trace sums personal's and side's alone.
+	f := frameOf(160, 28)
+	f.By, f.Sessions, f.Traces = ByAccount, listed, burst("work-0", "work", 40)
+	if got := f.overviewScrolling(doc, routedAt); got.Most != 1 {
+		t.Fatalf("USAGE scrolls %+v, want an account", got)
+	}
+	tests := []struct {
+		name   string
+		scroll int
+		want   float64
+	}{
+		{name: "work in view", want: 30},
+		{name: "work scrolled out of view", scroll: 1, want: leastScale},
+	}
 	for _, tt := range tests {
-		f := Frame{Width: tt.width, Sections: SectionsNamed([]string{"sessions"}), Sessions: listed, Traces: traces}
-		if got := len(f.sessionsColumns(doc, routedAt)); got != tt.want {
-			t.Errorf("at %d columns, %d of the sessions' traces scale the page, want %d", tt.width, got, tt.want)
+		f.Scroll = tt.scroll
+		if got := pageScale(f, doc); got != tt.want {
+			t.Errorf("%s: scaled to %v, want %v", tt.name, got, tt.want)
 		}
 	}
 }
 
-func TestAPinnedScaleStandsAndALiveOneIsWorkedOutOnceAFrame(t *testing.T) {
+func TestASessionPastSESSIONSMoreRowDoesNotSetTheScale(t *testing.T) {
+	doc, listed, traces := tracedWorld()
+	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: listed, Traces: traces}
+	// Three rows show personal's two sessions, 4 their busiest, and say four
+	// more run, side-1, 24, among them.
+	c := holdingTraces(newCanvas(f.Width, 3))
+	f.sessionsSection(doc, routedAt).draw(c, bounds{width: f.Width, rows: 3})
+	if got := f.traceScale(*c.traces); got != leastScale {
+		t.Errorf("scaled to %v, want %v: the sessions shown", got, float64(leastScale))
+	}
+}
+
+func TestAPinnedScaleStandsAndADirectDrawIsPaintedAtTheLeast(t *testing.T) {
 	doc, listed, traces := tracedWorld()
 	for _, pinned := range []float64{4, 32} {
-		f := Frame{Width: 160, Sessions: listed, Traces: traces, TraceScale: pinned}
-		if got := f.scaled(doc, routedAt).traceScale(); got != pinned {
+		f := frameOf(160, 60)
+		f.Sections, f.Sessions, f.Traces, f.TraceScale = SectionsNamed([]string{"routing", "sessions"}), listed, traces, pinned
+		if got := pageScale(f, doc); got != pinned {
 			t.Errorf("pinned at %v, scaled to %v", pinned, got)
 		}
 	}
-	if got := (Frame{Width: 160, Traces: traces}).traceScale(); got != leastScale {
-		t.Errorf("before it's scaled, a live scale is %v, want %v", got, float64(leastScale))
+	// A canvas that doesn't hold its traces paints each as it's drawn, at
+	// the least: 16 a minute fills two rows of eight.
+	c := newCanvas(2, 2)
+	Frame{}.drawCells(c, []float64{16, 4}, bounds{width: 2, rows: 2}, false)
+	if got := tracedOf(c, 0, 2, 1, 0); !slices.Equal(got, []int{16, 8}) {
+		t.Errorf("drawn straight onto a canvas, a trace fills %v eighths, want [16 8]", got)
 	}
 }
 

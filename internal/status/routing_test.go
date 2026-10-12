@@ -239,6 +239,50 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 	}
 }
 
+func TestROUTINGAndAnAccountsStateJudgeItsCapAlike(t *testing.T) {
+	reset := at(1, 17, 10)
+	tests := []struct {
+		name string
+		// session is how much of the session is used, built when the
+		// document was, and now when the account is judged.
+		session    float64
+		built, now time.Time
+		capped     bool
+	}{
+		{name: "short of its reserve", session: 0.85, built: stateNow, now: stateNow},
+		{name: "at its reserve", session: 0.9, built: stateNow, now: stateNow, capped: true},
+		{name: "past it", session: 0.95, built: stateNow, now: stateNow, capped: true},
+		{name: "a moment before the session resets", session: 0.95, built: reset.Add(-10 * time.Second), now: reset.Add(-time.Second), capped: true},
+		{name: "a moment after it resets, before it's read again", session: 0.95, built: reset.Add(-10 * time.Second), now: reset.Add(time.Second), capped: true},
+	}
+	for _, tt := range tests {
+		for _, noted := range []bool{true, false} {
+			a := with(readNow(tt.session, 0.3, 0), func(a *status.Account) { a.Reserve = 0.1 })
+			if noted {
+				a = a.AsOf(policy, tt.built)
+			}
+			doc := status.Document{GeneratedAt: tt.built.UTC(), Source: status.SourceRouter, Accounts: []status.Account{a}}
+			routing, state := doc.RoutingOf(a, tt.now, policy).Kind, doc.StateOf(a, tt.now, policy).Condition
+			want := [2]bool{tt.capped, !tt.capped}
+			got := [2]bool{routing == status.RoutingCapped && state == status.Reserved, routing == status.RoutingOpen && state == status.Open}
+			if got != want {
+				t.Errorf("%s, the router noting its reserve %t: ROUTING says %d, its state %d; want both capped %t", tt.name, noted, routing, state, tt.capped)
+			}
+		}
+	}
+}
+
+func TestAnAccountAtItsCapIsBackAsItWasLastRead(t *testing.T) {
+	built := at(1, 17, 9)
+	a := with(readNow(0.95, 0.3, 0), func(a *status.Account) { a.Reserve = 0.1 }).AsOf(policy, built)
+	doc := status.Document{GeneratedAt: built.UTC(), Source: status.SourceRouter, Accounts: []status.Account{a}}
+	// A moment after its session resets, before it's read again.
+	got := doc.RoutingOf(a, at(1, 17, 11), policy)
+	if want := []string{"back 17:10", "new sessions go elsewhere"}; got.Kind != status.RoutingCapped || !slices.Equal(got.Clauses, want) {
+		t.Errorf("RoutingOf() = %+v, want at its cap, %q", got, want)
+	}
+}
+
 func TestEachKindLeadsWithItsGlyph(t *testing.T) {
 	tests := map[status.RoutingKind]string{
 		status.RoutingTokenless:    "✕",

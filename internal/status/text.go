@@ -121,7 +121,7 @@ func (d Document) writeNotes(b *strings.Builder, a Account, now time.Time) {
 // "spending its reserve (pinned)". It's "" while no window has reached it.
 func (d Document) Reserved(a Account) string {
 	switch {
-	case len(a.AtReserve) == 0:
+	case len(d.atReserve(a)) == 0:
 		return ""
 	case d.Pin.Has(a.ID):
 		return "spending its reserve (pinned)"

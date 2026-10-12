@@ -129,7 +129,7 @@ func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State
 		return State{Condition: Limited, Says: "limit reached", Then: then}, true
 	case refused && a.Refused.Family == "":
 		return State{Condition: Limited, Says: a.Refused.Answer(), Then: "until " + Dated(now, a.Refused.Until)}, true
-	case (limited || refused) && d.ReserveHolds(a) && slices.ContainsFunc(a.AtReserve, policy.IsShared):
+	case (limited || refused) && d.capHolds(a, policy):
 		return d.reservedState(a, d.Reserved(a), policy), true
 	case limited:
 		says := Short(a.label(held.Windows[0])) + " limit"
@@ -152,11 +152,32 @@ const stillComes = "other models still come here"
 // other models still come here".
 func (d Document) reservedState(a Account, reserved string, policy score.Policy) State {
 	s := State{Condition: Reserved, Says: reserved}
-	if d.Pin.Has(a.ID) || slices.ContainsFunc(a.AtReserve, policy.IsShared) {
+	keys := d.atReserve(a)
+	if d.Pin.Has(a.ID) || slices.ContainsFunc(keys, policy.IsShared) {
 		return s
 	}
-	s.Says, s.Then = Short(a.label(a.AtReserve[0]))+" "+reserved, stillComes
+	s.Says, s.Then = Short(a.label(keys[0]))+" "+reserved, stillComes
 	return s
+}
+
+// atReserve are the keys of account a's windows that have reached its
+// reserve, as doc judges them as of when it was built, in Usage's order: as
+// the router noted them, where it noted any; else as the router reckons
+// them, of its windows as read. A document the router built noting none
+// reckons none, as the router reckoned them of the same windows at the same
+// moment.
+func (d Document) atReserve(a Account) []string {
+	if a.AtReserve != nil {
+		return a.AtReserve
+	}
+	return score.AtReserve(a.Windows, a.Reserve, d.GeneratedAt)
+}
+
+// capHolds reports whether account a's cap holds it back from every request:
+// a window every model shares, as policy says, has reached its reserve, as
+// atReserve judges, and the global pin doesn't spend it.
+func (d Document) capHolds(a Account, policy score.Policy) bool {
+	return d.ReserveHolds(a) && slices.ContainsFunc(d.atReserve(a), policy.IsShared)
 }
 
 // back says when an account held back at now has room again, at t, as in

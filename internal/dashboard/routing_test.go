@@ -74,12 +74,11 @@ func tenRouting() status.Document {
 }
 
 // routingDrawn are the cells ROUTING of doc at routedAt draws in f, as a
-// terminal shows them, its body from row y, rows tall, its traces scaled as
-// the frame's are.
+// terminal shows them, its body from row y, rows tall.
 func routingDrawn(t *testing.T, f Frame, doc status.Document, y, rows int) [][]seen {
 	t.Helper()
 	c := newCanvas(f.Width, f.Height)
-	f.scaled(doc, routedAt).routingSection(doc, routedAt).draw(c, bounds{y: y, width: f.Width, rows: rows})
+	f.routingSection(doc, routedAt).draw(c, bounds{y: y, width: f.Width, rows: rows})
 	return screenOf(t, c.rows(f.Look))
 }
 
@@ -134,7 +133,7 @@ func TestROUTINGBesideUSAGEsBlocksIsDrawnAsItsFrameIs(t *testing.T) {
 	doc, sessions := autoRouting()
 	f := Frame{Width: 160, Height: 42, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, By: ByAccount}
 	c := newCanvas(f.Width, f.Height)
-	f.scaled(doc, routedAt).routingBeside(c, doc, routedAt, blocksBeside{x: 107, blocks: []rowAt{{"work", 6, 5}, {"personal", 13, 5}, {"side", 20, 5}, {"", 27, 5}}})
+	f.routingBeside(c, doc, routedAt, blocksBeside{x: 107, blocks: []rowAt{{"work", 6, 5}, {"personal", 13, 5}, {"side", 20, 5}, {"", 27, 5}}})
 
 	// The frame draws work's state whole to the edge, where the design cuts
 	// its words by whole clauses to end two cells short of it.

@@ -51,14 +51,12 @@ type accountRouting struct {
 
 // routingTable is ROUTING of a document at a moment: each account's, in the
 // config's order; the name column their states start at; the pool's
-// accounts', where it has a pool; the moment; and the scale of every trace
-// on the page.
+// accounts', where it has a pool; and the moment.
 type routingTable struct {
 	accounts []accountRouting
 	pool     []accountRouting
 	names    int
 	now      time.Time
-	scale    float64
 }
 
 // routingTableOf is ROUTING of doc at now, as the frame draws it: each
@@ -66,7 +64,7 @@ type routingTable struct {
 // else as doc counts them.
 func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	names := overviewNames(doc)
-	t := routingTable{names: nameColumn(names, f.Width), now: now, scale: f.traceScale()}
+	t := routingTable{names: nameColumn(names, f.Width), now: now}
 	var listing []status.Session
 	if f.Sessions != nil {
 		listing = f.listing()
@@ -107,35 +105,26 @@ func (f Frame) routingBesideUsage() bool {
 // a + 3 rows for a accounts; at its most, size 2, two rows of trace an
 // account and a blank row, 3a + 2. Under routingRows columns, and on a
 // phone, it's two rows an account and a blank row, 3a + 1 at its least and
-// its most. Beside USAGE's blocks it takes no rows of its own, and draws
-// nothing and has no targets of its own: USAGE's draw has routingBeside draw
-// it where its blocks lie. Folded, its heading says the mode alone.
-//
-// Its traces scale as the frame's traceScale says, which scaled works out
-// once a frame, before the sections are built.
+// its most. Beside USAGE's blocks, it's as routingAside has it. Folded, its
+// heading says the mode alone.
 func (f Frame) routingSection(doc status.Document, now time.Time) section {
-	a, beside := len(doc.Accounts), f.routingBesideUsage()
+	if f.routingBesideUsage() {
+		return routingAside(doc, now)
+	}
+	a := len(doc.Accounts)
 	least, most := a+3, 3*a+2
-	switch {
-	case beside:
-		least, most = 0, 0
-	case f.Width < routingRows:
+	if f.Width < routingRows {
 		least, most = 3*a+1, 3*a+1
 	}
 	t := f.routingTableOf(doc, now)
 	return section{
 		Section: SectionRouting, least: least, most: most,
-		description: func() line { return routingMode(doc, now, f.phone() || beside) },
+		description: func() line { return routingMode(doc, now, f.phone()) },
 		folded:      func() line { return routingMode(doc, now, true) },
 		draw: func(c *canvas, body bounds) {
-			if !beside {
-				f.drawRouting(c, t, body)
-			}
+			f.drawRouting(c, t, body)
 		},
 		targets: func(body bounds) []Target {
-			if beside {
-				return nil
-			}
 			var targets []Target
 			for i, r := range t.accounts {
 				for _, y := range f.accountRows(i, len(t.accounts), body) {
@@ -144,6 +133,19 @@ func (f Frame) routingSection(doc status.Document, now time.Time) section {
 			}
 			return targets
 		},
+	}
+}
+
+// routingAside is ROUTING of doc at now beside USAGE's blocks: no rows of its
+// own, and nothing drawn and no targets of its own, as USAGE's draw has
+// routingBeside draw it where its blocks lie; its heading the mode alone,
+// folded or not.
+func routingAside(doc status.Document, now time.Time) section {
+	mode := func() line { return routingMode(doc, now, true) }
+	return section{
+		Section: SectionRouting, description: mode, folded: mode,
+		draw:    func(*canvas, bounds) {},
+		targets: func(bounds) []Target { return nil },
 	}
 }
 
@@ -219,7 +221,7 @@ func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows 
 	}
 	f.drawStanding(c, r, t.names, y, end-wordsGap-t.names, false)
 	c.line(sessionsAt, y, line{r.sessionsCounted()})
-	f.drawTrace(c, r.trace, t.now, bounds{x: traceFrom, y: y, width: f.accountTraceCells(t.names), rows: rows}, t.scale, r.faded)
+	f.drawTrace(c, r.trace, t.now, bounds{x: traceFrom, y: y, width: f.accountTraceCells(t.names), rows: rows}, r.faded)
 	c.right(f.Width, y+rows-1, line{r.rate(t.now)})
 }
 
@@ -236,7 +238,7 @@ func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int)
 		end = c.right(f.Width, y, line{pinnedSpan})
 	}
 	f.drawStanding(c, r, t.names, y, end-wordsGap-t.names, true)
-	f.drawTrace(c, r.trace, t.now, bounds{x: t.names, y: y + 1, width: f.accountTraceCells(t.names), rows: 1}, t.scale, r.faded)
+	f.drawTrace(c, r.trace, t.now, bounds{x: t.names, y: y + 1, width: f.accountTraceCells(t.names), rows: 1}, r.faded)
 	c.right(f.Width, y+1, line{r.sessionsCounted(), spaces(2), r.rate(t.now)})
 }
 
@@ -391,7 +393,7 @@ func (f Frame) besideAccount(c *canvas, t routingTable, r accountRouting, x int,
 	if len(rows) < 3 {
 		return
 	}
-	f.drawTrace(c, r.trace, t.now, f.besideTrace(x, rows[2]), t.scale, r.faded)
+	f.drawTrace(c, r.trace, t.now, f.besideTrace(x, rows[2]), r.faded)
 	c.right(f.Width, rows[2], line{r.rate(t.now)})
 }
 
@@ -405,7 +407,7 @@ func (f Frame) besidePool(c *canvas, t routingTable, doc status.Document, x int,
 	}
 	trace := f.besideTrace(x, rows[2])
 	pool := summed(f.accountTraces(poolAccounts(doc)), func(tr views.Trace) []float64 { return tr.Cells(trace.width, t.now) })
-	f.drawCells(c, pool, trace, t.scale, false)
+	f.drawCells(c, pool, trace, false)
 	c.right(f.Width, rows[2], line{rateOf(summedRate(t.pool, t.now), false).numbered(Number{Kind: NumberRate})})
 }
 

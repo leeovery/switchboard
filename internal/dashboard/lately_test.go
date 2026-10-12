@@ -126,6 +126,38 @@ func TestLATELYDrawsAsManyAsItsBodyHoldsFromItsLeftCutAtItsRight(t *testing.T) {
 	}
 }
 
+func TestLATELYCutShortShowsAMoveAloneWhereItsLineDoesnt(t *testing.T) {
+	at := now.Add(-time.Hour).UTC()
+	// Newest first: a move work's cap forced, two accounts open again, then
+	// the cap, the move's line, the first event, numbered 1.
+	doc := eventsOf(
+		status.Event{At: at, Kind: status.EventMoved, Session: "db8a71e3", From: "work", To: "side", Reason: reasonCapped, ForcedBy: 1},
+		status.Event{At: at, Kind: status.EventRoom, Account: "personal"},
+		status.Event{At: at, Kind: status.EventRoom, Account: "side"},
+		status.Event{At: at, Kind: status.EventCap, Account: "work", Count: 1, To: "side"},
+	)
+	tests := []struct {
+		name string
+		rows int
+		want []string
+	}{
+		{name: "every line shown: the move folded into the cap's", rows: 4, want: []string{"personal open again", "side open again", "work reached its cap: 1 session moved to side", ""}},
+		{name: "the cap's line cut: the move alone", rows: 2, want: []string{"db8a moved work → side", "personal open again"}},
+	}
+	f := frameOf(160, 10)
+	for _, tt := range tests {
+		c := latelyDrawn(f, doc, now, bounds{width: f.Width, rows: tt.rows})
+		for i, w := range tt.want {
+			if got := strings.TrimRight(c.row(i, Look{}), " "); !strings.Contains(got, w) || w == "" && got != "" {
+				t.Errorf("%s: row %d = %q, want it to tell %q", tt.name, i+1, got, w)
+			}
+		}
+	}
+	if got := f.says(planned{section: f.latelySection(doc, now), fold: true}).plain(); !strings.Contains(got, "db8a moved work → side") {
+		t.Errorf("folded, LATELY's heading says %q, want the move alone, its line not shown", got)
+	}
+}
+
 func TestLATELYCuesAFreshRowAcrossItsBodyFadingBack(t *testing.T) {
 	doc := eventsOf(
 		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventRoom, Account: "work"},

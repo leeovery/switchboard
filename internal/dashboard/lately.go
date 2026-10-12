@@ -42,14 +42,14 @@ func eventMark(s views.Sentence) span {
 // newest first, as many of its sentences as it has, leastLines of them at its
 // least, or a line saying why it has none; folded, its first, as it's drawn.
 func (f Frame) latelySection(doc status.Document, now time.Time) section {
-	sentences := len(views.Lately(doc, now, mostLines))
+	most := views.Lately(doc, now, mostLines)
 	return section{
-		Section: SectionLately, least: linesRows(0), most: linesRows(sentences), more: sentences > 1,
+		Section: SectionLately, least: linesRows(0), most: linesRows(len(most)), more: len(most) > 1,
 		draw: func(c *canvas, body bounds) {
-			f.drawLately(c, doc, now, body)
+			f.drawLately(c, doc, latelyIn(doc, most, now, body.rows), now, body)
 		},
 		folded: func() line {
-			first := f.latelyLines(doc, views.Lately(doc, now, 1), now)
+			first := f.latelyLines(doc, latelyIn(doc, most, now, 1), now)
 			if len(first) == 0 {
 				return f.quiet(doc)
 			}
@@ -58,10 +58,21 @@ func (f Frame) latelySection(doc status.Document, now time.Time) section {
 	}
 }
 
-// drawLately draws as many of LATELY's lines as body has rows for, from its
-// top, each picked out while it's fresh; or, where it has none, why.
-func (f Frame) drawLately(c *canvas, doc status.Document, now time.Time, body bounds) {
-	sentences := views.Lately(doc, now, body.rows)
+// latelyIn are LATELY's sentences of doc at now in n lines, most its
+// sentences in the most lines it takes: most itself, where they all fit;
+// else told afresh, as a move folded into a line that doesn't show then
+// shows alone, so the first n of most aren't always them.
+func latelyIn(doc status.Document, most []views.Sentence, now time.Time, n int) []views.Sentence {
+	if len(most) <= n {
+		return most
+	}
+	return views.Lately(doc, now, n)
+}
+
+// drawLately draws the sentences given, those body has rows for, a line each
+// from its top, each picked out while it's fresh; or, where there are none,
+// why LATELY has none.
+func (f Frame) drawLately(c *canvas, doc status.Document, sentences []views.Sentence, now time.Time, body bounds) {
 	end := body.x + body.width
 	if len(sentences) == 0 {
 		f.quietly(c, doc, body.x, body.y, end)
