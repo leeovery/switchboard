@@ -7,7 +7,6 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // standing is how an account's window stands at a moment, as its panel shows
@@ -109,6 +108,11 @@ func limitOf(doc status.Document, a status.Account, now time.Time) (status.Event
 	return doc.Events[i], true
 }
 
+// ref is the window's, by its account and key.
+func (s standing) ref() Ref {
+	return Ref{Account: s.account, Window: s.window.Key}
+}
+
 // projected is the share of the window it's heading for by its reset, as a
 // bar shows it beyond its use: all of it where it runs out; reporting false
 // where nothing says, and while it's held at its limit or has lapsed.
@@ -141,19 +145,6 @@ func (s standing) paceCell(cells int) int {
 func (s standing) nearing() bool {
 	share, ok := s.projected()
 	return ok && !s.runsOut && share >= s.floor-status.Near-score.Tolerance
-}
-
-// use is how much of the window is used, bold: in the ink given, but at its
-// limit, destructive, and once it has lapsed, dim.
-func (s standing) use(k ink) span {
-	switch {
-	case s.held:
-		k = ink{token: theme.StateDestructive}
-	case s.lapsed:
-		k = dimInk
-	}
-	k.bold = true
-	return span{status.Percent(s.used), k}
 }
 
 // headed says where the window is heading at now, its times as when shows

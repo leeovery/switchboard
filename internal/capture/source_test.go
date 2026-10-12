@@ -214,9 +214,9 @@ func TestHistoryRisesAsTheFramesChartsDo(t *testing.T) {
 // ChartSpan has it.
 func TestEveryWindowsHistoryEndsAtItsUse(t *testing.T) {
 	for _, f := range fixtures(time.UTC) {
-		for _, a := range f.router.doc.Accounts {
+		for _, a := range f.router.doc.At(f.router.doc.GeneratedAt, claude.Policy).Accounts {
 			for _, w := range a.Windows {
-				if start, _, ok := dashboard.ChartSpan(a, w.Key, f.router.doc.GeneratedAt, claude.Policy); !ok || a.FetchedAt.Before(start) {
+				if start, _, ok := dashboard.ChartSpan(w); !ok || w.Read.At.Before(start) {
 					continue
 				}
 				h, err := f.router.History(t.Context(), w.Key, time.Minute)
@@ -228,8 +228,8 @@ func TestEveryWindowsHistoryEndsAtItsUse(t *testing.T) {
 					t.Errorf("%s: %s's %s has no history", f.Name, a.ID, w.Key)
 					continue
 				}
-				if last := points[len(points)-1].Utilization; last != w.Utilization {
-					t.Errorf("%s: %s's %s history ends at %v, want its use, %v", f.Name, a.ID, w.Key, last, w.Utilization)
+				if last := points[len(points)-1].Utilization; last != w.Read.Used {
+					t.Errorf("%s: %s's %s history ends at %v, want its use, %v", f.Name, a.ID, w.Key, last, w.Read.Used)
 				}
 			}
 		}

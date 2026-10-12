@@ -514,11 +514,11 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.fetched(msg)
 	case historyMsg:
 		m.history = m.history.answered(msg)
-		m.trails = m.history.drawn(m.doc, m.now(), m.cfg.Policy)
+		m.trails = m.history.drawn(m.doc.At(m.now(), m.cfg.Policy))
 		return m, nil
 	case filedMsg:
 		m.history = m.history.filedAs(msg)
-		m.trails = m.history.drawn(m.doc, m.now(), m.cfg.Policy)
+		m.trails = m.history.drawn(m.doc.At(m.now(), m.cfg.Policy))
 		return m, nil
 	case yearReadMsg:
 		return m.yearRead(msg), nil
@@ -847,7 +847,7 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	m = m.follow(doc)
 	m.news = m.news.looked(look, msg.router)
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
-	m.history = m.history.saw(doc, now, m.cfg.Policy)
+	m.history = m.history.saw(look)
 	m.ease = easing{from: m.ease.standing(m.frame(now), m.doc, now), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
 	switch {
@@ -859,13 +859,13 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 		m.sessions = nil
 	}
 	m = m.stillThere(look)
-	m.trails = m.history.drawn(doc, now, m.cfg.Policy)
+	m.trails = m.history.drawn(look)
 	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), originOf(doc, msg.router), now)
 	switch {
 	case ask:
-		m, asked = m.askHistory(doc)
+		m, asked = m.askHistory(look)
 	case !routed(doc) && full(msg.read) && !m.history.filedSince:
-		m, asked = m.readFiled(doc, now)
+		m, asked = m.readFiled(look)
 	}
 	return m, tea.Batch(post, asked)
 }

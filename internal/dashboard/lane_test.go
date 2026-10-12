@@ -22,6 +22,12 @@ func weekRunningOut(out, resets time.Duration) quota.Window {
 	return weekOf(passed.Hours()/(passed+out).Hours(), resets)
 }
 
+// laneIn is f's lane of doc's i-th account at now, as the moment of doc then
+// has it.
+func laneIn(f Frame, doc status.Document, i int) lane {
+	return f.laneOf(f.moment(doc, now).Accounts[i], now)
+}
+
 // limitedAt is an account whose session reached its limit at reached, as
 // the router told of it, which holds until it resets in an hour, and whose
 // week, resetting in three days, runs out in twelve hours.
@@ -246,7 +252,7 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Frame{Policy: claudeLike, Span: tt.span}
-			l := f.laneOf(tt.doc, tt.doc.Accounts[0], now)
+			l := laneIn(f, tt.doc, 0)
 			for _, m := range tt.moments {
 				if got := l.at(now.Add(m.in), now); got != m.want {
 					t.Errorf("at %s, the lane stands %v, want %v", now.Add(m.in).Format("Mon 15:04"), got, m.want)
@@ -273,7 +279,7 @@ func TestTheRoomRunwayGoesByIsTheProjectionTheCardsDo(t *testing.T) {
 	if !ok {
 		t.Fatal("work's session doesn't run out")
 	}
-	l := Frame{Policy: claudeLike}.laneOf(doc, a, now)
+	l := laneIn(Frame{Policy: claudeLike}, doc, 0)
 	if len(l.stretches) != 1 || !l.stretches[0].from.Equal(out.At) || !l.drains.Equal(out.At) {
 		t.Errorf("the lane runs out at %v, draining till %v, want both at %s, where RunsOut has it", l.stretches, l.drains, out.At.Format(time.TimeOnly))
 	}
@@ -283,13 +289,13 @@ func TestTheRoomRunwayGoesByIsTheProjectionTheCardsDo(t *testing.T) {
 // whatever asks how its windows stand finds them unread, not tokenless.
 func TestALaneOfAnAccountNotReadYetHasItsWindowsStandUnread(t *testing.T) {
 	unread := status.Account{ID: "work", Label: "work", TokenSet: true}
-	l := Frame{Policy: claudeLike, Span: Week}.laneOf(probed(unread), unread, now)
+	l := laneIn(Frame{Policy: claudeLike, Span: Week}, probed(unread), 0)
 	if l.known {
 		t.Error("the lane knows its account, want nothing known of it")
 	}
 	for _, key := range []string{"5h", "7d"} {
-		if got := l.states.Of(key).Kind; got != status.WindowUnread {
-			t.Errorf("its %s stands as kind %d, want WindowUnread", key, got)
+		if w, _ := l.account.Window(key); w.Kind != status.WindowUnread {
+			t.Errorf("its %s stands as kind %d, want WindowUnread", key, w.Kind)
 		}
 	}
 }
