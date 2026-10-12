@@ -50,16 +50,27 @@ type Printout struct {
 // Draw draws the printout of doc at now: a string for each of its rows, as
 // tall as it is, from the header to the key line, with no blank row before or
 // after. Under the header, after a blank line, or by account two, is the
-// usage block, then a blank line and its key line.
+// usage block, then a blank line and its key line. It reads the one moment of
+// doc at now, as its Policy judges it.
 func (p Printout) Draw(doc status.Document, now time.Time) []string {
+	m := doc.At(now, p.Policy)
 	c := growing(p.Width)
 	y := p.header(c, doc, now) + 2
 	if p.By == ByAccount {
 		y++
 	}
-	block := newUsageBlock(doc, now, p.Policy, p.Width, p.Look, p.By, usageWindows(doc, p.Windows, p.Policy.Shared, p.Name))
+	block := newUsageBlock(doc, m, p.Policy, p.Width, p.Look, p.By, usageWindows(doc, p.Windows, p.Policy.Shared, p.namer(m)))
 	block.key(c, block.draw(c, y)+1)
 	return c.rows(p.Look)
+}
+
+// namer names m's windows by their keys as the printout names them: as its
+// Name has it, else by their labels, as labelsOf has them.
+func (p Printout) namer(m status.Moment) func(key string) string {
+	if p.Name != nil {
+		return p.Name
+	}
+	return labelsOf(m)
 }
 
 // header draws the printout's header of doc at now, and returns its last

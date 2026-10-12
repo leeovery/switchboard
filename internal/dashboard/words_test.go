@@ -10,6 +10,7 @@ import (
 
 func TestAccountsAreCalledByTheirNames(t *testing.T) {
 	doc := status.Document{Accounts: []status.Account{{ID: "work", Label: "Work\x1b[2J"}, {ID: "side"}}}
+	m := doc.At(now, claudeLike)
 	tests := []struct {
 		id, want string
 		place    int
@@ -19,15 +20,24 @@ func TestAccountsAreCalledByTheirNames(t *testing.T) {
 		{id: "gone", want: "gone", place: 0},
 	}
 	for _, tt := range tests {
-		if got := named(doc, tt.id); got != tt.want {
+		if got := named(m, tt.id); got != tt.want {
 			t.Errorf("named(%q) = %q, want %q: its label, cleaned, else its id", tt.id, got, tt.want)
 		}
-		if got := place(doc, tt.id); got != tt.place {
+		if got := place(m, tt.id); got != tt.place {
 			t.Errorf("place(%q) = %d, want %d", tt.id, got, tt.place)
 		}
+		if got := docNamed(doc, tt.id); got != tt.want {
+			t.Errorf("docNamed(%q) = %q, want %q, as named has it", tt.id, got, tt.want)
+		}
+		if got := docPlace(doc, tt.id); got != tt.place {
+			t.Errorf("docPlace(%q) = %d, want %d, as place has it", tt.id, got, tt.place)
+		}
 	}
-	if got, want := names(doc, []string{"work", "side"}), "Work [2J and side"; got != want {
+	if got, want := names(m, []string{"work", "side"}), "Work [2J and side"; got != want {
 		t.Errorf("names() = %q, want %q", got, want)
+	}
+	if got, want := docNames(doc, []string{"work", "side"}), "Work [2J and side"; got != want {
+		t.Errorf("docNames() = %q, want %q, as names has it", got, want)
 	}
 }
 

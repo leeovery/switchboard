@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -314,13 +315,37 @@ func twoWithRoom() status.Document {
 	return doc
 }
 
-func TestAFrameJudgedJudgesAnotherDocumentsPoolAfresh(t *testing.T) {
+func TestAFrameAtOneDocumentReadsAnothersMomentAfresh(t *testing.T) {
 	other := twoWithRoom()
 	want := other.PoolAt(now, claudeLike)
 	if first := threeRouted().PoolAt(now, claudeLike); slices.Equal(first.Accounts, want.Accounts) {
 		t.Fatalf("both documents pool %v, want pools that differ", want.Accounts)
 	}
-	if got := frameOf(160, 40).Judged(threeRouted(), now).pool(other, now); !slices.Equal(got.Accounts, want.Accounts) {
-		t.Errorf("judged of one document, the pool of another at the same moment is of %v, want its own, of %v", got.Accounts, want.Accounts)
+	if got := frameOf(160, 40).At(threeRouted(), now).moment(other, now).Pool(); !slices.Equal(got.Accounts, want.Accounts) {
+		t.Errorf("held at one document, the pool of another at the same moment is of %v, want its own, of %v", got.Accounts, want.Accounts)
+	}
+}
+
+// A frame holds the one moment of a document, as its Policy judged it then,
+// for every look a copy of it takes of that document at that moment, as the
+// bars eased to it. Here a copy's Policy, changed since, would judge work's
+// cap, and so the pool's 5-hour room, otherwise.
+func TestAFrameAtADocumentHoldsItsMomentForEveryLookACopyTakes(t *testing.T) {
+	capped := readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.95, 3*day))
+	capped.Reserve = 0.1
+	doc := routerDoc("side", 0, capped, readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.4, 5*day)))
+	unjudged := frameOf(160, 40)
+	unjudged.Policy = score.Policy{}
+	want := frameOf(160, 40).Filled(doc, now)
+	if afresh := unjudged.Filled(doc, now); maps.Equal(afresh, want) {
+		t.Fatalf("both policies fill the bars %v, want fills that differ", want)
+	}
+	held := frameOf(160, 40).At(doc, now)
+	held.Policy = score.Policy{}
+	if got := held.Filled(doc, now); !maps.Equal(got, want) {
+		t.Errorf("a copy of a frame held at doc fills the bars %v, want them as the moment it holds has them, %v", got, want)
+	}
+	if got, want := held.Filled(doc, now.Add(time.Minute)), unjudged.Filled(doc, now.Add(time.Minute)); !maps.Equal(got, want) {
+		t.Errorf("a minute on, a copy of a frame held at doc fills the bars %v, want them afresh, by its own Policy, %v", got, want)
 	}
 }

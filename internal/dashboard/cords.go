@@ -243,7 +243,7 @@ func (f Frame) looseCords(doc status.Document, b bay, now time.Time) []looseCord
 	for i, p := range b.panels {
 		plugged := make([]bool, p.rows)
 		for _, r := range b.calls {
-			if place(doc, r.assignment.Account) != i+1 {
+			if docPlace(doc, r.assignment.Account) != i+1 {
 				continue
 			}
 			plugged[r.jack] = true

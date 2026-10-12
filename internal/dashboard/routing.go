@@ -62,11 +62,10 @@ type routingTable struct {
 
 // routingTableOf is ROUTING of doc at now, as the frame draws it: each
 // account's sessions counted as the router listed them, where it listed any,
-// else as doc counts them; and its pool, and who's out of it, as the frame
-// judges it at now.
+// else as doc counts them; and its pool, and who's out of it, at now.
 func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
-	pool := f.pool(doc, now)
-	names := overviewNames(doc, pool)
+	m := f.moment(doc, now)
+	names := overviewNames(m)
 	t := routingTable{names: nameColumn(names, f.Width), now: now}
 	var listing []status.Session
 	if f.Sessions != nil {
@@ -75,13 +74,13 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	for i, a := range doc.Accounts {
 		r := accountRouting{
 			id: a.ID, name: names[i].line(t.names), standing: doc.RoutingOf(a, now, f.Policy), pinned: doc.Pin.Has(a.ID),
-			sessions: a.Sessions, trace: f.Traces.Accounts[a.ID], faded: outOfPool(pool, a.ID),
+			sessions: a.Sessions, trace: f.Traces.Accounts[a.ID], faded: outOfPool(m, a.ID),
 		}
 		if listing != nil {
 			r.sessions = len(f.busy(listing, a.ID, now))
 		}
 		t.accounts = append(t.accounts, r)
-		if slices.Contains(pool.Accounts, a.ID) {
+		if slices.Contains(m.Pool().Accounts, a.ID) {
 			t.pool = append(t.pool, r)
 		}
 	}
@@ -157,7 +156,7 @@ func routingMode(doc status.Document, now time.Time, alone bool) line {
 	case doc.Pin.IsZero():
 		return line{{"auto", strongInk}}
 	}
-	mode := line{{"pinned to " + names(doc, doc.Pin.Accounts), alertInk}}
+	mode := line{{"pinned to " + docNames(doc, doc.Pin.Accounts), alertInk}}
 	if alone {
 		return mode
 	}

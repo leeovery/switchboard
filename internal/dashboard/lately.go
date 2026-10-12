@@ -103,7 +103,8 @@ func (f Frame) drawLately(c *canvas, doc status.Document, sentences []views.Sent
 // the rest's in text.subtle; its mark; and its words, as saidLine draws them,
 // short on a phone.
 func (f Frame) latelyLines(doc status.Document, sentences []views.Sentence, now time.Time) []line {
-	names := overviewNames(doc, f.pool(doc, now))
+	m := f.moment(doc, now)
+	names := overviewNames(m)
 	column := 0
 	for _, s := range sentences {
 		column = max(column, len(status.Dated(now, s.At)))
@@ -118,16 +119,16 @@ func (f Frame) latelyLines(doc status.Document, sentences []views.Sentence, now 
 		if f.phone() {
 			said = s.Short
 		}
-		lines[i] = append(line{at, eventMark(s), spaces(1)}, saidLine(doc, names, said)...)
+		lines[i] = append(line{at, eventMark(s), spaces(1)}, saidLine(m, names, said)...)
 	}
 	return lines
 }
 
 // saidLine is a sentence's words as LATELY draws them: its subject in bold
 // text.primary, its object in bold text.secondary, and its other words in
-// text.muted, each account it names named as names, overviewNames' of doc,
-// have it.
-func saidLine(doc status.Document, names []accountName, s views.Said) line {
+// text.muted, each account it names named as names, overviewNames' of m, have
+// it.
+func saidLine(m status.Moment, names []accountName, s views.Said) line {
 	var l line
 	for _, part := range []struct {
 		words status.Words
@@ -136,7 +137,7 @@ func saidLine(doc status.Document, names []accountName, s views.Said) line {
 		for _, p := range part.words {
 			said := span{p.Text, part.ink}
 			if p.Kind == status.PartAccount {
-				said = overviewNamed(doc, names, p.Text, part.ink)
+				said = overviewNamed(m, names, p.Text, part.ink)
 			}
 			l = append(l, said)
 		}

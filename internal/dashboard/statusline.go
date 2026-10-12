@@ -114,7 +114,7 @@ func newStatusLine(doc status.Document) statusLine {
 		s.restart = line{{"restart due (" + status.Clean(doc.Restart.Reason) + ")", warningInk}}
 	}
 	if !doc.Pin.IsZero() {
-		s.mode = line{{"pinned to " + names(doc, doc.Pin.Accounts), alertInk}}
+		s.mode = line{{"pinned to " + docNames(doc, doc.Pin.Accounts), alertInk}}
 	}
 	return s
 }
@@ -145,7 +145,7 @@ func destination(doc status.Document) line {
 	case to == "":
 		return line{{"no account has room", exhaustedInk}}
 	default:
-		return line{{"▲ " + named(doc, to), nameInk}}
+		return line{{"▲ " + docNamed(doc, to), nameInk}}
 	}
 }
 

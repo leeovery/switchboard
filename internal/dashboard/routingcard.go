@@ -117,12 +117,15 @@ type Figure struct {
 // config's order, each with its state, as closedBy says, its windows' use,
 // and its sessions running.
 func RoutingRows(doc status.Document, sessions []status.Session, now time.Time, policy score.Policy) []RoutingRow {
+	m := doc.At(now, policy)
 	rows := []RoutingRow{{Key: "0", Name: "auto", Open: true, Pickable: true}}
 	for i, a := range doc.Accounts {
-		states := doc.WindowStatesOf(a, now, policy)
+		at := m.Accounts[i]
+		session, _ := at.Window(policy.Started)
+		week, _ := sharedWeek(at)
 		row := RoutingRow{
-			Account: a.ID, Name: name(a), Pickable: pickable(a, now, policy),
-			Session: figureOf(states, policy.Started), Week: figureOf(states, sharedWeek(policy)),
+			Account: a.ID, Name: name(at), Pickable: pickable(at),
+			Session: figureOf(session), Week: figureOf(week),
 			Running: running(sessions, a.ID, now),
 		}
 		row.Reason, row.Capped = closedBy(doc, a, now, policy)
@@ -135,10 +138,10 @@ func RoutingRows(doc status.Document, sessions []status.Session, now time.Time, 
 	return rows
 }
 
-// pickable reports whether the account can be picked at now: it has a
+// pickable reports whether the account can be picked as it stands: it has a
 // usable token, not refused, and no limit holds back its every request.
-func pickable(a status.Account, now time.Time, policy score.Policy) bool {
-	return a.TokenSet && !a.TokenRefused(now) && !limited(a, now, policy)
+func pickable(a status.AccountNow) bool {
+	return a.TokenSet && !a.TokenRefused && !limited(a)
 }
 
 // closedBy says why doc's account a takes no new session at now, and
@@ -178,26 +181,24 @@ func running(sessions []status.Session, id string, now time.Time) int {
 	return len(Frame{}.busy(sessions, id, now))
 }
 
-// figureOf is the use of an account's window with the given key, as states
-// stand it and usage reads it: none where the account has no usable token or
-// nothing is read of the window; else as its state reads it, stale or not.
-func figureOf(states status.WindowStates, key string) Figure {
-	switch st := states.Of(key); st.Kind {
-	case status.WindowTokenless, status.WindowUnread:
+// figureOf is the use of an account's window as it stands, as usage reads it:
+// none where its bar draws empty, as where the account has no usable token or
+// nothing is read of the window; else its use, stale or not.
+func figureOf(w status.WindowNow) Figure {
+	if drawsEmpty(w.Kind) {
 		return Figure{}
-	default:
-		return Figure{Used: st.Used, Read: true, Stale: st.Kind == status.WindowStale}
 	}
+	return Figure{Used: w.Used, Read: true, Stale: w.Kind == status.WindowStale}
 }
 
-// sharedWeek is the key of the week every model shares, as policy says: ""
-// where it names none.
-func sharedWeek(policy score.Policy) string {
-	i := slices.IndexFunc(policy.Shared, quota.WeekLong)
-	if i < 0 {
-		return ""
+// sharedWeek is the account's week every model shares, as it stands; or,
+// reporting false, where it has none, one it hasn't reported, as Window has
+// it.
+func sharedWeek(a status.AccountNow) (status.WindowNow, bool) {
+	if i := slices.IndexFunc(a.Windows, func(w status.WindowNow) bool { return w.Shared && quota.WeekLong(w.Key) }); i >= 0 {
+		return a.Windows[i], true
 	}
-	return policy.Shared[i]
+	return a.Window("")
 }
 
 // card is the routing card on the frame: titled as m stands; its opening

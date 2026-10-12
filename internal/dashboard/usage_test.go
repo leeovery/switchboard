@@ -108,7 +108,7 @@ func blockOn(t *testing.T, doc status.Document, width int, slug string) *canvas 
 		t.Fatalf("no built-in theme %s", slug)
 	}
 	c := growing(width)
-	newUsageBlock(doc, printNow, printPolicy, width, Print(th, nil), ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).draw(c, 0)
+	newUsageBlock(doc, doc.At(printNow, printPolicy), printPolicy, width, Print(th, nil), ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).draw(c, 0)
 	return c
 }
 
@@ -615,7 +615,8 @@ func TestTheWindowsAreNamedAsNameNamesThem(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := usageWindows(trio(), nil, tt.shared, tt.namer); !slices.Equal(got, tt.want) {
+			doc := trio()
+			if got := usageWindows(doc, nil, tt.shared, Printout{Name: tt.namer}.namer(doc.At(printNow, printPolicy))); !slices.Equal(got, tt.want) {
 				t.Errorf("the windows are %+v, want %+v", got, tt.want)
 			}
 		})

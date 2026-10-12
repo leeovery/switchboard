@@ -121,12 +121,11 @@ type gauge struct {
 	cue     *float64
 }
 
-// newUsageBlock is the usage block of doc at now, its pool and its accounts'
-// windows as policy judges them then, width cells wide, drawn in look,
-// grouped by, of the windows given.
-func newUsageBlock(doc status.Document, now time.Time, policy score.Policy, width int, look Look, by By, windows []shownWindow) usageBlock {
-	pool := doc.PoolAt(now, policy)
-	return blockOf(doc, now, policy, pool, width, look, by, windows, namesOf(doc, pool))
+// newUsageBlock is the usage block of doc at m's now, m its moment: its pool
+// as m has it, and its accounts' windows as policy judges them then, width
+// cells wide, drawn in look, grouped by, of the windows given.
+func newUsageBlock(doc status.Document, m status.Moment, policy score.Policy, width int, look Look, by By, windows []shownWindow) usageBlock {
+	return blockOf(doc, m.Now, policy, m.Pool(), width, look, by, windows, namesOf(m))
 }
 
 // blockOf is the usage block of doc at now, as newUsageBlock has it, of the
@@ -137,7 +136,7 @@ func blockOf(doc status.Document, now time.Time, policy score.Policy, pool statu
 	for i, a := range doc.Accounts {
 		row := usageRow{id: a.ID, name: names[i].line(b.names)}
 		if a.Reserve > 0 {
-			row.cap = name(a) + " at " + status.Percent(1-a.Reserve)
+			row.cap = docName(a) + " at " + status.Percent(1-a.Reserve)
 		}
 		states := doc.WindowStatesOf(a, now, policy)
 		for _, w := range b.windows {
@@ -167,13 +166,10 @@ func UsageWindows(doc status.Document, shared []string) []string {
 
 // usageWindows are the windows of doc with the keys given, in their order,
 // which is Claude's, or with none, those UsageWindows has, each named as name
-// names it, cleaned, or where name is nil, by its label as labelOf has it.
+// names it, cleaned.
 func usageWindows(doc status.Document, keys, shared []string, name func(key string) string) []shownWindow {
 	if len(keys) == 0 {
 		keys = UsageWindows(doc, shared)
-	}
-	if name == nil {
-		name = func(key string) string { return labelOf(doc, key) }
 	}
 	shown := make([]shownWindow, 0, len(keys))
 	for _, key := range keys {
@@ -199,16 +195,16 @@ func nameOfWindow(key, label string) string {
 // it's stale.
 func accountGauge(a status.Account, key string, st status.WindowState, now time.Time) gauge {
 	bar := usageBar{used: st.Used, capAt: 1 - a.Reserve, pace: st.Pace, stale: st.Kind == status.WindowStale}
-	if drawsEmpty(st) {
+	if drawsEmpty(st.Kind) {
 		bar = usageBar{empty: true}
 	}
 	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(st, now), runsOut: st.Kind == status.WindowRunsOut}
 }
 
-// drawsEmpty reports whether a window standing as st draws an empty bar:
+// drawsEmpty reports whether a window of the given kind draws an empty bar:
 // where its account has no usable token or nothing is read of it.
-func drawsEmpty(st status.WindowState) bool {
-	return st.Kind == status.WindowTokenless || st.Kind == status.WindowUnread
+func drawsEmpty(kind status.WindowKind) bool {
+	return kind == status.WindowTokenless || kind == status.WindowUnread
 }
 
 // poolRow is pool's row under the rows of accounts named as names has them,
@@ -270,15 +266,15 @@ type accountName struct {
 	faint   bool
 }
 
-// namesOf are the names of doc's accounts, in the config's order, numbered
-// right-aligned once there are ten, each out of the pool given where it is.
-func namesOf(doc status.Document, pool status.Pool) []accountName {
-	digits := len(strconv.Itoa(len(doc.Accounts)))
-	best := bestOf(doc)
-	names := make([]accountName, len(doc.Accounts))
-	for i, a := range doc.Accounts {
+// namesOf are the names of m's accounts, in the config's order, numbered
+// right-aligned once there are ten, ▲ on the one new sessions go to, and
+// each out of the pool where it is.
+func namesOf(m status.Moment) []accountName {
+	digits := len(strconv.Itoa(len(m.Accounts)))
+	names := make([]accountName, len(m.Accounts))
+	for i, a := range m.Accounts {
 		names[i] = accountName{
-			number: fmt.Sprintf("%*d", digits, i+1), label: name(a), primary: a.Primary, best: a.ID == best, out: outOfPool(pool, a.ID),
+			number: fmt.Sprintf("%*d", digits, i+1), label: name(a), primary: a.Primary, best: a.Next, out: a.OutOfPool,
 		}
 	}
 	return names

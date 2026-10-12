@@ -17,7 +17,7 @@ const sessionShown = 4
 
 // name is what the dashboard calls an account: its label, which is its id
 // unless the config gives another, cleaned.
-func name(a status.Account) string {
+func name(a status.AccountNow) string {
 	return labelled(a.Label, a.ID)
 }
 
@@ -27,23 +27,59 @@ func labelled(label, id string) string {
 	return status.Clean(cmp.Or(label, id))
 }
 
-// named is what the dashboard calls the account of doc with the given id:
-// its name, or, where doc lacks it, its id, cleaned.
-func named(doc status.Document, id string) string {
-	if a, ok := doc.Account(id); ok {
+// named is what the dashboard calls the account of m with the given id: its
+// name, or, where m lacks it, its id, cleaned.
+func named(m status.Moment, id string) string {
+	if a, ok := m.Account(id); ok {
 		return name(a)
 	}
 	return status.Clean(id)
 }
 
-// names names the accounts of doc with the given ids as a list, as in "work
-// and side".
-func names(doc status.Document, ids []string) string {
+// names names the accounts of m with the given ids as a list, as in "work and
+// side".
+func names(m status.Moment, ids []string) string {
 	listed := make([]string, len(ids))
 	for i, id := range ids {
-		listed[i] = named(doc, id)
+		listed[i] = named(m, id)
 	}
 	return prose.List(listed)
+}
+
+// place is the account's place in m, counting from 1 in the order they're
+// configured, as the digit that pins it numbers it: 0 where m lacks it.
+func place(m status.Moment, id string) int {
+	a, _ := m.Account(id)
+	return a.Place
+}
+
+// docName is name of an account of the document as read, for the views that
+// read the document rather than its moment; as are docNamed, docNames and
+// docPlace of named, names and place.
+func docName(a status.Account) string {
+	return labelled(a.Label, a.ID)
+}
+
+// docNamed is named of doc, as docName has it.
+func docNamed(doc status.Document, id string) string {
+	if a, ok := doc.Account(id); ok {
+		return docName(a)
+	}
+	return status.Clean(id)
+}
+
+// docNames is names of doc, as docName has it.
+func docNames(doc status.Document, ids []string) string {
+	listed := make([]string, len(ids))
+	for i, id := range ids {
+		listed[i] = docNamed(doc, id)
+	}
+	return prose.List(listed)
+}
+
+// docPlace is place of doc, as docName has it.
+func docPlace(doc status.Document, id string) int {
+	return slices.IndexFunc(doc.Accounts, func(a status.Account) bool { return a.ID == id }) + 1
 }
 
 // either lists the names as prose lists what's chosen between, each in k
@@ -62,12 +98,6 @@ func either(names []string, k, between ink) line {
 		l = append(l, span{n, k})
 	}
 	return l
-}
-
-// place is the account's place in doc, counting from 1 in the order they're
-// configured, as the digit that pins it numbers it: 0 where doc lacks it.
-func place(doc status.Document, id string) int {
-	return slices.IndexFunc(doc.Accounts, func(a status.Account) bool { return a.ID == id }) + 1
 }
 
 // brief shows t in now's time zone as briefly as a bar line has room for:

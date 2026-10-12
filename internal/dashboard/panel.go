@@ -62,7 +62,7 @@ type linePanel struct {
 // shown.
 func (f Frame) linePanelOf(doc status.Document, a status.Account, now time.Time, shown []string) linePanel {
 	return linePanel{
-		account: a, place: place(doc, a.ID), state: doc.StateOf(a, now, f.Policy),
+		account: a, place: docPlace(doc, a.ID), state: doc.StateOf(a, now, f.Policy),
 		next: len(doc.Accounts) > 1 && doc.Best == a.ID, pinned: doc.Pin.Has(a.ID), primed: primedNext(doc, a.ID),
 		windows: shown, states: doc.WindowStatesOf(a, now, f.Policy), policy: f.Policy,
 	}
@@ -130,7 +130,7 @@ func panelTop(c *canvas, p linePanel, x, width int) {
 	case status.Unread:
 		says = dimInk
 	}
-	lead := line{{"┌─", edge}, {" " + strconv.Itoa(p.place) + " · ", dimInk}, {strings.ToUpper(name(p.account)), titleInk}, {" ─ ", edge}, {mark + " ", ink{token: tone}}, {p.state.Says, says}, {" ", edge}}
+	lead := line{{"┌─", edge}, {" " + strconv.Itoa(p.place) + " · ", dimInk}, {strings.ToUpper(docName(p.account)), titleInk}, {" ─ ", edge}, {mark + " ", ink{token: tone}}, {p.state.Says, says}, {" ", edge}}
 	badges := p.badges()
 	tail := func(badges []span) line {
 		if len(badges) == 0 {

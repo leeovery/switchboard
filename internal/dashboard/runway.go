@@ -387,7 +387,7 @@ func stripTone(with, n int) float64 {
 // laneLabel is what heads lane l in the labels' column: its place, dim, and
 // its account's name, cut to nameCells.
 func laneLabel(l lane) line {
-	return line{{strconv.Itoa(l.place) + " ", dimInk}, {truncate(name(l.account), nameCells), titleInk}}
+	return line{{strconv.Itoa(l.place) + " ", dimInk}, {truncate(docName(l.account), nameCells), titleInk}}
 }
 
 // badge is what lane l has at the labels' right: over the day, ▲ next on the

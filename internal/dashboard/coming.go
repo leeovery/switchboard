@@ -62,7 +62,8 @@ type happening struct {
 // them, in its order, soonest first, each as happening says it, its account
 // named as the Overview names it, and its windows as windowNamer names them.
 func (f Frame) upcoming(doc status.Document, now time.Time) []happening {
-	t := comingTeller{doc: doc, names: overviewNames(doc, f.pool(doc, now)), window: f.windowNamer(doc), policy: f.Policy}
+	m := f.moment(doc, now)
+	t := comingTeller{moment: m, names: overviewNames(m), window: f.windowNamer(m), policy: f.Policy}
 	var all []happening
 	for _, u := range doc.ComingUp {
 		if h, ok := t.happening(u); ok && h.at.After(now) {
@@ -72,11 +73,12 @@ func (f Frame) upcoming(doc status.Document, now time.Time) []happening {
 	return all
 }
 
-// comingTeller tells of doc's things coming up, as COMING UP says them: its
-// accounts named as names, overviewNames' of doc, have them; its windows as
-// window names them; and the window a request starts as policy says.
+// comingTeller tells of the things coming up of a document at a moment, as
+// COMING UP says them: its accounts named as names, overviewNames' of the
+// moment, have them; its windows as window names them; and the window a
+// request starts as policy says.
 type comingTeller struct {
-	doc    status.Document
+	moment status.Moment
 	names  []accountName
 	window func(key string) string
 	policy score.Policy
@@ -89,7 +91,7 @@ type comingTeller struct {
 // "'s 5-hour resets"; or its being primed. It reports false for a kind it
 // doesn't tell of, as one from a later router.
 func (t comingTeller) happening(u status.Upcoming) (happening, bool) {
-	h := happening{at: u.At, name: overviewNamed(t.doc, t.names, u.Account, titleInk)}
+	h := happening{at: u.At, name: overviewNamed(t.moment, t.names, u.Account, titleInk)}
 	switch u.Kind {
 	case status.UpcomingBack:
 		h.what = " back from its " + t.holder(u)
@@ -143,10 +145,9 @@ func (t comingTeller) windowOf(key string) string {
 }
 
 // limited reports whether a limit holds the account back from every request
-// at now, as Held says.
-func limited(a status.Account, now time.Time, policy score.Policy) bool {
-	held, ok := a.Held(now, policy)
-	return ok && held.Every
+// as it stands, as its Hold says.
+func limited(a status.AccountNow) bool {
+	return a.Held && a.Hold.Every
 }
 
 // comingLines draws as many of the things coming up as body has rows for,
