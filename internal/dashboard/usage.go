@@ -102,9 +102,9 @@ func newUsageBlock(doc status.Document, now time.Time, width int, look Look, by 
 	b.names = nameColumn(names, width)
 	for i, a := range doc.Accounts {
 		row := usageRow{name: names[i].line(b.names)}
+		states := doc.WindowStatesOf(a, now)
 		for _, w := range b.windows {
-			st := doc.WindowStateOf(a, w.key, now)
-			row.gauges = append(row.gauges, accountGauge(a, w.key, st, now))
+			row.gauges = append(row.gauges, accountGauge(a, w.key, states.Of(w.key), now))
 		}
 		b.rows = append(b.rows, row)
 	}

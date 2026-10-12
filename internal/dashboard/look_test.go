@@ -274,6 +274,45 @@ func TestTextFromElsewhereShowsItsControlCharactersAsSpaces(t *testing.T) {
 	}
 }
 
+func TestTextFromElsewherePrintsItsControlCharactersAsSpaces(t *testing.T) {
+	doc := threeAccounts()
+	doc.Accounts[0].Label = "Work\x1b[31m\ateam"
+	doc.Accounts[2].Windows[2].Label = "Fable\x1b\aOI"
+	doc.Router = status.Health{Reason: "7 of\x1b[31m the 9\afailed"}
+	doc.Restart = status.Restart{Reason: "config\x1b[2J\achanged", Since: now.Add(-time.Hour).UTC()}
+	doc.Pin = status.Pin{Accounts: []string{"work", "gone\x1b[1m\aaway"}}
+	probed := threeAccounts()
+	probed.Accounts[1].Label = "Personal\x1b[31m\aplan"
+	probed.Source, probed.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterUnhealthy, Reason: "the router\x1b[31m\aanswered 404"}
+	tests := []struct {
+		name string
+		doc  status.Document
+		// want is in lower case, as by window the windows' names are in capitals.
+		want []string
+	}{
+		{name: "from the router", doc: doc, want: []string{"work [31m team", "fable oi", "config [2j changed", "gone [1m away"}},
+		{name: "probing past it", doc: probed, want: []string{"personal [31m plan", "the router [31m answered 404"}},
+	}
+	for _, tt := range tests {
+		for _, p := range []dashboard.Printout{{Width: 160}, {Width: 160, By: dashboard.ByAccount}, {Width: 80}} {
+			t.Run(fmt.Sprintf("%s, %d columns, by %d", tt.name, p.Width, p.By), func(t *testing.T) {
+				printed := strings.Join(p.Draw(tt.doc, now), "\n")
+				if strings.ContainsAny(printed, "\x1b\a") {
+					t.Errorf("printed %q, want no control characters from the document", printed)
+				}
+				if p.Width < 160 {
+					return
+				}
+				for _, want := range tt.want {
+					if !strings.Contains(strings.ToLower(printed), want) {
+						t.Errorf("printed\n%s\nwant it to say %q, its control characters as spaces", printed, want)
+					}
+				}
+			})
+		}
+	}
+}
+
 // trimmed are the rows of a frame, each without the blanks at its end.
 func trimmed(frame string) []string {
 	rows := strings.Split(frame, "\n")

@@ -6,12 +6,6 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// The marks on a usage bar: where its account's cap is, and even pace.
-const (
-	capMark  = "╎"
-	paceMark = "┃"
-)
-
 // staleFade is how far a stale reading's bar fades into the colour beneath:
 // it keeps 35% of its colour.
 const staleFade = 0.65
@@ -97,12 +91,9 @@ func (b usageBar) faded(k ink) ink {
 }
 
 // rampStep is where cell i of a bar cells long sits along the ramp, to the
-// nearest of its nine steps: round(8i / (cells − 1)) / 8.
+// nearest of its nine steps, a half to the even one, as the frames are drawn.
 func rampStep(i, cells int) float64 {
-	if cells < 2 {
-		return 0
-	}
-	return float64(halfEven(float64(rampSteps*i)/float64(cells-1))) / rampSteps
+	return float64(halfEven(along(i, cells)*rampSteps)) / rampSteps
 }
 
 // halfEven is x rounded to the nearest whole number, a half to the even one,
