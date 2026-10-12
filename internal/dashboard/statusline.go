@@ -101,13 +101,7 @@ func bestOf(doc status.Document) string {
 // sessions go, then without a restart due, so the state and the mode show,
 // then with its state shortened; and where even that doesn't fit, cut short.
 func (s statusLine) fit(width int) line {
-	forms := s.forms()
-	for _, l := range forms {
-		if l.width() <= width {
-			return l
-		}
-	}
-	return forms[len(forms)-1].fit(width)
+	return firstFit(width, s.forms()...)
 }
 
 // forms are the line's forms, each shorter than the one before.
