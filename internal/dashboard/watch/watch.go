@@ -184,7 +184,8 @@ type Model struct {
 	// under way lands.
 	again bool
 	// lost is when the router stopped answering, while the dashboard shows
-	// its last document, or has read nothing since: zero once a read lands.
+	// its last document, or has read nothing since: zero once a read lands,
+	// and before any document, once one fails for a reason of its own.
 	lost time.Time
 	// failed is why the last read failed, while it's the last: "" once one
 	// lands, and for a look that found the router gone.
@@ -263,6 +264,11 @@ type Model struct {
 	routing routing
 	help    helping
 	page    frozen
+	// stamp marks the screen the model draws: an update that changes nothing
+	// on screen, as unseen says, keeps the last one's, any other takes a new
+	// one; and drawn is the screen last drawn under help, by stamp.
+	stamp int
+	drawn *kept
 }
 
 // opened is which card is open over the page.
@@ -315,7 +321,9 @@ func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), featured: cfg.Featured, chart: cfg.Chart,
+		drawn: &kept{},
 	}
+	m.stamp = m.drawn.restamp()
 	if m.after == nil {
 		m.after = after
 	}
@@ -342,12 +350,16 @@ func (m Model) Init() tea.Cmd {
 // router's request stream while it wants it, and only then, price the moves
 // the routing card would make while it wants them, and draw frames while
 // anything on screen moves. The view is drawn again after each, which is all
-// a note's lapsing asks.
+// a note's lapsing asks, but for one that changes nothing on screen, as
+// unseen says.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.take(msg)
 	tuned, stream := next.(Model).tune()
 	tuned, costs := tuned.costing()
 	tuned, frames := tuned.startFrames(tuned.now())
+	if !m.unseen(msg) {
+		tuned.stamp = tuned.drawn.restamp()
+	}
 	return tuned, tea.Batch(cmd, stream, costs, frames)
 }
 
@@ -407,8 +419,20 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 // to, so it never shows one theme then another: in the theme shown, its
 // canvas painted on every cell, and set as the terminal's background too, as
 // background says. The mouse is on while it runs, for clicks and the wheel,
-// so the terminal's own selecting takes its modifier.
+// so the terminal's own selecting takes its modifier. Under help, which
+// stands still, a screen drawn already is shown again as it was drawn.
 func (m Model) View() tea.View {
+	if m.open != helpOpen {
+		return m.draw()
+	}
+	if m.drawn.stamp == m.stamp {
+		return m.drawn.view
+	}
+	return m.drawn.keep(m.stamp, m.draw())
+}
+
+// draw draws the screen, as View says.
+func (m Model) draw() tea.View {
 	v := tea.NewView("")
 	v.AltScreen = true
 	if m.coloured() && !m.backdrop.settled {
@@ -527,11 +551,15 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 }
 
 // resized takes in the size the terminal gives, keeping the size drawn at for
-// a width or height it gives as zero, and closes the theme picker should it
-// no longer fit.
+// a width or height it gives as zero; lists help's keys afresh while it's
+// open, as the page behind it may scroll at the new size or no longer; and
+// closes the theme picker should it no longer fit.
 func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	given := Size{Width: msg.Width, Height: msg.Height}
 	m.size = given.or(m.size)
+	if m.open == helpOpen {
+		m = m.relistHelp()
+	}
 	m, closed := m.fitPicker()
 	if m.size == given {
 		return m, closed
@@ -580,11 +608,14 @@ func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 
 // fetched takes in a read: the document to show from now on, or why there's
 // none, and plans the next read by it. A read that fails notes why, and the
-// router lost, as lose does: a question after the router, or a look at its
+// router lost, as lose does. Before any document, from a source that asks the
+// router first, as awaitsRouter has it, the status line says the latest
+// read's news either way: a question after the router, or a look at its
 // document, that found it gone has no why of its own, and clears the last
-// read's only where the status line then says the router isn't answering, as
-// awaitsRouter has it, the newer news replacing the older; elsewhere the
-// last read's why stands, as nothing new was found. Each read starts a new
+// read's, the status line saying the router isn't answering; and a read that
+// failed for a reason of its own clears the router's loss, the status line
+// saying that reason. Elsewhere a read that found the router gone leaves the
+// last read's why standing, as nothing new was found. Each read starts a new
 // chain of ticks at the pace it calls for, and lets a look at the router's
 // document asked for while it was under way go ahead.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
@@ -601,6 +632,9 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	case msg.err != nil:
 		m.plan = m.plan.failed(m.doc, now)
 		m.failed = redact.Text(msg.err.Error())
+		if m.awaitsRouter() {
+			m.lost = time.Time{}
+		}
 		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
 		m = m.lose(now)
 	default:

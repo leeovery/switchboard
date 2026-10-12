@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -127,6 +128,55 @@ func TestADocumentLandingUnderHelpMovesNothingInIt(t *testing.T) {
 	if got := h.view(); got != before {
 		t.Errorf("once a document that scrolls lands under help, the screen is\n%s\nwant it as help opened\n%s", got, before)
 	}
+}
+
+func TestHelpListsTheScrollingKeysOfThePageAtTheSizeItsDrawnAt(t *testing.T) {
+	scrolling := []string{"j k", "PgUp PgDn", "wheel"}
+	h := newHarness(t, document(three()...))
+	h.start()
+	h.press("?")
+	if got := listedKeys(h.model.help.keys); slices.ContainsFunc(scrolling, func(k string) bool { return slices.Contains(got, k) }) {
+		t.Fatalf("help over a page that fits lists %q, want no scrolling keys", got)
+	}
+
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 20})
+	if f, doc, at := h.model.screen(h.clock.now); f.Scrolling(doc, at).Most == 0 {
+		t.Fatal("the page behind help doesn't scroll at 150x20, want it to")
+	}
+	if got := listedKeys(h.model.help.keys); !h.inHelp() || !containsInOrder(got, scrolling) {
+		t.Errorf("help over a page shrunk till it scrolls lists %q, open %v; want %q, still open", got, h.inHelp(), scrolling)
+	}
+
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
+	if got := listedKeys(h.model.help.keys); slices.ContainsFunc(scrolling, func(k string) bool { return slices.Contains(got, k) }) {
+		t.Errorf("help over a page grown till it fits again lists %q, want no scrolling keys", got)
+	}
+}
+
+func TestTheStreamTellingUnderHelpDrawsNothingAnew(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.press("?")
+	before, draws := h.view(), h.model.drawn.draws
+
+	h.hear(told(router.StreamSent, "r1", "work", 0))
+	if !h.listening() {
+		t.Fatal("under help, the model no longer listens to the stream, want it to, so the traces count every request")
+	}
+	if got := h.view(); got != before || h.model.drawn.draws != draws {
+		t.Errorf("as the stream tells under help, the screen was drawn %d times more, reading\n%s\nwant it shown again as drawn\n%s", h.model.drawn.draws-draws, got, before)
+	}
+
+	h.press("j")
+	if h.view(); h.model.drawn.draws != draws+1 {
+		t.Errorf("as a key scrolls help, the screen was drawn %d times more, want once", h.model.drawn.draws-draws)
+	}
+}
+
+// containsInOrder reports whether want appear in got, one after another.
+func containsInOrder(got, want []string) bool {
+	i := slices.Index(got, want[0])
+	return i >= 0 && len(got) >= i+len(want) && slices.Equal(got[i:i+len(want)], want)
 }
 
 // helpOver is the keys help lists, opened over the page as m stands.
