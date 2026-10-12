@@ -643,6 +643,37 @@ func TestAcrossAResetBetweenReadsOneAccountsRoomLeftAndROUTINGAgree(t *testing.T
 	}
 }
 
+func TestAcrossAResetBetweenReadsThePoolsRoomAndROUTINGAgree(t *testing.T) {
+	// Work is at its cap in its 5-hour, read at now, which resets in an hour;
+	// side has half its 5-hour left.
+	work := readAccount("work", sessionOf(0.9, time.Hour), weekOf(0.4, 3*day))
+	work.Reserve = 0.2
+	doc := routerDoc("side", 0, work, readAccount("side", sessionOf(0.5, 3*time.Hour), weekOf(0.3, 3*day)))
+	reset := now.Add(time.Hour)
+	f := frameOf(160, 60)
+	tests := []struct {
+		name   string
+		now    time.Time
+		capped bool
+		room   string
+	}{
+		{name: "a moment before it resets", now: reset.Add(-time.Second), capped: true, room: "0.5 of 2 left"},
+		{name: "a moment after, before it's read again", now: reset.Add(time.Second), room: "1.3 of 2 left"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if capped := f.routingTableOf(doc, tt.now).accounts[0].standing.Kind == status.RoutingCapped; capped != tt.capped {
+				t.Errorf("ROUTING has work capped %t, want %t", capped, tt.capped)
+			}
+			rows, _ := usageBody(f, doc, tt.now, 20)
+			i := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "Σ pool") })
+			if i < 0 || !strings.Contains(rows[i], "  "+tt.room) {
+				t.Errorf("USAGE reads\n%s\nwant the pool's 5-hour room %q", strings.Join(rows, "\n"), tt.room)
+			}
+		})
+	}
+}
+
 func TestAnAccountOutOfThePoolIsNamedFaintOnTheOverviewAlone(t *testing.T) {
 	doc := trio(pinnedTo("side"))
 	faintLabel := ink{token: theme.TextFaint, bold: true}
@@ -652,7 +683,7 @@ func TestAnAccountOutOfThePoolIsNamedFaintOnTheOverviewAlone(t *testing.T) {
 		number, label, marks ink
 	}{
 		{name: "on the Overview", row: frameOf(160, 60).overviewBlock(doc, printNow).rows[1], number: faintInk, label: faintLabel, marks: faintInk},
-		{name: "in the printout, its number alone", row: newUsageBlock(doc, printNow, 160, Look{}, ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).rows[1], number: faintInk, label: titleInk, marks: primaryInk},
+		{name: "in the printout, its number alone", row: newUsageBlock(doc, printNow, printPolicy, 160, Look{}, ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).rows[1], number: faintInk, label: titleInk, marks: primaryInk},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -671,7 +702,7 @@ func TestTheOverviewFadesAnAccountOutOfThePoolWhereThePrintoutDoesnt(t *testing.
 		out   bool
 	}{
 		{name: "on the Overview", block: frameOf(160, 60).overviewBlock(doc, printNow), out: true},
-		{name: "in the printout", block: newUsageBlock(doc, printNow, 160, Look{}, ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName))},
+		{name: "in the printout", block: newUsageBlock(doc, printNow, printPolicy, 160, Look{}, ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

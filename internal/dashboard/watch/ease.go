@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -31,13 +32,13 @@ func (e easing) done(now time.Time) bool {
 // eased are how much of each window whose bar the easing moves to doc's
 // reading the bar fills at now, by its account and key: none of a bar that
 // stands where it's read, and none once the easing's over.
-func (e easing) eased(doc status.Document, now time.Time) map[dashboard.Ref]float64 {
+func (e easing) eased(doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref]float64 {
 	if e.done(now) {
 		return nil
 	}
 	t := easeOutCubic(progress(now.Sub(e.start), easeFor))
 	eased := make(map[dashboard.Ref]float64)
-	for ref, to := range utilizations(doc) {
+	for ref, to := range utilizations(doc, now, policy) {
 		if from := e.from[ref]; from != to {
 			eased[ref] = lerp(from, to, t)
 		}
@@ -48,23 +49,23 @@ func (e easing) eased(doc status.Document, now time.Time) map[dashboard.Ref]floa
 // standing are how much of each of doc's windows its bar fills at now, by
 // its account and key: as far as it has eased, where it's easing, else as
 // read.
-func (e easing) standing(doc status.Document, now time.Time) map[dashboard.Ref]float64 {
-	stand := utilizations(doc)
-	maps.Copy(stand, e.eased(doc, now))
+func (e easing) standing(doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref]float64 {
+	stand := utilizations(doc, now, policy)
+	maps.Copy(stand, e.eased(doc, now, policy))
 	return stand
 }
 
 // utilizations are how much of each of doc's windows is used, by its
-// account and key, and of each of its pool's, by its key alone, as the
-// pool's bars fill to.
-func utilizations(doc status.Document) map[dashboard.Ref]float64 {
+// account and key, and of each of its pool's at now, as policy judges it, by
+// its key alone, as the pool's bars fill to.
+func utilizations(doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref]float64 {
 	used := make(map[dashboard.Ref]float64)
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
 			used[dashboard.Ref{Account: a.ID, Window: w.Key}] = w.Utilization
 		}
 	}
-	for _, p := range doc.Pool.Windows {
+	for _, p := range doc.PoolAt(now, policy).Windows {
 		used[dashboard.Ref{Window: p.Key}] = p.Used
 	}
 	return used

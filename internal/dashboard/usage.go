@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -118,15 +119,15 @@ type gauge struct {
 	cue     *float64
 }
 
-// newUsageBlock is the usage block of doc at now, width cells wide, drawn in
-// look, grouped by, of the windows given.
-func newUsageBlock(doc status.Document, now time.Time, width int, look Look, by By, windows []shownWindow) usageBlock {
-	return blockOf(doc, now, width, look, by, windows, namesOf(doc))
+// newUsageBlock is the usage block of doc at now, as policy judges its
+// windows, width cells wide, drawn in look, grouped by, of the windows given.
+func newUsageBlock(doc status.Document, now time.Time, policy score.Policy, width int, look Look, by By, windows []shownWindow) usageBlock {
+	return blockOf(doc, now, policy, width, look, by, windows, namesOf(doc))
 }
 
 // blockOf is the usage block of doc at now, as newUsageBlock has it, its
 // accounts named as names has them.
-func blockOf(doc status.Document, now time.Time, width int, look Look, by By, windows []shownWindow, names []accountName) usageBlock {
+func blockOf(doc status.Document, now time.Time, policy score.Policy, width int, look Look, by By, windows []shownWindow, names []accountName) usageBlock {
 	b := usageBlock{width: width, look: look, by: by, windows: windows}
 	b.names = nameColumn(names, width)
 	for i, a := range doc.Accounts {
@@ -140,7 +141,7 @@ func blockOf(doc status.Document, now time.Time, width int, look Look, by By, wi
 		}
 		b.rows = append(b.rows, row)
 	}
-	if pool, ok := poolRow(doc, b.windows, len(strconv.Itoa(len(doc.Accounts)))); ok {
+	if pool, ok := poolRow(doc.PoolAt(now, policy), len(doc.Accounts), b.windows); ok {
 		b.rows = append(b.rows, pool)
 	}
 	return b
@@ -194,27 +195,29 @@ func accountGauge(a status.Account, key string, st status.WindowState, now time.
 	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(st, w.Allowance, now), runsOut: st.Kind == status.WindowRunsOut}
 }
 
-// poolRow is the pool's row of doc, of the windows shown, its Σ in a column
-// digits wide, reporting false where doc has no pool, as with one account:
+// poolRow is pool's row under accounts accounts' rows, of the windows shown,
+// its Σ in a column as wide as their numbers, reporting false where there's
+// no pool, as with one account:
 // each window's bar filled to what the pool has used, with its accounts' even
 // pace and no cap's mark, and its words its room, the first window's saying
 // it's pinned, where it is.
-func poolRow(doc status.Document, windows []shownWindow, digits int) (usageRow, bool) {
-	if len(doc.Accounts) < 2 || len(doc.Pool.Accounts) == 0 {
+func poolRow(pool status.Pool, accounts int, windows []shownWindow) (usageRow, bool) {
+	if accounts < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
 	}
+	digits := len(strconv.Itoa(accounts))
 	row := usageRow{name: line{{strings.Repeat(" ", digits-1) + "Σ", dimInk}, {" pool", noteInk}}, pool: true}
 	for i, w := range windows {
-		j := slices.IndexFunc(doc.Pool.Windows, func(p status.PoolWindow) bool { return p.Key == w.key })
+		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindow) bool { return p.Key == w.key })
 		if j < 0 {
 			row.gauges = append(row.gauges, gauge{bar: usageBar{empty: true}})
 			continue
 		}
-		p := doc.Pool.Windows[j]
+		p := pool.Windows[j]
 		row.gauges = append(row.gauges, gauge{
 			of:    Ref{Window: w.key},
 			bar:   usageBar{used: p.Used, capAt: 1, pace: p.Pace},
-			words: poolWords(p.Room, len(doc.Pool.Accounts), doc.Pool.Pinned && i == 0),
+			words: poolWords(p.Room, len(pool.Accounts), pool.Pinned && i == 0),
 		})
 	}
 	return row, true

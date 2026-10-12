@@ -78,7 +78,7 @@ func (d Document) WorkedOut(policy score.Policy) Document {
 		standings[i] = d.standingAt(a, d.GeneratedAt, policy)
 		d.Accounts[i].Windows = d.measured(a, standings[i])
 	}
-	d.Pool = d.pool(standings, policy)
+	d.Pool = d.pool(standings, d.GeneratedAt, policy)
 	d.ComingUp = d.comingUp(standings, policy)
 	return d
 }
@@ -183,11 +183,23 @@ type member struct {
 	standing standing
 }
 
-// pool is the accounts new sessions can go to as of when the document was
-// built, as one, each standing as standings says, in the accounts' order,
-// their windows' even paces as measured says: zero with one account, whose
-// own windows say the same.
-func (d Document) pool(standings []standing, policy score.Policy) Pool {
+// PoolAt is the accounts new sessions can go to, as one, as they stand at
+// now, as policy judges their windows: the room each has left, and what its
+// cap or a limit holds back, judged then, where the document's Pool is
+// judged as of when it was built; their windows' even paces the document's
+// own, as each account's are.
+func (d Document) PoolAt(now time.Time, policy score.Policy) Pool {
+	standings := make([]standing, len(d.Accounts))
+	for i, a := range d.Accounts {
+		standings[i] = d.standingAt(a, now, policy)
+	}
+	return d.pool(standings, now, policy)
+}
+
+// pool is the accounts new sessions can go to at at, as one, each standing
+// as standings says, in the accounts' order, their windows' even paces as
+// measured says: zero with one account, whose own windows say the same.
+func (d Document) pool(standings []standing, at time.Time, policy score.Policy) Pool {
 	members := d.poolMembers(standings)
 	if len(d.Accounts) < 2 || len(members) == 0 {
 		return Pool{}
@@ -204,7 +216,7 @@ func (d Document) pool(standings []standing, policy score.Policy) Pool {
 	}
 	slices.SortFunc(keys, quota.CompareKeys)
 	for _, key := range keys {
-		p.Windows = append(p.Windows, d.poolWindow(members, key, policy))
+		p.Windows = append(p.Windows, d.poolWindow(members, key, at, policy))
 	}
 	return p
 }
@@ -222,11 +234,11 @@ func (d Document) poolMembers(standings []standing) []member {
 	return members
 }
 
-// poolWindow is the window with the given key of the members given, as one:
-// the room each has left in it, as poolRoom says, summed; what that leaves
+// poolWindow is the window with the given key of the members given, as one,
+// at at: the room each has left in it, as poolRoom says, summed; what that leaves
 // its bar filled to; and their even paces in it, where it's running,
 // averaged.
-func (d Document) poolWindow(members []member, key string, policy score.Policy) PoolWindow {
+func (d Document) poolWindow(members []member, key string, at time.Time, policy score.Policy) PoolWindow {
 	pw := PoolWindow{Key: key}
 	var paces float64
 	var running int
@@ -236,7 +248,7 @@ func (d Document) poolWindow(members []member, key string, policy score.Policy) 
 			continue
 		}
 		pw.Label = cmp.Or(pw.Label, w.Label)
-		pw.Room += d.poolRoom(m, w, d.GeneratedAt, policy)
+		pw.Room += d.poolRoom(m, w, at, policy)
 		if w.Pace != nil {
 			paces, running = paces+*w.Pace, running+1
 		}

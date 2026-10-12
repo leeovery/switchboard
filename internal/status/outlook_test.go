@@ -366,6 +366,9 @@ func TestAnAccountsRoomIsWhatThePoolCountsOfIt(t *testing.T) {
 		pinnedTo(routerDocOf(work, limited, side), "work", "side"),
 	} {
 		doc = doc.WorkedOut(policy)
+		if got, want := poolLines(doc.PoolAt(built, policy)), poolLines(doc.Pool); !slices.Equal(got, want) {
+			t.Errorf("of %q, the pool at when the document was built is %q, want %q, as the document has it", doc.Pool.Accounts, got, want)
+		}
 		for _, w := range doc.Pool.Windows {
 			var summed float64
 			for _, id := range doc.Pool.Accounts {

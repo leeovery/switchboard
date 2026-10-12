@@ -661,7 +661,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lost, Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.ease.eased(m.doc, now),
+		Lost: m.lost, Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.ease.eased(m.doc, now, m.cfg.Policy),
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus:      m.focus,
@@ -806,7 +806,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.news = m.news.looked(doc, msg.router, now)
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
 	m.history = m.history.saw(doc)
-	m.ease = easing{from: m.ease.standing(m.doc, now), start: now}
+	m.ease = easing{from: m.ease.standing(m.doc, now, m.cfg.Policy), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
 	switch {
 	case msg.listed || !routed(doc):

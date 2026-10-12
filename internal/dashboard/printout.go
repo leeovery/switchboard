@@ -54,7 +54,7 @@ func (p Printout) Draw(doc status.Document, now time.Time) []string {
 	if p.By == ByAccount {
 		y++
 	}
-	block := newUsageBlock(doc, now, p.Width, p.Look, p.By, usageWindows(doc, p.Windows, p.Policy.Shared, p.Name))
+	block := newUsageBlock(doc, now, p.Policy, p.Width, p.Look, p.By, usageWindows(doc, p.Windows, p.Policy.Shared, p.Name))
 	block.key(c, block.draw(c, y)+1)
 	return c.rows(p.Look)
 }

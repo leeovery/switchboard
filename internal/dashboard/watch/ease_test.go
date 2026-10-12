@@ -198,7 +198,7 @@ func TestFramesRunOnlyWhileBarsOnScreenMove(t *testing.T) {
 	} {
 		h.startRouter(tenWith(using, read.moved...))
 		seen := h.tickUntilAsked()
-		if _, ok := h.model.ease.eased(h.model.doc, seen)[dashboard.Ref{Account: read.bar, Window: "5h"}]; !ok {
+		if _, ok := h.model.ease.eased(h.model.doc, seen, policy)[dashboard.Ref{Account: read.bar, Window: "5h"}]; !ok {
 			t.Fatalf("%s: %s's session bar isn't easing, want the read to have moved it", read.name, read.bar)
 		}
 		if _, framing := h.pendingFrame(); framing != read.frames {
