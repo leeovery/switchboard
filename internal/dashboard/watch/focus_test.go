@@ -100,14 +100,71 @@ func TestAnotherRouterThatCantListTheSessionsShowsNone(t *testing.T) {
 	}
 }
 
-func TestTheFocusIsGivenUpOnceItsAccountGoes(t *testing.T) {
+func TestTheFocusStartsOnTheFirstAccountInTheConfigsOrder(t *testing.T) {
 	h := gridHarness(t)
-	h.model.focus = "client"
+	if h.model.focus != "work" || h.model.frame(h.clock.now).Focus != "work" {
+		t.Errorf("the first document read, the focus is on %q, want on work, the first account", h.model.focus)
+	}
+}
+
+func TestUpAndDownMoveTheFocusInTheConfigsOrderNoFurtherThanTheEnds(t *testing.T) {
+	h := gridHarness(t)
+	prefs := &fakePrefs{}
+	h.model.cfg.Prefs = prefs
+	for _, step := range []struct {
+		key  tea.KeyPressMsg
+		want string
+	}{
+		{key: downKey, want: "personal"},
+		{key: downKey, want: "side"},
+		{key: downKey, want: "client"},
+		{key: downKey, want: "client"},
+		{key: upKey, want: "side"},
+		{key: upKey, want: "personal"},
+		{key: upKey, want: "work"},
+		{key: upKey, want: "work"},
+	} {
+		h.keys(step.key)
+		if h.model.focus != step.want {
+			t.Errorf("after %s, the focus is on %q, want on %q", step.key, h.model.focus, step.want)
+		}
+	}
+	if prefs.updates > 0 {
+		t.Errorf("moving the focus kept the preferences %d times, want the focus never kept", prefs.updates)
+	}
+}
+
+func TestTheFocusGoesToTheFirstAccountOnceItsAccountGoes(t *testing.T) {
+	h := gridHarness(t)
+	h.keys(downKey, downKey, downKey)
+	h.startRouter(routerDocument(three()[1:]...))
+	h.tickUntilAsked()
+
+	if h.model.focus != "personal" {
+		t.Errorf("once client and work went, the focus is on %q, want on personal, the first account left", h.model.focus)
+	}
+}
+
+func TestTheFocusStaysOnItsAccountAsTheDocumentChanges(t *testing.T) {
+	h := gridHarness(t)
+	h.keys(downKey)
 	h.startRouter(routerDocument(three()...))
 	h.tickUntilAsked()
 
-	if h.model.focus != "" {
-		t.Errorf("once client went, the focus is on %q, want on none", h.model.focus)
+	if h.model.focus != "personal" {
+		t.Errorf("once client went, the focus is on %q, want still on personal", h.model.focus)
+	}
+}
+
+func TestAClickOnAnAccountsRowMovesTheFocusThere(t *testing.T) {
+	h := gridHarness(t)
+	h.clickOn(dashboard.Target{On: dashboard.OnAccount, Account: "side"})
+	if h.model.focus != "side" {
+		t.Errorf("a click on side's row left the focus on %q, want on side", h.model.focus)
+	}
+	h.clickOn(dashboard.Target{On: dashboard.OnAccount, Account: "gone"})
+	if h.model.focus != "side" {
+		t.Errorf("a click on the row of an account the document doesn't have moved the focus to %q, want it left on side", h.model.focus)
 	}
 }
 
@@ -118,7 +175,7 @@ func TestTheOverviewsKeysDoNothingOnAnotherTab(t *testing.T) {
 	for _, key := range []string{"u", "g", "r", "s", "c", "l", "b"} {
 		h.press(key)
 	}
-	if h.model.focus != "" || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow {
+	if h.model.focus != "work" || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow {
 		t.Errorf("showing %q, the Overview's keys moved the focus to %q, showed %v, grouped by %v; want them doing nothing there",
 			h.model.view, h.model.focus, h.model.sections.Names(), h.model.by)
 	}

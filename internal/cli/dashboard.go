@@ -53,17 +53,20 @@ for a window that resets or an account that couldn't be read, and reads the
 router again once it's back.
 
 Keys: tab and shift-tab move between its tabs, the Overview, Accounts,
-History, Sessions, Runway and the Log. On the Overview, w the window every
-card features (auto, for each its own, then the 5-hour window, the week, and
-any other in use), g the chart every card draws of it (burn-down, burn rate,
-hourglass), the arrows the focus between the cards, space flips the card
-with it and s every card; on Runway, w the day or the week. j, k, PgDn, PgUp
-and the wheel scroll the view where it doesn't fit. p opens the routing
-card, which picks the accounts new sessions go to and changes nothing until
-enter; ? the page's help; esc closes either, or the theme picker. R
-refreshes, t opens the theme picker, q quits, and ctrl-c quits wherever it
-is. A click on a tab shows it, and on a key of the key line does what the
-key does, but p and q.
+History, Sessions, Runway and the Log. On the Overview, u, g, r, s, c and l
+show and hide its sections, USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and
+LATELY; b groups its windows by window or by account, as the config's
+[usage] by has them until b is pressed; and ↑ and ↓ move the focus between
+the accounts, which GRAPHS follows. The sections shown and b are kept for
+the next dashboard to open with. On Runway, w shows the day or the week. j,
+k, PgDn, PgUp and the wheel scroll the view where it doesn't fit, and on the
+Overview, USAGE, where its accounts don't. p opens the routing card, which
+picks the accounts new sessions go to and changes nothing until enter; ?
+the page's help; esc closes either, or the theme picker. R refreshes, t
+opens the theme picker, q quits, and ctrl-c quits wherever it is. A click
+on a tab shows it; on a key of the key line, does what the key does, but p
+and q; and on the Overview, on a section's heading hides it, and on an
+account's row moves the focus there.
 
 While the router runs, it posts the desktop notifications, --probe or not;
 without it, the dashboard posts its own of an account with room again and a

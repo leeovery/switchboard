@@ -225,6 +225,31 @@ func TestAPhonesKeyLineKeepsTheKeysItEndsWith(t *testing.T) {
 	}
 }
 
+func TestAWideKeyLineThatDoesntFitWholeIsLaidOutAsAPhones(t *testing.T) {
+	toggles := []Key{
+		{Key: "u", Does: "usage"}, {Key: "g", Does: "graphs"}, {Key: "r", Does: "routing"}, {Key: "s", Does: "sessions"},
+		{Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"}, {Key: "b", Does: "by", State: "window"},
+	}
+	l := KeyLine{Groups: [][]Key{{tabViews}, toggles, {{Key: "↑↓", Does: "focus"}, pin, helpQuit[0], helpQuit[1]}}, Lead: 5, After: 5, PhoneHelp: "keys and toggles"}
+	wide := "tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ focus  p pin  ? help  q quit"
+	tests := []struct {
+		name  string
+		width int
+		want  string
+	}{
+		{name: "wide enough for it whole", width: ansi.StringWidth(wide), want: wide},
+		{name: "a cell short of it, wider than a phone", width: ansi.StringWidth(wide) - 1, want: "tab views   ? keys and toggles   q quit"},
+		{name: "a phone's width", width: phoneUnder - 1, want: "tab views   ? keys and toggles   q quit"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := lastRow(keyed(tt.width, l)); got != tt.want {
+				t.Errorf("at %d columns, the key line reads %q, want %q", tt.width, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAPhonesKeyLineWithoutItsHelpIsLaidOutAsAWiderOnes(t *testing.T) {
 	picker := KeyLine{Groups: [][]Key{{{Key: "↑↓", Does: "preview"}, {Key: "enter", Does: "set"}, {Key: "esc", Does: "put back"}}}, Lead: 3}
 	if got, want := lastRow(keyed(52, picker)), "↑↓ preview  enter set  esc put back"; got != want {

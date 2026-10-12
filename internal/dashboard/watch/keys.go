@@ -59,74 +59,106 @@ func (m Model) overviewKey(key string) (Model, bool) {
 }
 
 // keyListing is a key of the page's own, as the key line and help list it:
-// the key, its word, whether it works where it is, and whether the key line
-// leaves it to help.
+// the key, worded as they list it; whether it works where it is; whether the
+// key line leaves it to help; and whether the key line sets it with p, ? and
+// q, rather than among the page's own.
 type keyListing struct {
-	key, word      string
-	works, helpful bool
+	dashboard.Key
+	works, helpful, withEnds bool
 }
 
-// listings are the page's own keys, as m stands, in the design's order: w,
-// in Runway, switching between the day and the week, its word saying which
-// it shows; and j and k, PgUp and PgDn, and the wheel, where the view
-// scrolls, which the key line leaves to help.
+// listings are the page's own keys, as m stands, in the design's order: on
+// the Overview, its toggles, each word faint where its section is hidden; b,
+// its word saying how the windows are grouped; and with more than one
+// account, ↑↓, which the key line sets with p, ? and q; w, in Runway,
+// switching between the day and the week, its word saying which it shows;
+// and j and k, PgUp and PgDn, and the wheel, where the view scrolls, which
+// the key line leaves to help.
 func (m Model) listings() []keyListing {
-	scrolls := m.scrolling().Most > 0
-	return []keyListing{
-		{key: "w", word: "window: " + m.span.Name(), works: m.view == dashboard.Runway},
-		{key: "j k", word: "scroll", works: scrolls, helpful: true},
-		{key: "PgUp PgDn", word: "page", works: scrolls, helpful: true},
-		{key: "wheel", word: "scroll", works: scrolls, helpful: true},
+	overview, scrolls := m.view == dashboard.Overview, m.scrolling().Most > 0
+	var listed []keyListing
+	for _, s := range dashboard.EverySection() {
+		listed = append(listed, keyListing{Key: dashboard.Key{Key: s.Key(), Does: s.Word(), Hidden: !m.sections.Has(s)}, works: overview})
 	}
+	return append(listed,
+		keyListing{Key: dashboard.Key{Key: "b", Does: "by", State: string(layoutOf(m.by))}, works: overview},
+		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && len(m.doc.Accounts) > 1, withEnds: true},
+		keyListing{Key: dashboard.Key{Key: "w", Does: "window: " + m.span.Name()}, works: m.view == dashboard.Runway},
+		keyListing{Key: dashboard.Key{Key: "j k", Does: "scroll"}, works: scrolls, helpful: true},
+		keyListing{Key: dashboard.Key{Key: "PgUp PgDn", Does: "page"}, works: scrolls, helpful: true},
+		keyListing{Key: dashboard.Key{Key: "wheel", Does: "scroll"}, works: scrolls, helpful: true},
+	)
 }
 
 // keyLine is the key line as m stands at now: while the theme picker is
 // open, its keys alone, then q quit, a phone's line as a wide one; else tab
 // views, then the page's own keys that work, those it leaves to help aside,
-// then p pin where a pin can be set, and ? help and q quit last, a phone's
-// line keeping the page's own keys between them; and the note a key left in
-// their place, while that's news.
+// then p pin where a pin can be set, and ? help and q quit last; and the
+// note a key left in their place, while that's news. Most pages set p pin
+// apart, a phone's line keeping the page's own keys between tab views and ?
+// and q quit; the Overview sets ↑↓ focus, p pin, ? help and q quit as a
+// group of their own, overviewApart after its toggles, which a phone's line
+// leaves to help.
 func (m Model) keyLine(now time.Time) dashboard.KeyLine {
 	if m.picker.open {
 		return dashboard.KeyLine{Groups: [][]dashboard.Key{m.picker.keys(), {quit}}, Lead: keysAfter, Note: m.noted(now)}
 	}
-	l := dashboard.KeyLine{Lead: 3, PhoneHelp: "keys", Note: m.noted(now)}
-	if m.view == dashboard.Overview {
-		l.Lead, l.PhoneHelp = 5, "keys and toggles"
-	}
-	l.Groups = [][]dashboard.Key{{{Key: "tab", Does: "views"}}}
-	var page []dashboard.Key
+	var page, ends []dashboard.Key
 	for _, k := range m.listings() {
-		if k.works && !k.helpful {
-			page = append(page, dashboard.Key{Key: k.key, Does: k.word})
+		switch {
+		case !k.works || k.helpful:
+		case k.withEnds:
+			ends = append(ends, k.Key)
+		default:
+			page = append(page, k.Key)
 		}
 	}
+	pin, pins := m.pinKey()
+	l := dashboard.KeyLine{Groups: [][]dashboard.Key{{tabViews}}, Lead: 3, PhoneHelp: "keys", Note: m.noted(now)}
 	if len(page) > 0 {
-		l.Groups, l.Phone = append(l.Groups, page), page
+		l.Groups = append(l.Groups, page)
 	}
-	if pin, ok := m.pinKey(); ok {
+	if m.view == dashboard.Overview {
+		if pins {
+			ends = append(ends, pin)
+		}
+		l.Lead, l.After, l.PhoneHelp = overviewApart, overviewApart, "keys and toggles"
+		l.Groups = append(l.Groups, append(ends, helpKey, quit))
+		return l
+	}
+	l.Phone = page
+	if pins {
 		l.Groups = append(l.Groups, []dashboard.Key{pin})
 	}
-	l.Groups = append(l.Groups, []dashboard.Key{{Key: "?", Does: "help"}, quit})
+	l.Groups = append(l.Groups, []dashboard.Key{helpKey, quit})
 	return l
 }
 
-// quit is q, which quits, as the key line and help list it.
-var quit = dashboard.Key{Key: "q", Does: "quit"}
+// tabViews, helpKey and quit are tab, ? and q, which show the next tab, open
+// the page's help and quit, as the key line and help list them.
+var (
+	tabViews = dashboard.Key{Key: "tab", Does: "views"}
+	helpKey  = dashboard.Key{Key: "?", Does: "help"}
+	quit     = dashboard.Key{Key: "q", Does: "quit"}
+)
 
 // keysAfter is how many blank cells the key line sets a group of keys apart
-// from the next by.
-const keysAfter = 4
+// from the next by; and overviewApart how many the Overview's sets each of
+// its groups apart by, tab views among them.
+const (
+	keysAfter     = 4
+	overviewApart = 5
+)
 
 // helpKeys are the keys help lists, as m stands, worded as the key line
 // words them: tab; every key of the page's own that works, those the key
 // line leaves to help among them; p, where a pin can be set; t, in colour;
 // and R, ? and q.
 func (m Model) helpKeys() []dashboard.Key {
-	keys := []dashboard.Key{{Key: "tab", Does: "views"}}
+	keys := []dashboard.Key{tabViews}
 	for _, k := range m.listings() {
 		if k.works {
-			keys = append(keys, dashboard.Key{Key: k.key, Does: k.word})
+			keys = append(keys, k.Key)
 		}
 	}
 	if pin, ok := m.pinKey(); ok {
@@ -135,5 +167,5 @@ func (m Model) helpKeys() []dashboard.Key {
 	if m.coloured() {
 		keys = append(keys, dashboard.Key{Key: "t", Does: "themes"})
 	}
-	return append(keys, dashboard.Key{Key: "R", Does: "refresh"}, dashboard.Key{Key: "?", Does: "help"}, quit)
+	return append(keys, dashboard.Key{Key: "R", Does: "refresh"}, helpKey, quit)
 }
