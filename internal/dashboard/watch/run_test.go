@@ -86,6 +86,26 @@ func TestABackgroundNeverSetIsLeftAlone(t *testing.T) {
 	}
 }
 
+func TestTheMouseMovingOrLetGoNeverReachesTheModel(t *testing.T) {
+	m := New(t.Context(), noColourConfig())
+	tests := []struct {
+		name   string
+		msg    tea.Msg
+		heeded bool
+	}{
+		{name: "a drag, a cell on", msg: tea.MouseMotionMsg{X: 4, Y: 7, Button: tea.MouseLeft}},
+		{name: "a button let go", msg: tea.MouseReleaseMsg{X: 4, Y: 7, Button: tea.MouseLeft}},
+		{name: "a click", msg: tea.MouseClickMsg{X: 4, Y: 7, Button: tea.MouseLeft}, heeded: true},
+		{name: "the wheel", msg: tea.MouseWheelMsg{X: 4, Y: 7, Button: tea.MouseWheelDown}, heeded: true},
+		{name: "a key", msg: tea.KeyPressMsg{Code: 'j', Text: "j"}, heeded: true},
+	}
+	for _, tt := range tests {
+		if got := heeded(m, tt.msg); (got != nil) != tt.heeded || tt.heeded && got != tt.msg {
+			t.Errorf("%s reaches the model as %v; want it to reach it %v", tt.name, got, tt.heeded)
+		}
+	}
+}
+
 // watchUntil runs a watch of cfg on a terminal that answers its question
 // about its background with answer, and once the watch has its answer, or
 // has given up on one, types key, which the watch's filter turns into as,

@@ -51,7 +51,7 @@ func (m Model) keepView() {
 	if m.cfg.Prefs == nil {
 		return
 	}
-	if err := m.cfg.Prefs.Update(func(p *theme.Prefs) { p.View = string(m.view) }); err != nil {
+	if err := m.cfg.Prefs.Update(func(p *theme.Prefs) { p.Tab = string(m.view) }); err != nil {
 		logger.Warn("couldn't keep the view shown", "view", m.view, "error", err)
 	}
 }
