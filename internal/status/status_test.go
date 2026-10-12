@@ -323,14 +323,39 @@ func TestAnAccountAsItStands(t *testing.T) {
 					got.Windows, got.Lapsed, got.AtReserve, tt.want, tt.wantLapsed, tt.wantAtReserve)
 			}
 			for _, w := range got.Windows {
-				if got.HasLapsed(w) != slices.Contains(tt.wantLapsed, w.Key) {
-					t.Errorf("HasLapsed(%s) = %v, want %v", w.Key, got.HasLapsed(w), !got.HasLapsed(w))
+				if got.HasLapsed(w, now, policy) != slices.Contains(tt.wantLapsed, w.Key) {
+					t.Errorf("HasLapsed(%s) = %v, want %v", w.Key, got.HasLapsed(w, now, policy), !got.HasLapsed(w, now, policy))
 				}
 			}
 			if !slices.Equal(read, tt.read) {
 				t.Errorf("the account's windows as read became %+v, want them as they were", read)
 			}
 		})
+	}
+}
+
+// A window lapses on the clock: read running, the session has lapsed on the
+// tick after it resets, before it's read again, though nothing noted it; a
+// week reset by then hasn't, as no request need start it.
+func TestAWindowHasLapsedAtNowThoughItWasReadRunning(t *testing.T) {
+	read := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: read.Add(time.Hour)}
+	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.3, ResetsAt: read.Add(time.Hour)}
+	a := status.Account{ID: "work", TokenSet: true, FetchedAt: read, Windows: []quota.Window{session, week}}.AsOf(policy, read)
+	tests := []struct {
+		name string
+		now  time.Time
+		w    quota.Window
+		want bool
+	}{
+		{name: "the session, the tick before it resets", now: session.ResetsAt.Add(-time.Second), w: session},
+		{name: "the session, the tick after it resets", now: session.ResetsAt.Add(time.Second), w: session, want: true},
+		{name: "the week, the tick after it resets", now: week.ResetsAt.Add(time.Second), w: week},
+	}
+	for _, tt := range tests {
+		if got := a.HasLapsed(tt.w, tt.now, policy); got != tt.want {
+			t.Errorf("%s: HasLapsed() = %t, want %t", tt.name, got, tt.want)
+		}
 	}
 }
 

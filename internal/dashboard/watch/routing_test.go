@@ -385,7 +385,7 @@ func TestAPinNamingAnAccountWithoutATokenShowsItPickedAndIsSentWithoutItOnceChan
 		{name: "another picked, sent without it", pin: []string{"personal", "side"}, keys: "1 enter", wantOrders: []string{"pin work,side"}},
 		{name: "m ticked, sent without it", pin: []string{"personal", "side"}, keys: "m enter", wantOrders: []string{"move side"}},
 		{name: "its number clearing it", pin: []string{"personal", "side"}, keys: "2 enter", wantOrders: []string{"pin side"}},
-		{name: "alone, m ticked, which sends auto", pin: []string{"personal"}, keys: "m enter", wantOrders: []string{"unpin"}},
+		{name: "alone, m ticked, which sends nothing", pin: []string{"personal"}, keys: "m enter"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

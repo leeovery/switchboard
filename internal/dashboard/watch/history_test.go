@@ -188,8 +188,28 @@ func TestTheChartsDrawNoReadingTheRoutersHistoryCoversAlready(t *testing.T) {
 		{At: sessionStart.Add(10 * time.Minute).UTC(), Utilization: 0.2},
 		{At: sessionStart.Add(40 * time.Minute), Utilization: 0.3},
 	}
-	if got := h.drawn(doc)[ref].Readings; !slices.EqualFunc(got, want, sameReading) {
+	if got := h.drawn(doc, start, policy)[ref].Readings; !slices.EqualFunc(got, want, sameReading) {
 		t.Errorf("the trail's readings are %+v, want %+v: in order, none from before the session, nor the router's last", got, want)
+	}
+}
+
+// The charts draw the windows running at now: a session read running, on the
+// tick after it resets, before it's read again, has lapsed, and draws no
+// trail, while its week, still running, does.
+func TestTheChartsDrawNoSessionThatHasLapsedSinceItWasRead(t *testing.T) {
+	sessionStart := start.Add(-time.Hour)
+	h := history{router: map[string]router.History{
+		"5h": historyOf("work", sessionStart, 0.1, 0.2),
+		"7d": historyOf("work", sessionStart, 0.4, 0.5),
+	}}
+	doc := document(account("work", "Work", session(0.2, 4*time.Hour), week(0.5)))
+
+	drawn := h.drawn(doc, start.Add(4*time.Hour+time.Second), policy)
+	if trail, ok := drawn[dashboard.Ref{Account: "work", Window: "5h"}]; ok {
+		t.Errorf("work's session draws %+v, want no trail, as it has lapsed", trail)
+	}
+	if _, ok := drawn[dashboard.Ref{Account: "work", Window: "7d"}]; !ok {
+		t.Error("work's week draws no trail, want the router's, as it runs")
 	}
 }
 

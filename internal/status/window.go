@@ -52,25 +52,24 @@ type WindowState struct {
 }
 
 // WindowStates are how the windows of an account of a document stand at a
-// moment, what holds it back at its limit, and which windows its cap holds,
-// worked out once for them all.
+// moment, as a policy judges them, what holds it back at its limit, and which
+// windows its cap holds, worked out once for them all.
 type WindowStates struct {
 	doc     Document
 	account Account
 	now     time.Time
+	policy  score.Policy
 	hold    Hold
 	held    bool
 	capped  []string
 }
 
-// WindowStatesOf are how doc's account a's windows stand at now, as usage's
-// words say them. Their projections go from when doc was built, as RunsOut's
-// does, and so do the resets their allowances run to.
-func (d Document) WindowStatesOf(a Account, now time.Time) WindowStates {
-	// Which windows every model shares, which a policy says, has no say in
-	// whether a hold holds a window, or when it lifts off it.
-	hold, held := a.Held(now, score.Policy{})
-	s := WindowStates{doc: d, account: a, now: now, hold: hold, held: held}
+// WindowStatesOf are how doc's account a's windows stand at now, as policy
+// judges them, as usage's words say them. Their projections go from when doc
+// was built, as RunsOut's does, and so do the resets their allowances run to.
+func (d Document) WindowStatesOf(a Account, now time.Time, policy score.Policy) WindowStates {
+	hold, held := a.Held(now, policy)
+	s := WindowStates{doc: d, account: a, now: now, policy: policy, hold: hold, held: held}
 	if d.ReserveHolds(a) {
 		s.capped = a.ReachedReserve(now)
 	}
@@ -109,7 +108,7 @@ func (s WindowStates) standing(key string, w quota.Window) (WindowKind, time.Tim
 	if out, ok := d.RunsOut(a, w, now); ok {
 		return WindowRunsOut, out.At
 	}
-	if a.HasLapsed(w) {
+	if a.HasLapsed(w, now, s.policy) {
 		return WindowNotStarted, time.Time{}
 	}
 	return WindowOpen, score.Current(w, d.readAt(now)).ResetsAt

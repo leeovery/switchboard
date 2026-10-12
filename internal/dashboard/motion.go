@@ -78,7 +78,7 @@ func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
 func (f Frame) overviewFilled(doc status.Document, now time.Time) map[Ref]float64 {
 	filled := make(map[Ref]float64)
 	for _, a := range doc.Accounts {
-		states := doc.WindowStatesOf(a, now)
+		states := doc.WindowStatesOf(a, now, f.Policy)
 		for _, w := range a.Windows {
 			if st := states.Of(w.Key); !drawsEmpty(st) {
 				filled[Ref{Account: a.ID, Window: w.Key}] = st.Used

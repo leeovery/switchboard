@@ -143,20 +143,21 @@ func (m Model) readFiled(doc status.Document, now time.Time) (Model, tea.Cmd) {
 	}
 	m.history.asked++
 	m.history.filedSince = true
-	asked, files := m.history.asked, m.cfg.Readings
+	asked, files, policy := m.history.asked, m.cfg.Readings, m.cfg.Policy
 	return m, func() tea.Msg {
-		return filedMsg{asked: asked, got: filedOf(files, doc, now)}
+		return filedMsg{asked: asked, got: filedOf(files, doc, now, policy)}
 	}
 }
 
 // filedOf are the readings the readings history's files hold of doc's
 // windows, by account and window, read as the history verb reads them, from
-// the day the earliest of those running at now started.
-func filedOf(files views.Readings, doc status.Document, now time.Time) map[dashboard.Ref][]score.Reading {
+// the day the earliest of those running at now, as policy judges them,
+// started.
+func filedOf(files views.Readings, doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref][]score.Reading {
 	from := now
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
-			if start, _, ok := w.Span(); ok && !a.HasLapsed(w) {
+			if start, _, ok := w.Span(); ok && !a.HasLapsed(w, now, policy) {
 				from = score.Earlier(from, start)
 			}
 		}
@@ -203,10 +204,11 @@ func (h history) answered(msg historyMsg) history {
 	return h
 }
 
-// saw takes in the readings of doc's windows: each window's use as read,
-// when its account was read, one reading the same use again carrying the
-// last on to then. A window's readings from before it last started go.
-func (h history) saw(doc status.Document) history {
+// saw takes in the readings of doc's windows running at now, as policy
+// judges them: each window's use as read, when its account was read, one
+// reading the same use again carrying the last on to then. A window's
+// readings from before it last started go.
+func (h history) saw(doc status.Document, now time.Time, policy score.Policy) history {
 	seen := maps.Clone(h.seen)
 	if seen == nil {
 		seen = make(map[dashboard.Ref][]score.Reading)
@@ -214,7 +216,7 @@ func (h history) saw(doc status.Document) history {
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
 			start, _, ok := w.Span()
-			if !ok || a.HasLapsed(w) || a.FetchedAt.IsZero() {
+			if !ok || a.HasLapsed(w, now, policy) || a.FetchedAt.IsZero() {
 				continue
 			}
 			ref := dashboard.Ref{Account: a.ID, Window: w.Key}
@@ -244,16 +246,16 @@ func record(readings []score.Reading, r score.Reading) []score.Reading {
 }
 
 // drawn is the history the charts draw of doc's windows, each running now,
-// its readings in order: those the router gave, from when it started, or
-// where it gave none, those the readings history's files held; then those
-// the watch has seen after the last of them; or those the watch has seen
-// alone, where neither holds any.
-func (h history) drawn(doc status.Document) dashboard.Trails {
+// as policy judges it, its readings in order: those the router gave, from
+// when it started, or where it gave none, those the readings history's files
+// held; then those the watch has seen after the last of them; or those the
+// watch has seen alone, where neither holds any.
+func (h history) drawn(doc status.Document, now time.Time, policy score.Policy) dashboard.Trails {
 	drawn := make(dashboard.Trails)
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
 			start, _, ok := w.Span()
-			if !ok || a.HasLapsed(w) {
+			if !ok || a.HasLapsed(w, now, policy) {
 				continue
 			}
 			ref := dashboard.Ref{Account: a.ID, Window: w.Key}

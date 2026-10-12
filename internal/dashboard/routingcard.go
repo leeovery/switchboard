@@ -119,7 +119,7 @@ type Figure struct {
 func RoutingRows(doc status.Document, sessions []status.Session, now time.Time, policy score.Policy) []RoutingRow {
 	rows := []RoutingRow{{Key: "0", Name: "auto", Open: true, Pickable: true}}
 	for i, a := range doc.Accounts {
-		states := doc.WindowStatesOf(a, now)
+		states := doc.WindowStatesOf(a, now, policy)
 		row := RoutingRow{
 			Account: a.ID, Name: name(a), Pickable: pickable(a, now, policy),
 			Session: figureOf(states, policy.Started), Week: figureOf(states, sharedWeek(policy)),

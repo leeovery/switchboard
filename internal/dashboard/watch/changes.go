@@ -68,7 +68,7 @@ func (c changes) ticked(doc status.Document, now time.Time, policy score.Policy)
 // whose words turn to out ~.
 func (c changes) found(doc status.Document, now time.Time, policy score.Policy) changes {
 	c.states = c.states.seen(statesOf(doc, now, policy), now, func(was, is state) bool { return was != is })
-	c.outs = c.outs.seen(outsOf(doc, now), now, func(was, is bool) bool { return is && !was })
+	c.outs = c.outs.seen(outsOf(doc, now, policy), now, func(was, is bool) bool { return is && !was })
 	return c
 }
 
@@ -106,12 +106,12 @@ func statesOf(doc status.Document, now time.Time, policy score.Policy) map[strin
 	return states
 }
 
-// outsOf are whether the words of each window of doc's accounts say at now
-// that it runs out, out ~…, by its account and key.
-func outsOf(doc status.Document, now time.Time) map[dashboard.Ref]bool {
+// outsOf are whether the words of each window of doc's accounts say at now,
+// as policy judges it, that it runs out, out ~…, by its account and key.
+func outsOf(doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref]bool {
 	outs := make(map[dashboard.Ref]bool)
 	for _, a := range doc.Accounts {
-		states := doc.WindowStatesOf(a, now)
+		states := doc.WindowStatesOf(a, now, policy)
 		for _, w := range a.Windows {
 			outs[dashboard.Ref{Account: a.ID, Window: w.Key}] = states.Of(w.Key).Kind == status.WindowRunsOut
 		}

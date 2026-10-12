@@ -121,16 +121,17 @@ type gauge struct {
 	cue     *float64
 }
 
-// newUsageBlock is the usage block of doc at now, its pool as policy judges
-// it then, width cells wide, drawn in look, grouped by, of the windows given.
+// newUsageBlock is the usage block of doc at now, its pool and its accounts'
+// windows as policy judges them then, width cells wide, drawn in look,
+// grouped by, of the windows given.
 func newUsageBlock(doc status.Document, now time.Time, policy score.Policy, width int, look Look, by By, windows []shownWindow) usageBlock {
 	pool := doc.PoolAt(now, policy)
-	return blockOf(doc, now, pool, width, look, by, windows, namesOf(doc, pool))
+	return blockOf(doc, now, policy, pool, width, look, by, windows, namesOf(doc, pool))
 }
 
 // blockOf is the usage block of doc at now, as newUsageBlock has it, of the
 // pool given, its accounts named as names has them.
-func blockOf(doc status.Document, now time.Time, pool status.Pool, width int, look Look, by By, windows []shownWindow, names []accountName) usageBlock {
+func blockOf(doc status.Document, now time.Time, policy score.Policy, pool status.Pool, width int, look Look, by By, windows []shownWindow, names []accountName) usageBlock {
 	b := usageBlock{width: width, look: look, by: by, windows: windows}
 	b.names = nameColumn(names, width)
 	for i, a := range doc.Accounts {
@@ -138,7 +139,7 @@ func blockOf(doc status.Document, now time.Time, pool status.Pool, width int, lo
 		if a.Reserve > 0 {
 			row.cap = name(a) + " at " + status.Percent(1-a.Reserve)
 		}
-		states := doc.WindowStatesOf(a, now)
+		states := doc.WindowStatesOf(a, now, policy)
 		for _, w := range b.windows {
 			row.gauges = append(row.gauges, accountGauge(a, w.key, states.Of(w.key), now))
 		}
