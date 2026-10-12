@@ -6,8 +6,8 @@ found and left, as not worth holding the stage for, gathered here.
 ## Weeks' headline for a set short every week
 
 Where now is short on 4 or more of 7 weeks and one more account wouldn't halve that (short on 7 of
-7, one more 4 of 7), the design's rules fall to their else, "about right": plainly wrong for a set
-short every week. A headline for more than one too few needs its owner's words.
+7, one more 4 of 7), the design's rules fell to their else, "about right": plainly wrong for a set
+short every week. Settled by its owner on 12 October 2026: `<n> is too few`, in the design's Weeks.
 
 ## Cleanups left
 

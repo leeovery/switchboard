@@ -2073,7 +2073,9 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
 - **The capacity verdict** leads, rows 6 to 8:
   - The headline, bold: `<n> is one more than you need`, in `state.positive`, where one fewer would
     be short on no more weeks than now, as `ten is one more than you need`; `<n> is one too few`, in
-    `accent.attention`, where now is short on 4 or more of the 7 and one more would halve that; else
+    `accent.attention`, where now is short on 4 or more of the 7 and one more would halve that;
+    `<n> is too few`, in `accent.attention`, where now is short on 4 or more of the 7 and one more
+    wouldn't halve that, the row under it saying how short one more would still be; else
     `<n> is about right`, in `state.positive`, as `three is about right`. The count is a word to
     ten, then figures (settled in the plan).
   - Then `as now: ` and how many of the last 7 whole weeks were short, and who was short each time,
@@ -5808,7 +5810,7 @@ why.
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
 | Three things the router keeps that grow without bound, each only when something rare happens | open: small fixes, any time; a restart's request stream ending before its last events fixed on 11 October 2026 | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
 | Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
-| Stage 3's loose ends: Weeks' headline for a set short every week, and the cleanups its reviews left | open: the cleanups any time, the headline to settle with its owner; the two router tests a loaded machine failed steadied on 11 October 2026, one by a fix to the request stream's end | [stage-3-loose-ends](../ideas/2026-10-11--stage-3-loose-ends.md) |
+| Stage 3's loose ends: Weeks' headline for a set short every week, and the cleanups its reviews left | open: the cleanups any time; the headline settled by its owner on 12 October 2026; the two router tests a loaded machine failed steadied on 11 October 2026, one by a fix to the request stream's end | [stage-3-loose-ends](../ideas/2026-10-11--stage-3-loose-ends.md) |
 | Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
 | Worth past what it's counted in: a config's price, or a period's sum, too large to hold | open: a small fix, its bound to settle | [worth-range](../ideas/2026-10-09--worth-range.md) |
 | What a routed session's environment carries to a `claude` switchboard steps aside for, as one a script points at another gateway | open: a small fix, any time | [stepping-aside](../ideas/2026-10-09--stepping-aside.md) |
