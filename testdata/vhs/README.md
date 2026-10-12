@@ -318,6 +318,12 @@ the worlds give otherwise than the frames), which the dashboard draws as its wor
   at 87 to 89, of work on row 15, personal on 16 and side on 17, in `routing-auto-160`,
   `routing-two-160`, `routing-move-160` and `routing-limit-160`, whose personal at its limit,
   `100%`, the frame colours as the design does.
+- **The cursor's row, lit,** which the frames draw on the canvas, where the design has the row the
+  cursor's on lit on `bg.selection` always, as the Log's `f` panel lights its row (Routing by hand,
+  "Its keys"; the owner's call, 12 October 2026): columns 42 to 119, from a cell before the card's
+  content to a cell after it, its glyphs, colours and bold kept, of row 14, `■ 0 auto`, in
+  `routing-auto-160`; row 17, `■ 3 side`, in `routing-two-160` and `routing-limit-160`; and row 16,
+  `■ 2 personal`, in `routing-move-160`.
 - **Personal's week in `routing-limit-160`,** row 16, columns 87 to 89, drawn `64%`, where the world
   reads it at 66%, as the Overview's frames draw it (see What the worlds give otherwise than the
   frames): the card draws `66%`.

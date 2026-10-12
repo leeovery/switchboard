@@ -1676,8 +1676,9 @@ row and the key line. The planner:
 3. **While anything is folded, nothing grows,** and the rows over stay empty at the foot.
 4. **Rows to spare,** while nothing is folded, go in turn: to GRAPHS, a row at a time to 19; to
    USAGE's big bars, if they fit; to ROUTING's two rows of trace, if they fit; then to COMING UP and
-   LATELY, a line at a time to 12. GRAPHS comes before the big bars, so that a taller terminal never
-   shrinks anything.
+   LATELY, a line at a time to 12. GRAPHS comes before the big bars, so that GRAPHS never shrinks as
+   they come; at a few heights, one row more brings the big bars or ROUTING's trace in, and ROUTING,
+   or COMING UP and LATELY, give up rows to make room.
 5. **Past every most,** the rest is empty at the foot, the key line on the last row.
 6. **The layout changes only on a key or a resize,** never on its own. SESSIONS keeps the rows it
    was given: more sessions than fit show as many as fit, the last row saying `+2 more`
@@ -3607,7 +3608,8 @@ routing.
    On a session's card, `pick` for `tick`, and no `m`; the numbers named are the accounts there are,
    `0-3` for three, and `0-9` past nine.
 
-**Its keys,** while it's open, alone: `↑` and `↓` move between its rows; `space` picks the row it's
+**Its keys,** while it's open, alone: `↑` and `↓` move between its rows, the row the cursor's on
+lit on `bg.selection` always, as the Log's `f` panel lights its row; `space` picks the row it's
 on; a number picks its row directly, `0` auto; `m` ticks or clears moving the sessions running, on
 new sessions' card; `enter` applies and closes it; `esc` closes it and changes nothing. A number
 past the accounts there are does nothing. Past nine accounts, an account is picked with `↑↓` and
@@ -3866,8 +3868,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
 - **Fewer colours:** the frame is drawn in the theme's colours and brought down to what the
   terminal shows by `colorprofile`. With `NO_COLOR` set, there's no canvas and no colour: state is
   told by its glyphs and bold, a bar's fill is drawn in `█` and the eighth blocks, as `usage`, the
-  printout says, a day's shade by a glyph's density, as the `terminal` theme draws it, and `t` does
-  nothing.
+  printout says, a day's shade by a glyph's density, as the `terminal` theme draws it, a row on
+  `bg.selection` in reverse video, as the `terminal` theme draws it, and `t` does nothing.
 
 ### Live updates
 

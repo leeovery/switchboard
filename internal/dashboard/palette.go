@@ -13,8 +13,8 @@ import (
 // Look is how a frame is drawn: in a theme's colours, with its blends worked
 // out against the colour beneath them, and its canvas painted on every cell
 // where the dashboard fills the screen; or, as NO_COLOR asks, without colour,
-// state told by its glyphs and bold. The zero Look draws text alone, without
-// escapes.
+// state told by its glyphs and bold, and a selected row in reverse video. The
+// zero Look draws text alone, without escapes.
 type Look struct {
 	theme theme.Theme
 	// ground is what blends are worked out against: the canvas the look
@@ -43,7 +43,8 @@ func Print(t theme.Theme, background color.Color) Look {
 	return Look{theme: t, ground: background, styled: true, coloured: true}
 }
 
-// NoColour is the look NO_COLOR asks for: no canvas and no colour, bold alone.
+// NoColour is the look NO_COLOR asks for: no canvas and no colour, bold and a
+// selected row's reverse video alone.
 func NoColour() Look {
 	return Look{styled: true}
 }
@@ -198,11 +199,21 @@ func (l Look) faint(k ink) bool {
 }
 
 // reversed reports whether the look draws the ink's surface by swapping the
-// terminal's own foreground and background, as its theme draws the
-// surface's token: until it's faded halfway, as a look that blends nothing
-// shows a surface, and never behind a card.
+// terminal's own foreground and background, as it reverses the surface's
+// token: until it's faded halfway, as a look that blends nothing shows a
+// surface, and never behind a card.
 func (l Look) reversed(k ink) bool {
-	return l.coloured && !k.on.ramp && l.theme.Reversed(k.on.token) && k.on.fade < 0.5 && !k.behind
+	return !k.on.ramp && l.reverses(k.on.token) && k.on.fade < 0.5 && !k.behind
+}
+
+// reverses reports whether the look draws the surface tok by swapping the
+// terminal's own foreground and background: as its theme draws it, or,
+// without colour, a selected row's, as the terminal theme draws it.
+func (l Look) reverses(tok theme.Token) bool {
+	if !l.coloured {
+		return l.styled && tok == theme.BgSelection
+	}
+	return l.theme.Reversed(tok)
 }
 
 // colour is the ink's colour in the look, glowing and faded as the ink says,
