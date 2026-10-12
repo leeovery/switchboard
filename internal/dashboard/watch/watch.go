@@ -518,7 +518,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), Trails: m.trails, Eased: m.eased(now),
+		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.eased(now),
 		Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus:  m.focus,
@@ -800,8 +800,9 @@ func (m Model) framed(msg frameMsg) Model {
 // nextFrame is how long after now what moves on screen next changes, and
 // whether anything does: nothing while a card is open, as the page behind it
 // stands still; else frameEvery while anything moves frame by frame, a bar
-// easing to its reading, the highlight on an event, or on an account's
-// state, fading back, or what travels the cords, as Motion says; else as
+// easing to its reading, the highlight on an event, or the cue on an
+// account's state or a window's words, fading back, or what travels the
+// cords, as Motion says; else as
 // soon as the shimmer down a cord steps on, on the clock's steps of it, or a
 // move yet to show re-patches Sessions' calls. Sessions' plain list is drawn
 // again as the stream tells of more, and as the clock ticks.
@@ -810,7 +811,7 @@ func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
 		return 0, false
 	}
 	moving := m.frame(now).Motion(m.doc, now)
-	if moving.Smooth || m.ease.moves(m.doc) && !m.ease.done(now) || m.news.faded(now) != nil || m.changes.faded(now) != nil {
+	if moving.Smooth || m.ease.moves(m.doc) && !m.ease.done(now) || m.news.faded(now) != nil || m.changes.cueing(now) {
 		return frameEvery, true
 	}
 	var next []time.Duration

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -235,7 +236,7 @@ func TestUSAGEScrollsAnAccountsRowsAtATimeAPageBeingThoseBetweenItsScrollLines(t
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(tt.width, 60)
 			f.By = tt.by
-			if got := f.overviewBlock(manyRead(tt.n), now).scrolling(tt.rows); got != tt.want {
+			if got := f.usageSection(manyRead(tt.n), now).scrolling(bounds{width: tt.width, rows: tt.rows}); got != tt.want {
 				t.Errorf("in %d rows, %d accounts scroll %+v, want %+v", tt.rows, tt.n, got, tt.want)
 			}
 		})
@@ -265,40 +266,34 @@ func TestEachAccountsRowsInUSAGEMoveTheFocusThere(t *testing.T) {
 		name   string
 		width  int
 		by     By
-		shown  Sections
 		doc    status.Document
 		scroll int
 		rows   int
-		across int
 		want   []Target
 	}{
 		{
-			name: "the matrix: a row an account, none for the pool", width: 160, doc: threeRouted(), rows: 11, across: 160,
+			name: "the matrix: a row an account, none for the pool", width: 160, doc: threeRouted(), rows: 11,
 			want: slices.Concat(rowsOf("work", 2), rowsOf("personal", 4), rowsOf("side", 6)),
 		},
 		{
-			name: "stacked: a row an account in each window", width: 120, doc: threeRouted(), rows: 25, across: 120,
+			name: "stacked: a row an account in each window", width: 120, doc: threeRouted(), rows: 25,
 			want: slices.Concat(rowsOf("work", 2), rowsOf("personal", 4), rowsOf("side", 6), rowsOf("work", 13), rowsOf("personal", 15), rowsOf("side", 17)),
 		},
 		{
-			name: "by account: its block's rows, to where ROUTING's start beside them", width: 160, by: ByAccount, doc: threeRouted(), rows: 25, across: 104,
+			name: "by account: its block's rows, across ROUTING's beside them", width: 160, by: ByAccount, doc: threeRouted(), rows: 25,
 			want: slices.Concat(rowsOf("work", 0, 1, 2), rowsOf("personal", 5, 6, 7), rowsOf("side", 10, 11, 12)),
 		},
 		{
-			name: "by account, ROUTING hidden: across the frame", width: 160, by: ByAccount, shown: Sections{}.Toggled(SectionRouting), doc: threeRouted(), rows: 25, across: 160,
-			want: slices.Concat(rowsOf("work", 0, 1, 2), rowsOf("personal", 5, 6, 7), rowsOf("side", 10, 11, 12)),
-		},
-		{
-			name: "scrolled: those shown alone", width: 160, doc: manyRead(10), scroll: 3, rows: 15, across: 160,
+			name: "scrolled: those shown alone", width: 160, doc: manyRead(10), scroll: 3, rows: 15,
 			want: slices.Concat(rowsOf("a4", 3), rowsOf("a5", 5), rowsOf("a6", 7), rowsOf("a7", 9)),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(tt.width, 60)
-			f.By, f.Sections, f.Scroll = tt.by, tt.shown, tt.scroll
+			f.By, f.Scroll = tt.by, tt.scroll
 			for i := range tt.want {
-				tt.want[i].Width = tt.across
+				tt.want[i].Width = tt.width
 			}
 			if got := f.usageSection(tt.doc, now).targets(bounds{y: 6, width: tt.width, rows: tt.rows}); !slices.Equal(got, tt.want) {
 				t.Errorf("USAGE's targets are\n%+v\nwant\n%+v", got, tt.want)
@@ -504,33 +499,51 @@ func TestUSAGEsBarsFillAsFarAsTheyveEasedTheirPercentagesAsRead(t *testing.T) {
 	}
 }
 
-func TestAWindowsWordsTurningToOutAreCuedWhileItsAccountsChangeIs(t *testing.T) {
-	f := frameOf(160, 60)
-	f.Changed = map[string]float64{"work": 0.25, "side": 0.5}
-	_, c := usageBody(f, threeRouted(), now, 11)
-	cue := hue{token: theme.BgAttention, fade: 0.25}
+func TestAWindowsWordsAreCuedWhileTheirTurningToOutIs(t *testing.T) {
+	cued := func(look Look) *canvas {
+		f := frameOf(160, 60)
+		f.Look = look
+		f.TurnedOut = map[Ref]float64{{Account: "work", Window: "5h"}: 0.25, {Account: "side", Window: "5h"}: 0.5}
+		f.Changed = map[string]float64{"personal": 0.5}
+		_, c := usageBody(f, threeRouted(), now, 11)
+		return c
+	}
 	tests := []struct {
 		name     string
 		x, y, to int
 		cued     bool
 	}{
-		{name: "work's 5-hour, out ~14:42", x: 63, y: 2, to: 73, cued: true},
+		{name: "work's 5-hour, turned out ~14:42", x: 63, y: 2, to: 73, cued: true},
 		{name: "work's week, its allowance", x: 137, y: 2, to: 159},
-		{name: "personal's week, out, its account unchanged", x: 137, y: 4, to: 151},
-		{name: "side's 5-hour, changed, but not out", x: 63, y: 6, to: 79},
+		{name: "personal's week, out, but not turned out, its account's state changed", x: 137, y: 4, to: 151},
+		{name: "side's 5-hour, seen to turn out, but not out now", x: 63, y: 6, to: 79},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	t.Run("on bg.attention", func(t *testing.T) {
+		c, cue := cued(Screen(builtin(t, "nord"))), hue{token: theme.BgAttention, fade: 0.25}
+		for _, tt := range tests {
 			for x := tt.x; x < tt.to; x++ {
 				if got := c.at(x, tt.y).ink.on; (got == cue) != tt.cued || (!tt.cued && got != (hue{})) {
-					t.Errorf("cell %d of row %d is on %+v, cued %v", x, tt.y, got, tt.cued)
+					t.Errorf("%s: cell %d of row %d is on %+v, cued %v", tt.name, x, tt.y, got, tt.cued)
+				}
+				if c.at(x, tt.y).ink.bold {
+					t.Errorf("%s: cell %d of row %d is bold, want it bold only where the look has no colour", tt.name, x, tt.y)
 				}
 			}
 			if before := c.at(tt.x-1, tt.y).ink.on; before != (hue{}) {
-				t.Errorf("the cell before the words is on %+v, want the canvas", before)
+				t.Errorf("%s: the cell before the words is on %+v, want the canvas", tt.name, before)
 			}
-		})
-	}
+		}
+	})
+	t.Run("bold where the look has no colour", func(t *testing.T) {
+		c := cued(NoColour())
+		for _, tt := range tests {
+			for x := tt.x; x < tt.to; x++ {
+				if got := c.at(x, tt.y).ink.bold; got != tt.cued {
+					t.Errorf("%s: cell %d of row %d is bold %v, want %v", tt.name, x, tt.y, got, tt.cued)
+				}
+			}
+		}
+	})
 }
 
 func TestByAccountUSAGEsBarsLeaveROUTINGItsRoomBesideThem(t *testing.T) {
@@ -559,6 +572,142 @@ func TestByAccountUSAGEsBarsLeaveROUTINGItsRoomBesideThem(t *testing.T) {
 				if got := colAt(rows[0], at, len([]rune(want))); got != want {
 					t.Errorf("work's 5-hour reads %q from column %d, want %q, its percentage a cell after its bar", got, at, want)
 				}
+			}
+		})
+	}
+}
+
+func TestUSAGELeavesROUTINGItsColumnsBesideItsBlocksWhileItShowsByAccountFrom150Columns(t *testing.T) {
+	tests := []struct {
+		name  string
+		width int
+		by    By
+		shown Sections
+		aside int
+	}{
+		{name: "by account from 150 columns: from hx", width: 160, by: ByAccount, aside: 107},
+		{name: "by window", width: 160},
+		{name: "by account under 150 columns", width: 149, by: ByAccount},
+		{name: "by account, ROUTING hidden", width: 160, by: ByAccount, shown: Sections{}.Toggled(SectionRouting)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(tt.width, 60)
+			f.By, f.Sections = tt.by, tt.shown
+			if got := f.usageSection(usageWorld(), routedAt).aside; got != tt.aside {
+				t.Errorf("USAGE leaves ROUTING the columns from %d, want %d", got, tt.aside)
+			}
+		})
+	}
+}
+
+func TestROUTINGBesideUSAGEsBlocksIsDrawnAsTheOverviewsFrameIs(t *testing.T) {
+	nord := Screen(builtin(t, "nord"))
+	f := Frame{
+		Width: 160, Height: 42, Look: nord, View: Overview, Policy: claudeLike, By: ByAccount,
+		Sections: Sections{}.Toggled(SectionGraphs).Toggled(SectionSessions),
+		Sessions: sessionsRunning(map[string]int{"personal": 2, "side": 4}),
+	}
+	frame, drawn := reference(t, "overview-by-account-160"), screenOf(t, f.Draw(usageWorld(), routedAt))
+	// The traces and their rates, as the frame's traffic isn't the world's;
+	// and work's state, which the frame draws whole to the edge, where the
+	// design cuts its words by whole clauses to end two cells short of it.
+	whole := append(spanning(107, 159, 10, 17, 24, 31), spot{row: 6, first: 132, last: 159})
+	// Row 26 is the pool's rule, which USAGE's blocks draw.
+	for _, in := range []region{{top: 4, bottom: 25, left: 107, right: 159}, {top: 27, bottom: 31, left: 107, right: 159}} {
+		heldTo(t, "overview-by-account-160", frame, drawn, in, shadeOf(nord.Canvas()), whole, nil)
+	}
+}
+
+func TestROUTINGBesideUSAGEsBlocksFollowsThemAsTheyScroll(t *testing.T) {
+	doc := manyRead(10)
+	for i := range doc.Accounts {
+		doc.Accounts[i].Sessions = i + 1
+	}
+	f := frameOf(160, 60)
+	f.By, f.Scroll = ByAccount, 2
+	x := f.overviewBlock(doc, now).routingAt()
+	rows, _ := usageBody(f, doc, now, 22)
+	beside := make([]string, len(rows))
+	for i, row := range rows {
+		beside[i] = strings.TrimRight(colAt(row, x, f.Width-x), " ")
+	}
+	want := map[int][2]string{1: {"3 a3", "3 sessions"}, 6: {"4 a4", "4 sessions"}, 11: {"5 a5", "5 sessions"}, 17: {"Σ pool", "55 sessions"}}
+	for y, w := range want {
+		if !strings.HasPrefix(strings.TrimLeft(rows[y], " "), w[0]) || beside[y+1] != w[1] {
+			t.Errorf("row %d reads %q, %q beside the row under it; want it to start %q, %q beside", y, rows[y], beside[y+1], w[0], w[1])
+		}
+	}
+}
+
+func TestROUTINGBesideBlocksOfOneWindowLeavesTheirTracesOff(t *testing.T) {
+	doc := routerDoc("a1", 0, readAccount("a1", sessionOf(0.1, time.Hour)), readAccount("a2", sessionOf(0.2, time.Hour)))
+	f := frameOf(160, 40)
+	f.By = ByAccount
+	x := f.overviewBlock(doc, now).routingAt()
+	rows, _ := usageBody(f, doc, now, 10)
+	want := map[int]string{0: "● open · new sessions come here", 1: "0 sessions", 2: "", 3: "● open", 4: "0 sessions", 6: "2 open", 7: "0 sessions"}
+	for y, w := range want {
+		if got := strings.TrimRight(colAt(rows[y], x, f.Width-x), " "); got != w {
+			t.Errorf("beside row %d reads %q, want %q", y, got, w)
+		}
+	}
+	if rule := rows[5]; strings.Trim(rule, "─") != "" {
+		t.Errorf("the pool's rule reads %q, want it whole, no trace over it", rule)
+	}
+	if key := rows[8]; strings.Contains(key, "/min") {
+		t.Errorf("the key line reads %q, want no trace over it", key)
+	}
+}
+
+func TestROUTINGBesideUSAGEDrawsNothingAndHasNoTargetsOfItsOwn(t *testing.T) {
+	f := frameOf(160, 40)
+	f.By = ByAccount
+	s := f.routingSection(threeRouted(), now)
+	body := bounds{x: 107, y: 6, width: 53, rows: 22}
+	c := newCanvas(f.Width, f.Height)
+	s.draw(c.within(body), body)
+	if drawn := strings.Join(textOf(c.rows(Look{})), ""); drawn != "" {
+		t.Errorf("ROUTING beside USAGE drew %q of its own, want nothing: USAGE draws it beside its blocks", drawn)
+	}
+	if targets := s.targets(body); targets != nil {
+		t.Errorf("ROUTING beside USAGE has targets %+v of its own, want none: USAGE's rows span it", targets)
+	}
+}
+
+// namedOn are the cells of the first row of c to name an account as given,
+// its number, label and marks, from the first.
+func namedOn(c *canvas, named string) []cell {
+	for y, row := range textOf(c.rows(Look{})) {
+		if before, _, found := strings.Cut(row, named); found {
+			x := utf8.RuneCountInString(before)
+			return c.cells[y][x : x+utf8.RuneCountInString(named)]
+		}
+	}
+	return nil
+}
+
+func TestAnAccountOutOfThePoolIsNamedFaintWhereverTheOverviewNamesIt(t *testing.T) {
+	doc, sessions, traffic := overviewWorld()
+	doc.Pin = status.Pin{Accounts: []string{"side"}, Since: routedClock(1, 14, 2)}
+	doc = doc.WorkedOut(claudeLike)
+	f := Frame{Width: 160, Height: 40, View: Overview, Policy: claudeLike, Sessions: sessions, Traffic: traffic}
+	sections := map[string]section{"ROUTING": f.routingSection(doc, routedAt), "SESSIONS": f.sessionsSection(doc, routedAt)}
+	for name, s := range sections {
+		t.Run(name, func(t *testing.T) {
+			c := newCanvas(f.Width, 12)
+			s.draw(c, bounds{width: f.Width, rows: 12})
+			out, in := namedOn(c, "2 personal ◆"), namedOn(c, "3 side ▲")
+			if out == nil || in == nil {
+				t.Fatalf("%s names personal on %v and side on %v, want both named", name, out, in)
+			}
+			for i, here := range out {
+				if here.ink.token != theme.TextFaint {
+					t.Errorf("personal, out of the pool, has cell %d of its name in %s, want text.faint", i, here.ink.token)
+				}
+			}
+			if label := in[2].ink.token; label == theme.TextFaint {
+				t.Errorf("side, in the pool, is labelled in %s, want it as USAGE names it", label)
 			}
 		})
 	}

@@ -1,11 +1,13 @@
 package watch
 
 import (
+	"cmp"
 	"maps"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -190,5 +192,99 @@ func TestStatesProbedAfterTheRouterStartAfresh(t *testing.T) {
 	}
 	if got := h.changed(); len(got) > 0 {
 		t.Errorf("probing after the router, picked out %v, want none: its states start afresh", got)
+	}
+}
+
+// workWeek is work's week, as a window's cue is keyed.
+var workWeek = dashboard.Ref{Account: "work", Window: "7d"}
+
+// runningOut is three, work's week used lately fast enough to run out ~10
+// hours on, long before it resets.
+func runningOut() []status.Account {
+	accounts := three()
+	accounts[0].Rates = []status.Rate{{Window: "7d", Rate: 0.05, Since: start.Add(-30 * time.Minute).UTC()}}
+	return accounts
+}
+
+// turnedOut are the windows whose words are picked out at now.
+func (h *harness) turnedOut() []dashboard.Ref {
+	return slices.SortedFunc(maps.Keys(h.model.changes.turnedOut(h.clock.now)), func(a, b dashboard.Ref) int {
+		return cmp.Or(cmp.Compare(a.Account, b.Account), cmp.Compare(a.Window, b.Window))
+	})
+}
+
+func TestTheFirstLookPicksOutNoWindowsWords(t *testing.T) {
+	h := routedHarness(t, routerDocument(runningOut()...))
+	h.start()
+
+	if got := h.turnedOut(); len(got) > 0 {
+		t.Errorf("the first look picked out %v, want none: there's no look before it to turn from", got)
+	}
+}
+
+func TestAWindowsWordsALookSeesTurnToOutArePickedOutFadingBack(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	h.startRouter(routerDocument(runningOut()...))
+	seen := h.tickUntilAsked()
+
+	tests := []struct {
+		name  string
+		after time.Duration
+		want  map[dashboard.Ref]float64
+	}{
+		{name: "as the look sees it", after: 0, want: map[dashboard.Ref]float64{workWeek: 0}},
+		{name: "half its time on, faded an eighth", after: highlightFor / 2, want: map[dashboard.Ref]float64{workWeek: 0.125}},
+		{name: "its time over", after: highlightFor, want: nil},
+	}
+	for _, tt := range tests {
+		if got := h.model.changes.turnedOut(seen.Add(tt.after)); !maps.Equal(got, tt.want) {
+			t.Errorf("%s: turnedOut = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+	if got := h.model.frame(seen).TurnedOut; !maps.Equal(got, map[dashboard.Ref]float64{workWeek: 0}) {
+		t.Errorf("the frame drawn as the look sees it cues %v, want work's week", got)
+	}
+	if got := h.changed(); len(got) > 0 {
+		t.Errorf("picked out the states of %v, want none: work's state's first words stay", got)
+	}
+	if _, ok := h.pendingFrame(); !ok {
+		t.Fatal("no frames drawn as the cue fades")
+	}
+}
+
+func TestWindowsWordsThatDontTurnToOutArentPickedOut(t *testing.T) {
+	tests := []struct {
+		name         string
+		before, then []status.Account
+	}{
+		{name: "out ~ still, as it was", before: runningOut(), then: runningOut()},
+		{name: "turning from out ~", before: runningOut(), then: three()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(tt.before...))
+			h.start()
+			h.startRouter(routerDocument(tt.then...))
+			h.tickUntilAsked()
+			if got := h.turnedOut(); len(got) > 0 {
+				t.Errorf("picked out %v, want none: no window's words turned to out ~", got)
+			}
+		})
+	}
+}
+
+func TestAWindowsWordsTheClockTurnsToOutArePickedOutAsItTicks(t *testing.T) {
+	accounts := runningOut()
+	accounts[0].Limit = status.Limit{Windows: []string{"7d"}, Until: start.Add(10 * time.Second).UTC()}
+	h := newHarness(t, document(accounts...))
+	h.start()
+	h.tickUntil(start.Add(9 * time.Second))
+	if got := h.turnedOut(); len(got) > 0 {
+		t.Fatalf("while work's week is at its limit, picked out %v, want none", got)
+	}
+	h.tickUntil(start.Add(11 * time.Second))
+	if got, reads := h.turnedOut(), h.source.reads; !slices.Equal(got, []dashboard.Ref{workWeek}) || reads != 1 {
+		t.Errorf("once work's limit lifted, with %d reads, picked out %v, want work's week, out ~ as the second ticked, with no read since the first", reads, got)
 	}
 }

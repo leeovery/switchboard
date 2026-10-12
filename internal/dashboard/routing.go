@@ -65,7 +65,7 @@ type routingTable struct {
 // account's sessions counted as the router listed them, where it listed any,
 // else as doc counts them.
 func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
-	names := namesOf(doc)
+	names := overviewNames(doc)
 	t := routingTable{names: nameColumn(names, f.Width), now: now, scale: f.traceScale()}
 	var listing []status.Session
 	if f.Sessions != nil {
@@ -107,16 +107,17 @@ func (f Frame) routingBesideUsage() bool {
 // a + 3 rows for a accounts; at its most, size 2, two rows of trace an
 // account and a blank row, 3a + 2. Under routingRows columns, and on a
 // phone, it's two rows an account and a blank row, 3a + 1 at its least and
-// its most. Beside USAGE's blocks, as routingBeside draws it, it takes no
-// rows of its own. Folded, its heading says the mode alone.
+// its most. Beside USAGE's blocks it takes no rows of its own, and draws
+// nothing and has no targets of its own: USAGE's draw has routingBeside draw
+// it where its blocks lie. Folded, its heading says the mode alone.
 //
 // Its traces scale as the frame's traceScale says, which scaled works out
 // once a frame, before the sections are built.
 func (f Frame) routingSection(doc status.Document, now time.Time) section {
-	a := len(doc.Accounts)
+	a, beside := len(doc.Accounts), f.routingBesideUsage()
 	least, most := a+3, 3*a+2
 	switch {
-	case f.routingBesideUsage():
+	case beside:
 		least, most = 0, 0
 	case f.Width < routingRows:
 		least, most = 3*a+1, 3*a+1
@@ -124,10 +125,17 @@ func (f Frame) routingSection(doc status.Document, now time.Time) section {
 	t := f.routingTableOf(doc, now)
 	return section{
 		Section: SectionRouting, least: least, most: most,
-		description: func() line { return routingMode(doc, now, f.phone() || f.routingBesideUsage()) },
+		description: func() line { return routingMode(doc, now, f.phone() || beside) },
 		folded:      func() line { return routingMode(doc, now, true) },
-		draw:        func(c *canvas, body bounds) { f.drawRouting(c, t, body) },
+		draw: func(c *canvas, body bounds) {
+			if !beside {
+				f.drawRouting(c, t, body)
+			}
+		},
 		targets: func(body bounds) []Target {
+			if beside {
+				return nil
+			}
 			var targets []Target
 			for i, r := range t.accounts {
 				for _, y := range f.accountRows(i, len(t.accounts), body) {
@@ -294,16 +302,20 @@ func routingInk(kind status.RoutingKind) ink {
 }
 
 // cueStanding picks out width cells from x along row y, the words of how the
-// account with the given id stands, while its state is newly changed: on
-// bg.attention, as far faded back as the frame's Changed says; or, where the
-// look has no colour, bold.
+// account with the given id stands, while its state is newly changed, as far
+// faded back as the frame's Changed says, as cue picks them out.
 func (f Frame) cueStanding(c *canvas, id string, x, y, width int) {
-	fade, ok := f.Changed[id]
-	if !ok {
-		return
+	if fade, ok := f.Changed[id]; ok {
+		cue(c, f.Look, x, y, width, fade)
 	}
+}
+
+// cue picks out width cells from x along row y, words newly cued, as drawn
+// in look: on bg.attention, as far faded back as fade; or, where the look
+// has no colour, bold.
+func cue(c *canvas, look Look, x, y, width int, fade float64) {
 	c.surface(x, y, width, hue{token: theme.BgAttention, fade: fade})
-	if f.Look.coloured {
+	if look.coloured {
 		return
 	}
 	for i := range width {
@@ -326,12 +338,11 @@ func sessionsSpan(n int) span {
 }
 
 // blocksBeside are where USAGE draws its blocks by account, for ROUTING to be
-// drawn beside them: from column x, each rows tall, from the first rows
-// given, each account's, in the config's order, then the pool's, where USAGE
-// draws one.
+// drawn beside them: from column x, each block in view where USAGE placed it,
+// an account's, or the pool's, of no id.
 type blocksBeside struct {
-	x, rows int
-	firsts  []int
+	x      int
+	blocks []rowAt
 }
 
 // routingBeside draws ROUTING of doc at now beside USAGE's blocks by account,
@@ -344,25 +355,50 @@ type blocksBeside struct {
 // sessions summed; and their traces and rates summed.
 func (f Frame) routingBeside(c *canvas, doc status.Document, now time.Time, at blocksBeside) {
 	t := f.routingTableOf(doc, now)
-	lines := besideRows(at.rows)
-	words, trace := f.Width-wordsGap-at.x, bounds{x: at.x, width: f.Width - traceTail - at.x, rows: 1}
-	for i, first := range at.firsts {
-		state, sessions := first+lines[0], first+lines[1]
-		trace.y = first + lines[2]
-		if i < len(t.accounts) {
-			r := t.accounts[i]
-			f.drawStanding(c, r, at.x, state, words, false)
-			c.line(at.x, sessions, besideSessions(r))
-			f.drawTrace(c, r.trace, now, trace, t.scale, r.faded)
-			c.right(f.Width, trace.y, line{traceRate(r.trace, now, r.faded)})
+	for _, block := range at.blocks {
+		rows := besideRows(block.rows)
+		for i := range rows {
+			rows[i] += block.y
+		}
+		if i := slices.IndexFunc(t.accounts, func(r accountRouting) bool { return r.id == block.id }); i >= 0 {
+			f.besideAccount(c, t, t.accounts[i], at.x, rows)
 			continue
 		}
-		c.line(at.x, state, countedStates(t.pool, words))
-		c.line(at.x, sessions, line{sessionsSpan(summedSessions(t.pool))})
-		pool := summed(f.accountTraces(poolAccounts(doc)), func(t views.Trace) []float64 { return t.Cells(trace.width, now) })
-		f.drawCells(c, pool, trace, t.scale, false)
-		c.right(f.Width, trace.y, line{rateOf(summedRate(t.pool, now), false)})
+		f.besidePool(c, t, doc, at.x, rows)
 	}
+}
+
+// besideAccount draws account r's lines beside its block from column x, on
+// the rows given, as routingBeside has them: its trace only where it has its
+// row.
+func (f Frame) besideAccount(c *canvas, t routingTable, r accountRouting, x int, rows []int) {
+	f.drawStanding(c, r, x, rows[0], f.Width-wordsGap-x, false)
+	c.line(x, rows[1], besideSessions(r))
+	if len(rows) < 3 {
+		return
+	}
+	f.drawTrace(c, r.trace, t.now, f.besideTrace(x, rows[2]), t.scale, r.faded)
+	c.right(f.Width, rows[2], line{traceRate(r.trace, t.now, r.faded)})
+}
+
+// besidePool draws the pool's lines beside its block from column x, on the
+// rows given, as routingBeside has them: its trace only where it has its row.
+func (f Frame) besidePool(c *canvas, t routingTable, doc status.Document, x int, rows []int) {
+	c.line(x, rows[0], countedStates(t.pool, f.Width-wordsGap-x))
+	c.line(x, rows[1], line{sessionsSpan(summedSessions(t.pool))})
+	if len(rows) < 3 {
+		return
+	}
+	trace := f.besideTrace(x, rows[2])
+	pool := summed(f.accountTraces(poolAccounts(doc)), func(tr views.Trace) []float64 { return tr.Cells(trace.width, t.now) })
+	f.drawCells(c, pool, trace, t.scale, false)
+	c.right(f.Width, rows[2], line{rateOf(summedRate(t.pool, t.now), false)})
+}
+
+// besideTrace is where a trace beside a block lies along row y, from column
+// x: a row tall, to traceTail cells short of the edge.
+func (f Frame) besideTrace(x, y int) bounds {
+	return bounds{x: x, y: y, width: f.Width - traceTail - x, rows: 1}
 }
 
 // besideRows are the rows, down from a block's first, that ROUTING's three
