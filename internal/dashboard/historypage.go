@@ -142,6 +142,13 @@ func (f Frame) history(c *canvas, top int) {
 	}
 }
 
+// phoneForm reports whether a sub-tab of History draws its phone form: on a
+// phone, or where its wide form's widest row, ending before the column reach
+// gives, doesn't fit the frame's width, as its parts are at fixed columns.
+func (f Frame) phoneForm(reach func() int) bool {
+	return f.phone() || reach() > f.Width
+}
+
 // wholeYear is the Year drawn whole on a canvas of its own, from its first
 // row, as tall as yearHeight lays it out.
 func (f Frame) wholeYear() *canvas {

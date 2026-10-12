@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -49,8 +51,8 @@ const (
 	byMonthPhoneMonths   = 6
 )
 
-// historyYear draws the Year from row top, once its page is built: on a
-// phone, as phone lays it out.
+// historyYear draws the Year from row top, once its page is built: wide
+// where it fits, else as a phone lays it out.
 func (f Frame) historyYear(c *canvas, top int) {
 	y, ok := f.yearDrawn()
 	if !ok {
@@ -60,11 +62,18 @@ func (f Frame) historyYear(c *canvas, top int) {
 		y.phone(c, top)
 		return
 	}
+	y.wide(c, top)
+}
+
+// wide draws the Year as the design lays it out at 160 columns: the grid,
+// the key under it, the numbers at its right, each cut at the frame's width,
+// BY MONTH and the bars' key.
+func (y yearDrawn) wide(c *canvas, top int) {
 	y.grid(c, yearGridX, top, y.page.Weeks, 0, dayAbbreviation)
 	y.key(c, top+yearKeyRow, keyWide)
 	y.heading(c, yearNumbersX, top)
 	for i, figure := range y.figures() {
-		c.line(yearNumbersX, top+1+i, slices.Concat(line{{padded(figure.label, yearLabelCells), dimInk}}, figure.value))
+		c.line(yearNumbersX, top+1+i, figure.labelled().fit(y.Width-yearNumbersX))
 	}
 	y.byMonth(c, top)
 	y.dots(c, byMonthBarX, top+y.dotsRow())
@@ -78,6 +87,58 @@ func (f Frame) yearHeight() int {
 		return 0
 	}
 	return y.height()
+}
+
+// reach is the column the Year's wide form ends before, where its widest row
+// ends: the grid's, a number's whose length is bounded, BY MONTH's or the
+// bars' key's. The rest of the numbers, the heading over them, which may name
+// an account by its label, and the shades' key are cut at the frame's width,
+// so they're left out.
+func (y yearDrawn) reach() int {
+	ends := []int{y.gridReach(), y.byMonthReach(), byMonthBarX + y.familyDots().width()}
+	for _, figure := range y.figures() {
+		if figure.bounded {
+			ends = append(ends, yearNumbersX+figure.labelled().width())
+		}
+	}
+	return slices.Max(ends)
+}
+
+// gridReach is the column the wide grid ends before: its last week's, or
+// the name of a month over the weeks.
+func (y yearDrawn) gridReach() int {
+	end := 0
+	if weeks := len(y.page.Weeks); weeks > 0 {
+		end = yearGridX + 2*(weeks-1) + 1
+	}
+	for _, l := range y.page.Months {
+		end = max(end, yearGridX+2*l.Week+ansi.StringWidth(monthName(l.Month, false)))
+	}
+	return end
+}
+
+// byMonthReach is the column BY MONTH, wide, ends before: its heading's, its
+// heads', the row before a version's months', or a month's, its note after
+// its bar, which is byMonthBarCells long at most. A month's figures, before
+// its bar, are left out: each is in a column, short of the bars.
+func (y yearDrawn) byMonthReach() int {
+	end := max(groupHead("BY MONTH", y.byMonthSays(), false).width(), byMonthBarX+ansi.StringWidth(y.barHead()))
+	for _, col := range y.monthColumns(byMonthWide) {
+		end = max(end, col.x+ansi.StringWidth(col.head))
+	}
+	if b := y.page.Before; b != nil {
+		months, then := beforeSaid(*b)
+		end = max(end, byMonthNameX+ansi.StringWidth(months), byMonthWorthX+ansi.StringWidth(then))
+	}
+	largest := largestWorth(y.page.ByMonth)
+	for _, m := range y.page.ByMonth {
+		bar := byMonthBarX + y.monthBar(m, largest, byMonthBarCells).width()
+		if note := monthNote(m); note != "" {
+			bar += 2 + ansi.StringWidth(note)
+		}
+		end = max(end, bar)
+	}
+	return end
 }
 
 // phone draws the Year as a phone has it: the latest weeks that fit, under
@@ -113,18 +174,19 @@ type yearDrawn struct {
 	form byMonthForm
 }
 
-// yearDrawn is the Year as the frame draws it, reporting false before its
-// page is built.
+// yearDrawn is the Year as the frame draws it, wide where its widest row
+// fits, else as a phone lays it out, reporting false before its page is
+// built.
 func (f Frame) yearDrawn() (yearDrawn, bool) {
 	page := f.History.Year
 	if page == nil {
 		return yearDrawn{}, false
 	}
-	form := byMonthWide
-	if f.phone() {
-		form = byMonthPhone
+	y := yearDrawn{Frame: f, page: *page, ask: f.History.YearAsk, form: byMonthWide}
+	if f.phoneForm(y.reach) {
+		y.form = byMonthPhone
 	}
-	return yearDrawn{Frame: f, page: *page, ask: f.History.YearAsk, form: form}, true
+	return y, true
 }
 
 // height is how many rows the Year takes under its top: to BY MONTH's last
@@ -267,9 +329,9 @@ func (y yearDrawn) unit(what string) string {
 	return strings.TrimSpace(y.shown() + " " + what)
 }
 
-// heading draws the numbers' heading at x along row row: the period, LAST 12
-// MONTHS or the year, as 2025; or after the use shown, OPUS 5.5 · 12 MONTHS
-// or WORK · 2025.
+// heading draws the numbers' heading at x along row row, cut at the frame's
+// width: the period, LAST 12 MONTHS or the year, as 2025; or after the use
+// shown, OPUS 5.5 · 12 MONTHS or WORK · 2025.
 func (y yearDrawn) heading(c *canvas, x, row int) {
 	period := "12 MONTHS"
 	if y.ask.Year != 0 {
@@ -282,15 +344,23 @@ func (y yearDrawn) heading(c *canvas, x, row int) {
 	case y.ask.Year == 0:
 		text = "LAST " + period
 	}
-	c.text(x, row, text, dimInk)
+	c.line(x, row, line{{text, dimInk}}.fit(y.Width-x))
 }
 
 // yearFigure is a number beside the grid: its label, and a phone's, what it
-// says, and whether a look can change it.
+// says, whether a look can change it, and whether what it is bounds how long
+// it runs, as a day, a run of the year's days or a share do, where a count
+// or a sum of dollars runs as long as the ledger makes it.
 type yearFigure struct {
-	label, short string
-	value        line
-	changes      bool
+	label, short     string
+	value            line
+	changes, bounded bool
+}
+
+// labelled is the figure as the wide numbers have it: its label, padded to
+// the labels' cells, then what it says.
+func (figure yearFigure) labelled() line {
+	return slices.Concat(line{{padded(figure.label, yearLabelCells), dimInk}}, figure.value)
 }
 
 // figures are the numbers beside the grid, in order: of all use, or an
@@ -303,24 +373,24 @@ type yearFigure struct {
 func (y yearDrawn) figures() []yearFigure {
 	n := y.page.Numbers
 	figures := []yearFigure{
-		{"requests", "requests", line{{prose.Grouped(n.Requests), secondaryInk}}, true},
-		{"sessions", "sessions", line{{prose.Grouped(n.Sessions), secondaryInk}}, true},
+		{label: "requests", short: "requests", value: line{{prose.Grouped(n.Requests), secondaryInk}}, changes: true},
+		{label: "sessions", short: "sessions", value: line{{prose.Grouped(n.Sessions), secondaryInk}}, changes: true},
 	}
 	if y.ofVersion() {
 		figures = append(figures,
-			yearFigure{"worth", "worth", worthSaid(n.Worth, secondaryInk), true},
-			yearFigure{"of all use", "share", shareSaid(n.Share, secondaryInk), true},
-			yearFigure{"first used", "first", daySaid(n.FirstUsed), true},
-			yearFigure{"busiest day", "busiest", daySaid(n.BusiestDay), true},
+			yearFigure{label: "worth", short: "worth", value: worthSaid(n.Worth, secondaryInk), changes: true},
+			yearFigure{label: "of all use", short: "share", value: shareSaid(n.Share, secondaryInk), changes: true, bounded: true},
+			yearFigure{label: "first used", short: "first", value: daySaid(n.FirstUsed), changes: true, bounded: true},
+			yearFigure{label: "busiest day", short: "busiest", value: daySaid(n.BusiestDay), changes: true, bounded: true},
 		)
 	} else {
 		figures = append(figures,
-			yearFigure{"limits hit", "limits", y.limitsSaid(n.Limits), true},
-			yearFigure{"worth", "worth", worthSaid(n.Worth, secondaryInk), true},
-			yearFigure{"plans cost", "plans", costSaid(n.Cost), false},
-			yearFigure{"against it", "against", againstSaid(n.Ratio), true},
-			yearFigure{"busiest day", "busiest", daySaid(n.BusiestDay), true},
-			yearFigure{"longest run", "run", runSaid(n.LongestRun), true},
+			yearFigure{label: "limits hit", short: "limits", value: y.limitsSaid(n.Limits), changes: true},
+			yearFigure{label: "worth", short: "worth", value: worthSaid(n.Worth, secondaryInk), changes: true},
+			yearFigure{label: "plans cost", short: "plans", value: costSaid(n.Cost)},
+			yearFigure{label: "against it", short: "against", value: againstSaid(n.Ratio), changes: true},
+			yearFigure{label: "busiest day", short: "busiest", value: daySaid(n.BusiestDay), changes: true, bounded: true},
+			yearFigure{label: "longest run", short: "run", value: runSaid(n.LongestRun), changes: true, bounded: true},
 		)
 	}
 	for i, figure := range figures {
@@ -518,11 +588,7 @@ func (y yearDrawn) byMonth(c *canvas, top int) {
 	for _, col := range columns {
 		c.text(col.x, top+at.heads, col.head, dimInk)
 	}
-	barHead := "by model"
-	if y.ofVersion() {
-		barHead = "worth"
-	}
-	c.text(f.barX, top+at.heads, barHead, dimInk)
+	c.text(f.barX, top+at.heads, y.barHead(), dimInk)
 	if at.before {
 		monthsBefore(c, top+at.heads+1, *y.page.Before)
 	}
@@ -530,6 +596,14 @@ func (y yearDrawn) byMonth(c *canvas, top int) {
 	for i, m := range at.months {
 		y.month(c, top+at.first+i, m, i == 0 && !f.phone && !at.before, columns, f, largest)
 	}
+}
+
+// barHead is the head over BY MONTH's bars: by model, or a version's worth.
+func (y yearDrawn) barHead() string {
+	if y.ofVersion() {
+		return "worth"
+	}
+	return "by model"
 }
 
 // byMonthSays is what BY MONTH shows, after its heading: the worth and what
@@ -604,19 +678,26 @@ func monthNote(m views.MonthRow) string {
 }
 
 // monthsBefore draws, along row, the row for the months before a version
-// was first used, faint: their span, as Oct 2025 – May, and the version of
-// its family used then, as none: Opus 5 then, or none.
+// was first used, faint, as beforeSaid says it.
 func monthsBefore(c *canvas, row int, b views.MonthsBefore) {
-	months := monthName(b.From, true)
+	months, then := beforeSaid(b)
+	c.text(byMonthNameX, row, months, faintInk)
+	c.text(byMonthWorthX, row, then, faintInk)
+}
+
+// beforeSaid is what the row for the months before a version was first used
+// says: their span, as Oct 2025 – May, and the version of its family used
+// then, as none: Opus 5 then, or none.
+func beforeSaid(b views.MonthsBefore) (months, then string) {
+	months = monthName(b.From, true)
 	if b.To != b.From {
 		months += " – " + monthName(b.To, false)
 	}
-	c.text(byMonthNameX, row, months, faintInk)
-	then := "none"
+	then = "none"
 	if b.Then != "" {
 		then += ": " + b.Then + " then"
 	}
-	c.text(byMonthWorthX, row, then, faintInk)
+	return months, then
 }
 
 // monthBar is the month's bar, as many cells of most as its worth is of the
@@ -681,9 +762,14 @@ func amountOf(w views.Worth) ledger.Picodollars {
 	return *w.Amount
 }
 
-// dots draws the bars' key along row from x: each family's dot in its
-// colour, and its name.
+// dots draws the bars' key along row from x.
 func (y yearDrawn) dots(c *canvas, x, row int) {
+	c.line(x, row, y.familyDots())
+}
+
+// familyDots is the bars' key: each family's dot in its colour, and its
+// name.
+func (y yearDrawn) familyDots() line {
 	var l line
 	for i, family := range y.page.Families {
 		if i > 0 {
@@ -691,5 +777,5 @@ func (y yearDrawn) dots(c *canvas, x, row int) {
 		}
 		l = append(l, familyDot(family, dimInk)...)
 	}
-	c.line(x, row, l)
+	return l
 }

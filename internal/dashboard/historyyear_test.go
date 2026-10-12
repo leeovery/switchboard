@@ -518,6 +518,7 @@ func TestTheYearsHeightIsTheRowsItDraws(t *testing.T) {
 		{name: "a version", width: 160, ask: opus, page: opusYear(), want: 18},
 		{name: "a version, with the months before it", width: 160, ask: opus, page: before, want: 19},
 		{name: "a phone", width: 52, page: plainYear(), want: 23},
+		{name: "too narrow for the wide form", width: 120, page: plainYear(), want: 23},
 	}
 	for _, tt := range tests {
 		f := yearFrame(t, tt.width, 37, tt.ask, tt.page)

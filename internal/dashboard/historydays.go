@@ -40,9 +40,11 @@ const (
 	daysPhoneWeeks = 3
 )
 
-// The words Days says: under the shades, of a day it hit a 5-hour limit and
-// of the days to come.
+// The words Days says: after BY MODEL and BY ACCOUNT, what each shows; under
+// the shades, of a day it hit a 5-hour limit and of the days to come.
 const (
+	byModelSays    = "every account, weighed at API prices, on one scale"
+	byAccountSays  = "the share of its week each day used, on one scale"
 	daysShadesNote = "each shade a quarter of the active days"
 	daysLimitNote  = "a day it hit a 5-hour limit"
 	daysToComeNote = "days to come"
@@ -62,12 +64,12 @@ func (f Frame) historyDays(c *canvas, top int) {
 	}
 	l := f.layOutDays(*p, top)
 	f.daysWeeks(c, l)
-	c.line(0, top+byModelRow, groupHead("BY MODEL", "every account, weighed at API prices, on one scale", l.phone))
+	c.line(0, top+byModelRow, groupHead("BY MODEL", byModelSays, l.phone))
 	for i, s := range p.ByModel {
 		hue := familyHue(s.Of)
 		f.daysStrip(c, l, l.familyRow(i), familyDot(s.Of, secondaryInk).fit, shareOfUse(s), func(level int) ink { return stepInk(hue, level) }, s.Days)
 	}
-	c.line(0, l.byAccount, groupHead("BY ACCOUNT", "the share of its week each day used, on one scale", l.phone))
+	c.line(0, l.byAccount, groupHead("BY ACCOUNT", byAccountSays, l.phone))
 	from, to := l.shown()
 	for i, s := range p.ByAccount[from:to] {
 		f.daysStrip(c, l, l.accountRow(i), func(room int) line { return historyAccount(labelled(s.Label, s.Of), s.Primary, room) }, f.limitsHit(s), dayInk, s.Days)
@@ -78,9 +80,9 @@ func (f Frame) historyDays(c *canvas, top int) {
 	f.daysKey(c, l)
 }
 
-// daysLayout is Days' page laid out in a frame: on a phone, where each
-// strip's name takes the row over it; the row it starts at; the column its
-// days start at, and the first of the page's days it shows; the rows BY
+// daysLayout is Days' page laid out in a frame: in its phone form, where
+// each strip's name takes the row over it; the row it starts at; the column
+// its days start at, and the first of the page's days it shows; the rows BY
 // ACCOUNT, its first strip and what's out of view are on, and its key's
 // first; and how far its accounts are scrolled.
 type daysLayout struct {
@@ -95,12 +97,18 @@ type daysLayout struct {
 	scrolled   int
 }
 
-// layOutDays lays out Days of the page given from row top: on a phone, the
-// last three weeks under each strip's name, its key two rows; else every
-// week from column 14 beside it, its key a row; the key on the view's last
-// rows, and what's out of view of BY ACCOUNT on the row over them.
+// layOutDays lays out Days of the page given from row top: wide where it
+// fits, else in its phone form.
 func (f Frame) layOutDays(p views.DaysPage, top int) daysLayout {
-	l := daysLayout{page: p, phone: f.phone(), top: top, x: daysAt}
+	return f.daysLaidOut(p, top, f.phoneForm(func() int { return f.daysReach(p) }))
+}
+
+// daysLaidOut lays out Days of the page given from row top: in its phone
+// form, the last three weeks under each strip's name, its key two rows; else
+// every week from column 14 beside it, its key a row; the key on the view's
+// last rows, and what's out of view of BY ACCOUNT on the row over them.
+func (f Frame) daysLaidOut(p views.DaysPage, top int, phone bool) daysLayout {
+	l := daysLayout{page: p, phone: phone, top: top, x: daysAt}
 	keyRows := 1
 	if l.phone {
 		l.x, l.first, keyRows = 0, (len(p.Weeks)-daysPhoneWeeks)*7, 2
@@ -111,6 +119,37 @@ func (f Frame) layOutDays(p views.DaysPage, top int) daysLayout {
 	l.scrollRow = l.keyRow - 1
 	l.scrolled = min(max(f.Scroll, 0), l.scrolling().Most)
 	return l
+}
+
+// daysReach is the column Days' wide form of the page given ends before,
+// where its widest row ends: the weeks' heads, a group's heading, a strip's
+// days or its count, whose number is right-aligned, so it ends where its
+// words do, or the key. A strip's name is cut short of its days, and what's
+// out of view of BY ACCOUNT never runs as far as a phone's width, so they're
+// left out.
+func (f Frame) daysReach(p views.DaysPage) int {
+	l := daysLayout{page: p, x: daysAt}
+	end := max(groupHead("BY MODEL", byModelSays, false).width(), groupHead("BY ACCOUNT", byAccountSays, false).width(), f.wideDaysKey().width())
+	for i, week := range p.Weeks {
+		end = max(end, daysAt+i*weekCells+weekHead(week, i == len(p.Weeks)-1).width())
+	}
+	for _, s := range p.ByModel {
+		end = max(end, l.stripReach(s.Days, shareOfUse(s)))
+	}
+	for _, s := range p.ByAccount {
+		end = max(end, l.stripReach(s.Days, f.limitsHit(s)))
+	}
+	return end
+}
+
+// stripReach is the column a wide strip of the days given ends before: its
+// last day's, or its count's.
+func (l daysLayout) stripReach(days []views.StripDay, count line) int {
+	end := countAt(count) + count.width()
+	if len(days) > 0 {
+		end = max(end, l.dayAt(len(days)-1)+swatchCells)
+	}
+	return end
 }
 
 // familyRow is the row BY MODEL's i-th strip is on.
@@ -191,18 +230,30 @@ func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name func(room int) lin
 	if l.phone {
 		strip, room = y+1, c.right(f.edge(), y, count)-1
 	} else {
-		c.line(daysCount+daysCountCells-count[:1].width(), y, count)
+		c.line(countAt(count), y, count)
 	}
 	c.line(0, y, name(room))
 	coming := len(days) - l.page.ToCome
 	for i := l.first; i < len(days); i++ {
-		x := l.x + (i-l.first)/7*weekCells + (i-l.first)%7*swatchCells
+		x := l.dayAt(i)
 		if i >= coming {
 			c.text(x, strip, toCome, faintInk)
 			continue
 		}
 		c.line(x, strip, f.swatch(shade(days[i].Level), days[i].Level, days[i].Limit))
 	}
+}
+
+// dayAt is the column the page's day with index i is drawn at, a week's days
+// side by side and the weeks a cell apart.
+func (l daysLayout) dayAt(i int) int {
+	return l.x + (i-l.first)/7*weekCells + (i-l.first)%7*swatchCells
+}
+
+// countAt is the column a wide strip's count starts at: its first part, the
+// number, right-aligned in daysCountCells from column 136.
+func countAt(count line) int {
+	return daysCount + daysCountCells - count[:1].width()
 }
 
 // swatch is a day swatchCells wide in its shade's ink, k, at its level: spaces
@@ -243,7 +294,18 @@ func (f Frame) limitsHit(s views.DaysStrip) line {
 // and what they are; a day it hit a 5-hour limit; and the days to come. On a
 // phone, the shades take a row of their own, with nothing said of them.
 func (f Frame) daysKey(c *canvas, l daysLayout) {
-	shades := line{{"less ", dimInk}}
+	shades, marks := f.daysKeyParts()
+	if l.phone {
+		c.line(0, l.keyRow, shades)
+		c.line(0, l.keyRow+1, marks)
+		return
+	}
+	c.line(0, l.keyRow, f.wideDaysKey())
+}
+
+// daysKeyParts are the parts of Days' key: the shades, and the marks.
+func (f Frame) daysKeyParts() (shades, marks line) {
+	shades = line{{"less ", dimInk}}
 	for level := range shadeLevels {
 		if level > 0 {
 			shades = append(shades, span{" ", ink{}})
@@ -251,11 +313,13 @@ func (f Frame) daysKey(c *canvas, l daysLayout) {
 		shades = append(shades, f.swatch(dayInk(level), level, false)...)
 	}
 	shades = append(shades, span{" more", dimInk})
-	marks := slices.Concat(f.swatch(dayInk(2), 2, true), line{{" " + daysLimitNote, dimInk}, {"   ", ink{}}, {toCome, faintInk}, {" " + daysToComeNote, dimInk}})
-	if l.phone {
-		c.line(0, l.keyRow, shades)
-		c.line(0, l.keyRow+1, marks)
-		return
-	}
-	c.line(0, l.keyRow, slices.Concat(shades, line{{"  " + daysShadesNote, faintInk}, {"    ", ink{}}}, marks))
+	marks = slices.Concat(f.swatch(dayInk(2), 2, true), line{{" " + daysLimitNote, dimInk}, {"   ", ink{}}, {toCome, faintInk}, {" " + daysToComeNote, dimInk}})
+	return shades, marks
+}
+
+// wideDaysKey is Days' key in a row: the shades, what they are, and the
+// marks.
+func (f Frame) wideDaysKey() line {
+	shades, marks := f.daysKeyParts()
+	return slices.Concat(shades, line{{"  " + daysShadesNote, faintInk}, {"    ", ink{}}}, marks)
 }

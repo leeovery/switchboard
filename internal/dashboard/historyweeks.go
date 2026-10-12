@@ -48,9 +48,9 @@ const (
 
 // historyWeeks draws Weeks from row top: once a whole week is recorded, the
 // capacity verdict, then the table or the columns, as v shapes it, and the
-// legend on the view's last row; on a phone, the verdict and the table's
-// last four weeks. Till then, it says there aren't enough weeks yet; and
-// before its page is built, it's blank.
+// legend on the view's last row; in its phone form, the verdict and the
+// table's last four weeks. Till then, it says there aren't enough weeks yet;
+// and before its page is built, it's blank.
 func (f Frame) historyWeeks(c *canvas, top int) {
 	p := f.History.Weeks
 	switch {
@@ -63,7 +63,7 @@ func (f Frame) historyWeeks(c *canvas, top int) {
 	w := f.weeksDrawn(*p)
 	foot := top + f.viewRows() - 1
 	switch {
-	case f.phone():
+	case w.phone:
 		f.weeksOnAPhone(c, w, top, foot)
 	case w.columns:
 		f.weeksColumns(c, w, top, foot)
@@ -72,9 +72,38 @@ func (f Frame) historyWeeks(c *canvas, top int) {
 	}
 }
 
-// weeksDrawn is Weeks' page as the frame draws it.
+// weeksDrawn is Weeks' page as the frame draws it: in the shape v gives it,
+// where that fits, else in its phone form.
 func (f Frame) weeksDrawn(p views.WeeksPage) weeksDrawn {
-	return weeksDrawn{page: p, columns: f.History.WeeksShape == WeeksColumns && !f.phone(), edge: f.edge()}
+	w := weeksDrawn{page: p, columns: f.History.WeeksShape == WeeksColumns, edge: f.edge()}
+	w.phone = f.phoneForm(w.reach)
+	w.columns = w.columns && !w.phone
+	return w
+}
+
+// reach is the column Weeks' wide form, in its shape, ends before, where its
+// widest row ends: its headline, its weeks or its legend. What's beside the
+// weeks is cut at the frame's edge, so it's left out; as is what's out of
+// view, which never runs as far as a phone's width.
+func (w weeksDrawn) reach() int {
+	if !w.columns {
+		return max(w.legend().width(), w.headline().width(), peaksFrom+peaksApart*(len(w.page.Weeks)-1)+peakCells+1)
+	}
+	end := w.legend().width()
+	for i := range w.page.Weeks {
+		end = max(end, peaksFrom+peaksApart*i+w.head(i).width())
+	}
+	rows := w.page.Accounts
+	if w.several() {
+		rows = append([]views.WeeksRow{w.page.All}, rows...)
+	}
+	for _, row := range rows {
+		for i, p := range row.Peaks {
+			x, label := peaksFrom+peaksApart*i, w.columnPeak(row, p)
+			end = max(end, x+columnCells, x+(peakLabelCells-label.width())/2+label.width())
+		}
+	}
+	return end
 }
 
 // weeksScrolling is how far Weeks scrolls, in accounts, as the frame draws
@@ -105,12 +134,12 @@ func (f Frame) weeksScrolls() (y, rows int) {
 }
 
 // weeksFirst is the row of the first account Weeks shows: under the table's
-// every account's, after the verdict, or on a phone, after the verdict's
-// rows; or in columns, the first block after every account's.
+// every account's, after the verdict, or in its phone form, after the
+// verdict's rows; or in columns, the first block after every account's.
 func (f Frame) weeksFirst(w weeksDrawn) int {
 	top := f.top()
 	switch {
-	case f.phone():
+	case w.phone:
 		return top + len(w.phoneVerdict()) + 1 + weeksFirstRow - weeksHeadRow
 	case w.columns:
 		return top + blockRows
@@ -121,12 +150,12 @@ func (f Frame) weeksFirst(w weeksDrawn) int {
 // weeksPage is how many accounts Weeks shows at once, from the first's row:
 // in the table, those that fit to the one over the scroll line, over the
 // legend; in columns, the blocks that fit, the last one's dates under it;
-// and on a phone, those that fit to the scroll line, the view's last row.
-// It's one at least.
+// and in its phone form, those that fit to the scroll line, the view's last
+// row. It's one at least.
 func (f Frame) weeksPage(w weeksDrawn) int {
 	first, foot := f.weeksFirst(w), f.top()+f.viewRows()-1
 	switch {
-	case f.phone():
+	case w.phone:
 		return max(foot-first, 1)
 	case w.columns:
 		return max((foot-first)/blockRows, 1)
@@ -232,12 +261,12 @@ func (f Frame) weeksOnAPhone(c *canvas, w weeksDrawn, top, foot int) {
 	w.accountsOut(c, foot, above, below)
 }
 
-// weeksDrawn is Weeks' page as it's drawn: in columns, or as a table, its
-// lines cut short before the column edge.
+// weeksDrawn is Weeks' page as it's drawn: in its phone form, in columns, or
+// as a table, its lines cut short before the column edge.
 type weeksDrawn struct {
-	page    views.WeeksPage
-	columns bool
-	edge    int
+	page           views.WeeksPage
+	phone, columns bool
+	edge           int
 }
 
 // put draws the line from x along row y, cut short to end before the edge.
