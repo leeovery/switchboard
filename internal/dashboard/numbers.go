@@ -32,6 +32,12 @@ const (
 	// NumberRouted are the sessions the router has routed in the last hour,
 	// as the status line counts them.
 	NumberRouted
+	// NumberShareOfUse is a family's share of what History's Days weighs,
+	// its eight weeks' worth, as in "59%".
+	NumberShareOfUse
+	// NumberLimitsHit are the limits of a window an account hit in History's
+	// Days, its eight weeks.
+	NumberLimitsHit
 )
 
 // Number names a number the page draws, which brightens as it changes:
