@@ -279,6 +279,21 @@ func TestTheRoomRunwayGoesByIsTheProjectionTheCardsDo(t *testing.T) {
 	}
 }
 
+// A lane of an account nothing has been read of knows nothing of it, and
+// whatever asks how its windows stand finds them unread, not tokenless.
+func TestALaneOfAnAccountNotReadYetHasItsWindowsStandUnread(t *testing.T) {
+	unread := status.Account{ID: "work", Label: "work", TokenSet: true}
+	l := Frame{Policy: claudeLike, Span: Week}.laneOf(probed(unread), unread, now)
+	if l.known {
+		t.Error("the lane knows its account, want nothing known of it")
+	}
+	for _, key := range []string{"5h", "7d"} {
+		if got := l.states.Of(key).Kind; got != status.WindowUnread {
+			t.Errorf("its %s stands as kind %d, want WindowUnread", key, got)
+		}
+	}
+}
+
 // held is a cause holding an account back from minutes from now until
 // minutes, saying says, back as its window resets at the minute resets,
 // none for none.

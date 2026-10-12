@@ -22,6 +22,10 @@ func TestNotifications(t *testing.T) {
 		return document(account("work", "Work", session(0.02, 5*time.Hour), week(weekUsed)))
 	}
 	unread := document(unreadable("work", "Work"))
+	// pastTheWarning has the week read at 95%, resetting three minutes after
+	// the clock starts: read again, it's still that reading, of the week
+	// before its reset, as the router keeps it until the account is read again.
+	pastTheWarning := document(account("work", "Work", session(0.02, 5*time.Hour), window("7d", "Week", 0.95, 3*time.Minute)))
 	tests := []struct {
 		name string
 		// reads are read in turn, five minutes apart.
@@ -102,6 +106,15 @@ func TestNotifications(t *testing.T) {
 				room(0.92),
 			},
 			want: []string{"work · Work: Week at 92%"},
+		},
+		{
+			name:  "a window read past 90% whose reset has passed, fetched again and again before it's read again: nothing, as it stands empty",
+			reads: []status.Document{pastTheWarning, pastTheWarning, pastTheWarning, pastTheWarning},
+		},
+		{
+			name:  "a window read past 90% whose reset has passed, then read again passing 90%: once",
+			reads: []status.Document{pastTheWarning, pastTheWarning, pastTheWarning, room(0.92), room(0.93)},
+			want:  []string{"work · Work: Week at 92%"},
 		},
 		{
 			name: "a window new to the account",

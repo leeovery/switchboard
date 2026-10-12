@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -208,6 +209,41 @@ func TestAWindowsPaceAndAllowanceAreAsTheDocumentWorkedThemOut(t *testing.T) {
 		if got.Kind != status.WindowOpen || got.Allowance != w.Allowance {
 			t.Errorf("%s stands as %+v, want open, its allowance %+v, the document's", w.Key, got, w.Allowance)
 		}
+	}
+}
+
+// A window that has reset since the document was read stands in a period
+// that started after then: its allowance is spread from that period's start,
+// never over more than the window's length, however old the document is.
+func TestTheAllowanceOfAWindowResetSinceTheDocumentWasReadSpansTheWindowAtMost(t *testing.T) {
+	reset := at(1, 15, 0).UTC()
+	now := reset.Add(30 * time.Second)
+	// running names no window a request starts, so a session runs on past its
+	// reset, as a week does, where policy has it lapse.
+	running := score.Policy{Shared: policy.Shared}
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: reset}
+	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.6, ResetsAt: reset}
+	tests := []struct {
+		name   string
+		window quota.Window
+		read   time.Time
+		policy score.Policy
+		want   quota.Allowance
+	}{
+		{name: "a session read a minute before its reset", window: session, read: reset.Add(-time.Minute), policy: running, want: quota.Allowance{Share: 1.0 / 5, Per: quota.PerHour}},
+		{name: "a session of a document three hours old", window: session, read: reset.Add(-3 * time.Hour), policy: running, want: quota.Allowance{Share: 1.0 / 5, Per: quota.PerHour}},
+		{name: "a week read a minute before its reset", window: week, read: reset.Add(-time.Minute), policy: policy, want: quota.Allowance{Share: 1.0 / 7, Per: quota.PerDay}},
+		{name: "a week of a document three hours old", window: week, read: reset.Add(-3 * time.Hour), policy: policy, want: quota.Allowance{Share: 1.0 / 7, Per: quota.PerDay}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := status.Account{ID: "work", Label: "work", TokenSet: true, FetchedAt: tt.read, Windows: []quota.Window{tt.window}}
+			doc := status.Document{GeneratedAt: tt.read, Accounts: []status.Account{a}}
+			got := doc.WindowStatesOf(a, now, tt.policy).Of(tt.window.Key)
+			if got.Kind != status.WindowOpen || !near(got.Allowance.Share, tt.want.Share) || got.Allowance.Per != tt.want.Per {
+				t.Errorf("the window stands as %+v, want open, its allowance %+v, the whole of it over its length", got, tt.want)
+			}
+		})
 	}
 }
 
