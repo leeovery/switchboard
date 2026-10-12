@@ -42,6 +42,12 @@ func (l line) fit(width int) line {
 	if l.width() <= width {
 		return l
 	}
+	return l.cut(width)
+}
+
+// cut cuts the line short in width cells, ending it with an ellipsis, as a
+// line wider than width cells is.
+func (l line) cut(width int) line {
 	if width < 1 {
 		return nil
 	}
@@ -58,8 +64,8 @@ func (l line) fit(width int) line {
 }
 
 // figureFit is the line, a figure, where it fits width cells, else an
-// ellipsis alone, in its first span's ink: never the figure cut part-way,
-// which would read as another, as $1,234,5… reads as a smaller sum.
+// ellipsis alone, as elided has it: never the figure cut part-way, which
+// would read as another, as $1,234,5… reads as a smaller sum.
 func (l line) figureFit(width int) line {
 	switch {
 	case l.width() <= width:
@@ -67,7 +73,51 @@ func (l line) figureFit(width int) line {
 	case width < 1:
 		return nil
 	}
-	return line{{ellipsis, l[0].ink}}
+	return l.elided()
+}
+
+// elided is the line, a figure, as an ellipsis alone, in its first span's ink
+// but as no number: the figure it stands for isn't shown, so its changes
+// can't be.
+func (l line) elided() line {
+	return line{{ellipsis, l[0].ink.unnumbered()}}
+}
+
+// part is a part of a line fitParts cuts: a figure, drawn whole or as an
+// ellipsis, or words, which may be cut part-way.
+type part struct {
+	said   line
+	figure bool
+}
+
+// fitParts is the parts, one after another, cut to width cells as fit cuts
+// a line, but that a figure is never cut part-way: where it doesn't fit, it's
+// an ellipsis alone, as figureFit has it. "4.6× its $1,800 month" cuts to
+// "4.6× its $1,8…" as words, but to "4.6× its …" with $1,800 a figure.
+func fitParts(width int, parts ...part) line {
+	var whole line
+	for _, p := range parts {
+		whole = append(whole, p.said...)
+	}
+	switch {
+	case whole.width() <= width:
+		return whole
+	case width < 1:
+		return nil
+	}
+	var kept line
+	for _, p := range parts {
+		w := p.said.width()
+		switch {
+		case w < width:
+			kept, width = append(kept, p.said...), width-w
+		case p.figure:
+			return append(kept, p.said.elided()...)
+		default:
+			return append(kept, p.said.cut(width)...)
+		}
+	}
+	return kept
 }
 
 // wrap breaks the line at its spaces onto as many lines width cells wide as

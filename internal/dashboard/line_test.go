@@ -52,22 +52,56 @@ func TestFit(t *testing.T) {
 }
 
 // A figure is drawn whole where it fits, else as an ellipsis alone, in its
-// first span's ink, never cut part-way.
+// first span's ink, never cut part-way; and a numbered figure's ellipsis is no
+// number, as the figure isn't shown.
 func TestFigureFitDrawsAFigureWholeOrAnEllipsis(t *testing.T) {
 	worth := line{{"$1,234,567", secondaryInk}, {"+", faintInk}}
+	numbered := worth.numbered(Number{Kind: NumberYear, Of: "worth"})
+	tests := []struct {
+		name   string
+		figure line
+		width  int
+		want   line
+	}{
+		{name: "fits", figure: worth, width: 11, want: worth},
+		{name: "a cell short", figure: worth, width: 10, want: line{{"…", secondaryInk}}},
+		{name: "numbered, fitting", figure: numbered, width: 11, want: numbered},
+		{name: "numbered, a cell short", figure: numbered, width: 10, want: line{{"…", secondaryInk}}},
+		{name: "no room", figure: worth, width: 0, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.figure.figureFit(tt.width); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("figureFit(%d) = %+v, want %+v", tt.width, got, tt.want)
+			}
+		})
+	}
+}
+
+// Parts are cut as fit cuts a line, ending with an ellipsis where they're
+// cut, but that a figure is never cut part-way: where it doesn't fit whole,
+// it's an ellipsis alone, as figureFit has it; words may cut.
+func TestFitPartsCutsWordsButNeverAFigurePartWay(t *testing.T) {
+	ratio, words, price, unit := span{"4.6×", boldPositiveInk}, span{" its ", dimInk}, span{"$1,800", dimInk}, span{" month", dimInk}
+	parts := []part{{line{ratio}, true}, {line{words}, false}, {line{price}, true}, {line{unit}, false}}
 	tests := []struct {
 		name  string
 		width int
 		want  line
 	}{
-		{name: "fits", width: 11, want: worth},
-		{name: "a cell short", width: 10, want: line{{"…", secondaryInk}}},
+		{name: "fits", width: 21, want: line{ratio, words, price, unit}},
+		{name: "its last words cut", width: 18, want: line{ratio, words, price, {" m…", dimInk}}},
+		{name: "its last words cut to an ellipsis", width: 16, want: line{ratio, words, price, {"…", dimInk}}},
+		{name: "a figure filling what's left, more after it", width: 15, want: line{ratio, words, {"…", dimInk}}},
+		{name: "a figure that doesn't fit", width: 12, want: line{ratio, words, {"…", dimInk}}},
+		{name: "words cut", width: 7, want: line{ratio, {" i…", dimInk}}},
+		{name: "the first figure", width: 4, want: line{{"…", boldPositiveInk}}},
 		{name: "no room", width: 0, want: nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := worth.figureFit(tt.width); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("figureFit(%d) = %q, want %q", tt.width, got.plain(), tt.want.plain())
+			if got := fitParts(tt.width, parts...); !reflect.DeepEqual(got, tt.want) || got.width() > tt.width {
+				t.Errorf("fitParts(%d) = %+v, want %+v", tt.width, got, tt.want)
 			}
 		})
 	}

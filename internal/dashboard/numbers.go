@@ -72,6 +72,12 @@ func (k ink) numbered(n Number) ink {
 	return k
 }
 
+// unnumbered is the ink as no number's.
+func (k ink) unnumbered() ink {
+	k.mark = unique.Handle[mark]{}
+	return k
+}
+
 // numbered is the span as the number n.
 func (s span) numbered(n Number) span {
 	s.ink = s.ink.numbered(n)

@@ -585,3 +585,25 @@ func TestByMonthsFiguresAreDrawnWholeOrAsAnEllipsis(t *testing.T) {
 		}
 	}
 }
+
+// A figure of the month so far drawn as an ellipsis is no number, so its
+// changing brightens nothing: on a phone, a worth of $1,234,567, or one
+// changed to it from $180.
+func TestAMonthSoFarsFigureDrawnAsAnEllipsisBrightensNothing(t *testing.T) {
+	worth := Number{Kind: NumberYear, Of: "2026-10 worth"}
+	tests := []struct {
+		amount float64
+		want   string
+	}{
+		{amount: 180, want: "$180"},
+		{amount: 1_234_567},
+		{amount: 2_345_678},
+	}
+	for _, tt := range tests {
+		page := plainYear()
+		page.ByMonth[len(page.ByMonth)-1].Amount = usd(tt.amount)
+		if got := yearFrame(t, 52, 37, views.YearAsk{}, page).Numbers(threeRouted(), now)[worth]; got != tt.want {
+			t.Errorf("the month so far worth $%.0f is numbered %q, want %q", tt.amount, got, tt.want)
+		}
+	}
+}
