@@ -1,28 +1,25 @@
 package watch
 
 import (
-	"slices"
+	"maps"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 const (
 	// easeFor is how long a bar takes to move to a new reading.
-	easeFor = 600 * time.Millisecond
+	easeFor = time.Second
 	// frameEvery paces the frames while bars move: about 30 a second.
 	frameEvery = time.Second / 30
 )
 
-// windowRef names a window from one document to the next.
-type windowRef struct {
-	account, key string
-}
-
 // easing moves each bar from where it stood when a document arrived to that
-// document's reading. A bar it has no start for rises from nothing.
+// document's reading, by its account and window's key. A bar it has no start
+// for rises from nothing.
 type easing struct {
-	from  map[windowRef]float64
+	from  map[dashboard.Ref]float64
 	start time.Time
 }
 
@@ -31,41 +28,39 @@ func (e easing) done(now time.Time) bool {
 	return now.Sub(e.start) >= easeFor
 }
 
-// moves reports whether the easing moves any of doc's bars.
-func (e easing) moves(doc status.Document) bool {
-	for ref, to := range utilizations(doc) {
-		if e.from[ref] != to {
-			return true
-		}
-	}
-	return false
-}
-
-// apply returns doc as it's drawn at now: each window's utilization eased
-// along from its start. It copies what it changes, leaving doc as it was.
-func (e easing) apply(doc status.Document, now time.Time) status.Document {
+// eased are how much of each window whose bar the easing moves to doc's
+// reading the bar fills at now, by its account and key: none of a bar that
+// stands where it's read, and none once the easing's over.
+func (e easing) eased(doc status.Document, now time.Time) map[dashboard.Ref]float64 {
 	if e.done(now) {
-		return doc
+		return nil
 	}
 	t := easeOutCubic(progress(now.Sub(e.start), easeFor))
-	accounts := slices.Clone(doc.Accounts)
-	for i, a := range accounts {
-		windows := slices.Clone(a.Windows)
-		for j, w := range windows {
-			windows[j].Utilization = lerp(e.from[windowRef{a.ID, w.Key}], w.Utilization, t)
+	eased := make(map[dashboard.Ref]float64)
+	for ref, to := range utilizations(doc) {
+		if from := e.from[ref]; from != to {
+			eased[ref] = lerp(from, to, t)
 		}
-		accounts[i].Windows = windows
 	}
-	doc.Accounts = accounts
-	return doc
+	return eased
 }
 
-// utilizations are how much of each of doc's windows is used.
-func utilizations(doc status.Document) map[windowRef]float64 {
-	used := make(map[windowRef]float64)
+// standing are how much of each of doc's windows its bar fills at now, by
+// its account and key: as far as it has eased, where it's easing, else as
+// read.
+func (e easing) standing(doc status.Document, now time.Time) map[dashboard.Ref]float64 {
+	stand := utilizations(doc)
+	maps.Copy(stand, e.eased(doc, now))
+	return stand
+}
+
+// utilizations are how much of each of doc's windows is used, by its
+// account and key.
+func utilizations(doc status.Document) map[dashboard.Ref]float64 {
+	used := make(map[dashboard.Ref]float64)
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
-			used[windowRef{a.ID, w.Key}] = w.Utilization
+			used[dashboard.Ref{Account: a.ID, Window: w.Key}] = w.Utilization
 		}
 	}
 	return used

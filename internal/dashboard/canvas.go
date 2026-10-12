@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"strings"
+	"unique"
 
 	"github.com/charmbracelet/x/ansi"
 )
@@ -19,11 +20,20 @@ type canvas struct {
 	clip  *bounds
 }
 
-// cell is a glyph and the ink it's drawn in. A glyph two cells wide covers
-// the cell after it too, whose glyph is "".
+// cell is a glyph, the ink it's drawn in, and what of the page it draws
+// that moves as it changes, where it draws any. A glyph two cells wide
+// covers the cell after it too, whose glyph is "".
 type cell struct {
 	glyph string
 	ink   ink
+	mark  unique.Handle[mark]
+}
+
+// mark is what of the page a cell draws that moves as it changes: a number,
+// which brightens, or a window's bar, which eases to a new reading.
+type mark struct {
+	number Number
+	bar    Ref
 }
 
 // blank is a cell with nothing drawn in it.
@@ -95,8 +105,10 @@ func (c *canvas) text(x, y int, text string, k ink) int {
 	return x
 }
 
-// put draws a glyph width cells wide at x along row y. Half a wide glyph it
-// covers is left blank, as is a wide glyph the canvas's edge cuts.
+// put draws a glyph width cells wide at x along row y, the mark its ink
+// carries noted on its cells rather than in their ink, as it changes nothing
+// of how they're drawn. Half a wide glyph it covers is left blank, as is a
+// wide glyph the canvas's edge cuts.
 func (c *canvas) put(x, y int, glyph string, width int, k ink) {
 	for i := range width {
 		c.clear(x+i, y)
@@ -105,9 +117,11 @@ func (c *canvas) put(x, y int, glyph string, width int, k ink) {
 	if first == nil || last == nil {
 		return
 	}
-	*first = cell{glyph: glyph, ink: k}
+	marked := k.mark
+	k.mark = unique.Handle[mark]{}
+	*first = cell{glyph: glyph, ink: k, mark: marked}
 	if width == 2 {
-		*last = cell{ink: k}
+		*last = cell{ink: k, mark: marked}
 	}
 }
 
@@ -150,6 +164,17 @@ func (c *canvas) surface(x, y, width int, on hue) {
 	for i := range width {
 		if here := c.at(x+i, y); here != nil {
 			here.ink.on = on
+		}
+	}
+}
+
+// barred marks the cells n long from x along row y, as far as they're drawn,
+// as the bar of the window ref names, which eases to a new reading.
+func (c *canvas) barred(x, y, n int, ref Ref) {
+	bar := unique.Make(mark{bar: ref})
+	for i := range n {
+		if here := c.at(x+i, y); here != nil {
+			here.mark = bar
 		}
 	}
 }

@@ -3,6 +3,7 @@ package dashboard
 import (
 	"image/color"
 	"math"
+	"unique"
 
 	"charm.land/lipgloss/v2"
 
@@ -97,7 +98,8 @@ type ink struct {
 	// faint, as a short bar's empty cells are.
 	fade float64
 	// glow blends the colour so far toward text.primary, from 0, all the
-	// colour, to 1, all text.primary: a cord lit by what travels it.
+	// colour, to 1, all text.primary: a cord lit by what travels it, or a
+	// number brightened as it changes.
 	glow float64
 	// ramp marks a bar's filled cell, coloured by where it sits along the
 	// bar, at, from 0 at its first cell to 1 at its last, rather than by a
@@ -117,6 +119,12 @@ type ink struct {
 	// the colour beneath; or, in a look that blends nothing, faint, on no
 	// surface.
 	behind bool
+	// mark is what of the page a span in the ink draws that moves as it
+	// changes, where it draws any, as a number the page brightens: the
+	// canvas notes it on the cells it draws the span in, and leaves it out of
+	// their ink. It's held by its handle, a word, as every cell of every
+	// frame has an ink.
+	mark unique.Handle[mark]
 }
 
 // behindFade is how far the page behind a card fades into the colour

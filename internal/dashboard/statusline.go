@@ -48,11 +48,12 @@ func (f Frame) routerStatus(c *canvas, doc status.Document, now time.Time) {
 }
 
 // pageStatus is the page's status line of doc at now: the router's, as
-// newStatusLine has it, auto said where it has no global pin; or probed, as
-// probedLine has it. While the router doesn't answer, from when the frame
-// lost it, its state says so, the rest as its last document had them, or
-// before any document, that alone. Before any document, and before the router
-// is lost, it's blank.
+// newStatusLine has it, auto said where it has no global pin, and the
+// sessions it has routed numbered as such, where it has routed any; or
+// probed, as probedLine has it. While the router doesn't answer, from when
+// the frame lost it, its state says so, the rest as its last document had
+// them, or before any document, that alone. Before any document, and before
+// the router is lost, it's blank.
 func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
 	var s statusLine
 	switch doc.Source {
@@ -62,6 +63,9 @@ func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
 		s = newStatusLine(doc)
 		if s.mode == nil {
 			s.mode = line{{"auto", secondaryInk}}
+		}
+		if doc.Sessions > 0 {
+			s.sessions = s.sessions.numbered(Number{Kind: NumberRouted})
 		}
 	}
 	if !f.Lost.IsZero() {

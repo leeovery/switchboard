@@ -13,11 +13,7 @@ import (
 // windows' words: where the last look read them from, and the cues on each
 // account's state and each window's words that looks saw change.
 type changes struct {
-	// read is set once a document has been read; routed whether it was the
-	// router's, and router which router's, as its health check said.
-	read   bool
-	routed bool
-	router router.Health
+	from   origin
 	states cues[string, string]
 	outs   cues[dashboard.Ref, bool]
 }
@@ -34,12 +30,7 @@ type cues[K comparable, V comparable] struct {
 // turned says of what it was and is, is picked out from now, and each
 // already picked out stays so while it's picked out still.
 func (c cues[K, V]) seen(found map[K]V, now time.Time, turned func(was, is V) bool) cues[K, V] {
-	since := make(map[K]time.Time)
-	for key, at := range c.since {
-		if now.Sub(at) < highlightFor {
-			since[key] = at
-		}
-	}
+	since := lasting(c.since, now, highlightFor)
 	for key, is := range found {
 		if was, ok := c.found[key]; ok && turned(was, is) {
 			since[key] = now
@@ -49,15 +40,14 @@ func (c cues[K, V]) seen(found map[K]V, now time.Time, turned func(was, is V) bo
 }
 
 // looked takes in doc, read at now from the router whose health check said
-// from, or by probing, as found says. The first look picks out nothing, there
-// being no look before it, and nor does one read from elsewhere than the
-// last, the router after probing or probing after it, or another router, as
-// one restarted: what they find starts afresh.
+// from, or by probing, as found says. A look that doesn't follow on from the
+// last, as follows says, picks out nothing: what it finds starts afresh.
 func (c changes) looked(doc status.Document, from router.Health, now time.Time, policy score.Policy) changes {
-	if !c.read || c.routed != routed(doc) || c.routed && !from.Same(c.router) {
+	read := originOf(doc, from)
+	if !read.follows(c.from) {
 		c = changes{}
 	}
-	c.read, c.routed, c.router = true, routed(doc), from
+	c.from = read
 	return c.found(doc, now, policy)
 }
 
@@ -66,7 +56,7 @@ func (c changes) looked(doc status.Document, from router.Health, now time.Time, 
 // window's use heading past its floor before it resets has its words turn to
 // out ~. Before anything is read, there's nothing to tell apart.
 func (c changes) ticked(doc status.Document, now time.Time, policy score.Policy) changes {
-	if !c.read {
+	if !c.from.read {
 		return c
 	}
 	return c.found(doc, now, policy)
@@ -107,15 +97,15 @@ func outsOf(doc status.Document, now time.Time) map[dashboard.Ref]bool {
 }
 
 // faded is how far the cue on each account's state picked out at now has
-// faded, by its account's id, as fading says.
+// faded, by its account's id, as fading says over highlightFor.
 func (c changes) faded(now time.Time) map[string]float64 {
-	return fading(c.states.since, now)
+	return fading(c.states.since, now, highlightFor)
 }
 
 // turnedOut is how far the cue on each window's words picked out at now has
-// faded, by its account and key, as fading says.
+// faded, by its account and key, as fading says over highlightFor.
 func (c changes) turnedOut(now time.Time) map[dashboard.Ref]float64 {
-	return fading(c.outs.since, now)
+	return fading(c.outs.since, now, highlightFor)
 }
 
 // cueing reports whether any cue, on a state or on a window's words, is

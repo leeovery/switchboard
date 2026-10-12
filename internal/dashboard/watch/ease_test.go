@@ -1,9 +1,12 @@
 package watch
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
@@ -70,9 +73,9 @@ func TestBarsRiseFromNothingOnTheFirstRead(t *testing.T) {
 		session, week float64
 	}{
 		{name: "at the start", after: 0, session: 0, week: 0},
-		{name: "half way through", after: 300 * time.Millisecond, session: 0.4375, week: 0.21875},
+		{name: "half way through", after: easeFor / 2, session: 0.4375, week: 0.21875},
 		{name: "at the end", after: easeFor, session: 0.5, week: 0.25},
-		{name: "after the end", after: time.Second, session: 0.5, week: 0.25},
+		{name: "after the end", after: 2 * easeFor, session: 0.5, week: 0.25},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -92,7 +95,7 @@ func TestBarsEaseFromWhereTheyStand(t *testing.T) {
 	h.clock.now = at(13, 20, 0)
 	h.read(sessionAndWeek(0.75, 0.25))
 	checkScreen(t, h, 0.5, 0.25)
-	h.clock.now = at(13, 20, 0).Add(300 * time.Millisecond)
+	h.clock.now = at(13, 20, 0).Add(easeFor / 2)
 	checkScreen(t, h, 0.71875, 0.25)
 
 	// A read arriving mid-way sets off again from the bars as drawn.
@@ -117,7 +120,7 @@ func TestFramesRunOnlyWhileBarsMove(t *testing.T) {
 		h.fire(tm)
 		frames++
 	}
-	if frames < 15 || frames > 20 {
+	if want := int(easeFor / frameEvery); frames < want-3 || frames > want+2 {
 		t.Errorf("the easing took %d frames, want about 30 a second over %v", frames, easeFor)
 	}
 
@@ -136,6 +139,52 @@ func TestFramesRunOnlyWhileBarsMove(t *testing.T) {
 	}
 	if pending != 1 {
 		t.Errorf("two reads that moved bars left %d frames pending, want one run of frames", pending)
+	}
+}
+
+func TestFramesRunOnlyWhileBarsOnScreenMove(t *testing.T) {
+	ids := []string{"work", "personal", "side", "client", "spare", "lab", "team", "extra", "ops", "studio"}
+	// using is ten accounts, the one with the id given using used of its
+	// session, the pin keeping the pool to the rest but studio, so studio's
+	// use moves nothing on screen but its own.
+	using := func(id string, used float64) status.Document {
+		var accounts []status.Account
+		for _, a := range ids {
+			accounts = append(accounts, account(a, a, session(0.25, 3*time.Hour), week(0.5)))
+		}
+		doc := routerDocument(accounts...)
+		doc.Accounts[slices.Index(ids, id)].Windows[0].Utilization = used
+		doc.Pin = status.Pin{Accounts: ids[:len(ids)-1]}
+		return doc.WorkedOut(policy)
+	}
+	tests := []struct {
+		name   string
+		moved  string
+		frames bool
+	}{
+		{name: "a bar on screen", moved: "work", frames: true},
+		{name: "a bar scrolled out of view", moved: "studio"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, using(tt.moved, 0.25))
+			h.model.sections = dashboard.Sections{}.Toggled(dashboard.SectionRouting).Toggled(dashboard.SectionComing).Toggled(dashboard.SectionLately)
+			h.update(tea.WindowSizeMsg{Width: 160, Height: 30})
+			h.start()
+			h.settle()
+			if view := h.view(); strings.Contains(view, "studio") {
+				t.Fatalf("the screen is\n%s\nwant USAGE too short for studio, scrolled out of view", view)
+			}
+
+			h.startRouter(using(tt.moved, 0.3))
+			seen := h.tickUntilAsked()
+			if _, ok := h.model.ease.eased(h.model.doc, seen)[dashboard.Ref{Account: tt.moved, Window: "5h"}]; !ok {
+				t.Fatalf("%s's session bar isn't easing, want the read to have moved it", tt.moved)
+			}
+			if _, framing := h.pendingFrame(); framing != tt.frames {
+				t.Errorf("a frame is armed: %t, want %t", framing, tt.frames)
+			}
+		})
 	}
 }
 
@@ -164,7 +213,7 @@ func TestEasingLeavesTheDocumentAlone(t *testing.T) {
 	h := newHarness(t, doc)
 	h.start()
 
-	h.clock.now = start.Add(300 * time.Millisecond)
+	h.clock.now = start.Add(easeFor / 2)
 	h.model.View()
 	if got := doc.Accounts[0].Windows[0].Utilization; got != 0.5 {
 		t.Errorf("drawing the bars part way changed the document's session to %v, want 0.5", got)

@@ -431,7 +431,8 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 			}
 		})
 	}
-	inks := []ink{faintInk, dimInk, strongInk, dimInk, faintInk, dimInk, strongInk, dimInk}
+	room := func(key string) ink { return strongInk.numbered(Number{Kind: NumberRoom, Account: "work", Of: key}) }
+	inks := []ink{faintInk, dimInk, room("5h"), dimInk, faintInk, dimInk, room("7d"), dimInk}
 	got := frameOf(160, 60).usageSection(one(0), now).description()
 	if len(got) != len(inks) {
 		t.Fatalf("USAGE's description is %+v, want %d spans", got, len(inks))

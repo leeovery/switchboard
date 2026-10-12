@@ -89,7 +89,7 @@ func TestThePageUnderACardStandsStill(t *testing.T) {
 	h.start()
 	h.settle()
 	h.press("p")
-	under := h.view()
+	opened, under := h.clock.now.Format(time.TimeOnly), h.view()
 
 	moved := routerDocument(three()...)
 	moved.Accounts[0].Windows[0].Utilization = 0.9
@@ -98,8 +98,8 @@ func TestThePageUnderACardStandsStill(t *testing.T) {
 	if got := h.view(); behindCard(got) != behindCard(under) || !strings.Contains(got, "5-hour 90%") {
 		t.Errorf("half a minute on, a look read since, the screen is\n%s\nwant the page as the card opened over it, and the card's figures as read since\n%s", got, under)
 	}
-	if !strings.Contains(under, "13:12:00") {
-		t.Errorf("the screen is\n%s\nwant the clock stopped at 13:12:00, when the card opened", under)
+	if !strings.Contains(under, opened) {
+		t.Errorf("the screen is\n%s\nwant the clock stopped at %s, when the card opened", under, opened)
 	}
 	if _, ok := h.pendingFrame(); ok {
 		t.Error("a read eased a bar under the card, a frame armed, want none: the page under it is still")

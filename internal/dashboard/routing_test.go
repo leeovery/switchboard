@@ -435,6 +435,7 @@ func TestThePoolsStatesAreCountedInTheirOrderAndColours(t *testing.T) {
 		return accounts
 	}
 	apart := span{" · ", faintInk}
+	counted := func(k ink, words string) ink { return k.numbered(Number{Kind: NumberStates, Of: words}) }
 	tests := []struct {
 		name     string
 		accounts []accountRouting
@@ -443,24 +444,25 @@ func TestThePoolsStatesAreCountedInTheirOrderAndColours(t *testing.T) {
 	}{
 		{
 			name: "the frame's", accounts: of(status.RoutingCapped, status.RoutingOpen, status.RoutingNext), width: 51,
-			want: line{{"2 open", secondaryInk}, apart, {"1 at cap", warningInk}},
+			want: line{{"2 open", counted(secondaryInk, "open")}, apart, {"1 at cap", counted(warningInk, "at cap")}},
 		},
 		{
 			name:     "each in its order: open, pressure, at cap, limit, refused, not read",
 			accounts: of(status.RoutingUnread, status.RoutingRefused, status.RoutingLimited, status.RoutingCappedPinned, status.RoutingPressed, status.RoutingIdle),
 			width:    80,
 			want: line{
-				{"1 open", secondaryInk}, apart, {"1 pressure", warningInk}, apart, {"1 at cap", warningInk}, apart,
-				{"1 limit", errorInk}, apart, {"1 refused", errorInk}, apart, {"1 not read", dimInk},
+				{"1 open", counted(secondaryInk, "open")}, apart, {"1 pressure", counted(warningInk, "pressure")}, apart,
+				{"1 at cap", counted(warningInk, "at cap")}, apart, {"1 limit", counted(errorInk, "limit")}, apart,
+				{"1 refused", counted(errorInk, "refused")}, apart, {"1 not read", counted(dimInk, "not read")},
 			},
 		},
 		{
 			name: "held back from some models' requests alone: open to the rest", accounts: of(status.RoutingModelLimited, status.RoutingModelRefused), width: 51,
-			want: line{{"2 open", secondaryInk}},
+			want: line{{"2 open", counted(secondaryInk, "open")}},
 		},
 		{
 			name: "too wide: how many are open, pressure counting as open", accounts: of(status.RoutingOpen, status.RoutingPressed, status.RoutingLimited), width: 20,
-			want: line{{"2 of 3 open", secondaryInk}},
+			want: line{{"2 of 3 open", counted(secondaryInk, "of 3 open")}},
 		},
 	}
 	for _, tt := range tests {
@@ -488,7 +490,7 @@ func TestROUTINGsLinesBesideABlockAreTwoRowsApartWhereItHasTheRows(t *testing.T)
 }
 
 func TestAPinnedAccountBesideItsBlockSaysSoBeforeItsSessions(t *testing.T) {
-	want := line{pinnedSpan, {"  ·  ", faintInk}, {"3 sessions", mutedInk}}
+	want := line{pinnedSpan, {"  ·  ", faintInk}, {"3 sessions", mutedInk.numbered(Number{Kind: NumberSessions})}}
 	if got := besideSessions(accountRouting{pinned: true, sessions: 3}); !slices.Equal(got, want) {
 		t.Errorf("%v, want %v", got, want)
 	}

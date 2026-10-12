@@ -24,12 +24,12 @@ func TestATracesCellsFillEighthsOfItsRowsToItsScale(t *testing.T) {
 		col      int
 		top, bot cell
 	}{
-		{name: "empty: its lane, ▁ on the bottom row", col: 0, top: blank, bot: cell{traceLane, lane}},
-		{name: "half an eighth, rounding to the even none: empty", col: 1, top: blank, bot: cell{traceLane, lane}},
-		{name: "two eighths", col: 2, top: blank, bot: cell{levels[2], fill}},
-		{name: "an eighth and a half, rounding to the even two", col: 3, top: blank, bot: cell{levels[2], fill}},
+		{name: "empty: its lane, ▁ on the bottom row", col: 0, top: blank, bot: cell{glyph: traceLane, ink: lane}},
+		{name: "half an eighth, rounding to the even none: empty", col: 1, top: blank, bot: cell{glyph: traceLane, ink: lane}},
+		{name: "two eighths", col: 2, top: blank, bot: cell{glyph: levels[2], ink: fill}},
+		{name: "an eighth and a half, rounding to the even two", col: 3, top: blank, bot: cell{glyph: levels[2], ink: fill}},
 		{name: "a row's eight: full, its colour behind it", col: 4, top: blank, bot: full},
-		{name: "twelve: a full cell, four eighths on top", col: 5, top: cell{levels[4], fill}, bot: full},
+		{name: "twelve: a full cell, four eighths on top", col: 5, top: cell{glyph: levels[4], ink: fill}, bot: full},
 		{name: "the scale: both rows full", col: 6, top: full, bot: full},
 		{name: "past the scale: no fuller", col: 7, top: full, bot: full},
 	}

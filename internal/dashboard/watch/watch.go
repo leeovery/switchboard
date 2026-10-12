@@ -221,9 +221,11 @@ type Model struct {
 	// view is the tab shown.
 	view dashboard.View
 	// news is what the looks have seen of the router's events, and changes
-	// of the accounts' states.
+	// of the accounts' states; numbers what reads and the request stream
+	// changed of the numbers on the page.
 	news    news
 	changes changes
+	numbers numbers
 	// history is how the accounts' windows have been used, and trails the
 	// charts' share of it, of the document on screen.
 	history history
@@ -529,17 +531,17 @@ func (m Model) uncover() Model {
 // frame is the dashboard's frame as the model stands at now, but for its key
 // line and any card over it: at the size drawn at, in the look, showing the
 // tab shown, with what the watch knows of the router, its events and its
-// history, the Overview's sections shown, how its windows are grouped, the
-// requests its traces count and its layout as kept, how far ahead Runway
-// looks, the sessions listed, what the request stream tells of their
-// requests and the order Sessions' calls keep, how far the view is
-// scrolled, and the account the focus is on.
+// history, the numbers brightening, the Overview's sections shown, how its
+// windows are grouped, the requests its traces count and its layout as
+// kept, how far ahead Runway looks, the sessions listed, what the request
+// stream tells of their requests and the order Sessions' calls keep, how far
+// the view is scrolled, and the account the focus is on.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.eased(now),
-		Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
+		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.ease.eased(m.doc, now),
+		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus:  m.focus,
 		Policy: m.cfg.Policy,
@@ -662,10 +664,11 @@ func logRead(msg fetchedMsg, next time.Time) {
 // again, or another router does, as one restarted, or probing, reads the
 // readings history's files with the first full read since probing began;
 // keeps the focus where its
-// account still is, else puts it on the first; and eases the bars to it from
-// where they stand.
+// account still is, else puts it on the first; eases the bars to it from
+// where they stand; and brightens each number on the page it changed.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	doc := msg.doc
+	was := m.numbersDrawn(now)
 	var post, asked tea.Cmd
 	if !routed(doc) {
 		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy, m.cfg.Notifications), probedAsAsked(doc))
@@ -680,7 +683,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.news = m.news.looked(doc, msg.router, now)
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
 	m.history = m.history.saw(doc)
-	m.ease = easing{from: utilizations(m.shown(now)), start: now}
+	m.ease = easing{from: m.ease.standing(m.doc, now), start: now}
 	m.doc, m.updated = doc, now
 	switch {
 	case msg.listed || !routed(doc):
@@ -692,6 +695,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	}
 	m = m.stillThere()
 	m.trails = m.history.drawn(doc)
+	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), originOf(doc, msg.router), now)
 	switch {
 	case ask:
 		m, asked = m.askHistory(doc)
@@ -736,28 +740,6 @@ func (m Model) lose(now time.Time) Model {
 	}
 	m.lost = now
 	return m
-}
-
-// shown is the document as its bars stand at now, part way along their
-// easing.
-func (m Model) shown(now time.Time) status.Document {
-	return m.ease.apply(m.doc, now)
-}
-
-// eased are how much of each window the bars fill at now, by its account
-// and key, while they ease to the document's readings: nil once they're
-// there.
-func (m Model) eased(now time.Time) map[dashboard.Ref]float64 {
-	if m.ease.done(now) || !m.ease.moves(m.doc) {
-		return nil
-	}
-	eased := make(map[dashboard.Ref]float64)
-	for _, a := range m.shown(now).Accounts {
-		for _, w := range a.Windows {
-			eased[dashboard.Ref{Account: a.ID, Window: w.Key}] = w.Utilization
-		}
-	}
-	return eased
 }
 
 // ticked reads again once a read is due. Every tick redraws, as every message
@@ -825,19 +807,19 @@ func (m Model) framed(msg frameMsg) Model {
 
 // nextFrame is how long after now what moves on screen next changes, and
 // whether anything does: nothing while a card is open, as the page behind it
-// stands still; else frameEvery while anything moves frame by frame, a bar
-// easing to its reading, the highlight on an event, or the cue on an
-// account's state or a window's words, fading back, or what travels the
-// cords, as Motion says; else as
-// soon as the shimmer down a cord steps on, on the clock's steps of it, or a
-// move yet to show re-patches Sessions' calls. Sessions' plain list is drawn
-// again as the stream tells of more, and as the clock ticks.
+// stands still; else frameEvery while anything moves frame by frame, the
+// highlight on an event, or the cue on an account's state or a window's
+// words, fading back, or as Motion says, what travels the cords, or on the
+// page, a bar easing to its reading, or a number brightened, fading back;
+// else as soon as the shimmer down a cord steps on, on the clock's steps of
+// it, or a move yet to show re-patches Sessions' calls. Sessions' plain list
+// is drawn again as the stream tells of more, and as the clock ticks.
 func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
 	if m.open != nothingOpen {
 		return 0, false
 	}
 	moving := m.frame(now).Motion(m.doc, now)
-	if moving.Smooth || m.ease.moves(m.doc) && !m.ease.done(now) || m.news.faded(now) != nil || m.changes.cueing(now) {
+	if moving.Smooth || m.news.faded(now) != nil || m.changes.cueing(now) {
 		return frameEvery, true
 	}
 	var next []time.Duration

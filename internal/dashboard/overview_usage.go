@@ -135,16 +135,19 @@ func keyMarks(names []accountName, phone bool) []line {
 
 // roomLeft is USAGE's description of doc: with one account, which has no
 // pool, the room it has left in its 5-hour window and its week, each summed
-// as the pool's room is, as in "room left  5h 0.4 of 1  ·  week 0.6 of 1";
-// none on a phone, nor with more accounts, whose pool's row says the room.
+// as the pool's room is, and numbered as its window's room, as in "room
+// left  5h 0.4 of 1  ·  week 0.6 of 1"; none on a phone, nor with more
+// accounts, whose pool's row says the room.
 func (f Frame) roomLeft(doc status.Document) line {
 	if len(doc.Accounts) != 1 || f.phone() {
 		return nil
 	}
+	a := doc.Accounts[0]
 	var parts []line
 	for _, w := range []struct{ key, word string }{{f.Policy.Started, "5h"}, {sharedWeek(f.Policy), "week"}} {
-		if room, ok := doc.RoomOf(doc.Accounts[0], w.key, f.Policy); ok {
-			parts = append(parts, line{{w.word + " ", dimInk}, {tenths(room), strongInk}, {" of 1", dimInk}})
+		if room, ok := doc.RoomOf(a, w.key, f.Policy); ok {
+			left := span{tenths(room), strongInk}.numbered(Number{Kind: NumberRoom, Account: a.ID, Of: w.key})
+			parts = append(parts, line{{w.word + " ", dimInk}, left, {" of 1", dimInk}})
 		}
 	}
 	if parts == nil {
