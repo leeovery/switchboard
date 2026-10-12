@@ -24,8 +24,8 @@ func NewPast(in HistoryInput, days []ledger.Summary) Past {
 }
 
 // Year is the Year's page, as asked for.
-func (p Past) Year(YearAsk) YearPage {
-	return YearPage{}
+func (p Past) Year(ask YearAsk) YearPage {
+	return p.year(ask)
 }
 
 // Weeks is Weeks' page: the eight weeks to this one.
