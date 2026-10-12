@@ -207,17 +207,31 @@ func (m Model) heard(msg streamHeardMsg) (Model, tea.Cmd) {
 	return m.rejoinIn(rejoinAfter)
 }
 
-// told takes in the events the stream told, at now, as took does, each
-// number on the page they change brightening: the page is drawn to compare
-// its numbers only where they can change one, as numbering says.
+// told takes in the events the stream told, at now, as took does: those of
+// the requests in flight as the watch joined it, as joined counts them, as
+// part of the join's first look, brightening nothing; then the rest, each
+// number on the page they change brightening, the page drawn to compare its
+// numbers only where they can change one, as numbering says.
 func (m Model) told(events []router.StreamEvent, now time.Time) Model {
-	if !numbering(events) {
+	if n := joined(events); n > 0 {
+		m, events = m.took(events[:n], now), events[n:]
+	}
+	if !m.numbering(events, now) {
 		return m.took(events, now)
 	}
 	was := m.numbersDrawn(now)
 	m = m.took(events, now)
 	m.numbers = m.numbers.changed(was, m.numbersDrawn(now), now)
 	return m
+}
+
+// joined is how many of the events lead them telling of the requests in
+// flight as the watch joined the stream, which opens with one for each.
+func joined(events []router.StreamEvent) int {
+	if n := slices.IndexFunc(events, func(e router.StreamEvent) bool { return e.Kind != router.StreamInFlight }); n >= 0 {
+		return n
+	}
+	return len(events)
 }
 
 // took takes in the events the stream told, at now: what each seat is doing,
@@ -228,16 +242,17 @@ func (m Model) took(events []router.StreamEvent, now time.Time) Model {
 	return m
 }
 
-// numbering reports whether the events can change a number the page draws:
-// one sending a request, which the traces count, or moving a seat, which
-// re-patches the sessions each account counts. An answer's progress, its
-// end and the rest change none, as the dashboard's tests hold the traffic
-// to changing no number but by its moves.
-func numbering(events []router.StreamEvent) bool {
+// numbering reports whether the events can change a number the page shown
+// at now draws: where one sends a request, which the traces count, or moves
+// a seat, which re-patches the sessions each account counts, and the page is
+// one that draws what they change, as StreamNumbered says. An answer's
+// progress, its end and the rest change none, as the dashboard's tests hold
+// the traffic to changing no number but by its moves.
+func (m Model) numbering(events []router.StreamEvent, now time.Time) bool {
 	return slices.ContainsFunc(events, func(e router.StreamEvent) bool {
 		_, sent := sentAt(e)
 		return sent || e.Kind == router.StreamMoved
-	})
+	}) && m.frame(now).StreamNumbered()
 }
 
 // rejoinIn has the request stream asked for again once wait has passed.

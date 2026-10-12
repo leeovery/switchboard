@@ -52,8 +52,9 @@ func (by scrollStep) from(at int, s dashboard.Scrolling) int {
 
 // wheeled scrolls what the wheel turns under the pointer, as the screen
 // draws it: help, over its card; the view, over what of it scrolls, while no
-// card is open; and nothing else, the routing card among it, nor anything
-// while the theme picker is open.
+// card is open, the page acting as acting has it, as on j and k; and nothing
+// else, the routing card among it, nor anything while the theme picker is
+// open.
 func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 	by, ok := wheelTurn(msg.Button)
 	if !ok || m.picker.open {
@@ -64,7 +65,7 @@ func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 	case under == dashboard.UnderCard && m.open == helpOpen:
 		return m.scrollHelp(by)
 	case under == dashboard.UnderView:
-		return m.scrollView(by)
+		return m.acting().scrollView(by)
 	}
 	return m
 }

@@ -77,6 +77,14 @@ func (c cell) numbered() (Number, bool) {
 	return n, n != Number{}
 }
 
+// StreamNumbered reports whether the frame's page may draw a number the
+// request stream changes: the Overview's, with ROUTING or SESSIONS shown,
+// whose rates count the requests it tells of going out, and whose sessions
+// its moves re-patch. No other page draws one, as the tests hold each to.
+func (f Frame) StreamNumbered() bool {
+	return f.View == Overview && (f.Sections.Has(SectionRouting) || f.Sections.Has(SectionSessions))
+}
+
 // Numbers are the numbers the frame's page draws of doc at now that brighten
 // as they change, by the number each is, each as its cells read: those on
 // screen alone, never one scrolled out of view, in a section folded, or in a
