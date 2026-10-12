@@ -76,7 +76,8 @@ func Builtins() []Theme {
 // in reverse, and its colours the terminal's own sixteen, on the terminal's
 // own background, so it paints no canvas, and, its colours being whatever
 // the terminal makes them, blends nothing. A bar's ramp steps from colour to
-// colour rather than through them.
+// colour rather than through them, a ramp of shades stays at its hue, and an
+// older version is drawn faint in its family's colour.
 func terminal() Theme {
 	t := Theme{Slug: Terminal}
 	for tok, c := range map[Token]color.Color{
@@ -93,6 +94,9 @@ func terminal() Theme {
 	}
 	for _, tok := range []Token{TextMuted, TextSubtle, TextFaint, Border, VizTrack} {
 		t.faint[tok] = true
+	}
+	for i, slot := range versionSlots {
+		t.faint[VizVersion1+Token(i)] = slot.older
 	}
 	t.reversed[BgSelection], t.reversed[BgAttention] = true, true
 	t.derive()
