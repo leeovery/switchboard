@@ -64,6 +64,25 @@ func TestTheHeadersStatusShortensWhereItDoesntFit(t *testing.T) {
 	}
 }
 
+func TestTheHeaderLeavesOffWholePartsBeforeCuttingAny(t *testing.T) {
+	tests := []struct {
+		width int
+		want  string
+	}{
+		{width: 31, want: " SWITCHBOARD   Thu 1 Oct  14:42"},
+		{width: 30, want: " SWITCHBOARD   14:42"},
+		{width: 20, want: " SWITCHBOARD   14:42"},
+		{width: 19, want: "14:42"},
+		{width: 5, want: "14:42"},
+		{width: 4, want: "14:…"},
+	}
+	for _, tt := range tests {
+		if got := printed(trio(), tt.width, ByWindow)[0]; got != tt.want {
+			t.Errorf("at %d columns, the header reads %q, want %q", tt.width, got, tt.want)
+		}
+	}
+}
+
 func TestByAccountLeavesTwoBlankLinesUnderTheHeader(t *testing.T) {
 	rows := printed(trio(), 160, ByAccount)
 	if rows[1] != "" || rows[2] != "" || !strings.HasPrefix(rows[3], "1 work") {
