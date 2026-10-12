@@ -894,3 +894,11 @@ func TestUSAGEScrollsWithinTheBodyItsLaidOutIn(t *testing.T) {
 		t.Errorf("with USAGE hidden, the Overview scrolls %+v, want it not to", got)
 	}
 }
+
+func TestAFrameBuiltBuildsItsSectionsAfreshOfAnotherDocument(t *testing.T) {
+	f := frameOf(160, 40)
+	other := twoWithRoom()
+	if got, want := textOf(f.Built(threeRouted(), now).Draw(other, now)), textOf(f.Draw(other, now)); !slices.Equal(got, want) {
+		t.Errorf("built of one document and drawn of another at the same moment, drew\n%s\nwant the other as drawn afresh\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}

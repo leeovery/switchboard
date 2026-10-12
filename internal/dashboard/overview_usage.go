@@ -26,13 +26,16 @@ const (
 // its least, it scrolls within them, an account at a time. By account from
 // 150 columns, ROUTING is drawn beside its blocks, from routingAt, and
 // follows them as they scroll; a click along an account's rows, its own or
-// ROUTING's beside them, moves the focus to it.
+// ROUTING's beside them, moves the focus to it. ROUTING's table beside them
+// is built only as it's first drawn.
 func (f Frame) usageSection(doc status.Document, now time.Time) section {
 	block := f.overviewBlock(doc, now)
 	views := block.views()
 	aside := 0
+	var routing func() routingTable
 	if f.routingBesideUsage() {
 		aside = block.routingAt()
+		routing = sync.OnceValue(func() routingTable { return f.routingTableOf(doc, now) })
 	}
 	return section{
 		Section: SectionUsage, least: sectionHead + views.all, most: sectionHead + views.big, aside: aside,
@@ -41,7 +44,7 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 			shown := views.fitted(body.rows, f.Scroll)
 			shown.drawIn(c, body)
 			if aside > 0 {
-				f.routingBeside(c, doc, now, shown.beside(aside, body))
+				f.routingBeside(c, routing(), shown.beside(aside, body))
 			}
 		},
 		targets: func(body bounds) []Target {

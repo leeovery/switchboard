@@ -133,7 +133,7 @@ func TestROUTINGBesideUSAGEsBlocksIsDrawnAsItsFrameIs(t *testing.T) {
 	doc, sessions := autoRouting()
 	f := Frame{Width: 160, Height: 42, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, By: ByAccount}
 	c := newCanvas(f.Width, f.Height)
-	f.routingBeside(c, doc, routedAt, blocksBeside{x: 107, blocks: []rowAt{{"work", 6, 5}, {"personal", 13, 5}, {"side", 20, 5}, {"", 27, 5}}})
+	f.routingBeside(c, f.routingTableOf(doc, routedAt), blocksBeside{x: 107, blocks: []rowAt{{"work", 6, 5}, {"personal", 13, 5}, {"side", 20, 5}, {"", 27, 5}}})
 
 	// The frame draws work's state whole to the edge, where the design cuts
 	// its words by whole clauses to end two cells short of it.
