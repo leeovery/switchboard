@@ -257,6 +257,14 @@ func figures(n int, session, week string) []passing {
 // has them, rows 15, 16 and 17.
 var routingFigures = slices.Concat(figures(15, "95%", "34%"), figures(16, "39%", "66%"), figures(17, "13%", "78%"))
 
+// cursorRow passes over row n of a routing frame, the card's row the cursor
+// is on, which reads as given, from a cell before the card's content to a
+// cell after it: the frames light no row, where the design lights the
+// cursor's on bg.selection.
+func cursorRow(n int, reads string) passing {
+	return cellsOf(n, 42, 119, reads)
+}
+
 // behindTheCard passes over the page the routing frames draw behind the
 // card's box, of three accounts: work's week's and Fable week's even paces,
 // on row 9, above it; and ROUTING's traces beside and under it, and their
@@ -436,11 +444,13 @@ var passedOver = map[string][]passing{
 	"history-year-160":      {period(145, "last 12 months"), wholeRow(37, historyKeys)},
 	"history-year-opus-160": {period(145, "last 12 months"), wholeRow(37, historyKeys)},
 
-	"routing-auto-160": slices.Concat(routingFigures, behindTheCard("0/min", "2/min", "15/min")),
-	"routing-two-160":  slices.Concat(routingFigures, behindTheCard("0/min", "2/min", "15/min")),
-	"routing-move-160": slices.Concat(routingFigures, []passing{cellsOf(23, 76, 79, "6.20")}, behindTheCard("0/min", "2/min", "15/min")),
+	"routing-auto-160": slices.Concat(routingFigures, []passing{cursorRow(14, "■ 0 auto")}, behindTheCard("0/min", "2/min", "15/min")),
+	"routing-two-160":  slices.Concat(routingFigures, []passing{cursorRow(17, "■ 3 side")}, behindTheCard("0/min", "2/min", "15/min")),
+	"routing-move-160": slices.Concat(
+		routingFigures, []passing{cursorRow(16, "■ 2 personal"), cellsOf(23, 76, 79, "6.20")}, behindTheCard("0/min", "2/min", "15/min"),
+	),
 	"routing-limit-160": slices.Concat(
-		[]passing{cellsOf(11, 27, 29, "┃"), cellsOf(15, 24, 25, "┃")},
+		[]passing{cellsOf(11, 27, 29, "┃"), cellsOf(15, 24, 25, "┃"), cursorRow(17, "■ 3 side")},
 		figures(15, "95%", "34%"), []passing{cellsOf(16, 87, 89, "64%")}, figures(17, "13%", "78%"),
 		behindTheCard("0/min", "0/min", "15/min"), comingLines(33, 72, "16:30"),
 	),
