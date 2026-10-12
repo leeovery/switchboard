@@ -590,9 +590,10 @@ func (p *proxy) ended(ex *exchange) {
 
 // event returns the request stream's event of the kind given of a routed
 // request, as it stands: on the account whose answer the client has, once
-// it has one, its session and model cut short where they run too long, and
-// its directory, the prompt it serves, its class and its agent as the request
-// ledger gives them.
+// it has one, its session and model cut short where they run too long, its
+// directory, the prompt it serves, its class and its agent as the request
+// ledger gives them, and whether it's the client's quota check, or a count
+// of tokens.
 func (ex *exchange) event(kind string) StreamEvent {
 	return StreamEvent{
 		Kind:    kind,
@@ -606,6 +607,7 @@ func (ex *exchange) event(kind string) StreamEvent {
 		Class:   ex.hints.Class,
 		AgentID: ex.hints.AgentID,
 		Check:   ex.req.Check,
+		Count:   !ex.spends,
 	}
 }
 

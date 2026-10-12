@@ -531,7 +531,7 @@ func (m *modelTally) line(l *Line) {
 		m.day.Checks++
 	case l.Kind == KindCount:
 		m.day.Counts++
-	case l.Attempts > 0:
+	case l.Upstream():
 		m.day.Upstream++
 		if l.unmetered() {
 			m.day.NoUsage++

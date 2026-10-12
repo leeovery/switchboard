@@ -49,8 +49,7 @@ func (m Model) toldTraces(events []router.StreamEvent) Model {
 
 // sentOf are the requests the events tell of going upstream, as the traces
 // count them: each as it goes out, or as it was last sent, in flight as the
-// stream opens; never the client's quota check. The stream tells a count of
-// tokens from a message by nothing, so a count is counted as one.
+// stream opens; never the client's quota check, or a count of tokens.
 func sentOf(events []router.StreamEvent) []views.Sent {
 	var sent []views.Sent
 	for _, e := range events {
@@ -62,10 +61,11 @@ func sentOf(events []router.StreamEvent) []views.Sent {
 }
 
 // sentAt is when the request e tells of went upstream, reporting false
-// where e tells of none going, or of the client's quota check.
+// where e tells of none going, or of the client's quota check, or a count of
+// tokens, which spend no quota.
 func sentAt(e router.StreamEvent) (time.Time, bool) {
 	switch {
-	case e.Check:
+	case e.Check, e.Count:
 		return time.Time{}, false
 	case e.Kind == router.StreamSent:
 		return e.At, true

@@ -119,13 +119,15 @@ func TestTheStreamsRequestsAreCountedOnceEachWhicheverTellsOfThemFirst(t *testin
 		alter(told(router.StreamInFlight, "0a000002", "work", 0), func(e *router.StreamEvent) { e.SentAt = past(-30 * time.Second) }),
 		told(router.StreamSent, "0a000003", "side", 0),
 		alter(told(router.StreamSent, "0a000004", "work", 0), func(e *router.StreamEvent) { e.Check = true }),
+		alter(told(router.StreamInFlight, "0a000005", "side", 0), func(e *router.StreamEvent) { e.SentAt, e.Count = past(-20*time.Second), true }),
+		alter(told(router.StreamSent, "0a000006", "side", 0), func(e *router.StreamEvent) { e.Count = true }),
 		told(router.StreamFirst, "0a000003", "side", time.Second),
 		alter(told(router.StreamProgress, "0a000003", "side", time.Second), func(e *router.StreamEvent) { e.Chars = 4936 }),
 	)
 	want := map[string][]time.Duration{"work": {5 * time.Minute, 30 * time.Second}, "side": {0}}
 	for account, w := range want {
 		if got := tracedOn(h, account); !slices.Equal(got, w) {
-			t.Errorf("as the stream tells of them, the traces count requests on %s sent %v ago, want %v: one in flight as it opened, from when it was sent, and one going out; never the quota check, or an answer's progress", account, got, w)
+			t.Errorf("as the stream tells of them, the traces count requests on %s sent %v ago, want %v: one in flight as it opened, from when it was sent, and one going out; never the quota check, a count of tokens, or an answer's progress", account, got, w)
 		}
 	}
 
