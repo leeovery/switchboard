@@ -4452,9 +4452,9 @@ from the first day a router that has it runs, so nothing before then is in it.
   `claude-mythos-5-1` and `claude-mythos-5`, is a fifth, with no hue of its own, drawn in
   `text.muted` with its versions, in charts and tables alike. The table assigns `viz.version.1` to
   `viz.version.6` in its rows' order: Opus 5.5 and Opus 5, Sonnet 5.5 and Sonnet 5, Fable 5.1, and
-  Haiku 4.5; a release that adds a version assigns them afresh. A version without one draws in its
-  family's colour, mixed 30% toward the canvas when it's older than the family's newest (see
-  Themes). A version the table doesn't name is shown by its id, `claude-` taken off, `opus-6`, in
+  Haiku 5.5, which took Haiku 4.5's as it was priced on 7 Oct 2026; a release that adds a version
+  assigns them afresh. A version without one draws in its family's colour, mixed 30% toward the
+  canvas when it's older than the family's newest (see Themes). A version the table doesn't name is shown by its id, `claude-` taken off, `opus-6`, in
   its family's colour, or in `text.muted` where its family has none. Tables name versions; charts
   keep to families.
 - **Requests,** wherever a view or a command counts them, are a summary's `upstream` and `unsent`
