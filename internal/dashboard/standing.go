@@ -27,7 +27,7 @@ type standing struct {
 	// of its reaching the limit that holds it, zero otherwise.
 	held        bool
 	back, since time.Time
-	// lapsed is set once it has lapsed, while it isn't held: it isn't
+	// lapsed is set where it stands not started, as Unstarted says: it isn't
 	// running, and reads empty, until a request starts it.
 	lapsed bool
 	// floor is the share of it used where its account runs out: where its
@@ -37,26 +37,16 @@ type standing struct {
 
 // standingOf is how doc's account a's window w stands at now, as policy says
 // which windows every model shares. Held at its limit, it's held until the
-// hold lifts off it, as Lifts says; lapsed as lapsedOf says.
+// hold lifts off it, as Lifts says; lapsed where it stands not started, as
+// Unstarted says.
 func standingOf(doc status.Document, a status.Account, w quota.Window, now time.Time, policy score.Policy) standing {
 	s := standing{account: a.ID, window: w, heading: doc.Project(a, w, now), floor: doc.Floor(a)}
 	s.out, s.runsOut = doc.RunsOut(a, w, now)
 	if held, ok := a.Held(now, policy); ok && held.Holds(w.Key) {
 		s.held, s.back, s.since = true, held.Lifts(w.Key), limitedSince(doc, a, w, now)
 	}
-	s.lapsed = lapsedOf(a, w, now, policy)
+	s.lapsed = doc.WindowStatesOf(a, now, policy).Unstarted(w.Key)
 	return s
-}
-
-// lapsedOf reports whether account a's window w has lapsed at now, as a
-// panel draws it, with no bar: it has lapsed then, as HasLapsed judges it,
-// and no limit holds it, as no request can start it then.
-func lapsedOf(a status.Account, w quota.Window, now time.Time, policy score.Policy) bool {
-	if !a.HasLapsed(w, now, policy) {
-		return false
-	}
-	held, ok := a.Held(now, policy)
-	return !ok || !held.Holds(w.Key)
 }
 
 // limitedSince is when doc's account a reached the limit that holds its

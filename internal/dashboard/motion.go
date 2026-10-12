@@ -93,13 +93,14 @@ func (f Frame) overviewFilled(doc status.Document, now time.Time) map[Ref]float6
 
 // sessionsFilled are how much of each bar Sessions' panels draw of doc at
 // now it fills, as Filled has them: each window as last read, by its account
-// and key, where its panel draws it a bar: where it hasn't lapsed, as
-// lapsedOf says.
+// and key, where its panel draws it a bar: where it doesn't stand not
+// started, as Unstarted says.
 func (f Frame) sessionsFilled(doc status.Document, now time.Time) map[Ref]float64 {
 	used := make(map[Ref]float64)
 	for _, a := range doc.Accounts {
+		states := doc.WindowStatesOf(a, now, f.Policy)
 		for _, w := range a.Windows {
-			if !lapsedOf(a, w, now, f.Policy) {
+			if !states.Unstarted(w.Key) {
 				used[Ref{Account: a.ID, Window: w.Key}] = w.Utilization
 			}
 		}

@@ -131,20 +131,42 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 		},
 		{
 			name:    "the session reset since it was read, nothing noting it lapsed: lapsed at now, not started",
-			account: with(readNow(0.2, 0.3, 0), func(a *status.Account) { a.Windows[0].ResetsAt = at(1, 14, 0).UTC() }),
+			account: with(readNow(0.2, 0.3, 0), resetSince),
 			key:     "5h",
 			want:    status.WindowState{Kind: status.WindowNotStarted},
+		},
+		{
+			name:    "the session reset since it was read, the router's limit naming it: the limit, not lapsed",
+			account: with(with(readNow(0.97, 0.3, 0), resetSince), limited("5h")),
+			key:     "5h",
+			want:    status.WindowState{Kind: status.WindowLimited, At: at(1, 15, 54).UTC()},
+		},
+		{
+			name:    "the session reset since it was read, its last read failed: as last read, not lapsed",
+			account: with(with(readNow(0.97, 0.3, 0), resetSince), failing),
+			key:     "5h",
+			want:    status.WindowState{Kind: status.WindowStale, Used: 0.97, At: read},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{GeneratedAt: stateNow.UTC(), Accounts: []status.Account{tt.account}, Pin: status.Pin{Accounts: tt.pin}}
-			got := doc.WindowStatesOf(tt.account, stateNow, policy).Of(tt.key)
+			states := doc.WindowStatesOf(tt.account, stateNow, policy)
+			got := states.Of(tt.key)
 			if got.Kind != tt.want.Kind || !near(got.Used, tt.want.Used) || !got.At.Equal(tt.want.At) {
 				t.Errorf("the window stands as %+v, want %+v", got, tt.want)
 			}
+			if unstarted, want := states.Unstarted(tt.key), tt.want.Kind == status.WindowNotStarted; unstarted != want {
+				t.Errorf("Unstarted() = %t, want %t, as it stands", unstarted, want)
+			}
 		})
 	}
+}
+
+// resetSince has the account's session, read running, reset at 14:00, before
+// stateNow, with nothing read since.
+func resetSince(a *status.Account) {
+	a.Windows[0].ResetsAt = at(1, 14, 0).UTC()
 }
 
 // near reports whether two shares are equal but for rounding.

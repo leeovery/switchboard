@@ -40,9 +40,9 @@ const notStarted = "not started"
 
 // Text renders the document for a terminal: each account, the primary marked,
 // with its windows, when they reset and where they're heading, or that one
-// that has lapsed at now, as policy judges it, hasn't started, and when it's
-// primed, whatever couldn't be read, what holds it back, whether it's under
-// pressure, and how many sessions the router has sent it;
+// standing not started at now, as policy judges it, hasn't started, and when
+// it's primed, whatever couldn't be read, what holds it back, whether it's
+// under pressure, and how many sessions the router has sent it;
 // then the sessions given, as the router lists those it has routed in the
 // last hour, a line each; then the priming schedule, and what comes next of
 // it; then the account to use next; then where the usage came from, and last
@@ -304,20 +304,17 @@ func (r Refusal) Answer() string {
 }
 
 // writeAccount writes the account's title, marking the primary, its windows
-// with their labels width wide, those that have lapsed at now, as policy
-// judges them, empty and not started, and whatever couldn't be read.
+// with their labels width wide, each as accountWindow has it, as it stands at
+// now, as policy judges it, and whatever couldn't be read.
 func (d Document) writeAccount(b *strings.Builder, a Account, width int, now time.Time, policy score.Policy) {
 	title := a.Title()
 	if a.Primary {
 		title += " (primary)"
 	}
 	fmt.Fprintf(b, "%s\n", title)
-	for _, w := range policy.AsOf(a.Windows, now) {
-		notes := d.windowNotes(a, w, now)
-		if a.HasLapsed(w, now, policy) {
-			notes = []string{d.NotStarted(a.ID, now)}
-		}
-		fmt.Fprintf(b, "  %s\n", windowLine(w, width, notes))
+	states := d.WindowStatesOf(a, now, policy)
+	for _, w := range a.Windows {
+		fmt.Fprintf(b, "  %s\n", d.accountWindow(a, w, states, width, now))
 	}
 	for _, f := range a.Failures {
 		fmt.Fprintf(b, "  %s offline: %s\n", Clean(f.Label), Clean(f.Error))
@@ -526,6 +523,18 @@ func (d Document) Account(id string) (Account, bool) {
 		return Account{}, false
 	}
 	return d.Accounts[i], true
+}
+
+// accountWindow shows doc's account a's window w, its label width wide,
+// standing as states has it at now: where it stands not started, as Unstarted
+// says, empty, and when it's primed; else as it was read, with when it resets
+// and where it's heading, as windowNotes has them, a window stale or held by a
+// limit among them, lapsed or not.
+func (d Document) accountWindow(a Account, w quota.Window, states WindowStates, width int, now time.Time) string {
+	if states.Unstarted(w.Key) {
+		return windowLine(quota.Window{Key: w.Key, Label: w.Label}, width, []string{d.NotStarted(a.ID, now)})
+	}
+	return windowLine(w, width, d.windowNotes(a, w, now))
 }
 
 // windowLine shows a window's label, labelWidth wide, and its utilization,

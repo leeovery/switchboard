@@ -213,6 +213,37 @@ func TestTheChartsDrawNoSessionThatHasLapsedSinceItWasRead(t *testing.T) {
 	}
 }
 
+// The charts draw a window wherever Sessions' panels draw it a bar, as
+// WindowStates stand it: a session read running, on the tick after it resets,
+// before it's read again, that the router's limit holds stands held, not
+// lapsed, so it keeps its trail, the watch records its reading, and the
+// readings history's files are read from the day it started, the day before.
+func TestTheChartsKeepASessionLapsedAtNowThatALimitHolds(t *testing.T) {
+	now := time.Date(2026, 10, 14, 2, 0, 0, 0, time.Local)
+	reset := now.Add(-time.Second)
+	sessionStart := reset.Add(-5 * time.Hour)
+	work := status.Account{
+		ID: "work", Label: "Work", TokenSet: true, FetchedAt: reset.Add(-time.Minute).UTC(),
+		Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.97, ResetsAt: reset.UTC()}},
+		Limit:   status.Limit{Windows: []string{"5h"}, Until: now.Add(time.Hour).UTC()},
+	}
+	doc := status.Document{GeneratedAt: work.FetchedAt, Source: status.SourceRouter, Accounts: []status.Account{work}}
+	ref := dashboard.Ref{Account: "work", Window: "5h"}
+	h := history{router: map[string]router.History{"5h": historyOf("work", sessionStart, 0.1, 0.2)}}
+
+	if trail, ok := h.drawn(doc, now, policy)[ref]; !ok || len(trail.Readings) != 2 {
+		t.Errorf("work's session draws %+v, want the router's trail, as the limit holding it stands it held", trail)
+	}
+	want := []score.Reading{{At: work.FetchedAt, Utilization: 0.97}}
+	if got := h.saw(doc, now, policy).seen[ref]; !slices.EqualFunc(got, want, sameReading) {
+		t.Errorf("the watch saw %+v of work's session, want %+v, its reading", got, want)
+	}
+	files := &filedReadings{held: []readings.Reading{filedOn("work", "5h", sessionStart.Add(time.Hour), 0.5)}}
+	if got := filedOf(files, doc, now, policy)[ref]; len(got) != 1 {
+		t.Errorf("the files gave %+v of work's session, want its reading of the day before, the day it started", got)
+	}
+}
+
 func TestProbingTheChartsDrawTheReadingsTheWatchSees(t *testing.T) {
 	read := func(used float64, at time.Time, resetsIn time.Duration) status.Document {
 		a := account("work", "Work", session(used, resetsIn), week(0.5))

@@ -93,6 +93,15 @@ func (s WindowStates) Of(key string) WindowState {
 	return WindowState{Kind: kind, Used: score.Current(w, now).Utilization, At: at}
 }
 
+// Unstarted reports whether the account's window with the given key stands
+// not started, as Of has it: it has lapsed, as HasLapsed judges it, and
+// nothing Of tries first holds, as the account's last read failing, or a
+// limit holding the window, which no request can start. Whatever draws a
+// window as not started, or leaves it out as not running, asks this.
+func (s WindowStates) Unstarted(key string) bool {
+	return s.Of(key).Kind == WindowNotStarted
+}
+
 // standing is the kind of the account's window w, with the given key, as it
 // was read and stands, and when what the kind says comes: the first that
 // holds of a limit, the cap, running out, not started, and open. It projects
@@ -108,7 +117,7 @@ func (s WindowStates) standing(key string, w quota.Window) (WindowKind, time.Tim
 	if out, ok := d.RunsOut(a, w, now); ok {
 		return WindowRunsOut, out.At
 	}
-	if a.HasLapsed(w, now, s.policy) {
+	if a.HasLapsed(key, now, s.policy) {
 		return WindowNotStarted, time.Time{}
 	}
 	return WindowOpen, score.Current(w, d.readAt(now)).ResetsAt

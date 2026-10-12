@@ -323,8 +323,8 @@ func TestAnAccountAsItStands(t *testing.T) {
 					got.Windows, got.Lapsed, got.AtReserve, tt.want, tt.wantLapsed, tt.wantAtReserve)
 			}
 			for _, w := range got.Windows {
-				if got.HasLapsed(w, now, policy) != slices.Contains(tt.wantLapsed, w.Key) {
-					t.Errorf("HasLapsed(%s) = %v, want %v", w.Key, got.HasLapsed(w, now, policy), !got.HasLapsed(w, now, policy))
+				if got.HasLapsed(w.Key, now, policy) != slices.Contains(tt.wantLapsed, w.Key) {
+					t.Errorf("HasLapsed(%s) = %v, want %v", w.Key, got.HasLapsed(w.Key, now, policy), !got.HasLapsed(w.Key, now, policy))
 				}
 			}
 			if !slices.Equal(read, tt.read) {
@@ -353,7 +353,7 @@ func TestAWindowHasLapsedAtNowThoughItWasReadRunning(t *testing.T) {
 		{name: "the week, the tick after it resets", now: week.ResetsAt.Add(time.Second), w: week},
 	}
 	for _, tt := range tests {
-		if got := a.HasLapsed(tt.w, tt.now, policy); got != tt.want {
+		if got := a.HasLapsed(tt.w.Key, tt.now, policy); got != tt.want {
 			t.Errorf("%s: HasLapsed() = %t, want %t", tt.name, got, tt.want)
 		}
 	}

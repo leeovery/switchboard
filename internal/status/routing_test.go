@@ -323,6 +323,21 @@ func TestAnOpenAccountIsIdleOnTheTickItsSessionResets(t *testing.T) {
 	}
 }
 
+// An account is idle where its document notes its session lapsed, though it
+// lists no session, as an older router's document, or one whose probe dropped
+// the window, has it: in ROUTING and in its state.
+func TestAnAccountIsIdleWhereItsSessionIsNotedLapsedThoughItsNotListed(t *testing.T) {
+	a := with(readNow(0, 0.3, 0), func(a *status.Account) {
+		a.Windows = a.Windows[1:]
+		a.Lapsed = []string{"5h"}
+	})
+	doc := status.Document{GeneratedAt: stateNow.UTC(), Source: status.SourceRouter, Accounts: []status.Account{a}}
+	routing, state := doc.RoutingOf(a, stateNow, policy), doc.StateOf(a, stateNow, policy)
+	if routing.Kind != status.RoutingIdle || state.Condition != status.Idle {
+		t.Errorf("ROUTING says %q, its state %q; want both idle", routing, state)
+	}
+}
+
 // Pressure holds while its window runs: an account under pressure in its
 // session, read before the session resets, is idle on the tick after the
 // reset, before it's read again, in ROUTING and in its state, as the router,

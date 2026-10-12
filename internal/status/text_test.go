@@ -553,6 +553,55 @@ func TestTextSaysASessionThatResetSinceItWasReadHasntStarted(t *testing.T) {
 	}
 }
 
+// status says a window hasn't started only where the dashboard draws it so,
+// as WindowStates stand it: read running, on the tick after its session
+// resets, before it's read again, an account the router's limit holds in its
+// session has it held, and one whose last read failed, or whose token is
+// refused, has it as last read, neither empty nor not started.
+func TestTextSaysASessionLapsedAtNowHasntStartedOnlyWhereNothingComesFirst(t *testing.T) {
+	read := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	reset := time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)
+	now := reset.Add(time.Second).In(read.Location())
+	tests := []struct {
+		name   string
+		change func(*status.Account)
+		want   string
+	}{
+		{
+			name: "held by the router's limit",
+			change: func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"5h"}, Until: reset.Add(40 * time.Minute)}
+			},
+			want: "  Session  97%  resets now · Mon 17:10\n  limit until Mon 17:50\n",
+		},
+		{
+			name:   "its last read failed",
+			change: func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" },
+			want:   "  Session  97%  resets now · Mon 17:10\n  HTTP 529 · Overloaded\n",
+		},
+		{
+			name:   "its token refused",
+			change: func(a *status.Account) { a.Refused = status.Refusal{Until: reset.Add(time.Hour), Status: 401} },
+			want:   "  Session  97%  resets now · Mon 17:10\n  refused (401) until 18:10\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := status.Account{
+				ID: "work", Label: "Work", TokenSet: true, FetchedAt: read.UTC(),
+				Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.97, ResetsAt: reset}},
+			}
+			tt.change(&a)
+			doc := status.Document{GeneratedAt: read.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: []status.Account{a}}
+			want := "work · Work\n" + tt.want + "\n" +
+				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
+			if got := doc.Text(now, policy); got != want {
+				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
+			}
+		})
+	}
+}
+
 func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	// The week, 99% used, began three days ago: its use since it started

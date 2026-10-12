@@ -120,24 +120,33 @@ func (d Document) standingAt(a Account, at time.Time, policy score.Policy) stand
 }
 
 // lapsedAt are the keys of the account's windows that have lapsed at the
-// moment given, as policy judges them: those it notes have, and any other
-// that has reset since it was read.
+// moment given, as HasLapsed judges each.
 func (a Account) lapsedAt(at time.Time, policy score.Policy) []string {
-	return slices.Concat(a.Lapsed, policy.Lapsed(a.Windows, at))
+	var keys []string
+	for _, w := range a.Windows {
+		if a.HasLapsed(w.Key, at, policy) {
+			keys = append(keys, w.Key)
+		}
+	}
+	return keys
 }
 
-// HasLapsed reports whether the account's window w has lapsed at the moment
-// given, as lapsedAt judges it: it isn't running, and reads empty, until a
-// request starts it.
-func (a Account) HasLapsed(w quota.Window, at time.Time, policy score.Policy) bool {
-	return slices.Contains(a.lapsedAt(at, policy), w.Key)
+// HasLapsed reports whether the account's window with the given key has
+// lapsed at the moment given, as policy judges it: the account notes it has,
+// or its own window by that key has lapsed by then, as policy's HasLapsed
+// judges it. It isn't running, and reads empty, until a request starts it.
+func (a Account) HasLapsed(key string, at time.Time, policy score.Policy) bool {
+	if slices.Contains(a.Lapsed, key) {
+		return true
+	}
+	w, ok := a.Window(key)
+	return ok && policy.HasLapsed(w, at)
 }
 
 // idleAt reports whether the account is idle at the moment given: its window
 // a request starts, as policy names it, has lapsed, as HasLapsed judges it.
 func (a Account) idleAt(at time.Time, policy score.Policy) bool {
-	w, ok := a.Window(policy.Started)
-	return ok && a.HasLapsed(w, at, policy)
+	return a.HasLapsed(policy.Started, at, policy)
 }
 
 // running reports whether the account's window with the given key is
