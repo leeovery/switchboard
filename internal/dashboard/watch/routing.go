@@ -208,14 +208,16 @@ func (m Model) routingRows(now time.Time) []dashboard.RoutingRow {
 }
 
 // routingCard is the routing card as the picker stands, its rows read afresh
-// from the document on screen at now, with what the picks move.
+// from the document on screen at now: those picked, those of them enter
+// leaves out of the order, as sendable says, and what the order moves.
 func (m Model) routingCard(now time.Time) dashboard.RoutingCard {
 	r := m.routing
 	rows := m.routingRows(now)
-	moving := m.moving()
+	picked, moving := m.picks(), m.moving()
+	sent := m.sendable(picked)
 	card := dashboard.RoutingCard{
-		Rows: rows, Picked: m.picks(), Cursor: min(r.cursor, len(rows)-1), Move: r.move,
-		Moving: moving.Sessions, Cost: moving.Cost,
+		Rows: rows, Picked: picked, Unsent: slices.DeleteFunc(slices.Clone(picked), func(id string) bool { return slices.Contains(sent, id) }),
+		Cursor: min(r.cursor, len(rows)-1), Move: r.move, Moving: moving.Sessions, Cost: moving.Cost,
 	}
 	if r.refused != nil {
 		card.Refused = r.refused.Error()
@@ -223,13 +225,14 @@ func (m Model) routingCard(now time.Time) dashboard.RoutingCard {
 	return card
 }
 
-// moving is what the picks move, of the sessions listed, priced as views
-// listed them last: nothing while m is clear.
+// moving is what the order enter sends moves, of the sessions listed,
+// priced as views listed them last: the picks it can be sent with, as
+// sendable says; nothing while m is clear.
 func (m Model) moving() views.Moving {
 	if !m.routing.move {
 		return views.Moving{}
 	}
-	return views.MovingTo(m.picks(), m.sessions, m.routing.priced.listed)
+	return views.MovingTo(m.sendable(m.picks()), m.sessions, m.routing.priced.listed)
 }
 
 // costing has views list the sessions the router lists, pricing their

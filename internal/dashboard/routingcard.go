@@ -51,6 +51,11 @@ type RoutingCard struct {
 	// Picked are the ids of the accounts picked, in the config's order: none
 	// picks auto.
 	Picked []string
+	// Unsent are the ids of the accounts picked that applying the card
+	// leaves out of the pin it sends, as the router refuses a pin to one
+	// with no usable token: none where it sends every one. What the card
+	// says applying it does names none of them.
+	Unsent []string
 	// Cursor is the row the cursor is on, its index in Rows.
 	Cursor int
 	// Move is set while m is ticked, to move the sessions running elsewhere
@@ -467,12 +472,13 @@ const autoChooses = "The router chooses an account for each new session."
 // picked, the sessions that move there too, where any would, and what
 // rebuilding their caches costs, where that's known and isn't nothing.
 func (r RoutingCard) sentences() []line {
-	if len(r.Picked) == 0 {
+	sends := r.sends()
+	if len(sends) == 0 {
 		return []line{{{autoChooses, secondaryInk}}}
 	}
 	said := []line{slices.Concat(
-		line{{"New sessions go to ", secondaryInk}}, either(r.names(r.Picked), titleInk, secondaryInk),
-		line{{". When " + whenFull(len(r.Picked)) + " full, the router chooses.", secondaryInk}},
+		line{{"New sessions go to ", secondaryInk}}, either(r.names(sends), titleInk, secondaryInk),
+		line{{". When " + whenFull(len(sends)) + " full, the router chooses.", secondaryInk}},
 	)}
 	if !r.Move || r.Moving == 0 {
 		return said
@@ -486,6 +492,12 @@ func (r RoutingCard) sentences() []line {
 		said = append(said, line{{caches, secondaryInk}, {"≈ " + r.Cost.Cents(), alertInk}, {".", secondaryInk}})
 	}
 	return said
+}
+
+// sends are the ids of the accounts applying the card pins, in the config's
+// order: those picked, but those it leaves unsent.
+func (r RoutingCard) sends() []string {
+	return slices.DeleteFunc(slices.Clone(r.Picked), func(id string) bool { return slices.Contains(r.Unsent, id) })
 }
 
 // whenFull says, of as many accounts as are picked, that they're full:

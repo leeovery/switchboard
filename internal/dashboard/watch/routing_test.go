@@ -408,6 +408,26 @@ func TestAPinNamingAnAccountWithoutATokenShowsItPickedAndIsSentWithoutItOnceChan
 	}
 }
 
+func TestTheCardsOutcomeAndCostAreOfTheOrderEnterSends(t *testing.T) {
+	h, _ := pricedHarness(t)
+	doc := four()
+	doc.Accounts[0] = tokenless("work", "Work")
+	h.source.router = new(pinnedTo(doc, "work", "side"))
+	h.tickUntilAsked()
+	h.keyed("p m")
+
+	got := h.card()
+	if !slices.Equal(got.Picked, []string{"work", "side"}) || !slices.Equal(got.Unsent, []string{"work"}) {
+		t.Errorf("the card picks %q, leaving %q unsent; want work and side picked, work unsent", got.Picked, got.Unsent)
+	}
+	if got.Moving != 3 || got.Cost == nil || got.Cost.Cents() != "$0.81" {
+		t.Errorf("the card moves %d sessions at %v, want work's two and client's one at $0.81, as the order pins side alone", got.Moving, got.Cost)
+	}
+	if view := h.view(); !strings.Contains(view, "New sessions go to Side. When it's full, the router chooses.") {
+		t.Errorf("the card says\n%s\nwant new sessions sent to side alone", view)
+	}
+}
+
 func TestACardOpenedBeforeAnOrderLandsFollowsThePinItSets(t *testing.T) {
 	tests := []struct {
 		name string
