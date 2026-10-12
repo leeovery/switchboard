@@ -227,13 +227,13 @@ func (m Model) moving() views.Moving {
 
 // costing has views list the sessions the router lists, pricing their
 // moves, while the routing card wants them: while it's open, m ticked, and
-// some session would move, where the sessions listed aren't those it last
-// priced, as sameSession compares them, whatever document they came with.
-// It starts none while one runs: the sessions are listed again once it
-// lands, where they've changed since.
+// some session would move, where the sessions listed aren't placed as those
+// it last priced were, as samePlaces compares them, whatever document they
+// came with. It starts none while one runs: the sessions are listed again
+// once it lands, where they've changed since.
 func (m Model) costing() (Model, tea.Cmd) {
 	p := m.routing.priced
-	if m.open != routingOpen || p.listing || m.moving().Sessions == 0 || slices.EqualFunc(m.sessions, p.of, sameSession) {
+	if m.open != routingOpen || p.listing || m.moving().Sessions == 0 || samePlaces(m.sessions, p.of) {
 		return m, nil
 	}
 	m.routing.priced.listing = true
@@ -255,13 +255,25 @@ func (m Model) costed(msg costedMsg) Model {
 	return m
 }
 
-// sameSession reports whether two sessions the router listed are alike as
-// pricing a move reads them: the same session, pinned alike, with the same
-// models, each going to the same account, as busy, and seen last at the same
-// time, which a request's line in the ledger follows.
-func sameSession(a, b status.Session) bool {
-	return a.ID == b.ID && a.Pin == b.Pin && slices.EqualFunc(a.Assignments, b.Assignments, func(x, y status.Assignment) bool {
-		return x.Model == y.Model && x.Account == y.Account && x.InFlight == y.InFlight && x.LastSeen.Equal(y.LastSeen)
+// samePlaces reports whether two listings of the router's sessions place
+// them alike, as which of them a pin moves, and from where, reads them: the
+// same sessions, in whatever order, each as samePlace has it. A session busy
+// or seen again, as most are from look to look, prices its move afresh only
+// once its place changes, or the card opens again: the price of a cache that
+// runs out, or grows, while the card is open stands till then.
+func samePlaces(a, b []status.Session) bool {
+	return len(a) == len(b) && !slices.ContainsFunc(a, func(s status.Session) bool {
+		i := slices.IndexFunc(b, func(t status.Session) bool { return t.ID == s.ID })
+		return i < 0 || !samePlace(s, b[i])
+	})
+}
+
+// samePlace reports whether two listings of a session place it alike: pinned
+// alike, with the same models, each going to the same account, whichever it
+// used last.
+func samePlace(a, b status.Session) bool {
+	return a.Pin == b.Pin && len(a.Assignments) == len(b.Assignments) && !slices.ContainsFunc(a.Assignments, func(x status.Assignment) bool {
+		return !slices.ContainsFunc(b.Assignments, func(y status.Assignment) bool { return x.Model == y.Model && x.Account == y.Account })
 	})
 }
 

@@ -350,7 +350,7 @@ func (h *harness) keyLine() string {
 // listed are the keys of the model's key line as it stands, in order.
 func (h *harness) listed() []string {
 	var keys []string
-	for _, group := range h.model.keyLine(h.clock.now).Groups {
+	for _, group := range h.model.live(h.clock.now).KeyLine.Groups {
 		keys = append(keys, listedKeys(group)...)
 	}
 	return keys
@@ -360,7 +360,7 @@ func (h *harness) listed() []string {
 // word, as in "tab views".
 func (h *harness) grouped() [][]string {
 	var groups [][]string
-	for _, group := range h.model.keyLine(h.clock.now).Groups {
+	for _, group := range h.model.live(h.clock.now).KeyLine.Groups {
 		var keys []string
 		for _, k := range group {
 			keys = append(keys, k.Key+" "+k.Does)

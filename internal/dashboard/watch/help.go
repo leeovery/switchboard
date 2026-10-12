@@ -1,6 +1,8 @@
 package watch
 
 import (
+	"time"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
@@ -38,8 +40,8 @@ func (m Model) scrollHelp(by scrollStep) Model {
 	return m
 }
 
-// helpCard is the page's help as m stands: its keys, and how far it's
+// helpCard is the page's help as m stands at now: its keys, and how far it's
 // scrolled.
-func (m Model) helpCard() dashboard.Help {
-	return dashboard.Help{Keys: m.helpKeys(), Scroll: m.help.scroll}
+func (m Model) helpCard(now time.Time) dashboard.Help {
+	return dashboard.Help{Keys: m.helpKeys(now), Scroll: m.help.scroll}
 }
