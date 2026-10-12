@@ -55,7 +55,7 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 			want: []string{
 				"13:50 spare is primed",
 				"15:12 a's 5-hour resets",
-				"03:12 a is primed",
+				"Tue 03:12 a is primed",
 				"Sun 13:12 spare's week resets",
 			},
 		},
@@ -113,7 +113,7 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 			doc.Prime = status.Prime{Day: "08:00-22:00", Window: "5h", Slots: tt.slots}
 			var got []string
 			for _, h := range upcoming(doc.WorkedOut(claudeLike), now, claudeLike) {
-				got = append(got, status.When(now, h.at)+" "+h.name.text+h.what)
+				got = append(got, status.Dated(now, h.at)+" "+h.name.text+h.what)
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("upcoming() = %q, want %q", got, tt.want)
@@ -132,7 +132,7 @@ func TestCOMINGUPDrawsWhatTheDocumentGivesAfterNow(t *testing.T) {
 	}
 	var got []string
 	for _, h := range upcoming(doc, now, claudeLike) {
-		got = append(got, status.When(now, h.at)+" "+h.name.text+h.what)
+		got = append(got, status.Dated(now, h.at)+" "+h.name.text+h.what)
 	}
 	if want := []string{"15:12 work's 5-hour resets"}; !slices.Equal(got, want) {
 		t.Errorf("upcoming() = %q, want %q: what the document gives, after now, of the kinds it knows", got, want)
@@ -153,7 +153,7 @@ func TestCOMINGUPListsEverythingTheDocumentGivesWhateverItsWindow(t *testing.T) 
 
 	var got []string
 	for _, h := range upcoming(doc, now, claudeLike) {
-		got = append(got, status.When(now, h.at)+" "+h.name.text+h.what)
+		got = append(got, status.Dated(now, h.at)+" "+h.name.text+h.what)
 	}
 	want := []string{
 		"14:12 work's Fable wk runs out at its pace",
@@ -346,5 +346,22 @@ func TestCOMINGUPNamesAnAccountOutOfThePoolFaint(t *testing.T) {
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("with the pool work alone, COMING UP names %+v, want %+v", got, want)
+	}
+}
+
+func TestCOMINGUPsTimeCarriesItsWeekdayOnAnotherDayEvenWithinADay(t *testing.T) {
+	tests := map[string]struct {
+		h    happening
+		want string
+	}{
+		"later today":               {happening{at: now.Add(2 * time.Hour)}, "15:12"},
+		"tomorrow, within a day":    {happening{at: now.Add(22 * time.Hour)}, "Tue 11:12"},
+		"running out tomorrow":      {happening{at: now.Add(22 * time.Hour), runsOut: true}, "~Tue 11:12"},
+		"running out in a few days": {happening{at: now.Add(5 * day), runsOut: true}, "~Sat 13:12"},
+	}
+	for name, tt := range tests {
+		if got := tt.h.when(now); got != tt.want {
+			t.Errorf("%s, when() = %q, want %q", name, got, tt.want)
+		}
 	}
 }

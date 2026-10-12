@@ -175,7 +175,7 @@ func (t latelyTeller) pressured(e status.Event) (Said, Said) {
 	if e.Until.IsZero() {
 		return full, short
 	}
-	out := clause("~" + status.When(t.now, e.Until))
+	out := clause("~" + status.Dated(t.now, e.Until))
 	full.Words = clause(" came under pressure: its " + t.windows.windowOf(first(e.Windows)) + " runs out ")
 	short.Words = clause(" under pressure: out ")
 	full.Object, short.Object = out, out
