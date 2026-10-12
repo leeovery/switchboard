@@ -30,7 +30,7 @@ func (p Past) Year(ask YearAsk) YearPage {
 
 // Weeks is Weeks' page: the eight weeks to this one.
 func (p Past) Weeks() WeeksPage {
-	return WeeksPage{}
+	return p.weeksPage()
 }
 
 // Days is Days' page: the eight weeks to this one, a day at a time.
