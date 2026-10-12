@@ -107,13 +107,13 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	return l
 }
 
-// helpKeys are the keys help lists, as m stands at now, worded as the key
-// line words them: tab; every key of the page's own that works, those the
-// key line leaves to help among them; p, where a pin can be set; t, in
-// colour; and R, ? and q.
-func (m Model) helpKeys(now time.Time) []dashboard.Key {
+// helpKeys are the keys help lists, as m stands at now, its page drawn as f,
+// worded as the key line words them: tab; every key of the page's own that
+// works, those the key line leaves to help among them; p, where a pin can be
+// set; t, in colour; and R, ? and q.
+func (m Model) helpKeys(f dashboard.Frame, now time.Time) []dashboard.Key {
 	keys := []dashboard.Key{{Key: "tab", Does: "views"}}
-	for _, k := range m.listings(m.frame(now), now) {
+	for _, k := range m.listings(f, now) {
 		if k.works {
 			keys = append(keys, dashboard.Key{Key: k.key, Does: k.word})
 		}

@@ -112,7 +112,7 @@ func TestAViewTabTurnsToShowsFromItsTop(t *testing.T) {
 	if h.press("j"); h.model.scroll != 1 || strings.Contains(h.view(), " 1 Account A") {
 		t.Errorf("j scrolled Runway to %d, the screen\n%s\nwant its lanes a row down", h.model.scroll, h.view())
 	}
-	if help := h.model.helpKeys(h.clock.now); !slices.Contains(help, dashboard.Key{Key: "j k", Does: "scroll"}) {
+	if help := helpOver(h.model); !slices.Contains(help, dashboard.Key{Key: "j k", Does: "scroll"}) {
 		t.Errorf("the help lists %+v, want j and k scrolling the lanes", help)
 	}
 }
@@ -140,7 +140,7 @@ func TestWSwitchesRunwayBetweenTheDayAndTheWeek(t *testing.T) {
 		if h.model.span != step.want || !strings.HasPrefix(h.keyLine(), step.keys) {
 			t.Errorf("Runway shows the %s, the key line reading %q, want the %s, it starting %q", h.model.span.Name(), h.keyLine(), step.want.Name(), step.keys)
 		}
-		if help := h.model.helpKeys(h.clock.now); !slices.Contains(help, dashboard.Key{Key: "w", Does: step.does}) {
+		if help := helpOver(h.model); !slices.Contains(help, dashboard.Key{Key: "w", Does: step.does}) {
 			t.Errorf("the help lists %+v, want w as %q", help, step.does)
 		}
 		if !strings.Contains(h.view(), step.wantShows) || strings.Contains(h.view(), step.wantHidden) {
@@ -224,7 +224,7 @@ func TestAWindowKeptButNoLongerInUseIsNamedAsTheCardsShowItAuto(t *testing.T) {
 	if !strings.HasPrefix(h.keyLine(), "tab views · w window: auto · ") {
 		t.Errorf("the key line reads %q, want auto, as the cards show Fable's week, unused", h.keyLine())
 	}
-	if help := h.model.helpKeys(h.clock.now); help[1].Key != "w" || help[1].Does != "window: auto" {
+	if help := helpOver(h.model); help[1].Key != "w" || help[1].Does != "window: auto" {
 		t.Errorf("the help says %s does %q, want w to say auto", help[1].Key, help[1].Does)
 	}
 	if h.press("w"); h.model.featured != "5h" {
@@ -526,7 +526,7 @@ func TestAnHourglassOfAnIdleAccountDrawsNoFrames(t *testing.T) {
 // listedHelp is what the help says the key does, as m stands: "" where it
 // doesn't list it.
 func listedHelp(m Model, key string) string {
-	for _, k := range m.helpKeys(m.now()) {
+	for _, k := range helpOver(m) {
 		if k.Key == key {
 			return k.Does
 		}
