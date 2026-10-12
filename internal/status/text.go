@@ -305,7 +305,8 @@ func (r Refusal) Answer() string {
 
 // writeAccount writes the account's title, marking the primary, its windows
 // with their labels width wide, each as accountWindow has it, as it stands at
-// now, as policy judges it, and whatever couldn't be read.
+// now, as policy judges it, as WindowAt has it, and whatever couldn't be
+// read.
 func (d Document) writeAccount(b *strings.Builder, a Account, width int, now time.Time, policy score.Policy) {
 	title := a.Title()
 	if a.Primary {
@@ -314,7 +315,7 @@ func (d Document) writeAccount(b *strings.Builder, a Account, width int, now tim
 	fmt.Fprintf(b, "%s\n", title)
 	states := d.WindowStatesOf(a, now, policy)
 	for _, w := range a.Windows {
-		fmt.Fprintf(b, "  %s\n", d.accountWindow(a, w, states.Of(w.Key), width, now, policy))
+		fmt.Fprintf(b, "  %s\n", d.accountWindow(a, w, a.asItStands(w, now, policy), states.Of(w.Key), width, now))
 	}
 	for _, f := range a.Failures {
 		fmt.Fprintf(b, "  %s offline: %s\n", Clean(f.Label), Clean(f.Error))
@@ -525,15 +526,15 @@ func (d Document) Account(id string) (Account, bool) {
 	return d.Accounts[i], true
 }
 
-// accountWindow shows doc's account a's window w, its label width wide,
-// standing as st says at now, as policy judges it, its use as st reads it:
-// not started, and when it's primed; else with when it resets and where it's
-// heading, as windowNotes has them.
-func (d Document) accountWindow(a Account, w quota.Window, st WindowState, width int, now time.Time, policy score.Policy) string {
+// accountWindow shows doc's account a's window w, read, its label width
+// wide, standing at now as stands, as WindowAt has it, and as st says, its
+// use as st reads it: not started, and when it's primed; else with when it
+// resets and where it's heading, as windowNotes has them.
+func (d Document) accountWindow(a Account, w, stands quota.Window, st WindowState, width int, now time.Time) string {
 	if st.Kind == WindowNotStarted {
 		return windowLine(w.Label, st.Used, width, []string{d.NotStarted(a.ID, now)})
 	}
-	return windowLine(w.Label, st.Used, width, d.windowNotes(a, w, now, policy))
+	return windowLine(w.Label, st.Used, width, d.windowNotes(a, w, stands, now))
 }
 
 // windowLine shows a window's label, labelWidth wide, and how much of it is
@@ -546,14 +547,14 @@ func windowLine(label string, used float64, labelWidth int, notes []string) stri
 	return line + "  " + strings.Join(notes, " · ")
 }
 
-// windowNotes say when doc's account a's window w resets, as it stands at
-// now, as policy judges it, as WindowAt has it, so its next reset once it has
-// reset since it was read, and none where it has lapsed; and where it's
-// heading at now, as doc's Project says, as far as those are known, and when
-// that's at its rate over the last half hour, that it is.
-func (d Document) windowNotes(a Account, w quota.Window, now time.Time, policy score.Policy) []string {
+// windowNotes say when doc's account a's window w, read, resets, standing at
+// now as stands, as WindowAt has it, so its next reset once it has reset
+// since it was read, and none where it has lapsed; and where it's heading at
+// now, as doc's Project says, as far as those are known, and when that's at
+// its rate over the last half hour, that it is.
+func (d Document) windowNotes(a Account, w, stands quota.Window, now time.Time) []string {
 	var notes []string
-	if reset := a.asItStands(w, now, policy).ResetsAt; !reset.IsZero() {
+	if reset := stands.ResetsAt; !reset.IsZero() {
 		notes = append(notes, Resets(now, reset)+" · "+Clock(now, reset))
 	}
 	heading := d.Project(a, w, now)

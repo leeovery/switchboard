@@ -186,6 +186,21 @@ func (d Document) paceOf(stands quota.Window, now time.Time) (float64, bool) {
 	return score.Elapsed(stands, d.readAt(now))
 }
 
+// allowanceOf is what can be spent of account a's window standing at now as
+// stands, as WindowAt has a window, and still last to its reset, its use
+// running to where the account runs out, as Floor says, as of when doc was
+// read, as readAt has it, as its pace is; or, where it stands in a period
+// that started after then, from that period's start, so it's never spread
+// over more than the window's length. It's zero where nothing can be.
+func (d Document) allowanceOf(a Account, stands quota.Window, now time.Time) quota.Allowance {
+	from := d.readAt(now)
+	if start, _, ok := stands.Span(); ok {
+		from = score.Later(from, start)
+	}
+	allowance, _ := score.AllowanceOf(stands, d.Floor(a), from)
+	return allowance
+}
+
 // idleAt reports whether the account is idle at the moment given: its window
 // a request starts, as policy names it, has lapsed, as HasLapsed judges it.
 func (a Account) idleAt(at time.Time, policy score.Policy) bool {
@@ -224,23 +239,21 @@ func (s standing) holds(key string) bool {
 }
 
 // measured are account a's windows, standing as s says, each with its even
-// pace and its allowance as of when the document was built, its use running
-// to where the account runs out, as Floor says: neither where it has lapsed,
-// as it isn't running, and no allowance where a limit holds it as its own,
-// as holds says, as it has no room.
+// pace and its allowance as of when the document was built, of the window as
+// it stands then, as paceOf and allowanceOf have them, as Of has them at any
+// moment: neither where it has lapsed, as it isn't running, and no allowance
+// where a limit holds it as its own, as holds says, as it has no room.
 func (d Document) measured(a Account, s standing) []quota.Window {
 	at := d.GeneratedAt
 	windows := slices.Clone(a.Windows)
 	for i, w := range windows {
+		stands := s.stands(w, at)
 		windows[i].Pace, windows[i].Allowance = nil, quota.Allowance{}
-		if !s.running(w.Key) {
-			continue
-		}
-		if pace, ok := score.EvenPace(w, at); ok {
+		if pace, ok := d.paceOf(stands, at); ok {
 			windows[i].Pace = &pace
 		}
 		if !s.holds(w.Key) {
-			windows[i].Allowance, _ = score.AllowanceOf(w, d.Floor(a), at)
+			windows[i].Allowance = d.allowanceOf(a, stands, at)
 		}
 	}
 	return windows

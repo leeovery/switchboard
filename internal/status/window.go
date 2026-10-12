@@ -56,9 +56,10 @@ type WindowState struct {
 	// At is when what Kind says comes, or came: zero where Kind says no time.
 	At time.Time
 	// Allowance is what can be spent of an open window, so standing, and
-	// still last to its reset, At, as of when the document was read, as its
-	// pace is: counting from empty once it has reset since it was read. It's
-	// zero of any other kind, and where nothing can be.
+	// still last to its reset, At, as allowanceOf has it: as of when the
+	// document was read, as its pace is, or, where it has reset since then,
+	// from empty, as of its last reset. It's zero of any other kind, and
+	// where nothing can be.
 	Allowance quota.Allowance
 }
 
@@ -103,35 +104,36 @@ func (s WindowStates) Of(key string) WindowState {
 	case !reported || a.FetchedAt.IsZero():
 		return WindowState{Kind: WindowUnread}
 	}
-	stands := a.asItStands(w, s.now, s.policy)
+	lapsed := a.lapsed(w, s.now, s.policy)
+	stands := windowAsOf(w, lapsed, s.now)
 	st := WindowState{Used: stands.Utilization}
-	st.Kind, st.At = s.standing(key, w, stands)
+	st.Kind, st.At = s.standing(w, stands, lapsed)
 	if pace, ok := s.doc.paceOf(stands, s.now); ok {
 		st.Pace = &pace
 	}
 	if st.Kind == WindowOpen {
-		st.Allowance, _ = score.AllowanceOf(stands, s.doc.Floor(a), s.doc.readAt(s.now))
+		st.Allowance = s.doc.allowanceOf(a, stands, s.now)
 	}
 	return st
 }
 
-// standing is the kind of the account's window w, with the given key, read,
-// as it stands, as stands, and when what the kind says comes: the first that
-// holds of a limit, its token refused, not started, its last read failed, the
-// cap, back at its reset, running out, and open, its allowance running to its
+// standing is the kind of the account's window w, read, as it stands, as
+// stands, lapsed or not as given, and when what the kind says comes: the
+// first that holds of a limit, its token refused, not started, its last read
+// failed, the cap, running out, and open, its allowance running to its
 // reset. It projects the window only where none before running out holds.
-func (s WindowStates) standing(key string, w, stands quota.Window) (WindowKind, time.Time) {
+func (s WindowStates) standing(w, stands quota.Window, lapsed bool) (WindowKind, time.Time) {
 	d, a, now := s.doc, s.account, s.now
 	switch {
-	case s.held && s.hold.Holds(key):
-		return WindowLimited, s.hold.Lifts(key)
+	case s.held && s.hold.Holds(w.Key):
+		return WindowLimited, s.hold.Lifts(w.Key)
 	case a.TokenRefused(now):
 		return WindowStale, a.FetchedAt
-	case a.lapsed(w, now, s.policy):
+	case lapsed:
 		return WindowNotStarted, time.Time{}
 	case a.Error != "":
 		return WindowStale, a.FetchedAt
-	case slices.Contains(s.capped, key):
+	case slices.Contains(s.capped, w.Key):
 		return WindowCapped, stands.ResetsAt
 	}
 	if out, ok := d.RunsOut(a, w, now); ok {
