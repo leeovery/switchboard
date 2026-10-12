@@ -199,7 +199,7 @@ func (h history) drawn(doc status.Document) dashboard.Trails {
 				seen = beyond(seen, readings[n-1].At)
 			}
 			if readings = append(readings, seen...); len(readings) > 0 {
-				drawn[ref] = dashboard.Trail{Start: start, Readings: readings}
+				drawn[ref] = dashboard.Trail{Readings: readings}
 			}
 		}
 	}
