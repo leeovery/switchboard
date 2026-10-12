@@ -41,6 +41,33 @@ func TestTheVersionTableNamesEachVersionByFamilyNewestFirst(t *testing.T) {
 	}
 }
 
+// The table gives viz.version.1 to viz.version.6 to Opus 5.5 and Opus 5,
+// Sonnet 5.5 and Sonnet 5, Fable 5.1, and Haiku 5.5, which took Haiku 4.5's
+// as it was priced; and marks each version older than its family's newest.
+func TestTheVersionTableShadesEachFamilysNewestFirst(t *testing.T) {
+	want := map[string]struct {
+		shade int
+		older bool
+	}{
+		"Opus 5.5": {shade: 1}, "Opus 5": {shade: 2, older: true}, "Opus 4.8": {older: true}, "Opus 4.7": {older: true},
+		"Opus 4.6": {older: true}, "Opus 4.5": {older: true},
+		"Sonnet 5.5": {shade: 3}, "Sonnet 5": {shade: 4, older: true}, "Sonnet 4.6": {older: true}, "Sonnet 4.5": {older: true},
+		"Fable 5.1": {shade: 5}, "Fable 5": {older: true},
+		"Haiku 5.5": {shade: 6}, "Haiku 4.5": {older: true},
+		"Mythos 5.1": {}, "Mythos 5": {older: true},
+	}
+	for _, v := range ledger.Pricing.Versions {
+		w, ok := want[v.Name]
+		if !ok {
+			t.Errorf("the version table has %s, which this test doesn't know", v.Name)
+			continue
+		}
+		if v.Shade != w.shade || v.Older != w.older {
+			t.Errorf("%s has shade %d, older %v; want shade %d, older %v", v.Name, v.Shade, v.Older, w.shade, w.older)
+		}
+	}
+}
+
 func TestTheVersionTableNamesEachModelThePriceTableDoesByItsIDs(t *testing.T) {
 	for _, m := range ledger.Pricing.Models {
 		named := slices.IndexFunc(ledger.Pricing.Versions, func(v ledger.Version) bool { return slices.Equal(v.IDs, m.IDs) })
