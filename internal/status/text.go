@@ -2,6 +2,7 @@ package status
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -469,7 +470,13 @@ func Projection(now time.Time, p score.Projection) string {
 
 // Percent shows a utilization as a whole percentage, such as "23%".
 func Percent(utilization float64) string {
-	return fmt.Sprintf("%.0f%%", utilization*100)
+	return strconv.Itoa(WholePercent(utilization)) + "%"
+}
+
+// WholePercent is a utilization as the whole percentage Percent shows, a half
+// rounded to the even one.
+func WholePercent(utilization float64) int {
+	return int(math.RoundToEven(utilization * 100))
 }
 
 // Title names an account by its id and label, such as "work · Work", each

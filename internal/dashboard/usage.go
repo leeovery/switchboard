@@ -100,7 +100,7 @@ func newUsageBlock(doc status.Document, now time.Time, width int, look Look, by 
 	for i, a := range doc.Accounts {
 		row := usageRow{name: names[i].line(b.names)}
 		if a.Reserve > 0 {
-			row.cap = fmt.Sprintf("%s at %d%%", name(a), wholePercent(1-a.Reserve))
+			row.cap = name(a) + " at " + status.Percent(1-a.Reserve)
 		}
 		states := doc.WindowStatesOf(a, now)
 		for _, w := range b.windows {

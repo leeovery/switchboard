@@ -105,7 +105,7 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	if err != nil {
 		return err
 	}
-	windows, err := opts.windows.keys(doc)
+	windows, err := opts.windows.keys(doc, claude.Policy.Shared)
 	if err != nil {
 		return err
 	}
@@ -204,9 +204,14 @@ func addWindowFlags(cmd *cobra.Command) windowFlags {
 
 // keys returns the keys of the windows given, in Claude's order: none where
 // none is, which prints every window. It fails for a window no account in doc
-// reports, naming those there are by their flags.
-func (ws windowFlags) keys(doc status.Document) ([]string, error) {
+// reports, naming those there are by their flags. The windows every model
+// shares, as shared has them, count as reported, as every account's rows of
+// them print before it's read.
+func (ws windowFlags) keys(doc status.Document, shared []string) ([]string, error) {
 	reported := make(map[string]bool)
+	for _, key := range shared {
+		reported[key] = true
+	}
 	for _, account := range doc.Accounts {
 		for _, w := range account.Windows {
 			reported[w.Key] = true
@@ -226,8 +231,7 @@ func (ws windowFlags) keys(doc status.Document) ([]string, error) {
 }
 
 // unreported is the error of the window flag f, for a window no account
-// reports, naming the flags of those reported, or where none is reported at
-// all, saying so.
+// reports, naming the flags of those reported.
 func (ws windowFlags) unreported(f *windowFlag, reported map[string]bool) error {
 	var there []string
 	for _, w := range ws {
@@ -235,14 +239,7 @@ func (ws windowFlags) unreported(f *windowFlag, reported map[string]bool) error 
 			there = append(there, "--"+w.name)
 		}
 	}
-	switch {
-	case len(there) > 0:
-		return fmt.Errorf("no account reports %s: give %s", f.what, strings.Join(there, " or "))
-	case len(reported) == 0:
-		return fmt.Errorf("no account reports %s, nor any other window", f.what)
-	default:
-		return fmt.Errorf("no account reports %s", f.what)
-	}
+	return fmt.Errorf("no account reports %s: give %s", f.what, strings.Join(there, " or "))
 }
 
 // IsTerminal reports whether out is a terminal: Deps.Terminal, for the
