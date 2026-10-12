@@ -312,9 +312,11 @@ func (f Frame) cueStanding(c *canvas, id string, x, y, width int) {
 
 // cue picks out width cells from x along row y, words newly cued, as drawn
 // in look: on bg.attention, as far faded back as fade; or, where the look
-// has no colour, bold.
+// has no colour, bold. It marks them cued, the page settling while they
+// show.
 func cue(c *canvas, look Look, x, y, width int, fade float64) {
 	c.surface(x, y, width, hue{token: theme.BgAttention, fade: fade})
+	c.cued(x, y, width)
 	if look.coloured {
 		return
 	}

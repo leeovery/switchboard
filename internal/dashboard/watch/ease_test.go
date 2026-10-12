@@ -142,49 +142,63 @@ func TestFramesRunOnlyWhileBarsMove(t *testing.T) {
 	}
 }
 
-func TestFramesRunOnlyWhileBarsOnScreenMove(t *testing.T) {
-	ids := []string{"work", "personal", "side", "client", "spare", "lab", "team", "extra", "ops", "studio"}
-	// using is ten accounts, the one with the id given using used of its
-	// session, the pin keeping the pool to the rest but studio, so studio's
-	// use moves nothing on screen but its own.
-	using := func(id string, used float64) status.Document {
-		var accounts []status.Account
-		for _, a := range ids {
-			accounts = append(accounts, account(a, a, session(0.25, 3*time.Hour), week(0.5)))
-		}
-		doc := routerDocument(accounts...)
-		doc.Accounts[slices.Index(ids, id)].Windows[0].Utilization = used
-		doc.Pin = status.Pin{Accounts: ids[:len(ids)-1]}
-		return doc.WorkedOut(policy)
+// tenIDs are the ids of ten accounts, too many for USAGE alone on a
+// terminal 30 rows tall: ops and studio are scrolled out of view.
+var tenIDs = []string{"work", "personal", "side", "client", "spare", "lab", "team", "extra", "ops", "studio"}
+
+// tenWith is the router's document of ten accounts, each using a quarter of
+// its session and half its week, those with the ids given changed as change
+// says; the pin keeps work and studio out of the pool, so their changes move
+// nothing on screen but their own.
+func tenWith(change func(*status.Account), ids ...string) status.Document {
+	var accounts []status.Account
+	for _, a := range tenIDs {
+		accounts = append(accounts, account(a, a, session(0.25, 3*time.Hour), week(0.5)))
 	}
-	tests := []struct {
+	for _, id := range ids {
+		change(&accounts[slices.Index(tenIDs, id)])
+	}
+	doc := routerDocument(accounts...)
+	doc.Pin = status.Pin{Accounts: slices.DeleteFunc(slices.Clone(tenIDs), func(a string) bool { return a == "work" || a == "studio" })}
+	return doc.WorkedOut(policy)
+}
+
+// tenOnAShortScreen is a model of a source whose router answers with doc,
+// of tenWith's ten accounts, showing USAGE alone on a terminal 30 rows tall,
+// started and settled, studio scrolled out of view.
+func tenOnAShortScreen(t *testing.T, doc status.Document) *harness {
+	t.Helper()
+	h := routedHarness(t, doc)
+	h.model.sections = dashboard.Sections{}.Toggled(dashboard.SectionRouting).Toggled(dashboard.SectionComing).Toggled(dashboard.SectionLately)
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 30})
+	h.start()
+	h.settle()
+	if view := h.view(); strings.Contains(view, "10 studio") {
+		t.Fatalf("the screen is\n%s\nwant USAGE too short for studio, scrolled out of view", view)
+	}
+	return h
+}
+
+func TestFramesRunOnlyWhileBarsOnScreenMove(t *testing.T) {
+	using := func(a *status.Account) { a.Windows[0].Utilization = 0.75 }
+	h := tenOnAShortScreen(t, tenWith(using))
+	for _, read := range []struct {
 		name   string
-		moved  string
+		moved  []string
+		bar    string
 		frames bool
 	}{
-		{name: "a bar on screen", moved: "work", frames: true},
-		{name: "a bar scrolled out of view", moved: "studio"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h := routedHarness(t, using(tt.moved, 0.25))
-			h.model.sections = dashboard.Sections{}.Toggled(dashboard.SectionRouting).Toggled(dashboard.SectionComing).Toggled(dashboard.SectionLately)
-			h.update(tea.WindowSizeMsg{Width: 160, Height: 30})
-			h.start()
-			h.settle()
-			if view := h.view(); strings.Contains(view, "studio") {
-				t.Fatalf("the screen is\n%s\nwant USAGE too short for studio, scrolled out of view", view)
-			}
-
-			h.startRouter(using(tt.moved, 0.3))
-			seen := h.tickUntilAsked()
-			if _, ok := h.model.ease.eased(h.model.doc, seen)[dashboard.Ref{Account: tt.moved, Window: "5h"}]; !ok {
-				t.Fatalf("%s's session bar isn't easing, want the read to have moved it", tt.moved)
-			}
-			if _, framing := h.pendingFrame(); framing != tt.frames {
-				t.Errorf("a frame is armed: %t, want %t", framing, tt.frames)
-			}
-		})
+		{name: "a read moving a bar scrolled out of view", moved: []string{"studio"}, bar: "studio"},
+		{name: "a read moving a bar on screen", moved: []string{"studio", "work"}, bar: "work", frames: true},
+	} {
+		h.startRouter(tenWith(using, read.moved...))
+		seen := h.tickUntilAsked()
+		if _, ok := h.model.ease.eased(h.model.doc, seen)[dashboard.Ref{Account: read.bar, Window: "5h"}]; !ok {
+			t.Fatalf("%s: %s's session bar isn't easing, want the read to have moved it", read.name, read.bar)
+		}
+		if _, framing := h.pendingFrame(); framing != read.frames {
+			t.Errorf("%s: a frame is armed: %t, want %t", read.name, framing, read.frames)
+		}
 	}
 }
 

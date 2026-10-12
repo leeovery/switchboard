@@ -807,19 +807,19 @@ func (m Model) framed(msg frameMsg) Model {
 
 // nextFrame is how long after now what moves on screen next changes, and
 // whether anything does: nothing while a card is open, as the page behind it
-// stands still; else frameEvery while anything moves frame by frame, the
-// highlight on an event, or the cue on an account's state or a window's
-// words, fading back, or as Motion says, what travels the cords, or on the
-// page, a bar easing to its reading, or a number brightened, fading back;
-// else as soon as the shimmer down a cord steps on, on the clock's steps of
-// it, or a move yet to show re-patches Sessions' calls. Sessions' plain list
-// is drawn again as the stream tells of more, and as the clock ticks.
+// stands still; else frameEvery while anything moves frame by frame, as
+// Motion says: what travels the cords, or on the page, a bar easing to its
+// reading, or a number brightened, or the cue on an event, an account's
+// state or a window's words, fading back; else as soon as the shimmer down
+// a cord steps on, on the clock's steps of it, or a move yet to show
+// re-patches Sessions' calls. Sessions' plain list is drawn again as the
+// stream tells of more, and as the clock ticks.
 func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
 	if m.open != nothingOpen {
 		return 0, false
 	}
 	moving := m.frame(now).Motion(m.doc, now)
-	if moving.Smooth || m.news.faded(now) != nil || m.changes.cueing(now) {
+	if moving.Smooth {
 		return frameEvery, true
 	}
 	var next []time.Duration

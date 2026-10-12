@@ -30,10 +30,13 @@ type cell struct {
 }
 
 // mark is what of the page a cell draws that moves as it changes: a number,
-// which brightens, or a window's bar, which eases to a new reading.
+// which brightens, or a window's bar, which eases to a new reading; and
+// whether it's cued, picked out by a cue fading back, as it's drawn only
+// while it fades.
 type mark struct {
 	number Number
 	bar    Ref
+	cued   bool
 }
 
 // blank is a cell with nothing drawn in it.
@@ -175,6 +178,23 @@ func (c *canvas) barred(x, y, n int, ref Ref) {
 	for i := range n {
 		if here := c.at(x+i, y); here != nil {
 			here.mark = bar
+		}
+	}
+}
+
+// cued marks the cells n long from x along row y, as far as they're drawn,
+// as cued, keeping the number or bar they're marked as.
+func (c *canvas) cued(x, y, n int) {
+	plain := unique.Make(mark{cued: true})
+	for i := range n {
+		switch here := c.at(x+i, y); {
+		case here == nil:
+		case here.mark == (unique.Handle[mark]{}):
+			here.mark = plain
+		default:
+			m := here.mark.Value()
+			m.cued = true
+			here.mark = unique.Make(m)
 		}
 	}
 }
