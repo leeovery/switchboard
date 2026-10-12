@@ -113,7 +113,7 @@ type AccountNow struct {
 	Refusal      Refusal
 	TokenRefused bool
 	// Pressure is how it stands under pressure at Now.
-	Pressure Pressing
+	Pressure PressureNow
 	// Idle is set where its window a request starts has lapsed at Now, as
 	// HasLapsed judges it, and NextPrime is when the router next primes it,
 	// starting that window, as read: zero where the document doesn't say,
@@ -132,8 +132,8 @@ type AccountNow struct {
 	unreported WindowKind
 }
 
-// Pressing is how an account stands under pressure at a moment.
-type Pressing struct {
+// PressureNow is how an account stands under pressure at a moment.
+type PressureNow struct {
 	// Under is set while it's under pressure at Now: the router found it so
 	// as it built the document, and its pressure window hasn't reset since,
 	// as underPressure judges it.
@@ -380,7 +380,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		Hold: s.stood.held, Held: s.stood.limited, LimitSince: eventAt(d.limitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), CanRise: !s.stood.shut(),
-		Pressure: Pressing{Under: s.pressed, Window: a.Pressure.Window},
+		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},
 	}
 	an.unreported, _ = s.unknown(false)
 	if s.refusing {

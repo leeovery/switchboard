@@ -484,7 +484,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		Routing: doc.RoutingOf(a, now, policy), Hold: hold, Held: held, LimitSince: got.LimitSince,
 		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapBack: capBack,
 		Refusal: refusal, TokenRefused: a.TokenRefused(now),
-		Pressure: status.Pressing{Under: doc.Pressed(a, now) != "", Window: a.Pressure.Window, Out: pressureOut},
+		Pressure: status.PressureNow{Under: doc.Pressed(a, now) != "", Window: a.Pressure.Window, Out: pressureOut},
 		Idle:     a.HasLapsed(policy.Started, now, policy), NextPrime: primeOf(doc, a.ID),
 		CanRise: !shut,
 		Windows: got.Windows,
