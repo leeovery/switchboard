@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"cmp"
 	"maps"
 	"slices"
 	"strings"
@@ -37,13 +36,8 @@ func daysWorld(accounts ...views.DaysStrip) views.DaysPage {
 }
 
 // daysShared is daysWorld with the four families' shares given, Opus's to
-// Haiku's, each account labelled by its id where it isn't given a label, as
-// views labels one the config doesn't.
+// Haiku's, the accounts given unlabelled, as their frames name them by id.
 func daysShared(shares [4]float64, accounts ...views.DaysStrip) views.DaysPage {
-	accounts = slices.Clone(accounts)
-	for i := range accounts {
-		accounts[i].Label = cmp.Or(accounts[i].Label, accounts[i].Of)
-	}
 	families := make([]views.DaysStrip, len(shares))
 	for i, family := range []string{"opus", "sonnet", "fable", "haiku"} {
 		families[i] = views.DaysStrip{Of: family, Days: stripOf(busy), Share: &shares[i]}

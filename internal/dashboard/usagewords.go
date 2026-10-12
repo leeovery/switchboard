@@ -153,20 +153,30 @@ func (w usageWords) pick(width, room int) line {
 // empty bar, none, as — in text.faint.
 func (b usageBar) percentage() line {
 	shown := status.WholePercent(b.used)
-	k := ink{token: theme.VizRamp1, bold: true}
+	var k ink
 	switch {
 	case b.empty:
 		return line{{"—", faintInk}}
 	case b.out:
-		k.token = theme.TextFaint
+		k = ink{token: theme.TextFaint, bold: true}
 	case b.stale:
 		k = dimInk
-	case shown >= 90:
-		k.token = theme.VizRamp4
-	case shown >= 70:
-		k.token = theme.VizRamp2
+	default:
+		k = usedInk(shown, ink{token: theme.VizRamp1, bold: true})
 	}
 	return line{{strconv.Itoa(shown) + "%", k}}
+}
+
+// usedInk is the ink of a whole percentage used, shown, as usage tones it:
+// from 90%, the ramp's last stop, from 70%, its second, else below's.
+func usedInk(shown int, below ink) ink {
+	switch {
+	case shown >= 90:
+		below.token = theme.VizRamp4
+	case shown >= 70:
+		below.token = theme.VizRamp2
+	}
+	return below
 }
 
 // percentCells are the cells a window's percentage is right-aligned in.

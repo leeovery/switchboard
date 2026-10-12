@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"cmp"
 	"fmt"
 	"slices"
 	"strconv"
@@ -544,10 +543,10 @@ func (w weeksDrawn) row(id string) views.WeeksRow {
 	return w.page.Accounts[i]
 }
 
-// named is what Weeks calls the account with the given id: its label, else
-// its id, cleaned.
+// named is what Weeks calls the account with the given id, as labelled
+// names it.
 func (w weeksDrawn) named(id string) string {
-	return status.Clean(cmp.Or(w.row(id).Label, id))
+	return labelled(w.row(id).Label, id)
 }
 
 // name is an account's name and mark at the start of its row, cut short of
@@ -591,16 +590,10 @@ func (w weeksDrawn) peak(row views.WeeksRow, p views.WeekPeak) line {
 	if p.Open {
 		return line{{text + "…", w.thisWeekInk()}}.numbered(w.number(row))
 	}
-	k := ink{token: theme.VizRamp1}
-	switch {
-	case shown >= 100:
-		k = exhaustedInk
-	case shown >= 90:
-		k.token = theme.VizRamp4
-	case shown >= 70:
-		k.token = theme.VizRamp2
+	if shown >= 100 {
+		return line{{text, exhaustedInk}}
 	}
-	return line{{text, k}}
+	return line{{text, usedInk(shown, ink{token: theme.VizRamp1})}}
 }
 
 // number is the number this week's peak of the row's account is, or of

@@ -46,8 +46,9 @@ type TokenWeek struct {
 
 // AccountTokens are an account's tokens in a week, and their worth, then by
 // model version. The account is left out of those the router answered with
-// none. Label is what the dashboard calls it, its id unless the config gives
-// it another: the JSON names an account by its id alone, as everywhere.
+// none. Label is its label, as the config gives it, none where the config
+// doesn't configure it: the JSON names an account by its id alone, as
+// everywhere.
 type AccountTokens struct {
 	Account string `json:"account,omitempty"`
 	Label   string `json:"-"`
@@ -158,13 +159,13 @@ func (t accountTally) list(configured config.Accounts) []AccountTokens {
 	return listed
 }
 
-// labelOf is what the dashboard calls the account with the given id: the
-// config's label for it, else its id.
+// labelOf is the config's label for the account with the given id: none
+// where it doesn't configure it.
 func labelOf(configured config.Accounts, id string) string {
 	if i := slices.IndexFunc(configured, func(a config.Account) bool { return a.ID == id }); i >= 0 {
-		return cmp.Or(configured[i].Label, id)
+		return configured[i].Label
 	}
-	return id
+	return ""
 }
 
 // weekKey is a key giving the first day of the week a day falls in, weeks

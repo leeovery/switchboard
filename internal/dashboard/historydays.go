@@ -70,7 +70,7 @@ func (f Frame) historyDays(c *canvas, top int) {
 	c.line(0, l.byAccount, groupHead("BY ACCOUNT", "the share of its week each day used, on one scale", l.phone))
 	from, to := l.shown()
 	for i, s := range p.ByAccount[from:to] {
-		f.daysStrip(c, l, l.accountRow(i), func(room int) line { return historyAccount(s.Label, s.Primary, room) }, f.limitsHit(s), dayInk, s.Days)
+		f.daysStrip(c, l, l.accountRow(i), func(room int) line { return historyAccount(labelled(s.Label, s.Of), s.Primary, room) }, f.limitsHit(s), dayInk, s.Days)
 	}
 	if above, below := from, len(p.ByAccount)-to; above+below > 0 {
 		c.line(0, l.scrollRow, accountsOutOfView(above, below))

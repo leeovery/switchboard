@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"cmp"
 	"maps"
 	"math"
 	"slices"
@@ -216,10 +215,10 @@ func kilo(n int) string {
 	return strconv.FormatFloat(float64(n)/1000, 'f', -1, 64) + "k"
 }
 
-// shown is the use shown alone, the version's name or the account's id: ""
-// for all use.
+// shown is the use shown alone, as the heading row names it: "" for all
+// use.
 func (y yearDrawn) shown() string {
-	return cmp.Or(y.ask.Version, y.ask.Account)
+	return y.History.yearShown()
 }
 
 // unit is what the Year counts, the use shown named before it: as requests

@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -244,14 +243,13 @@ func (r tokensRow) on(accounts []string, named map[string]string) tokensRow {
 	return r
 }
 
-// tokensAccount is an account's name as Tokens shows it: its label, cleaned,
-// as Weeks and Days name it, else its id; "no account" for the requests none
-// answered.
+// tokensAccount is an account's name as Tokens shows it: as labelled names
+// it, as Weeks and Days do; "no account" for the requests none answered.
 func tokensAccount(a views.AccountTokens) string {
 	if a.Account == "" {
 		return "no account"
 	}
-	return status.Clean(cmp.Or(a.Label, a.Account))
+	return labelled(a.Label, a.Account)
 }
 
 // tokensAccounts are the accounts' names, as Tokens shows them, by their ids.

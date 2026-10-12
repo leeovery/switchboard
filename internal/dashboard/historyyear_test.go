@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -399,6 +400,27 @@ func TestTheNumbersAndTheKeyNameWhatsShown(t *testing.T) {
 		if got := rows[top+yearKeyRow]; !strings.HasSuffix(got, "  "+tt.unit) {
 			t.Errorf("%+v: the key reads %q, want it to end %q", tt.ask, got, tt.unit)
 		}
+	}
+}
+
+// An account shown alone is named by its label, not its id, wherever the
+// Year names it: the heading row, the numbers' heading and the key.
+func TestTheYearNamesAnAccountShownAloneByItsLabel(t *testing.T) {
+	f := yearFrame(t, 160, 37, views.YearAsk{Account: "acct-2"}, plainYear())
+	f.History.Accounts = config.Accounts{{ID: "work", Label: "Work"}, {ID: "acct-2", Label: "Studio"}}
+	rows, top := textOf(f.page(threeRouted(), now).rows(Look{})), f.top()
+
+	if got := rows[4]; !strings.Contains(got, "  Studio only, every model  ·  ") {
+		t.Errorf("the heading row reads %q, want it to say Studio only, every model", got)
+	}
+	if got := strings.TrimSpace(string([]rune(rows[top])[yearNumbersX:])); got != "STUDIO · 12 MONTHS" {
+		t.Errorf("the numbers are headed %q, want %q", got, "STUDIO · 12 MONTHS")
+	}
+	if got := rows[top+yearKeyRow]; !strings.HasSuffix(got, "  Studio requests a day") {
+		t.Errorf("the key reads %q, want it to end %q", got, "Studio requests a day")
+	}
+	if text := strings.Join(rows, "\n"); strings.Contains(strings.ToLower(text), "acct-2") {
+		t.Errorf("the Year names the account by its id somewhere:\n%s", text)
 	}
 }
 

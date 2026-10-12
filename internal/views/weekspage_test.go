@@ -121,12 +121,12 @@ func TestWeeksPageComparesTheWeeksShortWithoutTheOneToDropWithNows(t *testing.T)
 	}{
 		{
 			// By their plans, the rest cover spare: none is short with or
-			// without it.
+			// without it, which isn't the same weeks short, as there are none.
 			name:     "none short either way",
 			accounts: config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "side", Plan: "max5x"}, {ID: "spare", Plan: "pro"}},
 			peaks: map[string][]float64{"work": {0.5, 0.6, 0.4, 0.5, 0.6, 0.5, 0.4}, "side": {0.2, 0.2, 0.3, 0.2, 0.2, 0.3, 0.2},
 				"spare": {0.05, 0.1, 0, 0.05, 0.1, 0.05, 0}},
-			drop: "spare", price: &price, sameWeeks: true, noneShortWithout: true,
+			drop: "spare", price: &price, noneShortWithout: true,
 		},
 		{
 			// Without side, on no plan, work is short on the weeks it was.
