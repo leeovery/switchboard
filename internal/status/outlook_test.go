@@ -398,6 +398,26 @@ func TestAnAccountsRoomIsWhatThePoolCountsOfIt(t *testing.T) {
 	}
 }
 
+// The pool judged at now paces its windows as they stand then, as of when
+// the document was read, as each account's are: on the tick after work's
+// session resets, before it's read again, the session has lapsed, and the
+// pool's session paces side's alone, not the pace the document worked out of
+// work's at its end.
+func TestThePoolJudgedAtNowPacesTheWindowsRunningThen(t *testing.T) {
+	work := readAt("work", windowIn("5h", 0.4, time.Hour), windowIn("7d", 0.5, 2*day))
+	side := readAt("side", windowIn("5h", 0.2, 3*time.Hour), windowIn("7d", 0.1, 6*day))
+	doc := routerDocOf(work, side).WorkedOut(policy)
+
+	got := poolLines(doc.PoolAt(built.Add(time.Hour+time.Second), policy))
+	want := []string{
+		"5h Session: room 1.8, used 0.1, pace 0.4",
+		"7d Week: room 1.4, used 0.3, pace 0.428571",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("the pool's windows are %q, want %q", got, want)
+	}
+}
+
 func TestThePoolsWindowsAreAListEvenOfNone(t *testing.T) {
 	doc := routerDocOf(status.Account{ID: "work", Label: "work", TokenSet: true}, status.Account{ID: "side", Label: "side", TokenSet: true})
 	got, err := json.Marshal(doc.WorkedOut(policy))

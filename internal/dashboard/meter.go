@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"math"
-	"time"
 
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -26,16 +25,16 @@ const (
 	shadeCell = "▒"
 )
 
-// bar draws a window standing as s at now as a bar cells long from x along
-// row y, marked as its window's: its use, as eased has it, its projection
-// beyond, where even pace would be, and where its account's reserve, reserve
-// of it, starts.
-func (f Frame) bar(c *canvas, s standing, reserve float64, now time.Time, x, y, cells int) {
+// bar draws a window standing as s as a bar cells long from x along row y,
+// marked as its window's: its use, as eased has it, its projection beyond,
+// where even pace would be, and where its account's reserve, reserve of it,
+// starts.
+func (f Frame) bar(c *canvas, s standing, reserve float64, x, y, cells int) {
 	share, ok := s.projected()
 	if !ok {
 		share = 0
 	}
-	f.fill(c, x, y, cells, f.eased(s), share, reserveCell(reserve, cells), s.paceCell(now, cells))
+	f.fill(c, x, y, cells, f.eased(s), share, reserveCell(reserve, cells), s.paceCell(cells))
 	c.barred(x, y, cells, Ref{Account: s.account, Window: s.window.Key})
 }
 

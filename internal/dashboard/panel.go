@@ -204,7 +204,7 @@ func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string,
 		return
 	}
 	if bars {
-		f.bar(c, s, p.account.Reserve, now, at, y, panelBar)
+		f.bar(c, s, p.account.Reserve, at, y, panelBar)
 		at += panelBar
 	}
 	c.right(at+useColumn, y, line{panelUse(s)})
@@ -266,17 +266,18 @@ func resetsSays(p linePanel, now time.Time, brief bool) line {
 	return append(l, span{" ", dimInk})
 }
 
-// resets says when the panel's windows reset, of those it shows: the window
-// a request starts, while it runs, not having lapsed at now, as HasLapsed
-// judges it, as in "session 17:10"; then the rest, together where they reset
-// at once, as weeksReset has them.
+// resets says when the panel's windows reset next, of those it shows, each as
+// it stands at now, as WindowAt has it: the window a request starts, while it
+// runs, as in "session 17:10", none where it has lapsed; then the rest,
+// together where they reset at once, as weeksReset has them, at their next
+// resets once they have reset since they were read.
 func (p linePanel) resets(now time.Time) []string {
 	var said []string
 	var rest []quota.Window
 	for _, key := range p.windows {
-		w, ok := p.account.Window(key)
+		w, ok := p.account.WindowAt(key, now, p.policy)
 		switch {
-		case !ok || w.ResetsAt.IsZero() || p.account.HasLapsed(key, now, p.policy):
+		case !ok || w.ResetsAt.IsZero():
 		case key == p.policy.Started:
 			said = append(said, status.InProse(w.Label)+" "+status.Dated(now, w.ResetsAt))
 		default:

@@ -38,7 +38,7 @@ func (r lastReads) alerts(doc status.Document, now time.Time, policy score.Polic
 		if settings.Room && roomAgain(last, reading{account: a, at: now}, policy) {
 			alerts = append(alerts, notify.RoomAgain(a))
 		}
-		for _, w := range passed(last.account.Windows, a.Windows, settings.Warning) {
+		for _, w := range passed(last.account.Windows, a.Windows, settings.Warning, now) {
 			alerts = append(alerts, notify.Warning(a, w))
 		}
 	}
@@ -73,12 +73,16 @@ func roomAgain(last, this reading, policy score.Policy) bool {
 		score.Available(this.account.Windows, this.account.Reserve, policy.IsShared, this.at)
 }
 
-// passed lists the windows in after that have passed warning since before.
-func passed(before, after []quota.Window, warning float64) []quota.Window {
+// passed lists the windows in after, read at now, that have passed warning
+// since before: each window in before as it runs at now, as score.Current
+// has it, so one that has reset since counts from empty, and passing warning
+// in its period after the reset is news, however much of the period before
+// it had used.
+func passed(before, after []quota.Window, warning float64, now time.Time) []quota.Window {
 	var up []quota.Window
 	for _, w := range after {
 		i := slices.IndexFunc(before, func(b quota.Window) bool { return b.Key == w.Key })
-		if i >= 0 && notify.Passed(before[i].Utilization, w.Utilization, warning) {
+		if i >= 0 && notify.Passed(score.Current(before[i], now).Utilization, w.Utilization, warning) {
 			up = append(up, w)
 		}
 	}

@@ -17,8 +17,10 @@ type standing struct {
 	// account is the id of the account whose window it is.
 	account string
 	window  quota.Window
-	// used is how much of it is used, as its state reads it.
+	// used is how much of it is used, and pace its even pace, nil where
+	// that's unknown, as its state reads them.
 	used float64
+	pace *float64
 	// heading is where it's heading, as doc's Project says; and out where it
 	// runs out before it resets, as RunsOut says, runsOut set where it does.
 	heading status.Heading
@@ -38,12 +40,12 @@ type standing struct {
 }
 
 // standingOf is how doc's account a's window w stands at now, its account's
-// windows standing as states has them: used as its state reads it; held where
-// it stands limited, until the hold lifts off it; and lapsed where it stands
-// not started.
+// windows standing as states has them: used, and at its even pace, as its
+// state reads it; held where it stands limited, until the hold lifts off it;
+// and lapsed where it stands not started.
 func standingOf(doc status.Document, a status.Account, w quota.Window, states status.WindowStates, now time.Time) standing {
 	st := states.Of(w.Key)
-	s := standing{account: a.ID, window: w, used: st.Used, floor: doc.Floor(a)}
+	s := standing{account: a.ID, window: w, used: st.Used, pace: st.Pace, floor: doc.Floor(a)}
 	s.out, s.runsOut = doc.RunsOut(a, w, now)
 	s.heading = s.out.Heading
 	switch st.Kind {
@@ -124,14 +126,14 @@ func (s standing) projected() (float64, bool) {
 }
 
 // paceCell is the cell of the window's bar, cells long, where even use
-// across the window would put it at now: noMarker, leaving the marker off,
-// where that can't be said, and while it's held at its limit or has lapsed.
-func (s standing) paceCell(now time.Time, cells int) int {
-	elapsed, ok := score.Elapsed(s.window, now)
-	if !ok || s.held || s.lapsed {
+// across the window would put it, at its even pace, as its state reads it:
+// noMarker, leaving the marker off, where that can't be said, and while it's
+// held at its limit or has lapsed.
+func (s standing) paceCell(cells int) int {
+	if s.pace == nil || s.held || s.lapsed {
 		return noMarker
 	}
-	return cellAt(elapsed, cells)
+	return cellAt(*s.pace, cells)
 }
 
 // nearing reports whether the share the window is heading for by its reset,

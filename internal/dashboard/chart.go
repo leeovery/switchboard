@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -63,26 +62,29 @@ type chart struct {
 	now      time.Time
 }
 
-// ChartSpan is the span GRAPHS charts window w over at now: as it runs then,
-// as score.Current has it, so from its last reset where that has passed since
-// it was read, until its next; reporting false where that isn't known. A
-// reading from before it starts isn't charted, so what keeps a window's
-// trail for the charts keeps none of those.
-func ChartSpan(w quota.Window, now time.Time) (start time.Time, length time.Duration, ok bool) {
-	return score.Current(w, now).Span()
+// ChartSpan is the span GRAPHS charts account a's window with the given key
+// over at now: as it stands then, as policy judges it, as WindowAt has it, so
+// from its last reset where that has passed since it was read, until its
+// next; reporting false where a has no such window, where that isn't known,
+// and where it has lapsed, as it isn't running, as the router's next document
+// has it, with no reset. A reading from before it starts isn't charted, so
+// what keeps a window's trail for the charts keeps none of those.
+func ChartSpan(a status.Account, key string, now time.Time, policy score.Policy) (start time.Time, length time.Duration, ok bool) {
+	w, ok := a.WindowAt(key, now, policy)
+	if !ok {
+		return time.Time{}, 0, false
+	}
+	return w.Span()
 }
 
 // chartOf is account a's window shown, charted over its span at now, as
-// ChartSpan has it, from its trail: none of its readings from before it
-// started, so none where it has reset since it was read; and nothing but its
-// name where a has no such window, or its span isn't known.
-func chartOf(a status.Account, shown shownWindow, trail Trail, now time.Time) chart {
+// ChartSpan has it, as policy judges the window, from its trail: none of its
+// readings from before it started, so none where it has reset since it was
+// read; and nothing but its name where a has no such window, or its span
+// isn't known, as of one not started.
+func chartOf(a status.Account, shown shownWindow, trail Trail, now time.Time, policy score.Policy) chart {
 	ch := chart{name: strings.ToUpper(shown.name), capAt: 1 - a.Reserve, capped: a.Reserve > 0, now: now}
-	w, ok := a.Window(shown.key)
-	if !ok {
-		return ch
-	}
-	if ch.start, ch.length, ch.spanned = ChartSpan(w, now); ch.spanned {
+	if ch.start, ch.length, ch.spanned = ChartSpan(a, shown.key, now, policy); ch.spanned {
 		ch.readings = slices.DeleteFunc(slices.Clone(trail.Readings), func(r score.Reading) bool { return r.At.Before(ch.start) })
 	}
 	return ch

@@ -77,8 +77,8 @@ func dotted(parts ...string) string {
 // sessions coming here. Words from elsewhere show cleaned, and times as Dated
 // shows them.
 func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
-	if !a.TokenSet {
-		return State{Condition: Tokenless, Says: "no token", Then: "switchboard accounts token " + Clean(a.ID)}
+	if tokenless, ok := a.NoToken(); ok {
+		return tokenless
 	}
 	if held, ok := d.heldBack(a, now, policy); ok {
 		return held
@@ -95,7 +95,16 @@ func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
 	if a.idleAt(now, policy) {
 		return State{Condition: Idle, Says: "idle", Then: d.StartsAt(a.ID, now)}
 	}
-	return d.open(a)
+	return d.open(a, now)
+}
+
+// NoToken is the state of account a without a usable token, reporting false
+// where it has one: how to give it one.
+func (a Account) NoToken() (State, bool) {
+	if a.TokenSet {
+		return State{}, false
+	}
+	return State{Condition: Tokenless, Says: "no token", Then: "switchboard accounts token " + Clean(a.ID)}, true
 }
 
 // Unread is the state of account a while its usage isn't read, reporting
@@ -337,13 +346,13 @@ func (d Document) StartsAt(id string, now time.Time) string {
 	return "window starts at its prime, " + Dated(now, d.Prime.Slots[i].Next)
 }
 
-// open is the state of account a with room: once a week of it comes within
-// 10 points of where its reserve starts, that it nears its reserve, as in
-// "its week nears its reserve"; on the account new sessions go to, of
+// open is the state of account a with room at now: once a week of it comes
+// within 10 points of where its reserve starts, that it nears its reserve, as
+// in "its week nears its reserve"; on the account new sessions go to, of
 // several, that they come here.
-func (d Document) open(a Account) State {
+func (d Document) open(a Account, now time.Time) State {
 	s := State{Condition: Open, Says: "open"}
-	if week, ok := d.nearing(a); ok {
+	if week, ok := d.nearing(a, now); ok {
 		s.Then = "its " + InProse(week.Label) + " nears its reserve"
 	} else if len(d.Accounts) > 1 && d.Best == a.ID {
 		s.Then = "new sessions come here"
@@ -352,14 +361,15 @@ func (d Document) open(a Account) State {
 }
 
 // nearing returns the first of account a's weeks, its windows longer than a
-// day, within 10 points of where its reserve starts, where the reserve holds
-// it back, reporting false where none is.
-func (d Document) nearing(a Account) (quota.Window, bool) {
+// day, within 10 points of where its reserve starts at now, its use as it
+// runs then, as score.Current has it, so none once it has reset since it was
+// read, where the reserve holds it back, reporting false where none is.
+func (d Document) nearing(a Account, now time.Time) (quota.Window, bool) {
 	if !d.ReserveHolds(a) {
 		return quota.Window{}, false
 	}
 	i := slices.IndexFunc(a.Windows, func(w quota.Window) bool {
-		return quota.MultiDay(w.Key) && w.Utilization >= 1-a.Reserve-Near-score.Tolerance
+		return quota.MultiDay(w.Key) && score.Current(w, now).Utilization >= 1-a.Reserve-Near-score.Tolerance
 	})
 	if i < 0 {
 		return quota.Window{}, false

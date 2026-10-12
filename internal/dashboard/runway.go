@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -434,7 +435,7 @@ func (f Frame) runwayLane(c *canvas, doc status.Document, ln lane, cells []room,
 		c.text(l.x+col, y, glyph, k)
 	}
 	for _, w := range f.weeks(ln) {
-		if col := l.timeline.column(w.ResetsAt); col >= 0 && col < l.timeline.columns {
+		if col := l.timeline.column(nextReset(w, now)); col >= 0 && col < l.timeline.columns {
 			c.text(l.x+col, y, resetGlyph, titleInk)
 		}
 	}
@@ -469,6 +470,14 @@ func (f Frame) weeks(l lane) []quota.Window {
 	return slices.DeleteFunc(slices.Clone(l.account.Windows), func(w quota.Window) bool { return !f.counts(w) })
 }
 
+// nextReset is when the week w resets next after now, as it runs then, as
+// score.Current has it: a length on from its reset once that has passed since
+// it was read, as the router's next read would have it. A week never lapses,
+// as only the window a request starts does.
+func nextReset(w quota.Window, now time.Time) time.Time {
+	return score.Current(w, now).ResetsAt
+}
+
 // placed is words placed under a lane, from its column col of the timeline.
 type placed struct {
 	col   int
@@ -479,10 +488,10 @@ type placed struct {
 // the column it's of, left to right, saysGap clear of those before, and
 // those after them left off where they don't fit whole: what holds it back
 // over each stretch without room, as placedTold places it; over the week, at
-// each week's reset in view that no stretch is back at, ending under it,
-// when it resets and how much it will have used by then; and where neither
-// is, from just after now, that it has room all along, or that nothing has
-// been read of it.
+// each week's next reset in view, as nextReset has it, that no stretch is
+// back at, ending under it, when it resets and how much it will have used by
+// then; and where neither is, from just after now, that it has room all
+// along, or that nothing has been read of it.
 func (f Frame) laneWords(c *canvas, doc status.Document, ln lane, l runwayLayout, now time.Time, y int) {
 	tl := l.timeline
 	var words []placed
@@ -490,12 +499,13 @@ func (f Frame) laneWords(c *canvas, doc status.Document, ln lane, l runwayLayout
 		words = append(words, placedTold(s, tl, now)...)
 	}
 	for _, w := range f.weeks(ln) {
-		col := tl.column(w.ResetsAt)
-		back := slices.ContainsFunc(ln.stretches, func(s stretch) bool { return s.until.Equal(w.ResetsAt) })
+		next := nextReset(w, now)
+		col := tl.column(next)
+		back := slices.ContainsFunc(ln.stretches, func(s stretch) bool { return s.until.Equal(next) })
 		if col < 0 || col >= tl.columns || back {
 			continue
 		}
-		says := resetSays(standingOf(doc, ln.account, w, ln.states, now), now)
+		says := resetSays(standingOf(doc, ln.account, w, ln.states, now), next, now)
 		words = append(words, placed{col: max(col-says.width()+1, 0), words: says})
 	}
 	if len(words) == 0 {
@@ -537,11 +547,11 @@ func placedTold(s stretch, tl timeline, now time.Time) []placed {
 	return told
 }
 
-// resetSays is what's said where a week standing as s resets: when, and
-// where it's heading, how much it will have used by then, as in "resets Mon
-// 21:00 · 87% used by then".
-func resetSays(s standing, now time.Time) line {
-	l := line{{"resets " + status.Dated(now, s.window.ResetsAt), secondaryInk}}
+// resetSays is what's said where a week standing as s resets next, at next:
+// when, and where it's heading, how much it will have used by then, as in
+// "resets Mon 21:00 · 87% used by then".
+func resetSays(s standing, next, now time.Time) line {
+	l := line{{"resets " + status.Dated(now, next), secondaryInk}}
 	if share, ok := s.projected(); ok {
 		l = append(l, span{status.Separator + status.Percent(share) + " used by then", mutedInk})
 	}
@@ -552,7 +562,7 @@ func resetSays(s standing, now time.Time) line {
 // view: that nothing has been read of its account; else that it has room
 // all day, and when it runs out, where it's heading to beyond the day shown,
 // as in "room all day · week runs out ~Sun 04:06"; or all week, and when its
-// week resets, beyond the week shown.
+// week resets next, as nextReset has it, beyond the week shown.
 func (f Frame) allAlong(l lane, now time.Time) line {
 	switch weeks := f.weeks(l); {
 	case !l.known:
@@ -562,7 +572,7 @@ func (f Frame) allAlong(l lane, now time.Time) line {
 	case f.Span != Week:
 		return line{{"room all day", dimInk}}
 	case len(weeks) > 0 && !weeks[0].ResetsAt.IsZero():
-		return line{{"room all week" + status.Separator + "resets " + status.Dated(now, weeks[0].ResetsAt), dimInk}}
+		return line{{"room all week" + status.Separator + "resets " + status.Dated(now, nextReset(weeks[0], now)), dimInk}}
 	default:
 		return line{{"room all week", dimInk}}
 	}

@@ -33,12 +33,12 @@ func alike(words string, k ink) usageWords {
 	return usageWords{full: l, short: l}
 }
 
-// wordsOf are the words of a window standing as st says at now, its
-// allowance a: what holds it back, and until when; when it runs out; that it
-// isn't started; or the allowance, to its reset. A time reads as Dated has it
-// in full, and short, its time today and only its weekday for another day;
-// but a reading's, as lastRead has it.
-func wordsOf(st status.WindowState, a quota.Allowance, now time.Time) usageWords {
+// wordsOf are the words of a window standing as st says at now: what holds
+// it back, and until when; when it runs out; that it isn't started; or its
+// allowance, to its reset. A time reads as Dated has it in full, and short,
+// its time today and only its weekday for another day; but a reading's, as
+// lastRead has it.
+func wordsOf(st status.WindowState, now time.Time) usageWords {
 	switch st.Kind {
 	case status.WindowTokenless:
 		return alike("no token", errorInk)
@@ -56,7 +56,7 @@ func wordsOf(st status.WindowState, a quota.Allowance, now time.Time) usageWords
 	case status.WindowNotStarted:
 		return alike("not started", mutedInk)
 	default:
-		return allowed(a, st.At, now)
+		return allowed(st.Allowance, st.At, now)
 	}
 }
 

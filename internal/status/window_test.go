@@ -193,6 +193,24 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 	}
 }
 
+// A window's even pace and its allowance stand as of when the document was
+// read, as its projection does, so they stay put while the document does:
+// drawn a minute after, they're the document's own, as it worked them out.
+func TestAWindowsPaceAndAllowanceAreAsTheDocumentWorkedThemOut(t *testing.T) {
+	a := readNow(0.2, 0.3, 0.1)
+	doc := status.Document{GeneratedAt: stateNow.Add(-time.Minute).UTC(), Accounts: []status.Account{a}}.WorkedOut(policy)
+	states := doc.WindowStatesOf(doc.Accounts[0], stateNow, policy)
+	for _, w := range doc.Accounts[0].Windows {
+		got := states.Of(w.Key)
+		if got.Pace == nil || w.Pace == nil || !near(*got.Pace, *w.Pace) {
+			t.Errorf("%s's even pace is %s, want %s, the document's", w.Key, paceOf(got.Pace), paceOf(w.Pace))
+		}
+		if got.Kind != status.WindowOpen || got.Allowance != w.Allowance {
+			t.Errorf("%s stands as %+v, want open, its allowance %+v, the document's", w.Key, got, w.Allowance)
+		}
+	}
+}
+
 // resetSince has the account's session, read running, reset at 14:00, before
 // stateNow, with nothing read since.
 func resetSince(a *status.Account) {

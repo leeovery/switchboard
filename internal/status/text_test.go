@@ -557,8 +557,9 @@ func TestTextSaysASessionThatResetSinceItWasReadHasntStarted(t *testing.T) {
 // WindowStates stand it, in ROUTING's order: read running, on the tick after
 // its session resets, before it's read again, an account the router's limit
 // holds in its session has it held, and one whose token is refused has it
-// stale, each reading empty, as it has reset since it was read; while one
-// whose last read failed, nothing read since the reset, has it not started.
+// stale, each reading empty, with no reset, as it has lapsed, as the router's
+// next document has it; while one whose last read failed, nothing read since
+// the reset, has it not started.
 func TestTextSaysASessionLapsedAtNowHasntStartedUnlessALimitOrARefusalComesFirst(t *testing.T) {
 	read := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	reset := time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)
@@ -573,7 +574,7 @@ func TestTextSaysASessionLapsedAtNowHasntStartedUnlessALimitOrARefusalComesFirst
 			change: func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"5h"}, Until: reset.Add(40 * time.Minute)}
 			},
-			want: "  Session   0%  resets now · Mon 17:10\n  limit until Mon 17:50\n",
+			want: "  Session   0%\n  limit until Mon 17:50\n",
 		},
 		{
 			name:   "its last read failed",
@@ -583,7 +584,7 @@ func TestTextSaysASessionLapsedAtNowHasntStartedUnlessALimitOrARefusalComesFirst
 		{
 			name:   "its token refused",
 			change: func(a *status.Account) { a.Refused = status.Refusal{Until: reset.Add(time.Hour), Status: 401} },
-			want:   "  Session   0%  resets now · Mon 17:10\n  refused (401) until 18:10\n",
+			want:   "  Session   0%\n  refused (401) until 18:10\n",
 		},
 	}
 	for _, tt := range tests {
@@ -600,6 +601,30 @@ func TestTextSaysASessionLapsedAtNowHasntStartedUnlessALimitOrARefusalComesFirst
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
+	}
+}
+
+// status gives a window's reset as it stands at now, beside its use: work,
+// its token refused, has its week, read before it reset and not read since,
+// empty, and resetting next a week on, not at the reset already past.
+func TestTextGivesAWeekResetSinceItWasReadItsNextReset(t *testing.T) {
+	read := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	reset := read.Add(time.Hour)
+	doc := status.Document{
+		GeneratedAt: read.UTC(),
+		Source:      status.SourceRouter,
+		Router:      status.Health{Healthy: true},
+		Accounts: []status.Account{{
+			ID: "work", Label: "Work", TokenSet: true, FetchedAt: read.UTC(),
+			Windows: []quota.Window{{Key: "7d", Label: "Week", Utilization: 0.6, ResetsAt: reset.UTC()}},
+			Refused: status.Refusal{Until: reset.Add(time.Hour).UTC(), Status: 401},
+		}},
+	}
+	want := "work · Work\n" +
+		"  Week   0%  resets in 6d 23h · Mon 15:12\n" +
+		"  refused (401) until 16:12\n"
+	if got := doc.Text(reset.Add(time.Second), policy); !strings.HasPrefix(got, want) {
+		t.Errorf("Text() =\n%s\nwant it to start\n%s", got, want)
 	}
 }
 

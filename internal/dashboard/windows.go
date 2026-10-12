@@ -23,9 +23,9 @@ func labelOf(doc status.Document, key string) string {
 
 // shownWindows are the keys of the windows of doc's accounts worth showing at
 // now, in quota's order: those every model shares, always, and any other an
-// account has used this period, or is heading to, as Project says, or a
-// probe expected but couldn't read. A model's own window that no account has
-// used, nor is heading to use, hides.
+// account has used this period, or is heading to, as inUse says, or a probe
+// expected but couldn't read. A model's own window that no account has used,
+// nor is heading to use, hides.
 func shownWindows(doc status.Document, now time.Time, policy score.Policy) []string {
 	shown, _ := windowsOf(doc, now, policy)
 	return shown
@@ -63,10 +63,11 @@ func windowsOf(doc status.Document, now time.Time, policy score.Policy) (shown, 
 }
 
 // inUse reports whether doc's account a has used its window w this period
-// at now, or is heading to: some of it is used, or its projection, as doc's
-// Project says, has some used by its reset.
+// at now, or is heading to: some of it is used, as it runs then, as
+// score.Current has it, so none once it has reset since it was read; or its
+// projection, as doc's Project says, has some used by its reset.
 func inUse(doc status.Document, a status.Account, w quota.Window, now time.Time) bool {
-	if w.Utilization > 0 {
+	if score.Current(w, now).Utilization > 0 {
 		return true
 	}
 	switch p := doc.Project(a, w, now).Projection; p.Kind {

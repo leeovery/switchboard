@@ -45,6 +45,15 @@ func TestTheWindowsShown(t *testing.T) {
 			wantShown: []string{"5h", "7d", "7d_oi"},
 		},
 		{
+			name: "a model's own one account used, reset since it was read, so unused at now",
+			accounts: []status.Account{
+				readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0, 4*day)),
+				readAccount("side", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0.12, -time.Hour)),
+			},
+			wantShown:  []string{"5h", "7d"},
+			wantHidden: []string{"7d_oi"},
+		},
+		{
 			name: "a model's own one account is heading to use",
 			accounts: []status.Account{
 				using(readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0, 4*day)), "7d_oi", 0.01),

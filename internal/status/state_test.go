@@ -284,6 +284,14 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 			want:    status.State{Condition: status.Open, Says: "open", Then: "its Fable week nears its reserve"},
 		},
 		{
+			name: "open, its week read within 10 points of its reserve, reset since, so empty at now",
+			account: with(readNow(0.31, 0.78, 0.2), func(a *status.Account) {
+				a.Reserve = 0.2
+				a.Windows[1].ResetsAt = at(1, 9, 0).UTC()
+			}),
+			want: status.State{Condition: status.Open, Says: "open"},
+		},
+		{
 			name:    "open, its week further from its reserve",
 			account: with(readNow(0.31, 0.69, 0.2), func(a *status.Account) { a.Reserve = 0.2 }),
 			want:    status.State{Condition: status.Open, Says: "open"},

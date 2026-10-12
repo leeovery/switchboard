@@ -216,7 +216,7 @@ func TestEveryWindowsHistoryEndsAtItsUse(t *testing.T) {
 	for _, f := range fixtures(time.UTC) {
 		for _, a := range f.router.doc.Accounts {
 			for _, w := range a.Windows {
-				if start, _, ok := dashboard.ChartSpan(w, f.router.doc.GeneratedAt); !ok || a.FetchedAt.Before(start) {
+				if start, _, ok := dashboard.ChartSpan(a, w.Key, f.router.doc.GeneratedAt, claude.Policy); !ok || a.FetchedAt.Before(start) {
 					continue
 				}
 				h, err := f.router.History(t.Context(), w.Key, time.Minute)

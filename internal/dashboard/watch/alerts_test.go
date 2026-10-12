@@ -96,6 +96,14 @@ func TestNotifications(t *testing.T) {
 			want:  []string{"work · Work: Week at 91%", "work · Work: Week at 92%"},
 		},
 		{
+			name: "a window passing 90% in the period after it reset, read before at more, which counts from empty",
+			reads: []status.Document{
+				document(account("work", "Work", session(0.02, 5*time.Hour), window("7d", "Week", 0.95, 3*time.Minute))),
+				room(0.92),
+			},
+			want: []string{"work · Work: Week at 92%"},
+		},
+		{
 			name: "a window new to the account",
 			reads: []status.Document{
 				room(0.5),
