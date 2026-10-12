@@ -312,12 +312,12 @@ func (a Account) label(key string) string {
 }
 
 // pressed is the state of account a under pressure at now: while new sessions
-// go to another account, that they go elsewhere; else when its pressure
-// window runs out, as RunsOut has it, as in "runs out ~16:05 at this pace",
-// or, its reserve holding it back there, "at its reserve ~18:21".
+// go to another account, as next says, that they go elsewhere; else when its
+// pressure window runs out, as RunsOut has it, as in "runs out ~16:05 at this
+// pace", or, its reserve holding it back there, "at its reserve ~18:21".
 func (d Document) pressed(a Account, now time.Time) State {
 	s := State{Condition: Pressed, Says: "under pressure"}
-	if d.Best != "" && d.Best != a.ID {
+	if next := d.next(); next != "" && next != a.ID {
 		s.Then = "new sessions go elsewhere"
 		return s
 	}
@@ -348,13 +348,13 @@ func (d Document) StartsAt(id string, now time.Time) string {
 
 // open is the state of account a with room at now: once a week of it comes
 // within 10 points of where its reserve starts, that it nears its reserve, as
-// in "its week nears its reserve"; on the account new sessions go to, of
-// several, that they come here.
+// in "its week nears its reserve"; on the account new sessions go to, as next
+// says, of several, that they come here.
 func (d Document) open(a Account, now time.Time) State {
 	s := State{Condition: Open, Says: "open"}
 	if week, ok := d.nearing(a, now); ok {
 		s.Then = "its " + InProse(week.Label) + " nears its reserve"
-	} else if len(d.Accounts) > 1 && d.Best == a.ID {
+	} else if len(d.Accounts) > 1 && d.next() == a.ID {
 		s.Then = "new sessions come here"
 	}
 	return s

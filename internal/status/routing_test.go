@@ -241,7 +241,7 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{
-				GeneratedAt: stateNow.UTC(), Best: tt.best, Pin: status.Pin{Accounts: tt.pin}, Prime: status.Prime{Window: "5h", Slots: tt.prime},
+				GeneratedAt: stateNow.UTC(), Source: status.SourceRouter, Best: tt.best, Pin: status.Pin{Accounts: tt.pin}, Prime: status.Prime{Window: "5h", Slots: tt.prime},
 				Accounts: append([]status.Account{tt.account}, tt.others...),
 			}
 			got := doc.RoutingOf(tt.account, stateNow, policy)

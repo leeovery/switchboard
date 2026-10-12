@@ -38,7 +38,7 @@ type Moment struct {
 	// document had coming as it was built, soonest first.
 	ComingUp []Upcoming
 	// Next is the id of the account new sessions go to, which ▲ marks, as
-	// read: the document's best, "" where none has room.
+	// read, as next has it.
 	Next string
 	// Accounts are its accounts, in the config's order, each as it stands at
 	// Now.
@@ -243,7 +243,7 @@ func (d Document) At(now time.Time, policy score.Policy) Moment {
 	m := Moment{
 		Now: now, ReadAt: d.readAt(now), Routed: d.Source == SourceRouter,
 		Fallback: d.Fallback, Health: d.Router, Restart: d.Restart, Pin: d.Pin, Events: d.Events, Sessions: d.Sessions,
-		ComingUp: comingAfter(d.ComingUp, now), Next: d.Best,
+		ComingUp: comingAfter(d.ComingUp, now), Next: d.next(),
 		doc: d, policy: policy, judged: judged,
 		pool: sync.OnceValue(func() Pool { return d.pool(judged) }),
 	}
@@ -291,6 +291,21 @@ func (a AccountNow) Window(key string) (WindowNow, bool) {
 		return WindowNow{Key: key, Kind: a.unreported}, false
 	}
 	return a.Windows[i], true
+}
+
+// next is the id of the account new sessions go to, which ▲ marks: of one
+// account, that one, whatever its room, as there's nowhere else for them to
+// go; of several, the router's best, "" where none has room; and none of
+// several in a document built by probing, as where new sessions go is the
+// router's to say, and its best is worked out without the router's pin.
+func (d Document) next() string {
+	switch {
+	case len(d.Accounts) == 1:
+		return d.Accounts[0].ID
+	case d.Source != SourceRouter:
+		return ""
+	}
+	return d.Best
 }
 
 // comingAfter are the things coming up given that come after now, in their

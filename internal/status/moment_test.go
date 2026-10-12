@@ -332,9 +332,9 @@ func hardMoments() []hardMoment {
 				readAt("side", windowIn("5h", 0.6, time.Hour), windowIn("7d", 0.05, 6*day)),
 			),
 			now:  built.Add(time.Minute),
-			next: "work",
+			next: "",
 			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingNext, canRise: true, windows: map[string]windowWant{
+				"work": {routing: status.RoutingOpen, canRise: true, windows: map[string]windowWant{
 					"5h": {kind: status.WindowOpen, at: built.Add(3 * time.Hour), used: 0.3, next: built.Add(3 * time.Hour)},
 					"7d": {kind: status.WindowOpen, at: built.Add(2 * day), used: 0.5, next: built.Add(2 * day)},
 				}},
@@ -348,6 +348,7 @@ func hardMoments() []hardMoment {
 			name: "probed, of one account, with no room",
 			doc:  asProbed(built, readAt("work", windowIn("5h", 0.3, 3*time.Hour), spentIn("7d", 1, 2*day))),
 			now:  built.Add(time.Minute),
+			next: "work",
 			accounts: map[string]accountWant{
 				"work": {routing: status.RoutingLimited, held: true, windows: map[string]windowWant{
 					"5h": {kind: status.WindowOpen, at: built.Add(3 * time.Hour), used: 0.3, next: built.Add(3 * time.Hour)},
@@ -427,8 +428,8 @@ func checkMomentAgainstStatus(t *testing.T, doc status.Document, m status.Moment
 	if want := slices.DeleteFunc(slices.Clone(doc.ComingUp), func(u status.Upcoming) bool { return !u.At.After(now) }); !reflect.DeepEqual(m.ComingUp, want) {
 		t.Errorf("ComingUp = %+v, want the document's after now, %+v", m.ComingUp, want)
 	}
-	if want := doc.Best; m.Next != want {
-		t.Errorf("Next = %q, want %q, the document's best", m.Next, want)
+	if want := dashboardBestOf(doc); m.Next != want {
+		t.Errorf("Next = %q, want %q, as the dashboard's bestOf marks ▲", m.Next, want)
 	}
 	if got, want := m.Pool(), doc.PoolAt(now, policy); !reflect.DeepEqual(got, want) {
 		t.Errorf("Pool() = %+v, want %+v, as PoolAt has it", got, want)
@@ -617,6 +618,19 @@ func dashboardWindowsOf(doc status.Document, now time.Time) (shown, hidden []str
 	return shown, hidden
 }
 
+// dashboardBestOf is the account ▲ marks, as the dashboard's bestOf has it:
+// with one account, that one; of several, the router's best, and none in a
+// document built by probing.
+func dashboardBestOf(doc status.Document) string {
+	switch {
+	case len(doc.Accounts) == 1:
+		return doc.Accounts[0].ID
+	case doc.Source != status.SourceRouter:
+		return ""
+	}
+	return doc.Best
+}
+
 // keysOf are the keys of the windows named.
 func keysOf(names []status.WindowName) []string {
 	var keys []string
@@ -780,5 +794,70 @@ func TestAMomentsPoolIsThePoolAtItsMomentOnceWorkedOut(t *testing.T) {
 	}
 	if got := (status.Moment{}).Pool(); !reflect.DeepEqual(got, status.Pool{}) {
 		t.Errorf("the zero moment's Pool() = %+v, want none", got)
+	}
+}
+
+// One rule says which account new sessions go to, which ▲ marks, and the
+// words that say so follow it: a probed document of several accounts marks
+// none, as where new sessions go is the router's to say; a lone account
+// always carries it, whatever its room.
+func TestNewSessionsGoWhereTheRouterSendsThem(t *testing.T) {
+	work := with(readNow(0.58, 0.34, 0.12), pressing)
+	side := status.Account{ID: "side", Label: "side", TokenSet: true, FetchedAt: stateNow.UTC()}
+	tests := []struct {
+		name   string
+		source string
+		best   string
+		others []status.Account
+		// account is the account whose words are said, the document's first.
+		account status.Account
+		next    string
+		// routing and state are what ROUTING and a card say of the account.
+		routing, state string
+	}{
+		{
+			name: "the router's, of several, to another", source: status.SourceRouter, best: "side", others: []status.Account{side},
+			account: work, next: "side", routing: "under pressure · out ~16:05", state: "under pressure · new sessions go elsewhere",
+		},
+		{
+			name: "the router's, of several, here", source: status.SourceRouter, best: "work", others: []status.Account{side},
+			account: readNow(0.12, 0.33, 0.04), next: "work", routing: "open · new sessions come here", state: "open · new sessions come here",
+		},
+		{
+			name: "probed, of several: none", source: status.SourceProbe, best: "work", others: []status.Account{side},
+			account: readNow(0.12, 0.33, 0.04), routing: "open", state: "open",
+		},
+		{
+			name: "probed, of several, another its best: none, so nothing says new sessions go elsewhere", source: status.SourceProbe, best: "side",
+			others: []status.Account{side}, account: work, routing: "under pressure · out ~16:05", state: "under pressure · runs out ~16:05 at this pace",
+		},
+		{
+			name: "the router's, of one with no room: that one", source: status.SourceRouter,
+			account: readNow(1, 0.34, 0.12), next: "work", routing: "limit reached · back 17:10", state: "limit reached · back 17:10, in 2h 28m",
+		},
+		{
+			name: "probed, of one: that one", source: status.SourceProbe, best: "work",
+			account: readNow(0.12, 0.33, 0.04), next: "work", routing: "open", state: "open",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := status.Document{GeneratedAt: stateNow.UTC(), Source: tt.source, Best: tt.best, Accounts: append([]status.Account{tt.account}, tt.others...)}
+			m := doc.At(stateNow, policy)
+			if m.Next != tt.next {
+				t.Errorf("Next = %q, want %q", m.Next, tt.next)
+			}
+			for _, a := range m.Accounts {
+				if a.Next != (a.ID == tt.next) {
+					t.Errorf("%s's Next = %v, want %v", a.ID, a.Next, a.ID == tt.next)
+				}
+			}
+			if got := doc.RoutingOf(tt.account, stateNow, policy).String(); got != tt.routing {
+				t.Errorf("RoutingOf() = %q, want %q", got, tt.routing)
+			}
+			if got := doc.StateOf(tt.account, stateNow, policy).String(); got != tt.state {
+				t.Errorf("StateOf() = %q, want %q", got, tt.state)
+			}
+		})
 	}
 }

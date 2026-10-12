@@ -125,8 +125,9 @@ func (s WindowStates) pressureOut() RunOut {
 // stands; its cap as cappedRouting says; under pressure at now, as
 // underPressure judges it, when its pressure window runs out, as pressure
 // says, At zero where it doesn't; idle at now, as idleAt judges it, when a
-// prime starts it; and open, where new sessions go, of several accounts.
-// Words from elsewhere show cleaned, and times as Dated shows them.
+// prime starts it; and open, where new sessions go, as next says, of
+// several accounts. Words from elsewhere show cleaned, and times as Dated
+// shows them.
 func (s WindowStates) routing(pressure RunOut) Routing {
 	d, a, now := s.doc, s.account, s.now
 	if !a.TokenSet {
@@ -149,7 +150,7 @@ func (s WindowStates) routing(pressure RunOut) Routing {
 		return pressedRouting(pressure, now)
 	case s.idle:
 		return Routing{Kind: RoutingIdle, Says: "idle", Clauses: []string{d.StartsAt(a.ID, now)}, Short: []string{"idle"}}
-	case len(d.Accounts) > 1 && d.Best == a.ID:
+	case len(d.Accounts) > 1 && d.next() == a.ID:
 		return Routing{Kind: RoutingNext, Says: "open", Clauses: []string{comeHere}, Short: []string{"open", "next"}}
 	}
 	return Routing{Kind: RoutingOpen, Says: "open", Short: []string{"open"}}
