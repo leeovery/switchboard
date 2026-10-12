@@ -220,26 +220,53 @@ func TestAnAccountReadLongAgoIsWorkedOutFromItsReadingsToThen(t *testing.T) {
 	}
 }
 
-// A world's accounts are its own: changing them changes no other's, nor the
-// ten the frames number.
+// A world's accounts are its own: changing them changes no other's, the same
+// world's asked for again included, nor the ten the frames number.
 func TestAWorldsAccountsAreItsOwn(t *testing.T) {
 	worlds := worldsNow()
 	numbered := slices.Clone(tenAccounts)
 	t.Cleanup(func() { copy(tenAccounts, numbered) })
 	tests := []struct {
 		name  string
-		world accountWorld
+		world func() accountWorld
 	}{
-		{name: "work alone", world: worlds.one()},
-		{name: "auto", world: worlds.auto()},
-		{name: "six accounts", world: worlds.many(6)},
-		{name: "ten accounts", world: worlds.many(10)},
+		{name: "work alone", world: worlds.one},
+		{name: "auto", world: worlds.auto},
+		{name: "six accounts", world: func() accountWorld { return worlds.many(6) }},
+		{name: "ten accounts", world: func() accountWorld { return worlds.many(10) }},
 	}
 	for _, tt := range tests {
-		tt.world.accounts[0].Label = "changed"
+		tt.world().accounts[0].Label = "changed"
 		if !reflect.DeepEqual(tenAccounts, numbered) {
 			t.Errorf("changing the accounts of %s changed the ten the frames number, to %+v", tt.name, tenAccounts)
 			copy(tenAccounts, numbered)
+		}
+		if again := tt.world().accounts; !reflect.DeepEqual(again, firstAccounts(len(again))) {
+			t.Errorf("changing the accounts of %s changed them as it's asked for again, to %+v", tt.name, again)
+		}
+	}
+}
+
+// The worlds build each world once, as it's first asked for, and its records
+// once, as they're first asked for, however many fixtures are drawn over it.
+func TestTheWorldsKeepEachWorldAndItsRecords(t *testing.T) {
+	worlds, built := worldsNow(), 0
+	counted := func() accountWorld {
+		return worlds.kept("counted", func() accountWorld {
+			built++
+			return accountWorld{accounts: firstAccounts(1)}
+		})
+	}
+	first, second := counted(), counted()
+	if built != 1 {
+		t.Errorf("a world asked for twice was built %d times, want once", built)
+	}
+	if first.records() != second.records() {
+		t.Error("a world asked for twice has records built twice, want them built once")
+	}
+	for _, name := range []string{"overview-default-160", "routing-auto-160"} {
+		if f := fixture(t, name); f.records != worlds.auto().records() {
+			t.Errorf("%s, over the auto world, has records built of their own, want the world's", name)
 		}
 	}
 }

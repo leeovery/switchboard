@@ -2,6 +2,7 @@ package capture
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -25,8 +26,9 @@ import (
 // say so; the sessions it lists at a moment, as GET /sessions gives them,
 // where the world has them; what it has told of since it started, its events,
 // oldest first, as it numbers them; what its request stream tells as it's
-// opened, where anything's in flight; and whether today's traffic of the
-// three, the sessions' world's, is the world's.
+// opened, where anything's in flight; whether today's traffic of the three,
+// the sessions' world's, is the world's; and, where the worlds keep it, its
+// records, built once, as they're first asked for.
 type accountWorld struct {
 	accounts config.Accounts
 	history  history
@@ -40,6 +42,7 @@ type accountWorld struct {
 	events   []status.Event
 	stream   []router.StreamEvent
 	traffic  bool
+	records  func() *records
 }
 
 // document is the router's status document of the world at now, read
@@ -168,21 +171,51 @@ func pressureOf(st status.Account, latest []quota.Window, trails map[string][]sc
 
 // accountWorlds are the accounts' worlds at a moment, over the one year of
 // their use the frames draw: each a frame's, the year's readings history to
-// today's start shared, today's as each world has it; and today's traffic of
-// the three, the sessions' world's lines and the router's events, made once
-// for the worlds that hold it.
+// today's start shared, today's as each world has it; today's traffic of the
+// three, the sessions' world's lines and the router's events, made once for
+// the worlds that hold it; and each world they've built, kept.
 type accountWorlds struct {
 	now     time.Time
 	year    year
 	past    history
 	traffic func() ([]filed, []events.Line)
+	built   *builtWorlds
+}
+
+// builtWorlds are the worlds built, by name, each built once, as it's first
+// asked for.
+type builtWorlds struct {
+	mu     sync.Mutex
+	worlds map[string]func() accountWorld
 }
 
 // newAccountWorlds are the accounts' worlds at now.
 func newAccountWorlds(now time.Time) accountWorlds {
 	y := newYear(now)
 	traffic := sync.OnceValues(func() ([]filed, []events.Line) { return filedOf(heldAsWritten(sessionsLines(now))), routerEvents(now) })
-	return accountWorlds{now: now, year: y, past: y.readings().history(), traffic: traffic}
+	built := &builtWorlds{worlds: make(map[string]func() accountWorld)}
+	return accountWorlds{now: now, year: y, past: y.readings().history(), traffic: traffic, built: built}
+}
+
+// kept is the world with the given name, as build builds it, built once, as
+// it's first asked for, and its records with it, once they're first asked
+// for. Its accounts are each caller's own, so a caller changing them changes
+// no other's.
+func (a accountWorlds) kept(name string, build func() accountWorld) accountWorld {
+	a.built.mu.Lock()
+	world, ok := a.built.worlds[name]
+	if !ok {
+		world = sync.OnceValue(func() accountWorld {
+			w := build()
+			w.records = sync.OnceValue(func() *records { return a.recordsOf(w) })
+			return w
+		})
+		a.built.worlds[name] = world
+	}
+	a.built.mu.Unlock()
+	w := world()
+	w.accounts = slices.Clone(w.accounts)
+	return w
 }
 
 // level is a use a window was read at, and when.
@@ -303,40 +336,46 @@ const framesChoice = "side"
 // tells of its day as the Log does, and today's traffic is the sessions'
 // world's.
 func (a accountWorlds) auto() accountWorld {
-	accounts := firstAccounts(3)
-	return accountWorld{
-		accounts: accounts, history: a.today().three(true).history(accounts), sessions: autoSessions, best: framesChoice,
-		routed: routedSessions, events: autoEvents(a.now), stream: inFlight(a.now), traffic: true,
-	}
+	return a.kept("auto", func() accountWorld {
+		accounts := firstAccounts(3)
+		return accountWorld{
+			accounts: accounts, history: a.today().three(true).history(accounts), sessions: autoSessions, best: framesChoice,
+			routed: routedSessions, events: autoEvents(a.now), stream: inFlight(a.now), traffic: true,
+		}
+	})
 }
 
 // pinned is the auto world's accounts, read as it reads them, with new
 // sessions pinned to personal since 14:02, three of the sessions on it, the
 // router telling of it as happenings' pinnedToPersonal has it.
 func (a accountWorlds) pinned() accountWorld {
-	accounts := firstAccounts(3)
-	return accountWorld{
-		accounts: accounts,
-		history:  a.today().three(true).history(accounts),
-		pin:      status.Pin{Accounts: []string{"personal"}, Since: dayAt(a.now, today, 14, 2, 0).UTC()},
-		sessions: map[string]int{"personal": 3, "side": 3},
-		events:   ofTheRun(happenings{a.now}.pinnedToPersonal()),
-	}
+	return a.kept("pinned", func() accountWorld {
+		accounts := firstAccounts(3)
+		return accountWorld{
+			accounts: accounts,
+			history:  a.today().three(true).history(accounts),
+			pin:      status.Pin{Accounts: []string{"personal"}, Since: dayAt(a.now, today, 14, 2, 0).UTC()},
+			sessions: map[string]int{"personal": 3, "side": 3},
+			events:   ofTheRun(happenings{a.now}.pinnedToPersonal()),
+		}
+	})
 }
 
 // limit is routing's world of a limit: the auto world with personal at its
 // 5-hour limit since 14:12 till 15:54, its sessions moved to side, where the
 // router lists all six, telling of it as happenings' atPersonalsLimit has it.
 func (a accountWorlds) limit() accountWorld {
-	accounts := firstAccounts(3)
-	return accountWorld{
-		accounts: accounts,
-		history:  a.today().three(false).limited().history(accounts),
-		limits:   map[string]status.Limit{"personal": personalLimited(a.now)},
-		sessions: map[string]int{"side": 6},
-		routed:   routedPastPersonalsLimit,
-		events:   ofTheRun(happenings{a.now}.atPersonalsLimit()),
-	}
+	return a.kept("limit", func() accountWorld {
+		accounts := firstAccounts(3)
+		return accountWorld{
+			accounts: accounts,
+			history:  a.today().three(false).limited().history(accounts),
+			limits:   map[string]status.Limit{"personal": personalLimited(a.now)},
+			sessions: map[string]int{"side": 6},
+			routed:   routedPastPersonalsLimit,
+			events:   ofTheRun(happenings{a.now}.atPersonalsLimit()),
+		}
+	})
 }
 
 // personalLimited is personal's limit, reached at 14:12, till 15:54.
@@ -350,27 +389,29 @@ func personalLimited(now time.Time) status.Limit {
 // its 5-hour window having reached its cap at 14:15. Every session is on
 // side. The router tells of it as happenings' badHour has it.
 func (a accountWorlds) badHour() accountWorld {
-	accounts := firstAccounts(3)
-	t := a.today()
-	t.session("work", t.at(7, 5, 0), true, level{t.at(11, 35, 0), .62})
-	t.session("work", t.at(12, 10, 0), true, level{t.at(14, 15, 0), .95})
-	t.week("work", .12, level{t.at(14, 15, 0), .34})
-	t.limited()
-	t.session("side", t.at(0, 31, 0), false, level{t.at(0, 41, 0), .02})
-	t.session("side", t.at(8, 47, 0), true, level{t.at(12, 47, 0), .20})
-	t.session("side", t.at(13, 50, 0), true, level{t.at(14, 10, 0), .03}, level{t.at(14, 31, 0), .03}, level{t.at(14, 41, 30), .13})
-	t.week("side", .04, level{t.at(14, 40, 0), .78})
-	refused := status.Refusal{Until: dayAt(a.now, today, 14, 51, 0).UTC(), Status: 401}
-	return accountWorld{
-		accounts: accounts,
-		history:  t.history(accounts),
-		pin:      status.Pin{Accounts: []string{"personal", "side"}, Since: dayAt(a.now, today, 13, 40, 0).UTC()},
-		limits:   map[string]status.Limit{"personal": personalLimited(a.now)},
-		refused:  map[string]status.Refusal{"work": refused},
-		stale:    map[string]time.Time{"work": dayAt(a.now, today, 14, 20, 0)},
-		sessions: map[string]int{"side": 6},
-		events:   ofTheRun(happenings{a.now}.badHour(refused)),
-	}
+	return a.kept("badHour", func() accountWorld {
+		accounts := firstAccounts(3)
+		t := a.today()
+		t.session("work", t.at(7, 5, 0), true, level{t.at(11, 35, 0), .62})
+		t.session("work", t.at(12, 10, 0), true, level{t.at(14, 15, 0), .95})
+		t.week("work", .12, level{t.at(14, 15, 0), .34})
+		t.limited()
+		t.session("side", t.at(0, 31, 0), false, level{t.at(0, 41, 0), .02})
+		t.session("side", t.at(8, 47, 0), true, level{t.at(12, 47, 0), .20})
+		t.session("side", t.at(13, 50, 0), true, level{t.at(14, 10, 0), .03}, level{t.at(14, 31, 0), .03}, level{t.at(14, 41, 30), .13})
+		t.week("side", .04, level{t.at(14, 40, 0), .78})
+		refused := status.Refusal{Until: dayAt(a.now, today, 14, 51, 0).UTC(), Status: 401}
+		return accountWorld{
+			accounts: accounts,
+			history:  t.history(accounts),
+			pin:      status.Pin{Accounts: []string{"personal", "side"}, Since: dayAt(a.now, today, 13, 40, 0).UTC()},
+			limits:   map[string]status.Limit{"personal": personalLimited(a.now)},
+			refused:  map[string]status.Refusal{"work": refused},
+			stale:    map[string]time.Time{"work": dayAt(a.now, today, 14, 20, 0)},
+			sessions: map[string]int{"side": 6},
+			events:   ofTheRun(happenings{a.now}.badHour(refused)),
+		}
+	})
 }
 
 // many is the world of the frames of six or ten accounts: the auto world's
@@ -379,32 +420,34 @@ func (a accountWorlds) badHour() accountWorld {
 // since 13:58 till 15:30, extra, ops and studio. Today's traffic, and the
 // router's events, are the auto world's, the seven having none.
 func (a accountWorlds) many(n int) accountWorld {
-	accounts := firstAccounts(n)
-	t := a.today().three(true)
-	t.session("client", t.at(7, 35, 0), false, level{t.at(11, 35, 0), .30})
-	t.session("client", t.at(12, 40, 0), false, level{t.at(14, 40, 0), .52})
-	t.week("client", .08, level{t.at(14, 39, 51), .47})
-	t.session("spare", t.at(14, 35, 0), false, level{t.at(14, 41, 0), .04})
-	t.week("spare", 0, level{t.at(14, 41, 0), .05})
-	t.session("lab", t.at(6, 50, 0), false, level{t.at(10, 50, 0), .40})
-	t.session("lab", t.at(11, 55, 0), false, level{t.at(14, 10, 24), .60}, level{t.at(14, 41, 0), .71})
-	t.week("lab", .21, level{t.at(14, 41, 1), .58})
-	t.session("team", t.at(5, 25, 0), false, level{t.at(9, 25, 0), .50})
-	t.session("team", t.at(10, 30, 0), false, level{t.at(13, 58, 0), 1})
-	t.week("team", .30, level{t.at(13, 58, 0), .83})
-	t.session("extra", t.at(7, 50, 0), false, level{t.at(11, 50, 0), .20})
-	t.session("extra", t.at(12, 55, 0), false, level{t.at(14, 20, 0), .22})
-	t.week("extra", 0, level{t.at(14, 20, 0), .12})
-	t.session("ops", t.at(14, 10, 0), false, level{t.at(14, 40, 0), .06})
-	t.week("ops", .02, level{t.at(14, 40, 0), .29})
-	t.session("studio", t.at(6, 15, 0), false, level{t.at(10, 15, 0), .30})
-	t.session("studio", t.at(11, 20, 0), false, level{t.at(14, 41, 59), .33})
-	t.week("studio", .10, level{t.at(14, 41, 59), .41})
-	w := accountWorld{accounts: accounts, history: t.history(accounts), sessions: autoSessions, best: framesChoice, events: autoEvents(a.now), traffic: true}
-	if n > slices.IndexFunc(tenAccounts, func(a config.Account) bool { return a.ID == "team" }) {
-		w.limits = map[string]status.Limit{"team": {ID: todaysLimit, Windows: []string{sessionKey}, Until: dayAt(a.now, today, 15, 30, 0).UTC()}}
-	}
-	return w
+	return a.kept(fmt.Sprint("many ", n), func() accountWorld {
+		accounts := firstAccounts(n)
+		t := a.today().three(true)
+		t.session("client", t.at(7, 35, 0), false, level{t.at(11, 35, 0), .30})
+		t.session("client", t.at(12, 40, 0), false, level{t.at(14, 40, 0), .52})
+		t.week("client", .08, level{t.at(14, 39, 51), .47})
+		t.session("spare", t.at(14, 35, 0), false, level{t.at(14, 41, 0), .04})
+		t.week("spare", 0, level{t.at(14, 41, 0), .05})
+		t.session("lab", t.at(6, 50, 0), false, level{t.at(10, 50, 0), .40})
+		t.session("lab", t.at(11, 55, 0), false, level{t.at(14, 10, 24), .60}, level{t.at(14, 41, 0), .71})
+		t.week("lab", .21, level{t.at(14, 41, 1), .58})
+		t.session("team", t.at(5, 25, 0), false, level{t.at(9, 25, 0), .50})
+		t.session("team", t.at(10, 30, 0), false, level{t.at(13, 58, 0), 1})
+		t.week("team", .30, level{t.at(13, 58, 0), .83})
+		t.session("extra", t.at(7, 50, 0), false, level{t.at(11, 50, 0), .20})
+		t.session("extra", t.at(12, 55, 0), false, level{t.at(14, 20, 0), .22})
+		t.week("extra", 0, level{t.at(14, 20, 0), .12})
+		t.session("ops", t.at(14, 10, 0), false, level{t.at(14, 40, 0), .06})
+		t.week("ops", .02, level{t.at(14, 40, 0), .29})
+		t.session("studio", t.at(6, 15, 0), false, level{t.at(10, 15, 0), .30})
+		t.session("studio", t.at(11, 20, 0), false, level{t.at(14, 41, 59), .33})
+		t.week("studio", .10, level{t.at(14, 41, 59), .41})
+		w := accountWorld{accounts: accounts, history: t.history(accounts), sessions: autoSessions, best: framesChoice, events: autoEvents(a.now), traffic: true}
+		if n > slices.IndexFunc(tenAccounts, func(a config.Account) bool { return a.ID == "team" }) {
+			w.limits = map[string]status.Limit{"team": {ID: todaysLimit, Windows: []string{sessionKey}, Until: dayAt(a.now, today, 15, 30, 0).UTC()}}
+		}
+		return w
+	})
 }
 
 // one is work alone, where new sessions go, under pressure: its 5-hour
@@ -413,16 +456,18 @@ func (a accountWorlds) many(n int) accountWorld {
 // its week at 34%; and nothing used of its Fable week this week. Five
 // sessions are on it.
 func (a accountWorlds) one() accountWorld {
-	accounts := firstAccounts(1)
-	t := a.today()
-	t.session("work", t.at(7, 5, 0), true, level{t.at(11, 35, 0), .62})
-	t.session("work", t.at(12, 10, 0), true, level{t.at(14, 10, 30), .44}, level{t.at(14, 41, 0), .58})
-	t.week("work", 0, level{t.at(14, 40, 0), .34})
-	week, _, _, _ := a.year.soFar("work")
-	h := slices.DeleteFunc(t.history(accounts), func(r readings.Reading) bool {
-		return r.Key == modelKey && r.ResetsAt.Equal(week.resets.UTC()) && r.Utilization > 0
+	return a.kept("one", func() accountWorld {
+		accounts := firstAccounts(1)
+		t := a.today()
+		t.session("work", t.at(7, 5, 0), true, level{t.at(11, 35, 0), .62})
+		t.session("work", t.at(12, 10, 0), true, level{t.at(14, 10, 30), .44}, level{t.at(14, 41, 0), .58})
+		t.week("work", 0, level{t.at(14, 40, 0), .34})
+		week, _, _, _ := a.year.soFar("work")
+		h := slices.DeleteFunc(t.history(accounts), func(r readings.Reading) bool {
+			return r.Key == modelKey && r.ResetsAt.Equal(week.resets.UTC()) && r.Utilization > 0
+		})
+		return accountWorld{accounts: accounts, history: h, sessions: map[string]int{"work": 5}}
 	})
-	return accountWorld{accounts: accounts, history: h, sessions: map[string]int{"work": 5}}
 }
 
 // alone is work alone as usage's frame of it counts its sessions: one's

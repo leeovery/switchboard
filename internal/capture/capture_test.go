@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	_ "time/tzdata"
@@ -123,7 +124,10 @@ func TestAnEmptyOrUnknownNameListsTheFixtures(t *testing.T) {
 }
 
 func TestFramesAreDeterministic(t *testing.T) {
-	again := fixturesIn(time.Local)
+	// fixturesIn's set is over worldsNow, whose worlds, once built, are kept:
+	// the second set is over worlds of its own, so the year and each world are
+	// built twice.
+	again := setOf(fixtures(time.Local), overWorlds(), sync.OnceValue(func() accountWorlds { return newAccountWorlds(localMoment()) }))
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
 			first, second := frameOf(t, local(), name), frameOf(t, again, name)
