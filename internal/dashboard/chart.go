@@ -16,6 +16,16 @@ import (
 // levels fill a cell of a chart by eighths, from its floor up.
 var levels = [...]string{"", "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"}
 
+// filledCell is a cell of a column filled eighths of it, from 1 to 8, in the
+// fill's ink, as look draws it: full, a blank on the fill's colour where it
+// blends, else █; else its eighth block, on the canvas.
+func filledCell(look Look, eighths int, fill ink) (string, ink) {
+	if eighths == 8 && look.blends() {
+		return " ", ink{on: fill.hue()}
+	}
+	return levels[eighths], fill
+}
+
 // floorLine is drawn along a chart's floor where its window has nothing
 // left.
 const floorLine = "▁"
@@ -137,17 +147,12 @@ func (ch chart) top(c *canvas, at bounds) {
 // fillColumn fills a chart's column at x, h rows tall up from row floor,
 // eighths eighths of a cell: each row in the ramp's colour at its height,
 // (r + 0.5) ÷ h for row r from the floor, chartFade into the canvas; a full
-// cell its colour behind it, or where the look blends nothing, a full block;
-// the top cell its eighth block in it, on the canvas.
+// cell and the top cell as filledCell draws them.
 func fillColumn(c *canvas, look Look, x, floor, h, eighths int) {
 	for r := 0; 8*r < eighths; r++ {
 		tone := ink{ramp: true, at: (float64(r) + 0.5) / float64(h), fade: chartFade}
-		filled := min(eighths-8*r, 8)
-		if filled == 8 && look.blends() {
-			c.text(x, floor-r, " ", ink{on: tone.hue()})
-			continue
-		}
-		c.text(x, floor-r, levels[filled], tone)
+		glyph, k := filledCell(look, min(eighths-8*r, 8), tone)
+		c.text(x, floor-r, glyph, k)
 	}
 }
 
