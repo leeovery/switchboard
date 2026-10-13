@@ -511,13 +511,21 @@ func TestAWindowRunsOutWhereNothingBeforeItHolds(t *testing.T) {
 	failed := func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }
 	refused := func(a *status.Account) { a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401} }
 	unnamed := func(a *status.Account) { a.Limit = status.Limit{Until: built.Add(time.Hour)} }
+	tokenless := func(a *status.Account) { a.TokenSet = false }
+	unread := func(a *status.Account) { a.FetchedAt = time.Time{} }
 	tests := []struct {
 		name           string
 		account        status.Account
 		kind           status.WindowKind
 		runsOut, ahead bool
+		// unknown is set where nothing is known of the window, which then
+		// has no projection.
+		unknown bool
 	}{
 		{name: "with nothing before it", account: running, kind: status.WindowRunsOut, runsOut: true, ahead: true},
+		{name: "its account without a usable token", account: with(running, tokenless), kind: status.WindowTokenless, unknown: true},
+		{name: "nothing read of its account", account: with(running, unread), kind: status.WindowUnread, unknown: true},
+		{name: "a limit naming no window holding it, its account without a usable token", account: with(with(running, unnamed), tokenless), kind: status.WindowTokenless, unknown: true},
 		{name: "its last read failed", account: with(running, failed), kind: status.WindowStale},
 		{name: "its token refused", account: with(running, refused), kind: status.WindowStale},
 		{name: "a limit naming no window holding it", account: with(running, unnamed), kind: status.WindowLimited, ahead: true},
@@ -528,9 +536,13 @@ func TestAWindowRunsOutWhereNothingBeforeItHolds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			a, _ := statustest.Router(policy, nil, statustest.Routed{Account: tt.account}).WorkedOut(policy).At(built.Add(time.Minute), policy).Account("work")
 			w, _ := a.Window("7d")
-			if w.Kind != tt.kind || w.RunsOut != tt.runsOut || w.RunsOutAhead != tt.ahead || !w.Out.At.Equal(out) {
+			wantOut := out
+			if tt.unknown {
+				wantOut = time.Time{}
+			}
+			if w.Kind != tt.kind || w.RunsOut != tt.runsOut || w.RunsOutAhead != tt.ahead || !w.Out.At.Equal(wantOut) {
 				t.Errorf("the week stands as kind %d, running out %v, ahead %v, its projection out at %v; want kind %d, %v, %v, and out at %v",
-					w.Kind, w.RunsOut, w.RunsOutAhead, w.Out.At, tt.kind, tt.runsOut, tt.ahead, out)
+					w.Kind, w.RunsOut, w.RunsOutAhead, w.Out.At, tt.kind, tt.runsOut, tt.ahead, wantOut)
 			}
 			if tt.runsOut && !w.At.Equal(w.Out.At) {
 				t.Errorf("the week runs out at %v, want %v, as its projection has it", w.At, w.Out.At)

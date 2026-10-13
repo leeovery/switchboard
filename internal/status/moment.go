@@ -500,7 +500,7 @@ func (m Moment) windowNow(s WindowStates, w judged, name WindowName) WindowNow {
 	}
 	wn.Capped, wn.CappedAsRead = s.capped(key), m.doc.reserveHolds(a) && slices.Contains(a.AtReserve, key)
 	wn.RunsOut, wn.Out, wn.Projected = wn.Kind == WindowRunsOut, w.out, projected(wn.Kind, w.out.Projection)
-	unheld, _ := s.unheld(w.window, w)
+	unheld, _ := s.unheldOf(w)
 	wn.RunsOutAhead = unheld == WindowRunsOut
 	wn.Nearing = wn.Projected != nil && !w.runsOut && *wn.Projected >= m.doc.Floor(a)-Near-score.Tolerance
 	wn.InUse = inUse(w.stands, w.out.Projection)

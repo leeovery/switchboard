@@ -147,13 +147,26 @@ func (s WindowStates) unknown(reported bool) (WindowKind, bool) {
 }
 
 // kindOf is the kind of the account's window, standing as j has it, and when
-// what that says comes: of an account without a usable token, or nothing
-// read, as unknown says, that alone; else as kind says.
+// what that says comes, as known says: of a window read, as kind says.
 func (s WindowStates) kindOf(j judged) (WindowKind, time.Time) {
+	return s.known(j, s.kind)
+}
+
+// unheldOf is the kind of the account's window, standing as j has it, with
+// any limit holding it set aside, as it stands once that lifts, and when what
+// that says comes, as known says: of a window read, as unheld says.
+func (s WindowStates) unheldOf(j judged) (WindowKind, time.Time) {
+	return s.known(j, s.unheld)
+}
+
+// known is the kind of the account's window, standing as j has it, and when
+// what that says comes: of an account without a usable token, or nothing
+// read, as unknown says, that alone; else as read says of the window read.
+func (s WindowStates) known(j judged, read func(quota.Window, judged) (WindowKind, time.Time)) (WindowKind, time.Time) {
 	if kind, ok := s.unknown(true); ok {
 		return kind, time.Time{}
 	}
-	return s.kind(j.window, j)
+	return read(j.window, j)
 }
 
 // kind is the kind of the account's window w, read, standing as j has it, and
