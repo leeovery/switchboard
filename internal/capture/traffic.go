@@ -26,24 +26,26 @@ var madeTraffic []byte
 // frames name it; the account it went to; its kind, a message where none's
 // given; its status, 200 where none's given; how long its answer took to
 // start and to end, in milliseconds; and its usage, 3 tokens in where none's
-// given, its writes to the cache lasting an hour; and how its answer stopped,
-// and the tool it called.
+// given, its writes to the cache lasting an hour; how its answer stopped, and
+// the tool it called; and the account's windows as its answer read them,
+// where the frames draw them.
 type madeLine struct {
-	Day     int    `json:"day"`
-	At      string `json:"at"`
-	Session string `json:"session"`
-	Model   string `json:"model"`
-	Account string `json:"on"`
-	Kind    string `json:"kind"`
-	Status  int    `json:"status"`
-	First   int64  `json:"first"`
-	Took    int64  `json:"took"`
-	In      int    `json:"in"`
-	Read    int    `json:"read"`
-	Wrote   int    `json:"wrote"`
-	Out     int    `json:"out"`
-	Stop    string `json:"stop"`
-	Tool    string `json:"tool"`
+	Day     int               `json:"day"`
+	At      string            `json:"at"`
+	Session string            `json:"session"`
+	Model   string            `json:"model"`
+	Account string            `json:"on"`
+	Kind    string            `json:"kind"`
+	Status  int               `json:"status"`
+	First   int64             `json:"first"`
+	Took    int64             `json:"took"`
+	In      int               `json:"in"`
+	Read    int               `json:"read"`
+	Wrote   int               `json:"wrote"`
+	Out     int               `json:"out"`
+	Stop    string            `json:"stop"`
+	Tool    string            `json:"tool"`
+	Limits  map[string]string `json:"limits"`
 }
 
 // trafficSession is a session of the traffic's: its whole id, and the
@@ -104,7 +106,7 @@ func (m madeLine) line(now time.Time) ledger.Line {
 	if m.First > 0 {
 		l.FirstMS = &m.First
 	}
-	l.Answer.Stop = m.Stop
+	l.Answer.Stop, l.Limits = m.Stop, m.Limits
 	if m.Tool != "" {
 		l.Answer.Tools = []string{m.Tool}
 	}

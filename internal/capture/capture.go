@@ -47,6 +47,9 @@ type Fixture struct {
 	now    time.Time
 	router source
 	keys   []tea.KeyPressMsg
+	// before are keys pressed a while before the moment, as a frame of a
+	// table paused while lines came has them: none where it has none.
+	before earlier
 	// view is the tab it opens on, as the preferences keep one: the
 	// Overview where it's unset.
 	view dashboard.View
@@ -163,8 +166,15 @@ func (s fixtureSet) named(name string) (Fixture, error) {
 		return Fixture{}, fmt.Errorf("unknown fixture %q (available: %s)", name, strings.Join(s.names(), ", "))
 	}
 	f := build()
-	f.keys, f.windows = slices.Clone(f.keys), slices.Clone(f.windows)
+	f.keys, f.windows, f.before.keys = slices.Clone(f.keys), slices.Clone(f.windows), slices.Clone(f.before.keys)
 	return f, nil
+}
+
+// earlier are keys pressed a while before a fixture's moment: how long
+// before, and the keys.
+type earlier struct {
+	by   time.Duration
+	keys []tea.KeyPressMsg
 }
 
 // moment is when every fixture over milestone 5's samples is drawn, as the
@@ -273,14 +283,16 @@ func (p printout) fixture(worlds accountWorlds) Fixture {
 
 // page is the page the watch draws over one of the accounts' worlds, at their
 // moment, in the frames' theme, with its world's records: on a terminal of
-// its size, with its keys pressed once its document is read; and, gone, with
-// the router no longer answering from that moment, as a key that reads then
-// finds it, or from goneFor before it, as the fixture's settling finds it.
+// its size, with its keys pressed once its document is read, and those
+// before it pressed then; and, gone, with the router no longer answering
+// from that moment, as a key that reads then finds it, or from goneFor
+// before it, as the fixture's settling finds it.
 type page struct {
 	name    string
 	size    watch.Size
 	world   func(accountWorlds) accountWorld
 	keys    []tea.KeyPressMsg
+	before  earlier
 	gone    bool
 	goneFor time.Duration
 }
@@ -298,7 +310,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 		router = router.goneAt(worlds.now.Add(-p.goneFor))
 	}
 	return Fixture{
-		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys),
+		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys), before: p.before,
 		theme: framesTheme(), records: w.records(), accounts: w.accounts,
 	}
 }
@@ -317,8 +329,13 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // on a phone. Then the page as stage 6 builds it, over the auto world, where
 // no frame draws it, to judge by eye: the routing card over the Overview, two
 // accounts picked and m ticked, at 160×40, and on a phone, one picked and m
-// ticked; the Log's empty tab, its title row lit there; and the router gone,
-// R having found it so, the status line saying since when and p pin faint.
+// ticked; and the router gone, R having found it so, the status line saying
+// since when and p pin faint. Then the Log's frames, each reached from the
+// Overview with shift-tab: Events, with ]; Requests as it opens; the router
+// gone, over the world of the Log not live; Requests on a phone; an event's
+// details, the cap's, ↑ five times on Events and enter; and a request's,
+// d28c's move, ↑ to 14:31:09 and ↓ to it as the Log stood at 14:32:41, the
+// table paused there, then enter at the moment, what came since read.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -354,6 +371,11 @@ var pages = []page{
 	{name: "log-requests-160", size: wide(37), world: accountWorlds.auto, keys: toLog()},
 	{name: "log-not-live-160", size: wide(37), world: accountWorlds.notLive, keys: toLog(), gone: true, goneFor: notLiveGone},
 	{name: "log-requests-phone-52", size: watch.Size{Width: 52, Height: 33}, world: accountWorlds.auto, keys: toLog()},
+	{name: "log-event-details-160", size: wide(37), world: accountWorlds.auto, keys: slices.Concat(toLog("]"), repeated(upKey, 5), []tea.KeyPressMsg{enterKey})},
+	{
+		name: "log-request-details-160", size: wide(37), world: accountWorlds.auto, keys: []tea.KeyPressMsg{enterKey},
+		before: earlier{by: 9*time.Minute + 26*time.Second, keys: slices.Concat(toLog(), repeated(upKey, 30), []tea.KeyPressMsg{downKey})},
+	},
 }
 
 // keysOf are the keys pressed as the text given, a key a character.
@@ -375,6 +397,18 @@ func toHistory(text ...string) []tea.KeyPressMsg {
 // round the tabs, then the text given, a key a character.
 func toLog(text ...string) []tea.KeyPressMsg {
 	return append([]tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}, keysOf(text...)...)
+}
+
+// The keys ↑, ↓ and enter, as pressed.
+var (
+	upKey    = tea.KeyPressMsg{Code: tea.KeyUp}
+	downKey  = tea.KeyPressMsg{Code: tea.KeyDown}
+	enterKey = tea.KeyPressMsg{Code: tea.KeyEnter}
+)
+
+// repeated is the key given pressed n times.
+func repeated(key tea.KeyPressMsg, n int) []tea.KeyPressMsg {
+	return slices.Repeat([]tea.KeyPressMsg{key}, n)
 }
 
 // wide is a terminal as wide as the frames are, 160 columns, and as tall as

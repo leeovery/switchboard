@@ -178,13 +178,14 @@ func (f Frame) Rendered(doc status.Document, now time.Time) ([]string, Motion) {
 }
 
 // finish finishes the page drawn on c: its numbers brightened as Brightened
-// says; then, where a card is open, the page faded and the card drawn over
-// it.
+// says; then, where a card is open, the page faded, but for the line the
+// card is of, where it's of one, and the card drawn over it.
 func (f Frame) finish(c *canvas) *canvas {
 	c.brighten(f.Brightened, f.Look)
 	if f.Card != nil {
-		c.fade()
-		f.Card.card(f).draw(c)
+		card := f.Card.card(f)
+		c.fade(card.kept()...)
+		card.draw(c)
 	}
 	return c
 }

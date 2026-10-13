@@ -39,7 +39,8 @@ type logReadMsg struct {
 // land, its page first built of what it holds: as it first shows, every one
 // of today's lines, the router's events from today, and the oldest day the
 // ledger keeps; at each look since, what the ledger gained, as the tail
-// reads it; and the day before those its tables span, as they want it.
+// reads it; and the day before those its tables span, as they want it, or
+// as the event its details card is open on does.
 func (m Model) readLog() (Model, tea.Cmd) {
 	if m.view != dashboard.Log || m.cfg.Ledger == nil {
 		return m, nil
@@ -54,7 +55,7 @@ func (m Model) readLog() (Model, tea.Cmd) {
 		return m.openLog(now)
 	case m.tail.due:
 		return m.readTail(now)
-	case m.log.page.WantsDayBefore(m.logRows()):
+	case m.log.page.WantsDayBefore(m.logRows()), m.log.wantsFactsBack():
 		return m.readBack(now)
 	}
 	return m, nil

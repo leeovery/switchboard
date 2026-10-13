@@ -54,10 +54,11 @@ func (by scrollStep) from(at int, s dashboard.Scrolling) int {
 }
 
 // wheeled scrolls what the wheel turns under the pointer, as the screen
-// draws it: help, over its card; the view, over what of it scrolls, while no
-// card is open, as far as notch says, as scrollView scrolls it, as on j and
-// k; and nothing else, the routing card among it, nor anything while the
-// theme picker is open. A turn scrolls help wheelRows rows. What's under the
+// draws it: help, or the Log's details, over its card; the view, over what
+// of it scrolls, while no card is open, as far as notch says, as scrollView
+// scrolls it, as on j and k; and nothing else, the routing card among it,
+// nor anything while the theme picker is open. A turn scrolls a card
+// wheelRows rows. What's under the
 // pointer with no card open is found from the page on screen alone, as
 // onScreen has it, which the key line doesn't move.
 func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
@@ -67,15 +68,25 @@ func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 	}
 	switch m.open {
 	case helpOpen:
-		if f, doc, at := m.screen(m.now()); f.Under(doc, at, msg.X, msg.Y) == dashboard.UnderCard {
-			m.help.scroll = scrollStep{rows: way * wheelRows}.from(m.help.scroll, f.CardScrolling())
-		}
+		m.help.scroll = m.wheeledCard(m.help.scroll, way, msg)
+	case logCardOpen:
+		m.log.card.scroll = m.wheeledCard(m.log.card.scroll, way, msg)
 	case nothingOpen:
 		if f, at := m.onScreen(); f.Under(m.doc, at, msg.X, msg.Y) == dashboard.UnderView {
 			return m.scrollView(notch(f, way))
 		}
 	}
 	return m
+}
+
+// wheeledCard is how far the card open is scrolled, from scroll, as the
+// wheel turns the way given at the pointer: wheelRows rows, where it's over
+// the card.
+func (m Model) wheeledCard(scroll, way int, msg tea.MouseWheelMsg) int {
+	if f, doc, at := m.screen(m.now()); f.Under(doc, at, msg.X, msg.Y) == dashboard.UnderCard {
+		return scrollStep{rows: way * wheelRows}.from(scroll, f.CardScrolling())
+	}
+	return scroll
 }
 
 // notch is how far a turn of the wheel the way given scrolls the view f
