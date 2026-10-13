@@ -3334,7 +3334,9 @@ first ran on them:
 - right-aligned to the last column, its worth at API prices, in `text.secondary`: `$41.06`.
 - **A turn that moved splits** between the two, each request counted on the account that answered
   it, the context written again on the account it moved to. The rows' requests and worth add up to
-  TURNS', each rounded on its own, so the rows can come a cent apart from it. Back on an account it
+  TURNS', each rounded on its own, so the rows can come a cent apart from it; a request the router
+  answered itself, as when no account has room, no account answered, so TURNS' alone counts it
+  (settled in the plan). Back on an account it
   left, it keeps one row an account, spanning its first request there to its last
   (settled in the plan).
 - **≈ points:** a window counts its account's whole use, every session's, so a session's share is

@@ -710,11 +710,17 @@ func (f Frame) says(p planned) line {
 	case p.lists():
 		return holds
 	}
-	noRoom := line{{"no room at " + strconv.Itoa(f.Height) + " rows", dimInk}}
+	noRoom := f.noRoom()
 	if len(holds) == 0 {
 		return noRoom
 	}
 	return slices.Concat(holds, line{spaces(headingGap)}, noRoom)
+}
+
+// noRoom says a folded heading has no room for what it heads at the frame's
+// height, in text.subtle: "no room at 24 rows".
+func (f Frame) noRoom() line {
+	return line{{"no room at " + strconv.Itoa(f.Height) + " rows", dimInk}}
 }
 
 // saying is the line words gives, or none where it's nil.

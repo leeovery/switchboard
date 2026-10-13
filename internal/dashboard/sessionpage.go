@@ -137,11 +137,17 @@ func (f Frame) sessionPage(c *canvas, doc status.Document, now time.Time) {
 	} else {
 		d.phoneNow(c)
 	}
-	for i, row := range f.sessionStory(d.shown, d.l) {
-		c.line(0, d.l.storyAt+i, row)
-	}
+	f.sessionStory(c, d.l, d.shown.Story, d.chosen())
 	d.accounts(c)
 	d.turns(c)
+}
+
+// chosen is the turn chosen: the zero Turn where none is.
+func (d sessionDrawn) chosen() views.Turn {
+	if i := slices.IndexFunc(d.page.Turns, func(t views.Turn) bool { return t.Turn == d.shown.Turn }); i >= 0 {
+		return d.page.Turns[i]
+	}
+	return views.Turn{}
 }
 
 // sessionTargets are the zones of the session's page of doc at now a click
@@ -156,12 +162,6 @@ func (f Frame) sessionTargets(doc status.Document, now time.Time) []Target {
 		targets = append(targets, t)
 	}
 	return targets
-}
-
-// storyRows is how many rows the page's story takes, from its first: none
-// where it's left out.
-func (l sessionLayout) storyRows() int {
-	return max(l.accountsAt-l.storyAt-1, 0)
 }
 
 // heading draws the page's heading: SESSION, the session's id and its

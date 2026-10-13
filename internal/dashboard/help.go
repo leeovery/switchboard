@@ -9,7 +9,7 @@ import (
 // that works on the page, those the key line leaves out among them, worded
 // as the key line words them; and how many rows it's scrolled down by. The
 // page's name, for HELP · <PAGE>, and its parts come of the frame, as
-// helpParts has them.
+// helpName and helpParts have them.
 type Help struct {
 	Keys   []Key
 	Scroll int
@@ -31,7 +31,7 @@ func (h Help) card(f Frame) Card {
 		keys = slices.Insert(keys, 0, Key{Key: "j k", Does: "scroll"})
 	}
 	return Card{
-		title:  "HELP · " + strings.ToUpper(f.View.Title()),
+		title:  "HELP · " + strings.ToUpper(f.helpName()),
 		width:  width,
 		body:   body[from : from+shown],
 		keys:   keys,
@@ -71,15 +71,18 @@ type helpPart struct {
 	glyphs  []glyph
 }
 
-// helpParts are the parts of the page help explains after its keys: of the
-// Overview, a part a section, in the page's order, as overviewHelp has them;
-// of History, as historyHelp has them; of the other views built, a part a
-// group of the glyphs their key explains.
+// helpParts are the parts of the page help explains after its keys: of a
+// session's page, as sessionHelp has them; of the Overview, a part a
+// section, in the page's order, as overviewHelp has them; of History, as
+// historyHelp has them; of the other views built, a part a group of the
+// glyphs their key explains.
 func (f Frame) helpParts() []helpPart {
-	switch f.View {
-	case Overview:
+	switch {
+	case f.Session != nil:
+		return sessionHelp()
+	case f.View == Overview:
 		return overviewHelp()
-	case History:
+	case f.View == History:
 		return f.historyHelp()
 	}
 	var parts []helpPart

@@ -1,10 +1,13 @@
 package dashboard
 
 import (
+	"math"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
@@ -21,10 +24,13 @@ const numbered = 9
 // spare, at its tallest: past that, its rows scroll within it.
 const routingSpare = 4
 
-// outcomeRows are the fewest rows the routing card keeps for its outcome,
-// which keeps room for its longest, so picking, which changes how long it
-// is, never moves the card.
-const outcomeRows = 4
+// The fewest rows the routing card keeps for its outcome, new sessions' and
+// a session's, which keep room for their longest, so picking, which changes
+// how long it is, never moves the card.
+const (
+	outcomeRows        = 4
+	sessionOutcomeRows = 2
+)
 
 // The columns the routing card's rows lay their parts in, from its
 // content's start: the mark; the name, its number before it; the state, or
@@ -40,12 +46,15 @@ const (
 
 // RoutingCard is the routing card's data, which the watch builds afresh at
 // each read while the card is open, so its figures follow them: what it
-// routes; its rows; what's picked, the row the cursor is on and whether m is
-// ticked; the sessions m would move and what rebuilding their caches costs;
-// and why the router refused the last apply.
+// routes, and the session, on a session's card; its rows; what's picked, the
+// row the cursor is on and whether m is ticked; the sessions m would move,
+// or the session, and what rebuilding their caches costs; and why the router
+// refused the last apply.
 type RoutingCard struct {
-	// Mode is what the card routes.
-	Mode RoutingMode
+	// Mode is what the card routes, and Session the session a session's card
+	// routes: zero on new sessions'.
+	Mode    RoutingMode
+	Session RoutingSession
 	// Rows are 0 auto's row, then an account's each, in the config's
 	// order, as RoutingRows builds them.
 	Rows []RoutingRow
@@ -64,7 +73,8 @@ type RoutingCard struct {
 	Move bool
 	// Moving counts the sessions that would move: those running on an
 	// account not picked, without a pin of their own. Cost is what
-	// rebuilding their caches costs: nil where none is known.
+	// rebuilding their caches costs, or on a session's card, the session's
+	// moving to another account: nil where none is known.
 	Moving int
 	Cost   *ledger.Picodollars
 	// Refused is the router's reason for refusing the last apply: "" while
@@ -72,13 +82,27 @@ type RoutingCard struct {
 	Refused string
 }
 
-// RoutingMode is what a routing card routes: new sessions, its zero value.
-// A session's card, on its own page, joins it with that page.
+// RoutingMode is what a routing card routes: new sessions, its zero value,
+// or one session.
 type RoutingMode int
 
-// NewSessions is new sessions' card, ROUTING · NEW SESSIONS, which every
-// page opens.
-const NewSessions RoutingMode = 0
+const (
+	// NewSessions is new sessions' card, ROUTING · NEW SESSIONS, which every
+	// page but a session's opens, ticking the accounts their pin names.
+	NewSessions RoutingMode = iota
+	// ThisSession is a session's card, ROUTING · THIS SESSION, which its own
+	// page opens while it runs, picking the one account its own pin names,
+	// or auto.
+	ThisSession
+)
+
+// RoutingSession is the session a session's card routes, as its page has
+// it: its id; the directory it runs in, as the ledger holds it, the home as
+// ~; the account it runs on; and the account the router would send its next
+// request to were its own pin cleared, "" where the router can't say.
+type RoutingSession struct {
+	ID, Dir, On, Auto string
+}
 
 // RoutingRow is a row of the routing card: auto's, or an account's.
 type RoutingRow struct {
@@ -217,8 +241,8 @@ func windowWhere(a status.AccountNow, is func(status.WindowNow) bool) (status.Wi
 func (r RoutingCard) card(f Frame) Card {
 	width := f.cardWidth(routingWidth)
 	content := width - 2*cardInset
-	above := slices.Concat(r.opening(content), []line{nil})
-	below := slices.Concat([]line{nil, r.moveRow(), nil}, r.outcome(content))
+	above := slices.Concat(r.opening(content), []line{nil}, r.sessionRows(f.phone(), content))
+	below := slices.Concat(r.moveRows(), r.outcome(content))
 	rows, lit, scroll := r.inView(f.phone(), content, f.bodyRoom(routingSpare, true)-len(above)-len(below))
 	lit.first += len(above)
 	return Card{title: r.title(), width: width, body: slices.Concat(above, rows, below), keys: r.keys(content), scroll: scroll, lit: lit}
@@ -227,27 +251,77 @@ func (r RoutingCard) card(f Frame) Card {
 // title is the card's title: what it routes, running sessions too while m
 // is ticked.
 func (r RoutingCard) title() string {
-	if r.Move {
+	switch {
+	case r.Mode == ThisSession:
+		return "ROUTING · THIS SESSION"
+	case r.Move:
 		return "ROUTING · NEW AND RUNNING SESSIONS"
 	}
 	return "ROUTING · NEW SESSIONS"
 }
 
-// The card's opening line, as m stands: clear, and ticked.
+// The card's opening line: new sessions', as m stands, clear and ticked; and
+// a session's.
 const (
 	pickNew     = "Pick the accounts new sessions go to."
 	pickRunning = "Pick the accounts new and running sessions go to."
+	pickSession = "Pick the account this session goes to."
 )
 
-// opening is the line saying what the card is for, wrapped to width cells,
-// in as many rows as its longer form takes, so ticking m never moves the
-// card.
+// opening is the line saying what the card is for, wrapped to width cells:
+// on new sessions' card, in as many rows as its longer form takes, so
+// ticking m never moves the card.
 func (r RoutingCard) opening(width int) []line {
+	if r.Mode == ThisSession {
+		return line{{pickSession, secondaryInk}}.wrap(width)
+	}
 	said := pickNew
 	if r.Move {
 		said = pickRunning
 	}
 	return atLeast(line{{said, secondaryInk}}.wrap(width), len(line{{pickRunning, secondaryInk}}.wrap(width)))
+}
+
+// sessionRows are the session's row and a blank row after it, on a
+// session's card alone, as sessionRow lays it out.
+func (r RoutingCard) sessionRows(phone bool, width int) []line {
+	if r.Mode != ThisSession {
+		return nil
+	}
+	return []line{r.sessionRow(phone, width), nil}
+}
+
+// sessionRow is the session's row, width cells wide: its id, as the
+// dashboard shows ids, bold; its directory's name, muted; the directory, as
+// pathIn has it; and at its end, runs on and the account it runs on, bold,
+// where that's known. Where it runs is said here alone, never marked on its
+// row below.
+func (r RoutingCard) sessionRow(phone bool, width int) line {
+	s := r.Session
+	var on line
+	if s.On != "" {
+		on = line{{"runs on ", mutedInk}, {r.names([]string{s.On})[0], titleInk}}
+	}
+	room := width - on.width() - 2
+	row := line{{status.ShownID(s.ID), titleInk}}
+	if name := status.DirName(s.Dir, max(room-row.width()-2, 1)); name != "" {
+		row = slices.Concat(row, line{spaces(2), {name, mutedInk}})
+	}
+	if path := pathIn(s.Dir, phone, room-row.width()-2); path != "" {
+		row = slices.Concat(row, line{spaces(2), {path, secondaryInk}})
+	}
+	return atEnd(row, on, width)
+}
+
+// pathIn is the directory dir in room cells, the home as ~, cut from its
+// start, its name kept, as a session's page heads it: none on a phone, as a
+// phone's page heads it with none, nor where cutting it would leave no more
+// than its name, which the row says already.
+func pathIn(dir string, phone bool, room int) string {
+	if phone || room < ansi.StringWidth(status.DirName(dir, math.MaxInt))+2 {
+		return ""
+	}
+	return status.DirPath(dir, "", room)
 }
 
 // atLeast is lines with blank lines after them to rows, or as many as it
@@ -337,7 +411,7 @@ func fitting(heights []int, room int) int {
 func (r RoutingCard) choice(row RoutingRow, phone bool, width int) []line {
 	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, 2), dimInk}, {prose.Cut(row.Name, choiceState-choiceName-3), titleInk}}
 	if row.Account == "" {
-		return []line{padTo(head, choiceState, line{{"the router chooses", mutedInk}}).fit(width)}
+		return []line{padTo(head, choiceState, r.autoChooses(width-choiceState))}
 	}
 	state := line{{"open", positiveInk}}
 	if !row.Open {
@@ -351,18 +425,41 @@ func (r RoutingCard) choice(row RoutingRow, phone bool, width int) []line {
 	return []line{atEnd(padTo(named, choiceSession, windows), row.sideWords(), width)}
 }
 
-// mark is the row's box: ■ where it's picked, □ where it can be, and none
-// where it can't, unless it's picked, as a pin set from the command line
-// can pick it.
+// autoChooses is what auto's row says of it, in room cells: the router
+// chooses; on a session's card, where the router says, the account it would
+// choose for the session, for now, those last words the first to go where
+// they don't fit.
+func (r RoutingCard) autoChooses(room int) line {
+	chooses := line{{"the router chooses", mutedInk}}
+	if r.Mode != ThisSession || r.Session.Auto == "" {
+		return chooses.fit(room)
+	}
+	named := slices.Concat(chooses, line{{": ", mutedInk}, {r.names([]string{r.Session.Auto})[0], titleInk}})
+	return firstFit(room, slices.Concat(named, line{{" for now", mutedInk}}), named)
+}
+
+// mark is the row's mark: picked, or not, where it can be, as the card's mode
+// marks them; and none where it can't, unless it's picked, as a pin set from
+// the command line can pick it.
 func (r RoutingCard) mark(row RoutingRow) span {
+	picked, unpicked := r.Mode.marks()
 	switch {
 	case r.picks(row):
-		return span{"■", keyInk}
+		return span{picked, keyInk}
 	case row.Pickable:
-		return span{"□", dimInk}
+		return span{unpicked, dimInk}
 	default:
 		return spaces(1)
 	}
+}
+
+// marks are a row's marks, picked and not: new sessions' card ticks boxes, ■
+// and □; a session's picks one, ● and ○.
+func (m RoutingMode) marks() (picked, unpicked string) {
+	if m == ThisSession {
+		return "●", "○"
+	}
+	return "■", "□"
 }
 
 // picks reports whether the row is picked: auto's while no account is.
@@ -415,6 +512,15 @@ func atEnd(l, end line, width int) line {
 	return padTo(l, width-end.width(), end)
 }
 
+// moveRows are the rows between the card's choices and its outcome: m's, a
+// blank row either side, on new sessions' card; a blank row on a session's.
+func (r RoutingCard) moveRows() []line {
+	if r.Mode == ThisSession {
+		return []line{nil}
+	}
+	return []line{nil, r.moveRow(), nil}
+}
+
 // moveRow is m's row: its box, ticked or not, and what it does.
 func (r RoutingCard) moveRow() line {
 	box := span{"□", dimInk}
@@ -453,24 +559,51 @@ const (
 // and some shorter: fewer names, each with "or" before it and a comma or a
 // full stop after it at most, wherever it stands in the list; "it's" for
 // "both are"; "session" for "sessions". As wrap fills a row before it starts
-// the next, fewer and shorter words never take more rows.
+// the next, fewer and shorter words never take more rows. A session's card
+// keeps as many as sessionRoom says.
 func (r RoutingCard) outcomeRoom(width int) int {
+	if r.Mode == ThisSession {
+		return r.sessionRoom(width)
+	}
 	var names []string
 	for _, row := range r.Rows {
 		if row.Account != "" {
 			names = append(names, "or "+row.Name+",")
 		}
 	}
-	widest := []string{
-		"New sessions go to " + strings.Join(names, " ") + " When both are full, the router chooses.",
-		"The " + widestMoving + " sessions running elsewhere moves there too.",
-		"Rebuilding their caches costs ≈ " + widestCost + ".",
+	return max(outcomeRows, wrappedRows(width,
+		"New sessions go to "+strings.Join(names, " ")+" When both are full, the router chooses.",
+		"The "+widestMoving+" sessions running elsewhere moves there too.",
+		"Rebuilding their caches costs ≈ "+widestCost+".",
+	), wrappedRows(width, autoChooses))
+}
+
+// sessionRoom is how many rows a session's card keeps for its outcome, width
+// cells wide: sessionOutcomeRows, or as many as its move to the account of
+// the widest name, and what that costs, take. What it says of any pick is
+// those words, but for some left out and some shorter: "stays on" for "moves
+// to", a narrower name, a full stop for " on its next request.".
+func (r RoutingCard) sessionRoom(width int) int {
+	widest := ""
+	for _, row := range r.Rows {
+		if row.Account != "" && ansi.StringWidth(row.Name) > ansi.StringWidth(widest) {
+			widest = row.Name
+		}
 	}
+	return max(sessionOutcomeRows, wrappedRows(width,
+		"This session moves to "+widest+" on its next request.",
+		"Rebuilding its cache costs ≈ "+widestCost+".",
+	), wrappedRows(width, sessionFollows))
+}
+
+// wrappedRows is how many rows the sentences given take, each wrapped to
+// width cells.
+func wrappedRows(width int, sentences ...string) int {
 	rows := 0
-	for _, said := range widest {
+	for _, said := range sentences {
 		rows += len(line{{said, secondaryInk}}.wrap(width))
 	}
-	return max(outcomeRows, rows, len(line{{autoChooses, secondaryInk}}.wrap(width)))
+	return rows
 }
 
 // cutTo is lines cut to rows: where there are more, the last row kept runs
@@ -486,14 +619,22 @@ func cutTo(lines []line, rows, width int) []line {
 	return append(lines[:rows-1:rows-1], last.fit(width))
 }
 
-// autoChooses is what the card says applying it does with auto picked.
-const autoChooses = "The router chooses an account for each new session."
+// What the card says applying it does with auto picked: on new sessions'
+// card, and on a session's.
+const (
+	autoChooses    = "The router chooses an account for each new session."
+	sessionFollows = "This session follows the router."
+)
 
 // sentences say what applying the card changes, a sentence each, built of
-// its parts: where new sessions go; then, with m ticked and an account
-// picked, the sessions that move there too, where any would, and what
-// rebuilding their caches costs, where that's known and isn't nothing.
+// its parts: on a session's card, as sessionSentences say; else where new
+// sessions go; then, with m ticked and an account picked, the sessions that
+// move there too, where any would, and what rebuilding their caches costs,
+// where that's known and isn't nothing.
 func (r RoutingCard) sentences() []line {
+	if r.Mode == ThisSession {
+		return r.sessionSentences()
+	}
 	sends := r.sends()
 	if len(sends) == 0 {
 		return []line{{{autoChooses, secondaryInk}}}
@@ -510,10 +651,35 @@ func (r RoutingCard) sentences() []line {
 		sessions, caches = " session running elsewhere moves there too.", "Rebuilding its cache costs "
 	}
 	said = append(said, line{{"The ", secondaryInk}, {strconv.Itoa(r.Moving), titleInk}, {sessions, secondaryInk}})
-	if r.Cost != nil && *r.Cost > 0 {
-		said = append(said, line{{caches, secondaryInk}, {"≈ " + r.Cost.Cents(), alertInk}, {".", secondaryInk}})
+	return append(said, r.costs(caches)...)
+}
+
+// sessionSentences say what applying a session's card changes, a sentence
+// each, built of its parts: with auto picked, or nothing picked it sends,
+// that the session follows the router; with the account it runs on picked,
+// that it stays there; else that it moves to the account picked, and what
+// rebuilding its cache costs, where that's known and isn't nothing.
+func (r RoutingCard) sessionSentences() []line {
+	sends := r.sends()
+	if len(sends) == 0 {
+		return []line{{{sessionFollows, secondaryInk}}}
 	}
-	return said
+	named := span{r.names(sends[:1])[0], titleInk}
+	if sends[0] == r.Session.On {
+		return []line{{{"This session stays on ", secondaryInk}, named, {".", secondaryInk}}}
+	}
+	moves := line{{"This session moves to ", secondaryInk}, named, {" on its next request.", secondaryInk}}
+	return append([]line{moves}, r.costs("Rebuilding its cache costs ")...)
+}
+
+// costs is the sentence saying what rebuilding the caches of the sessions
+// that move costs, after its opening words, where that's known and isn't
+// nothing: none otherwise.
+func (r RoutingCard) costs(opening string) []line {
+	if r.Cost == nil || *r.Cost <= 0 {
+		return nil
+	}
+	return []line{{{opening, secondaryInk}, {"≈ " + r.Cost.Cents(), alertInk}, {".", secondaryInk}}}
 }
 
 // sends are the ids of the accounts applying the card pins, in the config's
@@ -551,12 +717,17 @@ func (r RoutingCard) names(ids []string) []string {
 // keys are the card's keys row, as many of them as fit width cells: ↑↓ move
 // the first to go, then m move running, as m's row names its key, then the
 // numbers, which nothing else says pick; enter apply and esc cancel always
-// kept. The numbers name the accounts there are, up to the ninth.
+// kept. The numbers name the accounts there are, up to the ninth, and tick
+// on new sessions' card, or pick on a session's, which has no m.
 func (r RoutingCard) keys(width int) []Key {
-	move, running := Key{Key: "↑↓", Does: "move"}, Key{Key: "m", Does: "move running"}
+	move := Key{Key: "↑↓", Does: "move"}
 	tick := Key{Key: "space 0-" + strconv.Itoa(min(max(len(r.Rows)-1, 0), numbered)), Does: "tick"}
+	running := []Key{{Key: "m", Does: "move running"}}
+	if r.Mode == ThisSession {
+		tick.Does, running = "pick", nil
+	}
 	kept := []Key{{Key: "enter", Does: "apply"}, {Key: "esc", Does: "cancel"}}
-	for _, keys := range [][]Key{slices.Concat([]Key{move, tick, running}, kept), slices.Concat([]Key{tick, running}, kept), slices.Concat([]Key{tick}, kept)} {
+	for _, keys := range [][]Key{slices.Concat([]Key{move, tick}, running, kept), slices.Concat([]Key{tick}, running, kept), slices.Concat([]Key{tick}, kept)} {
 		if keyRow(keys).width() <= width {
 			return keys
 		}

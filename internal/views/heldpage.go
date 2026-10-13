@@ -171,7 +171,7 @@ func (h HeldPage) Page(live PageLive) (SessionPage, bool) {
 	page.Turns = turnsOf(h.requests, told, page.Runs(), unplaced)
 	page.Goes = by.goesOf(h.id, live.Stream, h.requests, told)
 	if live.Routed != nil {
-		page.Pin = live.Routed.Pin
+		page.Pin, page.Auto = live.Routed.Pin, autoOf(*live.Routed, page.Model)
 	}
 	if !page.Running && h.story.first != nil {
 		page.KeptUntil, _ = dayfile.KeptUntil(Today(h.story.first.At).Date, h.keep)

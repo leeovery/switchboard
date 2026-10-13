@@ -88,8 +88,10 @@ func shortened(said string) string {
 // brought it where it is; SESSIONS shortens what the page says it's doing
 // on the account the page names, by rule 1's mapping; its newest turn goes
 // on while it waits for an answer, and while it runs, its last answer of its
-// own conversation having called a tool; its accounts' requests are its
-// requests; and its story's last 30 minutes are the session's trace.
+// own conversation having called a tool; its accounts' requests, with those
+// the router answered itself, are its requests, as TURNS' heading counts
+// them; and its story's last 30 minutes are the session's trace, which
+// leaves out those the router answered itself.
 func TestASessionsPageAgreesWithTheListSessionsAndTheTracesAtEachHardMoment(t *testing.T) {
 	for _, hm := range viewstest.SessionMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
@@ -119,13 +121,25 @@ func TestASessionsPageAgreesWithTheListSessionsAndTheTracesAtEachHardMoment(t *t
 				for _, a := range page.Accounts {
 					sum += a.Requests
 				}
-				if sum != page.Totals.Requests {
-					t.Errorf("%s's accounts' requests sum to %d, its totals %d", id, sum, page.Totals.Requests)
+				if unsent := routerAnswered(hm, listed.Session); sum+unsent != page.Totals.Requests {
+					t.Errorf("%s's accounts' requests sum to %d, with %d the router answered itself, its totals %d", id, sum, unsent, page.Totals.Requests)
 				}
 				checkStoryTraces(t, hm, listed.Session, held.Story(page, live))
 			}
 		})
 	}
+}
+
+// routerAnswered counts the requests of the session with the given id at
+// the moment hm that the router answered itself, sending them to no account.
+func routerAnswered(hm viewstest.SessionMoment, id string) int {
+	n := 0
+	for _, l := range hm.Lines {
+		if l.Session == id && l.Counted() && l.Account == "" {
+			n++
+		}
+	}
+	return n
 }
 
 // checkTurnGoes checks the newest turn of page, a session's at the moment

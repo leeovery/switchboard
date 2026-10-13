@@ -147,17 +147,31 @@ func (f Frame) drawCells(c *canvas, cells []float64, at bounds, faded bool) {
 // reading's bar does.
 func (f Frame) paintTrace(t tracing, scale float64) {
 	fill, lane := traceInks(t.faded)
-	floor := t.at.y + t.at.rows - 1
 	for i, v := range t.cells {
-		x, eighths := t.at.x+i, halfEven(min(v/scale, 1)*float64(t.at.rows*8))
-		if eighths <= 0 {
-			t.on.text(x, floor, traceLane, lane)
-			continue
-		}
-		for r := 0; r < t.at.rows && eighths > 8*r; r++ {
-			glyph, k := filledCell(f.Look, min(eighths-8*r, 8), fill)
-			t.on.text(x, floor-r, glyph, k)
-		}
+		f.paintColumn(t.on, t.at.x+i, t.at, traceEighths(v, scale, t.at.rows), fill, lane)
+	}
+}
+
+// traceEighths are the eighths a trace's column of v requests a minute fills
+// of its rows, scale requests a minute filling them all: round(min(v ÷ scale,
+// 1) × rows × 8), halves to even.
+func traceEighths(v, scale float64, rows int) int {
+	return halfEven(min(v/scale, 1) * float64(rows*8))
+}
+
+// paintColumn paints a trace's column at x, in the rows of the bounds given,
+// eighths filled from its bottom row up: its full cells as background, where
+// the look blends, else █, and its top cell the eighth block of what's left,
+// in fill; none filled, its bottom row ▁ in lane.
+func (f Frame) paintColumn(c *canvas, x int, in bounds, eighths int, fill, lane ink) {
+	floor := in.y + in.rows - 1
+	if eighths <= 0 {
+		c.text(x, floor, traceLane, lane)
+		return
+	}
+	for r := 0; r < in.rows && eighths > 8*r; r++ {
+		glyph, k := filledCell(f.Look, min(eighths-8*r, 8), fill)
+		c.text(x, floor-r, glyph, k)
 	}
 }
 

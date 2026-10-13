@@ -96,8 +96,13 @@ type pageKeys struct {
 // faint where its section is hidden; b, its word saying how the windows are
 // grouped; and with more than one account, ↑↓, which the key line sets with
 // p, ? and q; w, in Runway, switching between the day and the week, its word
-// saying which it shows; and History's, as historyListings has them.
+// saying which it shows; and History's, as historyListings has them. A
+// session's page lists its own, as sessionKeys has them, in place of its
+// tab's.
 func (m Model) keys() pageKeys {
+	if m.session != nil {
+		return m.sessionKeys()
+	}
 	overview := m.view == dashboard.Overview
 	var own []keyListing
 	for _, s := range dashboard.EverySection() {
