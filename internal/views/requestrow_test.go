@@ -204,6 +204,8 @@ func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 		{name: "a move, on a phone", row: lined(stopped("end_turn", moved)), wide: "end_turn", phone: "from [work]"},
 		{name: "asking", row: toldDoing(time.Time{}, 0, false), wide: "<asking>", phone: "<asking>"},
 		{name: "answering, no characters counted yet", row: toldDoing(sent.Add(time.Second), 0, false), wide: "<answering>", phone: "<answering>"},
+		{name: "answering, its first characters under 0.1k", row: toldDoing(sent.Add(time.Second), 49, false), wide: "<answering>", phone: "<answering>"},
+		{name: "answering, its characters come to 0.1k", row: toldDoing(sent.Add(time.Second), 50, false), wide: "<answering> · 0.1k characters", phone: "<answering>"},
 		{name: "answering", row: toldDoing(sent.Add(time.Second), 5100, false), wide: "<answering> · 5.1k characters", phone: "<answering>"},
 		{name: "answering at length", row: toldDoing(sent.Add(time.Second), 958_200, false), wide: "<answering> · 958.2k characters", phone: "<answering>"},
 		{name: "lost", row: toldDoing(sent.Add(time.Second), 2000, true), wide: lostAnswer, phone: lostAnswer},

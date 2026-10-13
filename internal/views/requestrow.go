@@ -394,14 +394,14 @@ const lostWords = "no answer: the router went away"
 // Stopped is why the request's answer stopped, as the Log's stopped says it:
 // end_turn; tool_use · Bash, the first tool it called, and +1 after it where
 // it called one more; in flight, asking, or answering · 5.1k characters, its
-// characters so far, once any are counted, as prose.Characters counts; lost, no
+// characters so far, once they come to 0.1k, as prose.Characters counts; lost, no
 // answer: the router went away. None for a check or a count, and where
 // nothing's known of why it stopped.
 func (r RequestRow) Stopped() RowWords {
 	switch {
 	case r.Kind != RowRequest:
 		return nil
-	case r.Stage == RowAnswering && r.Chars > 0:
+	case r.Stage == RowAnswering && charsCounted(r.Chars):
 		return RowWords{{Text: status.Answering, Kind: RowDoing}, {Text: " · " + prose.Characters(r.Chars) + " characters"}}
 	case r.Stage.InFlight():
 		return RowWords{r.doing()}
@@ -419,6 +419,12 @@ func (r RequestRow) Stopped() RowWords {
 		w = append(w, RowPart{Text: " · ", Kind: RowBetween})
 	}
 	return append(w, r.tools()...)
+}
+
+// charsCounted reports whether an answer's characters come to any, as
+// prose.Characters counts them: 0.1k at the least.
+func charsCounted(chars int) bool {
+	return prose.Characters(chars) != prose.Characters(0)
 }
 
 // PhoneStopped is the request's stopped as a phone's Log says it, its routing
