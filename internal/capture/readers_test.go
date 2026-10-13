@@ -212,6 +212,28 @@ func TestTheRecordsLedgerGivesTodaysLinesOldestFirstAndAfreshAsAFollowerDoes(t *
 	}
 }
 
+func TestTheRecordsLedgerGivesADaysLinesOldestFirstAsAFollowerDoes(t *testing.T) {
+	r := heldRecords(t)
+	now := func() time.Time { return readersNow }
+	l, _, _ := r.readers(now)
+	follower := fileLedger(t, r, now)
+	for days := -3; days <= 1; days++ {
+		date := dayfile.DateOf(readersAt(days, 12, 0, 0))
+		got, want := l.Day(date), follower.Day(date)
+		if !slices.Equal(requestsOf(got), requestsOf(want)) {
+			t.Errorf("Day(%s) gave %v, want %v, as a Follower gives them", date, requestsOf(got), requestsOf(want))
+		}
+		for i := range min(len(got), len(want)) {
+			if string(got[i].JSON) != string(want[i].JSON) {
+				t.Errorf("Day(%s)'s line %s holds %s, want its JSON as written, %s", date, got[i].Request, got[i].JSON, want[i].JSON)
+			}
+		}
+	}
+	if got := requestsOf(l.Day(dayfile.DateOf(readersNow))); !slices.Equal(got, []string{"r6", "r5", "r7", "r8"}) {
+		t.Errorf("Day(today) gave %v, want today's lines to now, oldest first", got)
+	}
+}
+
 func TestTheRecordsLedgerGivesASessionsLinesNewestFirstAsAFollowerDoes(t *testing.T) {
 	r := heldRecords(t)
 	now := func() time.Time { return readersNow }

@@ -10,12 +10,14 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -212,6 +214,55 @@ func TestDashboardShowsHistoryAsKept(t *testing.T) {
 			if got.Shown != tt.want.Shown || got.YearAsk != tt.want.YearAsk || got.WeeksShape != tt.want.WeeksShape ||
 				got.TokensAsk != tt.want.TokensAsk || got.TokensSplit != tt.want.TokensSplit {
 				t.Errorf("the dashboard opens History on %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// The Log shows the columns prefs.json keeps shown; none kept, those shown
+// at first.
+func TestDashboardShowsTheLogsColumnsAsKept(t *testing.T) {
+	tests := []struct {
+		name, prefs string
+		want        dashboard.LogTicks
+	}{
+		{name: "none kept", prefs: `{}`},
+		{name: "as kept", prefs: `{"log": {"columns": ["session", "worth"]}}`, want: dashboard.LogKept(theme.LogPrefs{Columns: []string{"session", "worth"}})},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			if cfg.Log != tt.want {
+				t.Errorf("the dashboard shows the Log's columns %+v, want %+v", cfg.Log, tt.want)
+			}
+		})
+	}
+}
+
+// The Log's oldest day is as [ledger] keep says: 400 days where it doesn't
+// say, and forever as dayfile.Forever.
+func TestDashboardKeepsTheLedgerAsTheConfigSays(t *testing.T) {
+	tests := []struct {
+		name, ledger string
+		want         time.Duration
+	}{
+		{name: "not said", want: config.DefaultLedgerKeep},
+		{name: "30 days", ledger: "\n[ledger]\nkeep = \"30d\"\n", want: 30 * 24 * time.Hour},
+		{name: "forever", ledger: "\n[ledger]\nkeep = \"forever\"\n", want: dayfile.Forever},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := fakeClaudeAPI(t)
+			deps := statusDeps(t, upstream, map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, fmt.Sprintf("upstream = %q\n", upstream)+threeAccounts+tt.ledger)})
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			if cfg.LedgerKeep != tt.want {
+				t.Errorf("the dashboard keeps the ledger %v, want %v", cfg.LedgerKeep, tt.want)
 			}
 		})
 	}

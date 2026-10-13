@@ -148,6 +148,28 @@ func (l heldLedger) Today(ledger.Mark) (lines []ledger.Held, next ledger.Mark, a
 	return lines, ledger.Mark{}, true
 }
 
+// Day gives the lines that arrived on the local day with the given date, by
+// now, oldest first, as a Follower orders them: whichever day's files hold
+// them, as a Follower reads the day's files and its neighbours'.
+func (l heldLedger) Day(date string) []ledger.Held {
+	start, end, ok := dayfile.Day(date)
+	if !ok {
+		return nil
+	}
+	var day []filed
+	for _, f := range l.arrived(l.now()) {
+		if !f.At.Before(start) && f.At.Before(end) {
+			day = append(day, f)
+		}
+	}
+	slices.SortStableFunc(day, byArrival)
+	lines := make([]ledger.Held, len(day))
+	for i, f := range day {
+		lines[i] = f.Held
+	}
+	return lines
+}
+
 // Session gives the lines of the session with the given id that arrived by
 // now, newest first, as a Follower orders them, as far as the caller goes on:
 // of each day that names it, as its summary would, as a Follower reads them,
