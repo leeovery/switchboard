@@ -77,7 +77,7 @@ var (
 	// a view calls none, but reads the moment's fact. What the moment
 	// absorbed that nothing outside status called, status no longer gives.
 	absorbed = []string{
-		"status.Best", "status.Choosable",
+		"status.Best",
 		"status.Account.HeldBy", "status.Account.Shut", "status.Account.TokenRefused", "status.Account.WindowAt",
 		"status.Document.Destination", "status.Document.Floor", "status.Document.Reserved", "status.Document.RunsOut",
 		"status.Document.StateOf", "status.Document.Text", "status.Document.WindowStatesOf",

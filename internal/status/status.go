@@ -634,26 +634,18 @@ func (c Collector) probe(ctx context.Context, account *Account, token tokens.Tok
 // router chooses one for a request of any model, as choose says. It's empty
 // when none can take one.
 func Best(policy score.Policy, accounts []Account, pinned []string, now time.Time) string {
-	best, _ := choose(policy, accounts, pinned, now)
-	return best
-}
-
-// Choosable are the ids of the accounts of those given that a new session
-// could go to, in their order: those Best is chosen among, as choose says.
-func Choosable(policy score.Policy, accounts []Account, pinned []string, now time.Time) []string {
-	_, among := choose(policy, accounts, pinned, now)
-	return among
+	return choose(policy, accounts, pinned, now)
 }
 
 // choose is the account of those given that a new session goes to, as the
-// router chooses one for a request of any model, and the accounts it's
-// chosen among, of those not shut: of those pinned, while one can take the
-// request, as choosePinned says; else of them all, as pick says, leaving each
-// one's reserve unused. It's "" and none when none can take one.
-func choose(policy score.Policy, accounts []Account, pinned []string, now time.Time) (string, []string) {
+// router chooses one for a request of any model, of those not shut: of those
+// pinned, while one can take the request, as choosePinned says; else of them
+// all, as pick says, leaving each one's reserve unused. It's "" when none can
+// take one.
+func choose(policy score.Policy, accounts []Account, pinned []string, now time.Time) string {
 	open := slices.DeleteFunc(slices.Clone(accounts), func(a Account) bool { return a.Shut(now, policy) })
-	if best, among, ok := choosePinned(policy, open, pinned, now); ok {
-		return best, among
+	if best, ok := choosePinned(policy, open, pinned, now); ok {
+		return best
 	}
 	return pick(policy, open, now)
 }
@@ -673,12 +665,12 @@ func (a Account) TokenRefused(now time.Time) bool {
 }
 
 // choosePinned is the account of those given, pinned and with a usable
-// token, that a new session goes to, as the router chooses one, and those
-// it's chosen among: the one policy picks, spending each one's reserve, as a
-// pin spends it, as pick says; else the first with room, of those with room,
-// as a pin sends requests to an account whose quota can't be scored, or that
-// nothing has been read of. It reports false when none of them has room.
-func choosePinned(policy score.Policy, accounts []Account, pinned []string, now time.Time) (string, []string, bool) {
+// token, that a new session goes to, as the router chooses one: the one
+// policy picks, spending each one's reserve, as a pin spends it, as pick
+// says; else the first with room, as a pin sends requests to an account
+// whose quota can't be scored, or that nothing has been read of. It reports
+// false when none of them has room.
+func choosePinned(policy score.Policy, accounts []Account, pinned []string, now time.Time) (string, bool) {
 	var spending []Account
 	for _, a := range accounts {
 		if a.TokenSet && slices.Contains(pinned, a.ID) {
@@ -686,30 +678,25 @@ func choosePinned(policy score.Policy, accounts []Account, pinned []string, now 
 			spending = append(spending, a)
 		}
 	}
-	if id, among := pick(policy, spending, now); id != "" {
-		return id, among, true
+	if id := pick(policy, spending, now); id != "" {
+		return id, true
 	}
-	var room []string
 	for _, a := range spending {
 		if len(a.Windows) == 0 || score.Available(a.Windows, 0, policy.IsShared, now) {
-			room = append(room, a.ID)
+			return a.ID, true
 		}
 	}
-	if len(room) == 0 {
-		return "", nil, false
-	}
-	return room[0], room, true
+	return "", false
 }
 
 // pick is the account of those given that policy picks for a request of any
 // model, leaving each one's reserve unused, and passing over those under
-// pressure at the rates the router saw, and those it picks among, as
-// policy's Among says; "" and none when none can take one.
-func pick(policy score.Policy, accounts []Account, now time.Time) (string, []string) {
+// pressure at the rates the router saw; "" when none can take one.
+func pick(policy score.Policy, accounts []Account, now time.Time) string {
 	candidates := make([]score.Candidate, len(accounts))
 	for i, account := range accounts {
 		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows, Reserve: account.Reserve, Rate: account.Pressure.Rate}
 	}
 	c, _ := policy.Pick(candidates, policy.IsShared, "", now)
-	return c.ID, policy.Among(candidates, policy.IsShared, now)
+	return c.ID
 }
