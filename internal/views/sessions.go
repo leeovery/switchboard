@@ -66,6 +66,11 @@ type ListedSession struct {
 	// stream tells, its lines telling when its last answer ended; or, of one
 	// the router doesn't list, as its lines tell. It's the views' alone.
 	Activity Activity `json:"-"`
+	// Mark and Routing are its mark, of those the List shows, and how it
+	// came to Account, as the Log's row of its request says them, as cameBy
+	// has them. They're the views' alone.
+	Mark    RowMark     `json:"-"`
+	Routing RoutingSaid `json:"-"`
 }
 
 // SessionModel is a model of a running session: the account its requests go
@@ -141,7 +146,7 @@ func ListSessions(src SessionSources) SessionList {
 		} else {
 			listed.Activity = s.unlisted(src.Now, src.Unlisted)
 		}
-		listed.Moved = s.movedOnto(listed.Model, listed.Account)
+		listed.cameBy(s.moveOnto(listed.Model, listed.Account))
 		list.Sessions = append(list.Sessions, listed)
 		list.Today.Requests += listed.Requests
 		list.Today.add(listed.Worth)

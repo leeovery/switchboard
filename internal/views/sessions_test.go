@@ -229,6 +229,12 @@ var routed = []status.Session{
 	{ID: quiet, Assignments: []status.Assignment{{Model: "claude-sonnet-5-5", Account: "side", Reason: "new", LastSeen: october(7, 12, 40)}}},
 }
 
+// routingSaid is the routing of a move for the reason given, from the
+// account given to the one given, that cost what's given.
+func routingSaid(reason, from, to string, c *ledger.Picodollars) views.RoutingSaid {
+	return views.RoutingSaid{Words: status.RoutingWords(reason, status.Facts{From: from, To: to}), From: from, Cost: c}
+}
+
 // utc is t in UTC, as the List gives its times.
 func utc(t time.Time) time.Time {
 	return t.UTC()
@@ -255,6 +261,9 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 			State: status.Answering, MoveCost: cost(hourRewrite), Started: utc(october(7, 10, 0)), Requests: 4, Worth: priced(3*hourWorth + smallWorth),
 			Moved:    &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "moved: work hit its limit", Cost: cost(hourWrite)},
 			Activity: views.Activity{Doing: views.Answering, Since: utc(october(7, 13, 11)), LastSeen: utc(october(7, 13, 11))},
+			// Answering outranks its move, which its routing says all the same.
+			Mark:    views.MarkAnswering,
+			Routing: routingSaid("moved: work hit its limit", "work", "side", cost(hourWrite)),
 		},
 		{
 			Session: quiet, Account: "side", Model: "claude-sonnet-5-5", Running: true, LastSeen: utc(october(7, 12, 40)),
@@ -265,6 +274,7 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 			Session: rescored, Account: "side", Model: opus, Ended: utc(october(7, 12, 0)), Started: utc(october(7, 9, 0)), Requests: 2, Worth: priced(2 * hourWorth),
 			Moved:    &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "rescored after 3h idle"},
 			Activity: views.Activity{Doing: views.Ended, Since: utc(october(7, 12, 0)), LastSeen: utc(october(7, 12, 0))},
+			Mark:     views.MarkMoved, Routing: routingSaid("rescored after 3h idle", "work", "side", nil),
 		},
 		{
 			Session: early, Dir: "~/Code/web", Account: "work", Model: opus, Ended: utc(october(7, 11, 0)), Started: utc(october(7, 8, 0)),
