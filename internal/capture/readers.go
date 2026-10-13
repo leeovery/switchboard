@@ -2,6 +2,8 @@ package capture
 
 import (
 	"cmp"
+	"fmt"
+	"io/fs"
 	"iter"
 	"slices"
 	"strings"
@@ -125,6 +127,19 @@ func (l heldLedger) FirstDay(now time.Time) (time.Time, error) {
 		first = min(first, l.records.days[0].Day)
 	}
 	start, _, _ := dayfile.Day(first)
+	return start, nil
+}
+
+// FirstLinesDay gives the start of the first day the records' lines that
+// arrived by now are filed under, as a Follower finds the first day its
+// files hold lines of, failing with fs.ErrNotExist where none has.
+func (l heldLedger) FirstLinesDay(now time.Time) (time.Time, error) {
+	lines := l.arrived(now)
+	if len(lines) == 0 {
+		return time.Time{}, fmt.Errorf("the records hold no day's lines: %w", fs.ErrNotExist)
+	}
+	first := slices.MinFunc(lines, func(a, b filed) int { return strings.Compare(a.date, b.date) })
+	start, _, _ := dayfile.Day(first.date)
 	return start, nil
 }
 

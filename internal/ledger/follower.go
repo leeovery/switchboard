@@ -114,6 +114,10 @@ func (f *Follower) FirstDay(now time.Time) (time.Time, error) {
 	return f.firstDay(now)
 }
 
+// errNoLines is why a ledger that holds no day's lines can't say the first
+// day it holds lines of.
+var errNoLines = fmt.Errorf("the request ledger holds no day's lines: %w", fs.ErrNotExist)
+
 // FirstLinesDay returns the start of the first local day the ledger holds
 // lines of, at now, held as listed says: the first a day's lines can be read
 // back from, a summary of an earlier day, whose lines are pruned, aside. It
@@ -123,7 +127,7 @@ func (f *Follower) FirstLinesDay(now time.Time) (time.Time, error) {
 	defer f.mu.Unlock()
 	held, err := f.listed(now)
 	if err == nil && len(held.lines) == 0 {
-		err = fmt.Errorf("the request ledger holds no day's lines: %w", fs.ErrNotExist)
+		err = errNoLines
 	}
 	if err != nil {
 		return time.Time{}, err

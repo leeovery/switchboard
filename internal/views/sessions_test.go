@@ -2,6 +2,7 @@ package views_test
 
 import (
 	"encoding/json"
+	"io/fs"
 	"iter"
 	"maps"
 	"reflect"
@@ -147,6 +148,15 @@ func (f fakeLedger) Day(date string) []ledger.Held {
 		}
 	}
 	return day
+}
+
+// FirstLinesDay reads as a Follower does: the start of the day its oldest
+// line arrived on, failing where it holds none.
+func (f fakeLedger) FirstLinesDay(time.Time) (time.Time, error) {
+	if len(f.lines) == 0 {
+		return time.Time{}, fs.ErrNotExist
+	}
+	return dayfile.DayStart(f.lines[0].At, 0), nil
 }
 
 func (f fakeLedger) Session(id string) iter.Seq[ledger.Held] {
