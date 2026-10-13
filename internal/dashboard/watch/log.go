@@ -18,8 +18,8 @@ import (
 // since and the days before read back as the tables want them; the figures
 // of those days, which their rules say; the oldest day the ledger keeps,
 // none known till it says; whether a read for it is under way, one at a
-// time; and whether a failure to say where the ledger's lines begin has
-// been logged, the once.
+// time; whether a failure to say where the ledger's lines begin has been
+// logged, the once; and its details card, while it's open.
 type logTab struct {
 	page    dashboard.LogPage
 	opened  bool
@@ -30,6 +30,7 @@ type logTab struct {
 	oldest  views.OldestDay
 	reading bool
 	warned  bool
+	card    logCarding
 }
 
 // openingLog is the Log as it first shows: its columns as the preferences
@@ -43,7 +44,8 @@ func openingLog(columns dashboard.LogTicks) logTab {
 // the router answers, what the stream tells of those in flight; its Events
 // of the events read; each as its filter has them, over the days from the
 // first read; whether the router answers, and to when the ledger wrote;
-// and on opening, the table shown filled once it fills its view.
+// on opening, the table shown filled once it fills its view; and the
+// details card, where it's open, of what it holds.
 func (m Model) builtLog(now time.Time) Model {
 	t := m.log
 	if !t.opened {
@@ -63,7 +65,7 @@ func (m Model) builtLog(now time.Time) Model {
 		From: t.from.Start, Events: t.events, Read: t.read, Filter: p.Shows, Names: m.cfg.WindowName, Now: now,
 	})
 	m.log.page = p.Filling(m.logRows())
-	return m
+	return m.followedByLogCard()
 }
 
 // looked is the Log's events with those the document look is a moment of
