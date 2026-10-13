@@ -28,3 +28,13 @@ worked out as it's read.
 - **Claude Code's quota checks,** 31 today, as it starts or resumes a session or starts and asks
   nothing, three overloaded (529) and sent again; and **its counts of tokens,** 4 today, of no
   session.
+
+## The Log not live
+
+`notlive.jsonl` is the ledger's last lines as `log-not-live-160` draws them, its router gone at
+14:40:55, in the same form, typed from the frame: its 27 rows, from 14:38:40 to 14:40:44, each
+request's tokens as the frame rounds them, and a quota check of Claude Code's at 14:40:51,
+ending at 14:40:52, the last line the ledger wrote, which the state line's `to 14:40:52` reads.
+`notlive.go` puts them after the sessions' world's lines from before 14:36:18 today, as 1,171
+of its requests had arrived, so today counts 1,198 requests and 35 checks and counts, as the
+frame does, each routed after the lines before it.

@@ -27,7 +27,7 @@ func marked(w status.Words) string {
 }
 
 // Words are built of plain words, as they are, accounts named, each by its
-// id, cleaned, as it's from elsewhere, and figures.
+// id, cleaned, as it's from elsewhere, figures, and a window's use.
 func TestWordsAreBuiltOfPlainWordsAccountsNamedAndFigures(t *testing.T) {
 	tests := []struct {
 		name string
@@ -38,6 +38,7 @@ func TestWordsAreBuiltOfPlainWordsAccountsNamedAndFigures(t *testing.T) {
 		{name: "an account", part: status.Named("side"), want: status.Part{Text: "side", Kind: status.PartAccount}},
 		{name: "an account named from elsewhere", part: status.Named("si\x1b[2Jde"), want: status.Part{Text: "si [2Jde", Kind: status.PartAccount}},
 		{name: "a figure", part: status.Figure("7"), want: status.Part{Text: "7", Kind: status.PartFigure}},
+		{name: "a window's use", part: status.Use("95%"), want: status.Part{Text: "95%", Kind: status.PartUse}},
 	}
 	for _, tt := range tests {
 		if tt.part != tt.want {

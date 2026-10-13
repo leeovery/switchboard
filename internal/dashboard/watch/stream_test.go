@@ -69,7 +69,7 @@ func (h *harness) pendingRejoin() (*timer, bool) {
 	return nil, false
 }
 
-func TestTheStreamIsReadWhileSessionsOrTheOverviewsROUTINGShows(t *testing.T) {
+func TestTheStreamIsReadWhileSessionsTheLogOrTheOverviewsROUTINGShows(t *testing.T) {
 	h := streamingOn(t, dashboard.Sections{})
 
 	steps := []struct {
@@ -84,9 +84,9 @@ func TestTheStreamIsReadWhileSessionsOrTheOverviewsROUTINGShows(t *testing.T) {
 		{key: "tab", opened: 1},
 		{key: "tab", opened: 2, open: true},
 		{key: "tab", opened: 2},
-		{key: "tab", opened: 2},
 		{key: "tab", opened: 3, open: true},
-		{key: "shift+tab", opened: 3},
+		{key: "tab", opened: 3, open: true},
+		{key: "shift+tab", opened: 3, open: true},
 	}
 	for _, step := range steps {
 		switch step.key {

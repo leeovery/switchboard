@@ -58,14 +58,25 @@ func (f Fixture) Model() tea.Model {
 // builds it for dashboard, on a terminal of the given size, and brings it to
 // the fixture's moment: its first read lands readAgo before, the terminal
 // says what its background is, then the clock reads the moment, which the
-// screen is drawn at, and the fixture's keys are pressed. Its timers never
-// fire, so nothing moves from there but what a key does.
+// screen is drawn at, and the fixture's keys are pressed. A router that
+// stops answering before the moment is read last readAgo before it goes,
+// and found gone as it goes, by R. Its timers never fire, so nothing moves
+// from there but what a key does.
 func (f Fixture) settle(size watch.Size) watch.Model {
+	gone := f.router.gone
+	read := !gone.IsZero() && gone.Before(f.now)
 	clock := &clock{now: ago(f.now, readAgo)}
+	if read {
+		clock.now = ago(gone, readAgo)
+	}
 	m := watch.New(context.Background(), f.config(size, clock.read))
 	m = deliver(m, run(m.Init())...)
 	if !f.colourless {
 		m = deliver(m, tea.BackgroundColorMsg{Color: terminalBackground})
+	}
+	if read {
+		clock.now = gone
+		m = deliver(m, keysOf("R")[0])
 	}
 	clock.now = f.now
 	m = deliver(m, reached{})

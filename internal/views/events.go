@@ -1,6 +1,7 @@
 package views
 
 import (
+	"slices"
 	"strconv"
 	"time"
 
@@ -162,13 +163,19 @@ func loggedPressure(e status.Event, f eventFact, at time.Time) (status.Words, st
 }
 
 // loggedCap tells of an account reaching its cap: "95% of its 5-hour
-// window", and the sessions it moved, as they move.
+// window", the use a window's, and the sessions it moved, as they move.
 func loggedCap(e status.Event, f eventFact, _ time.Time) (status.Words, status.Words) {
-	what := its(f.windows, "its window")
+	what := clause(its(f.windows, "its window"))
 	if e.Reserve > 0 {
-		what = prose.Percent(1-e.Reserve) + " of " + what
+		what = status.Words{status.Use(prose.Percent(capUse(e))), status.Plain(" of " + what.String())}
 	}
-	return account(e.Account), append(clause(what), moving(f, true)...)
+	return account(e.Account), append(what, moving(f, true)...)
+}
+
+// capUse is how much of its window an account had used as it reached its
+// cap, the event e: all but its reserve.
+func capUse(e status.Event) float64 {
+	return 1 - e.Reserve
 }
 
 // loggedLimit tells of an account reaching its limit: "its 5-hour window,
@@ -266,16 +273,18 @@ func loggedHealth(e status.Event, _ eventFact, _ time.Time) (status.Words, statu
 // facts count them, after a colon: "its 3 sessions move to side", "its
 // session moves to side", or where they went to several accounts, "its 3
 // sessions move to other accounts"; a cap's, as their next requests come.
-// It's nothing where it moved none.
+// It's nothing where it moved none. The count is a figure, which rises in
+// place as its moves count.
 func moving(f eventFact, asTheyCome bool) status.Words {
 	if f.moved == 0 {
 		return nil
 	}
-	subject, where, as := ": its "+prose.SessionCount(f.moved)+" move to ", "other accounts", " as their next requests come"
-	if f.moved == 1 {
-		subject, where, as = ": its session moves to ", "another account", " as its next request comes"
+	w := status.Words{status.Plain(": its session moves to ")}
+	where, as := "another account", " as its next request comes"
+	if f.moved > 1 {
+		w = slices.Concat(status.Words{status.Plain(": its ")}, CountedWords(f.moved, "session"), status.Words{status.Plain(" move to ")})
+		where, as = "other accounts", " as their next requests come"
 	}
-	w := status.Words{status.Plain(subject)}
 	if f.to != "" {
 		w = append(w, status.Named(f.to))
 	} else {

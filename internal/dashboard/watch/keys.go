@@ -14,7 +14,8 @@ import (
 // rest each as acting has the page act: on the Overview, u, g, r, s, c and l
 // show and hide its sections, b switches how its windows are grouped, and ↑
 // and ↓ move the focus, as overviewKey says; on History, [ ], < >, v and ←
-// → act as historyKey says; tab and shift-tab show the next tab and the one
+// → act as historyKey says; on the Log, [ ], ↑ ↓, end, esc, enter, f and /
+// act as logKey says; tab and shift-tab show the next tab and the one
 // before; t opens the theme picker; and w, in Runway, switches between the
 // day and the week. The rest do nothing: the number keys and m among them,
 // which act in the routing card alone.
@@ -29,6 +30,9 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if next, ok := afresh.historyKey(k); ok {
 		return next, nil
+	}
+	if next, cmd, ok := afresh.logKey(k); ok {
+		return next, cmd
 	}
 	switch k {
 	case "tab":
@@ -109,7 +113,8 @@ func (m Model) keys() pageKeys {
 		keyListing{Key: dashboard.Key{Key: "w", Does: "window: " + m.span.Name()}, works: m.view == dashboard.Runway},
 	)
 	pin, pinned := m.pinKey()
-	return pageKeys{own: append(own, m.historyListings()...), overview: overview, pin: pin, pinned: pinned, coloured: m.coloured()}
+	own = slices.Concat(own, m.historyListings(), m.logListings())
+	return pageKeys{own: own, overview: overview, pin: pin, pinned: pinned, coloured: m.coloured()}
 }
 
 // listings are the page's own keys, where its view scrolls or not, in the
@@ -169,6 +174,9 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 		return l
 	}
 	l.Phone = page.phone
+	if m.view == dashboard.Log {
+		l.Phone = m.logPhoneKeys()
+	}
 	if keys.pinned {
 		l.Groups = append(l.Groups, []dashboard.Key{keys.pin})
 	}

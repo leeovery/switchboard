@@ -53,12 +53,13 @@ func TestTheLogsHeadingCountsInItsFormsInTheirDropOrder(t *testing.T) {
 	}
 }
 
-// The heading's right is drawn as the frames draw it: the count in
-// text.secondary and the words after it in text.muted, f bold accent.key;
-// on a phone, the count all in text.muted.
+// The heading's right is drawn as the frames draw it: Requests' count,
+// "35 hidden" whole, and Events' figures in text.secondary, the words after
+// them in text.muted, f bold accent.key; on a phone, the count all in
+// text.muted.
 func TestTheLogsHeadingCountIsInkedAsTheFramesDrawIt(t *testing.T) {
 	want := line{
-		{"35", secondaryInk}, {" hidden: checks and counts", mutedInk}, {"   ", ink{}}, {"f", keyInk}, {" what it shows", mutedInk},
+		{"35 hidden", secondaryInk}, {": checks and counts", mutedInk}, {"   ", ink{}}, {"f", keyInk}, {" what it shows", mutedInk},
 	}
 	if got := hiddenCount(35, "checks and counts").forms()[0].inked(); !slices.Equal(got, want) {
 		t.Errorf("the whole form is inked %+v, want %+v", got, want)

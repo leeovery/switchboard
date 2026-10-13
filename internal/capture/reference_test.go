@@ -26,8 +26,8 @@ var owed = []string{
 	"accounts-compare-160", "accounts-compare-bad-hour-160", "accounts-compare-month-160", "accounts-compare-ten-160",
 	"accounts-detail-all-160", "accounts-detail-limit-160", "accounts-detail-one-160", "accounts-detail-sessions-160",
 	"accounts-detail-work-160", "accounts-phone-compare-52", "accounts-phone-detail-52",
-	"log-event-details-160", "log-events-160", "log-events-filter-160", "log-not-live-160", "log-request-details-160",
-	"log-requests-160", "log-requests-filter-160", "log-requests-filtered-160", "log-requests-phone-52",
+	"log-event-details-160", "log-events-filter-160", "log-request-details-160", "log-requests-filter-160",
+	"log-requests-filtered-160",
 	"routing-session-160",
 	"runway-5-hour-160", "runway-phone-52", "runway-stepped-back-160", "runway-ten-accounts-160", "runway-week-160",
 	"session-ended-160", "session-moved-160", "session-phone-52", "session-quiet-160", "session-resumed-160",
@@ -483,6 +483,27 @@ var (
 	}
 )
 
+// logTail are the times of the rows log-requests-160 draws, each after its
+// mark, the newest 27 of the Log's tail: its generator's lines, where the
+// world's d28c's are as its session's page draws them, and its requests in
+// flight are the Overview's frames', so the world draws others in their
+// place. A phone draws the newest 22.
+var logTail = []string{
+	"14:40:26", "14:40:26", "14:40:28", "14:40:37", "14:40:39", "14:40:40", "14:40:40", "14:40:41", "14:40:49",
+	"14:40:59", "14:41:00", "14:41:00", "▲ 14:41:11", "14:41:14", "14:41:14", "14:41:16", "14:41:19", "14:41:22",
+	"14:41:25", "14:41:29", "14:41:38", "14:41:39", "14:41:41", "14:41:45", "↓ 14:41:53", "↑ 14:42:00", "↓ 14:42:01",
+}
+
+// tableRows passes over a row each of reads, from row first on, each reading
+// as given.
+func tableRows(first int, reads ...string) []passing {
+	p := make([]passing, len(reads))
+	for i, r := range reads {
+		p[i] = wholeRow(first+i, r)
+	}
+	return p
+}
+
 // passedOver is, by stem, the rows and cells each frame drew otherwise than
 // the design says, or than its world gives, which testdata/vhs/README.md
 // lists, with what the dashboard draws in their place.
@@ -653,6 +674,10 @@ var passedOver = map[string][]passing{
 		[]passing{period(152, "by week")}, byModelFigures, []passing{cellsOf(32, 3, 41, "5 more weeks below"), historyKeys(75)},
 	),
 
+	"log-events-160":        {cellsOf(27, 88, 160, ", its 5-hour to run out at 15:10   48k cached again, $0.48")},
+	"log-requests-160":      append(tableRows(8, logTail...), cellsOf(36, 144, 148, "1,240")),
+	"log-requests-phone-52": append(tableRows(9, logTail[len(logTail)-22:]...), cellsOf(32, 36, 40, "1,240")),
+
 	"routing-auto-160": slices.Concat(routingFigures, []passing{cursorRow(14, "■ 0 auto")}, behindTheCard("0/min", "2/min", "15/min")),
 	"routing-two-160":  slices.Concat(routingFigures, []passing{cursorRow(17, "■ 3 side")}, behindTheCard("0/min", "2/min", "15/min")),
 	"routing-move-160": slices.Concat(
@@ -792,7 +817,6 @@ var holds = map[string]partial{
 	"accounts-compare-160":     heldTabbed(1, chrome),
 	"sessions-switchboard-160": heldTabbed(3, chrome),
 	"runway-5-hour-160":        heldTabbed(4, chrome),
-	"log-requests-160":         heldTabbed(5, chrome),
 	"sessions-phone-52":        heldTabbed(3, phoneChrome),
 }
 

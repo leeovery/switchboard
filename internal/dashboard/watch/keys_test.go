@@ -45,7 +45,10 @@ func TestTheKeyLineGroupsTheKeysOfEachTab(t *testing.T) {
 		{view: dashboard.History, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"< >"}, {"v"}, {"p"}, {"?", "q"}}, wantPhone: []string{"[ ]"}, wantHelp: "keys"},
 		{view: dashboard.Sessions, lead: 3, want: [][]string{{"tab"}, {"p"}, {"?", "q"}}, wantHelp: "keys"},
 		{view: dashboard.Runway, lead: 3, want: [][]string{{"tab"}, {"w"}, {"p"}, {"?", "q"}}, wantPhone: []string{"w"}, wantHelp: "keys"},
-		{view: dashboard.Log, lead: 3, want: [][]string{{"tab"}, {"p"}, {"?", "q"}}, wantHelp: "keys"},
+		{
+			view: dashboard.Log, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"↑↓", "enter", "f", "/"}, {"p"}, {"?", "q"}},
+			wantPhone: []string{"↑↓", "enter", "[ ]"}, wantHelp: "keys",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.view), func(t *testing.T) {
@@ -131,7 +134,7 @@ func TestTheEmptyTabsListPPinOnlyWhereThereIsAPinToSet(t *testing.T) {
 		{name: "one account, pinned from the command line", doc: pinned, want: [][]string{{"tab"}, {"p"}, {"?", "q"}}},
 	}
 	for _, tt := range tests {
-		for _, view := range []dashboard.View{dashboard.Accounts, dashboard.Log} {
+		for _, view := range []dashboard.View{dashboard.Accounts} {
 			t.Run(tt.name+" on "+string(view), func(t *testing.T) {
 				h := routedHarness(t, tt.doc)
 				h.model.view = view

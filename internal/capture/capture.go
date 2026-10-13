@@ -275,13 +275,14 @@ func (p printout) fixture(worlds accountWorlds) Fixture {
 // moment, in the frames' theme, with its world's records: on a terminal of
 // its size, with its keys pressed once its document is read; and, gone, with
 // the router no longer answering from that moment, as a key that reads then
-// finds it.
+// finds it, or from goneFor before it, as the fixture's settling finds it.
 type page struct {
-	name  string
-	size  watch.Size
-	world func(accountWorlds) accountWorld
-	keys  []tea.KeyPressMsg
-	gone  bool
+	name    string
+	size    watch.Size
+	world   func(accountWorlds) accountWorld
+	keys    []tea.KeyPressMsg
+	gone    bool
+	goneFor time.Duration
 }
 
 // called is the page's name.
@@ -294,7 +295,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	w := p.world(worlds)
 	router := routerOf(w, worlds.now)
 	if p.gone {
-		router = router.goneAt(worlds.now)
+		router = router.goneAt(worlds.now.Add(-p.goneFor))
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys),
@@ -348,8 +349,11 @@ var pages = []page{
 	{name: "history-phone-year-52", size: watch.Size{Width: 52, Height: 35}, world: accountWorlds.auto, keys: toHistory()},
 	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: keysOf("p", "2", "3", "m")},
 	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
-	{name: "page-log", size: wide(37), world: accountWorlds.auto, keys: []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}},
 	{name: "page-not-answering", size: wide(37), world: accountWorlds.auto, keys: keysOf("R"), gone: true},
+	{name: "log-events-160", size: wide(37), world: accountWorlds.auto, keys: toLog("]")},
+	{name: "log-requests-160", size: wide(37), world: accountWorlds.auto, keys: toLog()},
+	{name: "log-not-live-160", size: wide(37), world: accountWorlds.notLive, keys: toLog(), gone: true, goneFor: notLiveGone},
+	{name: "log-requests-phone-52", size: watch.Size{Width: 52, Height: 33}, world: accountWorlds.auto, keys: toLog()},
 }
 
 // keysOf are the keys pressed as the text given, a key a character.
@@ -365,6 +369,12 @@ func keysOf(text ...string) []tea.KeyPressMsg {
 // then the text given, a key a character.
 func toHistory(text ...string) []tea.KeyPressMsg {
 	return append([]tea.KeyPressMsg{{Code: tea.KeyTab}, {Code: tea.KeyTab}}, keysOf(text...)...)
+}
+
+// toLog are the keys that reach the Log from the Overview, shift-tab, back
+// round the tabs, then the text given, a key a character.
+func toLog(text ...string) []tea.KeyPressMsg {
+	return append([]tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}, keysOf(text...)...)
 }
 
 // wide is a terminal as wide as the frames are, 160 columns, and as tall as
