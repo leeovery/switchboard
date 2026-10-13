@@ -58,8 +58,8 @@ type LogDoing int
 const (
 	// LogBusy says nothing: it's busy, but neither asking nor just started.
 	LogBusy LogDoing = iota
-	// LogAsking is a request of it asking: gone out, with nothing back yet,
-	// or throttled, to go out again, as SESSIONS says both.
+	// LogAsking is a request of it waiting for its answer, as
+	// Activity.Waiting says: asking, throttled or refused.
 	LogAsking
 	// LogStarted is its first request come within the busy minute.
 	LogStarted
@@ -70,16 +70,16 @@ const (
 )
 
 // Doing is what the panel's doing column says of the session at now, the
-// first that holds: asking, while a request of it asks; started, while its
-// first request came within the busy minute; nothing, while it's busy, as
-// Activity.Busy says; idle; or ended. since is when it started, when it was
-// last at work, idle, or when its last request came, ended: zero for the
-// others. It's said at the moment it's drawn, as idle comes once the busy
-// minute has passed, with nothing read.
+// first that holds: asking, while a request of it waits, as Activity.Waiting
+// says; started, while its first request came within the busy minute;
+// nothing, while it's busy, as Activity.Busy says; idle; or ended. since is
+// when it started, when it was last at work, idle, or when its last request
+// came, ended: zero for the others. It's said at the moment it's drawn, as
+// idle comes once the busy minute has passed, with nothing read.
 func (s LogSession) Doing(now time.Time) (doing LogDoing, since time.Time) {
 	a := s.Activity
 	switch {
-	case a.Doing == Asking || a.Doing == Throttled:
+	case a.Waiting():
 		return LogAsking, time.Time{}
 	case !s.Started.IsZero() && now.Sub(s.Started) < busyWithin:
 		return LogStarted, s.Started
