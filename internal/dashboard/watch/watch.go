@@ -413,9 +413,10 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update takes in a message, at the one time it came, as taking has it, as
-// take says, then has the watch read the router's request stream while it
-// wants it, and the ledger's days for History as it wants them, and only
-// then, price the moves the routing card would make while it wants them.
+// take says, closing a session's card it leaves no p for, as closing says,
+// then has the watch read the router's request stream while it wants it,
+// and the ledger's days for History as it wants them, and only then, price
+// the moves the routing card would make while it wants them.
 // Then, of the page as it stands at that moment, its Overview's sections
 // built once for each to share, it keeps the Overview's layout, but for a
 // frame, which takes nothing in to lay it out afresh by; brightens the
@@ -428,7 +429,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.taking = taking{at: now, moment: m.doc.HoldAt(now, m.cfg.Policy)}
 	next, cmd := m.take(msg)
-	tuned, stream := next.(Model).tune()
+	tuned, closed := next.(Model).closing()
+	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
 	tuned, costs := tuned.costing()
 	page := tuned.frame(now).Built(tuned.doc, now)
@@ -438,7 +440,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, stream, past, costs, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, costs, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look

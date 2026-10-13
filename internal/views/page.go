@@ -57,6 +57,10 @@ type SessionPage struct {
 	// model's latest account, as its lines and the stream give it, with the
 	// reason of its latest line. It's the views' alone.
 	Goes []SessionModel `json:"-"`
+	// Auto is the account the router would send its next request to were
+	// its own pin cleared, as autoOf has it: "" where the router can't say.
+	// It's the views' alone.
+	Auto string `json:"-"`
 }
 
 // SessionAccount is an account a session ran on: its first and last request
