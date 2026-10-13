@@ -82,6 +82,7 @@ func LogMoments() []LogMoment {
 		inFlightAtMidnight(), acrossMidnightLined(), streamEndedInFlight(), droppedBehind(), linedAfterSent(), sentAgainAndFailed(),
 		unnamed(), firstRequests(), movesAndTheirCost(), noLinesToday(), daysBetween(), pastTheOldestDay(), routerNotAnswering(),
 		fallingBackRows(), checksAndCounts(false), checksAndCounts(true),
+		streamClosed(closedInFlight), streamClosed(closedLined), streamClosed(reopenedInFlight),
 	}
 }
 
@@ -485,5 +486,61 @@ func checksAndCounts(show bool) LogMoment {
 	}
 	m.Name, m.Shown = "Claude Code's quota checks and its counts of tokens, shown", true
 	m.Want, m.Counts = rows(first(r1), hidden(k1), hidden(n1)), map[string]views.LogCount{"2026-10-01": shown(3)}
+	return m
+}
+
+// closing is how far a request answering as the stream closed has come.
+type closing int
+
+const (
+	// closedInFlight is the stream closed still, the request's line to come.
+	closedInFlight closing = iota
+	// closedLined is the stream closed still, the request's line come.
+	closedLined
+	// reopenedInFlight is the stream open again, telling of the request in
+	// flight still.
+	reopenedInFlight
+)
+
+// streamClosed is a request of d28c's answering as the stream closed, as
+// the watch closes it while no page it moves shows, keeping what it told,
+// and the Log drawn as far as c has come. While the stream's closed, what of
+// the request is in flight is unknown: the table holds nothing in flight, as
+// it does without the router, and the request's line, come, sits where it
+// was sent. Open again, the stream tells of it in flight still.
+func streamClosed(c closing) LogMoment {
+	r0 := requested("r0", D28C, Opus, side, status.ReasonNew, At(14, 30, 0))
+	sent := At(14, 41, 30)
+	// c0 arrived after r1 did, but before r1 went out.
+	c0 := requested("c0", C61B, Opus, side, status.ReasonNew, sent.Add(-50*time.Millisecond))
+	r1 := told("r1", D28C, Opus, side, sent, At(14, 41, 40))
+	r1.Dir, r1.First, r1.Chars = dirs[D28C], sent.Add(time.Second), 1200
+	stream := live(r1)
+	stream.Live = false
+	m := LogMoment{
+		Name:  "a request answering as the stream closed, drawn while it stays closed: nothing in flight, as without the router",
+		Lines: []ledger.Line{r0, c0}, Sessions: []status.Session{listed(D28C, At(14, 41, 40), status.Answering)}, Stream: stream,
+		From: now, Now: now,
+		Want:   rows(first(r0), first(c0)),
+		Counts: map[string]views.LogCount{"2026-10-01": shown(2)},
+	}
+	switch c {
+	case closedInFlight:
+	case closedLined:
+		lined := requested("r1", D28C, Opus, side, status.ReasonSticky, sent.Add(-100*time.Millisecond))
+		lined.TotalMS = 20_000
+		m.Name = "a request answering as the stream closed, its line come while it stays closed: where it was sent, after one arriving after it"
+		m.Lines = append(m.Lines, lined)
+		m.Want, m.Counts = rows(first(r0), first(c0), rowOf(lined)), map[string]views.LogCount{"2026-10-01": shown(3)}
+	case reopenedInFlight:
+		r1.Chars, r1.Heard = 3400, At(14, 42, 5)
+		m.Name = "a request answering as the stream closed, the stream open again telling of it in flight still: answering, where it was sent"
+		m.Stream = live(r1)
+		m.Want = rows(first(r0), first(c0), Row{
+			Request: "r1", Session: D28C, Dir: dirs[D28C], At: "14:41:30", Mark: views.MarkAnswering, Stage: views.RowAnswering,
+			First: "1.0s", Took: "37.0s", Stopped: "answering · 3.4k characters", Phone: "answering",
+		})
+		m.Counts = map[string]views.LogCount{"2026-10-01": shown(3)}
+	}
 	return m
 }

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -153,13 +154,13 @@ func LogRows(src LogSources) LogTable {
 	today, first := Today(src.Now), Today(src.From)
 	stories := src.Read.stories(src.Prices, today)
 	lines := src.Read.lines
-	rows := make([]placedRow, 0, len(lines)+len(src.Stream.Requests))
+	rows := make([]placedRow, 0, len(lines))
 	lined := make(map[string]bool, len(lines))
 	for i := range lines {
 		l := &lines[i]
 		place := l.At
-		if t, told := src.Stream.Requests[l.Request]; told && t.filedAs(l) {
-			lined[t.Request], place = true, t.Sent
+		if sent, told := src.Stream.sentOf(l); told {
+			lined[l.Request], place = true, sent
 		}
 		rows = append(rows, placedRow{row: pricedRow(l, stories[l.Session], src.Prices, today), day: Today(l.At), place: place})
 	}
@@ -173,17 +174,18 @@ func LogRows(src LogSources) LogTable {
 	return tableOf(rows, src)
 }
 
-// toldAlone are the requests the stream told of whose lines aren't among
-// those read, lined holding the ids of those whose are, but those it told no
-// sending of, which have no place, by when they were sent, then their ids.
+// toldAlone are the requests the stream told of that it knows, as known has
+// them, whose lines aren't among those read, lined holding the ids of those
+// whose are, but those it told no sending of, which have no place, by when
+// they were sent, then their ids.
 func toldAlone(s Stream, lined map[string]bool) []Told {
 	var alone []Told
-	for _, id := range slices.Sorted(maps.Keys(s.Requests)) {
-		if t := s.Requests[id]; !lined[id] && !t.Sent.IsZero() {
+	for t := range s.known() {
+		if !lined[t.Request] && !t.Sent.IsZero() {
 			alone = append(alone, t)
 		}
 	}
-	slices.SortStableFunc(alone, func(a, b Told) int { return a.Sent.Compare(b.Sent) })
+	slices.SortFunc(alone, func(a, b Told) int { return cmp.Or(a.Sent.Compare(b.Sent), strings.Compare(a.Request, b.Request)) })
 	return alone
 }
 
