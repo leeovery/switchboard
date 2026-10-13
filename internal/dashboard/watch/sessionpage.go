@@ -100,13 +100,15 @@ func (m Model) relived(msg tea.Msg, now time.Time) Model {
 }
 
 // pageLive is what a session's page is built of at now beside its lines:
-// the session with the given id as the router's last listing has it, while
-// the router answers, else none, no router listing it; and what the request
-// stream told.
+// the session with the given id as the router's last listing has it, listed
+// while the router answers, else last listed, no router listing it now; and
+// what the request stream told.
 func (m Model) pageLive(id string, now time.Time) views.PageLive {
 	live := views.PageLive{Unlisted: !m.answering(), Stream: m.traffic.stream(now), Now: now}
-	if !live.Unlisted {
-		live.Routed = views.Routed(m.sessions, id)
+	if routed := views.Routed(m.sessions, id); live.Unlisted {
+		live.LastRouted = routed
+	} else {
+		live.Routed = routed
 	}
 	return live
 }

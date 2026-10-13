@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -49,9 +50,15 @@ func promptedLines(n int, from time.Time) []ledger.Line {
 func pageHarness(t *testing.T, lines []ledger.Line) (*harness, *pageLedger) {
 	t.Helper()
 	h := gridHarness(t)
+	return h, h.withLines(lines)
+}
+
+// withLines has the model read idD28C's lines as given in its ledger,
+// priced at the price table's prices.
+func (h *harness) withLines(lines []ledger.Line) *pageLedger {
 	l := &pageLedger{Empty: h.emptyLedger(), lines: map[string][]ledger.Line{idD28C: lines}}
 	h.model.cfg.Ledger, h.model.cfg.Prices = l, ledger.Pricing
-	return h, l
+	return l
 }
 
 // openPage opens idD28C's page, as a click on its row does, its read landing.
@@ -319,6 +326,55 @@ func TestASessionsPageFollowsEachLookAndTickAndStaysOnceItEnds(t *testing.T) {
 	h.fire(h.lastTick())
 	if end := h.shownPage().Story.End; !end.Equal(last) {
 		t.Errorf("ended, a tick on, the story ends at %s, want still at %s", end, last)
+	}
+}
+
+// While the router doesn't answer, a session's page keeps its own pin as
+// the router last listed it: its card, open, still picks it, naming no
+// account auto would choose, as the router can't say; and clearing it says
+// the router isn't answering, as new sessions' card does, sending nothing.
+func TestASessionsCardKeepsItsOwnPinWhileTheRouterDoesntAnswer(t *testing.T) {
+	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+	h.source.sessions[0].Pin = "side"
+	h.source.sessions[0].Assignments[0].Account, h.source.sessions[0].Assignments[0].Auto = "side", "work"
+	h.tickUntilAsked()
+	h.openPage()
+	h.keyed("p")
+	if card := h.card(); !slices.Equal(card.Picked, []string{"side"}) || card.Session.Auto != "work" {
+		t.Fatalf("the card picks %q, auto naming %q; want side, its own pin, and work", card.Picked, card.Session.Auto)
+	}
+
+	h.stopRouter()
+	h.tickUntilAsked()
+	if card := h.card(); h.model.open != routingOpen || !slices.Equal(card.Picked, []string{"side"}) || card.Session.Auto != "" {
+		t.Fatalf("the router gone, the card is open %t, picking %q, auto naming %q; want it open, picking side, auto naming none",
+			h.model.open == routingOpen, card.Picked, card.Session.Auto)
+	}
+	h.keyed("0 enter")
+	if len(h.source.orders) > 0 || h.model.open != routingOpen || h.card().Refused != status.ErrNoRouter.Error() {
+		t.Errorf("0 enter sent %q, the card open %t, saying %q; want nothing sent, the card open, saying %q",
+			h.source.orders, h.model.open == routingOpen, h.card().Refused, status.ErrNoRouter)
+	}
+}
+
+// With one account, a session's page lists p while its own pin stands, as
+// the router last listed it: faint while the router doesn't answer.
+func TestASessionsPageListsPForItsOwnPinWhileTheRouterDoesntAnswer(t *testing.T) {
+	one := account("work", "Work", session(0.25, 3*time.Hour), week(0.5))
+	h := routedHarness(t, routerDocument(one))
+	h.source.doc = document(one)
+	pinned := sessionOn(idD28C, opus, "work", 10*time.Second)
+	pinned.Pin = "work"
+	h.source.sessions = []status.Session{pinned}
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	h.start()
+	h.withLines(promptedLines(2, start.Add(-30*time.Minute)))
+	h.openPage()
+
+	h.stopRouter()
+	h.tickUntilAsked()
+	if pin, listed := h.model.pinKey(); !listed || !pin.Off {
+		t.Errorf("the router gone, p is listed %t, faint %t; want it listed, faint", listed, pin.Off)
 	}
 }
 

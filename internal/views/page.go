@@ -31,7 +31,8 @@ type SessionPage struct {
 	State    string              `json:"state,omitempty"`
 	MoveCost *ledger.Picodollars `json:"move_cost,omitempty"`
 	Ended    time.Time           `json:"ended,omitzero"`
-	// Pin is its own pin, as the router lists it: "" where it has none, or
+	// Pin is its own pin, as the router lists it, or while no router lists
+	// the sessions, as its last listing had it: "" where it has none, or
 	// the router doesn't list it.
 	Pin string `json:"pin,omitempty"`
 	// Started is when its first request came, and Resumed the latest time it

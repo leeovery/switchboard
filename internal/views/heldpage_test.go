@@ -208,3 +208,34 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 		t.Errorf("TurnRequests(3) = %+v, want none, the session having two turns", got)
 	}
 }
+
+// While no router lists the sessions, a page keeps the session's own pin as
+// the router's last listing had it, as it stands at the router all the
+// same; but not where auto would send it, which the router can't say then,
+// nor anything else of that listing: it's no more running than its lines
+// say. Where the router answers without listing it, it has no pin.
+func TestAPageKeepsItsOwnPinFromTheLastListingWhileNoRouterListsIt(t *testing.T) {
+	lines := []ledger.Line{filedAs("p1", mainOn(p1, local(12, 50, 0), "end_turn"))}
+	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
+	last := runningOn("side")
+	last.Pin, last.Assignments[0].Auto = "side", "work"
+	tests := []struct {
+		name string
+		live views.PageLive
+		pin  string
+	}{
+		{name: "no router listing the sessions", live: views.PageLive{Unlisted: true, LastRouted: last, Now: now}, pin: "side"},
+		{name: "no router listing the sessions, nor one ever having listed it", live: views.PageLive{Unlisted: true, Now: now}},
+		{name: "the router answering, listing it no more", live: views.PageLive{LastRouted: last, Now: now}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := held.Page(tt.live)
+			want, _ := held.Page(views.PageLive{Unlisted: tt.live.Unlisted, Now: now})
+			want.Pin = tt.pin
+			if !ok || !reflect.DeepEqual(got, want) {
+				t.Errorf("the page is\n%+v\nwant it built of its lines alone, its own pin %q\n%+v", got, tt.pin, want)
+			}
+		})
+	}
+}

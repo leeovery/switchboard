@@ -49,12 +49,16 @@ func keyOf(l *ledger.Line) (lineKey, bool) {
 
 // PageLive is what a session's page is built of beside its lines: the
 // session as the router lists it, nil where it doesn't; whether no router
-// lists the sessions; what the request stream told; and now.
+// lists the sessions; the session as the router's last listing had it, nil
+// where it didn't, which counts only while no router lists them, and then
+// for its own pin alone, as the pin stands at the router all the same; what
+// the request stream told; and now.
 type PageLive struct {
-	Routed   *status.Session
-	Unlisted bool
-	Stream   Stream
-	Now      time.Time
+	Routed     *status.Session
+	Unlisted   bool
+	LastRouted *status.Session
+	Stream     Stream
+	Now        time.Time
 }
 
 // HoldPage holds the page of the session with the given id, of what read
@@ -183,8 +187,11 @@ func (h HeldPage) Page(live PageLive) (SessionPage, bool) {
 	unplaced := live.Routed != nil && by.h.unplaced(*live.Routed)
 	page.Turns = turnsOf(h.requests, told, page.Runs(), unplaced)
 	page.Goes = by.goesOf(h.id, live.Stream, h.requests, told)
-	if live.Routed != nil {
+	switch {
+	case live.Routed != nil:
 		page.Pin, page.Auto = live.Routed.Pin, autoOf(*live.Routed, page.Model)
+	case live.Unlisted && live.LastRouted != nil:
+		page.Pin = live.LastRouted.Pin
 	}
 	if !page.Running && h.story.first != nil {
 		page.KeptUntil, _ = dayfile.KeptUntil(Today(h.story.first.At).Date, h.keep)
