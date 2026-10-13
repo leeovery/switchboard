@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -20,8 +21,8 @@ import (
 // and the move its Row's Routing's Cost, where its routing names the account
 // it left. The rest are its line's, each blank until it comes, as its Row's
 // Stage says: a request in flight's card holds what the stream told. Their
-// text, but Left's, is as the line gives it, for the drawer to clean, as it
-// cleans the Row's Dir.
+// text, but Left's and the windows' names, is as the line gives it, for the
+// drawer to clean, as it cleans the Row's Dir.
 type RequestDetails struct {
 	Row RequestRow
 	// Answer is Anthropic's id for its answer, and Served the model that
@@ -34,8 +35,11 @@ type RequestDetails struct {
 	// why, as RoutingWords says them but for their leading "from ": "work, at
 	// its cap". None where it moved none.
 	Left status.Words
-	// LimitStatus is its answer's status, as its usage headers gave it: none
-	// where they gave none.
+	// Windows are the windows of the account it went out on as its answer
+	// left them, in quota's order, as an event's card has an account's, and
+	// LimitStatus is its answer's status across them, both as its usage
+	// headers gave them: none where they gave none.
+	Windows     []WindowThen
 	LimitStatus quota.Status
 	// System counts its system prompt's blocks, MaxTokens is its max_tokens
 	// and Effort its output_config's effort, each zero where its shape gives
@@ -81,7 +85,7 @@ func (d *RequestDetails) lined(l *ledger.Line) {
 	if l.From != "" {
 		d.Left = leftWords(status.RoutingWords(l.Reason, status.Facts{From: l.From, To: l.Account}), l.From)
 	}
-	d.LimitStatus = quota.Status(l.Limits["status"])
+	d.Windows, d.LimitStatus = windowsThen(claude.WindowsRead(l.Limits, 0), nil), claude.LimitStatus(l.Limits)
 	d.System, d.Effort, d.Stream = l.Shape.System, l.Shape.OutputConfig.Effort, l.Shape.Stream
 	if most := l.Shape.MaxTokens; most != nil {
 		d.MaxTokens = int(*most)

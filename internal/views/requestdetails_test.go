@@ -2,6 +2,7 @@ package views_test
 
 import (
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -45,14 +46,29 @@ func TestARequestsDetailsAreWhatItsLineGivesBeyondItsRow(t *testing.T) {
 				l.Betas = []string{"context-1m-2025-08-07", "interleaved-thinking-2025-05-14"}
 				l.Shape = ledger.Shape{System: 3, MaxTokens: new(int64(32_000)), Stream: new(true), OutputConfig: ledger.OutputConfig{Effort: "high"}}
 				l.Answer = ledger.Answer{ID: "msg_01", Model: "claude-opus-5-5-20261001", Blocks: map[string]int{"tool_use": 1, "text": 1, "thinking": 2}}
-				l.Limits = map[string]string{"5h-utilization": "0.91", "5h-status": "allowed_warning", "status": "allowed_warning"}
+				l.Limits = map[string]string{
+					"7d_oi-utilization": "0.4", "7d-utilization": "0.77", "7d-status": "allowed",
+					"5h-utilization": "0.91", "5h-reset": strconv.FormatInt(october(7, 17, 10).Unix(), 10), "5h-status": "allowed_warning",
+					"status": "allowed_warning",
+				}
 			}),
 			want: views.RequestDetails{
 				Answer: "msg_01", Served: "claude-opus-5-5-20261001", Betas: []string{"context-1m", "interleaved-thinking"},
+				Windows: []views.WindowThen{
+					{Key: "5h", Name: "5-hour", Use: 0.91, Resets: october(7, 17, 10).UTC()}, {Key: "7d", Name: "week", Use: 0.77},
+					{Key: "7d_oi", Name: "Fable week", Use: 0.4},
+				},
 				LimitStatus: quota.StatusAllowedWarning, System: 3, MaxTokens: 32_000, Effort: "high", Stream: new(true),
 				Blocks:    []views.DetailBlock{{Kind: "thinking", Count: 2}, {Kind: "text", Count: 1}, {Kind: "tool_use", Count: 1}},
 				CacheLife: ledger.LongCache,
 			},
+		},
+		{
+			name: "an answer refused at its limit: its status as given, rejected",
+			line: answered(func(l *ledger.Line) {
+				l.Status, l.Limits = 429, map[string]string{"5h-utilization": "1.0", "5h-status": "rejected", "status": "rejected"}
+			}),
+			want: views.RequestDetails{Windows: []views.WindowThen{{Key: "5h", Name: "5-hour", Use: 1}}, LimitStatus: quota.StatusRejected, CacheLife: ledger.LongCache},
 		},
 		{
 			name: "a move: the account it left and why",

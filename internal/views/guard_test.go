@@ -80,7 +80,7 @@ var (
 	// readsRaw are the functions that work a fact out of raw data: a drawing
 	// package calls none, whether or not it takes raw data.
 	readsRaw = []string{
-		"claude.LimitWindows",
+		"claude.LimitStatus", "claude.LimitWindows", "claude.WindowsRead",
 		"ledger.Line.Upstream",
 		"ledger.Reply.CacheLife", "ledger.Reply.Tokens",
 		"ledger.Table.CacheWrite", "ledger.Table.Priced", "ledger.Table.Request", "ledger.Table.Rewrite",

@@ -93,6 +93,14 @@ func WindowsRead(limits map[string]string, reserve float64) []WindowRead {
 	return read
 }
 
+// LimitStatus returns the status a request ledger's line gives in its limits,
+// the answer's usage headers as limitsOf kept them: the API's verdict on the
+// request across every window, as the overall status gave it, "" where the
+// answer gave none.
+func LimitStatus(limits map[string]string) quota.Status {
+	return quota.Status(limits[strings.TrimPrefix(overallStatus, limitsPrefix)])
+}
+
 // limitsOf returns each of the usage headers h holds, by its name lowercased,
 // limitsPrefix taken off, and its value as given: of a window, as
 // 5h-utilization, and of the answer as a whole, as status. It's nil where h

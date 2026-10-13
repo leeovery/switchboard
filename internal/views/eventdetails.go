@@ -103,15 +103,6 @@ type AccountThen struct {
 	Sessions int
 }
 
-// WindowThen is a window of an account as an answer read it: its key; its
-// name, as a sentence has it, "5-hour" or "week"; its share used; and when
-// it resets, zero where that isn't known.
-type WindowThen struct {
-	Key, Name string
-	Use       float64
-	Resets    time.Time
-}
-
 // Followed is what followed an event: of a limit, a cap or a refusal, the
 // moves it counted, till when new sessions go elsewhere, and what the moves
 // cost together; of a move, what its move came to.
@@ -504,21 +495,10 @@ func (d detailing) then(id string) *AccountThen {
 			sessions[l.Session] = true
 		}
 		if windows := claude.WindowsRead(l.Limits, d.event.Reserve); l.Account == id && len(windows) > 0 {
-			then.Windows = d.windowsThen(windows)
+			then.Windows = windowsThen(windows, d.table.names)
 		}
 	}
 	then.Sessions, then.Resets = len(sessions), d.resets(then.Windows)
-	return then
-}
-
-// windowsThen are the windows an answer read, as WindowThen has them, each
-// named as the event's windows are.
-func (d detailing) windowsThen(windows []claude.WindowRead) []WindowThen {
-	named := eventFacts{name: d.table.names}
-	then := make([]WindowThen, len(windows))
-	for i, w := range windows {
-		then[i] = WindowThen{Key: w.Key, Name: named.windowOf(w.Key), Use: w.Use, Resets: w.Resets}
-	}
 	return then
 }
 
