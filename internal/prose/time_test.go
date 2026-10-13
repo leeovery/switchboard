@@ -3,9 +3,31 @@ package prose_test
 import (
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/prose"
 )
+
+func TestDatedIsNeverWiderThanItsWidthAndAnotherDaysFillsIt(t *testing.T) {
+	now := time.Date(2026, 10, 7, 9, 5, 0, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name string
+		t    time.Time
+		want int
+	}{
+		{name: "now's day", t: now.Add(-time.Hour), want: 5},
+		{name: "the day before", t: now.Add(-10 * time.Hour), want: prose.DatedWidth()},
+		{name: "a month before", t: now.AddDate(0, -1, 0), want: prose.DatedWidth()},
+		{name: "the day after", t: now.Add(15 * time.Hour), want: prose.DatedWidth()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := utf8.RuneCountInString(prose.Dated(now, tt.t)); got != tt.want {
+				t.Errorf("Dated(%v, %v) = %q, %d characters, want %d", now, tt.t, prose.Dated(now, tt.t), got, tt.want)
+			}
+		})
+	}
+}
 
 func TestAStintGivesItsEndsTheirDaysWhereTheSessionSpansDays(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 31, 0, 0, time.FixedZone("UTC+1", 60*60))

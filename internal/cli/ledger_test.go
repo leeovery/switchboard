@@ -279,6 +279,28 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 	}
 }
 
+func TestRequestsHeadsEachRequestByTheDayItFallsOnInNowsZone(t *testing.T) {
+	deps, _ := ledgerDeps(t)
+	deps.Now = func() time.Time { return ledgerNow.In(behindLocal()) }
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "the morning's, on the evening before", args: []string{"--account", "side"}, want: "Tue 6 Oct 2026\n  22:00:00  5b0e9d33"},
+		{name: "noon's, on now's day", args: []string{"--session", sessionA}, want: "\nWed 7 Oct 2026, so far\n  00:00:00  5b0e7c1a"},
+		{name: "none, since the local day's start", args: []string{"--account", "nobody"}, want: "no requests since Tue 6 Oct 2026 12:00\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := run(t, deps, append([]string{"requests", "--pretty"}, tt.args...)...)
+			if got.code != 0 || !strings.Contains(got.stdout, tt.want) {
+				t.Errorf("switchboard requests --pretty %s at %v = %+v, want it to say\n%s", strings.Join(tt.args, " "), ledgerNow.In(behindLocal()), got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTheLedgersTextCountsTokensFromTenMillionToATenthOfAMillionAndTimesAsTheLogDoes(t *testing.T) {
 	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
 		{At: october(7, 13, 0, 0), Request: "t1", Kind: ledger.KindMessage, Session: sessionA, Model: "claude-opus-5-5", Account: "work", Reason: "sticky",

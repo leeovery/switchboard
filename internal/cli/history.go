@@ -164,7 +164,7 @@ func writeHistory(out io.Writer, history views.History, prices ledger.Table, fro
 		return err
 	}
 	if !slices.ContainsFunc(tables, func(t dayTable) bool { return len(t.rows) > 0 }) {
-		if _, err := fmt.Fprintf(out, "no requests since %s\n", dayIn(now, from)); err != nil {
+		if _, err := fmt.Fprintf(out, "no requests since %s\n", prose.DayInYear(from)); err != nil {
 			return err
 		}
 		return writeTables(out, tables, now, false)

@@ -122,22 +122,29 @@ func eventJSON(t *testing.T, lines ...events.Line) string {
 }
 
 // todaysEvents is what events prints of today's events, each time as every
-// time of an event is said: today's by its time of day.
+// time of an event is said: today's by its time of day, in a column as wide
+// as a time with its weekday.
 const todaysEvents = `Wed 7 Oct 2026, so far
-  09:00  18bb2c41  started   work
-  10:00            pressure  work        its 5-hour to run out at 12:30
-  11:00            pin       work, side  new sessions go there, set from the command line
-  12:00            restart               due: the config changed
-  12:30            health                unhealthy: most requests failing
+  09:00      18bb2c41  started   work
+  10:00                pressure  work        its 5-hour to run out at 12:30
+  11:00                pin       work, side  new sessions go there, set from the command line
+  12:00                restart               due: the config changed
+  12:30                health                unhealthy: most requests failing
 `
 
 // eventsFromThe6th is what events prints of the 6th's events and today's,
-// another day's times with its weekday.
+// another day's times with its weekday, every day's in one set of columns.
 const eventsFromThe6th = `Tue 6 Oct 2026
-  Tue 22:00            limit  personal         its 5-hour window, till 23:58: its session moves to side
-  Tue 22:05  5b0e7c1a  moved  personal → side  personal reached its limit
+  Tue 22:00            limit     personal         its 5-hour window, till 23:58: its session moves to side
+  Tue 22:05  5b0e7c1a  moved     personal → side  personal reached its limit
 
-` + todaysEvents
+Wed 7 Oct 2026, so far
+  09:00      18bb2c41  started   work
+  10:00                pressure  work             its 5-hour to run out at 12:30
+  11:00                pin       work, side       new sessions go there, set from the command line
+  12:00                restart                    due: the config changed
+  12:30                health                     unhealthy: most requests failing
+`
 
 func TestEventsPrintsEachEventOnceAsItLastStoodOldestFirst(t *testing.T) {
 	deps := eventsDeps(t)
@@ -149,13 +156,13 @@ func TestEventsPrintsEachEventOnceAsItLastStoodOldestFirst(t *testing.T) {
 		{name: "today's, unless told otherwise", want: todaysEvents},
 		{name: "from the start of a day, under each day's", args: []string{"--since", "2026-10-06"}, want: eventsFromThe6th},
 		{name: "from a time today", args: []string{"--since", "12:00"}, want: `Wed 7 Oct 2026, so far
-  12:00    restart    due: the config changed
-  12:30    health     unhealthy: most requests failing
+  12:00        restart    due: the config changed
+  12:30        health     unhealthy: most requests failing
 `},
 		{name: "from hours ago", args: []string{"--since", "3h"}, want: `Wed 7 Oct 2026, so far
-  11:00    pin      work, side  new sessions go there, set from the command line
-  12:00    restart              due: the config changed
-  12:30    health               unhealthy: most requests failing
+  11:00        pin      work, side  new sessions go there, set from the command line
+  12:00        restart              due: the config changed
+  12:30        health               unhealthy: most requests failing
 `},
 		{name: "from days ago", args: []string{"--since", "1d"}, want: eventsFromThe6th},
 		{name: "none", args: []string{"--since", "12:45"}, want: "no events since Wed 7 Oct 2026 12:45\n"},
@@ -288,7 +295,7 @@ func TestEventsFollowPrintsAnEventFiledAsItStartsOnce(t *testing.T) {
 		{form: onATerminal, want: func(*testing.T) string {
 			want := todaysEvents
 			for _, line := range filedAsItStarts {
-				want += "  " + line.At.Format("15:04") + "            health                unhealthy: most requests failing\n"
+				want += "  " + line.At.Format("15:04") + "                health                unhealthy: most requests failing\n"
 			}
 			return want
 		}},
@@ -403,7 +410,7 @@ func TestEventsFollowPrintsALineFiledUnderTheDayAfterOnce(t *testing.T) {
 	}{
 		{form: offATerminal, listed: eventJSON(t, routerUnwell), filed: eventJSON(t, early)},
 		{form: onATerminal, listed: `Wed 7 Oct 2026, so far
-  12:30    health    unhealthy: most requests failing
+  12:30        health    unhealthy: most requests failing
 `, filed: "  Wed 23:58    health    healthy again\n"},
 	}
 	for _, tt := range tests {
@@ -440,7 +447,7 @@ func TestEventsFollowMovesOnADayAtATime(t *testing.T) {
 	stdout, interrupt := follow(t, deps, onATerminal, "events", "--since", "12:30", "-f")
 
 	printed := `Wed 7 Oct 2026, so far
-  12:30    health    unhealthy: most requests failing
+  12:30        health    unhealthy: most requests failing
 `
 	stdout.waitFor(t, printed)
 	// Past midnight, the day before is followed until the router files under
