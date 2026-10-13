@@ -42,8 +42,10 @@ type LogTable struct {
 	Lines  []LogLine
 	counts map[string]LogCount
 	// ran are the times the requests of the table's rows ran over, shown or
-	// hidden, by their ids.
-	ran map[string][]runSpan
+	// hidden, by their ids; and awaited the days its rows sit on, shown or
+	// hidden, of a request whose end the stream told, its line yet to come.
+	ran     map[string][]runSpan
+	awaited []LedgerDay
 	// first is the first day the table spans.
 	first LedgerDay
 }
@@ -72,6 +74,21 @@ type DayRule struct {
 	// Totals are Ended's figures, as LogSources' Totals give them: none but
 	// its date where they don't.
 	Totals DayTotals
+}
+
+// Awaited are the dates of the days before the day given that the table
+// holds a row on, shown or hidden, of a request whose end the stream told,
+// its line yet to come, each once: a line is filed under the day its request
+// arrived on, so a later day's lines never hold the line of a request across
+// midnight.
+func (t LogTable) Awaited(before LedgerDay) []string {
+	var dates []string
+	for _, d := range t.awaited {
+		if d.Start.Before(before.Start) {
+			dates = append(dates, d.Date)
+		}
+	}
+	return dates
 }
 
 // Count is what the lines of the local day with the given date count, from
@@ -132,6 +149,16 @@ func LogRows(src LogSources) LogTable {
 	return tableOf(rows, first, src)
 }
 
+// hold notes the row p among those the table holds, shown or hidden: the
+// time its request ran over; and, where the stream told its end, its line yet
+// to come, the day it sits on, as awaiting its line.
+func (t *LogTable) hold(p placedRow) {
+	t.ran[p.row.Request] = append(t.ran[p.row.Request], runSpanOf(p.row))
+	if p.row.Stage == RowEnded && !slices.ContainsFunc(t.awaited, func(d LedgerDay) bool { return d.Date == p.day.Date }) {
+		t.awaited = append(t.awaited, p.day)
+	}
+}
+
 // toldAlone are the requests the stream told of that it knows, as known has
 // them, whose lines aren't among those read, lined holding the ids of those
 // whose are, but those it told no sending of, which have no place, by when
@@ -162,7 +189,7 @@ func tableOf(rows []placedRow, first LedgerDay, src LogSources) LogTable {
 	}
 	var last *LedgerDay
 	for _, p := range rows {
-		table.ran[p.row.Request] = append(table.ran[p.row.Request], runSpanOf(p.row))
+		table.hold(p)
 		hid := src.Filter.hiding(p)
 		c := table.counts[p.day.Date]
 		c.add(p, hid)
