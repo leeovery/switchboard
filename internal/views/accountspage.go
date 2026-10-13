@@ -37,6 +37,8 @@ type AccountsPage struct {
 
 // AccountsRow is an account's row of Accounts, or every account's.
 type AccountsRow struct {
+	// Label is its label, as the config gives it: "" of every account's.
+	Label string
 	// Totals are its totals over the period, and Plan its plan over it and
 	// its worth against it, as History counts and prices them: the plan
 	// priced whole for the period, whenever it began recording, so an
@@ -78,16 +80,17 @@ const accountsWeeks = 6
 func (p Past) Accounts(period AccountsPeriod) AccountsPage {
 	in := p.in
 	today := dayfile.CivilOf(in.Now)
-	first := period.first(today, in.WeekStarts).Format(time.DateOnly)
-	_, days := splitAt(p.days, first)
-	totals := accountTotalsOf(days, in.Accounts, p.versions())
+	first := period.first(today, in.WeekStarts)
+	before, days := splitAt(p.days, first.Format(time.DateOnly))
+	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
+	totals := accountTotalsOf(before, days, in.Accounts, p.versions())
 	known := plans{accounts: in.Accounts, table: in.Prices}
-	costs := plansOf(days, known, first, period.share())
+	costs := plansOf(days, known, first.Format(time.DateOnly), period.share())
 	_, weeks := splitAt(p.days, weeksTo(today, in.WeekStarts, weeksShown).AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), in: in, days: weeks}
 	for x, a := range in.Accounts {
 		plan, _ := known.of(a.ID)
-		page.Rows[x] = AccountsRow{Totals: totals.Accounts[x], Plan: costs[x], PlanName: plan.Name}
+		page.Rows[x] = AccountsRow{Label: a.Label, Totals: totals.Accounts[x], Plan: costs[x], PlanName: plan.Name}
 	}
 	all := len(in.Accounts)
 	page.All = AccountsRow{Totals: totals.Accounts[all], Plan: costs[all]}

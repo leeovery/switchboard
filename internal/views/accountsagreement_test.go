@@ -1,7 +1,6 @@
 package views_test
 
 import (
-	"maps"
 	"slices"
 	"testing"
 
@@ -11,10 +10,11 @@ import (
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
-// At each of Accounts' hard moments, the period's figures Compare and THIS
-// WEEK read off a row are history's totals over the same days: its requests,
-// its limits, its sessions served and its worth, of each account and of
-// every account.
+// At each of Accounts' hard moments, the totals Compare and THIS WEEK read
+// off a row are history's over the same days, every one of them, of each
+// account and of every account: its requests, its limits, its sessions
+// served and its worth among them, and each window's last run, told from the
+// days before the period too.
 func TestAccountsTotalsAreHistorysOverThePeriod(t *testing.T) {
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
@@ -27,12 +27,8 @@ func TestAccountsTotalsAreHistorysOverThePeriod(t *testing.T) {
 				t.Fatalf("the page has %d rows, history %d totals", len(rows), len(history))
 			}
 			for i, row := range rows {
-				got, want := row.Totals, history[i]
-				if got.Account != want.Account || got.Requests != want.Requests || got.Sessions != want.Sessions ||
-					!maps.Equal(got.Limits, want.Limits) || got.Dollars() != want.Dollars() {
-					t.Errorf("row %d counts %s: %d requests, %d sessions, limits %v, worth %q; history counts %s: %d, %d, %v, %q",
-						i, got.Account, got.Requests, got.Sessions, got.Limits, got.Dollars(),
-						want.Account, want.Requests, want.Sessions, want.Limits, want.Dollars())
+				if got, want := jsonOf(t, row.Totals), jsonOf(t, history[i]); got != want {
+					t.Errorf("row %d counts\n%s\nhistory counts\n%s", i, got, want)
 				}
 			}
 		})

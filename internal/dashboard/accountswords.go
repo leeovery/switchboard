@@ -233,20 +233,22 @@ func verdictRecord(page views.AccountsPage, row views.AccountsRow) []part {
 }
 
 // endsParts say which account ends its weeks with the most left at a reset,
-// on average, and which the least, as Ends names them, in text.muted: "side
-// ends weeks with 59% left, work with 9%"; the one alone where they're one;
-// none where no account's weeks are known.
+// on average, and which the least, as Ends names them, each by its label, as
+// labelled has it, in text.muted: "side ends weeks with 59% left, work with
+// 9%"; the one alone where they're one; none where no account's weeks are
+// known.
 func endsParts(page views.AccountsPage) []part {
 	most, least, ok := page.Ends()
 	if !ok {
 		return nil
 	}
 	left := func(row views.AccountsRow) part { return figureIn(prose.Percent(*row.Verdict.LeftAtReset), mutedInk) }
-	ends := []part{wordsIn(prose.Clean(most.Totals.Account)+" ends weeks with ", mutedInk), left(most), wordsIn(" left", mutedInk)}
+	name := func(row views.AccountsRow) string { return labelled(row.Label, row.Totals.Account) }
+	ends := []part{wordsIn(name(most)+" ends weeks with ", mutedInk), left(most), wordsIn(" left", mutedInk)}
 	if least.Totals.Account == most.Totals.Account {
 		return ends
 	}
-	return append(ends, wordsIn(", "+prose.Clean(least.Totals.Account)+" with ", mutedInk), left(least))
+	return append(ends, wordsIn(", "+name(least)+" with ", mutedInk), left(least))
 }
 
 // verdictShort are verdictParts' two rows, as a phone's WEEKS has them: the
