@@ -48,8 +48,9 @@ type Fixture struct {
 	router source
 	keys   []tea.KeyPressMsg
 	// view is the tab it opens on, as the preferences keep one: the
-	// Overview where it's unset.
+	// Overview where it's unset; and log the Log's columns they keep shown.
 	view dashboard.View
+	log  dashboard.LogTicks
 	// by is how a printout groups the windows, and windows are the keys of
 	// those it prints, in Claude's order: none prints every one.
 	by      dashboard.By
@@ -273,9 +274,10 @@ func (p printout) fixture(worlds accountWorlds) Fixture {
 
 // page is the page the watch draws over one of the accounts' worlds, at their
 // moment, in the frames' theme, with its world's records: on a terminal of
-// its size, with its keys pressed once its document is read; and, gone, with
-// the router no longer answering from that moment, as a key that reads then
-// finds it, or from goneFor before it, as the fixture's settling finds it.
+// its size, with its keys pressed once its document is read; gone, with the
+// router no longer answering from that moment, as a key that reads then
+// finds it, or from goneFor before it, as the fixture's settling finds it;
+// and the Log's columns its preferences keep shown.
 type page struct {
 	name    string
 	size    watch.Size
@@ -283,6 +285,7 @@ type page struct {
 	keys    []tea.KeyPressMsg
 	gone    bool
 	goneFor time.Duration
+	log     dashboard.LogTicks
 }
 
 // called is the page's name.
@@ -299,7 +302,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys),
-		theme: framesTheme(), records: w.records(), accounts: w.accounts,
+		theme: framesTheme(), records: w.records(), accounts: w.accounts, log: p.log,
 	}
 }
 
@@ -319,6 +322,10 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // accounts picked and m ticked, at 160×40, and on a phone, one picked and m
 // ticked; the Log's empty tab, its title row lit there; and the router gone,
 // R having found it so, the status line saying since when and p pin faint.
+// The Log's frames, reached from the Overview with shift-tab: Requests as
+// it opens, Events with ], not live over a world of its own, on a phone,
+// and Requests filtered to d28c's lines alone, found with / d28c and enter,
+// worth shown as the preferences keep it.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -350,10 +357,16 @@ var pages = []page{
 	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: keysOf("p", "2", "3", "m")},
 	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
 	{name: "page-not-answering", size: wide(37), world: accountWorlds.auto, keys: keysOf("R"), gone: true},
+	{name: "page-log-find", size: wide(37), world: accountWorlds.auto, keys: toLog("/", "s", "w")},
+	{name: "page-log-help", size: wide(37), world: accountWorlds.auto, keys: toLog("?")},
 	{name: "log-events-160", size: wide(37), world: accountWorlds.auto, keys: toLog("]")},
 	{name: "log-requests-160", size: wide(37), world: accountWorlds.auto, keys: toLog()},
 	{name: "log-not-live-160", size: wide(37), world: accountWorlds.notLive, keys: toLog(), gone: true, goneFor: notLiveGone},
 	{name: "log-requests-phone-52", size: watch.Size{Width: 52, Height: 33}, world: accountWorlds.auto, keys: toLog()},
+	{
+		name: "log-requests-filtered-160", size: wide(37), world: accountWorlds.auto, keys: append(toLog("/", "d", "2", "8", "c"), tea.KeyPressMsg{Code: tea.KeyEnter}),
+		log: dashboard.LogTicks{}.Toggled(dashboard.LogWorth),
+	},
 }
 
 // keysOf are the keys pressed as the text given, a key a character.

@@ -439,6 +439,12 @@ frames):
   cell for cell. Today's count on the state line, `1,240` of `1,240 lines today`, row 36, columns
   144 to 148, and on a phone row 32, columns 36 to 40, is the world's: `1,242`, its 1,239 requests
   and 3 in flight.
+- **d28c's lines alone,** rows 8 to 34 of `log-requests-filtered-160`, its newest 27, from
+  `14:36:27`: the frame's generator drew them, where the world's are as d28c's page draws them, and
+  its request in flight the Overview's frames' (`14:42:06`, with no directory); the dashboard draws
+  the world's in their place. The counts are the world's, as `log-requests-160`'s: `830` of `830
+  hidden`, row 5, columns 133 to 135, is `831`; and `445` of `445 of d28c's today`, row 36,
+  columns 142 to 144, is `446`.
 - **db8a's move of 13:22:40,** row 27 of `log-events-160`, columns 88 to 160, `, its 5-hour to run
   out at 15:10   48k cached again, $0.48`: no pressure event of personal's behind the run-out fits
   in the world, as none shows among the frame's rows, and a move made afresh after 21 hours idle
@@ -609,10 +615,15 @@ its records and the sessions its router lists.
 
 Stage 9's, `log-*`, draw the Log's frames, the Log reached from the Overview with `shift-tab`:
 `log-requests-160` and, on a phone, `log-requests-phone-52`, as it opens, on Requests;
-`log-events-160` with `]`; all over the auto world, but `log-not-live-160`, over a world of its own,
-its router gone at 14:40:55, as the fixture's settling finds it with `R` then. The page as stage 6
+`log-events-160` with `]`; `log-requests-filtered-160`, d28c's lines alone, found with `/ d28c`
+and `enter`, `worth` shown as its preferences keep it; all over the auto world, but
+`log-not-live-160`, over a world of its own, its router gone at 14:40:55, as the fixture's settling
+finds it with `R` then. The page as stage 6
 built it, `page-log`, went with its tapes as they came to draw it. Tapes of their names
-screenshot `log-requests-160`, `log-events-160` and `log-not-live-160`, to judge by eye.
+screenshot `log-requests-160`, `log-events-160`, `log-not-live-160` and
+`log-requests-filtered-160`, to judge by eye. Where no frame draws them, `page-log-find` draws the
+find open on Requests, `/ sw` typed, and `page-log-help` HELP · LOG over them, each with a tape of
+its name.
 
 ### `--theme`, and `NO_COLOR`
 
