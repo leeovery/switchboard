@@ -125,6 +125,9 @@ type PageSources struct {
 	// Read holds the session's lines, and the requests of the accounts it
 	// ran on, on its days.
 	Read SessionsRead
+	// Stream is what the request stream has told of its requests: zero
+	// where it's unheard, as by the verbs.
+	Stream Stream
 	// Prices are the price table worth is priced by.
 	Prices ledger.Table
 	// Keep is how long the ledger keeps a day's lines, as [ledger] keep
@@ -178,9 +181,10 @@ func (r SessionsRead) Named(running []status.Session) []string {
 }
 
 // SessionPageOf builds the page of the session with the given id from src:
-// what the router says of it, where it lists it, and what every line of it
-// the ledger holds tells, whatever day each is of, with the requests of the
-// accounts it ran on, on its days, for the points it took, as src's Read
+// what the router says of it, where it lists it; what the request stream
+// told of its requests, those in flight among them; and what every line of
+// it the ledger holds tells, whatever day each is of, with the requests of
+// the accounts it ran on, on its days, for the points it took, as src's Read
 // holds them. It reports false where the ledger holds no request of it, and
 // the router doesn't list it.
 func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
@@ -190,14 +194,15 @@ func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 		return SessionPage{}, false
 	}
 	s := storyOf(requests, src.Prices, today)
+	h := src.Stream.hearing()
 	listed := listedFrom(id, s)
 	if src.Routed != nil {
-		listed.run(*src.Routed, s, src.Now, hearing{})
+		listed.run(*src.Routed, s, src.Now, h)
 	}
 	page := SessionPage{
 		Session: listed.Session, Dir: listed.Dir, Account: listed.Account, Model: listed.Model, Running: listed.Running, LastSeen: listed.LastSeen,
 		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
-		Resumed: resumedAt(requests), Accounts: accountsOf(requests), Moves: movesOf(s), Turns: turnsOf(requests, listed.Running),
+		Resumed: resumedAt(requests), Accounts: accountsOf(requests), Moves: movesOf(s), Turns: turnsOf(requests, h.told[id], listed.Running),
 	}
 	if src.Routed != nil {
 		page.Pin = src.Routed.Pin
