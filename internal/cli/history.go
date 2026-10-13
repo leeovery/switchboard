@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/redact"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -276,8 +277,8 @@ func modelName(m views.DayModel) string {
 
 // accountNote says, of an account's day, its sessions, those moved onto it and
 // off it, the limits it reached, the resets of its weeks, and each window's
-// highest use, each window named as windowName names it, times in now's time
-// zone, as "work: 6 sessions  ·  2 moved on, 1 off  ·  limits: 5-hour at
+// highest use, each window named as windowInProse names it, times in now's
+// time zone, as "work: 6 sessions  ·  2 moved on, 1 off  ·  limits: 5-hour at
 // 14:37  ·  week reset 10:00  ·  highest: 5-hour 100%, week 41%".
 func accountNote(a views.DayAccount, now time.Time) string {
 	parts := []string{prose.SessionCount(a.Sessions)}
@@ -289,6 +290,13 @@ func accountNote(a views.DayAccount, now time.Time) string {
 	return prose.Clean(a.Account) + ": " + strings.Join(parts, prose.Separator)
 }
 
+// windowInProse names the window with the given key as a sentence of the
+// verbs' text does, as status names it, in prose: "5-hour", "week" or "Fable
+// week". A heading names it as status.NameOfKey does, as "Week".
+func windowInProse(key string) string {
+	return status.InProse(status.NameOfKey(key))
+}
+
 // limitsOf says the limits an account reached, as "limits: 5-hour at 14:37",
 // times in now's time zone: "" for none.
 func limitsOf(reached []views.WindowAt, now time.Time) string {
@@ -297,7 +305,7 @@ func limitsOf(reached []views.WindowAt, now time.Time) string {
 	}
 	limits := make([]string, len(reached))
 	for i, l := range reached {
-		limits[i] = windowName(l.Window) + " at " + prose.TimeOfDay(now, l.At)
+		limits[i] = windowInProse(l.Window) + " at " + prose.TimeOfDay(now, l.At)
 	}
 	return "limits: " + prose.List(limits)
 }
@@ -307,7 +315,7 @@ func limitsOf(reached []views.WindowAt, now time.Time) string {
 func weeksResetOf(resets []views.WindowAt, now time.Time) string {
 	said := make([]string, len(resets))
 	for i, r := range resets {
-		said[i] = windowName(r.Window) + " reset " + prose.TimeOfDay(now, r.At)
+		said[i] = windowInProse(r.Window) + " reset " + prose.TimeOfDay(now, r.At)
 	}
 	return prose.List(said)
 }
@@ -320,7 +328,7 @@ func highestOf(uses []views.WindowUse) string {
 	}
 	highest := make([]string, len(uses))
 	for i, u := range uses {
-		highest[i] = windowName(u.Window) + " " + prose.Percent(u.Use)
+		highest[i] = windowInProse(u.Window) + " " + prose.Percent(u.Use)
 	}
 	return "highest: " + strings.Join(highest, ", ")
 }

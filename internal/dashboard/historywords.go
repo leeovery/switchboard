@@ -2,13 +2,13 @@ package dashboard
 
 import (
 	"strings"
-	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -17,11 +17,11 @@ import (
 var noFigure = span{"—", faintInk}
 
 // The cells the widest of a bounded figure takes, as its format draws it: a
-// day, as prose.Day writes one of two figures; a run of a year's days, a
-// leap year's whole; and a share, all of it.
+// day, as views.DateNamed names one of two figures; a run of a year's days,
+// as views.DaysInARow says it, a leap year's whole; and a share, all of it.
 var (
-	widestDay   = ansi.StringWidth(prose.Day(time.Date(2026, time.September, 22, 0, 0, 0, 0, time.UTC)))
-	widestRun   = ansi.StringWidth(prose.Counted(366, "day"))
+	widestDay   = ansi.StringWidth(views.DateNamed("2026-09-22"))
+	widestRun   = ansi.StringWidth(views.DaysInARow(366))
 	widestShare = ansi.StringWidth(prose.Percent(1))
 )
 
@@ -49,15 +49,24 @@ func worthPart(w views.Worth, k ink) part {
 	return figurePart(worthSaid(w, k), Number{})
 }
 
-// countedParts count n of the thing a noun names, as prose.Counted does, in
-// the ink given: the count a figure, as "1,240", and the words after it, as
-// " requests".
+// countedParts count n of the thing a noun names, as views.CountedWords
+// does, in the ink given: the count a figure, as "1,240", and the words after
+// it, as " requests".
 func countedParts(n int, noun string, k ink) []part {
-	count := prose.Grouped(n)
-	return []part{
-		figurePart(line{{count, k}}, Number{}),
-		wordsPart(line{{strings.TrimPrefix(prose.Counted(n, noun), count), k}}),
+	return saidParts(views.CountedWords(n, noun), k)
+}
+
+// saidParts are words History says, as views words them, in the ink given:
+// each figure among them a figure, the rest words.
+func saidParts(said status.Words, k ink) []part {
+	parts := make([]part, len(said))
+	for i, p := range said {
+		parts[i] = wordsIn(p.Text, k)
+		if p.Kind == status.PartFigure {
+			parts[i] = figureIn(p.Text, k)
+		}
 	}
+	return parts
 }
 
 // againstSaid is a worth against its price, as prose.Ratio writes it, as
