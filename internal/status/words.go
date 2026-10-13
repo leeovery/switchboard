@@ -273,8 +273,8 @@ func pinnedTo(account string) Words {
 // follows with what the choice found, where it's given.
 func rescored(reason string, f Facts) (forms, bool) {
 	rest, ok := strings.CutPrefix(reason, ReasonRescored)
-	idle, idled := strings.CutSuffix(rest, rescoredIdle)
-	if !ok || !idled || idle == "" {
+	idle, ends := strings.CutSuffix(rest, rescoredIdle)
+	if !ok || !ends || idle == "" {
 		return forms{}, false
 	}
 	why := Words{plain(ReasonRescored), {Text: idle, Kind: PartDuration}, plain(rescoredIdle)}

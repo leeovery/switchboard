@@ -398,7 +398,7 @@ func ended() SessionMoment {
 func resumed() SessionMoment {
 	sent := At(14, 42, 0)
 	back := seat(Opus, "side", sent, status.Asking)
-	back.Reason, back.AssignedAt = status.Rescored("1h 12m"), sent
+	back.Reason, back.AssignedAt = status.Rescored(time.Hour+12*time.Minute), sent
 	m := moment("resumed, asking again after it ended", session(D28C, back))
 	m.Stream = live(toldServing(p2, ledger.ClassMain, told("r1", D28C, Opus, "side", sent, sent)))
 	m.Lines = []ledger.Line{asMain(p1, "end_turn", line(D28C, Opus, "work", At(13, 30, 0), 20*time.Second))}

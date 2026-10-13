@@ -321,16 +321,60 @@ func TestWordsString(t *testing.T) {
 	}
 }
 
-func TestRescored(t *testing.T) {
-	if got, want := status.Rescored("15h"), "rescored after 15h idle"; got != want {
-		t.Errorf("Rescored(15h) = %q, want %q", got, want)
+// rescoredFiled are reasons for sessions rescored after they idled, as the
+// build before Rescored took a duration filed them, which ledgers and events
+// files keep: how long each idled, the reason filed, and the span its words
+// read in it.
+var rescoredFiled = []struct {
+	name        string
+	idle        time.Duration
+	filed, span string
+}{
+	{name: "less than none", idle: -time.Minute, filed: "rescored after now idle", span: "now"},
+	{name: "none", idle: 0, filed: "rescored after now idle", span: "now"},
+	{name: "under a minute", idle: 59 * time.Second, filed: "rescored after 0m idle", span: "0m"},
+	{name: "a minute", idle: time.Minute, filed: "rescored after 1m idle", span: "1m"},
+	{name: "just under an hour, cut to the minute", idle: time.Hour - time.Second, filed: "rescored after 59m idle", span: "59m"},
+	{name: "an hour", idle: time.Hour, filed: "rescored after 1h idle", span: "1h"},
+	{name: "an hour, and seconds too few for a minute", idle: time.Hour + 59*time.Second, filed: "rescored after 1h idle", span: "1h"},
+	{name: "just past an hour, its minutes unpadded", idle: time.Hour + time.Minute, filed: "rescored after 1h 1m idle", span: "1h 1m"},
+	{name: "hours and minutes", idle: 12*time.Hour + 14*time.Minute, filed: "rescored after 12h 14m idle", span: "12h 14m"},
+	{name: "whole hours", idle: 15 * time.Hour, filed: "rescored after 15h idle", span: "15h"},
+	{name: "just under a day", idle: 24*time.Hour - time.Second, filed: "rescored after 23h 59m idle", span: "23h 59m"},
+	{name: "a day", idle: 24 * time.Hour, filed: "rescored after 1d idle", span: "1d"},
+	{name: "a day, and minutes too few for an hour", idle: 24*time.Hour + 59*time.Minute, filed: "rescored after 1d idle", span: "1d"},
+	{name: "just past a day", idle: 25 * time.Hour, filed: "rescored after 1d 1h idle", span: "1d 1h"},
+	{name: "days and hours, cut to the hour", idle: 5*24*time.Hour + 12*time.Hour + 59*time.Minute, filed: "rescored after 5d 12h idle", span: "5d 12h"},
+	{name: "hundreds of days", idle: 400 * 24 * time.Hour, filed: "rescored after 400d idle", span: "400d"},
+}
+
+func TestARescoredReasonFilesHowLongItsSessionIdledAsReasonsAlwaysHave(t *testing.T) {
+	for _, tt := range rescoredFiled {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.Rescored(tt.idle); got != tt.filed {
+				t.Errorf("Rescored(%v) = %q, want %q", tt.idle, got, tt.filed)
+			}
+		})
+	}
+}
+
+func TestARescoredReasonReadsBackItsIdleSpanFiledBeforeOrSince(t *testing.T) {
+	for _, tt := range rescoredFiled {
+		t.Run(tt.name, func(t *testing.T) {
+			want := "rescored after {" + tt.span + "} idle"
+			for _, reason := range []string{tt.filed, status.Rescored(tt.idle)} {
+				if got := marked(status.EventWords(reason, status.Facts{})); got != want {
+					t.Errorf("EventWords(%q) = %q, want %q", reason, got, want)
+				}
+			}
+		})
 	}
 }
 
 func TestPassingOverEndsAReasonAsPassedOverReadsIt(t *testing.T) {
 	tests := []struct{ reason, account, want string }{
 		{reason: status.ReasonNew, account: "personal", want: "new, personal under pressure"},
-		{reason: status.Rescored("15h"), account: "work", want: "rescored after 15h idle, work under pressure"},
+		{reason: status.Rescored(15 * time.Hour), account: "work", want: "rescored after 15h idle, work under pressure"},
 	}
 	for _, tt := range tests {
 		got := status.PassingOver(tt.reason, tt.account)

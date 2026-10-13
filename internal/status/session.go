@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,9 +58,40 @@ const (
 const rescoredIdle = " idle"
 
 // Rescored is the reason for choosing afresh the account of a session that
-// idled for as long as idle says, as in "rescored after 15h idle".
-func Rescored(idle string) string {
-	return ReasonRescored + idle + rescoredIdle
+// idled for as long as idle, as in "rescored after 15h idle", the span as
+// idled says it.
+func Rescored(idle time.Duration) string {
+	return ReasonRescored + idled(idle) + rescoredIdle
+}
+
+// idled says how long a session idled, as the reason Rescored gives files it:
+// in whole units, "5d 12h" from a day, "4h 57m" from an hour, else "7m", a
+// second unit of zero left off, as in "6d" and "4h"; "now" for no time at
+// all. The ledger and the router's events keep the reason, which its words
+// read back, so the form is the reason's own, held apart from every form a
+// span is shown in: changed, it would file reasons that read apart from those
+// filed before.
+func idled(d time.Duration) string {
+	hours, minutes := int(d/time.Hour), int(d%time.Hour/time.Minute)
+	switch {
+	case d <= 0:
+		return "now"
+	case hours >= 24:
+		return idledIn(hours/24, "d", hours%24, "h")
+	case hours >= 1:
+		return idledIn(hours, "h", minutes, "m")
+	}
+	return strconv.Itoa(minutes) + "m"
+}
+
+// idledIn says a count of a unit, then what's left over of the next unit
+// down, unless nothing is: "5d 12h", but "6d".
+func idledIn(count int, unit string, rest int, restUnit string) string {
+	said := strconv.Itoa(count) + unit
+	if rest == 0 {
+		return said
+	}
+	return said + " " + strconv.Itoa(rest) + restUnit
 }
 
 // Why an account can't take a request, as the reasons for leaving it, after

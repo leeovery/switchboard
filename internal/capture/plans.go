@@ -99,7 +99,7 @@ func resumedPlan(now time.Time) sessionPlan {
 		id: idF41A, dir: "~/Code/api", start: clockAt(now, -1, 16, 40, 0),
 		turns: turnsFrom([][2]int{{0, 85}, {992, 1322}}, 3),
 		stays: []stay{{"side", 0}, {"personal", 992}},
-		moves: []movePlan{{minute: 992, written: 96_000, reason: status.Rescored("15h")}},
+		moves: []movePlan{{minute: 992, written: 96_000, reason: status.Rescored(15 * time.Hour)}},
 		asked: clockAt(now, 0, 14, 41, 47),
 	}
 }
