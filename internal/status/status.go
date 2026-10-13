@@ -482,7 +482,7 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 	doc := Document{
 		GeneratedAt: now.UTC(),
 		Source:      SourceProbe,
-		Best:        Best(c.Policy, statuses, nil, now),
+		Best:        ProbedBest(c.Policy, statuses, now),
 		Primary:     PrimaryOf(statuses),
 		Accounts:    statuses,
 	}
@@ -630,24 +630,46 @@ func (c Collector) probe(ctx context.Context, account *Account, token tokens.Tok
 	}
 }
 
-// Best is the account of those given that a new session goes to, as the
-// router chooses one for a request of any model, as choose says. It's empty
-// when none can take one.
+// Best is the account of those given that a new session goes to, the global
+// pin naming those pinned: the router's choice afresh, as
+// score.Policy.Choose makes it, for a new session's request that only what
+// holds back every model holds back, counting the windows every model shares,
+// of the accounts with a usable token that aren't shut, each judged for
+// pressure at the rate the router saw its pressure window used, as its
+// Pressure gives it. It's empty when none can take one.
 func Best(policy score.Policy, accounts []Account, pinned []string, now time.Time) string {
-	return choose(policy, accounts, pinned, now)
+	return best(policy, accounts, pinned, now, func(a Account) float64 { return a.Pressure.Rate })
 }
 
-// choose is the account of those given that a new session goes to, as the
-// router chooses one for a request of any model, of those not shut: of those
-// pinned, while one can take the request, as choosePinned says; else of them
-// all, as pick says, leaving each one's reserve unused. It's "" when none can
-// take one.
-func choose(policy score.Policy, accounts []Account, pinned []string, now time.Time) string {
-	open := slices.DeleteFunc(slices.Clone(accounts), func(a Account) bool { return a.Shut(now, policy) })
-	if best, ok := choosePinned(policy, open, pinned, now); ok {
-		return best
+// ProbedBest is Best of the accounts probing read, nothing pinned, as probing
+// doesn't know the pin: each judged for pressure at the pace its reading alone
+// gives, as a router that had read it only so would judge it.
+func ProbedBest(policy score.Policy, accounts []Account, now time.Time) string {
+	return best(policy, accounts, nil, now, func(a Account) float64 { return a.readPace(policy, now) })
+}
+
+// best is Best, each account judged for pressure at the rate rate gives it.
+func best(policy score.Policy, accounts []Account, pinned []string, now time.Time, rate func(Account) float64) string {
+	var candidates []score.Candidate
+	for _, a := range accounts {
+		if a.TokenSet && !a.Shut(now, policy) {
+			candidates = append(candidates, score.Candidate{ID: a.ID, Windows: a.Windows, Reserve: a.Reserve, Rate: rate(a)})
+		}
 	}
-	return pick(policy, open, now)
+	c, _ := policy.Choose(candidates, pinned, policy.IsShared, "", now)
+	return c.ID
+}
+
+// readPace is how fast the account's pressure window, as policy names it, is
+// being used at now, as its reading alone says: its use since it started, as
+// score.PaceOf has it without a trail, or 0 where that can't be said.
+func (a Account) readPace(policy score.Policy, now time.Time) float64 {
+	w, ok := a.Window(policy.Pressure)
+	if !ok {
+		return 0
+	}
+	pace, _ := score.PaceOf(w, nil, now)
+	return pace.Rate
 }
 
 // Shut reports whether the account can take no request of any model at
@@ -662,41 +684,4 @@ func (a Account) Shut(now time.Time, policy score.Policy) bool {
 // now, holding back every request, rather than a model family's alone.
 func (a Account) tokenRefused(now time.Time) bool {
 	return a.Refused.holds(now) && a.Refused.Family == ""
-}
-
-// choosePinned is the account of those given, pinned and with a usable
-// token, that a new session goes to, as the router chooses one: the one
-// policy picks, spending each one's reserve, as a pin spends it, as pick
-// says; else the first with room, as a pin sends requests to an account
-// whose quota can't be scored, or that nothing has been read of. It reports
-// false when none of them has room.
-func choosePinned(policy score.Policy, accounts []Account, pinned []string, now time.Time) (string, bool) {
-	var spending []Account
-	for _, a := range accounts {
-		if a.TokenSet && slices.Contains(pinned, a.ID) {
-			a.Reserve = 0
-			spending = append(spending, a)
-		}
-	}
-	if id := pick(policy, spending, now); id != "" {
-		return id, true
-	}
-	for _, a := range spending {
-		if len(a.Windows) == 0 || score.Available(a.Windows, 0, policy.IsShared, now) {
-			return a.ID, true
-		}
-	}
-	return "", false
-}
-
-// pick is the account of those given that policy picks for a request of any
-// model, leaving each one's reserve unused, and passing over those under
-// pressure at the rates the router saw; "" when none can take one.
-func pick(policy score.Policy, accounts []Account, now time.Time) string {
-	candidates := make([]score.Candidate, len(accounts))
-	for i, account := range accounts {
-		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows, Reserve: account.Reserve, Rate: account.Pressure.Rate}
-	}
-	c, _ := policy.Pick(candidates, policy.IsShared, "", now)
-	return c.ID
 }

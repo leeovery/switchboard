@@ -437,6 +437,9 @@ func TestCollectBest(t *testing.T) {
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: now.Add(3 * time.Hour)}
 	sessionEndingSooner := session
 	sessionEndingSooner.ResetsAt = now.Add(time.Hour)
+	// sessionUsedUp, 70% used three hours in, runs out at that pace before it
+	// resets in two.
+	sessionUsedUp := quota.Window{Key: "5h", Label: "Session", Utilization: 0.7, ResetsAt: now.Add(2 * time.Hour)}
 	week := func(utilization float64, resetsIn time.Duration) quota.Window {
 		return quota.Window{Key: "7d", Label: "Week", Utilization: utilization, ResetsAt: now.Add(resetsIn)}
 	}
@@ -482,6 +485,12 @@ func TestCollectBest(t *testing.T) {
 			work: withWindows(session, week(0.5, 24*time.Hour), fableRefused),
 			side: withWindows(session, week(0.5, 5*24*time.Hour)),
 			want: "work",
+		},
+		{
+			name: "passing over one under pressure at its use since its session started, all a probe knows of its pace",
+			work: withWindows(sessionUsedUp, week(0.5, 24*time.Hour)),
+			side: withWindows(session, week(0.5, 5*24*time.Hour)),
+			want: "side",
 		},
 		{
 			name: "a refused week that has reset by the clock",

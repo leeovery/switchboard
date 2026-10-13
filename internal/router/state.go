@@ -1034,16 +1034,15 @@ func startedAgain(held, kept quota.Window, at time.Time) quota.Window {
 
 // document reports every account's usage as the router knows it, in the
 // order configured, with how each stands under pressure, the accounts pinned
-// spending their reserves, and the best account to use next, of the accounts
-// pinned while one has room, as a new session goes, never one with no room
-// for any request, whatever its windows read, and the primary.
+// spending their reserves, the best account to use next, where a new session
+// goes, as status.Best chooses it, and the primary.
 func (s *state) document(pinned ...string) status.Document {
 	now := s.now()
-	accounts, open := s.statuses(now, pinned)
+	accounts := s.statuses(now, pinned)
 	return status.Document{
 		GeneratedAt: now.UTC(),
 		Source:      status.SourceRouter,
-		Best:        status.Best(s.policy, open, pinned, now),
+		Best:        status.Best(s.policy, accounts, pinned, now),
 		Primary:     status.PrimaryOf(accounts),
 		Accounts:    accounts,
 	}
@@ -1051,12 +1050,11 @@ func (s *state) document(pinned ...string) status.Document {
 
 // statuses returns every account's status at now, with how it stands under
 // pressure, those pinned spending their reserves, and how fast its windows
-// have been used lately, and, of those, the ones the best can be: all but
-// those barred from the requests of every model.
-func (s *state) statuses(now time.Time, pinned []string) (all, open []status.Account) {
+// have been used lately.
+func (s *state) statuses(now time.Time, pinned []string) []status.Account {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all = make([]status.Account, len(s.accounts))
+	all := make([]status.Account, len(s.accounts))
 	for i, a := range s.accounts {
 		u := s.usage[a.ID]
 		all[i] = u.status(a, s.policy, now)
@@ -1064,11 +1062,8 @@ func (s *state) statuses(now time.Time, pinned []string) (all, open []status.Acc
 			all[i].Pressure = u.pressure(a, s.policy, slices.Contains(pinned, a.ID), now)
 			all[i].Rates = u.rates(now)
 		}
-		if !u.shut(now, s.policy.IsShared) {
-			open = append(open, all[i])
-		}
 	}
-	return all, open
+	return all
 }
 
 // standings returns how every account with a token stands at now, in the
