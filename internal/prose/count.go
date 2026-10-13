@@ -9,9 +9,11 @@ import (
 
 // Tokens counts n tokens as briefly as a row has room for, as the Log counts
 // them: as they are under a thousand; in thousands to a tenth under ten
-// thousand, as "5.4k", and whole under a million, as "958k"; then in millions
-// to a tenth, as "5.7M" or "16.1M". Each form is for what rounds to it, so
-// 9,960 is "10k", and 999,500 is "1.0M", a half rounded up.
+// thousand, as "5.4k", and whole under a million, as "958k"; in millions to a
+// tenth under a billion, as "5.7M" or "16.1M"; then in billions to a tenth
+// under ten billion, as "1.5B", and whole past them, as "12B". Each form is
+// for what rounds to it, so 9,960 is "10k", and 999,500 is "1.0M", a half
+// rounded up.
 func Tokens(n int) string {
 	switch {
 	case n < 1000:
@@ -20,8 +22,12 @@ func Tokens(n int) string {
 		return inTenths(rounded(n, 100), "k")
 	case rounded(n, 1000) < 1000:
 		return strconv.Itoa(rounded(n, 1000)) + "k"
+	case rounded(n, 1_000_000) < 1000:
+		return inTenths(rounded(n, 100_000), "M")
+	case rounded(n, 100_000_000) < 100:
+		return inTenths(rounded(n, 100_000_000), "B")
 	}
-	return inTenths(rounded(n, 100_000), "M")
+	return strconv.Itoa(rounded(n, 1_000_000_000)) + "B"
 }
 
 // Characters counts n characters as the Log counts an answer's so far: in

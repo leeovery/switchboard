@@ -509,6 +509,19 @@ func TestHistorysDayOfAModelThatSpentNothingSaysNoWorthAsTheTotalsDo(t *testing.
 	}
 }
 
+func TestHistorysDayCountsABillionTokensInBillions(t *testing.T) {
+	day := []views.Day{{Version: 2, Day: "2026-10-07", Accounts: []ledger.PricedAccount{
+		{Account: "work", Sessions: 1, Models: []ledger.PricedModel{{Model: "claude-opus-9", Upstream: 1, Sessions: 1,
+			Usage: json.RawMessage(`{"input_tokens":1000000000,"cache_read_input_tokens":500000000}`)}}},
+	}}}
+
+	var out bytes.Buffer
+	const want = "  work  claude-opus-9  1 request  1.5B tokens  1 session"
+	if err := cli.WriteHistory(&out, views.History{Days: day}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), want) {
+		t.Errorf("history printed\n%s(%v)\nwant it to say\n%s", out.String(), err, want)
+	}
+}
+
 func TestHistoryPassesOverADayOfNoAccountsUnread(t *testing.T) {
 	// A day of no accounts whose date isn't one never fails the text.
 	days := append([]views.Day{{Version: 2, Day: "2026-13-45"}}, aDayOfARequest...)
