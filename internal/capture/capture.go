@@ -317,8 +317,11 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // on a phone. Then the page as stage 6 builds it, over the auto world, where
 // no frame draws it, to judge by eye: the routing card over the Overview, two
 // accounts picked and m ticked, at 160×40, and on a phone, one picked and m
-// ticked; the Log's empty tab, its title row lit there; and the router gone,
-// R having found it so, the status line saying since when and p pin faint.
+// ticked; and the router gone, R having found it so, the status line saying
+// since when and p pin faint. Then the Log's frames, each reached from the
+// Overview with shift-tab, then the keys to it: Events; Requests, over the
+// auto world and over a world of its own, the router gone, and on a phone;
+// and the f panel, over Events, and over Requests, its cursor on d28c's row.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -354,6 +357,20 @@ var pages = []page{
 	{name: "log-requests-160", size: wide(37), world: accountWorlds.auto, keys: toLog()},
 	{name: "log-not-live-160", size: wide(37), world: accountWorlds.notLive, keys: toLog(), gone: true, goneFor: notLiveGone},
 	{name: "log-requests-phone-52", size: watch.Size{Width: 52, Height: 33}, world: accountWorlds.auto, keys: toLog()},
+	{name: "log-events-filter-160", size: wide(37), world: accountWorlds.auto, keys: toLog("]", "f")},
+	{
+		name: "log-requests-filter-160", size: wide(37), world: accountWorlds.auto,
+		keys: slices.Concat(toLog("f"), pressedTimes(tea.KeyRight, 1), pressedTimes(tea.KeyDown, 12)),
+	},
+}
+
+// pressedTimes are n presses of the key with the code given, as an arrow.
+func pressedTimes(code rune, n int) []tea.KeyPressMsg {
+	keys := make([]tea.KeyPressMsg, n)
+	for i := range keys {
+		keys[i] = tea.KeyPressMsg{Code: code}
+	}
+	return keys
 }
 
 // keysOf are the keys pressed as the text given, a key a character.

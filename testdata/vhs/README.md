@@ -444,6 +444,27 @@ frames):
   in the world, as none shows among the frame's rows, and a move made afresh after 21 hours idle
   writes no cache again, its cache gone cold; the dashboard draws `personal came under pressure`
   alone.
+- **Behind the `f` panel,** faded: in `log-requests-filter-160`, the Requests' tail, as
+  `log-requests-160` passes it over, left of the panel, rows 8 to 29, columns 1 to 18, and whole
+  under it, rows 30 to 34, with today's count on the state line, row 36, columns 144 to 148,
+  `1,240`; and in `log-events-filter-160`, db8a's move's cost right of the panel, row 27, columns
+  143 to 145, `.48`, as `log-events-160` passes it over.
+- **The panel's counts of today's lines** in `log-requests-filter-160`, the world's, as the state
+  line's: `1,275` of `which of today's 1,275 lines`, row 10, columns 70 to 74, drawn `1,277`;
+  requests' `1,240`, row 15, columns 83 to 87, drawn `1,242`; and `1,240 of 1,275`, row 26,
+  columns 31 to 45, drawn `1,242 of 1,277`.
+- **The panel's models,** row 14 of `log-requests-filter-160`, columns 98 to 110, blank in the
+  frame: the world's lines today ask Sonnet 5.5 too, 41e0's in flight among them, so the dashboard
+  ticks `sonnet-5-5` after `haiku-4-5`.
+- **Today's sessions in the panel,** whose order and doing are the world's: 41e0, answering, seen
+  last, lists first, and db8a, its last request ended over a minute before, reads `idle 1m`, where
+  the frames list d28c first and draw db8a busy. In `log-requests-filter-160`, rows 18, 20, 21 and
+  22, columns 73 to 131, `□ d28c`, `□ 7f3a`, `□ db8a` and `□ 41e0`, the cursor on d28c, third in
+  the world's list, lighting row 20; in `log-events-filter-160`, rows 15, 17, 18 and 19, columns
+  80 to 138, the same four.
+- **The cursor's tick, lit,** in `log-events-filter-160`, row 13, columns 21 to 31, `■ started`,
+  where the cursor starts: the frame lights no tick, where the design lights the row the cursor's
+  on, as the routing card's (see The routing card).
 
 **A pressure event's mark:** in `accounts-detail-one-160`'s LATELY, row 28, column 20, `●`, drawn
 before each kind of event had a mark of its own, where the Log's marks give `◔`, in
@@ -609,10 +630,13 @@ its records and the sessions its router lists.
 
 Stage 9's, `log-*`, draw the Log's frames, the Log reached from the Overview with `shift-tab`:
 `log-requests-160` and, on a phone, `log-requests-phone-52`, as it opens, on Requests;
-`log-events-160` with `]`; all over the auto world, but `log-not-live-160`, over a world of its own,
-its router gone at 14:40:55, as the fixture's settling finds it with `R` then. The page as stage 6
-built it, `page-log`, went with its tapes as they came to draw it. Tapes of their names
-screenshot `log-requests-160`, `log-events-160` and `log-not-live-160`, to judge by eye.
+`log-events-160` with `]`; the `f` panel over each, `log-requests-filter-160` with `f`, `→` and `↓`
+twelve times, the cursor on d28c's row, and `log-events-filter-160` with `]` and `f`; all over the
+auto world, but `log-not-live-160`, over a world of its own, its router gone at 14:40:55, as the
+fixture's settling finds it with `R` then. The page as stage 6 built it, `page-log`, went with its
+tapes as they came to draw it. Tapes of their names screenshot `log-requests-160`,
+`log-events-160`, `log-not-live-160`, `log-requests-filter-160` and `log-events-filter-160`, to
+judge by eye.
 
 ### `--theme`, and `NO_COLOR`
 
