@@ -155,7 +155,7 @@ type PageSources struct {
 	// Prices are the price table worth is priced by.
 	Prices ledger.Table
 	// Keep is how long the ledger keeps a day's lines, as [ledger] keep
-	// says: dayfile.Forever keeps them for good.
+	// says, as ledgerKept reads it: dayfile.Forever keeps them for good.
 	Keep time.Duration
 	Now  time.Time
 }

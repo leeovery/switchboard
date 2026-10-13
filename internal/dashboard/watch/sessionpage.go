@@ -1,14 +1,12 @@
 package watch
 
 import (
-	"cmp"
 	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -52,9 +50,10 @@ func (m Model) openSession(id string) (Model, tea.Cmd) {
 // lines of the session with the given id, and every account's requests on
 // its days, as views.ReadSessions reads them through the ledger at now, held
 // as views.HoldPage holds them, priced at the config's prices and kept as
-// [ledger] keep keeps them; none, where the watch reads no ledger.
+// [ledger] keep keeps them, as HoldPage reads it; none, where the watch reads
+// no ledger.
 func (m Model) readSession(asked int, id string) tea.Cmd {
-	l, prices, keep, now := m.cfg.Ledger, m.cfg.Prices, cmp.Or(m.cfg.LedgerKeep, dayfile.Forever), m.now()
+	l, prices, keep, now := m.cfg.Ledger, m.cfg.Prices, m.cfg.LedgerKeep, m.now()
 	return func() tea.Msg {
 		var read views.SessionsRead
 		if l != nil {

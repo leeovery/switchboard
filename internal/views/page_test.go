@@ -522,6 +522,7 @@ func TestOneEndedIsKeptUntilTheLastDayItsFirstDaysLinesAre(t *testing.T) {
 	}{
 		{name: "ended, kept 90 days", keep: 90 * 24 * time.Hour, want: "2027-01-04"},
 		{name: "ended, kept for good", keep: dayfile.Forever},
+		{name: "ended, kept as a config that doesn't say keeps it, 400 days", want: "2027-11-10"},
 		{name: "running", keep: 90 * 24 * time.Hour, running: true},
 	}
 	for _, tt := range tests {

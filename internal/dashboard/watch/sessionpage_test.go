@@ -10,7 +10,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -330,6 +332,23 @@ func TestASessionsPageFollowsEachLookAndTickAndStaysOnceItEnds(t *testing.T) {
 	h.fire(h.lastTick())
 	if end := h.shownPage().Story.End; !end.Equal(last) {
 		t.Errorf("ended, a tick on, the story ends at %s, want still at %s", end, last)
+	}
+}
+
+// A session's page reads [ledger] keep as the Log's oldest day does: a
+// Config that doesn't say keeps a day's lines config.DefaultLedgerKeep, as
+// the router keeps them, so an ended session's lines are kept until that
+// long after its first day's, never for good.
+func TestAnEndedSessionsPageReadsTheKeepAsTheLogDoes(t *testing.T) {
+	lines := promptedLines(2, start.Add(-30*time.Minute))
+	h, _ := pageHarness(t, lines)
+	h.source.sessions = slices.DeleteFunc(h.source.sessions, func(s status.Session) bool { return s.ID == idD28C })
+	h.tickUntilAsked()
+	h.openPage(idD28C)
+
+	want, _ := dayfile.KeptUntil(views.Today(lines[0].At).Date, config.DefaultLedgerKeep)
+	if page := h.shownPage().Page; page.Runs() || page.KeptUntil != want {
+		t.Errorf("its keep not said, the page runs %t, kept until %q; want it ended, kept until %q", page.Runs(), page.KeptUntil, want)
 	}
 }
 

@@ -63,9 +63,10 @@ type PageLive struct {
 
 // HoldPage holds the page of the session with the given id, of what read
 // holds of it, and of the accounts it ran on, at now: its requests priced by
-// prices at the day now falls on, and keep the ledger's [ledger] keep.
+// prices at the day now falls on, and keep the ledger's [ledger] keep, as
+// ledgerKept reads it.
 func HoldPage(id string, read SessionsRead, prices ledger.Table, keep time.Duration, now time.Time) HeldPage {
-	h := HeldPage{id: id, day: Today(now), prices: prices, keep: keep, held: make(map[lineKey]bool), answers: answersOf(read.requests, id)}
+	h := HeldPage{id: id, day: Today(now), prices: prices, keep: ledgerKept(keep), held: make(map[lineKey]bool), answers: answersOf(read.requests, id)}
 	for _, lines := range read.requests {
 		h.hold(lines)
 	}

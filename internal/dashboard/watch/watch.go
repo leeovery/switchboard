@@ -170,8 +170,10 @@ type Config struct {
 	Events   views.Events
 	// LedgerKeep is how long the ledger keeps a day's lines, as [ledger]
 	// keep gives it, which says the Log's oldest day, as views.OldestKept
-	// reads it: dayfile.Forever keeps them for good, and none, as a Config
-	// that doesn't say, config.DefaultLedgerKeep, as the router keeps them.
+	// reads it, and to when an ended session's page says its lines are kept,
+	// as views.HoldPage reads it: dayfile.Forever keeps them for good, and
+	// none, as a Config that doesn't say, config.DefaultLedgerKeep, as the
+	// router keeps them.
 	LedgerKeep time.Duration
 	// Prices are the price table a move's cost is worked out at, the
 	// config's prices in place of any of the table's.

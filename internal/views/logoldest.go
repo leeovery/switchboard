@@ -17,6 +17,13 @@ type OldestDay struct {
 	Keep time.Duration
 }
 
+// ledgerKept is how long the ledger keeps a day's lines, keep being [ledger]
+// keep as given: dayfile.Forever for good, and none, as a config that
+// doesn't say, config.DefaultLedgerKeep, as the router keeps them.
+func ledgerKept(keep time.Duration) time.Duration {
+	return cmp.Or(keep, config.DefaultLedgerKeep)
+}
+
 // OldestKept is the oldest day the Log reads back to at now, the ledger
 // keeping its lines as long as keep says, as [ledger] keep gives it:
 // dayfile.Forever for good, and none, as a config that doesn't say,
@@ -26,7 +33,7 @@ type OldestDay struct {
 // first's day, today where it's zero, and the oldest day whose lines the
 // ledger keeps at now, as dayfile.OldestKept says.
 func OldestKept(first time.Time, keep time.Duration, now time.Time) OldestDay {
-	keep = cmp.Or(keep, config.DefaultLedgerKeep)
+	keep = ledgerKept(keep)
 	if first.IsZero() {
 		first = now
 	}
