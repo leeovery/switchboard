@@ -74,8 +74,8 @@ func TestTheSamplesStandAsTheFramesHaveThem(t *testing.T) {
 	}
 }
 
-// projected is where account a's window with the given key is heading at
-// now, read then, as its moment has it.
+// projected is where account a's window with the given key is heading at now,
+// read then, as its moment has it.
 func projected(a status.Account, key string, now time.Time) score.Projection {
 	at, _ := status.Document{GeneratedAt: now, Accounts: []status.Account{a}}.At(now, claude.Policy).Account(a.ID)
 	w, _ := at.Window(key)

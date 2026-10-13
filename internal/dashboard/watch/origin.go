@@ -13,8 +13,8 @@ type origin struct {
 	router router.Health
 }
 
-// originOf is where the document look is a moment of came from, read from
-// the router whose health check said from, or by probing.
+// originOf is where the document look is a moment of came from, read from the
+// router whose health check said from, or by probing.
 func originOf(look status.Moment, from router.Health) origin {
 	return origin{read: true, routed: look.Routed, router: from}
 }

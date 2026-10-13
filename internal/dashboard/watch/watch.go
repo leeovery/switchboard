@@ -1082,15 +1082,15 @@ func (m Model) routed() bool {
 	return m.arrived.Routed
 }
 
-// probedAsAsked reports whether the document look is a moment of was built
-// by probing as asked, rather than for want of the router, which may be
-// running all the same: one probed for want of it says why.
+// probedAsAsked reports whether the document look is a moment of was built by
+// probing as asked, rather than for want of the router, which may be running
+// all the same: one probed for want of it says why.
 func probedAsAsked(look status.Moment) bool {
 	return !look.Routed && look.Fallback == (status.Fallback{})
 }
 
-// sourceOf names where the document look is a moment of came from, as its
-// log says: the router, probing, or "" before any document.
+// sourceOf names where the document look is a moment of came from, as its log
+// says: the router, probing, or "" before any document.
 func sourceOf(look status.Moment) string {
 	switch {
 	case look.Routed:

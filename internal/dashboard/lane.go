@@ -210,9 +210,9 @@ type lane struct {
 // all along, whatever else holds it back, its windows standing as last read,
 // which its week's badge and reset draw. Read, it has none while a window
 // counted holds it back, as causesOf says, nor, over the day, while the
-// upstream refuses its token; and from now, it's heading to run out until
-// the last of those windows that run out ahead of it, as their RunsOutAhead
-// has them, does.
+// upstream refuses its token; and from now, it's heading to run out until the
+// last of those windows that run out ahead of it, as their RunsOutAhead has
+// them, does.
 func (f Frame) laneOf(a status.AccountNow, now time.Time) lane {
 	l := lane{account: a}
 	state, all := stateCause(a)

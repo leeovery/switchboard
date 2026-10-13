@@ -307,9 +307,9 @@ func (m Model) answeredAgain(from router.Health) Model {
 	return m
 }
 
-// held reports whether the limit the router saw the account with the given
-// id reach holds it at now, as the moment of the document on screen then
-// has it, worked out the first time it's asked.
+// held reports whether the limit the router saw the account with the given id
+// reach holds it at now, as the moment of the document on screen then has it,
+// worked out the first time it's asked.
 func (m Model) held(now time.Time) func(id string) bool {
 	look := sync.OnceValue(func() status.Moment { return m.doc.At(now, m.cfg.Policy) })
 	return func(id string) bool {

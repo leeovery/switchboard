@@ -394,8 +394,8 @@ func TestTheCuesCompareTheMomentsOfTheirTwoLooksAtEachHardMoment(t *testing.T) {
 	}
 }
 
-// routingAt is how doc's first account stands with the router at now, as
-// the document's moment then has it, as policy judges it.
+// routingAt is how doc's first account stands with the router at now, as the
+// document's moment then has it, as policy judges it.
 func routingAt(doc status.Document, now time.Time, policy score.Policy) status.Routing {
 	return doc.At(now, policy).Accounts[0].Routing
 }

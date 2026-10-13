@@ -90,8 +90,8 @@ type AccountNow struct {
 	Error          string
 	Failures       []quota.Failure
 	Sessions       int
-	// Routing is how it stands with the router at Now: the first of the
-	// kinds that holds.
+	// Routing is how it stands with the router at Now: the first of the kinds
+	// that holds.
 	Routing Routing
 	// Hold is what holds it back at its limit at Now, as held has it, and
 	// Held is set where anything does. LimitHolds is set where the limit the
@@ -286,8 +286,8 @@ type HeldMoment struct {
 	moment         func() Moment
 }
 
-// HoldAt is the document at now, as policy judges it, held, as HeldMoment
-// has it.
+// HoldAt is the document at now, as policy judges it, held, as HeldMoment has
+// it.
 func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
 	return &HeldMoment{generated: d.GeneratedAt, now: now, moment: sync.OnceValue(func() Moment { return d.At(now, policy) })}
 }
@@ -305,8 +305,8 @@ func (h *HeldMoment) Moment() Moment {
 // PoolNow is the accounts new sessions can go to at a moment, taken as one:
 // those the global pin names, else every account.
 type PoolNow struct {
-	// Accounts are the ids of its accounts, in the config's order, and
-	// Pinned is set where they're the accounts the global pin names.
+	// Accounts are the ids of its accounts, in the config's order, and Pinned
+	// is set where they're the accounts the global pin names.
 	Accounts []string
 	Pinned   bool
 	// Windows are a window each that any of them has, shortest first.
@@ -326,9 +326,9 @@ type PoolWindowNow struct {
 }
 
 // Pool is the accounts new sessions can go to at Now, as one, each window's
-// room and pace as its accounts' stand then, where the document's own Pool
-// is as they stood as it was built: zero with one account, whose own
-// windows say the same.
+// room and pace as its accounts' stand then, where the document's own Pool is
+// as they stood as it was built: zero with one account, whose own windows say
+// the same.
 func (m Moment) Pool() PoolNow {
 	if m.pool == nil {
 		return PoolNow{}

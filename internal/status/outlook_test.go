@@ -459,8 +459,8 @@ func poolNowOf(p status.Pool) status.PoolNow {
 }
 
 // roomOf is the room the account of m with the given id has left at m in its
-// window with the given key, as the pool counts it: none where it has no
-// such window.
+// window with the given key, as the pool counts it: none where it has no such
+// window.
 func roomOf(m status.Moment, id, key string) float64 {
 	a, _ := m.Account(id)
 	w, _ := a.Window(key)

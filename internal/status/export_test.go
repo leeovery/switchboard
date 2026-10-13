@@ -7,8 +7,8 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 )
 
-// The rules a moment works its facts out by, for the tests that pin each
-// rule alone, and hold a moment's facts to them.
+// The rules a moment works its facts out by, for the tests that pin each rule
+// alone, and hold a moment's facts to them.
 
 // PressureOf is pressureOf.
 func PressureOf(policy score.Policy, pace score.Pace, c score.Candidate, takes func(reserve float64) bool, now time.Time) Pressure {

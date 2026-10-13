@@ -78,7 +78,8 @@ func (d Document) Text(now time.Time, policy score.Policy, sessions ...Session) 
 
 // writePriming writes the priming schedule, when priming is on, such as
 // "priming 08:00-23:00: work at 04:10 and side at 06:40", and under it what
-// comes next of it at now, as policy judges the windows, as its moment then has it.
+// comes next of it at now, as policy judges the windows, as its moment then
+// has it.
 func (d Document) writePriming(b *strings.Builder, now time.Time, policy score.Policy) {
 	if len(d.Prime.Slots) == 0 {
 		return
@@ -132,14 +133,14 @@ func (d Document) Reserved(a Account, now time.Time) string {
 	}
 }
 
-// pressureLine says the account is under pressure, and when its pressure window
-// runs out, as pressureOut has it, in now's time zone: "under pressure: runs
-// out ~18:21", or, with its reserve holding it back there, "under pressure:
-// at its reserve ~18:21"; "under pressure" alone where it doesn't before it
-// resets. It's "" while it isn't under pressure at now, as underPressure
-// judges it. The router says an account is under pressure only where it can
-// take a request of some model: of one that can take none, pressure isn't
-// what passes it over.
+// pressureLine says the account is under pressure, and when its pressure
+// window runs out, as pressureOut has it, in now's time zone: "under
+// pressure: runs out ~18:21", or, with its reserve holding it back there,
+// "under pressure: at its reserve ~18:21"; "under pressure" alone where it
+// doesn't before it resets. It's "" while it isn't under pressure at now, as
+// underPressure judges it. The router says an account is under pressure only
+// where it can take a request of some model: of one that can take none,
+// pressure isn't what passes it over.
 func (d Document) pressureLine(a Account, now time.Time) string {
 	if !a.underPressure(now) {
 		return ""
@@ -155,10 +156,10 @@ func (d Document) pressureLine(a Account, now time.Time) string {
 	}
 }
 
-// pressureNote says the account is under pressure, as pressureLine does, and why:
-// the rate it goes by, and the reset its window runs out before, as in "under
-// pressure: runs out ~18:21 at Session's rate over the last 30 min, before its
-// reset at 20:10". It's "" while it isn't under pressure.
+// pressureNote says the account is under pressure, as pressureLine does, and
+// why: the rate it goes by, and the reset its window runs out before, as in
+// "under pressure: runs out ~18:21 at Session's rate over the last 30 min,
+// before its reset at 20:10". It's "" while it isn't under pressure.
 func (d Document) pressureNote(a Account, now time.Time) string {
 	pressed := d.pressureLine(a, now)
 	w, ok := a.Window(a.Pressure.Window)

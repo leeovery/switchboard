@@ -114,10 +114,10 @@ func (s WindowStates) capped(key string) bool {
 
 // Of is how the account's window with the given key stands: the first that
 // holds of the kinds, in their order, which is ROUTING's, as an account's
-// Routing at a moment says its state: no usable token; nothing read; a limit holding the window;
-// its token refused; lapsed, not started, ahead of a failed read, as ROUTING
-// says idle ahead of one once anything was read; its last read failed; the
-// cap; running out; and open.
+// Routing at a moment says its state: no usable token; nothing read; a limit
+// holding the window; its token refused; lapsed, not started, ahead of a
+// failed read, as ROUTING says idle ahead of one once anything was read; its
+// last read failed; the cap; running out; and open.
 func (s WindowStates) Of(key string) WindowState {
 	a := s.account
 	w, reported := a.Window(key)

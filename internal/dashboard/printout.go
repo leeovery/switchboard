@@ -35,13 +35,12 @@ type Printout struct {
 	// Windows are the windows' keys to print, each once, in Claude's order;
 	// none prints every one.
 	Windows []string
-	// Policy is the provider's say in which windows every model shares,
-	// which print whatever is read, so every account keeps its rows before
-	// any is; and it judges the pool at the moment printed, as that moment's
-	// Pool has it. A zero Policy names no window: it prints only the windows
-	// read, and judges none lapsed but as the document notes, and no
-	// account's room in the window a request starts spent by its limit or
-	// its cap.
+	// Policy is the provider's say in which windows every model shares, which
+	// print whatever is read, so every account keeps its rows before any is;
+	// and it judges the pool at the moment printed, as that moment's Pool has
+	// it. A zero Policy names no window: it prints only the windows read, and
+	// judges none lapsed but as the document notes, and no account's room in
+	// the window a request starts spent by its limit or its cap.
 	Policy score.Policy
 	// Name names a window by its key, as "5-hour" or "Fable week"; where
 	// it's nil, a window is named by its label in the document.

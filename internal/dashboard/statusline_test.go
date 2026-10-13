@@ -337,11 +337,11 @@ func TestTheStatusLineIsOnItsRowFromTheFirstColumn(t *testing.T) {
 	}
 }
 
-// The page's status line says where new sessions go as the moment's Next
-// has it, at each of the hard moments, which USAGE's ▲ marks: the router's
-// says the account it names, or that none has room, or, of several accounts
-// none of which is read, that nothing is; a probed document's says nothing
-// of it, and is the probed line.
+// The page's status line says where new sessions go as the moment's Next has
+// it, at each of the hard moments, which USAGE's ▲ marks: the router's says
+// the account it names, or that none has room, or, of several accounts none
+// of which is read, that nothing is; a probed document's says nothing of it,
+// and is the probed line.
 func TestTheStatusLineAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
 	for _, hm := range statustest.HardMoments(claudeLike) {
 		t.Run(hm.Name, func(t *testing.T) {

@@ -48,10 +48,9 @@ func told(e status.Event, doc status.Document, now time.Time) (span, line, bool)
 
 // aside is what's told of an event that befell an account, from the
 // account's side, which RECENT tells after its name: its mark, a glyph in the
-// ink of what it tells of; its
-// gist, as in "reached its session limit"; and what follows it, as in "; 3
-// sessions moved to side", in the ink of their own. It reports false for an
-// event of any other kind.
+// ink of what it tells of; its gist, as in "reached its session limit"; and
+// what follows it, as in "; 3 sessions moved to side", in the ink of their
+// own. It reports false for an event of any other kind.
 func aside(e status.Event, doc status.Document) (mark span, gist string, tail line, ok bool) {
 	switch e.Kind {
 	case status.EventPressure:
