@@ -44,7 +44,6 @@ var readsAllowed = []string{
 	"internal/dashboard/recent_log.go",
 	"internal/dashboard/seats.go",
 	"internal/dashboard/sessions.go",
-	"internal/dashboard/standing.go",
 	// Producers, which build the documents moments are of.
 	"internal/cli/source.go",
 	// History's points, worked out of the readings the ledger keeps of

@@ -44,7 +44,7 @@ func (f Frame) eased(s standing) float64 {
 	if used, ok := f.Eased[s.ref()]; ok {
 		return used
 	}
-	return s.used
+	return s.w.Used
 }
 
 // fill draws a bar cells long from x along row y: used filled in eighths, each

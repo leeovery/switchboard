@@ -1,174 +1,80 @@
 package dashboard
 
 import (
-	"slices"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 // standing is how an account's window stands at a moment, as its panel shows
-// it: how much of it is used, where it's heading, where it runs out, and
-// whether it's at its limit or has lapsed.
+// it, as the moment has it: how much of it is used, where it's heading, where
+// it runs out, and whether it's at its limit or not started.
 type standing struct {
 	// account is the id of the account whose window it is.
 	account string
-	window  quota.Window
-	// used is how much of it is used, and pace its even pace, nil where
-	// that's unknown, as its state reads them.
-	used float64
-	pace *float64
-	// out is where it runs out before it resets, as RunsOut says, runsOut set
-	// where it does, and heading where it's heading, as out's Heading has it.
-	heading status.Heading
-	out     status.RunOut
-	runsOut bool
-	// held is set while it's at its limit, its account held back, until
-	// back, zero where that's unknown; and since when, where the router told
-	// of its reaching the limit that holds it, zero otherwise.
-	held        bool
-	back, since time.Time
-	// lapsed is set where it stands not started: it isn't running, and reads
-	// empty, until a request starts it.
-	lapsed bool
-	// floor is the share of it used where its account runs out: where its
-	// reserve starts, where that holds the account back, else its limit.
-	floor float64
-}
-
-// standingOf is how doc's account a's window w stands at now, its account's
-// windows standing as states has them: used, and at its even pace, as its
-// state reads it; held where it stands limited, until the hold lifts off it;
-// and lapsed where it stands not started.
-func standingOf(doc status.Document, a status.Account, w quota.Window, states status.WindowStates, now time.Time) standing {
-	st := states.Of(w.Key)
-	s := standing{account: a.ID, window: w, used: st.Used, pace: st.Pace, floor: doc.Floor(a)}
-	s.out, s.runsOut = doc.RunsOut(a, w, now)
-	s.heading = s.out.Heading
-	switch st.Kind {
-	case status.WindowLimited:
-		s.held, s.back, s.since = true, st.At, limitedSince(doc, a, w, now)
-	case status.WindowNotStarted:
-		s.lapsed = true
-	}
-	return s
-}
-
-// limitedSince is when doc's account a reached the limit that holds its
-// window w at now, as reachedIn tells of it: zero where it tells of none.
-func limitedSince(doc status.Document, a status.Account, w quota.Window, now time.Time) time.Time {
-	e, _ := reachedIn(doc, a, w, now)
-	return e.At
-}
-
-// reachedIn is the router's event of doc's account a reaching the limit that
-// holds its window w at now, reporting false where none tells of it. Where
-// the account's limit holds w, it's that limit's event, as limitOf finds it.
-// Where the account has no such limit, as a probed document has none, or one
-// without an identity, as a router from before limits had them gives, it's
-// the newest event of the account reaching a limit naming w, or naming no
-// window, as a limit naming none holds every window, that came while w runs
-// as it does now, since it last started: an older limit's event says nothing
-// of when w reached it.
-func reachedIn(doc status.Document, a status.Account, w quota.Window, now time.Time) (status.Event, bool) {
-	if l := a.Limit; l.ID != 0 && l.Holds(now) && (len(l.Windows) == 0 || slices.Contains(l.Windows, w.Key)) {
-		return limitOf(doc, a, now)
-	}
-	start, _, spanned := w.Span()
-	if !spanned {
-		return status.Event{}, false
-	}
-	i := slices.IndexFunc(doc.Events, func(e status.Event) bool {
-		named := len(e.Windows) == 0 || slices.Contains(e.Windows, w.Key)
-		return e.Kind == status.EventLimit && e.Account == a.ID && named && !e.At.Before(start) && !e.At.After(now)
-	})
-	if i < 0 {
-		return status.Event{}, false
-	}
-	return doc.Events[i], true
-}
-
-// limitOf is the router's event of the limit holding doc's account a at now:
-// the one whose identity is its limit's. It reports false where no router
-// limit holds the account, as none holds one probed, where its limit has no
-// identity, as a router from before limits had them gives none, or where no
-// event tells of it.
-func limitOf(doc status.Document, a status.Account, now time.Time) (status.Event, bool) {
-	if a.Limit.ID == 0 || !a.Limit.Holds(now) {
-		return status.Event{}, false
-	}
-	i := slices.IndexFunc(doc.Events, func(e status.Event) bool {
-		return e.Kind == status.EventLimit && e.Account == a.ID && e.Limit == a.Limit.ID
-	})
-	if i < 0 {
-		return status.Event{}, false
-	}
-	return doc.Events[i], true
+	w       status.WindowNow
 }
 
 // ref is the window's, by its account and key.
 func (s standing) ref() Ref {
-	return Ref{Account: s.account, Window: s.window.Key}
+	return Ref{Account: s.account, Window: s.w.Key}
+}
+
+// lapsed reports whether it stands not started: it isn't running, and reads
+// empty, until a request starts it.
+func (s standing) lapsed() bool {
+	return s.w.Kind == status.WindowNotStarted
+}
+
+// runsOut reports whether it runs out before it resets at the pace it's
+// heading at, as its Out says, whatever holds it.
+func (s standing) runsOut() bool {
+	return !s.w.Out.At.IsZero()
 }
 
 // projected is the share of the window it's heading for by its reset, as a
-// bar shows it beyond its use: all of it where it runs out; reporting false
-// where nothing says, and while it's held at its limit or has lapsed.
+// bar shows it beyond its use, as its Projected has it: reporting false where
+// nothing says, and while it's held at its limit or not started.
 func (s standing) projected() (float64, bool) {
-	switch {
-	case s.held || s.lapsed:
-		return 0, false
-	case s.heading.Kind == score.RunsOut:
-		return 1, true
-	case s.heading.Kind == score.OnPace:
-		return s.heading.AtReset, true
-	default:
+	if s.w.Projected == nil {
 		return 0, false
 	}
+	return *s.w.Projected, true
 }
 
 // paceCell is the cell of the window's bar, cells long, where even use
-// across the window would put it, at its even pace, as its state reads it:
-// noMarker, leaving the marker off, where that can't be said, and while it's
-// held at its limit or has lapsed.
+// across the window would put it, at its even pace: noMarker, leaving the
+// marker off, where that can't be said, and while it's held at its limit or
+// not started.
 func (s standing) paceCell(cells int) int {
-	if s.pace == nil || s.held || s.lapsed {
+	if s.w.Pace == nil || s.w.Held || s.lapsed() {
 		return noMarker
 	}
-	return cellAt(*s.pace, cells)
-}
-
-// nearing reports whether the share the window is heading for by its reset,
-// short of where its account runs out, comes within 10 points of it.
-func (s standing) nearing() bool {
-	share, ok := s.projected()
-	return ok && !s.runsOut && share >= s.floor-status.Near-score.Tolerance
+	return cellAt(*s.w.Pace, cells)
 }
 
 // headed says where the window is heading at now, its times as when shows
 // them: that it's back at a time, at its limit; that it runs out at a time,
 // as in "→ out ~16:05", with tilde as given; that it's heading for a share
 // by its reset, as in "→ 87%", calling for attention where that nears where
-// its account runs out; or that it hasn't started. It's empty where nothing
-// says.
+// its account runs out, as its Nearing has it; or that it hasn't started.
+// It's empty where nothing says.
 func (s standing) headed(now time.Time, tilde string, when func(now, t time.Time) string) span {
 	switch {
-	case s.lapsed:
+	case s.lapsed():
 		return span{"not started", dimInk}
-	case s.held && !s.back.IsZero():
-		return span{"back " + when(now, s.back), exhaustedInk}
-	case s.held:
+	case s.w.Held && !s.w.Back.IsZero():
+		return span{"back " + when(now, s.w.Back), exhaustedInk}
+	case s.w.Held:
 		return span{}
-	case s.runsOut:
-		return span{"→ out " + tilde + when(now, s.out.At), alertInk}
+	case s.runsOut():
+		return span{"→ out " + tilde + when(now, s.w.Out.At), alertInk}
 	}
 	share, ok := s.projected()
 	switch {
 	case !ok:
 		return span{}
-	case s.nearing():
+	case s.w.Nearing:
 		return span{"→ " + status.Percent(share), warningInk}
 	default:
 		return span{"→ " + status.Percent(share), mutedInk}

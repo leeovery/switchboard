@@ -495,7 +495,7 @@ func TestAPanelsUseIsTonedAsItRises(t *testing.T) {
 		{used: 0.895, want: theme.VizRamp4}, {used: 0.9, want: theme.VizRamp4}, {used: 1, want: theme.VizRamp4},
 	}
 	for _, tt := range tests {
-		s := standing{window: weekOf(tt.used, day), used: tt.used}
+		s := standing{account: "work", w: status.WindowNow{WindowName: status.WindowName{Key: "7d"}, Used: tt.used}}
 		if got := panelUse(s); got.ink != (ink{token: tt.want, bold: true}) {
 			t.Errorf("at %.1f%%, shown as %s, the use is %+v, want %s, bold", tt.used*100, got.text, got.ink, tt.want)
 		}
@@ -1131,10 +1131,11 @@ func idleSince(ago time.Duration) status.Account {
 func TestAPanelMarksTheEvenPaceOfAWeekResetSinceItWasReadFromItsReset(t *testing.T) {
 	doc := routerDoc("side", 0, idleSince(day))
 	side := doc.Accounts[0]
-	s := standingOf(doc, side, side.Windows[1], doc.WindowStatesOf(side, now, claudeLike), now)
+	week, _ := switchboard(160, 40, nil, Traffic{}).linePanelOf(doc, side, now, []string{"5h", "7d"}).stands.Window(side.Windows[1].Key)
+	s := standing{account: side.ID, w: week}
 
-	if s.used != 0 {
-		t.Errorf("side's week reads %v, want it empty, as it has reset since it was read", s.used)
+	if s.w.Used != 0 {
+		t.Errorf("side's week reads %v, want it empty, as it has reset since it was read", s.w.Used)
 	}
 	if got, want := s.paceCell(panelBar), cellAt(1.0/7, panelBar); got != want {
 		t.Errorf("its even pace is marked at cell %d of %d, want %d, a seventh of the way along", got, panelBar, want)

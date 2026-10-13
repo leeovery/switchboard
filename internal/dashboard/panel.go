@@ -40,11 +40,12 @@ const (
 // linePanel is an account's panel among the lines: the account and its
 // place, its state, whether new sessions go to it and whether the global
 // pin names it, when the router next primes it, zero where unknown; the
-// windows it shows, how they stand, and the policy that judges them, which
-// names the one a request starts; its top edge's row, and how many rows it
-// has between its edges, a jack each: one for each window shown, and one
-// more for each of its calls past those. A boxed panel, as the plain list
-// has, has no jacks, its left side a side like its right.
+// windows it shows, how the account stands at the moment, its windows with
+// it, and the policy that judges them, which names the one a request starts;
+// its top edge's row, and how many rows it has between its edges, a jack
+// each: one for each window shown, and one more for each of its calls past
+// those. A boxed panel, as the plain list has, has no jacks, its left side a
+// side like its right.
 type linePanel struct {
 	account      status.Account
 	place        int
@@ -52,20 +53,22 @@ type linePanel struct {
 	next, pinned bool
 	primed       time.Time
 	windows      []string
-	states       status.WindowStates
+	stands       status.AccountNow
 	policy       score.Policy
 	top, rows    int
 	boxed        bool
 }
 
 // linePanelOf is the panel of doc's account a at now, showing the windows
-// shown: of several accounts, it's the next where new sessions go to it, as
-// the moment of doc at now has it.
+// shown, standing as the moment of doc at now has it: of several accounts,
+// it's the next where new sessions go to it, as the moment has it too.
 func (f Frame) linePanelOf(doc status.Document, a status.Account, now time.Time, shown []string) linePanel {
+	m := f.Moment(doc, now)
+	stands, _ := m.Account(a.ID)
 	return linePanel{
 		account: a, place: docPlace(doc, a.ID), state: doc.StateOf(a, now, f.Policy),
-		next: len(doc.Accounts) > 1 && f.Moment(doc, now).Next == a.ID, pinned: doc.Pin.Has(a.ID), primed: primedNext(doc, a.ID),
-		windows: shown, states: doc.WindowStatesOf(a, now, f.Policy), policy: f.Policy,
+		next: len(doc.Accounts) > 1 && m.Next == a.ID, pinned: doc.Pin.Has(a.ID), primed: primedNext(doc, a.ID),
+		windows: shown, stands: stands, policy: f.Policy,
 	}
 }
 
@@ -186,7 +189,7 @@ func (p linePanel) badges() []span {
 }
 
 // panelRow draws the row of a panel's window with the given key from x along
-// row y, width cells to the panel's side, standing as the panel's states have
+// row y, width cells to the panel's side, standing as the panel's moment has
 // it: its label; its bar, where bars is set, as bar draws it; its use, toned
 // as panelUse says; and where it's heading, in full. A window standing not
 // started, lapsed with no limit holding it and its token not refused, says
@@ -197,10 +200,11 @@ func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string,
 	if !ok {
 		return
 	}
-	s := standingOf(doc, p.account, w, p.states, now)
+	wn, _ := p.stands.Window(key)
+	s := standing{account: p.account.ID, w: wn}
 	c.line(x, y, line{{truncate(status.Short(w.Label), labelColumn-1), panelLabelInk}})
 	at := x + labelColumn
-	if s.lapsed {
+	if s.lapsed() {
 		c.line(at, y, line{{"not started", dimInk}})
 		return
 	}
@@ -216,7 +220,7 @@ func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string,
 // panelUse is how much of a window standing as s is used, a whole
 // percentage, bold, toned as usedInk tones it, below 70% in text.primary.
 func panelUse(s standing) span {
-	return span{status.Percent(s.used), usedInk(s.used, ink{token: theme.TextPrimary, bold: true})}
+	return span{status.Percent(s.w.Used), usedInk(s.w.Used, ink{token: theme.TextPrimary, bold: true})}
 }
 
 // panelBottom draws the panel's bottom edge from x along row y, width cells

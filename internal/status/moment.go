@@ -459,7 +459,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.Floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
-		Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.Holds(m.Now), LimitSince: eventAt(d.limitEvent(a, m.Now)),
+		Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.Holds(m.Now), LimitSince: eventAt(d.LimitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(),
 		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},
@@ -609,7 +609,7 @@ func eventAt(e Event, ok bool) time.Time {
 
 // reachedIn is the router's event of account a reaching the limit that holds
 // its window w at now, reporting false where none tells of it. Where the
-// account's limit holds w, it's that limit's event, as limitEvent finds it.
+// account's limit holds w, it's that limit's event, as LimitEvent finds it.
 // Where the account has no such limit, as a probed document has none, or one
 // without an identity, as a router from before limits had them gives, it's
 // the newest event of the account reaching a limit naming w, or naming no
@@ -618,7 +618,7 @@ func eventAt(e Event, ok bool) time.Time {
 // of when w reached it.
 func (d Document) reachedIn(a Account, w quota.Window, now time.Time) (Event, bool) {
 	if l := a.Limit; l.ID != 0 && l.Holds(now) && (len(l.Windows) == 0 || slices.Contains(l.Windows, w.Key)) {
-		return d.limitEvent(a, now)
+		return d.LimitEvent(a, now)
 	}
 	start, _, spanned := w.Span()
 	if !spanned {
@@ -634,12 +634,12 @@ func (d Document) reachedIn(a Account, w quota.Window, now time.Time) (Event, bo
 	return d.Events[i], true
 }
 
-// limitEvent is the router's event of the limit holding account a at now: the
+// LimitEvent is the router's event of the limit holding account a at now: the
 // one whose identity is its limit's. It reports false where no router limit
 // holds the account, as none holds one probed, where its limit has no
 // identity, as a router from before limits had them gives none, or where no
 // event tells of it.
-func (d Document) limitEvent(a Account, now time.Time) (Event, bool) {
+func (d Document) LimitEvent(a Account, now time.Time) (Event, bool) {
 	if a.Limit.ID == 0 || !a.Limit.Holds(now) {
 		return Event{}, false
 	}

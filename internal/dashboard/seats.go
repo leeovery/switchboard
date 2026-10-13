@@ -272,7 +272,7 @@ func movedHere(doc status.Document, s seated, id string) (status.Event, bool) {
 // unseatedBy says why the account with the given id has no sessions, times
 // in now's time zone, as Dated shows them: probing, why there's no router to
 // list them, as RECENT says; while a limit holds it, the sessions that limit
-// moved off it, as its event, which limitOf finds, tells, where none has
+// moved off it, as its event, which LimitEvent finds, tells, where none has
 // come to it since; else, of the router's events, the newest that took
 // sessions off it, a limit it reached, or a session moving, as in "d28c
 // moved to side at 14:39 (pin)". It's nothing where none did, or where a
@@ -282,7 +282,7 @@ func (f Frame) unseatedBy(doc status.Document, id string, now time.Time) []chunk
 		return []chunk{{text: f.quiet(f.Moment(doc, now))}}
 	}
 	if a, ok := doc.Account(id); ok {
-		if e, ok := limitOf(doc, a, now); ok && e.Count > 0 && !arrivedSince(doc, e, id) {
+		if e, ok := doc.LimitEvent(a, now); ok && e.Count > 0 && !arrivedSince(doc, e, id) {
 			return limitMoved(doc, e, id, now)
 		}
 	}
