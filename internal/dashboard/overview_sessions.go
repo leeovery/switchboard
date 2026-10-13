@@ -33,7 +33,7 @@ var doingInk = ink{token: theme.AccentKey}
 // sessionsSection is the Overview's SESSIONS of doc at now: the sessions
 // running, a row on each account a session's models go to, or a row saying
 // none is, at its least and its most alike; under routingRows columns, and
-// on a phone, two rows a session.
+// on a phone, two rows a session. A click on a session's row opens its page.
 func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 	running := f.running(doc, now)
 	rows := sectionHead + max(len(running)*f.runningForm().rows, 1)
@@ -44,6 +44,9 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 		},
 		folded: func() line {
 			return line{{runningCount(f.Moment(doc, now), running), mutedInk}}
+		},
+		targets: func(body bounds) []Target {
+			return f.runningTargets(running, body)
 		},
 	}
 }
@@ -102,10 +105,8 @@ func (f Frame) drawRunning(c *canvas, m status.Moment, running []views.Running, 
 		c.line(0, body.y, line{{"no sessions running", faintInk}})
 		return
 	}
-	form, shown := f.runningForm(), len(running)
-	if shown*form.rows > body.rows {
-		shown = max(body.rows-1, 0) / form.rows
-	}
+	form := f.runningForm()
+	shown := form.shown(len(running), body.rows)
 	names := overviewNames(m)
 	column := nameColumn(names, f.Width)
 	for i, r := range running[:shown] {
@@ -118,6 +119,31 @@ func (f Frame) drawRunning(c *canvas, m status.Moment, running []views.Running, 
 	if more := len(running) - shown; more > 0 {
 		c.line(column, body.y+shown*form.rows, outOfView(0, more, body.x+body.width-column, runningOut))
 	}
+}
+
+// shown is how many of n sessions running SESSIONS shows, drawn in the form
+// given, in rows rows: every one where they fit, else as many as leave the
+// last row to say how many more there are.
+func (form runningForm) shown(n, rows int) int {
+	if n*form.rows > rows {
+		return max(rows-1, 0) / form.rows
+	}
+	return n
+}
+
+// runningTargets are SESSIONS' click targets, the sessions running drawn in
+// the body's bounds as drawRunning draws them: every row of each session
+// shown, across the body, which opens its page; none on the row saying how
+// many more there are.
+func (f Frame) runningTargets(running []views.Running, body bounds) []Target {
+	form := f.runningForm()
+	var targets []Target
+	for i, r := range running[:form.shown(len(running), body.rows)] {
+		for row := range form.rows {
+			targets = append(targets, Target{X: body.x, Y: body.y + i*form.rows + row, Width: body.width, On: OnSession, Session: r.Session})
+		}
+	}
+	return targets
 }
 
 // runningOut is the form of the line saying how many more sessions are

@@ -61,7 +61,7 @@ func (m Model) sessionKeys() pageKeys {
 	}
 	pin, pinned := m.pinKey()
 	return pageKeys{
-		own:      []keyListing{{Key: esc, works: true, apart: true}, {Key: move, works: true, apart: true}, {Key: enter, works: true}},
+		own:      []keyListing{{Key: esc, works: true, leads: true}, {Key: move, works: true, apart: true}, {Key: enter, works: true, phoneDoes: "open"}},
 		pin:      pin,
 		pinned:   pinned,
 		coloured: m.coloured(),

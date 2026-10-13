@@ -6,7 +6,8 @@ import "github.com/leeovery/switchboard/internal/views"
 // view it was opened from: the page and its story, as the views build them;
 // the turn chosen, and the turn open, with its requests' rows and the
 // request chosen among them; how far its turns, and the open turn's
-// requests, are scrolled; and p, as the key line lists it.
+// requests, are scrolled; p, as the key line lists it; and the home its
+// directory is shown under.
 type SessionShown struct {
 	Page  views.SessionPage
 	Story views.Story
@@ -25,4 +26,7 @@ type SessionShown struct {
 	// Pin is p as the key line lists it, and Pinned whether it lists it.
 	Pin    Key
 	Pinned bool
+	// Home is the home directory, which the heading shows the session's
+	// directory under as ~: "" shows it whole.
+	Home string
 }
