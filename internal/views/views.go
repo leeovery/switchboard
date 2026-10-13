@@ -39,6 +39,10 @@ type Ledger interface {
 	// to, reporting afresh where they're every one of today's, for those
 	// read before to be let go of.
 	Today(mark ledger.Mark) (lines []ledger.Held, next ledger.Mark, afresh bool)
+	// Day gives the lines of the requests that arrived on the local day with
+	// the given date, by now, oldest first, read whole at each call: none of
+	// a day the ledger holds no lines of.
+	Day(date string) []ledger.Held
 	// Session gives the lines of the session with the given id, newest
 	// first, read as far back as the caller goes on.
 	Session(id string) iter.Seq[ledger.Held]

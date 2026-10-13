@@ -137,6 +137,18 @@ func (f fakeLedger) Today(ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
 	return today, ledger.Mark{}, true
 }
 
+// Day reads as a Follower does: the lines that arrived on the day by now,
+// oldest first.
+func (f fakeLedger) Day(date string) []ledger.Held {
+	var day []ledger.Held
+	for _, l := range f.lines {
+		if dayfile.DateOf(l.At) == date && !l.At.After(f.now) {
+			day = append(day, ledger.Held{Line: l})
+		}
+	}
+	return day
+}
+
 func (f fakeLedger) Session(id string) iter.Seq[ledger.Held] {
 	return func(yield func(ledger.Held) bool) {
 		for _, l := range slices.Backward(f.lines) {

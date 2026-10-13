@@ -3,6 +3,7 @@ package ledger
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"io/fs"
 	"iter"
 	"log/slog"
@@ -31,7 +32,7 @@ type Follower struct {
 	now     func() time.Time
 
 	mu       sync.Mutex
-	first    heldListing[time.Time]
+	listing  heldListing[dayListing]
 	readings heldListing[[]string]
 	unlisted failing
 	followed map[string]*followedDay
@@ -75,11 +76,33 @@ func (h *heldListing[T]) listed(path string, now time.Time, list func() (T, erro
 	return found, listErr
 }
 
+// dayListing is what a listing of the ledger's directory finds, as
+// days.listed gives it: the dates of the local days it holds lines of,
+// oldest first, and the date of the first day it holds, of its lines or its
+// summaries.
+type dayListing struct {
+	lines []string
+	first string
+}
+
+// listed returns what a listing of the ledger's directory finds, at now,
+// held as heldListing.listed says while the directory looks as it did.
+func (f *Follower) listed(now time.Time) (dayListing, error) {
+	return f.listing.listed(f.days.files.Dir, now, func() (dayListing, error) {
+		lines, first, err := f.days.listed()
+		return dayListing{lines: lines, first: first}, err
+	})
+}
+
 // firstDay returns the start of the first local day the ledger holds, as
-// days.first does, at now, held as heldListing.listed says while the
-// ledger's directory looks as it did.
+// days.first does, at now, held as listed says.
 func (f *Follower) firstDay(now time.Time) (time.Time, error) {
-	return f.first.listed(f.days.files.Dir, now, f.days.first)
+	held, err := f.listed(now)
+	if err != nil {
+		return time.Time{}, err
+	}
+	start, _, _ := dayfile.Day(held.first)
+	return start, nil
 }
 
 // FirstDay returns the start of the first local day the ledger holds, at
@@ -89,6 +112,24 @@ func (f *Follower) FirstDay(now time.Time) (time.Time, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.firstDay(now)
+}
+
+// FirstLinesDay returns the start of the first local day the ledger holds
+// lines of, at now, held as listed says: the first a day's lines can be read
+// back from, a summary of an earlier day, whose lines are pruned, aside. It
+// fails with fs.ErrNotExist where it holds no day's lines.
+func (f *Follower) FirstLinesDay(now time.Time) (time.Time, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	held, err := f.listed(now)
+	if err == nil && len(held.lines) == 0 {
+		err = fmt.Errorf("the request ledger holds no day's lines: %w", fs.ErrNotExist)
+	}
+	if err != nil {
+		return time.Time{}, err
+	}
+	start, _, _ := dayfile.Day(held.lines[0])
+	return start, nil
 }
 
 // readingsDates returns the dates of the local days the readings history
@@ -412,6 +453,29 @@ func (f *Follower) Today(mark Mark) (lines []Held, next Mark, afresh bool) {
 		lines[i] = a.Held
 	}
 	return lines, Mark{gen: t.gen, read: len(t.given)}, afresh
+}
+
+// Day returns the lines of the requests that arrived on the local day with
+// the given date, by now, oldest first, by when each arrived, then the date
+// of the day's file each is in, and its place there, as Today orders them:
+// read whole, at each call, from the day's files and those of the days either
+// side of it, as a change of time zone files a line under a date beside its
+// own, and a request that ends after midnight is its arrival day's. It gives
+// none of a date that isn't one, or of a day whose files hold none. How many
+// lines couldn't be read is warned of.
+func (f *Follower) Day(date string) []Held {
+	start, end, ok := dayfile.Day(date)
+	if !ok {
+		return nil
+	}
+	now := f.now()
+	within := func(h Held) bool { return !h.At.Before(start) && h.At.Before(end) && !h.At.After(now) }
+	var lines []Held
+	f.days.lines(dayfile.Dates(start, start), within, func(h Held) bool {
+		lines = append(lines, h)
+		return true
+	}, "day", date)
+	return lines
 }
 
 // todaysLines are today's lines as a Follower reads them as they grow:
