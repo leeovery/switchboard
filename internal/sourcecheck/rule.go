@@ -125,12 +125,20 @@ type Use struct {
 }
 
 // Breaches are where the type-checked file f breaks the rule, in the order
-// they come in it, and the calls it makes that the rule allows.
+// they come in it, and the calls it makes that the rule allows. What the
+// rule would judge but can't, as the type checker lost its type to a
+// package the loader stubs, breaks it too.
 func (r Rule) Breaches(f File) (found []Breach, allowed []Use) {
 	dir := path.Dir(f.Path)
+	unseen := r.unseenIn(f.Pkg, dir)
 	for _, decl := range f.AST.Decls {
 		w := &walk{r: r, info: f.Info, dir: dir, in: DeclName(decl), judged: make(map[*ast.Ident]bool)}
 		ast.Inspect(decl, w.visit)
+		for _, lost := range f.LostIn(decl) {
+			if unseen.bans(lost) {
+				w.breach(lost.Name.Pos(), lost.Says())
+			}
+		}
 		slices.SortStableFunc(w.found, func(x, y Breach) int { return cmp.Compare(x.At, y.At) })
 		found = append(found, w.found...)
 		allowed = append(allowed, w.allowed...)
@@ -196,15 +204,18 @@ func (w *walk) used(id *ast.Ident) {
 }
 
 // call finds the call of a function of Calls that breaks the rule here, by
-// its arguments.
+// its arguments, or that can't be judged by them.
 func (w *walk) call(call *ast.CallExpr) {
-	id, ban, ok := w.callBan(call.Fun)
+	name, id, ban, ok := w.callBan(call.Fun)
 	if !ok {
 		return
 	}
 	w.judged[id] = true
-	if ban.Breaks == nil || ban.Breaks(argued(call, w.info), w.info) {
+	switch breaks, lost := ban.judge(argued(call, w.info), w.info); {
+	case breaks:
 		w.breach(id.Pos(), ban.Says)
+	case lost != nil:
+		w.breach(id.Pos(), lostSays(name, "the type of its argument "+types.ExprString(lost)))
 	}
 }
 
@@ -212,7 +223,7 @@ func (w *walk) call(call *ast.CallExpr) {
 // callee of a call: what it's given where it's called can't be judged, so it
 // breaks the rule.
 func (w *walk) value(e ast.Expr) {
-	id, ban, ok := w.callBan(e)
+	_, id, ban, ok := w.callBan(e)
 	if !ok || w.judged[id] {
 		return
 	}
@@ -220,12 +231,12 @@ func (w *walk) value(e ast.Expr) {
 	w.breach(id.Pos(), ban.Says)
 }
 
-// callBan is the identifier naming the function e names, and its ban, where
-// it's one of Calls, banned here.
-func (w *walk) callBan(e ast.Expr) (*ast.Ident, CallBan, bool) {
+// callBan is the full name of the function e names, the identifier naming
+// it, and its ban, where it's one of Calls, banned here.
+func (w *walk) callBan(e ast.Expr) (string, *ast.Ident, CallBan, bool) {
 	name, id := funcNamed(e, w.info)
 	ban, ok := w.r.Calls[name]
-	return id, ban, ok && ban.holdsIn(w.dir)
+	return name, id, ban, ok && ban.holdsIn(w.dir)
 }
 
 // called names the function fn, as Names.Func has it, and says how using it

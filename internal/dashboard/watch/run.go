@@ -42,7 +42,7 @@ func heeded(_ tea.Model, msg tea.Msg) tea.Msg {
 // terminate signal, which it takes as a quit, or a panic it recovers from.
 func run(ctx context.Context, cfg Config, out io.Writer, opts ...tea.ProgramOption) error {
 	last := New(ctx, cfg)
-	program := tea.NewProgram(tracked{Model: last, last: &last}, append(opts, tea.WithContext(ctx), tea.WithOutput(out))...)
+	var program runner = tea.NewProgram(tracked{Model: last, last: &last}, append(opts, tea.WithContext(ctx), tea.WithOutput(out))...)
 	logger.Info("watch started", "interval", cfg.Interval)
 	started := time.Now()
 	_, err := program.Run()
@@ -54,6 +54,13 @@ func run(ctx context.Context, cfg Config, out io.Writer, opts ...tea.ProgramOpti
 		return fmt.Errorf("run the dashboard: %w", err)
 	}
 	return nil
+}
+
+// runner is a program Bubble Tea runs until it stops: declared here, as the
+// source guards can't see Bubble Tea's own types to judge what's called of
+// them.
+type runner interface {
+	Run() (tea.Model, error)
 }
 
 // tracked is the model as Bubble Tea runs it, each step it takes noted in

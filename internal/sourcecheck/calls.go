@@ -1,6 +1,7 @@
 package sourcecheck
 
 import (
+	"cmp"
 	"go/ast"
 	"go/constant"
 	"go/types"
@@ -8,28 +9,43 @@ import (
 )
 
 // CallBan is how a call of a function breaks a rule, and where, as Ban says:
-// where Breaks judges it does, by its arguments, or, where Breaks is nil,
-// every call. The function used as a value, not called, breaks the rule
-// wherever the ban holds, as what it's given where it's called can't be
+// where Breaks judges it does, by its arguments, or can't, or, where Breaks
+// is nil, every call. The function used as a value, not called, breaks the
+// rule wherever the ban holds, as what it's given where it's called can't be
 // judged.
 type CallBan struct {
 	Ban
 	// Breaks judges a call by its arguments, each at its parameter's index:
 	// a method expression's, as time.Time.Format(t, layout), less the
-	// receiver.
-	Breaks func(call *ast.CallExpr, info *types.Info) bool
+	// receiver. It reports whether the call breaks the rule, else the
+	// argument it can't judge, as the type checker lost its type to a
+	// package the loader stubs: nil where it judged them all.
+	Breaks func(call *ast.CallExpr, info *types.Info) (breaks bool, lost ast.Expr)
+}
+
+// judge is how the call breaks the rule, by its arguments, as Breaks judges
+// it: every call, without Breaks.
+func (b CallBan) judge(call *ast.CallExpr, info *types.Info) (bool, ast.Expr) {
+	if b.Breaks == nil {
+		return true, nil
+	}
+	return b.Breaks(call, info)
 }
 
 // ConstantOtherThan breaks a call whose argument at index arg is a constant
 // string, named or not, other than those allowed. An argument known only at
-// run time isn't judged.
-func ConstantOtherThan(arg int, allowed ...string) func(*ast.CallExpr, *types.Info) bool {
-	return func(call *ast.CallExpr, info *types.Info) bool {
+// run time isn't judged; one whose type is lost can't be.
+func ConstantOtherThan(arg int, allowed ...string) func(*ast.CallExpr, *types.Info) (bool, ast.Expr) {
+	return func(call *ast.CallExpr, info *types.Info) (bool, ast.Expr) {
 		if arg >= len(call.Args) {
-			return false
+			return false, nil
 		}
-		v := info.Types[call.Args[arg]].Value
-		return v != nil && v.Kind() == constant.String && !slices.Contains(allowed, constant.StringVal(v))
+		tv, seen := typeSeen(call.Args[arg], info)
+		if !seen {
+			return false, call.Args[arg]
+		}
+		v := tv.Value
+		return v != nil && v.Kind() == constant.String && !slices.Contains(allowed, constant.StringVal(v)), nil
 	}
 }
 
@@ -38,12 +54,21 @@ func ConstantOtherThan(arg int, allowed ...string) func(*ast.CallExpr, *types.In
 // float64's: each named by its package's path in full, as "time.Duration",
 // "example.com/fixture/internal/money.Picodollars" or "float64". An
 // untyped constant is of the type it's passed as: given to fmt, its default.
-func OperandOf(names ...string) func(*ast.CallExpr, *types.Info) bool {
-	return func(call *ast.CallExpr, info *types.Info) bool {
-		return slices.ContainsFunc(call.Args, func(arg ast.Expr) bool {
-			t := info.TypeOf(arg)
-			return t != nil && (slices.Contains(names, typeName(t)) || slices.Contains(names, typeName(t.Underlying())))
-		})
+// An argument whose type is lost can't be judged, unless another breaks the
+// call.
+func OperandOf(names ...string) func(*ast.CallExpr, *types.Info) (bool, ast.Expr) {
+	return func(call *ast.CallExpr, info *types.Info) (bool, ast.Expr) {
+		var lost ast.Expr
+		for _, arg := range call.Args {
+			tv, seen := typeSeen(arg, info)
+			switch {
+			case !seen:
+				lost = cmp.Or(lost, arg)
+			case slices.Contains(names, typeName(tv.Type)) || slices.Contains(names, typeName(tv.Type.Underlying())):
+				return true, nil
+			}
+		}
+		return false, lost
 	}
 }
 

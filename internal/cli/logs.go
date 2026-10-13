@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 
@@ -41,7 +42,7 @@ info unless set.`,
 			out := cmd.OutOrStdout()
 			switch {
 			case opts.path:
-				_, err := fmt.Fprintln(out, path)
+				_, err := io.WriteString(out, path+"\n")
 				return err
 			case opts.follow:
 				ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
