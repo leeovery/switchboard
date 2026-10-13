@@ -288,14 +288,29 @@ func (r Refusal) Text(now time.Time) string {
 	return r.Answer() + " until " + prose.TimeOfDay(now, r.Until)
 }
 
-// Answer says how the upstream refused, such as "refused (401)", or, refusing
-// a family's requests alone, "refused (403, opus)".
+// Answer says how the upstream refused, as RefusalAnswer says it, such as
+// "refused (401)", or, refusing a family's requests alone, "refused (403,
+// opus)".
 func (r Refusal) Answer() string {
-	answer := strconv.Itoa(r.Status)
-	if r.Family != "" {
-		answer += ", " + prose.Clean(r.Family)
+	return RefusalAnswer(r.Status, r.Family)
+}
+
+// RefusalAnswer says how the upstream refused, with the HTTP status code
+// given, of the model family given, cleaned, where it refused that family's
+// requests alone: "refused (401)", "refused (403, opus)"; either left out
+// where it's none, and "refused" alone where both are.
+func RefusalAnswer(code int, family string) string {
+	var answer []string
+	if code != 0 {
+		answer = append(answer, strconv.Itoa(code))
 	}
-	return "refused (" + answer + ")"
+	if family = prose.Clean(family); family != "" {
+		answer = append(answer, family)
+	}
+	if len(answer) == 0 {
+		return "refused"
+	}
+	return "refused (" + strings.Join(answer, ", ") + ")"
 }
 
 // writeAccount writes the account a, judged as j, as it stands at the

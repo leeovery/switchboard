@@ -81,17 +81,17 @@ func EventWords(reason string, f Facts) Words {
 func RoutingWords(reason string, f Facts) Words {
 	switch {
 	case isNew(prose.Clean(reason)):
-		return Words{plain("new session")}
+		return Words{Plain("new session")}
 	case f.From == "":
 		return nil
 	}
-	return slices.Concat(FromWords(f.From), Words{plain(", ")}, wordsOf(reason, f).routed)
+	return slices.Concat(FromWords(f.From), Words{Plain(", ")}, wordsOf(reason, f).routed)
 }
 
 // FromWords are a request's move of its session, the account it left alone,
 // as a phone's Log says it: "from work", as RoutingWords starts.
 func FromWords(from string) Words {
-	return Words{plain("from "), named(from)}
+	return Words{Plain("from "), Named(from)}
 }
 
 // SessionWords are the reason as a session's page reads, as in "since it
@@ -116,11 +116,11 @@ func RunningWords(reason string, f Facts) Words {
 	}
 	switch {
 	case isNew(reason) && f.Best:
-		return Words{plain("started here" + at + ", the best")}
+		return Words{Plain("started here" + at + ", the best")}
 	case isNew(reason):
-		return Words{plain("started here" + at)}
+		return Words{Plain("started here" + at)}
 	case reason == ReasonPinned:
-		return Words{plain("pinned here" + at)}
+		return Words{Plain("pinned here" + at)}
 	case strings.HasPrefix(reason, ReasonPinYields):
 		return EventWords(reason, f)
 	}
@@ -130,9 +130,9 @@ func RunningWords(reason string, f Facts) Words {
 	var came Words
 	switch {
 	case f.From != "":
-		came = Words{plain("moved from "), named(f.From), plain(at)}
+		came = Words{Plain("moved from "), Named(f.From), Plain(at)}
 	case at != "":
-		came = Words{plain("here since" + at)}
+		came = Words{Plain("here since" + at)}
 	}
 	switch {
 	case reason == "":
@@ -140,7 +140,7 @@ func RunningWords(reason string, f Facts) Words {
 	case came == nil:
 		return EventWords(reason, f)
 	}
-	return slices.Concat(came, Words{plain(": ")}, EventWords(reason, f))
+	return slices.Concat(came, Words{Plain(": ")}, EventWords(reason, f))
 }
 
 // forms are a reason's words in each place the dashboard says it: routed is
@@ -154,13 +154,13 @@ func alike(w Words) forms {
 	return forms{event: w, routed: w, session: w}
 }
 
-// plain is words around the accounts and times named.
-func plain(text string) Part {
+// Plain is words around the accounts and times named.
+func Plain(text string) Part {
 	return Part{Text: text}
 }
 
-// named is the account with the given id, cleaned, as it's from elsewhere.
-func named(id string) Part {
+// Named is the account with the given id, cleaned, as it's from elsewhere.
+func Named(id string) Part {
 	return Part{Text: prose.Clean(id), Kind: PartAccount}
 }
 
@@ -178,7 +178,7 @@ func wordsOf(reason string, f Facts) forms {
 			return w
 		}
 	}
-	return alike(Words{plain(reason)})
+	return alike(Words{Plain(reason)})
 }
 
 // isNew reports whether the reason, cleaned, is a new session's, whether or
@@ -232,9 +232,9 @@ func pressured(reason string, f Facts) (forms, bool) {
 	if !ok {
 		return forms{}, false
 	}
-	w := Words{named(account), plain(" came under pressure")}
+	w := Words{Named(account), Plain(" came under pressure")}
 	if !f.Until.IsZero() {
-		w = append(w, plain(", its 5-hour to run out at "+prose.Dated(f.Now, f.Until)))
+		w = append(w, Plain(", its 5-hour to run out at "+prose.Dated(f.Now, f.Until)))
 	}
 	return alike(w), true
 }
@@ -243,20 +243,20 @@ func pressured(reason string, f Facts) (forms, bool) {
 // move nothing are routed as the router gives them, as a request that moved
 // its session never carries them.
 func settled(reason string, f Facts) (forms, bool) {
-	given := Words{plain(reason)}
+	given := Words{Plain(reason)}
 	switch reason {
 	case ReasonNew:
-		return forms{event: Words{plain("started")}, session: Words{plain("since it started")}}, true
+		return forms{event: Words{Plain("started")}, session: Words{Plain("since it started")}}, true
 	case ReasonSticky:
-		return forms{event: Words{plain("sticky")}, routed: given, session: Words{plain("sticky")}}, true
+		return forms{event: Words{Plain("sticky")}, routed: given, session: Words{Plain("sticky")}}, true
 	case ReasonBound:
-		return forms{event: Words{plain("kept for its thinking")}, routed: given, session: Words{plain("kept for its thinking")}}, true
+		return forms{event: Words{Plain("kept for its thinking")}, routed: given, session: Words{Plain("kept for its thinking")}}, true
 	case ReasonPinned:
-		return alike(Words{plain("pinned here")}), true
+		return alike(Words{Plain("pinned here")}), true
 	case ReasonGlobalPin, ReasonMovedByPin:
 		return alike(pinnedTo(f.To)), true
 	case ReasonBack:
-		return alike(Words{plain("back where it was")}), true
+		return alike(Words{Plain("back where it was")}), true
 	}
 	return forms{}, false
 }
@@ -265,9 +265,9 @@ func settled(reason string, f Facts) (forms, bool) {
 // given.
 func pinnedTo(account string) Words {
 	if account == "" {
-		return Words{plain("pinned")}
+		return Words{Plain("pinned")}
 	}
-	return Words{plain("pinned to "), named(account)}
+	return Words{Plain("pinned to "), Named(account)}
 }
 
 // rescored reads the reason for a session that idled being chosen afresh,
@@ -279,10 +279,10 @@ func rescored(reason string, f Facts) (forms, bool) {
 	if !ok || !ends || idle == "" {
 		return forms{}, false
 	}
-	why := Words{plain(ReasonRescored), {Text: idle, Kind: PartDuration}, plain(rescoredIdle)}
+	why := Words{Plain(ReasonRescored), {Text: idle, Kind: PartDuration}, Plain(rescoredIdle)}
 	w := alike(why)
 	if f.To != "" {
-		w.session = append(slices.Clone(why), plain(": "), named(f.To), plain(" had the most room"))
+		w.session = append(slices.Clone(why), Plain(": "), Named(f.To), Plain(" had the most room"))
 	}
 	return w, true
 }
@@ -327,7 +327,7 @@ func TriedWords(tried ...Tried) Words {
 		if !known {
 			why = " " + prose.Clean(t.Why)
 		}
-		w = append(w, plain(lead), named(t.Account), plain(why))
+		w = append(w, Plain(lead), Named(t.Account), Plain(why))
 	}
 	return w
 }
@@ -343,10 +343,10 @@ func movedOff(reason string, _ Facts) (forms, bool) {
 	}
 	said, known := offWords[why]
 	if !known {
-		return alike(Words{plain(ReasonMovedOff), named(account), plain(" " + why)}), true
+		return alike(Words{Plain(ReasonMovedOff), Named(account), Plain(" " + why)}), true
 	}
-	event := Words{named(account), plain(said.event)}
-	return forms{event: event, routed: Words{plain(said.routed)}, session: event}, true
+	event := Words{Named(account), Plain(said.event)}
+	return forms{event: event, routed: Words{Plain(said.routed)}, session: event}, true
 }
 
 // pinYields reads the reason for going elsewhere than the session's own pin
@@ -357,7 +357,7 @@ func pinYields(reason string, _ Facts) (forms, bool) {
 	if !ok {
 		return forms{}, false
 	}
-	return alike(Words{plain("its pin to "), named(account), plain(" yields: "), named(account), plain(" " + why)}), true
+	return alike(Words{Plain("its pin to "), Named(account), Plain(" yields: "), Named(account), Plain(" " + why)}), true
 }
 
 // cutAccount cuts a reason that starts as given and names an account, as

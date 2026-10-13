@@ -2,6 +2,7 @@ package prose
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -16,18 +17,18 @@ func Tokens(n int) string {
 	case n < 1000:
 		return strconv.Itoa(n)
 	case rounded(n, 100) < 100:
-		return tenths(rounded(n, 100), "k")
+		return inTenths(rounded(n, 100), "k")
 	case rounded(n, 1000) < 1000:
 		return strconv.Itoa(rounded(n, 1000)) + "k"
 	}
-	return tenths(rounded(n, 100_000), "M")
+	return inTenths(rounded(n, 100_000), "M")
 }
 
 // Characters counts n characters as the Log counts an answer's so far: in
 // thousands to a tenth at every size, as "0.8k", "5.1k", "14.2k" or "958.3k",
 // a half rounded up, as Tokens rounds its tenths.
 func Characters(n int) string {
-	return tenths(rounded(n, 100), "k")
+	return inTenths(rounded(n, 100), "k")
 }
 
 // rounded is how many of unit n is, to the nearest, a half rounded up.
@@ -35,9 +36,32 @@ func rounded(n, unit int) int {
 	return (n + unit/2) / unit
 }
 
-// tenths writes a count of tenths of a unit, to a tenth, as "5.4k".
-func tenths(n int, unit string) string {
+// inTenths writes a count of tenths of a unit, to a tenth, as "5.4k".
+func inTenths(n int, unit string) string {
 	return strconv.Itoa(n/10) + "." + strconv.Itoa(n%10) + unit
+}
+
+// Millions writes a count of tokens as History's Tokens counts them: under
+// 100 million in millions to one place, as "4.2M"; then in whole millions, as
+// "615M"; and from a billion in billions to two places, as "1.06B".
+func Millions(n int) string {
+	millions := float64(n) / 1e6
+	switch {
+	case math.Round(millions*10) < 1000:
+		return fmt.Sprintf("%.1fM", millions)
+	case math.Round(millions) < 1000:
+		return fmt.Sprintf("%.0fM", millions)
+	}
+	return fmt.Sprintf("%.2fB", millions/1000)
+}
+
+// Thousands writes n as a phone's key has it: as it is under a thousand; from
+// a thousand, in thousands to as many places as it takes, as "1k" or "1.25k".
+func Thousands(n int) string {
+	if n < 1000 {
+		return strconv.Itoa(n)
+	}
+	return strconv.FormatFloat(float64(n)/1000, 'f', -1, 64) + "k"
 }
 
 // Times says how many times something happened, as a sentence does: "once",
@@ -74,6 +98,22 @@ func Counted(n int, noun string) string {
 	return Grouped(n) + " " + noun + "s"
 }
 
+// CountedOr counts n of the thing a noun names as Counted counts it, as "4
+// moves" or "1,240 sessions", or says none as zero words it, as "none" or "no
+// sessions", where there are none.
+func CountedOr(n int, noun, zero string) string {
+	if n == 0 {
+		return zero
+	}
+	return Counted(n, noun)
+}
+
+// SessionCount counts sessions in words, as CountedOr counts them: "3
+// sessions", "1 session" or "no sessions".
+func SessionCount(n int) string {
+	return CountedOr(n, "session", "no sessions")
+}
+
 // Grouped writes n with its thousands set apart by commas, as "1,240".
 func Grouped(n int) string {
 	digits := strconv.Itoa(n)
@@ -89,17 +129,4 @@ func Grouped(n int) string {
 		b.WriteRune(d)
 	}
 	return sign + b.String()
-}
-
-// SessionCount counts sessions in words, such as "3 sessions", "1 session" or
-// "no sessions".
-func SessionCount(n int) string {
-	switch n {
-	case 0:
-		return "no sessions"
-	case 1:
-		return "1 session"
-	default:
-		return fmt.Sprintf("%d sessions", n)
-	}
 }

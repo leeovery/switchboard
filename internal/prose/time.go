@@ -2,15 +2,44 @@ package prose
 
 import "time"
 
+// The layouts times and days are told in. A time is told in the time zone of
+// the now it's told at, as Clock tells it; a day, by the date a time has in
+// its own, as a date parsed has it, or a time in the zone it's told in.
+const (
+	timeLayout         = "15:04"
+	secondsLayout      = time.TimeOnly
+	clockLayout        = "Mon 15:04"
+	pastLayout         = "2 Jan 15:04"
+	readingLayout      = "Mon 2 Jan 15:04"
+	dayLayout          = "Mon 2 Jan"
+	dayInYearLayout    = "Mon 2 Jan 2006"
+	dayMonthLayout     = "2 Jan"
+	dayMonthYearLayout = "2 Jan 2006"
+	monthLayout        = "Jan"
+	monthYearLayout    = "Jan 2006"
+)
+
 // Clock shows t as its weekday and 24-hour time in now's time zone, such as
 // "Mon 18:10".
 func Clock(now, t time.Time) string {
-	return t.In(now.Location()).Format("Mon 15:04")
+	return t.In(now.Location()).Format(clockLayout)
 }
 
 // TimeOfDay shows t as its 24-hour time in now's time zone, such as "13:51".
 func TimeOfDay(now, t time.Time) string {
-	return t.In(now.Location()).Format("15:04")
+	return t.In(now.Location()).Format(timeLayout)
+}
+
+// ToTheSecond shows t as its 24-hour time to the second in now's time zone,
+// as the title row's clock and the Log's lines give it, such as "14:40:26".
+func ToTheSecond(now, t time.Time) string {
+	return t.In(now.Location()).Format(secondsLayout)
+}
+
+// Reading shows t as its day and 24-hour time in now's time zone, as when a
+// reading was read, such as "Tue 6 Oct 22:14".
+func Reading(now, t time.Time) string {
+	return t.In(now.Location()).Format(readingLayout)
 }
 
 // day is a day's length, as When has it.
@@ -34,6 +63,16 @@ func Dated(now, t time.Time) string {
 		return TimeOfDay(now, t)
 	}
 	return Clock(now, t)
+}
+
+// Brief shows t in now's time zone as briefly as a bar line has room for:
+// its time of day, such as "15:54", on now's day; else its weekday alone,
+// such as "Fri".
+func Brief(now, t time.Time) string {
+	if SameDay(now, t, now) {
+		return TimeOfDay(now, t)
+	}
+	return Weekday(t.In(now.Location()).Weekday())
 }
 
 // SameDay reports whether a and b fall on one day in now's time zone.
@@ -83,7 +122,7 @@ func Past(now, t time.Time) string {
 	case WithinWeek(now, t):
 		return Clock(now, t)
 	}
-	return t.Format("2 Jan 15:04")
+	return t.Format(pastLayout)
 }
 
 // WithinWeek reports whether t, before now, falls on now's day or one of the
@@ -100,4 +139,48 @@ func daysBetween(t, now time.Time) int {
 		return time.Date(y, m, d, 12, 0, 0, 0, time.UTC)
 	}
 	return int(noon(now).Sub(noon(t)).Round(day) / day)
+}
+
+// Day names the day d by its weekday, date and month, as History and the
+// title row name a day, such as "Wed 30 Sep".
+func Day(d time.Time) string {
+	return d.Format(dayLayout)
+}
+
+// DayInYear names the day d by its weekday, date, month and year, as a
+// verb's heading names a day, such as "Wed 7 Oct 2026".
+func DayInYear(d time.Time) string {
+	return d.Format(dayInYearLayout)
+}
+
+// DayMonth names the day d by its date and month, as a week is headed by its
+// first day, such as "24 Aug".
+func DayMonth(d time.Time) string {
+	return d.Format(dayMonthLayout)
+}
+
+// DayMonthYear names the day d by its date, month and year, such as "7 Oct
+// 2026".
+func DayMonthYear(d time.Time) string {
+	return d.Format(dayMonthYearLayout)
+}
+
+// Month names the month the day d falls in, as History names a month, such
+// as "Oct", or with its year, "Oct 2026".
+func Month(d time.Time, withYear bool) string {
+	if withYear {
+		return d.Format(monthYearLayout)
+	}
+	return d.Format(monthLayout)
+}
+
+// Weekday names the weekday d by its first three letters, such as "Mon".
+func Weekday(d time.Weekday) string {
+	return d.String()[:3]
+}
+
+// WeekdayInitial names the weekday d by its first letter, as a narrow row of
+// a week's days does, such as "M".
+func WeekdayInitial(d time.Weekday) string {
+	return d.String()[:1]
 }

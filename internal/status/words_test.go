@@ -26,6 +26,25 @@ func marked(w status.Words) string {
 	return b.String()
 }
 
+// Words are built of plain words, as they are, and accounts named, each by
+// its id, cleaned, as it's from elsewhere.
+func TestWordsAreBuiltOfPlainWordsAndAccountsNamed(t *testing.T) {
+	tests := []struct {
+		name string
+		part status.Part
+		want status.Part
+	}{
+		{name: "plain words", part: status.Plain(" moved to "), want: status.Part{Text: " moved to "}},
+		{name: "an account", part: status.Named("side"), want: status.Part{Text: "side", Kind: status.PartAccount}},
+		{name: "an account named from elsewhere", part: status.Named("si\x1b[2Jde"), want: status.Part{Text: "si [2Jde", Kind: status.PartAccount}},
+	}
+	for _, tt := range tests {
+		if tt.part != tt.want {
+			t.Errorf("%s: %+v, want %+v", tt.name, tt.part, tt.want)
+		}
+	}
+}
+
 func TestReasonWords(t *testing.T) {
 	now := time.Date(2026, 10, 9, 13, 2, 0, 0, time.FixedZone("UTC+1", 60*60))
 	pressure := status.Facts{Until: time.Date(2026, 10, 9, 14, 10, 0, 0, time.UTC), Now: now}

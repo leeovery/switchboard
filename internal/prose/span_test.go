@@ -40,6 +40,67 @@ func TestCountdown(t *testing.T) {
 	}
 }
 
+// A duration is said as Countdown counts down one that long, but none is
+// none, not now.
+func TestADurationIsInWholeUnitsAsCountdownSaysIt(t *testing.T) {
+	tests := []struct {
+		d    time.Duration
+		want string
+	}{
+		{d: -time.Minute, want: "0m"},
+		{d: 0, want: "0m"},
+		{d: 7*time.Minute + 59*time.Second, want: "7m"},
+		{d: 3*time.Hour + 10*time.Minute, want: "3h 10m"},
+		{d: 4 * time.Hour, want: "4h"},
+		{d: 5*24*time.Hour + 12*time.Hour + 59*time.Minute, want: "5d 12h"},
+	}
+	for _, tt := range tests {
+		if got := prose.Duration(tt.d); got != tt.want {
+			t.Errorf("Duration(%v) = %q, want %q", tt.d, got, tt.want)
+		}
+	}
+}
+
+func TestAboutIsToTheFiveMinutesUnderTwoHoursThenToTheHour(t *testing.T) {
+	tests := []struct {
+		d    time.Duration
+		want string
+	}{
+		{d: 12 * time.Minute, want: "10 min"},
+		{d: 12*time.Minute + 30*time.Second, want: "15 min"},
+		{d: 75 * time.Minute, want: "75 min"},
+		{d: 2*time.Hour - time.Second, want: "120 min"},
+		{d: 2 * time.Hour, want: "2h"},
+		{d: 6*time.Hour + 29*time.Minute, want: "6h"},
+		{d: 6*time.Hour + 30*time.Minute, want: "7h"},
+	}
+	for _, tt := range tests {
+		if got := prose.About(tt.d); got != tt.want {
+			t.Errorf("About(%v) = %q, want %q", tt.d, got, tt.want)
+		}
+	}
+}
+
+// Minutes count from the minute one time falls in to the one another does,
+// so 14:02:59 to 14:05:00 is 3 minutes, and 14:02:00 to 14:04:59 is 2.
+func TestMinutesCountFromTheMinuteOneTimeFallsInToAnothers(t *testing.T) {
+	at := func(minute, second int) time.Time { return time.Date(2026, 10, 7, 14, minute, second, 0, time.UTC) }
+	tests := []struct {
+		from, to time.Time
+		want     string
+	}{
+		{from: at(2, 0), to: at(2, 59), want: "0m"},
+		{from: at(2, 59), to: at(5, 0), want: "3m"},
+		{from: at(2, 0), to: at(4, 59), want: "2m"},
+		{from: at(2, 30), to: at(42, 10), want: "40m"},
+	}
+	for _, tt := range tests {
+		if got := prose.Minutes(tt.from, tt.to); got != tt.want {
+			t.Errorf("Minutes(%v, %v) = %q, want %q", tt.from, tt.to, got, tt.want)
+		}
+	}
+}
+
 func TestASpanIsInSecondsUnderAMinuteThenAsTheDashboardWritesSpans(t *testing.T) {
 	tests := []struct {
 		name string

@@ -145,6 +145,21 @@ type PlanCost struct {
 	Worth
 }
 
+// Monthly is what the plan costs a month, as PerMonth says a price: "" where
+// its price isn't known.
+func (p PlanCost) Monthly() string {
+	if p.Price == nil {
+		return ""
+	}
+	return PerMonth(*p.Price)
+}
+
+// PerMonth says a plan's price a month, to the dollar, its thousands set
+// apart, as "$1,000/mo".
+func PerMonth(price ledger.Picodollars) string {
+	return price.GroupedDollars() + "/mo"
+}
+
 // plansOf are each configured account's plan over days, in the config's
 // order, then every account's, each priced at its price on the day with the
 // date first, the period's first, prorated as its share s of a month.

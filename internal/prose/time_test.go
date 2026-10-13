@@ -75,6 +75,93 @@ func TestClock(t *testing.T) {
 	}
 }
 
+// A time to the second, and a reading's time, are in now's time zone.
+func TestATimeToTheSecondAndAReadingsAreInNowsTimeZone(t *testing.T) {
+	now := time.Date(2026, 10, 6, 22, 30, 0, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name            string
+		t               time.Time
+		second, reading string
+	}{
+		{name: "in now's zone", t: time.Date(2026, 10, 6, 14, 40, 26, 0, now.Location()), second: "14:40:26", reading: "Tue 6 Oct 14:40"},
+		{name: "in UTC", t: time.Date(2026, 10, 6, 21, 14, 5, 0, time.UTC), second: "22:14:05", reading: "Tue 6 Oct 22:14"},
+		{name: "past midnight in now's zone", t: time.Date(2026, 10, 6, 23, 10, 0, 0, time.UTC), second: "00:10:00", reading: "Wed 7 Oct 00:10"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.ToTheSecond(now, tt.t); got != tt.second {
+				t.Errorf("ToTheSecond() = %q, want %q", got, tt.second)
+			}
+			if got := prose.Reading(now, tt.t); got != tt.reading {
+				t.Errorf("Reading() = %q, want %q", got, tt.reading)
+			}
+		})
+	}
+}
+
+// Brief is a time of day on now's day, in now's time zone, else its weekday
+// alone.
+func TestBriefIsATimeOfDayOnNowsDayElseItsWeekday(t *testing.T) {
+	now := time.Date(2026, 10, 2, 14, 31, 0, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name string
+		t    time.Time
+		want string
+	}{
+		{name: "on now's day", t: time.Date(2026, 10, 2, 15, 54, 0, 0, now.Location()), want: "15:54"},
+		{name: "on another", t: time.Date(2026, 10, 4, 15, 54, 0, 0, now.Location()), want: "Sun"},
+		{name: "the day before in UTC, now's day in now's zone", t: time.Date(2026, 10, 1, 23, 30, 0, 0, time.UTC), want: "00:30"},
+		{name: "now's day in UTC, the next in now's zone", t: time.Date(2026, 10, 2, 23, 30, 0, 0, time.UTC), want: "Sat"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.Brief(now, tt.t); got != tt.want {
+				t.Errorf("Brief() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// A day is named by the date it has in its own time zone, as a date parsed
+// in UTC has it, however far west of UTC now is.
+func TestADayIsNamedByTheDateItHasInItsOwnTimeZone(t *testing.T) {
+	tests := []struct {
+		name                                     string
+		d                                        time.Time
+		day, inYear, dayMonth, dayMonthYear      string
+		month, monthYear, weekday, weekdayLetter string
+	}{
+		{
+			name: "a date parsed in UTC", d: time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC),
+			day: "Tue 22 Sep", inYear: "Tue 22 Sep 2026", dayMonth: "22 Sep", dayMonthYear: "22 Sep 2026",
+			month: "Sep", monthYear: "Sep 2026", weekday: "Tue", weekdayLetter: "T",
+		},
+		{
+			name: "late in a zone west of UTC", d: time.Date(2026, 10, 7, 23, 30, 0, 0, time.FixedZone("UTC-7", -7*60*60)),
+			day: "Wed 7 Oct", inYear: "Wed 7 Oct 2026", dayMonth: "7 Oct", dayMonthYear: "7 Oct 2026",
+			month: "Oct", monthYear: "Oct 2026", weekday: "Wed", weekdayLetter: "W",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, got := range []struct{ form, got, want string }{
+				{"Day", prose.Day(tt.d), tt.day},
+				{"DayInYear", prose.DayInYear(tt.d), tt.inYear},
+				{"DayMonth", prose.DayMonth(tt.d), tt.dayMonth},
+				{"DayMonthYear", prose.DayMonthYear(tt.d), tt.dayMonthYear},
+				{"Month", prose.Month(tt.d, false), tt.month},
+				{"Month with its year", prose.Month(tt.d, true), tt.monthYear},
+				{"Weekday", prose.Weekday(tt.d.Weekday()), tt.weekday},
+				{"WeekdayInitial", prose.WeekdayInitial(tt.d.Weekday()), tt.weekdayLetter},
+			} {
+				if got.got != got.want {
+					t.Errorf("%s() = %q, want %q", got.form, got.got, got.want)
+				}
+			}
+		})
+	}
+}
+
 func TestPastShowsMoreOfATimeTheFurtherBackItsDayIs(t *testing.T) {
 	// Wednesday 7 October, 01:30, an hour ahead of UTC.
 	now := time.Date(2026, 10, 7, 1, 30, 0, 0, time.FixedZone("UTC+1", 60*60))

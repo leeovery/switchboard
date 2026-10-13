@@ -26,14 +26,62 @@ func Clean(text string) string {
 	return strings.Join(strings.Fields(text), " ")
 }
 
+// The words that join a list's last item to the rest: And, as List runs
+// items together, "a, b and c"; and Or, as ListOr runs together what's
+// chosen between, "a, b or c".
+const (
+	And = " and "
+	Or  = " or "
+)
+
+// Joiner is what goes before the item at i of n run together as a list, its
+// last joined by last, as And or Or: nothing before the first, last before
+// the last, and ", " before any other.
+func Joiner(i, n int, last string) string {
+	switch i {
+	case 0:
+		return ""
+	case n - 1:
+		return last
+	}
+	return ", "
+}
+
 // List runs items together as a list: "a", "a and b", "a, b and c", or ""
 // for none.
 func List(items []string) string {
-	if len(items) < 2 {
-		return strings.Join(items, "")
+	return listed(items, And)
+}
+
+// ListOr runs items together as a list of what's chosen between: "a", "a or
+// b", "a, b or c", or "" for none.
+func ListOr(items []string) string {
+	return listed(items, Or)
+}
+
+// listed runs items together as a list, each after its Joiner, the last
+// joined by last.
+func listed(items []string, last string) string {
+	var b strings.Builder
+	for i, item := range items {
+		b.WriteString(Joiner(i, len(items), last))
+		b.WriteString(item)
 	}
-	last := len(items) - 1
-	return strings.Join(items[:last], ", ") + " and " + items[last]
+	return b.String()
+}
+
+// ListOf names the things a noun names, each of a kind its name gives, as
+// List runs the names together: the noun alone for none, as "limit"; "5-hour
+// limit" for one; and "5-hour and week limits" for more, a noun whose plural
+// takes an s.
+func ListOf(names []string, noun string) string {
+	switch len(names) {
+	case 0:
+		return noun
+	case 1:
+		return names[0] + " " + noun
+	}
+	return List(names) + " " + noun + "s"
 }
 
 // Truncate keeps the first n characters of s.
@@ -56,20 +104,28 @@ func TruncateBytes(s string, n int) string {
 	return s[:n]
 }
 
-// ellipsis stands for what TruncateBytesFront, Cut and CutFront cut.
-const ellipsis = "…"
+// Ellipsis stands for what's cut, as TruncateBytesFront, Cut, CutShort and
+// CutFront cut it, or what isn't shown.
+const Ellipsis = "…"
 
 // Cut cuts text to the cells given, as a terminal draws it, ending it with an
-// ellipsis where it's cut, the spaces before that let go: text as it is where
-// it fits, and "" where no cell is given.
+// ellipsis where it's cut, as CutShort cuts it: text as it is where it fits,
+// and "" where no cell is given.
 func Cut(text string, cells int) string {
-	switch {
-	case ansi.StringWidth(text) <= cells:
+	if ansi.StringWidth(text) <= cells {
 		return text
-	case cells < 1:
+	}
+	return CutShort(text, cells)
+}
+
+// CutShort cuts text short to the cells given, as a terminal draws it, ending
+// it with an ellipsis, the spaces before that let go, whether or not it fits,
+// as where what follows it won't: "" where no cell is given.
+func CutShort(text string, cells int) string {
+	if cells < 1 {
 		return ""
 	}
-	return strings.TrimRight(ansi.Truncate(text, cells-ansi.StringWidth(ellipsis), ""), " ") + ellipsis
+	return strings.TrimRight(ansi.Truncate(text, cells-ansi.StringWidth(Ellipsis), ""), " ") + Ellipsis
 }
 
 // CutFront cuts text to the cells given, as a terminal draws it, from its
@@ -82,7 +138,7 @@ func CutFront(text string, cells int) string {
 	case cells < 1:
 		return ""
 	default:
-		return ellipsis + ansi.TruncateLeft(text, width-(cells-ansi.StringWidth(ellipsis)), "")
+		return Ellipsis + ansi.TruncateLeft(text, width-(cells-ansi.StringWidth(Ellipsis)), "")
 	}
 }
 
@@ -93,12 +149,12 @@ func TruncateBytesFront(s string, n int) string {
 	switch {
 	case len(s) <= n:
 		return s
-	case n < len(ellipsis):
+	case n < len(Ellipsis):
 		return ""
 	}
-	start := len(s) - (n - len(ellipsis))
+	start := len(s) - (n - len(Ellipsis))
 	for start < len(s) && !utf8.RuneStart(s[start]) {
 		start++
 	}
-	return ellipsis + s[start:]
+	return Ellipsis + s[start:]
 }

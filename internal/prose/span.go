@@ -6,19 +6,26 @@ import (
 	"time"
 )
 
-// Countdown says how long it is from now until t, in whole units: "5d 12h"
-// from a day away, "4h 57m" from an hour, else "7m"; "now" once t has come.
-// A second unit of zero is left off, as in "6d" and "4h".
+// Countdown says how long it is from now until t, as Duration says how long
+// that is: "5d 12h" from a day away, "4h 57m" from an hour, else "7m"; "now"
+// once t has come.
 func Countdown(now, t time.Time) string {
-	return countdown(t.Sub(now), "%dm")
-}
-
-// countdown says how long d is as Countdown does, the minutes after hours as
-// the format given writes them.
-func countdown(d time.Duration, minutesAfterHours string) string {
-	if d <= 0 {
+	if !t.After(now) {
 		return "now"
 	}
+	return Duration(t.Sub(now))
+}
+
+// Duration says how long d is, in whole units, as Countdown counts down a
+// span that long: "5d 12h" from a day, "4h 57m" from an hour, else "7m", and
+// "0m" for none. A second unit of zero is left off, as in "6d" and "4h".
+func Duration(d time.Duration) string {
+	return countdown(max(d, 0), "%dm")
+}
+
+// countdown says how long d, none or more, is as Duration does, the minutes
+// after hours as the format given writes them.
+func countdown(d time.Duration, minutesAfterHours string) string {
 	hours, minutes := int(d/time.Hour), int(d%time.Hour/time.Minute)
 	switch {
 	case hours >= 24:
@@ -110,6 +117,22 @@ func Over(d time.Duration) string {
 		return fmt.Sprintf("last %d min", int(d/time.Minute))
 	}
 	return "last " + countdown(d, "%dm")
+}
+
+// About says about how long d is, as Runway's key says what a column spans:
+// to the five minutes, as "75 min", under two hours; else to the hour, as
+// "6h".
+func About(d time.Duration) string {
+	if d < 2*time.Hour {
+		return fmt.Sprintf("%d min", d.Round(5*time.Minute)/time.Minute)
+	}
+	return fmt.Sprintf("%dh", d.Round(time.Hour)/time.Hour)
+}
+
+// Minutes says how many minutes it is from the minute from falls in to the
+// one to falls in, as a turn's length is said, as "3m".
+func Minutes(from, to time.Time) string {
+	return strconv.Itoa(int(to.Truncate(time.Minute).Sub(from.Truncate(time.Minute))/time.Minute)) + "m"
 }
 
 // ClockOf shows a time of day, as the time since midnight, as HH:MM, such as
