@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -116,6 +117,28 @@ func TestAPlansCostIsProratedAsThePeriodAskedFor(t *testing.T) {
 				t.Errorf("from %s, the plans cost %s, want %s", tt.from, got, tt.want)
 			}
 		})
+	}
+}
+
+// Asked for from today, on the week's first day, the days are this week, as
+// Accounts opens on it: the plans cost a week, as the same document's tokens
+// price this week's row and Accounts' this week, not a day.
+func TestOnTheWeeksFirstDayTheDaysAskedForFromTodayAreThisWeek(t *testing.T) {
+	monday := on("2026-10-05").Add(15 * time.Hour)
+	days := daysTo("2026-10-01", monday, day("2026-10-05", account("work", sent("claude-opus-5-5", 1, inputUsage))))
+	in := input(days)
+	in.From, in.Now = on("2026-10-05"), monday
+	history := views.NewHistory(in)
+	accounts := views.NewPast(in, days).Accounts(views.AccountsThisWeek)
+
+	week := "50.769230769231"
+	got := []string{
+		jsonOf(t, history.Plans[len(history.Plans)-1].Cost),
+		jsonOf(t, history.Tokens[len(history.Tokens)-1].Cost),
+		jsonOf(t, accounts.All.Plan.Cost),
+	}
+	if !slices.Equal(got, []string{week, week, week}) {
+		t.Errorf("the plans, this week's tokens and Accounts' this week cost %v, want each %s, a week", got, week)
 	}
 }
 
