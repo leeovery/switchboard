@@ -101,6 +101,10 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 		"probed, of one account, with no room": {
 			"work": {state: "■ limit", head: "■ limit reached"},
 		},
+		"every account at its cap, none with room": {
+			"work": {state: "● at cap", head: "● at its cap"},
+			"side": {state: "● at cap", head: "● at its cap"},
+		},
 		"probed, one of several at its limit": {
 			"work": {state: "■ limit", head: "■ limit reached"},
 			"side": {state: "● open", head: "● open"},

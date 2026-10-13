@@ -48,11 +48,3 @@ func (r Routing) unbacked() []string {
 	}
 	return slices.Clone(r.Clauses[1:])
 }
-
-// onlyIf is the clause given, where so, else none.
-func onlyIf(so bool, clause string) []string {
-	if !so {
-		return nil
-	}
-	return []string{clause}
-}
