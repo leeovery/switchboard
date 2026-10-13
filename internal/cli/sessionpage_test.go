@@ -168,7 +168,7 @@ func TestSessionsFindsASessionOfAnEarlierDayByItsWholeIdAlone(t *testing.T) {
 ended Mon 10:00  ·  ran on work  ·  started Mon 10:00 · ran 0s
 kept until 9 Nov 2027
 
-work  10:00 – 10:00  1 request    $0.04
+work  Mon 10:00 – 10:00  1 request    $0.04
 
 0 turns  ·  1 request  ·  99% from cache  ·  $0.04 at API prices
 `

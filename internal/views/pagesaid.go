@@ -245,20 +245,16 @@ type Stay struct {
 // each with its time there, at now, as prose.Stint says it: from its first
 // request there to its last, or, while it runs, as Runs says, to now on the
 // one its latest request went to, never one the router sends it to but no
-// request of it has gone to since; each end with its day where its time,
-// from its first request to its last or to now, spans more than one, as
-// "yesterday 16:40 – 18:05" and "today 09:12 – now".
+// request of it has gone to since; each end with its day where the session
+// began before today, as an undated time reads as today's, as "yesterday
+// 16:40 – 18:05", "today 09:12 – now" and "yesterday 13:20 – 16:02".
 func (p SessionPage) Stays(now time.Time) []Stay {
 	if len(p.Accounts) == 0 {
 		return nil
 	}
 	first := slices.MinFunc(p.Accounts, func(a, b SessionAccount) int { return a.From.Compare(b.From) }).From
 	last := slices.MaxFunc(p.Accounts, func(a, b SessionAccount) int { return a.To.Compare(b.To) })
-	end := last.To
-	if p.Runs() {
-		end = now
-	}
-	dated := !prose.SameDay(now, first, end)
+	dated := !prose.SameDay(now, first, now)
 	stays := make([]Stay, len(p.Accounts))
 	for i, a := range p.Accounts {
 		to := a.To

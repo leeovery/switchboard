@@ -235,8 +235,8 @@ func TestASessionsStartAndRunAreSaidAsRow6SaysThem(t *testing.T) {
 }
 
 // Each account the session ran on has its time there, to now on the one its
-// latest request went to while it runs, each end with its day where its time
-// spans days.
+// latest request went to while it runs, each end with its day where the
+// session began before today.
 func TestASessionsTimeOnEachAccountIsItsStay(t *testing.T) {
 	now := local(14, 42, 7)
 	yesterday := func(hour, minute int) time.Time { return local(hour, minute, 0).AddDate(0, 0, -1) }
@@ -262,6 +262,9 @@ func TestASessionsTimeOnEachAccountIsItsStay(t *testing.T) {
 		{name: "ended, each to its last request",
 			accounts: []views.SessionAccount{{Account: "work", From: local(12, 0, 0), To: local(12, 40, 0)}, {Account: "side", From: local(12, 41, 0), To: local(13, 20, 0)}},
 			a:        ended, want: []string{"12:00 – 12:40", "12:41 – 13:20"}},
+		{name: "ended wholly yesterday, dated, as an undated time reads as today's",
+			accounts: []views.SessionAccount{{Account: "work", From: yesterday(13, 20), To: yesterday(16, 2)}, {Account: "side", From: yesterday(16, 2), To: yesterday(18, 47)}},
+			a:        views.Activity{Doing: views.Ended, Since: yesterday(18, 47)}, want: []string{"yesterday 13:20 – 16:02", "yesterday 16:02 – 18:47"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
