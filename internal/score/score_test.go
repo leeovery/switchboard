@@ -744,6 +744,120 @@ func TestPickBetweenNearEquals(t *testing.T) {
 	}
 }
 
+func TestChoose(t *testing.T) {
+	// Spare's week needs using first, then side's, then work's; each
+	// session is a tenth used and resets in 3 hours.
+	work := account("work", 0.1, 0.5, 5*24*time.Hour)
+	side := account("side", 0.1, 0.5, 3*24*time.Hour)
+	spare := account("spare", 0.1, 0.5, 24*time.Hour)
+	unread := func(id string) score.Candidate { return score.Candidate{ID: id} }
+	spent := func(id string) score.Candidate { return account(id, 0.1, 1, 5*24*time.Hour) }
+	unscored := func(id string) score.Candidate {
+		return score.Candidate{ID: id, Windows: []quota.Window{window("5h", 0.1, 3*time.Hour), {Key: "7d", Utilization: 0.5}}}
+	}
+	// pressed runs its session out at its reserve, a tenth, before it resets,
+	// but at its limit after.
+	pressed := reserving(account("side", 0.4, 0.5, 3*24*time.Hour), 0.1)
+	pressed.Rate = 0.18
+	tests := []struct {
+		name       string
+		candidates []score.Candidate
+		pinned     []string
+		preferred  string
+		want       score.Choice
+		wantOK     bool
+	}{
+		{
+			name:       "unpinned, the best of every candidate",
+			candidates: []score.Candidate{work, side, spare},
+			want:       score.Choice{ID: "spare"}, wantOK: true,
+		},
+		{
+			name:       "the one pinned",
+			candidates: []score.Candidate{work, side, spare},
+			pinned:     []string{"work"},
+			want:       score.Choice{ID: "work", Pinned: true}, wantOK: true,
+		},
+		{
+			name:       "the best of those pinned",
+			candidates: []score.Candidate{work, side, spare},
+			pinned:     []string{"work", "side"},
+			want:       score.Choice{ID: "side", Pinned: true}, wantOK: true,
+		},
+		{
+			name:       "one pinned at its reserve, which the pin spends",
+			candidates: []score.Candidate{reserving(account("work", 0.1, 0.95, 5*24*time.Hour), 0.1), side, spare},
+			pinned:     []string{"work"},
+			want:       score.Choice{ID: "work", Pinned: true}, wantOK: true,
+		},
+		{
+			name:       "of those pinned, one under pressure only at its reserve, which the pin spends",
+			candidates: []score.Candidate{work, pressed, spare},
+			pinned:     []string{"work", "side"},
+			want:       score.Choice{ID: "side", Pinned: true}, wantOK: true,
+		},
+		{
+			name:       "of those pinned, keeping to the one preferred unless another is well ahead",
+			candidates: []score.Candidate{account("work", 0.1, 0.5, 50*time.Hour), account("side", 0.1, 0.45, 50*time.Hour), spare},
+			pinned:     []string{"work", "side"},
+			preferred:  "work",
+			want:       score.Choice{ID: "work", Pinned: true}, wantOK: true,
+		},
+		{
+			name:       "the first pinned with room, when none pinned can be scored",
+			candidates: []score.Candidate{spent("work"), unscored("side"), spare},
+			pinned:     []string{"work", "side"},
+			want:       score.Choice{ID: "side", Pinned: true}, wantOK: true,
+		},
+		{
+			name:       "the first pinned, in the pin's order, nothing read of either",
+			candidates: []score.Candidate{unread("work"), unread("side"), spare},
+			pinned:     []string{"side", "work"},
+			want:       score.Choice{ID: "side", Pinned: true}, wantOK: true,
+		},
+		{
+			name:       "the best of every candidate, once none pinned has room",
+			candidates: []score.Candidate{spent("work"), spent("side"), spare},
+			pinned:     []string{"work", "side"},
+			want:       score.Choice{ID: "spare"}, wantOK: true,
+		},
+		{
+			name:       "the best of every candidate, where none pinned is one",
+			candidates: []score.Candidate{work, side, spare},
+			pinned:     []string{"personal"},
+			want:       score.Choice{ID: "spare"}, wantOK: true,
+		},
+		{
+			name:       "none, where none has room",
+			candidates: []score.Candidate{spent("work"), spent("side"), unread("spare")},
+			pinned:     []string{"work"},
+			want:       score.Choice{}, wantOK: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			candidates := slices.Clone(tt.candidates)
+			got, ok := policy.Choose(candidates, tt.pinned, policy.IsShared, tt.preferred, now)
+			if got != tt.want || ok != tt.wantOK {
+				t.Errorf("Choose() = %+v, %v, want %+v, %v", got, ok, tt.want, tt.wantOK)
+			}
+			if !reflect.DeepEqual(candidates, tt.candidates) {
+				t.Errorf("Choose() changed the candidates to %+v, want them as given", candidates)
+			}
+		})
+	}
+}
+
+func TestPickPinnedChoosesOfThosePinnedAlone(t *testing.T) {
+	candidates := []score.Candidate{account("work", 0.1, 1, 5*24*time.Hour), account("side", 0.1, 0.5, 24*time.Hour)}
+	if got, ok := policy.PickPinned(candidates, []string{"work"}, policy.IsShared, "", now); ok {
+		t.Errorf("PickPinned() = %+v, want none: work, the one pinned, has no room, whatever side has", got)
+	}
+	if got, ok := policy.PickPinned(candidates, nil, policy.IsShared, "", now); ok {
+		t.Errorf("PickPinned() = %+v, want none: nothing is pinned", got)
+	}
+}
+
 // account returns a candidate whose session window is at session, and whose
 // week is at week and resets after weekLeft, followed by more windows.
 func account(id string, session, week float64, weekLeft time.Duration, more ...quota.Window) score.Candidate {

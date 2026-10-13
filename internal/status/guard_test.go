@@ -101,14 +101,15 @@ var (
 		"score.AllowanceOf", "score.AtReserve", "score.Available", "score.Current", "score.Elapsed", "score.EvenPace",
 		"score.HeldByReserve", "score.LetGo", "score.PaceOf", "score.Project", "score.ProjectAt", "score.Reaches",
 		"score.RecentRate", "score.Room", "score.Spent",
-		"score.Policy.AsOf", "score.Policy.HasLapsed", "score.Policy.Lapsed", "score.Policy.Pick", "score.Policy.PressureOf",
+		"score.Policy.AsOf", "score.Policy.Choose", "score.Policy.HasLapsed", "score.Policy.Lapsed", "score.Policy.Pick",
+		"score.Policy.PickPinned", "score.Policy.PressureOf",
 		"status.PressureFrom", "status.Account.AsOf",
 	}
 	// absorbed are what status works a fact out with that the moment has:
 	// a view calls none, but reads the moment's fact. What the moment
 	// absorbed that nothing outside status called, status no longer gives.
 	absorbed = []string{
-		"status.Best",
+		"status.Best", "status.ProbedBest",
 		"status.Account.HeldBy", "status.Account.Shut", "status.Account.TokenRefused", "status.Account.WindowAt",
 		"status.Document.Destination", "status.Document.Floor", "status.Document.Reserved", "status.Document.RunsOut",
 		"status.Document.StateOf", "status.Document.Text", "status.Document.WindowStatesOf",

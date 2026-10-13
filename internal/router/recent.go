@@ -262,7 +262,7 @@ func (r *recent) look() {
 	now := r.now()
 	pin := r.sessions.globalPin()
 	heard := r.newest()
-	accounts, _ := r.state.statuses(now, pin.Accounts)
+	accounts := r.state.statuses(now, pin.Accounts)
 	news := r.news(accounts, r.state.standings(now))
 	r.change(func() {
 		for _, e := range news {

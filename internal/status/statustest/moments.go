@@ -435,14 +435,14 @@ func (r Routed) trails(policy score.Policy, gen time.Time) map[string][]score.Re
 // builds its own, as policy judges its windows: each account as it stands
 // then, as AsOf has it; with a usable token, its pressure, as
 // status.PressureFrom has it, and its recent rates, as status.RatesOf has
-// them, over its trails; the best of those not shut; and the primary.
+// them, over its trails; where a new session goes, as status.Best has it;
+// and the primary.
 func Router(policy score.Policy, pinned []string, accounts ...Routed) status.Document {
 	gen := Built
 	doc := status.Document{GeneratedAt: gen, Source: status.SourceRouter, Router: status.Health{Healthy: true}}
 	if len(pinned) > 0 {
 		doc.Pin = status.Pin{Accounts: pinned, Since: gen.Add(-time.Hour)}
 	}
-	var open []status.Account
 	for _, r := range accounts {
 		a := r.AsOf(policy, gen)
 		if a.TokenSet {
@@ -453,24 +453,21 @@ func Router(policy score.Policy, pinned []string, accounts ...Routed) status.Doc
 			a.Rates = status.RatesOf(r.Windows, trails, gen)
 		}
 		doc.Accounts = append(doc.Accounts, a)
-		if !a.Shut(gen, policy) {
-			open = append(open, a)
-		}
 	}
-	doc.Best, doc.Primary = status.Best(policy, open, pinned, gen), status.PrimaryOf(doc.Accounts)
+	doc.Best, doc.Primary = status.Best(policy, doc.Accounts, pinned, gen), status.PrimaryOf(doc.Accounts)
 	return doc
 }
 
 // Probed is the document probing builds at Built of the accounts given, each
 // read as given, before it's worked out, as Collect builds it, as policy
-// judges their windows: each account as it stands then, the best of them,
-// and the primary, the router not running.
+// judges their windows: each account as it stands then, the best of them, as
+// status.ProbedBest has it, and the primary, the router not running.
 func Probed(policy score.Policy, accounts ...status.Account) status.Document {
 	doc := status.Document{GeneratedAt: Built, Source: status.SourceProbe, Fallback: status.Fallback{Router: status.RouterNotRunning}}
 	for _, a := range accounts {
 		doc.Accounts = append(doc.Accounts, a.AsOf(policy, Built))
 	}
-	doc.Best, doc.Primary = status.Best(policy, doc.Accounts, nil, Built), status.PrimaryOf(doc.Accounts)
+	doc.Best, doc.Primary = status.ProbedBest(policy, doc.Accounts, Built), status.PrimaryOf(doc.Accounts)
 	return doc
 }
 
