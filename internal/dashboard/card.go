@@ -49,9 +49,13 @@ type Card struct {
 	lit bodyRows
 }
 
-// bodyRows are rows of a card's body: n of them from its row first.
+// bodyRows are rows of a card's body: n of them from its row first; where
+// cells is set, cells of each from a cell before the one x cells into its
+// content, as the Log's f panel lights a tick a cell either side; else each
+// from a cell before its content to a cell after it.
 type bodyRows struct {
 	first, n int
+	x, cells int
 }
 
 // cardScroll is how far a card's body is scrolled: how many of its rows are
@@ -107,9 +111,8 @@ func (k Card) box(width, height int) (x, y, w, h int) {
 }
 
 // draw draws the card over what's drawn on c, in its box, the cells inside
-// its line blank. Its lit rows are on bg.selection from a cell before its
-// content to a cell after it, a cell clear of its line either side, as the
-// Log's f panel lights a row a cell either side of what it says.
+// its line blank. Its lit rows are on bg.selection over the cells they
+// light, as bodyRows has them, a cell clear of its line either side.
 func (k Card) draw(c *canvas) {
 	keys := len(k.keys) > 0
 	x, y, _, height := k.box(c.width, c.height())
@@ -123,8 +126,12 @@ func (k Card) draw(c *canvas) {
 	for i, l := range k.body {
 		c.line(x+cardInset, y+2+i, l.fit(content))
 	}
+	from, cells := k.lit.x, k.lit.cells
+	if cells == 0 {
+		from, cells = 0, content+2
+	}
 	for i := range k.lit.n {
-		c.surface(x+cardInset-1, y+2+k.lit.first+i, content+2, hue{token: theme.BgSelection})
+		c.surface(x+cardInset-1+from, y+2+k.lit.first+i, cells, hue{token: theme.BgSelection})
 	}
 	if keys {
 		c.right(x+k.width-cardInset, y+height-2, keyRow(k.keys).fit(content))
