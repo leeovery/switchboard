@@ -310,5 +310,5 @@ func (m Model) pinKey() (dashboard.Key, bool) {
 	if m.cfg.ProbeOnly {
 		return key, false
 	}
-	return key, len(m.arrived.Accounts) > 1 || !m.arrived.Pin.IsZero()
+	return key, m.asRead.accounts > 1 || m.asRead.pinned
 }

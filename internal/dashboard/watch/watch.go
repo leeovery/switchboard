@@ -193,11 +193,10 @@ type Model struct {
 	// known.
 	size Size
 
-	// doc is the document on screen, and arrived its moment as it arrived,
-	// whose facts that hold whatever the time, as where it came from and its
-	// accounts, the watch reads.
-	doc     status.Document
-	arrived status.Moment
+	// doc is the document on screen, and asRead what the watch reads of it
+	// as it was read.
+	doc    status.Document
+	asRead asRead
 	// taking is the message Update is taking in, while it takes it: zero
 	// outside Update.
 	taking taking
@@ -872,7 +871,7 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	m.changes = m.changes.looked(look, msg.router)
 	m.history = m.history.saw(look)
 	m.ease = easing{from: m.ease.standing(m.frame(now), m.doc, now), start: now}
-	m.doc, m.arrived, m.taking.moment, m.updated, m.failed = doc, look, look.Held(), now, ""
+	m.doc, m.asRead, m.taking.moment, m.updated, m.failed = doc, asReadOf(look), look.Held(), now, ""
 	switch {
 	case msg.listed || !look.Routed:
 		m.order = m.frame(now).OrderOf(doc)
@@ -1097,7 +1096,22 @@ func (m Model) noted(now time.Time) string {
 
 // routed reports whether the document on screen is the router's.
 func (m Model) routed() bool {
-	return m.arrived.Routed
+	return m.asRead.routed
+}
+
+// asRead is what the watch reads of a document as it was read, which holds
+// whatever the time: whether it's the router's, how many accounts it has,
+// and whether a pin stands.
+type asRead struct {
+	routed   bool
+	accounts int
+	pinned   bool
+}
+
+// asReadOf is what the watch reads of the document look is a moment of, as
+// it was read.
+func asReadOf(look status.Moment) asRead {
+	return asRead{routed: look.Routed, accounts: len(look.Accounts), pinned: !look.Pin.IsZero()}
 }
 
 // probedAsAsked reports whether the document look is a moment of was built by

@@ -105,7 +105,7 @@ func (m Model) keys() pageKeys {
 	}
 	own = append(own,
 		keyListing{Key: dashboard.Key{Key: "b", Does: "by", State: string(layoutOf(m.by))}, works: overview},
-		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && len(m.arrived.Accounts) > 1, withEnds: true},
+		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && m.asRead.accounts > 1, withEnds: true},
 		keyListing{Key: dashboard.Key{Key: "w", Does: "window: " + m.span.Name()}, works: m.view == dashboard.Runway},
 	)
 	pin, pinned := m.pinKey()
