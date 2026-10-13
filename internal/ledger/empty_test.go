@@ -30,6 +30,9 @@ func TestAnEmptyLedgerReadsAsAFollowerOfAnEmptyStateDirectory(t *testing.T) {
 				call, gotLines, gotAfresh, wantLines, wantAfresh)
 		}
 	}
+	if got, want := empty.Day("2026-10-06"), follower.Day("2026-10-06"); len(got) != len(want) {
+		t.Errorf("Day() = %+v, want %+v, as a Follower of an empty state directory gives", got, want)
+	}
 	if got, want := slices.Collect(empty.Session("5b0e7c1a")), slices.Collect(follower.Session("5b0e7c1a")); len(got) != len(want) {
 		t.Errorf("Session() = %+v, want %+v, as a Follower of an empty state directory gives", got, want)
 	}
