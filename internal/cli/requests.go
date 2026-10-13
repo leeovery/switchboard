@@ -154,7 +154,7 @@ func writeLines(out io.Writer, lines iter.Seq[ledger.Held]) error {
 func writeRequests(out io.Writer, rows iter.Seq[views.RequestLine], from, now time.Time) error {
 	at := func(r views.RequestLine) time.Time { return r.At }
 	row := func(r views.RequestLine) []string { return requestRow(r, now) }
-	_, err := writeDays(out, rows, at, row, "requests", from, now)
+	_, err := writeDays(out, rows, at, row, "requests", from, now, nil)
 	return err
 }
 

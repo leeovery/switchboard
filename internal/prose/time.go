@@ -1,6 +1,9 @@
 package prose
 
-import "time"
+import (
+	"time"
+	"unicode/utf8"
+)
 
 // The layouts times and days are told in. A time is told in the time zone of
 // the now it's told at, as Clock tells it; a day, by the date a time has in
@@ -63,6 +66,13 @@ func Dated(now, t time.Time) string {
 		return TimeOfDay(now, t)
 	}
 	return Clock(now, t)
+}
+
+// DatedWidth is how many characters the widest time Dated shows takes, as a
+// column of them is as wide as: one with its weekday.
+func DatedWidth() int {
+	var t time.Time
+	return max(utf8.RuneCountInString(TimeOfDay(t, t)), utf8.RuneCountInString(Clock(t, t)))
 }
 
 // Brief shows t in now's time zone as briefly as a bar line has room for:
