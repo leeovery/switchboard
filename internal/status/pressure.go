@@ -23,7 +23,7 @@ type Pressing struct {
 }
 
 // PressureFrom is how the account p's pressure window, as policy names it,
-// stands at now, as the router gives it and as PressureOf says: at the pace
+// stands at now, as the router gives it and as pressureOf says: at the pace
 // score.PaceOf judges over its trail, its windows as they stand at now, its
 // room ending at its reserve or, Spent, at its limit; the account taking a
 // request of some model while it isn't Shut and no window every model shares
@@ -46,5 +46,5 @@ func PressureFrom(policy score.Policy, p Pressing, now time.Time) Pressure {
 	takes := func(reserve float64) bool {
 		return !p.Shut && score.Available(current, reserve, policy.IsShared, now)
 	}
-	return PressureOf(policy, pace, c, takes, now)
+	return pressureOf(policy, pace, c, takes, now)
 }

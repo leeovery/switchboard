@@ -20,8 +20,8 @@ type standing struct {
 	// that's unknown, as its state reads them.
 	used float64
 	pace *float64
-	// heading is where it's heading, as doc's Project says; and out where it
-	// runs out before it resets, as RunsOut says, runsOut set where it does.
+	// out is where it runs out before it resets, as RunsOut says, runsOut set
+	// where it does, and heading where it's heading, as out's Heading has it.
 	heading status.Heading
 	out     status.RunOut
 	runsOut bool

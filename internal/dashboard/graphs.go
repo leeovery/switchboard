@@ -46,7 +46,7 @@ func (f Frame) graphsSection(doc status.Document, now time.Time) section {
 // as the Overview names it: by window or by account alike, each window's
 // chart drawn from its trail.
 func (f Frame) graphsOf(doc status.Document, now time.Time) graphs {
-	m := f.moment(doc, now)
+	m := f.Moment(doc, now)
 	names := overviewNames(m)
 	g := graphs{names: nameColumn(names, f.Width), phone: f.phone(), look: f.Look}
 	account, focused := m.Account(f.Focus)

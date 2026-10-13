@@ -419,13 +419,13 @@ type Pressure struct {
 	Under bool `json:"under,omitempty"`
 }
 
-// PressureOf is how an account's pressure window, as policy names it, stands
+// pressureOf is how an account's pressure window, as policy names it, stands
 // at now, as the router gives it, the account being c, its rate the pace its
 // window is used at: when, at that rate, the window reaches where c's room
 // ends, at c's reserve; and whether that's before it resets while the
 // account can take a request of some model at that reserve, as takes reports,
 // asked only then.
-func PressureOf(policy score.Policy, pace score.Pace, c score.Candidate, takes func(reserve float64) bool, now time.Time) Pressure {
+func pressureOf(policy score.Policy, pace score.Pace, c score.Candidate, takes func(reserve float64) bool, now time.Time) Pressure {
 	p := policy.PressureOf(c, now)
 	return Pressure{
 		Window: policy.Pressure, Rate: pace.Rate, Recent: pace.Recent, Since: pace.Since.UTC(),
@@ -519,13 +519,13 @@ type Heading struct {
 	Since  time.Time
 }
 
-// Project says where the account's window w is heading at now: at the pace
+// project says where the account's window w is heading at now: at the pace
 // its use since it started sets, or at the rate the router saw it used over
 // the last half hour, where it has that rate, when that has it run out
 // sooner, as score.Sooner judges, so a burst of use shows before the average
 // catches up with it. The window the router watches for pressure always goes
 // at that recent rate, so it heads where the router judges it to.
-func (a Account) Project(w quota.Window, now time.Time) Heading {
+func (a Account) project(w quota.Window, now time.Time) Heading {
 	average := Heading{Projection: score.Project(w, now)}
 	rate, ok := a.rate(w.Key)
 	if !ok {
@@ -547,15 +547,15 @@ type RunOut struct {
 	Heading
 }
 
-// Project says where doc's account a's window w is heading at now: as the
-// account's Project says, from when the document was read, as readAt has it,
+// project says where doc's account a's window w is heading at now: as the
+// account's project says, from when the document was read, as readAt has it,
 // so it stays put while the document does rather than moving with the clock;
 // and nowhere once the window has reset since.
-func (d Document) Project(a Account, w quota.Window, now time.Time) Heading {
+func (d Document) project(a Account, w quota.Window, now time.Time) Heading {
 	if w.ResetBy(now) {
 		return Heading{}
 	}
-	return a.Project(w, d.readAt(now))
+	return a.project(w, d.readAt(now))
 }
 
 // readAt is when doc was read, which its projections go from, as the
@@ -566,20 +566,20 @@ func (d Document) readAt(now time.Time) time.Time {
 
 // RunsOut says where the account a's window w runs out at now, as the
 // router's pressure judges it and the dashboard shows it, reporting false
-// where it doesn't before it resets: where its use, heading as doc's Project
+// where it doesn't before it resets: where its use, heading as doc's project
 // says, reaches its floor, which is its reserve, where that would hold the
-// account back, as ReserveHolds says, else its limit.
+// account back, as reserveHolds says, else its limit.
 func (d Document) RunsOut(a Account, w quota.Window, now time.Time) (RunOut, bool) {
-	out := RunOut{Heading: d.Project(a, w, now), Reserve: d.ReserveHolds(a)}
+	out := RunOut{Heading: d.project(a, w, now), Reserve: d.reserveHolds(a)}
 	var ok bool
 	out.At, ok = score.Reaches(w, out.Projection, d.Floor(a), d.readAt(now))
 	return out, ok
 }
 
-// ReserveHolds reports whether the account's reserve holds it back once its
+// reserveHolds reports whether the account's reserve holds it back once its
 // use reaches it: it has one, and the global pin doesn't name it, as a pin
 // spends it.
-func (d Document) ReserveHolds(a Account) bool {
+func (d Document) reserveHolds(a Account) bool {
 	return a.Reserve > 0 && !d.Pin.Has(a.ID)
 }
 

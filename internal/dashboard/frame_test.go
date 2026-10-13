@@ -317,11 +317,11 @@ func twoWithRoom() status.Document {
 
 func TestAFrameAtOneDocumentReadsAnothersMomentAfresh(t *testing.T) {
 	other := twoWithRoom()
-	want := other.PoolAt(now, claudeLike)
-	if first := threeRouted().PoolAt(now, claudeLike); slices.Equal(first.Accounts, want.Accounts) {
+	want := other.At(now, claudeLike).Pool()
+	if first := threeRouted().At(now, claudeLike).Pool(); slices.Equal(first.Accounts, want.Accounts) {
 		t.Fatalf("both documents pool %v, want pools that differ", want.Accounts)
 	}
-	if got := frameOf(160, 40).At(threeRouted(), now).moment(other, now).Pool(); !slices.Equal(got.Accounts, want.Accounts) {
+	if got := frameOf(160, 40).At(threeRouted(), now).Moment(other, now).Pool(); !slices.Equal(got.Accounts, want.Accounts) {
 		t.Errorf("held at one document, the pool of another at the same moment is of %v, want its own, of %v", got.Accounts, want.Accounts)
 	}
 }

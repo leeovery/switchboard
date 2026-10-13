@@ -561,7 +561,7 @@ func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 			if got := textOf(c.rows(Look{})); !slices.Equal(trimmedLeft(got), tt.want) {
 				t.Errorf("the key line reads %q, want %q", got, tt.want)
 			}
-			if marks := keyMarks(namesOf(f.moment(tt.doc, printNow)), false); len(marks) > 0 && (marks[len(marks)-1][0].ink != accentInk || marks[len(marks)-1][1].ink != mutedInk) {
+			if marks := keyMarks(namesOf(f.Moment(tt.doc, printNow)), false); len(marks) > 0 && (marks[len(marks)-1][0].ink != accentInk || marks[len(marks)-1][1].ink != mutedInk) {
 				t.Errorf("▲'s part is drawn %+v, want ▲ in accent.mode and its words in text.muted", marks[len(marks)-1])
 			}
 		})

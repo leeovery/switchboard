@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -338,13 +339,14 @@ func TestTheStatusLineIsOnItsRowFromTheFirstColumn(t *testing.T) {
 
 // The page's status line says where new sessions go as the moment's Next
 // has it, at each of the hard moments, which USAGE's ▲ marks: the router's
-// says the account it names, or that none has room; a probed document's says
-// nothing of it, and is the probed line.
+// says the account it names, or that none has room, or, of several accounts
+// none of which is read, that nothing is; a probed document's says nothing
+// of it, and is the probed line.
 func TestTheStatusLineAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
 	for _, hm := range statustest.HardMoments(claudeLike) {
 		t.Run(hm.Name, func(t *testing.T) {
 			f := Frame{Width: 200, Height: 8, Policy: claudeLike}
-			m := f.moment(hm.Doc, hm.Now)
+			m := f.Moment(hm.Doc, hm.Now)
 			s := f.pageStatus(hm.Doc, hm.Now)
 			var want string
 			switch {
@@ -352,6 +354,8 @@ func TestTheStatusLineAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
 				if got := s.state.plain(); !strings.HasPrefix(got, "○ probed") {
 					t.Errorf("the status line's state reads %q, want the probed line", got)
 				}
+			case len(m.Accounts) > 1 && !slices.ContainsFunc(m.Accounts, func(a status.AccountNow) bool { return a.Read }):
+				want = "nothing read yet"
 			case m.Next == "":
 				want = "no account has room"
 			default:

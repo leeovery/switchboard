@@ -3,7 +3,6 @@ package dashboard
 import (
 	"cmp"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -51,35 +50,6 @@ func names(m status.Moment, ids []string) string {
 func place(m status.Moment, id string) int {
 	a, _ := m.Account(id)
 	return a.Place
-}
-
-// docName is name of an account of the document as read, for the views that
-// read the document rather than its moment; as are docNamed, docNames and
-// docPlace of named, names and place.
-func docName(a status.Account) string {
-	return labelled(a.Label, a.ID)
-}
-
-// docNamed is named of doc, as docName has it.
-func docNamed(doc status.Document, id string) string {
-	if a, ok := doc.Account(id); ok {
-		return docName(a)
-	}
-	return status.Clean(id)
-}
-
-// docNames is names of doc, as docName has it.
-func docNames(doc status.Document, ids []string) string {
-	listed := make([]string, len(ids))
-	for i, id := range ids {
-		listed[i] = docNamed(doc, id)
-	}
-	return prose.List(listed)
-}
-
-// docPlace is place of doc, as docName has it.
-func docPlace(doc status.Document, id string) int {
-	return slices.IndexFunc(doc.Accounts, func(a status.Account) bool { return a.ID == id }) + 1
 }
 
 // either lists the names as prose lists what's chosen between, each in k

@@ -27,7 +27,7 @@ const (
 	// last read failed, last read At. A refused token is tried before
 	// WindowNotStarted, and a failed read after it.
 	WindowStale
-	// WindowNotStarted is the window a request starts, lapsed, as HasLapsed
+	// WindowNotStarted is the window a request starts, lapsed, as hasLapsed
 	// judges it: it isn't running, and reads empty, until a request starts it.
 	WindowNotStarted
 	// WindowCapped is a window whose use has reached its account's cap, which
@@ -74,7 +74,7 @@ type WindowStates struct {
 	policy  score.Policy
 	stood   standing
 	// reached are the keys of the account's windows that have reached its
-	// reserve at now, as ReachedReserve has them, whether or not the global
+	// reserve at now, as reachedReserve has them, whether or not the global
 	// pin spends it.
 	reached []string
 	// capBack is when the account's cap lets it go, where it holds it back
@@ -94,12 +94,12 @@ type WindowStates struct {
 // the windows as they stand at now.
 func (d Document) WindowStatesOf(a Account, now time.Time, policy score.Policy) WindowStates {
 	s := WindowStates{
-		doc: d, account: a, now: now, policy: policy, reached: a.ReachedReserve(now),
+		doc: d, account: a, now: now, policy: policy, reached: a.reachedReserve(now),
 		refusing: a.Refused.Holds(now), idle: a.idleAt(now, policy), pressed: a.underPressure(now),
 	}
 	s.stood = standing{lapsed: a.lapsedAt(now, policy), refused: a.TokenRefused(now)}
-	s.stood.held, s.stood.limited = a.Held(now, policy)
-	s.stood.capped = d.ReserveHolds(a) && slices.ContainsFunc(s.reached, policy.IsShared)
+	s.stood.held, s.stood.limited = a.held(now, policy)
+	s.stood.capped = d.reserveHolds(a) && slices.ContainsFunc(s.reached, policy.IsShared)
 	if s.stood.capped {
 		s.capBack, _ = score.LetGo(a.Windows, a.Reserve, policy.IsShared, now)
 	}
@@ -107,14 +107,14 @@ func (d Document) WindowStatesOf(a Account, now time.Time, policy score.Policy) 
 }
 
 // capped reports whether the account's window with the given key has reached
-// its reserve at now, which holds the account back, as ReserveHolds says.
+// its reserve at now, which holds the account back, as reserveHolds says.
 func (s WindowStates) capped(key string) bool {
-	return s.doc.ReserveHolds(s.account) && slices.Contains(s.reached, key)
+	return s.doc.reserveHolds(s.account) && slices.Contains(s.reached, key)
 }
 
 // Of is how the account's window with the given key stands: the first that
-// holds of the kinds, in their order, which is ROUTING's, as RoutingOf says an
-// account's state: no usable token; nothing read; a limit holding the window;
+// holds of the kinds, in their order, which is ROUTING's, as an account's
+// Routing at a moment says its state: no usable token; nothing read; a limit holding the window;
 // its token refused; lapsed, not started, ahead of a failed read, as ROUTING
 // says idle ahead of one once anything was read; its last read failed; the
 // cap; running out; and open.

@@ -25,7 +25,7 @@ func weekRunningOut(out, resets time.Duration) quota.Window {
 // laneIn is f's lane of doc's i-th account at now, as the moment of doc then
 // has it.
 func laneIn(f Frame, doc status.Document, i int) lane {
-	return f.laneOf(f.moment(doc, now).Accounts[i], now)
+	return f.laneOf(f.Moment(doc, now).Accounts[i], now)
 }
 
 // limitedAt is an account whose session reached its limit at reached, as

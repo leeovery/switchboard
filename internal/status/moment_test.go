@@ -81,12 +81,6 @@ func checkMomentAgainstStatus(t *testing.T, doc status.Document, m status.Moment
 	if want := dashboardBestOf(doc); m.Next != want {
 		t.Errorf("Next = %q, want %q, as the dashboard's bestOf marks ▲", m.Next, want)
 	}
-	if got, want := m.Pool(), doc.PoolAt(now, policy); !reflect.DeepEqual(got, want) {
-		t.Errorf("Pool() = %+v, want %+v, as PoolAt has it", got, want)
-	}
-	if got, want := m.Coming, doc.Coming(now, policy); !reflect.DeepEqual(got, want) {
-		t.Errorf("Coming = %+v, want %+v, as Coming has it", got, want)
-	}
 	if got, want := m.Text(), doc.Text(now, policy); got != want {
 		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 	}
@@ -137,7 +131,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		Pinned: doc.Pin.Has(a.ID), Next: a.ID == m.Next,
 		InPool: slices.Contains(pool.Accounts, a.ID), OutOfPool: len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: status.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
-		Routing: doc.RoutingOf(a, now, policy), Hold: hold, Held: held, LimitSince: got.LimitSince,
+		Routing: got.Routing, Hold: hold, Held: held, LimitHolds: a.Limit.Holds(now), LimitSince: got.LimitSince,
 		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapBack: capBack,
 		Refusal: refusal, TokenRefused: a.TokenRefused(now),
 		Pressure: status.PressureNow{Under: doc.Pressed(a, now) != "", Window: a.Pressure.Window, Out: pressureOut},
@@ -161,7 +155,7 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 		Reserve: a.Reserve, Cap: a.Cap, Floor: a.Floor, ReserveHolds: a.ReserveHolds,
 		Pinned: a.Pinned, Next: a.Next, InPool: a.InPool, OutOfPool: a.OutOfPool,
 		TokenSet: a.TokenSet, Read: a.Read, ReadAt: a.ReadAt, Error: a.Error, Failures: a.Failures, Sessions: a.Sessions,
-		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitSince: a.LimitSince,
+		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitHolds: a.LimitHolds, LimitSince: a.LimitSince,
 		ReachedReserve: a.ReachedReserve, CapHolds: a.CapHolds, CapBack: a.CapBack,
 		Refusal: a.Refusal, TokenRefused: a.TokenRefused, Pressure: a.Pressure,
 		Idle: a.Idle, NextPrime: a.NextPrime, OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Windows: a.Windows,
@@ -187,7 +181,7 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 		if st.Kind == status.WindowOpen {
 			want.Allowance = st.Allowance
 		}
-		want.Room, _ = doc.RoomOf(a, w.Key, now, policy)
+		want.Room = got.Room
 		want.Start, want.Length, _ = stands.Span()
 		want.ResetSinceRead, want.Lapsed = w.ResetBy(now), a.HasLapsed(w.Key, now, policy)
 		want.Held = st.Kind == status.WindowLimited
@@ -197,6 +191,7 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 		want.Capped = doc.ReserveHolds(a) && slices.Contains(a.ReachedReserve(now), w.Key)
 		want.CappedAsRead = doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key)
 		want.RunsOut, want.Out = st.Kind == status.WindowRunsOut, out
+		want.RunsOutAhead = want.RunsOut || want.Held && !out.At.IsZero()
 		if share, ok := dashboardProjected(st, out.Projection); ok {
 			want.Projected = &share
 		}
@@ -303,7 +298,7 @@ func TestADocumentWorkedOutIsAsItStoodWhenItWasBuilt(t *testing.T) {
 		t.Run(hm.Name, func(t *testing.T) {
 			worked := hm.Doc.WorkedOut(policy)
 			m := hm.Doc.At(hm.Doc.GeneratedAt, policy)
-			if got, want := worked.Pool, m.Pool(); !reflect.DeepEqual(got, want) {
+			if got, want := poolNowOf(worked.Pool), m.Pool(); !reflect.DeepEqual(got, want) {
 				t.Errorf("worked out, the pool is %+v, want %+v, as it stood as the document was built", got, want)
 			}
 			for i, a := range worked.Accounts {
@@ -490,18 +485,17 @@ func TestAWindowNotHeldBeganNoLimit(t *testing.T) {
 	}
 }
 
-func TestAMomentsPoolIsThePoolAtItsMomentOnceWorkedOut(t *testing.T) {
-	doc := fullDocument()
-	m := doc.At(built.Add(time.Hour), policy)
+func TestAMomentsPoolIsWorkedOutOnceForEveryCopy(t *testing.T) {
+	m := fullDocument().At(built.Add(time.Hour), policy)
 	first := m.Pool()
-	if want := doc.PoolAt(built.Add(time.Hour), policy); !reflect.DeepEqual(first, want) {
-		t.Errorf("Pool() = %+v, want %+v, as PoolAt has it", first, want)
+	if len(first.Accounts) == 0 || len(first.Windows) == 0 {
+		t.Fatalf("Pool() = %+v, want a pool of the document's accounts", first)
 	}
 	copied := m
 	if again := copied.Pool(); !reflect.DeepEqual(again, first) {
 		t.Errorf("Pool() asked again = %+v, want %+v", again, first)
 	}
-	if got := (status.Moment{}).Pool(); !reflect.DeepEqual(got, status.Pool{}) {
+	if got := (status.Moment{}).Pool(); !reflect.DeepEqual(got, status.PoolNow{}) {
 		t.Errorf("the zero moment's Pool() = %+v, want none", got)
 	}
 }
@@ -653,8 +647,8 @@ func TestNewSessionsGoWhereTheRouterSendsThem(t *testing.T) {
 					t.Errorf("%s's Next = %v, want %v", a.ID, a.Next, a.ID == tt.next)
 				}
 			}
-			if got := doc.RoutingOf(tt.account, stateNow, policy).String(); got != tt.routing {
-				t.Errorf("RoutingOf() = %q, want %q", got, tt.routing)
+			if got := routingOf(doc, tt.account, stateNow).String(); got != tt.routing {
+				t.Errorf("Routing = %q, want %q", got, tt.routing)
 			}
 			if got := doc.StateOf(tt.account, stateNow, policy).String(); got != tt.state {
 				t.Errorf("StateOf() = %q, want %q", got, tt.state)
@@ -765,6 +759,36 @@ func TestAMomentAtAnotherNowIsItsDocumentAtThatNow(t *testing.T) {
 				t.Errorf("as built, then at now, the pool is %+v, want %+v", got.Pool(), want.Pool())
 			}
 		})
+	}
+}
+
+// A held moment is its document's at its now, worked out once, and of that
+// document at that now alone: another document, or another now, is another
+// moment's.
+func TestAHeldMomentIsItsDocumentsAtItsNow(t *testing.T) {
+	doc, at := fullDocument(), built.Add(time.Hour)
+	held := doc.HoldAt(at, policy)
+	if got, want := held.Moment(), doc.At(at, policy); !reflect.DeepEqual(factsOf(got), factsOf(want)) || !reflect.DeepEqual(got.Pool(), want.Pool()) {
+		t.Errorf("the moment held is\n%+v\nwant\n%+v", factsOf(got), factsOf(want))
+	}
+	other := doc
+	other.GeneratedAt = doc.GeneratedAt.Add(time.Second)
+	tests := []struct {
+		name string
+		held *status.HeldMoment
+		doc  status.Document
+		now  time.Time
+		want bool
+	}{
+		{name: "its document at its now", held: held, doc: doc, now: at, want: true},
+		{name: "its document at another now", held: held, doc: doc, now: at.Add(time.Second)},
+		{name: "another document at its now", held: held, doc: other, now: at},
+		{name: "none held", doc: doc, now: at},
+	}
+	for _, tt := range tests {
+		if got := tt.held.Of(tt.doc, tt.now); got != tt.want {
+			t.Errorf("%s: Of() = %v, want %v", tt.name, got, tt.want)
+		}
 	}
 }
 

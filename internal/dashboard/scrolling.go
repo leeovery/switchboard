@@ -57,7 +57,7 @@ func (f Frame) ScrollsRows() bool {
 // over it, so it goes on an account at a time until the account shows, the
 // page laid out once for every account it goes on.
 func (f Frame) Revealing(doc status.Document, now time.Time, id string) int {
-	m := f.moment(doc, now)
+	m := f.Moment(doc, now)
 	i := slices.IndexFunc(m.Accounts, func(a status.AccountNow) bool { return a.ID == id })
 	scrolling := f.scrollingAt(doc, now)
 	at := scrolling(f.Scroll).revealing(f.Scroll, i)
@@ -98,7 +98,7 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 // cramped says, never scrolls, nor one of a document of no accounts, but
 // History.
 func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) Scrolling {
-	m := f.moment(doc, now)
+	m := f.Moment(doc, now)
 	var s Scrolling
 	switch top := f.top(); {
 	case f.cramped():

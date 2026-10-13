@@ -78,7 +78,7 @@ func (d Document) Text(now time.Time, policy score.Policy, sessions ...Session) 
 
 // writePriming writes the priming schedule, when priming is on, such as
 // "priming 08:00-23:00: work at 04:10 and side at 06:40", and under it what
-// comes next of it at now, as policy judges the windows, as Coming has it.
+// comes next of it at now, as policy judges the windows, as its moment then has it.
 func (d Document) writePriming(b *strings.Builder, now time.Time, policy score.Policy) {
 	if len(d.Prime.Slots) == 0 {
 		return
@@ -88,7 +88,7 @@ func (d Document) writePriming(b *strings.Builder, now time.Time, policy score.P
 		slots[i] = Clean(s.Account) + " at " + Clean(s.At)
 	}
 	fmt.Fprintf(b, "priming %s: %s\n", Clean(d.Prime.Day), prose.List(slots))
-	if coming := d.Coming(now, policy); len(coming) > 0 {
+	if coming := d.At(now, policy).Coming; len(coming) > 0 {
 		parts := make([]string, len(coming))
 		for i, c := range coming {
 			parts[i] = c.What + ": " + c.Account.Title() + ", " + Clock(now, c.At)
@@ -117,13 +117,13 @@ func (d Document) writeNotes(b *strings.Builder, a Account, now time.Time) {
 }
 
 // Reserved says how the account's reserve stands at now once a window has
-// reached it, as ReachedReserve judges: "at its reserve (90%)", the router's
+// reached it, as reachedReserve judges: "at its reserve (90%)", the router's
 // own choices passing the account over from that share of a window on, or,
 // with the global pin naming it, "spending its reserve (pinned)". It's ""
 // while no window has reached it.
 func (d Document) Reserved(a Account, now time.Time) string {
 	switch {
-	case len(a.ReachedReserve(now)) == 0:
+	case len(a.reachedReserve(now)) == 0:
 		return ""
 	case d.Pin.Has(a.ID):
 		return "spending its reserve (pinned)"
@@ -132,7 +132,7 @@ func (d Document) Reserved(a Account, now time.Time) string {
 	}
 }
 
-// Pressed says the account is under pressure, and when its pressure window
+// pressureLine says the account is under pressure, and when its pressure window
 // runs out, as pressureOut has it, in now's time zone: "under pressure: runs
 // out ~18:21", or, with its reserve holding it back there, "under pressure:
 // at its reserve ~18:21"; "under pressure" alone where it doesn't before it
@@ -140,7 +140,7 @@ func (d Document) Reserved(a Account, now time.Time) string {
 // judges it. The router says an account is under pressure only where it can
 // take a request of some model: of one that can take none, pressure isn't
 // what passes it over.
-func (d Document) Pressed(a Account, now time.Time) string {
+func (d Document) pressureLine(a Account, now time.Time) string {
 	if !a.underPressure(now) {
 		return ""
 	}
@@ -155,12 +155,12 @@ func (d Document) Pressed(a Account, now time.Time) string {
 	}
 }
 
-// pressureNote says the account is under pressure, as Pressed does, and why:
+// pressureNote says the account is under pressure, as pressureLine does, and why:
 // the rate it goes by, and the reset its window runs out before, as in "under
 // pressure: runs out ~18:21 at Session's rate over the last 30 min, before its
 // reset at 20:10". It's "" while it isn't under pressure.
 func (d Document) pressureNote(a Account, now time.Time) string {
-	pressed := d.Pressed(a, now)
+	pressed := d.pressureLine(a, now)
 	w, ok := a.Window(a.Pressure.Window)
 	if pressed == "" || !ok {
 		return pressed
@@ -542,7 +542,7 @@ func (d Document) Account(id string) (Account, bool) {
 // resets and where it's heading, as windowNotes has them.
 func (d Document) accountWindow(a Account, w, stands quota.Window, st WindowState, width int, now time.Time) string {
 	if st.Kind == WindowNotStarted {
-		return windowLine(w.Label, st.Used, width, []string{d.NotStarted(a.ID, now)})
+		return windowLine(w.Label, st.Used, width, []string{d.notStartedNote(a.ID, now)})
 	}
 	return windowLine(w.Label, st.Used, width, d.windowNotes(a, w, stands, now))
 }
@@ -560,14 +560,14 @@ func windowLine(label string, used float64, labelWidth int, notes []string) stri
 // windowNotes say when doc's account a's window w, read, resets, standing at
 // now as stands, as WindowAt has it, so its next reset once it has reset
 // since it was read, and none where it has lapsed; and where it's heading at
-// now, as doc's Project says, as far as those are known, and when that's at
+// now, as doc's project says, as far as those are known, and when that's at
 // its rate over the last half hour, that it is.
 func (d Document) windowNotes(a Account, w, stands quota.Window, now time.Time) []string {
 	var notes []string
 	if reset := stands.ResetsAt; !reset.IsZero() {
 		notes = append(notes, Resets(now, reset)+" · "+Clock(now, reset))
 	}
-	heading := d.Project(a, w, now)
+	heading := d.project(a, w, now)
 	if projection := Projection(now, heading.Projection); projection != "" {
 		if heading.Recent {
 			projection += " at its rate over the " + Over(heading.Since, now)

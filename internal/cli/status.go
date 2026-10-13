@@ -128,7 +128,7 @@ func (a *app) sessionStatus(ctx context.Context, out io.Writer, given string, as
 	if asJSON {
 		return writeJSON(out, session)
 	}
-	_, err = fmt.Fprintln(out, session.Account.ID)
+	_, err = fmt.Fprintln(out, session.AccountID())
 	return err
 }
 

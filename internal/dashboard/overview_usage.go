@@ -62,7 +62,7 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 // account out of the pool at now is faint, as overviewGauge draws its windows
 // and overviewNames its name.
 func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
-	m := f.moment(doc, now)
+	m := f.Moment(doc, now)
 	names := overviewNames(m)
 	b := blockOf(m, f.Width, f.Look, f.By, f.overviewWindows(doc, now), names)
 	b.marks = keyMarks(names, f.phone())
@@ -87,7 +87,7 @@ func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 // every other any account reports, in Claude's order, each named as
 // windowNamer names it of doc at now.
 func (f Frame) overviewWindows(doc status.Document, now time.Time) []shownWindow {
-	m := f.moment(doc, now)
+	m := f.Moment(doc, now)
 	return usageWindows(m, nil, f.Policy.Shared, f.windowNamer(m))
 }
 
@@ -165,7 +165,7 @@ func keyMarks(names []accountName, phone bool) []line {
 // as in "room left  5h 0.4 of 1  ·  week 0.6 of 1"; none on a phone, nor with
 // more accounts, whose pool's row says the room.
 func (f Frame) roomLeft(doc status.Document, now time.Time) line {
-	m := f.moment(doc, now)
+	m := f.Moment(doc, now)
 	if len(m.Accounts) != 1 || f.phone() {
 		return nil
 	}

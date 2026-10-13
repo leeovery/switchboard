@@ -44,18 +44,19 @@ func (s Said) String() string {
 // characters.
 const sessionShown = 4
 
-// Lately are doc's events as LATELY tells them at now, the newest first, n at
-// most: those of the kinds it tells of, the sessions a limit, a cap or a
-// refusal moved folded into its line, counted, a move showing alone only
-// where the line it's folded into isn't among those shown.
-func Lately(doc status.Document, now time.Time, n int) []Sentence {
+// Lately are the events of the document m is a moment of, as LATELY tells
+// them at its Now, the newest first, n at most: those of the kinds it tells
+// of, the sessions a limit, a cap or a refusal moved folded into its line,
+// counted, a move showing alone only where the line it's folded into isn't
+// among those shown.
+func Lately(m status.Moment, n int) []Sentence {
 	var told []status.Event
-	for _, e := range doc.Events {
+	for _, e := range m.Events {
 		if _, ok := latelyTellers[e.Kind]; ok {
 			told = append(told, e)
 		}
 	}
-	t := latelyTeller{now: now, events: doc.Events, windows: NewTelling(claude.WindowName)}
+	t := latelyTeller{now: m.Now, events: m.Events, windows: NewTelling(claude.WindowName)}
 	shown := unfolded(told, n)
 	sentences := make([]Sentence, len(shown))
 	for i, e := range shown {

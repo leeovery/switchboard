@@ -199,7 +199,7 @@ func drawsEmpty(kind status.WindowKind) bool {
 // there's no pool, as with one account: each window's bar filled to what the
 // pool has used, with its accounts' even pace and no cap's mark, and its
 // words its room, the first it has words for saying it's pinned, where it is.
-func poolRow(pool status.Pool, names []accountName, windows []shownWindow) (usageRow, bool) {
+func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (usageRow, bool) {
 	if len(names) < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
 	}
@@ -207,7 +207,7 @@ func poolRow(pool status.Pool, names []accountName, windows []shownWindow) (usag
 	row := usageRow{name: line{{strings.Repeat(" ", digits-1) + "Σ", dimInk}, {" pool", noteInk}}, pool: true}
 	pinned := pool.Pinned
 	for _, w := range windows {
-		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindow) bool { return p.Key == w.key })
+		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindowNow) bool { return p.Key == w.key })
 		if j < 0 {
 			row.gauges = append(row.gauges, gauge{bar: usageBar{empty: true}})
 			continue

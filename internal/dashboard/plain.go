@@ -36,7 +36,7 @@ func (f Frame) layOutPlain(doc status.Document, now time.Time) plain {
 		l.width = linesWide
 	}
 	l.width = min(l.width, f.edge()-margin)
-	shown, last, listing := windowKeys(f.moment(doc, now).Shown), -2, f.listing()
+	shown, last, listing := windowKeys(f.Moment(doc, now).Shown), -2, f.listing()
 	for _, a := range doc.Accounts {
 		p := f.linePanelOf(doc, a, now, shown)
 		p.top, p.rows, p.boxed = last+2, len(shown), true

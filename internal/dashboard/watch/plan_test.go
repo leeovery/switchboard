@@ -86,7 +86,7 @@ func TestPlanLanded(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := before.landed(tt.read, tt.doc, now); got != tt.want {
+			if got := before.landed(tt.read, tt.doc, tt.doc.Source == status.SourceRouter, now); got != tt.want {
 				t.Errorf("landed() = %+v, want %+v", got, tt.want)
 			}
 		})

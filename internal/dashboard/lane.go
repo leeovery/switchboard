@@ -211,8 +211,8 @@ type lane struct {
 // which its week's badge and reset draw. Read, it has none while a window
 // counted holds it back, as causesOf says, nor, over the day, while the
 // upstream refuses its token; and from now, it's heading to run out until
-// the last of those windows that run out before they reset, as runsOutAt has
-// them, does.
+// the last of those windows that run out ahead of it, as their RunsOutAhead
+// has them, does.
 func (f Frame) laneOf(a status.AccountNow, now time.Time) lane {
 	l := lane{account: a}
 	state, all := stateCause(a)
@@ -226,8 +226,8 @@ func (f Frame) laneOf(a status.AccountNow, now time.Time) lane {
 	}
 	var causes []cause
 	for _, w := range l.counted {
-		if out, ok := runsOutAt(w); ok && out.After(l.drains) {
-			l.drains, l.drained = out, f.runOutSaid(w, now)
+		if w.RunsOutAhead && w.Out.At.After(l.drains) {
+			l.drains, l.drained = w.Out.At, f.runOutSaid(w, now)
 		}
 		causes = append(causes, f.causesOf(w, now)...)
 	}
@@ -271,25 +271,14 @@ func (f Frame) counts(w status.WindowNow) bool {
 	}
 }
 
-// runsOutAt is when the window w runs out before it resets, as a lane draws
-// it, reporting false where it doesn't: where it runs out at the lane's
-// moment, as its RunsOut says; or, held at its limit, where it runs out once
-// that lifts, as its Out has it, as a window a limit naming none holds can.
-func runsOutAt(w status.WindowNow) (time.Time, bool) {
-	if w.RunsOut || w.Held && !w.Out.At.IsZero() {
-		return w.Out.At, true
-	}
-	return time.Time{}, false
-}
-
 // causesOf are what holds an account back, at now, of its window w: while
 // it's held at its limit, from when the account reached it, until it's back;
 // or while it's at its reserve, as the router noted it as it read it, until
 // the window resets as it was read, whether or not that has passed, as the
 // stretch it held the account over is drawn all the same; and once it runs
-// out before it resets, as runsOutAt has it, until it resets. Over the day, a
-// window other than the one a request starts is named, as in "week runs out
-// ~Fri 04:06".
+// out ahead of now, as its RunsOutAhead has it, until it resets. Over the
+// day, a window other than the one a request starts is named, as in "week
+// runs out ~Fri 04:06".
 func (f Frame) causesOf(w status.WindowNow, now time.Time) []cause {
 	var causes []cause
 	resets := w.Read.ResetsAt
@@ -303,8 +292,8 @@ func (f Frame) causesOf(w status.WindowNow, now time.Time) []cause {
 	case w.CappedAsRead:
 		causes = append(causes, cause{until: resets, says: f.naming(w) + "at its reserve", resets: resets})
 	}
-	if out, ok := runsOutAt(w); ok {
-		causes = append(causes, cause{from: out, until: resets, says: f.runOutSaid(w, now), resets: resets})
+	if w.RunsOutAhead {
+		causes = append(causes, cause{from: w.Out.At, until: resets, says: f.runOutSaid(w, now), resets: resets})
 	}
 	return causes
 }

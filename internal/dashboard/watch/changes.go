@@ -39,17 +39,17 @@ func (c cues[K, V]) seen(found map[K]V, now time.Time, turned func(was, is V) bo
 	return cues[K, V]{found: found, since: since}
 }
 
-// looked takes in doc, read at now from the router whose health check said
-// from, or by probing, as found says of its moment, as policy judges it. A
-// look that doesn't follow on from the last, as follows says, picks out
+// looked takes in the moment look of a document as it's read, from the
+// router whose health check said from, or by probing, as found says of it.
+// A look that doesn't follow on from the last, as follows says, picks out
 // nothing: what it finds starts afresh.
-func (c changes) looked(doc status.Document, from router.Health, now time.Time, policy score.Policy) changes {
-	read := originOf(doc, from)
+func (c changes) looked(look status.Moment, from router.Health) changes {
+	read := originOf(look, from)
 	if !read.follows(c.from) {
 		c = changes{}
 	}
 	c.from = read
-	return c.found(doc.At(now, policy))
+	return c.found(look)
 }
 
 // ticked takes in doc at now, as found says of its moment, as policy judges

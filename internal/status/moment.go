@@ -90,19 +90,22 @@ type AccountNow struct {
 	Error          string
 	Failures       []quota.Failure
 	Sessions       int
-	// Routing is how it stands with the router at Now, as RoutingOf says it.
+	// Routing is how it stands with the router at Now: the first of the
+	// kinds that holds.
 	Routing Routing
-	// Hold is what holds it back at its limit at Now, as Held has it, and
-	// Held is set where anything does. LimitSince is when it reached the
-	// router's limit holding it at Now, as that limit's event tells: zero
+	// Hold is what holds it back at its limit at Now, as held has it, and
+	// Held is set where anything does. LimitHolds is set where the limit the
+	// router saw it reach holds at Now, whatever its windows read, and
+	// LimitSince is when it reached it, as that limit's event tells: zero
 	// where none tells.
 	Hold       Hold
 	Held       bool
+	LimitHolds bool
 	LimitSince time.Time
 	// ReachedReserve are the keys of its windows at its reserve at Now,
-	// whether or not the global pin spends it, as ReachedReserve has them.
+	// whether or not the global pin spends it, as reachedReserve has them.
 	// CapHolds is set where its cap holds it back from every request at Now,
-	// as CapHolds says, and CapBack is when it lets go: once the last of
+	// as capHolds says, and CapBack is when it lets go: once the last of
 	// those windows resets, zero where its cap doesn't hold or that isn't
 	// known.
 	ReachedReserve []string
@@ -116,7 +119,7 @@ type AccountNow struct {
 	// Pressure is how it stands under pressure at Now.
 	Pressure PressureNow
 	// Idle is set where its window a request starts has lapsed at Now, as
-	// HasLapsed judges it, and NextPrime is when the router next primes it,
+	// hasLapsed judges it, and NextPrime is when the router next primes it,
 	// starting that window, as read: zero where the document doesn't say,
 	// and it starts with its next request.
 	Idle      bool
@@ -186,7 +189,7 @@ type WindowNow struct {
 	Allowance quota.Allowance
 	Next      time.Time
 	// Room is the room it has left at Now, in accounts' worth, as the pool
-	// counts it, as RoomOf has it.
+	// counts it, as poolRoom has it.
 	Room float64
 	// Start is when it started, as it stands at Now, and Length how long it
 	// runs from then to its reset: zero where that isn't known, as of one
@@ -194,7 +197,7 @@ type WindowNow struct {
 	Start  time.Time
 	Length time.Duration
 	// ResetSinceRead is set where its reset, as read, has passed by Now, and
-	// Lapsed where it has lapsed at Now, as HasLapsed judges it, and isn't
+	// Lapsed where it has lapsed at Now, as hasLapsed judges it, and isn't
 	// running.
 	ResetSinceRead, Lapsed bool
 	// Held is set where Claude's limit holds it at Now, as Kind says. Back is
@@ -204,7 +207,7 @@ type WindowNow struct {
 	Held        bool
 	Back, Since time.Time
 	// Capped is set where its use has reached its account's cap at Now, which
-	// holds the account back, as ReachedReserve judges it. CappedAsRead is
+	// holds the account back, as reachedReserve judges it. CappedAsRead is
 	// set where the router noted it at its reserve as it built the document,
 	// as AtReserve has it, which holds the account back: history, which
 	// stands as noted after the window resets.
@@ -213,13 +216,16 @@ type WindowNow struct {
 	// Kind is WindowRunsOut, the first of the kinds that holds, and At says
 	// when. A window a limit holds, at its cap, not started, or of an account
 	// whose token is refused or whose last read failed doesn't, whatever its
-	// projection says.
-	RunsOut bool
+	// projection says. RunsOutAhead is set where it runs out ahead of Now, as
+	// a timeline draws it, at its Out: where it RunsOut, or where Claude's
+	// limit holds it and it runs out once that lifts, as one a limit naming
+	// no window holds can. A stale window runs out nowhere ahead either.
+	RunsOut, RunsOutAhead bool
 	// Out is where it runs out at Now at the pace it's heading at, as
 	// RunsOut says, projected from when the document was read, whatever
 	// holds it: At zero where it doesn't before it resets, as once it has
 	// reset since it was read. Its Heading is where it's heading, as the
-	// document's Project says. A bar's projection goes by it.
+	// document's project says. A bar's projection goes by it.
 	Out RunOut
 	// Projected is the share of it it's heading for by its reset at Now, as
 	// a bar's projection fills to: all of it where it runs out at its limit;
@@ -272,13 +278,67 @@ func (m Moment) At(now time.Time) Moment {
 	return m.doc.At(now, m.policy)
 }
 
-// Pool is the accounts new sessions can go to at Now, as one, as PoolAt has
-// it: zero with one account, whose own windows say the same.
-func (m Moment) Pool() Pool {
+// HeldMoment is a document's moment, worked out the first time it's asked
+// for, and known by the document it's of, by when that was built, and the
+// time it's at: for every look at the one document at the one time to share.
+type HeldMoment struct {
+	generated, now time.Time
+	moment         func() Moment
+}
+
+// HoldAt is the document at now, as policy judges it, held, as HeldMoment
+// has it.
+func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
+	return &HeldMoment{generated: d.GeneratedAt, now: now, moment: sync.OnceValue(func() Moment { return d.At(now, policy) })}
+}
+
+// Of reports whether h holds the moment of d at now: nil holds none.
+func (h *HeldMoment) Of(d Document, now time.Time) bool {
+	return h != nil && h.generated.Equal(d.GeneratedAt) && h.now.Equal(now)
+}
+
+// Moment is the moment h holds.
+func (h *HeldMoment) Moment() Moment {
+	return h.moment()
+}
+
+// PoolNow is the accounts new sessions can go to at a moment, taken as one:
+// those the global pin names, else every account.
+type PoolNow struct {
+	// Accounts are the ids of its accounts, in the config's order, and
+	// Pinned is set where they're the accounts the global pin names.
+	Accounts []string
+	Pinned   bool
+	// Windows are a window each that any of them has, shortest first.
+	Windows []PoolWindowNow
+}
+
+// PoolWindowNow is a window of the pool at a moment, its accounts' taken as
+// one.
+type PoolWindowNow struct {
+	Key string
+	// Room is the room its accounts have left in it, summed in accounts'
+	// worth, 1.5 being an account and a half; Used is what its bar fills to,
+	// 1 − Room ÷ its accounts; and Pace is the even paces of its accounts'
+	// windows that are running, averaged: nil where none is.
+	Room, Used float64
+	Pace       *float64
+}
+
+// Pool is the accounts new sessions can go to at Now, as one, each window's
+// room and pace as its accounts' stand then, where the document's own Pool
+// is as they stood as it was built: zero with one account, whose own
+// windows say the same.
+func (m Moment) Pool() PoolNow {
 	if m.pool == nil {
-		return Pool{}
+		return PoolNow{}
 	}
-	return m.pool()
+	p := m.pool()
+	now := PoolNow{Accounts: p.Accounts, Pinned: p.Pinned}
+	for _, w := range p.Windows {
+		now.Windows = append(now.Windows, PoolWindowNow{Key: w.Key, Room: w.Room, Used: w.Used, Pace: w.Pace})
+	}
+	return now
 }
 
 // Text is the document as status prints it at Now, as Text has it, with the
@@ -394,10 +454,10 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 	d, s, a := m.doc, j.states, j.states.account
 	an := AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
-		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.Floor(a), ReserveHolds: d.ReserveHolds(a),
+		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.Floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
-		Hold: s.stood.held, Held: s.stood.limited, LimitSince: eventAt(d.limitEvent(a, m.Now)),
+		Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.Holds(m.Now), LimitSince: eventAt(d.limitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(), CanRise: !s.stood.shut(),
 		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},
@@ -437,8 +497,9 @@ func (m Moment) windowNow(s WindowStates, w judged, name WindowName) WindowNow {
 	if wn.Held {
 		wn.Back, wn.Since = wn.At, eventAt(m.doc.reachedIn(a, w.window, m.Now))
 	}
-	wn.Capped, wn.CappedAsRead = s.capped(key), m.doc.ReserveHolds(a) && slices.Contains(a.AtReserve, key)
+	wn.Capped, wn.CappedAsRead = s.capped(key), m.doc.reserveHolds(a) && slices.Contains(a.AtReserve, key)
 	wn.RunsOut, wn.Out, wn.Projected = wn.Kind == WindowRunsOut, w.out, projected(wn.Kind, w.out.Projection)
+	wn.RunsOutAhead = wn.RunsOut || wn.Held && !w.out.At.IsZero()
 	wn.Nearing = wn.Projected != nil && !w.runsOut && *wn.Projected >= m.doc.Floor(a)-Near-score.Tolerance
 	wn.InUse = inUse(w.stands, w.out.Projection)
 	return wn

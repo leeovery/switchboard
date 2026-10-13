@@ -279,7 +279,7 @@ func movedHere(doc status.Document, s seated, id string) (status.Event, bool) {
 // session has come to it since.
 func (f Frame) unseatedBy(doc status.Document, id string, now time.Time) []chunk {
 	if doc.Source != status.SourceRouter {
-		return []chunk{{text: f.quiet(f.moment(doc, now))}}
+		return []chunk{{text: f.quiet(f.Moment(doc, now))}}
 	}
 	if a, ok := doc.Account(id); ok {
 		if e, ok := limitOf(doc, a, now); ok && e.Count > 0 && !arrivedSince(doc, e, id) {

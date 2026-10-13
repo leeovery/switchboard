@@ -67,7 +67,7 @@ func (f Frame) MaySettle() bool {
 // draw them, but none of a window a panel draws without a bar; and none on a
 // view that draws no bar.
 func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
-	switch m := f.moment(doc, now); f.View {
+	switch m := f.Moment(doc, now); f.View {
 	case Overview:
 		return overviewFilled(m)
 	case Sessions:

@@ -164,6 +164,13 @@ type Models struct {
 	Names   []string
 }
 
+// AccountID is the id of the account the session's last-used model went to,
+// as the router answered for the session: "" where it lists sessions, rather
+// than answering for one.
+func (s Session) AccountID() string {
+	return s.Account.ID
+}
+
 // ByAccount groups the session's models by the account their requests go
 // to, the account used last first, and of each, the model used last first.
 func (s Session) ByAccount() []Models {

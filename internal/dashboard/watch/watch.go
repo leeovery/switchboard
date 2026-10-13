@@ -193,7 +193,11 @@ type Model struct {
 	// known.
 	size Size
 
-	doc status.Document
+	// doc is the document on screen, and arrived its moment as it arrived,
+	// whose facts that hold whatever the time, as where it came from and its
+	// accounts, the watch reads.
+	doc     status.Document
+	arrived status.Moment
 	// updated is when doc arrived: zero until one has.
 	updated time.Time
 	// plan is when the next reads are due, and what they ask for.
@@ -725,21 +729,22 @@ func (m Model) read(r status.Read) (Model, tea.Cmd) {
 	return m, m.fetch(r)
 }
 
-// fetch reads the source as r asks, as fetchFrom reads it.
+// fetch reads the source as r asks, as fetchFrom reads it, asked now.
 func (m Model) fetch(r status.Read) tea.Cmd {
-	ctx, source := m.ctx, m.cfg.Source
+	ctx, source, policy, asked := m.ctx, m.cfg.Source, m.cfg.Policy, m.now()
 	return func() tea.Msg {
-		return fetchFrom(ctx, source, r)
+		return fetchFrom(ctx, source, r, policy, asked)
 	}
 }
 
-// fetchFrom reads the source as r asks, and from a router, the sessions it
+// fetchFrom reads the source as r asks, and from a router, as the moment of
+// what it read as it was asked says, as policy judges it, the sessions it
 // lists, for the sessions running and Sessions' calls: a router that can't
 // list them leaves them out.
-func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
+func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.Policy, asked time.Time) fetchedMsg {
 	doc, from, err := source.Read(ctx, r)
 	msg := fetchedMsg{read: r, doc: doc, router: from, err: err}
-	if err != nil || !routed(doc) {
+	if err != nil || !doc.At(asked, policy).Routed {
 		return msg
 	}
 	sessions, err := source.Sessions(ctx)
@@ -783,7 +788,7 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 		m = m.lose(now)
 	default:
 		look := msg.doc.At(now, m.cfg.Policy)
-		m.plan = m.plan.landed(msg.read, msg.doc, now)
+		m.plan = m.plan.landed(msg.read, msg.doc, look.Routed, now)
 		m, shown = m.show(msg, look)
 		logRead(msg, look, m.plan.due)
 	}
@@ -810,10 +815,10 @@ func logRead(msg fetchedMsg, look status.Moment, next time.Time) {
 		}
 	}
 	level := slog.LevelInfo
-	if routed(msg.doc) && msg.read.Refresh == 0 {
+	if look.Routed && msg.read.Refresh == 0 {
 		level = slog.LevelDebug
 	}
-	logger.Log(context.Background(), level, "usage read", "source", msg.doc.Source,
+	logger.Log(context.Background(), level, "usage read", "source", sourceOf(look),
 		"read", strings.Join(read, ","), "failed", strings.Join(failed, ","), "next", next)
 }
 
@@ -835,23 +840,23 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	doc, now := msg.doc, look.Now
 	was := m.numbersDrawn(now)
 	var post, asked tea.Cmd
-	if !routed(doc) {
-		post = m.post(m.readings.alerts(look, m.cfg.Notifications), probedAsAsked(doc))
+	if !look.Routed {
+		post = m.post(m.readings.alerts(look, m.cfg.Notifications), probedAsAsked(look))
 	}
-	ask := routed(doc) && (full(msg.read) || !m.answering() || m.news.another(msg.router))
-	if routed(doc) {
+	ask := look.Routed && (full(msg.read) || !m.answering() || m.news.another(msg.router))
+	if look.Routed {
 		m = m.answeredAgain(msg.router)
 		m.history.filedSince = false
 	}
 	m.readings = m.readings.with(look)
-	m = m.follow(doc)
+	m = m.follow(look)
 	m.news = m.news.looked(look, msg.router)
-	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
+	m.changes = m.changes.looked(look, msg.router)
 	m.history = m.history.saw(look)
 	m.ease = easing{from: m.ease.standing(m.frame(now), m.doc, now), start: now}
-	m.doc, m.updated, m.failed = doc, now, ""
+	m.doc, m.arrived, m.updated, m.failed = doc, look, now, ""
 	switch {
-	case msg.listed || !routed(doc):
+	case msg.listed || !look.Routed:
 		m.order = m.frame(now).OrderOf(doc)
 		m.sessions, m.listedBy = msg.sessions, msg.router
 		m.traffic = m.traffic.listedAs(msg.sessions)
@@ -860,23 +865,24 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	}
 	m = m.stillThere(look)
 	m.trails = m.history.drawn(look)
-	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), originOf(doc, msg.router), now)
+	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), originOf(look, msg.router), now)
 	switch {
 	case ask:
 		m, asked = m.askHistory(look)
-	case !routed(doc) && full(msg.read) && !m.history.filedSince:
+	case !look.Routed && full(msg.read) && !m.history.filedSince:
 		m, asked = m.readFiled(look)
 	}
 	return m, tea.Batch(post, asked)
 }
 
-// follow notes where doc came from, against where the document on screen
-// did, as the router stops answering or answers again; and, a document having
-// landed from whatever source, that the router is lost no more.
-func (m Model) follow(doc status.Document) Model {
-	switch was, is := m.routed(), routed(doc); {
+// follow notes where the document look is a moment of came from, against
+// where the document on screen did, as the router stops answering or answers
+// again; and, a document having landed from whatever source, that the router
+// is lost no more.
+func (m Model) follow(look status.Moment) Model {
+	switch was, is := m.routed(), look.Routed; {
 	case was && !is:
-		logger.Warn("the router stopped answering; probing directly", "router", doc.Fallback.Router, "reason", doc.Fallback.Reason)
+		logger.Warn("the router stopped answering; probing directly", "router", look.Fallback.Router, "reason", look.Fallback.Reason)
 	case is && (!was || !m.lost.IsZero()):
 		logger.Info("reading the router")
 	}
@@ -1073,19 +1079,27 @@ func (m Model) noted(now time.Time) string {
 
 // routed reports whether the document on screen is the router's.
 func (m Model) routed() bool {
-	return routed(m.doc)
+	return m.arrived.Routed
 }
 
-// routed reports whether doc is the router's.
-func routed(doc status.Document) bool {
-	return doc.Source == status.SourceRouter
+// probedAsAsked reports whether the document look is a moment of was built
+// by probing as asked, rather than for want of the router, which may be
+// running all the same: one probed for want of it says why.
+func probedAsAsked(look status.Moment) bool {
+	return !look.Routed && look.Fallback == (status.Fallback{})
 }
 
-// probedAsAsked reports whether doc was built by probing as asked, rather
-// than for want of the router, which may be running all the same: one probed
-// for want of it says why.
-func probedAsAsked(doc status.Document) bool {
-	return !routed(doc) && doc.Fallback == (status.Fallback{})
+// sourceOf names where the document look is a moment of came from, as its
+// log says: the router, probing, or "" before any document.
+func sourceOf(look status.Moment) string {
+	switch {
+	case look.Routed:
+		return status.SourceRouter
+	case look.Probed:
+		return status.SourceProbe
+	default:
+		return ""
+	}
 }
 
 // now reads the wall clock without its monotonic reading, which stops while a
