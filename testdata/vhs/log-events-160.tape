@@ -1,15 +1,16 @@
-# The page-log fixture on a phone, 52 × 36: the six tabs on a row of their
-# own, under the clock, the Log's lit, as capturetool runs it.
-# Run from the repository's root: vhs testdata/vhs/page-log-phone.tape
+# The log-events-160 fixture, the Log's Events of the auto world, as
+# shift-tab and ] open them, full screen at its 160 × 37, as capturetool
+# runs it.
+# Run from the repository's root: vhs testdata/vhs/log-events-160.tape
 
 Set Shell "bash"
 Set FontFamily "JetBrains Mono"
 Set FontSize 15
 Set LetterSpacing 0
 Set LineHeight 1
-# 52 columns: 52 × 9 + 65. 36 rows: 36 × 20 + 72.
-Set Width 533
-Set Height 792
+# 160 columns: 160 × 9 + 65. 37 rows: 37 × 20 + 72.
+Set Width 1505
+Set Height 812
 Set Padding 16
 Set WindowBar Colorful
 Set WindowBarSize 30
@@ -18,10 +19,10 @@ Set Theme { "name": "nord", "background": "#2E3440", "foreground": "#D8DEE9", "c
 Set WaitTimeout 2m
 
 Hide
-Type "go run ./cmd/capturetool --fixture page-log"
+Type "go run ./cmd/capturetool --fixture log-events-160"
 Enter
 Wait+Screen /14:42/
 Show
 Sleep 500ms
-Screenshot "testdata/vhs/page-log-phone.png"
+Screenshot "testdata/vhs/log-events-160.png"
 Sleep 500ms
