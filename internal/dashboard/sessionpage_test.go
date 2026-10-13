@@ -589,6 +589,24 @@ func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 	}
 }
 
+// A session's page names an account by its label wherever it names it, its
+// story among its parts, where the config gives one other than its id.
+func TestASessionsPageNamesItsAccountsByTheirLabels(t *testing.T) {
+	doc := pageDoc()
+	doc.Accounts[0].Label = "office"
+	shown := moved()
+	shown.Story = movedStory()
+	text := strings.Join(textOf(pageFrame(t, shown, 160, 37).Draw(doc, sessionNow)), "\n")
+	for _, want := range []string{"moved from office: office reached its cap", "office reached its cap → side · 182k", "─ office ─", "1 office "} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the page doesn't say %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "work") {
+		t.Errorf("the page names work by its id:\n%s", text)
+	}
+}
+
 // Where a session's requests name no prompt, TURNS says why it has no
 // turns, in text.faint, where its rows would be (C14); with no request at
 // all, it says nothing.

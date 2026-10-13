@@ -54,9 +54,9 @@ const leastLabel = 12
 // gives it, the turn chosen lit, as STORY draws it: wide, its heading, then
 // the label of a move, its columns, its ribbon and its axis, or its heading
 // alone where it's folded; on a phone, the same without its heading, its
-// columns a row shorter, or nothing where it's left out. chosen is the zero
-// Turn where none is.
-func (f Frame) sessionStory(c *canvas, l sessionLayout, story views.Story, chosen views.Turn) {
+// columns a row shorter, or nothing where it's left out. It names each
+// account as the moment m names it. chosen is the zero Turn where none is.
+func (f Frame) sessionStory(c *canvas, m status.Moment, l sessionLayout, story views.Story, chosen views.Turn) {
 	switch {
 	case l.chrome:
 		return
@@ -64,9 +64,9 @@ func (f Frame) sessionStory(c *canvas, l sessionLayout, story views.Story, chose
 		f.storyHeading(c, l.storyAt, f.noRoom())
 	case l.wide:
 		f.storyHeading(c, l.storyAt, line{{storySays, faintInk}})
-		f.drawStory(c, l.storyAt+1, wideStoryColumns, views.MoveWide, story, chosen)
+		f.drawStory(c, m, l.storyAt+1, wideStoryColumns, views.MoveWide, story, chosen)
 	case l.story:
-		f.drawStory(c, l.storyAt, phoneStoryColumns, views.MoveShort, story, chosen)
+		f.drawStory(c, m, l.storyAt, phoneStoryColumns, views.MoveShort, story, chosen)
 	}
 }
 
@@ -81,13 +81,14 @@ func (f Frame) storyHeading(c *canvas, y int, says line) {
 
 // drawStory draws the story across the frame's width from row top: the
 // label of a move on it, its columns tall rows under that, the ribbon under
-// them and the axis under the ribbon, its labels said in form.
-func (f Frame) drawStory(c *canvas, top, tall int, form views.MoveForm, story views.Story, chosen views.Turn) {
+// them and the axis under the ribbon, its labels said in form, its accounts
+// named as the moment m names them.
+func (f Frame) drawStory(c *canvas, m status.Moment, top, tall int, form views.MoveForm, story views.Story, chosen views.Turn) {
 	cols := story.Columns(f.Width)
 	if len(cols.Rates) == 0 {
 		return
 	}
-	d := storyDrawn{StoryColumns: cols, end: story.End, label: top, in: bounds{y: top + 1, width: f.Width, rows: tall}, form: form}
+	d := storyDrawn{StoryColumns: cols, end: story.End, label: top, in: bounds{y: top + 1, width: f.Width, rows: tall}, form: form, m: m}
 	d.eighths = f.storyEighths(c, d)
 	f.storyColumns(c, d, d.lit(chosen))
 	d.folds(c)
@@ -102,7 +103,8 @@ func (f Frame) drawStory(c *canvas, top, tall int, form views.MoveForm, story vi
 // storyDrawn is a session's story laid across the frame's width, as it's
 // drawn: its columns; its end, whose time zone its times are said in; the row
 // of its label, and the bounds of its columns; each column's eighths, at its
-// scale; and the form its labels are said in.
+// scale; the form its labels are said in; and the moment its accounts are
+// named as, as named names them.
 type storyDrawn struct {
 	views.StoryColumns
 	end     time.Time
@@ -110,6 +112,7 @@ type storyDrawn struct {
 	in      bounds
 	eighths []int
 	form    views.MoveForm
+	m       status.Moment
 }
 
 // storyEighths are the eighths each of the story's columns fills, at the
@@ -231,7 +234,7 @@ func (d storyDrawn) labelOf(m views.StoryMove, limit int) (moveLabel, bool) {
 	case max(left, right)+rest < leastLabel:
 		return moveLabel{}, false
 	}
-	names := moveNames(m.From, m.To, max(left, right), secondaryInk)
+	names := moveNames(named(d.m, m.From), named(d.m, m.To), max(left, right), secondaryInk)
 	return moveLabelAt(m.Column, names, at, left >= right), true
 }
 
@@ -246,9 +249,9 @@ func moveLabelAt(column int, words line, at string, left bool) moveLabel {
 	return moveLabel{x: column + 1 - said.width(), said: said}
 }
 
-// said is a move's label's words drawn: its accounts in text.secondary, its
-// figures in accent.attention, bold on the wide page, and the rest in
-// text.muted.
+// said is a move's label's words drawn: its accounts by their names, in
+// text.secondary, its figures in accent.attention, bold on the wide page,
+// and the rest in text.muted.
 func (d storyDrawn) said(words status.Words) line {
 	figure := alertInk
 	if d.form == views.MoveShort {
@@ -259,7 +262,7 @@ func (d storyDrawn) said(words status.Words) line {
 		l[i] = span{p.Text, mutedInk}
 		switch p.Kind {
 		case status.PartAccount:
-			l[i].ink = secondaryInk
+			l[i] = span{named(d.m, p.Text), secondaryInk}
 		case status.PartFigure:
 			l[i].ink = figure
 		}
@@ -268,21 +271,21 @@ func (d storyDrawn) said(words status.Words) line {
 }
 
 // ribbon draws each stretch on the row under the columns, ├, ─ and ┤ in
-// text.faint from its first column to its last, its account's name centred
-// in it in text.secondary, a space either side, where its inside has room
-// for it, the odd cell left of it.
+// text.faint from its first column to its last, its account's name, as
+// named names it, centred in it in text.secondary, a space either side,
+// where its inside has room for it, the odd cell left of it.
 func (d storyDrawn) ribbon(c *canvas) {
 	y := d.in.y + d.in.rows
 	for _, s := range d.Stretches {
-		inside, name := s.Last-s.First-1, " "+s.Account+" "
-		named := ansi.StringWidth(name)
-		if named > inside {
+		inside, name := s.Last-s.First-1, " "+named(d.m, s.Account)+" "
+		cells := ansi.StringWidth(name)
+		if cells > inside {
 			c.text(s.First, y, stretchStart+rule(inside)+stretchEnd, faintInk)
 			continue
 		}
-		before := (inside - named + 1) / 2
+		before := (inside - cells + 1) / 2
 		c.line(s.First, y, line{{stretchStart + rule(before), faintInk}, {name, secondaryInk},
-			{rule(inside-before-named) + stretchEnd, faintInk}})
+			{rule(inside-before-cells) + stretchEnd, faintInk}})
 	}
 }
 

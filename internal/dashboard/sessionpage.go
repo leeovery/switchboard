@@ -137,7 +137,7 @@ func (f Frame) sessionPage(c *canvas, doc status.Document, now time.Time) {
 	} else {
 		d.phoneNow(c)
 	}
-	f.sessionStory(c, d.l, d.shown.Story, d.chosen())
+	f.sessionStory(c, d.m, d.l, d.shown.Story, d.chosen())
 	d.accounts(c)
 	d.turns(c)
 }
