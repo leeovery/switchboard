@@ -188,16 +188,23 @@ func familyOf(sessions []status.Session, model string) string {
 	return ""
 }
 
+// cameAt is when a session's model came to the account its assignment a
+// gives, as the router lists it: when it was pinned there, where it was
+// pinned as it ran, else when it went there.
+func cameAt(a status.Assignment) time.Time {
+	if a.Pinned && !a.PinnedAt.IsZero() {
+		return a.PinnedAt
+	}
+	return a.AssignedAt
+}
+
 // whyRunning is why the session s's model is on the account its assignment
 // a gives, at the moment m, as status.RunningWords says it: since it was
 // pinned there, where it was pinned as it ran, else since it went there; from
 // the account m's newest event moving it there tells, where one does; the
 // best while that account is where new sessions go, which ▲ marks.
 func whyRunning(m status.Moment, s status.Session, a status.Assignment) status.Words {
-	facts := status.Facts{To: a.Account, At: a.AssignedAt, Best: a.Account == m.Next, Now: m.Now}
-	if a.Pinned && !a.PinnedAt.IsZero() {
-		facts.At = a.PinnedAt
-	}
+	facts := status.Facts{To: a.Account, At: cameAt(a), Best: a.Account == m.Next, Now: m.Now}
 	i := slices.IndexFunc(m.Events, func(e status.Event) bool {
 		return e.Kind == status.EventMoved && e.Session == s.ID && e.Model == a.Model && e.To == a.Account
 	})

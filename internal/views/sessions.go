@@ -82,6 +82,10 @@ type SessionModel struct {
 	Model   string `json:"model"`
 	Account string `json:"account"`
 	Reason  string `json:"reason"`
+	// Since is when it went to the account, or was pinned there, as the
+	// router lists it, as cameAt has it: zero where that isn't known. It's
+	// the views' alone.
+	Since time.Time `json:"-"`
 }
 
 // Move is a request's move of its session onto the account it's on: when it
@@ -254,7 +258,7 @@ func (l *ListedSession) run(session status.Session, s *story, now time.Time) {
 		l.Dir = slices.MaxFunc(named, func(a, b status.Assignment) int { return a.LastSeen.Compare(b.LastSeen) }).Dir
 	}
 	for _, a := range session.Assignments {
-		l.Models = append(l.Models, SessionModel{Model: a.Model, Account: a.Account, Reason: a.Reason})
+		l.Models = append(l.Models, SessionModel{Model: a.Model, Account: a.Account, Reason: a.Reason, Since: cameAt(a)})
 		l.LastSeen = score.Later(l.LastSeen, a.LastSeen.UTC())
 		l.State = busier(l.State, a.InFlight)
 	}

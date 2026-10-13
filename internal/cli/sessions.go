@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -150,31 +149,7 @@ func sessionRow(s views.ListedSession, now time.Time) []string {
 		started = prose.Past(now, s.Started)
 	}
 	return []string{s.Mark.String(), session, orNone(prose.Clean(s.Account)), orNone(ledger.ShortModelID(prose.Clean(s.Model))),
-		doingSaid(s.Activity, now), started, prose.Grouped(s.Requests), s.Cents(), routingSaid(s.Routing)}
-}
-
-// doingSaid says what a session is doing at now, as its Activity has it:
-// asking or answering; with a request throttled, to go out again, as "…
-// 429", or refused, before it goes out again elsewhere, as "✕ 403"; idle,
-// for as long as it has been since it was last at work, as "idle 9m"; or
-// when it ended, as "ended 11:21".
-func doingSaid(a views.Activity, now time.Time) string {
-	switch a.Doing {
-	case views.Asking:
-		return status.Asking
-	case views.Answering:
-		return status.Answering
-	case views.Throttled:
-		return "… " + strconv.Itoa(a.Status)
-	case views.Refused:
-		return "✕ " + strconv.Itoa(a.Status)
-	case views.Ended:
-		return "ended " + prose.Past(now, a.Since)
-	}
-	if a.Since.IsZero() {
-		return "idle"
-	}
-	return "idle " + prose.Span(now.Sub(a.Since))
+		s.Activity.State(now), started, prose.Grouped(s.Requests), s.Cents(), routingSaid(s.Routing)}
 }
 
 // routingSaid says how a session came to the account it's on, as its

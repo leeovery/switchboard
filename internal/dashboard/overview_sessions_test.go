@@ -217,7 +217,7 @@ func TestASessionRunningSaysWhatItsDoing(t *testing.T) {
 		{name: "answering, nothing counted yet", a: views.Activity{Doing: views.Answering}, want: span{"↓", doingInk}},
 		{name: "asking", a: views.Activity{Doing: views.Asking}, want: span{"↑ ask", doingInk}},
 		{name: "throttled, to be sent again: asking still", a: views.Activity{Doing: views.Throttled, Status: 529}, want: span{"↑ ask", doingInk}},
-		{name: "refused", a: views.Activity{Doing: views.Refused, Status: 429}, want: span{"idle", faintInk}},
+		{name: "refused, before it goes out again elsewhere: asking still", a: views.Activity{Doing: views.Refused, Status: 429}, want: span{"↑ ask", doingInk}},
 		{name: "idle", a: views.Activity{Since: routedAt}, want: span{"idle", faintInk}},
 	}
 	for _, tt := range tests {
