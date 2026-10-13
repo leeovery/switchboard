@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"iter"
 	"path"
 	"slices"
 	"strings"
@@ -250,23 +251,19 @@ func (r Rule) called(fn *types.Func, dir string) (name, says string) {
 // a parameter, as held finds it: "" where it takes none.
 func (r Rule) takes(fn *types.Func) string {
 	sig := fn.Signature()
-	var taken []types.Type
 	if recv := sig.Recv(); recv != nil {
-		taken = append(taken, recv.Type())
-	}
-	for v := range sig.Params().Variables() {
-		taken = append(taken, v.Type())
-	}
-	for _, t := range taken {
-		if held := r.held(t); held != "" {
+		if held := r.held(recv.Type()); held != "" {
 			return held
 		}
 	}
-	return ""
+	return r.heldIn(typesOf(sig.Params()))
 }
 
 // held names the one of Fields t is, or holds through pointers, slices,
-// arrays and maps, as "status.Account": "" where it's none.
+// arrays, maps, channels, a func's parameters and results, and a generic
+// named type's type arguments, as "status.Account": "" where it's none. It
+// looks into no named type but by its type arguments, so a recursive type
+// ends it as any other does.
 func (r Rule) held(t types.Type) string {
 	switch t := types.Unalias(t).(type) {
 	case *types.Pointer:
@@ -275,14 +272,41 @@ func (r Rule) held(t types.Type) string {
 		return r.held(t.Elem())
 	case *types.Array:
 		return r.held(t.Elem())
+	case *types.Chan:
+		return r.held(t.Elem())
 	case *types.Map:
 		return cmp.Or(r.held(t.Key()), r.held(t.Elem()))
+	case *types.Signature:
+		return cmp.Or(r.heldIn(typesOf(t.Params())), r.heldIn(typesOf(t.Results())))
 	case *types.Named:
 		if name := r.Type(t); slices.Contains(r.Fields, name) {
 			return name
 		}
+		return r.heldIn(t.TypeArgs().Types())
 	}
 	return ""
+}
+
+// heldIn names the first of Fields one of ts holds, as held finds it: ""
+// where none does.
+func (r Rule) heldIn(ts iter.Seq[types.Type]) string {
+	for t := range ts {
+		if held := r.held(t); held != "" {
+			return held
+		}
+	}
+	return ""
+}
+
+// typesOf are the types of the tuple's variables, in order.
+func typesOf(tuple *types.Tuple) iter.Seq[types.Type] {
+	return func(yield func(types.Type) bool) {
+		for v := range tuple.Variables() {
+			if !yield(v.Type()) {
+				return
+			}
+		}
+	}
 }
 
 // fieldRead names the field of one of Fields sel reads, as

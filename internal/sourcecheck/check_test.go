@@ -164,6 +164,74 @@ func tested(r data.Record) string { return r.ID }
 `,
 }
 
+func TestACheckSeesRawDataTakenThroughFuncsChannelsAndTypeArguments(t *testing.T) {
+	root := sourcecheck.WriteModule(t, shapesFixture)
+	got := sourcecheck.Check(t, root, "example.com/fixture", fixtureRule(), []string{"internal/reader"}, fixtureAllowance())
+	want := []string{
+		"internal/reader/shapes.go:6: data.Each takes data.Record; " + takesFix,
+		"internal/reader/shapes.go:7: data.Made takes data.Record; " + takesFix,
+		"internal/reader/shapes.go:8: data.Fed takes data.Record; " + takesFix,
+		"internal/reader/shapes.go:9: data.Seq takes data.Record; " + takesFix,
+		"internal/reader/shapes.go:10: data.Seq2 takes data.Record; " + takesFix,
+		"internal/reader/shapes.go:11: data.Boxed takes data.Record; " + takesFix,
+		"internal/reader/shapes.go:12: data.Listed takes data.Record; " + takesFix,
+		"internal/reader/shapes.go:13: data.Walked takes data.Record; " + takesFix,
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// shapesFixture is a module whose data package has functions taking a
+// guarded type through each shape that holds one: a func's parameter, and
+// its result; a channel; a generic named type's type arguments, iter's
+// among them, nested; and a recursive generic type. One takes recursive
+// types holding none, and a reader calls each.
+var shapesFixture = map[string]string{
+	"go.mod": "module example.com/fixture\n",
+	"internal/data/data.go": `package data
+
+import "iter"
+
+type Record struct{ ID string }
+
+type Box[T any] struct{ v T }
+
+type List[T any] struct {
+	next *List[T]
+	v    T
+}
+
+type Visit func(Visit) bool
+
+func Each(each func(Record))                  {}
+func Made(made func() []Record)               {}
+func Fed(records chan<- Record)               {}
+func Seq(records iter.Seq[Record])            {}
+func Seq2(records iter.Seq2[string, *Record]) {}
+func Boxed(b Box[map[string]Record])          {}
+func Listed(l *List[Record])                  {}
+func Walked(walk func(Visit) Record)          {}
+func Visited(v Visit, l *List[Box[string]])   {}
+`,
+	"internal/reader/shapes.go": `package reader
+
+import "example.com/fixture/internal/data"
+
+func shapes() {
+	data.Each(nil)
+	data.Made(nil)
+	data.Fed(nil)
+	data.Seq(nil)
+	data.Seq2(nil)
+	data.Boxed(data.Box[map[string]data.Record]{})
+	data.Listed(nil)
+	data.Walked(nil)
+	data.Visited(nil, nil)
+}
+`,
+}
+
 func TestADeclarationIsNamedByItsFunction(t *testing.T) {
 	root := sourcecheck.WriteModule(t, map[string]string{
 		"go.mod": "module example.com/fixture\n",
