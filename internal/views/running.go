@@ -59,22 +59,14 @@ func RunningOf(m status.Moment, sessions []status.Session, s Stream) []Running {
 	return running
 }
 
-// RunningCounts counts the sessions running on each account at now, by the
-// account's id, of the sessions the router listed, as the request stream s
-// has moved and seen them since, as placed has them: those with a model
-// running there, as runs says; none for an account none runs on. They're the
-// counts ROUTING and the routing card give, of the sessions SESSIONS lists
-// on each account, s heard and the sessions placed once for every account.
-func RunningCounts(sessions []status.Session, s Stream, now time.Time) map[string]int {
+// RunningCounts counts the sessions running on each account, by the
+// account's id, as RunningOf lists them in running: a row each; none for an
+// account none runs on. They're the counts ROUTING and the routing card give,
+// so they never disagree with the rows SESSIONS lists.
+func RunningCounts(running []Running) map[string]int {
 	counts := make(map[string]int)
-	for _, session := range s.placed(sessions, s.hearing()) {
-		var on []string
-		for _, a := range session.Assignments {
-			if runs(a, now) && !slices.Contains(on, a.Account) {
-				on = append(on, a.Account)
-				counts[a.Account]++
-			}
-		}
+	for _, r := range running {
+		counts[r.Account]++
 	}
 	return counts
 }

@@ -69,7 +69,7 @@ func TestWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 					t.Errorf("%s runs, want it not to", id[:4])
 				}
 			}
-			counts := views.RunningCounts(hm.Sessions, hm.Stream, hm.Now)
+			counts := views.RunningCounts(rows)
 			for _, a := range hm.Doc.Accounts {
 				want := 0
 				for _, doing := range hm.Want {

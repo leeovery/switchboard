@@ -117,10 +117,10 @@ type Figure struct {
 // the router listed, as the request stream s has moved and seen them since:
 // 0 auto's, then an account's each, in the config's order, each with its
 // state, as closedBy says, its windows' use, and its sessions running, as
-// views.RunningCounts counts them for ROUTING too.
+// views.RunningCounts counts SESSIONS' rows for ROUTING too.
 func RoutingRows(m status.Moment, sessions []status.Session, s views.Stream) []RoutingRow {
 	rows := []RoutingRow{{Key: "0", Name: "auto", Open: true, Pickable: true}}
-	running := views.RunningCounts(sessions, s, m.Now)
+	running := views.RunningCounts(views.RunningOf(m, sessions, s))
 	for i, a := range m.Accounts {
 		session, _ := startedWindow(a)
 		week, _ := sharedWeek(a)

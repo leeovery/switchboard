@@ -274,14 +274,15 @@ func TestTheStreamsMovesPutTheSessionsWhereTheyWent(t *testing.T) {
 		moved(asking, "claude-opus-5-5", "personal", "side", time.Second),
 	}}
 	m := runningDoc().At(now, claude.Policy)
+	rows := views.RunningOf(m, sessions, stream)
 	var got []string
-	for _, r := range views.RunningOf(m, sessions, stream) {
+	for _, r := range rows {
 		got = append(got, r.Account+" "+r.Session[:4]+" "+r.Family)
 	}
 	if want := []string{"work 9c2e haiku", "side d28c opus", "side 7f3a haiku"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf lists %q, want %q", got, want)
 	}
-	if got, want := views.RunningCounts(sessions, stream, now), map[string]int{"work": 1, "side": 2}; !maps.Equal(got, want) {
+	if got, want := views.RunningCounts(rows), map[string]int{"work": 1, "side": 2}; !maps.Equal(got, want) {
 		t.Errorf("RunningCounts = %v, want %v", got, want)
 	}
 	if sessions[0].Assignments[0].Account != "work" || len(sessions) != 2 {

@@ -3,6 +3,7 @@ package dashboard
 import (
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -49,9 +50,31 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 
 // running are the sessions running on doc's accounts at now, as views lists
 // them, of the router's listing as the request stream has moved and seen
-// them since.
+// them since: as holdRunning holds them, where the frame holds them of doc
+// at now, else worked out afresh.
 func (f Frame) running(doc status.Document, now time.Time) []views.Running {
+	if f.runs != nil && f.runs.at.Of(doc, now, f.Policy) {
+		return f.runs.list()
+	}
 	return views.RunningOf(f.Moment(doc, now), f.Sessions, f.Stream)
+}
+
+// runningHeld are the sessions running of a document at a moment, as
+// holdRunning holds them: listed once, the first time a section asks.
+type runningHeld struct {
+	at   *status.HeldMoment
+	list func() []views.Running
+}
+
+// holdRunning is the frame holding the sessions running on doc's accounts at
+// now, as running lists them, listed once for SESSIONS to list and ROUTING to
+// count, so the stream is heard, and the sessions placed, once a frame, and
+// the two never disagree. It holds the moment of doc at now, as At does.
+func (f Frame) holdRunning(doc status.Document, now time.Time) Frame {
+	f = f.At(doc, now)
+	of := f
+	f.runs = &runningHeld{at: f.held, list: sync.OnceValue(func() []views.Running { return of.running(doc, now) })}
+	return f
 }
 
 // runningForm is how SESSIONS draws a session running: the rows it takes;
