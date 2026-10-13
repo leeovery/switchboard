@@ -80,11 +80,12 @@ const accountsWeeks = 6
 func (p Past) Accounts(period AccountsPeriod) AccountsPage {
 	in := p.in
 	today := dayfile.CivilOf(in.Now)
-	first := period.first(today, in.WeekStarts).Format(time.DateOnly)
-	_, days := splitAt(p.days, first)
-	totals := accountTotalsOf(days, in.Accounts, p.versions())
+	first := period.first(today, in.WeekStarts)
+	before, days := splitAt(p.days, first.Format(time.DateOnly))
+	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
+	totals := accountTotalsOf(before, days, in.Accounts, p.versions())
 	known := plans{accounts: in.Accounts, table: in.Prices}
-	costs := plansOf(days, known, first, period.share())
+	costs := plansOf(days, known, first.Format(time.DateOnly), period.share())
 	_, weeks := splitAt(p.days, weeksTo(today, in.WeekStarts, weeksShown).AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), in: in, days: weeks}
 	for x, a := range in.Accounts {

@@ -213,3 +213,33 @@ func TestTotalsSayTheDayEachWindowLastRanOutInTheRunItsLastResetEnded(t *testing
 		})
 	}
 }
+
+// Asked for from a day after the run that last reset began, the totals say
+// the day it ran out all the same, from the days before those asked for, but
+// none of the run before it; and a window that reset only before them, they
+// say nothing of.
+func TestTotalsSayTheDayAWindowRanOutBeforeTheDaysAskedFor(t *testing.T) {
+	days := daysFrom("2026-09-27",
+		day("2026-09-27", windowsDay{limits: []ledger.Limit{limit("7d", "2026-09-27", "12:00"), limit("5h", "2026-09-27", "13:00")},
+			resets: []ledger.Reset{reset("5h", "2026-09-27", "15:00", 1)}}.of("work")),
+		day("2026-09-28", windowsDay{resets: []ledger.Reset{reset("7d", "2026-09-28", "21:00", 1)}}.of("work")),
+		day("2026-10-02", windowsDay{limits: []ledger.Limit{limit("7d", "2026-10-02", "16:00")}}.of("work")),
+		day("2026-10-05", windowsDay{resets: []ledger.Reset{reset("7d", "2026-10-05", "21:00", 1)}}.of("work")))
+	tests := []struct {
+		from   string
+		ranOut map[string]string
+	}{
+		{from: "2026-09-27", ranOut: map[string]string{"5h": "2026-09-27", "7d": "2026-10-02"}},
+		{from: "2026-10-03", ranOut: map[string]string{"7d": "2026-10-02"}},
+		{from: "2026-10-05", ranOut: map[string]string{"7d": "2026-10-02"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.from, func(t *testing.T) {
+			in := input(days)
+			in.From = on(tt.from)
+			if got := views.NewHistory(in).Totals.Accounts[0].RanOut; !maps.Equal(got, tt.ranOut) {
+				t.Errorf("asked for from %s, work ran out %v, want %v", tt.from, got, tt.ranOut)
+			}
+		})
+	}
+}
