@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -113,7 +114,7 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 			doc.Prime = status.Prime{Day: "08:00-22:00", Window: "5h", Slots: tt.slots}
 			var got []string
 			for _, h := range (Frame{Policy: claudeLike}).upcoming(doc.WorkedOut(claudeLike), now) {
-				got = append(got, status.Dated(now, h.at)+" "+h.name.text+h.what)
+				got = append(got, prose.Dated(now, h.at)+" "+h.name.text+h.what)
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("upcoming() = %q, want %q", got, tt.want)
@@ -132,7 +133,7 @@ func TestCOMINGUPDrawsWhatTheDocumentGivesAfterNow(t *testing.T) {
 	}
 	var got []string
 	for _, h := range (Frame{Policy: claudeLike}).upcoming(doc, now) {
-		got = append(got, status.Dated(now, h.at)+" "+h.name.text+h.what)
+		got = append(got, prose.Dated(now, h.at)+" "+h.name.text+h.what)
 	}
 	if want := []string{"15:12 work's 5-hour resets"}; !slices.Equal(got, want) {
 		t.Errorf("upcoming() = %q, want %q: what the document gives, after now, of the kinds it knows", got, want)
@@ -153,7 +154,7 @@ func TestCOMINGUPListsEverythingTheDocumentGivesWhateverItsWindow(t *testing.T) 
 
 	var got []string
 	for _, h := range (Frame{Policy: claudeLike}).upcoming(doc, now) {
-		got = append(got, status.Dated(now, h.at)+" "+h.name.text+h.what)
+		got = append(got, prose.Dated(now, h.at)+" "+h.name.text+h.what)
 	}
 	want := []string{
 		"14:12 work's Fable wk runs out at its pace",

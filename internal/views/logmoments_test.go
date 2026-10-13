@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
@@ -43,13 +44,13 @@ func logLineOf(l views.LogLine) viewstest.LogLine {
 	return viewstest.LogLine{Row: row}
 }
 
-// secondsOf is a time a row knows, as status.Seconds says it: "" for one it
+// secondsOf is a time a row knows, as prose.Seconds says it: "" for one it
 // doesn't.
 func secondsOf(d *time.Duration) string {
 	if d == nil {
 		return ""
 	}
-	return status.Seconds(*d)
+	return prose.Seconds(*d)
 }
 
 func TestTheLogsRowsAtEachHardMoment(t *testing.T) {

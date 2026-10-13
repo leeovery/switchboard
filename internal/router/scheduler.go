@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -109,7 +110,7 @@ func (s *scheduler) view(req Request, now time.Time) view {
 // being used at, and when, at that rate, it runs out, which comes before it
 // resets.
 func notePressure(req Request, d decision) {
-	logger.Info("passed over under pressure", "id", req.ID, "account", d.passedOver, "rate", status.Percent(d.pressure.Rate)+" an hour",
+	logger.Info("passed over under pressure", "id", req.ID, "account", d.passedOver, "rate", prose.Percent(d.pressure.Rate)+" an hour",
 		"runs_out", d.pressure.RunsOut, "chosen", d.account)
 }
 

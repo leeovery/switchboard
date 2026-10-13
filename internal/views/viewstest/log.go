@@ -6,6 +6,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -47,7 +48,7 @@ type LogLine struct {
 // decide: its id; its session's id and directory; its time, to the second,
 // as the Log shows it; its mark; how far it has come; whether it failed, and
 // whether it wrote its session's context again; its first and took, as
-// status.Seconds says them, "" where they aren't known; its stopped, wide
+// prose.Seconds says them, "" where they aren't known; its stopped, wide
 // and on a phone, and its routing, each run together; and its move's cost,
 // none for 0.
 type Row struct {
@@ -159,9 +160,9 @@ func clock(t time.Time) string {
 	return t.Format(time.TimeOnly)
 }
 
-// seconds is n milliseconds as status.Seconds says them.
+// seconds is n milliseconds as prose.Seconds says them.
 func seconds(n int64) string {
-	return status.Seconds(time.Duration(n) * time.Millisecond)
+	return prose.Seconds(time.Duration(n) * time.Millisecond)
 }
 
 // rowOf is the row wanted of the request l, as its line alone tells it: no

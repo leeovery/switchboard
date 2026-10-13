@@ -7,7 +7,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
-	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -28,9 +28,9 @@ func peaksText(row views.WeeksRow) string {
 		case p.Share == nil:
 			peaks = append(peaks, "—")
 		case p.Open:
-			peaks = append(peaks, status.Percent(*p.Share)+"…")
+			peaks = append(peaks, prose.Percent(*p.Share)+"…")
 		default:
-			peaks = append(peaks, status.Percent(*p.Share))
+			peaks = append(peaks, prose.Percent(*p.Share))
 		}
 	}
 	return strings.Join(peaks, " ")

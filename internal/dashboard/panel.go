@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -205,13 +206,13 @@ func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string,
 	}
 	c.right(at+useColumn, y, line{panelUse(s)})
 	whither := x + width - (at + useColumn + whitherGap)
-	c.line(at+useColumn+whitherGap, y, line{s.headed(now, "~", status.Dated)}.fit(whither))
+	c.line(at+useColumn+whitherGap, y, line{s.headed(now, "~", prose.Dated)}.fit(whither))
 }
 
 // panelUse is how much of a window standing as s is used, a whole
 // percentage, bold, toned as usedInk tones it, below 70% in text.primary.
 func panelUse(s standing) span {
-	return span{status.Percent(s.w.Used), usedInk(s.w.Used, ink{token: theme.TextPrimary, bold: true})}
+	return span{prose.Percent(s.w.Used), usedInk(s.w.Used, ink{token: theme.TextPrimary, bold: true})}
 }
 
 // panelBottom draws the panel's bottom edge from x along row y, width cells
@@ -239,7 +240,7 @@ func primedAt(p linePanel, now time.Time) (line, bool) {
 	if p.state.Condition != status.Idle || p.primed.IsZero() {
 		return nil, false
 	}
-	return line{{" primed at ", dimInk}, {status.Dated(now, p.primed), mutedInk}, {" ", dimInk}}, true
+	return line{{" primed at ", dimInk}, {prose.Dated(now, p.primed), mutedInk}, {" ", dimInk}}, true
 }
 
 // resetsSays says when the panel's windows reset, as resets has them: in
@@ -251,7 +252,7 @@ func resetsSays(p linePanel, now time.Time, brief bool) line {
 	if len(said) == 0 {
 		return nil
 	}
-	lead, sep := " resets  ", status.Separator
+	lead, sep := " resets  ", prose.Separator
 	if brief {
 		lead, sep = " ", " · "
 	}
@@ -275,7 +276,7 @@ func (p linePanel) resets(now time.Time) []string {
 		switch {
 		case !ok || w.ResetsAt.IsZero():
 		case key == p.policy.Started:
-			said = append(said, status.InProse(w.Label)+" "+status.Dated(now, w.ResetsAt))
+			said = append(said, status.InProse(w.Label)+" "+prose.Dated(now, w.ResetsAt))
 		default:
 			rest = append(rest, w)
 		}
@@ -293,13 +294,13 @@ func weeksReset(windows []quota.Window, now time.Time) []string {
 	same := !slices.ContainsFunc(windows, func(w quota.Window) bool { return !w.ResetsAt.Equal(windows[0].ResetsAt) })
 	switch {
 	case same && len(windows) > 1:
-		return []string{"weeks " + status.Dated(now, windows[0].ResetsAt)}
+		return []string{"weeks " + prose.Dated(now, windows[0].ResetsAt)}
 	case same:
-		return []string{status.InProse(windows[0].Label) + " " + status.Dated(now, windows[0].ResetsAt)}
+		return []string{status.InProse(windows[0].Label) + " " + prose.Dated(now, windows[0].ResetsAt)}
 	}
 	said := make([]string, len(windows))
 	for i, w := range windows {
-		said[i] = status.Short(w.Label) + " " + status.Dated(now, w.ResetsAt)
+		said[i] = status.Short(w.Label) + " " + prose.Dated(now, w.ResetsAt)
 	}
 	return said
 }

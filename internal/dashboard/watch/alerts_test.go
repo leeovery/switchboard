@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/status/statustest"
@@ -279,7 +280,7 @@ func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
 				}
 				for _, w := range a.Windows {
 					if w.Used >= notifications.Warning {
-						warnings = append(warnings, a.Title()+": "+w.Label+" at "+status.Percent(w.Used))
+						warnings = append(warnings, a.Title()+": "+w.Label+" at "+prose.Percent(w.Used))
 					}
 				}
 			}

@@ -1,11 +1,11 @@
 package status
 
 import (
-	"fmt"
 	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prime"
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // Prime is the priming schedule, as the document gives it: the day, in local
@@ -32,17 +32,11 @@ type Slot struct {
 
 // Priming is the schedule as the document gives it.
 func Priming(s prime.Schedule) Prime {
-	day := s.Day()
-	p := Prime{Day: clockOf(day.Start) + "-" + clockOf(day.End), Window: s.Window()}
+	p := Prime{Day: s.Day().String(), Window: s.Window()}
 	for _, slot := range s.Slots() {
-		p.Slots = append(p.Slots, Slot{Account: slot.Account, At: clockOf(slot.At)})
+		p.Slots = append(p.Slots, Slot{Account: slot.Account, At: prose.ClockOf(slot.At)})
 	}
 	return p
-}
-
-// clockOf shows a time of day, as the time since midnight, as HH:MM.
-func clockOf(d time.Duration) string {
-	return fmt.Sprintf("%02d:%02d", int(d/time.Hour), int(d%time.Hour/time.Minute))
 }
 
 // Coming is what comes next of priming on an account, at a time: its window
@@ -121,5 +115,5 @@ func notStartedNote(next, now time.Time) string {
 	if next.IsZero() {
 		return notStarted
 	}
-	return notStarted + " · next prime " + Clock(now, next)
+	return notStarted + " · next prime " + prose.Clock(now, next)
 }

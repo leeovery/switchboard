@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -498,7 +499,7 @@ func (f Frame) drawCall(c *canvas, doc status.Document, r callRow, now time.Time
 	if !f.lit(r.seated, now) {
 		idInk = idleIDInk
 	}
-	seen := status.SeenAgo(now, f.lastSeen(r.seated))
+	seen := prose.SeenAgo(now, f.lastSeen(r.seated))
 	seenInk := dimInk
 	if seen == "now" {
 		seenInk = secondaryInk
@@ -555,7 +556,7 @@ func docNamed(doc status.Document, id string) string {
 	if a, ok := doc.Account(id); ok {
 		return docName(a)
 	}
-	return status.Clean(id)
+	return prose.Clean(id)
 }
 
 // docPlace is place of doc, as docName has it.

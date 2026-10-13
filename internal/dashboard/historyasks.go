@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -127,7 +127,7 @@ func (p HistoryPage) yearShown() string {
 	case p.YearAsk.Account != "":
 		return p.label(p.YearAsk.Account)
 	case p.Read:
-		return status.Clean(p.YearAsk.Version)
+		return prose.Clean(p.YearAsk.Version)
 	}
 	return ""
 }

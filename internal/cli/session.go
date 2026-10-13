@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -96,7 +97,7 @@ func (n *naming) named() (string, bool) {
 // them, in the order they came, a line each as line gives it.
 func several[S any](given string, sessions []S, line func(S) string) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "session %s could be any of these, so give more of its id:", status.Clean(redact.Text(given)))
+	fmt.Fprintf(&b, "session %s could be any of these, so give more of its id:", prose.Clean(redact.Text(given)))
 	for _, s := range sessions {
 		fmt.Fprintf(&b, "\n  %s", line(s))
 	}

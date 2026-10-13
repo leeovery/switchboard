@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -131,11 +132,11 @@ func (f Frame) latelyLines(m status.Moment, sentences []views.Sentence) []line {
 	names := overviewNames(m)
 	column := 0
 	for _, s := range sentences {
-		column = max(column, len(status.Dated(m.Now, s.At)))
+		column = max(column, len(prose.Dated(m.Now, s.At)))
 	}
 	lines := make([]line, len(sentences))
 	for i, s := range sentences {
-		at := span{padded(status.Dated(m.Now, s.At), column) + afterTime, dimInk}
+		at := span{padded(prose.Dated(m.Now, s.At), column) + afterTime, dimInk}
 		if i == 0 {
 			at.ink = secondaryInk
 		}

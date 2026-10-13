@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -134,7 +135,7 @@ func blockOf(m status.Moment, width int, look Look, by By, windows []shownWindow
 	for i, a := range m.Accounts {
 		row := usageRow{id: a.ID, name: names[i].line(b.names)}
 		if a.Reserve > 0 {
-			row.cap = name(a) + " at " + status.Percent(a.Cap)
+			row.cap = name(a) + " at " + prose.Percent(a.Cap)
 		}
 		for _, w := range b.windows {
 			row.gauges = append(row.gauges, accountGauge(a, w.key, m.Now))
@@ -170,7 +171,7 @@ func usageWindows(m status.Moment, keys []string, name func(key string) string) 
 	}
 	shown := make([]shownWindow, 0, len(keys))
 	for _, key := range keys {
-		shown = append(shown, shownWindow{key: key, name: status.Clean(name(key))})
+		shown = append(shown, shownWindow{key: key, name: prose.Clean(name(key))})
 	}
 	return shown
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
@@ -474,7 +475,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
-		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
+		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitSince: eventAt(d.LimitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(),
@@ -584,10 +585,10 @@ func (d Document) windowNames() map[string]WindowName {
 // a day, its length, as "5-hour"; else its label, cleaned, as "Week" or
 // "Fable week", or its key where it has none.
 func NameOfWindow(key, label string) string {
-	if length, ok := quota.Length(key); ok && length%time.Hour == 0 && length < day {
+	if length, ok := quota.Length(key); ok && length%time.Hour == 0 && length < quota.Day {
 		return fmt.Sprintf("%d-hour", length/time.Hour)
 	}
-	return Clean(cmp.Or(label, key))
+	return prose.Clean(cmp.Or(label, key))
 }
 
 // NameOfKey is what the window with the given key is called where no

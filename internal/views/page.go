@@ -9,6 +9,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -240,7 +241,7 @@ func KeptUntil(date string, now time.Time) string {
 	}
 	until, err := time.ParseInLocation(time.DateOnly, date, now.Location())
 	if err != nil {
-		return "kept until " + status.Clean(date)
+		return "kept until " + prose.Clean(date)
 	}
 	layout := "2 Jan"
 	if until.Year() != now.Year() {

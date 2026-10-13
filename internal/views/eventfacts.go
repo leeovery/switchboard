@@ -3,6 +3,7 @@ package views
 import (
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -72,7 +73,7 @@ func (f *eventFacts) pressed(e status.Event) {
 	if f.runsOut == nil {
 		f.runsOut = make(map[string]time.Time)
 	}
-	f.runsOut[status.Clean(e.Account)] = e.Until
+	f.runsOut[prose.Clean(e.Account)] = e.Until
 }
 
 // named names the windows with the given keys, as windowOf names each:

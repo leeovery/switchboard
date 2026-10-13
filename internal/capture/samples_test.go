@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -34,7 +35,7 @@ func TestTheSamplesReadAsTheFramesHaveThem(t *testing.T) {
 			if !ok {
 				t.Fatalf("%s has no window %s", a.ID, tt.window)
 			}
-			if got := status.Percent(w.Utilization); got != tt.used {
+			if got := prose.Percent(w.Utilization); got != tt.used {
 				t.Errorf("%s's %s is %s used, want %s", a.ID, tt.window, got, tt.used)
 			}
 			if got := projection(now, projected(a, tt.window, now)); got != tt.projected {
@@ -79,9 +80,9 @@ func TestTheSamplesStandAsTheFramesHaveThem(t *testing.T) {
 func projection(now time.Time, p score.Projection) string {
 	switch p.Kind {
 	case score.OnPace:
-		return "on pace for " + status.Percent(p.AtReset)
+		return "on pace for " + prose.Percent(p.AtReset)
 	case score.RunsOut:
-		return "runs out ~" + status.Clock(now, p.At)
+		return "runs out ~" + prose.Clock(now, p.At)
 	case score.Exhausted:
 		return "exhausted"
 	}

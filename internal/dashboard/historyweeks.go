@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -428,7 +427,7 @@ func (w weeksDrawn) dropped() []part {
 		facts = append(facts, []part{figureIn(p.GroupedDollars()+"/mo", mutedInk)})
 	}
 	if used := w.row(w.page.Capacity.Drop).Used; used != nil {
-		facts = append(facts, []part{figureIn(status.Percent(*used), mutedInk), wordsIn(" used on average", mutedInk)})
+		facts = append(facts, []part{figureIn(prose.Percent(*used), mutedInk), wordsIn(" used on average", mutedInk)})
 	}
 	said := joinedParts(span{", ", mutedInk}, facts...)
 	switch {
@@ -518,7 +517,7 @@ func (w weeksDrawn) spared(row views.WeeksRow) ([]part, bool) {
 	}
 	spared := []part{wordsIn(row.Verdict+": ", w.verdictInk(row.Verdict))}
 	if share != nil {
-		spared = append(spared, figureIn(status.Percent(*share), mutedInk), wordsIn(says, mutedInk))
+		spared = append(spared, figureIn(prose.Percent(*share), mutedInk), wordsIn(says, mutedInk))
 	}
 	return spared, true
 }
@@ -533,9 +532,9 @@ func (w weeksDrawn) tableVerdict(row views.WeeksRow) []part {
 	l := []part{wordsIn(row.Verdict, w.verdictInk(row.Verdict))}
 	switch left := row.LeftAtReset; {
 	case left != nil && w.many():
-		l = append(l, wordsIn("   ", dimInk), figureIn(status.Percent(*left), dimInk), wordsIn(" left at a reset", dimInk))
+		l = append(l, wordsIn("   ", dimInk), figureIn(prose.Percent(*left), dimInk), wordsIn(" left at a reset", dimInk))
 	case left != nil:
-		l = append(l, wordsIn("  ", dimInk), figureIn(status.Percent(*left), dimInk), wordsIn(" left", dimInk))
+		l = append(l, wordsIn("  ", dimInk), figureIn(prose.Percent(*left), dimInk), wordsIn(" left", dimInk))
 	}
 	if row.WithoutIt != nil && !w.many() {
 		l = append(l, wordsIn("  without it: short ", dimInk), figureIn(strconv.Itoa(*row.WithoutIt), dimInk),
@@ -561,7 +560,7 @@ func (w weeksDrawn) accountAside(row views.WeeksRow) [][]part {
 		countedParts(row.Weeks, "week", mutedInk),
 	)
 	if row.LeftAtReset != nil {
-		record = append(record, wordsIn(" · ", mutedInk), figureIn(status.Percent(*row.LeftAtReset), mutedInk), wordsIn(" left at a reset, on average", mutedInk))
+		record = append(record, wordsIn(" · ", mutedInk), figureIn(prose.Percent(*row.LeftAtReset), mutedInk), wordsIn(" left at a reset, on average", mutedInk))
 	}
 	aside := [][]part{verdict, record}
 	if row.WithoutIt != nil {
@@ -655,11 +654,11 @@ func (w weeksDrawn) peak(row views.WeeksRow, p views.WeekPeak) part {
 	if p.Share == nil {
 		return figurePart(line{noFigure}, Number{})
 	}
-	text := status.Percent(*p.Share)
+	text := prose.Percent(*p.Share)
 	if p.Open {
 		return figurePart(line{{text + "…", w.thisWeekInk()}}, w.number(row))
 	}
-	if status.WholePercent(*p.Share) >= 100 {
+	if prose.WholePercent(*p.Share) >= 100 {
 		return figureIn(text, exhaustedInk)
 	}
 	return figureIn(text, usedInk(*p.Share, ink{token: theme.VizRamp1}))
@@ -692,11 +691,11 @@ func (w weeksDrawn) columnPeak(row views.WeeksRow, p views.WeekPeak) part {
 	case p.Share == nil:
 		return figurePart(line{noFigure}, Number{})
 	case p.Open:
-		return figurePart(line{{status.Percent(*p.Share) + "…", secondaryInk}}, w.number(row))
-	case status.WholePercent(*p.Share) >= 100:
-		return figureIn(status.Percent(*p.Share), exhaustedInk)
+		return figurePart(line{{prose.Percent(*p.Share) + "…", secondaryInk}}, w.number(row))
+	case prose.WholePercent(*p.Share) >= 100:
+		return figureIn(prose.Percent(*p.Share), exhaustedInk)
 	}
-	return figureIn(status.Percent(*p.Share), mutedInk)
+	return figureIn(prose.Percent(*p.Share), mutedInk)
 }
 
 // column draws a week's column, filled from the bottom to its peak as it's
@@ -713,7 +712,7 @@ func (w weeksDrawn) column(c *canvas, look Look, x, y int, p views.WeekPeak) {
 		c.text(x, bottom, strings.Repeat(levels[1], columnCells), faintInk)
 		return
 	}
-	filled := halfEven(min(float64(status.WholePercent(*p.Share))/100, 1) * columnRows * 8)
+	filled := halfEven(min(float64(prose.WholePercent(*p.Share))/100, 1) * columnRows * 8)
 	for r := range columnRows {
 		eighths := min(max(filled-8*r, 0), 8)
 		if eighths == 0 {

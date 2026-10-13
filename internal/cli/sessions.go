@@ -130,8 +130,8 @@ func writeSessions(out io.Writer, list views.SessionList, now time.Time) error {
 	if err := writeTable(out, rows); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintf(out, "\ntoday  %s%s%s%s%s at API prices\n", status.SessionCount(list.Today.Sessions), status.Separator,
-		prose.Counted(list.Today.Requests, "request"), status.Separator, dashboard.WorthCents(list.Today.Worth))
+	_, err := fmt.Fprintf(out, "\ntoday  %s%s%s%s%s at API prices\n", prose.SessionCount(list.Today.Sessions), prose.Separator,
+		prose.Counted(list.Today.Requests, "request"), prose.Separator, dashboard.WorthCents(list.Today.Worth))
 	return err
 }
 
@@ -140,15 +140,15 @@ func writeSessions(out io.Writer, list views.SessionList, now time.Time) error {
 // when it started; its requests today, and their worth; and how it came to
 // its account.
 func sessionRow(s views.ListedSession, now time.Time) []string {
-	session := status.ShortID(status.Clean(s.Session))
+	session := status.ShortID(prose.Clean(s.Session))
 	if s.Dir != "" {
-		session += " " + status.Clean(s.Dir)
+		session += " " + prose.Clean(s.Dir)
 	}
 	started := "-"
 	if !s.Started.IsZero() {
-		started = status.Past(now, s.Started)
+		started = prose.Past(now, s.Started)
 	}
-	return []string{mark(s), session, orNone(status.Clean(s.Account)), orNone(ledger.ShortModelID(status.Clean(s.Model))),
+	return []string{mark(s), session, orNone(prose.Clean(s.Account)), orNone(ledger.ShortModelID(prose.Clean(s.Model))),
 		doing(s.State, s.Running, s.LastSeen, s.Ended, now), started, prose.Grouped(s.Requests), dashboard.WorthCents(s.Worth), routing(s, now)}
 }
 
@@ -176,11 +176,11 @@ func doing(state string, running bool, lastSeen, ended, now time.Time) string {
 	case state != "":
 		return state
 	case !running:
-		return "ended " + status.Past(now, ended)
+		return "ended " + prose.Past(now, ended)
 	case lastSeen.IsZero():
 		return "idle"
 	}
-	return "idle " + status.Span(now.Sub(lastSeen))
+	return "idle " + prose.Span(now.Sub(lastSeen))
 }
 
 // routing says how a session came to the account it's on, in the routing

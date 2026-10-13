@@ -271,7 +271,7 @@ func modelRows(a ledger.PricedAccount) [][]string {
 		}
 		tokens := m.Tokens()
 		rows = append(rows, []string{account, modelName(m.ModelDay), requestCount(m.ModelDay),
-			prose.Tokens(tokensIn(tokens)+tokens.Output) + " tokens", status.SessionCount(m.Sessions), worthOf(m)})
+			prose.Tokens(tokensIn(tokens)+tokens.Output) + " tokens", prose.SessionCount(m.Sessions), worthOf(m)})
 	}
 	return rows
 }
@@ -295,16 +295,16 @@ func accountName(id string) string {
 	if id == "" {
 		return "no account"
 	}
-	return status.Clean(id)
+	return prose.Clean(id)
 }
 
 // modelName names the model a model's day is of, and the inference geo its
 // requests asked for, where they asked, as "claude-opus-5-5 (us)", cleaned: a
 // dash for the requests whose bodies couldn't be read.
 func modelName(m ledger.ModelDay) string {
-	name := orNone(status.Clean(m.Model))
+	name := orNone(prose.Clean(m.Model))
 	if m.InferenceGeo != "" {
-		name += " (" + status.Clean(m.InferenceGeo) + ")"
+		name += " (" + prose.Clean(m.InferenceGeo) + ")"
 	}
 	return name
 }
@@ -338,7 +338,7 @@ func accountNote(a ledger.PricedAccount, now time.Time) string {
 	if a.Account == "" {
 		return ""
 	}
-	parts := []string{status.SessionCount(a.Sessions)}
+	parts := []string{prose.SessionCount(a.Sessions)}
 	for _, part := range []string{moves(a.MovedOn, a.MovedOff), limitsOf(a, now), weeksResetOf(a, now), highestOf(a)} {
 		if part != "" {
 			parts = append(parts, part)
@@ -347,7 +347,7 @@ func accountNote(a ledger.PricedAccount, now time.Time) string {
 	if a.Sessions == 0 && len(parts) == 1 {
 		return ""
 	}
-	return status.Clean(a.Account) + ": " + strings.Join(parts, status.Separator)
+	return prose.Clean(a.Account) + ": " + strings.Join(parts, prose.Separator)
 }
 
 // limitsOf says the limits an account reached, as "limits: Session at
@@ -358,9 +358,9 @@ func limitsOf(a ledger.PricedAccount, now time.Time) string {
 	}
 	limits := make([]string, len(a.Limits))
 	for i, l := range a.Limits {
-		limits[i] = claude.WindowLabel(l.Window) + " at " + status.TimeOfDay(now, l.At)
+		limits[i] = claude.WindowLabel(l.Window) + " at " + prose.TimeOfDay(now, l.At)
 	}
-	return "limits: " + status.Clean(prose.List(limits))
+	return "limits: " + prose.Clean(prose.List(limits))
 }
 
 // weeksResetOf says when an account's weeks reset, as weekResets gives them,
@@ -370,9 +370,9 @@ func weeksResetOf(a ledger.PricedAccount, now time.Time) string {
 	resets := weekResets(a)
 	said := make([]string, len(resets))
 	for i, r := range resets {
-		said[i] = status.InProse(status.NameOfKey(r.Window)) + " reset " + status.TimeOfDay(now, r.At)
+		said[i] = status.InProse(status.NameOfKey(r.Window)) + " reset " + prose.TimeOfDay(now, r.At)
 	}
-	return status.Clean(prose.List(said))
+	return prose.Clean(prose.List(said))
 }
 
 // highestOf says each of an account's windows' highest use, as "highest:
@@ -383,9 +383,9 @@ func highestOf(a ledger.PricedAccount) string {
 	}
 	var highest []string
 	for _, key := range slices.Sorted(maps.Keys(a.Highest)) {
-		highest = append(highest, claude.WindowLabel(key)+" "+status.Percent(a.Highest[key]))
+		highest = append(highest, claude.WindowLabel(key)+" "+prose.Percent(a.Highest[key]))
 	}
-	return "highest: " + status.Clean(strings.Join(highest, ", "))
+	return "highest: " + prose.Clean(strings.Join(highest, ", "))
 }
 
 // moves says how many sessions were moved onto an account and off it, as "2

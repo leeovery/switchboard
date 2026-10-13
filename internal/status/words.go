@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // Words are a reason the router gives, in the dashboard's words: in parts,
@@ -78,7 +80,7 @@ func EventWords(reason string, f Facts) Words {
 // words reads as the router gives it, cleaned.
 func RoutingWords(reason string, f Facts) Words {
 	switch {
-	case isNew(Clean(reason)):
+	case isNew(prose.Clean(reason)):
 		return Words{plain("new session")}
 	case f.From == "":
 		return nil
@@ -100,17 +102,17 @@ func SessionWords(reason string, f Facts) Words {
 }
 
 // RunningWords are the reason as a session running reads, with when it went
-// to its account, as Dated says it: "started here 14:41", ending ", the best"
-// while that's where new sessions go; "pinned here 14:39", its own pin; "its
-// pin to side yields: side has no room"; "moved from work 14:31: work reached
-// its cap", the account it left the reason's own where it names one; else
-// "here since 14:39: " and its words as an event reads them. Any reason not
-// in the dashboard's words reads as the router gives it, cleaned.
+// to its account, as prose.Dated says it: "started here 14:41", ending ",
+// the best" while that's where new sessions go; "pinned here 14:39", its own
+// pin; "its pin to side yields: side has no room"; "moved from work 14:31:
+// work reached its cap", the account it left the reason's own where it names
+// one; else "here since 14:39: " and its words as an event reads them. Any
+// reason not in the dashboard's words reads as the router gives it, cleaned.
 func RunningWords(reason string, f Facts) Words {
-	reason = Clean(reason)
+	reason = prose.Clean(reason)
 	at := ""
 	if !f.At.IsZero() {
-		at = " " + Dated(f.Now, f.At)
+		at = " " + prose.Dated(f.Now, f.At)
 	}
 	switch {
 	case isNew(reason) && f.Best:
@@ -159,7 +161,7 @@ func plain(text string) Part {
 
 // named is the account with the given id, cleaned, as it's from elsewhere.
 func named(id string) Part {
-	return Part{Text: Clean(id), Kind: PartAccount}
+	return Part{Text: prose.Clean(id), Kind: PartAccount}
 }
 
 // readers each read a kind of reason, reporting false for any other, in the
@@ -170,7 +172,7 @@ var readers = []func(reason string, f Facts) (forms, bool){pressured, settled, r
 // wordsOf is the reason's words, cleaned, as it's from elsewhere: as the
 // router gives it where none of readers reads it.
 func wordsOf(reason string, f Facts) forms {
-	reason = Clean(reason)
+	reason = prose.Clean(reason)
 	for _, read := range readers {
 		if w, ok := read(reason, f); ok {
 			return w
@@ -205,7 +207,7 @@ func PassingOver(reason, account string) string {
 // PassedOver is the account a reason ending ", personal under pressure" says
 // the choice passed over, cleaned: "" for a reason without it.
 func PassedOver(reason string) string {
-	_, account, _ := passedOver(Clean(reason))
+	_, account, _ := passedOver(prose.Clean(reason))
 	return account
 }
 
@@ -223,8 +225,8 @@ func passedOver(reason string) (base, account string, ok bool) {
 
 // pressured reads a reason ending ", personal under pressure", which names the
 // account the choice passed over, as "personal came under pressure, its 5-hour
-// to run out at 15:10", the time as Dated says it: pressure is only ever
-// judged in the 5-hour window.
+// to run out at 15:10", the time as prose.Dated says it: pressure is only
+// ever judged in the 5-hour window.
 func pressured(reason string, f Facts) (forms, bool) {
 	_, account, ok := passedOver(reason)
 	if !ok {
@@ -232,7 +234,7 @@ func pressured(reason string, f Facts) (forms, bool) {
 	}
 	w := Words{named(account), plain(" came under pressure")}
 	if !f.Until.IsZero() {
-		w = append(w, plain(", its 5-hour to run out at "+Dated(f.Now, f.Until)))
+		w = append(w, plain(", its 5-hour to run out at "+prose.Dated(f.Now, f.Until)))
 	}
 	return alike(w), true
 }
@@ -323,7 +325,7 @@ func TriedWords(tried ...Tried) Words {
 		}
 		why, known := triedWords[t.Why]
 		if !known {
-			why = " " + Clean(t.Why)
+			why = " " + prose.Clean(t.Why)
 		}
 		w = append(w, plain(lead), named(t.Account), plain(why))
 	}

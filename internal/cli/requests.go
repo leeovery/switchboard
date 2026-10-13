@@ -146,7 +146,7 @@ func sessionLines(lines iter.Seq[ledger.Held], given string) (iter.Seq[ledger.He
 		s.add(h)
 	}
 	if _, ok := s.named(); !ok {
-		return nil, several(given, s.ids, status.Clean)
+		return nil, several(given, s.ids, prose.Clean)
 	}
 	return slices.Values(s.held), nil
 }
@@ -217,8 +217,8 @@ func writeRequests(out io.Writer, lines iter.Seq[ledger.Held], from, now time.Ti
 // time, its session's id cut short, the model it asked for, the account that
 // answered it, its status, its tokens in and out, and how long it took.
 func requestRow(h *ledger.Held, at time.Time) []string {
-	return []string{at.Format(time.TimeOnly), orNone(status.ShortID(status.Clean(h.Session))), orNone(status.Clean(h.Model)),
-		orNone(status.Clean(h.Account)), answered(&h.Line), tokensInOut(h.Reply), status.Seconds(time.Duration(h.TotalMS) * time.Millisecond)}
+	return []string{at.Format(time.TimeOnly), orNone(status.ShortID(prose.Clean(h.Session))), orNone(prose.Clean(h.Model)),
+		orNone(prose.Clean(h.Account)), answered(&h.Line), tokensInOut(h.Reply), prose.Seconds(time.Duration(h.TotalMS) * time.Millisecond)}
 }
 
 // answered says how a request was answered: its status, and whether its
