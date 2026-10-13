@@ -1141,6 +1141,35 @@ func TestAPanelMarksTheEvenPaceOfAWeekResetSinceItWasReadFromItsReset(t *testing
 	}
 }
 
+// Sessions' panels mark the account new sessions go to, with ▲ and an accent
+// border, by the one rule the moment says it by: the router's best of
+// several; of several probed, none, as where new sessions go is the
+// router's to say, though probing names its best.
+func TestAPanelMarksWhereNewSessionsGoAsTheMomentHasIt(t *testing.T) {
+	routed := threeRouted()
+	probed := routed
+	probed.Source = status.SourceProbe
+	tests := []struct {
+		name string
+		doc  status.Document
+		next string
+	}{
+		{name: "the router's, of several", doc: routed, next: "side"},
+		{name: "probed, of several", doc: probed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := switchboard(160, 40, nil, Traffic{}).At(tt.doc, now)
+			for _, a := range tt.doc.Accounts {
+				p := f.linePanelOf(tt.doc, a, now, []string{"5h", "7d"})
+				if marked := p.edges() == bestBorderInk && slices.Contains(p.badges(), span{nextBadge, badgeInk}); marked != (a.ID == tt.next) {
+					t.Errorf("%s's panel marked %v, want %v", a.ID, marked, a.ID == tt.next)
+				}
+			}
+		})
+	}
+}
+
 // A panel's bottom edge says when its windows reset next, as they stand at
 // now: side's week, reset two hours ago, since it was read, resets a week on,
 // as the router's next read has it, not at 11:12, already past; and its

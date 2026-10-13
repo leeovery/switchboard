@@ -59,11 +59,12 @@ type linePanel struct {
 }
 
 // linePanelOf is the panel of doc's account a at now, showing the windows
-// shown.
+// shown: of several accounts, it's the next where new sessions go to it, as
+// the moment of doc at now has it.
 func (f Frame) linePanelOf(doc status.Document, a status.Account, now time.Time, shown []string) linePanel {
 	return linePanel{
 		account: a, place: docPlace(doc, a.ID), state: doc.StateOf(a, now, f.Policy),
-		next: len(doc.Accounts) > 1 && doc.Best == a.ID, pinned: doc.Pin.Has(a.ID), primed: primedNext(doc, a.ID),
+		next: len(doc.Accounts) > 1 && f.Moment(doc, now).Next == a.ID, pinned: doc.Pin.Has(a.ID), primed: primedNext(doc, a.ID),
 		windows: shown, states: doc.WindowStatesOf(a, now, f.Policy), policy: f.Policy,
 	}
 }

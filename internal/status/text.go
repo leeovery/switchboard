@@ -45,8 +45,9 @@ const notStarted = "not started"
 // under pressure, and how many sessions the router has sent it;
 // then the sessions given, as the router lists those it has routed in the
 // last hour, a line each; then the priming schedule, and what comes next of
-// it; then the account to use next; then where the usage came from, and last
-// a restart the router has due.
+// it; then the account new sessions go to, as next has it, which the
+// dashboard marks ▲; then where the usage came from, and last a restart the
+// router has due.
 // Countdowns run from now, and times show in now's time zone. Every text it
 // shows that came from elsewhere, such as the config's labels or the
 // upstream's errors, it shows cleaned.
@@ -66,8 +67,8 @@ func (d Document) Text(now time.Time, policy score.Policy, sessions ...Session) 
 		b.WriteString("\n")
 	}
 	d.writePriming(&b, now, policy)
-	if best, ok := d.Account(d.Best); ok {
-		fmt.Fprintf(&b, "best next: %s\n", best.Title())
+	if next, ok := d.Account(d.next()); ok {
+		fmt.Fprintf(&b, "best next: %s\n", next.Title())
 	}
 	fmt.Fprintf(&b, "%s\n", d.origin())
 	if d.Restart.Due() {

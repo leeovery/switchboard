@@ -35,7 +35,6 @@ personal · Personal
 side · Side
   HTTP 401 · Invalid bearer token
 
-best next: work · Work
 probed directly: the router isn't running
 `,
 				code: 0,

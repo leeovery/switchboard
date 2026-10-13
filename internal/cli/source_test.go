@@ -109,7 +109,6 @@ func TestStatusProbesPastARouterThatDoesntAnswer(t *testing.T) {
 
 	got := run(t, srv.deps, "status", "--pretty")
 	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + `
-best next: work · Work
 probed directly: the router is unhealthy, no answer within 500ms
 `}
 	if got != want {
@@ -126,7 +125,6 @@ func TestStatusProbesAsAsked(t *testing.T) {
 
 	got := run(t, srv.deps, "status", "--pretty", "--probe")
 	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + `
-best next: work · Work
 probed directly
 `}
 	if got != want {

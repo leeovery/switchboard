@@ -22,7 +22,7 @@ func TestText(t *testing.T) {
 		want string
 	}{
 		{
-			name: "windows heading every way, and the account to use next",
+			name: "windows heading every way, probed: no account to use next, where new sessions go being the router's to say",
 			doc: status.Document{
 				GeneratedAt: now.UTC(),
 				Source:      status.SourceProbe,
@@ -66,16 +66,31 @@ personal · Personal
 spare · Spare
   HTTP 401 · Invalid bearer token
 
-best next: work · Work
 probed directly
 `,
 		},
 		{
-			name: "no account to use next",
+			name: "the router's, no account to use next, as none has room",
+			doc: status.Document{
+				GeneratedAt: now.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true},
+				Accounts: []status.Account{personal, {ID: "spare", Label: "Spare", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"}},
+			},
+			want: `personal · Personal
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
+
+spare · Spare
+  HTTP 401 · Invalid bearer token
+
+from the router: healthy  ·  no sessions  ·  routing automatically
+`,
+		},
+		{
+			name: "probed, a lone account to use next, whatever its room, as ▲ marks it",
 			doc:  status.Document{GeneratedAt: now.UTC(), Source: status.SourceProbe, Accounts: []status.Account{personal}},
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+best next: personal · Personal
 probed directly
 `,
 		},
@@ -242,6 +257,7 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 			want: `side · Side
   HTTP 401 · Invalid bearer token
 
+best next: side · Side
 from the router: unhealthy, 6 of the 8 requests in the last 5 minutes failed  ·  no sessions  ·  routing automatically
 `,
 		},
@@ -257,6 +273,7 @@ from the router: unhealthy, 6 of the 8 requests in the last 5 minutes failed  ·
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+best next: personal · Personal
 from the router: healthy  ·  no sessions  ·  routing automatically
 restart due since Mon 13:12 (upgraded), once no request is in flight (3 now): switchboard service restart restarts it now, cutting off requests still in flight after 30 seconds
 `,
@@ -272,6 +289,7 @@ restart due since Mon 13:12 (upgraded), once no request is in flight (3 now): sw
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+best next: personal · Personal
 probed directly: the router isn't running
 `,
 		},
@@ -286,6 +304,7 @@ probed directly: the router isn't running
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+best next: personal · Personal
 probed directly: the router is unhealthy, no answer within 500ms
 `,
 		},
@@ -544,6 +563,7 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 			want := "work · Work\n" +
 				"  Session  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
 				tt.notes + "\n" +
+				"best next: work · Work\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
 			if got := doc.Text(now, policy); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
@@ -571,6 +591,7 @@ func TestTextSaysASessionThatResetSinceItWasReadHasntStarted(t *testing.T) {
 	want := "work · Work\n" +
 		"  Session   0%  not started\n" +
 		"\n" +
+		"best next: work · Work\n" +
 		"from the router: healthy  ·  no sessions  ·  routing automatically\n"
 	if got := doc.Text(reset.Add(time.Second).In(read.Location()), policy); got != want {
 		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
@@ -620,6 +641,7 @@ func TestTextSaysASessionLapsedAtNowHasntStartedUnlessALimitOrARefusalComesFirst
 			tt.change(&a)
 			doc := status.Document{GeneratedAt: read.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: []status.Account{a}}
 			want := "work · Work\n" + tt.want + "\n" +
+				"best next: work · Work\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
 			if got := doc.Text(now, policy); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
@@ -710,6 +732,7 @@ func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
 			}
 			want := "work · Work\n" +
 				"  Week  99%  resets in 4d · Fri 14:12 · " + tt.heading + "\n\n" +
+				"best next: work · Work\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
 			if got := doc.Text(now, policy); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
