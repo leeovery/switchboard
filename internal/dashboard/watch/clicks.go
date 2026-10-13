@@ -9,12 +9,18 @@ import (
 )
 
 // clicked acts on a click of the left button, as what it lands on, of the
-// targets the page on screen gives, says: as clickedOn has it. While a card
-// is open, a click does nothing, as its keys alone act; and on the theme
-// picker, nothing, as it takes keys alone.
+// targets the page on screen gives, says: as clickedOn has it. While the
+// Log's panel is open, a click on a tick ticks it; while another card is, a
+// click does nothing, as its keys alone act; and on the theme picker,
+// nothing, as it takes keys alone.
 func (m Model) clicked(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 	click := msg.Mouse()
-	if click.Button != tea.MouseLeft || m.open != nothingOpen || m.onPicker(click.X) {
+	switch {
+	case click.Button != tea.MouseLeft || m.onPicker(click.X):
+		return m, nil
+	case m.open == logPanelOpen:
+		return m.clickedLogPanel(click.X, click.Y), nil
+	case m.open != nothingOpen:
 		return m, nil
 	}
 	f, doc, at := m.screen(m.now())

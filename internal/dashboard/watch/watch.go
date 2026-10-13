@@ -355,10 +355,11 @@ const (
 	logPanelOpen
 )
 
-// frozen is the page as it stood when a card opened over it: its frame and
-// the document it was drawn of, at the moment it was drawn. Only its size
-// and its look follow the terminal's while the card is open, so nothing
-// behind the card moves, the clock included.
+// frozen is the page as it stood when a card opened over it, or the Log's
+// details last stepped to another line, the table scrolling as the lit line
+// follows: its frame and the document it was drawn of, at the moment it was
+// drawn. Only its size and its look follow the terminal's while the card is
+// open, so nothing behind the card moves, the clock included, but at a key.
 type frozen struct {
 	frame dashboard.Frame
 	doc   status.Document
@@ -687,7 +688,7 @@ func (m Model) screen(now time.Time) (dashboard.Frame, status.Document, time.Tim
 	if m.open == nothingOpen {
 		return m.live(now), m.doc, now
 	}
-	f := m.frozenPage(m.page.frame)
+	f := m.page.frame
 	f.Width, f.Height, f.Look = m.size.Width, m.size.Height, m.look()
 	f.Card = m.card(now)
 	return f, m.page.doc, m.page.at
@@ -709,7 +710,7 @@ func (m Model) card(now time.Time) dashboard.Opened {
 	case routingOpen:
 		return m.routingCard(now)
 	case logCardOpen:
-		return m.logCard(now)
+		return m.logCard()
 	case logPanelOpen:
 		return m.logPanel(now)
 	}

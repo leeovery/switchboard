@@ -197,3 +197,65 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 		})
 	}
 }
+
+// A card counts the sessions on its account in the hour before as a day's
+// summary counts them: a count of tokens toward its session, a quota check,
+// sent under an id never used again, toward none.
+func TestAnEventsSessionsCountNoQuotaCheck(t *testing.T) {
+	at, run := october(7, 13, 0), october(7, 8, 0)
+	cap := status.Event{ID: 1, At: at, Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Reserve: 0.05}
+	count := line(mover, haiku, "work", "sticky", october(7, 12, 40), smallUsage)
+	count.Kind = ledger.KindCount
+	check := line(quiet, haiku, "work", "new", october(7, 12, 50), smallUsage)
+	check.Kind = ledger.KindCheck
+	read := views.ReadEvents(nil, at, at).Look(liveAt([]status.Event{cap}, at), run)
+	table := views.LogEvents(views.LogEventSources{From: at, Events: read, Now: at})
+	lines := logRead(at, line(older, opus, "work", "sticky", october(7, 12, 30), smallUsage), count, check)
+	d, ok := table.Details(views.EventKey{Run: run, ID: 1}, lines)
+	if !ok || d.Then == nil {
+		t.Fatal("there's no account as it stood then on the cap's card")
+	}
+	if d.Then.Sessions != 2 {
+		t.Errorf("the cap's card counts %d sessions on work, want 2: older's and mover's, not the check's", d.Then.Sessions)
+	}
+}
+
+// The accounts an event's items name are marked as accounts, by their ids,
+// so a card names them as the document does: those its headline names, a
+// move's from and to, and a pin's.
+func TestAnEventsItemsMarkTheAccountsTheyName(t *testing.T) {
+	moved := status.Event{Kind: status.EventMoved, Session: older, From: "work", To: "side", Reason: "moved: work is at its reserve"}
+	tests := []struct {
+		name  string
+		event status.Event
+		item  string
+		want  []string
+	}{
+		{name: "a headline", event: moved, item: "event", want: []string{"work"}},
+		{name: "a move's from", event: moved, item: "from", want: []string{"work"}},
+		{name: "a move's to", event: moved, item: "to", want: []string{"side"}},
+		{name: "a session's own pin", event: status.Event{Kind: status.EventPin, Account: "side", Session: older}, item: "accounts", want: []string{"side"}},
+		{name: "the global pin", event: status.Event{Kind: status.EventPin, Accounts: []string{"work", "side"}}, item: "accounts", want: []string{"work", "side"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			at, run := october(7, 13, 0), october(7, 8, 0)
+			tt.event.ID, tt.event.At = 1, at
+			read := views.ReadEvents(nil, at, at).Look(liveAt([]status.Event{tt.event}, at), run)
+			d, _ := views.LogEvents(views.LogEventSources{From: at, Events: read, Now: at}).Details(views.EventKey{Run: run, ID: 1}, views.LogRead{})
+			i := slices.IndexFunc(d.Happened, func(it views.DetailItem) bool { return it.Name == tt.item })
+			if i < 0 {
+				t.Fatalf("the card has no %s item", tt.item)
+			}
+			var got []string
+			for _, p := range d.Happened[i].Value {
+				if p.Kind == views.DetailAccount {
+					got = append(got, p.Text)
+				}
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("%s, %q, marks the accounts %q, want %q", tt.item, d.Happened[i].Value, got, tt.want)
+			}
+		})
+	}
+}

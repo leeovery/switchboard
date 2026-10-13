@@ -65,10 +65,13 @@ type DetailPartKind int
 const (
 	// DetailSaid is words around a value, as " of its 5-hour window".
 	DetailSaid DetailPartKind = iota
-	// DetailValue is a value: an account, a time, a count or a session's id.
+	// DetailValue is a value: a time, a count or a session's id.
 	DetailValue
 	// DetailUse is a window's use, as "95%", drawn in its level's colour.
 	DetailUse
+	// DetailAccount is an account, by its id, a value the card names as the
+	// document names it.
+	DetailAccount
 )
 
 // String runs the words together, as a card drawn without colour shows them.
@@ -240,8 +243,8 @@ func (d detailing) happened() []DetailItem {
 	case status.EventMoved:
 		items.add("session", d.sessionWords())
 		items.add("model", valued(ledger.ShortModelID(prose.Clean(e.Model))))
-		items.add("from", valued(prose.Clean(e.From)))
-		items.add("to", valued(prose.Clean(e.To)))
+		items.add("from", accountWords(e.From))
+		items.add("to", accountWords(e.To))
 	case status.EventPressure:
 		items.add("window", d.windowsWords())
 		items.add("runs out", d.timeWords(e.Until))
@@ -292,9 +295,9 @@ func (d detailing) pinned() itemList {
 	}
 	if e.Session != "" {
 		items.add("session", d.sessionWords())
-		items.add(name, valued(prose.Clean(e.Account)))
+		items.add(name, accountWords(e.Account))
 	} else {
-		items.add(name, valued(strings.Join(cleaned(e.Accounts), ", ")))
+		items.add(name, accountWords(e.Accounts...))
 	}
 	if e.Kind == status.EventPin && e.Session == "" {
 		goes := "new sessions"
@@ -378,6 +381,19 @@ func valued(text string) DetailWords {
 	return DetailWords{{Text: text, Kind: DetailValue}}
 }
 
+// accountWords name the accounts with the given ids, a comma between: none
+// for none.
+func accountWords(ids ...string) DetailWords {
+	var w DetailWords
+	for _, id := range cleaned(ids) {
+		if len(w) > 0 {
+			w = append(w, DetailPart{Text: ", "})
+		}
+		w = append(w, DetailPart{Text: id, Kind: DetailAccount})
+	}
+	return w
+}
+
 // saidWords are words around no value: none for "".
 func saidWords(text string) DetailWords {
 	if text == "" {
@@ -386,13 +402,17 @@ func saidWords(text string) DetailWords {
 	return DetailWords{{Text: text}}
 }
 
-// detailWords are status's words as a card's value draws them, each
-// account, figure and span a value.
+// detailWords are status's words as a card's value draws them: each account
+// an account, and each figure and span a value.
 func detailWords(w status.Words) DetailWords {
 	said := make(DetailWords, len(w))
 	for i, p := range w {
 		said[i] = DetailPart{Text: p.Text}
-		if p.Kind != status.PartPlain {
+		switch p.Kind {
+		case status.PartPlain:
+		case status.PartAccount:
+			said[i].Kind = DetailAccount
+		default:
 			said[i].Kind = DetailValue
 		}
 	}
@@ -486,13 +506,14 @@ func (d detailing) reads(l *ledger.Line, least score.Hold) (held, read bool) {
 // then is how the account with the given id stood as the event happened:
 // its windows as the last answer on it at or before then read them; when
 // what the event tells of resets; and how many sessions' requests went out
-// on it in the hour before, there or tried there.
+// on it in the hour before, there or tried there, as a day's summary counts
+// sessions, a quota check counting toward none.
 func (d detailing) then(id string) *AccountThen {
 	then := &AccountThen{Account: id}
 	sessions := make(map[string]bool)
 	for _, l := range d.onAccount(id, d.event.At) {
-		if l.Session != "" && !l.At.Before(d.event.At.Add(-sessionsBefore)) {
-			sessions[l.Session] = true
+		if session := l.CountedSession(); session != "" && !l.At.Before(d.event.At.Add(-sessionsBefore)) {
+			sessions[session] = true
 		}
 		if windows := claude.WindowsRead(l.Limits, d.event.Reserve); l.Account == id && len(windows) > 0 {
 			then.Windows = windowsThen(windows, d.table.names)

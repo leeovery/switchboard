@@ -60,12 +60,15 @@ func (f Fixture) Model() tea.Model {
 // says what its background is, then the clock reads the moment, which the
 // screen is drawn at, and the fixture's keys are pressed. A router that
 // stops answering before the moment is read last readAgo before it goes,
-// and found gone as it goes, by R. Its timers never fire, so nothing moves
-// from there but what a key does.
+// and found gone as it goes, by R. A fixture with keys pressed before its
+// moment is read first readAgo before those, which are pressed then; then
+// at its moment, read again, by R, so what its ledger has gained since is
+// read. Its timers never fire, so nothing moves from there but what a key
+// does.
 func (f Fixture) settle(size watch.Size) watch.Model {
 	gone := f.router.gone
 	read := !gone.IsZero() && gone.Before(f.now)
-	clock := &clock{now: ago(f.now, readAgo)}
+	clock := &clock{now: ago(f.now, readAgo+f.before.by)}
 	if read {
 		clock.now = ago(gone, readAgo)
 	}
@@ -78,9 +81,19 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 		clock.now = gone
 		m = deliver(m, keysOf("R")[0])
 	}
+	if len(f.before.keys) > 0 {
+		clock.now = ago(f.now, f.before.by)
+		m = pressed(deliver(m, reached{}), f.before.keys)
+		clock.now = f.now
+		m = deliver(m, keysOf("R")[0])
+	}
 	clock.now = f.now
-	m = deliver(m, reached{})
-	for _, key := range f.keys {
+	return pressed(deliver(m, reached{}), f.keys)
+}
+
+// pressed is the model with the keys given pressed, in turn.
+func pressed(m watch.Model, keys []tea.KeyPressMsg) watch.Model {
+	for _, key := range keys {
 		m = deliver(m, key)
 	}
 	return m
