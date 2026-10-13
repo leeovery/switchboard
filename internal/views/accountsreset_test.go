@@ -101,6 +101,17 @@ func TestAWeekResetBeforeTheRereadClosesAtTheMostReadOfIt(t *testing.T) {
 	}
 }
 
+// A week reset before the reread with nothing read of it, the days' highest
+// none and the document's, isn't folded in, as the ledger never files a
+// reset of nothing: the page stands as it was built.
+func TestAWeekResetBeforeTheRereadOfNothingReadIsntFoldedIn(t *testing.T) {
+	am := weekHighestAtMost(weekReadAs(accountsMoment(t, beforeTheRead), "work", 0), "work", "2026-09-29", 0)
+	built := views.NewPast(accountsIn(am), am.Days).Accounts(am.Period)
+	if stood := built.At(am.Doc.At(am.Now, claude.Policy)); weeksSaid(stood) != weeksSaid(built) {
+		t.Errorf("standing the page at a reset of nothing read, its weeks say\n%s\nwant them as built\n%s", weeksSaid(stood), weeksSaid(built))
+	}
+}
+
 // weekReadAs is the moment am, its document reading the week of the
 // account with the given id used as given.
 func weekReadAs(am viewstest.AccountsMoment, id string, used float64) viewstest.AccountsMoment {

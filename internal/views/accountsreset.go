@@ -40,7 +40,8 @@ type accountReset struct {
 // unfiled are the resets of the windows a week long of the page's accounts
 // that m has reset since they were read and the page's days don't hold, each
 // as the ledger would file it: at its reset, as read, the highest use read of
-// the week it ended before it, the days' or the reading's.
+// the week it ended before it, the days' or the reading's; none where that's
+// nothing, as the ledger files no reset of a week of none.
 func (p AccountsPage) unfiled(m status.Moment) []accountReset {
 	var resets []accountReset
 	for _, a := range m.Accounts {
@@ -53,6 +54,9 @@ func (p AccountsPage) unfiled(m status.Moment) []accountReset {
 				continue
 			}
 			before := max(w.Read.Used, highestSince(own, w.Key).share())
+			if before == 0 {
+				continue
+			}
 			resets = append(resets, accountReset{account: a.ID, reset: ledger.Reset{Window: w.Key, At: w.Read.ResetsAt.UTC(), Before: before}})
 		}
 	}
