@@ -43,9 +43,29 @@ var restartWords = map[string]string{
 	status.RestartForZone:    "the time zone changed",
 }
 
-// by says who set or cleared a pin, as an event's By gives it, in the Log's
-// words: nothing for anyone else, or no one.
-var by = map[string]string{"cli": ", set from the command line", "dashboard": ", set from the dashboard"}
+// setFrom says where a pin was set or cleared from, by who did it, as an
+// event's By gives it, in the Log's words.
+var setFrom = map[string]string{"cli": "the command line", "dashboard": "the dashboard"}
+
+// setBy says who set or cleared a pin, as an event's By gives it, after
+// what was set: ", set from the command line"; nothing for anyone else, or
+// no one.
+func setBy(by string) string {
+	if from, ok := setFrom[by]; ok {
+		return ", set from " + from
+	}
+	return ""
+}
+
+// restartWhy is why a restart fell due, in the Log's words, as "the config
+// changed": a reason it has no words for as the router gives it, cleaned.
+func restartWhy(reason string) string {
+	reason = prose.Clean(reason)
+	if words, ok := restartWords[reason]; ok {
+		return words
+	}
+	return reason
+}
 
 // forced says a global pin set or cleared with force cleared every
 // session's own pin too: nothing of one without.
@@ -194,22 +214,22 @@ func loggedRoom(e status.Event, f eventFact, _ time.Time) (status.Words, status.
 // loggedPin tells of routing set by hand: the global pin's accounts, "new
 // sessions go there", or with its move, "new and running sessions go
 // there", with force, every session's own pin cleared too; or a session's
-// own pin's account, "this session goes there"; and who set it, as by says.
+// own pin's account, "this session goes there"; and who set it, as setBy says.
 func loggedPin(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
 	if e.Session != "" {
-		return account(e.Account), clause("this session goes there" + by[e.By])
+		return account(e.Account), clause("this session goes there" + setBy(e.By))
 	}
 	what := "new sessions go there"
 	if e.Move {
 		what = "new and running sessions go there"
 	}
-	return pinAccounts(e), clause(what + forced(e) + by[e.By])
+	return pinAccounts(e), clause(what + forced(e) + setBy(e.By))
 }
 
 // loggedAuto tells of routing given back to the router: "new sessions back
 // from personal to the router's choice", or of a session's own pin, "this
 // session back from side to the router's choice"; the global pin's with
-// force, every session's own pin cleared too; and who did it, as by says.
+// force, every session's own pin cleared too; and who did it, as setBy says.
 // It names no account in the account column.
 func loggedAuto(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
 	who, from := "new sessions back", e.Accounts
@@ -221,15 +241,12 @@ func loggedAuto(e status.Event, _ eventFact, _ time.Time) (status.Words, status.
 		what = append(what, status.Plain(" from "))
 		what = append(what, joined(names, prose.And)...)
 	}
-	return nil, append(what, status.Plain(" to the router's choice"+forced(e)+by[e.By]))
+	return nil, append(what, status.Plain(" to the router's choice"+forced(e)+setBy(e.By)))
 }
 
 // loggedRestart tells of a restart falling due: "due: the config changed".
 func loggedRestart(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
-	reason := prose.Clean(e.Reason)
-	if words, ok := restartWords[reason]; ok {
-		reason = words
-	}
+	reason := restartWhy(e.Reason)
 	if reason == "" {
 		return nil, clause("due")
 	}

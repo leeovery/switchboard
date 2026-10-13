@@ -129,6 +129,14 @@ func pressureTheDayBefore() EventMoment {
 	m.From, m.Lines = localOn(7, 0, 0), []ledger.Line{d0, d1}
 	m.Facts = map[Key]Facts{keyOf(run, pressure): {Windows: fiveHourNamed}, keyOf(run, move): {RunsOut: localOn(7, 1, 10)}}
 	m.Moves = map[Key]Move{keyOf(run, move): {Request: "d1", Written: 1_000_000, Cost: writeCost(1_000_000)}}
+	m.Details = map[Key]Details{keyOf(run, move): {
+		Headline: "personal came under pressure, its 5-hour to run out at 01:10",
+		Happened: []string{
+			"event: personal came under pressure, its 5-hour to run out at 01:10", "session: d28c switchboard", "model: opus-5-5",
+			"from: work", "to: side",
+		},
+		Followed: []string{"request: d1", "cached again: 1000000", "the move: $8.00"},
+	}}
 	return m
 }
 
@@ -171,6 +179,11 @@ func sideMoveSettled() EventMoment {
 	m := toldAll("a side request's move, settled on its conversation's next request", run, localOn(7, 0, 0), localOn(7, 14, 40), move)
 	m.Lines = []ledger.Line{d0, d1, d2}
 	m.Moves = map[Key]Move{keyOf(run, move): {Request: "d1", Written: 1_000_000, Cost: writeCost(1_000_000)}}
+	m.Details = map[Key]Details{keyOf(run, move): {
+		Headline: "work reached its cap",
+		Happened: []string{"event: work reached its cap", "session: d28c switchboard", "model: opus-5-5", "from: work", "to: side"},
+		Followed: []string{"request: d1", "cached again: 1000000", "the move: $8.00"},
+	}}
 	return m
 }
 
@@ -185,15 +198,21 @@ func coldMove() EventMoment {
 	m := toldAll("a move after its cache ran out", run, localOn(7, 0, 0), localOn(7, 14, 10), move)
 	m.Lines = []ledger.Line{c0, c1}
 	m.Moves = map[Key]Move{keyOf(run, move): {Request: "c1"}}
+	m.Details = map[Key]Details{keyOf(run, move): {
+		Headline: "work reached its cap",
+		Happened: []string{"event: work reached its cap", "session: c61b mobile", "model: opus-5-5", "from: work", "to: side"},
+		Followed: []string{"request: c1", "cached again: 0", "the move: none"},
+	}}
 	return m
 }
 
 // capWorld is work reaching its cap at 14:31:03 on 7 October, 95% of its
-// 5-hour window, resetting at 17:10, with d28c, 7f3a and db8a on it, each
-// reading the window as it rose, 7f3a's request at 14:30:51 the first to
-// read it at its cap; then each moved to side as its next request came, the
-// cap filed again as each counts. The lines and versions are those by the
-// time given.
+// 5-hour window, resetting at 17:10, with d28c, 7f3a and db8a on it in the
+// hour before, each reading the window as it rose, 7f3a's request at
+// 14:30:51 the first to read it at its cap since db8a's read it there
+// before the window last reset, and c61b on it before that hour; then each
+// of the three moved to side as its next request came, the cap filed again
+// as each counts. The lines and versions are those by the time given.
 func capWorld(by time.Time) (run time.Time, cap status.Event, moves []status.Event, lines []ledger.Line, versions []Filing) {
 	run = localOn(7, 8, 0)
 	resets := localOn(7, 17, 10)
@@ -205,8 +224,10 @@ func capWorld(by time.Time) (run time.Time, cap status.Event, moves []status.Eve
 	}
 	cap = status.Event{ID: 1, At: at(14, 31, 3), Kind: status.EventCap, Account: work, Windows: []string{fiveHour}, Until: resets, Reserve: 0.05}
 	all := []ledger.Line{
+		reading(localOn(7, 12, 10), asked("b9", sDB8A, work, status.ReasonNew, at(11, 30, 0)), fiveHour, 0.96, week, 0.3),
+		asked("c0", C61B, work, status.ReasonNew, at(13, 20, 0)),
 		onWork("d0", D28C, status.ReasonNew, at(13, 40, 0), 0.8),
-		onWork("b0", sDB8A, status.ReasonNew, at(13, 50, 0), 0.85),
+		onWork("b0", sDB8A, status.ReasonSticky, at(13, 50, 0), 0.85),
 		onWork("f0", s7F3A, status.ReasonNew, at(14, 12, 30), 0.9),
 		onWork("d1", D28C, status.ReasonSticky, at(14, 20, 0), 0.93),
 		onWork("f1", s7F3A, status.ReasonSticky, at(14, 30, 51), 0.96),
@@ -248,39 +269,60 @@ func capCounting() EventMoment {
 			keyOf(run, moves[0]): {Request: "d2", Written: 250_000, Cost: writeCost(250_000)},
 			keyOf(run, moves[1]): {Request: "f2", Written: 500_000, Cost: writeCost(500_000)},
 		},
+		Details: map[Key]Details{keyOf(run, cap): capSaid("d28c: to side $2.00", "7f3a: to side $4.00", "new sessions: till 17:10", "in all: $6.00")},
 	}
 }
 
-// capDetails is capWorld read at 14:42:07, each of its three moves counted.
+// capSaid is what's wanted of capWorld's cap's details card, its moves and
+// what followed them as given.
+func capSaid(followed ...string) Details {
+	return Details{
+		Headline:  "work reached its cap",
+		Happened:  []string{"event: work reached its cap", "its cap: 95% of its 5-hour window", "known from: 7f3a's request at 14:30:51"},
+		KnownFrom: "f1",
+		Then:      []string{"account: work", "5-hour: 97%", "week: 34%", "resets: 17:10", "sessions: 3"},
+		Followed:  followed,
+	}
+}
+
+// capDetails is capWorld read at 14:42:07, each of its three moves counted,
+// and c61b moved off work since by a choice the cap didn't force.
 func capDetails() EventMoment {
 	now := localOn(7, 14, 42).Add(7 * time.Second)
 	run, cap, moves, lines, versions := capWorld(now)
 	last := counting(cap, len(moves), side)
+	rescored := status.Event{ID: 5, At: localOn(7, 14, 35), Kind: status.EventMoved, Session: C61B, Model: Opus, From: work, To: side, Reason: status.Rescored(time.Hour)}
 	return EventMoment{
-		Name:  "a cap moving three sessions, each counted",
-		Filed: versions,
-		Live:  []status.Event{moves[2], moves[1], moves[0], last},
+		Name:  "a cap moving three sessions, each counted, and a move it didn't force",
+		Filed: append(versions, filed(run, rescored, rescored.At)),
+		Live:  []status.Event{rescored, moves[2], moves[1], moves[0], last},
 		Run:   run, Now: now, Since: localOn(7, 0, 0), From: localOn(7, 0, 0),
-		Events: []events.Line{{Event: last, Run: run}, {Event: moves[0], Run: run}, {Event: moves[1], Run: run}, {Event: moves[2], Run: run}},
-		Facts:  map[Key]Facts{keyOf(run, cap): {Moved: 3, To: side, Windows: fiveHourNamed}},
-		Lines:  lines,
+		Events: []events.Line{
+			{Event: last, Run: run}, {Event: moves[0], Run: run}, {Event: moves[1], Run: run}, {Event: moves[2], Run: run}, {Event: rescored, Run: run},
+		},
+		Facts: map[Key]Facts{keyOf(run, cap): {Moved: 3, To: side, Windows: fiveHourNamed}},
+		Lines: lines,
 		Moves: map[Key]Move{
 			keyOf(run, moves[0]): {Request: "d2", Written: 250_000, Cost: writeCost(250_000)},
 			keyOf(run, moves[1]): {Request: "f2", Written: 500_000, Cost: writeCost(500_000)},
 			keyOf(run, moves[2]): {Request: "b2", Written: 125_000, Cost: writeCost(125_000)},
+		},
+		Details: map[Key]Details{
+			keyOf(run, cap): capSaid("d28c: to side $2.00", "7f3a: to side $4.00", "db8a: to side $1.00", "new sessions: till 17:10", "in all: $7.00"),
 		},
 	}
 }
 
 // familyRefused is work refusing c61b's opus requests alone, with a 403,
 // till 13:40: its opus moves to side as the request refused goes out again
-// there, its haiku staying on work.
+// there, its haiku staying on work, answered there a moment later, before
+// the router told of the refusal.
 func familyRefused() EventMoment {
 	run := localOn(7, 8, 0)
 	c0 := asked("c0", C61B, work, status.ReasonNew, localOn(7, 12, 0))
 	h0 := classed("auxiliary", requested("h0", C61B, Haiku, work, status.ReasonNew, localOn(7, 12, 1)))
 	c1 := writing(500_000, tried(status.WhyRefused, movedOff(work, asked("c1", C61B, side, refusedOff, localOn(7, 12, 40))), work))
-	h1 := classed("auxiliary", requested("h1", C61B, Haiku, work, status.ReasonSticky, localOn(7, 12, 41)))
+	h1 := classed("auxiliary", requested("h1", C61B, Haiku, work, status.ReasonSticky, c1.At.Add(50*time.Millisecond)))
 	refusal := status.Event{ID: 1, At: c1.At.Add(100 * time.Millisecond), Kind: status.EventRefused, Account: work, Status: 403, Family: "opus", Until: localOn(7, 13, 40)}
 	move := counted(movedAfter(2, c1, work, refusedOff), refusal)
 	m := toldAll("a model family refused alone, its sessions' opus moving and their haiku staying", run, localOn(7, 0, 0), localOn(7, 12, 45),
@@ -288,6 +330,15 @@ func familyRefused() EventMoment {
 	m.Lines = []ledger.Line{c0, h0, c1, h1}
 	m.Facts = map[Key]Facts{keyOf(run, refusal): {Moved: 1, To: side}}
 	m.Moves = map[Key]Move{keyOf(run, move): {Request: "c1", Written: 500_000, Cost: writeCost(500_000)}}
+	m.Details = map[Key]Details{keyOf(run, refusal): {
+		Headline: "work's opus requests refused",
+		Happened: []string{
+			"event: work's opus requests refused", "answer: 403", "family: opus", "till: 13:40", "known from: c61b's request at 12:40:00",
+		},
+		KnownFrom: "c1",
+		Then:      []string{"account: work", "sessions: 1"},
+		Followed:  []string{"c61b: to side $4.00", "new sessions: opus till 13:40", "in all: $4.00"},
+	}}
 	return m
 }
 
@@ -300,6 +351,21 @@ func pins() EventMoment {
 	cleared := status.Event{ID: 3, At: localOn(7, 10, 0), Kind: status.EventAuto, Accounts: []string{work, side, personal}, By: "dashboard"}
 	m := toldAll("the global pin set to three accounts, a session's own pin, and the global pin cleared", run, localOn(7, 0, 0), localOn(7, 10, 30), global, own, cleared)
 	m.Lines = []ledger.Line{asked("d0", D28C, side, status.ReasonGlobalPin, localOn(7, 9, 10))}
+	m.Details = map[Key]Details{
+		keyOf(run, global): {
+			Headline: "pin set by hand",
+			Happened: []string{"event: pin set by hand", "accounts: work, side, personal", "goes: new sessions", "set from: the command line"},
+		},
+		keyOf(run, own): {
+			Headline: "d28c pinned to side",
+			Happened: []string{"event: d28c pinned to side", "session: d28c switchboard", "accounts: side", "set from: the dashboard"},
+			Then:     []string{"account: side", "sessions: 1"},
+		},
+		keyOf(run, cleared): {
+			Headline: "new sessions back to the router's choice",
+			Happened: []string{"event: new sessions back to the router's choice", "from: work, side, personal", "set from: the dashboard"},
+		},
+	}
 	return m
 }
 
@@ -309,21 +375,42 @@ func pins() EventMoment {
 func filledFromYesterday() EventMoment {
 	run := localOn(6, 9, 0)
 	primed := status.Event{ID: 1, At: localOn(6, 9, 30), Kind: status.EventPrimed, Account: side, Windows: []string{fiveHour}, Until: localOn(6, 14, 30)}
-	started := status.Event{ID: 2, At: localOn(6, 10, 0), Kind: status.EventStarted, Account: work, Session: C61B, Reason: status.ReasonNew}
+	started := status.Event{ID: 2, At: localOn(6, 10, 0), Kind: status.EventStarted, Account: work, Session: C61B, Model: Opus, Reason: status.ReasonNew}
 	open := status.Event{ID: 3, At: localOn(6, 18, 0), Kind: status.EventRoom, Account: work, Windows: []string{fiveHour}}
 	limit := limitOf(4, localOn(6, 22, 0), localOn(7, 2, 0), fiveHour)
 	m := toldAll("an event-free today, filled from yesterday", run, localOn(6, 0, 0), localOn(7, 9, 0), primed, started, open, limit)
 	m.Facts = map[Key]Facts{keyOf(run, primed): {Windows: fiveHourNamed}, keyOf(run, open): {Windows: fiveHourNamed}, keyOf(run, limit): {Windows: fiveHourNamed}}
 	m.Lines = []ledger.Line{asked("c0", C61B, work, status.ReasonNew, localOn(6, 10, 0))}
+	m.Details = map[Key]Details{
+		keyOf(run, primed): {
+			Headline: "side primed", Happened: []string{"event: side primed", "window: its 5-hour window"},
+			Then: []string{"account: side", "resets: 14:30", "sessions: 0"},
+		},
+		keyOf(run, started): {
+			Headline: "c61b started on work", Happened: []string{"event: c61b started on work", "session: c61b mobile", "model: opus-5-5"},
+			Then: []string{"account: work", "sessions: 1"},
+		},
+		keyOf(run, limit): {
+			Headline: "work reached its limit", Happened: []string{"event: work reached its limit", "its limit: its 5-hour window", "till: Wed 02:00"},
+			Then:     []string{"account: work", "resets: Wed 02:00", "sessions: 0"},
+			Followed: []string{"new sessions: till Wed 02:00"},
+		},
+	}
 	return m
 }
 
 // healthTurning is the router turning unhealthy, then well again, and a
 // restart falling due as its config changed.
 func healthTurning() EventMoment {
-	return toldAll("the router unhealthy, then well again, and a restart falling due", localOn(7, 8, 0), localOn(7, 0, 0), localOn(7, 11, 30),
-		status.Event{ID: 1, At: localOn(7, 10, 0), Kind: status.EventHealth, Reason: "most requests failing"},
-		status.Event{ID: 2, At: localOn(7, 10, 5), Kind: status.EventHealth},
-		status.Event{ID: 3, At: localOn(7, 11, 0), Kind: status.EventRestart, Reason: status.RestartForConfig},
-	)
+	run := localOn(7, 8, 0)
+	unhealthy := status.Event{ID: 1, At: localOn(7, 10, 0), Kind: status.EventHealth, Reason: "most requests failing"}
+	well := status.Event{ID: 2, At: localOn(7, 10, 5), Kind: status.EventHealth}
+	due := status.Event{ID: 3, At: localOn(7, 11, 0), Kind: status.EventRestart, Reason: status.RestartForConfig}
+	m := toldAll("the router unhealthy, then well again, and a restart falling due", run, localOn(7, 0, 0), localOn(7, 11, 30), unhealthy, well, due)
+	m.Details = map[Key]Details{
+		keyOf(run, unhealthy): {Headline: "the router turned unhealthy", Happened: []string{"event: the router turned unhealthy", "why: most requests failing"}},
+		keyOf(run, well):      {Headline: "the router is healthy again", Happened: []string{"event: the router is healthy again"}},
+		keyOf(run, due):       {Headline: "restart due", Happened: []string{"event: restart due", "why: the config changed"}},
+	}
+	return m
 }

@@ -291,9 +291,10 @@ func moving(model, from, to string, at time.Time) status.Event {
 
 // A move's cost is the same wherever it's said, as its session's story
 // settles it, at each hard moment: the Log's Events row of its event, the
-// row of the request that made it in the Log's Requests, and the List's
-// move that brought its session to the account it's on, where that's the
-// one.
+// row of the request that made it in the Log's Requests, the List's move
+// that brought its session to the account it's on, where that's the one,
+// and the card of the limit, the cap or the refusal that counted it, whose
+// `in all` is the sum of its moves' rows'.
 func TestAMovesCostIsTheSameInItsEventsRowItsRequestsRowAndTheList(t *testing.T) {
 	compared := make(map[string]int)
 	for _, hm := range viewstest.EventMoments() {
@@ -301,7 +302,8 @@ func TestAMovesCostIsTheSameInItsEventsRowItsRequestsRowAndTheList(t *testing.T)
 			continue
 		}
 		t.Run(hm.Name, func(t *testing.T) {
-			rows := eventsOf(hm, eventsRead(hm, filedIn(t, hm))).Rows
+			table := eventsOf(hm, eventsRead(hm, filedIn(t, hm)))
+			rows := table.Rows
 			requests := views.LogRows(views.LogSources{
 				From: hm.Lines[0].At, Now: hm.Now, Read: views.ReadLog(ledgerHolding(hm.Now, hm.Lines...), hm.Lines), Prices: ledger.Pricing,
 			})
@@ -327,13 +329,55 @@ func TestAMovesCostIsTheSameInItsEventsRowItsRequestsRowAndTheList(t *testing.T)
 					}
 				}
 			}
+			compared["card"] += cardsAgree(t, table, rows, views.ReadLog(ledgerHolding(hm.Now, hm.Lines...), hm.Lines))
 		})
 	}
-	for _, where := range []string{"request", "list"} {
+	for _, where := range []string{"request", "list", "card"} {
 		if compared[where] == 0 {
 			t.Errorf("no move's cost is held to its %s's", where)
 		}
 	}
+}
+
+// cardsAgree holds the card of each limit, cap and refusal among rows to
+// the rows of the moves it counted, each move's cost and their sum, and
+// returns how many moves it held.
+func cardsAgree(t *testing.T, table views.EventsTable, rows []views.LogEvent, read views.LogRead) int {
+	t.Helper()
+	moved := make(map[views.EventKey]*views.EventMove)
+	for _, row := range rows {
+		moved[row.Key] = row.Move
+	}
+	held := 0
+	for _, row := range rows {
+		d, _ := table.Details(row.Key, read)
+		if d.Followed == nil || d.Followed.Move != nil {
+			continue
+		}
+		var inAll *ledger.Picodollars
+		for _, m := range d.Followed.Moves {
+			held++
+			if !sameCost(movedCost(m.Move), movedCost(moved[m.Key])) {
+				t.Errorf("event %d's card says its move %d cost %s, but the move's row says %s",
+					row.Key.ID, m.Key.ID, costSaid(movedCost(m.Move)), costSaid(movedCost(moved[m.Key])))
+			}
+			if c := movedCost(moved[m.Key]); c != nil {
+				inAll = new(*c + costOr(inAll))
+			}
+		}
+		if !sameCost(d.Followed.InAll, inAll) {
+			t.Errorf("event %d's card says its moves cost %s in all, but their rows sum to %s", row.Key.ID, costSaid(d.Followed.InAll), costSaid(inAll))
+		}
+	}
+	return held
+}
+
+// costOr is a cost, 0 for none.
+func costOr(c *ledger.Picodollars) ledger.Picodollars {
+	if c == nil {
+		return 0
+	}
+	return *c
 }
 
 // sameCost reports whether two costs are the same: both none, or the same

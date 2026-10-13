@@ -72,6 +72,19 @@ type EventsTable struct {
 	Rows []LogEvent
 	// Today counts today's events, those the filter hides among them.
 	Today EventCount
+	// told are every event of the days it spans, those the filter hides
+	// among them, and names names a window by its key, as Details reads
+	// them.
+	told  []toldEvent
+	names func(key string) string
+}
+
+// toldEvent is an event of the table's: as the router gave it, its facts,
+// and its row.
+type toldEvent struct {
+	event status.Event
+	fact  eventFact
+	row   LogEvent
 }
 
 // LogEvents builds the Log's Events from src: a row of each event that
@@ -84,13 +97,14 @@ func LogEvents(src LogEventSources) EventsTable {
 	first, today := Today(src.From), Today(src.Now)
 	stories := src.Read.stories(src.Prices, today)
 	telling := NewTelling(src.Names)
-	var table EventsTable
+	table := EventsTable{names: src.Names}
 	for _, e := range src.Events.Events() {
 		line, fact := telling.tell(e.Event, src.Now)
 		if !first.Holds(e.Event.At) {
 			continue
 		}
 		row := eventRow(e, line, fact, stories[e.Event.Session], src.Now)
+		table.told = append(table.told, toldEvent{event: e.Event, fact: fact, row: row})
 		shown := src.Filter.Keeps(row)
 		if shown {
 			table.Rows = append(table.Rows, row)

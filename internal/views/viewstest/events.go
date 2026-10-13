@@ -47,6 +47,25 @@ type EventMoment struct {
 	// the Log's Events and its request's routing say it: a move not named is
 	// one no line tells of.
 	Moves map[Key]Move
+	// Details are what's wanted of the details cards of the events named, by
+	// their keys: an event not named isn't held to any.
+	Details map[Key]Details
+}
+
+// Details are what's wanted of an event's details card: its headline; WHAT
+// HAPPENED's items, "name: value" each; the id of the request it was known
+// from; `<ACCOUNT>` THEN's, as "account: work", each window's use, as
+// "5-hour: 97%", "resets: 17:10" and "sessions: 3"; and WHAT FOLLOWED's,
+// each move it counted, as "d28c: to side $2.00", "new sessions: till
+// 17:10" and "in all: $7.00", or a move's own, as "request: d1", "cached
+// again: 1000000" and "the move: $8.00". Times are as the card shows them
+// beside the event's.
+type Details struct {
+	Headline  string
+	Happened  []string
+	KnownFrom string
+	Then      []string
+	Followed  []string
 }
 
 // Move is what a move event's move came to: the request that made it, and,
