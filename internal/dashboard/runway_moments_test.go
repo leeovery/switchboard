@@ -6,143 +6,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 )
-
-// runwayMoment is a document the router, or probing, builds, judged at a
-// moment views have got it wrong at before, as status's hard moments have
-// them.
-type runwayMoment struct {
-	name string
-	doc  status.Document
-	now  time.Time
-}
-
-// runwayMoments are status's hard moments: the documents the router, or
-// probing, builds at gen, through AsOf, and when each is judged.
-func runwayMoments() []runwayMoment {
-	gen := now.Add(-time.Hour).UTC()
-	labels := map[string]string{"5h": "Session", "7d": "Week"}
-	in := func(key string, used float64, resetsIn time.Duration) quota.Window {
-		return quota.Window{Key: key, Label: labels[key], Utilization: used, ResetsAt: gen.Add(resetsIn)}
-	}
-	spent := func(key string, resetsIn time.Duration) quota.Window {
-		w := in(key, 1, resetsIn)
-		w.Status = quota.StatusRejected
-		return w
-	}
-	read := func(id string, windows ...quota.Window) status.Account {
-		return status.Account{ID: id, Label: id, TokenSet: true, FetchedAt: gen, Windows: windows}
-	}
-	side := read("side", in("5h", 0.1, 4*time.Hour), in("7d", 0.2, 5*day))
-
-	failed := read("work", in("5h", 0.7, 2*time.Hour), in("7d", 0.4, 3*day))
-	failed.FetchedAt, failed.Error = gen.Add(-20*time.Minute), "HTTP 529 · Overloaded"
-	refused := read("work", in("5h", 0.4, 2*time.Hour), in("7d", 0.5, 2*day))
-	refused.Refused = status.Refusal{Until: gen.Add(time.Hour), Status: 401}
-	lapsed := read("work", in("5h", 0.5, -time.Hour), in("7d", 0.3, 3*day))
-	lapsed.FetchedAt = gen.Add(-6 * time.Hour)
-	reserved := read("work", in("5h", 0.3, 3*time.Hour), in("7d", 0.92, time.Hour))
-	reserved.Reserve = 0.1
-	limited := read("work", spent("5h", 40*time.Minute), in("7d", 0.6, 3*day))
-	limited.Limit = status.Limit{ID: 4, Windows: []string{"5h"}, Until: gen.Add(40 * time.Minute)}
-	held := routerBuilt(gen, nil, limited, side)
-	held.Events = []status.Event{{
-		ID: 9, At: gen.Add(-20 * time.Minute), Kind: status.EventLimit, Account: "work",
-		Windows: []string{"5h"}, Until: gen.Add(40 * time.Minute), Limit: 4,
-	}}
-	capped := routerBuilt(gen, nil, reserved, side)
-
-	return []runwayMoment{
-		{"just after a reset, before the reread", routerBuilt(gen, nil,
-			read("work", in("5h", 0.8, time.Hour), in("7d", 0.5, 2*day)),
-			read("side", in("5h", 0.3, 3*time.Hour), in("7d", 0.7, 30*time.Minute)),
-		), gen.Add(time.Hour + 5*time.Second)},
-		{"a failed read after an earlier one", routerBuilt(gen, map[string]float64{"work": 0.3}, failed, side), gen.Add(5 * time.Minute)},
-		{"its token refused", routerBuilt(gen, map[string]float64{"work": 0.4}, refused, side), gen.Add(10 * time.Minute)},
-		{"a stale document, built three hours before now", routerBuilt(gen, nil,
-			read("work", in("5h", 0.4, 2*time.Hour), in("7d", 0.6, 4*day)),
-			read("side", in("5h", 0.1, 4*time.Hour), in("7d", 0.3, 5*day)),
-		), gen.Add(3 * time.Hour)},
-		{"its session lapsed", routerBuilt(gen, nil, lapsed, side), gen.Add(10 * time.Minute)},
-		{"a week at its reserve when built", capped, gen.Add(10 * time.Minute)},
-		{"a week at its reserve when built, then reset", capped, gen.Add(time.Hour + time.Minute)},
-		{"a limit holding", held, gen.Add(10 * time.Minute)},
-		{"a limit holding, then lifted", held, gen.Add(41 * time.Minute)},
-		{"probed, of several accounts", probeBuilt(gen,
-			read("work", in("5h", 0.3, 3*time.Hour), in("7d", 0.5, 2*day)),
-			read("side", in("5h", 0.6, time.Hour), in("7d", 0.05, 6*day)),
-		), gen.Add(time.Minute)},
-		{"probed, of one account, with no room", probeBuilt(gen, read("work", in("5h", 0.3, 3*time.Hour), spent("7d", 2*day))), gen.Add(time.Minute)},
-	}
-}
-
-// routerBuilt is the router's document at gen of the accounts given, each as
-// read, worked out, built as the router builds its own: each account as it
-// stands at gen, as AsOf has it; with a usable token, its pressure and its
-// recent rates over its session's trail, risen at the rate rates gives it, by
-// id, over the last half hour, where it gives one; the best of those not
-// shut; and the primary.
-func routerBuilt(gen time.Time, rates map[string]float64, accounts ...status.Account) status.Document {
-	doc := status.Document{GeneratedAt: gen, Source: status.SourceRouter, Router: status.Health{Healthy: true}}
-	var open []status.Account
-	for _, read := range accounts {
-		a := read.AsOf(claudeLike, gen)
-		if a.TokenSet {
-			trails := sessionTrail(read, rates[read.ID], gen)
-			a.Pressure = status.PressureFrom(claudeLike, status.Pressing{
-				ID: a.ID, Reserve: a.Reserve, Latest: read.Windows, Trails: trails, Shut: a.Shut(gen, claudeLike),
-			}, gen)
-			a.Rates = status.RatesOf(read.Windows, trails, gen)
-		}
-		doc.Accounts = append(doc.Accounts, a)
-		if !a.Shut(gen, claudeLike) {
-			open = append(open, a)
-		}
-	}
-	doc.Best, doc.Primary = status.Best(claudeLike, open, nil, gen), status.PrimaryOf(doc.Accounts)
-	return doc.WorkedOut(claudeLike)
-}
-
-// sessionTrail is how the router has read account a's session lately, risen
-// at rate an hour over the half hour before gen to where it was last read:
-// none where rate is 0.
-func sessionTrail(a status.Account, rate float64, gen time.Time) map[string][]score.Reading {
-	session, ok := a.Window(claudeLike.Pressure)
-	if !ok || rate == 0 {
-		return nil
-	}
-	return map[string][]score.Reading{session.Key: {
-		{At: gen.Add(-score.Recent), Utilization: max(session.Utilization-rate*score.Recent.Hours(), 0)},
-		{At: a.FetchedAt, Utilization: session.Utilization},
-	}}
-}
-
-// probeBuilt is the document probing builds at gen of the accounts given,
-// worked out, as Collect builds it: each account as it stands at gen, the
-// best of them, and the primary.
-func probeBuilt(gen time.Time, accounts ...status.Account) status.Document {
-	doc := status.Document{GeneratedAt: gen, Source: status.SourceProbe}
-	for _, a := range accounts {
-		doc.Accounts = append(doc.Accounts, a.AsOf(claudeLike, gen))
-	}
-	doc.Best, doc.Primary = status.Best(claudeLike, doc.Accounts, nil, gen), status.PrimaryOf(doc.Accounts)
-	return doc.WorkedOut(claudeLike)
-}
 
 // At each hard moment, Runway's lanes, its badges and its weeks' resets, and
 // GRAPHS' spans, draw each account as its moment has it, and agree with the
 // one verdict of how it stands.
 func TestRunwayAndGRAPHSAgreeWithTheMomentAtEachHardMoment(t *testing.T) {
-	for _, tt := range runwayMoments() {
-		t.Run(tt.name, func(t *testing.T) {
-			m := tt.doc.At(tt.now, claudeLike)
+	for _, hm := range statustest.HardMoments(claudeLike) {
+		t.Run(hm.Name, func(t *testing.T) {
+			m := hm.Doc.At(hm.Now, claudeLike)
 			for _, a := range m.Accounts {
-				checkLaneAgrees(t, a, tt.now)
-				checkWeeksAgree(t, a, tt.now)
-				checkChartsAgree(t, a, tt.now)
+				checkLaneAgrees(t, a, hm.Now)
+				checkWeeksAgree(t, a, hm.Now)
+				checkChartsAgree(t, a, hm.Now)
 			}
 		})
 	}

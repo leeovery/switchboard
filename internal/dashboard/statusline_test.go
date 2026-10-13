@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 )
 
 // routed is the healthy router's document of work, personal and side, each
@@ -340,11 +341,11 @@ func TestTheStatusLineIsOnItsRowFromTheFirstColumn(t *testing.T) {
 // says the account it names, or that none has room; a probed document's says
 // nothing of it, and is the probed line.
 func TestTheStatusLineAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
-	for _, hm := range hardMoments() {
-		t.Run(hm.name, func(t *testing.T) {
+	for _, hm := range statustest.HardMoments(claudeLike) {
+		t.Run(hm.Name, func(t *testing.T) {
 			f := Frame{Width: 200, Height: 8, Policy: claudeLike}
-			m := f.moment(hm.doc, hm.now)
-			s := f.pageStatus(hm.doc, hm.now)
+			m := f.moment(hm.Doc, hm.Now)
+			s := f.pageStatus(hm.Doc, hm.Now)
 			var want string
 			switch {
 			case m.Probed:
