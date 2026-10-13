@@ -3,6 +3,7 @@ package views_test
 import (
 	"maps"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -79,6 +80,40 @@ func TestTheSessionsRunningAreGroupedByAccountInTheConfigsOrderTheOneSeenLastFir
 	}
 	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{})); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
+	}
+}
+
+// Detail's SESSIONS of an account are RunningOf's rows on it, in its order:
+// a session on two accounts is on each, one on none is on neither.
+func TestDetailsSessionsAreTheRowsOnTheAccountInTheirOrder(t *testing.T) {
+	sessions := []status.Session{
+		{ID: idler, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "side", status.ReasonNew, 3*time.Hour, 9*time.Minute, "")}},
+		{ID: answering, Assignments: []status.Assignment{seatOn("claude-sonnet-5-5", "sonnet", "side", status.ReasonNew, 2*time.Hour, 0, status.Answering)}},
+		{ID: asking, Assignments: []status.Assignment{
+			seatOn("claude-opus-5-5", "opus", "side", "moved: work is at its reserve", 11*time.Minute, time.Second, status.Asking),
+			seatOn("claude-haiku-4-5", "haiku", "work", status.ReasonNew, 50*time.Minute, 40*time.Minute, ""),
+		}},
+	}
+	all := views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{})
+	ids := func(id string) []string {
+		var got []string
+		for _, r := range views.RunningOn(all, id) {
+			got = append(got, r.Account+" "+status.ShownID(r.Session))
+		}
+		return got
+	}
+	tests := []struct {
+		account string
+		want    []string
+	}{
+		{account: "work", want: []string{"work d28c"}},
+		{account: "personal"},
+		{account: "side", want: []string{"side 41e0", "side d28c", "side 9c2e"}},
+	}
+	for _, tt := range tests {
+		if got := ids(tt.account); !slices.Equal(got, tt.want) {
+			t.Errorf("SESSIONS of %s lists %v, want %v", tt.account, got, tt.want)
+		}
 	}
 }
 
