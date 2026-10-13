@@ -146,6 +146,14 @@ func TestAStoryIsLaidAcrossItsWidth(t *testing.T) {
 				folds: []int{32}, moves: []int{36}, stretches: []views.StoryStretch{{Account: "side", First: 0, Last: 32}, {Account: "personal", First: 36, Last: 159}}},
 		},
 		{
+			name: "back after a fold on a column's edge, its time over its requests", at: local(13, 45, 30), width: 160,
+			lines: slices.Concat(minutely("work", local(9, 0, 0), local(10, 9, 0)), minutely("work", local(12, 0, 0), local(13, 45, 0))),
+			want: laid{columns: 160,
+				axis: []views.AxisLabel{clock(0, "09:00"), clock(26, "09:30"), clock(62, "1h"), clock(67, "12:00"), clock(93, "12:30"), clock(120, "13:00"),
+					clock(146, "13:30"), {Column: 157, Text: "now", End: true}},
+				folds: []int{62}, stretches: []views.StoryStretch{{Account: "work", First: 0, Last: 62}, {Account: "work", First: 66, Last: 159}}},
+		},
+		{
 			name: "one request", at: local(12, 5, 40), lines: minutely("work", local(12, 5, 0), local(12, 5, 0)), width: 160,
 			want: laid{columns: 1, axis: []views.AxisLabel{clock(0, "12:05"), {Column: 6, Text: "now", End: true}}},
 		},
@@ -217,6 +225,40 @@ func TestAStory160MinutesOldIsAMinuteAColumn(t *testing.T) {
 	for m, want := range map[int]int{0: 0, 28: 28, 159: 159, 160: 159} {
 		if got := c.At(local(12, 0, 0).Add(time.Duration(m)*time.Minute + 30*time.Second)); got != want {
 			t.Errorf("its minute %d falls at column %d, want %d", m, got, want)
+		}
+	}
+}
+
+// Wherever a story's come-back minute falls on a column's edge, at every
+// width from a phone's to 200, of every total from a little over a minute a
+// column to two, the column after its fold is the come-back's: every column
+// stands for some of its minutes, so each rate is a number, and the time it
+// came back is labelled over its requests.
+func TestAStorysComeBackIsTheColumnAfterItsFoldAtEveryWidth(t *testing.T) {
+	start := local(9, 0, 0)
+	for width := 52; width <= 200; width++ {
+		base := width - 5
+		for total := base + 1; total <= 2*base; total++ {
+			for back := 1; back < total; back++ {
+				if back*base%total != 0 {
+					continue
+				}
+				from := start.Add(time.Duration(back-1) * time.Minute)
+				to := from.Add(2 * time.Hour)
+				end := to.Add(time.Duration(total-back) * time.Minute)
+				s := views.Story{Start: start, End: end, Sent: []time.Time{start, from, to, end}, Folds: []views.Fold{{From: from, To: to}}}
+				c := s.Columns(width)
+				if i := slices.IndexFunc(c.Rates, math.IsNaN); i >= 0 {
+					t.Fatalf("at %d, %d minutes back at their %d: column %d's rate is no number", width, total, back, i)
+				}
+				came := c.Folds[0] + 5
+				if got := c.At(to); got != came || c.Rates[came] == 0 {
+					t.Fatalf("at %d, %d minutes back at their %d: the come-back falls at column %d, its fold's next %d, of rate %v", width, total, back, got, came, c.Rates[came])
+				}
+				if i := slices.IndexFunc(c.Axis, func(a views.AxisLabel) bool { return a.Text == to.Format("15:04") }); i >= 0 && c.Axis[i].Column != came {
+					t.Fatalf("at %d, %d minutes back at their %d: the come-back's time is at column %d, its requests at %d", width, total, back, c.Axis[i].Column, came)
+				}
+			}
 		}
 	}
 }
