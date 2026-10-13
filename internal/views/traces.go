@@ -23,9 +23,9 @@ const tracesKept = TraceSpan + time.Minute
 const cellSamples = 4
 
 // Traces are the requests the Overview's traces count: those that spend
-// quota and went upstream, each once, by its id, as it's sent, on the
-// account it went out on; Claude Code's quota checks and token counts never.
-// They're by account, and by session, a session's carrying its whole
+// quota and went upstream, each once, as sameRequest knows it, as it's sent,
+// on the account it went out on; Claude Code's quota checks and token counts
+// never. They're by account, and by session, a session's carrying its whole
 // TraceSpan across its moves. Read and Told count them, from today's lines
 // and the request stream; what changes them makes them afresh, so a frame
 // holding them never sees them change.
@@ -34,15 +34,18 @@ type Traces struct {
 	Accounts map[string]Trace
 	// Sessions are each session's, by its id.
 	Sessions map[string]Trace
-	// requests are the requests counted, by their ids.
-	requests map[string]counted
+	// requests are the requests counted, by their ids, each run's under an id
+	// apart.
+	requests map[string][]counted
 }
 
 // counted is a request the traces count: when it was first sent, the
-// account it went out on last, and its session's id, "" where it names none.
+// account it went out on last, and its session's id, "" where it names none;
+// and its line, where one told of it, nil while the stream alone has.
 type counted struct {
 	at               time.Time
 	account, session string
+	line             *ledger.Line
 }
 
 // upstream is a request gone upstream, as a line or the request stream
@@ -60,16 +63,17 @@ func (t Traces) Read(lines []ledger.Held, now time.Time) Traces {
 	var sent []upstream
 	for _, l := range lines {
 		if l.Upstream() {
-			sent = append(sent, upstream{request: l.Request, at: l.At, account: l.Account, session: l.Session})
+			line := l.Line
+			sent = append(sent, upstream{request: l.Request, at: l.At, account: l.Account, session: l.Session, line: &line})
 		}
 	}
 	return t.count(sent, now)
 }
 
 // Told is t with the requests the stream told of counted at now: those that
-// spend quota and went upstream, each once, by its id, whether the request
-// stream or its line tells of it first, as of when it first went, on the
-// account it went out on last.
+// spend quota and went upstream, each once, whether the request stream or
+// its line tells of it first, as of when it first went, on the account it
+// went out on last.
 func (t Traces) Told(told []Told, now time.Time) Traces {
 	var sent []upstream
 	for _, r := range told {
@@ -80,8 +84,8 @@ func (t Traces) Told(told []Told, now time.Time) Traces {
 	return t.count(sent, now)
 }
 
-// count is t with the requests sent upstream counted at now: each once, by
-// its id. One told of again, as one going out again on another account
+// count is t with the requests sent upstream counted at now: each once, as
+// same says. One told of again, as one going out again on another account
 // after a refusal, keeps when it was first sent, and is counted on the
 // account it went out on last. The requests sent more than TraceSpan and a
 // minute before now are let go of, as no trace reaches them.
@@ -90,32 +94,53 @@ func (t Traces) count(sent []upstream, now time.Time) Traces {
 		return t
 	}
 	from := now.Add(-tracesKept)
-	requests := make(map[string]counted, len(t.requests)+len(sent))
-	for id, c := range t.requests {
-		if !c.at.Before(from) {
-			requests[id] = c
+	requests := make(map[string][]counted, len(t.requests)+len(sent))
+	for id, held := range t.requests {
+		for _, c := range held {
+			if !c.at.Before(from) {
+				requests[id] = append(requests[id], c)
+			}
 		}
 	}
 	for _, s := range sent {
-		c, ok := requests[s.request]
-		if !ok {
+		held := requests[s.request]
+		i := slices.IndexFunc(held, func(c counted) bool { return same(s.request, c, s.counted) })
+		if i < 0 {
 			if s.at.Before(from) {
 				continue
 			}
-			c.at = s.at
+			held, i = append(held, counted{at: s.at}), len(held)
 		}
-		c.account, c.session = cmp.Or(s.account, c.account), cmp.Or(c.session, s.session)
-		requests[s.request] = c
+		c := &held[i]
+		c.account, c.session, c.line = cmp.Or(s.account, c.account), cmp.Or(c.session, s.session), cmp.Or(c.line, s.line)
+		requests[s.request] = held
 	}
 	return tracesOf(requests)
 }
 
+// same reports whether a and b, each counted as the request with the given
+// id, are one request: where a line told of either, as sameRequest has it,
+// the other arriving, or first going upstream, as filedAs has it, while that
+// line's was in flight; else, the stream alone telling of both, by the id, as
+// it tells of one request under it.
+func same(id string, a, b counted) bool {
+	switch {
+	case a.line != nil:
+		return sameRequest(a.line, id, b.at)
+	case b.line != nil:
+		return sameRequest(b.line, id, a.at)
+	}
+	return true
+}
+
 // tracesOf are the traces of the requests counted, by their ids.
-func tracesOf(requests map[string]counted) Traces {
+func tracesOf(requests map[string][]counted) Traces {
 	t := Traces{Accounts: make(map[string]Trace), Sessions: make(map[string]Trace), requests: requests}
-	for _, c := range requests {
-		sentOn(t.Accounts, c.account, c.at)
-		sentOn(t.Sessions, c.session, c.at)
+	for _, held := range requests {
+		for _, c := range held {
+			sentOn(t.Accounts, c.account, c.at)
+			sentOn(t.Sessions, c.session, c.at)
+		}
 	}
 	for _, traces := range []map[string]Trace{t.Accounts, t.Sessions} {
 		for _, trace := range traces {

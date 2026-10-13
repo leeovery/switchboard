@@ -195,8 +195,10 @@ func TestOnlyRequestsThatSpendQuotaAndWentUpstreamAreCountedFromTheStream(t *tes
 
 func TestARequestIsCountedOnceWhicheverTellsOfItFirst(t *testing.T) {
 	sent := sentAgo("0a000001", tracedC61B, "side", 2*time.Minute)
-	// Its line says when it arrived, a moment before it went.
+	// Its line says when it arrived, a moment before it went, and that it
+	// took 30 seconds.
 	written := requestLine("0a000001", tracedC61B, "side", 1, 2*time.Minute+200*time.Millisecond)
+	written.TotalMS = (30 * time.Second).Milliseconds()
 
 	tests := []struct {
 		name  string
@@ -223,6 +225,41 @@ func TestARequestIsCountedOnceWhicheverTellsOfItFirst(t *testing.T) {
 			}
 			if got := len(traces.Sessions[tracedC61B].Sent); got != 1 {
 				t.Errorf("c61b's trace counts the request %d times, want once", got)
+			}
+		})
+	}
+}
+
+// A router's ids are unique only while it runs: a line and a request the
+// stream told of are one request only where the stream's went out while the
+// line's was in flight, and two lines only where they're one line; another
+// run's request under the same id counts too.
+func TestARequestUnderTheIdOfAnotherRunsCountsToo(t *testing.T) {
+	earlier := requestLine("0a000001", tracedC61B, "side", 1, 20*time.Minute)
+	earlier.TotalMS = (30 * time.Second).Milliseconds()
+	later := requestLine("0a000001", tracedC61B, "side", 1, 5*time.Minute)
+	later.TotalMS = (30 * time.Second).Milliseconds()
+	sentLater := sentAgo("0a000001", tracedC61B, "side", 5*time.Minute)
+
+	tests := []struct {
+		name  string
+		count func() views.Traces
+		want  []time.Duration
+	}{
+		{name: "an earlier run's line, then the stream's request", want: []time.Duration{20 * time.Minute, 5 * time.Minute}, count: func() views.Traces {
+			return views.Traces{}.Read([]ledger.Held{earlier}, tracedAt).Told([]views.Told{sentLater}, tracedAt)
+		}},
+		{name: "the stream's request, then an earlier run's line", want: []time.Duration{20 * time.Minute, 5 * time.Minute}, count: func() views.Traces {
+			return views.Traces{}.Told([]views.Told{sentLater}, tracedAt).Read([]ledger.Held{earlier}, tracedAt)
+		}},
+		{name: "two runs' lines", want: []time.Duration{20 * time.Minute, 5 * time.Minute}, count: func() views.Traces {
+			return views.Traces{}.Read([]ledger.Held{earlier, later}, tracedAt)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sentTimes(tt.count().Accounts["side"]); !slices.Equal(got, tt.want) {
+				t.Errorf("side's trace counts requests sent %v ago, want %v, one a run", got, tt.want)
 			}
 		})
 	}
