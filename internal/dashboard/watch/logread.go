@@ -165,7 +165,7 @@ func awaited(t views.LogTable, today views.LedgerDay) []string {
 func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 	t := m.log
 	day, ok := t.oldest.DayBefore(t.from)
-	if t.oldest.Day.Date == "" || !ok {
+	if !ok {
 		return m, nil
 	}
 	l, filed, prices := m.cfg.Ledger, m.cfg.Events, m.cfg.Prices
@@ -179,14 +179,14 @@ func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 }
 
 // oldestKept is the oldest day the ledger l keeps at now, its lines kept as
-// long as keep says, as views.OldestKept has it, today's where it holds no
-// day's lines yet: none where it fails to say where its lines begin, and
-// why.
+// long as keep says, as views.OldestKept has it, given no first day of lines
+// where l holds none yet: none where it fails to say where its lines begin,
+// and why.
 func oldestKept(l views.Ledger, keep time.Duration, now time.Time) (*views.OldestDay, error) {
 	first, err := l.FirstLinesDay(now)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		first = now
+		first = time.Time{}
 	case err != nil:
 		return nil, err
 	}

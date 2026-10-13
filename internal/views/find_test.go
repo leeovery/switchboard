@@ -233,23 +233,28 @@ func TestADaySummarisedBeforeVersion2IsFoundByItsLines(t *testing.T) {
 
 // The find goes back through the days the ledger keeps the lines of, to the
 // oldest, and no further, though their summaries are kept for good: a day
-// past keeping is neither read nor judged by the sessions its summary names.
+// past keeping is neither read nor judged by the sessions its summary names;
+// and where the oldest day isn't known, it goes back to none.
 func TestTheFindGoesBackNoFurtherThanTheOldestDayKept(t *testing.T) {
+	keptFrom := func(day time.Time) views.OldestDay {
+		return views.OldestDay{Day: views.Today(day), Keep: 400 * 24 * time.Hour}
+	}
 	tests := []struct {
 		name   string
-		oldest time.Time
+		oldest views.OldestDay
 		found  []string
 		read   map[string]int
 	}{
-		{name: "kept from the ledger's first day: every day", oldest: october(2, 0, 0), found: []string{findBack}, read: map[string]int{"2026-10-06": 1, "2026-10-04": 1, "2026-10-02": 1}},
-		{name: "kept from three days back: none before", oldest: october(4, 0, 0), read: map[string]int{"2026-10-06": 1, "2026-10-04": 1}},
-		{name: "kept from today: no past day", oldest: october(7, 0, 0), read: map[string]int{}},
+		{name: "kept from the ledger's first day: every day", oldest: keptFrom(october(2, 0, 0)), found: []string{findBack}, read: map[string]int{"2026-10-06": 1, "2026-10-04": 1, "2026-10-02": 1}},
+		{name: "kept from three days back: none before", oldest: keptFrom(october(4, 0, 0)), read: map[string]int{"2026-10-06": 1, "2026-10-04": 1}},
+		{name: "kept from today: no past day", oldest: keptFrom(october(7, 0, 0)), read: map[string]int{}},
+		{name: "the oldest day not known: no past day", read: map[string]int{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := walkedLedger()
 			src := walkedSources(t, l, "7f3a")
-			src.Oldest = views.OldestDay{Day: views.Today(tt.oldest), Keep: 400 * 24 * time.Hour}
+			src.Oldest = tt.oldest
 			if found := views.FindSessions(src); !slices.Equal(foundIDs(found), tt.found) {
 				t.Errorf("before any day is read, the find finds %q, want %q", foundIDs(found), tt.found)
 			}

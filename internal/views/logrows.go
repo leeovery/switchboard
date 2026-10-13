@@ -16,7 +16,7 @@ type LogSources struct {
 	From time.Time
 	// Oldest is the oldest day the Log reads back to, as OldestKept gives it:
 	// a table reaching it says, at its top, how long the ledger keeps its
-	// lines. The zero OldestDay is none known.
+	// lines. The zero OldestDay is none known, and draws no such line.
 	Oldest OldestDay
 	// Read holds the ledger's lines of those days, and their sessions', each
 	// row priced and told, as the Log's read grows.

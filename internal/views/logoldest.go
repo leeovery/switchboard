@@ -10,7 +10,8 @@ import (
 
 // OldestDay is the oldest day the Log reads back to, as OldestKept gives it,
 // and how long the ledger keeps its lines, dayfile.Forever for good. The
-// zero OldestDay is none known, and the Log reads back without end.
+// zero OldestDay is none known, as before the ledger has said where its
+// lines begin: the Log reads no day back, nor draws the oldest day's line.
 type OldestDay struct {
 	Day  LedgerDay
 	Keep time.Duration
@@ -20,10 +21,15 @@ type OldestDay struct {
 // keeping its lines as long as keep says, as [ledger] keep gives it:
 // dayfile.Forever for good, and none, as a config that doesn't say,
 // config.DefaultLedgerKeep, as the router keeps them. Its first day of lines
-// is first's: the oldest day is the later of first's day and the oldest day
-// whose lines the ledger keeps at now, as dayfile.OldestKept says.
+// is first's, zero where it holds no day's lines yet, as Ledger's
+// FirstLinesDay fails with fs.ErrNotExist: the oldest day is the later of
+// first's day, today where it's zero, and the oldest day whose lines the
+// ledger keeps at now, as dayfile.OldestKept says.
 func OldestKept(first time.Time, keep time.Duration, now time.Time) OldestDay {
 	keep = cmp.Or(keep, config.DefaultLedgerKeep)
+	if first.IsZero() {
+		first = now
+	}
 	oldest := OldestDay{Day: Today(first), Keep: keep}
 	if kept, ok := dayfile.OldestKept(now, keep); ok && kept.After(oldest.Day.Start) {
 		oldest.Day = Today(kept)
@@ -43,13 +49,18 @@ func (o OldestDay) DayBefore(first LedgerDay) (LedgerDay, bool) {
 }
 
 // keeps reports whether the ledger keeps the lines of the day d, to read
-// back to: the oldest day, or one after it.
+// back to: the oldest day, or one after it; none where it's none known.
 func (o OldestDay) keeps(d LedgerDay) bool {
-	return !d.Start.Before(o.Day.Start)
+	return o.known() && !d.Start.Before(o.Day.Start)
 }
 
 // reached reports whether a table spanning the days from first's reaches
 // the oldest day: never where it's none known.
 func (o OldestDay) reached(first LedgerDay) bool {
-	return o.Day.Date != "" && !first.Start.After(o.Day.Start)
+	return o.known() && !first.Start.After(o.Day.Start)
+}
+
+// known reports whether o is a day known, not the zero OldestDay.
+func (o OldestDay) known() bool {
+	return o.Day.Date != ""
 }

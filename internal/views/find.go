@@ -69,7 +69,7 @@ type FindSources struct {
 	Summaries []ledger.Summary
 	// Oldest is the oldest day the ledger keeps the lines of, as OldestKept
 	// gives it: the find goes back no further, though summaries are kept for
-	// good.
+	// good; nor back at all where it's none known.
 	Oldest OldestDay
 	Now    time.Time
 }
