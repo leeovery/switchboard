@@ -146,6 +146,49 @@ func TestEachEventFillsInWhatTheStreamToldOfItsRequest(t *testing.T) {
 	}
 }
 
+// A router gives each of its requests an id of its own while it runs, so the
+// stream tells nothing of a request once it has ended; and of one lost, only
+// that it's in flight still, as it opens again. Any other event under the id
+// of one held is another request, as another run's is: it never takes on
+// what the stream told of the one before.
+func TestARequestIsItsIdAndWhenSoAnotherNeverTakesOnWhatTheOneBeforeWasTold(t *testing.T) {
+	first := alter(told(router.StreamSent, "r1", "work", 0), func(e *router.StreamEvent) { e.Dir, e.Prompt = "~/Code/switchboard", "p1" })
+	flying := traffic{live: true}.took([]router.StreamEvent{first}, heldNowhere, past(0))
+	ended := flying.took([]router.StreamEvent{alter(told(router.StreamDone, "r1", "work", 5*time.Second), func(e *router.StreamEvent) { e.Status = 200 })},
+		heldNowhere, past(5*time.Second))
+	lost := flying.afresh()
+	later := 10 * time.Second
+	sent, first2 := told(router.StreamSent, "r1", "work", later), told(router.StreamFirst, "r1", "work", later)
+	inFlight := alter(told(router.StreamInFlight, "r1", "work", later), func(e *router.StreamEvent) { e.SentAt = past(later) })
+	tests := []struct {
+		name string
+		held traffic
+		e    router.StreamEvent
+		same bool
+	}{
+		{name: "in flight, sent again", held: flying, e: sent, same: true},
+		{name: "in flight, its first byte", held: flying, e: first2, same: true},
+		{name: "in flight, told of in flight as the stream opens again", held: flying, e: inFlight, same: true},
+		{name: "ended, then sent", held: ended, e: sent},
+		{name: "ended, then a first byte", held: ended, e: first2},
+		{name: "ended, then told of in flight as the stream opens again", held: ended, e: inFlight},
+		{name: "lost, then told of in flight as the stream opens again", held: lost, e: inFlight, same: true},
+		{name: "lost, then sent", held: lost, e: sent},
+		{name: "lost, then a first byte", held: lost, e: first2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _ := toldOf(tt.held.took([]router.StreamEvent{tt.e}, heldNowhere, past(later)), "r1")
+			if same := r.Dir == first.Dir && r.Prompt == first.Prompt && r.Sent.Equal(past(0)); same != tt.same {
+				t.Errorf("r1 is told %+v: the request first sent: %t, want %t", r, same, tt.same)
+			}
+			if !tt.same && (r.Lost || !r.Ended.IsZero()) {
+				t.Errorf("r1 is told %+v, want it neither lost nor ended, another request", r)
+			}
+		})
+	}
+}
+
 func TestForgettingWhatTheStreamToldLosesTheRequestsInFlightTillItTellsOfThemAgain(t *testing.T) {
 	tr := traffic{live: true}.took([]router.StreamEvent{
 		told(router.StreamSent, "r1", "work", 0),
@@ -230,8 +273,8 @@ func TestTheViewsSeeAMoveFromWhenTheCordsShowIt(t *testing.T) {
 			if drawn, read := len(f.Traffic.Moves) > 0, len(f.Stream.Moves) > 0; drawn != tt.shown || read != tt.shown {
 				t.Errorf("the cords draw a move: %t, and the views read one: %t, want both %t", drawn, read, tt.shown)
 			}
-			if got, want := views.RunningOn(f.Sessions, f.Stream, "side", tt.at), map[bool]int{true: 1}[tt.shown]; got != want {
-				t.Errorf("RunningOn side = %d, want %d, as the cords show d28c there", got, want)
+			if got, want := views.RunningCounts(f.Sessions, f.Stream, tt.at)["side"], map[bool]int{true: 1}[tt.shown]; got != want {
+				t.Errorf("RunningCounts on side = %d, want %d, as the cords show d28c there", got, want)
 			}
 		})
 	}
@@ -309,6 +352,41 @@ func TestARequestTheStreamOpenedAgainTellsOfLateInItsFirstLookIsNeverLost(t *tes
 	h.hear(inFlight("r2"))
 	if s := h.model.frame(h.clock.now).Stream; !s.Live || !s.Requests["r2"].InFlight() {
 		t.Errorf("its first look telling of r2 too, r2 is %+v, live %t, want it in flight, live", s.Requests["r2"], s.Live)
+	}
+}
+
+// d28cRunning is d28c, as the views have it run on work in the frame of the
+// model h drives, at now.
+func d28cRunning(t *testing.T, h *harness, now time.Time) views.Running {
+	t.Helper()
+	f := h.model.frame(now)
+	running := views.RunningOf(h.model.moment(now), f.Sessions, f.Stream)
+	i := slices.IndexFunc(running, func(r views.Running) bool { return r.Session == idD28C && r.Account == "work" })
+	if i < 0 {
+		t.Fatalf("the views run %+v, want d28c on work", running)
+	}
+	return running[i]
+}
+
+func TestOnceTheStreamEndsTheViewsGoByTheRoutersListingKeepingWhatItTold(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.hear(told(router.StreamSent, "r1", "work", 0))
+	if a := d28cRunning(t, h, h.clock.now).Activity; a.Doing != views.Asking {
+		t.Fatalf("as the stream tells of r1 going out, d28c is %+v, want it asking", a)
+	}
+
+	// The router restarts: its listing has nothing in flight.
+	h.endStream()
+	f := h.model.frame(h.clock.now)
+	if f.Stream.Live {
+		t.Error("the stream ended, the views read it live, want it no longer")
+	}
+	if a := d28cRunning(t, h, h.clock.now).Activity; a.InFlight() {
+		t.Errorf("the stream ended, d28c is %+v, want it as the router lists it, nothing in flight", a)
+	}
+	if r := f.Stream.Requests["r1"]; !r.InFlight() {
+		t.Errorf("the stream ended, r1 is %+v, want it kept as the stream told it till the stream opens again", r)
 	}
 }
 

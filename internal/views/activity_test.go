@@ -69,6 +69,7 @@ func TestWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 					t.Errorf("%s runs, want it not to", id[:4])
 				}
 			}
+			counts := views.RunningCounts(hm.Sessions, hm.Stream, hm.Now)
 			for _, a := range hm.Doc.Accounts {
 				want := 0
 				for _, doing := range hm.Want {
@@ -76,8 +77,8 @@ func TestWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 						want++
 					}
 				}
-				if got := views.RunningOn(hm.Sessions, hm.Stream, a.ID, hm.Now); got != want {
-					t.Errorf("RunningOn(%s) = %d, want %d, as many as run there", a.ID, got, want)
+				if got := counts[a.ID]; got != want {
+					t.Errorf("RunningCounts[%s] = %d, want %d, as many as run there", a.ID, got, want)
 				}
 			}
 		})

@@ -18,7 +18,7 @@ func TestARequestsLineIsItsRowAsItsLineAloneTellsItWithTheTokensItTookIn(t *test
 	moved := ledger.Line{At: now.Add(-time.Minute), Request: "r2", Kind: ledger.KindMessage, Session: "s1", Model: "claude-opus-5-5", Account: "side",
 		Reason: "moved: work hit its limit", From: "work", Status: 200, Canceled: true, TotalMS: 2000}
 	var rows []views.RequestLine
-	for r := range views.RequestLines(slices.Values([]ledger.Held{{Line: first}, {Line: moved}}), now) {
+	for r := range views.RequestLines(slices.Values([]ledger.Held{{Line: first}, {Line: moved}})) {
 		rows = append(rows, r)
 	}
 	if len(rows) != 2 {

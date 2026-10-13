@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/router"
@@ -334,7 +336,8 @@ func TestAWorldsRouterAnswersHistoryAPointEachStepAsLastRead(t *testing.T) {
 // A watch joining the stream again, as it does when it shows a view that
 // reads it after one that didn't, is told only what's still in flight, each
 // request as it stands, never what befell it before again, as a router tells
-// it; a source no watch reads tells it all, each time.
+// it; a source no watch reads tells it all, each time. Each time, the stream
+// stays open once it has told it, telling nothing more.
 func TestAWatchJoiningTheStreamAgainIsToldOnlyWhatsStillInFlight(t *testing.T) {
 	now := storyboardAt(moment(time.UTC))
 	opened := func(s source) []router.StreamEvent {
@@ -342,9 +345,14 @@ func TestAWatchJoiningTheStreamAgainIsToldOnlyWhatsStillInFlight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var told []router.StreamEvent
-		for e := range events {
-			told = append(told, e)
+		told := make([]router.StreamEvent, 0, len(events))
+		for range len(events) {
+			told = append(told, <-events)
+		}
+		select {
+		case e, open := <-events:
+			t.Fatalf("having told %d events, the stream gives %+v, open %t, want it open, telling nothing more", len(told), e, open)
+		default:
 		}
 		return told
 	}
@@ -365,6 +373,34 @@ func TestAWatchJoiningTheStreamAgainIsToldOnlyWhatsStillInFlight(t *testing.T) {
 		if got := opened(unread); !reflect.DeepEqual(got, unread.stream) {
 			t.Errorf("read by no watch, the stream tells %+v, want all of it, %+v", got, unread.stream)
 		}
+	}
+}
+
+// A watch reading the source waits on the stream it opened last while what
+// that told is yet to be heard, and is held after, as the stream, open,
+// tells nothing more; a stream that told nothing holds it at once.
+func TestAWatchWaitsOnTheStreamTillItHasHeardAllItTold(t *testing.T) {
+	now := storyboardAt(moment(time.UTC))
+	read := repatched(now).by(func() time.Time { return now })
+	wait := func() tea.Msg { return nil }
+	waits := func() []bool {
+		if _, err := read.Stream(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		return []bool{read.await(wait) != nil, read.await(wait) != nil}
+	}
+	if got, want := waits(), []bool{true, false}; !slices.Equal(got, want) {
+		t.Errorf("opened, then listened to again, the watch waits %v, want %v: once, to hear it all", got, want)
+	}
+	if got, want := waits(), []bool{true, false}; !slices.Equal(got, want) {
+		t.Errorf("opened again, telling what's in flight, the watch waits %v, want %v", got, want)
+	}
+	quiet := storyboard(now, false).by(func() time.Time { return now })
+	if _, err := quiet.Stream(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if quiet.await(wait) != nil {
+		t.Error("opened, telling nothing, the watch waits on the stream, want it held")
 	}
 }
 

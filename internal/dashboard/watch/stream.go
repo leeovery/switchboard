@@ -230,8 +230,8 @@ func hear(gen int, events <-chan router.StreamEvent) streamHeardMsg {
 // heard takes in what the request stream told, the requests it told of going
 // upstream counted for the traces, each number on the page it changed
 // brightening, and listens on; or, where it ended, as a router ends it as it
-// restarts, asks for it again after rejoinAfter, keeping what it told until
-// it opens again.
+// restarts, asks for it again after rejoinAfter, its traffic no longer live
+// meanwhile, keeping what it told until it opens again, as unheard has it.
 func (m Model) heard(msg streamHeardMsg) (Model, tea.Cmd) {
 	if msg.gen != m.stream.gen || !m.stream.open {
 		return m, nil
@@ -243,6 +243,7 @@ func (m Model) heard(msg streamHeardMsg) (Model, tea.Cmd) {
 	logger.Debug("the router's request stream ended: asking for it again")
 	m.stream.end()
 	m.stream.open, m.stream.events = false, nil
+	m.traffic = m.traffic.unheard()
 	return m.rejoinIn(rejoinAfter)
 }
 

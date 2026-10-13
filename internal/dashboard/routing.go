@@ -62,20 +62,24 @@ type routingTable struct {
 
 // routingTableOf is ROUTING of doc at now, as the frame draws it: each
 // account's sessions counted as the router listed them, and the request
-// stream has moved and seen them since, as views.RunningOn counts them,
+// stream has moved and seen them since, as views.RunningCounts counts them,
 // where it listed any, else as doc counts them; and its pool, and who's out
 // of it, at now.
 func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	m := f.Moment(doc, now)
 	names := overviewNames(m)
 	t := routingTable{names: nameColumn(names, f.Width), now: now}
+	var running map[string]int
+	if f.Sessions != nil {
+		running = views.RunningCounts(f.Sessions, f.Stream, now)
+	}
 	for i, a := range m.Accounts {
 		r := accountRouting{
 			id: a.ID, name: names[i].line(t.names), standing: a.Routing, pinned: a.Pinned,
 			sessions: a.Sessions, trace: f.Traces.Accounts[a.ID], faded: a.OutOfPool,
 		}
-		if f.Sessions != nil {
-			r.sessions = views.RunningOn(f.Sessions, f.Stream, a.ID, now)
+		if running != nil {
+			r.sessions = running[a.ID]
 		}
 		t.accounts = append(t.accounts, r)
 		if a.InPool {
