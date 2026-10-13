@@ -134,9 +134,11 @@ func (d drawn) named(n string) string {
 }
 
 // stands is how each view says account a stands: taking new sessions, or
-// what holds it back from them. Runway's lane over the day says it once
-// anything's read of it, but of one whose last read failed: it holds that
-// one back all along, whatever else does (D7).
+// what holds it back from them. ROUTING's "can't read it" is a state it
+// says, not a hold: the router keeps a pin to an account nothing has been
+// read of, and the card lets it be picked. Runway's lane over the day says
+// it once anything's read of it, but of one whose last read failed, which it
+// holds back all along, whatever else does (D7).
 func (d drawn) stands(a status.AccountNow) []viewSays {
 	i := d.place(a)
 	says := []viewSays{
@@ -156,12 +158,11 @@ func (d drawn) place(a status.AccountNow) int {
 
 // What holds an account back from new sessions, as the views agree on it.
 const (
-	takes          = "takes new sessions"
-	heldNoToken    = "held: no token"
-	heldLimit      = "held: limit"
-	heldRefused    = "held: token refused"
-	heldCap        = "held: cap"
-	heldUnreadable = "held: can't read it"
+	takes       = "takes new sessions"
+	heldNoToken = "held: no token"
+	heldLimit   = "held: limit"
+	heldRefused = "held: token refused"
+	heldCap     = "held: cap"
 )
 
 // routingStands is how ROUTING's kind k says an account stands.
@@ -175,8 +176,6 @@ func routingStands(k status.RoutingKind) string {
 		return heldRefused
 	case status.RoutingCapped:
 		return heldCap
-	case status.RoutingUnreadable:
-		return heldUnreadable
 	default:
 		return takes
 	}
@@ -211,8 +210,6 @@ func laneStands(l lane, now time.Time) string {
 		switch says := s.causes[0].says; {
 		case says == "no token":
 			return heldNoToken
-		case says == "can't read it":
-			return heldUnreadable
 		case strings.HasPrefix(says, "limit reached"):
 			return heldLimit
 		case strings.HasPrefix(says, "refused"):

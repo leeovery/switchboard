@@ -332,6 +332,18 @@ func HardMoments(policy score.Policy) []HardMoment {
 			}},
 		},
 		{
+			Name: "its first read failed, nothing read before",
+			Doc: Router(policy, nil,
+				Routed{ID: "work", Label: "work", TokenSet: true, Error: "HTTP 529 · Overloaded"},
+				Routed{Account: side},
+			),
+			Now: Built.Add(time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingUnreadable, CanRise: true, Windows: map[string]WindowFacts{}},
+				"side": sideOpen,
+			}},
+		},
+		{
 			Name: "probed, of several accounts",
 			Doc: Probed(policy,
 				readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.5, 2*day)),
