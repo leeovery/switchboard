@@ -113,7 +113,8 @@ type Turn struct {
 // the next look; a session idle with its page open, then ended an hour after
 // its last line; probing within the hour; a subagent's model moved, its main
 // thread staying; a request in flight naming no prompt after named turns;
-// and refused on one account, then throttled on another.
+// refused on one account, then throttled on another; and a request the
+// router answered itself, no account having room.
 func SessionMoments() []SessionMoment {
 	return []SessionMoment{
 		asking(), askingAsListed(), answering(), refused(), throttled(), idleAsTheStreamTold(), idleAsItsLineGives(),
@@ -121,7 +122,7 @@ func SessionMoments() []SessionMoment {
 		twoModelsOnTwoAccounts(), idleAfterAToolCall(), sideRequestsAloneItsMainInFlight(), sideRequestsAloneAsListed(),
 		itsMainFailed(), inFlightInTheNewestTurn(), endedItsLineToCome(), itsLineCome(), movedTwice(), turnAcrossMidnight(),
 		noPrompts(), movedByHand(), newBeforeTheNextLook(), idleItsPageOpen(), endedItsPageOpen(), probingWithinTheHour(),
-		subagentMoved(), inFlightNamingNoPrompt(), refusedThenThrottled(),
+		subagentMoved(), inFlightNamingNoPrompt(), refusedThenThrottled(), answeredByTheRouter(),
 	}
 }
 
@@ -836,5 +837,24 @@ func refusedThenThrottled() SessionMoment {
 	m.Turns = map[string][]Turn{D28C: {going(1, sent, 1, "side")}}
 	m.Named = map[string]Named{D28C: {"side", Opus}}
 	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: opusOn("side"), Going: true, Waiting: true, Ribbon: []string{"side"}, Marks: 1}}
+	return m
+}
+
+func answeredByTheRouter() SessionMoment {
+	last := At(14, 36, 0)
+	m := moment("a request of its own conversation the router answered itself, no account having room, then sent again on work",
+		session(D28C, seat(Opus, "work", last, "")))
+	m.Lines = []ledger.Line{
+		asMain(p1, "tool_use", line(D28C, Opus, "work", At(14, 30, 0), 10*time.Second)),
+		asMain(p1, "", unsent("r2", D28C, At(14, 35, 0))),
+		asMain(p1, "end_turn", line(D28C, Opus, "work", last, 10*time.Second)),
+	}
+	m.Want = map[string]Doing{D28C: {
+		Whole: views.Activity{Since: last.Add(10 * time.Second), LastSeen: last},
+		On:    on("work", views.Activity{Since: last, LastSeen: last}),
+	}}
+	m.Turns = map[string][]Turn{D28C: {over(1, At(14, 30, 0), last.Add(10*time.Second), 3, "work")}}
+	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", false, false, "work")}
 	return m
 }
