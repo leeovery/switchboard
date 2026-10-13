@@ -485,11 +485,9 @@ func (m Moment) windowNow(s WindowStates, w judged, name WindowName) WindowNow {
 		WindowName: name, Shared: policy.IsShared(key), Started: key == policy.Started, Pressure: key == policy.Pressure,
 		Read: AsRead{Used: w.window.Utilization, ResetsAt: w.window.ResetsAt, At: a.FetchedAt},
 	}
-	if kind, ok := s.unknown(true); ok {
-		wn.Kind = kind
+	if wn.Kind, wn.At = s.kindOf(w); wn.Kind == WindowTokenless || wn.Kind == WindowUnread {
 		return wn
 	}
-	wn.Kind, wn.At = s.kind(w.window, w)
 	wn.Used, wn.Pace, wn.Allowance, wn.Next, wn.Room = w.stands.Utilization, w.pace, w.allowance, w.stands.ResetsAt, w.room
 	wn.Start, wn.Length, _ = w.stands.Span()
 	wn.ResetSinceRead, wn.Lapsed = w.window.ResetBy(m.Now), w.lapsed

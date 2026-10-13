@@ -435,18 +435,18 @@ func (j judgedAccount) backFromEvery() []Upcoming {
 }
 
 // runningOut is the windows of the account judged as j running out before
-// they reset, as RunsOut has it: none while it can take no request, as its
-// use can't rise; and none of a window that has lapsed, or that a limit
-// holds as its own, as holds says.
+// they reset, as a moment's windows' RunsOut has them, of the kind that runs
+// out, as kindOf judges it: so none that a limit holds, that has lapsed, that
+// was last read before a read that failed, or at the account's cap. None runs
+// out while the account can take no request, as its use can't rise.
 func (j judgedAccount) runningOut() []Upcoming {
-	s := j.states.stood
-	if s.shut() {
+	if j.states.stood.shut() {
 		return nil
 	}
 	var outs []Upcoming
 	for _, w := range j.windows {
-		if key := w.window.Key; s.running(key) && !s.holds(key) && w.runsOut {
-			outs = append(outs, Upcoming{At: w.out.At, Account: j.states.account.ID, Kind: UpcomingRunsOut, Window: key, Cap: w.out.Reserve})
+		if kind, _ := j.states.kindOf(w); kind == WindowRunsOut {
+			outs = append(outs, Upcoming{At: w.out.At, Account: j.states.account.ID, Kind: UpcomingRunsOut, Window: w.window.Key, Cap: w.out.Reserve})
 		}
 	}
 	return outs

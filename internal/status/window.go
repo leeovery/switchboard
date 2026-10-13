@@ -146,6 +146,16 @@ func (s WindowStates) unknown(reported bool) (WindowKind, bool) {
 	return 0, false
 }
 
+// kindOf is the kind of the account's window, standing as j has it, and when
+// what that says comes: of an account without a usable token, or nothing
+// read, as unknown says, that alone; else as kind says.
+func (s WindowStates) kindOf(j judged) (WindowKind, time.Time) {
+	if kind, ok := s.unknown(true); ok {
+		return kind, time.Time{}
+	}
+	return s.kind(j.window, j)
+}
+
 // kind is the kind of the account's window w, read, standing as j has it, and
 // when what the kind says comes: the first that holds of a limit, its token
 // refused, not started, its last read failed, the cap, running out, and open,

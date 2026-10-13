@@ -575,6 +575,13 @@ func TestWhatsComingUp(t *testing.T) {
 			want: []status.Upcoming{reset("work", "5h", 4*time.Hour), reset("work", "7d", 3*day)},
 		},
 		{
+			name: "no run-out of a window last read before a read that failed, which runs out nowhere",
+			doc: routerDocOf(with(pressed, func(a *status.Account) {
+				a.FetchedAt, a.Error = built.Add(-20*time.Minute), "HTTP 529 · Overloaded"
+			})),
+			want: []status.Upcoming{reset("work", "5h", 4*time.Hour), reset("work", "7d", 3*day)},
+		},
+		{
 			name: "a week reset since it was read: its next reset a length on",
 			doc:  routerDocOf(readAt("work", windowIn("5h", 0.1, 2*time.Hour), windowIn("7d", 0.9, -day))),
 			want: []status.Upcoming{reset("work", "5h", 2*time.Hour), reset("work", "7d", 6*day)},

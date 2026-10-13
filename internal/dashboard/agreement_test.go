@@ -325,9 +325,7 @@ func staleness(stale bool) string {
 // runsOut is where each view says account a's window w runs out, as "out ~"
 // and when, or "nowhere": USAGE's words; COMING UP, of an account that could
 // take a request as the document was built, as it gates those that couldn't
-// (D3), and of a window that wasn't stale then, as its list, built with the
-// document, says where a stale window runs out, where USAGE says it runs out
-// nowhere (D2); ROUTING's pressure, of the pressure window while it says the
+// (D3); ROUTING's pressure, of the pressure window while it says the
 // account's under pressure, but of one stale, as the router's pressure goes
 // by the window's projection, stale or not; and Runway's lanes, of a window
 // they count, but of one held at its limit, after which a timeline draws
@@ -341,8 +339,7 @@ func (d drawn) runsOut(a status.AccountNow, w status.WindowNow) []viewSays {
 		}
 		says = append(says, viewSays{"USAGE", usage})
 	}
-	built, _ := d.moment.At(d.moment.ReadAt).Account(a.ID)
-	if then, _ := built.Window(w.Key); built.CanRise && then.Kind != status.WindowStale {
+	if built, _ := d.moment.At(d.moment.ReadAt).Account(a.ID); built.CanRise {
 		says = append(says, viewSays{"COMING UP", d.comingOut(a, w)})
 	}
 	routing := d.routing.accounts[d.place(a)].standing
