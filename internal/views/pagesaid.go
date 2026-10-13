@@ -302,21 +302,48 @@ func (t Turn) ToolsSaid() string {
 	return strings.Join(said, ", ")
 }
 
-// PointsSaid says the points of the account's windows the session took, the
-// shortest window first, each named as status names it, as "≈ 41 points of
-// its 5-hour · 6 of its week", leaving out those that round to none: "" where
-// all do.
-func (a SessionAccount) PointsSaid() string {
+// PointsForm is the form an account's points are said in.
+type PointsForm int
+
+const (
+	// PointsWide is the wide page's, the zero PointsForm: "≈ 41 points of
+	// its 5-hour".
+	PointsWide PointsForm = iota
+	// PointsShort is a phone's: "≈ 41 of 5-hour".
+	PointsShort
+)
+
+// PointsWords says the points of the account's windows the session took, in
+// form, the shortest window first, each named as status names it, and each
+// window's words apart, so a row short of room leaves whole windows off its
+// end: the first leading with "≈ ", each after it with " · ", the points a
+// figure. Wide, "≈ 41 points of its 5-hour", " · 6 of its week"; short, as a
+// phone says them, "≈ 41 of 5-hour", " · 6 of week". It leaves out those
+// that round to none: none where all do.
+func (a SessionAccount) PointsWords(form PointsForm) []status.Words {
 	keys := slices.SortedFunc(maps.Keys(a.Points), quota.CompareKeys)
 	keys = slices.DeleteFunc(keys, func(key string) bool { return a.Points[key] == 0 })
-	said := make([]string, len(keys))
+	said := make([]status.Words, len(keys))
 	for i, key := range keys {
-		of := " of its " + status.InProse(status.NameOfKey(key))
-		if i > 0 {
-			said[i] = prose.Grouped(a.Points[key]) + of
-			continue
+		lead, count := status.Plain(" · "), status.Words{status.Figure(prose.Grouped(a.Points[key]))}
+		of := " of " + status.InProse(status.NameOfKey(key))
+		if i == 0 {
+			lead = status.Plain("≈ ")
 		}
-		said[i] = "≈ " + prose.Counted(a.Points[key], "point") + of
+		if form == PointsWide {
+			of = " of its " + status.InProse(status.NameOfKey(key))
+		}
+		if i == 0 && form == PointsWide {
+			count = CountedWords(a.Points[key], "point")
+		}
+		said[i] = slices.Concat(status.Words{lead}, count, status.Words{status.Plain(of)})
 	}
-	return strings.Join(said, " · ")
+	return said
+}
+
+// PointsSaid says the points of the account's windows the session took, as
+// PointsWords says them wide, run together: "≈ 41 points of its 5-hour · 6
+// of its week"; "" where all round to none.
+func (a SessionAccount) PointsSaid() string {
+	return slices.Concat(a.PointsWords(PointsWide)...).String()
 }
