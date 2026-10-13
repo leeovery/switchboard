@@ -53,7 +53,7 @@ func (p AccountsPage) unfiled(m status.Moment) []accountReset {
 			if !w.ResetSinceRead || !quota.WeekLong(w.Key) || resetAfter(own, w.Key, w.Read.At) {
 				continue
 			}
-			before := max(w.Read.Used, highestSince(own, w.Key).share())
+			before := max(w.Read.Used, highestBefore(p.days, own, w.Key, w.Read.ResetsAt).share())
 			if before == 0 {
 				continue
 			}
@@ -71,20 +71,22 @@ func resetAfter(days []ledger.AccountDay, key string, at time.Time) bool {
 	})
 }
 
-// highestSince is the highest use of the window with the given key an
-// account's days, oldest first, read since its last reset among them, as
-// soFar has it, or of all of them, where none reset it: none where none is
-// known.
-func highestSince(days []ledger.AccountDay, key string) millionths {
-	for i, d := range slices.Backward(days) {
-		if resetOn(d, key) {
-			peak, _ := soFar(days, key, i)
+// highestBefore is the highest use read of the window with the given key in
+// the run that ended at end, of an account's days, own, a day each of days,
+// oldest first: since its last reset among them, as soFar has it, where that
+// came on or after the day the run began on, the window's length before end;
+// else of the days after that one, as that day's highest may be the run
+// before's. None where none is read.
+func highestBefore(days []Day, own []ledger.AccountDay, key string, end time.Time) millionths {
+	length, _ := quota.Length(key)
+	began := dayfile.DateOf(end.Add(-length))
+	var peak millionths
+	for i := len(own) - 1; i >= 0 && days[i].Day >= began; i-- {
+		if resetOn(own[i], key) {
+			peak, _ = soFar(own, key, i)
 			return peak
 		}
-	}
-	var peak millionths
-	for _, d := range days {
-		if highest, ok := d.Highest[key]; ok {
+		if highest, ok := own[i].Highest[key]; ok && days[i].Day > began {
 			peak = max(peak, millionthsOf(highest))
 		}
 	}

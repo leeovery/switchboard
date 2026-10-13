@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
@@ -99,6 +100,34 @@ func TestAWeekResetBeforeTheRereadClosesAtTheMostReadOfIt(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Where the days hold no reset of the week, it closes at the most read of it
+// in the days after the one it began on, a week before it reset: not at a
+// higher week's weeks before.
+func TestAWeekResetBeforeTheRereadClosesAtTheMostReadInTheWeekItEnded(t *testing.T) {
+	am := weekReadAs(accountsMoment(t, beforeTheRead), "work", 0.4)
+	am = weekHighestAtMost(withoutWeekResets(am, "work"), "work", "2026-09-29", 0.4)
+	page, _ := accountsAt(am)
+	if got := shareRead(rowOf(t, page, "work").WeekLeft); got != "60%" {
+		t.Errorf("work's week had %s left as it reset, want 60%%, the 40%% read of it", got)
+	}
+}
+
+// withoutWeekResets is the moment am, its days holding no reset of the week
+// of the account with the given id.
+func withoutWeekResets(am viewstest.AccountsMoment, id string) viewstest.AccountsMoment {
+	days := slices.Clone(am.Days)
+	for i := range days {
+		days[i].Accounts = slices.Clone(days[i].Accounts)
+		for j, a := range days[i].Accounts {
+			if a.Account == id {
+				days[i].Accounts[j].Resets = slices.DeleteFunc(slices.Clone(a.Resets), func(r ledger.Reset) bool { return r.Window == claude.WeekWindow })
+			}
+		}
+	}
+	am.Days = days
+	return am
 }
 
 // A week reset before the reread with nothing read of it, the days' highest
