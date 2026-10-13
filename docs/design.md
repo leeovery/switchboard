@@ -3275,7 +3275,10 @@ ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`.
 - **The columns** (rows 11 to 15): its first minute at column 0 and now, or its end, at column 159,
   the minutes shared out evenly but for folds: `(minutes − folded) ÷ (160 − 5 × folds)` a column, so
   a minute a column for a session of 160 minutes, and a younger one never more than a column a
-  minute, drawn from the left, its axis ending at its newest minute (settled in the plan). Each
+  minute, drawn from the left, its axis ending at its newest minute (settled in the plan). A
+  column's span is that share exactly, never rounded to whole minutes, so the story always fills
+  the width: past 160 minutes every column's span grows a little each minute, and a peak can drift
+  between neighbouring columns as it does (the owner's call, 13 October 2026). Each
   column is the mean requests a minute over the minutes it stands for, a request counting in the
   minute it arrived. Five rows tall, filled `round(rate ÷ scale × 40)` eighths, halves to even, as
   the Overview's traces are drawn: full cells are background and the top cell an eighth block, in
