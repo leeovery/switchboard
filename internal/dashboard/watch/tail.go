@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -42,6 +43,17 @@ func (t ledgerTail) unread() bool {
 // today being today: never before its first read.
 func (t ledgerTail) turned(today views.LedgerDay) bool {
 	return !t.unread() && t.day.Date != today.Date
+}
+
+// missed are the dates of the days the tail followed no further, today
+// being today, where the day turned since it was last read: the day it was
+// read on, its lines after the mark unread, and each after it before today,
+// none of whose lines it read. None before its first read.
+func (t ledgerTail) missed(today views.LedgerDay) []string {
+	if !t.turned(today) {
+		return nil
+	}
+	return dayfile.Span(t.day.Start, dayfile.DayStart(today.Start, -1))
 }
 
 // asking is the tail with a read of it under way, none due till a look

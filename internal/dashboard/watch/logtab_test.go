@@ -110,6 +110,29 @@ func TestTheLogKeepsTheDayBeforesLinesAsTheDayTurns(t *testing.T) {
 	}
 }
 
+// Away from the Log over two midnights, the tail read last on the day the
+// Log opened, the Log reads again whole every day from that one to the day
+// before today: none of those between is lost.
+func TestTheLogReadsEveryDayItWasAwayForAgain(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	l := onTheLog(h, state)
+	h.start()
+
+	h.keys(tabKey)
+	writeLines(t, state, arrived("0a000002", "work", day), arrived("0a000003", "work", 2*day-time.Minute))
+	h.clock.now = start.Add(2 * day)
+	h.read(probedWithoutTheRouter())
+	h.keys(shiftTabKey)
+	if want := []string{dayfile.DateOf(start), dayfile.DateOf(start.Add(day))}; !slices.Equal(l.days, want) {
+		t.Errorf("back on the Log two days on, the days %v were read whole, want %v", l.days, want)
+	}
+	if got, want := shownRequests(h), []string{"0a000001", "0a000002", "0a000003"}; !slices.Equal(got, want) {
+		t.Errorf("back on the Log two days on, the Requests show %v, want %v", got, want)
+	}
+}
+
 // A request that arrived at 23:59:50 and ended at 00:00:12, after the first
 // look past midnight read the day before again, has its line taken in, shown
 // or hidden: the stream told it ended, so the day it arrived on is read again

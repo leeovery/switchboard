@@ -101,10 +101,10 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 // logFold is what a read of the ledger's tail does for the Log, as it
 // stands as the read is asked: grows its read by the lines the ledger
 // gained, and by those of the days before today it reads again whole, late,
-// as the line of a request across midnight comes on its day after the day
-// turned; where the day turned, reads again the figures of the days its
-// tables span, from from; and where the oldest day the ledger keeps isn't
-// known, asks it again.
+// as the tail followed them no further, or the line of a request across
+// midnight comes on its day after the day turned; where the day turned,
+// reads again the figures of the days its tables span, from from; and where
+// the oldest day the ledger keeps isn't known, asks it again.
 type logFold struct {
 	read   views.LogRead
 	late   []string
@@ -114,17 +114,16 @@ type logFold struct {
 }
 
 // logFold is what a read of the ledger's tail at now does for the Log: its
-// late days the day the tail was last read on, where the day turned since,
-// and those before today the Requests await a line on, shown or hidden, as
-// their Awaited has them.
+// late days those the tail missed, as missed has them, and those before
+// today the Requests await a line on, shown or hidden, as their Awaited has
+// them, each once, the oldest first.
 func (m Model) logFold(now time.Time) logFold {
 	today := views.Today(now)
-	turned := m.tail.turned(today)
-	late := m.log.page.Requests.Awaited(today)
-	if turned && !slices.Contains(late, m.tail.day.Date) {
-		late = append(late, m.tail.day.Date)
+	late := slices.Concat(m.log.page.Requests.Awaited(today), m.tail.missed(today))
+	return logFold{
+		read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), from: m.log.from, turned: m.tail.turned(today),
+		asks: m.log.oldest.Day.Date == "",
 	}
-	return logFold{read: m.log.read, late: late, from: m.log.from, turned: turned, asks: m.log.oldest.Day.Date == ""}
 }
 
 // grown is the Log grown, through l, at now, by lines, the ledger's gain
