@@ -300,10 +300,15 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 }
 
 // scrolls is what of the view of doc at now scrolls, from column x along row
-// y, width cells wide and rows tall: on the Overview, USAGE's body, as
+// y, width cells wide and rows tall: on a session's page, where one is open,
+// its turns' rows, across the frame; on the Overview, USAGE's body, as
 // overviewScrolls has it; on History, what of its sub-tab shown does, as
 // historyScrolls has it, across the frame; elsewhere, the view's rows.
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
+	if f.Session != nil {
+		l := f.sessionLayout(len(f.Session.Page.Accounts))
+		return 0, l.turnsAt, f.Width, l.turns
+	}
 	switch f.View {
 	case Overview:
 		return f.overviewScrolls(doc, now)

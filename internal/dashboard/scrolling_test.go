@@ -4,8 +4,38 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
+
+// A session's page scrolls its turns a row at a time, in the rows its
+// layout gives them, whatever tab it's open over; and what's under the
+// pointer scrolls over those rows alone.
+func TestASessionsPageScrollsItsTurnsInTheirRows(t *testing.T) {
+	tests := []struct {
+		name  string
+		turns int
+		want  Scrolling
+	}{
+		{name: "twenty turns in eleven rows", turns: 20, want: Scrolling{Most: 9, Page: 11}},
+		{name: "as many as fit", turns: 11, want: Scrolling{Page: 11}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(160, 37)
+			f.Session = &SessionShown{Page: views.SessionPage{Accounts: []views.SessionAccount{{Account: "work"}}, Turns: make([]views.Turn, tt.turns)}}
+			if got := f.Scrolling(status.Document{}, routedAt); got != tt.want || !f.ScrollsRows() {
+				t.Errorf("its turns scroll %+v, rows at a time %t; want %+v, a row at a time", got, f.ScrollsRows(), tt.want)
+			}
+			for y, want := range map[int]Under{23: UnderNothing, 24: UnderView, 34: UnderView, 35: UnderNothing} {
+				if got := f.Under(status.Document{}, routedAt, 10, y); got != want {
+					t.Errorf("row %d is under %v, want %v: the turns from row 24, eleven of them", y, got, want)
+				}
+			}
+		})
+	}
+}
 
 func TestRevealingScrollsNoFurtherThanItMustToShowTheAccount(t *testing.T) {
 	ten := Scrolling{Most: 6, Page: 4}
