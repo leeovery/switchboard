@@ -1,0 +1,152 @@
+package dashboard
+
+import (
+	"maps"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
+)
+
+// momentsLedger is a moment's lines as the ledger reads a session's page's:
+// every line of each session, by its id, oldest first, and each line handed
+// to take with its day's date. A page reads nothing else of it.
+type momentsLedger struct {
+	views.Ledger
+	lines []ledger.Line
+}
+
+func (l momentsLedger) Sessions(_ []string, take func(date string, l ledger.Line)) map[string][]ledger.Line {
+	sessions := make(map[string][]ledger.Line)
+	for _, line := range l.lines {
+		if take != nil {
+			take(line.At.Local().Format(time.DateOnly), line)
+		}
+		sessions[line.Session] = append(sessions[line.Session], line)
+	}
+	return sessions
+}
+
+// momentsShown is the page of the session with the given id at the moment
+// hm, as the views build it, held and live, and its story, the newest turn
+// chosen.
+func momentsShown(hm viewstest.SessionMoment, id string) (*SessionShown, bool) {
+	running := hm.Sessions
+	if hm.Unlisted {
+		running = nil
+	}
+	held := views.HoldPage(id, views.ReadSessions(momentsLedger{lines: hm.Lines}, running, hm.Now, id), ledger.Pricing, 0, hm.Now)
+	live := views.PageLive{Routed: views.Routed(running, id), Unlisted: hm.Unlisted, Stream: hm.Stream, Now: hm.Now}
+	page, ok := held.Page(live)
+	if !ok {
+		return nil, false
+	}
+	shown := &SessionShown{Page: page, Story: held.Story(page, live)}
+	if len(page.Turns) > 0 {
+		shown.Turn = page.Turns[0].Turn
+	}
+	return shown, true
+}
+
+// At each moment the views have to tell what a session is doing at, its
+// page draws what the views say of it, as SESSIONS draws what they say of
+// each session running: on row 6, what it's doing and where it runs, and
+// when it started and how it has run; on row 7, where its models go, or
+// once it's over, its models and how long its lines are kept; a row each of
+// the accounts it ran on, its time there and its requests; a row each of its
+// turns, its number and how long it took; and ↑ asking on its newest turn
+// while it waits, and only then.
+func TestASessionsPageSaysWhatItsViewsSayAtEachHardMoment(t *testing.T) {
+	for _, hm := range viewstest.SessionMoments() {
+		t.Run(hm.Name, func(t *testing.T) {
+			for _, id := range slices.Sorted(maps.Keys(hm.Page)) {
+				shown, ok := momentsShown(hm, id)
+				if !ok {
+					t.Fatalf("%s has no page", status.ShownID(id))
+				}
+				f := frameOf(160, 40)
+				f.Sessions, f.Stream, f.Session = hm.Sessions, hm.Stream, shown
+				c := f.At(hm.Doc, hm.Now).page(hm.Doc, hm.Now)
+				checkNowRows(t, c, f.sessionLayout(len(shown.Page.Accounts)), shown.Page, hm.Now)
+				checkAccountRows(t, c, f.sessionLayout(len(shown.Page.Accounts)), shown.Page, hm.Now)
+				checkTurnRows(t, c, f.sessionLayout(len(shown.Page.Accounts)), shown.Page, hm.Now)
+			}
+		})
+	}
+}
+
+// unmarked takes the marks after an account's name out of a row, as the
+// views' words don't say them.
+var unmarked = strings.NewReplacer(" ▲", "", " ◆", "")
+
+// checkNowRows checks that the page's rows 6 and 7, drawn on c as l lays
+// them out, say what the views say of page p at now.
+func checkNowRows(t *testing.T, c *canvas, l sessionLayout, p views.SessionPage, now time.Time) {
+	t.Helper()
+	shown := status.ShownID(p.Session)
+	said, goes := unmarked.Replace(rowOf(c, l.now)), rowOf(c, l.now+1)
+	if want := p.Activity.Said(now) + "   " + p.Where(now).Words().String(); !strings.HasPrefix(said, strings.TrimRight(want, " ")) {
+		t.Errorf("%s's row 6 reads\n%q\nwant it to say\n%q", shown, said, want)
+	}
+	if !p.Started.IsZero() && !strings.HasSuffix(said, " "+p.StartedSaid(now)+" · "+p.RanSaid(now)) {
+		t.Errorf("%s's row 6 reads %q, want it to end with when it started, %q, and how it has run, %q", shown, said, p.StartedSaid(now), p.RanSaid(now))
+	}
+	var models []string
+	for _, g := range p.Goes {
+		if p.Runs() {
+			models = append(models, ledger.ShortModelID(g.Model)+" → "+g.Account)
+		} else {
+			models = append(models, ledger.ShortModelID(g.Model))
+		}
+	}
+	want := strings.Join(models, "   ")
+	if !p.Runs() {
+		want = strings.Join(models, " · ") + "   " + views.KeptUntil(p.KeptUntil, now)
+	}
+	if !strings.HasPrefix(goes, want) {
+		t.Errorf("%s's row 7 reads\n%q\nwant it to say\n%q", shown, goes, want)
+	}
+}
+
+// checkAccountRows checks that the page's rows of the accounts it ran on,
+// drawn on c as l lays them out, say what the views say of each of page p's
+// stays at now.
+func checkAccountRows(t *testing.T, c *canvas, l sessionLayout, p views.SessionPage, now time.Time) {
+	t.Helper()
+	for i, s := range p.Stays(now) {
+		row := []rune(rowOf(c, l.accountsAt+i) + strings.Repeat(" ", c.width))
+		if !strings.Contains(string(row[:stayAt]), " "+s.Account) || strings.TrimSpace(string(row[stayAt:requestsAt])) != s.Said ||
+			strings.TrimSpace(string(row[requestsAt:pointsAt])) != prose.Counted(s.Requests, "request") {
+			t.Errorf("%s's row of %s reads\n%q\nwant its time there, %q, and its %d requests", status.ShownID(p.Session), s.Account, strings.TrimRight(string(row), " "), s.Said, s.Requests)
+		}
+	}
+}
+
+// checkTurnRows checks that the page's rows of its turns, drawn on c as l
+// lays them out, say what the views say of page p's turns at now: each its
+// number and how long it took, "…" after it while it goes; and ↑ asking on
+// the newest, while p waits, and only then.
+func checkTurnRows(t *testing.T, c *canvas, l sessionLayout, p views.SessionPage, now time.Time) {
+	t.Helper()
+	shown := status.ShownID(p.Session)
+	for i, turn := range p.Turns[:min(len(p.Turns), l.turns)] {
+		row := []rune(rowOf(c, l.turnsAt+i) + strings.Repeat(" ", c.width))
+		took, going := turn.Took(now)
+		if going {
+			took += prose.Ellipsis
+		}
+		if number := strings.TrimSpace(string(row[:3])); number != prose.Grouped(turn.Turn) || strings.TrimSpace(string(row[14:21])) != took {
+			t.Errorf("%s's row of turn %d reads\n%q\nwant its number and its took, %q", shown, turn.Turn, strings.TrimRight(string(row), " "), took)
+		}
+		asking := strings.TrimSpace(string(row[askingAt:]))
+		if want := i == 0 && p.Activity.Waiting(); (asking == "↑ asking") != want {
+			t.Errorf("%s's row of turn %d ends %q, want ↑ asking: %t, as it waits: %t", shown, turn.Turn, asking, want, p.Activity.Waiting())
+		}
+	}
+}
