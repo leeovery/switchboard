@@ -53,22 +53,26 @@ func pageHarness(t *testing.T, lines []ledger.Line) (*harness, *pageLedger) {
 	return h, h.withLines(lines)
 }
 
-// withLines has the model read idD28C's lines as given in its ledger,
-// priced at the price table's prices.
+// withLines has the model read the lines given in its ledger, each its
+// session's, priced at the price table's prices.
 func (h *harness) withLines(lines []ledger.Line) *pageLedger {
-	l := &pageLedger{Empty: h.emptyLedger(), lines: map[string][]ledger.Line{idD28C: lines}}
+	l := &pageLedger{Empty: h.emptyLedger(), lines: make(map[string][]ledger.Line)}
+	for _, line := range lines {
+		l.lines[line.Session] = append(l.lines[line.Session], line)
+	}
 	h.model.cfg.Ledger, h.model.cfg.Prices = l, ledger.Pricing
 	return l
 }
 
-// openPage opens idD28C's page, as a click on its row does, its read landing.
-func (h *harness) openPage() {
+// openPage opens the page of the session with the given id, as a click on
+// its row does, its read landing.
+func (h *harness) openPage(id string) {
 	h.t.Helper()
-	next, cmd := h.model.openSession(idD28C)
+	next, cmd := h.model.openSession(id)
 	h.model = next
 	h.deliver(h.run(cmd)...)
 	if h.model.session == nil {
-		h.t.Fatal("idD28C's page didn't open")
+		h.t.Fatalf("%s's page didn't open", id)
 	}
 }
 
@@ -302,7 +306,7 @@ func TestASessionsPageReadsTheStreamWhileTheRouterAnswers(t *testing.T) {
 func TestASessionsPageFollowsEachLookAndTickAndStaysOnceItEnds(t *testing.T) {
 	lines := promptedLines(3, start.Add(-30*time.Minute))
 	h, _ := pageHarness(t, lines)
-	h.openPage()
+	h.openPage(idD28C)
 
 	h.fire(h.lastTick())
 	if story := h.shownPage().Story; story.Ended || !story.End.Equal(h.clock.now) {
@@ -338,7 +342,7 @@ func TestASessionsCardKeepsItsOwnPinWhileTheRouterDoesntAnswer(t *testing.T) {
 	h.source.sessions[0].Pin = "side"
 	h.source.sessions[0].Assignments[0].Account, h.source.sessions[0].Assignments[0].Auto = "side", "work"
 	h.tickUntilAsked()
-	h.openPage()
+	h.openPage(idD28C)
 	h.keyed("p")
 	if card := h.card(); !slices.Equal(card.Picked, []string{"side"}) || card.Session.Auto != "work" {
 		t.Fatalf("the card picks %q, auto naming %q; want side, its own pin, and work", card.Picked, card.Session.Auto)
@@ -369,7 +373,7 @@ func TestASessionsPageListsPForItsOwnPinWhileTheRouterDoesntAnswer(t *testing.T)
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
 	h.start()
 	h.withLines(promptedLines(2, start.Add(-30*time.Minute)))
-	h.openPage()
+	h.openPage(idD28C)
 
 	h.stopRouter()
 	h.tickUntilAsked()
@@ -402,7 +406,7 @@ func TestASessionsPageFollowsItsNewestTurnTillAnotherIsChosen(t *testing.T) {
 // with the traffic.
 func TestOnASessionsPageALookBrightensItsWindowsAndTheStreamNothing(t *testing.T) {
 	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
-	h.openPage()
+	h.openPage(idD28C)
 	h.settle()
 
 	doc := four()
