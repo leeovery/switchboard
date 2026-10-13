@@ -522,6 +522,39 @@ func TestHistorysDayCountsABillionTokensInBillions(t *testing.T) {
 	}
 }
 
+// behindLocal is a time zone twelve hours behind local time at ledgerNow, in
+// which each local midnight falls at noon the day before.
+func behindLocal() *time.Location {
+	_, offset := ledgerNow.Zone()
+	return time.FixedZone("behind", offset-12*60*60)
+}
+
+func TestHistoryNamesEachDayByItsLocalDateWhateverZoneNowIsIn(t *testing.T) {
+	var out bytes.Buffer
+	if err := cli.WriteHistory(&out, views.History{Days: aDayOfARequest}, ledger.Pricing, october(5, 0, 0, 0), ledgerNow.In(behindLocal())); err != nil ||
+		!strings.HasPrefix(out.String(), "Wed 7 Oct 2026, so far\n") {
+		t.Errorf("history at %v printed\n%s(%v)\nwant today's table headed Wed 7 Oct 2026, so far", ledgerNow.In(behindLocal()), out.String(), err)
+	}
+}
+
+func TestHistorySaysItHasNoRequestsSinceTheLocalDayItStartsWhateverZoneNowIsIn(t *testing.T) {
+	var out bytes.Buffer
+	const want = "no requests since Mon 5 Oct 2026\n"
+	if err := cli.WriteHistory(&out, views.History{}, ledger.Pricing, october(5, 0, 0, 0), ledgerNow.In(behindLocal())); err != nil || out.String() != want {
+		t.Errorf("history at %v printed\n%s(%v)\nwant\n%s", ledgerNow.In(behindLocal()), out.String(), err, want)
+	}
+}
+
+func TestHistoryWindowsSaysItHasNoReadingsSinceTheLocalDayItStartsWhateverZoneNowIsIn(t *testing.T) {
+	deps := testDeps(nil, t.TempDir())
+	deps.Now = func() time.Time { return ledgerNow.In(behindLocal()) }
+	configure(t, deps)
+	const want = "no readings since Tue 8 Sep 2026\n"
+	if got := run(t, deps, "history", "--windows", "--pretty"); got != (result{stdout: want}) {
+		t.Errorf("switchboard history --windows --pretty at %v = %+v, want it to print\n%s", ledgerNow.In(behindLocal()), got, want)
+	}
+}
+
 func TestHistoryPassesOverADayOfNoAccountsUnread(t *testing.T) {
 	// A day of no accounts whose date isn't one never fails the text.
 	days := append([]views.Day{{Version: 2, Day: "2026-13-45"}}, aDayOfARequest...)

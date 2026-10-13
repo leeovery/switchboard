@@ -167,8 +167,8 @@ func (p *eventsText) follow(h events.Held) error {
 	told := p.telling.Row(h, now)
 	row := indented(eventRow(told, now))
 	if p.day.IsZero() || !prose.SameDay(now, p.day, told.At) {
-		p.day = told.At
-		if err := (dayTable{day: told.At}).writeHeading(p.out, now, false); err != nil {
+		p.day = dayOf(now, told.At)
+		if err := (dayTable{day: p.day}).writeHeading(p.out, now, false); err != nil {
 			return err
 		}
 	}
