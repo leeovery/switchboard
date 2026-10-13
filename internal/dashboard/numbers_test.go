@@ -23,10 +23,10 @@ var (
 // sections shown at first, of overviewWorld's sessions and what the stream
 // tells of them.
 func sessionsShown(width, height int) (Frame, status.Document) {
-	doc, sessions, traffic := overviewWorld()
+	doc, sessions, stream := overviewWorld()
 	f := frameOf(width, height)
 	f.Sections = f.Sections.Toggled(SectionSessions)
-	f.Sessions, f.Traffic = sessions, traffic
+	f.Sessions, f.Stream = sessions, stream
 	return f, doc
 }
 
@@ -35,7 +35,7 @@ func TestTheOverviewNamesEachNumberItDrawsByWhatItIs(t *testing.T) {
 	byAccount.By = ByAccount
 	alone := routerDoc("work", 0, readAccount("work", sessionOf(0.6, 2*time.Hour), weekOf(0.4, 3*day)))
 	withSessions, overview := sessionsShown(160, 60)
-	sent := []views.Sent{{Request: "a", Session: idC61B, Account: "side", At: routedAt}, {Request: "b", Session: idC61B, Account: "side", At: routedAt}}
+	sent := []views.Told{{Request: "a", Session: idC61B, Account: "side", Sent: routedAt}, {Request: "b", Session: idC61B, Account: "side", Sent: routedAt}}
 	withSessions.Traces = views.Traces{}.Told(sent, routedAt)
 	tests := []struct {
 		name string
@@ -171,33 +171,57 @@ func TestAnAnswersTokensAreNoNumber(t *testing.T) {
 // The watch compares the page's numbers for the request stream's events only
 // where they send a request, which the traces count, or move a seat, which
 // re-patches the sessions counted: whatever else the stream tells, as the
-// traffic, has to change no number, or it'd change unlit. So every field of
-// the traffic but its moves is set here, each call doing one thing of each.
+// traffic and as the views read it, has to change no number, or it'd change
+// unlit. So every field of each but its moves is set here, each call and
+// each request doing one thing of each.
 func TestTheTrafficChangesNoNumberButByItsMoves(t *testing.T) {
 	f, doc := sessionsShown(160, 60)
 	plug := func(account, session, model string) Plug {
 		return Plug{Account: account, Seat: Seat{Session: session, Model: model}}
 	}
-	maps.Copy(f.Traffic.Calls, map[Plug]Call{
-		plug("side", idD28C, haiku):    {Doing: Asking, Since: routedAt, New: true, Pulse: Pulse{Along: 0.5}, Pulsing: true},
-		plug("side", id7F3A, sonnet):   {Doing: Answered, Tokens: 3400, Exact: true},
-		plug("side", idDB8A, opus):     {Doing: Refused, Status: 429, Pulse: Pulse{Along: 0.5, Back: true, Red: true}, Pulsing: true},
-		plug("personal", id9C2E, opus): {Doing: Throttled, Status: 529, Shimmer: 3},
-	})
+	f.Traffic = Traffic{Live: true, Calls: map[Plug]Call{
+		plug("side", idC61B, opus):       {Doing: Streaming, Tokens: 1200},
+		plug("side", idD28C, haiku):      {Doing: Asking, Since: routedAt, New: true, Pulse: Pulse{Along: 0.5}, Pulsing: true},
+		plug("side", id7F3A, sonnet):     {Doing: Answered, Tokens: 3400, Exact: true},
+		plug("side", idDB8A, opus):       {Doing: Refused, Status: 429, Pulse: Pulse{Along: 0.5, Back: true, Red: true}, Pulsing: true},
+		plug("personal", id9C2E, opus):   {Doing: Throttled, Status: 529, Shimmer: 3},
+		plug("personal", id41E0, sonnet): {Doing: Streaming, Tokens: 860},
+	}}
 	f.Traffic.Seen = map[Plug]time.Time{plug("side", idDB8A, opus): routedAt}
-	traffic := reflect.ValueOf(f.Traffic)
-	for i := range traffic.NumField() {
-		if name := traffic.Type().Field(i).Name; name != "Moves" && traffic.Field(i).IsZero() {
-			t.Fatalf("the traffic leaves %s unset, want it set, for the test to hold it to changing no number", name)
-		}
+	told := func(request, account, session, model string) views.Told {
+		return views.Told{Request: request, Session: session, Model: model, Account: account, Sent: routedAt.Add(-20 * time.Second), Heard: routedAt}
 	}
+	asking, answered, lost := told("r4", "side", idD28C, haiku), told("r5", "side", id7F3A, sonnet), told("r6", "side", id7F3A, sonnet)
+	answered.First, answered.Chars, answered.Ended, answered.Status = routedAt.Add(-19*time.Second), 3400*views.CharsPerToken, routedAt, 200
+	lost.Lost = true
+	refused, throttled, check := told("r7", "side", idDB8A, opus), told("r8", "personal", id9C2E, opus), told("r9", "work", "", "")
+	refused.Verdict, refused.Status = views.VerdictLimited, 429
+	throttled.Verdict, throttled.Status = views.VerdictThrottled, 529
+	check.Check = true
+	for _, r := range []views.Told{asking, answered, lost, refused, throttled, check} {
+		f.Stream.Requests[r.Request] = r
+	}
+	setButItsMoves(t, "traffic", f.Traffic)
+	setButItsMoves(t, "stream", f.Stream)
 	quiet := f
-	quiet.Traffic = Traffic{}
+	quiet.Traffic, quiet.Stream = Traffic{}, views.Stream{}
 	if slices.Equal(f.Draw(doc, routedAt), quiet.Draw(doc, routedAt)) {
 		t.Fatal("the page is drawn alike with the traffic and without it, want SESSIONS drawing what it tells")
 	}
 	if changed := changedOf(quiet.Numbers(doc, routedAt), f.Numbers(doc, routedAt)); len(changed) > 0 {
 		t.Errorf("the traffic changed %+v, want no number changed", changed)
+	}
+}
+
+// setButItsMoves fails the test where the stream, as the traffic or as the
+// views read it, leaves a field but its Moves unset.
+func setButItsMoves(t *testing.T, named string, stream any) {
+	t.Helper()
+	v := reflect.ValueOf(stream)
+	for i := range v.NumField() {
+		if name := v.Type().Field(i).Name; name != "Moves" && v.Field(i).IsZero() {
+			t.Fatalf("the %s leaves %s unset, want it set, for the test to hold it to changing no number", named, name)
+		}
 	}
 }
 
@@ -217,11 +241,12 @@ func changedOf(was, is map[Number]string) []Number {
 // where StreamNumbered says the page may draw one they change: every page,
 // with any sections shown, grouped either way, is held to it.
 func TestOnlyAPageStreamNumberedDrawsANumberTheStreamChanges(t *testing.T) {
-	sent := []views.Sent{
-		{Request: "a", Session: idC61B, Account: "side", At: routedAt},
-		{Request: "b", Session: id41E0, Account: "personal", At: routedAt},
+	sent := []views.Told{
+		{Request: "a", Session: idC61B, Account: "side", Sent: routedAt},
+		{Request: "b", Session: id41E0, Account: "personal", Sent: routedAt},
 	}
 	move := Move{Seat: Seat{Session: idD28C, Model: opus}, From: "side", To: "personal", At: routedAt}
+	moved := views.Moved{Session: idD28C, Model: opus, From: "side", To: "personal", At: routedAt}
 	usageAlone := Sections{}.Toggled(SectionRouting).Toggled(SectionComing).Toggled(SectionLately)
 	shown := []Sections{{}, Sections{}.Toggled(SectionSessions), usageAlone, usageAlone.Toggled(SectionRouting), usageAlone.Toggled(SectionSessions)}
 	changing := 0
@@ -232,7 +257,7 @@ func TestOnlyAPageStreamNumberedDrawsANumberTheStreamChanges(t *testing.T) {
 				quiet.View, quiet.Sections, quiet.By = view, sections, by
 				streamed := quiet
 				streamed.Traces = views.Traces{}.Told(sent, routedAt)
-				streamed.Traffic.Moves = []Move{move}
+				streamed.Traffic.Moves, streamed.Stream.Moves = []Move{move}, []views.Moved{moved}
 				changed := changedOf(quiet.Numbers(doc, routedAt), streamed.Numbers(doc, routedAt))
 				if len(changed) == 0 {
 					continue

@@ -1,11 +1,11 @@
 package dashboard
 
 import (
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -51,27 +51,7 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 // them, of the router's listing as the request stream has moved and seen
 // them since.
 func (f Frame) running(doc status.Document, now time.Time) []views.Running {
-	return views.RunningOf(f.Moment(doc, now), f.seenListing())
-}
-
-// seenListing is the listing, each of its sessions' models last seen as
-// lastSeen has it: as the router listed it, or later, as the request stream
-// told of it.
-func (f Frame) seenListing() []status.Session {
-	listing := f.listing()
-	if len(f.Traffic.Seen) == 0 {
-		return listing
-	}
-	seen := make([]status.Session, len(listing))
-	for i, s := range listing {
-		assignments := slices.Clone(s.Assignments)
-		for j, a := range assignments {
-			assignments[j].LastSeen = f.lastSeen(seated{session: s, assignment: a})
-		}
-		s.Assignments = assignments
-		seen[i] = s
-	}
-	return seen
+	return views.RunningOf(f.Moment(doc, now), f.Sessions, f.Stream)
 }
 
 // runningForm is how SESSIONS draws a session running: the rows it takes;
@@ -123,10 +103,10 @@ func (f Frame) drawRunning(c *canvas, m status.Moment, running []views.Running, 
 // trace; then its trace, and its rate right-aligned at the last column.
 func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, column, y int) {
 	now := m.Now
-	seen := runningSeen(r.LastSeen, now)
-	doing := f.runningDoing(r)
+	seen := runningSeen(r.Activity.LastSeen, now)
+	doing := runningDoing(r.Activity)
 	c.line(column, y, line{
-		f.runningID(r, now),
+		runningIDOf(r, now),
 		{padded(truncate(r.Family, familyCells), familyCells), mutedInk},
 		{strings.Repeat(" ", max(seenCells-len(seen), 0)) + seen, dimInk},
 		spaces(beforeDoing),
@@ -144,24 +124,17 @@ func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, column, 
 // column and what it's doing right-aligned; on the second, why it's there,
 // from the name column.
 func (f Frame) narrowRunning(c *canvas, m status.Moment, r views.Running, column, y int) {
-	c.line(column, y, line{f.runningID(r, m.Now)})
-	c.right(f.Width, y, line{f.runningDoing(r)})
+	c.line(column, y, line{runningIDOf(r, m.Now)})
+	c.right(f.Width, y, line{runningDoing(r.Activity)})
 	c.line(column, y+1, line{{r.Why.String(), dimInk}}.fit(f.Width-column))
 }
 
-// runningID is the session running r's id, and the blanks after it: bold
-// text.primary while it's busy, with a request in flight, as the router
-// listed it or the request stream tells, or seen within busyWithin of now;
-// else text.muted.
-func (f Frame) runningID(r views.Running, now time.Time) span {
+// runningIDOf is the session running r's id, and the blanks after it: bold
+// text.primary while it's busy at now, as its Activity's Busy says, with a
+// request in flight or seen in the last minute; else text.muted.
+func runningIDOf(r views.Running, now time.Time) span {
 	id := span{padded(status.ShownID(r.Session), runningID), mutedInk}
-	busy := r.InFlight != "" || now.Sub(r.LastSeen) < busyWithin
-	for _, model := range r.Models {
-		if c, ok := f.Traffic.call(runningPlug(r, model)); ok && c.Doing.InFlight() {
-			busy = true
-		}
-	}
-	if busy {
+	if r.Activity.Busy(now) {
 		id.ink = titleInk
 	}
 	return id
@@ -176,40 +149,28 @@ func runningSeen(seen, now time.Time) string {
 	return status.SeenAgo(now, seen)
 }
 
-// runningDoing is what the session running r is doing, as the request
-// stream tells of its models, where it tells of any; else as the router
-// listed it: answering, with its tokens so far where the stream has counted
-// any, as "↓ ~1.2k", or "↓" alone; asking, "↑ ask"; else idle.
-func (f Frame) runningDoing(r views.Running) span {
-	told, asking := false, false
-	for _, model := range r.Models {
-		c, ok := f.Traffic.call(runningPlug(r, model))
-		if ok && c.Doing == Streaming {
-			return span{answered(c), doingInk}
-		}
-		told, asking = told || ok, asking || ok && c.Doing.InFlight()
-	}
-	switch {
-	case asking, !told && r.InFlight == status.Asking:
+// runningDoing is what a session running is doing, as SESSIONS says its
+// Activity: answering, with its tokens so far, as "↓ ~1.2k", or "↓" alone
+// till the stream counts any; asking, "↑ ask", as it says while throttled,
+// to be sent again; else idle, as it says while refused, having no word of
+// its own for that.
+func runningDoing(a views.Activity) span {
+	switch a.Doing {
+	case views.Answering:
+		return span{answered(a), doingInk}
+	case views.Asking, views.Throttled:
 		return span{"↑ ask", doingInk}
-	case !told && r.InFlight == status.Answering:
-		return span{"↓", doingInk}
 	}
 	return span{"idle", faintInk}
 }
 
-// answered is how much of the call's answer has streamed, as "↓ ~1.2k": "↓"
-// alone till the stream has counted any of it.
-func answered(c Call) string {
-	if c.Tokens == 0 {
+// answered is how much of an answer has streamed, as "↓ ~1.2k": "↓" alone
+// till the stream has counted any of it.
+func answered(a views.Activity) string {
+	if a.Tokens() == 0 {
 		return "↓"
 	}
-	return c.streamed()
-}
-
-// runningPlug is where the session running r's model is plugged in.
-func runningPlug(r views.Running, model string) Plug {
-	return Plug{Account: r.Account, Seat: Seat{Session: r.Session, Model: model}}
+	return "↓ ~" + prose.Tokens(a.Tokens())
 }
 
 // runningCount says how many sessions run, and how many on each of m's

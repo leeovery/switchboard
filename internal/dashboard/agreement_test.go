@@ -8,6 +8,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/status/statustest"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // At each hard moment, the views that say a fact of an account say the same
@@ -77,7 +78,7 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 		now: now, moment: m,
 		usage:      newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, labelsOf(m))),
 		routing:    f.routingTableOf(doc, now),
-		card:       RoutingRows(m, nil),
+		card:       RoutingRows(m, nil, views.Stream{}),
 		coming:     f.upcoming(doc, now),
 		statusLine: f.pageStatus(doc, now),
 		day:        Frame{Policy: claudeLike, Span: Day},

@@ -34,7 +34,8 @@ type SessionPage struct {
 	// the router doesn't list it.
 	Pin string `json:"pin,omitempty"`
 	// Started is when its first request came, and Resumed the latest time it
-	// came back after comeBack or more without one: zero where it never did.
+	// came back after an IdleHour or more without one: zero where it never
+	// did.
 	Started time.Time `json:"started,omitzero"`
 	Resumed time.Time `json:"resumed,omitzero"`
 	// KeptUntil is, of one ended, the date of the last day the ledger keeps
@@ -176,11 +177,6 @@ func (r SessionsRead) Named(running []status.Session) []string {
 	return ids
 }
 
-// comeBack is how long a session goes without a request for the next to
-// bring it back, as after an idle hour the router chooses its account
-// afresh.
-const comeBack = time.Hour
-
 // SessionPageOf builds the page of the session with the given id from src:
 // what the router says of it, where it lists it, and what every line of it
 // the ledger holds tells, whatever day each is of, with the requests of the
@@ -196,7 +192,7 @@ func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 	s := storyOf(requests, src.Prices, today)
 	listed := listedFrom(id, s)
 	if src.Routed != nil {
-		listed.run(*src.Routed, s, src.Now)
+		listed.run(*src.Routed, s, src.Now, hearing{})
 	}
 	page := SessionPage{
 		Session: listed.Session, Dir: listed.Dir, Account: listed.Account, Model: listed.Model, Running: listed.Running, LastSeen: listed.LastSeen,
@@ -268,11 +264,11 @@ func ended(l *ledger.Line) time.Time {
 }
 
 // resumedAt returns when requests, a session's, oldest first, last came
-// back after comeBack or more without one: zero where they never did.
+// back after an IdleHour or more without one: zero where they never did.
 func resumedAt(requests []request) time.Time {
 	var resumed time.Time
 	for i := 1; i < len(requests); i++ {
-		if requests[i].At.Sub(requests[i-1].At) >= comeBack {
+		if requests[i].At.Sub(requests[i-1].At) >= IdleHour {
 			resumed = requests[i].At.UTC()
 		}
 	}

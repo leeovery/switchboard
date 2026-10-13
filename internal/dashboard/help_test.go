@@ -227,8 +227,8 @@ func TestOverviewHelpKeysEachMarkAsThePageDrawsIt(t *testing.T) {
 		explains(t, "ROUTING", line{pinnedSpan})
 	})
 	t.Run("what a session is doing", func(t *testing.T) {
-		explains(t, "SESSIONS", line{frameOf(160, 40).runningDoing(views.Running{InFlight: status.Asking})})
-		explains(t, "SESSIONS", line{{answered(Call{Tokens: 1200}), doingInk}})
+		explains(t, "SESSIONS", line{runningDoing(views.Activity{Doing: views.Asking})})
+		explains(t, "SESSIONS", line{{answered(views.Activity{Doing: views.Answering, Chars: 4800}), doingInk}})
 	})
 	t.Run("every event's mark", func(t *testing.T) {
 		for kind, mark := range eventMarks {

@@ -126,3 +126,38 @@ func TestAMovesCostIsWhatTheListPricesIt(t *testing.T) {
 			got.Sessions, amount(got.Cost), want.Sessions, amount(want.Cost))
 	}
 }
+
+func TestTwoListingsPlaceTheSessionsAlikeWhereEachModelGoesWhereItWent(t *testing.T) {
+	listed := func(pin string, seats ...status.Assignment) status.Session {
+		return status.Session{ID: asking, Pin: pin, Assignments: seats}
+	}
+	opusOn := func(account string, seen time.Duration, inFlight string) status.Assignment {
+		return seatOn("claude-opus-5-5", "opus", account, status.ReasonNew, time.Hour, seen, inFlight)
+	}
+	haikuOn := func(account string) status.Assignment {
+		return seatOn("claude-haiku-4-5", "haiku", account, status.ReasonNew, time.Hour, time.Minute, "")
+	}
+	was := []status.Session{listed("", opusOn("work", time.Minute, ""), haikuOn("side")), {ID: idler, Assignments: []status.Assignment{opusOn("side", 0, "")}}}
+	tests := []struct {
+		name string
+		is   []status.Session
+		want bool
+	}{
+		{name: "as they were", is: was, want: true},
+		{name: "in another order", is: []status.Session{was[1], was[0]}, want: true},
+		{name: "busy, and seen again since", is: []status.Session{listed("", opusOn("work", 0, status.Answering), haikuOn("side")), was[1]}, want: true},
+		{name: "its models listed the other way round", is: []status.Session{listed("", haikuOn("side"), opusOn("work", time.Minute, "")), was[1]}, want: true},
+		{name: "a model gone elsewhere", is: []status.Session{listed("", opusOn("side", time.Minute, ""), haikuOn("side")), was[1]}},
+		{name: "a model fewer", is: []status.Session{listed("", opusOn("work", time.Minute, "")), was[1]}},
+		{name: "pinned since", is: []status.Session{listed("side", opusOn("work", time.Minute, ""), haikuOn("side")), was[1]}},
+		{name: "a session gone", is: was[:1]},
+		{name: "another in its place", is: []status.Session{was[0], {ID: gone, Assignments: []status.Assignment{opusOn("side", 0, "")}}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := views.SamePlaces(tt.is, was); got != tt.want {
+				t.Errorf("SamePlaces = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}

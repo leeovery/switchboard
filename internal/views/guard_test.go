@@ -31,13 +31,12 @@ var drawingPackages = []string{
 // milestone 7's shared rules names them.
 var readersAllowed = []string{
 	// Producers, which turn the raw data into what views read: the watch's
-	// traffic and traces, the request stream's events into the Traffic and
-	// views.Sent; its read loop, which counts the stream's lead of requests
-	// in flight, and asks whether an event moves a number; and the verbs'
-	// JSON, which passes lines and events through as the ledger and the
-	// router filed them.
+	// traffic, the request stream's events into views.Told and the Traffic;
+	// its read loop, which counts the stream's lead of requests in flight,
+	// and asks whether an event moves a number; and the verbs' JSON, which
+	// passes lines and events through as the ledger and the router filed
+	// them.
 	"internal/dashboard/watch/traffic.go",
-	"internal/dashboard/watch/traces.go",
 	"internal/dashboard/watch/stream.go:joined",
 	"internal/dashboard/watch/stream.go:Model.numbering",
 	"internal/cli/requests.go:writeLines",
@@ -82,17 +81,8 @@ var readersAllowed = []string{
 	// listed as status's text lists them.
 	"internal/cli/session.go:app.findSession",
 	"internal/cli/sessionpage.go:listed",
-	// The sessions running, as the router listed them and the request stream
-	// has moved and seen them since: when each was last seen (J6), and the
-	// sessions on each account (F12).
-	"internal/dashboard/overview_sessions.go:Frame.seenListing",
-	"internal/dashboard/traffic.go:Frame.listing",
 	// The events newer than the last look's, by their ids (J8).
 	"internal/dashboard/watch/news.go:news.looked",
-	// Whether the router's sessions are placed as they were, for the routing
-	// card to price a move afresh (F4).
-	"internal/dashboard/watch/routing.go:samePlace",
-	"internal/dashboard/watch/routing.go:samePlaces",
 }
 
 // callsAllowed are the functions and methods of rawPackages that take raw

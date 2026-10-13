@@ -330,6 +330,41 @@ func (f Frame) groupsOf(doc status.Document) [][]callRow {
 	return groups
 }
 
+// listing is the sessions as the router listed them, the request stream's
+// moves among them, as the cords and the plain list draw them: each seat a
+// move re-patches put on the account it went to, as movedIn has it, and a
+// session the router didn't list, which a move brought on, first, as the one
+// seen last.
+func (f Frame) listing() []status.Session {
+	repatching := f.Traffic.repatching()
+	if len(repatching) == 0 {
+		return f.Sessions
+	}
+	listing := make([]status.Session, len(f.Sessions))
+	for i, s := range f.Sessions {
+		s.Assignments = slices.Clone(s.Assignments)
+		listing[i] = s
+	}
+	moves := latestMoves(repatching)
+	for _, m := range repatching {
+		if moves[m.Seat] != m {
+			continue
+		}
+		brought := f.movedIn(m).assignment
+		i := slices.IndexFunc(listing, func(s status.Session) bool { return s.ID == m.Seat.Session })
+		if i < 0 {
+			listing = slices.Insert(listing, 0, status.Session{ID: m.Seat.Session, Assignments: []status.Assignment{brought}})
+			continue
+		}
+		if j := slices.IndexFunc(listing[i].Assignments, func(a status.Assignment) bool { return a.Model == m.Seat.Model }); j >= 0 {
+			listing[i].Assignments[j] = brought
+		} else {
+			listing[i].Assignments = append(listing[i].Assignments, brought)
+		}
+	}
+	return listing
+}
+
 // movedIn is the seat the move m brought onto the account it went to, put
 // there as it moved: as the router listed it before it moved, or, where it
 // didn't, as the move tells of it, its model named as the router names it

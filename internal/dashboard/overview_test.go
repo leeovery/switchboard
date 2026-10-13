@@ -788,8 +788,8 @@ func TestAFoldedHeadingSaysWhatItHoldsThenWhyOrThatItHasMore(t *testing.T) {
 
 func TestAFoldedSectionsHeadingSaysOnceThatThereIsNoRoomAsTheFrameAndTheDesignWordIt(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
-	doc, sessions, traffic := overviewWorld()
-	f := Frame{Width: 160, Height: 39, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Traffic: traffic, Sections: gs}
+	doc, sessions, stream := overviewWorld()
+	f := Frame{Width: 160, Height: 39, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream, Sections: gs}
 	const stem = "overview-everything-160x39"
 	heldTo(t, stem, reference(t, stem), screenOf(t, f.Draw(doc, routedAt)), region{top: 35, bottom: 35, right: 159}, shadeOf(nord.Canvas()), nil, nil)
 

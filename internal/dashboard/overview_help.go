@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // overviewHelp are the Overview's parts as help explains them, a section
@@ -82,7 +83,7 @@ func overviewHelp() []helpPart {
 			},
 			glyphs: []glyph{
 				{drawn: line{{"↑ ask", doingInk}}, means: "asking: its request sent, its answer not begun"},
-				{drawn: line{{answered(Call{Tokens: 1200}), doingInk}}, means: "answering, its tokens so far at four characters a token"},
+				{drawn: line{{answered(views.Activity{Doing: views.Answering, Chars: 1200 * views.CharsPerToken}), doingInk}}, means: "answering, its tokens so far at four characters a token"},
 			},
 		},
 		{

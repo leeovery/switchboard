@@ -106,11 +106,11 @@ func TestATracesRateIsBoldUnlessNoneOrOutOfThePool(t *testing.T) {
 // the newest cell's, taken at routedAt, its rate.
 func tracedWorld() (status.Document, []status.Session, views.Traces) {
 	doc, listed := autoRouting()
-	var sent []views.Sent
+	var sent []views.Told
 	burst := func(session, account string, n int, at time.Time) {
 		for i := range n {
 			id := fmt.Sprintf("%s-%s-%s-%d", session, account, at.Format("150405"), i)
-			sent = append(sent, views.Sent{Request: id, Session: session, Account: account, At: at})
+			sent = append(sent, views.Told{Request: id, Session: session, Account: account, Sent: at})
 		}
 	}
 	burst("personal-0", "personal", 4, tracedClock(14, 30, 1))
@@ -234,16 +234,16 @@ func pageScale(f Frame, doc status.Document) float64 {
 // all fall in the minute after it, its busiest ¾ of n, where 60 cells wide,
 // as ROUTING's own at 160 columns, its busiest is n.
 func burst(session, account string, n int) views.Traces {
-	sent := make([]views.Sent, n)
+	sent := make([]views.Told, n)
 	for i := range sent {
-		sent[i] = views.Sent{Request: fmt.Sprintf("%s-%d", session, i), Session: session, Account: account, At: tracedClock(14, 32, 15)}
+		sent[i] = views.Told{Request: fmt.Sprintf("%s-%d", session, i), Session: session, Account: account, Sent: tracedClock(14, 32, 15)}
 	}
 	return views.Traces{}.Told(sent, routedAt)
 }
 
 func TestEveryTraceOnScreenSharesTheBusiestColumnAsItsScale(t *testing.T) {
 	doc, listed, traces := tracedWorld()
-	quiet := views.Traces{}.Told([]views.Sent{{Request: "a", Session: "personal-0", Account: "personal", At: tracedClock(14, 30, 1)}}, routedAt)
+	quiet := views.Traces{}.Told([]views.Told{{Request: "a", Session: "personal-0", Account: "personal", Sent: tracedClock(14, 30, 1)}}, routedAt)
 	routingAndSessions := SectionsNamed([]string{"routing", "sessions"})
 	tests := []struct {
 		name          string

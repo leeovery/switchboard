@@ -1001,10 +1001,10 @@ func namedOn(c *canvas, named string) []cell {
 }
 
 func TestAnAccountOutOfThePoolIsNamedFaintWhereverTheOverviewNamesIt(t *testing.T) {
-	doc, sessions, traffic := overviewWorld()
+	doc, sessions, stream := overviewWorld()
 	doc.Pin = status.Pin{Accounts: []string{"side"}, Since: routedClock(1, 14, 2)}
 	doc = doc.WorkedOut(claudeLike)
-	f := Frame{Width: 160, Height: 40, View: Overview, Policy: claudeLike, Sessions: sessions, Traffic: traffic}
+	f := Frame{Width: 160, Height: 40, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream}
 	sections := map[string]section{"ROUTING": f.routingSection(doc, routedAt), "SESSIONS": f.sessionsSection(doc, routedAt)}
 	for name, s := range sections {
 		t.Run(name, func(t *testing.T) {

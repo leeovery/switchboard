@@ -62,6 +62,10 @@ type ListedSession struct {
 	// Moved is the move that brought it to Account, where a request of it
 	// today made it: nil where none did.
 	Moved *Move `json:"moved,omitempty"`
+	// Activity is what it's doing, as the router lists it and the request
+	// stream tells, its lines telling when its last answer ended; or, of one
+	// the router doesn't list, as its lines tell. It's the views' alone.
+	Activity Activity `json:"-"`
 }
 
 // SessionModel is a model of a running session: the account its requests go
@@ -96,6 +100,14 @@ type SessionSources struct {
 	// Running are the sessions the router lists, as GET /sessions gives
 	// them: none without the router.
 	Running []status.Session
+	// Unlisted is set where no router lists the sessions, as while it's
+	// gone, or the dashboard probes: one whose last request came within the
+	// IdleHour is idle, rather than ended, as the router's own rule keeps a
+	// session.
+	Unlisted bool
+	// Stream is what the request stream has told of the sessions' requests:
+	// zero where it's unheard, as by the verbs.
+	Stream Stream
 	// Ledger reads the request ledger's lines, and its days' summaries, which
 	// name the sessions of each.
 	Ledger Ledger
@@ -105,10 +117,12 @@ type SessionSources struct {
 }
 
 // ListSessions builds the List from src: the sessions the router lists, and
-// those with requests today, each with what the router says of it and what
-// its lines tell, of whatever day, as the ledger's Sessions reads them.
+// those with requests today, each with what the router says of it, what the
+// request stream tells of its requests, and what its lines tell, of
+// whatever day, as the ledger's Sessions reads them.
 func ListSessions(src SessionSources) SessionList {
 	today := Today(src.Now)
+	h := src.Stream.hearing()
 	read := src.Ledger.Sessions(runningIDs(src.Running), nil)
 	routed := make(map[string]status.Session, len(src.Running))
 	for _, s := range src.Running {
@@ -123,7 +137,9 @@ func ListSessions(src SessionSources) SessionList {
 		}
 		listed := listedFrom(id, s)
 		if running {
-			listed.run(session, s, src.Now)
+			listed.run(session, s, src.Now, h)
+		} else {
+			listed.Activity = s.unlisted(src.Now, src.Unlisted)
 		}
 		listed.Moved = s.movedOnto(listed.Model, listed.Account)
 		list.Sessions = append(list.Sessions, listed)
@@ -172,13 +188,29 @@ func listedFrom(id string, s *story) ListedSession {
 	return listed
 }
 
-// run has the session running, as the router says of it at now: its models;
-// the account its conversation's model goes to, and that model, as its story
-// tells its conversation's, else as the router last routed it; its
-// directory, of the model seen most lately that names one, where any does;
-// what it's doing; and what moving it would cost, its story telling the
-// rest.
-func (l *ListedSession) run(session status.Session, s *story, now time.Time) {
+// unlisted is what a session the router doesn't list is doing at now, as
+// its story tells, unlisted saying whether the router lists any: ended, as
+// its last request came; but where no router lists sessions, idle, since its
+// last answer ended, while that request came within the IdleHour, as the
+// router's own rule keeps a session.
+func (s *story) unlisted(now time.Time, unlisted bool) Activity {
+	last := s.last.At.UTC()
+	if unlisted && now.Sub(last) <= IdleHour {
+		return Activity{Since: ended(s.last).UTC(), LastSeen: last}
+	}
+	return Activity{Doing: Ended, Since: last, LastSeen: last}
+}
+
+// run has the session running, as the router says of it at now, h hearing
+// what the request stream told of it: its models; the account its
+// conversation's model goes to, and that model, as its story tells its
+// conversation's, else as the router last routed it; its directory, of the
+// model seen most lately that names one, where any does; what its requests
+// in flight are doing, as the router listed them, and what it's doing, as
+// the stream tells too, idle since the later of when the router and the
+// stream last saw it and when its last line, where it has one, gives its
+// answer's end; and what moving it would cost, its story telling the rest.
+func (l *ListedSession) run(session status.Session, s *story, now time.Time, h hearing) {
 	l.Running, l.Ended = true, time.Time{}
 	model := s.conversationModel()
 	if i := slices.IndexFunc(session.Assignments, func(a status.Assignment) bool { return a.Model == model }); i >= 0 {
@@ -193,6 +225,10 @@ func (l *ListedSession) run(session status.Session, s *story, now time.Time) {
 		l.Models = append(l.Models, SessionModel{Model: a.Model, Account: a.Account, Reason: a.Reason})
 		l.LastSeen = score.Later(l.LastSeen, a.LastSeen.UTC())
 		l.State = busier(l.State, a.InFlight)
+	}
+	l.Activity = h.session(session).inUTC()
+	if l.Activity.Doing == Idle && s.last != nil {
+		l.Activity.Since = score.Later(l.Activity.Since, ended(s.last).UTC())
 	}
 	flying := func(model string) bool {
 		return slices.ContainsFunc(session.Assignments, func(a status.Assignment) bool { return a.Model == model && a.InFlight != "" })

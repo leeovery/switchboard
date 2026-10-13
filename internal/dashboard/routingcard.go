@@ -9,6 +9,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // numbered is how many accounts have a number that picks them on the routing
@@ -112,10 +113,11 @@ type Figure struct {
 }
 
 // RoutingRows are the routing card's rows of the moment m, with the sessions
-// the router listed: 0 auto's, then an account's each, in the config's
-// order, each with its state, as closedBy says, its windows' use, and its
-// sessions running.
-func RoutingRows(m status.Moment, sessions []status.Session) []RoutingRow {
+// the router listed, as the request stream s has moved and seen them since:
+// 0 auto's, then an account's each, in the config's order, each with its
+// state, as closedBy says, its windows' use, and its sessions running, as
+// views.RunningOn counts them for ROUTING too.
+func RoutingRows(m status.Moment, sessions []status.Session, s views.Stream) []RoutingRow {
 	rows := []RoutingRow{{Key: "0", Name: "auto", Open: true, Pickable: true}}
 	for i, a := range m.Accounts {
 		session, _ := startedWindow(a)
@@ -123,7 +125,7 @@ func RoutingRows(m status.Moment, sessions []status.Session) []RoutingRow {
 		row := RoutingRow{
 			Account: a.ID, Name: name(a), Pickable: pickable(a),
 			Session: figureOf(session), Week: figureOf(week),
-			Running: running(sessions, a.ID, m.Now),
+			Running: views.RunningOn(sessions, s, a.ID, m.Now),
 		}
 		row.Reason, row.Capped = closedBy(a, m.Now)
 		row.Open = row.Reason == ""
@@ -168,13 +170,6 @@ func till(what string, t time.Time, now time.Time) string {
 		return what
 	}
 	return what + " till " + status.Dated(now, t)
-}
-
-// running counts the sessions listed that run on the account with the given
-// id at now, as its card on the Overview counts them, without what the
-// request stream tells.
-func running(sessions []status.Session, id string, now time.Time) int {
-	return len(Frame{}.busy(sessions, id, now))
 }
 
 // figureOf is the use of an account's window as it stands, as usage reads it:

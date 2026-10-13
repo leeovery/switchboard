@@ -61,3 +61,24 @@ func conversationMove(id string, accounts []string, listed []ListedSession) (led
 	}
 	return *listed[i].MoveCost, true
 }
+
+// SamePlaces reports whether two listings of the router's sessions place
+// them alike, as which of them a pin moves, and from where, reads them: the
+// same sessions, in whatever order, each pinned alike, with the same models,
+// each going to the same account, whichever it used last. A session busy or
+// seen again, as most are from look to look, is placed as it was: the
+// routing card prices its move afresh only once its place changes.
+func SamePlaces(a, b []status.Session) bool {
+	return len(a) == len(b) && !slices.ContainsFunc(a, func(s status.Session) bool {
+		i := slices.IndexFunc(b, func(t status.Session) bool { return t.ID == s.ID })
+		return i < 0 || !samePlace(s, b[i])
+	})
+}
+
+// samePlace reports whether two listings of a session place it alike: pinned
+// alike, with the same models, each going to the same account.
+func samePlace(a, b status.Session) bool {
+	return a.Pin == b.Pin && len(a.Assignments) == len(b.Assignments) && !slices.ContainsFunc(a.Assignments, func(x status.Assignment) bool {
+		return !slices.ContainsFunc(b.Assignments, func(y status.Assignment) bool { return x.Model == y.Model && x.Account == y.Account })
+	})
+}
