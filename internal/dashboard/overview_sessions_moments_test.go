@@ -82,3 +82,31 @@ func checkROUTINGCountsSESSIONS(t *testing.T, f Frame, doc status.Document, now 
 		}
 	}
 }
+
+// At each moment the views have to tell what a session is doing at, a move
+// while it runs among them, the routing card counts as many sessions running
+// on each account as ROUTING draws there: one count, of the router's listing
+// as the request stream has moved and seen it since.
+func TestTheRoutingCardCountsTheSessionsROUTINGDrawsAtEachHardMoment(t *testing.T) {
+	moved := false
+	for _, hm := range viewstest.SessionMoments() {
+		moved = moved || len(hm.Stream.Moves) > 0
+		t.Run(hm.Name, func(t *testing.T) {
+			if hm.Sessions == nil {
+				t.Skip("no router lists the sessions: ROUTING counts the document's")
+			}
+			f := frameOf(160, 40)
+			f.Sessions, f.Stream = hm.Sessions, hm.Stream
+			drawn := f.Numbers(hm.Doc, hm.Now)
+			for _, row := range RoutingRows(f.Moment(hm.Doc, hm.Now), hm.Sessions, hm.Stream)[1:] {
+				counted, ok := drawn[Number{Kind: NumberSessions, Account: row.Account}]
+				if want := sessionsSpan(row.Running).text; !ok || counted != want {
+					t.Errorf("ROUTING draws %q on %s, drawn %t; want the card's %q", counted, row.Account, ok, want)
+				}
+			}
+		})
+	}
+	if !moved {
+		t.Fatal("no moment moves a session as it runs, want one, for the card to count it where it went")
+	}
+}

@@ -57,7 +57,7 @@ func (m Model) openRouting() (tea.Model, tea.Cmd) {
 	}
 	mo := m.moment(m.now())
 	picked := standing(mo)
-	rows := dashboard.RoutingRows(mo, m.sessions)
+	rows := dashboard.RoutingRows(mo, m.sessions, m.traffic.stream())
 	cursor := max(slices.IndexFunc(rows, func(row dashboard.RoutingRow) bool { return slices.Contains(picked, row.Account) }), 0)
 	m.routing = routing{card: m.routing.card + 1, cursor: cursor, priced: pricing{listing: m.routing.priced.listing}}
 	return m.cover(routingOpen), nil
@@ -118,7 +118,7 @@ func (m Model) picks(mo status.Moment) []string {
 // and esc closes the card, changing nothing. The rest do nothing.
 func (m Model) routingKey(key string) (tea.Model, tea.Cmd) {
 	mo := m.moment(m.now())
-	rows := dashboard.RoutingRows(mo, m.sessions)
+	rows := dashboard.RoutingRows(mo, m.sessions, m.traffic.stream())
 	r := m.routing
 	r.cursor, r.picked = min(r.cursor, len(rows)-1), m.picks(mo)
 	switch key {
@@ -216,12 +216,12 @@ func alters(picked, named, sent []string, move bool) bool {
 }
 
 // routingCard is the routing card as the picker stands, its rows read afresh
-// from the document on screen at now, with the sessions listed: those
-// picked, those of them enter leaves out of the order, as sendable says, and
-// what the order moves.
+// from the document on screen at now, with the sessions listed, as the
+// request stream has moved and seen them since: those picked, those of them
+// enter leaves out of the order, as sendable says, and what the order moves.
 func (m Model) routingCard(now time.Time) dashboard.RoutingCard {
 	r, mo := m.routing, m.moment(now)
-	rows := dashboard.RoutingRows(mo, m.sessions)
+	rows := dashboard.RoutingRows(mo, m.sessions, m.traffic.stream())
 	picked := m.picks(mo)
 	sent := sendable(mo, picked)
 	moving := m.moving(sent)

@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // routedAt is the moment the routing frames were drawn at: Thu 1 Oct 2026,
@@ -102,7 +103,7 @@ func TestTheRoutingCardIsDrawnAsItsFrames(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.stem, func(t *testing.T) {
 			doc, sessions := routedWorld(tt.limit)
-			tt.card.Rows = RoutingRows(doc.At(routedAt, claudeLike), sessions)
+			tt.card.Rows = RoutingRows(doc.At(routedAt, claudeLike), sessions, views.Stream{})
 			f := Frame{Width: 160, Height: 37, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Card: tt.card}
 			drawn := screenOf(t, f.Draw(doc, routedAt))
 			// The frames light no row, where the design lights the cursor's,
@@ -119,7 +120,7 @@ func TestTheRoutingCardsRowsAreAutoThenEachAccountNumbered(t *testing.T) {
 	for i := range accounts {
 		accounts[i] = readAccount("a"+strconv.Itoa(i+1), sessionOf(0.1, time.Hour))
 	}
-	rows := RoutingRows(routerDoc("a1", 0, accounts...).At(now, claudeLike), nil)
+	rows := RoutingRows(routerDoc("a1", 0, accounts...).At(now, claudeLike), nil, views.Stream{})
 
 	if len(rows) != 11 {
 		t.Fatalf("%d rows, want 11: auto's, then the ten accounts'", len(rows))
@@ -168,7 +169,7 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := routerDoc("", 0, tt.account)
 			doc.Pin = status.Pin{Accounts: tt.pin}
-			row := RoutingRows(doc.At(now, claudeLike), nil)[1]
+			row := RoutingRows(doc.At(now, claudeLike), nil, views.Stream{})[1]
 			got := RoutingRow{Open: row.Open, Reason: row.Reason, Capped: row.Capped, Pickable: row.Pickable}
 			if got != tt.want {
 				t.Errorf("the row is %+v, want %+v", got, tt.want)
@@ -195,7 +196,7 @@ func TestAnAccountsFiguresAreItsWindowsAsUsageReadsThem(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			row := RoutingRows(routerDoc("", 0, tt.account).At(now, claudeLike), nil)[1]
+			row := RoutingRows(routerDoc("", 0, tt.account).At(now, claudeLike), nil, views.Stream{})[1]
 			if row.Session != tt.session || row.Week != tt.week {
 				t.Errorf("the 5-hour reads %+v and the week %+v, want %+v and %+v", row.Session, row.Week, tt.session, tt.week)
 			}
@@ -206,7 +207,7 @@ func TestAnAccountsFiguresAreItsWindowsAsUsageReadsThem(t *testing.T) {
 func TestAnAccountNotReadYetIsOpenItsFiguresFaint(t *testing.T) {
 	unread := readAccount("unread")
 	unread.FetchedAt = time.Time{}
-	r := RoutingCard{Rows: RoutingRows(routerDoc("", 0, unread).At(now, claudeLike), nil)}
+	r := RoutingCard{Rows: RoutingRows(routerDoc("", 0, unread).At(now, claudeLike), nil, views.Stream{})}
 	row := r.choice(r.Rows[1], false, 76)[0]
 	if got, want := strings.TrimRight(row.plain(), " "), "□ 1 unread      open      5-hour —     week —"; got != want {
 		t.Errorf("its row reads %q, want %q", got, want)
@@ -229,7 +230,7 @@ func TestAnAccountsSessionsRunningAreThoseSeenOnItWithinTheHour(t *testing.T) {
 			{Model: "claude-haiku", Account: "work", AssignedAt: now.Add(-2 * time.Hour), LastSeen: now.Add(-time.Minute)},
 		}},
 	}
-	rows := RoutingRows(routerDoc("", 0, readAccount("work"), readAccount("side")).At(now, claudeLike), sessions)
+	rows := RoutingRows(routerDoc("", 0, readAccount("work"), readAccount("side")).At(now, claudeLike), sessions, views.Stream{})
 	if rows[1].Running != 3 || rows[2].Running != 1 {
 		t.Errorf("work runs %d and side %d, want 3 and 1: a session seen within the hour, once however many of its models are there", rows[1].Running, rows[2].Running)
 	}
@@ -333,7 +334,7 @@ func TestTheTitleAndOpeningLineFollowM(t *testing.T) {
 func TestNewSessionsCardIs15RowsTallAndOneAnAccount(t *testing.T) {
 	for _, accounts := range []int{1, 2, 3, 4} {
 		doc := routerDoc("", 0, namedAccounts(accounts)...)
-		r := RoutingCard{Rows: RoutingRows(doc.At(now, claudeLike), nil)}
+		r := RoutingCard{Rows: RoutingRows(doc.At(now, claudeLike), nil, views.Stream{})}
 		if got, want := len(r.card(Frame{Width: 160, Height: 40}).body)+chrome(true), 15+accounts; got != want {
 			t.Errorf("with %d accounts, the card is %d rows tall, want %d", accounts, got, want)
 		}
@@ -350,7 +351,7 @@ func TestNoPickMTickOrRefusalMovesTheCard(t *testing.T) {
 	}
 	for _, accounts := range []int{1, 2, 3, 4, 12} {
 		doc := routerDoc("", 0, namedAccounts(accounts)...)
-		rows := RoutingRows(doc.At(now, claudeLike), nil)
+		rows := RoutingRows(doc.At(now, claudeLike), nil, views.Stream{})
 		for _, width := range []int{52, 160} {
 			t.Run(fmt.Sprintf("%d accounts at %d columns", accounts, width), func(t *testing.T) {
 				f := Frame{Width: width, Height: 37}
@@ -510,7 +511,7 @@ func TestRowsPastTheCardsRoomScrollTheCursorsKeptInView(t *testing.T) {
 	for i := range accounts {
 		accounts[i] = readAccount("a"+strconv.Itoa(i+1), sessionOf(0.1, time.Hour))
 	}
-	rows := RoutingRows(routerDoc("a1", 0, accounts...).At(now, claudeLike), nil)
+	rows := RoutingRows(routerDoc("a1", 0, accounts...).At(now, claudeLike), nil, views.Stream{})
 	// At 30 rows, the card's 26 at most leave its rows 12 lines.
 	tests := []struct {
 		name   string
@@ -599,10 +600,10 @@ func TestTheRowTheCursorsOnIsLitAndNoOther(t *testing.T) {
 	for i := range accounts {
 		accounts[i] = readAccount("a"+strconv.Itoa(i+1), sessionOf(0.1, time.Hour))
 	}
-	twelve := RoutingCard{Rows: RoutingRows(routerDoc("a1", 0, accounts...).At(now, claudeLike), nil)}
+	twelve := RoutingCard{Rows: RoutingRows(routerDoc("a1", 0, accounts...).At(now, claudeLike), nil, views.Stream{})}
 	// The third account, at its limit, can't be picked, but takes the cursor
 	// as the rest do.
-	closed := RoutingCard{Rows: RoutingRows(routerDoc("", 0, namedAccounts(3)...).At(now, claudeLike), nil)}
+	closed := RoutingCard{Rows: RoutingRows(routerDoc("", 0, namedAccounts(3)...).At(now, claudeLike), nil, views.Stream{})}
 	if closed.Rows[3].Pickable {
 		t.Fatalf("%s can be picked, want it at its limit", closed.Rows[3].Name)
 	}
@@ -731,7 +732,7 @@ func TestOnAPhoneAnAccountsWindowsTakeARowOfTheirOwn(t *testing.T) {
 // changed as given.
 func routedCard(change func(*RoutingCard)) RoutingCard {
 	doc, sessions := routedWorld(false)
-	r := RoutingCard{Rows: RoutingRows(doc.At(routedAt, claudeLike), sessions)}
+	r := RoutingCard{Rows: RoutingRows(doc.At(routedAt, claudeLike), sessions, views.Stream{})}
 	if change != nil {
 		change(&r)
 	}
