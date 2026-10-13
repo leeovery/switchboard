@@ -1,8 +1,9 @@
 // Package sourcecheck reads the module's source, type-checked, for the guards
 // that hold packages to a rule: where a file reads a field it mustn't, uses a
-// function it mustn't, or calls one that takes what it mustn't read, and what
-// a guard lets break its rule. Tests alone import it, and its own tests keep
-// it out of every binary.
+// function it mustn't, calls one that takes what it mustn't read, or calls
+// one, the standard library's included, with arguments it mustn't give, and
+// what a guard lets break its rule. Tests alone import it, and its own tests
+// keep it out of every binary.
 package sourcecheck
 
 import (
@@ -153,10 +154,11 @@ var majorVersion = regexp.MustCompile(`^v[0-9]+$`)
 
 // check type-checks the package at importPath, its source in dir, as built
 // for this platform: of a directory read whole, its function bodies too,
-// keeping what each of its files' expressions is; of the rest, its
-// declarations alone. A package of the module type-checks past any error,
-// as what it uses of a stubbed package is unknown; the standard library's
-// type-checks clean, or the guard reads it wrong.
+// keeping what each of its files' expressions is, its type and any constant
+// value; of the rest, its declarations alone. A package of the module
+// type-checks past any error, as what it uses of a stubbed package is
+// unknown; the standard library's type-checks clean, or the guard reads it
+// wrong.
 func (l *Loader) check(importPath, dir string, std bool) (*types.Package, error) {
 	bp, err := l.ctx.ImportDir(dir, 0)
 	if err != nil {
@@ -177,7 +179,15 @@ func (l *Loader) check(importPath, dir string, std bool) (*types.Package, error)
 		IgnoreFuncBodies: !whole,
 		Error:            func(err error) { typeErrs = append(typeErrs, err) },
 	}
-	info := &types.Info{Selections: make(map[*ast.SelectorExpr]*types.Selection), Uses: make(map[*ast.Ident]types.Object), Defs: make(map[*ast.Ident]types.Object)}
+	var info *types.Info
+	if whole {
+		info = &types.Info{
+			Types:      make(map[ast.Expr]types.TypeAndValue),
+			Selections: make(map[*ast.SelectorExpr]*types.Selection),
+			Uses:       make(map[*ast.Ident]types.Object),
+			Defs:       make(map[*ast.Ident]types.Object),
+		}
+	}
 	pkg, _ := conf.Check(importPath, l.fset, files, info)
 	if std && len(typeErrs) > 0 {
 		return nil, typeErrs[0]

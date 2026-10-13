@@ -78,6 +78,12 @@ type Rule struct {
 	// Used are the functions none of which may be used, called or not, each
 	// with how using it breaks the rule, and where.
 	Used map[string]Ban
+	// Calls are the functions whose calls may break the rule, by what they're
+	// given, each with how and where, by its full name, as
+	// (*types.Func).FullName has it, the standard library's included, as
+	// "(time.Time).Format" or "fmt.Sprintf": of a package the loader stubs,
+	// by its path and the function's name, as "example.org/cells.Cut".
+	Calls map[string]CallBan
 	// Owners are the packages, as "status", whose functions and methods that
 	// take one of Fields, as their receiver or a parameter, may be called
 	// only where Allowed names them; Takes says how calling one, as
@@ -94,6 +100,11 @@ type Rule struct {
 type Ban struct {
 	Says string
 	In   []string
+}
+
+// holdsIn reports whether the ban holds in the package in dir.
+func (b Ban) holdsIn(dir string) bool {
+	return len(b.In) == 0 || slices.Contains(b.In, dir)
 }
 
 // Breach is where a file breaks a rule: in which of its declarations, as
@@ -117,34 +128,103 @@ type Use struct {
 func (r Rule) Breaches(f File) (found []Breach, allowed []Use) {
 	dir := path.Dir(f.Path)
 	for _, decl := range f.AST.Decls {
-		in := DeclName(decl)
-		var inDecl []Breach
-		ast.Inspect(decl, func(n ast.Node) bool {
-			switch n := n.(type) {
-			case *ast.SelectorExpr:
-				if sel, ok := f.Info.Selections[n]; ok && sel.Kind() == types.FieldVal {
-					if field := r.fieldRead(sel); field != "" {
-						inDecl = append(inDecl, Breach{At: n.Sel.Pos(), In: in, Says: r.Read(field)})
-					}
-				}
-			case *ast.Ident:
-				fn, ok := f.Info.Uses[n].(*types.Func)
-				if !ok {
-					break
-				}
-				switch name, says := r.called(fn, dir); {
-				case says != "":
-					inDecl = append(inDecl, Breach{At: n.Pos(), In: in, Says: says})
-				case slices.Contains(r.Allowed, name):
-					allowed = append(allowed, Use{At: n.Pos(), In: in, Name: name})
-				}
-			}
-			return true
-		})
-		slices.SortStableFunc(inDecl, func(x, y Breach) int { return cmp.Compare(x.At, y.At) })
-		found = append(found, inDecl...)
+		w := &walk{r: r, info: f.Info, dir: dir, in: DeclName(decl), judged: make(map[*ast.Ident]bool)}
+		ast.Inspect(decl, w.visit)
+		slices.SortStableFunc(w.found, func(x, y Breach) int { return cmp.Compare(x.At, y.At) })
+		found = append(found, w.found...)
+		allowed = append(allowed, w.allowed...)
 	}
 	return found, allowed
+}
+
+// walk is a walk of one of a file's declarations, named in, of the package
+// in dir, for where it breaks the rule r and the calls it makes that r
+// allows.
+type walk struct {
+	r       Rule
+	info    *types.Info
+	dir, in string
+	found   []Breach
+	allowed []Use
+	// judged are the identifiers naming a function of Calls judged already:
+	// a call's callee, by its arguments, or one used as a value.
+	judged map[*ast.Ident]bool
+}
+
+// visit finds where n breaks the rule, and walks on into it.
+func (w *walk) visit(n ast.Node) bool {
+	switch n := n.(type) {
+	case *ast.CallExpr:
+		w.call(n)
+	case *ast.SelectorExpr:
+		w.field(n)
+		w.value(n)
+	case *ast.Ident:
+		w.used(n)
+		w.value(n)
+	}
+	return true
+}
+
+func (w *walk) breach(at token.Pos, says string) {
+	w.found = append(w.found, Breach{At: at, In: w.in, Says: says})
+}
+
+// field finds sel reading a field of one of Fields.
+func (w *walk) field(sel *ast.SelectorExpr) {
+	if s, ok := w.info.Selections[sel]; ok && s.Kind() == types.FieldVal {
+		if field := w.r.fieldRead(s); field != "" {
+			w.breach(sel.Sel.Pos(), w.r.Read(field))
+		}
+	}
+}
+
+// used finds id using a function of Used, or one of Owners' that takes one
+// of Fields, or one the rule allows.
+func (w *walk) used(id *ast.Ident) {
+	fn, ok := w.info.Uses[id].(*types.Func)
+	if !ok {
+		return
+	}
+	switch name, says := w.r.called(fn, w.dir); {
+	case says != "":
+		w.breach(id.Pos(), says)
+	case slices.Contains(w.r.Allowed, name):
+		w.allowed = append(w.allowed, Use{At: id.Pos(), In: w.in, Name: name})
+	}
+}
+
+// call finds the call of a function of Calls that breaks the rule here, by
+// its arguments.
+func (w *walk) call(call *ast.CallExpr) {
+	id, ban, ok := w.callBan(call.Fun)
+	if !ok {
+		return
+	}
+	w.judged[id] = true
+	if ban.Breaks == nil || ban.Breaks(argued(call, w.info), w.info) {
+		w.breach(id.Pos(), ban.Says)
+	}
+}
+
+// value finds e naming a function of Calls banned here as a value, not the
+// callee of a call: what it's given where it's called can't be judged, so it
+// breaks the rule.
+func (w *walk) value(e ast.Expr) {
+	id, ban, ok := w.callBan(e)
+	if !ok || w.judged[id] {
+		return
+	}
+	w.judged[id] = true
+	w.breach(id.Pos(), ban.Says)
+}
+
+// callBan is the identifier naming the function e names, and its ban, where
+// it's one of Calls, banned here.
+func (w *walk) callBan(e ast.Expr) (*ast.Ident, CallBan, bool) {
+	name, id := funcNamed(e, w.info)
+	ban, ok := w.r.Calls[name]
+	return id, ban, ok && ban.holdsIn(w.dir)
 }
 
 // called names the function fn, as Names.Func has it, and says how using it
@@ -155,7 +235,7 @@ func (r Rule) called(fn *types.Func, dir string) (name, says string) {
 	name = r.Func(fn)
 	pkg, _, _ := strings.Cut(name, ".")
 	switch ban, ok := r.Used[name]; {
-	case ok && (len(ban.In) == 0 || slices.Contains(ban.In, dir)):
+	case ok && ban.holdsIn(dir):
 		return name, ban.Says
 	case !slices.Contains(r.Owners, pkg) || slices.Contains(r.Allowed, name):
 		return name, ""
