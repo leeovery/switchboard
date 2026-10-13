@@ -87,8 +87,6 @@ var readersAllowed = []string{
 	// sessions on each account (F12).
 	"internal/dashboard/overview_sessions.go:Frame.seenListing",
 	"internal/dashboard/traffic.go:Frame.listing",
-	// The events newer than the last look's, by their ids (J8).
-	"internal/dashboard/watch/news.go:news.looked",
 	// Whether the router's sessions are placed as they were, for the routing
 	// card to price a move afresh (F4).
 	"internal/dashboard/watch/routing.go:samePlace",
