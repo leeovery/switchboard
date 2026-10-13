@@ -103,9 +103,21 @@ var (
 		"prose.Stint": "views.SessionPage.Stays",
 		// Where a session runs and how it came there, as row 6 says it.
 		"status.SessionWords": "views.SessionPage.Where",
+		// Why a session runs where it does, short, as a phone's row 6 says
+		// it: a move's label, short, is views.SessionMove.Said's.
+		"status.ShortWords": "views.SessionPage.Where",
+		// The account a forced move left, and whether a reason moved a
+		// session at all, as row 6 tells how it came where it runs.
+		"status.MovedFrom":    "views.SessionPage.Where",
+		"status.MovedNothing": "views.SessionPage.Where",
+		// When an ended session's move came, its day named only off the day
+		// it started, as "from 16:02".
+		"prose.Later": "views.SessionPage.Where",
 		// What moved a session and where to, as its story's label says it:
 		// an event's own words are views.Telling's.
 		"status.EventWords": "views.SessionMove.Said",
+		// A fold's length on a story's axis, in whole hours, as "15h".
+		"prose.Hours": "views.Story.Columns",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.
