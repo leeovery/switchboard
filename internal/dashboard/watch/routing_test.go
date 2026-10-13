@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // namedKeys are the keys the routing card and History take that the
@@ -584,6 +585,48 @@ func TestPIsntFaintWhileTheRouterAnswers(t *testing.T) {
 	h.start()
 	if pin, ok := h.model.pinKey(); !ok || pin.Off {
 		t.Errorf("p is %+v, listed %v; want it listed, and not faint", pin, ok)
+	}
+}
+
+// On a session's page, p is listed while the session runs, where there's
+// more than one account to pin it to, or its own pin stands, to clear it:
+// never on an ended session's page, nor while probing as asked; and it's
+// faint while the router doesn't answer.
+func TestPOnASessionsPageIsListedWhileItRunsWithSomewhereToPinIt(t *testing.T) {
+	tests := []struct {
+		name                 string
+		accounts             int
+		pin                  string
+		ended, gone, probing bool
+		listed, faint        bool
+	}{
+		{name: "three accounts", accounts: 3, listed: true},
+		{name: "three accounts, its own pin standing", accounts: 3, pin: "work", listed: true},
+		{name: "one account", accounts: 1},
+		{name: "one account, its own pin standing", accounts: 1, pin: "work", listed: true},
+		{name: "three accounts, ended", accounts: 3, ended: true},
+		{name: "one account, its own pin standing, ended", accounts: 1, pin: "work", ended: true},
+		{name: "three accounts, the router gone", accounts: 3, gone: true, listed: true, faint: true},
+		{name: "one account, the router gone", accounts: 1, gone: true, faint: true},
+		{name: "one account, its own pin standing, the router gone", accounts: 1, pin: "work", gone: true, listed: true, faint: true},
+		{name: "three accounts, ended, the router gone", accounts: 3, ended: true, gone: true, faint: true},
+		{name: "three accounts, probing as asked", accounts: 3, probing: true, faint: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			page := views.SessionPage{Pin: tt.pin}
+			if tt.ended {
+				page.Activity.Doing = views.Ended
+			}
+			m := Model{cfg: Config{ProbeOnly: tt.probing}, asRead: asRead{routed: !tt.probing, accounts: tt.accounts},
+				session: &sessionShown{shown: dashboard.SessionShown{Page: page}}}
+			if tt.gone {
+				m.lost = time.Date(2026, 10, 7, 13, 0, 0, 0, time.UTC)
+			}
+			if pin, listed := m.pinKey(); listed != tt.listed || pin.Off != tt.faint {
+				t.Errorf("p is %+v, listed %t; want it listed %t, faint %t", pin, listed, tt.listed, tt.faint)
+			}
+		})
 	}
 }
 
