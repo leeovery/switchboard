@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"strings"
 	"testing"
 	"time"
@@ -14,9 +15,10 @@ import (
 // At each hard moment, the views that say a fact of an account say the same
 // of it: how it stands, whether each window is running, how much of it is
 // used, whether its reading is stale, where it runs out and when, when it
-// next resets, and where new sessions go. Each view's say is read off what
-// it draws from, and a disagreement names both views. A view that says a
-// fact otherwise by design is left out of it, as its say notes.
+// next resets, and where new sessions go, as the document's best has them go.
+// Each view's say is read off what it draws from, and a disagreement names
+// both views. A view that says a fact otherwise by design is left out of it,
+// as its say notes.
 func TestTheViewsAgreeAtEachHardMoment(t *testing.T) {
 	for _, hm := range statustest.HardMoments(claudeLike) {
 		t.Run(hm.Name, func(t *testing.T) {
@@ -90,13 +92,14 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 	return d
 }
 
-// destination is where each view says new sessions go: the account ▲ marks
-// in USAGE, on Runway over the day, and in the status line, and the one
-// ROUTING says they come to; "none" where a view marks none. The status line
-// of a probed document says nothing of it, nor ROUTING where it says they
-// come to none.
+// destination is where each view says new sessions go, after where the
+// document's best, the router's choice for a new session, has them go, as the
+// moment reads it: the account ▲ marks in USAGE, on Runway over the day, and
+// in the status line, and the one ROUTING says they come to; "none" where a
+// view marks none. The status line of a probed document says nothing of it,
+// nor ROUTING where it says they come to none.
 func (d drawn) destination() []viewSays {
-	usage, runway := "none", "none"
+	usage, runway, next := "none", "none", cmp.Or(d.moment.Next, "none")
 	var routing string
 	for i, a := range d.moment.Accounts {
 		if strings.Contains(d.usage.rows[i].name.plain(), "▲") {
@@ -109,7 +112,7 @@ func (d drawn) destination() []viewSays {
 			routing = a.ID
 		}
 	}
-	says := []viewSays{{"USAGE", usage}, {"Runway", runway}}
+	says := []viewSays{{"the document's best, as the moment reads it", next}, {"USAGE", usage}, {"Runway", runway}}
 	if routing != "" {
 		says = append(says, viewSays{"ROUTING", routing})
 	}
