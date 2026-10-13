@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"slices"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/dayfile"
 )
 
 // TokensAsk is what Tokens is asked to show: its rows' period.
@@ -60,8 +62,8 @@ type TokenPeriod struct {
 // tokenPeriodsOf says, newest first.
 func (p Past) tokens(ask TokensAsk) TokensPage {
 	by := ask.Period.shape(p.in.WeekStarts)
-	today, _ := by.of(dateOf(p.in.Now).Format(time.DateOnly))
-	from := dateOf(p.in.From).Format(time.DateOnly)
+	today, _ := by.of(dayfile.DateOf(p.in.Now))
+	from := dayfile.DateOf(p.in.From)
 	all := tokenPeriodsOf(p.days, plans{accounts: p.in.Accounts, table: p.in.Prices}, versions{table: p.in.Prices, family: p.in.Family}, from, by)
 	var periods []TokenPeriod
 	for _, t := range slices.Backward(all) {
@@ -95,7 +97,7 @@ func (p TokensPeriod) shape(weekStarts time.Weekday) periodShape {
 	switch p {
 	case TokensByDay:
 		return periodShape{
-			of:    func(date string) (string, bool) { _, ok := civil(date); return date, ok },
+			of:    func(date string) (string, bool) { _, ok := dayfile.Civil(date); return date, ok },
 			dates: func(key string) (string, string) { return key, key },
 			share: days(1),
 		}
@@ -103,7 +105,7 @@ func (p TokensPeriod) shape(weekStarts time.Weekday) periodShape {
 		return periodShape{
 			of: monthOf,
 			dates: func(key string) (string, string) {
-				first, _ := civil(key + "-01")
+				first, _ := dayfile.MonthStart(key)
 				return first.Format(time.DateOnly), first.AddDate(0, 1, -1).Format(time.DateOnly)
 			},
 			share: aMonth,
@@ -112,7 +114,7 @@ func (p TokensPeriod) shape(weekStarts time.Weekday) periodShape {
 	return periodShape{
 		of: weekDate(weekStarts),
 		dates: func(key string) (string, string) {
-			first, _ := civil(key)
+			first, _ := dayfile.Civil(key)
 			return key, first.AddDate(0, 0, 6).Format(time.DateOnly)
 		},
 		share: aWeek,

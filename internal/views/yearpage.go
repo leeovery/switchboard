@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -137,14 +138,14 @@ const (
 // on the day given, at its local midnight: the earlier of its grid's first
 // day and its period's, from which the ledger's days are read for it.
 func YearFrom(ask YearAsk, now time.Time, weekStarts time.Weekday) time.Time {
-	first, _ := civil(yearSpanOf(ask.Year, dateOf(now), weekStarts).earliest())
+	first, _ := dayfile.Civil(yearSpanOf(ask.Year, dayfile.CivilOf(now), weekStarts).earliest())
 	return time.Date(first.Year(), first.Month(), first.Day(), 0, 0, 0, 0, time.Local)
 }
 
 // year is the Year's page asked for, of the days held.
 func (p Past) year(ask YearAsk) YearPage {
 	v := p.versions()
-	span := yearSpanOf(ask.Year, dateOf(p.in.Now), p.in.WeekStarts)
+	span := yearSpanOf(ask.Year, dayfile.CivilOf(p.in.Now), p.in.WeekStarts)
 	filter := yearFilter{YearAsk: ask, v: v}
 	drawn := yearDays(filter.days(between(p.days, span.earliest(), span.gridLast())))
 	y := yearView{
@@ -287,7 +288,7 @@ func (s yearSpan) labels() []MonthLabel {
 		held := make(map[string]int)
 		for i := range 7 {
 			day := s.day(w, i)
-			month := day[:len(monthLayout)]
+			month, _ := monthOf(day)
 			if !s.drawn(day) || labelled[month] {
 				continue
 			}
@@ -309,8 +310,8 @@ func (s yearSpan) labels() []MonthLabel {
 // currentLabel is today's month's name over the week holding its 1st,
 // reporting false where the grid doesn't draw that day.
 func (s yearSpan) currentLabel() (MonthLabel, bool) {
-	month := s.today[:len(monthLayout)]
-	first, _ := civil(month + "-01")
+	month, _ := monthOf(s.today)
+	first, _ := dayfile.MonthStart(month)
 	if !s.drawn(first.Format(time.DateOnly)) {
 		return MonthLabel{}, false
 	}
@@ -548,8 +549,8 @@ func (y yearView) versionNumbers(first string) YearNumbers {
 // end, and the worth against it: none where the ledger began after it.
 func (y yearView) against() Against {
 	from := max(y.span.first, y.began)
-	start, _ := civil(from)
-	end, _ := civil(y.span.end)
+	start, _ := dayfile.Civil(from)
+	end, _ := dayfile.Civil(y.span.end)
 	if end.Before(start) {
 		return Against{}
 	}
@@ -590,10 +591,12 @@ func (y yearView) versionMonths(first string) []MonthRow {
 // was, and the version of its family, the one given, most used then: nil
 // where it was used from the first month held.
 func (y yearView) before(first, family string) *MonthsBefore {
-	from, to := max(y.span.first, y.began)[:len(monthLayout)], y.span.last[:len(monthLayout)]
+	from, _ := monthOf(max(y.span.first, y.began))
+	to, _ := monthOf(y.span.last)
 	if first != "" {
-		used, _ := civil(first[:len(monthLayout)] + "-01")
-		to = used.AddDate(0, -1, 0).Format(monthLayout)
+		usedIn, _ := monthOf(first)
+		used, _ := dayfile.MonthStart(usedIn)
+		to = dayfile.MonthOf(used.AddDate(0, -1, 0))
 	}
 	if to < from {
 		return nil

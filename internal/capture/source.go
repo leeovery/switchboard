@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -217,11 +218,12 @@ func numbered(events []status.Event) []status.Event {
 
 // priming is the router's priming schedule over the samples: their resets
 // spread over 08:00-22:00, each primed daily at the time of day it's next
-// primed, in the order they fall.
+// primed, as status.Priming writes a slot's, in the order they fall.
 func priming(samples []sample) status.Prime {
 	p := status.Prime{Day: "08:00-22:00", Window: fiveHourKey}
 	for _, s := range samples {
-		p.Slots = append(p.Slots, status.Slot{Account: s.id, At: s.prime.Format("15:04"), Next: s.prime})
+		clock := time.Duration(s.prime.Hour())*time.Hour + time.Duration(s.prime.Minute())*time.Minute
+		p.Slots = append(p.Slots, status.Slot{Account: s.id, At: prose.ClockOf(clock), Next: s.prime})
 	}
 	slices.SortStableFunc(p.Slots, func(a, b status.Slot) int { return cmp.Compare(a.At, b.At) })
 	return p

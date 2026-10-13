@@ -164,13 +164,14 @@ func closedBy(a status.AccountNow, now time.Time) (reason string, capped bool) {
 	return "", false
 }
 
-// till follows what holds an account back with when it's back, at t, as in
-// "at its cap till 17:10": what alone where that's unknown.
+// till follows what holds an account back with when it's back, at t, as
+// status.Till says it, as in "at its cap till 17:10": what alone where that's
+// unknown.
 func till(what string, t time.Time, now time.Time) string {
-	if t.IsZero() {
-		return what
+	if until := status.Till(now, t); until != "" {
+		return what + " " + until
 	}
-	return what + " till " + prose.Dated(now, t)
+	return what
 }
 
 // figureOf is the use of an account's window as it stands, as usage reads it:
@@ -333,7 +334,7 @@ func fitting(heights []int, room int) int {
 // account's windows take a row of their own under it, from the state's
 // column.
 func (r RoutingCard) choice(row RoutingRow, phone bool, width int) []line {
-	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, 2), dimInk}, {truncate(row.Name, choiceState-choiceName-3), titleInk}}
+	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, 2), dimInk}, {prose.Cut(row.Name, choiceState-choiceName-3), titleInk}}
 	if row.Account == "" {
 		return []line{padTo(head, choiceState, line{{"the router chooses", mutedInk}}).fit(width)}
 	}

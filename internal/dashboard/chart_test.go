@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/quota"
 )
 
 func TestTheMidnightsAlongAnAxisAreTheDaysStartsWhereTheClocksGoForwardAtMidnight(t *testing.T) {
@@ -18,7 +20,7 @@ func TestTheMidnightsAlongAnAxisAreTheDaysStartsWhereTheClocksGoForwardAtMidnigh
 	hourly := func(t time.Time) int { return int(t.Sub(start) / time.Hour) }
 
 	var got []string
-	for _, m := range midnights(start, start.Add(7*day), now, hourly, 7*24, len("Mon")) {
+	for _, m := range midnights(start, start.Add(7*quota.Day), now, hourly, 7*24, len("Mon")) {
 		got = append(got, fmt.Sprintf("%s %v", m.at.Format("Mon 2 Jan 15:04 -07"), m.today))
 	}
 	want := []string{"Fri 4 Sep 00:00 -04 false", "Sat 5 Sep 00:00 -04 true", "Sun 6 Sep 01:00 -03 false", "Mon 7 Sep 00:00 -03 false",

@@ -89,7 +89,7 @@ func accountsOf(n int, fable bool) status.Document {
 	}
 	accounts := make([]status.Account, n)
 	for i := range accounts {
-		accounts[i] = readAccount(string(rune('a'+i)), sessionOf(0.2, 3*time.Hour), weekOf(0.3, 4*day), fableOf(used, 4*day))
+		accounts[i] = readAccount(string(rune('a'+i)), sessionOf(0.2, 3*time.Hour), weekOf(0.3, 4*quota.Day), fableOf(used, 4*quota.Day))
 	}
 	doc := routerDoc("a", 0, accounts...)
 	doc.Events = []status.Event{{ID: 1, At: now.Add(-time.Minute).UTC(), Kind: status.EventRoom, Account: "a"}}
@@ -347,9 +347,9 @@ func arrangement(r *rand.Rand) (status.Document, []status.Session, Traffic) {
 	n := 2 + r.IntN(6)
 	accounts := make([]status.Account, n)
 	for i := range accounts {
-		accounts[i] = readAccount(fmt.Sprintf("account-%d", i), sessionOf(0.2, 3*time.Hour), weekOf(0.3, 4*day))
+		accounts[i] = readAccount(fmt.Sprintf("account-%d", i), sessionOf(0.2, 3*time.Hour), weekOf(0.3, 4*quota.Day))
 		if r.IntN(3) == 0 {
-			accounts[i].Windows = append(accounts[i].Windows, fableOf(0.1, 4*day))
+			accounts[i].Windows = append(accounts[i].Windows, fableOf(0.1, 4*quota.Day))
 		}
 	}
 	var sessions []status.Session
@@ -705,7 +705,7 @@ func TestAMovesCordFadesOnceTheSessionsAreListedAgain(t *testing.T) {
 	// Fable's week used, each line has three jacks, and work, left with two
 	// calls, one free.
 	doc := threeRouted()
-	doc.Accounts[2].Windows = append(doc.Accounts[2].Windows, fableOf(0.1, 4*day))
+	doc.Accounts[2].Windows = append(doc.Accounts[2].Windows, fableOf(0.1, 4*quota.Day))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			move := Move{Seat: seat, From: "work", To: "side", At: now.Add(-3 * time.Second), Listed: true, Fade: tt.fade}
@@ -760,7 +760,7 @@ func tells(row, said string, end int) bool {
 	if row == said {
 		return true
 	}
-	kept, cut := strings.CutSuffix(row, ellipsis)
+	kept, cut := strings.CutSuffix(row, prose.Ellipsis)
 	return cut && strings.HasPrefix(said, kept) && ansi.StringWidth(row) >= end-1
 }
 
@@ -859,7 +859,7 @@ func TestWhatTravelsTheCordsMovesOnScreenAlone(t *testing.T) {
 			// Fable's week used, each line has three jacks, and work, left
 			// with two calls by a move, one free.
 			doc := threeRouted()
-			doc.Accounts[2].Windows = append(doc.Accounts[2].Windows, fableOf(0.1, 4*day))
+			doc.Accounts[2].Windows = append(doc.Accounts[2].Windows, fableOf(0.1, 4*quota.Day))
 			f := switchboard(160, cmp.Or(tt.height, 40), sessions, Traffic{Live: true, Calls: tt.calls, Moves: tt.moves})
 			if tt.scroll {
 				f.Scroll = f.Scrolling(doc, now).Most
@@ -920,7 +920,7 @@ func TestAPlaceholderIsCutToTheCallsColumns(t *testing.T) {
 	b, c := drawnBay(t, switchboard(160, 40, flippingSessions(), Traffic{Moves: []Move{move}}), doc)
 
 	said := strings.TrimRight(ansi.Cut(rowOf(c, callAt(t, b, "d28c", "work").row), 0, b.x-looseCells), " ")
-	if !strings.HasPrefix(said, "  d28c  ↪ moved to a side") || !strings.HasSuffix(said, ellipsis) || ansi.StringWidth(said) > plugAt {
+	if !strings.HasPrefix(said, "  d28c  ↪ moved to a side") || !strings.HasSuffix(said, prose.Ellipsis) || ansi.StringWidth(said) > plugAt {
 		t.Errorf("its placeholder reads %q, want it cut short, with an ellipsis, before the plugs' column, %d", said, plugAt)
 	}
 }
@@ -1061,7 +1061,7 @@ func TestOnTheTickASessionResetsAFailedReadAccountsSessionHasntStartedAsROUTINGH
 	if used, eased := f.Filled(doc, after)[ref]; eased {
 		t.Errorf("work's session fills %v on its panel, to be eased to, want no bar", used)
 	}
-	if text := statusOf(doc, after); !strings.Contains(text, "Session   0%  not started\n") {
+	if text := statusOf(doc, after); !strings.Contains(text, "5-hour   0%  not started\n") {
 		t.Errorf("status says\n%s\nwant work's session not started", text)
 	}
 }
@@ -1084,7 +1084,7 @@ func TestASessionNotedLapsedOnAnAccountWhoseProbeFailedHasntStarted(t *testing.T
 	if used, eased := f.Filled(doc, now)[Ref{Account: "work", Window: "5h"}]; eased {
 		t.Errorf("work's session fills %v on its panel, to be eased to, want no bar", used)
 	}
-	if text := statusOf(doc, now); !strings.Contains(text, "Session   0%  not started\n") {
+	if text := statusOf(doc, now); !strings.Contains(text, "5-hour   0%  not started\n") {
 		t.Errorf("status says\n%s\nwant work's session not started", text)
 	}
 }
@@ -1111,7 +1111,7 @@ func TestASessionHeldPastItsResetReadsEmptyWhereverItsUseIsDrawn(t *testing.T) {
 	if row := sessionRow(t, f, doc, after); !strings.Contains(row, " 0%  back ") || strings.Contains(row, "58%") {
 		t.Errorf("work's session reads %q on its panel, want it held, empty, 0%%", row)
 	}
-	if text := statusOf(doc, after); !strings.Contains(text, "Session   0%\n") {
+	if text := statusOf(doc, after); !strings.Contains(text, "5-hour   0%\n") {
 		t.Errorf("status says\n%s\nwant work's session empty, with no reset, as it has lapsed", text)
 	}
 }
@@ -1121,7 +1121,7 @@ func TestASessionHeldPastItsResetReadsEmptyWhereverItsUseIsDrawn(t *testing.T) {
 // since.
 func idleSince(ago time.Duration) status.Account {
 	side := readAccount("side", quota.Window{Key: "5h", Label: "Session"}, weekOf(0.33, -ago))
-	side.FetchedAt, side.Lapsed = now.Add(-2*day).UTC(), []string{"5h"}
+	side.FetchedAt, side.Lapsed = now.Add(-2*quota.Day).UTC(), []string{"5h"}
 	return side
 }
 
@@ -1130,7 +1130,7 @@ func idleSince(ago time.Duration) status.Account {
 // its week, a seventh of the way along its bar, not at its end, where the
 // week as read had run its whole length.
 func TestAPanelMarksTheEvenPaceOfAWeekResetSinceItWasReadFromItsReset(t *testing.T) {
-	doc := routerDoc("side", 0, idleSince(day))
+	doc := routerDoc("side", 0, idleSince(quota.Day))
 	side := doc.Accounts[0]
 	week, _ := switchboard(160, 40, nil, Traffic{}).linePanelOf(doc, side, now, []string{"5h", "7d"}).stands.Window(side.Windows[1].Key)
 	s := standing{account: side.ID, w: week}

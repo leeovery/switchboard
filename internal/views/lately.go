@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -162,10 +161,10 @@ func (t latelyTeller) startedWhy(e status.Event, f eventFact) status.Words {
 // why, in the views' words, its object the account the reason names first,
 // as in ": personal came under pressure".
 func (t latelyTeller) moved(e status.Event, f eventFact) (Said, Said) {
-	words := status.Words{said(" moved "), named(e.From), said(" → "), named(e.To)}
+	words := status.Words{status.Plain(" moved "), status.Named(e.From), status.Plain(" → "), status.Named(e.To)}
 	why := status.EventWords(e.Reason, t.facts(f, e.From, e.To))
 	if len(why) > 0 {
-		words = append(words, said(": "))
+		words = append(words, status.Plain(": "))
 	}
 	before, object, after := atAccount(why)
 	s := Said{Subject: session(e.Session), Words: slices.Concat(words, before), Object: object, Rest: after}
@@ -198,24 +197,15 @@ func (latelyTeller) capped(e status.Event, f eventFact) (Said, Said) {
 // "personal reached its 5-hour limit", or short, "personal at its limit", and
 // the sessions it moved.
 func (latelyTeller) limited(e status.Event, f eventFact) (Said, Said) {
-	return heldBack(e, f, " reached its "+limits(f.windows), false), heldBack(e, f, " at its limit", true)
+	return heldBack(e, f, " reached its "+prose.ListOf(f.windows, "limit"), false), heldBack(e, f, " at its limit", true)
 }
 
 // refused tells of the upstream refusing an account's requests, and its
-// answer: "work refused (401)", or of a model family's alone, "work refused
-// (403, opus)"; and the sessions it moved.
+// answer, as status.RefusalAnswer says it: "work refused (401)", or of a
+// model family's alone, "work refused (403, opus)"; and the sessions it
+// moved.
 func (latelyTeller) refused(e status.Event, f eventFact) (Said, Said) {
-	var answer []string
-	if e.Status != 0 {
-		answer = append(answer, strconv.Itoa(e.Status))
-	}
-	if family := prose.Clean(e.Family); family != "" {
-		answer = append(answer, family)
-	}
-	what := " refused"
-	if len(answer) > 0 {
-		what += " (" + strings.Join(answer, ", ") + ")"
-	}
+	what := " " + status.RefusalAnswer(e.Status, e.Family)
 	return heldBack(e, f, what, false), heldBack(e, f, what, true)
 }
 
@@ -295,20 +285,6 @@ func (t latelyTeller) facts(f eventFact, from, to string) status.Facts {
 	return status.Facts{From: from, To: to, Until: f.runsOut, Now: t.now}
 }
 
-// limits names the limits an event says were reached, by the names of its
-// windows, as in "5-hour limit" or "5-hour and week limits", or "limit"
-// where it names none.
-func limits(names []string) string {
-	switch len(names) {
-	case 0:
-		return "limit"
-	case 1:
-		return names[0] + " limit"
-	default:
-		return prose.List(names) + " limits"
-	}
-}
-
 // heldBack is the line of an account a cap, a limit or a refusal held back,
 // its name, then what befell it, as in " reached its cap", and after that the
 // sessions the event moved, as its facts f count them, where it moved any: in
@@ -324,9 +300,9 @@ func heldBack(e status.Event, f eventFact, what string, short bool) Said {
 	if short {
 		count = strconv.Itoa(f.moved)
 	}
-	to := status.Words{said("other accounts")}
+	to := status.Words{status.Plain("other accounts")}
 	if f.to != "" {
-		to = status.Words{named(f.to)}
+		to = status.Words{status.Named(f.to)}
 	}
 	s.Words = clause(what + ": ")
 	s.Object = clause(count)
@@ -353,7 +329,7 @@ func pinnedTo(e status.Event) status.Words {
 	if len(names) == 0 {
 		return account(e.Account)
 	}
-	return joined(names, " and ")
+	return joined(names, prose.And)
 }
 
 // session is the session with the given id, named as status.ShownID names

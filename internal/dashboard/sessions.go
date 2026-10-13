@@ -504,7 +504,7 @@ func (f Frame) drawCall(c *canvas, doc status.Document, r callRow, now time.Time
 	if seen == "now" {
 		seenInk = secondaryInk
 	}
-	model := truncate(r.assignment.Name(), modelColumn-2)
+	model := prose.Cut(r.assignment.Name(), modelColumn-2)
 	l := line{{padded(id, idColumn), idInk}, {padded(model, modelColumn), mutedInk}, {padded(seen, seenColumn), seenInk}}
 	if says, ok := f.activity(r.plug()); ok {
 		l = append(l, says)

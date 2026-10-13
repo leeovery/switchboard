@@ -181,7 +181,7 @@ func (f Frame) roomLeft(doc status.Document, now time.Time) line {
 		word   string
 	}{{session, hasSession, "5h"}, {week, hasWeek, "week"}} {
 		if w.has {
-			left := span{tenths(w.window.Room), strongInk}.numbered(Number{Kind: NumberRoom, Account: a.ID, Of: w.window.Key})
+			left := span{prose.Tenths(w.window.Room), strongInk}.numbered(Number{Kind: NumberRoom, Account: a.ID, Of: w.window.Key})
 			parts = append(parts, line{{w.word + " ", dimInk}, left, {" of 1", dimInk}})
 		}
 	}

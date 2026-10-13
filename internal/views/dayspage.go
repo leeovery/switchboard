@@ -8,6 +8,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -68,19 +69,19 @@ type eightWeeks struct {
 // eightWeeksOf are the eight weeks to now's, from the day weeks start on, of
 // days, which run to today.
 func eightWeeksOf(days []Day, now time.Time, starts time.Weekday) eightWeeks {
-	today := dateOf(now)
+	today := dayfile.CivilOf(now)
 	w := eightWeeks{first: weeksTo(today, starts, weeksShown), days: make([]*Day, 7*weeksShown)}
 	w.today = w.index(today)
 	for i := range days {
-		if day, ok := civil(days[i].Day); ok && !day.Before(w.first) && !day.After(today) {
+		if day, ok := dayfile.Civil(days[i].Day); ok && !day.Before(w.first) && !day.After(today) {
 			w.days[w.index(day)] = &days[i]
 		}
 	}
 	return w
 }
 
-// index is the place among the eight weeks' days of the day given, as civil
-// gives it.
+// index is the place among the eight weeks' days of the day given, as
+// dayfile.Civil gives it.
 func (w eightWeeks) index(day time.Time) int {
 	return int(day.Sub(w.first) / (24 * time.Hour))
 }

@@ -3,7 +3,6 @@ package dashboard
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -215,19 +214,18 @@ func movedTo(doc status.Document, e status.Event) string {
 // refusal is what's said of the upstream refusing requests on an account,
 // after its name: its mark, a refusal of its token, which holds back every
 // request, in state.destructive, or of a model family's requests alone,
-// which hold back less, in accent.attention; what was refused, as in "was
-// refused (403, opus)"; and until when, as in " until 21:40", where the event
-// says.
+// which hold back less, in accent.attention; what was refused, as
+// status.RefusalAnswer says it, as in "was refused (403, opus)"; and until
+// when, as in " until 21:40", where the event says.
 func refusal(e status.Event) (mark span, words, until string) {
-	mark, answer := span{"■", errorInk}, strconv.Itoa(e.Status)
+	mark = span{"■", errorInk}
 	if e.Family != "" {
-		mark, answer = span{"■", warningInk}, answer+", "+prose.Clean(e.Family)
+		mark = span{"■", warningInk}
 	}
 	if !e.Until.IsZero() {
 		until = " until " + prose.When(e.At, e.Until)
 	}
-	words = "was refused (" + answer + ")"
-	return mark, words, until
+	return mark, "was " + status.RefusalAnswer(e.Status, e.Family), until
 }
 
 // resetting says when the window a prime started resets, as in ",

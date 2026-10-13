@@ -1,8 +1,6 @@
 package dashboard
 
 import (
-	"fmt"
-	"math"
 	"strings"
 	"time"
 	"unicode"
@@ -10,65 +8,43 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// noFigure is a figure History doesn't know, or doesn't yet: a dash, in
-// text.faint.
+// noFigure is a figure the dashboard doesn't know, or doesn't yet, as
+// History's or a bar's: a dash, in text.faint.
 var noFigure = span{"—", faintInk}
 
 // The cells the widest of a bounded figure takes, as its format draws it: a
-// day, as dayLayout writes one of two figures; a run of a year's days, a leap
-// year's whole; and a share, all of it.
+// day, as prose.Day writes one of two figures; a run of a year's days, a
+// leap year's whole; and a share, all of it.
 var (
-	widestDay   = ansi.StringWidth(time.Date(2026, time.September, 22, 0, 0, 0, 0, time.UTC).Format(dayLayout))
+	widestDay   = ansi.StringWidth(prose.Day(time.Date(2026, time.September, 22, 0, 0, 0, 0, time.UTC)))
 	widestRun   = ansi.StringWidth(prose.Counted(366, "day"))
 	widestShare = ansi.StringWidth(prose.Percent(1))
 )
 
-// worthSaid is a worth as History writes it, in the ink given: to the
-// dollar, its thousands set apart, as "$27,480"; a faint + after it where
-// part of it is unpriced, as "$184+"; unpriced where all of it is; and a
+// worthSaid is a worth as History writes it, as views.Worth.Dollars says it,
+// in the ink given: to the dollar, as "$27,480"; the mark of part of it
+// unpriced faint after it, as "$184+"; unpriced where all of it is; and a
 // dash for none.
 func worthSaid(w views.Worth, k ink) line {
-	switch {
-	case w.Amount == nil && len(w.Unpriced) > 0:
-		return line{{"unpriced", k}}
-	case w.Amount == nil:
+	said := w.Dollars()
+	if said == "" {
 		return line{noFigure}
-	case len(w.Unpriced) > 0:
-		return line{{w.Amount.GroupedDollars(), k}, {"+", faintInk}}
 	}
-	return line{{w.Amount.GroupedDollars(), k}}
+	if priced, part := strings.CutSuffix(said, views.PartUnpriced); part {
+		return line{{priced, k}, {views.PartUnpriced, faintInk}}
+	}
+	return line{{said, k}}
 }
 
-// WorthCents is a worth to the cent, as a request's, a turn's or a session's
-// is said, the Log's rule: "$0.15"; "<$0.01" where it's more than nothing but
-// under half a cent, which would read as nothing; "unpriced" where none of it
-// is priced; and "+" after it where part of it is unpriced, as "$17.86+".
-// Nothing at all is "$0.00".
+// WorthCents is a worth to the cent, as views.Worth.Cents says it. The verbs
+// alone call it, till they call Cents.
 func WorthCents(w views.Worth) string {
-	if w.Amount == nil && len(w.Unpriced) > 0 {
-		return "unpriced"
-	}
-	var amount ledger.Picodollars
-	if w.Amount != nil {
-		amount = *w.Amount
-	}
-	said := amount.Cents()
-	if amount > 0 && said == noCents {
-		said = "<$0.01"
-	}
-	if len(w.Unpriced) > 0 {
-		said += "+"
-	}
-	return said
+	return w.Cents()
 }
-
-// noCents is a worth of none, to the cent.
-var noCents = ledger.Picodollars(0).Cents()
 
 // worthPart is a worth as worthSaid writes it, as a part of a line: a
 // figure, but unpriced, which is words.
@@ -90,20 +66,18 @@ func countedParts(n int, noun string, k ink) []part {
 	}
 }
 
-// againstSaid is a worth against its price, as "3.8×", to a tenth, a half
-// rounded to the even one, as every figure is: bold, in state.positive at 1×
-// or more as it's written, and accent.attention under; a dash where there's
-// none.
+// againstSaid is a worth against its price, as prose.Ratio writes it, as
+// "3.8×": bold, in state.positive at 1× or more as it's written, and
+// accent.attention under; a dash where there's none.
 func againstSaid(ratio *float64) line {
 	if ratio == nil {
 		return line{noFigure}
 	}
-	shown := math.RoundToEven(*ratio*10) / 10
 	k := boldPositiveInk
-	if shown < 1 {
+	if prose.NearestTenth(*ratio) < 1 {
 		k = alertInk
 	}
-	return line{{fmt.Sprintf("%.1f×", shown), k}}
+	return line{{prose.Ratio(*ratio), k}}
 }
 
 // shareSaid is a share as a whole percentage, as "21%", in the ink given: a
@@ -140,5 +114,5 @@ func historyAccount(name string, primary bool, room int) line {
 	if primary {
 		mark = line{{" ◆", primaryInk}}
 	}
-	return append(line{{truncate(name, room-mark.width()), titleInk}}, mark...).fit(room)
+	return append(line{{prose.Cut(name, room-mark.width()), titleInk}}, mark...).fit(room)
 }

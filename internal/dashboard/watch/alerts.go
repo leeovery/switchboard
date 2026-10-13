@@ -46,7 +46,7 @@ func (r lastReads) alerts(look status.Moment, read origin, settings config.Notif
 			continue
 		}
 		for _, w := range passed(then(last), a, settings.Warning) {
-			alerts = append(alerts, notify.Warning(a.ID, a.Title(), w.Label, w.Used))
+			alerts = append(alerts, notify.Warning(a.ID, a.Title(), w.Name, w.Used))
 		}
 	}
 	return alerts

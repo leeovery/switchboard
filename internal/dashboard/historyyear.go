@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -71,7 +72,7 @@ func (y yearDrawn) draw(c *canvas, top int) {
 // the key under it, the numbers at its right, each cut at the frame's width,
 // BY MONTH and the bars' key.
 func (y yearDrawn) wide(c *canvas, top int) {
-	y.grid(c, yearGridX, top, y.page.Weeks, 0, dayAbbreviation)
+	y.grid(c, yearGridX, top, y.page.Weeks, 0, prose.Weekday)
 	y.key(c, top+yearKeyRow, keyWide)
 	y.heading(c, yearNumbersX, top)
 	for i, figure := range y.figures() {
@@ -152,7 +153,7 @@ func (y yearDrawn) byMonthReach() int {
 func (y yearDrawn) phone(c *canvas, top int) {
 	weeks := y.page.Weeks
 	first := max(len(weeks)-y.phoneWeeks(), 0)
-	y.grid(c, yearPhoneGridX, top, weeks[first:], first, dayInitial)
+	y.grid(c, yearPhoneGridX, top, weeks[first:], first, prose.WeekdayInitial)
 	y.key(c, top+yearKeyRow, keyPhone)
 	y.heading(c, 0, top+yearPhoneNumbersRow)
 	figures := y.figures()
@@ -237,7 +238,7 @@ func (y yearDrawn) grid(c *canvas, x, top int, weeks []views.GridWeek, first int
 	if len(weeks) == 0 {
 		return
 	}
-	if start, ok := civilDay(weeks[0].First); ok {
+	if start, ok := dayfile.Civil(weeks[0].First); ok {
 		for _, i := range []int{0, 2, 4} {
 			c.line(0, top+1+i, line{{name(start.AddDate(0, 0, i).Weekday()), dimInk}}.fit(y.Width))
 		}
@@ -283,7 +284,7 @@ type keyForm struct {
 // The key's forms: wide, from the grid's column, and cut short on a phone.
 var (
 	keyWide  = keyForm{x: yearGridX, gap: "   ", number: prose.Grouped, none: "none", under: "under ", over: "over "}
-	keyPhone = keyForm{gap: " ", number: kilo, none: "0", under: "<", over: ">"}
+	keyPhone = keyForm{gap: " ", number: prose.Thousands, none: "0", under: "<", over: ">"}
 )
 
 // key draws the shades' key along row row, as the form lays it out: each
@@ -315,15 +316,6 @@ func (form keyForm) bounds(cuts []int) []string {
 		bounds = append(bounds, form.number(cuts[i-1])+"–"+form.number(cuts[i]))
 	}
 	return append(bounds, form.over+form.number(cuts[len(cuts)-1]))
-}
-
-// kilo writes n as a phone's key has it: in thousands from a thousand, as
-// "1k" or "1.25k".
-func kilo(n int) string {
-	if n < 1000 {
-		return strconv.Itoa(n)
-	}
-	return strconv.FormatFloat(float64(n)/1000, 'f', -1, 64) + "k"
 }
 
 // shown is the use shown alone, as the heading row names it: "" for all
@@ -457,12 +449,12 @@ func (y yearDrawn) limitsFigure(limits map[string]int) yearFigure {
 }
 
 // windowName names a window by its key, as the frame's WindowName names it,
-// else by its length: "5-hour" or "7d".
+// else as status.NameOfKey does: "5-hour" or "Week".
 func (y yearDrawn) windowName(key string) string {
 	if y.WindowName != nil {
 		return y.WindowName(key)
 	}
-	return status.NameOfWindow(key, "")
+	return status.NameOfKey(key)
 }
 
 // costSaid is what the plans cost, as worthSaid writes a priced worth: a
@@ -477,11 +469,11 @@ func costSaid(cost *ledger.Picodollars) line {
 // daySaid names the day with the given date, as "Tue 22 Sep": a dash for
 // none.
 func daySaid(date string) line {
-	day, ok := civilDay(date)
+	day, ok := dayfile.Civil(date)
 	if !ok {
 		return line{noFigure}
 	}
-	return line{{day.Format(dayLayout), secondaryInk}}
+	return line{{prose.Day(day), secondaryInk}}
 }
 
 // runSaid says how many days in a row there were, as "58 days": a dash for
@@ -715,7 +707,7 @@ func monthLimits(m views.MonthRow) line {
 // it's counted from, as from the 16th, the day a figure, or so far; none for
 // a whole month.
 func monthNote(m views.MonthRow) []part {
-	if day, ok := civilDay(m.From); ok {
+	if day, ok := dayfile.Civil(m.From); ok {
 		return []part{wordsIn("from the ", faintInk), figureIn(ordinal(day.Day()), faintInk)}
 	}
 	if m.SoFar {

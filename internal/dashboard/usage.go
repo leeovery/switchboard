@@ -281,7 +281,7 @@ func (n accountName) cells(label int) int {
 // line is the name, in a name column column cells wide, its label cut short
 // to keep its number, its marks and ▲'s cells.
 func (n accountName) line(column int) line {
-	label := truncate(n.label, column-nameGap-n.cells(0))
+	label := prose.Cut(n.label, column-nameGap-n.cells(0))
 	number, primary, best := dimInk, primaryInk, accentInk
 	if n.out {
 		number = faintInk
@@ -523,7 +523,7 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 			if j > 0 {
 				y += 2
 			}
-			c.line(labelAt, y, line{{truncate(status.Short(b.windows[j].name), cells-1), dimInk}})
+			c.line(labelAt, y, line{{prose.Cut(status.Short(b.windows[j].name), cells-1), dimInk}})
 			b.gauge(c, g, labelAt+cells, y, bar, end)
 		}
 		return y

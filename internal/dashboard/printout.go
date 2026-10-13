@@ -3,6 +3,7 @@ package dashboard
 import (
 	"slices"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -71,10 +72,10 @@ func (p Printout) namer(m status.Moment) func(key string) string {
 // does; the badge's line leaves off the date, as a phone's title row does,
 // then the badge, before it's cut.
 func (p Printout) header(c *canvas, m status.Moment) int {
-	at := m.ReadAt.In(m.Now.Location())
-	gap, clock := line{spaces(2)}, line{{at.Format("15:04"), titleInk}}
+	at := prose.TimeOfDay(m.Now, m.ReadAt)
+	gap, clock := line{spaces(2)}, line{{at, titleInk}}
 	end := c.line(0, 0, firstFit(p.Width,
-		slices.Concat(pill, gap, line{{at.Format("Mon 2 Jan  15:04"), titleInk}}),
+		slices.Concat(pill, gap, line{{prose.Day(m.ReadAt.In(m.Now.Location())) + "  " + at, titleInk}}),
 		slices.Concat(pill, gap, clock),
 		clock))
 	s := newStatusLine(m)

@@ -2,13 +2,13 @@ package dashboard
 
 import (
 	"cmp"
-	"fmt"
-	"math"
 	"slices"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -185,8 +185,8 @@ func (cols tokensColumns) reach() int {
 // where the rows are split by model, that each version is at its own price:
 // the date a figure, so it's never cut or broken across rows.
 func (f Frame) tokensFootnote(asOf string) []part {
-	if day, ok := civilDay(asOf); ok {
-		asOf = day.Format("2 Jan 2006")
+	if day, ok := dayfile.Civil(asOf); ok {
+		asOf = prose.DayMonthYear(day)
 	}
 	note := []part{wordsIn("worth: what the same tokens would cost through the API, at its prices as of ", faintInk), figureIn(asOf, faintInk)}
 	if f.History.TokensSplit == TokensByModel || f.History.TokensSplit == TokensByAccountAndModel {
@@ -203,7 +203,7 @@ func (cols tokensColumns) draw(c *canvas, y int, r tokensRow) {
 	}
 	c.line(0, y, fitParts(cols.nameCells(of), r.name...))
 	for _, count := range cols.counts {
-		c.rightFit(count.end, cols.width, y, figurePart(line{{tokenCount(count.count(r.tokens)), r.ink}}, r.number(count.head)))
+		c.rightFit(count.end, cols.width, y, figurePart(line{{prose.Millions(count.count(r.tokens)), r.ink}}, r.number(count.head)))
 	}
 	c.line(cols.worth, y, fitParts(cols.worthCells(), r.numbered("worth", worthPart(r.worth, r.ink))...))
 	if cols.against > 0 && r.against != nil {
@@ -306,10 +306,10 @@ func (r tokensRow) on(accounts []string, named map[string]string) tokensRow {
 }
 
 // tokensAccount is an account's name as Tokens shows it: as labelled names
-// it, as Weeks and Days do; "no account" for the requests none answered.
+// it, as Weeks and Days do; views.NoAccount for the requests none answered.
 func tokensAccount(a views.AccountTokens) string {
 	if a.Account == "" {
-		return "no account"
+		return views.NoAccount
 	}
 	return labelled(a.Label, a.Account)
 }
@@ -329,28 +329,14 @@ func periodName(first string, period views.TokensPeriod) string {
 	if period == views.TokensByMonth {
 		return monthName(first, true)
 	}
-	day, ok := civilDay(first)
+	day, ok := dayfile.Civil(first)
 	switch {
 	case !ok:
 		return first
 	case period == views.TokensByDay:
-		return day.Format(dayLayout)
+		return prose.Day(day)
 	}
-	return day.Format(weekLayout)
-}
-
-// tokenCount writes a count of tokens: under 100 million in millions to one
-// place, 4.2M; then in whole millions, 615M; and from a billion in billions
-// to two places, 1.06B.
-func tokenCount(n int) string {
-	millions := float64(n) / 1e6
-	switch {
-	case math.Round(millions*10) < 1000:
-		return fmt.Sprintf("%.1fM", millions)
-	case math.Round(millions) < 1000:
-		return fmt.Sprintf("%.0fM", millions)
-	}
-	return fmt.Sprintf("%.2fB", millions/1000)
+	return prose.DayMonth(day)
 }
 
 // againstItsPrice is a period's worth against what the plans cost over it,

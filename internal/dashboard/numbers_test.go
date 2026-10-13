@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -33,7 +34,7 @@ func sessionsShown(width, height int) (Frame, status.Document) {
 func TestTheOverviewNamesEachNumberItDrawsByWhatItIs(t *testing.T) {
 	byAccount := frameOf(160, 60)
 	byAccount.By = ByAccount
-	alone := routerDoc("work", 0, readAccount("work", sessionOf(0.6, 2*time.Hour), weekOf(0.4, 3*day)))
+	alone := routerDoc("work", 0, readAccount("work", sessionOf(0.6, 2*time.Hour), weekOf(0.4, 3*quota.Day)))
 	withSessions, overview := sessionsShown(160, 60)
 	sent := []views.Told{{Request: "a", Session: idC61B, Account: "side", Sent: routedAt}, {Request: "b", Session: idC61B, Account: "side", Sent: routedAt}}
 	withSessions.Traces = views.Traces{}.Told(sent, routedAt)

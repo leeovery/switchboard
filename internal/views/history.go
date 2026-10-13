@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -62,7 +63,7 @@ const lookBack = 7
 // priced from the later of the day asked for and the first day the ledger
 // holds.
 func NewHistory(in HistoryInput) History {
-	from, to := dateOf(in.From), dateOf(in.Now)
+	from, to := dayfile.CivilOf(in.From), dayfile.CivilOf(in.Now)
 	asked, today := from.Format(time.DateOnly), to.Format(time.DateOnly)
 	v := versions{table: in.Prices, family: in.Family}
 	p := plans{accounts: in.Accounts, table: in.Prices}
@@ -94,13 +95,13 @@ func splitAt(days []Day, date string) (before, from []Day) {
 	return days[:i], days[i:]
 }
 
-// firstDay is the first of days, as civil gives it, reporting false where
-// there's none, or its date isn't one.
+// firstDay is the first of days, as dayfile.Civil gives one, reporting false
+// where there's none, or its date isn't one.
 func firstDay(days []Day) (time.Time, bool) {
 	if len(days) == 0 {
 		return time.Time{}, false
 	}
-	return civil(days[0].Day)
+	return dayfile.Civil(days[0].Day)
 }
 
 // wholeWeek reports whether a calendar week, by its first day's date, is
@@ -272,18 +273,4 @@ func spansOf(days []Day, key func(Day) (string, bool)) []span {
 		}
 	}
 	return spans
-}
-
-// civil is the local day with the given date as a date in UTC, where every
-// date has its midnight and its 24 hours, for counting days. It reports
-// false for a date that isn't one.
-func civil(date string) (time.Time, bool) {
-	day, err := time.Parse(time.DateOnly, date)
-	return day, err == nil
-}
-
-// dateOf is the local day t falls on, as civil gives it.
-func dateOf(t time.Time) time.Time {
-	y, m, d := t.Local().Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }

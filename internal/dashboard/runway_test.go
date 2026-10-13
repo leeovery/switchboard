@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -21,7 +22,7 @@ import (
 // resets on Thursday; and side, where new sessions go, with room all along.
 func runwayThree() status.Document {
 	personal, reached := limitedAt("personal", clockAt(12, 50))
-	side := readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day))
+	side := readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*quota.Day))
 	return withEvents(routerDoc("side", 5, pressedAccount("work"), personal, side), reached)
 }
 
@@ -327,7 +328,7 @@ func TestRunwayOverTheWeek(t *testing.T) {
 }
 
 func TestAWeekResettingBeyondTheWeekShownHasRoomAllWeek(t *testing.T) {
-	doc := routerDoc("", 1, readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.01, 6*day+20*time.Hour)))
+	doc := routerDoc("", 1, readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.01, 6*quota.Day+20*time.Hour)))
 	rows, l := drawnRunway(runwayFrame(t, Week, 160, 26), doc)
 
 	if got, want := strings.TrimSpace(rows[l.top+1]), "room all week  ·  resets Mon 09:12"; got != want {
@@ -363,7 +364,7 @@ func TestAStretchAtItsReserveOverSinceItWasReadIsDrawnButNotSaid(t *testing.T) {
 		work status.Account
 		want string
 	}{
-		{"its 5-hour window, over the day", Day, readAccount("work", sessionOf(0.95, -30*time.Minute), weekOf(0.3, 4*day)), "room all day"},
+		{"its 5-hour window, over the day", Day, readAccount("work", sessionOf(0.95, -30*time.Minute), weekOf(0.3, 4*quota.Day)), "room all day"},
 		{"its week, over the week", Week, readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.95, -30*time.Minute)), "room all week  ·  resets Mon 12:42"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -446,7 +447,7 @@ func TestWhatsOverIsntSaid(t *testing.T) {
 }
 
 func TestALaneDrainingAllDaySaysWhenItRunsOut(t *testing.T) {
-	doc := routerDoc("", 1, readAccount("work", sessionOf(0.1, 4*time.Hour), weekRunningOut(2*day, 3*day)))
+	doc := routerDoc("", 1, readAccount("work", sessionOf(0.1, 4*time.Hour), weekRunningOut(2*quota.Day, 3*quota.Day)))
 	rows, l := drawnRunway(runwayFrame(t, Day, 160, 26), doc)
 
 	if got, want := strings.TrimSpace(rows[l.top+1]), "room all day  ·  week runs out ~Wed 13:12"; got != want {
@@ -455,8 +456,8 @@ func TestALaneDrainingAllDaySaysWhenItRunsOut(t *testing.T) {
 }
 
 func TestOnAPhoneTheLanesLabelsGiveWayToTheTimeline(t *testing.T) {
-	long := readAccount("a-long-account-named-so", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day))
-	doc := routerDoc("a-long-account-named-so", 1, long, readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day)))
+	long := readAccount("a-long-account-named-so", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*quota.Day))
+	doc := routerDoc("a-long-account-named-so", 1, long, readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*quota.Day)))
 	rows, l := drawnRunway(runwayFrame(t, Day, 52, 26), doc)
 
 	if l.x > 26 || l.timeline.columns < 24 {
@@ -607,7 +608,7 @@ func TestALanesBadge(t *testing.T) {
 	held.Accounts[2].Windows[1].Utilization, held.Accounts[2].Windows[1].Status = 1, quota.StatusRejected
 	reset := runwayThree()
 	reset.Accounts[0].Windows[1].ResetsAt = now.Add(-time.Hour).UTC()
-	probedTwo := probed(readAccount("work", sessionOf(0.3, 3*time.Hour), weekOf(0.3, 4*day)), readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day)))
+	probedTwo := probed(readAccount("work", sessionOf(0.3, 3*time.Hour), weekOf(0.3, 4*quota.Day)), readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*quota.Day)))
 	probedTwo.Best = "side"
 	refused := runwayThree()
 	refused.Accounts[1].Refused = status.Refusal{Until: now.Add(time.Hour).UTC(), Status: 401}
@@ -644,7 +645,7 @@ func TestALanesBadge(t *testing.T) {
 
 func TestEachCauseOfAStretchIsToldWhereItStarts(t *testing.T) {
 	both := pressedAccount("work")
-	both.Windows[1] = weekRunningOut(2*time.Hour, 3*day)
+	both.Windows[1] = weekRunningOut(2*time.Hour, 3*quota.Day)
 	rows, l := drawnRunway(runwayFrame(t, Day, 160, 26), routerDoc("", 1, both))
 
 	if got, want := rows[l.top], " 1 work       ▲ next  "+repeated("▆", 15, "─", 121); got != want {
@@ -706,7 +707,7 @@ func TestTheLegend(t *testing.T) {
 }
 
 func TestALegendThatDoesntFitWholeLeavesTheKeyBehindQuestionMark(t *testing.T) {
-	doc := routerDoc("work", 1, readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day)))
+	doc := routerDoc("work", 1, readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*quota.Day)))
 	for _, tt := range []struct {
 		width      int
 		wantLegend bool
@@ -734,8 +735,8 @@ func TestAboutHowLongAColumnIs(t *testing.T) {
 		{d: 23 * time.Minute, want: "25 min"},
 		{d: weekSpan / 28, want: "6h"},
 	} {
-		if got := about(tt.d); got != tt.want {
-			t.Errorf("about(%s) = %q, want %q", tt.d, got, tt.want)
+		if got := prose.About(tt.d); got != tt.want {
+			t.Errorf("prose.About(%s) = %q, want %q", tt.d, got, tt.want)
 		}
 	}
 }
@@ -743,7 +744,7 @@ func TestAboutHowLongAColumnIs(t *testing.T) {
 func TestRunwaysLanesScrollWhereTheyDontFit(t *testing.T) {
 	var accounts []status.Account
 	for _, id := range []string{"work", "personal", "side", "client", "spare", "lab", "team", "extra"} {
-		accounts = append(accounts, readAccount(id, sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day)))
+		accounts = append(accounts, readAccount(id, sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*quota.Day)))
 	}
 	eight := routerDoc("side", 8, accounts...)
 	f := runwayFrame(t, Day, 160, 25)

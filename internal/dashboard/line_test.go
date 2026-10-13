@@ -6,29 +6,6 @@ import (
 	"testing"
 )
 
-func TestTruncate(t *testing.T) {
-	tests := []struct {
-		name  string
-		text  string
-		width int
-		want  string
-	}{
-		{name: "fits", text: "Work", width: 4, want: "Work"},
-		{name: "cut", text: "Personal", width: 5, want: "Pers…"},
-		{name: "cut after a space", text: "Work team", width: 6, want: "Work…"},
-		{name: "wide characters", text: "東京都", width: 4, want: "東…"},
-		{name: "room for the ellipsis alone", text: "Work", width: 1, want: "…"},
-		{name: "no room", text: "Work", width: 0, want: ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := truncate(tt.text, tt.width); got != tt.want {
-				t.Errorf("truncate(%q, %d) = %q, want %q", tt.text, tt.width, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestFit(t *testing.T) {
 	name := line{{"Switch", nameInk}, {"board", dimInk}}
 	tests := []struct {

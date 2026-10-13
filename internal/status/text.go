@@ -45,12 +45,12 @@ const notStarted = "not started"
 // upstream's errors, it shows cleaned.
 func (m Moment) Text(sessions ...Session) string {
 	d, now := m.doc, m.Now
-	width := labelWidth(d.Accounts)
+	width := m.nameWidth()
 	var b strings.Builder
 	for i, a := range m.Accounts {
 		j := m.judged[i]
 		m.writeAccount(&b, a, j, width)
-		writeNotes(&b, a, j.states.account, now)
+		m.writeNotes(&b, a, j.states.account)
 		b.WriteString("\n")
 	}
 	if len(sessions) > 0 {
@@ -94,15 +94,15 @@ func (m Moment) writePriming(b *strings.Builder) {
 }
 
 // writeNotes writes what's noted of the account a, as read, beside its usage,
-// as it stands at now as an has it: what the router saw hold it back then,
-// how its reserve stands, whether it's under pressure, and how many sessions
-// the router has sent it.
-func writeNotes(b *strings.Builder, an AccountNow, a Account, now time.Time) {
-	notes := a.heldBy(now)
+// as it stands at the moment as an has it: what the router saw hold it back
+// then, how its reserve stands, whether it's under pressure, and how many
+// sessions the router has sent it.
+func (m Moment) writeNotes(b *strings.Builder, an AccountNow, a Account) {
+	notes := a.heldBy(m.Now)
 	if said := reserved(an.ReachedReserve, an.Pinned, an.Reserve); said != "" {
 		notes = append(notes, said)
 	}
-	if pressed := pressureNote(a, an.Pressure, now); pressed != "" {
+	if pressed := m.pressureNote(a, an.Pressure); pressed != "" {
 		notes = append(notes, pressed)
 	}
 	if an.Sessions > 0 {
@@ -158,11 +158,12 @@ func pressureLine(p PressureNow, now time.Time) (string, bool) {
 
 // pressureNote says the account a, as read, standing under pressure as p has
 // it, is under pressure, as pressureLine does, and, where that says when its
-// window runs out, why: the rate it goes by, and the reset its window runs
-// out before, as in "under pressure: runs out ~18:21 at Session's rate over
-// the last 30 min, before its reset at 20:10". It's "" while it isn't under
-// pressure.
-func pressureNote(a Account, p PressureNow, now time.Time) string {
+// window runs out, why: the rate it goes by, the window as the moment names
+// it, put as a sentence has it, and the reset its window runs out before, as
+// in "under pressure: runs out ~18:21 at 5-hour's rate over the last 30 min,
+// before its reset at 20:10". It's "" while it isn't under pressure.
+func (m Moment) pressureNote(a Account, p PressureNow) string {
+	now := m.Now
 	pressed, timed := pressureLine(p, now)
 	w, ok := a.Window(p.Window)
 	if !timed || !ok {
@@ -172,7 +173,7 @@ func pressureNote(a Account, p PressureNow, now time.Time) string {
 	if !a.Pressure.Recent {
 		over = "since it started"
 	}
-	return pressed + " at " + prose.Clean(w.Label) + "'s rate " + over + ", before its reset at " + prose.TimeOfDay(now, w.ResetsAt)
+	return pressed + " at " + InProse(m.NameOf(w.Key)) + "'s rate " + over + ", before its reset at " + prose.TimeOfDay(now, w.ResetsAt)
 }
 
 // Window returns the account's window with the given key, reporting false
@@ -314,7 +315,7 @@ func RefusalAnswer(code int, family string) string {
 }
 
 // writeAccount writes the account a, judged as j, as it stands at the
-// moment: its title, marking the primary, its windows with their labels
+// moment: its title, marking the primary, its windows with their names
 // width wide, each as accountWindow has it, and whatever couldn't be read.
 func (m Moment) writeAccount(b *strings.Builder, a AccountNow, j judgedAccount, width int) {
 	title := a.Title()
@@ -392,20 +393,21 @@ func (d Document) Account(id string) (Account, bool) {
 }
 
 // accountWindow shows account a's window, judged as w, standing at the moment
-// as wn has it, its label as read, width wide, and its use as it stands: not
-// started, and when it's primed; else with when it resets and where it's
-// heading, as windowNotes has them.
+// as wn has it, by its name at the moment, width wide, and its use as it
+// stands: not started, and when it's primed; else with when it resets and
+// where it's heading, as windowNotes has them.
 func (m Moment) accountWindow(a AccountNow, wn WindowNow, w judged, width int) string {
+	name := m.NameOf(w.window.Key)
 	if wn.Kind == WindowNotStarted {
-		return windowLine(w.window.Label, wn.Used, width, []string{notStartedNote(a.NextPrime, m.Now)})
+		return windowLine(name, wn.Used, width, []string{notStartedNote(a.NextPrime, m.Now)})
 	}
-	return windowLine(w.window.Label, wn.Used, width, windowNotes(w.stands, w.out.Heading, m.Now))
+	return windowLine(name, wn.Used, width, windowNotes(w.stands, w.out.Heading, m.Now))
 }
 
-// windowLine shows a window's label, labelWidth wide, and how much of it is
+// windowLine shows a window's name, nameWidth wide, and how much of it is
 // used, then the notes given of it.
-func windowLine(label string, used float64, labelWidth int, notes []string) string {
-	line := fmt.Sprintf("%-*s %4s", labelWidth, prose.Clean(label), prose.Percent(used))
+func windowLine(name string, used float64, nameWidth int, notes []string) string {
+	line := fmt.Sprintf("%-*s %4s", nameWidth, name, prose.Percent(used))
 	if len(notes) == 0 {
 		return line
 	}
@@ -431,13 +433,13 @@ func windowNotes(stands quota.Window, heading Heading, now time.Time) []string {
 	return notes
 }
 
-// labelWidth is the length of the longest window label, which lines the
-// windows of every account up.
-func labelWidth(accounts []Account) int {
+// nameWidth is the length of the longest name of a window at the moment,
+// which lines the windows of every account up.
+func (m Moment) nameWidth() int {
 	width := 0
-	for _, account := range accounts {
+	for _, account := range m.doc.Accounts {
 		for _, w := range account.Windows {
-			width = max(width, utf8.RuneCountInString(prose.Clean(w.Label)))
+			width = max(width, utf8.RuneCountInString(m.NameOf(w.Key)))
 		}
 	}
 	return width
