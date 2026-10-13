@@ -26,7 +26,7 @@ var owed = []string{
 	"accounts-compare-160", "accounts-compare-bad-hour-160", "accounts-compare-month-160", "accounts-compare-ten-160",
 	"accounts-detail-all-160", "accounts-detail-limit-160", "accounts-detail-one-160", "accounts-detail-sessions-160",
 	"accounts-detail-work-160", "accounts-phone-compare-52", "accounts-phone-detail-52",
-	"log-event-details-160", "log-request-details-160", "log-requests-filtered-160",
+	"log-requests-filtered-160",
 	"routing-session-160",
 	"runway-5-hour-160", "runway-phone-52", "runway-stepped-back-160", "runway-ten-accounts-160", "runway-week-160",
 	"session-ended-160", "session-moved-160", "session-phone-52", "session-quiet-160", "session-resumed-160",
@@ -493,6 +493,28 @@ var logTail = []string{
 	"14:41:25", "14:41:29", "14:41:38", "14:41:39", "14:41:41", "14:41:45", "↓ 14:41:53", "↑ 14:42:00", "↓ 14:42:01",
 }
 
+// aroundTheCap are the rows log-request-details-160 draws beside its card,
+// from row 11 to 31, each after its mark, to its session's short id, as its
+// generator drew them, where the world's d28c's and 9c2e's lines are as their
+// sessions' pages draw them.
+var aroundTheCap = []string{
+	"14:31:20  9c2e", "▸ 14:31:20  7f3a", "14:31:21  41e0", "14:31:32  41e0", "14:31:40  9c2e", "▸ 14:31:40  db8a",
+	"14:31:42  41e0", "14:31:44  d28c", "14:31:49  d28c", "14:31:51  db8a", "14:31:53  9c2e", "14:31:54  9c2e",
+	"14:31:58  7f3a", "14:32:02  41e0", "14:32:04  9c2e", "14:32:14  9c2e", "14:32:16  9c2e", "14:32:19  db8a",
+	"14:32:20  d28c", "14:32:22  7f3a", "14:32:23  41e0",
+}
+
+// besideTheCard passes over the row each of reads, from row first on, that a
+// details card covers at 160 columns but its first 16 cells, which read as
+// given.
+func besideTheCard(first int, reads ...string) []passing {
+	p := make([]passing, len(reads))
+	for i, r := range reads {
+		p[i] = cellsOf(first+i, 1, 16, r)
+	}
+	return p
+}
+
 // tableRows passes over a row each of reads, from row first on, each reading
 // as given.
 func tableRows(first int, reads ...string) []passing {
@@ -698,6 +720,7 @@ var passedOver = map[string][]passing{
 		[]passing{period(152, "by week")}, byModelFigures, []passing{cellsOf(32, 3, 41, "5 more weeks below"), historyKeys(75)},
 	),
 
+	"log-event-details-160": {cellsOf(27, 145, 145, "8")},
 	"log-events-160":        {cellsOf(27, 88, 160, ", its 5-hour to run out at 15:10   48k cached again, $0.48")},
 	"log-requests-160":      append(tableRows(8, logTail...), cellsOf(36, 144, 148, "1,240")),
 	"log-requests-phone-52": append(tableRows(9, logTail[len(logTail)-22:]...), cellsOf(32, 36, 40, "1,240")),
@@ -711,6 +734,15 @@ var passedOver = map[string][]passing{
 		[]passing{cellsOf(10, 70, 74, "1,275"), blankCells(14, 98, 110), cellsOf(15, 83, 87, "1,240")},
 		panelSessions(18, 73, 131, "□ d28c", "", "□ 7f3a", "□ db8a", "□ 41e0"),
 		[]passing{cellsOf(26, 31, 45, "1,240 of 1,275"), cellsOf(36, 144, 148, "1,240")},
+	),
+	"log-request-details-160": slices.Concat(
+		[]passing{wholeRow(10, "14:31:18  9c2e")}, besideTheCard(11, aroundTheCap...),
+		[]passing{
+			blankCells(11, 145, 160), cellsOf(12, 145, 160, "s cap  $0.98"),
+			blankCells(15, 145, 160), cellsOf(16, 145, 160, "s cap  $0.66"),
+		},
+		tableRows(32, "14:32:29  d28c", "14:32:34  db8a", "14:32:36  9c2e"),
+		[]passing{cellsOf(15, 35, 62, "req_011CQx…"), cellsOf(36, 26, 28, "214"), cellsOf(36, 144, 148, "1,240")},
 	),
 
 	"routing-auto-160": slices.Concat(routingFigures, []passing{cursorRow(14, "■ 0 auto")}, behindTheCard("0/min", "2/min", "15/min")),

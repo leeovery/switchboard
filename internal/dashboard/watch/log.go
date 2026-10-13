@@ -18,8 +18,9 @@ import (
 // since and the days before read back as the tables want them; the figures
 // of those days, which their rules say; the oldest day the ledger keeps,
 // none known till it says; whether a read for it is under way, one at a
-// time; and whether a failure to say where the ledger's lines begin has
-// been logged, the once.
+// time; whether a failure to say where the ledger's lines begin has been
+// logged, the once; its details card, while it's open; and the panel of
+// what a table shows, while f has it open.
 type logTab struct {
 	page    dashboard.LogPage
 	opened  bool
@@ -30,8 +31,8 @@ type logTab struct {
 	oldest  views.OldestDay
 	reading bool
 	warned  bool
-	// panel is the panel of what a table shows, while f has it open.
-	panel dashboard.LogPanel
+	card    logCarding
+	panel   dashboard.LogPanel
 }
 
 // openingLog is the Log as it first shows: its columns as the preferences
@@ -45,8 +46,9 @@ func openingLog(columns dashboard.LogTicks) logTab {
 // the router answers, what the stream tells of those in flight; its Events
 // of the events read; each as its filter has them, over the days from the
 // first read; whether the router answers, and to when the ledger wrote;
-// on opening, the table shown filled once it fills its view; and while it's
-// open, the panel of what a table shows, as builtLogPanel has it.
+// on opening, the table shown filled once it fills its view; the details
+// card, where it's open, of what it holds; and while it's open, the panel of
+// what a table shows, as builtLogPanel has it.
 func (m Model) builtLog(now time.Time) Model {
 	t := m.log
 	if !t.opened {
@@ -58,7 +60,7 @@ func (m Model) builtLog(now time.Time) Model {
 	p.Requests = views.LogRows(m.logSources(p.Filter, now))
 	p.Events = views.LogEvents(m.logEventSources(p.Shows, now))
 	m.log.page = p.Filling(m.logRows())
-	return m.builtLogPanel(now)
+	return m.followedByLogCard().builtLogPanel(now)
 }
 
 // logSources are what the Log's Requests are built from at now, through
