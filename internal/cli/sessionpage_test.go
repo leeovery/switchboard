@@ -244,6 +244,19 @@ func TestATurnWhoseConversationMovedReadsAsItsMove(t *testing.T) {
 	}
 }
 
+func TestASessionsPageSaysItsShareFromCacheHalfToEvenAndAWorthUnderHalfACentAsUnderACent(t *testing.T) {
+	asked := pagedLine{request: "c1", prompt: "first", model: "claude-opus-5-5", account: "work", reason: "new", stop: "end_turn",
+		at: october(7, 11, 0, 0), ms: 60000}.line()
+	// One token of its eight read from the cache: 12.5%, which is even down.
+	asked.Usage = json.RawMessage(`{"input_tokens":7,"cache_read_input_tokens":1,"output_tokens":1}`)
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {asked}})
+
+	got := run(t, deps, "sessions", paging, "--pretty")
+	if want := "1 turn  ·  1 request  ·  12% from cache  ·  <$0.01 at API prices\n"; got.code != 0 || !strings.Contains(got.stdout, want) {
+		t.Errorf("switchboard sessions %s --pretty = %+v, want it to say\n%s", paging, got, want)
+	}
+}
+
 func TestWhereASessionRunsIsTheMoveOfTheModelItNames(t *testing.T) {
 	lines := []ledger.Line{
 		pagedLine{request: "o1", prompt: "first", model: "claude-opus-5-5", account: "side", reason: "new", stop: "end_turn", at: october(7, 12, 50, 0), ms: 60000}.line(),

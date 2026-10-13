@@ -218,7 +218,7 @@ func writeRequests(out io.Writer, lines iter.Seq[ledger.Held], from, now time.Ti
 // answered it, its status, its tokens in and out, and how long it took.
 func requestRow(h *ledger.Held, at time.Time) []string {
 	return []string{at.Format(time.TimeOnly), orNone(status.ShortID(status.Clean(h.Session))), orNone(status.Clean(h.Model)),
-		orNone(status.Clean(h.Account)), answered(&h.Line), tokensInOut(h.Reply), took(h.TotalMS)}
+		orNone(status.Clean(h.Account)), answered(&h.Line), tokensInOut(h.Reply), status.Seconds(time.Duration(h.TotalMS) * time.Millisecond)}
 }
 
 // answered says how a request was answered: its status, and whether its
@@ -249,20 +249,6 @@ func tokensInOut(r ledger.Reply) string {
 // and written to it, among them.
 func tokensIn(t quota.Tokens) int {
 	return t.Input + t.CacheRead + t.CacheWrite
-}
-
-// took says how long a request took, from its milliseconds, as briefly as a
-// row has room for: "812ms", "14.2s", or "2m3s", each form for what rounds
-// to it, so 59.95 seconds is "1m0s".
-func took(ms int64) string {
-	d := time.Duration(ms) * time.Millisecond
-	switch tenths := d.Round(100 * time.Millisecond); {
-	case d < time.Second:
-		return strconv.FormatInt(ms, 10) + "ms"
-	case tenths < time.Minute:
-		return strconv.FormatFloat(tenths.Seconds(), 'f', 1, 64) + "s"
-	}
-	return d.Round(time.Second).String()
 }
 
 // dash stands, in the data verbs' text, for what there's none of, or isn't

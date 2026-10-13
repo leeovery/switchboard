@@ -160,25 +160,21 @@ func countedOrNone(n int, noun string) string {
 	return prose.Counted(n, noun)
 }
 
-// limitsText says the limits an account reached, by window, as "Session ×2 ·
-// Week ×1", or for every account, how many, as "3".
+// limitsText says the limits an account reached, as views.LimitsHit says
+// them, joined, as "5-hour ×2 · week ×1", or for every account, how many, as
+// "3".
 func limitsText(t views.AccountTotals) string {
-	if len(t.Limits) == 0 {
+	switch {
+	case len(t.Limits) == 0:
 		return "none"
-	}
-	keys := slices.SortedFunc(maps.Keys(t.Limits), quota.CompareKeys)
-	if t.All {
+	case t.All:
 		n := 0
-		for _, key := range keys {
-			n += t.Limits[key]
+		for _, hit := range t.Limits {
+			n += hit
 		}
 		return strconv.Itoa(n)
 	}
-	limits := make([]string, len(keys))
-	for i, key := range keys {
-		limits[i] = fmt.Sprintf("%s ×%d", status.Clean(claude.WindowLabel(key)), t.Limits[key])
-	}
-	return strings.Join(limits, " · ")
+	return strings.Join(views.LimitsHit(t.Limits, status.NameOfKey), " · ")
 }
 
 // minutesText says how long an account spent at its cap or at a limit, as

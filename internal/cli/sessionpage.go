@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"math"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -89,8 +89,8 @@ func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 		}
 	}
 	t := p.Totals
-	fmt.Fprintf(&b, "\n%s%s%s%s%d%% from cache%s%s at API prices\n", prose.Counted(t.Turns, "turn"), status.Separator, prose.Counted(t.Requests, "request"), status.Separator,
-		int(math.Round(t.FromCache*100)), status.Separator, worthSaid(t.Worth))
+	fmt.Fprintf(&b, "\n%s%s%s%s%s from cache%s%s at API prices\n", prose.Counted(t.Turns, "turn"), status.Separator, prose.Counted(t.Requests, "request"), status.Separator,
+		status.Percent(t.FromCache), status.Separator, dashboard.WorthCents(t.Worth))
 	if len(p.Turns) > 0 {
 		if err := writeTable(&b, turnRows(p, now)); err != nil {
 			return err
@@ -220,7 +220,7 @@ func ranOnRows(p views.SessionPage, now time.Time) [][]string {
 			to = time.Time{}
 		}
 		rows[i] = []string{status.Clean(a.Account), status.Stint(now, a.From, to, spans), prose.Counted(a.Requests, "request"),
-			pointsSaid(a.Points), worthSaid(a.Worth)}
+			pointsSaid(a.Points), dashboard.WorthCents(a.Worth)}
 	}
 	return rows
 }
@@ -256,7 +256,7 @@ func turnRows(p views.SessionPage, now time.Time) [][]string {
 	rows := [][]string{turnHeads}
 	for _, t := range p.Turns {
 		rows = append(rows, []string{strconv.Itoa(t.Turn), status.Past(now, t.Started), turnTook(t, now), prose.Grouped(t.Requests), toolsSaid(t.Tools),
-			prose.Tokens(t.Read), prose.Tokens(t.Written), prose.Tokens(t.Out), worthSaid(t.Worth), accountsSaid(t.Accounts)})
+			prose.Tokens(t.Read), prose.Tokens(t.Written), prose.Tokens(t.Out), dashboard.WorthCents(t.Worth), accountsSaid(t.Accounts)})
 	}
 	return rows
 }

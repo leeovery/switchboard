@@ -94,17 +94,17 @@ func SessionWords(reason string, f Facts) Words {
 }
 
 // RunningWords are the reason as a session running reads, with when it went
-// to its account: "started here 14:41", ending ", the best" while that's where
-// new sessions go; "pinned here 14:39", its own pin; "its pin to side yields:
-// side has no room"; "moved from work 14:31: work reached its cap", the
-// account it left the reason's own where it names one; else "here since
-// 14:39: " and its words as an event reads them. Any reason not in the
-// dashboard's words reads as the router gives it, cleaned.
+// to its account, as Dated says it: "started here 14:41", ending ", the best"
+// while that's where new sessions go; "pinned here 14:39", its own pin; "its
+// pin to side yields: side has no room"; "moved from work 14:31: work reached
+// its cap", the account it left the reason's own where it names one; else
+// "here since 14:39: " and its words as an event reads them. Any reason not
+// in the dashboard's words reads as the router gives it, cleaned.
 func RunningWords(reason string, f Facts) Words {
 	reason = Clean(reason)
 	at := ""
 	if !f.At.IsZero() {
-		at = " " + When(f.Now, f.At)
+		at = " " + Dated(f.Now, f.At)
 	}
 	switch {
 	case isNew(reason) && f.Best:
@@ -217,7 +217,8 @@ func passedOver(reason string) (base, account string, ok bool) {
 
 // pressured reads a reason ending ", personal under pressure", which names the
 // account the choice passed over, as "personal came under pressure, its 5-hour
-// to run out at 15:10": pressure is only ever judged in the 5-hour window.
+// to run out at 15:10", the time as Dated says it: pressure is only ever
+// judged in the 5-hour window.
 func pressured(reason string, f Facts) (forms, bool) {
 	_, account, ok := passedOver(reason)
 	if !ok {
@@ -225,7 +226,7 @@ func pressured(reason string, f Facts) (forms, bool) {
 	}
 	w := Words{named(account), plain(" came under pressure")}
 	if !f.Until.IsZero() {
-		w = append(w, plain(", its 5-hour to run out at "+TimeOfDay(f.Now, f.Until)))
+		w = append(w, plain(", its 5-hour to run out at "+Dated(f.Now, f.Until)))
 	}
 	return alike(w), true
 }

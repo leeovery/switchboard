@@ -128,7 +128,7 @@ func (t *Telling) moved(e status.Event, at time.Time) (status.Words, status.Word
 func (t *Telling) pressured(e status.Event, at time.Time) (status.Words, status.Words) {
 	what := "under pressure"
 	if !e.Until.IsZero() {
-		what = "its " + t.windowOf(first(e.Windows)) + " to run out at " + status.When(at, e.Until)
+		what = "its " + t.windowOf(first(e.Windows)) + " to run out at " + status.Dated(at, e.Until)
 	}
 	return account(e.Account), clause(what)
 }
@@ -169,7 +169,7 @@ func (t *Telling) refused(e status.Event, at time.Time) (status.Words, status.Wo
 func (t *Telling) primed(e status.Event, at time.Time) (status.Words, status.Words) {
 	what := t.its(e.Windows, "its window") + " started"
 	if !e.Until.IsZero() {
-		what += ", resets at " + status.When(at, e.Until)
+		what += ", resets at " + status.Dated(at, e.Until)
 	}
 	return account(e.Account), clause(what)
 }
@@ -297,7 +297,7 @@ func till(until, at time.Time) string {
 	if until.IsZero() {
 		return ""
 	}
-	return ", till " + status.When(at, until)
+	return ", till " + status.Dated(at, until)
 }
 
 // pinAccounts are the global pin's accounts, joined with ", ": its first,
