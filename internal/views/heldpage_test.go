@@ -74,16 +74,18 @@ func TestAHeldPageReadsTheLedgerOnceHoweverOftenItsLookedAt(t *testing.T) {
 }
 
 // A held page built at a day that has turned prices its requests at the new
-// day's prices, as a page built afresh then would.
+// day's prices, as a page built afresh then would: looked at then, or rolled
+// on to it as it takes in the new day's lines, none here.
 func TestAHeldPagePricesAfreshAsTheDayTurns(t *testing.T) {
 	lines := []ledger.Line{filedAs("p1", mainOn(p1, local(12, 0, 0), "end_turn"))}
 	tomorrow := now.AddDate(0, 0, 1)
 	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
-	got, _ := held.Page(views.PageLive{Now: tomorrow})
 	read := views.ReadSessions(fakeLedger{now: tomorrow, lines: lines, summaries: summarisedLedger(lines).summaries}, nil, tomorrow, paged)
 	want, _ := views.SessionPageOf(paged, views.PageSources{Read: read, Prices: ledger.Pricing, Keep: kept90, Now: tomorrow})
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("the page held a day is\n%+v\nwant it as built that day\n%+v", got, want)
+	for name, h := range map[string]views.HeldPage{"looked at": held, "rolled on": held.Take(views.Today(tomorrow).Date, nil)} {
+		if got, _ := h.Page(views.PageLive{Now: tomorrow}); !reflect.DeepEqual(got, want) {
+			t.Errorf("the page held a day, %s, is\n%+v\nwant it as built that day\n%+v", name, got, want)
+		}
 	}
 }
 

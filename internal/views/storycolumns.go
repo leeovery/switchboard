@@ -145,14 +145,14 @@ func (s Story) scaled(width int) (storyScale, bool) {
 	}
 	sc.total += sc.minute(s.End)
 	base := width - foldColumns*len(sc.folds)
-	span := max(float64(sc.total)/float64(max(base, 1)), 1)
-	last := min(int(float64(sc.total)/span), base-1)
+	perColumn := columnSpanOf(sc.total, base)
+	last := min(perColumn.column(sc.total), base-1)
 	if last < len(sc.folds) {
 		return storyScale{}, false
 	}
 	sc.edges = make([]float64, last+2)
 	for b := range last + 1 {
-		sc.edges[b] = float64(b) * span
+		sc.edges[b] = perColumn.start(b)
 	}
 	sc.edges[last+1] = float64(sc.total + 1)
 	// A fold comes before the column its come-back minute falls in, but after
@@ -161,10 +161,39 @@ func (s Story) scaled(width int) (storyScale, bool) {
 	prev := 0
 	for j, f := range sc.folds {
 		back := sc.unfolded(f.To)
-		b := min(max(int(float64(back)/span), prev+1), last-(len(sc.folds)-1-j))
+		b := min(max(perColumn.column(back), prev+1), last-(len(sc.folds)-1-j))
 		sc.edges[b], sc.before, prev = float64(back), append(sc.before, b), b
 	}
 	return sc, true
+}
+
+// columnSpan is how many minutes a story's column stands for, as a
+// fraction, its minutes over its columns: a minute where it has no more
+// minutes than columns, so it's never more than a column a minute, or has no
+// columns.
+type columnSpan struct {
+	minutes, columns int
+}
+
+// columnSpanOf is the span of a column of a story of total minutes, its
+// folds left out, laid across base columns.
+func columnSpanOf(total, base int) columnSpan {
+	if total <= base || base < 1 {
+		return columnSpan{minutes: 1, columns: 1}
+	}
+	return columnSpan{minutes: total, columns: base}
+}
+
+// column is the column the minute m, from the story's first, falls in. It's
+// worked out in whole numbers, as start is, so a minute on a column's edge
+// is never put in the column before it, which would stand for no minutes.
+func (s columnSpan) column(m int) int {
+	return m * s.columns / s.minutes
+}
+
+// start is where the column b starts, in minutes from the story's first.
+func (s columnSpan) start(b int) float64 {
+	return float64(b*s.minutes) / float64(s.columns)
 }
 
 // mergedFolds are folds, oldest first, as a story width columns wide draws

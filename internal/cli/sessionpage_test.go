@@ -168,7 +168,7 @@ func TestSessionsFindsASessionOfAnEarlierDayByItsWholeIdAlone(t *testing.T) {
 ended Mon 10:00  ·  ran on work  ·  started Mon 10:00 · ran 0s
 kept until 9 Nov 2027
 
-work  10:00 – 10:00  1 request    $0.04
+work  Mon 10:00 – 10:00  1 request    $0.04
 
 0 turns  ·  1 request  ·  99% from cache  ·  $0.04 at API prices
 `
@@ -193,7 +193,7 @@ func TestASessionsPageWithoutTheRouterIsItsLinesAloneAsEnded(t *testing.T) {
 	deps := pageDeps(t, false)
 	const notice = "switchboard: the router isn't running — showing the session from the ledger alone, as not running\n"
 	const want = `session 5e6f9d33  ~/Code/web
-ended 09:20  ·  ran on work, then side from 09:12: rescored after 15h 7m idle  ·  started yesterday 16:40 · ran 16h 40m
+ended 09:20  ·  ran on work, then side from today 09:12: rescored after 15h 7m idle  ·  started yesterday 16:40 · ran 16h 40m
 kept until 10 Nov 2027
 
 work  yesterday 16:40 – today 09:13  3 requests  ≈ 4 points of its 5-hour · 1 of its week  $0.08

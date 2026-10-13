@@ -94,8 +94,11 @@ func (h HeldPage) built() HeldPage {
 // Take is h with the lines given taken in, those a day, of the given date,
 // gained since it was held, as the ledger's Today gives them: each request
 // of the session's, priced once, and each of an account's, every session's,
-// for the points, each line once, whether it was held already or not. It's
-// h itself where none is new.
+// for the points, each line once, whether it was held already or not. A
+// date after the day h is held at rolls it on to that day, its requests
+// priced afresh, as Page would price them every look until it's held there;
+// an earlier one, of a ledger yet to turn its day, never rolls it back. It's
+// h itself where none is new and the date is no later than its day.
 func (h HeldPage) Take(date string, lines []ledger.Held) HeldPage {
 	var gained []ledger.Line
 	for _, l := range lines {
@@ -103,8 +106,12 @@ func (h HeldPage) Take(date string, lines []ledger.Held) HeldPage {
 			gained = append(gained, l.Line)
 		}
 	}
-	if len(gained) == 0 {
+	rolls := date > h.day.Date
+	if len(gained) == 0 && !rolls {
 		return h
+	}
+	if rolls {
+		h = h.on(dayOf(date))
 	}
 	h.held, h.answers = maps.Clone(h.held), maps.Clone(h.answers)
 	h.hold(gained)
@@ -132,19 +139,25 @@ func inArrival(held, added []request) []request {
 }
 
 // at is h at now: as it's held, where now falls on the day it's held at,
-// else its requests priced afresh at the day now falls on, as a page is
-// priced at today's prices.
+// else built afresh, its requests priced at the day now falls on, as a page
+// is priced at today's prices.
 func (h HeldPage) at(now time.Time) HeldPage {
 	day := Today(now)
 	if day.Date == h.day.Date {
 		return h
 	}
+	return h.on(day).built()
+}
+
+// on is h held at the day given, its requests priced afresh at it, but for
+// what they make, which it leaves to built.
+func (h HeldPage) on(day LedgerDay) HeldPage {
 	lines := make([]ledger.Line, len(h.requests))
 	for i, r := range h.requests {
 		lines[i] = *r.Line
 	}
 	h.day, h.requests = day, requestsOf(lines, h.prices, day.Date)
-	return h.built()
+	return h
 }
 
 // Page is the page of the session h holds, as SessionPageOf builds it, of

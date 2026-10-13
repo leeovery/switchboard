@@ -184,7 +184,9 @@ func movedWords(m SessionMove, words func(reason string, f status.Facts) status.
 // ranOn says where the session ran, as RanOn has it, at now: on each
 // account, in turn, with when its named model's moves came and why, as "ran
 // on work, then side from 16:02: work reached its cap", and short, "ran on
-// work, then side from 16:02: its cap". None where it ran on no account.
+// work, then side from 16:02: its cap". A move's day is named only where it
+// isn't the day the session started on, as row 6's right names that day:
+// "from today 00:40". None where it ran on no account.
 func (p SessionPage) ranOn(now time.Time) WhereSaid {
 	first, moves := p.RanOn()
 	if first == "" {
@@ -193,7 +195,7 @@ func (p SessionPage) ranOn(now time.Time) WhereSaid {
 	ran := status.Words{status.Plain("ran on "), status.Named(first)}
 	why, short := ran, slices.Clone(ran)
 	for _, m := range moves {
-		then := status.Words{status.Plain(", then "), status.Named(m.To), status.Plain(" from " + prose.Past(now, m.At) + ": ")}
+		then := status.Words{status.Plain(", then "), status.Named(m.To), status.Plain(" from " + prose.Later(now, p.Started, m.At) + ": ")}
 		facts := status.Facts{From: m.From, To: m.To, Now: now}
 		why = slices.Concat(why, then, status.EventWords(m.Reason, facts))
 		short = slices.Concat(short, then, status.ShortWords(m.Reason, facts))
@@ -243,20 +245,16 @@ type Stay struct {
 // each with its time there, at now, as prose.Stint says it: from its first
 // request there to its last, or, while it runs, as Runs says, to now on the
 // one its latest request went to, never one the router sends it to but no
-// request of it has gone to since; each end with its day where its time,
-// from its first request to its last or to now, spans more than one, as
-// "yesterday 16:40 – 18:05" and "today 09:12 – now".
+// request of it has gone to since; each end with its day where the session
+// began before today, as an undated time reads as today's, as "yesterday
+// 16:40 – 18:05", "today 09:12 – now" and "yesterday 13:20 – 16:02".
 func (p SessionPage) Stays(now time.Time) []Stay {
 	if len(p.Accounts) == 0 {
 		return nil
 	}
 	first := slices.MinFunc(p.Accounts, func(a, b SessionAccount) int { return a.From.Compare(b.From) }).From
 	last := slices.MaxFunc(p.Accounts, func(a, b SessionAccount) int { return a.To.Compare(b.To) })
-	end := last.To
-	if p.Runs() {
-		end = now
-	}
-	dated := !prose.SameDay(now, first, end)
+	dated := !prose.SameDay(now, first, now)
 	stays := make([]Stay, len(p.Accounts))
 	for i, a := range p.Accounts {
 		to := a.To
