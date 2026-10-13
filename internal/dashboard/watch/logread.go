@@ -114,11 +114,12 @@ type logFold struct {
 
 // logFold is what a read of the ledger's tail at now does for the Log: its
 // late days the day the tail was last read on, where the day turned since,
-// and those the Requests await a line on, as awaited has them.
+// and those before today the Requests await a line on, shown or hidden, as
+// their Awaited has them.
 func (m Model) logFold(now time.Time) logFold {
 	today := views.Today(now)
 	turned := m.tail.turned(today)
-	late := awaited(m.log.page.Requests, today)
+	late := m.log.page.Requests.Awaited(today)
 	if turned && !slices.Contains(late, m.tail.day.Date) {
 		late = append(late, m.tail.day.Date)
 	}
@@ -142,30 +143,13 @@ func (f logFold) grown(l views.Ledger, lines []ledger.Held, prices ledger.Table,
 	return &g
 }
 
-// awaited are the dates of the days before today the Requests show a row on
-// whose end the stream told, its line yet to come, each once: as the line
-// of a request across midnight comes after the day turned, filed under the
-// day it arrived on, which today's tail never reads.
-func awaited(t views.LogTable, today views.LedgerDay) []string {
-	var dates []string
-	for _, l := range t.Lines {
-		if !l.IsRow() || l.Row.Stage != views.RowEnded {
-			continue
-		}
-		if date := views.Today(l.Row.At).Date; date != today.Date && !slices.Contains(dates, date) {
-			dates = append(dates, date)
-		}
-	}
-	return dates
-}
-
 // readBack reads the day before those the Log's tables span, at now, as the
 // oldest day the ledger keeps allows, once known: its lines, its events and
 // the figures of the days from it.
 func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 	t := m.log
 	day, ok := t.oldest.DayBefore(t.from)
-	if t.oldest.Day.Date == "" || !ok {
+	if !ok {
 		return m, nil
 	}
 	l, filed, prices := m.cfg.Ledger, m.cfg.Events, m.cfg.Prices
@@ -179,14 +163,14 @@ func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 }
 
 // oldestKept is the oldest day the ledger l keeps at now, its lines kept as
-// long as keep says, as views.OldestKept has it, today's where it holds no
-// day's lines yet: none where it fails to say where its lines begin, and
-// why.
+// long as keep says, as views.OldestKept has it, given no first day of lines
+// where l holds none yet: none where it fails to say where its lines begin,
+// and why.
 func oldestKept(l views.Ledger, keep time.Duration, now time.Time) (*views.OldestDay, error) {
 	first, err := l.FirstLinesDay(now)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		first = now
+		first = time.Time{}
 	case err != nil:
 		return nil, err
 	}

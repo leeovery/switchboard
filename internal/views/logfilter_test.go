@@ -13,7 +13,7 @@ import (
 
 // filterWorld are the lines the filter's tests pick among, today's: of two
 // sessions and none, two models, two accounts and none, every kind, some
-// failed.
+// failed; a quota check naming a session, toward which it counts none.
 func filterWorld() []ledger.Line {
 	kinded := func(kind string, l ledger.Line) ledger.Line {
 		l.Kind = kind
@@ -48,7 +48,7 @@ func TestALogFilterKeepsThoseTickedAndEveryOneWhereNoneIs(t *testing.T) {
 		{name: "two accounts: none on no account", filter: views.LogFilter{Accounts: []string{"work", "side"}}, ids: []string{"a", "b", "c", "d", "e", "g"}},
 		{name: "a model", filter: views.LogFilter{Models: []string{haiku}}, ids: []string{"b", "d"}},
 		{name: "a session: none of no session", filter: views.LogFilter{Sessions: []string{mover}}, ids: []string{"a", "b", "f"}},
-		{name: "two sessions", filter: views.LogFilter{Sessions: []string{older, mover}}, ids: []string{"a", "b", "c", "d", "f", "g"}},
+		{name: "two sessions: none of a quota check", filter: views.LogFilter{Sessions: []string{older, mover}}, ids: []string{"a", "b", "c", "f", "g"}},
 		{name: "kinds", filter: views.LogFilter{Kinds: both}, ids: []string{"d", "g"}, hiddenBy: []views.RowKind{views.RowRequest}},
 		{name: "failed only", filter: views.LogFilter{Failed: true}, ids: []string{"b", "f"}},
 		{name: "failed on an account", filter: views.LogFilter{Accounts: []string{"side"}, Failed: true}, ids: []string{"b"}},
@@ -81,7 +81,7 @@ func TestTheDaysCountsAreTheSameWhateverTheFilter(t *testing.T) {
 		Requests: 5, Checks: 1, Counts: 1, Failed: 2, Shown: 7,
 		Models:   map[string]int{opus: 5, haiku: 2},
 		Accounts: map[string]int{"work": 4, "side": 2},
-		Sessions: map[string]int{mover: 3, older: 3},
+		Sessions: map[string]int{mover: 3, older: 2},
 	}
 	count := func(f views.LogFilter) views.LogCount {
 		return views.LogRows(views.LogSources{From: now, Now: now, Read: logRead(now, lines...), Filter: f}).Count(views.Today(now).Date)
@@ -103,7 +103,8 @@ func TestTheDaysCountsAreTheSameWhateverTheFilter(t *testing.T) {
 // hard moment: the heading's hidden and the state line's shown make the
 // panel's lines, as each kind's do; failed is what the failed filter shows;
 // and each session's, model's and account's lines are what ticking it shows,
-// together each of the lines naming one.
+// together each of the lines naming one, a line naming the session it
+// counts toward, as countedSession has it.
 func TestTheCountsAgreeWithWhatTheFilterShowsAtEachHardMoment(t *testing.T) {
 	for _, hm := range viewstest.LogMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
@@ -127,7 +128,7 @@ func TestTheCountsAgreeWithWhatTheFilterShowsAtEachHardMoment(t *testing.T) {
 					of      func(views.RequestRow) string
 					ticking func(string) views.LogFilter
 				}{
-					{"session", c.Sessions, func(r views.RequestRow) string { return r.Session }, func(id string) views.LogFilter { return views.LogFilter{Sessions: []string{id}} }},
+					{"session", c.Sessions, countedSession, func(id string) views.LogFilter { return views.LogFilter{Sessions: []string{id}} }},
 					{"model", c.Models, func(r views.RequestRow) string { return r.Model }, func(id string) views.LogFilter { return views.LogFilter{Models: []string{id}} }},
 					{"account", c.Accounts, func(r views.RequestRow) string { return r.Account }, func(id string) views.LogFilter { return views.LogFilter{Accounts: []string{id}} }},
 				} {
@@ -147,6 +148,16 @@ func TestTheCountsAgreeWithWhatTheFilterShowsAtEachHardMoment(t *testing.T) {
 			}
 		})
 	}
+}
+
+// countedSession is the session the request of the row r counts toward, as
+// ledger.Line.CountedSession has it: none for a quota check, which Claude
+// Code sends under an id it never uses again.
+func countedSession(r views.RequestRow) string {
+	if r.Kind == views.RowCheck {
+		return ""
+	}
+	return r.Session
 }
 
 // datesOf are the dates of the days the table's rows are on, each once.

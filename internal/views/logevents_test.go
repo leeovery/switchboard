@@ -238,13 +238,15 @@ func TestTheDocumentsEventsAreKeptAsItGivesNewer(t *testing.T) {
 }
 
 // A move event is of the move of its session and model, from and to the
-// accounts it names, whose request arrived last at or before it: never a
-// like move after it, nor one of another model; one naming no model, from a
-// router from before events named it, is of its session's of any model.
-func TestAMoveEventIsOfTheMoveWhoseRequestArrivedLastBeforeIt(t *testing.T) {
+// accounts it names, whose request was in flight as it was told, the one
+// that arrived last where several were: never a like move after it, nor
+// one of another model, nor, while its own request's line is yet to come, a
+// like move before it; one naming no model, from a router from before
+// events named it, is of its session's of any model.
+func TestAMoveEventIsOfTheMoveWhoseRequestWasInFlightAsItWasTold(t *testing.T) {
 	const off = "moved: work is at its reserve"
 	main := func(id, model, account, reason string, at time.Time) ledger.Line {
-		return withID(id, of(ledger.ClassMain, line(mover, model, account, reason, at, hourUsage)))
+		return withID(id, of(ledger.ClassMain, took(5*time.Second, line(mover, model, account, reason, at, hourUsage))))
 	}
 	lines := []ledger.Line{
 		main("o0", opus, "work", "new", october(7, 10, 0)),
@@ -257,21 +259,28 @@ func TestAMoveEventIsOfTheMoveWhoseRequestArrivedLastBeforeIt(t *testing.T) {
 	tests := []struct {
 		name  string
 		event status.Event
-		want  string
+		// unwritten is the request whose line is yet to come, as it's in
+		// flight: "" where every line has.
+		unwritten string
+		want      string
 	}{
 		{name: "the first like move, a moment after its request", event: moving(opus, "work", "side", october(7, 10, 30).Add(200*time.Millisecond)), want: "o1"},
 		{name: "the second like move", event: moving(opus, "work", "side", october(7, 11, 20).Add(200*time.Millisecond)), want: "o3"},
+		{name: "the second like move, its request in flight, its line yet to come", event: moving(opus, "work", "side", october(7, 11, 20).Add(200*time.Millisecond)), unwritten: "o3"},
 		{name: "a move as its request arrived, to the millisecond", event: moving(opus, "side", "work", october(7, 11, 0)), want: "o2"},
+		{name: "a move as its request ended, within the millisecond", event: moving(opus, "side", "work", october(7, 11, 0).Add(5*time.Second+999*time.Microsecond)), want: "o2"},
+		{name: "a like move told once the last one's request ended", event: moving(opus, "side", "work", october(7, 11, 0).Add(5*time.Second+time.Millisecond))},
 		{name: "another model's like move", event: moving(haiku, "work", "side", october(7, 10, 30).Add(1200*time.Millisecond)), want: "h1"},
 		{name: "a like move told after another model's", event: moving(opus, "work", "side", october(7, 10, 30).Add(1300*time.Millisecond)), want: "o1"},
-		{name: "a move naming no model", event: moving("", "work", "side", october(7, 10, 30).Add(1200*time.Millisecond)), want: "h1"},
+		{name: "a move naming no model, two in flight: the later", event: moving("", "work", "side", october(7, 10, 30).Add(1200*time.Millisecond)), want: "h1"},
 		{name: "a move before any like move's request", event: moving(opus, "work", "side", october(7, 10, 29))},
 		{name: "a move between accounts no request moved it between", event: moving(opus, "side", "personal", october(7, 11, 30))},
 		{name: "a move of a session no line tells of", event: status.Event{ID: 1, At: october(7, 11, 30), Kind: status.EventMoved, Session: older, Model: opus, From: "work", To: "side"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hm := viewstest.EventMoment{Live: []status.Event{tt.event}, Run: october(7, 8, 0), Now: october(7, 12, 0), From: october(7, 0, 0), Lines: lines}
+			written := slices.DeleteFunc(slices.Clone(lines), func(l ledger.Line) bool { return l.Request == tt.unwritten })
+			hm := viewstest.EventMoment{Live: []status.Event{tt.event}, Run: october(7, 8, 0), Now: october(7, 12, 0), From: october(7, 0, 0), Lines: written}
 			rows := eventsOf(hm, eventsRead(hm, nil)).Rows
 			if len(rows) != 1 {
 				t.Fatalf("the Log's Events are %+v, want the move alone", rows)

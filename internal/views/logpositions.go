@@ -86,12 +86,14 @@ func (t LogTable) At(at time.Time) (int, bool) {
 }
 
 // NewSince is how many of the requests' rows t shows were of no request
-// among then's, shown or hidden: those come since the table was then, as
-// t's filter shows them. A row filling in as its line comes isn't new.
+// among then's, shown or hidden, on the days then spanned: those come since
+// the table was then, as t's filter shows them. A row filling in as its
+// line comes isn't new, nor is one of a day before then's first, read back
+// since as the table's top was reached.
 func (t LogTable) NewSince(then LogTable) int {
 	n := 0
 	for _, l := range t.Lines {
-		if l.IsRow() && !then.held(l.Key()) {
+		if l.IsRow() && then.first.Holds(l.day.Start) && !then.held(l.Key()) {
 			n++
 		}
 	}

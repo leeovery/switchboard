@@ -108,6 +108,16 @@ func (t Told) Spends() bool {
 	return !t.Check && !t.Count
 }
 
+// countedSession is the session the request counts toward, as its line
+// will by ledger.Line.CountedSession: none for Claude Code's quota check,
+// sent under an id it never uses again.
+func (t Told) countedSession() string {
+	if t.Check {
+		return ""
+	}
+	return t.Session
+}
+
 // filedAs reports whether l is the request's line: the same request, as
 // sameRequest has it, by when it first went upstream.
 func (t Told) filedAs(l *ledger.Line) bool {
