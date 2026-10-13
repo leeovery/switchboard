@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"maps"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -15,15 +14,9 @@ type LogSources struct {
 	// From is when the table starts: it spans the local days from the one
 	// From falls on to Now's.
 	From time.Time
-	// Lines are the ledger's lines of those days, every kind, in any order,
-	// as the days' files hold them.
-	Lines []ledger.Line
-	// Sessions are the lines of the sessions of Lines, whatever day each is
-	// of, by each session's id, oldest first, as Ledger.Sessions reads them:
-	// what each session's story is told from, which says which of its
-	// requests is its first, the moves they made and what each cost. A
-	// session they don't hold is told from its lines among Lines alone.
-	Sessions map[string][]ledger.Line
+	// Read holds the ledger's lines of those days, and their sessions', as
+	// ReadLog reads them.
+	Read LogRead
 	// Stream is what the request stream told: each request in flight, and
 	// each ended or lost, by its id. The zero Stream told of none.
 	Stream Stream
@@ -36,6 +29,38 @@ type LogSources struct {
 	// Prices are the price table worth is priced by, at today's prices.
 	Prices ledger.Table
 	Now    time.Time
+}
+
+// LogRead is a read of the ledger for the Log's Requests, as ReadLog reads
+// it: the lines of the days the table spans; and every line of their
+// sessions, whatever day it's of, by each one's id, oldest first, which each
+// session's story is told from. A row's story is never told from the table's
+// lines alone, which would make a session that began the day before new
+// today, and a move after a night's idle cost its context written again.
+type LogRead struct {
+	lines    []ledger.Line
+	sessions map[string][]ledger.Line
+}
+
+// ReadLog reads, through l, the sessions of lines, the ledger's lines of the
+// days the Log's Requests span, every kind, in any order, as the days' files
+// hold them: every line of each, whatever day it's of, as the ledger's
+// Sessions reads them, which says which of its requests is its first, the
+// moves they made and what each cost.
+func ReadLog(l LedgerSessions, lines []ledger.Line) LogRead {
+	return LogRead{lines: lines, sessions: l.Sessions(sessionIDs(lines), nil)}
+}
+
+// sessionIDs are the ids of the sessions of the requests among lines, each
+// once.
+func sessionIDs(lines []ledger.Line) []string {
+	ids := make(map[string]bool)
+	for i := range lines {
+		if isRequest(&lines[i]) {
+			ids[lines[i].Session] = true
+		}
+	}
+	return slices.Collect(maps.Keys(ids))
 }
 
 // hides reports whether the table hides the rows of what's asked of the
@@ -123,14 +148,15 @@ type placedRow struct {
 // tells. Within its day it sits where it was sent, where the stream told
 // that, so a row stays where it sat in flight as its line fills it in,
 // though the line's arrival is a moment earlier; else where it arrived. Rows
-// placed alike keep the order of Lines, then of the stream's alone.
+// placed alike keep the order of the lines read, then of the stream's alone.
 func LogRows(src LogSources) LogTable {
 	today, first := Today(src.Now), Today(src.From)
-	stories := storiesOf(src, today)
-	rows := make([]placedRow, 0, len(src.Lines)+len(src.Stream.Requests))
-	lined := make(map[string]bool, len(src.Lines))
-	for i := range src.Lines {
-		l := &src.Lines[i]
+	stories := src.Read.stories(src.Prices, today)
+	lines := src.Read.lines
+	rows := make([]placedRow, 0, len(lines)+len(src.Stream.Requests))
+	lined := make(map[string]bool, len(lines))
+	for i := range lines {
+		l := &lines[i]
 		lined[l.Request] = true
 		place := l.At
 		if t, told := src.Stream.Requests[l.Request]; told && !t.Sent.IsZero() {
@@ -162,29 +188,12 @@ func toldAlone(s Stream, lined map[string]bool) []Told {
 	return alone
 }
 
-// storiesOf are the stories of the sessions of src's requests, by their
-// ids, as src's Sessions tell them, else as their lines among src's Lines
-// do, oldest first, priced at today's prices.
-func storiesOf(src LogSources, today LedgerDay) map[string]*story {
-	own := make(map[string][]ledger.Line)
-	for _, l := range src.Lines {
-		if _, held := src.Sessions[l.Session]; !held && isRequest(&l) {
-			own[l.Session] = append(own[l.Session], l)
-		}
-	}
-	stories := make(map[string]*story)
-	for _, l := range src.Lines {
-		if _, told := stories[l.Session]; told || !isRequest(&l) {
-			continue
-		}
-		lines, held := src.Sessions[l.Session]
-		if !held {
-			lines = own[l.Session]
-			slices.SortStableFunc(lines, func(a, b ledger.Line) int {
-				return cmp.Or(a.At.Compare(b.At), strings.Compare(a.Request, b.Request))
-			})
-		}
-		stories[l.Session] = storyOf(requestsOf(lines, src.Prices, today.Date), src.Prices, today)
+// stories are the stories of the sessions read, by their ids, as their lines
+// tell them, priced at today's prices.
+func (r LogRead) stories(prices ledger.Table, today LedgerDay) map[string]*story {
+	stories := make(map[string]*story, len(r.sessions))
+	for id, lines := range r.sessions {
+		stories[id] = storyOf(requestsOf(lines, prices, today.Date), prices, today)
 	}
 	return stories
 }

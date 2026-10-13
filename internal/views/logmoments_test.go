@@ -15,27 +15,14 @@ import (
 )
 
 // logSourcesOf are what the Log's table is built from at the moment given:
-// the lines of the days it spans, every session's lines, whatever day, for
-// its story, as the ledger's Sessions reads them, and the rest as the moment
-// gives them.
+// the lines of the days it spans, read with their sessions' through the
+// ledger holding the moment's lines, and the rest as the moment gives them.
 func logSourcesOf(hm viewstest.LogMoment) views.LogSources {
-	first := views.Today(hm.From)
-	src := views.LogSources{
-		From: hm.From, Now: hm.Now, Stream: hm.Stream, Totals: hm.Totals, ShowChecks: hm.Shown, ShowCounts: hm.Shown, Prices: ledger.Pricing,
-		Sessions: make(map[string][]ledger.Line),
+	spanned := slices.DeleteFunc(slices.Clone(hm.Lines), func(l ledger.Line) bool { return !views.Today(hm.From).Holds(l.At) })
+	return views.LogSources{
+		From: hm.From, Now: hm.Now, Read: views.ReadLog(ledgerHolding(hm.Now, hm.Lines...), spanned),
+		Stream: hm.Stream, Totals: hm.Totals, ShowChecks: hm.Shown, ShowCounts: hm.Shown, Prices: ledger.Pricing,
 	}
-	for _, l := range hm.Lines {
-		if first.Holds(l.At) {
-			src.Lines = append(src.Lines, l)
-		}
-		if l.Session != "" {
-			src.Sessions[l.Session] = append(src.Sessions[l.Session], l)
-		}
-	}
-	for _, lines := range src.Sessions {
-		slices.SortStableFunc(lines, func(a, b ledger.Line) int { return a.At.Compare(b.At) })
-	}
-	return src
 }
 
 // logLineOf is what a line of the table says of what the Log's rules decide,
@@ -166,7 +153,7 @@ func TestTheListAndTheLogAgreeOnASessionsLatestRequest(t *testing.T) {
 	for _, hm := range agreeingAt() {
 		table := views.LogRows(logSourcesOf(viewstest.LogMoment{Lines: hm.lines, Stream: hm.stream, From: hm.from, Now: hm.now}))
 		list := views.ListSessions(views.SessionSources{
-			Running: hm.sessions, Unlisted: hm.unlisted, Stream: hm.stream, Ledger: fakeLedger{lines: hm.lines, now: hm.now}, Prices: ledger.Pricing, Now: hm.now,
+			Running: hm.sessions, Unlisted: hm.unlisted, Stream: hm.stream, Ledger: ledgerHolding(hm.now, hm.lines...), Prices: ledger.Pricing, Now: hm.now,
 		})
 		for _, s := range list.Sessions {
 			row, flying, ok := latestOf(table, s.Session)

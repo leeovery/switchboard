@@ -42,10 +42,17 @@ type Ledger interface {
 	// Session gives the lines of the session with the given id, newest
 	// first, read as far back as the caller goes on.
 	Session(id string) iter.Seq[ledger.Held]
+	LedgerSessions
+}
+
+// LedgerSessions reads the request ledger's sessions where they lie, with no
+// router, every line of each, whatever day it's of, as a ledger.Follower
+// does.
+type LedgerSessions interface {
 	// Sessions gives the lines of today's sessions, those with a request
 	// today, and of those with the given ids, that arrived by now, by each
-	// one's id, oldest first, as Session reads one's, each day's files read
-	// once; and hands take, where it's given, each line it reads, of
+	// one's id, oldest first, as Ledger's Session reads one's, each day's files
+	// read once; and hands take, where it's given, each line it reads, of
 	// whichever session, with the date of the day whose files hold it.
 	Sessions(ids []string, take func(date string, l ledger.Line)) map[string][]ledger.Line
 }
