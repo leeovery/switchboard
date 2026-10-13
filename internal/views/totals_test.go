@@ -5,8 +5,20 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
+
+func TestTheLimitsHitAreSaidByWindowTheShortestFirst(t *testing.T) {
+	limits := map[string]int{"7d": 1, "5h": 1240, "7d_oi": 3}
+	got := views.LimitsHit(limits, status.NameOfKey)
+	if want := []string{"5-hour ×1,240", "week ×1", "Fable week ×3"}; !slices.Equal(got, want) {
+		t.Errorf("LimitsHit(%v) = %q, want %q", limits, got, want)
+	}
+	if got := views.LimitsHit(nil, status.NameOfKey); len(got) != 0 {
+		t.Errorf("LimitsHit(none) = %q, want none", got)
+	}
+}
 
 // The sessions of the totals' tests.
 const (

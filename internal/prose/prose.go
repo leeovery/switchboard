@@ -8,28 +8,47 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
-// countUnits are the units Count counts in from a thousand, each a thousand
-// of the one before.
-var countUnits = []string{"k", "M", "B"}
+// Tokens counts n tokens as briefly as a row has room for, as the Log counts
+// them: as they are under a thousand; in thousands to a tenth under ten
+// thousand, as "5.4k", and whole under a million, as "958k"; then in millions
+// to a tenth, as "5.7M" or "16.1M". Each form is for what rounds to it, so
+// 9,960 is "10k", and 999,500 is "1.0M", a half rounded up.
+func Tokens(n int) string {
+	switch {
+	case n < 1000:
+		return strconv.Itoa(n)
+	case rounded(n, 100) < 100:
+		return tenths(rounded(n, 100), "k")
+	case rounded(n, 1000) < 1000:
+		return strconv.Itoa(rounded(n, 1000)) + "k"
+	}
+	return tenths(rounded(n, 100_000), "M")
+}
 
-// Count counts n, as of tokens, as briefly as a row has room for: as it is
-// under a thousand, then in thousands, millions or billions, the least it
-// rounds to under a thousand of, or billions past them, to a tenth under ten,
-// as "1.2k" or "9.9M", or whole, as "34k" or "120M".
-func Count(n int) string {
-	if n < 1000 {
-		return fmt.Sprint(n)
+// rounded is how many of unit n is, to the nearest, a half rounded up.
+func rounded(n, unit int) int {
+	return (n + unit/2) / unit
+}
+
+// tenths writes a count of tenths of a unit, to a tenth, as "5.4k".
+func tenths(n int, unit string) string {
+	return strconv.Itoa(n/10) + "." + strconv.Itoa(n%10) + unit
+}
+
+// Times says how many times something happened, as a sentence does: "once",
+// "twice", then "3 times".
+func Times(n int) string {
+	switch n {
+	case 1:
+		return "once"
+	case 2:
+		return "twice"
 	}
-	of, unit := float64(n)/1000, 0
-	for of >= 999.5 && unit < len(countUnits)-1 {
-		of, unit = of/1000, unit+1
-	}
-	if of < 9.95 {
-		return fmt.Sprintf("%.1f%s", of, countUnits[unit])
-	}
-	return fmt.Sprintf("%.0f%s", of, countUnits[unit])
+	return fmt.Sprint(n) + " times"
 }
 
 // numberWords are the numbers Number words, from none to ten.
@@ -101,8 +120,35 @@ func TruncateBytes(s string, n int) string {
 	return s[:n]
 }
 
-// ellipsis stands for what TruncateBytesFront cuts.
+// ellipsis stands for what TruncateBytesFront, Cut and CutFront cut.
 const ellipsis = "…"
+
+// Cut cuts text to the cells given, as a terminal draws it, ending it with an
+// ellipsis where it's cut, the spaces before that let go: text as it is where
+// it fits, and "" where no cell is given.
+func Cut(text string, cells int) string {
+	switch {
+	case ansi.StringWidth(text) <= cells:
+		return text
+	case cells < 1:
+		return ""
+	}
+	return strings.TrimRight(ansi.Truncate(text, cells-ansi.StringWidth(ellipsis), ""), " ") + ellipsis
+}
+
+// CutFront cuts text to the cells given, as a terminal draws it, from its
+// start, keeping its end, an ellipsis ahead of it where it's cut: text as it
+// is where it fits, and "" where no cell is given.
+func CutFront(text string, cells int) string {
+	switch width := ansi.StringWidth(text); {
+	case width <= cells:
+		return text
+	case cells < 1:
+		return ""
+	default:
+		return ellipsis + ansi.TruncateLeft(text, width-(cells-ansi.StringWidth(ellipsis)), "")
+	}
+}
 
 // TruncateBytesFront keeps as much of the end of s as n bytes hold with an
 // ellipsis ahead of it, standing for what's cut, starting at the start of a

@@ -454,7 +454,7 @@ func noCalls(doc status.Document) string {
 // model; when it was last seen; and what its request is doing, as the
 // request stream tells.
 func (f Frame) drawCall(c *canvas, doc status.Document, r callRow, now time.Time) {
-	id := sessionID(r.session.ID)
+	id := status.ShownID(r.session.ID)
 	if r.gone {
 		c.line(callsAt, r.row, line{{id, goneIDInk}, {"  ↪ moved to " + docNamed(doc, r.to), goneInk}}.fit(plugAt-callsAt))
 		return
@@ -463,7 +463,7 @@ func (f Frame) drawCall(c *canvas, doc status.Document, r callRow, now time.Time
 	if !f.lit(r.seated, now) {
 		idInk = idleIDInk
 	}
-	seen := seenAgo(now, f.lastSeen(r.seated))
+	seen := status.SeenAgo(now, f.lastSeen(r.seated))
 	seenInk := dimInk
 	if seen == "now" {
 		seenInk = secondaryInk
@@ -506,21 +506,6 @@ func statusCode(code int) string {
 		return ""
 	}
 	return strconv.Itoa(code)
-}
-
-// seenAgo says how long before now a call was last seen, as its row has room
-// for: "now" within the half minute, else to the nearest minute, as "9m",
-// and from the hour, to the nearest hour, as "1h".
-func seenAgo(now, seen time.Time) string {
-	d := now.Sub(seen)
-	switch minutes := int((d + time.Minute/2) / time.Minute); {
-	case minutes < 1:
-		return "now"
-	case minutes < 60:
-		return strconv.Itoa(minutes) + "m"
-	default:
-		return strconv.Itoa(int((d+time.Hour/2)/time.Hour)) + "h"
-	}
 }
 
 // docName is name of an account of the document as read, for milestone 5's

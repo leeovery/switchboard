@@ -11,9 +11,6 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// sessionShown is how much of a session's id the dashboard shows.
-const sessionShown = 4
-
 // name is what the dashboard calls an account: its label, which is its id
 // unless the config gives another, cleaned.
 func name(a status.AccountNow) string {
@@ -95,12 +92,6 @@ func spanOf(key string) string {
 	default:
 		return fmt.Sprintf("%d-hour window", length/time.Hour)
 	}
-}
-
-// sessionID is a session's id as the dashboard shows it: its first four
-// characters, cleaned.
-func sessionID(id string) string {
-	return prose.Truncate(status.Clean(id), sessionShown)
 }
 
 // lately says the span a recent rate measured at at is over, from since, as

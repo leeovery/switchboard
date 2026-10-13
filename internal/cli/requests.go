@@ -242,7 +242,7 @@ func tokensInOut(r ledger.Reply) string {
 	if !ok {
 		return ""
 	}
-	return prose.Count(tokensIn(t)) + " in, " + prose.Count(t.Output) + " out"
+	return prose.Tokens(tokensIn(t)) + " in, " + prose.Tokens(t.Output) + " out"
 }
 
 // tokensIn counts the tokens t counts in: those read from the prompt cache,

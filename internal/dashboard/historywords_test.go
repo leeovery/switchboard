@@ -41,8 +41,37 @@ func TestAWorthIsWrittenToTheDollar(t *testing.T) {
 	}
 }
 
-// Against its price is bold, in state.positive at 1× or more as it's
-// written, and accent.attention under; a dash where there's none.
+// A worth to the cent is the Log's: under half a cent but more than none
+// reads "<$0.01", not as nothing; unpriced where all is; a + after it where
+// part is.
+func TestAWorthIsWrittenToTheCent(t *testing.T) {
+	tests := []struct {
+		name  string
+		worth views.Worth
+		want  string
+	}{
+		{name: "priced", worth: views.Worth{Amount: usd(0.15)}, want: "$0.15"},
+		{name: "half a cent, rounded up", worth: views.Worth{Amount: usd(0.005)}, want: "$0.01"},
+		{name: "under half a cent", worth: views.Worth{Amount: usd(0.0049)}, want: "<$0.01"},
+		{name: "a millionth of a cent", worth: views.Worth{Amount: usd(1e-8)}, want: "<$0.01"},
+		{name: "priced at nothing", worth: views.Worth{Amount: usd(0)}, want: "$0.00"},
+		{name: "nothing", worth: views.Worth{}, want: "$0.00"},
+		{name: "part unpriced", worth: views.Worth{Amount: usd(17.856), Unpriced: []string{"no_usage"}}, want: "$17.86+"},
+		{name: "under half a cent, part unpriced", worth: views.Worth{Amount: usd(0.001), Unpriced: []string{"no_usage"}}, want: "<$0.01+"},
+		{name: "wholly unpriced", worth: views.Worth{Unpriced: []string{"claude-opus-9"}}, want: "unpriced"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := WorthCents(tt.worth); got != tt.want {
+				t.Errorf("WorthCents(%+v) = %q, want %q", tt.worth, got, tt.want)
+			}
+		})
+	}
+}
+
+// Against its price is to a tenth, a half to the even one, bold, in
+// state.positive at 1× or more as it's written, and accent.attention under; a
+// dash where there's none.
 func TestAgainstItsPriceIsColouredAsItsWritten(t *testing.T) {
 	tests := []struct {
 		ratio *float64
@@ -51,6 +80,9 @@ func TestAgainstItsPriceIsColouredAsItsWritten(t *testing.T) {
 		{ratio: new(3.8166), want: line{{"3.8×", boldPositiveInk}}},
 		{ratio: new(0.96), want: line{{"1.0×", boldPositiveInk}}},
 		{ratio: new(0.94), want: line{{"0.9×", alertInk}}},
+		{ratio: new(0.25), want: line{{"0.2×", alertInk}}},
+		{ratio: new(1.25), want: line{{"1.2×", boldPositiveInk}}},
+		{ratio: new(0.75), want: line{{"0.8×", alertInk}}},
 		{want: line{noFigure}},
 	}
 	for _, tt := range tests {

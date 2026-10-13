@@ -539,6 +539,20 @@ func TestOneEndedIsKeptUntilTheLastDayItsFirstDaysLinesAre(t *testing.T) {
 	}
 }
 
+func TestKeptUntilSaysTheLastDayKeptItsYearNamedWhereItIsntNows(t *testing.T) {
+	now := time.Date(2026, 10, 13, 9, 0, 0, 0, time.FixedZone("UTC+1", 60*60))
+	for date, want := range map[string]string{
+		"2027-11-04": "kept until 4 Nov 2027",
+		"2026-12-29": "kept until 29 Dec",
+		"":           "kept for good",
+		"someday":    "kept until someday",
+	} {
+		if got := views.KeptUntil(date, now); got != want {
+			t.Errorf("KeptUntil(%q) = %q, want %q", date, got, want)
+		}
+	}
+}
+
 func TestEachMoveSaysWhatItWroteAndWhatThatCostWhereTheCacheWouldntHaveRunOut(t *testing.T) {
 	lines := []ledger.Line{
 		line(paged, opus, "work", "new", local(9, 0, 0), hourUsage),

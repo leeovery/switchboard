@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -24,7 +23,7 @@ type toldEvent struct {
 func toldBetween(from, to time.Time) []toldEvent {
 	now := worldsNow().now
 	_, _, happened := autoWorld().readers()
-	telling := views.NewTelling(claude.WindowName)
+	telling := views.NewTelling(status.NameOfKey)
 	var told []toldEvent
 	for e := range happened.Between(from, to) {
 		line := telling.Line(e.Event, now)

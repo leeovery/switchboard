@@ -108,7 +108,7 @@ type SessionSources struct {
 // those with requests today, each with what the router says of it and what
 // its lines tell, of whatever day, as the ledger's Sessions reads them.
 func ListSessions(src SessionSources) SessionList {
-	today := dayOf(src.Now)
+	today := Today(src.Now)
 	read := src.Ledger.Sessions(runningIDs(src.Running), nil)
 	routed := make(map[string]status.Session, len(src.Running))
 	for _, s := range src.Running {
@@ -116,7 +116,7 @@ func ListSessions(src SessionSources) SessionList {
 	}
 	list := SessionList{GeneratedAt: src.Now.UTC(), PricesAsOf: src.Prices.AsOf, Sessions: []ListedSession{}}
 	for _, id := range listedIDs(read, src.Running) {
-		s := storyOf(requestsOf(read[id], src.Prices, today.date), src.Prices, today)
+		s := storyOf(requestsOf(read[id], src.Prices, today.Date), src.Prices, today)
 		session, running := routed[id]
 		if !running && s.requests == 0 {
 			continue

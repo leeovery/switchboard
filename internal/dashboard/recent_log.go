@@ -29,7 +29,7 @@ func told(e status.Event, doc status.Document, now time.Time) (span, line, bool)
 	e.At = e.At.In(now.Location())
 	switch e.Kind {
 	case status.EventStarted:
-		return span{"▲", accentInk}, slices.Concat(line{{sessionID(e.Session), titleInk}, {" started on ", mutedInk}, {docNamed(doc, e.Account), strongInk}}, why(doc, e.Reason)), true
+		return span{"▲", accentInk}, slices.Concat(line{{status.ShownID(e.Session), titleInk}, {" started on ", mutedInk}, {docNamed(doc, e.Account), strongInk}}, why(doc, e.Reason)), true
 	case status.EventMoved:
 		return movedMark, moveSaid(e, doc, why(doc, e.Reason)), true
 	case status.EventRestart:
@@ -74,7 +74,7 @@ var movedMark = span{"▸", dimInk}
 // moveSaid says a session's model moved, from where to where, as in "d28c
 // moved work → side", then why, as said gives it.
 func moveSaid(e status.Event, doc status.Document, said line) line {
-	return slices.Concat(line{{sessionID(e.Session), titleInk}, {" moved ", mutedInk}, {docNamed(doc, e.From), strongInk}, {" → ", mutedInk}, {docNamed(doc, e.To), strongInk}}, said)
+	return slices.Concat(line{{status.ShownID(e.Session), titleInk}, {" moved ", mutedInk}, {docNamed(doc, e.From), strongInk}, {" → ", mutedInk}, {docNamed(doc, e.To), strongInk}}, said)
 }
 
 // why says why a session went where it did, as the router's reason gives it,

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
@@ -587,6 +588,34 @@ func NameOfWindow(key, label string) string {
 		return fmt.Sprintf("%d-hour", length/time.Hour)
 	}
 	return Clean(cmp.Or(label, key))
+}
+
+// NameOfKey is what the window with the given key is called where no
+// document labels it, as NameOfWindow calls it by the label Claude gives the
+// key: "5-hour", "Week" or "Fable week", or the key, cleaned, of one Claude
+// doesn't label.
+func NameOfKey(key string) string {
+	return NameOfWindow(key, claude.WindowLabel(key))
+}
+
+// Window is the window of the moment's accounts with the given key, as its
+// Shown or Hidden names it, reporting false where none of them has it.
+func (m Moment) Window(key string) (WindowName, bool) {
+	for _, windows := range [][]WindowName{m.Shown, m.Hidden} {
+		if i := slices.IndexFunc(windows, func(w WindowName) bool { return w.Key == key }); i >= 0 {
+			return windows[i], true
+		}
+	}
+	return WindowName{}, false
+}
+
+// NameOf is what the window with the given key is called at the moment, as
+// Window names it: one none of its accounts has as NameOfKey calls it.
+func (m Moment) NameOf(key string) string {
+	if w, ok := m.Window(key); ok {
+		return w.Name
+	}
+	return NameOfKey(key)
 }
 
 // windowsShown are the windows of the accounts at the moment, in quota's

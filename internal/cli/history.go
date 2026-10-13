@@ -271,7 +271,7 @@ func modelRows(a ledger.PricedAccount) [][]string {
 		}
 		tokens := m.Tokens()
 		rows = append(rows, []string{account, modelName(m.ModelDay), requestCount(m.ModelDay),
-			prose.Count(tokensIn(tokens)+tokens.Output) + " tokens", status.SessionCount(m.Sessions), worthOf(m)})
+			prose.Tokens(tokensIn(tokens)+tokens.Output) + " tokens", status.SessionCount(m.Sessions), worthOf(m)})
 	}
 	return rows
 }
@@ -370,7 +370,7 @@ func weeksResetOf(a ledger.PricedAccount, now time.Time) string {
 	resets := weekResets(a)
 	said := make([]string, len(resets))
 	for i, r := range resets {
-		said[i] = status.InProse(claude.WindowName(r.Window)) + " reset " + status.TimeOfDay(now, r.At)
+		said[i] = status.InProse(status.NameOfKey(r.Window)) + " reset " + status.TimeOfDay(now, r.At)
 	}
 	return status.Clean(prose.List(said))
 }

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -29,8 +28,8 @@ type Sentence struct {
 // Said is a sentence of LATELY's in the parts it's drawn in: its subject, as
 // "work", "c61b" or "pin"; the words said of it; its object, where it has
 // one, as "side" or "3 sessions"; and the words after that. Each names
-// accounts apart, by id, as status.Words do, and a session by the first
-// sessionShown characters of its id.
+// accounts apart, by id, as status.Words do, and a session as status.ShownID
+// names it.
 type Said struct {
 	Subject, Words, Object, Rest status.Words
 }
@@ -39,10 +38,6 @@ type Said struct {
 func (s Said) String() string {
 	return slices.Concat(s.Subject, s.Words, s.Object, s.Rest).String()
 }
-
-// sessionShown is how much of a session's id names it: its first 4
-// characters.
-const sessionShown = 4
 
 // Lately are the events of the document m is a moment of, as LATELY tells
 // them at its Now, the newest first, n at most: those of the kinds it tells
@@ -56,7 +51,7 @@ func Lately(m status.Moment, n int) []Sentence {
 			told = append(told, e)
 		}
 	}
-	t := latelyTeller{now: m.Now, events: m.Events, windows: NewTelling(claude.WindowName)}
+	t := latelyTeller{now: m.Now, events: m.Events, windows: NewTelling(m.NameOf)}
 	shown := unfolded(told, n)
 	sentences := make([]Sentence, len(shown))
 	for i, e := range shown {
@@ -240,7 +235,7 @@ func (latelyTeller) pinned(e status.Event) (Said, Said) {
 	who, accounts := "new sessions go to ", pinnedTo(e)
 	switch {
 	case e.Session != "":
-		who, accounts = sessionNamed(e.Session)+" goes to ", account(e.Account)
+		who, accounts = status.ShownID(e.Session)+" goes to ", account(e.Account)
 	case e.Move:
 		who = "new and running sessions go to "
 	}
@@ -368,17 +363,11 @@ func pinnedTo(e status.Event) status.Words {
 	return joined(names, " and ")
 }
 
-// session is the session with the given id, named as sessionNamed names it:
-// none for "".
+// session is the session with the given id, named as status.ShownID names
+// it: none for "".
 func session(id string) status.Words {
 	if status.Clean(id) == "" {
 		return nil
 	}
-	return clause(sessionNamed(id))
-}
-
-// sessionNamed is the session with the given id as LATELY names it: the
-// first sessionShown characters of its id, cleaned.
-func sessionNamed(id string) string {
-	return prose.Truncate(status.Clean(id), sessionShown)
+	return clause(status.ShownID(id))
 }

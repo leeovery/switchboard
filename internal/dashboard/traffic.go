@@ -179,7 +179,7 @@ func (m Move) event() status.Event {
 // ~1.2k", the tilde marking an estimate.
 func (c Call) streamed() string {
 	if c.Exact {
-		return "↓ " + prose.Count(c.Tokens)
+		return "↓ " + prose.Tokens(c.Tokens)
 	}
-	return "↓ ~" + prose.Count(c.Tokens)
+	return "↓ ~" + prose.Tokens(c.Tokens)
 }

@@ -57,7 +57,7 @@ func rowOf(c *canvas, y int) string {
 func callAt(t *testing.T, b bay, shown, account string) callRow {
 	t.Helper()
 	i := slices.IndexFunc(b.calls, func(r callRow) bool {
-		return sessionID(r.session.ID) == shown && r.assignment.Account == account
+		return status.ShownID(r.session.ID) == shown && r.assignment.Account == account
 	})
 	if i < 0 {
 		t.Fatalf("there's no call of %s on %s", shown, account)
@@ -70,7 +70,7 @@ func callAt(t *testing.T, b bay, shown, account string) callRow {
 func cordOf(t *testing.T, b bay, shown, account string) cord {
 	t.Helper()
 	i := slices.IndexFunc(b.cords, func(k cord) bool {
-		return sessionID(k.plug.Seat.Session) == shown && k.plug.Account == account
+		return status.ShownID(k.plug.Seat.Session) == shown && k.plug.Account == account
 	})
 	if i < 0 {
 		t.Fatalf("there's no cord of %s to %s", shown, account)
@@ -105,7 +105,7 @@ func TestTheCallsAreGroupedByTheLineTheyreOn(t *testing.T) {
 	}
 	var got []placed
 	for _, r := range b.calls {
-		got = append(got, placed{row: r.row, call: sessionID(r.session.ID) + " " + r.assignment.Name() + " on " + r.assignment.Account, jack: r.jack})
+		got = append(got, placed{row: r.row, call: status.ShownID(r.session.ID) + " " + r.assignment.Name() + " on " + r.assignment.Account, jack: r.jack})
 	}
 	// work's, the one put there last first, db8a's sonnet and d28c's at once,
 	// as the router lists them; then, a blank row on, side's, db8a's opus,
@@ -134,7 +134,7 @@ func TestACallKeepsItsRowHoweverTheRouterListsTheSessions(t *testing.T) {
 	order := func(listed []status.Session) []string {
 		var ids []string
 		for _, r := range bayOfFrame(t, switchboard(160, 40, listed, Traffic{}), threeRouted()).calls {
-			ids = append(ids, sessionID(r.session.ID))
+			ids = append(ids, status.ShownID(r.session.ID))
 		}
 		return ids
 	}
@@ -155,7 +155,7 @@ func TestTheCallsKeepTheOrderTheWatchKeeps(t *testing.T) {
 	var got []string
 	for _, r := range b.calls {
 		if r.assignment.Account == "work" {
-			got = append(got, fmt.Sprintf("%s on row %d", sessionID(r.session.ID), r.row))
+			got = append(got, fmt.Sprintf("%s on row %d", status.ShownID(r.session.ID), r.row))
 		}
 	}
 	// d28c and 7f3a in the order kept, closing up over 5b19, which the router
@@ -186,7 +186,7 @@ func TestAPlaceholderKeepsItsRowTillAListingShowsItsMoveDone(t *testing.T) {
 		var calls []string
 		for _, r := range bayOfFrame(t, f, threeRouted()).calls {
 			if r.assignment.Account == "work" {
-				calls = append(calls, fmt.Sprintf("%s on row %d, gone %v", sessionID(r.session.ID), r.row, r.gone))
+				calls = append(calls, fmt.Sprintf("%s on row %d, gone %v", status.ShownID(r.session.ID), r.row, r.gone))
 			}
 		}
 		return calls
@@ -276,7 +276,7 @@ func TestEachLineHasAPanelAJackAWindowGrowingARowForEachCallPastThem(t *testing.
 	for _, k := range b.cords {
 		p := b.panels[k.place-1]
 		if k.to <= p.top || k.to > p.top+p.rows {
-			t.Errorf("the cord of %s ends on row %d, outside its panel's rows %d to %d", sessionID(k.plug.Seat.Session), k.to, p.top+1, p.top+p.rows)
+			t.Errorf("the cord of %s ends on row %d, outside its panel's rows %d to %d", status.ShownID(k.plug.Seat.Session), k.to, p.top+1, p.top+p.rows)
 		}
 	}
 }
@@ -314,7 +314,7 @@ func cordsHoldTheirRule(t *testing.T, name string, b bay) {
 	jacks := make(map[int]bool)
 	lastBend := b.x
 	for _, k := range b.cords {
-		who := sessionID(k.plug.Seat.Session) + " on " + k.plug.Account
+		who := status.ShownID(k.plug.Seat.Session) + " on " + k.plug.Account
 		switch {
 		case k.to < k.from:
 			t.Fatalf("%s: the cord of %s runs up, from row %d to %d", name, who, k.from, k.to)
@@ -644,8 +644,8 @@ func TestAMoveRePatchesTheCall(t *testing.T) {
 		t.Errorf("its row reads %q, want a placeholder, and its cord hanging loose from its jack", got)
 	}
 	for _, r := range before.calls {
-		if r.assignment.Account == "work" && r.seat() != seat && callAt(t, b, sessionID(r.session.ID), "work").row != r.row {
-			t.Errorf("%s on work moved from row %d, want the other calls put", sessionID(r.session.ID), r.row)
+		if r.assignment.Account == "work" && r.seat() != seat && callAt(t, b, status.ShownID(r.session.ID), "work").row != r.row {
+			t.Errorf("%s on work moved from row %d, want the other calls put", status.ShownID(r.session.ID), r.row)
 		}
 	}
 	brought := callAt(t, b, "d28c", "side")
@@ -1283,24 +1283,8 @@ func TestARequestIsInFlightWhileItAsksStreamsOrIsThrottled(t *testing.T) {
 
 func TestABackAndACallRoundWhenItWasLastSeenAlike(t *testing.T) {
 	for ago := time.Minute; ago <= time.Hour; ago += 7 * time.Second {
-		if back, call := lapsed(now.Add(-ago), now), seenAgo(now, now.Add(-ago)); back != call {
+		if back, call := lapsed(now.Add(-ago), now), status.SeenAgo(now, now.Add(-ago)); back != call {
 			t.Errorf("seen %v ago, a back's row reads %q and a call's %q, want them alike", ago, back, call)
-		}
-	}
-}
-
-func TestACallSaysWhenItWasLastSeen(t *testing.T) {
-	tests := []struct {
-		ago  time.Duration
-		want string
-	}{
-		{ago: 0, want: "now"}, {ago: 29 * time.Second, want: "now"}, {ago: 30 * time.Second, want: "1m"},
-		{ago: 50 * time.Second, want: "1m"}, {ago: 9*time.Minute + 20*time.Second, want: "9m"},
-		{ago: 59*time.Minute + 29*time.Second, want: "59m"}, {ago: 59*time.Minute + 30*time.Second, want: "1h"},
-	}
-	for _, tt := range tests {
-		if got := seenAgo(now, now.Add(-tt.ago)); got != tt.want {
-			t.Errorf("seen %v ago reads %q, want %q", tt.ago, got, tt.want)
 		}
 	}
 }

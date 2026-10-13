@@ -66,21 +66,69 @@ func TestANumberGroupedSetsItsThousandsApart(t *testing.T) {
 	}
 }
 
-func TestACountIsAsBriefAsARowHasRoomFor(t *testing.T) {
+func TestTokensAreCountedAsTheLogCountsThem(t *testing.T) {
 	tests := []struct {
 		n    int
 		want string
 	}{
-		{n: 0, want: "0"}, {n: 999, want: "999"}, {n: 1000, want: "1.0k"}, {n: 1234, want: "1.2k"},
-		{n: 9949, want: "9.9k"}, {n: 9950, want: "10k"}, {n: 34567, want: "35k"}, {n: 999499, want: "999k"},
-		{n: 999500, want: "1.0M"}, {n: 1234567, want: "1.2M"}, {n: 9949999, want: "9.9M"}, {n: 9950000, want: "10M"},
-		{n: 62795575, want: "63M"}, {n: 999499999, want: "999M"},
-		{n: 999500000, want: "1.0B"}, {n: 1234567890, want: "1.2B"}, {n: 9949999999, want: "9.9B"}, {n: 9950000000, want: "10B"},
-		{n: 999499999999, want: "999B"}, {n: 999500000000, want: "1000B"},
+		{n: 0, want: "0"}, {n: 845, want: "845"}, {n: 999, want: "999"},
+		{n: 1000, want: "1.0k"}, {n: 5400, want: "5.4k"}, {n: 9949, want: "9.9k"},
+		{n: 9950, want: "10k"}, {n: 34567, want: "35k"}, {n: 958000, want: "958k"}, {n: 999499, want: "999k"},
+		{n: 999500, want: "1.0M"}, {n: 5700000, want: "5.7M"}, {n: 9949999, want: "9.9M"},
+		{n: 9950000, want: "10.0M"}, {n: 16100000, want: "16.1M"}, {n: 62795575, want: "62.8M"}, {n: 1234567890, want: "1234.6M"},
 	}
 	for _, tt := range tests {
-		if got := prose.Count(tt.n); got != tt.want {
-			t.Errorf("Count(%d) = %q, want %q", tt.n, got, tt.want)
+		if got := prose.Tokens(tt.n); got != tt.want {
+			t.Errorf("Tokens(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
+func TestTimesAreSaidOnceTwiceThenCounted(t *testing.T) {
+	for n, want := range map[int]string{0: "0 times", 1: "once", 2: "twice", 3: "3 times", 12: "12 times"} {
+		if got := prose.Times(n); got != want {
+			t.Errorf("Times(%d) = %q, want %q", n, got, want)
+		}
+	}
+}
+
+func TestCutEndsTextCutToItsCellsWithAnEllipsis(t *testing.T) {
+	tests := []struct {
+		text  string
+		cells int
+		want  string
+	}{
+		{text: "switchboard", cells: 12, want: "switchboard"},
+		{text: "switchboard-dashboard", cells: 12, want: "switchboard…"},
+		{text: "two words", cells: 5, want: "two…"},
+		{text: "コードの部屋", cells: 7, want: "コード…"},
+		{text: "anything", cells: 1, want: "…"},
+		{text: "anything", cells: 0, want: ""},
+		{text: "", cells: 0, want: ""},
+	}
+	for _, tt := range tests {
+		if got := prose.Cut(tt.text, tt.cells); got != tt.want {
+			t.Errorf("Cut(%q, %d) = %q, want %q", tt.text, tt.cells, got, tt.want)
+		}
+	}
+}
+
+func TestCutFrontKeepsTheEndOfTextCutToItsCells(t *testing.T) {
+	tests := []struct {
+		text  string
+		cells int
+		want  string
+	}{
+		{text: "~/Code/switchboard", cells: 18, want: "~/Code/switchboard"},
+		{text: "~/Code/clients/switchboard", cells: 13, want: "…/switchboard"},
+		{text: "~/Code/clients/switchboard", cells: 16, want: "…nts/switchboard"},
+		{text: "~/コード/部屋", cells: 6, want: "…/部屋"},
+		{text: "anything", cells: 1, want: "…"},
+		{text: "anything", cells: 0, want: ""},
+	}
+	for _, tt := range tests {
+		if got := prose.CutFront(tt.text, tt.cells); got != tt.want {
+			t.Errorf("CutFront(%q, %d) = %q, want %q", tt.text, tt.cells, got, tt.want)
 		}
 	}
 }

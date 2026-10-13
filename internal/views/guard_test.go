@@ -136,10 +136,15 @@ var (
 	absorbed = map[string]string{
 		// A time, 16:30 today and Sun 21:00 another day.
 		"status.When": "status.Dated",
+		// A session's id, as the dashboard names a session by it.
+		"status.ShortID": "status.ShownID",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.
-	absorbedIn = map[string][]string{}
+	absorbedIn = map[string][]string{
+		// The verbs keep 8 characters of an id, as logs and status's text do.
+		"status.ShortID": {"internal/dashboard", "internal/dashboard/watch"},
+	}
 )
 
 // rawPackages are the packages, by name under the module's internal
@@ -202,6 +207,7 @@ func TestTheDrawingGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/cli/fields.go:25: ledger.Held.Session reads raw data's fields; " + rawFix,
 		"internal/cli/readers.go:13: ledger.Held.Session reads raw data's fields; " + rawFix,
 		"internal/dashboard/dashboard.go:9: status.Event.ID reads raw data's fields; " + rawFix,
+		"internal/dashboard/dashboard.go:12: " + absorbedSays("status.ShortID", "status.ShownID"),
 		"internal/cli/kept.go: readersAllowed allows it, but it keeps the rule; " + allowedFix,
 		"internal/cli/gone.go: readersAllowed allows it, but it's gone; " + allowedFix,
 		"internal/cli/readers.go:keptReader: readersAllowed allows it, but it keeps the rule; " + allowedFix,
@@ -285,6 +291,8 @@ type Assignment struct{ Account string }
 
 func When(now, t time.Time) string          { return "" }
 func Dated(now, t time.Time) string         { return "" }
+func ShortID(id string) string              { return id }
+func ShownID(id string) string              { return id }
 func Clean(text string) string              { return text }
 func (s Session) Line(now time.Time) string { return s.ID }
 func Grouped(by map[string]Session) int     { return len(by) }
@@ -372,7 +380,7 @@ func clean(r ledger.Reader, s status.Session, now time.Time) string {
 		rows = append(rows, views.RowOf(h))
 		_ = h.Filed()
 	}
-	return rows[0].Session + status.Dated(now, now) + status.Clean("") + s.Line(now)
+	return rows[0].Session + status.Dated(now, now) + status.Clean("") + s.Line(now) + status.ShortID(rows[0].Session)
 }
 `,
 	"internal/cli/readers.go": `package cli
@@ -415,6 +423,8 @@ func drawn(events []status.Event) int {
 	}
 	return events[0].ID
 }
+
+func named(id string) string { return status.ShortID(id) + status.ShownID(id) }
 `,
 }
 

@@ -363,6 +363,45 @@ func countdown(d time.Duration, minutesAfterHours string) string {
 	}
 }
 
+// Span says how long d is, as the dashboard writes a span, as how long a
+// session has idled or run: in seconds under a minute, as "34s"; in minutes,
+// as "9m"; in hours and minutes, the minutes two digits, as "1h 05m"; and in
+// days and hours, as "1d 3h"; each unit whole, what's left over cut, and a
+// second unit of zero left off, as in "2h".
+func Span(d time.Duration) string {
+	if d < time.Minute {
+		return strconv.Itoa(int(max(d, 0)/time.Second)) + "s"
+	}
+	return countdown(d, "%02dm")
+}
+
+// SeenAgo says how long before now seen was, as a row of sessions running
+// has room for: "now" within the half minute, else to the nearest minute, as
+// "9m", and from the hour, to the nearest hour, as "2h".
+func SeenAgo(now, seen time.Time) string {
+	d := now.Sub(seen)
+	switch minutes := int((d + time.Minute/2) / time.Minute); {
+	case minutes < 1:
+		return "now"
+	case minutes < 60:
+		return strconv.Itoa(minutes) + "m"
+	default:
+		return strconv.Itoa(int((d+time.Hour/2)/time.Hour)) + "h"
+	}
+}
+
+// Seconds says how long a request took, or took to its first byte, as the
+// Log writes it: under a minute in seconds to a tenth, as "0.8s" or "11.8s";
+// from a minute in minutes and seconds, the seconds two digits, as "1m 05s".
+// Each form is for what rounds to it, so 59.96 seconds is "1m 00s".
+func Seconds(d time.Duration) string {
+	if tenths := d.Round(100 * time.Millisecond); tenths < time.Minute {
+		return strconv.FormatFloat(tenths.Seconds(), 'f', 1, 64) + "s"
+	}
+	seconds := int(d.Round(time.Second) / time.Second)
+	return fmt.Sprintf("%dm %02ds", seconds/60, seconds%60)
+}
+
 // withRest follows a count with what's left over in the next unit down, as
 // the format given writes it, unless nothing is: "5d 12h", but "6d".
 func withRest(count string, rest int, format string) string {
@@ -396,13 +435,47 @@ func When(now, t time.Time) string {
 	return Clock(now, t)
 }
 
-// Dated shows t in now's time zone as a card does: its time of day, such as
-// "16:05", on now's day; on any other, its weekday too, such as "Fri 04:06".
+// Dated shows t in now's time zone as a card does, and as every time of an
+// event is said: its time of day, such as "16:05", on now's day; on any
+// other, its weekday too, such as "Fri 04:06".
 func Dated(now, t time.Time) string {
-	if t.In(now.Location()).Format(time.DateOnly) == now.Format(time.DateOnly) {
+	if SameDay(now, t, now) {
 		return TimeOfDay(now, t)
 	}
 	return Clock(now, t)
+}
+
+// SameDay reports whether a and b fall on one day in now's time zone.
+func SameDay(now, a, b time.Time) bool {
+	return a.In(now.Location()).Format(time.DateOnly) == b.In(now.Location()).Format(time.DateOnly)
+}
+
+// Stint says a stay, as a session's on an account, from from to to, or to now
+// where to is zero, in now's time zone: "12:02 – 14:31", "14:31 – now"; or
+// dated, as where the session spans more than one day, each end with its day,
+// but an end on its start's, as "yesterday 16:40 – 18:05" or "today 09:12 –
+// now".
+func Stint(now, from, to time.Time, dated bool) string {
+	start, end := TimeOfDay(now, from), "now"
+	if !to.IsZero() {
+		end = TimeOfDay(now, to)
+	}
+	if dated {
+		start = withDay(now, from)
+		if !to.IsZero() && !SameDay(now, from, to) {
+			end = withDay(now, to)
+		}
+	}
+	return start + " – " + end
+}
+
+// withDay says t with its day, in now's time zone: "today 09:12" on now's
+// day, else as Past says it, as "yesterday 16:40".
+func withDay(now, t time.Time) string {
+	if SameDay(now, t, now) {
+		return "today " + TimeOfDay(now, t)
+	}
+	return Past(now, t)
 }
 
 // Past shows t, before now, in now's time zone, by how far back its day is,

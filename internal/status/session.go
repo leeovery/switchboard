@@ -2,6 +2,7 @@ package status
 
 import (
 	"cmp"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -9,9 +10,14 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
-// idShown is how much of a session's id people are shown: enough to tell the
-// sessions of a day apart at a glance.
-const idShown = 8
+const (
+	// idShort is how much of a session's id logs, status's text and the
+	// verbs show: enough to tell the sessions of a day apart at a glance.
+	idShort = 8
+	// IDShown is how much of a session's id the dashboard names it by: its
+	// first 4 characters.
+	IDShown = 4
+)
 
 // The reasons the router gives for where a session's requests go, as an
 // Assignment's Reason and an Event's give them, that the dashboard reads
@@ -123,10 +129,39 @@ type Assignment struct {
 	LastSeen   time.Time `json:"last_seen"`
 }
 
-// ShortID cuts a session's id to as much as people are shown of it, such as
-// 0b5c6f2e.
+// ShortID cuts a session's id to as much as logs, status's text and the verbs
+// show of it, such as 0b5c6f2e.
 func ShortID(id string) string {
-	return prose.Truncate(id, idShown)
+	return prose.Truncate(id, idShort)
+}
+
+// ShownID is a session's id as the dashboard names a session by it, cleaned:
+// its first IDShown characters, such as d28c.
+func ShownID(id string) string {
+	return prose.Truncate(Clean(id), IDShown)
+}
+
+// DirName names the directory a session was started in, cleaned, as the
+// dashboard names a session by it: its last part, cut with an ellipsis to the
+// cells given, keeping its start, as "switchboard" or "switchboa…"; "" for
+// none.
+func DirName(dir string, cells int) string {
+	if dir = Clean(dir); dir == "" {
+		return ""
+	}
+	return prose.Cut(path.Base(dir), cells)
+}
+
+// DirPath shows the directory a session was started in, cleaned, as a
+// session's page heads it: whole, the home directory given as ~, as
+// "~/Code/switchboard", and where it's longer than the cells given, cut from
+// its start with an ellipsis, keeping its name; "" for none.
+func DirPath(dir, home string, cells int) string {
+	dir, home = Clean(dir), strings.TrimSuffix(Clean(home), "/")
+	if rest, ok := strings.CutPrefix(dir, home); home != "" && ok && (rest == "" || rest[0] == '/') {
+		dir = "~" + rest
+	}
+	return prose.CutFront(dir, cells)
 }
 
 // Line says where the session's requests go, as status lists the router's

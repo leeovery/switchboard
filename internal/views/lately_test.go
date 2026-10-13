@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -151,6 +152,18 @@ func TestLATELYTellsOfTheRoutersHealthWellAgainApart(t *testing.T) {
 	}
 	if room := sentenceOf(t, status.Event{At: at(13, 0), Kind: status.EventRoom, Account: "work"}, at(16, 0)); room.Well {
 		t.Error("Well is set of an account with room again, want it of the router's health alone")
+	}
+}
+
+func TestLATELYNamesAWindowAsTheMomentDoesElseByItsKey(t *testing.T) {
+	doc := latelyOf(status.Event{At: at(13, 0), Kind: status.EventLimit, Account: "work", Windows: []string{"7d", "7d_opus"}})
+	doc.Accounts = []status.Account{{ID: "work", Windows: []quota.Window{{Key: "7d", Label: "Seven days", Utilization: 1, ResetsAt: at(20, 0)}}}}
+	got := lately(doc, at(16, 0), 12)
+	if len(got) != 1 {
+		t.Fatalf("Lately() = %+v, want the limit told", got)
+	}
+	if full, want := got[0].Full.String(), "work reached its Seven days and Opus week limits"; full != want {
+		t.Errorf("the limit reads %q, want %q: the week as the document labels it, and a window none of its accounts has as its key is named", full, want)
 	}
 }
 

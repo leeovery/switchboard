@@ -113,12 +113,12 @@ func (r *sessionsRead) day(f *Follower, date string, keep map[string]bool) {
 	}
 }
 
-// today returns the sessions of the lines held with a request, a message,
-// that arrived from start on, by their ids.
+// today returns the sessions of the lines held with a request, as Counted
+// counts one, that arrived from start on, by their ids.
 func (r *sessionsRead) today(start time.Time) map[string]bool {
 	sessions := make(map[string]bool)
 	for id, lines := range r.held {
-		if slices.ContainsFunc(lines, func(l filed) bool { return l.Kind == KindMessage && !l.At.Before(start) }) {
+		if slices.ContainsFunc(lines, func(l filed) bool { return l.Counted() && !l.At.Before(start) }) {
 			sessions[id] = true
 		}
 	}
