@@ -25,6 +25,11 @@ type LogEvent struct {
 	// Dir is the directory the session was started in, as its lines last
 	// name it: "" where none read does.
 	Session, Dir string
+	// Accounts are the accounts it names, by id, each once, as the filter
+	// keeps and counts it: a move's, from and to; the global pin's, set or
+	// cleared, those it names; any other's, the one it befell; none of a
+	// restart's or the router's health.
+	Accounts []string
 	// Line is what it says, as Telling tells it, its facts worked out over
 	// the events before it, and as events prints it.
 	Line EventLine
@@ -49,6 +54,8 @@ type LogEventSources struct {
 	// line of their sessions, as ReadLog reads them: a move's cost, and a
 	// session's directory, are its session's story's.
 	Read LogRead
+	// Filter is which events it shows.
+	Filter EventFilter
 	// Names name a window by its key, as the moment's NameOf does: nil names
 	// it as status.NameOfKey does.
 	Names func(key string) string
@@ -60,16 +67,19 @@ type LogEventSources struct {
 
 // EventsTable is the Log's Events over the days it spans.
 type EventsTable struct {
-	// Rows are the events of the days it spans, oldest first, by when each
-	// happened, then by run and id.
+	// Rows are the events of the days it spans the filter shows, oldest
+	// first, by when each happened, then by run and id.
 	Rows []LogEvent
+	// Today counts today's events, those the filter hides among them.
+	Today EventCount
 }
 
 // LogEvents builds the Log's Events from src: a row of each event that
-// happened from the local day From falls on, each told as Telling tells it,
-// over every event read, those before that day among them. A move's row
-// says what its move came to as its request's row says it, both its
-// session's story's.
+// happened from the local day From falls on that the filter shows, each
+// told as Telling tells it, over every event read, those before that day
+// among them; and today's count, every event of the day the filter shows or
+// hides. A move's row says what its move came to as its request's row says
+// it, both its session's story's.
 func LogEvents(src LogEventSources) EventsTable {
 	first, today := Today(src.From), Today(src.Now)
 	stories := src.Read.stories(src.Prices, today)
@@ -80,7 +90,14 @@ func LogEvents(src LogEventSources) EventsTable {
 		if !first.Holds(e.Event.At) {
 			continue
 		}
-		table.Rows = append(table.Rows, eventRow(e, line, fact, stories[e.Event.Session], src.Now))
+		row := eventRow(e, line, fact, stories[e.Event.Session], src.Now)
+		shown := src.Filter.Keeps(row)
+		if shown {
+			table.Rows = append(table.Rows, row)
+		}
+		if today.Holds(e.Event.At) {
+			table.Today.add(row, shown)
+		}
 	}
 	return table
 }
@@ -91,7 +108,7 @@ func LogEvents(src LogEventSources) EventsTable {
 func eventRow(e Event, line EventLine, fact eventFact, s *story, now time.Time) LogEvent {
 	row := LogEvent{
 		Key: e.Key, At: e.Event.At.In(now.Location()), Kind: e.Event.Kind, Well: wellAgain(e.Event),
-		Session: e.Event.Session, Line: line, Moved: fact.moved,
+		Session: e.Event.Session, Accounts: namedAccounts(e.Event), Line: line, Moved: fact.moved,
 	}
 	if s != nil {
 		row.Dir = s.dir

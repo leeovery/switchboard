@@ -160,7 +160,7 @@ func TestTheLogsEventsMarkEachEventAsLATELYDoes(t *testing.T) {
 // each look after takes in the document alone; and reading back reads the
 // days back alone, once.
 func TestTheLogsEventsReadTheFilesOnceASpan(t *testing.T) {
-	hm := pressureTheDayBefore(t)
+	hm := momentNamed(t, pressureTold)
 	var asked []span
 	files := countedEvents{events: filedIn(t, hm), asked: &asked}
 	read := views.ReadEvents(files, hm.From, hm.Now)
@@ -185,16 +185,19 @@ func TestTheLogsEventsReadTheFilesOnceASpan(t *testing.T) {
 	}
 }
 
-// pressureTheDayBefore is the hard moment of a move after midnight whose
-// pressure was told the day before.
-func pressureTheDayBefore(t *testing.T) viewstest.EventMoment {
+// pressureTold is the name of the hard moment of a move after midnight
+// whose pressure was told the day before.
+const pressureTold = "a move after midnight passing an account over, its pressure told the day before"
+
+// momentNamed is the hard moment with the given name.
+func momentNamed(t *testing.T, name string) viewstest.EventMoment {
 	t.Helper()
 	for _, hm := range viewstest.EventMoments() {
-		if hm.Name == "a move after midnight passing an account over, its pressure told the day before" {
+		if hm.Name == name {
 			return hm
 		}
 	}
-	t.Fatal("no moment of a move whose pressure was told the day before")
+	t.Fatalf("no hard moment is named %q", name)
 	return viewstest.EventMoment{}
 }
 
@@ -202,7 +205,7 @@ func pressureTheDayBefore(t *testing.T) viewstest.EventMoment {
 // runs out, as its pressure event the day before said, though the Log shows
 // the day of the move alone: its events are read from FactsReach before.
 func TestAMoveAfterMidnightSaysWhenThePressureToldTheDayBeforeRunsOut(t *testing.T) {
-	hm := pressureTheDayBefore(t)
+	hm := momentNamed(t, pressureTold)
 	rows := eventsOf(hm, eventsRead(hm, filedIn(t, hm))).Rows
 	if len(rows) != 1 || rows[0].Kind != status.EventMoved {
 		t.Fatalf("the Log's Events of the day after the pressure are %+v, want the move alone", rows)
