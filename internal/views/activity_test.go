@@ -84,6 +84,28 @@ func TestWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 	}
 }
 
+// At each moment the views have to tell what a session is doing at, its page
+// says what the List says it's doing: one rule, the stream told and the
+// router gone or probing alike.
+func TestASessionsPageDoesAsTheListSaysAtEachHardMoment(t *testing.T) {
+	for _, hm := range viewstest.SessionMoments() {
+		t.Run(hm.Name, func(t *testing.T) {
+			list := views.ListSessions(views.SessionSources{
+				Running: hm.Sessions, Unlisted: hm.Unlisted, Stream: hm.Stream,
+				Ledger: fakeLedger{lines: hm.Lines, now: hm.Now}, Now: hm.Now,
+			})
+			for _, s := range list.Sessions {
+				if got := momentsPage(t, hm, s.Session).Activity; said(got) != said(s.Activity) {
+					t.Errorf("%s's page says %s, the List %s", s.Session[:4], said(got), said(s.Activity))
+				}
+			}
+			if len(list.Sessions) != len(hm.Want) {
+				t.Errorf("the List holds %d sessions, want %d", len(list.Sessions), len(hm.Want))
+			}
+		})
+	}
+}
+
 // A session as a whole does what the busiest of its models does: answering,
 // asking, throttled, refused, then idle, as it's seen as late as any of them,
 // and idle since the latest of them.
@@ -188,6 +210,56 @@ func TestWithNoRouterASessionIsIdleTillAnHourAfterItsLastRequest(t *testing.T) {
 			}
 			if got := list.Sessions[0].Activity; said(got) != said(want) {
 				t.Errorf("it's %s, want %s", said(got), said(want))
+			}
+		})
+	}
+}
+
+// With a router listing the sessions running, one it doesn't list does as
+// the live stream tells, where that has seen it at work within the IdleHour,
+// as a new one, its first line read before the router's listing at the next
+// look; and it has ended where the live stream hasn't.
+func TestASessionTheRouterDoesntListDoesAsTheLiveStreamTellsTillItHasntSeenItForAnHour(t *testing.T) {
+	sent, answered := now.Add(-time.Minute), now.Add(-30*time.Second)
+	asked := views.Told{Request: "r1", Session: early, Model: opus, Account: "work", Sent: sent, Heard: sent}
+	done := asked
+	done.Ended, done.Heard, done.Status = answered, answered, 200
+	tests := []struct {
+		name string
+		// before is how long before a minute ago its request came.
+		before time.Duration
+		told   []views.Told
+		live   bool
+		want   views.Activity
+	}{
+		{name: "asking, a request of it in flight", told: []views.Told{asked}, live: true, want: views.Activity{Doing: views.Asking, Since: sent, LastSeen: sent}},
+		{
+			name: "idle since the stream last told of it, after its line's end", told: []views.Told{done}, live: true,
+			want: views.Activity{Since: answered, LastSeen: answered},
+		},
+		{name: "ended, the stream not live", told: []views.Told{done}, want: views.Activity{Doing: views.Ended, Since: sent, LastSeen: sent}},
+		{
+			name: "ended, the live stream last telling of it over an hour ago", before: time.Hour, live: true,
+			told: []views.Told{{Request: "r1", Session: early, Model: opus, Account: "work", Sent: sent.Add(-time.Hour), Ended: sent.Add(-time.Hour), Heard: sent.Add(-time.Hour)}},
+			want: views.Activity{Doing: views.Ended, Since: sent.Add(-time.Hour), LastSeen: sent.Add(-time.Hour)},
+		},
+		{name: "ended, the live stream telling of none of it", live: true, want: views.Activity{Doing: views.Ended, Since: sent, LastSeen: sent}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			last := ledger.Line{At: sent.Add(-tt.before), Kind: ledger.KindMessage, Session: early, Model: opus, Account: "work", Status: 200, Attempts: 1, TotalMS: 3000}
+			stream := views.Stream{Live: tt.live, Requests: make(map[string]views.Told)}
+			for _, r := range tt.told {
+				stream.Requests[r.Request] = r
+			}
+			another := []status.Session{{ID: asking, Assignments: []status.Assignment{{Model: opus, Account: "side", LastSeen: now}}}}
+			list := views.ListSessions(views.SessionSources{Running: another, Stream: stream, Ledger: fakeLedger{lines: []ledger.Line{last}, now: now}, Now: now})
+			i := slices.IndexFunc(list.Sessions, func(s views.ListedSession) bool { return s.Session == early })
+			if i < 0 {
+				t.Fatalf("the List holds %+v, want %s among them", list.Sessions, early[:4])
+			}
+			if got := list.Sessions[i].Activity; said(got) != said(tt.want) {
+				t.Errorf("it's %s, want %s", said(got), said(tt.want))
 			}
 		})
 	}

@@ -46,6 +46,9 @@ type SessionPage struct {
 	Moves     []SessionMove    `json:"moves"`
 	Turns     []Turn           `json:"turns"`
 	Totals    SessionTotals    `json:"totals"`
+	// Activity is what it's doing, as the List has it. It's the views'
+	// alone.
+	Activity Activity `json:"-"`
 }
 
 // SessionAccount is an account a session ran on: its first and last request
@@ -122,9 +125,15 @@ type PageSources struct {
 	// Routed is the session as the router lists it: nil where it doesn't, as
 	// without the router, or once the session has ended.
 	Routed *status.Session
+	// Unlisted is set where no router lists the sessions, as SessionSources'
+	// Unlisted has it.
+	Unlisted bool
 	// Read holds the session's lines, and the requests of the accounts it
 	// ran on, on its days.
 	Read SessionsRead
+	// Stream is what the request stream has told of its requests: zero
+	// where it's unheard, as by the verbs.
+	Stream Stream
 	// Prices are the price table worth is priced by.
 	Prices ledger.Table
 	// Keep is how long the ledger keeps a day's lines, as [ledger] keep
@@ -178,11 +187,15 @@ func (r SessionsRead) Named(running []status.Session) []string {
 }
 
 // SessionPageOf builds the page of the session with the given id from src:
-// what the router says of it, where it lists it, and what every line of it
-// the ledger holds tells, whatever day each is of, with the requests of the
-// accounts it ran on, on its days, for the points it took, as src's Read
-// holds them. It reports false where the ledger holds no request of it, and
-// the router doesn't list it.
+// what the router says of it, where it lists it; what the request stream
+// told of its requests, those in flight among them; and what every line of
+// it the ledger holds tells, whatever day each is of, with the requests of
+// the accounts it ran on, on its days, for the points it took, as src's Read
+// holds them. It's listed as the List lists it; and its newest turn goes on
+// while its last answer called a tool till the session has ended, as its
+// Activity says, so with no router, while the router's own rule keeps it.
+// It reports false where the ledger holds no request of it, and the router
+// doesn't list it.
 func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 	today := Today(src.Now)
 	requests := requestsOf(src.Read.lines[id], src.Prices, today.Date)
@@ -190,14 +203,17 @@ func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 		return SessionPage{}, false
 	}
 	s := storyOf(requests, src.Prices, today)
-	listed := listedFrom(id, s)
+	var running []status.Session
 	if src.Routed != nil {
-		listed.run(*src.Routed, s, src.Now, hearing{})
+		running = []status.Session{*src.Routed}
 	}
+	by := newLister(running, src.Unlisted, src.Stream, src.Now)
+	listed := by.listed(id, s)
 	page := SessionPage{
 		Session: listed.Session, Dir: listed.Dir, Account: listed.Account, Model: listed.Model, Running: listed.Running, LastSeen: listed.LastSeen,
 		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
-		Resumed: resumedAt(requests), Accounts: accountsOf(requests), Moves: movesOf(s), Turns: turnsOf(requests, listed.Running),
+		Resumed: resumedAt(requests), Accounts: accountsOf(requests), Moves: movesOf(s),
+		Turns: turnsOf(requests, by.h.told[id], listed.Activity.Doing != Ended), Activity: listed.Activity,
 	}
 	if src.Routed != nil {
 		page.Pin = src.Routed.Pin
