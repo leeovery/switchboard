@@ -65,7 +65,7 @@ func (m Model) readSession(asked int, id string) tea.Cmd {
 }
 
 // sessionRead takes in a page's read, which opens it, but one of an open
-// asked for before the last: the page is built as relived builds it, its
+// asked for before the last, or dropped since, as unasked has it: the page is built as relived builds it, its
 // directory shown under the home the watch is given.
 func (m Model) sessionRead(msg sessionReadMsg) Model {
 	if msg.asked == m.opening {
@@ -158,8 +158,8 @@ func choosing(shown dashboard.SessionShown, i int, s dashboard.Scrolling) dashbo
 
 // sessionKey acts on a key while a session's page is open, as pressed hands
 // it on: esc goes back where the page was opened from, its tab as it was
-// left; tab and shift-tab leave the page for the tab after or before that
-// one, as pageKey has them; ↑ and ↓ choose the turn before and after, newest
+// left; tab and shift-tab show the tab after or before that one, leaving the
+// page, as pageKey has them; ↑ and ↓ choose the turn before and after, newest
 // first, as moveTurn has it; j, k, PgDn and PgUp scroll the turns, as
 // scrollTurns has it; and t opens the theme picker. The rest do nothing, the
 // tab's own keys among them.
@@ -172,7 +172,7 @@ func (m Model) sessionKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		return m.closeSession(), nil
 	case "tab", "shift+tab":
-		return m.closeSession().pageKey(key)
+		return m.pageKey(key)
 	case "up":
 		return m.moveTurn(-1), nil
 	case "down":
@@ -183,10 +183,18 @@ func (m Model) sessionKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// closeSession closes the session's page open: the tab it was opened over
-// shows again as it was left.
+// closeSession closes the session's page open, the tab it was opened over
+// showing again as it was left, and drops one asked to open, as unasked has
+// it.
 func (m Model) closeSession() Model {
 	m.session = nil
+	return m.unasked()
+}
+
+// unasked is m with no session's page asked to open: one whose lines are
+// still being read opens nothing once they are, as sessionRead has it.
+func (m Model) unasked() Model {
+	m.opening++
 	return m
 }
 

@@ -15,8 +15,9 @@ import (
 // show and hide its sections, b switches how its windows are grouped, and ↑
 // and ↓ move the focus, as overviewKey says; on History, [ ], < >, v and ←
 // → act as historyKey says; tab and shift-tab show the next tab and the one
-// before; t opens the theme picker; and w, in Runway, switches between the
-// day and the week. The rest do nothing: the number keys and m among them,
+// before, as turn has it; esc drops a session's page asked to open, as
+// closeSession has it; t opens the theme picker; and w, in Runway, switches
+// between the day and the week. The rest do nothing: the number keys and m among them,
 // which act in the routing card alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
@@ -35,6 +36,8 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return afresh.turn(1)
 	case "shift+tab":
 		return afresh.turn(-1)
+	case "esc":
+		return m.closeSession(), nil
 	case "t":
 		return afresh.openPicker()
 	case "w":

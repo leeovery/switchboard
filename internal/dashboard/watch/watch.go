@@ -703,11 +703,12 @@ func (m Model) card(now time.Time) dashboard.Opened {
 }
 
 // cover opens the card given over the page, which stands still behind it as
-// it stands now.
+// it stands now, dropping a session's page asked to open, as unasked has it,
+// so no card opens over one page to stand over another.
 func (m Model) cover(card opened) Model {
 	now := m.now()
 	m.open, m.page = card, frozen{frame: m.live(now), doc: m.doc, at: now}
-	return m
+	return m.unasked()
 }
 
 // uncover closes the card open over the page, which is live again, and

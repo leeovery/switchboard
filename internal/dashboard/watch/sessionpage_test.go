@@ -84,11 +84,7 @@ func TestAClickOnASessionInSESSIONSOpensItsPageOnceItsLinesAreRead(t *testing.T)
 	h, l := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
 	h.model.cfg.Home = "/home/someone"
 	h.keyed("s c l")
-	i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == idD28C })
-	if i < 0 {
-		t.Fatalf("SESSIONS gives d28c no target among %+v", h.targets())
-	}
-	click := tea.MouseClickMsg{X: h.targets()[i].X, Y: h.targets()[i].Y, Button: tea.MouseLeft}
+	click := h.sessionClick(idD28C)
 
 	next, stale := h.model.Update(click)
 	h.model = next.(Model)
@@ -97,20 +93,71 @@ func TestAClickOnASessionInSESSIONSOpensItsPageOnceItsLinesAreRead(t *testing.T)
 	if len(l.asked) != 0 || h.model.session != nil {
 		t.Fatalf("clicked, the ledger was read %d times and a page is open %v; want neither till the read runs", len(l.asked), h.model.session != nil)
 	}
+	h.deliver(h.run(stale)...)
+	if h.model.session != nil {
+		t.Fatal("the read asked for before the last landed and opened its page, want it dropped")
+	}
 	h.deliver(h.run(read)...)
-	if !slices.EqualFunc(l.asked, [][]string{{idD28C}}, slices.Equal) {
-		t.Errorf("the read asked the ledger for %q, want d28c's lines alone", l.asked)
+	if !slices.EqualFunc(l.asked, [][]string{{idD28C}, {idD28C}}, slices.Equal) {
+		t.Errorf("the reads asked the ledger for %q, want d28c's lines alone each time", l.asked)
 	}
 	page := h.shownPage()
 	if page.Page.Session != idD28C || page.Turn != 2 || page.Home != "/home/someone" || h.model.view != dashboard.Overview {
 		t.Errorf("the read landed, the page is %s's, turn %d chosen, under %q, over %s; want d28c's, its newest, turn 2, under the home given, over the Overview",
 			page.Page.Session, page.Turn, page.Home, h.model.view)
 	}
+}
 
-	h.keyed("esc")
-	h.deliver(h.run(stale)...)
-	if h.model.session != nil {
-		t.Error("the page closed, the read asked for before the last landed and opened it, want it dropped")
+// sessionClick is a click on the row of the session with the given id in
+// SESSIONS, failing the test where it gives none.
+func (h *harness) sessionClick(id string) tea.MouseClickMsg {
+	h.t.Helper()
+	i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == id })
+	if i < 0 {
+		h.t.Fatalf("SESSIONS gives %s no target among %+v", id, h.targets())
+	}
+	return tea.MouseClickMsg{X: h.targets()[i].X, Y: h.targets()[i].Y, Button: tea.MouseLeft}
+}
+
+// A page asked to open opens nothing once its read lands where the user has
+// left the tab it was asked over, or covered it with a card, before then: by
+// esc, tab or shift-tab, a click on a tab, the one shown among them, p or ?.
+func TestAPageAskedToOpenOpensNothingOnceLeftBeforeItsLinesAreRead(t *testing.T) {
+	press := func(key tea.KeyPressMsg) func(*harness) {
+		return func(h *harness) { h.deliver(h.update(key)...) }
+	}
+	click := func(tab dashboard.View) func(*harness) {
+		return func(h *harness) {
+			target := h.tabTarget(tab)
+			h.click(target.X, target.Y)
+		}
+	}
+	tests := []struct {
+		name  string
+		leave func(*harness)
+		open  opened
+	}{
+		{name: "esc", leave: press(escKey)},
+		{name: "tab", leave: press(tea.KeyPressMsg{Code: tea.KeyTab})},
+		{name: "shift-tab", leave: press(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})},
+		{name: "a click on Accounts' tab", leave: click(dashboard.Accounts)},
+		{name: "a click on the Overview's tab, shown", leave: click(dashboard.Overview)},
+		{name: "p", leave: press(tea.KeyPressMsg{Code: 'p', Text: "p"}), open: routingOpen},
+		{name: "?", leave: press(tea.KeyPressMsg{Code: '?', Text: "?"}), open: helpOpen},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+			h.keyed("s c l")
+			next, read := h.model.Update(h.sessionClick(idD28C))
+			h.model = next.(Model)
+			tt.leave(h)
+			view := h.model.view
+			h.deliver(h.run(read)...)
+			if h.model.session != nil || h.model.open != tt.open {
+				t.Errorf("left on %s, the read landed: a page open %v, card %d open; want no page, card %d as it was", view, h.model.session != nil, h.model.open, tt.open)
+			}
+		})
 	}
 }
 
