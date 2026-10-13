@@ -3140,9 +3140,13 @@ the width, the table scrolling to keep it in view, and from following, `↑` cho
 and pausing there (settled in the plan); `enter` opens its details, and `esc` closes them; `end`
 follows again, the newest line at the foot and nothing chosen; `s` opens the chosen line's session's
 page, and `esc` there comes back to the Log as it was, paused at its line; `f` opens the panel; `/`
-finds a session by its id or its directory, today's or any day's the ledger keeps, through the days'
-session ids, the table then showing its lines alone, headed `only <id> <name>`, and the panel
-listing it among today's sessions, ticked (settled in the plan; see The request ledger); `p` opens
+opens a find line in the state line's row, `/ api▏`, which finds a session by its id's start or by
+its directory's name, today's sessions first, then back a day at a time through the days the ledger
+keeps; `↑↓` and `enter` pick among the sessions it matches, and `enter` filters both tables to the
+one picked, its lines alone, headed `only <id> <name>`, paused at its newest line where it has
+ended, the panel listing it among today's sessions, ticked; `esc` cancels the find, and with a
+filter on and nothing open, `esc` clears the filter (the owner's call, 13 October 2026; see The
+request ledger); `p` opens
 new sessions' routing picker, whatever line is chosen, as the page decides which picker (see Routing
 by hand); `?` help for this page, `HELP · LOG`, listing every key first, `t`, `R` and `j`/`k` among
 them, then explaining the marks, the columns, the kinds, why checks and counts are hidden, worth at
@@ -3684,7 +3688,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `R` | Everywhere | Refresh (see Live updates) |
 | `?` | Everywhere | Help for the page shown; `?` or `esc` closes it |
 | `q` | Everywhere | Quit |
-| `esc` | Everywhere | Close what's open, the newest first: a card, the theme picker, the Log's panel, a turn opened; else end a choice (settled in the plan); else, on a session's page, go back where it was opened from |
+| `esc` | Everywhere | Close what's open, the newest first: a card, the theme picker, the Log's panel, the Log's find, a turn opened; else end a choice (settled in the plan); on the Log, with a filter on and nothing open, clear the filter (the owner's call, 13 October 2026); else, on a session's page, go back where it was opened from |
 | `j` `k`, PgUp, PgDn, the wheel | Wherever something scrolls (settled in the plan) | Scroll |
 | `u` `g` `r` `s` `c` `l` | Overview | Show or hide USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP, LATELY |
 | `b` | Overview | By window, or by account |
@@ -3704,7 +3708,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `s` | The Log | The chosen line's session's page; not on an account's event |
 | `g` | The Log, an event's details | Requests, paused at the event's moment |
 | `f` | The Log | What it shows: the panel |
-| `/` | The Log | Find a session, today's or another day's |
+| `/` | The Log | Find a session by its id's start or its directory's name, today's first, then back a day at a time; `↑↓` and `enter` pick one, filtering both tables to it |
 | `↑` `↓` | A session's page | Choose a turn; with one open, a request of it |
 | `enter` | Accounts, Sessions, the Log, a session's page | Open what's chosen: from Compare, the account in Detail; a session's row, its page; a line of the Log, its details; a turn, its requests, in place |
 | `↑` `↓`, `space`, `0`–`9`, `m`, `enter`, `esc` | The routing card | Move, pick, pick by number (`0` auto; past nine accounts, those from 10 on by `↑↓` and `space` alone), move the sessions running too, apply, cancel (see Routing by hand) |
