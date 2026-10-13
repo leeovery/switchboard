@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"maps"
 	"slices"
 	"testing"
 
@@ -163,5 +164,52 @@ func TestAnAccountsDayOfNoRequestsCountsNone(t *testing.T) {
 	}
 	if side.BusiestDay != "" || all.BusiestDay != "2026-10-06" {
 		t.Errorf("side's busiest day is %q and every account's %q, want none and 2026-10-06", side.BusiestDay, all.BusiestDay)
+	}
+}
+
+// Each window's totals say what it had left at its last reset, and the day it
+// last reached its limit in the run that reset ended, by the window's key: a
+// run from the reset before, or from the window's length before its end
+// where none came within it, up to the instant it reset. Every account's say
+// neither.
+func TestTotalsSayTheDayEachWindowLastRanOutInTheRunItsLastResetEnded(t *testing.T) {
+	tests := []struct {
+		name   string
+		work   windowsDay
+		left   map[string]float64
+		ranOut map[string]string
+	}{
+		{name: "a 5-hour window run out before it reset",
+			work: windowsDay{limits: []ledger.Limit{limit("5h", "2026-10-03", "12:00")}, resets: []ledger.Reset{reset("5h", "2026-10-03", "14:00", 1)}},
+			left: map[string]float64{"5h": 0}, ranOut: map[string]string{"5h": "2026-10-03"}},
+		{name: "a week run out twice, the later day its",
+			work: windowsDay{limits: []ledger.Limit{limit("7d", "2026-09-29", "18:00"), limit("7d", "2026-10-01", "11:00")}, resets: []ledger.Reset{reset("7d", "2026-10-05", "00:30", 1)}},
+			left: map[string]float64{"7d": 0}, ranOut: map[string]string{"7d": "2026-10-01"}},
+		{name: "a limit in the run before the last",
+			work: windowsDay{limits: []ledger.Limit{limit("5h", "2026-10-03", "09:00")}, resets: []ledger.Reset{reset("5h", "2026-10-03", "10:00", 1), reset("5h", "2026-10-03", "16:00", 0.4)}},
+			left: map[string]float64{"5h": 0.6}},
+		{name: "a limit at the instant it reset, the next run's",
+			work: windowsDay{limits: []ledger.Limit{limit("5h", "2026-10-03", "14:00")}, resets: []ledger.Reset{reset("5h", "2026-10-03", "14:00", 0.7)}},
+			left: map[string]float64{"5h": 0.3}},
+		{name: "a limit in a run not yet ended",
+			work: windowsDay{limits: []ledger.Limit{limit("5h", "2026-10-03", "18:00")}, resets: []ledger.Reset{reset("5h", "2026-10-03", "14:00", 0.5)}},
+			left: map[string]float64{"5h": 0.5}},
+		{name: "a limit more than the window's length before its last reset, none between",
+			work: windowsDay{limits: []ledger.Limit{limit("5h", "2026-10-03", "08:00")}, resets: []ledger.Reset{reset("5h", "2026-10-03", "14:00", 0.9)}},
+			left: map[string]float64{"5h": 0.1}},
+		{name: "a limit and no reset", work: windowsDay{limits: []ledger.Limit{limit("5h", "2026-10-03", "08:00")}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			days := daysFrom("2026-09-28", day("2026-10-03", tt.work.of("work")))
+			totals := views.NewHistory(input(days)).Totals.Accounts
+			work, all := totals[0], totals[len(totals)-1]
+			if !maps.Equal(work.LeftAtReset, tt.left) || !maps.Equal(work.RanOut, tt.ranOut) {
+				t.Errorf("work left %v at its last resets and ran out %v, want %v and %v", work.LeftAtReset, work.RanOut, tt.left, tt.ranOut)
+			}
+			if all.LeftAtReset != nil || all.RanOut != nil {
+				t.Errorf("every account's left %v and ran out %v, want neither", all.LeftAtReset, all.RanOut)
+			}
+		})
 	}
 }

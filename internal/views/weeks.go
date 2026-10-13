@@ -154,10 +154,7 @@ func (w weekly) ownWeeksOf(days []ledger.AccountDay) ownWeeks {
 // one came between that the days don't give, a week before end, as a
 // window's span gives it.
 func (w weekly) began(last, end time.Time) time.Time {
-	if start := end.Add(-w.length); last.Before(start) {
-		return start
-	}
-	return last
+	return began(last, end, w.length)
 }
 
 // soFar is the highest use of the window with the given key in the week that
