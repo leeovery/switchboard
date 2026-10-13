@@ -103,6 +103,23 @@ func TestMinutesCountEachMinuteFromTheOneOneTimeFallsInToAnothers(t *testing.T) 
 	}
 }
 
+func TestHoursAreWholeWhatsLeftOverCut(t *testing.T) {
+	tests := []struct {
+		d    time.Duration
+		want string
+	}{
+		{d: time.Hour, want: "1h"},
+		{d: 15*time.Hour + 7*time.Minute, want: "15h"},
+		{d: 2*time.Hour - time.Second, want: "1h"},
+		{d: 30 * time.Hour, want: "30h"},
+	}
+	for _, tt := range tests {
+		if got := prose.Hours(tt.d); got != tt.want {
+			t.Errorf("Hours(%v) = %q, want %q", tt.d, got, tt.want)
+		}
+	}
+}
+
 func TestASpanIsInSecondsUnderAMinuteThenAsTheDashboardWritesSpans(t *testing.T) {
 	tests := []struct {
 		name string

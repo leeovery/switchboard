@@ -136,6 +136,13 @@ func Minutes(from, to time.Time) string {
 	return strconv.Itoa(int(to.Truncate(time.Minute).Sub(from.Truncate(time.Minute))/time.Minute)+1) + "m"
 }
 
+// Hours says how long d is in whole hours, what's left over cut, as a
+// session's story says how long it idled where it folds: "15h" for 15 hours
+// and 7 minutes.
+func Hours(d time.Duration) string {
+	return strconv.Itoa(int(max(d, 0)/time.Hour)) + "h"
+}
+
 // ClockOf shows a time of day, as the time since midnight, as HH:MM, such as
 // "08:00".
 func ClockOf(d time.Duration) string {
