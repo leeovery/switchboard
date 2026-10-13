@@ -524,9 +524,13 @@ func fallingBackRows() LogMoment {
 	}
 }
 
+// checking is the session of a quota check, as Claude Code sends one as it
+// resumes a session, under an id it never uses again.
+const checking = "9c4e0b7a-1f2d-4e3c-8b5a-6d7e8f9a0b1c"
+
 func checksAndCounts(show bool) LogMoment {
 	r1 := requested("r1", D28C, Opus, side, status.ReasonNew, At(14, 40, 0))
-	k1 := kinded(ledger.KindCheck, requested("k1", D28C, Haiku, side, status.ReasonNew, At(14, 40, 10)))
+	k1 := kinded(ledger.KindCheck, requested("k1", checking, Haiku, side, status.ReasonNew, At(14, 40, 10)))
 	n1 := kinded(ledger.KindCount, requested("n1", D28C, Opus, side, status.ReasonSticky, At(14, 40, 20)))
 	m := LogMoment{
 		Name:  "Claude Code's quota checks and its counts of tokens, hidden until shown",

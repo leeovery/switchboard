@@ -5,9 +5,10 @@ package views
 // LogFilter shows every line, and the Log opens on LogOpening's.
 type LogFilter struct {
 	// Accounts, Models and Sessions keep the lines of the accounts, the
-	// models and the sessions ticked, each by its whole id: a line of none,
-	// as a request the router answered itself is on no account, is kept by
-	// none ticked.
+	// models and the sessions ticked, each by its whole id, a line's session
+	// the one it counts toward: a line of none, as a request the router
+	// answered itself is on no account, and a quota check counts toward no
+	// session, is kept by none ticked.
 	Accounts, Models, Sessions []string
 	// Kinds keeps the lines of what the kinds ticked asked.
 	Kinds []RowKind
@@ -25,21 +26,22 @@ func LogOpening() LogFilter {
 // rowKinds are the kinds of RowKind, in the panel's order.
 var rowKinds = [...]RowKind{RowRequest, RowCheck, RowCount}
 
-// hiding is what of the filter f hides the row r: none; its kind alone; or a
+// hiding is what of the filter f hides the row p: none; its kind alone; or a
 // choice of another, its kind kept or not.
-func (f LogFilter) hiding(r RequestRow) hidden {
+func (f LogFilter) hiding(p placedRow) hidden {
 	switch {
-	case !f.chose(r):
+	case !f.chose(p):
 		return hiddenChosen
-	case !ticked(f.Kinds, r.Kind):
+	case !ticked(f.Kinds, p.row.Kind):
 		return hiddenKind
 	}
 	return notHidden
 }
 
-// chose reports whether the filter's choices but its kinds keep the row r.
-func (f LogFilter) chose(r RequestRow) bool {
-	return ticked(f.Accounts, r.Account) && ticked(f.Models, r.Model) && ticked(f.Sessions, r.Session) && (!f.Failed || r.Failed)
+// chose reports whether the filter's choices but its kinds keep the row p.
+func (f LogFilter) chose(p placedRow) bool {
+	r := p.row
+	return ticked(f.Accounts, r.Account) && ticked(f.Models, r.Model) && ticked(f.Sessions, p.session) && (!f.Failed || r.Failed)
 }
 
 // hidden is what of a filter hides a row.
@@ -69,7 +71,9 @@ type LogCount struct {
 	Failed int
 	// Models, Accounts and Sessions count the lines by the model each asked
 	// for, the account it's on, as RequestRow's Account has it, and the
-	// session it's of, each by its whole id: one of none is counted by none.
+	// session it counts toward, as ledger.Line.CountedSession has it, each by
+	// its whole id: one of none, as a quota check of a session, is counted by
+	// none.
 	Models, Accounts, Sessions map[string]int
 	// Shown are those the table shows.
 	Shown int
@@ -106,8 +110,9 @@ func (c LogCount) HiddenBy() []RowKind {
 	return by
 }
 
-// add counts the row r, the filter hiding it as given.
-func (c *LogCount) add(r RequestRow, hid hidden) {
+// add counts the row p, the filter hiding it as given.
+func (c *LogCount) add(p placedRow, hid hidden) {
+	r := p.row
 	switch r.Kind {
 	case RowCheck:
 		c.Checks++
@@ -119,7 +124,7 @@ func (c *LogCount) add(r RequestRow, hid hidden) {
 	if r.Failed {
 		c.Failed++
 	}
-	c.Models, c.Accounts, c.Sessions = tally(c.Models, r.Model), tally(c.Accounts, r.Account), tally(c.Sessions, r.Session)
+	c.Models, c.Accounts, c.Sessions = tally(c.Models, r.Model), tally(c.Accounts, r.Account), tally(c.Sessions, p.session)
 	switch hid {
 	case notHidden:
 		c.Shown++

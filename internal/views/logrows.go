@@ -84,12 +84,15 @@ func (t LogTable) Count(date string) LogCount {
 // placedRow is a request's row as the table places it: on the local day its
 // request arrived on, or, before its line comes, was sent on; and, within
 // it, where it was sent, where the stream told of that, else where it
-// arrived.
+// arrived. Its session is the one its request counts toward, as
+// ledger.Line.CountedSession has it of its line, or Told.countedSession of
+// a request told alone: none for a quota check.
 type placedRow struct {
-	row   RequestRow
-	line  *ledger.Line
-	day   LedgerDay
-	place time.Time
+	row     RequestRow
+	line    *ledger.Line
+	session string
+	day     LedgerDay
+	place   time.Time
 }
 
 // LogRows builds the Log's Requests from src: a row of each request, once:
@@ -117,10 +120,10 @@ func LogRows(src LogSources) LogTable {
 		if sent, told := src.Stream.sentOf(&h.line); told {
 			lined[h.line.Request], place = true, sent
 		}
-		rows = append(rows, placedRow{row: h.row, line: &h.line, day: h.day, place: place})
+		rows = append(rows, placedRow{row: h.row, line: &h.line, session: h.line.CountedSession(), day: h.day, place: place})
 	}
 	for _, t := range toldAlone(src.Stream, lined) {
-		rows = append(rows, placedRow{row: toldRow(t, src.Now), day: Today(t.Sent), place: t.Sent})
+		rows = append(rows, placedRow{row: toldRow(t, src.Now), session: t.countedSession(), day: Today(t.Sent), place: t.Sent})
 	}
 	rows = slices.DeleteFunc(rows, func(p placedRow) bool { return p.day.Start.Before(first.Start) })
 	slices.SortStableFunc(rows, func(a, b placedRow) int {
@@ -160,9 +163,9 @@ func tableOf(rows []placedRow, first LedgerDay, src LogSources) LogTable {
 	var last *LedgerDay
 	for _, p := range rows {
 		table.ran[p.row.Request] = append(table.ran[p.row.Request], runSpanOf(p.row))
-		hid := src.Filter.hiding(p.row)
+		hid := src.Filter.hiding(p)
 		c := table.counts[p.day.Date]
-		c.add(p.row, hid)
+		c.add(p, hid)
 		table.counts[p.day.Date] = c
 		if hid != notHidden {
 			continue

@@ -211,7 +211,7 @@ type hearing struct {
 func (s Stream) hearing() hearing {
 	h := hearing{live: s.Live, seats: make(map[seatOf]heard), told: make(map[string][]Told)}
 	for t := range s.known() {
-		if t.Check || t.Session == "" {
+		if t.countedSession() == "" {
 			continue
 		}
 		k := seatOf{session: t.Session, model: t.Model, account: t.Account}
