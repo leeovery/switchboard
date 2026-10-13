@@ -154,8 +154,9 @@ func (p LogPage) find(lines []logLine, k LogKey) (int, bool) {
 
 // window is what of lines is in view in rows rows, as s stands: following,
 // the newest rows lines; paused, from its top, but no further down than its
-// foot. A key no longer among them, as one a filter hides, falls back to
-// where following has its view, or its foot to the last line.
+// foot, or the table's words under it, while it says it has nothing today. A
+// key no longer among them, as one a filter hides, falls back to where
+// following has its view, or its foot to the last line.
 func (p LogPage) window(lines []logLine, s LogStand, rows int) (first, last int) {
 	last = len(lines) - 1
 	first = max(len(lines)-rows, 0)
@@ -164,6 +165,9 @@ func (p LogPage) window(lines []logLine, s LogStand, rows int) (first, last int)
 	}
 	if foot, ok := p.find(lines, s.foot); ok {
 		last = foot
+		if last+1 < len(lines) && lines[last+1].empty != nil {
+			last++
+		}
 	}
 	if top, ok := p.find(lines, s.top); ok {
 		first = min(top, last)
@@ -292,12 +296,16 @@ func (p LogPage) Scrolled(by, rows int) LogPage {
 }
 
 // pausedAt is the table shown, of lines, paused where it follows in a view
-// rows rows tall: its view as it is, to the table's last line, which it
-// goes no further down than; and of Requests', the table as it is, which
-// the lines come since are counted against.
+// rows rows tall: its view as it is, to the table's last line that came,
+// which it goes no further down than, the words saying it has nothing today
+// passed over, as they go once today's first comes; and of Requests', the
+// table as it is, which the lines come since are counted against.
 func (p LogPage) pausedAt(lines []logLine, rows int) LogStand {
 	s := p.stand()
 	first, last := p.window(lines, s, rows)
+	if lines[last].empty != nil && last > 0 {
+		last--
+	}
 	s.paused, s.top, s.foot, s.then = true, lines[first].key, lines[last].key, p.Requests
 	return s
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
@@ -216,6 +217,57 @@ func TestTheLogsWindowFollowsAndPauses(t *testing.T) {
 	}
 }
 
+// Paused on a quiet morning, the table's words saying it has nothing today
+// stay in view under the paused foot, the newest row; as today's first row
+// comes and they go, it's counted under the foot, and not drawn.
+func TestPausedOnAQuietMorningTodaysFirstRowStaysBelowTheFoot(t *testing.T) {
+	yesterday := []ledger.Line{asked("1", theDayBefore), asked("2", theDayBefore.Add(time.Minute))}
+	src := views.LogSources{From: theDayBefore, Now: logDayNoon}
+	pinned := status.Event{ID: 1, At: theDayBefore.Add(time.Minute), Kind: status.EventPin, Accounts: []string{"personal"}}
+	tests := []struct {
+		name          string
+		before, after LogPage
+		paused, came  []string
+	}{
+		{
+			name: "Requests", before: requestsOf(src, yesterday), after: requestsOf(src, append(yesterday, asked("3", logDay))),
+			paused: []string{"23:50:00", "23:51:00", "words"}, came: []string{"23:50:00", "23:51:00"},
+		},
+		{
+			name: "Events", before: eventsShown(pinned), after: eventsShown(pinned, workAtItsCap),
+			paused: []string{"23:51:00", "words"}, came: []string{"23:51:00"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := tt.before.Chose(-1, 4)
+			if got := inView(p, 4); !slices.Equal(got, tt.paused) {
+				t.Errorf("paused, in view %v, want %v", got, tt.paused)
+			}
+			p = tt.after.withStands(p)
+			if got, fresh := inView(p, 4), p.fresh(p.lines(), p.stand()); !slices.Equal(got, tt.came) || fresh != 1 {
+				t.Errorf("today's first row come, in view %v, %d new; want %v, 1 new", got, fresh, tt.came)
+			}
+		})
+	}
+}
+
+// inView are the times of the lines of p's table shown in view in rows
+// rows, as timeOf has them, a table's words as "words".
+func inView(p LogPage, rows int) []string {
+	lines := p.lines()
+	first, last := p.window(lines, p.stand(), rows)
+	var view []string
+	for _, l := range lines[first : last+1] {
+		if l.empty != nil {
+			view = append(view, "words")
+			continue
+		}
+		view = append(view, timeOf(l))
+	}
+	return view
+}
+
 // asked is a line of a request with the id given of d28c's, on side,
 // arriving at the time given.
 func asked(id string, at time.Time) ledger.Line {
@@ -237,6 +289,8 @@ func timeOf(l logLine) string {
 	switch {
 	case l.row != nil:
 		return l.row.At.Format(time.TimeOnly)
+	case l.event != nil:
+		return l.event.At.Format(time.TimeOnly)
 	case l.rule != nil:
 		return "rule"
 	}
