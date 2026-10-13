@@ -111,10 +111,12 @@ type Frame struct {
 
 	// held is the moment of a document as At holds it, and built the
 	// Overview's sections as Built built them, each for every look the frame,
-	// or a copy of it, takes of their document at their moment to share: nil,
-	// where each look works them out afresh.
+	// or a copy of it, takes of their document at their moment to share; and
+	// runs the sessions running, for the sections built together to share:
+	// nil, where each look works them out afresh.
 	held  *status.HeldMoment
 	built *sectionsBuilt
+	runs  *runningHeld
 }
 
 // At is the frame holding the moment of doc at now, as its Policy judges it:

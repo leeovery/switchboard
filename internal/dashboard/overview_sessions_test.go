@@ -284,6 +284,24 @@ func TestASessionSeenLongerAgoThanItsColumnHoldsIsDrawnWhole(t *testing.T) {
 	}
 }
 
+// A frame holding the sessions running lists them once, for SESSIONS to list
+// and ROUTING to count, the stream heard once a frame; a look at another
+// moment lists them afresh.
+func TestTheSessionsRunningAreListedOnceAFrame(t *testing.T) {
+	doc, sessions, _ := overviewWorld()
+	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: sessions}.holdRunning(doc, routedAt)
+	listed := f.running(doc, routedAt)
+	if len(listed) == 0 {
+		t.Fatal("no session runs, want those the router lists")
+	}
+	if again := f.running(doc, routedAt); &again[0] != &listed[0] {
+		t.Error("asked again, the frame lists the sessions running afresh, want the list it holds")
+	}
+	if later := f.running(doc, routedAt.Add(time.Minute)); len(later) > 0 && &later[0] == &listed[0] {
+		t.Error("asked of another moment, the frame gives the list it holds, want them listed afresh")
+	}
+}
+
 func TestTheStreamSeesASessionRunningLaterThanTheRouterListedIt(t *testing.T) {
 	doc, sessions, _ := overviewWorld()
 	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: sessions}

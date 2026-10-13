@@ -250,9 +250,10 @@ func (f Frame) sectionsOf(doc status.Document, now time.Time) []section {
 
 // buildSections builds the Overview's sections the frame shows, of doc at
 // now, in the order the page draws them, each of the one moment of doc at
-// now, as At holds it.
+// now, as At holds it, and of the one list of the sessions running then, as
+// holdRunning holds it.
 func (f Frame) buildSections(doc status.Document, now time.Time) []section {
-	f = f.At(doc, now)
+	f = f.At(doc, now).holdRunning(doc, now)
 	builds := [...]func(status.Document, time.Time) section{
 		SectionUsage:    f.usageSection,
 		SectionGraphs:   f.graphsSection,
