@@ -31,13 +31,12 @@ var drawingPackages = []string{
 // milestone 7's shared rules names them.
 var readersAllowed = []string{
 	// Producers, which turn the raw data into what views read: the watch's
-	// traffic and traces, the request stream's events into the Traffic and
-	// views.Sent; its read loop, which counts the stream's lead of requests
-	// in flight, and asks whether an event moves a number; and the verbs'
-	// JSON, which passes lines and events through as the ledger and the
-	// router filed them.
+	// traffic, the request stream's events into views.Told and the Traffic;
+	// its read loop, which counts the stream's lead of requests in flight,
+	// and asks whether an event moves a number; and the verbs' JSON, which
+	// passes lines and events through as the ledger and the router filed
+	// them.
 	"internal/dashboard/watch/traffic.go",
-	"internal/dashboard/watch/traces.go",
 	"internal/dashboard/watch/stream.go:joined",
 	"internal/dashboard/watch/stream.go:Model.numbering",
 	"internal/cli/requests.go:writeLines",

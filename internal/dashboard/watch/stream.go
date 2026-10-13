@@ -242,11 +242,12 @@ func joined(events []router.StreamEvent) int {
 	return len(events)
 }
 
-// took takes in the events the stream told, at now: what each seat is doing,
-// for the traffic, and the requests going upstream, for the traces.
+// took takes in the events the stream told, at now: each request told of,
+// and what each seat is doing, for the traffic, and the requests going
+// upstream, for the traces.
 func (m Model) took(events []router.StreamEvent, now time.Time) Model {
 	m.traffic = m.traffic.took(events, m.held(now), now)
-	m.traces = m.traces.Told(sentOf(events), now)
+	m.traces = m.traces.Told(m.traffic.sentOf(events), now)
 	return m
 }
 

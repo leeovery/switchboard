@@ -35,7 +35,7 @@ func TestTheOverviewNamesEachNumberItDrawsByWhatItIs(t *testing.T) {
 	byAccount.By = ByAccount
 	alone := routerDoc("work", 0, readAccount("work", sessionOf(0.6, 2*time.Hour), weekOf(0.4, 3*day)))
 	withSessions, overview := sessionsShown(160, 60)
-	sent := []views.Sent{{Request: "a", Session: idC61B, Account: "side", At: routedAt}, {Request: "b", Session: idC61B, Account: "side", At: routedAt}}
+	sent := []views.Told{{Request: "a", Session: idC61B, Account: "side", Sent: routedAt}, {Request: "b", Session: idC61B, Account: "side", Sent: routedAt}}
 	withSessions.Traces = views.Traces{}.Told(sent, routedAt)
 	tests := []struct {
 		name string
@@ -217,9 +217,9 @@ func changedOf(was, is map[Number]string) []Number {
 // where StreamNumbered says the page may draw one they change: every page,
 // with any sections shown, grouped either way, is held to it.
 func TestOnlyAPageStreamNumberedDrawsANumberTheStreamChanges(t *testing.T) {
-	sent := []views.Sent{
-		{Request: "a", Session: idC61B, Account: "side", At: routedAt},
-		{Request: "b", Session: id41E0, Account: "personal", At: routedAt},
+	sent := []views.Told{
+		{Request: "a", Session: idC61B, Account: "side", Sent: routedAt},
+		{Request: "b", Session: id41E0, Account: "personal", Sent: routedAt},
 	}
 	move := Move{Seat: Seat{Session: idD28C, Model: opus}, From: "side", To: "personal", At: routedAt}
 	usageAlone := Sections{}.Toggled(SectionRouting).Toggled(SectionComing).Toggled(SectionLately)

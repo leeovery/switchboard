@@ -45,35 +45,47 @@ type counted struct {
 	account, session string
 }
 
-// Sent is a request going upstream, as the request stream tells of it: the
-// router's id for it, its session's, "" where it names none, the account it
-// goes out on, and when it went.
-type Sent struct {
-	Request, Session, Account string
-	At                        time.Time
+// upstream is a request gone upstream, as a line or the request stream
+// tells of it: the router's id for it, and what it's counted as.
+type upstream struct {
+	request string
+	counted
 }
 
 // Read is t with the requests of lines, today's, counted at now, as Told
-// counts them: those that spend quota and went upstream, each on the account
-// whose answer its client got, as of when it arrived; never a quota check, a
-// count of tokens or one the router answered itself.
+// counts them: those that spend quota and went upstream, each on the
+// account whose answer its client got, as of when it arrived; never a quota
+// check, a count of tokens or one the router answered itself.
 func (t Traces) Read(lines []ledger.Held, now time.Time) Traces {
-	var sent []Sent
+	var sent []upstream
 	for _, l := range lines {
 		if l.Upstream() {
-			sent = append(sent, Sent{Request: l.Request, Session: l.Session, Account: l.Account, At: l.At})
+			sent = append(sent, upstream{request: l.Request, at: l.At, account: l.Account, session: l.Session})
 		}
 	}
-	return t.Told(sent, now)
+	return t.count(sent, now)
 }
 
-// Told is t with the requests sent counted at now: each once, by its id,
-// whether the request stream or its line tells of it first. One told of
-// again, as one going out again on another account after a refusal, keeps
-// when it was first sent, and is counted on the account it went out on last.
-// The requests sent more than TraceSpan and a minute before now are let go
-// of, as no trace reaches them.
-func (t Traces) Told(sent []Sent, now time.Time) Traces {
+// Told is t with the requests the stream told of counted at now: those that
+// spend quota and went upstream, each once, by its id, whether the request
+// stream or its line tells of it first, as of when it first went, on the
+// account it went out on last.
+func (t Traces) Told(told []Told, now time.Time) Traces {
+	var sent []upstream
+	for _, r := range told {
+		if r.Spends() && !r.Sent.IsZero() {
+			sent = append(sent, upstream{request: r.Request, at: r.Sent, account: r.Account, session: r.Session})
+		}
+	}
+	return t.count(sent, now)
+}
+
+// count is t with the requests sent upstream counted at now: each once, by
+// its id. One told of again, as one going out again on another account
+// after a refusal, keeps when it was first sent, and is counted on the
+// account it went out on last. The requests sent more than TraceSpan and a
+// minute before now are let go of, as no trace reaches them.
+func (t Traces) count(sent []upstream, now time.Time) Traces {
 	if len(sent) == 0 {
 		return t
 	}
@@ -85,15 +97,15 @@ func (t Traces) Told(sent []Sent, now time.Time) Traces {
 		}
 	}
 	for _, s := range sent {
-		c, ok := requests[s.Request]
+		c, ok := requests[s.request]
 		if !ok {
-			if s.At.Before(from) {
+			if s.at.Before(from) {
 				continue
 			}
-			c.at = s.At
+			c.at = s.at
 		}
-		c.account, c.session = cmp.Or(s.Account, c.account), cmp.Or(c.session, s.Session)
-		requests[s.Request] = c
+		c.account, c.session = cmp.Or(s.account, c.account), cmp.Or(c.session, s.session)
+		requests[s.request] = c
 	}
 	return tracesOf(requests)
 }

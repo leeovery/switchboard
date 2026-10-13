@@ -1,11 +1,7 @@
 package watch
 
 import (
-	"time"
-
 	"github.com/leeovery/switchboard/internal/ledger"
-	"github.com/leeovery/switchboard/internal/router"
-	"github.com/leeovery/switchboard/internal/views"
 )
 
 // tracedLines are today's lines read for the Overview's traces as the
@@ -38,32 +34,4 @@ func (m Model) readTraces() func() tracedLines {
 func (m Model) traced(t tracedLines) Model {
 	m.traces, m.stream.read = m.traces.Read(t.lines, m.now()), t.read
 	return m
-}
-
-// sentOf are the requests the events tell of going upstream, as the traces
-// count them: each as it goes out, or as it was last sent, in flight as the
-// stream opens; never the client's quota check, or a count of tokens.
-func sentOf(events []router.StreamEvent) []views.Sent {
-	var sent []views.Sent
-	for _, e := range events {
-		if at, ok := sentAt(e); ok {
-			sent = append(sent, views.Sent{Request: e.Request, Session: e.Session, Account: e.Account, At: at})
-		}
-	}
-	return sent
-}
-
-// sentAt is when the request e tells of went upstream, reporting false
-// where e tells of none going, or of the client's quota check, or a count of
-// tokens, which spend no quota.
-func sentAt(e router.StreamEvent) (time.Time, bool) {
-	switch {
-	case e.Check, e.Count:
-		return time.Time{}, false
-	case e.Kind == router.StreamSent:
-		return e.At, true
-	case e.Kind == router.StreamInFlight:
-		return e.SentAt, true
-	}
-	return time.Time{}, false
 }

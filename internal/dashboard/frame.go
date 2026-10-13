@@ -66,8 +66,13 @@ type Frame struct {
 	// none, as while probing, and each account's sessions are counted as the
 	// document counts them.
 	Sessions []status.Session
+	// Stream is what the router's request stream has told of the routed
+	// requests, as the views read it, by each request's id: zero where the
+	// watch hears none.
+	Stream views.Stream
 	// Traffic is what the router's request stream tells of the sessions'
-	// requests, while the watch reads it: zero while it doesn't.
+	// requests, as Sessions' switchboard draws it, while the watch reads it:
+	// zero while it doesn't.
 	Traffic Traffic
 	// Order is the order Sessions' calls run in, as the watch keeps it from
 	// look to look: a seat keeps its row while the router lists it there,
