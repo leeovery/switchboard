@@ -35,6 +35,15 @@ func (t logTab) detailed() (logCarding, bool) {
 	return logCarding{event: &d}, ok
 }
 
+// wantsFactsBack reports whether the event the Log's details card is open
+// on wants the day before those the Log's read spans: what its card tells
+// of it comes of the lines up to views.FactsReach before it, as a cap told
+// just after midnight is known from a request before.
+func (t logTab) wantsFactsBack() bool {
+	e := t.card.event
+	return e != nil && e.Row.At.Add(-views.FactsReach).Before(t.from.Start)
+}
+
 // openLogCard opens the details of the Log's line chosen, as enter does,
 // where a line is chosen; nothing where none is.
 func (m Model) openLogCard() (Model, tea.Cmd) {

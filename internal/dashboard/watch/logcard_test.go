@@ -1,6 +1,8 @@
 package watch
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -8,6 +10,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -85,5 +89,46 @@ func TestTheLogsEventCardFollowsEachLook(t *testing.T) {
 	h.typed("g")
 	if h.model.open != nothingOpen || h.model.log.page.Shown != dashboard.LogRequests {
 		t.Errorf("after g, the card open is %v and the Log shows %v, want none open, and Requests", h.model.open, h.model.log.page.Shown)
+	}
+}
+
+// An event's card opened within views.FactsReach of the first day the Log
+// has read reads the day before, though its tables fill their views, so
+// what told of the event shows: a cap just after midnight, known from a
+// request before it.
+func TestAnEventsCardReadsBackTheDayItsFactsBeganOn(t *testing.T) {
+	midnight := onTheDay(0, 0, 0)
+	known := arrivedAt("0a000001", midnight.Add(-5*time.Minute))
+	known.Limits = map[string]string{"5h-utilization": "0.96", "status": "allowed"}
+	lines := []ledger.Held{known}
+	events := []status.Event{
+		{ID: 1, At: midnight.Add(30 * time.Second), Kind: status.EventPin, Accounts: []string{"personal"}},
+		{ID: 2, At: midnight.Add(time.Minute), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Reserve: 0.05},
+	}
+	for i := range 12 {
+		at := midnight.Add(time.Duration(2+i) * time.Minute)
+		lines = append(lines, arrivedAt(fmt.Sprintf("0a1000%02d", i), at))
+		events = append(events, status.Event{ID: 3 + i, At: at, Kind: status.EventStarted, Account: "side", Session: idD28C})
+	}
+	state := t.TempDir()
+	writeLines(t, state, lines...)
+	h := routedHarness(t, status.Document{})
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 16})
+	h.clock.now = midnight.Add(20 * time.Minute)
+	doc := routerDocument(three()...)
+	doc.GeneratedAt, doc.Events = h.clock.now.UTC(), events
+	h.startRouter(doc)
+	l := onTheLog(h, state)
+	h.model.cfg.LedgerKeep = 2 * day
+	h.start()
+	h.typed("]")
+	h.keys(slices.Repeat([]tea.KeyPressMsg{{Code: tea.KeyUp}}, 13)...)
+	if len(l.days) > 0 {
+		t.Fatalf("the Log read back %v before the card opened, want none: its tables fill their views", l.days)
+	}
+
+	h.keys(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if want := []string{dayfile.DateOf(known.At)}; !slices.Equal(l.days, want) || !strings.Contains(h.view(), "known from   d28c's request at 23:55:00") {
+		t.Errorf("the cap's card opened, the Log read back %v and the screen is\n%s\nwant %v read, its card known from d28c's request at 23:55:00", l.days, h.view(), want)
 	}
 }
