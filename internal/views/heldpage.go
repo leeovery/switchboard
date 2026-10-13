@@ -188,7 +188,7 @@ func (h HeldPage) Page(live PageLive) (SessionPage, bool) {
 // rows have none. None where it has no such turn.
 func (h HeldPage) TurnRequests(n int, live PageLive) []RequestRow {
 	h = h.at(live.Now)
-	tallies := talliesOf(h.requests, live.Stream.hearing().told[h.id])
+	tallies, _ := talliesOf(h.requests, live.Stream.hearing().told[h.id])
 	if n < 1 || n > len(tallies) {
 		return nil
 	}

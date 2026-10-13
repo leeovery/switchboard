@@ -43,7 +43,8 @@ type Stretch struct {
 // and what the stream told, as live gives it, its page page: its requests
 // as its turns take them in, their gaps folded as resumedAt finds them, its
 // main thread's stretches as the naming rule follows it, and its named
-// model's moves, those row 6 tells.
+// model's moves, those row 6 tells, with those the stream told of whose
+// lines are yet to come.
 func (h HeldPage) Story(page SessionPage, live PageLive) Story {
 	told := live.Stream.hearing().told[h.id]
 	all := sentOf(h.requests, told)
@@ -51,11 +52,27 @@ func (h HeldPage) Story(page SessionPage, live PageLive) Story {
 		return Story{}
 	}
 	s := Story{Start: all[0].at, End: all[len(all)-1].at.In(live.Now.Location()), Ended: !page.Runs(),
-		Sent: upstreamOf(h.requests, told), Folds: foldsOf(all), Moves: page.modelMoves(), Stretches: stretchesOf(all)}
+		Sent: upstreamOf(h.requests, told), Folds: foldsOf(all), Moves: h.movesOf(page, live.Stream), Stretches: stretchesOf(all)}
 	if !s.Ended {
 		s.End = score.Later(s.End, live.Now)
 	}
 	return s
+}
+
+// movesOf are the moves of the model page names the session h holds by, in
+// the order they came: those its lines made, as its page has them; and
+// those the stream s told of, by none of its lines held, each as the router
+// told it, what it wrote again yet to be known.
+func (h HeldPage) movesOf(page SessionPage, s Stream) []SessionMove {
+	moves := page.modelMoves()
+	for _, m := range s.Moves {
+		lined := slices.ContainsFunc(h.requests, func(r request) bool { return sameRequest(r.Line, m.Request, m.At) })
+		if m.Session == h.id && m.Model == page.Model && !lined {
+			moves = append(moves, SessionMove{At: m.At.UTC(), Model: m.Model, From: m.From, To: m.To, Reason: m.Reason})
+		}
+	}
+	slices.SortStableFunc(moves, func(a, b SessionMove) int { return a.At.Compare(b.At) })
+	return moves
 }
 
 // upstreamOf are when the requests of a session, by their lines and as the

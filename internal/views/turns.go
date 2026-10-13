@@ -22,15 +22,16 @@ const (
 // the first sent first, as talliesOf tallies them. A turn goes on while it's
 // open, as open says; and, running saying the session runs, not having
 // ended, its newest goes on while its last answer of its own conversation
-// stopped to call a tool, or while unplaced says a request of the session is
-// in flight that neither its lines nor the stream place in a turn, as one
-// the router lists in flight that the stream hasn't told of.
+// stopped to call a tool, or while a request of the session is in flight
+// that neither its lines nor the stream place in a turn: one the stream told
+// of naming no prompt, or, as unplaced says, one the router lists in flight
+// that the stream hasn't told of.
 func turnsOf(requests []request, told []Told, running, unplaced bool) []Turn {
-	tallies := talliesOf(requests, told)
+	tallies, inNone := talliesOf(requests, told)
 	turns := make([]Turn, len(tallies))
 	for i, t := range tallies {
 		newest := i == len(tallies)-1
-		turns[len(tallies)-1-i] = t.turn(i+1, t.open() || running && newest && (t.calling() || unplaced))
+		turns[len(tallies)-1-i] = t.turn(i+1, t.open() || running && newest && (t.calling() || unplaced || inNone))
 	}
 	return turns
 }
@@ -38,12 +39,12 @@ func turnsOf(requests []request, told []Told, running, unplaced bool) []Turn {
 // talliesOf returns the tallies of a session's turns, the first started
 // first, of its requests, oldest first, and those the request stream told
 // of, told, the first sent first, each counted in its turn as it's sent, as
-// sentOf takes them in. A turn is the requests of one prompt, as Claude Code
-// names it; a subagent's, nested ones too, count in the turn of the prompt
-// its first request names, whatever prompts come meanwhile; and a request
-// that names no prompt is in none.
-func talliesOf(requests []request, told []Told) []*turnTally {
-	var tallies []*turnTally
+// sentOf takes them in, reporting too whether a request in none is in
+// flight. A turn is the requests of one prompt, as Claude Code names it; a
+// subagent's, nested ones too, count in the turn of the prompt its first
+// request names, whatever prompts come meanwhile; and a request that names
+// no prompt is in none.
+func talliesOf(requests []request, told []Told) (tallies []*turnTally, inNone bool) {
 	byPrompt := make(map[string]*turnTally)
 	agents := make(map[string]string)
 	sent := sentOf(requests, told)
@@ -51,6 +52,7 @@ func talliesOf(requests []request, told []Told) []*turnTally {
 		r := &sent[i]
 		prompt := promptOf(r.agentID, r.prompt, agents)
 		if prompt == "" {
+			inNone = inNone || r.pending && r.end.IsZero()
 			continue
 		}
 		t, ok := byPrompt[prompt]
@@ -60,7 +62,7 @@ func talliesOf(requests []request, told []Told) []*turnTally {
 		}
 		t.add(r)
 	}
-	return tallies
+	return tallies, inNone
 }
 
 // promptOf returns the prompt whose turn a request counts in, of the agent

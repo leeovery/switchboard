@@ -144,9 +144,15 @@ func TestARequestCountsInItsTurnAsItsSent(t *testing.T) {
 			want:    []turnSaid{{1, local(10, 0, 0), time.Time{}, 1, workOnly}},
 		},
 		{
-			name:  "none of a quota check, a count of tokens, another session's, or one that names no prompt",
+			name:  "none of a quota check, a count of tokens, another session's, or one that names no prompt, which in flight keeps the newest going",
 			lines: []ledger.Line{first},
 			told:  []views.Told{check, count, others, toldOf("r2", "", ledger.ClassMain, opus, "side", local(10, 2, 0))},
+			want:  []turnSaid{{1, local(10, 0, 0), time.Time{}, 1, sideOnly}},
+		},
+		{
+			name:  "nor one that names no prompt once it has ended",
+			lines: []ledger.Line{first},
+			told:  []views.Told{endedAt(local(10, 2, 30), toldOf("r2", "", ledger.ClassMain, opus, "side", local(10, 2, 0)))},
 			want:  []turnSaid{{1, local(10, 0, 0), local(10, 1, 0), 1, sideOnly}},
 		},
 	}
