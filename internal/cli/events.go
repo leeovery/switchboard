@@ -83,8 +83,8 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 		follower = newEventsFollower(events.Files(ledger.Dir(dir), logger), dayfile.DateOf(now), a.Now)
 		today = follower.listing()
 	}
-	held := events.NewReader(dir, a.Now, logger).HeldTailing(from, startOfDay(now, -1), today)
 	printer := a.eventsPrinter(out, opts.form)
+	held := events.NewReader(dir, a.Now, logger).HeldTailing(printer.readFrom(from), startOfDay(now, -1), today)
 	if err := printer.list(held, from, now); err != nil || follower == nil {
 		return err
 	}
@@ -93,8 +93,10 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 
 // eventsPrinter prints the router's events in a form.
 type eventsPrinter interface {
-	// list prints the events held, those that happened from from on, read at
-	// now.
+	// readFrom is when the events it lists from from on are read from.
+	readFrom(from time.Time) time.Time
+	// list prints the events held, read from readFrom, that happened from
+	// from on, read at now.
 	list(held iter.Seq[events.Held], from, now time.Time) error
 	// follow prints a line as it's filed, after the listing.
 	follow(h events.Held) error
@@ -112,6 +114,12 @@ func (a *app) eventsPrinter(out io.Writer, f formFlags) eventsPrinter {
 // fields a later release added included.
 type eventsJSON struct {
 	out io.Writer
+}
+
+// readFrom is from: an event printed as the router filed it tells nothing
+// the events before it told.
+func (eventsJSON) readFrom(from time.Time) time.Time {
+	return from
 }
 
 func (p eventsJSON) list(held iter.Seq[events.Held], _, _ time.Time) error {
@@ -146,11 +154,21 @@ type eventsText struct {
 	widths []int
 }
 
+// readFrom is views.EventsFrom the first day it lists, as the Log's Events
+// read: a line after midnight tells what the events before it told, as when
+// a pressure runs out, those before from told, but not listed.
+func (*eventsText) readFrom(from time.Time) time.Time {
+	return views.EventsFrom(from)
+}
+
 func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error {
 	var rows []views.EventRow
 	p.widths = []int{len(indent) + prose.DatedWidth()}
 	for h := range held {
 		r := p.telling.Row(h, now)
+		if r.At.Before(from) {
+			continue
+		}
 		rows = append(rows, r)
 		p.widths = widths(p.widths, indented(eventRow(r, now)))
 	}

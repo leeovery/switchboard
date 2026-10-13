@@ -9,6 +9,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 func TestAWindowIsNamedByItsLabelOrElseItsKey(t *testing.T) {
@@ -297,6 +298,43 @@ func TestALedgerLinesLimitsGiveTheWindowsItsAnswersHeadersDid(t *testing.T) {
 	}
 	if got := claude.LimitWindows(nil); got != nil {
 		t.Errorf("LimitWindows(nil) = %+v, want none", got)
+	}
+}
+
+// A ledger line's limits give each window as its answer read it, in
+// LimitWindows' order: its key, its use, its reset, zero where the answer
+// didn't say, and how far it held its account back, its reserve the one
+// given.
+func TestALedgerLinesLimitsGiveEachWindowAsItsAnswerReadIt(t *testing.T) {
+	resets := time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)
+	fiveHour := func(use, status string) map[string]string {
+		return map[string]string{"5h-utilization": use, "5h-reset": "1790619000", "5h-status": status}
+	}
+	tests := []struct {
+		name   string
+		limits map[string]string
+		want   []claude.WindowRead
+	}{
+		{name: "under both its cap and its limit", limits: fiveHour("0.5", "allowed"),
+			want: []claude.WindowRead{{Key: "5h", Use: 0.5, Resets: resets, Held: score.NotHeld}}},
+		{name: "at its reserve", limits: fiveHour("0.95", "allowed"),
+			want: []claude.WindowRead{{Key: "5h", Use: 0.95, Resets: resets, Held: score.HeldAtCap}}},
+		{name: "spent", limits: fiveHour("1.0", "allowed"),
+			want: []claude.WindowRead{{Key: "5h", Use: 1, Resets: resets, Held: score.HeldAtLimit}}},
+		{name: "refused short of its cap", limits: fiveHour("0.6", "rejected"),
+			want: []claude.WindowRead{{Key: "5h", Use: 0.6, Resets: resets, Held: score.HeldAtLimit}}},
+		{name: "with no reset", limits: map[string]string{"7d-utilization": "0.97"},
+			want: []claude.WindowRead{{Key: "7d", Use: 0.97, Held: score.HeldAtCap}}},
+		{name: "two windows, each judged", limits: map[string]string{"7d-utilization": "0.3", "5h-utilization": "0.96", "5h-reset": "1790619000"},
+			want: []claude.WindowRead{{Key: "5h", Use: 0.96, Resets: resets, Held: score.HeldAtCap}, {Key: "7d", Use: 0.3, Held: score.NotHeld}}},
+		{name: "none"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := claude.WindowsRead(tt.limits, 0.05); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("WindowsRead(%v, 0.05) =\n%+v\nwant\n%+v", tt.limits, got, tt.want)
+			}
+		})
 	}
 }
 
