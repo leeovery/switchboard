@@ -4,10 +4,12 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -21,14 +23,14 @@ import (
 // as the moment gives them.
 func logSourcesOf(hm viewstest.LogMoment) views.LogSources {
 	return views.LogSources{
-		From: hm.From, Now: hm.Now, Read: readAtOnce(hm, ledgerHolding(hm.Now, hm.Lines...)),
+		From: hm.From, Oldest: hm.Oldest, Now: hm.Now, Read: readAtOnce(hm, ledgerHolding(hm.Now, hm.Lines...)),
 		Stream: hm.Stream, Totals: hm.Totals, Filter: hm.Filter,
 	}
 }
 
 // readAtOnce is the Log's read of the moment's lines through l, as the watch
 // reads it on opening: today's, as the ledger's Today gives them, then each
-// day before back to the table's first, newest first, as its Day gives one.
+// day before, newest first, as its Day gives one, as spannedDays has them.
 func readAtOnce(hm viewstest.LogMoment, l views.LedgerSessions) views.LogRead {
 	days := spannedDays(hm)
 	read := views.ReadLogHeld(l, days[0], ledger.Pricing, hm.Now)
@@ -38,20 +40,20 @@ func readAtOnce(hm viewstest.LogMoment, l views.LedgerSessions) views.LogRead {
 	return read
 }
 
-// spannedDays are the moment's lines of the days its table spans, as the ledger
-// holds them, a day's together, in the order the moment gives them: today's
-// first, none where it has none, then each day before with any, newest first.
+// spannedDays are the moment's lines of the days the Log reads, as the
+// ledger holds them, a day's together, in the order the moment gives them:
+// today's first, then each day before, newest first, as the oldest day's
+// DayBefore gives them, back to the table's first; none for a day with none.
 func spannedDays(hm viewstest.LogMoment) [][]ledger.Held {
-	first, today := views.Today(hm.From), views.Today(hm.Now)
 	byDate := make(map[string][]ledger.Held)
 	for _, l := range hm.Lines {
-		if day := views.Today(l.At); first.Holds(l.At) && day.Date != today.Date {
-			byDate[day.Date] = append(byDate[day.Date], ledger.Held{Line: l})
-		}
+		date := views.Today(l.At).Date
+		byDate[date] = append(byDate[date], ledger.Held{Line: l})
 	}
-	days := [][]ledger.Held{heldOf(slices.DeleteFunc(slices.Clone(hm.Lines), func(l ledger.Line) bool { return !today.Holds(l.At) })...)}
-	for _, date := range slices.Backward(slices.Sorted(maps.Keys(byDate))) {
-		days = append(days, byDate[date])
+	today, first := views.Today(hm.Now), views.Today(hm.From)
+	days := [][]ledger.Held{byDate[today.Date]}
+	for day, ok := hm.Oldest.DayBefore(today); ok && first.Holds(day.Start); day, ok = hm.Oldest.DayBefore(day) {
+		days = append(days, byDate[day.Date])
 	}
 	return days
 }
@@ -61,6 +63,9 @@ func spannedDays(hm viewstest.LogMoment) [][]ledger.Held {
 func logLineOf(l views.LogLine) viewstest.LogLine {
 	if r := l.Rule; r != nil {
 		return viewstest.LogLine{Rule: r.Ended.Date + " → " + r.Began.Date}
+	}
+	if o := l.Oldest; o != nil {
+		return viewstest.LogLine{Oldest: o.Day.Date + ", " + keptSaid(o.Keep)}
 	}
 	r := l.Row
 	row := viewstest.Row{
@@ -72,6 +77,15 @@ func logLineOf(l views.LogLine) viewstest.LogLine {
 		row.Cost = *r.Routing.Cost
 	}
 	return viewstest.LogLine{Row: row}
+}
+
+// keptSaid is how long the ledger keeps its lines, as a moment wants it:
+// "400 days", or "for good".
+func keptSaid(keep time.Duration) string {
+	if keep == dayfile.Forever {
+		return "for good"
+	}
+	return strconv.Itoa(int(keep/(24*time.Hour))) + " days"
 }
 
 // secondsOf is a time a row knows, as prose.Seconds says it: "" for one it
@@ -126,7 +140,7 @@ func TestANarrowTableAndAPhoneFoldARowsRoutingInAlikeAtEachHardMoment(t *testing
 		src.Filter = views.LogFilter{}
 		for _, l := range views.LogRows(src).Lines {
 			r := l.Row
-			if l.Rule != nil {
+			if !l.IsRow() {
 				continue
 			}
 			phoneRouting := r.Routing.Words
@@ -164,8 +178,8 @@ func ruleFigures(totals []views.DayTotals, date string) views.DayTotals {
 func logSaid(lines []viewstest.LogLine) string {
 	said := make([]string, len(lines))
 	for i, l := range lines {
-		if l.Rule != "" {
-			said[i] = "── " + l.Rule
+		if l.Rule != "" || l.Oldest != "" {
+			said[i] = "── " + l.Rule + l.Oldest
 			continue
 		}
 		said[i] = strings.TrimSpace(strings.Join([]string{
@@ -250,7 +264,7 @@ func TestTheListAndTheLogAgreeOnASessionsLatestRequest(t *testing.T) {
 // in flight: false where it holds none.
 func latestOf(table views.LogTable, session string) (latest views.RequestRow, flying int, ok bool) {
 	for _, l := range table.Lines {
-		if l.Rule != nil || l.Row.Session != session || l.Row.Kind != views.RowRequest {
+		if !l.IsRow() || l.Row.Session != session || l.Row.Kind != views.RowRequest {
 			continue
 		}
 		latest, ok = l.Row, true

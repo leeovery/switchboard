@@ -59,9 +59,10 @@ type DetailBlock struct {
 }
 
 // Details are the details of the request the line's row is of, built from
-// its row and, once it has come, its line: false for a day's rule.
+// its row and, once it has come, its line: false for a day's rule or the
+// oldest day's line.
 func (l LogLine) Details() (RequestDetails, bool) {
-	if l.Rule != nil {
+	if !l.IsRow() {
 		return RequestDetails{}, false
 	}
 	d := RequestDetails{Row: l.Row}

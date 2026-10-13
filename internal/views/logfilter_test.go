@@ -153,7 +153,7 @@ func TestTheCountsAgreeWithWhatTheFilterShowsAtEachHardMoment(t *testing.T) {
 func datesOf(table views.LogTable) []string {
 	var dates []string
 	for _, l := range table.Lines {
-		if date := views.Today(l.Row.At).Date; l.Rule == nil && !slices.Contains(dates, date) {
+		if date := views.Today(l.Row.At).Date; l.IsRow() && !slices.Contains(dates, date) {
 			dates = append(dates, date)
 		}
 	}
@@ -165,7 +165,7 @@ func datesOf(table views.LogTable) []string {
 func rowsOn(table views.LogTable, date string, keep func(views.RequestRow) bool) int {
 	n := 0
 	for _, l := range table.Lines {
-		if l.Rule == nil && views.Today(l.Row.At).Date == date && (keep == nil || keep(l.Row)) {
+		if l.IsRow() && views.Today(l.Row.At).Date == date && (keep == nil || keep(l.Row)) {
 			n++
 		}
 	}

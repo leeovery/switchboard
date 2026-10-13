@@ -29,6 +29,8 @@ type LogRead struct {
 	held  map[string][]int
 	// sessions are the sessions of the lines' requests, by their ids.
 	sessions map[string]*loggedSession
+	// written is the latest end of the lines.
+	written time.Time
 }
 
 // loggedLine is a line of the table's, as the read holds it: the local day
@@ -79,6 +81,13 @@ func (r LogRead) Back(l LedgerSessions, day []ledger.Held, now time.Time) LogRea
 	return r.take(l, day, now)
 }
 
+// WrittenTo is when the ledger last wrote of what r holds: the latest end of
+// its lines, every kind's, each its arrival and its total_ms after; zero
+// where it holds none. The Log not live is to it.
+func (r LogRead) WrittenTo() time.Time {
+	return r.written
+}
+
 // take is r with lines taken in at now, as Grown says.
 func (r LogRead) take(l LedgerSessions, lines []ledger.Held, now time.Time) LogRead {
 	fresh := r.unheld(lines)
@@ -98,6 +107,9 @@ func (r LogRead) take(l LedgerSessions, lines []ledger.Held, now time.Time) LogR
 		logged.row.toldBy(line, nil)
 		grown.lines = append(grown.lines, logged)
 		grown.held[line.Request] = append(slices.Clip(grown.held[line.Request]), at)
+		if end := line.At.Add(time.Duration(line.TotalMS) * time.Millisecond); end.After(grown.written) {
+			grown.written = end
+		}
 		if !isRequest(line) {
 			continue
 		}

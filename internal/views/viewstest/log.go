@@ -29,12 +29,22 @@ type LogMoment struct {
 	Totals []views.DayTotals
 	// Filter is what the table shows: the zero Filter every line.
 	Filter views.LogFilter
+	// Oldest is the oldest day the Log reads back to: none known for the
+	// zero OldestDay.
+	Oldest views.OldestDay
 	// The table spans the local days from From's to Now's, read at Now.
 	From, Now time.Time
 	// Want are the table's lines wanted, oldest first, and Counts what each
 	// day's lines count, by the day's date: a day not named counts none.
 	Want   []LogLine
 	Counts map[string]Count
+	// Then, where it's set, is the ledger and the stream as they were as the
+	// table paused, the line at Chosen among its table's chosen: the line
+	// chosen is at ChosenNow among the table's lines wanted, and New of its
+	// rows have come since.
+	Then              *LogMoment
+	Chosen, ChosenNow int
+	New               int
 }
 
 // Count is what a day's lines count at a moment, of what the Log's rules
@@ -46,11 +56,13 @@ type Count struct {
 }
 
 // LogLine is a line of the Log's table as a moment wants it: a request's
-// row; or, where Rule is set, a day's rule, as "2026-09-30 → 2026-10-01",
-// the dates of the days it falls between.
+// row; where Rule is set, a day's rule, as "2026-09-30 → 2026-10-01", the
+// dates of the days it falls between; or, where Oldest is set, the oldest
+// day's line, as "2025-08-27, 400 days", its date and how long the ledger
+// keeps its lines, or "2026-09-29, for good".
 type LogLine struct {
-	Row  Row
-	Rule string
+	Row          Row
+	Rule, Oldest string
 }
 
 // Row is what a request's row says at a moment of what the Log's rules
@@ -88,8 +100,10 @@ type Row struct {
 // counts, hidden and shown; a request answering as the stream closed, drawn
 // while it stays closed, its line come meanwhile, and the stream open again;
 // one session's lines alone, across midnight; failed requests alone; checks
-// shown and counts hidden; and a request answering, its details open, then
-// its line come.
+// shown and counts hidden; a request answering, its details open, then its
+// line come, paused; the ledger keeping its lines for good, and 400 days;
+// paused through a filter, across midnight, and at the second 01:30 as the
+// clocks go back; and the router gone, its ledger last written by a check.
 func LogMoments() []LogMoment {
 	return []LogMoment{
 		inFlightAtMidnight(), acrossMidnightLined(), streamEndedInFlight(), droppedBehind(), linedAfterSent(), sentAgainAndFailed(),
@@ -97,6 +111,7 @@ func LogMoments() []LogMoment {
 		fallingBackRows(), checksAndCounts(false), checksAndCounts(true),
 		streamClosed(closedInFlight), streamClosed(closedLined), streamClosed(reopenedInFlight),
 		sessionAcrossMidnight(), failedOnly(), checksShownCountsHidden(), inFlightDetails(false), inFlightDetails(true),
+		keptForGood(), keptFourHundredDays(), pausedThroughAFilter(), pausedAcrossMidnight(), pausedAtTheSecondOneThirty(), notLive(),
 	}
 }
 
@@ -347,12 +362,15 @@ func linedAfterSent() LogMoment {
 	r2.Attempts, r2.FirstMS, r2.TotalMS = 0, nil, 2
 	unsent := rowOf(r2)
 	unsent.Mark, unsent.Failed = views.MarkFailed, true
+	then := LogMoment{Lines: []ledger.Line{r0, r2}, Stream: live(told("r1", D28C, Opus, side, sent, At(14, 42, 1))), From: now, Now: At(14, 42, 1)}
 	return LogMoment{
-		Name:  "a line come for a request shown in flight, its arrival earlier than its sending: where it was sent, after one the router answered itself",
+		Name: "a line come for a request shown in flight, its arrival earlier than its sending, paused at it: where it was sent, " +
+			"after one the router answered itself, chosen still, not new",
 		Lines: []ledger.Line{r0, r1, r2}, Stream: live(toldR1),
 		From: now, Now: now,
 		Want:   rows(first(r0), unsent, rowOf(r1)),
 		Counts: map[string]Count{"2026-10-01": shownFailed(3, 1)},
+		Then:   &then, Chosen: 2, ChosenNow: 2,
 	}
 }
 
@@ -675,11 +693,121 @@ func inFlightDetails(lined bool) LogMoment {
 	if !lined {
 		return m
 	}
+	then := m
 	l := requested("r1", D28C, Opus, side, status.ReasonSticky, sent.Add(-100*time.Millisecond))
 	l.TotalMS = 16_000
 	ended := sent.Add(16 * time.Second)
-	m.Name = "a request answering, its details open, its line come while the stream's open: the rest of them, its row where it sat"
+	m.Name = "a request answering, its details open, paused, its line come while the stream's open: the rest of them, its row where it sat, not new"
 	m.Lines, m.Sessions, m.Stream = append(m.Lines, l), []status.Session{listed(D28C, ended, "")}, live(done(ended, 200, r1))
 	m.Want = rows(first(r0), rowOf(l))
+	m.Then, m.Chosen, m.ChosenNow = &then, 1, 1
 	return m
+}
+
+// oldest is the oldest day's line wanted, of the day with the given date,
+// the ledger keeping its lines as kept says.
+func oldest(date, kept string) LogLine {
+	return LogLine{Oldest: date + ", " + kept}
+}
+
+func keptForGood() LogMoment {
+	r1 := requested("r1", D28C, Opus, work, status.ReasonNew, onDay(-1, 18, 0, 0))
+	r2 := requested("r2", D28C, Opus, work, status.ReasonSticky, At(9, 0, 0))
+	return LogMoment{
+		Name:  "the ledger keeping its lines for good, the table reaching back past its first day: that day's line atop it",
+		Lines: []ledger.Line{r1, r2}, Totals: []views.DayTotals{{Date: "2026-09-29", Requests: 1, Sessions: 1}},
+		Oldest: views.OldestKept(r1.At, dayfile.Forever, now),
+		From:   onDay(-3, 0, 0, 0), Now: now,
+		Want:   []LogLine{oldest("2026-09-29", "for good"), {Row: first(r1)}, rule("2026-09-29", "2026-10-01"), {Row: rowOf(r2)}},
+		Counts: map[string]Count{"2026-09-29": shown(1), "2026-10-01": shown(1)},
+	}
+}
+
+func keptFourHundredDays() LogMoment {
+	// The ledger began before the oldest day it keeps, and the day before
+	// that is yet to be pruned.
+	began := time.Date(2025, 3, 1, 9, 0, 0, 0, time.Local)
+	unkept := requested("r1", D28C, Opus, work, status.ReasonNew, time.Date(2025, 8, 26, 23, 0, 0, 0, time.Local))
+	r2 := requested("r2", C61B, Opus, work, status.ReasonNew, time.Date(2025, 8, 27, 9, 0, 0, 0, time.Local))
+	r3 := requested("r3", C61B, Opus, work, status.ReasonSticky, At(9, 0, 0))
+	return LogMoment{
+		Name:  "the ledger keeping its lines 400 days, the table reaching back past the oldest day it keeps: that day's line atop it, the day before never read",
+		Lines: []ledger.Line{unkept, r2, r3}, Oldest: views.OldestKept(began, 400*24*time.Hour, now),
+		From: time.Date(2025, 8, 20, 0, 0, 0, 0, time.Local), Now: now,
+		Want:   []LogLine{oldest("2025-08-27", "400 days"), {Row: first(r2)}, rule("2025-08-27", "2026-10-01"), {Row: rowOf(r3)}},
+		Counts: map[string]Count{"2025-08-27": shown(1), "2026-10-01": shown(1)},
+	}
+}
+
+func pausedThroughAFilter() LogMoment {
+	r0 := requested("r0", D28C, Opus, side, status.ReasonNew, At(14, 30, 0))
+	c0 := requested("c0", C61B, Opus, side, status.ReasonNew, At(14, 35, 0))
+	d28c := views.LogFilter{Kinds: views.LogOpening().Kinds, Sessions: []string{D28C}}
+	then := LogMoment{Lines: []ledger.Line{r0, c0}, Filter: d28c, From: At(14, 40, 0), Now: At(14, 40, 0)}
+	r1 := requested("r1", D28C, Opus, side, status.ReasonSticky, At(14, 41, 0))
+	c1 := requested("c1", C61B, Opus, side, status.ReasonSticky, At(14, 41, 10))
+	k1 := kinded(ledger.KindCheck, requested("k1", D28C, Haiku, side, status.ReasonNew, At(14, 41, 20)))
+	r2 := requested("r2", D28C, Opus, side, status.ReasonSticky, At(14, 41, 30))
+	return LogMoment{
+		Name:  "paused, d28c's requests alone shown: its new requests counted, not another session's, nor its check",
+		Lines: []ledger.Line{r0, c0, r1, c1, k1, r2}, Filter: d28c,
+		From: now, Now: now,
+		Want:   rows(first(r0), rowOf(r1), rowOf(r2)),
+		Counts: map[string]Count{"2026-10-01": {Shown: 3, Requests: 5, Checks: 1}},
+		Then:   &then, New: 2,
+	}
+}
+
+func pausedAcrossMidnight() LogMoment {
+	r1 := requested("r1", D28C, Opus, side, status.ReasonNew, onDay(0, 23, 40, 0))
+	sent := onDay(0, 23, 59, 20)
+	r2 := told("r2", D28C, Opus, side, sent, onDay(0, 23, 59, 30))
+	r2.Dir, r2.First, r2.Chars = dirs[D28C], sent.Add(time.Second), 800
+	then := LogMoment{Lines: []ledger.Line{r1}, Stream: live(r2), From: onDay(0, 0, 0, 0), Now: onDay(0, 23, 59, 30)}
+	l2 := requested("r2", D28C, Opus, side, status.ReasonSticky, sent.Add(-100*time.Millisecond))
+	l2.TotalMS = 50_000
+	c1 := requested("c1", C61B, Opus, side, status.ReasonNew, onDay(1, 0, 0, 20))
+	return LogMoment{
+		Name:  "paused at 23:59:30 at a request answering, midnight passing: its line fills it in above the rule, not new, the next day's first new",
+		Lines: []ledger.Line{r1, l2, c1}, Stream: live(done(sent.Add(50*time.Second), 200, r2)),
+		Totals: []views.DayTotals{{Date: "2026-09-30", Requests: 2, Sessions: 1}},
+		From:   onDay(0, 0, 0, 0), Now: onDay(1, 0, 0, 40),
+		Want:   []LogLine{{Row: first(r1)}, {Row: rowOf(l2)}, rule("2026-09-30", "2026-10-01"), {Row: first(c1)}},
+		Counts: map[string]Count{"2026-09-30": shown(2), "2026-10-01": shown(1)},
+		Then:   &then, Chosen: 1, ChosenNow: 1, New: 1,
+	}
+}
+
+func pausedAtTheSecondOneThirty() LogMoment {
+	early := time.Date(2026, 10, 25, 0, 30, 0, 0, time.UTC).Local()
+	late := early.Add(time.Hour)
+	// The router started again between them, its ids starting again with it.
+	r1 := requested("r1", D28C, Opus, side, status.ReasonNew, early)
+	again := requested("r1", C61B, Opus, side, status.ReasonNew, late)
+	then := LogMoment{Lines: []ledger.Line{r1, again}, From: early, Now: late.Add(30 * time.Second)}
+	r2 := requested("r2", C61B, Opus, side, status.ReasonSticky, late.Add(10*time.Minute))
+	return LogMoment{
+		Name:  "paused at the second 01:30 as the clocks go back, at a request of an id the router gave again: it stays chosen, a later one new",
+		Lines: []ledger.Line{r1, again, r2},
+		From:  early, Now: late.Add(time.Hour),
+		Want:   rows(first(r1), first(again), rowOf(r2)),
+		Counts: map[string]Count{dayfile.DateOf(early): shown(3)},
+		Then:   &then, Chosen: 1, ChosenNow: 1, New: 1,
+	}
+}
+
+func notLive() LogMoment {
+	r0 := requested("r0", D28C, Opus, side, status.ReasonNew, At(14, 40, 0))
+	r0.TotalMS = 40_000
+	r1 := requested("r1", C61B, Opus, side, status.ReasonNew, At(14, 40, 30))
+	r1.TotalMS = 5_000
+	k1 := kinded(ledger.KindCheck, requested("k1", C61B, Haiku, side, status.ReasonNew, At(14, 40, 51)))
+	k1.TotalMS = 1_000
+	return LogMoment{
+		Name:  "the router gone, its ledger last written at 14:40:52: the latest end, a check's, hidden, not the latest arrival",
+		Lines: []ledger.Line{r0, r1, k1}, Filter: views.LogOpening(),
+		From: now, Now: now,
+		Want:   rows(first(r0), first(r1)),
+		Counts: map[string]Count{"2026-10-01": {Shown: 2, Requests: 2, Checks: 1, HiddenBy: []views.RowKind{views.RowCheck}}},
+	}
 }

@@ -128,7 +128,7 @@ func TestARequestsDetailsAreWhatItsLineGivesBeyondItsRow(t *testing.T) {
 // TestARequestsDetailsAreItsRowAndItsOwnLineAtEachHardMoment holds each
 // row's details, at each hard moment, every kind shown, to its row and, once
 // it has come, its line: a request the stream told of alone has its row's
-// details and no more, and a rule none.
+// details and no more, and a rule and the oldest day's line none.
 func TestARequestsDetailsAreItsRowAndItsOwnLineAtEachHardMoment(t *testing.T) {
 	lined, told := 0, 0
 	for _, hm := range viewstest.LogMoments() {
@@ -136,7 +136,7 @@ func TestARequestsDetailsAreItsRowAndItsOwnLineAtEachHardMoment(t *testing.T) {
 		src.Filter = views.LogFilter{}
 		for _, l := range views.LogRows(src).Lines {
 			d, ok := l.Details()
-			if l.Rule != nil {
+			if !l.IsRow() {
 				if ok {
 					t.Errorf("%s: %s has details", hm.Name, tableLines(views.LogTable{Lines: []views.LogLine{l}}))
 				}
