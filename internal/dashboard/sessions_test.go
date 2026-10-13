@@ -1061,7 +1061,7 @@ func TestOnTheTickASessionResetsAFailedReadAccountsSessionHasntStartedAsROUTINGH
 	if used, eased := f.Filled(doc, after)[ref]; eased {
 		t.Errorf("work's session fills %v on its panel, to be eased to, want no bar", used)
 	}
-	if text := statusOf(doc, after); !strings.Contains(text, "Session   0%  not started\n") {
+	if text := statusOf(doc, after); !strings.Contains(text, "5-hour   0%  not started\n") {
 		t.Errorf("status says\n%s\nwant work's session not started", text)
 	}
 }
@@ -1084,7 +1084,7 @@ func TestASessionNotedLapsedOnAnAccountWhoseProbeFailedHasntStarted(t *testing.T
 	if used, eased := f.Filled(doc, now)[Ref{Account: "work", Window: "5h"}]; eased {
 		t.Errorf("work's session fills %v on its panel, to be eased to, want no bar", used)
 	}
-	if text := statusOf(doc, now); !strings.Contains(text, "Session   0%  not started\n") {
+	if text := statusOf(doc, now); !strings.Contains(text, "5-hour   0%  not started\n") {
 		t.Errorf("status says\n%s\nwant work's session not started", text)
 	}
 }
@@ -1111,7 +1111,7 @@ func TestASessionHeldPastItsResetReadsEmptyWhereverItsUseIsDrawn(t *testing.T) {
 	if row := sessionRow(t, f, doc, after); !strings.Contains(row, " 0%  back ") || strings.Contains(row, "58%") {
 		t.Errorf("work's session reads %q on its panel, want it held, empty, 0%%", row)
 	}
-	if text := statusOf(doc, after); !strings.Contains(text, "Session   0%\n") {
+	if text := statusOf(doc, after); !strings.Contains(text, "5-hour   0%\n") {
 		t.Errorf("status says\n%s\nwant work's session empty, with no reset, as it has lapsed", text)
 	}
 }

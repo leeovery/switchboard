@@ -50,12 +50,12 @@ func TestText(t *testing.T) {
 				},
 			},
 			want: `work · Work
-  Session     23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  5-hour      23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
   Week        93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54
   Fable offline: HTTP 529 · Overloaded
 
 side · Side
-  Session      0%  not started
+  5-hour       0%  not started
   Fable week 104%  resets in 7m · Mon 14:19 · exhausted
   30d          5%
   burst      100%  exhausted
@@ -122,12 +122,12 @@ probed directly
 				},
 			},
 			want: `work · Work
-  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
-  Week     40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
+  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  Week    40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
   2 sessions
 
 side · Side
-  Session  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33
+  5-hour  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33
   limit until Mon 21:00
   1 session
 
@@ -164,17 +164,17 @@ from the router: healthy  ·  3 sessions  ·  pinned to side · Side
 				},
 			},
 			want: `work · Work
-  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
   refused (401) until 14:20
 
 side · Side
-  Session 100%  resets in 6h 48m · Mon 21:00 · exhausted
+  5-hour 100%  resets in 6h 48m · Mon 21:00 · exhausted
   limit until Mon 21:00
   refused (403, opus) until 14:21
   1 session
 
 spare · Spare
-  Session  50%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 16:14
+  5-hour  50%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 16:14
 
 from the router: healthy  ·  no sessions  ·  routing automatically
 `,
@@ -198,8 +198,8 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 				},
 			},
 			want: `work · Work
-  Session   0%  not started
-  Week     40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
+  5-hour   0%  not started
+  Week    40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
 
 best next: work · Work
 from the router: healthy  ·  no sessions  ·  routing automatically
@@ -232,11 +232,11 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 				},
 			},
 			want: `work · Work
-  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
-  Week     40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
+  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  Week    40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
 
 side · Side
-  Session   0%  not started · next prime Mon 14:17
+  5-hour   0%  not started · next prime Mon 14:17
 
 priming 08:00-23:00: work at 04:10 and side at 06:40
 next reset: work · Work, Mon 17:10  ·  next prime: side · Side, Mon 14:17
@@ -367,11 +367,11 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 				Accounts:    []status.Account{work, side},
 			}
 			want := "work · Work (primary)\n" +
-				"  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%\n" +
-				"  Week     93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54\n" +
+				"  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%\n" +
+				"  Week    93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54\n" +
 				tt.work + "\n" +
 				"side · Side\n" +
-				"  Session  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +
+				"  5-hour  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +
 				"\n" +
 				"from the router: healthy  ·  2 sessions  ·  " + doc.Routing() + "\n"
 			if got := doc.At(now, policy).Text(); got != want {
@@ -507,7 +507,7 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 			name:     "at its rate over the last half hour",
 			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
 			heading:  "runs out ~Mon 15:32 at its rate over the last 30 min",
-			notes:    "  under pressure: runs out ~15:32 at Session's rate over the last 30 min, before its reset at 17:10\n",
+			notes:    "  under pressure: runs out ~15:32 at 5-hour's rate over the last 30 min, before its reset at 17:10\n",
 		},
 		{
 			name: "at its rate over the 18 minutes it's measured over",
@@ -516,20 +516,20 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 				RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true,
 			},
 			heading: "runs out ~Mon 15:32 at its rate over the last 18 min",
-			notes:   "  under pressure: runs out ~15:32 at Session's rate over the last 18 min, before its reset at 17:10\n",
+			notes:   "  under pressure: runs out ~15:32 at 5-hour's rate over the last 18 min, before its reset at 17:10\n",
 		},
 		{
 			name:     "at its rate since it started",
 			pressure: status.Pressure{Window: "5h", Rate: 0.6 / (2*time.Hour + 2*time.Minute).Hours(), RunsOut: time.Date(2026, 9, 28, 14, 33, 20, 0, time.UTC), Under: true},
 			heading:  "runs out ~Mon 15:33",
-			notes:    "  under pressure: runs out ~15:33 at Session's rate since it started, before its reset at 17:10\n",
+			notes:    "  under pressure: runs out ~15:33 at 5-hour's rate since it started, before its reset at 17:10\n",
 		},
 		{
 			name:     "reaching its reserve",
 			reserve:  0.1,
 			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC), Under: true},
 			heading:  "runs out ~Mon 15:32 at its rate over the last 30 min",
-			notes:    "  under pressure: at its reserve ~15:12 at Session's rate over the last 30 min, before its reset at 17:10\n",
+			notes:    "  under pressure: at its reserve ~15:12 at 5-hour's rate over the last 30 min, before its reset at 17:10\n",
 		},
 		{
 			name:     "under pressure as the router says, its window not running out before it resets at the rate it goes by: nothing of why",
@@ -561,7 +561,7 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 				}},
 			}
 			want := "work · Work\n" +
-				"  Session  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
+				"  5-hour  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
 				tt.notes + "\n" +
 				"best next: work · Work\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
@@ -589,7 +589,7 @@ func TestTextSaysASessionThatResetSinceItWasReadHasntStarted(t *testing.T) {
 		}},
 	}
 	want := "work · Work\n" +
-		"  Session   0%  not started\n" +
+		"  5-hour   0%  not started\n" +
 		"\n" +
 		"best next: work · Work\n" +
 		"from the router: healthy  ·  no sessions  ·  routing automatically\n"
@@ -619,17 +619,17 @@ func TestTextSaysASessionLapsedAtNowHasntStartedUnlessALimitOrARefusalComesFirst
 			change: func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"5h"}, Until: reset.Add(40 * time.Minute)}
 			},
-			want: "  Session   0%\n  limit until Mon 17:50\n",
+			want: "  5-hour   0%\n  limit until Mon 17:50\n",
 		},
 		{
 			name:   "its last read failed",
 			change: func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" },
-			want:   "  Session   0%  not started\n  HTTP 529 · Overloaded\n",
+			want:   "  5-hour   0%  not started\n  HTTP 529 · Overloaded\n",
 		},
 		{
 			name:   "its token refused",
 			change: func(a *status.Account) { a.Refused = status.Refusal{Until: reset.Add(time.Hour), Status: 401} },
-			want:   "  Session   0%\n  refused (401) until 18:10\n",
+			want:   "  5-hour   0%\n  refused (401) until 18:10\n",
 		},
 	}
 	for _, tt := range tests {
@@ -692,7 +692,7 @@ func TestTextSaysASessionNotedLapsedHasntStartedThoughItsProbeFailed(t *testing.
 		}},
 	}
 	want := "work · Work\n" +
-		"  Session   0%  not started · next prime Mon 16:20\n" +
+		"  5-hour   0%  not started · next prime Mon 16:20\n" +
 		"  HTTP 529 · Overloaded\n"
 	if got := doc.At(now, policy).Text(); !strings.HasPrefix(got, want) {
 		t.Errorf("Text() =\n%s\nwant it to start\n%s", got, want)
@@ -955,7 +955,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 	const clear = "\x1b[2J"
 	work := status.Account{
 		ID: "work", Label: "Work" + clear, TokenSet: true, FetchedAt: now.Add(-time.Minute),
-		Windows:  []quota.Window{{Key: "5h", Label: "Session" + clear, Utilization: 0.23}},
+		Windows:  []quota.Window{{Key: "7d", Label: "Week" + clear, Utilization: 0.23}},
 		Failures: []quota.Failure{{Label: "Fable" + clear, Window: "7d_oi", Error: "HTTP 529 · " + clear + "Overloaded"}},
 		Error:    "HTTP 401 · " + clear + "Invalid bearer token",
 	}
@@ -986,7 +986,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 		}
 	}
 	want := "work · Work [2J\n" +
-		"  Session [2J  23%\n" +
+		"  Week [2J  23%\n" +
 		"  Fable [2J offline: HTTP 529 · [2JOverloaded\n" +
 		"  HTTP 401 · [2JInvalid bearer token\n"
 	if !strings.HasPrefix(routers, want) {
