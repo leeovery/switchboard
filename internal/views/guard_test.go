@@ -48,20 +48,6 @@ var readersAllowed = []string{
 	"internal/dashboard/recent_log.go",
 	"internal/dashboard/seats.go",
 	"internal/dashboard/sessions.go",
-	// history's text: a day's figures, as the summary has them (R4), its
-	// tokens (F1), worth (F2) and models' names (I4), its limits reached and
-	// windows named (W4, W5), and the moves of its sessions.
-	"internal/cli/history.go:accountNote",
-	"internal/cli/history.go:eventful",
-	"internal/cli/history.go:highestOf",
-	"internal/cli/history.go:historyTable",
-	"internal/cli/history.go:historyTables",
-	"internal/cli/history.go:limitsOf",
-	"internal/cli/history.go:modelName",
-	"internal/cli/history.go:modelRows",
-	"internal/cli/history.go:requestCount",
-	"internal/cli/history.go:weekResets",
-	"internal/cli/history.go:worthOf",
 }
 
 // callsAllowed are the functions and methods of rawPackages that take raw
