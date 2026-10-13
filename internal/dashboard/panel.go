@@ -60,26 +60,17 @@ type linePanel struct {
 }
 
 // linePanelOf is the panel of doc's account a at now, showing the windows
-// shown, standing as the moment of doc at now has it: of several accounts,
-// it's the next where new sessions go to it, as the moment has it too.
+// shown, standing as the moment of doc at now has it: its place, its pin and
+// its next prime as the moment has them, and of several accounts, it's the
+// next where new sessions go to it, as the moment has it too.
 func (f Frame) linePanelOf(doc status.Document, a status.Account, now time.Time, shown []string) linePanel {
 	m := f.Moment(doc, now)
 	stands, _ := m.Account(a.ID)
 	return linePanel{
-		account: a, place: docPlace(doc, a.ID), state: doc.StateOf(a, now, f.Policy),
-		next: len(doc.Accounts) > 1 && m.Next == a.ID, pinned: doc.Pin.Has(a.ID), primed: primedNext(doc, a.ID),
+		account: a, place: stands.Place, state: doc.StateOf(a, now, f.Policy),
+		next: len(m.Accounts) > 1 && stands.Next, pinned: stands.Pinned, primed: stands.NextPrime,
 		windows: shown, stands: stands, policy: f.Policy,
 	}
-}
-
-// primedNext is when the router next primes the account with the given id,
-// as doc's priming schedule says: zero where it doesn't.
-func primedNext(doc status.Document, id string) time.Time {
-	i := slices.IndexFunc(doc.Prime.Slots, func(s status.Slot) bool { return s.Account == id })
-	if i < 0 {
-		return time.Time{}
-	}
-	return doc.Prime.Slots[i].Next
 }
 
 // bottom is the panel's bottom edge's row.

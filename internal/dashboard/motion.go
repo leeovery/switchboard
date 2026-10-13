@@ -21,10 +21,10 @@ type Motion struct {
 // anything on it may settle, as MaySettle says, as what travels the cords
 // needs none of it drawn.
 func (f Frame) Motion(doc status.Document, now time.Time) Motion {
+	f = f.At(doc, now)
 	if !f.MaySettle() {
 		return f.travel(doc, now)
 	}
-	f = f.At(doc, now)
 	return f.moving(f.page(doc, now), doc, now)
 }
 
