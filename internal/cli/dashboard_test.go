@@ -219,6 +219,23 @@ func TestDashboardGivesHistoryTheAccountsTheWeeksAndTheFamilies(t *testing.T) {
 	}
 }
 
+// The dashboard shows a session's directory under the home it's given, as
+// ~; without one, whole.
+func TestDashboardGivesTheWatchTheHome(t *testing.T) {
+	home := t.TempDir()
+	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, "[[account]]\nid = \"work\"\n")}, home)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) || cfg.Home != home {
+		t.Errorf("switchboard dashboard = %+v, giving the watch the home %q; want %q", got, cfg.Home, home)
+	}
+
+	deps.HomeDir = func() (string, error) { return "", errors.New("no home") }
+	cfg = recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) || cfg.Home != "" {
+		t.Errorf("without a home, switchboard dashboard = %+v, giving the watch the home %q; want none", got, cfg.Home)
+	}
+}
+
 func TestDashboardReadsNothingWithoutAStateDirectory(t *testing.T) {
 	tests := []struct {
 		name   string
