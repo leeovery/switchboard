@@ -63,7 +63,12 @@ type LogEventSources struct {
 	// Names name a window by its key, as the moment's NameOf does: nil names
 	// it as status.NameOfKey does.
 	Names func(key string) string
-	Now   time.Time
+	// Totals are the figures of the days it spans, as LogSources' are, which
+	// its day rules say; and Oldest the oldest day the ledger keeps, as
+	// LogSources' is, which its oldest day's line says where it reaches it.
+	Totals []DayTotals
+	Oldest OldestDay
+	Now    time.Time
 }
 
 // EventsTable is the Log's Events over the days it spans.
@@ -71,6 +76,11 @@ type EventsTable struct {
 	// Rows are the events of the days it spans the filter shows, oldest
 	// first, by when each happened, then by run and id.
 	Rows []LogEvent
+	// Lines are its lines, the oldest first, as the Requests' are: each of
+	// its rows; before the first of each day after the first with one, that
+	// day's rule; and, where it reaches the oldest day, that day's line atop
+	// them all.
+	Lines []EventsLine
 	// Today counts today's events, those the filter hides among them.
 	Today EventCount
 	// told are every event of the days it spans, those the filter hides
@@ -78,6 +88,15 @@ type EventsTable struct {
 	// them.
 	told  []toldEvent
 	names func(key string) string
+}
+
+// EventsLine is a line of the Log's Events: an event's row, one of the
+// table's Rows; where Rule is set, the rule where one day's rows end and the
+// next's begin; or, where Oldest is set, the oldest day's line.
+type EventsLine struct {
+	Row    *LogEvent
+	Rule   *DayRule
+	Oldest *OldestDay
 }
 
 // toldEvent is an event of the table's: as the router gave it, its facts,
@@ -113,7 +132,30 @@ func LogEvents(src LogEventSources) EventsTable {
 			table.Today.add(row, shown)
 		}
 	}
+	table.Lines = eventsLines(table.Rows, first, src)
 	return table
+}
+
+// eventsLines are the lines of the Events' rows, from the day first, as
+// EventsTable's Lines are: the day each sits on its local day, as the
+// ledger files the lines of its moment, its rules saying the figures src's
+// Totals give, as the Requests' do.
+func eventsLines(rows []LogEvent, first LedgerDay, src LogEventSources) []EventsLine {
+	var lines []EventsLine
+	if oldest := src.Oldest; oldest.reached(first) {
+		lines = append(lines, EventsLine{Oldest: &oldest})
+	}
+	rules := dayRulesOf(src.Totals)
+	var last *LedgerDay
+	for i := range rows {
+		day := Today(rows[i].At)
+		if last != nil && last.Date != day.Date {
+			lines = append(lines, EventsLine{Rule: rules.between(*last, day)})
+		}
+		lines = append(lines, EventsLine{Row: &rows[i]})
+		last = &day
+	}
+	return lines
 }
 
 // eventRow is the row of the event e, told as line, its facts fact, its

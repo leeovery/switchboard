@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"slices"
 	"strconv"
 	"time"
 
@@ -58,40 +57,24 @@ func (f Frame) eventColumns() []eventColumn {
 // context again cost, as "work reached its cap   182k cached again, $1.82".
 const movedApart = 3
 
-// eventLines are the Events' lines, the oldest first: atop them, where the
-// tables reach the oldest day the ledger keeps, the oldest day's line; each
-// event's row, a day's rule before the first of each day after the first
-// with one, saying the figures of the day that ended, as the Requests' do;
-// then, where it shows none of today's, the words saying so.
+// eventLines are the Events' lines, the oldest first, as the table holds
+// them; then, where it shows none of today's, the words saying so.
 func (p LogPage) eventLines() []logLine {
-	var lines []logLine
-	if o := p.oldest(); o != nil {
-		lines = append(lines, logLine{key: LogKey{other: oldestKey}, oldest: o})
-	}
-	var last *views.LedgerDay
-	for i := range p.Events.Rows {
-		e := &p.Events.Rows[i]
-		day := views.Today(e.At)
-		if last != nil && last.Date != day.Date {
-			rule := &views.DayRule{Ended: *last, Began: day, Totals: p.totalsOf(last.Date)}
-			lines = append(lines, logLine{key: LogKey{other: ruleKey + last.Date + " " + day.Date}, rule: rule})
+	lines := make([]logLine, len(p.Events.Lines), len(p.Events.Lines)+1)
+	for i, l := range p.Events.Lines {
+		switch {
+		case l.Row != nil:
+			lines[i] = logLine{key: LogKey{event: l.Row.Key}, at: l.Row.At, event: l.Row}
+		case l.Rule != nil:
+			lines[i] = logLine{key: LogKey{other: ruleKey + l.Rule.Ended.Date + " " + l.Rule.Began.Date}, rule: l.Rule}
+		default:
+			lines[i] = logLine{key: LogKey{other: oldestKey}, oldest: l.Oldest}
 		}
-		lines = append(lines, logLine{key: LogKey{event: e.Key}, at: e.At, event: e})
-		last = &day
 	}
 	if p.Events.Today.Shown == 0 {
 		lines = append(lines, logLine{key: LogKey{other: emptyKey}, empty: noEventsToday})
 	}
 	return lines
-}
-
-// totalsOf are the figures of the local day with the given date, as the
-// page's Totals have them: none but its date where they don't.
-func (p LogPage) totalsOf(date string) views.DayTotals {
-	if i := slices.IndexFunc(p.Totals, func(t views.DayTotals) bool { return t.Date == date }); i >= 0 {
-		return p.Totals[i]
-	}
-	return views.DayTotals{Date: date}
 }
 
 // eventsHeads draws the Events' heads along row y, in text.subtle, each at
