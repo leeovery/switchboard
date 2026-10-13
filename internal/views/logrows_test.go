@@ -152,27 +152,34 @@ func TestChecksAndCountsAreHiddenUntilShownAndCountedFromTheRows(t *testing.T) {
 	checking := sentAt("c3", local(10, 4, 0))
 	checking.Check = true
 	tests := []struct {
-		name                   string
-		showChecks, showCounts bool
-		rows                   []string
-		count                  views.LogCount
+		name     string
+		kinds    []views.RowKind
+		rows     []string
+		shown    int
+		hiddenBy []views.RowKind
 	}{
-		{name: "both hidden", rows: []string{"▲ r1 lined"}, count: views.LogCount{Shown: 1, Checks: 3, Counts: 1}},
-		{name: "checks shown", showChecks: true, rows: []string{"▲ r1 lined", "· c1 lined", "· c2 lined", "· c3 asking"},
-			count: views.LogCount{Shown: 4, Counts: 1}},
-		{name: "both shown", showChecks: true, showCounts: true, rows: []string{"▲ r1 lined", "· c1 lined", "· c2 lined", "· n1 lined", "· c3 asking"},
-			count: views.LogCount{Shown: 5}},
+		{name: "both hidden, as the Log opens", kinds: views.LogOpening().Kinds, rows: []string{"▲ r1 lined"}, shown: 1,
+			hiddenBy: []views.RowKind{views.RowCheck, views.RowCount}},
+		{name: "checks shown", kinds: []views.RowKind{views.RowRequest, views.RowCheck}, rows: []string{"▲ r1 lined", "· c1 lined", "· c2 lined", "· c3 asking"},
+			shown: 4, hiddenBy: []views.RowKind{views.RowCount}},
+		{name: "both shown", rows: []string{"▲ r1 lined", "· c1 lined", "· c2 lined", "· n1 lined", "· c3 asking"}, shown: 5},
 	}
 	for _, tt := range tests {
-		got := views.LogRows(views.LogSources{
-			From: now, Now: now, Read: logRead(now, lines...), Stream: streamOf(checking), ShowChecks: tt.showChecks, ShowCounts: tt.showCounts,
+		t.Run(tt.name, func(t *testing.T) {
+			got := views.LogRows(views.LogSources{
+				From: now, Now: now, Read: logRead(now, lines...), Stream: streamOf(checking), Filter: views.LogFilter{Kinds: tt.kinds},
+			})
+			if said := tableSaid(got); !slices.Equal(said, tt.rows) {
+				t.Errorf("the table says %q, want %q", said, tt.rows)
+			}
+			c := got.Count(views.Today(now).Date)
+			if c.Requests != 1 || c.Checks != 3 || c.Counts != 1 || c.Shown != tt.shown || c.Shown != len(got.Lines) || c.Hidden() != 5-tt.shown {
+				t.Errorf("today counts %+v, want 1 request, 3 checks and 1 count, %d of them shown, the rows the table holds", c, tt.shown)
+			}
+			if by := c.HiddenBy(); !slices.Equal(by, tt.hiddenBy) {
+				t.Errorf("today's hidden are hidden by %v, want %v", by, tt.hiddenBy)
+			}
 		})
-		if said := tableSaid(got); !slices.Equal(said, tt.rows) {
-			t.Errorf("%s: the table says %q, want %q", tt.name, said, tt.rows)
-		}
-		if c := got.Count(views.Today(now).Date); c != tt.count || c.Shown != len(got.Lines) || c.Shown+c.Hidden() != 5 {
-			t.Errorf("%s: today counts %+v, want %+v: the rows shown, and with those hidden, every one of today's", tt.name, c, tt.count)
-		}
 	}
 }
 
@@ -201,7 +208,7 @@ func TestADaysRuleFallsBeforeTheNextDaysFirstRowShown(t *testing.T) {
 			lines: []ledger.Line{on("r1", 5, 9), on("r2", 6, 9)}, want: []string{"r2 lined"}},
 	}
 	for _, tt := range tests {
-		got := views.LogRows(views.LogSources{From: tt.from, Now: now, Read: logRead(now, tt.lines...), Totals: totals})
+		got := views.LogRows(views.LogSources{From: tt.from, Now: now, Read: logRead(now, tt.lines...), Totals: totals, Filter: views.LogOpening()})
 		if said := tableSaid(got); !slices.Equal(said, tt.want) {
 			t.Errorf("%s: the table says %q, want %q", tt.name, said, tt.want)
 		}

@@ -26,14 +26,22 @@ type LogMoment struct {
 	Stream views.Stream
 	// Totals are the days' figures, as TotalsByDay gives them.
 	Totals []views.DayTotals
-	// Shown shows Claude Code's quota checks and its counts of tokens.
-	Shown bool
+	// Filter is what the table shows: the zero Filter every line.
+	Filter views.LogFilter
 	// The table spans the local days from From's to Now's, read at Now.
 	From, Now time.Time
 	// Want are the table's lines wanted, oldest first, and Counts what each
-	// day's rows count, by the day's date: a day not named counts none.
+	// day's lines count, by the day's date: a day not named counts none.
 	Want   []LogLine
-	Counts map[string]views.LogCount
+	Counts map[string]Count
+}
+
+// Count is what a day's lines count at a moment, of what the Log's rules
+// decide: those the table shows; the day's lines of each kind, and those
+// that failed; and the kinds the heading names as hiding those hidden.
+type Count struct {
+	Shown, Requests, Checks, Counts, Failed int
+	HiddenBy                                []views.RowKind
 }
 
 // LogLine is a line of the Log's table as a moment wants it: a request's
@@ -83,6 +91,7 @@ func LogMoments() []LogMoment {
 		unnamed(), firstRequests(), movesAndTheirCost(), noLinesToday(), daysBetween(), pastTheOldestDay(), routerNotAnswering(),
 		fallingBackRows(), checksAndCounts(false), checksAndCounts(true),
 		streamClosed(closedInFlight), streamClosed(closedLined), streamClosed(reopenedInFlight),
+		sessionAcrossMidnight(), failedOnly(), checksShownCountsHidden(),
 	}
 }
 
@@ -197,9 +206,15 @@ func rule(ended, began string) LogLine {
 	return LogLine{Rule: ended + " → " + began}
 }
 
-// shown counts n rows shown of a day.
-func shown(n int) views.LogCount {
-	return views.LogCount{Shown: n}
+// shown counts a day's n requests, every one shown, none failed.
+func shown(n int) Count {
+	return Count{Shown: n, Requests: n}
+}
+
+// shownFailed counts a day's n requests, every one shown, those given
+// failed.
+func shownFailed(n, failed int) Count {
+	return Count{Shown: n, Requests: n, Failed: failed}
 }
 
 // listed is the session with the given id as the router lists it, its
@@ -223,7 +238,7 @@ func inFlightAtMidnight() LogMoment {
 		Lines: []ledger.Line{r1}, Sessions: []status.Session{listed(D28C, sent, status.Answering)}, Stream: live(r2),
 		From: onDay(0, 0, 0, 0), Now: onDay(1, 0, 0, 5),
 		Want:   rows(first(r1), answering),
-		Counts: map[string]views.LogCount{"2026-09-30": shown(2)},
+		Counts: map[string]Count{"2026-09-30": shown(2)},
 	}
 }
 
@@ -241,7 +256,7 @@ func acrossMidnightLined() LogMoment {
 		Totals: []views.DayTotals{{Date: "2026-09-30", Requests: 2, Sessions: 1}},
 		From:   onDay(0, 0, 0, 0), Now: onDay(1, 0, 1, 30),
 		Want:   []LogLine{{Row: first(r1)}, {Row: rowOf(r2)}, rule("2026-09-30", "2026-10-01"), {Row: first(r3)}},
-		Counts: map[string]views.LogCount{"2026-09-30": shown(2), "2026-10-01": shown(1)},
+		Counts: map[string]Count{"2026-09-30": shown(2), "2026-10-01": shown(1)},
 	}
 }
 
@@ -262,11 +277,11 @@ func streamEndedInFlight() LogMoment {
 		From: now, Now: now,
 		Want: rows(first(r0),
 			Row{Request: "r2", Session: D28C, At: "14:41:50", Mark: views.MarkFailed, Stage: views.RowLost, Failed: true,
-				Stopped: "no answer: the router went away", Phone: "no answer: the router went away"},
+				Stopped: lostWords, Phone: lostWords},
 			cutRow,
 			Row{Request: "r4", Session: D28C, At: "14:42:02", Mark: views.MarkAsking, Stage: views.RowAsking, Took: "5.0s", Stopped: "asking", Phone: "asking"},
 		),
-		Counts: map[string]views.LogCount{"2026-10-01": shown(4)},
+		Counts: map[string]Count{"2026-10-01": shownFailed(4, 2)},
 	}
 }
 
@@ -292,7 +307,7 @@ func droppedBehind() LogMoment {
 		Want: rows(first(r1), first(r2), rowOf(r3), rowOf(r5),
 			Row{Request: "r4", Session: D28C, Dir: dirs[D28C], At: "14:42:00", Mark: views.MarkAsking, Stage: views.RowAsking, Took: "7.0s", Stopped: "asking", Phone: "asking"},
 		),
-		Counts: map[string]views.LogCount{"2026-10-01": shown(5)},
+		Counts: map[string]Count{"2026-10-01": shown(5)},
 	}
 }
 
@@ -313,7 +328,7 @@ func linedAfterSent() LogMoment {
 		Lines: []ledger.Line{r0, r1, r2}, Stream: live(toldR1),
 		From: now, Now: now,
 		Want:   rows(first(r0), unsent, rowOf(r1)),
-		Counts: map[string]views.LogCount{"2026-10-01": shown(3)},
+		Counts: map[string]Count{"2026-10-01": shownFailed(3, 1)},
 	}
 }
 
@@ -341,7 +356,7 @@ func sentAgainAndFailed() LogMoment {
 		Lines: []ledger.Line{c0, r0, c1, c2, c3, r1}, Sessions: []status.Session{listed(D28C, At(14, 35, 10), "")},
 		From: now, Now: now,
 		Want:   rows(first(c0), first(r0), retried, refused, cutOff, givenUp),
-		Counts: map[string]views.LogCount{"2026-10-01": shown(6)},
+		Counts: map[string]Count{"2026-10-01": shownFailed(6, 3)},
 	}
 }
 
@@ -354,7 +369,7 @@ func unnamed() LogMoment {
 		Lines: []ledger.Line{noSession, noDir},
 		From:  now, Now: now,
 		Want:   rows(rowOf(noSession), first(noDir)),
-		Counts: map[string]views.LogCount{"2026-10-01": shown(2)},
+		Counts: map[string]Count{"2026-10-01": shown(2)},
 	}
 }
 
@@ -370,7 +385,7 @@ func firstRequests() LogMoment {
 		Lines: []ledger.Line{c0, c1},
 		From:  now, Now: now,
 		Want:   rows(opening, rowOf(c1)),
-		Counts: map[string]views.LogCount{"2026-10-01": shown(2)},
+		Counts: map[string]Count{"2026-10-01": shown(2)},
 	}
 }
 
@@ -395,7 +410,7 @@ func movesAndTheirCost() LogMoment {
 		Sessions: []status.Session{listed(D28C, At(14, 31, 10), ""), listed(C61B, At(14, 0, 10), "")},
 		From:     now, Now: now,
 		Want:   rows(first(c0), first(d0), coldMove, sideMove, rewrote),
-		Counts: map[string]views.LogCount{"2026-10-01": shown(5)},
+		Counts: map[string]Count{"2026-10-01": shown(5)},
 	}
 }
 
@@ -411,7 +426,7 @@ func daysBetween() LogMoment {
 		Lines: []ledger.Line{r1, r2}, Totals: []views.DayTotals{{Date: "2026-09-29", Requests: 1, Sessions: 1}},
 		From: onDay(-1, 0, 0, 0), Now: now,
 		Want:   []LogLine{{Row: first(r1)}, rule("2026-09-29", "2026-10-01"), {Row: rowOf(r2)}},
-		Counts: map[string]views.LogCount{"2026-09-29": shown(1), "2026-10-01": shown(1)},
+		Counts: map[string]Count{"2026-09-29": shown(1), "2026-10-01": shown(1)},
 	}
 }
 
@@ -423,7 +438,7 @@ func pastTheOldestDay() LogMoment {
 		Lines: []ledger.Line{r1, r2}, Totals: []views.DayTotals{{Date: "2026-09-30", Requests: 1, Sessions: 1}},
 		From: onDay(-5, 0, 0, 0), Now: now,
 		Want:   []LogLine{{Row: first(r1)}, rule("2026-09-30", "2026-10-01"), {Row: rowOf(r2)}},
-		Counts: map[string]views.LogCount{"2026-09-30": shown(1), "2026-10-01": shown(1)},
+		Counts: map[string]Count{"2026-09-30": shown(1), "2026-10-01": shown(1)},
 	}
 }
 
@@ -445,9 +460,9 @@ func routerNotAnswering() LogMoment {
 		From: now, Now: now,
 		Want: rows(first(r0), rowOf(r1),
 			Row{Request: "r2", Session: C61B, At: "14:41:05", Mark: views.MarkFailed, Stage: views.RowLost, Failed: true,
-				Stopped: "no answer: the router went away", Phone: "no answer: the router went away"},
+				Stopped: lostWords, Phone: lostWords},
 			rowOf(r3)),
-		Counts: map[string]views.LogCount{"2026-10-01": shown(4)},
+		Counts: map[string]Count{"2026-10-01": shownFailed(4, 1)},
 	}
 }
 
@@ -461,7 +476,7 @@ func fallingBackRows() LogMoment {
 		Lines: []ledger.Line{r2, r1},
 		From:  early, Now: late.Add(time.Hour),
 		Want:   rows(first(r1), rowOf(r2)),
-		Counts: map[string]views.LogCount{dayfile.DateOf(early): shown(2)},
+		Counts: map[string]Count{dayfile.DateOf(early): shown(2)},
 	}
 }
 
@@ -471,22 +486,92 @@ func checksAndCounts(show bool) LogMoment {
 	n1 := kinded(ledger.KindCount, requested("n1", D28C, Opus, side, status.ReasonSticky, At(14, 40, 20)))
 	m := LogMoment{
 		Name:  "Claude Code's quota checks and its counts of tokens, hidden until shown",
-		Lines: []ledger.Line{r1, k1, n1},
-		From:  now, Now: now,
-		Want:   rows(first(r1)),
-		Counts: map[string]views.LogCount{"2026-10-01": {Shown: 1, Checks: 1, Counts: 1}},
+		Lines: []ledger.Line{r1, k1, n1}, Filter: views.LogOpening(),
+		From: now, Now: now,
+		Want: rows(first(r1)),
+		Counts: map[string]Count{"2026-10-01": {
+			Shown: 1, Requests: 1, Checks: 1, Counts: 1, HiddenBy: []views.RowKind{views.RowCheck, views.RowCount},
+		}},
 	}
 	if !show {
 		return m
 	}
-	hidden := func(l ledger.Line) Row {
-		r := rowOf(l)
-		r.Mark, r.Stopped, r.Phone = views.MarkHidden, "", ""
-		return r
-	}
-	m.Name, m.Shown = "Claude Code's quota checks and its counts of tokens, shown", true
-	m.Want, m.Counts = rows(first(r1), hidden(k1), hidden(n1)), map[string]views.LogCount{"2026-10-01": shown(3)}
+	m.Name, m.Filter = "Claude Code's quota checks and its counts of tokens, shown", views.LogFilter{}
+	m.Want, m.Counts = rows(first(r1), hiddenKind(k1), hiddenKind(n1)), map[string]Count{"2026-10-01": {Shown: 3, Requests: 1, Checks: 1, Counts: 1}}
 	return m
+}
+
+// hiddenKind is the row wanted of l, a check or a count, shown: ·, stopped
+// blank.
+func hiddenKind(l ledger.Line) Row {
+	r := rowOf(l)
+	r.Mark, r.Stopped, r.Phone = views.MarkHidden, "", ""
+	return r
+}
+
+func sessionAcrossMidnight() LogMoment {
+	r1 := requested("r1", D28C, Opus, side, status.ReasonNew, onDay(0, 23, 50, 0))
+	c1 := requested("c1", C61B, Opus, side, status.ReasonNew, onDay(0, 23, 55, 0))
+	c2 := requested("c2", C61B, Opus, side, status.ReasonSticky, onDay(1, 0, 5, 0))
+	r2 := requested("r2", D28C, Opus, side, status.ReasonSticky, onDay(1, 0, 10, 0))
+	return LogMoment{
+		Name:  "d28c's lines alone, across midnight: both days' rows, the rule, today's counting today's alone",
+		Lines: []ledger.Line{r1, c1, c2, r2}, Totals: []views.DayTotals{{Date: "2026-09-30", Requests: 2, Sessions: 2}},
+		Filter: views.LogFilter{Sessions: []string{D28C}},
+		From:   onDay(0, 0, 0, 0), Now: onDay(1, 0, 20, 0),
+		Want:   []LogLine{{Row: first(r1)}, rule("2026-09-30", "2026-10-01"), {Row: rowOf(r2)}},
+		Counts: map[string]Count{"2026-09-30": {Shown: 1, Requests: 2}, "2026-10-01": {Shown: 1, Requests: 2}},
+	}
+}
+
+func failedOnly() LogMoment {
+	atLimit := func(account string) ledger.Tried { return ledger.Tried{Account: account, Why: status.WhyLimit} }
+	r0 := requested("r0", D28C, Opus, side, status.ReasonNew, At(14, 30, 0))
+	c0 := requested("c0", C61B, Opus, side, status.ReasonNew, At(14, 31, 0))
+	refused := sentAgain(failing(429, requested("c1", C61B, Opus, side, status.ReasonSticky, At(14, 36, 0))), atLimit(side), atLimit(work))
+	cutOff := failing(0, requested("c2", C61B, Opus, side, status.ReasonSticky, At(14, 37, 0)))
+	cutOff.CutOff, cutOff.FirstMS = true, nil
+	givenUp := failing(0, requested("c3", C61B, Opus, side, status.ReasonSticky, At(14, 38, 0)))
+	givenUp.Canceled = true
+	broke := failing(500, requested("c4", C61B, Opus, side, status.ReasonSticky, At(14, 39, 0)))
+	r5 := requested("r5", D28C, Opus, side, status.ReasonSticky, At(14, 40, 0))
+	lost := told("r9", D28C, Opus, side, At(14, 41, 50), At(14, 41, 55))
+	lost.Lost = true
+	wanted := []Row{rowOf(refused), rowOf(cutOff), rowOf(givenUp), rowOf(broke)}
+	wanted[0].Routing = "after side's limit, work's limit"
+	for i := range wanted {
+		wanted[i].Mark, wanted[i].Failed = views.MarkFailed, true
+	}
+	wanted = append(wanted, Row{Request: "r9", Session: D28C, At: "14:41:50", Mark: views.MarkFailed, Stage: views.RowLost, Failed: true,
+		Stopped: lostWords, Phone: lostWords})
+	return LogMoment{
+		Name:  "failed only: a 429 every account refused, passed on; one cut off; one given up; a 500; one lost",
+		Lines: []ledger.Line{r0, c0, refused, cutOff, givenUp, broke, r5}, Stream: live(lost),
+		Filter: views.LogFilter{Kinds: views.LogOpening().Kinds, Failed: true},
+		From:   now, Now: now,
+		Want:   rows(wanted...),
+		Counts: map[string]Count{"2026-10-01": {Shown: 5, Requests: 8, Failed: 5}},
+	}
+}
+
+// lostWords say a request was lost, as its row's stopped says it.
+const lostWords = "no answer: the router went away"
+
+func checksShownCountsHidden() LogMoment {
+	r1 := requested("r1", D28C, Opus, side, status.ReasonNew, At(14, 40, 0))
+	k1 := kinded(ledger.KindCheck, requested("k1", D28C, Haiku, side, status.ReasonNew, At(14, 40, 10)))
+	lines := []ledger.Line{r1, k1}
+	for i, id := range []string{"n1", "n2", "n3", "n4"} {
+		lines = append(lines, kinded(ledger.KindCount, requested(id, D28C, Opus, side, status.ReasonSticky, At(14, 40, 20+i))))
+	}
+	return LogMoment{
+		Name:   "checks shown, counts hidden: four hidden, by counts",
+		Lines:  lines,
+		Filter: views.LogFilter{Kinds: []views.RowKind{views.RowRequest, views.RowCheck}},
+		From:   now, Now: now,
+		Want:   rows(first(r1), hiddenKind(k1)),
+		Counts: map[string]Count{"2026-10-01": {Shown: 2, Requests: 1, Checks: 1, Counts: 4, HiddenBy: []views.RowKind{views.RowCount}}},
+	}
 }
 
 // closing is how far a request answering as the stream closed has come.
@@ -522,7 +607,7 @@ func streamClosed(c closing) LogMoment {
 		Lines: []ledger.Line{r0, c0}, Sessions: []status.Session{listed(D28C, At(14, 41, 40), status.Answering)}, Stream: stream,
 		From: now, Now: now,
 		Want:   rows(first(r0), first(c0)),
-		Counts: map[string]views.LogCount{"2026-10-01": shown(2)},
+		Counts: map[string]Count{"2026-10-01": shown(2)},
 	}
 	switch c {
 	case closedInFlight:
@@ -531,7 +616,7 @@ func streamClosed(c closing) LogMoment {
 		lined.TotalMS = 20_000
 		m.Name = "a request answering as the stream closed, its line come while it stays closed: where it was sent, after one arriving after it"
 		m.Lines = append(m.Lines, lined)
-		m.Want, m.Counts = rows(first(r0), first(c0), rowOf(lined)), map[string]views.LogCount{"2026-10-01": shown(3)}
+		m.Want, m.Counts = rows(first(r0), first(c0), rowOf(lined)), map[string]Count{"2026-10-01": shown(3)}
 	case reopenedInFlight:
 		r1.Chars, r1.Heard = 3400, At(14, 42, 5)
 		m.Name = "a request answering as the stream closed, the stream open again telling of it in flight still: answering, where it was sent"
@@ -540,7 +625,7 @@ func streamClosed(c closing) LogMoment {
 			Request: "r1", Session: D28C, Dir: dirs[D28C], At: "14:41:30", Mark: views.MarkAnswering, Stage: views.RowAnswering,
 			First: "1.0s", Took: "37.0s", Stopped: "answering · 3.4k characters", Phone: "answering",
 		})
-		m.Counts = map[string]views.LogCount{"2026-10-01": shown(3)}
+		m.Counts = map[string]Count{"2026-10-01": shown(3)}
 	}
 	return m
 }

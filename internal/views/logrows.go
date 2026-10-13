@@ -21,16 +21,10 @@ type LogSources struct {
 	// Totals are the figures of the days, as TotalsByDay gives them: a day's
 	// rule says those of the day that ended.
 	Totals []DayTotals
-	// ShowChecks and ShowCounts show Claude Code's quota checks and its
-	// counts of tokens, each hidden until it's shown.
-	ShowChecks, ShowCounts bool
-	Now                    time.Time
-}
-
-// hides reports whether the table hides the rows of what's asked of the
-// kind given.
-func (src LogSources) hides(kind RowKind) bool {
-	return kind == RowCheck && !src.ShowChecks || kind == RowCount && !src.ShowCounts
+	// Filter is what the table shows of the days' lines: the zero Filter
+	// every one.
+	Filter LogFilter
+	Now    time.Time
 }
 
 // LogTable is the Log's Requests over the days it spans.
@@ -61,32 +55,9 @@ type DayRule struct {
 	Totals DayTotals
 }
 
-// LogCount is what a day's rows count: those shown, which the table holds;
-// and those hidden, by what they asked, Claude Code's quota checks and its
-// counts of tokens. Together they're each of the day's requests, once.
-type LogCount struct {
-	Shown, Checks, Counts int
-}
-
-// Hidden is how many of the day's rows are hidden.
-func (c LogCount) Hidden() int {
-	return c.Checks + c.Counts
-}
-
-// add counts a row of what's asked of the kind given, shown or hidden.
-func (c *LogCount) add(kind RowKind, shown bool) {
-	switch {
-	case shown:
-		c.Shown++
-	case kind == RowCheck:
-		c.Checks++
-	default:
-		c.Counts++
-	}
-}
-
-// Count is what the rows of the local day with the given date count, from
-// the table's own rows: none where it holds no row of it.
+// Count is what the lines of the local day with the given date count, from
+// the table's own rows, those its filter hides among them: none where it
+// holds no row of it.
 func (t LogTable) Count(date string) LogCount {
 	return t.counts[date]
 }
@@ -153,9 +124,9 @@ func toldAlone(s Stream, lined map[string]bool) []Told {
 	return alone
 }
 
-// tableOf is the table of rows, placed in order, src's kinds hidden as it
-// says, each day's rule before its first row shown, with the figures of the
-// day that ended, and each day's counts.
+// tableOf is the table of rows, placed in order, those src's filter hides
+// left out, each day's rule before its first row shown, with the figures of
+// the day that ended, and each day's counts.
 func tableOf(rows []placedRow, src LogSources) LogTable {
 	totals := make(map[string]DayTotals, len(src.Totals))
 	for _, t := range src.Totals {
@@ -164,11 +135,11 @@ func tableOf(rows []placedRow, src LogSources) LogTable {
 	table := LogTable{counts: make(map[string]LogCount)}
 	var last *LedgerDay
 	for _, p := range rows {
-		shown := !src.hides(p.row.Kind)
+		hid := src.Filter.hiding(p.row)
 		c := table.counts[p.day.Date]
-		c.add(p.row.Kind, shown)
+		c.add(p.row, hid)
 		table.counts[p.day.Date] = c
-		if !shown {
+		if hid != notHidden {
 			continue
 		}
 		if last != nil && last.Date != p.day.Date {

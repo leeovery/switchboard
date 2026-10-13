@@ -22,7 +22,7 @@ import (
 func logSourcesOf(hm viewstest.LogMoment) views.LogSources {
 	return views.LogSources{
 		From: hm.From, Now: hm.Now, Read: readAtOnce(hm, ledgerHolding(hm.Now, hm.Lines...)),
-		Stream: hm.Stream, Totals: hm.Totals, ShowChecks: hm.Shown, ShowCounts: hm.Shown,
+		Stream: hm.Stream, Totals: hm.Totals, Filter: hm.Filter,
 	}
 }
 
@@ -101,12 +101,17 @@ func TestTheLogsRowsAtEachHardMoment(t *testing.T) {
 			}
 			dates := slices.Concat([]string{views.Today(hm.From).Date, views.Today(hm.Now).Date}, slices.Collect(maps.Keys(hm.Counts)))
 			for _, date := range dates {
-				if got, want := table.Count(date), hm.Counts[date]; got != want {
+				if got, want := countOf(table.Count(date)), hm.Counts[date]; !reflect.DeepEqual(got, want) {
 					t.Errorf("%s counts %+v, want %+v", date, got, want)
 				}
 			}
 		})
 	}
+}
+
+// countOf is what a day's lines count of what a moment wants.
+func countOf(c views.LogCount) viewstest.Count {
+	return viewstest.Count{Shown: c.Shown, Requests: c.Requests, Checks: c.Checks, Counts: c.Counts, Failed: c.Failed, HiddenBy: c.HiddenBy()}
 }
 
 // ruleFigures are the figures of the day with the given date among those
