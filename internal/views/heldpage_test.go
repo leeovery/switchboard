@@ -16,15 +16,6 @@ import (
 // pageOf keeps them.
 const kept90 = 90 * 24 * time.Hour
 
-// heldOf is lines as the ledger's Today gives them.
-func heldOf(lines ...ledger.Line) []ledger.Held {
-	held := make([]ledger.Held, len(lines))
-	for i, l := range lines {
-		held[i] = ledger.Held{Line: l}
-	}
-	return held
-}
-
 // A page held at noon, then fed the lines its day gained since, the
 // session's and another's on its accounts, one it held already among them,
 // is the page built whole of every line at once.

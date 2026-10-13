@@ -539,6 +539,27 @@ func TestADaysFilesAreKeptUntilTheDayOfTheirLastInstantKept(t *testing.T) {
 	}
 }
 
+func TestTheOldestDayKeptIsTheDayKeptUntilToday(t *testing.T) {
+	for _, tt := range keptInZones {
+		t.Run(tt.name+", "+tt.zone, func(t *testing.T) {
+			loc := zone(t, tt.zone)
+			day, _, _ := dayIn(tt.date, loc)
+			last, ends, _ := dayIn(tt.until, loc)
+			for _, at := range []struct {
+				now  time.Time
+				want time.Time
+			}{{now: last, want: day}, {now: ends.Add(-time.Nanosecond), want: day}, {now: ends, want: endOf(day)}} {
+				if got, ok := oldestKeptIn(at.now, tt.keep, loc); !got.Equal(at.want) || !ok {
+					t.Errorf("kept %v, the oldest day kept at %v starts %v (%v), want %v", tt.keep, at.now, got, ok, at.want)
+				}
+			}
+		})
+	}
+	if got, ok := OldestKept(time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local), Forever); ok {
+		t.Errorf("kept forever, the oldest day kept starts %v, want every day kept", got)
+	}
+}
+
 func TestADaysFilesGoAsTheDayTheyreKeptUntilEndsInTheirZone(t *testing.T) {
 	for _, tt := range keptInZones {
 		t.Run(tt.name+", "+tt.zone, func(t *testing.T) {

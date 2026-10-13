@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 // LogSessionSources are what the Log's panel's sessions are built from.
 type LogSessionSources struct {
-	// Read holds today's lines, and every line of their sessions, whatever
-	// day it's of, as the Log reads them.
+	// Read is the Log's read, which its Requests are built from: every line
+	// of each of its sessions, whatever day it's of, and the story each
+	// tells, priced, as it holds them.
 	Read LogRead
 	// Lines and Events count each session's lines today and its events
 	// today, by its whole id, as the Log counts them: the panel's sessions
@@ -27,8 +27,6 @@ type LogSessionSources struct {
 	Unlisted bool
 	// Stream is what the request stream told.
 	Stream Stream
-	// Prices are the price table its sessions' stories are told by.
-	Prices ledger.Table
 	Now    time.Time
 }
 
@@ -93,16 +91,14 @@ func (s LogSession) Doing(now time.Time) (doing LogDoing, since time.Time) {
 
 // LogSessions are today's sessions as the Log's panel lists them: those src
 // counts lines or events of today, each as the List has it, from its story,
-// as its lines, of whatever day, tell it, and what the router and the
-// request stream say of it; those that haven't ended first, seen last
-// first, then those ended, the latest ended first.
+// as src's Read holds it told, and what the router and the request stream
+// say of it; those that haven't ended first, seen last first, then those
+// ended, the latest ended first.
 func LogSessions(src LogSessionSources) []LogSession {
-	today := Today(src.Now)
 	by := newLister(src.Running, src.Unlisted, src.Stream, src.Now)
 	var sessions []LogSession
 	for _, id := range countedIDs(src.Lines, src.Events) {
-		s := storyOf(requestsOf(src.Read.sessions[id], src.Prices, today.Date), src.Prices, today)
-		listed := by.listed(id, s)
+		listed := by.listed(id, src.Read.sessionStory(id))
 		sessions = append(sessions, LogSession{
 			ID: id, Dir: listed.Dir, Account: listed.Account, Lines: src.Lines[id], Events: src.Events[id],
 			Activity: listed.Activity, Started: listed.Started,

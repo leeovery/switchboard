@@ -1,6 +1,7 @@
 package views
 
 import (
+	"slices"
 	"strconv"
 	"time"
 
@@ -43,9 +44,29 @@ var restartWords = map[string]string{
 	status.RestartForZone:    "the time zone changed",
 }
 
-// by says who set or cleared a pin, as an event's By gives it, in the Log's
-// words: nothing for anyone else, or no one.
-var by = map[string]string{"cli": ", set from the command line", "dashboard": ", set from the dashboard"}
+// setFrom says where a pin was set or cleared from, by who did it, as an
+// event's By gives it, in the Log's words.
+var setFrom = map[string]string{"cli": "the command line", "dashboard": "the dashboard"}
+
+// setBy says who set or cleared a pin, as an event's By gives it, after
+// what was set: ", set from the command line"; nothing for anyone else, or
+// no one.
+func setBy(by string) string {
+	if from, ok := setFrom[by]; ok {
+		return ", set from " + from
+	}
+	return ""
+}
+
+// restartWhy is why a restart fell due, in the Log's words, as "the config
+// changed": a reason it has no words for as the router gives it, cleaned.
+func restartWhy(reason string) string {
+	reason = prose.Clean(reason)
+	if words, ok := restartWords[reason]; ok {
+		return words
+	}
+	return reason
+}
 
 // forced says a global pin set or cleared with force cleared every
 // session's own pin too: nothing of one without.
@@ -75,6 +96,13 @@ func NewTelling(window func(key string) string) *Telling {
 // Line is the event e's line, its times in now's time zone, as the Log's
 // Events has it.
 func (t *Telling) Line(e status.Event, now time.Time) EventLine {
+	line, _ := t.tell(e, now)
+	return line
+}
+
+// tell is the event e's line, as Line has it, and its facts, worked out
+// over the events told before it.
+func (t *Telling) tell(e status.Event, now time.Time) (EventLine, eventFact) {
 	at := e.At.In(now.Location())
 	fact := t.facts.take(e)
 	line := EventLine{Kind: KindWord(e.Kind)}
@@ -83,7 +111,13 @@ func (t *Telling) Line(e status.Event, now time.Time) EventLine {
 	} else {
 		line.Account, line.What = account(e.Account), clause(prose.Clean(e.Reason))
 	}
-	return line
+	return line, fact
+}
+
+// wellAgain reports whether e tells of the router's health well again,
+// which its mark is coloured apart for, LATELY's and the Log's alike.
+func wellAgain(e status.Event) bool {
+	return e.Kind == status.EventHealth && prose.Clean(e.Reason) == ""
 }
 
 // tellers tell an event of each kind the Log knows, its facts given: its
@@ -129,13 +163,19 @@ func loggedPressure(e status.Event, f eventFact, at time.Time) (status.Words, st
 }
 
 // loggedCap tells of an account reaching its cap: "95% of its 5-hour
-// window", and the sessions it moved, as they move.
+// window", the use a window's, and the sessions it moved, as they move.
 func loggedCap(e status.Event, f eventFact, _ time.Time) (status.Words, status.Words) {
-	what := its(f.windows, "its window")
+	what := clause(its(f.windows, "its window"))
 	if e.Reserve > 0 {
-		what = prose.Percent(1-e.Reserve) + " of " + what
+		what = status.Words{status.Use(prose.Percent(capUse(e))), status.Plain(" of " + what.String())}
 	}
-	return account(e.Account), append(clause(what), moving(f, true)...)
+	return account(e.Account), append(what, moving(f, true)...)
+}
+
+// capUse is how much of its window an account had used as it reached its
+// cap, the event e: all but its reserve.
+func capUse(e status.Event) float64 {
+	return 1 - e.Reserve
 }
 
 // loggedLimit tells of an account reaching its limit: "its 5-hour window,
@@ -181,22 +221,22 @@ func loggedRoom(e status.Event, f eventFact, _ time.Time) (status.Words, status.
 // loggedPin tells of routing set by hand: the global pin's accounts, "new
 // sessions go there", or with its move, "new and running sessions go
 // there", with force, every session's own pin cleared too; or a session's
-// own pin's account, "this session goes there"; and who set it, as by says.
+// own pin's account, "this session goes there"; and who set it, as setBy says.
 func loggedPin(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
 	if e.Session != "" {
-		return account(e.Account), clause("this session goes there" + by[e.By])
+		return account(e.Account), clause("this session goes there" + setBy(e.By))
 	}
 	what := "new sessions go there"
 	if e.Move {
 		what = "new and running sessions go there"
 	}
-	return pinAccounts(e), clause(what + forced(e) + by[e.By])
+	return pinAccounts(e), clause(what + forced(e) + setBy(e.By))
 }
 
 // loggedAuto tells of routing given back to the router: "new sessions back
 // from personal to the router's choice", or of a session's own pin, "this
 // session back from side to the router's choice"; the global pin's with
-// force, every session's own pin cleared too; and who did it, as by says.
+// force, every session's own pin cleared too; and who did it, as setBy says.
 // It names no account in the account column.
 func loggedAuto(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
 	who, from := "new sessions back", e.Accounts
@@ -208,15 +248,12 @@ func loggedAuto(e status.Event, _ eventFact, _ time.Time) (status.Words, status.
 		what = append(what, status.Plain(" from "))
 		what = append(what, joined(names, prose.And)...)
 	}
-	return nil, append(what, status.Plain(" to the router's choice"+forced(e)+by[e.By]))
+	return nil, append(what, status.Plain(" to the router's choice"+forced(e)+setBy(e.By)))
 }
 
 // loggedRestart tells of a restart falling due: "due: the config changed".
 func loggedRestart(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
-	reason := prose.Clean(e.Reason)
-	if words, ok := restartWords[reason]; ok {
-		reason = words
-	}
+	reason := restartWhy(e.Reason)
 	if reason == "" {
 		return nil, clause("due")
 	}
@@ -236,16 +273,18 @@ func loggedHealth(e status.Event, _ eventFact, _ time.Time) (status.Words, statu
 // facts count them, after a colon: "its 3 sessions move to side", "its
 // session moves to side", or where they went to several accounts, "its 3
 // sessions move to other accounts"; a cap's, as their next requests come.
-// It's nothing where it moved none.
+// It's nothing where it moved none. The count is a figure, which rises in
+// place as its moves count.
 func moving(f eventFact, asTheyCome bool) status.Words {
 	if f.moved == 0 {
 		return nil
 	}
-	subject, where, as := ": its "+prose.SessionCount(f.moved)+" move to ", "other accounts", " as their next requests come"
-	if f.moved == 1 {
-		subject, where, as = ": its session moves to ", "another account", " as its next request comes"
+	w := status.Words{status.Plain(": its session moves to ")}
+	where, as := "another account", " as its next request comes"
+	if f.moved > 1 {
+		w = slices.Concat(status.Words{status.Plain(": its ")}, CountedWords(f.moved, "session"), status.Words{status.Plain(" move to ")})
+		where, as = "other accounts", " as their next requests come"
 	}
-	w := status.Words{status.Plain(subject)}
 	if f.to != "" {
 		w = append(w, status.Named(f.to))
 	} else {

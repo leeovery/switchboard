@@ -78,12 +78,13 @@ type joinedMsg struct {
 }
 
 // wantsStream reports whether the watch reads the router's request stream:
-// while a session's page shows, Sessions, or the Overview with ROUTING or
-// SESSIONS shown, whose traces, and what each session is doing, the stream
-// tells; and the router answers, unless it's from before the stream.
+// while a session's page shows, Sessions or the Log, or the Overview with
+// ROUTING or SESSIONS shown, whose traces, what each session is doing, and
+// the requests in flight, the stream tells; and the router answers, unless
+// it's from before the stream.
 func (m Model) wantsStream() bool {
 	overview := m.view == dashboard.Overview && (m.sections.Has(dashboard.SectionRouting) || m.sections.Has(dashboard.SectionSessions))
-	return (m.session != nil || m.view == dashboard.Sessions || overview) && m.answering() && !m.stream.absent
+	return (m.session != nil || m.view == dashboard.Sessions || m.view == dashboard.Log || overview) && m.answering() && !m.stream.absent
 }
 
 // tune opens the request stream when the watch wants it and has none open,

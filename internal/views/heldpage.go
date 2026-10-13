@@ -215,7 +215,8 @@ func (h HeldPage) TurnRequests(n int, live PageLive) []RequestRow {
 	rows := make([]RequestRow, len(tallies[n-1].members))
 	for i, r := range tallies[n-1].members {
 		if r.line != nil {
-			rows[i] = pricedRow(r.line.Line, h.story, h.prices, h.day)
+			rows[i] = lineRow(r.line.Line, h.story)
+			rows[i].Worth = r.line.worth
 		} else {
 			rows[i] = toldRow(*r.told, live.Now)
 		}

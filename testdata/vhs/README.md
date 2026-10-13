@@ -102,10 +102,10 @@ frame, with the cells `cells_test.go` reads and compares:
   `cells_test.go`), passing over the same cells. Stage 6, the page, held the chrome and the routing
   card's box; stage 7 draws the Overview's frames and the routing card's whole, so `holds` keeps
   **the chrome** alone, rows 1 to 4, the title row and the status line, or 1 to 5 on a phone, whose
-  tabs take a row of their own: of `accounts-compare-160`, `sessions-switchboard-160`,
-  `runway-5-hour-160` and `log-requests-160`, over the auto world, its tab reached with `tab`, and
-  of `sessions-phone-52`. A frame's stem leaves `holds` as a fixture comes to draw it whole, as
-  `history-year-160` did at stage 8.
+  tabs take a row of their own: of `accounts-compare-160`, `sessions-switchboard-160` and
+  `runway-5-hour-160`, over the auto world, its tab reached with `tab`, and of
+  `sessions-phone-52`. A frame's stem leaves `holds` as a fixture comes to draw it whole, as
+  `history-year-160` did at stage 8, and `log-requests-160` at stage 9.
 - **The cells passed over** are `passedOver`, by stem: a row, or a row's cells from one column to
   another, each with what the frame's `.txt` reads there: the words it starts with; or blank; or,
   where the frame draws a trace or a chart from data no world gives, those glyphs alone, a chart's
@@ -428,6 +428,55 @@ the worlds give otherwise than the frames), which the dashboard draws as its wor
   sessions' moves as `$4.15`, which the card draws. The world isn't fitted to it, as its sessions'
   lines feed the frames owed at later stages.
 
+**The Log, where its frames and the worlds part** (see What the worlds give otherwise than the
+frames):
+
+- **Requests' tail,** rows 8 to 34 of `log-requests-160`, its newest 27 lines, from `14:40:26`, and
+  rows 9 to 30 of `log-requests-phone-52`, its newest 22, from `14:40:40`: the frames' generator
+  drew d28c's lines, where the world's are as its session's page draws them, and the requests in
+  flight, where the world's are the Overview's frames' (41e0's, c61b's and d28c's): the dashboard
+  draws the world's lines in their place, which `log-not-live-160`, over a world of its own, holds
+  cell for cell. Today's count on the state line, `1,240` of `1,240 lines today`, row 36, columns
+  144 to 148, and on a phone row 32, columns 36 to 40, is the world's: `1,242`, its 1,239 requests
+  and 3 in flight.
+- **The rows around the cap,** behind `log-request-details-160`'s card, for the same reason: row 10
+  whole, `14:31:18  9c2e`; the first 16 columns of rows 11 to 31, each line's time and session,
+  from `14:31:20  9c2e`; the last 16 of rows 11 and 15, blank, and of rows 12 and 16, the ends of
+  7f3a's and db8a's moves, `s cap  $0.98` and `s cap  $0.66`; and rows 32 to 34 whole, from
+  `14:32:29`. The state line's `214` of `▼ 214 new`, row 36, columns 26 to 28, is the world's
+  count of the requests since the fixture paused at 14:32:41, `126`, and `1,240`, columns 144 to
+  148, its `1,242`.
+- **Anthropic's id,** row 15 of `log-request-details-160`, columns 35 to 62, `req_011CQx…`: the
+  frame cut an id longer than the column's room, and the world's, `req_011CQx4n7RkV2bW9pT3sYd6M`,
+  as long as Anthropic's are, fits it whole, as the dashboard draws it.
+- **db8a's move of 13:22:40,** row 27 of `log-events-160`, columns 88 to 160, `, its 5-hour to run
+  out at 15:10   48k cached again, $0.48`: no pressure event of personal's behind the run-out fits
+  in the world, as none shows among the frame's rows, and a move made afresh after 21 hours idle
+  writes no cache again, its cache gone cold; the dashboard draws `personal came under pressure`
+  alone. Its last cell shows past the details card's edge in `log-event-details-160`, row 27,
+  column 145, the `8` of `$0.48`, faded: the dashboard draws the row ending under the card.
+- **Behind the `f` panel,** faded: in `log-requests-filter-160`, the Requests' tail, as
+  `log-requests-160` passes it over, left of the panel, rows 8 to 29, columns 1 to 18, and whole
+  under it, rows 30 to 34, with today's count on the state line, row 36, columns 144 to 148,
+  `1,240`; and in `log-events-filter-160`, db8a's move's cost right of the panel, row 27, columns
+  143 to 145, `.48`, as `log-events-160` passes it over.
+- **The panel's counts of today's lines** in `log-requests-filter-160`, the world's, as the state
+  line's: `1,275` of `which of today's 1,275 lines`, row 10, columns 70 to 74, drawn `1,277`;
+  requests' `1,240`, row 15, columns 83 to 87, drawn `1,242`; and `1,240 of 1,275`, row 26,
+  columns 31 to 45, drawn `1,242 of 1,277`.
+- **The panel's models,** row 14 of `log-requests-filter-160`, columns 98 to 110, blank in the
+  frame: the world's lines today ask Sonnet 5.5 too, 41e0's in flight among them, so the dashboard
+  ticks `sonnet-5-5` after `haiku-4-5`.
+- **Today's sessions in the panel,** whose order and doing are the world's: 41e0, answering, seen
+  last, lists first, and db8a, its last request ended over a minute before, reads `idle 1m`, where
+  the frames list d28c first and draw db8a busy. In `log-requests-filter-160`, rows 18, 20, 21 and
+  22, columns 73 to 131, `□ d28c`, `□ 7f3a`, `□ db8a` and `□ 41e0`, the cursor on d28c, third in
+  the world's list, lighting row 20; in `log-events-filter-160`, rows 15, 17, 18 and 19, columns
+  80 to 138, the same four.
+- **The cursor's tick, lit,** in `log-events-filter-160`, row 13, columns 21 to 31, `■ started`,
+  where the cursor starts: the frame lights no tick, where the design lights the row the cursor's
+  on, as the routing card's (see The routing card).
+
 **A pressure event's mark:** in `accounts-detail-one-160`'s LATELY, row 28, column 20, `●`, drawn
 before each kind of event had a mark of its own, where the Log's marks give `◔`, in
 `accent.attention`.
@@ -506,7 +555,12 @@ cell by cell, listing each under The cells passed over with what the dashboard d
   page); a request of db8a's on work at 14:31:06, after work's cap at 14:31:03, as
   `log1.around_the_cap` made it, which no frame draws; db8a's move of 13:22:40 (no pressure event
   behind "out at 15:10", no cost of a move made afresh after 21 hours idle, and its reason the
-  idle's); `log-not-live-160`, a world of its own, not built yet.
+  idle's); work's windows as 7f3a's answer of 14:30:51 read them, 95% and 34%, typed from
+  `log-event-details-160`, the only line on work today that reads them, fitted rather than passed
+  over. `log-not-live-160` has a world of its own: the auto world, its ledger's lines today cut
+  at 14:36:18, as 1,171 of its requests had arrived, then the frame's 27 and a quota check ending
+  at 14:40:52, so today counts 1,198 requests, and its router read last at 14:40:51 and gone at
+  14:40:55 (`internal/capture/testdata/README.md` says how).
 - **A session's page (stage 10):** d28c's split, $41.09 and $7.12 (drawn $41.06 and $7.14), its
   work ending 14:30; b9c4's stretches ending 16:01 and 18:46, ended 18:46, 5h 26m; turn 8's tools
   in another order; f41a's side stretch ending 18:04; the `% from cache` figures, written in.
@@ -582,11 +636,23 @@ with a tape of its name: `page-routing`, the routing card over the Overview of t
 160 × 40, `p` having opened it, `2` and `3` picked and `m` ticked, the page faded behind it;
 `page-routing-phone`, the card on a phone, 52 × 36, `2` picked and `m` ticked, saying what the move
 costs; `page-help-scrolled`, the help over Sessions on a terminal 16 rows tall, scrolled down three
-rows with `j` (`sessions-3-keys` is the help unscrolled, at 160 × 28); `page-log`, the Log's empty
-tab, the six tabs in the title row, its tape at 160 × 37 and `page-log-phone`'s at 52 × 36; and
+rows with `j` (`sessions-3-keys` is the help unscrolled, at 160 × 28); and
 `page-not-answering`, the auto world's router gone as `R` reads it, the status line saying so and
 since when, and `p pin` faint on the key line. Each but the help's is drawn over the auto world,
 its records and the sessions its router lists.
+
+Stage 9's, `log-*`, draw the Log's frames, the Log reached from the Overview with `shift-tab`:
+`log-requests-160` and, on a phone, `log-requests-phone-52`, as it opens, on Requests;
+`log-events-160` with `]`; all over the auto world, but `log-not-live-160`, over a world of its own,
+its router gone at 14:40:55, as the fixture's settling finds it with `R` then. The details card:
+`log-event-details-160`, the cap's, `↑` five times on Events and `enter`; and
+`log-request-details-160`, d28c's move to side, as the Log stood at 14:32:41, `↑` to 14:31:09 and
+`↓` to the move, the table paused there; then at 14:42:07, read again with `R`, `enter`. The `f`
+panel: `log-events-filter-160`, over Events, with `]` and `f`; and `log-requests-filter-160`, over
+Requests, with `f`, then `→` and `↓` twelve times, the cursor on d28c's row. The page as stage 6
+built it, `page-log`, went with its tapes as they came to draw it. Tapes of their names screenshot
+`log-requests-160`, `log-events-160`, `log-not-live-160`, `log-event-details-160`,
+`log-request-details-160`, `log-events-filter-160` and `log-requests-filter-160`, to judge by eye.
 
 ### `--theme`, and `NO_COLOR`
 

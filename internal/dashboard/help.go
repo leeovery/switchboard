@@ -73,9 +73,9 @@ type helpPart struct {
 
 // helpParts are the parts of the page help explains after its keys: of a
 // session's page, as sessionHelp has them; of the Overview, a part a
-// section, in the page's order, as overviewHelp has them; of History, as
-// historyHelp has them; of the other views built, a part a group of the
-// glyphs their key explains.
+// section, in the page's order, as overviewHelp has them; of History and the
+// Log, as historyHelp and logHelp have them; of the other views built, a
+// part a group of the glyphs their key explains.
 func (f Frame) helpParts() []helpPart {
 	switch {
 	case f.Session != nil:
@@ -84,6 +84,8 @@ func (f Frame) helpParts() []helpPart {
 		return overviewHelp()
 	case f.View == History:
 		return f.historyHelp()
+	case f.View == Log:
+		return f.logHelp()
 	}
 	var parts []helpPart
 	for _, group := range f.glyphs() {

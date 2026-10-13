@@ -1,7 +1,6 @@
-# The page-log fixture, shift-tab pressed to show the Log's empty tab, the
-# six tabs in the title row, the Log's lit, full screen at 160 × 37, as
-# capturetool runs it.
-# Run from the repository's root: vhs testdata/vhs/page-log.tape
+# The log-requests-160 fixture, the Log's Requests of the auto world, as
+# shift-tab opens it, full screen at its 160 × 37, as capturetool runs it.
+# Run from the repository's root: vhs testdata/vhs/log-requests-160.tape
 
 Set Shell "bash"
 Set FontFamily "JetBrains Mono"
@@ -19,10 +18,10 @@ Set Theme { "name": "nord", "background": "#2E3440", "foreground": "#D8DEE9", "c
 Set WaitTimeout 2m
 
 Hide
-Type "go run ./cmd/capturetool --fixture page-log"
+Type "go run ./cmd/capturetool --fixture log-requests-160"
 Enter
 Wait+Screen /14:42/
 Show
 Sleep 500ms
-Screenshot "testdata/vhs/page-log.png"
+Screenshot "testdata/vhs/log-requests-160.png"
 Sleep 500ms

@@ -63,10 +63,19 @@ type RequestRow struct {
 	// answering, as the stream told: zero till it counts any.
 	Chars int
 	// Read, Written and Out are the tokens it read from the cache, wrote to
-	// it and put out, as its answer's usage counts them, where Metered says
-	// its answer gave usage.
-	Read, Written, Out int
-	Metered            bool
+	// it and put out, and Input those it took in uncached, as its answer's
+	// usage counts them, where Metered says its answer gave usage.
+	Read, Written, Out, Input int
+	Metered                   bool
+	// Attempts is how many times it went upstream, 0 where the router
+	// answered it itself; Size its body's size in bytes, Messages and Tools
+	// how many messages and definitions of tools it carried, and Thinking its
+	// budget for thinking, in tokens, each 0 where its shape gives none; and
+	// Agent the client that sent it, cut to its name and version, as
+	// claude-cli/2.1.0. Each is as its line gives it, so 0 or "" before its
+	// line comes.
+	Attempts, Size, Messages, Tools, Thinking int
+	Agent                                     string
 	// Rewrote is set where it wrote its session's context again on the
 	// account a move took the session to: where the cache would have run out
 	// anyway, it wrote nothing staying wouldn't have, and it's left unset.
@@ -218,6 +227,17 @@ type RoutingSaid struct {
 	Cost *ledger.Picodollars
 }
 
+// Said is how the router chose, as the Log's routing says it: its words,
+// each account named; then, where the move it made is costed, two cells on,
+// what writing the session's context again cost, exactly, as RowCost.
+func (s RoutingSaid) Said() RowWords {
+	w := rowWordsOf(s.Words)
+	if s.Cost != nil {
+		w = append(w, RowPart{Text: "  "}, RowPart{Text: Worth{Amount: s.Cost}.Cents(), Kind: RowCost})
+	}
+	return w
+}
+
 // routingOf is how the router chose the account of the request l, as its
 // session's story tells it: whether it's the session's first request, and
 // the move it made, nil where it made none. Where it was sent again after an
@@ -267,38 +287,58 @@ func (l *ListedSession) cameBy(m *move) {
 	}
 }
 
-// pricedRow is the row of the request l, as lineRow has it, its worth at the
-// prices on the local day today.
-func pricedRow(l *ledger.Line, s *story, prices ledger.Table, today LedgerDay) RequestRow {
-	r := lineRow(l, s)
-	r.Worth = summed(prices, l, today.Date)
+// lineRow is the row of the request l, a line of the session s tells, nil
+// for one of no session, its worth unpriced and left zero, as the Log's read
+// prices it.
+func lineRow(l *ledger.Line, s *story) RequestRow {
+	r := lineFacts(l)
+	r.toldBy(l, s)
 	return r
 }
 
-// lineRow is the row of the request l, a line of the session s tells, nil
-// for one of no session, its worth unpriced and left zero, as pricedRow
-// prices it.
-func lineRow(l *ledger.Line, s *story) RequestRow {
+// lineFacts is the row of the request l as its line alone tells it, its
+// worth unpriced and left zero, before its session's story tells the rest,
+// as toldBy has it.
+func lineFacts(l *ledger.Line) RequestRow {
 	r := RequestRow{
 		Request: l.Request, At: l.At, Kind: kindOf(l), Session: l.Session, Dir: l.Dir, Model: l.Model, Account: l.Account,
 		Status: l.Status, Canceled: l.Canceled, CutOff: l.CutOff, Failed: l.Failed(), Took: millis(l.TotalMS), Stop: l.Answer.Stop,
+		Attempts: l.Attempts, Size: l.Shape.Bytes, Messages: l.Shape.Messages, Tools: l.Shape.Tools, Agent: agentOf(l.Agent),
 	}
 	if l.FirstMS != nil {
 		r.First = millis(*l.FirstMS)
 	}
+	if budget := l.Shape.Thinking.BudgetTokens; budget != nil {
+		r.Thinking = int(*budget)
+	}
 	if tokens, ok := l.Tokens(); ok {
-		r.Read, r.Written, r.Out, r.Metered = tokens.CacheRead, tokens.CacheWrite, tokens.Output, true
+		r.Read, r.Written, r.Out, r.Input, r.Metered = tokens.CacheRead, tokens.CacheWrite, tokens.Output, tokens.Input, true
 	}
 	if tools := l.Answer.Tools; len(tools) > 0 {
 		r.Tool, r.More = tools[0], len(tools)-1
 	}
+	return r
+}
+
+// toldBy has r, the row of the request l as lineFacts has it, say what the
+// story s of its session tells of it, nil for none: whether it's the
+// session's first request, whether it wrote the session's context again, its
+// routing, and so its mark.
+func (r *RequestRow) toldBy(l *ledger.Line, s *story) {
 	var made *move
+	r.NewSession, r.Rewrote = false, false
 	if s != nil {
 		r.NewSession, made, r.Rewrote = s.toldOf(l)
 	}
 	r.Routing = routingOf(l, r.NewSession, made)
 	r.Mark = r.marking().mark()
-	return r
+}
+
+// agentOf is the client a request's user agent names, cut to its name and
+// version, as claude-cli/2.1.0 of "claude-cli/2.1.0 (external, cli)".
+func agentOf(agent string) string {
+	name, _, _ := strings.Cut(strings.TrimSpace(agent), " ")
+	return name
 }
 
 // kindOf is what the request l asked, as its row tells it.
@@ -385,6 +425,8 @@ const (
 	RowNamed
 	// RowDoing is what a request in flight is doing: asking, or answering.
 	RowDoing
+	// RowCost is what a move cost, kept whole as the row's cut, as $1.82.
+	RowCost
 )
 
 // String runs the words together, as a row drawn without colour shows them.
@@ -435,11 +477,30 @@ func charsCounted(chars int) bool {
 	return prose.Characters(chars) != prose.Characters(0)
 }
 
+// folds reports whether the request's routing takes its stopped's place where
+// the table has no routing column, as a narrow table's and a phone's Log fold
+// it in: a request's, where its routing has words. A request in flight's has
+// none, nor a check's or a count's.
+func (r RequestRow) folds() bool {
+	return r.Kind == RowRequest && len(r.Routing.Words) > 0
+}
+
+// Folded is the request's stopped with its routing folded in, as the Log's
+// Requests says it under 160 columns, its routing column gone: its routing,
+// as Said says it, where folds says so; else its stopped.
+func (r RequestRow) Folded() RowWords {
+	if r.folds() {
+		return r.Routing.Said()
+	}
+	return r.Stopped()
+}
+
 // PhoneStopped is the request's stopped as a phone's Log says it, its routing
-// folded in: in flight, asking or answering alone; lost, as Stopped says;
-// where it moved its session, from work; its session's first, new session;
-// else the tool it called alone, as Bash, and +1 where it called one more;
-// else why its answer stopped. None for a check or a count.
+// folded in, as folds has it: in flight, asking or answering alone; lost, as
+// Stopped says; where it moved its session, from work; where its routing has
+// other words, them, as new session for its session's first; else the tool it
+// called alone, as Bash, and +1 where it called one more; else why its
+// answer stopped. None for a check or a count.
 func (r RequestRow) PhoneStopped() RowWords {
 	switch {
 	case r.Kind != RowRequest:
@@ -448,10 +509,10 @@ func (r RequestRow) PhoneStopped() RowWords {
 		return RowWords{r.doing()}
 	case r.Stage == RowLost:
 		return r.Stopped()
-	case r.Routing.From != "":
+	case r.folds() && r.Routing.From != "":
 		return rowWordsOf(status.FromWords(r.Routing.From))
-	case r.NewSession:
-		return rowWordsOf(newSession())
+	case r.folds():
+		return rowWordsOf(r.Routing.Words)
 	case r.Tool != "":
 		return r.tools()
 	case r.Stop != "":

@@ -111,6 +111,8 @@ type Frame struct {
 	// Session is the session's page open, drawn in place of the view: nil
 	// while none is.
 	Session *SessionShown
+	// Log is the Log's sub-tab shown, its tables and how each stands.
+	Log LogPage
 
 	// held is the moment of a document as At holds it, and built the
 	// Overview's sections as Built built them, each for every look the frame,
@@ -179,13 +181,14 @@ func (f Frame) Rendered(doc status.Document, now time.Time) ([]string, Motion) {
 }
 
 // finish finishes the page drawn on c: its numbers brightened as Brightened
-// says; then, where a card is open, the page faded and the card drawn over
-// it.
+// says; then, where a card is open, the page faded, but for the line the
+// card is of, where it's of one, and the card drawn over it.
 func (f Frame) finish(c *canvas) *canvas {
 	c.brighten(f.Brightened, f.Look)
 	if f.Card != nil {
-		c.fade()
-		f.Card.card(f).draw(c)
+		card := f.Card.card(f)
+		c.fade(card.kept()...)
+		card.draw(c)
 	}
 	return c
 }
@@ -200,15 +203,15 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 	f.routerStatus(c, doc, now)
 	f.headingRow(c)
 	f.view(c, doc, now)
-	f.stateLine(c)
+	f.stateLine(c, now)
 	f.keyLine(c)
 	return c
 }
 
 // view draws the tab shown of doc at now from row top, where the page has
 // room for it, as cramped says: a session's page, where one is open, in its
-// place; the Overview, History, Sessions and Runway; and nothing of a tab
-// not built yet.
+// place; the Overview, History, Sessions, Runway and the Log; and nothing of
+// a tab not built yet.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
@@ -225,12 +228,26 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 		f.sessions(c, doc, now, top)
 	case f.View == Runway:
 		f.runway(c, doc, now, top)
+	case f.View == Log:
+		f.log(c, doc, now, top)
 	}
 }
 
-// stateLine draws the view's state line, over the key line. The views
-// milestone 5 built draw their own line there.
-func (f Frame) stateLine(*canvas) {}
+// stateLine draws the view's state line, over the key line, as told at now,
+// where the page has room for the view, as cramped says: the Log's, once
+// its first read lands, or while its find is open, the find's line in its
+// place. The views milestone 5 built draw their own line there.
+func (f Frame) stateLine(c *canvas, now time.Time) {
+	if f.cramped() || f.View != Log || !f.Log.Read {
+		return
+	}
+	y := f.Height - underView
+	if found, ok := f.Log.findLine(f.Width); ok {
+		c.line(0, y, found)
+		return
+	}
+	c.line(0, y, f.Log.state(f.LogRows()).line(f.Width, now))
+}
 
 // The page's rows under its view: the state line, or the blank row that
 // keeps the view off the key line, and the key line. leastView is the fewest
@@ -306,7 +323,8 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 // y, width cells wide and rows tall: on a session's page, where one is open,
 // its turns' rows, across the frame; on the Overview, USAGE's body, as
 // overviewScrolls has it; on History, what of its sub-tab shown does, as
-// historyScrolls has it, across the frame; elsewhere, the view's rows.
+// historyScrolls has it, across the frame; on the Log, its table's lines,
+// under its heads; elsewhere, the view's rows.
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
 	if f.Session != nil {
 		l := f.sessionLayout(len(f.Session.Page.Accounts))
@@ -318,6 +336,8 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 	case History:
 		y, rows = f.historyScrolls()
 		return 0, y, f.Width, rows
+	case Log:
+		return 0, f.top() + 1, f.Width, f.LogRows()
 	}
 	return 0, f.top(), f.Width, f.viewRows()
 }

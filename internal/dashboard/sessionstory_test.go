@@ -247,8 +247,8 @@ func minutely(from, to time.Time) []time.Time {
 	return sent
 }
 
-// times are n requests at at.
-func times(n int, at time.Time) []time.Time {
+// sentAt are n requests sent at at.
+func sentAt(n int, at time.Time) []time.Time {
 	return slices.Repeat([]time.Time{at}, n)
 }
 
@@ -271,8 +271,8 @@ func twentyMinutes(sent ...[]time.Time) views.Story {
 func TestAStorysColumnsFillEighthsOfItsRowsToItsScale(t *testing.T) {
 	// Columns of two minutes: 1 request is half a request a minute, 3 one
 	// and a half, 16 eight and 40 twenty.
-	busy := twentyMinutes(times(1, storyAt(8, 12, 0, 0)), times(3, storyAt(8, 12, 2, 0)), times(16, storyAt(8, 12, 4, 0)), times(40, storyAt(8, 12, 6, 0)))
-	quiet := twentyMinutes(times(1, storyAt(8, 12, 0, 0)), times(3, storyAt(8, 12, 2, 0)))
+	busy := twentyMinutes(sentAt(1, storyAt(8, 12, 0, 0)), sentAt(3, storyAt(8, 12, 2, 0)), sentAt(16, storyAt(8, 12, 4, 0)), sentAt(40, storyAt(8, 12, 6, 0)))
+	quiet := twentyMinutes(sentAt(1, storyAt(8, 12, 0, 0)), sentAt(3, storyAt(8, 12, 2, 0)))
 	tests := []struct {
 		name  string
 		story views.Story

@@ -50,15 +50,15 @@ type logHeadingCount struct {
 }
 
 // hiddenCount is Requests' heading's count of today's lines hidden, "35
-// hidden", its figure in text.secondary; and why, where one thing alone
-// hides them, by, as "checks and counts": ": checks and counts", in
-// text.muted. by is "" where several things hide them, as with a filter on.
-// With none hidden, there's nothing to count, and the heading has f alone.
+// hidden", all in text.secondary; and why, where one thing alone hides
+// them, by, as "checks and counts": ": checks and counts", in text.muted.
+// by is "" where several things hide them, as with a filter on. With none
+// hidden, there's nothing to count, and the heading has f alone.
 func hiddenCount(hidden int, by string) logHeadingCount {
 	if hidden == 0 {
 		return logHeadingCount{}
 	}
-	c := logHeadingCount{count: line{{prose.Grouped(hidden), secondaryInk}, {" hidden", mutedInk}}}
+	c := logHeadingCount{count: line{{prose.Grouped(hidden) + " hidden", secondaryInk}}}
 	if by != "" {
 		c.why = line{{": " + by, mutedInk}}
 	}
@@ -323,11 +323,11 @@ func joinedSummary(parts []line) line {
 // oldestDay is the line at the top of the oldest day the ledger keeps, cut
 // to cells cells, in text.faint: how long it keeps its lines, "the oldest
 // day kept: the ledger keeps its lines 400 days", as [ledger] keep says;
-// or, where it keeps them for good, dayfile.Forever or none said, that it's
-// the first day, "the ledger's first day: it keeps its lines for good".
+// or, where it keeps them for good, dayfile.Forever, that it's the first
+// day, "the ledger's first day: it keeps its lines for good".
 func oldestDay(keep time.Duration, cells int) line {
 	said := "the ledger's first day: it keeps its lines for good"
-	if keep != 0 && keep != dayfile.Forever {
+	if keep != dayfile.Forever {
 		said = "the oldest day kept: the ledger keeps its lines " + prose.Counted(int(keep/(24*time.Hour)), "day")
 	}
 	return line{{said, faintInk}}.fit(cells)
