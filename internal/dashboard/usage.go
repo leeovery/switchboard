@@ -461,7 +461,7 @@ func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int
 	accounts, pool := b.split()
 	var l laid
 	if b.above > 0 {
-		c.line(x, y, outOfSight("▲", b.above))
+		c.line(x, y, outOfView(b.above, 0, b.width-x, usageOut))
 		y++
 	}
 	last, next := y, y
@@ -472,7 +472,7 @@ func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int
 	}
 	if b.below > 0 {
 		last++
-		c.line(x, last, outOfSight("▼", b.below))
+		c.line(x, last, outOfView(0, b.below, b.width-x, usageOut))
 		next = last + apart
 	}
 	last, next = last+b.spare, next+b.spare
@@ -485,11 +485,10 @@ func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int
 	return l
 }
 
-// outOfSight says how many accounts' rows are scrolled out of view, by the
-// mark given, as in "▼ 4 more accounts".
-func outOfSight(mark string, n int) line {
-	return line{{mark + " " + moreAccounts(n), dimInk}}
-}
+// usageOut is the form of the line saying how many accounts' rows are
+// scrolled out of view, over the first shown or under the last, as in "▼ 4
+// more accounts".
+var usageOut = outForm{noun: "account", inks: subtleOut}
 
 // split is the block's rows: the accounts', and the pool's, nil where it has
 // none.

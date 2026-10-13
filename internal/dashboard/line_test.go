@@ -213,17 +213,3 @@ func (l line) plain() string {
 	}
 	return b.String()
 }
-
-// inked is the line as it's drawn, each run of one ink a span, however its
-// spans were split.
-func (l line) inked() line {
-	var runs line
-	for _, s := range l {
-		if n := len(runs); n > 0 && runs[n-1].ink == s.ink {
-			runs[n-1].text += s.text
-			continue
-		}
-		runs = append(runs, s)
-	}
-	return runs
-}

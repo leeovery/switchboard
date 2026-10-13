@@ -45,6 +45,20 @@ func (l line) fit(width int) line {
 	return fitParts(width, wordsPart(l))
 }
 
+// inked is the line as it's drawn, each run of one ink a span, however its
+// spans were split.
+func (l line) inked() line {
+	var runs line
+	for _, s := range l {
+		if n := len(runs); n > 0 && runs[n-1].ink == s.ink {
+			runs[n-1].text += s.text
+			continue
+		}
+		runs = append(runs, s)
+	}
+	return runs
+}
+
 // elided is the line, a figure, as an ellipsis alone, in its first span's ink
 // but as no number: the figure it stands for isn't shown, so its changes
 // can't be.

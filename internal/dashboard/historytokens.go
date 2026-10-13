@@ -134,7 +134,7 @@ func (f Frame) historyTokens(c *canvas, top int) {
 		}
 	}
 	if below > 0 {
-		c.line(0, min(y, placed.first+placed.rows-1), moreBelow(below, f.History.TokensAsk.Period.Name(), " to scroll", f.Width))
+		c.line(0, min(y, placed.first+placed.rows-1), outOfView(0, below, f.Width, periodsOut(f.History.TokensAsk.Period.Name())))
 	}
 }
 

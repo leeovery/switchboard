@@ -85,7 +85,7 @@ func (f Frame) historyDays(c *canvas, top int) {
 		f.daysStrip(c, l, l.accountRow(i), func(room int) line { return historyAccount(labelled(s.Label, s.Of), s.Primary, room) }, f.limitsHit(s), dayInk, s.Days)
 	}
 	if above, below := from, len(p.ByAccount)-to; above+below > 0 {
-		c.line(0, l.scrollRow, accountsOutOfView(above, below, f.edge()))
+		c.line(0, l.scrollRow, outOfView(above, below, f.edge(), historyAccountsOut...))
 	}
 	f.daysKey(c, l)
 }
