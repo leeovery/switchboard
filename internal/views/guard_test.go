@@ -103,6 +103,14 @@ var (
 		// The verbs keep 8 characters of an id, as logs and status's text do.
 		"status.ShortID": {"internal/dashboard", "internal/dashboard/watch"},
 	}
+	// builtInTheWatch are what the watch builds once each change, as each
+	// reads the ledger or the router's events, or places every line, for the
+	// dashboard to draw as it's held: the dashboard calls none. LogEvents,
+	// LogSessions and FindSessions join them as the Log's events and
+	// sessions do.
+	builtInTheWatch = []string{
+		"views.EventsSince", "views.LogRead.Back", "views.LogRead.Grown", "views.LogRows", "views.ReadLogHeld", "views.TotalsByDay",
+	}
 )
 
 // rawPackages are the packages, by name under the module's internal
@@ -122,6 +130,11 @@ const (
 // absorbedSays says how using what's absorbed breaks the rule, and its owner.
 func absorbedSays(name, owner string) string {
 	return name + " is absorbed by " + owner + "; call " + owner + ", the rule's one owner"
+}
+
+// builtSays says how using what the watch builds breaks the rule.
+func builtSays(name string) string {
+	return name + " is built in the watch once each change; draw what it holds"
 }
 
 func TestDrawingReadsTheViewsAlone(t *testing.T) {
@@ -164,8 +177,10 @@ func TestTheDrawingGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/cli/fields.go:20: status.Event.ID reads raw data's fields; " + rawFix,
 		"internal/cli/fields.go:25: ledger.Held.Session reads raw data's fields; " + rawFix,
 		"internal/cli/readers.go:13: ledger.Held.Session reads raw data's fields; " + rawFix,
-		"internal/dashboard/dashboard.go:9: status.Event.ID reads raw data's fields; " + rawFix,
-		"internal/dashboard/dashboard.go:12: " + absorbedSays("status.ShortID", "status.ShownID"),
+		"internal/dashboard/dashboard.go:12: status.Event.ID reads raw data's fields; " + rawFix,
+		"internal/dashboard/dashboard.go:15: " + absorbedSays("status.ShortID", "status.ShownID"),
+		"internal/dashboard/dashboard.go:17: " + builtSays("views.LogRows"),
+		"internal/dashboard/dashboard.go:19: " + builtSays("views.LogRead.Grown"),
 		"internal/cli/kept.go: readersAllowed allows it, but it keeps the rule; " + allowedFix,
 		"internal/cli/gone.go: readersAllowed allows it, but it's gone; " + allowedFix,
 		"internal/cli/readers.go:keptReader: readersAllowed allows it, but it keeps the rule; " + allowedFix,
@@ -180,11 +195,12 @@ func TestTheDrawingGuardFindsWhatItGuardsAgainst(t *testing.T) {
 // drawingFixture is a module of the raw data's types, the functions that
 // work facts out of them, what's absorbed and its owner, and functions and
 // methods that take raw data, as one added later would; views, whose
-// functions take raw data, as the surface does; and two drawing packages:
-// the CLI, with a file of each kind of breach, one that keeps the rule,
-// calling what's allowed, a file and functions the allow-list allows, and
-// ones it allows that keep the rule; and the dashboard, with a breach of its
-// own.
+// functions take raw data, as the surface does, and build what the watch
+// builds; and two drawing packages: the CLI, with a file of each kind of
+// breach, one that keeps the rule, calling what's allowed and building the
+// Log's table, a file and functions the allow-list allows, and ones it
+// allows that keep the rule; and the dashboard, with a breach of its own,
+// and the Log's table built and grown in it.
 var drawingFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
 	"internal/quota/quota.go": `package quota
@@ -274,7 +290,11 @@ import "example.com/fixture/internal/ledger"
 
 type Row struct{ Session string }
 
-func RowOf(h ledger.Held) Row { return Row{Session: h.Session} }
+type LogRead struct{}
+
+func RowOf(h ledger.Held) Row    { return Row{Session: h.Session} }
+func (r LogRead) Grown() LogRead { return r }
+func LogRows(r LogRead) []Row    { return nil }
 `,
 	"internal/cli/calls.go": `package cli
 
@@ -340,7 +360,7 @@ import (
 )
 
 func clean(r ledger.Reader, s status.Session, now time.Time) string {
-	rows := make([]views.Row, 0)
+	rows := views.LogRows(views.LogRead{}.Grown())
 	for _, h := range r.Lines() {
 		rows = append(rows, views.RowOf(h))
 		_ = h.Filed()
@@ -380,7 +400,10 @@ func tested(h ledger.Held) int { return h.Status }
 `,
 	"internal/dashboard/dashboard.go": `package dashboard
 
-import "example.com/fixture/internal/status"
+import (
+	"example.com/fixture/internal/status"
+	"example.com/fixture/internal/views"
+)
 
 func drawn(events []status.Event) int {
 	if len(events) == 0 {
@@ -390,6 +413,10 @@ func drawn(events []status.Event) int {
 }
 
 func named(id string) string { return status.ShortID(id) + status.ShownID(id) }
+
+func frame(r views.LogRead) int { return len(views.LogRows(r)) }
+
+var grow = views.LogRead.Grown
 `,
 }
 
@@ -411,8 +438,9 @@ func drawingBreaches(t *testing.T, root, module string, dirs, allowed, calls []s
 
 // drawingRule is the views' rule, of the module with the given path, the
 // calls given allowed: no raw data's field read; no fact worked out of raw
-// data, nor what an owner absorbed; and no other function or method of
-// rawPackages called that takes raw data.
+// data, nor what an owner absorbed; nothing the watch builds built in the
+// dashboard; and no other function or method of rawPackages called that
+// takes raw data.
 func drawingRule(module string, calls []string) sourcecheck.Rule {
 	used := make(map[string]sourcecheck.Ban)
 	for _, name := range readsRaw {
@@ -420,6 +448,9 @@ func drawingRule(module string, calls []string) sourcecheck.Rule {
 	}
 	for name, owner := range absorbed {
 		used[name] = sourcecheck.Ban{Says: absorbedSays(name, owner), In: absorbedIn[name]}
+	}
+	for _, name := range builtInTheWatch {
+		used[name] = sourcecheck.Ban{Says: builtSays(name), In: []string{"internal/dashboard"}}
 	}
 	return sourcecheck.Rule{
 		Names:   sourcecheck.NamesIn(module),
