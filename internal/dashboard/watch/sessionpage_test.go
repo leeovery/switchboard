@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -49,19 +50,29 @@ func promptedLines(n int, from time.Time) []ledger.Line {
 func pageHarness(t *testing.T, lines []ledger.Line) (*harness, *pageLedger) {
 	t.Helper()
 	h := gridHarness(t)
-	l := &pageLedger{Empty: h.emptyLedger(), lines: map[string][]ledger.Line{idD28C: lines}}
-	h.model.cfg.Ledger, h.model.cfg.Prices = l, ledger.Pricing
-	return h, l
+	return h, h.withLines(lines)
 }
 
-// openPage opens idD28C's page, as a click on its row does, its read landing.
-func (h *harness) openPage() {
+// withLines has the model read the lines given in its ledger, each its
+// session's, priced at the price table's prices.
+func (h *harness) withLines(lines []ledger.Line) *pageLedger {
+	l := &pageLedger{Empty: h.emptyLedger(), lines: make(map[string][]ledger.Line)}
+	for _, line := range lines {
+		l.lines[line.Session] = append(l.lines[line.Session], line)
+	}
+	h.model.cfg.Ledger, h.model.cfg.Prices = l, ledger.Pricing
+	return l
+}
+
+// openPage opens the page of the session with the given id, as a click on
+// its row does, its read landing.
+func (h *harness) openPage(id string) {
 	h.t.Helper()
-	next, cmd := h.model.openSession(idD28C)
+	next, cmd := h.model.openSession(id)
 	h.model = next
 	h.deliver(h.run(cmd)...)
 	if h.model.session == nil {
-		h.t.Fatal("idD28C's page didn't open")
+		h.t.Fatalf("%s's page didn't open", id)
 	}
 }
 
@@ -84,11 +95,7 @@ func TestAClickOnASessionInSESSIONSOpensItsPageOnceItsLinesAreRead(t *testing.T)
 	h, l := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
 	h.model.cfg.Home = "/home/someone"
 	h.keyed("s c l")
-	i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == idD28C })
-	if i < 0 {
-		t.Fatalf("SESSIONS gives d28c no target among %+v", h.targets())
-	}
-	click := tea.MouseClickMsg{X: h.targets()[i].X, Y: h.targets()[i].Y, Button: tea.MouseLeft}
+	click := h.sessionClick(idD28C)
 
 	next, stale := h.model.Update(click)
 	h.model = next.(Model)
@@ -97,20 +104,71 @@ func TestAClickOnASessionInSESSIONSOpensItsPageOnceItsLinesAreRead(t *testing.T)
 	if len(l.asked) != 0 || h.model.session != nil {
 		t.Fatalf("clicked, the ledger was read %d times and a page is open %v; want neither till the read runs", len(l.asked), h.model.session != nil)
 	}
+	h.deliver(h.run(stale)...)
+	if h.model.session != nil {
+		t.Fatal("the read asked for before the last landed and opened its page, want it dropped")
+	}
 	h.deliver(h.run(read)...)
-	if !slices.EqualFunc(l.asked, [][]string{{idD28C}}, slices.Equal) {
-		t.Errorf("the read asked the ledger for %q, want d28c's lines alone", l.asked)
+	if !slices.EqualFunc(l.asked, [][]string{{idD28C}, {idD28C}}, slices.Equal) {
+		t.Errorf("the reads asked the ledger for %q, want d28c's lines alone each time", l.asked)
 	}
 	page := h.shownPage()
 	if page.Page.Session != idD28C || page.Turn != 2 || page.Home != "/home/someone" || h.model.view != dashboard.Overview {
 		t.Errorf("the read landed, the page is %s's, turn %d chosen, under %q, over %s; want d28c's, its newest, turn 2, under the home given, over the Overview",
 			page.Page.Session, page.Turn, page.Home, h.model.view)
 	}
+}
 
-	h.keyed("esc")
-	h.deliver(h.run(stale)...)
-	if h.model.session != nil {
-		t.Error("the page closed, the read asked for before the last landed and opened it, want it dropped")
+// sessionClick is a click on the row of the session with the given id in
+// SESSIONS, failing the test where it gives none.
+func (h *harness) sessionClick(id string) tea.MouseClickMsg {
+	h.t.Helper()
+	i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == id })
+	if i < 0 {
+		h.t.Fatalf("SESSIONS gives %s no target among %+v", id, h.targets())
+	}
+	return tea.MouseClickMsg{X: h.targets()[i].X, Y: h.targets()[i].Y, Button: tea.MouseLeft}
+}
+
+// A page asked to open opens nothing once its read lands where the user has
+// left the tab it was asked over, or covered it with a card, before then: by
+// esc, tab or shift-tab, a click on a tab, the one shown among them, p or ?.
+func TestAPageAskedToOpenOpensNothingOnceLeftBeforeItsLinesAreRead(t *testing.T) {
+	press := func(key tea.KeyPressMsg) func(*harness) {
+		return func(h *harness) { h.deliver(h.update(key)...) }
+	}
+	click := func(tab dashboard.View) func(*harness) {
+		return func(h *harness) {
+			target := h.tabTarget(tab)
+			h.click(target.X, target.Y)
+		}
+	}
+	tests := []struct {
+		name  string
+		leave func(*harness)
+		open  opened
+	}{
+		{name: "esc", leave: press(escKey)},
+		{name: "tab", leave: press(tea.KeyPressMsg{Code: tea.KeyTab})},
+		{name: "shift-tab", leave: press(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})},
+		{name: "a click on Accounts' tab", leave: click(dashboard.Accounts)},
+		{name: "a click on the Overview's tab, shown", leave: click(dashboard.Overview)},
+		{name: "p", leave: press(tea.KeyPressMsg{Code: 'p', Text: "p"}), open: routingOpen},
+		{name: "?", leave: press(tea.KeyPressMsg{Code: '?', Text: "?"}), open: helpOpen},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+			h.keyed("s c l")
+			next, read := h.model.Update(h.sessionClick(idD28C))
+			h.model = next.(Model)
+			tt.leave(h)
+			view := h.model.view
+			h.deliver(h.run(read)...)
+			if h.model.session != nil || h.model.open != tt.open {
+				t.Errorf("left on %s, the read landed: a page open %v, card %d open; want no page, card %d as it was", view, h.model.session != nil, h.model.open, tt.open)
+			}
+		})
 	}
 }
 
@@ -248,7 +306,7 @@ func TestASessionsPageReadsTheStreamWhileTheRouterAnswers(t *testing.T) {
 func TestASessionsPageFollowsEachLookAndTickAndStaysOnceItEnds(t *testing.T) {
 	lines := promptedLines(3, start.Add(-30*time.Minute))
 	h, _ := pageHarness(t, lines)
-	h.openPage()
+	h.openPage(idD28C)
 
 	h.fire(h.lastTick())
 	if story := h.shownPage().Story; story.Ended || !story.End.Equal(h.clock.now) {
@@ -272,6 +330,55 @@ func TestASessionsPageFollowsEachLookAndTickAndStaysOnceItEnds(t *testing.T) {
 	h.fire(h.lastTick())
 	if end := h.shownPage().Story.End; !end.Equal(last) {
 		t.Errorf("ended, a tick on, the story ends at %s, want still at %s", end, last)
+	}
+}
+
+// While the router doesn't answer, a session's page keeps its own pin as
+// the router last listed it: its card, open, still picks it, naming no
+// account auto would choose, as the router can't say; and clearing it says
+// the router isn't answering, as new sessions' card does, sending nothing.
+func TestASessionsCardKeepsItsOwnPinWhileTheRouterDoesntAnswer(t *testing.T) {
+	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+	h.source.sessions[0].Pin = "side"
+	h.source.sessions[0].Assignments[0].Account, h.source.sessions[0].Assignments[0].Auto = "side", "work"
+	h.tickUntilAsked()
+	h.openPage(idD28C)
+	h.keyed("p")
+	if card := h.card(); !slices.Equal(card.Picked, []string{"side"}) || card.Session.Auto != "work" {
+		t.Fatalf("the card picks %q, auto naming %q; want side, its own pin, and work", card.Picked, card.Session.Auto)
+	}
+
+	h.stopRouter()
+	h.tickUntilAsked()
+	if card := h.card(); h.model.open != routingOpen || !slices.Equal(card.Picked, []string{"side"}) || card.Session.Auto != "" {
+		t.Fatalf("the router gone, the card is open %t, picking %q, auto naming %q; want it open, picking side, auto naming none",
+			h.model.open == routingOpen, card.Picked, card.Session.Auto)
+	}
+	h.keyed("0 enter")
+	if len(h.source.orders) > 0 || h.model.open != routingOpen || h.card().Refused != status.ErrNoRouter.Error() {
+		t.Errorf("0 enter sent %q, the card open %t, saying %q; want nothing sent, the card open, saying %q",
+			h.source.orders, h.model.open == routingOpen, h.card().Refused, status.ErrNoRouter)
+	}
+}
+
+// With one account, a session's page lists p while its own pin stands, as
+// the router last listed it: faint while the router doesn't answer.
+func TestASessionsPageListsPForItsOwnPinWhileTheRouterDoesntAnswer(t *testing.T) {
+	one := account("work", "Work", session(0.25, 3*time.Hour), week(0.5))
+	h := routedHarness(t, routerDocument(one))
+	h.source.doc = document(one)
+	pinned := sessionOn(idD28C, opus, "work", 10*time.Second)
+	pinned.Pin = "work"
+	h.source.sessions = []status.Session{pinned}
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	h.start()
+	h.withLines(promptedLines(2, start.Add(-30*time.Minute)))
+	h.openPage(idD28C)
+
+	h.stopRouter()
+	h.tickUntilAsked()
+	if pin, listed := h.model.pinKey(); !listed || !pin.Off {
+		t.Errorf("the router gone, p is listed %t, faint %t; want it listed, faint", listed, pin.Off)
 	}
 }
 
@@ -299,7 +406,7 @@ func TestASessionsPageFollowsItsNewestTurnTillAnotherIsChosen(t *testing.T) {
 // with the traffic.
 func TestOnASessionsPageALookBrightensItsWindowsAndTheStreamNothing(t *testing.T) {
 	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
-	h.openPage()
+	h.openPage(idD28C)
 	h.settle()
 
 	doc := four()

@@ -8,13 +8,16 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
+// askingSaid is a session asking, as its page says it: "↑ asking".
+var askingSaid = MarkAsking.String() + " " + status.Asking
+
 // Said says what it's doing at now, as a session's page says it on row 6,
 // and the Switchboard and sessions <id>'s text say it too: "↑ asking" while
 // it asks; "↓ answering" while its answer streams; else as State says it.
 func (a Activity) Said(now time.Time) string {
 	switch a.Doing {
 	case Asking:
-		return MarkAsking.String() + " " + status.Asking
+		return askingSaid
 	case Answering:
 		return MarkAnswering.String() + " " + status.Answering
 	}
@@ -45,6 +48,17 @@ func (a Activity) State(now time.Time) string {
 		return "idle"
 	}
 	return "idle " + prose.Span(now.Sub(a.Since))
+}
+
+// WaitingSaid says it waiting, as a session's page ends its newest turn's
+// row in it: "↑ asking" while a request of it waits for its answer, as
+// Waiting says, throttled or refused as well as asking; else "", the row
+// saying nothing of an answer streaming.
+func (a Activity) WaitingSaid() string {
+	if a.Waiting() {
+		return askingSaid
+	}
+	return ""
 }
 
 // Short says what it's doing as SESSIONS says it, in a row's few cells, the

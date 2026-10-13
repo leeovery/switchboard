@@ -1,9 +1,13 @@
 package watch
 
 import (
+	"encoding/json"
 	"errors"
 	"slices"
 	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -14,26 +18,27 @@ import (
 // pagedID is the session whose page the session's card tests show.
 const pagedID = "9c2e47b1-0d5a-4e83-b6f2-8a1c3e9d0f57"
 
-// sessionPaged is the router of three, started, showing pagedID's page as it
-// runs on personal, its own pin as given, the router listing it so and
-// naming side as where auto would send it; rebuilding its cache elsewhere
-// costs $1.56.
+// sessionPaged is the router of three, started, showing pagedID's page as
+// its lines and the router's listing build it: running on personal in
+// ~/Code/website, its own pin as given, the router naming side as where
+// auto would send it; its last request a minute ago wrote the cache for an
+// hour, so rebuilding it elsewhere costs $0.81.
 func sessionPaged(t *testing.T, pin string) *harness {
 	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions = []status.Session{{ID: pagedID, Pin: pin, Assignments: []status.Assignment{
-		{Model: "claude-opus-5-5", Account: "personal", Auto: "side", Pinned: pin == "personal", AssignedAt: start, LastSeen: start},
+		{Model: opus, Account: "personal", Auto: "side", Pinned: pin == "personal", Dir: "~/Code/website", AssignedAt: start, LastSeen: start},
 	}}}
 	h.start()
-	cost := ledger.Picodollars(156 * 10_000_000_000)
-	h.model.session = &sessionShown{shown: dashboard.SessionShown{Page: views.SessionPage{
-		Session: pagedID, Dir: "~/Code/website", Account: "personal", Model: "claude-opus-5-5", Pin: pin, Auto: "side", MoveCost: &cost,
-	}}}
+	h.withLines([]ledger.Line{{
+		At: start.Add(-time.Minute).UTC(), Kind: ledger.KindMessage, Session: pagedID, Model: opus, Account: "personal", Reason: "new",
+		Status: 200, Attempts: 1, Prompt: "prompt-1", Class: ledger.ClassMain, Answer: ledger.Answer{Stop: "end_turn"}, Usage: json.RawMessage(hourUsage),
+	}})
+	h.openPage(pagedID)
 	return h
 }
 
 func TestASessionsPageOpensItsCardPickingItsOwnPin(t *testing.T) {
-	cost := ledger.Picodollars(156 * 10_000_000_000)
 	for _, tt := range []struct {
 		pin    string
 		picked []string
@@ -44,14 +49,15 @@ func TestASessionsPageOpensItsCardPickingItsOwnPin(t *testing.T) {
 	} {
 		t.Run("its own pin "+tt.pin, func(t *testing.T) {
 			h := sessionPaged(t, tt.pin)
+			h.model.cfg.Home = "/home/dev"
 			h.keyed("p")
 			card := h.card()
-			want := dashboard.RoutingSession{ID: pagedID, Dir: "~/Code/website", On: "personal", Auto: "side"}
+			want := dashboard.RoutingSession{ID: pagedID, Dir: "~/Code/website", Home: "/home/dev", On: "personal", Auto: "side"}
 			if h.model.open != routingOpen || card.Mode != dashboard.ThisSession || card.Session != want {
 				t.Fatalf("after p, the card is open %v, routing %v %+v; want the session's card, routing %+v", h.model.open == routingOpen, card.Mode, card.Session, want)
 			}
-			if !slices.Equal(card.Picked, tt.picked) || card.Cursor != tt.cursor || card.Cost == nil || *card.Cost != cost {
-				t.Errorf("the card picks %q, its cursor on row %d, costing %v; want %q, on row %d, costing $1.56", card.Picked, card.Cursor, card.Cost, tt.picked, tt.cursor)
+			if !slices.Equal(card.Picked, tt.picked) || card.Cursor != tt.cursor || card.Cost == nil || card.Cost.Cents() != "$0.81" {
+				t.Errorf("the card picks %q, its cursor on row %d, costing %v; want %q, on row %d, costing $0.81", card.Picked, card.Cursor, card.Cost, tt.picked, tt.cursor)
 			}
 			if h.keyed("m"); h.card().Move {
 				t.Error("m ticked moving the sessions running, want it doing nothing on a session's card")
@@ -112,6 +118,9 @@ func TestARefusedSessionOrderKeepsItsCardOpenSayingWhy(t *testing.T) {
 	}
 }
 
+// A session's card closes once its session ends, as the router lists it no
+// more: in the Update that takes in the listing without it, as its page is
+// built afresh of it, sending nothing.
 func TestASessionsCardClosesOnceItsSessionEnds(t *testing.T) {
 	h := sessionPaged(t, "side")
 	h.keyed("p 0")
@@ -120,10 +129,19 @@ func TestASessionsCardClosesOnceItsSessionEnds(t *testing.T) {
 		t.Fatal("while the session runs, a tick closed its card, want it open")
 	}
 
-	h.model.session.shown.Page.Activity.Doing = views.Ended
-	h.fire(h.lastTick())
-	if h.model.open != nothingOpen || len(h.source.orders) > 0 {
-		t.Errorf("once its session ended, the card is open %v, orders %q; want it closed, sending nothing", h.model.open == routingOpen, h.source.orders)
+	h.source.sessions = nil
+	for asked := len(h.source.asked); len(h.source.asked) == asked; {
+		tick := h.lastTick()
+		h.clock.now, tick.fired = tick.due, true
+		for msgs := []tea.Msg{tick.msg}; len(msgs) > 0; {
+			msgs = append(msgs[1:], h.update(msgs[0])...)
+			if views.Routed(h.model.sessions, pagedID) == nil && h.model.open != nothingOpen {
+				t.Fatalf("the router listing it no more, the Update taking that in left its card open, want it closed")
+			}
+		}
+	}
+	if page := h.shownPage().Page; page.Runs() || len(h.source.orders) > 0 {
+		t.Errorf("listed no more, the page runs %t, orders %q; want it ended, sending nothing", page.Runs(), h.source.orders)
 	}
 }
 

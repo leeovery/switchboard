@@ -269,8 +269,8 @@ func alters(picked, named, sent []string, move bool) bool {
 // from the document on screen at now, with the sessions listed, as the
 // request stream has moved and seen them since: those picked, those of them
 // enter leaves out of the order, as sendable says, and what the order moves;
-// on a session's card, the session, as its page has it, and what moving it
-// costs.
+// on a session's card, the session, as its page has it, its directory shown
+// under the home the watch is given, and what moving it costs.
 func (m Model) routingCard(now time.Time) dashboard.RoutingCard {
 	r, mo := m.routing, m.moment(now)
 	rows := dashboard.RoutingRows(mo, m.sessions, m.traffic.stream(now))
@@ -283,7 +283,7 @@ func (m Model) routingCard(now time.Time) dashboard.RoutingCard {
 	}
 	if page, ok := m.routedPage(); ok {
 		card.Mode, card.Cost = dashboard.ThisSession, page.MoveCost
-		card.Session = dashboard.RoutingSession{ID: page.Session, Dir: page.Dir, On: page.Account, Auto: page.Auto}
+		card.Session = dashboard.RoutingSession{ID: page.Session, Dir: page.Dir, Home: m.cfg.Home, On: page.Account, Auto: page.Auto}
 	}
 	if r.refused != nil {
 		card.Refused = r.refused.Error()
