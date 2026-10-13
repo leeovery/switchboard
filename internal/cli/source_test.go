@@ -420,6 +420,50 @@ func TestTheRoutingCardsOrdersReachTheRouter(t *testing.T) {
 	}
 }
 
+// A session's page, opened by a click on its row in the Overview's SESSIONS,
+// pins the session alone through its card, as p, its account's number and
+// enter pick it, the router's pin for new sessions untouched.
+func TestASessionsPageOpenedByAClickPinsItAlone(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"NO_COLOR": "1"})
+	srv.start(t)
+	srv.waitForProbes(t)
+	srv.route(t, sessionOne, "claude-haiku-4-5-20251001")
+	cfg := recordWatch(t, &srv.deps)
+	run(t, srv.deps, "dashboard")
+	m := delivered(watching(t, *cfg), tea.WindowSizeMsg{Width: 160, Height: 50})
+
+	// SESSIONS shown, COMING UP and LATELY hidden, so it has room.
+	m = pressed(m, "s", "c", "l")
+	x, y, ok := drawnAt(m, sessionOne[:4])
+	if !ok {
+		t.Fatalf("the screen is\n%s\nwant SESSIONS showing %s", ansi.Strip(m.View().Content), sessionOne[:4])
+	}
+	m = delivered(m, tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+	// Personal, the second, has no token, so side is the third.
+	pressed(m, "p", "3", "enter")
+
+	if got := srv.session(t, sessionOne).Pin; got != "side" {
+		t.Errorf("once p 3 enter were pressed on its page, the session's own pin = %q, want side", got)
+	}
+	if e := srv.told(t); e.Kind != status.EventPin || e.Session != sessionOne || e.By != "dashboard" {
+		t.Errorf("once pinned, the router told of %+v, want the session's pin by the dashboard", e)
+	}
+	if got := srv.status(t).Pin; !got.IsZero() {
+		t.Errorf("the router's pin = %+v, want none: a session's pin is its own", got)
+	}
+}
+
+// drawnAt is where the screen m shows has the text given first: its column
+// and row, reporting false where it has none.
+func drawnAt(m watch.Model, text string) (x, y int, ok bool) {
+	for y, row := range strings.Split(ansi.Strip(m.View().Content), "\n") {
+		if before, _, found := strings.Cut(row, text); found {
+			return ansi.StringWidth(before), y, true
+		}
+	}
+	return 0, 0, false
+}
+
 // watching is the watch dashboard runs, as Watch was given cfg, started and
 // its first read taken: its timers, and its waits on the request stream,
 // held, so nothing it does waits.
