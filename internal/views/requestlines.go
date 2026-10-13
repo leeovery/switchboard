@@ -10,8 +10,8 @@ import (
 // RequestLine is a request's row as requests prints it, a line of the
 // ledger each: its row, the Log's, as its line alone tells it, its session's
 // story untold, so whether it's its session's first, and what a move it made
-// cost, aren't known; and the tokens it took in. Its Worth is left zero, as
-// requests prints none, and prices nothing.
+// cost, aren't known; and the tokens it took in. Its Worth is never priced,
+// and left zero, as requests prints none.
 type RequestLine struct {
 	RequestRow
 	// In counts the tokens it took in, as its answer's usage counts them:
@@ -20,14 +20,13 @@ type RequestLine struct {
 	In int
 }
 
-// RequestLines are the rows of the requests lines hold, in their order, at
-// now.
-func RequestLines(lines iter.Seq[ledger.Held], now time.Time) iter.Seq[RequestLine] {
-	today := Today(now)
+// RequestLines are the rows of the requests lines hold, in their order. A
+// line's row is the same whenever it's read, so the time it's given goes
+// unread.
+func RequestLines(lines iter.Seq[ledger.Held], _ time.Time) iter.Seq[RequestLine] {
 	return func(yield func(RequestLine) bool) {
 		for h := range lines {
-			r := RequestLine{RequestRow: lineRow(&h.Line, nil, ledger.Table{}, today)}
-			r.Worth = Worth{}
+			r := RequestLine{RequestRow: lineRow(&h.Line, nil)}
 			if tokens, ok := h.Tokens(); ok {
 				r.In = tokens.Input + tokens.CacheRead + tokens.CacheWrite
 			}

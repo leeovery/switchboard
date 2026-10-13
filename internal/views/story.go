@@ -205,22 +205,25 @@ func (s *story) rewrites(l *ledger.Line) {
 // holds where it's the same request, as sameRequest has it, so a line read
 // apart from the story's own tells alike.
 func (s *story) toldOf(l *ledger.Line) (first bool, made *move, rewrote bool) {
-	first = s.first != nil && sameRequest(s.first, l)
+	first = s.first != nil && sameRequest(s.first, l.Request, l.At)
 	for i := range s.moves {
 		m := &s.moves[i]
-		if sameRequest(m.by, l) {
+		if sameRequest(m.by, l.Request, l.At) {
 			made = m
 		}
-		rewrote = rewrote || m.rewrote != nil && sameRequest(m.rewrote, l)
+		rewrote = rewrote || m.rewrote != nil && sameRequest(m.rewrote, l.Request, l.At)
 	}
 	return first, made, rewrote
 }
 
-// sameRequest reports whether two lines are of the same request: the same
-// id, and arriving at the same time, as an id is unique only while the
-// router that gave it runs.
-func sameRequest(a, b *ledger.Line) bool {
-	return a.Request == b.Request && a.At.Equal(b.At)
+// sameRequest reports whether the line l is of the request with the given
+// id that arrived, or went upstream, at at, as its line or the request
+// stream tells it: the same id, and at while l was in flight, from its
+// arrival to its end, as an id is unique only while the router that gave it
+// runs. TotalMS is cut to the millisecond, so l may have ended up to a
+// millisecond after it says.
+func sameRequest(l *ledger.Line, id string, at time.Time) bool {
+	return l.Request == id && !at.Before(l.At) && at.Before(ended(l).Add(time.Millisecond))
 }
 
 // moveOnto returns the move of the model with the given id that brought

@@ -17,7 +17,7 @@ import (
 // from, times in now's time zone; or says there were none since from.
 func writeWindows(out io.Writer, windows views.Windows, from, now time.Time) error {
 	if len(windows.Windows) == 0 {
-		_, err := fmt.Fprintf(out, "no readings since %s\n", dayIn(now, from))
+		_, err := fmt.Fprintf(out, "no readings since %s\n", prose.DayInYear(from))
 		return err
 	}
 	for i, w := range windows.Windows {

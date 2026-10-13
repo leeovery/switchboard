@@ -90,19 +90,17 @@ type sent struct {
 // sentOf returns the requests of a session as its turns take them in, oldest
 // first: its requests, oldest first, by their lines; and of told, the
 // requests the stream told of, the first sent first, those whose lines
-// haven't come, by their ids, each from when it was sent, a line first where
-// one came as another was sent.
+// haven't come, as filedAs has it, each from when it was sent, a line first
+// where one came as another was sent.
 func sentOf(requests []request, told []Told) []sent {
-	filed := make(map[string]bool, len(requests))
+	filed := make(map[string][]*ledger.Line, len(requests))
 	for _, r := range requests {
-		if r.Request != "" {
-			filed[r.Request] = true
-		}
+		filed[r.Request] = append(filed[r.Request], r.Line)
 	}
 	all := make([]sent, 0, len(requests)+len(told))
 	next := 0
 	for _, t := range told {
-		if filed[t.Request] {
+		if slices.ContainsFunc(filed[t.Request], t.filedAs) {
 			continue
 		}
 		for ; next < len(requests) && !requests[next].At.After(t.Sent); next++ {

@@ -1,6 +1,10 @@
 package views
 
-import "time"
+import (
+	"time"
+
+	"github.com/leeovery/switchboard/internal/ledger"
+)
 
 // CharsPerToken is how many of the characters the request stream counts of
 // an answer make a token, as its tokens are estimated while it streams. The
@@ -101,4 +105,10 @@ func (t Told) InFlight() bool {
 // quota check nor a count of tokens.
 func (t Told) Spends() bool {
 	return !t.Check && !t.Count
+}
+
+// filedAs reports whether l is the request's line: the same request, as
+// sameRequest has it, by when it first went upstream.
+func (t Told) filedAs(l *ledger.Line) bool {
+	return sameRequest(l, t.Request, t.Sent)
 }

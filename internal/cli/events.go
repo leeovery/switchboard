@@ -7,6 +7,7 @@ import (
 	"iter"
 	"os"
 	"os/signal"
+	"slices"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -138,24 +139,25 @@ type eventsText struct {
 	now     func() time.Time
 	telling *views.Telling
 	// day is the day of the last heading printed: zero before one is. widths
-	// are the columns' as the last rows printed were aligned, which a line
-	// followed is aligned to, at the least.
+	// are the columns every row printed is aligned to: its time's as wide as
+	// prose.DatedWidth, and each as wide as the widest cell of the rows listed
+	// and followed since.
 	day    time.Time
 	widths []int
 }
 
 func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error {
-	rows := func(yield func(views.EventRow) bool) {
-		for h := range held {
-			if !yield(p.telling.Row(h, now)) {
-				return
-			}
-		}
+	var rows []views.EventRow
+	p.widths = []int{len(indent) + prose.DatedWidth()}
+	for h := range held {
+		r := p.telling.Row(h, now)
+		rows = append(rows, r)
+		p.widths = widths(p.widths, indented(eventRow(r, now)))
 	}
 	at := func(r views.EventRow) time.Time { return r.At }
 	row := func(r views.EventRow) []string { return eventRow(r, now) }
-	table, err := writeDays(p.out, rows, at, row, "events", from, now)
-	p.day, p.widths = table.day, widths(nil, table.indented()...)
+	table, err := writeDays(p.out, slices.Values(rows), at, row, "events", from, now, p.widths)
+	p.day = table.day
 	return err
 }
 
@@ -167,8 +169,8 @@ func (p *eventsText) follow(h events.Held) error {
 	told := p.telling.Row(h, now)
 	row := indented(eventRow(told, now))
 	if p.day.IsZero() || !prose.SameDay(now, p.day, told.At) {
-		p.day = told.At
-		if err := (dayTable{day: told.At}).writeHeading(p.out, now, false); err != nil {
+		p.day = dayOf(now, told.At)
+		if err := (dayTable{day: p.day}).writeHeading(p.out, now, false); err != nil {
 			return err
 		}
 	}

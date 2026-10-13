@@ -267,13 +267,21 @@ func (l *ListedSession) cameBy(m *move) {
 	}
 }
 
+// pricedRow is the row of the request l, as lineRow has it, its worth at the
+// prices on the local day today.
+func pricedRow(l *ledger.Line, s *story, prices ledger.Table, today LedgerDay) RequestRow {
+	r := lineRow(l, s)
+	r.Worth = summed(prices, l, today.Date)
+	return r
+}
+
 // lineRow is the row of the request l, a line of the session s tells, nil
-// for one of no session, its worth at the prices on the local day today.
-func lineRow(l *ledger.Line, s *story, prices ledger.Table, today LedgerDay) RequestRow {
+// for one of no session, its worth unpriced and left zero, as pricedRow
+// prices it.
+func lineRow(l *ledger.Line, s *story) RequestRow {
 	r := RequestRow{
 		Request: l.Request, At: l.At, Kind: kindOf(l), Session: l.Session, Dir: l.Dir, Model: l.Model, Account: l.Account,
-		Status: l.Status, Canceled: l.Canceled, CutOff: l.CutOff, Failed: l.Failed(), Took: millis(l.TotalMS),
-		Worth: summed(prices, l, today.Date), Stop: l.Answer.Stop,
+		Status: l.Status, Canceled: l.Canceled, CutOff: l.CutOff, Failed: l.Failed(), Took: millis(l.TotalMS), Stop: l.Answer.Stop,
 	}
 	if l.FirstMS != nil {
 		r.First = millis(*l.FirstMS)

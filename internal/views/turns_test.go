@@ -101,6 +101,18 @@ func TestARequestCountsInItsTurnAsItsSent(t *testing.T) {
 			want:  []turnSaid{{1, local(10, 0, 0), local(10, 1, 0), 1, sideOnly}},
 		},
 		{
+			name:  "one in flight under the id of an earlier run's line, a request of its own",
+			lines: []ledger.Line{first},
+			told:  []views.Told{toldOf("r1", p2, ledger.ClassMain, opus, "work", local(10, 5, 0))},
+			want:  []turnSaid{{2, local(10, 5, 0), time.Time{}, 1, workOnly}, {1, local(10, 0, 0), local(10, 1, 0), 1, sideOnly}},
+		},
+		{
+			name:  "lost under the id of a later run's line, a request of its own",
+			lines: []ledger.Line{first, filedAs("r2", mainOn(p2, local(10, 5, 0), "end_turn"))},
+			told:  []views.Told{lostAt(local(10, 2, 20), toldOf("r2", p1, ledger.ClassMain, opus, "work", local(10, 2, 0)))},
+			want:  []turnSaid{{2, local(10, 5, 0), local(10, 6, 0), 1, sideOnly}, {1, local(10, 0, 0), local(10, 2, 20), 2, []string{"side", "work"}}},
+		},
+		{
 			name:  "ended, its line yet to come, going till it does, its session ended or not",
 			lines: []ledger.Line{calling},
 			told:  []views.Told{endedAt(local(10, 2, 30), toldOf("r2", p1, ledger.ClassMain, opus, "side", local(10, 2, 0)))},
