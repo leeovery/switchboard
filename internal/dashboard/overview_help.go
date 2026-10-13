@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -128,14 +129,17 @@ func stateGlyph(kind status.RoutingKind, means string) glyph {
 }
 
 // latelyGlyphs are LATELY's marks, each kind's as eventKinds has it, in its
-// order, and what it means: a mark once, as the kinds sharing it share its
-// meaning.
+// order, and what it means: a mark once, meaning what each kind drawing it
+// is, joined, as "an account at its limit, or an account's token refused".
 func latelyGlyphs() []glyph {
 	var glyphs []glyph
 	for _, k := range eventKinds {
-		if k.means != "" {
+		i := slices.IndexFunc(glyphs, func(g glyph) bool { return g.drawn[0] == k.mark })
+		if i < 0 {
 			glyphs = append(glyphs, glyph{drawn: line{k.mark}, means: k.means})
+			continue
 		}
+		glyphs[i].means += ", or " + k.means
 	}
 	return glyphs
 }

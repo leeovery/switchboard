@@ -93,9 +93,13 @@ func (f Frame) drawRunning(c *canvas, m status.Moment, running []views.Running, 
 		form.draw(c, m, r, column, y)
 	}
 	if more := len(running) - shown; more > 0 {
-		c.line(column, body.y+shown*form.rows, line{{"+" + strconv.Itoa(more) + " more", dimInk}})
+		c.line(column, body.y+shown*form.rows, outOfView(0, more, body.x+body.width-column, runningOut))
 	}
 }
+
+// runningOut is the form of the line saying how many more sessions are
+// running than SESSIONS shows, ending it, as in "+2 more".
+var runningOut = outForm{lead: "+", inks: subtleOut}
 
 // wideRunning draws the session running r on row y, of the moment m, from
 // routingRows columns: from the name column, its id, its family, when it was

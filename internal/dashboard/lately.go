@@ -12,15 +12,13 @@ import (
 
 // eventKind is a kind of the router's event as the dashboard draws it: the
 // kind, as an event's Kind gives it; its mark, a glyph in the colour of what
-// it tells of, as LATELY and the Log's Events share them; and what it means,
-// as help says it, a line a mark. Its word, as the Log's event column and
-// its panel name it, is views.KindWord's, as events prints it too.
+// it tells of, as LATELY and the Log's Events share them; and what it is, as
+// the Log's panel words it, and help after its mark. Its word, as the Log's
+// event column and its panel name it, is views.KindWord's, as events prints
+// it too.
 type eventKind struct {
-	kind string
-	mark span
-	// means is what the kind means, as help says it: none of a kind that
-	// shares an earlier kind's mark, as a refusal shares a limit's ■, whose
-	// meaning says it of both.
+	kind  string
+	mark  span
 	means string
 }
 
@@ -28,18 +26,18 @@ type eventKind struct {
 // help and the Log's panel list them: a mark a kind, but for ■, which a limit
 // and a refusal share, their words telling them apart.
 var eventKinds = []eventKind{
-	{kind: status.EventStarted, mark: span{"▲", accentInk}, means: "a session started"},
-	{kind: status.EventMoved, mark: span{"▸", keyMarkInk}, means: "a session moved"},
-	{kind: status.EventPressure, mark: span{"◔", warningInk}, means: "an account came under pressure"},
-	{kind: status.EventCap, mark: span{"╎", warningInk}, means: "an account reached its cap"},
-	{kind: status.EventLimit, mark: span{"■", errorInk}, means: "an account reached a limit, or was refused"},
-	{kind: status.EventRefused, mark: span{"■", errorInk}},
-	{kind: status.EventPrimed, mark: span{"◇", dimInk}, means: "an account primed, its 5-hour window started"},
+	{kind: status.EventStarted, mark: span{"▲", accentInk}, means: "a session first seen"},
+	{kind: status.EventMoved, mark: span{"▸", keyMarkInk}, means: "a session moved to another account"},
+	{kind: status.EventPressure, mark: span{"◔", warningInk}, means: "an account under pressure"},
+	{kind: status.EventCap, mark: span{"╎", warningInk}, means: "an account at its cap"},
+	{kind: status.EventLimit, mark: span{"■", errorInk}, means: "an account at its limit"},
+	{kind: status.EventRefused, mark: span{"■", errorInk}, means: "an account's token refused"},
+	{kind: status.EventPrimed, mark: span{"◇", dimInk}, means: "a window started early"},
 	{kind: status.EventRoom, mark: span{"✓", positiveInk}, means: "an account with room again"},
-	{kind: status.EventPin, mark: span{"●", keyMarkInk}, means: "routing pinned by hand"},
-	{kind: status.EventAuto, mark: span{"↩", keyMarkInk}, means: "new sessions back to auto"},
-	{kind: status.EventRestart, mark: span{"!", warningInk}, means: "a restart due"},
-	{kind: status.EventHealth, mark: span{"⊕", errorInk}, means: "the router's health turned, in green once it's well again"},
+	{kind: status.EventPin, mark: span{"●", keyMarkInk}, means: "routing set by hand"},
+	{kind: status.EventAuto, mark: span{"↩", keyMarkInk}, means: "routing given back to the router"},
+	{kind: status.EventRestart, mark: span{"!", warningInk}, means: "a restart of the router falling due"},
+	{kind: status.EventHealth, mark: span{"⊕", errorInk}, means: "the router unhealthy, or well again"},
 }
 
 // keyMarkInk draws a mark in accent.key, as a move's, a pin's and auto's are.
