@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -327,5 +328,87 @@ func TestTheVerdictSaysEachForm(t *testing.T) {
 	}
 	if got, want := short(unjudged(framedWork).row()), []line{notEnough}; !slices.EqualFunc(got, want, slices.Equal) {
 		t.Errorf("an account's short verdict with no week judged is %+v, want %+v", got, want)
+	}
+}
+
+// extraOf is an account with extra usage given as the status given: off,
+// rejected; on, any other; and not read, none given.
+func extraOf(id string, given quota.Status) status.AccountNow {
+	return status.AccountNow{ID: id, Extra: quota.ExtraUsage{Status: given}}
+}
+
+// Extra usage is its frames', cell for cell: each account's off in Compare's
+// VALUE, and every account's, bold, off on all, its column running to the
+// frame's edge; and in Detail's THIS WEEK and a phone's Detail, of the
+// account chosen or every account, off.
+func TestExtraUsageIsItsFramesCells(t *testing.T) {
+	off := quota.StatusRejected
+	three := []status.AccountNow{extraOf("work", off), extraOf("personal", off), extraOf("side", off)}
+	ten := slices.Repeat(three[:1], 10)
+	compared := func(accounts []status.AccountNow, shown, colw int) []figureAt {
+		var figures []figureAt
+		for i, a := range accounts[:shown] {
+			figures = append(figures, figureAt{26 + colw*i, 31, colw, extraParts(a, secondaryInk)})
+		}
+		x := 26 + colw*shown
+		return append(figures, figureAt{x, 31, 160 - x, extraOfAll(accounts, strongInk)})
+	}
+	thisWeek := func(x int, accounts ...status.AccountNow) []figureAt {
+		return []figureAt{{x, 13, 160 - x, extraShort(accounts)}}
+	}
+	tests := []struct {
+		stem          string
+		width, height int
+		figures       []figureAt
+	}{
+		{stem: "accounts-compare-160", width: 160, height: 37, figures: compared(three, 3, 33)},
+		{stem: "accounts-compare-ten-160", width: 160, height: 37, figures: compared(ten, 6, 19)},
+		{stem: "accounts-detail-all-160", width: 160, height: 37, figures: thisWeek(118, three...)},
+		{stem: "accounts-detail-work-160", width: 160, height: 37, figures: thisWeek(118, three[0])},
+		{stem: "accounts-detail-one-160", width: 160, height: 37, figures: thisWeek(110, three[0])},
+		{stem: "accounts-phone-detail-52", width: 52, height: 41, figures: []figureAt{{36, 20, 16, extraShort(three[:1])}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.stem, func(t *testing.T) {
+			heldToFigures(t, tt.stem, tt.width, tt.height, tt.figures)
+		})
+	}
+}
+
+// Extra usage says each form as the design does: an account's on in
+// accent.attention, billed past its limit, read so where only its use is
+// given; every account's on on all, or on for how many of them, those not
+// read counted among them; off where none read is on; and a dash where none
+// is read. Detail's short forms say on and off alone.
+func TestExtraUsageSaysEachForm(t *testing.T) {
+	on, off, unread := quota.StatusAllowed, quota.StatusRejected, quota.Status("")
+	used := status.AccountNow{ID: "side", Extra: quota.ExtraUsage{Utilization: new(0.2)}}
+	mixed := []status.AccountNow{extraOf("work", on), extraOf("personal", off), extraOf("side", unread)}
+	boldMuted, boldWarning, faintBold := mutedInk, warningInk, faintInk
+	boldMuted.bold, boldWarning.bold, faintBold.bold = true, true, true
+	tests := []struct {
+		name  string
+		parts []part
+		want  line
+	}{
+		{name: "an account's off", parts: extraParts(extraOf("work", off), secondaryInk), want: line{{"off", mutedInk}}},
+		{name: "an account's on", parts: extraParts(extraOf("work", on), secondaryInk), want: line{{"on · billed past its limit", warningInk}}},
+		{name: "an account's on, its use alone given", parts: extraParts(used, secondaryInk), want: line{{"on · billed past its limit", warningInk}}},
+		{name: "an account's not read", parts: extraParts(extraOf("work", unread), secondaryInk), want: line{{"—", faintInk}}},
+		{name: "every account on", parts: extraOfAll([]status.AccountNow{extraOf("work", on), used}, strongInk), want: line{{"on on all", boldWarning}}},
+		{name: "every account, one of three on", parts: extraOfAll(mixed, strongInk), want: line{{"on for 1 of 3", boldWarning}}},
+		{name: "every account read off, one not read", parts: extraOfAll(mixed[1:], strongInk), want: line{{"off on all", boldMuted}}},
+		{name: "every account not read", parts: extraOfAll(mixed[2:], strongInk), want: line{{"—", faintBold}}},
+		{name: "short, an account on", parts: extraShort(mixed[:1]), want: line{{"on", warningInk}}},
+		{name: "short, every account, one of three on", parts: extraShort(mixed), want: line{{"on for 1 of 3", warningInk}}},
+		{name: "short, every account read off", parts: extraShort(mixed[1:]), want: line{{"off", mutedInk}}},
+		{name: "short, none read", parts: extraShort(mixed[2:]), want: line{{"—", faintInk}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := fitParts(200, tt.parts...).inked(); !slices.Equal(got, tt.want) {
+				t.Errorf("said %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }

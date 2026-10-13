@@ -23,9 +23,13 @@ const accountsApart = " · "
 // noneOf is a figure Accounts has none of, as the word given says it, "—"
 // or "none", in text.faint, bold where k is.
 func noneOf(word string, k ink) []part {
-	faint := faintInk
-	faint.bold = k.bold
-	return []part{figureIn(word, faint)}
+	return []part{figureIn(word, boldAs(faintInk, k))}
+}
+
+// boldAs is the ink given, bold where k is.
+func boldAs(given, k ink) ink {
+	given.bold = k.bold
+	return given
 }
 
 // movedParts say the sessions moved onto an account and off it over the
@@ -166,6 +170,46 @@ func planPriced(row views.AccountsRow, k ink) []part {
 		return noneOf(noFigure.text, k)
 	}
 	return []part{figureIn(monthly, k)}
+}
+
+// extraParts say an account's extra usage as Compare's VALUE does, as
+// ExtraSaid has it: "off", in text.muted; "on · billed past its limit", in
+// accent.attention; a dash before it's read. Each is bold where k is.
+func extraParts(a status.AccountNow, k ink) []part {
+	return extraSaid(status.ExtraOfAll([]status.AccountNow{a}), " · billed past its limit", "off", k)
+}
+
+// extraOfAll say every account's extra usage as Compare's VALUE does, as
+// ExtraOfAll has it: "off on all"; "on on all" where each is on, else how
+// many are, "on for 1 of 3"; a dash where none is read.
+func extraOfAll(accounts []status.AccountNow, k ink) []part {
+	return extraSaid(status.ExtraOfAll(accounts), " on all", "off on all", k)
+}
+
+// extraShort says extra usage as Detail's THIS WEEK and a phone's Detail do,
+// in text.secondary's place: of the accounts shown, an account alone or
+// every account, taken together as ExtraOfAll has it, "off"; "on" where each
+// is on, else how many are, "on for 1 of 3"; a dash where none is read.
+func extraShort(accounts []status.AccountNow) []part {
+	return extraSaid(status.ExtraOfAll(accounts), "", "off", secondaryInk)
+}
+
+// extraSaid says extra usage as all has it: off as the words given say it,
+// in text.muted; on where each account is, the words given after it, else
+// how many are, in accent.attention; a dash where none is read; each bold
+// where k is.
+func extraSaid(all status.AllExtra, every, off string, k ink) []part {
+	switch all.State {
+	case status.ExtraNotRead:
+		return noneOf(noFigure.text, k)
+	case status.ExtraOff:
+		return []part{wordsIn(off, boldAs(mutedInk, k))}
+	}
+	on := boldAs(warningInk, k)
+	if all.On == all.Of {
+		return []part{wordsIn("on"+every, on)}
+	}
+	return []part{wordsIn("on for ", on), figureIn(prose.Grouped(all.On), on), wordsIn(" of ", on), figureIn(prose.Grouped(all.Of), on)}
 }
 
 // worthParts say what an account's requests over the period were worth, as

@@ -66,11 +66,17 @@ func (p HistoryPage) Kept() theme.HistoryPrefs {
 // historyNames are the names the preferences keep History's sub-tabs by, in
 // the heading row's order: year, weeks, days and tokens.
 func historyNames() []string {
-	names := make([]string, len(historyViews))
-	for i, name := range historyViews {
-		names[i] = strings.ToLower(name)
+	return lowerNames(historyViews)
+}
+
+// lowerNames are a tab's sub-tabs' names as the preferences keep them, in
+// the heading row's order: lowercase, as "compare".
+func lowerNames(names []string) []string {
+	lowered := make([]string, len(names))
+	for i, name := range names {
+		lowered[i] = strings.ToLower(name)
 	}
-	return names
+	return lowered
 }
 
 // placeAmong is the place of name among names: the first's, 0, where it's

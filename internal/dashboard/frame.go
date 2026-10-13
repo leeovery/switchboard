@@ -105,6 +105,9 @@ type Frame struct {
 	// as "5-hour" or "Fable week": nil names it by its label in the
 	// document, as status.NameOfWindow has it.
 	WindowName func(key string) string
+	// Accounts is Accounts' sub-tab shown, its period, what's chosen in it,
+	// and its page.
+	Accounts AccountsShown
 	// History is History's sub-tab shown, what each of its views shows, and
 	// their pages.
 	History HistoryPage
@@ -207,8 +210,8 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 
 // view draws the tab shown of doc at now from row top, where the page has
 // room for it, as cramped says: a session's page, where one is open, in its
-// place; the Overview, History, Sessions and Runway; and nothing of a tab
-// not built yet.
+// place; the Overview, Accounts, History, Sessions and Runway; and nothing
+// of a tab not built yet.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
@@ -219,6 +222,8 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 		f.sessionPage(c, doc, now)
 	case f.View == Overview:
 		f.overview(c, doc, now, top)
+	case f.View == Accounts:
+		f.accounts(c, doc, now, top)
 	case f.View == History:
 		f.history(c, top)
 	case f.View == Sessions:
@@ -305,8 +310,9 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 // scrolls is what of the view of doc at now scrolls, from column x along row
 // y, width cells wide and rows tall: on a session's page, where one is open,
 // its turns' rows, across the frame; on the Overview, USAGE's body, as
-// overviewScrolls has it; on History, what of its sub-tab shown does, as
-// historyScrolls has it, across the frame; elsewhere, the view's rows.
+// overviewScrolls has it; on Accounts, as accountsScrolls has it; on
+// History, what of its sub-tab shown does, as historyScrolls has it, across
+// the frame; elsewhere, the view's rows.
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
 	if f.Session != nil {
 		l := f.sessionLayout(len(f.Session.Page.Accounts))
@@ -315,6 +321,8 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 	switch f.View {
 	case Overview:
 		return f.overviewScrolls(doc, now)
+	case Accounts:
+		return f.accountsScrolls(doc, now)
 	case History:
 		y, rows = f.historyScrolls()
 		return 0, y, f.Width, rows

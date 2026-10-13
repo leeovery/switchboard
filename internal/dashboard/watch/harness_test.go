@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -77,11 +78,13 @@ func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
 }
 
 // config is the watch's config the harness's models are made of, drawing
-// at size till the terminal gives its own, reading an empty ledger.
+// at size till the terminal gives its own, reading an empty ledger, and a
+// model's family as Claude's are read.
 func (h *harness) config(size Size) Config {
 	return Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Await: h.await,
 		Interval: interval, Policy: policy, Size: size, Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
+		Family: claude.Provider{}.Family,
 	}
 }
 
