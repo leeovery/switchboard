@@ -50,9 +50,10 @@ func (d Document) CapHolds(a Account, now time.Time, policy score.Policy) bool {
 	return d.capHolds(a, now, policy)
 }
 
-// Pressed is pressureLine.
+// Pressed is pressureLine's words.
 func (d Document) Pressed(a Account, now time.Time) string {
-	return d.pressureLine(a, now)
+	pressed, _ := d.pressureLine(a, now)
+	return pressed
 }
 
 // NotStarted is notStartedNote.

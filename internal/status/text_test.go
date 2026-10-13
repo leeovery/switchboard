@@ -513,6 +513,12 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 			notes:    "  under pressure: at its reserve ~15:12 at Session's rate over the last 30 min, before its reset at 17:10\n",
 		},
 		{
+			name:     "under pressure as the router says, its window not running out before it resets at the rate it goes by: nothing of why",
+			pressure: status.Pressure{Window: "5h", Rate: 0.05, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
+			heading:  "on pace for 75% at its rate over the last 30 min",
+			notes:    "  under pressure\n",
+		},
+		{
 			name:     "not under pressure",
 			pressure: status.Pressure{Window: "5h", Rate: 0.1, Recent: true, RunsOut: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)},
 			heading:  "on pace for 90% at its rate over the last 30 min",
