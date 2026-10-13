@@ -45,7 +45,7 @@ type running struct {
 	seen                     time.Duration
 	why                      string
 	models                   []string
-	inFlight                 string
+	doing                    views.Doing
 }
 
 // rowsOf are RunningOf's rows, as running has them.
@@ -53,8 +53,8 @@ func rowsOf(rows []views.Running) []running {
 	got := make([]running, len(rows))
 	for i, r := range rows {
 		got[i] = running{
-			account: r.Account, session: r.Session, family: r.Family, seen: now.Sub(r.LastSeen),
-			why: r.Why.String(), models: r.Models, inFlight: r.InFlight,
+			account: r.Account, session: r.Session, family: r.Family, seen: now.Sub(r.Activity.LastSeen),
+			why: r.Why.String(), models: r.Models, doing: r.Activity.Doing,
 		}
 	}
 	return got
@@ -72,11 +72,11 @@ func TestTheSessionsRunningAreGroupedByAccountInTheConfigsOrderTheOneSeenLastFir
 	}
 	want := []running{
 		{account: "work", session: asking, family: "haiku", seen: 40 * time.Minute, why: "started here 12:22", models: []string{"claude-haiku-4-5"}},
-		{account: "personal", session: answering, family: "sonnet", why: "started here 11:12", models: []string{"claude-sonnet-5-5"}, inFlight: status.Answering},
+		{account: "personal", session: answering, family: "sonnet", why: "started here 11:12", models: []string{"claude-sonnet-5-5"}, doing: views.Answering},
 		{account: "personal", session: idler, family: "opus", seen: 9 * time.Minute, why: "started here 10:12", models: []string{"claude-opus-5-5"}},
-		{account: "side", session: asking, family: "opus", seen: time.Second, why: "moved from work 13:01: work reached its cap", models: []string{"claude-opus-5-5"}, inFlight: status.Asking},
+		{account: "side", session: asking, family: "opus", seen: time.Second, why: "moved from work 13:01: work reached its cap", models: []string{"claude-opus-5-5"}, doing: views.Asking},
 	}
-	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions)); !reflect.DeepEqual(got, want) {
+	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{})); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
 	}
 }
@@ -89,9 +89,9 @@ func TestASessionsModelsOnOneAccountAreOneRowItsModelSeenLastLeading(t *testing.
 	}}}
 	want := []running{{
 		account: "side", session: asking, family: "opus", seen: time.Minute, why: "pinned here 12:42",
-		models: []string{"claude-opus-5-5", "claude-haiku-4-5", "claude-sonnet-5-5"}, inFlight: status.Answering,
+		models: []string{"claude-opus-5-5", "claude-haiku-4-5", "claude-sonnet-5-5"}, doing: views.Answering,
 	}}
-	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions)); !reflect.DeepEqual(got, want) {
+	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{})); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
 	}
 }
@@ -110,7 +110,7 @@ func TestASessionRunsWhereItWasRoutedWithinTheHour(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sessions := []status.Session{{ID: idler, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, tt.made, tt.seen, "")}}}
-			if got := len(views.RunningOf(runningDoc().At(now, claude.Policy), sessions)) == 1; got != tt.runs {
+			if got := len(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{})) == 1; got != tt.runs {
 				t.Errorf("runs = %t, want %t", got, tt.runs)
 			}
 		})
@@ -144,7 +144,7 @@ func TestWhyASessionRunsWhereItDoes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := runningDoc()
 			doc.Events = tt.events
-			rows := views.RunningOf(doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{tt.seat}}})
+			rows := views.RunningOf(doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{tt.seat}}}, views.Stream{})
 			if len(rows) != 1 {
 				t.Fatalf("RunningOf gave %d rows, want 1", len(rows))
 			}
@@ -183,7 +183,7 @@ func TestASessionStartedWhereNewSessionsGoIsTheBest(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rows := views.RunningOf(tt.doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{started}}})
+			rows := views.RunningOf(tt.doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{started}}}, views.Stream{})
 			if len(rows) != 1 {
 				t.Fatalf("RunningOf gave %d rows, want 1", len(rows))
 			}
@@ -207,7 +207,7 @@ func TestASessionIsTheBestWhereTheMomentMarksItsAccountAtEachHardMoment(t *testi
 					AssignedAt: hm.Now.Add(-time.Minute), LastSeen: hm.Now,
 				}}})
 			}
-			rows := views.RunningOf(m, sessions)
+			rows := views.RunningOf(m, sessions, views.Stream{})
 			if len(rows) != len(m.Accounts) {
 				t.Fatalf("RunningOf gave %d rows, want one an account, %d", len(rows), len(m.Accounts))
 			}

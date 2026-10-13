@@ -196,7 +196,7 @@ func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 	s := storyOf(requests, src.Prices, today)
 	listed := listedFrom(id, s)
 	if src.Routed != nil {
-		listed.run(*src.Routed, s, src.Now)
+		listed.run(*src.Routed, s, src.Now, hearing{})
 	}
 	page := SessionPage{
 		Session: listed.Session, Dir: listed.Dir, Account: listed.Account, Model: listed.Model, Running: listed.Running, LastSeen: listed.LastSeen,

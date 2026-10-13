@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -242,6 +243,8 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 			// lately the router saw it.
 			Models:  []views.SessionModel{{Model: opus, Account: "work", Reason: "sticky"}},
 			Started: utc(october(6, 22, 0)), Requests: 1, Worth: priced(hourWorth),
+			// Idle since the router saw it, later than its line's end.
+			Activity: views.Activity{Since: utc(october(7, 13, 10)), LastSeen: utc(october(7, 13, 10))},
 		},
 		{
 			Session: mover, Dir: "~/Code/cli", Account: "side", Model: opus, Running: true, LastSeen: utc(october(7, 13, 11)),
@@ -250,19 +253,23 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 				{Model: haiku, Account: "work", Reason: "sticky"},
 			},
 			State: status.Answering, MoveCost: cost(hourRewrite), Started: utc(october(7, 10, 0)), Requests: 4, Worth: priced(3*hourWorth + smallWorth),
-			Moved: &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "moved: work hit its limit", Cost: cost(hourWrite)},
+			Moved:    &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "moved: work hit its limit", Cost: cost(hourWrite)},
+			Activity: views.Activity{Doing: views.Answering, Since: utc(october(7, 13, 11)), LastSeen: utc(october(7, 13, 11))},
 		},
 		{
 			Session: quiet, Account: "side", Model: "claude-sonnet-5-5", Running: true, LastSeen: utc(october(7, 12, 40)),
-			Models: []views.SessionModel{{Model: "claude-sonnet-5-5", Account: "side", Reason: "new"}},
+			Models:   []views.SessionModel{{Model: "claude-sonnet-5-5", Account: "side", Reason: "new"}},
+			Activity: views.Activity{Since: utc(october(7, 12, 40)), LastSeen: utc(october(7, 12, 40))},
 		},
 		{
 			Session: rescored, Account: "side", Model: opus, Ended: utc(october(7, 12, 0)), Started: utc(october(7, 9, 0)), Requests: 2, Worth: priced(2 * hourWorth),
-			Moved: &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "rescored after 3h idle"},
+			Moved:    &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "rescored after 3h idle"},
+			Activity: views.Activity{Doing: views.Ended, Since: utc(october(7, 12, 0)), LastSeen: utc(october(7, 12, 0))},
 		},
 		{
 			Session: early, Dir: "~/Code/web", Account: "work", Model: opus, Ended: utc(october(7, 11, 0)), Started: utc(october(7, 8, 0)),
 			Requests: 3, Worth: priced(hourWorth, "claude-opus-9", "no_usage"),
+			Activity: views.Activity{Doing: views.Ended, Since: utc(october(7, 11, 0)), LastSeen: utc(october(7, 11, 0))},
 		},
 	}, Today: views.SessionsToday{Sessions: 5, Requests: 10, Worth: priced(5*hourWorth+smallWorth+2*hourWorth, "claude-opus-9", "no_usage")}}
 	assertList(t, got, want)
@@ -675,14 +682,24 @@ func TestASessionsStateIsItsBusiestModels(t *testing.T) {
 	}
 }
 
-// assertList fails the test where got isn't want, showing each as JSON.
+// assertList fails the test where got isn't want, showing each as JSON, and
+// what each's sessions are doing, which the JSON leaves out.
 func assertList(t *testing.T, got, want views.SessionList) {
 	t.Helper()
 	if !reflect.DeepEqual(got, want) {
 		gotJSON, _ := json.MarshalIndent(got, "", "  ")
 		wantJSON, _ := json.MarshalIndent(want, "", "  ")
-		t.Errorf("the List is\n%s\nwant\n%s", gotJSON, wantJSON)
+		t.Errorf("the List is\n%s\ndoing\n%s\nwant\n%s\ndoing\n%s", gotJSON, doingOf(got), wantJSON, doingOf(want))
 	}
+}
+
+// doingOf says what each of the List's sessions is doing, by its id.
+func doingOf(list views.SessionList) string {
+	var says []string
+	for _, s := range list.Sessions {
+		says = append(says, status.ShortID(s.Session)+": "+said(s.Activity))
+	}
+	return strings.Join(says, "\n")
 }
 
 // amount shows a cost, or none.

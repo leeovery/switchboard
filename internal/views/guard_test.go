@@ -82,9 +82,7 @@ var readersAllowed = []string{
 	"internal/cli/session.go:app.findSession",
 	"internal/cli/sessionpage.go:listed",
 	// The sessions running, as the router listed them and the request stream
-	// has moved and seen them since: when each was last seen (J6), and the
-	// sessions on each account (F12).
-	"internal/dashboard/overview_sessions.go:Frame.seenListing",
+	// has moved them since: the sessions on each account (F12).
 	"internal/dashboard/traffic.go:Frame.listing",
 	// The events newer than the last look's, by their ids (J8).
 	"internal/dashboard/watch/news.go:news.looked",
