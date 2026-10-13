@@ -342,6 +342,20 @@ func TestAVersionsSessionsAddTheCountOfAModelsDayThatNamesNone(t *testing.T) {
 	}
 }
 
+// Filtered to a version, a model's day that names some of its sessions adds
+// those it doesn't to those it names, as ModelDay.Unnamed counts them: side's
+// day of Haiku 4.5 counts 3 sessions, naming D alone.
+func TestAVersionsSessionsAddThoseAModelsDayCountsButDoesntName(t *testing.T) {
+	someNamed := ledger.ModelDay{Model: "claude-haiku-4-5", Upstream: 3, Sessions: 3, SessionIDs: []string{sessionD}, Usage: []byte(inputUsage)}
+	side := account("side", someNamed)
+	side.Sessions, side.SessionIDs = 3, []string{sessionD}
+	days := daysFrom("2026-10-07", day("2026-10-07", side))
+
+	if got := yearOf(days, views.YearAsk{Version: "Haiku 4.5"}).Numbers.Sessions; got != 3 {
+		t.Errorf("Haiku 4.5's sessions are %d, want 3: D, and the 2 its day counts but doesn't name", got)
+	}
+}
+
 // Filtered, the grid shades what's shown alone, its cuts re-scaled to its
 // active days.
 func TestAFilteredGridShadesWhatsShownAlone(t *testing.T) {
