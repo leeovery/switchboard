@@ -56,7 +56,7 @@ func importedOutsideTests(t *testing.T, root string) []string {
 
 func TestTheGuardsReadTheSourceThroughTheSourceCheck(t *testing.T) {
 	imports := importsOf(t, sourcecheck.ModuleRoot(t))
-	for _, guard := range []string{"internal/status/guard_test.go", "internal/views/guard_test.go"} {
+	for _, guard := range []string{"internal/prose/guard_test.go", "internal/status/guard_test.go", "internal/views/guard_test.go"} {
 		if !imports[guard][sourceCheck] {
 			t.Errorf("%s doesn't import %s, so the guard keeping it out of the binaries guards nothing it's known to", guard, sourceCheck)
 		}
@@ -75,7 +75,7 @@ func importsOf(t *testing.T, root string) map[string]map[string]bool {
 		switch {
 		case err != nil:
 			return err
-		case d.IsDir() && p != root && skipped(d.Name()):
+		case d.IsDir() && p != root && sourcecheck.PassedOver(d.Name()):
 			return filepath.SkipDir
 		case d.IsDir() || !strings.HasSuffix(p, ".go"):
 			return nil
@@ -103,8 +103,4 @@ func importsOf(t *testing.T, root string) map[string]map[string]bool {
 		t.Fatal(err)
 	}
 	return files
-}
-
-func skipped(dir string) bool {
-	return dir == "testdata" || dir == "vendor" || strings.HasPrefix(dir, ".") || strings.HasPrefix(dir, "_")
 }

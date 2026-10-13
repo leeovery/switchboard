@@ -93,6 +93,9 @@ var (
 		"prose.When": "prose.Dated",
 		// A session's id, as the dashboard names a session by it.
 		"status.ShortID": "status.ShownID",
+		// A window's name where no document labels it, as "5-hour" or
+		// "Week", never Claude's own label.
+		"claude.WindowLabel": "status.NameOfKey",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.

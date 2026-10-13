@@ -1,8 +1,11 @@
 package sourcecheck
 
 import (
+	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -41,6 +44,38 @@ func ModuleRoot(t *testing.T) string {
 		}
 		dir = parent
 	}
+}
+
+// Packages are the directories of the packages of the module at root, by path
+// from the root, with slashes, in their paths' order: each directory holding
+// a Go file but a test's, but those the go command passes over.
+func Packages(t *testing.T, root string) []string {
+	t.Helper()
+	dirs := make(map[string]bool)
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return err
+		case d.IsDir() && p != root && PassedOver(d.Name()):
+			return filepath.SkipDir
+		case d.IsDir() || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go"):
+			return nil
+		}
+		rel, err := filepath.Rel(root, filepath.Dir(p))
+		dirs[filepath.ToSlash(rel)] = true
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return slices.Sorted(maps.Keys(dirs))
+}
+
+// PassedOver reports whether the go command passes over the directory with
+// the given name, and all under it: testdata, vendor, and one whose name
+// starts with a dot or an underscore.
+func PassedOver(name string) bool {
+	return name == "testdata" || name == "vendor" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")
 }
 
 // WriteModule writes files, by path from the root, into a new directory, and
