@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/status/statustest"
 )
@@ -174,48 +175,83 @@ func TestNotifications(t *testing.T) {
 
 func TestRoomAgainIsAnAccountsQuotaBack(t *testing.T) {
 	withRoom := account("work", "Work", session(0.2, 5*time.Hour), week(0.5))
-	probedWithRoom := builtBy(status.SourceProbe, withRoom)
+	routedWithRoom := builtBy(status.SourceRouter, withRoom)
 	spentSession := account("work", "Work", refused(session(1, 3*time.Minute)), week(0.5))
 	pinned := builtBy(status.SourceRouter, reserving(account("work", "Work", session(0.95, 3*time.Minute), week(0.5)), 0.1))
 	pinned.Pin = status.Pin{Accounts: []string{"work"}, Since: start.UTC()}
 	tests := []struct {
 		name string
 		// last is the document the account was last read in, as the clock
-		// starts, and this the one it's read in five minutes later.
+		// starts, and this the one it's read in five minutes later, by the
+		// same router.
 		last, this status.Document
 		want       bool
 	}{
 		{
 			name: "after a limit holding back every request",
-			last: builtBy(status.SourceRouter, limitedTo(withRoom, 3*time.Minute)), this: probedWithRoom, want: true,
+			last: builtBy(status.SourceRouter, limitedTo(withRoom, 3*time.Minute)), this: routedWithRoom, want: true,
 		},
 		{
 			name: "after a limit holding back a model's requests alone",
 			last: builtBy(status.SourceRouter, limitedTo(account("work", "Work", session(0.2, 5*time.Hour), week(0.5), fableWeek(0.5)), 3*time.Minute, "7d_oi")),
-			this: probedWithRoom,
+			this: routedWithRoom,
 		},
 		{
 			name: "after its token refused, which isn't quota",
-			last: builtBy(status.SourceRouter, tokenRefused(withRoom, 3*time.Minute)), this: probedWithRoom,
+			last: builtBy(status.SourceRouter, tokenRefused(withRoom, 3*time.Minute)), this: routedWithRoom,
 		},
 		{
 			name: "after its token refused and a window every model shares spent, both past",
-			last: builtBy(status.SourceRouter, tokenRefused(spentSession, 3*time.Minute)), this: probedWithRoom, want: true,
+			last: builtBy(status.SourceRouter, tokenRefused(spentSession, 3*time.Minute)), this: routedWithRoom, want: true,
 		},
 		{
 			name: "after a window every model shares spent, its token refused since",
-			last: builtBy(status.SourceProbe, spentSession), this: builtBy(status.SourceRouter, tokenRefused(withRoom, time.Hour)),
+			last: builtBy(status.SourceRouter, spentSession), this: builtBy(status.SourceRouter, tokenRefused(withRoom, time.Hour)),
 		},
-		{name: "after its reserve, which the global pin spent", last: pinned, this: probedWithRoom},
+		{name: "after its reserve, which the global pin spent", last: pinned, this: routedWithRoom},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := lastReads{}.with(tt.last.At(start, policy)).alerts(tt.this.At(start.Add(5*time.Minute), policy), notifications)
-			if posted := slices.Contains(messagesOf(got), "work · Work has room again"); posted != tt.want {
-				t.Errorf("posted %q, want room again %v", messagesOf(got), tt.want)
+			if got := alertsOf(tt.last.At(start, policy), tt.this.At(start.Add(5*time.Minute), policy), notifications); slices.Contains(got, "work · Work has room again") != tt.want {
+				t.Errorf("posted %q, want room again %v", got, tt.want)
 			}
 		})
 	}
+}
+
+// A look from another source than the last compares with none: probing
+// can't see the limit the router saw, nor say how a reading of the router's
+// has changed. Its own readings compare from then on.
+func TestNothingIsPostedAcrossAChangeOfSource(t *testing.T) {
+	probed := func(weekUsed float64) status.Document {
+		doc := document(account("work", "Work", session(0.2, 5*time.Hour), week(weekUsed)))
+		doc.Fallback = status.Fallback{Router: status.RouterNotRunning}
+		return doc
+	}
+	h := routedHarness(t, routerDocument(limitedTo(account("work", "Work", session(0.2, 5*time.Hour), week(0.85)), time.Hour)))
+	h.start()
+
+	h.stopRouter()
+	h.clock.now = h.clock.now.Add(5 * time.Minute)
+	h.read(probed(0.91))
+	if len(h.notifier.posted) > 0 {
+		t.Errorf("probed after the router's limit, posted %q; want nothing, as the limit still holds, and probing has no reading of its own to compare with", h.notifier.posted)
+	}
+	h.clock.now = h.clock.now.Add(5 * time.Minute)
+	h.read(probed(0.93))
+	h.clock.now = h.clock.now.Add(5 * time.Minute)
+	h.read(probed(0.5))
+	h.clock.now = h.clock.now.Add(5 * time.Minute)
+	h.read(probed(0.92))
+	if want := []string{"work · Work: Week at 92%"}; !slices.Equal(h.notifier.posted, want) {
+		t.Errorf("probed again and again, posted %q; want %q, probing's readings compared with its own", h.notifier.posted, want)
+	}
+}
+
+// alertsOf are what's posted of this, a look that follows on from last, the
+// look that last read each account, as alerts has it.
+func alertsOf(last, this status.Moment, settings config.Notifications) []string {
+	return messagesOf(lastReads{}.with(last, originOf(last, router.Health{})).alerts(this, originOf(this, router.Health{}), settings))
 }
 
 func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
@@ -248,13 +284,13 @@ func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
 				}
 			}
 
-			fetched := messagesOf(lastReads{}.with(read).alerts(look, notifications))
+			fetched := alertsOf(read, look, notifications)
 			if !slices.Equal(fetched, back) || !slices.Equal(back, roomAgain[hm.Name]) {
 				t.Errorf("fetched again with nothing read since, posted %q; want %q, as the moments say, which is %q",
 					fetched, back, roomAgain[hm.Name])
 			}
 			warnOnly := config.Notifications{Warning: notifications.Warning}
-			fresh := messagesOf(lastReads{}.with(unused(hm.Doc).At(statustest.Built, policy)).alerts(look, warnOnly))
+			fresh := alertsOf(unused(hm.Doc).At(statustest.Built, policy), look, warnOnly)
 			if !slices.Equal(fresh, warnings) || !slices.Equal(warnings, warned[hm.Name]) {
 				t.Errorf("read from unused, posted %q; want %q, as the moment says, which is %q", fresh, warnings, warned[hm.Name])
 			}

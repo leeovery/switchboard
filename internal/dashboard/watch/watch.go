@@ -837,18 +837,18 @@ func logRead(msg fetchedMsg, look status.Moment, next time.Time) {
 // bars to it from where they stand; and brightens each number on the page it
 // changed.
 func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
-	doc, now := msg.doc, look.Now
+	doc, now, read := msg.doc, look.Now, originOf(look, msg.router)
 	was := m.numbersDrawn(now)
 	var post, asked tea.Cmd
 	if !look.Routed {
-		post = m.post(m.readings.alerts(look, m.cfg.Notifications), probedAsAsked(look))
+		post = m.post(m.readings.alerts(look, read, m.cfg.Notifications), probedAsAsked(look))
 	}
 	ask := look.Routed && (full(msg.read) || !m.answering() || m.news.another(msg.router))
 	if look.Routed {
 		m = m.answeredAgain(msg.router)
 		m.history.filedSince = false
 	}
-	m.readings = m.readings.with(look)
+	m.readings = m.readings.with(look, read)
 	m = m.follow(look)
 	m.news = m.news.looked(look, msg.router)
 	m.changes = m.changes.looked(look, msg.router)
@@ -865,7 +865,7 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	}
 	m = m.stillThere(look)
 	m.trails = m.history.drawn(look)
-	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), originOf(look, msg.router), now)
+	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), read, now)
 	switch {
 	case ask:
 		m, asked = m.askHistory(look)
