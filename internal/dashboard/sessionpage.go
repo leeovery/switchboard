@@ -499,8 +499,8 @@ func (d sessionDrawn) turn(c *canvas, y int, t views.Turn, newest bool) {
 		c.surface(0, y, chosenCells, chosenTurn)
 		emboldened(c, y, chosenCells)
 	}
-	if newest && d.page.Activity.Waiting() {
-		c.text(askingAt, y, views.MarkAsking.String()+" "+status.Asking, keyInk)
+	if said := d.page.Activity.WaitingSaid(); newest && said != "" {
+		c.text(askingAt, y, said, keyInk)
 	}
 }
 
