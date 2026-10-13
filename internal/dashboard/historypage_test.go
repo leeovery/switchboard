@@ -211,34 +211,34 @@ func TestAScrolledYearShowsItsRowsFromWhereItsScrolledTo(t *testing.T) {
 	}
 }
 
-// What's out of view below says how many more rows there are, each counted
-// one or many, and how to scroll to them: ▼ in accent.key, the words muted,
-// the · between them faint, and j/k bold accent.key; cut to the width, its
-// count a figure, drawn whole with ▼, its words cut, else ▼ alone.
-func TestMoreBelowSaysWhatsOutOfViewAndHowToScrollToIt(t *testing.T) {
+// What's out of view of Tokens' periods says how many more are below, each
+// counted one or many, and how to scroll to them: ▼ in accent.key, the words
+// muted, the · between them faint, and j/k bold accent.key; cut to the width,
+// its count a figure, drawn whole with ▼, its words cut, else ▼ alone.
+func TestWhatsOutOfViewOfTokensPeriodsSaysHowToScrollToThem(t *testing.T) {
 	key, words, apart, keys := ink{token: theme.AccentKey}, ink{token: theme.TextMuted}, ink{token: theme.TextFaint}, ink{token: theme.AccentKey, bold: true}
 	tests := []struct {
-		name           string
-		n, width       int
-		noun, toScroll string
-		want           line
+		name     string
+		n, width int
+		noun     string
+		want     line
 	}{
 		{
-			name: "Tokens' weeks, as history-tokens-160 draws them", n: 3, width: 160, noun: "week", toScroll: " to scroll",
+			name: "Tokens' weeks, as history-tokens-160 draws them", n: 3, width: 160, noun: "week",
 			want: line{{"▼", key}, {" 3 more weeks below", words}, {"   ·   ", apart}, {"j/k", keys}, {" to scroll", words}},
 		},
 		{
-			name: "one", n: 1, width: 160, noun: "month", toScroll: " to scroll",
+			name: "one", n: 1, width: 160, noun: "month",
 			want: line{{"▼", key}, {" 1 more month below", words}, {"   ·   ", apart}, {"j/k", keys}, {" to scroll", words}},
 		},
-		{name: "its words cut", n: 12, width: 12, noun: "week", toScroll: " to scroll", want: line{{"▼", key}, {" 12 more w…", words}}},
-		{name: "its count filling it", n: 12, width: 4, noun: "week", toScroll: " to scroll", want: line{{"▼", key}, {" 12", words}}},
-		{name: "its count a cell short", n: 12, width: 3, noun: "week", toScroll: " to scroll", want: line{{"▼", key}}},
-		{name: "no room", n: 12, noun: "week", toScroll: " to scroll"},
+		{name: "its words cut", n: 12, width: 12, noun: "week", want: line{{"▼", key}, {" 12 more w…", words}}},
+		{name: "its count filling it", n: 12, width: 4, noun: "week", want: line{{"▼", key}, {" 12", words}}},
+		{name: "its count a cell short", n: 12, width: 3, noun: "week", want: line{{"▼", key}}},
+		{name: "no room", n: 12, noun: "week"},
 	}
 	for _, tt := range tests {
-		if got := moreBelow(tt.n, tt.noun, tt.toScroll, tt.width); !slices.Equal(got.inked(), tt.want) {
-			t.Errorf("%s: moreBelow(%d, %q, %q, %d) reads %q, %+v, want %q, %+v", tt.name, tt.n, tt.noun, tt.toScroll, tt.width, got.plain(), got, tt.want.plain(), tt.want)
+		if got := outOfView(0, tt.n, tt.width, periodsOut(tt.noun)); !slices.Equal(got.inked(), tt.want) {
+			t.Errorf("%s: %d more %ss below, in %d cells, the line reads %q, %+v, want %q, %+v", tt.name, tt.n, tt.noun, tt.width, got.plain(), got, tt.want.plain(), tt.want)
 		}
 	}
 }
@@ -286,7 +286,7 @@ func TestWhatsOutOfViewOfTheAccountsIsSaidInTheLongestFormThatFits(t *testing.T)
 		{above: 2, below: 12, width: 0},
 	}
 	for _, tt := range tests {
-		got := accountsOutOfView(tt.above, tt.below, tt.width)
+		got := outOfView(tt.above, tt.below, tt.width, historyAccountsOut...)
 		if !slices.Equal(got.inked(), tt.want) || got.width() > tt.width {
 			t.Errorf("%d above and %d below, in %d cells, the line reads %q, %+v, want %q, %+v", tt.above, tt.below, tt.width, got.plain(), got, tt.want.plain(), tt.want)
 		}

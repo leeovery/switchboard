@@ -253,6 +253,10 @@ func atLeast(lines []line, rows int) []line {
 	return append(lines, make([]line, max(rows-len(lines), 0))...)
 }
 
+// cardOut is the form of the line saying how many of the card's rows are out
+// of view, over those shown or under them, as in "▼ 3 more".
+var cardOut = outForm{inks: subtleOut}
+
 // inView are the card's rows as they show in room lines, as choice lays each
 // out, the lines of them the cursor's row takes, and how far they're
 // scrolled: all of them where they fit; else those around the cursor, with
@@ -271,7 +275,7 @@ func (r RoutingCard) inView(phone bool, width, room int) ([]line, bodyRows, card
 	var lines []line
 	var lit bodyRows
 	if first > 0 {
-		lines = append(lines, line{{"▲ " + strconv.Itoa(first) + " more", dimInk}})
+		lines = append(lines, outOfView(first, 0, width, cardOut))
 	}
 	for i := first; i < end; i++ {
 		if i == cursor {
@@ -280,7 +284,7 @@ func (r RoutingCard) inView(phone bool, width, room int) ([]line, bodyRows, card
 		lines = append(lines, choices[i]...)
 	}
 	if end < len(choices) {
-		lines = append(lines, line{{"▼ " + strconv.Itoa(len(choices)-end) + " more", dimInk}})
+		lines = append(lines, outOfView(0, len(choices)-end, width, cardOut))
 	}
 	if first > 0 || end < len(choices) {
 		lines = atLeast(lines, room)

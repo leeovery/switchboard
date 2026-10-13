@@ -231,8 +231,8 @@ func TestOverviewHelpKeysEachMarkAsThePageDrawsIt(t *testing.T) {
 		explains(t, "SESSIONS", line{{answered(views.Activity{Doing: views.Answering, Chars: 4800}), doingInk}})
 	})
 	t.Run("every event's mark", func(t *testing.T) {
-		for kind, mark := range eventMarks {
-			t.Run(kind, func(t *testing.T) { explains(t, "LATELY", line{mark}) })
+		for _, k := range eventKinds {
+			t.Run(k.kind, func(t *testing.T) { explains(t, "LATELY", line{k.mark}) })
 		}
 	})
 }

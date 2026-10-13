@@ -183,7 +183,7 @@ func (f Frame) weeksShown(w weeksDrawn) (shown []views.WeeksRow, above, below in
 // edge.
 func (w weeksDrawn) accountsOut(c *canvas, y, above, below int) {
 	if above+below > 0 {
-		c.line(0, y, accountsOutOfView(above, below, w.edge))
+		c.line(0, y, outOfView(above, below, w.edge, historyAccountsOut...))
 	}
 }
 

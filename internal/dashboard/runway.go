@@ -201,7 +201,7 @@ func (f Frame) runway(c *canvas, doc status.Document, now time.Time, top int) {
 	}
 	switch {
 	case l.scrolls():
-		says := outOfView(l.hidden(offset)).fit(f.edge() - margin)
+		says := rowsOut.said(l.hidden(offset)).fit(f.edge() - margin)
 		c.line((f.Width-says.width())/2, over, says)
 		scrollbar(c, f.Width-1, l.top, l.view, l.content, offset)
 	case !l.legend:

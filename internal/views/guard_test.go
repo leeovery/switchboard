@@ -81,8 +81,6 @@ var readersAllowed = []string{
 	// listed as status's text lists them.
 	"internal/cli/session.go:app.findSession",
 	"internal/cli/sessionpage.go:listed",
-	// The events newer than the last look's, by their ids (J8).
-	"internal/dashboard/watch/news.go:news.looked",
 }
 
 // callsAllowed are the functions and methods of rawPackages that take raw

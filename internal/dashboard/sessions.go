@@ -134,7 +134,7 @@ func (f Frame) overKeyLine(c *canvas, doc status.Document, now time.Time, top, c
 	above, below := hidden(offset, view)
 	switch note := hiddenNote(f.Moment(doc, now).Hidden); {
 	case content > view && above+below > 0:
-		says := outOfView(above, below).fit(f.edge() - margin)
+		says := rowsOut.said(above, below).fit(f.edge() - margin)
 		c.line((f.Width-says.width())/2, over, says)
 	case len(note) > 0:
 		c.right(f.edge(), over, note.fit(f.edge()-margin))

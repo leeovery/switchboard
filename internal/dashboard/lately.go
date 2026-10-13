@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -9,34 +10,58 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// eventMarks are each kind of event's mark, a glyph in the colour of what it
-// tells of, as LATELY and the Log's Events share them: one a kind, but for ■,
-// which a limit and a refusal share, their words telling them apart.
-var eventMarks = map[string]span{
-	status.EventStarted:  {"▲", accentInk},
-	status.EventMoved:    {"▸", keyMarkInk},
-	status.EventPressure: {"◔", warningInk},
-	status.EventCap:      {"╎", warningInk},
-	status.EventLimit:    {"■", errorInk},
-	status.EventRefused:  {"■", errorInk},
-	status.EventPrimed:   {"◇", dimInk},
-	status.EventRoom:     {"✓", positiveInk},
-	status.EventPin:      {"●", keyMarkInk},
-	status.EventAuto:     {"↩", keyMarkInk},
-	status.EventRestart:  {"!", warningInk},
-	status.EventHealth:   {"⊕", errorInk},
+// eventKind is a kind of the router's event as the dashboard draws it: the
+// kind, as an event's Kind gives it; its mark, a glyph in the colour of what
+// it tells of, as LATELY and the Log's Events share them; and what it means,
+// as help says it, a line a mark. Its word, as the Log's event column and
+// its panel name it, is views.KindWord's, as events prints it too.
+type eventKind struct {
+	kind string
+	mark span
+	// means is what the kind means, as help says it: none of a kind that
+	// shares an earlier kind's mark, as a refusal shares a limit's ■, whose
+	// meaning says it of both.
+	means string
+}
+
+// eventKinds are the kinds of the router's events in the design's order, as
+// help and the Log's panel list them: a mark a kind, but for ■, which a limit
+// and a refusal share, their words telling them apart.
+var eventKinds = []eventKind{
+	{kind: status.EventStarted, mark: span{"▲", accentInk}, means: "a session started"},
+	{kind: status.EventMoved, mark: span{"▸", keyMarkInk}, means: "a session moved"},
+	{kind: status.EventPressure, mark: span{"◔", warningInk}, means: "an account came under pressure"},
+	{kind: status.EventCap, mark: span{"╎", warningInk}, means: "an account reached its cap"},
+	{kind: status.EventLimit, mark: span{"■", errorInk}, means: "an account reached a limit, or was refused"},
+	{kind: status.EventRefused, mark: span{"■", errorInk}},
+	{kind: status.EventPrimed, mark: span{"◇", dimInk}, means: "an account primed, its 5-hour window started"},
+	{kind: status.EventRoom, mark: span{"✓", positiveInk}, means: "an account with room again"},
+	{kind: status.EventPin, mark: span{"●", keyMarkInk}, means: "routing pinned by hand"},
+	{kind: status.EventAuto, mark: span{"↩", keyMarkInk}, means: "new sessions back to auto"},
+	{kind: status.EventRestart, mark: span{"!", warningInk}, means: "a restart due"},
+	{kind: status.EventHealth, mark: span{"⊕", errorInk}, means: "the router's health turned, in green once it's well again"},
 }
 
 // keyMarkInk draws a mark in accent.key, as a move's, a pin's and auto's are.
 var keyMarkInk = ink{token: theme.AccentKey}
 
-// eventMark is a sentence's mark, as eventMarks gives its kind's: but the
+// kindMark is the mark of the kind of event given, as eventKinds has it:
+// none of a kind it doesn't know.
+func kindMark(kind string) span {
+	if i := slices.IndexFunc(eventKinds, func(k eventKind) bool { return k.kind == kind }); i >= 0 {
+		return eventKinds[i].mark
+	}
+	return span{}
+}
+
+// eventMark is a sentence's mark, as kindMark gives its kind's: but the
 // router's health well again, in state.positive.
 func eventMark(s views.Sentence) span {
+	mark := kindMark(s.Kind)
 	if s.Well {
-		return span{eventMarks[s.Kind].text, positiveInk}
+		mark.ink = positiveInk
 	}
-	return eventMarks[s.Kind]
+	return mark
 }
 
 // latelySection is the Overview's LATELY of doc at now: what's happened,

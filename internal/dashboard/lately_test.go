@@ -60,6 +60,34 @@ func TestLATELYsMarksAreOneAKindInTheirColours(t *testing.T) {
 	}
 }
 
+// The kinds of event are one table, in the design's order, as help and the
+// Log's panel list them: each kind once, named by the word views gives it,
+// as the Log's event column and its panel name it; a mark a kind, but for ■,
+// which a limit and a refusal share; and what each mark means, said by the
+// first kind that draws it, a kind sharing an earlier one's mark leaving it
+// to that one.
+func TestTheKindsOfEventAreOneTableOfMarksWordsAndMeanings(t *testing.T) {
+	want := []string{"started", "moved", "pressure", "cap", "limit", "refused", "primed", "open", "pin", "auto", "restart", "health"}
+	var words []string
+	drawnBy := make(map[span][]string)
+	for _, k := range eventKinds {
+		words = append(words, views.KindWord(k.kind))
+		if earlier := drawnBy[k.mark]; (len(earlier) > 0) != (k.means == "") {
+			t.Errorf("%s means %q, its mark drawn before by %v: want a meaning where it's the first to draw its mark, and none else", k.kind, k.means, earlier)
+		}
+		drawnBy[k.mark] = append(drawnBy[k.mark], k.kind)
+	}
+	if !slices.Equal(words, want) {
+		t.Errorf("the kinds are named %q, want %q", words, want)
+	}
+	closing := []string{status.EventLimit, status.EventRefused}
+	for mark, kinds := range drawnBy {
+		if shared := len(kinds) > 1; shared && (mark.text != "■" || !slices.Equal(kinds, closing)) {
+			t.Errorf("%q is drawn by %v, want a mark a kind, but for ■, a limit's and a refusal's", mark.text, kinds)
+		}
+	}
+}
+
 func TestLATELYsLinesAreInTheirInks(t *testing.T) {
 	doc := eventsOf(
 		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventStarted, Account: "side", Session: "c61b2f8d", Reason: status.ReasonNew},
