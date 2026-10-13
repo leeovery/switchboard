@@ -101,7 +101,7 @@ func (s *story) add(r request) {
 		s.worth.add(r.worth)
 	}
 	if l.From != "" {
-		s.moves = append(s.moves, move{at: l.At, model: l.Model, from: l.From, to: l.Account, reason: l.Reason})
+		s.moves = append(s.moves, move{by: l, at: l.At, model: l.Model, from: l.From, to: l.Account, reason: l.Reason})
 	}
 	if main || l.Class == "" && l.From != "" {
 		s.rewrites(l)
@@ -145,28 +145,33 @@ func (s *story) life(thread string) time.Duration {
 }
 
 // move is a request's move of its session from one account onto another:
-// when it came, the model it asked for, as a session's models are routed
-// apart, the account it left and the one it went to, and why, as the router
-// said; and, settled once its conversation's first request after it came,
-// where that went to the account it moved to, the tokens that request wrote
-// to the cache, and what that cost, nil where that isn't known, or its cache
-// would have run out anyway.
+// the request that made it; when it came, the model it asked for, as a
+// session's models are routed apart, the account it left and the one it went
+// to, and why, as the router said; and, settled once its conversation's first
+// request after it came, where that went to the account it moved to, the
+// tokens that request wrote to the cache, and what that cost, nil where that
+// isn't known, or its cache would have run out anyway; and rewrote, that
+// request, as it wrote the session's context again, nil where none has, or
+// the cache would have run out anyway.
 type move struct {
+	by                      *ledger.Line
 	at                      time.Time
 	model, from, to, reason string
 	settled                 bool
 	written                 int
 	cost                    *ledger.Picodollars
+	rewrote                 *ledger.Line
 }
 
 // rewrites settles each move of l's model that awaits it, l being a request
 // of the session's own conversation, or one from before requests said their
 // class that moved it: the conversation's first after the move, which wrote
 // its context again on the account it went to, where it went to the account
-// the move did. The move's written tokens are then its writes to the cache,
-// and its cost their price, at the day's prices, left out where the table
-// can't price all of it, and where the last request of its thread, as
-// threadOf tells it, ended longer before it than the thread's writes to the
+// the move did. The move's written tokens are then its writes to the cache;
+// l the request that wrote the context again, and the move's cost the
+// writes' price, at the day's prices, left out where the table can't price
+// all of it. Both are left out where the last request of its thread, as
+// threadOf tells it, ended longer before l than the thread's writes to the
 // cache last, as the cache would have run out by then anyway.
 func (s *story) rewrites(l *ledger.Line) {
 	thread := threadOf(l)
@@ -183,26 +188,55 @@ func (s *story) rewrites(l *ledger.Line) {
 			continue
 		}
 		m.written = tokens.CacheWrite
-		if w, priced := s.prices.CacheWrite(l, s.day.Date); warm && priced && len(w.Unpriced) == 0 {
+		if !warm {
+			continue
+		}
+		m.rewrote = l
+		if w, priced := s.prices.CacheWrite(l, s.day.Date); priced && len(w.Unpriced) == 0 {
 			m.cost = &w.Cost
 		}
 	}
 }
 
-// movedOnto returns the move of the model with the given id that brought
+// toldOf is what the story tells of l, a line of its session's: whether
+// it's the session's first request; the move it made, nil where it made
+// none; and whether it wrote the session's context again on the account a
+// move took it to, as rewrites settles it. A line is the request a story
+// holds where it's the same request, as sameRequest has it, so a line read
+// apart from the story's own tells alike.
+func (s *story) toldOf(l *ledger.Line) (first bool, made *move, rewrote bool) {
+	first = s.first != nil && sameRequest(s.first, l)
+	for i := range s.moves {
+		m := &s.moves[i]
+		if sameRequest(m.by, l) {
+			made = m
+		}
+		rewrote = rewrote || m.rewrote != nil && sameRequest(m.rewrote, l)
+	}
+	return first, made, rewrote
+}
+
+// sameRequest reports whether two lines are of the same request: the same
+// id, and arriving at the same time, as an id is unique only while the
+// router that gave it runs.
+func sameRequest(a, b *ledger.Line) bool {
+	return a.Request == b.Request && a.At.Equal(b.At)
+}
+
+// moveOnto returns the move of the model with the given id that brought
 // the session onto the account with the given id, where the model's last
 // move came on the day, and was onto it: nil where it wasn't. A session's
 // models are routed apart, so another's move tells nothing of how this one
 // came there.
-func (s *story) movedOnto(model, account string) *Move {
-	for _, m := range slices.Backward(s.moves) {
+func (s *story) moveOnto(model, account string) *move {
+	for i, m := range slices.Backward(s.moves) {
 		if m.model != model {
 			continue
 		}
 		if !s.day.Holds(m.at) || m.to != account {
 			return nil
 		}
-		return &Move{At: m.at.UTC(), From: m.from, Reason: m.reason, Cost: m.cost}
+		return &s.moves[i]
 	}
 	return nil
 }

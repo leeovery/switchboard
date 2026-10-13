@@ -216,7 +216,15 @@ func (l *Line) Counted() bool {
 // answered 400 or over, as a 429 every account refused is passed on; or
 // answered nothing, as one cut off or given up, its status 0.
 func (l *Line) Failed() bool {
-	return l.Status == 0 || l.Status >= 400
+	return Failing(l.Status)
+}
+
+// Failing reports whether a request answered with the status given failed,
+// as Line.Failed says of a line's: one the request stream told of the end
+// of, its line yet to come, is judged by the status its client was answered,
+// 0 where its client went first.
+func Failing(status int) bool {
+	return status == 0 || status >= 400
 }
 
 // sentOn reports whether the line's request went upstream as a day's summary

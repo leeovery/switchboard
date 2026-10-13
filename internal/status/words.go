@@ -83,7 +83,13 @@ func RoutingWords(reason string, f Facts) Words {
 	case f.From == "":
 		return nil
 	}
-	return append(Words{plain("from "), named(f.From), plain(", ")}, wordsOf(reason, f).routed...)
+	return slices.Concat(FromWords(f.From), Words{plain(", ")}, wordsOf(reason, f).routed)
+}
+
+// FromWords are a request's move of its session, the account it left alone,
+// as a phone's Log says it: "from work", as RoutingWords starts.
+func FromWords(from string) Words {
+	return Words{plain("from "), named(from)}
 }
 
 // SessionWords are the reason as a session's page reads, as in "since it
@@ -286,6 +292,42 @@ var offWords = map[string]struct{ event, routed string }{
 	WhyLimit:   {event: " reached its limit", routed: "at its limit"},
 	WhyRefused: {event: " refused the request", routed: "refused"},
 	WhyNoRoom:  {event: " had no room", routed: "with no room"},
+}
+
+// Tried is an account a request went out on that couldn't serve it, and
+// why, as the router says it, as "hit its limit": as a ledger line's tried
+// gives it.
+type Tried struct {
+	Account, Why string
+}
+
+// triedWords are why a request went out again elsewhere, as the router says
+// it, in the words of a request's routing, after the account it left.
+var triedWords = map[string]string{
+	WhyLimit:   "'s limit",
+	WhyRefused: " refused it",
+}
+
+// TriedWords are the accounts a request went out on that couldn't serve it,
+// in the order tried, as its routing reads them in place of its reason's
+// words: "after work's limit", "after work refused it", and several as
+// "after work's limit, personal's limit". A why the dashboard has no words
+// for reads as the router gives it, cleaned, the account named apart all the
+// same, as "after work has a new token". None where none was tried.
+func TriedWords(tried ...Tried) Words {
+	var w Words
+	for i, t := range tried {
+		lead := ", "
+		if i == 0 {
+			lead = "after "
+		}
+		why, known := triedWords[t.Why]
+		if !known {
+			why = " " + Clean(t.Why)
+		}
+		w = append(w, plain(lead), named(t.Account), plain(why))
+	}
+	return w
 }
 
 // movedOff reads the reason for a move off an account that can't take the

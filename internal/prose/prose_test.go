@@ -84,6 +84,22 @@ func TestTokensAreCountedAsTheLogCountsThem(t *testing.T) {
 	}
 }
 
+func TestCharactersAreCountedInThousandsToATenthAtEverySize(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{n: 0, want: "0.0k"}, {n: 49, want: "0.0k"}, {n: 50, want: "0.1k"}, {n: 800, want: "0.8k"}, {n: 999, want: "1.0k"},
+		{n: 5100, want: "5.1k"}, {n: 9949, want: "9.9k"}, {n: 9950, want: "10.0k"}, {n: 14_200, want: "14.2k"},
+		{n: 958_250, want: "958.3k"}, {n: 999_949, want: "999.9k"}, {n: 999_950, want: "1000.0k"}, {n: 1_234_567, want: "1234.6k"},
+	}
+	for _, tt := range tests {
+		if got := prose.Characters(tt.n); got != tt.want {
+			t.Errorf("Characters(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
 func TestTimesAreSaidOnceTwiceThenCounted(t *testing.T) {
 	for n, want := range map[int]string{0: "0 times", 1: "once", 2: "twice", 3: "3 times", 12: "12 times"} {
 		if got := prose.Times(n); got != want {

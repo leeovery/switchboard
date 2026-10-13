@@ -282,6 +282,38 @@ func TestReasonWords(t *testing.T) {
 	}
 }
 
+func TestTriedWordsSayWhereARequestWentOutBeforeItWentAgainElsewhere(t *testing.T) {
+	tests := []struct {
+		name  string
+		tried []status.Tried
+		want  string
+	}{
+		{name: "none tried"},
+		{name: "after a limit", tried: []status.Tried{{Account: "work", Why: status.WhyLimit}}, want: "after [work]'s limit"},
+		{name: "after a refusal", tried: []status.Tried{{Account: "work", Why: status.WhyRefused}}, want: "after [work] refused it"},
+		{
+			name:  "after two, in the order tried",
+			tried: []status.Tried{{Account: "work", Why: status.WhyLimit}, {Account: "personal", Why: status.WhyRefused}},
+			want:  "after [work]'s limit, [personal] refused it",
+		},
+		{name: "a why the dashboard has no words for, as the router gives it", tried: []status.Tried{{Account: "work", Why: "has a new token"}},
+			want: "after [work] has a new token"},
+		{name: "from elsewhere, cleaned", tried: []status.Tried{{Account: "work\x07", Why: "has a\tnew token"}}, want: "after [work] has a new token"},
+	}
+	for _, tt := range tests {
+		if got := marked(status.TriedWords(tt.tried...)); got != tt.want {
+			t.Errorf("%s: TriedWords(%v) = %q, want %q", tt.name, tt.tried, got, tt.want)
+		}
+	}
+}
+
+func TestFromWordsAreHowRoutingWordsStart(t *testing.T) {
+	from := marked(status.FromWords("work\x07"))
+	if routing := marked(status.RoutingWords("moved: work hit its limit", status.Facts{From: "work"})); from != "from [work]" || !strings.HasPrefix(routing, from+", ") {
+		t.Errorf("FromWords(work) = %q, and RoutingWords %q, want \"from [work]\", as the routing words start", from, routing)
+	}
+}
+
 func TestWordsString(t *testing.T) {
 	w := status.RoutingWords("moved: work is at its reserve", status.Facts{From: "work", To: "side"})
 	if got, want := w.String(), "from work, at its cap"; got != want {

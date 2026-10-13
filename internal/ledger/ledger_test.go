@@ -339,6 +339,9 @@ func TestARequestFailedWhereItWasAnswered400OrOverOrNothing(t *testing.T) {
 		if got := tt.line.Failed(); got != tt.want {
 			t.Errorf("%s: Failed() = %v, want %v", tt.name, got, tt.want)
 		}
+		if got := ledger.Failing(tt.line.Status); got != tt.want {
+			t.Errorf("%s: Failing(%d) = %v, want %v, as the line's status alone says", tt.name, tt.line.Status, got, tt.want)
+		}
 	}
 }
 

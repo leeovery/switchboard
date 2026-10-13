@@ -69,6 +69,11 @@ type ListedSession struct {
 	// or not: ended where none has seen it within the IdleHour. It's the
 	// views' alone.
 	Activity Activity `json:"-"`
+	// Mark and Routing are its mark, of those the List shows, and how it
+	// came to Account, as the Log's row of its request says them, as cameBy
+	// has them. They're the views' alone.
+	Mark    RowMark     `json:"-"`
+	Routing RoutingSaid `json:"-"`
 }
 
 // SessionModel is a model of a running session: the account its requests go
@@ -134,7 +139,6 @@ func ListSessions(src SessionSources) SessionList {
 			continue
 		}
 		listed := by.listed(id, s)
-		listed.Moved = s.movedOnto(listed.Model, listed.Account)
 		list.Sessions = append(list.Sessions, listed)
 		list.Today.Requests += listed.Requests
 		list.Today.add(listed.Worth)
@@ -197,8 +201,8 @@ func newLister(running []status.Session, unlisted bool, s Stream, now time.Time)
 // listed returns the session with the given id as the List has it, its story
 // s telling of its requests: ended at its last request; named as names has
 // it, the stream's requests of it taken in, its models going where they go
-// now; running, where the router lists it, as run has it; and doing as
-// activity has it.
+// now; running, where the router lists it, as run has it; doing as activity
+// has it; and come to its account as cameBy has it.
 func (by lister) listed(id string, s *story) ListedSession {
 	listed := ListedSession{Session: id, Dir: s.dir, Requests: s.requests, Worth: s.worth}
 	if s.first != nil {
@@ -212,6 +216,7 @@ func (by lister) listed(id string, s *story) ListedSession {
 		listed.run(session, s, by.now)
 	}
 	listed.Activity = by.activity(id, s)
+	listed.cameBy(s.moveOnto(listed.Model, listed.Account))
 	return listed
 }
 

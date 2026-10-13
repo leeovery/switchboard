@@ -29,6 +29,13 @@ func Tokens(n int) string {
 	return tenths(rounded(n, 100_000), "M")
 }
 
+// Characters counts n characters as the Log counts an answer's so far: in
+// thousands to a tenth at every size, as "0.8k", "5.1k", "14.2k" or "958.3k",
+// a half rounded up, as Tokens rounds its tenths.
+func Characters(n int) string {
+	return tenths(rounded(n, 100), "k")
+}
+
 // rounded is how many of unit n is, to the nearest, a half rounded up.
 func rounded(n, unit int) int {
 	return (n + unit/2) / unit
