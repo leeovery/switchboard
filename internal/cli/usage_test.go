@@ -172,7 +172,7 @@ func TestUsagePrintsTheWindowsGivenLaidOutAsAsked(t *testing.T) {
 			deps := statusDeps(t, upstream, map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, text), "COLUMNS": "160"})
 
 			got := run(t, deps, append([]string{"usage", "--pretty"}, tt.args...)...)
-			rows := dashboard.Printout{Width: 160, Look: dashboard.NoColour(), By: tt.by, Windows: tt.windows, Policy: claude.Policy, Name: claude.WindowName}.Draw(statusJSON(t, deps), testNow)
+			rows := dashboard.Printout{Width: 160, Look: dashboard.NoColour(), By: tt.by, Windows: tt.windows, Policy: claude.Policy, Name: claude.WindowName}.Draw(statusJSON(t, deps).At(testNow, claude.Policy))
 			if want := (result{stdout: ansi.Strip("\n" + strings.Join(rows, "\n") + "\n")}); got != want {
 				t.Errorf("switchboard usage --pretty %s =\n%+v\nwant the printout by %v of %q, off a terminal, without colour\n%+v",
 					strings.Join(tt.args, " "), got, tt.by, tt.windows, want)

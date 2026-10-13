@@ -59,7 +59,7 @@ func (f Frame) Targets(doc status.Document, now time.Time) []Target {
 		}
 	}
 	if f.View == Overview && !f.cramped() {
-		targets = append(targets, f.overviewTargets(doc, now)...)
+		targets = append(targets, f.At(doc, now).overviewTargets(doc, now)...)
 	}
 	return append(targets, f.keyTargets()...)
 }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/router"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -52,16 +51,16 @@ func (c changes) looked(look status.Moment, from router.Health) changes {
 	return c.found(look)
 }
 
-// ticked takes in doc at now, as found says of its moment, as policy judges
+// ticked takes in the moment m of the document on screen, as found says of
 // it, as the clock moves on with no read, as a limit lifting at its reset
 // moves an account's state on, or a window's use heading past its floor
 // before it resets has its words turn to out ~. Before anything is read,
 // there's nothing to tell apart.
-func (c changes) ticked(doc status.Document, now time.Time, policy score.Policy) changes {
+func (c changes) ticked(m status.Moment) changes {
 	if !c.from.read {
 		return c
 	}
-	return c.found(doc.At(now, policy))
+	return c.found(m)
 }
 
 // found takes in the accounts' states at the moment m, and whether their

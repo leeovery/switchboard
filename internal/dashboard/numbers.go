@@ -116,6 +116,7 @@ func (f Frame) StreamNumbered() bool {
 // screen alone, never one scrolled out of view, in a section folded, or in a
 // row left off for want of room.
 func (f Frame) Numbers(doc status.Document, now time.Time) map[Number]string {
+	f = f.At(doc, now)
 	return f.page(doc, now).numbers()
 }
 

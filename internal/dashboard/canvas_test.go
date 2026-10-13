@@ -296,7 +296,7 @@ func TestThePageBehindACardIsFadedAsItsFrameDrawsIt(t *testing.T) {
 	doc, sessions := routedWorld(false)
 	f := Frame{
 		Width: 160, Height: 37, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions,
-		Card: RoutingCard{Rows: RoutingRows(doc, sessions, routedAt, claudeLike)},
+		Card: RoutingCard{Rows: RoutingRows(doc.At(routedAt, claudeLike), sessions)},
 	}
 
 	heldTo(t, "routing-auto-160", reference(t, "routing-auto-160"), screenOf(t, f.Draw(doc, routedAt)), region{top: 0, bottom: 2, left: 0, right: 159}, shadeOf(nord.Canvas()), nil, nil)
@@ -307,7 +307,7 @@ func TestEveryCellOfThePageBehindACardIsFadedAndNothingInItBold(t *testing.T) {
 	f.Look = Screen(builtin(t, "nord"))
 	doc := threeRouted()
 	page := screenOf(t, f.Draw(doc, now))
-	f.Card = RoutingCard{Rows: RoutingRows(doc, nil, now, claudeLike)}
+	f.Card = RoutingCard{Rows: RoutingRows(doc.At(now, claudeLike), nil)}
 	behind := screenOf(t, f.Draw(doc, now))
 
 	k := f.Card.card(f)

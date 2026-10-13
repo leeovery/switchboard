@@ -131,12 +131,15 @@ func HardMoments(policy score.Policy) []HardMoment {
 		ID: 9, At: Built.Add(-20 * time.Minute), Kind: status.EventLimit, Account: "work",
 		Windows: []string{"5h"}, Until: Built.Add(40 * time.Minute), Limit: 4,
 	}}
-	unnamed := Router(policy, nil,
-		Routed{Account: with(readAt("work", windowIn("5h", 0.5, 3*time.Hour), windowIn("7d", 0.6, 3*day)), func(a *status.Account) {
-			a.Limit = status.Limit{ID: 5, Until: Built.Add(40 * time.Minute)}
-		})},
-		Routed{Account: side},
-	)
+	unnamed := func(change func(*status.Account)) status.Document {
+		return Router(policy, nil,
+			Routed{Account: with(readAt("work", windowIn("5h", 0.5, 3*time.Hour), windowIn("7d", 0.6, 3*day)), func(a *status.Account) {
+				a.Limit = status.Limit{ID: 5, Until: Built.Add(40 * time.Minute)}
+				change(a)
+			})},
+			Routed{Account: side},
+		)
+	}
 	capped := func(pinned []string) status.Document {
 		return Router(policy, pinned,
 			Routed{Account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.92, time.Hour)), reserving)},
@@ -301,7 +304,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			}},
 		},
 		{
-			Name: "a limit naming no window holding", Doc: unnamed, Now: Built.Add(10 * time.Minute),
+			Name: "a limit naming no window holding", Doc: unnamed(func(*status.Account) {}), Now: Built.Add(10 * time.Minute),
 			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
 				"work": {
 					Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true,
@@ -320,6 +323,29 @@ func HardMoments(policy score.Policy) []HardMoment {
 			}},
 		},
 		{
+			Name: "its token refused, a limit naming no window holding",
+			Doc: unnamed(func(a *status.Account) {
+				a.Refused = status.Refusal{Until: Built.Add(time.Hour), Status: 401}
+			}),
+			Now: Built.Add(10 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {
+					Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true,
+					Windows: map[string]WindowFacts{
+						"5h": {
+							Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 0.5, Next: Built.Add(3 * time.Hour),
+							Held: true, Out: Built.Add(2 * time.Hour),
+						},
+						"7d": {
+							Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 0.6, Next: Built.Add(3 * day),
+							Held: true, Out: Built.Add(64 * time.Hour),
+						},
+					},
+				},
+				"side": sideOpen,
+			}},
+		},
+		{
 			Name: "one account without a token, another not read yet",
 			Doc: Router(policy, nil,
 				Routed{ID: "work", Label: "work"},
@@ -327,8 +353,8 @@ func HardMoments(policy score.Policy) []HardMoment {
 			),
 			Now: Built.Add(time.Minute),
 			Want: Facts{Accounts: map[string]AccountFacts{
-				"work": {Routing: status.RoutingTokenless, CanRise: true, Windows: map[string]WindowFacts{}},
-				"side": {Routing: status.RoutingUnread, CanRise: true, Windows: map[string]WindowFacts{}},
+				"work": {Routing: status.RoutingTokenless, Windows: map[string]WindowFacts{}},
+				"side": {Routing: status.RoutingUnread, Windows: map[string]WindowFacts{}},
 			}},
 		},
 		{
@@ -339,7 +365,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			),
 			Now: Built.Add(time.Minute),
 			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
-				"work": {Routing: status.RoutingUnreadable, CanRise: true, Windows: map[string]WindowFacts{}},
+				"work": {Routing: status.RoutingUnreadable, Windows: map[string]WindowFacts{}},
 				"side": sideOpen,
 			}},
 		},

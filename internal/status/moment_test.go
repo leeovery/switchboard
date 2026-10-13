@@ -81,9 +81,6 @@ func checkMomentAgainstStatus(t *testing.T, doc status.Document, m status.Moment
 	if want := dashboardBestOf(doc); m.Next != want {
 		t.Errorf("Next = %q, want %q, as the dashboard's bestOf marks ▲", m.Next, want)
 	}
-	if got, want := m.Text(), doc.Text(now, policy); got != want {
-		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
-	}
 	ids := make([]string, len(doc.Accounts))
 	for i, a := range doc.Accounts {
 		ids[i] = a.ID
@@ -134,9 +131,9 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		Routing: got.Routing, Hold: hold, Held: held, LimitHolds: a.Limit.Holds(now), LimitSince: got.LimitSince,
 		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapBack: capBack,
 		Refusal: refusal, TokenRefused: a.TokenRefused(now),
-		Pressure: status.PressureNow{Under: doc.Pressed(a, now) != "", Window: a.Pressure.Window, Out: pressureOut},
+		Pressure: status.PressureNow{Under: a.UnderPressure(now), Window: a.Pressure.Window, Out: pressureOut},
 		Idle:     a.HasLapsed(policy.Started, now, policy), NextPrime: primeOf(doc, a.ID),
-		OutOfQuota: outOfQuota, CanRise: !outOfQuota && !a.TokenRefused(now),
+		OutOfQuota: outOfQuota, CanRise: a.TokenSet && !a.FetchedAt.IsZero() && !outOfQuota && !a.TokenRefused(now),
 		Windows: got.Windows,
 	}
 	if gotFacts := withoutUnreported(got); !reflect.DeepEqual(gotFacts, want) {
@@ -191,7 +188,8 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 		want.Capped = doc.ReserveHolds(a) && slices.Contains(a.ReachedReserve(now), w.Key)
 		want.CappedAsRead = doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key)
 		want.RunsOut, want.Out = st.Kind == status.WindowRunsOut, out
-		want.RunsOutAhead = want.RunsOut || want.Held && !out.At.IsZero()
+		unheld := !a.TokenRefused(now) && !want.Lapsed && a.Error == "" && !want.Capped
+		want.RunsOutAhead = want.RunsOut || want.Held && unheld && runsOut
 		if share, ok := dashboardProjected(st, out.Projection); ok {
 			want.Projected = &share
 		}
@@ -503,41 +501,48 @@ func TestAMomentsPoolIsWorkedOutOnceForEveryCopy(t *testing.T) {
 // A window runs out where a view says so only where nothing before running
 // out holds, the first of the kinds that holds winning: a limit, a refused
 // token or a failed read says more than its projection, which it keeps for
-// the bar's projected fill.
+// the bar's projected fill. It runs out ahead, as a timeline draws it, where
+// it runs out once a limit holding it lifts, judged by the same kinds: a
+// stale window runs out nowhere ahead either.
 func TestAWindowRunsOutWhereNothingBeforeItHolds(t *testing.T) {
 	// The week, 60% used three days in, runs out two days on at its pace.
 	running := readAt("work", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.6, 4*day))
 	out := built.Add(2 * day)
+	failed := func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }
+	refused := func(a *status.Account) { a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401} }
+	unnamed := func(a *status.Account) { a.Limit = status.Limit{Until: built.Add(time.Hour)} }
+	tokenless := func(a *status.Account) { a.TokenSet = false }
+	unread := func(a *status.Account) { a.FetchedAt = time.Time{} }
 	tests := []struct {
-		name    string
-		account status.Account
-		kind    status.WindowKind
-		runsOut bool
+		name           string
+		account        status.Account
+		kind           status.WindowKind
+		runsOut, ahead bool
+		// unknown is set where nothing is known of the window, which then
+		// has no projection.
+		unknown bool
 	}{
-		{name: "with nothing before it", account: running, kind: status.WindowRunsOut, runsOut: true},
-		{
-			name:    "its last read failed",
-			account: with(running, func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }),
-			kind:    status.WindowStale,
-		},
-		{
-			name:    "its token refused",
-			account: with(running, func(a *status.Account) { a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401} }),
-			kind:    status.WindowStale,
-		},
-		{
-			name:    "a limit naming no window holding it",
-			account: with(running, func(a *status.Account) { a.Limit = status.Limit{Until: built.Add(time.Hour)} }),
-			kind:    status.WindowLimited,
-		},
+		{name: "with nothing before it", account: running, kind: status.WindowRunsOut, runsOut: true, ahead: true},
+		{name: "its account without a usable token", account: with(running, tokenless), kind: status.WindowTokenless, unknown: true},
+		{name: "nothing read of its account", account: with(running, unread), kind: status.WindowUnread, unknown: true},
+		{name: "a limit naming no window holding it, its account without a usable token", account: with(with(running, unnamed), tokenless), kind: status.WindowTokenless, unknown: true},
+		{name: "its last read failed", account: with(running, failed), kind: status.WindowStale},
+		{name: "its token refused", account: with(running, refused), kind: status.WindowStale},
+		{name: "a limit naming no window holding it", account: with(running, unnamed), kind: status.WindowLimited, ahead: true},
+		{name: "a limit naming no window holding it, its token refused", account: with(with(running, unnamed), refused), kind: status.WindowLimited},
+		{name: "a limit naming no window holding it, its last read failed", account: with(with(running, unnamed), failed), kind: status.WindowLimited},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a, _ := statustest.Router(policy, nil, statustest.Routed{Account: tt.account}).WorkedOut(policy).At(built.Add(time.Minute), policy).Account("work")
 			w, _ := a.Window("7d")
-			if w.Kind != tt.kind || w.RunsOut != tt.runsOut || !w.Out.At.Equal(out) {
-				t.Errorf("the week stands as kind %d, running out %v, its projection out at %v; want kind %d, %v, and out at %v",
-					w.Kind, w.RunsOut, w.Out.At, tt.kind, tt.runsOut, out)
+			wantOut := out
+			if tt.unknown {
+				wantOut = time.Time{}
+			}
+			if w.Kind != tt.kind || w.RunsOut != tt.runsOut || w.RunsOutAhead != tt.ahead || !w.Out.At.Equal(wantOut) {
+				t.Errorf("the week stands as kind %d, running out %v, ahead %v, its projection out at %v; want kind %d, %v, %v, and out at %v",
+					w.Kind, w.RunsOut, w.RunsOutAhead, w.Out.At, tt.kind, tt.runsOut, tt.ahead, wantOut)
 			}
 			if tt.runsOut && !w.At.Equal(w.Out.At) {
 				t.Errorf("the week runs out at %v, want %v, as its projection has it", w.At, w.Out.At)
@@ -586,7 +591,7 @@ func TestThePressureLinesTimeIsTheRoutersForAnyDocumentItBuilds(t *testing.T) {
 		if a.Pressure.Out.Reserve {
 			verb = "at its reserve"
 		}
-		if got, want := doc.Pressed(doc.Accounts[0], built), "under pressure: "+verb+" ~"+status.TimeOfDay(built, stored.RunsOut); got != want {
+		if got, want := doc.Pressed(doc.Accounts[0], built, policy), "under pressure: "+verb+" ~"+status.TimeOfDay(built, stored.RunsOut); got != want {
 			t.Fatalf("case %d: Pressed() = %q, want %q", i, got, want)
 		}
 	}
@@ -703,6 +708,10 @@ func TestAnAccountIsInThePoolWhereThePoolTakesItIn(t *testing.T) {
 	}
 }
 
+// An account is out of quota where a limit or its cap holds it back from
+// every request; and it can take a request, its use rising, where it has a
+// usable token, its usage was read, its quota hasn't run out and its token
+// isn't refused.
 func TestAnAccountIsOutOfQuotaWhereALimitOrItsCapHoldsItBackFromEveryRequest(t *testing.T) {
 	limit := func(windows ...string) func(*status.Account) {
 		return func(a *status.Account) {
@@ -733,6 +742,10 @@ func TestAnAccountIsOutOfQuotaWhereALimitOrItsCapHoldsItBackFromEveryRequest(t *
 		{name: "at its reserve, pinned, which spends it", account: atItsReserve, pinned: true, canRise: true},
 		{name: "its token refused alone, which isn't quota", account: with(readAt("work", session, week), refused)},
 		{name: "its token refused, and a window every model shares read spent", account: with(readAt("work", spentIn("5h", 1, 3*time.Hour), week), refused), outOfQuota: true},
+		{name: "without a usable token", account: status.Account{ID: "work", Label: "work"}},
+		{name: "nothing read of it yet", account: status.Account{ID: "work", Label: "work", TokenSet: true}},
+		{name: "its first read failed, nothing read of it before", account: status.Account{ID: "work", Label: "work", TokenSet: true, Error: "HTTP 529 · Overloaded"}},
+		{name: "its last read failed, after an earlier one", account: with(readAt("work", session, week), func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }), canRise: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

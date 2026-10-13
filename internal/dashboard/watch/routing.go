@@ -55,17 +55,21 @@ func (m Model) openRouting() (tea.Model, tea.Cmd) {
 	case key.Off:
 		return m.noting(status.ErrNoRouter.Error())
 	}
-	now := m.now()
-	picked := standing(m.moment(now))
-	rows := m.routingRows(now)
+	mo := m.moment(m.now())
+	picked := standing(mo)
+	rows := dashboard.RoutingRows(mo, m.sessions)
 	cursor := max(slices.IndexFunc(rows, func(row dashboard.RoutingRow) bool { return slices.Contains(picked, row.Account) }), 0)
 	m.routing = routing{card: m.routing.card + 1, cursor: cursor, priced: pricing{listing: m.routing.priced.listing}}
 	return m.cover(routingOpen), nil
 }
 
 // moment is the document on screen as it stands at now, as the policy
-// judges it.
+// judges it: the moment of the message Update is taking in, where now is
+// when it came, as taking has it, else worked out afresh.
 func (m Model) moment(now time.Time) status.Moment {
+	if held := m.taking.moment; held.Of(m.doc, now) {
+		return held.Moment()
+	}
 	return m.doc.At(now, m.cfg.Policy)
 }
 
@@ -113,10 +117,10 @@ func (m Model) picks(mo status.Moment) []string {
 // m ticks or clears moving the sessions running; enter applies the picks;
 // and esc closes the card, changing nothing. The rest do nothing.
 func (m Model) routingKey(key string) (tea.Model, tea.Cmd) {
-	now := m.now()
-	rows := m.routingRows(now)
+	mo := m.moment(m.now())
+	rows := dashboard.RoutingRows(mo, m.sessions)
 	r := m.routing
-	r.cursor, r.picked = min(r.cursor, len(rows)-1), m.picks(m.moment(now))
+	r.cursor, r.picked = min(r.cursor, len(rows)-1), m.picks(mo)
 	switch key {
 	case "esc":
 		return m.uncover()
@@ -211,18 +215,13 @@ func alters(picked, named, sent []string, move bool) bool {
 	return !slices.Equal(picked, named) || move && len(sent) > 0
 }
 
-// routingRows are the routing card's rows, read afresh from the document on
-// screen at now, with the sessions listed.
-func (m Model) routingRows(now time.Time) []dashboard.RoutingRow {
-	return dashboard.RoutingRows(m.doc, m.sessions, now, m.cfg.Policy)
-}
-
 // routingCard is the routing card as the picker stands, its rows read afresh
-// from the document on screen at now: those picked, those of them enter
-// leaves out of the order, as sendable says, and what the order moves.
+// from the document on screen at now, with the sessions listed: those
+// picked, those of them enter leaves out of the order, as sendable says, and
+// what the order moves.
 func (m Model) routingCard(now time.Time) dashboard.RoutingCard {
 	r, mo := m.routing, m.moment(now)
-	rows := m.routingRows(now)
+	rows := dashboard.RoutingRows(mo, m.sessions)
 	picked := m.picks(mo)
 	sent := sendable(mo, picked)
 	moving := m.moving(sent)
@@ -303,14 +302,13 @@ func samePlace(a, b status.Session) bool {
 
 // pinKey is p as the key line and help list it, and whether they list it:
 // where there's more than one account to pin to, or a pin stands, to clear
-// it; but never while the source probes as asked, reading no router to pin
-// through, whether one answers or not. It's faint while the router doesn't
-// answer, as p then opens nothing.
+// it, as the document on screen was read; but never while the source probes
+// as asked, reading no router to pin through, whether one answers or not.
+// It's faint while the router doesn't answer, as p then opens nothing.
 func (m Model) pinKey() (dashboard.Key, bool) {
 	key := dashboard.Key{Key: "p", Does: "pin", Off: !m.answering()}
 	if m.cfg.ProbeOnly {
 		return key, false
 	}
-	mo := m.moment(m.now())
-	return key, len(mo.Accounts) > 1 || !mo.Pin.IsZero()
+	return key, len(m.arrived.Accounts) > 1 || !m.arrived.Pin.IsZero()
 }

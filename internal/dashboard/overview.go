@@ -577,6 +577,7 @@ func (f Frame) LayoutOf(doc status.Document, now time.Time) Layout {
 	if f.View != Overview {
 		return Layout{}
 	}
+	f = f.At(doc, now)
 	units := f.unitsOf(f.sectionsOf(doc, now))
 	made := f.layoutFor(units)
 	if f.keeps(made) {

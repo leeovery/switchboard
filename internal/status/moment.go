@@ -127,8 +127,8 @@ type AccountNow struct {
 	// OutOfQuota is set where its quota for a request of any model has run
 	// out at Now: a limit or its cap holds it back from every request,
 	// whatever its token. CanRise is set where it can take a request of some
-	// model at Now, so its use can rise: it isn't out of quota, and its token
-	// isn't refused.
+	// model at Now, so its use can rise: it has a usable token, its usage was
+	// read, it isn't out of quota, and its token isn't refused.
 	OutOfQuota, CanRise bool
 	// Windows are its windows, in its order, each as it stands at Now.
 	Windows []WindowNow
@@ -217,9 +217,11 @@ type WindowNow struct {
 	// when. A window a limit holds, at its cap, not started, or of an account
 	// whose token is refused or whose last read failed doesn't, whatever its
 	// projection says. RunsOutAhead is set where it runs out ahead of Now, as
-	// a timeline draws it, at its Out: where it RunsOut, or where Claude's
-	// limit holds it and it runs out once that lifts, as one a limit naming
-	// no window holds can. A stale window runs out nowhere ahead either.
+	// a timeline draws it, at its Out: where its kind, with any limit holding
+	// it set aside, as it stands once that lifts, is WindowRunsOut. It's
+	// RunsOut where no limit holds it; where one does, as one naming no
+	// window can, it's set where it runs out once the limit lifts, but not
+	// where it's stale, not started or at its cap.
 	RunsOut, RunsOutAhead bool
 	// Out is where it runs out at Now at the pace it's heading at, as
 	// RunsOut says, projected from when the document was read, whatever
@@ -292,6 +294,12 @@ func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
 	return &HeldMoment{generated: d.GeneratedAt, now: now, moment: sync.OnceValue(func() Moment { return d.At(now, policy) })}
 }
 
+// Held is the moment held, worked out already, as HoldAt holds one: for every
+// look at its document at its Now to share.
+func (m Moment) Held() *HeldMoment {
+	return &HeldMoment{generated: m.doc.GeneratedAt, now: m.Now, moment: func() Moment { return m }}
+}
+
 // Of reports whether h holds the moment of d at now: nil holds none.
 func (h *HeldMoment) Of(d Document, now time.Time) bool {
 	return h != nil && h.generated.Equal(d.GeneratedAt) && h.now.Equal(now)
@@ -339,12 +347,6 @@ func (m Moment) Pool() PoolNow {
 		now.Windows = append(now.Windows, PoolWindowNow{Key: w.Key, Room: w.Room, Used: w.Used, Pace: w.Pace})
 	}
 	return now
-}
-
-// Text is the document as status prints it at Now, as Text has it, with the
-// sessions given.
-func (m Moment) Text(sessions ...Session) string {
-	return m.doc.Text(m.Now, m.policy, sessions...)
 }
 
 // Destination says where a pin to the accounts with the given ids sends
@@ -457,11 +459,12 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.Floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
-		Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.Holds(m.Now), LimitSince: eventAt(d.limitEvent(a, m.Now)),
+		Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.Holds(m.Now), LimitSince: eventAt(d.LimitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
-		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(), CanRise: !s.stood.shut(),
+		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(),
 		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},
 	}
+	an.CanRise = an.TokenSet && an.Read && !s.stood.shut()
 	an.unreported, _ = s.unknown(false)
 	if s.refusing {
 		an.Refusal = a.Refused
@@ -497,7 +500,8 @@ func (m Moment) windowNow(s WindowStates, w judged, name WindowName) WindowNow {
 	}
 	wn.Capped, wn.CappedAsRead = s.capped(key), m.doc.reserveHolds(a) && slices.Contains(a.AtReserve, key)
 	wn.RunsOut, wn.Out, wn.Projected = wn.Kind == WindowRunsOut, w.out, projected(wn.Kind, w.out.Projection)
-	wn.RunsOutAhead = wn.RunsOut || wn.Held && !w.out.At.IsZero()
+	unheld, _ := s.unheldOf(w)
+	wn.RunsOutAhead = unheld == WindowRunsOut
 	wn.Nearing = wn.Projected != nil && !w.runsOut && *wn.Projected >= m.doc.Floor(a)-Near-score.Tolerance
 	wn.InUse = inUse(w.stands, w.out.Projection)
 	return wn
@@ -605,7 +609,7 @@ func eventAt(e Event, ok bool) time.Time {
 
 // reachedIn is the router's event of account a reaching the limit that holds
 // its window w at now, reporting false where none tells of it. Where the
-// account's limit holds w, it's that limit's event, as limitEvent finds it.
+// account's limit holds w, it's that limit's event, as LimitEvent finds it.
 // Where the account has no such limit, as a probed document has none, or one
 // without an identity, as a router from before limits had them gives, it's
 // the newest event of the account reaching a limit naming w, or naming no
@@ -614,7 +618,7 @@ func eventAt(e Event, ok bool) time.Time {
 // of when w reached it.
 func (d Document) reachedIn(a Account, w quota.Window, now time.Time) (Event, bool) {
 	if l := a.Limit; l.ID != 0 && l.Holds(now) && (len(l.Windows) == 0 || slices.Contains(l.Windows, w.Key)) {
-		return d.limitEvent(a, now)
+		return d.LimitEvent(a, now)
 	}
 	start, _, spanned := w.Span()
 	if !spanned {
@@ -630,12 +634,12 @@ func (d Document) reachedIn(a Account, w quota.Window, now time.Time) (Event, bo
 	return d.Events[i], true
 }
 
-// limitEvent is the router's event of the limit holding account a at now: the
+// LimitEvent is the router's event of the limit holding account a at now: the
 // one whose identity is its limit's. It reports false where no router limit
 // holds the account, as none holds one probed, where its limit has no
 // identity, as a router from before limits had them gives none, or where no
 // event tells of it.
-func (d Document) limitEvent(a Account, now time.Time) (Event, bool) {
+func (d Document) LimitEvent(a Account, now time.Time) (Event, bool) {
 	if a.Limit.ID == 0 || !a.Limit.Holds(now) {
 		return Event{}, false
 	}

@@ -113,12 +113,11 @@ func (d Document) primeOf(id string) time.Time {
 	return d.Prime.Slots[i].Next
 }
 
-// notStartedNote says what a window that has lapsed on the account with the
-// given id reads: that it hasn't started, and when the router next primes the
-// account, as primeOf has it, in now's time zone, such as "not started · next
-// prime Tue 03:50".
-func (d Document) notStartedNote(id string, now time.Time) string {
-	next := d.primeOf(id)
+// notStartedNote says what a window that has lapsed on an account reads: that
+// it hasn't started, and when the router next primes the account, next,
+// where it says, as primeOf has it, in now's time zone, such as "not started
+// · next prime Tue 03:50".
+func notStartedNote(next, now time.Time) string {
 	if next.IsZero() {
 		return notStarted
 	}

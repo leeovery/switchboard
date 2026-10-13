@@ -88,7 +88,7 @@ func printName(key string) string {
 // printed is doc's printout width columns wide, grouped by, of the windows
 // with the keys given, as text alone, its windows named as Claude's are.
 func printed(doc status.Document, width int, by By, windows ...string) []string {
-	return Printout{Width: width, By: by, Windows: windows, Policy: printPolicy, Name: printName}.Draw(doc, printNow)
+	return Printout{Width: width, By: by, Windows: windows, Policy: printPolicy, Name: printName}.Draw(doc.At(printNow, printPolicy))
 }
 
 // colAt is the n cells of row from column col: fewer where it ends sooner.

@@ -18,7 +18,7 @@ func (f Fixture) printout(width int) string {
 	// The fixture's router answers every read, so Read never fails.
 	doc, _, _ := f.router.Read(context.Background(), status.Read{Probe: true})
 	p := dashboard.Printout{Width: width, Look: f.printLook(), By: f.by, Windows: f.windows, Policy: claude.Policy, Name: claude.WindowName}
-	return strings.Join(p.Draw(doc, f.now), "\n") + "\n"
+	return strings.Join(p.Draw(doc.At(f.now, p.Policy)), "\n") + "\n"
 }
 
 // printLook is the look usage prints the fixture in: its theme's, painting

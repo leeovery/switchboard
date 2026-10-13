@@ -109,7 +109,8 @@ func TestThePrintoutFitsEveryWidth(t *testing.T) {
 }
 
 func TestAPrintoutWithoutColourTellsStateByGlyphsAndBold(t *testing.T) {
-	rows := Printout{Width: 160, Look: NoColour()}.Draw(trio(), printNow)
+	p := Printout{Width: 160, Look: NoColour()}
+	rows := p.Draw(trio().At(printNow, p.Policy))
 	for i, r := range rows {
 		if strings.Contains(r, "38;") || strings.Contains(r, "48;") {
 			t.Fatalf("row %d is drawn %q, want no colour", i, r)

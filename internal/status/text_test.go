@@ -22,7 +22,7 @@ func TestText(t *testing.T) {
 		want string
 	}{
 		{
-			name: "windows heading every way, and the account to use next",
+			name: "windows heading every way, probed: no account to use next, where new sessions go being the router's to say",
 			doc: status.Document{
 				GeneratedAt: now.UTC(),
 				Source:      status.SourceProbe,
@@ -66,16 +66,31 @@ personal · Personal
 spare · Spare
   HTTP 401 · Invalid bearer token
 
-best next: work · Work
 probed directly
 `,
 		},
 		{
-			name: "no account to use next",
+			name: "the router's, no account to use next, as none has room",
+			doc: status.Document{
+				GeneratedAt: now.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true},
+				Accounts: []status.Account{personal, {ID: "spare", Label: "Spare", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"}},
+			},
+			want: `personal · Personal
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
+
+spare · Spare
+  HTTP 401 · Invalid bearer token
+
+from the router: healthy  ·  no sessions  ·  routing automatically
+`,
+		},
+		{
+			name: "probed, a lone account to use next, whatever its room, as ▲ marks it",
 			doc:  status.Document{GeneratedAt: now.UTC(), Source: status.SourceProbe, Accounts: []status.Account{personal}},
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+best next: personal · Personal
 probed directly
 `,
 		},
@@ -242,6 +257,7 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 			want: `side · Side
   HTTP 401 · Invalid bearer token
 
+best next: side · Side
 from the router: unhealthy, 6 of the 8 requests in the last 5 minutes failed  ·  no sessions  ·  routing automatically
 `,
 		},
@@ -257,6 +273,7 @@ from the router: unhealthy, 6 of the 8 requests in the last 5 minutes failed  ·
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+best next: personal · Personal
 from the router: healthy  ·  no sessions  ·  routing automatically
 restart due since Mon 13:12 (upgraded), once no request is in flight (3 now): switchboard service restart restarts it now, cutting off requests still in flight after 30 seconds
 `,
@@ -272,6 +289,7 @@ restart due since Mon 13:12 (upgraded), once no request is in flight (3 now): sw
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+best next: personal · Personal
 probed directly: the router isn't running
 `,
 		},
@@ -286,6 +304,7 @@ probed directly: the router isn't running
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+best next: personal · Personal
 probed directly: the router is unhealthy, no answer within 500ms
 `,
 		},
@@ -297,7 +316,7 @@ probed directly: the router is unhealthy, no answer within 500ms
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.doc.Text(now, policy); got != tt.want {
+			if got := tt.doc.At(now, policy).Text(); got != tt.want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, tt.want)
 			}
 		})
@@ -355,7 +374,7 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 				"  Session  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +
 				"\n" +
 				"from the router: healthy  ·  2 sessions  ·  " + doc.Routing() + "\n"
-			if got := doc.Text(now, policy); got != want {
+			if got := doc.At(now, policy).Text(); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
@@ -374,7 +393,7 @@ func TestTextKeepsItsWordsForAModelsOwnWindowAtItsReserve(t *testing.T) {
 	}
 	doc := status.Document{GeneratedAt: now.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: []status.Account{work}}
 
-	if got := doc.Text(now, policy); !strings.Contains(got, "\n  at its reserve (90%)\n") || strings.Contains(got, "other models") {
+	if got := doc.At(now, policy).Text(); !strings.Contains(got, "\n  at its reserve (90%)\n") || strings.Contains(got, "other models") {
 		t.Errorf("Text() =\n%s\nwant it to say \"at its reserve (90%%)\" as it always has, as the card alone names the window", got)
 	}
 	if got := doc.StateOf(work, now, policy); got.Says != "Fable wk at its reserve (90%)" {
@@ -462,7 +481,7 @@ func TestPressed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{Pin: status.Pin{Accounts: tt.pin}, Accounts: []status.Account{tt.account}}
-			if got := doc.Pressed(tt.account, now); got != tt.want {
+			if got := doc.Pressed(tt.account, now, policy); got != tt.want {
 				t.Errorf("Pressed() = %q, want %q", got, tt.want)
 			}
 		})
@@ -513,6 +532,12 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 			notes:    "  under pressure: at its reserve ~15:12 at Session's rate over the last 30 min, before its reset at 17:10\n",
 		},
 		{
+			name:     "under pressure as the router says, its window not running out before it resets at the rate it goes by: nothing of why",
+			pressure: status.Pressure{Window: "5h", Rate: 0.05, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
+			heading:  "on pace for 75% at its rate over the last 30 min",
+			notes:    "  under pressure\n",
+		},
+		{
 			name:     "not under pressure",
 			pressure: status.Pressure{Window: "5h", Rate: 0.1, Recent: true, RunsOut: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)},
 			heading:  "on pace for 90% at its rate over the last 30 min",
@@ -538,8 +563,9 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 			want := "work · Work\n" +
 				"  Session  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
 				tt.notes + "\n" +
+				"best next: work · Work\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
-			if got := doc.Text(now, policy); got != want {
+			if got := doc.At(now, policy).Text(); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
@@ -565,8 +591,9 @@ func TestTextSaysASessionThatResetSinceItWasReadHasntStarted(t *testing.T) {
 	want := "work · Work\n" +
 		"  Session   0%  not started\n" +
 		"\n" +
+		"best next: work · Work\n" +
 		"from the router: healthy  ·  no sessions  ·  routing automatically\n"
-	if got := doc.Text(reset.Add(time.Second).In(read.Location()), policy); got != want {
+	if got := doc.At(reset.Add(time.Second).In(read.Location()), policy).Text(); got != want {
 		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 	}
 }
@@ -614,8 +641,9 @@ func TestTextSaysASessionLapsedAtNowHasntStartedUnlessALimitOrARefusalComesFirst
 			tt.change(&a)
 			doc := status.Document{GeneratedAt: read.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: []status.Account{a}}
 			want := "work · Work\n" + tt.want + "\n" +
+				"best next: work · Work\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
-			if got := doc.Text(now, policy); got != want {
+			if got := doc.At(now, policy).Text(); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
@@ -641,7 +669,7 @@ func TestTextGivesAWeekResetSinceItWasReadItsNextReset(t *testing.T) {
 	want := "work · Work\n" +
 		"  Week   0%  resets in 6d 23h · Mon 15:12\n" +
 		"  refused (401) until 16:12\n"
-	if got := doc.Text(reset.Add(time.Second), policy); !strings.HasPrefix(got, want) {
+	if got := doc.At(reset.Add(time.Second), policy).Text(); !strings.HasPrefix(got, want) {
 		t.Errorf("Text() =\n%s\nwant it to start\n%s", got, want)
 	}
 }
@@ -666,7 +694,7 @@ func TestTextSaysASessionNotedLapsedHasntStartedThoughItsProbeFailed(t *testing.
 	want := "work · Work\n" +
 		"  Session   0%  not started · next prime Mon 16:20\n" +
 		"  HTTP 529 · Overloaded\n"
-	if got := doc.Text(now, policy); !strings.HasPrefix(got, want) {
+	if got := doc.At(now, policy).Text(); !strings.HasPrefix(got, want) {
 		t.Errorf("Text() =\n%s\nwant it to start\n%s", got, want)
 	}
 }
@@ -704,8 +732,9 @@ func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
 			}
 			want := "work · Work\n" +
 				"  Week  99%  resets in 4d · Fri 14:12 · " + tt.heading + "\n\n" +
+				"best next: work · Work\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
-			if got := doc.Text(now, policy); got != want {
+			if got := doc.At(now, policy).Text(); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
@@ -754,10 +783,10 @@ sessions
 best next: work · Work
 from the router: healthy  ·  2 sessions  ·  routing automatically
 `
-	if got := doc.Text(now, policy, sessions...); got != want {
+	if got := doc.At(now, policy).Text(sessions...); got != want {
 		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 	}
-	if got, without := doc.Text(now, policy, []status.Session{}...), doc.Text(now, policy); got != without || strings.Contains(got, "sessions\n  ") {
+	if got, without := doc.At(now, policy).Text([]status.Session{}...), doc.At(now, policy).Text(); got != without || strings.Contains(got, "sessions\n  ") {
 		t.Errorf("Text() given no sessions =\n%s\nwant it as without them, listing none\n%s", got, without)
 	}
 }
@@ -878,7 +907,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 		Pin:      status.Pin{Accounts: []string{"gone" + clear}},
 		Router:   status.Health{Reason: clear + "6 of the 8 requests in the last 5 minutes failed"},
 		Accounts: []status.Account{work},
-	}.Text(now, policy, running)
+	}.At(now, policy).Text(running)
 	shown := map[string]string{
 		"the router's document, and its sessions": routers,
 		"a session, as its line reads":            running.Line(now),
@@ -886,7 +915,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 			Source:   status.SourceProbe,
 			Fallback: status.Fallback{Router: status.RouterUnhealthy, Reason: "answered " + clear},
 			Accounts: []status.Account{work},
-		}.Text(now, policy),
+		}.At(now, policy).Text(),
 	}
 	for name, text := range shown {
 		if strings.ContainsFunc(text, func(r rune) bool { return unicode.IsControl(r) && r != '\n' }) {

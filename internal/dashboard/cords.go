@@ -293,10 +293,10 @@ func (f Frame) gone(fade float64) bool {
 }
 
 // stubbed is how many sessions doc's account a's limit moved off it, while
-// the limit holds at now, as its event, which limitOf finds, tells: none
+// the limit holds at now, as its event, which LimitEvent finds, tells: none
 // otherwise.
 func stubbed(doc status.Document, a status.Account, now time.Time) int {
-	if e, ok := limitOf(doc, a, now); ok {
+	if e, ok := doc.LimitEvent(a, now); ok {
 		return e.Count
 	}
 	return 0

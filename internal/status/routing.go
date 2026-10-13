@@ -98,18 +98,6 @@ const (
 	comeHere    = "new sessions come here"
 )
 
-// pressureOut is where account a's pressure window, as the router named it,
-// runs out at now, as RunsOut has it: At zero where it doesn't before it
-// resets, or the account has no such window.
-func (d Document) pressureOut(a Account, now time.Time) RunOut {
-	w, ok := a.Window(a.Pressure.Window)
-	if !ok {
-		return RunOut{}
-	}
-	out, _ := d.RunsOut(a, w, now)
-	return out
-}
-
 // routing is how the account stands with the router at now: the first of the
 // kinds that holds. A limit or a refusal is said even where its last read
 // failed, as heldRouting says; its usage unreadable only where nothing was
