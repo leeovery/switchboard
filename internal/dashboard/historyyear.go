@@ -466,23 +466,25 @@ func costSaid(cost *ledger.Picodollars) line {
 	return line{{cost.GroupedDollars(), secondaryInk}}
 }
 
-// daySaid names the day with the given date, as "Tue 22 Sep": a dash for
-// none.
+// daySaid names the day with the given date, as views.DateNamed does, as
+// "Tue 22 Sep": a dash for none.
 func daySaid(date string) line {
-	day, ok := dayfile.Civil(date)
-	if !ok {
-		return line{noFigure}
-	}
-	return line{{prose.Day(day), secondaryInk}}
+	return figureOr(views.DateNamed(date))
 }
 
-// runSaid says how many days in a row there were, as "58 days": a dash for
-// none.
+// runSaid says how many days in a row there were, as views.DaysInARow does,
+// as "58 days": a dash for none.
 func runSaid(days int) line {
-	if days == 0 {
+	return figureOr(views.DaysInARow(days))
+}
+
+// figureOr is a figure of the year's, said, in text.secondary: a dash where
+// it says nothing.
+func figureOr(said string) line {
+	if said == "" {
 		return line{noFigure}
 	}
-	return line{{prose.Counted(days, "day"), secondaryInk}}
+	return line{{said, secondaryInk}}
 }
 
 // ordinal is the day of the month as a sentence counts it, as 22nd.

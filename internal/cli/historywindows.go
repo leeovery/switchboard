@@ -11,17 +11,17 @@ import (
 )
 
 // writeWindows writes each account's windows' readings as history --windows's
-// text: a heading a window, its account's id and its name, then a line a
-// reading, when it was read, its use, when the window resets, its status and
-// where it came from, times in now's time zone; or says there were none since
-// from.
+// text: a heading a window, its account's id and its name, as
+// status.NameOfKey names a window, as "Week", then a line a reading, when it
+// was read, its use, when the window resets, its status and where it came
+// from, times in now's time zone; or says there were none since from.
 func writeWindows(out io.Writer, windows views.Windows, from, now time.Time) error {
 	if len(windows.Windows) == 0 {
 		_, err := fmt.Fprintf(out, "no readings since %s\n", dayIn(now, from))
 		return err
 	}
 	for i, w := range windows.Windows {
-		heading := prose.Clean(w.Account) + "  " + windowName(w.Window)
+		heading := prose.Clean(w.Account) + "  " + status.NameOfKey(w.Window)
 		if i > 0 {
 			heading = "\n" + heading
 		}
@@ -38,12 +38,6 @@ func writeWindows(out io.Writer, windows views.Windows, from, now time.Time) err
 		}
 	}
 	return nil
-}
-
-// windowName names the window with the given key in the verbs' text, as
-// status names it, in prose, as "5-hour", "week" or "Fable week".
-func windowName(key string) string {
-	return status.InProse(status.NameOfKey(key))
 }
 
 // resetsText says when a window resets, as "resets Tue 6 Oct 23:10", in

@@ -75,6 +75,16 @@ func TestAShareIsAWholePercentage(t *testing.T) {
 	}
 }
 
+// What History says as views words it is drawn in its ink, each figure among
+// it a figure, so a wrap never breaks it, and the rest words.
+func TestWordsViewsSayAreDrawnTheirFiguresFigures(t *testing.T) {
+	got := saidParts(views.ShortOutOf(6, 7), mutedInk)
+	want := []part{wordsIn("short on ", mutedInk), figureIn("6", mutedInk), wordsIn(" of ", mutedInk), figureIn("7", mutedInk)}
+	if !slices.EqualFunc(got, want, func(a, b part) bool { return a.figure == b.figure && slices.Equal(a.said, b.said) }) {
+		t.Errorf("short on 6 of 7 is drawn as %+v, want %+v", got, want)
+	}
+}
+
 // A family is named with its first letter capital, cleaned, after its dot
 // in its hue, or text.muted for one without a hue of its own.
 func TestAFamilyIsNamedAfterItsDot(t *testing.T) {

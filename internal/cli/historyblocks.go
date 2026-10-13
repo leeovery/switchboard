@@ -52,8 +52,8 @@ func writeTotals(out io.Writer, totals views.Totals, plans []views.PlanCost, pri
 		{label: "plan", of: func(_ views.AccountTotals, p views.PlanCost) string { return planText(p, plans, prices) }},
 		{label: "worth", of: func(t views.AccountTotals, _ views.PlanCost) string { return worthText(t.Worth) }},
 		{label: "against its price", of: func(_ views.AccountTotals, p views.PlanCost) string { return againstText(p.Against) }},
-		{label: "busiest day", of: func(t views.AccountTotals, _ views.PlanCost) string { return dayText(t.BusiestDay) }},
-		{label: "longest run", of: func(t views.AccountTotals, _ views.PlanCost) string { return runText(t.LongestRun) }},
+		{label: "busiest day", of: func(t views.AccountTotals, _ views.PlanCost) string { return orNone(views.DateNamed(t.BusiestDay)) }},
+		{label: "longest run", of: func(t views.AccountTotals, _ views.PlanCost) string { return orNone(views.DaysInARow(t.LongestRun)) }},
 	}
 	if len(totals.Accounts) == 0 {
 		return nil
@@ -190,7 +190,7 @@ func minutesText(t views.AccountTotals) string {
 }
 
 // leftText says what each window had left at its last reset, each named as
-// windowName names it, as "5-hour 0% · week 59%": a dash where none reset.
+// windowInProse names it, as "5-hour 0% · week 59%": a dash where none reset.
 func leftText(left map[string]float64) string {
 	if len(left) == 0 {
 		return dash
@@ -198,7 +198,7 @@ func leftText(left map[string]float64) string {
 	keys := slices.SortedFunc(maps.Keys(left), quota.CompareKeys)
 	shares := make([]string, len(keys))
 	for i, key := range keys {
-		shares[i] = windowName(key) + " " + prose.Percent(left[key])
+		shares[i] = windowInProse(key) + " " + prose.Percent(left[key])
 	}
 	return strings.Join(shares, apart)
 }
@@ -249,25 +249,6 @@ func againstText(a views.Against) string {
 	return prose.Ratio(*a.Ratio) + " its " + a.Cost.GroupedDollars()
 }
 
-// dayText names the day with the given date, as "Tue 22 Sep": a dash for
-// none.
-func dayText(date string) string {
-	day, ok := dayfile.Civil(date)
-	if !ok {
-		return dash
-	}
-	return prose.Day(day)
-}
-
-// runText says how many days in a row there were, as "58 days": a dash for
-// none.
-func runText(days int) string {
-	if days == 0 {
-		return dash
-	}
-	return prose.Counted(days, "day")
-}
-
 // writeWeeks writes each week's peaks, a column a week, by its first day, a
 // row an account's week, then one of each model's own week it has, every
 // account's last, the peak so far of a week still running marked "…".
@@ -284,7 +265,7 @@ func writeWeeks(out io.Writer, weeks []views.Week) error {
 		for _, key := range peakKeys(weeks, entry) {
 			label := "  " + entryName(entry.Account, entry.All)
 			if key != claude.WeekWindow {
-				label = "    " + windowName(key)
+				label = "    " + status.NameOfKey(key)
 			}
 			row := []string{label}
 			for _, w := range weeks {
@@ -342,13 +323,13 @@ func dayFirst(date string) string {
 	return prose.DayMonth(day)
 }
 
-// writeCapacity writes Weeks' verdicts: the headline; how many weeks were
-// short as the accounts stand, with one fewer and with one more; each
-// account's verdict, every account's last; and the one to drop, where
-// there's one; or that there are no whole weeks to judge yet.
+// writeCapacity writes Weeks' verdicts: the headline, as views.Headline says
+// it; how many weeks were short as the accounts stand, with one fewer and
+// with one more; each account's verdict, every account's last; and the one
+// to drop, where there's one; or that there are no whole weeks to judge yet.
 func writeCapacity(out io.Writer, c views.Capacity) error {
 	if c.Weeks == 0 {
-		_, err := fmt.Fprintln(out, "\nWeeks: not enough weeks yet")
+		_, err := fmt.Fprintln(out, "\nWeeks: "+views.NotEnoughWeeks)
 		return err
 	}
 	accounts := 0
@@ -357,49 +338,40 @@ func writeCapacity(out io.Writer, c views.Capacity) error {
 			accounts++
 		}
 	}
-	lines := []string{
-		"", fmt.Sprintf("Weeks: %s is %s", prose.Number(accounts), c.Verdict),
-		"  " + replayText(c),
-	}
+	lines := []string{"", "Weeks: " + views.Headline(accounts, c.Verdict).String(), "  " + replayText(c)}
 	for _, v := range c.Accounts {
 		lines = append(lines, "  "+verdictText(v))
 	}
 	if c.Drop != "" {
-		lines = append(lines, "  "+prose.Clean(c.Drop)+" is the one to drop")
+		lines = append(lines, "  "+views.ToDrop(prose.Clean(c.Drop)))
 	}
-	lines = append(lines, "  an estimate, from replaying these weeks with one account fewer or more")
+	lines = append(lines, "  "+views.EstimateOfOneFewerOrMore)
 	_, err := fmt.Fprintln(out, strings.Join(lines, "\n"))
 	return err
 }
 
-// replayText says how many weeks were short as the accounts stand, with one
-// fewer, where there's more than one, and with one more, as "as now: short
-// on 3 of 7 weeks  ·  with one fewer: short on 6  ·  with one more: short on
-// none"; or, where one can be dropped, with two fewer in one more's place.
+// replayText says how many weeks were short as the accounts stand, as
+// views.ShortOfWeeks says it, with one fewer, where there's more than one,
+// and with one more, as views.ShortOn says it, as "as now: short on 3 of 7
+// weeks  ·  with one fewer: short on 6  ·  with one more: short on none"; or,
+// where one can be dropped, with two fewer in one more's place.
 func replayText(c views.Capacity) string {
-	replays := []string{fmt.Sprintf("as now: short on %s of %s", shortCount(c.Short), prose.Counted(c.Weeks, "week"))}
+	replays := []string{views.ReplayAsNow + views.ShortOfWeeks(c.Short, c.Weeks).String()}
 	if c.WithOneFewer != nil {
-		replays = append(replays, "with one fewer: short on "+shortCount(*c.WithOneFewer))
+		replays = append(replays, views.ReplayOneFewer+views.ShortOn(*c.WithOneFewer).String())
 	}
 	if c.WithTwoFewer != nil {
-		replays = append(replays, "with two fewer: short on "+shortCount(*c.WithTwoFewer))
+		replays = append(replays, views.ReplayTwoFewer+views.ShortOn(*c.WithTwoFewer).String())
 	} else {
-		replays = append(replays, "with one more: short on "+shortCount(c.WithOneMore))
+		replays = append(replays, views.ReplayOneMore+views.ShortOn(c.WithOneMore).String())
 	}
 	return strings.Join(replays, prose.Separator)
 }
 
-// shortCount counts weeks short, as "3", or "none".
-func shortCount(n int) string {
-	if n == 0 {
-		return none
-	}
-	return prose.Grouped(n)
-}
-
 // verdictText says Weeks' verdict on an account, as "work: hits its limit
 // most weeks  ·  limit hit 3 of 7 weeks  ·  9% left at a reset, on average
-// ·  without it, the rest: short on 6", or Accounts' on every account.
+// ·  without it, the rest: short on 6", each phrase as views says it, or
+// Accounts' on every account.
 func verdictText(v views.AccountVerdict) string {
 	name := entryName(v.Account, v.All) + ": "
 	if v.Verdict == "" || v.LeftAtReset == nil {
@@ -407,11 +379,11 @@ func verdictText(v views.AccountVerdict) string {
 	}
 	parts := []string{v.Verdict}
 	if !v.All {
-		parts = append(parts, "limit hit "+prose.Grouped(v.Limits)+" of "+prose.Counted(v.Weeks, "week"))
+		parts = append(parts, views.LimitHit(v.Limits, v.Weeks).String())
 	}
-	parts = append(parts, prose.Percent(*v.LeftAtReset)+" left at a reset, on average")
+	parts = append(parts, views.LeftOnAverage(*v.LeftAtReset).String())
 	if v.WithoutIt != nil {
-		parts = append(parts, "without it, the rest: short on "+shortCount(*v.WithoutIt))
+		parts = append(parts, views.WithoutTheRest+views.ShortOn(*v.WithoutIt).String())
 	}
 	return name + strings.Join(parts, prose.Separator)
 }
