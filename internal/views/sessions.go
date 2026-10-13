@@ -64,9 +64,10 @@ type ListedSession struct {
 	// Moved is the move that brought it to Account, where a request of it
 	// today made it: nil where none did.
 	Moved *Move `json:"moved,omitempty"`
-	// Activity is what it's doing, as the router lists it and the request
-	// stream tells, its lines telling when its last answer ended; or, of one
-	// the router doesn't list, as its lines tell. It's the views' alone.
+	// Activity is what it's doing, as the router lists it, the request
+	// stream tells and its lines give, one rule whether the router lists it
+	// or not: ended where none has seen it within the IdleHour. It's the
+	// views' alone.
 	Activity Activity `json:"-"`
 }
 
@@ -196,8 +197,8 @@ func newLister(running []status.Session, unlisted bool, s Stream, now time.Time)
 // listed returns the session with the given id as the List has it, its story
 // s telling of its requests: ended at its last request; named as names has
 // it, the stream's requests of it taken in, its models going where they go
-// now; and running, where the router lists it, as run has it, else doing as
-// unlisted says, where it has a request.
+// now; running, where the router lists it, as run has it; and doing as
+// activity has it.
 func (by lister) listed(id string, s *story) ListedSession {
 	listed := ListedSession{Session: id, Dir: s.dir, Requests: s.requests, Worth: s.worth}
 	if s.first != nil {
@@ -207,36 +208,42 @@ func (by lister) listed(id string, s *story) ListedSession {
 		listed.Ended = s.last.At.UTC()
 	}
 	listed.Account, listed.Model = s.naming.heard(by.h.told[id]).names(by.goes[id])
-	switch session, running := by.routed[id]; {
-	case running:
-		listed.run(session, s, by.now, by.h)
-	case s.last != nil:
-		listed.Activity = s.unlisted(by.now, by.unlisted)
+	if session, running := by.routed[id]; running {
+		listed.run(session, s, by.now)
 	}
+	listed.Activity = by.activity(id, s)
 	return listed
 }
 
-// unlisted is what a session the router doesn't list is doing at now, as
-// its story tells, unlisted saying whether the router lists any: ended, as
-// its last request came; but where no router lists sessions, idle, since its
-// last answer ended, while that request came within the IdleHour, as the
-// router's own rule keeps a session.
-func (s *story) unlisted(now time.Time, unlisted bool) Activity {
+// activity is what the session with the given id is doing at now, its story
+// s telling of its lines, one rule whether the router lists it or not: what
+// the router listed its models doing, where it lists it, what the request
+// stream told, and what its last line gives, together, as Activity.with has
+// them, so idle since the latest of them. It's ended, since its last request
+// came, where none has seen it within the IdleHour, as the router's own rule
+// lets a session go: not the router, which lists it while it's seen; not the
+// live stream; nor, where no router lists the sessions, as while it's gone
+// or the dashboard probes, its last line.
+func (by lister) activity(id string, s *story) Activity {
+	session, listed := by.routed[id]
+	session.ID = id
+	a := by.h.session(session).inUTC()
+	if s.last == nil {
+		return a
+	}
 	last := s.last.At.UTC()
-	if unlisted && now.Sub(last) <= IdleHour {
-		return Activity{Since: ended(s.last).UTC(), LastSeen: last}
+	a = a.with(Activity{Since: ended(s.last).UTC(), LastSeen: last})
+	if listed || by.h.saw(id, by.now) || by.unlisted && by.now.Sub(last) <= IdleHour {
+		return a
 	}
 	return Activity{Doing: Ended, Since: last, LastSeen: last}
 }
 
-// run has the session running, as the router says of it at now, h hearing
-// what the request stream told of it: its models; its directory, of the
-// model seen most lately that names one, where any does; what its requests
-// in flight are doing, as the router listed them, and what it's doing, as
-// the stream tells too, idle since the later of when the router and the
-// stream last saw it and when its last line, where it has one, gives its
-// answer's end; and what moving it would cost, its story telling the rest.
-func (l *ListedSession) run(session status.Session, s *story, now time.Time, h hearing) {
+// run has the session running, as the router says of it at now: its models;
+// its directory, of the model seen most lately that names one, where any
+// does; what its requests in flight are doing, as the router listed them;
+// and what moving it would cost, its story telling the rest.
+func (l *ListedSession) run(session status.Session, s *story, now time.Time) {
 	l.Running, l.Ended = true, time.Time{}
 	if named := slices.DeleteFunc(slices.Clone(session.Assignments), func(a status.Assignment) bool { return a.Dir == "" }); len(named) > 0 {
 		l.Dir = slices.MaxFunc(named, func(a, b status.Assignment) int { return a.LastSeen.Compare(b.LastSeen) }).Dir
@@ -245,10 +252,6 @@ func (l *ListedSession) run(session status.Session, s *story, now time.Time, h h
 		l.Models = append(l.Models, SessionModel{Model: a.Model, Account: a.Account, Reason: a.Reason})
 		l.LastSeen = score.Later(l.LastSeen, a.LastSeen.UTC())
 		l.State = busier(l.State, a.InFlight)
-	}
-	l.Activity = h.session(session).inUTC()
-	if l.Activity.Doing == Idle && s.last != nil {
-		l.Activity.Since = score.Later(l.Activity.Since, ended(s.last).UTC())
 	}
 	flying := func(model string) bool {
 		return slices.ContainsFunc(session.Assignments, func(a status.Assignment) bool { return a.Model == model && a.InFlight != "" })

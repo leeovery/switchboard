@@ -32,7 +32,8 @@ type Activity struct {
 	// Ended, when its last request came. It's zero where none of that is
 	// known.
 	Since time.Time
-	// LastSeen is when the router, or the stream, last saw it at work.
+	// LastSeen is when the router, or the stream, last saw it at work, or,
+	// of a session's, its last request came, as its line gives it.
 	LastSeen time.Time
 }
 
@@ -256,6 +257,21 @@ func listedDoing(a status.Assignment) Activity {
 		return Activity{Doing: Asking, Since: a.LastSeen, LastSeen: a.LastSeen}
 	}
 	return Activity{}
+}
+
+// saw reports whether the stream, live, has seen the session with the given
+// id at work within the IdleHour before now: told of a request of it in
+// flight, or of any of its requests since.
+func (h hearing) saw(id string, now time.Time) bool {
+	if !h.live {
+		return false
+	}
+	for k, got := range h.seats {
+		if k.session == id && (got.flying || now.Sub(got.last) <= IdleHour) {
+			return true
+		}
+	}
+	return false
 }
 
 // session is what the session s is doing as a whole, as the router listed

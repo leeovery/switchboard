@@ -89,15 +89,16 @@ type Turn struct {
 // tool; a turn of side requests alone, its main in flight; its main failed;
 // a request of the newest turn in flight, its answer ended with its line to
 // come, then its line come; a turn that moved twice; a turn across
-// midnight; lines that name no prompt, nor class; and a move by hand with no
-// request since.
+// midnight; lines that name no prompt, nor class; a move by hand with no
+// request since; and a new session, its first line read before the router's
+// listing at the next look.
 func SessionMoments() []SessionMoment {
 	return []SessionMoment{
 		asking(), askingAsListed(), answering(), refused(), throttled(), idleAsTheStreamTold(), idleAsItsLineGives(),
 		lostAsTheStreamEnded(), routerRestarted(), routerGone(), ended(), resumed(), movedAsItRuns(),
 		twoModelsOnTwoAccounts(), idleAfterAToolCall(), sideRequestsAloneItsMainInFlight(), itsMainFailed(),
 		inFlightInTheNewestTurn(), endedItsLineToCome(), itsLineCome(), movedTwice(), turnAcrossMidnight(), noPrompts(),
-		movedByHand(),
+		movedByHand(), newBeforeTheNextLook(),
 	}
 }
 
@@ -594,6 +595,24 @@ func noPrompts() SessionMoment {
 		On:    map[string]views.Activity{"work": {Since: first, LastSeen: first}, "side": {Since: last, LastSeen: last}},
 	}}
 	m.Named = map[string]Named{D28C: {"side", Haiku}}
+	return m
+}
+
+func newBeforeTheNextLook() SessionMoment {
+	sent, titled, answered := At(14, 42, 0), At(14, 42, 1), At(14, 42, 3)
+	m := moment("a new session, its first line read before the next look, the router listing another",
+		session(C61B, seat(Opus, "side", At(14, 30, 0), "")))
+	m.Stream = live(
+		toldServing(p1, ledger.ClassMain, told("r1", D28C, Opus, "work", sent, sent)),
+		done(answered, 200, toldServing(p1, "auxiliary", told("r2", D28C, Haiku, "work", titled, titled))),
+	)
+	m.Lines = []ledger.Line{withID("r2", asTitle(p1, line(D28C, Haiku, "work", titled, 2*time.Second)))}
+	m.Want = map[string]Doing{
+		D28C: {Whole: views.Activity{Doing: views.Asking, Since: sent, LastSeen: answered}},
+		C61B: alike("side", views.Activity{Since: At(14, 30, 0), LastSeen: At(14, 30, 0)}),
+	}
+	m.Turns = map[string][]Turn{D28C: {going(1, sent, 2, "work")}}
+	m.Named = map[string]Named{D28C: {"work", Opus}, C61B: {"side", Opus}}
 	return m
 }
 
