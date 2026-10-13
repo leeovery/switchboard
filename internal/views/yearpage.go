@@ -377,8 +377,9 @@ func (f yearFilter) days(days []Day) []Day {
 // none of it: the whole of the account shown; or of a version shown, the
 // account's requests of it alone, with no limits, which are the account's,
 // and the sessions they were of: those named, by their ids, each once, and
-// besides them, the count of each model's day that names none, as one of a
-// summary from before version 4, which can't be counted distinct.
+// besides them, those each model's day counts but doesn't name, as
+// ModelDay.Unnamed says, as one of a summary from before version 4, which
+// can't be counted distinct.
 func (f yearFilter) account(a ledger.PricedAccount) (ledger.PricedAccount, bool) {
 	if f.Version == "" {
 		return a, a.Account == f.Account
@@ -389,16 +390,11 @@ func (f yearFilter) account(a ledger.PricedAccount) (ledger.PricedAccount, bool)
 			continue
 		}
 		kept.Models = append(kept.Models, m)
-		if m.SessionIDs == nil {
-			kept.Sessions += m.Sessions
-			continue
-		}
+		kept.Sessions += m.Unnamed()
 		kept.SessionIDs = append(kept.SessionIDs, m.SessionIDs...)
 	}
-	if kept.SessionIDs != nil {
-		slices.Sort(kept.SessionIDs)
-		kept.SessionIDs = slices.Compact(kept.SessionIDs)
-	}
+	slices.Sort(kept.SessionIDs)
+	kept.SessionIDs = slices.Compact(kept.SessionIDs)
 	kept.Sessions += len(kept.SessionIDs)
 	return kept, len(kept.Models) > 0
 }
