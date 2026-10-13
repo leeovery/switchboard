@@ -218,21 +218,22 @@ func (p LogPage) Chosen() (views.RequestRow, *views.LogEvent, bool) {
 // row and pauses there, ↓ doing nothing; paused with a row chosen, the row
 // by places on from it, but no further than the first held or the paused
 // foot, the view scrolling to keep it in; paused with none chosen, either
-// chooses the newest row in view. A day rule, the oldest day's line and a
-// table's words are passed over.
+// chooses the newest row in view, or above it. A day rule, the oldest day's
+// line and a table's words are passed over, and a table holding no row never
+// pauses.
 func (p LogPage) Chose(by, rows int) LogPage {
 	lines, s := p.lines(), p.stand()
-	if !s.paused && by > 0 || len(lines) == 0 {
+	if !s.paused && (by > 0 || !holdsRow(lines)) {
 		return p
 	}
 	if !s.paused {
 		s = p.pausedAt(lines, rows)
 	}
-	first, last := p.window(lines, s, rows)
+	_, last := p.window(lines, s, rows)
 	at, chosen := p.lit(lines, s)
 	switch {
 	case !chosen:
-		at = newestRow(lines, first, last)
+		at = newestRow(lines, 0, last)
 	default:
 		at = nextRow(lines, at, by, p.footOf(lines, s))
 	}
@@ -272,12 +273,12 @@ func (p LogPage) Landed(at time.Time, rows int) LogPage {
 
 // Scrolled is the table shown in a view rows rows tall, scrolled by rows
 // down, or up where by is less than nothing, as j, k, PgUp, PgDn and the
-// wheel scroll it: following, scrolled up, it pauses there, nothing chosen;
-// paused, its view goes no higher than the first line held, nor lower than
-// to end at the paused foot.
+// wheel scroll it: following, scrolled up, it pauses there, nothing chosen,
+// where it holds a row; paused, its view goes no higher than the first line
+// held, nor lower than to end at the paused foot.
 func (p LogPage) Scrolled(by, rows int) LogPage {
 	lines, s := p.lines(), p.stand()
-	if !s.paused && by >= 0 || len(lines) == 0 {
+	if len(lines) == 0 || !s.paused && (by >= 0 || !holdsRow(lines)) {
 		return p
 	}
 	if !s.paused {
@@ -308,6 +309,11 @@ func (p LogPage) footOf(lines []logLine, s LogStand) int {
 		return foot
 	}
 	return len(lines) - 1
+}
+
+// holdsRow reports whether lines hold a row, which a table pauses at.
+func holdsRow(lines []logLine) bool {
+	return newestRow(lines, 0, len(lines)-1) >= 0
 }
 
 // newestRow is the place of the newest row of lines from first to last:
@@ -485,13 +491,13 @@ func (p LogPage) state(rows int) logState {
 }
 
 // pausedTime is when the line the table, of lines, is paused at came: the
-// line chosen, else the newest row in view.
+// line chosen, else the newest row in view, or above it.
 func (p LogPage) pausedTime(lines []logLine, s LogStand, rows int) time.Time {
 	if at, ok := p.lit(lines, s); ok {
 		return lines[at].at
 	}
-	first, last := p.window(lines, s, rows)
-	if at := newestRow(lines, first, last); at >= 0 {
+	_, last := p.window(lines, s, rows)
+	if at := newestRow(lines, 0, last); at >= 0 {
 		return lines[at].at
 	}
 	return time.Time{}

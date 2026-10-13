@@ -217,6 +217,36 @@ func TestLandingChoosesTheFirstRequestAtOrAfterAMoment(t *testing.T) {
 	}
 }
 
+// A table holding no row has nothing to pause at: ↑ and scrolling up leave
+// it following. One holding rows, but none in view, chooses the newest above
+// it, scrolled into view.
+func TestATableHoldingNoRowDoesntPause(t *testing.T) {
+	yesterdays := requestsOf(views.LogSources{From: theDayBefore, Now: logDayNoon}, []ledger.Line{asked("1", theDayBefore)})
+	empty := requestsOf(views.LogSources{From: logDay, Now: logDayNoon}, nil)
+	tests := []struct {
+		name   string
+		page   LogPage
+		paused bool
+	}{
+		{name: "Requests holding none, ↑", page: empty.Chose(-1, 10)},
+		{name: "Requests holding none, scrolled up", page: empty.Scrolled(-1, 10)},
+		{name: "Events holding none, ↑", page: threeAsked().Turned(1).Chose(-1, 10)},
+		{name: "Events holding none of the day before's either, scrolled up", page: yesterdays.Turned(1).Scrolled(-1, 10)},
+		{name: "Requests of the day before's, no request today in view, ↑", page: yesterdays.Chose(-1, 1), paused: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := tt.page.state(1).line(128, logDayNoon).plain()
+			if tt.page.Paused() != tt.paused || strings.Contains(state, "Jan") {
+				t.Errorf("paused %v, the state line reading %q; want paused %v, never at the zero time", tt.page.Paused(), state, tt.paused)
+			}
+		})
+	}
+	if row, _, ok := yesterdays.Chose(-1, 1).Chosen(); !ok || !row.At.Equal(theDayBefore) {
+		t.Errorf("no request today in view, ↑ chose %v, want the day before's 23:50:00", row.At)
+	}
+}
+
 // On opening, a table reads back a day at a time till it fills its view,
 // then only as its view's top, paused, reaches the first line held; never
 // past the oldest day the ledger keeps.
