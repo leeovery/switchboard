@@ -327,8 +327,8 @@ func HardMoments(policy score.Policy) []HardMoment {
 			),
 			Now: Built.Add(time.Minute),
 			Want: Facts{Accounts: map[string]AccountFacts{
-				"work": {Routing: status.RoutingTokenless, CanRise: true, Windows: map[string]WindowFacts{}},
-				"side": {Routing: status.RoutingUnread, CanRise: true, Windows: map[string]WindowFacts{}},
+				"work": {Routing: status.RoutingTokenless, Windows: map[string]WindowFacts{}},
+				"side": {Routing: status.RoutingUnread, Windows: map[string]WindowFacts{}},
 			}},
 		},
 		{
@@ -339,7 +339,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			),
 			Now: Built.Add(time.Minute),
 			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
-				"work": {Routing: status.RoutingUnreadable, CanRise: true, Windows: map[string]WindowFacts{}},
+				"work": {Routing: status.RoutingUnreadable, Windows: map[string]WindowFacts{}},
 				"side": sideOpen,
 			}},
 		},

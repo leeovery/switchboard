@@ -127,8 +127,8 @@ type AccountNow struct {
 	// OutOfQuota is set where its quota for a request of any model has run
 	// out at Now: a limit or its cap holds it back from every request,
 	// whatever its token. CanRise is set where it can take a request of some
-	// model at Now, so its use can rise: it isn't out of quota, and its token
-	// isn't refused.
+	// model at Now, so its use can rise: it has a usable token, its usage was
+	// read, it isn't out of quota, and its token isn't refused.
 	OutOfQuota, CanRise bool
 	// Windows are its windows, in its order, each as it stands at Now.
 	Windows []WindowNow
@@ -459,9 +459,10 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.Holds(m.Now), LimitSince: eventAt(d.limitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
-		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(), CanRise: !s.stood.shut(),
+		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(),
 		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},
 	}
+	an.CanRise = an.TokenSet && an.Read && !s.stood.shut()
 	an.unreported, _ = s.unknown(false)
 	if s.refusing {
 		an.Refusal = a.Refused

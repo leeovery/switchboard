@@ -136,7 +136,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		Refusal: refusal, TokenRefused: a.TokenRefused(now),
 		Pressure: status.PressureNow{Under: doc.Pressed(a, now) != "", Window: a.Pressure.Window, Out: pressureOut},
 		Idle:     a.HasLapsed(policy.Started, now, policy), NextPrime: primeOf(doc, a.ID),
-		OutOfQuota: outOfQuota, CanRise: !outOfQuota && !a.TokenRefused(now),
+		OutOfQuota: outOfQuota, CanRise: a.TokenSet && !a.FetchedAt.IsZero() && !outOfQuota && !a.TokenRefused(now),
 		Windows: got.Windows,
 	}
 	if gotFacts := withoutUnreported(got); !reflect.DeepEqual(gotFacts, want) {
@@ -703,6 +703,10 @@ func TestAnAccountIsInThePoolWhereThePoolTakesItIn(t *testing.T) {
 	}
 }
 
+// An account is out of quota where a limit or its cap holds it back from
+// every request; and it can take a request, its use rising, where it has a
+// usable token, its usage was read, its quota hasn't run out and its token
+// isn't refused.
 func TestAnAccountIsOutOfQuotaWhereALimitOrItsCapHoldsItBackFromEveryRequest(t *testing.T) {
 	limit := func(windows ...string) func(*status.Account) {
 		return func(a *status.Account) {
@@ -733,6 +737,10 @@ func TestAnAccountIsOutOfQuotaWhereALimitOrItsCapHoldsItBackFromEveryRequest(t *
 		{name: "at its reserve, pinned, which spends it", account: atItsReserve, pinned: true, canRise: true},
 		{name: "its token refused alone, which isn't quota", account: with(readAt("work", session, week), refused)},
 		{name: "its token refused, and a window every model shares read spent", account: with(readAt("work", spentIn("5h", 1, 3*time.Hour), week), refused), outOfQuota: true},
+		{name: "without a usable token", account: status.Account{ID: "work", Label: "work"}},
+		{name: "nothing read of it yet", account: status.Account{ID: "work", Label: "work", TokenSet: true}},
+		{name: "its first read failed, nothing read of it before", account: status.Account{ID: "work", Label: "work", TokenSet: true, Error: "HTTP 529 · Overloaded"}},
+		{name: "its last read failed, after an earlier one", account: with(readAt("work", session, week), func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }), canRise: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
