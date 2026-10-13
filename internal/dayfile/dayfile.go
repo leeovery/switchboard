@@ -383,12 +383,19 @@ func doneWith(day time.Time) time.Time {
 // clocks change between, so always at a day's start. Part of a day counts as
 // a whole one, so the files are never kept less than keep.
 func pastKeeping(day time.Time, keep time.Duration) time.Time {
+	return DayStart(endOf(day), keptDays(keep))
+}
+
+// keptDays are how many days after a day ends its files are kept, kept as
+// long as keep says, as pastKeeping counts them: part of a day counts as a
+// whole one.
+func keptDays(keep time.Duration) int {
 	const whole = 24 * time.Hour
 	days := keep / whole
 	if keep%whole > 0 {
 		days++
 	}
-	return DayStart(endOf(day), int(days))
+	return int(days)
 }
 
 // KeptUntil returns the date of the last local day the files of the local day
@@ -408,6 +415,24 @@ func keptUntilIn(date string, keep time.Duration, loc *time.Location) (string, b
 		return "", false
 	}
 	return pastKeeping(day, keep).Add(-time.Nanosecond).In(loc).Format(dateLayout), true
+}
+
+// OldestKept returns when the oldest local day whose files are kept at now
+// starts, kept as long as keep says: the day whose files KeptUntil keeps
+// until now's, so a prune at now leaves its files, and removes those of the
+// days before it. It reports false where keep is Forever, which keeps every
+// day's.
+func OldestKept(now time.Time, keep time.Duration) (time.Time, bool) {
+	return oldestKeptIn(now, keep, time.Local)
+}
+
+// oldestKeptIn returns when the oldest day in loc whose files are kept at now
+// starts, as OldestKept says.
+func oldestKeptIn(now time.Time, keep time.Duration, loc *time.Location) (time.Time, bool) {
+	if keep == Forever {
+		return time.Time{}, false
+	}
+	return DayStart(now.In(loc), -keptDays(keep)), true
 }
 
 // compress moves the lines of the plain file of the local day with the given

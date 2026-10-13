@@ -32,8 +32,8 @@ type RequestDetails struct {
 	// without its date: context-1m of context-1m-2025-08-07.
 	Betas []string
 	// Left is, of a request that moved its session, the account it left and
-	// why, as RoutingWords says them but for their leading "from ": "work, at
-	// its cap". None where it moved none.
+	// why, as status.LeftWords says them: "work, at its cap". None where it
+	// moved none.
 	Left status.Words
 	// Windows are the windows of the account it went out on as its answer
 	// left them, in quota's order, as an event's card has an account's, and
@@ -82,9 +82,7 @@ func (d *RequestDetails) lined(l *ledger.Line) {
 	for _, beta := range l.Betas {
 		d.Betas = append(d.Betas, undated(beta))
 	}
-	if l.From != "" {
-		d.Left = leftWords(status.RoutingWords(l.Reason, status.Facts{From: l.From, To: l.Account}), l.From)
-	}
+	d.Left = status.LeftWords(l.Reason, status.Facts{From: l.From, To: l.Account})
 	d.Windows, d.LimitStatus = windowsThen(claude.WindowsRead(l.Limits, 0), nil), claude.LimitStatus(l.Limits)
 	d.System, d.Effort, d.Stream = l.Shape.System, l.Shape.OutputConfig.Effort, l.Shape.Stream
 	if most := l.Shape.MaxTokens; most != nil {
@@ -105,17 +103,6 @@ func undated(beta string) string {
 		return beta
 	}
 	return beta[:at]
-}
-
-// leftWords are a move's routing words without their leading "from ", as
-// FromWords starts them, keeping the account it left: whole where they don't
-// start so, as a session's first's don't.
-func leftWords(routed status.Words, from string) status.Words {
-	lead := status.FromWords(from)
-	if !slices.Equal(routed[:min(len(lead), len(routed))], lead) {
-		return routed
-	}
-	return routed[len(lead)-1:]
 }
 
 // answerOrder is the order an answer streams its blocks' kinds in: a kind

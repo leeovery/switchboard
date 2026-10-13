@@ -85,10 +85,9 @@ func TestARequestsDetailsAreWhatItsLineGivesBeyondItsRow(t *testing.T) {
 			left: "[work], at its limit",
 		},
 		{
-			name: "a move of a reason that reads as a session's first's: its routing's words whole",
+			name: "a move of a reason that reads as a session's first's: none it left, as its routing says a new session",
 			line: movedFrom("work", withID("r1", line(mover, opus, "side", "new", october(7, 12, 10), hourUsage))),
 			want: views.RequestDetails{CacheLife: ledger.LongCache},
-			left: "new session",
 		},
 		{
 			name: "betas, dated and not: each date alone cut off",

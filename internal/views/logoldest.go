@@ -1,8 +1,10 @@
 package views
 
 import (
+	"cmp"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 )
 
@@ -15,21 +17,15 @@ type OldestDay struct {
 }
 
 // OldestKept is the oldest day the Log reads back to at now, the ledger
-// keeping its lines as long as keep says, dayfile.Forever for good, its
-// first day of lines first's: the later of first's day and the oldest day
-// keep spares, keep's days before today, part of a day counted whole, as
-// dayfile keeps them.
+// keeping its lines as long as keep says, as [ledger] keep gives it:
+// dayfile.Forever for good, and none, as a config that doesn't say,
+// config.DefaultLedgerKeep, as the router keeps them. Its first day of lines
+// is first's: the oldest day is the later of first's day and the oldest day
+// whose lines the ledger keeps at now, as dayfile.OldestKept says.
 func OldestKept(first time.Time, keep time.Duration, now time.Time) OldestDay {
+	keep = cmp.Or(keep, config.DefaultLedgerKeep)
 	oldest := OldestDay{Day: Today(first), Keep: keep}
-	if keep == dayfile.Forever {
-		return oldest
-	}
-	const day = 24 * time.Hour
-	days := keep / day
-	if keep%day > 0 {
-		days++
-	}
-	if kept := dayfile.DayStart(now.Local(), -int(days)); kept.After(oldest.Day.Start) {
+	if kept, ok := dayfile.OldestKept(now, keep); ok && kept.After(oldest.Day.Start) {
 		oldest.Day = Today(kept)
 	}
 	return oldest

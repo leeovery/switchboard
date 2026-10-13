@@ -324,7 +324,6 @@ func TestTheOldestDaysLineSaysHowLongTheLedgerKeepsItsLines(t *testing.T) {
 		{name: "the default", keep: 400 * 24 * time.Hour, cells: 158, want: "the oldest day kept: the ledger keeps its lines 400 days"},
 		{name: "a week and a day", keep: 8 * 24 * time.Hour, cells: 158, want: "the oldest day kept: the ledger keeps its lines 8 days"},
 		{name: "forever", keep: dayfile.Forever, cells: 158, want: "the ledger's first day: it keeps its lines for good"},
-		{name: "none said", cells: 158, want: "the ledger's first day: it keeps its lines for good"},
 		{name: "on a narrow phone", keep: 400 * 24 * time.Hour, cells: 40, want: "the oldest day kept: the ledger keeps i…"},
 	}
 	for _, tt := range tests {

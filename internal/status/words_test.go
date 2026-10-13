@@ -280,6 +280,14 @@ func TestReasonWords(t *testing.T) {
 			session: "pinned to [side]",
 		},
 		{
+			name:    "a new session, an account it left given all the same: none it left",
+			reason:  "new",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "started",
+			routing: "new session",
+			session: "since it started",
+		},
+		{
 			name:    "a new session's reason from elsewhere, cleaned",
 			reason:  "new\n",
 			event:   "started",
@@ -294,6 +302,10 @@ func TestReasonWords(t *testing.T) {
 			}
 			if got := marked(status.RoutingWords(tt.reason, tt.facts)); got != tt.routing {
 				t.Errorf("RoutingWords(%q) = %q, want %q", tt.reason, got, tt.routing)
+			}
+			left, moved := strings.CutPrefix(tt.routing, "from ")
+			if got := marked(status.LeftWords(tt.reason, tt.facts)); !moved && got != "" || moved && got != left {
+				t.Errorf("LeftWords(%q) = %q, want %q's after its \"from \", none where it starts otherwise", tt.reason, got, tt.routing)
 			}
 			if got := marked(status.SessionWords(tt.reason, tt.facts)); got != tt.session {
 				t.Errorf("SessionWords(%q) = %q, want %q", tt.reason, got, tt.session)

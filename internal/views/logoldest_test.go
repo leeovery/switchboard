@@ -1,9 +1,11 @@
 package views_test
 
 import (
+	"cmp"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -21,23 +23,24 @@ func TestTheOldestDayIsTheLaterOfTheLedgersFirstAndTheOldestItKeeps(t *testing.T
 		{name: "kept 400 days, the ledger younger: its first day", first: october(1, 23, 59), keep: 400 * day, want: "2026-10-01"},
 		{name: "kept a day: yesterday", first: october(1, 9, 0), keep: day, want: "2026-10-06"},
 		{name: "kept part of a day, counted whole", first: october(1, 9, 0), keep: day + time.Hour, want: "2026-10-05"},
+		{name: "none said: kept 400 days, as the router keeps them", first: time.Date(2024, 1, 10, 9, 0, 0, 0, time.Local), want: "2025-09-02"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := views.OldestKept(tt.first, tt.keep, now)
-			if got.Day.Date != tt.want || got.Keep != tt.keep || !got.Day.Start.Equal(views.Today(got.Day.Start).Start) {
-				t.Errorf("the oldest day is %+v, want %s, kept %v", got, tt.want, tt.keep)
+			got, keep := views.OldestKept(tt.first, tt.keep, now), cmp.Or(tt.keep, config.DefaultLedgerKeep)
+			if got.Day.Date != tt.want || got.Keep != keep || !got.Day.Start.Equal(views.Today(got.Day.Start).Start) {
+				t.Errorf("the oldest day is %+v, want %s, kept %v", got, tt.want, keep)
 			}
 			// Where the keep, not the ledger's first day, makes it the oldest,
 			// it's the oldest day the ledger's files are kept on till today.
-			if tt.keep == dayfile.Forever || got.Day.Date == views.Today(tt.first).Date {
+			if keep == dayfile.Forever || got.Day.Date == views.Today(tt.first).Date {
 				return
 			}
 			before, _ := views.OldestDay{}.DayBefore(got.Day)
-			if until, _ := dayfile.KeptUntil(got.Day.Date, tt.keep); until != views.Today(now).Date {
+			if until, _ := dayfile.KeptUntil(got.Day.Date, keep); until != views.Today(now).Date {
 				t.Errorf("the oldest day's lines are kept until %s, want today", until)
 			}
-			if until, _ := dayfile.KeptUntil(before.Date, tt.keep); until >= views.Today(now).Date {
+			if until, _ := dayfile.KeptUntil(before.Date, keep); until >= views.Today(now).Date {
 				t.Errorf("the day before the oldest's lines are kept until %s, want before today", until)
 			}
 		})
