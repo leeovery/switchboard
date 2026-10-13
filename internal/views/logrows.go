@@ -161,7 +161,7 @@ func LogRows(src LogSources) LogTable {
 		if t, told := src.Stream.Requests[l.Request]; told && t.filedAs(l) {
 			lined[t.Request], place = true, t.Sent
 		}
-		rows = append(rows, placedRow{row: lineRow(l, stories[l.Session], src.Prices, today), day: Today(l.At), place: place})
+		rows = append(rows, placedRow{row: pricedRow(l, stories[l.Session], src.Prices, today), day: Today(l.At), place: place})
 	}
 	for _, t := range toldAlone(src.Stream, lined) {
 		rows = append(rows, placedRow{row: toldRow(t, src.Now), day: Today(t.Sent), place: t.Sent})
