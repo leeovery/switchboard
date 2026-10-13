@@ -395,27 +395,32 @@ func (r *Router) session(id string) (status.Session, error) {
 		return status.Session{}, unknownSession(id)
 	}
 	s.Account = r.accountStatus(s.Assignments[0].Account)
-	return r.described(s, r.stream.doing()), nil
+	return r.described(s, r.stream.doing(), r.cfg.Now()), nil
 }
 
 // running reports the sessions routed in the last hour, the one seen last
 // first, each as session does but for its account's status.
 func (r *Router) running() []status.Session {
-	listed := r.sessions.running(r.cfg.Now())
+	now := r.cfg.Now()
+	listed := r.sessions.running(now)
 	doing := r.stream.doing()
 	for i, s := range listed {
-		listed[i] = r.described(s, doing)
+		listed[i] = r.described(s, doing, now)
 	}
 	return listed
 }
 
 // described is s with the family of each of its models, as the provider
-// names it, and what a request of each in flight is doing, as doing, the
-// stream's, has it.
-func (r *Router) described(s status.Session, doing map[key]string) status.Session {
+// names it, what a request of each in flight is doing, as doing, the
+// stream's, has it, and the account auto would send each's next request to
+// at now, as the scheduler's auto says. Auto is worked out here, once the
+// sessions have been read, so their lock, which every request's choice takes,
+// is never held while the accounts are viewed.
+func (r *Router) described(s status.Session, doing map[key]string, now time.Time) status.Session {
 	for i, a := range s.Assignments {
 		s.Assignments[i].Family = r.cfg.Provider.Family(a.Model)
 		s.Assignments[i].InFlight = doing[key{session: s.ID, model: a.Model}]
+		s.Assignments[i].Auto = r.scheduler.auto(s.ID, a.Model, now)
 	}
 	return s
 }

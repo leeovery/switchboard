@@ -127,6 +127,16 @@ func (f found) pin(launched string) (string, time.Time) {
 	return launched, time.Time{}
 }
 
+// situation is what's known as req's account is chosen at now, f being what's
+// remembered of its session and accounts what's known of the accounts: the
+// request pinned as its session's own pin has it, a pin given while the
+// session runs passing over the one it was launched with.
+func (f found) situation(req Request, now time.Time, accounts view) situation {
+	on := situation{req: req, now: now, current: f.current, assigned: f.assigned, pin: f.global, accounts: accounts}
+	on.req.Pin, on.pinnedAt = f.pin(req.Pin)
+	return on
+}
+
 // sessions remembers the account each session's requests of each model go
 // to, the pins sessions are given while they run, and the global pin, all of
 // which the state file keeps. It's safe for concurrent use.

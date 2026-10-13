@@ -799,6 +799,20 @@ func (s *state) view(model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.noteReserves(now)
+	return s.viewing(model, now)
+}
+
+// glance returns what view does, noting nothing in the log: for saying where
+// a request would go without one being sent, which leaves the log to tell of
+// a reserve as a choice finds it.
+func (s *state) glance(model string, now time.Time) view {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.viewing(model, now)
+}
+
+// viewing returns what view does, but for noting anything. s.mu must be held.
+func (s *state) viewing(model string, now time.Time) view {
 	family, applies := s.family(model), s.counting(model)
 	v := view{policy: s.policy, now: now, applies: applies}
 	for _, a := range s.accounts {

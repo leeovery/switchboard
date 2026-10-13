@@ -54,3 +54,49 @@ func TestASessionFromARouterFromBeforeDirectoriesReadsWithNone(t *testing.T) {
 		t.Errorf("it reads as %+v, want its assignment to work, naming no directory and nothing in flight", s)
 	}
 }
+
+func TestAnAssignmentGivesTheAccountAutoWouldSendItTo(t *testing.T) {
+	at := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		auto string
+		want string
+	}{
+		{
+			name: "named by its id",
+			auto: "side",
+			want: `{"model":"claude-opus-5-5","account":"work","auto":"side","pinned":true,"reason":"pinned","assigned_at":"2026-09-28T13:12:00Z","last_seen":"2026-09-28T13:12:00Z"}`,
+		},
+		{
+			name: "where the router can't say, left out",
+			want: `{"model":"claude-opus-5-5","account":"work","pinned":true,"reason":"pinned","assigned_at":"2026-09-28T13:12:00Z","last_seen":"2026-09-28T13:12:00Z"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := status.Assignment{Model: "claude-opus-5-5", Account: "work", Auto: tt.auto, Pinned: true, Reason: "pinned", AssignedAt: at, LastSeen: at}
+			data, err := json.Marshal(a)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != tt.want {
+				t.Errorf("the assignment is given as\n%s\nwant\n%s", data, tt.want)
+			}
+			var back status.Assignment
+			if err := json.Unmarshal(data, &back); err != nil || !reflect.DeepEqual(back, a) {
+				t.Errorf("it reads back as %+v (%v), want %+v", back, err, a)
+			}
+		})
+	}
+}
+
+func TestASessionFromARouterFromBeforeAutoReadsWithoutIt(t *testing.T) {
+	before := `{"session":"one","pin":"work","assignments":[{"model":"claude-opus-5-5","family":"opus","account":"work","dir":"~/Code/api","pinned":true,"reason":"pinned","assigned_at":"2026-09-28T13:12:00Z","last_seen":"2026-09-28T13:12:00Z"}]}`
+	var s status.Session
+	if err := json.Unmarshal([]byte(before), &s); err != nil {
+		t.Fatalf("a session from a router from before auto doesn't read: %v", err)
+	}
+	if len(s.Assignments) != 1 || s.Assignments[0].Account != "work" || s.Assignments[0].Auto != "" {
+		t.Errorf("it reads as %+v, want its assignment to work, naming no account for auto, which is then unknown", s)
+	}
+}
