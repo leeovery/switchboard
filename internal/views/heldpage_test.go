@@ -3,6 +3,7 @@ package views_test
 import (
 	"reflect"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -83,6 +84,71 @@ func TestAHeldPagePricesAfreshAsTheDayTurns(t *testing.T) {
 	want, _ := views.SessionPageOf(paged, views.PageSources{Read: read, Prices: ledger.Pricing, Keep: kept90, Now: tomorrow})
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("the page held a day is\n%+v\nwant it as built that day\n%+v", got, want)
+	}
+}
+
+// turnRow is what a turn's request row holds that a frame draws: when it
+// came, its model and account, its status, its first byte and its end,
+// the tokens it read, wrote and put out, why its answer stopped and the
+// tool it called first.
+type turnRow struct {
+	at                 time.Time
+	model, account     string
+	status             int
+	first, took        time.Duration
+	read, written, out int
+	stop, tool         string
+}
+
+// requested is a request of paged's turn p1 of the model given on the
+// account given at at, its first byte and end after it as given, reading,
+// writing for an hour and putting out the tokens given, its answer stopping
+// as stop says after calling the tools given.
+func requested(id, model, account string, at time.Time, first, end time.Duration, read, written, out int, stop string, tools ...string) ledger.Line {
+	usage := `{"input_tokens":3,"cache_creation_input_tokens":` + strconv.Itoa(written) + `,"cache_read_input_tokens":` + strconv.Itoa(read) +
+		`,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":` + strconv.Itoa(written) + `},"output_tokens":` + strconv.Itoa(out) + `}`
+	class := ledger.ClassMain
+	if model == haiku {
+		class = "auxiliary"
+	}
+	return filedAs(id, stopped(stop, headersAfter(first, took(end, serving(p1, class, line(paged, model, account, "sticky", at, usage)))), tools...))
+}
+
+// The first five requests of d28c's turn 12, opened, are the frame's rows:
+// each its line's, the move at work's cap writing the context again on
+// side, at Claude Opus 5.5's price for an hour's write of its 182k tokens.
+func TestATurnOpenedIsTheFramesRowsOfItsRequests(t *testing.T) {
+	sec := func(tenths int) time.Duration { return time.Duration(tenths) * time.Second / 10 }
+	moved := requested("t3", opus, "side", local(14, 31, 13), sec(29), sec(146), 0, 182_000, 1200, "tool_use", "Bash")
+	moved.From, moved.Reason = "work", "moved: work is at its reserve"
+	lines := []ledger.Line{
+		requested("t1", opus, "work", local(14, 29, 4), sec(8), sec(112), 176_000, 2100, 1300, "tool_use", "Bash"),
+		requested("t2", opus, "work", local(14, 30, 42), sec(9), sec(124), 181_000, 2400, 1100, "tool_use", "Bash"),
+		moved,
+		requested("t4", haiku, "side", local(14, 31, 44), sec(3), sec(6), 0, 0, 40, "end_turn"),
+		requested("t5", opus, "side", local(14, 31, 58), sec(11), sec(98), 182_000, 2600, 900, "tool_use", "Edit"),
+	}
+	at := local(14, 42, 7)
+	l := summarisedLedger(lines)
+	l.now = at
+	rows := views.HoldPage(paged, views.ReadSessions(l, nil, at, paged), ledger.Pricing, kept90, at).TurnRequests(1, views.PageLive{Unlisted: true, Now: at})
+	want := []turnRow{
+		{local(14, 29, 4), opus, "work", 200, sec(8), sec(112), 176_000, 2100, 1300, "tool_use", "Bash"},
+		{local(14, 30, 42), opus, "work", 200, sec(9), sec(124), 181_000, 2400, 1100, "tool_use", "Bash"},
+		{local(14, 31, 13), opus, "side", 200, sec(29), sec(146), 0, 182_000, 1200, "tool_use", "Bash"},
+		{local(14, 31, 44), haiku, "side", 200, sec(3), sec(6), 0, 0, 40, "end_turn", ""},
+		{local(14, 31, 58), opus, "side", 200, sec(11), sec(98), 182_000, 2600, 900, "tool_use", "Edit"},
+	}
+	got := make([]turnRow, len(rows))
+	for i, r := range rows {
+		got[i] = turnRow{r.At.Local(), r.Model, r.Account, r.Status, *r.First, *r.Took, r.Read, r.Written, r.Out, r.Stop, r.Tool}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("turn 12's rows are\n%+v\nwant the frame's\n%+v", got, want)
+	}
+	if r := rows[2]; !r.Rewrote || wordsSaid(r.Routing.Words) != "from [work], at its cap" || r.Routing.Cost == nil || *r.Routing.Cost != micro(182_000*8) {
+		t.Errorf("the move's row wrote again %t, routed %q, costing %v; want it written again, from work, at its cap, costing 182k written for an hour",
+			r.Rewrote, wordsSaid(r.Routing.Words), r.Routing.Cost)
 	}
 }
 
