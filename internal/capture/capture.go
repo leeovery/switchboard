@@ -333,9 +333,11 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // since when and p pin faint. Then the Log's frames, each reached from the
 // Overview with shift-tab: Events, with ]; Requests as it opens; the router
 // gone, over the world of the Log not live; Requests on a phone; an event's
-// details, the cap's, ↑ five times on Events and enter; and a request's,
-// d28c's move, ↑ to 14:31:09 and ↓ to it as the Log stood at 14:32:41, the
-// table paused there, then enter at the moment, what came since read.
+// details, the cap's, ↑ five times on Events and enter; a request's, d28c's
+// move, ↑ to 14:31:09 and ↓ to it as the Log stood at 14:32:41, the table
+// paused there, then enter at the moment, what came since read; and the f
+// panel, over Events, with ] and f, and over Requests, with f, then → and ↓
+// twelve times to d28c's row.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -376,6 +378,11 @@ var pages = []page{
 		name: "log-request-details-160", size: wide(37), world: accountWorlds.auto, keys: []tea.KeyPressMsg{enterKey},
 		before: earlier{by: 9*time.Minute + 26*time.Second, keys: slices.Concat(toLog(), repeated(upKey, 30), []tea.KeyPressMsg{downKey})},
 	},
+	{name: "log-events-filter-160", size: wide(37), world: accountWorlds.auto, keys: toLog("]", "f")},
+	{
+		name: "log-requests-filter-160", size: wide(37), world: accountWorlds.auto,
+		keys: slices.Concat(toLog("f"), []tea.KeyPressMsg{rightKey}, repeated(downKey, 12)),
+	},
 }
 
 // keysOf are the keys pressed as the text given, a key a character.
@@ -399,10 +406,11 @@ func toLog(text ...string) []tea.KeyPressMsg {
 	return append([]tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}, keysOf(text...)...)
 }
 
-// The keys ↑, ↓ and enter, as pressed.
+// The keys ↑, ↓, → and enter, as pressed.
 var (
 	upKey    = tea.KeyPressMsg{Code: tea.KeyUp}
 	downKey  = tea.KeyPressMsg{Code: tea.KeyDown}
+	rightKey = tea.KeyPressMsg{Code: tea.KeyRight}
 	enterKey = tea.KeyPressMsg{Code: tea.KeyEnter}
 )
 

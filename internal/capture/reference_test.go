@@ -26,7 +26,6 @@ var owed = []string{
 	"accounts-compare-160", "accounts-compare-bad-hour-160", "accounts-compare-month-160", "accounts-compare-ten-160",
 	"accounts-detail-all-160", "accounts-detail-limit-160", "accounts-detail-one-160", "accounts-detail-sessions-160",
 	"accounts-detail-work-160", "accounts-phone-compare-52", "accounts-phone-detail-52",
-	"log-events-filter-160", "log-requests-filter-160",
 	"log-requests-filtered-160",
 	"routing-session-160",
 	"runway-5-hour-160", "runway-phone-52", "runway-stepped-back-160", "runway-ten-accounts-160", "runway-week-160",
@@ -526,6 +525,31 @@ func tableRows(first int, reads ...string) []passing {
 	return p
 }
 
+// behindThePanel passes over the Log's tail as log-requests-filter-160 draws
+// it behind the f panel, faded, as log-requests-160 passes it over: left of
+// the panel's card from row 8 to 29, and whole under it.
+func behindThePanel() []passing {
+	beside := len(logTail) - 5
+	p := make([]passing, beside)
+	for i, r := range logTail[:beside] {
+		p[i] = cellsOf(8+i, 1, 18, r)
+	}
+	return append(p, tableRows(8+beside, logTail[beside:]...)...)
+}
+
+// panelSessions passes over the rows of today's sessions in a panel's frame,
+// from column from to column to, each its session's row, reading as given,
+// a row's from row first on, where the reads aren't blank.
+func panelSessions(first, from, to int, reads ...string) []passing {
+	var p []passing
+	for i, r := range reads {
+		if r != "" {
+			p = append(p, cellsOf(first+i, from, to, r))
+		}
+	}
+	return p
+}
+
 // passedOver is, by stem, the rows and cells each frame drew otherwise than
 // the design says, or than its world gives, which testdata/vhs/README.md
 // lists, with what the dashboard draws in their place.
@@ -700,6 +724,17 @@ var passedOver = map[string][]passing{
 	"log-events-160":        {cellsOf(27, 88, 160, ", its 5-hour to run out at 15:10   48k cached again, $0.48")},
 	"log-requests-160":      append(tableRows(8, logTail...), cellsOf(36, 144, 148, "1,240")),
 	"log-requests-phone-52": append(tableRows(9, logTail[len(logTail)-22:]...), cellsOf(32, 36, 40, "1,240")),
+	"log-events-filter-160": slices.Concat(
+		[]passing{cellsOf(13, 21, 31, "■ started")},
+		panelSessions(15, 80, 138, "□ d28c", "", "□ 7f3a", "□ db8a", "□ 41e0"),
+		[]passing{cellsOf(27, 143, 145, ".48")},
+	),
+	"log-requests-filter-160": slices.Concat(
+		behindThePanel(),
+		[]passing{cellsOf(10, 70, 74, "1,275"), blankCells(14, 98, 110), cellsOf(15, 83, 87, "1,240")},
+		panelSessions(18, 73, 131, "□ d28c", "", "□ 7f3a", "□ db8a", "□ 41e0"),
+		[]passing{cellsOf(26, 31, 45, "1,240 of 1,275"), cellsOf(36, 144, 148, "1,240")},
+	),
 	"log-request-details-160": slices.Concat(
 		[]passing{wholeRow(10, "14:31:18  9c2e")}, besideTheCard(11, aroundTheCap...),
 		[]passing{
