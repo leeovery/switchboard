@@ -12,8 +12,7 @@ import (
 // prints it: the kind's word, the account it befell and what happened, the
 // accounts each names apart, as status.Words part them.
 type EventLine struct {
-	// Kind is the kind's word, as "open" is the router's room: an unknown
-	// kind's, as from a later router, as it's given, cleaned.
+	// Kind is the kind's word, as KindWord gives it.
 	Kind string
 	// Account is the account it befell: a move's "work → side", a pin's
 	// accounts joined with ", ", and none for routing given back to the
@@ -26,6 +25,16 @@ type EventLine struct {
 
 // kindWords are the Log's words for the kinds the router names otherwise.
 var kindWords = map[string]string{status.EventRoom: "open"}
+
+// KindWord is the word the Log's Events, its panel and events name the kind
+// of event given by: the router's own, cleaned, but "open" for its room,
+// room again; a kind from a later router, as it's given, cleaned.
+func KindWord(kind string) string {
+	if word, ok := kindWords[kind]; ok {
+		return word
+	}
+	return status.Clean(kind)
+}
 
 // restartWords are why a restart fell due, in the Log's words.
 var restartWords = map[string]string{
@@ -67,11 +76,7 @@ func NewTelling(window func(key string) string) *Telling {
 func (t *Telling) Line(e status.Event, now time.Time) EventLine {
 	at := e.At.In(now.Location())
 	fact := t.facts.take(e)
-	kind, ok := kindWords[e.Kind]
-	if !ok {
-		kind = status.Clean(e.Kind)
-	}
-	line := EventLine{Kind: kind}
+	line := EventLine{Kind: KindWord(e.Kind)}
 	if tell, ok := tellers[e.Kind]; ok {
 		line.Account, line.What = tell(e, fact, at)
 	} else {
