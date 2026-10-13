@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -424,7 +425,7 @@ func weekUse(w status.WindowNow, k ink) span {
 		k = dimInk
 	}
 	k.bold = true
-	return span{status.Percent(w.Used), k}
+	return span{prose.Percent(w.Used), k}
 }
 
 // runwayLane draws lane ln, its columns cells, on c from row y as layout l
@@ -559,9 +560,9 @@ func placedTold(s stretch, tl timeline, now time.Time) []placed {
 // it: when, and where it's heading, how much it will have used by then, as
 // its Projected has it, as in "resets Mon 21:00 · 87% used by then".
 func resetSays(w status.WindowNow, now time.Time) line {
-	l := line{{"resets " + status.Dated(now, w.Next), secondaryInk}}
+	l := line{{"resets " + prose.Dated(now, w.Next), secondaryInk}}
 	if w.Projected != nil {
-		l = append(l, span{status.Separator + status.Percent(*w.Projected) + " used by then", mutedInk})
+		l = append(l, span{prose.Separator + prose.Percent(*w.Projected) + " used by then", mutedInk})
 	}
 	return l
 }
@@ -580,11 +581,11 @@ func (f Frame) allAlong(l lane, now time.Time) line {
 	case !l.known:
 		return line{{"not read yet", dimInk}}
 	case f.Span != Week && l.drained != "":
-		return line{{"room all day" + status.Separator + l.drained, dimInk}}
+		return line{{"room all day" + prose.Separator + l.drained, dimInk}}
 	case f.Span != Week:
 		return line{{"room all day", dimInk}}
 	case !next.IsZero():
-		return line{{"room all week" + status.Separator + "resets " + status.Dated(now, next), dimInk}}
+		return line{{"room all week" + prose.Separator + "resets " + prose.Dated(now, next), dimInk}}
 	default:
 		return line{{"room all week", dimInk}}
 	}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -1283,7 +1284,7 @@ func TestARequestIsInFlightWhileItAsksStreamsOrIsThrottled(t *testing.T) {
 
 func TestABackAndACallRoundWhenItWasLastSeenAlike(t *testing.T) {
 	for ago := time.Minute; ago <= time.Hour; ago += 7 * time.Second {
-		if back, call := lapsed(now.Add(-ago), now), status.SeenAgo(now, now.Add(-ago)); back != call {
+		if back, call := lapsed(now.Add(-ago), now), prose.SeenAgo(now, now.Add(-ago)); back != call {
 			t.Errorf("seen %v ago, a back's row reads %q and a call's %q, want them alike", ago, back, call)
 		}
 	}

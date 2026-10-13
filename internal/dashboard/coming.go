@@ -3,6 +3,7 @@ package dashboard
 import (
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -160,7 +161,7 @@ func comingLines(c *canvas, things []happening, now time.Time, body bounds) {
 	}
 	for i, h := range things {
 		_, _, until := h.inks()
-		c.right(body.x+body.width, body.y+i, line{{status.Until(now, h.at), until}})
+		c.right(body.x+body.width, body.y+i, line{{prose.Until(now, h.at), until}})
 		c.line(body.x, body.y+i, h.said(now, column).fit(body.width-comingTail))
 	}
 }
@@ -177,9 +178,9 @@ func (h happening) said(now time.Time, column int) line {
 // projected, after a ~, as in "~Sat 06:00".
 func (h happening) when(now time.Time) string {
 	if h.runsOut {
-		return "~" + status.Dated(now, h.at)
+		return "~" + prose.Dated(now, h.at)
 	}
-	return status.Dated(now, h.at)
+	return prose.Dated(now, h.at)
 }
 
 // inks are the inks of what's coming's time, its words and its countdown:

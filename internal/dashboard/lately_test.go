@@ -432,7 +432,7 @@ func onAuto() []status.Event {
 		[]status.Event{
 			startedAt(14, 12, "7f3a5c90", "work", status.ReasonNew),
 			primeAt(13, 50, "side"),
-			{At: routedClock(1, 13, 22), Kind: status.EventMoved, Session: "db8a71e3", From: "personal", To: "work", Reason: status.PassingOver(status.Rescored("21h 15m"), "personal")},
+			{At: routedClock(1, 13, 22), Kind: status.EventMoved, Session: "db8a71e3", From: "personal", To: "work", Reason: status.PassingOver(status.Rescored(21*time.Hour+15*time.Minute), "personal")},
 			startedAt(12, 47, "41e0b6c2", "personal", status.ReasonNew),
 			primeAt(12, 10, "work"),
 			startedAt(11, 55, "9c2e47b1", "personal", status.ReasonNew),

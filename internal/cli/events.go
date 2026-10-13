@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -172,7 +173,7 @@ func (p *eventsText) follow(h events.Held) error {
 // its account and what happened, as views.Telling tells them.
 func (p *eventsText) row(line events.Line, at time.Time) []string {
 	told := p.telling.Line(line.Event, at)
-	return []string{at.Format(time.TimeOnly), status.ShortID(status.Clean(line.Session)), told.Kind, told.Account.String(), told.What.String()}
+	return []string{at.Format(time.TimeOnly), status.ShortID(prose.Clean(line.Session)), told.Kind, told.Account.String(), told.What.String()}
 }
 
 // eventsFollower follows the router's events' files, a day's at a time, as

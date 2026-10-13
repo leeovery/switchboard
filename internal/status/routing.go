@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/score"
 )
 
@@ -106,19 +107,19 @@ const (
 // underPressure judges it, when its pressure window runs out, as pressure
 // says, At zero where it doesn't; idle at now, as idleAt judges it, when a
 // prime starts it; and open, where new sessions go, as next says, of
-// several accounts. Words from elsewhere show cleaned, and times as Dated
-// shows them.
+// several accounts. Words from elsewhere show cleaned, and times as
+// prose.Dated shows them.
 func (s windowStates) routing(pressure RunOut) Routing {
 	d, a, now := s.doc, s.account, s.now
 	if !a.TokenSet {
-		return Routing{Kind: RoutingTokenless, Says: "no token", Clauses: []string{"switchboard accounts token " + Clean(a.ID)}, Short: []string{"no token"}}
+		return Routing{Kind: RoutingTokenless, Says: "no token", Clauses: []string{"switchboard accounts token " + prose.Clean(a.ID)}, Short: []string{"no token"}}
 	}
 	if held, ok := s.heldRouting(); ok {
 		return held
 	}
 	switch {
 	case a.FetchedAt.IsZero() && a.Error != "":
-		return Routing{Kind: RoutingUnreadable, Says: "can't read it", Clauses: []string{Clean(a.Error)}, Short: []string{"can't read it"}}
+		return Routing{Kind: RoutingUnreadable, Says: "can't read it", Clauses: []string{prose.Clean(a.Error)}, Short: []string{"can't read it"}}
 	case a.FetchedAt.IsZero():
 		return Routing{Kind: RoutingUnread, Says: "not read yet", Short: []string{"not read yet"}}
 	}
@@ -200,7 +201,7 @@ func (s windowStates) cappedRouting() (Routing, bool) {
 func pressedRouting(out RunOut, now time.Time) Routing {
 	r := Routing{Kind: RoutingPressed, Says: "under pressure", Short: []string{"under pressure"}}
 	if !out.At.IsZero() {
-		r.Clauses = []string{"out ~" + Dated(now, out.At)}
+		r.Clauses = []string{"out ~" + prose.Dated(now, out.At)}
 	}
 	return r
 }
@@ -211,7 +212,7 @@ func backAt(now, t time.Time) []string {
 	if t.IsZero() {
 		return nil
 	}
-	return []string{"back " + Dated(now, t)}
+	return []string{"back " + prose.Dated(now, t)}
 }
 
 // shortBack is the short form of what holds an account back, says, and when
@@ -221,5 +222,5 @@ func shortBack(says string, now, t time.Time) []string {
 	if t.IsZero() {
 		return []string{says}
 	}
-	return []string{says, Dated(now, t)}
+	return []string{says, prose.Dated(now, t)}
 }

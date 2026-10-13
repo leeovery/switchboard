@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
-	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -25,7 +25,7 @@ func writeWindows(out io.Writer, windows views.Windows, from, now time.Time) err
 		return err
 	}
 	for i, w := range windows.Windows {
-		heading := status.Clean(w.Account) + "  " + status.Clean(claude.WindowLabel(w.Window))
+		heading := prose.Clean(w.Account) + "  " + prose.Clean(claude.WindowLabel(w.Window))
 		if i > 0 {
 			heading = "\n" + heading
 		}
@@ -34,8 +34,8 @@ func writeWindows(out io.Writer, windows views.Windows, from, now time.Time) err
 		}
 		rows := make([][]string, len(w.Readings))
 		for j, r := range w.Readings {
-			rows[j] = []string{"  " + r.At.In(now.Location()).Format(readingLayout), status.Percent(r.Utilization),
-				resetsText(r.ResetsAt, now), orNone(status.Clean(string(r.Status))), status.Clean(string(r.Source))}
+			rows[j] = []string{"  " + r.At.In(now.Location()).Format(readingLayout), prose.Percent(r.Utilization),
+				resetsText(r.ResetsAt, now), orNone(prose.Clean(string(r.Status))), prose.Clean(string(r.Source))}
 		}
 		if err := writeTable(out, rows); err != nil {
 			return err

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -159,7 +160,7 @@ func routingMode(m status.Moment, alone bool) line {
 		return mode
 	}
 	if !m.Pin.Since.IsZero() {
-		mode = append(mode, span{" since " + status.Dated(m.Now, m.Pin.Since), dimInk})
+		mode = append(mode, span{" since " + prose.Dated(m.Now, m.Pin.Since), dimInk})
 	}
 	return append(mode, spaces(3), span{"p", keyInk}, span{" back to auto", faintInk})
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -169,7 +170,7 @@ func till(what string, t time.Time, now time.Time) string {
 	if t.IsZero() {
 		return what
 	}
-	return what + " till " + status.Dated(now, t)
+	return what + " till " + prose.Dated(now, t)
 }
 
 // figureOf is the use of an account's window as it stands, as usage reads it:
@@ -425,7 +426,7 @@ func (r RoutingCard) moveRow() line {
 // last apply, in red, wrapped to width cells, in the rows outcomeRoom keeps
 // for it: cut short where it's longer, as a refusal can be.
 func (r RoutingCard) outcome(width int) []line {
-	said := []line{{{status.Clean(r.Refused), errorInk}}}
+	said := []line{{{prose.Clean(r.Refused), errorInk}}}
 	if r.Refused == "" {
 		said = r.sentences()
 	}
@@ -537,7 +538,7 @@ func whenFull(picked int) string {
 func (r RoutingCard) names(ids []string) []string {
 	names := make([]string, len(ids))
 	for i, id := range ids {
-		names[i] = status.Clean(id)
+		names[i] = prose.Clean(id)
 		if j := slices.IndexFunc(r.Rows, func(row RoutingRow) bool { return row.Account == id }); j >= 0 {
 			names[i] = r.Rows[j].Name
 		}

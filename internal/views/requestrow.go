@@ -14,7 +14,7 @@ import (
 // RequestRow is a request's row, the Log's, as every list of requests
 // gives one: the Log's Requests, a turn opened on a session's page, and
 // requests. It holds the facts typed, each printed form left to its one
-// owner: status.Seconds for First and Took, prose.Tokens for Read, Written
+// owner: prose.Seconds for First and Took, prose.Tokens for Read, Written
 // and Out, and dashboard.WorthCents for Worth; status.ShownID or
 // status.ShortID for Session, status.DirName for Dir, and the account's name
 // for Account. It says its stopped and its routing itself, as no drawer
@@ -410,7 +410,7 @@ func (r RequestRow) Stopped() RowWords {
 	}
 	var w RowWords
 	if r.Stop != "" {
-		w = append(w, RowPart{Text: status.Clean(r.Stop)})
+		w = append(w, RowPart{Text: prose.Clean(r.Stop)})
 	}
 	if r.Tool == "" {
 		return w
@@ -447,7 +447,7 @@ func (r RequestRow) PhoneStopped() RowWords {
 	case r.Tool != "":
 		return r.tools()
 	case r.Stop != "":
-		return RowWords{{Text: status.Clean(r.Stop)}}
+		return RowWords{{Text: prose.Clean(r.Stop)}}
 	}
 	return nil
 }
@@ -462,7 +462,7 @@ func (r RequestRow) doing() RowPart {
 
 // tools are the first tool the request called, and how many more.
 func (r RequestRow) tools() RowWords {
-	w := RowWords{{Text: status.Clean(r.Tool), Kind: RowNamed}}
+	w := RowWords{{Text: prose.Clean(r.Tool), Kind: RowNamed}}
 	if r.More > 0 {
 		w = append(w, RowPart{Text: " +" + strconv.Itoa(r.More)})
 	}

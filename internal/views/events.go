@@ -33,7 +33,7 @@ func KindWord(kind string) string {
 	if word, ok := kindWords[kind]; ok {
 		return word
 	}
-	return status.Clean(kind)
+	return prose.Clean(kind)
 }
 
 // restartWords are why a restart fell due, in the Log's words.
@@ -80,7 +80,7 @@ func (t *Telling) Line(e status.Event, now time.Time) EventLine {
 	if tell, ok := tellers[e.Kind]; ok {
 		line.Account, line.What = tell(e, fact, at)
 	} else {
-		line.Account, line.What = account(e.Account), clause(status.Clean(e.Reason))
+		line.Account, line.What = account(e.Account), clause(prose.Clean(e.Reason))
 	}
 	return line
 }
@@ -122,7 +122,7 @@ func loggedMove(e status.Event, f eventFact, at time.Time) (status.Words, status
 func loggedPressure(e status.Event, f eventFact, at time.Time) (status.Words, status.Words) {
 	what := "under pressure"
 	if !e.Until.IsZero() {
-		what = "its " + firstOr(f.windows, "window") + " to run out at " + status.Dated(at, e.Until)
+		what = "its " + firstOr(f.windows, "window") + " to run out at " + prose.Dated(at, e.Until)
 	}
 	return account(e.Account), clause(what)
 }
@@ -132,7 +132,7 @@ func loggedPressure(e status.Event, f eventFact, at time.Time) (status.Words, st
 func loggedCap(e status.Event, f eventFact, _ time.Time) (status.Words, status.Words) {
 	what := its(f.windows, "its window")
 	if e.Reserve > 0 {
-		what = status.Percent(1-e.Reserve) + " of " + what
+		what = prose.Percent(1-e.Reserve) + " of " + what
 	}
 	return account(e.Account), append(clause(what), moving(f, true)...)
 }
@@ -150,7 +150,7 @@ func loggedLimit(e status.Event, f eventFact, at time.Time) (status.Words, statu
 func loggedRefusal(e status.Event, f eventFact, at time.Time) (status.Words, status.Words) {
 	what := "its token refused"
 	if e.Family != "" {
-		what = "its " + status.Clean(e.Family) + " requests refused"
+		what = "its " + prose.Clean(e.Family) + " requests refused"
 	}
 	if e.Status != 0 {
 		what += " (" + strconv.Itoa(e.Status) + ")"
@@ -163,7 +163,7 @@ func loggedRefusal(e status.Event, f eventFact, at time.Time) (status.Words, sta
 func loggedPrime(e status.Event, f eventFact, at time.Time) (status.Words, status.Words) {
 	what := its(f.windows, "its window") + " started"
 	if !e.Until.IsZero() {
-		what += ", resets at " + status.Dated(at, e.Until)
+		what += ", resets at " + prose.Dated(at, e.Until)
 	}
 	return account(e.Account), clause(what)
 }
@@ -212,7 +212,7 @@ func loggedAuto(e status.Event, _ eventFact, _ time.Time) (status.Words, status.
 
 // loggedRestart tells of a restart falling due: "due: the config changed".
 func loggedRestart(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
-	reason := status.Clean(e.Reason)
+	reason := prose.Clean(e.Reason)
 	if words, ok := restartWords[reason]; ok {
 		reason = words
 	}
@@ -225,7 +225,7 @@ func loggedRestart(e status.Event, _ eventFact, _ time.Time) (status.Words, stat
 // loggedHealth tells of the router's health turning: "unhealthy: <its
 // reason>", or "healthy again".
 func loggedHealth(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
-	if reason := status.Clean(e.Reason); reason != "" {
+	if reason := prose.Clean(e.Reason); reason != "" {
 		return nil, clause("unhealthy: " + reason)
 	}
 	return nil, clause("healthy again")
@@ -240,7 +240,7 @@ func moving(f eventFact, asTheyCome bool) status.Words {
 	if f.moved == 0 {
 		return nil
 	}
-	subject, where, as := ": its "+status.SessionCount(f.moved)+" move to ", "other accounts", " as their next requests come"
+	subject, where, as := ": its "+prose.SessionCount(f.moved)+" move to ", "other accounts", " as their next requests come"
 	if f.moved == 1 {
 		subject, where, as = ": its session moves to ", "another account", " as its next request comes"
 	}
@@ -274,7 +274,7 @@ func till(until, at time.Time) string {
 	if until.IsZero() {
 		return ""
 	}
-	return ", till " + status.Dated(at, until)
+	return ", till " + prose.Dated(at, until)
 }
 
 // pinAccounts are the global pin's accounts, joined with ", ": its first,
@@ -308,7 +308,7 @@ func joined(names []string, last string) status.Words {
 func cleaned(ids []string) []string {
 	var names []string
 	for _, id := range ids {
-		if name := status.Clean(id); name != "" {
+		if name := prose.Clean(id); name != "" {
 			names = append(names, name)
 		}
 	}
@@ -318,7 +318,7 @@ func cleaned(ids []string) []string {
 // account is the account with the given id, as the account column names
 // it: none for "".
 func account(id string) status.Words {
-	if status.Clean(id) == "" {
+	if prose.Clean(id) == "" {
 		return nil
 	}
 	return status.Words{named(id)}
@@ -339,7 +339,7 @@ func said(text string) status.Part {
 
 // named is the account with the given id, cleaned, as it's from elsewhere.
 func named(id string) status.Part {
-	return status.Part{Text: status.Clean(id), Kind: status.PartAccount}
+	return status.Part{Text: prose.Clean(id), Kind: status.PartAccount}
 }
 
 // firstOr is the first of names, or none where there are none.

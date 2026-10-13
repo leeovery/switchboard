@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -92,8 +93,8 @@ func (f Frame) failing(s statusLine, now time.Time) statusLine {
 	if f.Failed.Reason == "" {
 		return s
 	}
-	next := "next " + status.TimeOfDay(now, f.Failed.Next)
-	s.state = line{{"! ", errorInk}, {"couldn't read usage: " + status.Clean(f.Failed.Reason), secondaryInk}}
+	next := "next " + prose.TimeOfDay(now, f.Failed.Next)
+	s.state = line{{"! ", errorInk}, {"couldn't read usage: " + prose.Clean(f.Failed.Reason), secondaryInk}}
 	s.since = line{{next, mutedInk}}
 	s.short = line{{"! ", errorInk}, {"couldn't read usage", secondaryInk}, {" " + next, mutedInk}}
 	return s
@@ -105,14 +106,14 @@ func newStatusLine(m status.Moment) statusLine {
 	if !m.Routed {
 		return probedLine(m)
 	}
-	s := statusLine{sessions: line{{status.SessionCount(m.Sessions), mutedInk}}, destination: destination(m)}
+	s := statusLine{sessions: line{{prose.SessionCount(m.Sessions), mutedInk}}, destination: destination(m)}
 	s.state = line{{"● ", positiveInk}, {"healthy", secondaryInk}}
 	if !m.Health.Healthy {
 		s.state = line{{"● unhealthy", errorInk}}
 	}
 	s.short = s.state
 	if m.Restart.Due() {
-		s.restart = line{{"restart due (" + status.Clean(m.Restart.Reason) + ")", warningInk}}
+		s.restart = line{{"restart due (" + prose.Clean(m.Restart.Reason) + ")", warningInk}}
 	}
 	if !m.Pin.IsZero() {
 		s.mode = line{{"pinned to " + names(m, m.Pin.Accounts), alertInk}}

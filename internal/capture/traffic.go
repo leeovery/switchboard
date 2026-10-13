@@ -164,7 +164,7 @@ func (r routing) request(l *ledger.Line) {
 			l.Tried, l.Attempts = []ledger.Tried{{Account: last.Account, Why: status.WhyLimit}}, 2
 		}
 	case l.At.Sub(last.At) > cacheLife:
-		l.Reason = status.Rescored(status.Countdown(last.At, l.At))
+		l.Reason = status.Rescored(l.At.Sub(last.At))
 	default:
 		l.Reason = status.ReasonSticky
 	}
@@ -186,7 +186,7 @@ func movedWhy(last, l ledger.Line) string {
 	case l.Account == "side":
 		return reasonLimited
 	}
-	return rescoredUnderPressure(status.Countdown(last.At, l.At), last.Account)
+	return rescoredUnderPressure(l.At.Sub(last.At), last.Account)
 }
 
 // cacheLife is how long a session's cache lasts unused, Claude Code's writes

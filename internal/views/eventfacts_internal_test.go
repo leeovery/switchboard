@@ -13,7 +13,7 @@ import (
 func TestBothTellersSayTheFactsTheyreGivenRatherThanWorkThemOut(t *testing.T) {
 	now := time.Date(2026, 10, 7, 14, 0, 0, 0, time.UTC)
 	given := eventFact{runsOut: now.Add(70 * time.Minute), moved: 7, to: "elsewhere", windows: []string{"odd"}}
-	passing := status.PassingOver(status.Rescored("15h"), "personal")
+	passing := status.PassingOver(status.Rescored(15*time.Hour), "personal")
 	tests := []struct {
 		event          status.Event
 		logged, lately string

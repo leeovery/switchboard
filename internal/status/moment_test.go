@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -120,7 +121,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: doc.Floor(a), ReserveHolds: doc.ReserveHolds(a),
 		Pinned: doc.Pin.Has(a.ID), Next: a.ID == m.Next,
 		InPool: slices.Contains(pool.Accounts, a.ID), OutOfPool: len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, a.ID),
-		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: status.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
+		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Routing: got.Routing, Hold: hold, Held: held, LimitHolds: a.Limit.Holds(now), LimitSince: got.LimitSince,
 		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapBack: capBack,
 		Refusal: refusal, TokenRefused: a.TokenRefused(now),
@@ -615,7 +616,7 @@ func TestThePressureLinesTimeIsTheRoutersForAnyDocumentItBuilds(t *testing.T) {
 		if a.Pressure.Out.Reserve {
 			verb = "at its reserve"
 		}
-		if got, want := doc.Pressed(doc.Accounts[0], built, policy), "under pressure: "+verb+" ~"+status.TimeOfDay(built, stored.RunsOut); got != want {
+		if got, want := doc.Pressed(doc.Accounts[0], built, policy), "under pressure: "+verb+" ~"+prose.TimeOfDay(built, stored.RunsOut); got != want {
 			t.Fatalf("case %d: Pressed() = %q, want %q", i, got, want)
 		}
 	}

@@ -12,7 +12,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -26,7 +25,7 @@ var noFigure = span{"—", faintInk}
 var (
 	widestDay   = ansi.StringWidth(time.Date(2026, time.September, 22, 0, 0, 0, 0, time.UTC).Format(dayLayout))
 	widestRun   = ansi.StringWidth(prose.Counted(366, "day"))
-	widestShare = ansi.StringWidth(status.Percent(1))
+	widestShare = ansi.StringWidth(prose.Percent(1))
 )
 
 // worthSaid is a worth as History writes it, in the ink given: to the
@@ -113,13 +112,13 @@ func shareSaid(share *float64, k ink) line {
 	if share == nil {
 		return line{noFigure}
 	}
-	return line{{status.Percent(*share), k}}
+	return line{{prose.Percent(*share), k}}
 }
 
 // familyName is a family's name as History shows it, its first letter
 // capital: Opus.
 func familyName(family string) string {
-	name := status.Clean(family)
+	name := prose.Clean(family)
 	if first, size := utf8.DecodeRuneInString(name); size > 0 {
 		name = string(unicode.ToUpper(first)) + name[size:]
 	}

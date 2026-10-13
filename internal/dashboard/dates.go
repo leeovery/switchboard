@@ -3,7 +3,7 @@ package dashboard
 import (
 	"time"
 
-	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // The dashboard's times and dates: a time to the second, as the title row's
@@ -47,7 +47,7 @@ func weekHead(date string, this bool) line {
 	if day, ok := civilDay(date); ok {
 		return line{{day.Format(weekLayout), k}}
 	}
-	return line{{status.Clean(date), k}}
+	return line{{prose.Clean(date), k}}
 }
 
 // dayAbbreviation and dayInitial name a weekday as History does, wide and

@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -450,7 +450,7 @@ func (p picker) drawn(choice theme.Choice) dashboard.Picker {
 		d.Note = "can't read the themes directory"
 	}
 	for _, row := range p.rows {
-		r := dashboard.PickerRow{Name: status.Clean(row.Name)}
+		r := dashboard.PickerRow{Name: prose.Clean(row.Name)}
 		if row.Slug != "" {
 			r.Badge = choice.Badge(row.Slug)
 		}
@@ -460,7 +460,7 @@ func (p picker) drawn(choice theme.Choice) dashboard.Picker {
 		d.Rows = append(d.Rows, r)
 	}
 	if p.asking != (pick{}) {
-		d.Clearing = status.Clean(choice.Theme)
+		d.Clearing = prose.Clean(choice.Theme)
 	}
 	return d
 }

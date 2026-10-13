@@ -7,13 +7,13 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/status"
 )
 
 // pointsOf returns the points of the windows of the accounts requests, the
 // session's with the given id, oldest first, went to that the session took,
-// by account, then by window key, in whole points, as status.WholePercent
+// by account, then by window key, in whole points, as prose.WholePercent
 // rounds a share, an estimate: a window
 // counts its account's whole use, every session's, so each rise in it is
 // shared out by tokens, as sharesOf says, among the requests of the account
@@ -45,7 +45,7 @@ func pointsOf(byDate map[string][]ledger.Line, id string, requests []request) ma
 	for account, shares := range taken {
 		points[account] = make(map[string]int, len(shares))
 		for key, share := range shares {
-			points[account][key] = status.WholePercent(share)
+			points[account][key] = prose.WholePercent(share)
 		}
 	}
 	return points

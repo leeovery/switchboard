@@ -11,8 +11,8 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/launch"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -255,7 +255,7 @@ func warnUnchecked(w io.Writer, taken accounts.Taken) {
 func accountRows(configured config.Accounts, readToken func(id string) (tokens.Token, error)) [][]string {
 	rows := [][]string{{"ID", "LABEL", "PRIMARY", "TOKEN"}}
 	for _, acct := range configured {
-		rows = append(rows, []string{acct.ID, status.Clean(acct.Label), primary(acct), tokenState(acct.ID, readToken)})
+		rows = append(rows, []string{acct.ID, prose.Clean(acct.Label), primary(acct), tokenState(acct.ID, readToken)})
 	}
 	return rows
 }

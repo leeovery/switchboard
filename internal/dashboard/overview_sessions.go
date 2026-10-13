@@ -145,12 +145,12 @@ func runningIDOf(r views.Running, now time.Time) span {
 }
 
 // runningSeen says how long before now a session running was last seen:
-// "now" within the minute, else as status.SeenAgo rounds it, as "9m".
+// "now" within the minute, else as prose.SeenAgo rounds it, as "9m".
 func runningSeen(seen, now time.Time) string {
 	if now.Sub(seen) < time.Minute {
 		return "now"
 	}
-	return status.SeenAgo(now, seen)
+	return prose.SeenAgo(now, seen)
 }
 
 // runningDoing is what a session running is doing, as SESSIONS says its

@@ -20,7 +20,7 @@ func name(a status.AccountNow) string {
 // labelled is what the dashboard calls the account with the given label
 // and id: its label, else its id, cleaned.
 func labelled(label, id string) string {
-	return status.Clean(cmp.Or(label, id))
+	return prose.Clean(cmp.Or(label, id))
 }
 
 // named is what the dashboard calls the account of m with the given id: its
@@ -29,7 +29,7 @@ func named(m status.Moment, id string) string {
 	if a, ok := m.Account(id); ok {
 		return name(a)
 	}
-	return status.Clean(id)
+	return prose.Clean(id)
 }
 
 // names names the accounts of m with the given ids as a list, as in "work and
@@ -86,7 +86,7 @@ func spanOf(key string) string {
 	length, ok := quota.Length(key)
 	switch {
 	case !ok:
-		return status.Clean(key)
+		return prose.Clean(key)
 	case length%(24*time.Hour) == 0:
 		return fmt.Sprintf("%d-day window", length/(24*time.Hour))
 	default:
@@ -103,7 +103,7 @@ func lately(since, at time.Time) string {
 
 // because follows what with why, cleaned, where there's a why.
 func because(what, why string) string {
-	if why = status.Clean(why); why == "" {
+	if why = prose.Clean(why); why == "" {
 		return what
 	}
 	return what + ": " + why

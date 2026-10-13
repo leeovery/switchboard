@@ -159,12 +159,12 @@ func (f Frame) doing(s seated, now time.Time) doing {
 }
 
 // lapsed says how long has passed from since to now: in seconds, as "38s",
-// within a minute, and from then as status.SeenAgo rounds it, as "9m".
+// within a minute, and from then as prose.SeenAgo rounds it, as "9m".
 func lapsed(since, now time.Time) string {
 	if d := now.Sub(since); d < time.Minute {
 		return strconv.Itoa(max(int(d/time.Second), 0)) + "s"
 	}
-	return status.SeenAgo(now, since)
+	return prose.SeenAgo(now, since)
 }
 
 // note is what's noted under a seat's row under the panel of the account
@@ -191,13 +191,13 @@ func note(doc status.Document, id string, s seated, now time.Time) string {
 	pinned := s.assignment.Pinned || pin == id
 	switch {
 	case pinned && !s.assignment.PinnedAt.IsZero():
-		return "pinned here at " + status.Dated(now, s.assignment.PinnedAt)
+		return "pinned here at " + prose.Dated(now, s.assignment.PinnedAt)
 	case pinned:
 		return "pinned here"
 	case moved:
-		return "moved from " + docNamed(doc, move.From) + " at " + status.Dated(now, move.At)
+		return "moved from " + docNamed(doc, move.From) + " at " + prose.Dated(now, move.At)
 	default:
-		return "here since " + status.Dated(now, s.assignment.AssignedAt)
+		return "here since " + prose.Dated(now, s.assignment.AssignedAt)
 	}
 }
 
@@ -260,7 +260,7 @@ func (f Frame) unseatedBy(doc status.Document, id string, now time.Time) []chunk
 		case e.Kind == status.EventLimit && e.Account == id && e.Count > 0:
 			return limitMoved(doc, e, id, now)
 		case e.Kind == status.EventMoved && !counted(e) && e.From == id:
-			return []chunk{{text: slices.Concat(line{{status.ShownID(e.Session) + " moved to " + docNamed(doc, e.To) + " at " + status.Dated(now, e.At), mutedInk}}, why(doc, e.Reason))}}
+			return []chunk{{text: slices.Concat(line{{status.ShownID(e.Session) + " moved to " + docNamed(doc, e.To) + " at " + prose.Dated(now, e.At), mutedInk}}, why(doc, e.Reason))}}
 		}
 	}
 	return nil
@@ -272,7 +272,7 @@ func (f Frame) unseatedBy(doc status.Document, id string, now time.Time) []chunk
 func limitMoved(doc status.Document, e status.Event, id string, now time.Time) []chunk {
 	to := cmp.Or(movedTo(doc, e), " to other accounts")
 	return []chunk{
-		{text: line{{strconv.Itoa(e.Count) + " moved" + to + " at " + status.Dated(now, e.At) + ",", mutedInk}}},
+		{text: line{{strconv.Itoa(e.Count) + " moved" + to + " at " + prose.Dated(now, e.At) + ",", mutedInk}}},
 		{text: line{{"when " + docNamed(doc, id) + " reached its limit", mutedInk}}},
 	}
 }

@@ -123,7 +123,7 @@ var (
 	// owner: a drawing package calls none, but its owner.
 	absorbed = map[string]string{
 		// A time, 16:30 today and Sun 21:00 another day.
-		"status.When": "status.Dated",
+		"prose.When": "prose.Dated",
 		// A session's id, as the dashboard names a session by it.
 		"status.ShortID": "status.ShownID",
 	}
@@ -171,17 +171,17 @@ func TestTheDrawingGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/cli/readers.go:goneReader",
 	}, []string{"ledger.Held.Filed", "status.Session.Line", "ledger.Held.Gone"})
 	want := []string{
-		"internal/cli/calls.go:14: ledger.Table.Summed works a fact out of raw data; " + readsRawFix,
-		"internal/cli/calls.go:14: ledger.Held.Line reads raw data's fields; " + rawFix,
-		"internal/cli/calls.go:15: ledger.Line.Upstream works a fact out of raw data; " + readsRawFix,
-		"internal/cli/calls.go:16: ledger.Held.Reply reads raw data's fields; " + rawFix,
-		"internal/cli/calls.go:16: ledger.Reply.Tokens works a fact out of raw data; " + readsRawFix,
-		"internal/cli/calls.go:17: claude.LimitWindows works a fact out of raw data; " + readsRawFix,
-		"internal/cli/calls.go:18: ledger.Line.Failed takes raw data, ledger.Line; " + callFix,
-		"internal/cli/calls.go:19: ledger.Count takes raw data, ledger.Line; " + callFix,
-		"internal/cli/calls.go:20: status.Grouped takes raw data, status.Session; " + callFix,
-		"internal/cli/calls.go:21: " + absorbedSays("status.When", "status.Dated"),
-		"internal/cli/calls.go:22: " + absorbedSays("status.When", "status.Dated"),
+		"internal/cli/calls.go:15: ledger.Table.Summed works a fact out of raw data; " + readsRawFix,
+		"internal/cli/calls.go:15: ledger.Held.Line reads raw data's fields; " + rawFix,
+		"internal/cli/calls.go:16: ledger.Line.Upstream works a fact out of raw data; " + readsRawFix,
+		"internal/cli/calls.go:17: ledger.Held.Reply reads raw data's fields; " + rawFix,
+		"internal/cli/calls.go:17: ledger.Reply.Tokens works a fact out of raw data; " + readsRawFix,
+		"internal/cli/calls.go:18: claude.LimitWindows works a fact out of raw data; " + readsRawFix,
+		"internal/cli/calls.go:19: ledger.Line.Failed takes raw data, ledger.Line; " + callFix,
+		"internal/cli/calls.go:20: ledger.Count takes raw data, ledger.Line; " + callFix,
+		"internal/cli/calls.go:21: status.Grouped takes raw data, status.Session; " + callFix,
+		"internal/cli/calls.go:22: " + absorbedSays("prose.When", "prose.Dated"),
+		"internal/cli/calls.go:23: " + absorbedSays("prose.When", "prose.Dated"),
 		"internal/cli/fields.go:13: ledger.Held.At reads raw data's fields; " + rawFix,
 		"internal/cli/fields.go:14: ledger.Held.Usage reads raw data's fields; " + rawFix,
 		"internal/cli/fields.go:15: ledger.Line.Status reads raw data's fields; " + rawFix,
@@ -277,13 +277,18 @@ type Session struct {
 
 type Assignment struct{ Account string }
 
-func When(now, t time.Time) string          { return "" }
-func Dated(now, t time.Time) string         { return "" }
 func ShortID(id string) string              { return id }
 func ShownID(id string) string              { return id }
-func Clean(text string) string              { return text }
 func (s Session) Line(now time.Time) string { return s.ID }
 func Grouped(by map[string]Session) int     { return len(by) }
+`,
+	"internal/prose/prose.go": `package prose
+
+import "time"
+
+func When(now, t time.Time) string  { return "" }
+func Dated(now, t time.Time) string { return "" }
+func Clean(text string) string      { return text }
 `,
 	"internal/router/router.go": `package router
 
@@ -308,6 +313,7 @@ import (
 
 	"example.com/fixture/internal/claude"
 	"example.com/fixture/internal/ledger"
+	"example.com/fixture/internal/prose"
 	"example.com/fixture/internal/status"
 )
 
@@ -321,8 +327,8 @@ func calls(h ledger.Held, by map[string]status.Session, now time.Time) []any {
 		h.Failed(),
 		ledger.Count(nil),
 		status.Grouped(by),
-		status.When(now, now),
-		status.When,
+		prose.When(now, now),
+		prose.When,
 	}
 }
 `,
@@ -358,6 +364,7 @@ import (
 	"time"
 
 	"example.com/fixture/internal/ledger"
+	"example.com/fixture/internal/prose"
 	"example.com/fixture/internal/status"
 	"example.com/fixture/internal/views"
 )
@@ -368,7 +375,7 @@ func clean(r ledger.Reader, s status.Session, now time.Time) string {
 		rows = append(rows, views.RowOf(h))
 		_ = h.Filed()
 	}
-	return rows[0].Session + status.Dated(now, now) + status.Clean("") + s.Line(now) + status.ShortID(rows[0].Session)
+	return rows[0].Session + prose.Dated(now, now) + prose.Clean("") + s.Line(now) + status.ShortID(rows[0].Session)
 }
 `,
 	"internal/cli/readers.go": `package cli

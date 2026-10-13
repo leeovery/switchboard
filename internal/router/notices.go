@@ -192,7 +192,7 @@ func (g *gathering) notice(accounts standings, now time.Time) notify.Notice {
 		text.windows = append(text.windows, limited.windowLabel(key))
 	}
 	if g.Until.After(now) {
-		text.back = status.Clock(now, g.Until)
+		text.back = prose.Clock(now, g.Until)
 	}
 	message := func() string { return accounts.title(g.Account) + " " + text.say(accounts.title) }
 	if utf8.RuneCountInString(message()) > maxMessage {
@@ -230,7 +230,7 @@ func (t limitText) say(name func(id string) string) string {
 		for i, id := range t.to {
 			to[i] = name(id)
 		}
-		fmt.Fprintf(&b, " — %s moved to %s", status.SessionCount(t.moved), prose.List(to))
+		fmt.Fprintf(&b, " — %s moved to %s", prose.SessionCount(t.moved), prose.List(to))
 	case t.full:
 		b.WriteString(" — no other account has room")
 	}

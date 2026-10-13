@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/status/statustest"
@@ -266,14 +267,14 @@ func (d drawn) used(a status.AccountNow, w status.WindowNow) []viewSays {
 	if g, ok := d.gauge(a, w); ok {
 		usage := "none"
 		if !g.bar.empty {
-			usage = status.Percent(g.bar.used)
+			usage = prose.Percent(g.bar.used)
 		}
 		says = append(says, viewSays{"USAGE", usage})
 	}
 	if f, ok := d.figure(a, w); ok {
 		card := "none"
 		if f.Read {
-			card = status.Percent(f.Used)
+			card = prose.Percent(f.Used)
 		}
 		says = append(says, viewSays{"the routing card", card})
 	}
@@ -364,7 +365,7 @@ func outSaid(words string) string {
 	if !ok {
 		return "nowhere"
 	}
-	out, _, _ = strings.Cut(out, status.Separator)
+	out, _, _ = strings.Cut(out, prose.Separator)
 	return "out ~" + out
 }
 
@@ -372,7 +373,7 @@ func outSaid(words string) string {
 func (d drawn) comingOut(a status.AccountNow, w status.WindowNow) string {
 	for i, u := range d.moment.ComingUp {
 		if u.Account == a.ID && u.Window == w.Key && d.coming[i].runsOut {
-			return "out ~" + status.Dated(d.now, d.coming[i].at)
+			return "out ~" + prose.Dated(d.now, d.coming[i].at)
 		}
 	}
 	return "nowhere"
@@ -406,18 +407,18 @@ func spanName(s Span) string {
 func (d drawn) resets(a status.AccountNow, w status.WindowNow) []viewSays {
 	var says []viewSays
 	if ch := chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now); ch.spanned {
-		says = append(says, viewSays{"GRAPHS", status.Dated(d.now, ch.start.Add(ch.length))})
+		says = append(says, viewSays{"GRAPHS", prose.Dated(d.now, ch.start.Add(ch.length))})
 	}
 	for _, week := range d.week.weeks(d.week.laneOf(a, d.now)) {
 		if week.Key == w.Key {
 			at, _ := strings.CutPrefix(resetSays(week, d.now).plain(), "resets ")
-			at, _, _ = strings.Cut(at, status.Separator)
+			at, _, _ = strings.Cut(at, prose.Separator)
 			says = append(says, viewSays{"Runway", at})
 		}
 	}
 	for i, u := range d.moment.ComingUp {
 		if u.Account == a.ID && u.Window == w.Key && u.Kind == status.UpcomingReset {
-			says = append(says, viewSays{"COMING UP", status.Dated(d.now, d.coming[i].at)})
+			says = append(says, viewSays{"COMING UP", prose.Dated(d.now, d.coming[i].at)})
 		}
 	}
 	return says

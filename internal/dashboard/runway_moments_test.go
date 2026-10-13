@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/status/statustest"
 )
@@ -109,12 +110,12 @@ func checkWeeksAgree(t *testing.T, a status.AccountNow, now time.Time) {
 	case status.WindowRunsOut:
 		wantInk = alertInk
 	}
-	if got, want := week.badge(l), (line{{status.Percent(w.Used), wantInk}}); !slices.Equal(got, want) {
+	if got, want := week.badge(l), (line{{prose.Percent(w.Used), wantInk}}); !slices.Equal(got, want) {
 		t.Errorf("%s's week's badge is %+v, want %+v, as its week stands as kind %v", a.ID, got, want, w.Kind)
 	}
 	for _, w := range weeks {
 		said := resetSays(w, now).plain()
-		if !strings.HasPrefix(said, "resets "+status.Dated(now, w.Next)) || strings.HasSuffix(said, "used by then") != (w.Projected != nil) {
+		if !strings.HasPrefix(said, "resets "+prose.Dated(now, w.Next)) || strings.HasSuffix(said, "used by then") != (w.Projected != nil) {
 			t.Errorf("%s's %s's reset says %q, its next reset at %v, heading for %v", a.ID, w.Key, said, w.Next, w.Projected)
 		}
 	}

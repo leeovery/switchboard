@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -772,7 +773,7 @@ func timeSaid(w status.WindowNow, now time.Time) string {
 		full, _ := lastRead(now, w.At)
 		return full
 	}
-	return status.Dated(now, w.At)
+	return prose.Dated(now, w.At)
 }
 
 // paceAt shows an even pace, "none" where it's nil.

@@ -37,7 +37,7 @@ func TestEachKindOfEventIsToldInTheLogsWords(t *testing.T) {
 			kind: "moved", account: "personal → side", what: "personal reached its limit"},
 		{name: "a session moved by pin", event: status.Event{Kind: status.EventMoved, From: "work", To: "side", Reason: status.ReasonMovedByPin},
 			kind: "moved", account: "work → side", what: "pinned to side"},
-		{name: "a session rescored", event: status.Event{Kind: status.EventMoved, From: "side", To: "work", Reason: status.Rescored("15h")},
+		{name: "a session rescored", event: status.Event{Kind: status.EventMoved, From: "side", To: "work", Reason: status.Rescored(15 * time.Hour)},
 			kind: "moved", account: "side → work", what: "rescored after 15h idle"},
 		{name: "an account under pressure", event: status.Event{Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}, Until: at(15, 5)},
 			kind: "pressure", account: "personal", what: "its 5-hour to run out at 15:05"},

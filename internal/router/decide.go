@@ -262,7 +262,7 @@ func (s situation) why() (reason, preferred string, forced bool) {
 	case !s.assigned:
 		return reasonNew, "", false
 	case s.movesFree():
-		return status.Rescored(status.Countdown(s.current.LastSeen, s.now)), s.current.Account, false
+		return status.Rescored(s.now.Sub(s.current.LastSeen)), s.current.Account, false
 	default:
 		return status.ReasonMovedOff + s.current.Account + " " + s.unable(s.current.Account), "", true
 	}

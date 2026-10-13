@@ -56,7 +56,7 @@ func Lately(m status.Moment, n int) []Sentence {
 	sentences := make([]Sentence, len(shown))
 	for i, e := range shown {
 		full, short := latelyTellers[e.Kind](t, e, facts[e.ID])
-		well := e.Kind == status.EventHealth && status.Clean(e.Reason) == ""
+		well := e.Kind == status.EventHealth && prose.Clean(e.Reason) == ""
 		sentences[i] = Sentence{ID: e.ID, At: e.At, Kind: e.Kind, Well: well, Full: full, Short: short}
 	}
 	return sentences
@@ -149,7 +149,7 @@ func (t latelyTeller) started(e status.Event, f eventFact) (Said, Said) {
 
 // startedWhy says why a session started where it did, as started has it.
 func (t latelyTeller) startedWhy(e status.Event, f eventFact) status.Words {
-	switch status.Clean(e.Reason) {
+	switch prose.Clean(e.Reason) {
 	case "", status.ReasonNew:
 		return nil
 	case status.ReasonPinned, status.ReasonGlobalPin:
@@ -181,7 +181,7 @@ func (t latelyTeller) pressured(e status.Event, f eventFact) (Said, Said) {
 	if e.Until.IsZero() {
 		return full, short
 	}
-	out := clause("~" + status.Dated(t.now, e.Until))
+	out := clause("~" + prose.Dated(t.now, e.Until))
 	full.Words = clause(" came under pressure: its " + firstOr(f.windows, "window") + " runs out ")
 	short.Words = clause(" under pressure: out ")
 	full.Object, short.Object = out, out
@@ -209,7 +209,7 @@ func (latelyTeller) refused(e status.Event, f eventFact) (Said, Said) {
 	if e.Status != 0 {
 		answer = append(answer, strconv.Itoa(e.Status))
 	}
-	if family := status.Clean(e.Family); family != "" {
+	if family := prose.Clean(e.Family); family != "" {
 		answer = append(answer, family)
 	}
 	what := " refused"
@@ -268,7 +268,7 @@ func (latelyTeller) unpinned(e status.Event, _ eventFact) (Said, Said) {
 // restarting tells of a restart falling due, and why, in the Log's words:
 // "restart due: the config changed".
 func (latelyTeller) restarting(e status.Event, _ eventFact) (Said, Said) {
-	reason := status.Clean(e.Reason)
+	reason := prose.Clean(e.Reason)
 	if words, ok := restartWords[reason]; ok {
 		reason = words
 	}
@@ -283,7 +283,7 @@ func (latelyTeller) restarting(e status.Event, _ eventFact) (Said, Said) {
 // unhealthy: <its reason>", or "the router is healthy again".
 func (latelyTeller) turned(e status.Event, _ eventFact) (Said, Said) {
 	s := Said{Subject: clause("the router"), Words: clause(" is healthy again")}
-	if reason := status.Clean(e.Reason); reason != "" {
+	if reason := prose.Clean(e.Reason); reason != "" {
 		s.Words = clause(" turned unhealthy: " + reason)
 	}
 	return s, s
@@ -320,7 +320,7 @@ func heldBack(e status.Event, f eventFact, what string, short bool) Said {
 	if f.moved == 0 {
 		return s
 	}
-	count := status.SessionCount(f.moved)
+	count := prose.SessionCount(f.moved)
 	if short {
 		count = strconv.Itoa(f.moved)
 	}
@@ -359,7 +359,7 @@ func pinnedTo(e status.Event) status.Words {
 // session is the session with the given id, named as status.ShownID names
 // it: none for "".
 func session(id string) status.Words {
-	if status.Clean(id) == "" {
+	if prose.Clean(id) == "" {
 		return nil
 	}
 	return clause(status.ShownID(id))

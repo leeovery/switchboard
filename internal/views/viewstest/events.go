@@ -106,7 +106,7 @@ func restarted(on func(day, hour, minute int) time.Time) EventMoment {
 	pressure := status.Event{ID: 1, At: on(7, 11, 40), Kind: status.EventPressure, Account: personal, Windows: []string{fiveHour}, Until: on(7, 15, 10), Since: on(7, 11, 10)}
 	limit := limitOf(2, on(7, 11, 50), on(7, 16, 0), fiveHour)
 	reached := limitOf(1, on(7, 12, 0).Add(30*time.Second), on(7, 16, 0), fiveHour)
-	passing := status.Event{ID: 3, At: on(7, 12, 10), Kind: status.EventMoved, Session: "s6", From: personal, To: side, Reason: status.PassingOver(status.Rescored("15h"), personal)}
+	passing := status.Event{ID: 3, At: on(7, 12, 10), Kind: status.EventMoved, Session: "s6", From: personal, To: side, Reason: status.PassingOver(status.Rescored(15*time.Hour), personal)}
 	firstMoves := []status.Event{forcedBy(limit, 3, "s1", on(7, 11, 52)), forcedBy(limit, 4, "s2", on(7, 11, 55))}
 	secondMove := forcedBy(reached, 2, "s5", on(7, 12, 5))
 	return EventMoment{
@@ -221,7 +221,7 @@ func acrossMidnight(on func(day, hour, minute int) time.Time) EventMoment {
 	run := on(6, 9, 0)
 	limit, moves, versions := midnightLimit(on)
 	pressure := status.Event{ID: 1, At: on(6, 23, 40), Kind: status.EventPressure, Account: personal, Windows: []string{fiveHour}, Until: on(7, 0, 30)}
-	passing := status.Event{ID: 4, At: on(7, 0, 5), Kind: status.EventMoved, Session: "s3", From: personal, To: side, Reason: status.PassingOver(status.Rescored("1h 10m"), personal)}
+	passing := status.Event{ID: 4, At: on(7, 0, 5), Kind: status.EventMoved, Session: "s3", From: personal, To: side, Reason: status.PassingOver(status.Rescored(time.Hour+10*time.Minute), personal)}
 	return EventMoment{
 		Name:  "a day's boundary between two events of one limit, read from the day before",
 		Filed: append([]Filing{filed(run, pressure, pressure.At)}, append(versions, filed(run, passing, passing.At))...),
