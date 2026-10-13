@@ -206,21 +206,24 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 }
 
 // view draws the tab shown of doc at now from row top, where the page has
-// room for it, as cramped says: the Overview, History, Sessions and Runway;
-// and nothing of a tab not built yet.
+// room for it, as cramped says: a session's page, where one is open, in its
+// place; the Overview, History, Sessions and Runway; and nothing of a tab
+// not built yet.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
 	}
 	top := f.top()
-	switch f.View {
-	case Overview:
+	switch {
+	case f.Session != nil:
+		f.sessionPage(c, doc, now)
+	case f.View == Overview:
 		f.overview(c, doc, now, top)
-	case History:
+	case f.View == History:
 		f.history(c, top)
-	case Sessions:
+	case f.View == Sessions:
 		f.sessions(c, doc, now, top)
-	case Runway:
+	case f.View == Runway:
 		f.runway(c, doc, now, top)
 	}
 }
@@ -315,9 +318,13 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 }
 
 // cramped reports whether the terminal is too short for the page's fixed
-// rows and leastView of the view's: the page is then its title row, its
-// status line and its key line alone.
+// rows and leastView of the view's, or for a session's page, where one is
+// open, as its layout says: the page is then its title row, its status line
+// and its key line alone.
 func (f Frame) cramped() bool {
+	if f.Session != nil {
+		return f.sessionLayout(len(f.Session.Page.Accounts)).chrome
+	}
 	return f.viewRows() < leastView
 }
 
