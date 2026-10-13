@@ -22,16 +22,15 @@ func worded(name string) string { return name + " words a value of its own; " + 
 func callsRule() sourcecheck.Rule {
 	keys := []string{time.DateOnly, time.RFC3339}
 	operand := sourcecheck.OperandOf("time.Duration", "float32", "float64", "example.com/fixture/internal/money.Picodollars")
-	ban := func(name string, in ...string) sourcecheck.Ban { return sourcecheck.Ban{Says: worded(name), In: in} }
 	return sourcecheck.Rule{
 		Names: sourcecheck.NamesIn("example.com/fixture"),
 		Calls: map[string]sourcecheck.CallBan{
-			"(time.Time).Format":       {Ban: ban("(time.Time).Format"), Breaks: sourcecheck.ConstantOtherThan(0, keys...)},
-			"(time.Time).AppendFormat": {Ban: ban("(time.Time).AppendFormat"), Breaks: sourcecheck.ConstantOtherThan(1, keys...)},
-			"fmt.Sprint":               {Ban: ban("fmt.Sprint"), Breaks: operand},
-			"fmt.Sprintf":              {Ban: ban("fmt.Sprintf"), Breaks: operand},
-			"strconv.FormatFloat":      {Ban: ban("strconv.FormatFloat")},
-			"example.org/cells.Cut":    {Ban: ban("example.org/cells.Cut", "internal/drawn")},
+			"(time.Time).Format":       {Says: worded("(time.Time).Format"), Breaks: sourcecheck.ConstantOtherThan(0, keys...)},
+			"(time.Time).AppendFormat": {Says: worded("(time.Time).AppendFormat"), Breaks: sourcecheck.ConstantOtherThan(1, keys...)},
+			"fmt.Sprint":               {Says: worded("fmt.Sprint"), Breaks: operand},
+			"fmt.Sprintf":              {Says: worded("fmt.Sprintf"), Breaks: operand},
+			"strconv.FormatFloat":      {Says: worded("strconv.FormatFloat")},
+			"example.org/cells.Cut":    {Says: worded("example.org/cells.Cut"), In: []string{"internal/drawn"}},
 		},
 	}
 }
