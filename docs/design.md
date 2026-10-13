@@ -3325,8 +3325,9 @@ first ran on them:
 - at column 0, the account's number in config order, as the Overview numbers it, in `text.subtle`,
   and a space; then its name bold `text.primary` and its marks;
 - at 14, its time there, from its first request on it to its last, in `text.secondary`: `12:02 –
-  14:31`, `14:31 – now`; with its day where the session spans more than one: `yesterday 16:40 –
-  18:05`, `today 09:12 – now`;
+  14:31`, `14:31 – now`; with its day where the session spans more than one, or began before today,
+  as an undated time reads as today's: `yesterday 16:40 – 18:05`, `today 09:12 – now`,
+  `yesterday 13:20 – 16:02` (settled in the plan);
 - at 40, its requests in `text.muted`: `404 requests`;
 - at 56, what it took of the account's windows, the points bold `text.primary` and the rest
   `text.muted`: `≈ 41 points of its 5-hour · 6 of its week`, a model's own window it used adding
