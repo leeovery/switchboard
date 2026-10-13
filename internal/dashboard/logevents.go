@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strconv"
 	"time"
 
@@ -160,9 +161,8 @@ func accountCell(e views.LogEvent, width int, m status.Moment) line {
 // text.muted, the accounts it names muted too, as the account column
 // carries the white: a window's use bold in its level's colour; the
 // sessions its moves counted brightening as they rise, the number they are;
-// and where a move wrote its session's context again, three cells on, how
-// much and what it cost, in accent.attention, kept whole as what comes
-// before it is cut.
+// and three cells on, what a move came to, as its MoveSaid says, kept whole
+// as what comes before it is cut.
 func whatHappened(e views.LogEvent, width int) line {
 	var said line
 	for _, p := range e.Line.What {
@@ -175,21 +175,11 @@ func whatHappened(e views.LogEvent, width int) line {
 		}
 		said = append(said, part)
 	}
-	cached := movedCost(e.Move)
-	if cached == "" {
+	cached := e.MoveSaid()
+	if len(cached) == 0 {
 		return costKept(said, false, width)
 	}
-	return costKept(append(said, spaces(movedApart), span{cached, warningInk}), true, width)
-}
-
-// movedCost is what a move came to, where it wrote its session's context
-// again: the tokens it wrote, as the Log counts them, and what that cost,
-// exactly, "182k cached again, $1.82"; else nothing.
-func movedCost(m *views.EventMove) string {
-	if m == nil || m.Written == 0 || m.Cost == nil {
-		return ""
-	}
-	return prose.Tokens(m.Written) + " cached again, " + views.Worth{Amount: m.Cost}.Cents()
+	return costKept(slices.Concat(said, line{spaces(movedApart)}, rowLine(cached)), true, width)
 }
 
 // eventKeyed names an event by its key, as a number on its row is of it:

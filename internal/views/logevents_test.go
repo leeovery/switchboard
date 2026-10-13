@@ -298,6 +298,33 @@ func moving(model, from, to string, at time.Time) status.Event {
 	return status.Event{ID: 1, At: at, Kind: status.EventMoved, Session: mover, Model: model, From: from, To: to, Reason: "moved: work is at its reserve"}
 }
 
+// A move event's row says what its move came to once the move wrote its
+// session's context again and that's priced: the tokens it wrote and what
+// that cost, exactly, as a cost; nothing before, or of any other event.
+func TestAMoveEventSaysWhatItsMoveCameToOnceItsSettled(t *testing.T) {
+	cost := ledger.Picodollars(1_820_000_000_000)
+	tests := []struct {
+		name string
+		move *views.EventMove
+		want views.RowWords
+	}{
+		{name: "another event's", move: nil},
+		{name: "a move no request wrote again after", move: &views.EventMove{Request: "0a000001", Cost: &cost}},
+		{name: "a move unpriced", move: &views.EventMove{Request: "0a000001", Written: 182_000}},
+		{
+			name: "a move settled", move: &views.EventMove{Request: "0a000001", Written: 182_000, Cost: &cost},
+			want: views.RowWords{{Text: "182k cached again, $1.82", Kind: views.RowCost}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (views.LogEvent{Move: tt.move}).MoveSaid(); !slices.Equal(got, tt.want) {
+				t.Errorf("its row says %+v of its move, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
 // A move's cost is the same wherever it's said, as its session's story
 // settles it, at each hard moment: the Log's Events row of its event, the
 // row of the request that made it in the Log's Requests, the List's move
