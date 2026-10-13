@@ -261,6 +261,38 @@ today  3 sessions  ·  5 requests  ·  $0.15+ at API prices
 	}
 }
 
+func TestSessionsWithoutTheRouterHasOneWithARequestWithinTheHourIdleNotEnded(t *testing.T) {
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
+		{At: october(7, 11, 0, 0), Request: "e1", Kind: ledger.KindMessage, Session: ended, Dir: "~/Code/web", Model: "claude-opus-5-5", Account: "work",
+			Reason: "new", Status: 200, Attempts: 1, TotalMS: 9000, Usage: json.RawMessage(hourUsage)},
+		{At: october(7, 12, 40, 0), Request: "w1", Kind: ledger.KindMessage, Session: asking, Dir: "~/Code/api", Model: "claude-opus-5-5", Account: "work",
+			Reason: "new", Status: 200, Attempts: 1, TotalMS: 60000, Usage: json.RawMessage(hourUsage)},
+	}})
+	got := run(t, deps, "sessions", "--pretty")
+	// Its answer ended at 12:41, 31 minutes ago, within the hour the router
+	// keeps a session for; the other's last came over two hours ago.
+	for _, want := range []string{"  1a2b3c4d ~/Code/api  work  opus-5-5  idle 31m     12:40    1", "  9c0d1e2f ~/Code/web  work  opus-5-5  ended 11:00  11:00    1"} {
+		if got.code != 0 || !strings.Contains(got.stdout, want) {
+			t.Errorf("switchboard sessions --pretty, the router gone, = %+v, want the row\n%s", got, want)
+		}
+	}
+}
+
+func TestSessionsSaysAMoveOfARequestSentAgainAsTheLogsRoutingDoes(t *testing.T) {
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
+		{At: october(7, 12, 0, 0), Request: "t1", Kind: ledger.KindMessage, Session: moving, Dir: "~/Code/cli", Model: "claude-opus-5-5", Account: "work",
+			Reason: "new", Status: 200, Attempts: 1, TotalMS: 9000, Usage: json.RawMessage(hourUsage)},
+		{At: october(7, 12, 30, 0), Request: "t2", Kind: ledger.KindMessage, Session: moving, Dir: "~/Code/cli", Model: "claude-opus-5-5", Account: "side",
+			Reason: "moved: work hit its limit", From: "work", Tried: []ledger.Tried{{Account: "work", Why: status.WhyLimit}}, Status: 200, Attempts: 2,
+			TotalMS: 9000, Usage: json.RawMessage(hourUsage)},
+	}})
+	got := run(t, deps, "sessions", "--pretty")
+	const want = "  2         $0.08  after work's limit  $0.01\n"
+	if got.code != 0 || !strings.Contains(got.stdout, want) {
+		t.Errorf("switchboard sessions --pretty = %+v, want the move, its request sent again after work's limit, in the Log's words%s", got, want)
+	}
+}
+
 func TestSessionsNeedsNeitherTheRouterNorTheLedger(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
 	deps.Now = func() time.Time { return ledgerNow }

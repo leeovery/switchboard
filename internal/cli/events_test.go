@@ -121,19 +121,21 @@ func eventJSON(t *testing.T, lines ...events.Line) string {
 	return b.String()
 }
 
-// todaysEvents is what events prints of today's events.
+// todaysEvents is what events prints of today's events, each time as every
+// time of an event is said: today's by its time of day.
 const todaysEvents = `Wed 7 Oct 2026, so far
-  09:00:00  18bb2c41  started   work
-  10:00:00            pressure  work        its 5-hour to run out at 12:30
-  11:00:00            pin       work, side  new sessions go there, set from the command line
-  12:00:00            restart               due: the config changed
-  12:30:00            health                unhealthy: most requests failing
+  09:00  18bb2c41  started   work
+  10:00            pressure  work        its 5-hour to run out at 12:30
+  11:00            pin       work, side  new sessions go there, set from the command line
+  12:00            restart               due: the config changed
+  12:30            health                unhealthy: most requests failing
 `
 
-// eventsFromThe6th is what events prints of the 6th's events and today's.
+// eventsFromThe6th is what events prints of the 6th's events and today's,
+// another day's times with its weekday.
 const eventsFromThe6th = `Tue 6 Oct 2026
-  22:00:00            limit  personal         its 5-hour window, till 23:58: its session moves to side
-  22:05:00  5b0e7c1a  moved  personal → side  personal reached its limit
+  Tue 22:00            limit  personal         its 5-hour window, till 23:58: its session moves to side
+  Tue 22:05  5b0e7c1a  moved  personal → side  personal reached its limit
 
 ` + todaysEvents
 
@@ -147,13 +149,13 @@ func TestEventsPrintsEachEventOnceAsItLastStoodOldestFirst(t *testing.T) {
 		{name: "today's, unless told otherwise", want: todaysEvents},
 		{name: "from the start of a day, under each day's", args: []string{"--since", "2026-10-06"}, want: eventsFromThe6th},
 		{name: "from a time today", args: []string{"--since", "12:00"}, want: `Wed 7 Oct 2026, so far
-  12:00:00    restart    due: the config changed
-  12:30:00    health     unhealthy: most requests failing
+  12:00    restart    due: the config changed
+  12:30    health     unhealthy: most requests failing
 `},
 		{name: "from hours ago", args: []string{"--since", "3h"}, want: `Wed 7 Oct 2026, so far
-  11:00:00    pin      work, side  new sessions go there, set from the command line
-  12:00:00    restart              due: the config changed
-  12:30:00    health               unhealthy: most requests failing
+  11:00    pin      work, side  new sessions go there, set from the command line
+  12:00    restart              due: the config changed
+  12:30    health               unhealthy: most requests failing
 `},
 		{name: "from days ago", args: []string{"--since", "1d"}, want: eventsFromThe6th},
 		{name: "none", args: []string{"--since", "12:45"}, want: "no events since Wed 7 Oct 2026 12:45\n"},
@@ -286,7 +288,7 @@ func TestEventsFollowPrintsAnEventFiledAsItStartsOnce(t *testing.T) {
 		{form: onATerminal, want: func(*testing.T) string {
 			want := todaysEvents
 			for _, line := range filedAsItStarts {
-				want += "  " + line.At.Format(time.TimeOnly) + "            health                unhealthy: most requests failing\n"
+				want += "  " + line.At.Format("15:04") + "            health                unhealthy: most requests failing\n"
 			}
 			return want
 		}},
@@ -344,14 +346,14 @@ func TestEventsFollowPrintsAChangedEventAgainWholeAlignedToTheListing(t *testing
 	fileEvent(t, deps, "2026-10-07", limitLifted)
 	followed := todaysEvents + `
 Tue 6 Oct 2026
-  22:00:00            limit     personal    its 5-hour window, till 23:58: its 2 sessions move to other accounts
+  Tue 22:00            limit     personal    its 5-hour window, till 23:58: its 2 sessions move to other accounts
 `
 	stdout.waitFor(t, followed)
 	fileEvent(t, deps, "2026-10-07", eventLine(runTwo, 2, status.Event{At: october(7, 13, 10, 0), Kind: status.EventMoved, Session: sessionB,
 		From: "work", To: "personal", Reason: status.ReasonMovedByPin}))
 	stdout.waitFor(t, followed+`
 Wed 7 Oct 2026, so far
-  13:10:00  5b0e9d33  moved     work → personal  pinned to personal
+  13:10      5b0e9d33  moved     work → personal  pinned to personal
 `)
 
 	if code, stderr := interrupt(); code != 0 || stderr != "" {
@@ -401,8 +403,8 @@ func TestEventsFollowPrintsALineFiledUnderTheDayAfterOnce(t *testing.T) {
 	}{
 		{form: offATerminal, listed: eventJSON(t, routerUnwell), filed: eventJSON(t, early)},
 		{form: onATerminal, listed: `Wed 7 Oct 2026, so far
-  12:30:00    health    unhealthy: most requests failing
-`, filed: "  23:58:00    health    healthy again\n"},
+  12:30    health    unhealthy: most requests failing
+`, filed: "  Wed 23:58    health    healthy again\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.form.name, func(t *testing.T) {
@@ -438,14 +440,14 @@ func TestEventsFollowMovesOnADayAtATime(t *testing.T) {
 	stdout, interrupt := follow(t, deps, onATerminal, "events", "--since", "12:30", "-f")
 
 	printed := `Wed 7 Oct 2026, so far
-  12:30:00    health    unhealthy: most requests failing
+  12:30    health    unhealthy: most requests failing
 `
 	stdout.waitFor(t, printed)
 	// Past midnight, the day before is followed until the router files under
 	// the next.
 	clock.Store(october(8, 0, 0, 10).UnixNano())
 	fileEvent(t, deps, "2026-10-07", eventLine(runTwo, 2, status.Event{At: october(7, 23, 59, 50), Kind: status.EventRoom, Account: "personal", Windows: []string{"5h"}}))
-	printed += "  23:59:50    open    personal  its 5-hour window reset\n"
+	printed += "  Wed 23:59    open    personal  its 5-hour window reset\n"
 	stdout.waitFor(t, printed)
 	// A day later, as after a follower was suspended, it reads the rest of
 	// the day it followed, then the day between, then today's.
@@ -453,21 +455,21 @@ func TestEventsFollowMovesOnADayAtATime(t *testing.T) {
 	fileEvent(t, deps, "2026-10-07", eventLine(runTwo, 3, status.Event{At: october(7, 23, 59, 55), Kind: status.EventHealth}))
 	fileEvent(t, deps, "2026-10-08", eventLine(runTwo, 4, status.Event{At: october(8, 0, 0, 5), Kind: status.EventStarted, Session: sessionB, Account: "side",
 		Reason: status.ReasonNew}))
-	printed += `  23:59:55    health            healthy again
+	printed += `  Wed 23:59    health            healthy again
 
 Thu 8 Oct 2026
-  00:00:05  5b0e9d33  started  side
+  Thu 00:00  5b0e9d33  started  side
 `
 	stdout.waitFor(t, printed)
 	fileEvent(t, deps, "2026-10-09", eventLine(runTwo, 5, status.Event{At: october(9, 0, 0, 15), Kind: status.EventAuto, Accounts: []string{"work", "side"},
 		By: "dashboard"}))
 	printed += `
 Fri 9 Oct 2026, so far
-  00:00:15            auto               new sessions back from work and side to the router's choice, set from the dashboard
+  00:00                auto               new sessions back from work and side to the router's choice, set from the dashboard
 `
 	stdout.waitFor(t, printed)
 	fileEvent(t, deps, "2026-10-09", eventLine(runTwo, 6, status.Event{At: october(9, 0, 0, 18), Kind: status.EventHealth}))
-	stdout.waitFor(t, printed+"  00:00:18            health             healthy again\n")
+	stdout.waitFor(t, printed+"  00:00                health             healthy again\n")
 
 	if code, stderr := interrupt(); code != 0 || stderr != "" {
 		t.Errorf("switchboard events -f exited %d, printing %q on stderr, once interrupted; want 0 and nothing", code, stderr)

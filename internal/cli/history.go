@@ -271,7 +271,7 @@ func modelRows(a ledger.PricedAccount) [][]string {
 		}
 		tokens := m.Tokens()
 		rows = append(rows, []string{account, modelName(m.ModelDay), requestCount(m.ModelDay),
-			prose.Tokens(tokensIn(tokens)+tokens.Output) + " tokens", prose.SessionCount(m.Sessions), worthOf(m)})
+			prose.Tokens(tokens.Input+tokens.CacheRead+tokens.CacheWrite+tokens.Output) + " tokens", prose.SessionCount(m.Sessions), worthOf(m)})
 	}
 	return rows
 }
