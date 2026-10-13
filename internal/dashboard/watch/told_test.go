@@ -6,15 +6,17 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
 // toldOf is what the traffic tells the views of the request with the given
-// id, reporting false where it tells of none.
+// id, reporting false where it tells of none, whenever they read it.
 func toldOf(tr traffic, request string) (views.Told, bool) {
-	r, ok := tr.stream().Requests[request]
+	r, ok := tr.stream(start).Requests[request]
 	return r, ok
 }
 
@@ -151,7 +153,7 @@ func TestForgettingWhatTheStreamToldLosesTheRequestsInFlightTillItTellsOfThemAga
 		alter(told(router.StreamDone, "r2", "work", 2*time.Second), func(e *router.StreamEvent) { e.Status = 200 }),
 	}, heldNowhere, past(2*time.Second)).afresh()
 
-	if s := tr.stream(); s.Live {
+	if s := tr.stream(past(2 * time.Second)); s.Live {
 		t.Error("forgotten, the stream is live, want it no longer")
 	}
 	if r, _ := toldOf(tr, "r1"); !r.Lost || r.InFlight() {
@@ -180,7 +182,7 @@ func TestTheRequestsNoLongerInFlightGoSeenForAfterTheStreamLastToldOfThem(t *tes
 
 	kept := func(at time.Time) []string {
 		var ids []string
-		for id := range tr.tidied(at).stream().Requests {
+		for id := range tr.tidied(at).stream(at).Requests {
 			ids = append(ids, id)
 		}
 		slices.Sort(ids)
@@ -200,11 +202,38 @@ func TestTheViewsReadTheMovesNoListingHasShownDone(t *testing.T) {
 	})
 	tr := traffic{live: true}.took([]router.StreamEvent{moved}, heldNowhere, past(time.Second))
 	want := []views.Moved{{Request: "r1", Session: idD28C, Model: opus, From: "work", To: "side", Reason: moved.Reason, At: past(time.Second)}}
-	if got := tr.stream().Moves; !reflect.DeepEqual(got, want) {
+	if got := tr.stream(past(time.Second)).Moves; !reflect.DeepEqual(got, want) {
 		t.Errorf("the moves the views read are %+v, want %+v, from as soon as it's told of", got, want)
 	}
-	if got := tr.listedAs(d28cListedOn("side")).stream().Moves; len(got) > 0 {
+	if got := tr.listedAs(d28cListedOn("side")).stream(past(time.Second)).Moves; len(got) > 0 {
 		t.Errorf("listed where it went, the moves the views read are %+v, want none", got)
+	}
+}
+
+// A frame never contradicts itself: the views see a move from when the cords
+// show it, once the refusal that moved it has bounced back along its cord.
+func TestTheViewsSeeAMoveFromWhenTheCordsShowIt(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.hear(movedToSide(0)...)
+
+	for _, tt := range []struct {
+		name  string
+		at    time.Time
+		shown bool
+	}{
+		{name: "as its refusal bounces back", at: past(pulseFor - time.Millisecond)},
+		{name: "once it has", at: past(pulseFor), shown: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := h.model.frame(tt.at)
+			if drawn, read := len(f.Traffic.Moves) > 0, len(f.Stream.Moves) > 0; drawn != tt.shown || read != tt.shown {
+				t.Errorf("the cords draw a move: %t, and the views read one: %t, want both %t", drawn, read, tt.shown)
+			}
+			if got, want := views.RunningOn(f.Sessions, f.Stream, "side", tt.at), map[bool]int{true: 1}[tt.shown]; got != want {
+				t.Errorf("RunningOn side = %d, want %d, as the cords show d28c there", got, want)
+			}
+		})
 	}
 }
 
@@ -246,7 +275,10 @@ func TestARequestInFlightTheStreamOpenedAgainDoesntTellOfIsLost(t *testing.T) {
 	h.endStream()
 	rejoin, _ := h.pendingRejoin()
 	h.fire(rejoin)
-	h.hear(alter(told(router.StreamInFlight, "r2", "work", 2*time.Second), func(e *router.StreamEvent) { e.SentAt = past(0) }))
+	// It told of r2 in flight as it opened, then of r3 going out: all it
+	// tells of those in flight as it opens comes before anything else.
+	h.hear(alter(told(router.StreamInFlight, "r2", "work", 2*time.Second), func(e *router.StreamEvent) { e.SentAt = past(0) }),
+		told(router.StreamSent, "r3", "work", 2*time.Second))
 
 	s := h.model.frame(h.clock.now).Stream
 	if r := s.Requests["r1"]; !r.Lost {
@@ -254,6 +286,82 @@ func TestARequestInFlightTheStreamOpenedAgainDoesntTellOfIsLost(t *testing.T) {
 	}
 	if r := s.Requests["r2"]; !r.InFlight() {
 		t.Errorf("r2, told of in flight as the stream opened again, is %+v, want it in flight", r)
+	}
+}
+
+// The router tells of the requests in flight as the stream opens, but the
+// watch may hear them over several messages, as they come.
+func TestARequestTheStreamOpenedAgainTellsOfLateInItsFirstLookIsNeverLost(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamSent, "r2", "work", 0))
+	h.endStream()
+	rejoin, _ := h.pendingRejoin()
+	h.fire(rejoin)
+	inFlight := func(id string) router.StreamEvent {
+		return alter(told(router.StreamInFlight, id, "work", 2*time.Second), func(e *router.StreamEvent) { e.SentAt = past(0) })
+	}
+
+	h.hear(inFlight("r1"))
+	if r := h.model.frame(h.clock.now).Stream.Requests["r2"]; r.Lost {
+		t.Errorf("its first look telling of r1, r2 is %+v, want it not lost, as more of that look may come", r)
+	}
+	h.hear(inFlight("r2"))
+	if s := h.model.frame(h.clock.now).Stream; !s.Live || !s.Requests["r2"].InFlight() {
+		t.Errorf("its first look telling of r2 too, r2 is %+v, live %t, want it in flight, live", s.Requests["r2"], s.Live)
+	}
+}
+
+func TestARequestStillRunningAsTheStreamOpensAgainIsNeverLost(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.hear(told(router.StreamSent, "r1", "work", 0))
+	h.endStream()
+	rejoin, _ := h.pendingRejoin()
+	h.fire(rejoin)
+
+	s := h.model.frame(h.clock.now).Stream
+	if r := s.Requests["r1"]; r.Lost {
+		t.Errorf("the stream opened again, its first look yet to come, r1 is %+v, want it not lost", r)
+	}
+	if s.Live {
+		t.Error("the stream opened again, its first look yet to come, the views read it live, want them going by the router's listing")
+	}
+	h.hear(alter(told(router.StreamInFlight, "r1", "work", 2*time.Second), func(e *router.StreamEvent) { e.SentAt = past(0) }))
+	if s := h.model.frame(h.clock.now).Stream; !s.Live || !s.Requests["r1"].InFlight() {
+		t.Errorf("the stream's first look telling of r1 again, it's %+v, live %t, want it in flight, live", s.Requests["r1"], s.Live)
+	}
+}
+
+func TestARequestStillRunningAsAViewSwitchOpensTheStreamAgainIsNeverLost(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.hear(told(router.StreamSent, "r1", "work", 0))
+	h.keys(tabKey, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	if h.opened() != 2 {
+		t.Fatalf("Runway shown, then Sessions again, the stream opened %d times in all, want twice", h.opened())
+	}
+
+	if r := h.model.frame(h.clock.now).Stream.Requests["r1"]; r.Lost {
+		t.Errorf("the stream opened again, its first look yet to come, r1 is %+v, want it not lost", r)
+	}
+}
+
+func TestAStreamOpenedAgainThatTellsOfNothingInFlightLosesWhatWasOnceJoinForHasPassed(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.hear(told(router.StreamSent, "r1", "work", 0))
+	h.endStream()
+	rejoin, _ := h.pendingRejoin()
+	h.fire(rejoin)
+
+	joining, ok := h.pending(joinedMsg{gen: h.model.stream.gen})
+	if !ok || joining.delay != joinFor {
+		t.Fatalf("the stream opened again, the wait for its first look is %+v, want one of %v", joining, joinFor)
+	}
+	h.fire(joining)
+	if s := h.model.frame(h.clock.now).Stream; !s.Live || !s.Requests["r1"].Lost {
+		t.Errorf("joinFor passed with nothing told, r1 is %+v, live %t, want it lost, live", s.Requests["r1"], s.Live)
 	}
 }
 
