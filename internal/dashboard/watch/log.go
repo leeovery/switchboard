@@ -18,8 +18,8 @@ import (
 // since and the days before read back as the tables want them; the figures
 // of those days, which their rules say; the oldest day the ledger keeps,
 // none known till it says; whether a read for it is under way, one at a
-// time; and whether a failure to say where the ledger's lines begin has
-// been logged, the once.
+// time; whether a failure to say where the ledger's lines begin has been
+// logged, the once; and its find's walk back through the days.
 type logTab struct {
 	page    dashboard.LogPage
 	opened  bool
@@ -30,6 +30,7 @@ type logTab struct {
 	oldest  views.OldestDay
 	reading bool
 	warned  bool
+	find    findWalk
 }
 
 // openingLog is the Log as it first shows: its columns as the preferences
@@ -97,8 +98,9 @@ func (m Model) logRows() int {
 // logKey acts on a key of the Log's, reporting false for a key it doesn't
 // take, or on another tab: [ and ] turn between Requests and Events; ↑ and
 // ↓ choose a line, as Chose has it; end follows again, as esc does while
-// the table shown is paused; enter opens the line chosen's details; f the
-// panel of what the table shows; and / the find.
+// the table shown is paused; esc, while it isn't, lets go of what the
+// filter keeps alone, as Unfiltered has it; enter opens the line chosen's
+// details; f the panel of what the table shows; and / the find.
 func (m Model) logKey(key string) (Model, tea.Cmd, bool) {
 	if m.view != dashboard.Log {
 		return m, nil, false
@@ -115,6 +117,8 @@ func (m Model) logKey(key string) (Model, tea.Cmd, bool) {
 		p = p.Chose(1, rows)
 	case key == "end", key == "esc" && p.Paused():
 		p = p.Followed()
+	case key == "esc" && p.Filtered():
+		p = p.Unfiltered()
 	case key == "enter":
 		next, cmd := m.openLogCard()
 		return next, cmd, true

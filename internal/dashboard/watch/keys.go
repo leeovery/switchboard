@@ -149,17 +149,20 @@ func (m Model) historyListings() []keyListing {
 
 // keyLine is the key line as m stands at now, under its page drawn as f:
 // while the theme picker is open, its keys alone, then q quit, a phone's line
-// as a wide one; else tab views, then the page's own keys that work, in
-// their groups, those it leaves to help aside, then p pin where a pin can be
-// set, and ? help and q quit last; and the note a key left in their place,
-// while that's news. Most pages set p pin apart, a phone's line keeping the
-// page's own keys between tab views and ? and q quit, but those it leaves to
-// a wider line; the Overview sets ↑↓ focus, p pin, ? help and q quit as a
-// group of their own, overviewApart after its toggles, which a phone's line
-// leaves to help.
+// as a wide one; while the Log's find is open, its keys alone, as q types;
+// else tab views, then the page's own keys that work, in their groups, those
+// it leaves to help aside, then p pin where a pin can be set, and ? help and
+// q quit last; and the note a key left in their place, while that's news.
+// Most pages set p pin apart, a phone's line keeping the page's own keys
+// between tab views and ? and q quit, but those it leaves to a wider line;
+// the Overview sets ↑↓ focus, p pin, ? help and q quit as a group of their
+// own, overviewApart after its toggles, which a phone's line leaves to help.
 func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	if m.picker.open {
 		return dashboard.KeyLine{Groups: [][]dashboard.Key{m.picker.keys(), {dashboard.Quit}}, Lead: dashboard.KeysAfter, Note: m.noted(now)}
+	}
+	if m.finding() {
+		return dashboard.KeyLine{Groups: [][]dashboard.Key{findKeys()}, Note: m.noted(now)}
 	}
 	keys := m.keys()
 	page := grouped(keys.listings(f.Scrolling(m.doc, now).Most > 0))
