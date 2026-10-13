@@ -57,20 +57,21 @@ func (p DaysPage) Recorded() bool {
 	})
 }
 
-// eightWeeks are Days' days, from the first day of the week seven before
-// this one to the last of this one, those to come among them: each day's
-// summary, nil where there's none, and the index of today's.
-type eightWeeks struct {
+// weekDays are the days of the weeks to this one, as Days and Accounts' BY
+// DAY show them, from the first day of the first week to the last of this
+// one, those to come among them: each day's summary, nil where there's none,
+// and the index of today's.
+type weekDays struct {
 	first time.Time
 	days  []*Day
 	today int
 }
 
-// eightWeeksOf are the eight weeks to now's, from the day weeks start on, of
-// days, which run to today.
-func eightWeeksOf(days []Day, now time.Time, starts time.Weekday) eightWeeks {
+// weekDaysOf are the days of the n weeks to now's, from the day weeks start
+// on, of days, which run to today.
+func weekDaysOf(days []Day, now time.Time, starts time.Weekday, n int) weekDays {
 	today := dayfile.CivilOf(now)
-	w := eightWeeks{first: weeksTo(today, starts, weeksShown), days: make([]*Day, 7*weeksShown)}
+	w := weekDays{first: weeksTo(today, starts, n), days: make([]*Day, 7*n)}
 	w.today = w.index(today)
 	for i := range days {
 		if day, ok := dayfile.Civil(days[i].Day); ok && !day.Before(w.first) && !day.After(today) {
@@ -80,16 +81,16 @@ func eightWeeksOf(days []Day, now time.Time, starts time.Weekday) eightWeeks {
 	return w
 }
 
-// index is the place among the eight weeks' days of the day given, as
+// index is the place among the weeks' days of the day given, as
 // dayfile.Civil gives it.
-func (w eightWeeks) index(day time.Time) int {
+func (w weekDays) index(day time.Time) int {
 	return int(day.Sub(w.first) / (24 * time.Hour))
 }
 
 // daysPageOf is Days' page of days, which run to now's day, priced: the eight
 // weeks to now's, from the day weeks start on.
 func daysPageOf(in HistoryInput, days []Day) DaysPage {
-	w := eightWeeksOf(days, in.Now, in.WeekStarts)
+	w := weekDaysOf(days, in.Now, in.WeekStarts, weeksShown)
 	return DaysPage{
 		Weeks:     weekDates(w.first, weeksShown),
 		ToCome:    len(w.days) - 1 - w.today,
@@ -110,7 +111,7 @@ type familyDays struct {
 // eight weeks, in the version table's order, each day its worth, every
 // account's, the strips on one scale; and each its share of the eight weeks'
 // worth, none where none of it is priced.
-func (w eightWeeks) byFamily(v versions) []DaysStrip {
+func (w weekDays) byFamily(v versions) []DaysStrip {
 	families := make(map[string]*familyDays)
 	for i, d := range w.days {
 		if d == nil {
@@ -144,7 +145,7 @@ func (w eightWeeks) byFamily(v versions) []DaysStrip {
 // addModel adds a model's day, the i-th of the eight weeks, to its
 // family's: none of the requests whose bodies couldn't be read, which name
 // no model.
-func (w eightWeeks) addModel(families map[string]*familyDays, v versions, i int, m ledger.PricedModel) {
+func (w weekDays) addModel(families map[string]*familyDays, v versions, i int, m ledger.PricedModel) {
 	if m.Model == "" {
 		return
 	}
@@ -165,16 +166,12 @@ func (w eightWeeks) addModel(families map[string]*familyDays, v versions, i int,
 // config's order, by its label, the primary marked, each day the points of
 // its week, the window with the key week, it used that day, every account on
 // one scale; and the 5-hour limits it hit, each day and in all.
-func (w eightWeeks) byAccount(accounts config.Accounts, week string) []DaysStrip {
+func (w weekDays) byAccount(accounts config.Accounts, week string) []DaysStrip {
 	rises := make([][]float64, len(accounts))
 	limits := make([][]int, len(accounts))
 	var active []float64
 	for i, a := range accounts {
-		rises[i], limits[i] = make([]float64, len(w.days)), make([]int, len(w.days))
-		for d, day := range w.days {
-			own := accountOn(day, a.ID)
-			rises[i][d], limits[i][d] = own.Rise[week], fiveHourLimits(own.Limits)
-		}
+		rises[i], limits[i] = w.risesOf(a.ID, week)
 		active = appendActive(active, rises[i])
 	}
 	cuts := quarterCuts(active)
@@ -187,6 +184,18 @@ func (w eightWeeks) byAccount(accounts config.Accounts, week string) []DaysStrip
 		}
 	}
 	return strips
+}
+
+// risesOf are, of the account with the given id, each day's rise of the
+// window with the key week, the points of its week it used that day, and the
+// 5-hour limits it hit that day.
+func (w weekDays) risesOf(id, week string) (rises []float64, limits []int) {
+	rises, limits = make([]float64, len(w.days)), make([]int, len(w.days))
+	for d, day := range w.days {
+		own := accountOn(day, id)
+		rises[d], limits[d] = own.Rise[week], fiveHourLimits(own.Limits)
+	}
+	return rises, limits
 }
 
 // accountOn is the day of the account with the given id on the day given:

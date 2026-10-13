@@ -76,7 +76,8 @@ type Rule struct {
 	// the field named, as "status.Account.ID", breaks the rule.
 	Fields []string
 	Read   func(field string) string
-	// Used are the functions none of which may be used, called or not, each
+	// Used are the functions none of which may be used, called or not, and
+	// the fields, as "status.Account.ID", none of which may be read, each
 	// with how using it breaks the rule, and where.
 	Used map[string]Ban
 	// Calls are the functions whose calls may break the rule, by what they're
@@ -179,12 +180,18 @@ func (w *walk) breach(at token.Pos, says string) {
 	w.found = append(w.found, Breach{At: at, In: w.in, Says: says})
 }
 
-// field finds sel reading a field of one of Fields.
+// field finds sel reading a field of one of Fields, or a field of Used
+// banned here.
 func (w *walk) field(sel *ast.SelectorExpr) {
-	if s, ok := w.info.Selections[sel]; ok && s.Kind() == types.FieldVal {
-		if field := w.r.fieldRead(s); field != "" {
-			w.breach(sel.Sel.Pos(), w.r.Read(field))
-		}
+	s, ok := w.info.Selections[sel]
+	if !ok || s.Kind() != types.FieldVal {
+		return
+	}
+	if field := w.r.fieldRead(s); field != "" {
+		w.breach(sel.Sel.Pos(), w.r.Read(field))
+	}
+	if ban, ok := w.r.Used[w.r.fieldNamed(s)]; ok && ban.holdsIn(w.dir) {
+		w.breach(sel.Sel.Pos(), ban.Says)
 	}
 }
 
@@ -370,6 +377,25 @@ func (r Rule) fieldRead(sel *types.Selection) string {
 			return name + "." + sel.Obj().Name()
 		}
 		t = s.Field(index).Type()
+	}
+	return ""
+}
+
+// fieldNamed names the field sel reads by the type that declares it, as
+// "status.Account.ID", through each field embedded on the way: "" where
+// that type is no named struct of the module's internal packages.
+func (r Rule) fieldNamed(sel *types.Selection) string {
+	t, path := sel.Recv(), sel.Index()
+	for _, index := range path[:len(path)-1] {
+		_, s := StructOf(t)
+		if s == nil {
+			return ""
+		}
+		t = s.Field(index).Type()
+	}
+	named, _ := StructOf(t)
+	if name := r.Type(named); name != "" {
+		return name + "." + sel.Obj().Name()
 	}
 	return ""
 }

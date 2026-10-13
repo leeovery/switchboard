@@ -23,8 +23,9 @@ func fixtureRule(calls ...string) sourcecheck.Rule {
 		Fields: []string{"data.Record", "data.Meta"},
 		Read:   func(field string) string { return field + " reads raw fields; " + readFix },
 		Used: map[string]sourcecheck.Ban{
-			"data.Banned": {Says: "data.Banned is absorbed; " + usedFix},
-			"data.Scoped": {Says: "data.Scoped is absorbed in other; " + usedFix, In: []string{"internal/other"}},
+			"data.Banned":     {Says: "data.Banned is absorbed; " + usedFix},
+			"data.Scoped":     {Says: "data.Scoped is absorbed in other; " + usedFix, In: []string{"internal/other"}},
+			"data.Other.Name": {Says: "data.Other.Name is absorbed in other; " + usedFix, In: []string{"internal/other"}},
 		},
 		Owners:  []string{"data"},
 		Takes:   func(fn, field string) string { return fn + " takes " + field + "; " + takesFix },
@@ -59,6 +60,8 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 		"internal/reader/breaches.go:24: data.Record.ID reads raw fields; " + readFix,
 		"internal/reader/fns.go:13: data.Record.ID reads raw fields; " + readFix,
 		"internal/other/other.go:5: data.Scoped is absorbed in other; " + usedFix,
+		"internal/other/other.go:7: data.Other.Name is absorbed in other; " + usedFix,
+		"internal/other/other.go:9: data.Other.Name is absorbed in other; " + usedFix,
 		"internal/reader/kept.go: allowed allows it, but it keeps the rule; " + listFix,
 		"internal/reader/gone.go: allowed allows it, but it's gone; " + listFix,
 		"internal/reader/fns.go:keptFn: allowed allows it, but it keeps the rule; " + listFix,
@@ -72,11 +75,12 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 
 // checkFixture is a module whose data package has the types a rule guards,
 // one embedding another and one wrapping them, a function absorbed, one
-// absorbed in another package alone, and functions and methods taking a
-// guarded type; a reader package with a file of breaches, a file and
-// functions allowed to break the rule, a file and a function allowed that
-// keep it, and a test file, which a check passes over; and that other
-// package, using what's absorbed in it. The reader imports a module the
+// absorbed in another package alone, as is a field of a type it doesn't
+// guard, and functions and methods taking a guarded type; a reader package
+// with a file of breaches, a file and functions allowed to break the rule, a
+// file and a function allowed that keep it, and a test file, which a check
+// passes over; and that other package, using what's absorbed in it, the
+// field read directly and through a type embedding its own. The reader imports a module the
 // fixture doesn't have, as the source loader stubs it.
 var checkFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
@@ -93,6 +97,8 @@ type Wrapper struct{ Record }
 
 type Other struct{ Name string }
 
+type Embeds struct{ Other }
+
 func (r Record) Size() int             { return len(r.ID) }
 func (r *Record) Tag() string          { return r.ID }
 func Count(records []*Record) int      { return len(records) }
@@ -106,6 +112,10 @@ func Named(o Other) string             { return o.Name }
 import "example.com/fixture/internal/data"
 
 func scoped() string { return data.Scoped() }
+
+func named(o data.Other) string { return o.Name }
+
+func through(e data.Embeds) string { return e.Name }
 `,
 	"internal/reader/breaches.go": `package reader
 

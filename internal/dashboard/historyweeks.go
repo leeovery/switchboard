@@ -474,14 +474,16 @@ func (w weeksDrawn) allShort() []part {
 
 // verdictInk is the ink of an account's verdict, bold: hits its limit in
 // state.destructive, plenty to spare in state.positive, could go and barely
-// used in accent.attention, and ends with room in text.secondary.
-func (weeksDrawn) verdictInk(verdict string) ink {
+// used in accent.attention, and ends with room in text.secondary; and of
+// every account's, room to spare together in state.positive and little to
+// spare together in accent.attention.
+func verdictInk(verdict string) ink {
 	switch verdict {
 	case views.HitsItsLimit:
 		return exhaustedInk
-	case views.PlentyToSpare:
+	case views.PlentyToSpare, views.RoomToSpare:
 		return boldPositiveInk
-	case views.CouldGo, views.BarelyUsed:
+	case views.CouldGo, views.BarelyUsed, views.LittleToSpare:
 		return alertInk
 	}
 	return strongInk
@@ -501,7 +503,7 @@ func (w weeksDrawn) spared(row views.WeeksRow) ([]part, bool) {
 	case row.Verdict != views.CouldGo && row.Verdict != views.BarelyUsed:
 		return nil, false
 	}
-	spared := []part{wordsIn(row.Verdict+": ", w.verdictInk(row.Verdict))}
+	spared := []part{wordsIn(row.Verdict+": ", verdictInk(row.Verdict))}
 	if share != nil {
 		spared = append(spared, figureIn(prose.Percent(*share), mutedInk), wordsIn(says, mutedInk))
 	}
@@ -515,7 +517,7 @@ func (w weeksDrawn) tableVerdict(row views.WeeksRow) []part {
 	if l, ok := w.spared(row); ok || row.Verdict == "" {
 		return l
 	}
-	l := []part{wordsIn(row.Verdict, w.verdictInk(row.Verdict))}
+	l := []part{wordsIn(row.Verdict, verdictInk(row.Verdict))}
 	switch left := row.LeftAtReset; {
 	case left != nil && w.many():
 		l = append(l, wordsIn("   ", dimInk), figureIn(prose.Percent(*left), dimInk), wordsIn(" left at a reset", dimInk))
@@ -538,7 +540,7 @@ func (w weeksDrawn) accountAside(row views.WeeksRow) [][]part {
 	}
 	verdict, ok := w.spared(row)
 	if !ok {
-		verdict = []part{wordsIn(row.Verdict, w.verdictInk(row.Verdict))}
+		verdict = []part{wordsIn(row.Verdict, verdictInk(row.Verdict))}
 	}
 	record := saidParts(views.LimitHit(row.Limits, row.Weeks), mutedInk)
 	if row.LeftAtReset != nil {

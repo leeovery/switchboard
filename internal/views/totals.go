@@ -21,16 +21,17 @@ type Totals struct {
 // them: its requests; its sessions, each once, however many days it ran on;
 // the sessions moved onto it and off it; the limits it reached, by window;
 // the minutes it spent at its cap and at a limit; each window's share left at
-// its last reset, by the window's key; what its requests were worth, and by
-// model version, each version's share of that worth; the day of its most
-// requests, and the most days in a row it had any. A count some of its days
-// never counted, as one of a summary of version 1 never counted the minutes,
-// leaves those days out, and Partial names it: of none that did, it's left
-// out, as not known.
+// its last reset, and the date of the day it last reached its limit in the
+// run that reset ended, where it did, each by the window's key; what its
+// requests were worth, and by model version, each version's share of that
+// worth; the day of its most requests, and the most days in a row it had
+// any. A count some of its days never counted, as one of a summary of
+// version 1 never counted the minutes, leaves those days out, and Partial
+// names it: of none that did, it's left out, as not known.
 //
 // Of every account's, All, they count every account's days, those of the
 // requests no account answered among them, a session once however many
-// accounts it ran on, and give no share left at a reset.
+// accounts it ran on, and give no share left at a reset, nor its run out.
 type AccountTotals struct {
 	Account        string             `json:"account,omitempty"`
 	All            bool               `json:"all,omitempty"`
@@ -42,6 +43,7 @@ type AccountTotals struct {
 	MinutesAtCap   *int               `json:"minutes_at_cap,omitempty"`
 	MinutesAtLimit *int               `json:"minutes_at_limit,omitempty"`
 	LeftAtReset    map[string]float64 `json:"left_at_reset,omitempty"`
+	RanOut         map[string]string  `json:"ran_out,omitempty"`
 	Worth
 	ByModel    []ModelShare `json:"by_model,omitempty"`
 	BusiestDay string       `json:"busiest_day,omitempty"`
@@ -105,15 +107,16 @@ func accountTotalsOf(days []Day, accounts config.Accounts, v versions) Totals {
 }
 
 // totalling is an account's totals as they're counted, day by day: the ids
-// of its sessions, and how many days counted beyond those they named; each
-// window's last reset; its minutes at its cap and at a limit, and whether
-// any day read them and any never did; its worth by model version; and how
-// many days in a row it's had requests, and its most in a day.
+// of its sessions, and how many days counted beyond those they named; its
+// days, which its windows' runs are told from; its minutes at its cap and at
+// a limit, and whether any day read them and any never did; its worth by
+// model version; and how many days in a row it's had requests, and its most
+// in a day.
 type totalling struct {
 	AccountTotals
 	ids          map[string]bool
 	unnamed      int
-	resets       map[string]ledger.Reset
+	days         []ledger.AccountDay
 	atCap        int
 	atLimit      int
 	read, unread bool
@@ -123,7 +126,7 @@ type totalling struct {
 
 // newTotalling begins totals counted from nothing.
 func newTotalling(totals AccountTotals) *totalling {
-	return &totalling{AccountTotals: totals, ids: make(map[string]bool), resets: make(map[string]ledger.Reset), models: modelTally{}}
+	return &totalling{AccountTotals: totals, ids: make(map[string]bool), models: modelTally{}}
 }
 
 // add counts an account's day, returning its requests. The sessions a day
@@ -131,7 +134,7 @@ func newTotalling(totals AccountTotals) *totalling {
 // summary of version 1 names none, are counted as distinct, as the nearest
 // there is. The requests no account answered have no windows, so no minutes
 // to count; and every account's totals give no share left at a reset, so
-// count no resets.
+// keep no days.
 func (t *totalling) add(a ledger.PricedAccount, v versions) int {
 	requests := 0
 	for _, m := range a.Models {
@@ -153,22 +156,12 @@ func (t *totalling) add(a ledger.PricedAccount, v versions) int {
 		t.Limits[l.Window]++
 	}
 	if !t.All {
-		t.lastResets(a.Resets)
+		t.days = append(t.days, a.AccountDay)
 	}
 	if a.Account != "" {
 		t.minutes(a.AccountDay)
 	}
 	return requests
-}
-
-// lastResets keeps each window's last reset among those given, and those
-// counted before.
-func (t *totalling) lastResets(resets []ledger.Reset) {
-	for _, r := range resets {
-		if last, ok := t.resets[r.Window]; !ok || !r.At.Before(last.At) {
-			t.resets[r.Window] = r
-		}
-	}
 }
 
 // minutes counts the day's minutes at the account's cap and at a limit,
@@ -207,21 +200,44 @@ func (t *totalling) totals() AccountTotals {
 			totals.Partial = []string{"minutes_at_cap", "minutes_at_limit"}
 		}
 	}
-	totals.LeftAtReset, totals.ByModel = t.leftAtReset(), t.byModel()
+	totals.LeftAtReset, totals.RanOut = t.endedRuns()
+	totals.ByModel = t.byModel()
 	return totals
 }
 
-// leftAtReset is each window's share left at its last reset, by its key: none
-// where none reset.
-func (t *totalling) leftAtReset() map[string]float64 {
-	if len(t.resets) == 0 {
-		return nil
+// endedRuns are, of each window whose run ended among the days, as lastEnded
+// tells its last, the share it had left as it reset, and the date it last
+// reached its limit in that run, where it did, each by the window's key: none
+// where none ended.
+func (t *totalling) endedRuns() (left map[string]float64, ranOut map[string]string) {
+	for _, key := range resetWindows(t.days) {
+		run, _ := lastEnded(t.days, key)
+		if left == nil {
+			left = make(map[string]float64)
+		}
+		left[key] = run.left
+		if run.ranOut != "" {
+			if ranOut == nil {
+				ranOut = make(map[string]string)
+			}
+			ranOut[key] = run.ranOut
+		}
 	}
-	left := make(map[string]float64, len(t.resets))
-	for key, r := range t.resets {
-		left[key] = millionthsOf(r.Before).left().share()
+	return left, ranOut
+}
+
+// resetWindows are the keys of the windows that reset among an account's
+// days, each once.
+func resetWindows(days []ledger.AccountDay) []string {
+	var keys []string
+	for _, d := range days {
+		for _, r := range d.Resets {
+			if !slices.Contains(keys, r.Window) {
+				keys = append(keys, r.Window)
+			}
+		}
 	}
-	return left
+	return keys
 }
 
 // byModel is each model version's worth, and its share of the account's.
