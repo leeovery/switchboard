@@ -17,15 +17,18 @@ import (
 
 // historyTab is what the watch holds of History: the page its tab draws, the
 // sub-tab shown built of the days held; the days of the last 12 months, read
-// once a run, as History is first shown, and of the earliest calendar year
-// the Year steps back to that they don't reach, each brought up to today at
-// each look since; the day the ledger began, where it tells it, and whether
-// a failure to has been logged, the once; the day weeks start on; and the
-// reads of the ledger asked for, one under way at a time, and whether a look
-// since the last asks for the days since.
+// once a run, as History or Accounts is first shown, and of the earliest
+// calendar year the Year steps back to that they don't reach, each brought
+// up to today at each look since; the day the ledger began, where it tells
+// it, and whether a failure to has been logged, the once; the day weeks
+// start on; and the reads of the ledger asked for, one under way at a time,
+// and whether a look since the last asks for the days since. held counts the
+// changes to the last 12 months' days held, as each read and look brings
+// them, for Accounts' page to be built afresh of them.
 type historyTab struct {
 	page       dashboard.HistoryPage
 	last, back heldDays
+	held       int
 	began      time.Time
 	warned     bool
 	starts     time.Weekday
@@ -81,21 +84,24 @@ type beginning struct {
 	err   error
 }
 
-// readHistory has the watch read the ledger's days for History while it's
-// shown, as it wants them, one read at a time, what's wanted meanwhile
-// waiting for it to land: the last 12 months, once a run, as History is
-// first shown; a calendar year the Year steps back to that the days held
-// don't reach; and the days since those held were read to, once a look
-// since the last asks.
+// readHistory has the watch read the ledger's days for History and
+// Accounts while either is shown, as they want them, one read at a time,
+// what's wanted meanwhile waiting for it to land, the two sharing every read
+// and the days it holds: the last 12 months, once a run, as either is first
+// shown; while History shows, a calendar year the Year steps back to that
+// the days held don't reach; and the days since those held were read to,
+// once a look since the last asks.
 func (m Model) readHistory() (Model, tea.Cmd) {
-	if m.view != dashboard.History || m.past.reading || m.cfg.Ledger == nil {
+	history := m.view == dashboard.History
+	shown := history || m.view == dashboard.Accounts
+	if !shown || m.past.reading || m.cfg.Ledger == nil {
 		return m, nil
 	}
 	now, year := m.now(), m.past.page.YearAsk.Year
 	switch _, reached := m.past.reaching(year); {
 	case !m.past.last.held():
 		return m.readYear(0, now)
-	case m.past.page.Shown == dashboard.HistoryYear && !reached:
+	case history && m.past.page.Shown == dashboard.HistoryYear && !reached:
 		return m.readYear(year, now)
 	case m.past.due:
 		return m.readSince(now)
@@ -206,7 +212,7 @@ func (m Model) yearRead(msg yearReadMsg) Model {
 	if msg.back {
 		t.back = msg.days
 	} else {
-		t.last = msg.days
+		t.last, t.held = msg.days, t.held+1
 		t.page = t.checked()
 	}
 	m.past = t.learned(msg.beginning).built()
@@ -266,6 +272,7 @@ func (m Model) sinceRead(msg sinceMsg) Model {
 // since is the tab at now, the days given, read at at, in place of those
 // each year held held of them, as Past.Since has it, its page built afresh.
 func (t historyTab) since(days []ledger.Summary, at, now time.Time) historyTab {
+	t.held++
 	for _, d := range []*heldDays{&t.last, &t.back} {
 		if !d.held() {
 			continue

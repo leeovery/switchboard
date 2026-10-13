@@ -10,9 +10,10 @@ import (
 // cells wide, and what's there, as On says: a tab, Tab; a sub-tab, by its
 // place among them, SubTab; < or > by a period or a window, Step, -1 or 1; a
 // key of the key line, Key, as the line names it; a row of the view, Row, by
-// its index; an Overview's section, Section; an account, by its id, Account;
-// a session, by its id, Session; a turn of a session's page, by its number,
-// Turn; or a request of its turn open, by its index among them, Row.
+// its index; an Overview's section, Section; an account, by its id, Account,
+// or Compare's column of one, "" for all accounts; a session, by its id,
+// Session; a turn of a session's page, by its number, Turn; or a request of
+// its turn open, by its index among them, Row.
 type Target struct {
 	X, Y, Width int
 	On          Clicked
@@ -45,23 +46,27 @@ const (
 	// which hides it.
 	OnSection
 	// OnAccount is an account's row on the Overview, in USAGE or ROUTING,
-	// which moves the focus to it.
+	// which moves the focus to it; or in Detail's list, which chooses it.
 	OnAccount
-	// OnSession is a session's row, which opens its page.
+	// OnSession is a session's row, which opens its page; in Detail's
+	// SESSIONS, it selects it, and opens the one selected.
 	OnSession
 	// OnTurn is a turn's row on a session's page, which chooses it.
 	OnTurn
 	// OnRequest is a request's row in a session's turn open, which chooses
 	// it.
 	OnRequest
+	// OnColumn is a column's heads in Compare, by its account's id, "" for
+	// all accounts, which moves the focus to it.
+	OnColumn
 )
 
 // Targets are the zones of the frame's page of doc at now a click acts on,
 // each over the cells it's drawn on, laid out as the page draws them: its
 // tabs; the heading row's sub-tabs, and < and > by its period or window; a
 // session's page's, where one is open, as sessionTargets has them, else the
-// Overview's, as overviewTargets has them; and the key line's keys, as
-// keyTargets has them.
+// Overview's, as overviewTargets has them, or Accounts', as accountsTargets
+// has them; and the key line's keys, as keyTargets has them.
 func (f Frame) Targets(doc status.Document, now time.Time) []Target {
 	targets := f.tabTargets()
 	for _, p := range f.headingPieces() {
@@ -75,6 +80,8 @@ func (f Frame) Targets(doc status.Document, now time.Time) []Target {
 		targets = append(targets, f.At(doc, now).sessionTargets(doc, now)...)
 	case f.View == Overview:
 		targets = append(targets, f.At(doc, now).overviewTargets(doc, now)...)
+	case f.View == Accounts:
+		targets = append(targets, f.At(doc, now).accountsTargets(doc, now)...)
 	}
 	return append(targets, f.keyTargets()...)
 }

@@ -125,6 +125,37 @@ func TestTheOverviewsSectionsAndGroupingAreKeptBesideTheTab(t *testing.T) {
 	}
 }
 
+// What Accounts shows is kept under a key of its own, the view and the
+// period by name, beside the rest and the keys of another build, and left
+// out where none is made, as this week is.
+func TestAccountsViewAndPeriodAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "pane": {"split": 0.5}}`)
+	prefs := theme.NewPrefsFile(state, clock)
+	accounts := theme.AccountsPrefs{View: "detail", Period: "30-days"}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Accounts = accounts }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Accounts: accounts}); !reflect.DeepEqual(got, want) {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(path)
+	want := "{\n  \"accounts\": {\n    \"view\": \"detail\",\n    \"period\": \"30-days\"\n  },\n" +
+		"  \"pane\": {\n    \"split\": 0.5\n  },\n  \"theme\": \"amber\"\n}\n"
+	if err != nil || string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Accounts = theme.AccountsPrefs{} }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "accounts") {
+		t.Errorf("prefs.json holds %s, %v; want no choice of Accounts' kept", data, err)
+	}
+}
+
 // What History's views show is kept under a key of its own, each choice by
 // its name, beside the rest and the keys of another build, and left out
 // where none is made.

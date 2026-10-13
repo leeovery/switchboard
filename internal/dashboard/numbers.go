@@ -30,6 +30,10 @@ const (
 	// NumberStates are how many of the pool's accounts stand as the words
 	// they're counted in say, as in "2 open".
 	NumberStates
+	// NumberAccountStates are how many of every account stand as the words
+	// they're counted in say, as all accounts' head counts them on Accounts:
+	// a figure of its own, as all accounts is never the pool.
+	NumberAccountStates
 	// NumberRouted are the sessions the router has routed in the last hour,
 	// as the status line counts them.
 	NumberRouted

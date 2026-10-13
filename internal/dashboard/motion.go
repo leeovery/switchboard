@@ -63,14 +63,17 @@ func (f Frame) MaySettle() bool {
 // moment of doc at now, as At holds it: each account's window as it stands
 // at now, which reads empty once it has reset since it was read; on the
 // Overview, as USAGE draws them, and the pool's at now, but none of a bar
-// USAGE draws empty, which has nothing to ease; on Sessions, as its panels
-// draw them, but none of a window a panel draws without a bar; and none on a
-// view that draws no bar, nor under a session's page, which draws none.
+// USAGE draws empty, which has nothing to ease; on Accounts, as
+// accountsFilled has them; on Sessions, as its panels draw them, but none of
+// a window a panel draws without a bar; and none on a view that draws no
+// bar, nor under a session's page, which draws none.
 func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
 	switch m := f.Moment(doc, now); {
 	case f.Session != nil:
 	case f.View == Overview:
 		return overviewFilled(m)
+	case f.View == Accounts:
+		return f.accountsFilled(doc, now)
 	case f.View == Sessions:
 		return sessionsFilled(m)
 	}

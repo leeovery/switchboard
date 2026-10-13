@@ -13,11 +13,12 @@ import (
 // PgUp scroll the view where it doesn't fit, as scrollView has it; and the
 // rest each as acting has the page act: on the Overview, u, g, r, s, c and l
 // show and hide its sections, b switches how its windows are grouped, and ↑
-// and ↓ move the focus, as overviewKey says; on History, [ ], < >, v and ←
-// → act as historyKey says; tab and shift-tab show the next tab and the one
-// before; t opens the theme picker; and w, in Runway, switches between the
-// day and the week. The rest do nothing: the number keys and m among them,
-// which act in the routing card alone.
+// and ↓ move the focus, as overviewKey says; on Accounts, its keys act as
+// accountsKey says; on History, [ ], < >, v and ← → act as historyKey says;
+// tab and shift-tab show the next tab and the one before; t opens the theme
+// picker; and w, in Runway, switches between the day and the week. The rest
+// do nothing: the number keys and m among them, which act in the routing
+// card alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
 	if by, ok := scrollKey(k); ok {
@@ -26,6 +27,9 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	afresh := m.acting()
 	if next, ok := afresh.overviewKey(k); ok {
 		return next, nil
+	}
+	if next, cmd, ok := afresh.accountsKey(k); ok {
+		return next, cmd
 	}
 	if next, ok := afresh.historyKey(k); ok {
 		return next, nil
@@ -99,9 +103,9 @@ type pageKeys struct {
 // faint where its section is hidden; b, its word saying how the windows are
 // grouped; and with more than one account, ↑↓, which the key line sets with
 // p, ? and q; w, in Runway, switching between the day and the week, its word
-// saying which it shows; and History's, as historyListings has them. A
-// session's page lists its own, as sessionKeys has them, in place of its
-// tab's.
+// saying which it shows; Accounts', as accountsListings has them; and
+// History's, as historyListings has them. A session's page lists its own, as
+// sessionKeys has them, in place of its tab's.
 func (m Model) keys() pageKeys {
 	if m.session != nil {
 		return m.sessionKeys()
@@ -117,7 +121,12 @@ func (m Model) keys() pageKeys {
 		keyListing{Key: dashboard.Key{Key: "w", Does: "window: " + m.span.Name()}, works: m.view == dashboard.Runway},
 	)
 	pin, pinned := m.pinKey()
-	return pageKeys{own: append(own, m.historyListings()...), overview: overview, pin: pin, pinned: pinned, coloured: m.coloured()}
+	return pageKeys{own: slices.Concat(own, m.accountsListings(), m.historyListings()), overview: overview, pin: pin, pinned: pinned, coloured: m.coloured()}
+}
+
+// accountsListings are Accounts' own keys: none yet.
+func (m Model) accountsListings() []keyListing {
+	return nil
 }
 
 // listings are the page's own keys, where its view scrolls or not, in the
