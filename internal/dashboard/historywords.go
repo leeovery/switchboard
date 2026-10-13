@@ -40,12 +40,6 @@ func worthSaid(w views.Worth, k ink) line {
 	return line{{said, k}}
 }
 
-// WorthCents is a worth to the cent, as views.Worth.Cents says it. The verbs
-// alone call it, till they call Cents.
-func WorthCents(w views.Worth) string {
-	return w.Cents()
-}
-
 // worthPart is a worth as worthSaid writes it, as a part of a line: a
 // figure, but unpriced, which is words.
 func worthPart(w views.Worth, k ink) part {

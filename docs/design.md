@@ -1316,7 +1316,7 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   `runs out ~Mon 17:25 at its rate over the last 30 min`, `over the last 18 min` for a window with
   no level from before the half hour, or `over the last 2h` across a gap in its readings; and its
   pressure line adds the rate it goes by and the reset it runs out before,
-  `under pressure: runs out ~18:21 at Session's rate over the last 30 min, before its reset at
+  `under pressure: runs out ~18:21 at 5-hour's rate over the last 30 min, before its reset at
   20:10`, or where its reserve would hold it back, `under pressure: at its reserve ~18:21 at …`.
 - **A window reset by hand** before its reset time, as claude.ai's banked reset does, dropping its
   use but keeping its reset (see Observed), has effectively started again: the router reads it with
