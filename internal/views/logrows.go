@@ -44,6 +44,8 @@ type LogTable struct {
 	// ran are the times the requests of the table's rows ran over, shown or
 	// hidden, by their ids.
 	ran map[string][]runSpan
+	// first is the first day the table spans.
+	first LedgerDay
 }
 
 // LogLine is a line of the Log's table: a request's row; where Rule is set,
@@ -54,8 +56,10 @@ type LogLine struct {
 	Row    RequestRow
 	Rule   *DayRule
 	Oldest *OldestDay
-	// line is the line the row is of, nil before it comes.
+	// line is the line the row is of, nil before it comes; and day the
+	// local day the row sits on.
 	line *ledger.Line
+	day  LedgerDay
 }
 
 // DayRule is where one day's rows end and the next's begin, a night's quiet
@@ -149,7 +153,7 @@ func tableOf(rows []placedRow, first LedgerDay, src LogSources) LogTable {
 	for _, t := range src.Totals {
 		totals[t.Date] = t
 	}
-	table := LogTable{counts: make(map[string]LogCount), ran: make(map[string][]runSpan)}
+	table := LogTable{counts: make(map[string]LogCount), ran: make(map[string][]runSpan), first: first}
 	if oldest := src.Oldest; oldest.reached(first) {
 		table.Lines = append(table.Lines, LogLine{Oldest: &oldest})
 	}
@@ -168,7 +172,7 @@ func tableOf(rows []placedRow, first LedgerDay, src LogSources) LogTable {
 			ended.Date = last.Date
 			table.Lines = append(table.Lines, LogLine{Rule: &DayRule{Ended: *last, Began: p.day, Totals: ended}})
 		}
-		table.Lines = append(table.Lines, LogLine{Row: p.row, line: p.line})
+		table.Lines = append(table.Lines, LogLine{Row: p.row, line: p.line, day: p.day})
 		last = &p.day
 	}
 	return table
