@@ -17,14 +17,19 @@ func TestAnAccountsWindowsStandOnTheHoldWorkedOutOnceForThemAll(t *testing.T) {
 			{Key: "7d", Utilization: 0.3, ResetsAt: now.Add(4 * 24 * time.Hour)},
 		},
 	}
-	states := Document{GeneratedAt: now, Accounts: []Account{spent}}.WindowStatesOf(spent, now, score.Policy{Started: "5h"})
-	if got := states.Of("5h").Kind; got != WindowLimited {
+	states := Document{GeneratedAt: now, Accounts: []Account{spent}}.windowStatesOf(spent, now, score.Policy{Started: "5h"})
+	kindOf := func(key string) WindowKind {
+		w, _ := spent.Window(key)
+		kind, _ := states.kindOf(states.judge(w))
+		return kind
+	}
+	if got := kindOf("5h"); got != WindowLimited {
 		t.Fatalf("a window read spent stands as kind %d, want WindowLimited", got)
 	}
 
 	states.stood.held, states.stood.limited = Hold{}, false
 	for _, key := range []string{"5h", "7d"} {
-		if got := states.Of(key).Kind; got == WindowLimited {
+		if got := kindOf(key); got == WindowLimited {
 			t.Errorf("%s stands limited by a hold of its own, want it to stand on its account's, worked out once for every window: none", key)
 		}
 	}

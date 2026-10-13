@@ -39,9 +39,9 @@ const (
 	Open
 )
 
-// Near is how close a window comes to where an account runs out before it's
+// near is how close a window comes to where an account runs out before it's
 // said to near it: within 10 points, as a week nears its reserve.
-const Near = 0.1
+const near = 0.1
 
 // State is what an account's card says of it: its condition, and its words,
 // what holds it back or what it's doing, then, where there's more to say,
@@ -71,7 +71,7 @@ func dotted(parts ...string) string {
 // says, even where its last read failed; that its usage couldn't be read, or
 // hasn't been, as unread says; its reserve, as reservedState says; that it's
 // under pressure at now, as underPressure judges it, and whether new
-// sessions go elsewhere, else when it runs out, as RunsOut has it; that it's
+// sessions go elsewhere, else when it runs out, as runOutOf has it; that it's
 // idle at now, as idleAt judges it, and when a prime starts it, where the
 // router says; and last that it's open, its week nearing its reserve, or new
 // sessions coming here. Words from elsewhere show cleaned, and times as Dated
@@ -86,7 +86,7 @@ func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
 	if unread, ok := a.unread(); ok {
 		return unread
 	}
-	if reserved := d.Reserved(a, now); reserved != "" {
+	if reserved := d.reservedOf(a, now); reserved != "" {
 		return d.reservedState(a, reserved, now, policy)
 	}
 	if a.underPressure(now) {
@@ -129,7 +129,7 @@ func (a Account) unread() (State, bool) {
 // said as reservedState says it.
 func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State, bool) {
 	held, limited := a.held(now, policy)
-	refused := a.Refused.Holds(now)
+	refused := a.Refused.holds(now)
 	switch {
 	case limited && held.Every:
 		then := back(now, held.Until)
@@ -140,7 +140,7 @@ func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State
 	case refused && a.Refused.Family == "":
 		return State{Condition: Limited, Says: a.Refused.Answer(), Then: "until " + Dated(now, a.Refused.Until)}, true
 	case (limited || refused) && d.capHolds(a, now, policy):
-		return d.reservedState(a, d.Reserved(a, now), now, policy), true
+		return d.reservedState(a, d.reservedOf(a, now), now, policy), true
 	case limited:
 		says := Short(a.label(held.Windows[0])) + " limit"
 		return State{Condition: PartlyLimited, Says: says, Then: dotted(back(now, held.Until), stillComes)}, true
@@ -155,7 +155,7 @@ func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State
 const stillComes = "other models still come here"
 
 // reservedState is the state of account a at its reserve at now, as
-// Reserved says it: held back from every request where a window every model
+// reservedOf says it: held back from every request where a window every model
 // shares has reached it, or spending it, the global pin naming the account;
 // else from some models' requests alone, their own window naming them, which
 // says other models still come here, as in "Fable wk at its reserve (90%) ·
@@ -246,7 +246,7 @@ func (h Hold) Lifts(key string) time.Time {
 // from every request.
 func (a Account) held(now time.Time, policy score.Policy) (Hold, bool) {
 	h := Hold{spent: make(map[string]time.Time)}
-	if a.Limit.Holds(now) {
+	if a.Limit.holds(now) {
 		h.limit, h.named, h.Windows = a.Limit.Until, a.Limit.Windows, slices.Clone(a.Limit.Windows)
 	}
 	unnamed := !h.limit.IsZero() && len(h.named) == 0
@@ -313,7 +313,7 @@ func (a Account) label(key string) string {
 
 // pressed is the state of account a under pressure at now: while new sessions
 // go to another account, as next says, that they go elsewhere; else when its
-// pressure window runs out, as RunsOut has it, as in "runs out ~16:05 at this
+// pressure window runs out, as runOutOf has it, as in "runs out ~16:05 at this
 // pace", or, its reserve holding it back there, "at its reserve ~18:21".
 func (d Document) pressed(a Account, now time.Time) State {
 	s := State{Condition: Pressed, Says: "under pressure"}
@@ -325,7 +325,7 @@ func (d Document) pressed(a Account, now time.Time) State {
 	if !ok {
 		return s
 	}
-	if out, ok := d.RunsOut(a, w, now); ok && out.Reserve {
+	if out, ok := d.runOutOf(a, w, now); ok && out.Reserve {
 		s.Then = "at its reserve ~" + Dated(now, out.At)
 	} else if ok {
 		s.Then = "runs out ~" + Dated(now, out.At) + " at this pace"
@@ -369,7 +369,7 @@ func (d Document) nearing(a Account, now time.Time) (quota.Window, bool) {
 		return quota.Window{}, false
 	}
 	i := slices.IndexFunc(a.Windows, func(w quota.Window) bool {
-		return quota.MultiDay(w.Key) && score.Current(w, now).Utilization >= 1-a.Reserve-Near-score.Tolerance
+		return quota.MultiDay(w.Key) && score.Current(w, now).Utilization >= 1-a.Reserve-near-score.Tolerance
 	})
 	if i < 0 {
 		return quota.Window{}, false

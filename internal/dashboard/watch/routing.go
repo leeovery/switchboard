@@ -67,7 +67,7 @@ func (m Model) openRouting() (tea.Model, tea.Cmd) {
 // judges it: the moment of the message Update is taking in, where now is
 // when it came, as taking has it, else worked out afresh.
 func (m Model) moment(now time.Time) status.Moment {
-	if held := m.taking.moment; held.Of(m.doc, now) {
+	if held := m.taking.moment; held.Of(m.doc, now, m.cfg.Policy) {
 		return held.Moment()
 	}
 	return m.doc.At(now, m.cfg.Policy)
@@ -310,5 +310,5 @@ func (m Model) pinKey() (dashboard.Key, bool) {
 	if m.cfg.ProbeOnly {
 		return key, false
 	}
-	return key, len(m.arrived.Accounts) > 1 || !m.arrived.Pin.IsZero()
+	return key, m.asRead.accounts > 1 || m.asRead.pinned
 }

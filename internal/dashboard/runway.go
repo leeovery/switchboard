@@ -101,7 +101,7 @@ func (f Frame) layOutRunway(doc status.Document, now time.Time, top int) runwayL
 	m := f.Moment(doc, now)
 	l := runwayLayout{top: top + lanesFrom}
 	for _, a := range m.Accounts {
-		l.lanes = append(l.lanes, f.laneOf(a, now))
+		l.lanes = append(l.lanes, f.laneOf(a, m.Now))
 	}
 	l.x = lanesAt(l.lanes, f.Width)
 	l.timeline = timelineOf(f.Span, now, f.edge()-1-l.x)

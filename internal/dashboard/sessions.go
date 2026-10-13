@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -526,7 +525,7 @@ func seenAgo(now, seen time.Time) string {
 
 // docName is name of an account of the document as read, for milestone 5's
 // views, which read the document rather than its moment, and go with it; as
-// are docNamed, docNames and docPlace of named, names and place.
+// are docNamed and docPlace of named and place.
 func docName(a status.Account) string {
 	return labelled(a.Label, a.ID)
 }
@@ -537,15 +536,6 @@ func docNamed(doc status.Document, id string) string {
 		return docName(a)
 	}
 	return status.Clean(id)
-}
-
-// docNames is names of doc, as docName has it.
-func docNames(doc status.Document, ids []string) string {
-	listed := make([]string, len(ids))
-	for i, id := range ids {
-		listed[i] = docNamed(doc, id)
-	}
-	return prose.List(listed)
 }
 
 // docPlace is place of doc, as docName has it.

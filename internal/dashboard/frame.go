@@ -115,12 +115,13 @@ type Frame struct {
 // At is the frame holding the moment of doc at now, as its Policy judges it:
 // worked out once, the first time a look asks, and shared by every look the
 // frame, or a copy of it, takes of doc at now after, each view's and the bars
-// eased to it, as Filled has them. A frame holding the moment of doc at now
-// already is as it was; a look at another moment, or of another document,
-// works it out afresh. Each look the frame takes, as Draw, Numbers and
-// Scrolling do, holds the moment first, so none works out two.
+// eased to it, as Filled has them. A frame holding the moment of doc at now,
+// as its Policy judges it, already is as it was; a look at another moment, of
+// another document, or one another policy judged, works it out afresh. Each
+// look the frame takes, as Draw, Numbers and Scrolling do, holds the moment
+// first, so none works out two.
 func (f Frame) At(doc status.Document, now time.Time) Frame {
-	if f.held.Of(doc, now) {
+	if f.held.Of(doc, now, f.Policy) {
 		return f
 	}
 	f.held = doc.HoldAt(now, f.Policy)
@@ -129,17 +130,18 @@ func (f Frame) At(doc status.Document, now time.Time) Frame {
 
 // Holding is the frame holding h, a moment of a document at a time held
 // already, as one a read worked out: At keeps it for a look at that document
-// at that time, and works one out afresh for any other.
+// at that time, where the frame's Policy judged it, and works one out afresh
+// for any other.
 func (f Frame) Holding(h *status.HeldMoment) Frame {
 	f.held = h
 	return f
 }
 
 // Moment is doc at now, as every view reads it: as At holds it, where the
-// frame holds the moment of doc at now, else worked out afresh, as the
-// frame's Policy judges it.
+// frame holds the moment of doc at now as its Policy judges it, else worked
+// out afresh, as its Policy judges it.
 func (f Frame) Moment(doc status.Document, now time.Time) status.Moment {
-	if f.held.Of(doc, now) {
+	if f.held.Of(doc, now, f.Policy) {
 		return f.held.Moment()
 	}
 	return doc.At(now, f.Policy)

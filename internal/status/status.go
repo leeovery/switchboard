@@ -352,8 +352,8 @@ type Limit struct {
 	Until   time.Time `json:"until"`
 }
 
-// Holds reports whether the limit still holds at now.
-func (l Limit) Holds(now time.Time) bool {
+// holds reports whether the limit still holds at now.
+func (l Limit) holds(now time.Time) bool {
 	return l.Until.After(now)
 }
 
@@ -367,8 +367,8 @@ type Refusal struct {
 	Family string    `json:"family,omitempty"`
 }
 
-// Holds reports whether the refusal still holds at now.
-func (r Refusal) Holds(now time.Time) bool {
+// holds reports whether the refusal still holds at now.
+func (r Refusal) holds(now time.Time) bool {
 	return r.Until.After(now)
 }
 
@@ -564,15 +564,15 @@ func (d Document) readAt(now time.Time) time.Time {
 	return cmp.Or(d.GeneratedAt, now)
 }
 
-// RunsOut says where the account a's window w runs out at now, as the
+// runOutOf says where the account a's window w runs out at now, as the
 // router's pressure judges it and the dashboard shows it, reporting false
 // where it doesn't before it resets: where its use, heading as doc's project
 // says, reaches its floor, which is its reserve, where that would hold the
 // account back, as reserveHolds says, else its limit.
-func (d Document) RunsOut(a Account, w quota.Window, now time.Time) (RunOut, bool) {
+func (d Document) runOutOf(a Account, w quota.Window, now time.Time) (RunOut, bool) {
 	out := RunOut{Heading: d.project(a, w, now), Reserve: d.reserveHolds(a)}
 	var ok bool
-	out.At, ok = score.Reaches(w, out.Projection, d.Floor(a), d.readAt(now))
+	out.At, ok = score.Reaches(w, out.Projection, d.floor(a), d.readAt(now))
 	return out, ok
 }
 
@@ -654,14 +654,14 @@ func choose(policy score.Policy, accounts []Account, pinned []string, now time.T
 // now, whatever its windows read: its token refused, or a limit holding back
 // every request, as policy says which windows every model shares.
 func (a Account) Shut(now time.Time, policy score.Policy) bool {
-	limited := a.Limit.Holds(now) && (len(a.Limit.Windows) == 0 || slices.ContainsFunc(a.Limit.Windows, policy.IsShared))
-	return limited || a.TokenRefused(now)
+	limited := a.Limit.holds(now) && (len(a.Limit.Windows) == 0 || slices.ContainsFunc(a.Limit.Windows, policy.IsShared))
+	return limited || a.tokenRefused(now)
 }
 
-// TokenRefused reports whether the upstream refuses the account's token at
+// tokenRefused reports whether the upstream refuses the account's token at
 // now, holding back every request, rather than a model family's alone.
-func (a Account) TokenRefused(now time.Time) bool {
-	return a.Refused.Holds(now) && a.Refused.Family == ""
+func (a Account) tokenRefused(now time.Time) bool {
+	return a.Refused.holds(now) && a.Refused.Family == ""
 }
 
 // choosePinned is the account of those given, pinned and with a usable

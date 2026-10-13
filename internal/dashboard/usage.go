@@ -148,11 +148,11 @@ func blockOf(m status.Moment, width int, look Look, by By, windows []shownWindow
 }
 
 // UsageWindows are the keys of the windows usage shows of m where none is
-// given: those every model shares, as shared has them, and every other any
-// account reports, so every account keeps its rows before any is read; in
-// Claude's order.
-func UsageWindows(m status.Moment, shared []string) []string {
-	keys := slices.Clone(shared)
+// given: those every model shares, as the policy m was judged by has them,
+// and every other any account reports, so every account keeps its rows
+// before any is read; in Claude's order.
+func UsageWindows(m status.Moment) []string {
+	keys := slices.Clone(m.Policy().Shared)
 	for _, a := range m.Accounts {
 		for _, w := range a.Windows {
 			keys = append(keys, w.Key)
@@ -164,9 +164,9 @@ func UsageWindows(m status.Moment, shared []string) []string {
 // usageWindows are the windows of m with the keys given, in their order,
 // which is Claude's, or with none, those UsageWindows has, each named as name
 // names it, cleaned.
-func usageWindows(m status.Moment, keys, shared []string, name func(key string) string) []shownWindow {
+func usageWindows(m status.Moment, keys []string, name func(key string) string) []shownWindow {
 	if len(keys) == 0 {
-		keys = UsageWindows(m, shared)
+		keys = UsageWindows(m)
 	}
 	shown := make([]shownWindow, 0, len(keys))
 	for _, key := range keys {

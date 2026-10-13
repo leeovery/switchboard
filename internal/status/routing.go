@@ -108,7 +108,7 @@ const (
 // prime starts it; and open, where new sessions go, as next says, of
 // several accounts. Words from elsewhere show cleaned, and times as Dated
 // shows them.
-func (s WindowStates) routing(pressure RunOut) Routing {
+func (s windowStates) routing(pressure RunOut) Routing {
 	d, a, now := s.doc, s.account, s.now
 	if !a.TokenSet {
 		return Routing{Kind: RoutingTokenless, Says: "no token", Clauses: []string{"switchboard accounts token " + Clean(a.ID)}, Short: []string{"no token"}}
@@ -141,7 +141,7 @@ func (s WindowStates) routing(pressure RunOut) Routing {
 // request, a limit, then its token refused; else, where its cap holds it
 // back from every request, as cappedRouting says that; else from some
 // models' alone, a limit, then their family refused.
-func (s WindowStates) heldRouting() (Routing, bool) {
+func (s windowStates) heldRouting() (Routing, bool) {
 	a, now, held, limited := s.account, s.now, s.stood.held, s.stood.limited
 	switch {
 	case limited && held.Every:
@@ -170,7 +170,7 @@ func (s WindowStates) heldRouting() (Routing, bool) {
 // alone, as in "Fable wk at its cap · back Mon 21:00 · other models still
 // come here", of its own kind, pinned or not. The global pin naming it spends
 // its cap, so new sessions still come here.
-func (s WindowStates) cappedRouting() (Routing, bool) {
+func (s windowStates) cappedRouting() (Routing, bool) {
 	a, now, policy := s.account, s.now, s.policy
 	keys := slices.SortedStableFunc(slices.Values(s.reached), func(x, y string) int { return sharedFirst(policy, x, y) })
 	if len(keys) == 0 {

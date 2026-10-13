@@ -1003,7 +1003,7 @@ func TestDestination(t *testing.T) {
 		{ids: []string{"gone\x07"}, want: "gone"},
 	}
 	for _, tt := range tests {
-		if got := doc.Destination(tt.ids); got != tt.want {
+		if got := doc.At(built, policy).Destination(tt.ids); got != tt.want {
 			t.Errorf("Destination(%q) = %q, want %q", tt.ids, got, tt.want)
 		}
 	}

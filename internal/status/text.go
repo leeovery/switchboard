@@ -106,7 +106,7 @@ func (m Moment) writePriming(b *strings.Builder) {
 // how its reserve stands, whether it's under pressure, and how many sessions
 // the router has sent it.
 func writeNotes(b *strings.Builder, an AccountNow, a Account, now time.Time) {
-	notes := a.HeldBy(now)
+	notes := a.heldBy(now)
 	if said := reserved(an.ReachedReserve, an.Pinned, an.Reserve); said != "" {
 		notes = append(notes, said)
 	}
@@ -121,9 +121,9 @@ func writeNotes(b *strings.Builder, an AccountNow, a Account, now time.Time) {
 	}
 }
 
-// Reserved says how the account's reserve stands at now once a window has
+// reservedOf says how the account's reserve stands at now once a window has
 // reached it, as reachedReserve judges, as reserved says it.
-func (d Document) Reserved(a Account, now time.Time) string {
+func (d Document) reservedOf(a Account, now time.Time) string {
 	return reserved(a.reachedReserve(now), d.Pin.Has(a.ID), a.Reserve)
 }
 
@@ -193,15 +193,15 @@ func (a Account) Window(key string) (quota.Window, bool) {
 	return a.Windows[i], true
 }
 
-// HeldBy says what holds the account back at now, as the router saw it, a
+// heldBy says what holds the account back at now, as the router saw it, a
 // line each: the limit it reached, then the upstream's refusal, each while it
 // holds.
-func (a Account) HeldBy(now time.Time) []string {
+func (a Account) heldBy(now time.Time) []string {
 	var held []string
-	if a.Limit.Holds(now) {
+	if a.Limit.holds(now) {
 		held = append(held, a.Limit.Text(now))
 	}
-	if a.Refused.Holds(now) {
+	if a.Refused.holds(now) {
 		held = append(held, a.Refused.Text(now))
 	}
 	return held
@@ -246,10 +246,10 @@ func (d Document) Routing() string {
 	return "pinned to " + d.Names(d.Pin.Accounts)
 }
 
-// Destination says where a pin to the accounts with the given ids sends
+// destination says where a pin to the accounts with the given ids sends
 // sessions: to the one, as in "side · Side", or to the best of several, as in
 // "the best of work · Work and side · Side", named as Names names them.
-func (d Document) Destination(ids []string) string {
+func (d Document) destination(ids []string) string {
 	if len(ids) > 1 {
 		return "the best of " + d.Names(ids)
 	}
@@ -485,10 +485,10 @@ func Resets(now, t time.Time) string {
 	return "resets in " + Countdown(now, t)
 }
 
-// Projection says where a window is heading, such as "on pace for 92%",
+// projection says where a window is heading, such as "on pace for 92%",
 // "runs out ~Fri 19:40" or "exhausted", with times in now's time zone. It's
 // empty when the projection says nothing.
-func Projection(now time.Time, p score.Projection) string {
+func projection(now time.Time, p score.Projection) string {
 	switch p.Kind {
 	case score.OnPace:
 		return "on pace for " + Percent(p.AtReset)
@@ -576,11 +576,11 @@ func windowNotes(stands quota.Window, heading Heading, now time.Time) []string {
 	if reset := stands.ResetsAt; !reset.IsZero() {
 		notes = append(notes, Resets(now, reset)+" · "+Clock(now, reset))
 	}
-	if projection := Projection(now, heading.Projection); projection != "" {
+	if heads := projection(now, heading.Projection); heads != "" {
 		if heading.Recent {
-			projection += " at its rate over the " + Over(heading.Since, now)
+			heads += " at its rate over the " + Over(heading.Since, now)
 		}
-		notes = append(notes, projection)
+		notes = append(notes, heads)
 	}
 	return notes
 }

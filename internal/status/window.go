@@ -8,11 +8,12 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 )
 
-// WindowKind is how a window of an account stands, as a WindowState says.
+// WindowKind is how a window of an account stands, as a WindowNow says.
 type WindowKind int
 
-// The kinds of WindowState, in the order WindowStates.Of tries them: the first
-// that holds is the one said.
+// The kinds, in the order kindOf tries them, which is ROUTING's, as an
+// account's Routing at a moment says its state: the first that holds is the
+// one said.
 const (
 	// WindowTokenless is a window of an account without a usable token.
 	WindowTokenless WindowKind = iota + 1
@@ -35,39 +36,17 @@ const (
 	// unknown.
 	WindowCapped
 	// WindowRunsOut is a window that runs out At, before it resets, as
-	// RunsOut says.
+	// runOutOf says.
 	WindowRunsOut
 	// WindowOpen is any other window: its allowance runs to its reset, At.
 	WindowOpen
 )
 
-// WindowState is how a window of an account stands at a moment.
-type WindowState struct {
-	Kind WindowKind
-	// Used is how much of the window is used, as it stands at the moment, as
-	// Account.WindowAt has it: none once it has reset since it was read,
-	// stale or not; none of one not started; and none where nothing is read
-	// of it. Pace is its even pace, of the window so standing, as of when the
-	// document was read, as paceOf has it: nil where it isn't running, its
-	// reset isn't known, or nothing is read of it. They're the one reading of
-	// the window that whatever draws its use or its pace draws.
-	Used float64
-	Pace *float64
-	// At is when what Kind says comes, or came: zero where Kind says no time.
-	At time.Time
-	// Allowance is what can be spent of an open window, so standing, and
-	// still last to its reset, At, as allowanceOf has it: as of when the
-	// document was read, as its pace is, or, where it has reset since then,
-	// from empty, as of its last reset. It's zero of any other kind, and
-	// where nothing can be.
-	Allowance quota.Allowance
-}
-
-// WindowStates are how the windows of an account of a document stand at a
+// windowStates are how the windows of an account of a document stand at a
 // moment, as a policy judges them, and how the account stands then: what
 // holds it back, which of its windows have reached its reserve, whether it's
 // idle and whether it's under pressure, worked out once for them all.
-type WindowStates struct {
+type windowStates struct {
 	doc     Document
 	account Account
 	now     time.Time
@@ -88,16 +67,16 @@ type WindowStates struct {
 	refusing, idle, pressed bool
 }
 
-// WindowStatesOf are how doc's account a's windows stand at now, as policy
+// windowStatesOf are how doc's account a's windows stand at now, as policy
 // judges them, as usage's words say them. Their projections go from when doc
-// was built, as RunsOut's does, and so do their even paces and allowances, of
+// was built, as runOutOf's does, and so do their even paces and allowances, of
 // the windows as they stand at now.
-func (d Document) WindowStatesOf(a Account, now time.Time, policy score.Policy) WindowStates {
-	s := WindowStates{
+func (d Document) windowStatesOf(a Account, now time.Time, policy score.Policy) windowStates {
+	s := windowStates{
 		doc: d, account: a, now: now, policy: policy, reached: a.reachedReserve(now),
-		refusing: a.Refused.Holds(now), idle: a.idleAt(now, policy), pressed: a.underPressure(now),
+		refusing: a.Refused.holds(now), idle: a.idleAt(now, policy), pressed: a.underPressure(now),
 	}
-	s.stood = standing{lapsed: a.lapsedAt(now, policy), refused: a.TokenRefused(now)}
+	s.stood = standing{lapsed: a.lapsedAt(now, policy), refused: a.tokenRefused(now)}
 	s.stood.held, s.stood.limited = a.held(now, policy)
 	s.stood.capped = d.reserveHolds(a) && slices.ContainsFunc(s.reached, policy.IsShared)
 	if s.stood.capped {
@@ -108,35 +87,14 @@ func (d Document) WindowStatesOf(a Account, now time.Time, policy score.Policy) 
 
 // capped reports whether the account's window with the given key has reached
 // its reserve at now, which holds the account back, as reserveHolds says.
-func (s WindowStates) capped(key string) bool {
+func (s windowStates) capped(key string) bool {
 	return s.doc.reserveHolds(s.account) && slices.Contains(s.reached, key)
-}
-
-// Of is how the account's window with the given key stands: the first that
-// holds of the kinds, in their order, which is ROUTING's, as an account's
-// Routing at a moment says its state: no usable token; nothing read; a limit
-// holding the window; its token refused; lapsed, not started, ahead of a
-// failed read, as ROUTING says idle ahead of one once anything was read; its
-// last read failed; the cap; running out; and open.
-func (s WindowStates) Of(key string) WindowState {
-	a := s.account
-	w, reported := a.Window(key)
-	if kind, ok := s.unknown(reported); ok {
-		return WindowState{Kind: kind}
-	}
-	j := s.judge(w)
-	st := WindowState{Used: j.stands.Utilization, Pace: j.pace}
-	st.Kind, st.At = s.kind(w, j)
-	if st.Kind == WindowOpen {
-		st.Allowance = j.allowance
-	}
-	return st
 }
 
 // unknown is the kind of a window of the account nothing is known of,
 // reporting false where something is: of an account without a usable token,
 // and of one the account hasn't reported, as reported says, or nothing read.
-func (s WindowStates) unknown(reported bool) (WindowKind, bool) {
+func (s windowStates) unknown(reported bool) (WindowKind, bool) {
 	switch {
 	case !s.account.TokenSet:
 		return WindowTokenless, true
@@ -148,21 +106,21 @@ func (s WindowStates) unknown(reported bool) (WindowKind, bool) {
 
 // kindOf is the kind of the account's window, standing as j has it, and when
 // what that says comes, as known says: of a window read, as kind says.
-func (s WindowStates) kindOf(j judged) (WindowKind, time.Time) {
+func (s windowStates) kindOf(j judged) (WindowKind, time.Time) {
 	return s.known(j, s.kind)
 }
 
 // unheldOf is the kind of the account's window, standing as j has it, with
 // any limit holding it set aside, as it stands once that lifts, and when what
 // that says comes, as known says: of a window read, as unheld says.
-func (s WindowStates) unheldOf(j judged) (WindowKind, time.Time) {
+func (s windowStates) unheldOf(j judged) (WindowKind, time.Time) {
 	return s.known(j, s.unheld)
 }
 
 // known is the kind of the account's window, standing as j has it, and when
 // what that says comes: of an account without a usable token, or nothing
 // read, as unknown says, that alone; else as read says of the window read.
-func (s WindowStates) known(j judged, read func(quota.Window, judged) (WindowKind, time.Time)) (WindowKind, time.Time) {
+func (s windowStates) known(j judged, read func(quota.Window, judged) (WindowKind, time.Time)) (WindowKind, time.Time) {
 	if kind, ok := s.unknown(true); ok {
 		return kind, time.Time{}
 	}
@@ -172,7 +130,7 @@ func (s WindowStates) known(j judged, read func(quota.Window, judged) (WindowKin
 // kind is the kind of the account's window w, read, standing as j has it, and
 // when what the kind says comes: a limit holding it, until the hold lifts off
 // it; else as unheld says.
-func (s WindowStates) kind(w quota.Window, j judged) (WindowKind, time.Time) {
+func (s windowStates) kind(w quota.Window, j judged) (WindowKind, time.Time) {
 	if s.stood.limited && s.stood.held.Holds(w.Key) {
 		return WindowLimited, s.stood.held.Lifts(w.Key)
 	}
@@ -184,7 +142,7 @@ func (s WindowStates) kind(w quota.Window, j judged) (WindowKind, time.Time) {
 // what the kind says comes: the first that holds of its token refused, not
 // started, its last read failed, the cap, running out, and open, its
 // allowance running to its reset.
-func (s WindowStates) unheld(w quota.Window, j judged) (WindowKind, time.Time) {
+func (s windowStates) unheld(w quota.Window, j judged) (WindowKind, time.Time) {
 	a, stood := s.account, s.stood
 	switch {
 	case stood.refused:
@@ -203,7 +161,7 @@ func (s WindowStates) unheld(w quota.Window, j judged) (WindowKind, time.Time) {
 
 // judged is how a window of an account stands at a moment, worked out once:
 // as it stands, as WindowAt has it, lapsed or not; its even pace and its
-// allowance, as measure has them; where it runs out, as RunsOut says, runsOut
+// allowance, as measure has them; where it runs out, as runOutOf says, runsOut
 // set where it does before it resets; and the room the pool counts it as
 // having, as poolRoom has it. Whatever its account's token or read, it's
 // worked out of the window as given, as the document's own pace, allowance
@@ -220,11 +178,11 @@ type judged struct {
 }
 
 // judge is how the account's window w, read, stands at now, as judged has it.
-func (s WindowStates) judge(w quota.Window) judged {
+func (s windowStates) judge(w quota.Window) judged {
 	j := judged{window: w, lapsed: !s.stood.running(w.Key)}
 	j.stands = windowAsOf(w, j.lapsed, s.now)
 	j.pace, j.allowance = s.doc.measure(s.account, s.stood, w.Key, j.stands, s.now)
-	j.out, j.runsOut = s.doc.RunsOut(s.account, w, s.now)
+	j.out, j.runsOut = s.doc.runOutOf(s.account, w, s.now)
 	j.room = s.doc.poolRoom(s.account, s.stood, w, s.now, s.policy)
 	return j
 }

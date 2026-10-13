@@ -95,7 +95,7 @@ func (d Document) AccountWorkedOut(id string, policy score.Policy) (Account, boo
 	return a, ok
 }
 
-// standing is how an account stands at a moment, as WindowStatesOf works it
+// standing is how an account stands at a moment, as windowStatesOf works it
 // out: which of its windows have lapsed, and aren't running, as lapsedAt has
 // them; what limit holds it, as held says, limited set where any does;
 // whether its cap holds it back from every request, a window every model
@@ -179,7 +179,7 @@ func (d Document) paceOf(stands quota.Window, now time.Time) (float64, bool) {
 
 // allowanceOf is what can be spent of account a's window standing at now as
 // stands, as WindowAt has a window, and still last to its reset, its use
-// running to where the account runs out, as Floor says, as of when doc was
+// running to where the account runs out, as floor says, as of when doc was
 // read, as readAt has it, as its pace is; or, where it stands in a period
 // that started after then, from that period's start, so it's never spread
 // over more than the window's length. It's zero where nothing can be.
@@ -188,7 +188,7 @@ func (d Document) allowanceOf(a Account, stands quota.Window, now time.Time) quo
 	if start, _, ok := stands.Span(); ok {
 		from = score.Later(from, start)
 	}
-	allowance, _ := score.AllowanceOf(stands, d.Floor(a), from)
+	allowance, _ := score.AllowanceOf(stands, d.floor(a), from)
 	return allowance
 }
 
@@ -246,10 +246,10 @@ func (d Document) measure(a Account, s standing, key string, stands quota.Window
 	return pace, d.allowanceOf(a, stands, at)
 }
 
-// Floor is the share of a window of account a used where the account runs
+// floor is the share of a window of account a used where the account runs
 // out: where its reserve starts, where that holds it back, as reserveHolds
 // says, else its limit.
-func (d Document) Floor(a Account) float64 {
+func (d Document) floor(a Account) float64 {
 	if d.reserveHolds(a) {
 		return 1 - a.Reserve
 	}
@@ -327,7 +327,7 @@ func poolWindow(members []judgedAccount, key string) PoolWindow {
 
 // poolRoom is the room account a has left in its window w at at, as the pool
 // counts it, standing as s says then, to where the account runs out, as
-// Floor says: none in any window of one nothing has been read of, or whose
+// floor says: none in any window of one nothing has been read of, or whose
 // token is refused; none in the window a request starts, as policy names it,
 // of one at its limit or its cap; and none in a window a limit holds as its
 // own, as holds says.
@@ -340,7 +340,7 @@ func (d Document) poolRoom(a Account, s standing, w quota.Window, at time.Time, 
 	case s.holds(w.Key):
 		return 0
 	}
-	return score.Room(w, d.Floor(a), at)
+	return score.Room(w, d.floor(a), at)
 }
 
 // comingUp is what's coming to the accounts after now, as it's worked out of

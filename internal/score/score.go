@@ -55,6 +55,13 @@ type Policy struct {
 	Pressure string
 }
 
+// Equal reports whether p and q are the one policy: they name the same
+// windows to each part, those every model shares in the same order.
+func (p Policy) Equal(q Policy) bool {
+	return slices.Equal(p.Shared, q.Shared) && p.Perishable == q.Perishable && p.Tiebreak == q.Tiebreak &&
+		p.Started == q.Started && p.Pressure == q.Pressure
+}
+
 // IsShared reports whether the window named key applies to every model.
 func (p Policy) IsShared(key string) bool {
 	return slices.Contains(p.Shared, key)
