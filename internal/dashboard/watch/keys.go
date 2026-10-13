@@ -17,8 +17,8 @@ import (
 // → act as historyKey says; tab and shift-tab show the next tab and the one
 // before, as turn has it; esc drops a session's page asked to open, as
 // closeSession has it; t opens the theme picker; and w, in Runway, switches
-// between the day and the week. The rest do nothing: the number keys and m among them,
-// which act in the routing card alone.
+// between the day and the week. The rest do nothing: the number keys and m
+// among them, which act in the routing card alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
 	if by, ok := scrollKey(k); ok {

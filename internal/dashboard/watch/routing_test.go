@@ -592,7 +592,8 @@ func TestPIsntFaintWhileTheRouterAnswers(t *testing.T) {
 // more than one account to pin it to, or its own pin stands, to clear it:
 // never on an ended session's page, nor while probing as asked; and it's
 // faint while the router doesn't answer. Its own pin standing then, as the
-// page keeps it, is TestASessionsPageListsPForItsOwnPinWhileTheRouterDoesntAnswer's.
+// page keeps it, is held by
+// TestASessionsPageListsPForItsOwnPinWhileTheRouterDoesntAnswer.
 func TestPOnASessionsPageIsListedWhileItRunsWithSomewhereToPinIt(t *testing.T) {
 	tests := []struct {
 		name                 string

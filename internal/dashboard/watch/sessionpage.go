@@ -65,8 +65,9 @@ func (m Model) readSession(asked int, id string) tea.Cmd {
 }
 
 // sessionRead takes in a page's read, which opens it, but one of an open
-// asked for before the last, or dropped since, as unasked has it: the page is built as relived builds it, its
-// directory shown under the home the watch is given.
+// asked for before the last, or dropped since, as unasked has it: the page
+// is built as relived builds it, its directory shown under the home the
+// watch is given.
 func (m Model) sessionRead(msg sessionReadMsg) Model {
 	if msg.asked == m.opening {
 		m.session = &sessionShown{id: msg.id, held: msg.held, shown: dashboard.SessionShown{Home: m.cfg.Home}}
