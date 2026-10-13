@@ -357,7 +357,7 @@ func (d *liveDay) names(wanted map[string]bool) bool {
 		}
 	}
 	cut, ok := d.lines.Cut()
-	return ok && wanted[cut.counted()]
+	return ok && wanted[cut.CountedSession()]
 }
 
 // countsNoMore reports whether the day's files hold no more lines than held,

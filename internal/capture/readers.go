@@ -237,11 +237,12 @@ func (l heldLedger) Sessions(ids []string, take func(date string, line ledger.Li
 }
 
 // naming are the dates of the days whose lines name a session wanted, as
-// their summaries would: among those their lines, but quota checks, were of.
+// their summaries would: one a line counts toward, as Line.CountedSession
+// says.
 func naming(lines []filed, wanted map[string]bool) map[string]bool {
 	named := make(map[string]bool)
 	for _, f := range lines {
-		if f.Kind != ledger.KindCheck && wanted[f.Session] {
+		if wanted[f.CountedSession()] {
 			named[f.date] = true
 		}
 	}
