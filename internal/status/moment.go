@@ -92,6 +92,9 @@ type AccountNow struct {
 	Error          string
 	Failures       []quota.Failure
 	Sessions       int
+	// Extra is its extra usage, as the last answer or probe to give it left
+	// it: zero where none has. ExtraSaid says how it stands for it.
+	Extra quota.ExtraUsage
 	// Routing is how it stands with the router at Now: the first of the kinds
 	// that holds.
 	Routing Routing
@@ -476,7 +479,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
-		Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitSince: eventAt(d.LimitEvent(a, m.Now)),
+		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitSince: eventAt(d.LimitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(),
 		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},
