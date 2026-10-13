@@ -280,15 +280,6 @@ func TestASessionsPageDrawsItsFramesRows(t *testing.T) {
 		{stem: "session-quiet-160", shown: quiet(), width: 160, height: 37, storyFrom: 9, storyTo: 17},
 		{
 			stem: "session-ended-160", shown: ended(), width: 160, height: 37, storyFrom: 9, storyTo: 17,
-			passed: []spot{
-				// The views say its move's time with its day, "from
-				// yesterday 16:02", where the frame says "from 16:02".
-				{row: 6, first: 21, last: 123},
-				// The views date its stays only where they span days, where
-				// the frame dates a stay of yesterday's: "yesterday 13:20 –
-				// 16:02".
-				{row: 19, first: stayAt, last: requestsAt - 1}, {row: 20, first: stayAt, last: requestsAt - 1},
-			},
 		},
 		{
 			stem: "session-resumed-160", shown: resumed(), width: 160, height: 37, storyFrom: 9, storyTo: 17,
@@ -388,6 +379,14 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 				20: "TURNS    " + rule(104) + "  $48.20",
 				22: "13 14:40   3m…   6 req" + strings.Repeat(" ", 83) + "$0.79  side",
 			},
+		},
+		{
+			name: "100 wide: a phone's body under the wide chrome", shown: moved(), width: 100, height: 30,
+			want: map[int]string{4: "SESSION  d28c  switchboard", 6: "↑ asking  on side ▲ since 14:31", 20: "TURNS    "},
+		},
+		{
+			name: "80 wide: a phone's, under its own chrome", shown: moved(), width: 80, height: 30,
+			want: map[int]string{1: " Overview  Accounts", 5: "SESSION  d28c  switchboard", 7: "↑ asking  on side ▲ since 14:31", 21: "TURNS    "},
 		},
 		{
 			name: "52 wide: a phone's, under its own chrome", shown: moved(), width: 52, height: 32,
