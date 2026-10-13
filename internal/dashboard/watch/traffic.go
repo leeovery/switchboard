@@ -155,15 +155,20 @@ func (t *traffic) hear(e router.StreamEvent, held func(account string) bool) {
 // it, whatever the request, Claude Code's quota check and a count of tokens
 // among them, which the views keep apart: each event names the request
 // afresh, and is when the stream last told of it, but a move, which tells
-// nothing of the request itself. In flight as the stream opens, the request
-// is as e has it, but for when it was first sent, where that was told
-// before; gone out again, it waits on another answer, the last one's
-// verdict, first byte and characters gone; and the rest as each kind says.
+// nothing of the request itself. Another request than the one held under
+// its id, as another says, is told of from nothing. In flight as the stream
+// opens, the request is as e has it, but for when it was first sent, where
+// that was told before; gone out again, it waits on another answer, the
+// last one's verdict, first byte and characters gone; and the rest as each
+// kind says.
 func (t *traffic) tell(e router.StreamEvent) {
 	if e.Kind == router.StreamMoved {
 		return
 	}
 	r := t.requests[e.Request]
+	if another(r, e) {
+		r = views.Told{}
+	}
 	r.Request, r.Heard, r.Account = e.Request, e.At, cmp.Or(e.Account, r.Account)
 	r.Session, r.Dir, r.Model = cmp.Or(e.Session, r.Session), cmp.Or(e.Dir, r.Dir), cmp.Or(e.Model, r.Model)
 	r.Prompt, r.Class, r.AgentID = cmp.Or(e.Prompt, r.Prompt), cmp.Or(e.Class, r.Class), cmp.Or(e.AgentID, r.AgentID)
@@ -189,6 +194,16 @@ func (t *traffic) tell(e router.StreamEvent) {
 		r.Verdict, r.Status = verdictOf(e.Kind), e.Status
 	}
 	t.requests[e.Request] = r
+}
+
+// another reports whether e tells of another request than r, the one held
+// under its id, as a request is its id and when: a router gives each request
+// an id of its own while it runs, and tells nothing of one once it has
+// ended; of one lost, only that it's in flight still, as the stream opens
+// again, as one lost while the router ran on is told of first. Anything else
+// under its id is another run's request.
+func another(r views.Told, e router.StreamEvent) bool {
+	return !r.Ended.IsZero() || r.Lost && e.Kind != router.StreamInFlight
 }
 
 // verdictOf is the verdict an event of the stream's kind given tells of a

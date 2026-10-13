@@ -146,6 +146,49 @@ func TestEachEventFillsInWhatTheStreamToldOfItsRequest(t *testing.T) {
 	}
 }
 
+// A router gives each of its requests an id of its own while it runs, so the
+// stream tells nothing of a request once it has ended; and of one lost, only
+// that it's in flight still, as it opens again. Any other event under the id
+// of one held is another request, as another run's is: it never takes on
+// what the stream told of the one before.
+func TestARequestIsItsIdAndWhenSoAnotherNeverTakesOnWhatTheOneBeforeWasTold(t *testing.T) {
+	first := alter(told(router.StreamSent, "r1", "work", 0), func(e *router.StreamEvent) { e.Dir, e.Prompt = "~/Code/switchboard", "p1" })
+	flying := traffic{live: true}.took([]router.StreamEvent{first}, heldNowhere, past(0))
+	ended := flying.took([]router.StreamEvent{alter(told(router.StreamDone, "r1", "work", 5*time.Second), func(e *router.StreamEvent) { e.Status = 200 })},
+		heldNowhere, past(5*time.Second))
+	lost := flying.afresh()
+	later := 10 * time.Second
+	sent, first2 := told(router.StreamSent, "r1", "work", later), told(router.StreamFirst, "r1", "work", later)
+	inFlight := alter(told(router.StreamInFlight, "r1", "work", later), func(e *router.StreamEvent) { e.SentAt = past(later) })
+	tests := []struct {
+		name string
+		held traffic
+		e    router.StreamEvent
+		same bool
+	}{
+		{name: "in flight, sent again", held: flying, e: sent, same: true},
+		{name: "in flight, its first byte", held: flying, e: first2, same: true},
+		{name: "in flight, told of in flight as the stream opens again", held: flying, e: inFlight, same: true},
+		{name: "ended, then sent", held: ended, e: sent},
+		{name: "ended, then a first byte", held: ended, e: first2},
+		{name: "ended, then told of in flight as the stream opens again", held: ended, e: inFlight},
+		{name: "lost, then told of in flight as the stream opens again", held: lost, e: inFlight, same: true},
+		{name: "lost, then sent", held: lost, e: sent},
+		{name: "lost, then a first byte", held: lost, e: first2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _ := toldOf(tt.held.took([]router.StreamEvent{tt.e}, heldNowhere, past(later)), "r1")
+			if same := r.Dir == first.Dir && r.Prompt == first.Prompt && r.Sent.Equal(past(0)); same != tt.same {
+				t.Errorf("r1 is told %+v: the request first sent: %t, want %t", r, same, tt.same)
+			}
+			if !tt.same && (r.Lost || !r.Ended.IsZero()) {
+				t.Errorf("r1 is told %+v, want it neither lost nor ended, another request", r)
+			}
+		})
+	}
+}
+
 func TestForgettingWhatTheStreamToldLosesTheRequestsInFlightTillItTellsOfThemAgain(t *testing.T) {
 	tr := traffic{live: true}.took([]router.StreamEvent{
 		told(router.StreamSent, "r1", "work", 0),
