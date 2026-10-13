@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -75,5 +76,47 @@ func TestSpansInWords(t *testing.T) {
 		if got := lately(now.Add(-since), now); got != want {
 			t.Errorf("lately() over %v = %q, want %q", since, got, want)
 		}
+	}
+}
+
+// A move's names fit their cells, the arrow kept: each whole where they fit;
+// else the longer cut first, to the other's width, the one left first where
+// they're alike, then the two alike, the odd cell the one moved to's; and
+// with less room than an ellipsis each, the arrow and the one moved to.
+func TestAMovesNamesAreCutTheLongerFirstKeepingTheArrow(t *testing.T) {
+	tests := []struct {
+		from, to string
+		cells    int
+		want     string
+	}{
+		{from: "personal", to: "side", cells: 16, want: "personal → side"},
+		{from: "personal", to: "side", cells: 15, want: "personal → side"},
+		{from: "personal", to: "side", cells: 14, want: "person… → side"},
+		{from: "personal", to: "side", cells: 12, want: "pers… → side"},
+		{from: "personal", to: "side", cells: 11, want: "per… → side"},
+		{from: "personal", to: "side", cells: 10, want: "pe… → side"},
+		{from: "personal", to: "side", cells: 9, want: "pe… → si…"},
+		{from: "personal", to: "side", cells: 8, want: "p… → si…"},
+		{from: "personal", to: "side", cells: 6, want: "… → s…"},
+		{from: "personal", to: "side", cells: 5, want: "… → …"},
+		{from: "personal", to: "side", cells: 4, want: "→si…"},
+		{from: "personal", to: "side", cells: 1, want: "→"},
+		{from: "side", to: "personal", cells: 12, want: "side → pers…"},
+		{from: "side", to: "personal", cells: 10, want: "si… → per…"},
+		{from: "work", to: "side", cells: 11, want: "work → side"},
+		{from: "work", to: "side", cells: 10, want: "wo… → side"},
+		{from: "work", to: "side", cells: 9, want: "wo… → si…"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.from+" to "+tt.to+" in "+strconv.Itoa(tt.cells), func(t *testing.T) {
+			got := moveNames(tt.from, tt.to, tt.cells, secondaryInk)
+			if got.plain() != tt.want || got.width() > tt.cells {
+				t.Errorf("moveNames(%q, %q, %d) = %q, want %q", tt.from, tt.to, tt.cells, got.plain(), tt.want)
+			}
+		})
+	}
+	want := line{{"pers…", secondaryInk}, {" → ", mutedInk}, {"side", secondaryInk}}
+	if got := moveNames("personal", "side", 12, secondaryInk); !slices.Equal(got, want) {
+		t.Errorf("moveNames() is inked %+v, want the names in the ink given and the arrow in text.muted", got)
 	}
 }

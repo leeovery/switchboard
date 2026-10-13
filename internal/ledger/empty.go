@@ -36,6 +36,17 @@ func (Empty) Today(mark Mark) (lines []Held, next Mark, afresh bool) {
 	return nil, Mark{gen: 1}, mark == Mark{}
 }
 
+// Day returns no line, whatever the day.
+func (Empty) Day(string) []Held {
+	return nil
+}
+
+// FirstLinesDay fails with fs.ErrNotExist, as the ledger holds no day's
+// lines.
+func (Empty) FirstLinesDay(time.Time) (time.Time, error) {
+	return time.Time{}, errNoLines
+}
+
 // Session returns no line.
 func (Empty) Session(string) iter.Seq[Held] {
 	return func(func(Held) bool) {}

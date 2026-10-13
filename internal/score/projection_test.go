@@ -276,3 +276,31 @@ func TestResetByHand(t *testing.T) {
 		})
 	}
 }
+
+// A reading holds its account back at its cap from the use its reserve
+// leaves, allowing for rounding, short of its limit; and at its limit used
+// up or refused, whatever its use. Without a reserve, it has no cap.
+func TestHowFarAReadingHoldsItsAccountBack(t *testing.T) {
+	tests := []struct {
+		name    string
+		window  quota.Window
+		reserve float64
+		want    score.Hold
+	}{
+		{name: "under its cap", window: quota.Window{Utilization: 0.94}, reserve: 0.05, want: score.NotHeld},
+		{name: "at its cap", window: quota.Window{Utilization: 0.95}, reserve: 0.05, want: score.HeldAtCap},
+		{name: "a hair under its cap, as rounding reads it", window: quota.Window{Utilization: 0.95 - 1e-12}, reserve: 0.05, want: score.HeldAtCap},
+		{name: "past its cap, short of its limit", window: quota.Window{Utilization: 0.99}, reserve: 0.05, want: score.HeldAtCap},
+		{name: "used up", window: quota.Window{Utilization: 1}, reserve: 0.05, want: score.HeldAtLimit},
+		{name: "refused under its cap", window: quota.Window{Utilization: 0.5, Status: quota.StatusRejected}, reserve: 0.05, want: score.HeldAtLimit},
+		{name: "near its limit without a reserve", window: quota.Window{Utilization: 0.99}, want: score.NotHeld},
+		{name: "used up without a reserve", window: quota.Window{Utilization: 1}, want: score.HeldAtLimit},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := score.HoldOf(tt.window, tt.reserve); got != tt.want {
+				t.Errorf("HoldOf(%+v, %v) = %v, want %v", tt.window, tt.reserve, got, tt.want)
+			}
+		})
+	}
+}

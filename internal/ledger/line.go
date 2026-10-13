@@ -212,6 +212,18 @@ func (l *Line) Counted() bool {
 	return l.Kind != KindCheck && l.Kind != KindCount
 }
 
+// CountedSession is the session the line's request counts toward, as a
+// day's summary counts and names its sessions: none for a quota check, which
+// Claude Code sends as it resumes a session under an id it never uses again.
+// A count of tokens counts toward its session, though Counted counts it
+// among no requests.
+func (l *Line) CountedSession() string {
+	if l.Kind == KindCheck {
+		return ""
+	}
+	return l.Session
+}
+
 // Failed reports whether the line's request failed, as the views show it:
 // answered 400 or over, as a 429 every account refused is passed on; or
 // answered nothing, as one cut off or given up, its status 0.

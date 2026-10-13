@@ -139,8 +139,7 @@ func onDay(day, hour, minute, second int) time.Time {
 // runs in; Claude Code's, asking for two betas, in a turn's shape; routed to
 // account for reason; arriving at at, its answer's first byte passing on
 // 0.8s later and its end 10s after it arrived; its answer, msg_ and its id,
-// thinking and ending its turn, giving turnUsage, and the account's windows
-// as turnLimits gives them.
+// thinking and ending its turn, giving turnUsage, and reading no windows.
 func requested(id, session, model, account, reason string, at time.Time) ledger.Line {
 	return ledger.Line{
 		At: at, Request: id, Kind: ledger.KindMessage, Session: session, Dir: dirs[session], Model: model, Account: account, Reason: reason,
@@ -151,19 +150,20 @@ func requested(id, session, model, account, reason string, at time.Time) ledger.
 			Thinking: ledger.Thinking{Type: "enabled", BudgetTokens: new(int64(16_000))}, OutputConfig: ledger.OutputConfig{Effort: "high"},
 		},
 		Answer: ledger.Answer{ID: "msg_" + id, Model: model, Stop: "end_turn", Blocks: map[string]int{"text": 1, "thinking": 2}},
-		Usage:  json.RawMessage(turnUsage), Limits: turnLimits(),
+		Usage:  json.RawMessage(turnUsage),
 	}
 }
 
-// turnLimits are an answer's usage headers, as a line keeps them: its
-// 5-hour window 42% used, resetting at 17:10, and its week 18%, each
-// allowed, as the answer is.
-func turnLimits() map[string]string {
-	return map[string]string{
-		"5h-utilization": "0.42", "5h-reset": strconv.FormatInt(At(17, 10, 0).Unix(), 10), "5h-status": "allowed",
+// windowsRead returns l, its answer's usage headers reading its account's
+// 5-hour window at the use given, resetting at 17:10, and its week at 18%,
+// allowed; its 5-hour window's status, and the answer's, as said.
+func windowsRead(l ledger.Line, fiveHour, said string) ledger.Line {
+	l.Limits = map[string]string{
+		"5h-utilization": fiveHour, "5h-reset": strconv.FormatInt(At(17, 10, 0).Unix(), 10), "5h-status": said,
 		"7d-utilization": "0.18", "7d-reset": strconv.FormatInt(onDay(5, 9, 0, 0).Unix(), 10), "7d-status": "allowed",
-		"status": "allowed",
+		"status": said,
 	}
+	return l
 }
 
 // sentAgain returns l, its request sent again after each account tried
@@ -570,7 +570,7 @@ func failedOnly() LogMoment {
 	atLimit := func(account string) ledger.Tried { return ledger.Tried{Account: account, Why: status.WhyLimit} }
 	r0 := requested("r0", D28C, Opus, side, status.ReasonNew, At(14, 30, 0))
 	c0 := requested("c0", C61B, Opus, side, status.ReasonNew, At(14, 31, 0))
-	refused := sentAgain(failing(429, requested("c1", C61B, Opus, side, status.ReasonSticky, At(14, 36, 0))), atLimit(side), atLimit(work))
+	refused := sentAgain(windowsRead(failing(429, requested("c1", C61B, Opus, side, status.ReasonSticky, At(14, 36, 0))), "1.0", "rejected"), atLimit(side), atLimit(work))
 	cutOff := failing(0, requested("c2", C61B, Opus, side, status.ReasonSticky, At(14, 37, 0)))
 	cutOff.CutOff, cutOff.FirstMS = true, nil
 	givenUp := failing(0, requested("c3", C61B, Opus, side, status.ReasonSticky, At(14, 38, 0)))
@@ -694,7 +694,7 @@ func inFlightDetails(lined bool) LogMoment {
 		return m
 	}
 	then := m
-	l := requested("r1", D28C, Opus, side, status.ReasonSticky, sent.Add(-100*time.Millisecond))
+	l := windowsRead(requested("r1", D28C, Opus, side, status.ReasonSticky, sent.Add(-100*time.Millisecond)), "0.42", "allowed")
 	l.TotalMS = 16_000
 	ended := sent.Add(16 * time.Second)
 	m.Name = "a request answering, its details open, paused, its line come while the stream's open: the rest of them, its row where it sat, not new"

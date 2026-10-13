@@ -88,6 +88,15 @@ func (r LogRead) WrittenTo() time.Time {
 	return r.written
 }
 
+// sessionStory is the story of the session with the given id, as r holds it
+// told from every line of it: nil where r holds none of its lines.
+func (r LogRead) sessionStory(id string) *story {
+	if s := r.sessions[id]; s != nil {
+		return s.story
+	}
+	return nil
+}
+
 // take is r with lines taken in at now, as Grown says.
 func (r LogRead) take(l LedgerSessions, lines []ledger.Held, now time.Time) LogRead {
 	fresh := r.unheld(lines)

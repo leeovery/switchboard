@@ -319,6 +319,50 @@ func TestADaysSummaryCountsTheRequestsCountedCounts(t *testing.T) {
 	}
 }
 
+func TestALineCountsTowardItsSessionUnlessItsAQuotaCheck(t *testing.T) {
+	tests := []struct {
+		name, kind, session string
+		want                string
+	}{
+		{name: "a message of a session", kind: ledger.KindMessage, session: "one", want: "one"},
+		{name: "a count of tokens, which Counted counts among no requests", kind: ledger.KindCount, session: "one", want: "one"},
+		{name: "a line of no kind", session: "one", want: "one"},
+		{name: "the client's quota check, of a session it never uses again", kind: ledger.KindCheck, session: "one"},
+		{name: "a message of no session", kind: ledger.KindMessage},
+	}
+	for _, tt := range tests {
+		if got := (&ledger.Line{Kind: tt.kind, Session: tt.session}).CountedSession(); got != tt.want {
+			t.Errorf("%s: CountedSession() = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestADaysSummaryNamesTheSessionsCountedSessionSays(t *testing.T) {
+	lines := []ledger.Line{askedBy("1", "one", on(0, 9, 0)), askedBy("2", "checked", on(0, 9, 1)), askedBy("3", "counted", on(0, 9, 2)), askedBy("4", "", on(0, 9, 3))}
+	lines[1].Kind = ledger.KindCheck
+	lines[2].Kind = ledger.KindCount
+	s, err := ledger.Summarise(date, slices.Values(lines), noReadings.of, nil, caps, dayDone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var named, modelNamed, counted []string
+	for _, a := range s.Accounts {
+		named = append(named, a.SessionIDs...)
+		for _, m := range a.Models {
+			modelNamed = append(modelNamed, m.SessionIDs...)
+		}
+	}
+	for _, l := range lines {
+		if id := l.CountedSession(); id != "" {
+			counted = append(counted, id)
+		}
+	}
+	slices.Sort(counted)
+	if !slices.Equal(named, counted) || !slices.Equal(modelNamed, counted) {
+		t.Errorf("the day's summary names sessions %q, its model %q, and CountedSession %q, want all three the same", named, modelNamed, counted)
+	}
+}
+
 func TestARequestFailedWhereItWasAnswered400OrOverOrNothing(t *testing.T) {
 	tests := []struct {
 		name string

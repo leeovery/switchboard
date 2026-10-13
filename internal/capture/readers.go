@@ -2,6 +2,8 @@ package capture
 
 import (
 	"cmp"
+	"fmt"
+	"io/fs"
 	"iter"
 	"slices"
 	"strings"
@@ -128,6 +130,19 @@ func (l heldLedger) FirstDay(now time.Time) (time.Time, error) {
 	return start, nil
 }
 
+// FirstLinesDay gives the start of the first day the records' lines that
+// arrived by now are filed under, as a Follower finds the first day its
+// files hold lines of, failing with fs.ErrNotExist where none has.
+func (l heldLedger) FirstLinesDay(now time.Time) (time.Time, error) {
+	lines := l.arrived(now)
+	if len(lines) == 0 {
+		return time.Time{}, fmt.Errorf("the records hold no day's lines: %w", fs.ErrNotExist)
+	}
+	first := slices.MinFunc(lines, func(a, b filed) int { return strings.Compare(a.date, b.date) })
+	start, _, _ := dayfile.Day(first.date)
+	return start, nil
+}
+
 // Today gives every line that arrived from today's start to now, oldest
 // first, as a Follower orders them, afresh, whatever mark says, as a Follower
 // gives them where today's files were replaced: a ledger.Mark is the ledger
@@ -146,6 +161,28 @@ func (l heldLedger) Today(ledger.Mark) (lines []ledger.Held, next ledger.Mark, a
 		lines = append(lines, f.Held)
 	}
 	return lines, ledger.Mark{}, true
+}
+
+// Day gives the lines that arrived on the local day with the given date, by
+// now, oldest first, as a Follower orders them: whichever day's files hold
+// them, as a Follower reads the day's files and its neighbours'.
+func (l heldLedger) Day(date string) []ledger.Held {
+	start, end, ok := dayfile.Day(date)
+	if !ok {
+		return nil
+	}
+	var day []filed
+	for _, f := range l.arrived(l.now()) {
+		if !f.At.Before(start) && f.At.Before(end) {
+			day = append(day, f)
+		}
+	}
+	slices.SortStableFunc(day, byArrival)
+	lines := make([]ledger.Held, len(day))
+	for i, f := range day {
+		lines[i] = f.Held
+	}
+	return lines
 }
 
 // Session gives the lines of the session with the given id that arrived by
@@ -215,11 +252,12 @@ func (l heldLedger) Sessions(ids []string, take func(date string, line ledger.Li
 }
 
 // naming are the dates of the days whose lines name a session wanted, as
-// their summaries would: among those their lines, but quota checks, were of.
+// their summaries would: one a line counts toward, as Line.CountedSession
+// says.
 func naming(lines []filed, wanted map[string]bool) map[string]bool {
 	named := make(map[string]bool)
 	for _, f := range lines {
-		if f.Kind != ledger.KindCheck && wanted[f.Session] {
+		if wanted[f.CountedSession()] {
 			named[f.date] = true
 		}
 	}

@@ -1,6 +1,8 @@
 package ledger_test
 
 import (
+	"errors"
+	"io/fs"
 	"reflect"
 	"slices"
 	"testing"
@@ -29,6 +31,15 @@ func TestAnEmptyLedgerReadsAsAFollowerOfAnEmptyStateDirectory(t *testing.T) {
 			t.Errorf("the %s Today() = %+v, afresh %v, want %+v, afresh %v, as a Follower of an empty state directory gives",
 				call, gotLines, gotAfresh, wantLines, wantAfresh)
 		}
+	}
+	if got, want := empty.Day("2026-10-06"), follower.Day("2026-10-06"); len(got) != len(want) {
+		t.Errorf("Day() = %+v, want %+v, as a Follower of an empty state directory gives", got, want)
+	}
+	if _, err := empty.FirstLinesDay(clock.at); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("FirstLinesDay() fails with %v, want fs.ErrNotExist", err)
+	}
+	if _, err := follower.FirstLinesDay(clock.at); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("a Follower of an empty state directory's FirstLinesDay() fails with %v, want fs.ErrNotExist, as Empty's does", err)
 	}
 	if got, want := slices.Collect(empty.Session("5b0e7c1a")), slices.Collect(follower.Session("5b0e7c1a")); len(got) != len(want) {
 		t.Errorf("Session() = %+v, want %+v, as a Follower of an empty state directory gives", got, want)
