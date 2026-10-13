@@ -1,0 +1,184 @@
+package views
+
+import (
+	"time"
+
+	"github.com/leeovery/switchboard/internal/dayfile"
+)
+
+// AccountsPage is Accounts as the dashboard draws it, Compare and Detail
+// alike: each configured account's row and every account's, their totals and
+// plans over the period, and their last six weeks, a day at a time and a week
+// at a time, with Weeks' verdict on them. It's built of the days held once
+// for each period, never a frame at a time, and stood at each look's moment
+// as At stands it.
+type AccountsPage struct {
+	// Period is the period the rows' totals and plans are over, and Recorded
+	// is set where its days record anything of any account: a request, a
+	// limit, or a minute at a cap or a limit. A period with nothing recorded,
+	// as on a fresh install, shows none of its figures.
+	Period   AccountsPeriod
+	Recorded bool
+	// Weeks are the six weeks' first days' dates, oldest first, this week
+	// last, and ToCome how many of this week's days are still to come.
+	Weeks  []string
+	ToCome int
+	// Rows are each configured account's, in the config's order, and All
+	// every account's.
+	Rows []AccountsRow
+	All  AccountsRow
+
+	// in and days are what the six weeks are worked out from, for At to
+	// work them out afresh: the input the page was built of, and the days
+	// from lookBack before the first of the eight weeks Weeks judges.
+	in   HistoryInput
+	days []Day
+}
+
+// AccountsRow is an account's row of Accounts, or every account's.
+type AccountsRow struct {
+	// Totals are its totals over the period, and Plan its plan over it and
+	// its worth against it, as History counts and prices them: the plan
+	// priced whole for the period, whenever it began recording, so an
+	// account added part-way shows what was recorded of it against the
+	// whole period's price.
+	Totals AccountTotals
+	Plan   PlanCost
+	// PlanName names its plan as the price table does, as Max 20x: "" where
+	// its plan isn't known, and of every account's.
+	PlanName string
+	// WeekLeft is the share its week had left as it last reset, the use read
+	// just before that reset taken from the whole, and RanOut the date of the
+	// local day it last reached its week's limit in the week that reset
+	// ended, "" where it didn't, whatever the period: nil, and "", where none
+	// of its weeks ended among the six weeks' days and the week before, and
+	// of every account's.
+	WeekLeft *float64
+	RanOut   string
+	// Days are the six weeks' days, from the first, those to come among
+	// them: each at the level, on its own scale, of the points of its week
+	// it used that day, marked where it hit a 5-hour limit. Of every
+	// account's, each day is every account's points together, marked where
+	// any hit one.
+	Days []StripDay
+	// Peaks are its six weeks' peaks, as Weeks places its own weeks under
+	// them, this week's so far, and of every account's, the mean of theirs;
+	// and Verdict is Weeks' verdict on it, over the last 7 whole weeks, or of
+	// every account's, on them together.
+	Peaks   []WeekPeak
+	Verdict AccountVerdict
+}
+
+// accountsWeeks are the weeks Accounts' BY DAY and WEEKS show: this one, so
+// far, and the five before it.
+const accountsWeeks = 6
+
+// Accounts is Accounts' page over the period given, as AccountsPage has it,
+// of the days the Past holds at its Now.
+func (p Past) Accounts(period AccountsPeriod) AccountsPage {
+	in := p.in
+	today := dayfile.CivilOf(in.Now)
+	first := period.first(today, in.WeekStarts).Format(time.DateOnly)
+	_, days := splitAt(p.days, first)
+	totals := accountTotalsOf(days, in.Accounts, p.versions())
+	known := plans{accounts: in.Accounts, table: in.Prices}
+	costs := plansOf(days, known, first, period.share())
+	_, weeks := splitAt(p.days, weeksTo(today, in.WeekStarts, weeksShown).AddDate(0, 0, -lookBack).Format(time.DateOnly))
+	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), in: in, days: weeks}
+	for x, a := range in.Accounts {
+		plan, _ := known.of(a.ID)
+		page.Rows[x] = AccountsRow{Totals: totals.Accounts[x], Plan: costs[x], PlanName: plan.Name}
+	}
+	all := len(in.Accounts)
+	page.All = AccountsRow{Totals: totals.Accounts[all], Plan: costs[all]}
+	page.Recorded = page.All.Totals.recorded()
+	page.byDay()
+	page.weeked(in, weeks)
+	return page
+}
+
+// recorded reports whether the totals record anything: a request, a limit,
+// or a minute at a cap or a limit.
+func (t AccountTotals) recorded() bool {
+	minutes := func(m *int) bool { return m != nil && *m > 0 }
+	return t.Requests > 0 || len(t.Limits) > 0 || minutes(t.MinutesAtCap) || minutes(t.MinutesAtLimit)
+}
+
+// byDay sets BY DAY's days of each row, of the six weeks to the page's Now,
+// and how many of this week's are still to come.
+func (page *AccountsPage) byDay() {
+	in := page.in
+	w := weekDaysOf(page.days, in.Now, in.WeekStarts, accountsWeeks)
+	page.ToCome = len(w.days) - 1 - w.today
+	every, anyLimits := make([]float64, len(w.days)), make([]int, len(w.days))
+	for x, a := range in.Accounts {
+		rises, limits := w.risesOf(a.ID, in.WeekWindow)
+		page.Rows[x].Days = onItsOwnScale(rises, limits)
+		for d := range rises {
+			every[d] += rises[d]
+			anyLimits[d] += limits[d]
+		}
+	}
+	page.All.Days = onItsOwnScale(every, anyLimits)
+}
+
+// onItsOwnScale are a strip's days, each at the level its value is shaded at
+// on the strip's own scale, the quarters of its own active days, marked
+// where its day's limits are any.
+func onItsOwnScale(values []float64, limits []int) []StripDay {
+	days := levelled(values, quarterCuts(appendActive(nil, values)))
+	for d, n := range limits {
+		days[d].Limit = n > 0
+	}
+	return days
+}
+
+// weeked sets the page's six weeks and each row's peaks and verdict, as
+// Weeks gives them of days at in's Now, and each account's left at its last
+// reset, as lastEnded tells its week's.
+func (page *AccountsPage) weeked(in HistoryInput, days []Day) {
+	weeks := Past{in: in, days: days}.weeksPage()
+	shown := len(weeks.Weeks) - accountsWeeks
+	page.Weeks = weeks.Weeks[shown:]
+	for x, a := range in.Accounts {
+		row := &page.Rows[x]
+		row.Peaks, row.Verdict = weeks.Accounts[x].Peaks[shown:], weeks.Accounts[x].AccountVerdict
+		row.WeekLeft, row.RanOut = nil, ""
+		if run, ok := lastEnded(accountDays(days, a.ID), in.WeekWindow); ok {
+			row.WeekLeft, row.RanOut = &run.left, run.ranOut
+		}
+	}
+	page.All.Peaks, page.All.Verdict = weeks.All.Peaks[shown:], weeks.All.AccountVerdict
+}
+
+// PlansKnown counts the configured accounts whose plans are known, those
+// every account's plan sums, of all of them, as in "2 of 3 plans".
+func (p AccountsPage) PlansKnown() (known, of int) {
+	for _, row := range p.Rows {
+		if row.Plan.Price != nil {
+			known++
+		}
+	}
+	return known, len(p.Rows)
+}
+
+// Ends are the accounts whose weeks end with the most left at a reset, on
+// average, and with the least, as Detail's verdict on every account names
+// them: of those whose verdict knows it, the first configured of any that
+// tie, the one both where only one knows it. It reports false where none
+// does.
+func (p AccountsPage) Ends() (most, least AccountsRow, ok bool) {
+	for _, row := range p.Rows {
+		left := row.Verdict.LeftAtReset
+		switch {
+		case left == nil:
+		case !ok:
+			most, least, ok = row, row, true
+		case *left > *most.Verdict.LeftAtReset:
+			most = row
+		case *left < *least.Verdict.LeftAtReset:
+			least = row
+		}
+	}
+	return most, least, ok
+}
