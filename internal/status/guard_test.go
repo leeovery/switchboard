@@ -119,7 +119,7 @@ var (
 		"status.Best",
 		"status.Account.HeldBy", "status.Account.Shut", "status.Account.TokenRefused", "status.Account.WindowAt",
 		"status.Document.Destination", "status.Document.Floor", "status.Document.Reserved", "status.Document.RunsOut",
-		"status.Document.StateOf", "status.Document.WindowStatesOf",
+		"status.Document.StateOf", "status.Document.Text", "status.Document.WindowStatesOf",
 	}
 )
 
