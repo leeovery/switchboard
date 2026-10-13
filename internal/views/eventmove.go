@@ -22,7 +22,7 @@ type EventMove struct {
 }
 
 // moveOf is the move the move event e tells of, as the story s of its
-// session tells it, nil where s is nil or tells of none. An event carries no
+// session tells it, nil where s tells of none. An event carries no
 // request's id, so it's the move of e's model from e's From to e's To whose
 // request arrived last at or before e happened: a request's line is filed
 // as it arrived, to the millisecond cut down, and the router tells of the
@@ -31,9 +31,6 @@ type EventMove struct {
 // before it. A move event naming no model, as one from a router from before
 // events named it, is of its session's move of any model.
 func moveOf(s *story, e status.Event) *move {
-	if s == nil {
-		return nil
-	}
 	var made *move
 	for i := range s.moves {
 		m := &s.moves[i]

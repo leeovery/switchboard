@@ -26,18 +26,6 @@ func (f EventFilter) Keeps(e LogEvent) bool {
 	return ticked(f.Kinds, e.Kind) && tickedAny(f.Accounts, e.Accounts) && ticked(f.Sessions, e.Session)
 }
 
-// ticked reports whether the choice with the given ticks keeps the one
-// given: none ticked keeps every one.
-func ticked(ticks []string, one string) bool {
-	return len(ticks) == 0 || slices.Contains(ticks, one)
-}
-
-// tickedAny reports whether the choice with the given ticks keeps any of
-// those given: none ticked keeps every one, even none.
-func tickedAny(ticks, ones []string) bool {
-	return len(ticks) == 0 || slices.ContainsFunc(ones, func(one string) bool { return slices.Contains(ticks, one) })
-}
-
 // EventCount is what today's events count: every one, and those the filter
 // shows; and every one by its kind, as the router names it, by each account
 // it names, and by its session, by the session's whole id, an account's

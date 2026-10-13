@@ -41,8 +41,8 @@ func eventsRead(hm viewstest.EventMoment, files views.Events) views.EventsRead {
 // reads them, the moment's lines read as the Log's Requests read them.
 func eventsOf(hm viewstest.EventMoment, read views.EventsRead) views.EventsTable {
 	return views.LogEvents(views.LogEventSources{
-		From: hm.From, Events: read, Read: views.ReadLog(ledgerHolding(hm.Now, hm.Lines...), hm.Lines),
-		Names: status.NameOfKey, Prices: ledger.Pricing, Now: hm.Now,
+		From: hm.From, Events: read, Read: logRead(hm.Now, hm.Lines...),
+		Names: status.NameOfKey, Now: hm.Now,
 	})
 }
 
@@ -305,7 +305,7 @@ func TestAMovesCostIsTheSameInItsEventsRowItsRequestsRowAndTheList(t *testing.T)
 			table := eventsOf(hm, eventsRead(hm, filedIn(t, hm)))
 			rows := table.Rows
 			requests := views.LogRows(views.LogSources{
-				From: hm.Lines[0].At, Now: hm.Now, Read: views.ReadLog(ledgerHolding(hm.Now, hm.Lines...), hm.Lines), Prices: ledger.Pricing,
+				From: hm.Lines[0].At, Now: hm.Now, Read: logRead(hm.Now, hm.Lines...),
 			})
 			list := views.ListSessions(views.SessionSources{Unlisted: true, Ledger: ledgerHolding(hm.Now, hm.Lines...), Prices: ledger.Pricing, Now: hm.Now})
 			for _, row := range rows {
@@ -329,7 +329,7 @@ func TestAMovesCostIsTheSameInItsEventsRowItsRequestsRowAndTheList(t *testing.T)
 					}
 				}
 			}
-			compared["card"] += cardsAgree(t, table, rows, views.ReadLog(ledgerHolding(hm.Now, hm.Lines...), hm.Lines))
+			compared["card"] += cardsAgree(t, table, rows, logRead(hm.Now, hm.Lines...))
 		})
 	}
 	for _, where := range []string{"request", "list", "card"} {

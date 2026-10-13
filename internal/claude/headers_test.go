@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -333,6 +334,32 @@ func TestALedgerLinesLimitsGiveEachWindowAsItsAnswerReadIt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := claude.WindowsRead(tt.limits, 0.05); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("WindowsRead(%v, 0.05) =\n%+v\nwant\n%+v", tt.limits, got, tt.want)
+			}
+		})
+	}
+}
+
+// A ledger line's limits, as Count keeps them off its answer's headers, give
+// the answer's status as the overall status gave it: none where it gave
+// none, a window's own status not the answer's.
+func TestALedgerLinesLimitsGiveTheStatusItsAnswersHeadersDid(t *testing.T) {
+	tests := []struct {
+		name   string
+		header http.Header
+		want   quota.Status
+	}{
+		{name: "allowed", header: header("anthropic-ratelimit-unified-status", "allowed"), want: quota.StatusAllowed},
+		{name: "near a limit, beside a window's own", want: quota.StatusAllowedWarning,
+			header: header("anthropic-ratelimit-unified-status", "allowed_warning", "anthropic-ratelimit-unified-5h-status", "allowed")},
+		{name: "rejected", header: header("anthropic-ratelimit-unified-status", "rejected"), want: quota.StatusRejected},
+		{name: "a window's alone", header: header("anthropic-ratelimit-unified-5h-status", "rejected")},
+		{name: "none", header: header()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, reply := (claude.Provider{}).Count(tt.header, strings.NewReader(""), func(int) {})
+			if got := claude.LimitStatus(reply.Limits); got != tt.want {
+				t.Errorf("LimitStatus(%v) = %q, want %q", reply.Limits, got, tt.want)
 			}
 		})
 	}

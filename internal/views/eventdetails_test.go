@@ -80,7 +80,7 @@ func TestAnEventsDetailsAtEachHardMoment(t *testing.T) {
 		}
 		t.Run(hm.Name, func(t *testing.T) {
 			table := eventsOf(hm, eventsRead(hm, filedIn(t, hm)))
-			read := views.ReadLog(ledgerHolding(hm.Now, hm.Lines...), hm.Lines)
+			read := logRead(hm.Now, hm.Lines...)
 			for key, want := range hm.Details {
 				d, ok := table.Details(views.EventKey{Run: time.Unix(0, key.Run), ID: key.ID}, read)
 				if !ok {
