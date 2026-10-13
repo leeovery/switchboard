@@ -32,6 +32,9 @@ const (
 	PartDuration
 	// PartFigure is a figure among words, as a count of weeks.
 	PartFigure
+	// PartUse is how much of a window is used, as "95%", drawn in its
+	// level's colour.
+	PartUse
 )
 
 // String runs the words together, as a page drawn without colour shows them.
@@ -182,6 +185,11 @@ func Named(id string) Part {
 // Figure is a figure among words, as a count.
 func Figure(text string) Part {
 	return Part{Text: text, Kind: PartFigure}
+}
+
+// Use is how much of a window is used among words, as "95%".
+func Use(text string) Part {
+	return Part{Text: text, Kind: PartUse}
 }
 
 // readers each read a kind of reason, reporting false for any other, in the

@@ -35,6 +35,10 @@ type LogEvent struct {
 	// Moved counts the sessions a limit, a cap or a refusal moved, as its
 	// Line says them: it rises in place as each of its moves counts.
 	Moved int
+	// Use is how much of its window a cap's account had used, as its Line's
+	// status.PartUse says it, which colours it by its level: none of any
+	// other event.
+	Use float64
 	// Move is what a move's move came to, as its session's story settles it:
 	// nil for any other event, and for a move no line read tells of.
 	Move *EventMove
@@ -120,8 +124,11 @@ func eventRow(e Event, line EventLine, fact eventFact, s *story, now time.Time) 
 		Key: e.Key, At: e.Event.At.In(now.Location()), Kind: e.Event.Kind, Well: wellAgain(e.Event),
 		Session: e.Event.Session, Accounts: namedAccounts(e.Event), Line: line, Moved: fact.moved, Dir: s.dir,
 	}
-	if e.Event.Kind == status.EventMoved {
+	switch e.Event.Kind {
+	case status.EventMoved:
 		row.Move = eventMove(moveOf(s, e.Event))
+	case status.EventCap:
+		row.Use = capUse(e.Event)
 	}
 	return row
 }
