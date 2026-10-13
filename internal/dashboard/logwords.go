@@ -214,9 +214,9 @@ func (s logState) line(width int, now time.Time) line {
 func (s logState) said(now time.Time) (whole, kept line) {
 	switch s.standing {
 	case logPaused:
-		kept = line{{"‖", alertInk}, {" paused", secondaryInk}, {" at " + loggedAt(now, s.at), mutedInk}}
+		kept = s.pausedSaid(now)
 		if s.fresh > 0 {
-			kept = append(kept, spaces(headingGap), span{"▼ ", keyMarkInk}, span{prose.Grouped(s.fresh) + " new", keyInk})
+			kept = slices.Concat(kept, line{spaces(headingGap)}, s.freshSaid())
 		}
 		return slices.Concat(kept, line{spaces(headingGap), {"end", keyInk}, {" to follow", mutedInk}}), kept
 	case logNotLive:
@@ -229,6 +229,18 @@ func (s logState) said(now time.Time) (whole, kept line) {
 	}
 	kept = line{{"●", positiveInk}, {" following", secondaryInk}}
 	return kept, kept
+}
+
+// pausedSaid is what the state line says first of a table paused: "‖ paused
+// at 14:31:13".
+func (s logState) pausedSaid(now time.Time) line {
+	return line{{"‖", alertInk}, {" paused", secondaryInk}, {" at " + loggedAt(now, s.at), mutedInk}}
+}
+
+// freshSaid is what the state line says of the lines come since a table
+// paused: "▼ 214 new".
+func (s logState) freshSaid() line {
+	return line{{"▼ ", keyMarkInk}, {prose.Grouped(s.fresh) + " new", keyInk}}
 }
 
 // count is the state line's count: "1,240 lines today", or, of a session
