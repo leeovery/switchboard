@@ -16,7 +16,7 @@ import (
 // last reset and the day it ran out, its worth and its ratio, and its
 // verdict.
 type accountsFramed struct {
-	id             string
+	id, label      string
 	on, off        int
 	limits         map[string]int
 	atCap, atLimit int
@@ -41,7 +41,7 @@ func (f accountsFramed) row() views.AccountsRow {
 		totals.MinutesAtCap, totals.MinutesAtLimit = nil, nil
 	}
 	row := views.AccountsRow{
-		Totals: totals, Plan: views.PlanCost{Account: f.id, All: all}, WeekLeft: f.left, RanOut: f.ranOut,
+		Label: f.label, Totals: totals, Plan: views.PlanCost{Account: f.id, All: all}, WeekLeft: f.left, RanOut: f.ranOut,
 		Verdict: views.AccountVerdict{Account: f.id, All: all, Verdict: f.verdict, Weeks: f.weeks, Limits: f.limited, LeftAtReset: f.leftOnAverage},
 	}
 	if f.planKnown {
@@ -284,6 +284,11 @@ func TestTheVerdictSaysEachForm(t *testing.T) {
 	little := framedAll
 	little.verdict, little.leftOnAverage = views.LittleToSpare, new(0.12)
 	oneKnown := framedPage(framedWork, unjudged(framedSide), framedAll)
+	byLabel := func(f accountsFramed, id string) accountsFramed {
+		f.id, f.label = id, f.id
+		return f
+	}
+	labelled := framedPage(byLabel(framedWork, "acct-1"), byLabel(framedSide, "acct-2"), framedAll)
 	noneKnown := framedPage(unjudged(framedWork), unjudged(framedSide), framedAll)
 	notEnough := line{{views.NotEnoughWeeks, dimInk}}
 	tests := []struct {
@@ -295,6 +300,8 @@ func TestTheVerdictSaysEachForm(t *testing.T) {
 		{name: "every account with no week judged", parts: verdictParts(noneKnown, unjudged(framedAll).row()), want: notEnough},
 		{name: "every account, one account's weeks known", parts: verdictParts(oneKnown, oneKnown.All),
 			want: line{{views.RoomToSpare, boldPositiveInk}, {"   30% left at a reset, on average · work ends weeks with 9% left", mutedInk}}},
+		{name: "every account, its accounts labelled apart from their ids", parts: verdictParts(labelled, labelled.All),
+			want: line{{views.RoomToSpare, boldPositiveInk}, {"   30% left at a reset, on average · side ends weeks with 59% left, work with 9%", mutedInk}}},
 		{name: "every account, none's weeks known", parts: verdictParts(noneKnown, noneKnown.All),
 			want: line{{views.RoomToSpare, boldPositiveInk}, {"   30% left at a reset, on average", mutedInk}}},
 		{name: "every account, little to spare", parts: verdictParts(noneKnown, little.row()),

@@ -76,12 +76,14 @@ type ModelShare struct {
 }
 
 // accountTotalsOf are the totals over days of the accounts given, and of every
-// account.
-func accountTotalsOf(days []Day, accounts config.Accounts, v versions) Totals {
+// account, the days before them, oldest first, telling no more than the runs
+// of their windows that ended among them.
+func accountTotalsOf(before, days []Day, accounts config.Accounts, v versions) Totals {
 	index := make(map[string]int, len(accounts))
 	tallies := make([]*totalling, len(accounts)+1)
 	for i, a := range accounts {
 		index[a.ID], tallies[i] = i, newTotalling(AccountTotals{Account: a.ID})
+		tallies[i].before = accountDays(before, a.ID)
 	}
 	all := len(accounts)
 	tallies[all] = newTotalling(AccountTotals{All: true})
@@ -108,15 +110,15 @@ func accountTotalsOf(days []Day, accounts config.Accounts, v versions) Totals {
 
 // totalling is an account's totals as they're counted, day by day: the ids
 // of its sessions, and how many days counted beyond those they named; its
-// days, which its windows' runs are told from; its minutes at its cap and at
-// a limit, and whether any day read them and any never did; its worth by
-// model version; and how many days in a row it's had requests, and its most
-// in a day.
+// days, and those before them, which the runs of its windows that ended
+// among its days are told from; its minutes at its cap and at a limit, and
+// whether any day read them and any never did; its worth by model version;
+// and how many days in a row it's had requests, and its most in a day.
 type totalling struct {
 	AccountTotals
 	ids          map[string]bool
 	unnamed      int
-	days         []ledger.AccountDay
+	before, days []ledger.AccountDay
 	atCap        int
 	atLimit      int
 	read, unread bool
@@ -206,12 +208,12 @@ func (t *totalling) totals() AccountTotals {
 }
 
 // endedRuns are, of each window whose run ended among the days, as lastEnded
-// tells its last, the share it had left as it reset, and the date it last
-// reached its limit in that run, where it did, each by the window's key: none
-// where none ended.
+// tells its last, from the days before them too, as a run may begin there,
+// the share it had left as it reset, and the date it last reached its limit
+// in that run, where it did, each by the window's key: none where none ended.
 func (t *totalling) endedRuns() (left map[string]float64, ranOut map[string]string) {
 	for _, key := range resetWindows(t.days) {
-		run, _ := lastEnded(t.days, key)
+		run, _ := lastEnded(slices.Concat(t.before, t.days), key)
 		if left == nil {
 			left = make(map[string]float64)
 		}

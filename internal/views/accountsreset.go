@@ -13,12 +13,13 @@ import (
 )
 
 // At is the page as it stands at the moment m, of the document of its
-// accounts: where m has an account's window a week long reset since it was
-// read, and the page's days don't hold that reset yet, as before the router
-// reads the account again, its weeks are worked out at m's Now as though the
-// days held it, filed as the ledger files one, so its left at its last reset,
-// its peaks and its verdict change on the second WEEK USED reads none. Once
-// the days hold it, it isn't counted again. The rest stands as it was built.
+// accounts: where m has an account's window a week long reset, since it was
+// read or before it was read again, and the page's days don't hold that reset
+// yet, as they were read before it, its weeks are worked out at m's Now as
+// though the days held it, filed as the ledger files one, so its left at its
+// last reset, its peaks and its verdict change on the second WEEK USED reads
+// none, and stay so. Once the days hold it, it isn't counted again. The rest
+// stands as it was built.
 func (p AccountsPage) At(m status.Moment) AccountsPage {
 	resets := p.unfiled(m)
 	if len(resets) == 0 {
@@ -38,9 +39,7 @@ type accountReset struct {
 }
 
 // unfiled are the resets of the windows a week long of the page's accounts
-// that m has reset since they were read and the page's days don't hold, each
-// as the ledger would file it: at its reset, as read, the highest use read of
-// the week it ended before it, the days' or the reading's.
+// that m tells of and the page's days don't hold, as endedSince has them.
 func (p AccountsPage) unfiled(m status.Moment) []accountReset {
 	var resets []accountReset
 	for _, a := range m.Accounts {
@@ -49,14 +48,46 @@ func (p AccountsPage) unfiled(m status.Moment) []accountReset {
 		}
 		own := accountDays(p.days, a.ID)
 		for _, w := range a.Windows {
-			if !w.ResetSinceRead || !quota.WeekLong(w.Key) || resetAfter(own, w.Key, w.Read.At) {
-				continue
+			if reset, ok := endedSince(w, p.days, own); ok {
+				resets = append(resets, accountReset{account: a.ID, reset: reset})
 			}
-			before := max(w.Read.Used, highestSince(own, w.Key).share())
-			resets = append(resets, accountReset{account: a.ID, reset: ledger.Reset{Window: w.Key, At: w.Read.ResetsAt.UTC(), Before: before}})
 		}
 	}
 	return resets
+}
+
+// endedSince is the reset that ended a run of the window w a week long, of
+// an account whose days are own, a day each of days, where the days don't
+// hold it yet, as the ledger would file it: of a run that has reset since it
+// was read, at its reset as read; or, read again since it reset, of the run
+// before the one it reads, at that one's start. It closes at the most read
+// of the run, the days' as highestBefore has it, or the reading's of a run
+// read before it reset. It reports false where the days hold it, of any
+// other window, and where the run closes at nothing, as the ledger files no
+// reset of a week of none.
+func endedSince(w status.WindowNow, days []Day, own []ledger.AccountDay) (ledger.Reset, bool) {
+	length, ok := quota.Length(w.Key)
+	if !ok || !quota.WeekLong(w.Key) {
+		return ledger.Reset{}, false
+	}
+	var end time.Time
+	var read float64
+	switch {
+	case w.ResetSinceRead && !resetAfter(own, w.Key, w.Read.At):
+		end, read = w.Read.ResetsAt, w.Read.Used
+	// The days file the reset that began the run read at its start as Claude
+	// gives it, to the second or so: the one before came a whole length
+	// before, so one filed within half of that is this one.
+	case !w.ResetSinceRead && !w.Start.IsZero() && !resetAfter(own, w.Key, w.Start.Add(-length/2)):
+		end = w.Start
+	default:
+		return ledger.Reset{}, false
+	}
+	before := max(read, highestBefore(days, own, w.Key, end).share())
+	if before == 0 {
+		return ledger.Reset{}, false
+	}
+	return ledger.Reset{Window: w.Key, At: end.UTC(), Before: before}, true
 }
 
 // resetAfter reports whether an account's days hold a reset of the window with
@@ -67,20 +98,22 @@ func resetAfter(days []ledger.AccountDay, key string, at time.Time) bool {
 	})
 }
 
-// highestSince is the highest use of the window with the given key an
-// account's days, oldest first, read since its last reset among them, as
-// soFar has it, or of all of them, where none reset it: none where none is
-// known.
-func highestSince(days []ledger.AccountDay, key string) millionths {
-	for i, d := range slices.Backward(days) {
-		if resetOn(d, key) {
-			peak, _ := soFar(days, key, i)
+// highestBefore is the highest use read of the window with the given key in
+// the run that ended at end, of an account's days, own, a day each of days,
+// oldest first: since its last reset among them, as soFar has it, where that
+// came on or after the day the run began on, the window's length before end;
+// else of the days after that one, as that day's highest may be the run
+// before's. None where none is read.
+func highestBefore(days []Day, own []ledger.AccountDay, key string, end time.Time) millionths {
+	length, _ := quota.Length(key)
+	began := dayfile.DateOf(end.Add(-length))
+	var peak millionths
+	for i := len(own) - 1; i >= 0 && days[i].Day >= began; i-- {
+		if resetOn(own[i], key) {
+			peak, _ = soFar(own, key, i)
 			return peak
 		}
-	}
-	var peak millionths
-	for _, d := range days {
-		if highest, ok := d.Highest[key]; ok {
+		if highest, ok := own[i].Highest[key]; ok && days[i].Day > began {
 			peak = max(peak, millionthsOf(highest))
 		}
 	}

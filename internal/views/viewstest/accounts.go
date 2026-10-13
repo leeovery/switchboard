@@ -90,7 +90,8 @@ const (
 
 // AccountsMoments are the moments Accounts has to get right: a week at its
 // limit reset before the router reads it again, at 20:59:59, at 21:00:01
-// before the reread, and once it's reread, the reset filed; fewer than
+// before the reread, once it's reread, the reset filed, and reread before the
+// days file it; fewer than
 // seven weeks recorded; a fresh install; an account added part-way through
 // the period; ten accounts, extra usage on for one; six sessions on the
 // account shown, then the one selected ended; today at midnight, and this
@@ -130,7 +131,8 @@ func in2026(month time.Month, day, hour, minute, second int) time.Time {
 // peaks and its verdict change with it: the week that reset closed at its
 // use, 100%, under 28 September, a whole week, so its verdict now counts it.
 // Once reread, the days hold the reset, and every figure is as it was at
-// 21:00:01.
+// 21:00:01; and so it is reread over days read before 21:00, as a page held
+// since then has them.
 func weekResetBeforeTheReread() []AccountsMoment {
 	accounts := config.Accounts{workMax, sideMax}
 	asRead, reread := in2026(time.October, 5, 20, 59, 30), in2026(time.October, 5, 21, 0, 30)
@@ -167,6 +169,10 @@ func weekResetBeforeTheReread() []AccountsMoment {
 		{
 			Name: "a week reset at 21:00, reread at 21:00:30, the reset filed", Accounts: accounts, WeekStarts: time.Monday,
 			Days: mondayWeeks(true), Doc: readAgain, Now: in2026(time.October, 5, 21, 0, 31), Page: sixWeeks, Want: afterTheReset,
+		},
+		{
+			Name: "a week reset at 21:00, reread at 21:00:30, the days read before it", Accounts: accounts, WeekStarts: time.Monday,
+			Days: before, Doc: readAgain, Now: in2026(time.October, 5, 21, 0, 31), Page: sixWeeks, Want: afterTheReset,
 		},
 	}
 }

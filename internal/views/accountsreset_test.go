@@ -7,8 +7,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
@@ -19,6 +21,7 @@ const (
 	aSecondBefore  = "a week at its limit at 20:59:59, a second before it resets"
 	beforeTheRead  = "a week reset at 21:00, at 21:00:01, before the router reads it again"
 	onceItsReFiled = "a week reset at 21:00, reread at 21:00:30, the reset filed"
+	rereadUnfiled  = "a week reset at 21:00, reread at 21:00:30, the days read before it"
 )
 
 // accountsMoment is the moment of AccountsMoments with the given name.
@@ -50,14 +53,19 @@ func weeksSaid(page views.AccountsPage) string {
 // A week reset since it was read, before the router reads it again, changes
 // every figure of Accounts' weeks on the second WEEK USED reads none, as
 // though the days held the reset, and once they do, they're the same again:
-// at 21:00:01 as once it's reread and filed, both other than at 20:59:59.
+// at 21:00:01, and reread over days read before it, as once it's reread and
+// filed, all other than at 20:59:59.
 func TestAWeekResetBeforeTheRereadChangesItsWeeksAsFiled(t *testing.T) {
 	before, _ := accountsAt(accountsMoment(t, aSecondBefore))
 	unread, _ := accountsAt(accountsMoment(t, beforeTheRead))
+	reread, _ := accountsAt(accountsMoment(t, rereadUnfiled))
 	filed, _ := accountsAt(accountsMoment(t, onceItsReFiled))
 
 	if got, want := weeksSaid(unread), weeksSaid(filed); got != want {
 		t.Errorf("before the reread, the weeks say\n%s\nwant them as once the reset is filed\n%s", got, want)
+	}
+	if got, want := weeksSaid(reread), weeksSaid(filed); got != want {
+		t.Errorf("reread before the days file the reset, the weeks say\n%s\nwant them as once it's filed\n%s", got, want)
 	}
 	if got, was := weeksSaid(unread), weeksSaid(before); got == was {
 		t.Errorf("at 21:00:01, the weeks say as at 20:59:59\n%s\nwant them changed by the reset", got)
@@ -80,24 +88,108 @@ func TestAWeekResetTheDaysHoldIsntCountedTwice(t *testing.T) {
 	}
 }
 
+// Reread, the document gives the run it reads a start a little off the
+// reset the days file, as Claude gives a reset to the second or so: over the
+// filed days it isn't counted again, and over days read before it, it's
+// folded in at that start, the weeks as once it's filed either way.
+func TestARereadWeekStartingOffTheFiledResetIsCountedOnce(t *testing.T) {
+	want, _ := accountsAt(accountsMoment(t, onceItsReFiled))
+	for _, name := range []string{onceItsReFiled, rereadUnfiled} {
+		for _, off := range []time.Duration{-90 * time.Second, 90 * time.Second} {
+			got, _ := accountsAt(weekResetsOff(accountsMoment(t, name), "work", off))
+			if weeksSaid(got) != weeksSaid(want) {
+				t.Errorf("%s, the week starting %v off, the weeks say\n%s\nwant\n%s", name, off, weeksSaid(got), weeksSaid(want))
+			}
+		}
+	}
+}
+
+// weekResetsOff is the moment am, its document reading the week of the
+// account with the given id to reset off as given.
+func weekResetsOff(am viewstest.AccountsMoment, id string, off time.Duration) viewstest.AccountsMoment {
+	am.Doc.Accounts = slices.Clone(am.Doc.Accounts)
+	for i, a := range am.Doc.Accounts {
+		if a.ID != id {
+			continue
+		}
+		windows := slices.Clone(a.Windows)
+		for j := range windows {
+			if windows[j].Key == claude.WeekWindow {
+				windows[j].ResetsAt = windows[j].ResetsAt.Add(off)
+			}
+		}
+		am.Doc.Accounts[i].Windows = windows
+	}
+	return am
+}
+
 // A week reset before the reread closes at the most read of it, the days'
-// highest or the document's: where the document read less than the days
-// did, or the days less than the document, it had 0% left all the same.
+// highest or the document's of the week it read before it reset: where the
+// document read less than the days did, or the days less than the document,
+// it had 0% left all the same. A document read again since reads the next
+// week, so the days' highest alone closes the week before it.
 func TestAWeekResetBeforeTheRereadClosesAtTheMostReadOfIt(t *testing.T) {
 	tests := []struct {
 		name string
 		am   viewstest.AccountsMoment
+		want string
 	}{
-		{name: "read at 90%, the days' highest 100%", am: weekReadAs(accountsMoment(t, beforeTheRead), "work", 0.9)},
-		{name: "read at 100%, the days' highest 80%", am: weekHighestAtMost(accountsMoment(t, beforeTheRead), "work", "2026-09-29", 0.8)},
+		{name: "read at 90%, the days' highest 100%", am: weekReadAs(accountsMoment(t, beforeTheRead), "work", 0.9), want: "0%"},
+		{name: "read at 100%, the days' highest 80%", am: weekHighestAtMost(accountsMoment(t, beforeTheRead), "work", "2026-09-29", 0.8), want: "0%"},
+		{name: "reread at 50% of the next week, the days' highest 40%",
+			am: weekHighestAtMost(weekReadAs(accountsMoment(t, rereadUnfiled), "work", 0.5), "work", "2026-09-29", 0.4), want: "60%"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			page, _ := accountsAt(tt.am)
-			if got := shareRead(rowOf(t, page, "work").WeekLeft); got != "0%" {
-				t.Errorf("work's week had %s left as it reset, want 0%%", got)
+			if got := shareRead(rowOf(t, page, "work").WeekLeft); got != tt.want {
+				t.Errorf("work's week had %s left as it reset, want %s", got, tt.want)
 			}
 		})
+	}
+}
+
+// Where the days hold no reset of the week that began it, it closes at the
+// most read of it in the days after the one it began on, a week before it
+// reset: not at a higher week's weeks before, nor since an older reset.
+func TestAWeekResetBeforeTheRereadClosesAtTheMostReadInTheWeekItEnded(t *testing.T) {
+	for _, from := range []string{"2026-08-10", "2026-09-14"} {
+		am := weekReadAs(accountsMoment(t, beforeTheRead), "work", 0.4)
+		am = weekHighestAtMost(withoutWeekResets(am, "work", from), "work", "2026-09-29", 0.4)
+		page, _ := accountsAt(am)
+		if got := shareRead(rowOf(t, page, "work").WeekLeft); got != "60%" {
+			t.Errorf("work's resets from %s gone, its week had %s left as it reset, want 60%%, the 40%% read of it", from, got)
+		}
+	}
+}
+
+// withoutWeekResets is the moment am, its days from the one with the date
+// from on holding no reset of the week of the account with the given id.
+func withoutWeekResets(am viewstest.AccountsMoment, id, from string) viewstest.AccountsMoment {
+	days := slices.Clone(am.Days)
+	for i := range days {
+		if days[i].Day < from {
+			continue
+		}
+		days[i].Accounts = slices.Clone(days[i].Accounts)
+		for j, a := range days[i].Accounts {
+			if a.Account == id {
+				days[i].Accounts[j].Resets = slices.DeleteFunc(slices.Clone(a.Resets), func(r ledger.Reset) bool { return r.Window == claude.WeekWindow })
+			}
+		}
+	}
+	am.Days = days
+	return am
+}
+
+// A week reset before the reread with nothing read of it, the days' highest
+// none and the document's, isn't folded in, as the ledger never files a
+// reset of nothing: the page stands as it was built.
+func TestAWeekResetBeforeTheRereadOfNothingReadIsntFoldedIn(t *testing.T) {
+	am := weekHighestAtMost(weekReadAs(accountsMoment(t, beforeTheRead), "work", 0), "work", "2026-09-29", 0)
+	built := views.NewPast(accountsIn(am), am.Days).Accounts(am.Period)
+	if stood := built.At(am.Doc.At(am.Now, claude.Policy)); weeksSaid(stood) != weeksSaid(built) {
+		t.Errorf("standing the page at a reset of nothing read, its weeks say\n%s\nwant them as built\n%s", weeksSaid(stood), weeksSaid(built))
 	}
 }
 
