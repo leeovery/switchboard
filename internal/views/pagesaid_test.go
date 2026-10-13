@@ -337,3 +337,30 @@ func TestTheWindowsASessionTookPointsOfAreNamedShortestFirst(t *testing.T) {
 		}
 	}
 }
+
+// Each window's points are words apart, the first leading with ≈ and each
+// after it with ·, their points a figure, so a row short of room leaves
+// whole windows off its end; a phone says them short.
+func TestTheWindowsASessionTookPointsOfAreWordsApartWideAndShort(t *testing.T) {
+	points := map[string]int{"7d": 6, "5h": 1, "7d_oi": 2}
+	tests := []struct {
+		form views.PointsForm
+		want []status.Words
+	}{
+		{form: views.PointsWide, want: []status.Words{
+			{status.Plain("≈ "), status.Figure("1"), status.Plain(" point"), status.Plain(" of its 5-hour")},
+			{status.Plain(" · "), status.Figure("6"), status.Plain(" of its week")},
+			{status.Plain(" · "), status.Figure("2"), status.Plain(" of its Fable week")},
+		}},
+		{form: views.PointsShort, want: []status.Words{
+			{status.Plain("≈ "), status.Figure("1"), status.Plain(" of 5-hour")},
+			{status.Plain(" · "), status.Figure("6"), status.Plain(" of week")},
+			{status.Plain(" · "), status.Figure("2"), status.Plain(" of Fable week")},
+		}},
+	}
+	for _, tt := range tests {
+		if got := (views.SessionAccount{Points: points}).PointsWords(tt.form); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("PointsWords(%d) = %q, want %q", tt.form, got, tt.want)
+		}
+	}
+}

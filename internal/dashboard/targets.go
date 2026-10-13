@@ -58,7 +58,8 @@ const (
 
 // Targets are the zones of the frame's page of doc at now a click acts on,
 // each over the cells it's drawn on, laid out as the page draws them: its
-// tabs; the heading row's sub-tabs, and < and > by its period or window; the
+// tabs; the heading row's sub-tabs, and < and > by its period or window; a
+// session's page's, where one is open, as sessionTargets has them, else the
 // Overview's, as overviewTargets has them; and the key line's keys, as
 // keyTargets has them.
 func (f Frame) Targets(doc status.Document, now time.Time) []Target {
@@ -68,7 +69,11 @@ func (f Frame) Targets(doc status.Document, now time.Time) []Target {
 			targets = append(targets, p.target())
 		}
 	}
-	if f.View == Overview && !f.cramped() {
+	switch {
+	case f.cramped():
+	case f.Session != nil:
+		targets = append(targets, f.At(doc, now).sessionTargets(doc, now)...)
+	case f.View == Overview:
 		targets = append(targets, f.At(doc, now).overviewTargets(doc, now)...)
 	}
 	return append(targets, f.keyTargets()...)
