@@ -35,10 +35,12 @@ func TestRevealingScrollsNoFurtherThanItMustToShowTheAccount(t *testing.T) {
 
 // Each scroll line the design gives is a form of outOfView, said in the inks
 // the design gives it, else in text.subtle, as a scroll line is (~991):
-// USAGE's rows (~1450), Days' accounts (~2162), Tokens' periods (~2191) and
-// the routing card's rows (~3671), as they're drawn; and Compare's accounts
-// on a phone (~1838), a session's turns (~3383), a turn's requests (~3403)
-// and the Log's sessions to pick from (~3004), in forms of their own.
+// USAGE's rows (~1450), SESSIONS' sessions (~1685, ~1917), Days' accounts
+// (~2162), Tokens' periods (~2191) and the routing card's rows (~3671), as
+// they're drawn, SESSIONS' leading with + in place of its mark; and
+// Compare's accounts on a phone (~1838), a session's turns (~3383), a turn's
+// requests (~3403) and the Log's sessions to pick from (~3004), in forms of
+// their own.
 func TestEachScrollLineTheDesignGivesIsAFormOfOutOfView(t *testing.T) {
 	key, words, apart, keys, subtle := ink{token: theme.AccentKey}, ink{token: theme.TextMuted}, ink{token: theme.TextFaint}, ink{token: theme.AccentKey, bold: true}, ink{token: theme.TextSubtle}
 	page := outInks{mark: keyMarkInk, space: mutedInk, count: mutedInk, gap: mutedInk, keys: keyInk, does: mutedInk}
@@ -50,6 +52,7 @@ func TestEachScrollLineTheDesignGivesIsAFormOfOutOfView(t *testing.T) {
 	}{
 		{name: "USAGE's rows, below", below: 4, forms: []outForm{usageOut}, want: line{{"▼ 4 more accounts", subtle}}},
 		{name: "USAGE's rows, above", above: 2, forms: []outForm{usageOut}, want: line{{"▲ 2 more accounts", subtle}}},
+		{name: "SESSIONS' sessions", below: 2, forms: []outForm{runningOut}, want: line{{"+2 more", subtle}}},
 		{
 			name: "Days' accounts", below: 4, forms: historyAccountsOut,
 			want: line{{"▼", key}, {" 4 more accounts below", words}, {"   ·   ", apart}, {"j/k", keys}, {" or the wheel to scroll them", words}},
@@ -86,7 +89,7 @@ func TestEachScrollLineTheDesignGivesIsAFormOfOutOfView(t *testing.T) {
 
 // Where nothing is out of view, outOfView says nothing, in any form.
 func TestOutOfViewSaysNothingWhereNothingIsOutOfView(t *testing.T) {
-	for _, forms := range [][]outForm{historyAccountsOut, {periodsOut("week")}, {usageOut}, {cardOut}} {
+	for _, forms := range [][]outForm{historyAccountsOut, {periodsOut("week")}, {usageOut}, {runningOut}, {cardOut}} {
 		if got := outOfView(0, 0, 160, forms...); got != nil {
 			t.Errorf("with nothing out of view, %+v says %q, want nothing", forms[0], got.plain())
 		}

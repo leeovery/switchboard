@@ -124,17 +124,49 @@ func boolSaid(b bool) string {
 	return "no"
 }
 
+// agreeing is a moment the List and the Log are held to each other at: the
+// lines the ledger holds, the router's sessions, whether no router lists
+// them, what the stream told, and when the table starts and both are read.
+type agreeing struct {
+	name      string
+	lines     []ledger.Line
+	sessions  []status.Session
+	unlisted  bool
+	stream    views.Stream
+	from, now time.Time
+}
+
+// agreeingAt are the moments of the ledger and the stream, and those of the
+// sessions, the table of each of the latter spanning every day its lines
+// are of.
+func agreeingAt() []agreeing {
+	var at []agreeing
+	for _, hm := range viewstest.LogMoments() {
+		at = append(at, agreeing{name: hm.Name, lines: hm.Lines, sessions: hm.Sessions, stream: hm.Stream, from: hm.From, now: hm.Now})
+	}
+	for _, hm := range viewstest.SessionMoments() {
+		from := hm.Now
+		for _, l := range hm.Lines {
+			if l.At.Before(from) {
+				from = l.At
+			}
+		}
+		at = append(at, agreeing{name: hm.Name, lines: hm.Lines, sessions: hm.Sessions, unlisted: hm.Unlisted, stream: hm.Stream, from: from, now: hm.Now})
+	}
+	return at
+}
+
 // TestTheListAndTheLogAgreeOnASessionsLatestRequest holds the List's mark
 // and routing to the Log's row of each listed session's latest request, at
-// each hard moment, where both apply: the row in flight, the session's one
-// request in flight, or the row's move the one that brought the session's
-// listed model to its account.
+// each hard moment of the ledger and the stream, and of the sessions, where
+// both apply: the row in flight, the session's one request in flight, or the
+// row's move the one that brought the session's listed model to its account.
 func TestTheListAndTheLogAgreeOnASessionsLatestRequest(t *testing.T) {
 	compared := 0
-	for _, hm := range viewstest.LogMoments() {
-		table := views.LogRows(logSourcesOf(hm))
+	for _, hm := range agreeingAt() {
+		table := views.LogRows(logSourcesOf(viewstest.LogMoment{Lines: hm.lines, Stream: hm.stream, From: hm.from, Now: hm.now}))
 		list := views.ListSessions(views.SessionSources{
-			Running: hm.Sessions, Stream: hm.Stream, Ledger: fakeLedger{lines: hm.Lines, now: hm.Now}, Prices: ledger.Pricing, Now: hm.Now,
+			Running: hm.sessions, Unlisted: hm.unlisted, Stream: hm.stream, Ledger: fakeLedger{lines: hm.lines, now: hm.now}, Prices: ledger.Pricing, Now: hm.now,
 		})
 		for _, s := range list.Sessions {
 			row, flying, ok := latestOf(table, s.Session)
@@ -143,13 +175,13 @@ func TestTheListAndTheLogAgreeOnASessionsLatestRequest(t *testing.T) {
 			}
 			compared++
 			if s.Mark != row.Mark || row.Mark == views.MarkMoved && !reflect.DeepEqual(s.Routing, row.Routing) {
-				t.Errorf("%s: the List marks %s %q, routed %q, but the Log marks its latest request %q, routed %q", hm.Name,
+				t.Errorf("%s: the List marks %s %q, routed %q, but the Log marks its latest request %q, routed %q", hm.name,
 					s.Session[:4], s.Mark, routingWords(s.Routing), row.Mark, routingWords(row.Routing))
 			}
 		}
 	}
-	if compared < 5 {
-		t.Errorf("the List and the Log are compared at %d rows, want at least the 5 of the moments asking, answering and moved", compared)
+	if compared < 16 {
+		t.Errorf("the List and the Log are compared at %d rows, want at least the 16 of the moments asking, answering and moved", compared)
 	}
 }
 

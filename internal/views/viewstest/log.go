@@ -116,12 +116,6 @@ func requested(id, session, model, account, reason string, at time.Time) ledger.
 	}
 }
 
-// movedOff returns l, its request moving its session off the account given.
-func movedOff(from string, l ledger.Line) ledger.Line {
-	l.From = from
-	return l
-}
-
 // sentAgain returns l, its request sent again after each account tried
 // couldn't serve it.
 func sentAgain(l ledger.Line, tried ...ledger.Tried) ledger.Line {

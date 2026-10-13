@@ -30,19 +30,19 @@ func (d LedgerDay) Holds(t time.Time) bool {
 }
 
 // story is what a session's requests tell, taken in oldest first, as add
-// takes them: its first and last request, its last that went to an account,
-// and its last of its own conversation that did; the directory it last
-// named; its last request whose answer gave usage, and its last such turn of
-// its own conversation; its requests on the day and their worth; each move a
-// request of it made; and, of each of its threads, when its last request
-// ended, and how long its writes to the cache last.
+// takes them: its first and last request; what names it; the directory it
+// last named; its last request whose answer gave usage, and its last such
+// turn of its own conversation; its requests on the day and their worth;
+// each move a request of it made; and, of each of its threads, when its last
+// request ended, and how long its writes to the cache last.
 type story struct {
 	prices ledger.Table
 	day    LedgerDay
 
-	first, last, lastRouted, lastMain *ledger.Line
-	dir                               string
-	used, usedMain                    *ledger.Line
+	first, last    *ledger.Line
+	naming         naming
+	dir            string
+	used, usedMain *ledger.Line
 	// classed is set once a request of it says its class, as a Claude Code
 	// and a router that tell prompts apart have each say.
 	classed  bool
@@ -89,12 +89,7 @@ func (s *story) add(r request) {
 	}
 	s.classed = s.classed || l.Class != ""
 	main := l.Class == ledger.ClassMain
-	if l.Account != "" {
-		s.lastRouted = l
-		if main {
-			s.lastMain = l
-		}
-	}
+	s.naming.see(l.Model, l.Account, l.Class, l.At)
 	if r.metered {
 		s.used = l
 		if main {
@@ -147,27 +142,6 @@ func (s *story) life(thread string) time.Duration {
 		return life
 	}
 	return ledger.LongCache
-}
-
-// conversation returns the session's last request of its own conversation
-// that went to an account, where its requests say their class and one did,
-// else its last request that went to one: the one whose account and model
-// the List names, as a request the router answered itself went to none.
-func (s *story) conversation() *ledger.Line {
-	if s.classed && s.lastMain != nil {
-		return s.lastMain
-	}
-	return s.lastRouted
-}
-
-// conversationModel returns the model of the session's last request of its
-// own conversation that went to an account: "" where its requests don't say
-// their class, or none did.
-func (s *story) conversationModel() string {
-	if !s.classed || s.lastMain == nil {
-		return ""
-	}
-	return s.lastMain.Model
 }
 
 // move is a request's move of its session from one account onto another:

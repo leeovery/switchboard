@@ -32,7 +32,8 @@ type Activity struct {
 	// Ended, when its last request came. It's zero where none of that is
 	// known.
 	Since time.Time
-	// LastSeen is when the router, or the stream, last saw it at work.
+	// LastSeen is when the router, or the stream, last saw it at work, or,
+	// of a session's, its last request came, as its line gives it.
 	LastSeen time.Time
 }
 
@@ -195,15 +196,19 @@ func (h heard) doing() Activity {
 
 // hearing is what a request stream told of each session's model on each
 // account, but of Claude Code's quota checks, which are no session's work;
-// and whether it's live.
+// whether it's live; and each session's requests that spend quota, by its
+// id, the first sent first, as its turns count them and what names it reads
+// them.
 type hearing struct {
 	live  bool
 	seats map[seatOf]heard
+	told  map[string][]Told
 }
 
-// hearing is what s told of each session's model on each account.
+// hearing is what s told of each session's model on each account, and of
+// each session's requests.
 func (s Stream) hearing() hearing {
-	h := hearing{live: s.Live, seats: make(map[seatOf]heard)}
+	h := hearing{live: s.Live, seats: make(map[seatOf]heard), told: make(map[string][]Told)}
 	for _, t := range s.Requests {
 		if t.Check || t.Session == "" {
 			continue
@@ -215,6 +220,12 @@ func (s Stream) hearing() hearing {
 			got.busiest, got.flying = t, true
 		}
 		h.seats[k] = got
+		if t.Spends() {
+			h.told[t.Session] = append(h.told[t.Session], t)
+		}
+	}
+	for _, told := range h.told {
+		slices.SortFunc(told, func(a, b Told) int { return cmp.Or(a.Sent.Compare(b.Sent), strings.Compare(a.Request, b.Request)) })
 	}
 	return h
 }
@@ -246,6 +257,21 @@ func listedDoing(a status.Assignment) Activity {
 		return Activity{Doing: Asking, Since: a.LastSeen, LastSeen: a.LastSeen}
 	}
 	return Activity{}
+}
+
+// saw reports whether the stream, live, has seen the session with the given
+// id at work within the IdleHour before now: told of a request of it in
+// flight, or of any of its requests since.
+func (h hearing) saw(id string, now time.Time) bool {
+	if !h.live {
+		return false
+	}
+	for k, got := range h.seats {
+		if k.session == id && (got.flying || now.Sub(got.last) <= IdleHour) {
+			return true
+		}
+	}
+	return false
 }
 
 // session is what the session s is doing as a whole, as the router listed

@@ -22,10 +22,12 @@ const IdleHour = time.Hour
 type Running struct {
 	// Account is the account's id, and Session the session's.
 	Account, Session string
-	// Family is the family of its model seen last there, as "opus".
+	// Family is the family of its model named there, as "opus": the model
+	// naming it, as the List names it from what the request stream told,
+	// where that runs there, else its model seen last there.
 	Family string
-	// Why is why its model seen last there is there, in the views' words for
-	// the router's reasons, with when, as "started here 14:41, the best".
+	// Why is why its model named there is there, in the views' words for the
+	// router's reasons, with when, as "started here 14:41, the best".
 	Why status.Words
 	// Models are its models whose requests go there, the one seen last
 	// first.
@@ -81,15 +83,21 @@ func runsOn(a status.Assignment, id string, now time.Time) bool {
 
 // runningOn is the session s as it runs on the account with the given id at
 // the moment m, as h hears its models there, reporting false where none of
-// them runs there.
+// them runs there: named there by the model naming it, as names has it of
+// what the stream told, where that runs there, else by its model seen last
+// there.
 func runningOn(m status.Moment, s status.Session, id string, h hearing) (Running, bool) {
 	there := slices.DeleteFunc(slices.Clone(s.Assignments), func(a status.Assignment) bool { return !runsOn(a, id, m.Now) })
 	if len(there) == 0 {
 		return Running{}, false
 	}
 	slices.SortStableFunc(there, func(x, y status.Assignment) int { return y.LastSeen.Compare(x.LastSeen) })
-	last := there[0]
-	r := Running{Account: id, Session: s.ID, Family: last.Name(), Why: whyRunning(m, s, last)}
+	named := there[0]
+	_, model := naming{}.heard(h.told[s.ID]).names(s.Assignments)
+	if i := slices.IndexFunc(there, func(a status.Assignment) bool { return a.Model == model }); i >= 0 {
+		named = there[i]
+	}
+	r := Running{Account: id, Session: s.ID, Family: named.Name(), Why: whyRunning(m, s, named)}
 	activities := make([]Activity, len(there))
 	for i, a := range there {
 		r.Models = append(r.Models, a.Model)

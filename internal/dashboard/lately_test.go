@@ -62,29 +62,63 @@ func TestLATELYsMarksAreOneAKindInTheirColours(t *testing.T) {
 
 // The kinds of event are one table, in the design's order, as help and the
 // Log's panel list them: each kind once, named by the word views gives it,
-// as the Log's event column and its panel name it; a mark a kind, but for ■,
-// which a limit and a refusal share; and what each mark means, said by the
-// first kind that draws it, a kind sharing an earlier one's mark leaving it
-// to that one.
+// as the Log's event column and its panel name it, and meaning what the
+// panel says it is (~3013–3018), word for word; a mark a kind, but for ■,
+// which a limit and a refusal share.
 func TestTheKindsOfEventAreOneTableOfMarksWordsAndMeanings(t *testing.T) {
-	want := []string{"started", "moved", "pressure", "cap", "limit", "refused", "primed", "open", "pin", "auto", "restart", "health"}
-	var words []string
+	want := []struct{ word, means string }{
+		{"started", "a session first seen"},
+		{"moved", "a session moved to another account"},
+		{"pressure", "an account under pressure"},
+		{"cap", "an account at its cap"},
+		{"limit", "an account at its limit"},
+		{"refused", "an account's token refused"},
+		{"primed", "a window started early"},
+		{"open", "an account with room again"},
+		{"pin", "routing set by hand"},
+		{"auto", "routing given back to the router"},
+		{"restart", "a restart of the router falling due"},
+		{"health", "the router unhealthy, or well again"},
+	}
+	if len(eventKinds) != len(want) {
+		t.Fatalf("there are %d kinds, want %d", len(eventKinds), len(want))
+	}
 	drawnBy := make(map[span][]string)
-	for _, k := range eventKinds {
-		words = append(words, views.KindWord(k.kind))
-		if earlier := drawnBy[k.mark]; (len(earlier) > 0) != (k.means == "") {
-			t.Errorf("%s means %q, its mark drawn before by %v: want a meaning where it's the first to draw its mark, and none else", k.kind, k.means, earlier)
+	for i, k := range eventKinds {
+		if word := views.KindWord(k.kind); word != want[i].word || k.means != want[i].means {
+			t.Errorf("kind %d is %q, meaning %q, want %q, meaning %q", i+1, word, k.means, want[i].word, want[i].means)
 		}
 		drawnBy[k.mark] = append(drawnBy[k.mark], k.kind)
-	}
-	if !slices.Equal(words, want) {
-		t.Errorf("the kinds are named %q, want %q", words, want)
 	}
 	closing := []string{status.EventLimit, status.EventRefused}
 	for mark, kinds := range drawnBy {
 		if shared := len(kinds) > 1; shared && (mark.text != "■" || !slices.Equal(kinds, closing)) {
 			t.Errorf("%q is drawn by %v, want a mark a kind, but for ■, a limit's and a refusal's", mark.text, kinds)
 		}
+	}
+}
+
+// Help gives each of LATELY's marks once, in the kinds' order, meaning what
+// each kind drawing it is, as the Log's panel says it: ■ a limit's and a
+// refusal's, joined.
+func TestHelpGivesEachMarkOnceMeaningWhatEachKindDrawingItIs(t *testing.T) {
+	want := []glyph{
+		{drawn: line{{"▲", accentInk}}, means: "a session first seen"},
+		{drawn: line{{"▸", keyMarkInk}}, means: "a session moved to another account"},
+		{drawn: line{{"◔", warningInk}}, means: "an account under pressure"},
+		{drawn: line{{"╎", warningInk}}, means: "an account at its cap"},
+		{drawn: line{{"■", errorInk}}, means: "an account at its limit, or an account's token refused"},
+		{drawn: line{{"◇", dimInk}}, means: "a window started early"},
+		{drawn: line{{"✓", positiveInk}}, means: "an account with room again"},
+		{drawn: line{{"●", keyMarkInk}}, means: "routing set by hand"},
+		{drawn: line{{"↩", keyMarkInk}}, means: "routing given back to the router"},
+		{drawn: line{{"!", warningInk}}, means: "a restart of the router falling due"},
+		{drawn: line{{"⊕", errorInk}}, means: "the router unhealthy, or well again"},
+	}
+	got := latelyGlyphs()
+	same := slices.EqualFunc(got, want, func(a, b glyph) bool { return slices.Equal(a.drawn, b.drawn) && a.means == b.means })
+	if !same {
+		t.Errorf("help gives LATELY's marks as %+v, want %+v", got, want)
 	}
 }
 

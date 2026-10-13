@@ -118,12 +118,15 @@ func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) 
 }
 
 // outForm is a form of the line saying what's out of view where a view
-// scrolls: the thing it counts, as "account", none where a count stands
-// alone, as "▼ 3 more"; the words after a count of those above, and of those
-// below, as " above" and " below", none where it doesn't say where they are;
-// the gap between its parts; the keys that scroll the view, as "j/k", none
-// where it doesn't say, and what they do; and its inks.
+// scrolls: what each count leads with in place of its mark, ▲ or ▼, and the
+// space after it, as "+" in "+2 more", none where it leads with its mark;
+// the thing it counts, as "account", none where a count stands alone, as "▼
+// 3 more"; the words after a count of those above, and of those below, as "
+// above" and " below", none where it doesn't say where they are; the gap
+// between its parts; the keys that scroll the view, as "j/k", none where it
+// doesn't say, and what they do; and its inks.
 type outForm struct {
+	lead            string
 	noun            string
 	above, below    string
 	gap, keys, does string
@@ -193,21 +196,26 @@ func (o outForm) said(above, below int) line {
 }
 
 // parts are what's out of view, above and below, as the form says it: each
-// count where any are out of view there, after its mark and the space after
-// it, its count a figure, then where they are; then the keys that scroll the
+// count where any are out of view there, after its mark and a space, or the
+// form's lead, its count a figure, then where they are; then the keys that scroll the
 // view, and what they do; each part gap apart.
 func (o outForm) parts(above, below int) []part {
 	return joinedParts(span{o.gap, o.inks.gap}, o.counted("▲", above, o.above), o.counted("▼", below, o.below), o.scrolled())
 }
 
-// counted is n out of view, after the mark given, as the form counts them,
-// where says where they are: none where n is.
+// counted is n out of view, after the mark given and a space, or what the
+// form leads a count with instead, as the form counts them, where says where
+// they are: none where n is.
 func (o outForm) counted(mark string, n int, where string) []part {
 	if n == 0 {
 		return nil
 	}
 	k := o.inks
-	counted := slices.Concat([]part{wordsPart(line{{mark, k.mark}, {" ", k.space}})}, moreParts(n, o.noun, k.count))
+	lead := line{{mark, k.mark}, {" ", k.space}}
+	if o.lead != "" {
+		lead = line{{o.lead, k.mark}}
+	}
+	counted := slices.Concat([]part{wordsPart(lead)}, moreParts(n, o.noun, k.count))
 	if where != "" {
 		counted = append(counted, wordsIn(where, k.count))
 	}

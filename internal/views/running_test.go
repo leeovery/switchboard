@@ -96,6 +96,40 @@ func TestASessionsModelsOnOneAccountAreOneRowItsModelSeenLastLeading(t *testing.
 	}
 }
 
+// On an account, a session is named by the model naming it, as the request
+// stream tells of its main thread, where that runs there, its reason with
+// it: a title seen since doesn't name it.
+func TestASessionsRowIsNamedByItsMainThreadWhereItRunsThere(t *testing.T) {
+	sessions := []status.Session{{ID: asking, Assignments: []status.Assignment{
+		seatOn("claude-haiku-4-5", "haiku", "side", status.ReasonNew, 10*time.Minute, time.Minute, ""),
+		seatOn("claude-opus-5-5", "opus", "side", status.ReasonPinned, 30*time.Minute, 2*time.Minute, ""),
+	}}}
+	main := views.Told{Request: "r1", Session: asking, Model: "claude-opus-5-5", Account: "side", Class: "main", Sent: now.Add(-2 * time.Minute)}
+	main.Ended, main.Heard = main.Sent.Add(10*time.Second), main.Sent.Add(10*time.Second)
+	title := views.Told{Request: "r2", Session: asking, Model: "claude-haiku-4-5", Account: "side", Class: "auxiliary", Sent: now.Add(-time.Minute)}
+	title.Ended, title.Heard = title.Sent.Add(time.Second), title.Sent.Add(time.Second)
+	tests := []struct {
+		name        string
+		told        []views.Told
+		family, why string
+	}{
+		{name: "its main thread's, a title seen since", told: []views.Told{main, title}, family: "opus", why: "pinned here 12:42"},
+		{name: "its model seen last there, no main request told of", told: []views.Told{title}, family: "haiku", why: "started here 13:02, the best"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stream := views.Stream{Live: true, Requests: make(map[string]views.Told)}
+			for _, r := range tt.told {
+				stream.Requests[r.Request] = r
+			}
+			rows := views.RunningOf(runningDoc().At(now, claude.Policy), sessions, stream)
+			if len(rows) != 1 || rows[0].Family != tt.family || rows[0].Why.String() != tt.why {
+				t.Errorf("RunningOf = %+v, want one row, %s, %q", rowsOf(rows), tt.family, tt.why)
+			}
+		})
+	}
+}
+
 func TestASessionRunsWhereItWasRoutedWithinTheHour(t *testing.T) {
 	tests := []struct {
 		name       string

@@ -11,8 +11,8 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// named returns l, its request given the id given.
-func named(id string, l ledger.Line) ledger.Line {
+// withID returns l, its request given the id given.
+func withID(id string, l ledger.Line) ledger.Line {
 	l.Request = id
 	return l
 }
@@ -56,7 +56,7 @@ func routingWords(r views.RoutingSaid) string {
 }
 
 func TestARequestsRowHoldsItsLinesFacts(t *testing.T) {
-	l := named("r1", in("~/Code/api", stopped("tool_use", headersAfter(800*time.Millisecond, took(11800*time.Millisecond,
+	l := withID("r1", in("~/Code/api", stopped("tool_use", headersAfter(800*time.Millisecond, took(11800*time.Millisecond,
 		line(mover, opus, "work", "sticky", october(7, 13, 0), hourUsage))), "Bash", "Read", "Edit")))
 	l.Canceled = true
 	got := views.RowOfLine(l, []ledger.Line{l}, ledger.Pricing, now)
@@ -72,7 +72,7 @@ func TestARequestsRowHoldsItsLinesFacts(t *testing.T) {
 }
 
 func TestARowKnowsNoMoreThanItsLineSays(t *testing.T) {
-	unsent := named("r1", line(mover, opus, "", "no account has room", october(7, 13, 0), ""))
+	unsent := withID("r1", line(mover, opus, "", "no account has room", october(7, 13, 0), ""))
 	unsent.Status, unsent.Attempts, unsent.TotalMS = 429, 0, 2
 	got := views.RowOfLine(unsent, []ledger.Line{unsent}, ledger.Pricing, now)
 	if got.First != nil || got.Metered || got.Read+got.Written+got.Out != 0 || got.Account != "" || !got.Failed || *got.Took != 2*time.Millisecond {
@@ -95,9 +95,9 @@ func TestARowsMarkIsTheFirstThatApplies(t *testing.T) {
 		l.Status = status
 		return l
 	}
-	before := named("r0", line(mover, opus, "work", "new", october(7, 12, 59), hourUsage))
-	stayed := named("r1", line(mover, opus, "work", "sticky", october(7, 13, 0), hourUsage))
-	moved := movedFrom("work", named("r1", line(mover, opus, "side", "moved: work is at its reserve", october(7, 13, 0), hourUsage)))
+	before := withID("r0", line(mover, opus, "work", "new", october(7, 12, 59), hourUsage))
+	stayed := withID("r1", line(mover, opus, "work", "sticky", october(7, 13, 0), hourUsage))
+	moved := movedFrom("work", withID("r1", line(mover, opus, "side", "moved: work is at its reserve", october(7, 13, 0), hourUsage)))
 	lineTests := []struct {
 		name string
 		l    ledger.Line
@@ -177,14 +177,14 @@ func TestARowInFlightIsWhatTheStreamTold(t *testing.T) {
 
 func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 	sent := october(7, 13, 11)
-	first := named("r0", line(mover, opus, "work", "new", october(7, 12, 0), hourUsage))
+	first := withID("r0", line(mover, opus, "work", "new", october(7, 12, 0), hourUsage))
 	lined := func(l ledger.Line) views.RequestRow {
 		return views.RowOfLine(l, []ledger.Line{first, l}, ledger.Pricing, now)
 	}
 	stop := func(why string, tools ...string) ledger.Line {
-		return stopped(why, named("r1", line(mover, opus, "work", "sticky", october(7, 13, 0), hourUsage)), tools...)
+		return stopped(why, withID("r1", line(mover, opus, "work", "sticky", october(7, 13, 0), hourUsage)), tools...)
 	}
-	moved := movedFrom("work", named("r1", line(mover, opus, "side", "moved: work is at its reserve", october(7, 13, 0), hourUsage)))
+	moved := movedFrom("work", withID("r1", line(mover, opus, "side", "moved: work is at its reserve", october(7, 13, 0), hourUsage)))
 	toldDoing := func(first time.Time, chars int, lost bool) views.RequestRow {
 		return views.RowOfTold(views.Told{Request: "r9", Session: mover, Model: opus, Account: "side", Sent: sent, First: first, Chars: chars, Lost: lost}, now)
 	}
@@ -223,7 +223,7 @@ func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 const lostAnswer = "no answer: the router went away"
 
 func TestARowsRoutingSaysHowTheRouterChoseItsAccount(t *testing.T) {
-	first := named("r0", line(mover, opus, "work", "new", october(7, 12, 0), hourUsage))
+	first := withID("r0", line(mover, opus, "work", "new", october(7, 12, 0), hourUsage))
 	tried := func(l ledger.Line, tried ...ledger.Tried) ledger.Line {
 		l.Tried = tried
 		return l
@@ -239,34 +239,34 @@ func TestARowsRoutingSaysHowTheRouterChoseItsAccount(t *testing.T) {
 		want  string
 		mark  views.RowMark
 	}{
-		{name: "stayed", lines: []ledger.Line{first, named("r1", line(mover, opus, "work", "sticky", october(7, 12, 10), hourUsage))}},
+		{name: "stayed", lines: []ledger.Line{first, withID("r1", line(mover, opus, "work", "sticky", october(7, 12, 10), hourUsage))}},
 		{name: "its session's first", lines: []ledger.Line{first}, want: "new session", mark: views.MarkNew},
 		{
 			name:  "its session's first, sent by the global pin",
-			lines: []ledger.Line{named("r0", line(mover, opus, "work", status.ReasonGlobalPin, october(7, 12, 0), hourUsage))},
+			lines: []ledger.Line{withID("r0", line(mover, opus, "work", status.ReasonGlobalPin, october(7, 12, 0), hourUsage))},
 			want:  "new session", mark: views.MarkNew,
 		},
 		{
 			name:  "its session's second model's first, the router's new not its session's",
-			lines: []ledger.Line{first, named("r1", line(mover, haiku, "side", "new", october(7, 12, 10), smallUsage))},
+			lines: []ledger.Line{first, withID("r1", line(mover, haiku, "side", "new", october(7, 12, 10), smallUsage))},
 		},
 		{
 			name:  "a move, its cost its own write to the cache",
-			lines: []ledger.Line{first, movedFrom("work", named("r1", of(ledger.ClassMain, line(mover, opus, "side", "moved: work is at its reserve", october(7, 12, 10), hourUsage))))},
+			lines: []ledger.Line{first, movedFrom("work", withID("r1", of(ledger.ClassMain, line(mover, opus, "side", "moved: work is at its reserve", october(7, 12, 10), hourUsage))))},
 			want:  "from [work], at its cap  " + cost(hourWrite).Cents(), mark: views.MarkMoved,
 		},
 		{
 			name:  "sent again after a limit, its tried in place of its reason",
-			lines: []ledger.Line{first, tried(movedFrom("work", named("r1", line(mover, opus, "side", "moved: work hit its limit", october(7, 12, 10), hourUsage))), atLimit)},
+			lines: []ledger.Line{first, tried(movedFrom("work", withID("r1", line(mover, opus, "side", "moved: work hit its limit", october(7, 12, 10), hourUsage))), atLimit)},
 			want:  "after [work]'s limit  " + cost(hourWrite).Cents(), mark: views.MarkMoved,
 		},
 		{
 			name: "a 429 every account refused, passed on, its session back where it was",
-			lines: []ledger.Line{first, tried(answered(429, named("r1", line(mover, opus, "work", "sticky", october(7, 12, 10), ""))),
+			lines: []ledger.Line{first, tried(answered(429, withID("r1", line(mover, opus, "work", "sticky", october(7, 12, 10), ""))),
 				atLimit, ledger.Tried{Account: "side", Why: status.WhyLimit})},
 			want: "after [work]'s limit, [side]'s limit", mark: views.MarkFailed,
 		},
-		{name: "of no session", lines: []ledger.Line{named("r1", line("", opus, "work", "unsessioned", october(7, 12, 10), hourUsage))}},
+		{name: "of no session", lines: []ledger.Line{withID("r1", line("", opus, "work", "unsessioned", october(7, 12, 10), hourUsage))}},
 	}
 	for _, tt := range tests {
 		l := tt.lines[len(tt.lines)-1]
@@ -279,10 +279,10 @@ func TestARowsRoutingSaysHowTheRouterChoseItsAccount(t *testing.T) {
 
 func TestAMovesCostIsOnTheRequestThatMovedAsTheStorySettlesIt(t *testing.T) {
 	conversation := func(id, account, reason string, at time.Time) ledger.Line {
-		return named(id, serving(p1, ledger.ClassMain, line(paged, opus, account, reason, at, hourUsage)))
+		return withID(id, serving(p1, ledger.ClassMain, line(paged, opus, account, reason, at, hourUsage)))
 	}
 	side := func(id string, at time.Time) ledger.Line {
-		return movedFrom("work", named(id, serving(p1, "auxiliary", line(paged, opus, "side", "moved: work is at its reserve", at, smallUsage))))
+		return movedFrom("work", withID(id, serving(p1, "auxiliary", line(paged, opus, "side", "moved: work is at its reserve", at, smallUsage))))
 	}
 	tests := []struct {
 		name  string
@@ -334,8 +334,8 @@ func TestAMovesCostIsOnTheRequestThatMovedAsTheStorySettlesIt(t *testing.T) {
 
 func TestTheListsMarkAndRoutingAreAsTheLogsRowSaysThem(t *testing.T) {
 	seen := october(7, 13, 10)
-	started := named("r0", of(ledger.ClassMain, line(mover, opus, "work", "new", october(7, 12, 30), hourUsage)))
-	moved := movedFrom("work", named("r1", of(ledger.ClassMain, line(mover, opus, "side", "moved: work hit its limit", october(7, 12, 40), hourUsage))))
+	started := withID("r0", of(ledger.ClassMain, line(mover, opus, "work", "new", october(7, 12, 30), hourUsage)))
+	moved := movedFrom("work", withID("r1", of(ledger.ClassMain, line(mover, opus, "side", "moved: work hit its limit", october(7, 12, 40), hourUsage))))
 	retried := moved
 	retried.Tried = []ledger.Tried{{Account: "work", Why: status.WhyLimit}}
 	onSide := func(reason, inFlight string) []status.Session {

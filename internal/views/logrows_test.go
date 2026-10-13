@@ -58,8 +58,8 @@ func TestEachRequestIsOneRowByItsIdFromItsLineWhereItHasCome(t *testing.T) {
 	got := views.LogRows(views.LogSources{
 		From: now, Now: now, Prices: ledger.Pricing,
 		Lines: []ledger.Line{
-			named("r1", line(mover, opus, "work", "new", sent.Add(-time.Second), hourUsage)),
-			named("r3", line(mover, opus, "work", "sticky", sent.Add(10*time.Second), hourUsage)),
+			withID("r1", line(mover, opus, "work", "new", sent.Add(-time.Second), hourUsage)),
+			withID("r3", line(mover, opus, "work", "sticky", sent.Add(10*time.Second), hourUsage)),
 		},
 		Stream: streamOf(sentAt("r1", sent), ended, sentAt("r4", sent.Add(20*time.Second))),
 	})
@@ -72,8 +72,8 @@ func TestARowSitsWhereItWasSentSoItNeverMovesAsItsLineFillsItIn(t *testing.T) {
 	sent := local(13, 0, 0)
 	// r1 arrived a moment before r2, but went out after it: r2, which the
 	// router answered itself, never went out.
-	r1 := named("r1", arrived(sent.Add(-100*time.Millisecond), line(mover, opus, "work", "new", time.Time{}, hourUsage)))
-	r2 := named("r2", arrived(sent.Add(-50*time.Millisecond), line(mover, opus, "", "no account has room", time.Time{}, "")))
+	r1 := withID("r1", arrived(sent.Add(-100*time.Millisecond), line(mover, opus, "work", "new", time.Time{}, hourUsage)))
+	r2 := withID("r2", arrived(sent.Add(-50*time.Millisecond), line(mover, opus, "", "no account has room", time.Time{}, "")))
 	r2.Status, r2.Attempts = 429, 0
 	inFlight := views.LogSources{From: now, Now: now, Prices: ledger.Pricing, Lines: []ledger.Line{r2}, Stream: streamOf(sentAt("r1", sent))}
 	lined := inFlight
@@ -92,10 +92,10 @@ func TestARowSitsWhereItWasSentSoItNeverMovesAsItsLineFillsItIn(t *testing.T) {
 func TestChecksAndCountsAreHiddenUntilShownAndCountedFromTheRows(t *testing.T) {
 	kinded := func(id, kind string, l ledger.Line) ledger.Line {
 		l.Kind = kind
-		return named(id, l)
+		return withID(id, l)
 	}
 	lines := []ledger.Line{
-		named("r1", line(mover, opus, "work", "new", local(10, 0, 0), hourUsage)),
+		withID("r1", line(mover, opus, "work", "new", local(10, 0, 0), hourUsage)),
 		kinded("c1", ledger.KindCheck, line(mover, haiku, "work", "new", local(10, 1, 0), smallUsage)),
 		kinded("c2", ledger.KindCheck, line(mover, haiku, "work", "new", local(10, 2, 0), smallUsage)),
 		kinded("n1", ledger.KindCount, line(mover, opus, "work", "sticky", local(10, 3, 0), "")),
@@ -129,7 +129,7 @@ func TestChecksAndCountsAreHiddenUntilShownAndCountedFromTheRows(t *testing.T) {
 
 func TestADaysRuleFallsBeforeTheNextDaysFirstRowShown(t *testing.T) {
 	on := func(id string, day, hour int) ledger.Line {
-		return named(id, line(mover, opus, "work", "sticky", october(day, hour, 0), hourUsage))
+		return withID(id, line(mover, opus, "work", "sticky", october(day, hour, 0), hourUsage))
 	}
 	check := on("c1", 7, 0)
 	check.Kind = ledger.KindCheck
@@ -160,7 +160,7 @@ func TestADaysRuleFallsBeforeTheNextDaysFirstRowShown(t *testing.T) {
 }
 
 func TestADaysRuleSaysTheFiguresOfTheDayThatEndedOrItsDateAlone(t *testing.T) {
-	lines := []ledger.Line{named("r1", line(mover, opus, "work", "new", october(6, 9, 0), hourUsage)), named("r2", line(mover, opus, "work", "sticky", october(7, 9, 0), hourUsage))}
+	lines := []ledger.Line{withID("r1", line(mover, opus, "work", "new", october(6, 9, 0), hourUsage)), withID("r2", line(mover, opus, "work", "sticky", october(7, 9, 0), hourUsage))}
 	figures := views.DayTotals{Date: "2026-10-06", Requests: 1912, Sessions: 17, Limits: 2, Worth: priced(212_000_000)}
 	for name, tt := range map[string]struct {
 		totals []views.DayTotals
@@ -182,12 +182,12 @@ func TestADaysRuleSaysTheFiguresOfTheDayThatEndedOrItsDateAlone(t *testing.T) {
 
 func TestARequestInFlightAsTheDayEndedSitsAboveTheNextDaysRule(t *testing.T) {
 	sent := october(6, 23, 59).Add(50 * time.Second)
-	late := named("r2", arrived(sent.Add(-100*time.Millisecond), line(mover, opus, "work", "sticky", time.Time{}, hourUsage)))
+	late := withID("r2", arrived(sent.Add(-100*time.Millisecond), line(mover, opus, "work", "sticky", time.Time{}, hourUsage)))
 	late.TotalMS = (22 * time.Second).Milliseconds()
 	ended := sentAt("r2", sent)
 	ended.Ended, ended.Status = sent.Add(22*time.Second), 200
-	earlier := named("r1", line(mover, opus, "work", "new", october(6, 23, 0), hourUsage))
-	next := named("r3", line(mover, opus, "work", "sticky", october(7, 0, 1), hourUsage))
+	earlier := withID("r1", line(mover, opus, "work", "new", october(6, 23, 0), hourUsage))
+	next := withID("r3", line(mover, opus, "work", "sticky", october(7, 0, 1), hourUsage))
 	tests := []struct {
 		name   string
 		lines  []ledger.Line
@@ -217,12 +217,12 @@ func TestARequestInFlightAsTheDayEndedSitsAboveTheNextDaysRule(t *testing.T) {
 func TestARowIsOnTheDayItsRequestArrivedOnAsTheLedgerFilesIt(t *testing.T) {
 	// r2 arrived as 6 October ended, and went out as 7 October began.
 	midnight := october(7, 0, 0)
-	straddling := named("r2", arrived(midnight.Add(-50*time.Millisecond), line(mover, opus, "work", "sticky", time.Time{}, hourUsage)))
+	straddling := withID("r2", arrived(midnight.Add(-50*time.Millisecond), line(mover, opus, "work", "sticky", time.Time{}, hourUsage)))
 	ended := sentAt("r2", midnight.Add(50*time.Millisecond))
 	ended.Ended, ended.Status = midnight.Add(time.Second), 200
 	src := views.LogSources{
 		From: october(6, 0, 0), Now: october(7, 0, 5), Prices: ledger.Pricing, Stream: streamOf(ended),
-		Lines: []ledger.Line{named("r1", line(mover, opus, "work", "new", october(6, 23, 0), hourUsage)), named("r3", line(mover, opus, "work", "sticky", midnight, hourUsage))},
+		Lines: []ledger.Line{withID("r1", line(mover, opus, "work", "new", october(6, 23, 0), hourUsage)), withID("r3", line(mover, opus, "work", "sticky", midnight, hourUsage))},
 	}
 	before := views.LogRows(src)
 	src.Lines = append(src.Lines, straddling)
@@ -239,9 +239,9 @@ func TestARowIsOnTheDayItsRequestArrivedOnAsTheLedgerFilesIt(t *testing.T) {
 }
 
 func TestARowsStoryIsItsSessionsWhateverDayItsLinesAreOf(t *testing.T) {
-	yesterday := named("r0", of(ledger.ClassMain, line(mover, opus, "work", "new", october(6, 22, 0), hourUsage)))
+	yesterday := withID("r0", of(ledger.ClassMain, line(mover, opus, "work", "new", october(6, 22, 0), hourUsage)))
 	// Moved this morning, its cache cold since last night.
-	moved := movedFrom("work", named("r1", of(ledger.ClassMain, line(mover, opus, "side", "moved: work is at its reserve", october(7, 9, 0), hourUsage))))
+	moved := movedFrom("work", withID("r1", of(ledger.ClassMain, line(mover, opus, "side", "moved: work is at its reserve", october(7, 9, 0), hourUsage))))
 	tests := []struct {
 		name     string
 		sessions map[string][]ledger.Line
@@ -269,8 +269,8 @@ func TestARowsStoryIsItsSessionsWhateverDayItsLinesAreOf(t *testing.T) {
 }
 
 func TestTheTablesRowsAreInTheOrderTheyArrivedWhateverOrderTheirLinesCame(t *testing.T) {
-	first := named("r1", of(ledger.ClassMain, line(mover, opus, "work", "new", local(10, 0, 0), hourUsage)))
-	moved := movedFrom("work", named("r2", of(ledger.ClassMain, line(mover, opus, "side", "moved: work is at its reserve", local(10, 5, 0), hourUsage))))
+	first := withID("r1", of(ledger.ClassMain, line(mover, opus, "work", "new", local(10, 0, 0), hourUsage)))
+	moved := movedFrom("work", withID("r2", of(ledger.ClassMain, line(mover, opus, "side", "moved: work is at its reserve", local(10, 5, 0), hourUsage))))
 	// Its line came first, as it ended first.
 	got := views.LogRows(views.LogSources{From: now, Now: now, Prices: ledger.Pricing, Lines: []ledger.Line{moved, first}})
 	if said, want := tableSaid(got), []string{"▲ r1 lined", "▸ r2 lined"}; !slices.Equal(said, want) || got.Lines[1].Row.Routing.Cost == nil {
