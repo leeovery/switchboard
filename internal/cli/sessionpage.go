@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"math"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -90,8 +89,8 @@ func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 		}
 	}
 	t := p.Totals
-	fmt.Fprintf(&b, "\n%s%s%s%s%d%% from cache%s%s at API prices\n", prose.Counted(t.Turns, "turn"), status.Separator, prose.Counted(t.Requests, "request"), status.Separator,
-		int(math.Round(t.FromCache*100)), status.Separator, worthSaid(t.Worth))
+	fmt.Fprintf(&b, "\n%s%s%s%s%s from cache%s%s at API prices\n", prose.Counted(t.Turns, "turn"), status.Separator, prose.Counted(t.Requests, "request"), status.Separator,
+		status.Percent(t.FromCache), status.Separator, dashboard.WorthCents(t.Worth))
 	if len(p.Turns) > 0 {
 		if err := writeTable(&b, turnRows(p, now)); err != nil {
 			return err
@@ -192,76 +191,38 @@ func startedSaid(p views.SessionPage, now time.Time) string {
 
 // goesOrKept says, of the session p running, where each of its models goes,
 // as "opus-5-5 → side   haiku-4-5 → side"; of one ended, until when the
-// ledger keeps the lines of its first day, as "kept until 29 Dec", the year
-// named where it isn't now's, or "kept for good".
+// ledger keeps the lines of its first day, as views.KeptUntil says it.
 func goesOrKept(p views.SessionPage, now time.Time) string {
-	if p.Running {
-		goes := make([]string, len(p.Models))
-		for i, m := range p.Models {
-			goes[i] = ledger.ShortModelID(status.Clean(m.Model)) + " → " + status.Clean(m.Account)
-		}
-		return strings.Join(goes, "   ")
+	if !p.Running {
+		return views.KeptUntil(p.KeptUntil, now)
 	}
-	if p.KeptUntil == "" {
-		return "kept for good"
+	goes := make([]string, len(p.Models))
+	for i, m := range p.Models {
+		goes[i] = ledger.ShortModelID(status.Clean(m.Model)) + " → " + status.Clean(m.Account)
 	}
-	until, err := time.ParseInLocation(time.DateOnly, p.KeptUntil, now.Location())
-	if err != nil {
-		return "kept until " + p.KeptUntil
-	}
-	layout := "2 Jan"
-	if until.Year() != now.Year() {
-		layout += " 2006"
-	}
-	return "kept until " + until.Format(layout)
+	return strings.Join(goes, "   ")
 }
 
 // ranOnRows are the rows of the accounts the session p ran on, one at least,
-// at now: each with its time there, as stint says, to now for the one its
-// latest request went to while it runs, never one the router sends it to but
-// no request of it has gone to since; its requests; the points of each
-// window they took; and their worth.
+// at now: each with its time there, as status.Stint says, dated where the
+// session spans more than one day, to now for the one its latest request went
+// to while it runs, never one the router sends it to but no request of it has
+// gone to since; its requests; the points of each window they took; and their
+// worth.
 func ranOnRows(p views.SessionPage, now time.Time) [][]string {
 	first := slices.MinFunc(p.Accounts, func(a, b views.SessionAccount) int { return a.From.Compare(b.From) }).From
 	last := slices.MaxFunc(p.Accounts, func(a, b views.SessionAccount) int { return a.To.Compare(b.To) })
-	spans := !sameDay(now, first, last.To)
+	spans := !status.SameDay(now, first, last.To)
 	rows := make([][]string, len(p.Accounts))
 	for i, a := range p.Accounts {
-		rows[i] = []string{status.Clean(a.Account), stint(a, p.Running && a.Account == last.Account, spans, now), prose.Counted(a.Requests, "request"),
-			pointsSaid(a.Points), worthSaid(a.Worth)}
+		to := a.To
+		if p.Running && a.Account == last.Account {
+			to = time.Time{}
+		}
+		rows[i] = []string{status.Clean(a.Account), status.Stint(now, a.From, to, spans), prose.Counted(a.Requests, "request"),
+			pointsSaid(a.Points), dashboard.WorthCents(a.Worth)}
 	}
 	return rows
-}
-
-// stint says a's time on its account, from its first request there to its
-// last, or now, as "12:02 – 14:31" or "14:31 – now"; or, where the session
-// spans more than one day, each end with its day, but an end on its start's,
-// as "yesterday 16:40 – 18:05" or "today 09:12 – now".
-func stint(a views.SessionAccount, toNow, spans bool, now time.Time) string {
-	from, to := status.TimeOfDay(now, a.From), status.TimeOfDay(now, a.To)
-	if spans {
-		from = withDay(a.From, now)
-		if !sameDay(now, a.From, a.To) {
-			to = withDay(a.To, now)
-		}
-	}
-	if toNow {
-		to = "now"
-	}
-	return from + " – " + to
-}
-
-// withDay says t with its day, at now: "today 09:12", else as status.Past
-// says it, as "yesterday 16:40".
-func withDay(t, now time.Time) string {
-	if sameDay(now, t, now) {
-		return "today " + status.TimeOfDay(now, t)
-	}
-	return status.Past(now, t)
-}
-
-func sameDay(now, a, b time.Time) bool {
-	return a.In(now.Location()).Format(time.DateOnly) == b.In(now.Location()).Format(time.DateOnly)
 }
 
 // pointsSaid says the points of an account's windows a session took, the
@@ -273,7 +234,7 @@ func pointsSaid(points map[string]int) string {
 	keys = slices.DeleteFunc(keys, func(key string) bool { return points[key] == 0 })
 	said := make([]string, len(keys))
 	for i, key := range keys {
-		of := " of its " + status.InProse(claude.WindowName(key))
+		of := " of its " + status.InProse(status.NameOfKey(key))
 		switch n := points[key]; {
 		case i > 0:
 			said[i] = strconv.Itoa(n) + of
@@ -295,7 +256,7 @@ func turnRows(p views.SessionPage, now time.Time) [][]string {
 	rows := [][]string{turnHeads}
 	for _, t := range p.Turns {
 		rows = append(rows, []string{strconv.Itoa(t.Turn), status.Past(now, t.Started), turnTook(t, now), prose.Grouped(t.Requests), toolsSaid(t.Tools),
-			prose.Count(t.Read), prose.Count(t.Written), prose.Count(t.Out), worthSaid(t.Worth), accountsSaid(t.Accounts)})
+			prose.Tokens(t.Read), prose.Tokens(t.Written), prose.Tokens(t.Out), dashboard.WorthCents(t.Worth), accountsSaid(t.Accounts)})
 	}
 	return rows
 }

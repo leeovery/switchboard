@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -84,7 +85,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		After:      held,
 		Interval:   interval,
 		Policy:     claude.Policy,
-		WindowName: claude.WindowName,
+		WindowName: status.NameOfKey,
 		Accounts:   f.accounts,
 		WeekStarts: framesWeekStarts,
 		WeekWindow: claude.WeekWindow,

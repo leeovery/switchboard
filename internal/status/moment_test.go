@@ -323,6 +323,39 @@ func TestAWindowIsNamedByItsHoursElseByItsLabelElseByItsKey(t *testing.T) {
 	}
 }
 
+func TestAWindowNoDocumentLabelsIsNamedByTheLabelClaudeGivesItsKey(t *testing.T) {
+	tests := []struct{ key, want string }{
+		{key: "5h", want: "5-hour"},
+		{key: "1h", want: "1-hour"},
+		{key: "7d", want: "Week"},
+		{key: "7d_oi", want: "Fable week"},
+		{key: "7d_opus", want: "Opus week"},
+		{key: "90m", want: "90m"},
+		{key: "7d_new", want: "7d_new"},
+	}
+	for _, tt := range tests {
+		if got := status.NameOfKey(tt.key); got != tt.want {
+			t.Errorf("NameOfKey(%q) = %q, want %q", tt.key, got, tt.want)
+		}
+	}
+}
+
+func TestAMomentNamesAWindowAsItsAccountsDoElseByItsKey(t *testing.T) {
+	doc := routerDocOf(readAt("work", windowIn("5h", 0.2, 3*time.Hour), quota.Window{Key: "7d", Label: "Seven days", Utilization: 0.4, ResetsAt: built.Add(2 * day)}))
+	m := doc.At(built, policy)
+	for key, want := range map[string]string{"5h": "5-hour", "7d": "Seven days", "7d_opus": "Opus week", "7d_new": "7d_new"} {
+		if got := m.NameOf(key); got != want {
+			t.Errorf("NameOf(%q) = %q, want %q", key, got, want)
+		}
+	}
+	if w, ok := m.Window("7d"); !ok || w.Label != "Seven days" {
+		t.Errorf("Window(7d) = %+v, %v; want the week as its accounts label it", w, ok)
+	}
+	if _, ok := m.Window("7d_opus"); ok {
+		t.Error("Window(7d_opus) found a window none of the accounts has")
+	}
+}
+
 func TestTheWindowsShownAndHiddenAreNamed(t *testing.T) {
 	doc := routerDocOf(
 		with(readAt("work", windowIn("5h", 0.2, 3*time.Hour), windowIn("7d", 0.4, 2*day), windowIn("7d_oi", 0, 2*day)), func(a *status.Account) {

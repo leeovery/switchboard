@@ -158,6 +158,30 @@ func TestSessionsSaysTodaysWorthAsEachRowDoes(t *testing.T) {
 	}
 }
 
+func TestSessionsSaysAWorthUnderHalfACentAsUnderACent(t *testing.T) {
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
+		{At: october(7, 9, 0, 0), Request: "u1", Kind: ledger.KindMessage, Session: ended, Model: "claude-haiku-4-5", Account: "work", Reason: "new",
+			Status: 200, Attempts: 1, TotalMS: 900, Usage: json.RawMessage(checkUsage)},
+	}})
+	got := run(t, deps, "sessions", "--pretty")
+	for _, want := range []string{"  1         <$0.01\n", "\ntoday  1 session  ·  1 request  ·  <$0.01 at API prices\n"} {
+		if got.code != 0 || !strings.Contains(got.stdout, want) {
+			t.Errorf("switchboard sessions --pretty = %+v, want it to say %q", got, want)
+		}
+	}
+}
+
+func TestSessionsSaysAnIdleOfAnHourOrMoreAsTheDashboardWritesSpans(t *testing.T) {
+	deps := sessionsDeps(t)
+	idled := status.Session{ID: asking, Assignments: []status.Assignment{{Model: "claude-opus-5-5", Account: "work", Reason: status.ReasonSticky,
+		LastSeen: october(7, 12, 7, 0).UTC()}}}
+	serveSessions(t, deps, []status.Session{idled})
+
+	if got, want := run(t, deps, "sessions", "--pretty"), "  idle 1h 05m  "; got.code != 0 || !strings.Contains(got.stdout, want) {
+		t.Errorf("switchboard sessions --pretty = %+v, want a session last seen 65 minutes ago to say %q", got, want)
+	}
+}
+
 func TestSessionsSaysASessionItsOwnPinPutOnItsAccountIsPinnedThere(t *testing.T) {
 	deps := sessionsDeps(t)
 	pinned := status.Session{ID: asking, Pin: "work", Assignments: []status.Assignment{{Model: "claude-opus-5-5", Account: "work", Pinned: true,

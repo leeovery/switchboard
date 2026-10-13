@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -19,14 +20,6 @@ import (
 // text.faint.
 var noFigure = span{"—", faintInk}
 
-// History's dates: a month as views names it, as 2026-10; a week by its
-// first day, as 28 Sep; and a day, as Thu 1 Oct.
-const (
-	monthLayout = "2006-01"
-	weekLayout  = "2 Jan"
-	dayLayout   = "Mon 2 Jan"
-)
-
 // The cells the widest of a bounded figure takes, as its format draws it: a
 // day, as dayLayout writes one of two figures; a run of a year's days, a leap
 // year's whole; and a share, all of it.
@@ -35,45 +28,6 @@ var (
 	widestRun   = ansi.StringWidth(prose.Counted(366, "day"))
 	widestShare = ansi.StringWidth(status.Percent(1))
 )
-
-// civilDay is the day with the given date, reporting false for one that
-// isn't.
-func civilDay(date string) (time.Time, bool) {
-	day, err := time.Parse(time.DateOnly, date)
-	return day, err == nil
-}
-
-// monthName is the month, as views names it, as History names it: Oct, or
-// with its year, Oct 2025; as it is where it isn't a month.
-func monthName(month string, withYear bool) string {
-	m, err := time.Parse(monthLayout, month)
-	if err != nil {
-		return month
-	}
-	if withYear {
-		return m.Format("Jan 2006")
-	}
-	return m.Format("Jan")
-}
-
-// weekHead heads a week, as Weeks and Days do, by its first day's date, as
-// 10 Aug: in text.faint, this week's bold text.secondary; as it is, cleaned,
-// where it isn't a date.
-func weekHead(date string, this bool) line {
-	k := faintInk
-	if this {
-		k = strongInk
-	}
-	if day, ok := civilDay(date); ok {
-		return line{{day.Format(weekLayout), k}}
-	}
-	return line{{status.Clean(date), k}}
-}
-
-// dayAbbreviation and dayInitial name a weekday as History does, wide and
-// on a phone or over Days' week: Mon, M.
-func dayAbbreviation(d time.Weekday) string { return d.String()[:3] }
-func dayInitial(d time.Weekday) string      { return d.String()[:1] }
 
 // worthSaid is a worth as History writes it, in the ink given: to the
 // dollar, its thousands set apart, as "$27,480"; a faint + after it where
@@ -90,6 +44,32 @@ func worthSaid(w views.Worth, k ink) line {
 	}
 	return line{{w.Amount.GroupedDollars(), k}}
 }
+
+// WorthCents is a worth to the cent, as a request's, a turn's or a session's
+// is said, the Log's rule: "$0.15"; "<$0.01" where it's more than nothing but
+// under half a cent, which would read as nothing; "unpriced" where none of it
+// is priced; and "+" after it where part of it is unpriced, as "$17.86+".
+// Nothing at all is "$0.00".
+func WorthCents(w views.Worth) string {
+	if w.Amount == nil && len(w.Unpriced) > 0 {
+		return "unpriced"
+	}
+	var amount ledger.Picodollars
+	if w.Amount != nil {
+		amount = *w.Amount
+	}
+	said := amount.Cents()
+	if amount > 0 && said == noCents {
+		said = "<$0.01"
+	}
+	if len(w.Unpriced) > 0 {
+		said += "+"
+	}
+	return said
+}
+
+// noCents is a worth of none, to the cent.
+var noCents = ledger.Picodollars(0).Cents()
 
 // worthPart is a worth as worthSaid writes it, as a part of a line: a
 // figure, but unpriced, which is words.
@@ -111,14 +91,15 @@ func countedParts(n int, noun string, k ink) []part {
 	}
 }
 
-// againstSaid is a worth against its price, as "3.8×", bold, in
-// state.positive at 1× or more as it's written, and accent.attention under: a
-// dash where there's none.
+// againstSaid is a worth against its price, as "3.8×", to a tenth, a half
+// rounded to the even one, as every figure is: bold, in state.positive at 1×
+// or more as it's written, and accent.attention under; a dash where there's
+// none.
 func againstSaid(ratio *float64) line {
 	if ratio == nil {
 		return line{noFigure}
 	}
-	shown := math.Round(*ratio*10) / 10
+	shown := math.RoundToEven(*ratio*10) / 10
 	k := boldPositiveInk
 	if shown < 1 {
 		k = alertInk

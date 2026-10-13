@@ -167,6 +167,43 @@ func TestATellingsZeroValueNamesAWindowByItsKey(t *testing.T) {
 	}
 }
 
+func TestATimeOnAnotherDayThanItsEventsIsToldWithItsWeekdayAsDatedSaysIt(t *testing.T) {
+	now := at(23, 30)
+	nextDay := func(hour, minute int) time.Time { return at(hour, minute).AddDate(0, 0, 1) }
+	tests := []struct {
+		name  string
+		event status.Event
+		what  string
+	}{
+		{name: "a limit lifting after midnight", event: status.Event{Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Until: nextDay(1, 15)},
+			what: "its 5-hour window, till Thu 01:15"},
+		{name: "a limit lifting before midnight", event: status.Event{Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Until: at(23, 58)},
+			what: "its 5-hour window, till 23:58"},
+		{name: "a token refused till after midnight", event: status.Event{Kind: status.EventRefused, Account: "work", Status: 401, Until: nextDay(0, 5)},
+			what: "its token refused (401), till Thu 00:05"},
+		{name: "an account under pressure, to run out after midnight", event: status.Event{Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}, Until: nextDay(0, 40)},
+			what: "its 5-hour to run out at Thu 00:40"},
+		{name: "a prime, resetting after midnight", event: status.Event{Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: nextDay(3, 30)},
+			what: "its 5-hour window started, resets at Thu 03:30"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.event.At = at(22, 30)
+
+			if got := views.NewTelling(windowNames).Line(tt.event, now).What.String(); got != tt.what {
+				t.Errorf("an event at 22:30 is told as %q, want %q", got, tt.what)
+			}
+		})
+	}
+
+	telling := views.NewTelling(windowNames)
+	telling.Line(status.Event{At: at(22, 20), Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}, Until: nextDay(1, 10)}, now)
+	move := status.Event{At: at(22, 40), Kind: status.EventMoved, From: "personal", To: "side", Reason: "new, personal under pressure"}
+	if got, want := telling.Line(move, now).What.String(), "personal came under pressure, its 5-hour to run out at Thu 01:10"; got != want {
+		t.Errorf("a move at 22:40 passing personal over says %q, want %q", got, want)
+	}
+}
+
 func TestAnEventsTimesAreShownInNowsTimeZone(t *testing.T) {
 	e := status.Event{At: at(13, 0), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: at(18, 0)}
 

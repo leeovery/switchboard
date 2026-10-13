@@ -11,7 +11,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
@@ -104,7 +103,7 @@ func (a *app) eventsPrinter(out io.Writer, f formFlags) eventsPrinter {
 	if a.printsJSON(f, out) {
 		return eventsJSON{out: out}
 	}
-	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(claude.WindowName)}
+	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey)}
 }
 
 // eventsJSON prints each event as the router files it, a JSON object a line,

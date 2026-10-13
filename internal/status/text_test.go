@@ -886,6 +886,69 @@ func TestShortID(t *testing.T) {
 	}
 }
 
+func TestTheDashboardNamesASessionByTheFirstFourCharactersOfItsID(t *testing.T) {
+	for id, want := range map[string]string{
+		"c61b2f8d-04a7-4e93": "c61b",
+		"c61b":               "c61b",
+		"ab":                 "ab",
+		"\x1b[2Jc61b2f8d":    "[2Jc",
+		"éé☃☃d":              "éé☃☃",
+		"":                   "",
+	} {
+		if got := status.ShownID(id); got != want {
+			t.Errorf("ShownID(%q) = %q, want %q", id, got, want)
+		}
+	}
+}
+
+func TestASessionsDirectoryIsNamedByItsLastPartCutKeepingItsStart(t *testing.T) {
+	tests := []struct {
+		dir   string
+		cells int
+		want  string
+	}{
+		{dir: "/Users/someone/Code/switchboard", cells: 12, want: "switchboard"},
+		{dir: "/Users/someone/Code/switchboard-dashboard", cells: 12, want: "switchboard…"},
+		{dir: "/Users/someone/Code/switchboard-dashboard", cells: 11, want: "switchboar…"},
+		{dir: "/Users/someone/Code/switchboard/", cells: 12, want: "switchboard"},
+		{dir: "/Users/someone/Code/コードの部屋", cells: 12, want: "コードの部屋"},
+		{dir: "/Users/someone/Code/コードの部屋です", cells: 12, want: "コードの部…"},
+		{dir: "/Users/someone/Code/switch\x1b[2Jboard", cells: 20, want: "switch [2Jboard"},
+		{dir: "/", cells: 12, want: "/"},
+		{dir: "", cells: 12, want: ""},
+	}
+	for _, tt := range tests {
+		if got := status.DirName(tt.dir, tt.cells); got != tt.want {
+			t.Errorf("DirName(%q, %d) = %q, want %q", tt.dir, tt.cells, got, tt.want)
+		}
+	}
+}
+
+func TestASessionsDirectoryIsShownWholeTheHomeAsATildeCutFromItsStart(t *testing.T) {
+	const home = "/Users/someone"
+	tests := []struct {
+		name, dir, home string
+		cells           int
+		want            string
+	}{
+		{name: "under the home", dir: "/Users/someone/Code/switchboard", home: home, cells: 40, want: "~/Code/switchboard"},
+		{name: "the home itself", dir: "/Users/someone", home: home, cells: 40, want: "~"},
+		{name: "the home given with a slash", dir: "/Users/someone/Code", home: home + "/", cells: 40, want: "~/Code"},
+		{name: "a home the directory only starts like", dir: "/Users/someone2/Code", home: home, cells: 40, want: "/Users/someone2/Code"},
+		{name: "outside the home", dir: "/opt/work/switchboard", home: home, cells: 40, want: "/opt/work/switchboard"},
+		{name: "no home known", dir: "/Users/someone/Code", home: "", cells: 40, want: "/Users/someone/Code"},
+		{name: "long, cut from its start keeping its name", dir: "/Users/someone/Code/clients/switchboard", home: home, cells: 13, want: "…/switchboard"},
+		{name: "none", dir: "", home: home, cells: 40, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.DirPath(tt.dir, tt.home, tt.cells); got != tt.want {
+				t.Errorf("DirPath(%q, %q, %d) = %q, want %q", tt.dir, tt.home, tt.cells, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC)
 	// clear clears the screen, as a terminal shown it takes it.
@@ -1185,6 +1248,113 @@ func TestCountdown(t *testing.T) {
 				t.Errorf("Countdown(now, now+%v) = %q, want %q", tt.until, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestASpanIsInSecondsUnderAMinuteThenAsTheDashboardWritesSpans(t *testing.T) {
+	tests := []struct {
+		name string
+		span time.Duration
+		want string
+	}{
+		{name: "none", span: 0, want: "0s"},
+		{name: "less than none", span: -time.Second, want: "0s"},
+		{name: "seconds, cut", span: 34*time.Second + 900*time.Millisecond, want: "34s"},
+		{name: "just under a minute", span: time.Minute - time.Millisecond, want: "59s"},
+		{name: "a minute", span: time.Minute, want: "1m"},
+		{name: "minutes, cut", span: 9*time.Minute + 59*time.Second, want: "9m"},
+		{name: "an hour", span: time.Hour, want: "1h"},
+		{name: "an hour and minutes, the minutes two digits", span: time.Hour + 5*time.Minute, want: "1h 05m"},
+		{name: "hours and minutes", span: 5*time.Hour + 27*time.Minute, want: "5h 27m"},
+		{name: "a day and hours", span: 27 * time.Hour, want: "1d 3h"},
+		{name: "whole days", span: 48*time.Hour + 30*time.Minute, want: "2d"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.Span(tt.span); got != tt.want {
+				t.Errorf("Span(%v) = %q, want %q", tt.span, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSeenAgoRoundsToTheMinuteThenTheHour(t *testing.T) {
+	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	tests := []struct {
+		ago  time.Duration
+		want string
+	}{
+		{ago: 0, want: "now"}, {ago: 29 * time.Second, want: "now"}, {ago: 30 * time.Second, want: "1m"},
+		{ago: 50 * time.Second, want: "1m"}, {ago: 9*time.Minute + 20*time.Second, want: "9m"},
+		{ago: 59*time.Minute + 29*time.Second, want: "59m"}, {ago: 59*time.Minute + 30*time.Second, want: "1h"},
+		{ago: 2*time.Hour + 29*time.Minute, want: "2h"},
+	}
+	for _, tt := range tests {
+		if got := status.SeenAgo(now, now.Add(-tt.ago)); got != tt.want {
+			t.Errorf("seen %v ago reads %q, want %q", tt.ago, got, tt.want)
+		}
+	}
+}
+
+func TestSecondsAreToATenthUnderAMinuteThenMinutesAndSeconds(t *testing.T) {
+	tests := []struct {
+		took time.Duration
+		want string
+	}{
+		{took: 0, want: "0.0s"},
+		{took: 812 * time.Millisecond, want: "0.8s"},
+		{took: 11849 * time.Millisecond, want: "11.8s"},
+		{took: 11850 * time.Millisecond, want: "11.9s"},
+		{took: 59949 * time.Millisecond, want: "59.9s"},
+		{took: 59950 * time.Millisecond, want: "1m 00s"},
+		{took: 65 * time.Second, want: "1m 05s"},
+		{took: 123*time.Second + 400*time.Millisecond, want: "2m 03s"},
+		{took: 123*time.Second + 500*time.Millisecond, want: "2m 04s"},
+		{took: 75 * time.Minute, want: "75m 00s"},
+	}
+	for _, tt := range tests {
+		if got := status.Seconds(tt.took); got != tt.want {
+			t.Errorf("Seconds(%v) = %q, want %q", tt.took, got, tt.want)
+		}
+	}
+}
+
+func TestAStintGivesItsEndsTheirDaysWhereTheSessionSpansDays(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 31, 0, 0, time.FixedZone("UTC+1", 60*60))
+	at := func(days, hour, minute int) time.Time {
+		return time.Date(2026, 9, 28+days, hour, minute, 0, 0, now.Location())
+	}
+	tests := []struct {
+		name     string
+		from, to time.Time
+		dated    bool
+		want     string
+	}{
+		{name: "on a day", from: at(0, 12, 2), to: at(0, 14, 31), want: "12:02 – 14:31"},
+		{name: "to now", from: at(0, 14, 31), want: "14:31 – now"},
+		{name: "dated, both ends on one day", from: at(-1, 16, 40), to: at(-1, 18, 5), dated: true, want: "yesterday 16:40 – 18:05"},
+		{name: "dated, today to now", from: at(0, 9, 12), dated: true, want: "today 09:12 – now"},
+		{name: "dated, across days", from: at(-1, 23, 10), to: at(0, 0, 40), dated: true, want: "yesterday 23:10 – today 00:40"},
+		{name: "dated, within the week", from: at(-3, 9, 0), to: at(-3, 10, 0), dated: true, want: "Fri 09:00 – 10:00"},
+		{name: "in UTC, shown in now's time zone", from: at(0, 12, 2).UTC(), to: at(0, 14, 31).UTC(), want: "12:02 – 14:31"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.Stint(now, tt.from, tt.to, tt.dated); got != tt.want {
+				t.Errorf("Stint() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSameDayIsInNowsTimeZone(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 31, 0, 0, time.FixedZone("UTC+1", 60*60))
+	late := time.Date(2026, 9, 28, 23, 30, 0, 0, time.UTC)
+	if status.SameDay(now, now, late) {
+		t.Error("SameDay() of 23:30 UTC and now, both the 28th in UTC, = true, want false: in now's zone it's the 29th")
+	}
+	if !status.SameDay(now, late, late.Add(time.Hour)) {
+		t.Error("SameDay() of 23:30 and 00:30 UTC = false, want true: both the 29th in now's zone")
 	}
 }
 

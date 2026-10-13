@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
@@ -131,7 +131,7 @@ func writeSessions(out io.Writer, list views.SessionList, now time.Time) error {
 		return err
 	}
 	_, err := fmt.Fprintf(out, "\ntoday  %s%s%s%s%s at API prices\n", status.SessionCount(list.Today.Sessions), status.Separator,
-		prose.Counted(list.Today.Requests, "request"), status.Separator, worthSaid(list.Today.Worth))
+		prose.Counted(list.Today.Requests, "request"), status.Separator, dashboard.WorthCents(list.Today.Worth))
 	return err
 }
 
@@ -149,7 +149,7 @@ func sessionRow(s views.ListedSession, now time.Time) []string {
 		started = status.Past(now, s.Started)
 	}
 	return []string{mark(s), session, orNone(status.Clean(s.Account)), orNone(ledger.ShortModelID(status.Clean(s.Model))),
-		doing(s.State, s.Running, s.LastSeen, s.Ended, now), started, prose.Grouped(s.Requests), worthSaid(s.Worth), routing(s, now)}
+		doing(s.State, s.Running, s.LastSeen, s.Ended, now), started, prose.Grouped(s.Requests), dashboard.WorthCents(s.Worth), routing(s, now)}
 }
 
 // mark is the mark a session's row starts with, the first that applies: ↑
@@ -180,34 +180,7 @@ func doing(state string, running bool, lastSeen, ended, now time.Time) string {
 	case lastSeen.IsZero():
 		return "idle"
 	}
-	return "idle " + span(lastSeen, now)
-}
-
-// span says how long it's been from since to now, as briefly as a row has
-// room for: in seconds under a minute, as "34s", else as a countdown says it,
-// as "9m" or "1h 5m".
-func span(since, now time.Time) string {
-	if d := now.Sub(since); d < time.Minute {
-		return strconv.Itoa(int(max(d, 0)/time.Second)) + "s"
-	}
-	return status.Countdown(since, now)
-}
-
-// worthSaid says what requests were worth, to the cent, as "$17.86", "+"
-// after it where it leaves anything unpriced, and "unpriced" where it prices
-// none of them: "$0.00" where there were none.
-func worthSaid(w views.Worth) string {
-	var amount ledger.Picodollars
-	if w.Amount != nil {
-		amount = *w.Amount
-	}
-	switch {
-	case len(w.Unpriced) == 0:
-		return amount.Cents()
-	case w.Amount == nil:
-		return "unpriced"
-	}
-	return amount.Cents() + "+"
+	return "idle " + status.Span(now.Sub(lastSeen))
 }
 
 // routing says how a session came to the account it's on, in the routing

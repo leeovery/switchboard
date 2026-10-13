@@ -17,7 +17,7 @@ import (
 // what it's doing, padded, why it's there following; and the blanks why
 // leaves, at the least, before its trace.
 const (
-	runningID     = sessionShown + 2
+	runningID     = status.IDShown + 2
 	familyCells   = 7
 	seenCells     = 4
 	beforeDoing   = 3
@@ -154,7 +154,7 @@ func (f Frame) narrowRunning(c *canvas, m status.Moment, r views.Running, column
 // listed it or the request stream tells, or seen within busyWithin of now;
 // else text.muted.
 func (f Frame) runningID(r views.Running, now time.Time) span {
-	id := span{padded(sessionID(r.Session), runningID), mutedInk}
+	id := span{padded(status.ShownID(r.Session), runningID), mutedInk}
 	busy := r.InFlight != "" || now.Sub(r.LastSeen) < busyWithin
 	for _, model := range r.Models {
 		if c, ok := f.Traffic.call(runningPlug(r, model)); ok && c.Doing.InFlight() {
@@ -168,12 +168,12 @@ func (f Frame) runningID(r views.Running, now time.Time) span {
 }
 
 // runningSeen says how long before now a session running was last seen:
-// "now" within the minute, else as seenAgo rounds it, as "9m".
+// "now" within the minute, else as status.SeenAgo rounds it, as "9m".
 func runningSeen(seen, now time.Time) string {
 	if now.Sub(seen) < time.Minute {
 		return "now"
 	}
-	return seenAgo(now, seen)
+	return status.SeenAgo(now, seen)
 }
 
 // runningDoing is what the session running r is doing, as the request

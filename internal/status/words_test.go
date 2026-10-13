@@ -147,6 +147,14 @@ func TestReasonWords(t *testing.T) {
 			session: "[personal] came under pressure, its 5-hour to run out at 15:10",
 		},
 		{
+			name:    "a new session that passed an account over for pressure, which runs out on another day, as Dated says it",
+			reason:  "new, personal under pressure",
+			facts:   status.Facts{Until: time.Date(2026, 10, 9, 23, 30, 0, 0, time.UTC), Now: now},
+			event:   "[personal] came under pressure, its 5-hour to run out at Sat 00:30",
+			routing: "new session",
+			session: "[personal] came under pressure, its 5-hour to run out at Sat 00:30",
+		},
+		{
 			name:    "a move that passed an account over for pressure, when it runs out unknown",
 			reason:  "rescored after 12h 14m idle, personal under pressure",
 			facts:   status.Facts{From: "side", To: "work"},
@@ -341,6 +349,7 @@ func TestRunningWordsSayWhyASessionIsOnItsAccountAndSinceWhen(t *testing.T) {
 		{name: "no reason, from an account told", facts: status.Facts{From: "work", At: at, Now: now}, want: "moved from [work] 14:31"},
 		{name: "when unknown: unsaid", reason: status.ReasonGlobalPin, facts: status.Facts{To: "side", Now: now}, want: "pinned to [side]"},
 		{name: "on another day: its weekday too", reason: status.ReasonNew, facts: status.Facts{At: at.Add(-48 * time.Hour), Now: now}, want: "started here Tue 14:31"},
+		{name: "yesterday, within a day: its weekday too, as Dated says it", reason: status.ReasonNew, facts: status.Facts{At: at.Add(-16 * time.Hour), Now: now}, want: "started here Wed 22:31"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

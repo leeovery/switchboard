@@ -302,7 +302,7 @@ func TestTheStreamSeesASessionRunningLaterThanTheRouterListedIt(t *testing.T) {
 	f.Traffic = Traffic{Live: true, Seen: map[Plug]time.Time{{Account: "side", Seat: Seat{Session: idDB8A, Model: opus}}: routedAt}}
 	var order []string
 	for _, r := range f.running(doc, routedAt) {
-		order = append(order, sessionID(r.Session))
+		order = append(order, status.ShownID(r.Session))
 	}
 	if want := []string{"41e0", "9c2e", "c61b", "db8a", "d28c", "7f3a"}; !slices.Equal(order, want) {
 		t.Errorf("listed %q, want %q: db8a seen now, as the stream told, after c61b as the router lists them", order, want)

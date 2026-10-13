@@ -137,7 +137,7 @@ type PageSources struct {
 // first; and every request of an account on each day it read, every
 // session's, by the date of the day whose files hold it, for the points.
 type SessionsRead struct {
-	day      day
+	day      LedgerDay
 	lines    map[string][]ledger.Line
 	requests map[string][]ledger.Line
 }
@@ -147,9 +147,9 @@ type SessionsRead struct {
 // router lists them, and those with the given ids, as one given in whole,
 // of an earlier day.
 func ReadSessions(l Ledger, running []status.Session, now time.Time, ids ...string) SessionsRead {
-	read := SessionsRead{day: dayOf(now), requests: make(map[string][]ledger.Line)}
+	read := SessionsRead{day: Today(now), requests: make(map[string][]ledger.Line)}
 	read.lines = l.Sessions(append(runningIDs(running), ids...), func(date string, line ledger.Line) {
-		if line.Kind == ledger.KindMessage && line.Account != "" {
+		if line.Counted() && line.Account != "" {
 			read.requests[date] = append(read.requests[date], line)
 		}
 	})
@@ -163,7 +163,7 @@ func ReadSessions(l Ledger, running []status.Session, now time.Time, ids ...stri
 func (r SessionsRead) Named(running []status.Session) []string {
 	first := make(map[string]time.Time)
 	for id, lines := range r.lines {
-		if i := slices.IndexFunc(lines, func(l ledger.Line) bool { return isRequest(&l) && r.day.holds(l.At) }); i >= 0 {
+		if i := slices.IndexFunc(lines, func(l ledger.Line) bool { return isRequest(&l) && r.day.Holds(l.At) }); i >= 0 {
 			first[id] = lines[i].At
 		}
 	}
@@ -188,8 +188,8 @@ const comeBack = time.Hour
 // holds them. It reports false where the ledger holds no request of it, and
 // the router doesn't list it.
 func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
-	today := dayOf(src.Now)
-	requests := requestsOf(src.Read.lines[id], src.Prices, today.date)
+	today := Today(src.Now)
+	requests := requestsOf(src.Read.lines[id], src.Prices, today.Date)
 	if len(requests) == 0 && src.Routed == nil {
 		return SessionPage{}, false
 	}
@@ -207,7 +207,7 @@ func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 		page.Pin = src.Routed.Pin
 	}
 	if !page.Running && s.first != nil {
-		page.KeptUntil, _ = dayfile.KeptUntil(dayOf(s.first.At).date, src.Keep)
+		page.KeptUntil, _ = dayfile.KeptUntil(Today(s.first.At).Date, src.Keep)
 	}
 	points := pointsOf(src.Read.requests, id, requests)
 	for i := range page.Accounts {
@@ -215,6 +215,26 @@ func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 	}
 	page.Totals = totalsOf(requests, len(page.Turns))
 	return page, true
+}
+
+// KeptUntil says until when the ledger keeps a day's lines, by the date of
+// the last day it keeps them, as SessionPage's KeptUntil gives it, at now:
+// "kept until 4 Nov 2027", the year named where it isn't now's, as "kept
+// until 29 Dec"; and for none, "kept for good", as the ledger keeping them
+// for good gives none.
+func KeptUntil(date string, now time.Time) string {
+	if date == "" {
+		return "kept for good"
+	}
+	until, err := time.ParseInLocation(time.DateOnly, date, now.Location())
+	if err != nil {
+		return "kept until " + status.Clean(date)
+	}
+	layout := "2 Jan"
+	if until.Year() != now.Year() {
+		layout += " 2006"
+	}
+	return "kept until " + until.Format(layout)
 }
 
 // request is a session's request: its line, what it would have cost through

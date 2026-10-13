@@ -75,7 +75,7 @@ func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
 	}
 	lost := f.Lost.In(now.Location())
 	s.state = line{{"■ ", errorInk}, {"the router isn't answering", secondaryInk}}
-	s.since = line{{"since " + lost.Format("15:04:05"), mutedInk}}
+	s.since = line{{"since " + lost.Format(secondsLayout), mutedInk}}
 	s.short = line{{"■ ", errorInk}, {"no router", secondaryInk}, {" since " + lost.Format("15:04"), mutedInk}}
 	return s
 }

@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"maps"
 	"math"
 	"slices"
 	"strconv"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -446,25 +444,25 @@ func (y yearDrawn) limitsFigure(limits map[string]int) yearFigure {
 		return figure
 	}
 	var forms []line
-	for i, key := range slices.SortedFunc(maps.Keys(limits), quota.CompareKeys) {
+	for i, hit := range views.LimitsHit(limits, y.windowName) {
 		var l line
 		if i > 0 {
 			l = append(slices.Clone(forms[i-1]), span{" · ", faintInk})
 		}
-		forms = append(forms, append(l, span{y.windowName(key) + " ×" + prose.Grouped(limits[key]), errorInk}))
+		forms = append(forms, append(l, span{hit, errorInk}))
 	}
 	slices.Reverse(forms)
 	figure.value, figure.shorter = forms[0], forms[1:]
 	return figure
 }
 
-// windowName names a window by its key as a sentence has it, as the frame's
-// WindowName names it, else by its length: "5-hour" or "week".
+// windowName names a window by its key, as the frame's WindowName names it,
+// else by its length: "5-hour" or "7d".
 func (y yearDrawn) windowName(key string) string {
 	if y.WindowName != nil {
-		return status.InProse(y.WindowName(key))
+		return y.WindowName(key)
 	}
-	return status.InProse(status.NameOfWindow(key, ""))
+	return status.NameOfWindow(key, "")
 }
 
 // costSaid is what the plans cost, as worthSaid writes a priced worth: a

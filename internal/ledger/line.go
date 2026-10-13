@@ -202,13 +202,27 @@ func (l *Line) Upstream() bool {
 	return l.Kind == KindMessage && l.Attempts > 0
 }
 
+// Counted reports whether the line's request is one every view and command
+// counts among the requests, as a day's summary does: one that spends quota,
+// upstream or answered by the router itself, of whatever kind but a quota
+// check or a count of tokens, which spend nothing and are counted apart. The
+// router has always written a kind, so it differs from being a message only
+// for a line without one, or of a kind a later router adds.
+func (l *Line) Counted() bool {
+	return l.Kind != KindCheck && l.Kind != KindCount
+}
+
+// Failed reports whether the line's request failed, as the views show it:
+// answered 400 or over, as a 429 every account refused is passed on; or
+// answered nothing, as one cut off or given up, its status 0.
+func (l *Line) Failed() bool {
+	return l.Status == 0 || l.Status >= 400
+}
+
 // sentOn reports whether the line's request went upstream as a day's summary
-// tallies it: of whatever kind but a quota check or a count of tokens, none or
-// one a later router adds included, the router having sent it on at least
-// once. The router has always written a kind, so it differs from Upstream
-// only for a line without one, or of a kind a later router adds.
+// tallies it: one Counted counts, the router having sent it on at least once.
 func (l *Line) sentOn() bool {
-	return l.Kind != KindCheck && l.Kind != KindCount && l.Attempts > 0
+	return l.Counted() && l.Attempts > 0
 }
 
 // unmetered reports whether the line's request went upstream, as sentOn

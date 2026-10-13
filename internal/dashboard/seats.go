@@ -132,7 +132,7 @@ func modelColumnOf(seats []seated) int {
 // wide; and what it's doing.
 func (f Frame) seatLine(s seated, column int, now time.Time) line {
 	busy := f.lit(s, now)
-	id := span{padded(sessionID(s.session.ID), idColumn), titleInk}
+	id := span{padded(status.ShownID(s.session.ID), idColumn), titleInk}
 	if !busy {
 		id.ink = idleIDInk
 	}
@@ -192,12 +192,12 @@ func (f Frame) doing(s seated, now time.Time) doing {
 }
 
 // lapsed says how long has passed from since to now: in seconds, as "38s",
-// within a minute, and from then as seenAgo rounds it, as "9m".
+// within a minute, and from then as status.SeenAgo rounds it, as "9m".
 func lapsed(since, now time.Time) string {
 	if d := now.Sub(since); d < time.Minute {
 		return strconv.Itoa(max(int(d/time.Second), 0)) + "s"
 	}
-	return seenAgo(now, since)
+	return status.SeenAgo(now, since)
 }
 
 // note is what's noted under a seat's row under the panel of the account
@@ -293,7 +293,7 @@ func (f Frame) unseatedBy(doc status.Document, id string, now time.Time) []chunk
 		case e.Kind == status.EventLimit && e.Account == id && e.Count > 0:
 			return limitMoved(doc, e, id, now)
 		case e.Kind == status.EventMoved && !counted(e) && e.From == id:
-			return []chunk{{text: slices.Concat(line{{sessionID(e.Session) + " moved to " + docNamed(doc, e.To) + " at " + status.Dated(now, e.At), mutedInk}}, why(doc, e.Reason))}}
+			return []chunk{{text: slices.Concat(line{{status.ShownID(e.Session) + " moved to " + docNamed(doc, e.To) + " at " + status.Dated(now, e.At), mutedInk}}, why(doc, e.Reason))}}
 		}
 	}
 	return nil

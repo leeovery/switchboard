@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/redact"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 const (
@@ -149,7 +150,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Now:           a.Now,
 		Interval:      opts.interval,
 		Policy:        claude.Policy,
-		WindowName:    claude.WindowName,
+		WindowName:    status.NameOfKey,
 		Accounts:      cfg.Accounts,
 		WeekStarts:    cfg.WeekStarts,
 		WeekWindow:    claude.WeekWindow,

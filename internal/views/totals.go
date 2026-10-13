@@ -1,8 +1,14 @@
 package views
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // Totals are what Accounts and History count over the days: each configured
@@ -41,6 +47,19 @@ type AccountTotals struct {
 	BusiestDay string       `json:"busiest_day,omitempty"`
 	LongestRun int          `json:"longest_run"`
 	Partial    []string     `json:"partial,omitempty"`
+}
+
+// LimitsHit says the limits reached, by window, as AccountTotals' Limits
+// holds them: each window, the shortest first, by its name as name gives it,
+// as a sentence has it, and how many times, its thousands set apart, as
+// "5-hour ×402" and "week ×3"; none where none was.
+func LimitsHit(limits map[string]int, name func(key string) string) []string {
+	keys := slices.SortedFunc(maps.Keys(limits), quota.CompareKeys)
+	hit := make([]string, len(keys))
+	for i, key := range keys {
+		hit[i] = status.InProse(name(key)) + " ×" + prose.Grouped(limits[key])
+	}
+	return hit
 }
 
 // ModelShare is a model version's part of an account's use, by the shortest id

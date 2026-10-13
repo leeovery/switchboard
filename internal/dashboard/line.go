@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // ellipsis marks where text was cut short, or what wasn't shown.
@@ -273,16 +275,9 @@ func rule(n int) string {
 }
 
 // truncate cuts text to width cells, ending it with an ellipsis where it's
-// cut.
+// cut, as prose.Cut does.
 func truncate(text string, width int) string {
-	switch {
-	case ansi.StringWidth(text) <= width:
-		return text
-	case width < 1:
-		return ""
-	default:
-		return ellipsize(text, width)
-	}
+	return prose.Cut(text, width)
 }
 
 // ellipsize cuts text to leave room in width cells for the ellipsis it ends

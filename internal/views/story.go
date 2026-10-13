@@ -9,21 +9,24 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 )
 
-// day is the local day a view is built on, by its clock: when it starts, and
-// its date, as the ledger files its lines under it and prices at it.
-type day struct {
-	start time.Time
-	date  string
+// LedgerDay is the local day a view is built on, by its clock: when it
+// starts, and its date, as the ledger files its lines under it and prices at
+// it.
+type LedgerDay struct {
+	Start time.Time
+	Date  string
 }
 
-// dayOf returns the local day now falls on.
-func dayOf(now time.Time) day {
-	return day{start: dayfile.DayStart(now.Local(), 0), date: now.Local().Format(time.DateOnly)}
+// Today is the local day now falls on, in time.Local whatever now's time
+// zone, as the ledger files its lines: the day every view that reads the
+// ledger takes as its own.
+func Today(now time.Time) LedgerDay {
+	return LedgerDay{Start: dayfile.DayStart(now.Local(), 0), Date: now.Local().Format(time.DateOnly)}
 }
 
-// holds reports whether t falls on the day or after it.
-func (d day) holds(t time.Time) bool {
-	return !t.Before(d.start)
+// Holds reports whether t falls on the day or after it.
+func (d LedgerDay) Holds(t time.Time) bool {
+	return !t.Before(d.Start)
 }
 
 // story is what a session's requests tell, taken in oldest first, as add
@@ -35,7 +38,7 @@ func (d day) holds(t time.Time) bool {
 // ended, and how long its writes to the cache last.
 type story struct {
 	prices ledger.Table
-	day    day
+	day    LedgerDay
 
 	first, last, lastRouted, lastMain *ledger.Line
 	dir                               string
@@ -55,11 +58,11 @@ type story struct {
 
 // newStory returns the story of a session before any of its requests is
 // taken in, its requests on the day d counted, and moves priced by prices.
-func newStory(prices ledger.Table, d day) *story {
+func newStory(prices ledger.Table, d LedgerDay) *story {
 	return &story{prices: prices, day: d, ends: make(map[string]time.Time), lives: make(map[string]time.Duration)}
 }
 
-func storyOf(requests []request, prices ledger.Table, d day) *story {
+func storyOf(requests []request, prices ledger.Table, d LedgerDay) *story {
 	s := newStory(prices, d)
 	for _, r := range requests {
 		s.add(r)
@@ -67,11 +70,11 @@ func storyOf(requests []request, prices ledger.Table, d day) *story {
 	return s
 }
 
-// isRequest reports whether l is a session's request: a message of a session,
-// one that spends quota, whether it went upstream or the router answered it
-// itself, never a quota check or a count of tokens, which spend nothing.
+// isRequest reports whether l is a session's request: one of a session that
+// ledger.Line.Counted counts, as every view counts requests, a line of no
+// session being none of a session's.
 func isRequest(l *ledger.Line) bool {
-	return l.Kind == ledger.KindMessage && l.Session != ""
+	return l.Counted() && l.Session != ""
 }
 
 // add takes in r, the session's next request.
@@ -98,7 +101,7 @@ func (s *story) add(r request) {
 			s.usedMain = l
 		}
 	}
-	if s.day.holds(l.At) {
+	if s.day.Holds(l.At) {
 		s.requests++
 		s.worth.add(r.worth)
 	}
@@ -206,7 +209,7 @@ func (s *story) rewrites(l *ledger.Line) {
 			continue
 		}
 		m.written = tokens.CacheWrite
-		if w, priced := s.prices.CacheWrite(l, s.day.date); warm && priced && len(w.Unpriced) == 0 {
+		if w, priced := s.prices.CacheWrite(l, s.day.Date); warm && priced && len(w.Unpriced) == 0 {
 			m.cost = &w.Cost
 		}
 	}
@@ -222,7 +225,7 @@ func (s *story) movedOnto(model, account string) *Move {
 		if m.model != model {
 			continue
 		}
-		if !s.day.holds(m.at) || m.to != account {
+		if !s.day.Holds(m.at) || m.to != account {
 			return nil
 		}
 		return &Move{At: m.at.UTC(), From: m.from, Reason: m.reason, Cost: m.cost}
@@ -254,5 +257,5 @@ func (s *story) moveCost(now time.Time, flying func(model string) bool) (ledger.
 	if !flying(prompt.Model) && now.Sub(s.ends[thread]) > life {
 		return 0, false
 	}
-	return s.prices.Rewrite(prompt, life, s.day.date)
+	return s.prices.Rewrite(prompt, life, s.day.Date)
 }

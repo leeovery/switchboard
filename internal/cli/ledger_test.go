@@ -206,12 +206,12 @@ func linesOf(written map[string]string, requests ...string) string {
 
 // todaysRequests is what requests prints of today's lines.
 const todaysRequests = `Wed 7 Oct 2026, so far
-  09:00:00  18bb2c41  claude-haiku-4-5  work  200           8 in, 1 out       640ms
+  09:00:00  18bb2c41  claude-haiku-4-5  work  200           8 in, 1 out       0.6s
   09:01:00  5b0e7c1a  claude-opus-5-5   work  200           185k in, 845 out  14.2s
-  09:01:05  5b0e9d33  claude-opus-5-5   -     429                             3ms
+  09:01:05  5b0e9d33  claude-opus-5-5   -     429                             0.0s
   10:00:00  5b0e9d33  claude-opus-5-5   side  200 canceled                    2.0s
-  11:00:00  18bb2c41  claude-opus-9     work  200           100 in, 10 out    950ms
-  12:00:00  5b0e7c1a  claude-opus-5-5   work  200                             140ms
+  11:00:00  18bb2c41  claude-opus-9     work  200           100 in, 10 out    1.0s
+  12:00:00  5b0e7c1a  claude-opus-5-5   work  200                             0.1s
 `
 
 // requestsFromThe6th is what requests prints of the 6th's lines and today's.
@@ -237,22 +237,22 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 		{name: "from the start of a day, under each day's", args: []string{"--since", "2026-10-04"}, want: everyRequest},
 		{name: "from a time today", args: []string{"--since", "10:00"}, want: `Wed 7 Oct 2026, so far
   10:00:00  5b0e9d33  claude-opus-5-5  side  200 canceled                  2.0s
-  11:00:00  18bb2c41  claude-opus-9    work  200           100 in, 10 out  950ms
-  12:00:00  5b0e7c1a  claude-opus-5-5  work  200                           140ms
+  11:00:00  18bb2c41  claude-opus-9    work  200           100 in, 10 out  1.0s
+  12:00:00  5b0e7c1a  claude-opus-5-5  work  200                           0.1s
 `},
 		{name: "from hours ago", args: []string{"--since", "3h"}, want: `Wed 7 Oct 2026, so far
-  11:00:00  18bb2c41  claude-opus-9    work  200  100 in, 10 out  950ms
-  12:00:00  5b0e7c1a  claude-opus-5-5  work  200                  140ms
+  11:00:00  18bb2c41  claude-opus-9    work  200  100 in, 10 out  1.0s
+  12:00:00  5b0e7c1a  claude-opus-5-5  work  200                  0.1s
 `},
 		{name: "from days ago", args: []string{"--since", "2d"}, want: requestsFromThe6th},
 		{name: "from the most days ago", args: []string{"--since", "106751d"}, want: everyRequest},
 		{name: "from more days ago than a duration holds", args: []string{"--since", "99999999999999999999d"}, want: everyRequest},
 		{name: "a session's, by as much of its id as is unique", args: []string{"--session", "5b0e7"}, want: `Wed 7 Oct 2026, so far
   09:01:00  5b0e7c1a  claude-opus-5-5  work  200  185k in, 845 out  14.2s
-  12:00:00  5b0e7c1a  claude-opus-5-5  work  200                    140ms
+  12:00:00  5b0e7c1a  claude-opus-5-5  work  200                    0.1s
 `},
 		{name: "a session's, by its id", args: []string{"--session", sessionB}, want: `Wed 7 Oct 2026, so far
-  09:01:05  5b0e9d33  claude-opus-5-5  -     429             3ms
+  09:01:05  5b0e9d33  claude-opus-5-5  -     429             0.0s
   10:00:00  5b0e9d33  claude-opus-5-5  side  200 canceled    2.0s
 `},
 		{name: "an account's", args: []string{"--account", "side"}, want: `Wed 7 Oct 2026, so far
@@ -260,8 +260,8 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 `},
 		{name: "an account's session's, from a day", args: []string{"--account", "work", "--session", "18bb", "--since", "2026-10-04"},
 			want: `Wed 7 Oct 2026, so far
-  09:00:00  18bb2c41  claude-haiku-4-5  work  200  8 in, 1 out     640ms
-  11:00:00  18bb2c41  claude-opus-9     work  200  100 in, 10 out  950ms
+  09:00:00  18bb2c41  claude-haiku-4-5  work  200  8 in, 1 out     0.6s
+  11:00:00  18bb2c41  claude-opus-9     work  200  100 in, 10 out  1.0s
 `},
 		{name: "none", args: []string{"--account", "nobody"}, want: "no requests since Wed 7 Oct 2026 00:00\n"},
 		{name: "a session no line is of", args: []string{"--session", "77aa"}, want: "no requests since Wed 7 Oct 2026 00:00\n"},
@@ -275,6 +275,24 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 						strings.Join(tt.args, " "), strings.Join(form.args, " "), got.stdout, got.code, got.stderr, tt.want)
 				}
 			})
+		}
+	}
+}
+
+func TestTheLedgersTextCountsTokensFromTenMillionToATenthOfAMillionAndTimesAsTheLogDoes(t *testing.T) {
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
+		{At: october(7, 13, 0, 0), Request: "t1", Kind: ledger.KindMessage, Session: sessionA, Model: "claude-opus-5-5", Account: "work", Reason: "sticky",
+			Status: 200, Attempts: 1, TotalMS: 65000, Usage: json.RawMessage(`{"input_tokens":50100,"cache_read_input_tokens":16000000,"output_tokens":12345}`)},
+	}})
+	tests := []struct {
+		verb, want string
+	}{
+		{verb: "requests", want: "  work  200  16.1M in, 12k out  1m 05s\n"},
+		{verb: "history", want: "  1 request  16.1M tokens  "},
+	}
+	for _, tt := range tests {
+		if got := run(t, deps, tt.verb, "--pretty"); got.code != 0 || !strings.Contains(got.stdout, tt.want) {
+			t.Errorf("switchboard %s --pretty = %+v, want it to say %q", tt.verb, got, tt.want)
 		}
 	}
 }
@@ -325,22 +343,6 @@ func TestRequestsOfASessionReadTheLedgerOnce(t *testing.T) {
 	log := readLog(t, deps, "cli.log")
 	if n := strings.Count(log, `msg="request ledger lines unread"`); n != 1 {
 		t.Errorf("cli.log reads\n%s\nwant the line that doesn't read warned of once, as the ledger is read once, not %d times", log, n)
-	}
-}
-
-func TestHowLongARequestTookIsAsBriefAsARowHasRoomFor(t *testing.T) {
-	tests := []struct {
-		ms   int64
-		want string
-	}{
-		{ms: 0, want: "0ms"}, {ms: 999, want: "999ms"}, {ms: 1000, want: "1.0s"}, {ms: 14230, want: "14.2s"},
-		{ms: 59949, want: "59.9s"}, {ms: 59950, want: "1m0s"}, {ms: 59999, want: "1m0s"}, {ms: 60000, want: "1m0s"},
-		{ms: 60499, want: "1m0s"}, {ms: 60500, want: "1m1s"}, {ms: 3599499, want: "59m59s"}, {ms: 3599500, want: "1h0m0s"},
-	}
-	for _, tt := range tests {
-		if got := cli.Took(tt.ms); got != tt.want {
-			t.Errorf("Took(%d) = %q, want %q", tt.ms, got, tt.want)
-		}
 	}
 }
 
@@ -440,7 +442,7 @@ Over these days           work                  side                  all accoun
   requests                2                     2                     5
   sessions served         2                     1                     3
   sessions moved          1 out                 1 in                  1 move
-  limits hit              Session ×1            none                  1
+  limits hit              5-hour ×1             none                  1
   at cap or limit         2h 10m                none                  2h 10m
   left at its last reset  Session 0%            Session 90%           -
   plan                    -                     -                     -
@@ -487,7 +489,7 @@ Over these days           work                  side                  all accoun
   requests                3                     2                     6
   sessions served         2                     1                     3
   sessions moved          1 out                 1 in                  1 move
-  limits hit              Session ×1            none                  1
+  limits hit              5-hour ×1             none                  1
   at cap or limit         2h 10m                none                  2h 10m
   left at its last reset  Session 0%            Session 90%           -
   plan                    -                     -                     -

@@ -120,7 +120,7 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Look:    a.printLook(out, colors.Profile, t, t.kept().Choice),
 		By:      opts.by.or(cfg.Usage.By),
 		Windows: windows,
-		Name:    claude.WindowName,
+		Name:    status.NameOfKey,
 	}.Draw(m)
 	logger.Debug("drew the printout", "width", width, "colors", colors.Profile.String())
 	_, err = io.WriteString(colors, "\n"+strings.Join(rows, "\n")+"\n")
@@ -189,11 +189,11 @@ type windowFlags []*windowFlag
 // so each is known as the command line is parsed.
 func addWindowFlags(cmd *cobra.Command) windowFlags {
 	flags := windowFlags{
-		{name: "5h", key: claude.FiveHourWindow, what: "the " + claude.WindowName(claude.FiveHourWindow) + " window"},
+		{name: "5h", key: claude.FiveHourWindow, what: "the " + status.NameOfKey(claude.FiveHourWindow) + " window"},
 		{name: "week", key: claude.WeekWindow, what: "the week"},
 	}
 	for _, w := range claude.ModelWindows() {
-		flags = append(flags, &windowFlag{name: strings.ToLower(w.Name), key: w.Key, what: "the " + claude.WindowName(w.Key)})
+		flags = append(flags, &windowFlag{name: strings.ToLower(w.Name), key: w.Key, what: "the " + status.NameOfKey(w.Key)})
 	}
 	slices.SortStableFunc(flags, func(a, b *windowFlag) int { return quota.CompareKeys(a.key, b.key) })
 	for _, f := range flags {
