@@ -82,6 +82,10 @@ type Routing struct {
 	Says    string
 	Clauses []string
 	Short   []string
+	// Back is when room returns to an account held back, where its clauses
+	// say so, the first of them, as in "back 15:54": zero where they don't,
+	// as where it isn't known, or the global pin spends its cap.
+	Back time.Time
 }
 
 // String is the words in full, a dot between each part, as in "at its cap ·
@@ -145,7 +149,7 @@ func (s windowStates) heldRouting() (Routing, bool) {
 	a, now, held, limited := s.account, s.now, s.stood.held, s.stood.limited
 	switch {
 	case limited && held.Every:
-		return Routing{Kind: RoutingLimited, Says: "limit reached", Clauses: backAt(now, held.Until), Short: shortBack("limit reached", now, held.Until)}, true
+		return Routing{Kind: RoutingLimited, Says: "limit reached", Clauses: backAt(now, held.Until), Short: shortBack("limit reached", now, held.Until), Back: held.Until}, true
 	case s.stood.refused:
 		answer := a.Refused.Answer()
 		return Routing{Kind: RoutingRefused, Says: answer, Clauses: []string{"its token needs renewing"}, Short: []string{answer}}, true
@@ -155,7 +159,7 @@ func (s windowStates) heldRouting() (Routing, bool) {
 		return s.cappedRouting()
 	case limited:
 		says := Short(a.label(held.Windows[0])) + " limit"
-		return Routing{Kind: RoutingModelLimited, Says: says, Clauses: append(backAt(now, held.Until), stillComes), Short: []string{says}}, true
+		return Routing{Kind: RoutingModelLimited, Says: says, Clauses: append(backAt(now, held.Until), stillComes), Short: []string{says}, Back: held.Until}, true
 	}
 	short := RefusalAnswer(a.Refused.Status, "")
 	return Routing{Kind: RoutingModelRefused, Says: a.Refused.Answer(), Clauses: []string{stillComes}, Short: []string{short}}, true
@@ -191,7 +195,7 @@ func (s windowStates) cappedRouting() (Routing, bool) {
 	if !shared {
 		back, _ = score.LetGo(a.Windows, a.Reserve, func(key string) bool { return !policy.IsShared(key) }, now)
 	}
-	return Routing{Kind: kind, Says: says, Clauses: append(backAt(now, back), then), Short: shortBack(says, now, back)}, true
+	return Routing{Kind: kind, Says: says, Clauses: append(backAt(now, back), then), Short: shortBack(says, now, back), Back: back}, true
 }
 
 // pressedRouting is how an account stands under pressure at now: when its
