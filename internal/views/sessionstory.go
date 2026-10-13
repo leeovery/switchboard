@@ -66,10 +66,10 @@ func (h HeldPage) Story(page SessionPage, live PageLive) Story {
 func (h HeldPage) movesOf(page SessionPage, s Stream) []SessionMove {
 	moves := page.modelMoves()
 	for _, m := range s.Moves {
-		lined := slices.ContainsFunc(h.requests, func(r request) bool { return sameRequest(r.Line, m.Request, m.At) })
-		if m.Session == h.id && m.Model == page.Model && !lined {
-			moves = append(moves, SessionMove{At: m.At.UTC(), Model: m.Model, From: m.From, To: m.To, Reason: m.Reason})
+		if m.Session != h.id || m.Model != page.Model || slices.ContainsFunc(h.requests, func(r request) bool { return sameRequest(r.Line, m.Request, m.At) }) {
+			continue
 		}
+		moves = append(moves, SessionMove{At: m.At.UTC(), Model: m.Model, From: m.From, To: m.To, Reason: m.Reason})
 	}
 	slices.SortStableFunc(moves, func(a, b SessionMove) int { return a.At.Compare(b.At) })
 	return moves
