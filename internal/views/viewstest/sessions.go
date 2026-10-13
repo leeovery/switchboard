@@ -364,18 +364,18 @@ func routerRestarted() SessionMoment {
 }
 
 func routerGone() SessionMoment {
-	m := moment("the router gone, or probing: drawn from its lines, by the router's own hour")
+	m := moment("the router gone, or probing: drawn from its lines, by the router's own hour, each last answer calling a tool")
 	m.Unlisted = true
 	m.Lines = []ledger.Line{
-		asMain(p1, "end_turn", line(C61B, Opus, "side", At(13, 30, 0), 20*time.Second)),
-		asMain(p1, "end_turn", line(D28C, Opus, "work", At(14, 20, 0), 15*time.Second)),
+		asMain(p1, "tool_use", line(C61B, Opus, "side", At(13, 30, 0), 20*time.Second)),
+		asMain(p1, "tool_use", line(D28C, Opus, "work", At(14, 20, 0), 15*time.Second)),
 	}
 	m.Want = map[string]Doing{
 		D28C: {Whole: views.Activity{Since: At(14, 20, 15), LastSeen: At(14, 20, 0)}},
 		C61B: {Whole: views.Activity{Doing: views.Ended, Since: At(13, 30, 0), LastSeen: At(13, 30, 0)}},
 	}
 	m.Turns = map[string][]Turn{
-		D28C: {over(1, At(14, 20, 0), At(14, 20, 15), 1, "work")},
+		D28C: {going(1, At(14, 20, 0), 1, "work")},
 		C61B: {over(1, At(13, 30, 0), At(13, 30, 20), 1, "side")},
 	}
 	m.Named = map[string]Named{D28C: {"work", Opus}, C61B: {"side", Opus}}

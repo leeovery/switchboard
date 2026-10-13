@@ -24,8 +24,8 @@ const (
 // it; a subagent's, nested ones too, count in the turn of the prompt its
 // first request names, whatever prompts come meanwhile; and a request that
 // names no prompt is in none. A turn goes on while it's open, as open says;
-// and, running saying the session runs, its newest goes on while its last
-// answer of its own conversation stopped to call a tool.
+// and, running saying the session runs, not having ended, its newest goes on
+// while its last answer of its own conversation stopped to call a tool.
 func turnsOf(requests []request, told []Told, running bool) []Turn {
 	var tallies []*turnTally
 	byPrompt := make(map[string]*turnTally)

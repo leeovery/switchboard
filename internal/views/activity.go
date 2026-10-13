@@ -196,7 +196,8 @@ func (h heard) doing() Activity {
 // hearing is what a request stream told of each session's model on each
 // account, but of Claude Code's quota checks, which are no session's work;
 // whether it's live; and each session's requests that spend quota, by its
-// id, the first sent first, as its turns count them.
+// id, the first sent first, as its turns count them and what names it reads
+// them.
 type hearing struct {
 	live  bool
 	seats map[seatOf]heard

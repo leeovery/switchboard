@@ -186,7 +186,9 @@ func momentsPage(t *testing.T, hm viewstest.SessionMoment, id string) views.Sess
 		routed = &hm.Sessions[i]
 	}
 	read := views.ReadSessions(fakeLedger{lines: hm.Lines, now: hm.Now}, hm.Sessions, hm.Now, id)
-	page, ok := views.SessionPageOf(id, views.PageSources{Routed: routed, Read: read, Stream: hm.Stream, Prices: ledger.Pricing, Now: hm.Now})
+	page, ok := views.SessionPageOf(id, views.PageSources{
+		Routed: routed, Unlisted: hm.Unlisted, Read: read, Stream: hm.Stream, Prices: ledger.Pricing, Now: hm.Now,
+	})
 	if !ok {
 		t.Fatalf("SessionPageOf(%s) found no session", id[:4])
 	}

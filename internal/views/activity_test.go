@@ -84,6 +84,28 @@ func TestWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 	}
 }
 
+// At each moment the views have to tell what a session is doing at, its page
+// says what the List says it's doing: one rule, the stream told and the
+// router gone or probing alike.
+func TestASessionsPageDoesAsTheListSaysAtEachHardMoment(t *testing.T) {
+	for _, hm := range viewstest.SessionMoments() {
+		t.Run(hm.Name, func(t *testing.T) {
+			list := views.ListSessions(views.SessionSources{
+				Running: hm.Sessions, Unlisted: hm.Unlisted, Stream: hm.Stream,
+				Ledger: fakeLedger{lines: hm.Lines, now: hm.Now}, Now: hm.Now,
+			})
+			for _, s := range list.Sessions {
+				if got := momentsPage(t, hm, s.Session).Activity; said(got) != said(s.Activity) {
+					t.Errorf("%s's page says %s, the List %s", s.Session[:4], said(got), said(s.Activity))
+				}
+			}
+			if len(list.Sessions) != len(hm.Want) {
+				t.Errorf("the List holds %d sessions, want %d", len(list.Sessions), len(hm.Want))
+			}
+		})
+	}
+}
+
 // A session as a whole does what the busiest of its models does: answering,
 // asking, throttled, refused, then idle, as it's seen as late as any of them,
 // and idle since the latest of them.
