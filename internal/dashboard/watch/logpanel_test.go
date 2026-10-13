@@ -46,6 +46,11 @@ func TestTheLogsPanelPicksWhatItShowsAndEnterAppliesIt(t *testing.T) {
 	if h.model.open != nothingOpen || h.model.log.page.Columns.Shows(dashboard.LogSession) {
 		t.Errorf("/ left the panel open %v, or applied its tick, want it closed for the find, nothing changed", h.model.open == logPanelOpen)
 	}
+
+	h.keyed("f right down space enter")
+	if got := h.model.log.page.Filter.Accounts; !slices.Equal(got, []string{"side"}) || prefs.updates != 1 {
+		t.Errorf("personal unticked and applied, the filter keeps %v and the preferences were kept %d times; want side's, kept once still, as no column changed", got, prefs.updates)
+	}
 }
 
 // A click on one of the panel's ticks ticks it.
