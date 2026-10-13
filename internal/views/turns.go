@@ -19,15 +19,32 @@ const (
 
 // turnsOf returns the turns of a session, newest first, as TURNS has them:
 // of its requests, oldest first, and those the request stream told of, told,
-// the first sent first, each counted in its turn as it's sent, as sentOf
-// takes them in. A turn is the requests of one prompt, as Claude Code names
-// it; a subagent's, nested ones too, count in the turn of the prompt its
-// first request names, whatever prompts come meanwhile; and a request that
-// names no prompt is in none. A turn goes on while it's open, as open says;
-// and, running saying the session runs, not having ended, its newest goes on
-// while its last answer of its own conversation stopped to call a tool.
-func turnsOf(requests []request, told []Told, running bool) []Turn {
-	var tallies []*turnTally
+// the first sent first, as talliesOf tallies them. A turn goes on while it's
+// open, as open says; and, running saying the session runs, not having
+// ended, its newest goes on while its last answer of its own conversation
+// stopped to call a tool, or while a request of the session is in flight
+// that neither its lines nor the stream place in a turn: one the stream told
+// of naming no prompt, or, as unplaced says, one the router lists in flight
+// that the stream hasn't told of.
+func turnsOf(requests []request, told []Told, running, unplaced bool) []Turn {
+	tallies, inNone := talliesOf(requests, told)
+	turns := make([]Turn, len(tallies))
+	for i, t := range tallies {
+		newest := i == len(tallies)-1
+		turns[len(tallies)-1-i] = t.turn(i+1, t.open() || running && newest && (t.calling() || unplaced || inNone))
+	}
+	return turns
+}
+
+// talliesOf returns the tallies of a session's turns, the first started
+// first, of its requests, oldest first, and those the request stream told
+// of, told, the first sent first, each counted in its turn as it's sent, as
+// sentOf takes them in, reporting too whether a request in none is in
+// flight. A turn is the requests of one prompt, as Claude Code names it; a
+// subagent's, nested ones too, count in the turn of the prompt its first
+// request names, whatever prompts come meanwhile; and a request that names
+// no prompt is in none.
+func talliesOf(requests []request, told []Told) (tallies []*turnTally, inNone bool) {
 	byPrompt := make(map[string]*turnTally)
 	agents := make(map[string]string)
 	sent := sentOf(requests, told)
@@ -35,6 +52,7 @@ func turnsOf(requests []request, told []Told, running bool) []Turn {
 		r := &sent[i]
 		prompt := promptOf(r.agentID, r.prompt, agents)
 		if prompt == "" {
+			inNone = inNone || r.pending && r.end.IsZero()
 			continue
 		}
 		t, ok := byPrompt[prompt]
@@ -44,12 +62,7 @@ func turnsOf(requests []request, told []Told, running bool) []Turn {
 		}
 		t.add(r)
 	}
-	turns := make([]Turn, len(tallies))
-	for i, t := range tallies {
-		newest := i == len(tallies)-1
-		turns[len(tallies)-1-i] = t.turn(i+1, t.open() || running && newest && t.calling())
-	}
-	return turns
+	return tallies, inNone
 }
 
 // promptOf returns the prompt whose turn a request counts in, of the agent
@@ -71,13 +84,16 @@ func promptOf(agentID, prompt string, agents map[string]string) string {
 // sent is a session's request as its turn takes it in: as its line tells it,
 // once that has come; else as the request stream told of it, from when it
 // was sent. It names a prompt, a class and an agent, each "" where it names
-// none, and went to an account, or went out on it last while in flight.
+// none, asks for a model, and went to an account, or went out on it last
+// while in flight.
 type sent struct {
 	prompt, class, agentID string
 	at                     time.Time
-	account                string
-	// line is its line, nil before that has come.
+	model, account         string
+	// line is its line, nil before that has come; and told what the stream
+	// told of it till then, nil once its line has come.
 	line *request
+	told *Told
 	// end is when it ended, as its line gives it, or the stream told, or,
 	// lost, when the stream last told of it: zero while it's in flight.
 	end time.Time
@@ -116,13 +132,13 @@ func sentOf(requests []request, told []Told) []sent {
 
 // lineSent is the request r as its line tells it.
 func lineSent(r *request) sent {
-	return sent{prompt: r.Prompt, class: r.Class, agentID: r.AgentID, at: r.At, account: r.Account, line: r, end: ended(r.Line)}
+	return sent{prompt: r.Prompt, class: r.Class, agentID: r.AgentID, at: r.At, model: r.Model, account: r.Account, line: r, end: ended(r.Line)}
 }
 
 // toldSent is the request t as the stream told of it, before its line has
 // come.
 func toldSent(t Told) sent {
-	s := sent{prompt: t.Prompt, class: t.Class, agentID: t.AgentID, at: t.Sent, account: t.Account, pending: !t.Lost}
+	s := sent{prompt: t.Prompt, class: t.Class, agentID: t.AgentID, at: t.Sent, model: t.Model, account: t.Account, told: &t, pending: !t.Lost}
 	switch {
 	case !t.Ended.IsZero():
 		s.end = t.Ended
@@ -133,13 +149,15 @@ func toldSent(t Told) sent {
 }
 
 // turnTally is a turn as its requests, oldest first, are taken in: when its
-// first came; its last, and its last of its own conversation; how many there
-// are; how many times each tool was called; the tokens they read from the
-// cache, wrote to it and put out; their worth; the accounts they went to,
-// and those its own conversation's went to, each as withAccount lists them;
-// and whether any of them, and any of its own conversation's, is pending.
+// first came; each of them, its last, and its last of its own conversation;
+// how many there are; how many times each tool was called; the tokens they
+// read from the cache, wrote to it and put out; their worth; the accounts
+// they went to, and those its own conversation's went to, each as
+// withAccount lists them; and whether any of them, and any of its own
+// conversation's, is pending.
 type turnTally struct {
 	started                time.Time
+	members                []*sent
 	last, lastMain         *sent
 	requests               int
 	tools                  map[string]int
@@ -150,6 +168,7 @@ type turnTally struct {
 }
 
 func (t *turnTally) add(r *sent) {
+	t.members = append(t.members, r)
 	t.last, t.accounts, t.pending = r, withAccount(t.accounts, r.account), t.pending || r.pending
 	if r.class == ledger.ClassMain {
 		t.lastMain, t.mainAccounts, t.mainPending = r, withAccount(t.mainAccounts, r.account), t.mainPending || r.pending

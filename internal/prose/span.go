@@ -129,10 +129,18 @@ func About(d time.Duration) string {
 	return fmt.Sprintf("%dh", d.Round(time.Hour)/time.Hour)
 }
 
-// Minutes says how many minutes it is from the minute from falls in to the
-// one to falls in, as a turn's length is said, as "3m".
+// Minutes says how many minutes there are from the minute from falls in to
+// the one to falls in, both counted, as a turn's length is said: "9m" from
+// 14:29 to 14:37, and "1m" within one minute.
 func Minutes(from, to time.Time) string {
-	return strconv.Itoa(int(to.Truncate(time.Minute).Sub(from.Truncate(time.Minute))/time.Minute)) + "m"
+	return strconv.Itoa(int(to.Truncate(time.Minute).Sub(from.Truncate(time.Minute))/time.Minute)+1) + "m"
+}
+
+// Hours says how long d is in whole hours, what's left over cut, as a
+// session's story says how long it idled where it folds: "15h" for 15 hours
+// and 7 minutes.
+func Hours(d time.Duration) string {
+	return strconv.Itoa(int(max(d, 0)/time.Hour)) + "h"
 }
 
 // ClockOf shows a time of day, as the time since midnight, as HH:MM, such as

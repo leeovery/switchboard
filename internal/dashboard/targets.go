@@ -10,8 +10,9 @@ import (
 // cells wide, and what's there, as On says: a tab, Tab; a sub-tab, by its
 // place among them, SubTab; < or > by a period or a window, Step, -1 or 1; a
 // key of the key line, Key, as the line names it; a row of the view, Row, by
-// its index; an Overview's section, Section; or an account, by its id,
-// Account.
+// its index; an Overview's section, Section; an account, by its id, Account;
+// a session, by its id, Session; a turn of a session's page, by its number,
+// Turn; or a request of its turn open, by its index among them, Row.
 type Target struct {
 	X, Y, Width int
 	On          Clicked
@@ -22,6 +23,8 @@ type Target struct {
 	Row         int
 	Section     Section
 	Account     string
+	Session     string
+	Turn        int
 }
 
 // Clicked is what a click lands on.
@@ -44,6 +47,13 @@ const (
 	// OnAccount is an account's row on the Overview, in USAGE or ROUTING,
 	// which moves the focus to it.
 	OnAccount
+	// OnSession is a session's row, which opens its page.
+	OnSession
+	// OnTurn is a turn's row on a session's page, which chooses it.
+	OnTurn
+	// OnRequest is a request's row in a session's turn open, which chooses
+	// it.
+	OnRequest
 )
 
 // Targets are the zones of the frame's page of doc at now a click acts on,

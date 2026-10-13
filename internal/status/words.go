@@ -103,6 +103,18 @@ func SessionWords(reason string, f Facts) Words {
 	return wordsOf(reason, f).session
 }
 
+// ShortWords are the reason as a phone's session page reads it, in its few
+// cells: why a move off an account was forced, the account it left said
+// apart, "its cap"; else as EventWords reads it. Any reason not in the
+// dashboard's words reads as the router gives it, cleaned.
+func ShortWords(reason string, f Facts) Words {
+	w := wordsOf(reason, f)
+	if w.short != nil {
+		return w.short
+	}
+	return w.event
+}
+
 // RunningWords are the reason as a session running reads, with when it went
 // to its account, as prose.Dated says it: "started here 14:41", ending ",
 // the best" while that's where new sessions go; "pinned here 14:39", its own
@@ -126,7 +138,7 @@ func RunningWords(reason string, f Facts) Words {
 	case strings.HasPrefix(reason, ReasonPinYields):
 		return EventWords(reason, f)
 	}
-	if left, _, ok := cutAccount(reason, ReasonMovedOff); ok {
+	if left := MovedFrom(reason); left != "" {
 		f.From = left
 	}
 	var came Words
@@ -146,9 +158,10 @@ func RunningWords(reason string, f Facts) Words {
 }
 
 // forms are a reason's words in each place the dashboard says it: routed is
-// why, as a request's routing says it after the account the session left.
+// why, as a request's routing says it after the account the session left;
+// and short, where it's given, why as a phone says it, as ShortWords has it.
 type forms struct {
-	event, routed, session Words
+	event, routed, session, short Words
 }
 
 // alike is words that read the same everywhere.
@@ -186,6 +199,26 @@ func wordsOf(reason string, f Facts) forms {
 		}
 	}
 	return alike(Words{Plain(reason)})
+}
+
+// MovedFrom is the account a reason for a move off an account names, as
+// "moved: work hit its limit" names work, cleaned, as it's from elsewhere: ""
+// for any other reason.
+func MovedFrom(reason string) string {
+	account, _, ok := cutAccount(prose.Clean(reason), ReasonMovedOff)
+	if !ok {
+		return ""
+	}
+	return account
+}
+
+// MovedNothing reports whether the reason is one that moves no session,
+// cleaned, as it's from elsewhere: a new session's, whether or not the
+// choice passed an account over for pressure; sticky; or kept for its
+// thinking.
+func MovedNothing(reason string) bool {
+	reason = prose.Clean(reason)
+	return isNew(reason) || reason == ReasonSticky || reason == ReasonBound
 }
 
 // isNew reports whether the reason, cleaned, is a new session's, whether or
@@ -295,12 +328,12 @@ func rescored(reason string, f Facts) (forms, bool) {
 }
 
 // offWords are why a move off an account was forced, as the router says it,
-// in the words of an event and of a request's routing.
-var offWords = map[string]struct{ event, routed string }{
-	WhyReserve: {event: " reached its cap", routed: "at its cap"},
-	WhyLimit:   {event: " reached its limit", routed: "at its limit"},
-	WhyRefused: {event: " refused the request", routed: "refused"},
-	WhyNoRoom:  {event: " had no room", routed: "with no room"},
+// in the words of an event, of a request's routing, and of a phone.
+var offWords = map[string]struct{ event, routed, short string }{
+	WhyReserve: {event: " reached its cap", routed: "at its cap", short: "its cap"},
+	WhyLimit:   {event: " reached its limit", routed: "at its limit", short: "its limit"},
+	WhyRefused: {event: " refused the request", routed: "refused", short: "refused"},
+	WhyNoRoom:  {event: " had no room", routed: "with no room", short: "no room"},
 }
 
 // Tried is an account a request went out on that couldn't serve it, and
@@ -353,7 +386,7 @@ func movedOff(reason string, _ Facts) (forms, bool) {
 		return alike(Words{Plain(ReasonMovedOff), Named(account), Plain(" " + why)}), true
 	}
 	event := Words{Named(account), Plain(said.event)}
-	return forms{event: event, routed: Words{Plain(said.routed)}, session: event}, true
+	return forms{event: event, routed: Words{Plain(said.routed)}, session: event, short: Words{Plain(said.short)}}, true
 }
 
 // pinYields reads the reason for going elsewhere than the session's own pin

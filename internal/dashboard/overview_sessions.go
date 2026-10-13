@@ -177,27 +177,13 @@ func runningSeen(seen, now time.Time) string {
 }
 
 // runningDoing is what a session running is doing, as SESSIONS says its
-// Activity: answering, with its tokens so far, as "↓ ~1.2k", or "↓" alone
-// till the stream counts any; asking, "↑ ask", as it says while throttled,
-// to be sent again; else idle, as it says while refused, having no word of
-// its own for that.
+// Activity, in the views' short words: in accent.key while a request of it
+// is in flight, else faint.
 func runningDoing(a views.Activity) span {
-	switch a.Doing {
-	case views.Answering:
-		return span{answered(a), doingInk}
-	case views.Asking, views.Throttled:
-		return span{"↑ ask", doingInk}
+	if a.InFlight() {
+		return span{a.Short(), doingInk}
 	}
-	return span{"idle", faintInk}
-}
-
-// answered is how much of an answer has streamed, as "↓ ~1.2k": "↓" alone
-// till the stream has counted any of it.
-func answered(a views.Activity) string {
-	if a.Tokens() == 0 {
-		return "↓"
-	}
-	return "↓ ~" + prose.Tokens(a.Tokens())
+	return span{a.Short(), faintInk}
 }
 
 // runningCount says how many sessions run, and how many on each of m's

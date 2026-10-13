@@ -96,6 +96,16 @@ var (
 		// A window's name where no document labels it, as "5-hour" or
 		// "Week", never Claude's own label.
 		"claude.WindowLabel": "status.NameOfKey",
+		// How long a session's turn took, the minutes it spans, both ends
+		// counted, as "9m".
+		"prose.Minutes": "views.Turn.Took",
+		// A session's time on an account, as "yesterday 16:40 – 18:05".
+		"prose.Stint": "views.SessionPage.Stays",
+		// Where a session runs and how it came there, as row 6 says it.
+		"status.SessionWords": "views.SessionPage.Where",
+		// What moved a session and where to, as its story's label says it:
+		// an event's own words are views.Telling's.
+		"status.EventWords": "views.SessionMove.Said",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.

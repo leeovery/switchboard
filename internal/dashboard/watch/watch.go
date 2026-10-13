@@ -298,6 +298,9 @@ type Model struct {
 	// past is what the watch holds of History: its page, the ledger's days
 	// it's built of, and the reads of them.
 	past historyTab
+	// session is the session's page open, drawn in place of the view: nil
+	// while none is.
+	session *sessionShown
 
 	// open is the card open over the page, if any: the routing card, its
 	// picker as routing holds it, or help, scrolled as help holds it. page is
@@ -616,7 +619,8 @@ func (m Model) viewOf(lines []string, look dashboard.Look) tea.View {
 // open, its keys alone act, as routingKey and helpKey take them. Else q
 // quits; while the theme picker is open, it takes every other key; and
 // otherwise p opens the routing card, ? opens the page's help, R refreshes,
-// and the rest are the page's, as pageKey takes them.
+// and the rest are a session's page's, while one is open, as sessionKey
+// takes them, else the page's, as pageKey takes them.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k := key.String(); {
 	case k == "ctrl+c":
@@ -635,6 +639,8 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.openHelp(), nil
 	case k == "R":
 		return m.refresh()
+	case m.session != nil:
+		return m.sessionKey(key)
 	}
 	return m.pageKey(key)
 }
@@ -716,6 +722,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
 		History:    m.past.page,
+		Session:    m.session.frame(),
 	}.Holding(m.taking.moment).At(m.doc, now)
 	f.Eased = m.ease.eased(f, m.doc, now)
 	return f

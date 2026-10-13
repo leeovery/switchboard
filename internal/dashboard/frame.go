@@ -108,6 +108,9 @@ type Frame struct {
 	// History is History's sub-tab shown, what each of its views shows, and
 	// their pages.
 	History HistoryPage
+	// Session is the session's page open, drawn in place of the view: nil
+	// while none is.
+	Session *SessionShown
 
 	// held is the moment of a document as At holds it, and built the
 	// Overview's sections as Built built them, each for every look the frame,
