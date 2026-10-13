@@ -85,6 +85,8 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 			left:    "9c2e  " + strings.Repeat("n", 40), right: "runs on personal"},
 		{name: "a directory's name too long, cut", session: RoutingSession{ID: "9c2e", Dir: "~/" + strings.Repeat("n", 60), On: "personal"},
 			left: "9c2e  " + strings.Repeat("n", 51) + "…", right: "  runs on personal"},
+		{name: "a directory under the home, as ~", session: RoutingSession{ID: "9c2e", Dir: "/home/dev/Code/website", Home: "/home/dev", On: "personal"},
+			left: "9c2e  website  ~/Code/website", right: "runs on personal"},
 		{name: "no directory, its id alone", session: RoutingSession{ID: "9c2e47b1", On: "personal"}, left: "9c2e", right: "runs on personal"},
 		{name: "where it runs not known", session: RoutingSession{ID: "9c2e", Dir: "~/Code/website"}, left: "9c2e  website  ~/Code/website"},
 		{name: "an account named by its name", session: RoutingSession{ID: "9c2e", On: "side"}, left: "9c2e", right: "runs on side"},

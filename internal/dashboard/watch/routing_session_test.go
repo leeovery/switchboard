@@ -44,9 +44,10 @@ func TestASessionsPageOpensItsCardPickingItsOwnPin(t *testing.T) {
 	} {
 		t.Run("its own pin "+tt.pin, func(t *testing.T) {
 			h := sessionPaged(t, tt.pin)
+			h.model.cfg.Home = "/home/dev"
 			h.keyed("p")
 			card := h.card()
-			want := dashboard.RoutingSession{ID: pagedID, Dir: "~/Code/website", On: "personal", Auto: "side"}
+			want := dashboard.RoutingSession{ID: pagedID, Dir: "~/Code/website", Home: "/home/dev", On: "personal", Auto: "side"}
 			if h.model.open != routingOpen || card.Mode != dashboard.ThisSession || card.Session != want {
 				t.Fatalf("after p, the card is open %v, routing %v %+v; want the session's card, routing %+v", h.model.open == routingOpen, card.Mode, card.Session, want)
 			}
