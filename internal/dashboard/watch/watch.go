@@ -148,13 +148,15 @@ type Config struct {
 	// View is the tab the preferences kept, which the watch opens on where
 	// it's one there is; Sections the Overview's sections they keep shown;
 	// By how they keep its windows grouped, else as the config's [usage] by
-	// has it; and History what they keep History's views showing, as
-	// dashboard.HistoryKept reads it. Prefs keeps each as it changes: nil
-	// keeps nothing.
+	// has it; History what they keep History's views showing, as
+	// dashboard.HistoryKept reads it; and Log the Log's columns they keep
+	// shown, as dashboard.LogKept reads them. Prefs keeps each as it
+	// changes: nil keeps nothing.
 	View     dashboard.View
 	Sections dashboard.Sections
 	By       dashboard.By
 	History  dashboard.HistoryPage
+	Log      dashboard.LogTicks
 	Prefs    Prefs
 	// TraceScale is the requests a minute that fill a trace's height on the
 	// Overview: 0 for the live rule, as the dashboard has it, the busiest
@@ -166,6 +168,10 @@ type Config struct {
 	Ledger   views.Ledger
 	Readings views.Readings
 	Events   views.Events
+	// LedgerKeep is how long the ledger keeps a day's lines, as [ledger]
+	// keep gives it, which says the Log's oldest day: dayfile.Forever, or 0,
+	// as a Config that doesn't say, keeps them for good.
+	LedgerKeep time.Duration
 	// Prices are the price table a move's cost is worked out at, the
 	// config's prices in place of any of the table's.
 	Prices ledger.Table
