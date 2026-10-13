@@ -133,7 +133,7 @@ func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State
 	refused := a.Refused.holds(now)
 	switch {
 	case limited && held.Every:
-		then := back(now, held.Until)
+		then := Back(now, held.Until)
 		if then != "" {
 			then += ", " + prose.Until(now, held.Until)
 		}
@@ -144,7 +144,7 @@ func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State
 		return d.reservedState(a, d.reservedOf(a, now), now, policy), true
 	case limited:
 		says := Short(a.label(held.Windows[0])) + " limit"
-		return State{Condition: PartlyLimited, Says: says, Then: dotted(back(now, held.Until), stillComes)}, true
+		return State{Condition: PartlyLimited, Says: says, Then: dotted(Back(now, held.Until), stillComes)}, true
 	case refused:
 		return State{Condition: PartlyLimited, Says: a.Refused.Answer(), Then: dotted("until "+prose.Dated(now, a.Refused.Until), stillComes)}, true
 	}
@@ -188,13 +188,25 @@ func (d Document) capHolds(a Account, now time.Time, policy score.Policy) bool {
 	return d.reserveHolds(a) && slices.ContainsFunc(a.reachedReserve(now), policy.IsShared)
 }
 
-// back says when an account held back at now has room again, at t, as in
-// "back 15:54": "" where that's unknown.
-func back(now, t time.Time) string {
+// Back says when an account held back at now has room again, at t, as Dated
+// shows it, as in "back 15:54": "" where that's unknown.
+func Back(now, t time.Time) string {
+	return clauseAt("back ", now, t)
+}
+
+// Till says until when what holds an account back at now holds, at t, as
+// Dated shows it, as in "till 23:58": "" where that's unknown.
+func Till(now, t time.Time) string {
+	return clauseAt("till ", now, t)
+}
+
+// clauseAt is the words given then t as Dated shows it at now: "" where t is
+// unknown.
+func clauseAt(words string, now, t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return "back " + prose.Dated(now, t)
+	return words + prose.Dated(now, t)
 }
 
 // Hold is what holds an account back at its limit: the keys of the windows

@@ -29,3 +29,35 @@ func TestPercent(t *testing.T) {
 		}
 	}
 }
+
+// A figure to a tenth rounds a half to the even one, as every figure does,
+// so 0.25 is 0.2 and 0.75 is 0.8; a sliver under nothing is 0.0, never -0.0.
+func TestAFigureToATenthRoundsAHalfToTheEvenOne(t *testing.T) {
+	tests := []struct {
+		x       float64
+		nearest float64
+		tenths  string
+		ratio   string
+	}{
+		{x: 0, nearest: 0, tenths: "0.0", ratio: "0.0×"},
+		{x: 1.5, nearest: 1.5, tenths: "1.5", ratio: "1.5×"},
+		{x: 3.8166, nearest: 3.8, tenths: "3.8", ratio: "3.8×"},
+		{x: 0.96, nearest: 1, tenths: "1.0", ratio: "1.0×"},
+		{x: 0.94, nearest: 0.9, tenths: "0.9", ratio: "0.9×"},
+		{x: 0.25, nearest: 0.2, tenths: "0.2", ratio: "0.2×"},
+		{x: 0.75, nearest: 0.8, tenths: "0.8", ratio: "0.8×"},
+		{x: 1.25, nearest: 1.2, tenths: "1.2", ratio: "1.2×"},
+		{x: -0.04, nearest: 0, tenths: "0.0", ratio: "0.0×"},
+	}
+	for _, tt := range tests {
+		if got := prose.NearestTenth(tt.x); got != tt.nearest {
+			t.Errorf("NearestTenth(%v) = %v, want %v", tt.x, got, tt.nearest)
+		}
+		if got := prose.Tenths(tt.x); got != tt.tenths {
+			t.Errorf("Tenths(%v) = %q, want %q", tt.x, got, tt.tenths)
+		}
+		if got := prose.Ratio(tt.x); got != tt.ratio {
+			t.Errorf("Ratio(%v) = %q, want %q", tt.x, got, tt.ratio)
+		}
+	}
+}

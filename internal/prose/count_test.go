@@ -100,10 +100,69 @@ func TestSessionCount(t *testing.T) {
 		{n: 1, want: "1 session"},
 		{n: 2, want: "2 sessions"},
 		{n: 12, want: "12 sessions"},
+		{n: 1240, want: "1,240 sessions"},
 	}
 	for _, tt := range tests {
 		if got := prose.SessionCount(tt.n); got != tt.want {
 			t.Errorf("SessionCount(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
+func TestACountedNounOrNoneSaysNoneInItsOwnWords(t *testing.T) {
+	tests := []struct {
+		n          int
+		noun, zero string
+		want       string
+	}{
+		{n: 0, noun: "move", zero: "none", want: "none"},
+		{n: 0, noun: "session", zero: "no sessions", want: "no sessions"},
+		{n: 1, noun: "move", zero: "none", want: "1 move"},
+		{n: 4, noun: "move", zero: "none", want: "4 moves"},
+		{n: 1240, noun: "request", zero: "none", want: "1,240 requests"},
+	}
+	for _, tt := range tests {
+		if got := prose.CountedOr(tt.n, tt.noun, tt.zero); got != tt.want {
+			t.Errorf("CountedOr(%d, %q, %q) = %q, want %q", tt.n, tt.noun, tt.zero, got, tt.want)
+		}
+	}
+}
+
+func TestMillionsAreToAPlaceThenWholeThenBillionsToTwo(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{n: 0, want: "0.0M"},
+		{n: 12, want: "0.0M"},
+		{n: 800_000, want: "0.8M"},
+		{n: 4_249_999, want: "4.2M"},
+		{n: 75_400_000, want: "75.4M"},
+		{n: 99_949_999, want: "99.9M"},
+		{n: 99_950_000, want: "100M"},
+		{n: 615_000_000, want: "615M"},
+		{n: 999_499_999, want: "999M"},
+		{n: 999_500_000, want: "1.00B"},
+		{n: 1_056_800_000, want: "1.06B"},
+	}
+	for _, tt := range tests {
+		if got := prose.Millions(tt.n); got != tt.want {
+			t.Errorf("Millions(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
+func TestThousandsAreAsTheyAreUnderAThousandThenAsManyPlacesAsTheyTake(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{n: 0, want: "0"}, {n: 450, want: "450"}, {n: 999, want: "999"}, {n: 1000, want: "1k"}, {n: 1250, want: "1.25k"},
+		{n: 12000, want: "12k"}, {n: 12500, want: "12.5k"},
+	}
+	for _, tt := range tests {
+		if got := prose.Thousands(tt.n); got != tt.want {
+			t.Errorf("Thousands(%d) = %q, want %q", tt.n, got, tt.want)
 		}
 	}
 }

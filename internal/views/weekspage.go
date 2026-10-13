@@ -6,6 +6,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // WeeksPage is Weeks as the dashboard draws it: the eight weeks to this one,
@@ -56,6 +57,18 @@ type WeeksRow struct {
 type WeekPeak struct {
 	Share *float64
 	Open  bool
+}
+
+// peakSoFar marks a peak so far, of a week still running, after it.
+const peakSoFar = "…"
+
+// Peak says a week's peak, share, as a whole percentage, as "60%"; and of a
+// week still running, open, as its peak so far, as "34%…".
+func Peak(share float64, open bool) string {
+	if open {
+		return prose.Percent(share) + peakSoFar
+	}
+	return prose.Percent(share)
 }
 
 // weeksPage is Weeks' page: the eight weeks to this one, the accounts' own
