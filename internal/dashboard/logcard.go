@@ -411,7 +411,7 @@ func statusSaid(r views.RequestRow) line {
 		return nil
 	case r.Stage == views.RowLost:
 		return valued("")
-	case ledger.Failing(r.Status):
+	case r.Failed:
 		return line{{prose.Grouped(r.Status), exhaustedInk}}
 	}
 	return valued(prose.Grouped(r.Status))

@@ -82,7 +82,7 @@ var (
 	// package calls none, whether or not it takes raw data.
 	readsRaw = []string{
 		"claude.LimitStatus", "claude.LimitWindows", "claude.WindowsRead",
-		"ledger.Line.Upstream",
+		"ledger.Failing", "ledger.Line.Upstream",
 		"ledger.Reply.CacheLife", "ledger.Reply.Tokens",
 		"ledger.Table.CacheWrite", "ledger.Table.Priced", "ledger.Table.Request", "ledger.Table.Rewrite",
 		"ledger.Table.Summed", "ledger.Table.Worth",

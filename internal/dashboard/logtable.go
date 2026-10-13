@@ -239,7 +239,7 @@ func statusCell(r views.RequestRow) line {
 	if r.Stage != views.RowLined && r.Stage != views.RowEnded {
 		return nil
 	}
-	if ledger.Failing(r.Status) {
+	if r.Failed {
 		return line{{strconv.Itoa(r.Status), exhaustedInk}}
 	}
 	return line{{strconv.Itoa(r.Status), mutedInk}}
