@@ -40,7 +40,7 @@ type Running struct {
 // RunningOf are the sessions running on the accounts at the moment m, of
 // the sessions the router listed, as the request stream s has moved and seen
 // them since, as placed has them: a row on each account their models go to,
-// those running there, as runsOn says, the accounts in the config's order,
+// those running there, as runs says, the accounts in the config's order,
 // and on each, the session seen last first.
 func RunningOf(m status.Moment, sessions []status.Session, s Stream) []Running {
 	h := s.hearing()
@@ -59,26 +59,31 @@ func RunningOf(m status.Moment, sessions []status.Session, s Stream) []Running {
 	return running
 }
 
-// RunningOn counts the sessions running on the account with the given id at
-// now, of the sessions the router listed, as the request stream s has moved
-// and seen them since, as placed has them: those with a model running there,
-// as runsOn says. It's the count ROUTING and the routing card give, of the
-// sessions SESSIONS lists there.
-func RunningOn(sessions []status.Session, s Stream, id string, now time.Time) int {
-	n := 0
+// RunningCounts counts the sessions running on each account at now, by the
+// account's id, of the sessions the router listed, as the request stream s
+// has moved and seen them since, as placed has them: those with a model
+// running there, as runs says; none for an account none runs on. They're the
+// counts ROUTING and the routing card give, of the sessions SESSIONS lists
+// on each account, s heard and the sessions placed once for every account.
+func RunningCounts(sessions []status.Session, s Stream, now time.Time) map[string]int {
+	counts := make(map[string]int)
 	for _, session := range s.placed(sessions, s.hearing()) {
-		if slices.ContainsFunc(session.Assignments, func(a status.Assignment) bool { return runsOn(a, id, now) }) {
-			n++
+		var on []string
+		for _, a := range session.Assignments {
+			if runs(a, now) && !slices.Contains(on, a.Account) {
+				on = append(on, a.Account)
+				counts[a.Account]++
+			}
 		}
 	}
-	return n
+	return counts
 }
 
-// runsOn reports whether a session's model, as it's placed in a, runs on
-// the account with the given id at now: it goes there, and was seen there,
-// or put there, within the IdleHour.
-func runsOn(a status.Assignment, id string, now time.Time) bool {
-	return a.Account == id && now.Sub(score.Later(a.LastSeen, a.AssignedAt)) <= IdleHour
+// runs reports whether a session's model, as it's placed in a, runs on the
+// account it goes to at now: it was seen there, or put there, within the
+// IdleHour.
+func runs(a status.Assignment, now time.Time) bool {
+	return now.Sub(score.Later(a.LastSeen, a.AssignedAt)) <= IdleHour
 }
 
 // runningOn is the session s as it runs on the account with the given id at
@@ -87,7 +92,7 @@ func runsOn(a status.Assignment, id string, now time.Time) bool {
 // what the stream told, where that runs there, else by its model seen last
 // there.
 func runningOn(m status.Moment, s status.Session, id string, h hearing) (Running, bool) {
-	there := slices.DeleteFunc(slices.Clone(s.Assignments), func(a status.Assignment) bool { return !runsOn(a, id, m.Now) })
+	there := slices.DeleteFunc(slices.Clone(s.Assignments), func(a status.Assignment) bool { return a.Account != id || !runs(a, m.Now) })
 	if len(there) == 0 {
 		return Running{}, false
 	}

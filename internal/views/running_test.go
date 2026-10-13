@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"maps"
 	"reflect"
 	"strings"
 	"testing"
@@ -258,7 +259,7 @@ func TestASessionIsTheBestWhereTheMomentMarksItsAccountAtEachHardMoment(t *testi
 // went, till a listing of the router's sessions shows it done: the session
 // runs there, and nowhere it ran only by that model; one the router didn't
 // list that a move brought on runs too, named by the family the router
-// gives its model; and RunningOn counts them as RunningOf lists them.
+// gives its model; and RunningCounts counts them as RunningOf lists them.
 func TestTheStreamsMovesPutTheSessionsWhereTheyWent(t *testing.T) {
 	sessions := []status.Session{
 		{ID: asking, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, time.Hour, time.Minute, status.Asking)}},
@@ -280,10 +281,8 @@ func TestTheStreamsMovesPutTheSessionsWhereTheyWent(t *testing.T) {
 	if want := []string{"work 9c2e haiku", "side d28c opus", "side 7f3a haiku"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf lists %q, want %q", got, want)
 	}
-	for id, want := range map[string]int{"work": 1, "personal": 0, "side": 2} {
-		if got := views.RunningOn(sessions, stream, id, now); got != want {
-			t.Errorf("RunningOn(%s) = %d, want %d", id, got, want)
-		}
+	if got, want := views.RunningCounts(sessions, stream, now), map[string]int{"work": 1, "side": 2}; !maps.Equal(got, want) {
+		t.Errorf("RunningCounts = %v, want %v", got, want)
 	}
 	if sessions[0].Assignments[0].Account != "work" || len(sessions) != 2 {
 		t.Error("the router's listing was changed")
