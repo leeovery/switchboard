@@ -255,8 +255,8 @@ func (p Policy) PickPinned(candidates []Candidate, pinned []string, applies func
 	return Choice{}, false
 }
 
-// spending returns the candidates pinned names, in the order given, each with
-// its reserve spent.
+// spending returns the candidates pinned names, in the candidates' order,
+// not the pin's, each with its reserve spent.
 func spending(candidates []Candidate, pinned []string) []Candidate {
 	var named []Candidate
 	for _, c := range candidates {
