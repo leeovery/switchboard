@@ -143,7 +143,7 @@ func EventMoments() []EventMoment {
 		acrossMidnight(on),
 		filedAgainToday(on),
 		fallingBack(london),
-		pressureTheDayBefore(),
+		PressureTheDayBefore(),
 		movedTwiceAlike(),
 		sideMoveSettled(),
 		coldMove(),

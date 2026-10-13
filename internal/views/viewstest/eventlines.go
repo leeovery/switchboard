@@ -114,11 +114,12 @@ func keyOf(run time.Time, e status.Event) Key {
 	return Key{Run: run.UnixNano(), ID: e.ID}
 }
 
-// pressureTheDayBefore is a move off work at its cap 20 minutes after
+// PressureTheDayBefore is a move off work at its cap 20 minutes after
 // midnight, its choice passing personal over, whose pressure was told at
-// 22:50 the day before, to run out at 01:10: the Log's Events show the day
-// of the move alone, read from five hours before it.
-func pressureTheDayBefore() EventMoment {
+// 22:50 the day before, to run out at 01:10: the Log's Events, and the
+// events command, show the day of the move alone, read from five hours
+// before it.
+func PressureTheDayBefore() EventMoment {
 	run := localOn(6, 9, 0)
 	pressure := status.Event{ID: 1, At: localOn(6, 22, 50), Kind: status.EventPressure, Account: personal, Windows: []string{fiveHour}, Until: localOn(7, 1, 10)}
 	reason := status.PassingOver(capped(work), personal)
