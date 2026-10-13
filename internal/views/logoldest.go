@@ -32,13 +32,20 @@ func OldestKept(first time.Time, keep time.Duration, now time.Time) OldestDay {
 }
 
 // DayBefore is the day the Log reads back to next, the first its table
-// spans being first: the one before first, false where first is the oldest
-// day, or before it, so the day before the oldest is never read.
+// spans being first: the one before first, false where the ledger doesn't
+// keep it, as keeps says, so the day before the oldest is never read.
 func (o OldestDay) DayBefore(first LedgerDay) (LedgerDay, bool) {
-	if !first.Start.After(o.Day.Start) {
+	before := Today(dayfile.DayStart(first.Start, -1))
+	if !o.keeps(before) {
 		return LedgerDay{}, false
 	}
-	return Today(dayfile.DayStart(first.Start, -1)), true
+	return before, true
+}
+
+// keeps reports whether the ledger keeps the lines of the day d, to read
+// back to: the oldest day, or one after it.
+func (o OldestDay) keeps(d LedgerDay) bool {
+	return !d.Start.Before(o.Day.Start)
 }
 
 // reached reports whether a table spanning the days from first's reaches

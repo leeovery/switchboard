@@ -61,6 +61,17 @@ func sameFound(a, b []viewstest.Found) bool {
 	})
 }
 
+// oldestOf is the oldest day the ledger l keeps the lines of at now, kept
+// as long as the router keeps them unless it's told, as the watch reads it.
+func oldestOf(t *testing.T, l views.Ledger, now time.Time) views.OldestDay {
+	t.Helper()
+	first, err := l.FirstLinesDay(now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return views.OldestKept(first, 0, now)
+}
+
 // At each moment the find has to get right, it finds each session matching
 // what's typed once, on its newest day, today's first, in the panel's order,
 // then each day's back, newest first, having read each past day with
@@ -71,7 +82,7 @@ func TestTheFindFindsEachSessionOnceOnItsNewestDay(t *testing.T) {
 			l := dayCounted{Ledger: ledgerHolding(hm.Now, hm.Lines...), read: make(map[string]int)}
 			src := views.FindSources{
 				Typed: hm.Typed, Today: panelOf(hm.Lines, hm.Sessions, false, views.Stream{}, nil, hm.Now),
-				Read: make(map[string][]views.DaySession), Summaries: l.Days(time.Time{}), Now: hm.Now,
+				Read: make(map[string][]views.DaySession), Summaries: l.Days(time.Time{}), Oldest: oldestOf(t, l, hm.Now), Now: hm.Now,
 			}
 
 			found := walkBack(t, l, src, len(src.Summaries))
@@ -128,12 +139,14 @@ func walkedLedger() dayCounted {
 }
 
 // walkedSources are what the find's cost tests find from, of l, what's typed
-// given, no day read yet: today's session running.
-func walkedSources(l dayCounted, typed string) views.FindSources {
+// given, no day read yet: today's session running, the oldest day kept the
+// ledger's first.
+func walkedSources(t *testing.T, l dayCounted, typed string) views.FindSources {
+	t.Helper()
 	running := []status.Session{{ID: findToday, Assignments: []status.Assignment{seatOn(opus, "opus", "work", status.ReasonNew, time.Hour, time.Minute, "")}}}
 	return views.FindSources{
 		Typed: typed, Today: panelOf(walkedLines(), running, false, views.Stream{}, nil, now),
-		Read: make(map[string][]views.DaySession), Summaries: l.Days(time.Time{}), Now: now,
+		Read: make(map[string][]views.DaySession), Summaries: l.Days(time.Time{}), Oldest: oldestOf(t, l, now), Now: now,
 	}
 }
 
@@ -150,7 +163,7 @@ func foundIDs(found views.Found) []string {
 // and today's lines are never read by the find: they're the Log's own.
 func TestTodaysMatchesReadNoPastDay(t *testing.T) {
 	l := walkedLedger()
-	src := walkedSources(l, "api")
+	src := walkedSources(t, l, "api")
 
 	if got := views.FindSessions(src); !slices.Equal(foundIDs(got), []string{findToday}) || len(l.read) != 0 || got.Next != "2026-10-06" {
 		t.Errorf("as it opens, the find finds %q, to read %q next, having read %v; want today's session, yesterday to read next, no day read",
@@ -168,7 +181,7 @@ func TestTodaysMatchesReadNoPastDay(t *testing.T) {
 // and might name none, is never read.
 func TestEachPastDayIsReadOnceARun(t *testing.T) {
 	l := walkedLedger()
-	src := walkedSources(l, "api")
+	src := walkedSources(t, l, "api")
 
 	walkBack(t, l, src, 1)
 	if want := map[string]int{"2026-10-06": 1}; !maps.Equal(l.read, want) {
@@ -191,7 +204,7 @@ func TestEachPastDayIsReadOnceARun(t *testing.T) {
 // summary, with no line read, named by its id alone till its day is read.
 func TestIDMatchesOnDaysNotReadYetComeFromTheSummaries(t *testing.T) {
 	l := walkedLedger()
-	src := walkedSources(l, "7F3A")
+	src := walkedSources(t, l, "7F3A")
 
 	found := views.FindSessions(src)
 	if want := []viewstest.Found{{Session: findBack, Date: "2026-10-02", Ended: true}}; !sameFound(foundOf(found), want) || len(l.read) != 0 {
@@ -207,7 +220,7 @@ func TestIDMatchesOnDaysNotReadYetComeFromTheSummaries(t *testing.T) {
 // of it is found by its id only once its lines are read.
 func TestADaySummarisedBeforeVersion2IsFoundByItsLines(t *testing.T) {
 	l := walkedLedger()
-	src := walkedSources(l, "c3d2")
+	src := walkedSources(t, l, "c3d2")
 
 	if found := views.FindSessions(src); len(found.Sessions) != 0 {
 		t.Errorf("before its day is read, the find finds %q, want none", foundIDs(found))
@@ -215,6 +228,69 @@ func TestADaySummarisedBeforeVersion2IsFoundByItsLines(t *testing.T) {
 	found := walkBack(t, l, src, len(src.Summaries))
 	if want := []viewstest.Found{{Session: findUnnamed, Dir: "~/Code/legacy", Date: "2026-10-04", Ended: true, Last: october(4, 9, 0)}}; !sameFound(foundOf(found), want) || l.read["2026-10-04"] != 1 {
 		t.Errorf("once its day is read, %d times, the find finds %+v, want %+v, its day read once", l.read["2026-10-04"], foundOf(found), want)
+	}
+}
+
+// The find goes back through the days the ledger keeps the lines of, to the
+// oldest, and no further, though their summaries are kept for good: a day
+// past keeping is neither read nor judged by the sessions its summary names.
+func TestTheFindGoesBackNoFurtherThanTheOldestDayKept(t *testing.T) {
+	tests := []struct {
+		name   string
+		oldest time.Time
+		found  []string
+		read   map[string]int
+	}{
+		{name: "kept from the ledger's first day: every day", oldest: october(2, 0, 0), found: []string{findBack}, read: map[string]int{"2026-10-06": 1, "2026-10-04": 1, "2026-10-02": 1}},
+		{name: "kept from three days back: none before", oldest: october(4, 0, 0), read: map[string]int{"2026-10-06": 1, "2026-10-04": 1}},
+		{name: "kept from today: no past day", oldest: october(7, 0, 0), read: map[string]int{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := walkedLedger()
+			src := walkedSources(t, l, "7f3a")
+			src.Oldest = views.OldestDay{Day: views.Today(tt.oldest), Keep: 400 * 24 * time.Hour}
+			if found := views.FindSessions(src); !slices.Equal(foundIDs(found), tt.found) {
+				t.Errorf("before any day is read, the find finds %q, want %q", foundIDs(found), tt.found)
+			}
+			found := walkBack(t, l, src, len(src.Summaries))
+			if !found.Done() || !slices.Equal(foundIDs(found), tt.found) || !maps.Equal(l.read, tt.read) {
+				t.Errorf("the find, done %t, finds %q, having read %v; want it done, finding %q, having read %v",
+					found.Done(), foundIDs(found), l.read, tt.found, tt.read)
+			}
+		})
+	}
+}
+
+// A session found by its id on a day's summary stays found once the day is
+// read, where its lines don't name it, as where they're pruned, or its own
+// is damaged: the day's summary still names it, and the day isn't read
+// again.
+func TestASessionFoundByItsIDOnItsDaysSummaryStaysFoundOnceItsDayIsRead(t *testing.T) {
+	const named = "abcd1234-0000-4000-8000-000000000001"
+	summaries := []ledger.Summary{naming("2026-10-03", named, older), naming("2026-10-07", mover)}
+	tests := []struct {
+		name string
+		read []ledger.Held
+	}{
+		{name: "its day's lines pruned"},
+		{name: "its own line damaged, another's read", read: heldOf(in("~/Code/web", line(older, opus, "work", "new", october(3, 9, 0), smallUsage)))},
+	}
+	want := []viewstest.Found{{Session: named, Date: "2026-10-03", Ended: true}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src := views.FindSources{
+				Typed: "abcd", Read: make(map[string][]views.DaySession), Summaries: summaries,
+				Oldest: views.OldestDay{Day: views.Today(october(1, 0, 0)), Keep: 400 * 24 * time.Hour}, Now: now,
+			}
+			if found := views.FindSessions(src); !sameFound(foundOf(found), want) || found.Next != "2026-10-03" {
+				t.Fatalf("before its day is read, the find finds %+v, to read %q next; want %+v, its day next", foundOf(found), found.Next, want)
+			}
+			src.Read["2026-10-03"] = views.DaySessions(tt.read)
+			if found := views.FindSessions(src); !sameFound(foundOf(found), want) || !found.Done() {
+				t.Errorf("once its day is read, the find finds %+v, to read %q next; want %+v, done", foundOf(found), found.Next, want)
+			}
+		})
 	}
 }
 
