@@ -625,8 +625,10 @@ func (t traffic) stream(now time.Time) views.Stream {
 // quota check, or a count of tokens.
 func (t traffic) sentOf(events []router.StreamEvent) []views.Told {
 	var sent []views.Told
+	told := make(map[string]bool)
 	for _, e := range events {
-		if _, ok := sentAt(e); ok && !slices.ContainsFunc(sent, func(r views.Told) bool { return r.Request == e.Request }) {
+		if _, ok := sentAt(e); ok && !told[e.Request] {
+			told[e.Request] = true
 			sent = append(sent, t.requests[e.Request])
 		}
 	}
