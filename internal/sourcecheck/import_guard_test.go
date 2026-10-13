@@ -56,7 +56,7 @@ func importedOutsideTests(t *testing.T, root string) []string {
 
 func TestTheGuardsReadTheSourceThroughTheSourceCheck(t *testing.T) {
 	imports := importsOf(t, sourcecheck.ModuleRoot(t))
-	for _, guard := range []string{"internal/status/guard_test.go"} {
+	for _, guard := range []string{"internal/status/guard_test.go", "internal/views/guard_test.go"} {
 		if !imports[guard][sourceCheck] {
 			t.Errorf("%s doesn't import %s, so the guard keeping it out of the binaries guards nothing it's known to", guard, sourceCheck)
 		}

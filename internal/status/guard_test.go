@@ -454,12 +454,12 @@ func momentBreaches(t *testing.T, root, module string, g guarded) []string {
 // moment absorbed; and no other function or method of wirePackages called
 // that takes a wire type.
 func newRule(module string, calls []string) sourcecheck.Rule {
-	used := make(map[string]string)
+	used := make(map[string]sourcecheck.Ban)
 	for _, name := range judges {
-		used[name] = name + " judges a window; " + judgeFix
+		used[name] = sourcecheck.Ban{Says: name + " judges a window; " + judgeFix}
 	}
 	for _, name := range absorbed {
-		used[name] = name + " works out what the moment has; " + absorbedFix
+		used[name] = sourcecheck.Ban{Says: name + " works out what the moment has; " + absorbedFix}
 	}
 	return sourcecheck.Rule{
 		Names:   sourcecheck.NamesIn(module),

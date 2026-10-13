@@ -19,10 +19,13 @@ const (
 
 func fixtureRule(calls ...string) sourcecheck.Rule {
 	return sourcecheck.Rule{
-		Names:   sourcecheck.NamesIn("example.com/fixture"),
-		Fields:  []string{"data.Record", "data.Meta"},
-		Read:    func(field string) string { return field + " reads raw fields; " + readFix },
-		Used:    map[string]string{"data.Banned": "data.Banned is absorbed; " + usedFix},
+		Names:  sourcecheck.NamesIn("example.com/fixture"),
+		Fields: []string{"data.Record", "data.Meta"},
+		Read:   func(field string) string { return field + " reads raw fields; " + readFix },
+		Used: map[string]sourcecheck.Ban{
+			"data.Banned": {Says: "data.Banned is absorbed; " + usedFix},
+			"data.Scoped": {Says: "data.Scoped is absorbed in other; " + usedFix, In: []string{"internal/other"}},
+		},
 		Owners:  []string{"data"},
 		Takes:   func(fn, field string) string { return fn + " takes " + field + "; " + takesFix },
 		Allowed: calls,
@@ -35,7 +38,8 @@ func fixtureAllowance(entries ...string) sourcecheck.Allowance {
 
 func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 	root := sourcecheck.WriteModule(t, checkFixture)
-	got := sourcecheck.Check(t, root, "example.com/fixture", fixtureRule("data.Record.Size", "data.Keyed"), []string{"internal/reader"}, fixtureAllowance(
+	dirs := []string{"internal/reader", "internal/other"}
+	got := sourcecheck.Check(t, root, "example.com/fixture", fixtureRule("data.Record.Size", "data.Keyed"), dirs, fixtureAllowance(
 		"internal/reader/allowed.go",
 		"internal/reader/kept.go",
 		"internal/reader/gone.go",
@@ -54,6 +58,7 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 		"internal/reader/breaches.go:19: data.Record.Tag takes data.Record; " + takesFix,
 		"internal/reader/breaches.go:24: data.Record.ID reads raw fields; " + readFix,
 		"internal/reader/fns.go:13: data.Record.ID reads raw fields; " + readFix,
+		"internal/other/other.go:5: data.Scoped is absorbed in other; " + usedFix,
 		"internal/reader/kept.go: allowed allows it, but it keeps the rule; " + listFix,
 		"internal/reader/gone.go: allowed allows it, but it's gone; " + listFix,
 		"internal/reader/fns.go:keptFn: allowed allows it, but it keeps the rule; " + listFix,
@@ -66,12 +71,13 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 }
 
 // checkFixture is a module whose data package has the types a rule guards,
-// one embedding another and one wrapping them, a function absorbed, and
-// functions and methods taking a guarded type; and a reader package with a
-// file of breaches, a file and functions allowed to break the rule, a file
-// and a function allowed that keep it, and a test file, which a check
-// passes over. The reader imports a module the fixture doesn't have, as the
-// source loader stubs it.
+// one embedding another and one wrapping them, a function absorbed, one
+// absorbed in another package alone, and functions and methods taking a
+// guarded type; a reader package with a file of breaches, a file and
+// functions allowed to break the rule, a file and a function allowed that
+// keep it, and a test file, which a check passes over; and that other
+// package, using what's absorbed in it. The reader imports a module the
+// fixture doesn't have, as the source loader stubs it.
 var checkFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
 	"internal/data/data.go": `package data
@@ -87,12 +93,19 @@ type Wrapper struct{ Record }
 
 type Other struct{ Name string }
 
-func (r Record) Size() int                  { return len(r.ID) }
-func (r *Record) Tag() string               { return r.ID }
-func Count(records []*Record) int           { return len(records) }
-func Keyed(byID map[string]Record) int      { return len(byID) }
-func Banned() string                        { return "" }
-func Named(o Other) string                  { return o.Name }
+func (r Record) Size() int             { return len(r.ID) }
+func (r *Record) Tag() string          { return r.ID }
+func Count(records []*Record) int      { return len(records) }
+func Keyed(byID map[string]Record) int { return len(byID) }
+func Banned() string                   { return "" }
+func Scoped() string                   { return "" }
+func Named(o Other) string             { return o.Name }
+`,
+	"internal/other/other.go": `package other
+
+import "example.com/fixture/internal/data"
+
+func scoped() string { return data.Scoped() }
 `,
 	"internal/reader/breaches.go": `package reader
 
@@ -113,7 +126,7 @@ func breaches(r data.Record, w data.Wrapper, o data.Other) string {
 	banned := data.Banned
 	_ = data.Count([]*data.Record{&r})
 	_ = r.Tag()
-	_ = banned() + strings.ToUpper(o.Name) + data.Named(o)
+	_ = banned() + strings.ToUpper(o.Name) + data.Named(o) + data.Scoped()
 	return id + note + string(rune(r.Size()))
 }
 

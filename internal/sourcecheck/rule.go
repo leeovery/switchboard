@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"path"
 	"slices"
 	"strings"
 )
@@ -75,8 +76,8 @@ type Rule struct {
 	Fields []string
 	Read   func(field string) string
 	// Used are the functions none of which may be used, called or not, each
-	// with how using it breaks the rule.
-	Used map[string]string
+	// with how using it breaks the rule, and where.
+	Used map[string]Ban
 	// Owners are the packages, as "status", whose functions and methods that
 	// take one of Fields, as their receiver or a parameter, may be called
 	// only where Allowed names them; Takes says how calling one, as
@@ -85,6 +86,14 @@ type Rule struct {
 	Takes  func(fn, field string) string
 	// Allowed are the calls allowed all the same.
 	Allowed []string
+}
+
+// Ban is how using a function breaks a rule, and where it does: in the
+// packages In names, by directory from the module's root, or, where it names
+// none, in every package.
+type Ban struct {
+	Says string
+	In   []string
 }
 
 // Breach is where a file breaks a rule: in which of its declarations, as
@@ -106,6 +115,7 @@ type Use struct {
 // Breaches are where the type-checked file f breaks the rule, in the order
 // they come in it, and the calls it makes that the rule allows.
 func (r Rule) Breaches(f File) (found []Breach, allowed []Use) {
+	dir := path.Dir(f.Path)
 	for _, decl := range f.AST.Decls {
 		in := DeclName(decl)
 		var inDecl []Breach
@@ -122,7 +132,7 @@ func (r Rule) Breaches(f File) (found []Breach, allowed []Use) {
 				if !ok {
 					break
 				}
-				switch name, says := r.called(fn); {
+				switch name, says := r.called(fn, dir); {
 				case says != "":
 					inDecl = append(inDecl, Breach{At: n.Pos(), In: in, Says: says})
 				case slices.Contains(r.Allowed, name):
@@ -138,14 +148,15 @@ func (r Rule) Breaches(f File) (found []Breach, allowed []Use) {
 }
 
 // called names the function fn, as Names.Func has it, and says how using it
-// breaks the rule, "" where it doesn't: it's one of Used; or it's of Owners
-// and takes one of Fields, and the rule doesn't allow it.
-func (r Rule) called(fn *types.Func) (name, says string) {
+// in the package in dir breaks the rule, "" where it doesn't: it's one of
+// Used, banned there; or it's of Owners and takes one of Fields, and the rule
+// doesn't allow it.
+func (r Rule) called(fn *types.Func, dir string) (name, says string) {
 	name = r.Func(fn)
 	pkg, _, _ := strings.Cut(name, ".")
-	switch {
-	case r.Used[name] != "":
-		return name, r.Used[name]
+	switch ban, ok := r.Used[name]; {
+	case ok && (len(ban.In) == 0 || slices.Contains(ban.In, dir)):
+		return name, ban.Says
 	case !slices.Contains(r.Owners, pkg) || slices.Contains(r.Allowed, name):
 		return name, ""
 	}
