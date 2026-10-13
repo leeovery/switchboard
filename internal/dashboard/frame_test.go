@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 )
 
 // claudeLike judges windows as Claude's are judged: the session and the week
@@ -323,6 +324,27 @@ func TestAFrameAtOneDocumentReadsAnothersMomentAfresh(t *testing.T) {
 	}
 	if got := frameOf(160, 40).At(threeRouted(), now).Moment(other, now).Pool(); !slices.Equal(got.Accounts, want.Accounts) {
 		t.Errorf("held at one document, the pool of another at the same moment is of %v, want its own, of %v", got.Accounts, want.Accounts)
+	}
+}
+
+// A frame holding a document's moment, and the Overview's sections built of
+// it, draws every row just as one that works the moment out afresh for every
+// look draws it, at each hard moment, on every tab, as wide as the frames
+// and as narrow as a phone: holding it changes how often it's worked out,
+// never what's drawn.
+func TestAHeldFrameDrawsWhatOneWorkingItsMomentOutAfreshDoes(t *testing.T) {
+	for _, hm := range statustest.HardMoments(claudeLike) {
+		for _, v := range Views() {
+			for _, size := range [][2]int{{160, 40}, {52, 36}} {
+				f := frameOf(size[0], size[1])
+				f.View = v
+				held := f.At(hm.Doc, hm.Now).Built(hm.Doc, hm.Now)
+				got, want := held.Draw(hm.Doc, hm.Now), f.finish(f.page(hm.Doc, hm.Now)).rows(f.Look)
+				if !slices.Equal(got, want) {
+					t.Errorf("%s, %s at %d×%d: held, it draws\n%s\nwant, afresh\n%s", hm.Name, v.Title(), size[0], size[1], strings.Join(got, "\n"), strings.Join(want, "\n"))
+				}
+			}
+		}
 	}
 }
 
