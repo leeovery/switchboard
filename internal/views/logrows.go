@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/ledger"
 )
 
 // LogSources are what the Log's Requests are built from.
@@ -41,6 +43,8 @@ type LogTable struct {
 type LogLine struct {
 	Row  RequestRow
 	Rule *DayRule
+	// line is the line the row is of, nil before it comes.
+	line *ledger.Line
 }
 
 // DayRule is where one day's rows end and the next's begin, a night's quiet
@@ -68,6 +72,7 @@ func (t LogTable) Count(date string) LogCount {
 // arrived.
 type placedRow struct {
 	row   RequestRow
+	line  *ledger.Line
 	day   LedgerDay
 	place time.Time
 }
@@ -97,7 +102,7 @@ func LogRows(src LogSources) LogTable {
 		if sent, told := src.Stream.sentOf(&h.line); told {
 			lined[h.line.Request], place = true, sent
 		}
-		rows = append(rows, placedRow{row: h.row, day: h.day, place: place})
+		rows = append(rows, placedRow{row: h.row, line: &h.line, day: h.day, place: place})
 	}
 	for _, t := range toldAlone(src.Stream, lined) {
 		rows = append(rows, placedRow{row: toldRow(t, src.Now), day: Today(t.Sent), place: t.Sent})
@@ -147,7 +152,7 @@ func tableOf(rows []placedRow, src LogSources) LogTable {
 			ended.Date = last.Date
 			table.Lines = append(table.Lines, LogLine{Rule: &DayRule{Ended: *last, Began: p.day, Totals: ended}})
 		}
-		table.Lines = append(table.Lines, LogLine{Row: p.row})
+		table.Lines = append(table.Lines, LogLine{Row: p.row, line: p.line})
 		last = &p.day
 	}
 	return table

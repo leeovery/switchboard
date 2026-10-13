@@ -2,6 +2,7 @@ package viewstest
 
 import (
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -83,15 +84,19 @@ type Row struct {
 // next request, and a move its cache would have run out before anyway; no
 // lines today; a day with none between two that have them; the table
 // reaching back past the oldest day kept; the router not answering while
-// its ledger grows; two requests at 01:30 as the clocks go back; and checks
-// and counts, hidden and shown. Stage 9 adds its own.
+// its ledger grows; two requests at 01:30 as the clocks go back; checks and
+// counts, hidden and shown; a request answering as the stream closed, drawn
+// while it stays closed, its line come meanwhile, and the stream open again;
+// one session's lines alone, across midnight; failed requests alone; checks
+// shown and counts hidden; and a request answering, its details open, then
+// its line come.
 func LogMoments() []LogMoment {
 	return []LogMoment{
 		inFlightAtMidnight(), acrossMidnightLined(), streamEndedInFlight(), droppedBehind(), linedAfterSent(), sentAgainAndFailed(),
 		unnamed(), firstRequests(), movesAndTheirCost(), noLinesToday(), daysBetween(), pastTheOldestDay(), routerNotAnswering(),
 		fallingBackRows(), checksAndCounts(false), checksAndCounts(true),
 		streamClosed(closedInFlight), streamClosed(closedLined), streamClosed(reopenedInFlight),
-		sessionAcrossMidnight(), failedOnly(), checksShownCountsHidden(),
+		sessionAcrossMidnight(), failedOnly(), checksShownCountsHidden(), inFlightDetails(false), inFlightDetails(true),
 	}
 }
 
@@ -116,14 +121,33 @@ func onDay(day, hour, minute, second int) time.Time {
 
 // requested is a request of the session's own conversation, of the model
 // given, as its line gives it: its id given; in the directory its session
-// runs in; routed to account for reason; arriving at at, its answer's first
-// byte passing on 0.8s later and its end 10s after it arrived; its answer
-// ending its turn, giving turnUsage.
+// runs in; Claude Code's, asking for two betas, in a turn's shape; routed to
+// account for reason; arriving at at, its answer's first byte passing on
+// 0.8s later and its end 10s after it arrived; its answer, msg_ and its id,
+// thinking and ending its turn, giving turnUsage, and the account's windows
+// as turnLimits gives them.
 func requested(id, session, model, account, reason string, at time.Time) ledger.Line {
 	return ledger.Line{
 		At: at, Request: id, Kind: ledger.KindMessage, Session: session, Dir: dirs[session], Model: model, Account: account, Reason: reason,
 		Status: 200, Attempts: 1, FirstMS: new(int64(800)), TotalMS: 10_000, Class: ledger.ClassMain,
-		Answer: ledger.Answer{Stop: "end_turn"}, Usage: json.RawMessage(turnUsage),
+		Agent: "claude-cli/2.1.0 (external, cli)", Betas: []string{"context-1m-2025-08-07", "interleaved-thinking-2025-05-14"},
+		Shape: ledger.Shape{
+			Bytes: 482_000, Messages: 12, System: 3, Tools: 9, MaxTokens: new(int64(32_000)), Stream: new(true),
+			Thinking: ledger.Thinking{Type: "enabled", BudgetTokens: new(int64(16_000))}, OutputConfig: ledger.OutputConfig{Effort: "high"},
+		},
+		Answer: ledger.Answer{ID: "msg_" + id, Model: model, Stop: "end_turn", Blocks: map[string]int{"text": 1, "thinking": 2}},
+		Usage:  json.RawMessage(turnUsage), Limits: turnLimits(),
+	}
+}
+
+// turnLimits are an answer's usage headers, as a line keeps them: its
+// 5-hour window 42% used, resetting at 17:10, and its week 18%, each
+// allowed, as the answer is.
+func turnLimits() map[string]string {
+	return map[string]string{
+		"5h-utilization": "0.42", "5h-reset": strconv.FormatInt(At(17, 10, 0).Unix(), 10), "5h-status": "allowed",
+		"7d-utilization": "0.18", "7d-reset": strconv.FormatInt(onDay(5, 9, 0, 0).Unix(), 10), "7d-status": "allowed",
+		"status": "allowed",
 	}
 }
 
@@ -135,9 +159,9 @@ func sentAgain(l ledger.Line, tried ...ledger.Tried) ledger.Line {
 }
 
 // failing returns l, its request answered with the status given, its
-// answer telling nothing of why it stopped, nor giving usage.
+// answer telling nothing of itself, nor giving usage or windows.
 func failing(status int, l ledger.Line) ledger.Line {
-	l.Status, l.Answer, l.Usage = status, ledger.Answer{}, nil
+	l.Status, l.Answer, l.Usage, l.Limits = status, ledger.Answer{}, nil, nil
 	return l
 }
 
@@ -627,5 +651,35 @@ func streamClosed(c closing) LogMoment {
 		})
 		m.Counts = map[string]Count{"2026-10-01": shown(3)}
 	}
+	return m
+}
+
+// inFlightDetails is a request of d28c's answering, its details open, and,
+// where lined, its line come while the stream's open: in flight, its details
+// hold what the stream told alone; lined, the rest, its row where it sat.
+func inFlightDetails(lined bool) LogMoment {
+	r0 := requested("r0", D28C, Opus, side, status.ReasonNew, At(14, 30, 0))
+	sent := At(14, 41, 50)
+	r1 := told("r1", D28C, Opus, side, sent, At(14, 42, 5))
+	r1.Dir, r1.First, r1.Chars = dirs[D28C], sent.Add(time.Second), 5100
+	m := LogMoment{
+		Name:  "a request answering, its details open: what the stream told alone",
+		Lines: []ledger.Line{r0}, Sessions: []status.Session{listed(D28C, At(14, 42, 5), status.Answering)}, Stream: live(r1),
+		From: now, Now: now,
+		Want: rows(first(r0), Row{
+			Request: "r1", Session: D28C, Dir: dirs[D28C], At: "14:41:50", Mark: views.MarkAnswering, Stage: views.RowAnswering,
+			First: "1.0s", Took: "17.0s", Stopped: "answering · 5.1k characters", Phone: "answering",
+		}),
+		Counts: map[string]Count{"2026-10-01": shown(2)},
+	}
+	if !lined {
+		return m
+	}
+	l := requested("r1", D28C, Opus, side, status.ReasonSticky, sent.Add(-100*time.Millisecond))
+	l.TotalMS = 16_000
+	ended := sent.Add(16 * time.Second)
+	m.Name = "a request answering, its details open, its line come while the stream's open: the rest of them, its row where it sat"
+	m.Lines, m.Sessions, m.Stream = append(m.Lines, l), []status.Session{listed(D28C, ended, "")}, live(done(ended, 200, r1))
+	m.Want = rows(first(r0), rowOf(l))
 	return m
 }

@@ -38,6 +38,14 @@ func RowOfLine(l ledger.Line, session []ledger.Line, prices ledger.Table, now ti
 	return r
 }
 
+// LinedDetails are the details of the request whose row is given, its line l
+// come.
+func LinedDetails(row RequestRow, l ledger.Line) RequestDetails {
+	d := RequestDetails{Row: row}
+	d.lined(&l)
+	return d
+}
+
 // CountingPrices is r counting in priced each line it prices from then on,
 // by its request's id and its arrival, as it prices it.
 func CountingPrices(r LogRead, priced map[string]int) LogRead {
