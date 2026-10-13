@@ -16,7 +16,7 @@ type LogSources struct {
 	From time.Time
 	// Oldest is the oldest day the Log reads back to, as OldestKept gives it:
 	// a table reaching it says, at its top, how long the ledger keeps its
-	// lines. The zero OldestDay is none known.
+	// lines. The zero OldestDay is none known, and draws no such line.
 	Oldest OldestDay
 	// Read holds the ledger's lines of those days, and their sessions', each
 	// row priced and told, as the Log's read grows.
@@ -42,8 +42,12 @@ type LogTable struct {
 	Lines  []LogLine
 	counts map[string]LogCount
 	// ran are the times the requests of the table's rows ran over, shown or
-	// hidden, by their ids.
-	ran map[string][]runSpan
+	// hidden, by their ids; and awaited the days its rows sit on, shown or
+	// hidden, of a request whose end the stream told, its line yet to come.
+	ran     map[string][]runSpan
+	awaited []LedgerDay
+	// first is the first day the table spans.
+	first LedgerDay
 }
 
 // LogLine is a line of the Log's table: a request's row; where Rule is set,
@@ -54,8 +58,10 @@ type LogLine struct {
 	Row    RequestRow
 	Rule   *DayRule
 	Oldest *OldestDay
-	// line is the line the row is of, nil before it comes.
+	// line is the line the row is of, nil before it comes; and day the
+	// local day the row sits on.
 	line *ledger.Line
+	day  LedgerDay
 }
 
 // DayRule is where one day's rows end and the next's begin, a night's quiet
@@ -70,6 +76,21 @@ type DayRule struct {
 	Totals DayTotals
 }
 
+// Awaited are the dates of the days before the day given that the table
+// holds a row on, shown or hidden, of a request whose end the stream told,
+// its line yet to come, each once: a line is filed under the day its request
+// arrived on, so a later day's lines never hold the line of a request across
+// midnight.
+func (t LogTable) Awaited(before LedgerDay) []string {
+	var dates []string
+	for _, d := range t.awaited {
+		if d.Start.Before(before.Start) {
+			dates = append(dates, d.Date)
+		}
+	}
+	return dates
+}
+
 // Count is what the lines of the local day with the given date count, from
 // the table's own rows, those its filter hides among them: none where it
 // holds no row of it.
@@ -80,12 +101,15 @@ func (t LogTable) Count(date string) LogCount {
 // placedRow is a request's row as the table places it: on the local day its
 // request arrived on, or, before its line comes, was sent on; and, within
 // it, where it was sent, where the stream told of that, else where it
-// arrived.
+// arrived. Its session is the one its request counts toward, as
+// ledger.Line.CountedSession has it of its line, or Told.countedSession of
+// a request told alone: none for a quota check.
 type placedRow struct {
-	row   RequestRow
-	line  *ledger.Line
-	day   LedgerDay
-	place time.Time
+	row     RequestRow
+	line    *ledger.Line
+	session string
+	day     LedgerDay
+	place   time.Time
 }
 
 // LogRows builds the Log's Requests from src: a row of each request, once:
@@ -113,16 +137,26 @@ func LogRows(src LogSources) LogTable {
 		if sent, told := src.Stream.sentOf(&h.line); told {
 			lined[h.line.Request], place = true, sent
 		}
-		rows = append(rows, placedRow{row: h.row, line: &h.line, day: h.day, place: place})
+		rows = append(rows, placedRow{row: h.row, line: &h.line, session: h.line.CountedSession(), day: h.day, place: place})
 	}
 	for _, t := range toldAlone(src.Stream, lined) {
-		rows = append(rows, placedRow{row: toldRow(t, src.Now), day: Today(t.Sent), place: t.Sent})
+		rows = append(rows, placedRow{row: toldRow(t, src.Now), session: t.countedSession(), day: Today(t.Sent), place: t.Sent})
 	}
 	rows = slices.DeleteFunc(rows, func(p placedRow) bool { return p.day.Start.Before(first.Start) })
 	slices.SortStableFunc(rows, func(a, b placedRow) int {
 		return cmp.Or(a.day.Start.Compare(b.day.Start), a.place.Compare(b.place))
 	})
 	return tableOf(rows, first, src)
+}
+
+// hold notes the row p among those the table holds, shown or hidden: the
+// time its request ran over; and, where the stream told its end, its line yet
+// to come, the day it sits on, as awaiting its line.
+func (t *LogTable) hold(p placedRow) {
+	t.ran[p.row.Request] = append(t.ran[p.row.Request], runSpanOf(p.row))
+	if p.row.Stage == RowEnded && !slices.ContainsFunc(t.awaited, func(d LedgerDay) bool { return d.Date == p.day.Date }) {
+		t.awaited = append(t.awaited, p.day)
+	}
 }
 
 // toldAlone are the requests the stream told of that it knows, as known has
@@ -149,16 +183,16 @@ func tableOf(rows []placedRow, first LedgerDay, src LogSources) LogTable {
 	for _, t := range src.Totals {
 		totals[t.Date] = t
 	}
-	table := LogTable{counts: make(map[string]LogCount), ran: make(map[string][]runSpan)}
+	table := LogTable{counts: make(map[string]LogCount), ran: make(map[string][]runSpan), first: first}
 	if oldest := src.Oldest; oldest.reached(first) {
 		table.Lines = append(table.Lines, LogLine{Oldest: &oldest})
 	}
 	var last *LedgerDay
 	for _, p := range rows {
-		table.ran[p.row.Request] = append(table.ran[p.row.Request], runSpanOf(p.row))
-		hid := src.Filter.hiding(p.row)
+		table.hold(p)
+		hid := src.Filter.hiding(p)
 		c := table.counts[p.day.Date]
-		c.add(p.row, hid)
+		c.add(p, hid)
 		table.counts[p.day.Date] = c
 		if hid != notHidden {
 			continue
@@ -168,7 +202,7 @@ func tableOf(rows []placedRow, first LedgerDay, src LogSources) LogTable {
 			ended.Date = last.Date
 			table.Lines = append(table.Lines, LogLine{Rule: &DayRule{Ended: *last, Began: p.day, Totals: ended}})
 		}
-		table.Lines = append(table.Lines, LogLine{Row: p.row, line: p.line})
+		table.Lines = append(table.Lines, LogLine{Row: p.row, line: p.line, day: p.day})
 		last = &p.day
 	}
 	return table

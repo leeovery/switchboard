@@ -127,7 +127,8 @@ var (
 // requests the ledger's lines tell of are in time.Local, as the ledger files
 // its lines under local days: a move whose choice passed an account over,
 // its pressure told the day before; two like moves of one session in a day;
-// a side request's move, settled on its conversation's next request; a move
+// a cap moving one session twice, the second's request in flight; a side
+// request's move, settled on its conversation's next request; a move
 // after its cache ran out; a cap whose moves count after it's told, and one
 // with all three counted; a model family refused alone; pins, global and a
 // session's own; an event-free today, filled from yesterday; and the
@@ -145,6 +146,7 @@ func EventMoments() []EventMoment {
 		fallingBack(london),
 		PressureTheDayBefore(),
 		movedTwiceAlike(),
+		capMovingOneTwice(),
 		sideMoveSettled(),
 		coldMove(),
 		capCounting(),

@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -106,6 +107,56 @@ func TestTheLogKeepsTheDayBeforesLinesAsTheDayTurns(t *testing.T) {
 	}
 	if got, want := shownRequests(h), []string{"0a000001", "0a000002", "0a000003"}; !slices.Equal(got, want) {
 		t.Errorf("past midnight, the Requests show %v, want %v: the day before's kept, the request across midnight among them", got, want)
+	}
+}
+
+// A request that arrived at 23:59:50 and ended at 00:00:12, after the first
+// look past midnight read the day before again, has its line taken in, shown
+// or hidden: the stream told it ended, so the day it arrived on is read again
+// whole at the next look, as its line is filed under that day, which today's
+// tail never reads.
+func TestALineOfTheDayBeforeWrittenAfterTheTurnComesAsTheStreamTellsItEnded(t *testing.T) {
+	tests := []struct {
+		name string
+		kind string
+	}{
+		{name: "a request, shown", kind: ledger.KindMessage},
+		{name: "a quota check, hidden as the Log opens", kind: ledger.KindCheck},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			night := onTheDay(23, 59, 30)
+			writeLines(t, state, arrivedAt("0a000001", night.Add(-10*time.Minute)))
+			h := routedHarness(t, routerDocument(three()...))
+			l := onTheLog(h, state)
+			h.clock.now = night
+			h.start()
+
+			arrival := night.Add(20 * time.Second)
+			at := func(kind string, when time.Time) router.StreamEvent {
+				return alter(told(kind, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At, e.Check = when.UTC(), tt.kind == ledger.KindCheck })
+			}
+			h.hear(at(router.StreamSent, arrival.Add(100*time.Millisecond)))
+			h.clock.now = night.Add(35 * time.Second)
+			h.read(routerDocument(three()...))
+
+			line := took(arrivedAt("0a000002", arrival), 22*time.Second)
+			line.Kind = tt.kind
+			writeLines(t, state, line)
+			ended := line.At.Add(22 * time.Second)
+			h.hear(alter(at(router.StreamDone, ended), func(e *router.StreamEvent) { e.Status = 200 }))
+			h.clock.now = night.Add(45 * time.Second)
+			h.read(routerDocument(three()...))
+
+			yesterday := dayfile.DateOf(night)
+			if want := []string{yesterday, yesterday}; !slices.Equal(l.days, want) {
+				t.Errorf("the days %v were read whole, want %v: the day before at the turn, then again as the stream told its request ended", l.days, want)
+			}
+			if got := h.model.log.read.WrittenTo(); !got.Equal(ended) {
+				t.Errorf("the Log's read holds lines written to %s, want %s, the line of the request across midnight taken in", got, ended)
+			}
+		})
 	}
 }
 

@@ -30,7 +30,8 @@ type LogMoment struct {
 	// Filter is what the table shows: the zero Filter every line.
 	Filter views.LogFilter
 	// Oldest is the oldest day the Log reads back to: none known for the
-	// zero OldestDay.
+	// zero OldestDay, which reads no day back, so a table spanning a day
+	// before Now's says one.
 	Oldest views.OldestDay
 	// The table spans the local days from From's to Now's, read at Now.
 	From, Now time.Time
@@ -102,8 +103,9 @@ type Row struct {
 // one session's lines alone, across midnight; failed requests alone; checks
 // shown and counts hidden; a request answering, its details open, then its
 // line come, paused; the ledger keeping its lines for good, and 400 days;
-// paused through a filter, across midnight, and at the second 01:30 as the
-// clocks go back; and the router gone, its ledger last written by a check.
+// paused through a filter, across midnight, at the second 01:30 as the
+// clocks go back, and as its top reads the day before back; and the router
+// gone, its ledger last written by a check.
 func LogMoments() []LogMoment {
 	return []LogMoment{
 		inFlightAtMidnight(), acrossMidnightLined(), streamEndedInFlight(), droppedBehind(), linedAfterSent(), sentAgainAndFailed(),
@@ -111,7 +113,8 @@ func LogMoments() []LogMoment {
 		fallingBackRows(), checksAndCounts(false), checksAndCounts(true),
 		streamClosed(closedInFlight), streamClosed(closedLined), streamClosed(reopenedInFlight),
 		sessionAcrossMidnight(), failedOnly(), checksShownCountsHidden(), inFlightDetails(false), inFlightDetails(true),
-		keptForGood(), keptFourHundredDays(), pausedThroughAFilter(), pausedAcrossMidnight(), pausedAtTheSecondOneThirty(), notLive(),
+		keptForGood(), keptFourHundredDays(), pausedThroughAFilter(), pausedAcrossMidnight(), pausedAtTheSecondOneThirty(), pausedReadingBack(),
+		notLive(),
 	}
 }
 
@@ -275,7 +278,7 @@ func inFlightAtMidnight() LogMoment {
 	return LogMoment{
 		Name:  "a request arriving 23:59:50, in flight at midnight: on the day it was sent, no rule till the next day's first line",
 		Lines: []ledger.Line{r1}, Sessions: []status.Session{listed(D28C, sent, status.Answering)}, Stream: live(r2),
-		From: onDay(0, 0, 0, 0), Now: onDay(1, 0, 0, 5),
+		From: onDay(0, 0, 0, 0), Oldest: readingBack(onDay(1, 0, 0, 5)), Now: onDay(1, 0, 0, 5),
 		Want:   rows(first(r1), answering),
 		Counts: map[string]Count{"2026-09-30": shown(2)},
 	}
@@ -293,7 +296,7 @@ func acrossMidnightLined() LogMoment {
 		Name:  "a request arriving 23:59:50 and ending 00:00:12, its line come, then the next day's first: above the rule, counted on the day it arrived",
 		Lines: []ledger.Line{r1, r2, r3}, Stream: live(ended),
 		Totals: []views.DayTotals{{Date: "2026-09-30", Requests: 2, Sessions: 1}},
-		From:   onDay(0, 0, 0, 0), Now: onDay(1, 0, 1, 30),
+		From:   onDay(0, 0, 0, 0), Oldest: readingBack(onDay(1, 0, 1, 30)), Now: onDay(1, 0, 1, 30),
 		Want:   []LogLine{{Row: first(r1)}, {Row: rowOf(r2)}, rule("2026-09-30", "2026-10-01"), {Row: first(r3)}},
 		Counts: map[string]Count{"2026-09-30": shown(2), "2026-10-01": shown(1)},
 	}
@@ -466,7 +469,7 @@ func daysBetween() LogMoment {
 	return LogMoment{
 		Name:  "a day with no lines between two that have them: one rule across it, of the day that ended",
 		Lines: []ledger.Line{r1, r2}, Totals: []views.DayTotals{{Date: "2026-09-29", Requests: 1, Sessions: 1}},
-		From: onDay(-1, 0, 0, 0), Now: now,
+		From: onDay(-1, 0, 0, 0), Oldest: readingBack(now), Now: now,
 		Want:   []LogLine{{Row: first(r1)}, rule("2026-09-29", "2026-10-01"), {Row: rowOf(r2)}},
 		Counts: map[string]Count{"2026-09-29": shown(1), "2026-10-01": shown(1)},
 	}
@@ -476,10 +479,10 @@ func pastTheOldestDay() LogMoment {
 	r1 := requested("r1", D28C, Opus, work, status.ReasonNew, onDay(0, 9, 0, 0))
 	r2 := requested("r2", D28C, Opus, work, status.ReasonSticky, At(9, 0, 0))
 	return LogMoment{
-		Name:  "the table reaching back past the oldest day the ledger keeps: no rule above its first line",
+		Name:  "the table reaching back past the oldest day the ledger keeps, its first day of lines: that day's line atop, no rule above its first line",
 		Lines: []ledger.Line{r1, r2}, Totals: []views.DayTotals{{Date: "2026-09-30", Requests: 1, Sessions: 1}},
-		From: onDay(-5, 0, 0, 0), Now: now,
-		Want:   []LogLine{{Row: first(r1)}, rule("2026-09-30", "2026-10-01"), {Row: rowOf(r2)}},
+		From: onDay(-5, 0, 0, 0), Oldest: views.OldestKept(r1.At, 0, now), Now: now,
+		Want:   []LogLine{oldest("2026-09-30", "400 days"), {Row: first(r1)}, rule("2026-09-30", "2026-10-01"), {Row: rowOf(r2)}},
 		Counts: map[string]Count{"2026-09-30": shown(1), "2026-10-01": shown(1)},
 	}
 }
@@ -522,9 +525,13 @@ func fallingBackRows() LogMoment {
 	}
 }
 
+// checking is the session of a quota check, as Claude Code sends one as it
+// resumes a session, under an id it never uses again.
+const checking = "9c4e0b7a-1f2d-4e3c-8b5a-6d7e8f9a0b1c"
+
 func checksAndCounts(show bool) LogMoment {
 	r1 := requested("r1", D28C, Opus, side, status.ReasonNew, At(14, 40, 0))
-	k1 := kinded(ledger.KindCheck, requested("k1", D28C, Haiku, side, status.ReasonNew, At(14, 40, 10)))
+	k1 := kinded(ledger.KindCheck, requested("k1", checking, Haiku, side, status.ReasonNew, At(14, 40, 10)))
 	n1 := kinded(ledger.KindCount, requested("n1", D28C, Opus, side, status.ReasonSticky, At(14, 40, 20)))
 	m := LogMoment{
 		Name:  "Claude Code's quota checks and its counts of tokens, hidden until shown",
@@ -560,7 +567,7 @@ func sessionAcrossMidnight() LogMoment {
 		Name:  "d28c's lines alone, across midnight: both days' rows, the rule, today's counting today's alone",
 		Lines: []ledger.Line{r1, c1, c2, r2}, Totals: []views.DayTotals{{Date: "2026-09-30", Requests: 2, Sessions: 2}},
 		Filter: views.LogFilter{Sessions: []string{D28C}},
-		From:   onDay(0, 0, 0, 0), Now: onDay(1, 0, 20, 0),
+		From:   onDay(0, 0, 0, 0), Oldest: readingBack(onDay(1, 0, 20, 0)), Now: onDay(1, 0, 20, 0),
 		Want:   []LogLine{{Row: first(r1)}, rule("2026-09-30", "2026-10-01"), {Row: rowOf(r2)}},
 		Counts: map[string]Count{"2026-09-30": {Shown: 1, Requests: 2}, "2026-10-01": {Shown: 1, Requests: 2}},
 	}
@@ -704,6 +711,14 @@ func inFlightDetails(lined bool) LogMoment {
 	return m
 }
 
+// readingBack is the oldest day the Log reads back to at now, of a ledger
+// begun a month before, keeping its lines as long as the router does: a day
+// before any a moment's table spans, which so reads back to its first day,
+// with no oldest day's line atop.
+func readingBack(now time.Time) views.OldestDay {
+	return views.OldestKept(now.AddDate(0, -1, 0), 0, now)
+}
+
 // oldest is the oldest day's line wanted, of the day with the given date,
 // the ledger keeping its lines as kept says.
 func oldest(date, kept string) LogLine {
@@ -771,7 +786,7 @@ func pausedAcrossMidnight() LogMoment {
 		Name:  "paused at 23:59:30 at a request answering, midnight passing: its line fills it in above the rule, not new, the next day's first new",
 		Lines: []ledger.Line{r1, l2, c1}, Stream: live(done(sent.Add(50*time.Second), 200, r2)),
 		Totals: []views.DayTotals{{Date: "2026-09-30", Requests: 2, Sessions: 1}},
-		From:   onDay(0, 0, 0, 0), Now: onDay(1, 0, 0, 40),
+		From:   onDay(0, 0, 0, 0), Oldest: readingBack(onDay(1, 0, 0, 40)), Now: onDay(1, 0, 0, 40),
 		Want:   []LogLine{{Row: first(r1)}, {Row: rowOf(l2)}, rule("2026-09-30", "2026-10-01"), {Row: first(c1)}},
 		Counts: map[string]Count{"2026-09-30": shown(2), "2026-10-01": shown(1)},
 		Then:   &then, Chosen: 1, ChosenNow: 1, New: 1,
@@ -793,6 +808,22 @@ func pausedAtTheSecondOneThirty() LogMoment {
 		Want:   rows(first(r1), first(again), rowOf(r2)),
 		Counts: map[string]Count{dayfile.DateOf(early): shown(3)},
 		Then:   &then, Chosen: 1, ChosenNow: 1, New: 1,
+	}
+}
+
+func pausedReadingBack() LogMoment {
+	y0 := requested("y0", D28C, Opus, side, status.ReasonNew, onDay(0, 20, 0, 0))
+	y1 := requested("y1", D28C, Opus, side, status.ReasonSticky, onDay(0, 21, 0, 0))
+	r0 := requested("r0", D28C, Opus, side, status.ReasonSticky, At(14, 30, 0))
+	then := LogMoment{Lines: []ledger.Line{y0, y1, r0}, From: At(14, 40, 0), Now: At(14, 40, 0)}
+	r1 := requested("r1", D28C, Opus, side, status.ReasonSticky, At(14, 41, 0))
+	return LogMoment{
+		Name:  "paused at today's first row, the day before read back as the table's top was reached: its rows aren't new, the one come since is",
+		Lines: []ledger.Line{y0, y1, r0, r1}, Totals: []views.DayTotals{{Date: "2026-09-30", Requests: 2, Sessions: 1}},
+		From: onDay(0, 0, 0, 0), Oldest: readingBack(now), Now: now,
+		Want:   []LogLine{{Row: first(y0)}, {Row: rowOf(y1)}, rule("2026-09-30", "2026-10-01"), {Row: rowOf(r0)}, {Row: rowOf(r1)}},
+		Counts: map[string]Count{"2026-09-30": shown(2), "2026-10-01": shown(2)},
+		Then:   &then, Chosen: 0, ChosenNow: 3, New: 1,
 	}
 }
 
