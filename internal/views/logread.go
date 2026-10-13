@@ -89,12 +89,14 @@ func (r LogRead) WrittenTo() time.Time {
 }
 
 // sessionStory is the story of the session with the given id, as r holds it
-// told from every line of it: nil where r holds none of its lines.
+// told from every line of it, priced as r prices: one of no requests where r
+// holds none of its lines. Every view r is read for tells a session from it,
+// building none of its own.
 func (r LogRead) sessionStory(id string) *story {
-	if s := r.sessions[id]; s != nil {
+	if s := r.sessions[id]; s != nil && s.story != nil {
 		return s.story
 	}
-	return nil
+	return newStory(r.prices, LedgerDay{})
 }
 
 // take is r with lines taken in at now, as Grown says.

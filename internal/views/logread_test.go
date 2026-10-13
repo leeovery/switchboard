@@ -73,6 +73,32 @@ func readGrowing(hm viewstest.LogMoment, l *countingLedger, priced map[string]in
 	return read
 }
 
+// TestTheLogsReadServesItsEventsAndItsPanelReadingAndPricingNothingMore
+// builds, at each hard moment of the events, the Log's Requests, its Events,
+// the card of each event and its panel's sessions all from the one read:
+// none reads the ledger, nor has the read price a line again.
+func TestTheLogsReadServesItsEventsAndItsPanelReadingAndPricingNothingMore(t *testing.T) {
+	for _, hm := range viewstest.EventMoments() {
+		t.Run(hm.Name, func(t *testing.T) {
+			l, priced := &countingLedger{fakeLedger: ledgerHolding(hm.Now, hm.Lines...), asked: make(map[string]int)}, make(map[string]int)
+			read := views.CountingPrices(views.ReadLogHeld(l, nil, ledger.Pricing, hm.Now), priced).Grown(l, heldOf(hm.Lines...), hm.Now)
+			reads, before := l.reads, maps.Clone(priced)
+			requests := views.LogRows(views.LogSources{From: hm.From, Read: read, Now: hm.Now})
+			table := views.LogEvents(views.LogEventSources{From: hm.From, Events: eventsRead(hm, filedIn(t, hm)), Read: read, Now: hm.Now})
+			for _, row := range table.Rows {
+				table.Details(row.Key, read)
+			}
+			views.LogSessions(views.LogSessionSources{
+				Read: read, Lines: requests.Count(views.Today(hm.Now).Date).Sessions, Events: table.Today.Sessions, Unlisted: true, Now: hm.Now,
+			})
+			if l.reads != reads || !maps.Equal(priced, before) {
+				t.Errorf("the tables, the cards and the panel read the ledger %d times and priced %v, want nothing read or priced but the read's own %v",
+					l.reads-reads, priced, before)
+			}
+		})
+	}
+}
+
 func TestTheLogsReadGrownIsTheReadAtOnceAtEachHardMoment(t *testing.T) {
 	for _, hm := range viewstest.LogMoments() {
 		t.Run(hm.Name, func(t *testing.T) {

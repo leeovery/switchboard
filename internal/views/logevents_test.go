@@ -42,7 +42,7 @@ func eventsRead(hm viewstest.EventMoment, files views.Events) views.EventsRead {
 func eventsOf(hm viewstest.EventMoment, read views.EventsRead) views.EventsTable {
 	return views.LogEvents(views.LogEventSources{
 		From: hm.From, Events: read, Read: logRead(hm.Now, hm.Lines...),
-		Names: status.NameOfKey, Prices: ledger.Pricing, Now: hm.Now,
+		Names: status.NameOfKey, Now: hm.Now,
 	})
 }
 

@@ -3,7 +3,6 @@ package views
 import (
 	"time"
 
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -50,19 +49,17 @@ type LogEventSources struct {
 	// reaching back to EventsFrom of From's day, so the facts of the first
 	// shown are worked out over those told before them.
 	Events EventsRead
-	// Read holds the ledger's lines of the days the events are of, and every
-	// line of their sessions, as ReadLog reads them: a move's cost, and a
-	// session's directory, are its session's story's.
+	// Read is the Log's read, which its Requests are built from, reaching
+	// back as far as the events it shows, so the ledger's read once for
+	// both: a move's cost, and a session's directory, are its session's story
+	// as it holds it told, priced as it prices.
 	Read LogRead
 	// Filter is which events it shows.
 	Filter EventFilter
 	// Names name a window by its key, as the moment's NameOf does: nil names
 	// it as status.NameOfKey does.
 	Names func(key string) string
-	// Prices are the price table a move's cost is priced by, at today's
-	// prices, as the Log's Requests price it.
-	Prices ledger.Table
-	Now    time.Time
+	Now   time.Time
 }
 
 // EventsTable is the Log's Events over the days it spans.
@@ -116,15 +113,12 @@ func LogEvents(src LogEventSources) EventsTable {
 }
 
 // eventRow is the row of the event e, told as line, its facts fact, its
-// session's story s, nil where it's of none, or none read; its time in now's
-// time zone.
+// session's story s, one of no requests where it's of none, or none read;
+// its time in now's time zone.
 func eventRow(e Event, line EventLine, fact eventFact, s *story, now time.Time) LogEvent {
 	row := LogEvent{
 		Key: e.Key, At: e.Event.At.In(now.Location()), Kind: e.Event.Kind, Well: wellAgain(e.Event),
-		Session: e.Event.Session, Accounts: namedAccounts(e.Event), Line: line, Moved: fact.moved,
-	}
-	if s != nil {
-		row.Dir = s.dir
+		Session: e.Event.Session, Accounts: namedAccounts(e.Event), Line: line, Moved: fact.moved, Dir: s.dir,
 	}
 	if e.Event.Kind == status.EventMoved {
 		row.Move = eventMove(moveOf(s, e.Event))

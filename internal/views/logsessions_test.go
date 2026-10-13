@@ -108,7 +108,7 @@ func panelOf(lines []ledger.Line, running []status.Session, unlisted bool, strea
 	}
 	return views.LogSessions(views.LogSessionSources{
 		Read: views.ReadLogHeld(ledgerHolding(at, lines...), heldOf(todays...), ledger.Pricing, at), Lines: counted, Events: events,
-		Running: running, Unlisted: unlisted, Stream: stream, Prices: ledger.Pricing, Now: at,
+		Running: running, Unlisted: unlisted, Stream: stream, Now: at,
 	})
 }
 
