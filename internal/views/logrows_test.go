@@ -83,7 +83,7 @@ func TestEachRequestIsOneRowByItsIdFromItsLineWhereItHasCome(t *testing.T) {
 	got := views.LogRows(views.LogSources{
 		From: now, Now: now, Prices: ledger.Pricing,
 		Read: logRead(now,
-			withID("r1", line(mover, opus, "work", "new", sent.Add(-time.Second), hourUsage)),
+			withID("r1", took(5*time.Second, line(mover, opus, "work", "new", sent.Add(-time.Second), hourUsage))),
 			withID("r3", line(mover, opus, "work", "sticky", sent.Add(10*time.Second), hourUsage)),
 		),
 		Stream: streamOf(sentAt("r1", sent), ended, sentAt("r4", sent.Add(20*time.Second))),
@@ -93,11 +93,26 @@ func TestEachRequestIsOneRowByItsIdFromItsLineWhereItHasCome(t *testing.T) {
 	}
 }
 
+func TestALineAndARequestTheStreamToldOfAreOneRowOnlyWhereTheyreTheSameRequest(t *testing.T) {
+	// The router's ids are unique only while it runs: r1's line is of a run
+	// before the one now, and r2's of a run after the one that lost it.
+	earlier := withID("r1", took(time.Minute, line(mover, opus, "work", "new", local(11, 0, 0), hourUsage)))
+	later := withID("r2", took(time.Minute, line(mover, opus, "work", "sticky", local(12, 0, 0), hourUsage)))
+	lost := sentAt("r2", local(11, 30, 0))
+	lost.Lost = true
+	got := views.LogRows(views.LogSources{
+		From: now, Now: now, Prices: ledger.Pricing, Read: logRead(now, earlier, later), Stream: streamOf(sentAt("r1", local(13, 0, 0)), lost),
+	})
+	if said, want := tableSaid(got), []string{"▲ r1 lined", "■ r2 lost", "r2 lined", "↑ r1 asking"}; !slices.Equal(said, want) {
+		t.Errorf("the table says %q, want %q: each line where it arrived, and each request told of alone, its id another run's", said, want)
+	}
+}
+
 func TestARowSitsWhereItWasSentSoItNeverMovesAsItsLineFillsItIn(t *testing.T) {
 	sent := local(13, 0, 0)
 	// r1 arrived a moment before r2, but went out after it: r2, which the
 	// router answered itself, never went out.
-	r1 := withID("r1", arrived(sent.Add(-100*time.Millisecond), line(mover, opus, "work", "new", time.Time{}, hourUsage)))
+	r1 := withID("r1", took(5*time.Second, arrived(sent.Add(-100*time.Millisecond), line(mover, opus, "work", "new", time.Time{}, hourUsage))))
 	r2 := withID("r2", arrived(sent.Add(-50*time.Millisecond), line(mover, opus, "", "no account has room", time.Time{}, "")))
 	r2.Status, r2.Attempts = 429, 0
 	inFlight := views.LogSources{From: now, Now: now, Prices: ledger.Pricing, Read: logRead(now, r2), Stream: streamOf(sentAt("r1", sent))}
@@ -242,7 +257,7 @@ func TestARequestInFlightAsTheDayEndedSitsAboveTheNextDaysRule(t *testing.T) {
 func TestARowIsOnTheDayItsRequestArrivedOnAsTheLedgerFilesIt(t *testing.T) {
 	// r2 arrived as 6 October ended, and went out as 7 October began.
 	midnight := october(7, 0, 0)
-	straddling := withID("r2", arrived(midnight.Add(-50*time.Millisecond), line(mover, opus, "work", "sticky", time.Time{}, hourUsage)))
+	straddling := withID("r2", took(1050*time.Millisecond, arrived(midnight.Add(-50*time.Millisecond), line(mover, opus, "work", "sticky", time.Time{}, hourUsage))))
 	ended := sentAt("r2", midnight.Add(50*time.Millisecond))
 	ended.Ended, ended.Status = midnight.Add(time.Second), 200
 	lines := []ledger.Line{withID("r1", line(mover, opus, "work", "new", october(6, 23, 0), hourUsage)), withID("r3", line(mover, opus, "work", "sticky", midnight, hourUsage))}

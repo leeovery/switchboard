@@ -137,10 +137,10 @@ type placedRow struct {
 	place time.Time
 }
 
-// LogRows builds the Log's Requests from src: a row of each request, once,
-// by its id: from its line, where it has come; else from what the stream
-// told of it, in flight, ended or lost. A request the router answers itself
-// is never on the stream, so its row comes with its line.
+// LogRows builds the Log's Requests from src: a row of each request, once:
+// from its line, where it has come, as filedAs knows it; else from what the
+// stream told of it, in flight, ended or lost. A request the router answers
+// itself is never on the stream, so its row comes with its line.
 //
 // A row sits on the day its request arrived on, as the ledger files its
 // line, so a request in flight as a day ends sits above the next day's rule;
@@ -157,10 +157,9 @@ func LogRows(src LogSources) LogTable {
 	lined := make(map[string]bool, len(lines))
 	for i := range lines {
 		l := &lines[i]
-		lined[l.Request] = true
 		place := l.At
-		if t, told := src.Stream.Requests[l.Request]; told && !t.Sent.IsZero() {
-			place = t.Sent
+		if t, told := src.Stream.Requests[l.Request]; told && t.filedAs(l) {
+			lined[t.Request], place = true, t.Sent
 		}
 		rows = append(rows, placedRow{row: lineRow(l, stories[l.Session], src.Prices, today), day: Today(l.At), place: place})
 	}
@@ -175,8 +174,8 @@ func LogRows(src LogSources) LogTable {
 }
 
 // toldAlone are the requests the stream told of whose lines aren't among
-// those lined, by their ids, but those it told no sending of, which have no
-// place, by when they were sent, then their ids.
+// those read, lined holding the ids of those whose are, but those it told no
+// sending of, which have no place, by when they were sent, then their ids.
 func toldAlone(s Stream, lined map[string]bool) []Told {
 	var alone []Told
 	for _, id := range slices.Sorted(maps.Keys(s.Requests)) {
