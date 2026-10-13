@@ -666,11 +666,11 @@ func (f *Follower) namesLocked(date string, wanted map[string]bool) bool {
 }
 
 // names reports whether the summary names any of the sessions wanted among
-// those its accounts' requests were of, or might: an account's day that never
-// named its sessions, as one of version 1, might name any.
+// those its accounts' requests were of, or might: one that counts sessions it
+// doesn't name, as Unnamed says, as one of version 1, might name any.
 func (s Summary) names(wanted map[string]bool) bool {
-	return slices.ContainsFunc(s.Accounts, func(a AccountDay) bool {
-		return a.SessionIDs == nil || slices.ContainsFunc(a.SessionIDs, func(id string) bool { return wanted[id] })
+	return s.Unnamed() > 0 || slices.ContainsFunc(s.Accounts, func(a AccountDay) bool {
+		return slices.ContainsFunc(a.SessionIDs, func(id string) bool { return wanted[id] })
 	})
 }
 

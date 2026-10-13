@@ -124,6 +124,25 @@ type AccountDay struct {
 	ReadBefore []string `json:"read_before,omitempty"`
 }
 
+// Unnamed is how many of the sessions the account's day counts it doesn't
+// name by their ids, those it might be of beyond those it names: every one,
+// of a day summarised before version 2, which named none; none, of one that
+// names them all, or that counts none, as an account the readings history
+// alone tells of.
+func (a AccountDay) Unnamed() int {
+	return max(a.Sessions-len(a.SessionIDs), 0)
+}
+
+// Unnamed is how many of the sessions its accounts' days count they don't
+// name, as AccountDay.Unnamed says: a day with any might be of any session.
+func (s Summary) Unnamed() int {
+	n := 0
+	for _, a := range s.Accounts {
+		n += a.Unnamed()
+	}
+	return n
+}
+
 // ModelDay is a model's day on an account: its requests, by how each went,
 // the sessions they were of, and their usage.
 //

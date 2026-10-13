@@ -177,15 +177,14 @@ func (f *finder) judge(s FoundSession) {
 }
 
 // sessionsNamed are the ids of the sessions a day's summary names, each
-// once, in their order, and whether it might name more, as one summarised
-// before version 2, which named none, counts sessions it doesn't name.
+// once, in their order, and whether it might be of more, as one that counts
+// sessions it doesn't name, as Summary.Unnamed says, is.
 func sessionsNamed(s ledger.Summary) (ids []string, might bool) {
 	for _, a := range s.Accounts {
 		ids = append(ids, a.SessionIDs...)
-		might = might || a.Sessions > len(a.SessionIDs)
 	}
 	slices.Sort(ids)
-	return slices.Compact(ids), might
+	return slices.Compact(ids), s.Unnamed() > 0
 }
 
 // dayOf is the local day with the given date.
