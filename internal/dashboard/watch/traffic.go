@@ -88,7 +88,7 @@ type move struct {
 // took is the traffic once it has taken in the events heard, in turn, as
 // tell and hear take each, held saying whether a limit holds the account
 // with the given id back, each move among them done where the router's last
-// listing shows it so; tidied of what has ended by now.
+// listing shows it so; tidied of what has ended by now, as tidy has it.
 func (t traffic) took(events []router.StreamEvent, held func(account string) bool, now time.Time) traffic {
 	t.requests, t.calls, t.seen, t.moves = cloned(t.requests), cloned(t.calls), cloned(t.seen), slices.Clone(t.moves)
 	for _, e := range events {
@@ -96,7 +96,8 @@ func (t traffic) took(events []router.StreamEvent, held func(account string) boo
 		t.hear(e, held)
 	}
 	t.moves = shownDone(t.moves, t.placed)
-	return t.tidied(now)
+	t.tidy(now)
+	return t
 }
 
 // cloned is a copy of m to change, made where m is nil.
@@ -310,17 +311,24 @@ func (t *traffic) moved(e router.StreamEvent, held func(account string) bool) {
 	t.calls[callKey{request: e.Request, account: e.To}] = call{seat: seatTold(e), brought: true, shows: shows, ended: shows}
 }
 
-// tidied is the traffic without what has ended by now: the requests no
-// longer in flight that the stream told of last seenFor ago, the calls whose
-// requests ended answeredFor ago, the moves that no longer show, and when
-// the stream saw each seat, seenFor ago.
+// tidied is the traffic without what has ended by now, as tidy has it, its
+// maps and moves copied first.
 func (t traffic) tidied(now time.Time) traffic {
-	t.requests, t.calls, t.seen = maps.Clone(t.requests), maps.Clone(t.calls), maps.Clone(t.seen)
+	t.requests, t.calls, t.seen, t.moves = maps.Clone(t.requests), maps.Clone(t.calls), maps.Clone(t.seen), slices.Clone(t.moves)
+	t.tidy(now)
+	return t
+}
+
+// tidy lets go of what has ended by now: the requests no longer in flight
+// that the stream told of last seenFor ago, the calls whose requests ended
+// answeredFor ago, the moves that no longer show, and when the stream saw
+// each seat, seenFor ago. It changes t's maps and moves, which must be its
+// own copies.
+func (t *traffic) tidy(now time.Time) {
 	maps.DeleteFunc(t.requests, func(_ string, r views.Told) bool { return !r.InFlight() && now.Sub(r.Heard) >= seenFor })
 	maps.DeleteFunc(t.calls, func(_ callKey, c call) bool { return c.over(now) })
 	maps.DeleteFunc(t.seen, func(_ dashboard.Plug, at time.Time) bool { return now.Sub(at) >= seenFor })
-	t.moves = slices.DeleteFunc(slices.Clone(t.moves), func(m move) bool { return m.over(now) })
-	return t
+	t.moves = slices.DeleteFunc(t.moves, func(m move) bool { return m.over(now) })
 }
 
 // over reports whether the call has nothing more to show at now: its request
