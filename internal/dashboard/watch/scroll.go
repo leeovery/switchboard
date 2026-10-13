@@ -93,8 +93,12 @@ func notch(f dashboard.Frame, way int) scrollStep {
 // only where that moves it from where it's drawn: a scroll that moves
 // nothing leaves the Overview's layout as it's kept, but the view scrolled
 // no further than it's drawn, so an offset past where it now goes doesn't
-// come back once it goes further again.
+// come back once it goes further again. On a session's page, it scrolls its
+// turns, as scrollTurns has it.
 func (m Model) scrollView(by scrollStep) Model {
+	if m.session != nil {
+		return m.scrollTurns(by)
+	}
 	s := m.scrolling()
 	to := by.from(m.scroll, s)
 	if to == min(m.scroll, s.Most) {

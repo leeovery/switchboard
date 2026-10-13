@@ -175,6 +175,9 @@ type Config struct {
 	// Prices are the price table a move's cost is worked out at, the
 	// config's prices in place of any of the table's.
 	Prices ledger.Table
+	// Home is the user's home directory, which a session's page shows a
+	// directory under as ~: "" shows it whole.
+	Home string
 }
 
 // Size is a terminal's size in cells.
@@ -305,8 +308,10 @@ type Model struct {
 	// it's built of, and the reads of them.
 	past historyTab
 	// session is the session's page open, drawn in place of the view: nil
-	// while none is.
+	// while none is. opening counts the pages asked to open, each opening
+	// once its read lands, but one asked for before the last.
 	session *sessionShown
+	opening int
 
 	// open is the card open over the page, if any: the routing card, its
 	// picker as routing holds it, or help, scrolled as help holds it. page is
@@ -413,10 +418,11 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update takes in a message, at the one time it came, as taking has it, as
-// take says, closing a session's card it leaves no p for, as closing says,
-// then has the watch read the router's request stream while it wants it,
-// and the ledger's days for History as it wants them, and only then, price
-// the moves the routing card would make while it wants them.
+// take says, building the session's page open afresh, as relived says, and
+// closing a session's card it leaves no p for, as closing says, then has
+// the watch read the router's request stream while it wants it, and the
+// ledger's days for History as it wants them, and only then, price the
+// moves the routing card would make while it wants them.
 // Then, of the page as it stands at that moment, its Overview's sections
 // built once for each to share, it keeps the Overview's layout, but for a
 // frame, which takes nothing in to lay it out afresh by; brightens the
@@ -429,7 +435,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.taking = taking{at: now, moment: m.doc.HoldAt(now, m.cfg.Policy)}
 	next, cmd := m.take(msg)
-	tuned, closed := next.(Model).closing()
+	tuned, closed := next.(Model).relived(msg, now).closing()
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
 	tuned, costs := tuned.costing()
@@ -519,7 +525,8 @@ func (m Model) render() Model {
 // kept as it stands, a read, the router's history, the ledger's days read
 // for History, the router carrying out an order, the sessions listed to
 // price the routing card's moves, the request stream opening, telling of
-// requests or falling due to be asked for again, a tick or a frame.
+// requests or falling due to be asked for again, a tick, a frame, or a
+// session's page read.
 func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -570,6 +577,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.ticked(msg)
 	case frameMsg:
 		return m.framed(msg), nil
+	case sessionReadMsg:
+		return m.sessionRead(msg), nil
 	}
 	return m, nil
 }
