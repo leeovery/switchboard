@@ -101,9 +101,9 @@ type SessionSources struct {
 	// them: none without the router.
 	Running []status.Session
 	// Unlisted is set where no router lists the sessions, as while it's
-	// gone, or the dashboard probes: one whose last request came within
-	// RunningWithin is idle, rather than ended, as the router's own rule
-	// keeps a session.
+	// gone, or the dashboard probes: one whose last request came within the
+	// IdleHour is idle, rather than ended, as the router's own rule keeps a
+	// session.
 	Unlisted bool
 	// Stream is what the request stream has told of the sessions' requests:
 	// zero where it's unheard, as by the verbs.
@@ -191,11 +191,11 @@ func listedFrom(id string, s *story) ListedSession {
 // unlisted is what a session the router doesn't list is doing at now, as
 // its story tells, unlisted saying whether the router lists any: ended, as
 // its last request came; but where no router lists sessions, idle, since its
-// last answer ended, while that request came within RunningWithin, as the
+// last answer ended, while that request came within the IdleHour, as the
 // router's own rule keeps a session.
 func (s *story) unlisted(now time.Time, unlisted bool) Activity {
 	last := s.last.At.UTC()
-	if unlisted && now.Sub(last) <= RunningWithin {
+	if unlisted && now.Sub(last) <= IdleHour {
 		return Activity{Since: ended(s.last).UTC(), LastSeen: last}
 	}
 	return Activity{Doing: Ended, Since: last, LastSeen: last}

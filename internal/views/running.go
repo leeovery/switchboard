@@ -8,10 +8,13 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// RunningWithin is how lately the router has routed a session's model on an
-// account for the session to be running there: within the hour its cache
-// lasts.
-const RunningWithin = time.Hour
+// IdleHour is the hour a session goes without a request before the router
+// lets it go, its cache gone cold: the router lists a session while it has
+// routed it within the hour, one it no longer lists ended an hour after its
+// last request, and one that asks again after an idle hour has its account
+// chosen afresh, as resumed. It's the session's, as ledger.LongCache is the
+// cache's.
+const IdleHour = time.Hour
 
 // Running is a session running on an account, as SESSIONS lists it: a row
 // on each account its models go to, grouped by account in the config's
@@ -71,9 +74,9 @@ func RunningOn(sessions []status.Session, s Stream, id string, now time.Time) in
 
 // runsOn reports whether a session's model, as it's placed in a, runs on
 // the account with the given id at now: it goes there, and was seen there,
-// or put there, within RunningWithin.
+// or put there, within the IdleHour.
 func runsOn(a status.Assignment, id string, now time.Time) bool {
-	return a.Account == id && now.Sub(score.Later(a.LastSeen, a.AssignedAt)) <= RunningWithin
+	return a.Account == id && now.Sub(score.Later(a.LastSeen, a.AssignedAt)) <= IdleHour
 }
 
 // runningOn is the session s as it runs on the account with the given id at

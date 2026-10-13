@@ -27,9 +27,9 @@ const (
 
 // seenFor is how long the watch keeps when the stream last saw a seat, and a
 // move it told of that no listing of the router's sessions has shown done:
-// the router lists the sessions it has seen in the last hour, so one it
+// the router lists the sessions it has seen in the last IdleHour, so one it
 // lists after that it has seen since, as its own listing says.
-const seenFor = time.Hour
+const seenFor = views.IdleHour
 
 // traffic is what the router's request stream has told of the routed
 // requests, as the watch keeps it for the frame: each request it told of,

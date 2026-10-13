@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
@@ -156,5 +157,38 @@ func TestASessionWorksWhileItAsksAnswersOrIsThrottled(t *testing.T) {
 func TestAnAnswersTokensSoFarAreItsCharactersAtFourAToken(t *testing.T) {
 	if got := (views.Activity{Doing: views.Answering, Chars: 4936}).Tokens(); got != 1234 {
 		t.Errorf("Tokens = %d, want 1,234", got)
+	}
+}
+
+// With no router to list them, a session is idle till the IdleHour after its
+// last request, since its answer ended, as the router would list it still,
+// and ended after that; with a router listing the sessions running, one it
+// doesn't list has ended, however lately its last request came.
+func TestWithNoRouterASessionIsIdleTillAnHourAfterItsLastRequest(t *testing.T) {
+	tests := []struct {
+		name     string
+		ago      time.Duration
+		unlisted bool
+		want     views.Doing
+	}{
+		{name: "an hour after, to the second", ago: time.Hour, unlisted: true, want: views.Idle},
+		{name: "an hour and a second after", ago: time.Hour + time.Second, unlisted: true, want: views.Ended},
+		{name: "a minute after, a router listing the sessions running", ago: time.Minute, want: views.Ended},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			last := ledger.Line{At: now.Add(-tt.ago), Kind: ledger.KindMessage, Session: early, Model: opus, Account: "work", Status: 200, Attempts: 1, TotalMS: 3000}
+			list := views.ListSessions(views.SessionSources{Unlisted: tt.unlisted, Ledger: fakeLedger{lines: []ledger.Line{last}, now: now}, Now: now})
+			if len(list.Sessions) != 1 {
+				t.Fatalf("the List holds %d sessions, want the one", len(list.Sessions))
+			}
+			want := views.Activity{Doing: tt.want, Since: last.At, LastSeen: last.At}
+			if tt.want == views.Idle {
+				want.Since = last.At.Add(3 * time.Second)
+			}
+			if got := list.Sessions[0].Activity; said(got) != said(want) {
+				t.Errorf("it's %s, want %s", said(got), said(want))
+			}
+		})
 	}
 }
