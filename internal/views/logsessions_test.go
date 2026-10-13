@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -20,10 +19,10 @@ var logDoingNames = map[views.LogDoing]string{
 }
 
 // The panel's doing column says the first that holds: asking, while a
-// request of the session asks, or is throttled, to ask again; started, while
-// its first request came within the busy minute; nothing, while it's busy;
-// idle; or ended. The frame's two sessions answering read differently, the
-// one started within the minute, the other not.
+// request of the session waits for its answer, asking, throttled or refused;
+// started, while its first request came within the busy minute; nothing,
+// while it's busy; idle; or ended. The frame's two sessions answering read
+// differently, the one started within the minute, the other not.
 func TestThePanelSaysWhatASessionIsDoing(t *testing.T) {
 	sent := now.Add(-7 * time.Second)
 	tests := []struct {
@@ -53,7 +52,7 @@ func TestThePanelSaysWhatASessionIsDoing(t *testing.T) {
 		},
 		{
 			name:     "refused, before it goes out again elsewhere",
-			activity: views.Activity{Doing: views.Refused, Status: 403, Since: sent, LastSeen: sent}, started: now.Add(-time.Hour), want: views.LogBusy,
+			activity: views.Activity{Doing: views.Refused, Status: 403, Since: sent, LastSeen: sent}, started: now.Add(-time.Hour), want: views.LogAsking,
 		},
 		{
 			name:     "idle, at work within the minute",
@@ -115,11 +114,12 @@ func panelOf(lines []ledger.Line, running []status.Session, unlisted bool, strea
 
 // At each moment the views have to tell what a session is doing at, the
 // panel holds each of today's sessions as the List does: its directory, the
-// account it's on and what it's doing, so its asking is the List's, and
-// SESSIONS', where SESSIONS lists it: asking where the busiest of its rows
-// asks.
+// account it's on and what it's doing; and says it asking exactly where it
+// waits for an answer, as Activity.Waiting says, the one rule SESSIONS says
+// ↑ ask by.
 func TestThePanelsSessionsAreTheListsAtEachHardMoment(t *testing.T) {
 	compared := 0
+	waited := make(map[views.Doing]bool)
 	for _, hm := range viewstest.SessionMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
 			panel := panelOf(hm.Lines, hm.Sessions, hm.Unlisted, hm.Stream, nil, hm.Now)
@@ -130,7 +130,6 @@ func TestThePanelsSessionsAreTheListsAtEachHardMoment(t *testing.T) {
 			for _, s := range list.Sessions {
 				listed[s.Session] = s
 			}
-			rows := views.RunningOf(hm.Doc.At(hm.Now, claude.Policy), hm.Sessions, hm.Stream)
 			for _, s := range panel {
 				l, ok := listed[s.ID]
 				if !ok {
@@ -142,9 +141,11 @@ func TestThePanelsSessionsAreTheListsAtEachHardMoment(t *testing.T) {
 					t.Errorf("the panel holds %s %s on %q in %q, started %v; the List %s on %q in %q, started %v",
 						s.ID[:4], said(s.Activity), s.Account, s.Dir, s.Started, said(l.Activity), l.Account, l.Dir, l.Started)
 				}
-				doing, _ := s.Doing(hm.Now)
-				if asks, ok := sessionsAsks(rows, s.ID); ok && (doing == views.LogAsking) != asks {
-					t.Errorf("the panel says %s is %s, but SESSIONS has it asking = %t", s.ID[:4], logDoingNames[doing], asks)
+				if doing, _ := s.Doing(hm.Now); (doing == views.LogAsking) != l.Activity.Waiting() {
+					t.Errorf("the panel says %s is %s, but it's %s, waiting = %t", s.ID[:4], logDoingNames[doing], said(l.Activity), l.Activity.Waiting())
+				}
+				if l.Activity.Waiting() {
+					waited[l.Activity.Doing] = true
 				}
 			}
 		})
@@ -152,23 +153,9 @@ func TestThePanelsSessionsAreTheListsAtEachHardMoment(t *testing.T) {
 	if compared < len(viewstest.SessionMoments()) {
 		t.Errorf("the panel and the List are compared at %d sessions, want at least one a moment", compared)
 	}
-}
-
-// sessionsAsks reports whether SESSIONS has the session with the given id
-// asking, as its busiest row says: one asking, or throttled to ask again,
-// and none answering, which is busier. It reports false where SESSIONS lists
-// it on no account.
-func sessionsAsks(rows []views.Running, id string) (asks, listed bool) {
-	answers := false
-	for _, r := range rows {
-		if r.Session != id {
-			continue
-		}
-		listed = true
-		asks = asks || r.Activity.Doing == views.Asking || r.Activity.Doing == views.Throttled
-		answers = answers || r.Activity.Doing == views.Answering
+	if want := map[views.Doing]bool{views.Asking: true, views.Throttled: true, views.Refused: true}; !maps.Equal(waited, want) {
+		t.Errorf("the moments hold sessions waiting as %v, want asking, throttled and refused among them", waited)
 	}
-	return asks && !answers, listed
 }
 
 // The panel lists today's sessions the Log counts lines or events of, with

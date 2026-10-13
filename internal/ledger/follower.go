@@ -114,6 +114,10 @@ func (f *Follower) FirstDay(now time.Time) (time.Time, error) {
 	return f.firstDay(now)
 }
 
+// errNoLines is why a ledger that holds no day's lines can't say the first
+// day it holds lines of.
+var errNoLines = fmt.Errorf("the request ledger holds no day's lines: %w", fs.ErrNotExist)
+
 // FirstLinesDay returns the start of the first local day the ledger holds
 // lines of, at now, held as listed says: the first a day's lines can be read
 // back from, a summary of an earlier day, whose lines are pruned, aside. It
@@ -123,7 +127,7 @@ func (f *Follower) FirstLinesDay(now time.Time) (time.Time, error) {
 	defer f.mu.Unlock()
 	held, err := f.listed(now)
 	if err == nil && len(held.lines) == 0 {
-		err = fmt.Errorf("the request ledger holds no day's lines: %w", fs.ErrNotExist)
+		err = errNoLines
 	}
 	if err != nil {
 		return time.Time{}, err
@@ -357,7 +361,7 @@ func (d *liveDay) names(wanted map[string]bool) bool {
 		}
 	}
 	cut, ok := d.lines.Cut()
-	return ok && wanted[cut.counted()]
+	return ok && wanted[cut.CountedSession()]
 }
 
 // countsNoMore reports whether the day's files hold no more lines than held,
@@ -666,11 +670,11 @@ func (f *Follower) namesLocked(date string, wanted map[string]bool) bool {
 }
 
 // names reports whether the summary names any of the sessions wanted among
-// those its accounts' requests were of, or might: an account's day that never
-// named its sessions, as one of version 1, might name any.
+// those its accounts' requests were of, or might: one that counts sessions it
+// doesn't name, as Unnamed says, as one of version 1, might name any.
 func (s Summary) names(wanted map[string]bool) bool {
-	return slices.ContainsFunc(s.Accounts, func(a AccountDay) bool {
-		return a.SessionIDs == nil || slices.ContainsFunc(a.SessionIDs, func(id string) bool { return wanted[id] })
+	return s.Unnamed() > 0 || slices.ContainsFunc(s.Accounts, func(a AccountDay) bool {
+		return slices.ContainsFunc(a.SessionIDs, func(id string) bool { return wanted[id] })
 	})
 }
 

@@ -43,6 +43,11 @@ type Ledger interface {
 	// the given date, by now, oldest first, read whole at each call: none of
 	// a day the ledger holds no lines of.
 	Day(date string) []ledger.Held
+	// FirstLinesDay gives the start of the first local day the ledger holds
+	// lines of, at now: the first Day reads back to, a summary of an earlier
+	// day, whose lines are pruned, aside. It fails with fs.ErrNotExist where
+	// it holds no day's lines.
+	FirstLinesDay(now time.Time) (time.Time, error)
 	// Session gives the lines of the session with the given id, newest
 	// first, read as far back as the caller goes on.
 	Session(id string) iter.Seq[ledger.Held]

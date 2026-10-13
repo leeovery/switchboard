@@ -2,6 +2,8 @@ package capture
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"iter"
 	"log/slog"
 	"os"
@@ -231,6 +233,36 @@ func TestTheRecordsLedgerGivesADaysLinesOldestFirstAsAFollowerDoes(t *testing.T)
 	}
 	if got := requestsOf(l.Day(dayfile.DateOf(readersNow))); !slices.Equal(got, []string{"r6", "r5", "r7", "r8"}) {
 		t.Errorf("Day(today) gave %v, want today's lines to now, oldest first", got)
+	}
+}
+
+func TestTheRecordsLedgerTellsTheFirstDayOfItsLinesAsAFollowerDoes(t *testing.T) {
+	writtenLate := filedOf([]ledger.Held{
+		heldLine(t, "r2", sessionBoth, ledger.KindMessage, readersAt(-1, 0, 0, 5)),
+		heldLine(t, "r1", sessionAsked, ledger.KindMessage, readersAt(-2, 23, 59, 50)),
+	})
+	tests := []struct {
+		name  string
+		lines []filed
+		at    time.Time
+		want  time.Time
+	}{
+		{name: "before any line arrived, which holds none", at: readersAt(-2, 8, 0, 0)},
+		{name: "once lines of several days arrived", at: readersNow, want: dayfile.DayStart(readersNow, -2)},
+		{name: "the oldest day's line written after a newer day's, as one asked before midnight answered after", lines: writtenLate, at: readersNow, want: dayfile.DayStart(readersNow, -2)},
+	}
+	for _, tt := range tests {
+		r := heldRecords(t)
+		if tt.lines != nil {
+			r.lines = tt.lines
+		}
+		now := func() time.Time { return tt.at }
+		l, _, _ := r.readers(now)
+		got, err := l.FirstLinesDay(tt.at)
+		want, wantErr := fileLedger(t, r, now).FirstLinesDay(tt.at)
+		if !got.Equal(tt.want) || !got.Equal(want) || errors.Is(err, fs.ErrNotExist) != tt.want.IsZero() || errors.Is(err, fs.ErrNotExist) != errors.Is(wantErr, fs.ErrNotExist) {
+			t.Errorf("%s: FirstLinesDay() = %v, %v; want %v, and a Follower of its files gives %v, %v", tt.name, got, err, tt.want, want, wantErr)
+		}
 	}
 }
 
