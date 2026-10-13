@@ -3,7 +3,6 @@ package views
 import (
 	"maps"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -58,16 +57,16 @@ func (p SessionPage) Where(now time.Time) status.Words {
 	if p.Account == "" {
 		return nil
 	}
-	on := status.Words{plainPart("on "), accountPart(p.Account)}
+	on := status.Words{status.Plain("on "), status.Named(p.Account)}
 	if m, ok := p.MovedOnto(); ok {
-		return slices.Concat(on, status.Words{plainPart(" since " + prose.Past(now, m.At) + ", ")}, movedWords(m, now))
+		return slices.Concat(on, status.Words{status.Plain(" since " + prose.Past(now, m.At) + ", ")}, movedWords(m, now))
 	}
 	reason := p.reasonOn()
 	words := status.SessionWords(reason, status.Facts{To: p.Account, Now: now})
 	if reason == status.ReasonNew || words.String() == "" {
-		return append(on, plainPart(" since it started"))
+		return append(on, status.Plain(" since it started"))
 	}
-	return slices.Concat(on, status.Words{plainPart(": ")}, words)
+	return slices.Concat(on, status.Words{status.Plain(": ")}, words)
 }
 
 // reasonOn is why the router has the session's named model on the account
@@ -89,7 +88,7 @@ func movedWords(m SessionMove, now time.Time) status.Words {
 	if !strings.HasPrefix(m.Reason, status.ReasonMovedOff) {
 		return words
 	}
-	return slices.Concat(status.Words{plainPart("moved from "), accountPart(m.From), plainPart(": ")}, words)
+	return slices.Concat(status.Words{status.Plain("moved from "), status.Named(m.From), status.Plain(": ")}, words)
 }
 
 // ranOnWords say where the session ran, as RanOn has it, at now: on each
@@ -101,23 +100,12 @@ func (p SessionPage) ranOnWords(now time.Time) status.Words {
 	if first == "" {
 		return nil
 	}
-	w := status.Words{plainPart("ran on "), accountPart(first)}
+	w := status.Words{status.Plain("ran on "), status.Named(first)}
 	for _, m := range moves {
-		w = append(w, plainPart(", then "), accountPart(m.To), plainPart(" from "+prose.Past(now, m.At)+": "))
+		w = append(w, status.Plain(", then "), status.Named(m.To), status.Plain(" from "+prose.Past(now, m.At)+": "))
 		w = append(w, status.EventWords(m.Reason, status.Facts{From: m.From, To: m.To, Now: now})...)
 	}
 	return w
-}
-
-// plainPart is words around the accounts named.
-func plainPart(text string) status.Part {
-	return status.Part{Text: text}
-}
-
-// accountPart is the account with the given id, cleaned, as it's from
-// elsewhere.
-func accountPart(id string) status.Part {
-	return status.Part{Text: prose.Clean(id), Kind: status.PartAccount}
 }
 
 // toolsSaid is how many of the tools a turn's answers called most its row
@@ -130,7 +118,7 @@ const toolsSaid = 3
 func (t Turn) ToolsSaid() string {
 	said := make([]string, 0, toolsSaid)
 	for _, c := range t.Tools[:min(len(t.Tools), toolsSaid)] {
-		said = append(said, prose.Clean(c.Tool)+" ×"+strconv.Itoa(c.Times))
+		said = append(said, prose.Clean(c.Tool)+" ×"+prose.Grouped(c.Times))
 	}
 	return strings.Join(said, ", ")
 }
@@ -145,14 +133,11 @@ func (a SessionAccount) PointsSaid() string {
 	said := make([]string, len(keys))
 	for i, key := range keys {
 		of := " of its " + status.InProse(status.NameOfKey(key))
-		switch n := a.Points[key]; {
-		case i > 0:
-			said[i] = strconv.Itoa(n) + of
-		case n == 1:
-			said[i] = "≈ 1 point" + of
-		default:
-			said[i] = "≈ " + strconv.Itoa(n) + " points" + of
+		if i > 0 {
+			said[i] = prose.Grouped(a.Points[key]) + of
+			continue
 		}
+		said[i] = "≈ " + prose.Counted(a.Points[key], "point") + of
 	}
 	return strings.Join(said, " · ")
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
@@ -133,7 +132,7 @@ func writeSessions(out io.Writer, list views.SessionList, now time.Time) error {
 		return err
 	}
 	_, err := fmt.Fprintf(out, "\ntoday  %s%s%s%s%s at API prices\n", prose.SessionCount(list.Today.Sessions), prose.Separator,
-		prose.Counted(list.Today.Requests, "request"), prose.Separator, dashboard.WorthCents(list.Today.Worth))
+		prose.Counted(list.Today.Requests, "request"), prose.Separator, list.Today.Cents())
 	return err
 }
 
@@ -151,7 +150,7 @@ func sessionRow(s views.ListedSession, now time.Time) []string {
 		started = prose.Past(now, s.Started)
 	}
 	return []string{s.Mark.String(), session, orNone(prose.Clean(s.Account)), orNone(ledger.ShortModelID(prose.Clean(s.Model))),
-		doingSaid(s.Activity, now), started, prose.Grouped(s.Requests), dashboard.WorthCents(s.Worth), routingSaid(s.Routing)}
+		doingSaid(s.Activity, now), started, prose.Grouped(s.Requests), s.Cents(), routingSaid(s.Routing)}
 }
 
 // doingSaid says what a session is doing at now, as its Activity has it:
@@ -181,11 +180,11 @@ func doingSaid(a views.Activity, now time.Time) string {
 // routingSaid says how a session came to the account it's on, as its
 // routing has it: its words, as "from work, at its cap", or "pinned here";
 // and what writing its context again there cost, where that's known, as
-// "$1.82".
+// views.Worth says it to the cent, as "$1.82" or "<$0.01".
 func routingSaid(r views.RoutingSaid) string {
 	said := r.Words.String()
 	if r.Cost != nil {
-		said += "  " + r.Cost.Cents()
+		said += "  " + views.Worth{Amount: r.Cost}.Cents()
 	}
 	return said
 }

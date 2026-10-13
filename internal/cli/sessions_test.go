@@ -293,6 +293,22 @@ func TestSessionsSaysAMoveOfARequestSentAgainAsTheLogsRoutingDoes(t *testing.T) 
 	}
 }
 
+func TestSessionsSaysAMoveThatCostUnderHalfACentAsMoreThanNone(t *testing.T) {
+	const tiny = `{"input_tokens":1,"cache_creation_input_tokens":100,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":100},"output_tokens":5}`
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
+		{At: october(7, 12, 0, 0), Request: "t1", Kind: ledger.KindMessage, Session: moving, Dir: "~/Code/cli", Model: "claude-opus-5-5", Account: "work",
+			Reason: "new", Status: 200, Attempts: 1, TotalMS: 9000, Usage: json.RawMessage(tiny)},
+		{At: october(7, 12, 1, 0), Request: "t2", Kind: ledger.KindMessage, Session: moving, Dir: "~/Code/cli", Model: "claude-opus-5-5", Account: "side",
+			Reason: "moved: work hit its limit", From: "work", Tried: []ledger.Tried{{Account: "work", Why: status.WhyLimit}}, Status: 200, Attempts: 2,
+			TotalMS: 9000, Usage: json.RawMessage(tiny)},
+	}})
+	got := run(t, deps, "sessions", "--pretty")
+	const want = "  after work's limit  <$0.01\n"
+	if got.code != 0 || !strings.Contains(got.stdout, want) {
+		t.Errorf("switchboard sessions --pretty = %+v, want the move's cost, under half a cent, as views.Worth says it%s", got, want)
+	}
+}
+
 func TestSessionsNeedsNeitherTheRouterNorTheLedger(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
 	deps.Now = func() time.Time { return ledgerNow }

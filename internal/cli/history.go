@@ -16,7 +16,6 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/redact"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -164,7 +163,7 @@ func writeHistory(out io.Writer, history views.History, prices ledger.Table, fro
 		return err
 	}
 	if !slices.ContainsFunc(tables, func(t dayTable) bool { return len(t.rows) > 0 }) {
-		if _, err := fmt.Fprintf(out, "no requests since %s\n", from.In(now.Location()).Format(dayLayout)); err != nil {
+		if _, err := fmt.Fprintf(out, "no requests since %s\n", dayIn(now, from)); err != nil {
 			return err
 		}
 		return writeTables(out, tables, now, false)
@@ -198,11 +197,11 @@ func writeTables(out io.Writer, tables []dayTable, now time.Time, first bool) er
 // 2026", and the config's, where any of them stand in place of the table's.
 // It fails for a table whose date isn't one.
 func pricedAt(prices ledger.Table) (string, error) {
-	asOf, _, ok := dayfile.Day(prices.AsOf)
+	asOf, ok := dayfile.Civil(prices.AsOf)
 	if !ok {
 		return "", fmt.Errorf("the prices are as of %q, which isn't a date", prices.AsOf)
 	}
-	at := "at its prices as of " + asOf.Format("2 Jan 2006")
+	at := "at its prices as of " + prose.DayMonthYear(asOf)
 	if prices.Overridden {
 		at += " and the config's"
 	}
@@ -250,16 +249,16 @@ func modelRows(a views.DayAccount) [][]string {
 			account = accountName(a.Account)
 		}
 		rows[i] = []string{account, modelName(m), prose.Counted(m.Requests, "request"), prose.Tokens(m.Tokens) + " tokens",
-			prose.SessionCount(m.Sessions), worthOf(m.Worth)}
+			prose.SessionCount(m.Sessions), worthText(m.Worth)}
 	}
 	return rows
 }
 
-// accountName names the account with the given id, cleaned: "no account" for
-// the requests none answered.
+// accountName names the account with the given id, cleaned: views.NoAccount
+// for the requests none answered.
 func accountName(id string) string {
 	if id == "" {
-		return "no account"
+		return views.NoAccount
 	}
 	return prose.Clean(id)
 }
@@ -275,24 +274,11 @@ func modelName(m views.DayModel) string {
 	return name
 }
 
-// worthOf says what a model's day was worth, to the cent, as "$412.53", and
-// that part of it is unpriced, where it is: "unpriced" for a model the price
-// table doesn't know.
-func worthOf(w views.Worth) string {
-	switch {
-	case w.Amount == nil:
-		return "unpriced"
-	case len(w.Unpriced) > 0:
-		return w.Amount.Cents() + ", part unpriced"
-	}
-	return w.Amount.Cents()
-}
-
 // accountNote says, of an account's day, its sessions, those moved onto it and
 // off it, the limits it reached, the resets of its weeks, and each window's
-// highest use, times in now's time zone, as "work: 6 sessions  ·  2 moved on,
-// 1 off  ·  limits: Session at 14:37  ·  week reset 10:00  ·  highest:
-// Session 100%, Week 41%".
+// highest use, each window named as windowName names it, times in now's time
+// zone, as "work: 6 sessions  ·  2 moved on, 1 off  ·  limits: 5-hour at
+// 14:37  ·  week reset 10:00  ·  highest: 5-hour 100%, week 41%".
 func accountNote(a views.DayAccount, now time.Time) string {
 	parts := []string{prose.SessionCount(a.Sessions)}
 	for _, part := range []string{moves(a.MovedOn, a.MovedOff), limitsOf(a.Limits, now), weeksResetOf(a.WeeksReset, now), highestOf(a.Highest)} {
@@ -303,41 +289,40 @@ func accountNote(a views.DayAccount, now time.Time) string {
 	return prose.Clean(a.Account) + ": " + strings.Join(parts, prose.Separator)
 }
 
-// limitsOf says the limits an account reached, as "limits: Session at
-// 14:37", times in now's time zone: "" for none.
+// limitsOf says the limits an account reached, as "limits: 5-hour at 14:37",
+// times in now's time zone: "" for none.
 func limitsOf(reached []views.WindowAt, now time.Time) string {
 	if len(reached) == 0 {
 		return ""
 	}
 	limits := make([]string, len(reached))
 	for i, l := range reached {
-		limits[i] = claude.WindowLabel(l.Window) + " at " + prose.TimeOfDay(now, l.At)
+		limits[i] = windowName(l.Window) + " at " + prose.TimeOfDay(now, l.At)
 	}
-	return "limits: " + prose.Clean(prose.List(limits))
+	return "limits: " + prose.List(limits)
 }
 
-// weeksResetOf says when an account's weeks reset, each window named as
-// events name it, as "week reset 10:00", times in now's time zone: "" for
-// none.
+// weeksResetOf says when an account's weeks reset, as "week reset 10:00",
+// times in now's time zone: "" for none.
 func weeksResetOf(resets []views.WindowAt, now time.Time) string {
 	said := make([]string, len(resets))
 	for i, r := range resets {
-		said[i] = status.InProse(status.NameOfKey(r.Window)) + " reset " + prose.TimeOfDay(now, r.At)
+		said[i] = windowName(r.Window) + " reset " + prose.TimeOfDay(now, r.At)
 	}
-	return prose.Clean(prose.List(said))
+	return prose.List(said)
 }
 
 // highestOf says each of an account's windows' highest use, as "highest:
-// Session 100%, Week 41%": "" for none.
+// 5-hour 100%, week 41%": "" for none.
 func highestOf(uses []views.WindowUse) string {
 	if len(uses) == 0 {
 		return ""
 	}
 	highest := make([]string, len(uses))
 	for i, u := range uses {
-		highest[i] = claude.WindowLabel(u.Window) + " " + prose.Percent(u.Use)
+		highest[i] = windowName(u.Window) + " " + prose.Percent(u.Use)
 	}
-	return "highest: " + prose.Clean(strings.Join(highest, ", "))
+	return "highest: " + strings.Join(highest, ", ")
 }
 
 // moves says how many sessions were moved onto an account and off it, as "2
@@ -345,11 +330,11 @@ func highestOf(uses []views.WindowUse) string {
 func moves(on, off int) string {
 	switch {
 	case on > 0 && off > 0:
-		return fmt.Sprintf("%d moved on, %d off", on, off)
+		return prose.Grouped(on) + " moved on, " + prose.Grouped(off) + " off"
 	case on > 0:
-		return fmt.Sprintf("%d moved on", on)
+		return prose.Grouped(on) + " moved on"
 	case off > 0:
-		return fmt.Sprintf("%d moved off", off)
+		return prose.Grouped(off) + " moved off"
 	}
 	return ""
 }

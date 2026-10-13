@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
@@ -82,7 +81,7 @@ func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 	}
 	t := p.Totals
 	fmt.Fprintf(&b, "\n%s%s%s%s%s from cache%s%s at API prices\n", prose.Counted(t.Turns, "turn"), prose.Separator, prose.Counted(t.Requests, "request"), prose.Separator,
-		prose.Percent(t.FromCache), prose.Separator, dashboard.WorthCents(t.Worth))
+		prose.Percent(t.FromCache), prose.Separator, t.Cents())
 	if len(p.Turns) > 0 {
 		if err := writeTable(&b, turnRows(p, now)); err != nil {
 			return err
@@ -99,12 +98,9 @@ func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 // 13:20 · ran 5h 27m".
 func startedSaid(p views.SessionPage, now time.Time) string {
 	started := "started " + prose.Past(now, p.Started)
-	ended := p.Activity.Doing == views.Ended
 	switch {
-	case ended && !p.Ended.After(p.Started):
-		return started + " · ran 0m"
-	case ended:
-		return started + " · ran " + prose.Countdown(p.Started, p.Ended)
+	case p.Activity.Doing == views.Ended:
+		return started + " · ran " + prose.Duration(p.Ended.Sub(p.Started))
 	case !p.Resumed.IsZero():
 		return started + " · resumed " + prose.Past(now, p.Resumed)
 	}
@@ -143,7 +139,7 @@ func ranOnRows(p views.SessionPage, now time.Time) [][]string {
 			to = time.Time{}
 		}
 		rows[i] = []string{prose.Clean(a.Account), prose.Stint(now, a.From, to, spans), prose.Counted(a.Requests, "request"),
-			a.PointsSaid(), dashboard.WorthCents(a.Worth)}
+			a.PointsSaid(), a.Cents()}
 	}
 	return rows
 }
@@ -157,24 +153,19 @@ func turnRows(p views.SessionPage, now time.Time) [][]string {
 	rows := [][]string{turnHeads}
 	for _, t := range p.Turns {
 		rows = append(rows, []string{strconv.Itoa(t.Turn), prose.Past(now, t.Started), turnTook(t, now), prose.Grouped(t.Requests), t.ToolsSaid(),
-			prose.Tokens(t.Read), prose.Tokens(t.Written), prose.Tokens(t.Out), dashboard.WorthCents(t.Worth), accountsSaid(t.Accounts)})
+			prose.Tokens(t.Read), prose.Tokens(t.Written), prose.Tokens(t.Out), t.Cents(), accountsSaid(t.Accounts)})
 	}
 	return rows
 }
 
-// turnTook says how long a turn took, in minutes, from the minute it started
-// to the one it ended in, as "3m"; and of one still going, to the minute now
-// is, "…" after it.
+// turnTook says how long a turn took, as prose.Minutes says it, from the
+// minute it started to the one it ended in, as "3m"; and of one still going,
+// to the minute now is, "…" after it.
 func turnTook(t views.Turn, now time.Time) string {
-	end, going := t.Ended, t.Ended.IsZero()
-	if going {
-		end = now
+	if t.Ended.IsZero() {
+		return prose.Minutes(t.Started, now) + prose.Ellipsis
 	}
-	minutes := strconv.Itoa(int(end.Truncate(time.Minute).Sub(t.Started.Truncate(time.Minute)) / time.Minute))
-	if going {
-		return minutes + "m…"
-	}
-	return minutes + "m"
+	return prose.Minutes(t.Started, t.Ended)
 }
 
 // accountsSaid says the accounts a turn went to, in the order it did, as the

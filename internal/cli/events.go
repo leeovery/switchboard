@@ -153,7 +153,7 @@ func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error
 		}
 	}
 	at := func(r views.EventRow) time.Time { return r.At }
-	row := func(r views.EventRow, _ time.Time) []string { return eventRow(r, now) }
+	row := func(r views.EventRow) []string { return eventRow(r, now) }
 	table, err := writeDays(p.out, rows, at, row, "events", from, now)
 	p.day, p.widths = table.day, widths(nil, table.indented()...)
 	return err
@@ -166,7 +166,7 @@ func (p *eventsText) follow(h events.Held) error {
 	now := p.now()
 	told := p.telling.Row(h, now)
 	row := indented(eventRow(told, now))
-	if p.day.IsZero() || !(dayTable{day: p.day}).of(told.At) {
+	if p.day.IsZero() || !prose.SameDay(now, p.day, told.At) {
 		p.day = told.At
 		if err := (dayTable{day: told.At}).writeHeading(p.out, now, false); err != nil {
 			return err

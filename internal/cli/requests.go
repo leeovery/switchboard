@@ -153,15 +153,17 @@ func writeLines(out io.Writer, lines iter.Seq[ledger.Held]) error {
 // times in now's time zone, or says there were none since from.
 func writeRequests(out io.Writer, rows iter.Seq[views.RequestLine], from, now time.Time) error {
 	at := func(r views.RequestLine) time.Time { return r.At }
-	_, err := writeDays(out, rows, at, requestRow, "requests", from, now)
+	row := func(r views.RequestLine) []string { return requestRow(r, now) }
+	_, err := writeDays(out, rows, at, row, "requests", from, now)
 	return err
 }
 
-// requestRow is the row of the request r, which arrived at at: its time, its
-// session's id cut short, the model it asked for, the account that answered
-// it, its status, its tokens in and out, and how long it took.
-func requestRow(r views.RequestLine, at time.Time) []string {
-	return []string{at.Format(time.TimeOnly), orNone(status.ShortID(prose.Clean(r.Session))), orNone(prose.Clean(r.Model)),
+// requestRow is the row of the request r, at now: when it arrived, to the
+// second in now's time zone, its session's id cut short, the model it asked
+// for, the account that answered it, its status, its tokens in and out, and
+// how long it took.
+func requestRow(r views.RequestLine, now time.Time) []string {
+	return []string{prose.ToTheSecond(now, r.At), orNone(status.ShortID(prose.Clean(r.Session))), orNone(prose.Clean(r.Model)),
 		orNone(prose.Clean(r.Account)), answered(r.RequestRow), tokensInOut(r), took(r.Took)}
 }
 
