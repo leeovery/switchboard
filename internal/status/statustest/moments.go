@@ -463,6 +463,20 @@ func HardMoments(policy score.Policy) []HardMoment {
 			}},
 		},
 		{
+			// Where new sessions go is the router's to say, and it isn't
+			// running: no account is ▲.
+			Name: "probed, one of several at its limit",
+			Doc:  Probed(policy, readAt("work", spentIn("5h", 1, 40*time.Minute), windowIn("7d", 0.6, 3*day)), side),
+			Now:  Built.Add(time.Minute),
+			Want: Facts{Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingLimited, Held: true, OutOfQuota: true, Windows: map[string]WindowFacts{
+					"5h": {Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 1, Next: Built.Add(40 * time.Minute), Held: true},
+					"7d": workLimited.Windows["7d"],
+				}},
+				"side": {Routing: status.RoutingOpen, CanRise: true, Windows: sideOpen.Windows},
+			}},
+		},
+		{
 			// The limit lifts as the week resets: every fact of it changes
 			// on the tick after, before the router reads it again.
 			Name: "a week at its limit, reset since read, before the reread", Doc: weekOut, Now: Built.Add(time.Hour + 5*time.Second),

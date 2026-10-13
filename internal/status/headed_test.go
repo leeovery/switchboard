@@ -49,6 +49,8 @@ func TestDetailsHeadSaysWhereNewSessionsGo(t *testing.T) {
 			want: "limit reached · new sessions go elsewhere",
 		},
 		{name: "a limit holding back every request, the one account there is", account: with(readNow(0.6, 0.3, 0), limited()), best: "work", want: "limit reached"},
+		{name: "a limit holding back every request, no account with room", account: with(readNow(0.6, 0.3, 0), limited()), others: side, want: "limit reached"},
+		{name: "at its cap, no account with room", account: with(readNow(0.95, 0.34, 0.12), capped(0.05)), others: side, want: "at its cap"},
 		{name: "at its cap", account: with(readNow(0.95, 0.34, 0.12), capped(0.05)), others: side, best: "side", want: "at its cap · new sessions go elsewhere"},
 		{name: "at its cap, the one account there is", account: with(readNow(0.95, 0.34, 0.12), capped(0.05)), best: "work", want: "at its cap"},
 		{

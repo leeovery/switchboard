@@ -268,8 +268,9 @@ func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
 	warned := map[string][]string{
 		"a week at its reserve when built":                           {"work · work: Week at 92%"},
 		"a week at its reserve when built, the global pin naming it": {"work · work: Week at 92%"},
-		"a limit holding":                      {"work · work: 5-hour at 100%"},
-		"probed, of one account, with no room": {"work · work: Week at 100%"},
+		"a limit holding":                                                     {"work · work: 5-hour at 100%"},
+		"probed, of one account, with no room":                                {"work · work: Week at 100%"},
+		"probed, one of several at its limit":                                 {"work · work: 5-hour at 100%"},
 		"a model's own window at its limit, its account open to the rest":     {"work · work: Fable week at 100%"},
 		"the global pin set from the command line to an account at its limit": {"work · work: 5-hour at 100%"},
 	}

@@ -78,10 +78,11 @@ type AccountNow struct {
 	Reserve, Cap, Floor float64
 	ReserveHolds        bool
 	// Pinned is set where the global pin names it, Next where new sessions go
-	// to it, which ▲ marks, InPool where it's one of the pool's accounts, as
-	// Pool has them, and OutOfPool where the pool leaves it out, as the
-	// global pin names others, each as read.
-	Pinned, Next, InPool, OutOfPool bool
+	// to it, which ▲ marks, Elsewhere where they go to another, as elsewhere
+	// says, InPool where it's one of the pool's accounts, as Pool has them,
+	// and OutOfPool where the pool leaves it out, as the global pin names
+	// others, each as read.
+	Pinned, Next, Elsewhere, InPool, OutOfPool bool
 	// TokenSet is set where its token is usable, Read where its usage was
 	// read, whatever windows it reported, and ReadAt is when: zero where it
 	// never was. Error says why its last read failed, cleaned, Failures are
@@ -416,6 +417,15 @@ func (d Document) next() string {
 	return d.Best
 }
 
+// elsewhere reports whether new sessions go to an account other than the one
+// with the given id, as next says: not where they go to it, and not where
+// they go to none, as where no account has room, or the document was probed,
+// as then there's nowhere else they go.
+func (d Document) elsewhere(id string) bool {
+	next := d.next()
+	return next != "" && next != id
+}
+
 // comingAfter are the things coming up given that come after now, in their
 // order.
 func comingAfter(upcoming []Upcoming, now time.Time) []Upcoming {
@@ -477,7 +487,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 	an := AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.floor(a), ReserveHolds: d.reserveHolds(a),
-		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
+		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, Elsewhere: d.elsewhere(a.ID), InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitSince: eventAt(d.LimitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
