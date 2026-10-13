@@ -531,6 +531,14 @@ func (t traffic) unheard() traffic {
 	return t
 }
 
+// closed is the traffic once the watch closes the stream: unheard, and what
+// each seat is doing on each account forgotten, as nothing tells of it again
+// until the stream opens, telling of the requests in flight afresh.
+func (t traffic) closed() traffic {
+	t.calls = nil
+	return t.unheard()
+}
+
 // reopened is the traffic as the stream opens again: what each seat is doing
 // on each account forgotten, as what the stream tells as it opens tells of
 // the requests in flight afresh; and the requests it told of in flight

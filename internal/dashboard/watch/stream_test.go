@@ -207,6 +207,44 @@ func TestTheStreamIsAskedForAgainOnceItEnds(t *testing.T) {
 	}
 }
 
+// A stream the watch closes tells nothing more of what each seat is doing, so
+// none is drawn doing anything until it opens again and tells afresh; the
+// requests it told of are kept, for its first look to settle.
+func TestOnceTheWatchClosesTheStreamNoSeatIsDrawnDoingAnything(t *testing.T) {
+	tests := []struct {
+		name  string
+		close func(h *harness)
+	}{
+		{name: "the router stops answering, for half an hour", close: func(h *harness) {
+			h.stopRouter()
+			h.tickUntilAsked()
+			h.tickUntil(h.clock.now.Add(30 * time.Minute))
+		}},
+		{name: "ROUTING hidden, then shown again, the stream yet to open", close: func(h *harness) {
+			h.deliver(h.press("r")...)
+			h.press("r")
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := streamingOn(t, dashboard.Sections{})
+			h.hear(told(router.StreamSent, "r1", "work", 0))
+			tt.close(h)
+
+			if !h.closed(1) {
+				t.Fatal("the stream opened first is open still, want it closed")
+			}
+			f := h.model.frame(h.clock.now)
+			if len(f.Traffic.Calls) > 0 {
+				t.Errorf("the stream closed, the frame draws seats doing %+v, want none doing anything till it opens again", f.Traffic.Calls)
+			}
+			if r := f.Stream.Requests["r1"]; !r.InFlight() {
+				t.Errorf("the stream closed, r1 is %+v, want it kept in flight, for the stream's first look to settle", r)
+			}
+		})
+	}
+}
+
 func TestAStreamThatWontOpenIsAskedForLaterEachTime(t *testing.T) {
 	log := logstest.Capture(t)
 	h := streamingHarness(t)

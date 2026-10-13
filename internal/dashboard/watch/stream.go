@@ -119,14 +119,15 @@ func (m Model) openStream() (Model, tea.Cmd) {
 	return m, open
 }
 
-// closeStream closes the request stream, its traffic no longer live, as
-// unheard has it, keeping what it told for the stream's first look to settle
-// as it opens again, and how far the traces have read today's lines, for
-// the stream to go on from then.
+// closeStream closes the request stream, its traffic as closed has it: no
+// longer live, and what each seat is doing forgotten, but keeping the
+// requests it told of for the stream's first look to settle as it opens
+// again; and how far the traces have read today's lines, for the stream to
+// go on from then.
 func (m Model) closeStream() Model {
 	m.stream.end()
 	m.stream = streaming{gen: m.stream.gen + 1, absent: m.stream.absent, absentOf: m.stream.absentOf, read: m.stream.read}
-	m.traffic = m.traffic.unheard()
+	m.traffic = m.traffic.closed()
 	return m
 }
 
