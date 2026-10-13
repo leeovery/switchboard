@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // limitsPrefix begins the name of each of the usage headers, lowercased.
@@ -68,6 +69,28 @@ func LimitWindows(limits map[string]string) []quota.Window {
 	}
 	quota.Sort(windows)
 	return windows
+}
+
+// WindowRead is a window as a past answer read it: its key; its share used;
+// when it resets, zero where the answer didn't say; and how far it held its
+// account back.
+type WindowRead struct {
+	Key    string
+	Use    float64
+	Resets time.Time
+	Held   score.Hold
+}
+
+// WindowsRead returns the windows a request ledger's line gives in its
+// limits, as LimitWindows reads them, in its order, each as WindowRead has
+// it: how far it held its account back as score.HoldOf judges it, the
+// account's reserve the one given.
+func WindowsRead(limits map[string]string, reserve float64) []WindowRead {
+	var read []WindowRead
+	for _, w := range LimitWindows(limits) {
+		read = append(read, WindowRead{Key: w.Key, Use: w.Utilization, Resets: w.ResetsAt, Held: score.HoldOf(w, reserve)})
+	}
+	return read
 }
 
 // limitsOf returns each of the usage headers h holds, by its name lowercased,
