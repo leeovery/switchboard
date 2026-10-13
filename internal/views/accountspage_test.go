@@ -105,6 +105,20 @@ func TestDetailsWeeksAndVerdictsAreTheFrames(t *testing.T) {
 	}
 }
 
+// Each account's row carries its label as the config gives it, whatever its
+// id; every account's carries none.
+func TestEachRowCarriesItsAccountsLabel(t *testing.T) {
+	labelled := config.Accounts{{ID: "acct-1", Label: "work"}, {ID: "acct-2", Label: "side"}, {ID: "acct-3"}}
+	page := accountsPageOf(daysFrom("2026-10-07"), labelled)
+	var got []string
+	for _, row := range append(page.Rows, page.All) {
+		got = append(got, row.Totals.Account+":"+row.Label)
+	}
+	if want := []string{"acct-1:work", "acct-2:side", "acct-3:", ":"}; !slices.Equal(got, want) {
+		t.Errorf("the rows are of %q, want %q", got, want)
+	}
+}
+
 // Where one account's weeks are known, it ends weeks with both the most and
 // the least left; where none's are, none does.
 func TestTheEndsOfOneAccountsWeeksAreItsOwn(t *testing.T) {

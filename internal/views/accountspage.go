@@ -37,6 +37,8 @@ type AccountsPage struct {
 
 // AccountsRow is an account's row of Accounts, or every account's.
 type AccountsRow struct {
+	// Label is its label, as the config gives it: "" of every account's.
+	Label string
 	// Totals are its totals over the period, and Plan its plan over it and
 	// its worth against it, as History counts and prices them: the plan
 	// priced whole for the period, whenever it began recording, so an
@@ -87,7 +89,7 @@ func (p Past) Accounts(period AccountsPeriod) AccountsPage {
 	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), in: in, days: weeks}
 	for x, a := range in.Accounts {
 		plan, _ := known.of(a.ID)
-		page.Rows[x] = AccountsRow{Totals: totals.Accounts[x], Plan: costs[x], PlanName: plan.Name}
+		page.Rows[x] = AccountsRow{Label: a.Label, Totals: totals.Accounts[x], Plan: costs[x], PlanName: plan.Name}
 	}
 	all := len(in.Accounts)
 	page.All = AccountsRow{Totals: totals.Accounts[all], Plan: costs[all]}
