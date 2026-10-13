@@ -29,6 +29,8 @@ type File struct {
 	Fset *token.FileSet
 	AST  *ast.File
 	Info *types.Info
+	// Pkg is the package it's of.
+	Pkg *types.Package
 }
 
 // At is where pos is in the file: its path and line.
@@ -157,8 +159,9 @@ var majorVersion = regexp.MustCompile(`^v[0-9]+$`)
 // keeping what each of its files' expressions is, its type and any constant
 // value; of the rest, its declarations alone. A package of the module
 // type-checks past any error, as what it uses of a stubbed package is
-// unknown; the standard library's type-checks clean, or the guard reads it
-// wrong.
+// unknown: what a rule would judge there, it can't, so it breaks the rule,
+// as Rule.Breaches has it. The standard library's type-checks clean, or the
+// guard reads it wrong.
 func (l *Loader) check(importPath, dir string, std bool) (*types.Package, error) {
 	bp, err := l.ctx.ImportDir(dir, 0)
 	if err != nil {
@@ -194,7 +197,7 @@ func (l *Loader) check(importPath, dir string, std bool) (*types.Package, error)
 	}
 	if whole {
 		for i, name := range bp.GoFiles {
-			l.checked[rel] = append(l.checked[rel], File{Path: path.Join(rel, name), Fset: l.fset, AST: files[i], Info: info})
+			l.checked[rel] = append(l.checked[rel], File{Path: path.Join(rel, name), Fset: l.fset, AST: files[i], Info: info, Pkg: pkg})
 		}
 	}
 	return pkg, nil

@@ -1,6 +1,7 @@
 package status_test
 
 import (
+	"cmp"
 	"go/ast"
 	"go/types"
 	"slices"
@@ -184,6 +185,7 @@ func TestTheMomentsMadeGuardFindsWhatItGuardsAgainst(t *testing.T) {
 	root := sourcecheck.WriteModule(t, madeFixture)
 	got := momentsMadeOutside(t, root, "example.com/fixture", []string{"internal/view"}, []string{"view.Frame.At", "view.listed", "view.gone"})
 	want := []string{
+		"internal/view/lost.go:15: held.doc.At can't be judged, as the type of held.doc is lost to a package the loader stubs; give the guard a type it can see, as a variable declared with one",
 		"internal/view/view.go:16: view.again works out a moment with status.Document.At; " + madeFix,
 		"internal/view/view.go:17: view.again works out a moment with status.Moment.At; " + madeFix,
 		"internal/view/view.go:21: view.inside works out a moment with status.Document.At; " + madeFix,
@@ -198,8 +200,9 @@ func TestTheMomentsMadeGuardFindsWhatItGuardsAgainst(t *testing.T) {
 // madeFixture is a module whose status works out a document's moment, and a
 // view package of functions that work one out: one allowed to, at a frame's
 // method; one that works out two, the second of the first; one that does so
-// in a function literal; a package-level declaration; and one allowed to
-// that works out none.
+// in a function literal; a package-level declaration; one allowed to that
+// works out none; and one that may, through a document whose type the
+// loader lost to a package it stubs, beside what may not.
 var madeFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
 	"internal/status/status.go": `package status
@@ -242,6 +245,23 @@ func inside(doc status.Document, now time.Time) func() status.Moment {
 var made = status.Document{}.At(time.Time{})
 
 func gone() {}
+`,
+	"internal/view/lost.go": `package view
+
+import (
+	"time"
+
+	"example.org/tea"
+
+	"example.com/fixture/internal/status"
+)
+
+type docMsg struct{ doc status.Document }
+
+func lost(msg tea.Msg, now time.Time) []any {
+	held, _ := msg.(docMsg)
+	return []any{held.doc.At(now), msg.String()}
+}
 `,
 }
 
@@ -475,10 +495,11 @@ func newRule(module string, calls []string) sourcecheck.Rule {
 
 // momentsMadeOutside are where the non-test files of the packages in dirs, of
 // the module at root with the given path, work out a document's moment, as
-// worksOut names what does, but in the functions and methods made names:
-// each use, called or not, in any other, a function literal's counting as
-// its function's, or in a package-level declaration. Then each that made
-// names that works none out.
+// worksOut names what does, or may, through what the type checker lost the
+// type of, but in the functions and methods made names: each use, called or
+// not, in any other, a function literal's counting as its function's, or in
+// a package-level declaration. Then each that made names that works none
+// out.
 func momentsMadeOutside(t *testing.T, root, module string, dirs, made []string) []string {
 	t.Helper()
 	names := sourcecheck.NamesIn(module)
@@ -492,10 +513,10 @@ func momentsMadeOutside(t *testing.T, root, module string, dirs, made []string) 
 				if fd, ok := decl.(*ast.FuncDecl); ok {
 					who = names.Func(f.Info.Defs[fd.Name].(*types.Func))
 				}
-				for _, u := range momentsIn(f, decl, names) {
+				for _, m := range momentsIn(f, decl, names, who) {
 					making[who] = true
 					if !slices.Contains(made, who) {
-						problems = append(problems, f.At(u.At)+": "+who+" works out a moment with "+u.Name+"; "+madeFix)
+						problems = append(problems, f.At(m.At)+": "+m.Says)
 					}
 				}
 			}
@@ -509,19 +530,27 @@ func momentsMadeOutside(t *testing.T, root, module string, dirs, made []string) 
 	return problems
 }
 
-// momentsIn are where the declaration in f works out a document's moment, in
-// the order they come in it, each with what of worksOut it uses.
-func momentsIn(f sourcecheck.File, decl ast.Decl, names sourcecheck.Names) []sourcecheck.Use {
-	var uses []sourcecheck.Use
+// momentsIn are where the declaration in f, of who, works out a document's
+// moment, saying with what of worksOut; and where it may, through what the
+// type checker lost the type of, which the guard can't judge: in the order
+// they come in it.
+func momentsIn(f sourcecheck.File, decl ast.Decl, names sourcecheck.Names, who string) []sourcecheck.Breach {
+	var found []sourcecheck.Breach
 	ast.Inspect(decl, func(n ast.Node) bool {
 		id, ok := n.(*ast.Ident)
 		if !ok {
 			return true
 		}
 		if fn, ok := f.Info.Uses[id].(*types.Func); ok && slices.Contains(worksOut, names.Func(fn)) {
-			uses = append(uses, sourcecheck.Use{At: id.Pos(), Name: names.Func(fn)})
+			found = append(found, sourcecheck.Breach{At: id.Pos(), Says: who + " works out a moment with " + names.Func(fn) + "; " + madeFix})
 		}
 		return true
 	})
-	return uses
+	for _, lost := range f.LostIn(decl) {
+		if lost.Of != nil && slices.ContainsFunc(worksOut, func(name string) bool { return strings.HasSuffix(name, "."+lost.Name.Name) }) {
+			found = append(found, sourcecheck.Breach{At: lost.Name.Pos(), Says: lost.Says()})
+		}
+	}
+	slices.SortStableFunc(found, func(a, b sourcecheck.Breach) int { return cmp.Compare(a.At, b.At) })
+	return found
 }

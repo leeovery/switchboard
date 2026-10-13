@@ -145,7 +145,7 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount) error {
 	if taken.Kept {
 		said += ", keeping the token in " + registry.Tokens.Path(account.ID)
 	}
-	_, err = fmt.Fprintln(cmd.OutOrStdout(), said)
+	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
 }
 
@@ -168,7 +168,7 @@ func (a *app) replaceToken(cmd *cobra.Command, id string) error {
 		return err
 	}
 	warnUnchecked(cmd.ErrOrStderr(), taken)
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), "saved %s's token\n", id)
+	_, err = io.WriteString(cmd.OutOrStdout(), "saved "+id+"'s token\n")
 	return err
 }
 
@@ -193,7 +193,7 @@ func (a *app) removeAccount(cmd *cobra.Command, id string) error {
 	if removed.Primary != "" {
 		said += "\n" + primaryNow(removed.Primary, id, registry.Tokens.Read)
 	}
-	_, err = fmt.Fprintln(cmd.OutOrStdout(), said)
+	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
 }
 

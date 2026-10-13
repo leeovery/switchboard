@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"iter"
 	"path"
 	"slices"
 	"strings"
@@ -124,12 +125,20 @@ type Use struct {
 }
 
 // Breaches are where the type-checked file f breaks the rule, in the order
-// they come in it, and the calls it makes that the rule allows.
+// they come in it, and the calls it makes that the rule allows. What the
+// rule would judge but can't, as the type checker lost its type to a
+// package the loader stubs, breaks it too.
 func (r Rule) Breaches(f File) (found []Breach, allowed []Use) {
 	dir := path.Dir(f.Path)
+	unseen := r.unseenIn(f.Pkg, dir)
 	for _, decl := range f.AST.Decls {
 		w := &walk{r: r, info: f.Info, dir: dir, in: DeclName(decl), judged: make(map[*ast.Ident]bool)}
 		ast.Inspect(decl, w.visit)
+		for _, lost := range f.LostIn(decl) {
+			if unseen.bans(lost) {
+				w.breach(lost.Name.Pos(), lost.Says())
+			}
+		}
 		slices.SortStableFunc(w.found, func(x, y Breach) int { return cmp.Compare(x.At, y.At) })
 		found = append(found, w.found...)
 		allowed = append(allowed, w.allowed...)
@@ -195,15 +204,18 @@ func (w *walk) used(id *ast.Ident) {
 }
 
 // call finds the call of a function of Calls that breaks the rule here, by
-// its arguments.
+// its arguments, or that can't be judged by them.
 func (w *walk) call(call *ast.CallExpr) {
-	id, ban, ok := w.callBan(call.Fun)
+	name, id, ban, ok := w.callBan(call.Fun)
 	if !ok {
 		return
 	}
 	w.judged[id] = true
-	if ban.Breaks == nil || ban.Breaks(argued(call, w.info), w.info) {
+	switch breaks, lost := ban.judge(argued(call, w.info), w.info); {
+	case breaks:
 		w.breach(id.Pos(), ban.Says)
+	case lost != nil:
+		w.breach(id.Pos(), lostSays(name, "the type of its argument "+types.ExprString(lost)))
 	}
 }
 
@@ -211,7 +223,7 @@ func (w *walk) call(call *ast.CallExpr) {
 // callee of a call: what it's given where it's called can't be judged, so it
 // breaks the rule.
 func (w *walk) value(e ast.Expr) {
-	id, ban, ok := w.callBan(e)
+	_, id, ban, ok := w.callBan(e)
 	if !ok || w.judged[id] {
 		return
 	}
@@ -219,12 +231,12 @@ func (w *walk) value(e ast.Expr) {
 	w.breach(id.Pos(), ban.Says)
 }
 
-// callBan is the identifier naming the function e names, and its ban, where
-// it's one of Calls, banned here.
-func (w *walk) callBan(e ast.Expr) (*ast.Ident, CallBan, bool) {
+// callBan is the full name of the function e names, the identifier naming
+// it, and its ban, where it's one of Calls, banned here.
+func (w *walk) callBan(e ast.Expr) (string, *ast.Ident, CallBan, bool) {
 	name, id := funcNamed(e, w.info)
 	ban, ok := w.r.Calls[name]
-	return id, ban, ok && ban.holdsIn(w.dir)
+	return name, id, ban, ok && ban.holdsIn(w.dir)
 }
 
 // called names the function fn, as Names.Func has it, and says how using it
@@ -250,39 +262,97 @@ func (r Rule) called(fn *types.Func, dir string) (name, says string) {
 // a parameter, as held finds it: "" where it takes none.
 func (r Rule) takes(fn *types.Func) string {
 	sig := fn.Signature()
-	var taken []types.Type
+	h := holding{r: r, seen: make(map[string]bool)}
 	if recv := sig.Recv(); recv != nil {
-		taken = append(taken, recv.Type())
+		if held := h.held(recv.Type()); held != "" {
+			return held
+		}
 	}
-	for v := range sig.Params().Variables() {
-		taken = append(taken, v.Type())
+	return h.heldIn(typesOf(sig.Params()))
+}
+
+// holding is a look for the one of a rule's Fields a type holds, and the
+// named types it has looked into, by their names in full, so a recursive one
+// ends it.
+type holding struct {
+	r    Rule
+	seen map[string]bool
+}
+
+// held names the one of Fields t is, or holds through pointers, slices,
+// arrays, maps, channels, a func's parameters and results, a generic named
+// type's type arguments, and a named type, declared where one of Fields is,
+// as the type it's defined as, as "status.Account": "" where it's none. Any
+// other named type, as the read surface's own, is judged by its name alone.
+func (h holding) held(t types.Type) string {
+	switch t := types.Unalias(t).(type) {
+	case *types.Pointer:
+		return h.held(t.Elem())
+	case *types.Slice:
+		return h.held(t.Elem())
+	case *types.Array:
+		return h.held(t.Elem())
+	case *types.Chan:
+		return h.held(t.Elem())
+	case *types.Map:
+		return cmp.Or(h.held(t.Key()), h.held(t.Elem()))
+	case *types.Signature:
+		return cmp.Or(h.heldIn(typesOf(t.Params())), h.heldIn(typesOf(t.Results())))
+	case *types.Named:
+		return h.named(t)
 	}
-	for _, t := range taken {
-		if held := r.held(t); held != "" {
+	return ""
+}
+
+// named names the one of Fields the named type t is, or holds through its
+// type arguments, or, declared where one of Fields is, the type it's defined
+// as, looked into once.
+func (h holding) named(t *types.Named) string {
+	if name := h.r.Type(t); slices.Contains(h.r.Fields, name) {
+		return name
+	}
+	if held := h.heldIn(t.TypeArgs().Types()); held != "" {
+		return held
+	}
+	name := types.TypeString(t, nil)
+	if h.seen[name] || !h.r.declaresFields(t) {
+		return ""
+	}
+	h.seen[name] = true
+	return h.held(t.Underlying())
+}
+
+// heldIn names the first of Fields one of ts holds, as held finds it: ""
+// where none does.
+func (h holding) heldIn(ts iter.Seq[types.Type]) string {
+	for t := range ts {
+		if held := h.held(t); held != "" {
 			return held
 		}
 	}
 	return ""
 }
 
-// held names the one of Fields t is, or holds through pointers, slices,
-// arrays and maps, as "status.Account": "" where it's none.
-func (r Rule) held(t types.Type) string {
-	switch t := types.Unalias(t).(type) {
-	case *types.Pointer:
-		return r.held(t.Elem())
-	case *types.Slice:
-		return r.held(t.Elem())
-	case *types.Array:
-		return r.held(t.Elem())
-	case *types.Map:
-		return cmp.Or(r.held(t.Key()), r.held(t.Elem()))
-	case *types.Named:
-		if name := r.Type(t); slices.Contains(r.Fields, name) {
-			return name
+// declaresFields reports whether the package that declares named declares
+// one of Fields.
+func (r Rule) declaresFields(named *types.Named) bool {
+	pkg := named.Obj().Pkg()
+	if pkg == nil || !strings.HasPrefix(pkg.Path(), r.internal) {
+		return false
+	}
+	declared := strings.TrimPrefix(pkg.Path(), r.internal) + "."
+	return slices.ContainsFunc(r.Fields, func(field string) bool { return strings.HasPrefix(field, declared) })
+}
+
+// typesOf are the types of the tuple's variables, in order.
+func typesOf(tuple *types.Tuple) iter.Seq[types.Type] {
+	return func(yield func(types.Type) bool) {
+		for v := range tuple.Variables() {
+			if !yield(v.Type()) {
+				return
+			}
 		}
 	}
-	return ""
 }
 
 // fieldRead names the field of one of Fields sel reads, as
