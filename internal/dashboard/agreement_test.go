@@ -326,7 +326,9 @@ func staleness(stale bool) string {
 // account's under pressure, but of one stale, as the router's pressure goes
 // by the window's projection, stale or not; and Runway's lanes, of a window
 // they count, but of one held at its limit, after which a timeline draws
-// where it runs out (#59), and of an account whose last read failed (D7).
+// where it runs out (#59), unless its token is refused, as a stale window
+// runs out nowhere ahead either, and of an account whose last read failed
+// (D7).
 func (d drawn) runsOut(a status.AccountNow, w status.WindowNow) []viewSays {
 	var says []viewSays
 	if g, ok := d.gauge(a, w); ok {
@@ -343,7 +345,7 @@ func (d drawn) runsOut(a status.AccountNow, w status.WindowNow) []viewSays {
 	if routing.Kind == status.RoutingPressed && w.Pressure && w.Kind != status.WindowStale {
 		says = append(says, viewSays{"ROUTING", outSaid(standingWords(routing, false, 200).plain())})
 	}
-	if a.Error != "" || w.Held {
+	if a.Error != "" || w.Held && !a.TokenRefused {
 		return says
 	}
 	for _, f := range []Frame{d.day, d.week} {

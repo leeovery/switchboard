@@ -191,7 +191,8 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 		want.Capped = doc.ReserveHolds(a) && slices.Contains(a.ReachedReserve(now), w.Key)
 		want.CappedAsRead = doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key)
 		want.RunsOut, want.Out = st.Kind == status.WindowRunsOut, out
-		want.RunsOutAhead = want.RunsOut || want.Held && !out.At.IsZero()
+		unheld := !a.TokenRefused(now) && !want.Lapsed && a.Error == "" && !want.Capped
+		want.RunsOutAhead = want.RunsOut || want.Held && unheld && runsOut
 		if share, ok := dashboardProjected(st, out.Projection); ok {
 			want.Projected = &share
 		}
@@ -503,41 +504,36 @@ func TestAMomentsPoolIsWorkedOutOnceForEveryCopy(t *testing.T) {
 // A window runs out where a view says so only where nothing before running
 // out holds, the first of the kinds that holds winning: a limit, a refused
 // token or a failed read says more than its projection, which it keeps for
-// the bar's projected fill.
+// the bar's projected fill. It runs out ahead, as a timeline draws it, where
+// it runs out once a limit holding it lifts, judged by the same kinds: a
+// stale window runs out nowhere ahead either.
 func TestAWindowRunsOutWhereNothingBeforeItHolds(t *testing.T) {
 	// The week, 60% used three days in, runs out two days on at its pace.
 	running := readAt("work", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.6, 4*day))
 	out := built.Add(2 * day)
+	failed := func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }
+	refused := func(a *status.Account) { a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401} }
+	unnamed := func(a *status.Account) { a.Limit = status.Limit{Until: built.Add(time.Hour)} }
 	tests := []struct {
-		name    string
-		account status.Account
-		kind    status.WindowKind
-		runsOut bool
+		name           string
+		account        status.Account
+		kind           status.WindowKind
+		runsOut, ahead bool
 	}{
-		{name: "with nothing before it", account: running, kind: status.WindowRunsOut, runsOut: true},
-		{
-			name:    "its last read failed",
-			account: with(running, func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }),
-			kind:    status.WindowStale,
-		},
-		{
-			name:    "its token refused",
-			account: with(running, func(a *status.Account) { a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401} }),
-			kind:    status.WindowStale,
-		},
-		{
-			name:    "a limit naming no window holding it",
-			account: with(running, func(a *status.Account) { a.Limit = status.Limit{Until: built.Add(time.Hour)} }),
-			kind:    status.WindowLimited,
-		},
+		{name: "with nothing before it", account: running, kind: status.WindowRunsOut, runsOut: true, ahead: true},
+		{name: "its last read failed", account: with(running, failed), kind: status.WindowStale},
+		{name: "its token refused", account: with(running, refused), kind: status.WindowStale},
+		{name: "a limit naming no window holding it", account: with(running, unnamed), kind: status.WindowLimited, ahead: true},
+		{name: "a limit naming no window holding it, its token refused", account: with(with(running, unnamed), refused), kind: status.WindowLimited},
+		{name: "a limit naming no window holding it, its last read failed", account: with(with(running, unnamed), failed), kind: status.WindowLimited},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a, _ := statustest.Router(policy, nil, statustest.Routed{Account: tt.account}).WorkedOut(policy).At(built.Add(time.Minute), policy).Account("work")
 			w, _ := a.Window("7d")
-			if w.Kind != tt.kind || w.RunsOut != tt.runsOut || !w.Out.At.Equal(out) {
-				t.Errorf("the week stands as kind %d, running out %v, its projection out at %v; want kind %d, %v, and out at %v",
-					w.Kind, w.RunsOut, w.Out.At, tt.kind, tt.runsOut, out)
+			if w.Kind != tt.kind || w.RunsOut != tt.runsOut || w.RunsOutAhead != tt.ahead || !w.Out.At.Equal(out) {
+				t.Errorf("the week stands as kind %d, running out %v, ahead %v, its projection out at %v; want kind %d, %v, %v, and out at %v",
+					w.Kind, w.RunsOut, w.RunsOutAhead, w.Out.At, tt.kind, tt.runsOut, tt.ahead, out)
 			}
 			if tt.runsOut && !w.At.Equal(w.Out.At) {
 				t.Errorf("the week runs out at %v, want %v, as its projection has it", w.At, w.Out.At)

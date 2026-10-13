@@ -217,9 +217,11 @@ type WindowNow struct {
 	// when. A window a limit holds, at its cap, not started, or of an account
 	// whose token is refused or whose last read failed doesn't, whatever its
 	// projection says. RunsOutAhead is set where it runs out ahead of Now, as
-	// a timeline draws it, at its Out: where it RunsOut, or where Claude's
-	// limit holds it and it runs out once that lifts, as one a limit naming
-	// no window holds can. A stale window runs out nowhere ahead either.
+	// a timeline draws it, at its Out: where its kind, with any limit holding
+	// it set aside, as it stands once that lifts, is WindowRunsOut. It's
+	// RunsOut where no limit holds it; where one does, as one naming no
+	// window can, it's set where it runs out once the limit lifts, but not
+	// where it's stale, not started or at its cap.
 	RunsOut, RunsOutAhead bool
 	// Out is where it runs out at Now at the pace it's heading at, as
 	// RunsOut says, projected from when the document was read, whatever
@@ -498,7 +500,8 @@ func (m Moment) windowNow(s WindowStates, w judged, name WindowName) WindowNow {
 	}
 	wn.Capped, wn.CappedAsRead = s.capped(key), m.doc.reserveHolds(a) && slices.Contains(a.AtReserve, key)
 	wn.RunsOut, wn.Out, wn.Projected = wn.Kind == WindowRunsOut, w.out, projected(wn.Kind, w.out.Projection)
-	wn.RunsOutAhead = wn.RunsOut || wn.Held && !w.out.At.IsZero()
+	unheld, _ := s.unheld(w.window, w)
+	wn.RunsOutAhead = unheld == WindowRunsOut
 	wn.Nearing = wn.Projected != nil && !w.runsOut && *wn.Projected >= m.doc.Floor(a)-Near-score.Tolerance
 	wn.InUse = inUse(w.stands, w.out.Projection)
 	return wn
