@@ -157,6 +157,44 @@ func TestHistorysViewsAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
 	}
 }
 
+// The Log's columns are kept under a key of their own, by name, beside the
+// rest and the keys of another build: none shown kept as [], apart from the
+// defaults, which are left out.
+func TestTheLogsColumnsAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "pane": {"split": 0.5}}`)
+	prefs := theme.NewPrefsFile(state, clock)
+	log := theme.LogPrefs{Columns: []string{"session", "worth", "request id"}}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Log = log }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Log: log}); !reflect.DeepEqual(got, want) {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(path)
+	want := "{\n  \"log\": {\n    \"columns\": [\n      \"session\",\n      \"worth\",\n      \"request id\"\n    ]\n  },\n" +
+		"  \"pane\": {\n    \"split\": 0.5\n  },\n  \"theme\": \"amber\"\n}\n"
+	if err != nil || string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Log = theme.LogPrefs{Columns: []string{}} }); err != nil {
+		t.Fatal(err)
+	}
+	if got := prefs.Read().Log.Columns; got == nil || len(got) > 0 {
+		t.Errorf("Read().Log.Columns = %#v, want none shown, kept apart from the defaults", got)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Log = theme.LogPrefs{} }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "log") {
+		t.Errorf("prefs.json holds %s, %v; want the Log's defaults left out", data, err)
+	}
+}
+
 func TestACorruptPreferencesFileIsSetAsideAndTheDefaultsStand(t *testing.T) {
 	tests := []struct {
 		name, content string
