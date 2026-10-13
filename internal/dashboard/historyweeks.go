@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -55,7 +54,7 @@ func (f Frame) historyWeeks(c *canvas, top int) {
 	case p == nil:
 		return
 	case p.Capacity.Weeks == 0:
-		c.line(0, top, line{{"not enough weeks yet", dimInk}}.fit(f.edge()))
+		c.line(0, top, line{{views.NotEnoughWeeks, dimInk}}.fit(f.edge()))
 		return
 	}
 	w := f.weeksDrawn(*p)
@@ -308,27 +307,25 @@ func (w weeksDrawn) many() bool {
 	return w.page.Capacity.Drop != ""
 }
 
-// headline is the verdict's headline, bold, as "three is about right", its
-// count a figure: in accent.attention where there are too few, else in
-// state.positive.
+// headline is the verdict's headline, as views.Headline says it, bold, as
+// "three is about right", its count a figure: in accent.attention where there
+// are too few, else in state.positive.
 func (w weeksDrawn) headline() []part {
 	k := boldPositiveInk
 	if v := w.page.Capacity.Verdict; v == views.OneTooFew || v == views.TooFew {
 		k = alertInk
 	}
-	return []part{figureIn(prose.Number(len(w.page.Accounts)), k), wordsIn(" is "+w.page.Capacity.Verdict, k)}
+	return saidParts(views.Headline(len(w.page.Accounts), w.page.Capacity.Verdict), k)
 }
 
 // asNow is how many of the last whole weeks were short as the accounts
-// stand, and who was short each time, where the same were:
-// "as now: short on 3 of the last 7 weeks, each time work alone".
+// stand, as views.ShortOfTheLastWeeks says it, and who was short each time,
+// where the same were: "as now: short on 3 of the last 7 weeks, each time
+// work alone".
 func (w weeksDrawn) asNow() []part {
 	c := w.page.Capacity
 	k := w.countInk(c.Short)
-	l := slices.Concat(
-		[]part{wordsIn("as now: ", dimInk), wordsIn("short on ", k), w.shortCount(c.Short, k), wordsIn(" of the last ", k)},
-		countedParts(c.Weeks, "week", k),
-	)
+	l := slices.Concat([]part{wordsIn(views.ReplayAsNow, dimInk)}, saidParts(views.ShortOfTheLastWeeks(c.Short, c.Weeks), k))
 	names := make([]string, len(w.page.ShortEach))
 	for i, id := range w.page.ShortEach {
 		names[i] = w.named(id)
@@ -356,17 +353,17 @@ func (w weeksDrawn) replays() [][]part {
 	case c.WithOneFewer == nil && c.WithOneMore == 0:
 		return [][]part{{wordsIn("a second would have cleared them", mutedInk)}}
 	case c.WithOneFewer == nil:
-		return [][]part{w.replay("with a second: ", c.WithOneMore, "")}
+		return [][]part{w.replay(views.ReplayASecond, c.WithOneMore, "")}
 	}
 	same := ""
 	if w.page.SameWeeks {
 		same = ", the same weeks"
 	}
-	fewer := w.replay("with one fewer: ", *c.WithOneFewer, same)
+	fewer := w.replay(views.ReplayOneFewer, *c.WithOneFewer, same)
 	if c.WithTwoFewer != nil {
-		return [][]part{fewer, w.replay("with two fewer: ", *c.WithTwoFewer, "")}
+		return [][]part{fewer, w.replay(views.ReplayTwoFewer, *c.WithTwoFewer, "")}
 	}
-	return [][]part{fewer, w.replay("with one more: ", c.WithOneMore, "")}
+	return [][]part{fewer, w.replay(views.ReplayOneMore, c.WithOneMore, "")}
 }
 
 // replay is a replay's label and the weeks it finds short, n of those
@@ -400,22 +397,13 @@ func (w weeksDrawn) counts() []int {
 	return append(counts, *c.WithOneFewer, c.WithOneMore)
 }
 
-// shortCount counts weeks short, in the ink given: as "3", a figure, or
-// "none", words.
-func (weeksDrawn) shortCount(n int, k ink) part {
-	if n == 0 {
-		return wordsIn("none", k)
-	}
-	return figureIn(strconv.Itoa(n), k)
-}
-
 // estimate says the verdict is an estimate, as few accounts' form words it,
 // or many's.
 func (w weeksDrawn) estimate() []part {
 	if w.many() {
-		return []part{wordsIn("an estimate, from replaying these weeks", faintInk)}
+		return []part{wordsIn(views.EstimateOfReplays, faintInk)}
 	}
-	return []part{wordsIn("an estimate, from replaying these weeks with one account fewer or more", faintInk)}
+	return []part{wordsIn(views.EstimateOfOneFewerOrMore, faintInk)}
 }
 
 // dropped names the account to drop and says why, in text.muted, its price
@@ -436,7 +424,7 @@ func (w weeksDrawn) dropped() []part {
 	case w.page.NoneShortWithout:
 		said = []part{wordsIn("nothing ran short without it", mutedInk)}
 	}
-	named := []part{wordsIn(w.named(w.page.Capacity.Drop)+" is the one to drop", mutedInk)}
+	named := []part{wordsIn(views.ToDrop(w.named(w.page.Capacity.Drop)), mutedInk)}
 	if said == nil {
 		return named
 	}
@@ -473,13 +461,11 @@ func (w weeksDrawn) allAside() [][]part {
 }
 
 // allShort is every account's verdict in the table: how many of the weeks
-// judged were short, and with many accounts, how many there are.
+// judged were short, as views.ShortOfWeeks says it, and with many accounts,
+// how many there are.
 func (w weeksDrawn) allShort() []part {
 	c := w.page.Capacity
-	l := slices.Concat(
-		[]part{wordsIn("short on ", strongInk), w.shortCount(c.Short, strongInk), wordsIn(" of ", strongInk)},
-		countedParts(c.Weeks, "week", strongInk),
-	)
+	l := saidParts(views.ShortOfWeeks(c.Short, c.Weeks), strongInk)
 	if w.many() {
 		l = append(l, wordsIn("   with ", dimInk), figureIn(prose.Number(len(w.page.Accounts)), dimInk), wordsIn(" accounts", dimInk))
 	}
@@ -537,8 +523,7 @@ func (w weeksDrawn) tableVerdict(row views.WeeksRow) []part {
 		l = append(l, wordsIn("  ", dimInk), figureIn(prose.Percent(*left), dimInk), wordsIn(" left", dimInk))
 	}
 	if row.WithoutIt != nil && !w.many() {
-		l = append(l, wordsIn("  without it: short ", dimInk), figureIn(strconv.Itoa(*row.WithoutIt), dimInk),
-			wordsIn(" of ", dimInk), figureIn(strconv.Itoa(w.page.Capacity.Weeks), dimInk))
+		l = slices.Concat(l, []part{wordsIn("  without it: short ", dimInk)}, saidParts(views.OutOf(*row.WithoutIt, w.page.Capacity.Weeks), dimInk))
 	}
 	return l
 }
@@ -555,27 +540,22 @@ func (w weeksDrawn) accountAside(row views.WeeksRow) [][]part {
 	if !ok {
 		verdict = []part{wordsIn(row.Verdict, w.verdictInk(row.Verdict))}
 	}
-	record := slices.Concat(
-		[]part{wordsIn("limit hit ", mutedInk), figureIn(strconv.Itoa(row.Limits), mutedInk), wordsIn(" of ", mutedInk)},
-		countedParts(row.Weeks, "week", mutedInk),
-	)
+	record := saidParts(views.LimitHit(row.Limits, row.Weeks), mutedInk)
 	if row.LeftAtReset != nil {
-		record = append(record, wordsIn(" · ", mutedInk), figureIn(prose.Percent(*row.LeftAtReset), mutedInk), wordsIn(" left at a reset, on average", mutedInk))
+		record = slices.Concat(record, []part{wordsIn(" · ", mutedInk)}, saidParts(views.LeftOnAverage(*row.LeftAtReset), mutedInk))
 	}
 	aside := [][]part{verdict, record}
 	if row.WithoutIt != nil {
-		aside = append(aside, slices.Concat([]part{wordsIn("without it, the rest: ", dimInk)}, w.shortOn(*row.WithoutIt, mutedInk)))
+		aside = append(aside, slices.Concat([]part{wordsIn(views.WithoutTheRest, dimInk)}, w.shortOn(*row.WithoutIt, mutedInk)))
 	}
 	return aside
 }
 
-// shortOn says how many of the weeks judged were short, n of them, in the
-// ink given: "short on 6 of 7", its counts figures, or "short on none".
+// shortOn says how many of the weeks judged were short, n of them, as
+// views.ShortOutOf says it, in the ink given: "short on 6 of 7", its counts
+// figures, or "short on none".
 func (w weeksDrawn) shortOn(n int, k ink) []part {
-	if n == 0 {
-		return []part{wordsIn("short on none", k)}
-	}
-	return []part{wordsIn("short on ", k), figureIn(strconv.Itoa(n), k), wordsIn(" of ", k), figureIn(strconv.Itoa(w.page.Capacity.Weeks), k)}
+	return saidParts(views.ShortOutOf(n, w.page.Capacity.Weeks), k)
 }
 
 // legend is the key to how the peaks are drawn, each mark as it's drawn, a

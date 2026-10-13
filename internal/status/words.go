@@ -8,9 +8,9 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
-// Words are a reason the router gives, in the dashboard's words: in parts,
-// each account they name, and how long a session idled, a part of its own,
-// as the pages draw them apart.
+// Words are a reason the router gives, in the dashboard's words, or a phrase
+// History says: in parts, each account they name, how long a session idled
+// and each figure, a part of its own, as the pages draw them apart.
 type Words []Part
 
 // Part is a run of Words, of the kind it is.
@@ -30,6 +30,8 @@ const (
 	PartAccount
 	// PartDuration is how long a session idled.
 	PartDuration
+	// PartFigure is a figure among words, as a count of weeks.
+	PartFigure
 )
 
 // String runs the words together, as a page drawn without colour shows them.
@@ -162,6 +164,11 @@ func Plain(text string) Part {
 // Named is the account with the given id, cleaned, as it's from elsewhere.
 func Named(id string) Part {
 	return Part{Text: prose.Clean(id), Kind: PartAccount}
+}
+
+// Figure is a figure among words, as a count.
+func Figure(text string) Part {
+	return Part{Text: text, Kind: PartFigure}
 }
 
 // readers each read a kind of reason, reporting false for any other, in the

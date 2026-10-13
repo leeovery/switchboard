@@ -177,7 +177,7 @@ const windowsFromThe6th = `work  5-hour
   Tue 6 Oct 22:14  100%  resets Tue 6 Oct 23:10  rejected  answer
   Wed 7 Oct 09:00  30%   resets Wed 7 Oct 14:00  allowed   answer
 
-work  week
+work  Week
   Wed 7 Oct 09:00  41%  resets Mon 12 Oct 10:00  allowed  answer
 
 side  5-hour
@@ -196,7 +196,7 @@ func TestHistoryWindowsPrintsEachAccountsWindowsReadings(t *testing.T) {
 		{name: "from the day of a time today, whatever the time", args: []string{"--since", "10:00"}, want: `work  5-hour
   Wed 7 Oct 09:00  30%  resets Wed 7 Oct 14:00  allowed  answer
 
-work  week
+work  Week
   Wed 7 Oct 09:00  41%  resets Mon 12 Oct 10:00  allowed  answer
 
 side  5-hour
