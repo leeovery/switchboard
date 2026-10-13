@@ -553,6 +553,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.heard(msg)
 	case rejoinMsg:
 		return m.rejoined(msg), nil
+	case joinedMsg:
+		return m.joinedBy(msg), nil
 	case tickMsg:
 		return m.ticked(msg)
 	case frameMsg:

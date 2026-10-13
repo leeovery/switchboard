@@ -24,6 +24,12 @@ const (
 	rejoinMost  = 30 * time.Second
 )
 
+// joinFor is how long the watch waits, once the request stream has opened
+// again, for its first look to tell of the requests in flight as it joined:
+// the router tells of them as the stream opens, so where there are any they
+// come at once, and where none has come in joinFor, none was in flight.
+const joinFor = time.Second
+
 // streaming is the watch's hold on the router's request stream: gen counts
 // the times it has opened it, or closed it, so what an earlier time sends is
 // dropped; cancel ends the one open or opening; events are what the one open
@@ -62,6 +68,12 @@ type streamHeardMsg struct {
 
 // rejoinMsg is the request stream falling due to be asked for again.
 type rejoinMsg struct {
+	gen int
+}
+
+// joinedMsg is the request stream, opened again, joinFor on, when it has
+// told of the requests in flight as the watch joined it, if any were.
+type joinedMsg struct {
 	gen int
 }
 
@@ -107,14 +119,14 @@ func (m Model) openStream() (Model, tea.Cmd) {
 	return m, open
 }
 
-// closeStream closes the request stream, forgetting what it told of the
-// requests, which is past telling once the watch no longer hears it, but
-// for the requests the traces count, and how far they've read today's
-// lines, for the stream to go on from as it opens again.
+// closeStream closes the request stream, its traffic no longer live, as
+// unheard has it, keeping what it told for the stream's first look to settle
+// as it opens again, and how far the traces have read today's lines, for
+// the stream to go on from then.
 func (m Model) closeStream() Model {
 	m.stream.end()
 	m.stream = streaming{gen: m.stream.gen + 1, absent: m.stream.absent, absentOf: m.stream.absentOf, read: m.stream.read}
-	m.traffic = m.traffic.afresh()
+	m.traffic = m.traffic.unheard()
 	return m
 }
 
@@ -125,37 +137,61 @@ func (s streaming) end() {
 	}
 }
 
-// opened takes in the request stream opening, or why it couldn't, forgetting
-// what it told before of the requests: what it tells as it opens tells of
-// those in flight afresh. Open, the watch counts the requests today's lines
-// told of for the traces, and listens to it, what it draws live. From a
-// router from before it, the watch goes without it until another router
-// answers. Otherwise it asks for it again, later each time it fails in a
-// row.
+// opened takes in the request stream opening, or why it couldn't. Open, its
+// traffic is as reopened has it, what it tells as it opens telling of the
+// requests in flight afresh, its first look to settle those it told of in
+// flight before, by joinFor at the latest; and the watch counts the requests
+// today's lines told of for the traces, and listens to it, what it draws
+// live. Otherwise the watch forgets what it told before of the requests, as
+// afresh has it, their router gone. From a router from before it, the watch
+// goes without it until another router answers; else it asks for it again,
+// later each time it fails in a row.
 func (m Model) opened(msg streamOpenedMsg) (Model, tea.Cmd) {
 	if msg.gen != m.stream.gen {
 		return m, nil
 	}
 	m.stream.opening = false
-	m.traffic = m.traffic.afresh()
 	switch {
 	case msg.err == nil:
 		m.stream.open, m.stream.events, m.stream.fails = true, msg.events, 0
-		m.traffic.live = true
+		m.traffic = m.traffic.reopened()
 		m = m.traced(msg.traced)
 		logger.Debug("reading the router's request stream")
-		return m, m.listen()
+		return m, tea.Batch(m.listen(), m.awaitJoin())
 	case errors.Is(msg.err, router.ErrNoStream):
+		m.traffic = m.traffic.afresh()
 		m.stream.end()
 		m.stream.cancel, m.stream.absent, m.stream.absentOf = nil, true, m.news.router
 		logger.Info("the router is from before GET /stream: the sessions are drawn as each look reads them")
 		return m, nil
 	default:
+		m.traffic = m.traffic.afresh()
 		m.stream.end()
 		m.stream.fails++
 		logger.Debug("couldn't open the router's request stream", "error", msg.err, "fails", m.stream.fails)
 		return m.rejoinIn(rejoinWait(m.stream.fails))
 	}
+}
+
+// awaitJoin has the stream, opened again, taken to have told all it will of
+// the requests in flight as the watch joined it once joinFor has passed,
+// where any it told of in flight before await it.
+func (m Model) awaitJoin() tea.Cmd {
+	if m.traffic.awaiting == nil {
+		return nil
+	}
+	return m.after(joinFor, joinedMsg{gen: m.stream.gen})
+}
+
+// joinedBy takes in joinFor passing since the stream opened again: open
+// still, it has told all it will of the requests in flight as the watch
+// joined it, so those it told of in flight before that it didn't tell of
+// again are lost, as settled has it.
+func (m Model) joinedBy(msg joinedMsg) Model {
+	if msg.gen == m.stream.gen && m.stream.open {
+		m.traffic = m.traffic.settled()
+	}
+	return m
 }
 
 // listen waits for what the open request stream tells next, as Await has

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -273,7 +275,10 @@ func TestARequestInFlightTheStreamOpenedAgainDoesntTellOfIsLost(t *testing.T) {
 	h.endStream()
 	rejoin, _ := h.pendingRejoin()
 	h.fire(rejoin)
-	h.hear(alter(told(router.StreamInFlight, "r2", "work", 2*time.Second), func(e *router.StreamEvent) { e.SentAt = past(0) }))
+	// It told of r2 in flight as it opened, then of r3 going out: all it
+	// tells of those in flight as it opens comes before anything else.
+	h.hear(alter(told(router.StreamInFlight, "r2", "work", 2*time.Second), func(e *router.StreamEvent) { e.SentAt = past(0) }),
+		told(router.StreamSent, "r3", "work", 2*time.Second))
 
 	s := h.model.frame(h.clock.now).Stream
 	if r := s.Requests["r1"]; !r.Lost {
@@ -281,6 +286,82 @@ func TestARequestInFlightTheStreamOpenedAgainDoesntTellOfIsLost(t *testing.T) {
 	}
 	if r := s.Requests["r2"]; !r.InFlight() {
 		t.Errorf("r2, told of in flight as the stream opened again, is %+v, want it in flight", r)
+	}
+}
+
+// The router tells of the requests in flight as the stream opens, but the
+// watch may hear them over several messages, as they come.
+func TestARequestTheStreamOpenedAgainTellsOfLateInItsFirstLookIsNeverLost(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamSent, "r2", "work", 0))
+	h.endStream()
+	rejoin, _ := h.pendingRejoin()
+	h.fire(rejoin)
+	inFlight := func(id string) router.StreamEvent {
+		return alter(told(router.StreamInFlight, id, "work", 2*time.Second), func(e *router.StreamEvent) { e.SentAt = past(0) })
+	}
+
+	h.hear(inFlight("r1"))
+	if r := h.model.frame(h.clock.now).Stream.Requests["r2"]; r.Lost {
+		t.Errorf("its first look telling of r1, r2 is %+v, want it not lost, as more of that look may come", r)
+	}
+	h.hear(inFlight("r2"))
+	if s := h.model.frame(h.clock.now).Stream; !s.Live || !s.Requests["r2"].InFlight() {
+		t.Errorf("its first look telling of r2 too, r2 is %+v, live %t, want it in flight, live", s.Requests["r2"], s.Live)
+	}
+}
+
+func TestARequestStillRunningAsTheStreamOpensAgainIsNeverLost(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.hear(told(router.StreamSent, "r1", "work", 0))
+	h.endStream()
+	rejoin, _ := h.pendingRejoin()
+	h.fire(rejoin)
+
+	s := h.model.frame(h.clock.now).Stream
+	if r := s.Requests["r1"]; r.Lost {
+		t.Errorf("the stream opened again, its first look yet to come, r1 is %+v, want it not lost", r)
+	}
+	if s.Live {
+		t.Error("the stream opened again, its first look yet to come, the views read it live, want them going by the router's listing")
+	}
+	h.hear(alter(told(router.StreamInFlight, "r1", "work", 2*time.Second), func(e *router.StreamEvent) { e.SentAt = past(0) }))
+	if s := h.model.frame(h.clock.now).Stream; !s.Live || !s.Requests["r1"].InFlight() {
+		t.Errorf("the stream's first look telling of r1 again, it's %+v, live %t, want it in flight, live", s.Requests["r1"], s.Live)
+	}
+}
+
+func TestARequestStillRunningAsAViewSwitchOpensTheStreamAgainIsNeverLost(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.hear(told(router.StreamSent, "r1", "work", 0))
+	h.keys(tabKey, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	if h.opened() != 2 {
+		t.Fatalf("Runway shown, then Sessions again, the stream opened %d times in all, want twice", h.opened())
+	}
+
+	if r := h.model.frame(h.clock.now).Stream.Requests["r1"]; r.Lost {
+		t.Errorf("the stream opened again, its first look yet to come, r1 is %+v, want it not lost", r)
+	}
+}
+
+func TestAStreamOpenedAgainThatTellsOfNothingInFlightLosesWhatWasOnceJoinForHasPassed(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.hear(told(router.StreamSent, "r1", "work", 0))
+	h.endStream()
+	rejoin, _ := h.pendingRejoin()
+	h.fire(rejoin)
+
+	joining, ok := h.pending(joinedMsg{gen: h.model.stream.gen})
+	if !ok || joining.delay != joinFor {
+		t.Fatalf("the stream opened again, the wait for its first look is %+v, want one of %v", joining, joinFor)
+	}
+	h.fire(joining)
+	if s := h.model.frame(h.clock.now).Stream; !s.Live || !s.Requests["r1"].Lost {
+		t.Errorf("joinFor passed with nothing told, r1 is %+v, live %t, want it lost, live", s.Requests["r1"], s.Live)
 	}
 }
 
