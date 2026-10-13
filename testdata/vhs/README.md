@@ -439,11 +439,22 @@ frames):
   cell for cell. Today's count on the state line, `1,240` of `1,240 lines today`, row 36, columns
   144 to 148, and on a phone row 32, columns 36 to 40, is the world's: `1,242`, its 1,239 requests
   and 3 in flight.
+- **The rows around the cap,** behind `log-request-details-160`'s card, for the same reason: row 10
+  whole, `14:31:18  9c2e`; the first 16 columns of rows 11 to 31, each line's time and session,
+  from `14:31:20  9c2e`; the last 16 of rows 11 and 15, blank, and of rows 12 and 16, the ends of
+  7f3a's and db8a's moves, `s cap  $0.98` and `s cap  $0.66`; and rows 32 to 34 whole, from
+  `14:32:29`. The state line's `214` of `▼ 214 new`, row 36, columns 26 to 28, is the world's
+  count of the requests since the fixture paused at 14:32:41, `126`, and `1,240`, columns 144 to
+  148, its `1,242`.
+- **Anthropic's id,** row 15 of `log-request-details-160`, columns 35 to 62, `req_011CQx…`: the
+  frame cut an id longer than the column's room, and the world's, `req_011CQx4n7RkV2bW9pT3sYd6M`,
+  as long as Anthropic's are, fits it whole, as the dashboard draws it.
 - **db8a's move of 13:22:40,** row 27 of `log-events-160`, columns 88 to 160, `, its 5-hour to run
   out at 15:10   48k cached again, $0.48`: no pressure event of personal's behind the run-out fits
   in the world, as none shows among the frame's rows, and a move made afresh after 21 hours idle
   writes no cache again, its cache gone cold; the dashboard draws `personal came under pressure`
-  alone.
+  alone. Its last cell shows past the details card's edge in `log-event-details-160`, row 27,
+  column 145, the `8` of `$0.48`, faded: the dashboard draws the row ending under the card.
 
 **A pressure event's mark:** in `accounts-detail-one-160`'s LATELY, row 28, column 20, `●`, drawn
 before each kind of event had a mark of its own, where the Log's marks give `◔`, in
@@ -523,7 +534,9 @@ cell by cell, listing each under The cells passed over with what the dashboard d
   page); a request of db8a's on work at 14:31:06, after work's cap at 14:31:03, as
   `log1.around_the_cap` made it, which no frame draws; db8a's move of 13:22:40 (no pressure event
   behind "out at 15:10", no cost of a move made afresh after 21 hours idle, and its reason the
-  idle's). `log-not-live-160` has a world of its own: the auto world, its ledger's lines today cut
+  idle's); work's windows as 7f3a's answer of 14:30:51 read them, 95% and 34%, typed from
+  `log-event-details-160`, the only line on work today that reads them, fitted rather than passed
+  over. `log-not-live-160` has a world of its own: the auto world, its ledger's lines today cut
   at 14:36:18, as 1,171 of its requests had arrived, then the frame's 27 and a quota check ending
   at 14:40:52, so today counts 1,198 requests, and its router read last at 14:40:51 and gone at
   14:40:55 (`internal/capture/testdata/README.md` says how).
@@ -610,9 +623,13 @@ its records and the sessions its router lists.
 Stage 9's, `log-*`, draw the Log's frames, the Log reached from the Overview with `shift-tab`:
 `log-requests-160` and, on a phone, `log-requests-phone-52`, as it opens, on Requests;
 `log-events-160` with `]`; all over the auto world, but `log-not-live-160`, over a world of its own,
-its router gone at 14:40:55, as the fixture's settling finds it with `R` then. The page as stage 6
-built it, `page-log`, went with its tapes as they came to draw it. Tapes of their names
-screenshot `log-requests-160`, `log-events-160` and `log-not-live-160`, to judge by eye.
+its router gone at 14:40:55, as the fixture's settling finds it with `R` then. The details card:
+`log-event-details-160`, the cap's, `↑` five times on Events and `enter`; and
+`log-request-details-160`, d28c's move to side, as the Log stood at 14:32:41, `↑` to 14:31:09 and
+`↓` to the move, the table paused there; then at 14:42:07, read again with `R`, `enter`. The page
+as stage 6 built it, `page-log`, went with its tapes as they came to draw it. Tapes of their names
+screenshot `log-requests-160`, `log-events-160`, `log-not-live-160`, `log-event-details-160` and
+`log-request-details-160`, to judge by eye.
 
 ### `--theme`, and `NO_COLOR`
 
