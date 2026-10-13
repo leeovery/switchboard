@@ -1,7 +1,5 @@
 package views
 
-import "slices"
-
 // LogFilter is what the Log's Requests show, as its f panel picks it. A
 // choice ticked keeps those ticked; none ticked is every one: so the zero
 // LogFilter shows every line, and the Log opens on LogOpening's.
@@ -42,12 +40,6 @@ func (f LogFilter) hiding(r RequestRow) hidden {
 // chose reports whether the filter's choices but its kinds keep the row r.
 func (f LogFilter) chose(r RequestRow) bool {
 	return ticked(f.Accounts, r.Account) && ticked(f.Models, r.Model) && ticked(f.Sessions, r.Session) && (!f.Failed || r.Failed)
-}
-
-// ticked reports whether a choice of those ticked keeps the one given: one
-// of them, or any where none is ticked.
-func ticked[T comparable](choice []T, one T) bool {
-	return len(choice) == 0 || slices.Contains(choice, one)
 }
 
 // hidden is what of a filter hides a row.
