@@ -1,21 +1,13 @@
 package status_test
 
 import (
-	"cmp"
-	"errors"
-	"fmt"
 	"go/ast"
-	"go/build"
-	"go/parser"
-	"go/token"
 	"go/types"
-	"os"
-	"path"
-	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/switchboard/internal/sourcecheck"
 )
 
 // These tests read the module's source, so a view can't work out a fact of a
@@ -141,12 +133,12 @@ const (
 )
 
 func TestViewsReadTheMomentAlone(t *testing.T) {
-	root := moduleRoot(t)
-	reportEach(t, momentBreaches(t, root, modulePath(t, root), guarded{dirs: viewPackages, files: readsAllowed, calls: callsAllowed}))
+	root := sourcecheck.ModuleRoot(t)
+	sourcecheck.ReportEach(t, momentBreaches(t, root, sourcecheck.ModulePath(t, root), guarded{dirs: viewPackages, files: readsAllowed, calls: callsAllowed}))
 }
 
 func TestTheMomentGuardFindsWhatItGuardsAgainst(t *testing.T) {
-	root := writeModule(t, guardFixture)
+	root := sourcecheck.WriteModule(t, guardFixture)
 	got := momentBreaches(t, root, "example.com/fixture", guarded{
 		dirs:  []string{"internal/view"},
 		files: []string{"internal/view/allowed.go", "internal/view/kept.go", "internal/view/gone.go"},
@@ -183,12 +175,12 @@ func TestTheMomentGuardFindsWhatItGuardsAgainst(t *testing.T) {
 }
 
 func TestALookWorksOutOneMoment(t *testing.T) {
-	root := moduleRoot(t)
-	reportEach(t, momentsMadeOutside(t, root, modulePath(t, root), viewPackages, momentsMade))
+	root := sourcecheck.ModuleRoot(t)
+	sourcecheck.ReportEach(t, momentsMadeOutside(t, root, sourcecheck.ModulePath(t, root), viewPackages, momentsMade))
 }
 
 func TestTheMomentsMadeGuardFindsWhatItGuardsAgainst(t *testing.T) {
-	root := writeModule(t, madeFixture)
+	root := sourcecheck.WriteModule(t, madeFixture)
 	got := momentsMadeOutside(t, root, "example.com/fixture", []string{"internal/view"}, []string{"view.Frame.At", "view.listed", "view.gone"})
 	want := []string{
 		"internal/view/view.go:16: view.again works out a moment with status.Document.At; " + madeFix,
@@ -451,41 +443,33 @@ type guarded struct {
 // other files makes.
 func momentBreaches(t *testing.T, root, module string, g guarded) []string {
 	t.Helper()
-	r := newRule(module, g.calls)
-	l := newSourceLoader(t, root, module, g.dirs)
-	var problems, broken []string
-	called := make(map[string]bool)
-	for _, dir := range g.dirs {
-		for _, f := range l.load(dir) {
-			found, allowedCalls := r.breaches(f)
-			if slices.Contains(g.files, f.path) {
-				if len(found) > 0 {
-					broken = append(broken, f.path)
-				}
-				continue
-			}
-			problems = append(problems, found...)
-			for _, call := range allowedCalls {
-				called[call] = true
-			}
-		}
+	return sourcecheck.Check(t, root, module, newRule(module, g.calls), g.dirs, sourcecheck.Allowance{
+		Entries: g.files, List: "readsAllowed", Fix: allowedFix,
+		Calls: "callsAllowed", Callers: "view", CallFix: allowedCallFix,
+	})
+}
+
+// newRule is the moment's rule, of the module with the given path, the calls
+// given allowed: no wire type's field read; no judge used, nor what the
+// moment absorbed; and no other function or method of wirePackages called
+// that takes a wire type.
+func newRule(module string, calls []string) sourcecheck.Rule {
+	used := make(map[string]string)
+	for _, name := range judges {
+		used[name] = name + " judges a window; " + judgeFix
 	}
-	for _, file := range g.files {
-		switch _, err := os.Stat(filepath.Join(root, filepath.FromSlash(file))); {
-		case errors.Is(err, os.ErrNotExist):
-			problems = append(problems, file+": readsAllowed allows it, but it's gone; "+allowedFix)
-		case err != nil:
-			t.Fatal(err)
-		case !slices.Contains(broken, file):
-			problems = append(problems, file+": readsAllowed allows it, but it keeps the rule; "+allowedFix)
-		}
+	for _, name := range absorbed {
+		used[name] = name + " works out what the moment has; " + absorbedFix
 	}
-	for _, call := range g.calls {
-		if !called[call] {
-			problems = append(problems, call+": callsAllowed allows it, but no view calls it; "+allowedCallFix)
-		}
+	return sourcecheck.Rule{
+		Names:   sourcecheck.NamesIn(module),
+		Fields:  wireTypes,
+		Read:    func(field string) string { return field + " reads the wire's fields; " + wireFix },
+		Used:    used,
+		Owners:  wirePackages,
+		Takes:   func(fn, wire string) string { return fn + " takes the wire's " + wire + "; " + callFix },
+		Allowed: calls,
 	}
-	return problems
 }
 
 // momentsMadeOutside are where the non-test files of the packages in dirs, of
@@ -496,21 +480,21 @@ func momentBreaches(t *testing.T, root, module string, g guarded) []string {
 // names that works none out.
 func momentsMadeOutside(t *testing.T, root, module string, dirs, made []string) []string {
 	t.Helper()
-	r := newRule(module, nil)
-	l := newSourceLoader(t, root, module, dirs)
+	names := sourcecheck.NamesIn(module)
+	l := sourcecheck.NewLoader(t, root, module, dirs)
 	var problems []string
 	making := make(map[string]bool)
 	for _, dir := range dirs {
-		for _, f := range l.load(dir) {
-			for _, decl := range f.ast.Decls {
+		for _, f := range l.Load(dir) {
+			for _, decl := range f.AST.Decls {
 				who := "a package-level declaration"
 				if fd, ok := decl.(*ast.FuncDecl); ok {
-					who = r.nameOf(f.info.Defs[fd.Name].(*types.Func))
+					who = names.Func(f.Info.Defs[fd.Name].(*types.Func))
 				}
-				for _, u := range f.momentsIn(decl, r) {
+				for _, u := range momentsIn(f, decl, names) {
 					making[who] = true
 					if !slices.Contains(made, who) {
-						problems = append(problems, f.at(u.at)+": "+who+" works out a moment with "+u.name+"; "+madeFix)
+						problems = append(problems, f.At(u.At)+": "+who+" works out a moment with "+u.Name+"; "+madeFix)
 					}
 				}
 			}
@@ -524,423 +508,19 @@ func momentsMadeOutside(t *testing.T, root, module string, dirs, made []string) 
 	return problems
 }
 
-// use is where a file uses a function, by its name, as nameOf has it.
-type use struct {
-	at   token.Pos
-	name string
-}
-
 // momentsIn are where the declaration in f works out a document's moment, in
 // the order they come in it, each with what of worksOut it uses.
-func (f checkedFile) momentsIn(decl ast.Decl, r rule) []use {
-	var uses []use
+func momentsIn(f sourcecheck.File, decl ast.Decl, names sourcecheck.Names) []sourcecheck.Use {
+	var uses []sourcecheck.Use
 	ast.Inspect(decl, func(n ast.Node) bool {
 		id, ok := n.(*ast.Ident)
 		if !ok {
 			return true
 		}
-		if fn, ok := f.info.Uses[id].(*types.Func); ok && slices.Contains(worksOut, r.nameOf(fn)) {
-			uses = append(uses, use{at: id.Pos(), name: r.nameOf(fn)})
+		if fn, ok := f.Info.Uses[id].(*types.Func); ok && slices.Contains(worksOut, names.Func(fn)) {
+			uses = append(uses, sourcecheck.Use{At: id.Pos(), Name: names.Func(fn)})
 		}
 		return true
 	})
 	return uses
-}
-
-// rule is what breaks the moment's rule, each named in full, by its package's
-// import path, as qualified names it.
-type rule struct {
-	wire, judges, absorbed, calls []string
-	// internal is the import path of the module's internal directory, which
-	// the names go by.
-	internal string
-}
-
-func newRule(module string, calls []string) rule {
-	return rule{wire: wireTypes, judges: judges, absorbed: absorbed, calls: calls, internal: module + "/internal/"}
-}
-
-// breaches are where the type-checked file f breaks the rule, in the order
-// they come in it, and the calls it makes that the rule allows.
-func (r rule) breaches(f checkedFile) (problems, allowed []string) {
-	type breach struct {
-		at   token.Pos
-		says string
-	}
-	var found []breach
-	ast.Inspect(f.ast, func(n ast.Node) bool {
-		switch n := n.(type) {
-		case *ast.SelectorExpr:
-			if sel, ok := f.info.Selections[n]; ok && sel.Kind() == types.FieldVal {
-				if read := r.wireRead(sel); read != "" {
-					found = append(found, breach{n.Sel.Pos(), read + " reads the wire's fields; " + wireFix})
-				}
-			}
-		case *ast.Ident:
-			fn, ok := f.info.Uses[n].(*types.Func)
-			if !ok {
-				break
-			}
-			switch name, says := r.called(fn); {
-			case says != "":
-				found = append(found, breach{n.Pos(), says})
-			case slices.Contains(r.calls, name):
-				allowed = append(allowed, name)
-			}
-		}
-		return true
-	})
-	slices.SortStableFunc(found, func(x, y breach) int { return cmp.Compare(x.at, y.at) })
-	for _, b := range found {
-		problems = append(problems, f.at(b.at)+": "+b.says)
-	}
-	return problems, allowed
-}
-
-// called names the function fn, as nameOf has it, and says how using it
-// breaks the rule, "" where it doesn't: it judges a window; it works out
-// what the moment has; or it's of wirePackages and takes a wire type, and
-// the rule doesn't allow it.
-func (r rule) called(fn *types.Func) (name, says string) {
-	name = r.nameOf(fn)
-	pkg, _, _ := strings.Cut(name, ".")
-	switch {
-	case slices.Contains(r.judges, name):
-		return name, name + " judges a window; " + judgeFix
-	case slices.Contains(r.absorbed, name):
-		return name, name + " works out what the moment has; " + absorbedFix
-	case !slices.Contains(wirePackages, pkg) || slices.Contains(r.calls, name):
-		return name, ""
-	}
-	if wire := r.takes(fn); wire != "" {
-		return name, name + " takes the wire's " + wire + "; " + callFix
-	}
-	return name, ""
-}
-
-// takes names the first wire type the function fn takes, as its receiver or
-// a parameter, as wireIn finds it: "" where it takes none.
-func (r rule) takes(fn *types.Func) string {
-	sig := fn.Signature()
-	var taken []types.Type
-	if recv := sig.Recv(); recv != nil {
-		taken = append(taken, recv.Type())
-	}
-	for v := range sig.Params().Variables() {
-		taken = append(taken, v.Type())
-	}
-	for _, t := range taken {
-		if wire := r.wireIn(t); wire != "" {
-			return wire
-		}
-	}
-	return ""
-}
-
-// wireIn names the wire type t is, or holds through pointers, slices, arrays
-// and maps, as "status.Account": "" where it's none.
-func (r rule) wireIn(t types.Type) string {
-	switch t := types.Unalias(t).(type) {
-	case *types.Pointer:
-		return r.wireIn(t.Elem())
-	case *types.Slice:
-		return r.wireIn(t.Elem())
-	case *types.Array:
-		return r.wireIn(t.Elem())
-	case *types.Map:
-		return cmp.Or(r.wireIn(t.Key()), r.wireIn(t.Elem()))
-	case *types.Named:
-		if name := r.typeName(t); slices.Contains(r.wire, name) {
-			return name
-		}
-	}
-	return ""
-}
-
-// wireRead names the wire type's field sel reads, as "status.Account.ID": the
-// field it selects, of the first wire type the selection passes through, from
-// the type it selects from through each field embedded on the way; "" where
-// it passes through none.
-func (r rule) wireRead(sel *types.Selection) string {
-	t := sel.Recv()
-	for _, index := range sel.Index() {
-		named, s := structOf(t)
-		if s == nil {
-			return ""
-		}
-		if name := r.typeName(named); slices.Contains(r.wire, name) {
-			return name + "." + sel.Obj().Name()
-		}
-		t = s.Field(index).Type()
-	}
-	return ""
-}
-
-// structOf is the struct t is, or points to, and the type it's named by,
-// where it is: nil where it's no struct.
-func structOf(t types.Type) (*types.Named, *types.Struct) {
-	if p, ok := types.Unalias(t).(*types.Pointer); ok {
-		t = p.Elem()
-	}
-	named, _ := types.Unalias(t).(*types.Named)
-	s, _ := t.Underlying().(*types.Struct)
-	return named, s
-}
-
-// typeName is the named type's name, by its package's under the module's
-// internal directory, as "status.Account": "" of a type of no package there.
-func (r rule) typeName(named *types.Named) string {
-	if named == nil {
-		return ""
-	}
-	obj := named.Obj()
-	if obj.Pkg() == nil || !strings.HasPrefix(obj.Pkg().Path(), r.internal) {
-		return ""
-	}
-	return strings.TrimPrefix(obj.Pkg().Path(), r.internal) + "." + obj.Name()
-}
-
-// nameOf is the function's name, by its package's under the module's
-// internal directory, then, of a method, its receiver's type's, as
-// "status.Document.RoutingOf": "" of one of no package there.
-func (r rule) nameOf(fn *types.Func) string {
-	if fn.Pkg() == nil || !strings.HasPrefix(fn.Pkg().Path(), r.internal) {
-		return ""
-	}
-	name := strings.TrimPrefix(fn.Pkg().Path(), r.internal) + "."
-	if recv := fn.Signature().Recv(); recv != nil {
-		named, _ := structOf(recv.Type())
-		if named == nil {
-			return ""
-		}
-		name += named.Obj().Name() + "."
-	}
-	return name + fn.Name()
-}
-
-// checkedFile is one of a package's non-test files, parsed and type-checked.
-type checkedFile struct {
-	// path is the file's path from the module's root, with slashes.
-	path string
-	fset *token.FileSet
-	ast  *ast.File
-	info *types.Info
-}
-
-// at is where pos is in the file: its path and line.
-func (f checkedFile) at(pos token.Pos) string {
-	return fmt.Sprintf("%s:%d", f.path, f.fset.Position(pos).Line)
-}
-
-// sourceLoader type-checks packages from their source, without the go
-// command, which no test may run: the module's, from its root, and the
-// standard library's, from GOROOT, built as this platform builds them,
-// without cgo. Any other package, a module the module requires, is stubbed:
-// an empty package, as its source is where only the go command finds it.
-// Nothing of the wire's types comes through one.
-type sourceLoader struct {
-	t            *testing.T
-	fset         *token.FileSet
-	root, module string
-	ctx          build.Context
-	// read are the directories, from the module's root, whose packages are
-	// read whole: every function body type-checked, and what each expression
-	// is kept. Of the rest, their declarations alone are.
-	read    []string
-	pkgs    map[string]*types.Package
-	checked map[string][]checkedFile
-}
-
-func newSourceLoader(t *testing.T, root, module string, read []string) *sourceLoader {
-	t.Helper()
-	ctx := build.Default
-	ctx.CgoEnabled = false
-	if ctx.GOROOT == "" {
-		t.Fatal("no GOROOT, whose source the standard library's types are read from")
-	}
-	return &sourceLoader{
-		t: t, fset: token.NewFileSet(), root: root, module: module, ctx: ctx, read: read,
-		pkgs: map[string]*types.Package{"unsafe": types.Unsafe}, checked: make(map[string][]checkedFile),
-	}
-}
-
-// load is the type-checked files of the package in dir, from the module's
-// root, read whole.
-func (l *sourceLoader) load(dir string) []checkedFile {
-	l.t.Helper()
-	if _, err := l.Import(path.Join(l.module, dir)); err != nil {
-		l.t.Fatal(err)
-	}
-	files := l.checked[dir]
-	if len(files) == 0 {
-		l.t.Fatalf("%s has no Go files to read: the guard reads nothing of it", dir)
-	}
-	return files
-}
-
-func (l *sourceLoader) Import(importPath string) (*types.Package, error) {
-	return l.ImportFrom(importPath, l.root, 0)
-}
-
-// ImportFrom is the package at importPath, imported from the package in dir,
-// type-checked from its source, once.
-func (l *sourceLoader) ImportFrom(importPath, dir string, _ types.ImportMode) (*types.Package, error) {
-	if pkg, ok := l.pkgs[importPath]; ok {
-		return pkg, nil
-	}
-	src, std, ok := l.dirOf(importPath, dir)
-	if !ok {
-		pkg := types.NewPackage(importPath, stubName(importPath))
-		pkg.MarkComplete()
-		l.pkgs[importPath] = pkg
-		return pkg, nil
-	}
-	pkg, err := l.check(importPath, src, std)
-	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", importPath, err)
-	}
-	l.pkgs[importPath] = pkg
-	return pkg, nil
-}
-
-// dirOf is the directory of the source of the package at importPath, imported
-// from the package in dir, and whether it's the standard library's: one of
-// the module's, from its root; or one of the standard library's, or one it
-// vendors, imported from it. It reports false of any other.
-func (l *sourceLoader) dirOf(importPath, dir string) (string, bool, bool) {
-	if rel, ok := strings.CutPrefix(importPath, l.module); ok && (rel == "" || rel[0] == '/') {
-		return filepath.Join(l.root, filepath.FromSlash(rel)), false, true
-	}
-	goSrc := filepath.Join(l.ctx.GOROOT, "src")
-	var candidates []string
-	if within(dir, goSrc) {
-		candidates = append(candidates, filepath.Join(goSrc, "vendor", filepath.FromSlash(importPath)))
-	}
-	if first, _, _ := strings.Cut(importPath, "/"); !strings.Contains(first, ".") {
-		candidates = append(candidates, filepath.Join(goSrc, filepath.FromSlash(importPath)))
-	}
-	for _, c := range candidates {
-		if info, err := os.Stat(c); err == nil && info.IsDir() {
-			return c, true, true
-		}
-	}
-	return "", false, false
-}
-
-// within reports whether dir is base or one of its subdirectories.
-func within(dir, base string) bool {
-	rel, err := filepath.Rel(base, dir)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
-}
-
-// stubName is the name a stubbed package goes by: the last part of its import
-// path, but for a major version, as "v2", the part before it.
-func stubName(importPath string) string {
-	parts := strings.Split(importPath, "/")
-	name := parts[len(parts)-1]
-	if len(parts) > 1 && majorVersion.MatchString(name) {
-		name = parts[len(parts)-2]
-	}
-	return strings.ReplaceAll(name, "-", "")
-}
-
-var majorVersion = regexp.MustCompile(`^v[0-9]+$`)
-
-// check type-checks the package at importPath, its source in dir, as built
-// for this platform: of a directory read whole, its function bodies too,
-// keeping what each of its files' expressions is; of the rest, its
-// declarations alone. A package of the module type-checks past any error,
-// as what it uses of a stubbed package is unknown; the standard library's
-// type-checks clean, or the guard reads it wrong.
-func (l *sourceLoader) check(importPath, dir string, std bool) (*types.Package, error) {
-	bp, err := l.ctx.ImportDir(dir, 0)
-	if err != nil {
-		return nil, err
-	}
-	rel, _ := filepath.Rel(l.root, dir)
-	rel = filepath.ToSlash(rel)
-	whole := !std && slices.Contains(l.read, rel)
-	files := make([]*ast.File, len(bp.GoFiles))
-	for i, name := range bp.GoFiles {
-		if files[i], err = parser.ParseFile(l.fset, filepath.Join(dir, name), nil, parser.SkipObjectResolution); err != nil {
-			return nil, err
-		}
-	}
-	var typeErrs []error
-	conf := types.Config{
-		Importer:         l,
-		IgnoreFuncBodies: !whole,
-		Error:            func(err error) { typeErrs = append(typeErrs, err) },
-	}
-	info := &types.Info{Selections: make(map[*ast.SelectorExpr]*types.Selection), Uses: make(map[*ast.Ident]types.Object), Defs: make(map[*ast.Ident]types.Object)}
-	pkg, _ := conf.Check(importPath, l.fset, files, info)
-	if std && len(typeErrs) > 0 {
-		return nil, typeErrs[0]
-	}
-	if whole {
-		for i, name := range bp.GoFiles {
-			l.checked[rel] = append(l.checked[rel], checkedFile{path: path.Join(rel, name), fset: l.fset, ast: files[i], info: info})
-		}
-	}
-	return pkg, nil
-}
-
-// modulePath is the path of the module at root, as its go.mod declares it.
-func modulePath(t *testing.T, root string) string {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for line := range strings.Lines(string(data)) {
-		if p, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
-			return strings.Trim(strings.TrimSpace(p), `"`)
-		}
-	}
-	t.Fatal("go.mod declares no module")
-	return ""
-}
-
-// moduleRoot is the module's root: the directory above this package's, where
-// go test runs its tests, that holds go.mod.
-func moduleRoot(t *testing.T) string {
-	t.Helper()
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatal("no go.mod in any directory above the package's")
-		}
-		dir = parent
-	}
-}
-
-// writeModule writes files, by path from the root, into a new directory, and
-// returns it.
-func writeModule(t *testing.T, files map[string]string) string {
-	t.Helper()
-	root := t.TempDir()
-	for name, content := range files {
-		p := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return root
-}
-
-func reportEach(t *testing.T, problems []string) {
-	t.Helper()
-	for _, problem := range problems {
-		t.Error(problem)
-	}
 }
