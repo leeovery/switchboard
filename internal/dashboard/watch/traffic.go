@@ -337,10 +337,16 @@ func (m move) over(now time.Time) bool {
 	return m.Listed && (m.Held || now.Sub(m.shows) >= looseFor) || now.Sub(m.At) >= seenFor
 }
 
+// showsAt reports whether the move shows at now: from when it shows, until
+// it's over.
+func (m move) showsAt(now time.Time) bool {
+	return !now.Before(m.shows) && !m.over(now)
+}
+
 // at is the traffic as the frame draws it at now: live or not; what each
 // seat is doing on each account, as shown says of the calls there, and what
-// travels its cord; when the stream last saw each there; and each move once
-// it shows, but those over.
+// travels its cord; when the stream last saw each there; and each move while
+// it shows, as showsAt says.
 func (t traffic) at(now time.Time) dashboard.Traffic {
 	type keyed struct {
 		key  callKey
@@ -361,7 +367,7 @@ func (t traffic) at(now time.Time) dashboard.Traffic {
 		drawn.Calls[p] = s.call.drawn(now)
 	}
 	for _, m := range t.moves {
-		if !now.Before(m.shows) && !m.over(now) {
+		if m.showsAt(now) {
 			drawn.Moves = append(drawn.Moves, m.drawn(now))
 		}
 	}
@@ -488,13 +494,14 @@ func (t traffic) afresh() traffic {
 	return traffic{requests: requests, seen: t.seen, moves: t.moves, placed: t.placed}
 }
 
-// stream is the traffic as the views read it: live or not, the requests the
-// stream told of, and its moves that no listing of the router's sessions has
-// shown done, each from when it was told of.
-func (t traffic) stream() views.Stream {
+// stream is the traffic as the views read it at now: live or not, the
+// requests the stream told of, and its moves that no listing of the router's
+// sessions has shown done, each while it shows, as at draws it, so a frame
+// never puts a session on an account its cords don't.
+func (t traffic) stream(now time.Time) views.Stream {
 	s := views.Stream{Live: t.live, Requests: t.requests}
 	for _, m := range t.moves {
-		if !m.Listed {
+		if !m.Listed && m.showsAt(now) {
 			s.Moves = append(s.Moves, views.Moved{
 				Request: m.request, Session: m.Seat.Session, Model: m.Seat.Model, From: m.From, To: m.To, Reason: m.Reason, At: m.At,
 			})

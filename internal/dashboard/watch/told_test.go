@@ -12,9 +12,9 @@ import (
 )
 
 // toldOf is what the traffic tells the views of the request with the given
-// id, reporting false where it tells of none.
+// id, reporting false where it tells of none, whenever they read it.
 func toldOf(tr traffic, request string) (views.Told, bool) {
-	r, ok := tr.stream().Requests[request]
+	r, ok := tr.stream(start).Requests[request]
 	return r, ok
 }
 
@@ -151,7 +151,7 @@ func TestForgettingWhatTheStreamToldLosesTheRequestsInFlightTillItTellsOfThemAga
 		alter(told(router.StreamDone, "r2", "work", 2*time.Second), func(e *router.StreamEvent) { e.Status = 200 }),
 	}, heldNowhere, past(2*time.Second)).afresh()
 
-	if s := tr.stream(); s.Live {
+	if s := tr.stream(past(2 * time.Second)); s.Live {
 		t.Error("forgotten, the stream is live, want it no longer")
 	}
 	if r, _ := toldOf(tr, "r1"); !r.Lost || r.InFlight() {
@@ -180,7 +180,7 @@ func TestTheRequestsNoLongerInFlightGoSeenForAfterTheStreamLastToldOfThem(t *tes
 
 	kept := func(at time.Time) []string {
 		var ids []string
-		for id := range tr.tidied(at).stream().Requests {
+		for id := range tr.tidied(at).stream(at).Requests {
 			ids = append(ids, id)
 		}
 		slices.Sort(ids)
@@ -200,11 +200,38 @@ func TestTheViewsReadTheMovesNoListingHasShownDone(t *testing.T) {
 	})
 	tr := traffic{live: true}.took([]router.StreamEvent{moved}, heldNowhere, past(time.Second))
 	want := []views.Moved{{Request: "r1", Session: idD28C, Model: opus, From: "work", To: "side", Reason: moved.Reason, At: past(time.Second)}}
-	if got := tr.stream().Moves; !reflect.DeepEqual(got, want) {
+	if got := tr.stream(past(time.Second)).Moves; !reflect.DeepEqual(got, want) {
 		t.Errorf("the moves the views read are %+v, want %+v, from as soon as it's told of", got, want)
 	}
-	if got := tr.listedAs(d28cListedOn("side")).stream().Moves; len(got) > 0 {
+	if got := tr.listedAs(d28cListedOn("side")).stream(past(time.Second)).Moves; len(got) > 0 {
 		t.Errorf("listed where it went, the moves the views read are %+v, want none", got)
+	}
+}
+
+// A frame never contradicts itself: the views see a move from when the cords
+// show it, once the refusal that moved it has bounced back along its cord.
+func TestTheViewsSeeAMoveFromWhenTheCordsShowIt(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.hear(movedToSide(0)...)
+
+	for _, tt := range []struct {
+		name  string
+		at    time.Time
+		shown bool
+	}{
+		{name: "as its refusal bounces back", at: past(pulseFor - time.Millisecond)},
+		{name: "once it has", at: past(pulseFor), shown: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := h.model.frame(tt.at)
+			if drawn, read := len(f.Traffic.Moves) > 0, len(f.Stream.Moves) > 0; drawn != tt.shown || read != tt.shown {
+				t.Errorf("the cords draw a move: %t, and the views read one: %t, want both %t", drawn, read, tt.shown)
+			}
+			if got, want := views.RunningOn(f.Sessions, f.Stream, "side", tt.at), map[bool]int{true: 1}[tt.shown]; got != want {
+				t.Errorf("RunningOn side = %d, want %d, as the cords show d28c there", got, want)
+			}
+		})
 	}
 }
 
