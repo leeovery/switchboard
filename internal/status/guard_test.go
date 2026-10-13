@@ -53,6 +53,20 @@ var readsAllowed = []string{
 	"internal/views/points.go",
 }
 
+// callsAllowed are the functions and methods of status, quota and score
+// that take a wire type, as their receiver or a parameter, that a view may
+// call all the same, each by its name, as nameOf has it. Any other fails, as
+// one added later would. The list only shrinks: one no view calls fails.
+var callsAllowed = []string{
+	// The moment of a document at a time, which every fact a view says is
+	// read off; and that moment held, for every look at the one document at
+	// the one time to share, known by the document it's of.
+	"status.Document.At", "status.Document.HoldAt", "status.HeldMoment.Of",
+	// The watch's read loop, which asks for the next read by the document
+	// as it was read, when it was read, rather than at a moment.
+	"status.Document.IncompleteAsRead", "status.Document.NextFetchAsRead", "status.Document.RereadAfterResetAsRead",
+}
+
 // What breaks the rule, each by its package's name under the module's
 // internal directory, then its type's, where it's a method, then its own.
 var (
@@ -64,7 +78,8 @@ var (
 		"status.Account", "status.Document", "status.Limit", "status.Pool", "status.PoolWindow",
 		"status.Pressure", "status.Prime", "status.Rate", "status.Slot",
 	}
-	// judges are the functions that judge a window: a view calls none.
+	// judges are the functions that judge a window: a view calls none,
+	// whether or not it takes a wire type.
 	judges = []string{
 		"quota.Window.ResetBy", "quota.Window.Span",
 		"score.AllowanceOf", "score.AtReserve", "score.Available", "score.Current", "score.Elapsed", "score.EvenPace",
@@ -84,23 +99,32 @@ var (
 	}
 )
 
+// wirePackages are the packages, by name under the module's internal
+// directory, whose functions and methods that take a wire type a view calls
+// only where callsAllowed names them.
+var wirePackages = []string{"quota", "score", "status"}
+
 // The fix each kind of breach gives.
 const (
-	wireFix     = "read the fact off the moment the document is at, as Document.At has it"
-	judgeFix    = "read the moment's verdict of the window, its WindowNow"
-	absorbedFix = "read the moment's fact, which it works out once"
-	allowedFix  = "remove it from readsAllowed in internal/status/guard_test.go"
+	wireFix        = "read the fact off the moment the document is at, as Document.At has it"
+	judgeFix       = "read the moment's verdict of the window, its WindowNow"
+	absorbedFix    = "read the moment's fact, which it works out once"
+	callFix        = "read the moment's fact, or name the call in callsAllowed in internal/status/guard_test.go, saying why a view may make it"
+	allowedFix     = "remove it from readsAllowed in internal/status/guard_test.go"
+	allowedCallFix = "remove it from callsAllowed in internal/status/guard_test.go"
 )
 
 func TestViewsReadTheMomentAlone(t *testing.T) {
 	root := moduleRoot(t)
-	reportEach(t, momentBreaches(t, root, modulePath(t, root), viewPackages, readsAllowed))
+	reportEach(t, momentBreaches(t, root, modulePath(t, root), guarded{dirs: viewPackages, files: readsAllowed, calls: callsAllowed}))
 }
 
 func TestTheMomentGuardFindsWhatItGuardsAgainst(t *testing.T) {
 	root := writeModule(t, guardFixture)
-	got := momentBreaches(t, root, "example.com/fixture", []string{"internal/view"}, []string{
-		"internal/view/allowed.go", "internal/view/kept.go", "internal/view/gone.go",
+	got := momentBreaches(t, root, "example.com/fixture", guarded{
+		dirs:  []string{"internal/view"},
+		files: []string{"internal/view/allowed.go", "internal/view/kept.go", "internal/view/gone.go"},
+		calls: []string{"status.Document.At", "status.Account.Title", "status.Document.Gone"},
 	})
 	want := []string{
 		"internal/view/absorbed.go:10: status.Document.StateOf works out what the moment has; " + absorbedFix,
@@ -120,18 +144,23 @@ func TestTheMomentGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/view/judges.go:13: quota.Window.ResetBy judges a window; " + judgeFix,
 		"internal/view/judges.go:14: score.Current judges a window; " + judgeFix,
 		"internal/view/judges.go:15: quota.Window.Span judges a window; " + judgeFix,
+		"internal/view/planted.go:10: status.Account.Fresh takes the wire's status.Account; " + callFix,
+		"internal/view/planted.go:11: status.Sorted takes the wire's status.Account; " + callFix,
+		"internal/view/planted.go:12: status.Keyed takes the wire's status.Account; " + callFix,
 		"internal/view/kept.go: readsAllowed allows it, but it keeps the rule; " + allowedFix,
 		"internal/view/gone.go: readsAllowed allows it, but it's gone; " + allowedFix,
+		"status.Document.Gone: callsAllowed allows it, but no view calls it; " + allowedCallFix,
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 
-// guardFixture is a module of the wire's types, the judges and what the
-// moment absorbed, by path from its root, and a view package with a file of
-// each kind of breach, one that keeps the rule, one the allow-list allows,
-// and one it allows that keeps it.
+// guardFixture is a module of the wire's types, the judges, what the moment
+// absorbed, and functions and methods that take a wire type, as one added
+// later would, by path from its root; and a view package with a file of each
+// kind of breach, one that keeps the rule, calling what the allow-list
+// allows, one the allow-list allows, and one it allows that keeps it.
 var guardFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
 	"internal/quota/quota.go": `package quota
@@ -193,6 +222,10 @@ func (d Document) StateOf(a Account, now time.Time) string    { return "" }
 func (a Account) TokenRefused(now time.Time) bool             { return false }
 func (a Account) Title() string                               { return a.ID }
 func Best(accounts []Account) string                          { return "" }
+func (d Document) Gone()                                      {}
+func (a Account) Fresh(now time.Time) bool                    { return false }
+func Sorted(accounts []*Account) []*Account                   { return accounts }
+func Keyed(byID map[string]Account) int                       { return len(byID) }
 `,
 	"internal/view/clean.go": `package view
 
@@ -273,6 +306,20 @@ func absorbed(doc status.Document, a status.Account, now time.Time) bool {
 	return a.TokenRefused(now) && state == best
 }
 `,
+	"internal/view/planted.go": `package view
+
+import (
+	"time"
+
+	"example.com/fixture/internal/status"
+)
+
+func planted(a status.Account, accounts []*status.Account, byID map[string]status.Account, now time.Time) bool {
+	fresh := a.Fresh(now)
+	sorted := status.Sorted(accounts)
+	return fresh && len(sorted) == status.Keyed(byID)
+}
+`,
 	"internal/view/allowed.go": `package view
 
 import "example.com/fixture/internal/status"
@@ -291,29 +338,43 @@ func tested(doc status.Document) int { return len(doc.Accounts) }
 `,
 }
 
-// momentBreaches are where the non-test files of the packages in dirs, of the
-// module at root with the given path, break the rule, but in the files
-// allowed, by path from root: each read of a wire type's field, through any
-// field it's embedded in; each use of a judge, called or not; and each use of
-// what the moment absorbed. Then each file allowed that's gone, or keeps the
-// rule.
-func momentBreaches(t *testing.T, root, module string, dirs, allowed []string) []string {
+// guarded is what the guard reads, and what it lets be: the packages it
+// reads, by directory from the module's root; the files allowed to break the
+// rule, by path from the root; and the calls allowed that take a wire type.
+type guarded struct {
+	dirs, files, calls []string
+}
+
+// momentBreaches are where the non-test files of the packages g reads, of the
+// module at root with the given path, break the rule, but in the files g
+// allows: each read of a wire type's field, through any field it's embedded
+// in; each use of a judge, called or not; each use of what the moment
+// absorbed; and each use of any other function or method of wirePackages
+// that takes a wire type, but the calls g allows. Then each file allowed
+// that's gone, or keeps the rule, and each call allowed that none of the
+// other files makes.
+func momentBreaches(t *testing.T, root, module string, g guarded) []string {
 	t.Helper()
-	r := newRule(module)
-	l := newSourceLoader(t, root, module, dirs)
+	r := newRule(module, g.calls)
+	l := newSourceLoader(t, root, module, g.dirs)
 	var problems, broken []string
-	for _, dir := range dirs {
+	called := make(map[string]bool)
+	for _, dir := range g.dirs {
 		for _, f := range l.load(dir) {
-			for _, p := range r.breaches(f) {
-				if slices.Contains(allowed, f.path) {
+			found, allowedCalls := r.breaches(f)
+			if slices.Contains(g.files, f.path) {
+				if len(found) > 0 {
 					broken = append(broken, f.path)
-					continue
 				}
-				problems = append(problems, p)
+				continue
+			}
+			problems = append(problems, found...)
+			for _, call := range allowedCalls {
+				called[call] = true
 			}
 		}
 	}
-	for _, file := range allowed {
+	for _, file := range g.files {
 		switch _, err := os.Stat(filepath.Join(root, filepath.FromSlash(file))); {
 		case errors.Is(err, os.ErrNotExist):
 			problems = append(problems, file+": readsAllowed allows it, but it's gone; "+allowedFix)
@@ -323,25 +384,30 @@ func momentBreaches(t *testing.T, root, module string, dirs, allowed []string) [
 			problems = append(problems, file+": readsAllowed allows it, but it keeps the rule; "+allowedFix)
 		}
 	}
+	for _, call := range g.calls {
+		if !called[call] {
+			problems = append(problems, call+": callsAllowed allows it, but no view calls it; "+allowedCallFix)
+		}
+	}
 	return problems
 }
 
 // rule is what breaks the moment's rule, each named in full, by its package's
 // import path, as qualified names it.
 type rule struct {
-	wire, judges, absorbed []string
+	wire, judges, absorbed, calls []string
 	// internal is the import path of the module's internal directory, which
 	// the names go by.
 	internal string
 }
 
-func newRule(module string) rule {
-	return rule{wire: wireTypes, judges: judges, absorbed: absorbed, internal: module + "/internal/"}
+func newRule(module string, calls []string) rule {
+	return rule{wire: wireTypes, judges: judges, absorbed: absorbed, calls: calls, internal: module + "/internal/"}
 }
 
 // breaches are where the type-checked file f breaks the rule, in the order
-// they come in it.
-func (r rule) breaches(f checkedFile) []string {
+// they come in it, and the calls it makes that the rule allows.
+func (r rule) breaches(f checkedFile) (problems, allowed []string) {
 	type breach struct {
 		at   token.Pos
 		says string
@@ -356,33 +422,84 @@ func (r rule) breaches(f checkedFile) []string {
 				}
 			}
 		case *ast.Ident:
-			if fn, ok := f.info.Uses[n].(*types.Func); ok {
-				if says := r.called(r.nameOf(fn)); says != "" {
-					found = append(found, breach{n.Pos(), says})
-				}
+			fn, ok := f.info.Uses[n].(*types.Func)
+			if !ok {
+				break
+			}
+			switch name, says := r.called(fn); {
+			case says != "":
+				found = append(found, breach{n.Pos(), says})
+			case slices.Contains(r.calls, name):
+				allowed = append(allowed, name)
 			}
 		}
 		return true
 	})
 	slices.SortStableFunc(found, func(x, y breach) int { return cmp.Compare(x.at, y.at) })
-	problems := make([]string, len(found))
-	for i, b := range found {
-		problems[i] = f.at(b.at) + ": " + b.says
+	for _, b := range found {
+		problems = append(problems, f.at(b.at)+": "+b.says)
 	}
-	return problems
+	return problems, allowed
 }
 
-// called says how calling the function with the given name breaks the rule:
-// "" where it doesn't.
-func (r rule) called(name string) string {
+// called names the function fn, as nameOf has it, and says how using it
+// breaks the rule, "" where it doesn't: it judges a window; it works out
+// what the moment has; or it's of wirePackages and takes a wire type, and
+// the rule doesn't allow it.
+func (r rule) called(fn *types.Func) (name, says string) {
+	name = r.nameOf(fn)
+	pkg, _, _ := strings.Cut(name, ".")
 	switch {
 	case slices.Contains(r.judges, name):
-		return name + " judges a window; " + judgeFix
+		return name, name + " judges a window; " + judgeFix
 	case slices.Contains(r.absorbed, name):
-		return name + " works out what the moment has; " + absorbedFix
-	default:
-		return ""
+		return name, name + " works out what the moment has; " + absorbedFix
+	case !slices.Contains(wirePackages, pkg) || slices.Contains(r.calls, name):
+		return name, ""
 	}
+	if wire := r.takes(fn); wire != "" {
+		return name, name + " takes the wire's " + wire + "; " + callFix
+	}
+	return name, ""
+}
+
+// takes names the first wire type the function fn takes, as its receiver or
+// a parameter, as wireIn finds it: "" where it takes none.
+func (r rule) takes(fn *types.Func) string {
+	sig := fn.Signature()
+	var taken []types.Type
+	if recv := sig.Recv(); recv != nil {
+		taken = append(taken, recv.Type())
+	}
+	for v := range sig.Params().Variables() {
+		taken = append(taken, v.Type())
+	}
+	for _, t := range taken {
+		if wire := r.wireIn(t); wire != "" {
+			return wire
+		}
+	}
+	return ""
+}
+
+// wireIn names the wire type t is, or holds through pointers, slices, arrays
+// and maps, as "status.Account": "" where it's none.
+func (r rule) wireIn(t types.Type) string {
+	switch t := types.Unalias(t).(type) {
+	case *types.Pointer:
+		return r.wireIn(t.Elem())
+	case *types.Slice:
+		return r.wireIn(t.Elem())
+	case *types.Array:
+		return r.wireIn(t.Elem())
+	case *types.Map:
+		return cmp.Or(r.wireIn(t.Key()), r.wireIn(t.Elem()))
+	case *types.Named:
+		if name := r.typeName(t); slices.Contains(r.wire, name) {
+			return name
+		}
+	}
+	return ""
 }
 
 // wireRead names the wire type's field sel reads, as "status.Account.ID": the
