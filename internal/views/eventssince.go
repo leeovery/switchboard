@@ -1,9 +1,6 @@
 package views
 
 import (
-	"cmp"
-	"maps"
-	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -49,27 +46,14 @@ type Event struct {
 }
 
 // EventsSince are the router's events that happened from since on, as the
-// Log's Events and the watch's news read them: those the status document
-// gives, as the moment m has them, told by the router running, whose run
-// began at run, merged with those its files hold, as filed reads them up to
-// the end of m's day, by run and id, each once, as it last stands, the
-// document's in place of the files' as the router holds it now; oldest
-// first, by when each happened, then by run and id. A nil filed reads no
-// files.
+// watch's news reads them: those the status document gives, as the moment m
+// has them, told by the router running, whose run began at run, merged with
+// those its files hold, as filed reads them up to the end of m's day, by run
+// and id, each once, as it last stands, the document's in place of the
+// files' as the router holds it now; oldest first, by when each happened,
+// then by run and id, as EventsRead merges them. A nil filed reads no files.
 func EventsSince(since time.Time, m status.Moment, run time.Time, filed Events) []Event {
-	held := make(map[eventKey]Event)
-	hold := func(e Event) { held[e.Key.same()] = e }
-	if filed != nil {
-		for line := range filed.Between(since, dayfile.DayStart(m.Now.Local(), 1)) {
-			hold(Event{Key: EventKey{Run: line.Run, ID: line.ID}, Event: line.Event})
-		}
-	}
-	for _, e := range m.Events {
-		if !e.At.Before(since) {
-			hold(Event{Key: EventKey{Run: run, ID: e.ID}, Event: e})
-		}
-	}
-	return slices.SortedFunc(maps.Values(held), func(a, b Event) int {
-		return cmp.Or(a.Event.At.Compare(b.Event.At), a.Key.Run.Compare(b.Key.Run), cmp.Compare(a.Key.ID, b.Key.ID))
-	})
+	r := EventsRead{since: since, held: make(map[eventKey]Event)}
+	r.file(filed, since, dayfile.DayStart(m.Now.Local(), 1))
+	return r.Look(m, run).Events()
 }

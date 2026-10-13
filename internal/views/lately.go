@@ -55,8 +55,7 @@ func Lately(m status.Moment, n int) []Sentence {
 	sentences := make([]Sentence, len(shown))
 	for i, e := range shown {
 		full, short := latelyTellers[e.Kind](t, e, facts[e.ID])
-		well := e.Kind == status.EventHealth && prose.Clean(e.Reason) == ""
-		sentences[i] = Sentence{ID: e.ID, At: e.At, Kind: e.Kind, Well: well, Full: full, Short: short}
+		sentences[i] = Sentence{ID: e.ID, At: e.At, Kind: e.Kind, Well: wellAgain(e), Full: full, Short: short}
 	}
 	return sentences
 }

@@ -75,6 +75,13 @@ func NewTelling(window func(key string) string) *Telling {
 // Line is the event e's line, its times in now's time zone, as the Log's
 // Events has it.
 func (t *Telling) Line(e status.Event, now time.Time) EventLine {
+	line, _ := t.tell(e, now)
+	return line
+}
+
+// tell is the event e's line, as Line has it, and its facts, worked out
+// over the events told before it.
+func (t *Telling) tell(e status.Event, now time.Time) (EventLine, eventFact) {
 	at := e.At.In(now.Location())
 	fact := t.facts.take(e)
 	line := EventLine{Kind: KindWord(e.Kind)}
@@ -83,7 +90,13 @@ func (t *Telling) Line(e status.Event, now time.Time) EventLine {
 	} else {
 		line.Account, line.What = account(e.Account), clause(prose.Clean(e.Reason))
 	}
-	return line
+	return line, fact
+}
+
+// wellAgain reports whether e tells of the router's health well again,
+// which its mark is coloured apart for, LATELY's and the Log's alike.
+func wellAgain(e status.Event) bool {
+	return e.Kind == status.EventHealth && prose.Clean(e.Reason) == ""
 }
 
 // tellers tell an event of each kind the Log knows, its facts given: its

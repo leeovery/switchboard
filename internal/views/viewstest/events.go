@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -28,12 +29,34 @@ type EventMoment struct {
 	Run  time.Time
 	// Now is when the events are read, and Since when those read begin.
 	Now, Since time.Time
+	// From is the first day the Log's Events show, at its start: Since, or,
+	// where Since reaches back before it for the facts of its first events,
+	// the day after.
+	From time.Time
 	// Events are the events wanted of those read: each once, as it last
 	// stands, oldest first, by when it happened, then by run and id.
 	Events []events.Line
 	// Facts are what's wanted told of Events beyond their own fields,
 	// worked out over them, by their keys: an event not named has none.
 	Facts map[Key]Facts
+	// Lines are the ledger's lines of the sessions the events are of, every
+	// day's, oldest first, each filed under the local day its request
+	// arrived on: none where no line tells of them.
+	Lines []ledger.Line
+	// Moves are what each move event's move came to, by the event's key, as
+	// the Log's Events and its request's routing say it: a move not named is
+	// one no line tells of.
+	Moves map[Key]Move
+}
+
+// Move is what a move event's move came to: the request that made it, and,
+// where a request wrote the session's context again on the account it went
+// to, the tokens it wrote and what that cost; none, and 0, where none has,
+// or the cache would have run out anyway.
+type Move struct {
+	Request string
+	Written int
+	Cost    ledger.Picodollars
 }
 
 // Filing is a version of an event as the router filed it, and when.
@@ -80,8 +103,16 @@ var (
 )
 
 // EventMoments are the moments views have got the router's events wrong at,
-// or could, their times in London's, whose clocks go back an hour at 02:00
-// on Sunday 25 October 2026.
+// or could. Those of the events alone are in London's time, whose clocks go
+// back an hour at 02:00 on Sunday 25 October 2026; those whose sessions'
+// requests the ledger's lines tell of are in time.Local, as the ledger files
+// its lines under local days: a move whose choice passed an account over,
+// its pressure told the day before; two like moves of one session in a day;
+// a side request's move, settled on its conversation's next request; a move
+// after its cache ran out; a cap whose moves count after it's told, and one
+// with all three counted; a model family refused alone; pins, global and a
+// session's own; an event-free today, filled from yesterday; and the
+// router's health turning, and a restart falling due.
 func EventMoments() []EventMoment {
 	london := zone("Europe/London")
 	on := func(day, hour, minute int) time.Time { return time.Date(2026, 10, day, hour, minute, 0, 0, london) }
@@ -93,6 +124,16 @@ func EventMoments() []EventMoment {
 		acrossMidnight(on),
 		filedAgainToday(on),
 		fallingBack(london),
+		pressureTheDayBefore(),
+		movedTwiceAlike(),
+		sideMoveSettled(),
+		coldMove(),
+		capCounting(),
+		capDetails(),
+		familyRefused(),
+		pins(),
+		filledFromYesterday(),
+		healthTurning(),
 	}
 }
 
@@ -121,7 +162,7 @@ func restarted(on func(day, hour, minute int) time.Time) EventMoment {
 		},
 		Live: []status.Event{passing, secondMove, counting(reached, 1, side)},
 		Run:  second,
-		Now:  on(7, 12, 15), Since: on(7, 0, 0),
+		Now:  on(7, 12, 15), Since: on(7, 0, 0), From: on(7, 0, 0),
 		Events: []events.Line{
 			{Event: pressure, Run: first}, {Event: counting(limit, 2, side), Run: first},
 			{Event: firstMoves[0], Run: first}, {Event: firstMoves[1], Run: first},
@@ -154,7 +195,7 @@ func joined(on func(day, hour, minute int) time.Time) EventMoment {
 		},
 		Live: []status.Event{moves[1], moves[0], counting(both, 2, side)},
 		Run:  run,
-		Now:  on(7, 13, 30), Since: on(7, 0, 0),
+		Now:  on(7, 13, 30), Since: on(7, 0, 0), From: on(7, 0, 0),
 		Events: []events.Line{{Event: counting(both, 2, side), Run: run}, {Event: moves[0], Run: run}, {Event: moves[1], Run: run}},
 		Facts:  map[Key]Facts{{Run: run.UnixNano(), ID: 1}: {Moved: 2, To: side, Windows: bothNamed}},
 	}
@@ -164,7 +205,7 @@ func joined(on func(day, hour, minute int) time.Time) EventMoment {
 // the newest 50, the files every one but the last two, not filed yet.
 func overlapping(on func(day, hour, minute int) time.Time) EventMoment {
 	run := on(7, 6, 0)
-	m := EventMoment{Name: "the document's newest 50 overlapping the files", Run: run, Now: on(7, 9, 0), Since: on(7, 0, 0)}
+	m := EventMoment{Name: "the document's newest 50 overlapping the files", Run: run, Now: on(7, 9, 0), Since: on(7, 0, 0), From: on(7, 0, 0)}
 	const started, filedOf, livesOf = 60, 58, 50
 	for id := 1; id <= started; id++ {
 		e := status.Event{ID: id, At: on(7, 7, id), Kind: status.EventStarted, Account: work, Session: fmt.Sprintf("s%d", id), Reason: status.ReasonNew}
@@ -190,7 +231,7 @@ func eventFree(on func(day, hour, minute int) time.Time) EventMoment {
 		{ID: 3, At: on(6, 18, 0), Kind: status.EventRoom, Account: work, Windows: []string{fiveHour}},
 		limitOf(4, on(6, 22, 0), on(7, 2, 0), fiveHour),
 	}
-	m := EventMoment{Name: "an event-free today", Run: run, Now: on(7, 9, 0), Since: on(7, 0, 0)}
+	m := EventMoment{Name: "an event-free today", Run: run, Now: on(7, 9, 0), Since: on(7, 0, 0), From: on(7, 0, 0)}
 	for _, e := range told {
 		m.Filed, m.Live = append(m.Filed, filed(run, e, e.At)), append([]status.Event{e}, m.Live...)
 	}
@@ -227,7 +268,7 @@ func acrossMidnight(on func(day, hour, minute int) time.Time) EventMoment {
 		Filed: append([]Filing{filed(run, pressure, pressure.At)}, append(versions, filed(run, passing, passing.At))...),
 		Live:  []status.Event{moves[1], passing, moves[0], counting(limit, 2, side), pressure},
 		Run:   run,
-		Now:   on(7, 0, 20), Since: on(6, 0, 0),
+		Now:   on(7, 0, 20), Since: on(6, 0, 0), From: on(6, 0, 0),
 		Events: []events.Line{
 			{Event: pressure, Run: run}, {Event: counting(limit, 2, side), Run: run}, {Event: moves[0], Run: run},
 			{Event: passing, Run: run}, {Event: moves[1], Run: run},
@@ -250,6 +291,7 @@ func filedAgainToday(on func(day, hour, minute int) time.Time) EventMoment {
 		Filed:  versions,
 		Now:    on(7, 0, 20),
 		Since:  on(7, 0, 0),
+		From:   on(7, 0, 0),
 		Events: []events.Line{{Event: moves[1], Run: on(6, 9, 0)}},
 	}
 }
@@ -272,6 +314,7 @@ func fallingBack(london *time.Location) EventMoment {
 		Run:    run,
 		Now:    utc(2, 30),
 		Since:  time.Date(2026, 10, 25, 0, 0, 0, 0, london),
+		From:   time.Date(2026, 10, 25, 0, 0, 0, 0, london),
 		Events: []events.Line{{Event: pressure, Run: run}, {Event: passing, Run: run}},
 		Facts: map[Key]Facts{
 			{Run: run.UnixNano(), ID: 1}: {Windows: fiveHourNamed},
