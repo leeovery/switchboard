@@ -57,6 +57,34 @@ func TestAStintGivesItsEndsTheirDaysWhereTheSessionSpansDays(t *testing.T) {
 	}
 }
 
+// A time after a start that names its own day is its time of day on the
+// start's day, whichever day that is, and with its day on another.
+func TestALaterTimeNamesItsDayOnlyOffItsStartsDay(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 31, 0, 0, time.FixedZone("UTC+1", 60*60))
+	at := func(days, hour, minute int) time.Time {
+		return time.Date(2026, 9, 28+days, hour, minute, 0, 0, now.Location())
+	}
+	tests := []struct {
+		name         string
+		start, later time.Time
+		want         string
+	}{
+		{name: "both today", start: at(0, 12, 2), later: at(0, 14, 0), want: "14:00"},
+		{name: "both yesterday", start: at(-1, 13, 20), later: at(-1, 16, 2), want: "16:02"},
+		{name: "both within the week", start: at(-3, 9, 0), later: at(-3, 10, 0), want: "10:00"},
+		{name: "started yesterday, today", start: at(-1, 23, 30), later: at(0, 0, 40), want: "today 00:40"},
+		{name: "started before yesterday, yesterday", start: at(-3, 22, 0), later: at(-1, 1, 10), want: "yesterday 01:10"},
+		{name: "a day in UTC that's another in now's time zone", start: at(0, 0, 30).UTC(), later: at(0, 1, 0).UTC(), want: "01:00"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.Later(now, tt.start, tt.later); got != tt.want {
+				t.Errorf("Later() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSameDayIsInNowsTimeZone(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 31, 0, 0, time.FixedZone("UTC+1", 60*60))
 	late := time.Date(2026, 9, 28, 23, 30, 0, 0, time.UTC)

@@ -184,7 +184,9 @@ func movedWords(m SessionMove, words func(reason string, f status.Facts) status.
 // ranOn says where the session ran, as RanOn has it, at now: on each
 // account, in turn, with when its named model's moves came and why, as "ran
 // on work, then side from 16:02: work reached its cap", and short, "ran on
-// work, then side from 16:02: its cap". None where it ran on no account.
+// work, then side from 16:02: its cap". A move's day is named only where it
+// isn't the day the session started on, as row 6's right names that day:
+// "from today 00:40". None where it ran on no account.
 func (p SessionPage) ranOn(now time.Time) WhereSaid {
 	first, moves := p.RanOn()
 	if first == "" {
@@ -193,7 +195,7 @@ func (p SessionPage) ranOn(now time.Time) WhereSaid {
 	ran := status.Words{status.Plain("ran on "), status.Named(first)}
 	why, short := ran, slices.Clone(ran)
 	for _, m := range moves {
-		then := status.Words{status.Plain(", then "), status.Named(m.To), status.Plain(" from " + prose.Past(now, m.At) + ": ")}
+		then := status.Words{status.Plain(", then "), status.Named(m.To), status.Plain(" from " + prose.Later(now, p.Started, m.At) + ": ")}
 		facts := status.Facts{From: m.From, To: m.To, Now: now}
 		why = slices.Concat(why, then, status.EventWords(m.Reason, facts))
 		short = slices.Concat(short, then, status.ShortWords(m.Reason, facts))
