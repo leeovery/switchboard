@@ -270,6 +270,47 @@ func TestARequestInFlightAsTheDayEndedSitsAboveTheNextDaysRule(t *testing.T) {
 	}
 }
 
+// The table awaits a line on each day before the one given that it holds a
+// row on, shown or hidden, of a request whose end the stream told, its line
+// yet to come, each day once: none of one in flight, lost or lined, nor of
+// the day given.
+func TestTheTableAwaitsTheLineOfARequestTheStreamToldEndedOnAnEarlierDay(t *testing.T) {
+	sent := october(6, 23, 59).Add(50 * time.Second)
+	ended := func(id string, at time.Time) views.Told {
+		told := sentAt(id, at)
+		told.Ended, told.Status = at.Add(22*time.Second), 200
+		return told
+	}
+	check := ended("r1", sent)
+	check.Check = true
+	lost := sentAt("r1", sent)
+	lost.Lost = true
+	lined := withID("r1", took(22*time.Second, arrived(sent.Add(-100*time.Millisecond), line(mover, opus, "side", "sticky", time.Time{}, hourUsage))))
+	tests := []struct {
+		name   string
+		lines  []ledger.Line
+		stream views.Stream
+		filter views.LogFilter
+		want   []string
+	}{
+		{name: "ended the day before, shown", stream: streamOf(ended("r1", sent)), want: []string{"2026-10-06"}},
+		{name: "a quota check ended the day before, hidden", stream: streamOf(check), filter: views.LogOpening(), want: []string{"2026-10-06"}},
+		{name: "two ended the day before: the day once", stream: streamOf(ended("r1", sent), ended("r2", sent.Add(time.Second))), want: []string{"2026-10-06"}},
+		{name: "ended today", stream: streamOf(ended("r1", october(7, 13, 0)))},
+		{name: "in flight the day before", stream: streamOf(sentAt("r1", sent))},
+		{name: "lost the day before", stream: streamOf(lost)},
+		{name: "ended the day before, its line come", lines: []ledger.Line{lined}, stream: streamOf(ended("r1", sent))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			table := views.LogRows(views.LogSources{From: october(6, 0, 0), Now: now, Read: logRead(now, tt.lines...), Stream: tt.stream, Filter: tt.filter})
+			if got := table.Awaited(views.Today(now)); !slices.Equal(got, tt.want) {
+				t.Errorf("the table awaits lines on %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestARowIsOnTheDayItsRequestArrivedOnAsTheLedgerFilesIt(t *testing.T) {
 	// r2 arrived as 6 October ended, and went out as 7 October began.
 	midnight := october(7, 0, 0)

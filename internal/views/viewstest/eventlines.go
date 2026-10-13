@@ -168,6 +168,37 @@ func movedTwiceAlike() EventMoment {
 	return m
 }
 
+// capMovingOneTwice is work's cap moving c61b off to side, side's cap
+// moving it back, and work's cap moving it off again, the request moving it
+// in flight, its line yet to come: the cap's second move is of no request
+// yet, never the like move before it, so the cap's card counts the first
+// move's cost once in all.
+func capMovingOneTwice() EventMoment {
+	run := localOn(7, 8, 0)
+	cap := status.Event{ID: 1, At: localOn(7, 10, 29), Kind: status.EventCap, Account: work, Windows: []string{fiveHour}, Until: localOn(7, 13, 0), Reserve: 0.05}
+	c0 := asked("c0", C61B, work, status.ReasonNew, localOn(7, 10, 0))
+	c1 := writing(500_000, movedOff(work, asked("c1", C61B, side, capped(work), localOn(7, 10, 30))))
+	c2 := writing(250_000, movedOff(side, asked("c2", C61B, work, capped(side), localOn(7, 11, 0))))
+	// c3 moves c61b off work again, told at 11:20:00.3, its line yet to come.
+	c3 := asked("c3", C61B, side, capped(work), localOn(7, 11, 20))
+	first, back, again := counted(movedAfter(2, c1, work, capped(work)), cap), movedAfter(3, c2, side, capped(side)), counted(movedAfter(4, c3, work, capped(work)), cap)
+	m := toldAll("work's cap moving one session off it twice, back between, its second move's request in flight", run, localOn(7, 0, 0), localOn(7, 11, 20).Add(5*time.Second),
+		counting(cap, 1, side), first, back, again)
+	m.Lines = []ledger.Line{c0, c1, c2}
+	m.Facts = map[Key]Facts{keyOf(run, cap): {Moved: 1, To: side, Windows: fiveHourNamed}}
+	m.Moves = map[Key]Move{
+		keyOf(run, first): {Request: "c1", Written: 500_000, Cost: writeCost(500_000)},
+		keyOf(run, back):  {Request: "c2", Written: 250_000, Cost: writeCost(250_000)},
+	}
+	m.Details = map[Key]Details{keyOf(run, cap): {
+		Headline: "work reached its cap",
+		Happened: []string{"event: work reached its cap", "its cap: 95% of its 5-hour window"},
+		Then:     []string{"account: work", "resets: 13:00", "sessions: 1"},
+		Followed: []string{"c61b: to side $4.00", "c61b: to side none", "new sessions: till 13:00", "in all: $4.00"},
+	}}
+	return m
+}
+
 // sideMoveSettled is a side request moving d28c off work at its cap, its
 // conversation's next request writing its context again on side a minute
 // later: the move is the side request's, what it came to the next one's.

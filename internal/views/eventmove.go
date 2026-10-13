@@ -24,17 +24,18 @@ type EventMove struct {
 // moveOf is the move the move event e tells of, as the story s of its
 // session tells it, nil where s tells of none. An event carries no
 // request's id, so it's the move of e's model from e's From to e's To whose
-// request arrived last at or before e happened: a request's line is filed
-// as it arrived, to the millisecond cut down, and the router tells of the
-// move once the request is routed, after it arrived, so the move's request
-// is never after its event, and a like move later in the day never is
-// before it. A move event naming no model, as one from a router from before
-// events named it, is of its session's move of any model.
+// request was in flight as e happened, as inFlightAt has it, the one that
+// arrived last where several were: the router tells of a move as it routes
+// the request, after it arrived and before it ends. A move only comes into
+// s as its request's line is written, as the request ends, so until then e
+// is of none, never a like move before it whose request had ended. A move
+// event naming no model, as one from a router from before events named it,
+// is of its session's move of any model.
 func moveOf(s *story, e status.Event) *move {
 	var made *move
 	for i := range s.moves {
 		m := &s.moves[i]
-		if m.from != e.From || m.to != e.To || e.Model != "" && m.model != e.Model || m.at.After(e.At) {
+		if m.from != e.From || m.to != e.To || e.Model != "" && m.model != e.Model || !inFlightAt(m.by, e.At) {
 			continue
 		}
 		if made == nil || !m.at.Before(made.at) {
