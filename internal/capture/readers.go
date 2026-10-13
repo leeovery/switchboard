@@ -289,7 +289,7 @@ func (h heldReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
 }
 
 // heldEvents reads the records' router's events as an events.Reader reads
-// their files, by now's clock.
+// their files, by now's clock, each filed on the day it happened.
 type heldEvents struct {
 	records *records
 	now     func() time.Time
@@ -327,4 +327,20 @@ func (h heldEvents) Between(from, to time.Time) iter.Seq[events.Line] {
 			}
 		}
 	}
+}
+
+// FirstDay gives the start of the first local day an event happened on by
+// now: fs.ErrNotExist where none had.
+func (h heldEvents) FirstDay() (time.Time, error) {
+	now := h.now()
+	var first time.Time
+	for _, e := range h.records.events {
+		if !e.At.After(now) && (first.IsZero() || e.At.Before(first)) {
+			first = e.At
+		}
+	}
+	if first.IsZero() {
+		return time.Time{}, fs.ErrNotExist
+	}
+	return dayfile.DayStart(first.Local(), 0), nil
 }

@@ -348,23 +348,23 @@ func nextRow(lines []logLine, at, by, foot int) int {
 }
 
 // Filling is the Log, the table shown filled once it fills a view rows rows
-// tall, or reaches the oldest day, from where it reads back only as its top
-// is reached.
+// tall, or reaches as far back as it reads, from where it reads back only as
+// its top is reached.
 func (p LogPage) Filling(rows int) LogPage {
 	s := p.stand()
 	if s.filled || !p.Read {
 		return p
 	}
-	s.filled = len(p.lines()) >= rows || p.reachedOldest()
+	s.filled = len(p.lines()) >= rows || p.reached()
 	return p.standing(s)
 }
 
 // WantsDayBefore reports whether the table shown, in a view rows rows tall,
 // wants the day before those it spans read: on opening, until it fills its
 // view; and paused, its view's top at the first line held. Never once it
-// reaches the oldest day the ledger keeps.
+// reaches as far back as it reads.
 func (p LogPage) WantsDayBefore(rows int) bool {
-	if !p.Read || p.reachedOldest() {
+	if !p.Read || p.reached() {
 		return false
 	}
 	lines, s := p.lines(), p.stand()
@@ -375,10 +375,12 @@ func (p LogPage) WantsDayBefore(rows int) bool {
 	return s.paused && first == 0
 }
 
-// reachedOldest reports whether the tables reach the oldest day the ledger
-// keeps, as the Requests' oldest day's line, atop them, says.
-func (p LogPage) reachedOldest() bool {
-	return p.oldest() != nil
+// reached reports whether the table shown reaches as far back as it reads:
+// the oldest day the ledger keeps, as the Requests' oldest day's line, atop
+// them, says; or of the Events, the oldest they read back to, as their
+// Reached says.
+func (p LogPage) reached() bool {
+	return p.oldest() != nil || p.Shown == LogEvents && p.Events.Reached()
 }
 
 // oldest is the oldest day the ledger keeps, where the tables reach it: nil

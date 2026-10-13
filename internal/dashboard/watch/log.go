@@ -28,6 +28,7 @@ type logTab struct {
 	totals  []views.DayTotals
 	from    views.LedgerDay
 	oldest  views.OldestDay
+	filed   views.OldestDay
 	reading bool
 	warned  bool
 	card    logCarding
@@ -62,7 +63,7 @@ func (m Model) builtLog(now time.Time) Model {
 		From: t.from.Start, Oldest: t.oldest, Read: t.read, Stream: stream, Totals: t.totals, Filter: p.Filter, Now: now,
 	})
 	p.Events = views.LogEvents(views.LogEventSources{
-		From: t.from.Start, Events: t.events, Read: t.read, Filter: p.Shows, Names: m.cfg.WindowName, Totals: t.totals, Oldest: t.oldest, Now: now,
+		From: t.from.Start, Events: t.events, Read: t.read, Filter: p.Shows, Names: m.cfg.WindowName, Totals: t.totals, Oldest: t.oldest, Filed: t.filed, Now: now,
 	})
 	m.log.page = p.Filling(m.logRows())
 	return m.followedByLogCard()

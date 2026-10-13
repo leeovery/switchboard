@@ -121,6 +121,12 @@ func (f filedEvents) Between(from, to time.Time) iter.Seq[events.Line] {
 	}
 }
 
+// FirstDay is the start of the day the router's run that filed them
+// started on, the day before.
+func (f filedEvents) FirstDay() (time.Time, error) {
+	return views.Today(theDayBefore).Start, nil
+}
+
 // eventsShown is the Log's page showing Events of the events filed given, from
 // the day before, at noon.
 func eventsShown(filed ...status.Event) LogPage {

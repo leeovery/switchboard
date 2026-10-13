@@ -1,7 +1,10 @@
 package watch
 
 import (
+	"fmt"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -11,6 +14,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
@@ -201,6 +205,71 @@ func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 
 	if want := []string{dayfile.DateOf(past(-day)), dayfile.DateOf(past(-2 * day))}; !slices.Equal(l.days, want) {
 		t.Errorf("short of its view, the Log read back the days %v, want %v, a day at a time, no further than the oldest its keep of 2 days keeps", l.days, want)
+	}
+}
+
+// The Events read back as they want to fill their view no further than the
+// first day the router filed events on: days before show none, so a ledger
+// of quiet days is never read back through for them.
+func TestTheEventsReadBackNoFurtherThanTheRouterFiledEvents(t *testing.T) {
+	tests := []struct {
+		name  string
+		filed []time.Time
+		want  []string
+	}{
+		{name: "none filed", want: nil},
+		{name: "filed 3 days ago", filed: []time.Time{past(-3 * day)}, want: []string{dayfile.DateOf(past(-day)), dayfile.DateOf(past(-2 * day)), dayfile.DateOf(past(-3 * day))}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			var lines []ledger.Held
+			for i := range 60 {
+				lines = append(lines, arrived(fmt.Sprintf("0b%06d", i), "work", -time.Duration(60-i)*time.Second))
+			}
+			for d := 1; d <= 30; d++ {
+				lines = append(lines, arrived(fmt.Sprintf("0c%06d", d), "work", -time.Duration(d)*day))
+			}
+			writeLines(t, state, lines...)
+			for i, at := range tt.filed {
+				writeEvents(t, state, events.Line{ID: i + 1, At: at, Kind: status.EventPin, Accounts: []string{"work"}, Run: at.Add(-time.Hour)})
+			}
+			h := newHarness(t, probedWithoutTheRouter())
+			l := onTheLog(h, state)
+			h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+			h.start()
+			if len(l.days) > 0 {
+				t.Fatalf("its view filled, the Requests read back the days %v, want none", l.days)
+			}
+
+			h.typed("]")
+			if !slices.Equal(l.days, tt.want) {
+				t.Errorf("on Events, the days %v were read back, want %v", l.days, tt.want)
+			}
+		})
+	}
+}
+
+// writeEvents files the router's events given in the state directory given,
+// each under the day it happened on, as the router files them as they're told.
+func writeEvents(t *testing.T, state string, lines ...events.Line) {
+	t.Helper()
+	for _, line := range lines {
+		data, err := events.Marshal(line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f, err := os.OpenFile(filepath.Join(ledger.Dir(state), "events-"+dayfile.DateOf(line.At)+".jsonl"), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.Write(append(data, '\n'))
+		if closeErr := f.Close(); err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

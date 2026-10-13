@@ -82,7 +82,11 @@ type LogEventSources struct {
 	// LogSources' is, which its oldest day's line says where it reaches it.
 	Totals []DayTotals
 	Oldest OldestDay
-	Now    time.Time
+	// Filed is the oldest day it reads back to, as OldestKept gives it of
+	// the first day the router filed events on: the days before show none.
+	// The zero OldestDay, none known, reads none back.
+	Filed OldestDay
+	Now   time.Time
 }
 
 // EventsTable is the Log's Events over the days it spans.
@@ -102,6 +106,17 @@ type EventsTable struct {
 	// them.
 	told  []toldEvent
 	names func(key string) string
+	// filed is the oldest day it reads back to, and first the first day it
+	// spans.
+	filed OldestDay
+	first LedgerDay
+}
+
+// Reached reports whether the table reaches the oldest day it reads back
+// to, as its sources' Filed says, so it wants no day before.
+func (t EventsTable) Reached() bool {
+	_, more := t.filed.DayBefore(t.first)
+	return !more
 }
 
 // EventsLine is a line of the Log's Events: an event's row, one of the
@@ -130,7 +145,7 @@ type toldEvent struct {
 func LogEvents(src LogEventSources) EventsTable {
 	first, today := Today(src.From), Today(src.Now)
 	telling := NewTelling(src.Names)
-	table := EventsTable{names: src.Names}
+	table := EventsTable{names: src.Names, filed: src.Filed, first: first}
 	for _, e := range src.Events.Events() {
 		line, fact := telling.tell(e.Event, src.Now)
 		if !first.Holds(e.Event.At) {

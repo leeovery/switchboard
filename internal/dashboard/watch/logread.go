@@ -15,15 +15,36 @@ import (
 
 // logGrown is the Log as a read for it grew it: its read of the ledger's
 // lines; and where the read read them, the day its tables span from, its
-// events, the figures of its days, and the oldest day the ledger keeps, or
-// why the ledger couldn't say where its lines begin.
+// events, the figures of its days, and how far back its tables read.
 type logGrown struct {
 	read   views.LogRead
 	from   views.LedgerDay
 	events *views.EventsRead
 	totals []views.DayTotals
-	oldest *views.OldestDay
-	err    error
+	logBounds
+}
+
+// logBounds are how far back the Log's tables read, where a read asked: the
+// oldest day the ledger keeps, and the oldest the Events read back to; none
+// of either where it couldn't be said, and why.
+type logBounds struct {
+	oldest, filed *views.OldestDay
+	err           error
+}
+
+// logReaders are what the Log reads, as the watch's config gives them: the
+// request ledger, the router's files of events, the prices the ledger's
+// lines are priced at, and how long the ledger and the files keep them.
+type logReaders struct {
+	ledger views.Ledger
+	filed  views.Events
+	prices ledger.Table
+	keep   time.Duration
+}
+
+// logReaders are what the Log reads.
+func (m Model) logReaders() logReaders {
+	return logReaders{ledger: m.cfg.Ledger, filed: m.cfg.Events, prices: m.cfg.Prices, keep: m.cfg.LedgerKeep}
 }
 
 // logReadMsg is what a read for the Log of its own found, as it first shows
@@ -64,10 +85,10 @@ func (m Model) readLog() (Model, tea.Cmd) {
 // openLog reads the Log as it first shows, at now: every one of today's
 // lines, the tail's first read where it's unread, its mark otherwise left
 // where its readers fold from, the lines read again past it held already;
-// the router's events from today, as ReadEvents reads them; and the oldest
-// day the ledger keeps, as oldestKept has it.
+// the router's events from today, as ReadEvents reads them; and how far
+// back its tables read, as bounds has it.
 func (m Model) openLog(now time.Time) (Model, tea.Cmd) {
-	l, filed, prices, keep := m.cfg.Ledger, m.cfg.Events, m.cfg.Prices, m.cfg.LedgerKeep
+	r := m.logReaders()
 	joins := m.tail.unread()
 	if joins {
 		m.tail = m.tail.asking()
@@ -75,10 +96,10 @@ func (m Model) openLog(now time.Time) (Model, tea.Cmd) {
 	m.log.reading = true
 	return m, func() tea.Msg {
 		today := views.Today(now)
-		lines, next, _ := l.Today(ledger.Mark{})
-		events := views.ReadEvents(filed, today.Start, now)
-		msg := logReadMsg{grown: logGrown{read: views.ReadLogHeld(l, lines, prices, now), from: today, events: &events}}
-		msg.grown.oldest, msg.grown.err = oldestKept(l, keep, now)
+		lines, next, _ := r.ledger.Today(ledger.Mark{})
+		events := views.ReadEvents(r.filed, today.Start, now)
+		msg := logReadMsg{grown: logGrown{read: views.ReadLogHeld(r.ledger, lines, r.prices, now), from: today, events: &events}}
+		msg.grown.logBounds = r.bounds(now)
 		if joins {
 			msg.tail = &tailRead{mark: next, day: today}
 		}
@@ -89,12 +110,12 @@ func (m Model) openLog(now time.Time) (Model, tea.Cmd) {
 // readTail reads what the ledger gained since the tail's mark, at now, and
 // grows the Log's read by it, as logFold has it.
 func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
-	l, prices, keep, mark := m.cfg.Ledger, m.cfg.Prices, m.cfg.LedgerKeep, m.tail.mark
+	r, mark := m.logReaders(), m.tail.mark
 	fold := m.logFold(now)
 	m.tail, m.log.reading = m.tail.asking(), true
 	return m, func() tea.Msg {
-		lines, next, _ := l.Today(mark)
-		return tailedMsg{mark: next, day: views.Today(now), log: fold.grown(l, lines, prices, keep, now)}
+		lines, next, _ := r.ledger.Today(mark)
+		return tailedMsg{mark: next, day: views.Today(now), log: fold.grown(r, lines, now)}
 	}
 }
 
@@ -104,7 +125,7 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 // as the tail followed them no further, or the line of a request across
 // midnight comes on its day after the day turned; where it reads any so,
 // reads again the figures of the days its tables span, from from; and where
-// the oldest day the ledger keeps isn't known, asks it again.
+// how far back they read isn't known, asks it again.
 type logFold struct {
 	read views.LogRead
 	late []string
@@ -119,22 +140,22 @@ type logFold struct {
 func (m Model) logFold(now time.Time) logFold {
 	today := views.Today(now)
 	late := slices.Concat(m.log.page.Requests.Awaited(today), m.tail.missed(today))
-	return logFold{read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), from: m.log.from, asks: m.log.oldest.Day.Date == ""}
+	return logFold{read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), from: m.log.from, asks: !m.log.bounded()}
 }
 
-// grown is the Log grown, through l, at now, by lines, the ledger's gain
-// since the tail's mark, as the fold says, each line priced by prices, the
-// oldest day asked of a ledger keeping its lines as long as keep says.
-func (f logFold) grown(l views.Ledger, lines []ledger.Held, prices ledger.Table, keep time.Duration, now time.Time) *logGrown {
+// grown is the Log grown, through r, at now, by lines, the ledger's gain
+// since the tail's mark, as the fold says.
+func (f logFold) grown(r logReaders, lines []ledger.Held, now time.Time) *logGrown {
+	l := r.ledger
 	g := logGrown{read: f.read.Grown(l, lines, now)}
 	for _, date := range f.late {
 		g.read = g.read.Back(l, l.Day(date), now)
 	}
 	if len(f.late) > 0 {
-		g.totals = views.TotalsByDay(l, f.from.Start, now, prices)
+		g.totals = views.TotalsByDay(l, f.from.Start, now, r.prices)
 	}
 	if f.asks {
-		g.oldest, g.err = oldestKept(l, keep, now)
+		g.logBounds = r.bounds(now)
 	}
 	return &g
 }
@@ -148,22 +169,38 @@ func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	l, filed, prices := m.cfg.Ledger, m.cfg.Events, m.cfg.Prices
+	r := m.logReaders()
 	m.log.reading = true
 	return m, func() tea.Msg {
-		events := t.events.Back(filed, day.Start)
+		l, events := r.ledger, t.events.Back(r.filed, day.Start)
 		return logReadMsg{grown: logGrown{
-			read: t.read.Back(l, l.Day(day.Date), now), from: day, events: &events, totals: views.TotalsByDay(l, day.Start, now, prices),
+			read: t.read.Back(l, l.Day(day.Date), now), from: day, events: &events, totals: views.TotalsByDay(l, day.Start, now, r.prices),
 		}}
 	}
 }
 
-// oldestKept is the oldest day the ledger l keeps at now, its lines kept as
-// long as keep says, as views.OldestKept has it, given no first day of lines
-// where l holds none yet: none where it fails to say where its lines begin,
-// and why.
-func oldestKept(l views.Ledger, keep time.Duration, now time.Time) (*views.OldestDay, error) {
-	first, err := l.FirstLinesDay(now)
+// bounds are how far back the Log's tables read at now: the oldest day the
+// ledger keeps, of the first it holds lines of; and the oldest the Events
+// read back to, of the first the router filed events on, none filed where
+// there are no files to read; each as keptFrom has it.
+func (r logReaders) bounds(now time.Time) logBounds {
+	lines, linesErr := r.ledger.FirstLinesDay(now)
+	filed, filedErr := time.Time{}, error(fs.ErrNotExist)
+	if r.filed != nil {
+		filed, filedErr = r.filed.FirstDay()
+	}
+	var b logBounds
+	b.oldest, linesErr = keptFrom(lines, linesErr, r.keep, now)
+	b.filed, filedErr = keptFrom(filed, filedErr, r.keep, now)
+	b.err = errors.Join(linesErr, filedErr)
+	return b
+}
+
+// keptFrom is the oldest day kept at now of what began on the day first
+// starts, kept as long as keep says, as views.OldestKept has it: given no
+// first day where err says there's none yet; none where err says it
+// couldn't be read, and err.
+func keptFrom(first time.Time, err error, keep time.Duration, now time.Time) (*views.OldestDay, error) {
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		first = time.Time{}
@@ -199,9 +236,9 @@ func (m Model) logRead(msg logReadMsg) Model {
 	return m
 }
 
-// grown is the Log grown as g says, its read no longer under way: where the
-// ledger couldn't say where its lines begin, logged, the first time alone,
-// as each read after asks again.
+// grown is the Log grown as g says, its read no longer under way: where
+// how far back its tables read couldn't be said, logged, the first time
+// alone, as each read after asks again.
 func (t logTab) grown(g logGrown) logTab {
 	t.reading, t.read = false, g.read
 	if g.events != nil {
@@ -216,9 +253,17 @@ func (t logTab) grown(g logGrown) logTab {
 	if g.oldest != nil {
 		t.oldest = *g.oldest
 	}
+	if g.filed != nil {
+		t.filed = *g.filed
+	}
 	if g.err != nil && !t.warned {
-		logger.Warn("couldn't read where the request ledger's lines begin", "error", g.err)
+		logger.Warn("couldn't read where the request ledger's lines, or the router's events, begin", "error", g.err)
 		t.warned = true
 	}
 	return t
+}
+
+// bounded reports whether the Log knows how far back its tables read.
+func (t logTab) bounded() bool {
+	return t.oldest.Day.Date != "" && t.filed.Day.Date != ""
 }

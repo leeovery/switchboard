@@ -30,6 +30,10 @@ func (c countedEvents) Between(from, to time.Time) iter.Seq[events.Line] {
 	return c.events.Between(from, to)
 }
 
+func (c countedEvents) FirstDay() (time.Time, error) {
+	return c.events.FirstDay()
+}
+
 // eventsRead is the router's events of the moment, as the Log's Events
 // read them from the first day it shows: its files read through files, and
 // the document taken in at a look.

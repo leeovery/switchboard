@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -135,6 +136,31 @@ func sum(counts map[string]int) int {
 		n += c
 	}
 	return n
+}
+
+// The Events reach as far back as they read once their first day is the
+// first the router filed events on, or before it: the days before show none.
+// Where that day isn't known, they read none back.
+func TestTheEventsReachTheFirstDayTheRouterFiledEventsOn(t *testing.T) {
+	tests := []struct {
+		name  string
+		from  time.Time
+		filed views.OldestDay
+		want  bool
+	}{
+		{name: "after the first day filed", from: october(6, 0, 0), filed: views.OldestKept(october(5, 0, 0), 0, now)},
+		{name: "on it", from: october(5, 0, 0), filed: views.OldestKept(october(5, 0, 0), 0, now), want: true},
+		{name: "none filed, today the first", from: now, filed: views.OldestKept(time.Time{}, 0, now), want: true},
+		{name: "not known", from: october(6, 0, 0), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			table := views.LogEvents(views.LogEventSources{From: tt.from, Filed: tt.filed, Now: now})
+			if got := table.Reached(); got != tt.want {
+				t.Errorf("from %s, the Events reach as far back as they read: %v, want %v", tt.from.Format(time.DateOnly), got, tt.want)
+			}
+		})
+	}
 }
 
 // The Events' lines rule their days as the Requests' do: a row of each
