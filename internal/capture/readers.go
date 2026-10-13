@@ -2,6 +2,8 @@ package capture
 
 import (
 	"cmp"
+	"fmt"
+	"io/fs"
 	"iter"
 	"slices"
 	"strings"
@@ -128,6 +130,19 @@ func (l heldLedger) FirstDay(now time.Time) (time.Time, error) {
 	return start, nil
 }
 
+// FirstLinesDay gives the start of the first day the records' lines that
+// arrived by now are filed under, as a Follower finds the first day its
+// files hold lines of, failing with fs.ErrNotExist where none has.
+func (l heldLedger) FirstLinesDay(now time.Time) (time.Time, error) {
+	lines := l.arrived(now)
+	if len(lines) == 0 {
+		return time.Time{}, fmt.Errorf("the records hold no day's lines: %w", fs.ErrNotExist)
+	}
+	first := slices.MinFunc(lines, func(a, b filed) int { return strings.Compare(a.date, b.date) })
+	start, _, _ := dayfile.Day(first.date)
+	return start, nil
+}
+
 // Today gives every line that arrived from today's start to now, oldest
 // first, as a Follower orders them, afresh, whatever mark says, as a Follower
 // gives them where today's files were replaced: a ledger.Mark is the ledger
@@ -237,11 +252,12 @@ func (l heldLedger) Sessions(ids []string, take func(date string, line ledger.Li
 }
 
 // naming are the dates of the days whose lines name a session wanted, as
-// their summaries would: among those their lines, but quota checks, were of.
+// their summaries would: one a line counts toward, as Line.CountedSession
+// says.
 func naming(lines []filed, wanted map[string]bool) map[string]bool {
 	named := make(map[string]bool)
 	for _, f := range lines {
-		if f.Kind != ledger.KindCheck && wanted[f.Session] {
+		if wanted[f.CountedSession()] {
 			named[f.date] = true
 		}
 	}

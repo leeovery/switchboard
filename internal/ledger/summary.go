@@ -94,10 +94,11 @@ type AccountDay struct {
 	// Models are the account's requests by the model each asked for, in the
 	// order of their names.
 	Models []ModelDay `json:"models,omitempty"`
-	// Sessions counts the sessions its requests were of, as counted says,
-	// and SessionIDs are their ids, in order, each once, so a span of days,
-	// or every account, counts a session once. MovedOn and MovedOff count
-	// those its requests moved onto it, and off it.
+	// Sessions counts the sessions its requests were of, as
+	// Line.CountedSession says, and SessionIDs are their ids, in order, each
+	// once, so a span of days, or every account, counts a session once.
+	// MovedOn and MovedOff count those its requests moved onto it, and off
+	// it.
 	Sessions   int      `json:"sessions"`
 	SessionIDs []string `json:"session_ids,omitzero"`
 	MovedOn    int      `json:"moved_on"`
@@ -122,6 +123,25 @@ type AccountDay struct {
 	// what tells a summary made again, as Summarise says, that a limit it
 	// finds no reading before was read before once.
 	ReadBefore []string `json:"read_before,omitempty"`
+}
+
+// Unnamed is how many of the sessions the account's day counts it doesn't
+// name by their ids, those it might be of beyond those it names: every one,
+// of a day summarised before version 2, which named none; none, of one that
+// names them all, or that counts none, as an account the readings history
+// alone tells of.
+func (a AccountDay) Unnamed() int {
+	return max(a.Sessions-len(a.SessionIDs), 0)
+}
+
+// Unnamed is how many of the sessions its accounts' days count they don't
+// name, as AccountDay.Unnamed says: a day with any might be of any session.
+func (s Summary) Unnamed() int {
+	n := 0
+	for _, a := range s.Accounts {
+		n += a.Unnamed()
+	}
+	return n
 }
 
 // ModelDay is a model's day on an account: its requests, by how each went,
@@ -150,9 +170,10 @@ type ModelDay struct {
 	Unsent   int `json:"unsent"`
 	Checks   int `json:"checks"`
 	Counts   int `json:"counts"`
-	// Sessions counts the sessions the requests were of, as counted says,
-	// and SessionIDs are their ids, in order, each once, so a span of days,
-	// or every account, counts a model's session once.
+	// Sessions counts the sessions the requests were of, as
+	// Line.CountedSession says, and SessionIDs are their ids, in order, each
+	// once, so a span of days, or every account, counts a model's session
+	// once.
 	Sessions   int      `json:"sessions"`
 	SessionIDs []string `json:"session_ids,omitzero"`
 	// Usage is the requests' usage, summed field for field as the API gives
@@ -526,7 +547,7 @@ func (a *accountTally) model(key modelKey) *modelTally {
 func (t tally) line(l *Line) {
 	a := t.account(l.Account)
 	a.model(keyOf(l)).line(l)
-	a.sessions.add(l.counted())
+	a.sessions.add(l.CountedSession())
 	if l.From != "" {
 		a.movedOn.add(l.Session)
 		t.account(l.From).movedOff.add(l.Session)
@@ -551,18 +572,8 @@ func (m *modelTally) line(l *Line) {
 	default:
 		m.day.Unsent++
 	}
-	m.sessions.add(l.counted())
+	m.sessions.add(l.CountedSession())
 	m.usage.add(l.Usage)
-}
-
-// counted is the session the line's request counts toward: none for a quota
-// check, which Claude Code sends as it resumes a session under an id it
-// never uses again.
-func (l *Line) counted() string {
-	if l.Kind == KindCheck {
-		return ""
-	}
-	return l.Session
 }
 
 // readings tallies each window's highest use on the day that starts at start,

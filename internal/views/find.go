@@ -24,19 +24,20 @@ type DaySession struct {
 }
 
 // DaySessions are the sessions of a day's lines, as Ledger's Day gives them,
-// oldest first: those its summary names, of its lines but Claude Code's
-// quota checks, the last to arrive first.
+// oldest first: those its summary names, each line counting toward the one
+// Line.CountedSession says, the last to arrive first.
 func DaySessions(day []ledger.Held) []DaySession {
 	held := make(map[string]*DaySession)
 	for i := range day {
 		l := &day[i].Line
-		if l.Session == "" || l.Kind == ledger.KindCheck {
+		id := l.CountedSession()
+		if id == "" {
 			continue
 		}
-		s, ok := held[l.Session]
+		s, ok := held[id]
 		if !ok {
-			s = &DaySession{ID: l.Session}
-			held[l.Session] = s
+			s = &DaySession{ID: id}
+			held[id] = s
 		}
 		s.Lines++
 		s.Last = score.Later(s.Last, l.At)
@@ -177,15 +178,14 @@ func (f *finder) judge(s FoundSession) {
 }
 
 // sessionsNamed are the ids of the sessions a day's summary names, each
-// once, in their order, and whether it might name more, as one summarised
-// before version 2, which named none, counts sessions it doesn't name.
+// once, in their order, and whether it might be of more, as one that counts
+// sessions it doesn't name, as Summary.Unnamed says, is.
 func sessionsNamed(s ledger.Summary) (ids []string, might bool) {
 	for _, a := range s.Accounts {
 		ids = append(ids, a.SessionIDs...)
-		might = might || a.Sessions > len(a.SessionIDs)
 	}
 	slices.Sort(ids)
-	return slices.Compact(ids), might
+	return slices.Compact(ids), s.Unnamed() > 0
 }
 
 // dayOf is the local day with the given date.
