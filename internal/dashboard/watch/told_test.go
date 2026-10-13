@@ -355,6 +355,41 @@ func TestARequestTheStreamOpenedAgainTellsOfLateInItsFirstLookIsNeverLost(t *tes
 	}
 }
 
+// d28cRunning is d28c, as the views have it run on work in the frame of the
+// model h drives, at now.
+func d28cRunning(t *testing.T, h *harness, now time.Time) views.Running {
+	t.Helper()
+	f := h.model.frame(now)
+	running := views.RunningOf(h.model.moment(now), f.Sessions, f.Stream)
+	i := slices.IndexFunc(running, func(r views.Running) bool { return r.Session == idD28C && r.Account == "work" })
+	if i < 0 {
+		t.Fatalf("the views run %+v, want d28c on work", running)
+	}
+	return running[i]
+}
+
+func TestOnceTheStreamEndsTheViewsGoByTheRoutersListingKeepingWhatItTold(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	h.hear(told(router.StreamSent, "r1", "work", 0))
+	if a := d28cRunning(t, h, h.clock.now).Activity; a.Doing != views.Asking {
+		t.Fatalf("as the stream tells of r1 going out, d28c is %+v, want it asking", a)
+	}
+
+	// The router restarts: its listing has nothing in flight.
+	h.endStream()
+	f := h.model.frame(h.clock.now)
+	if f.Stream.Live {
+		t.Error("the stream ended, the views read it live, want it no longer")
+	}
+	if a := d28cRunning(t, h, h.clock.now).Activity; a.InFlight() {
+		t.Errorf("the stream ended, d28c is %+v, want it as the router lists it, nothing in flight", a)
+	}
+	if r := f.Stream.Requests["r1"]; !r.InFlight() {
+		t.Errorf("the stream ended, r1 is %+v, want it kept as the stream told it till the stream opens again", r)
+	}
+}
+
 func TestARequestStillRunningAsTheStreamOpensAgainIsNeverLost(t *testing.T) {
 	h := streamingHarness(t)
 	h.keys(toSessions...)

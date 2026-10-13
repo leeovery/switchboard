@@ -78,11 +78,13 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 // config configures the watch of the fixture on a terminal of the given size,
 // by now's clock, as dashboard configures it, its seams the fixture's.
 func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
+	source := f.router.by(now)
 	cfg := watch.Config{
-		Source:     f.router.by(now),
+		Source:     source,
 		Notifier:   quiet{},
 		Now:        now,
 		After:      held,
+		Await:      source.await,
 		Interval:   interval,
 		Policy:     claude.Policy,
 		WindowName: status.NameOfKey,

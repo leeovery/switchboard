@@ -524,8 +524,8 @@ func (t traffic) afresh() traffic {
 }
 
 // unheard is the traffic once the watch no longer hears the stream, as it
-// closes it: no longer live, so the views go by the router's listing, but
-// keeping what it told, for its first look to settle as it opens again.
+// ends or closes: no longer live, so the views go by the router's listing,
+// but keeping what it told, for its first look to settle as it opens again.
 func (t traffic) unheard() traffic {
 	t.live = false
 	return t
