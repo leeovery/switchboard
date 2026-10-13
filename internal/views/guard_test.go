@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"go/types"
 	"slices"
 	"strings"
 	"testing"
@@ -105,11 +106,13 @@ var (
 	}
 	// builtInTheWatch are what the watch builds once each change, as each
 	// reads the ledger or the router's events, or places every line, for the
-	// dashboard to draw as it's held: the dashboard calls none. LogEvents,
-	// LogSessions and FindSessions join them as the Log's events and
-	// sessions do.
+	// dashboard to draw as it's held: the dashboard calls none. Each is one
+	// views declares, or the guard fails, as a ban on a name that's gone
+	// passes whatever the dashboard builds.
 	builtInTheWatch = []string{
-		"views.EventsSince", "views.LogRead.Back", "views.LogRead.Grown", "views.LogRows", "views.ReadLogHeld", "views.TotalsByDay",
+		"views.DaySessions", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsSince", "views.EventsTable.Details",
+		"views.FindSessions", "views.LogEvents", "views.LogRead.Back", "views.LogRead.Grown", "views.LogRows", "views.LogSessions",
+		"views.ReadEvents", "views.ReadLogHeld", "views.TotalsByDay",
 	}
 )
 
@@ -125,6 +128,7 @@ const (
 	callFix        = "read what views makes of it, or name the call in callsAllowed in internal/views/guard_test.go, saying why a drawing package may make it"
 	allowedFix     = "remove it from readersAllowed in internal/views/guard_test.go"
 	allowedCallFix = "remove it from callsAllowed in internal/views/guard_test.go"
+	builtFix       = "remove it from builtInTheWatch in internal/views/guard_test.go"
 )
 
 // absorbedSays says how using what's absorbed breaks the rule, and its owner.
@@ -139,7 +143,7 @@ func builtSays(name string) string {
 
 func TestDrawingReadsTheViewsAlone(t *testing.T) {
 	root := sourcecheck.ModuleRoot(t)
-	sourcecheck.ReportEach(t, drawingBreaches(t, root, sourcecheck.ModulePath(t, root), drawingPackages, readersAllowed, callsAllowed))
+	sourcecheck.ReportEach(t, drawingBreaches(t, root, sourcecheck.ModulePath(t, root), drawingPackages, readersAllowed, callsAllowed, builtInTheWatch))
 }
 
 func TestTheDrawingGuardFindsWhatItGuardsAgainst(t *testing.T) {
@@ -152,7 +156,9 @@ func TestTheDrawingGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/cli/readers.go:printer.allowedMethod",
 		"internal/cli/readers.go:keptReader",
 		"internal/cli/readers.go:goneReader",
-	}, []string{"ledger.Held.Filed", "status.Session.Line", "ledger.Held.Gone"})
+	}, []string{"ledger.Held.Filed", "status.Session.Line", "ledger.Held.Gone"}, []string{
+		"views.LogRows", "views.LogRead.Grown", "views.Gone", "views.LogRead.Gone", "views.Gone.Grown", "views.Row", "views.Row.Session",
+	})
 	want := []string{
 		"internal/cli/calls.go:15: ledger.Table.Summed works a fact out of raw data; " + readsRawFix,
 		"internal/cli/calls.go:15: ledger.Held.Line reads raw data's fields; " + rawFix,
@@ -186,6 +192,11 @@ func TestTheDrawingGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/cli/readers.go:keptReader: readersAllowed allows it, but it keeps the rule; " + allowedFix,
 		"internal/cli/readers.go:goneReader: readersAllowed allows it, but it's gone; " + allowedFix,
 		"ledger.Held.Gone: callsAllowed allows it, but no drawing package calls it; " + allowedCallFix,
+		"views.Gone: builtInTheWatch bans it, but views declares no such function; " + builtFix,
+		"views.LogRead.Gone: builtInTheWatch bans it, but views declares no such function; " + builtFix,
+		"views.Gone.Grown: builtInTheWatch bans it, but views declares no such function; " + builtFix,
+		"views.Row: builtInTheWatch bans it, but views declares no such function; " + builtFix,
+		"views.Row.Session: builtInTheWatch bans it, but views declares no such function; " + builtFix,
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -196,7 +207,8 @@ func TestTheDrawingGuardFindsWhatItGuardsAgainst(t *testing.T) {
 // work facts out of them, what's absorbed and its owner, and functions and
 // methods that take raw data, as one added later would; views, whose
 // functions take raw data, as the surface does, and build what the watch
-// builds; and two drawing packages: the CLI, with a file of each kind of
+// builds, beside a type and its field, which are no functions; and two
+// drawing packages: the CLI, with a file of each kind of
 // breach, one that keeps the rule, calling what's allowed and building the
 // Log's table, a file and functions the allow-list allows, and ones it
 // allows that keep the rule; and the dashboard, with a breach of its own,
@@ -424,24 +436,64 @@ var grow = views.LogRead.Grown
 // the module at root with the given path, break the rule, but in the files
 // and functions allowed: each read of raw data's field, through any field
 // it's embedded in; each use of a function that works a fact out of raw
-// data, or of what an owner absorbed, called or not; and each call of any
-// other function or method of rawPackages that takes raw data, but the calls
-// allowed. Then each file or function allowed that's gone, or keeps the rule,
-// and each call allowed that none of the rest makes.
-func drawingBreaches(t *testing.T, root, module string, dirs, allowed, calls []string) []string {
+// data, of what an owner absorbed, or, in the dashboard, of what built names
+// the watch building, called or not; and each call of any other function or
+// method of rawPackages that takes raw data, but the calls allowed. Then each
+// file or function allowed that's gone, or keeps the rule; each call allowed
+// that none of the rest makes; and each of built views doesn't declare.
+func drawingBreaches(t *testing.T, root, module string, dirs, allowed, calls, built []string) []string {
 	t.Helper()
-	return sourcecheck.Check(t, root, module, drawingRule(module, calls), dirs, sourcecheck.Allowance{
+	problems := sourcecheck.Check(t, root, module, drawingRule(module, calls, built), dirs, sourcecheck.Allowance{
 		Entries: allowed, List: "readersAllowed", Fix: allowedFix,
 		Calls: "callsAllowed", Callers: "drawing package", CallFix: allowedCallFix,
 	})
+	return append(problems, builtGone(t, root, module, built)...)
+}
+
+// builtGone are how each of built, as Names names a function, that views, of
+// the module at root with the given path, doesn't declare breaks the rule.
+func builtGone(t *testing.T, root, module string, built []string) []string {
+	t.Helper()
+	views, err := sourcecheck.NewLoader(t, root, module, nil).Import(module + "/internal/views")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var gone []string
+	for _, name := range built {
+		if !declares(views, name) {
+			gone = append(gone, name+": builtInTheWatch bans it, but views declares no such function; "+builtFix)
+		}
+	}
+	return gone
+}
+
+// declares reports whether views declares the function named, as Names names
+// it: "views.LogRows", or, of a method, "views.LogRead.Grown".
+func declares(views *types.Package, name string) bool {
+	fn, ok := strings.CutPrefix(name, views.Name()+".")
+	if !ok {
+		return false
+	}
+	typ, method, isMethod := strings.Cut(fn, ".")
+	if !isMethod {
+		_, ok := views.Scope().Lookup(fn).(*types.Func)
+		return ok
+	}
+	named, ok := views.Scope().Lookup(typ).(*types.TypeName)
+	if !ok {
+		return false
+	}
+	found, _, _ := types.LookupFieldOrMethod(named.Type(), true, views, method)
+	_, ok = found.(*types.Func)
+	return ok
 }
 
 // drawingRule is the views' rule, of the module with the given path, the
 // calls given allowed: no raw data's field read; no fact worked out of raw
-// data, nor what an owner absorbed; nothing the watch builds built in the
-// dashboard; and no other function or method of rawPackages called that
-// takes raw data.
-func drawingRule(module string, calls []string) sourcecheck.Rule {
+// data, nor what an owner absorbed; nothing built names the watch building
+// built in the dashboard; and no other function or method of rawPackages
+// called that takes raw data.
+func drawingRule(module string, calls, built []string) sourcecheck.Rule {
 	used := make(map[string]sourcecheck.Ban)
 	for _, name := range readsRaw {
 		used[name] = sourcecheck.Ban{Says: name + " works a fact out of raw data; " + readsRawFix}
@@ -449,7 +501,7 @@ func drawingRule(module string, calls []string) sourcecheck.Rule {
 	for name, owner := range absorbed {
 		used[name] = sourcecheck.Ban{Says: absorbedSays(name, owner), In: absorbedIn[name]}
 	}
-	for _, name := range builtInTheWatch {
+	for _, name := range built {
 		used[name] = sourcecheck.Ban{Says: builtSays(name), In: []string{"internal/dashboard"}}
 	}
 	return sourcecheck.Rule{
