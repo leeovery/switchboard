@@ -194,15 +194,16 @@ func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 		return SessionPage{}, false
 	}
 	s := storyOf(requests, src.Prices, today)
-	h := src.Stream.hearing()
-	listed := listedFrom(id, s)
+	var running []status.Session
 	if src.Routed != nil {
-		listed.run(*src.Routed, s, src.Now, h)
+		running = []status.Session{*src.Routed}
 	}
+	by := newLister(running, false, src.Stream, src.Now)
+	listed := by.listed(id, s)
 	page := SessionPage{
 		Session: listed.Session, Dir: listed.Dir, Account: listed.Account, Model: listed.Model, Running: listed.Running, LastSeen: listed.LastSeen,
 		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
-		Resumed: resumedAt(requests), Accounts: accountsOf(requests), Moves: movesOf(s), Turns: turnsOf(requests, h.told[id], listed.Running),
+		Resumed: resumedAt(requests), Accounts: accountsOf(requests), Moves: movesOf(s), Turns: turnsOf(requests, by.h.told[id], listed.Running),
 	}
 	if src.Routed != nil {
 		page.Pin = src.Routed.Pin
