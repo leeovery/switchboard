@@ -3577,7 +3577,10 @@ routing.
    reason or its sessions.
    - **`0 auto` first,** `0` in `text.subtle` and `auto` in bold `text.primary`, its description in
      `text.muted`: `the router chooses`; on a session's card, `the router chooses: side for now`,
-     the account auto would send it to, bold `text.primary`. Picking `auto` clears the accounts;
+     the account auto would send it to, bold `text.primary`: where the router's own rule for a
+     session of no pin of its own would send its next request, which keeps it where it runs while
+     that account has room and its cache is worth keeping, named by the router in its listing of
+     the sessions (the owner's call, 13 October 2026). Picking `auto` clears the accounts;
      picking an account clears `auto`; nothing picked is auto.
    - **Then each account,** numbered by its place in the config, `1 ` in `text.subtle`, its name in
      bold `text.primary`.
