@@ -65,6 +65,36 @@ func TestTheWheelScrollsTheLogsCardUnderThePointer(t *testing.T) {
 	}
 }
 
+// A cap's card that fits under its line with no row to spare keeps its place
+// as a look tells of its moves and it grows, its body scrolling within it,
+// its line left in sight.
+func TestTheLogsEventCardKeepsItsPlaceAsItGrows(t *testing.T) {
+	capped := status.Event{ID: 1, At: past(-time.Minute), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Reserve: 0.05, To: "side", Until: past(3 * time.Hour)}
+	doc := routerDocument(three()...)
+	doc.Events = []status.Event{capped}
+	h := routedHarness(t, doc)
+	h.model.view = dashboard.Log
+	h.start()
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 21})
+	h.typed("]")
+	h.keys(tea.KeyPressMsg{Code: tea.KeyUp}, tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, line := h.drawnAt("╎ 13:11:00")
+	_, top := h.drawnAt("╭─ EVENT")
+
+	capped.Count = 2
+	doc.Events = []status.Event{capped,
+		{ID: 2, At: past(-50 * time.Second), Kind: status.EventMoved, Session: idD28C, Model: opus, From: "work", To: "side", ForcedBy: 1},
+		{ID: 3, At: past(-40 * time.Second), Kind: status.EventMoved, Session: "7f3a0b2c-0000-4000-8000-000000000002", Model: opus, From: "work", To: "side", ForcedBy: 1},
+	}
+	h.startRouter(doc)
+	h.tickUntilAsked()
+	_, lineNow := h.drawnAt("╎ 13:11:00")
+	_, topNow := h.drawnAt("╭─ EVENT")
+	if lineNow != line || topNow != top || !strings.Contains(h.view(), "j k scroll") {
+		t.Errorf("grown by two moves, the card's top is on row %d and its line on %d, the screen\n%s\nwant them on %d and %d, the card scrolling", topNow+1, lineNow+1, h.view(), top+1, line+1)
+	}
+}
+
 // An event's card follows each look, the moves its cap counted growing in
 // it while the page behind stands still; g shows Requests, the card closed.
 func TestTheLogsEventCardFollowsEachLook(t *testing.T) {
