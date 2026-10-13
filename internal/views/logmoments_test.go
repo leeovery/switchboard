@@ -17,13 +17,43 @@ import (
 
 // logSourcesOf are what the Log's table is built from at the moment given:
 // the lines of the days it spans, read with their sessions' through the
-// ledger holding the moment's lines, and the rest as the moment gives them.
+// ledger holding the moment's lines, as readAtOnce reads them, and the rest
+// as the moment gives them.
 func logSourcesOf(hm viewstest.LogMoment) views.LogSources {
-	spanned := slices.DeleteFunc(slices.Clone(hm.Lines), func(l ledger.Line) bool { return !views.Today(hm.From).Holds(l.At) })
 	return views.LogSources{
-		From: hm.From, Now: hm.Now, Read: views.ReadLog(ledgerHolding(hm.Now, hm.Lines...), spanned),
-		Stream: hm.Stream, Totals: hm.Totals, ShowChecks: hm.Shown, ShowCounts: hm.Shown, Prices: ledger.Pricing,
+		From: hm.From, Now: hm.Now, Read: readAtOnce(hm, ledgerHolding(hm.Now, hm.Lines...)),
+		Stream: hm.Stream, Totals: hm.Totals, ShowChecks: hm.Shown, ShowCounts: hm.Shown,
 	}
+}
+
+// readAtOnce is the Log's read of the moment's lines through l, as the watch
+// reads it on opening: today's, as the ledger's Today gives them, then each
+// day before back to the table's first, newest first, as its Day gives one.
+func readAtOnce(hm viewstest.LogMoment, l views.LedgerSessions) views.LogRead {
+	days := spannedDays(hm)
+	read := views.ReadLogHeld(l, days[0], ledger.Pricing, hm.Now)
+	for _, day := range days[1:] {
+		read = read.Back(l, day, hm.Now)
+	}
+	return read
+}
+
+// spannedDays are the moment's lines of the days its table spans, as the ledger
+// holds them, a day's together, in the order the moment gives them: today's
+// first, none where it has none, then each day before with any, newest first.
+func spannedDays(hm viewstest.LogMoment) [][]ledger.Held {
+	first, today := views.Today(hm.From), views.Today(hm.Now)
+	byDate := make(map[string][]ledger.Held)
+	for _, l := range hm.Lines {
+		if day := views.Today(l.At); first.Holds(l.At) && day.Date != today.Date {
+			byDate[day.Date] = append(byDate[day.Date], ledger.Held{Line: l})
+		}
+	}
+	days := [][]ledger.Held{heldOf(slices.DeleteFunc(slices.Clone(hm.Lines), func(l ledger.Line) bool { return !today.Holds(l.At) })...)}
+	for _, date := range slices.Backward(slices.Sorted(maps.Keys(byDate))) {
+		days = append(days, byDate[date])
+	}
+	return days
 }
 
 // logLineOf is what a line of the table says of what the Log's rules decide,

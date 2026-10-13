@@ -267,18 +267,19 @@ func (l *ListedSession) cameBy(m *move) {
 	}
 }
 
-// pricedRow is the row of the request l, as lineRow has it, its worth at the
-// prices on the local day today.
-func pricedRow(l *ledger.Line, s *story, prices ledger.Table, today LedgerDay) RequestRow {
-	r := lineRow(l, s)
-	r.Worth = summed(prices, l, today.Date)
+// lineRow is the row of the request l, a line of the session s tells, nil
+// for one of no session, its worth unpriced and left zero, as the Log's read
+// prices it.
+func lineRow(l *ledger.Line, s *story) RequestRow {
+	r := lineFacts(l)
+	r.toldBy(l, s)
 	return r
 }
 
-// lineRow is the row of the request l, a line of the session s tells, nil
-// for one of no session, its worth unpriced and left zero, as pricedRow
-// prices it.
-func lineRow(l *ledger.Line, s *story) RequestRow {
+// lineFacts is the row of the request l as its line alone tells it, its
+// worth unpriced and left zero, before its session's story tells the rest,
+// as toldBy has it.
+func lineFacts(l *ledger.Line) RequestRow {
 	r := RequestRow{
 		Request: l.Request, At: l.At, Kind: kindOf(l), Session: l.Session, Dir: l.Dir, Model: l.Model, Account: l.Account,
 		Status: l.Status, Canceled: l.Canceled, CutOff: l.CutOff, Failed: l.Failed(), Took: millis(l.TotalMS), Stop: l.Answer.Stop,
@@ -292,13 +293,21 @@ func lineRow(l *ledger.Line, s *story) RequestRow {
 	if tools := l.Answer.Tools; len(tools) > 0 {
 		r.Tool, r.More = tools[0], len(tools)-1
 	}
+	return r
+}
+
+// toldBy has r, the row of the request l as lineFacts has it, say what the
+// story s of its session tells of it, nil for none: whether it's the
+// session's first request, whether it wrote the session's context again, its
+// routing, and so its mark.
+func (r *RequestRow) toldBy(l *ledger.Line, s *story) {
 	var made *move
+	r.NewSession, r.Rewrote = false, false
 	if s != nil {
 		r.NewSession, made, r.Rewrote = s.toldOf(l)
 	}
 	r.Routing = routingOf(l, r.NewSession, made)
 	r.Mark = r.marking().mark()
-	return r
 }
 
 // kindOf is what the request l asked, as its row tells it.
