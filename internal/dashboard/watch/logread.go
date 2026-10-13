@@ -102,15 +102,14 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 // stands as the read is asked: grows its read by the lines the ledger
 // gained, and by those of the days before today it reads again whole, late,
 // as the tail followed them no further, or the line of a request across
-// midnight comes on its day after the day turned; where the day turned,
+// midnight comes on its day after the day turned; where it reads any so,
 // reads again the figures of the days its tables span, from from; and where
 // the oldest day the ledger keeps isn't known, asks it again.
 type logFold struct {
-	read   views.LogRead
-	late   []string
-	from   views.LedgerDay
-	turned bool
-	asks   bool
+	read views.LogRead
+	late []string
+	from views.LedgerDay
+	asks bool
 }
 
 // logFold is what a read of the ledger's tail at now does for the Log: its
@@ -120,10 +119,7 @@ type logFold struct {
 func (m Model) logFold(now time.Time) logFold {
 	today := views.Today(now)
 	late := slices.Concat(m.log.page.Requests.Awaited(today), m.tail.missed(today))
-	return logFold{
-		read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), from: m.log.from, turned: m.tail.turned(today),
-		asks: m.log.oldest.Day.Date == "",
-	}
+	return logFold{read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), from: m.log.from, asks: m.log.oldest.Day.Date == ""}
 }
 
 // grown is the Log grown, through l, at now, by lines, the ledger's gain
@@ -134,7 +130,7 @@ func (f logFold) grown(l views.Ledger, lines []ledger.Held, prices ledger.Table,
 	for _, date := range f.late {
 		g.read = g.read.Back(l, l.Day(date), now)
 	}
-	if f.turned {
+	if len(f.late) > 0 {
 		g.totals = views.TotalsByDay(l, f.from.Start, now, prices)
 	}
 	if f.asks {

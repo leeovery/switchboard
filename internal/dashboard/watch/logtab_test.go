@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // daysCounted is a request ledger followed as it grows, as followed notes
@@ -137,14 +138,15 @@ func TestTheLogReadsEveryDayItWasAwayForAgain(t *testing.T) {
 // look past midnight read the day before again, has its line taken in, shown
 // or hidden: the stream told it ended, so the day it arrived on is read again
 // whole at the next look, as its line is filed under that day, which today's
-// tail never reads.
+// tail never reads; and that day's figures read again, its rule counting it.
 func TestALineOfTheDayBeforeWrittenAfterTheTurnComesAsTheStreamTellsItEnded(t *testing.T) {
 	tests := []struct {
-		name string
-		kind string
+		name     string
+		kind     string
+		requests int
 	}{
-		{name: "a request, shown", kind: ledger.KindMessage},
-		{name: "a quota check, hidden as the Log opens", kind: ledger.KindCheck},
+		{name: "a request, shown", kind: ledger.KindMessage, requests: 2},
+		{name: "a quota check, hidden as the Log opens", kind: ledger.KindCheck, requests: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -178,6 +180,9 @@ func TestALineOfTheDayBeforeWrittenAfterTheTurnComesAsTheStreamTellsItEnded(t *t
 			}
 			if got := h.model.log.read.WrittenTo(); !got.Equal(ended) {
 				t.Errorf("the Log's read holds lines written to %s, want %s, the line of the request across midnight taken in", got, ended)
+			}
+			if i := slices.IndexFunc(h.model.log.totals, func(d views.DayTotals) bool { return d.Date == yesterday }); i < 0 || h.model.log.totals[i].Requests != tt.requests {
+				t.Errorf("the figures of the day before are %+v, want them of %d requests", h.model.log.totals, tt.requests)
 			}
 		})
 	}
