@@ -766,9 +766,9 @@ func TestAMomentAtAnotherNowIsItsDocumentAtThatNow(t *testing.T) {
 	}
 }
 
-// A held moment is its document's at its now, worked out once, and of that
-// document at that now alone: another document, or another now, is another
-// moment's.
+// A held moment is its document's at its now, as its policy judges it,
+// worked out once, and of that document at that now by that policy alone:
+// another document, another now, or another policy is another moment's.
 func TestAHeldMomentIsItsDocumentsAtItsNow(t *testing.T) {
 	doc, at := fullDocument(), built.Add(time.Hour)
 	held := doc.HoldAt(at, policy)
@@ -777,20 +777,26 @@ func TestAHeldMomentIsItsDocumentsAtItsNow(t *testing.T) {
 	}
 	other := doc
 	other.GeneratedAt = doc.GeneratedAt.Add(time.Second)
+	another := policy
+	another.Started = ""
 	tests := []struct {
-		name string
-		held *status.HeldMoment
-		doc  status.Document
-		now  time.Time
-		want bool
+		name   string
+		held   *status.HeldMoment
+		doc    status.Document
+		now    time.Time
+		policy score.Policy
+		want   bool
 	}{
-		{name: "its document at its now", held: held, doc: doc, now: at, want: true},
-		{name: "its document at another now", held: held, doc: doc, now: at.Add(time.Second)},
-		{name: "another document at its now", held: held, doc: other, now: at},
-		{name: "none held", doc: doc, now: at},
+		{name: "its document at its now", held: held, doc: doc, now: at, policy: policy, want: true},
+		{name: "its document at its now, as worked out already", held: doc.At(at, policy).Held(), doc: doc, now: at, policy: policy, want: true},
+		{name: "its document at another now", held: held, doc: doc, now: at.Add(time.Second), policy: policy},
+		{name: "another document at its now", held: held, doc: other, now: at, policy: policy},
+		{name: "its document at its now, by another policy", held: held, doc: doc, now: at, policy: another},
+		{name: "its document at its now, worked out by another policy", held: doc.At(at, another).Held(), doc: doc, now: at, policy: policy},
+		{name: "none held", doc: doc, now: at, policy: policy},
 	}
 	for _, tt := range tests {
-		if got := tt.held.Of(tt.doc, tt.now); got != tt.want {
+		if got := tt.held.Of(tt.doc, tt.now, tt.policy); got != tt.want {
 			t.Errorf("%s: Of() = %v, want %v", tt.name, got, tt.want)
 		}
 	}

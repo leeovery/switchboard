@@ -288,28 +288,36 @@ func (m Moment) At(now time.Time) Moment {
 }
 
 // HeldMoment is a document's moment, worked out the first time it's asked
-// for, and known by the document it's of, by when that was built, and the
-// time it's at: for every look at the one document at the one time to share.
+// for, and known by the document it's of, by when that was built, the time
+// it's at, and the policy it's judged by: for every look at the one document
+// at the one time, by the one policy, to share.
 type HeldMoment struct {
 	generated, now time.Time
+	policy         score.Policy
 	moment         func() Moment
 }
 
 // HoldAt is the document at now, as policy judges it, held, as HeldMoment has
 // it.
 func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
-	return &HeldMoment{generated: d.GeneratedAt, now: now, moment: sync.OnceValue(func() Moment { return d.At(now, policy) })}
+	return &HeldMoment{generated: d.GeneratedAt, now: now, policy: policy, moment: sync.OnceValue(func() Moment { return d.At(now, policy) })}
 }
 
 // Held is the moment held, worked out already, as HoldAt holds one: for every
-// look at its document at its Now to share.
+// look at its document at its Now, by its policy, to share.
 func (m Moment) Held() *HeldMoment {
-	return &HeldMoment{generated: m.doc.GeneratedAt, now: m.Now, moment: func() Moment { return m }}
+	return &HeldMoment{generated: m.doc.GeneratedAt, now: m.Now, policy: m.policy, moment: func() Moment { return m }}
 }
 
-// Of reports whether h holds the moment of d at now: nil holds none.
-func (h *HeldMoment) Of(d Document, now time.Time) bool {
-	return h != nil && h.generated.Equal(d.GeneratedAt) && h.now.Equal(now)
+// Of reports whether h holds the moment of d at now, as policy judges it: nil
+// holds none. It knows d by when it was built alone, never by what it holds,
+// which is sound only as every producer, the router, probing and capture's
+// documents, stamps GeneratedAt as it builds a document, so two documents
+// are never of the one instant; and as a holder of one of a document on
+// screen holds one afresh whenever another lands there, as the watch's show
+// does. A holder relying on it relies on both.
+func (h *HeldMoment) Of(d Document, now time.Time, policy score.Policy) bool {
+	return h != nil && h.generated.Equal(d.GeneratedAt) && h.now.Equal(now) && h.policy.Equal(policy)
 }
 
 // Moment is the moment h holds.
