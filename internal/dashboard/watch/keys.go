@@ -16,12 +16,16 @@ import (
 // and ↓ move the focus, as overviewKey says; on History, [ ], < >, v and ←
 // → act as historyKey says; on the Log, [ ], ↑ ↓, end, esc, enter, f and /
 // act as logKey says; tab and shift-tab show the next tab and the one
-// before, as turn has it; esc drops a session's page asked to open, as
-// closeSession has it; t opens the theme picker; and w, in Runway, switches
-// between the day and the week. The rest do nothing: the number keys and m
-// among them, which act in the routing card alone.
+// before, as turn has it; t opens the theme picker; and w, in Runway,
+// switches between the day and the week. esc, whatever the page does with
+// it, drops a session's page asked to open, as unasked has it. The rest do
+// nothing: the number keys and m among them, which act in the routing card
+// alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
+	if k == "esc" {
+		m = m.unasked()
+	}
 	if by, ok := scrollKey(k); ok {
 		return m.scrollView(by), nil
 	}
@@ -40,8 +44,6 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return afresh.turn(1)
 	case "shift+tab":
 		return afresh.turn(-1)
-	case "esc":
-		return m.closeSession(), nil
 	case "t":
 		return afresh.openPicker()
 	case "w":

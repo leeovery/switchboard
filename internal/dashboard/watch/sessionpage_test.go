@@ -174,6 +174,44 @@ func TestAPageAskedToOpenOpensNothingOnceLeftBeforeItsLinesAreRead(t *testing.T)
 	}
 }
 
+// On the Log, esc acts as the Log has it, and drops a session's page asked
+// to open all the same, as s asks one: paused, the Log follows again, and
+// following, it stays as it is; either way the page's read opens nothing as
+// it lands. Left alone, the read opens the page over the Log, paused as it
+// was.
+func TestEscOnTheLogDropsAPageAskedToOpenAsTheLogTakesIt(t *testing.T) {
+	tests := []struct {
+		name        string
+		paused, esc bool
+	}{
+		{name: "paused, esc", paused: true, esc: true},
+		{name: "following, esc", esc: true},
+		{name: "paused, no esc", paused: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
+			h := routedHarness(t, routerDocument(three()...))
+			onTheLog(h, state)
+			h.start()
+			if tt.paused {
+				h.keys(upKey)
+			}
+			next, read := h.model.openSession(idD28C)
+			h.model = next
+			if tt.esc {
+				h.keys(escKey)
+			}
+			h.deliver(h.run(read)...)
+			opened, paused := h.model.session != nil, h.model.log.page.Paused()
+			if opened == tt.esc || paused != (tt.paused && !tt.esc) {
+				t.Errorf("the read landed: a page open %t, the Log paused %t; want a page open %t, the Log paused %t", opened, paused, !tt.esc, tt.paused && !tt.esc)
+			}
+		})
+	}
+}
+
 // A session's page leaves as its keys and clicks have it: esc goes back to
 // the tab it was opened over, as it was left; tab and shift-tab, and a click
 // on a tab, go to that tab from its top.
