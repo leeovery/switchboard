@@ -19,7 +19,7 @@ func TestROUTINGTheCardAndCOMINGUPAgreeWithTheMomentAtEachHardMoment(t *testing.
 			f := frameOf(160, 40)
 			m := f.Moment(hm.Doc, hm.Now)
 			checkROUTINGAgrees(t, m, f.routingTableOf(hm.Doc, hm.Now))
-			checkCardAgrees(t, m, RoutingRows(hm.Doc, nil, hm.Now, claudeLike))
+			checkCardAgrees(t, m, RoutingRows(m, nil))
 			checkCOMINGUPAgrees(t, m, f.upcoming(hm.Doc, hm.Now))
 			if said := f.quiet(m) != nil; said != (m.Routed || m.Probed) {
 				t.Errorf("LATELY says why it's quiet: %v; want %v, as the document was read from the router or by probing", said, !said)

@@ -1027,7 +1027,7 @@ func sessionRow(t *testing.T, f Frame, doc status.Document, now time.Time) strin
 // statusOf is what status's text says of work, the first account, in doc at
 // now: its lines, to the blank line after them.
 func statusOf(doc status.Document, now time.Time) string {
-	text, _, _ := strings.Cut(doc.Text(now, claudeLike), "\n\n")
+	text, _, _ := strings.Cut(doc.At(now, claudeLike).Text(), "\n\n")
 	return text
 }
 

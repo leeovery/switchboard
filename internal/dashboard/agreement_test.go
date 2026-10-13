@@ -77,7 +77,7 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 		now: now, moment: m,
 		usage:      newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, claudeLike.Shared, labelsOf(m))),
 		routing:    f.routingTableOf(doc, now),
-		card:       RoutingRows(doc, nil, now, claudeLike),
+		card:       RoutingRows(m, nil),
 		coming:     f.upcoming(doc, now),
 		statusLine: f.pageStatus(doc, now),
 		day:        Frame{Policy: claudeLike, Span: Day},

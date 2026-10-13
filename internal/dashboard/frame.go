@@ -117,12 +117,21 @@ type Frame struct {
 // frame, or a copy of it, takes of doc at now after, each view's and the bars
 // eased to it, as Filled has them. A frame holding the moment of doc at now
 // already is as it was; a look at another moment, or of another document,
-// works it out afresh.
+// works it out afresh. Each look the frame takes, as Draw, Numbers and
+// Scrolling do, holds the moment first, so none works out two.
 func (f Frame) At(doc status.Document, now time.Time) Frame {
 	if f.held.Of(doc, now) {
 		return f
 	}
 	f.held = doc.HoldAt(now, f.Policy)
+	return f
+}
+
+// Holding is the frame holding h, a moment of a document at a time held
+// already, as one a read worked out: At keeps it for a look at that document
+// at that time, and works one out afresh for any other.
+func (f Frame) Holding(h *status.HeldMoment) Frame {
+	f.held = h
 	return f
 }
 
@@ -265,6 +274,7 @@ const (
 // else what of the view scrolls, as scrolls has it, where the page has room
 // for the view, as cramped says.
 func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
+	f = f.At(doc, now)
 	inside := func(left, top, width, height int) bool {
 		return left <= x && x < left+width && top <= y && y < top+height
 	}

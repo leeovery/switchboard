@@ -17,11 +17,17 @@ func RoomAgain(account, title string) Notice {
 	return Notice{Account: account, News: "room again", Message: title + " has room again"}
 }
 
+// Warns reports whether warning, the share of a window's limit that's warned
+// of, warns of any: 0 warns of none.
+func Warns(warning float64) bool {
+	return warning > 0
+}
+
 // Passed reports whether a window used as far as before, and now after, has
-// passed warning, the share of its limit that's warned of: never when that's
-// 0, which warns of none.
+// passed warning, the share of its limit that's warned of: never where it
+// warns of none, as Warns says.
 func Passed(before, after, warning float64) bool {
-	return warning > 0 && before < warning && after >= warning
+	return Warns(warning) && before < warning && after >= warning
 }
 
 // Warning is the notice of a window of the account with the given id, titled

@@ -294,6 +294,12 @@ func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
 	return &HeldMoment{generated: d.GeneratedAt, now: now, moment: sync.OnceValue(func() Moment { return d.At(now, policy) })}
 }
 
+// Held is the moment held, worked out already, as HoldAt holds one: for every
+// look at its document at its Now to share.
+func (m Moment) Held() *HeldMoment {
+	return &HeldMoment{generated: m.doc.GeneratedAt, now: m.Now, moment: func() Moment { return m }}
+}
+
 // Of reports whether h holds the moment of d at now: nil holds none.
 func (h *HeldMoment) Of(d Document, now time.Time) bool {
 	return h != nil && h.generated.Equal(d.GeneratedAt) && h.now.Equal(now)
@@ -341,12 +347,6 @@ func (m Moment) Pool() PoolNow {
 		now.Windows = append(now.Windows, PoolWindowNow{Key: w.Key, Room: w.Room, Used: w.Used, Pace: w.Pace})
 	}
 	return now
-}
-
-// Text is the document as status prints it at Now, as Text has it, with the
-// sessions given.
-func (m Moment) Text(sessions ...Session) string {
-	return m.doc.Text(m.Now, m.policy, sessions...)
 }
 
 // Destination says where a pin to the accounts with the given ids sends

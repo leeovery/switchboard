@@ -304,7 +304,7 @@ func TestTextFromElsewherePrintsItsControlCharactersAsSpaces(t *testing.T) {
 	for _, tt := range tests {
 		for _, p := range []dashboard.Printout{{Width: 160}, {Width: 160, By: dashboard.ByAccount}, {Width: 80}} {
 			t.Run(fmt.Sprintf("%s, %d columns, by %d", tt.name, p.Width, p.By), func(t *testing.T) {
-				printed := strings.Join(p.Draw(tt.doc, now), "\n")
+				printed := strings.Join(p.Draw(tt.doc.At(now, p.Policy)), "\n")
 				if strings.ContainsAny(printed, "\x1b\a") {
 					t.Errorf("printed %q, want no control characters from the document", printed)
 				}

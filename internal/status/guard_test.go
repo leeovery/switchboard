@@ -67,6 +67,31 @@ var callsAllowed = []string{
 	"status.Document.IncompleteAsRead", "status.Document.NextFetchAsRead", "status.Document.RereadAfterResetAsRead",
 }
 
+// momentsMade are the functions and methods of viewPackages that work out a
+// document's moment, as worksOut names what does, each by its name, as nameOf
+// has it: where a look starts, which reads the one moment it works out, or
+// hands it on, for every view of it. Any other fails, as one added later
+// would, so a look holding a moment works out no second of the same document
+// at the same time. The list only shrinks: one that works none out fails.
+var momentsMade = []string{
+	// The frame's, which holds the moment of the document it draws for each
+	// of its looks to share, else works it out for the one look asking.
+	"dashboard.Frame.At", "dashboard.Frame.Moment",
+	// The watch's: the moment of the message Update takes in, held for every
+	// look it takes; a read's, as it lands, which show holds in its place;
+	// whether a read is the router's, before the watch takes it in; the
+	// moment Update holds, else worked out where no frame is asked for; and
+	// each last look's, taken to a new look's moment, once for every account
+	// it last read.
+	"dashboard/watch.Model.Update", "dashboard/watch.Model.fetched", "dashboard/watch.fetchFrom",
+	"dashboard/watch.Model.moment", "dashboard/watch.takenTo",
+	// The commands', each of the one document it reads.
+	"cli.app.pinning", "cli.app.printUsage", "cli.newStatusCommand",
+}
+
+// worksOut are what work out a document's moment.
+var worksOut = []string{"status.Document.At", "status.Document.HoldAt", "status.Moment.At"}
+
 // What breaks the rule, each by its package's name under the module's
 // internal directory, then its type's, where it's a method, then its own.
 var (
@@ -95,7 +120,7 @@ var (
 		"status.Best",
 		"status.Account.HeldBy", "status.Account.Shut", "status.Account.TokenRefused", "status.Account.WindowAt",
 		"status.Document.Destination", "status.Document.Floor", "status.Document.Reserved", "status.Document.RunsOut",
-		"status.Document.StateOf", "status.Document.Text", "status.Document.WindowStatesOf",
+		"status.Document.StateOf", "status.Document.WindowStatesOf",
 	}
 )
 
@@ -112,6 +137,8 @@ const (
 	callFix        = "read the moment's fact, or name the call in callsAllowed in internal/status/guard_test.go, saying why a view may make it"
 	allowedFix     = "remove it from readsAllowed in internal/status/guard_test.go"
 	allowedCallFix = "remove it from callsAllowed in internal/status/guard_test.go"
+	madeFix        = "hand on the moment the look holds, or name the function in momentsMade in internal/status/guard_test.go, saying why it works one out"
+	allowedMadeFix = "remove it from momentsMade in internal/status/guard_test.go"
 )
 
 func TestViewsReadTheMomentAlone(t *testing.T) {
@@ -154,6 +181,76 @@ func TestTheMomentGuardFindsWhatItGuardsAgainst(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
+}
+
+func TestALookWorksOutOneMoment(t *testing.T) {
+	root := moduleRoot(t)
+	reportEach(t, momentsMadeOutside(t, root, modulePath(t, root), viewPackages, momentsMade))
+}
+
+func TestTheMomentsMadeGuardFindsWhatItGuardsAgainst(t *testing.T) {
+	root := writeModule(t, madeFixture)
+	got := momentsMadeOutside(t, root, "example.com/fixture", []string{"internal/view"}, []string{"view.Frame.At", "view.listed", "view.gone"})
+	want := []string{
+		"internal/view/view.go:16: view.again works out a moment with status.Document.At; " + madeFix,
+		"internal/view/view.go:17: view.again works out a moment with status.Moment.At; " + madeFix,
+		"internal/view/view.go:21: view.inside works out a moment with status.Document.At; " + madeFix,
+		"internal/view/view.go:24: a package-level declaration works out a moment with status.Document.At; " + madeFix,
+		"view.gone: momentsMade allows it, but it works out none; " + allowedMadeFix,
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// madeFixture is a module whose status works out a document's moment, and a
+// view package of functions that work one out: one allowed to, at a frame's
+// method; one that works out two, the second of the first; one that does so
+// in a function literal; a package-level declaration; and one allowed to
+// that works out none.
+var madeFixture = map[string]string{
+	"go.mod": "module example.com/fixture\n",
+	"internal/status/status.go": `package status
+
+import "time"
+
+type Document struct{}
+
+type Moment struct{}
+
+type HeldMoment struct{}
+
+func (d Document) At(now time.Time) Moment          { return Moment{} }
+func (d Document) HoldAt(now time.Time) *HeldMoment { return nil }
+func (m Moment) At(now time.Time) Moment            { return m }
+`,
+	"internal/view/view.go": `package view
+
+import (
+	"time"
+
+	"example.com/fixture/internal/status"
+)
+
+type Frame struct{}
+
+func (f Frame) At(doc status.Document, now time.Time) *status.HeldMoment { return doc.HoldAt(now) }
+
+func listed(doc status.Document, now time.Time) status.Moment { return doc.At(now) }
+
+func again(doc status.Document, now time.Time) status.Moment {
+	m := doc.At(now)
+	return m.At(now)
+}
+
+func inside(doc status.Document, now time.Time) func() status.Moment {
+	return func() status.Moment { return doc.At(now) }
+}
+
+var made = status.Document{}.At(time.Time{})
+
+func gone() {}
+`,
 }
 
 // guardFixture is a module of the wire's types, the judges, what the moment
@@ -390,6 +487,65 @@ func momentBreaches(t *testing.T, root, module string, g guarded) []string {
 		}
 	}
 	return problems
+}
+
+// momentsMadeOutside are where the non-test files of the packages in dirs, of
+// the module at root with the given path, work out a document's moment, as
+// worksOut names what does, but in the functions and methods made names:
+// each use, called or not, in any other, a function literal's counting as
+// its function's, or in a package-level declaration. Then each that made
+// names that works none out.
+func momentsMadeOutside(t *testing.T, root, module string, dirs, made []string) []string {
+	t.Helper()
+	r := newRule(module, nil)
+	l := newSourceLoader(t, root, module, dirs)
+	var problems []string
+	making := make(map[string]bool)
+	for _, dir := range dirs {
+		for _, f := range l.load(dir) {
+			for _, decl := range f.ast.Decls {
+				who := "a package-level declaration"
+				if fd, ok := decl.(*ast.FuncDecl); ok {
+					who = r.nameOf(f.info.Defs[fd.Name].(*types.Func))
+				}
+				for _, u := range f.momentsIn(decl, r) {
+					making[who] = true
+					if !slices.Contains(made, who) {
+						problems = append(problems, f.at(u.at)+": "+who+" works out a moment with "+u.name+"; "+madeFix)
+					}
+				}
+			}
+		}
+	}
+	for _, name := range made {
+		if !making[name] {
+			problems = append(problems, name+": momentsMade allows it, but it works out none; "+allowedMadeFix)
+		}
+	}
+	return problems
+}
+
+// use is where a file uses a function, by its name, as nameOf has it.
+type use struct {
+	at   token.Pos
+	name string
+}
+
+// momentsIn are where the declaration in f works out a document's moment, in
+// the order they come in it, each with what of worksOut it uses.
+func (f checkedFile) momentsIn(decl ast.Decl, r rule) []use {
+	var uses []use
+	ast.Inspect(decl, func(n ast.Node) bool {
+		id, ok := n.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if fn, ok := f.info.Uses[id].(*types.Func); ok && slices.Contains(worksOut, r.nameOf(fn)) {
+			uses = append(uses, use{at: id.Pos(), name: r.nameOf(fn)})
+		}
+		return true
+	})
+	return uses
 }
 
 // rule is what breaks the moment's rule, each named in full, by its package's
@@ -717,7 +873,7 @@ func (l *sourceLoader) check(importPath, dir string, std bool) (*types.Package, 
 		IgnoreFuncBodies: !whole,
 		Error:            func(err error) { typeErrs = append(typeErrs, err) },
 	}
-	info := &types.Info{Selections: make(map[*ast.SelectorExpr]*types.Selection), Uses: make(map[*ast.Ident]types.Object)}
+	info := &types.Info{Selections: make(map[*ast.SelectorExpr]*types.Selection), Uses: make(map[*ast.Ident]types.Object), Defs: make(map[*ast.Ident]types.Object)}
 	pkg, _ := conf.Check(importPath, l.fset, files, info)
 	if std && len(typeErrs) > 0 {
 		return nil, typeErrs[0]

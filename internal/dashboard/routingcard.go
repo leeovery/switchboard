@@ -8,7 +8,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -112,22 +111,21 @@ type Figure struct {
 	Read, Stale bool
 }
 
-// RoutingRows are the routing card's rows of doc at now, by policy, with
-// the sessions the router listed: 0 auto's, then an account's each, in the
-// config's order, each with its state, as closedBy says, its windows' use,
-// and its sessions running.
-func RoutingRows(doc status.Document, sessions []status.Session, now time.Time, policy score.Policy) []RoutingRow {
-	m := doc.At(now, policy)
+// RoutingRows are the routing card's rows of the moment m, with the sessions
+// the router listed: 0 auto's, then an account's each, in the config's
+// order, each with its state, as closedBy says, its windows' use, and its
+// sessions running.
+func RoutingRows(m status.Moment, sessions []status.Session) []RoutingRow {
 	rows := []RoutingRow{{Key: "0", Name: "auto", Open: true, Pickable: true}}
 	for i, a := range m.Accounts {
-		session, _ := a.Window(policy.Started)
+		session, _ := startedWindow(a)
 		week, _ := sharedWeek(a)
 		row := RoutingRow{
 			Account: a.ID, Name: name(a), Pickable: pickable(a),
 			Session: figureOf(session), Week: figureOf(week),
-			Running: running(sessions, a.ID, now),
+			Running: running(sessions, a.ID, m.Now),
 		}
-		row.Reason, row.Capped = closedBy(a, now)
+		row.Reason, row.Capped = closedBy(a, m.Now)
 		row.Open = row.Reason == ""
 		if i < numbered {
 			row.Key = strconv.Itoa(i + 1)
@@ -193,7 +191,21 @@ func figureOf(w status.WindowNow) Figure {
 // reporting false, where it has none, one it hasn't reported, as Window has
 // it.
 func sharedWeek(a status.AccountNow) (status.WindowNow, bool) {
-	if i := slices.IndexFunc(a.Windows, func(w status.WindowNow) bool { return w.Shared && quota.WeekLong(w.Key) }); i >= 0 {
+	return windowWhere(a, func(w status.WindowNow) bool { return w.Shared && quota.WeekLong(w.Key) })
+}
+
+// startedWindow is the account's window a request starts, as it stands; or,
+// reporting false, where it has none, one it hasn't reported, as Window has
+// it.
+func startedWindow(a status.AccountNow) (status.WindowNow, bool) {
+	return windowWhere(a, func(w status.WindowNow) bool { return w.Started })
+}
+
+// windowWhere is the first of the account's windows that is, as it stands;
+// or, reporting false, where none is, one it hasn't reported, as Window has
+// it.
+func windowWhere(a status.AccountNow, is func(status.WindowNow) bool) (status.WindowNow, bool) {
+	if i := slices.IndexFunc(a.Windows, is); i >= 0 {
 		return a.Windows[i], true
 	}
 	return a.Window("")

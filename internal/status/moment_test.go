@@ -81,9 +81,6 @@ func checkMomentAgainstStatus(t *testing.T, doc status.Document, m status.Moment
 	if want := dashboardBestOf(doc); m.Next != want {
 		t.Errorf("Next = %q, want %q, as the dashboard's bestOf marks ▲", m.Next, want)
 	}
-	if got, want := m.Text(), doc.Text(now, policy); got != want {
-		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
-	}
 	ids := make([]string, len(doc.Accounts))
 	for i, a := range doc.Accounts {
 		ids[i] = a.ID
@@ -134,7 +131,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		Routing: got.Routing, Hold: hold, Held: held, LimitHolds: a.Limit.Holds(now), LimitSince: got.LimitSince,
 		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapBack: capBack,
 		Refusal: refusal, TokenRefused: a.TokenRefused(now),
-		Pressure: status.PressureNow{Under: doc.Pressed(a, now) != "", Window: a.Pressure.Window, Out: pressureOut},
+		Pressure: status.PressureNow{Under: a.UnderPressure(now), Window: a.Pressure.Window, Out: pressureOut},
 		Idle:     a.HasLapsed(policy.Started, now, policy), NextPrime: primeOf(doc, a.ID),
 		OutOfQuota: outOfQuota, CanRise: a.TokenSet && !a.FetchedAt.IsZero() && !outOfQuota && !a.TokenRefused(now),
 		Windows: got.Windows,
@@ -582,7 +579,7 @@ func TestThePressureLinesTimeIsTheRoutersForAnyDocumentItBuilds(t *testing.T) {
 		if a.Pressure.Out.Reserve {
 			verb = "at its reserve"
 		}
-		if got, want := doc.Pressed(doc.Accounts[0], built), "under pressure: "+verb+" ~"+status.TimeOfDay(built, stored.RunsOut); got != want {
+		if got, want := doc.Pressed(doc.Accounts[0], built, policy), "under pressure: "+verb+" ~"+status.TimeOfDay(built, stored.RunsOut); got != want {
 			t.Fatalf("case %d: Pressed() = %q, want %q", i, got, want)
 		}
 	}

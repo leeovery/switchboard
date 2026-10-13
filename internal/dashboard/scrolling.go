@@ -57,6 +57,7 @@ func (f Frame) ScrollsRows() bool {
 // over it, so it goes on an account at a time until the account shows, the
 // page laid out once for every account it goes on.
 func (f Frame) Revealing(doc status.Document, now time.Time, id string) int {
+	f = f.At(doc, now)
 	m := f.Moment(doc, now)
 	i := slices.IndexFunc(m.Accounts, func(a status.AccountNow) bool { return a.ID == id })
 	scrolling := f.scrollingAt(doc, now)
@@ -86,7 +87,7 @@ func (s Scrolling) revealing(at, i int) int {
 // Scrolling is how far the frame's view of doc scrolls at now, scrolled as
 // the frame has it, as scrollingAt says.
 func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
-	return f.scrollingAt(doc, now)(f.Scroll)
+	return f.At(doc, now).scrollingAt(doc, now)(f.Scroll)
 }
 
 // scrollingAt is how far the frame's view of doc scrolls at now, scrolled to

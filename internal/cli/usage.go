@@ -105,8 +105,8 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	if err != nil {
 		return err
 	}
-	now := a.Now()
-	windows, err := opts.windows.keys(doc.At(now, claude.Policy), claude.Policy.Shared)
+	m := doc.At(a.Now(), claude.Policy)
+	windows, err := opts.windows.keys(m, claude.Policy.Shared)
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Windows: windows,
 		Policy:  claude.Policy,
 		Name:    claude.WindowName,
-	}.Draw(doc, now)
+	}.Draw(m)
 	logger.Debug("drew the printout", "width", width, "colors", colors.Profile.String())
 	_, err = io.WriteString(colors, "\n"+strings.Join(rows, "\n")+"\n")
 	return err

@@ -68,18 +68,18 @@ type Upcoming struct {
 // WorkedOut is the document with what's worked out of it as of when it was
 // built, as policy judges its windows: each window's even pace and
 // allowance, the pool, and what's coming up, each as the document stands at
-// that moment, as At has it, by the rules a view reads it by then. It goes by
-// the document's own fields alone, so one that has them already is given
-// back as it was, and one from a router from before it gave them gains them
-// as that router's own would have.
+// that moment, as At has it, by the rules a view reads it by then, of its
+// accounts judged then alone. It goes by the document's own fields alone, so
+// one that has them already is given back as it was, and one from a router
+// from before it gave them gains them as that router's own would have.
 func (d Document) WorkedOut(policy score.Policy) Document {
-	m := d.At(d.GeneratedAt, policy)
+	judged := d.judgeAll(d.GeneratedAt, policy)
+	pool, coming := d.pool(judged), d.comingUp(judged, d.GeneratedAt)
 	d.Accounts = slices.Clone(d.Accounts)
-	for i, j := range m.judged {
+	for i, j := range judged {
 		d.Accounts[i].Windows = j.measured()
 	}
-	d.Pool = m.pool()
-	d.ComingUp = m.comingUp()
+	d.Pool, d.ComingUp = pool, coming
 	return d
 }
 
@@ -343,23 +343,23 @@ func (d Document) poolRoom(a Account, s standing, w quota.Window, at time.Time, 
 	return score.Room(w, d.Floor(a), at)
 }
 
-// comingUp is what's coming to the accounts after the moment, as it's worked
-// out of a document as of when it was built, soonest first, each account as
-// judged then, in the accounts' order: each account's, as comingTo says,
+// comingUp is what's coming to the accounts after now, as it's worked out of
+// a document as of when it was built, soonest first, each account judged at
+// now as given, in the accounts' order: each account's, as comingTo says,
 // those at one time in the order of the accounts, then the router's next
 // prime of each. It's nil when nothing is, as a document read back without
 // any has it.
-func (m Moment) comingUp() []Upcoming {
+func (d Document) comingUp(judged []judgedAccount, now time.Time) []Upcoming {
 	var all []Upcoming
-	for _, j := range m.judged {
-		all = append(all, m.doc.comingTo(j)...)
+	for _, j := range judged {
+		all = append(all, d.comingTo(j)...)
 	}
-	for _, s := range m.doc.Prime.Slots {
+	for _, s := range d.Prime.Slots {
 		all = append(all, Upcoming{At: s.Next, Account: s.Account, Kind: UpcomingPrime})
 	}
 	var after []Upcoming
 	for _, u := range all {
-		if u.At.After(m.Now) {
+		if u.At.After(now) {
 			u.At = u.At.UTC()
 			after = append(after, u)
 		}

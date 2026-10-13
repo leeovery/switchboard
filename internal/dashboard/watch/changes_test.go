@@ -368,8 +368,8 @@ func TestTheCuesCompareTheMomentsOfTheirTwoLooksAtEachHardMoment(t *testing.T) {
 	for _, hm := range statustest.HardMoments(policy) {
 		t.Run(hm.Name, func(t *testing.T) {
 			built := hm.Doc.GeneratedAt
-			c := changes{}.looked(hm.Doc.At(built, policy), router.Health{}).ticked(hm.Doc, hm.Now, policy)
 			was, is := hm.Doc.At(built, policy), hm.Doc.At(hm.Now, policy)
+			c := changes{}.looked(was, router.Health{}).ticked(is)
 			var states []string
 			outs := map[dashboard.Ref]float64{}
 			for i, a := range is.Accounts {

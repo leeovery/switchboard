@@ -309,9 +309,9 @@ func (m Model) answeredAgain(from router.Health) Model {
 
 // held reports whether the limit the router saw the account with the given id
 // reach holds it at now, as the moment of the document on screen then has it,
-// worked out the first time it's asked.
+// as moment says, asked for the first time it's asked.
 func (m Model) held(now time.Time) func(id string) bool {
-	look := sync.OnceValue(func() status.Moment { return m.doc.At(now, m.cfg.Policy) })
+	look := sync.OnceValue(func() status.Moment { return m.moment(now) })
 	return func(id string) bool {
 		a, ok := look().Account(id)
 		return ok && a.LimitHolds

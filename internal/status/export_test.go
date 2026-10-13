@@ -50,13 +50,21 @@ func (d Document) CapHolds(a Account, now time.Time, policy score.Policy) bool {
 	return d.capHolds(a, now, policy)
 }
 
-// Pressed is pressureLine's words.
-func (d Document) Pressed(a Account, now time.Time) string {
-	pressed, _ := d.pressureLine(a, now)
+// Pressed is pressureLine's words of doc's account a, as it stands at now,
+// as policy judges it.
+func (d Document) Pressed(a Account, now time.Time, policy score.Policy) string {
+	an, _ := d.At(now, policy).Account(a.ID)
+	pressed, _ := pressureLine(an.Pressure, now)
 	return pressed
 }
 
-// NotStarted is notStartedNote.
+// UnderPressure is underPressure.
+func (a Account) UnderPressure(now time.Time) bool {
+	return a.underPressure(now)
+}
+
+// NotStarted is notStartedNote of the account with the given id, as the
+// router primes it.
 func (d Document) NotStarted(id string, now time.Time) string {
-	return d.notStartedNote(id, now)
+	return notStartedNote(d.primeOf(id), now)
 }
