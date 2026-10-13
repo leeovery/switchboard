@@ -225,6 +225,28 @@ side  today 09:12 – 09:20            2 requests  ≈ 2 points of its 5-hour   
 	}
 }
 
+func TestASessionsPageWithoutTheRouterReadsOneWithARequestWithinTheHourAsNotEnded(t *testing.T) {
+	lines := []ledger.Line{
+		pagedLine{request: "o1", prompt: "first", model: "claude-opus-5-5", account: "work", reason: "new", stop: "end_turn", at: october(7, 12, 0, 0), ms: 60000}.line(),
+		pagedLine{request: "o2", prompt: "second", model: "claude-opus-5-5", account: "side", reason: "moved: work hit its limit", from: "work", stop: "end_turn",
+			at: october(7, 12, 40, 0), ms: 60000}.line(),
+	}
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": lines})
+	got := run(t, deps, "sessions", paging, "--pretty")
+	// Idle since its answer ended, on side since its move, and on it till
+	// now, as the router's own rule keeps it within the hour; its models'
+	// accounts, which the router alone says, give way to how long its lines
+	// are kept.
+	for _, want := range []string{
+		"\nidle 31m  ·  on side since 12:40, moved from work: work reached its limit  ·  started 12:00 · 1h 12m\nkept until 11 Nov 2027\n",
+		"\nside  12:40 – now",
+	} {
+		if got.code != 0 || !strings.Contains(got.stdout, want) {
+			t.Errorf("switchboard sessions %s --pretty, the router gone, = %+v, want it to say%s", paging, got, want)
+		}
+	}
+}
+
 func TestATurnWhoseConversationMovedReadsAsItsMove(t *testing.T) {
 	lines := []ledger.Line{
 		pagedLine{request: "m1", prompt: "moving", model: "claude-opus-5-5", account: "work", reason: "new", stop: "tool_use", at: october(7, 11, 0, 0), ms: 60000}.line(),

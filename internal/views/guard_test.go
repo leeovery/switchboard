@@ -48,39 +48,6 @@ var readersAllowed = []string{
 	"internal/dashboard/recent_log.go",
 	"internal/dashboard/seats.go",
 	"internal/dashboard/sessions.go",
-	// requests' text: a request's row (R1), its status and whether it failed
-	// (R1b), its tokens (F1), the session it names (I1), the lines of an
-	// account or a session, and the day each falls on (T6).
-	"internal/cli/requests.go:accountLines",
-	"internal/cli/requests.go:answered",
-	"internal/cli/requests.go:requestRow",
-	"internal/cli/requests.go:sessionHold.add",
-	"internal/cli/requests.go:tokensIn",
-	"internal/cli/requests.go:tokensInOut",
-	"internal/cli/requests.go:writeRequests",
-	// events' text: an event's line (R3), the session it names (I1), and the
-	// day it falls on (T6).
-	"internal/cli/events.go:eventsText.follow",
-	"internal/cli/events.go:eventsText.list",
-	"internal/cli/events.go:eventsText.row",
-	// history's text: a day's figures, as the summary has them (R4), its
-	// tokens (F1), worth (F2) and models' names (I4), its limits reached and
-	// windows named (W4, W5), and the moves of its sessions.
-	"internal/cli/history.go:accountNote",
-	"internal/cli/history.go:eventful",
-	"internal/cli/history.go:highestOf",
-	"internal/cli/history.go:historyTable",
-	"internal/cli/history.go:historyTables",
-	"internal/cli/history.go:limitsOf",
-	"internal/cli/history.go:modelName",
-	"internal/cli/history.go:modelRows",
-	"internal/cli/history.go:requestCount",
-	"internal/cli/history.go:weekResets",
-	"internal/cli/history.go:worthOf",
-	// A session named among the router's by its id (R2), those an id starts
-	// listed as status's text lists them.
-	"internal/cli/session.go:app.findSession",
-	"internal/cli/sessionpage.go:listed",
 }
 
 // callsAllowed are the functions and methods of rawPackages that take raw

@@ -402,15 +402,15 @@ func TestSinceATimeTodayIsWhenTheClocksFirstReadItThatDay(t *testing.T) {
 // historyFromThe4th is what history prints of the 4th's table.
 const historyFromThe4th = `Sun 4 Oct 2026
   work  claude-opus-5-5  1 request  186k tokens  1 session  $0.08
-  work: 1 session  ·  highest: Session 50%
+  work: 1 session  ·  highest: 5-hour 50%
 
 ` + historyFromThe6th
 
 // historyFromThe6th is what history prints of the 6th's table and today's.
 const historyFromThe6th = `Tue 6 Oct 2026
   side  claude-opus-5-5  1 request  20k tokens  1 session  $0.02
-  side: 1 session  ·  1 moved on  ·  highest: Session 10%
-  work: no sessions  ·  1 moved off  ·  limits: Session at 22:14  ·  highest: Session 100%
+  side: 1 session  ·  1 moved on  ·  highest: 5-hour 10%
+  work: no sessions  ·  1 moved off  ·  limits: 5-hour at 22:14  ·  highest: 5-hour 100%
 
 ` + historyOfToday
 
@@ -420,11 +420,11 @@ const historyFromThe6th = `Tue 6 Oct 2026
 // alone, has no row.
 const historyOfToday = `Wed 7 Oct 2026, so far
   no account  claude-opus-5-5  1 request  0 tokens     1 session  $0.00
-  side        claude-opus-5-5  1 request  0 tokens     1 session  $0.00, part unpriced
+  side        claude-opus-5-5  1 request  0 tokens     1 session  $0.00+
   work        claude-opus-5-5  1 request  186k tokens  1 session  $0.08
               claude-opus-9    1 request  110 tokens   1 session  unpriced
-  side: 1 session  ·  highest: Session 10%
-  work: 2 sessions  ·  highest: Session 30%, Week 41%
+  side: 1 session  ·  highest: 5-hour 10%
+  work: 2 sessions  ·  highest: 5-hour 30%, week 41%
 `
 
 // historyPricedAt is what history prints last, the prices its worth is at.
@@ -438,22 +438,22 @@ worth is what they'd have cost through the API, at its prices as of 11 Oct 2026
 // its cap and its limit is the 6th's; the share of use is weighed at API
 // prices, so work's quota check of Haiku is under 1%.
 const historyTotalsFromThe6th = `
-Over these days           work                  side                  all accounts
-  requests                2                     2                     5
-  sessions served         2                     1                     3
-  sessions moved          1 out                 1 in                  1 move
-  limits hit              5-hour ×1             none                  1
-  at cap or limit         2h 10m                none                  2h 10m
-  left at its last reset  Session 0%            Session 90%           -
-  plan                    -                     -                     -
-  worth                   $0.08, part unpriced  $0.02, part unpriced  $0.09, part unpriced
-  against its price       -                     -                     -
-  busiest day             Wed 7 Oct             Tue 6 Oct             Wed 7 Oct
-  longest run             1 day                 2 days                2 days
+Over these days           work       side        all accounts
+  requests                2          2           5
+  sessions served         2          1           3
+  sessions moved          1 out      1 in        1 move
+  limits hit              5-hour ×1  none        1
+  at cap or limit         2h 10m     none        2h 10m
+  left at its last reset  5-hour 0%  5-hour 90%  -
+  plan                    -          -           -
+  worth                   $0.08+     $0.02+      $0.09+
+  against its price       -          -           -
+  busiest day             Wed 7 Oct  Tue 6 Oct   Wed 7 Oct
+  longest run             1 day      2 days      2 days
   by model
-    Opus 5.5              100%                  100%                  100%
-    Haiku 4.5             <1%                   -                     <1%
-    opus-9                -                     -                     -
+    Opus 5.5              100%       100%        100%
+    Haiku 4.5             <1%        -           <1%
+    opus-9                -          -           -
 `
 
 // The weeks history prints, from the 28th and from this week, of which the
@@ -485,41 +485,41 @@ func TestHistoryPrintsEachDayByAccountAndModel(t *testing.T) {
 		want string
 	}{
 		{name: "the last 30 days, of each day the ledger holds", want: historyFromThe4th + `
-Over these days           work                  side                  all accounts
-  requests                3                     2                     6
-  sessions served         2                     1                     3
-  sessions moved          1 out                 1 in                  1 move
-  limits hit              5-hour ×1             none                  1
-  at cap or limit         2h 10m                none                  2h 10m
-  left at its last reset  Session 0%            Session 90%           -
-  plan                    -                     -                     -
-  worth                   $0.16, part unpriced  $0.02, part unpriced  $0.17, part unpriced
-  against its price       -                     -                     -
-  busiest day             Wed 7 Oct             Tue 6 Oct             Wed 7 Oct
-  longest run             1 day                 2 days                2 days
+Over these days           work       side        all accounts
+  requests                3          2           6
+  sessions served         2          1           3
+  sessions moved          1 out      1 in        1 move
+  limits hit              5-hour ×1  none        1
+  at cap or limit         2h 10m     none        2h 10m
+  left at its last reset  5-hour 0%  5-hour 90%  -
+  plan                    -          -           -
+  worth                   $0.16+     $0.02+      $0.17+
+  against its price       -          -           -
+  busiest day             Wed 7 Oct  Tue 6 Oct   Wed 7 Oct
+  longest run             1 day      2 days      2 days
   by model
-    Opus 5.5              100%                  100%                  100%
-    Haiku 4.5             <1%                   -                     <1%
-    opus-9                -                     -                     -
+    Opus 5.5              100%       100%        100%
+    Haiku 4.5             <1%        -           <1%
+    opus-9                -          -           -
 ` + historyNoWeeksFromThe28th + historyPricedAt},
 		{name: "from a day", args: []string{"--since", "2026-10-06"}, want: historyFromThe6th + historyTotalsFromThe6th + historyNoWeeksThisWeek + historyPricedAt},
 		{name: "from the day of a time today", args: []string{"--since", "10:00"}, want: historyOfToday + `
-Over these days           work                  side                  all accounts
-  requests                2                     1                     4
-  sessions served         2                     1                     3
-  sessions moved          none                  none                  none
-  limits hit              none                  none                  none
-  at cap or limit         none                  none                  none
-  left at its last reset  -                     Session 90%           -
-  plan                    -                     -                     -
-  worth                   $0.08, part unpriced  $0.00, part unpriced  $0.08, part unpriced
-  against its price       -                     -                     -
-  busiest day             Wed 7 Oct             Wed 7 Oct             Wed 7 Oct
-  longest run             1 day                 1 day                 1 day
+Over these days           work       side        all accounts
+  requests                2          1           4
+  sessions served         2          1           3
+  sessions moved          none       none        none
+  limits hit              none       none        none
+  at cap or limit         none       none        none
+  left at its last reset  -          5-hour 90%  -
+  plan                    -          -           -
+  worth                   $0.08+     $0.00+      $0.08+
+  against its price       -          -           -
+  busiest day             Wed 7 Oct  Wed 7 Oct   Wed 7 Oct
+  longest run             1 day      1 day       1 day
   by model
-    Opus 5.5              100%                  -                     100%
-    Haiku 4.5             <1%                   -                     <1%
-    opus-9                -                     -                     -
+    Opus 5.5              100%       -           100%
+    Haiku 4.5             <1%        -           <1%
+    opus-9                -          -           -
 ` + historyNoWeeksThisWeek + historyPricedAt},
 		{name: "from the day of days ago", args: []string{"--since", "2d"}, want: historyFromThe6th + historyTotalsFromThe6th + historyNoWeeksThisWeek + historyPricedAt},
 	}
@@ -555,8 +555,8 @@ func TestHistoryNotesADayOfNoRequestsOnlyWhereALimitWasReachedOrAWeekReset(t *te
 		note string
 	}{
 		{name: "its highest use alone, its session reset", read: sideRead("5h", 0.2, quota.StatusAllowed)},
-		{name: "a limit reached", read: sideRead("5h", 1, quota.StatusRejected), note: "side: no sessions  ·  limits: Session at 09:00  ·  highest: Session 100%"},
-		{name: "its week reset", read: sideRead("7d", 0.64, quota.StatusAllowed), note: "side: no sessions  ·  week reset 10:00  ·  highest: Week 64%"},
+		{name: "a limit reached", read: sideRead("5h", 1, quota.StatusRejected), note: "side: no sessions  ·  limits: 5-hour at 09:00  ·  highest: 5-hour 100%"},
+		{name: "its week reset", read: sideRead("7d", 0.64, quota.StatusAllowed), note: "side: no sessions  ·  week reset 10:00  ·  highest: week 64%"},
 		{name: "a model's week reset", read: sideRead("7d_oi", 0.5, quota.StatusAllowed), note: "side: no sessions  ·  Fable week reset 10:00  ·  highest: Fable week 50%"},
 	}
 	for _, tt := range tests {

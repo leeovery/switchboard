@@ -13,9 +13,9 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // requestsOptions are the requests command's flags.
@@ -126,72 +126,17 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	}
 	lines := reader.Lines(from)
 	if opts.session != "" {
-		if lines, err = sessionLines(lines, opts.session); err != nil {
-			return err
+		named, held := views.NamedLines(lines, opts.session)
+		if named.Several != nil {
+			return several(opts.session, named.Several)
 		}
+		lines = slices.Values(held)
 	}
-	lines = accountLines(lines, opts.account)
+	lines = views.OnAccount(lines, opts.account)
 	if a.printsJSON(opts.form, out) {
 		return writeLines(out, lines)
 	}
-	return writeRequests(out, lines, from, now)
-}
-
-// sessionLines returns those of lines of the session given names among
-// theirs, as sessionNamed says. It reads lines once, holding the lines of
-// one session at most, as sessionHold does.
-func sessionLines(lines iter.Seq[ledger.Held], given string) (iter.Seq[ledger.Held], error) {
-	s := newSessionHold(given)
-	for h := range lines {
-		s.add(h)
-	}
-	if _, ok := s.named(); !ok {
-		return nil, several(given, s.ids, prose.Clean)
-	}
-	return slices.Values(s.held), nil
-}
-
-// sessionHold holds, as lines are read, the lines of the session given
-// names among theirs so far, as naming says: those of one session at most,
-// those of the session given names once every line is read.
-type sessionHold struct {
-	*naming
-	holding string
-	held    []ledger.Held
-}
-
-// newSessionHold returns a hold of the lines of the session given names,
-// before any line is read.
-func newSessionHold(given string) *sessionHold {
-	return &sessionHold{naming: newNaming(given)}
-}
-
-// add takes the line h in, holding it where it's of the session named so
-// far, and letting go of those held where that's no longer the session
-// they're of.
-func (s *sessionHold) add(h ledger.Held) {
-	s.note(h.Session)
-	if id, _ := s.named(); id != s.holding {
-		s.holding, s.held = id, nil
-	}
-	if h.Session == s.holding {
-		s.held = append(s.held, h)
-	}
-}
-
-// accountLines returns those of lines of the account with the given id, or
-// every one for "".
-func accountLines(lines iter.Seq[ledger.Held], account string) iter.Seq[ledger.Held] {
-	if account == "" {
-		return lines
-	}
-	return func(yield func(ledger.Held) bool) {
-		for h := range lines {
-			if h.Account == account && !yield(h) {
-				return
-			}
-		}
-	}
+	return writeRequests(out, views.RequestLines(lines, now), from, now)
 }
 
 // writeLines writes each of lines as the ledger holds it, a line each.
@@ -204,51 +149,54 @@ func writeLines(out io.Writer, lines iter.Seq[ledger.Held]) error {
 	return nil
 }
 
-// writeRequests writes lines as requests' text, a table a day, a row each,
+// writeRequests writes rows as requests' text, a table a day, a row each,
 // times in now's time zone, or says there were none since from.
-func writeRequests(out io.Writer, lines iter.Seq[ledger.Held], from, now time.Time) error {
-	at := func(h ledger.Held) time.Time { return h.At }
-	row := func(h ledger.Held, at time.Time) []string { return requestRow(&h, at) }
-	_, err := writeDays(out, lines, at, row, "requests", from, now)
+func writeRequests(out io.Writer, rows iter.Seq[views.RequestLine], from, now time.Time) error {
+	at := func(r views.RequestLine) time.Time { return r.At }
+	row := func(r views.RequestLine) []string { return requestRow(r, now) }
+	_, err := writeDays(out, rows, at, row, "requests", from, now)
 	return err
 }
 
-// requestRow is the row of the request h holds, which arrived at at: its
-// time, its session's id cut short, the model it asked for, the account that
-// answered it, its status, its tokens in and out, and how long it took.
-func requestRow(h *ledger.Held, at time.Time) []string {
-	return []string{at.Format(time.TimeOnly), orNone(status.ShortID(prose.Clean(h.Session))), orNone(prose.Clean(h.Model)),
-		orNone(prose.Clean(h.Account)), answered(&h.Line), tokensInOut(h.Reply), prose.Seconds(time.Duration(h.TotalMS) * time.Millisecond)}
+// requestRow is the row of the request r, at now: when it arrived, to the
+// second in now's time zone, its session's id cut short, the model it asked
+// for, the account that answered it, its status, its tokens in and out, and
+// how long it took.
+func requestRow(r views.RequestLine, now time.Time) []string {
+	return []string{prose.ToTheSecond(now, r.At), orNone(status.ShortID(prose.Clean(r.Session))), orNone(prose.Clean(r.Model)),
+		orNone(prose.Clean(r.Account)), answered(r.RequestRow), tokensInOut(r), took(r.Took)}
 }
 
 // answered says how a request was answered: its status, and whether its
 // client went away before its end, or the router cut it off, as "200
 // canceled".
-func answered(l *ledger.Line) string {
-	answer := strconv.Itoa(l.Status)
+func answered(r views.RequestRow) string {
+	answer := strconv.Itoa(r.Status)
 	switch {
-	case l.Canceled:
+	case r.Canceled:
 		answer += " canceled"
-	case l.CutOff:
+	case r.CutOff:
 		answer += " cut off"
 	}
 	return answer
 }
 
-// tokensInOut says how many tokens a reply's usage counts in and out, as
-// "185k in, 845 out": "" for one that gave none.
-func tokensInOut(r ledger.Reply) string {
-	t, ok := r.Tokens()
-	if !ok {
+// tokensInOut says how many tokens a request's answer's usage counts in and
+// out, as "185k in, 845 out": "" for one that gave none.
+func tokensInOut(r views.RequestLine) string {
+	if !r.Metered {
 		return ""
 	}
-	return prose.Tokens(tokensIn(t)) + " in, " + prose.Tokens(t.Output) + " out"
+	return prose.Tokens(r.In) + " in, " + prose.Tokens(r.Out) + " out"
 }
 
-// tokensIn counts the tokens t counts in: those read from the prompt cache,
-// and written to it, among them.
-func tokensIn(t quota.Tokens) int {
-	return t.Input + t.CacheRead + t.CacheWrite
+// took says how long a request took, as prose.Seconds says it: a dash where
+// it isn't known.
+func took(d *time.Duration) string {
+	if d == nil {
+		return dash
+	}
+	return prose.Seconds(*d)
 }
 
 // dash stands, in the data verbs' text, for what there's none of, or isn't

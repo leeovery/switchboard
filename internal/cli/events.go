@@ -145,9 +145,16 @@ type eventsText struct {
 }
 
 func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error {
-	at := func(h events.Held) time.Time { return h.At }
-	row := func(h events.Held, at time.Time) []string { return p.row(h.Line, at) }
-	table, err := writeDays(p.out, held, at, row, "events", from, now)
+	rows := func(yield func(views.EventRow) bool) {
+		for h := range held {
+			if !yield(p.telling.Row(h, now)) {
+				return
+			}
+		}
+	}
+	at := func(r views.EventRow) time.Time { return r.At }
+	row := func(r views.EventRow) []string { return eventRow(r, now) }
+	table, err := writeDays(p.out, rows, at, row, "events", from, now)
 	p.day, p.widths = table.day, widths(nil, table.indented()...)
 	return err
 }
@@ -157,11 +164,11 @@ func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error
 // changed event of an earlier day, brings.
 func (p *eventsText) follow(h events.Held) error {
 	now := p.now()
-	at := h.At.In(now.Location())
-	row := indented(p.row(h.Line, at))
-	if p.day.IsZero() || !(dayTable{day: p.day}).of(at) {
-		p.day = at
-		if err := (dayTable{day: at}).writeHeading(p.out, now, false); err != nil {
+	told := p.telling.Row(h, now)
+	row := indented(eventRow(told, now))
+	if p.day.IsZero() || !prose.SameDay(now, p.day, told.At) {
+		p.day = told.At
+		if err := (dayTable{day: told.At}).writeHeading(p.out, now, false); err != nil {
 			return err
 		}
 	}
@@ -169,11 +176,11 @@ func (p *eventsText) follow(h events.Held) error {
 	return writeRow(p.out, row, p.widths)
 }
 
-// row is line's row, at at: its time, its session's id cut short, its kind,
-// its account and what happened, as views.Telling tells them.
-func (p *eventsText) row(line events.Line, at time.Time) []string {
-	told := p.telling.Line(line.Event, at)
-	return []string{at.Format(time.TimeOnly), status.ShortID(prose.Clean(line.Session)), told.Kind, told.Account.String(), told.What.String()}
+// eventRow is the row of the event r, at now: when it happened, as
+// prose.Dated says every time of an event, its session's id cut short, its
+// kind, its account and what happened, as views.Telling tells them.
+func eventRow(r views.EventRow, now time.Time) []string {
+	return []string{prose.Dated(now, r.At), status.ShortID(prose.Clean(r.Session)), r.Kind, r.Account.String(), r.What.String()}
 }
 
 // eventsFollower follows the router's events' files, a day's at a time, as
