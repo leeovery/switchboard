@@ -82,13 +82,14 @@ func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 }
 
 // overviewWindows are the windows of doc the Overview shows, in USAGE and
-// GRAPHS, as usage prints them: those every model shares, as the frame's
-// Policy has them, so every account keeps its rows before any is read, and
+// GRAPHS, as usage prints them: those every model shares, as the policy the
+// moment was judged by has them, so every account keeps its rows before any
+// is read, and
 // every other any account reports, in Claude's order, each named as
 // windowNamer names it of doc at now.
 func (f Frame) overviewWindows(doc status.Document, now time.Time) []shownWindow {
 	m := f.Moment(doc, now)
-	return usageWindows(m, nil, f.Policy.Shared, f.windowNamer(m))
+	return usageWindows(m, nil, f.windowNamer(m))
 }
 
 // windowNamer names m's windows by their keys as the Overview names them
@@ -170,7 +171,7 @@ func (f Frame) roomLeft(doc status.Document, now time.Time) line {
 		return nil
 	}
 	a := m.Accounts[0]
-	session, hasSession := a.Window(f.Policy.Started)
+	session, hasSession := a.Window(m.Policy().Started)
 	week, hasWeek := sharedWeek(a)
 	var parts []line
 	for _, w := range []struct {

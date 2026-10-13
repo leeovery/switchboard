@@ -88,7 +88,7 @@ func printName(key string) string {
 // printed is doc's printout width columns wide, grouped by, of the windows
 // with the keys given, as text alone, its windows named as Claude's are.
 func printed(doc status.Document, width int, by By, windows ...string) []string {
-	return Printout{Width: width, By: by, Windows: windows, Policy: printPolicy, Name: printName}.Draw(doc.At(printNow, printPolicy))
+	return Printout{Width: width, By: by, Windows: windows, Name: printName}.Draw(doc.At(printNow, printPolicy))
 }
 
 // colAt is the n cells of row from column col: fewer where it ends sooner.
@@ -117,7 +117,7 @@ func blockOn(t *testing.T, doc status.Document, width int, slug string) *canvas 
 // prints it at printNow, by window, of every window, named as Claude's are.
 func printBlock(doc status.Document, width int, look Look) usageBlock {
 	m := doc.At(printNow, printPolicy)
-	return newUsageBlock(m, width, look, ByWindow, usageWindows(m, nil, printPolicy.Shared, printName))
+	return newUsageBlock(m, width, look, ByWindow, usageWindows(m, nil, printName))
 }
 
 // windowNowOf is the window with the given key of doc's account with the
@@ -603,7 +603,9 @@ func TestUsageShowsTheSharedWindowsAndEveryOneReportedOnceInClaudesOrder(t *test
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := UsageWindows(tt.doc.At(printNow, printPolicy), tt.shared); !slices.Equal(got, tt.want) {
+			policy := printPolicy
+			policy.Shared = tt.shared
+			if got := UsageWindows(tt.doc.At(printNow, policy)); !slices.Equal(got, tt.want) {
 				t.Errorf("UsageWindows() = %q, want %q", got, tt.want)
 			}
 		})
@@ -636,8 +638,10 @@ func TestTheWindowsAreNamedAsNameNamesThem(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := trio().At(printNow, printPolicy)
-			if got := usageWindows(m, nil, tt.shared, Printout{Name: tt.namer}.namer(m)); !slices.Equal(got, tt.want) {
+			policy := printPolicy
+			policy.Shared = tt.shared
+			m := trio().At(printNow, policy)
+			if got := usageWindows(m, nil, Printout{Name: tt.namer}.namer(m)); !slices.Equal(got, tt.want) {
 				t.Errorf("the windows are %+v, want %+v", got, tt.want)
 			}
 		})
@@ -697,7 +701,7 @@ func TestUSAGEAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
 	for _, hm := range statustest.HardMoments(claudeLike) {
 		t.Run(hm.Name, func(t *testing.T) {
 			m := hm.Doc.At(hm.Now, claudeLike)
-			b := newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, claudeLike.Shared, labelsOf(m)))
+			b := newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, labelsOf(m)))
 			for i, a := range m.Accounts {
 				row := b.rows[i]
 				if marked := strings.Contains(row.name.plain(), "▲"); marked != a.Next {

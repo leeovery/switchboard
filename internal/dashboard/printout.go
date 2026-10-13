@@ -3,7 +3,6 @@ package dashboard
 import (
 	"slices"
 
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -32,20 +31,15 @@ type Printout struct {
 	Look  Look
 	By    By
 	// Windows are the windows' keys to print, each once, in Claude's order;
-	// none prints every one.
+	// none prints every one, as UsageWindows has them.
 	Windows []string
-	// Policy is the provider's say in which windows every model shares, which
-	// print whatever is read, so every account keeps its rows before any is:
-	// the policy the moment printed is judged by. A zero Policy names no
-	// window, and prints only the windows read.
-	Policy score.Policy
 	// Name names a window by its key, as "5-hour" or "Fable week"; where
 	// it's nil, a window is named by its label in the document.
 	Name func(key string) string
 }
 
-// Draw draws the printout of the moment m, a document as its Policy judges
-// it at a time: a string for each of its rows, as tall as it is, from the
+// Draw draws the printout of the moment m, a document as a policy judges it
+// at a time: a string for each of its rows, as tall as it is, from the
 // header to the key line, with no blank row before or after. Under the
 // header, after a blank line, or by account two, is the usage block, then a
 // blank line and its key line.
@@ -55,7 +49,7 @@ func (p Printout) Draw(m status.Moment) []string {
 	if p.By == ByAccount {
 		y++
 	}
-	block := newUsageBlock(m, p.Width, p.Look, p.By, usageWindows(m, p.Windows, p.Policy.Shared, p.namer(m)))
+	block := newUsageBlock(m, p.Width, p.Look, p.By, usageWindows(m, p.Windows, p.namer(m)))
 	block.key(c, block.draw(c, y)+1)
 	return c.rows(p.Look)
 }

@@ -274,6 +274,13 @@ func (d Document) At(now time.Time, policy score.Policy) Moment {
 	return m
 }
 
+// Policy is the policy the moment was judged by: which windows every model
+// shares, the one a request starts, and the one pressure is judged in, for
+// its readers to name them as it judged them.
+func (m Moment) Policy() score.Policy {
+	return m.policy
+}
+
 // At is the moment's document as it stands at now instead, as the same
 // policy judges it, as the document's At has it.
 func (m Moment) At(now time.Time) Moment {

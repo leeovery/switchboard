@@ -75,7 +75,7 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 	m := f.Moment(doc, now)
 	d := drawn{
 		now: now, moment: m,
-		usage:      newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, claudeLike.Shared, labelsOf(m))),
+		usage:      newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, labelsOf(m))),
 		routing:    f.routingTableOf(doc, now),
 		card:       RoutingRows(m, nil),
 		coming:     f.upcoming(doc, now),

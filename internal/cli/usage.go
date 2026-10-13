@@ -106,7 +106,7 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		return err
 	}
 	m := doc.At(a.Now(), claude.Policy)
-	windows, err := opts.windows.keys(m, claude.Policy.Shared)
+	windows, err := opts.windows.keys(m)
 	if err != nil {
 		return err
 	}
@@ -120,7 +120,6 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Look:    a.printLook(out, colors.Profile, t, t.kept().Choice),
 		By:      opts.by.or(cfg.Usage.By),
 		Windows: windows,
-		Policy:  claude.Policy,
 		Name:    claude.WindowName,
 	}.Draw(m)
 	logger.Debug("drew the printout", "width", width, "colors", colors.Profile.String())
@@ -207,9 +206,9 @@ func addWindowFlags(cmd *cobra.Command) windowFlags {
 // none is, which prints every window. It fails for a window the printout of
 // the moment m wouldn't show, as dashboard.UsageWindows has them, naming
 // those it would by their flags.
-func (ws windowFlags) keys(m status.Moment, shared []string) ([]string, error) {
+func (ws windowFlags) keys(m status.Moment) ([]string, error) {
 	reported := make(map[string]bool)
-	for _, key := range dashboard.UsageWindows(m, shared) {
+	for _, key := range dashboard.UsageWindows(m) {
 		reported[key] = true
 	}
 	var keys []string
