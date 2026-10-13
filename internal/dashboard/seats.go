@@ -69,39 +69,6 @@ func seatedOn(sessions []status.Session, id string) []seated {
 // while a request of its is in flight.
 const busyWithin = time.Minute
 
-// activeWithin is how lately a session's model was seen on an account for it
-// to count among the account's sessions, as the router counts them: within
-// the hour its cache lasts.
-const activeWithin = time.Hour
-
-// busy are the sessions active on the account with the given id at now, as
-// active says, of those listed, as listing has them, in their order, the one
-// seen last first: each lit while any of its models is busy there, as lit
-// says.
-func (f Frame) busy(listing []status.Session, id string, now time.Time) []bool {
-	var busy []bool
-	for _, s := range listing {
-		on, lit := false, false
-		for _, a := range s.Assignments {
-			seat := seated{session: s, assignment: a}
-			if a.Account == id && f.active(seat, now) {
-				on, lit = true, lit || f.lit(seat, now)
-			}
-		}
-		if on {
-			busy = append(busy, lit)
-		}
-	}
-	return busy
-}
-
-// active reports whether the seat s counts among its account's sessions at
-// now, as the router counts them: seen there within activeWithin, as
-// lastSeen has it, or put there since, as a move the stream told of puts it.
-func (f Frame) active(s seated, now time.Time) bool {
-	return now.Sub(score.Later(f.lastSeen(s), s.assignment.AssignedAt)) <= activeWithin
-}
-
 // lit reports whether the seat s is busy at now: a request of its in flight,
 // as the request stream tells, or it was seen at work in the last minute.
 func (f Frame) lit(s seated, now time.Time) bool {

@@ -246,6 +246,7 @@ func TestOnlyAPageStreamNumberedDrawsANumberTheStreamChanges(t *testing.T) {
 		{Request: "b", Session: id41E0, Account: "personal", Sent: routedAt},
 	}
 	move := Move{Seat: Seat{Session: idD28C, Model: opus}, From: "side", To: "personal", At: routedAt}
+	moved := views.Moved{Session: idD28C, Model: opus, From: "side", To: "personal", At: routedAt}
 	usageAlone := Sections{}.Toggled(SectionRouting).Toggled(SectionComing).Toggled(SectionLately)
 	shown := []Sections{{}, Sections{}.Toggled(SectionSessions), usageAlone, usageAlone.Toggled(SectionRouting), usageAlone.Toggled(SectionSessions)}
 	changing := 0
@@ -256,7 +257,7 @@ func TestOnlyAPageStreamNumberedDrawsANumberTheStreamChanges(t *testing.T) {
 				quiet.View, quiet.Sections, quiet.By = view, sections, by
 				streamed := quiet
 				streamed.Traces = views.Traces{}.Told(sent, routedAt)
-				streamed.Traffic.Moves = []Move{move}
+				streamed.Traffic.Moves, streamed.Stream.Moves = []Move{move}, []views.Moved{moved}
 				changed := changedOf(quiet.Numbers(doc, routedAt), streamed.Numbers(doc, routedAt))
 				if len(changed) == 0 {
 					continue

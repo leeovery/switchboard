@@ -3,16 +3,19 @@ package dashboard
 import (
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // At each moment the views have to tell what a session is doing at, SESSIONS
 // draws each session running on each account as the views have it doing
 // there: when it was last seen, what it's doing, and its id bright while
-// it's busy; and none the views don't have running.
+// it's busy; and none the views don't have running. ROUTING counts those it
+// lists on each account.
 func TestSESSIONSSaysWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 	for _, hm := range viewstest.SessionMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
@@ -55,6 +58,27 @@ func TestSESSIONSSaysWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 					t.Errorf("%s on %s has its id in %+v, want %+v", shown, r.Account, got, want)
 				}
 			}
+			checkROUTINGCountsSESSIONS(t, f, hm.Doc, hm.Now, running)
 		})
+	}
+}
+
+// checkROUTINGCountsSESSIONS checks that ROUTING counts as many sessions on
+// each account as SESSIONS lists running there, where the router lists them.
+func checkROUTINGCountsSESSIONS(t *testing.T, f Frame, doc status.Document, now time.Time, running []views.Running) {
+	t.Helper()
+	if f.Sessions == nil {
+		return
+	}
+	for _, a := range f.routingTableOf(doc, now).accounts {
+		listed := 0
+		for _, r := range running {
+			if r.Account == a.id {
+				listed++
+			}
+		}
+		if a.sessions != listed {
+			t.Errorf("ROUTING counts %d sessions on %s, want the %d SESSIONS lists", a.sessions, a.id, listed)
+		}
 	}
 }

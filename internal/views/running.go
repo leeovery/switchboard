@@ -33,8 +33,8 @@ type Running struct {
 }
 
 // RunningOf are the sessions running on the accounts at the moment m, of
-// the sessions the router listed, as the request stream s has seen them
-// since, as placed has them: a row on each account their models go to,
+// the sessions the router listed, as the request stream s has moved and seen
+// them since, as placed has them: a row on each account their models go to,
 // those running there, as runsOn says, the accounts in the config's order,
 // and on each, the session seen last first.
 func RunningOf(m status.Moment, sessions []status.Session, s Stream) []Running {
@@ -52,6 +52,21 @@ func RunningOf(m status.Moment, sessions []status.Session, s Stream) []Running {
 		running = append(running, on...)
 	}
 	return running
+}
+
+// RunningOn counts the sessions running on the account with the given id at
+// now, of the sessions the router listed, as the request stream s has moved
+// and seen them since, as placed has them: those with a model running there,
+// as runsOn says. It's the count ROUTING and the routing card give, of the
+// sessions SESSIONS lists there.
+func RunningOn(sessions []status.Session, s Stream, id string, now time.Time) int {
+	n := 0
+	for _, session := range s.placed(sessions, s.hearing()) {
+		if slices.ContainsFunc(session.Assignments, func(a status.Assignment) bool { return runsOn(a, id, now) }) {
+			n++
+		}
+	}
+	return n
 }
 
 // runsOn reports whether a session's model, as it's placed in a, runs on
@@ -81,20 +96,88 @@ func runningOn(m status.Moment, s status.Session, id string, h hearing) (Running
 	return r, true
 }
 
-// placed are the sessions the router listed, as the stream s has seen them
-// since, h hearing what it told of them: each model seen as late as the
-// router saw it there, or the stream last told of a request of it there.
-// The sessions given are left as they were.
+// placed are the sessions the router listed, as the stream s has moved and
+// seen them since, h hearing what it told of them: each model the newest
+// move of it took to another account put there, as brought has it, a
+// session the router didn't list that a move brought on put first, as the
+// one seen last; and each model seen as late as the router saw it there, or
+// the stream last told of a request of it there. The sessions given are left
+// as they were.
 func (s Stream) placed(sessions []status.Session, h hearing) []status.Session {
 	placed := make([]status.Session, len(sessions))
 	for i, session := range sessions {
 		session.Assignments = slices.Clone(session.Assignments)
-		for j, a := range session.Assignments {
-			session.Assignments[j].LastSeen = score.Later(a.LastSeen, h.seats[seatOf{session: session.ID, model: a.Model, account: a.Account}].last)
-		}
 		placed[i] = session
 	}
+	for _, m := range newestMoves(s.Moves) {
+		brought := brought(sessions, m)
+		i := slices.IndexFunc(placed, func(session status.Session) bool { return session.ID == m.Session })
+		if i < 0 {
+			placed = slices.Insert(placed, 0, status.Session{ID: m.Session, Assignments: []status.Assignment{brought}})
+			continue
+		}
+		if j := slices.IndexFunc(placed[i].Assignments, func(a status.Assignment) bool { return a.Model == m.Model }); j >= 0 {
+			placed[i].Assignments[j] = brought
+		} else {
+			placed[i].Assignments = append(placed[i].Assignments, brought)
+		}
+	}
+	for _, session := range placed {
+		for i, a := range session.Assignments {
+			session.Assignments[i].LastSeen = score.Later(a.LastSeen, h.seats[seatOf{session: session.ID, model: a.Model, account: a.Account}].last)
+		}
+	}
 	return placed
+}
+
+// newestMoves are the newest of the moves of each session's model, in the
+// order they were told of.
+func newestMoves(moves []Moved) []Moved {
+	type model struct{ session, model string }
+	newest := make(map[model]int, len(moves))
+	for i, m := range moves {
+		newest[model{session: m.Session, model: m.Model}] = i
+	}
+	var kept []Moved
+	for i, m := range moves {
+		if newest[model{session: m.Session, model: m.Model}] == i {
+			kept = append(kept, m)
+		}
+	}
+	return kept
+}
+
+// brought is the model the move m took to the account it went to, put there
+// as it moved: as the router listed it before it moved, of those listed in
+// sessions, its reason the router's still; or, where it didn't, as the move
+// tells of it, its family as the router names the model for any session it
+// lists.
+func brought(sessions []status.Session, m Moved) status.Assignment {
+	for _, s := range sessions {
+		if s.ID != m.Session {
+			continue
+		}
+		for _, a := range s.Assignments {
+			if a.Model == m.Model {
+				a.Account, a.AssignedAt = m.To, m.At
+				return a
+			}
+		}
+	}
+	return status.Assignment{Model: m.Model, Family: familyOf(sessions, m.Model), Account: m.To, AssignedAt: m.At}
+}
+
+// familyOf is the family the router names the model with the given id by,
+// as it lists any session of it in sessions: "" where it lists none.
+func familyOf(sessions []status.Session, model string) string {
+	for _, s := range sessions {
+		for _, a := range s.Assignments {
+			if a.Model == model && a.Family != "" {
+				return a.Family
+			}
+		}
+	}
+	return ""
 }
 
 // whyRunning is why the session s's model is on the account its assignment

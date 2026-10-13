@@ -219,3 +219,39 @@ func TestASessionIsTheBestWhereTheMomentMarksItsAccountAtEachHardMoment(t *testi
 		})
 	}
 }
+
+// The stream's moves put each model the newest move of it took where it
+// went, till a listing of the router's sessions shows it done: the session
+// runs there, and nowhere it ran only by that model; one the router didn't
+// list that a move brought on runs too, named by the family the router
+// gives its model; and RunningOn counts them as RunningOf lists them.
+func TestTheStreamsMovesPutTheSessionsWhereTheyWent(t *testing.T) {
+	sessions := []status.Session{
+		{ID: asking, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, time.Hour, time.Minute, status.Asking)}},
+		{ID: idler, Assignments: []status.Assignment{seatOn("claude-haiku-4-5", "haiku", "work", status.ReasonNew, time.Hour, 9*time.Minute, "")}},
+	}
+	moved := func(session, model, from, to string, ago time.Duration) views.Moved {
+		return views.Moved{Session: session, Model: model, From: from, To: to, Reason: status.ReasonMovedOff + from + " " + status.WhyLimit, At: now.Add(-ago)}
+	}
+	stream := views.Stream{Live: true, Moves: []views.Moved{
+		moved(asking, "claude-opus-5-5", "work", "personal", 3*time.Second),
+		moved(gone, "claude-haiku-4-5", "work", "side", 2*time.Second),
+		moved(asking, "claude-opus-5-5", "personal", "side", time.Second),
+	}}
+	m := runningDoc().At(now, claude.Policy)
+	var got []string
+	for _, r := range views.RunningOf(m, sessions, stream) {
+		got = append(got, r.Account+" "+r.Session[:4]+" "+r.Family)
+	}
+	if want := []string{"work 9c2e haiku", "side d28c opus", "side 7f3a haiku"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("RunningOf lists %q, want %q", got, want)
+	}
+	for id, want := range map[string]int{"work": 1, "personal": 0, "side": 2} {
+		if got := views.RunningOn(sessions, stream, id, now); got != want {
+			t.Errorf("RunningOn(%s) = %d, want %d", id, got, want)
+		}
+	}
+	if sessions[0].Assignments[0].Account != "work" || len(sessions) != 2 {
+		t.Error("the router's listing was changed")
+	}
+}

@@ -56,12 +56,12 @@ type Doing struct {
 // throttled; idle, its answer's end as the stream told it, or, without the
 // stream, as its line gives it; the stream ending with a request in flight,
 // joined again with none; the router restarted; the router gone, or
-// probing; a session ended, then resumed; two models on two accounts; and
-// idle 59 minutes after an answer that called a tool.
+// probing; a session ended, then resumed; a move while it runs; two models
+// on two accounts; and idle 59 minutes after an answer that called a tool.
 func SessionMoments() []SessionMoment {
 	return []SessionMoment{
 		asking(), askingAsListed(), answering(), refused(), throttled(), idleAsTheStreamTold(), idleAsItsLineGives(),
-		lostAsTheStreamEnded(), routerRestarted(), routerGone(), ended(), resumed(),
+		lostAsTheStreamEnded(), routerRestarted(), routerGone(), ended(), resumed(), movedAsItRuns(),
 		twoModelsOnTwoAccounts(), idleAfterAToolCall(),
 	}
 }
@@ -280,6 +280,22 @@ func resumed() SessionMoment {
 	m.Stream = live(told("r1", D28C, Opus, "side", sent, sent))
 	m.Lines = []ledger.Line{line(D28C, Opus, "work", At(13, 30, 0), 20*time.Second)}
 	m.Want = map[string]Doing{D28C: alike("side", views.Activity{Doing: views.Asking, Since: sent, LastSeen: sent})}
+	return m
+}
+
+func movedAsItRuns() SessionMoment {
+	sent, limited := At(14, 42, 4), At(14, 42, 5)
+	r := told("r1", D28C, Opus, "side", sent, limited)
+	m := moment("moved to side as it runs, the router listing it on work still",
+		session(D28C, seat(Opus, "work", sent, status.Asking)),
+		session(C61B, seat(Opus, "work", At(14, 30, 0), "")),
+	)
+	m.Stream = live(r)
+	m.Stream.Moves = []views.Moved{{Request: "r1", Session: D28C, Model: Opus, From: "work", To: "side", Reason: status.ReasonMovedOff + "work " + status.WhyLimit, At: limited}}
+	m.Want = map[string]Doing{
+		D28C: alike("side", views.Activity{Doing: views.Asking, Since: sent, LastSeen: limited}),
+		C61B: alike("work", views.Activity{Since: At(14, 30, 0), LastSeen: At(14, 30, 0)}),
+	}
 	return m
 }
 

@@ -81,15 +81,8 @@ var readersAllowed = []string{
 	// listed as status's text lists them.
 	"internal/cli/session.go:app.findSession",
 	"internal/cli/sessionpage.go:listed",
-	// The sessions running, as the router listed them and the request stream
-	// has moved them since: the sessions on each account (F12).
-	"internal/dashboard/traffic.go:Frame.listing",
 	// The events newer than the last look's, by their ids (J8).
 	"internal/dashboard/watch/news.go:news.looked",
-	// Whether the router's sessions are placed as they were, for the routing
-	// card to price a move afresh (F4).
-	"internal/dashboard/watch/routing.go:samePlace",
-	"internal/dashboard/watch/routing.go:samePlaces",
 }
 
 // callsAllowed are the functions and methods of rawPackages that take raw

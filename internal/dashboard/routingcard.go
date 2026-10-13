@@ -9,6 +9,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // numbered is how many accounts have a number that picks them on the routing
@@ -174,7 +175,7 @@ func till(what string, t time.Time, now time.Time) string {
 // id at now, as its card on the Overview counts them, without what the
 // request stream tells.
 func running(sessions []status.Session, id string, now time.Time) int {
-	return len(Frame{}.busy(sessions, id, now))
+	return views.RunningOn(sessions, views.Stream{}, id, now)
 }
 
 // figureOf is the use of an account's window as it stands, as usage reads it:

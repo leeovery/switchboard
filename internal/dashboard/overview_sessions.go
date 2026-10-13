@@ -51,7 +51,7 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 // them, of the router's listing as the request stream has moved and seen
 // them since.
 func (f Frame) running(doc status.Document, now time.Time) []views.Running {
-	return views.RunningOf(f.Moment(doc, now), f.listing(), f.Stream)
+	return views.RunningOf(f.Moment(doc, now), f.Sessions, f.Stream)
 }
 
 // runningForm is how SESSIONS draws a session running: the rows it takes;
