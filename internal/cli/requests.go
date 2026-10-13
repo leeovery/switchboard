@@ -136,7 +136,7 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	if a.printsJSON(opts.form, out) {
 		return writeLines(out, lines)
 	}
-	return writeRequests(out, views.RequestLines(lines, now), from, now)
+	return writeRequests(out, views.RequestLines(lines), from, now)
 }
 
 // writeLines writes each of lines as the ledger holds it, a line each.

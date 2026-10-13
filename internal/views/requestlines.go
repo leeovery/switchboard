@@ -2,7 +2,6 @@ package views
 
 import (
 	"iter"
-	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
 )
@@ -20,10 +19,8 @@ type RequestLine struct {
 	In int
 }
 
-// RequestLines are the rows of the requests lines hold, in their order. A
-// line's row is the same whenever it's read, so the time it's given goes
-// unread.
-func RequestLines(lines iter.Seq[ledger.Held], _ time.Time) iter.Seq[RequestLine] {
+// RequestLines are the rows of the requests lines hold, in their order.
+func RequestLines(lines iter.Seq[ledger.Held]) iter.Seq[RequestLine] {
 	return func(yield func(RequestLine) bool) {
 		for h := range lines {
 			r := RequestLine{RequestRow: lineRow(&h.Line, nil)}
