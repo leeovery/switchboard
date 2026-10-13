@@ -1078,6 +1078,59 @@ func TestRestart(t *testing.T) {
 	}
 }
 
+// A refusal's answer is the one form whoever tells of it: its status code,
+// then the family refused alone, cleaned, either left out where it's none.
+func TestARefusalsAnswerIsItsCodeThenItsFamily(t *testing.T) {
+	tests := []struct {
+		name   string
+		code   int
+		family string
+		want   string
+	}{
+		{name: "its token", code: 401, want: "refused (401)"},
+		{name: "a family's requests", code: 403, family: "opus", want: "refused (403, opus)"},
+		{name: "a family named from elsewhere, cleaned", code: 403, family: "claude-x\x1b[2J", want: "refused (403, claude-x [2J)"},
+		{name: "a family that cleans to nothing", code: 403, family: "\x1b", want: "refused (403)"},
+		{name: "a family, no code", family: "opus", want: "refused (opus)"},
+		{name: "neither", want: "refused"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.RefusalAnswer(tt.code, tt.family); got != tt.want {
+				t.Errorf("RefusalAnswer(%d, %q) = %q, want %q", tt.code, tt.family, got, tt.want)
+			}
+			if got := (status.Refusal{Status: tt.code, Family: tt.family}).Answer(); got != tt.want {
+				t.Errorf("Refusal.Answer() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// When an account's back, and till when what holds it holds, are said as
+// Dated shows a time, in now's time zone; neither where it's unknown.
+func TestBackAndTillSayATimeAsDatedShowsIt(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name       string
+		at         time.Time
+		back, till string
+	}{
+		{name: "today", at: time.Date(2026, 9, 28, 14, 54, 0, 0, time.UTC), back: "back 15:54", till: "till 15:54"},
+		{name: "another day", at: time.Date(2026, 9, 30, 19, 0, 0, 0, time.UTC), back: "back Wed 20:00", till: "till Wed 20:00"},
+		{name: "unknown", back: "", till: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.Back(now, tt.at); got != tt.back {
+				t.Errorf("Back() = %q, want %q", got, tt.back)
+			}
+			if got := status.Till(now, tt.at); got != tt.till {
+				t.Errorf("Till() = %q, want %q", got, tt.till)
+			}
+		})
+	}
+}
+
 func TestRefusal(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	until := time.Date(2026, 9, 28, 13, 20, 0, 0, time.UTC)
