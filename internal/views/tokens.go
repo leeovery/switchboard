@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 )
@@ -184,7 +185,7 @@ func weekKey(starts time.Weekday) func(Day) (string, bool) {
 // a date that isn't one.
 func weekDate(starts time.Weekday) func(date string) (string, bool) {
 	return func(date string) (string, bool) {
-		day, ok := civil(date)
+		day, ok := dayfile.Civil(date)
 		return weekOf(day, starts).Format(time.DateOnly), ok
 	}
 }

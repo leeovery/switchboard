@@ -155,9 +155,9 @@ func kinded(kind string, l ledger.Line) ledger.Line {
 	return l
 }
 
-// clock is t as the Log shows a time, to the second.
+// clock is t as the Log shows a time, to the second, in its own time zone.
 func clock(t time.Time) string {
-	return t.Format(time.TimeOnly)
+	return prose.ToTheSecond(t, t)
 }
 
 // seconds is n milliseconds as prose.Seconds says them.

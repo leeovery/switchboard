@@ -44,7 +44,7 @@ func readAccount(id string, windows ...quota.Window) status.Account {
 func limitedAccount(id string) status.Account {
 	session := sessionOf(1, time.Hour)
 	session.Status = quota.StatusRejected
-	a := readAccount(id, session, weekOf(0.89, 3*day))
+	a := readAccount(id, session, weekOf(0.89, 3*quota.Day))
 	a.Limit = status.Limit{Windows: []string{"5h"}, Until: session.ResetsAt}
 	return a
 }
@@ -52,7 +52,7 @@ func limitedAccount(id string) status.Account {
 // pressedAccount is an account whose session runs out at its last half
 // hour's rate before it resets: under pressure.
 func pressedAccount(id string) status.Account {
-	a := readAccount(id, sessionOf(0.58, 3*time.Hour), weekOf(0.34, 4*day))
+	a := readAccount(id, sessionOf(0.58, 3*time.Hour), weekOf(0.34, 4*quota.Day))
 	rate := 0.42 / 1.5
 	a.Rates = []status.Rate{{Window: "5h", Rate: rate, Since: now.Add(-score.Recent).UTC()}}
 	a.Pressure = status.Pressure{Window: "5h", Rate: rate, Recent: true, Since: now.Add(-score.Recent).UTC(), RunsOut: now.Add(90 * time.Minute).UTC(), Under: true}
@@ -63,7 +63,7 @@ func pressedAccount(id string) status.Account {
 // frames have them: work under pressure, personal at its limit, and side,
 // where new sessions go.
 func threeRouted() status.Document {
-	return routerDoc("side", 5, pressedAccount("work"), limitedAccount("personal"), readAccount("side", sessionOf(0.12, 4*time.Hour), weekOf(0.33, 5*day)))
+	return routerDoc("side", 5, pressedAccount("work"), limitedAccount("personal"), readAccount("side", sessionOf(0.12, 4*time.Hour), weekOf(0.33, 5*quota.Day)))
 }
 
 // routerDoc is the healthy router's document of the accounts, with as many
@@ -311,7 +311,7 @@ func TestATabNotBuiltDrawsItsHeadingRowAloneAndExplainsNoGlyphs(t *testing.T) {
 // room, read a minute before threeRouted: another document, whose pool isn't
 // threeRouted's.
 func twoWithRoom() status.Document {
-	doc := routerDoc("work", 2, readAccount("work", sessionOf(0.5, 2*time.Hour), weekOf(0.2, 3*day)), readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.4, 5*day)))
+	doc := routerDoc("work", 2, readAccount("work", sessionOf(0.5, 2*time.Hour), weekOf(0.2, 3*quota.Day)), readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.4, 5*quota.Day)))
 	doc.GeneratedAt = now.Add(-time.Minute).UTC()
 	return doc
 }
@@ -354,9 +354,9 @@ func TestAHeldFrameDrawsWhatOneWorkingItsMomentOutAfreshDoes(t *testing.T) {
 // judged, works the moment out afresh, by its own Policy. Here the two
 // policies judge work's cap, and so the pool's 5-hour room, apart.
 func TestAFrameKeepsAMomentItHoldsOnlyWhereItsPolicyJudgedIt(t *testing.T) {
-	capped := readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.95, 3*day))
+	capped := readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.95, 3*quota.Day))
 	capped.Reserve = 0.1
-	doc := routerDoc("side", 0, capped, readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.4, 5*day)))
+	doc := routerDoc("side", 0, capped, readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.4, 5*quota.Day)))
 	unjudged := frameOf(160, 40)
 	unjudged.Policy = score.Policy{}
 	judged, afresh := frameOf(160, 40).Filled(doc, now), unjudged.Filled(doc, now)

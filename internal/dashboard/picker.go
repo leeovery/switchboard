@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -143,7 +144,7 @@ func (p Picker) foot(inner int) []line {
 	switch {
 	case p.Clearing != "":
 		const ask, answers = "clear ", "?  y / n"
-		name := truncate(p.Clearing, max(inner-ansi.StringWidth(ask+answers), nameFloor))
+		name := prose.Cut(p.Clearing, max(inner-ansi.StringWidth(ask+answers), nameFloor))
 		message = line{{ask + name + answers, ink{token: theme.TextSecondary}}}
 		keys = answerKeys
 	case p.Note != "":
@@ -170,7 +171,7 @@ func (r PickerRow) line(inner int, on hue) line {
 	}
 	tail := r.tail(inner, on)
 	room := inner - cursorColumn - tail.width()
-	label := truncate(r.Name, max(room, nameFloor))
+	label := prose.Cut(r.Name, max(room, nameFloor))
 	gap := span{strings.Repeat(" ", max(room-ansi.StringWidth(label), 0)), ink{on: on}}
 	return append(line{bar, {label, name}, gap}, tail...)
 }

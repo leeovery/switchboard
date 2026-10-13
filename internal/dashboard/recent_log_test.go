@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -13,7 +14,7 @@ import (
 
 func TestRECENTSaysWhatEachKindOfEventTellsOf(t *testing.T) {
 	doc := threeRouted()
-	client := readAccount("client", sessionOf(0.3, time.Hour), weekOf(0.7, 2*day), windowOf("7d_oi", "Fable week", 0.2, 3*day))
+	client := readAccount("client", sessionOf(0.3, time.Hour), weekOf(0.7, 2*quota.Day), windowOf("7d_oi", "Fable week", 0.2, 3*quota.Day))
 	client.Reserve = 0.1
 	doc.Accounts = append(doc.Accounts, client)
 	at := now.Add(-4 * time.Minute).UTC()
@@ -106,7 +107,7 @@ func TestRECENTSaysWhatEachKindOfEventTellsOf(t *testing.T) {
 		},
 		{
 			name:     "a model's requests refused",
-			event:    status.Event{Kind: status.EventRefused, Account: "work", Status: 403, Family: "opus", Until: now.Add(3 * day).UTC()},
+			event:    status.Event{Kind: status.EventRefused, Account: "work", Status: 403, Family: "opus", Until: now.Add(3 * quota.Day).UTC()},
 			wantMark: "■", wantInk: theme.AccentAttention, want: "work was refused (403, opus) until Thu 13:12",
 		},
 		{
@@ -254,9 +255,9 @@ func TestLOGsLinesHaveTheirTimesInAColumn(t *testing.T) {
 	doc.Events = []status.Event{
 		{ID: 5, At: now.Add(-time.Minute).UTC(), Kind: status.EventStarted, Account: "side", Session: "c61b", Reason: "new"},
 		{ID: 4, At: now.Add(-4 * time.Minute).UTC(), Kind: status.EventRoom, Account: "work"},
-		{ID: 3, At: now.Add(-day - time.Hour).UTC(), Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}},
-		{ID: 2, At: now.Add(-2 * day).UTC(), Kind: status.EventRoom, Account: "side"},
-		{ID: 1, At: now.Add(-3 * day).UTC(), Kind: status.EventRoom, Account: "personal"},
+		{ID: 3, At: now.Add(-quota.Day - time.Hour).UTC(), Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}},
+		{ID: 2, At: now.Add(-2 * quota.Day).UTC(), Kind: status.EventRoom, Account: "side"},
+		{ID: 1, At: now.Add(-3 * quota.Day).UTC(), Kind: status.EventRoom, Account: "personal"},
 	}
 	tests := []struct {
 		name  string

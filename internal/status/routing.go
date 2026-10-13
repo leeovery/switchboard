@@ -2,7 +2,6 @@ package status
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -158,7 +157,7 @@ func (s windowStates) heldRouting() (Routing, bool) {
 		says := Short(a.label(held.Windows[0])) + " limit"
 		return Routing{Kind: RoutingModelLimited, Says: says, Clauses: append(backAt(now, held.Until), stillComes), Short: []string{says}}, true
 	}
-	short := "refused (" + strconv.Itoa(a.Refused.Status) + ")"
+	short := RefusalAnswer(a.Refused.Status, "")
 	return Routing{Kind: RoutingModelRefused, Says: a.Refused.Answer(), Clauses: []string{stillComes}, Short: []string{short}}, true
 }
 
@@ -207,12 +206,13 @@ func pressedRouting(out RunOut, now time.Time) Routing {
 }
 
 // backAt is the clause that says when an account held back at now has room
-// again, at t, as in "back 15:54": none where that's unknown.
+// again, at t, as Back says it, as in "back 15:54": none where that's
+// unknown.
 func backAt(now, t time.Time) []string {
-	if t.IsZero() {
-		return nil
+	if back := Back(now, t); back != "" {
+		return []string{back}
 	}
-	return []string{"back " + prose.Dated(now, t)}
+	return nil
 }
 
 // shortBack is the short form of what holds an account back, says, and when

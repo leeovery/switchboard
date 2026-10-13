@@ -194,7 +194,7 @@ func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string,
 	}
 	wn, _ := p.stands.Window(key)
 	s := standing{account: p.account.ID, w: wn}
-	c.line(x, y, line{{truncate(status.Short(w.Label), labelColumn-1), panelLabelInk}})
+	c.line(x, y, line{{prose.Cut(status.Short(w.Label), labelColumn-1), panelLabelInk}})
 	at := x + labelColumn
 	if s.lapsed() {
 		c.line(at, y, line{{"not started", dimInk}})

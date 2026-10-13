@@ -21,7 +21,7 @@ type LedgerDay struct {
 // zone, as the ledger files its lines: the day every view that reads the
 // ledger takes as its own.
 func Today(now time.Time) LedgerDay {
-	return LedgerDay{Start: dayfile.DayStart(now.Local(), 0), Date: now.Local().Format(time.DateOnly)}
+	return LedgerDay{Start: dayfile.DayStart(now.Local(), 0), Date: dayfile.DateOf(now)}
 }
 
 // Holds reports whether t falls on the day or after it.

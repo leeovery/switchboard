@@ -5,6 +5,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // windowOf names one account's window.
@@ -48,7 +49,7 @@ func (l *lookout) look(accounts standings) []notify.Notice {
 			due = append(due, notify.RoomAgain(s.ID, s.Title()))
 		}
 		for _, w := range l.passed(s) {
-			due = append(due, notify.Warning(s.ID, s.Title(), w.Label, w.Utilization))
+			due = append(due, notify.Warning(s.ID, s.Title(), status.NameOfWindow(w.Key, w.Label), w.Utilization))
 		}
 	}
 	return due

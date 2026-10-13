@@ -3,7 +3,6 @@ package dashboard
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"sync"
 	"time"
 
@@ -335,16 +334,15 @@ func (r accountRouting) rate(now time.Time) span {
 	return traceRate(r.trace, now, r.faded).numbered(Number{Kind: NumberRate, Account: r.id})
 }
 
-// sessionsSpan is how many sessions are on an account, as in "2 sessions"
-// or "1 session", in text.muted; "0 sessions" in text.faint.
+// sessionsSpan is how many sessions are on an account, as prose.Counted
+// counts them, as in "2 sessions" or "1 session", in text.muted; "0
+// sessions" in text.faint.
 func sessionsSpan(n int) span {
-	switch n {
-	case 0:
-		return span{"0 sessions", faintInk}
-	case 1:
-		return span{"1 session", mutedInk}
+	k := mutedInk
+	if n == 0 {
+		k = faintInk
 	}
-	return span{strconv.Itoa(n) + " sessions", mutedInk}
+	return span{prose.Counted(n, "session"), k}
 }
 
 // blocksBeside are where USAGE draws its blocks by account, for ROUTING to be

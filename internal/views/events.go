@@ -60,7 +60,8 @@ func forced(e status.Event) string {
 // read, working out their facts over those it tells as eventFacts do: so a
 // move whose choice passed an account over under pressure says when that
 // account's latest pressure event told said it runs out. Its zero value
-// names a window by its key. A Telling isn't safe for concurrent use.
+// names a window as status.NameOfKey does. A Telling isn't safe for
+// concurrent use.
 type Telling struct {
 	facts eventFacts
 }
@@ -112,7 +113,7 @@ func loggedStart(e status.Event, _ eventFact, _ time.Time) (status.Words, status
 // why, as status.EventWords says: a choice that passed an account over under
 // pressure with when that account runs out, as its facts have it.
 func loggedMove(e status.Event, f eventFact, at time.Time) (status.Words, status.Words) {
-	moves := status.Words{named(e.From), said(" → "), named(e.To)}
+	moves := status.Words{status.Named(e.From), status.Plain(" → "), status.Named(e.To)}
 	facts := status.Facts{From: e.From, To: e.To, Until: f.runsOut, Now: at}
 	return moves, status.EventWords(e.Reason, facts)
 }
@@ -202,12 +203,12 @@ func loggedAuto(e status.Event, _ eventFact, _ time.Time) (status.Words, status.
 	if e.Session != "" {
 		who, from = "this session back", []string{e.Account}
 	}
-	what := status.Words{said(who)}
+	what := status.Words{status.Plain(who)}
 	if names := cleaned(from); len(names) > 0 {
-		what = append(what, said(" from "))
-		what = append(what, joined(names, " and ")...)
+		what = append(what, status.Plain(" from "))
+		what = append(what, joined(names, prose.And)...)
 	}
-	return nil, append(what, said(" to the router's choice"+forced(e)+by[e.By]))
+	return nil, append(what, status.Plain(" to the router's choice"+forced(e)+by[e.By]))
 }
 
 // loggedRestart tells of a restart falling due: "due: the config changed".
@@ -244,37 +245,35 @@ func moving(f eventFact, asTheyCome bool) status.Words {
 	if f.moved == 1 {
 		subject, where, as = ": its session moves to ", "another account", " as its next request comes"
 	}
-	w := status.Words{said(subject)}
+	w := status.Words{status.Plain(subject)}
 	if f.to != "" {
-		w = append(w, named(f.to))
+		w = append(w, status.Named(f.to))
 	} else {
-		w = append(w, said(where))
+		w = append(w, status.Plain(where))
 	}
 	if asTheyCome {
-		w = append(w, said(as))
+		w = append(w, status.Plain(as))
 	}
 	return w
 }
 
-// its names the windows given as the account's: "its 5-hour window", or
-// "its 5-hour and week windows"; none where none is given.
+// its names the windows given as the account's, as prose.ListOf names them:
+// "its 5-hour window", or "its 5-hour and week windows"; none where none is
+// given.
 func its(names []string, none string) string {
-	switch len(names) {
-	case 0:
+	if len(names) == 0 {
 		return none
-	case 1:
-		return "its " + names[0] + " window"
 	}
-	return "its " + prose.List(names) + " windows"
+	return "its " + prose.ListOf(names, "window")
 }
 
-// till says until when what's told holds, as ", till 23:58", shown beside
-// at: nothing where it doesn't say.
+// till says until when what's told holds, as status.Till says it, as ",
+// till 23:58", shown beside at: nothing where it doesn't say.
 func till(until, at time.Time) string {
-	if until.IsZero() {
-		return ""
+	if said := status.Till(at, until); said != "" {
+		return ", " + said
 	}
-	return ", till " + prose.Dated(at, until)
+	return ""
 }
 
 // pinAccounts are the global pin's accounts, joined with ", ": its first,
@@ -287,19 +286,16 @@ func pinAccounts(e status.Event) status.Words {
 	return joined(names, ", ")
 }
 
-// joined are the accounts named, ", " between them, but last before the
-// last, as " and " runs them together as English does.
+// joined are the accounts named, run together as a list whose last is
+// joined by last, as prose.Joiner joins them: ", " between them, but last
+// before the last, as prose.And runs them together as English does.
 func joined(names []string, last string) status.Words {
 	var w status.Words
 	for i, name := range names {
-		switch {
-		case i == 0:
-		case i == len(names)-1:
-			w = append(w, said(last))
-		default:
-			w = append(w, said(", "))
+		if joiner := prose.Joiner(i, len(names), last); joiner != "" {
+			w = append(w, status.Plain(joiner))
 		}
-		w = append(w, named(name))
+		w = append(w, status.Named(name))
 	}
 	return w
 }
@@ -321,7 +317,7 @@ func account(id string) status.Words {
 	if prose.Clean(id) == "" {
 		return nil
 	}
-	return status.Words{named(id)}
+	return status.Words{status.Named(id)}
 }
 
 // clause is words around no account: none for "".
@@ -329,17 +325,7 @@ func clause(text string) status.Words {
 	if text == "" {
 		return nil
 	}
-	return status.Words{said(text)}
-}
-
-// said is words around the accounts named.
-func said(text string) status.Part {
-	return status.Part{Text: text}
-}
-
-// named is the account with the given id, cleaned, as it's from elsewhere.
-func named(id string) status.Part {
-	return status.Part{Text: prose.Clean(id), Kind: status.PartAccount}
+	return status.Words{status.Plain(text)}
 }
 
 // firstOr is the first of names, or none where there are none.

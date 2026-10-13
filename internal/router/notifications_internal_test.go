@@ -36,11 +36,11 @@ func TestALimitIsToldOfOnceWithTheSessionsItMoved(t *testing.T) {
 		h.after(2*time.Second - time.Nanosecond)
 		h.expect()
 		h.after(time.Nanosecond)
-		h.expect("2 · two hit its Session limit, back at Sat 03:00 — 3 sessions moved to 1 · one")
+		h.expect("2 · two hit its 5-hour limit, back at Sat 03:00 — 3 sessions moved to 1 · one")
 		h.after(time.Hour)
-		h.expect("2 · two hit its Session limit, back at Sat 03:00 — 3 sessions moved to 1 · one")
+		h.expect("2 · two hit its 5-hour limit, back at Sat 03:00 — 3 sessions moved to 1 · one")
 
-		want := []string{"level=INFO", "msg=notification component=router", "account=2", `news="hit its Session limit, back at Sat 03:00 — 3 sessions moved to 1"`}
+		want := []string{"level=INFO", "msg=notification component=router", "account=2", `news="hit its 5-hour limit, back at Sat 03:00 — 3 sessions moved to 1"`}
 		if !log.Has(want...) {
 			t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 		}
@@ -67,34 +67,34 @@ func TestALimitsNotificationSaysWhereItsSessionsWent(t *testing.T) {
 			name:    "to one account",
 			windows: []string{"5h"}, lifts: 3 * time.Hour,
 			moves: []Event{forced("a", "2", "1")},
-			want:  "2 · two hit its Session limit, back at Sat 03:00 — 1 session moved to 1 · one",
+			want:  "2 · two hit its 5-hour limit, back at Sat 03:00 — 1 session moved to 1 · one",
 		},
 		{
 			name:    "to several, counting a session each once, whatever its models",
 			windows: []string{"5h"}, lifts: 3 * time.Hour,
 			moves: []Event{forced("a", "2", "1"), forced("b", "2", "3"), forcedModel("a", haiku, "2", "3"), forced("c", "2", "1")},
-			want:  "2 · two hit its Session limit, back at Sat 03:00 — 3 sessions moved to 1 · one and 3 · three",
+			want:  "2 · two hit its 5-hour limit, back at Sat 03:00 — 3 sessions moved to 1 · one and 3 · three",
 		},
 		{
 			name:    "to none, with no other account with room",
 			windows: []string{"5h"}, lifts: 3 * time.Hour, full: true,
-			want: "2 · two hit its Session limit, back at Sat 03:00 — no other account has room",
+			want: "2 · two hit its 5-hour limit, back at Sat 03:00 — no other account has room",
 		},
 		{
 			name:    "to none, with every other account refused",
 			windows: []string{"5h"}, lifts: 3 * time.Hour, refused: true,
-			want: "2 · two hit its Session limit, back at Sat 03:00 — no other account has room",
+			want: "2 · two hit its 5-hour limit, back at Sat 03:00 — no other account has room",
 		},
 		{
 			name:    "to none, with another account with room",
 			windows: []string{"5h"}, lifts: 3 * time.Hour,
-			want: "2 · two hit its Session limit, back at Sat 03:00",
+			want: "2 · two hit its 5-hour limit, back at Sat 03:00",
 		},
 		{
 			name:    "reached in several windows",
 			windows: []string{"5h", "7d"}, lifts: 3 * day,
 			moves: []Event{forced("a", "2", "1")},
-			want:  "2 · two hit its Session and Week limits, back at Tue 00:00 — 1 session moved to 1 · one",
+			want:  "2 · two hit its 5-hour and week limits, back at Tue 00:00 — 1 session moved to 1 · one",
 		},
 		{
 			name:  "reached in no window named",
@@ -112,13 +112,13 @@ func TestALimitsNotificationSaysWhereItsSessionsWent(t *testing.T) {
 			name:    "without when it's back once that has passed",
 			windows: []string{"5h"}, lifts: 3 * time.Second,
 			moves: []Event{forced("a", "2", "1")},
-			want:  "2 · two hit its Session limit — 1 session moved to 1 · one",
+			want:  "2 · two hit its 5-hour limit — 1 session moved to 1 · one",
 		},
 		{
 			name:    "without when it's back when that doesn't fit",
 			windows: []string{"5h", "7d", "7d_oi"}, lifts: 3 * day,
 			moves: []Event{forced("a", "2", "1"), forced("b", "2", "3")},
-			want:  "2 · two hit its Session, Week and Fable week limits — 2 sessions moved to 1 · one and 3 · three",
+			want:  "2 · two hit its 5-hour, week and Fable week limits — 2 sessions moved to 1 · one and 3 · three",
 		},
 	}
 	for _, tt := range tests {
@@ -157,7 +157,7 @@ func TestALimitIsToldOfOnce(t *testing.T) {
 		h.after(time.Second)
 		h.limit("2", []string{"5h", "7d"}, 4*day)
 		h.after(gatherFor)
-		first := "2 · two hit its Session and Week limits, back at Wed 00:00"
+		first := "2 · two hit its 5-hour and week limits, back at Wed 00:00"
 		h.expect(first)
 
 		h.after(10 * time.Minute)
@@ -173,7 +173,7 @@ func TestALimitIsToldOfOnce(t *testing.T) {
 		h.after(4 * day)
 		h.limit("2", []string{"5h"}, 4*day+5*time.Hour)
 		h.after(gatherFor)
-		h.expect(first, "2 · two hit its Session limit, back at Wed 05:00")
+		h.expect(first, "2 · two hit its 5-hour limit, back at Wed 05:00")
 	})
 }
 
@@ -205,7 +205,7 @@ func TestALimitsNotificationLeavesOutMovesItDidntCause(t *testing.T) {
 			forced("moved", "2", "3"),
 		)
 		h.after(gatherFor)
-		h.expect("2 · two hit its Session limit, back at Sat 03:00 — 1 session moved to 3 · three")
+		h.expect("2 · two hit its 5-hour limit, back at Sat 03:00 — 1 session moved to 3 · three")
 	})
 }
 
@@ -233,7 +233,7 @@ func TestALimitsNotificationCountsTheSessionsItMovedWhateverOrderTheyreToldOfIn(
 				}
 				h.hear(news...)
 				h.after(gatherFor)
-				h.expect("2 · two hit its Session limit, back at Sat 03:00 — 1 session moved to 1 · one")
+				h.expect("2 · two hit its 5-hour limit, back at Sat 03:00 — 1 session moved to 1 · one")
 			})
 		})
 	}
@@ -254,7 +254,7 @@ func TestANewerLimitIsToldOfWithTheSessionsItMoved(t *testing.T) {
 		h.hear(forcedBy(newer.Limit, "a", "2", "1"), newer)
 		h.after(gatherFor)
 		h.expect(
-			"2 · two hit its Session limit, back at Sat 03:00",
+			"2 · two hit its 5-hour limit, back at Sat 03:00",
 			"2 · two hit its Fable week limit, back at Wed 00:00 — 1 session moved to 1 · one",
 		)
 	})
@@ -450,8 +450,8 @@ func TestWarningsAtTheShareGiven(t *testing.T) {
 		warning float64
 		want    []string
 	}{
-		{name: "passing it", warning: 0.8, want: []string{"2 · two: Session at 85%"}},
-		{name: "reaching it", warning: 0.85, want: []string{"2 · two: Session at 85%"}},
+		{name: "passing it", warning: 0.8, want: []string{"2 · two: 5-hour at 85%"}},
+		{name: "reaching it", warning: 0.85, want: []string{"2 · two: 5-hour at 85%"}},
 		{name: "short of it", warning: 0.86},
 		{name: "none at 0", warning: 0},
 	}
@@ -501,14 +501,14 @@ func TestMoves(t *testing.T) {
 		{
 			name:     "none by default",
 			settings: config.Notifications{Limits: true, Room: true, Warning: 0.9},
-			want:     []string{"2 · two hit its Session limit, back at Sat 03:00 — 1 session moved to 1 · one"},
+			want:     []string{"2 · two hit its 5-hour limit, back at Sat 03:00 — 1 session moved to 1 · one"},
 		},
 		{
 			name:     "those a limit's notification doesn't tell of",
 			settings: config.Notifications{Limits: true, Room: true, Warning: 0.9, Moves: true},
 			want: []string{
 				"session 18bb978f moved from 3 · three to 1 · one (rescored after 1h 2m idle)",
-				"2 · two hit its Session limit, back at Sat 03:00 — 1 session moved to 1 · one",
+				"2 · two hit its 5-hour limit, back at Sat 03:00 — 1 session moved to 1 · one",
 			},
 		},
 		{
@@ -576,12 +576,12 @@ func TestALimitIsToldOfWhateverWentOutJustBefore(t *testing.T) {
 		h.after(30 * time.Second)
 		h.limit("2", []string{"5h"}, 3*time.Hour)
 		h.after(gatherFor)
-		h.expect("2 · two: Week at 91%", "2 · two hit its Session limit, back at Sat 03:00")
+		h.expect("2 · two: Week at 91%", "2 · two hit its 5-hour limit, back at Sat 03:00")
 
 		h.read("2", h.session(0.95, 5*time.Hour))
 		h.after(lookEvery)
-		h.expect("2 · two: Week at 91%", "2 · two hit its Session limit, back at Sat 03:00")
-		want := []string{"level=DEBUG", `msg="notification dropped: too soon after the last about the account"`, "account=2", `news="Session at 95%"`}
+		h.expect("2 · two: Week at 91%", "2 · two hit its 5-hour limit, back at Sat 03:00")
+		want := []string{"level=DEBUG", `msg="notification dropped: too soon after the last about the account"`, "account=2", `news="5-hour at 95%"`}
 		if !log.Has(want...) {
 			t.Errorf("log reads\n%s\nwant the warning after the limit dropped: a line with %q", log, want)
 		}
@@ -739,7 +739,7 @@ func TestStoppingTellsOfTheLimitsStillGatheringAtOnce(t *testing.T) {
 		if waited := time.Since(began); waited != 0 {
 			t.Errorf("stopping took %v, want no wait, even with a limit gathering", waited)
 		}
-		h.expect("2 · two hit its Session limit, back at Sat 01:00 — 1 session moved to 1 · one")
+		h.expect("2 · two hit its 5-hour limit, back at Sat 01:00 — 1 session moved to 1 · one")
 	})
 }
 
@@ -771,7 +771,7 @@ func TestStoppingTellsOfALimitStillQueued(t *testing.T) {
 		reached, _ := h.state.limit("2", []string{"5h"}, h.began.Add(time.Hour), h.state.mark())
 		h.n.hear(reached)
 		h.n.finish()
-		h.expect("2 · two hit its Session limit, back at Sat 01:00")
+		h.expect("2 · two hit its 5-hour limit, back at Sat 01:00")
 	})
 }
 

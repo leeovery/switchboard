@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 )
@@ -77,7 +78,7 @@ func Peak(share float64, open bool) string {
 // the capacity verdict over those of them that are whole.
 func (p Past) weeksPage() WeeksPage {
 	in := p.in
-	today := dateOf(in.Now)
+	today := dayfile.CivilOf(in.Now)
 	this, first := weekOf(today, in.WeekStarts), weeksTo(today, in.WeekStarts, weeksShown)
 	before, days := splitAt(p.days, first.Format(time.DateOnly))
 	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
@@ -103,7 +104,7 @@ func (p Past) weeksPage() WeeksPage {
 		page.Accounts = append(page.Accounts, row)
 	}
 	page.All = WeeksRow{AccountVerdict: page.Capacity.Accounts[len(in.Accounts)], Peaks: page.peaksOf(byWeek, len(in.Accounts))}
-	page.judge(j.r, pl, today.Format(time.DateOnly))
+	page.judge(j.r, pl, dayfile.DateOf(in.Now))
 	return page
 }
 

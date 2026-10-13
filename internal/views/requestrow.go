@@ -15,12 +15,12 @@ import (
 // gives one: the Log's Requests, a turn opened on a session's page, and
 // requests. It holds the facts typed, each printed form left to its one
 // owner: prose.Seconds for First and Took, prose.Tokens for Read, Written
-// and Out, and dashboard.WorthCents for Worth; status.ShownID or
-// status.ShortID for Session, status.DirName for Dir, and the account's name
-// for Account. It says its stopped and its routing itself, as no drawer
-// works words out of a line. It's built from the request's line, with its
-// session's story, as LogRows builds it, or, before its line comes, from
-// what the request stream told of it.
+// and Out, and Worth.Cents for Worth; status.ShownID or status.ShortID for
+// Session, status.DirName for Dir, and the account's name for Account. It
+// says its stopped and its routing itself, as no drawer works words out of a
+// line. It's built from the request's line, with its session's story, as
+// LogRows builds it, or, before its line comes, from what the request stream
+// told of it.
 type RequestRow struct {
 	// Request is the router's id for it.
 	Request string

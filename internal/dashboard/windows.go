@@ -6,13 +6,13 @@ import (
 )
 
 // windowNamed is the window with the given key as m names it, as its Window
-// has it: one none of its accounts has, by its key, as status.NameOfWindow
-// names it.
+// has it: one none of its accounts has labelled by its key, and named as
+// m.NameOf names it.
 func windowNamed(m status.Moment, key string) status.WindowName {
 	if w, ok := m.Window(key); ok {
 		return w
 	}
-	return status.WindowName{Key: key, Label: key, Name: status.NameOfWindow(key, key)}
+	return status.WindowName{Key: key, Label: key, Name: m.NameOf(key)}
 }
 
 // labelsOf names m's windows by their keys by their labels, as windowNamed

@@ -171,7 +171,7 @@ func (s stretch) told(now time.Time) []line {
 		case c.then != "":
 			told[i] = append(told[i], span{prose.Separator + c.then, mutedInk})
 		case i == back && !s.until.IsZero():
-			told[i] = append(told[i], span{prose.Separator + "back " + prose.Dated(now, s.until), mutedInk})
+			told[i] = append(told[i], span{prose.Separator + status.Back(now, s.until), mutedInk})
 			if s.until.Equal(c.resets) {
 				told[i] = append(told[i], span{", as it resets", mutedInk})
 			}

@@ -146,7 +146,7 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 	familyRefused.Refused = status.Refusal{Until: now.Add(time.Hour).UTC(), Status: 429, Family: "fable"}
 	tokenless := readAccount("tokenless")
 	tokenless.TokenSet = false
-	capped := readAccount("capped", sessionOf(0.95, 2*time.Hour), weekOf(0.4, 3*day))
+	capped := readAccount("capped", sessionOf(0.95, 2*time.Hour), weekOf(0.4, 3*quota.Day))
 	capped.Reserve = 0.1
 	unread := readAccount("unread")
 	unread.FetchedAt = time.Time{}
@@ -179,7 +179,7 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 }
 
 func TestAnAccountsFiguresAreItsWindowsAsUsageReadsThem(t *testing.T) {
-	refused := readAccount("refused", sessionOf(0.3, time.Hour), weekOf(0.5, 3*day))
+	refused := readAccount("refused", sessionOf(0.3, time.Hour), weekOf(0.5, 3*quota.Day))
 	refused.Refused = status.Refusal{Until: now.Add(time.Hour).UTC(), Status: 401}
 	tokenless := readAccount("tokenless", sessionOf(0.3, time.Hour))
 	tokenless.TokenSet = false
@@ -188,9 +188,9 @@ func TestAnAccountsFiguresAreItsWindowsAsUsageReadsThem(t *testing.T) {
 		account       status.Account
 		session, week Figure
 	}{
-		{name: "read", account: readAccount("read", sessionOf(0.39, time.Hour), weekOf(0.66, 3*day)), session: Figure{Used: 0.39, Read: true}, week: Figure{Used: 0.66, Read: true}},
+		{name: "read", account: readAccount("read", sessionOf(0.39, time.Hour), weekOf(0.66, 3*quota.Day)), session: Figure{Used: 0.39, Read: true}, week: Figure{Used: 0.66, Read: true}},
 		{name: "its week not reported", account: readAccount("short", sessionOf(0.39, time.Hour)), session: Figure{Used: 0.39, Read: true}},
-		{name: "its 5-hour reset since it was read", account: readAccount("reset", sessionOf(0.8, -time.Minute), weekOf(0.66, 3*day)), session: Figure{Read: true}, week: Figure{Used: 0.66, Read: true}},
+		{name: "its 5-hour reset since it was read", account: readAccount("reset", sessionOf(0.8, -time.Minute), weekOf(0.66, 3*quota.Day)), session: Figure{Read: true}, week: Figure{Used: 0.66, Read: true}},
 		{name: "as last read, its token refused", account: refused, session: Figure{Used: 0.3, Read: true, Stale: true}, week: Figure{Used: 0.5, Read: true, Stale: true}},
 		{name: "without a token, none", account: tokenless},
 	}
@@ -398,7 +398,7 @@ func namedAccounts(n int) []status.Account {
 	names := []string{"work", "personal", "side", "client", "consultancy", "studio", "research-lab", "ops", "an-account-named-at-length", "lab", "team", "spare"}
 	accounts := make([]status.Account, n)
 	for i := range accounts {
-		accounts[i] = readAccount(names[i], sessionOf(0.3, time.Hour), weekOf(0.4, 3*day))
+		accounts[i] = readAccount(names[i], sessionOf(0.3, time.Hour), weekOf(0.4, 3*quota.Day))
 		if i == 2 {
 			accounts[i] = limitedAccount(names[i])
 		}

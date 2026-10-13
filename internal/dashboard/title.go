@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -81,8 +82,8 @@ func (f Frame) tab(v View) line {
 // time to the second, or where the date doesn't fit, as a two-digit day's
 // doesn't at 100 columns, the time alone.
 func (f Frame) clock(c *canvas, end int, now time.Time) {
-	clock := line{{now.Format(secondsLayout), strongInk}}
-	for _, l := range []line{slices.Concat(line{{now.Format(dayLayout + "  "), mutedInk}}, clock), clock} {
+	clock := line{{prose.ToTheSecond(now, now), strongInk}}
+	for _, l := range []line{slices.Concat(line{{prose.Day(now) + "  ", mutedInk}}, clock), clock} {
 		if f.Width-l.width() >= end+titleGap {
 			c.right(f.Width, 0, l)
 			return

@@ -424,7 +424,7 @@ func (w weeksDrawn) estimate() []part {
 func (w weeksDrawn) dropped() []part {
 	var facts [][]part
 	if p := w.page.DropPrice; p != nil {
-		facts = append(facts, []part{figureIn(p.GroupedDollars()+"/mo", mutedInk)})
+		facts = append(facts, []part{figureIn(views.PerMonth(*p), mutedInk)})
 	}
 	if used := w.row(w.page.Capacity.Drop).Used; used != nil {
 		facts = append(facts, []part{figureIn(prose.Percent(*used), mutedInk), wordsIn(" used on average", mutedInk)})
@@ -588,8 +588,8 @@ func (w weeksDrawn) legend() []part {
 	}
 	return append(l,
 		wordsIn("each week at its peak", faintInk), wordsIn("   ·   ", faintInk),
-		figureIn("100%", exhaustedInk), wordsIn(" it hit its limit", faintInk), wordsIn("   ·   ", faintInk),
-		figureIn("34%…", w.thisWeekInk()), wordsIn(" this week, so far", faintInk),
+		figureIn(views.Peak(1, false), exhaustedInk), wordsIn(" it hit its limit", faintInk), wordsIn("   ·   ", faintInk),
+		figureIn(views.Peak(0.34, true), w.thisWeekInk()), wordsIn(" this week, so far", faintInk),
 	)
 }
 
@@ -654,11 +654,11 @@ func (w weeksDrawn) peak(row views.WeeksRow, p views.WeekPeak) part {
 	if p.Share == nil {
 		return figurePart(line{noFigure}, Number{})
 	}
-	text := prose.Percent(*p.Share)
-	if p.Open {
-		return figurePart(line{{text + "…", w.thisWeekInk()}}, w.number(row))
-	}
-	if prose.WholePercent(*p.Share) >= 100 {
+	text := views.Peak(*p.Share, p.Open)
+	switch {
+	case p.Open:
+		return figurePart(line{{text, w.thisWeekInk()}}, w.number(row))
+	case prose.WholePercent(*p.Share) >= 100:
 		return figureIn(text, exhaustedInk)
 	}
 	return figureIn(text, usedInk(*p.Share, ink{token: theme.VizRamp1}))
@@ -687,15 +687,17 @@ func (w weeksDrawn) block(c *canvas, look Look, y int, row views.WeeksRow) {
 // text.secondary, which brightens as it changes; and — in text.faint where
 // it isn't known.
 func (w weeksDrawn) columnPeak(row views.WeeksRow, p views.WeekPeak) part {
-	switch {
-	case p.Share == nil:
+	if p.Share == nil {
 		return figurePart(line{noFigure}, Number{})
-	case p.Open:
-		return figurePart(line{{prose.Percent(*p.Share) + "…", secondaryInk}}, w.number(row))
-	case prose.WholePercent(*p.Share) >= 100:
-		return figureIn(prose.Percent(*p.Share), exhaustedInk)
 	}
-	return figureIn(prose.Percent(*p.Share), mutedInk)
+	text := views.Peak(*p.Share, p.Open)
+	switch {
+	case p.Open:
+		return figurePart(line{{text, secondaryInk}}, w.number(row))
+	case prose.WholePercent(*p.Share) >= 100:
+		return figureIn(text, exhaustedInk)
+	}
+	return figureIn(text, mutedInk)
 }
 
 // column draws a week's column, filled from the bottom to its peak as it's

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -704,7 +705,7 @@ func (f Frame) says(p planned) line {
 	holds := saying(p.folded)
 	switch {
 	case p.lists() && p.lines() > 1:
-		return slices.Concat(holds, line{{"  " + ellipsis, dimInk}})
+		return slices.Concat(holds, line{{"  " + prose.Ellipsis, dimInk}})
 	case p.lists():
 		return holds
 	}

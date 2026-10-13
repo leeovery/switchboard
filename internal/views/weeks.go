@@ -77,7 +77,7 @@ type weekly struct {
 // as long as its key says.
 func weeklyOf(key string, starts time.Weekday, now time.Time) weekly {
 	length, _ := quota.Length(key)
-	this := weekOf(dateOf(now), starts).Format(time.DateOnly)
+	this := weekOf(dayfile.CivilOf(now), starts).Format(time.DateOnly)
 	return weekly{key: key, length: length, starts: starts, now: now, this: this}
 }
 

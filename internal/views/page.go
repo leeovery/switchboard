@@ -239,15 +239,14 @@ func KeptUntil(date string, now time.Time) string {
 	if date == "" {
 		return "kept for good"
 	}
-	until, err := time.ParseInLocation(time.DateOnly, date, now.Location())
-	if err != nil {
+	until, ok := dayfile.Civil(date)
+	switch {
+	case !ok:
 		return "kept until " + prose.Clean(date)
+	case until.Year() != now.Year():
+		return "kept until " + prose.DayMonthYear(until)
 	}
-	layout := "2 Jan"
-	if until.Year() != now.Year() {
-		layout += " 2006"
-	}
-	return "kept until " + until.Format(layout)
+	return "kept until " + prose.DayMonth(until)
 }
 
 // request is a session's request: its line, what it would have cost through

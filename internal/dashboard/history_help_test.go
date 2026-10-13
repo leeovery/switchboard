@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -173,7 +174,7 @@ func TestHistoryHelpFitsTheCardAtEveryWidth(t *testing.T) {
 		card := historyHelping(width, Look{}, tabViews, helpQuit[0], helpQuit[1])
 		inside := card.width - 2*cardInset
 		for i, row := range card.body {
-			if row.width() > inside || strings.Contains(strings.ReplaceAll(row.plain(), thisWeek, ""), ellipsis) {
+			if row.width() > inside || strings.Contains(strings.ReplaceAll(row.plain(), thisWeek, ""), prose.Ellipsis) {
 				t.Errorf("at %d columns, help's row %d is %q, %d cells; want it whole within %d", width, i+1, row.plain(), row.width(), inside)
 			}
 		}

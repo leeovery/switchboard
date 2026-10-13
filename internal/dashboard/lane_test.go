@@ -18,7 +18,7 @@ func clockAt(hour, minute int) time.Time {
 // weekRunningOut is a week resetting in resets, used so that at the pace its
 // use since it started sets, it runs out in out.
 func weekRunningOut(out, resets time.Duration) quota.Window {
-	passed := 7*day - resets
+	passed := 7*quota.Day - resets
 	return weekOf(passed.Hours()/(passed+out).Hours(), resets)
 }
 
@@ -34,7 +34,7 @@ func laneIn(f Frame, doc status.Document, i int) lane {
 func limitedAt(id string, reached time.Time) (status.Account, status.Event) {
 	session := sessionOf(1, time.Hour)
 	session.Status = quota.StatusRejected
-	a := readAccount(id, session, weekRunningOut(12*time.Hour, 3*day))
+	a := readAccount(id, session, weekRunningOut(12*time.Hour, 3*quota.Day))
 	a.Limit = status.Limit{Windows: []string{"5h"}, Until: session.ResetsAt}
 	return a, status.Event{ID: 1, At: reached.UTC(), Kind: status.EventLimit, Account: id, Windows: []string{"5h"}, Until: session.ResetsAt}
 }
@@ -115,24 +115,24 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 	probedLimit, _ := limitedAt("personal", clockAt(12, 50))
 	noneNamed := probedLimit
 	noneNamed.Limit.Windows = nil
-	atReserve := reserving(readAccount("work", sessionOf(0.9, 3*time.Hour), weekOf(0.34, 4*day)), 0.1)
+	atReserve := reserving(readAccount("work", sessionOf(0.9, 3*time.Hour), weekOf(0.34, 4*quota.Day)), 0.1)
 	atReserve.AtReserve = []string{"5h"}
 	headingThere := reserving(pressedAccount("work"), 0.1)
-	lapsed := readAccount("spare", quota.Window{Key: "5h", Label: "Session"}, weekOf(0.05, 6*day))
+	lapsed := readAccount("spare", quota.Window{Key: "5h", Label: "Session"}, weekOf(0.05, 6*quota.Day))
 	lapsed.Lapsed = []string{"5h"}
-	refused := readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day))
+	refused := readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*quota.Day))
 	refused.Refused = status.Refusal{Until: now.Add(48 * time.Minute).UTC(), Status: 401}
-	fable := readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day), windowOf("7d_oi", "Fable week", 1, 5*day))
-	fable.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: now.Add(5 * day).UTC()}
+	fable := readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*quota.Day), windowOf("7d_oi", "Fable week", 1, 5*quota.Day))
+	fable.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: now.Add(5 * quota.Day).UTC()}
 	tokenless := status.Account{ID: "work", Label: "work", Error: "no token file"}
 	unread := status.Account{ID: "work", Label: "work", TokenSet: true}
 	unreadLimited := unread
 	unreadLimited.Limit = status.Limit{Windows: []string{"5h"}, Until: now.Add(time.Hour).UTC()}
 	unreadable, reachedUnreadable := limitedAt("personal", clockAt(12, 50))
 	unreadable.Error = "timed out"
-	weekly := readAccount("work", sessionOf(0.1, 4*time.Hour), weekRunningOut(5*time.Hour, 3*day))
+	weekly := readAccount("work", sessionOf(0.1, 4*time.Hour), weekRunningOut(5*time.Hour, 3*quota.Day))
 	both := pressedAccount("work")
-	both.Windows[1] = weekRunningOut(2*time.Hour, 3*day)
+	both.Windows[1] = weekRunningOut(2*time.Hour, 3*quota.Day)
 	everyWindow, reachedEvery := limitedAt("personal", clockAt(12, 50))
 	everyWindow.Limit.Windows, reachedEvery.Windows = nil, nil
 
@@ -156,11 +156,11 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 		},
 		{
 			name: "its session running out, then its week before the session's back: one stretch, back once, from the week", doc: routerDoc("", 1, both),
-			moments:  []moment{{48 * time.Minute, roomDraining}, {108 * time.Minute, roomNone}, {200 * time.Minute, roomNone}, {3*day + time.Hour, roomOpen}},
+			moments:  []moment{{48 * time.Minute, roomDraining}, {108 * time.Minute, roomNone}, {200 * time.Minute, roomNone}, {3*quota.Day + time.Hour, roomOpen}},
 			wantSays: []string{"runs out ~14:42", "week runs out ~15:12  ·  back Thu 13:12, as it resets"},
 		},
 		{
-			name: "its 5-hour window reaching its limit just as it resets: room all along", doc: routerDoc("", 1, readAccount("work", sessionOf(0.2, 4*time.Hour), weekOf(0.1, 5*day))),
+			name: "its 5-hour window reaching its limit just as it resets: room all along", doc: routerDoc("", 1, readAccount("work", sessionOf(0.2, 4*time.Hour), weekOf(0.1, 5*quota.Day))),
 			moments: []moment{{10 * time.Minute, roomOpen}, {3*time.Hour + 59*time.Minute, roomOpen}, {4*time.Hour + time.Minute, roomOpen}},
 		},
 		{
@@ -190,7 +190,7 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 		},
 		{
 			name: "its week running out, over the week: back as it resets", span: Week, doc: routerDoc("", 1, weekly),
-			moments:  []moment{{-20 * time.Hour, roomOpen}, {4 * time.Hour, roomDraining}, {6 * time.Hour, roomNone}, {3*day + time.Hour, roomOpen}},
+			moments:  []moment{{-20 * time.Hour, roomOpen}, {4 * time.Hour, roomDraining}, {6 * time.Hour, roomNone}, {3*quota.Day + time.Hour, roomOpen}},
 			wantSays: []string{"runs out ~18:12  ·  back Thu 13:12, as it resets"},
 		},
 		{

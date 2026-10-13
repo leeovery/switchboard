@@ -111,7 +111,7 @@ func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, column, 
 	doing := runningDoing(r.Activity)
 	c.line(column, y, line{
 		runningIDOf(r, now),
-		{padded(truncate(r.Family, familyCells), familyCells), mutedInk},
+		{padded(prose.Cut(r.Family, familyCells), familyCells), mutedInk},
 		{strings.Repeat(" ", max(seenCells-len(seen), 0)) + seen, dimInk},
 		spaces(beforeDoing),
 		{padded(doing.text, doingCells), doing.ink},

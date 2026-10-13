@@ -13,7 +13,8 @@ import (
 // pressure runs out, as its latest pressure event before said; the sessions
 // a limit, a cap or a refusal moved, counted, and where to; and the windows
 // each event names, each named by its key as name names it. Its zero value
-// names a window by its key. eventFacts aren't safe for concurrent use.
+// names a window as status.NameOfKey does. eventFacts aren't safe for
+// concurrent use.
 type eventFacts struct {
 	name func(key string) string
 	// runsOut is when each account the run's pressure events told of runs
@@ -90,14 +91,14 @@ func (f *eventFacts) named(keys []string) []string {
 }
 
 // windowOf names the window with the given key as a sentence has it, as
-// status.InProse puts the name name gives, or the key itself where there's
+// status.InProse puts the name name gives, or status.NameOfKey where there's
 // no name: "window" where there's no key.
 func (f *eventFacts) windowOf(key string) string {
 	switch {
 	case key == "":
 		return "window"
 	case f.name == nil:
-		return status.InProse(key)
+		return status.InProse(status.NameOfKey(key))
 	}
 	return status.InProse(f.name(key))
 }

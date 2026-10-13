@@ -153,12 +153,15 @@ func TestAMovePassingOverAnAccountUnderPressureSaysWhenItRunsOut(t *testing.T) {
 	}
 }
 
-func TestATellingsZeroValueNamesAWindowByItsKey(t *testing.T) {
+func TestATellingsZeroValueNamesAWindowAsNameOfKeyDoes(t *testing.T) {
 	var telling views.Telling
-	for key, want := range map[string]string{"5h": "its 5h to run out at 15:10", "Five\x1bh": "its Five h to run out at 15:10", "Fiveh": "its fiveh to run out at 15:10"} {
+	for key, want := range map[string]string{
+		"5h": "its 5-hour to run out at 15:10", "7d": "its week to run out at 15:10",
+		"Five\x1bh": "its Five h to run out at 15:10", "Fiveh": "its fiveh to run out at 15:10",
+	} {
 		pressure := status.Event{At: at(13, 0), Kind: status.EventPressure, Account: "personal", Windows: []string{key}, Until: at(15, 10)}
 		if got := telling.Line(pressure, at(16, 0)).What.String(); got != want {
-			t.Errorf("a zero Telling tells a pressure event of window %q as %q, want %q, its key put as a sentence has it", key, got, want)
+			t.Errorf("a zero Telling tells a pressure event of window %q as %q, want %q, as status.NameOfKey names it, put as a sentence has it", key, got, want)
 		}
 	}
 	move := status.Event{At: at(14, 0), Kind: status.EventMoved, From: "personal", To: "side", Reason: "new, personal under pressure"}
