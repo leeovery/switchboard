@@ -114,6 +114,43 @@ func countOf(c views.LogCount) viewstest.Count {
 	return viewstest.Count{Shown: c.Shown, Requests: c.Requests, Checks: c.Checks, Counts: c.Counts, Failed: c.Failed, HiddenBy: c.HiddenBy()}
 }
 
+// TestANarrowTableAndAPhoneFoldARowsRoutingInAlikeAtEachHardMoment holds the
+// table under 160 columns, its routing folded into stopped, to the phone's,
+// at each row of each hard moment, every kind shown: each says the row's
+// routing in its stopped's place for the same rows, the narrow table as the
+// routing column says it, the phone in its own form.
+func TestANarrowTableAndAPhoneFoldARowsRoutingInAlikeAtEachHardMoment(t *testing.T) {
+	folding, staying := 0, 0
+	for _, hm := range viewstest.LogMoments() {
+		src := logSourcesOf(hm)
+		src.Filter = views.LogFilter{}
+		for _, l := range views.LogRows(src).Lines {
+			r := l.Row
+			if l.Rule != nil {
+				continue
+			}
+			phoneRouting := r.Routing.Words
+			if r.Routing.From != "" {
+				phoneRouting = status.FromWords(r.Routing.From)
+			}
+			routed := len(r.Routing.Words) > 0
+			folded := routed && reflect.DeepEqual(r.Folded(), r.Routing.Said())
+			phoned := routed && r.PhoneStopped().String() == phoneRouting.String()
+			if folded != phoned {
+				t.Errorf("%s: %s's row folds its routing in narrow %t, as %q, but on a phone %t, as %q", hm.Name, r.Request, folded, r.Folded(), phoned, r.PhoneStopped())
+			}
+			if folded {
+				folding++
+			} else {
+				staying++
+			}
+		}
+	}
+	if folding < 10 || staying < 10 {
+		t.Errorf("the moments fold %d rows' routing in and keep %d rows' stopped, want ten of each at least", folding, staying)
+	}
+}
+
 // ruleFigures are the figures of the day with the given date among those
 // given: none but its date where they hold none.
 func ruleFigures(totals []views.DayTotals, date string) views.DayTotals {

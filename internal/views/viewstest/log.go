@@ -347,7 +347,7 @@ func sentAgainAndFailed() LogMoment {
 	retried.Mark, retried.Rewrote, retried.Cost = views.MarkMoved, true, rewriteCost
 	retried.Stopped, retried.Phone, retried.Routing = "tool_use · Bash +1", "from work", "after work's limit"
 	refused, cutOff, givenUp := rowOf(c1), rowOf(c2), rowOf(c3)
-	refused.Routing = "after side's limit, work's limit"
+	refused.Routing, refused.Phone = "after side's limit, work's limit", "after side's limit, work's limit"
 	for _, r := range []*Row{&refused, &cutOff, &givenUp} {
 		r.Mark, r.Failed = views.MarkFailed, true
 	}
@@ -538,7 +538,7 @@ func failedOnly() LogMoment {
 	lost := told("r9", D28C, Opus, side, At(14, 41, 50), At(14, 41, 55))
 	lost.Lost = true
 	wanted := []Row{rowOf(refused), rowOf(cutOff), rowOf(givenUp), rowOf(broke)}
-	wanted[0].Routing = "after side's limit, work's limit"
+	wanted[0].Routing, wanted[0].Phone = "after side's limit, work's limit", "after side's limit, work's limit"
 	for i := range wanted {
 		wanted[i].Mark, wanted[i].Failed = views.MarkFailed, true
 	}
