@@ -1,9 +1,7 @@
 package dashboard
 
 import (
-	"cmp"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -255,17 +253,11 @@ func (p LogPanel) accountTicks() []tick {
 	return ticks
 }
 
-// modelTicks are the ticks of the models today's lines asked for, the most
-// asked first, each named by its id less claude-, ticked where the filter
+// modelTicks are the ticks of the models today's lines asked for, in the
+// order LogCount's ModelsAsked gives, each named by its id less claude-, ticked where the filter
 // keeps its lines.
 func (p LogPanel) modelTicks() []tick {
-	every := slices.SortedFunc(func(yield func(string) bool) {
-		for m := range p.Lines.Models {
-			if !yield(m) {
-				return
-			}
-		}
-	}, func(a, b string) int { return cmp.Or(p.Lines.Models[b]-p.Lines.Models[a], strings.Compare(a, b)) })
+	every := p.Lines.ModelsAsked()
 	ticks := make([]tick, len(every))
 	for i, m := range every {
 		ticks[i] = tick{
@@ -276,19 +268,17 @@ func (p LogPanel) modelTicks() []tick {
 	return ticks
 }
 
-// panelRowKinds are the kinds of the ledger's lines, in the panel's order.
-var panelRowKinds = []views.RowKind{views.RowRequest, views.RowCheck, views.RowCount}
-
 // rowKindTicks are the kinds' ticks, each with today's lines of it, ticked
 // where the filter keeps them.
 func (p LogPanel) rowKindTicks() []tick {
 	counts := map[views.RowKind]int{views.RowRequest: p.Lines.Requests, views.RowCheck: p.Lines.Checks, views.RowCount: p.Lines.Counts}
-	ticks := make([]tick, len(panelRowKinds))
-	for i, k := range panelRowKinds {
+	every := views.RowKinds()
+	ticks := make([]tick, len(every))
+	for i, k := range every {
 		ticks[i] = tick{
 			on: tickOn{rowKindTick, rowKindNames[k]}, name: rowKindNames[k], ticked: views.Ticks(p.Filter.Kinds, k),
 			after:  line{{" " + prose.Grouped(counts[k]), mutedInk}},
-			toggle: func(p LogPanel) LogPanel { p.Filter.Kinds = views.Toggled(p.Filter.Kinds, panelRowKinds, k); return p },
+			toggle: func(p LogPanel) LogPanel { p.Filter.Kinds = views.Toggled(p.Filter.Kinds, every, k); return p },
 		}
 	}
 	return ticks

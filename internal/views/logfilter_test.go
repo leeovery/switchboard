@@ -182,3 +182,15 @@ func rowsOn(table views.LogTable, date string, keep func(views.RequestRow) bool)
 	}
 	return n
 }
+
+// The panel lists the models today's lines asked for the most asked first,
+// those asked alike by their ids; and the kinds of line in its own order.
+func TestThePanelsModelsAreTheMostAskedFirstAndItsKindsInItsOrder(t *testing.T) {
+	c := views.LogCount{Models: map[string]int{"claude-haiku-4-5": 40, "claude-opus-5-5": 1200, "claude-fable-5-1": 40}}
+	if got, want := c.ModelsAsked(), []string{"claude-opus-5-5", "claude-fable-5-1", "claude-haiku-4-5"}; !slices.Equal(got, want) {
+		t.Errorf("the models are listed %q, want %q", got, want)
+	}
+	if got, want := views.RowKinds(), []views.RowKind{views.RowRequest, views.RowCheck, views.RowCount}; !slices.Equal(got, want) {
+		t.Errorf("the kinds are listed %v, want %v", got, want)
+	}
+}
