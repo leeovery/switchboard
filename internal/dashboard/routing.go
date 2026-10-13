@@ -64,7 +64,7 @@ type routingTable struct {
 // account's sessions counted as the router listed them, where it listed any,
 // else as doc counts them; and its pool, and who's out of it, at now.
 func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
-	m := f.moment(doc, now)
+	m := f.Moment(doc, now)
 	names := overviewNames(m)
 	t := routingTable{names: nameColumn(names, f.Width), now: now}
 	var listing []status.Session
@@ -103,7 +103,7 @@ func (f Frame) routingBesideUsage() bool {
 // its most. Beside USAGE's blocks, it's as routingAside has it. Folded, its
 // heading says the mode alone. Its table is built only as it's first drawn.
 func (f Frame) routingSection(doc status.Document, now time.Time) section {
-	m := f.moment(doc, now)
+	m := f.Moment(doc, now)
 	if f.routingBesideUsage() {
 		return routingAside(m)
 	}

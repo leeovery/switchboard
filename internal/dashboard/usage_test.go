@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -693,9 +694,9 @@ func TestAProbedPrintoutMarksNoneOfSeveralAccountsAsWhereNewSessionsGo(t *testin
 // stale, filled and marked as the moment has it; and ▲ marks the account the
 // moment's Next names.
 func TestUSAGEAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
-	for _, hm := range hardMoments() {
-		t.Run(hm.name, func(t *testing.T) {
-			m := hm.doc.At(hm.now, claudeLike)
+	for _, hm := range statustest.HardMoments(claudeLike) {
+		t.Run(hm.Name, func(t *testing.T) {
+			m := hm.Doc.At(hm.Now, claudeLike)
 			b := newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, claudeLike.Shared, labelsOf(m)))
 			for i, a := range m.Accounts {
 				row := b.rows[i]

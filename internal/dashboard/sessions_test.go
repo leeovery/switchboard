@@ -1045,8 +1045,8 @@ func TestOnTheTickASessionResetsAFailedReadAccountsSessionHasntStartedAsROUTINGH
 	f := switchboard(160, 40, flippingSessions(), Traffic{})
 	ref := Ref{Account: "work", Window: "5h"}
 
-	if routing := doc.RoutingOf(work, after, claudeLike); routing.Kind != status.RoutingIdle {
-		t.Errorf("ROUTING says work is %q, want it idle", routing.Says)
+	if a, _ := doc.At(after, claudeLike).Account(work.ID); a.Routing.Kind != status.RoutingIdle {
+		t.Errorf("ROUTING says work is %q, want it idle", a.Routing.Says)
 	}
 	if words := wordsOf(windowNowOf(doc, work.ID, "5h", after), after).full.plain(); words != "not started" {
 		t.Errorf("USAGE says work's session is %q, want it not started", words)

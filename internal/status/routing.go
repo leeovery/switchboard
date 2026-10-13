@@ -98,13 +98,6 @@ const (
 	comeHere    = "new sessions come here"
 )
 
-// RoutingOf is how doc's account a stands with the router at now, as policy
-// says which windows every model shares: the first of the kinds that holds,
-// as its WindowStates' routing says it.
-func (d Document) RoutingOf(a Account, now time.Time, policy score.Policy) Routing {
-	return d.WindowStatesOf(a, now, policy).routing(d.pressureOut(a, now))
-}
-
 // pressureOut is where account a's pressure window, as the router named it,
 // runs out at now, as RunsOut has it: At zero where it doesn't before it
 // resets, or the account has no such window.
@@ -148,7 +141,7 @@ func (s WindowStates) routing(pressure RunOut) Routing {
 	case s.pressed:
 		return pressedRouting(pressure, now)
 	case s.idle:
-		return Routing{Kind: RoutingIdle, Says: "idle", Clauses: []string{d.StartsAt(a.ID, now)}, Short: []string{"idle"}}
+		return Routing{Kind: RoutingIdle, Says: "idle", Clauses: []string{d.startsAt(a.ID, now)}, Short: []string{"idle"}}
 	case len(d.Accounts) > 1 && d.next() == a.ID:
 		return Routing{Kind: RoutingNext, Says: "open", Clauses: []string{comeHere}, Short: []string{"open", "next"}}
 	}
@@ -182,7 +175,7 @@ func (s WindowStates) heldRouting() (Routing, bool) {
 
 // cappedRouting is how the account stands at its cap at now, as policy says
 // which windows every model shares, reporting false while no window of it
-// has reached its cap, as ReachedReserve judges: at it in a window every model
+// has reached its cap, as reachedReserve judges: at it in a window every model
 // shares, which holds it back from every request, as in "at its cap · back
 // 17:10 · new sessions go elsewhere", back as the last of those resets; else
 // in a model's own, as Fable's week, which holds back that model's requests

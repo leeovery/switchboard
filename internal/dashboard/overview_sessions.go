@@ -39,10 +39,10 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 	return section{
 		Section: SectionSessions, least: rows, most: rows,
 		draw: func(c *canvas, body bounds) {
-			f.drawRunning(c, f.moment(doc, now), running, body)
+			f.drawRunning(c, f.Moment(doc, now), running, body)
 		},
 		folded: func() line {
-			return line{{runningCount(f.moment(doc, now), running), mutedInk}}
+			return line{{runningCount(f.Moment(doc, now), running), mutedInk}}
 		},
 	}
 }
@@ -51,7 +51,7 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 // them, of the router's listing as the request stream has moved and seen
 // them since.
 func (f Frame) running(doc status.Document, now time.Time) []views.Running {
-	return views.RunningOf(f.moment(doc, now), f.seenListing())
+	return views.RunningOf(f.Moment(doc, now), f.seenListing())
 }
 
 // seenListing is the listing, each of its sessions' models last seen as

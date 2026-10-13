@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -13,12 +14,13 @@ import (
 // out of view.
 func (m Model) moveFocus(by int) Model {
 	now := m.now()
-	accounts := m.doc.At(now, m.cfg.Policy).Accounts
+	f := m.frame(now)
+	accounts := f.Moment(m.doc, now).Accounts
 	i := slices.IndexFunc(accounts, func(a status.AccountNow) bool { return a.ID == m.focus })
 	if i < 0 {
 		return m
 	}
-	return m.focusedOn(accounts[min(max(i+by, 0), len(accounts)-1)].ID, now)
+	return m.focusedOn(f, accounts[min(max(i+by, 0), len(accounts)-1)].ID, now)
 }
 
 // focusOn moves the Overview's focus to the account with the given id, as a
@@ -26,17 +28,18 @@ func (m Model) moveFocus(by int) Model {
 // the document has no such account, it does nothing.
 func (m Model) focusOn(id string) Model {
 	now := m.now()
-	if _, ok := m.doc.At(now, m.cfg.Policy).Account(id); !ok {
+	f := m.frame(now)
+	if _, ok := f.Moment(m.doc, now).Account(id); !ok {
 		return m
 	}
-	return m.focusedOn(id, now)
+	return m.focusedOn(f, id, now)
 }
 
 // focusedOn is the model with the Overview's focus on the account of the
-// document on screen with the given id, USAGE scrolled to it at now where
-// it's out of view.
-func (m Model) focusedOn(id string, now time.Time) Model {
-	m.focus, m.scroll = id, m.frame(now).Revealing(m.doc, now, id)
+// document on screen with the given id, USAGE scrolled to it where it's out
+// of view on the page f draws of it at now, of the moment f holds.
+func (m Model) focusedOn(f dashboard.Frame, id string, now time.Time) Model {
+	m.focus, m.scroll = id, f.Revealing(m.doc, now, id)
 	return m
 }
 

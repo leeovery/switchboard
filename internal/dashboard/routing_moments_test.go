@@ -17,7 +17,7 @@ func TestROUTINGTheCardAndCOMINGUPAgreeWithTheMomentAtEachHardMoment(t *testing.
 	for _, hm := range statustest.HardMoments(claudeLike) {
 		t.Run(hm.Name, func(t *testing.T) {
 			f := frameOf(160, 40)
-			m := f.moment(hm.Doc, hm.Now)
+			m := f.Moment(hm.Doc, hm.Now)
 			checkROUTINGAgrees(t, m, f.routingTableOf(hm.Doc, hm.Now))
 			checkCardAgrees(t, m, RoutingRows(hm.Doc, nil, hm.Now, claudeLike))
 			checkCOMINGUPAgrees(t, m, f.upcoming(hm.Doc, hm.Now))

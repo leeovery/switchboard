@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -11,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -243,7 +245,7 @@ func joined(events []router.StreamEvent) int {
 // took takes in the events the stream told, at now: what each seat is doing,
 // for the traffic, and the requests going upstream, for the traces.
 func (m Model) took(events []router.StreamEvent, now time.Time) Model {
-	m.traffic = m.traffic.took(events, m.held, now)
+	m.traffic = m.traffic.took(events, m.held(now), now)
 	m.traces = m.traces.Told(sentOf(events), now)
 	return m
 }
@@ -305,9 +307,13 @@ func (m Model) answeredAgain(from router.Health) Model {
 	return m
 }
 
-// held reports whether a limit holds the account with the given id back, as
-// the document on screen has it.
-func (m Model) held(id string) bool {
-	a, ok := m.doc.Account(id)
-	return ok && a.Limit.Holds(m.now())
+// held reports whether the limit the router saw the account with the given id
+// reach holds it at now, as the moment of the document on screen then has it,
+// worked out the first time it's asked.
+func (m Model) held(now time.Time) func(id string) bool {
+	look := sync.OnceValue(func() status.Moment { return m.doc.At(now, m.cfg.Policy) })
+	return func(id string) bool {
+		a, ok := look().Account(id)
+		return ok && a.LimitHolds
+	}
 }

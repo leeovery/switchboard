@@ -56,7 +56,7 @@ func (f Frame) routerStatus(c *canvas, doc status.Document, now time.Time) {
 // says why in the state's place, as failing has it. Before any document, and
 // before either, it's blank.
 func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
-	m := f.moment(doc, now)
+	m := f.Moment(doc, now)
 	var s statusLine
 	switch {
 	case m.Probed:

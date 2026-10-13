@@ -469,7 +469,7 @@ func TestTheKeyLineByWhatTheDashboardReads(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t, tt.doc)
-			if routed(tt.doc) {
+			if tt.doc.Source == status.SourceRouter {
 				h.startRouter(tt.doc)
 			}
 			h.start()

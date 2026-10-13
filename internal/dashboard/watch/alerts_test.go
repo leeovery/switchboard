@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 )
 
 func TestNotifications(t *testing.T) {
@@ -223,17 +224,18 @@ func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
 	// posted of warnings at each moment of its document, its windows read
 	// unused before.
 	roomAgain := map[string][]string{
-		"a week at its reserve when built, then reset": {"work · Work has room again"},
-		"a limit holding, then lifted":                 {"work · Work has room again"},
+		"a week at its reserve when built, then reset": {"work · work has room again"},
+		"a limit holding, then lifted":                 {"work · work has room again"},
 	}
 	warned := map[string][]string{
-		"a week at its reserve when built":     {"work · Work: Week at 92%"},
-		"a limit holding":                      {"work · Work: Session at 100%"},
-		"probed, of one account, with no room": {"work · Work: Week at 100%"},
+		"a week at its reserve when built":                           {"work · work: Week at 92%"},
+		"a week at its reserve when built, the global pin naming it": {"work · work: Week at 92%"},
+		"a limit holding":                      {"work · work: Session at 100%"},
+		"probed, of one account, with no room": {"work · work: Week at 100%"},
 	}
-	for _, tt := range hardMoments() {
-		t.Run(tt.name, func(t *testing.T) {
-			read, look := tt.doc.At(start, policy), tt.doc.At(tt.now, policy)
+	for _, hm := range statustest.HardMoments(policy) {
+		t.Run(hm.Name, func(t *testing.T) {
+			read, look := hm.Doc.At(statustest.Built, policy), hm.Doc.At(hm.Now, policy)
 			var back, warnings []string
 			for _, a := range look.Accounts {
 				if was, _ := read.Account(a.ID); was.OutOfQuota && a.CanRise {
@@ -247,17 +249,44 @@ func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
 			}
 
 			fetched := messagesOf(lastReads{}.with(read).alerts(look, notifications))
-			if !slices.Equal(fetched, back) || !slices.Equal(back, roomAgain[tt.name]) {
+			if !slices.Equal(fetched, back) || !slices.Equal(back, roomAgain[hm.Name]) {
 				t.Errorf("fetched again with nothing read since, posted %q; want %q, as the moments say, which is %q",
-					fetched, back, roomAgain[tt.name])
+					fetched, back, roomAgain[hm.Name])
 			}
 			warnOnly := config.Notifications{Warning: notifications.Warning}
-			fresh := messagesOf(lastReads{}.with(unused(tt.doc).At(start, policy)).alerts(look, warnOnly))
-			if !slices.Equal(fresh, warnings) || !slices.Equal(warnings, warned[tt.name]) {
-				t.Errorf("read from unused, posted %q; want %q, as the moment says, which is %q", fresh, warnings, warned[tt.name])
+			fresh := messagesOf(lastReads{}.with(unused(hm.Doc).At(statustest.Built, policy)).alerts(look, warnOnly))
+			if !slices.Equal(fresh, warnings) || !slices.Equal(warnings, warned[hm.Name]) {
+				t.Errorf("read from unused, posted %q; want %q, as the moment says, which is %q", fresh, warnings, warned[hm.Name])
 			}
 		})
 	}
+}
+
+// builtBy is the document source builds as the clock starts of the accounts
+// given, each as it stands then, as AsOf has it.
+func builtBy(source string, accounts ...status.Account) status.Document {
+	doc := status.Document{GeneratedAt: start.UTC(), Source: source}
+	if source == status.SourceRouter {
+		doc.Router = status.Health{Healthy: true}
+	}
+	for _, a := range accounts {
+		doc.Accounts = append(doc.Accounts, a.AsOf(policy, start))
+	}
+	return doc
+}
+
+// limitedTo is a held back by the router's limit in the windows given, until
+// lifts after the clock starts.
+func limitedTo(a status.Account, lifts time.Duration, windows ...string) status.Account {
+	a.Limit = status.Limit{ID: 4, Windows: windows, Until: start.Add(lifts).UTC()}
+	return a
+}
+
+// tokenRefused is a whose token the upstream refuses, until lifts after the
+// clock starts.
+func tokenRefused(a status.Account, lifts time.Duration) status.Account {
+	a.Refused = status.Refusal{Until: start.Add(lifts).UTC(), Status: 401}
+	return a
 }
 
 // unused is doc with each of its accounts' windows read unused.

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prime"
-	"github.com/leeovery/switchboard/internal/score"
 )
 
 // Prime is the priming schedule, as the document gives it: the day, in local
@@ -54,12 +53,6 @@ type Coming struct {
 	What    string
 	Account Account
 	At      time.Time
-}
-
-// Coming returns what comes next of priming at now, as the document stands
-// then, as policy judges its windows, as its moment's Coming has it.
-func (d Document) Coming(now time.Time, policy score.Policy) []Coming {
-	return d.At(now, policy).Coming
 }
 
 // coming is what comes next of priming at the moment, as the document gives
@@ -120,11 +113,11 @@ func (d Document) primeOf(id string) time.Time {
 	return d.Prime.Slots[i].Next
 }
 
-// NotStarted says what a window that has lapsed on the account with the
-// given id reads: that it hasn't started, and when the router next primes
-// the account, as primeOf has it, in now's time zone, such as "not started ·
-// next prime Tue 03:50".
-func (d Document) NotStarted(id string, now time.Time) string {
+// notStartedNote says what a window that has lapsed on the account with the
+// given id reads: that it hasn't started, and when the router next primes the
+// account, as primeOf has it, in now's time zone, such as "not started · next
+// prime Tue 03:50".
+func (d Document) notStartedNote(id string, now time.Time) string {
 	next := d.primeOf(id)
 	if next.IsZero() {
 		return notStarted

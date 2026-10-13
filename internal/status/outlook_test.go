@@ -368,22 +368,21 @@ func TestAnAccountsRoomIsWhatThePoolCountsOfIt(t *testing.T) {
 		pinnedTo(routerDocOf(work, limited, side), "work", "side"),
 	} {
 		doc = doc.WorkedOut(policy)
-		if got, want := poolLines(doc.PoolAt(built, policy)), poolLines(doc.Pool); !slices.Equal(got, want) {
-			t.Errorf("of %q, the pool at when the document was built is %q, want %q, as the document has it", doc.Pool.Accounts, got, want)
+		m := doc.At(built, policy)
+		if got, want := m.Pool(), poolNowOf(doc.Pool); !reflect.DeepEqual(got, want) {
+			t.Errorf("of %q, the pool at when the document was built is %+v, want %+v, as the document has it", doc.Pool.Accounts, got, want)
 		}
 		for _, w := range doc.Pool.Windows {
 			var summed float64
 			for _, id := range doc.Pool.Accounts {
-				a, _ := doc.Account(id)
-				room, _ := doc.RoomOf(a, w.Key, built, policy)
-				summed += room
+				summed += roomOf(m, id, w.Key)
 			}
 			if math.Abs(summed-w.Room) > 1e-9 {
 				t.Errorf("of %q, the pool's %s room is %v, where its accounts' rooms sum to %v", doc.Pool.Accounts, w.Key, w.Room, summed)
 			}
 		}
 	}
-	alone := routerDocOf(work).WorkedOut(policy)
+	alone := routerDocOf(work).WorkedOut(policy).At(built, policy)
 	tests := []struct {
 		key  string
 		want float64
@@ -394,8 +393,9 @@ func TestAnAccountsRoomIsWhatThePoolCountsOfIt(t *testing.T) {
 		{key: "7d_oi"},
 	}
 	for _, tt := range tests {
-		if got, ok := alone.RoomOf(alone.Accounts[0], tt.key, built, policy); math.Abs(got-tt.want) > 1e-9 || ok != tt.ok {
-			t.Errorf("alone, with no pool, work's %s room is %v, %v; want %v, %v, to its cap", tt.key, got, ok, tt.want, tt.ok)
+		a, _ := alone.Account("work")
+		if w, ok := a.Window(tt.key); math.Abs(w.Room-tt.want) > 1e-9 || ok != tt.ok {
+			t.Errorf("alone, with no pool, work's %s room is %v, %v; want %v, %v, to its cap", tt.key, w.Room, ok, tt.want, tt.ok)
 		}
 	}
 }
@@ -410,10 +410,10 @@ func TestThePoolJudgedAtNowPacesTheWindowsRunningThen(t *testing.T) {
 	side := readAt("side", windowIn("5h", 0.2, 3*time.Hour), windowIn("7d", 0.1, 6*day))
 	doc := routerDocOf(work, side).WorkedOut(policy)
 
-	got := poolLines(doc.PoolAt(built.Add(time.Hour+time.Second), policy))
+	got := poolNowLines(doc.At(built.Add(time.Hour+time.Second), policy).Pool())
 	want := []string{
-		"5h Session: room 1.8, used 0.1, pace 0.4",
-		"7d Week: room 1.4, used 0.3, pace 0.428571",
+		"5h: room 1.8, used 0.1, pace 0.4",
+		"7d: room 1.4, used 0.3, pace 0.428571",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("the pool's windows are %q, want %q", got, want)
@@ -436,6 +436,35 @@ func poolLines(p status.Pool) []string {
 		lines = append(lines, fmt.Sprintf("%s %s: room %.6g, used %.6g, pace %s", w.Key, w.Label, w.Room, w.Used, paceOf(w.Pace)))
 	}
 	return lines
+}
+
+// poolNowLines shows each of a moment's pool's windows: its key, room, use
+// and even pace.
+func poolNowLines(p status.PoolNow) []string {
+	var lines []string
+	for _, w := range p.Windows {
+		lines = append(lines, fmt.Sprintf("%s: room %.6g, used %.6g, pace %s", w.Key, w.Room, w.Used, paceOf(w.Pace)))
+	}
+	return lines
+}
+
+// poolNowOf is the document's pool p as a moment has its own: its windows by
+// their keys, as a moment names its windows apart.
+func poolNowOf(p status.Pool) status.PoolNow {
+	now := status.PoolNow{Accounts: p.Accounts, Pinned: p.Pinned}
+	for _, w := range p.Windows {
+		now.Windows = append(now.Windows, status.PoolWindowNow{Key: w.Key, Room: w.Room, Used: w.Used, Pace: w.Pace})
+	}
+	return now
+}
+
+// roomOf is the room the account of m with the given id has left at m in its
+// window with the given key, as the pool counts it: none where it has no such
+// window.
+func roomOf(m status.Moment, id, key string) float64 {
+	a, _ := m.Account(id)
+	w, _ := a.Window(key)
+	return w.Room
 }
 
 func TestWhatsComingUp(t *testing.T) {
@@ -542,6 +571,13 @@ func TestWhatsComingUp(t *testing.T) {
 			name: "no run-out while its token is refused",
 			doc: routerDocOf(with(pressed, func(a *status.Account) {
 				a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401}
+			})),
+			want: []status.Upcoming{reset("work", "5h", 4*time.Hour), reset("work", "7d", 3*day)},
+		},
+		{
+			name: "no run-out of a window last read before a read that failed, which runs out nowhere",
+			doc: routerDocOf(with(pressed, func(a *status.Account) {
+				a.FetchedAt, a.Error = built.Add(-20*time.Minute), "HTTP 529 · Overloaded"
 			})),
 			want: []status.Upcoming{reset("work", "5h", 4*time.Hour), reset("work", "7d", 3*day)},
 		},

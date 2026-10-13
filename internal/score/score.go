@@ -212,17 +212,6 @@ func (p Policy) Pick(candidates []Candidate, applies func(key string) bool, pref
 	return c, true
 }
 
-// Among returns the ids of the candidates Pick chooses among, in the order
-// given: those that qualify, as Pick says, but those under pressure while
-// another isn't.
-func (p Policy) Among(candidates []Candidate, applies func(key string) bool, now time.Time) []string {
-	var ids []string
-	for _, r := range among(p.qualifying(candidates, applies, now)) {
-		ids = append(ids, r.id)
-	}
-	return ids
-}
-
 // among are the ratings Pick chooses among: those not under pressure, or
 // every one where each is.
 func among(ratings []rating) []rating {

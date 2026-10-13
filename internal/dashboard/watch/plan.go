@@ -81,15 +81,16 @@ func (p plan) look(now time.Time) status.Read {
 	return status.Read{}
 }
 
-// landed notes a read that asked for r landing at now with doc. After the
-// router's, the next look is lookEvery on, and after it refreshed, the next
-// full read is an interval on, sooner after a read that failed in part.
-// After one built by probing, the next is an interval on, sooner after a
-// read that failed in part or for a window that resets before then.
-func (p plan) landed(r status.Read, doc status.Document, now time.Time) plan {
+// landed notes a read that asked for r landing at now with doc, the router's
+// where routed says. After the router's, the next look is lookEvery on, and
+// after it refreshed, the next full read is an interval on, sooner after a
+// read that failed in part. After one built by probing, the next is an
+// interval on, sooner after a read that failed in part or for a window that
+// resets before then.
+func (p plan) landed(r status.Read, doc status.Document, routed bool, now time.Time) plan {
 	p.asked = now
 	var wait time.Duration
-	if !routed(doc) {
+	if !routed {
 		p.failures, wait = backoff(p.failures, doc.IncompleteAsRead(), p.interval)
 		p.due = doc.NextFetchAsRead(now, wait)
 		return p

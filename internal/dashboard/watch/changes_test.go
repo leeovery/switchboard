@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/status/statustest"
 )
@@ -124,7 +125,7 @@ func TestAStateWhoseFirstWordsStayIsNoChange(t *testing.T) {
 			tt.then(&then)
 			h := routedHarness(t, before)
 			policy := h.model.cfg.Policy
-			if was, is := before.RoutingOf(before.Accounts[0], start, policy), then.RoutingOf(then.Accounts[0], start, policy); was.String() == is.String() {
+			if was, is := routingAt(before, start, policy), routingAt(then, start, policy); was.String() == is.String() {
 				t.Fatalf("work stands as %q before and after, want its words changed past its first", was)
 			}
 			h.start()
@@ -367,7 +368,7 @@ func TestTheCuesCompareTheMomentsOfTheirTwoLooksAtEachHardMoment(t *testing.T) {
 	for _, hm := range statustest.HardMoments(policy) {
 		t.Run(hm.Name, func(t *testing.T) {
 			built := hm.Doc.GeneratedAt
-			c := changes{}.looked(hm.Doc, router.Health{}, built, policy).ticked(hm.Doc, hm.Now, policy)
+			c := changes{}.looked(hm.Doc.At(built, policy), router.Health{}).ticked(hm.Doc, hm.Now, policy)
 			was, is := hm.Doc.At(built, policy), hm.Doc.At(hm.Now, policy)
 			var states []string
 			outs := map[dashboard.Ref]float64{}
@@ -391,4 +392,10 @@ func TestTheCuesCompareTheMomentsOfTheirTwoLooksAtEachHardMoment(t *testing.T) {
 			}
 		})
 	}
+}
+
+// routingAt is how doc's first account stands with the router at now, as the
+// document's moment then has it, as policy judges it.
+func routingAt(doc status.Document, now time.Time, policy score.Policy) status.Routing {
+	return doc.At(now, policy).Accounts[0].Routing
 }

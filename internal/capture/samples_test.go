@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -35,7 +37,7 @@ func TestTheSamplesReadAsTheFramesHaveThem(t *testing.T) {
 			if got := status.Percent(w.Utilization); got != tt.used {
 				t.Errorf("%s's %s is %s used, want %s", a.ID, tt.window, got, tt.used)
 			}
-			if got := status.Projection(now, a.Project(w, now).Projection); got != tt.projected {
+			if got := status.Projection(now, projected(a, tt.window, now)); got != tt.projected {
 				t.Errorf("%s's %s projects %q, want %q", a.ID, tt.window, got, tt.projected)
 			}
 		})
@@ -70,4 +72,12 @@ func TestTheSamplesStandAsTheFramesHaveThem(t *testing.T) {
 	if got := status.Over(byID["work"].Pressure.Since, now); got != "last 30 min" {
 		t.Errorf("work's pressure is measured over the %s, want the last 30 min", got)
 	}
+}
+
+// projected is where account a's window with the given key is heading at now,
+// read then, as its moment has it.
+func projected(a status.Account, key string, now time.Time) score.Projection {
+	at, _ := status.Document{GeneratedAt: now, Accounts: []status.Account{a}}.At(now, claude.Policy).Account(a.ID)
+	w, _ := at.Window(key)
+	return w.Out.Projection
 }

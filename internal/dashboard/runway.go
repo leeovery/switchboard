@@ -98,7 +98,7 @@ type runwayLayout struct {
 // whole; where not even the lanes fit, they scroll between the strip and the
 // line over the key line.
 func (f Frame) layOutRunway(doc status.Document, now time.Time, top int) runwayLayout {
-	m := f.moment(doc, now)
+	m := f.Moment(doc, now)
 	l := runwayLayout{top: top + lanesFrom}
 	for _, a := range m.Accounts {
 		l.lanes = append(l.lanes, f.laneOf(a, now))

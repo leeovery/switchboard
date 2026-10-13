@@ -1,7 +1,6 @@
 package status_test
 
 import (
-	"fmt"
 	"math/rand/v2"
 	"reflect"
 	"slices"
@@ -11,394 +10,50 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 )
 
-// routed is an account as the router knows it as it builds its document:
-// read, as the router last read it, before it's judged as it stands; and how
-// fast its session has been used over the last half hour, where the router
-// has a recent rate of it, 0 where it has none.
-type routed struct {
-	status.Account
-	rate float64
-}
-
-// trails are how the router has read the account's session lately, as
-// score.Noted keeps them, where it has a recent rate of it: from where rate
-// puts its use the half hour before gen, never below none, to where it was
-// last read.
-func (r routed) trails(gen time.Time) map[string][]score.Reading {
-	session, ok := r.Window(policy.Pressure)
-	if !ok || r.rate == 0 {
-		return nil
-	}
-	from := gen.Add(-score.Recent)
-	return map[string][]score.Reading{session.Key: {
-		{At: from, Utilization: max(session.Utilization-r.rate*score.Recent.Hours(), 0)},
-		{At: r.FetchedAt, Utilization: session.Utilization},
-	}}
-}
-
-// asTheRouterBuilds is the router's document at gen of the accounts given,
-// before it's worked out, the global pin naming those pinned, built as the
-// router builds its own: each account as it stands at gen, as AsOf has it;
-// with a usable token, its pressure, as status.PressureFrom has it, and its
-// recent rates, as status.RatesOf has them, over its trails; the best of
-// those not shut; and the primary.
-func asTheRouterBuilds(gen time.Time, pinned []string, accounts ...routed) status.Document {
-	doc := status.Document{GeneratedAt: gen, Source: status.SourceRouter, Router: status.Health{Healthy: true}}
-	if len(pinned) > 0 {
-		doc.Pin = status.Pin{Accounts: pinned, Since: gen.Add(-time.Hour)}
-	}
-	var open []status.Account
-	for _, r := range accounts {
-		a := r.AsOf(policy, gen)
-		if a.TokenSet {
-			trails := r.trails(gen)
-			a.Pressure = status.PressureFrom(policy, status.Pressing{
-				ID: a.ID, Reserve: a.Reserve, Latest: r.Windows, Trails: trails, Spent: slices.Contains(pinned, a.ID), Shut: a.Shut(gen, policy),
-			}, gen)
-			a.Rates = status.RatesOf(r.Windows, trails, gen)
-		}
-		doc.Accounts = append(doc.Accounts, a)
-		if !a.Shut(gen, policy) {
-			open = append(open, a)
-		}
-	}
-	doc.Best, doc.Primary = status.Best(policy, open, pinned, gen), status.PrimaryOf(doc.Accounts)
-	return doc
-}
-
-// asProbed is the document probing builds at gen of the accounts given, each
-// read as given, before it's worked out, as Collect builds it: each account
-// as it stands at gen, the best of them, and the primary.
-func asProbed(gen time.Time, accounts ...status.Account) status.Document {
-	doc := status.Document{GeneratedAt: gen, Source: status.SourceProbe}
-	for _, a := range accounts {
-		doc.Accounts = append(doc.Accounts, a.AsOf(policy, gen))
-	}
-	doc.Best, doc.Primary = status.Best(policy, doc.Accounts, nil, gen), status.PrimaryOf(doc.Accounts)
-	return doc
-}
-
-// readEarlier has the account read at the time given, rather than as the
-// document was built.
-func readEarlier(at time.Time) func(*status.Account) {
-	return func(a *status.Account) {
-		a.FetchedAt = at
-	}
-}
-
-// hardMoment is a document the router, or probing, builds, judged at a
-// moment a view has got it wrong at before, and what's wanted of it then.
-type hardMoment struct {
-	name string
-	// doc is the document as built, before it's worked out.
-	doc status.Document
-	now time.Time
-	// next is the account ▲ marks.
-	next string
-	// accounts are what's wanted of each of the document's accounts, by id.
-	accounts map[string]accountWant
-}
-
-// accountWant is what's wanted of an account at a hard moment.
-type accountWant struct {
-	routing                                   status.RoutingKind
-	held, capHolds, idle, outOfQuota, canRise bool
-	underPressure                             bool
-	limitSince                                time.Time
-	// windows are what's wanted of each of its windows, by key.
-	windows map[string]windowWant
-}
-
-// String says what's wanted of the account, its times as sinceBuilt has them.
-func (a accountWant) String() string {
-	return fmt.Sprintf("{routing:%d held:%v capHolds:%v idle:%v outOfQuota:%v canRise:%v underPressure:%v limitSince:%s}",
-		a.routing, a.held, a.capHolds, a.idle, a.outOfQuota, a.canRise, a.underPressure, sinceBuilt(a.limitSince))
-}
-
-// windowWant is what's wanted of a window at a hard moment.
-type windowWant struct {
-	kind                   status.WindowKind
-	at                     time.Time
-	used                   float64
-	next                   time.Time
-	resetSinceRead, lapsed bool
-	held                   bool
-	since                  time.Time
-	capped, cappedAsRead   bool
-	runsOut                bool
-	out                    time.Time
-}
-
-// String says what's wanted of the window, its times as sinceBuilt has them.
-func (w windowWant) String() string {
-	return fmt.Sprintf("{kind:%d at:%s used:%v next:%s resetSinceRead:%v lapsed:%v held:%v since:%s capped:%v cappedAsRead:%v runsOut:%v out:%s}",
-		w.kind, sinceBuilt(w.at), w.used, sinceBuilt(w.next), w.resetSinceRead, w.lapsed, w.held, sinceBuilt(w.since),
-		w.capped, w.cappedAsRead, w.runsOut, sinceBuilt(w.out))
-}
-
-// sinceBuilt shows t as how long after the documents were built it is, as
-// "built+112h0m0s", or "none" where it's zero.
-func sinceBuilt(t time.Time) string {
-	if t.IsZero() {
-		return "none"
-	}
-	return "built" + fmt.Sprintf("%+v", t.Sub(built))
-}
-
-// hardMoments are the moments views have got the document wrong at: the
-// documents the router, or probing, builds then, through AsOf, and what's
-// wanted of each fact of them. A row lists every account and every window.
-func hardMoments() []hardMoment {
-	limited := asTheRouterBuilds(built, nil,
-		routed{Account: with(readAt("work", spentIn("5h", 1, 40*time.Minute), windowIn("7d", 0.6, 3*day)), func(a *status.Account) {
-			a.Limit = status.Limit{ID: 4, Windows: []string{"5h"}, Until: built.Add(40 * time.Minute)}
-		})},
-		routed{Account: readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.2, 5*day))},
-	)
-	limited.Events = []status.Event{{
-		ID: 9, At: built.Add(-20 * time.Minute), Kind: status.EventLimit, Account: "work",
-		Windows: []string{"5h"}, Until: built.Add(40 * time.Minute), Limit: 4,
-	}}
-	capped := asTheRouterBuilds(built, nil,
-		routed{Account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.92, time.Hour)), reserving)},
-		routed{Account: readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.2, 5*day))},
-	)
-	lapsed := asTheRouterBuilds(built, nil,
-		routed{Account: with(readAt("work", windowIn("5h", 0.5, -time.Hour), windowIn("7d", 0.3, 3*day)), readEarlier(built.Add(-6*time.Hour)))},
-		routed{Account: readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.2, 5*day))},
-	)
-	lapsed.Prime = status.Prime{Day: "08:00-22:00", Window: "5h", Slots: []status.Slot{
-		{Account: "work", At: "13:30", Next: built.Add(18 * time.Minute)},
-		{Account: "side", At: "16:00", Next: built.Add(5 * time.Hour)},
-	}}
-	stillSide := map[string]windowWant{
-		"5h": {kind: status.WindowOpen, at: built.Add(4 * time.Hour), used: 0.1, next: built.Add(4 * time.Hour)},
-		"7d": {kind: status.WindowOpen, at: built.Add(5 * day), used: 0.2, next: built.Add(5 * day)},
-	}
-	return []hardMoment{
-		{
-			name: "just after a reset, before the reread",
-			doc: asTheRouterBuilds(built, nil,
-				routed{Account: readAt("work", windowIn("5h", 0.8, time.Hour), windowIn("7d", 0.5, 2*day))},
-				routed{Account: readAt("side", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.7, 30*time.Minute))},
-			),
-			now:  built.Add(time.Hour + 5*time.Second),
-			next: "side",
-			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingIdle, idle: true, canRise: true, windows: map[string]windowWant{
-					"5h": {kind: status.WindowNotStarted, resetSinceRead: true, lapsed: true},
-					"7d": {kind: status.WindowOpen, at: built.Add(2 * day), used: 0.5, next: built.Add(2 * day)},
-				}},
-				"side": {routing: status.RoutingNext, canRise: true, windows: map[string]windowWant{
-					"5h": {kind: status.WindowOpen, at: built.Add(3 * time.Hour), used: 0.3, next: built.Add(3 * time.Hour)},
-					"7d": {kind: status.WindowOpen, at: built.Add(30*time.Minute + 7*day), next: built.Add(30*time.Minute + 7*day), resetSinceRead: true},
-				}},
-			},
-		},
-		{
-			name: "a failed read after an earlier one",
-			doc: asTheRouterBuilds(built, nil,
-				routed{Account: with(readAt("work", windowIn("5h", 0.7, 2*time.Hour), windowIn("7d", 0.4, 3*day)), func(a *status.Account) {
-					a.FetchedAt, a.Error = built.Add(-20*time.Minute), "HTTP 529 · Overloaded"
-				}), rate: 0.3},
-				routed{Account: readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.2, 5*day))},
-			),
-			now:  built.Add(5 * time.Minute),
-			next: "side",
-			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingPressed, canRise: true, underPressure: true, windows: map[string]windowWant{
-					"5h": {kind: status.WindowStale, at: built.Add(-20 * time.Minute), used: 0.7, next: built.Add(2 * time.Hour), out: built.Add(time.Hour)},
-					"7d": {kind: status.WindowStale, at: built.Add(-20 * time.Minute), used: 0.4, next: built.Add(3 * day)},
-				}},
-				"side": {routing: status.RoutingNext, canRise: true, windows: stillSide},
-			},
-		},
-		{
-			name: "its token refused",
-			doc: asTheRouterBuilds(built, nil,
-				routed{Account: with(readAt("work", windowIn("5h", 0.4, 2*time.Hour), windowIn("7d", 0.5, 2*day)), func(a *status.Account) {
-					a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401}
-				}), rate: 0.4},
-				routed{Account: readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.2, 5*day))},
-			),
-			now:  built.Add(10 * time.Minute),
-			next: "side",
-			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingRefused, windows: map[string]windowWant{
-					"5h": {kind: status.WindowStale, at: built, used: 0.4, next: built.Add(2 * time.Hour), out: built.Add(90 * time.Minute)},
-					"7d": {kind: status.WindowStale, at: built, used: 0.5, next: built.Add(2 * day)},
-				}},
-				"side": {routing: status.RoutingNext, canRise: true, windows: stillSide},
-			},
-		},
-		{
-			name: "a stale document, built three hours before now",
-			doc: asTheRouterBuilds(built, nil,
-				routed{Account: readAt("work", windowIn("5h", 0.4, 2*time.Hour), windowIn("7d", 0.6, 4*day))},
-				routed{Account: readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.3, 5*day))},
-			),
-			now:  built.Add(3 * time.Hour),
-			next: "side",
-			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingIdle, idle: true, canRise: true, windows: map[string]windowWant{
-					"5h": {kind: status.WindowNotStarted, resetSinceRead: true, lapsed: true},
-					"7d": {kind: status.WindowRunsOut, at: built.Add(2 * day), used: 0.6, next: built.Add(4 * day), runsOut: true, out: built.Add(2 * day)},
-				}},
-				"side": {routing: status.RoutingNext, canRise: true, windows: map[string]windowWant{
-					"5h": {kind: status.WindowOpen, at: built.Add(4 * time.Hour), used: 0.1, next: built.Add(4 * time.Hour)},
-					"7d": {kind: status.WindowRunsOut, at: built.Add(112 * time.Hour), used: 0.3, next: built.Add(5 * day), runsOut: true, out: built.Add(112 * time.Hour)},
-				}},
-			},
-		},
-		{
-			name: "its session lapsed",
-			doc:  lapsed,
-			now:  built.Add(10 * time.Minute),
-			next: "work",
-			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingIdle, idle: true, canRise: true, windows: map[string]windowWant{
-					"5h": {kind: status.WindowNotStarted, lapsed: true},
-					"7d": {kind: status.WindowOpen, at: built.Add(3 * day), used: 0.3, next: built.Add(3 * day)},
-				}},
-				"side": {routing: status.RoutingOpen, canRise: true, windows: stillSide},
-			},
-		},
-		{
-			name: "a week at its reserve when built",
-			doc:  capped,
-			now:  built.Add(10 * time.Minute),
-			next: "side",
-			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingCapped, capHolds: true, outOfQuota: true, windows: map[string]windowWant{
-					"5h": {kind: status.WindowOpen, at: built.Add(3 * time.Hour), used: 0.3, next: built.Add(3 * time.Hour)},
-					"7d": {kind: status.WindowCapped, at: built.Add(time.Hour), used: 0.92, next: built.Add(time.Hour), capped: true, cappedAsRead: true},
-				}},
-				"side": {routing: status.RoutingNext, canRise: true, windows: stillSide},
-			},
-		},
-		{
-			name: "a week at its reserve when built, then reset",
-			doc:  capped,
-			now:  built.Add(time.Hour + time.Minute),
-			next: "side",
-			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingOpen, canRise: true, windows: map[string]windowWant{
-					"5h": {kind: status.WindowOpen, at: built.Add(3 * time.Hour), used: 0.3, next: built.Add(3 * time.Hour)},
-					"7d": {kind: status.WindowOpen, at: built.Add(time.Hour + 7*day), next: built.Add(time.Hour + 7*day), resetSinceRead: true, cappedAsRead: true},
-				}},
-				"side": {routing: status.RoutingNext, canRise: true, windows: stillSide},
-			},
-		},
-		{
-			name: "a limit holding",
-			doc:  limited,
-			now:  built.Add(10 * time.Minute),
-			next: "side",
-			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingLimited, held: true, outOfQuota: true, limitSince: built.Add(-20 * time.Minute), windows: map[string]windowWant{
-					"5h": {
-						kind: status.WindowLimited, at: built.Add(40 * time.Minute), used: 1, next: built.Add(40 * time.Minute),
-						held: true, since: built.Add(-20 * time.Minute),
-					},
-					"7d": {kind: status.WindowRunsOut, at: built.Add(64 * time.Hour), used: 0.6, next: built.Add(3 * day), runsOut: true, out: built.Add(64 * time.Hour)},
-				}},
-				"side": {routing: status.RoutingNext, canRise: true, windows: stillSide},
-			},
-		},
-		{
-			name: "a limit holding, then lifted",
-			doc:  limited,
-			now:  built.Add(41 * time.Minute),
-			next: "side",
-			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingIdle, idle: true, canRise: true, windows: map[string]windowWant{
-					"5h": {kind: status.WindowNotStarted, resetSinceRead: true, lapsed: true},
-					"7d": {kind: status.WindowRunsOut, at: built.Add(64 * time.Hour), used: 0.6, next: built.Add(3 * day), runsOut: true, out: built.Add(64 * time.Hour)},
-				}},
-				"side": {routing: status.RoutingNext, canRise: true, windows: stillSide},
-			},
-		},
-		{
-			name: "probed, of several accounts",
-			doc: asProbed(built,
-				readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.5, 2*day)),
-				readAt("side", windowIn("5h", 0.6, time.Hour), windowIn("7d", 0.05, 6*day)),
-			),
-			now:  built.Add(time.Minute),
-			next: "",
-			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingOpen, canRise: true, windows: map[string]windowWant{
-					"5h": {kind: status.WindowOpen, at: built.Add(3 * time.Hour), used: 0.3, next: built.Add(3 * time.Hour)},
-					"7d": {kind: status.WindowOpen, at: built.Add(2 * day), used: 0.5, next: built.Add(2 * day)},
-				}},
-				"side": {routing: status.RoutingOpen, canRise: true, windows: map[string]windowWant{
-					"5h": {kind: status.WindowOpen, at: built.Add(time.Hour), used: 0.6, next: built.Add(time.Hour)},
-					"7d": {kind: status.WindowOpen, at: built.Add(6 * day), used: 0.05, next: built.Add(6 * day)},
-				}},
-			},
-		},
-		{
-			name: "probed, of one account, with no room",
-			doc:  asProbed(built, readAt("work", windowIn("5h", 0.3, 3*time.Hour), spentIn("7d", 1, 2*day))),
-			now:  built.Add(time.Minute),
-			next: "work",
-			accounts: map[string]accountWant{
-				"work": {routing: status.RoutingLimited, held: true, outOfQuota: true, windows: map[string]windowWant{
-					"5h": {kind: status.WindowOpen, at: built.Add(3 * time.Hour), used: 0.3, next: built.Add(3 * time.Hour)},
-					"7d": {kind: status.WindowLimited, at: built.Add(2 * day), used: 1, next: built.Add(2 * day), held: true},
-				}},
-			},
-		},
-	}
-}
-
 func TestEveryFactAtEachHardMoment(t *testing.T) {
-	for _, tt := range hardMoments() {
-		t.Run(tt.name, func(t *testing.T) {
-			doc := tt.doc.WorkedOut(policy)
-			m := doc.At(tt.now, policy)
-			checkMomentAgainstStatus(t, doc, m)
-			checkWanted(t, tt, m)
+	for _, hm := range statustest.HardMoments(policy) {
+		t.Run(hm.Name, func(t *testing.T) {
+			m := hm.Doc.At(hm.Now, policy)
+			checkMomentAgainstStatus(t, hm.Doc, m)
+			checkWanted(t, hm.Want, m)
 		})
 	}
 }
 
-// checkWanted checks the moment m against what the hard moment wants of
-// each of its accounts and windows, which lists every one.
-func checkWanted(t *testing.T, tt hardMoment, m status.Moment) {
+// checkWanted checks the moment m against what's wanted of it, which lists
+// every account and every window.
+func checkWanted(t *testing.T, want statustest.Facts, m status.Moment) {
 	t.Helper()
-	if m.Next != tt.next {
-		t.Errorf("Next = %q, want %q", m.Next, tt.next)
+	got := statustest.FactsOf(m)
+	if got.Next != want.Next {
+		t.Errorf("Next = %q, want %q", got.Next, want.Next)
 	}
-	if len(m.Accounts) != len(tt.accounts) {
-		t.Fatalf("%d accounts, want %d", len(m.Accounts), len(tt.accounts))
+	if len(got.Accounts) != len(want.Accounts) {
+		t.Fatalf("%d accounts, want %d", len(got.Accounts), len(want.Accounts))
 	}
 	for _, a := range m.Accounts {
-		want := tt.accounts[a.ID]
-		got := accountWant{
-			routing: a.Routing.Kind, held: a.Held, capHolds: a.CapHolds, idle: a.Idle, outOfQuota: a.OutOfQuota, canRise: a.CanRise,
-			underPressure: a.Pressure.Under, limitSince: a.LimitSince,
+		got, want := got.Accounts[a.ID], want.Accounts[a.ID]
+		if gotFacts, wantFacts := withoutWindows(got), withoutWindows(want); !reflect.DeepEqual(gotFacts, wantFacts) {
+			t.Errorf("%s stands as %v, want %v", a.ID, gotFacts, wantFacts)
 		}
-		wantFacts := want
-		wantFacts.windows = nil
-		if !reflect.DeepEqual(got, wantFacts) {
-			t.Errorf("%s stands as %+v, want %+v", a.ID, got, wantFacts)
-		}
-		if len(a.Windows) != len(want.windows) {
-			t.Errorf("%s has %d windows, want %d", a.ID, len(a.Windows), len(want.windows))
+		if len(got.Windows) != len(want.Windows) {
+			t.Errorf("%s has %d windows, want %d", a.ID, len(got.Windows), len(want.Windows))
 		}
 		for _, w := range a.Windows {
-			got := windowWant{
-				kind: w.Kind, at: w.At, used: w.Used, next: w.Next, resetSinceRead: w.ResetSinceRead, lapsed: w.Lapsed,
-				held: w.Held, since: w.Since, capped: w.Capped, cappedAsRead: w.CappedAsRead, runsOut: w.RunsOut, out: w.Out.At,
-			}
-			if want := want.windows[w.Key]; !reflect.DeepEqual(got, want) {
-				t.Errorf("%s's %s stands as\n%+v\nwant\n%+v", a.ID, w.Key, got, want)
+			if got, want := got.Windows[w.Key], want.Windows[w.Key]; !reflect.DeepEqual(got, want) {
+				t.Errorf("%s's %s stands as\n%v\nwant\n%v", a.ID, w.Key, got, want)
 			}
 		}
 	}
+}
+
+// withoutWindows is how the account a stands, but for its windows.
+func withoutWindows(a statustest.AccountFacts) statustest.AccountFacts {
+	a.Windows = nil
+	return a
 }
 
 // checkMomentAgainstStatus checks each fact of the moment m of doc against the
@@ -425,12 +80,6 @@ func checkMomentAgainstStatus(t *testing.T, doc status.Document, m status.Moment
 	}
 	if want := dashboardBestOf(doc); m.Next != want {
 		t.Errorf("Next = %q, want %q, as the dashboard's bestOf marks ▲", m.Next, want)
-	}
-	if got, want := m.Pool(), doc.PoolAt(now, policy); !reflect.DeepEqual(got, want) {
-		t.Errorf("Pool() = %+v, want %+v, as PoolAt has it", got, want)
-	}
-	if got, want := m.Coming, doc.Coming(now, policy); !reflect.DeepEqual(got, want) {
-		t.Errorf("Coming = %+v, want %+v, as Coming has it", got, want)
 	}
 	if got, want := m.Text(), doc.Text(now, policy); got != want {
 		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
@@ -482,7 +131,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		Pinned: doc.Pin.Has(a.ID), Next: a.ID == m.Next,
 		InPool: slices.Contains(pool.Accounts, a.ID), OutOfPool: len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: status.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
-		Routing: doc.RoutingOf(a, now, policy), Hold: hold, Held: held, LimitSince: got.LimitSince,
+		Routing: got.Routing, Hold: hold, Held: held, LimitHolds: a.Limit.Holds(now), LimitSince: got.LimitSince,
 		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapBack: capBack,
 		Refusal: refusal, TokenRefused: a.TokenRefused(now),
 		Pressure: status.PressureNow{Under: doc.Pressed(a, now) != "", Window: a.Pressure.Window, Out: pressureOut},
@@ -506,7 +155,7 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 		Reserve: a.Reserve, Cap: a.Cap, Floor: a.Floor, ReserveHolds: a.ReserveHolds,
 		Pinned: a.Pinned, Next: a.Next, InPool: a.InPool, OutOfPool: a.OutOfPool,
 		TokenSet: a.TokenSet, Read: a.Read, ReadAt: a.ReadAt, Error: a.Error, Failures: a.Failures, Sessions: a.Sessions,
-		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitSince: a.LimitSince,
+		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitHolds: a.LimitHolds, LimitSince: a.LimitSince,
 		ReachedReserve: a.ReachedReserve, CapHolds: a.CapHolds, CapBack: a.CapBack,
 		Refusal: a.Refusal, TokenRefused: a.TokenRefused, Pressure: a.Pressure,
 		Idle: a.Idle, NextPrime: a.NextPrime, OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Windows: a.Windows,
@@ -532,7 +181,7 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 		if st.Kind == status.WindowOpen {
 			want.Allowance = st.Allowance
 		}
-		want.Room, _ = doc.RoomOf(a, w.Key, now, policy)
+		want.Room = got.Room
 		want.Start, want.Length, _ = stands.Span()
 		want.ResetSinceRead, want.Lapsed = w.ResetBy(now), a.HasLapsed(w.Key, now, policy)
 		want.Held = st.Kind == status.WindowLimited
@@ -542,6 +191,7 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 		want.Capped = doc.ReserveHolds(a) && slices.Contains(a.ReachedReserve(now), w.Key)
 		want.CappedAsRead = doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key)
 		want.RunsOut, want.Out = st.Kind == status.WindowRunsOut, out
+		want.RunsOutAhead = want.RunsOut || want.Held && !out.At.IsZero()
 		if share, ok := dashboardProjected(st, out.Projection); ok {
 			want.Projected = &share
 		}
@@ -644,11 +294,11 @@ func keysOf(names []status.WindowName) []string {
 }
 
 func TestADocumentWorkedOutIsAsItStoodWhenItWasBuilt(t *testing.T) {
-	for _, tt := range hardMoments() {
-		t.Run(tt.name, func(t *testing.T) {
-			worked := tt.doc.WorkedOut(policy)
-			m := tt.doc.At(tt.doc.GeneratedAt, policy)
-			if got, want := worked.Pool, m.Pool(); !reflect.DeepEqual(got, want) {
+	for _, hm := range statustest.HardMoments(policy) {
+		t.Run(hm.Name, func(t *testing.T) {
+			worked := hm.Doc.WorkedOut(policy)
+			m := hm.Doc.At(hm.Doc.GeneratedAt, policy)
+			if got, want := poolNowOf(worked.Pool), m.Pool(); !reflect.DeepEqual(got, want) {
 				t.Errorf("worked out, the pool is %+v, want %+v, as it stood as the document was built", got, want)
 			}
 			for i, a := range worked.Accounts {
@@ -835,18 +485,17 @@ func TestAWindowNotHeldBeganNoLimit(t *testing.T) {
 	}
 }
 
-func TestAMomentsPoolIsThePoolAtItsMomentOnceWorkedOut(t *testing.T) {
-	doc := fullDocument()
-	m := doc.At(built.Add(time.Hour), policy)
+func TestAMomentsPoolIsWorkedOutOnceForEveryCopy(t *testing.T) {
+	m := fullDocument().At(built.Add(time.Hour), policy)
 	first := m.Pool()
-	if want := doc.PoolAt(built.Add(time.Hour), policy); !reflect.DeepEqual(first, want) {
-		t.Errorf("Pool() = %+v, want %+v, as PoolAt has it", first, want)
+	if len(first.Accounts) == 0 || len(first.Windows) == 0 {
+		t.Fatalf("Pool() = %+v, want a pool of the document's accounts", first)
 	}
 	copied := m
 	if again := copied.Pool(); !reflect.DeepEqual(again, first) {
 		t.Errorf("Pool() asked again = %+v, want %+v", again, first)
 	}
-	if got := (status.Moment{}).Pool(); !reflect.DeepEqual(got, status.Pool{}) {
+	if got := (status.Moment{}).Pool(); !reflect.DeepEqual(got, status.PoolNow{}) {
 		t.Errorf("the zero moment's Pool() = %+v, want none", got)
 	}
 }
@@ -884,7 +533,7 @@ func TestAWindowRunsOutWhereNothingBeforeItHolds(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a, _ := asTheRouterBuilds(built, nil, routed{Account: tt.account}).WorkedOut(policy).At(built.Add(time.Minute), policy).Account("work")
+			a, _ := statustest.Router(policy, nil, statustest.Routed{Account: tt.account}).WorkedOut(policy).At(built.Add(time.Minute), policy).Account("work")
 			w, _ := a.Window("7d")
 			if w.Kind != tt.kind || w.RunsOut != tt.runsOut || !w.Out.At.Equal(out) {
 				t.Errorf("the week stands as kind %d, running out %v, its projection out at %v; want kind %d, %v, and out at %v",
@@ -909,17 +558,17 @@ func TestThePressureLinesTimeIsTheRoutersForAnyDocumentItBuilds(t *testing.T) {
 	reserves := []float64{0, 0.05, 0.1, 0.2}
 	for i := range 2000 {
 		session := windowIn("5h", r.Float64()*0.99, time.Duration(r.Int64N(int64(6*time.Hour)))-time.Hour)
-		account := routed{Account: with(readAt("work", session, windowIn("7d", r.Float64(), 3*day)), func(a *status.Account) {
+		account := statustest.Routed{Account: with(readAt("work", session, windowIn("7d", r.Float64(), 3*day)), func(a *status.Account) {
 			a.Reserve = reserves[r.IntN(len(reserves))]
 		})}
 		if r.IntN(3) > 0 {
-			account.rate = r.Float64() * 0.6
+			account.Rate = r.Float64() * 0.6
 		}
 		var pinned []string
 		if r.IntN(2) == 0 {
 			pinned = []string{"work"}
 		}
-		doc := asTheRouterBuilds(built, pinned, account, routed{Account: readAt("side", windowIn("5h", 0.1, 4*time.Hour))}).WorkedOut(policy)
+		doc := statustest.Router(policy, pinned, account, statustest.Routed{Account: readAt("side", windowIn("5h", 0.1, 4*time.Hour))}).WorkedOut(policy)
 		stored := doc.Accounts[0].Pressure
 		want := stored.RunsOut
 		if !want.Before(session.ResetsAt) {
@@ -998,8 +647,8 @@ func TestNewSessionsGoWhereTheRouterSendsThem(t *testing.T) {
 					t.Errorf("%s's Next = %v, want %v", a.ID, a.Next, a.ID == tt.next)
 				}
 			}
-			if got := doc.RoutingOf(tt.account, stateNow, policy).String(); got != tt.routing {
-				t.Errorf("RoutingOf() = %q, want %q", got, tt.routing)
+			if got := routingOf(doc, tt.account, stateNow).String(); got != tt.routing {
+				t.Errorf("Routing = %q, want %q", got, tt.routing)
 			}
 			if got := doc.StateOf(tt.account, stateNow, policy).String(); got != tt.state {
 				t.Errorf("StateOf() = %q, want %q", got, tt.state)
@@ -1091,7 +740,7 @@ func TestAnAccountIsOutOfQuotaWhereALimitOrItsCapHoldsItBackFromEveryRequest(t *
 			if tt.pinned {
 				pinned = []string{tt.account.ID}
 			}
-			m := asTheRouterBuilds(built, pinned, routed{Account: tt.account}).WorkedOut(policy).At(built.Add(time.Minute), policy)
+			m := statustest.Router(policy, pinned, statustest.Routed{Account: tt.account}).WorkedOut(policy).At(built.Add(time.Minute), policy)
 			if a := m.Accounts[0]; a.OutOfQuota != tt.outOfQuota || a.CanRise != tt.canRise {
 				t.Errorf("OutOfQuota = %v, CanRise = %v; want %v, %v", a.OutOfQuota, a.CanRise, tt.outOfQuota, tt.canRise)
 			}
@@ -1100,10 +749,9 @@ func TestAnAccountIsOutOfQuotaWhereALimitOrItsCapHoldsItBackFromEveryRequest(t *
 }
 
 func TestAMomentAtAnotherNowIsItsDocumentAtThatNow(t *testing.T) {
-	for _, tt := range hardMoments() {
-		t.Run(tt.name, func(t *testing.T) {
-			doc := tt.doc.WorkedOut(policy)
-			got, want := doc.At(built, policy).At(tt.now), doc.At(tt.now, policy)
+	for _, hm := range statustest.HardMoments(policy) {
+		t.Run(hm.Name, func(t *testing.T) {
+			got, want := hm.Doc.At(built, policy).At(hm.Now), hm.Doc.At(hm.Now, policy)
 			if !reflect.DeepEqual(factsOf(got), factsOf(want)) {
 				t.Errorf("as built, then at now, the moment is\n%+v\nwant\n%+v", factsOf(got), factsOf(want))
 			}
@@ -1111,6 +759,36 @@ func TestAMomentAtAnotherNowIsItsDocumentAtThatNow(t *testing.T) {
 				t.Errorf("as built, then at now, the pool is %+v, want %+v", got.Pool(), want.Pool())
 			}
 		})
+	}
+}
+
+// A held moment is its document's at its now, worked out once, and of that
+// document at that now alone: another document, or another now, is another
+// moment's.
+func TestAHeldMomentIsItsDocumentsAtItsNow(t *testing.T) {
+	doc, at := fullDocument(), built.Add(time.Hour)
+	held := doc.HoldAt(at, policy)
+	if got, want := held.Moment(), doc.At(at, policy); !reflect.DeepEqual(factsOf(got), factsOf(want)) || !reflect.DeepEqual(got.Pool(), want.Pool()) {
+		t.Errorf("the moment held is\n%+v\nwant\n%+v", factsOf(got), factsOf(want))
+	}
+	other := doc
+	other.GeneratedAt = doc.GeneratedAt.Add(time.Second)
+	tests := []struct {
+		name string
+		held *status.HeldMoment
+		doc  status.Document
+		now  time.Time
+		want bool
+	}{
+		{name: "its document at its now", held: held, doc: doc, now: at, want: true},
+		{name: "its document at another now", held: held, doc: doc, now: at.Add(time.Second)},
+		{name: "another document at its now", held: held, doc: other, now: at},
+		{name: "none held", doc: doc, now: at},
+	}
+	for _, tt := range tests {
+		if got := tt.held.Of(tt.doc, tt.now); got != tt.want {
+			t.Errorf("%s: Of() = %v, want %v", tt.name, got, tt.want)
+		}
 	}
 }
 
@@ -1126,7 +804,7 @@ func factsOf(m status.Moment) status.Moment {
 func TestAnAccountAtAMomentIsTitledAsItsAccountIs(t *testing.T) {
 	work := readAt("work", windowIn("5h", 0.3, 3*time.Hour))
 	work.Label = "Work\tplace"
-	a := asProbed(built, work).At(built, policy).Accounts[0]
+	a := statustest.Probed(policy, work).At(built, policy).Accounts[0]
 	if got, want := a.Title(), "work · Work place"; got != want || got != work.Title() {
 		t.Errorf("Title() = %q, want %q, as the account's Title has it, %q", got, want, work.Title())
 	}

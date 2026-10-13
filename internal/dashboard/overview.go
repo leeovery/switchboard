@@ -217,7 +217,7 @@ func (s section) mostRows() int {
 // them, of a document at a moment: built once, the first time they're asked
 // for.
 type sectionsBuilt struct {
-	at       *heldMoment
+	at       *status.HeldMoment
 	sections func() []section
 }
 
@@ -241,7 +241,7 @@ func (f Frame) Built(doc status.Document, now time.Time) Frame {
 // the order the page draws them: as Built built them, where it built them of
 // doc at now, else afresh.
 func (f Frame) sectionsOf(doc status.Document, now time.Time) []section {
-	if f.built != nil && f.built.at.of(doc, now) {
+	if f.built != nil && f.built.at.Of(doc, now) {
 		return f.built.sections()
 	}
 	return f.buildSections(doc, now)

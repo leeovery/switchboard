@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
@@ -109,21 +108,8 @@ type Frame struct {
 	// Overview's sections as Built built them, each for every look the frame,
 	// or a copy of it, takes of their document at their moment to share: nil,
 	// where each look works them out afresh.
-	held  *heldMoment
+	held  *status.HeldMoment
 	built *sectionsBuilt
-}
-
-// heldMoment is a document at a moment, as At holds it: the document known by
-// when it was generated, and its Moment, worked out once, the first time
-// it's asked for.
-type heldMoment struct {
-	generated, now time.Time
-	moment         func() status.Moment
-}
-
-// of reports whether h is the moment of doc at now.
-func (h *heldMoment) of(doc status.Document, now time.Time) bool {
-	return h != nil && h.generated.Equal(doc.GeneratedAt) && h.now.Equal(now)
 }
 
 // At is the frame holding the moment of doc at now, as its Policy judges it:
@@ -133,20 +119,19 @@ func (h *heldMoment) of(doc status.Document, now time.Time) bool {
 // already is as it was; a look at another moment, or of another document,
 // works it out afresh.
 func (f Frame) At(doc status.Document, now time.Time) Frame {
-	if f.held.of(doc, now) {
+	if f.held.Of(doc, now) {
 		return f
 	}
-	policy := f.Policy
-	f.held = &heldMoment{generated: doc.GeneratedAt, now: now, moment: sync.OnceValue(func() status.Moment { return doc.At(now, policy) })}
+	f.held = doc.HoldAt(now, f.Policy)
 	return f
 }
 
-// moment is doc at now, as every view reads it: as At holds it, where the
+// Moment is doc at now, as every view reads it: as At holds it, where the
 // frame holds the moment of doc at now, else worked out afresh, as the
 // frame's Policy judges it.
-func (f Frame) moment(doc status.Document, now time.Time) status.Moment {
-	if f.held.of(doc, now) {
-		return f.held.moment()
+func (f Frame) Moment(doc status.Document, now time.Time) status.Moment {
+	if f.held.Of(doc, now) {
+		return f.held.Moment()
 	}
 	return doc.At(now, f.Policy)
 }

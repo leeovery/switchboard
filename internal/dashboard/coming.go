@@ -63,7 +63,7 @@ type happening struct {
 // account named as the Overview names it, and its windows as windowNamer
 // names them.
 func (f Frame) upcoming(doc status.Document, now time.Time) []happening {
-	m := f.moment(doc, now)
+	m := f.Moment(doc, now)
 	t := comingTeller{moment: m, names: overviewNames(m), window: f.windowNamer(m), policy: f.Policy}
 	var all []happening
 	for _, u := range m.ComingUp {

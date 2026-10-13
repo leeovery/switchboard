@@ -45,8 +45,8 @@ func eventMark(s views.Sentence) span {
 // Its sentences are told only as its draw, its fold, or a layout made
 // afresh asks for them, as latelyTelling tells them.
 func (f Frame) latelySection(doc status.Document, now time.Time) section {
-	m := f.moment(doc, now)
-	told := latelyTelling(doc, now)
+	m := f.Moment(doc, now)
+	told := latelyTelling(m)
 	return section{
 		Section: SectionLately, least: linesRows(0),
 		lines: func() int { return len(told(mostLines)) },
@@ -63,11 +63,12 @@ func (f Frame) latelySection(doc status.Document, now time.Time) section {
 	}
 }
 
-// latelyTelling tells LATELY's sentences of doc at now in n lines, mostLines
-// at most, each n told once: those it has in mostLines, where they're told
-// and all fit; else told for n, as a move folded into a line that doesn't
-// show then shows alone, so the first n of them aren't always them.
-func latelyTelling(doc status.Document, now time.Time) func(n int) []views.Sentence {
+// latelyTelling tells LATELY's sentences of the moment m in n lines,
+// mostLines at most, each n told once: those it has in mostLines, where
+// they're told and all fit; else told for n, as a move folded into a line
+// that doesn't show then shows alone, so the first n of them aren't always
+// them.
+func latelyTelling(m status.Moment) func(n int) []views.Sentence {
 	var mu sync.Mutex
 	told := make(map[int][]views.Sentence)
 	return func(n int) []views.Sentence {
@@ -78,7 +79,7 @@ func latelyTelling(doc status.Document, now time.Time) func(n int) []views.Sente
 			return all
 		}
 		if _, ok := told[n]; !ok {
-			told[n] = views.Lately(doc, now, n)
+			told[n] = views.Lately(m, n)
 		}
 		return told[n]
 	}
