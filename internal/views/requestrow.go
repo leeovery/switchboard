@@ -394,7 +394,7 @@ const lostWords = "no answer: the router went away"
 // Stopped is why the request's answer stopped, as the Log's stopped says it:
 // end_turn; tool_use · Bash, the first tool it called, and +1 after it where
 // it called one more; in flight, asking, or answering · 5.1k characters, its
-// characters so far, once any are counted, as prose.Tokens counts; lost, no
+// characters so far, once any are counted, as prose.Characters counts; lost, no
 // answer: the router went away. None for a check or a count, and where
 // nothing's known of why it stopped.
 func (r RequestRow) Stopped() RowWords {
@@ -402,7 +402,7 @@ func (r RequestRow) Stopped() RowWords {
 	case r.Kind != RowRequest:
 		return nil
 	case r.Stage == RowAnswering && r.Chars > 0:
-		return RowWords{{Text: status.Answering, Kind: RowDoing}, {Text: " · " + prose.Tokens(r.Chars) + " characters"}}
+		return RowWords{{Text: status.Answering, Kind: RowDoing}, {Text: " · " + prose.Characters(r.Chars) + " characters"}}
 	case r.Stage.InFlight():
 		return RowWords{r.doing()}
 	case r.Stage == RowLost:

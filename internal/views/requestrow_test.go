@@ -205,7 +205,7 @@ func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 		{name: "asking", row: toldDoing(time.Time{}, 0, false), wide: "<asking>", phone: "<asking>"},
 		{name: "answering, no characters counted yet", row: toldDoing(sent.Add(time.Second), 0, false), wide: "<answering>", phone: "<answering>"},
 		{name: "answering", row: toldDoing(sent.Add(time.Second), 5100, false), wide: "<answering> · 5.1k characters", phone: "<answering>"},
-		{name: "answering at length", row: toldDoing(sent.Add(time.Second), 958_200, false), wide: "<answering> · 958k characters", phone: "<answering>"},
+		{name: "answering at length", row: toldDoing(sent.Add(time.Second), 958_200, false), wide: "<answering> · 958.2k characters", phone: "<answering>"},
 		{name: "lost", row: toldDoing(sent.Add(time.Second), 2000, true), wide: lostAnswer, phone: lostAnswer},
 		{name: "a quota check", row: lined(check), wide: "", phone: ""},
 	}
