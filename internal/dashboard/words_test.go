@@ -36,9 +36,6 @@ func TestAccountsAreCalledByTheirNames(t *testing.T) {
 	if got, want := names(m, []string{"work", "side"}), "Work [2J and side"; got != want {
 		t.Errorf("names() = %q, want %q", got, want)
 	}
-	if got, want := docNames(doc, []string{"work", "side"}), "Work [2J and side"; got != want {
-		t.Errorf("docNames() = %q, want %q, as names has it", got, want)
-	}
 }
 
 func TestEitherListsTheNamesAsProseDoesWhatsChosenBetween(t *testing.T) {

@@ -274,14 +274,15 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 func TestTheRoomRunwayGoesByIsTheProjectionTheCardsDo(t *testing.T) {
 	a := pressedAccount("work")
 	doc := routerDoc("", 1, a)
-	w, _ := a.Window("5h")
-	out, ok := doc.RunsOut(a, w, now)
-	if !ok {
+	work, _ := doc.At(now, claudeLike).Account(a.ID)
+	session, _ := work.Window("5h")
+	out := session.Out
+	if out.At.IsZero() {
 		t.Fatal("work's session doesn't run out")
 	}
 	l := laneIn(Frame{Policy: claudeLike}, doc, 0)
 	if len(l.stretches) != 1 || !l.stretches[0].from.Equal(out.At) || !l.drains.Equal(out.At) {
-		t.Errorf("the lane runs out at %v, draining till %v, want both at %s, where RunsOut has it", l.stretches, l.drains, out.At.Format(time.TimeOnly))
+		t.Errorf("the lane runs out at %v, draining till %v, want both at %s, where the moment's Out has it", l.stretches, l.drains, out.At.Format(time.TimeOnly))
 	}
 }
 

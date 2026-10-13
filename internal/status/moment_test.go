@@ -81,13 +81,6 @@ func checkMomentAgainstStatus(t *testing.T, doc status.Document, m status.Moment
 	if want := dashboardBestOf(doc); m.Next != want {
 		t.Errorf("Next = %q, want %q, as the dashboard's bestOf marks ▲", m.Next, want)
 	}
-	ids := make([]string, len(doc.Accounts))
-	for i, a := range doc.Accounts {
-		ids[i] = a.ID
-	}
-	if got, want := m.Destination(ids), doc.Destination(ids); got != want {
-		t.Errorf("Destination(%q) = %q, want %q", ids, got, want)
-	}
 	shown, hidden := dashboardWindowsOf(doc, now)
 	if got := keysOf(m.Shown); !slices.Equal(got, shown) {
 		t.Errorf("Shown = %q, want %q", got, shown)
@@ -160,37 +153,35 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 }
 
 // checkWindowAgainstStatus checks each fact of doc's account a's window w,
-// read, standing at now as got, against the function it takes the place of.
+// read, standing at now as got, against the function it takes the place of:
+// all but its kind, when what that says comes, its even pace and its
+// allowance, which the window tests hold through the moment, and each fact
+// here is read against.
 func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Account, w quota.Window, got status.WindowNow, now time.Time) {
 	t.Helper()
-	st := doc.WindowStatesOf(a, now, policy).Of(w.Key)
 	want := status.WindowNow{
 		WindowName: got.WindowName,
 		Shared:     policy.IsShared(w.Key), Started: w.Key == policy.Started, Pressure: w.Key == policy.Pressure,
-		Kind: st.Kind, At: st.At,
+		Kind: got.Kind, At: got.At,
 		Read: status.AsRead{Used: w.Utilization, ResetsAt: w.ResetsAt, At: a.FetchedAt},
 	}
-	if st.Kind != status.WindowTokenless && st.Kind != status.WindowUnread {
+	if want.Kind != status.WindowTokenless && want.Kind != status.WindowUnread {
 		stands, _ := a.WindowAt(w.Key, now, policy)
 		out, runsOut := doc.RunsOut(a, w, now)
-		want.Used, want.Pace, want.Next = st.Used, st.Pace, stands.ResetsAt
-		want.Allowance = got.Allowance
-		if st.Kind == status.WindowOpen {
-			want.Allowance = st.Allowance
-		}
-		want.Room = got.Room
+		want.Used, want.Pace, want.Next = stands.Utilization, got.Pace, stands.ResetsAt
+		want.Allowance, want.Room = got.Allowance, got.Room
 		want.Start, want.Length, _ = stands.Span()
 		want.ResetSinceRead, want.Lapsed = w.ResetBy(now), a.HasLapsed(w.Key, now, policy)
-		want.Held = st.Kind == status.WindowLimited
+		want.Held = want.Kind == status.WindowLimited
 		if want.Held {
-			want.Back, want.Since = st.At, got.Since
+			want.Back, want.Since = want.At, got.Since
 		}
 		want.Capped = doc.ReserveHolds(a) && slices.Contains(a.ReachedReserve(now), w.Key)
 		want.CappedAsRead = doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key)
-		want.RunsOut, want.Out = st.Kind == status.WindowRunsOut, out
+		want.RunsOut, want.Out = want.Kind == status.WindowRunsOut, out
 		unheld := !a.TokenRefused(now) && !want.Lapsed && a.Error == "" && !want.Capped
 		want.RunsOutAhead = want.RunsOut || want.Held && unheld && runsOut
-		if share, ok := dashboardProjected(st, out.Projection); ok {
+		if share, ok := dashboardProjected(want.Kind, out.Projection); ok {
 			want.Projected = &share
 		}
 		want.Nearing = want.Projected != nil && !runsOut && *want.Projected >= doc.Floor(a)-status.Near-score.Tolerance
@@ -211,13 +202,13 @@ func primeOf(doc status.Document, id string) time.Time {
 	return doc.Prime.Slots[i].Next
 }
 
-// dashboardProjected is the share a window standing as st, heading as p
+// dashboardProjected is the share a window of the given kind, heading as p
 // says, is heading for by its reset, as the dashboard's standing.projected
 // has it: all of it where it runs out; none while it's held at its limit or
 // not started, or where p says nothing.
-func dashboardProjected(st status.WindowState, p score.Projection) (float64, bool) {
+func dashboardProjected(kind status.WindowKind, p score.Projection) (float64, bool) {
 	switch {
-	case st.Kind == status.WindowLimited || st.Kind == status.WindowNotStarted:
+	case kind == status.WindowLimited || kind == status.WindowNotStarted:
 		return 0, false
 	case p.Kind == score.RunsOut:
 		return 1, true

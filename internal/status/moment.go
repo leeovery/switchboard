@@ -224,7 +224,7 @@ type WindowNow struct {
 	// where it's stale, not started or at its cap.
 	RunsOut, RunsOutAhead bool
 	// Out is where it runs out at Now at the pace it's heading at, as
-	// RunsOut says, projected from when the document was read, whatever
+	// runOutOf says, projected from when the document was read, whatever
 	// holds it: At zero where it doesn't before it resets, as once it has
 	// reset since it was read. Its Heading is where it's heading, as the
 	// document's project says. A bar's projection goes by it.
@@ -234,7 +234,7 @@ type WindowNow struct {
 	// nil where nothing says, and while it's held or not started.
 	Projected *float64
 	// Nearing is set where what it's heading for at Now, short of running
-	// out, comes within Near of where its account runs out.
+	// out, comes within 10 points of where its account runs out, as near has it.
 	Nearing bool
 	// InUse is set where its account has used it this period, or is heading
 	// to: some of it used as it stands at Now, or its heading has some used
@@ -350,9 +350,9 @@ func (m Moment) Pool() PoolNow {
 }
 
 // Destination says where a pin to the accounts with the given ids sends
-// sessions, as the document's Destination says it.
+// sessions, as destination says it.
 func (m Moment) Destination(ids []string) string {
-	return m.doc.Destination(ids)
+	return m.doc.destination(ids)
 }
 
 // Account is the account with the given id, reporting false where the
@@ -403,10 +403,10 @@ func comingAfter(upcoming []Upcoming, now time.Time) []Upcoming {
 }
 
 // judgedAccount is an account of a document as it stands at a moment, worked
-// out once: how it stands, as its WindowStates have it, and each of its
+// out once: how it stands, as its windowStates have it, and each of its
 // windows, in its order, as judge has it.
 type judgedAccount struct {
-	states  WindowStates
+	states  windowStates
 	windows []judged
 }
 
@@ -423,7 +423,7 @@ func (d Document) judgeAll(now time.Time, policy score.Policy) []judgedAccount {
 // judgeAccount is how doc's account a stands at now, as policy judges its
 // windows.
 func (d Document) judgeAccount(a Account, now time.Time, policy score.Policy) judgedAccount {
-	j := judgedAccount{states: d.WindowStatesOf(a, now, policy), windows: make([]judged, len(a.Windows))}
+	j := judgedAccount{states: d.windowStatesOf(a, now, policy), windows: make([]judged, len(a.Windows))}
 	for i, w := range a.Windows {
 		j.windows[i] = j.states.judge(w)
 	}
@@ -456,10 +456,10 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 	d, s, a := m.doc, j.states, j.states.account
 	an := AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
-		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.Floor(a), ReserveHolds: d.reserveHolds(a),
+		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
-		Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.Holds(m.Now), LimitSince: eventAt(d.LimitEvent(a, m.Now)),
+		Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitSince: eventAt(d.LimitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(),
 		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},
@@ -482,7 +482,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 
 // windowNow is the window judged as w, of the account whose windows stand as
 // s says, as it stands at the moment, named as given.
-func (m Moment) windowNow(s WindowStates, w judged, name WindowName) WindowNow {
+func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 	a, key, policy := s.account, w.window.Key, m.policy
 	wn := WindowNow{
 		WindowName: name, Shared: policy.IsShared(key), Started: key == policy.Started, Pressure: key == policy.Pressure,
@@ -502,7 +502,7 @@ func (m Moment) windowNow(s WindowStates, w judged, name WindowName) WindowNow {
 	wn.RunsOut, wn.Out, wn.Projected = wn.Kind == WindowRunsOut, w.out, projected(wn.Kind, w.out.Projection)
 	unheld, _ := s.unheldOf(w)
 	wn.RunsOutAhead = unheld == WindowRunsOut
-	wn.Nearing = wn.Projected != nil && !w.runsOut && *wn.Projected >= m.doc.Floor(a)-Near-score.Tolerance
+	wn.Nearing = wn.Projected != nil && !w.runsOut && *wn.Projected >= m.doc.floor(a)-near-score.Tolerance
 	wn.InUse = inUse(w.stands, w.out.Projection)
 	return wn
 }
@@ -617,7 +617,7 @@ func eventAt(e Event, ok bool) time.Time {
 // as it does now, since it last started: an older limit's event says nothing
 // of when w reached it.
 func (d Document) reachedIn(a Account, w quota.Window, now time.Time) (Event, bool) {
-	if l := a.Limit; l.ID != 0 && l.Holds(now) && (len(l.Windows) == 0 || slices.Contains(l.Windows, w.Key)) {
+	if l := a.Limit; l.ID != 0 && l.holds(now) && (len(l.Windows) == 0 || slices.Contains(l.Windows, w.Key)) {
 		return d.LimitEvent(a, now)
 	}
 	start, _, spanned := w.Span()
@@ -640,7 +640,7 @@ func (d Document) reachedIn(a Account, w quota.Window, now time.Time) (Event, bo
 // identity, as a router from before limits had them gives none, or where no
 // event tells of it.
 func (d Document) LimitEvent(a Account, now time.Time) (Event, bool) {
-	if a.Limit.ID == 0 || !a.Limit.Holds(now) {
+	if a.Limit.ID == 0 || !a.Limit.holds(now) {
 		return Event{}, false
 	}
 	i := slices.IndexFunc(d.Events, func(e Event) bool {
