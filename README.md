@@ -1023,6 +1023,7 @@ A JSON line for each version of an event, in `ledger/events-<date>.jsonl`, so a 
 | `from`, `to` | the accounts a session moved from and to, `to` where the sessions a limit, a cap or a refusal moved went, when they all went to one |
 | `reason` | why: why a session went to its account, why a restart is due, or why the router turned unhealthy |
 | `windows` | the keys of the windows it's of |
+| `joined` | of a limit or a cap, when each window that came to be held by it after it began did, by its key, as the 5-hour window joining a cap of Fable's week; left out where no window joined it, and a window it leaves out was held from `at` |
 | `until`, `since` | when a limit, cap or refusal ends, or a window runs out or resets; and when a pressure's rate is measured from |
 | `count` | how many sessions a limit, a cap or a refusal moved while it held |
 | `limit` | of a limit, its identity, kept while it holds; of a move, the id of the limit's event that counts it among the sessions it moved |
