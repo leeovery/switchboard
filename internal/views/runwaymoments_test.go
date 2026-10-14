@@ -43,7 +43,7 @@ func laneNamed(id string) string {
 // lanesFrom are what Runway's lanes are built from at the moment rm.
 func lanesFrom(rm viewstest.RunwayMoment) views.LanesFrom {
 	return views.LanesFrom{
-		Moment: rm.Doc.At(rm.Now, claude.Policy), Readings: rm.Readings, Days: rm.Days, Kept: rm.Kept,
+		Moment: rm.Doc.At(rm.Now, claude.Policy), Readings: rm.Readings, Days: rm.Days, Kept: rm.Kept, Seen: rm.Seen,
 		Timeline: views.Stepped(rm.Window, rm.Day, rm.Now, rm.WeekStarts, rm.Columns), Window: rm.Window,
 	}
 }

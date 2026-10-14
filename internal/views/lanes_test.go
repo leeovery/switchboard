@@ -18,9 +18,9 @@ import (
 // stands: the next look in the same column, the moment read a second on,
 // judges none, and builds the lanes a first look would; a look with a
 // reading gained, now's column moved on, the other view, the readings
-// history's keep moved, past a day shown or not, as it tells whether a hold
-// read first from it began before, a reserve changed, or another hold told
-// of, judges it all again. A hold at now whose start no event tells is
+// history's keep moved, past a day shown or not, or the readings the watch
+// read itself begun, as each tells whether a hold read first from it began
+// before, a reserve changed, or another hold told of, judges it all again. A hold at now whose start no event tells is
 // judged at now, at each look, as its readings tell it; one whose event
 // tells it, or on a day gone, isn't.
 func TestALookJudgesThePastOnceWhileWhatItsJudgedFromStands(t *testing.T) {
@@ -33,8 +33,9 @@ func TestALookJudgesThePastOnceWhileWhatItsJudgedFromStands(t *testing.T) {
 	today.Day = time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 	keptLater := kept
 	keptLater.Kept = time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC)
-	autoKept := auto
+	autoKept, autoSeen := auto, auto
 	autoKept.Kept = time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	autoSeen.Seen = auto.Now.Add(-time.Hour)
 	untoldGone := runwayMoment(t, "a hold at now the readings tell otherwise")
 	untoldGone.Day = time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
 	gained := append(slices.Clip(auto.Readings), readings.Reading{
@@ -55,6 +56,7 @@ func TestALookJudgesThePastOnceWhileWhatItsJudgedFromStands(t *testing.T) {
 		{name: "today stepped back to, now's column moved on", first: today, then: later(today, 11*time.Minute), judged: 3 * 83, more: 3 * 84},
 		{name: "a day gone, the keep moved past it", first: kept, then: keptLater, judged: 2 * 136, more: 2 * 136},
 		{name: "the keep moved past no day shown", first: auto, then: autoKept, judged: 3 * 6, more: 3 * 6},
+		{name: "the readings the watch read itself begun", first: auto, then: autoSeen, judged: 3 * 6, more: 3 * 6},
 		{name: "a day gone, a second on", first: kept, then: later(kept, time.Second), judged: 2 * 136, more: 0},
 		{name: "a day gone, a hold at now no event tells the start of", first: untoldGone, then: later(untoldGone, time.Second), judged: 2 * 136, more: 0},
 		{name: "work's reserve changed", first: auto, then: withDoc(auto, reserveOf(auto.Doc, "work", 0.1)), judged: 3 * 6, more: 3 * 6},

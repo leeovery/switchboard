@@ -22,13 +22,16 @@ type RunwayMoment struct {
 	Doc status.Document
 	Now time.Time
 	// Readings are the readings history's, oldest first, each window's run
-	// before the timeline among them; Days the ledger's summaries of the days
-	// the view shows, oldest first, with any before them it carries in; and
-	// Kept when the first day the readings history holds starts, zero where
-	// it holds every day the view shows.
+	// before the timeline among them, and those the dashboard read itself;
+	// Days the ledger's summaries of the days the view shows, oldest first,
+	// with any before them it carries in; Kept when the first day the
+	// readings history holds starts, zero where it holds every day the view
+	// shows; and Seen when the readings the dashboard read itself begin, zero
+	// where there are none.
 	Readings []readings.Reading
 	Days     []ledger.Summary
 	Kept     time.Time
+	Seen     time.Time
 	// Window is the view; Day the day it's stepped back to, as dayfile.Civil
 	// gives one, zero where it's live; WeekStarts the day weeks start on; and
 	// Columns how many columns its lanes are.
@@ -374,8 +377,10 @@ func refusals() []RunwayMoment {
 // column before its first drawn; work held by a limit naming no window that
 // neither an event nor a reading tells the start of, from before the
 // timeline, but not on a day gone, a week before, read with room all day, as
-// such a hold is known only to hold now; and work read spent by probing at
-// 14:41, in now's column.
+// such a hold is known only to hold now; work read spent by probing at
+// 14:41, in now's column; and work read spent as the dashboard, probing,
+// first read it itself at 14:41, its 5-hour last read the day before, so
+// nothing tells when its limit began.
 func holdsNoEventTells() []RunwayMoment {
 	back := onThu(15, 30, 0)
 	probe := status.Document{GeneratedAt: onThu(14, 41, 0), Source: status.SourceProbe, Fallback: status.Fallback{Router: status.RouterNotRunning}}
@@ -388,6 +393,15 @@ func holdsNoEventTells() []RunwayMoment {
 	weekOn := thursday.AddDate(0, 0, 7)
 	unnamedWeekOn := readAccount(work, weekOn.Add(-time.Minute), window(fiveHour, 0.5, weekOn.Add(time.Hour)), window(week, 0.5, weekOn.Add(72*time.Hour)))
 	unnamedWeekOn.Limit = status.Limit{ID: 3, Until: weekOn.Add(20 * time.Minute)}
+	firstSeen := fiveHourAt("a hold the dashboard first read itself, probed, nothing read before it since its window began", probedAt(onThu(14, 41, 0), probed), sorted(
+		readEach(work, onWed(20, 0, 0), window(fiveHour, 0.3, onWed(23, 0, 0)), window(week, 0.5, mondayTen)),
+		readEach(work, onThu(14, 41, 0), probed.Windows...),
+		sideRead(),
+	), map[string]Figures{
+		"":   {FigureDips: "1 — – 15:30 @6 6-10"},
+		work: {FigureCells: "room 0-5, limited 6-10, room 11-135", FigureStretches: "limited — – 15:30, as it resets @6 6-10"},
+	})
+	firstSeen.Seen = onThu(14, 41, 0)
 	var weekBefore []readings.Reading
 	for at := onWed(23, 0, 0); at.Before(onThu(24, 1, 0)); at = at.Add(30 * time.Minute) {
 		weekBefore = append(weekBefore, readEach(work, at, window(fiveHour, 0.2, at.Add(3*time.Hour)), window(week, 0.2, mondayTen))...)
@@ -429,6 +443,7 @@ func holdsNoEventTells() []RunwayMoment {
 		), map[string]Figures{
 			work: {FigureCells: "room 0-5, limited 6-10, room 11-135", FigureStretches: "limited 14:41 – 15:30, as it resets @6 6-10"},
 		}),
+		firstSeen,
 	}
 }
 
@@ -437,8 +452,9 @@ func holdsNoEventTells() []RunwayMoment {
 // 14:31:30, or with the readings history holding none of it, its words
 // starting in the column the event tells though the lane's blank there; its
 // limit at 14:03:30, read spent at 14:04, as the event of the router's limit
-// tells; and as an event naming its window, of no limit the router still
-// holds, tells.
+// tells; as an event naming its window, of no limit the router still holds,
+// tells; and each, the cap and the limit, as its event tells on today stepped
+// back to once it's lifted, the router keeping the event.
 func holdsEventsTell() []RunwayMoment {
 	back, capBack := onThu(15, 30, 0), onThu(17, 10, 0)
 	capped := reserving(readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.96, capBack), window(week, 0.4, mondayTen)), 0.05)
@@ -453,7 +469,27 @@ func holdsEventsTell() []RunwayMoment {
 		sideRead(),
 	)
 	limitWant := map[string]Figures{work: {FigureCells: "room 0-1, limited 2-10, room 11-135", FigureStretches: "limited 14:03:30 – 15:30, as it resets @2 2-10"}}
+	lifted := func(name string, at time.Time, events []status.Event, read []readings.Reading, want map[string]Figures) RunwayMoment {
+		fresh := reserving(readAccount(work, at, window(fiveHour, 0.02, at.Add(5*time.Hour)), window(week, 0.4, mondayTen)), 0.05)
+		return RunwayMoment{
+			Name: name, Doc: routed(at, events, fresh, sideOn(at)), Now: at.Add(time.Minute + 7*time.Second),
+			Readings: sorted(read, readEach(work, at, fresh.Windows...)), Day: civilDay(2026, time.October, 1), Columns: lanes, Want: want,
+		}
+	}
 	return []RunwayMoment{
+		lifted("a cap its event tells the start of, read later, today stepped back to once it's lifted", onThu(17, 29, 0), []status.Event{capEvent}, sorted(
+			readEach(work, onThu(13, 30, 0), window(fiveHour, 0.8, capBack), window(week, 0.4, mondayTen)),
+			readEach(work, onThu(14, 31, 30), window(fiveHour, 0.95, capBack)),
+			readEach(work, onThu(14, 41, 0), capped.Windows...),
+			sideRead(),
+		), map[string]Figures{
+			"":   {FigureDips: "1 — – — @74 74-76; 1 14:31:03 – 17:10 @82 82-96"},
+			work: {FigureStretches: "capped 14:31:03 – 17:10, as it resets @82 82-96"},
+		}),
+		lifted("a limit its event tells the start of, read later, today stepped back to once it's lifted", onThu(15, 59, 0), []status.Event{limitEvent}, spentRead, map[string]Figures{
+			"":   {FigureDips: "1 — – — @74 74-76; 1 14:03:30 – 15:30 @79 80-87"},
+			work: {FigureStretches: "limited 14:03:30 – 15:30, as it resets @79 80-87"},
+		}),
 		fiveHourAt("a cap its event tells the start of, read later", routed(onThu(14, 41, 0), []status.Event{capEvent}, capped, sideOn(onThu(14, 41, 0))), sorted(
 			readEach(work, onThu(13, 30, 0), window(fiveHour, 0.8, capBack), window(week, 0.4, mondayTen)),
 			readEach(work, onThu(14, 31, 30), window(fiveHour, 0.95, capBack)),

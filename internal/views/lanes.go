@@ -29,7 +29,7 @@ type Lanes struct {
 
 // judge is how an account stood at a moment gone, as status.Moment.Then has
 // it.
-type judge func(m status.Moment, a status.AccountNow, read []readings.Reading, kept time.Time, told []status.Span, t time.Time) status.Was
+type judge func(m status.Moment, a status.AccountNow, read []readings.Reading, reach status.Reach, told []status.Span, t time.Time) status.Was
 
 // LanesFrom are what Runway's lanes are built from at a look: the moment;
 // the readings history's readings, oldest first, those the past is judged
@@ -39,14 +39,23 @@ type judge func(m status.Moment, a status.AccountNow, read []readings.Reading, k
 // today's as it's read, and any before them carried in; Kept, when the first
 // day the readings history holds starts, a day before it drawn from its
 // summary, as the readings of it are gone, zero where it holds every day;
-// the timeline, its Now the moment's; and the window the view is named for.
+// Seen, when the readings the watch read itself, among the readings, begin,
+// zero where there are none; the timeline, its Now the moment's; and the
+// window the view is named for.
 type LanesFrom struct {
 	Moment   status.Moment
 	Readings []readings.Reading
 	Days     []ledger.Summary
 	Kept     time.Time
+	Seen     time.Time
 	Timeline Timeline
 	Window   RunwayWindow
+}
+
+// reach is how far back the readings reach, as Then takes it: to the
+// readings history's keep, and the first the watch read itself.
+func (from LanesFrom) reach() status.Reach {
+	return status.Reach{Kept: from.Kept, Seen: from.Seen}
 }
 
 // Lane is an account's lane: its id; how it stands in each column of the
@@ -229,7 +238,7 @@ func (from LanesFrom) sinceRead(h ahead, a status.AccountNow, past pastOf, then 
 		if !p.since.IsZero() || !drawn {
 			continue
 		}
-		if was := then(from.Moment, a, past.read, from.Kept, past.told, at); wasCells[was.Kind] == p.cell {
+		if was := then(from.Moment, a, past.read, from.reach(), past.told, at); wasCells[was.Kind] == p.cell {
 			h.holds[i].since = was.Since
 		}
 	}

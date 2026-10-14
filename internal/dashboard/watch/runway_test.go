@@ -355,7 +355,8 @@ func TestALookReadingTodaysSummaryBuildsTheLanesOfIt(t *testing.T) {
 // Probing, and while the router doesn't answer, the documents the watch
 // reads join the readings history the lanes are judged by: of each account
 // read since it was last joined, its windows as read; never the router's own,
-// which it files in the history itself.
+// which it files in the history itself. The lanes know they begin at the
+// first look joined, as nothing the watch read tells what came before it.
 func TestTheDocumentsTheWatchProbesJoinTheReadingsTheLanesAreJudgedBy(t *testing.T) {
 	r := runwayHarness(t, dashboard.Runway, func(r *runwayed, _ *Config) { r.stopRouter() })
 	readAt := func(doc status.Document, at time.Time, ids ...string) status.Document {
@@ -379,6 +380,10 @@ func TestTheDocumentsTheWatchProbesJoinTheReadingsTheLanesAreJudgedBy(t *testing
 	if !slices.Equal(r.from.Readings, views.RunwayReadings(nil, seen)) {
 		t.Fatalf("probed as it opened, the lanes were judged by %+v, want the three's windows as read", r.from.Readings)
 	}
+	first := slices.MinFunc(seen, func(a, b readings.Reading) int { return a.At.Compare(b.At) }).At
+	if !r.from.Seen.Equal(first) {
+		t.Errorf("probed as it opened, the lanes knew the watch's own readings begin at %s, want %s, its first look", r.from.Seen, first)
+	}
 
 	steps := []struct {
 		name   string
@@ -400,12 +405,15 @@ func TestTheDocumentsTheWatchProbesJoinTheReadingsTheLanesAreJudgedBy(t *testing
 		if want := views.RunwayReadings(nil, seen); !slices.Equal(r.from.Readings, want) {
 			t.Errorf("after %d looks, %s, the lanes were judged by %d readings, want %d: %+v", i+1, step.name, len(r.from.Readings), len(want), r.from.Readings)
 		}
+		if !r.from.Seen.Equal(first) {
+			t.Errorf("after %d looks, %s, the lanes knew the watch's own readings begin at %s, want %s, its first look", i+1, step.name, r.from.Seen, first)
+		}
 	}
 }
 
 // The readings the watch read itself are let go as the live tail is made
 // afresh to start after them, as the day turns: no timeline it draws reaches
-// back to them.
+// back to them, and the lanes know of none.
 func TestTheReadingsTheWatchReadItselfAreLetGoOnceTheLiveTailStartsAfterThem(t *testing.T) {
 	r := runwayHarness(t, dashboard.Runway, func(r *runwayed, _ *Config) { r.stopRouter() })
 	if len(r.from.Readings) == 0 {
@@ -416,8 +424,8 @@ func TestTheReadingsTheWatchReadItselfAreLetGoOnceTheLiveTailStartsAfterThem(t *
 		t.Fatalf("on the Saturday after next, the live tail carrying in from the Sunday before they were read, the lanes were judged by no reading, want those read as Runway opened")
 	}
 	r.lookAt(start.AddDate(0, 0, 13))
-	if len(r.from.Readings) > 0 {
-		t.Errorf("on the Sunday after, the live tail carrying in from after them, the lanes were judged by %+v, want none", r.from.Readings)
+	if len(r.from.Readings) > 0 || !r.from.Seen.IsZero() {
+		t.Errorf("on the Sunday after, the live tail carrying in from after them, the lanes were judged by %+v, the watch's own from %s, want none", r.from.Readings, r.from.Seen)
 	}
 }
 

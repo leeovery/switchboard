@@ -17,15 +17,16 @@ import (
 // heldPast is what was judged of a timeline's past, each account as it stood
 // at the moment of each column before now's, or of every column of a day or
 // week gone, and what that was judged from: the timeline, by its span, its
-// columns and now's; the view; the readings, as heldReadings knows them; the
-// readings history's keep, and the days before it, by their dates; the
-// policy; and each account, as pastOf knows it, in the moment's order.
+// columns and now's; the view; the readings, as heldReadings knows them, and
+// how far back they reach; the days before the readings history's keep, by
+// their dates; the policy; and each account, as pastOf knows it, in the
+// moment's order.
 type heldPast struct {
 	start, end         time.Time
 	columns, nowColumn int
 	window             RunwayWindow
 	read               heldReadings
-	kept               time.Time
+	reach              status.Reach
 	summarised         []string
 	policy             score.Policy
 	accounts           []pastOf
@@ -50,7 +51,7 @@ func heldReadingsOf(read []readings.Reading) heldReadings {
 
 // pastOf is an account's past: what Then reads of the account besides its
 // readings, its id, whether its token is usable, its reserve and whether it
-// holds, and the holds the router told of that the readings can't show; its
+// holds, and the holds the router told of; its
 // readings, oldest first, those the days before the keep stand for among
 // them; the resets of the view's window they give; and how it stood at each
 // column's moment.
@@ -70,7 +71,7 @@ type pastOf struct {
 func (p heldPast) holds(from LanesFrom) bool {
 	tl, m := from.Timeline, from.Moment
 	if !p.start.Equal(tl.Start) || !p.end.Equal(tl.End) || p.columns != tl.Columns || p.nowColumn != tl.NowColumn() ||
-		p.window != from.Window || p.read != heldReadingsOf(from.Readings) || !p.kept.Equal(from.Kept) || !slices.Equal(p.summarised, from.summarisedDays()) ||
+		p.window != from.Window || p.read != heldReadingsOf(from.Readings) || !sameReach(p.reach, from.reach()) || !slices.Equal(p.summarised, from.summarisedDays()) ||
 		!p.policy.Equal(m.Policy()) || len(p.accounts) != len(m.Accounts) {
 		return false
 	}
@@ -82,10 +83,10 @@ func (p heldPast) holds(from LanesFrom) bool {
 	return true
 }
 
-// told are the holds of the account with the given id the router told of
-// that the readings can't show, as the moment's Told has them, where the
-// timeline holds now; on a day or a week gone, those its events tell alone,
-// as one no event tells, from before anything, is known only to hold now.
+// told are the holds of the account with the given id the router told of,
+// as the moment's Told has them, where the timeline holds now; on a day or a
+// week gone, those its events tell alone, as one no event tells, from before
+// anything, is known only to hold now.
 func (from LanesFrom) told(id string) []status.Span {
 	told := from.Moment.Told(id)
 	if from.Timeline.NowColumn() >= 0 {
@@ -101,9 +102,14 @@ func (p pastOf) of(a status.AccountNow, told []status.Span) bool {
 		slices.EqualFunc(p.told, told, sameSpan)
 }
 
+// sameReach reports whether two reaches are the one, instant for instant.
+func sameReach(a, b status.Reach) bool {
+	return a.Kept.Equal(b.Kept) && a.Seen.Equal(b.Seen)
+}
+
 // sameSpan reports whether two spans are the one hold.
 func sameSpan(a, b status.Span) bool {
-	return a.Kind == b.Kind && a.From.Equal(b.From) && a.Until.Equal(b.Until)
+	return a.Kind == b.Kind && a.From.Equal(b.From) && a.Until.Equal(b.Until) && slices.Equal(a.Windows, b.Windows)
 }
 
 // judgePast is the past of the timeline given, as heldPast has it, each
@@ -113,7 +119,7 @@ func (l Lanes) judgePast(from LanesFrom) heldPast {
 	m, tl, then := from.Moment, from.Timeline, l.judging()
 	past := heldPast{
 		start: tl.Start, end: tl.End, columns: tl.Columns, nowColumn: tl.NowColumn(), window: from.Window,
-		read: heldReadingsOf(from.Readings), kept: from.Kept, summarised: from.summarisedDays(), policy: m.Policy(),
+		read: heldReadingsOf(from.Readings), reach: from.reach(), summarised: from.summarisedDays(), policy: m.Policy(),
 	}
 	judged := max(tl.Columns, 0)
 	if now := tl.NowColumn(); now >= 0 {
@@ -127,7 +133,7 @@ func (l Lanes) judgePast(from LanesFrom) heldPast {
 		p.was = make([]status.Was, judged)
 		for c := range p.was {
 			at := tl.Moment(c)
-			p.was[c] = then(m, a, readBy(p.read, at), from.Kept, p.told, at)
+			p.was[c] = then(m, a, readBy(p.read, at), past.reach, p.told, at)
 		}
 		past.accounts = append(past.accounts, p)
 	}

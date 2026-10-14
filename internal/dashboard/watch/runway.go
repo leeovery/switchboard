@@ -186,6 +186,15 @@ func (s seenReadings) since(t time.Time) seenReadings {
 	return s
 }
 
+// from is when the readings seen begin: the earliest look held, zero where
+// none is.
+func (s seenReadings) from() time.Time {
+	if len(s.looks) == 0 {
+		return time.Time{}
+	}
+	return slices.MinFunc(s.looks, func(a, b seenLook) int { return a.at.Compare(b.at) }).at
+}
+
 // readings are every reading seen, in the order the looks joined them.
 func (s seenReadings) readings() []readings.Reading {
 	var read []readings.Reading
@@ -234,7 +243,7 @@ func (m Model) runwayBuilt() Model {
 	now := m.now()
 	mo, tl, live := m.moment(now), m.runwayTimeline(now), liveSpan(now, m.cfg.WeekStarts)
 	t.lanes = t.looking()(t.lanes, views.LanesFrom{
-		Moment: mo, Readings: t.readingsOf(spanOf(tl, live), live), Days: m.runwayDays(tl, now), Kept: t.kept, Timeline: tl, Window: t.shown.Window,
+		Moment: mo, Readings: t.readingsOf(spanOf(tl, live), live), Days: m.runwayDays(tl, now), Kept: t.kept, Seen: t.seen.from(), Timeline: tl, Window: t.shown.Window,
 	})
 	lanes := t.lanes
 	t.shown.Timeline, t.shown.Lanes, t.shown.Coming = tl, &lanes, views.RunwayComing(mo, t.shown.Window)
