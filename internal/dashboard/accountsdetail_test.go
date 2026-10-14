@@ -436,7 +436,7 @@ func TestDetailsListScrollsWithTheChoice(t *testing.T) {
 // Detail's list holds the configured accounts, one the document lacks yet,
 // as one the config has just gained, named as the config names it, ○ not
 // read; chosen, its head says it's not read, and USAGE draws its windows
-// empty.
+// empty; and all accounts' head counts it, not read.
 func TestDetailListsAnAccountTheDocumentLacksAsNotRead(t *testing.T) {
 	doc := usageWorld(extraOff)
 	configured := append(slices.Clone(framedAccounts), config.Account{ID: "added", Label: "lab"})
@@ -458,6 +458,10 @@ func TestDetailListsAnAccountTheDocumentLacksAsNotRead(t *testing.T) {
 	targets := d.listTargets()
 	if last := targets[len(targets)-1]; last.Account != "added" || last.Y != top+4*listApart {
 		t.Errorf("the list's last target is %+v, want added's, on its row", last)
+	}
+	all := textOf(detailFrame(Look{}, configured, "", "", nil, nil).Draw(doc, routedAt))
+	if got, want := panelCells(all[top]), "0 all accounts   2 open · 1 at cap · 1 not read"; got != want {
+		t.Errorf("all accounts' head reads %q, want %q, added counted not read", got, want)
 	}
 }
 
@@ -830,39 +834,54 @@ func TestDetailsBYMODELStandsUnderUSAGEAndTHISWEEK(t *testing.T) {
 	}
 }
 
-// Detail's head picks out how the account stands while its state is newly
-// changed, and LATELY a line while what it tells is fresh: on bg.attention,
-// as far faded back as each has gone.
+// Detail's head picks out how the account stands while its state in a word
+// is newly changed, and the list its state's glyph, over the chosen row's
+// light, as Compare's heads do, never for a change ROUTING alone sees; and
+// LATELY a line while what it tells is fresh: on bg.attention, as far faded
+// back as each has gone.
 func TestDetailCuesAStateNewlyChangedAndAFreshLine(t *testing.T) {
 	doc := usageWorld(extraOff, happened(onAuto()...))
 	f := detailFrame(Screen(builtin(t, "nord")), framedAccounts, "work", "", nil, nil)
 	told := views.AccountLately(f.Moment(doc, routedAt), "work", latelyLines)[0]
-	f.Changed, f.Fresh = map[string]float64{"work": 0.25}, map[int]float64{told.ID: 0.5}
+	f.StateChanged, f.Fresh = map[string]float64{"work": 0.25}, map[int]float64{told.ID: 0.5}
+	f.Changed = map[string]float64{"personal": 0.25}
 	d := f.detailDrawn(doc, routedAt, f.detailLayout())
 	c := d.panel()
 	rows := textOf(c.rows(Look{}))
-	head := []rune(rows[0])
 	state := d.l.panel + listName(d.account, 1).fitted(d.f.edge()).width() + headApart
+	if []rune(rows[0])[state] == ' ' {
+		t.Fatalf("the head reads %q, want its state from column %d", rows[0], state)
+	}
 	lately := rowWith(rows, "LATELY")
+	list := growing(f.Width)
+	d.list(list, 0, f.viewRows())
 	tests := []struct {
 		name string
+		c    *canvas
 		x, y int
 		fade float64
 	}{
-		{name: "the head's state", x: state, y: 0, fade: 0.25},
-		{name: "LATELY's first line", x: d.l.cx(), y: lately, fade: 0.5},
+		{name: "the head's state", c: c, x: state, y: 0, fade: 0.25},
+		{name: "LATELY's first line", c: c, x: d.l.cx(), y: lately, fade: 0.5},
+		{name: "work's glyph in the list, chosen", c: list, x: listDotAt, y: listApart, fade: 0.25},
 	}
 	for _, tt := range tests {
-		if got := c.at(tt.x, tt.y).ink.on; got != (hue{token: theme.BgAttention, fade: tt.fade}) {
+		if got := tt.c.at(tt.x, tt.y).ink.on; got != (hue{token: theme.BgAttention, fade: tt.fade}) {
 			t.Errorf("%s is on %+v, want bg.attention faded %v", tt.name, got, tt.fade)
 		}
 	}
-	if head[state] == ' ' {
-		t.Errorf("the head reads %q, want its state from column %d", rows[0], state)
-	}
-	for _, unchanged := range [][2]int{{d.l.cx(), lately + 1}, {d.l.panel, 0}, {state - 1, 0}} {
-		if got := c.at(unchanged[0], unchanged[1]).ink.on; got != (hue{}) {
-			t.Errorf("column %d of the panel's row %d is on %+v, want it not cued", unchanged[0], unchanged[1], got)
+	for _, unchanged := range []struct {
+		name string
+		c    *canvas
+		x, y int
+	}{
+		{name: "LATELY's second line", c: c, x: d.l.cx(), y: lately + 1},
+		{name: "the head's name", c: c, x: d.l.panel, y: 0},
+		{name: "the cell before the head's state", c: c, x: state - 1, y: 0},
+		{name: "personal's glyph, its routing alone changed", c: list, x: listDotAt, y: 2 * listApart},
+	} {
+		if got := unchanged.c.at(unchanged.x, unchanged.y).ink.on; got.token == theme.BgAttention {
+			t.Errorf("%s is on %+v, want it not cued", unchanged.name, got)
 		}
 	}
 }

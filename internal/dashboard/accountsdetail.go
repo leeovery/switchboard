@@ -93,7 +93,7 @@ type detailLayout struct {
 // wide; or with one account, the panel alone from column 0, the stack grown
 // into the width, its days 3 cells and its weeks 1 apart, its bars 50 wide.
 func (f Frame) detailLayout() detailLayout {
-	if f.Accounts.alone() {
+	if f.Accounts.Alone() {
 		return detailLayout{dw: 3, gap: 1, bar: 50}
 	}
 	return detailLayout{list: true, panel: listPanelAt, dw: 2, gap: 4, bar: 40}
@@ -189,15 +189,6 @@ func configuredNow(m status.Moment, a config.Account, place int) (status.Account
 	return now, ok
 }
 
-// stateOf is an account's state in a word, as configuredNow has it, and
-// whether the moment has it: not read where it doesn't.
-func stateOf(now status.AccountNow, known bool) status.AccountState {
-	if !known {
-		return status.StateNotRead
-	}
-	return now.Routing.Kind.State()
-}
-
 // pageRowOf is the page's row of the account with the given id, "" for all
 // accounts', and the page: neither where the page isn't read, or holds no
 // row of the account.
@@ -288,14 +279,15 @@ func (d detailDrawn) panel() *canvas {
 
 // head draws the panel's head along row y: the account's number, name and
 // marks, then headApart cells on, how it stands, as its Headed says, in
-// ROUTING's glyph and colours, picked out while its state is newly changed,
-// or not read, as stateWord says it, where the moment lacks it; or 0 all
-// accounts and its accounts' states counted.
+// ROUTING's glyph and colours, picked out while its state in a word is newly
+// changed, as cueState has it, or not read, as stateWord says it, where the
+// moment lacks it; or 0 all accounts and every configured account's state
+// counted, as CountStatesOf counts them.
 func (d detailDrawn) head(c *canvas, y int) {
 	x := d.l.panel
 	if d.id == "" {
 		x = c.line(x, y, allAccountsName(1)) + headApart
-		c.line(x, y, countedStates(status.CountStates(d.m.Accounts), NumberAccountStates, d.f.edge()-x))
+		c.line(x, y, countedStates(d.m.CountStatesOf(d.f.Accounts.Accounts.IDs()), NumberAccountStates, d.f.edge()-x))
 		return
 	}
 	x = c.line(x, y, listName(d.account, 1).fitted(d.f.edge()-x)) + headApart
@@ -304,7 +296,7 @@ func (d detailDrawn) head(c *canvas, y int) {
 		return
 	}
 	end := c.line(x, y, standingWords(d.account.Headed(), false, d.f.edge()-x))
-	d.f.cueStanding(c, d.id, x, y, end-x)
+	d.f.cueState(c, d.id, x, y, end-x)
 }
 
 // usage draws USAGE from row y, its heading, then every window under it,
@@ -372,25 +364,16 @@ type thisWeekItem struct {
 // text.secondary: the requests; the limits, by window, or all accounts' how
 // many; the plan, by its name, or all accounts' summed; the worth, with its
 // ratio; and the extra usage of the accounts shown. The period's figures are
-// a dash where it records nothing, as on a fresh install.
+// as periodParts says them, a dash where it records nothing.
 func (d detailDrawn) thisWeekItems() []thisWeekItem {
-	totals := d.row.Totals
+	totals, page := d.row.Totals, *d.page
 	return []thisWeekItem{
-		{"requests", d.recorded([]part{figureIn(prose.Grouped(totals.Requests), secondaryInk)})},
-		{"limits", d.recorded(limitsParts(totals, d.f.windowNamer(d.m), secondaryInk))},
+		{"requests", periodParts(page, []part{figureIn(prose.Grouped(totals.Requests), secondaryInk)}, secondaryInk)},
+		{"limits", periodParts(page, limitsParts(totals, d.f.windowNamer(d.m), secondaryInk), secondaryInk)},
 		{"plan", planNamed(d.row, secondaryInk)},
-		{"worth", d.recorded(worthAgainst(d.row, secondaryInk))},
+		{"worth", periodParts(page, worthAgainst(d.row, secondaryInk), secondaryInk)},
 		{"extra use", extraShort(d.shown())},
 	}
-}
-
-// recorded is a figure of the period, as the parts given say it, where it
-// records anything; else a dash.
-func (d detailDrawn) recorded(parts []part) []part {
-	if !d.page.Recorded {
-		return noneOf(noFigure.text, secondaryInk)
-	}
-	return parts
 }
 
 // shown are the accounts Detail shows: the account, or every account.
@@ -540,8 +523,9 @@ func (d detailDrawn) session(c *canvas, r views.Running, x, y int, selected bool
 // list draws Detail's list from row top, rows tall, as listShown scrolls it:
 // 0 all accounts, then each configured account shown, listApart rows apart,
 // as configuredNow has it, its number, name and marks, as listName has them,
-// and at listDotAt its state's glyph, as stateOf and stateMark have it; the
-// chosen row lit; ↑↓ choose chooseUnder rows under the last; and the │
+// and at listDotAt its state's glyph, as StateInAWord and stateMark have it,
+// cued over the row's light while it's newly changed, as cueState has it;
+// the chosen row lit; ↑↓ choose chooseUnder rows under the last; and the │
 // beside them, to the panel's foot.
 func (d detailDrawn) list(c *canvas, top, rows int) {
 	configured := d.f.Accounts.Accounts
@@ -551,9 +535,10 @@ func (d detailDrawn) list(c *canvas, top, rows int) {
 	y := top
 	for i, a := range configured[first : first+shown] {
 		y += listApart
-		now, known := configuredNow(d.m, a, first+i+1)
-		c.line(listDotAt, y, line{stateMark(stateOf(now, known))})
+		now, _ := configuredNow(d.m, a, first+i+1)
+		c.line(listDotAt, y, line{stateMark(d.m.StateInAWord(a.ID))})
 		d.listRow(c, y, listName(now, digits).fitted(listDotAt-listAt), a.ID == d.id)
+		d.f.cueState(c, a.ID, listDotAt, y, 1)
 	}
 	c.line(listAt, y+chooseUnder, line{{"↑↓", keyInk}, {" choose", dimInk}})
 	for row := range min(d.ruleRows(), rows) {

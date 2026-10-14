@@ -297,7 +297,7 @@ func stateWord(s status.AccountState) line {
 	if s == status.StateOpen {
 		word = secondaryInk
 	}
-	return line{stateMark(s), {" " + s.Word(), word}}
+	return line{stateMark(s), {" " + s.Word(), word}}.inked()
 }
 
 // stateMark is an account's state's glyph, as stateWord colours it, and
