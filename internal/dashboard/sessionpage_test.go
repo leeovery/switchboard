@@ -295,6 +295,13 @@ func TestASessionsPageDrawsItsFramesRows(t *testing.T) {
 			},
 		},
 		{
+			stem: "session-turn-opened-160", shown: turnOpened(), width: 160, height: 37, storyFrom: 9, storyTo: 17,
+			// The frame lights no request of the turn open, where the design
+			// has its first chosen as it opens (3417); its text is held by
+			// TestATurnOpenedLightsItsRequestChosenAndSaysWhatsOutOfView.
+			passed: []spot{{row: 28, first: 0, last: 159}},
+		},
+		{
 			stem: "session-phone-52", shown: moved(), width: 52, height: 32, tabs: 1, storyFrom: 10, storyTo: 16,
 			// The frame leaves the row under its seven turns blank, where
 			// six more are out of view, as the design says them (3461).

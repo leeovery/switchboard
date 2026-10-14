@@ -58,7 +58,7 @@ func (f Frame) log(c *canvas, doc status.Document, now time.Time, top int) {
 	draw := f.logEvent(m, now)
 	if p.Shown == LogRequests {
 		layout := logColumns(f.Width, p.Columns)
-		logHeads(c, top, layout)
+		logHeads(c, top, layout, dimInk)
 		draw = f.logRequest(m, now, layout)
 	} else {
 		f.eventsHeads(c, top)
@@ -92,12 +92,13 @@ func (f Frame) logLine(c *canvas, y int, l logLine, draw func(c *canvas, y int, 
 	}
 }
 
-// logHeads draws the heads of the columns laid out as l along row y, in
-// text.subtle: each at its column's start, or ending at its end where the
-// column is right-aligned.
-func logHeads(c *canvas, y int, l logLayout) {
+// logHeads draws the heads of the columns laid out as l along row y, in the
+// ink given, text.subtle over the Log's table and text.faint under a turn
+// opened: each at its column's start, or ending at its end where the column
+// is right-aligned.
+func logHeads(c *canvas, y int, l logLayout, k ink) {
 	for _, p := range l.places {
-		head := line{{p.column.Name(), dimInk}}
+		head := line{{p.column.Name(), k}}
 		if p.aligned == alignRight {
 			c.right(p.x+p.width, y, head)
 			continue
