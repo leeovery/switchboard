@@ -302,6 +302,21 @@ func HardMoments(policy score.Policy) []HardMoment {
 	}}
 	unansweredWork := workSessionCapped
 	unansweredWork.CapSince = Built.Add(-30 * time.Minute)
+	// limitAndCap has work held back by a limit naming no window, reached 20
+	// minutes before Built, till 40 minutes after, and by its cap, its week
+	// at its reserve till it resets 70 minutes after: it's back once the
+	// later, its cap, lifts. Its reserve is a fifth, so neither window
+	// reaches the 90% a warning's posted at.
+	limitAndCap := Router(policy, nil,
+		Routed{Account: with(readAt("work", windowIn("5h", 0.5, 3*time.Hour), windowIn("7d", 0.85, 70*time.Minute)), func(a *status.Account) {
+			reservingAFifth(a)
+			a.Limit = status.Limit{ID: 8, Until: Built.Add(40 * time.Minute)}
+		})},
+		Routed{Account: side},
+	)
+	limitAndCap.Events = []status.Event{{
+		ID: 24, At: Built.Add(-20 * time.Minute), Kind: status.EventLimit, Account: "work", Until: Built.Add(40 * time.Minute), Limit: 8,
+	}}
 	moments := []HardMoment{
 		{
 			Name: "just after a reset, before the reread",
@@ -655,6 +670,26 @@ func HardMoments(policy score.Policy) []HardMoment {
 					"5h": {Kind: status.WindowOpen, At: Built.Add(2 * time.Hour), Used: 0.85, Next: Built.Add(2 * time.Hour)},
 					"7d": sideOpen.Windows["7d"],
 				}},
+			}},
+		},
+		{
+			Name: "a limit and the cap holding at once, the cap the later", Doc: limitAndCap, Now: Built.Add(10 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {
+					Routing: status.RoutingLimited, Held: true, CapHolds: true, OutOfQuota: true, LimitHolds: true, LimitSince: Built.Add(-20 * time.Minute),
+					Back: Built.Add(70 * time.Minute),
+					Windows: map[string]WindowFacts{
+						"5h": {
+							Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 0.5, Next: Built.Add(3 * time.Hour),
+							Held: true, Since: Built.Add(-20 * time.Minute), RunsOutAhead: true, Out: Built.Add(72 * time.Minute),
+						},
+						"7d": {
+							Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 0.85, Next: Built.Add(70 * time.Minute),
+							Held: true, Since: Built.Add(-20 * time.Minute), Capped: true, CappedAsRead: true,
+						},
+					},
+				},
+				"side": sideOpen,
 			}},
 		},
 		{
