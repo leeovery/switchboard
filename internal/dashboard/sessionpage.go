@@ -532,7 +532,7 @@ func (d sessionDrawn) turn(c *canvas, y int, t views.Turn, newest bool) {
 	}
 	if t.Turn == d.shown.Turn {
 		c.surface(0, y, chosenCells, chosenTurn)
-		emboldened(c, y, chosenCells)
+		c.emboldened(0, y, chosenCells)
 	}
 	if said := d.page.Activity.WaitingSaid(); newest && said != "" {
 		c.text(askingAt, y, said, keyInk)
@@ -547,15 +547,6 @@ func (col turnColumn) draw(c *canvas, y int, l line) {
 		return
 	}
 	c.line(col.at, y, l)
-}
-
-// emboldened makes the cells from column 0 along row y bold, n of them.
-func emboldened(c *canvas, y, n int) {
-	for x := range n {
-		if here := c.at(x, y); here != nil {
-			here.ink.bold = true
-		}
-	}
 }
 
 // turnOn names the accounts a turn went to, in text.secondary, in its

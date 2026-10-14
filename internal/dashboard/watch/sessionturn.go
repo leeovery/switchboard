@@ -64,7 +64,7 @@ func (m Model) moveRequest(by int) Model {
 	s := *m.session
 	i := min(max(s.shown.Request+by, 0), max(len(s.shown.Requests)-1, 0))
 	scrolling := m.requestsScrolling()
-	s.shown.Request, s.shown.RequestsScroll = i, keptInView(s.shown.RequestsScroll, i, 0, scrolling)
+	s.shown.Request, s.shown.RequestsScroll = i, scrolling.Keeping(s.shown.RequestsScroll, i, 0)
 	m.session = &s
 	return m.requestInView()
 }
@@ -117,15 +117,6 @@ func (m Model) clickRequest(i int) (tea.Model, tea.Cmd) {
 		return m.openTurnCard()
 	}
 	return m.moveRequest(i - m.session.shown.Request), nil
-}
-
-// keptInView is scroll moved no further than keeps the rows from i to
-// i+under in view of what scrolls as s says, none past its ends.
-func keptInView(scroll, i, under int, s dashboard.Scrolling) int {
-	if s.Page > 0 {
-		scroll = min(max(scroll, i+under-s.Page+1), i)
-	}
-	return min(max(scroll, 0), s.Most)
 }
 
 // inViewAt is i moved no further than keeps it among the rows in view of

@@ -69,17 +69,24 @@ func (f Frame) Revealing(doc status.Document, now time.Time, id string) int {
 }
 
 // revealing is how far what's scrolled at, and scrolls as s says, is
-// scrolled to show its i-th account: no further than it must go to, and no
-// further than it goes. An i of none of them leaves it where it is.
+// scrolled to show its i-th account, as Keeping keeps it in view.
 func (s Scrolling) revealing(at, i int) int {
+	return s.Keeping(at, i, 0)
+}
+
+// Keeping is how far what's scrolled at, and scrolls as s says, is scrolled
+// to keep its rows from i to i+under in view, row i where they don't all
+// fit: no further than it must go to, and no further than it goes. An i of
+// none of them, under 0, leaves it where it is, as does a view of no rows.
+func (s Scrolling) Keeping(at, i, under int) int {
 	at = s.clamped(at)
 	switch {
-	case i < 0:
+	case i < 0 || s.Page <= 0:
 		return at
 	case i < at:
 		return i
-	case i >= at+s.Page:
-		return min(i-s.Page+1, s.Most)
+	case i+under >= at+s.Page:
+		return s.clamped(min(i+under-s.Page+1, i))
 	}
 	return at
 }

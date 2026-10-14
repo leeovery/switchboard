@@ -313,7 +313,7 @@ func choosing(shown dashboard.SessionShown, i int, s dashboard.Scrolling) dashbo
 	}
 	i = min(max(i, 0), len(turns)-1)
 	shown.Turn = turns[i].Turn
-	shown.Scroll = keptInView(shown.Scroll, i, shown.Kept(), s)
+	shown.Scroll = s.Keeping(shown.Scroll, i, shown.Kept())
 	return shown
 }
 
