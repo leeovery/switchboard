@@ -114,9 +114,11 @@ type Turn struct {
 // its last line; probing within the hour; a subagent's model moved, its main
 // thread staying; a request in flight naming no prompt after named turns;
 // refused on one account, then throttled on another; a request the router
-// answered itself, no account having room; and an Opus session's Haiku title
+// answered itself, no account having room; an Opus session's Haiku title
 // on its account after its main, the stream just opened telling of neither,
-// then its next main request heard.
+// then its next main request heard; and its main thread waiting over the
+// IdleHour on a subagent of another model, which works on its account, then
+// on another.
 func SessionMoments() []SessionMoment {
 	return []SessionMoment{
 		asking(), askingAsListed(), answering(), refused(), throttled(), idleAsTheStreamTold(), idleAsItsLineGives(),
@@ -125,7 +127,7 @@ func SessionMoments() []SessionMoment {
 		itsMainFailed(), inFlightInTheNewestTurn(), endedItsLineToCome(), itsLineCome(), movedTwice(), turnAcrossMidnight(),
 		noPrompts(), movedByHand(), newBeforeTheNextLook(), idleItsPageOpen(), endedItsPageOpen(), probingWithinTheHour(),
 		subagentMoved(), inFlightNamingNoPrompt(), refusedThenThrottled(), answeredByTheRouter(),
-		titledAfterItsMainUnheard(), titledAfterItsMainThenItsMainHeard(),
+		titledAfterItsMainUnheard(), titledAfterItsMainThenItsMainHeard(), coldMainBesideItsSubagent(), coldMainItsSubagentElsewhere(),
 	}
 }
 
@@ -903,5 +905,57 @@ func titledAfterItsMainThenItsMainHeard() SessionMoment {
 	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Doing: views.Asking, Since: sent, LastSeen: sent})}
 	m.Turns = map[string][]Turn{D28C: {going(2, sent, 1, "work"), over(1, At(14, 30, 0), At(14, 31, 0), 2, "work")}}
 	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: []Named{{"work", Opus}, {"work", Haiku}}, Going: true, Waiting: true, Accounts: []string{"work"}, Ribbon: []string{"work"}}}
+	return m
+}
+
+// coldMain is a moment, named, of a session whose main thread, Claude Opus
+// 5.5, came to work from side at 13:30 and has waited since on its subagent,
+// of Claude Haiku 4.5, which works on the account given: its Opus listed
+// cold, idle over the IdleHour, its Haiku seen at 14:40.
+func coldMain(name, sub string) SessionMoment {
+	opus := seat(Opus, "work", At(13, 30, 10), "")
+	opus.Reason, opus.AssignedAt = status.ReasonMovedOff+"side "+status.WhyLimit, At(13, 30, 0)
+	haiku := seat(Haiku, sub, At(14, 40, 0), "")
+	haiku.AssignedAt = At(13, 31, 0)
+	m := moment(name, session(D28C, opus, haiku))
+	m.Lines = []ledger.Line{
+		asMain(p1, "end_turn", line(D28C, Opus, "side", At(13, 0, 0), 10*time.Second)),
+		movedOff("side", asMain(p2, "tool_use", line(D28C, Opus, "work", At(13, 30, 0), 10*time.Second))),
+		asSubagent("a1", p2, line(D28C, Haiku, sub, At(13, 31, 0), 5*time.Second)),
+		asSubagent("a1", p2, line(D28C, Haiku, sub, At(14, 10, 0), 5*time.Second)),
+		asSubagent("a1", p2, line(D28C, Haiku, sub, At(14, 40, 0), 5*time.Second)),
+	}
+	m.Named = map[string]Named{D28C: {"work", Opus}}
+	return m
+}
+
+// coldMainBesideItsSubagent has the subagent on its main thread's account:
+// its one row there is named by its main thread, as the List names it.
+func coldMainBesideItsSubagent() SessionMoment {
+	m := coldMain("its main thread waiting over the IdleHour on a subagent of another model on its account", "work")
+	m.Want = map[string]Doing{D28C: {
+		Whole: views.Activity{Since: At(14, 40, 5), LastSeen: At(14, 40, 0)},
+		On:    on("work", views.Activity{Since: At(14, 40, 0), LastSeen: At(14, 40, 0)}),
+	}}
+	m.Turns = map[string][]Turn{D28C: {going(2, At(13, 30, 0), 4, "work"), over(1, At(13, 0, 0), At(13, 0, 10), 1, "side")}}
+	m.Page = map[string]PageFacts{D28C: {
+		Runs: true, Goes: []Named{{"work", Opus}, {"work", Haiku}}, Going: true, Accounts: []string{"side", "work"}, Ribbon: []string{"side", "work"}, Marks: 1,
+	}}
+	return m
+}
+
+// coldMainItsSubagentElsewhere has the subagent on side: SESSIONS draws the
+// session where its models run, its one row on side, while the List names
+// it by its main thread, on work.
+func coldMainItsSubagentElsewhere() SessionMoment {
+	m := coldMain("its main thread waiting over the IdleHour on a subagent of another model on another account", "side")
+	m.Want = map[string]Doing{D28C: {
+		Whole: views.Activity{Since: At(14, 40, 5), LastSeen: At(14, 40, 0)},
+		On:    on("side", views.Activity{Since: At(14, 40, 0), LastSeen: At(14, 40, 0)}),
+	}}
+	m.Turns = map[string][]Turn{D28C: {going(2, At(13, 30, 0), 4, "work"), over(1, At(13, 0, 0), At(13, 0, 10), 1, "side")}}
+	m.Page = map[string]PageFacts{D28C: {
+		Runs: true, Goes: []Named{{"work", Opus}, {"side", Haiku}}, Going: true, Accounts: []string{"side", "work"}, Ribbon: []string{"side", "work"}, Marks: 1,
+	}}
 	return m
 }
