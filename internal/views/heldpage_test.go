@@ -170,13 +170,23 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 		tried,
 		refused,
 	}
-	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
-	rows := held.TurnRequests(1, views.PageLive{Now: now, Stream: heard(toldOf("r8", p1, ledger.ClassMain, opus, "side", local(13, 10, 0)))})
+	l := summarisedLedger(lines)
+	held := views.HoldPage(paged, views.ReadSessions(l, nil, now, paged), ledger.Pricing, kept90, now)
+	stream := heard(toldOf("r8", p1, ledger.ClassMain, opus, "side", local(13, 10, 0)))
+	rows := held.TurnRequests(1, views.PageLive{Now: now, Stream: stream})
+	logged := logRowsByID(views.LogRows(views.LogSources{
+		From: now, Read: views.ReadLogHeld(l, heldOf(lines...), ledger.Pricing, now), Stream: stream, Now: now,
+	}))
 	var ids []string
 	for _, r := range rows {
 		ids = append(ids, r.Request)
 		if r.Mark != views.NoMark {
 			t.Errorf("%s has mark %q, want none", r.Request, r.Mark)
+		}
+		want := logged[r.Request]
+		want.Mark = views.NoMark
+		if !reflect.DeepEqual(r, want) {
+			t.Errorf("%s's row is\n%+v\nwant the Log's, but for its mark,\n%+v", r.Request, r, want)
 		}
 	}
 	if want := []string{"r1", "r2", "r3", "r4", "r6", "r7", "r8"}; !slices.Equal(ids, want) {
@@ -198,6 +208,17 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 	if got := held.TurnRequests(3, views.PageLive{Now: now}); got != nil {
 		t.Errorf("TurnRequests(3) = %+v, want none, the session having two turns", got)
 	}
+}
+
+// logRowsByID are the rows the Log's table holds, by their requests' ids.
+func logRowsByID(table views.LogTable) map[string]views.RequestRow {
+	rows := make(map[string]views.RequestRow)
+	for _, l := range table.Lines {
+		if l.IsRow() {
+			rows[l.Row.Request] = l.Row
+		}
+	}
+	return rows
 }
 
 // While no router lists the sessions, a page keeps the session's own pin as
