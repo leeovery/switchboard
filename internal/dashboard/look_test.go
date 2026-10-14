@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // now is the clock every frame is drawn at: a Monday, 13:12 an hour east of
@@ -52,8 +53,36 @@ func threeAccounts() status.Document {
 	return doc.WorkedOut(claude)
 }
 
+// onTheBoard is Sessions' Switchboard of threeAccounts, d28c chosen: on work,
+// d28c asking; on side, c61b answering, and 41e0, idle, moved from personal;
+// d28c's request going out, c61b's answer streaming back, and 7f3a's cord,
+// let go by its move from personal, fading.
+func onTheBoard() (dashboard.SessionsShown, dashboard.Traffic) {
+	call := func(session, account string, a views.Activity, from string) views.Call {
+		return views.Call{Account: account, Session: session, Models: []string{"claude-opus-5-5"}, Activity: a, Dir: "~/Code/" + session, From: from}
+	}
+	asked := now.Add(-2 * time.Second)
+	gone := []views.Call{call("7f3a", "personal", views.Activity{Since: asked, LastSeen: asked}, "")}
+	calls := []views.Call{
+		call("d28c", "work", views.Activity{Doing: views.Asking, Since: asked, LastSeen: asked}, ""),
+		call("c61b", "side", views.Activity{Doing: views.Answering, Since: asked, LastSeen: asked}, ""),
+		call("41e0", "side", views.Activity{Since: asked, LastSeen: asked}, "personal"),
+	}
+	board := dashboard.SessionsShown{Calls: calls, Chosen: dashboard.Plug{Session: "d28c", Account: "work"}}
+	board.Patched = views.Patch(views.Patch(views.Patched{}, gone, nil), calls, nil)
+	traffic := dashboard.Traffic{
+		Calls: map[dashboard.Plug]dashboard.Call{
+			{Session: "d28c", Account: "work"}: {Doing: dashboard.Asking, Pulsing: true, Pulse: dashboard.Pulse{Along: 0.4}},
+			{Session: "c61b", Account: "side"}: {Doing: dashboard.Streaming, Shimmer: 1},
+		},
+		Loose: []dashboard.Loose{{Session: "7f3a", From: "personal", Fade: 0.3}},
+	}
+	return board, traffic
+}
+
 // frames are frames of threeAccounts the tests draw, as text alone: full
-// screen, at a size each, and Runway over the day and the week, among them.
+// screen, at a size each, Sessions' Switchboard, and Runway over the day and
+// the week, among them.
 func frames() map[string]dashboard.Frame {
 	frame := func(width, height int) dashboard.Frame {
 		return dashboard.Frame{
@@ -66,9 +95,12 @@ func frames() map[string]dashboard.Frame {
 		f.View, f.Span = dashboard.Runway, span
 		return f
 	}
+	sessions := frame(160, 40)
+	sessions.View = dashboard.Sessions
+	sessions.SessionsTab, sessions.Traffic = onTheBoard()
 	return map[string]dashboard.Frame{
 		"wide": frame(160, 40), "two rows": frame(120, 50), "short, scrolling": frame(160, 20), "phone": frame(52, 36),
-		"runway, the day": runway(dashboard.Day), "runway, the week": runway(dashboard.Week),
+		"sessions": sessions, "runway, the day": runway(dashboard.Day), "runway, the week": runway(dashboard.Week),
 	}
 }
 
@@ -256,7 +288,7 @@ func TestTextFromElsewhereShowsItsControlCharactersAsSpaces(t *testing.T) {
 	doc.Events = append(doc.Events, status.Event{ID: 2, At: now.UTC(), Kind: status.EventMoved, Session: "5b19\x1b[1m", From: "work", To: "side", Reason: "moved: \x07pinned\n"})
 	probed := threeAccounts()
 	probed.Source, probed.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterUnhealthy, Reason: "the router answered\x07\n404"}
-	views := []dashboard.Frame{frames()["wide"], frames()["runway, the day"]}
+	views := []dashboard.Frame{frames()["wide"], frames()["sessions"], frames()["runway, the day"]}
 	for name, doc := range map[string]status.Document{"from the router": doc, "probing past it": probed} {
 		t.Run(name, func(t *testing.T) {
 			for _, f := range views {
