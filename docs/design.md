@@ -1,18 +1,17 @@
 # Switchboard — design
 
-**Status:** milestones 0 to 3, 5 and 6 are built, and this document describes the design as built,
-but for milestone 7's, which it describes as designed, ahead of its build (see Milestones).
+**Status:** milestones 0 to 3 and 5 to 7 are built, and this document describes the design as
+built (see Milestones).
 Milestones 0 to 2 built the usage dashboard (one-off, and in watch mode) and `status`, which read
 the router while it runs and probe when it doesn't; logging; the router, with its scheduler, pins,
 state, limit and refusal handling, health and desktop notifications; and launching (`run` and the
 service). Milestone 3 added token files and the `accounts` commands, `setup`, every `claude` going
 through switchboard in place of `init zsh`, the primary account and its reserve, priming the 5-hour
 windows, and the router looking after itself; Milestones lists it in full, with what its final
-review changed. Next is milestone 7 (see Milestones); milestone 4, the author's switch-over, happens
-outside this repo. The release follows milestone 3. Milestone 5 rebuilt the dashboard as its owner
+review changed. Milestone 4, the author's switch-over, happens outside this repo. The release follows milestone 3. Milestone 5 rebuilt the dashboard as its owner
 redesigned it, in three views, with themes, and with the router's history, events and request stream
 to draw them from. Milestone 6 added the request ledger, a line for each request the router routes
-and a summary of each day, with `requests` and `history` to read them back. Milestone 7 redesigns
+and a summary of each day, with `requests` and `history` to read them back. Milestone 7 redesigned
 the dashboard again, on what the ledger records: `usage` becomes a printout, `dashboard` the live
 page, in six tabs, and the data verbs give an agent everything either shows. The Dashboard section
 and The data verbs describe it.
@@ -833,9 +832,10 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
       `limits`; and `all accounts`' peaks: every account's, whatever was pinned (see History).
     - `capacity`: Weeks' verdicts over those weeks: how many were `short`, a week some account hit
       its limit, as the accounts stand, `with_one_fewer` and `with_one_more`, and the account to
-      `drop`, where Weeks names one; and each account's `verdict`, in Weeks' words, with how many
+      `drop`, where Weeks names one, with `with_two_fewer`, with three accounts or more, the weeks
+      short without it and another; and each account's `verdict`, in Weeks' words, with how many
       weeks it hit its limit, the share it had left at a reset, on average, and how many weeks the
-      rest would have been short `without_it`.
+      rest would have been short `without_it`, then every account's together, marked `all`.
   - **`history --windows`:** one object, `{"windows": [{account, window, readings}]}`, printed in
     place of the blocks (settled in the plan): each account's every window's readings over the days
     asked for, each `{at, utilization, resets_at, status, source}`, as the readings history holds
@@ -872,7 +872,8 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
       `{account, from, to, requests, worth, points}`, `from` and `to` its first and last request
       there, and `points` each window's points its requests took, by key, an estimate (see A
       session's page).
-    - `moves` are each move, `[{at, from, to, reason, written, cost}]`.
+    - `moves` are each move, `[{at, model, from, to, reason, written, cost}]`, `model` the one it
+      asked for, as a session's models are routed apart.
     - `turns` are newest first:
       `{turn, started, ended, requests, tools, read, written, out, worth, accounts}`. `tools` are
       the tools its answers called, each by name with how many times; `ended` is left out of one
@@ -5302,7 +5303,9 @@ verbs).
 - **Joining:** a limit reached again while it holds joins its event, keeping its `id`, in whatever
   order the news of it comes; another limit reached meanwhile is an event of its own. A cap reached
   again while it holds, in another window, joins its own the same way, and so does a refusal of the
-  account renewed while it holds.
+  account renewed while it holds. A window that joins a limit or a cap it didn't begin with is kept
+  in the event's `joined`, by its key, with when it joined, so a hold is dated from when each of its
+  windows began holding it.
 - **Kept in files,** so the Log and `events` look back across restarts:
   `<state dir>/ledger/events-<local date>.jsonl`, 0600 in the ledger's directory, a line an event,
   as the status document gives it, with `run`: when the router that told it started, as its

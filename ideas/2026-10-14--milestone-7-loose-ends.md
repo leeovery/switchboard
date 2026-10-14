@@ -26,6 +26,17 @@ holding the release for, gathered here. Each is an edge case or a cost with no w
 - The Overview at 14 rows with every section open: USAGE is left its heading alone, or nothing.
 - At 11 to 13 rows: Compare says `▼ 25 more below` with nothing shown, Detail's `↑↓ choose` is
   clipped, and a phone's Days pages nothing.
+- A view whose scroll changes what it counts, rows or accounts, goes back to its top; keeping the
+  reader's place would take a mapping between the two both ways. Where a change of unit was still
+  pending as a key moved the focus, the reset undoes that move for one key.
+- `historyScrolling` ignores the offset asked of it for the Year, Weeks and Days; its one caller
+  asks at the scroll as it stands.
+- Help doesn't say a view goes back to its top when its scroll's unit changes.
+- A limit that lifts early while a cap or a refused token holds the account writes no room, so the
+  next limit is dated from the first one's start. Bringing the lifted limit's `Until` forward to
+  the lift, as a refusal lifting early already does, would end it.
+- Runway's live 5-hour view, with no event telling a hold, dates a cap that one window began and
+  another took over from the window holding it now: the readings tell each window's own run alone.
 - `switchboard dashboard --help`'s keys paragraph leaves out the keys of Accounts, Sessions, the
   Log and a session's page; the dashboard's own help has them all.
 
@@ -38,6 +49,9 @@ holding the release for, gathered here. Each is an edge case or a cost with no w
   hear the whole stream again for each copy. Tidying once a minute would change what shows: the
   views keep a request the router told of until its line comes, whatever its age, so they'd first
   need told requests let go by time.
+- The Log's panel is built again at each look, as its events side reads every look; and a change to
+  a row on the stream builds the Requests again over every line held, where keeping the lines
+  placed as the read grows would take only the change.
 - Events filtered by kind walk every day.
 - capture's tests take 7 to 15 minutes under the race detector.
 
