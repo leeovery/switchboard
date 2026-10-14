@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"testing"
@@ -412,6 +413,95 @@ func TestTheRouterSilentForTenMinutesSessionsAndAPageDrawItsLastListing(t *testi
 	h.openPage(idD28C)
 	if page := h.shownPage().Page; !page.Running || !page.Runs() || page.Activity != listed.Activity {
 		t.Errorf("its page runs %t (%t by its activity), doing %+v; want it running, as the List has it, %+v", page.Running, page.Runs(), page.Activity, listed.Activity)
+	}
+}
+
+// linesOf are the lines given, each of the session with the given id.
+func linesOf(id string, lines []ledger.Line) []ledger.Line {
+	for i := range lines {
+		lines[i].Session = id
+	}
+	return lines
+}
+
+// Probing, no router lists a session: the Switchboard has no calls, and the
+// List comes from the ledger alone, a session idle within the router's hour
+// since its last request, and one past it ended.
+func TestProbingSessionsHasNoCallsAndTheListComesFromTheLedger(t *testing.T) {
+	h := newHarness(t, probedWithoutTheRouter())
+	h.withLines(slices.Concat(promptedLines(2, start.Add(-30*time.Minute)), linesOf(id9E21, promptedLines(1, start.Add(-3*time.Hour)))))
+	h.start()
+	h.keys(toSessions...)
+
+	if calls := h.model.sessionsTab.shown.Calls; len(calls) > 0 {
+		t.Errorf("probing, the Switchboard's calls are %+v, want none", calls)
+	}
+	for _, tt := range []struct {
+		id    string
+		ended bool
+	}{{id: idD28C}, {id: id9E21, ended: true}} {
+		listed, ok := listedOf(h, tt.id)
+		if !ok || listed.Running || (listed.Activity.Doing == views.Ended) != tt.ended {
+			t.Errorf("the List has %s %+v (listed %t), want it listed, not running, ended %t", tt.id, listed, ok, tt.ended)
+		}
+	}
+}
+
+// A router restarted, or another, has the watch forget what the last one's
+// stream told, but who sits where on the Switchboard is kept: the calls the
+// new one lists keep their jacks, however it orders them.
+func TestARouterRestartedKeepsWhoSitsWhere(t *testing.T) {
+	h := streamingHarness(t)
+	h.source.health = router.Health{OK: true, PID: 100, StartedAt: start.UTC()}
+	h.tickUntilAsked()
+	h.keys(toSessions...)
+	want := []views.Plugged{{Session: idD28C, Jack: 0}, {Session: id7F3A, Jack: 1}}
+	if _, work := callsOf(h, "work"); !slices.Equal(work, want) {
+		t.Fatalf("work's line is %+v, want %+v", work, want)
+	}
+
+	h.source.health = router.Health{OK: true, PID: 200, StartedAt: start.Add(time.Minute).UTC()}
+	h.source.sessions = []status.Session{sessionOn(id7F3A, haiku, "work", -time.Minute), sessionOn(idD28C, opus, "work", -10*time.Second)}
+	h.tickUntilAsked()
+	if _, work := callsOf(h, "work"); !slices.Equal(work, want) {
+		t.Errorf("another router answering, 7f3a seen last, work's line is %+v, want it kept, %+v", work, want)
+	}
+}
+
+// endedToday are n sessions that ended today, each a request two hours or
+// more before the clock starts, a minute apart.
+func endedToday(n int) []ledger.Line {
+	var lines []ledger.Line
+	for i := range n {
+		lines = append(lines, linesOf(fmt.Sprintf("%08x-5e55-4000-8000-000000000000", i+1), promptedLines(1, start.Add(-2*time.Hour-time.Duration(i)*time.Minute)))...)
+	}
+	return lines
+}
+
+// enter on the row chosen opens its session's page over Sessions, which
+// stands as it was behind it, and esc comes back to it as it was left: its
+// sub-tab, the row chosen, and how far it's scrolled to show it.
+func TestEscFromASessionsPageComesBackToSessionsAsItWasLeft(t *testing.T) {
+	h := streamingHarness(t)
+	h.withLines(endedToday(30))
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 20})
+	h.keys(toSessions...)
+	h.keyed("] up")
+	left, scroll := h.model.sessionsTab.shown, h.model.scroll
+	if left.Shown != dashboard.SessionsList || left.Chosen == (dashboard.Plug{}) {
+		t.Fatalf("] ↑ shows %d, %+v chosen; want the List, its last row chosen", left.Shown, left.Chosen)
+	}
+
+	h.keyed("enter")
+	if h.model.session == nil || h.model.session.id != left.Chosen.Session {
+		t.Fatalf("enter opened %+v, want the page of %s, the session chosen", h.model.session, left.Chosen.Session)
+	}
+	h.tickUntilAsked()
+	h.keyed("esc")
+	back := h.model.sessionsTab.shown
+	if h.model.session != nil || h.model.view != dashboard.Sessions || back.Shown != left.Shown || back.Chosen != left.Chosen || h.model.scroll != scroll {
+		t.Errorf("esc shows %s, page open %t, sub-tab %d, %+v chosen, scrolled %d; want Sessions as left: %d, %+v, %d",
+			h.model.view, h.model.session != nil, back.Shown, back.Chosen, h.model.scroll, left.Shown, left.Chosen, scroll)
 	}
 }
 
