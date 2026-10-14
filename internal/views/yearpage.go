@@ -540,9 +540,10 @@ func (y yearView) versionNumbers(first string) YearNumbers {
 	}
 }
 
-// against is what the shown accounts' plans cost over the period, a day
-// each, from the later of its first day and the day the ledger began to its
-// end, and the worth against it: none where the ledger began after it.
+// against is what the shown accounts' plans cost over the period, and the
+// worth against it: 12 months, its days 365 or 366, where the ledger began
+// by its first day; else a day each from the day it began to its end; none
+// where it began after it.
 func (y yearView) against() Against {
 	from := max(y.span.first, y.began)
 	start, _ := dayfile.Civil(from)
@@ -550,7 +551,11 @@ func (y yearView) against() Against {
 	if end.Before(start) {
 		return Against{}
 	}
-	return y.plans.against(accountWorths(y.shown), from, days(int(end.Sub(start)/(24*time.Hour))+1))
+	priced := aYear
+	if from != y.span.first {
+		priced = days(int(end.Sub(start)/(24*time.Hour)) + 1)
+	}
+	return y.plans.against(accountWorths(y.shown), from, priced)
 }
 
 // months are BY MONTH's rows of all use, or an account's: each against what

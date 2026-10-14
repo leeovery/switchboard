@@ -57,14 +57,16 @@ type TokenPeriod struct {
 	SoFar     bool
 }
 
-// tokens is Tokens' page, its rows the periods asked for over the year's
-// days, the oldest priced from the day the days were asked for, as
-// tokenPeriodsOf says, newest first.
+// tokens is Tokens' page, its rows the periods asked for over the last 12
+// months' days, as the Year's are, the days its grid draws before them left
+// out, the oldest priced from their first day, or the later day the days
+// were asked for from, as tokenPeriodsOf says, newest first.
 func (p Past) tokens(ask TokensAsk) TokensPage {
 	by := ask.Period.shape(p.in.WeekStarts)
 	today, _ := by.of(dayfile.DateOf(p.in.Now))
-	from := dayfile.DateOf(p.in.From)
-	all := tokenPeriodsOf(p.days, plans{accounts: p.in.Accounts, table: p.in.Prices}, versions{table: p.in.Prices, family: p.in.Family}, from, by)
+	span := yearSpanOf(0, dayfile.CivilOf(p.in.Now), p.in.WeekStarts)
+	from := max(span.first, dayfile.DateOf(p.in.From))
+	all := tokenPeriodsOf(between(p.days, from, span.last), plans{accounts: p.in.Accounts, table: p.in.Prices}, versions{table: p.in.Prices, family: p.in.Family}, from, by)
 	var periods []TokenPeriod
 	for _, t := range slices.Backward(all) {
 		if len(t.ByAccount) > 0 {

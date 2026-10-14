@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -106,6 +107,26 @@ func TestTokensPricesEachPeriodAgainstItsShareOfAMonth(t *testing.T) {
 				t.Errorf("the periods cost %s, want %s", got, tt.costs)
 			}
 		})
+	}
+}
+
+// Tokens' periods start at the last 12 months' first day, as the Year's do,
+// the days the Year's grid draws before it left out: its oldest month is
+// the Year's BY MONTH's, its worth and its plans' cost, though the days are
+// read from the grid's first.
+func TestTokensOldestMonthIsTheYearsOldestMonth(t *testing.T) {
+	in := input(overTheYear)
+	in.From = views.YearFrom(views.YearAsk{}, now, time.Monday)
+	past := views.NewPast(in, overTheYear)
+	tokens := past.Tokens(views.TokensAsk{Period: views.TokensByMonth}).Periods
+	oldest := tokens[len(tokens)-1]
+	year := past.Year(views.YearAsk{}).ByMonth
+	i := slices.IndexFunc(year, func(m views.MonthRow) bool { return m.Month.Month == oldest.First })
+	if i < 0 {
+		t.Fatalf("Tokens' oldest month is %s, which the Year's BY MONTH doesn't hold", oldest.First)
+	}
+	if got, want := jsonOf(t, []any{oldest.Worth, oldest.Against}), jsonOf(t, []any{year[i].Worth, year[i].Against}); got != want {
+		t.Errorf("Tokens' %s is worth and costs %s, the Year's %s", oldest.First, got, want)
 	}
 }
 
