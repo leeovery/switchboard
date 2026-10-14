@@ -128,14 +128,18 @@ var (
 		"views.AccountTotals.RanOut":      {"internal/dashboard", "internal/dashboard/watch"},
 	}
 	// builtInTheWatch are what the watch builds once each change, as each
-	// reads the ledger or the router's events, or places every line, for the
+	// reads the ledger or the router's events, places every line, or keeps
+	// who sits where on Sessions' Switchboard from look to look, for the
 	// dashboard to draw as it's held: the dashboard calls none. Each is one
 	// views declares, or the guard fails, as a ban on a name that's gone
 	// passes whatever the dashboard builds.
 	builtInTheWatch = []string{
-		"views.DaySessions", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsRead.Refiled", "views.EventsRead.Skips",
-		"views.EventsSince", "views.EventsTable.Details", "views.FindSessions", "views.LogEvents", "views.LogRead.Grown",
-		"views.LogRows", "views.LogSessions", "views.ReadEvents", "views.ReadLogHeld", "views.Today", "views.TotalsOn",
+		"views.CallsOf", "views.DaySessions", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsRead.Refiled",
+		"views.EventsRead.Skips", "views.EventsSince", "views.EventsTable.Details", "views.FindSessions",
+		"views.HeldList.Awaited", "views.HeldList.Found", "views.HeldList.List", "views.HeldList.Take", "views.HeldList.Unfound",
+		"views.HeldList.Unread", "views.HoldList", "views.ListSessions", "views.LogEvents", "views.LogRead.Grown", "views.LogRows",
+		"views.LogSessions", "views.Patch", "views.ReadEvents", "views.ReadList", "views.ReadLogHeld", "views.StubsOf",
+		"views.Today", "views.TotalsOn",
 	}
 )
 
