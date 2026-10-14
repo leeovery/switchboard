@@ -95,12 +95,15 @@ func (c LogCount) Lines() int {
 	return c.Requests + c.Checks + c.Counts
 }
 
-// ModelsAsked are the models the day's lines asked for, by their whole ids,
-// as the f panel lists them: the most asked first, then by id.
-func (c LogCount) ModelsAsked() []string {
-	return slices.SortedFunc(maps.Keys(c.Models), func(a, b string) int {
+// ModelsListed are the models the f panel lists, by their whole ids: those
+// the day's lines asked for, the most asked first, then by id; then those
+// ticked that none asked for, as one ticked before midnight, by id, so a
+// model the filter keeps always has a tick.
+func (c LogCount) ModelsListed(ticked []string) []string {
+	asked := slices.SortedFunc(maps.Keys(c.Models), func(a, b string) int {
 		return cmp.Or(c.Models[b]-c.Models[a], strings.Compare(a, b))
 	})
+	return append(asked, notAmong(ticked, asked)...)
 }
 
 // RowKinds are the kinds of RowKind, in the panel's order.

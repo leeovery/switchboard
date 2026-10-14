@@ -36,7 +36,7 @@ type LogPanel struct {
 	Accounts []status.AccountNow
 	// Sessions are today's sessions as views.LogSessions lists them: of
 	// Requests' panel, those with lines today; of Events', those with events
-	// today; and on either, the one the find picked while it's ticked.
+	// today; and on either, those TickedSessions has that have none.
 	Sessions []views.LogSession
 	// Now is when it was built, which its sessions' doing is said at.
 	Now time.Time
@@ -44,12 +44,40 @@ type LogPanel struct {
 	// the tick it's on on each, the first where it's on none there is.
 	side int
 	on   [2]tickOn
+	// openedFilter and openedShows are what it picked as it opened, whose
+	// sessions and models it lists though today counts none of them, so one
+	// let go stays to be ticked again.
+	openedFilter views.LogFilter
+	openedShows  views.EventFilter
 }
 
 // Panel is the panel f opens of the table p shows: picking what it shows,
 // the cursor on its left side's first tick.
 func (p LogPage) Panel() LogPanel {
-	return LogPanel{Of: p.Shown, Laid: p.Columns, Columns: p.Columns, Filter: p.Filter, Shows: p.Shows}
+	return LogPanel{
+		Of: p.Shown, Laid: p.Columns, Columns: p.Columns, Filter: p.Filter, Shows: p.Shows, openedFilter: p.Filter, openedShows: p.Shows,
+	}
+}
+
+// TickedSessions are the sessions its table's filter ticks, as it opened or
+// as it picks, each by its whole id, which it lists whether today counts
+// any of their lines or events or not.
+func (p LogPanel) TickedSessions() []string {
+	return slices.Concat(sessionsOf(p.Of, p.openedFilter, p.openedShows), p.chosenSessions())
+}
+
+// chosenSessions are the sessions its table's filter ticks as it picks.
+func (p LogPanel) chosenSessions() []string {
+	return sessionsOf(p.Of, p.Filter, p.Shows)
+}
+
+// sessionsOf are the sessions the filter of the table given ticks: of the
+// Events, shows'; else filter's.
+func sessionsOf(of LogView, filter views.LogFilter, shows views.EventFilter) []string {
+	if of == LogEvents {
+		return shows.Sessions
+	}
+	return filter.Sessions
 }
 
 // Applied is p showing what the panel picks, as enter applies it.
@@ -253,11 +281,12 @@ func (p LogPanel) accountTicks() []tick {
 	return ticks
 }
 
-// modelTicks are the ticks of the models today's lines asked for, in the
-// order LogCount's ModelsAsked gives, each named by its id less claude-, ticked where the filter
-// keeps its lines.
+// modelTicks are the ticks of the models today's lines asked for, and of
+// those its filter ticks, as it opened or as it picks, that none asked for,
+// in the order LogCount's ModelsListed gives, each named by its id less
+// claude-, ticked where the filter keeps its lines.
 func (p LogPanel) modelTicks() []tick {
-	every := p.Lines.ModelsAsked()
+	every := p.Lines.ModelsListed(slices.Concat(p.openedFilter.Models, p.Filter.Models))
 	ticks := make([]tick, len(every))
 	for i, m := range every {
 		ticks[i] = tick{
@@ -298,10 +327,7 @@ func (p LogPanel) failedTick() tick {
 // ticked where the table's filter ticks it: none at first, as none ticked
 // keeps every one.
 func (p LogPanel) sessionTicks() []tick {
-	chosen := p.Filter.Sessions
-	if p.Of == LogEvents {
-		chosen = p.Shows.Sessions
-	}
+	chosen := p.chosenSessions()
 	ticks := make([]tick, len(p.Sessions))
 	for i, s := range p.Sessions {
 		ticks[i] = tick{

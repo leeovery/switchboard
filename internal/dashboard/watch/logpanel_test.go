@@ -9,6 +9,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // f opens the panel over the Log: what it would show follows each tick, the
@@ -72,5 +75,39 @@ func TestAClickOnTheLogsPanelTicksATick(t *testing.T) {
 	if !h.model.log.panel.Columns.Shows(dashboard.LogWorth) || h.model.log.page.Columns.Shows(dashboard.LogWorth) {
 		t.Errorf("clicked on worth at %d, %d, the panel shows it %v, the page %v; want the panel's ticked, the page's not till applied", x, y,
 			h.model.log.panel.Columns.Shows(dashboard.LogWorth), h.model.log.page.Columns.Shows(dashboard.LogWorth))
+	}
+}
+
+// A session and a model the filter ticks before midnight, of which no line
+// comes after it, are listed on the panel past midnight, ticked, the
+// session as the Log's read holds its lines, so either can be let go.
+func TestThePanelListsWhatItsFilterTicksPastMidnight(t *testing.T) {
+	const sonnet = "claude-sonnet-4-5"
+	state := t.TempDir()
+	before := ranIn("0b000001", apiSession, "~/Code/api", 0)
+	before.At, before.Model = onTheDay(23, 30, 0), sonnet
+	writeLines(t, state, before)
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.clock.now = onTheDay(23, 40, 0)
+	h.start()
+	h.model.log.page.Filter = views.LogFilter{Sessions: []string{apiSession}, Models: []string{sonnet}, Kinds: []views.RowKind{views.RowRequest}}
+
+	after := ranIn("0c000001", webSession, "~/Code/web", 0)
+	after.At = onTheDay(24, 2, 0)
+	writeLines(t, state, after)
+	h.clock.now = onTheDay(24, 5, 0)
+	h.read(probedWithoutTheRouter())
+	h.keyed("f")
+
+	panel := h.model.log.panel
+	if i := slices.IndexFunc(panel.Sessions, func(s views.LogSession) bool { return s.ID == apiSession }); i < 0 || panel.Sessions[i].Dir != "~/Code/api" {
+		t.Errorf("past midnight, the panel lists %+v; want api among them, in ~/Code/api", panel.Sessions)
+	}
+	view := h.view()
+	for _, want := range []string{"■ " + status.ShownID(apiSession), "■ " + ledger.ShortModelID(sonnet), "□ " + ledger.ShortModelID(opus)} {
+		if !strings.Contains(view, want) {
+			t.Errorf("past midnight, the panel has no %q:\n%s", want, view)
+		}
 	}
 }
