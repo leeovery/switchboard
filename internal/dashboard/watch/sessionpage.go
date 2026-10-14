@@ -12,14 +12,15 @@ import (
 
 // sessionShown is what the watch holds of a session's page while it's open:
 // the session's id; its page as its lines build it, held between looks, as
-// views.HeldPage holds it; the page as the frame shows it, built afresh of
-// what's held as relived builds it; and the Log's details card over it,
-// while it's open.
+// views.HeldPage holds it; when each day it awaits a line on was last read
+// for it; the page as the frame shows it, built afresh of what's held as
+// relived builds it; and the Log's details card over it, while it's open.
 type sessionShown struct {
-	id    string
-	held  views.HeldPage
-	shown dashboard.SessionShown
-	card  turnCarding
+	id      string
+	held    views.HeldPage
+	awaited awaitedReads
+	shown   dashboard.SessionShown
+	card    turnCarding
 }
 
 // sessionReadMsg is a read of the ledger for a session's page, the asked'th
@@ -111,11 +112,13 @@ func (m Model) readPage() (Model, tea.Cmd) {
 // takes in the lines of the days before today it reads again whole, late,
 // the oldest first, then what today's gained, each at its day's date, so
 // it's rolled on to today even where nothing is new, and no look past
-// midnight prices it afresh.
+// midnight prices it afresh. Awaited is when each day the page awaits a
+// line on was last read for it, as the read leaves it.
 type pageFold struct {
-	id   string
-	held views.HeldPage
-	late []string
+	id      string
+	held    views.HeldPage
+	late    []string
+	awaited awaitedReads
 }
 
 // pageTaken is the page held of the session with the given id, as a read
@@ -126,15 +129,33 @@ type pageTaken struct {
 }
 
 // pageFold is what a read of the ledger's tail at now does for the session's
-// page open, nil where none is: its late days those Late has of the days
-// the tail missed, as missed has them.
+// page open, nil where none is: its late days those of the days the tail
+// missed, as missed has them, it holds not every line of, as Unread has
+// them; and those it awaits a line on, as Awaited has them, whose lines
+// could have come since they were last read, as due has them, as the Log's
+// are; each once, the oldest first.
 func (m Model) pageFold(now time.Time) *pageFold {
 	s := m.session
 	if s == nil {
 		return nil
 	}
-	late := s.held.Late(m.tail.missed(views.Today(now)), m.pageLive(s.id, now))
-	return &pageFold{id: s.id, held: s.held, late: late}
+	live := m.pageLive(s.id, now)
+	due, awaited := s.awaited.due(s.held.Awaited(live), live.Stream, now)
+	late := slices.Concat(due, s.held.Unread(m.tail.missed(views.Today(now))))
+	return &pageFold{id: s.id, held: s.held, late: slices.Compact(slices.Sorted(slices.Values(late))), awaited: awaited}
+}
+
+// pageAwaiting is m with the session's page open noting when each day it
+// awaits a line on was last read for it, as the read of the tail f folds
+// leaves it: none where no page is open.
+func (m Model) pageAwaiting(f *pageFold) Model {
+	if f == nil {
+		return m
+	}
+	s := *m.session
+	s.awaited = f.awaited
+	m.session = &s
+	return m
 }
 
 // taken is the page held grown by what a read of the ledger's tail on the

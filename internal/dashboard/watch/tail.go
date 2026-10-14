@@ -109,10 +109,10 @@ func (t ledgerTail) wholeLanded() ledgerTail {
 
 // readTail reads, at now, what the ledger gained since the tail's mark, and
 // the lines of the days before today its readers read again whole, each
-// once, the late days each has; and grows each reader by them: the Log,
-// once opened, as logFold has it, shown or not, as the mark moves past what
-// the read gives for every reader alike, noting the days awaiting a line it
-// reads; and the session's page open, as pageFold has it.
+// once, the late days each has; and grows each reader by them, each noting
+// the days awaiting a line it reads: the Log, once opened, as logFold has
+// it, shown or not, as the mark moves past what the read gives for every
+// reader alike; and the session's page open, as pageFold has it.
 func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	r, mark, today := m.logReaders(), m.tail.mark, views.Today(now)
 	var log *logFold
@@ -121,6 +121,7 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 		log, m.log.reading, m.log.awaited = &f, true, f.awaited
 	}
 	page := m.pageFold(now)
+	m = m.pageAwaiting(page)
 	late := lateDays(log, page)
 	m.tail = m.tail.asking()
 	return m, func() tea.Msg {

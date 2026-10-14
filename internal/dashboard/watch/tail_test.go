@@ -318,3 +318,60 @@ func TestASessionsPageTakesInTheDayBeforeAsTheDayTurns(t *testing.T) {
 		})
 	}
 }
+
+// A session's page reads a day it awaits a line on again whole only as its
+// line could have come, as the Log does: at the look after a request whose
+// line is filed on it ended, then once a minute while none comes; never at
+// every look, alone or over the Log, one read serving both.
+func TestASessionsPageReadsADayAwaitingALineOnlyAsItsLineCouldHaveCome(t *testing.T) {
+	tests := []struct {
+		name string
+		log  logBeside
+	}{
+		{name: "the page alone", log: logNever},
+		{name: "over the Log", log: logUnder},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, arrivedAt("0a000001", onTheDay(23, 50, 0)))
+			h := routedHarness(t, routerDocument(three()...))
+			l := onTheLog(h, state)
+			if tt.log == logNever {
+				h.model.view = dashboard.Overview
+			}
+			h.clock.now = onTheDay(24, 0, 30)
+			h.start()
+			h.openPage(idD28C)
+
+			at := func(kind, request string, when time.Time) router.StreamEvent {
+				return alter(told(kind, request, "work", 0), func(e *router.StreamEvent) { e.At = when.UTC() })
+			}
+			sent := onTheDay(23, 59, 50)
+			h.hear(at(router.StreamSent, "0a000003", sent), at(router.StreamSent, "0a000004", sent))
+			opened, yesterday := len(l.days), dayfile.DateOf(sent)
+			steps := []struct {
+				name     string
+				ends     string
+				from, to time.Time
+				readings int
+			}{
+				{name: "the looks after the first ended", ends: "0a000003", from: onTheDay(24, 0, 45), to: onTheDay(24, 1, 10), readings: 1},
+				{name: "the look after the second ended", ends: "0a000004", from: onTheDay(24, 1, 15), to: onTheDay(24, 1, 15), readings: 2},
+				{name: "the looks of the minute after", from: onTheDay(24, 1, 20), to: onTheDay(24, 2, 10), readings: 2},
+				{name: "a minute on", from: onTheDay(24, 2, 15), to: onTheDay(24, 2, 15), readings: 3},
+			}
+			for _, s := range steps {
+				if s.ends != "" {
+					h.hear(alter(at(router.StreamDone, s.ends, s.from.Add(-3*time.Second)), func(e *router.StreamEvent) { e.Status = 200 }))
+				}
+				for h.clock.now = s.from; !h.clock.now.After(s.to); h.clock.now = h.clock.now.Add(lookEvery) {
+					h.read(routerDocument(three()...))
+				}
+				if got := l.days[opened:]; !slices.Equal(got, slices.Repeat([]string{yesterday}, s.readings)) {
+					t.Errorf("after %s, the days %v were read whole, want the day before %d times", s.name, got, s.readings)
+				}
+			}
+		})
+	}
+}
