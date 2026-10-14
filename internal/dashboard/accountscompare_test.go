@@ -639,17 +639,36 @@ func TestComparesNumbersAreWhatALookReads(t *testing.T) {
 	}
 }
 
-// An account's state is cued as it changes, as ROUTING's is.
-func TestAnAccountsStateIsCuedAsItChanges(t *testing.T) {
-	f, doc := threeCompared(t, 160, 37)
-	f.Look = Screen(builtin(t, "nord"))
-	f.Changed = map[string]float64{"work": 0.25}
-	c := f.At(doc, routedAt).page(doc, routedAt)
-	for x := 24; x < 60; x++ {
-		cued := c.at(x, 7).ink.on.token == theme.BgAttention
-		if want := x >= 26 && x < 26+ansi.StringWidth("● at cap"); cued != want {
-			t.Errorf("column %d of the states cued: %v, want %v", x, cued, want)
-		}
+// An account's state in a word is cued as it changes, and only then: a
+// change ROUTING alone sees, as a session lapsing, cues nothing here. The cue
+// shows over the focus, as a warning; and while it fades, the page settles.
+func TestAnAccountsStateIsCuedAsItsWordChanges(t *testing.T) {
+	tests := []struct {
+		name          string
+		changed, word map[string]float64
+		focused       bool
+		cued          bool
+	}{
+		{name: "its word changed", word: map[string]float64{"work": 0.25}, cued: true},
+		{name: "ROUTING's state alone changed", changed: map[string]float64{"work": 0.25}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, doc := threeCompared(t, 160, 37)
+			f.Look = Screen(builtin(t, "nord"))
+			f.Changed, f.StateChanged = tt.changed, tt.word
+			f.Accounts.Focused, f.Accounts.Focus = tt.focused, "work"
+			c := f.At(doc, routedAt).page(doc, routedAt)
+			for x := 24; x < 60; x++ {
+				cued := c.at(x, 7).ink.on.token == theme.BgAttention
+				if want := tt.cued && x >= 26 && x < 26+ansi.StringWidth("● at cap"); cued != want {
+					t.Errorf("column %d of the states cued: %v, want %v", x, cued, want)
+				}
+			}
+			if settles := f.MaySettle(); settles != (len(tt.changed)+len(tt.word) > 0) {
+				t.Errorf("the page may settle: %v, want it to while a cue fades", settles)
+			}
+		})
 	}
 }
 

@@ -246,7 +246,7 @@ func (cp compared) heads(c *canvas, top int, columns []compareColumn) {
 		c.line(col.x, top, cp.named(col, head))
 		stands := cp.stands(col, head)
 		c.line(col.x, top+1, stands)
-		cp.f.cueStanding(c, col.id, col.x, top+1, stands.width())
+		cp.f.cueState(c, col.id, col.x, top+1, stands.width())
 		if s.Focused && s.Focus == col.id {
 			for y := range compareHeads - 1 {
 				c.surface(col.x, top+y, head, hue{token: theme.BgSelection})

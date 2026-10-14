@@ -31,12 +31,14 @@ type Frame struct {
 	// gave its history: RECENT asks for it to be restarted.
 	Outdated bool
 	// Fresh are the events looks saw newly, by id; Changed the accounts whose
-	// states looks saw change, by id; and TurnedOut the windows whose words
-	// looks saw turn to out ~, by account and key: each as far as the cue on
-	// it has faded, from 0, just seen, to 1, gone.
-	Fresh     map[int]float64
-	Changed   map[string]float64
-	TurnedOut map[Ref]float64
+	// states looks saw change, by id, and StateChanged those whose states in
+	// a word, as Accounts says them, looks saw change; and TurnedOut the
+	// windows whose words looks saw turn to out ~, by account and key: each
+	// as far as the cue on it has faded, from 0, just seen, to 1, gone.
+	Fresh        map[int]float64
+	Changed      map[string]float64
+	StateChanged map[string]float64
+	TurnedOut    map[Ref]float64
 	// Trails are how the accounts' windows have been used, for the charts.
 	Trails Trails
 	// Eased are how much of each bar easing after a read it fills, by its
