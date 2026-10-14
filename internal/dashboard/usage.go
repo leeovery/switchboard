@@ -191,25 +191,6 @@ func accountGauge(a status.AccountNow, key string, now time.Time) gauge {
 	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(w, now), runsOut: w.RunsOut}
 }
 
-// allGauge is the window with the given key of every account at m, taken
-// together, as all accounts has it, Moment.All's: its bar the mean of their
-// use and of their paces, with no cap, faded where all are stale; its words
-// its room, to each account's limit, of how many accounts it counts; empty
-// where no account's use of it is known.
-func allGauge(m status.Moment, key string) gauge {
-	all := m.All().Windows
-	i := slices.IndexFunc(all, func(w status.AllWindowNow) bool { return w.Key == key })
-	if i < 0 {
-		return gauge{of: Ref{Window: key}, all: true, bar: usageBar{empty: true}}
-	}
-	w := all[i]
-	return gauge{
-		of: Ref{Window: key}, all: true,
-		bar:   usageBar{used: w.Used, capAt: 1, pace: w.Pace, stale: w.Stale},
-		words: poolWords(w.Room, w.Of, false),
-	}
-}
-
 // drawsEmpty reports whether a window of the given kind draws an empty bar:
 // where its account has no usable token or nothing is read of it.
 func drawsEmpty(kind status.WindowKind) bool {

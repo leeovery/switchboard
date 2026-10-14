@@ -192,7 +192,7 @@ func (cp compared) turnedWeek(c *canvas, y int, columns []compareColumn) int {
 
 // turnedByModel draws BY MODEL from row y, and returns the row its last
 // column is on: its heading; then each column, a blank row before it, its
-// share of use as a stacked bar turnedBar cells from turnedAt, as sharesBar
+// share of use as a stacked bar turnedBar cells from turnedAt, as Compare's
 // draws it, and at turnedLargestAt the version it used most, its ● in its
 // shade, its name and its share.
 func (cp compared) turnedByModel(c *canvas, y int, columns []compareColumn) int {
@@ -200,7 +200,7 @@ func (cp compared) turnedByModel(c *canvas, y int, columns []compareColumn) int 
 	for _, col := range columns {
 		y += partsApart
 		c.line(turnedNameAt, y, turnedName(col))
-		sharesBar(c, cp.f.Look, turnedAt, y, turnedBar, cp.page.Versions, col.row)
+		stackedBar(c, cp.f.Look, turnedAt, y, splitCells(shareAmounts(col.row, cp.page.Versions), turnedBar), versionHues(cp.page.Versions))
 		if most, ok := largestVersion(cp.page.Versions, col.row); ok {
 			c.line(turnedLargestAt, y, versionNamed(most, col.row).fit(cp.f.edge()-turnedLargestAt))
 		}
@@ -517,11 +517,11 @@ func (s stacked) shown() []status.AccountNow {
 
 // byModel draws BY MODEL from row y, and returns its last row: its heading,
 // and on its row the period's share of use as a stacked bar stackModelBar
-// cells from stackAt, as sharesBar draws it; then the versions it used, each
+// cells from stackAt, as Detail's; then the versions it used, each
 // with its share, over the rows under it, as versionsOver has them.
 func (s stacked) byModel(c *canvas, y int) int {
 	c.line(0, y, line{{"BY MODEL", dimInk}})
-	sharesBar(c, s.f.Look, stackAt, y, stackModelBar, s.page.Versions, s.row)
+	stackedBar(c, s.f.Look, stackAt, y, splitCells(shareAmounts(s.row, s.page.Versions), stackModelBar), versionHues(s.page.Versions))
 	for _, l := range versionsOver(s.page.Versions, s.row, s.f.edge()) {
 		y++
 		c.line(0, y, l)

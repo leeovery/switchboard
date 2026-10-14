@@ -293,10 +293,20 @@ func (cp compared) stands(col compareColumn, cells int) line {
 // Overview colours a state: open's glyph in state.positive and its word in
 // text.secondary; any other's both in its colour, as stateInk has it.
 func stateWord(s status.AccountState) line {
+	word := stateInk(s)
 	if s == status.StateOpen {
-		return line{{s.Glyph(), positiveInk}, {" " + s.Word(), secondaryInk}}
+		word = secondaryInk
 	}
-	return line{{s.Glyph() + " " + s.Word(), stateInk(s)}}
+	return line{stateMark(s), {" " + s.Word(), word}}.inked()
+}
+
+// stateMark is an account's state's glyph, as stateWord colours it, and
+// Detail's list draws it alone.
+func stateMark(s status.AccountState) span {
+	if s == status.StateOpen {
+		return span{s.Glyph(), positiveInk}
+	}
+	return span{s.Glyph(), stateInk(s)}
 }
 
 // body is Compare's rows under its heads, drawn on a canvas of their own:
@@ -352,8 +362,7 @@ func (cp compared) weekUsed(c *canvas, y int, columns []compareColumn) {
 // weekGauge is the column's week as WEEK USED draws it, as far as its bar
 // has eased: an account's as usage draws its window, its cap and even pace
 // marked, faded where it's stale, and empty where the moment doesn't have
-// the account; all accounts', as allGauge has it, every account's week
-// together.
+// the account; all accounts', as allGauge has it.
 func (cp compared) weekGauge(col compareColumn) gauge {
 	g := gauge{of: Ref{Account: col.id, Window: cp.week}, bar: usageBar{empty: true}}
 	switch {
@@ -377,13 +386,10 @@ func (cp compared) weekGauge(col compareColumn) gauge {
 func (cp compared) byModel(c *canvas, y int, columns []compareColumn) int {
 	c.line(0, y, groupHead("BY MODEL", "share of use", false))
 	versions := cp.page.Versions
-	hues := make([]hue, len(versions))
-	for i, v := range versions {
-		hues[i] = versionHue(v)
-	}
+	hues := versionHues(versions)
 	bar := min(shareBar, cp.colw-shareSpare)
 	for _, col := range columns {
-		sharesBar(c, cp.f.Look, col.x, y, bar, versions, col.row)
+		stackedBar(c, cp.f.Look, col.x, y, splitCells(shareAmounts(col.row, versions), bar), hues)
 	}
 	for i, v := range versions {
 		y++
@@ -398,20 +404,6 @@ func (cp compared) byModel(c *canvas, y int, columns []compareColumn) int {
 		}
 	}
 	return y
-}
-
-// sharesBar draws the row's share of use as a stacked bar cells long from x
-// along row y, a part each of the versions given, in their order and in their
-// shades, each as long as its worth, as splitCells splits the cells.
-func sharesBar(c *canvas, look Look, x, y, cells int, versions []ledger.Version, row views.AccountsRow) {
-	amounts, hues := make([]ledger.Picodollars, len(versions)), make([]hue, len(versions))
-	for i, v := range versions {
-		hues[i] = versionHue(v)
-		if s, ok := shareOf(row, v); ok {
-			amounts[i] = amountOf(s.Worth)
-		}
-	}
-	stackedBar(c, look, x, y, splitCells(amounts, cells), hues)
 }
 
 // shareOf is the row's share of use of the version given, reporting false
