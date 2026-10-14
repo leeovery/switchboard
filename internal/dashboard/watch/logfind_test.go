@@ -284,9 +284,11 @@ func TestAFoundSessionReadsBackNoFurtherThanItsFirstDay(t *testing.T) {
 // lines of its page's Reach reach, though the ledger and the router's files
 // go back thirty days: the Requests through quota checks alone, or an
 // account, no day holding a line of either, read back no day; through
-// checks alone, the first a week back, to that day; and the Events, shown
-// after a find, to the found session's first day. Each day read back is
-// read whole, so the days read are counted.
+// checks alone, the first a week back, to that day, where they stand filled,
+// short of their view, so the failed after them, which no summary bounds,
+// read back no further; and the Events, shown after a find, to the found
+// session's first day. Each day read back is read whole, so the days read
+// are counted.
 func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(t *testing.T) {
 	applied := func(tick func(*views.LogFilter)) func(h *harness) {
 		return func(h *harness) {
@@ -295,7 +297,17 @@ func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(
 			h.keys(enter)
 		}
 	}
+	settled := func(h *harness) {
+		for range 40 {
+			h.deliver(h.update(frameMsg{gen: h.model.frames})...)
+		}
+	}
 	checksAlone := applied(func(f *views.LogFilter) { f.Kinds = []views.RowKind{views.RowCheck} })
+	failedAfterChecks := func(h *harness) {
+		checksAlone(h)
+		settled(h)
+		applied(func(f *views.LogFilter) { f.Kinds, f.Failed = []views.RowKind{views.RowRequest}, true })(h)
+	}
 	foundAPI := func(h *harness) {
 		h.typed("/", "a", "p", "i")
 		h.keys(enter)
@@ -308,6 +320,7 @@ func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(
 	}{
 		{name: "the Requests through checks alone, none on any day", filter: checksAlone},
 		{name: "the Requests through checks alone, the first a week back", checked: 7, filter: checksAlone, reach: 7},
+		{name: "the failed after checks alone, the first a week back", checked: 7, filter: failedAfterChecks, reach: 7},
 		{name: "the Requests through an account of no lines", filter: applied(func(f *views.LogFilter) { f.Accounts = []string{"personal"} })},
 		{name: "the Events after a find", found: foundAPI, filter: func(h *harness) { h.typed("]") }, reach: 3},
 	}
@@ -347,9 +360,7 @@ func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(
 			before := len(l.days)
 
 			tt.filter(h)
-			for range 40 {
-				h.deliver(h.update(frameMsg{gen: h.model.frames})...)
-			}
+			settled(h)
 			var want []string
 			for d := 1; d <= tt.reach; d++ {
 				want = append(want, dayfile.DateOf(past(-time.Duration(d)*day)))

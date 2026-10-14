@@ -48,7 +48,16 @@ func (t logTab) wantsDayBefore(rows int) bool {
 		return false
 	}
 	f, bounds := t.page.Reach()
-	return !bounds || t.reach.of(f) && t.reach.from != "" && t.reach.from < t.from.Date
+	return !bounds || t.reach.of(f) && !t.atReach()
+}
+
+// atReach reports whether the page's Reach bounds the table shown and the
+// tables span from as far back as the lines of the filter it gives reach,
+// as the days' summaries told: to the earliest day that may hold one, or
+// where none may.
+func (t logTab) atReach() bool {
+	f, bounds := t.page.Reach()
+	return bounds && t.reach.of(f) && (t.reach.from == "" || t.reach.from >= t.from.Date)
 }
 
 // readReach reads the summaries of the days the ledger keeps for how far

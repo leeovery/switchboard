@@ -30,8 +30,9 @@ var logViews = []string{"Requests", "Events"}
 // days, which their day rules say; today; what the Requests show of their
 // columns and of the lines, and the Events of theirs; how each table
 // stands; whether the stream is live, what it tells, and to when the ledger
-// wrote what the tables hold; the find, while it's open; and the tables'
-// lines as drawn, where Lined holds them.
+// wrote what the tables hold; whether the table shown reaches as far back
+// as the days' summaries say it reads; the find, while it's open; and the
+// tables' lines as drawn, where Lined holds them.
 type LogPage struct {
 	Shown LogView
 	// Read is set once the first read lands: till then, the view is blank.
@@ -57,6 +58,11 @@ type LogPage struct {
 	Live    bool
 	Stream  views.Stream
 	Written time.Time
+	// AtReach is set where Reach bounds the table shown and the tables span
+	// from as far back as the lines of the filter it gives reach, as the
+	// days' summaries told: to the earliest day that may hold one, or where
+	// none may. The table fills its view no further back.
+	AtReach bool
 	Finding LogFinding
 	lined   *tableLines
 }
@@ -425,16 +431,16 @@ func nextRow(lines []logLine, at, by, foot int) int {
 }
 
 // Filling is the Log, the table shown filled at a view rows rows tall once
-// it fills it, or reaches as far back as it reads, from where it reads back
-// only as WantsDayBefore has a filled table read back. A view of no rows
-// fills nothing, so the table fills the view it's given as the terminal
-// grows.
+// it fills it, or reaches as far back as it reads, or as AtReach says, from
+// where it reads back only as WantsDayBefore has a filled table read back.
+// A view of no rows fills nothing, so the table fills the view it's given
+// as the terminal grows.
 func (p LogPage) Filling(rows int) LogPage {
 	s := p.stand()
 	if s.filledAt >= rows || !p.Read {
 		return p
 	}
-	if len(p.lines()) >= rows || p.reached() {
+	if len(p.lines()) >= rows || p.reached() || p.AtReach {
 		s.filledAt = rows
 	}
 	return p.standing(s)
