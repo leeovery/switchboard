@@ -12,7 +12,8 @@ import (
 // key of the key line, Key, as the line names it; a row of the view, Row, by
 // its index; an Overview's section, Section; an account, by its id, Account,
 // or Compare's column of one, "" for all accounts; a session, by its id,
-// Session; a turn of a session's page, by its number, Turn; or a request of
+// Session, and on Sessions' Switchboard, the account its call's row is on,
+// Account; a turn of a session's page, by its number, Turn; or a request of
 // its turn open, by its index among them, Row.
 type Target struct {
 	X, Y, Width int
@@ -50,7 +51,8 @@ const (
 	// which moves the focus to it; or in Detail's list, which chooses it.
 	OnAccount
 	// OnSession is a session's row, which opens its page; in Detail's
-	// SESSIONS, it selects it, and opens the one selected.
+	// SESSIONS, it selects it, and opens the one selected; and on Sessions,
+	// a call or a row of the List, it chooses it, and opens the one chosen.
 	OnSession
 	// OnTurn is a turn's row on a session's page, which chooses it.
 	OnTurn
@@ -67,8 +69,8 @@ const (
 // tabs; the heading row's sub-tabs, and < and > by its period or window; a
 // session's page's, where one is open, as sessionTargets has them, else the
 // Overview's, as overviewTargets has them, Accounts', as accountsTargets
-// has them, or the Log's, as logTargets has them; and the key line's keys,
-// as keyTargets has them.
+// has them, Sessions', as sessionsTargets has them, or the Log's, as
+// logTargets has them; and the key line's keys, as keyTargets has them.
 func (f Frame) Targets(doc status.Document, now time.Time) []Target {
 	targets := f.tabTargets()
 	for _, p := range f.headingPieces() {
@@ -84,6 +86,8 @@ func (f Frame) Targets(doc status.Document, now time.Time) []Target {
 		targets = append(targets, f.At(doc, now).overviewTargets(doc, now)...)
 	case f.View == Accounts:
 		targets = append(targets, f.At(doc, now).accountsTargets(doc, now)...)
+	case f.View == Sessions:
+		targets = append(targets, f.At(doc, now).sessionsTargets(doc, now)...)
 	case f.View == Log:
 		targets = append(targets, f.logTargets(now)...)
 	}

@@ -163,6 +163,18 @@ func pulse(c *canvas, path []point, p Pulse, token theme.Token) {
 	}
 }
 
+// corded marks the cells of path as the cord of the call plugged in at p,
+// for what travels it to move frames on: drawn, it's on screen.
+func (c *canvas) corded(path []point, p Plug) {
+	c.marked(path, mark{cord: p})
+}
+
+// hung marks the cells of path as the cord l hangs loose, for its fading to
+// move frames on: drawn, it's on screen.
+func (c *canvas) hung(path []point, l Loose) {
+	c.marked(path, mark{cord: Plug{Session: l.Session, Account: l.From}, loose: true})
+}
+
 // relight draws the cell at p in the ink k, its glyph as it is.
 func relight(c *canvas, p point, k ink) {
 	if here := c.at(p.x, p.y); here != nil && here.glyph != "" {

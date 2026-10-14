@@ -37,9 +37,10 @@ func (s Scrolling) clamped(offset int) int {
 }
 
 // ScrollsRows reports whether the view shown scrolls a row at a time, as
-// Runway, History's Year and a session's page's turns do, rather
-// than a thing at a time: an account, as the Overview's USAGE does, and
-// History's Weeks and Days, or a period, as its Tokens does.
+// Runway, History's Year, Sessions' List and a session's page's turns do,
+// rather than a thing at a time: an account, as the Overview's USAGE does,
+// History's Weeks and Days, and Sessions' Switchboard, or a period, as
+// History's Tokens does.
 func (f Frame) ScrollsRows() bool {
 	if f.Session != nil {
 		return true
@@ -49,6 +50,8 @@ func (f Frame) ScrollsRows() bool {
 		return false
 	case History:
 		return f.History.Shown == HistoryYear
+	case Sessions:
+		return f.SessionsTab.Shown == SessionsList
 	}
 	return true
 }
@@ -97,12 +100,13 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 // each offset given: a session's page's turns, where one is open, a row a
 // turn and its turn open's rows under its own, as turnsRows lays them out,
 // in the rows its layout gives them; History's, of the ledger's days alone,
-// as historyScrolling says; the Overview's, as overviewScrolling says, laid
-// out once for every offset; Accounts', as accountsScrolling says; and
-// Runway, where its lanes don't fit, as runwayRows counts them, alike at
-// every offset. A frame too short for the view, as cramped says, never
-// scrolls, nor one of a document of no accounts, but History and a
-// session's page.
+// as historyScrolling says; Sessions', as sessionsScrolling says; the
+// Overview's, as overviewScrolling says, laid out once for every offset;
+// Accounts', as accountsScrolling says; and Runway, where its lanes don't
+// fit, as runwayRows counts them, alike at every offset. A frame too short
+// for the view, as cramped says, never scrolls, nor one of a document of no
+// accounts, but History, Sessions, whose List lists the ledger's sessions
+// whatever the document holds, and a session's page.
 func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) Scrolling {
 	m := f.Moment(doc, now)
 	var s Scrolling
@@ -113,6 +117,8 @@ func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) 
 		s = byRows(len(f.Session.turnsRows(l)), l.turns)
 	case f.View == History:
 		return f.historyScrolling(top)
+	case f.View == Sessions:
+		return f.sessionsScrolling(doc, now)
 	case len(m.Accounts) == 0:
 	case f.View == Overview:
 		return f.overviewScrolling(doc, now)

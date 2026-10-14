@@ -156,6 +156,36 @@ func TestAccountsViewAndPeriodAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
 	}
 }
 
+// What Sessions shows is kept under a key of its own, the view by name,
+// beside the rest and the keys of another build, and left out where none is
+// made, as the Switchboard is.
+func TestSessionsViewIsKeptUnderAKeyOfItsOwn(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "pane": {"split": 0.5}}`)
+	prefs := theme.NewPrefsFile(state, clock)
+	sessions := theme.SessionsPrefs{View: "list"}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Sessions = sessions }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Sessions: sessions}); !reflect.DeepEqual(got, want) {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(path)
+	want := "{\n  \"pane\": {\n    \"split\": 0.5\n  },\n  \"sessions\": {\n    \"view\": \"list\"\n  },\n  \"theme\": \"amber\"\n}\n"
+	if err != nil || string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Sessions = theme.SessionsPrefs{} }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "sessions") {
+		t.Errorf("prefs.json holds %s, %v; want no choice of Sessions' kept", data, err)
+	}
+}
+
 // What History's views show is kept under a key of its own, each choice by
 // its name, beside the rest and the keys of another build, and left out
 // where none is made.

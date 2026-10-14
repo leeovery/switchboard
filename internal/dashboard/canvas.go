@@ -36,13 +36,16 @@ type cell struct {
 }
 
 // mark is what of the page a cell draws that moves as it changes: a number,
-// which brightens, or a window's bar, which eases to a new reading; and
-// whether it's cued, picked out by a cue fading back, as it's drawn only
-// while it fades.
+// which brightens, or a window's bar, which eases to a new reading; whether
+// it's cued, picked out by a cue fading back, as it's drawn only while it
+// fades; and a cord, plugged in at cord, what travels it moving along it, or
+// where loose, a cord a move let go from the jack of cord's account, fading.
 type mark struct {
 	number Number
 	bar    Ref
 	cued   bool
+	cord   Plug
+	loose  bool
 }
 
 // blank is a cell with nothing drawn in it.
@@ -193,6 +196,16 @@ func (c *canvas) barred(x, y, n int, ref Ref) {
 	for i := range n {
 		if here := c.at(x+i, y); here != nil {
 			here.mark = bar
+		}
+	}
+}
+
+// marked marks the cells given, as far as they're drawn, as m says.
+func (c *canvas) marked(cells []point, m mark) {
+	handle := unique.Make(m)
+	for _, p := range cells {
+		if here := c.at(p.x, p.y); here != nil {
+			here.mark = handle
 		}
 	}
 }

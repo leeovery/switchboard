@@ -132,3 +132,45 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 		})
 	}
 }
+
+// What travels a cord moves frames only while the cord's drawn, on screen:
+// a pulse along it frame by frame, the shimmer down it a step at a time, and
+// a loose cord fading frame by frame. A cord the page doesn't draw, as one
+// scrolled out of view, moves nothing, nor does any off Sessions, or under a
+// session's page.
+func TestWhatTravelsACordOnScreenAloneMovesTheFrame(t *testing.T) {
+	work, side := Plug{Session: idD28C, Account: "work"}, Plug{Session: id7F3A, Account: "side"}
+	pulsing := Call{Doing: Asking, Pulsing: true, Pulse: Pulse{Along: 0.5}}
+	tests := []struct {
+		name  string
+		view  View
+		page  bool
+		calls map[Plug]Call
+		loose []Loose
+		want  Motion
+	}{
+		{name: "nothing travelling", view: Sessions, calls: map[Plug]Call{work: {Doing: Asking}}},
+		{name: "a pulse along a cord drawn", view: Sessions, calls: map[Plug]Call{work: pulsing}, want: Motion{Smooth: true}},
+		{name: "an answer streaming down a cord drawn", view: Sessions, calls: map[Plug]Call{work: {Doing: Streaming, Shimmer: 3}}, want: Motion{Shimmer: true}},
+		{name: "a pulse along a cord not drawn", view: Sessions, calls: map[Plug]Call{side: pulsing}},
+		{name: "a loose cord drawn, fading", view: Sessions, loose: []Loose{{Session: "41e0", From: "work", Fade: 0.4}}, want: Motion{Smooth: true}},
+		{name: "a loose cord not drawn, fading", view: Sessions, loose: []Loose{{Session: "41e0", From: "side", Fade: 0.4}}},
+		{name: "off Sessions", view: Overview, calls: map[Plug]Call{work: pulsing}},
+		{name: "under a session's page", view: Sessions, page: true, calls: map[Plug]Call{work: pulsing}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(160, 37)
+			f.View, f.Traffic = tt.view, Traffic{Calls: tt.calls, Loose: tt.loose}
+			if tt.page {
+				f.Session = &SessionShown{}
+			}
+			c := newCanvas(30, 6)
+			c.corded(cord{plug: 2, from: 0, to: 2, bend: 9}.path(20), work)
+			c.hung(rowCells(11, 20, 4), Loose{Session: "41e0", From: "work"})
+			if got := f.moving(c); got != tt.want {
+				t.Errorf("what moves is %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}

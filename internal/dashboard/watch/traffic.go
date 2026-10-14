@@ -328,6 +328,18 @@ func (t *traffic) moved(e router.StreamEvent, held func(account string) bool) {
 	t.calls[callKey{request: e.Request, account: e.To}] = call{seat: seatTold(e), brought: true, shows: shows, ended: shows}
 }
 
+// showing is when the first of the moves yet to show at now shows, reporting
+// false where none is yet to.
+func (t traffic) showing(now time.Time) (time.Time, bool) {
+	var next time.Time
+	for _, m := range t.moves {
+		if m.shows.After(now) && (next.IsZero() || m.shows.Before(next)) {
+			next = m.shows
+		}
+	}
+	return next, !next.IsZero()
+}
+
 // tidied is the traffic without what has ended by now, as tidy has it, its
 // maps and moves copied first.
 func (t traffic) tidied(now time.Time) traffic {

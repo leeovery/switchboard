@@ -532,3 +532,13 @@ func TestEveryCordsShimmerStepsOnTheClocksSteps(t *testing.T) {
 		t.Errorf("their first bytes 40ms apart, the shimmers stood at %v just before the clock's step and %v on it, want both a step on together, {1, 1}", before, on)
 	}
 }
+
+func TestAFrameIsNextAsTheFirstMoveYetToShowShows(t *testing.T) {
+	tr := traffic{moves: []move{{shows: past(2 * time.Second)}, {shows: past(time.Second)}, {shows: past(-time.Second)}}}
+	if at, ok := tr.showing(past(0)); !ok || !at.Equal(past(time.Second)) {
+		t.Errorf("the next move shows at %s (%t), want %s, the first yet to show", at, ok, past(time.Second))
+	}
+	if at, ok := tr.showing(past(2 * time.Second)); ok {
+		t.Errorf("every move shown, the next shows at %s, want none", at)
+	}
+}

@@ -113,6 +113,9 @@ type Frame struct {
 	// History is History's sub-tab shown, what each of its views shows, and
 	// their pages.
 	History HistoryPage
+	// SessionsTab is Sessions' sub-tab shown, its Switchboard and its List as
+	// the watch built them at the look, and the row chosen.
+	SessionsTab SessionsShown
 	// Session is the session's page open, drawn in place of the view: nil
 	// while none is.
 	Session *SessionShown
@@ -215,8 +218,8 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 
 // view draws the tab shown of doc at now from row top, where the page has
 // room for it, as cramped says: a session's page, where one is open, in its
-// place; else the tab shown: the Overview, Accounts, History, Runway or the
-// Log. Sessions draws nothing until its stage draws it.
+// place; else the tab shown: the Overview, Accounts, History, Sessions,
+// Runway or the Log.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
@@ -231,6 +234,8 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 		f.accounts(c, doc, now, top)
 	case f.View == History:
 		f.history(c, top)
+	case f.View == Sessions:
+		f.sessions(c, doc, now, top)
 	case f.View == Runway:
 		f.runway(c, doc, now, top)
 	case f.View == Log:
@@ -332,8 +337,8 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 // its turns' rows, across the frame; on the Overview, USAGE's body, as
 // overviewScrolls has it; on Accounts, as accountsScrolls has it; on
 // History, what of its sub-tab shown does, as historyScrolls has it, across
-// the frame; on the Log, its table's lines, under its heads; elsewhere, the
-// view's rows.
+// the frame; on Sessions, as sessionsScrolls has it; on the Log, its table's
+// lines, under its heads; elsewhere, the view's rows.
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
 	if f.Session != nil {
 		l := f.sessionLayout(len(f.Session.Page.Accounts))
@@ -347,6 +352,8 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 	case History:
 		y, rows = f.historyScrolls()
 		return 0, y, f.Width, rows
+	case Sessions:
+		return f.sessionsScrolls(doc, now)
 	case Log:
 		return 0, f.top() + 1, f.Width, f.LogRows()
 	}

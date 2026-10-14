@@ -1,5 +1,7 @@
 package dashboard
 
+import "slices"
+
 // Traffic is what the router's request stream tells of the sessions'
 // requests at a moment, as the watch reads it, for Sessions' Switchboard to
 // draw: what travels each call's cord; and the cords moves no limit forced
@@ -25,6 +27,23 @@ type Plug struct {
 // tells of none.
 func (t Traffic) On(session, account string) Call {
 	return t.Calls[Plug{Session: session, Account: account}]
+}
+
+// moves reports whether anything travels the cords t tells of: a pulse
+// along one, a shimmer down one, or a cord a move let go, fading.
+func (t Traffic) moves() bool {
+	for _, c := range t.Calls {
+		if c.Pulsing || c.Doing == Streaming {
+			return true
+		}
+	}
+	return len(t.Loose) > 0
+}
+
+// hangs reports whether t tells of a cord a move let go hanging loose from
+// the jack its session left, at p.
+func (t Traffic) hangs(p Plug) bool {
+	return slices.ContainsFunc(t.Loose, func(l Loose) bool { return l.Session == p.Session && l.From == p.Account })
 }
 
 // Doing is what a call's requests are doing on its account, as the request

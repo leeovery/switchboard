@@ -15,7 +15,8 @@ import (
 // show and hide its sections, b switches how its windows are grouped, and ↑
 // and ↓ move the focus, as overviewKey says; on Accounts, its keys act as
 // accountsKey says; on History, [ ], < >, v and ← → act as historyKey says;
-// on the Log, [ ], ↑ ↓, end, esc, enter, s, f and / act as logKey says; tab
+// on Sessions, its keys act as sessionsKey says; on the Log, [ ], ↑ ↓, end,
+// esc, enter, s, f and / act as logKey says; tab
 // and shift-tab show the next tab and the one before, as turn has it; t
 // opens the theme picker; and w, in Runway, switches between the day and the
 // week. esc, whatever the page does with it, drops a session's page asked to
@@ -38,6 +39,9 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if next, ok := afresh.historyKey(k); ok {
 		return next, nil
+	}
+	if next, cmd, ok := afresh.sessionsKey(k); ok {
+		return next, cmd
 	}
 	if next, cmd, ok := afresh.logKey(k); ok {
 		return next, cmd
@@ -113,9 +117,10 @@ type pageKeys struct {
 // faint where its section is hidden; b, its word saying how the windows are
 // grouped; and with more than one account, ↑↓, which the key line sets with
 // p, ? and q; w, in Runway, switching between the day and the week, its word
-// saying which it shows; and Accounts', History's and the Log's, as
-// accountsListings, historyListings and logListings have them. A session's
-// page lists its own, as sessionKeys has them, in place of its tab's.
+// saying which it shows; and Accounts', History's, Sessions' and the Log's,
+// as accountsListings, historyListings, sessionsListings and logListings
+// have them. A session's page lists its own, as sessionKeys has them, in
+// place of its tab's.
 func (m Model) keys() pageKeys {
 	if m.session != nil {
 		return m.sessionKeys()
@@ -131,7 +136,7 @@ func (m Model) keys() pageKeys {
 		keyListing{Key: dashboard.Key{Key: "w", Does: "window: " + m.span.Name()}, works: m.view == dashboard.Runway},
 	)
 	pin, pinned := m.pinKey()
-	own = slices.Concat(own, m.accountsListings(), m.historyListings(), m.logListings())
+	own = slices.Concat(own, m.accountsListings(), m.historyListings(), m.sessionsListings(), m.logListings())
 	scrollsAlways := overview || m.view == dashboard.Log
 	return pageKeys{own: own, overview: overview, scrollsAlways: scrollsAlways, pin: pin, pinned: pinned, coloured: m.coloured()}
 }

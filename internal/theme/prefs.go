@@ -20,7 +20,7 @@ const prefsName = "prefs.json"
 // Prefs are the dashboard's preferences, which it keeps as they change, and
 // the user never needs to write: the themes it's drawn in, the tab it
 // shows, the Overview's sections shown, how its windows are grouped, what
-// Accounts and History's views show, and the Log's columns.
+// Accounts, History's views and Sessions show, and the Log's columns.
 type Prefs struct {
 	Choice
 	// Tab names the tab shown, one of overview, accounts, history, sessions,
@@ -41,6 +41,8 @@ type Prefs struct {
 	Accounts AccountsPrefs `json:"accounts,omitzero"`
 	// History is what History's views show, as their keys last left them.
 	History HistoryPrefs `json:"history,omitzero"`
+	// Sessions is what Sessions shows, as its keys last left it.
+	Sessions SessionsPrefs `json:"sessions,omitzero"`
 	// Log is what the Log shows, as its f panel last left it.
 	Log LogPrefs `json:"log,omitzero"`
 }
@@ -60,6 +62,13 @@ type LogPrefs struct {
 type AccountsPrefs struct {
 	View   string `json:"view,omitempty"`
 	Period string `json:"period,omitempty"`
+}
+
+// SessionsPrefs are what Sessions shows, by its name: the view shown,
+// switchboard or list. A name the dashboard doesn't know reads as the
+// default, the Switchboard. What's chosen in a view is the run's alone.
+type SessionsPrefs struct {
+	View string `json:"view,omitempty"`
 }
 
 // HistoryPrefs are what History's views show, each by its name: the view
