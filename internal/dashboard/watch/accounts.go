@@ -14,13 +14,16 @@ import (
 
 // accountsTab is what the watch holds of Accounts: what it shows; the
 // period's page, built of the days History's reads hold, and what it was
-// built of, as builtOf has it; and the sessions Detail's SESSIONS listed
+// built of, as builtOf has it; that page stood at a moment, and the moment,
+// as accountsBuilt stands it; and the sessions Detail's SESSIONS listed
 // last, by id, in their order, for its selection to follow, as followed has
 // it.
 type accountsTab struct {
 	shown   dashboard.AccountsShown
 	page    *views.AccountsPage
 	of      builtOf
+	stood   *views.AccountsPage
+	at      *status.HeldMoment
 	running []string
 }
 
@@ -38,32 +41,34 @@ type builtOf struct {
 // while Accounts shows: once for each, never a frame at a time. Each look
 // reads today's days afresh, as readHistory reads them, so the page follows
 // them from look to look; and past midnight it moves on to the new day
-// before the next look reads it.
+// before the next look reads it. It's stood at the moment of the message
+// taken in, as views.AccountsPage.At stands it, where it's built afresh or
+// was stood at another: once a message, for every frame of it to read.
 func (m Model) accountsBuilt() Model {
 	if m.view != dashboard.Accounts || !m.past.last.held() {
 		return m
 	}
 	now := m.now()
 	of := builtOf{held: m.past.held, period: m.accounts.shown.Period, day: dayfile.DateOf(now)}
-	if m.accounts.page != nil && m.accounts.of == of {
-		return m
+	if m.accounts.page == nil || m.accounts.of != of {
+		page := m.past.last.past.Since(nil, now).Accounts(of.period)
+		m.accounts.page, m.accounts.of, m.accounts.at = &page, of, nil
 	}
-	page := m.past.last.past.Since(nil, now).Accounts(of.period)
-	m.accounts.page, m.accounts.of = &page, of
+	if !m.accounts.at.Of(m.doc, now, m.cfg.Policy) {
+		mo := m.moment(now)
+		m.accounts.stood, m.accounts.at = new(m.accounts.page.At(mo)), mo.Held()
+	}
 	return m
 }
 
-// standing is Accounts as the frame f shows it at the moment mo: its page,
-// as it was built, stood there, as views.AccountsPage.At stands it, none
-// till the days are read; and Compare's columns scrolled to show its focus
-// at f's size, as CompareFirst has them, from as far along as they were
-// left, so a frame narrower than the one they were scrolled in still shows
-// it.
-func (t accountsTab) standing(f dashboard.Frame, mo status.Moment) dashboard.AccountsShown {
+// standing is Accounts as the frame f shows it: its page as accountsBuilt
+// last stood it, none till the days are read; and Compare's columns
+// scrolled to show its focus at f's size, as CompareFirst has them, from as
+// far along as they were left, so a frame narrower than the one they were
+// scrolled in still shows it.
+func (t accountsTab) standing(f dashboard.Frame) dashboard.AccountsShown {
 	s := t.shown
-	if t.page != nil {
-		s.Page = new(t.page.At(mo))
-	}
+	s.Page = t.stood
 	s.First = f.CompareFirst(s.Focus)
 	return s
 }

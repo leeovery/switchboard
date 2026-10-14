@@ -103,6 +103,37 @@ func TestAccountsPageIsBuiltOnceForTheDaysHeldAndThePeriod(t *testing.T) {
 	}
 }
 
+// Accounts' page is stood once a message, at its moment, for every frame of
+// it to read: frames read the one stood, as does a message of the same
+// moment; a message of a moment later stands it afresh, as does one that
+// builds it afresh, though of the same moment.
+func TestAccountsPageIsStoodOnceAMessage(t *testing.T) {
+	h, _ := historyHarness(t, dashboard.Accounts, dashboard.HistoryPage{})
+	h.start()
+	now := h.clock.now
+	stood := h.model.frame(now).Accounts.Page
+	if stood == nil || h.model.frame(now).Accounts.Page != stood {
+		t.Fatalf("two frames drew Accounts' page stood at %p then at %p, want both the one stood", stood, h.model.frame(now).Accounts.Page)
+	}
+
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.frame(now).Accounts.Page != stood {
+		t.Errorf("a message of the same moment stood Accounts' page afresh, want it held")
+	}
+
+	h.keyed("<")
+	if got := h.model.frame(now).Accounts.Page.Period; got != views.AccountsToday {
+		t.Errorf("< pressed, Accounts' page drawn is over %q, want it stood afresh over today", got)
+	}
+
+	stood = h.model.frame(now).Accounts.Page
+	h.clock.now = now.Add(time.Second)
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.frame(h.clock.now).Accounts.Page == stood {
+		t.Errorf("a message a second on left Accounts' page stood as it was, want it stood afresh at its moment")
+	}
+}
+
 // What Accounts shows that the preferences keep, the sub-tab and the period,
 // is kept as it changes; what's chosen in it, never.
 func TestAccountsSubTabAndPeriodAreKeptAsTheyChange(t *testing.T) {

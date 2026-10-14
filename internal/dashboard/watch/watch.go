@@ -735,9 +735,9 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // stream tells of their requests and the order Sessions' calls keep, how far
 // the view is scrolled, the account the focus is on, and what Accounts, as
 // standing has it, and History show. It holds the one moment of the
-// document at now, as At has it, for its bars eased to it, Accounts' page
-// stood at it, and every look at it to share: the message's, as taking has
-// it, where now is when the message came.
+// document at now, as At has it, for its bars eased to it and every look at
+// it to share: the message's, as taking has it, where now is when the
+// message came.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
@@ -754,7 +754,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Session:    m.session.frame(),
 	}.Holding(m.taking.moment).At(m.doc, now)
 	if m.view == dashboard.Accounts {
-		f.Accounts = m.accounts.standing(f, f.Moment(m.doc, now))
+		f.Accounts = m.accounts.standing(f)
 	}
 	f.Eased = m.ease.eased(f, m.doc, now)
 	return f
