@@ -72,10 +72,12 @@ func (m Model) placeLogCard() Model {
 // logCardKey acts on a key while the Log's details card is open, which takes
 // every key but ctrl+c: ↑ and ↓ step to the line before or after, its
 // details in the card, the lit line following and the card placed afresh;
-// g, on an event's card, shows Requests paused at the event's moment; esc
-// closes the card, the table left paused at the line chosen; j and k scroll
-// the card a row, and PgDn and PgUp a page, where it scrolls within; and the
-// rest, s among them till a session's page is built, do nothing.
+// g, on an event's card, shows Requests paused at the event's moment; s,
+// where the card's line is of a session, as its keys list it, closes the
+// card and opens the session's page, as sessionOfCard has it; esc closes the
+// card, the table left paused at the line chosen; j and k scroll the card a
+// row, and PgDn and PgUp a page, where it scrolls within; and the rest do
+// nothing.
 func (m Model) logCardKey(key string) (tea.Model, tea.Cmd) {
 	switch {
 	case key == "esc":
@@ -89,6 +91,8 @@ func (m Model) logCardKey(key string) (tea.Model, tea.Cmd) {
 		closed, cmd := m.closeLogCard()
 		closed.log.page = closed.log.page.Landed(at, closed.logRows())
 		return closed, cmd
+	case key == "s" && m.logCard().Session() != "":
+		return m.sessionOfCard()
 	}
 	if by, ok := scrollKey(key); ok {
 		f, _, _ := m.screen(m.now())
@@ -102,6 +106,17 @@ func (m Model) logCardKey(key string) (tea.Model, tea.Cmd) {
 func (m Model) closeLogCard() (Model, tea.Cmd) {
 	m.log.page, m.log.card = m.log.page.Unlifted(m.logRows()), logCarding{}
 	return m.uncover()
+}
+
+// sessionOfCard closes the Log's details card, as esc does, the table left
+// paused at its line, and only then asks for the page of the session the
+// line is of, as openSession has it, so no close of the card drops the page
+// asked for: esc on the page comes back to the Log as the card left it.
+func (m Model) sessionOfCard() (Model, tea.Cmd) {
+	id := m.logCard().Session()
+	closed, cmd := m.closeLogCard()
+	opened, read := closed.openSession(id)
+	return opened, tea.Batch(cmd, read)
 }
 
 // stepLogCard steps the card by places, ↑ -1 and ↓ 1, to the line before or
