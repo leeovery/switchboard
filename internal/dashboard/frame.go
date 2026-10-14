@@ -347,9 +347,15 @@ func (f Frame) cramped() bool {
 	return f.viewRows() < leastView
 }
 
-// phone reports whether the frame is a phone's: under phoneUnder columns.
+// phone reports whether the frame is a phone's, as Phone has it.
 func (f Frame) phone() bool {
-	return f.Width < phoneUnder
+	return Phone(f.Width)
+}
+
+// Phone reports whether a frame width cells wide is a phone's: under
+// phoneUnder columns.
+func Phone(width int) bool {
+	return width < phoneUnder
 }
 
 // edge is the column the frame's content ends before at the right, a margin

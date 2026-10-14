@@ -38,6 +38,10 @@ const (
 	// accounts' percentage on Accounts says: a figure of its own, as all
 	// accounts is never the pool.
 	NumberAllUsed
+	// NumberAllRoom is the room every account has left in a window, to each
+	// one's limit, as all accounts' words on Detail say it, as in "1.2": a
+	// figure of its own, as all accounts is never the pool.
+	NumberAllRoom
 	// NumberRouted are the sessions the router has routed in the last hour,
 	// as the status line counts them.
 	NumberRouted
