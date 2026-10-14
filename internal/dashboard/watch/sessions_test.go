@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -8,8 +9,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -408,5 +412,133 @@ func TestTheRouterSilentForTenMinutesSessionsAndAPageDrawItsLastListing(t *testi
 	h.openPage(idD28C)
 	if page := h.shownPage().Page; !page.Running || !page.Runs() || page.Activity != listed.Activity {
 		t.Errorf("its page runs %t (%t by its activity), doing %+v; want it running, as the List has it, %+v", page.Running, page.Runs(), page.Activity, listed.Activity)
+	}
+}
+
+// sessionsOnTheLedger is a model of the router of three, listing d28c on
+// work, reading the request ledger in the state directory given, as
+// daysCounted counts its reads, started at the time given on Sessions, the
+// List read and held, the Log never shown.
+func sessionsOnTheLedger(t *testing.T, state string, now time.Time) (*harness, *daysCounted) {
+	t.Helper()
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
+	l := onTheLog(h, state)
+	h.model.view = dashboard.Overview
+	h.clock.now = now
+	h.start()
+	h.keys(toSessions...)
+	if h.model.sessionsTab.held == nil {
+		t.Fatal("Sessions shown, the List isn't held")
+	}
+	return h, l
+}
+
+// builtAfresh is the List built afresh of every line the ledger l holds, at
+// the clock's time, of what h's model reads beside them, as the List held
+// must be.
+func builtAfresh(h *harness, l views.Ledger) views.SessionList {
+	now := h.clock.now
+	return views.ListSessions(views.SessionSources{
+		Running: h.model.sessions, Unlisted: !h.model.answering(), Stream: h.model.traffic.stream(now), Ledger: l, Prices: h.model.cfg.Prices, Now: now,
+	})
+}
+
+// Past midnight, the List held takes in what the day before gained after the
+// ledger's tail last read it, as a session's page does: the day read again
+// whole at the first look past the turn, which rolls the List on to the new
+// day, so no look after prices it afresh; then again as the stream tells a
+// request across midnight ended, its line filed under the day it arrived on.
+// The List is then the one built afresh of every line.
+func TestTheListTakesInTheDayBeforeAsTheDayTurns(t *testing.T) {
+	state := t.TempDir()
+	night := onTheDay(23, 59, 30)
+	writeLines(t, state, arrivedAt("0a000001", night.Add(-10*time.Minute)))
+	h, l := sessionsOnTheLedger(t, state, night)
+
+	writeLines(t, state, arrivedAt("0a000003", night.Add(5*time.Second)))
+	arrival := night.Add(20 * time.Second)
+	sent := func(kind string, when time.Time) router.StreamEvent {
+		return alter(told(kind, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = when.UTC() })
+	}
+	h.hear(sent(router.StreamSent, arrival.Add(100*time.Millisecond)))
+	h.clock.now = night.Add(35 * time.Second)
+	h.read(routerDocument(three()...))
+	if held := *h.model.sessionsTab.held; !reflect.DeepEqual(held, held.Take(views.Today(h.clock.now).Date, nil)) {
+		t.Error("the first look past midnight left the List held at the day before, want it rolled on to the new day")
+	}
+
+	line := took(arrivedAt("0a000002", arrival), 22*time.Second)
+	writeLines(t, state, line)
+	h.hear(alter(sent(router.StreamDone, line.At.Add(22*time.Second)), func(e *router.StreamEvent) { e.Status = 200 }))
+	h.clock.now = night.Add(45 * time.Second)
+	h.read(routerDocument(three()...))
+
+	yesterday := dayfile.DateOf(night)
+	if want := []string{yesterday, yesterday}; !slices.Equal(l.days, want) {
+		t.Errorf("the days %v were read whole, want %v: the day before at the turn, then as the stream told its request ended", l.days, want)
+	}
+	if got, want := h.model.sessionsTab.shown.List, builtAfresh(h, l); !reflect.DeepEqual(got, want) {
+		t.Errorf("the List is\n%+v\nwant it as built afresh of every line\n%+v", got, want)
+	}
+}
+
+// The List held reads a day it awaits a line on again whole only as its
+// line could have come, as the Log and a session's page do: at the look
+// after a request whose line is filed on it ended, then once a minute while
+// none comes; never at every look.
+func TestTheListReadsADayAwaitingALineOnlyAsItsLineCouldHaveCome(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrivedAt("0a000001", onTheDay(23, 50, 0)))
+	h, l := sessionsOnTheLedger(t, state, onTheDay(24, 0, 30))
+
+	at := func(kind, request string, when time.Time) router.StreamEvent {
+		return alter(told(kind, request, "work", 0), func(e *router.StreamEvent) { e.At = when.UTC() })
+	}
+	sent := onTheDay(23, 59, 50)
+	h.hear(at(router.StreamSent, "0a000003", sent), at(router.StreamSent, "0a000004", sent))
+	opened, yesterday := len(l.days), dayfile.DateOf(sent)
+	steps := []struct {
+		name     string
+		ends     string
+		from, to time.Time
+		readings int
+	}{
+		{name: "the looks after the first ended", ends: "0a000003", from: onTheDay(24, 0, 45), to: onTheDay(24, 1, 10), readings: 1},
+		{name: "the look after the second ended", ends: "0a000004", from: onTheDay(24, 1, 15), to: onTheDay(24, 1, 15), readings: 2},
+		{name: "the looks of the minute after", from: onTheDay(24, 1, 20), to: onTheDay(24, 2, 10), readings: 2},
+		{name: "a minute on", from: onTheDay(24, 2, 15), to: onTheDay(24, 2, 15), readings: 3},
+	}
+	for _, s := range steps {
+		if s.ends != "" {
+			h.hear(alter(at(router.StreamDone, s.ends, s.from.Add(-3*time.Second)), func(e *router.StreamEvent) { e.Status = 200 }))
+		}
+		for h.clock.now = s.from; !h.clock.now.After(s.to); h.clock.now = h.clock.now.Add(lookEvery) {
+			h.read(routerDocument(three()...))
+		}
+		if got := l.days[opened:]; !slices.Equal(got, slices.Repeat([]string{yesterday}, s.readings)) {
+			t.Errorf("after %s, the days %v were read whole, want the day before %d times", s.name, got, s.readings)
+		}
+	}
+}
+
+// A look days after the ledger's tail was last read, as after the machine
+// slept, has the List held read again whole each day it missed, from the
+// day it's held at, each once, the oldest first, rolling it on to today.
+func TestTheListReadsTheDaysTheTailMissedOnce(t *testing.T) {
+	state := t.TempDir()
+	night := onTheDay(22, 0, 0)
+	writeLines(t, state, arrivedAt("0a000001", night.Add(-10*time.Minute)))
+	h, l := sessionsOnTheLedger(t, state, night)
+
+	h.clock.now = night.AddDate(0, 0, 3)
+	h.read(routerDocument(three()...))
+	h.read(routerDocument(three()...))
+	want := []string{dayfile.DateOf(night), dayfile.DateOf(night.AddDate(0, 0, 1)), dayfile.DateOf(night.AddDate(0, 0, 2))}
+	if !slices.Equal(l.days, want) {
+		t.Errorf("the days %v were read whole, want %v, each missed once", l.days, want)
+	}
+	if held := *h.model.sessionsTab.held; !reflect.DeepEqual(held, held.Take(views.Today(h.clock.now).Date, nil)) {
+		t.Error("the List is held at a day missed, want it rolled on to today")
 	}
 }
