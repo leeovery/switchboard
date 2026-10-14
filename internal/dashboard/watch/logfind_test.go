@@ -262,6 +262,41 @@ func TestEscOnTheLogClosesTheFindThenFollowsThenLetsTheFilterGo(t *testing.T) {
 	}
 }
 
+// / before the Log's first read lands opens the find, its line drawn in the
+// state line's row as the design has / open it, what's typed shown as it's
+// typed, finding none of today's sessions till the read counts them; and it
+// stays open as the read lands, finding the session it reads.
+func TestTheFindDrawsItsLineBeforeTheLogsFirstReadLands(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, ranIn("0a000001", idD28C, "~/Code/web", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	var unread []tea.Msg
+	for msgs := h.init(); len(msgs) > 0; msgs = msgs[1:] {
+		if _, ok := msgs[0].(logReadMsg); ok {
+			unread = append(unread, msgs[0])
+			continue
+		}
+		msgs = append(msgs, h.update(msgs[0])...)
+	}
+	if len(unread) == 0 || h.model.log.page.Read {
+		t.Fatal("the Log's first read landed, want it held")
+	}
+
+	h.typed("/", "d")
+	stateRow := func() string {
+		rows := strings.Split(h.view(), "\n")
+		return strings.TrimSpace(rows[len(rows)-2])
+	}
+	if got := stateRow(); !strings.HasPrefix(got, "/ d▏") || !strings.HasSuffix(got, "no sessions") {
+		t.Errorf("/ then d before the Log's first read lands, the state line's row reads %q, want the find's line, finding none yet", got)
+	}
+	h.deliver(unread...)
+	if got := stateRow(); !h.model.log.page.Read || !strings.HasPrefix(got, "/ d▏") || !strings.Contains(got, "d28c web  today") {
+		t.Errorf("the Log's first read landed with the find open, the state line's row reads %q, want the find's line still, d28c found today", got)
+	}
+}
+
 // The panel's /, as it offers, closes it and opens the find.
 func TestThePanelsSlashOpensTheFind(t *testing.T) {
 	h := newHarness(t, probedWithoutTheRouter())
