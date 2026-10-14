@@ -112,8 +112,10 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 	if doc.CapHolds(a, now, policy) {
 		capBack, _ = score.LetGo(a.Windows, a.Reserve, policy.IsShared, now)
 	}
-	session, _ := a.Window(a.Pressure.Window)
-	pressureOut, _ := doc.RunsOut(a, session, now)
+	var pressureOut status.RunOut
+	if session, ok := a.Window(a.Pressure.Window); ok {
+		pressureOut, _ = doc.RunsOut(a, session, now)
+	}
 	pool := m.Pool()
 	outOfQuota := held && hold.Every || doc.CapHolds(a, now, policy)
 	limit, _ := doc.LimitEvent(a, now)
@@ -618,6 +620,25 @@ func TestWhenTheRefusalHoldingAnAccountBegan(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A window reset by hand runs from then till its reset, kept, and its even
+// pace goes by that: at its hard moment, work's session, restarted an hour
+// before its document was built, runs four hours, a quarter of them gone as
+// it was read.
+func TestAWindowRestartedByHandRunsFromItsRestart(t *testing.T) {
+	for _, hm := range statustest.HardMoments(policy) {
+		if hm.Name != "a 5-hour window restarted by hand" {
+			continue
+		}
+		a, _ := hm.Doc.At(hm.Now, policy).Account("work")
+		w, _ := a.Window("5h")
+		if !w.Start.Equal(statustest.Built.Add(-time.Hour)) || w.Length != 4*time.Hour || w.Pace == nil || *w.Pace != 0.25 {
+			t.Errorf("the session runs from %v for %v, its pace %s; want from an hour before %v, for 4h, its pace 0.25", w.Start, w.Length, paceOf(w.Pace), statustest.Built)
+		}
+		return
+	}
+	t.Fatal("no hard moment of a window restarted by hand")
 }
 
 func TestAWindowNotHeldBeganNoLimit(t *testing.T) {

@@ -129,6 +129,22 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 			"work": {state: "■ limit", head: "■ limit reached · new sessions go elsewhere"},
 			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
+		"its token refused again, after a refusal lifted early": {
+			"work": {state: "■ refused", head: "■ refused (401) · its token needs renewing"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
+		"a 5-hour window restarted by hand": {
+			"work": {state: "● open", head: "● open · new sessions come here"},
+			"side": {state: "● open", head: "● open"},
+		},
+		"probed, one of several at its cap": {
+			"work": {state: "● at cap", head: "● at its cap"},
+			"side": {state: "● open", head: "● open"},
+		},
+		"the router not answering for 10 minutes": {
+			"work": {state: "● at cap", head: "● at its cap · new sessions go elsewhere"},
+			"side": {state: "● pressure", head: "● under pressure · new sessions still come here"},
+		},
 		"the global pin naming one account, a pool of one": {
 			"work": {state: "● open", head: "● open"},
 			"side": {state: "● open", head: "● open · new sessions come here"},
