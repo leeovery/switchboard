@@ -395,7 +395,7 @@ func (r *Router) session(id string) (status.Session, error) {
 		return status.Session{}, unknownSession(id)
 	}
 	s.Account = r.accountStatus(s.Assignments[0].Account)
-	return r.described(s, r.stream.doing(), r.cfg.Now()), nil
+	return r.described(s, r.stream.doing(), r.glancing(r.cfg.Now())), nil
 }
 
 // running reports the sessions routed in the last hour, the one seen last
@@ -403,9 +403,9 @@ func (r *Router) session(id string) (status.Session, error) {
 func (r *Router) running() []status.Session {
 	now := r.cfg.Now()
 	listed := r.sessions.running(now)
-	doing := r.stream.doing()
+	doing, g := r.stream.doing(), r.glancing(now)
 	for i, s := range listed {
-		listed[i] = r.described(s, doing, now)
+		listed[i] = r.described(s, doing, g)
 	}
 	return listed
 }
@@ -413,16 +413,45 @@ func (r *Router) running() []status.Session {
 // described is s with the family of each of its models, as the provider
 // names it, what a request of each in flight is doing, as doing, the
 // stream's, has it, and the account auto would send each's next request to
-// at now, as the scheduler's auto says. Auto is worked out here, once the
-// sessions have been read, so their lock, which every request's choice takes,
-// is never held while the accounts are viewed.
-func (r *Router) described(s status.Session, doing map[key]string, now time.Time) status.Session {
+// at the moment g glances at the accounts, as the scheduler's auto says, on
+// the accounts as g glances at them. Auto is worked out here, once the
+// sessions have been read, so their lock, which every request's choice
+// takes, is never held while the accounts are viewed.
+func (r *Router) described(s status.Session, doing map[key]string, g *glances) status.Session {
 	for i, a := range s.Assignments {
 		s.Assignments[i].Family = r.cfg.Provider.Family(a.Model)
 		s.Assignments[i].InFlight = doing[key{session: s.ID, model: a.Model}]
-		s.Assignments[i].Auto = r.scheduler.auto(s.ID, a.Model, now)
+		s.Assignments[i].Auto = r.scheduler.autoOn(s.ID, a.Model, g.now, func() view { return g.of(a.Model) })
 	}
 	return s
+}
+
+// glances are the accounts as a listing of the sessions at now glances at
+// them, as the state's glance gives them, by model: each model's glanced at
+// once, for every session of the listing that runs it, as a glance takes the
+// lock every request's choice takes.
+type glances struct {
+	state *state
+	now   time.Time
+	views map[string]view
+}
+
+// glancing is the router's glances at the accounts at now, none glanced at
+// yet.
+func (r *Router) glancing(now time.Time) *glances {
+	return &glances{state: r.state, now: now, views: make(map[string]view)}
+}
+
+// of is the accounts as a request of model finds them, glanced at the first
+// time it's asked: a view is never changed, but afresh, so every session's
+// auto may read the one.
+func (g *glances) of(model string) view {
+	v, ok := g.views[model]
+	if !ok {
+		v = g.state.glance(model, g.now)
+		g.views[model] = v
+	}
+	return v
 }
 
 // pin sends every new session to the best of the accounts the request names,
