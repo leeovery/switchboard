@@ -855,26 +855,24 @@ func TestASessionsPageOverTheLogTargetsNoneOfTheLogsLines(t *testing.T) {
 	}
 }
 
-// Nothing travels a session's page, nor is a bar eased on it, nor a number
-// the request stream changes; row 7's windows are the account's own
-// numbers, and its accounts' points the session's, which brighten as a look
-// changes them, and move the frame while they settle.
+// Nothing of the view under a session's page moves, nor is a bar eased on
+// it, nor a number the request stream changes; row 7's windows are the
+// account's own numbers, and its accounts' points the session's, which
+// brighten as a look changes them, and move the frame while they settle.
 func TestWhatMovesOnASessionsPage(t *testing.T) {
 	doc := threeRouted()
-	f := switchboard(160, 40, flippingSessions(), Traffic{Live: true, Calls: map[Plug]Call{
-		{Account: "work", Seat: Seat{Session: idD28C, Model: opus}}: {Doing: Asking, Pulsing: true},
-	}})
+	f := frameOf(160, 40)
+	f.Eased = f.Filled(doc, now)
 	if got := f.Motion(doc, now); got != (Motion{Smooth: true}) {
-		t.Fatalf("the switchboard's Motion is %+v, want a pulse along a cord", got)
+		t.Fatalf("the Overview's Motion is %+v, want its bars easing", got)
 	}
 	f.Session = moved()
 	if got := f.Motion(doc, now); got != (Motion{}) {
-		t.Errorf("over the switchboard, the page's Motion is %+v, want nothing travelling", got)
+		t.Errorf("over the Overview, the page's Motion is %+v, want nothing of the Overview's settling", got)
 	}
 	if filled := f.Filled(doc, now); filled != nil {
 		t.Errorf("the page fills bars %v, want none", filled)
 	}
-	f.View = Overview
 	if f.StreamNumbered() {
 		t.Error("over the Overview, the page draws a number the stream changes, want none")
 	}

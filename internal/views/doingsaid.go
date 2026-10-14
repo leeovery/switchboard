@@ -64,16 +64,16 @@ func (a Activity) WaitingSaid() string {
 // Short says what it's doing as the Overview's SESSIONS says it, in a row's
 // few cells, the long form Said gives shortened: "↓ ~1.2k" while its answer
 // streams, its tokens so far, "↓" alone till the stream counts any; "↑ ask"
-// while it works otherwise, as Works says, asking, or throttled, to go out
-// again on its account; else "idle", refused as well, having no word of its
-// own for that, as a session SESSIONS lists never has ended.
+// while it's otherwise under way, as Underway says, asking, or throttled, to
+// go out again on its account; else "idle", refused as well, having no word
+// of its own for that, as a session SESSIONS lists never has ended.
 func (a Activity) Short() string {
 	switch {
 	case a.Doing == Answering && a.Tokens() == 0:
 		return MarkAnswering.String()
 	case a.Doing == Answering:
 		return MarkAnswering.String() + " ~" + prose.Tokens(a.Tokens())
-	case a.Works():
+	case a.Underway():
 		return MarkAsking.String() + " ask"
 	}
 	return "idle"

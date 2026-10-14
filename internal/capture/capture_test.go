@@ -68,12 +68,12 @@ func TestOnlyAFixtureOverTheWorldsBuildsThem(t *testing.T) {
 	})
 
 	names := set.names()
-	for _, name := range []string{"sessions-3", "usage-160", "page-routing"} {
+	for _, name := range []string{"runway-day-3", "usage-160", "page-routing"} {
 		if !slices.Contains(names, name) {
 			t.Fatalf("names() = %v, want %s among them", names, name)
 		}
 	}
-	if _, err := set.named("sessions-3"); err != nil {
+	if _, err := set.named("runway-day-3"); err != nil {
 		t.Fatal(err)
 	}
 	if built != 0 {
@@ -207,8 +207,8 @@ func drawnInTheMachinesZone(t *testing.T, name string, asked []zonedSet) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.now.Location() != time.Local || !f.now.Equal(localMoment()) {
-			t.Errorf("%s, over a world, asked for in %s, is drawn at %s, want the frames' moment in the machine's zone", name, a.zone, f.now)
+		if f.now.Location() != time.Local || !f.now.Equal(framesMoment(name)) {
+			t.Errorf("%s, over a world, asked for in %s, is drawn at %s, want its frame's moment in the machine's zone", name, a.zone, f.now)
 		}
 		if drawn := f.Frame(f.Size); drawn != mine {
 			t.Errorf("%s, over a world, asked for in %s, is drawn\n%s\nwant it as asked for in the machine's zone\n%s", name, a.zone, drawn, mine)
@@ -216,19 +216,29 @@ func drawnInTheMachinesZone(t *testing.T, name string, asked []zonedSet) {
 	}
 }
 
+// framesMoment is the moment the frame with the given stem is drawn at, in
+// the machine's zone: the frames', but where a page's later look has its own.
+func framesMoment(stem string) time.Time {
+	if i := slices.IndexFunc(pages, func(p page) bool { return p.name == stem && p.looked != nil }); i >= 0 {
+		return localMoment().Add(pages[i].looked.after)
+	}
+	return localMoment()
+}
+
 func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
-	frame := ansi.Strip(frameOf(t, local(), "sessions-3"))
+	frame := ansi.Strip(frameOf(t, local(), "overview-default-160"))
 
 	for _, want := range []string{
 		// The clock the frames read.
 		"Thu 1 Oct  14:42:07",
 		// The document read, rather than still being read.
 		"● healthy",
-		// side's session at its reading, its bar eased all the way there.
-		"Session  ██▉█┃████████░░░░░░░░░░░  12%  → 54%",
+		// side's 5-hour window at its reading, its bar eased all the way
+		// there.
+		"3 side ▲          ▏┃              13%  21%/h till 18:50",
 		// What the router tells of lately, none picked out as new, the first
 		// look having seen them all.
-		"14:41  ▲ c61b started on side, the best",
+		"14:41  ▲ c61b started on side",
 	} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the frame\n%s\nhas no %q", frame, want)
@@ -240,7 +250,7 @@ func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
 }
 
 func TestAFrameFillsATerminalOfTheSizeGiven(t *testing.T) {
-	f := fixture(t, "sessions-3")
+	f := fixture(t, "overview-default-160")
 	for _, size := range []watch.Size{f.Size, {Width: 160, Height: 10}, {Width: 200, Height: 80}} {
 		frame := f.Frame(size)
 		if !strings.HasSuffix(frame, "\n") {
@@ -253,7 +263,7 @@ func TestAFrameFillsATerminalOfTheSizeGiven(t *testing.T) {
 }
 
 func TestAFixturesKeysArePressedOnceItsDocumentIsRead(t *testing.T) {
-	f := fixture(t, "sessions-3")
+	f := fixture(t, "overview-default-160")
 	f.keys = []tea.KeyPressMsg{{Code: 'p', Text: "p"}}
 
 	if frame, want := ansi.Strip(f.Frame(f.Size)), "╭─ ROUTING · "; !strings.Contains(frame, want) {
@@ -263,7 +273,7 @@ func TestAFixturesKeysArePressedOnceItsDocumentIsRead(t *testing.T) {
 
 func TestAFixtureIsDrawnInItsTheme(t *testing.T) {
 	amber, _ := theme.Builtin("amber")
-	f := fixture(t, "sessions-3")
+	f := fixture(t, "overview-default-160")
 	tests := []struct {
 		name    string
 		fixture Fixture
@@ -346,41 +356,6 @@ func TestTheRunwayFixturesShowRunwayWithTheirKeys(t *testing.T) {
 	}
 }
 
-func TestTheSessionsFixturesShowSessionsWithTheirKeys(t *testing.T) {
-	utc := fixturesIn(time.UTC)
-	tests := []struct {
-		name string
-		want []string
-	}{
-		{name: "sessions-1", want: []string{" Sessions ", "┌─ 1 · WORK ─ ● under pressure", "    ● db8a  sonnet  idle       3s", "  LOG"}},
-		{name: "sessions-3", want: []string{
-			"CALLS  sessions, by the line they are on", "LINES  accounts",
-			"  d28c  opus    1m           ●━", "  41e0  sonnet  4m           ●━━", "╌╌╌╌╌╌╌○  Session", "└─ resets  session 18:50  ·  weeks Mon 10:00 ─",
-		}},
-		{name: "sessions-3-keys", want: []string{
-			"─ HELP · SESSIONS ", "│  ●━━◉   a session's cord to its account", "│  ↓      streaming back, ~ its tokens so far",
-		}},
-		{name: "sessions-5", want: []string{"  9e21  sonnet  now          ●━", "┌─ 5 · SPARE ─ ○ idle", "└─ primed at 16:20 ─", "  14:39  ▸ 9e21 moved side → client (pin)"}},
-		{name: "sessions-storyboard-1-request-out", want: []string{"  c61b  opus    now  ↑ ask   ●━"}},
-		{name: "sessions-storyboard-2-streaming-back", want: []string{"  c61b  opus    now  ↓ ~1.2k ●━"}},
-		{name: "sessions-storyboard-3-refused", want: []string{"  d28c  opus    now  ✕ 429   ●━", "━✕  Session", "┌─ 1 · WORK ─ ■ limit reached"}},
-		{name: "sessions-storyboard-4-repatched", want: []string{
-			"  d28c  ↪ moved to side", "╌╌╌╌╌╌╌╌╌○  Session", "  d28c  opus    now  ↪ new   ●━",
-			"  14:43  ▸ d28c moved work → side: work reached its limit, so",
-		}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			frame := ansi.Strip(frameOf(t, utc, tt.name))
-			for _, want := range tt.want {
-				if !strings.Contains(frame, want) {
-					t.Errorf("the frame\n%s\nhas no %q", frame, want)
-				}
-			}
-		})
-	}
-}
-
 func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -392,7 +367,7 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 			"New sessions go to personal or side. When both are full, the router chooses.",
 		}},
 		{name: "page-routing-phone", want: []string{"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "The 4 sessions running elsewhere move there", "Rebuilding their caches costs ≈ $"}},
-		{name: "page-help-scrolled", want: []string{"─ HELP · SESSIONS ", "│  ●━━◉   a session's cord to its account"}, wantNoneOf: []string{"t themes"}},
+		{name: "page-help-scrolled", want: []string{"─ HELP · OVERVIEW ", "│  USAGE"}, wantNoneOf: []string{"t themes"}},
 		{name: "page-not-answering", want: []string{"■ the router isn't answering  ·  since 14:42:07  ·  auto  ·  6 sessions"}},
 	}
 	for _, tt := range tests {
@@ -428,32 +403,6 @@ func TestTheRouterGoneHasPPinFaint(t *testing.T) {
 		if c.glyph != ' ' && (c.bold || !c.fg.near(faint)) {
 			t.Errorf("p pin's %s, want it faint, %s, not bold, as the router doesn't answer", c, faint)
 		}
-	}
-}
-
-func TestTheStoryboardsPulsesAreWhereItsFramesHaveThem(t *testing.T) {
-	utc := fixturesIn(time.UTC)
-	tests := []struct {
-		name string
-		// row is the frame's row the pulse is on, and head the column of
-		// its head, drawn bold.
-		row, head int
-	}{
-		{name: "sessions-storyboard-1-request-out", row: 12, head: 70},
-		{name: "sessions-storyboard-3-refused", row: 8, head: 79},
-		{name: "sessions-storyboard-4-repatched", row: 22, head: 94},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rows := strings.Split(frameOf(t, utc, tt.name), "\n")
-			cells := ansi.Strip(rows[tt.row])
-			if got := []rune(cells)[tt.head]; got != '━' {
-				t.Fatalf("row %d reads %q, want the pulse's head, ━, at %d", tt.row, cells, tt.head)
-			}
-			if bold := ansi.Cut(rows[tt.row], tt.head, tt.head+1); !strings.Contains(bold, "\x1b[1") {
-				t.Errorf("the cell at %d is drawn %q, want it bold, the pulse's head", tt.head, bold)
-			}
-		})
 	}
 }
 
@@ -537,7 +486,7 @@ func printedAt(t *testing.T, f Fixture, width int) {
 }
 
 func TestAFixturesModelStartsWhereItsFrameIs(t *testing.T) {
-	f := fixture(t, "sessions-3")
+	f := fixture(t, "overview-default-160")
 	m := f.Model()
 
 	if cmd := m.Init(); cmd != nil {

@@ -89,10 +89,17 @@ func (a Activity) Busy(now time.Time) bool {
 	return a.InFlight() || now.Sub(a.LastSeen) < busyWithin
 }
 
-// Works reports whether it works, as Sessions' switchboard says it: while it
-// asks, while it's answering, and while a request of its is throttled, to be
-// sent again.
+// Works reports whether it works, as Sessions' Switchboard says it: while it
+// asks, while it's answering, and while a request of its is throttled or
+// refused, to be sent again, on its account or elsewhere.
 func (a Activity) Works() bool {
+	return a.InFlight()
+}
+
+// Underway reports whether a request of it is under way on its account, as
+// the Overview's SESSIONS says it: asking, answering, or throttled, to go out
+// again there; not refused, before it goes out again elsewhere.
+func (a Activity) Underway() bool {
 	return a.Doing == Asking || a.Doing == Answering || a.Doing == Throttled
 }
 

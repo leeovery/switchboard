@@ -76,10 +76,6 @@ type Frame struct {
 	// requests, as Sessions' switchboard draws it, while the watch reads it:
 	// zero while it doesn't.
 	Traffic Traffic
-	// Order is the order Sessions' calls run in, as the watch keeps it from
-	// look to look: a seat keeps its row while the router lists it there,
-	// and one new to its account joins its group's foot.
-	Order Order
 	// Scroll is how far the view is scrolled down, where it doesn't fit: in
 	// rows; on the Overview, in accounts, USAGE's, within its section; and
 	// on History, the Year in rows, Weeks in accounts, Days in accounts too,
@@ -117,6 +113,9 @@ type Frame struct {
 	// History is History's sub-tab shown, what each of its views shows, and
 	// their pages.
 	History HistoryPage
+	// SessionsTab is Sessions' sub-tab shown, its Switchboard and its List as
+	// the watch built them at the look, and the row chosen.
+	SessionsTab SessionsShown
 	// Session is the session's page open, drawn in place of the view: nil
 	// while none is.
 	Session *SessionShown
@@ -185,7 +184,7 @@ func (f Frame) Draw(doc status.Document, now time.Time) []string {
 func (f Frame) Rendered(doc status.Document, now time.Time) ([]string, Motion) {
 	f = f.At(doc, now)
 	c := f.page(doc, now)
-	moving := f.moving(c, doc, now)
+	moving := f.moving(c)
 	return f.finish(c).rows(f.Look), moving
 }
 
@@ -352,8 +351,8 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 // its turns' rows, across the frame; on the Overview, USAGE's body, as
 // overviewScrolls has it; on Accounts, as accountsScrolls has it; on
 // History, what of its sub-tab shown does, as historyScrolls has it, across
-// the frame; on the Log, its table's lines, under its heads; elsewhere, the
-// view's rows.
+// the frame; on Sessions, as sessionsScrolls has it; on the Log, its table's
+// lines, under its heads; elsewhere, the view's rows.
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
 	switch f.Shown() {
 	case SessionPage:
@@ -366,6 +365,8 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 	case History:
 		y, rows = f.historyScrolls()
 		return 0, y, f.Width, rows
+	case Sessions:
+		return f.sessionsScrolls(doc, now)
 	case Log:
 		return 0, f.top() + 1, f.Width, f.LogRows()
 	}

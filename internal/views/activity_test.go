@@ -166,8 +166,10 @@ func TestASessionIsBusyWithARequestInFlightOrSeenInTheLastMinute(t *testing.T) {
 	}
 }
 
-func TestASessionWorksWhileItAsksAnswersOrIsThrottled(t *testing.T) {
-	works := map[views.Doing]bool{views.Asking: true, views.Answering: true, views.Throttled: true}
+// A refused session works, its request to be sent again elsewhere, as the
+// Switchboard's call keeps its id bold and its cord lit while it shows ✕.
+func TestASessionWorksWhileItAsksAnswersIsThrottledOrRefused(t *testing.T) {
+	works := map[views.Doing]bool{views.Asking: true, views.Answering: true, views.Throttled: true, views.Refused: true}
 	for doing, name := range doingNames {
 		t.Run(name, func(t *testing.T) {
 			if got := (views.Activity{Doing: doing, LastSeen: now}).Works(); got != works[doing] {

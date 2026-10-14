@@ -35,6 +35,8 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 			switch tt.On {
 			case OnTab:
 				tabs, want = append(tabs, tt.Tab), " "+tt.Tab.Title()+" "
+			case OnSubTab:
+				want = " " + f.heading().subTabs[tt.SubTab] + " "
 			case OnKey:
 				i := slices.IndexFunc(f.keysAt(), func(k keyAt) bool { return k.key.Key == tt.Key })
 				keys, want = append(keys, tt.Key), f.keysAt()[i].key.words().plain()

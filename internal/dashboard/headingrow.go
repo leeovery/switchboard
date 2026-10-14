@@ -55,14 +55,16 @@ func (p piece) target() Target {
 }
 
 // heading is the heading row of the tab shown: Accounts', as accountsHeading
-// has it; History's and the Log's, as their pages have them; else its name
-// alone, as the views milestone 5 built and the tabs not built yet have it.
+// has it; History's, Sessions' and the Log's, as theirs have them; else its
+// name alone, as Runway, milestone 5's, has it.
 func (f Frame) heading() heading {
 	switch f.Shown() {
 	case Accounts:
 		return f.accountsHeading()
 	case History:
 		return f.History.heading()
+	case Sessions:
+		return f.SessionsTab.heading()
 	case Log:
 		return f.Log.heading(f.phone(), f.Width, func(id string) string { return named(f.heldMoment(), id) })
 	}

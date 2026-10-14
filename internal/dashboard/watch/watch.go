@@ -159,8 +159,10 @@ type Config struct {
 	Log      dashboard.LogTicks
 	Prefs    Prefs
 	// AccountsShown is what the preferences keep Accounts showing, as
-	// dashboard.AccountsKept reads it, which Prefs keeps as it changes.
+	// dashboard.AccountsKept reads it, and SessionsShown Sessions, as
+	// dashboard.SessionsKept reads it, which Prefs keeps as each changes.
 	AccountsShown dashboard.AccountsShown
+	SessionsShown dashboard.SessionsShown
 	// TraceScale is the requests a minute that fill a trace's height on the
 	// Overview: 0 for the live rule, as the dashboard has it, the busiest
 	// column of every trace on the page, never less than 8.
@@ -275,12 +277,10 @@ type Model struct {
 	trails  dashboard.Trails
 	// sessions are the sessions the router listed with the document on
 	// screen, for the sessions running and Sessions' calls: nil where it
-	// listed none. listedBy is the router that listed them, as its health
-	// check said; and order is the order Sessions' calls ran in as they were
-	// listed, which they keep from look to look.
+	// listed none; and listedBy is the router that listed them, as its health
+	// check said.
 	sessions []status.Session
 	listedBy router.Health
-	order    dashboard.Order
 	// stream is the watch's hold on the router's request stream, traffic
 	// what the stream has told of the routed requests, and traces the
 	// requests the Overview's traces count, of today's lines and the stream.
@@ -316,6 +316,10 @@ type Model struct {
 	// past is what the watch holds of History: its page, the ledger's days
 	// it's built of, and the reads of them, which Accounts shares.
 	past historyTab
+	// sessionsTab is what the watch holds of Sessions: what it shows, its
+	// Switchboard and its List as the last look built them, and the List
+	// held, fed by the ledger's tail.
+	sessionsTab sessionsTab
 	// session is the session's page open, drawn in place of the view: nil
 	// while none is. opening counts the pages asked to open, each opening
 	// once its read lands, but one asked for before the last; and pending is
@@ -416,7 +420,7 @@ func New(ctx context.Context, cfg Config) Model {
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By,
 		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
-		log: openingLog(cfg.Log),
+		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, log: openingLog(cfg.Log),
 	}
 	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
 	if m.after == nil {
@@ -446,11 +450,11 @@ func (m Model) Init() tea.Cmd {
 // closing a session's card it leaves no p for, as closing says, then has
 // the watch read the router's request stream while it wants it, and the
 // ledger's days for History, Accounts, a session's page, the Log and its
-// find as they want them, History's and Accounts' pages built of them as
-// historyBuilt and accountsBuilt have it, Detail's selection following its
-// sessions, as followed has it, and the Log's page built of what it holds,
-// and only then, price the moves the routing card would make while it wants
-// them.
+// find, and Sessions, as they want them, History's and Accounts' pages built
+// of them as historyBuilt and accountsBuilt have it, Detail's selection
+// following its sessions, as followed has it, Sessions built at the look, as
+// sessionsLooked has it, and the Log's page built of what it holds, and only
+// then, price the moves the routing card would make while it wants them.
 // Then, of the page as it stands at that moment, its Overview's sections
 // built once for each to share, it keeps the Overview's layout, but for a
 // frame, which takes nothing in to lay it out afresh by; brightens the
@@ -466,10 +470,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, closed := next.(Model).relived(msg, now).closing()
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
-	tuned = tuned.historyBuilt().accountsBuilt().followed(msg)
+	tuned = tuned.historyBuilt().accountsBuilt().followed(msg).sessionsLooked(msg)
 	tuned, paged := tuned.readPage()
 	tuned, logged := tuned.readLog()
 	tuned, found := tuned.readFind()
+	tuned, listed := tuned.readSessions()
 	tuned, costs := tuned.costing()
 	page := tuned.frame(now).Built(tuned.doc, now)
 	if _, frame := msg.(frameMsg); !frame {
@@ -478,7 +483,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, costs, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, costs, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look
@@ -619,6 +624,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.framed(msg), nil
 	case sessionReadMsg:
 		return m.sessionRead(msg), nil
+	case listReadMsg:
+		return m.listRead(msg), nil
 	}
 	return m, nil
 }
@@ -781,19 +788,18 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // history, the numbers brightening, the Overview's sections shown, how its
 // windows are grouped, the requests its traces count and its layout as
 // kept, how far ahead Runway looks, the sessions listed, what the request
-// stream tells of their requests and the order Sessions' calls keep, how far
-// the view is scrolled, the account the focus is on, and what Accounts, as
-// standing has it, and History show. It holds the one moment of the
-// document at now, as At has it, for its bars eased to it and every look at
-// it to share: the message's, as taking has it, where now is when the
-// message came.
+// stream tells of their requests, how far the view is scrolled, the account
+// the focus is on, and what Accounts, as standing has it, and History show.
+// It holds the one moment of the document at now, as At has it, for its
+// bars eased to it and every look at it to share: the message's, as taking
+// has it, where now is when the message came.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
-		Sessions: m.sessions, Stream: m.traffic.stream(now), Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
+		Sessions: m.sessions, Stream: m.traffic.stream(now), Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
@@ -931,13 +937,13 @@ func logRead(msg fetchedMsg, look status.Moment, next time.Time) {
 
 // show puts the document a read found on screen, as look has it at its moment,
 // which every look at it within the message shares, as taking has it, with
-// the sessions the router listed, Sessions' calls keeping the order they ran
-// in, each move they show done no longer re-patching them; or where it
-// couldn't list them, those it listed last, while the router that listed them
-// answers, as a router restarted or replaced lists its own; and none while
-// probing. It posts what the change calls for, unless the router is there to
-// post its own, as nothing is to be told twice; follows the router as it goes
-// and comes back; notes the events new to it, and the readings it gives; asks
+// the sessions the router listed, each move they show done no longer telling
+// the views where its session is; or where it couldn't list them, those it
+// listed last, while the router that listed them answers, as a router
+// restarted or replaced lists its own; and none while probing. It posts what
+// the change calls for, unless the router is there to post its own, as
+// nothing is to be told twice; follows the router as it goes and comes back;
+// notes the events new to it, and the readings it gives; asks
 // the router for its history with a full read, and as the router answers
 // again, or another router does, as one restarted, or probing, reads the
 // readings history's files with the first full read since probing began; keeps
@@ -965,7 +971,6 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	m.doc, m.asRead, m.taking.moment, m.updated, m.failed = doc, asReadOf(look), look.Held(), now, ""
 	switch {
 	case msg.listed || !look.Routed:
-		m.order = m.frame(now).OrderOf(doc)
 		m.sessions, m.listedBy = msg.sessions, msg.router
 		m.traffic = m.traffic.listedAs(msg.sessions)
 	case !msg.router.Same(m.listedBy):
@@ -1119,25 +1124,23 @@ func (m Model) framed(msg frameMsg) Model {
 // nextFrame is how long after now what moves on screen next changes, and
 // whether anything does: nothing while a card is open, as the page behind it
 // stands still; else frameEvery while anything moves frame by frame on the
-// screen render drew at now: what travels the cords, or on the page, a bar
-// easing to its reading, or a number brightened, or the cue on an event, an
-// account's state or a window's words, fading back; else as soon as the
-// shimmer down a cord steps on, on the clock's steps of it, or a move yet to
-// show re-patches Sessions' calls. Sessions' plain list is drawn again as
-// the stream tells of more, and as the clock ticks.
+// screen render drew at now: what travels the cords it draws, or on the
+// page, a bar easing to its reading, or a number brightened, or the cue on
+// an event, an account's state or a window's words, fading back; else as
+// soon as the shimmer down a cord steps on, on the clock's steps of it, or,
+// on Sessions with no session's page over it, a move yet to show shows,
+// putting its session on its new account.
 func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
-	if m.open != nothingOpen {
-		return 0, false
-	}
-	moving := m.shown.moving
-	if moving.Smooth {
-		return frameEvery, true
-	}
 	var next []time.Duration
-	if moving.Shimmer {
+	switch moving := m.shown.moving; {
+	case m.open != nothingOpen:
+		return 0, false
+	case moving.Smooth:
+		return frameEvery, true
+	case moving.Shimmer:
 		next = append(next, untilStep(now, shimmerStep)+stepSlack)
 	}
-	if shows, ok := m.traffic.showing(now); ok && m.view == dashboard.Sessions {
+	if shows, ok := m.traffic.showing(now); ok && m.view == dashboard.Sessions && m.session == nil {
 		next = append(next, shows.Sub(now)+stepSlack)
 	}
 	if len(next) == 0 {

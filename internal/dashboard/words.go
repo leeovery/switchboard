@@ -2,16 +2,18 @@ package dashboard
 
 import (
 	"cmp"
-	"fmt"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
+
+// noSessionsRunning is what the dashboard says where it lists the sessions
+// running and none runs, as while no router lists any: SESSIONS on the
+// Overview, and Sessions' Switchboard, with cords or in lanes.
+const noSessionsRunning = "no sessions running"
 
 // name is what the dashboard calls an account: its label, which is its id
 // unless the config gives another, cleaned.
@@ -63,27 +65,6 @@ func either(names []string, k, between ink) line {
 		l = append(l, span{n, k})
 	}
 	return l
-}
-
-// spanOf names a window by its length, as in "5-hour window" or "7-day
-// window", or by its key, cleaned, where that doesn't give its length.
-func spanOf(key string) string {
-	length, ok := quota.Length(key)
-	switch {
-	case !ok:
-		return prose.Clean(key)
-	case length%quota.Day == 0:
-		return fmt.Sprintf("%d-day window", length/quota.Day)
-	default:
-		return fmt.Sprintf("%d-hour window", length/time.Hour)
-	}
-}
-
-// lately says the span a recent rate measured at at is over, from since, as
-// an adjective: "last-30-min", "last-18-min", or across a gap in its
-// readings, "last-2h".
-func lately(since, at time.Time) string {
-	return strings.ReplaceAll(status.Over(since, at), " ", "-")
 }
 
 // because follows what with why, cleaned, where there's a why.

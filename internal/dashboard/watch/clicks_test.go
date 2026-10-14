@@ -471,15 +471,19 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 	}
 }
 
-func TestShowingSessionsAsAnAnswerStreamsDrawsItsFrames(t *testing.T) {
+func TestShowingTheOverviewAsAnAnswerStreamsDrawsItsFrames(t *testing.T) {
 	h := streamingOn(t, dashboard.Sections{})
+	h.keys(shiftTabKey)
 	h.settle()
 	h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamFirst, "r1", "work", 0))
+	if _, ok := h.pendingFrame(); h.model.view != dashboard.Log || ok {
+		t.Fatalf("on %q as d28c's answer streams, a frame is armed %v, want the Log, none armed", h.model.view, ok)
+	}
 
-	target := h.tabTarget(dashboard.Sessions)
+	target := h.tabTarget(dashboard.Overview)
 	h.click(target.X, target.Y)
-	if _, ok := h.pendingFrame(); h.model.view != dashboard.Sessions || !ok {
-		t.Errorf("a click showing Sessions as d28c's answer streams showed %q, a frame armed %v; want Sessions, a frame armed to draw its shimmer", h.model.view, ok)
+	if _, ok := h.pendingFrame(); h.model.view != dashboard.Overview || !ok {
+		t.Errorf("a click showing the Overview as d28c's answer streams showed %q, a frame armed %v; want the Overview, a frame armed to draw work's rate brightening", h.model.view, ok)
 	}
 }
 

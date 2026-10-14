@@ -101,13 +101,15 @@ type AccountNow struct {
 	Routing Routing
 	// Hold is what holds it back at its limit at Now, as held has it, and
 	// Held is set where anything does. LimitHolds is set where the limit the
-	// router saw it reach holds at Now, whatever its windows read, and
-	// LimitSince is when it reached it, as that limit's event tells: zero
-	// where none tells.
+	// router saw it reach holds at Now, whatever its windows read,
+	// LimitSince is when it reached it, and LimitMoved how many sessions it
+	// has moved off the account so far, each as that limit's event tells:
+	// zero where none tells.
 	Hold       Hold
 	Held       bool
 	LimitHolds bool
 	LimitSince time.Time
+	LimitMoved int
 	// ReachedReserve are the keys of its windows at its reserve at Now,
 	// whether or not the global pin spends it, as reachedReserve has them.
 	// CapHolds is set where its cap holds it back from every request at Now,
@@ -484,12 +486,13 @@ func (j judgedAccount) measured() []quota.Window {
 // the moment, its windows named as names has them.
 func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowName) AccountNow {
 	d, s, a := m.doc, j.states, j.states.account
+	limit, _ := d.LimitEvent(a, m.Now)
 	an := AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, Elsewhere: d.elsewhere(a.ID), InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
-		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitSince: eventAt(d.LimitEvent(a, m.Now)),
+		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitSince: limit.At, LimitMoved: limit.Count,
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(),
 		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},

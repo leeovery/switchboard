@@ -15,7 +15,8 @@ import (
 // show and hide its sections, b switches how its windows are grouped, and ↑
 // and ↓ move the focus, as overviewKey says; on Accounts, its keys act as
 // accountsKey says; on History, [ ], < >, v and ← → act as historyKey says;
-// on the Log, [ ], ↑ ↓, end, esc, enter, s, f and / act as logKey says; tab
+// on Sessions, its keys act as sessionsKey says; on the Log, [ ], ↑ ↓, end,
+// esc, enter, s, f and / act as logKey says; tab
 // and shift-tab show the next tab and the one before, as turn has it; t
 // opens the theme picker; and w, in Runway, switches between the day and the
 // week. esc, whatever the page does with it, drops a session's page asked to
@@ -38,6 +39,9 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if next, ok := afresh.historyKey(k); ok {
 		return next, nil
+	}
+	if next, cmd, ok := afresh.sessionsKey(k); ok {
+		return next, cmd
 	}
 	if next, cmd, ok := afresh.logKey(k); ok {
 		return next, cmd
@@ -113,10 +117,11 @@ type pageKeys struct {
 // faint where its section is hidden; b, its word saying how the windows are
 // grouped; and with more than one account, ↑↓, which the key line sets with
 // p, ? and q; w, in Runway, switching between the day and the week, its word
-// saying which it shows; and Accounts', History's and the Log's, as
-// accountsListings, historyListings and logListings have them, Detail's
-// SESSIONS listing the sessions running given. A session's page lists its
-// own, as sessionKeys has them, in place of its tab's.
+// saying which it shows; and Accounts', History's, Sessions' and the Log's,
+// as accountsListings, historyListings, sessionsListings and logListings
+// have them, Detail's SESSIONS listing the sessions running given. A
+// session's page lists its own, as sessionKeys has them, in place of its
+// tab's.
 func (m Model) keys(running []string) pageKeys {
 	shown := m.shownView()
 	if shown == dashboard.SessionPage {
@@ -133,7 +138,7 @@ func (m Model) keys(running []string) pageKeys {
 		keyListing{Key: dashboard.Key{Key: "w", Does: "window: " + m.span.Name()}, works: shown == dashboard.Runway},
 	)
 	pin, pinned := m.pinKey()
-	own = slices.Concat(own, m.accountsListings(running), m.historyListings(), m.logListings())
+	own = slices.Concat(own, m.accountsListings(running), m.historyListings(), m.sessionsListings(), m.logListings())
 	scrollsAlways := overview || shown == dashboard.Log
 	return pageKeys{own: own, overview: overview, scrollsAlways: scrollsAlways, pin: pin, pinned: pinned, coloured: m.coloured()}
 }
@@ -210,11 +215,12 @@ func (m Model) historyListings() []keyListing {
 // pin where a pin can be set, and ? help and q quit last; and the note a key
 // left in their place, while that's news. Most pages set p pin apart, a
 // phone's line keeping the page's own keys between those that lead and ?
-// and q quit, but those it leaves to a wider line, or on the Log, with no
-// session's page open over it, those logPhoneKeys keeps; the Overview sets
-// ↑↓ focus, p pin, ? help and q quit as a group of their own, overviewApart
-// after its toggles, which a phone's line leaves to help. Each key works as
-// the page drawn as f has it, at now, the moment it was drawn at.
+// and q quit, but those it leaves to a wider line, or on the Log and
+// Sessions, with no session's page open over it, those logPhoneKeys and
+// sessionsPhoneKeys keep; the Overview sets ↑↓ focus, p pin, ? help and q
+// quit as a group of their own, overviewApart after its toggles, which a
+// phone's line leaves to help. Each key works as the page drawn as f has
+// it, at now, the moment it was drawn at.
 func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	if m.picker.open {
 		return dashboard.KeyLine{Groups: [][]dashboard.Key{m.picker.keys(), {dashboard.Quit}}, Lead: dashboard.KeysAfter, Note: m.noted(now)}
@@ -239,8 +245,11 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 		return l
 	}
 	l.Phone = page.phone
-	if m.shownView() == dashboard.Log {
+	switch m.shownView() {
+	case dashboard.Log:
 		l.Phone = m.logPhoneKeys()
+	case dashboard.Sessions:
+		l.Phone = m.sessionsPhoneKeys()
 	}
 	if keys.pinned {
 		l.Groups = append(l.Groups, []dashboard.Key{keys.pin})

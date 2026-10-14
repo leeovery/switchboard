@@ -49,17 +49,15 @@ func keyOf(l *ledger.Line) (lineKey, bool) {
 }
 
 // PageLive is what a session's page is built of beside its lines: the
-// session as the router lists it, nil where it doesn't; whether no router
-// lists the sessions; the session as the router's last listing had it, nil
-// where it didn't, which counts only while no router lists them, and then
-// for its own pin alone, as the pin stands at the router all the same; what
-// the request stream told; and now.
+// session as the router lists it, or while it doesn't answer, as its last
+// listing had it, as the List has it then, nil where it doesn't; whether no
+// router lists the sessions, as ListLive's Unlisted has it; what the request
+// stream told; and now.
 type PageLive struct {
-	Routed     *status.Session
-	Unlisted   bool
-	LastRouted *status.Session
-	Stream     Stream
-	Now        time.Time
+	Routed   *status.Session
+	Unlisted bool
+	Stream   Stream
+	Now      time.Time
 }
 
 // HoldPage holds the page of the session with the given id, of what read
@@ -252,7 +250,8 @@ func (h HeldPage) Page(live PageLive) (SessionPage, bool) {
 // page is the page as Page builds it, of w.
 func (w worked) page() (SessionPage, bool) {
 	h, live, by := w.h, w.live, w.by
-	if len(h.requests) == 0 && live.Routed == nil {
+	routed, running := by.routed[h.id]
+	if len(h.requests) == 0 && !running {
 		return SessionPage{}, false
 	}
 	listed := by.listed(h.id, h.story)
@@ -261,14 +260,14 @@ func (w worked) page() (SessionPage, bool) {
 		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
 		Resumed: resumedAt(w.sent), Accounts: slices.Clone(h.accounts), Moves: movesOf(h.story), Activity: listed.Activity,
 	}
-	unplaced := live.Routed != nil && by.h.unplaced(*live.Routed)
+	unplaced := running && by.h.unplaced(routed)
 	page.Turns = turnsOf(w.tallies, w.inNone, page.Runs(), unplaced)
 	page.Goes = by.goesOf(h.id, live.Stream, h.requests, w.sent)
-	switch {
-	case live.Routed != nil:
-		page.Pin, page.Auto = live.Routed.Pin, autoOf(*live.Routed, page.Model)
-	case live.Unlisted && live.LastRouted != nil:
-		page.Pin = live.LastRouted.Pin
+	if running {
+		page.Pin = routed.Pin
+		if !live.Unlisted {
+			page.Auto = autoOf(routed, page.Model)
+		}
 	}
 	if !page.Running && h.story.first != nil {
 		page.KeptUntil, _ = dayfile.KeptUntil(Today(h.story.first.At).Date, h.keep)
@@ -348,13 +347,13 @@ func (h hearing) unplaced(s status.Session) bool {
 
 // goesOf are where the models of the session with the given id go now, as
 // its page's row 7 has them: where the router lists it, as it lists them,
-// the moves the stream s told of since taken in, each with the reason and
-// time of the move that took it there; else each model's latest account, in
-// the order the models first came, as its requests as its turns take them
-// in, sent, give them, each with the reason of its latest line, of its
-// requests, oldest first, the router didn't keep where it was. Either way, a
-// model that came there by starting there gives why a request since kept it
-// there, as keptLines has it.
+// the moves the stream s told of since, as unlisted has them, taken in, each
+// with the reason and time of the move that took it there; else each model's
+// latest account, in the order the models first came, as its requests as
+// its turns take them in, sent, give them, each with the reason of its
+// latest line, of its requests, oldest first, the router didn't keep where
+// it was. Either way, a model that came there by starting there gives why a
+// request since kept it there, as keptLines has it.
 func (by lister) goesOf(id string, s Stream, requests []request, sent []sent) []SessionModel {
 	kept := keptOf(requests)
 	if _, listed := by.routed[id]; listed {
@@ -362,7 +361,7 @@ func (by lister) goesOf(id string, s Stream, requests []request, sent []sent) []
 		for _, a := range by.goes[id] {
 			goes = append(goes, SessionModel{Model: a.Model, Account: a.Account, Reason: kept[a.Model].why(a.Account, a.Reason), Since: cameAt(a)})
 		}
-		for _, m := range newestMoves(s.Moves) {
+		for _, m := range newestMoves(s.unlisted()) {
 			if i := slices.IndexFunc(goes, func(g SessionModel) bool { return m.Session == id && g.Model == m.Model && g.Account == m.To }); i >= 0 {
 				goes[i].Reason, goes[i].Since = m.Reason, m.At
 			}

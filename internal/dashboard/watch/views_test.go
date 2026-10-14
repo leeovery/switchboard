@@ -83,7 +83,7 @@ func TestTabTurnsRoundTheSixTabs(t *testing.T) {
 	}{
 		{key: "tab", want: dashboard.Accounts},
 		{key: "tab", want: dashboard.History},
-		{key: "tab", want: dashboard.Sessions, wantShows: "┌─ 1 · WORK ─"},
+		{key: "tab", want: dashboard.Sessions},
 		{key: "tab", want: dashboard.Runway, wantShows: "accounts with room"},
 		{key: "tab", want: dashboard.Log},
 		{key: "tab", want: dashboard.Overview, wantShows: overview},

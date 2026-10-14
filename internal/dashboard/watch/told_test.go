@@ -239,7 +239,10 @@ func TestTheRequestsNoLongerInFlightGoSeenForAfterTheStreamLastToldOfThem(t *tes
 	}
 }
 
-func TestTheViewsReadTheMovesNoListingHasShownDone(t *testing.T) {
+// The views read each move from as soon as it's told of, and once a listing
+// shows it done, read it still, listed, for what it says of where its model
+// came from.
+func TestTheViewsReadEachMoveListedOrNot(t *testing.T) {
 	moved := alter(told(router.StreamMoved, "r1", "side", time.Second), func(e *router.StreamEvent) {
 		e.From, e.To, e.Reason = "work", "side", status.ReasonMovedOff+"work "+status.WhyLimit
 	})
@@ -248,8 +251,9 @@ func TestTheViewsReadTheMovesNoListingHasShownDone(t *testing.T) {
 	if got := tr.stream(past(time.Second)).Moves; !reflect.DeepEqual(got, want) {
 		t.Errorf("the moves the views read are %+v, want %+v, from as soon as it's told of", got, want)
 	}
-	if got := tr.listedAs(d28cListedOn("side")).stream(past(time.Second)).Moves; len(got) > 0 {
-		t.Errorf("listed where it went, the moves the views read are %+v, want none", got)
+	want[0].Listed = true
+	if got := tr.listedAs(d28cListedOn("side")).stream(past(time.Second)).Moves; !reflect.DeepEqual(got, want) {
+		t.Errorf("listed where it went, the moves the views read are %+v, want %+v, listed", got, want)
 	}
 }
 
@@ -270,8 +274,8 @@ func TestTheViewsSeeAMoveFromWhenTheCordsShowIt(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			f := h.model.frame(tt.at)
-			if drawn, read := len(f.Traffic.Moves) > 0, len(f.Stream.Moves) > 0; drawn != tt.shown || read != tt.shown {
-				t.Errorf("the cords draw a move: %t, and the views read one: %t, want both %t", drawn, read, tt.shown)
+			if drawn, read := f.Traffic.On(idD28C, "side").Doing != 0, len(f.Stream.Moves) > 0; drawn != tt.shown || read != tt.shown {
+				t.Errorf("the cords draw d28c on side: %t, and the views read its move: %t, want both %t", drawn, read, tt.shown)
 			}
 			if got, want := views.RunningCounts(views.RunningOf(h.model.moment(tt.at), f.Sessions, f.Stream))["side"], map[bool]int{true: 1}[tt.shown]; got != want {
 				t.Errorf("RunningCounts on side = %d, want %d, as the cords show d28c there", got, want)

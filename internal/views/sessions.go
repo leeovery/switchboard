@@ -134,11 +134,25 @@ type SessionSources struct {
 // whatever day, as the ledger's Sessions reads them.
 func ListSessions(src SessionSources) SessionList {
 	today := Today(src.Now)
-	by := newLister(src.Running, src.Unlisted, src.Stream, src.Now)
 	read := src.Ledger.Sessions(runningIDs(src.Running), nil)
-	list := SessionList{GeneratedAt: src.Now.UTC(), PricesAsOf: src.Prices.AsOf, Sessions: []ListedSession{}}
-	for _, id := range listedIDs(read, src.Running) {
-		s := storyOf(requestsOf(read[id], src.Prices, today.Date), src.Prices, today)
+	stories := make(map[string]*story, len(read))
+	for id, lines := range read {
+		stories[id] = storyOf(requestsOf(lines, src.Prices, today.Date), src.Prices, today)
+	}
+	return listOf(stories, newLister(src.Running, src.Unlisted, src.Stream, src.Now), src.Prices)
+}
+
+// listOf is the List of the sessions by lists, as the router lists them,
+// and those stories tells of with requests today, each as listed has it, its
+// story the one stories holds by its id, else one of no requests: each day's
+// List, whether it's built afresh or held.
+func listOf(stories map[string]*story, by lister, prices ledger.Table) SessionList {
+	list := SessionList{GeneratedAt: by.now.UTC(), PricesAsOf: prices.AsOf, Sessions: []ListedSession{}}
+	for _, id := range listedIDs(stories, by.routed) {
+		s := stories[id]
+		if s == nil {
+			s = newStory(prices, Today(by.now))
+		}
 		if _, running := by.routed[id]; !running && s.requests == 0 {
 			continue
 		}
@@ -160,13 +174,13 @@ func runningIDs(running []status.Session) []string {
 	return ids
 }
 
-// listedIDs returns the ids of the sessions read and those running gives,
-// each once.
-func listedIDs(read map[string][]ledger.Line, running []status.Session) []string {
-	ids := slices.Collect(maps.Keys(read))
-	for _, s := range running {
-		if _, ok := read[s.ID]; !ok {
-			ids = append(ids, s.ID)
+// listedIDs returns the ids of the sessions told of and those routed, each
+// once.
+func listedIDs(told map[string]*story, routed map[string]status.Session) []string {
+	ids := slices.Collect(maps.Keys(told))
+	for id := range routed {
+		if _, ok := told[id]; !ok {
+			ids = append(ids, id)
 		}
 	}
 	return ids
@@ -187,41 +201,64 @@ type lister struct {
 
 // newLister returns the lister of the sessions running, as the router lists
 // them, unlisted saying no router does, the request stream s telling of
-// them, at now.
+// them, at now: those that run, as runningNow has them, every model of each,
+// as the Switchboard reads them, whether the listing is fresh or the last the
+// watch holds.
 func newLister(running []status.Session, unlisted bool, s Stream, now time.Time) lister {
 	by := lister{
 		routed: make(map[string]status.Session, len(running)), goes: make(map[string][]status.Assignment),
 		unlisted: unlisted, h: s.hearing(), now: now,
 	}
-	for _, session := range running {
-		by.routed[session.ID] = session
-	}
-	for _, session := range s.placed(running, by.h) {
+	for _, session := range runningNow(s.placed(running, by.h), now) {
 		by.goes[session.ID] = session.Assignments
+	}
+	for _, session := range running {
+		if _, runs := by.goes[session.ID]; runs {
+			by.routed[session.ID] = session
+		}
 	}
 	return by
 }
 
 // listed returns the session with the given id as the List has it, its story
-// s telling of its requests: ended at its last request; named as names has
-// it, the stream's requests of it taken in, its models going where they go
-// now; running, where the router lists it, as run has it; doing as activity
-// has it; and come to its account as cameBy has it.
+// s telling of its requests: in the directory dir gives; ended at its last
+// request; named as names has it; running, where the router lists it, as run
+// has it; doing as activity has it; and come to its account as cameBy has
+// it.
 func (by lister) listed(id string, s *story) ListedSession {
-	listed := ListedSession{Session: id, Dir: s.dir, Requests: s.requests, Worth: s.worth}
+	listed := ListedSession{Session: id, Dir: by.dir(id, s), Requests: s.requests, Worth: s.worth}
 	if s.first != nil {
 		listed.Started = s.first.At.UTC()
 	}
 	if s.last != nil {
 		listed.Ended = s.last.At.UTC()
 	}
-	listed.Account, listed.Model = s.naming.heard(by.h.told[id]).names(by.goes[id])
+	listed.Account, listed.Model = by.names(id, s)
 	if session, running := by.routed[id]; running {
 		listed.run(session, s, by.now)
 	}
 	listed.Activity = by.activity(id, s)
 	listed.cameBy(s.moveOnto(listed.Model, listed.Account))
 	return listed
+}
+
+// dir is the directory the session with the given id runs in, its story s
+// telling of its lines: as the router gives it, where it lists it, of the
+// model seen most lately that names one; else as its lines last name it; ""
+// where neither names one.
+func (by lister) dir(id string, s *story) string {
+	named := slices.DeleteFunc(slices.Clone(by.routed[id].Assignments), func(a status.Assignment) bool { return a.Dir == "" })
+	if len(named) == 0 {
+		return s.dir
+	}
+	return slices.MaxFunc(named, func(a, b status.Assignment) int { return a.LastSeen.Compare(b.LastSeen) }).Dir
+}
+
+// names are the account and model naming the session with the given id, its
+// story s telling of its lines, as naming.names has them: the stream's
+// requests of it taken in, its models going where they go now.
+func (by lister) names(id string, s *story) (account, model string) {
+	return s.naming.heard(by.h.told[id]).names(by.goes[id])
 }
 
 // activity is what the session with the given id is doing at now, its story
@@ -249,14 +286,10 @@ func (by lister) activity(id string, s *story) Activity {
 }
 
 // run has the session running, as the router says of it at now: its models;
-// its directory, of the model seen most lately that names one, where any
-// does; what its requests in flight are doing, as the router listed them;
-// and what moving it would cost, its story telling the rest.
+// what its requests in flight are doing, as the router listed them; and what
+// moving it would cost, its story telling the rest.
 func (l *ListedSession) run(session status.Session, s *story, now time.Time) {
 	l.Running, l.Ended = true, time.Time{}
-	if named := slices.DeleteFunc(slices.Clone(session.Assignments), func(a status.Assignment) bool { return a.Dir == "" }); len(named) > 0 {
-		l.Dir = slices.MaxFunc(named, func(a, b status.Assignment) int { return a.LastSeen.Compare(b.LastSeen) }).Dir
-	}
 	for _, a := range session.Assignments {
 		l.Models = append(l.Models, SessionModel{Model: a.Model, Account: a.Account, Reason: a.Reason, Since: cameAt(a)})
 		l.LastSeen = score.Later(l.LastSeen, a.LastSeen.UTC())

@@ -11,6 +11,10 @@ import (
 // as far, and one both stale and out of the pool keeps 35% of 35%.
 const staleFade = 0.65
 
+// rampSteps are the steps a bar's cells take along the ramp: a cell's colour
+// is the ramp's at the nearest eighth of the way along.
+const rampSteps = 8
+
 // usageBar is a window's bar as the usage block draws it: filled to used,
 // from 0 to 1, more filling it, or on the Overview, while it eases to used
 // after a read, to eased; its cap's mark where its account's cap is, at capAt

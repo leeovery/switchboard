@@ -82,6 +82,14 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 			"work": {state: "■ limit", head: "■ limit reached"},
 			"side": {state: "■ refused", head: "■ refused (401) · its token needs renewing"},
 		},
+		"a limit moving the session it refused, at once": {
+			"work": {state: "■ limit", head: "■ limit reached · new sessions go elsewhere"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
+		"a limit moving a second session, at its next request": {
+			"work": {state: "■ limit", head: "■ limit reached · new sessions go elsewhere"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
 		"its token refused, a limit naming no window holding": {
 			"work": {state: "■ limit", head: "■ limit reached · new sessions go elsewhere"},
 			"side": {state: "● open", head: "● open · new sessions come here"},

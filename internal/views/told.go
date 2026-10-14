@@ -2,6 +2,7 @@ package views
 
 import (
 	"iter"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -25,9 +26,19 @@ type Stream struct {
 	// and each it told of last within the hour a session runs for unseen,
 	// ended or lost.
 	Requests map[string]Told
-	// Moves are the moves it told of that no listing of the router's
-	// sessions has shown done, the oldest first.
+	// Moves are the moves it told of within the hour a session runs for
+	// unseen, the oldest first, each once it shows, a listing of the
+	// router's sessions showing it done or not: what brought a model where
+	// it is says so until a line of its own takes over, while only those no
+	// listing has shown done put a model where it went, as unlisted has them.
 	Moves []Moved
+}
+
+// unlisted are the moves s told of that no listing of the router's sessions
+// has shown done, the oldest first: those that put a model where it went,
+// as the router doesn't list it there yet.
+func (s Stream) unlisted() []Moved {
+	return slices.DeleteFunc(slices.Clone(s.Moves), func(m Moved) bool { return m.Listed })
 }
 
 // Told is a request as the request stream has told of it, by its id, each
@@ -89,11 +100,14 @@ const (
 
 // Moved is a session's model moving to another account, as the request
 // stream told of it: the request that moved it, the session and its model,
-// the accounts it left and went to, why, as the router gave it, and when.
+// the accounts it left and went to, why, as the router gave it, and when;
+// and whether a listing of the router's sessions has shown it done, listing
+// the model where it went, or where a move of it since went.
 type Moved struct {
 	Request, Session, Model string
 	From, To, Reason        string
 	At                      time.Time
+	Listed                  bool
 }
 
 // SameRow reports whether t tells what o does of its request's row as its

@@ -244,6 +244,30 @@ func TestDashboardShowsAccountsAsKept(t *testing.T) {
 	}
 }
 
+// Sessions opens on the sub-tab prefs.json keeps; none kept, as it opens at
+// first: the Switchboard.
+func TestDashboardShowsSessionsAsKept(t *testing.T) {
+	tests := []struct {
+		name, prefs string
+		want        dashboard.SessionsView
+	}{
+		{name: "none kept", prefs: `{}`},
+		{name: "as kept", prefs: `{"sessions": {"view": "list"}}`, want: dashboard.SessionsList},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			if got := cfg.SessionsShown.Shown; got != tt.want {
+				t.Errorf("the dashboard opens Sessions on %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 // The Log shows the columns prefs.json keeps shown; none kept, those shown
 // at first.
 func TestDashboardShowsTheLogsColumnsAsKept(t *testing.T) {

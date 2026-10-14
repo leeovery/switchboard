@@ -60,8 +60,8 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 		f.Sections = Sections{}.Toggled(SectionRouting).Toggled(SectionComing).Toggled(SectionLately)
 		return f
 	}
-	sessions := frameOf(160, 60)
-	sessions.View = Sessions
+	unbuilt := frameOf(160, 60)
+	unbuilt.View = "a-later-view"
 	workBar, studioBar := Ref{Account: "work", Window: "5h"}, Ref{Account: "studio", Window: "5h"}
 	tests := []struct {
 		name   string
@@ -90,9 +90,8 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 			name: "a bar scrolled out of view easing", f: usageAlone(30), doc: ten, at: routedAt,
 			settle: func(f *Frame) { f.Eased = map[Ref]float64{studioBar: 0.3} },
 		},
-		{name: "on Sessions, nothing settling", f: sessions, doc: ten, at: routedAt, settle: func(*Frame) {}},
 		{
-			name: "on Sessions, a panel's bar easing", f: sessions, doc: ten, at: routedAt, want: true,
+			name: "on a tab that draws no bar, a bar easing", f: unbuilt, doc: ten, at: routedAt,
 			settle: func(f *Frame) { f.Eased = map[Ref]float64{workBar: 0.3} },
 		},
 		{
@@ -119,10 +118,6 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 			name: "an event fresh, LATELY folded", f: frameOf(160, 30), doc: news, at: now,
 			settle: func(f *Frame) { f.Fresh = map[int]float64{2: 0.5} },
 		},
-		{
-			name: "an event fresh, its row on screen in LOG", f: sessions, doc: news, at: now, want: true,
-			settle: func(f *Frame) { f.Fresh = map[int]float64{1: 0.5} },
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -133,6 +128,48 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 			}
 			if _, got := f.Rendered(tt.doc, tt.at); got != f.Motion(tt.doc, tt.at) {
 				t.Errorf("Rendered's motion is %+v, want it as Motion has it", got)
+			}
+		})
+	}
+}
+
+// What travels a cord moves frames only while the cord's drawn, on screen:
+// a pulse along it frame by frame, the shimmer down it a step at a time, and
+// a loose cord fading frame by frame. A cord the page doesn't draw, as one
+// scrolled out of view, moves nothing, nor does any off Sessions, or under a
+// session's page.
+func TestWhatTravelsACordOnScreenAloneMovesTheFrame(t *testing.T) {
+	work, side := Plug{Session: idD28C, Account: "work"}, Plug{Session: id7F3A, Account: "side"}
+	pulsing := Call{Doing: Asking, Pulsing: true, Pulse: Pulse{Along: 0.5}}
+	tests := []struct {
+		name  string
+		view  View
+		page  bool
+		calls map[Plug]Call
+		loose []Loose
+		want  Motion
+	}{
+		{name: "nothing travelling", view: Sessions, calls: map[Plug]Call{work: {Doing: Asking}}},
+		{name: "a pulse along a cord drawn", view: Sessions, calls: map[Plug]Call{work: pulsing}, want: Motion{Smooth: true}},
+		{name: "an answer streaming down a cord drawn", view: Sessions, calls: map[Plug]Call{work: {Doing: Streaming, Shimmer: 3}}, want: Motion{Shimmer: true}},
+		{name: "a pulse along a cord not drawn", view: Sessions, calls: map[Plug]Call{side: pulsing}},
+		{name: "a loose cord drawn, fading", view: Sessions, loose: []Loose{{Session: "41e0", From: "work", Fade: 0.4}}, want: Motion{Smooth: true}},
+		{name: "a loose cord not drawn, fading", view: Sessions, loose: []Loose{{Session: "41e0", From: "side", Fade: 0.4}}},
+		{name: "off Sessions", view: Overview, calls: map[Plug]Call{work: pulsing}},
+		{name: "under a session's page", view: Sessions, page: true, calls: map[Plug]Call{work: pulsing}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(160, 37)
+			f.View, f.Traffic = tt.view, Traffic{Calls: tt.calls, Loose: tt.loose}
+			if tt.page {
+				f.Session = &SessionShown{}
+			}
+			c := newCanvas(30, 6)
+			c.corded(cord{plug: 2, from: 0, to: 2, bend: 9}.path(20), work)
+			c.hung(rowCells(11, 20, 4), Loose{Session: "41e0", From: "work"})
+			if got := f.moving(c); got != tt.want {
+				t.Errorf("what moves is %+v, want %+v", got, tt.want)
 			}
 		})
 	}

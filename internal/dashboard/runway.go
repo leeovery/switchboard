@@ -57,6 +57,10 @@ const (
 	// roomGlyph is a lane where its account has room, whether it's draining
 	// or not, as its colour tells.
 	roomGlyph = "▆"
+	// shadeCell is a lane draining where the look has no colour.
+	shadeCell = "▒"
+	// nextBadge is the badge of the account new sessions go to.
+	nextBadge = "▲ next"
 )
 
 // nextInk is the badge of the account new sessions go to.

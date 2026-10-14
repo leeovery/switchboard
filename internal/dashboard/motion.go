@@ -17,45 +17,78 @@ type Motion struct {
 }
 
 // Motion is what moves on screen of the frame of doc at now, as moving has
-// it: its page drawn, of the one moment, as At holds it, to know only where
-// anything on it may settle, as MaySettle says, as what travels the cords
-// needs none of it drawn.
+// it: its page drawn, of the one moment, as At holds it, only where anything
+// on it may settle, as MaySettle says.
 func (f Frame) Motion(doc status.Document, now time.Time) Motion {
 	f = f.At(doc, now)
 	if !f.MaySettle() {
-		return f.travel(doc, now)
+		return Motion{}
 	}
-	return f.moving(f.page(doc, now), doc, now)
+	return f.moving(f.page(doc, now))
 }
 
-// moving is what moves on screen of the frame of doc at now, its page drawn
-// on c: what travels the cords, as travel has it; and anything the page
-// draws settling, as settling says.
-func (f Frame) moving(c *canvas, doc status.Document, now time.Time) Motion {
-	moving := f.travel(doc, now)
-	moving.Smooth = moving.Smooth || f.settling(c)
+// moving is what moves on screen of the frame's page, drawn on c, as
+// MaySettle has it may: anything it draws settling, as settles says, and
+// what travels a cord it draws, as travelling says. What the page doesn't
+// draw never moves, as one scrolled out of view, in a section folded, or
+// left off for want of room.
+func (f Frame) moving(c *canvas) Motion {
+	var moving Motion
+	if !f.MaySettle() {
+		return moving
+	}
+	for _, row := range c.cells {
+		for _, here := range row {
+			if here.mark != (unique.Handle[mark]{}) {
+				moving = moving.or(f.motionOf(here.mark.Value()))
+			}
+		}
+	}
 	return moving
 }
 
-// travel is what travels the cords Sessions' switchboard shows, as
-// travelling has it, but nothing of a view too short to be drawn, as
-// cramped says, nor under a session's page, drawn in its place.
-func (f Frame) travel(doc status.Document, now time.Time) Motion {
-	if f.cramped() || f.Shown() != Sessions {
-		return Motion{}
+// or is what moves of m and n together.
+func (m Motion) or(n Motion) Motion {
+	return Motion{Smooth: m.Smooth || n.Smooth, Shimmer: m.Shimmer || n.Shimmer}
+}
+
+// motionOf is what moves of what m marks: of a cord, as travelling has it,
+// else Smooth while it settles, as settles has it.
+func (f Frame) motionOf(m mark) Motion {
+	if m.cord != (Plug{}) {
+		return f.travelling(m)
 	}
-	return f.travelling(doc, now)
+	return Motion{Smooth: f.settles(m)}
+}
+
+// travelling is what moves of the cord m marks, as the Traffic tells: a
+// loose one Smooth while it hangs, fading; else Smooth while a pulse runs
+// along it, and Shimmer while the answer of the call plugged in there
+// streams back.
+func (f Frame) travelling(m mark) Motion {
+	if m.loose {
+		return Motion{Smooth: f.Traffic.hangs(m.cord)}
+	}
+	call := f.Traffic.Calls[m.cord]
+	return Motion{Smooth: call.Pulsing, Shimmer: call.Doing == Streaming}
 }
 
 // MaySettle reports whether anything the frame's page draws may be
 // settling: a number brightening, as its Brightened says; a bar easing, as
-// its Eased says; or a cue fading back, on an event fresh, as its Fresh
-// says, an account's state changed, as its Changed says, or in a word, as
-// its StateChanged says, or a window's words turned to out ~, as its
-// TurnedOut says. Where nothing may, what moves on screen needs none of the
-// page drawn.
+// its Eased says; a cue fading back, on an event fresh, as its Fresh says,
+// an account's state changed, as its Changed says, or in a word, as its
+// StateChanged says, or a window's words turned to out ~, as its TurnedOut
+// says; or anything travelling the cords Sessions draws, as travels says.
+// Where nothing may, what moves on screen needs none of the page drawn.
 func (f Frame) MaySettle() bool {
-	return len(f.Brightened)+len(f.Eased)+len(f.Fresh)+len(f.Changed)+len(f.StateChanged)+len(f.TurnedOut) > 0
+	return len(f.Brightened)+len(f.Eased)+len(f.Fresh)+len(f.Changed)+len(f.StateChanged)+len(f.TurnedOut) > 0 || f.travels()
+}
+
+// travels reports whether anything travels the cords Sessions draws, with
+// no session's page over it, as its Traffic tells: a pulse along one, a
+// shimmer down one, or a cord a move let go, fading.
+func (f Frame) travels() bool {
+	return f.Shown() == Sessions && f.Traffic.moves()
 }
 
 // Filled are how much of each bar the frame's view draws of doc at now it
@@ -64,10 +97,9 @@ func (f Frame) MaySettle() bool {
 // moment of doc at now, as At holds it: each account's window as it stands
 // at now, which reads empty once it has reset since it was read; on the
 // Overview, as USAGE draws them, and the pool's at now, but none of a bar
-// USAGE draws empty, which has nothing to ease; on Accounts, as
-// accountsFilled has them; on Sessions, as its panels draw them, but none of
-// a window a panel draws without a bar; and none on a view that draws no
-// bar, nor under a session's page, which draws none.
+// USAGE draws empty, which has nothing to ease; on Accounts and Sessions,
+// as accountsFilled and sessionsFilled have them; and none on a view that
+// draws no bar, nor under a session's page, which draws none.
 func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
 	switch f.Shown() {
 	case Overview:
@@ -75,7 +107,7 @@ func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
 	case Accounts:
 		return f.accountsFilled(doc, now)
 	case Sessions:
-		return sessionsFilled(f.Moment(doc, now))
+		return f.sessionsFilled(doc, now)
 	}
 	return nil
 }
@@ -88,14 +120,6 @@ func overviewFilled(m status.Moment) map[Ref]float64 {
 		filled[Ref{Window: p.Key}] = p.Used
 	}
 	return filled
-}
-
-// sessionsFilled are how much of each bar Sessions' panels draw of m it
-// fills, as Filled has them, by its account and key: each window as it
-// stands, where its panel draws it a bar, as it does where it doesn't stand
-// not started.
-func sessionsFilled(m status.Moment) map[Ref]float64 {
-	return windowsFilled(m, func(w status.WindowNow) bool { return w.Kind != status.WindowNotStarted })
 }
 
 // windowsFilled are how much of each of m's accounts' windows a bar drawn of
@@ -113,24 +137,6 @@ func windowsFilled(m status.Moment, drawn func(status.WindowNow) bool) map[Ref]f
 	return filled
 }
 
-// settling reports whether anything the frame's page, drawn on c, settles
-// still, as MaySettle has it may. What the page doesn't draw never does, as
-// one scrolled out of view, in a section folded, or left off for want of
-// room.
-func (f Frame) settling(c *canvas) bool {
-	if !f.MaySettle() {
-		return false
-	}
-	for _, row := range c.cells {
-		for _, here := range row {
-			if here.mark != (unique.Handle[mark]{}) && f.settles(here.mark.Value()) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // settles reports whether what m marks settles still in the frame: a cue,
 // drawn only while it fades back; a bar easing; or a number brightening.
 func (f Frame) settles(m mark) bool {
@@ -142,24 +148,4 @@ func (f Frame) settles(m mark) bool {
 		return easing
 	}
 	return f.Brightened[m.number] > 0
-}
-
-// sight is how a view's content shows on screen: rows of its rows, from the
-// row offset; and none of it where a card is open over the page, which
-// stands still behind it.
-type sight struct {
-	offset, rows int
-	covered      bool
-}
-
-// inSight is how the frame's page shows its view's content, rows of its rows
-// from the row offset.
-func (f Frame) inSight(offset, rows int) sight {
-	return sight{offset: offset, rows: rows, covered: f.Card != nil}
-}
-
-// shows reports whether any of the content's cells, width cells wide from
-// its row y, rows tall, shows on screen.
-func (s sight) shows(y, width, rows int) bool {
-	return !s.covered && width > 0 && max(y, s.offset) < min(y+rows, s.offset+s.rows)
 }

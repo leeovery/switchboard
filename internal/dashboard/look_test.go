@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // now is the clock every frame is drawn at: a Monday, 13:12 an hour east of
@@ -52,9 +53,36 @@ func threeAccounts() status.Document {
 	return doc.WorkedOut(claude)
 }
 
+// onTheBoard is Sessions' Switchboard of threeAccounts, d28c chosen: on work,
+// d28c asking; on side, c61b answering, and 41e0, idle, moved from personal;
+// d28c's request going out, c61b's answer streaming back, and 7f3a's cord,
+// let go by its move from personal, fading.
+func onTheBoard() (dashboard.SessionsShown, dashboard.Traffic) {
+	call := func(session, account string, a views.Activity, from string) views.Call {
+		return views.Call{Account: account, Session: session, Models: []string{"claude-opus-5-5"}, Activity: a, Dir: "~/Code/" + session, From: from}
+	}
+	asked := now.Add(-2 * time.Second)
+	gone := []views.Call{call("7f3a", "personal", views.Activity{Since: asked, LastSeen: asked}, "")}
+	calls := []views.Call{
+		call("d28c", "work", views.Activity{Doing: views.Asking, Since: asked, LastSeen: asked}, ""),
+		call("c61b", "side", views.Activity{Doing: views.Answering, Since: asked, LastSeen: asked}, ""),
+		call("41e0", "side", views.Activity{Since: asked, LastSeen: asked}, "personal"),
+	}
+	board := dashboard.SessionsShown{Calls: calls, Chosen: dashboard.Plug{Session: "d28c", Account: "work"}}
+	board.Patched = views.Patch(views.Patch(views.Patched{}, gone, nil), calls, nil)
+	traffic := dashboard.Traffic{
+		Calls: map[dashboard.Plug]dashboard.Call{
+			{Session: "d28c", Account: "work"}: {Doing: dashboard.Asking, Pulsing: true, Pulse: dashboard.Pulse{Along: 0.4}},
+			{Session: "c61b", Account: "side"}: {Doing: dashboard.Streaming, Shimmer: 1},
+		},
+		Loose: []dashboard.Loose{{Session: "7f3a", From: "personal", Fade: 0.3}},
+	}
+	return board, traffic
+}
+
 // frames are frames of threeAccounts the tests draw, as text alone: full
-// screen, at a size each, Sessions, and Runway over the day and the week,
-// among them.
+// screen, at a size each, Sessions' Switchboard, and Runway over the day and
+// the week, among them.
 func frames() map[string]dashboard.Frame {
 	frame := func(width, height int) dashboard.Frame {
 		return dashboard.Frame{
@@ -69,6 +97,7 @@ func frames() map[string]dashboard.Frame {
 	}
 	sessions := frame(160, 40)
 	sessions.View = dashboard.Sessions
+	sessions.SessionsTab, sessions.Traffic = onTheBoard()
 	return map[string]dashboard.Frame{
 		"wide": frame(160, 40), "two rows": frame(120, 50), "short, scrolling": frame(160, 20), "phone": frame(52, 36),
 		"sessions": sessions, "runway, the day": runway(dashboard.Day), "runway, the week": runway(dashboard.Week),
@@ -139,20 +168,18 @@ func TestAFrameReadsTheSameInEveryBuiltInThatBlends(t *testing.T) {
 	}
 }
 
-func TestTheTerminalThemeDrawsInTheTerminalsOwnColoursAndShade(t *testing.T) {
+func TestTheTerminalThemeDrawsInTheTerminalsOwnColours(t *testing.T) {
 	look := dashboard.Screen(builtin(t, theme.Terminal))
 	if look.Canvas() != nil {
 		t.Errorf("Canvas() = %v, want none painted", look.Canvas())
 	}
-	frame := strings.Join(drawn(frames()["sessions"], look), "\n")
+	frame := strings.Join(drawn(frames()["wide"], look), "\n")
 	if strings.Contains(frame, "38;2;") || strings.Contains(frame, "48;2;") {
 		t.Errorf("drawn in the terminal's own colours, it has a colour of its own:\n%q", frame)
 	}
 	text := ansi.Strip(frame)
-	for _, want := range []string{"Session  ████████▉▒▒▒▒▒┃░░░░░░░░░  37%  → 62%", "Week     █████████▋▒▒▒┃▒▒▒░░░░░░░  40%  → 70%"} {
-		if !strings.Contains(text, want) {
-			t.Errorf("drawn in the terminal's own colours\n%s\nwant %q, where it can't fade a bar's projection, in shade", text, want)
-		}
+	if want := "1 work ◆      ██████▎░░░┃░░░░░░  37%"; !strings.Contains(text, want) {
+		t.Errorf("drawn in the terminal's own colours\n%s\nwant %q, its bars drawn whole", text, want)
 	}
 	for i, row := range strings.Split(text, "\n") {
 		if strings.TrimRight(row, " ") != row {
@@ -162,7 +189,7 @@ func TestTheTerminalThemeDrawsInTheTerminalsOwnColoursAndShade(t *testing.T) {
 }
 
 func TestTheTerminalThemeDrawsWhatsDimFaintAndWhatsPickedOutReversed(t *testing.T) {
-	f := frames()["sessions"]
+	f := frames()["wide"]
 	f.Fresh = map[int]float64{1: 0.2}
 	rows := drawn(f, dashboard.Screen(builtin(t, theme.Terminal)))
 
@@ -178,9 +205,9 @@ func TestTheTerminalThemeDrawsWhatsDimFaintAndWhatsPickedOutReversed(t *testing.
 	for _, tt := range []struct {
 		name, text, want string
 	}{
-		{name: "a panel's border, faint", text: "┌─ ", want: "2"},
-		{name: "the tab shown, reversed", text: "Sessions", want: "7"},
-		{name: "an event looked at newly, picked out reversed", text: "has room again", want: "7"},
+		{name: "a heading's rule, faint", text: "──────", want: "2"},
+		{name: "the tab shown, reversed", text: "Overview", want: "7"},
+		{name: "an event looked at newly, picked out reversed", text: "13:11", want: "7"},
 	} {
 		if params := drawnWith(rows, tt.text); !slices.Contains(params, tt.want) {
 			t.Errorf("%s: %q is drawn with SGR %q, want %s among them", tt.name, tt.text, params, tt.want)
