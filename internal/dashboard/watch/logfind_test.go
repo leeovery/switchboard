@@ -171,6 +171,37 @@ func TestEnterOnAnEarlierDaysSessionShowsItsLinesAlonePausedAtItsNewest(t *testi
 	}
 }
 
+// enter on a session running today that also worked yesterday filters the
+// tables to its few lines, which read back as on opening to fill the view,
+// yesterday's among them, though the table filled its view before.
+func TestEnterOnARunningSessionReadsBackItsEarlierLinesToFillTheView(t *testing.T) {
+	state := t.TempDir()
+	var today []ledger.Held
+	for i := range 60 {
+		today = append(today, ranIn(fmt.Sprintf("0c%06d", i), webSession, "~/Code/web", -time.Duration(70-i)*time.Minute))
+	}
+	writeLines(t, state, today...)
+	writeLines(t, state,
+		ranIn("0b000001", apiSession, "~/Code/api", -day),
+		ranIn("0b000002", apiSession, "~/Code/api", -5*time.Minute), ranIn("0b000003", apiSession, "~/Code/api", -4*time.Minute),
+	)
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.start()
+	if h.model.log.from.Date != dayfile.DateOf(past(0)) {
+		t.Fatalf("the Log spans from %s as it opens, want today alone, its view filled", h.model.log.from.Date)
+	}
+
+	h.typed("/", "a", "p", "i")
+	h.keys(enter)
+	if h.model.log.page.Paused() {
+		t.Fatal("found as running, api's lines are paused at, want them followed")
+	}
+	if got, want := shownRequests(h), []string{"0b000001", "0b000002", "0b000003"}; !slices.Equal(got, want) {
+		t.Errorf("filtered to api, the Requests show %v, want %v, yesterday's read back to fill the view", got, want)
+	}
+}
+
 // esc on the Log, the newest first: closes the find; follows again where
 // the table is paused; then lets the filter go, as the find set it.
 func TestEscOnTheLogClosesTheFindThenFollowsThenLetsTheFilterGo(t *testing.T) {

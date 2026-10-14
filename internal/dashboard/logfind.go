@@ -52,12 +52,21 @@ func (f LogFinding) Stepped(by int) LogFinding {
 
 // FoundOnly is the Log filtered to the session given alone, as the find's
 // enter has it: both tables showing its lines alone, as the panel ticks a
-// session, each following again; and the find closed.
+// session, each following again, refiltered; and the find closed.
 func (p LogPage) FoundOnly(id string) LogPage {
 	p.Filter.Sessions, p.Shows.Sessions = []string{id}, []string{id}
 	p.Finding = LogFinding{}
-	for v := range p.Stands {
-		p.Stands[v] = LogStand{filled: p.Stands[v].filled}
+	p.Stands = [2]LogStand{}
+	return p
+}
+
+// refiltered is p with the tables given unfilled, as each stood as it first
+// opened, whose filter has changed what it shows: short of its view, each
+// reads back to fill it, as it did on opening, paused or following as it
+// stands.
+func (p LogPage) refiltered(tables ...LogView) LogPage {
+	for _, v := range tables {
+		p.Stands[v].filled = false
 	}
 	return p
 }
@@ -72,11 +81,12 @@ func (p LogPage) Filtered() bool {
 }
 
 // Unfiltered is the Log with what Filtered says its filter keeps alone let
-// go, as esc lets it go: the kinds each table shows kept.
+// go, as esc lets it go: the kinds each table shows kept, and each table
+// refiltered.
 func (p LogPage) Unfiltered() LogPage {
 	p.Filter = views.LogFilter{Kinds: p.Filter.Kinds}
 	p.Shows = views.EventFilter{Kinds: p.Shows.Kinds}
-	return p
+	return p.refiltered(LogRequests, LogEvents)
 }
 
 // The find's line's spacing: the cells after what's typed, before the match

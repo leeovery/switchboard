@@ -223,6 +223,34 @@ func TestLandingChoosesTheFirstRequestAtOrAfterAMoment(t *testing.T) {
 	}
 }
 
+// A table whose filter changes what it shows stands as it first opened,
+// unfilled, so, short of its view, it reads back to fill it: as the find's
+// enter, the panel's, and esc letting the filter go each change it, whether
+// the table filled its view before.
+func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
+	const session = "d28c5e17-0000-4000-8000-000000000001"
+	requests, events := threeAsked().Filling(3), threeAsked().Turned(1)
+	pinned := views.ReadEvents(filedEvents([]status.Event{{ID: 1, At: logDay, Kind: status.EventPin, Accounts: []string{"personal"}}}), logDay, logDayNoon)
+	events.Events = views.LogEvents(views.LogEventSources{From: logDay, Events: pinned, Filed: views.OldestKept(theDayBefore, 0, logDayNoon), Now: logDayNoon})
+	events = events.Filling(1)
+	tests := []struct {
+		name string
+		page LogPage
+	}{
+		{name: "the find's enter", page: requests.FoundOnly(session)},
+		{name: "the panel's enter", page: requests.Applied(requests.Panel())},
+		{name: "the Events' panel's enter", page: events.Applied(events.Panel())},
+		{name: "esc letting the filter go", page: requests.FoundOnly(session).Filling(3).Unfiltered()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !tt.page.WantsDayBefore(10) {
+				t.Error("refiltered, the table doesn't want the day before, short of its view")
+			}
+		})
+	}
+}
+
 // The session of the line chosen, whose page s opens, is the one a request
 // counts toward, as views count it: none for a quota check, sent under an
 // id never used again; a session's event's; and none of an account's event,
