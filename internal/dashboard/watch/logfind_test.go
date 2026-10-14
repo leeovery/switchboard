@@ -282,17 +282,20 @@ func TestAFoundSessionReadsBackNoFurtherThanItsFirstDay(t *testing.T) {
 
 // A table refiltered reads back no further than the days' summaries say the
 // lines of its page's Reach reach, though the ledger and the router's files
-// go back thirty days: the Requests through quota checks alone, no day
-// holding one, read back no day; through checks alone, the first a week
-// back, to that day; and the Events, shown after a find, to the found
-// session's first day. Each day read back is read whole, so the days read
-// are counted.
+// go back thirty days: the Requests through quota checks alone, or an
+// account, no day holding a line of either, read back no day; through
+// checks alone, the first a week back, to that day; and the Events, shown
+// after a find, to the found session's first day. Each day read back is
+// read whole, so the days read are counted.
 func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(t *testing.T) {
-	checksAlone := func(h *harness) {
-		h.keyed("f")
-		h.model.log.panel.Filter.Kinds = []views.RowKind{views.RowCheck}
-		h.keys(enter)
+	applied := func(tick func(*views.LogFilter)) func(h *harness) {
+		return func(h *harness) {
+			h.keyed("f")
+			tick(&h.model.log.panel.Filter)
+			h.keys(enter)
+		}
 	}
+	checksAlone := applied(func(f *views.LogFilter) { f.Kinds = []views.RowKind{views.RowCheck} })
 	foundAPI := func(h *harness) {
 		h.typed("/", "a", "p", "i")
 		h.keys(enter)
@@ -305,6 +308,7 @@ func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(
 	}{
 		{name: "the Requests through checks alone, none on any day", filter: checksAlone},
 		{name: "the Requests through checks alone, the first a week back", checked: 7, filter: checksAlone, reach: 7},
+		{name: "the Requests through an account of no lines", filter: applied(func(f *views.LogFilter) { f.Accounts = []string{"personal"} })},
 		{name: "the Events after a find", found: foundAPI, filter: func(h *harness) { h.typed("]") }, reach: 3},
 	}
 	for _, tt := range tests {
