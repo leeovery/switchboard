@@ -119,6 +119,29 @@ func TestTheFindReadsTheDaysSummariesAfreshAsItOpens(t *testing.T) {
 	}
 }
 
+// A read of the days' summaries under way as the find closes, landing once
+// it has opened again, is of the find as it last opened: it's dropped, and
+// they're read afresh, so a session of a day that has turned between is
+// found.
+func TestTheFindDropsASummariesReadOfAnEarlierOpening(t *testing.T) {
+	state := t.TempDir()
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.clock.now = onTheDay(13, 0, 0)
+	h.start()
+	stale := h.press("/")
+	h.keys(escape)
+
+	writeLines(t, state, arrivedAt("0d000001", onTheDay(23, 0, 0)))
+	h.clock.now = onTheDay(24, 1, 0)
+	h.read(probedWithoutTheRouter())
+	h.typed("/")
+	h.deliver(stale...)
+	if got, want := foundIDs(h), []string{idD28C}; !slices.Equal(got, want) {
+		t.Errorf("open again as the read of its last opening came, the find finds %q, want %q, of the day before, its summary read afresh", got, want)
+	}
+}
+
 // enter on a session of an earlier day filters both tables to it, the
 // tables reading back to its day, then pauses at its newest line, chosen,
 // the panel listing it among today's sessions, ticked; but with the filter

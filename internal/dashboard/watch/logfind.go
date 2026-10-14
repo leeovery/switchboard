@@ -19,7 +19,8 @@ import (
 // held for the run, so it walks back through the days once a run; the
 // summaries of the days the ledger keeps, which name the sessions of each
 // before its lines are read, and whether they're read since the find last
-// opened; whether a read for it is under way, one at a time; the session
+// opened, its openings counted, so a read of them as it opened before is
+// dropped; whether a read for it is under way, one at a time; the session
 // enter picked, once it has ended, for the table shown to pause at its
 // newest line once the tables reach its day; and the session enter picked
 // last, which joins the panel's sessions while the filter keeps it.
@@ -27,16 +28,19 @@ type findWalk struct {
 	days      map[string][]views.DaySession
 	summaries []ledger.Summary
 	summed    bool
+	opening   int
 	reading   bool
 	landing   *views.FoundSession
 	picked    *views.FoundSession
 }
 
 // findReadMsg is what a read for the Log's find found: the summaries of the
-// days the ledger keeps, where summed says it read them; else the sessions
-// of the past day with the given date, as its lines name them.
+// days the ledger keeps, where summed says it read them, as the find stood
+// at the opening given; else the sessions of the past day with the given
+// date, as its lines name them.
 type findReadMsg struct {
 	summed    bool
+	opening   int
 	summaries []ledger.Summary
 	date      string
 	sessions  []views.DaySession
@@ -48,6 +52,7 @@ type findReadMsg struct {
 func (m Model) openLogFind() (Model, tea.Cmd) {
 	m.log.page.Finding = dashboard.LogFinding{Open: true}
 	m.log.find.summed = false
+	m.log.find.opening++
 	return m, nil
 }
 
@@ -153,14 +158,14 @@ func (m Model) readFind() (Model, tea.Cmd) {
 // oldest is known; then the lines of the next day it names to read, newest
 // first, for its sessions' directories, each day once a run.
 func (m Model) walkFind() (Model, tea.Cmd) {
-	l, oldest, next := m.cfg.Ledger, m.log.oldest.Day, m.log.page.Finding.Found.Next
+	l, oldest, next, opening := m.cfg.Ledger, m.log.oldest.Day, m.log.page.Finding.Found.Next, m.log.find.opening
 	if m.log.find.reading || l == nil || oldest.Date == "" {
 		return m, nil
 	}
 	var read func() tea.Msg
 	switch {
 	case !m.log.find.summed:
-		read = func() tea.Msg { return findReadMsg{summed: true, summaries: l.Days(oldest.Start)} }
+		read = func() tea.Msg { return findReadMsg{summed: true, opening: opening, summaries: l.Days(oldest.Start)} }
 	case next != "":
 		read = func() tea.Msg { return findReadMsg{date: next, sessions: views.DaySessions(l.Day(next))} }
 	default:
@@ -171,11 +176,15 @@ func (m Model) walkFind() (Model, tea.Cmd) {
 }
 
 // findRead takes in what a read for the find found: the summaries of the
-// days, or a day's sessions, held for the run, each read made afresh, so
-// the find built of what was held never sees it change.
+// days, read as it last opened, else dropped; or a day's sessions, held for
+// the run; each read made afresh, so the find built of what was held never
+// sees it change.
 func (m Model) findRead(msg findReadMsg) Model {
 	m.log.find.reading = false
-	if msg.summed {
+	switch {
+	case msg.summed && msg.opening != m.log.find.opening:
+		return m
+	case msg.summed:
 		m.log.find.summaries, m.log.find.summed = msg.summaries, true
 		return m
 	}
