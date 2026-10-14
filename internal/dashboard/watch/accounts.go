@@ -53,31 +53,33 @@ func (m Model) accountsBuilt() Model {
 	return m
 }
 
-// standing is Accounts as the frame shows it at the moment mo: its page, as
-// it was built, stood there, as views.AccountsPage.At stands it; none till
-// the days are read.
-func (t accountsTab) standing(mo status.Moment) dashboard.AccountsShown {
+// standing is Accounts as the frame f shows it at the moment mo: its page,
+// as it was built, stood there, as views.AccountsPage.At stands it, none
+// till the days are read; and Compare's columns scrolled to show its focus
+// at f's size, as CompareFirst has them, from as far along as they were
+// left, so a frame narrower than the one they were scrolled in still shows
+// it.
+func (t accountsTab) standing(f dashboard.Frame, mo status.Moment) dashboard.AccountsShown {
 	s := t.shown
 	if t.page != nil {
 		s.Page = new(t.page.At(mo))
 	}
+	s.First = f.CompareFirst(s.Focus)
 	return s
 }
 
 // showAccounts shows Accounts as given: another sub-tab or period from the
-// view's top; Compare's columns scrolled to its focus, at the size drawn
-// at, as CompareFirst has them. It keeps what the preferences keep of it,
-// where that's changed, for the next watch to open with: the sub-tab and the
-// period, its page built afresh as accountsBuilt has it.
+// view's top; Compare's columns as far along as the frame scrolls them to
+// show its focus, as standing has them. It keeps what the preferences keep
+// of it, where that's changed, for the next watch to open with: the sub-tab
+// and the period, its page built afresh as accountsBuilt has it.
 func (m Model) showAccounts(s dashboard.AccountsShown) Model {
 	was := m.accounts.shown
 	if s.View() != was.View() || s.Period != was.Period {
 		m.scroll = 0
 	}
 	m.accounts.shown = s
-	if s.View() == dashboard.AccountsCompare && s.Focused {
-		m.accounts.shown.First = m.frame(m.now()).CompareFirst(s.Focus)
-	}
+	m.accounts.shown.First = m.frame(m.now()).Accounts.First
 	if kept := s.Kept(); kept != was.Kept() {
 		m.keepPrefs("what Accounts shows", func(prefs *theme.Prefs) { prefs.Accounts = kept }, "accounts", kept)
 	}

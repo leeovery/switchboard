@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -325,6 +326,30 @@ func TestComparesFocusMovesAlongItsColumnsAndEnterOpensItInDetail(t *testing.T) 
 	h.keys(enterKey)
 	if s := h.model.accounts.shown; s.View() != dashboard.AccountsDetail || s.Chosen != "acct-7" || h.model.scroll != 0 {
 		t.Errorf("enter showed %d of %q, scrolled %d; want Detail of acct-7, from its top", s.View(), s.Chosen, h.model.scroll)
+	}
+}
+
+// A frame too narrow for the columns Compare showed its focus among scrolls
+// them on to show it: ten accounts focused on acct-7 at 160 columns, six
+// showing, show acct-4 to acct-7 at 122, four showing, as the heading says.
+func TestAResizeKeepsComparesFocusInView(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{})
+	ten := make(config.Accounts, 10)
+	for i := range ten {
+		ten[i] = config.Account{ID: "acct-" + strconv.Itoa(i+1)}
+	}
+	h.model.accounts.shown.Accounts = ten
+	h.keys(slices.Repeat([]tea.KeyPressMsg{rightKey}, 7)...)
+	h.update(tea.WindowSizeMsg{Width: 122, Height: 37})
+	var columns []string
+	for _, t := range h.targets() {
+		if t.On == dashboard.OnColumn && !slices.Contains(columns, t.Account) {
+			columns = append(columns, t.Account)
+		}
+	}
+	heading := strings.Split(h.view(), "\n")[4]
+	if want := []string{"acct-4", "acct-5", "acct-6", "acct-7", ""}; !slices.Equal(columns, want) || !strings.Contains(heading, "accounts 4–7 of 10") {
+		t.Errorf("at 122 columns, focused on acct-7, Compare draws the columns %q under %q; want %q, accounts 4–7 of 10", columns, heading, want)
 	}
 }
 
