@@ -669,6 +669,33 @@ func TestTURNSSaysWhyASessionHasNoTurns(t *testing.T) {
 	}
 }
 
+// A phone's two rows of now say a pin's move as its views do, short, the
+// second cut with … to leave how it has run whole at its right: its own pin
+// moving it, and its pin yielding, which the hard moments don't hold.
+func TestAPhonesNowRowsSayAPinsMoveShort(t *testing.T) {
+	tests := []struct {
+		name, reason, from, to string
+		row7, row8             string
+	}{
+		{name: "pinned here", reason: status.ReasonPinned, from: "work", to: "side",
+			row7: "↑ asking  on side ▲ since 14:31", row8: "pinned here                                   2h 40m"},
+		{name: "its pin yielding", reason: status.ReasonPinYields + "side has no room", from: "side", to: "work",
+			row7: "↑ asking  on work since 14:31", row8: "its pin to side yields: side has no room      2h 40m"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shown := moved()
+			shown.Page.Account = tt.to
+			shown.Page.Moves = []views.SessionMove{{At: at(14, 31), Model: opus, From: tt.from, To: tt.to, Reason: tt.reason}}
+			f := pageFrame(t, shown, 52, 32)
+			rows, now := pageText(f), f.sessionLayout(len(shown.Page.Accounts)).now
+			if rows[now] != tt.row7 || rows[now+1] != tt.row8 {
+				t.Errorf("a phone's rows of now read\n%q\n%q\nwant\n%q\n%q", rows[now], rows[now+1], tt.row7, tt.row8)
+			}
+		})
+	}
+}
+
 // Once it's over, a phone's rows say it ended, then where it ran, short,
 // and how long it ran (call 60).
 func TestAnEndedSessionOnAPhone(t *testing.T) {
