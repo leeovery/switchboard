@@ -114,10 +114,11 @@ func logHeads(c *canvas, y int, l logLayout, k ink) {
 }
 
 // logRequest draws a request's row along a row, its columns laid out as
-// layout, of the moment m at now, as requestRow draws it.
+// layout, of the moment m at now, as requestRow draws it, as it stands at
+// now, the stream telling what the page holds of it.
 func (f Frame) logRequest(m status.Moment, now time.Time, layout logLayout) func(c *canvas, y int, l logLine) {
 	return func(c *canvas, y int, l logLine) {
-		requestRow(c, y, *l.row, layout, func(id string) string { return named(m, id) }, now)
+		requestRow(c, y, l.row.Live(f.Log.Stream, now), layout, func(id string) string { return named(m, id) }, now)
 	}
 }
 
@@ -164,7 +165,8 @@ func rowMark(r views.RequestRow) span {
 
 // requestCell is what the request's row r says in the column given, but
 // stopped and routing, which requestWords say, laid out as layout, each
-// account named as name names it, its times in now's time zone.
+// account named as name names it, its times in now's time zone, and in
+// flight, how long it has taken counting.
 func requestCell(r views.RequestRow, column LogColumn, layout logLayout, name func(id string) string, now time.Time) line {
 	switch column {
 	case LogAt:

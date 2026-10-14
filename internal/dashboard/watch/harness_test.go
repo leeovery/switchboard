@@ -167,6 +167,22 @@ func (h *harness) deliver(msgs ...tea.Msg) {
 	}
 }
 
+// holdingReads delivers msgs and all they send back, as deliver does, but
+// for the Log's reads of its own, which it holds back undelivered, as reads
+// still under way, and returns.
+func (h *harness) holdingReads(msgs ...tea.Msg) []tea.Msg {
+	h.t.Helper()
+	var held []tea.Msg
+	for ; len(msgs) > 0; msgs = msgs[1:] {
+		if _, ok := msgs[0].(logReadMsg); ok {
+			held = append(held, msgs[0])
+			continue
+		}
+		msgs = append(msgs, h.update(msgs[0])...)
+	}
+	return held
+}
+
 // run runs cmd and every command it batches, returning what they send back.
 func (h *harness) run(cmd tea.Cmd) []tea.Msg {
 	if cmd == nil {

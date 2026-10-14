@@ -201,17 +201,21 @@ type lister struct {
 
 // newLister returns the lister of the sessions running, as the router lists
 // them, unlisted saying no router does, the request stream s telling of
-// them, at now.
+// them, at now: those that run, as runningNow has them, every model of each,
+// as the Switchboard reads them, whether the listing is fresh or the last the
+// watch holds.
 func newLister(running []status.Session, unlisted bool, s Stream, now time.Time) lister {
 	by := lister{
 		routed: make(map[string]status.Session, len(running)), goes: make(map[string][]status.Assignment),
 		unlisted: unlisted, h: s.hearing(), now: now,
 	}
-	for _, session := range running {
-		by.routed[session.ID] = session
-	}
-	for _, session := range s.placed(running, by.h) {
+	for _, session := range runningNow(s.placed(running, by.h), now) {
 		by.goes[session.ID] = session.Assignments
+	}
+	for _, session := range running {
+		if _, runs := by.goes[session.ID]; runs {
+			by.routed[session.ID] = session
+		}
 	}
 	return by
 }

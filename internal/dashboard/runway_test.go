@@ -2,11 +2,16 @@ package dashboard
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // runwayAt is Thursday 1 October 2026, 14:42, in the machine's own zone, as
@@ -186,6 +191,115 @@ func TestRunwaysTimelineIsTheLiveViewsOrTheDaySteppedBacksAcrossItsColumns(t *te
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.shown.TimelineAt(runwayAt(), time.Monday, 160); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("TimelineAt(160) = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// runwayFramed is Runway of the frames' moment views' RunwayMoments name as
+// given, as the frames draw its world: new sessions going to side, ▲ on it,
+// and its days' summaries filing no reset of a window that read nothing, as
+// the ledger files none; its timeline, lanes and COMING UP built at the
+// look, as the watch builds them; in nord, 160 by 37. It gives the frame and
+// the document it's drawn of, at the moment's now.
+func runwayFramed(t *testing.T, name string) (Frame, status.Document, time.Time) {
+	t.Helper()
+	return runwayFramedAt(t, name, 160, 37)
+}
+
+// runwayFramedAt is Runway of the moment named as runwayFramed has it, on a
+// terminal width columns wide and height rows tall.
+func runwayFramedAt(t *testing.T, name string, width, height int) (Frame, status.Document, time.Time) {
+	t.Helper()
+	moments := viewstest.RunwayMoments()
+	i := slices.IndexFunc(moments, func(rm viewstest.RunwayMoment) bool { return rm.Name == name })
+	if i < 0 {
+		t.Fatalf("no Runway moment is named %q", name)
+	}
+	rm := moments[i]
+	doc := rm.Doc
+	doc.Best = "side"
+	m := doc.At(rm.Now, claude.Policy)
+	tl := views.Stepped(rm.Window, rm.Day, rm.Now, rm.WeekStarts, RunwayColumns(width))
+	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Readings: rm.Readings, Days: filed(rm.Days), Kept: rm.Kept, Timeline: tl, Window: rm.Window})
+	f := Frame{
+		Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claude.Policy,
+		Runway: RunwayShown{Window: rm.Window, Back: rm.Day, Timeline: tl, Lanes: &lanes, Coming: views.RunwayComing(m, rm.Window)},
+	}
+	return f, doc, rm.Now
+}
+
+// filed are the days given as the ledger files them: no reset of a window
+// whose run read nothing, as nothing was open to reset.
+func filed(days []ledger.Summary) []ledger.Summary {
+	days = slices.Clone(days)
+	for i := range days {
+		days[i].Accounts = slices.Clone(days[i].Accounts)
+		for j, a := range days[i].Accounts {
+			days[i].Accounts[j].Resets = slices.DeleteFunc(slices.Clone(a.Resets), func(r ledger.Reset) bool { return r.Before == 0 })
+		}
+	}
+	return days
+}
+
+// The cells of Runway's frames drawn otherwise than the design or their
+// world: where the week's frame ticks Friday and four of its quarters, and
+// names Friday, a cell before where the design's columns of 74.1 minutes
+// from Wednesday 14:40 put them; where it has side's week room till Monday
+// 10:00, which its world, 78% used since Monday 10:00, runs out ~Fri 12:18
+// at its average pace, as USAGE's frames have it: side's lane and words, the
+// pool's dip and words from then, and COMING UP, a line longer for it; and
+// the part-filled cell of now's column in the pool's lane, on the canvas in
+// the frames where the design has bg.subtle (D4).
+var (
+	weeksTicksAhead  = []spot{{7, 50, 53}, {8, 50, 51}, {8, 84, 85}, {8, 118, 119}, {8, 152, 153}, {8, 157, 158}}
+	sidesWeekRunsOut = []spot{{16, 43, 116}, {17, 24, 159}, {19, 61, 116}, {20, 75, 90}, {21, 72, 159}, {29, 0, 159}, {30, 0, 159}, {31, 0, 159}, {32, 0, 159}, {33, 0, 159}}
+)
+
+// Runway draws its frames cell for cell, in nord, from the heading row to
+// the foot of COMING UP, every part drawn from the views' facts of its
+// world.
+func TestRunwayIsDrawnAsItsFrames(t *testing.T) {
+	tests := []struct {
+		stem, moment string
+		passed       []spot
+	}{
+		{stem: "runway-5-hour-160", moment: "the auto world's 5-hour view", passed: []spot{{19, 30, 30}}},
+		{stem: "runway-week-160", moment: "the auto world's week view", passed: slices.Concat(weeksTicksAhead, sidesWeekRunsOut, []spot{{19, 43, 43}})},
+		{stem: "runway-stepped-back-160", moment: "the auto world, Wednesday stepped back to"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.stem, func(t *testing.T) {
+			f, doc, now := runwayFramed(t, tt.moment)
+			drawn, frame, canvas := screenOf(t, f.Draw(doc, now)), reference(t, tt.stem), shadeOf(f.Look.Canvas())
+			heldTo(t, tt.stem, frame, drawn, region{top: 4, bottom: 35, right: 159}, canvas, tt.passed, nil)
+		})
+	}
+}
+
+// Each account's use of the view's window under its name is a number a look
+// reads, which brightens as it changes, as is the pool's room under Σ pool;
+// the highest a day gone read isn't, and it has no room.
+func TestTheUseUnderEachNameIsANumberALookReads(t *testing.T) {
+	tests := []struct {
+		moment string
+		want   map[Number]string
+	}{
+		{moment: "the auto world's 5-hour view", want: map[Number]string{
+			{Kind: NumberUsed, Account: "work", Of: "5h"}: "95%", {Kind: NumberUsed, Account: "personal", Of: "5h"}: "39%", {Kind: NumberUsed, Account: "side", Of: "5h"}: "13%",
+			{Kind: NumberRoom, Of: "5h"}: "1.5",
+		}},
+		{moment: "the auto world's week view", want: map[Number]string{
+			{Kind: NumberUsed, Account: "work", Of: "7d"}: "34%", {Kind: NumberUsed, Account: "personal", Of: "7d"}: "66%", {Kind: NumberUsed, Account: "side", Of: "7d"}: "78%",
+			{Kind: NumberRoom, Of: "7d"}: "1.2",
+		}},
+		{moment: "the auto world, Wednesday stepped back to", want: map[Number]string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.moment, func(t *testing.T) {
+			f, doc, now := runwayFramed(t, tt.moment)
+			if got := f.Numbers(doc, now); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Runway's numbers are %v, want %v", got, tt.want)
 			}
 		})
 	}

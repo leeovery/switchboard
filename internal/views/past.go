@@ -16,28 +16,31 @@ type Past struct {
 }
 
 // NewPast is the Past of the days given, the summaries the ledger holds of a
-// year and today, oldest first, priced at today's prices. The input gives the
-// time now, the prices, the accounts, their weeks and the families; From, the
-// day the days were asked for from, for Tokens to price a period they begin
-// part-way through by its days alone; and Began, where the ledger began,
-// never taken from the days, as the first held needn't be its first: its
-// Ledger goes unread, as the days are given.
+// year and today, oldest first, read at now, priced at today's prices. The
+// input gives the time now, the prices, the accounts, their weeks and the
+// families; From, the day the days were asked for from, for Tokens to price a
+// period they begin part-way through by its days alone; and Began, where the
+// ledger began, never taken from the days, as the first held needn't be its
+// first: its Ledger goes unread, as the days are given.
 func NewPast(in HistoryInput, days []ledger.Summary) Past {
+	in.read = in.Now
 	today := dayfile.DateOf(in.Now)
 	v := versions{table: in.Prices, family: in.Family}
 	return Past{in: in, days: pricedDays(days, in.Prices, today, v)}
 }
 
 // Since is the Past at now, the days given, the summaries the ledger holds of
-// the days from the first of them to today, oldest first, in place of those
-// it held from that day on. Only they are priced, at now's day's prices, as
-// they're given: the days held before them stand as they were priced, so a
-// look that reads today alone prices today alone.
+// the days from the first of them to today, oldest first, read at now, in
+// place of those it held from that day on. Only they are priced, at now's
+// day's prices, as they're given: the days held before them stand as they
+// were priced, so a look that reads today alone prices today alone. Given
+// none, the days held stand as read when they were, the Past at now alone.
 func (p Past) Since(days []ledger.Summary, now time.Time) Past {
 	p.in.Now = now
 	if len(days) == 0 {
 		return p
 	}
+	p.in.read = now
 	today := dayfile.DateOf(now)
 	before, _ := splitAt(p.days, days[0].Day)
 	p.days = slices.Concat(before, pricedDays(days, p.in.Prices, today, p.versions()))
@@ -76,6 +79,18 @@ func (p Past) began() string {
 		return ""
 	}
 	return dayfile.DateOf(p.in.Began)
+}
+
+// Summaries are the summaries of the days the Past holds from first to last,
+// each as dayfile.Civil gives a day, oldest first, as the ledger gave them:
+// what Runway's lanes read of the days a timeline stepped back to shows, and
+// of the week before them.
+func (p Past) Summaries(first, last time.Time) []ledger.Summary {
+	var held []ledger.Summary
+	for _, d := range between(p.days, first.Format(time.DateOnly), last.Format(time.DateOnly)) {
+		held = append(held, d.Summary)
+	}
+	return held
 }
 
 // Weeks is Weeks' page: the eight weeks to this one.

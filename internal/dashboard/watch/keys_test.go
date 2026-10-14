@@ -43,8 +43,11 @@ func TestTheKeyLineGroupsTheKeysOfEachTab(t *testing.T) {
 		{view: dashboard.Overview, lead: 5, after: 5, want: [][]string{{"tab"}, {"u", "g", "r", "s", "c", "l", "b"}, {"↑↓", "p", "?", "q"}}, wantHelp: "keys and toggles"},
 		{view: dashboard.Accounts, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"< >"}, {"←→", "enter"}, {"p"}, {"?", "q"}}, wantPhone: []string{"[ ]"}, wantHelp: "keys"},
 		{view: dashboard.History, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"< >"}, {"v"}, {"p"}, {"?", "q"}}, wantPhone: []string{"[ ]"}, wantHelp: "keys"},
-		{view: dashboard.Sessions, lead: 3, want: [][]string{{"tab"}, {"p"}, {"?", "q"}}, wantHelp: "keys"},
-		{view: dashboard.Runway, lead: 3, want: [][]string{{"tab"}, {"p"}, {"?", "q"}}, wantHelp: "keys"},
+		{
+			view: dashboard.Sessions, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"↑↓", "enter"}, {"p"}, {"?", "q"}},
+			wantPhone: []string{"↑↓", "enter", "[ ]"}, wantHelp: "keys",
+		},
+		{view: dashboard.Runway, lead: 3, want: [][]string{{"tab"}, {"< >", "←→"}, {"p"}, {"?", "q"}}, wantPhone: []string{"< >", "←→"}, wantHelp: "keys"},
 		{
 			view: dashboard.Log, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"↑↓", "enter", "f", "/"}, {"p"}, {"?", "q"}},
 			wantPhone: []string{"↑↓", "enter", "[ ]"}, wantHelp: "keys",
@@ -118,36 +121,5 @@ func TestTheOverviewsKeyLineSaysWhichSectionsShowAndHowTheWindowsAreGrouped(t *t
 	}
 	if !slices.ContainsFunc(helpOver(h.model), func(k dashboard.Key) bool { return k == want[0] }) {
 		t.Errorf("help lists %+v, want the toggles worded as the key line words them", helpOver(h.model))
-	}
-}
-
-func TestTheEmptyTabsListPPinOnlyWhereThereIsAPinToSet(t *testing.T) {
-	pinned := routerDocument(three()[0])
-	pinned.Pin = status.Pin{Accounts: []string{"work"}}
-	tests := []struct {
-		name string
-		doc  status.Document
-		want [][]string
-	}{
-		{name: "three accounts", doc: routerDocument(three()...), want: [][]string{{"tab"}, {"p"}, {"?", "q"}}},
-		{name: "one account", doc: routerDocument(three()[0]), want: [][]string{{"tab"}, {"?", "q"}}},
-		{name: "one account, pinned from the command line", doc: pinned, want: [][]string{{"tab"}, {"p"}, {"?", "q"}}},
-	}
-	for _, tt := range tests {
-		for _, view := range []dashboard.View{dashboard.Sessions} {
-			t.Run(tt.name+" on "+string(view), func(t *testing.T) {
-				h := routedHarness(t, tt.doc)
-				h.model.view = view
-				h.start()
-
-				var got [][]string
-				for _, group := range h.model.live(h.clock.now).KeyLine.Groups {
-					got = append(got, listedKeys(group))
-				}
-				if !slices.EqualFunc(got, tt.want, slices.Equal) {
-					t.Errorf("the key line is %q, want %q", got, tt.want)
-				}
-			})
-		}
 	}
 }

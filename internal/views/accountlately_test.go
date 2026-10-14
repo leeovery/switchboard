@@ -1,7 +1,6 @@
 package views_test
 
 import (
-	"cmp"
 	"maps"
 	"slices"
 	"testing"
@@ -13,7 +12,7 @@ import (
 )
 
 // toldLine is a line of Detail's LATELY: the kind its mark is drawn for, and
-// its words, in full and short, short as full where it gives none.
+// its words, in full and short, short as full, as a phone tells them in full.
 type toldLine struct {
 	kind, full, short string
 }
@@ -38,7 +37,7 @@ func accountLately(doc status.Document, id, best string) []toldLine {
 // every account, it tells the Overview's words. Each says a session started
 // on the router's best, as its reason says, "the best". Restarts, the
 // router's health and routing given back to it name no account, so neither
-// tells them.
+// tells them. Each is told in full alone, short too, as a phone tells it.
 func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
 	capped := func(id, count int) status.Event {
 		return status.Event{ID: id, Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Count: count}
@@ -67,37 +66,37 @@ func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
 		want     []toldLine
 	}{
 		{name: "a cap, from the account it held back", doc: heldBackAt(status.EventCap, false), id: "work", want: []toldLine{
-			{kind: status.EventCap, full: "reached its cap: 3 sessions moved to side", short: "at its cap: 3 moved to side"},
+			{kind: status.EventCap, full: "reached its cap: 3 sessions moved to side"},
 			{kind: status.EventStarted, full: "7f3a started here, the best"}}},
 		{name: "a cap, from the account its sessions moved to", doc: heldBackAt(status.EventCap, false), id: "side", want: []toldLine{
 			{kind: status.EventStarted, full: "c61b started here, the best"},
-			{kind: status.EventMoved, full: "3 sessions came from work: work reached its cap", short: "3 came from work: work at its cap"}}},
+			{kind: status.EventMoved, full: "3 sessions came from work: work reached its cap"}}},
 		{name: "a limit, from the account it held back", doc: heldBackAt(status.EventLimit, false), id: "work", want: []toldLine{
-			{kind: status.EventLimit, full: "reached its 5-hour limit: 3 sessions moved to side", short: "at its limit: 3 moved to side"},
+			{kind: status.EventLimit, full: "reached its 5-hour limit: 3 sessions moved to side"},
 			{kind: status.EventStarted, full: "7f3a started here, the best"}}},
 		{name: "a limit, from the account its sessions moved to", doc: heldBackAt(status.EventLimit, false), id: "side", want: []toldLine{
 			{kind: status.EventStarted, full: "c61b started here, the best"},
-			{kind: status.EventMoved, full: "3 sessions came from work: work reached its 5-hour limit", short: "3 came from work: work at its limit"}}},
+			{kind: status.EventMoved, full: "3 sessions came from work: work reached its 5-hour limit"}}},
 		{name: "a refusal, from the account it held back", doc: heldBackAt(status.EventRefused, false), id: "work", want: []toldLine{
-			{kind: status.EventRefused, full: "refused (401): 3 sessions moved to side", short: "refused (401): 3 moved to side"},
+			{kind: status.EventRefused, full: "refused (401): 3 sessions moved to side"},
 			{kind: status.EventStarted, full: "7f3a started here, the best"}}},
 		{name: "a refusal, from the account its sessions moved to", doc: heldBackAt(status.EventRefused, false), id: "side", want: []toldLine{
 			{kind: status.EventStarted, full: "c61b started here, the best"},
-			{kind: status.EventMoved, full: "3 sessions came from work: work refused (401)", short: "3 came from work: work refused (401)"}}},
+			{kind: status.EventMoved, full: "3 sessions came from work: work refused (401)"}}},
 		{name: "a cap moving sessions to several accounts, from the account it held back", doc: spread, id: "work", want: []toldLine{
-			{kind: status.EventCap, full: "reached its cap: 2 sessions moved to other accounts", short: "at its cap: 2 moved to other accounts"}}},
+			{kind: status.EventCap, full: "reached its cap: 2 sessions moved to other accounts"}}},
 		{name: "a cap moving sessions to several accounts, from one of them, its move alone", doc: spread, id: "side", want: []toldLine{
 			{kind: status.EventMoved, full: "d28c came from work: work reached its cap"}}},
 		{name: "a cap moving none, from the account it held back", doc: latelyOf(capped(0, 0)), id: "work", want: []toldLine{
-			{kind: status.EventCap, full: "reached its cap", short: "at its cap"}}},
+			{kind: status.EventCap, full: "reached its cap"}}},
 		{name: "a session rescored onto the account", doc: rescored, id: "work", want: []toldLine{
 			{kind: status.EventMoved, full: "db8a came from side: rescored after 15h idle"}}},
 		{name: "a session rescored off the account", doc: rescored, id: "side"},
 		{name: "pressure, saying when the account runs out",
 			doc: latelyOf(status.Event{Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}, Until: at(16, 5)}), id: "personal", want: []toldLine{
-				{kind: status.EventPressure, full: "came under pressure: out ~16:05 at this pace", short: "under pressure: out ~16:05"}}},
+				{kind: status.EventPressure, full: "came under pressure: out ~16:05 at this pace"}}},
 		{name: "pressure, not saying when", doc: latelyOf(status.Event{Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}}), id: "personal", want: []toldLine{
-			{kind: status.EventPressure, full: "came under pressure", short: "under pressure"}}},
+			{kind: status.EventPressure, full: "came under pressure"}}},
 		{name: "pressure on another account", doc: latelyOf(status.Event{Kind: status.EventPressure, Account: "personal"}), id: "side"},
 		{name: "a session starting on the account new sessions go to", doc: started("side", status.ReasonNew), id: "side", best: "side", want: []toldLine{
 			{kind: status.EventStarted, full: "c61b started here, the best"}}},
@@ -109,23 +108,23 @@ func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
 			{kind: status.EventStarted, full: "c61b started here: personal came under pressure"}}},
 		{name: "a session starting on another account", doc: started("work", status.ReasonNew), id: "side", best: "work"},
 		{name: "a prime", doc: latelyOf(status.Event{Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}}), id: "side", want: []toldLine{
-			{kind: status.EventPrimed, full: "primed: its 5-hour window started", short: "primed"}}},
+			{kind: status.EventPrimed, full: "primed: its 5-hour window started"}}},
 		{name: "room again", doc: latelyOf(status.Event{Kind: status.EventRoom, Account: "work", Windows: []string{"5h"}}), id: "work", want: []toldLine{
-			{kind: status.EventRoom, full: "open again: its 5-hour window reset", short: "open again"}}},
+			{kind: status.EventRoom, full: "open again: its 5-hour window reset"}}},
 		{name: "the global pin of two, from the first", doc: pinnedBoth, id: "personal", want: []toldLine{
-			{kind: status.EventPin, full: "pinned with side, by hand", short: "pinned with side"}}},
+			{kind: status.EventPin, full: "pinned with side, by hand"}}},
 		{name: "the global pin of two, from the second", doc: pinnedBoth, id: "side", want: []toldLine{
-			{kind: status.EventPin, full: "pinned with personal, by hand", short: "pinned with personal"}}},
+			{kind: status.EventPin, full: "pinned with personal, by hand"}}},
 		{name: "the global pin of two, from neither", doc: pinnedBoth, id: "work"},
 		{name: "the global pin of the account alone", doc: latelyOf(status.Event{Kind: status.EventPin, Account: "personal", Accounts: []string{"personal"}, Move: true}), id: "personal", want: []toldLine{
-			{kind: status.EventPin, full: "pinned here, by hand", short: "pinned here"}}},
+			{kind: status.EventPin, full: "pinned here, by hand"}}},
 		{name: "a session's own pin", doc: pinnedOwn, id: "side", want: []toldLine{
-			{kind: status.EventPin, full: "c61b pinned here, by hand", short: "c61b pinned here"}}},
+			{kind: status.EventPin, full: "c61b pinned here, by hand"}}},
 		{name: "a session's own pin to another account", doc: pinnedOwn, id: "work"},
 		{name: "routing given back, a restart and the router's health, from an account", doc: unnamed, id: "side"},
 		{name: "every account's, a session starting on the best", doc: heldBackAt(status.EventCap, false), best: "side", want: []toldLine{
 			{kind: status.EventStarted, full: "c61b started on side, the best"},
-			{kind: status.EventCap, full: "work reached its cap: 3 sessions moved to side", short: "work at its cap: 3 moved to side"},
+			{kind: status.EventCap, full: "work reached its cap: 3 sessions moved to side"},
 			{kind: status.EventStarted, full: "7f3a started on work, the best"}}},
 		{name: "every account's, a session starting as pinned", doc: started("side", status.ReasonPinned), best: "side", want: []toldLine{
 			{kind: status.EventStarted, full: "c61b started on side, as pinned"}}},
@@ -135,7 +134,7 @@ func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			want := slices.Clone(tt.want)
 			for i := range want {
-				want[i].short = cmp.Or(want[i].short, want[i].full)
+				want[i].short = want[i].full
 			}
 			if got := accountLately(tt.doc, tt.id, tt.best); !slices.Equal(got, want) {
 				t.Errorf("%q's LATELY tells\n%q\nwant\n%q", tt.id, got, want)

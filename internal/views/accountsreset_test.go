@@ -105,6 +105,50 @@ func TestARereadWeekStartingOffTheFiledResetIsCountedOnce(t *testing.T) {
 	}
 }
 
+// Days that hold the filed reset and use read since it, the document giving
+// the run it reads a start after they were read, as Claude gives a reset to
+// the second or so, don't have that reset counted again: the run they read
+// since it is the document's, and the week had 0% left as it reset, never
+// the use since taken as a week ended at that start.
+func TestAFiledResetWithUseReadSinceIsntCountedAgainAtARunStartingAfterTheRead(t *testing.T) {
+	am := weekRisenToday(weekReadAs(weekResetsOff(accountsMoment(t, onceItsReFiled), "work", 90*time.Second), "work", 0.02), "work", 0.02)
+	page, _ := accountsAt(am)
+	if got := shareRead(rowOf(t, page, "work").WeekLeft); got != "0%" {
+		t.Errorf("read at %v, the week starting 21:01:30, work's week had %s left as it reset, want 0%%", am.Now.Format(time.TimeOnly), got)
+	}
+}
+
+// weekRisenToday is the moment am, today's day of its days holding the week
+// of the account with the given id risen the more given.
+func weekRisenToday(am viewstest.AccountsMoment, id string, more float64) viewstest.AccountsMoment {
+	days := slices.Clone(am.Days)
+	today := &days[len(days)-1]
+	today.Accounts = slices.Clone(today.Accounts)
+	for j, a := range today.Accounts {
+		if a.Account == id {
+			today.Accounts[j].Rise = maps.Clone(a.Rise)
+			today.Accounts[j].Rise[claude.WeekWindow] += more
+		}
+	}
+	am.Days = days
+	return am
+}
+
+// A page built after its days were read, stamped at its build, as the watch
+// builds one where the period steps, the day turns, or Accounts first shows
+// after History read them, folds a reset of a run begun since they were read
+// as one built as they landed does: the days are read when they were, not
+// when the page is built.
+func TestAPageBuiltAfterItsDaysWereReadFoldsAResetSinceAsOneBuiltAsTheyLanded(t *testing.T) {
+	am := accountsMoment(t, rereadUnfiled)
+	want, _ := accountsAt(accountsMoment(t, onceItsReFiled))
+	got := pastOf(am).Since(nil, am.Now).Accounts(am.Period).At(am.Doc.At(am.Now, claude.Policy))
+	if weeksSaid(got) != weeksSaid(want) {
+		t.Errorf("built at %v of days read at %v, the weeks say\n%s\nwant them as once the reset is filed\n%s",
+			am.Now.Format(time.TimeOnly), am.DaysRead.Format(time.TimeOnly), weeksSaid(got), weeksSaid(want))
+	}
+}
+
 // weekResetsOff is the moment am, its document reading the week of the
 // account with the given id to reset off as given.
 func weekResetsOff(am viewstest.AccountsMoment, id string, off time.Duration) viewstest.AccountsMoment {

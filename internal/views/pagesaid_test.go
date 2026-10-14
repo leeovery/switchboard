@@ -340,9 +340,13 @@ func TestTheWindowsASessionTookPointsOfAreNamedShortestFirst(t *testing.T) {
 
 // Each window's points are words apart, the first leading with ≈ and each
 // after it with ·, their points a figure, so a row short of room leaves
-// whole windows off its end; a phone says them short.
+// whole windows off its end; a phone says them short. Each says the window
+// whose key PointsKeys gives in its place, none that rounds to none.
 func TestTheWindowsASessionTookPointsOfAreWordsApartWideAndShort(t *testing.T) {
-	points := map[string]int{"7d": 6, "5h": 1, "7d_oi": 2}
+	points := map[string]int{"7d": 6, "5h": 1, "7d_oi": 2, "7d_sonnet": 0}
+	if got, want := (views.SessionAccount{Points: points}).PointsKeys(), []string{"5h", "7d", "7d_oi"}; !slices.Equal(got, want) {
+		t.Errorf("PointsKeys = %q, want %q", got, want)
+	}
 	tests := []struct {
 		form views.PointsForm
 		want []status.Words

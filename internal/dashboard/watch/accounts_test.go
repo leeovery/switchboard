@@ -298,6 +298,50 @@ func TestHistorysWeeksTellTheAccountsWeeksAsAccountsAtTheMoment(t *testing.T) {
 	}
 }
 
+// Accounts first shown after History read the days, its page built later,
+// before the days are read again, folds the reset of a run its document
+// reads begun since they were read, as a page built as they landed does.
+func TestAccountsShownAfterHistoryReadItsDaysFoldsAResetSinceTheRead(t *testing.T) {
+	mo := accountsMoment(t, "a week reset at 21:00, reread at 21:00:30, the days read before it")
+	h := momentHarness(t, mo, dashboard.History)
+	h.clock.now = mo.DaysRead
+	h.start()
+	reads := len(h.model.cfg.Ledger.(*daysLedger).reads)
+	h.clock.now = mo.Now
+	h.keys(shiftTabKey)
+
+	if got := len(h.model.cfg.Ledger.(*daysLedger).reads); got != reads {
+		t.Fatalf("Accounts shown read the days %d times more, want it shown of those History read", got-reads)
+	}
+	page := h.model.frame(mo.Now).Accounts.Page
+	if page == nil {
+		t.Fatal("Accounts' page isn't drawn")
+	}
+	if got, want := leftOf(page.Rows[0]), mo.Want["work"][viewstest.FigureLeft]; got != want {
+		t.Errorf("work's left at its last reset is drawn %s, want %s: its week closed at the reset", got, want)
+	}
+}
+
+// The days read are read as the read was asked, not as they land: asked a
+// moment before a reset, landing after it, they fold the reset of the run
+// begun between, which they can't hold.
+func TestDaysReadAcrossAResetFoldItAsReadWhenAsked(t *testing.T) {
+	mo := accountsMoment(t, "a week reset at 21:00, reread at 21:00:30, the days read before it")
+	h := momentHarness(t, mo, dashboard.Accounts)
+	h.clock.now = mo.DaysRead
+	h.start()
+	h.clock.now = mo.Now
+	h.deliver(sinceMsg{asked: h.model.past.asked, days: mo.Days[len(mo.Days)-1:], at: time.Date(2026, time.October, 5, 20, 59, 59, 0, time.Local)})
+
+	page := h.model.frame(mo.Now).Accounts.Page
+	if page == nil {
+		t.Fatal("Accounts' page isn't drawn")
+	}
+	if got, want := leftOf(page.Rows[0]), mo.Want["work"][viewstest.FigureLeft]; got != want {
+		t.Errorf("work's left at its last reset is drawn %s, want %s: its week closed at the reset", got, want)
+	}
+}
+
 // resetBeforeTheReread is the moment of a week reset at 21:00, at 21:00:01,
 // before the router reads it again.
 func resetBeforeTheReread(t *testing.T) viewstest.AccountsMoment {
@@ -759,41 +803,6 @@ func TestAFrameLeavesTheSelectionForTheNextMessageToFollow(t *testing.T) {
 	h.redraw()
 	if got := h.model.accounts.shown.Selected; got != id9E21 {
 		t.Errorf("the message after the frame selected %q, want 9e21, in 7f3a's place", got)
-	}
-}
-
-// A click that opens on Accounts opens what it lands on, whatever has the
-// keys: with the theme picker open, which takes enter as setting the theme
-// under its cursor, the click opens Compare's focused column in Detail, or
-// the selected session's page, and sets no theme.
-func TestAClickThatOpensOnAccountsSetsNoThemeWithThePickerOpen(t *testing.T) {
-	tests := []struct {
-		name   string
-		shown  dashboard.AccountsShown
-		click  dashboard.Target
-		opened string
-	}{
-		{name: "Compare's focused column", shown: dashboard.AccountsShown{Focused: true, Focus: "side"}, click: dashboard.Target{On: dashboard.OnColumn, Account: "side"}},
-		{name: "Detail's selected session", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "side"}, click: dashboard.Target{On: dashboard.OnSession, Session: id9E21}, opened: id9E21},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h := accountsHarness(t, tt.shown)
-			h.model.sessions = append(h.model.sessions, sessionOn(id9E21, "claude-sonnet-5-5", "side", time.Second))
-			choice := theme.One("amber")
-			themes := &fakeThemes{listing: listing(), choice: choice}
-			h.model.cfg.Themes, h.model.choice, h.model.pair = themes, choice, themes.listing.Pair(choice)
-			h.answer(darkBackground)
-			h.typed("t")
-			h.keys(downKey)
-			if !h.model.picker.open {
-				t.Fatal("t didn't open the theme picker")
-			}
-			h.clickOn(tt.click)
-			if s := h.model.accounts.shown; len(themes.kept) > 0 || s.View() != dashboard.AccountsDetail || s.Chosen != "side" || h.pageOpen() != tt.opened {
-				t.Errorf("the click kept themes %+v, showed %d of %q, %q's page open; want none kept, Detail of side, %q's page open", themes.kept, s.View(), s.Chosen, h.pageOpen(), tt.opened)
-			}
-		})
 	}
 }
 

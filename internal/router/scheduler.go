@@ -100,13 +100,19 @@ func (s *scheduler) decide(req Request) (decision, situation) {
 // would have the accounts probed again before it went out, if only for the
 // upstream to refuse it.
 func (s *scheduler) auto(id, model string, now time.Time) string {
+	return s.autoOn(id, model, now, func() view { return s.state.glance(model, now) })
+}
+
+// autoOn is auto, the accounts as glance gives them, glanced at only where
+// the session has an assignment for the model.
+func (s *scheduler) autoOn(id, model string, now time.Time, glance func() view) string {
 	req := Request{Session: id, Model: model, Bound: s.sessions.bound(model)}
 	found := s.sessions.lookup(req.key())
 	if !found.assigned {
 		return ""
 	}
 	found.given = false
-	d := decide(found.situation(req, now, s.state.glance(model, now)))
+	d := decide(found.situation(req, now, glance()))
 	if d.noRoom {
 		return ""
 	}

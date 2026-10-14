@@ -29,8 +29,10 @@ import (
 // oldest first, as it numbers them; what its request stream tells as it's
 // opened, where anything's in flight; whether today's traffic of the three,
 // the sessions' world's, is the world's, and where its ledger holds lines of
-// its own in their place, those, by now; and, where the worlds keep it, its
-// records, built once, as they're first asked for.
+// its own in their place, those, by now; whether its document is read
+// fresh, at the moment drawn, as a router read it as an account reached its
+// limit then; and, where the worlds keep it, its records, built once, as
+// they're first asked for.
 type accountWorld struct {
 	accounts config.Accounts
 	history  history
@@ -45,19 +47,20 @@ type accountWorld struct {
 	stream   []router.StreamEvent
 	traffic  bool
 	lines    func(now time.Time) []ledger.Line
+	fresh    bool
 	records  func() *records
 }
 
-// document is the router's status document of the world at now, read
-// readAgo before, as the router builds it and serves it, with what's worked
-// out of it: each account's windows as last read, standing as they do then;
+// document is the router's status document of the world at now, read as
+// read has it, as the router builds it and serves it, with what's worked out
+// of it: each account's windows as last read, standing as they do then;
 // how fast each has been used lately, as a router that took up the readings
 // history judges it, and the pressure that puts the account under; the
 // accounts pinned spending their reserves; and the best account to use next,
 // but where the world says where new sessions go; and the newest of its
 // events, by then.
 func (w accountWorld) document(now time.Time) status.Document {
-	at := now.Add(-readAgo)
+	at := w.read(now)
 	doc := status.Document{
 		GeneratedAt: at.UTC(), Source: status.SourceRouter, Pin: w.pin, Router: status.Health{Healthy: true}, Events: toldAt(w.events, at),
 	}
@@ -99,6 +102,15 @@ func (w accountWorld) account(a config.Account, h history, at time.Time) status.
 	return st
 }
 
+// read is when the router last read the world, as of now: readAgo before,
+// or, where it's read fresh, at now.
+func (w accountWorld) read(now time.Time) time.Time {
+	if w.fresh {
+		return now
+	}
+	return now.Add(-readAgo)
+}
+
 // readAt is when the router last read the account with the given id, as of
 // at: then, or where the world has it unable to read the account since a
 // time, that time.
@@ -117,7 +129,7 @@ func (w accountWorld) trails(doc status.Document, now time.Time) []trail {
 	held := w.history.byAccount()
 	var trails []trail
 	for _, a := range doc.Accounts {
-		read := held[a.ID].before(w.readAt(a.ID, now.Add(-readAgo)))
+		read := held[a.ID].before(w.readAt(a.ID, w.read(now)))
 		for _, window := range a.Windows {
 			start, _, ok := window.Span()
 			if !ok || !window.ResetsAt.After(now) {
@@ -271,32 +283,46 @@ func (a accountWorlds) today() *todayOf {
 }
 
 // three takes in today's readings of the three as the auto world has them,
-// but personal's, which open gives: work busy until it reached its cap, 95%
-// of its 5-hour window, at 14:31:03, its window primed at 12:10, its week at
-// 34% then; side's window primed at 13:50, quiet until it took work's
-// sessions at 14:31, at 13% now; its week at 78%.
+// but personal's, which open gives, as work, personal and side have them.
 func (t *todayOf) three(open bool) *todayOf {
-	t.session("work", t.at(7, 5, 0), true, level{t.at(11, 35, 0), .62})
-	t.session("work", t.at(12, 10, 0), true, level{t.at(14, 31, 3), .95})
-	t.week("work", .12, level{t.at(14, 31, 3), .34})
+	t.work()
 	if open {
 		t.personal()
 	}
-	t.session("side", t.at(0, 31, 0), false, level{t.at(0, 41, 0), .02})
-	t.session("side", t.at(8, 47, 0), true, level{t.at(12, 47, 0), .20})
-	t.session("side", t.at(13, 50, 0), true, level{t.at(14, 10, 0), .03}, level{t.at(14, 31, 0), .03}, level{t.at(14, 41, 30), .13})
-	t.week("side", .04, level{t.at(14, 40, 0), .78})
+	t.side()
 	return t
 }
 
+// work takes in work's readings today as the auto world has them: busy until
+// it reached its cap, 95% of its 5-hour window, at 14:31:03, its window
+// primed at 12:10, its week at 34% then.
+func (t *todayOf) work() {
+	t.session("work", t.at(7, 5, 0), true, level{t.at(11, 35, 0), .62})
+	t.session("work", t.at(12, 10, 0), true, level{t.at(14, 31, 3), .95})
+	t.week("work", .12, level{t.at(14, 31, 3), .34})
+}
+
 // personal takes in personal's readings today as the auto world has them:
-// steady, its 5-hour window primed at 11:30 at 39% now; its week read at 65%
-// at 13:32:41 and at 66% at 14:20, a rate that has it run out on Saturday at
-// 06:00, before it resets on Sunday at 02:00.
-func (t *todayOf) personal() {
+// steady, its 5-hour window primed at 11:30 at 39% now, rising on to the
+// levels given after; its week read at 65% at 13:32:41 and at 66% at 14:20,
+// a rate that has it run out on Saturday at 06:00, before it resets on
+// Sunday at 02:00.
+func (t *todayOf) personal(after ...level) {
 	t.session("personal", t.at(6, 30, 0), false, level{t.at(11, 10, 0), .18})
-	t.session("personal", t.at(11, 30, 0), true, level{t.at(14, 40, 0), .39})
+	t.session("personal", t.at(11, 30, 0), true, slices.Concat([]level{{t.at(14, 40, 0), .39}}, after)...)
 	t.week("personal", 0, level{t.at(13, 32, 41), .65}, level{t.at(14, 20, 0), .66})
+}
+
+// side takes in side's readings today as the auto world has them: its
+// window primed at 13:50, quiet until it took work's sessions at 14:31, at
+// 13% now, rising on to the levels given after; its week at 78%.
+func (t *todayOf) side(after ...level) {
+	t.session("side", t.at(0, 31, 0), false, level{t.at(0, 41, 0), .02})
+	t.session("side", t.at(8, 47, 0), true, level{t.at(12, 47, 0), .20})
+	t.session("side", t.at(13, 50, 0), true, slices.Concat(
+		[]level{{t.at(14, 10, 0), .03}, {t.at(14, 31, 0), .03}, {t.at(14, 41, 30), .13}}, after,
+	)...)
+	t.week("side", .04, level{t.at(14, 40, 0), .78})
 }
 
 // limited takes in personal's readings today as a world where it reached its
@@ -406,16 +432,17 @@ func (a accountWorlds) badHour() accountWorld {
 }
 
 // many is the world of the frames of six or ten accounts: the auto world's
-// three and the first n−3 of the seven more (dash3.EXTRA): client, spare,
-// lab, under pressure, running out about 16:05, team, at its 5-hour limit
-// since 13:58 till 15:30, extra, ops and studio. Today's traffic, and the
+// three and the first n−3 of the seven more (dash3.EXTRA): client, its
+// 5-hour window slowing since 14:10, so it has room till it resets at 17:40;
+// spare; lab, under pressure, running out about 16:05; team, at its 5-hour
+// limit since 13:58 till 15:30; extra, ops and studio. Today's traffic, and the
 // router's events, are the auto world's, the seven having none.
 func (a accountWorlds) many(n int) accountWorld {
 	return a.kept(fmt.Sprint("many ", n), func() accountWorld {
 		accounts := firstAccounts(n)
 		t := a.today().three(true)
 		t.session("client", t.at(7, 35, 0), false, level{t.at(11, 35, 0), .30})
-		t.session("client", t.at(12, 40, 0), false, level{t.at(14, 40, 0), .52})
+		t.session("client", t.at(12, 40, 0), false, level{t.at(14, 10, 0), .48}, level{t.at(14, 40, 0), .52})
 		t.week("client", .08, level{t.at(14, 39, 51), .47})
 		t.session("spare", t.at(14, 35, 0), false, level{t.at(14, 41, 0), .04})
 		t.week("spare", 0, level{t.at(14, 41, 0), .05})

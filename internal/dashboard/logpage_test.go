@@ -73,6 +73,10 @@ func TestThePausedStateLineCountsTheLinesComeSince(t *testing.T) {
 	}
 }
 
+// labelledWork is the router's document of work, labelled Work, and side,
+// where new sessions go.
+var labelledWork = routerDoc("side", 0, status.Account{ID: "work", Label: "Work", TokenSet: true}, status.Account{ID: "side", TokenSet: true})
+
 // The heading row names the Log, its sub-tabs and what its filter keeps,
 // and at its right, the table's count: of Requests, today's lines hidden,
 // and by what where one thing alone hides them; of Events, today's; on a
@@ -84,6 +88,16 @@ func TestTheLogsHeadingSaysWhatTheTableHides(t *testing.T) {
 	hidden := requestsOf(src, []ledger.Line{asked("1", logDay), checked})
 	filtered := hidden
 	filtered.Filter.Accounts = []string{"side"}
+	onWork := hidden
+	onWork.Filter.Accounts = []string{"work"}
+	onD28C := hidden
+	onD28C.Filter.Sessions = []string{"d28c5e17-0000-4000-8000-000000000001"}
+	onOpus := hidden
+	onOpus.Filter.Models = []string{"claude-opus-5-5"}
+	eventsFiltered := hidden.Turned(1)
+	eventsFiltered.Shows.Accounts = []string{"work"}
+	sessionsEvents := eventsOfItsSession(views.LogFilter{Accounts: []string{"work"}})
+	sessionsEvents.Shows.Sessions = []string{sessionsEvents.Events.Rows[0].Session}
 	tests := []struct {
 		name         string
 		page         LogPage
@@ -94,17 +108,45 @@ func TestTheLogsHeadingSaysWhatTheTableHides(t *testing.T) {
 		{name: "a check hidden", page: hidden, width: 120, starts: "LOG    Requests  Events  [ ]  ─", ends: "─  1 hidden: checks   f what it shows"},
 		{name: "filtered", page: filtered, width: 120, starts: "LOG    Requests  Events  [ ]   only side ─", ends: "─  1 hidden: checks   f what it shows"},
 		{name: "events", page: hidden.Turned(1), width: 120, starts: "LOG    Requests  Events  [ ]  ─", ends: "─  0 today   f what it shows"},
+		{name: "filtered to an account, named by its label", page: onWork, width: 120, starts: "LOG    Requests  Events  [ ]   only Work ─", ends: "─  1 hidden: checks   f what it shows"},
+		{name: "events filtered by their own panel", page: eventsFiltered, width: 120, starts: "LOG    Requests  Events  [ ]   only Work ─", ends: "─  0 today   f what it shows"},
+		{name: "events, the Requests alone filtered", page: filtered.Turned(1), width: 120, starts: "LOG    Requests  Events  [ ]  ─", ends: "─  0 today   f what it shows"},
+		{
+			name: "events filtered to a session the Requests show none of, named by its directory as its event is", page: sessionsEvents, width: 120,
+			starts: "LOG    Requests  Events  [ ]   only d28c switchboard ─", ends: "─  1 today   f what it shows",
+		},
 		{name: "on a phone", page: hidden, width: 52, starts: "LOG   Requests  Events" + strings.Repeat(" ", 19), ends: "   1 hidden  f"},
+		{name: "on a phone, filtered to a session", page: onD28C, width: 52, starts: "LOG   Requests  Events    only d28c ", ends: "   1 hidden  f"},
+		{name: "on a phone, filtered to an account", page: onWork, width: 52, starts: "LOG   Requests  Events    only Work ", ends: "   1 hidden  f"},
+		{name: "on a phone, filtered to a model", page: onOpus, width: 52, starts: "LOG   Requests  Events    only opus-5-5 ", ends: "  1 hidden  f"},
+		{name: "on a phone, Events filtered", page: eventsFiltered, width: 52, starts: "LOG   Requests  Events    only Work ", ends: "   0 today  f"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := logFrameOf(tt.page, tt.width, 24)
-			got := textOf(f.Draw(routerDoc("side", 0), logDayNoon))[f.headingY()]
+			got := textOf(f.Draw(labelledWork, logDayNoon))[f.headingY()]
 			if !strings.HasPrefix(got, tt.starts) || !strings.HasSuffix(got, tt.ends) || utf8.RuneCountInString(got) != tt.width {
 				t.Errorf("the heading row reads\n%q\nwant it to start %q and end %q, at the last column", got, tt.starts, tt.ends)
 			}
 		})
 	}
+}
+
+// eventsOfItsSession is the Log's page showing Events, at noon, of d28c
+// starting at 09:00 in switchboard, its one line on side, the Requests
+// filtered as filter says.
+func eventsOfItsSession(filter views.LogFilter) LogPage {
+	first := asked("1", logDay)
+	first.Dir = "/home/dev/switchboard"
+	lines := []ledger.Line{first}
+	src := views.LogSources{From: logDay, Now: logDayNoon, Filter: filter}
+	p := requestsOf(src, lines)
+	started := status.Event{ID: 1, At: logDay, Kind: status.EventStarted, Session: first.Session, Account: "side"}
+	p.Events = views.LogEvents(views.LogEventSources{
+		From: logDay, Events: views.ReadEvents(filedEvents{started}, logDay, logDayNoon), Now: logDayNoon,
+		Read: views.ReadLogHeld(sessionsHeld(lines), heldOf(lines), ledger.Pricing, logDayNoon),
+	})
+	return p.Turned(1)
 }
 
 // filedEvents are the router's files of events holding those given, of the
@@ -224,28 +266,58 @@ func TestLandingChoosesTheFirstRequestAtOrAfterAMoment(t *testing.T) {
 }
 
 // A table whose filter changes what it shows stands as it first opened,
-// unfilled, so, short of its view, it reads back to fill it: as the find's
-// enter, the panel's, and esc letting the filter go each change it, whether
-// the table filled its view before.
+// unfilled, so, short of the view it filled, it reads back to fill it: as
+// the find's enter, the panel's, and esc letting the filter go each change
+// it, where the days' summaries bound it, as its page's Reach has it, the
+// Events through a session so bound though an account is chosen too, and
+// through kinds alone reading back as on opening. One they don't bound
+// stays as it stood, reading back only as its top is reached: the Requests
+// through a filter of the failed of no session, and the Events through one
+// of an account alone.
 func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 	const session = "d28c5e17-0000-4000-8000-000000000001"
-	requests, events := threeAsked().Filling(3), threeAsked().Turned(1)
-	pinned := views.ReadEvents(filedEvents([]status.Event{{ID: 1, At: logDay, Kind: status.EventPin, Accounts: []string{"personal"}}}), logDay, logDayNoon)
-	events.Events = views.LogEvents(views.LogEventSources{From: logDay, Events: pinned, Filed: views.OldestKept(theDayBefore, 0, logDayNoon), Now: logDayNoon})
-	events = events.Filling(1)
+	src := views.LogSources{From: logDay, Now: logDayNoon}
+	ofSession := []ledger.Line{asked("1", logDay), asked("2", logDay.Add(time.Minute)), asked("3", logDay.Add(2*time.Minute))}
+	every := slices.Concat(ofSession, []ledger.Line{askedIn("4", "c4ec0000-0000-4000-8000-000000000009", logDay.Add(3*time.Minute))})
+	pinned := status.Event{ID: 1, At: logDay, Kind: status.EventPin, Accounts: []string{"personal"}}
+	// keeping is p, the table its filter's change refilters built afresh
+	// of the lines or events it keeps, as the watch builds it.
+	keeping := func(p LogPage, lines []ledger.Line, events ...status.Event) LogPage {
+		if p.Shown == LogEvents {
+			read := views.ReadEvents(filedEvents(events), logDay, logDayNoon)
+			p.Events = views.LogEvents(views.LogEventSources{From: logDay, Events: read, Filed: views.OldestKept(theDayBefore, 0, logDayNoon), Now: logDayNoon})
+			return p
+		}
+		p.Requests = requestsOf(src, lines).Requests
+		return p
+	}
+	requests := requestsOf(src, every).Filling(4)
+	events := keeping(threeAsked().Turned(1), nil, pinned, workAtItsCap).Filling(2)
+	picked, pins, failed, failedOf, worked := requests.Panel(), events.Panel(), requests.Panel(), requests.Panel(), events.Panel()
+	picked.Filter.Sessions, pins.Shows.Kinds, failed.Filter.Failed = []string{session}, []string{status.EventPin}, true
+	failedOf.Filter.Sessions, failedOf.Filter.Failed, worked.Shows.Accounts = []string{session}, true, []string{"work"}
+	workedOf := worked
+	workedOf.Shows.Sessions = []string{session}
 	tests := []struct {
-		name string
-		page LogPage
+		name  string
+		page  LogPage
+		rows  int
+		wants bool
 	}{
-		{name: "the find's enter", page: requests.FoundOnly(session)},
-		{name: "the panel's enter", page: requests.Applied(requests.Panel())},
-		{name: "the Events' panel's enter", page: events.Applied(events.Panel())},
-		{name: "esc letting the filter go", page: requests.FoundOnly(session).Filling(3).Unfiltered()},
+		{name: "the find's enter", page: keeping(requests.FoundOnly(session), ofSession), rows: 4, wants: true},
+		{name: "the panel's enter", page: keeping(requests.Applied(picked), ofSession), rows: 4, wants: true},
+		{name: "the Events' panel's enter", page: keeping(events.Applied(pins), nil, pinned), rows: 2, wants: true},
+		{name: "esc letting the filter go", page: keeping(keeping(requests.FoundOnly(session), ofSession).Filling(3).Unfiltered(), every), rows: 5, wants: true},
+		{name: "the panel's enter on the failed of a session", page: keeping(requests.Applied(failedOf), nil), rows: 4, wants: true},
+		{name: "the find's enter, on the Events", page: keeping(events.FoundOnly(session), nil), rows: 2, wants: true},
+		{name: "the Events' panel's enter on a session and an account", page: keeping(events.Applied(workedOf), nil), rows: 2, wants: true},
+		{name: "the panel's enter on the failed", page: keeping(requests.Applied(failed), nil), rows: 4},
+		{name: "the Events' panel's enter on an account", page: keeping(events.Applied(worked), nil, workAtItsCap), rows: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if !tt.page.WantsDayBefore(10) {
-				t.Error("refiltered, the table doesn't want the day before, short of its view")
+			if got := tt.page.WantsDayBefore(tt.rows); got != tt.wants {
+				t.Errorf("refiltered, short of the view of %d rows it filled, the table wants the day before: %t, want %t", tt.rows, got, tt.wants)
 			}
 		})
 	}
@@ -312,13 +384,27 @@ func TestATableHoldingNoRowDoesntPause(t *testing.T) {
 }
 
 // On opening, a table reads back a day at a time till it fills its view,
-// then only as its view's top, paused, reaches the first line held; never
-// past the oldest day the ledger keeps. A view of no rows fills nothing: the
-// table reads back to fill it once the terminal gives it rows.
+// then only as its view's top, paused, reaches the first line held, or,
+// following, as its view grows past the rows it filled, where it refills,
+// as the failed alone don't; never past the oldest day the ledger keeps.
+// At its reach, it fills its view no further back, and of the Requests
+// reads back no further at all, while the Events, paused at their top, read
+// back past it. A view of no rows fills nothing: the table reads back to
+// fill it once the terminal gives it rows.
 func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 	src := views.LogSources{From: logDay, Now: logDayNoon}
 	oldest := src
 	oldest.Oldest = views.OldestKept(logDay, 0, logDayNoon)
+	failed := threeAsked()
+	failed.Filter.Failed = true
+	atReach := func(p LogPage) LogPage {
+		p.AtReach = true
+		return p
+	}
+	pinned := status.Event{ID: 1, At: logDay, Kind: status.EventPin, Accounts: []string{"personal"}}
+	events := threeAsked().Turned(1)
+	read := views.ReadEvents(filedEvents([]status.Event{pinned, workAtItsCap}), logDay, logDayNoon)
+	events.Events = views.LogEvents(views.LogEventSources{From: logDay, Events: read, Filed: views.OldestKept(theDayBefore, 0, logDayNoon), Now: logDayNoon})
 	tests := []struct {
 		name string
 		page LogPage
@@ -327,11 +413,21 @@ func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 	}{
 		{name: "short of its view", page: threeAsked(), rows: 4, want: true},
 		{name: "its view filled", page: threeAsked().Filling(3), rows: 3},
-		{name: "filled, short again as the view grows", page: threeAsked().Filling(3), rows: 10},
+		{name: "filled, short again as the view grows, following", page: threeAsked().Filling(3), rows: 10, want: true},
+		{name: "filled again, as the view grew", page: threeAsked().Filling(1).Filling(3), rows: 3},
+		{name: "filled, the view grown, paused short of its first line", page: threeAsked().Filling(1).Scrolled(-1, 1), rows: 2},
+		{name: "filled, the view grown, paused at its first line", page: threeAsked().Filling(1).Scrolled(-1, 2), rows: 2, want: true},
+		{name: "its failed alone, filled, short again as the view grows, following", page: failed.Filling(3), rows: 10},
+		{name: "its failed alone, filled, the view grown, paused at its first line", page: failed.Filling(1).Scrolled(-1, 2), rows: 2, want: true},
 		{name: "with no rows, nothing to read", page: threeAsked().Filling(0), rows: 0},
 		{name: "opened with no rows, then given them", page: threeAsked().Filling(0), rows: 10, want: true},
 		{name: "filled, paused at its first line", page: threeAsked().Filling(3).Scrolled(-1, 2), rows: 2, want: true},
 		{name: "at the oldest day kept", page: requestsOf(oldest, nil), rows: 4},
+		{name: "at its reach, short of its view", page: atReach(threeAsked()), rows: 4},
+		{name: "at its reach, paused at its first line", page: atReach(threeAsked()).Filling(1).Scrolled(-1, 2), rows: 2},
+		{name: "the Events short of their view", page: events, rows: 10, want: true},
+		{name: "the Events at their reach, short of their view", page: atReach(events), rows: 10},
+		{name: "the Events at their reach, paused at their first line", page: atReach(events).Filling(1).Scrolled(-1, 2), rows: 2, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

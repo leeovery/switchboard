@@ -4,7 +4,7 @@ package views
 // gone out with nothing back yet; throttled, to go out again on its
 // account; or refused on its account, before it goes out again elsewhere.
 // It's the one rule of a session waiting: the Log's panel says it asking,
-// and SESSIONS' short form ↑ ask.
+// and a session's page ends its newest turn's row in it.
 func (a Activity) Waiting() bool {
 	return a.Doing == Asking || a.Doing == Throttled || a.Doing == Refused
 }

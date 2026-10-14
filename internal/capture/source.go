@@ -26,7 +26,9 @@ import (
 // gives changing nothing. Where it's gone, it stops answering then, by the
 // fixture's clock: a read fails, mid-read, from then on. Read by a watch, it
 // knows whether that watch has opened its stream before, and whether what
-// the stream it opened last told is yet to be heard.
+// the stream it opened last told is yet to be heard. Where it turns, it
+// stands as another router does from a time on, as a fixture whose keys
+// before its moment look at the router as it stood then has it.
 type source struct {
 	doc      status.Document
 	health   router.Health
@@ -38,6 +40,13 @@ type source struct {
 	clock    func() time.Time
 	joined   *atomic.Bool
 	untold   *atomic.Bool
+	turns    *turn
+}
+
+// turn is a source's turning to stand as next does, from at on.
+type turn struct {
+	at   time.Time
+	next source
 }
 
 // errGone is a read of the router once it has gone: it took the read, and
@@ -83,6 +92,26 @@ func routerOf(w accountWorld, now time.Time) source {
 	return s
 }
 
+// then is the source standing as it does until at, and as next does from
+// then on.
+func (s source) then(at time.Time, next source) source {
+	s.turns = &turn{at: at, next: next}
+	return s
+}
+
+// standing is the source as it stands by its clock: as it turned, once it
+// has, read by the same clock, what its stream told yet to be heard the
+// same, but its stream opened afresh, so what it tells as it's first opened
+// it tells whole.
+func (s source) standing() source {
+	if s.turns == nil || s.clock == nil || s.clock().Before(s.turns.at) {
+		return s
+	}
+	next := s.turns.next
+	next.clock, next.untold = s.clock, s.untold
+	return next
+}
+
 // goneAt is the source, stopping answering at the time given.
 func (s source) goneAt(t time.Time) source {
 	s.gone = t
@@ -93,6 +122,11 @@ func (s source) goneAt(t time.Time) source {
 // whether it's gone: its stream not yet opened.
 func (s source) by(clock func() time.Time) source {
 	s.clock, s.joined, s.untold = clock, new(atomic.Bool), new(atomic.Bool)
+	if s.turns != nil {
+		turned := *s.turns
+		turned.next.joined = new(atomic.Bool)
+		s.turns = &turned
+	}
 	return s
 }
 
@@ -116,6 +150,7 @@ func startedAt(t time.Time) router.Health {
 // Read reads the router's document, whatever the read asks, with what's
 // worked out of it, as the router gives it; once it's gone, it fails.
 func (s source) Read(context.Context, status.Read) (status.Document, router.Health, error) {
+	s = s.standing()
 	if s.isGone() {
 		return status.Document{}, router.Health{}, errGone
 	}
@@ -145,12 +180,14 @@ func (s source) UnpinSession(context.Context, string) error {
 // RouterAnswers reports whether the document is the router's, and the router
 // isn't gone.
 func (s source) RouterAnswers(context.Context) bool {
+	s = s.standing()
 	return s.doc.Source == status.SourceRouter && !s.isGone()
 }
 
 // Sessions lists the sessions the router has routed lately, as GET /sessions
 // does.
 func (s source) Sessions(context.Context) ([]status.Session, error) {
+	s = s.standing()
 	return slices.Clone(s.sessions), nil
 }
 
@@ -161,6 +198,7 @@ func (s source) History(_ context.Context, window string, step time.Duration) (r
 	if step <= 0 {
 		return router.History{}, fmt.Errorf("step %s isn't more than 0", step)
 	}
+	s = s.standing()
 	h := router.History{Window: window, Step: step.String()}
 	for _, a := range s.doc.Accounts {
 		held := router.AccountHistory{ID: a.ID}
@@ -181,6 +219,7 @@ func (s source) History(_ context.Context, window string, step time.Duration) (r
 // move among it, isn't told again. A source no watch reads tells all of it
 // each time.
 func (s source) Stream(context.Context) (<-chan router.StreamEvent, error) {
+	s = s.standing()
 	told := s.stream
 	if s.joined != nil && s.joined.Swap(true) {
 		told = flying(s.stream, s.clock())

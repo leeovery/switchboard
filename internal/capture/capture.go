@@ -29,6 +29,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -262,6 +263,17 @@ type page struct {
 	view    dashboard.View
 	log     dashboard.LogTicks
 	scale   float64
+	looked  *looked
+}
+
+// looked is a page's moment as a later look at the router has it: after
+// the worlds' moment by after, the router having listed, as its keys before
+// were pressed, the sessions listed gives then, its stream telling nothing,
+// and its document as at the moment, but that no limit had yet moved a
+// session; and standing, from the moment on, as the page's world has it.
+type looked struct {
+	after  time.Duration
+	listed func(now time.Time) []status.Session
 }
 
 // called is the page's name.
@@ -269,15 +281,25 @@ func (p page) called() string {
 	return p.name
 }
 
-// fixture is the page drawn over its world of worlds.
+// fixture is the page drawn over its world of worlds, at its moment, as a
+// later look has it, where it's one.
 func (p page) fixture(worlds accountWorlds) Fixture {
-	w := p.world(worlds)
-	router := routerOf(w, worlds.now)
+	w, now := p.world(worlds), worlds.now
+	if p.looked != nil {
+		now = now.Add(p.looked.after)
+	}
+	router := routerOf(w, now)
+	if p.looked != nil {
+		was := router
+		was.sessions, was.stream = p.looked.listed(now.Add(-p.before.by)), nil
+		was.doc.Events = slices.DeleteFunc(slices.Clone(was.doc.Events), func(e status.Event) bool { return e.Kind == status.EventLimit })
+		router = was.then(now, router)
+	}
 	if p.gone {
-		router = router.goneAt(worlds.now.Add(-p.goneFor))
+		router = router.goneAt(now.Add(-p.goneFor))
 	}
 	return Fixture{
-		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys), before: p.before,
+		Name: p.name, Size: p.size, now: now, router: router, keys: slices.Clone(p.keys), before: p.before,
 		theme: framesTheme(), records: w.records(), accounts: w.accounts, view: p.view, log: p.log, scale: p.scale,
 	}
 }
@@ -319,7 +341,19 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // hour's world, ↓ twice to personal; side's SESSIONS, d28c selected, opening
 // on Accounts, so the stream first opens there, telling each request in
 // flight as it went; Detail alone, over work alone's world; and on a phone,
-// Compare, and Detail of work.
+// Compare, and Detail of work. Then Sessions' frames, each reached from the
+// Overview with tab three times: the Switchboard and, with ], the List, over
+// the scene's world, wide and on a phone; and, each as a later look has it,
+// the Switchboard kept from a look before its moment that saw its sessions
+// in the frame's order, then left for Runway and come back to with
+// shift-tab, so its stream opens afresh: of ten accounts, of work alone, and
+// pinned to personal and side, looked at a minute before; and at personal's
+// limit, refused at 16:05:41, and moved at 16:05:42, looked at at 14:42:07.
+// Where no frame draws it, to judge by eye: the Switchboard at 120 × 30.
+// Then Runway's frames, each reached from the Overview with tab four times:
+// the 5-hour view, wide and on a phone; the week, with >; Wednesday, ← twice,
+// today and the day before; all over the auto world; and the 5-hour view of
+// ten accounts.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -393,7 +427,48 @@ var pages = []page{
 	{name: "accounts-detail-one-160", size: wide(37), world: accountWorlds.oneLately, keys: toAccounts()},
 	{name: "accounts-phone-compare-52", size: watch.Size{Width: 52, Height: 48}, world: accountWorlds.auto, keys: toAccounts()},
 	{name: "accounts-phone-detail-52", size: watch.Size{Width: 52, Height: 41}, world: accountWorlds.auto, keys: toDetail(downKey)},
+	{name: "sessions-switchboard-160", size: wide(37), world: accountWorlds.scene, keys: toSessions()},
+	{name: "sessions-list-160", size: wide(37), world: accountWorlds.scene, keys: toSessions("]")},
+	{name: "sessions-phone-52", size: phone(33), world: accountWorlds.scene, keys: toSessions()},
+	{name: "sessions-list-phone-52", size: phone(33), world: accountWorlds.scene, keys: toSessions("]")},
+	{
+		name: "sessions-ten-accounts-160", size: wide(37), world: accountWorlds.ten, before: lookedAway(time.Minute), keys: cameBack,
+		looked: &looked{listed: inTheFramesOrder(tenSessions)},
+	},
+	{
+		name: "sessions-one-account-160", size: wide(37), world: accountWorlds.aloneOnWork, before: lookedAway(time.Minute), keys: cameBack,
+		looked: &looked{listed: inTheFramesOrder(onWork)},
+	},
+	{
+		name: "sessions-pinned-160", size: wide(37), world: accountWorlds.pinnedAtTheLimit, before: lookedAway(time.Minute), keys: cameBack,
+		looked: &looked{listed: inTheFramesOrder(sceneSessions)},
+	},
+	{
+		name: "sessions-refused-160", size: wide(37), world: accountWorlds.refusedAt, before: lookedAway(refusedAfter), keys: cameBack,
+		looked: &looked{after: refusedAfter, listed: inTheFramesOrder(sceneSessions)},
+	},
+	{
+		name: "sessions-moved-160", size: wide(37), world: accountWorlds.movedAt, before: lookedAway(movedAfter), keys: cameBack,
+		looked: &looked{after: movedAfter, listed: inTheFramesOrder(sceneSessions)},
+	},
+	{name: "page-sessions-120x30", size: watch.Size{Width: 120, Height: 30}, world: accountWorlds.scene, keys: toSessions()},
+	{name: "runway-5-hour-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
+	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway(">")},
+	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(), leftKey, leftKey)},
+	{name: "runway-ten-accounts-160", size: wide(37), world: manyAccounts(10), keys: toRunway()},
+	{name: "runway-phone-52", size: phone(33), world: accountWorlds.auto, keys: toRunway()},
 }
+
+// lookedAway are the keys a look at Sessions' Switchboard by before a page's
+// moment pressed: tab three times to reach it, then once more, on to Runway,
+// its request stream closing.
+func lookedAway(by time.Duration) earlier {
+	return earlier{by: by, keys: append(toSessions(), tabKey)}
+}
+
+// cameBack are the keys pressed at the moment of a page looked away from, as
+// lookedAway has it: shift-tab, back to Sessions, its stream opening again.
+var cameBack = []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}
 
 // keysOf are the keys pressed as the text given, a key a character.
 func keysOf(text ...string) []tea.KeyPressMsg {
@@ -422,6 +497,18 @@ func toDetail(then ...tea.KeyPressMsg) []tea.KeyPressMsg {
 	return append(toAccounts("]"), then...)
 }
 
+// toSessions are the keys that reach Sessions from the Overview, tab three
+// times, then the text given, a key a character.
+func toSessions(text ...string) []tea.KeyPressMsg {
+	return append(repeated(tabKey, 3), keysOf(text...)...)
+}
+
+// toRunway are the keys that reach Runway from the Overview, tab four times,
+// then the text given, a key a character.
+func toRunway(text ...string) []tea.KeyPressMsg {
+	return append(repeated(tabKey, 4), keysOf(text...)...)
+}
+
 // toLog are the keys that reach the Log from the Overview, shift-tab, back
 // round the tabs, then the text given, a key a character.
 func toLog(text ...string) []tea.KeyPressMsg {
@@ -438,10 +525,12 @@ func toSession(id string, then ...tea.KeyPressMsg) []tea.KeyPressMsg {
 	return slices.Concat(keys, []tea.KeyPressMsg{enterKey, upKey}, keysOf("s"), then)
 }
 
-// The keys ↑, ↓, → and enter, as pressed.
+// The keys tab, ↑, ↓, ←, → and enter, as pressed.
 var (
+	tabKey   = tea.KeyPressMsg{Code: tea.KeyTab}
 	upKey    = tea.KeyPressMsg{Code: tea.KeyUp}
 	downKey  = tea.KeyPressMsg{Code: tea.KeyDown}
+	leftKey  = tea.KeyPressMsg{Code: tea.KeyLeft}
 	rightKey = tea.KeyPressMsg{Code: tea.KeyRight}
 	enterKey = tea.KeyPressMsg{Code: tea.KeyEnter}
 )
@@ -455,6 +544,12 @@ func repeated(key tea.KeyPressMsg, n int) []tea.KeyPressMsg {
 // given.
 func wide(height int) watch.Size {
 	return watch.Size{Width: 160, Height: height}
+}
+
+// phone is a terminal as wide as the phone's frames are, 52 columns, and as
+// tall as given.
+func phone(height int) watch.Size {
+	return watch.Size{Width: 52, Height: height}
 }
 
 // broad is a terminal as wide as the Overview's widest frames, 216 columns,

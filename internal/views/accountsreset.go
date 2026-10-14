@@ -29,8 +29,7 @@ func (p AccountsPage) At(m status.Moment) AccountsPage {
 
 // filedAt is the Past as it stands at the moment m, of the document of its
 // accounts, reporting false where it stands as it is: where what m reads of
-// an account's week has it reset since the days were read, at the Past's
-// Now, as the watch builds its pages afresh as they land, and the days don't
+// an account's week has it reset since the days were read, and the days don't
 // hold that reset yet, it's filed among them, as the ledger files it once it
 // reads them again, and the Past is at m's Now. Once the days hold it, it
 // isn't filed again. Every page that tells the accounts' weeks stands so, so
@@ -128,7 +127,7 @@ func (p Past) endedSince(w status.WindowNow, own []ledger.AccountDay, now time.T
 	read := quota.Window{Key: w.Key, Utilization: w.Read.Used, ResetsAt: w.Read.ResetsAt}
 	climb := ledger.NewClimb(w.Key, nil)
 	if began := runBegun(w, length); p.begunSince(began, own, w.Key, length) {
-		climb.Carry(quota.Window{Key: w.Key, Utilization: highestBefore(p.days, own, w.Key, began).share(), ResetsAt: began}, p.in.Now)
+		climb.Carry(quota.Window{Key: w.Key, Utilization: highestBefore(p.days, own, w.Key, began).share(), ResetsAt: began}, p.in.read)
 	} else {
 		climb.BeginAt(highestBefore(p.days, own, w.Key, w.Read.ResetsAt).share())
 	}
@@ -148,13 +147,14 @@ func runBegun(w status.WindowNow, length time.Duration) time.Time {
 }
 
 // begunSince reports whether a run of the window with the given key, length
-// long, that began at began, did so after the Past's days were read, at its
-// Now, and they hold no reset that began it: none of the window since half
-// its length before it, as the days file the reset that began a run at its
-// start as Claude gives it, to the second or so, and the one before came a
-// whole length before.
+// long, that began at began, did so after the Past's days were read, when
+// they were, not at its Now, as a page is built of them after they land, and
+// they hold no reset that began it: none of the window since half its length
+// before it, as the days file the reset that began a run at its start as
+// Claude gives it, to the second or so, and the one before came a whole
+// length before.
 func (p Past) begunSince(began time.Time, own []ledger.AccountDay, key string, length time.Duration) bool {
-	return began.After(p.in.Now) && !resetAfter(own, key, began.Add(-length/2))
+	return began.After(p.in.read) && !resetAfter(own, key, began.Add(-length/2))
 }
 
 // resetAfter reports whether an account's days hold a reset of the window with

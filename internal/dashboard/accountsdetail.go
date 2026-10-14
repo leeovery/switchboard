@@ -404,16 +404,17 @@ type thisWeekItem struct {
 // thisWeekItems are THIS WEEK's items, as the words of Accounts say them, in
 // text.secondary: the requests; the limits, by window, or all accounts' how
 // many; the plan, by its name, or all accounts' summed; the worth, with its
-// ratio; and the extra usage of the accounts shown. Each is as periodParts
-// says it, a dash where the period records nothing.
+// ratio; and the extra usage of the accounts shown. Each of the period's
+// figures is as periodParts says it, a dash where the period records
+// nothing; the plan and extra use are none of them.
 func (d detailDrawn) thisWeekItems() []thisWeekItem {
 	totals, page := d.row.Totals, *d.page
 	return []thisWeekItem{
 		{"requests", periodParts(page, []part{figureIn(prose.Grouped(totals.Requests), secondaryInk)}, secondaryInk)},
 		{"limits", periodParts(page, limitsParts(totals, d.f.windowNamer(d.m), secondaryInk), secondaryInk)},
-		{"plan", periodParts(page, planNamed(d.row, secondaryInk), secondaryInk)},
+		{"plan", planNamed(d.row, secondaryInk)},
 		{"worth", periodParts(page, worthAgainst(d.row, secondaryInk), secondaryInk)},
-		{"extra use", periodParts(page, extraShort(d.extra()), secondaryInk)},
+		{"extra use", extraShort(d.extra())},
 	}
 }
 

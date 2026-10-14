@@ -220,9 +220,10 @@ func TestAPhonesWEEKUSEDShowsTheWeekTheFrameNames(t *testing.T) {
 	}
 }
 
-// A period with nothing recorded, as on a fresh install, says a dash in every
-// row on a phone too, Compare's and Detail's THIS WEEK's, left at its last
-// reset, the plan and extra usage among them.
+// A period with nothing recorded, as on a fresh install or a week's first
+// morning, says a dash in each of its own figures on a phone too, Compare's
+// and Detail's THIS WEEK's; left at its last reset, the plan and extra
+// usage, no figures of the period, say what they are.
 func TestAPhonesAccountsSayADashForEachFigureOfAPeriodWithNothingRecorded(t *testing.T) {
 	page := phonePage(t)
 	page.Recorded = false
@@ -232,14 +233,14 @@ func TestAPhonesAccountsSayADashForEachFigureOfAPeriodWithNothingRecorded(t *tes
 	}{
 		{shown: AccountsCompare, want: map[int]string{
 			29: " work        —         —           —",
-			35: " work        —            —         —",
-			41: " work        —            —         —",
-			44: " all         —            —         —",
+			35: " work        —            —         0%",
+			41: " work        $200/mo      —         —",
+			44: " all         $600/mo      —         —",
 		}},
 		{shown: AccountsDetail, want: map[int]string{
 			19: "requests  —               worth     —",
-			20: "limits    —               extra use —",
-			21: "plan      —               against   —",
+			20: "limits    —               extra use off",
+			21: "plan      Max 20x         against   —",
 		}},
 	}
 	for _, tt := range tests {

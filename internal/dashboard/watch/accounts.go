@@ -186,7 +186,7 @@ var accountsSteps = map[string]int{"[": -1, "]": 1, "<": -1, ">": 1, "left": -1,
 // shows it as showAccounts has it. Where Compare draws no focus, as on a
 // phone, its focus keys do nothing, as focusless has it.
 func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
-	if m.view != dashboard.Accounts {
+	if m.shownView() != dashboard.Accounts {
 		return m, nil, false
 	}
 	if m.focusless(key) {
@@ -222,7 +222,7 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 // to move, enter to open and esc to end: never on a phone, whose Compare
 // draws none, as dashboard.Phone tells one.
 func (m Model) comparing() bool {
-	return m.view == dashboard.Accounts && m.accounts.shown.View() == dashboard.AccountsCompare && !dashboard.Phone(m.size.Width)
+	return m.shownView() == dashboard.Accounts && m.accounts.shown.View() == dashboard.AccountsCompare && !dashboard.Phone(m.size.Width)
 }
 
 // focusKeys are Compare's focus keys: those that move its focus, open the
@@ -279,11 +279,10 @@ func unopened(s dashboard.AccountsShown) string {
 // it, and on the one focused, opens it in Detail, as FocusedOn has it; on an
 // account in Detail's list, it chooses it; and on a session in its SESSIONS,
 // it selects it, and on the one selected, opens its page, as openSession
-// has it (settled in the plan). Each opens as enter does, but never through
-// the key, which the theme picker takes while it's open. The page acts as
+// has it (settled in the plan), each as enter opens it. The page acts as
 // acting has it.
 func (m Model) accountsClick(t dashboard.Target) (tea.Model, tea.Cmd, bool) {
-	if m.view != dashboard.Accounts || m.session != nil {
+	if m.shownView() != dashboard.Accounts {
 		return m, nil, false
 	}
 	s := m.accounts.shown

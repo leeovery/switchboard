@@ -18,7 +18,8 @@ import (
 // Restarts, the router's health, and routing given back to it name no
 // account, so neither tells them. Each tells a session that started on the
 // router's best, as its reason says, ", the best", as it started, wherever ▲
-// marks since.
+// marks since. Each is told in full alone, its Short its Full, as a phone's
+// Detail tells LATELY in full too.
 func AccountLately(m status.Moment, id string, n int) []Sentence {
 	if id == "" {
 		return toldFrom(m, n, everyAccount)
@@ -29,18 +30,17 @@ func AccountLately(m status.Moment, id string, n int) []Sentence {
 // unnamed are the kinds of events that name no account.
 var unnamed = []string{status.EventAuto, status.EventRestart, status.EventHealth}
 
-// everyAccount is every account's side: the Overview's, but the events that
-// name no account, a session that started on the router's best said to
-// have.
+// everyAccount is every account's side: the Overview's, in full, but the
+// events that name no account, a session that started on the router's best
+// said to have.
 var everyAccount = side{
 	tells: func(e status.Event) bool { return overview.tells(e) && !slices.Contains(unnamed, e.Kind) },
 	tell: func(t latelyTeller, e status.Event, f eventFact) (string, Said, Said) {
-		kind, full, short := overview.tell(t, e, f)
+		kind, full, _ := overview.tell(t, e, f)
 		if e.Kind == status.EventStarted {
 			full.Rest = t.startedWhy(e, f, true)
-			short.Rest = full.Rest
 		}
-		return kind, full, short
+		return kind, full, full
 	},
 }
 
@@ -85,31 +85,33 @@ func (s accountSide) pinned(e status.Event) bool {
 	return slices.Contains(pinnedNames(e), s.id)
 }
 
-// tell tells e from the account's side, as it tells it of its kind.
+// tell tells e from the account's side, in full, as told tells it.
 func (s accountSide) tell(t latelyTeller, e status.Event, f eventFact) (string, Said, Said) {
+	kind, said := s.told(t, e, f)
+	return kind, said, said
+}
+
+// told tells e from the account's side, as it tells it of its kind, with the
+// kind its mark is drawn for.
+func (s accountSide) told(t latelyTeller, e status.Event, f eventFact) (string, Said) {
 	switch e.Kind {
 	case status.EventStarted:
-		said := Said{Subject: session(e.Session), Words: clause(" started here"), Rest: t.startedWhy(e, f, true)}
-		return e.Kind, said, said
+		return e.Kind, Said{Subject: session(e.Session), Words: clause(" started here"), Rest: t.startedWhy(e, f, true)}
 	case status.EventMoved:
-		said := t.cameHere(e, f)
-		return e.Kind, said, said
+		return e.Kind, t.cameHere(e, f)
 	case status.EventPressure:
-		full, short := t.pressedHere(e)
-		return e.Kind, full, short
+		return e.Kind, t.pressedHere(e)
 	case status.EventCap, status.EventLimit, status.EventRefused:
 		if s.cameFrom(e) {
-			full, short := cameFromHeld(e, f)
-			return status.EventMoved, full, short
+			return status.EventMoved, cameFromHeld(e, f)
 		}
-		full, short := befell(e, f)
-		return e.Kind, heldBack(nil, e, f, full, false), heldBack(nil, e, f, short, true)
+		full, _ := befell(e, f)
+		return e.Kind, heldBack(nil, e, f, full, false)
 	case status.EventPin:
-		full, short := s.pinnedHere(e)
-		return e.Kind, full, short
+		return e.Kind, s.pinnedHere(e)
 	}
-	full, short := befell(e, f)
-	return e.Kind, Said{Words: clause(full)}, Said{Words: clause(short)}
+	full, _ := befell(e, f)
+	return e.Kind, Said{Words: clause(full)}
 }
 
 // cameHere tells of a session's model moving onto the account: "db8a came
@@ -125,42 +127,33 @@ func (t latelyTeller) cameHere(e status.Event, f eventFact) Said {
 
 // pressedHere tells of the account coming under pressure, and when its
 // window runs out at its pace, where the event says: "came under pressure:
-// out ~16:05 at this pace", or short, "under pressure: out ~16:05".
-func (t latelyTeller) pressedHere(e status.Event) (Said, Said) {
-	full, short := Said{Words: clause("came under pressure")}, Said{Words: clause("under pressure")}
+// out ~16:05 at this pace".
+func (t latelyTeller) pressedHere(e status.Event) Said {
 	if e.Until.IsZero() {
-		return full, short
+		return Said{Words: clause("came under pressure")}
 	}
-	out := clause("~" + prose.Dated(t.now, e.Until))
-	full = Said{Words: clause("came under pressure: out "), Object: out, Rest: clause(" at this pace")}
-	short = Said{Words: clause("under pressure: out "), Object: out}
-	return full, short
+	return Said{Words: clause("came under pressure: out "), Object: clause("~" + prose.Dated(t.now, e.Until)), Rest: clause(" at this pace")}
 }
 
 // cameFromHeld tells of the sessions another account's cap, limit or
 // refusal moved onto the account: "3 sessions came from work: work reached
-// its cap", or short, "3 came from work: work at its cap".
-func cameFromHeld(e status.Event, f eventFact) (Said, Said) {
-	full, short := befell(e, f)
-	from := func(count, what string) Said {
-		return Said{Subject: clause(count), Words: clause(" came from "), Object: account(e.Account),
-			Rest: slices.Concat(clause(": "), account(e.Account), clause(" "+what))}
-	}
-	return from(prose.SessionCount(f.moved), full), from(prose.Grouped(f.moved), short)
+// its cap".
+func cameFromHeld(e status.Event, f eventFact) Said {
+	what, _ := befell(e, f)
+	return Said{Subject: clause(prose.SessionCount(f.moved)), Words: clause(" came from "), Object: account(e.Account),
+		Rest: slices.Concat(clause(": "), account(e.Account), clause(" "+what))}
 }
 
 // pinnedHere tells of routing set by hand to the account: the global pin,
 // "pinned here, by hand", or with others, "pinned with side, by hand"; or a
-// session's own pin, "c61b pinned here, by hand". Short, it's without ", by
-// hand".
-func (s accountSide) pinnedHere(e status.Event) (Said, Said) {
+// session's own pin, "c61b pinned here, by hand".
+func (s accountSide) pinnedHere(e status.Event) Said {
 	if e.Session != "" {
-		return Said{Subject: session(e.Session), Words: clause(" pinned here, by hand")}, Said{Subject: session(e.Session), Words: clause(" pinned here")}
+		return Said{Subject: session(e.Session), Words: clause(" pinned here, by hand")}
 	}
 	others := slices.DeleteFunc(pinnedNames(e), func(name string) bool { return name == s.id })
 	if len(others) == 0 {
-		return Said{Words: clause("pinned here, by hand")}, Said{Words: clause("pinned here")}
+		return Said{Words: clause("pinned here, by hand")}
 	}
-	with := joined(others, prose.And)
-	return Said{Words: clause("pinned with "), Object: with, Rest: clause(", by hand")}, Said{Words: clause("pinned with "), Object: with}
+	return Said{Words: clause("pinned with "), Object: joined(others, prose.And), Rest: clause(", by hand")}
 }

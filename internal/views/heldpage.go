@@ -1,7 +1,6 @@
 package views
 
 import (
-	"maps"
 	"slices"
 	"time"
 
@@ -18,16 +17,18 @@ import (
 // it ran on, with what they took. Take takes in the lines a day gained since,
 // each once; Page builds the page of what's held, what the router lists and
 // what the stream told. What changes it returns afresh, so a copy holding it
-// never sees it change.
+// never sees it change, sharing what it took before, which nothing changes.
 type HeldPage struct {
 	id     string
 	day    LedgerDay
 	prices ledger.Table
 	keep   time.Duration
-	// held are the lines taken, of whichever session, by keyOf: none where
-	// they have no id.
-	held     map[lineKey]bool
-	answers  map[string][]answered
+	// held are the keys of the lines taken, as heldKeys has them; answers
+	// every account's requests taken, answered, by the date of the day whose
+	// files hold them; and over what the session's points are taken over.
+	held     heldKeys
+	answers  map[string]answersTaken
+	over     pointsOver
 	requests []request
 	story    *story
 	accounts []SessionAccount
@@ -48,17 +49,15 @@ func keyOf(l *ledger.Line) (lineKey, bool) {
 }
 
 // PageLive is what a session's page is built of beside its lines: the
-// session as the router lists it, nil where it doesn't; whether no router
-// lists the sessions; the session as the router's last listing had it, nil
-// where it didn't, which counts only while no router lists them, and then
-// for its own pin alone, as the pin stands at the router all the same; what
-// the request stream told; and now.
+// session as the router lists it, or while it doesn't answer, as its last
+// listing had it, as the List has it then, nil where it doesn't; whether no
+// router lists the sessions, as ListLive's Unlisted has it; what the request
+// stream told; and now.
 type PageLive struct {
-	Routed     *status.Session
-	Unlisted   bool
-	LastRouted *status.Session
-	Stream     Stream
-	Now        time.Time
+	Routed   *status.Session
+	Unlisted bool
+	Stream   Stream
+	Now      time.Time
 }
 
 // HoldPage holds the page of the session with the given id, of what read
@@ -66,30 +65,38 @@ type PageLive struct {
 // prices at the day now falls on, and keep the ledger's [ledger] keep, as
 // ledgerKept reads it.
 func HoldPage(id string, read SessionsRead, prices ledger.Table, keep time.Duration, now time.Time) HeldPage {
-	h := HeldPage{id: id, day: Today(now), prices: prices, keep: ledgerKept(keep), held: make(map[lineKey]bool), answers: answersOf(read.requests, id)}
-	for _, lines := range read.requests {
-		h.hold(lines)
+	h := HeldPage{id: id, day: Today(now), prices: prices, keep: ledgerKept(keep)}
+	answers := answersOf(read.requests, id)
+	for date, lines := range read.requests {
+		h.held = holding(h.held, lines)
+		h.answers = answering(h.answers, date, answers[date])
 	}
-	h.hold(read.lines[id])
+	h.held = holding(h.held, read.lines[id])
 	h.requests = requestsOf(read.lines[id], prices, h.day.Date)
+	h.over.days = daysOf(answers)
 	return h.built()
 }
 
-// hold notes each of lines as taken.
-func (h HeldPage) hold(lines []ledger.Line) {
-	for i := range lines {
-		if k, ok := keyOf(&lines[i]); ok {
-			h.held[k] = true
-		}
-	}
-}
-
 // built is h with what its requests and answers make worked out: its story,
-// and the accounts it ran on, with the points they took.
+// and the accounts it ran on, with the points they took, as pointed has
+// them.
 func (h HeldPage) built() HeldPage {
 	h.story = storyOf(h.requests, h.prices, h.day)
 	h.accounts = accountsOf(h.requests)
-	points := pointsOf(h.answers, h.requests)
+	h.over = pointsOverOf(h.requests, h.over.days)
+	return h.pointed()
+}
+
+// pointed is h with the points the session took of the windows of the
+// accounts it ran on worked out afresh, as pointsOf has them, of the answers
+// it holds of the days they're taken over, its accounts given them afresh.
+func (h HeldPage) pointed() HeldPage {
+	answers := make(map[string][]answered, len(h.over.days))
+	for _, date := range h.over.days {
+		answers[date] = takenAll(h.answers[date])
+	}
+	points := pointsOf(answers, h.over)
+	h.accounts = slices.Clone(h.accounts)
 	for i := range h.accounts {
 		h.accounts[i].Points = points[h.accounts[i].Account]
 	}
@@ -99,15 +106,19 @@ func (h HeldPage) built() HeldPage {
 // Take is h with the lines given taken in, those a day, of the given date,
 // gained since it was held, as the ledger's Today gives them: each request
 // of the session's, priced once, and each of an account's, every session's,
-// for the points, each line once, whether it was held already or not. A
-// date after the day h is held at rolls it on to that day, its requests
-// priced afresh, as Page would price them every look until it's held there;
-// an earlier one, of a ledger yet to turn its day, never rolls it back. It's
-// h itself where none is new and the date is no later than its day.
+// for the points, each line once, whether it was held already or not. Only
+// what they change is worked out afresh: the whole page, where they're of
+// the session; else its points, where one is of an account it ran on, on a
+// day it made requests on, as its points are shared out among them; else
+// none of it. A date after the day h is held at rolls it on to that day,
+// its requests priced afresh, as Page would price them every look until
+// it's held there; an earlier one, of a ledger yet to turn its day, never
+// rolls it back. It's h itself where none is new and the date is no later
+// than its day.
 func (h HeldPage) Take(date string, lines []ledger.Held) HeldPage {
 	var gained []ledger.Line
 	for _, l := range lines {
-		if k, ok := keyOf(&l.Line); !ok || !h.held[k] {
+		if k, ok := keyOf(&l.Line); !ok || !holds(h.held, k) {
 			gained = append(gained, l.Line)
 		}
 	}
@@ -118,20 +129,30 @@ func (h HeldPage) Take(date string, lines []ledger.Held) HeldPage {
 	if rolls {
 		h = h.on(dayOf(date))
 	}
-	h.held, h.answers = maps.Clone(h.held), maps.Clone(h.answers)
-	h.hold(gained)
+	h.held = holding(h.held, gained)
 	var mine []ledger.Line
+	var answers []answered
+	counts := false
 	for i := range gained {
 		l := &gained[i]
 		if l.Counted() && l.Account != "" {
-			h.answers[date] = append(slices.Clip(h.answers[date]), answeredOf(l, h.id))
+			a := answeredOf(l, h.id)
+			answers, counts = append(answers, a), counts || h.over.counts(date, a)
 		}
 		if l.Session == h.id {
 			mine = append(mine, *l)
 		}
 	}
-	h.requests = inArrival(h.requests, requestsOf(mine, h.prices, h.day.Date))
-	return h.built()
+	h.answers = answering(h.answers, date, answers)
+	switch {
+	case len(mine) > 0 || rolls:
+		h.requests = inArrival(h.requests, requestsOf(mine, h.prices, h.day.Date))
+		h.over = h.over.withDay(date, answers)
+		return h.built()
+	case counts:
+		return h.pointed()
+	}
+	return h
 }
 
 // inArrival returns held, a session's requests oldest first, with those
@@ -165,34 +186,88 @@ func (h HeldPage) on(day LedgerDay) HeldPage {
 	return h
 }
 
-// Page is the page of the session h holds, as SessionPageOf builds it, of
-// what h holds of its lines and what live gives, reporting false where it
-// has no request, and the router doesn't list it.
-func (h HeldPage) Page(live PageLive) (SessionPage, bool) {
-	h = h.at(live.Now)
-	if len(h.requests) == 0 && live.Routed == nil {
-		return SessionPage{}, false
+// BuiltPage is a session's page as Build builds it: the page; its story;
+// and the requests of its turn open, none where none is.
+type BuiltPage struct {
+	Page     SessionPage
+	Story    Story
+	Requests []LogLine
+}
+
+// Build is the page of the session h holds, as Page builds it, with its
+// story, as Story tells it, and the requests of its turn numbered open, as
+// TurnRequests has them, none where open is 0, all three of one working of
+// what h holds and what live gives, as worked has it: reporting false where
+// Page does.
+func (h HeldPage) Build(open int, live PageLive) (BuiltPage, bool) {
+	w := h.worked(live)
+	page, ok := w.page()
+	if !ok {
+		return BuiltPage{}, false
 	}
+	return BuiltPage{Page: page, Story: w.story(page), Requests: w.turnRequests(open)}, true
+}
+
+// worked is what a page of the session h holds is built of, worked out
+// once for the page, its story and its turn open's requests alike: h at
+// live's now, as at has it; live; the sessions as by lists them, the router
+// listing the session where live says it does, the stream telling what live
+// gives; the session's requests the stream told of; its requests as its
+// turns take them in, as sentOf has them; and its turns' tallies, as
+// talliesOf has them, with whether a request in none is in flight.
+type worked struct {
+	h       HeldPage
+	live    PageLive
+	by      lister
+	told    []Told
+	sent    []sent
+	tallies []*turnTally
+	inNone  bool
+}
+
+// worked is what a page of the session h holds is built of, of what live
+// gives.
+func (h HeldPage) worked(live PageLive) worked {
+	h = h.at(live.Now)
 	var running []status.Session
 	if live.Routed != nil {
 		running = []status.Session{*live.Routed}
 	}
-	by := newLister(running, live.Unlisted, live.Stream, live.Now)
+	w := worked{h: h, live: live, by: newLister(running, live.Unlisted, live.Stream, live.Now)}
+	w.told = w.by.h.told[h.id]
+	w.sent = sentOf(h.requests, w.told)
+	w.tallies, w.inNone = talliesOf(w.sent)
+	return w
+}
+
+// Page is the page of the session h holds, as SessionPageOf builds it, of
+// what h holds of its lines and what live gives, reporting false where it
+// has no request, and the router doesn't list it.
+func (h HeldPage) Page(live PageLive) (SessionPage, bool) {
+	return h.worked(live).page()
+}
+
+// page is the page as Page builds it, of w.
+func (w worked) page() (SessionPage, bool) {
+	h, live, by := w.h, w.live, w.by
+	routed, running := by.routed[h.id]
+	if len(h.requests) == 0 && !running {
+		return SessionPage{}, false
+	}
 	listed := by.listed(h.id, h.story)
-	told := by.h.told[h.id]
 	page := SessionPage{
 		Session: listed.Session, Dir: listed.Dir, Account: listed.Account, Model: listed.Model, Running: listed.Running, LastSeen: listed.LastSeen,
 		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
-		Resumed: resumedAt(sentOf(h.requests, told)), Accounts: slices.Clone(h.accounts), Moves: movesOf(h.story), Activity: listed.Activity,
+		Resumed: resumedAt(w.sent), Accounts: slices.Clone(h.accounts), Moves: movesOf(h.story), Activity: listed.Activity,
 	}
-	unplaced := live.Routed != nil && by.h.unplaced(*live.Routed)
-	page.Turns = turnsOf(h.requests, told, page.Runs(), unplaced)
-	page.Goes = by.goesOf(h.id, live.Stream, h.requests, told)
-	switch {
-	case live.Routed != nil:
-		page.Pin, page.Auto = live.Routed.Pin, autoOf(*live.Routed, page.Model)
-	case live.Unlisted && live.LastRouted != nil:
-		page.Pin = live.LastRouted.Pin
+	unplaced := running && by.h.unplaced(routed)
+	page.Turns = turnsOf(w.tallies, w.inNone, page.Runs(), unplaced)
+	page.Goes = by.goesOf(h.id, live.Stream, h.requests, w.sent)
+	if running {
+		page.Pin = routed.Pin
+		if !live.Unlisted {
+			page.Auto = autoOf(routed, page.Model)
+		}
 	}
 	if !page.Running && h.story.first != nil {
 		page.KeptUntil, _ = dayfile.KeptUntil(Today(h.story.first.At).Date, h.keep)
@@ -209,18 +284,22 @@ func (h HeldPage) Page(live PageLive) (SessionPage, bool) {
 // with no mark, as a turn's rows have none; and its details, as Details
 // gives them. None where it has no such turn.
 func (h HeldPage) TurnRequests(n int, live PageLive) []LogLine {
-	h = h.at(live.Now)
-	tallies, _ := talliesOf(h.requests, live.Stream.hearing().told[h.id])
-	if n < 1 || n > len(tallies) {
+	return h.worked(live).turnRequests(n)
+}
+
+// turnRequests are the requests of the turn numbered n, as TurnRequests has
+// them, of w.
+func (w worked) turnRequests(n int) []LogLine {
+	if n < 1 || n > len(w.tallies) {
 		return nil
 	}
-	lines := make([]LogLine, len(tallies[n-1].members))
-	for i, r := range tallies[n-1].members {
+	lines := make([]LogLine, len(w.tallies[n-1].members))
+	for i, r := range w.tallies[n-1].members {
 		if r.line != nil {
-			lines[i] = LogLine{Row: lineRow(r.line.Line, h.story), line: r.line.Line}
+			lines[i] = LogLine{Row: lineRow(r.line.Line, w.h.story), line: r.line.Line}
 			lines[i].Row.Worth = r.line.worth
 		} else {
-			lines[i] = LogLine{Row: toldRow(*r.told, live.Now)}
+			lines[i] = LogLine{Row: toldRow(*r.told, w.live.Now)}
 		}
 		lines[i].Row.Mark = NoMark
 	}
@@ -268,18 +347,21 @@ func (h hearing) unplaced(s status.Session) bool {
 
 // goesOf are where the models of the session with the given id go now, as
 // its page's row 7 has them: where the router lists it, as it lists them,
-// the moves the stream s told of since taken in, each with the reason and
-// time of the move that took it there; else each model's latest account, in
-// the order the models first came, as its requests, oldest first, and those
-// the stream told of, told, give them, each with the reason of its latest
-// line.
-func (by lister) goesOf(id string, s Stream, requests []request, told []Told) []SessionModel {
+// the moves the stream s told of since, as unlisted has them, taken in, each
+// with the reason and time of the move that took it there; else each model's
+// latest account, in the order the models first came, as its requests as
+// its turns take them in, sent, give them, each with the reason of its
+// latest line, of its requests, oldest first, the router didn't keep where
+// it was. Either way, a model that came there by starting there gives why a
+// request since kept it there, as keptLines has it.
+func (by lister) goesOf(id string, s Stream, requests []request, sent []sent) []SessionModel {
+	kept := keptOf(requests)
 	if _, listed := by.routed[id]; listed {
 		var goes []SessionModel
 		for _, a := range by.goes[id] {
-			goes = append(goes, SessionModel{Model: a.Model, Account: a.Account, Reason: a.Reason, Since: cameAt(a)})
+			goes = append(goes, SessionModel{Model: a.Model, Account: a.Account, Reason: kept[a.Model].why(a.Account, a.Reason), Since: cameAt(a)})
 		}
-		for _, m := range newestMoves(s.Moves) {
+		for _, m := range newestMoves(s.unlisted()) {
 			if i := slices.IndexFunc(goes, func(g SessionModel) bool { return m.Session == id && g.Model == m.Model && g.Account == m.To }); i >= 0 {
 				goes[i].Reason, goes[i].Since = m.Reason, m.At
 			}
@@ -287,7 +369,7 @@ func (by lister) goesOf(id string, s Stream, requests []request, told []Told) []
 		return goes
 	}
 	var goes []SessionModel
-	for _, r := range sentOf(requests, told) {
+	for _, r := range sent {
 		if r.account == "" {
 			continue
 		}
@@ -296,9 +378,43 @@ func (by lister) goesOf(id string, s Stream, requests []request, told []Told) []
 			i, goes = len(goes), append(goes, SessionModel{Model: r.model})
 		}
 		goes[i].Account = r.account
-		if r.line != nil {
-			goes[i].Reason = r.line.Reason
-		}
+	}
+	for i, g := range goes {
+		goes[i].Reason = kept[g.Model].why(g.Account, kept[g.Model].came)
 	}
 	return goes
+}
+
+// keptLines are what a session model's lines tell of why it goes where it
+// does: the account its latest went to, the reason of its latest the router
+// didn't keep where it was, which the router keeps as the reason its
+// assignment came by, and its latest's own reason where the router kept it.
+type keptLines struct {
+	account, came, kept string
+}
+
+// keptOf are what the lines of requests, a session's, oldest first, tell of
+// each of its models, as keptLines has it, by model.
+func keptOf(requests []request) map[string]keptLines {
+	by := make(map[string]keptLines)
+	for _, r := range requests {
+		k := keptLines{account: r.Account, came: by[r.Model].came}
+		if status.Kept(r.Reason) {
+			k.kept = r.Reason
+		} else {
+			k.came = r.Reason
+		}
+		by[r.Model] = k
+	}
+	return by
+}
+
+// why is why the model goes to account, having come there for the reason
+// came: where it came by starting there, why its latest line there says a
+// request since kept it there, as the router never says; else came.
+func (k keptLines) why(account, came string) string {
+	if k.kept != "" && k.account == account && (came == "" || status.MovedNothing(came)) {
+		return k.kept
+	}
+	return came
 }

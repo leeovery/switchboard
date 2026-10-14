@@ -8,10 +8,6 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
-
-	tea "charm.land/bubbletea/v2"
-
-	"github.com/leeovery/switchboard/internal/dashboard/watch"
 )
 
 // referenceDir is where milestone 7's signed-off frames are kept, each by its
@@ -20,12 +16,8 @@ const referenceDir = "../../testdata/vhs/reference"
 
 // owed are the frames no fixture draws yet. Each stage that builds a view
 // adds its fixtures, named after the frames they draw, and takes their stems
-// from here; by stage 14 none is owed.
-var owed = []string{
-	"runway-5-hour-160", "runway-phone-52", "runway-stepped-back-160", "runway-ten-accounts-160", "runway-week-160",
-	"sessions-list-160", "sessions-list-phone-52", "sessions-moved-160", "sessions-one-account-160", "sessions-phone-52",
-	"sessions-pinned-160", "sessions-refused-160", "sessions-switchboard-160", "sessions-ten-accounts-160",
-}
+// from here: since Runway's, none is.
+var owed []string
 
 // passing is cells a frame drew otherwise than the design says, or than its
 // world gives, which the test passes over: their span, and what the frame's
@@ -420,14 +412,13 @@ func extrasPaces(c int) []passing {
 // extrasFigures passes over the figures of the six and ten accounts'
 // extras, client, spare and lab, in the compact matrix at 160 columns, its
 // bars from column c, 17 or, of ten, 18, which the frames typed and their
-// world gives otherwise: client's 5-hour window's words and its weeks'
-// allowances; spare's 5-hour window's rate, and its weeks' words, as its
-// world has them reset on Tuesdays at 14:00; and lab's 5-hour
-// window's even pace, its window starting later in its world, its week's
-// words and its Fable week's allowance.
+// world gives otherwise: client's weeks' allowances; spare's 5-hour window's
+// rate, and its weeks' words, as its world has them reset on Tuesdays at
+// 14:00; and lab's 5-hour window's even pace, its window starting later in
+// its world, its week's words and its Fable week's allowance.
 func extrasFigures(c int) []passing {
 	return []passing{
-		cellsOf(15, c+23, c+38, "16%/h till 17:40"), cellsOf(15, c+71, c+77, "14%/day"), cellsOf(15, c+119, c+125, "25%/day"),
+		cellsOf(15, c+71, c+77, "14%/day"), cellsOf(15, c+119, c+125, "25%/day"),
 		cellsOf(17, c+23, c+27, "19%/h"), cellsOf(17, c+71, c+92, "20%/day till Thu 18:00"), cellsOf(17, c+119, c+140, "20%/day till Thu 18:00"),
 		cellsOf(19, c+9, c+10, "┃"), cellsOf(19, c+71, c+92, "11%/day till Mon 08:00"), cellsOf(19, c+119, c+125, "20%/day"),
 	}
@@ -679,9 +670,70 @@ var d28cPage = slices.Concat(fromTheLog(1, 16, 68), []passing{
 }, d28cStory)
 
 // What 9c2e's frames draw otherwise than its world gives above its story:
-// sticky, where the router lists it as new; and how long it has run, from
-// 11:55:00 where its first request came at 11:55:31.
-var quietPage = slices.Concat(fromTheLog(1, 16, 68), []passing{wordsAt(7, 41, ": sticky"), wordsAt(7, 155, "2h 47m")})
+// how long it has run, from 11:55:00 where its first request came at
+// 11:55:31.
+var quietPage = slices.Concat(fromTheLog(1, 16, 68), []passing{wordsAt(7, 155, "2h 47m")})
+
+// enterLit and enterOpenLit pass over enter on Sessions' key line, wide and
+// on a phone, which the frames draw lit, bold accent.key, where nothing is
+// chosen, so the dashboard draws it faint, as a key that can't act now.
+var (
+	enterLit     = wordsAt(37, 37, "enter its page")
+	enterOpenLit = wordsAt(33, 14, "enter open")
+)
+
+// atTheLimit passes over what the frames at personal's limit, at 16:05:41
+// and 16:05:42, draw as at 14:42:07: each Fable week's allowance, rows 12,
+// 20 and 28, a percent a day less than the world's at 16:05; personal's week
+// running out ~Sat 06:00, row 18, where its world, read no more since 14:20,
+// has it run out ~Sun 00:48 at its rate by then; and side's week's
+// allowance, where it runs out.
+var atTheLimit = []passing{
+	cellsOf(12, 138, 139, "25"), cellsOf(20, 138, 139, "40"), cellsOf(28, 138, 139, "25"),
+	wordsAt(18, 138, "out ~Sat 06:00"), cellsOf(26, 138, 158, sidesWeek),
+}
+
+// c61bsFifth passes over c61b's requests on the List, on row n, at column
+// requests, and its worth, from column worth, where it has a column for it,
+// none on a phone: the frames count its fifth request, its answer
+// streaming, which the ledger writes as it ends, and price it $0.29, where
+// the world's lines give 4 and $0.22.
+func c61bsFifth(n, requests, worth int) []passing {
+	passings := []passing{wordsAt(n, requests, "5")}
+	if worth > 0 {
+		passings = append(passings, wordsAt(n, worth, "$0.29"))
+	}
+	return passings
+}
+
+// partFilled passes over the pool's part-filled cell in Runway's now column,
+// row n, column c, which the frame draws on the canvas, where the design has
+// the gradient's empty part on now's bg.subtle.
+func partFilled(n, c int) passing {
+	return drawnIn(n, c, c, eighths)
+}
+
+// Runway's week view, where its frame and the design part, or the frame and
+// its world: weeksTicks, Fri on row 8 and the ┬ and ╵ under it on row 9,
+// which the frame ticks a cell on from the design's columns, 74.1 minutes
+// each from Wed 14:40; and sidesWeekOnRunway, side's week, which the frame
+// has with room till it resets at Mon 10:00, where its world has it run out
+// ~Fri 12:20 at its pace, as usage says: its lane, row 17, and its words,
+// row 18; the pool's columns, its dip and its words, rows 20 to 22; and
+// COMING UP from its fourth line, a line early, rows 30 to 34.
+var (
+	weeksTicks = []passing{
+		cellsOf(8, 51, 54, "Fri"), cellsOf(9, 51, 52, "─┬"), cellsOf(9, 85, 86, "─╵"), cellsOf(9, 119, 120, "─╵"),
+		cellsOf(9, 153, 154, "─╵"), cellsOf(9, 158, 159, "─╵"),
+	}
+	sidesWeekOnRunway = slices.Concat(
+		[]passing{
+			drawnIn(17, 44, 117, "▆"), cellsOf(18, 61, 130, "resets Mon 10:00"),
+			drawnIn(20, 62, 117, eighths), blankCells(21, 76, 91), cellsOf(22, 73, 148, "2 of 3 with room ~Sat 06:00"),
+		},
+		comingLines(30, 72, "~Sat 06:00", "Sun 02:00", "Sun 21:00", "Mon 10:00", ""),
+	)
+)
 
 // passedOver is, by stem, the rows and cells each frame drew otherwise than
 // the design says, or than its world gives, which testdata/vhs/README.md
@@ -722,7 +774,7 @@ var passedOver = map[string][]passing{
 	),
 	"overview-six-accounts-160": slices.Concat(
 		matrix160, extrasPaces(17), extrasFigures(17), []passing{cellsOf(21, 73, 75, "┃"), cellsOf(21, 121, 123, "┃")},
-		oneHigh(27, 160, "0/min", "2/min", "15/min", "2/min", "0/min", "4/min"), []passing{cellsOf(30, 17, 45, "● open")},
+		oneHigh(27, 160, "0/min", "2/min", "15/min", "2/min", "0/min", "4/min"),
 		comingLines(37, 72, "16:30", "17:10", "18:50"), []passing{wholeRow(41, overviewKeys)},
 	),
 	"overview-ten-accounts-160": slices.Concat(
@@ -739,7 +791,7 @@ var passedOver = map[string][]passing{
 			cellsOf(29, 73, 75, "┃"), cellsOf(29, 121, 123, "┃"),
 		},
 		oneHigh(35, 160, "0/min", "2/min", "15/min", "2/min", "0/min", "4/min", "0/min", "2/min", "0/min", "3/min"),
-		[]passing{cellsOf(38, 18, 46, "● open")}, comingLines(49, 72, "16:30", "17:10", "18:50"), []passing{wholeRow(53, overviewKeys)},
+		comingLines(49, 72, "16:30", "17:10", "18:50"), []passing{wholeRow(53, overviewKeys)},
 	),
 	"overview-default-216": slices.Concat(
 		bigBars, twoHigh(43, 216, 93, "0/min", "2/min", "15/min"), comingLines(58, 97, comingUp216...), latelyLines(62, lately216...),
@@ -791,7 +843,7 @@ var passedOver = map[string][]passing{
 		[]passing{wholeRow(37, accountsKeys)},
 	),
 	"accounts-compare-ten-160": slices.Concat(
-		[]passing{period(150, "this week"), unrouted(7, 72), cellsOf(8, 84, 93, "● open")}, haikuInCompare(60, 98, 117),
+		[]passing{period(150, "this week"), unrouted(7, 72)}, haikuInCompare(60, 98, 117),
 		inColumns(13, 19, "", "", "", "", "", "", "53%"), inColumns(14, 19, "", "", "", "", "", "", "4%"),
 		inColumns(16, 19, "", "", "", "", "", "", "4%"), inColumns(17, 19, "", "", "", "", "", "", "1%"),
 		inColumns(21, 19, "", "", "", "", "", "", "12,598"), inColumns(22, 19, "", "6", "11", "", "", "", "51"),
@@ -1022,8 +1074,30 @@ var passedOver = map[string][]passing{
 		},
 		d28cPhoneStory,
 	),
-	"sessions-one-account-160": {wholeRow(37, "tab views   [ ] view    ↑↓ session  enter its page    p pin")},
-	"runway-phone-52":          {wholeRow(33, "< > window   ←→ day   ? keys")},
+	"sessions-switchboard-160": {evenPace(24, 104), cellsOf(26, 138, 158, sidesWeek), enterLit},
+	"sessions-list-160": slices.Concat(c61bsFifth(13, 80, 85), []passing{
+		cellsOf(22, 92, 126, "from personal, at its limit  $0.61"), wordsAt(36, 123, "1,240"), wordsAt(36, 140, "$126.02"), enterLit,
+	}),
+	"sessions-phone-52": {enterOpenLit},
+	"sessions-list-phone-52": slices.Concat(c61bsFifth(14, 52, 0), []passing{
+		wordsAt(31, 39, "1,240"), wordsAt(32, 32, "$126.02"), enterOpenLit,
+	}),
+	"sessions-refused-160": slices.Concat(atTheLimit, []passing{enterLit}),
+	"sessions-moved-160":   slices.Concat(atTheLimit, []passing{enterLit}),
+	"sessions-pinned-160":  {cellsOf(16, 119, 123, "┃"), evenPace(24, 104), cellsOf(26, 138, 158, sidesWeek), enterLit},
+	"sessions-ten-accounts-160": {
+		cellsOf(16, 145, 147, "┃"), cellsOf(19, 140, 141, "┃"),
+		cellsOf(21, 111, 113, "┃"), cellsOf(21, 144, 145, "┃"), cellsOf(23, 114, 117, "┃"), cellsOf(23, 147, 149, "┃"),
+		cellsOf(27, 101, 102, "┃"), cellsOf(29, 111, 114, "┃"), cellsOf(29, 142, 148, "┃"), enterLit,
+	},
+	"sessions-one-account-160": {
+		cellsOf(7, 94, 96, "▲"), cellsOf(16, 110, 144, "▲ new sessions go here"),
+		wholeRow(37, "tab views   [ ] view    ↑↓ session  enter its page    p pin"),
+	},
+	"runway-5-hour-160":       {partFilled(20, 31)},
+	"runway-week-160":         slices.Concat(weeksTicks, sidesWeekOnRunway, []passing{partFilled(20, 44)}),
+	"runway-ten-accounts-160": {cellsOf(20, 39, 39, "─"), partFilled(31, 31), drawnIn(31, 39, 39, eighths)},
+	"runway-phone-52":         {partFilled(21, 16), wholeRow(33, "< > window   ←→ day   ? keys")},
 }
 
 func TestReferenceKeepsEachFrameAsTextANSIAndPNG(t *testing.T) {
@@ -1108,67 +1182,6 @@ func TestEveryFixtureNamedAfterAFrameDrawsItCellForCell(t *testing.T) {
 				t.Fatalf("parsing what %s draws: %v", stem, err)
 			}
 			diffs, err := compare(frame, drawn, canvas, spans(passedOver[stem]))
-			if err != nil {
-				t.Fatalf("%s: %v", stem, err)
-			}
-			if len(diffs) > 0 {
-				t.Error(describe(stem, diffs))
-			}
-		})
-	}
-}
-
-// partial is part of a frame a page draws before any fixture is named after
-// it, held to the frame cell for cell: the page, over the frame's world with
-// its keys pressed, and the area of the frame it draws as the frame does.
-type partial struct {
-	page page
-	area area
-}
-
-// The areas the page is held to: the chrome, the title row and the status
-// line, the design's rows 0 to 3, or 0 to 4 on a phone, whose tabs take a
-// row of their own.
-var (
-	chrome      = area{top: 1, bottom: 4}
-	phoneChrome = area{top: 1, bottom: 5}
-)
-
-// heldTabbed is the page over the auto world, tab pressed the times given,
-// held over the area given.
-func heldTabbed(tabs int, within area) partial {
-	keys := slices.Repeat([]tea.KeyPressMsg{{Code: tea.KeyTab}}, tabs)
-	return partial{page: page{world: accountWorlds.auto, keys: keys}, area: within}
-}
-
-// holds are, by stem, the frames the page is held to in part until their
-// fixtures draw them whole: the chrome of a frame of each tab but the
-// Overview's, and of Sessions on a phone.
-var holds = map[string]partial{
-	"sessions-switchboard-160": heldTabbed(3, chrome),
-	"runway-5-hour-160":        heldTabbed(4, chrome),
-	"sessions-phone-52":        heldTabbed(3, phoneChrome),
-}
-
-func TestThePageDrawsWhatItHoldsOfAFrameCellForCell(t *testing.T) {
-	worlds := worldsNow()
-	canvas := rgb(terminalBackground.R, terminalBackground.G, terminalBackground.B)
-	names := Names()
-	for stem, h := range holds {
-		t.Run(stem, func(t *testing.T) {
-			if slices.Contains(names, stem) {
-				t.Fatalf("a fixture draws %s whole: hold it so, and take it from holds", stem)
-			}
-			frame, _ := reference(t, stem)
-			width, _ := sizeOf(t, stem)
-			p := h.page
-			p.name, p.size = stem, watch.Size{Width: width, Height: len(frame)}
-			f := p.fixture(worlds)
-			drawn, err := parse(f.Frame(f.Size))
-			if err != nil {
-				t.Fatalf("parsing what the page draws: %v", err)
-			}
-			diffs, err := compareWithin(frame, drawn, canvas, h.area, spans(passedOver[stem]))
 			if err != nil {
 				t.Fatalf("%s: %v", stem, err)
 			}

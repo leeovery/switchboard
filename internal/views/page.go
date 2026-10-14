@@ -52,15 +52,16 @@ type SessionPage struct {
 	// alone.
 	Activity Activity `json:"-"`
 	// Goes are where its models go now, as its page's row 7 names them: as
-	// the router lists them, the moves the request stream told of since
-	// taken in, each with why it's there and since when; where the router
-	// lists it not, as before it does or once it has stopped answering, each
-	// model's latest account, as its lines and the stream give it, with the
-	// reason of its latest line. It's the views' alone.
+	// the router lists them, or while it doesn't answer, as it last listed
+	// them, the moves the request stream told of since taken in, each with
+	// why it's there and since when; where the router lists it not, as
+	// before it does or once it has ended, each model's latest account, as
+	// its lines and the stream give it, with the reason of its latest line.
+	// It's the views' alone.
 	Goes []SessionModel `json:"-"`
 	// Auto is the account the router would send its next request to were
-	// its own pin cleared, as autoOf has it: "" where the router can't say.
-	// It's the views' alone.
+	// its own pin cleared, as autoOf has it: "" where the router can't say,
+	// as while it doesn't answer. It's the views' alone.
 	Auto string `json:"-"`
 }
 

@@ -78,20 +78,29 @@ func (f Frame) Targets(doc status.Document, now time.Time) []Target {
 			targets = append(targets, p.target())
 		}
 	}
-	switch {
-	case f.cramped():
-	case f.Session != nil:
-		targets = append(targets, f.At(doc, now).sessionTargets(doc, now)...)
-	case f.View == Overview:
-		targets = append(targets, f.At(doc, now).overviewTargets(doc, now)...)
-	case f.View == Accounts:
-		targets = append(targets, f.At(doc, now).accountsTargets(doc, now)...)
-	case f.View == Sessions:
-		targets = append(targets, f.At(doc, now).sessionsTargets(doc, now)...)
-	case f.View == Log:
-		targets = append(targets, f.logTargets(now)...)
+	if !f.cramped() {
+		targets = append(targets, f.viewTargets(doc, now)...)
 	}
 	return append(targets, f.keyTargets()...)
+}
+
+// viewTargets are the zones of what the frame shows of doc at now a click
+// acts on, as Targets lays them out: a session's page's, the Overview's,
+// Accounts' and the Log's.
+func (f Frame) viewTargets(doc status.Document, now time.Time) []Target {
+	switch f.Shown() {
+	case SessionPage:
+		return f.At(doc, now).sessionTargets(doc, now)
+	case Overview:
+		return f.At(doc, now).overviewTargets(doc, now)
+	case Accounts:
+		return f.At(doc, now).accountsTargets(doc, now)
+	case Sessions:
+		return f.At(doc, now).sessionsTargets(doc, now)
+	case Log:
+		return f.logTargets(now)
+	}
+	return nil
 }
 
 // tabTargets are the tabs, as tabs draws them.

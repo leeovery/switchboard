@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 func TestTheOverviewShowsUSAGEROUTINGCOMINGUPAndLATELYAtFirst(t *testing.T) {
@@ -591,6 +592,22 @@ func TestTheLayoutChangesOnlyOnAKeyOrAResizeNeverOnItsOwn(t *testing.T) {
 	}
 	if off := f; func() bool { off.View = Sessions; return off.LayoutOf(doc, now) != (Layout{}) }() {
 		t.Errorf("off the Overview, LayoutOf gives a layout, want none")
+	}
+}
+
+// A session's page over the Overview hides it: LayoutOf builds none of its
+// sections to lay out, giving the zero Layout, as off the Overview.
+func TestUnderASessionsPageTheOverviewIsLaidOutNotAtAll(t *testing.T) {
+	doc := threeRouted()
+	f := frameOf(160, 40)
+	f.Sessions = flippingSessions()
+	f.Layout = f.LayoutOf(doc, now)
+	f.Session = &SessionShown{Page: views.SessionPage{Accounts: []views.SessionAccount{{Account: "work"}}}}
+	if got := f.LayoutOf(doc, now); got != (Layout{}) {
+		t.Errorf("under a session's page, LayoutOf gives %+v, want none", got)
+	}
+	if allocs := testing.AllocsPerRun(10, func() { f.LayoutOf(doc, now) }); allocs != 0 {
+		t.Errorf("under a session's page, LayoutOf allocates %.0f times, want none, as it builds none of the Overview's sections", allocs)
 	}
 }
 

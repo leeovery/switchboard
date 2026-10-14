@@ -60,7 +60,7 @@ func (m Model) openRouting() (tea.Model, tea.Cmd) {
 		return m.noting(status.ErrNoRouter.Error())
 	}
 	var session string
-	if m.session != nil {
+	if m.shownView() == dashboard.SessionPage {
 		if session = m.session.shown.Page.Session; session == "" {
 			return m, nil
 		}
@@ -360,7 +360,7 @@ func (m Model) pinKey() (dashboard.Key, bool) {
 	switch {
 	case m.cfg.ProbeOnly:
 		return key, false
-	case m.session != nil:
+	case m.shownView() == dashboard.SessionPage:
 		page := m.session.shown.Page
 		return key, page.Runs() && (m.asRead.accounts > 1 || page.Pin != "")
 	}

@@ -88,7 +88,7 @@ func (f Frame) MaySettle() bool {
 // no session's page over it, as its Traffic tells: a pulse along one, a
 // shimmer down one, or a cord a move let go, fading.
 func (f Frame) travels() bool {
-	return f.View == Sessions && f.Session == nil && f.Traffic.moves()
+	return f.Shown() == Sessions && f.Traffic.moves()
 }
 
 // Filled are how much of each bar the frame's view draws of doc at now it
@@ -101,13 +101,12 @@ func (f Frame) travels() bool {
 // as accountsFilled and sessionsFilled have them; and none on a view that
 // draws no bar, nor under a session's page, which draws none.
 func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
-	switch m := f.Moment(doc, now); {
-	case f.Session != nil:
-	case f.View == Overview:
-		return overviewFilled(m)
-	case f.View == Accounts:
+	switch f.Shown() {
+	case Overview:
+		return overviewFilled(f.Moment(doc, now))
+	case Accounts:
 		return f.accountsFilled(doc, now)
-	case f.View == Sessions:
+	case Sessions:
 		return f.sessionsFilled(doc, now)
 	}
 	return nil

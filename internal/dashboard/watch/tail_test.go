@@ -375,3 +375,43 @@ func TestASessionsPageReadsADayAwaitingALineOnlyAsItsLineCouldHaveCome(t *testin
 		})
 	}
 }
+
+// The Log hidden behind a session's page awaits the line of a request across
+// midnight as it would shown: the look after the stream told it ended reads
+// its day again whole for the Log, the request another session's, which the
+// page awaits nothing of, as what the Log awaits is worked out from what it
+// holds then, not from its page as it was built while it last showed.
+func TestTheLogBehindASessionsPageAwaitsTheLineOfARequestThatEndedAcrossMidnight(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrivedAt("0a000001", onTheDay(23, 50, 0)))
+	h := routedHarness(t, routerDocument(three()...))
+	l := onTheLog(h, state)
+	h.clock.now = onTheDay(24, 0, 30)
+	h.start()
+	yesterday := dayfile.DateOf(onTheDay(23, 50, 0))
+	if h.model.log.from.Date != yesterday {
+		t.Fatalf("the Log spans from %s as it opens, want %s, the day before", h.model.log.from.Date, yesterday)
+	}
+	h.keys(tabKey)
+	h.openPage(idD28C)
+
+	other := func(kind string, when time.Time) router.StreamEvent {
+		return alter(told(kind, "0a000003", "work", 0), func(e *router.StreamEvent) { e.At, e.Session, e.Status = when.UTC(), id7F3A, 200 })
+	}
+	h.hear(other(router.StreamSent, onTheDay(23, 59, 50)))
+	line := took(arrivedAt("0a000003", onTheDay(23, 59, 49)), 53*time.Second)
+	line.Session = id7F3A
+	writeLines(t, state, line)
+	ended := line.At.Add(53 * time.Second)
+	h.hear(other(router.StreamDone, ended))
+	opened := len(l.days)
+
+	h.clock.now = onTheDay(24, 0, 45)
+	h.read(routerDocument(three()...))
+	if got := l.days[opened:]; !slices.Equal(got, []string{yesterday}) {
+		t.Errorf("the look read the days %v whole, want the day before once, for the Log", got)
+	}
+	if got := h.model.log.read.WrittenTo(); !got.Equal(ended) {
+		t.Errorf("the Log's read holds lines written to %s, want %s, the line of the request across midnight taken in", got, ended)
+	}
+}

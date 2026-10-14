@@ -317,10 +317,10 @@ const (
 // end: the first leading with "≈ ", each after it with " · ", the points a
 // figure. Wide, "≈ 41 points of its 5-hour", " · 6 of its week"; short, as a
 // phone says them, "≈ 41 of 5-hour", " · 6 of week". It leaves out those
-// that round to none: none where all do.
+// that round to none: none where all do. Each says the window PointsKeys
+// gives in its place.
 func (a SessionAccount) PointsWords(form PointsForm) []status.Words {
-	keys := slices.SortedFunc(maps.Keys(a.Points), quota.CompareKeys)
-	keys = slices.DeleteFunc(keys, func(key string) bool { return a.Points[key] == 0 })
+	keys := a.PointsKeys()
 	said := make([]status.Words, len(keys))
 	for i, key := range keys {
 		lead, count := status.Plain(" · "), status.Words{status.Figure(prose.Grouped(a.Points[key]))}
@@ -337,6 +337,14 @@ func (a SessionAccount) PointsWords(form PointsForm) []status.Words {
 		said[i] = slices.Concat(status.Words{lead}, count, status.Words{status.Plain(of)})
 	}
 	return said
+}
+
+// PointsKeys are the keys of the account's windows the session took points
+// of, as PointsWords says them, the shortest window first, those that round
+// to none left out.
+func (a SessionAccount) PointsKeys() []string {
+	keys := slices.SortedFunc(maps.Keys(a.Points), quota.CompareKeys)
+	return slices.DeleteFunc(keys, func(key string) bool { return a.Points[key] == 0 })
 }
 
 // PointsSaid says the points of the account's windows the session took, as

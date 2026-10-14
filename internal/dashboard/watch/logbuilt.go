@@ -21,18 +21,22 @@ type logBuilt struct {
 }
 
 // requestsBasis is what the Log's Requests are made of: what the Log holds,
-// as held counts its changes; what the stream told, as logStream gives it;
-// the filter; and the moment, as toldAt has it.
+// as held counts its changes; what the stream told of each request's row,
+// as logStream gives it and sameRows compares it; the filter; and the day.
+// Neither the moment nor what's told as an answer streams is of it: a row
+// in flight counts how long it has taken, and its characters, as it's
+// drawn, as views.RequestRow.Live has it, so neither the clock moving nor
+// the stream's progress makes anything afresh.
 type requestsBasis struct {
 	held   int
 	told   streamTold
 	filter views.LogFilter
-	at     time.Time
+	day    string
 }
 
 // same reports whether b is o, the Requests made of one as of the other.
 func (b *requestsBasis) same(o requestsBasis) bool {
-	return b != nil && b.held == o.held && b.told.same(o.told) && b.filter.Equal(o.filter) && b.at.Equal(o.at)
+	return b != nil && b.held == o.held && b.told.sameRows(o.told) && b.filter.Equal(o.filter) && b.day == o.day
 }
 
 // eventsBasis is what the Log's Events are made of: what the Log holds, as
@@ -89,25 +93,10 @@ func (s streamTold) same(o streamTold) bool {
 	return s.live == o.live && maps.Equal(s.requests, o.requests)
 }
 
-// toldAt is the moment the Requests are made at, at now, s being what the
-// stream tells, as fine as they tell it: to a tenth of a second while a
-// request s tells of is in flight, its row counting how long it's taken, to
-// a tenth; else the day.
-func toldAt(s views.Stream, now time.Time) time.Time {
-	if s.Live && anyInFlight(s.Requests) {
-		return now.Truncate(time.Second / 10)
-	}
-	return views.Today(now).Start
-}
-
-// anyInFlight reports whether any of the requests told of is in flight.
-func anyInFlight(requests map[string]views.Told) bool {
-	for _, t := range requests {
-		if t.InFlight() {
-			return true
-		}
-	}
-	return false
+// sameRows reports whether s tells what o does of the requests' rows, as
+// views.Told.SameRow compares each.
+func (s streamTold) sameRows(o streamTold) bool {
+	return s.live == o.live && maps.EqualFunc(s.requests, o.requests, views.Told.SameRow)
 }
 
 // sameSlice reports whether a and b are the very same slice: as long, and
@@ -119,8 +108,7 @@ func sameSlice[T any](a, b []T) bool {
 // requestsBasis is what the Log's Requests are made of at now, through the
 // filter given.
 func (m Model) requestsBasis(filter views.LogFilter, now time.Time) requestsBasis {
-	s := m.logStream(now)
-	return requestsBasis{held: m.log.held, told: toldBy(s), filter: filter, at: toldAt(s, now)}
+	return requestsBasis{held: m.log.held, told: toldBy(m.logStream(now)), filter: filter, day: views.Today(now).Date}
 }
 
 // eventsBasis is what the Log's Events are made of at now, through the

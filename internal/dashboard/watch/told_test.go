@@ -239,7 +239,10 @@ func TestTheRequestsNoLongerInFlightGoSeenForAfterTheStreamLastToldOfThem(t *tes
 	}
 }
 
-func TestTheViewsReadTheMovesNoListingHasShownDone(t *testing.T) {
+// The views read each move from as soon as it's told of, and once a listing
+// shows it done, read it still, listed, for what it says of where its model
+// came from.
+func TestTheViewsReadEachMoveListedOrNot(t *testing.T) {
 	moved := alter(told(router.StreamMoved, "r1", "side", time.Second), func(e *router.StreamEvent) {
 		e.From, e.To, e.Reason = "work", "side", status.ReasonMovedOff+"work "+status.WhyLimit
 	})
@@ -248,8 +251,9 @@ func TestTheViewsReadTheMovesNoListingHasShownDone(t *testing.T) {
 	if got := tr.stream(past(time.Second)).Moves; !reflect.DeepEqual(got, want) {
 		t.Errorf("the moves the views read are %+v, want %+v, from as soon as it's told of", got, want)
 	}
-	if got := tr.listedAs(d28cListedOn("side")).stream(past(time.Second)).Moves; len(got) > 0 {
-		t.Errorf("listed where it went, the moves the views read are %+v, want none", got)
+	want[0].Listed = true
+	if got := tr.listedAs(d28cListedOn("side")).stream(past(time.Second)).Moves; !reflect.DeepEqual(got, want) {
+		t.Errorf("listed where it went, the moves the views read are %+v, want %+v, listed", got, want)
 	}
 }
 

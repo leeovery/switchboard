@@ -171,14 +171,16 @@ func TestSessionsSaysAWorthUnderHalfACentAsUnderACent(t *testing.T) {
 	}
 }
 
-func TestSessionsSaysAnIdleOfAnHourOrMoreAsTheDashboardWritesSpans(t *testing.T) {
+// A session idle an hour, as long as the router lists one, says so as the
+// dashboard writes spans.
+func TestSessionsSaysAnIdleOfAnHourAsTheDashboardWritesSpans(t *testing.T) {
 	deps := sessionsDeps(t)
 	idled := status.Session{ID: asking, Assignments: []status.Assignment{{Model: "claude-opus-5-5", Account: "work", Reason: status.ReasonSticky,
-		LastSeen: october(7, 12, 7, 0).UTC()}}}
+		LastSeen: october(7, 12, 12, 0).UTC()}}}
 	serveSessions(t, deps, []status.Session{idled})
 
-	if got, want := run(t, deps, "sessions", "--pretty"), "  idle 1h 05m  "; got.code != 0 || !strings.Contains(got.stdout, want) {
-		t.Errorf("switchboard sessions --pretty = %+v, want a session last seen 65 minutes ago to say %q", got, want)
+	if got, want := run(t, deps, "sessions", "--pretty"), "  idle 1h  "; got.code != 0 || !strings.Contains(got.stdout, want) {
+		t.Errorf("switchboard sessions --pretty = %+v, want a session last seen an hour ago to say %q", got, want)
 	}
 }
 

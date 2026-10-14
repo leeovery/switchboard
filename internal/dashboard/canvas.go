@@ -102,6 +102,16 @@ func (c *canvas) at(x, y int) *cell {
 	return &c.cells[y][x]
 }
 
+// emboldened makes width cells from x along row y bold, as they're drawn,
+// none off the canvas.
+func (c *canvas) emboldened(x, y, width int) {
+	for i := range width {
+		if here := c.at(x+i, y); here != nil {
+			here.ink.bold = true
+		}
+	}
+}
+
 // text draws text in the ink k from x along row y, a grapheme a cell, or two
 // for a wide one, and returns the column after it. A grapheme that takes no
 // cell, such as a stray combining mark, isn't drawn.

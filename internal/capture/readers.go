@@ -295,6 +295,15 @@ func (h heldReadings) Tail(from, start, end time.Time) func() []readings.Reading
 	return func() []readings.Reading { return readings.Carried(h.Between(from, end), from, start, end) }
 }
 
+// FirstDay gives the start of the local day of the first reading read by
+// now: fs.ErrNotExist where none was.
+func (h heldReadings) FirstDay() (time.Time, error) {
+	if len(h.records.readings) == 0 || h.records.readings[0].At.After(h.now()) {
+		return time.Time{}, fs.ErrNotExist
+	}
+	return dayfile.DayStart(h.records.readings[0].At.Local(), 0), nil
+}
+
 // heldEvents reads the records' router's events as an events.Reader reads
 // their files, by now's clock, each filed on the day it happened.
 type heldEvents struct {

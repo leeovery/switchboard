@@ -151,11 +151,20 @@ type runwayForm struct {
 }
 
 // runwayLaid is Runway laid out on the page, for each of its drawers to draw
-// its part where it lies: from row top, its lanes from column x, its rows
-// fitted as fit has them.
+// its part where it lies: of the moment m, which each reads; its lanes from
+// column x, their labels in the cells before them, those shown each on its
+// row, as laidLane has it; and its rows fitted as fit has them.
 type runwayLaid struct {
-	top, x int
-	fit    runwayFit
+	x     int
+	m     status.Moment
+	lanes []laidLane
+	fit   runwayFit
+}
+
+// runwayLaidOut is Runway of the moment m laid out as fit fits it, its lanes
+// from column x, those shown as laidLanes has them.
+func (f Frame) runwayLaidOut(m status.Moment, x int, fit runwayFit) runwayLaid {
+	return runwayLaid{x: x, m: m, lanes: f.laidLanes(m, fit), fit: fit}
 }
 
 // runwayForm is the form Runway is drawn in, of doc at now: a phone's, as
@@ -167,23 +176,43 @@ func (f Frame) runwayForm(doc status.Document, now time.Time) runwayForm {
 	return f.wideRunway(doc, now)
 }
 
-// wideRunway is Runway from phoneUnder columns, as its form draws it, laid
-// out as runwayFitted fits it: the axis, the lanes and the words under
-// them, the pool's lane, the legend and COMING UP, each as its drawer has
-// it.
-func (f Frame) wideRunway(status.Document, time.Time) runwayForm {
+// wideRunway is Runway of doc at now from phoneUnder columns, as its form
+// draws it: its lanes from runwayLanesFrom, laid out as runwayFitted fits
+// it, as runwayFormed draws them.
+func (f Frame) wideRunway(doc status.Document, now time.Time) runwayForm {
+	return f.runwayFormed(doc, now, runwayLanesFrom, f.runwayFitted)
+}
+
+// runwayFormed is Runway of doc at now as its form draws it, its lanes from
+// column x, laid out from the row it's drawn from as fitted fits it: the
+// axis, the lanes and the words under them, the pool's lane, the legend,
+// COMING UP and what's out of view, each as its drawer has it; then now's
+// column picked out under them.
+func (f Frame) runwayFormed(doc status.Document, now time.Time, x int, fitted func(top int) runwayFit) runwayForm {
 	return runwayForm{
 		draw: func(c *canvas, top int) {
-			laid := runwayLaid{top: top, x: runwayLanesFrom, fit: f.runwayFitted(top)}
+			laid := f.runwayLaidOut(f.Moment(doc, now), x, fitted(top))
 			f.runwayAxis(c, laid)
 			f.runwayLanes(c, laid)
 			f.runwayWords(c, laid)
 			f.runwayPool(c, laid)
 			f.runwayLegend(c, laid)
 			f.runwayComing(c, laid)
+			f.runwayOut(c, laid)
+			f.runwayNow(c, laid)
 		},
-		scrolling: f.runwayFitted(f.top()).scrolling,
+		scrolling: fitted(f.top()).scrolling,
 	}
+}
+
+// period is what Runway shown as r calls the span its view looks across, as
+// "room all day" and "the day's highest" say it: a day, of the 5-hour view,
+// live or stepped back, or a week.
+func (r RunwayShown) period() string {
+	if r.Window == views.RunwayWeek {
+		return "week"
+	}
+	return "day"
 }
 
 // runway draws Runway of doc at now from row top, as its form draws it.

@@ -48,8 +48,12 @@ type findReadMsg struct {
 
 // openLogFind opens the Log's find line, as / does, nothing typed, its
 // summaries of the days to be read afresh, as a day may have been summarised
-// since it was last open.
+// since it was last open: nothing where its line has no row, as LogFinds
+// says, as it'd take every key drawn nowhere.
 func (m Model) openLogFind() (Model, tea.Cmd) {
+	if !m.logFrame().LogFinds() {
+		return m, nil
+	}
 	m.log.page.Finding = dashboard.LogFinding{Open: true}
 	m.log.find.summed = false
 	m.log.find.opening++
@@ -60,7 +64,7 @@ func (m Model) openLogFind() (Model, tea.Cmd) {
 // key: never under a session's page open over it, which takes them, the
 // find waiting under it as it was.
 func (m Model) finding() bool {
-	return m.session == nil && m.view == dashboard.Log && m.log.page.Finding.Open
+	return m.shownView() == dashboard.Log && m.log.page.Finding.Open
 }
 
 // logFindKey acts on a key while the Log's find is open, which takes every

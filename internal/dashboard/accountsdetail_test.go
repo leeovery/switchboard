@@ -722,8 +722,9 @@ func TestDetailWhileProbingHasNoSESSIONSAndAQuietLATELY(t *testing.T) {
 
 // Until the period's page is read, Detail draws the moment's parts alone:
 // its head, USAGE and LATELY, where each stands once it's read. Read on a
-// fresh install, recording nothing, every row of THIS WEEK is a dash, its
-// plan and extra use among them.
+// fresh install, or a week's first morning, recording nothing, each of the
+// period's figures in THIS WEEK is a dash; its plan, from the config, and
+// extra use, live, say what they are.
 func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 	doc := usageWorld(extraOff, happened(onAuto()...))
 	fresh := detailsPage(t)
@@ -741,14 +742,14 @@ func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 			t.Errorf("unread, %s is on row %d, want %d, where it stands once read", part, rowWith(unread, part), rowWith(read, part))
 		}
 	}
-	for label, want := range map[string]string{"requests": "—", "limits": "—", "plan": "—", "worth": "—", "extra use": "—"} {
+	for label, want := range map[string]string{"requests": "—", "limits": "—", "plan": "Max 20x", "worth": "—", "extra use": "off"} {
 		y := rowWith(onFresh, padded(label, thisWeekLabels))
 		if y < 0 {
 			t.Fatalf("no %s in THIS WEEK", label)
 		}
 		thisWeek := []rune(onFresh[y])[detailLayout{list: true, panel: listPanelAt, into: panelCX, dw: 2, gap: 4}.thisWeekAt()+thisWeekLabels:]
 		if got := strings.TrimSpace(string(thisWeek)); got != want {
-			t.Errorf("on a fresh install, THIS WEEK's %s reads %q, want %q", label, got, want)
+			t.Errorf("with nothing recorded, THIS WEEK's %s reads %q, want %q", label, got, want)
 		}
 	}
 }

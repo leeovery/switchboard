@@ -29,9 +29,10 @@ var logViews = []string{"Requests", "Events"}
 // the request stream, over the days from From, and the figures of those
 // days, which their day rules say; today; what the Requests show of their
 // columns and of the lines, and the Events of theirs; how each table
-// stands; whether the stream is live, and to when the ledger wrote what the
-// tables hold; the find, while it's open; and the tables' lines as drawn,
-// where Lined holds them.
+// stands; whether the stream is live, what it tells, and to when the ledger
+// wrote what the tables hold; whether the table shown reaches as far back
+// as the days' summaries say it reads; the find, while it's open; and the
+// tables' lines as drawn, where Lined holds them.
 type LogPage struct {
 	Shown LogView
 	// Read is set once the first read lands: till then, the view is blank.
@@ -50,10 +51,18 @@ type LogPage struct {
 	// Stands are how the Requests and the Events each stand, by LogView.
 	Stands [2]LogStand
 	// Live is set while the request stream is the watch's, the router
-	// answering; Written is when the ledger last wrote of what the Requests
-	// hold, which the state line says while it isn't.
+	// answering; Stream is what it tells as the page is drawn, which a
+	// request's row in flight is drawn as, as views.RequestRow.Live has it;
+	// Written is when the ledger last wrote of what the Requests hold, which
+	// the state line says while it isn't.
 	Live    bool
+	Stream  views.Stream
 	Written time.Time
+	// AtReach is set where Reach bounds the table shown and the tables span
+	// from as far back as the lines of the filter it gives reach, as the
+	// days' summaries told: to the earliest day that may hold one, or where
+	// none may. The table fills its view no further back.
+	AtReach bool
 	Finding LogFinding
 	lined   *tableLines
 }
@@ -62,16 +71,18 @@ type LogPage struct {
 // line at the foot, as the zero LogStand does; or paused, its view from the
 // line top, no further down than foot, the table's last line as it paused,
 // the line chosen lit where one is; and, of Requests', the table as it
-// paused, which says the lines come since. Filled is set once the table has
-// filled its view, or reached the oldest day, on opening, after which it
-// reads back only as its top is reached.
+// paused, which says the lines come since. filledAt is the rows of the
+// tallest view the table has filled, or reached the oldest day or its reach
+// in, as Filling has it, none till it does: after, it reads back only as its top is reached, or,
+// following, as its view grows past them, where it refills, as refills
+// says.
 type LogStand struct {
 	paused    bool
 	top, foot LogKey
 	chosen    LogKey
 	choosing  bool
 	then      views.LogTable
-	filled    bool
+	filledAt  int
 }
 
 // LogKey is a line of one of the Log's tables as each built afresh knows it,
@@ -252,7 +263,7 @@ func (p LogPage) Turned(by int) LogPage {
 // Followed is the table shown following again, as end has it: its newest
 // line at the foot, and nothing chosen.
 func (p LogPage) Followed() LogPage {
-	return p.standing(LogStand{filled: p.stand().filled})
+	return p.standing(LogStand{filledAt: p.stand().filledAt})
 }
 
 // Paused reports whether the table shown is paused.
@@ -405,30 +416,35 @@ func nextRow(lines []logLine, at, by, foot int) int {
 	return -1
 }
 
-// Filling is the Log, the table shown filled once it fills a view rows rows
-// tall, or reaches as far back as it reads, from where it reads back only as
-// its top is reached. A view of no rows fills nothing, so the table fills
-// the view it's given as the terminal grows.
+// Filling is the Log, the table shown filled at a view rows rows tall once
+// it fills it, or reaches as far back as it reads, or as AtReach says, from
+// where it reads back only as WantsDayBefore has a filled table read back.
+// A view of no rows fills nothing, so the table fills the view it's given
+// as the terminal grows.
 func (p LogPage) Filling(rows int) LogPage {
 	s := p.stand()
-	if s.filled || !p.Read {
+	if s.filledAt >= rows || !p.Read {
 		return p
 	}
-	s.filled = rows > 0 && len(p.lines()) >= rows || p.reached()
+	if len(p.lines()) >= rows || p.reached() || p.AtReach {
+		s.filledAt = rows
+	}
 	return p.standing(s)
 }
 
 // WantsDayBefore reports whether the table shown, in a view rows rows tall,
 // wants the day before those it spans read: on opening, until it fills its
-// view; and paused, its view's top at the first line held. Never once it
-// reaches as far back as it reads.
+// view, and following, until it fills one grown past the rows it filled,
+// where it refills, as refills says, each short of where AtReach says; and
+// paused, its view's top at the first line held. Never once it reaches as
+// far back as it reads.
 func (p LogPage) WantsDayBefore(rows int) bool {
 	if !p.Read || p.reached() {
 		return false
 	}
 	lines, s := p.lines(), p.stand()
-	if !s.filled {
-		return len(lines) < rows
+	if s.filledAt == 0 || !s.paused && rows > s.filledAt && p.refills(p.Shown) {
+		return !p.AtReach && len(lines) < rows
 	}
 	first, _ := p.window(lines, s, rows)
 	return s.paused && first == 0
@@ -436,10 +452,12 @@ func (p LogPage) WantsDayBefore(rows int) bool {
 
 // reached reports whether the table shown reaches as far back as it reads:
 // the oldest day the ledger keeps, as the Requests' oldest day's line, atop
-// them, says; or of the Events, the oldest they read back to, as their
-// Reached says.
+// them, says; of the Requests, where AtReach says, as their lines go no
+// further back; or of the Events, the oldest they read back to, as their
+// Reached says, paused at their top reading back past their reach, as
+// views' EventFilter.Reach has it.
 func (p LogPage) reached() bool {
-	return p.oldest() != nil || p.Shown == LogEvents && p.Events.Reached()
+	return p.oldest() != nil || p.Shown == LogEvents && p.Events.Reached() || p.Shown == LogRequests && p.AtReach
 }
 
 // oldest is the oldest day the ledger keeps, where the tables reach it: nil
@@ -453,19 +471,20 @@ func (p LogPage) oldest() *views.OldestDay {
 
 // heading is the Log's heading row, on a phone where phone says, width cells
 // wide: its name and its sub-tabs, the one shown picked out, and what the
-// filter keeps, as the heading says it; at its right, the table's count, as
-// logHeadingRight picks its form, or on a phone, as phone has it.
-func (p LogPage) heading(phone bool, width int) heading {
+// filter keeps, as the heading says it, each account named as name names it;
+// at its right, the table's count, as logHeadingRight picks its form, or on
+// a phone, as phone has it.
+func (p LogPage) heading(phone bool, width int, name func(id string) string) heading {
 	h := heading{name: strings.ToUpper(Log.Title()), subTabs: logViews, shown: int(p.Shown)}
 	if !p.Read {
 		return h
 	}
 	count := p.headingCount()
+	h.state = p.filterNames(name).said()
 	if phone {
 		h.right = count.phone()
 		return h
 	}
-	h.state = p.filterNames().said()
 	h.right = logHeadingRight(count.forms(), h.state, width-h.named(new(laying), 0, false))
 	return h
 }
@@ -499,27 +518,55 @@ func kindsNamed(kinds []views.RowKind) string {
 	return strings.Join(names, " and ")
 }
 
-// filterNames are what the Requests' filter keeps, each named as the table
-// names it: a session by its id and directory, as a row of it does, else its
-// id alone; an account by its id; a model by its id less claude-.
-func (p LogPage) filterNames() logFilterNames {
+// filterNames are what the filter of the table shown keeps, each named as
+// the table names it: of the Requests', the sessions, accounts and models it
+// ticks, and whether it keeps those that failed alone; of the Events', the
+// sessions and accounts it ticks. The kinds it ticks the heading's count
+// says. A session is named by its id and directory, as a row of it does,
+// else its id alone; an account as name names it, as the rows name it; a
+// model by its id less claude-.
+func (p LogPage) filterNames(name func(id string) string) logFilterNames {
+	if p.Shown == LogEvents {
+		return logFilterNames{sessions: namedEach(p.Shows.Sessions, p.namedSession), accounts: namedEach(p.Shows.Accounts, name)}
+	}
 	f := p.Filter
-	names := logFilterNames{accounts: f.Accounts, failed: f.Failed}
-	for _, id := range f.Sessions {
-		names.sessions = append(names.sessions, sessionNamed(id, p.dirOf(id)))
+	return logFilterNames{
+		sessions: namedEach(f.Sessions, p.namedSession), accounts: namedEach(f.Accounts, name), models: namedEach(f.Models, modelNamed), failed: f.Failed,
 	}
-	for _, m := range f.Models {
-		names.models = append(names.models, ledger.ShortModelID(prose.Clean(m)))
+}
+
+// modelNamed names the model with the given id as the table does, by its id
+// less claude-.
+func modelNamed(id string) string {
+	return ledger.ShortModelID(prose.Clean(id))
+}
+
+// namedEach is each of the ids, named as name names it.
+func namedEach(ids []string, name func(id string) string) []string {
+	var named []string
+	for _, id := range ids {
+		named = append(named, name(id))
 	}
-	return names
+	return named
+}
+
+// namedSession names the session with the given id as sessionNamed does,
+// by its directory as dirOf finds it.
+func (p LogPage) namedSession(id string) string {
+	return sessionNamed(id, p.dirOf(id))
 }
 
 // dirOf is the directory of the session with the given id as the Requests'
-// rows name it: "" where none does.
+// rows name it, else the Events': "" where none does.
 func (p LogPage) dirOf(id string) string {
 	for _, l := range p.Requests.Lines {
 		if l.IsRow() && l.Row.Session == id && l.Row.Dir != "" {
 			return l.Row.Dir
+		}
+	}
+	for _, e := range p.Events.Rows {
+		if e.Session == id && e.Dir != "" {
+			return e.Dir
 		}
 	}
 	return ""

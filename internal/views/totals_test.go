@@ -21,6 +21,41 @@ func TestTheLimitsHitAreSaidByWindowTheShortestFirst(t *testing.T) {
 	}
 }
 
+// The limits reached are counted every window's together, of an account's
+// totals and of a month alike, and the time at a cap or a limit is the two
+// together, known only where both are.
+func TestTheLimitsAreCountedAndTheTimeAtACapOrLimitIsTheTwoTogether(t *testing.T) {
+	limits := map[string]int{"5h": 3, "7d": 1}
+	if got := (views.AccountTotals{Limits: limits}).LimitCount(); got != 4 {
+		t.Errorf("an account's limits count %d, want 4", got)
+	}
+	if got := (views.Month{Limits: limits}).LimitCount(); got != 4 {
+		t.Errorf("a month's limits count %d, want 4", got)
+	}
+	if got := (views.AccountTotals{}).LimitCount(); got != 0 {
+		t.Errorf("no limits count %d, want 0", got)
+	}
+	tests := []struct {
+		name           string
+		atCap, atLimit *int
+		want           int
+		known          bool
+	}{
+		{name: "both read", atCap: new(40), atLimit: new(12), want: 52, known: true},
+		{name: "both read, none spent", atCap: new(0), atLimit: new(0), want: 0, known: true},
+		{name: "the cap never read", atLimit: new(12)},
+		{name: "the limit never read", atCap: new(40)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, known := views.AccountTotals{MinutesAtCap: tt.atCap, MinutesAtLimit: tt.atLimit}.AtCapOrLimit()
+			if got != tt.want || known != tt.known {
+				t.Errorf("AtCapOrLimit() = %d, %t, want %d, %t", got, known, tt.want, tt.known)
+			}
+		})
+	}
+}
+
 // The sessions of the totals' tests.
 const (
 	sessionA = "aaaa1111"

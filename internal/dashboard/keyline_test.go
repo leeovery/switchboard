@@ -173,11 +173,16 @@ func TestTheKeyLinesAreTheFrames(t *testing.T) {
 		{{Key: "u", Does: "usage"}, {Key: "g", Does: "graphs"}, {Key: "r", Does: "routing"}, {Key: "s", Does: "sessions"}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"}, {Key: "b", Does: "by: window"}},
 		{{Key: "↑↓", Does: "focus"}, pin, helpQuit[0], helpQuit[1]},
 	}
+	runway := func(step string) [][]Key { return [][]Key{{tabViews}, runwayKeys(step), {pin}, helpQuit} }
 	tests := []struct {
 		frame string
 		view  View
 		line  KeyLine
 	}{
+		{frame: "runway-5-hour-160", view: Runway, line: KeyLine{Groups: runway("day"), Lead: 3}},
+		{frame: "runway-stepped-back-160", view: Runway, line: KeyLine{Groups: runway("day"), Lead: 3}},
+		{frame: "runway-ten-accounts-160", view: Runway, line: KeyLine{Groups: runway("day"), Lead: 3}},
+		{frame: "runway-week-160", view: Runway, line: KeyLine{Groups: runway("week"), Lead: 3}},
 		{frame: "log-requests-160", view: Log, line: KeyLine{Groups: logs, Lead: 3}},
 		{frame: "sessions-switchboard-160", view: Sessions, line: KeyLine{Groups: sessions, Lead: 3}},
 		{frame: "sessions-list-160", view: Sessions, line: KeyLine{Groups: sessions, Lead: 3}},
@@ -198,6 +203,12 @@ func TestTheKeyLinesAreTheFrames(t *testing.T) {
 			}
 		})
 	}
+}
+
+// runwayKeys are Runway's own keys as the design words them: < > window,
+// and ←→ stepping by the day or the week.
+func runwayKeys(step string) []Key {
+	return []Key{{Key: "< >", Does: "window"}, {Key: "←→", Does: step}}
 }
 
 func TestAPhonesKeyLineKeepsTheKeysItEndsWith(t *testing.T) {

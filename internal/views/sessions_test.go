@@ -664,7 +664,7 @@ func TestASessionsDirectoryIsTheRoutersElseItsLines(t *testing.T) {
 		want        string
 	}{
 		{name: "the router's, of the model used last that names one", assignments: []status.Assignment{
-			{Model: opus, Account: "work"}, {Model: haiku, Account: "work", Dir: "~/Code/new"},
+			{Model: opus, Account: "work", LastSeen: now}, {Model: haiku, Account: "work", Dir: "~/Code/new", LastSeen: now},
 		}, want: "~/Code/new"},
 		{name: "the router's, of the model seen most lately that names one, whatever its order", assignments: []status.Assignment{
 			{Model: opus, Account: "work", Dir: "~/Code/first", LastSeen: october(7, 12, 0)},

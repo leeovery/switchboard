@@ -51,6 +51,37 @@ type AccountTotals struct {
 	Partial    []string     `json:"partial,omitempty"`
 }
 
+// LimitCount is how many limits the account reached, every window's
+// together, as every account's are counted.
+func (t AccountTotals) LimitCount() int {
+	return limitCount(t.Limits)
+}
+
+// LimitsHit says the limits the account reached, by window, each named as
+// name names its key, as LimitsHit says them.
+func (t AccountTotals) LimitsHit(name func(key string) string) []string {
+	return LimitsHit(t.Limits, name)
+}
+
+// AtCapOrLimit is how many minutes the account spent at its cap or at a
+// limit, together, reporting false where its days never read one of them.
+func (t AccountTotals) AtCapOrLimit() (int, bool) {
+	if t.MinutesAtCap == nil || t.MinutesAtLimit == nil {
+		return 0, false
+	}
+	return *t.MinutesAtCap + *t.MinutesAtLimit, true
+}
+
+// limitCount is how many limits were reached, by window, as AccountTotals'
+// Limits holds them, every window's together.
+func limitCount(limits map[string]int) int {
+	n := 0
+	for _, hit := range limits {
+		n += hit
+	}
+	return n
+}
+
 // LimitsHit says the limits reached, by window, as AccountTotals' Limits
 // holds them: each window, the shortest first, by its name as name gives it,
 // as a sentence has it, and how many times, its thousands set apart, as

@@ -58,7 +58,7 @@ func walk(t *testing.T, sm viewstest.SessionsMoment) []walked {
 		taken = look.Lines
 		found := held.Unfound(liveOf(look))
 		if len(found) > 0 {
-			held = held.Found(views.ReadList(sessionsLedger(look.Lines, look.Now), nil, found...))
+			held = held.Found(views.ReadListOf(sessionsLedger(look.Lines, look.Now), found...))
 		}
 		m := look.Doc.At(look.Now, claude.Policy)
 		calls := views.CallsOf(m, look.Sessions, look.Stream, held)
@@ -268,6 +268,57 @@ func TestTheListAndTheCallsAgreeOnTheSessionsRunning(t *testing.T) {
 				t.Errorf("%s's call came from %q, want %q, as its routing on the List", shown, c.From, s.Moved.From)
 			case s.Moved == nil && c.From != "" && !toldMoved(w.look.Stream, s.Session, c.From, c.Account):
 				t.Errorf("%s's call came from %q, but neither its lines nor the stream tell of the move", shown, c.From)
+			}
+		}
+	})
+}
+
+// Each session the List lists runs on its page as it does on the List, and
+// as the Switchboard has a call of it, and is doing what the List says,
+// whether the router lists it, or, while it doesn't answer, its last
+// listing did, however long ago.
+func TestASessionsPageRunsAsTheListAndTheSwitchboardHaveIt(t *testing.T) {
+	eachLook(t, func(t *testing.T, w walked) {
+		for _, s := range w.held.List(liveOf(w.look)).Sessions {
+			read := views.ReadSessions(sessionsLedger(w.look.Lines, w.look.Now), w.look.Sessions, w.look.Now, s.Session)
+			live := views.PageLive{Routed: views.Routed(w.look.Sessions, s.Session), Unlisted: w.look.Unlisted, Stream: w.look.Stream, Now: w.look.Now}
+			page, ok := views.HoldPage(s.Session, read, ledger.Pricing, 0, w.look.Now).Page(live)
+			called := slices.ContainsFunc(w.calls, func(c views.Call) bool { return c.Session == s.Session })
+			if !ok || page.Running != s.Running || page.Running != called || page.Activity.Doing != s.Activity.Doing {
+				t.Errorf("%s's page (%t) runs %t, doing %d; want it running %t, as the List has it, and %t, as the Switchboard calls it, doing %d",
+					status.ShownID(s.Session), ok, page.Running, page.Activity.Doing, s.Running, called, s.Activity.Doing)
+			}
+		}
+	})
+}
+
+// A session running by its listing names every model the listing gives it,
+// cold ones too, on the List and its page, as the router lists a session:
+// whether the router answers, or the listing is the last it gave.
+func TestARunningSessionKeepsEveryModelItsListingGives(t *testing.T) {
+	modelsOf := func(models []views.SessionModel) []string {
+		var named []string
+		for _, m := range models {
+			named = append(named, m.Model)
+		}
+		return slices.Sorted(slices.Values(named))
+	}
+	eachLook(t, func(t *testing.T, w walked) {
+		for _, s := range w.held.List(liveOf(w.look)).Sessions {
+			routed := views.Routed(w.look.Sessions, s.Session)
+			if !s.Running || routed == nil {
+				continue
+			}
+			var want []string
+			for _, a := range routed.Assignments {
+				want = append(want, a.Model)
+			}
+			slices.Sort(want)
+			read := views.ReadSessions(sessionsLedger(w.look.Lines, w.look.Now), w.look.Sessions, w.look.Now, s.Session)
+			live := views.PageLive{Routed: routed, Unlisted: w.look.Unlisted, Stream: w.look.Stream, Now: w.look.Now}
+			page, _ := views.HoldPage(s.Session, read, ledger.Pricing, 0, w.look.Now).Page(live)
+			if got, goes := modelsOf(s.Models), modelsOf(page.Goes); !slices.Equal(got, want) || !slices.Equal(goes, want) {
+				t.Errorf("%s names the models %v on the List and %v on its page, want %v, every one its listing gives", status.ShownID(s.Session), got, goes, want)
 			}
 		}
 	})

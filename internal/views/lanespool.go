@@ -7,10 +7,12 @@ import (
 
 // Pool is the pool's lane: Of, how many accounts the pool has, the pin's
 // while it holds, none where there's one account, which has no pool's lane;
-// each column's count of them with room; and each dip, where fewer than all
-// of them have room, in order.
+// Key, the key of the window the view is named for, whose room the pool's
+// room line gives; each column's count of them with room; and each dip,
+// where fewer than all of them have room, in order.
 type Pool struct {
 	Of      int
+	Key     string
 	Columns []PoolColumn
 	Dips    []Dip
 }
@@ -58,7 +60,7 @@ func (from LanesFrom) poolOf(lanes []Lane) Pool {
 	}
 	in := from.Moment.Pool().Accounts
 	members := slices.DeleteFunc(slices.Clone(lanes), func(l Lane) bool { return !slices.Contains(in, l.ID) })
-	pool := Pool{Of: len(members), Columns: make([]PoolColumn, max(from.Timeline.Columns, 0))}
+	pool := Pool{Of: len(members), Key: from.viewKey(), Columns: make([]PoolColumn, max(from.Timeline.Columns, 0))}
 	for c := range pool.Columns {
 		for _, l := range members {
 			pool.Columns[c].Known = pool.Columns[c].Known || l.Cells[c] != CellUnknown

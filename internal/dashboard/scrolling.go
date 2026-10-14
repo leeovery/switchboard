@@ -29,16 +29,13 @@ func (s Scrolling) clamped(offset int) int {
 }
 
 // ScrollsRows reports whether the view shown scrolls a row at a time, as
-// Runway, History's Year, Sessions' List and a session's page's turns do,
-// rather than a thing at a time: an account, as the Overview's USAGE does,
-// History's Weeks and Days, and Sessions' Switchboard, or a period, as
-// History's Tokens does.
+// History's Year, Sessions' List and a session's page's turns do, rather
+// than a thing at a time: an account, as the Overview's USAGE does,
+// History's Weeks and Days, Sessions' Switchboard and Runway's lanes, or a
+// period, as History's Tokens does.
 func (f Frame) ScrollsRows() bool {
-	if f.Session != nil {
-		return true
-	}
-	switch f.View {
-	case Overview:
+	switch f.Shown() {
+	case Overview, Runway:
 		return false
 	case History:
 		return f.History.Shown == HistoryYear
@@ -67,17 +64,24 @@ func (f Frame) Revealing(doc status.Document, now time.Time, id string) int {
 }
 
 // revealing is how far what's scrolled at, and scrolls as s says, is
-// scrolled to show its i-th account: no further than it must go to, and no
-// further than it goes. An i of none of them leaves it where it is.
+// scrolled to show its i-th account, as Keeping keeps it in view.
 func (s Scrolling) revealing(at, i int) int {
+	return s.Keeping(at, i, 0)
+}
+
+// Keeping is how far what's scrolled at, and scrolls as s says, is scrolled
+// to keep its rows from i to i+under in view, row i where they don't all
+// fit: no further than it must go to, and no further than it goes. An i of
+// none of them, under 0, leaves it where it is, as does a view of no rows.
+func (s Scrolling) Keeping(at, i, under int) int {
 	at = s.clamped(at)
 	switch {
-	case i < 0:
+	case i < 0 || s.Page <= 0:
 		return at
 	case i < at:
 		return i
-	case i >= at+s.Page:
-		return min(i-s.Page+1, s.Most)
+	case i+under >= at+s.Page:
+		return s.clamped(min(i+under-s.Page+1, i))
 	}
 	return at
 }
@@ -88,11 +92,37 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 	return f.At(doc, now).scrollingAt(doc, now)(f.Scroll)
 }
 
+// KeysScroll reports whether j and k, PgUp and PgDn and the wheel scroll
+// anything of the frame's view of doc at now: with a session's turn open, its
+// requests, as RequestsScrolling has it, which they scroll in its turns'
+// place; else the view, as Scrolling has it.
+func (f Frame) KeysScroll(doc status.Document, now time.Time) bool {
+	if f.Shown() == SessionPage && f.Session.Open != 0 {
+		return f.RequestsScrolling().Most > 0
+	}
+	return f.Scrolling(doc, now).Most > 0
+}
+
+// TurnsScrolling is how far the turns of the frame's session's page scroll:
+// a row a turn and its turn open's rows under its own, as turnsRows lays
+// them out, in the rows its layout gives them, of the frame's size and the
+// page alone; none without a page, or where the frame is too short for its
+// turns, as cramped says.
+func (f Frame) TurnsScrolling() Scrolling {
+	if f.Session == nil {
+		return Scrolling{}
+	}
+	l := f.sessionLayout(len(f.Session.Page.Accounts))
+	if l.chrome {
+		return Scrolling{}
+	}
+	return byRows(len(f.Session.turnsRows(l)), l.turns)
+}
+
 // scrollingAt is how far the frame's view of doc scrolls at now, scrolled to
-// each offset given: a session's page's turns, where one is open, a row a
-// turn and its turn open's rows under its own, as turnsRows lays them out,
-// in the rows its layout gives them; History's, of the ledger's days alone,
-// as historyScrolling says; Sessions', as sessionsScrolling says; the
+// each offset given: a session's page's turns, where one is open, as
+// TurnsScrolling has them; History's, of the ledger's days alone, as
+// historyScrolling says; Sessions', as sessionsScrolling says; the
 // Overview's, as overviewScrolling says, laid out once for every offset;
 // Accounts', as accountsScrolling says; and Runway's, as runwayScrolling
 // says. A frame too short
@@ -100,23 +130,25 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 // accounts, but History, Sessions, whose List lists the ledger's sessions
 // whatever the document holds, and a session's page.
 func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) Scrolling {
+	shown := f.Shown()
+	if shown == SessionPage {
+		s := f.TurnsScrolling()
+		return func(int) Scrolling { return s }
+	}
 	m := f.Moment(doc, now)
 	var s Scrolling
 	switch top := f.top(); {
 	case f.cramped():
-	case f.Session != nil:
-		l := f.sessionLayout(len(f.Session.Page.Accounts))
-		s = byRows(len(f.Session.turnsRows(l)), l.turns)
-	case f.View == History:
+	case shown == History:
 		return f.historyScrolling(top)
-	case f.View == Sessions:
+	case shown == Sessions:
 		return f.sessionsScrolling(doc, now)
 	case len(m.Accounts) == 0:
-	case f.View == Overview:
+	case shown == Overview:
 		return f.overviewScrolling(doc, now)
-	case f.View == Accounts:
+	case shown == Accounts:
 		return f.accountsScrolling(doc, now)
-	case f.View == Runway:
+	case shown == Runway:
 		return f.runwayScrolling(doc, now)
 	}
 	return func(int) Scrolling { return s }
@@ -152,16 +184,6 @@ var (
 	// USAGE's and the routing card's are: all in text.subtle.
 	subtleOut = outInks{mark: dimInk, space: dimInk, count: dimInk, gap: dimInk, keys: dimInk, does: dimInk}
 )
-
-// rowsOut is how Runway says what's out of view until its stage draws it as
-// the design does: "▼ 2 more accounts below · j/k or wheel to scroll", the
-// marks, and the space after each, bold accent.key, the counts in
-// text.muted and the rest in text.subtle, cut short as words where it
-// doesn't fit, as line.fit cuts it.
-var rowsOut = outForm{
-	noun: "account", above: " above", below: " below", gap: " · ", keys: "j/k", does: " or wheel to scroll",
-	inks: outInks{mark: keyInk, space: keyInk, count: mutedInk, gap: dimInk, keys: dimInk, does: dimInk},
-}
 
 // outOfView says what's out of view where a view scrolls, above and below,
 // in the longest of forms, each shorter than the one before, that fits width

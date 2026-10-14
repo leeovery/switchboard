@@ -180,6 +180,36 @@ func TestSessionsSubTabTurnsKeepingTheChoiceWhereItsSessionShows(t *testing.T) {
 	}
 }
 
+// The choice follows its session from look to look: kept on its row where it
+// still shows, a row in two groups among them; else on its session's first
+// row, as where a move took it to another account; else it ends, as once
+// the router stops listing it, or the List lets it go.
+func TestSessionsChoiceFollowsItsSessionFromLookToLook(t *testing.T) {
+	accounts := []string{"work", "personal", "side"}
+	tests := []struct {
+		name   string
+		shown  SessionsView
+		chosen Plug
+		want   Plug
+	}{
+		{name: "a call still there", chosen: Plug{Session: idD28C, Account: "side"}, want: Plug{Session: idD28C, Account: "side"}},
+		{name: "a call moved to another account", chosen: Plug{Session: "41e0", Account: "work"}, want: Plug{Session: "41e0", Account: "side"}},
+		{name: "a call the router lists no more", chosen: Plug{Session: "9e21", Account: "work"}},
+		{name: "a row of the List, ended", shown: SessionsList, chosen: Plug{Session: "9c2e"}, want: Plug{Session: "9c2e"}},
+		{name: "a row the List let go", shown: SessionsList, chosen: Plug{Session: "5e7d"}},
+		{name: "none chosen"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := sessionsOnTheBoard(tt.shown)
+			s.Chosen = tt.chosen
+			if got := s.Following(accounts).Chosen; got != tt.want {
+				t.Errorf("Following() chose %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
 // esc ends the choice, reporting a change only where there was one; enter
 // opens a page only while a row is chosen; a click chooses the row it's on.
 func TestSessionsChoiceEndsOpensAndIsClicked(t *testing.T) {

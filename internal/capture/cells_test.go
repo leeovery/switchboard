@@ -274,25 +274,6 @@ func compare(frame, drawn grid, canvas colour, over []span) ([]difference, error
 	return diffs, nil
 }
 
-// area is a frame's cells from row top to row bottom, and of those rows,
-// from column left to column right, or the whole row where neither is given.
-// Rows and columns count from 1, as a span's do.
-type area struct {
-	top, bottom, left, right int
-}
-
-// covers reports whether the area covers the cell at row and column.
-func (a area) covers(row, col int) bool {
-	return a.top <= row && row <= a.bottom && (a.left == 0 || a.left <= col && col <= a.right)
-}
-
-// compareWithin lists the cells within the area that drawn differs from
-// frame in, as compare finds them, the cells outside it held to nothing.
-func compareWithin(frame, drawn grid, canvas colour, within area, over []span) ([]difference, error) {
-	diffs, err := compare(frame, drawn, canvas, over)
-	return slices.DeleteFunc(diffs, func(d difference) bool { return !within.covers(d.row, d.col) }), err
-}
-
 // filled is row, with blank, unpainted cells after it to width, which is no
 // less than its own.
 func filled(row []cell, width int) []cell {
@@ -490,46 +471,6 @@ func TestCompareHoldsEachCellToItsFrame(t *testing.T) {
 				t.Errorf("compare found the cells %v differing, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestCompareWithinHoldsTheAreaAlone(t *testing.T) {
-	canvas, ink := rgb(46, 52, 64), rgb(216, 222, 233)
-	row := inked("abcd", pen{ink, canvas, false})
-	frame := grid{row, row, row}
-	tests := []struct {
-		name   string
-		within area
-		over   []span
-		// want are the cells found to differ, each as its row and column.
-		want [][2]int
-	}{
-		{name: "the whole frame", within: area{top: 1, bottom: 3}, want: [][2]int{{1, 1}, {2, 2}, {2, 4}, {3, 3}}},
-		{name: "whole rows", within: area{top: 2, bottom: 3}, want: [][2]int{{2, 2}, {2, 4}, {3, 3}}},
-		{name: "a row's columns", within: area{top: 2, bottom: 2, left: 2, right: 3}, want: [][2]int{{2, 2}}},
-		{name: "a box", within: area{top: 1, bottom: 3, left: 2, right: 3}, want: [][2]int{{2, 2}, {3, 3}}},
-		{name: "a box, its cells passed over", within: area{top: 1, bottom: 3, left: 2, right: 3}, over: []span{{row: 3, from: 3, to: 3}}, want: [][2]int{{2, 2}}},
-		{name: "none differing", within: area{top: 1, bottom: 1, left: 2, right: 4}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			drawn := clone(frame)
-			drawn[0][0].glyph, drawn[1][1].glyph, drawn[1][3].bold, drawn[2][2].fg = 'x', 'y', true, rgb(1, 2, 3)
-			diffs, err := compareWithin(frame, drawn, canvas, tt.within, tt.over)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var got [][2]int
-			for _, d := range diffs {
-				got = append(got, [2]int{d.row, d.col})
-			}
-			if !slices.Equal(got, tt.want) {
-				t.Errorf("compareWithin found the cells %v differing, want %v", got, tt.want)
-			}
-		})
-	}
-	if _, err := compareWithin(frame, frame[:2], canvas, area{top: 1, bottom: 1}, nil); err == nil {
-		t.Error("compareWithin of a grid a row short found no error, want it refused as compare refuses it")
 	}
 }
 

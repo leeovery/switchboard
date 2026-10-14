@@ -47,10 +47,11 @@ func shareNamed(v ledger.Version) string {
 	return v.Name + " share"
 }
 
-// periodParts say a row of the page's period as said says it: but where the
-// period records nothing, as on a fresh install, a dash, as noneOf has it,
-// in every row, whatever said says, as 0 requests, none hit, or $0, the plan
-// and extra usage among them.
+// periodParts say a figure of the page's period as said says it: but where
+// the period records nothing, as on a fresh install or a week's first
+// morning, a dash, as noneOf has it, whatever said says, as 0 requests, none
+// hit, or $0. Left at its last reset, of the six weeks, the plan, of the
+// config, and extra usage, live, are no figures of the period.
 func periodParts(page views.AccountsPage, said []part, k ink) []part {
 	if !page.Recorded {
 		return noneOf(noFigure.text, k)
@@ -98,18 +99,15 @@ func movedParts(t views.AccountTotals, k ink) []part {
 // state.destructive, a faint " · " between: "5-hour ×2 · week ×1"; of every
 // account's, how many, "3"; "none" where it hit none.
 func limitsParts(t views.AccountTotals, name func(key string) string, k ink) []part {
-	if len(t.Limits) == 0 {
+	n := t.LimitCount()
+	if n == 0 {
 		return noneOf("none", k)
 	}
 	if t.All {
-		n := 0
-		for _, hit := range t.Limits {
-			n += hit
-		}
 		return []part{figureIn(prose.Grouped(n), k)}
 	}
 	var hit []part
-	for i, said := range views.LimitsHit(t.Limits, name) {
+	for i, said := range t.LimitsHit(name) {
 		if i > 0 {
 			hit = append(hit, wordsIn(accountsApart, faintInk))
 		}
@@ -135,10 +133,10 @@ func shortWindows(name func(key string) string) func(key string) string {
 // period, as prose.Span says a span, "3h 10m"; of every account's, all of
 // theirs together; a dash where it spent none, or its days never read it.
 func atCapParts(t views.AccountTotals, k ink) []part {
-	if t.MinutesAtCap == nil || t.MinutesAtLimit == nil || *t.MinutesAtCap+*t.MinutesAtLimit == 0 {
+	minutes, known := t.AtCapOrLimit()
+	if !known || minutes == 0 {
 		return noneOf(noFigure.text, k)
 	}
-	minutes := *t.MinutesAtCap + *t.MinutesAtLimit
 	return []part{figureIn(prose.Span(time.Duration(minutes)*time.Minute), k)}
 }
 

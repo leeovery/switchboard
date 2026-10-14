@@ -1,6 +1,8 @@
 package readings
 
 import (
+	"fmt"
+	"io/fs"
 	"iter"
 	"log/slog"
 	"time"
@@ -33,6 +35,21 @@ func (r *Reader) Tail(from, start, end time.Time) func() []Reading {
 	return NewDay(r.files, from, start, end).Read
 }
 
+// FirstDay returns the start of the first local day the history holds
+// readings of, by the dates its files' names give. It fails with
+// fs.ErrNotExist where it holds none.
+func (r *Reader) FirstDay() (time.Time, error) {
+	dates, err := r.files.All()
+	switch {
+	case err != nil:
+		return time.Time{}, fmt.Errorf("list the readings history: %w", err)
+	case len(dates) == 0:
+		return time.Time{}, fs.ErrNotExist
+	}
+	start, _, _ := dayfile.Day(dates[0])
+	return start, nil
+}
+
 // Empty reads as a readings history that holds no reading, with no files to
 // read: for one who reads the history where there's none to find.
 type Empty struct{}
@@ -45,4 +62,9 @@ func (Empty) Between(time.Time, time.Time) iter.Seq[Reading] {
 // Tail returns a read that gives no reading.
 func (Empty) Tail(time.Time, time.Time, time.Time) func() []Reading {
 	return func() []Reading { return nil }
+}
+
+// FirstDay fails with fs.ErrNotExist, as the history holds no day.
+func (Empty) FirstDay() (time.Time, error) {
+	return time.Time{}, fs.ErrNotExist
 }

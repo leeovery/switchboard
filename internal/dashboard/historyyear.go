@@ -695,10 +695,7 @@ func monthAgainst(m views.MonthRow) line {
 // monthLimits says how many limits were hit in a month, in
 // state.destructive: a faint 0 for none.
 func monthLimits(m views.MonthRow) line {
-	n := 0
-	for _, hit := range m.Limits {
-		n += hit
-	}
+	n := m.LimitCount()
 	if n == 0 {
 		return line{{"0", faintInk}}
 	}

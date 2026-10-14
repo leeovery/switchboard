@@ -96,6 +96,13 @@ func (a Activity) Works() bool {
 	return a.InFlight()
 }
 
+// Underway reports whether a request of it is under way on its account, as
+// the Overview's SESSIONS says it: asking, answering, or throttled, to go out
+// again there; not refused, before it goes out again elsewhere.
+func (a Activity) Underway() bool {
+	return a.Doing == Asking || a.Doing == Answering || a.Doing == Throttled
+}
+
 // Tokens are how many tokens its answer has streamed so far, while it's
 // Answering, estimated at CharsPerToken characters a token.
 func (a Activity) Tokens() int {
