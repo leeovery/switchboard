@@ -657,10 +657,14 @@ func (s stacked) sessions(c *canvas, y int) (int, []Target) {
 	return y, targets
 }
 
-// selected is the place among the sessions running of the one selected: the
-// first, where none is, or the one selected no longer runs there.
+// selected is the place among the sessions running, some running, of the
+// one selected, as Selection has it.
 func (s stacked) selected() int {
-	return max(slices.IndexFunc(s.running, func(r views.Running) bool { return r.Session == s.f.Accounts.Selected }), 0)
+	ids := make([]string, len(s.running))
+	for i, r := range s.running {
+		ids[i] = r.Session
+	}
+	return slices.Index(ids, s.f.Accounts.Selection(ids))
 }
 
 // stackSessionsShown are the first of n sessions SESSIONS shows, the one
