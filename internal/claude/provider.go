@@ -110,21 +110,10 @@ func asksOnly(body []byte, text string) bool {
 	return json.Unmarshal(content, &blocks) == nil && len(blocks) == 1 && blocks[0].Type == "text" && blocks[0].Text == text
 }
 
-// modelFamilies are the families Claude's models come in. A model's id names
-// its family as one of its hyphenated parts, wherever it falls: both
-// claude-opus-5-5 and claude-3-5-haiku-20241022 do.
-var modelFamilies = []string{"haiku", "sonnet", "opus", "fable"}
-
-// Family returns the family a model belongs to, such as "opus" for
-// claude-opus-5-5, or the model's own id when it names no family. Models of a
-// family are counted against the same windows.
+// Family returns the family a model belongs to, as ledger.FamilyOf reads it
+// from its id, the version table's families the ones it knows.
 func (Provider) Family(model string) string {
-	for part := range strings.SplitSeq(model, "-") {
-		if slices.Contains(modelFamilies, part) {
-			return part
-		}
-	}
-	return model
+	return ledger.FamilyOf(model)
 }
 
 // Usage reads the account's usage off a response's headers, its windows and

@@ -27,8 +27,6 @@ func TestTheVersionTableNamesEachVersionByFamilyNewestFirst(t *testing.T) {
 		{name: "Fable 5", family: "fable", ids: []string{"claude-fable-5"}},
 		{name: "Haiku 5.5", family: "haiku", ids: []string{"claude-haiku-5-5"}},
 		{name: "Haiku 4.5", family: "haiku", ids: []string{"claude-haiku-4-5-20251001", "claude-haiku-4-5"}},
-		{name: "Mythos 5.1", family: "mythos", ids: []string{"claude-mythos-5-1"}},
-		{name: "Mythos 5", family: "mythos", ids: []string{"claude-mythos-5"}},
 	}
 	got := ledger.Pricing.Versions
 	if len(got) != len(want) {
@@ -54,7 +52,6 @@ func TestTheVersionTableShadesEachFamilysNewestFirst(t *testing.T) {
 		"Sonnet 5.5": {shade: 3}, "Sonnet 5": {shade: 4, older: true}, "Sonnet 4.6": {older: true}, "Sonnet 4.5": {older: true},
 		"Fable 5.1": {shade: 5}, "Fable 5": {older: true},
 		"Haiku 5.5": {shade: 6}, "Haiku 4.5": {older: true},
-		"Mythos 5.1": {}, "Mythos 5": {older: true},
 	}
 	for _, v := range ledger.Pricing.Versions {
 		w, ok := want[v.Name]
@@ -81,7 +78,7 @@ func TestTheVersionTableNamesEachModelThePriceTableDoesByItsIDs(t *testing.T) {
 }
 
 func TestTheVersionTablesRowsGoByFamilyThenNewestFirst(t *testing.T) {
-	families := []string{"opus", "sonnet", "fable", "haiku", "mythos"}
+	families := ledger.Families()
 	// launched is the date of the day the version with the given ids
 	// launched: that of its first prices.
 	launched := func(ids []string) string {
@@ -102,13 +99,16 @@ func TestTheVersionTablesRowsGoByFamilyThenNewestFirst(t *testing.T) {
 	}
 }
 
-func TestEachVersionsFamilyIsTheOneClaudeReadsFromItsIDsWhereItReadsOne(t *testing.T) {
-	// internal/claude reads no family from Mythos's ids: it gives each id as
-	// its own family.
+// Every family the version table names is one of the families the router
+// knows, and the one it reads from each of the version's ids.
+func TestEveryFamilyTheVersionTableNamesIsOneTheRouterKnows(t *testing.T) {
 	for _, v := range ledger.Pricing.Versions {
+		if !slices.Contains(ledger.Families(), v.Family) {
+			t.Errorf("%s is of the %s family, which isn't one of the router's, %q", v.Name, v.Family, ledger.Families())
+		}
 		for _, id := range v.IDs {
-			if read := (claude.Provider{}).Family(id); read != id && read != v.Family {
-				t.Errorf("%s is of the %s family, want %s, as internal/claude reads it from %s", v.Name, v.Family, read, id)
+			if read := (claude.Provider{}).Family(id); read != v.Family {
+				t.Errorf("%s is of the %s family, want %s, as the router reads it from %s", v.Name, v.Family, read, id)
 			}
 		}
 	}
@@ -121,7 +121,7 @@ func TestAVersionIsNamedByTheTableElseByItsID(t *testing.T) {
 		{id: "claude-opus-5-5", want: "Opus 5.5"},
 		{id: "claude-opus-4-5-20251101", want: "Opus 4.5"},
 		{id: "claude-opus-4-5", want: "Opus 4.5"},
-		{id: "claude-mythos-5", want: "Mythos 5"},
+		{id: "claude-fable-5", want: "Fable 5"},
 		{id: "claude-opus-6", want: "opus-6"},
 		{id: "claude-sonnet-5-5-20270101", want: "sonnet-5-5-20270101"},
 		{id: "some-other-model", want: "some-other-model"},
