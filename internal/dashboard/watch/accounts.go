@@ -220,9 +220,11 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 
 // comparing reports whether Accounts shows Compare with a focus for ← and →
 // to move, enter to open and esc to end: never on a phone, whose Compare
-// draws none, as dashboard.Phone tells one.
+// draws none, as dashboard.Phone tells one, nor with no accounts, as it draws
+// no columns.
 func (m Model) comparing() bool {
-	return m.shownView() == dashboard.Accounts && m.accounts.shown.View() == dashboard.AccountsCompare && !dashboard.Phone(m.size.Width)
+	s := m.accounts.shown
+	return m.shownView() == dashboard.Accounts && s.View() == dashboard.AccountsCompare && !dashboard.Phone(m.size.Width) && len(s.Accounts) > 0
 }
 
 // focusKeys are Compare's focus keys: those that move its focus, open the

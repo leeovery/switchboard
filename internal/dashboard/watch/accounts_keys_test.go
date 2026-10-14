@@ -172,22 +172,24 @@ func TestAccountsHelpListsTheWayIntoSessionsWhereTheKeyLineDoesnt(t *testing.T) 
 }
 
 // Compare's focus keys, ←→, enter and esc, are listed where its focus is
-// drawn, wide, and on a phone, whose Compare draws none, neither in help nor
-// on the line.
+// drawn, wide; and on a phone, whose Compare draws none, or with no
+// accounts, whose Compare draws no columns, neither in help nor on the line.
 func TestAccountsListsCompareFocusKeysOnlyWhereTheFocusIsDrawn(t *testing.T) {
 	focus := []string{"←→", "enter", "esc"}
 	for _, tt := range []struct {
-		name  string
-		width int
-		want  bool
+		name     string
+		width    int
+		accounts config.Accounts
+		want     bool
 	}{
-		{name: "wide", width: 160, want: true},
-		{name: "at the narrowest wide", width: 100, want: true},
-		{name: "a phone", width: 99},
-		{name: "a phone's narrowest", width: 52},
+		{name: "wide", width: 160, accounts: threeConfigured, want: true},
+		{name: "at the narrowest wide", width: 100, accounts: threeConfigured, want: true},
+		{name: "a phone", width: 99, accounts: threeConfigured},
+		{name: "a phone's narrowest", width: 52, accounts: threeConfigured},
+		{name: "no accounts", width: 160},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			shown := dashboard.AccountsShown{Accounts: threeConfigured, Focused: true, Focus: "work"}
+			shown := dashboard.AccountsShown{Accounts: tt.accounts, Focused: true, Focus: "work"}
 			h := accountsKeysHarness(t, routerDocument(three()...), false, shown, tt.width)
 			helped := listedKeys(helpOver(h.model))
 			for _, k := range focus {

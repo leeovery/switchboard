@@ -243,7 +243,6 @@ func TestDaysByAccountScrollsPastSixAccounts(t *testing.T) {
 		},
 		{name: "ten, scrolled to the last", accounts: tenDays, height: 37, scroll: 9, want: Scrolling{Most: 4, Page: 6}, first: "spare", says: "▲ 4 more accounts above" + toScroll, shownAccounts: 6},
 		{name: "a taller terminal shows six still", accounts: tenDays, height: 45, want: Scrolling{Most: 4, Page: 6}, first: "work", says: "▼ 4 more accounts below" + toScroll, shownAccounts: 6},
-		{name: "a shorter terminal fits fewer", accounts: tenDays, height: 33, want: Scrolling{Most: 6, Page: 4}, first: "work", says: "▼ 6 more accounts below" + toScroll, shownAccounts: 4},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -269,6 +268,51 @@ func TestDaysByAccountScrollsPastSixAccounts(t *testing.T) {
 				t.Errorf("row %d says %q, want %q", tt.height-3, got, tt.says)
 			}
 		})
+	}
+}
+
+// Shorter than History's frames, or where BY ACCOUNT would show none of its
+// accounts, Days is drawn whole, every account, and scrolls by rows over its
+// key, which keeps the view's last rows: no line counts accounts it doesn't
+// show, and the last shows scrolled to the end.
+func TestDaysScrollsWholeWhereItsFramesDontFit(t *testing.T) {
+	families := daysWorld(tenDays...)
+	families.ByModel = slices.Repeat(families.ByModel, 3)
+	tests := []struct {
+		name          string
+		page          views.DaysPage
+		width, height int
+		want          Scrolling
+		keyRows       int
+	}{
+		{name: "ten accounts, a row short of the frames", page: daysWorld(tenDays...), width: 160, height: 36, want: Scrolling{Most: 8, Page: 26}, keyRows: 1},
+		{name: "ten accounts at 160×24", page: daysWorld(tenDays...), width: 160, height: 24, want: Scrolling{Most: 20, Page: 14}, keyRows: 1},
+		{name: "ten accounts at 80×24, on a phone", page: daysWorld(tenDays...), width: 80, height: 24, want: Scrolling{Most: 23, Page: 12}, keyRows: 2},
+		{name: "twelve families as tall as the frames", page: families, width: 160, height: 37, want: Scrolling{Most: 23, Page: 27}, keyRows: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := daysFrame(t, tt.page, tt.width, tt.height)
+			if got := f.daysScrolling(); got != tt.want || !f.ScrollsRows() {
+				t.Errorf("it scrolls %+v, a row at a time: %t; want %+v, a row at a time", got, f.ScrollsRows(), tt.want)
+			}
+			for _, scroll := range []int{0, tt.want.Most} {
+				f.Scroll = scroll
+				view := textOf(historyDrawn(f).rows(Look{}))[f.top() : f.top()+f.viewRows()]
+				if key := view[len(view)-tt.keyRows]; !strings.HasPrefix(key, "less ") {
+					t.Errorf("scrolled %d, the key's first row reads %q, want it %d over the view's last", scroll, key, tt.keyRows-1)
+				}
+				if slices.ContainsFunc(view, func(row string) bool { return strings.Contains(row, "more account") }) {
+					t.Errorf("scrolled %d, the view reads\n%s\nwant no line counting accounts out of view", scroll, strings.Join(view, "\n"))
+				}
+			}
+			if last := textOf(historyDrawn(f).rows(Look{}))[f.top()+tt.want.Page-1]; !strings.HasPrefix(last, "test") && !strings.Contains(last, "······") {
+				t.Errorf("scrolled to the end, the last row over the key reads %q, want the last account's", last)
+			}
+		})
+	}
+	if f := daysFrame(t, daysWorld(tenDays...), 160, 37); f.ScrollsRows() {
+		t.Error("ten accounts as tall as the frames scroll a row at a time, want an account at a time")
 	}
 }
 

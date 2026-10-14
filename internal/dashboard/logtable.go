@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -174,7 +173,7 @@ func requestCell(r views.RequestRow, column LogColumn, layout logLayout, name fu
 	case LogSession:
 		return sessionCell(r.Session, r.Dir, layout.phone)
 	case LogModel:
-		return line{{ledger.ShortModelID(prose.Clean(r.Model)), mutedInk}}
+		return line{{modelNamed(r.Model), mutedInk}}
 	case LogOn:
 		return line{{name(r.Account), accountInk}}
 	case LogStatus:

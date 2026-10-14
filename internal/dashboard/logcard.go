@@ -422,7 +422,7 @@ func accountsSaid(w status.Words, m status.Moment) line {
 func askedSection(d views.RequestDetails, lined lineGives) cardSection {
 	r := d.Row
 	return cardSection{heading: sectionHeading("ASKED"), items: []cardItem{
-		{name: "model", value: valued(ledger.ShortModelID(prose.Clean(r.Model)))},
+		{name: "model", value: valued(modelNamed(r.Model))},
 		{name: "size", value: lined.said(givenAs(r.Size, prose.Bytes))},
 		{name: "messages", value: lined.said(givenAs(r.Messages, prose.Grouped))},
 		{name: "system", value: lined.said(givenAs(d.System, systemBlocks))},
@@ -457,7 +457,7 @@ func answeredSection(d views.RequestDetails, lined lineGives) cardSection {
 	r := d.Row
 	return cardSection{heading: sectionHeading("ANSWERED"), items: []cardItem{
 		{name: "status", value: statusSaid(r)},
-		{name: "model", value: lined.said(ledger.ShortModelID(prose.Clean(d.Served)))},
+		{name: "model", value: lined.said(modelNamed(d.Served))},
 		{name: "first byte", value: firstSaid(r)},
 		{name: "ended", value: endedSaid(r)},
 		{name: "stopped", value: stoppedSaid(r, lined)},

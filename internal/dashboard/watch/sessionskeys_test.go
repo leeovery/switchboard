@@ -101,6 +101,30 @@ func TestSessionsKeyLinesAreTheDesigns(t *testing.T) {
 	}
 }
 
+// Help lists esc, ending the choice, while a session is chosen, on both
+// sub-tabs, as the key line leaves it to help; with none chosen, or once esc
+// ends the choice, it lists none.
+func TestSessionsHelpListsEscWhileASessionIsChosen(t *testing.T) {
+	for _, shown := range []dashboard.SessionsView{dashboard.SessionsSwitchboard, dashboard.SessionsList} {
+		h := sessionsKeysHarness(t, routerDocument(three()...), shown, 160)
+		for _, step := range []struct {
+			name string
+			do   func()
+			want bool
+		}{
+			{name: "nothing chosen", do: func() {}},
+			{name: "a session chosen", do: func() { h.model.sessionsTab.shown.Chosen = dashboard.Plug{Session: idD28C, Account: "work"} }, want: true},
+			{name: "the choice ended", do: func() { h.keys(escKey) }},
+		} {
+			step.do()
+			got := slices.ContainsFunc(helpOver(h.model), func(k dashboard.Key) bool { return k == dashboard.Key{Key: "esc", Does: "end the choice"} })
+			if got != step.want {
+				t.Errorf("on the %s, %s, help lists esc end the choice: %t, want %t", []string{"Switchboard", "List"}[shown], step.name, got, step.want)
+			}
+		}
+	}
+}
+
 // enter is drawn faint exactly where pressing it opens nothing, as Opens
 // says, on both sub-tabs: with nothing chosen, and once esc ends the choice,
 // where pressed, it says why in the key line's place; with a session chosen,

@@ -132,15 +132,12 @@ func weeksForm(phone bool) func(f Frame) *canvas {
 	return func(f Frame) *canvas {
 		c := newCanvas(f.Width, f.Height)
 		w := weeksDrawn{page: *f.History.Weeks, phone: phone, columns: !phone && f.History.WeeksShape == WeeksColumns, edge: f.edge()}
-		top := f.top()
-		foot := top + f.viewRows() - 1
-		switch {
-		case phone:
-			f.weeksOnAPhone(c, w, top, foot)
-		case w.columns:
-			f.weeksColumns(c, w, top, foot)
-		default:
-			f.weeksTable(c, w, top, foot)
+		foot := f.top() + f.viewRows() - 1
+		shown, above, below := f.weeksShown(w)
+		w.draw(c, f.Look, f.top(), shown)
+		w.accountsOut(c, foot-w.footRows(), above, below)
+		if !phone {
+			w.put(c, 0, foot, w.legend()...)
 		}
 		return c
 	}
@@ -407,7 +404,7 @@ func TestAPhoneSaysWhatsOutOfViewInALineThatFits(t *testing.T) {
 		frame Frame
 		want  string
 	}{
-		{name: "weeks", frame: weeksFrame(tenWeeks(), WeeksTable, 52, 30, NoColour()), want: "▲ 2 more accounts above · ▼ 1 more account below"},
+		{name: "weeks", frame: weeksFrame(manyWeeks(18), WeeksTable, 52, 37, NoColour()), want: "▲ 2 more accounts above · ▼ 1 more account below"},
 		{name: "days", frame: days, want: "▲ 2 more accounts above · ▼ 3 more accounts below"},
 	}
 	for _, tt := range tests {

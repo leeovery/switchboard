@@ -4,8 +4,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/ledger"
-	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -533,12 +531,6 @@ func (p LogPage) filterNames(name func(id string) string) logFilterNames {
 	return logFilterNames{
 		sessions: namedEach(f.Sessions, p.namedSession), accounts: namedEach(f.Accounts, name), models: namedEach(f.Models, modelNamed), failed: f.Failed,
 	}
-}
-
-// modelNamed names the model with the given id as the table does, by its id
-// less claude-.
-func modelNamed(id string) string {
-	return ledger.ShortModelID(prose.Clean(id))
 }
 
 // namedEach is each of the ids, named as name names it.

@@ -423,6 +423,35 @@ func TestTokensScrollsAPeriodAtATime(t *testing.T) {
 	}
 }
 
+// The footnote keeps the view's last rows while two are left for the periods
+// over it, a period's first and the line saying what's below; where they
+// wouldn't be, on a short terminal, the narrower the sooner as it wraps, it
+// goes, rather than reach for the heads, and the periods take its rows. With
+// a row alone for them, the row shows a period, not the line.
+func TestTokensFootnoteGoesWhereItWouldLeaveThePeriodsNoRow(t *testing.T) {
+	tests := []struct {
+		width, height int
+		noted         bool
+	}{
+		{width: 160, height: 14, noted: true},
+		{width: 160, height: 13},
+		{width: 52, height: 17, noted: true},
+		{width: 52, height: 16},
+		{width: 50, height: 15},
+		{width: 40, height: 13},
+		{width: 22, height: 15},
+		{width: 160, height: 11},
+	}
+	for _, tt := range tests {
+		f := tokensFrame(tt.width, tt.height, TokensByAccount)
+		rows := tokensRowsOf(f)
+		noted := slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, "worth: ") })
+		if !strings.HasPrefix(rows[0], "week") || !strings.HasPrefix(rows[2], "28 Sep") || noted != tt.noted {
+			t.Errorf("at %d×%d, Tokens reads\n%s\nwant its heads, then 28 Sep's row, the footnote shown: %t", tt.width, tt.height, strings.Join(rows, "\n"), tt.noted)
+		}
+	}
+}
+
 // A period taller than the view shows alone, cut short over the row saying
 // how many more are below, and never over the footnote.
 func TestAPeriodTallerThanTheViewIsCutShort(t *testing.T) {

@@ -4,7 +4,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -281,7 +280,7 @@ func onSays(l listed, s views.ListedSession, _ int) line {
 // modelSays is the model of its latest request, its id less claude-, in
 // text.muted.
 func modelSays(_ listed, s views.ListedSession, _ int) line {
-	return line{{ledger.ShortModelID(prose.Clean(s.Model)), mutedInk}}
+	return line{{modelNamed(s.Model), mutedInk}}
 }
 
 // listStateInks are the inks of what a session's doing, as the List's state

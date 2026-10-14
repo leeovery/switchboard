@@ -120,20 +120,19 @@ func yearPeriod(year int) string {
 	return strconv.Itoa(year)
 }
 
-// history draws History's sub-tab shown from row top, once the year's days
-// are read: till then, the view is blank. The Year is drawn whole, once its
-// page is built, then as many of its rows as the view has, from as far down
-// as it's scrolled.
+// history draws History's sub-tab shown from row top, in the view's rows
+// alone, once the year's days are read: till then, the view is blank. The
+// Year is drawn whole, once its page is built, then as many of its rows as
+// the view has, from as far down as it's scrolled.
 func (f Frame) history(c *canvas, top int) {
 	if !f.History.Read {
 		return
 	}
+	c = c.within(bounds{y: top, width: f.Width, rows: f.viewRows()})
 	switch f.History.Shown {
 	case HistoryYear:
 		if y, ok := f.yearDrawn(); ok {
-			year := y.whole()
-			scrolled := byRows(year.height(), f.viewRows())
-			c.paste(year, scrolled.clamped(f.Scroll), top, scrolled.Page)
+			f.pasteWhole(c, y.whole(), top, 0)
 		}
 	case HistoryWeeks:
 		f.historyWeeks(c, top)
@@ -142,6 +141,48 @@ func (f Frame) history(c *canvas, top int) {
 	case HistoryTokens:
 		f.historyTokens(c, top)
 	}
+}
+
+// historyRows is how tall History's frames are: shorter, Weeks and Days
+// scroll whole, as the Year does, keeping their foot rows.
+const historyRows = 37
+
+// shortOfHistory reports whether the frame is shorter than History's
+// frames, where Weeks and Days scroll whole.
+func (f Frame) shortOfHistory() bool {
+	return f.Height < historyRows
+}
+
+// pasteWhole draws body, a view of History drawn whole, from row top: as
+// many of its rows as the view has over its foot rows, foot of them, from as
+// far down as it's scrolled.
+func (f Frame) pasteWhole(c, body *canvas, top, foot int) {
+	s := f.scrolledWhole(body.height(), foot)
+	c.paste(body, s.clamped(f.Scroll), top, s.Page)
+}
+
+// scrolledWhole is how far a view of History drawn whole, rows tall,
+// scrolls by rows over its foot rows, foot of them: in the view's rows but
+// those and, where it has any, the blank row over them.
+func (f Frame) scrolledWhole(rows, foot int) Scrolling {
+	return byRows(rows, max(f.viewRows()-foot-min(foot, 1), 0))
+}
+
+// scrollsWhole reports whether History's sub-tab shown is drawn whole and
+// scrolls by rows: the Year; and Weeks and Days where they do, as
+// weeksWhole and layOutDays have it.
+func (f Frame) scrollsWhole() bool {
+	switch f.History.Shown {
+	case HistoryYear:
+		return true
+	case HistoryWeeks:
+		p := f.History.Weeks
+		return p != nil && p.Capacity.Weeks > 0 && f.weeksWhole(f.weeksDrawn(*p))
+	case HistoryDays:
+		p := f.History.Days
+		return p != nil && p.Recorded() && f.layOutDays(*p, f.top()).whole
+	}
+	return false
 }
 
 // phoneForm reports whether a sub-tab of History draws its phone form: on a
@@ -160,7 +201,7 @@ func (f Frame) historyScrolling(top int) func(offset int) Scrolling {
 	var s Scrolling
 	switch f.History.Shown {
 	case HistoryYear:
-		s = byRows(f.yearHeight(), f.viewRows())
+		s = f.scrolledWhole(f.yearHeight(), 0)
 	case HistoryWeeks:
 		s = f.weeksScrolling()
 	case HistoryDays:

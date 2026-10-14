@@ -3,10 +3,45 @@ package dashboard
 import (
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/status"
 )
+
+// A model is named by its id less claude-, cleaned first, so a recorded id
+// with stray spaces or control characters is named as any other.
+func TestAModelIsNamedByItsIDLessClaudeCleaned(t *testing.T) {
+	for id, want := range map[string]string{
+		"claude-opus-5-5":        "opus-5-5",
+		"  claude-opus-5-5\t":    "opus-5-5",
+		"claude-opus-5-5\x1b[2J": "opus-5-5 [2J",
+		"gpt-x":                  "gpt-x",
+	} {
+		if got := modelNamed(id); got != want {
+			t.Errorf("modelNamed(%q) = %q, want %q", id, got, want)
+		}
+	}
+}
+
+// Each page that names a model by its id names it as modelNamed does: Tokens'
+// version rows, and a session's page, where it goes and, ended, where it
+// went.
+func TestEveryPageNamesAModelAsModelNamedDoes(t *testing.T) {
+	const odd = "  claude-opus-5-5\t"
+	tokens := tokensFrame(160, 37, TokensByModel)
+	tokens.History.Tokens.Periods[0].ByModel[0].Model = odd
+	if rows := tokensRowsOf(tokens); !slices.ContainsFunc(rows, func(row string) bool { return strings.HasPrefix(row, "└ opus-5-5 ") }) {
+		t.Errorf("Tokens by model reads\n%s\nwant a row of └ opus-5-5", strings.Join(rows, "\n"))
+	}
+	for name, shown := range map[string]*SessionShown{"going": moved(), "ended": ended()} {
+		shown.Page.Goes[0].Model = odd
+		text := strings.Join(pageText(pageFrame(t, shown, 160, 37)), "\n")
+		if !strings.Contains(text, "opus-5-5") || strings.Contains(text, "claude-opus") {
+			t.Errorf("a session's page, %s, reads\n%s\nwant opus-5-5, and no claude-opus", name, text)
+		}
+	}
+}
 
 func TestAccountsAreCalledByTheirNames(t *testing.T) {
 	doc := status.Document{Accounts: []status.Account{{ID: "work", Label: "Work\x1b[2J"}, {ID: "side"}}}

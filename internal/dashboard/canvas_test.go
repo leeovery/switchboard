@@ -402,6 +402,22 @@ func TestBehindACardWithoutColourThePageLosesOnlyItsBold(t *testing.T) {
 	}
 }
 
+// A canvas within bounds, within others, draws only where both hold: an
+// inner clip never reaches past the outer.
+func TestACanvasWithinBoundsWithinOthersDrawsOnlyWhereBothHold(t *testing.T) {
+	c := newCanvas(6, 4)
+	inner := c.within(bounds{x: 1, y: 1, width: 4, rows: 2}).within(bounds{x: 0, y: 0, width: 3, rows: 4})
+	for y := range 4 {
+		inner.text(0, y, "xxxxxx", ink{})
+	}
+	want := []string{"", " xx", " xx", ""}
+	for y, w := range want {
+		if got := rowOf(c, y); got != w {
+			t.Errorf("row %d reads %q, want %q", y+1, got, w)
+		}
+	}
+}
+
 // unpaintedRuns are the runs of text in row drawn without the canvas, Nord's,
 // under them.
 func unpaintedRuns(row string) []string {
