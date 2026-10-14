@@ -1,9 +1,12 @@
 package status
 
 import (
+	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // WasKind is how an account stood at a moment gone, as a Was says.
@@ -46,21 +49,157 @@ type Span struct {
 	From, Until time.Time
 }
 
-// Then is how the account a stood at t, of those of the moment, by one rule
-// for every moment gone, live or stepped back to, which at Now agrees with
-// how the moment has the account stand: from the readings history's
-// readings, oldest first, as the history reads them, of the windows the
-// moment's policy says every model shares, each by its last reading by t; and
-// from the holds the router told of that they can't show. A window whose
-// reset has passed by t counts as reset, unused, with room. Its kind is the
-// first that holds of: without a usable token now, none at any moment; a
-// limit told of, or a window read spent, holding at t; its token refused, as
-// told of; nothing read by t; its cap, as its reserve holds now, a window read
-// at where its reserve starts, as configured now, as the readings keep no
-// reserve; and room. Of a hold, Since is the earliest of when each part of
-// what holds it at t began: a told hold's From, or the first reading of the
-// unbroken run of a window's readings that shows it, of those given; and
-// Until is when the last of them lifts, zero where one lifts at no known time.
+// holds reports whether the span holds at t.
+func (s Span) holds(t time.Time) bool {
+	return !t.Before(s.From) && s.Until.After(t)
+}
+
+// Then is how the moment's account a stood at t: one rule for every moment
+// gone, live or stepped back to, which at Now agrees with how the moment has
+// the account stand. It goes by the readings history's readings given,
+// oldest first, as the history reads them, of the windows the moment's
+// policy says every model shares, each by its last reading by t, a window
+// whose reset has passed by then counting as reset, unused; and by the holds
+// the router told of that the readings can't show. Its kind is the first
+// that holds of: without a usable token now, none at any moment; a limit
+// told of, or a window read spent, holding at t; its token refused, as told
+// of; nothing read by t; its cap, where its reserve holds now, a window read
+// at where its reserve, as configured now, starts, as the readings keep no
+// reserve; and room. Of a hold, Since is when the first part of what holds
+// it at t began: a told hold's From, or the first reading, of those given,
+// of the unbroken run of a window's readings that shows it; and Until is when
+// the last part lifts, zero where one lifts at no known time.
 func (m Moment) Then(a AccountNow, read []readings.Reading, told []Span, t time.Time) Was {
-	return Was{Kind: WasUnread}
+	if !a.TokenSet {
+		return Was{Kind: WasTokenless}
+	}
+	windows := m.readBy(a, read, t)
+	if was, ok := heldAs(WasLimited, slices.Concat(toldAt(told, WasLimited, t), shownAt(windows, WasLimited, t))); ok {
+		return was
+	}
+	if was, ok := heldAs(WasRefused, toldAt(told, WasRefused, t)); ok {
+		return was
+	}
+	if len(windows) == 0 {
+		return Was{Kind: WasUnread}
+	}
+	if was, ok := heldAs(WasCapped, shownAt(windows, WasCapped, t)); ok && a.ReserveHolds {
+		return was
+	}
+	return Was{Kind: WasRoom}
+}
+
+// windowRead is a window of an account as its readings by a moment have it:
+// the last of them, and when the unbroken run of them ending with it that
+// reads it spent, or at its account's cap, began, zero where the last doesn't.
+type windowRead struct {
+	last               quota.Window
+	spentFrom, capFrom time.Time
+}
+
+// readBy are the windows of the account a that the moment's policy says
+// every model shares, by key, each as its readings of those given, by t,
+// have it, its cap where its reserve, as configured now, starts.
+func (m Moment) readBy(a AccountNow, read []readings.Reading, t time.Time) map[string]windowRead {
+	windows := make(map[string]windowRead)
+	for _, r := range read {
+		if r.Account != a.ID || !m.policy.IsShared(r.Key) || r.At.After(t) {
+			continue
+		}
+		windows[r.Key] = windows[r.Key].readAgain(r.Window(), r.At, a.Reserve)
+	}
+	return windows
+}
+
+// readAgain is the window w, read again at at as window, its account's
+// reserve given: a run of its readings runs on to it where the last one's
+// reset hadn't passed by then.
+func (w windowRead) readAgain(window quota.Window, at time.Time, reserve float64) windowRead {
+	ranOn := !w.last.ResetBy(at)
+	return windowRead{
+		last:      window,
+		spentFrom: runFrom(w.spentFrom, ranOn, score.Spent(window), at),
+		capFrom:   runFrom(w.capFrom, ranOn, score.HeldByReserve(window, reserve), at),
+	}
+}
+
+// runFrom is when the unbroken run of a window's readings that shows a hold
+// began, once a reading at at, which shows it, or not, joins the run that
+// began at from, zero where there was none: where it shows it, from, where
+// the run ran on to it, else at; and zero where it doesn't.
+func runFrom(from time.Time, ranOn, shows bool, at time.Time) time.Time {
+	switch {
+	case !shows:
+		return time.Time{}
+	case ranOn && !from.IsZero():
+		return from
+	}
+	return at
+}
+
+// heldAt is the part of a hold of the given kind, WasLimited or WasCapped,
+// the window's readings show at t, reporting false where they show none then,
+// as where its reset has passed: from when the run of them showing it began,
+// till its reset.
+func (w windowRead) heldAt(kind WasKind, t time.Time) (part, bool) {
+	from := w.spentFrom
+	if kind == WasCapped {
+		from = w.capFrom
+	}
+	if from.IsZero() || w.last.ResetBy(t) {
+		return part{}, false
+	}
+	return part{from: from, until: w.last.ResetsAt}, true
+}
+
+// part is a part of what holds an account back at a moment: from when it
+// began, zero where that's before anything Then is given tells, until when
+// it lifts, zero where that isn't known.
+type part struct {
+	from, until time.Time
+}
+
+// shownAt are the parts of a hold of the given kind, WasLimited or
+// WasCapped, the windows' readings show at t, as heldAt has them.
+func shownAt(windows map[string]windowRead, kind WasKind, t time.Time) []part {
+	var parts []part
+	for _, w := range windows {
+		if p, ok := w.heldAt(kind, t); ok {
+			parts = append(parts, p)
+		}
+	}
+	return parts
+}
+
+// toldAt are the parts of a hold of the given kind the router told of that
+// hold at t, of the spans given.
+func toldAt(told []Span, kind WasKind, t time.Time) []part {
+	var parts []part
+	for _, s := range told {
+		if s.Kind == kind && s.holds(t) {
+			parts = append(parts, part{from: s.From, until: s.Until})
+		}
+	}
+	return parts
+}
+
+// heldAs is how an account stood, held back as kind says by the parts
+// given, reporting false where there are none: since the first of them
+// began, as score.Earlier has it, so a part from before anything Then is
+// given begins first; until the last of them lifts, zero where one lifts at
+// no known time.
+func heldAs(kind WasKind, parts []part) (Was, bool) {
+	if len(parts) == 0 {
+		return Was{}, false
+	}
+	was := Was{Kind: kind, Since: parts[0].from, Until: parts[0].until}
+	for _, p := range parts[1:] {
+		was.Since = score.Earlier(was.Since, p.from)
+		if was.Until.IsZero() || p.until.IsZero() {
+			was.Until = time.Time{}
+		} else {
+			was.Until = score.Later(was.Until, p.until)
+		}
+	}
+	return was, true
 }
