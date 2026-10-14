@@ -177,13 +177,21 @@ func (f Frame) runwayForm(doc status.Document, now time.Time) runwayForm {
 }
 
 // wideRunway is Runway of doc at now from phoneUnder columns, as its form
-// draws it, laid out as runwayFitted fits it: the axis, the lanes and the
-// words under them, the pool's lane, the legend, COMING UP and what's out of
-// view, each as its drawer has it; then now's column picked out under them.
+// draws it: its lanes from runwayLanesFrom, laid out as runwayFitted fits
+// it, as runwayFormed draws them.
 func (f Frame) wideRunway(doc status.Document, now time.Time) runwayForm {
+	return f.runwayFormed(doc, now, runwayLanesFrom, f.runwayFitted)
+}
+
+// runwayFormed is Runway of doc at now as its form draws it, its lanes from
+// column x, laid out from the row it's drawn from as fitted fits it: the
+// axis, the lanes and the words under them, the pool's lane, the legend,
+// COMING UP and what's out of view, each as its drawer has it; then now's
+// column picked out under them.
+func (f Frame) runwayFormed(doc status.Document, now time.Time, x int, fitted func(top int) runwayFit) runwayForm {
 	return runwayForm{
 		draw: func(c *canvas, top int) {
-			laid := f.runwayLaidOut(f.Moment(doc, now), runwayLanesFrom, f.runwayFitted(top))
+			laid := f.runwayLaidOut(f.Moment(doc, now), x, fitted(top))
 			f.runwayAxis(c, laid)
 			f.runwayLanes(c, laid)
 			f.runwayWords(c, laid)
@@ -193,7 +201,7 @@ func (f Frame) wideRunway(doc status.Document, now time.Time) runwayForm {
 			f.runwayOut(c, laid)
 			f.runwayNow(c, laid)
 		},
-		scrolling: f.runwayFitted(f.top()).scrolling,
+		scrolling: fitted(f.top()).scrolling,
 	}
 }
 
