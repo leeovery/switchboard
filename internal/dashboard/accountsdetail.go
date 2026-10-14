@@ -79,12 +79,14 @@ const (
 // sixWeeks are the weeks BY DAY and WEEKS show, the last of them this one.
 const sixWeeks = 6
 
-// detailLayout is Detail laid out wide: with its list at its left, the panel
-// beside it, or with one account, the panel alone, across the frame; and its
-// panel's days' cells, the cells between its weeks, and USAGE's bars' cells.
+// detailLayout is Detail laid out wide, or on a phone, as stackLayout: with
+// its list at its left, the panel beside it, or without, the panel alone,
+// across the frame; how far into the panel BY MODEL, BY DAY and WEEKS start;
+// and its panel's days' cells, the cells between its weeks, and USAGE's
+// bars' cells.
 type detailLayout struct {
 	list         bool
-	panel        int
+	panel, into  int
 	dw, gap, bar int
 }
 
@@ -94,14 +96,14 @@ type detailLayout struct {
 // into the width, its days 3 cells and its weeks 1 apart, its bars 50 wide.
 func (f Frame) detailLayout() detailLayout {
 	if f.Accounts.Alone() {
-		return detailLayout{dw: 3, gap: 1, bar: 50}
+		return detailLayout{into: panelCX, dw: 3, gap: 1, bar: 50}
 	}
-	return detailLayout{list: true, panel: listPanelAt, dw: 2, gap: 4, bar: 40}
+	return detailLayout{list: true, panel: listPanelAt, into: panelCX, dw: 2, gap: 4, bar: 40}
 }
 
 // cx is the column BY MODEL, BY DAY and WEEKS start at.
 func (l detailLayout) cx() int {
-	return l.panel + panelCX
+	return l.panel + l.into
 }
 
 // step is how far apart the six weeks are: a week's days and the gap after.
@@ -260,7 +262,7 @@ func (d detailDrawn) panel() *canvas {
 		d.thisWeek(c, usageAt)
 		d.byModel(c, at)
 		d.rule(c, at+ruleUnder)
-		d.byDay(c, at+byDayUnder)
+		d.byDay(c, at+byDayUnder, sixWeeks)
 		d.weeks(c, at+weeksUnder)
 		d.verdict(c, at+verdictUnder)
 	}
@@ -278,25 +280,33 @@ func (d detailDrawn) panel() *canvas {
 }
 
 // head draws the panel's head along row y: the account's number, name and
-// marks, then headApart cells on, how it stands, as its Headed says, in
-// ROUTING's glyph and colours, picked out while its state in a word is newly
-// changed, as cueState has it, or not read, as stateWord says it, where the
-// moment lacks it; or 0 all accounts and every configured account's state
-// counted, as CountStatesOf counts them.
+// marks, or 0 all accounts, then headApart cells on, how it stands, as
+// stands has it.
 func (d detailDrawn) head(c *canvas, y int) {
 	x := d.l.panel
 	if d.id == "" {
 		x = c.line(x, y, allAccountsName(1)) + headApart
+	} else {
+		x = c.line(x, y, listName(d.account, 1).fitted(d.f.edge()-x)) + headApart
+	}
+	d.stands(c, x, y, false)
+}
+
+// stands draws how the account stands along row y from x, short where short
+// is: as its Headed says, in ROUTING's glyph and colours, picked out while
+// its state in a word is newly changed, as cueState has it, or not read, as
+// stateWord says it, where the moment lacks it; or every configured
+// account's state counted, as CountStatesOf counts them.
+func (d detailDrawn) stands(c *canvas, x, y int, short bool) {
+	switch {
+	case d.id == "":
 		c.line(x, y, countedStates(d.m.CountStatesOf(d.f.Accounts.Accounts.IDs()), NumberAccountStates, d.f.edge()-x))
-		return
-	}
-	x = c.line(x, y, listName(d.account, 1).fitted(d.f.edge()-x)) + headApart
-	if !d.known {
+	case !d.known:
 		c.line(x, y, stateWord(status.StateNotRead).fit(d.f.edge()-x))
-		return
+	default:
+		end := c.line(x, y, standingWords(d.account.Headed(), short, d.f.edge()-x))
+		d.f.cueState(c, d.id, x, y, end-x)
 	}
-	end := c.line(x, y, standingWords(d.account.Headed(), false, d.f.edge()-x))
-	d.f.cueState(c, d.id, x, y, end-x)
 }
 
 // usage draws USAGE from row y, its heading, then every window under it,
@@ -392,7 +402,7 @@ func (d detailDrawn) byModel(c *canvas, y int) {
 	c.line(d.l.panel, y, line{{"BY MODEL", dimInk}})
 	cells, versions := d.l.edge()-d.l.cx(), d.page.Versions
 	stackedBar(c, d.f.Look, d.l.cx(), y, splitCells(shareAmounts(d.row, versions), cells), versionHues(versions))
-	c.line(d.l.cx(), y+1, versionShares(d.row, versions, cells))
+	c.line(d.l.cx(), y+1, versionShares(versionsUsed(d.row, versions), cells))
 }
 
 // rule draws the rule heading the last six weeks along row y, from the

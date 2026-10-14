@@ -605,7 +605,7 @@ func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 		if y < 0 {
 			t.Fatalf("no %s in THIS WEEK", label)
 		}
-		thisWeek := []rune(onFresh[y])[detailLayout{list: true, panel: listPanelAt, dw: 2, gap: 4}.thisWeekAt()+thisWeekLabels:]
+		thisWeek := []rune(onFresh[y])[detailLayout{list: true, panel: listPanelAt, into: panelCX, dw: 2, gap: 4}.thisWeekAt()+thisWeekLabels:]
 		if got := strings.TrimSpace(string(thisWeek)); got != want {
 			t.Errorf("on a fresh install, THIS WEEK's %s reads %q, want %q", label, got, want)
 		}

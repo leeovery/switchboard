@@ -53,21 +53,21 @@ func TestDetailsBYMODELNamesTheVersionsThatFit(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := versionShares(tt.row.row(), comparedVersions(t), tt.width).plain(); got != tt.want {
+			if got := versionShares(versionsUsed(tt.row.row(), comparedVersions(t)), tt.width).plain(); got != tt.want {
 				t.Errorf("BY MODEL names %q, want %q", got, tt.want)
 			}
 		})
 	}
 	t.Run("under a whole percent", func(t *testing.T) {
-		if got, want := versionShares(tiny, comparedVersions(t), 40).plain(), "● Opus 5.5 <1%"; got != want {
+		if got, want := versionShares(versionsUsed(tiny, comparedVersions(t)), 40).plain(), "● Opus 5.5 <1%"; got != want {
 			t.Errorf("BY MODEL names %q, want %q", got, want)
 		}
 	})
 	t.Run("a share not known", func(t *testing.T) {
-		if got, want := versionShares(row, comparedVersions(t), 41).plain(), "● Opus 5.5 90%  ● Sonnet 5.5 10%  +1 more"; got != want {
+		if got, want := versionShares(versionsUsed(row, comparedVersions(t)), 41).plain(), "● Opus 5.5 90%  ● Sonnet 5.5 10%  +1 more"; got != want {
 			t.Errorf("BY MODEL names %q, want %q", got, want)
 		}
-		if got, want := versionShares(row, comparedVersions(t), 104).plain(), "● Opus 5.5 90%  ● Opus 5 —  ● Sonnet 5.5 10%"; got != want {
+		if got, want := versionShares(versionsUsed(row, comparedVersions(t)), 104).plain(), "● Opus 5.5 90%  ● Opus 5 —  ● Sonnet 5.5 10%"; got != want {
 			t.Errorf("BY MODEL names %q, want %q", got, want)
 		}
 	})

@@ -46,18 +46,24 @@ type versionUsed struct {
 	share   *float64
 }
 
-// versionShares are the versions of those given that the row used, in their
-// order, as Detail's BY MODEL names them in width cells, as versionsNamed
-// has them. Where they don't all fit, the smallest are left out, one whose
-// share isn't known first, as many as it takes for the rest, and how many
-// more there are, to fit.
-func versionShares(row views.AccountsRow, versions []ledger.Version, width int) line {
+// versionsUsed are the versions of those given that the row used, in their
+// order, each with its share.
+func versionsUsed(row views.AccountsRow, versions []ledger.Version) []versionUsed {
 	var used []versionUsed
 	for _, v := range versions {
 		if s, ok := shareOf(row, v); ok {
 			used = append(used, versionUsed{version: v, share: s.Share})
 		}
 	}
+	return used
+}
+
+// versionShares are the versions used given, in their order, as Detail's BY
+// MODEL names them in width cells, as versionsNamed has them. Where they
+// don't all fit, the smallest are left out, one whose share isn't known
+// first, as many as it takes for the rest, and how many more there are, to
+// fit.
+func versionShares(used []versionUsed, width int) line {
 	smallest := make([]int, len(used))
 	for i := range smallest {
 		smallest[i] = i
