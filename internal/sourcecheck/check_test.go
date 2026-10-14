@@ -242,6 +242,30 @@ func shapes() {
 `,
 }
 
+// A check judges every file, whatever platform it's built for, each once:
+// one built for this platform as it's built here, and one built for
+// another alone as that platform builds it.
+func TestACheckJudgesTheFilesBuiltForEveryPlatform(t *testing.T) {
+	root := sourcecheck.WriteModule(t, map[string]string{
+		"go.mod":                              "module example.com/fixture\n",
+		"internal/reader/here.go":             "package reader\n\nimport \"fmt\"\n\nfunc Here() string { return fmt.Sprintf(\"%v\", 1.5) }\n",
+		"internal/reader/there_unix.go":       "//go:build unix\n\npackage reader\n\nimport \"fmt\"\n\nfunc There() string { return fmt.Sprintf(\"%v\", 2.5) }\n",
+		"internal/reader/there_other.go":      "//go:build !unix\n\npackage reader\n\nimport \"fmt\"\n\nfunc There() string { return fmt.Sprintf(\"%v\", 2.5) }\n",
+		"internal/reader/there_other_test.go": "//go:build !unix\n\npackage reader\n\nimport \"fmt\"\n\nfunc tested() string { return fmt.Sprintf(\"%v\", 3.5) }\n",
+	})
+	rule := sourcecheck.Rule{Names: sourcecheck.NamesIn("example.com/fixture"), Calls: map[string]sourcecheck.CallBan{"fmt.Sprintf": {Ban: sourcecheck.Ban{Says: "banned"}}}}
+	got := sourcecheck.Check(t, root, "example.com/fixture", rule, []string{"internal/reader"}, fixtureAllowance())
+	slices.Sort(got)
+	want := []string{
+		"internal/reader/here.go:5: banned",
+		"internal/reader/there_other.go:7: banned",
+		"internal/reader/there_unix.go:7: banned",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
 func TestACheckSeesRawDataThroughNamedTypesOfThePackagesThatDeclareIt(t *testing.T) {
 	root := sourcecheck.WriteModule(t, namedFixture)
 	rule := fixtureRule()
