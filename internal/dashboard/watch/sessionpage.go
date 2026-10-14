@@ -183,8 +183,8 @@ func (m Model) pageTook(t pageTaken) Model {
 
 // relived is m with the session's page open built afresh at now, but for a
 // frame, which takes nothing in: of what it holds of the session's lines, of
-// the router's last listing of it, while the router answers, and of what the
-// request stream told, as the views build it, its turn open's requests
+// the router's listing of it, as pageLive has it, and of what the request
+// stream told, as the views build it, its turn open's requests
 // among it, its turn chosen as following has it. A page that can't be
 // built, of no request and listed by no router, stays as it was last built,
 // and doesn't open where it never was.
@@ -208,18 +208,12 @@ func (m Model) relived(msg tea.Msg, now time.Time) Model {
 	return m
 }
 
-// pageLive is what a session's page is built of at now beside its lines:
-// the session with the given id as the router's last listing has it, listed
-// while the router answers, else last listed, no router listing it now; and
-// what the request stream told.
+// pageLive is what a session's page is built of at now beside its lines, as
+// Sessions' List is, as listLive has it: the session with the given id as
+// the router lists it, or while it doesn't answer, as its last listing had
+// it; whether it doesn't; and what the request stream told.
 func (m Model) pageLive(id string, now time.Time) views.PageLive {
-	live := views.PageLive{Unlisted: !m.answering(), Stream: m.traffic.stream(now), Now: now}
-	if routed := views.Routed(m.sessions, id); live.Unlisted {
-		live.LastRouted = routed
-	} else {
-		live.Routed = routed
-	}
-	return live
+	return views.PageLive{Routed: views.Routed(m.sessions, id), Unlisted: !m.answering(), Stream: m.traffic.stream(now), Now: now}
 }
 
 // turnsScrolling is how far the turns of the page shown scroll, laid out at

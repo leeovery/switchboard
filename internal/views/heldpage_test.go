@@ -319,32 +319,42 @@ func logRowsByID(table views.LogTable) map[string]views.RequestRow {
 	return rows
 }
 
-// While no router lists the sessions, a page keeps the session's own pin as
-// the router's last listing had it, as it stands at the router all the
-// same; but not where auto would send it, which the router can't say then,
-// nor anything else of that listing: it's no more running than its lines
-// say. Where the router answers without listing it, it has no pin.
-func TestAPageKeepsItsOwnPinFromTheLastListingWhileNoRouterListsIt(t *testing.T) {
-	lines := []ledger.Line{filedAs("p1", mainOn(p1, local(12, 50, 0), "end_turn"))}
+// While no router answers, a page reads its session as the router's last
+// listing had it, as the List draws it then, the owner's call of 14 October
+// 2026: running, idle counting on, though its last line came more than an
+// hour before, and its own pin standing, as it stands at the router all the
+// same; but not where auto would send it, which the router can't say then.
+// Listed by no router, it's as its lines say: ended an hour after the last.
+func TestAPageReadsTheLastListingWhileNoRouterAnswers(t *testing.T) {
+	lines := []ledger.Line{filedAs("p1", mainOn(p1, local(11, 50, 0), "end_turn"))}
 	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
+	list := views.HoldList(views.ReadList(summarisedLedger(lines), nil, paged), ledger.Pricing, now)
 	last := runningOn("side")
 	last.Pin, last.Assignments[0].Auto = "side", "work"
 	tests := []struct {
-		name string
-		live views.PageLive
-		pin  string
+		name    string
+		live    views.PageLive
+		running bool
+		pin     string
 	}{
-		{name: "no router listing the sessions", live: views.PageLive{Unlisted: true, LastRouted: last, Now: now}, pin: "side"},
-		{name: "no router listing the sessions, nor one ever having listed it", live: views.PageLive{Unlisted: true, Now: now}},
-		{name: "the router answering, listing it no more", live: views.PageLive{LastRouted: last, Now: now}},
+		{name: "no router answering, its last listing running it", live: views.PageLive{Routed: last, Unlisted: true, Now: now}, running: true, pin: "side"},
+		{name: "no router answering, nor one ever having listed it", live: views.PageLive{Unlisted: true, Now: now}},
+		{name: "the router answering, listing it no more", live: views.PageLive{Now: now}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, ok := held.Page(tt.live)
-			want, _ := held.Page(views.PageLive{Unlisted: tt.live.Unlisted, Now: now})
-			want.Pin = tt.pin
-			if !ok || !reflect.DeepEqual(got, want) {
-				t.Errorf("the page is\n%+v\nwant it built of its lines alone, its own pin %q\n%+v", got, tt.pin, want)
+			if !ok || got.Running != tt.running || got.Runs() != tt.running || got.Pin != tt.pin || got.Auto != "" {
+				t.Fatalf("the page runs %t (%t by its activity), its own pin %q, auto naming %q; want running %t, pin %q, auto naming none",
+					got.Running, got.Runs(), got.Pin, got.Auto, tt.running, tt.pin)
+			}
+			var routed []status.Session
+			if tt.live.Routed != nil {
+				routed = []status.Session{*tt.live.Routed}
+			}
+			listed := list.List(views.ListLive{Running: routed, Unlisted: tt.live.Unlisted, Now: now}).Sessions
+			if len(listed) != 1 || listed[0].Running != got.Running || listed[0].Activity != got.Activity {
+				t.Errorf("the List has it %+v, want it as its page has it, running %t, %+v", listed, got.Running, got.Activity)
 			}
 		})
 	}

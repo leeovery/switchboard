@@ -63,7 +63,8 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 }
 
 // listLive is what the List is built of at now beside its lines: the
-// sessions the router listed, unlisted while it doesn't answer; and what the
+// sessions the router lists, or while it doesn't answer, as it last listed
+// them, as the Switchboard draws them then; whether it doesn't; and what the
 // request stream told, s.
 func (m Model) listLive(now time.Time, s views.Stream) views.ListLive {
 	return views.ListLive{Running: m.sessions, Unlisted: !m.answering(), Stream: s, Now: now}

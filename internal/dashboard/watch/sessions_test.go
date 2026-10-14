@@ -297,3 +297,41 @@ func TestTheListIsReadOnceAsSessionsFirstShowsThenFedByTheTail(t *testing.T) {
 		t.Errorf("Sessions shown again, on %s, the List was read whole %d times, want no more, held for the run", h.model.view, len(l.asked))
 	}
 }
+
+// listedOf is the session with the given id as the List Sessions holds lists
+// it, reporting false where it doesn't.
+func listedOf(h *harness, id string) (views.ListedSession, bool) {
+	list := h.model.sessionsTab.shown.List.Sessions
+	if i := slices.IndexFunc(list, func(s views.ListedSession) bool { return s.Session == id }); i >= 0 {
+		return list[i], true
+	}
+	return views.ListedSession{}, false
+}
+
+// While the router doesn't answer, the Switchboard, the List and a session's
+// page alike draw the sessions its last listing ran, idle counting on, the
+// owner's call of 14 October 2026: ten minutes on, d28c, whose last line
+// came two hours before, has its call on work, runs on the List, and runs on
+// its page as the List has it.
+func TestTheRouterSilentForTenMinutesSessionsAndAPageDrawItsLastListing(t *testing.T) {
+	h := streamingHarness(t)
+	h.withLines(promptedLines(2, start.Add(-2*time.Hour)))
+	h.keys(toSessions...)
+	h.stopRouter()
+	h.tickUntil(start.Add(10 * time.Minute))
+	if h.model.answering() || h.model.lostShown().IsZero() {
+		t.Fatal("ten minutes on, the router is taken to answer, want it lost")
+	}
+
+	if !slices.ContainsFunc(h.model.sessionsTab.shown.Calls, func(c views.Call) bool { return c.Session == idD28C && c.Account == "work" }) {
+		t.Errorf("the Switchboard's calls are %+v, want d28c's on work, as the router last listed it", h.model.sessionsTab.shown.Calls)
+	}
+	listed, ok := listedOf(h, idD28C)
+	if !ok || !listed.Running {
+		t.Fatalf("the List has d28c %+v (listed %t), want it running", listed, ok)
+	}
+	h.openPage(idD28C)
+	if page := h.shownPage().Page; !page.Running || !page.Runs() || page.Activity != listed.Activity {
+		t.Errorf("its page runs %t (%t by its activity), doing %+v; want it running, as the List has it, %+v", page.Running, page.Runs(), page.Activity, listed.Activity)
+	}
+}
