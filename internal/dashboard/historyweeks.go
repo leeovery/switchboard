@@ -628,18 +628,24 @@ func (w weeksDrawn) tablePeaks(c *canvas, y int, row views.WeeksRow, weeks int) 
 	}
 }
 
-// peak is a week's peak as the table draws it, a figure: a percentage, in
-// its level's colour as usage colours one, but bold only at 100%, in
-// state.destructive; this week's so far, "34%…", bold text.secondary, which
-// brightens as it changes; and — in text.faint where it isn't known.
+// peak is a week's peak as the table draws it, as peakPart has it, this
+// week's in its ink, as the number its account's use of the week is.
 func (w weeksDrawn) peak(row views.WeeksRow, p views.WeekPeak) part {
+	return peakPart(p, w.thisWeekInk(), w.number(row))
+}
+
+// peakPart is a week's peak as a percentage, a figure: in its level's colour
+// as usage colours one, but bold only at 100%, in state.destructive; this
+// week's so far, "34%…", in the ink given, as the number n; and — in
+// text.faint where it isn't known.
+func peakPart(p views.WeekPeak, open ink, n Number) part {
 	if p.Share == nil {
 		return figurePart(line{noFigure}, Number{})
 	}
 	text := views.Peak(*p.Share, p.Open)
 	switch {
 	case p.Open:
-		return figurePart(line{{text, w.thisWeekInk()}}, w.number(row))
+		return figurePart(line{{text, open}}, n)
 	case prose.WholePercent(*p.Share) >= 100:
 		return figureIn(text, exhaustedInk)
 	}

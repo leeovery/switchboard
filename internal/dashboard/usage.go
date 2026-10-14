@@ -109,11 +109,13 @@ type usageRow struct {
 }
 
 // gauge is a window of an account, or the pool's, as a row draws it: the
-// window it is, by its account's id, "" for the pool's, and its key; its bar;
-// its words, and whether they say it runs out; and, while the Overview cues
-// its words, how far their cue has faded, nil where they aren't cued.
+// window it is, by its account's id, "" for the pool's, and its key, or with
+// all set, all accounts' window, which is never the pool's, by its key; its
+// bar; its words, and whether they say it runs out; and, while the Overview
+// cues its words, how far their cue has faded, nil where they aren't cued.
 type gauge struct {
 	of      Ref
+	all     bool
 	bar     usageBar
 	words   usageWords
 	runsOut bool
@@ -187,6 +189,25 @@ func accountGauge(a status.AccountNow, key string, now time.Time) gauge {
 		bar = usageBar{empty: true}
 	}
 	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(w, now), runsOut: w.RunsOut}
+}
+
+// allGauge is the window with the given key of every account at m, taken
+// together, as all accounts has it, Moment.All's: its bar the mean of their
+// use and of their paces, with no cap, faded where all are stale; its words
+// its room, to each account's limit, of how many accounts it counts; empty
+// where no account's use of it is known.
+func allGauge(m status.Moment, key string) gauge {
+	all := m.All().Windows
+	i := slices.IndexFunc(all, func(w status.AllWindowNow) bool { return w.Key == key })
+	if i < 0 {
+		return gauge{of: Ref{Window: key}, all: true, bar: usageBar{empty: true}}
+	}
+	w := all[i]
+	return gauge{
+		of: Ref{Window: key}, all: true,
+		bar:   usageBar{used: w.Used, capAt: 1, pace: w.Pace, stale: w.Stale},
+		words: poolWords(w.Room, w.Of, false),
+	}
 }
 
 // drawsEmpty reports whether a window of the given kind draws an empty bar:
@@ -602,8 +623,15 @@ func (g gauge) said(width, room int) line {
 	return slices.Concat(line{said[0].numbered(g.number(g.words.leads))}, said[1:])
 }
 
-// number is g's window's number of the kind given.
+// number is g's window's number of the kind given: all accounts' use and
+// room their own, as all accounts is never the pool.
 func (g gauge) number(kind NumberKind) Number {
+	switch {
+	case g.all && kind == NumberUsed:
+		kind = NumberAllUsed
+	case g.all && kind == NumberRoom:
+		kind = NumberAllRoom
+	}
 	return Number{Kind: kind, Account: g.of.Account, Of: g.of.Window}
 }
 

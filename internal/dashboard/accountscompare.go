@@ -335,28 +335,20 @@ func (cp compared) weekUsed(c *canvas, y int, columns []compareColumn) {
 		g := cp.weekGauge(col)
 		g.bar.draw(c, cp.f.Look, col.x, y, bar)
 		c.barred(col.x, y, bar, g.of)
-		percentage := g.percentage()
-		if col.all && !g.bar.empty {
-			percentage = g.bar.percentage().numbered(Number{Kind: NumberAllUsed, Of: cp.week})
-		}
-		c.right(col.x+bar+1+percentCells, y, percentage)
+		c.right(col.x+bar+1+percentCells, y, g.percentage())
 	}
 }
 
 // weekGauge is the column's week as WEEK USED draws it, as far as its bar
 // has eased: an account's as usage draws its window, its cap and even pace
 // marked, faded where it's stale, and empty where the moment doesn't have
-// the account; all accounts', as every account's week together, the mean of
-// their use and of their paces, with no cap, faded where all are stale, and
-// empty where none's use is known.
+// the account; all accounts', as allGauge has it, every account's week
+// together.
 func (cp compared) weekGauge(col compareColumn) gauge {
 	g := gauge{of: Ref{Account: col.id, Window: cp.week}, bar: usageBar{empty: true}}
 	switch {
 	case col.all:
-		all := cp.m.All().Windows
-		if i := slices.IndexFunc(all, func(w status.AllWindowNow) bool { return w.Key == cp.week }); i >= 0 {
-			g.bar = usageBar{used: all[i].Used, capAt: 1, pace: all[i].Pace, stale: all[i].Stale}
-		}
+		g = allGauge(cp.m, cp.week)
 	case col.known:
 		g = accountGauge(col.account, cp.week, cp.now)
 	}
@@ -381,13 +373,7 @@ func (cp compared) byModel(c *canvas, y int, columns []compareColumn) int {
 	}
 	bar := min(shareBar, cp.colw-shareSpare)
 	for _, col := range columns {
-		amounts := make([]ledger.Picodollars, len(versions))
-		for i, v := range versions {
-			if s, ok := shareOf(col.row, v); ok {
-				amounts[i] = amountOf(s.Worth)
-			}
-		}
-		stackedBar(c, cp.f.Look, col.x, y, splitCells(amounts, bar), hues)
+		sharesBar(c, cp.f.Look, col.x, y, bar, versions, col.row)
 	}
 	for i, v := range versions {
 		y++
@@ -402,6 +388,20 @@ func (cp compared) byModel(c *canvas, y int, columns []compareColumn) int {
 		}
 	}
 	return y
+}
+
+// sharesBar draws the row's share of use as a stacked bar cells long from x
+// along row y, a part each of the versions given, in their order and in their
+// shades, each as long as its worth, as splitCells splits the cells.
+func sharesBar(c *canvas, look Look, x, y, cells int, versions []ledger.Version, row views.AccountsRow) {
+	amounts, hues := make([]ledger.Picodollars, len(versions)), make([]hue, len(versions))
+	for i, v := range versions {
+		hues[i] = versionHue(v)
+		if s, ok := shareOf(row, v); ok {
+			amounts[i] = amountOf(s.Worth)
+		}
+	}
+	stackedBar(c, look, x, y, splitCells(amounts, cells), hues)
 }
 
 // shareOf is the row's share of use of the version given, reporting false
