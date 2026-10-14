@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"fmt"
 	"maps"
 	"reflect"
 	"slices"
@@ -179,6 +180,72 @@ func TestASessionsRowIsNamedByItsMainThreadWhereItRunsThere(t *testing.T) {
 			list := held.List(views.ListLive{Running: sessions, Stream: stream, Now: now})
 			if len(list.Sessions) != 1 || list.Sessions[0].Model != tt.model {
 				t.Errorf("the List names it %+v, want %s, as its row", list.Sessions, tt.model)
+			}
+		})
+	}
+}
+
+// A session whose main thread has waited over the IdleHour on a subagent of
+// another model is named on an account by its main thread where it goes
+// there, cold as it is, as the List names it: by its model, why it's there,
+// and the account it came from. SESSIONS draws a session where its models
+// run, though: where its main thread goes to none they run on, its row is on
+// the account its subagent runs on, named by the subagent's model, while the
+// List names it by its main thread, on the account that goes to.
+func TestASessionsRowIsNamedByItsMainThreadThoughItsColdThere(t *testing.T) {
+	const sonnet = "claude-sonnet-5-5"
+	mainAt := now.Add(-72 * time.Minute)
+	subAt := []time.Time{now.Add(-70 * time.Minute), now.Add(-30 * time.Minute), now.Add(-2 * time.Minute)}
+	tests := []struct {
+		name                           string
+		sub                            string
+		account, model, family, why    string
+		from, listedOn, listedAs, came string
+	}{
+		{
+			name: "its subagent on its main thread's account", sub: "work",
+			account: "work", model: opus, family: "opus", why: "moved from personal 12:00: personal reached its limit", from: "personal",
+			listedOn: "work", listedAs: opus, came: "personal",
+		},
+		{
+			name: "its subagent on another account: SESSIONS draws what runs where", sub: "side",
+			account: "side", model: sonnet, family: "sonnet", why: "started here 12:02, the best",
+			listedOn: "work", listedAs: opus, came: "personal",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lines := []ledger.Line{
+				filedAs("m0", took(10*time.Second, serving(p1, ledger.ClassMain, line(asking, opus, "personal", status.ReasonNew, mainAt.Add(-time.Hour), hourUsage)))),
+				filedAs("m1", took(10*time.Second, serving(p1, ledger.ClassMain, movedFrom("personal", line(asking, opus, "work", "moved: personal hit its limit", mainAt, hourUsage))))),
+			}
+			for i, at := range subAt {
+				l := filedAs(fmt.Sprintf("a%d", i), took(20*time.Second, line(asking, sonnet, tt.sub, status.ReasonNew, at, hourUsage)))
+				l.AgentID = "agent-1"
+				lines = append(lines, l)
+			}
+			sessions := []status.Session{{ID: asking, Assignments: []status.Assignment{
+				{Model: opus, Family: "opus", Account: "work", Reason: "moved: personal hit its limit", AssignedAt: mainAt, LastSeen: mainAt.Add(10 * time.Second)},
+				{Model: sonnet, Family: "sonnet", Account: tt.sub, Reason: status.ReasonNew, AssignedAt: subAt[0], LastSeen: subAt[2].Add(20 * time.Second)},
+			}}}
+			held := views.HoldList(views.ReadList(sessionsLedger(lines, now), sessions), ledger.Pricing, now)
+			m := runningDoc().At(now, claude.Policy)
+			calls := views.CallsOf(m, sessions, views.Stream{}, held)
+			if len(calls) != 1 {
+				t.Fatalf("the calls are %+v, want one", calls)
+			}
+			c := calls[0]
+			if c.Account != tt.account || c.Model != tt.model || c.Family != tt.family || c.Why.String() != tt.why || c.From != tt.from {
+				t.Errorf("its row is on %s, %s, %s, %q, from %q; want on %s, %s, %s, %q, from %q",
+					c.Account, c.Model, c.Family, c.Why, c.From, tt.account, tt.model, tt.family, tt.why, tt.from)
+			}
+			list := held.List(views.ListLive{Running: sessions, Now: now})
+			if len(list.Sessions) != 1 {
+				t.Fatalf("the List holds %+v, want one session", list.Sessions)
+			}
+			s := list.Sessions[0]
+			if s.Account != tt.listedOn || s.Model != tt.listedAs || s.Moved == nil || s.Moved.From != tt.came {
+				t.Errorf("the List names it on %s, %s, moved %+v; want on %s, %s, come from %s", s.Account, s.Model, s.Moved, tt.listedOn, tt.listedAs, tt.came)
 			}
 		})
 	}

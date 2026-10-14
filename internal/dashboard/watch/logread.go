@@ -341,8 +341,9 @@ func (m Model) logRead(msg logReadMsg) Model {
 // events those read as it first shows, or those held with what the router's
 // files were found to hold taken in, as Took has it, so none a look took in
 // while the read was under way is lost; the figures of the days read folded
-// into those held; and where how far back its tables read couldn't be
-// said, logged, the first time alone, as each read after asks again.
+// into those held; the day it asked how far back its tables read taken
+// only where both were said, so the next read asks again whatever the day;
+// and where they couldn't be, logged, the first time alone.
 func (t logTab) grown(g logGrown) logTab {
 	t.reading, t.read, t.held = false, g.read, t.held+1
 	if g.events != nil {
@@ -361,7 +362,7 @@ func (t logTab) grown(g logGrown) logTab {
 	if g.filed != nil {
 		t.filed = *g.filed
 	}
-	if g.asked != "" {
+	if g.asked != "" && g.err == nil {
 		t.boundedOn = g.asked
 	}
 	if g.err != nil && !t.warned {

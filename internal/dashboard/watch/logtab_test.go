@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -534,29 +535,63 @@ func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 	}
 }
 
+// firstFailing is a request ledger followed as it grows, as daysCounted
+// counts its reads, whose ask of where its lines begin fails while failing
+// is set.
+type firstFailing struct {
+	*daysCounted
+	failing bool
+}
+
+func (l *firstFailing) FirstLinesDay(now time.Time) (time.Time, error) {
+	if l.failing {
+		return time.Time{}, errors.New("the ledger's first day couldn't be read")
+	}
+	return l.daysCounted.FirstLinesDay(now)
+}
+
 // The oldest day the Log reads back to is asked again as the day turns:
 // past midnight, the oldest day of the ledger's keep before it is no longer
-// kept, whether or not the router has pruned its lines yet.
+// kept, whether or not the router has pruned its lines yet. An ask that
+// fails is asked again at the next look, as on the first day, rather than
+// leaving the day before's oldest day kept for the rest of the day.
 func TestTheOldestDayKeptIsAskedAgainAsTheDayTurns(t *testing.T) {
-	state := t.TempDir()
-	night := onTheDay(23, 50, 0)
-	writeLines(t, state,
-		arrivedAt("0a000001", night.AddDate(0, 0, -3)), arrivedAt("0a000002", night.AddDate(0, 0, -2)),
-		arrivedAt("0a000003", night.AddDate(0, 0, -1)), arrivedAt("0a000004", night),
-	)
-	h := routedHarness(t, routerDocument(three()...))
-	onTheLog(h, state)
-	h.model.cfg.LedgerKeep = 2 * day
-	h.clock.now = night
-	h.start()
-	if got, want := h.model.log.oldest.Day.Date, dayfile.DateOf(night.AddDate(0, 0, -2)); got != want {
-		t.Fatalf("the oldest day kept is %s, want %s, its keep of 2 days back", got, want)
+	tests := []struct {
+		name string
+		// failed is how many of the looks past midnight fail to ask, the
+		// first of them, before the last.
+		failed int
+	}{
+		{name: "its first look past midnight asking"},
+		{name: "its first look past midnight failing to ask, the next asking", failed: 1},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			night := onTheDay(23, 50, 0)
+			writeLines(t, state,
+				arrivedAt("0a000001", night.AddDate(0, 0, -3)), arrivedAt("0a000002", night.AddDate(0, 0, -2)),
+				arrivedAt("0a000003", night.AddDate(0, 0, -1)), arrivedAt("0a000004", night),
+			)
+			h := routedHarness(t, routerDocument(three()...))
+			l := &firstFailing{daysCounted: onTheLog(h, state)}
+			h.model.cfg.Ledger = l
+			h.model.cfg.LedgerKeep = 2 * day
+			h.clock.now = night
+			h.start()
+			if got, want := h.model.log.oldest.Day.Date, dayfile.DateOf(night.AddDate(0, 0, -2)); got != want {
+				t.Fatalf("the oldest day kept is %s, want %s, its keep of 2 days back", got, want)
+			}
 
-	h.clock.now = onTheDay(24, 0, 5)
-	h.read(routerDocument(three()...))
-	if got, want := h.model.log.oldest.Day.Date, dayfile.DateOf(night.AddDate(0, 0, -1)); got != want {
-		t.Errorf("past midnight, the oldest day kept is %s, want %s, a day on", got, want)
+			for i := range tt.failed + 1 {
+				l.failing = i < tt.failed
+				h.clock.now = onTheDay(24, 0, 5+i)
+				h.read(routerDocument(three()...))
+			}
+			if got, want := h.model.log.oldest.Day.Date, dayfile.DateOf(night.AddDate(0, 0, -1)); got != want {
+				t.Errorf("past midnight, the oldest day kept is %s, want %s, a day on", got, want)
+			}
+		})
 	}
 }
 

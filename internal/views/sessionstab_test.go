@@ -339,23 +339,29 @@ func toldMoved(s views.Stream, session, from, to string) bool {
 	return slices.ContainsFunc(s.Moves, func(m views.Moved) bool { return m.Session == session && m.From == from && m.To == to })
 }
 
+// logPanelOf are the sessions the Log's panel lists at now, its read of the
+// lines given, oldest first, holding today's, of the sessions the router
+// lists, running, unlisted saying none does, and what the stream told.
+func logPanelOf(lines []ledger.Line, running []status.Session, unlisted bool, stream views.Stream, now time.Time) []views.LogSession {
+	today := views.Today(now)
+	var todays []ledger.Held
+	for _, line := range lines {
+		if today.Holds(line.At) {
+			todays = append(todays, ledger.Held{Line: line})
+		}
+	}
+	read := views.ReadLogHeld(sessionsLedger(lines, now), todays, ledger.Pricing, now)
+	counts := views.LogRows(views.LogSources{From: now, Read: read, Stream: stream, Now: now}).Count(today.Date)
+	return views.LogSessions(views.LogSessionSources{
+		Read: read, Lines: counts.Sessions, Running: running, Unlisted: unlisted, Stream: stream, Now: now,
+	})
+}
+
 // The Log's panel lists today's sessions as the List does: each it lists is
 // the List's, and the List's others run with no request today.
 func TestTheLogsSessionsAreTheListsOfToday(t *testing.T) {
 	eachLook(t, func(t *testing.T, w walked) {
-		l := sessionsLedger(w.look.Lines, w.look.Now)
-		today := views.Today(w.look.Now)
-		var todays []ledger.Held
-		for _, line := range w.look.Lines {
-			if today.Holds(line.At) {
-				todays = append(todays, ledger.Held{Line: line})
-			}
-		}
-		read := views.ReadLogHeld(l, todays, ledger.Pricing, w.look.Now)
-		counts := views.LogRows(views.LogSources{From: w.look.Now, Read: read, Stream: w.look.Stream, Now: w.look.Now}).Count(today.Date)
-		logged := views.LogSessions(views.LogSessionSources{
-			Read: read, Lines: counts.Sessions, Running: w.look.Sessions, Unlisted: w.look.Unlisted, Stream: w.look.Stream, Now: w.look.Now,
-		})
+		logged := logPanelOf(w.look.Lines, w.look.Sessions, w.look.Unlisted, w.look.Stream, w.look.Now)
 		listed := make(map[string]views.ListedSession)
 		for _, s := range w.held.List(liveOf(w.look)).Sessions {
 			listed[s.Session] = s

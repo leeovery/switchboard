@@ -104,15 +104,16 @@ type SessionsLook struct {
 // move; an answer's end; midnight; the router not answering for ten minutes,
 // then restarted; a router that gives no directory; 25 bent cords; fifty
 // sessions; a new session joining, one ending, and asking again; a group
-// starting below its line's first jack; one account with eight sessions; and
-// an Opus session's Haiku title after its main, before its next main request
-// is heard and after.
+// starting below its line's first jack; one account with eight sessions; an
+// Opus session's Haiku title after its main, before its next main request is
+// heard and after; and an Opus main thread moved to work, waiting there over
+// the IdleHour on its Haiku subagent there.
 func SessionsMoments() []SessionsMoment {
 	return []SessionsMoment{
 		noSessions(), probingTheLedger(), theSceneAt1442(), onTwoAccounts(), refusedThenMovedByTheLimit(),
 		movedWithNoLimit(), throttledAndRefused(), anAnswersEnd(), acrossTheNight(), theRouterSilent(),
 		noDirFromTheRouter(), bentCords(), fiftySessions(), joiningAndEnding(), aGroupBelowItsLine(), oneAccountEight(),
-		titledAfterItsMainOnTheBoard(),
+		titledAfterItsMainOnTheBoard(), coldMainOnTheBoard(),
 	}
 }
 
@@ -1019,4 +1020,33 @@ func titledAfterItsMainOnTheBoard() SessionsMoment {
 			List:   []string{"d28c asking · started 14:30 · 2 requests"},
 		},
 	}}
+}
+
+// coldMainOnTheBoard is d28c, whose main thread, Claude Opus 5.5, moved to
+// work from personal at its limit at 13:30 and has waited since on its
+// subagent, of Claude Haiku 4.5, on work too, seen at 14:40: its call there
+// named by its main thread, cold as it is, and come from personal, as the
+// List has it.
+func coldMainOnTheBoard() SessionsMoment {
+	subagent := func(id string, at time.Time) ledger.Line {
+		l := withID(id, asSubagent("a1", p2, line(D28C, Haiku, work, at, 5*time.Second)))
+		l.Dir = switchboardDir
+		return l
+	}
+	moved := cameFrom(personal, atItsLimit(personal), called("c2", D28C, Opus, work, switchboardDir, At(13, 30, 0), 10*time.Second))
+	moved.Prompt, moved.Answer.Stop = p2, "tool_use"
+	lines := []ledger.Line{
+		called("c1", D28C, Opus, personal, switchboardDir, At(13, 0, 0), 10*time.Second), moved,
+		subagent("c3", At(13, 31, 0)), subagent("c4", At(14, 10, 0)), subagent("c5", At(14, 40, 0)),
+	}
+	listing := []status.Session{session(D28C,
+		listedOn(Opus, work, switchboardDir, atItsLimit(personal), At(13, 30, 0), At(13, 30, 10), ""),
+		listedOn(Haiku, work, switchboardDir, status.ReasonNew, At(13, 31, 0), At(14, 40, 0), ""),
+	)}
+	return SessionsMoment{Name: "an Opus main thread moved to work, waiting there over the IdleHour on its Haiku subagent there", Looks: []SessionsLook{{
+		Doc: threeAt(At(14, 42, 7)), Now: At(14, 42, 7), Sessions: listing, Stream: live(), Lines: lines,
+		Board: map[string]string{work: "d28c@0"},
+		Calls: map[string]string{"d28c work": "idle 2m ▸ from personal · ~/Code/switchboard · rests"},
+		List:  []string{"d28c idle 2m · started 13:00 · 5 requests"},
+	}}}
 }
