@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -453,6 +454,72 @@ func TestDetailsKeysChooseAnAccountAndOpenTheSelectedSessionsPage(t *testing.T) 
 		if got := h.model.accounts.shown; h.model.session != nil || h.model.view != dashboard.Accounts || !reflect.DeepEqual(got, step.want) || h.model.scroll != 1 {
 			t.Fatalf("esc left %q's page open, %s showing %+v, scrolled %d; want Accounts as left, %+v, scrolled 1", h.pageOpen(), h.model.view, got, h.model.scroll, step.want)
 		}
+	}
+}
+
+// enter on a session in Detail opens its page as a session's page opens
+// anywhere: drawn in Detail's place once its lines are read, those waiting
+// on a read of the ledger's tail under way, Detail showing and acting as it
+// is till then, esc dropping it. esc comes back to Detail as it was left,
+// drawn as it was.
+func TestEnterOnASessionInDetailOpensItsPageAndEscComesBackToDetailAsItWas(t *testing.T) {
+	tests := []struct {
+		name             string
+		tailing, dropped bool
+	}{
+		{name: "its lines read at once"},
+		{name: "its lines read once the tail's read lands", tailing: true},
+		{name: "dropped by esc before the tail's read lands", tailing: true, dropped: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "work", -4*time.Minute))
+			h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail})
+			h.model.cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+			h.keys(downKey)
+			left, detail := h.model.accounts.shown, h.view()
+			asLeft := func(after string) {
+				t.Helper()
+				if got := h.model.accounts.shown; h.model.session != nil || !reflect.DeepEqual(got, left) || h.view() != detail {
+					t.Fatalf("%s, %q's page is open, Accounts showing %+v, drawn\n%s\nwant Detail as it was left, %+v, drawn\n%s", after, h.pageOpen(), got, h.view(), left, detail)
+				}
+			}
+
+			var tail tea.Cmd
+			if tt.tailing {
+				h.keys(enterKey)
+				tail = h.readingTheTail()
+				h.keys(escKey)
+			}
+			opened, read := h.model.Update(enterKey)
+			h.model = opened.(Model)
+			if tt.tailing {
+				if read != nil {
+					t.Fatal("enter on d28c read its lines beside the tail's read, want them read once it lands")
+				}
+				asLeft("enter on d28c while the tail is read")
+				if tt.dropped {
+					h.keys(escKey)
+				}
+				read = tail
+			}
+			h.deliver(h.run(read)...)
+			if tt.dropped {
+				asLeft("esc before the tail's read landed")
+				return
+			}
+
+			rows := strings.Split(h.view(), "\n")
+			if h.pageOpen() != idD28C || !strings.HasPrefix(rows[4], "SESSION") || !strings.Contains(rows[4], status.ShownID(idD28C)) || !strings.HasPrefix(h.keyLine(), "esc back") {
+				t.Fatalf("enter on d28c opened %q's page, drawing\n%s\nwant d28c's page drawn in Detail's place, its key line leading with esc back", h.pageOpen(), h.view())
+			}
+			if got := h.shownPage().Page.Totals.Requests; got != 2 {
+				t.Errorf("d28c's page counts %d requests, want its 2 lines", got)
+			}
+			h.keys(escKey)
+			asLeft("esc on d28c's page")
+		})
 	}
 }
 
