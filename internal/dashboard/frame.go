@@ -28,7 +28,7 @@ type Frame struct {
 	// the router isn't answering.
 	Failed Failure
 	// Outdated is set when the router is from before it told of events and
-	// gave its history: RECENT asks for it to be restarted.
+	// gave its history: LATELY asks for it to be restarted.
 	Outdated bool
 	// Fresh are the events looks saw newly, by id; Changed the accounts whose
 	// states looks saw change, by id, and StateChanged those whose states in
@@ -249,8 +249,8 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 // view, as cramped says; and while its find is open, read or not, the
 // find's line in its place, cramped or not, where LogFinds says it has the
 // row, as what's typed into it is drawn nowhere else; but none under a
-// session's page, drawn in the view's place. The views milestone 5 built
-// draw their own line there.
+// session's page, drawn in the view's place. Accounts and Sessions draw
+// their own lines there.
 func (f Frame) stateLine(c *canvas, now time.Time) {
 	if f.Shown() != Log {
 		return

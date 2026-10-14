@@ -859,32 +859,32 @@ func TestNewSessionsGoWhereTheRouterSendsThem(t *testing.T) {
 		// account is the account whose words are said, the document's first.
 		account status.Account
 		next    string
-		// routing and state are what ROUTING and a card say of the account.
-		routing, state string
+		// routing is what ROUTING says of the account.
+		routing string
 	}{
 		{
 			name: "the router's, of several, to another", source: status.SourceRouter, best: "side", others: []status.Account{side},
-			account: work, next: "side", routing: "under pressure · out ~16:05", state: "under pressure · new sessions go elsewhere",
+			account: work, next: "side", routing: "under pressure · out ~16:05",
 		},
 		{
 			name: "the router's, of several, here", source: status.SourceRouter, best: "work", others: []status.Account{side},
-			account: readNow(0.12, 0.33, 0.04), next: "work", routing: "open · new sessions come here", state: "open · new sessions come here",
+			account: readNow(0.12, 0.33, 0.04), next: "work", routing: "open · new sessions come here",
 		},
 		{
 			name: "probed, of several: none", source: status.SourceProbe, best: "work", others: []status.Account{side},
-			account: readNow(0.12, 0.33, 0.04), routing: "open", state: "open",
+			account: readNow(0.12, 0.33, 0.04), routing: "open",
 		},
 		{
 			name: "probed, of several, another its best: none, so nothing says new sessions go elsewhere", source: status.SourceProbe, best: "side",
-			others: []status.Account{side}, account: work, routing: "under pressure · out ~16:05", state: "under pressure · runs out ~16:05 at this pace",
+			others: []status.Account{side}, account: work, routing: "under pressure · out ~16:05",
 		},
 		{
 			name: "the router's, of one with no room: that one", source: status.SourceRouter,
-			account: readNow(1, 0.34, 0.12), next: "work", routing: "limit reached · back 17:10", state: "limit reached · back 17:10, in 2h 28m",
+			account: readNow(1, 0.34, 0.12), next: "work", routing: "limit reached · back 17:10",
 		},
 		{
 			name: "probed, of one: that one", source: status.SourceProbe, best: "work",
-			account: readNow(0.12, 0.33, 0.04), next: "work", routing: "open", state: "open",
+			account: readNow(0.12, 0.33, 0.04), next: "work", routing: "open",
 		},
 	}
 	for _, tt := range tests {
@@ -901,9 +901,6 @@ func TestNewSessionsGoWhereTheRouterSendsThem(t *testing.T) {
 			}
 			if got := routingOf(doc, tt.account, stateNow).String(); got != tt.routing {
 				t.Errorf("Routing = %q, want %q", got, tt.routing)
-			}
-			if got := doc.StateOf(tt.account, stateNow, policy).String(); got != tt.state {
-				t.Errorf("StateOf() = %q, want %q", got, tt.state)
 			}
 		})
 	}

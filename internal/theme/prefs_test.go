@@ -369,7 +369,7 @@ func TestMilestone5sCardViewKeptAsTheViewIsNoTab(t *testing.T) {
 	prefs := theme.NewPrefsFile(state, clock)
 
 	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber")}); !reflect.DeepEqual(got, want) {
-		t.Errorf("Read() = %+v, want %+v: no tab, for the Overview that shows the cards now", got, want)
+		t.Errorf("Read() = %+v, want %+v: no tab, for the Overview, as milestone 5's card view, kept, names none", got, want)
 	}
 	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "runway" }); err != nil {
 		t.Fatal(err)
