@@ -32,6 +32,9 @@ type Stream struct {
 	// it is says so until a line of its own takes over, while only those no
 	// listing has shown done put a model where it went, as unlisted has them.
 	Moves []Moved
+	// heard is what hears it once for every look, as HeardBy gives it: nil
+	// where each look hears it afresh.
+	heard *Hearing
 }
 
 // unlisted are the moves s told of that no listing of the router's sessions

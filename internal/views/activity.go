@@ -207,6 +207,8 @@ func (h heard) doing() Activity {
 // models' names, then their accounts'; whether it's live; each session's
 // requests that spend quota, by its id, the first sent first, as its turns
 // count them; and what those name it by, as naming.heard has it of them.
+// Nothing reading it changes what it holds, as a Hearing shares it between
+// looks.
 type hearing struct {
 	live  bool
 	seats map[seatOf]heard
@@ -215,10 +217,10 @@ type hearing struct {
 	named map[string]naming
 }
 
-// hearing is what s told of each session's model on each account, and of
-// each session's requests, of those it knows, as known has them: so nothing
-// is in flight while s isn't live.
-func (s Stream) hearing() hearing {
+// hear is what s told of each session's model on each account, and of each
+// session's requests, of those it knows, as known has them: so nothing is in
+// flight while s isn't live.
+func (s Stream) hear() hearing {
 	h := hearing{
 		live: s.Live, seats: make(map[seatOf]heard), sat: make(map[string][]seatOf),
 		told: make(map[string][]Told), named: make(map[string]naming),
