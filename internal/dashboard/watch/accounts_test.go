@@ -432,6 +432,35 @@ func TestDetailsKeysChooseAnAccountAndOpenTheSelectedSessionsPage(t *testing.T) 
 	}
 }
 
+// enter, drawn faint as it has nothing to open, says why in the key line's
+// place, as p does; with one account none runs on, whose key line has no
+// enter, it says nothing.
+func TestAFaintEnterSaysWhyInTheKeyLinesPlace(t *testing.T) {
+	tests := []struct {
+		name  string
+		shown dashboard.AccountsShown
+		alone bool
+		want  string
+	}{
+		{name: "Compare, no column focused", want: "no account is focused"},
+		{name: "Detail of all accounts", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail}, want: "all accounts lists no sessions"},
+		{name: "Detail of an account none runs on", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "side"}, want: "no session is running on this account"},
+		{name: "the one account there is, none running on it", alone: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := accountsHarness(t, tt.shown)
+			if tt.alone {
+				h.model.accounts.shown.Accounts = config.Accounts{{ID: "side"}}
+			}
+			h.keys(enterKey)
+			if h.model.note != tt.want || h.model.session != nil {
+				t.Errorf("enter noted %q, opening %q's page; want %q noted, nothing opened", h.model.note, h.pageOpen(), tt.want)
+			}
+		})
+	}
+}
+
 // The session selected in Detail's SESSIONS ending gives the selection to the
 // one in its place, else the last; with none left, ↑↓ go back to the list.
 func TestTheSessionSelectedEndingSelectsTheOneInItsPlace(t *testing.T) {

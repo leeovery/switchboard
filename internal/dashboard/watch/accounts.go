@@ -148,10 +148,9 @@ var accountsSteps = map[string]int{"[": -1, "]": 1, "<": -1, ">": 1, "left": -1,
 // ] turn the sub-tab, and < and > step the period, as Turned and Stepped have
 // them; ← and → move Compare's focus, or Detail's ↑ and ↓ between its list
 // and its SESSIONS, as Moved has it; ↑ and ↓ choose in Detail, as Choosing
-// has it; enter opens, on Compare, the column focused in Detail, as Opened
-// has it, and on Detail, the page of the session selected, as openSelected
-// has it; and esc ends Compare's focus, as Unfocused has it. A key that
-// changes what's shown shows it as showAccounts has it.
+// has it; enter opens what's focused or selected, as entered has it; and esc
+// ends Compare's focus, as Unfocused has it. A key that changes what's shown
+// shows it as showAccounts has it.
 func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 	if m.view != dashboard.Accounts {
 		return m, nil, false
@@ -169,11 +168,8 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 	case "up", "down":
 		next, changed = s.Choosing(by, m.running(now))
 	case "enter":
-		if s.View() == dashboard.AccountsDetail {
-			opened, cmd := m.openSelected(m.running(now))
-			return opened, cmd, true
-		}
-		next, changed = s.Opened()
+		opened, cmd := m.entered(m.running(now))
+		return opened, cmd, true
 	case "esc":
 		next, changed = s.Unfocused()
 	default:
@@ -185,15 +181,42 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 	return m, nil, true
 }
 
-// openSelected opens the page of the session Detail's SESSIONS has selected
-// of those running, as Selection has it, as enter does there and from its
-// list, as openSession opens it: nothing where none runs on the account it
-// shows.
-func (m Model) openSelected(running []string) (Model, tea.Cmd) {
-	if id := m.accounts.shown.Selection(running); id != "" {
+// entered is m with enter pressed on Accounts, running being the sessions
+// running on the account Detail shows, by id, in its SESSIONS' order: on
+// Compare, the column focused opened in Detail, as Opened has it; on Detail,
+// from its list as from its SESSIONS, the page of the session selected, as
+// Selection has it, opened as openSession opens it. Where there's nothing to
+// open, as the key line draws enter faint, it says why in the key line's
+// place, as unopened has it.
+func (m Model) entered(running []string) (Model, tea.Cmd) {
+	s := m.accounts.shown
+	if next, opened := s.Opened(); opened {
+		return m.showAccounts(next), nil
+	}
+	if id := s.Selection(running); id != "" {
 		return m.openSession(id)
 	}
+	if why := unopened(s); why != "" {
+		return m.noting(why)
+	}
 	return m, nil
+}
+
+// unopened is why enter opens nothing on Accounts as s shows it, where it
+// doesn't: no column of Compare focused; all accounts chosen in Detail's
+// list, which no session runs on alone; or an account no session runs on.
+// It's "" with one account, whose key line has no enter while none runs on
+// it.
+func unopened(s dashboard.AccountsShown) string {
+	switch {
+	case s.View() == dashboard.AccountsCompare:
+		return "no account is focused"
+	case s.Alone():
+		return ""
+	case s.Account() == "":
+		return "all accounts lists no sessions"
+	}
+	return "no session is running on this account"
 }
 
 // accountsClick acts on a click on Accounts, reporting false for one it
