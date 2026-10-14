@@ -28,7 +28,7 @@ Wait+Screen /SWITCHBOARD/
 Sleep 14500ms
 Tab
 Tab
-Type "w"
+Type ">"
 Sleep 1700ms
 Show
 

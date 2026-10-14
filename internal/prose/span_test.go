@@ -61,23 +61,33 @@ func TestADurationIsInWholeUnitsAsCountdownSaysIt(t *testing.T) {
 	}
 }
 
-func TestAboutIsToTheFiveMinutesUnderTwoHoursThenToTheHour(t *testing.T) {
+// A column of Runway's timeline is said in whole minutes where it's whole,
+// else about as long: to a tenth of a minute under 20 minutes, a tenth that
+// rounds whole said whole, and to the minute from 20.
+func TestAColumnsLengthIsInWholeMinutesWhereItsWholeElseAbout(t *testing.T) {
+	const fiveHourSpan, day = 22*time.Hour + 40*time.Minute, 24 * time.Hour
 	tests := []struct {
+		name string
 		d    time.Duration
 		want string
 	}{
-		{d: 12 * time.Minute, want: "10 min"},
-		{d: 12*time.Minute + 30*time.Second, want: "15 min"},
-		{d: 75 * time.Minute, want: "75 min"},
-		{d: 2*time.Hour - time.Second, want: "120 min"},
-		{d: 2 * time.Hour, want: "2h"},
-		{d: 6*time.Hour + 29*time.Minute, want: "6h"},
-		{d: 6*time.Hour + 30*time.Minute, want: "7h"},
+		{name: "the 5-hour at 136 columns", d: fiveHourSpan / 136, want: "10 minutes"},
+		{name: "the week at 136", d: 7 * day / 136, want: "≈ 74 minutes"},
+		{name: "a day stepped back to, at 136", d: day / 136, want: "≈ 10.6 minutes"},
+		{name: "the 5-hour at 38", d: fiveHourSpan / 38, want: "≈ 36 minutes"},
+		{name: "a 25-hour day, its tenth rounding whole", d: 25 * time.Hour / 136, want: "≈ 11 minutes"},
+		{name: "the 5-hour at 176", d: fiveHourSpan / 176, want: "≈ 7.7 minutes"},
+		{name: "a 23-hour day", d: 23 * time.Hour / 136, want: "≈ 10.1 minutes"},
+		{name: "a second under 20 minutes", d: 20*time.Minute - time.Second, want: "≈ 20 minutes"},
+		{name: "20 minutes and 40 seconds", d: 20*time.Minute + 40*time.Second, want: "≈ 21 minutes"},
+		{name: "one minute", d: time.Minute, want: "1 minute"},
 	}
 	for _, tt := range tests {
-		if got := prose.About(tt.d); got != tt.want {
-			t.Errorf("About(%v) = %q, want %q", tt.d, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.ColumnLength(tt.d); got != tt.want {
+				t.Errorf("ColumnLength(%v) = %q, want %q", tt.d, got, tt.want)
+			}
+		})
 	}
 }
 

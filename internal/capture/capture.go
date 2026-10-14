@@ -93,26 +93,21 @@ func Names() []string {
 }
 
 // ByName returns the fixture with the given name, drawn in the local time
-// zone, as fixtures says. An empty or unknown name is an error that lists the
-// fixtures.
+// zone, as localMoment says. An empty or unknown name is an error that lists
+// the fixtures.
 func ByName(name string) (Fixture, error) {
 	return local().named(name)
 }
 
-// local is every fixture drawn in the local time zone, built once.
-var local = sync.OnceValue(func() fixtureSet { return fixturesIn(time.Local) })
+// local is every fixture, drawn in the local time zone over the worlds at
+// localMoment, built once.
+var local = sync.OnceValue(func() fixtureSet { return setOf(overWorlds(), worldsNow) })
 
 // fixtureSet is every fixture drawn in a time zone, by name, each built the
 // first time it's asked for: usage's printouts and the pages are drawn over
 // the worlds, whose year takes a while, so no set builds them before one is
 // asked for.
 type fixtureSet map[string]func() Fixture
-
-// fixturesIn is every fixture drawn in the time zone given, as fixtures,
-// printouts and pages say.
-func fixturesIn(loc *time.Location) fixtureSet {
-	return setOf(fixtures(loc), overWorlds(), worldsNow)
-}
 
 // overWorld is a fixture drawn over the accounts' worlds, built as it's asked
 // for: its name, and the fixture over the worlds given.
@@ -134,23 +129,16 @@ func overWorlds() []overWorld {
 	return over
 }
 
-// setOf is the watch's fixtures given and those given over the worlds, by
-// name, one over the worlds drawn over what worlds gives the first time it's
-// asked for, and only then. It panics on a name given twice, as the second
-// would hide the first.
-func setOf(watched []Fixture, over []overWorld, worlds func() accountWorlds) fixtureSet {
-	set := make(fixtureSet, len(watched)+len(over))
-	add := func(name string, build func() Fixture) {
-		if _, ok := set[name]; ok {
-			panic(fmt.Sprintf("capture: two fixtures named %q", name))
-		}
-		set[name] = build
-	}
-	for _, f := range watched {
-		add(f.Name, func() Fixture { return f })
-	}
+// setOf is the fixtures given over the worlds, by name, each drawn over what
+// worlds gives the first time it's asked for, and only then. It panics on a
+// name given twice, as the second would hide the first.
+func setOf(over []overWorld, worlds func() accountWorlds) fixtureSet {
+	set := make(fixtureSet, len(over))
 	for _, o := range over {
-		add(o.called(), sync.OnceValue(func() Fixture { return o.fixture(worlds()) }))
+		if _, ok := set[o.called()]; ok {
+			panic(fmt.Sprintf("capture: two fixtures named %q", o.called()))
+		}
+		set[o.called()] = sync.OnceValue(func() Fixture { return o.fixture(worlds()) })
 	}
 	return set
 }
@@ -183,12 +171,12 @@ type earlier struct {
 	keys []tea.KeyPressMsg
 }
 
-// moment is when every fixture over milestone 5's samples is drawn, as the
-// frames are: Thursday 1 October 2026, 14:42:07, in the time zone given,
-// fixed as its clocks are then. Such a fixture is built and drawn in that, a
-// zone whose clocks never change: where the given zone's change within the
-// fixtures' week, as Sydney's do on the Sunday, their resets would move by an
-// hour.
+// moment is when every scenario over milestone 5's samples plays from, as
+// the frames are drawn: Thursday 1 October 2026, 14:42:07, in the time zone
+// given, fixed as its clocks are then. Such a scenario is built and played in
+// that, a zone whose clocks never change: where the given zone's change
+// within the samples' week, as Sydney's do on the Sunday, their resets would
+// move by an hour.
 func moment(loc *time.Location) time.Time {
 	name, offset := time.Date(2026, time.October, 1, 14, 42, 7, 0, loc).Zone()
 	return time.Date(2026, time.October, 1, 14, 42, 7, 0, time.FixedZone(name, offset))
@@ -207,24 +195,6 @@ func localMoment() time.Time {
 // worldsNow are the accounts' worlds at localMoment, built once, as every
 // zone's fixtures are built over them, and their year takes a while.
 var worldsNow = sync.OnceValue(func() accountWorlds { return newAccountWorlds(localMoment()) })
-
-// fixtures are the watch's fixtures, in the frames' theme, over milestone 5's
-// samples at the frames' moment in the zone given, as moment fixes it: one
-// for each set of accounts Runway's frames draw, at the size of the frame it
-// mirrors. Each opens on Runway, over the day, and with w, over the week.
-func fixtures(loc *time.Location) []Fixture {
-	now := moment(loc)
-	w := tea.KeyPressMsg{Code: 'w', Text: "w"}
-	all := []Fixture{
-		{Name: "runway-day-3", Size: wide(26), now: now, router: threeAccounts(now), view: dashboard.Runway},
-		{Name: "runway-day-5", Size: wide(32), now: now, router: fiveAccounts(now), view: dashboard.Runway},
-		{Name: "runway-week-3", Size: wide(26), now: now, router: threeAccounts(now), view: dashboard.Runway, keys: []tea.KeyPressMsg{w}},
-	}
-	for i := range all {
-		all[i].theme = framesTheme()
-	}
-	return all
-}
 
 // framesTheme is the theme the frames are drawn in: nord.
 func framesTheme() theme.Theme {
@@ -380,6 +350,10 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // pinned to personal and side, looked at a minute before; and at personal's
 // limit, refused at 16:05:41, and moved at 16:05:42, looked at at 14:42:07.
 // Where no frame draws it, to judge by eye: the Switchboard at 120 × 30.
+// Then Runway's frames, each reached from the Overview with tab four times:
+// the 5-hour view, wide and on a phone; the week, with >; Wednesday, ← twice,
+// today and the day before; all over the auto world; and the 5-hour view of
+// ten accounts.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -478,6 +452,11 @@ var pages = []page{
 		looked: &looked{after: movedAfter, listed: inTheFramesOrder(sceneSessions)},
 	},
 	{name: "page-sessions-120x30", size: watch.Size{Width: 120, Height: 30}, world: accountWorlds.scene, keys: toSessions()},
+	{name: "runway-5-hour-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
+	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway(">")},
+	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(), leftKey, leftKey)},
+	{name: "runway-ten-accounts-160", size: wide(37), world: manyAccounts(10), keys: toRunway()},
+	{name: "runway-phone-52", size: phone(33), world: accountWorlds.auto, keys: toRunway()},
 }
 
 // lookedAway are the keys a look at Sessions' Switchboard by before a page's
@@ -524,6 +503,12 @@ func toSessions(text ...string) []tea.KeyPressMsg {
 	return append(repeated(tabKey, 3), keysOf(text...)...)
 }
 
+// toRunway are the keys that reach Runway from the Overview, tab four times,
+// then the text given, a key a character.
+func toRunway(text ...string) []tea.KeyPressMsg {
+	return append(repeated(tabKey, 4), keysOf(text...)...)
+}
+
 // toLog are the keys that reach the Log from the Overview, shift-tab, back
 // round the tabs, then the text given, a key a character.
 func toLog(text ...string) []tea.KeyPressMsg {
@@ -540,11 +525,12 @@ func toSession(id string, then ...tea.KeyPressMsg) []tea.KeyPressMsg {
 	return slices.Concat(keys, []tea.KeyPressMsg{enterKey, upKey}, keysOf("s"), then)
 }
 
-// The keys tab, ↑, ↓, → and enter, as pressed.
+// The keys tab, ↑, ↓, ←, → and enter, as pressed.
 var (
 	tabKey   = tea.KeyPressMsg{Code: tea.KeyTab}
 	upKey    = tea.KeyPressMsg{Code: tea.KeyUp}
 	downKey  = tea.KeyPressMsg{Code: tea.KeyDown}
+	leftKey  = tea.KeyPressMsg{Code: tea.KeyLeft}
 	rightKey = tea.KeyPressMsg{Code: tea.KeyRight}
 	enterKey = tea.KeyPressMsg{Code: tea.KeyEnter}
 )

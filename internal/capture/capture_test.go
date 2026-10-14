@@ -43,41 +43,36 @@ func TestNamesNameEveryFixtureOnceSorted(t *testing.T) {
 
 func TestTwoFixturesOfANamePanicNamingIt(t *testing.T) {
 	tests := []struct {
-		name    string
-		watched []Fixture
-		over    []overWorld
+		name string
+		over []overWorld
 	}{
-		{name: "two the watch draws", watched: []Fixture{{Name: "sessions-1"}, {Name: "sessions-3"}, {Name: "sessions-1", Size: wide(10)}}},
-		{name: "one the watch draws, and a printout", watched: []Fixture{{Name: "sessions-1"}}, over: []overWorld{printout{name: "usage-160"}, printout{name: "sessions-1"}}},
+		{name: "two printouts", over: []overWorld{printout{name: "sessions-1"}, printout{name: "usage-160"}, printout{name: "sessions-1"}}},
 		{name: "a printout, and a page", over: []overWorld{printout{name: "sessions-1"}, page{name: "log-requests-160"}, page{name: "sessions-1"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, want := panicked(t, func() { setOf(tt.watched, tt.over, worldsNow) }), `capture: two fixtures named "sessions-1"`; got != want {
+			if got, want := panicked(t, func() { setOf(tt.over, worldsNow) }), `capture: two fixtures named "sessions-1"`; got != want {
 				t.Errorf("setOf panicked with %q, want %q", got, want)
 			}
 		})
 	}
 }
 
-func TestOnlyAFixtureOverTheWorldsBuildsThem(t *testing.T) {
+func TestTheWorldsAreBuiltForAFixtureAskedForAndNoSooner(t *testing.T) {
 	built := 0
-	set := setOf(fixtures(time.UTC), overWorlds(), func() accountWorlds {
+	set := setOf(overWorlds(), func() accountWorlds {
 		built++
 		return worldsNow()
 	})
 
 	names := set.names()
-	for _, name := range []string{"runway-day-3", "usage-160", "page-routing"} {
+	for _, name := range []string{"usage-160", "page-routing"} {
 		if !slices.Contains(names, name) {
 			t.Fatalf("names() = %v, want %s among them", names, name)
 		}
 	}
-	if _, err := set.named("runway-day-3"); err != nil {
-		t.Fatal(err)
-	}
 	if built != 0 {
-		t.Errorf("having listed the fixtures and asked for one over the samples, the worlds were built %d times, want none", built)
+		t.Errorf("having listed the fixtures, the worlds were built %d times, want none", built)
 	}
 	for i, name := range []string{"usage-160", "page-routing"} {
 		if _, err := set.named(name); err != nil {
@@ -98,11 +93,11 @@ func TestOnlyAFixtureOverTheWorldsBuildsThem(t *testing.T) {
 }
 
 func TestAFixtureChangedChangesNoOtherCallers(t *testing.T) {
-	f, p := fixture(t, "runway-week-3"), fixture(t, "usage-5h-160")
+	f, p := fixture(t, "page-log-find"), fixture(t, "usage-5h-160")
 	keys, size, windows := slices.Clone(f.keys), f.Size, slices.Clone(p.windows)
 	f.keys[0], f.Size, p.windows[0] = tea.KeyPressMsg{Code: '2', Text: "2"}, wide(10), accountKey
 
-	if got := fixture(t, "runway-week-3"); !reflect.DeepEqual(got.keys, keys) || got.Size != size {
+	if got := fixture(t, "page-log-find"); !reflect.DeepEqual(got.keys, keys) || got.Size != size {
 		t.Errorf("having changed one caller's, another's keys are %v at %v, want %v at %v", got.keys, got.Size, keys, size)
 	}
 	if got := fixture(t, "usage-5h-160").windows; !slices.Equal(got, windows) {
@@ -132,10 +127,10 @@ func TestAnEmptyOrUnknownNameListsTheFixtures(t *testing.T) {
 }
 
 func TestFramesAreDeterministic(t *testing.T) {
-	// fixturesIn's set is over worldsNow, whose worlds, once built, are kept:
-	// the second set is over worlds of its own, so the year and each world are
+	// local's set is over worldsNow, whose worlds, once built, are kept: the
+	// second set is over worlds of its own, so the year and each world are
 	// built twice.
-	again := setOf(fixtures(time.Local), overWorlds(), sync.OnceValue(func() accountWorlds { return newAccountWorlds(localMoment()) }))
+	again := setOf(overWorlds(), sync.OnceValue(func() accountWorlds { return newAccountWorlds(localMoment()) }))
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
 			first, second := frameOf(t, local(), name), frameOf(t, again, name)
@@ -146,72 +141,14 @@ func TestFramesAreDeterministic(t *testing.T) {
 	}
 }
 
-func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
-	// Sydney's clocks go forward on the Sunday of the fixtures' week.
-	sydney, err := time.LoadLocation("Australia/Sydney")
-	if err != nil {
-		t.Fatal(err)
-	}
-	utc := askedIn(time.UTC)
-	others := []zonedSet{askedIn(time.FixedZone("UTC+10", 10*60*60)), askedIn(sydney)}
+// Every fixture is drawn at its frame's moment in the machine's own zone,
+// time.Local itself: the ledger and the views split its world's days in it,
+// which a test can't change in process, so its zone is varied by running the
+// tests under TZ, as testdata/vhs/README.md says.
+func TestEveryFixtureIsDrawnAtTheFramesMomentInTheMachinesZone(t *testing.T) {
 	for _, name := range Names() {
-		t.Run(name, func(t *testing.T) {
-			f, err := utc.set.named(name)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if inTheMachinesZone(f) {
-				drawnInTheMachinesZone(t, name, append([]zonedSet{utc}, others...))
-				return
-			}
-			drawn := f.Frame(f.Size)
-			for _, other := range others {
-				if frame := frameOf(t, other.set, name); frame != drawn {
-					t.Errorf("%s drawn in UTC\n%s\ndiffers from it drawn in %s\n%s", name, drawn, other.zone, frame)
-				}
-			}
-		})
-	}
-}
-
-// zonedSet is every fixture, asked for in a zone.
-type zonedSet struct {
-	zone *time.Location
-	set  fixtureSet
-}
-
-func askedIn(zone *time.Location) zonedSet {
-	return zonedSet{zone: zone, set: fixturesIn(zone)}
-}
-
-// inTheMachinesZone reports whether f is to be built and drawn in the
-// machine's own zone, time.Local itself, as a fixture over a world is: over
-// its records, or, as usage's printouts are, its document alone. One over
-// milestone 5's samples is drawn in a zone whose clocks never change.
-func inTheMachinesZone(f Fixture) bool {
-	return f.records != nil || f.now.Location() == time.Local
-}
-
-// drawnInTheMachinesZone checks the fixture over a world with the given name,
-// asked for in each zone given, is drawn as when asked for in the machine's,
-// at the frames' moment there. The ledger and the views split its days in
-// time.Local, which a test can't change in process: its zone is varied by
-// running the tests under TZ, as testdata/vhs/README.md says. Its moment can
-// be right while part of its world is still built in the zone asked for, which
-// a zone not the machine's shows, wherever the machine is.
-func drawnInTheMachinesZone(t *testing.T, name string, asked []zonedSet) {
-	t.Helper()
-	mine := frameOf(t, local(), name)
-	for _, a := range asked {
-		f, err := a.set.named(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if f.now.Location() != time.Local || !f.now.Equal(framesMoment(name)) {
-			t.Errorf("%s, over a world, asked for in %s, is drawn at %s, want its frame's moment in the machine's zone", name, a.zone, f.now)
-		}
-		if drawn := f.Frame(f.Size); drawn != mine {
-			t.Errorf("%s, over a world, asked for in %s, is drawn\n%s\nwant it as asked for in the machine's zone\n%s", name, a.zone, drawn, mine)
+		if f := fixture(t, name); f.now.Location() != time.Local || !f.now.Equal(framesMoment(name)) {
+			t.Errorf("%s is drawn at %s, want its frame's moment in the machine's zone", name, f.now)
 		}
 	}
 }
@@ -328,34 +265,6 @@ func TestAThemeFileTakingABuiltInsSlugIsListedAsReserved(t *testing.T) {
 	}
 }
 
-func TestTheRunwayFixturesShowRunwayWithTheirKeys(t *testing.T) {
-	utc := fixturesIn(time.UTC)
-	tests := []struct {
-		name string
-		want []string
-	}{
-		{name: "runway-day-3", want: []string{
-			" Runway ", "accounts with room", "w window: day",
-			"reaches its reserve ~15:45  ·  back 17:10, as it resets", "limit reached 14:12  ·  back 15:54", "room all day",
-		}},
-		{name: "runway-day-5", want: []string{"accounts with room", " 5 spare", "week reaches its reserve ~16:04  ·  back Tue 09:00, as it resets"}},
-		{name: "runway-week-3", want: []string{
-			"weeks with room", "w window: week", "resets Mon 21:00  ·  87% used by then",
-			"runs out ~Fri 04:06  ·  back Sun 02:00, as it resets", "one column ≈ 75 min · yesterday dimmed",
-		}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			frame := ansi.Strip(frameOf(t, utc, tt.name))
-			for _, want := range tt.want {
-				if !strings.Contains(frame, want) {
-					t.Errorf("the frame\n%s\nhas no %q", frame, want)
-				}
-			}
-		})
-	}
-}
-
 func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -412,7 +321,7 @@ func TestTheRouterGoneHasPPinFaint(t *testing.T) {
 // rows tall, and past the edge of a narrow one.
 var everyInput = []tea.Msg{
 	tea.KeyPressMsg{Code: tea.KeyTab}, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift},
-	tea.KeyPressMsg{Code: 'w', Text: "w"}, tea.KeyPressMsg{Code: 'g', Text: "g"},
+	tea.KeyPressMsg{Code: '<', Text: "<"}, tea.KeyPressMsg{Code: '>', Text: ">"}, tea.KeyPressMsg{Code: 'g', Text: "g"},
 	tea.KeyPressMsg{Code: tea.KeyLeft}, tea.KeyPressMsg{Code: tea.KeyRight}, tea.KeyPressMsg{Code: tea.KeyUp}, tea.KeyPressMsg{Code: tea.KeyDown},
 	tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, tea.KeyPressMsg{Code: 's', Text: "s"}, tea.KeyPressMsg{Code: 'u', Text: "u"},
 	tea.KeyPressMsg{Code: 'c', Text: "c"}, tea.KeyPressMsg{Code: 'b', Text: "b"},

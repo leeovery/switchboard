@@ -1,662 +1,241 @@
 package dashboard
 
 import (
-	"math"
 	"slices"
-	"strconv"
+	"strings"
 	"time"
 
-	"github.com/charmbracelet/x/ansi"
-
-	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The rows Runway takes under the heading, from its top: now's label, the
-// hours or the days, and their ticks; a blank; the strip, two rows; a blank;
-// then the lanes, each a row and its words, laneGap blank rows between them.
+// The columns Runway's lanes start at, after their labels: 24 on a frame
+// from phoneUnder columns, the labels in the 22 cells before them; 14 on a
+// phone's, its label column.
 const (
-	axisRows  = 3
-	stripRows = 2
-	laneRows  = 2
-	laneGap   = 1
-	lanesFrom = axisRows + 1 + stripRows + 1
+	runwayLanesFrom      = 24
+	phoneRunwayLanesFrom = 14
 )
 
-// The labels at the lanes' left: the strip's, over the day and over the
-// week, under its heading, and the blank cells after them; the most cells a
-// name takes; the blank cells between a badge, at the labels' right, and the
-// lane; and the next account's badge, briefly, where its name has too little
-// room beside it.
-const (
-	stripHead      = "ROOM"
-	dayStripLabel  = "accounts with room"
-	weekStripLabel = "weeks with room"
-	labelGap       = 3
-	nameCells      = 24
-	badgeGap       = 2
-	briefNext      = "▲"
+// runwayWindows are the windows Runway's views are named for, in the order
+// < and > step between them, and runwayNames what the heading calls each.
+var (
+	runwayWindows = []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek}
+	runwayNames   = map[views.RunwayWindow]string{views.RunwayFiveHour: "5-hour", views.RunwayWeek: "week"}
 )
 
-const (
-	// pastFade dims what Runway draws of the past.
-	pastFade = 0.55
-	// saysGap is the fewest blank cells between the words under a lane.
-	saysGap = 2
-	// legendGap is the blank cells between the legend's glyphs, and
-	// phoneLegendGap on a phone.
-	legendGap      = 6
-	phoneLegendGap = 2
-	// noRoomGlyph is a lane where its account has no room, and resetGlyph
-	// where its week resets.
-	noRoomGlyph = "─"
-	resetGlyph  = "┃"
-	// roomGlyph is a lane where its account has room, whether it's draining
-	// or not, as its colour tells.
-	roomGlyph = "▆"
-	// shadeCell is a lane draining where the look has no colour.
-	shadeCell = "▒"
-	// nextBadge is the badge of the account new sessions go to.
-	nextBadge = "▲ next"
-)
-
-// nextInk is the badge of the account new sessions go to.
-var nextInk = ink{token: theme.AccentMode, bold: true}
-
-// The day's ticks fall on hours as many apart as the first of hourSteps
-// that puts them tickCells apart, at least, and its labels the first that
-// puts them labelCells apart: each divides a day, so they fall on the same
-// hours every day.
-var hourSteps = []int{1, 2, 3, 6, 12, 24}
-
-const (
-	tickCells  = 3
-	labelCells = 10
-	// quarterCells is the fewest cells a day spans for the week's axis to
-	// tick its quarters.
-	quarterCells = 12
-)
-
-// runwayLayout is Runway laid out under the heading: the column its lanes
-// start at, and the timeline across them; its lanes, and the columns of
-// each; from row top, the rows the lanes take, content, and the rows of them
-// shown at once, view, fewer where they scroll; and whether the legend
-// shows.
-type runwayLayout struct {
-	x             int
-	timeline      timeline
-	lanes         []lane
-	cells         [][]room
-	top           int
-	content, view int
-	legend        bool
+// RunwayShown is Runway as the watch gives it: the window its view is named
+// for, which the preferences keep; the day stepped back to, as dayfile.Civil
+// gives one, of the 5-hour view, or the first day of the week stepped back
+// to, of the week's, zero in the live view, which they never keep; and what
+// the watch built at the look: the timeline the lanes are drawn over, as
+// TimelineAt has it, the lanes, as views.Lanes builds them, nil till
+// it's built them, and COMING UP's lines, as views.RunwayComing has them.
+// What draws Runway reads what the watch built.
+type RunwayShown struct {
+	Window   views.RunwayWindow
+	Back     time.Time
+	Timeline views.Timeline
+	Lanes    *views.Lanes
+	Coming   []status.Upcoming
 }
 
-// layOutRunway lays Runway of doc at now out under the heading, which ends
-// at row top: a lane an account, as the moment of doc at now has it. The
-// lanes start after the labels, as lanesAt says, and run to a cell short of
-// the frame's edge, clear of a scrollbar. They get the rows first; then the
-// legend, where a blank and its line are left over, and it fits the width
-// whole; where not even the lanes fit, they scroll between the strip and the
-// line over the key line.
-func (f Frame) layOutRunway(doc status.Document, now time.Time, top int) runwayLayout {
-	m := f.Moment(doc, now)
-	l := runwayLayout{top: top + lanesFrom}
-	for _, a := range m.Accounts {
-		l.lanes = append(l.lanes, f.laneOf(a, m.Now))
+// RunwayKept is Runway as the preferences kept it: the window, by its name,
+// live. What names none, as a later build's, shows the 5-hour.
+func RunwayKept(kept theme.RunwayPrefs) RunwayShown {
+	if w := views.RunwayWindow(kept.Window); slices.Contains(runwayWindows, w) {
+		return RunwayShown{Window: w}
 	}
-	l.x = lanesAt(l.lanes, f.Width)
-	l.timeline = timelineOf(f.Span, now, f.edge()-1-l.x)
-	for _, ln := range l.lanes {
-		l.cells = append(l.cells, ln.cells(l.timeline))
-	}
-	l.content, l.view = f.runwayRows(len(l.lanes), top)
-	l.legend = l.content+2 <= f.Height-2-l.top && f.legendFits(l.timeline)
-	return l
+	return RunwayShown{}
 }
 
-// runwayRows are how many rows n accounts' lanes take, content, and how many
-// of them show at once under the heading, which ends at row top, view: fewer
-// where they don't fit over the line over the key line.
-func (f Frame) runwayRows(n, top int) (content, view int) {
-	content = max(n*(laneRows+laneGap)-laneGap, 0)
-	return content, min(content, max(f.Height-2-top-lanesFrom, 0))
+// Kept is what the preferences keep of Runway, as RunwayKept reads it: the
+// window, never a step back.
+func (r RunwayShown) Kept() theme.RunwayPrefs {
+	return theme.RunwayPrefs{Window: string(r.Window)}
 }
 
-// scrolls reports whether the lanes scroll, more of them than the view
-// shows.
-func (l runwayLayout) scrolls() bool {
-	return l.content > l.view
+// TimelineAt is the timeline the lanes of Runway shown as r are drawn
+// over at now on a terminal width cells wide, weeks starting on the day
+// given: the live view's, or that of the day or week stepped back to, as
+// views.Stepped has it, across the columns RunwayColumns gives them.
+func (r RunwayShown) TimelineAt(now time.Time, starts time.Weekday, width int) views.Timeline {
+	return views.Stepped(r.Window, r.Back, now, starts, RunwayColumns(width))
 }
 
-// laneAt is the row lane i takes, from the lanes' top.
-func laneAt(i int) int {
-	return i * (laneRows + laneGap)
+// RunwayColumns is how many columns Runway's lanes take on a terminal width
+// cells wide: from their first, after the labels, to the edge.
+func RunwayColumns(width int) int {
+	from := runwayLanesFrom
+	if Phone(width) {
+		from = phoneRunwayLanesFrom
+	}
+	return max(width-from, 0)
 }
 
-// hidden counts the lanes out of view, wholly or partly, as the view shows
-// them from the row offset: those above, and those below.
-func (l runwayLayout) hidden(offset int) (above, below int) {
-	for i := range l.lanes {
-		if laneAt(i) < offset {
-			above++
-		}
-		if laneAt(i)+laneRows > offset+l.view {
-			below++
-		}
+// Windowed is Runway showing the live view of the window by places on from
+// the one shown, round, as < and > step between them, a place each. It
+// reports false where that's the live view shown already.
+func (r RunwayShown) Windowed(by int) (RunwayShown, bool) {
+	next := runwayWindows[round(slices.Index(runwayWindows, r.Window)+by, len(runwayWindows))]
+	if next == r.Window && r.Back.IsZero() {
+		return r, false
 	}
-	return above, below
+	r.Window, r.Back = next, time.Time{}
+	return r, true
 }
 
-// foot is where Runway's legend goes, over the line over the key line, and
-// where that line goes, over the key line.
-func (f Frame) foot() (legend, over int) {
-	return f.Height - 3, f.Height - 2
-}
-
-// lanesAt is the column lanes start at, as their labels leave it, on a
-// frame width cells wide: labelGap cells after the widest of the strip's
-// labels, and badgeGap after the widest of the lanes' labels with room
-// beside it for the widest badge, so the lanes stay put as w switches
-// between the day and the week; but never past halfway across, where names
-// and badges give way, as runwayLane draws them.
-func lanesAt(lanes []lane, width int) int {
-	least := margin + max(ansi.StringWidth(dayStripLabel), ansi.StringWidth(weekStripLabel)) + labelGap
-	x := least
-	for _, l := range lanes {
-		x = max(x, margin+laneLabel(l).width()+1+ansi.StringWidth(nextBadge)+badgeGap)
-	}
-	return min(x, max(least, width/2))
-}
-
-// runway draws Runway of doc at now from row top: over the timeline, the
-// axis; the strip; and the lanes, each with its words under it, scrolled
-// where they don't fit, a scrollbar beside them; now's column picked out
-// from the axis to the lanes' foot. Then, over the key line, the legend where
-// it shows, and under it, what the lanes don't show: those out of view,
-// where they scroll, or that the key's behind ?, where the legend doesn't
-// show. Of a document of no accounts, nothing is drawn.
-func (f Frame) runway(c *canvas, doc status.Document, now time.Time, top int) {
-	l := f.layOutRunway(doc, now, top)
-	if len(l.lanes) == 0 {
-		return
-	}
-	f.runwayAxis(c, l, top)
-	f.roomStrip(c, l, top+axisRows+1)
-	offset := min(max(f.Scroll, 0), l.content-l.view)
-	area := newCanvas(f.Width, l.content)
-	for i, ln := range l.lanes {
-		f.runwayLane(area, ln, l.cells[i], l, now, laneAt(i))
-	}
-	c.paste(area, offset, l.top, l.view)
-	if col := l.timeline.nowColumn(); col >= 0 && col < l.timeline.columns {
-		for y := top; y < l.top+l.view; y++ {
-			c.surface(l.x+col, y, 1, hue{token: theme.BgSubtle})
-		}
-	}
-	legend, over := f.foot()
-	if l.legend {
-		c.line(margin, legend, f.legend(l.timeline))
-	}
-	if over < l.top {
-		return
+// Stepped is Runway stepped back, by -1, as ← steps it, or on, by 1, as →
+// does, at now, weeks starting on the day given: in the 5-hour view, from
+// the live view to today, then a day at a time; in the week view, to this
+// week, then a week at a time; and on from today, or this week, to the live
+// view. The day stepped back to is kept, not how far back it is, so it stays
+// itself as the clock passes midnight. It reports false where it stays, as
+// stepping on from the live view, with nothing ahead to step to.
+func (r RunwayShown) Stepped(by int, now time.Time, starts time.Weekday) (RunwayShown, bool) {
+	latest, days := dayOf(now), 1
+	if r.Window == views.RunwayWeek {
+		latest, days = dayOf(views.WeekStart(now, starts)), 7
 	}
 	switch {
-	case l.scrolls():
-		says := rowsOut.said(l.hidden(offset)).fit(f.edge() - margin)
-		c.line((f.Width-says.width())/2, over, says)
-		scrollbar(c, f.Width-1, l.top, l.view, l.content, offset)
-	case !l.legend:
-		c.right(f.edge(), over, forTheKey.fit(f.edge()-margin))
-	}
-}
-
-// runwayAxis draws the axis over the timeline of l from row y: now, over its
-// column; under it, the hours, over the day, or the days, over the week;
-// and under them, their ticks along a rule.
-func (f Frame) runwayAxis(c *canvas, l runwayLayout, y int) {
-	tl := l.timeline
-	if col := tl.nowColumn(); col >= 0 && col < tl.columns {
-		c.text(l.x+col-1, y, "now", titleInk)
-	}
-	c.text(l.x, y+2, rule(tl.columns), borderInk)
-	if f.Span == Week {
-		weekdays(c, tl, l.x, y+1)
-		return
-	}
-	hours(c, tl, l.x, y+1)
-}
-
-// apart is the first of hourSteps whose hours span cells columns of the
-// timeline at least.
-func (tl timeline) apart(cells int) int {
-	for _, h := range hourSteps {
-		if time.Duration(h)*time.Hour >= time.Duration(cells)*tl.step {
-			return h
-		}
-	}
-	return hourSteps[len(hourSteps)-1]
-}
-
-// hours draws the day's hours over its timeline from x along row y, and
-// their ticks along the rule under them: on each day's start, as dayStarts
-// gives it, its midnight or wherever the clocks put it, a tick, and over it,
-// where it fits, the day it starts, as Fri, picked out; a tick on the hours
-// as far apart as tickCells asks, and on the hours as far apart as
-// labelCells asks, a tick too, and over it, where it fits, the hour, as
-// 16:00, muted, but where it would come within labelCells of a day's name.
-// An hour the clocks never read, as they went forward over it, has neither.
-func hours(c *canvas, tl timeline, x, y int) {
-	ticks, labels := tl.apart(tickCells), tl.apart(labelCells)
-	named := dayNames(c, tl, x, y)
-	from := tl.start
-	for i := 0; ; i++ {
-		hour := (from.Hour() + i) % 24
-		t := time.Date(from.Year(), from.Month(), from.Day(), from.Hour()+i, 0, 0, 0, from.Location())
-		col := tl.column(t)
-		switch {
-		case col >= tl.columns:
-			return
-		case col < 0 || t.Hour() != hour || t.Minute() != 0 || t.Equal(dayfile.DayStart(t, 0)) || hour%ticks != 0 && hour%labels != 0:
-			continue
-		}
-		c.text(x+col, y+1, "┬", borderInk)
-		label := line{{prose.TimeOfDay(tl.now, t), mutedInk}}
-		crowded := slices.ContainsFunc(named, func(name int) bool { return max(col-name, name-col) < labelCells })
-		if hour%labels == 0 && col+label.width() <= tl.columns && !crowded {
-			c.line(x+col, y, label)
-		}
-	}
-}
-
-// dayNames ticks the start of each day over the timeline from x along the
-// rule on row y+1, as hours says, and names it over the tick on row y, where
-// that fits, and returns the columns of the names it drew.
-func dayNames(c *canvas, tl timeline, x, y int) []int {
-	var named []int
-	for at := range dayStarts(tl.start, 0) {
-		col := tl.column(at)
-		switch {
-		case col >= tl.columns:
-			return named
-		case col < 0:
-			continue
-		}
-		c.text(x+col, y+1, "┬", borderInk)
-		if name := (line{{prose.Weekday(at.Weekday()), strongInk}}); col+name.width() <= tl.columns {
-			c.line(x+col, y, name)
-			named = append(named, col)
-		}
-	}
-	return named
-}
-
-// weekdays draws the week's days over its timeline from x along row y, and
-// their ticks along the rule under them: where a day spans quarterCells
-// columns, its quarters, as quarters ticks them; and a tick at each
-// midnight, and over it, the day's name, where it clears the one before and
-// fits, as midnights has them, today's picked out.
-func weekdays(c *canvas, tl timeline, x, y int) {
-	if quota.Day >= quarterCells*tl.step {
-		quarters(c, tl, x, y+1)
-	}
-	end := tl.start.Add(time.Duration(tl.columns) * tl.step)
-	for _, m := range midnights(tl.start, end, tl.now, tl.column, tl.columns, len(prose.Weekday(time.Monday))) {
-		c.text(x+m.col, y+1, "┬", borderInk)
-		if !m.named {
-			continue
-		}
-		name := line{{prose.Weekday(m.at.Weekday()), mutedInk}}
-		if m.today {
-			name[0].ink = strongInk
-		}
-		c.line(x+m.col, y, name)
-	}
-}
-
-// quarters ticks the quarters of the days over the timeline from x along
-// row y, faint, the first day's among them, which starts before the
-// timeline, but each fourth, the midnight, which its day's own tick marks:
-// time.Date puts one the clocks went forward over in the hour before.
-func quarters(c *canvas, tl timeline, x, y int) {
-	from := tl.start
-	for i := 1; ; i++ {
-		at := time.Date(from.Year(), from.Month(), from.Day(), 6*i, 0, 0, 0, from.Location())
-		col := tl.column(at)
-		switch {
-		case col >= tl.columns:
-			return
-		case col >= 0 && i%4 != 0:
-			c.text(x+col, y, "╵", faintInk)
-		}
-	}
-}
-
-// roomStrip draws the strip over the lanes of l from row y: its heading and
-// label at the left; then in each column of the timeline, how many of the
-// lanes' accounts known there have room, as a level two rows tall, filled to
-// the share of them that do, coloured along the ramp as stripTone says, the
-// past dimmed, and where none does, a line along its floor. Where nothing is
-// known of any, as before anything is read, nothing is drawn.
-func (f Frame) roomStrip(c *canvas, l runwayLayout, y int) {
-	label := dayStripLabel
-	if f.Span == Week {
-		label = weekStripLabel
-	}
-	c.line(margin, y, line{{stripHead, labelInk}})
-	c.line(margin, y+1, line{{label, mutedInk}})
-	for col := range l.timeline.columns {
-		known, with := 0, 0
-		for _, cells := range l.cells {
-			if r := cells[col]; r != roomUnknown {
-				known++
-				if r.has() {
-					with++
-				}
-			}
-		}
-		if known == 0 {
-			continue
-		}
-		k := ink{ramp: true, at: stripTone(with, known)}
-		if col < l.timeline.nowColumn() {
-			k.fade = pastFade
-		}
-		if with == 0 {
-			c.text(l.x+col, y+1, floorLine, k)
-			continue
-		}
-		filled := max(int(math.Round(float64(8*stripRows*with)/float64(known))), 1)
-		c.text(l.x+col, y+1, levels[min(filled, 8)], k)
-		c.text(l.x+col, y, levels[max(filled-8, 0)], k)
-	}
-}
-
-// stripTone is where along the ramp the strip is coloured where with of n
-// accounts have room: at its first stop where every one does, its second
-// where at least half do, its third where fewer, and its last where none.
-func stripTone(with, n int) float64 {
-	switch {
-	case with == n:
-		return 0
-	case 2*with >= n:
-		return 1.0 / 3
-	case with > 0:
-		return 2.0 / 3
+	case r.Back.IsZero() && by > 0:
+		return r, false
+	case r.Back.IsZero():
+		r.Back = latest
+	case by > 0 && !r.Back.Before(latest):
+		r.Back = time.Time{}
 	default:
-		return 1
+		r.Back = r.Back.AddDate(0, 0, by*days)
 	}
+	return r, true
 }
 
-// laneLabel is what heads lane l in the labels' column: its place, dim, and
-// its account's name, cut to nameCells.
-func laneLabel(l lane) line {
-	return line{{strconv.Itoa(l.account.Place) + " ", dimInk}, {prose.Cut(name(l.account), nameCells), titleInk}}
+// dayOf is the day t falls on in its own time zone, as dayfile.Civil gives
+// a day, as views.Stepped reads the day it's given in now's.
+func dayOf(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
-// badge is what lane l has at the labels' right: over the day, ▲ next on the
-// account new sessions go to, as its Next says, where anything is known of
-// it; over the week, its first week's use, as weekUse has it, in attention
-// where it runs out, as its RunsOut says, else secondary.
-func (f Frame) badge(l lane) line {
-	if f.Span != Week {
-		if l.known && l.account.Next {
-			return line{{nextBadge, nextInk}}
-		}
-		return nil
+// heading is Runway's heading row: its name, then, stepped back, the days
+// its timeline shows, as daysNamed has them; and at the right, the window
+// between < and >.
+func (r RunwayShown) heading() heading {
+	h := heading{name: strings.ToUpper(Runway.Title()), period: runwayNames[r.Window]}
+	if first, last, ok := r.Timeline.Named(); ok {
+		h.state = line{{daysNamed(first, last), faintInk}}
 	}
-	weeks := f.weeks(l)
-	if len(weeks) == 0 {
-		return nil
-	}
-	k := secondaryInk
-	if weeks[0].RunsOut {
-		k = warningInk
-	}
-	return line{weekUse(weeks[0], k)}
+	return h
 }
 
-// weekUse is how much of the week w is used as it stands, bold: in the ink
-// given, but at its limit, destructive, and not started, dim.
-func weekUse(w status.WindowNow, k ink) span {
-	switch w.Kind {
-	case status.WindowLimited:
-		k = ink{token: theme.StateDestructive}
-	case status.WindowNotStarted:
-		k = dimInk
+// daysNamed names the days from first to last, as dayfile.Civil gives each: a
+// day alone as Wed 30 Sep, a week as Mon 28 Sep – Sun 4 Oct.
+func daysNamed(first, last time.Time) string {
+	if first.Equal(last) {
+		return prose.Day(first)
 	}
-	k.bold = true
-	return span{prose.Percent(w.Used), k}
+	return prose.Day(first) + " – " + prose.Day(last)
 }
 
-// runwayLane draws lane ln, its columns cells, on c from row y as layout l
-// lays it out: its label, and its badge at the labels' right, the label cut
-// to fit beside it, and the next account's badge brief where the label
-// can't show whole beside it; its room in each column of the timeline, the
-// past dimmed; over the week, ┃ where each week resets; and under it, its
-// words.
-func (f Frame) runwayLane(c *canvas, ln lane, cells []room, l runwayLayout, now time.Time, y int) {
-	label, badge, room := laneLabel(ln), f.badge(ln), l.x-badgeGap-margin
-	if label.width()+1+badge.width() > room && len(badge) == 1 && badge[0].text == nextBadge {
-		badge[0].text = briefNext
-	}
-	c.line(margin, y, label.fit(room-1-badge.width()))
-	c.right(l.x-badgeGap, y, badge)
-	for col, r := range cells {
-		glyph, k := f.cellOf(r)
-		if col < l.timeline.nowColumn() {
-			k.fade = pastFade
-		}
-		c.text(l.x+col, y, glyph, k)
-	}
-	for _, w := range f.weeks(ln) {
-		if col := l.timeline.column(w.Next); col >= 0 && col < l.timeline.columns {
-			c.text(l.x+col, y, resetGlyph, titleInk)
-		}
-	}
-	f.laneWords(c, ln, l, now, y+1)
+// runwayForm is Runway as its form draws it: what it draws from row top; how
+// far its lanes scroll, scrolled to each offset; and what of it scrolls, from
+// column x along row y, width cells wide and rows tall. Each is nothing
+// where it's nil: it draws nothing, never scrolls, and its view scrolls
+// whole.
+type runwayForm struct {
+	draw      func(c *canvas, top int)
+	scrolling func(offset int) Scrolling
+	scrolls   func() (x, y, width, rows int)
 }
 
-// cellOf is how a lane draws a column where its account stands as r: ▆ in
-// positive with room; draining, ▆ in attention, or without colour, in shade;
-// ─ in destructive without room; and nothing where nothing is known.
-func (f Frame) cellOf(r room) (string, ink) {
-	switch r {
-	case roomOpen:
-		return roomGlyph, positiveInk
-	case roomDraining:
-		if !f.Look.coloured {
-			return shadeCell, warningInk
-		}
-		return roomGlyph, warningInk
-	case roomNone:
-		return noRoomGlyph, errorInk
-	default:
-		return "", ink{}
-	}
+// runwayLaid is Runway laid out on the page, for each of its drawers to draw
+// its part where it lies: of the moment m, which each reads; its lanes from
+// column x, their labels in the cells before them, those shown each on its
+// row, as laidLane has it; and its rows fitted as fit has them.
+type runwayLaid struct {
+	x     int
+	m     status.Moment
+	lanes []laidLane
+	fit   runwayFit
 }
 
-// weeks are the windows of lane l's account the week counts, in the
-// account's order: none over the day, nor of an account nothing is known of.
-func (f Frame) weeks(l lane) []status.WindowNow {
-	if f.Span != Week {
-		return nil
-	}
-	return l.counted
+// runwayLaidOut is Runway of the moment m laid out as fit fits it, its lanes
+// from column x, those shown as laidLanes has them.
+func (f Frame) runwayLaidOut(m status.Moment, x int, fit runwayFit) runwayLaid {
+	return runwayLaid{x: x, m: m, lanes: f.laidLanes(m, fit), fit: fit}
 }
 
-// placed is words placed under a lane, from its column col of the timeline.
-type placed struct {
-	col   int
-	words line
-}
-
-// laneWords draws the words under lane ln, of layout l, along row y, each at
-// the column it's of, left to right, saysGap clear of those before, and
-// those after them left off where they don't fit whole: what holds it back
-// over each stretch without room, as placedTold places it; over the week, at
-// each week's next reset in view, as its Next has it, that no stretch is back
-// at, ending under it, when it resets and how much it will have used by
-// then; and where neither is, from just after now, that it has room all
-// along, or that nothing has been read of it.
-func (f Frame) laneWords(c *canvas, ln lane, l runwayLayout, now time.Time, y int) {
-	tl := l.timeline
-	var words []placed
-	for _, s := range ln.stretches {
-		words = append(words, placedTold(s, tl, now)...)
-	}
-	for _, w := range f.weeks(ln) {
-		col := tl.column(w.Next)
-		back := slices.ContainsFunc(ln.stretches, func(s stretch) bool { return s.until.Equal(w.Next) })
-		if col < 0 || col >= tl.columns || back {
-			continue
-		}
-		says := resetSays(w, now)
-		words = append(words, placed{col: max(col-says.width()+1, 0), words: says})
-	}
-	if len(words) == 0 {
-		words = []placed{{col: tl.nowColumn() + 1, words: f.allAlong(ln, now)}}
-	}
-	slices.SortStableFunc(words, func(a, b placed) int { return a.col - b.col })
-	end := l.x - saysGap
-	for _, p := range words {
-		x := max(l.x+p.col, end+saysGap)
-		fitted := p.words.fitWhole(f.edge() - x)
-		if fitted.width() < min(leastShown, p.words.width()) {
-			return
-		}
-		end = c.line(x, y, fitted)
-	}
-}
-
-// placedTold places what's told of the stretch s, as stretch.told has it, on
-// the timeline: the first cause said from the column the stretch shows from,
-// and each other from the column it shows from, none before the first's. A
-// cause over at now, as over says, isn't said, so neither is a stretch over;
-// nor is one that shows in no column, as one starting after the timeline.
-func placedTold(s stretch, tl timeline, now time.Time) []placed {
-	first, ok := s.column(tl)
-	if !ok {
-		return nil
-	}
-	var told []placed
-	for i, says := range s.told(now) {
-		c := s.causes[i]
-		if c.over(now) {
-			continue
-		}
-		col := first
-		if len(told) > 0 {
-			if col, ok = c.column(tl); !ok {
-				continue
-			}
-			col = max(col, first)
-		}
-		told = append(told, placed{col: col, words: says})
-	}
-	return told
-}
-
-// resetSays is what's said where the week w resets next, as its Next has
-// it: when, and where it's heading, how much it will have used by then, as
-// its Projected has it, as in "resets Mon 21:00 · 87% used by then".
-func resetSays(w status.WindowNow, now time.Time) line {
-	l := line{{"resets " + prose.Dated(now, w.Next), secondaryInk}}
-	if w.Projected != nil {
-		l = append(l, span{prose.Separator + prose.Percent(*w.Projected) + " used by then", mutedInk})
-	}
-	return l
-}
-
-// allAlong is what's said under lane l without a stretch or a reset in
-// view: that nothing has been read of its account; else that it has room
-// all day, and when it runs out, where it's heading to beyond the day shown,
-// as in "room all day · week runs out ~Sun 04:06"; or all week, and when its
-// first week resets next, as its Next has it, beyond the week shown.
-func (f Frame) allAlong(l lane, now time.Time) line {
-	var next time.Time
-	if weeks := f.weeks(l); len(weeks) > 0 {
-		next = weeks[0].Next
-	}
-	switch {
-	case !l.known:
-		return line{{"not read yet", dimInk}}
-	case f.Span != Week && l.drained != "":
-		return line{{"room all day" + prose.Separator + l.drained, dimInk}}
-	case f.Span != Week:
-		return line{{"room all day", dimInk}}
-	case !next.IsZero():
-		return line{{"room all week" + prose.Separator + "resets " + prose.Dated(now, next), dimInk}}
-	default:
-		return line{{"room all week", dimInk}}
-	}
-}
-
-// legendGlyphs are the glyphs of Runway's lanes, drawn bold, as the legend
-// draws them, and what each means: room, room but running out, and no room;
-// and over the week, where a week resets.
-func (f Frame) legendGlyphs() []glyph {
-	var glyphs []glyph
-	for _, r := range []struct {
-		room  room
-		means string
-	}{{roomOpen, "has room"}, {roomDraining, "has room, but running out"}, {roomNone, "no room"}} {
-		drawn, k := f.cellOf(r.room)
-		k.bold = true
-		glyphs = append(glyphs, glyph{drawn: line{{drawn, k}}, means: r.means})
-	}
-	if f.Span == Week {
-		glyphs = append(glyphs, glyph{drawn: line{{resetGlyph, titleInk}}, means: "week resets"})
-	}
-	return glyphs
-}
-
-// legendFits reports whether the legend, for the timeline tl, fits the
-// frame's width whole: where it doesn't, the key's behind ?.
-func (f Frame) legendFits(tl timeline) bool {
-	return margin+f.legend(tl).width() <= f.edge()
-}
-
-// legend is Runway's key to its glyphs, the line over the key line, for the
-// timeline tl: each glyph and what it means, legendGap apart, or on a phone,
-// phoneLegendGap; then, where it fits, over the day, that the
-// past is dimmed, where the look dims it, and what the words say; or over
-// the week, how long a column is, and that yesterday's dimmed, where it is.
-func (f Frame) legend(tl timeline) line {
-	gap := legendGap
+// runwayForm is the form Runway is drawn in, of doc at now: a phone's, as
+// phoneRunway has it; else as wideRunway has it.
+func (f Frame) runwayForm(doc status.Document, now time.Time) runwayForm {
 	if f.phone() {
-		gap = phoneLegendGap
+		return f.phoneRunway(doc, now)
 	}
-	var l line
-	for i, g := range f.legendGlyphs() {
-		if i > 0 {
-			l = append(l, spaces(gap))
-		}
-		l = append(append(l, g.drawn...), span{" " + g.means, mutedInk})
-	}
-	if noted := slices.Concat(l, line{spaces(gap), {f.legendNote(tl), dimInk}}); margin+noted.width() <= f.edge() {
-		return noted
-	}
-	return l
+	return f.wideRunway(doc, now)
 }
 
-// legendNote is what the legend says besides its glyphs, for the timeline
-// tl: over the day, that the past is dimmed, where the look dims it, and
-// what the words say; over the week, how long a column is, and that
-// yesterday's dimmed, where it is.
-func (f Frame) legendNote(tl timeline) string {
-	dims := f.Look.blends()
-	if f.Span == Week {
-		if dims {
-			return "one column ≈ " + prose.About(tl.step) + " · yesterday dimmed"
-		}
-		return "one column ≈ " + prose.About(tl.step)
+// wideRunway is Runway of doc at now from phoneUnder columns, as its form
+// draws it: its lanes from runwayLanesFrom, laid out as runwayFitted fits
+// it, as runwayFormed draws them.
+func (f Frame) wideRunway(doc status.Document, now time.Time) runwayForm {
+	return f.runwayFormed(doc, now, runwayLanesFrom, f.runwayFitted)
+}
+
+// runwayFormed is Runway of doc at now as its form draws it, its lanes from
+// column x, laid out from the row it's drawn from as fitted fits it: the
+// axis, the lanes and the words under them, the pool's lane, the legend,
+// COMING UP and what's out of view, each as its drawer has it; then now's
+// column picked out under them.
+func (f Frame) runwayFormed(doc status.Document, now time.Time, x int, fitted func(top int) runwayFit) runwayForm {
+	return runwayForm{
+		draw: func(c *canvas, top int) {
+			laid := f.runwayLaidOut(f.Moment(doc, now), x, fitted(top))
+			f.runwayAxis(c, laid)
+			f.runwayLanes(c, laid)
+			f.runwayWords(c, laid)
+			f.runwayPool(c, laid)
+			f.runwayLegend(c, laid)
+			f.runwayComing(c, laid)
+			f.runwayOut(c, laid)
+			f.runwayNow(c, laid)
+		},
+		scrolling: fitted(f.top()).scrolling,
 	}
-	if dims {
-		return "past hours dimmed · labels say when, and when it's back"
+}
+
+// period is what Runway shown as r calls the span its view looks across, as
+// "room all day" and "the day's highest" say it: a day, of the 5-hour view,
+// live or stepped back, or a week.
+func (r RunwayShown) period() string {
+	if r.Window == views.RunwayWeek {
+		return "week"
 	}
-	return "labels say when, and when it's back"
+	return "day"
+}
+
+// runway draws Runway of doc at now from row top, as its form draws it.
+func (f Frame) runway(c *canvas, doc status.Document, now time.Time, top int) {
+	if form := f.runwayForm(doc, now); form.draw != nil {
+		form.draw(c, top)
+	}
+}
+
+// runwayScrolling is how far Runway of doc at now scrolls, scrolled to each
+// offset given, as its form says: nowhere where it doesn't say.
+func (f Frame) runwayScrolling(doc status.Document, now time.Time) func(offset int) Scrolling {
+	if form := f.runwayForm(doc, now); form.scrolling != nil {
+		return form.scrolling
+	}
+	return func(int) Scrolling { return Scrolling{} }
+}
+
+// runwayScrolls is what of Runway of doc at now scrolls, as its form says:
+// else the view's rows, across the frame.
+func (f Frame) runwayScrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
+	if form := f.runwayForm(doc, now); form.scrolls != nil {
+		return form.scrolls()
+	}
+	return 0, f.top(), f.Width, f.viewRows()
 }

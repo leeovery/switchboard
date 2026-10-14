@@ -1,7 +1,9 @@
 package views_test
 
 import (
+	"io/fs"
 	"iter"
+	"slices"
 	"testing"
 	"time"
 
@@ -14,6 +16,17 @@ import (
 // readings.Reader gives them: those of times from from up to to, in the
 // order given.
 type historyOf []readings.Reading
+
+// Tail gives a read of the readings held from start up to end, each window's
+// run from from up to start carried in, as readings.CarriedRuns has them.
+func (h historyOf) Tail(from, start, end time.Time) func() []readings.Reading {
+	return func() []readings.Reading { return readings.CarriedRuns(slices.Values(h), from, start, end) }
+}
+
+// FirstDay holds no day, as views' tests ask none.
+func (historyOf) FirstDay() (time.Time, error) {
+	return time.Time{}, fs.ErrNotExist
+}
 
 func (h historyOf) Between(from, to time.Time) iter.Seq[readings.Reading] {
 	return func(yield func(readings.Reading) bool) {

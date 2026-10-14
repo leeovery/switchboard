@@ -432,16 +432,17 @@ func (a accountWorlds) badHour() accountWorld {
 }
 
 // many is the world of the frames of six or ten accounts: the auto world's
-// three and the first n−3 of the seven more (dash3.EXTRA): client, spare,
-// lab, under pressure, running out about 16:05, team, at its 5-hour limit
-// since 13:58 till 15:30, extra, ops and studio. Today's traffic, and the
+// three and the first n−3 of the seven more (dash3.EXTRA): client, its
+// 5-hour window slowing since 14:10, so it has room till it resets at 17:40;
+// spare; lab, under pressure, running out about 16:05; team, at its 5-hour
+// limit since 13:58 till 15:30; extra, ops and studio. Today's traffic, and the
 // router's events, are the auto world's, the seven having none.
 func (a accountWorlds) many(n int) accountWorld {
 	return a.kept(fmt.Sprint("many ", n), func() accountWorld {
 		accounts := firstAccounts(n)
 		t := a.today().three(true)
 		t.session("client", t.at(7, 35, 0), false, level{t.at(11, 35, 0), .30})
-		t.session("client", t.at(12, 40, 0), false, level{t.at(14, 40, 0), .52})
+		t.session("client", t.at(12, 40, 0), false, level{t.at(14, 10, 0), .48}, level{t.at(14, 40, 0), .52})
 		t.week("client", .08, level{t.at(14, 39, 51), .47})
 		t.session("spare", t.at(14, 35, 0), false, level{t.at(14, 41, 0), .04})
 		t.week("spare", 0, level{t.at(14, 41, 0), .05})

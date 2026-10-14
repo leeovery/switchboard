@@ -529,6 +529,29 @@ func TestWhatsComingUp(t *testing.T) {
 			want: []status.Upcoming{reset("work", "5h", time.Hour), back("work", "", 2*day, true)},
 		},
 		{
+			name: "a limit and a cap: back once both have lifted, the limit last",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.5, 3*time.Hour), windowIn("7d", 0.95, time.Hour)), func(a *status.Account) {
+				a.Reserve, a.Limit = 0.1, status.Limit{Until: built.Add(2 * time.Hour)}
+			})),
+			want: []status.Upcoming{reset("work", "7d", time.Hour), back("work", "", 2*time.Hour, false), reset("work", "5h", 3*time.Hour)},
+		},
+		{
+			name: "a limit and its token refused: back once both have lifted, the refusal last, from its limit",
+			doc: routerDocOf(with(readAt("work", spentIn("5h", 1, time.Hour), windowIn("7d", 0.3, 3*day)), func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
+				a.Refused = status.Refusal{Until: built.Add(90 * time.Minute), Status: 401}
+			})),
+			want: []status.Upcoming{reset("work", "5h", time.Hour), back("work", "", 90*time.Minute, false), reset("work", "7d", 3*day)},
+		},
+		{
+			name: "a cap and its token refused: back once both have lifted, the refusal last, from its cap",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.2, 2*time.Hour), windowIn("7d", 0.95, time.Hour)), func(a *status.Account) {
+				a.Reserve = 0.1
+				a.Refused = status.Refusal{Until: built.Add(90 * time.Minute), Status: 401}
+			})),
+			want: []status.Upcoming{reset("work", "7d", time.Hour), back("work", "", 90*time.Minute, true), reset("work", "5h", 2*time.Hour)},
+		},
+		{
 			name: "a cap on a model's own week lifting, named",
 			doc:  routerDocOf(with(readAt("fable", windowIn("5h", 0.2, 2*time.Hour), windowIn("7d", 0.3, 3*day), windowIn("7d_oi", 0.95, 2*day)), reserving)),
 			want: []status.Upcoming{reset("fable", "5h", 2*time.Hour), back("fable", "7d_oi", 2*day, true), reset("fable", "7d", 3*day)},

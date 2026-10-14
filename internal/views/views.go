@@ -77,6 +77,17 @@ type LedgerSessions interface {
 type Readings interface {
 	// Between gives the readings of times from from up to to.
 	Between(from, to time.Time) iter.Seq[readings.Reading]
+	// Tail gives a read of the readings from start up to end, oldest first,
+	// each window's run from from up to start carried in, as
+	// readings.CarriedRuns has them, so the lanes tell when a hold begun
+	// before start began: the first call reads them whole, and each after
+	// only what the history gained since, as Runway's lanes read the past at
+	// each look. A read isn't safe for concurrent use.
+	Tail(from, start, end time.Time) func() []readings.Reading
+	// FirstDay gives the start of the first local day the history holds
+	// readings of, a day before it drawn from its summary alone, as Runway's
+	// lanes draw it. It fails with fs.ErrNotExist where it holds none.
+	FirstDay() (time.Time, error)
 }
 
 // Events reads the router's events where they lie, with no router, as an

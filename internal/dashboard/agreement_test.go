@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"cmp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -14,12 +15,15 @@ import (
 )
 
 // At each hard moment, the views that say a fact of an account say the same
-// of it: how it stands, whether each window is running, how much of it is
-// used, whether its reading is stale, where it runs out and when, when it
-// next resets, and where new sessions go, as the document's best has them go.
-// Each view's say is read off what it draws from, and a disagreement names
-// both views. A view that says a fact otherwise by design is left out of it,
-// as its say notes.
+// of it: how it stands, when it's back, whether each window is running, how
+// much of it is used, whether its reading is stale, where it runs out and
+// when, when it next resets, and where new sessions go, as the document's
+// best has them go. Each view's say is read off what it draws from, and a
+// disagreement names both views. A view that says a fact otherwise by design
+// is left out of it, as its say notes; and Runway's pool's count at now's
+// column is held to none, as it counts the pool's accounts with room, a
+// run-out among them till it runs out, where ROUTING counts those open to new
+// sessions, by design another count.
 func TestTheViewsAgreeAtEachHardMoment(t *testing.T) {
 	for _, hm := range statustest.HardMoments(claudeLike) {
 		t.Run(hm.Name, func(t *testing.T) {
@@ -27,6 +31,7 @@ func TestTheViewsAgreeAtEachHardMoment(t *testing.T) {
 			agree(t, "new sessions go to", d.destination())
 			for _, a := range d.moment.Accounts {
 				agree(t, a.ID+" stands", d.stands(a))
+				agree(t, a.ID+" is back", d.back(a))
 				for _, w := range a.Windows {
 					of := a.ID + "'s " + w.Key
 					agree(t, of+" is", d.running(a, w))
@@ -56,10 +61,10 @@ func agree(t *testing.T, fact string, says []viewSays) {
 }
 
 // drawn are the views of a document at a moment, each as it's drawn: USAGE,
-// ROUTING, the routing card, COMING UP, the status line, and Runway's lanes
-// over the day and the week; and the moment, which says which accounts and
-// windows there are, and which account and window each thing COMING UP says
-// is of, in its order.
+// ROUTING, the routing card, COMING UP, the status line, and Runway's live
+// views, the 5-hour's and the week's; and the moment, which says which
+// accounts and windows there are, and which account and window each thing
+// COMING UP says is of, in its order.
 type drawn struct {
 	now        time.Time
 	moment     status.Moment
@@ -68,11 +73,12 @@ type drawn struct {
 	card       []RoutingRow
 	coming     []happening
 	statusLine statusLine
-	day, week  Frame
+	runway     map[views.RunwayWindow]Frame
 }
 
 // drawnAt is each view of doc at now, as a frame as wide as the frames draws
-// it, and Runway's lanes as a frame of the policy alone draws them.
+// it: Runway's with its lanes built at the moment, as the watch builds them,
+// with nothing read before.
 func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 	t.Helper()
 	f := frameOf(160, 40).At(doc, now)
@@ -84,36 +90,56 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 		card:       RoutingRows(m, nil, views.Stream{}),
 		coming:     f.upcoming(doc, now),
 		statusLine: f.pageStatus(doc, now),
-		day:        Frame{Policy: claudeLike, Span: Day},
-		week:       Frame{Policy: claudeLike, Span: Week},
+		runway:     make(map[views.RunwayWindow]Frame),
 	}
 	if len(d.coming) != len(m.ComingUp) {
 		t.Fatalf("COMING UP says %d things, want the moment's %d", len(d.coming), len(m.ComingUp))
 	}
+	for _, w := range runwayWindows {
+		tl := views.LiveTimeline(w, now, RunwayColumns(f.Width))
+		lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: tl, Window: w})
+		runway := f
+		runway.View, runway.Runway = Runway, RunwayShown{Window: w, Timeline: tl, Lanes: &lanes}
+		d.runway[w] = runway
+	}
 	return d
+}
+
+// lane is account a's lane in Runway's live view of the window given, as
+// laid out with every lane shown.
+func (d drawn) lane(a status.AccountNow, w views.RunwayWindow) laidLane {
+	lanes := d.runway[w].laidLanes(d.moment, runwayFit{fits: true, shown: len(d.moment.Accounts)})
+	return lanes[slices.IndexFunc(lanes, func(ln laidLane) bool { return ln.ID == a.ID })]
+}
+
+// runwaySays are the phrases under account a's lane in Runway's live view of
+// the window given, each as a terminal shows it.
+func (d drawn) runwaySays(a status.AccountNow, w views.RunwayWindow) []string {
+	var phrases []string
+	for _, words := range d.runway[w].wordsUnder(d.lane(a, w), d.now) {
+		phrases = append(phrases, words.said.plain())
+	}
+	return phrases
 }
 
 // destination is where each view says new sessions go, after where the
 // document's best, the router's choice for a new session, has them go, as the
-// moment reads it: the account ▲ marks in USAGE, on Runway over the day, and
-// in the status line, and the one ROUTING says they come to; "none" where a
-// view marks none. The status line of a probed document says nothing of it,
-// nor ROUTING where it says they come to none.
+// moment reads it: the account ▲ marks in USAGE and in the status line, and
+// the one ROUTING says they come to; "none" where a view marks none. The
+// status line of a probed document says nothing of it, nor ROUTING where it
+// says they come to none.
 func (d drawn) destination() []viewSays {
-	usage, runway, next := "none", "none", cmp.Or(d.moment.Next, "none")
+	usage, next := "none", cmp.Or(d.moment.Next, "none")
 	var routing string
 	for i, a := range d.moment.Accounts {
 		if strings.Contains(d.usage.rows[i].name.plain(), "▲") {
 			usage = a.ID
 		}
-		if len(d.day.badge(d.day.laneOf(a, d.now))) > 0 {
-			runway = a.ID
-		}
 		if strings.Contains(standingWords(d.routing.accounts[i].standing, false, 200).plain(), "new sessions come here") {
 			routing = a.ID
 		}
 	}
-	says := []viewSays{{"the document's best, as the moment reads it", next}, {"USAGE", usage}, {"Runway", runway}}
+	says := []viewSays{{"the document's best, as the moment reads it", next}, {"USAGE", usage}}
 	if routing != "" {
 		says = append(says, viewSays{"ROUTING", routing})
 	}
@@ -141,24 +167,56 @@ func (d drawn) named(n string) string {
 // stands is how each view says account a stands: taking new sessions, or
 // what holds it back from them. ROUTING's "can't read it" is a state it
 // says, not a hold: the router keeps a pin to an account nothing has been
-// read of, and the card lets it be picked. Runway's lane over the day says
-// it once anything's read of it, but of one whose last read failed, which it
-// holds back all along, whatever else does (D7).
+// read of, and the card lets it be picked.
 func (d drawn) stands(a status.AccountNow) []viewSays {
 	i := d.place(a)
-	says := []viewSays{
+	return []viewSays{
 		{"ROUTING", routingStands(d.routing.accounts[i].standing.Kind)},
 		{"the routing card", cardStands(d.card[i+1])},
 	}
-	if l := d.day.laneOf(a, d.now); l.known && a.Error == "" {
-		says = append(says, viewSays{"Runway", laneStands(l, d.now)})
-	}
-	return says
 }
 
 // place is account a's place among the moment's, from 0.
 func (d drawn) place(a status.AccountNow) int {
 	return a.Place - 1
+}
+
+// back is when each view says account a is back, where ROUTING says a limit
+// or its cap holds it back from every request until a time it knows:
+// ROUTING, and Runway's lane, in the words of the stretch holding it at now,
+// as "back 17:10". Where a window running out before then carries the hold
+// on to the window's reset, Runway says it's back then, as ROUTING doesn't,
+// so Runway is left out. A hold on some models' requests alone, which no
+// lane draws, and a refused token, of which ROUTING says no back and Runway
+// the refusal's until, say none.
+func (d drawn) back(a status.AccountNow) []viewSays {
+	routing := d.routing.accounts[d.place(a)].standing
+	said := backSaid(standingWords(routing, false, 200).plain())
+	if routing.Kind != status.RoutingLimited && routing.Kind != status.RoutingCapped || said == "no back" {
+		return nil
+	}
+	says := []viewSays{{"ROUTING", said}}
+	if slices.ContainsFunc(a.Windows, func(w status.WindowNow) bool { return w.RunsOutAhead && !w.Out.At.After(routing.Back) }) {
+		return says
+	}
+	runway := "not held at now"
+	if ln := d.lane(a, views.RunwayFiveHour); ln.heldAt(d.runway[views.RunwayFiveHour].Runway.Timeline.NowColumn()) {
+		runway = backSaid(cmp.Or(append(d.runwaySays(a, views.RunwayFiveHour), "")...))
+	}
+	return append(says, viewSays{"Runway", runway})
+}
+
+// backSaid is when the words given first say something's back, as "back
+// 17:10", up to the next dot or comma: "no back" where they don't.
+func backSaid(words string) string {
+	_, back, ok := strings.Cut(words, "back ")
+	if !ok {
+		return "no back"
+	}
+	if end := strings.IndexAny(back, "·,"); end >= 0 {
+		back = back[:end]
+	}
+	return "back " + strings.TrimSpace(back)
 }
 
 // What holds an account back from new sessions, as the views agree on it.
@@ -204,30 +262,6 @@ func cardStands(r RoutingRow) string {
 	}
 }
 
-// laneStands is how lane l says its account stands at now: taking new
-// sessions where it has room, else held back as the first cause of the
-// stretch it's in says.
-func laneStands(l lane, now time.Time) string {
-	for _, s := range l.stretches {
-		if !s.holds(now) {
-			continue
-		}
-		switch says := s.causes[0].says; {
-		case says == "no token":
-			return heldNoToken
-		case strings.HasPrefix(says, "limit reached"):
-			return heldLimit
-		case strings.HasPrefix(says, "refused"):
-			return heldRefused
-		case strings.HasSuffix(says, "at its reserve"):
-			return heldCap
-		default:
-			return "held: " + says
-		}
-	}
-	return takes
-}
-
 // running is whether each view says account a's window w is running, or
 // hasn't started: USAGE's words, GRAPHS' chart, spanned or not, and of the
 // window a request starts, ROUTING where it says the account's idle.
@@ -262,9 +296,8 @@ func (d drawn) gauge(a status.AccountNow, w status.WindowNow) (gauge, bool) {
 }
 
 // used is how much of account a's window w each view says is used: USAGE's
-// bar, the routing card's figure of the 5-hour window and the week every
-// model shares, and Runway's badge of the week over the week; "none" where
-// a view draws it empty.
+// bar, and the routing card's figure of the 5-hour window and the week every
+// model shares; "none" where a view draws it empty.
 func (d drawn) used(a status.AccountNow, w status.WindowNow) []viewSays {
 	var says []viewSays
 	if g, ok := d.gauge(a, w); ok {
@@ -280,10 +313,6 @@ func (d drawn) used(a status.AccountNow, w status.WindowNow) []viewSays {
 			card = prose.Percent(f.Used)
 		}
 		says = append(says, viewSays{"the routing card", card})
-	}
-	l := d.week.laneOf(a, d.now)
-	if weeks := d.week.weeks(l); len(weeks) > 0 && weeks[0].Key == w.Key {
-		says = append(says, viewSays{"Runway", d.week.badge(l).plain()})
 	}
 	return says
 }
@@ -329,11 +358,9 @@ func staleness(stale bool) string {
 // take a request as the document was built, as it gates those that couldn't
 // (D3); ROUTING's pressure, of the pressure window while it says the
 // account's under pressure, but of one stale, as the router's pressure goes
-// by the window's projection, stale or not; and Runway's lanes, of a window
-// they count, but of one held at its limit, after which a timeline draws
-// where it runs out (#59), unless its token is refused, as a stale window
-// runs out nowhere ahead either, and of an account whose last read failed
-// (D7).
+// by the window's projection, stale or not; and Runway's lane, of a window
+// every model shares of an account that can take a request now, as a run-out
+// of one that can't is carried into what holds it, where its words fit.
 func (d drawn) runsOut(a status.AccountNow, w status.WindowNow) []viewSays {
 	var says []viewSays
 	if g, ok := d.gauge(a, w); ok {
@@ -350,15 +377,32 @@ func (d drawn) runsOut(a status.AccountNow, w status.WindowNow) []viewSays {
 	if routing.Kind == status.RoutingPressed && w.Pressure && w.Kind != status.WindowStale {
 		says = append(says, viewSays{"ROUTING", outSaid(standingWords(routing, false, 200).plain())})
 	}
-	if a.Error != "" || w.Held && !a.TokenRefused {
-		return says
-	}
-	for _, f := range []Frame{d.day, d.week} {
-		if f.counts(w) {
-			says = append(says, viewSays{"Runway over the " + spanName(f.Span), laneOut(f.laneOf(a, d.now), f.naming(w))})
-		}
+	if out, said := d.runwayOut(a, w); w.Shared && a.CanRise && said {
+		says = append(says, viewSays{"Runway", out})
 	}
 	return says
+}
+
+// runwayOut is where Runway's lane of account a says its window w runs out,
+// as "out ~16:05", or "nowhere", in the live view of w's own window, the
+// 5-hour's of a window of a day or less, else the week's: the words of the
+// run-out back as w next resets, as its run-out ends. It reports false where
+// the lane draws that run-out too near the view's end for its words to fit,
+// as they're left off.
+func (d drawn) runwayOut(a status.AccountNow, w status.WindowNow) (string, bool) {
+	view := views.RunwayFiveHour
+	if quota.MultiDay(w.Key) {
+		view = views.RunwayWeek
+	}
+	for _, phrase := range d.runwaySays(a, view) {
+		head, back, _ := strings.Cut(phrase, prose.Separator)
+		_, out, runsOut := strings.Cut(head, " ~")
+		if out, ok := strings.CutSuffix(out, " at its pace"); runsOut && ok && backSaid(back) == "back "+prose.Dated(d.now, w.Next) {
+			return "out ~" + out, true
+		}
+	}
+	drawn := slices.ContainsFunc(d.lane(a, view).Stretches, func(s views.LaneStretch) bool { return s.Projected && s.Back.Equal(w.Next) })
+	return "nowhere", !drawn
 }
 
 // outSaid is the run-out words say, from "out ~" to the next separator,
@@ -382,42 +426,13 @@ func (d drawn) comingOut(a status.AccountNow, w status.WindowNow) string {
 	return "nowhere"
 }
 
-// laneOut is where lane l says a window it names as naming runs out.
-func laneOut(l lane, naming string) string {
-	for _, s := range l.stretches {
-		for _, c := range s.causes {
-			for _, verb := range []string{"runs out ~", "reaches its reserve ~"} {
-				if at, ok := strings.CutPrefix(c.says, naming+verb); ok {
-					return "out ~" + at
-				}
-			}
-		}
-	}
-	return "nowhere"
-}
-
-// spanName names Runway's span.
-func spanName(s Span) string {
-	if s == Week {
-		return "week"
-	}
-	return "day"
-}
-
 // resets is when each view says account a's window w next resets: GRAPHS,
-// where its chart ends, of one running; Runway over the week, of a week it
-// counts; and COMING UP, where it says the window resets.
+// where its chart ends, of one running; and COMING UP, where it says the
+// window resets.
 func (d drawn) resets(a status.AccountNow, w status.WindowNow) []viewSays {
 	var says []viewSays
 	if ch := chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now); ch.spanned {
 		says = append(says, viewSays{"GRAPHS", prose.Dated(d.now, ch.start.Add(ch.length))})
-	}
-	for _, week := range d.week.weeks(d.week.laneOf(a, d.now)) {
-		if week.Key == w.Key {
-			at, _ := strings.CutPrefix(resetSays(week, d.now).plain(), "resets ")
-			at, _, _ = strings.Cut(at, prose.Separator)
-			says = append(says, viewSays{"Runway", at})
-		}
 	}
 	for i, u := range d.moment.ComingUp {
 		if u.Account == a.ID && u.Window == w.Key && u.Kind == status.UpcomingReset {

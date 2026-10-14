@@ -20,7 +20,8 @@ const (
 	// and a cord from each call to its line, with requests travelling it.
 	Sessions View = "sessions"
 	// Runway is the view of when each account has room, as a timeline: a lane
-	// per account, over the day, or the week.
+	// per account, over the window its view is named for, the 5-hour or the
+	// week.
 	Runway View = "runway"
 	// Log is every request and every event the router tells of, as they
 	// happen.
@@ -46,28 +47,4 @@ func Views() []View {
 // Title is the tab's name in the title row, such as Overview.
 func (v View) Title() string {
 	return cmp.Or(titles[v], string(v))
-}
-
-// Span is how far ahead Runway looks, as w switches it: the day, as it
-// opens, or the week.
-type Span string
-
-const (
-	// Day is from the hour before now to about a day ahead.
-	Day Span = ""
-	// Week is from yesterday to six days ahead.
-	Week Span = "week"
-)
-
-// Next is the span w switches to from s: the week from the day, and back.
-func (s Span) Next() Span {
-	if s == Week {
-		return Day
-	}
-	return Week
-}
-
-// Name is what the key line and the help call the span: "day" or "week".
-func (s Span) Name() string {
-	return cmp.Or(string(s), "day")
 }

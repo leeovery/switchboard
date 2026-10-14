@@ -6,14 +6,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
-)
-
-var (
-	// thumbInk is the part of a scrollbar its view shows, and railInk its
-	// track.
-	thumbInk = ink{token: theme.TextMuted}
-	railInk  = ink{token: theme.TextFaint}
 )
 
 // Scrolling is how far a frame's view scrolls: Most, the furthest, in rows,
@@ -37,13 +29,13 @@ func (s Scrolling) clamped(offset int) int {
 }
 
 // ScrollsRows reports whether the view shown scrolls a row at a time, as
-// Runway, History's Year, Sessions' List and a session's page's turns do,
-// rather than a thing at a time: an account, as the Overview's USAGE does,
-// History's Weeks and Days, and Sessions' Switchboard, or a period, as
-// History's Tokens does.
+// History's Year, Sessions' List and a session's page's turns do, rather
+// than a thing at a time: an account, as the Overview's USAGE does,
+// History's Weeks and Days, Sessions' Switchboard and Runway's lanes, or a
+// period, as History's Tokens does.
 func (f Frame) ScrollsRows() bool {
 	switch f.Shown() {
-	case Overview:
+	case Overview, Runway:
 		return false
 	case History:
 		return f.History.Shown == HistoryYear
@@ -132,8 +124,8 @@ func (f Frame) TurnsScrolling() Scrolling {
 // TurnsScrolling has them; History's, of the ledger's days alone, as
 // historyScrolling says; Sessions', as sessionsScrolling says; the
 // Overview's, as overviewScrolling says, laid out once for every offset;
-// Accounts', as accountsScrolling says; and Runway, where its lanes don't
-// fit, as runwayRows counts them, alike at every offset. A frame too short
+// Accounts', as accountsScrolling says; and Runway's, as runwayScrolling
+// says. A frame too short
 // for the view, as cramped says, never scrolls, nor one of a document of no
 // accounts, but History, Sessions, whose List lists the ledger's sessions
 // whatever the document holds, and a session's page.
@@ -157,8 +149,7 @@ func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) 
 	case shown == Accounts:
 		return f.accountsScrolling(doc, now)
 	case shown == Runway:
-		content, view := f.runwayRows(len(m.Accounts), top)
-		s = Scrolling{Most: content - view, Page: view}
+		return f.runwayScrolling(doc, now)
 	}
 	return func(int) Scrolling { return s }
 }
@@ -193,16 +184,6 @@ var (
 	// USAGE's and the routing card's are: all in text.subtle.
 	subtleOut = outInks{mark: dimInk, space: dimInk, count: dimInk, gap: dimInk, keys: dimInk, does: dimInk}
 )
-
-// rowsOut is how Runway says what's out of view until its stage draws it as
-// the design does: "▼ 2 more accounts below · j/k or wheel to scroll", the
-// marks, and the space after each, bold accent.key, the counts in
-// text.muted and the rest in text.subtle, cut short as words where it
-// doesn't fit, as line.fit cuts it.
-var rowsOut = outForm{
-	noun: "account", above: " above", below: " below", gap: " · ", keys: "j/k", does: " or wheel to scroll",
-	inks: outInks{mark: keyInk, space: keyInk, count: mutedInk, gap: dimInk, keys: dimInk, does: dimInk},
-}
 
 // outOfView says what's out of view where a view scrolls, above and below,
 // in the longest of forms, each shorter than the one before, that fits width
@@ -289,23 +270,4 @@ func moreParts(n int, noun string, k ink) []part {
 		return []part{figureIn(prose.Grouped(n), k), wordsIn(" more", k)}
 	}
 	return countedParts(n, "more "+noun, k)
-}
-
-// scrollbar draws a scrollbar down column x from row y, rows tall, for
-// content rows that scroll, shown from the row offset: ┃ the part shown,
-// as long as the share it shows, on a │ track, the whole of it.
-func scrollbar(c *canvas, x, y, rows, content, offset int) {
-	if rows < 1 || content <= rows {
-		return
-	}
-	thumb := max(1, rows*rows/content)
-	most := content - rows
-	start := (offset*(rows-thumb) + most/2) / most
-	for i := range rows {
-		if i >= start && i < start+thumb {
-			c.text(x, y+i, "┃", thumbInk)
-		} else {
-			c.text(x, y+i, "│", railInk)
-		}
-	}
 }

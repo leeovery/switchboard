@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -150,6 +151,8 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 	capped.Reserve = 0.1
 	unread := readAccount("unread")
 	unread.FetchedAt = time.Time{}
+	limitedCapped := readAccount("both", sessionOf(0.5, 3*time.Hour), weekOf(0.95, 2*time.Hour))
+	limitedCapped.Reserve, limitedCapped.Limit = 0.1, status.Limit{Until: now.Add(time.Hour).UTC()}
 	tests := []struct {
 		name    string
 		account status.Account
@@ -162,6 +165,7 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 		{name: "at its cap, closed in amber, but pickable", account: capped, want: RoutingRow{Reason: "at its cap till 15:12", Capped: true, Pickable: true}},
 		{name: "at its cap, which a pin naming it spends", account: capped, pin: []string{"capped"}, want: RoutingRow{Open: true, Pickable: true}},
 		{name: "held at its limit", account: limitedAccount("limited"), want: RoutingRow{Reason: "at its limit till 14:12"}},
+		{name: "held at its limit, its cap holding it longer: till it's back", account: limitedCapped, want: RoutingRow{Reason: "at its limit till 15:12"}},
 		{name: "its token refused", account: refused, want: RoutingRow{Reason: "token refused (401)"}},
 		{name: "without a token", account: tokenless, want: RoutingRow{Reason: "no token"}},
 	}
@@ -173,6 +177,32 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 			got := RoutingRow{Open: row.Open, Reason: row.Reason, Capped: row.Capped, Pickable: row.Pickable}
 			if got != tt.want {
 				t.Errorf("the row is %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// At each hard moment, the card says an account its limit or its cap
+// closes is closed till it's back, as its moment's Back has it, and that
+// it's closed alone where that isn't known.
+func TestTheCardSaysAClosedAccountsBackAsItsMomentHasItAtEachHardMoment(t *testing.T) {
+	for _, hm := range statustest.HardMoments(claudeLike) {
+		t.Run(hm.Name, func(t *testing.T) {
+			m := hm.Doc.At(hm.Now, claudeLike)
+			rows := RoutingRows(m, nil, views.Stream{})
+			for i, a := range m.Accounts {
+				reason := rows[i+1].Reason
+				what, _, _ := strings.Cut(reason, " till ")
+				if what != "at its limit" && what != "at its cap" {
+					continue
+				}
+				want := what
+				if till := status.Till(m.Now, a.Back); till != "" {
+					want += " " + till
+				}
+				if reason != want {
+					t.Errorf("%s: the card closes it %q, want %q, as its Back has it", a.ID, reason, want)
+				}
 			}
 		})
 	}

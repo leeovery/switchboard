@@ -186,6 +186,36 @@ func TestSessionsViewIsKeptUnderAKeyOfItsOwn(t *testing.T) {
 	}
 }
 
+// Runway's window is kept under a key of its own, by name, beside the rest
+// and the keys of another build, and left out where none is made, as the
+// 5-hour is.
+func TestRunwaysWindowIsKeptUnderAKeyOfItsOwn(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "pane": {"split": 0.5}}`)
+	prefs := theme.NewPrefsFile(state, clock)
+	runway := theme.RunwayPrefs{Window: "week"}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Runway = runway }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Runway: runway}); !reflect.DeepEqual(got, want) {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(path)
+	want := "{\n  \"pane\": {\n    \"split\": 0.5\n  },\n  \"runway\": {\n    \"window\": \"week\"\n  },\n  \"theme\": \"amber\"\n}\n"
+	if err != nil || string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Runway = theme.RunwayPrefs{} }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "runway") {
+		t.Errorf("prefs.json holds %s, %v; want no window of Runway's kept", data, err)
+	}
+}
+
 // What History's views show is kept under a key of its own, each choice by
 // its name, beside the rest and the keys of another build, and left out
 // where none is made.

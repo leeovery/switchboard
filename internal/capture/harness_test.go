@@ -10,7 +10,7 @@ import (
 // were drawn with it, where the live page scales as its rule says.
 func TestAFixturePinsTheTracesScaleAsTheFramesDo(t *testing.T) {
 	now := func() time.Time { return localMoment() }
-	for _, f := range []Fixture{fixtures(time.UTC)[0], {records: &records{}}} {
+	for _, f := range []Fixture{fixture(t, "overview-default-160"), {records: &records{}}} {
 		if got := f.config(wide(37), now).TraceScale; got != 16 {
 			t.Errorf("%q has the watch scale its traces at %v requests a minute, want 16", f.Name, got)
 		}
@@ -47,7 +47,7 @@ func TestAPageGivesHistoryItsWorldsAccountsTheWeeksAndTheFamilies(t *testing.T) 
 // windows are named before any account's are read.
 func TestAFixtureNamesTheWindowsAsTheDashboardDoes(t *testing.T) {
 	now := func() time.Time { return localMoment() }
-	name := fixtures(time.UTC)[0].config(wide(37), now).WindowName
+	name := fixture(t, "overview-default-160").config(wide(37), now).WindowName
 	if name == nil {
 		t.Fatal("the fixture's watch names no window, want Claude's names")
 	}

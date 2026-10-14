@@ -39,6 +39,21 @@ type AccountWeek struct {
 // seven before it.
 const weeksShown = 8
 
+// WeekStart is when the calendar week now falls in began, weeks starting on
+// the day given: at the start of its first day, as the clocks put it, in
+// now's time zone. It's every view's one week, Accounts' this week and
+// Runway's week stepped back to alike.
+func WeekStart(now time.Time, starts time.Weekday) time.Time {
+	return dayStartOf(weekOf(civilOf(now), starts), now.Location())
+}
+
+// civilOf is the day t falls on in its own time zone, as dayfile.Civil gives
+// a day.
+func civilOf(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
 // weeksTo is the first day of the first of n calendar weeks, the last the
 // one the day falls in, weeks starting on the day given.
 func weeksTo(day time.Time, starts time.Weekday, n int) time.Time {

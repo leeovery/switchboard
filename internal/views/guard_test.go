@@ -116,6 +116,10 @@ var (
 		// out, as Accounts says them, whatever its period.
 		"views.AccountTotals.LeftAtReset": "views.AccountsRow.WeekLeft",
 		"views.AccountTotals.RanOut":      "views.AccountsRow.RanOut",
+		// How an account stood at a moment gone, and the holds the router
+		// told of, as Runway's lanes draw the past, live or stepped back to.
+		"status.Moment.Then": "views.Lanes.Look",
+		"status.Moment.Told": "views.Lanes.Look",
 		// How many limits were reached, every window's together, and each
 		// window's, as Accounts, history and the Year count and say them.
 		"views.AccountTotals.Limits": "views.AccountTotals' LimitCount and LimitsHit",
@@ -145,9 +149,10 @@ var (
 		"views.CallsOf", "views.DaySessions", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsRead.Refiled",
 		"views.EventsRead.Skips", "views.EventsRead.Took", "views.EventsSince", "views.EventsTable.Details",
 		"views.FindSessions", "views.HeldList.Awaited", "views.HeldList.Found", "views.HeldList.List", "views.HeldList.Take",
-		"views.HeldList.Unfound", "views.HeldList.Unread", "views.HoldList", "views.ListSessions", "views.LogEvents",
-		"views.LogFilter.KeptFrom", "views.LogRead.Grown", "views.LogRows", "views.LogSessions", "views.Patch",
-		"views.ReadEvents", "views.ReadList", "views.ReadLogHeld", "views.StubsOf", "views.Today", "views.TotalsOn",
+		"views.HeldList.Unfound", "views.HeldList.Unread", "views.HoldList", "views.Lanes.Look", "views.ListSessions",
+		"views.LogEvents", "views.LogFilter.KeptFrom", "views.LogRead.Grown", "views.LogRows", "views.LogSessions",
+		"views.Patch", "views.ReadEvents", "views.ReadList", "views.ReadLogHeld", "views.RunwayReadings", "views.StubsOf",
+		"views.Today", "views.TotalsOn",
 	}
 )
 

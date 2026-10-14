@@ -236,10 +236,6 @@ func partWords(parts []part) []worded {
 	return words
 }
 
-// leastShown is the fewest cells of words cut short worth showing: where
-// fewer would show, they're left off.
-const leastShown = 5
-
 // fitWhole cuts the line to width cells by leaving off its last spans, each
 // whole, as many as don't fit; where even its first doesn't fit alone, that
 // alone, cut short as fit cuts it.

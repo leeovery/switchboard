@@ -83,8 +83,11 @@ type Routing struct {
 	Clauses []string
 	Short   []string
 	// Back is when room returns to an account held back, where its clauses
-	// say so, the first of them, as in "back 15:54": zero where they don't,
-	// as where it isn't known, or the global pin spends its cap.
+	// say so, the first of them, as in "back 15:54": of one a limit or its
+	// cap holds back from every request, when it's back, as its AccountNow's
+	// Back has it; of one held back from some models' requests alone, when
+	// they have room again. It's zero where they don't say, as where it isn't
+	// known, or the global pin spends its cap.
 	Back time.Time
 }
 
@@ -142,14 +145,15 @@ func (s windowStates) routing(pressure RunOut) Routing {
 
 // heldRouting is how the account stands, held back at now by a limit or the
 // upstream's refusal, reporting false where neither holds it back: from every
-// request, a limit, then its token refused; else, where its cap holds it
-// back from every request, as cappedRouting says that; else from some
-// models' alone, a limit, then their family refused.
+// request, a limit, till it's back from every hold, as back has it, then its
+// token refused; else, where its cap holds it back from every request, as
+// cappedRouting says that; else from some models' alone, a limit, then their
+// family refused.
 func (s windowStates) heldRouting() (Routing, bool) {
 	a, now, held, limited := s.account, s.now, s.stood.held, s.stood.limited
 	switch {
 	case limited && held.Every:
-		return Routing{Kind: RoutingLimited, Says: "limit reached", Clauses: backAt(now, held.Until), Short: shortBack("limit reached", now, held.Until), Back: held.Until}, true
+		return Routing{Kind: RoutingLimited, Says: "limit reached", Clauses: backAt(now, s.back), Short: shortBack("limit reached", now, s.back), Back: s.back}, true
 	case s.stood.refused:
 		answer := a.Refused.Answer()
 		return Routing{Kind: RoutingRefused, Says: answer, Clauses: []string{"its token needs renewing"}, Short: []string{answer}}, true
@@ -169,8 +173,8 @@ func (s windowStates) heldRouting() (Routing, bool) {
 // which windows every model shares, reporting false while no window of it
 // has reached its cap, as reachedReserve judges: at it in a window every model
 // shares, which holds it back from every request, as in "at its cap · back
-// 17:10 · new sessions go elsewhere", back as the last of those resets, and
-// saying new sessions go elsewhere only where they go to another account, as
+// 17:10 · new sessions go elsewhere", back as back has it, and saying new
+// sessions go elsewhere only where they go to another account, as
 // elsewhere says; else in a model's own, as Fable's week, which holds back
 // that model's requests alone, as in "Fable wk at its cap · back Mon 21:00 ·
 // other models still come here", of its own kind, pinned or not. The global
@@ -192,7 +196,7 @@ func (s windowStates) cappedRouting() (Routing, bool) {
 		}
 		return Routing{Kind: kind, Says: says, Clauses: []string{stillPinned}, Short: []string{says, "pinned"}}, true
 	}
-	back := s.capBack
+	back := s.back
 	if !shared {
 		back, _ = score.LetGo(a.Windows, a.Reserve, func(key string) bool { return !policy.IsShared(key) }, now)
 	}

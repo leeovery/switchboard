@@ -94,11 +94,11 @@ func (m Moment) writePriming(b *strings.Builder) {
 }
 
 // writeNotes writes what's noted of the account a, as read, beside its usage,
-// as it stands at the moment as an has it: what the router saw hold it back
-// then, how its reserve stands, whether it's under pressure, and how many
-// sessions the router has sent it.
+// as it stands at the moment as an has it: what holds it back then, as
+// heldBy says, how its reserve stands, whether it's under pressure, and how
+// many sessions the router has sent it.
 func (m Moment) writeNotes(b *strings.Builder, an AccountNow, a Account) {
-	notes := a.heldBy(m.Now)
+	notes := an.heldBy(m.Now)
 	if said := reserved(an.ReachedReserve, an.Pinned, an.Reserve); said != "" {
 		notes = append(notes, said)
 	}
@@ -186,18 +186,33 @@ func (a Account) Window(key string) (quota.Window, bool) {
 	return a.Windows[i], true
 }
 
-// heldBy says what holds the account back at now, as the router saw it, a
-// line each: the limit it reached, then the upstream's refusal, each while it
-// holds.
-func (a Account) heldBy(now time.Time) []string {
+// heldBy says what holds the account back as it stands at now, a line each:
+// its limit, as its Hold has it, as limitLine says it, till it's back, of
+// one holding back its every request, else till the limit lifts; then the
+// upstream's refusal; each while it holds.
+func (a AccountNow) heldBy(now time.Time) []string {
 	var held []string
-	if a.Limit.holds(now) {
-		held = append(held, a.Limit.Text(now))
+	if a.Held {
+		until := a.Hold.Until
+		if a.Hold.Every {
+			until = a.Back
+		}
+		held = append(held, limitLine(now, until))
 	}
-	if a.Refused.holds(now) {
-		held = append(held, a.Refused.Text(now))
+	if a.Refusal.holds(now) {
+		held = append(held, a.Refusal.Text(now))
 	}
 	return held
+}
+
+// limitLine says until when a limit holds an account back, at until, in
+// now's time zone, as in "limit until Mon 21:00": that it's reached alone,
+// as ROUTING says it, where that isn't known.
+func limitLine(now, until time.Time) string {
+	if until.IsZero() {
+		return "limit reached"
+	}
+	return "limit until " + prose.Clock(now, until)
 }
 
 // origin says where the document's usage came from: the router, with how it
@@ -260,12 +275,6 @@ func (d Document) Names(ids []string) string {
 		}
 	}
 	return prose.List(names)
-}
-
-// Text says until when the limit holds, such as "limit until Mon 21:00", in
-// now's time zone.
-func (l Limit) Text(now time.Time) string {
-	return "limit until " + prose.Clock(now, l.Until)
 }
 
 // Text says why the restart is due, and since when, in now's time zone, and
@@ -356,16 +365,20 @@ func Short(label string) string {
 	return label
 }
 
-// projection says where a window is heading, such as "on pace for 92%",
-// "runs out ~Fri 19:40" or "exhausted", with times in now's time zone. It's
-// empty when the projection says nothing.
-func projection(now time.Time, p score.Projection) string {
-	switch p.Kind {
-	case score.OnPace:
+// projection says where a window standing at now as w has it is heading,
+// such as "on pace for 92%", "runs out ~Fri 19:40" or "exhausted", with
+// times in now's time zone: where it runs out, as its RunsOut and Out have
+// it, so where its cap starts where its reserve holds; else as its
+// projection has it, but never that it runs out, as of a window held, stale,
+// at its cap or not started, or whose run-out the clock has reached. It's
+// empty where that says nothing.
+func projection(now time.Time, w WindowNow) string {
+	switch p := w.Out.Projection; {
+	case w.RunsOut:
+		return "runs out ~" + prose.Clock(now, w.Out.At)
+	case p.Kind == score.OnPace:
 		return "on pace for " + prose.Percent(p.AtReset)
-	case score.RunsOut:
-		return "runs out ~" + prose.Clock(now, p.At)
-	case score.Exhausted:
+	case p.Kind == score.Exhausted:
 		return "exhausted"
 	default:
 		return ""
@@ -401,7 +414,7 @@ func (m Moment) accountWindow(a AccountNow, wn WindowNow, w judged, width int) s
 	if wn.Kind == WindowNotStarted {
 		return windowLine(name, wn.Used, width, []string{notStartedNote(a.NextPrime, m.Now)})
 	}
-	return windowLine(name, wn.Used, width, windowNotes(w.stands, w.out.Heading, m.Now))
+	return windowLine(name, wn.Used, width, windowNotes(w.stands, wn, m.Now))
 }
 
 // windowLine shows a window's name, nameWidth wide, and how much of it is
@@ -416,17 +429,17 @@ func windowLine(name string, used float64, nameWidth int, notes []string) string
 
 // windowNotes say when a window resets, standing at now as stands, as
 // WindowAt has it, so its next reset once it has reset since it was read,
-// and none where it has lapsed; and where it's heading at now, as heading,
-// the document's project of it, says, as far as those are known, and when
+// and none where it has lapsed; and where it's heading at now, as projection
+// says of it standing as w has it, as far as those are known, and when
 // that's at its rate over the last half hour, that it is.
-func windowNotes(stands quota.Window, heading Heading, now time.Time) []string {
+func windowNotes(stands quota.Window, w WindowNow, now time.Time) []string {
 	var notes []string
 	if reset := stands.ResetsAt; !reset.IsZero() {
 		notes = append(notes, prose.Resets(now, reset)+" · "+prose.Clock(now, reset))
 	}
-	if heads := projection(now, heading.Projection); heads != "" {
-		if heading.Recent {
-			heads += " at its rate over the " + Over(heading.Since, now)
+	if heads := projection(now, w); heads != "" {
+		if h := w.Out.Heading; h.Recent {
+			heads += " at its rate over the " + Over(h.Since, now)
 		}
 		notes = append(notes, heads)
 	}

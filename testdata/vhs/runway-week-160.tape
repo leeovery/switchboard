@@ -1,15 +1,15 @@
-# The runway-day-3 fixture, tab pressed four times to show Runway over the day,
-# full screen at its 160 × 26, as capturetool runs it.
-# Run from the repository's root: vhs testdata/vhs/runway-day-3.tape
+# The runway-week-160 fixture, Runway's week view over the auto world, reached from the
+# Overview with tab four times, then >, full screen at its 160 × 37, as capturetool runs it.
+# Run from the repository's root: vhs testdata/vhs/runway-week-160.tape
 
 Set Shell "bash"
 Set FontFamily "JetBrains Mono"
 Set FontSize 15
 Set LetterSpacing 0
 Set LineHeight 1
-# 160 columns: 160 × 9 + 65. 26 rows: 26 × 20 + 72.
+# 160 columns: 160 × 9 + 65. 37 rows: 37 × 20 + 72.
 Set Width 1505
-Set Height 592
+Set Height 812
 Set Padding 16
 Set WindowBar Colorful
 Set WindowBarSize 30
@@ -18,10 +18,10 @@ Set Theme { "name": "nord", "background": "#2E3440", "foreground": "#D8DEE9", "c
 Set WaitTimeout 2m
 
 Hide
-Type "go run ./cmd/capturetool --fixture runway-day-3"
+Type "go run ./cmd/capturetool --fixture runway-week-160"
 Enter
 Wait+Screen /14:42/
 Show
 Sleep 500ms
-Screenshot "testdata/vhs/runway-day-3.png"
+Screenshot "testdata/vhs/runway-week-160.png"
 Sleep 500ms

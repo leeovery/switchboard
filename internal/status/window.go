@@ -61,6 +61,11 @@ type windowStates struct {
 	// every model shares at its reserve resets, as score.LetGo has it; zero
 	// where its cap doesn't hold, or that isn't known.
 	capBack time.Time
+	// back is when the account is back from every hold that keeps it from
+	// new work, as stood's back has it, and capLast is set where its cap is
+	// the last of its quota's holds to lift.
+	back    time.Time
+	capLast bool
 	// refusing is set where the upstream refuses any of its requests at now,
 	// its token's or a model family's; idle where it's idle, as idleAt judges
 	// it; and pressed where it's under pressure, as underPressure judges it.
@@ -82,6 +87,7 @@ func (d Document) windowStatesOf(a Account, now time.Time, policy score.Policy) 
 	if s.stood.capped {
 		s.capBack, _ = score.LetGo(a.Windows, a.Reserve, policy.IsShared, now)
 	}
+	s.back, s.capLast = s.stood.back(s.capBack, a.Refused.Until)
 	return s
 }
 

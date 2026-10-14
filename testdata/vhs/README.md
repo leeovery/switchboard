@@ -94,18 +94,9 @@ frame, with the cells `cells_test.go` reads and compares:
 - **What's owed:** `owed`, in `reference_test.go`, names the frames no fixture draws yet. Every
   frame is drawn by a fixture of its stem's name or owed, never both. A stage that builds a view
   adds its fixtures, named after its frames, and deletes their stems from `owed`, and from then on
-  they're held; it's empty by stage 14. Milestone 5's fixtures, none named after a frame, are held
-  to nothing, and go as their views do.
-- **What's held of a frame owed:** `holds`, beside `owed`, holds part of a frame no fixture draws
-  yet, drawn over the frame's world with the keys that reach it, at the frame's size, and compared
-  as a whole frame is, cell for cell, but over that part alone (`compareWithin`, in
-  `cells_test.go`), passing over the same cells. Stage 6, the page, held the chrome and the routing
-  card's box; stage 7 draws the Overview's frames and the routing card's whole, so `holds` keeps
-  **the chrome** alone, rows 1 to 4, the title row and the status line, of `runway-5-hour-160`,
-  over the auto world, its tab reached with `tab`. A frame's stem leaves `holds` as a fixture comes
-  to draw it whole, as `history-year-160` did at stage 8, `log-requests-160` at stage 9,
-  `accounts-compare-160` at stage 11, and `sessions-switchboard-160` and `sessions-phone-52`, the
-  chrome of a phone, at stage 12.
+  they're held; since stage 13 drew Runway's, it's empty. Until then, `holds` held part of a frame
+  owed, the chrome of the tabs not yet built, over its world with the keys that reach it; with
+  every frame drawn whole, it went, with `compareWithin`, which compared that part alone.
 - **The cells passed over** are `passedOver`, by stem: a row, or a row's cells from one column to
   another, each with what the frame's `.txt` reads there: the words it starts with; or blank; or,
   where the frame draws a trace or a chart from data no world gives, those glyphs alone, a chart's
@@ -367,9 +358,7 @@ the worlds give otherwise than the frames), which the dashboard draws as its wor
   10:54, resets: its even pace, row 11, columns 27 to 29, and the pool's, row 15, columns 23 and 24
   of `overview-bad-hour-160` and 24 and 25 of `routing-limit-160`.
 - **The extras' typed figures,** in `overview-six-accounts-160`, and in `overview-ten-accounts-160`
-  a column on: client's 5-hour words, `16%/h till 17:40`, row 15, columns 40 to 55, where the world
-  has it running out ~16:40, and so under pressure in ROUTING, row 30, columns 17 to 45 (row 38 of
-  ten), the frame's `● open`; its week's and Fable week's allowances, `14%/day` and `25%/day`,
+  a column on: client's week's and Fable week's allowances, `14%/day` and `25%/day`, row 15,
   columns 88 to 94 and 136 to 142; spare's 5-hour rate, `19%/h`, row 17, columns 40 to 44, and its
   week's and Fable week's words, which the frames reset `Thu 18:00` with their even pace two days
   in, where the world resets them on Tuesdays at 14:00, as that pace places them and History's Weeks
@@ -567,9 +556,7 @@ which the dashboard draws as its world gives it:
   `3`, row 11, column 119; BY MODEL's `57%`, `33%` and `3%`, row 17, columns 48 to 50, 79 to 81 and
   127 and 128, and its bar, row 16, columns 136 to 140; and the share left at a reset in its
   verdict, `30%`, row 26, columns 50 to 52, the world's 32%.
-- **The ten's,** in `accounts-compare-ten-160`: client's state, `● open`, row 8, columns 84 to 93,
-  where the world has client run out ~16:40, under pressure, as the Overview's frames of ten have it;
-  lab's moves, `1 out`, row 23, and its time at a limit, `35m`, row 27, from column 122, where the
+- **The ten's,** in `accounts-compare-ten-160`: lab's moves, `1 out`, row 23, and its time at a limit, `35m`, row 27, from column 122, where the
   world gives none and `2h`; client's and lab's left at their last reset, `22%` and `30%`, row 28,
   from columns 84 and 122, the world's 37% and 21%; and all accounts' column, from column 141, typed,
   not summed from its rows: BY MODEL's `53%`, `4%`, `4%` and `1%`, rows 13, 14, 16 and 17, the
@@ -625,8 +612,7 @@ frames), which the dashboard draws as its world gives it:
   frame places as if its window reset at 16:30, as the auto world's, where its world's resets at
   15:54, as its limit lifts.
 - **The extras of ten,** in `sessions-ten-accounts-160`, as the Overview's frame of ten types them:
-  client's state, `● open`, row 15, from column 104, where its world has it under pressure and says
-  when it runs out; and the even paces its world places otherwise, a cell or a few off: client's
+  the even paces its world places otherwise, a cell or a few off: client's
   week, row 16, columns 145 to 147; spare's week, row 19, columns 140 and 141; lab's 5-hour and
   week, row 21, columns 111 to 113 and 144 and 145; team's, row 23, columns 114 to 117 and 147 to
   149, as if its window reset at about 16:17, where its world's resets at 15:30; ops's 5-hour, row
@@ -646,6 +632,37 @@ frames), which the dashboard draws as its world gives it:
 - **8a2c's routing,** `from personal, at its limit  $0.61`, row 22, columns 92 to 126 of
   `sessions-list-160`, its move made yesterday, which the List draws only of a move made today, so
   the dashboard leaves it blank.
+
+**Runway, where its frames and the design part** (see Runway in `docs/design.md`):
+
+- **The pool's part-filled cell in now's column,** which the frames draw on the canvas, where the
+  design puts now's column's `bg.subtle` behind the gradient's empty part: row 20, column 31 of
+  `runway-5-hour-160`; row 20, column 44 of `runway-week-160`; row 31, column 31 of
+  `runway-ten-accounts-160`; and row 21, column 16 of `runway-phone-52`.
+- **The week's axis, a cell on,** in `runway-week-160`, which the frame ticks as if its columns were
+  74 minutes each from Wed 14:41, where the design's cut the week evenly, 74.1 minutes each from
+  Wed 14:40, its start on its ten minutes: the dashboard draws `Fri`, row 8, from column 51, a cell
+  before the frame's, and Friday's `┬` and the four `╵` after it, row 9, columns 51, 85, 119, 153
+  and 158, each a cell before the frame's. Every lane's cells are the same under both.
+
+**Runway, where its worlds give otherwise** (see What the worlds give otherwise than the frames),
+which the dashboard draws as its world gives it:
+
+- **Side's week, where it runs out,** in `runway-week-160`, as in `usage`'s frames: the frame has
+  side with room all week till it resets at Mon 10:00, where its world has it run out ~Fri 12:20
+  at its pace. So the dashboard draws side's lane, row 17, columns 44 to 117, `▆` in
+  `accent.attention` to ~Fri 12:20, then `─` at its limit to the `│`; its words, row 18, from
+  column 61, `runs out ~Fri 12:20 at its pace  ·  back Mon 10:00, as its week resets`, where the
+  frame says `resets Mon 10:00`; the pool's columns, row 20, columns 62 to 117, and its dip an
+  account deeper, row 21, columns 76 to 91; the pool's words, row 22, from column 73,
+  `2 of 3 with room ~Fri 12:20 – ~Sat 06:00, 1 till Sun 02:00, 2 till Mon 10:00`, where the frame
+  says `2 of 3 with room ~Sat 06:00 – Sun 02:00`; and COMING UP, rows 30 to 34, columns 1 to 72,
+  which lists side's week running out ~Fri 12:20 fourth, so the frame's lines from its fourth are a
+  line early.
+- **Lab's run-out,** in `runway-ten-accounts-160`: its world has lab run out at 16:05:29 at its
+  pace, said `~16:05`, so the column whose middle is 16:05, row 20, column 39, still has room, `▆`
+  in `accent.attention`, and the pool's column there, row 31, column 39, counts lab with room,
+  where the frame has lab at its limit from it.
 
 **A session's page, where its frames and the design part:**
 
@@ -768,7 +785,7 @@ cell by cell, listing each under The cells passed over with what the dashboard d
   worlds give, lab running out ~16:05 and, of ten, team back from its limit at 15:30, where the
   frames list the auto world's three; and the extras' rates, allowances and run-outs (client, lab,
   team, spare, extra, ops, studio) differ from what their rows draw: spare's weeks reset on Tuesdays
-  at 14:00, lab's 5-hour window starts at 11:55, and client runs out ~16:40, so it's under pressure.
+  at 14:00, and lab's 5-hour window starts at 11:55.
   Fitted rather than passed over: the bad hour's 7f3a starts on side at 13:55:30, under the pin,
   before personal's limit, as the frame's LATELY tells nothing between that limit and work's
   refusal; the pinned world's cap moves work's sessions to side, as the frame draws it, where a
@@ -835,8 +852,8 @@ cell by cell, listing each under The cells passed over with what the dashboard d
   db8a's move from personal to work under pressure at 13:22:40, as well as 8a2c's); personal's
   5-hour limit and 4h 45m at it, from the Log's limit of 19:12:40 yesterday, where Accounts draws
   none (all accounts 4 and 8h 47m, drawn 3 and 4h 02m); the 30 days; the share left at a reset (32%,
-  drawn 30%); client's and lab's left at their last reset (37% and 21%, drawn 22% and 30%), lab's
-  move and minutes at a limit, and client under pressure; the ten's all-accounts row (drawn 12,598
+  drawn 30%); client's and lab's left at their last reset (37% and 21%, drawn 22% and 30%), and
+  lab's move and minutes at a limit; the ten's all-accounts row (drawn 12,598
   requests, 51 sessions, 10 moves, 9h 57m, $1,342 and 3.4×, the world 11,698, 53, 5, 13h 31m, $1,310
   and 3.3×), typed, not summed from its rows; all accounts' BY MODEL this week (drawn 57/2/33/3/2/3,
   the world 56/2/34/3/2/2), and its WEEKS' bars, filled to the rounded mean of the peaks; Detail's
@@ -870,8 +887,14 @@ cell by cell, listing each under The cells passed over with what the dashboard d
   Switchboard before its moment, its router then listing the sessions in the frame's order, its
   limits yet to move any, and the Switchboard keeps them so: of ten, of work alone and pinned, a
   minute before; at personal's limit, at 14:42:07.
-- **Runway (stage 13):** work at its 5-hour limit Wed 15:02–17:10, while b9c4 and 4b0e ran on it
-  then.
+- **Runway (stage 13):** side's week running out ~Fri 12:20, as in `usage`, which the week view's
+  frame has with room till Mon 10:00; and lab running out at 16:05:29, a column later than the frame
+  of ten draws it. Fitted rather than passed over: work at its 5-hour limit Wed 15:02–17:10, while
+  b9c4 and 4b0e ran on it then; side's Wednesday 5-hour window at 62% by 23:55, its highest that
+  day, as the frame stepped back to it says, where it rose till 00:20; and client's 5-hour window
+  rising more slowly since 14:10, so it has room till it resets at 17:40, as Runway's frame of ten
+  draws it, and `● open`, as the Overview's, Accounts' and Sessions' frames of ten have it, where it
+  ran out ~16:40, under pressure.
 
 ## Setting up
 
@@ -896,10 +919,9 @@ go run ./cmd/capturetool --fixture <name>
 The fixture runs full screen, at the size the terminal gives, until `q`. An empty or unknown
 `--fixture` is an error that lists them all. Keys work as they do in the dashboard, though the
 router takes an order and changes nothing, and the clock stands still at the fixture's moment, so
-nothing moves of itself. A fixture named after a frame draws that frame, at its size; milestone
-5's, `runway-day-*` and `runway-week-3`, named after milestone 5's frames, stay until stage 13
-replaces Runway and deletes them. Stage 7 deleted its cards' `accounts-*`, and stage 12 its
-Sessions' `sessions-*` and storyboards, with their tapes.
+nothing moves of itself. A fixture named after a frame draws that frame, at its size. Stage 7
+deleted milestone 5's cards' `accounts-*`, stage 12 its Sessions' `sessions-*` and storyboards,
+and stage 13 its Runway's `runway-day-*` and `runway-week-3`, with their tapes.
 
 Stage 7's, `overview-*` and `routing-*`, draw the Overview's frames and the routing card's over it,
 each over its frame's world with the keys that reach it: `overview-by-account-160` with `b`,
@@ -984,6 +1006,13 @@ minute before; and `sessions-refused-160` and `sessions-moved-160`, at 16:05:41 
 looked at at 14:42:07. Where no frame draws it, `page-sessions-120x30` draws the Switchboard on a
 terminal 120 × 30, to judge by eye. Tapes of `sessions-switchboard-160`, `sessions-moved-160`,
 `sessions-list-160` and `page-sessions-120x30` screenshot them.
+
+Stage 13's, `runway-*`, draw Runway's frames, Runway reached from the Overview with `tab` four
+times, over the auto world: `runway-5-hour-160` and, on a phone, `runway-phone-52`, as it opens, on
+the 5-hour view; `runway-week-160` with `>`, the week; and `runway-stepped-back-160` with `←`
+twice, today from its midnight, then Wednesday 30 September. `runway-ten-accounts-160` draws the
+5-hour view over ten accounts'. Tapes of `runway-5-hour-160` and `runway-week-160` screenshot
+them, to judge by eye.
 
 ### `--theme`, and `NO_COLOR`
 
@@ -1151,12 +1180,10 @@ before the moment drawn, then sets the clock to the moment, presses the fixture'
 then hands the model to Bubble Tea, which starts it reading nothing more. So there's no first
 paint to race, and nothing on screen moves until a key does.
 
-A fixture over milestone 5's samples is drawn at the frames' moment in a zone whose clocks never
-change, fixed as the zone it's asked for stands then, so it reads the same in every zone. One over a
-world, its records or, as `usage`'s printouts are, its status document alone, is built and drawn in
-the machine's own zone, `time.Local` itself, as the ledger, its readers and the views split days
-there, which a test can't change in process; the worlds are built there once, and every zone's
-fixtures share them. So its frame reads the same in any zone whose clocks don't change from the
+Every fixture is over a world, its records or, as `usage`'s printouts are, its status document
+alone, and is built and drawn at the frames' moment in the machine's own zone, `time.Local` itself,
+as the ledger, its readers and the views split days there, which a test can't change in process;
+the worlds are built there once. So its frame reads the same in any zone whose clocks don't change from the
 moment drawn to the weeks' resets. Capture's tests under `TZ` (11 October 2026), `usage`'s
 printouts held to their frames among them, pass in UTC, London, Tokyo, Los Angeles, Santiago,
 Havana and Auckland, and fail in Sydney, whose clocks go forward at 02:00 on Sunday 4 October:
