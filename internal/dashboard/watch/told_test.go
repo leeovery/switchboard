@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"testing"
@@ -356,6 +357,31 @@ func TestARequestTheStreamOpenedAgainTellsOfLateInItsFirstLookIsNeverLost(t *tes
 	h.hear(inFlight("r2"))
 	if s := h.model.frame(h.clock.now).Stream; !s.Live || !s.Requests["r2"].InFlight() {
 		t.Errorf("its first look telling of r2 too, r2 is %+v, live %t, want it in flight, live", s.Requests["r2"], s.Live)
+	}
+}
+
+// The views hear the stream as the watch reads it once as what it told
+// changes, not at each frame: a look at the sessions running, of a frame
+// of an hour's requests, costs less than one of the same stream heard
+// afresh.
+func TestEachFrameReadsTheStreamAsTheViewsLastHeardIt(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+	var events []router.StreamEvent
+	for i := range 300 {
+		e := told(router.StreamSent, fmt.Sprintf("r%d", i), "work", -time.Duration(i)*10*time.Second)
+		events = append(events, alter(e, func(e *router.StreamEvent) { e.Session = fmt.Sprintf("%08d-0000-4000-8000-000000000000", i%10) }))
+	}
+	for batch := range slices.Chunk(events, 50) {
+		h.hear(batch...)
+	}
+	now := h.clock.now
+	f, mo := h.model.frame(now), h.model.moment(now)
+	look := func(s views.Stream) float64 {
+		return testing.AllocsPerRun(10, func() { views.RunningOf(mo, f.Sessions, s, f.HeldList) })
+	}
+	if heard, afresh := look(f.Stream), look(views.Stream{Live: f.Stream.Live, Requests: f.Stream.Requests, Moves: f.Stream.Moves}); heard >= afresh {
+		t.Errorf("a look at the frame's stream allocates %.0f times, one at it heard afresh %.0f: the frame's is heard again at each look", heard, afresh)
 	}
 }
 

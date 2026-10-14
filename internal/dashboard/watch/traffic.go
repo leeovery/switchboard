@@ -40,8 +40,10 @@ const seenFor = views.IdleHour
 // no longer read it; whether it's live, the stream open and telling what's
 // in flight, as the views trust it; and, the stream opened again, the
 // requests it told of in flight before, by their ids, awaiting its first
-// look, as join has it: nil while none does. Its maps and moves are its own:
-// what changes it copies them first.
+// look, as join has it: nil while none does; and what hears the views'
+// stream of it once as what it told changes, rather than at each frame,
+// shared by every copy: nil where each look hears it afresh. Its maps and
+// moves are its own: what changes it copies them first.
 type traffic struct {
 	requests map[string]views.Told
 	calls    map[callKey]call
@@ -49,6 +51,7 @@ type traffic struct {
 	placed   map[seat]string
 	live     bool
 	awaiting map[string]bool
+	heard    *views.Hearing
 }
 
 // seat is a session's requests of one model, each by its id.
@@ -523,7 +526,7 @@ func (t traffic) afresh() traffic {
 		r.Lost = r.Ended.IsZero()
 		requests[id] = r
 	}
-	return traffic{requests: requests, moves: t.moves, placed: t.placed}
+	return traffic{requests: requests, moves: t.moves, placed: t.placed, heard: t.heard}
 }
 
 // unheard is the traffic once the watch no longer hears the stream, as it
@@ -609,9 +612,10 @@ func (t traffic) settled() traffic {
 // stream is the traffic as the views read it at now: live or not, the
 // requests the stream told of, and its moves, each while it shows, as at
 // draws it, so a frame never puts a session on an account its cords don't,
-// and whether a listing of the router's sessions has shown it done.
+// and whether a listing of the router's sessions has shown it done; heard
+// as the traffic hears it.
 func (t traffic) stream(now time.Time) views.Stream {
-	s := views.Stream{Live: t.live, Requests: t.requests}
+	s := views.Stream{Live: t.live, Requests: t.requests}.HeardBy(t.heard)
 	for _, m := range t.moves {
 		if m.showsAt(now) {
 			s.Moves = append(s.Moves, views.Moved{
