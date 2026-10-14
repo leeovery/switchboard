@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -241,11 +242,11 @@ func TestTheSwitchboardsLinesAreTheMomentsAccounts(t *testing.T) {
 func TestSessionsListScrollsRowsAndTheSwitchboardAccounts(t *testing.T) {
 	f := frameOf(160, 37)
 	f.View = Sessions
-	if f.ScrollsRows() {
+	if f.ScrollsRows(status.Document{}, now) {
 		t.Errorf("the Switchboard scrolls a row at a time, want an account at a time")
 	}
 	f.SessionsTab.Shown = SessionsList
-	if !f.ScrollsRows() {
+	if !f.ScrollsRows(status.Document{}, now) {
 		t.Errorf("the List scrolls a thing at a time, want a row")
 	}
 }

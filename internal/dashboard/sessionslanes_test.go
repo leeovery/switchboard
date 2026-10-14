@@ -307,6 +307,51 @@ func TestLanesThatDontFitScrollAnAccountAtATime(t *testing.T) {
 	}
 }
 
+// Where a lane doesn't fit the view, under ▲ where any are above it, the
+// lanes scroll a row at a time instead, the foot giving way, so no session
+// is cut out of reach: a lane's name row shows with its windows' row, or the
+// page ends over it; and right-aligned on the row over the key line, how many
+// rows are out of view, above and below, as USAGE says it.
+func TestLanesScrollARowAtATimeWhereALaneDoesntFit(t *testing.T) {
+	doc := phoneDoc()
+	tests := []struct {
+		offset    int
+		scrolling Scrolling
+		first     string
+		over      string
+	}{
+		{offset: 0, scrolling: Scrolling{Most: 8, Page: 6}, first: "1 work          ● at its cap · 17:10", over: "▼ 8 more below"},
+		{offset: 3, scrolling: Scrolling{Most: 8, Page: 5}, first: "2 personal ◆    ● open", over: "▲ 3 more above · ▼ 6 more below"},
+		{offset: 8, scrolling: Scrolling{Most: 8, Page: 6}, first: "3 side ▲        ● open · next", over: "▲ 8 more above"},
+	}
+	seen := make(map[string]bool)
+	for _, tt := range tests {
+		f := lanesFrame(52, 15, Look{}, phoneScene())
+		f.Scroll = tt.offset
+		if got := f.Scrolling(doc, routedAt); got != tt.scrolling || !f.ScrollsRows(doc, routedAt) {
+			t.Errorf("scrolled %d, Scrolling() = %+v, a row at a time %v; want %+v, a row at a time", tt.offset, got, f.ScrollsRows(doc, routedAt), tt.scrolling)
+		}
+		rows := lanesText(f, doc)
+		if got := rows[f.top()]; got != tt.first {
+			t.Errorf("scrolled %d, the view's first row reads %q, want %q", tt.offset, got, tt.first)
+		}
+		if got := rows[f.Height-underView]; strings.TrimSpace(got) != tt.over || len([]rune(got)) != f.Width {
+			t.Errorf("scrolled %d, the row over the key line reads %q, want %q right-aligned", tt.offset, got, tt.over)
+		}
+		for _, call := range phoneScene() {
+			seen[call.Session] = seen[call.Session] || slices.ContainsFunc(rows, func(r string) bool { return strings.Contains(r, status.ShownID(call.Session)) })
+		}
+	}
+	for _, call := range phoneScene() {
+		if !seen[call.Session] {
+			t.Errorf("%s's row never shows, scrolled as far as the lanes go", status.ShownID(call.Session))
+		}
+	}
+	if f := lanesFrame(52, 20, Look{}, phoneScene()); f.ScrollsRows(doc, routedAt) {
+		t.Errorf("at 20 rows, where every lane fits, the lanes scroll a row at a time, want an account at a time")
+	}
+}
+
 // Each session's row is a zone a click chooses its call by, across the row,
 // its session and its account named; the row chosen is on bg.selection
 // across the row.

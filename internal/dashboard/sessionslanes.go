@@ -73,7 +73,8 @@ func (l boardLane) rows() int {
 // lanesForm is the Switchboard of doc at now in lanes, in place of cords,
 // its accounts' lines and calls as laid gives them: drawn whole, where they
 // fit the view with the foot under them; else scrolled an account at a time,
-// as lanesBoard.scrolling has it.
+// or a row at a time where a lane doesn't fit, as lanesBoard.scrolling has
+// it.
 func (f Frame) lanesForm(doc status.Document, now time.Time, laid boardLayout) sessionsForm {
 	b := f.lanesOf(doc, now, laid)
 	return sessionsForm{
@@ -81,6 +82,7 @@ func (f Frame) lanesForm(doc status.Document, now time.Time, laid boardLayout) s
 		scrolling: b.scrolling,
 		targets:   b.targets,
 		filled:    func() map[Ref]float64 { return b.shown().filled },
+		byRows:    b.byRows(),
 	}
 }
 
@@ -125,14 +127,12 @@ func (f Frame) lanesOf(doc status.Document, now time.Time, laid boardLayout) lan
 }
 
 // draw draws the lanes the view shows from row top, as shown has them, cut
-// to the view's rows; and where accounts are out of view below, ▼ and how
-// many, right-aligned on the row over the key line.
+// to the view's rows; and right-aligned on the row over the key line, what
+// shown says is out of view under them.
 func (b lanesBoard) draw(c *canvas, top int) {
 	shown := b.shown()
 	c.paste(shown.c, 0, top, b.f.viewRows())
-	if below := shown.below; below > 0 {
-		c.right(b.f.Width, b.f.Height-underView, outOfView(0, below, b.f.Width, usageOut))
-	}
+	c.right(b.f.Width, b.f.Height-underView, shown.out)
 }
 
 // targets are the zones of the lanes the view shows a click acts on, at the
@@ -151,23 +151,27 @@ func (b lanesBoard) targets() []Target {
 
 // lanesShown are the lanes the view shows, drawn from its first row: the
 // rows and the zones a click acts on, as a stack has them; how much of each
-// bar they draw it fills, as Filled has them; and how many accounts are out
-// of view below.
+// bar they draw it fills, as Filled has them; and what's out of view under
+// them, said as the row over the key line says it.
 type lanesShown struct {
 	stack
 	filled map[Ref]float64
-	below  int
+	out    line
 }
 
 // shown are the lanes the view shows: every lane, and the foot under them,
-// where they fit; else as many as fit from the account the frame has the
-// view scrolled to, as scrolling has it, the foot giving way, and ▲ and how
-// many accounts are above, on the view's first row, while any are.
+// where they fit; a row at a time, where byRows says so, as paged has them;
+// else as many as fit from the account the frame has the view scrolled to,
+// as scrolling has it, the foot giving way, and ▲ and how many accounts are
+// above, on the view's first row, while any are, and ▼ and how many below.
 func (b lanesBoard) shown() lanesShown {
 	s := lanesShown{c: growing(b.f.Width), filled: make(map[Ref]float64)}
 	if b.fits() {
 		b.foot(s.c, b.drawLanes(&s, 0, b.lanes))
 		return s
+	}
+	if b.byRows() {
+		return b.pagedShown()
 	}
 	scrolling := b.scrolling(b.f.Scroll)
 	above := scrolling.clamped(b.f.Scroll)
@@ -177,7 +181,54 @@ func (b lanesBoard) shown() lanesShown {
 		y++
 	}
 	b.drawLanes(&s, y, b.lanes[above:above+scrolling.Page])
-	s.below = len(b.lanes) - above - scrolling.Page
+	s.out = outOfView(0, len(b.lanes)-above-scrolling.Page, b.f.Width, usageOut)
+	return s
+}
+
+// byRows reports whether the lanes scroll a row at a time: where they don't
+// fit the view, and a lane doesn't either, under ▲ where any are above it,
+// so an account at a time would cut it short.
+func (b lanesBoard) byRows() bool {
+	if b.fits() {
+		return false
+	}
+	for i, l := range b.lanes {
+		if l.rows()+min(i, 1) > b.f.viewRows() {
+			return true
+		}
+	}
+	return false
+}
+
+// laned are the lanes drawn whole from row 0, without the foot, which gives
+// way where they scroll.
+func (b lanesBoard) laned() lanesShown {
+	s := lanesShown{c: growing(b.f.Width), filled: make(map[Ref]float64)}
+	b.drawLanes(&s, 0, b.lanes)
+	return s
+}
+
+// paged is how the lanes, drawn whole, page in the view's rows, a row at a
+// time, each lane's name row with its windows' row.
+func (b lanesBoard) paged() rowsPaged {
+	return pagedWhole(b.laned().c, b.f.viewRows())
+}
+
+// pagedShown are the lanes the view shows a row at a time, from as far down
+// as the frame has them scrolled, as paged has them, and how many of their
+// rows are out of view, above and below, as USAGE says it.
+func (b lanesBoard) pagedShown() lanesShown {
+	whole := b.laned()
+	paged := pagedWhole(whole.c, b.f.viewRows())
+	from, to := paged.shown(b.f.Scroll)
+	s := lanesShown{c: growing(b.f.Width), filled: whole.filled, out: outOfView(from, paged.content-to, b.f.Width, usageRowsOut)}
+	s.c.paste(whole.c, from, 0, to-from)
+	for _, t := range whole.targets {
+		if t.Y >= from && t.Y < to {
+			t.Y -= from
+			s.targets = append(s.targets, t)
+		}
+	}
 	return s
 }
 
@@ -189,12 +240,16 @@ func (b lanesBoard) fits() bool {
 
 // scrolling is how far the lanes scroll, scrolled offset accounts down, an
 // account at a time, its line and its sessions together: nowhere where they
-// fit the view whole, the foot with them; else, the foot giving way, no
-// further than shows the last account, a page being as many as show from the
-// offset, under ▲ where any are above.
+// fit the view whole, the foot with them; a row at a time, where byRows says
+// so, as paged has it; else, the foot giving way, no further than shows the
+// last account, a page being as many as show from the offset, under ▲ where
+// any are above.
 func (b lanesBoard) scrolling(offset int) Scrolling {
 	if b.fits() {
 		return Scrolling{}
+	}
+	if b.byRows() {
+		return b.paged().scrolling(offset)
 	}
 	most := 0
 	for most < len(b.lanes)-1 && b.fitting(most) < len(b.lanes)-most {
@@ -238,6 +293,7 @@ func (b lanesBoard) drawLanes(s *lanesShown, y int, lanes []boardLane) int {
 // call would be; and returns the row after its last.
 func (b lanesBoard) drawLane(s *lanesShown, y int, l boardLane) int {
 	b.nameRow(s.c, y, l)
+	s.c.heading(y, y+1)
 	b.windowsRow(s, y+1, l.row)
 	y += 2
 	if l.saysNone {

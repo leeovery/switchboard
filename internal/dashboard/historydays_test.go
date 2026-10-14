@@ -7,6 +7,7 @@ import (
 	"testing"
 	"unique"
 
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -273,8 +274,10 @@ func TestDaysByAccountScrollsPastSixAccounts(t *testing.T) {
 
 // Shorter than History's frames, or where BY ACCOUNT would show none of its
 // accounts, Days is drawn whole, every account, and scrolls by rows over its
-// key, which keeps the view's last rows: no line counts accounts it doesn't
-// show, and the last shows scrolled to the end.
+// key, which keeps the view's last rows: the row over the key says how many
+// rows are out of view, above and below, and no line counts accounts it
+// doesn't show; BY ACCOUNT never ends a page without its first strip; and
+// the last shows scrolled to the end.
 func TestDaysScrollsWholeWhereItsFramesDontFit(t *testing.T) {
 	families := daysWorld(tenDays...)
 	families.ByModel = slices.Repeat(families.ByModel, 3)
@@ -282,36 +285,63 @@ func TestDaysScrollsWholeWhereItsFramesDontFit(t *testing.T) {
 		name          string
 		page          views.DaysPage
 		width, height int
-		want          Scrolling
+		top, end      Scrolling
 		keyRows       int
+		below, above  string
 	}{
-		{name: "ten accounts, a row short of the frames", page: daysWorld(tenDays...), width: 160, height: 36, want: Scrolling{Most: 8, Page: 26}, keyRows: 1},
-		{name: "ten accounts at 160×24", page: daysWorld(tenDays...), width: 160, height: 24, want: Scrolling{Most: 20, Page: 14}, keyRows: 1},
-		{name: "ten accounts at 80×24, on a phone", page: daysWorld(tenDays...), width: 80, height: 24, want: Scrolling{Most: 23, Page: 12}, keyRows: 2},
-		{name: "twelve families as tall as the frames", page: families, width: 160, height: 37, want: Scrolling{Most: 23, Page: 27}, keyRows: 1},
+		{
+			name: "ten accounts, a row short of the frames", page: daysWorld(tenDays...), width: 160, height: 36,
+			top: Scrolling{Most: 8, Page: 26}, end: Scrolling{Most: 8, Page: 26}, keyRows: 1,
+			below: "▼ 8 more below   ·   j/k to scroll", above: "▲ 8 more above   ·   j/k to scroll",
+		},
+		{
+			name: "ten accounts at 160×24, BY ACCOUNT left for the next page with its first strip", page: daysWorld(tenDays...), width: 160, height: 24,
+			top: Scrolling{Most: 20, Page: 13}, end: Scrolling{Most: 20, Page: 14}, keyRows: 1,
+			below: "▼ 21 more below   ·   j/k to scroll", above: "▲ 20 more above   ·   j/k to scroll",
+		},
+		{
+			name: "ten accounts at 80×24, on a phone", page: daysWorld(tenDays...), width: 80, height: 24,
+			top: Scrolling{Most: 23, Page: 12}, end: Scrolling{Most: 23, Page: 12}, keyRows: 2,
+			below: "▼ 23 more below   ·   j/k to scroll", above: "▲ 23 more above   ·   j/k to scroll",
+		},
+		{
+			name: "twelve families as tall as the frames", page: families, width: 160, height: 37,
+			top: Scrolling{Most: 23, Page: 27}, end: Scrolling{Most: 23, Page: 27}, keyRows: 1,
+			below: "▼ 23 more below   ·   j/k to scroll", above: "▲ 23 more above   ·   j/k to scroll",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := daysFrame(t, tt.page, tt.width, tt.height)
-			if got := f.daysScrolling(); got != tt.want || !f.ScrollsRows() {
-				t.Errorf("it scrolls %+v, a row at a time: %t; want %+v, a row at a time", got, f.ScrollsRows(), tt.want)
-			}
-			for _, scroll := range []int{0, tt.want.Most} {
-				f.Scroll = scroll
+			for _, at := range []struct {
+				scroll int
+				want   Scrolling
+				says   string
+			}{{0, tt.top, tt.below}, {tt.top.Most, tt.end, tt.above}} {
+				f.Scroll = at.scroll
+				if got := f.daysScrolling(); got != at.want || !f.ScrollsRows(status.Document{}, now) {
+					t.Errorf("scrolled %d, it scrolls %+v, a row at a time: %t; want %+v, a row at a time", at.scroll, got, f.ScrollsRows(status.Document{}, now), at.want)
+				}
 				view := textOf(historyDrawn(f).rows(Look{}))[f.top() : f.top()+f.viewRows()]
 				if key := view[len(view)-tt.keyRows]; !strings.HasPrefix(key, "less ") {
-					t.Errorf("scrolled %d, the key's first row reads %q, want it %d over the view's last", scroll, key, tt.keyRows-1)
+					t.Errorf("scrolled %d, the key's first row reads %q, want it %d over the view's last", at.scroll, key, tt.keyRows-1)
+				}
+				if says := view[len(view)-tt.keyRows-1]; says != at.says {
+					t.Errorf("scrolled %d, the row over the key reads %q, want %q", at.scroll, says, at.says)
 				}
 				if slices.ContainsFunc(view, func(row string) bool { return strings.Contains(row, "more account") }) {
-					t.Errorf("scrolled %d, the view reads\n%s\nwant no line counting accounts out of view", scroll, strings.Join(view, "\n"))
+					t.Errorf("scrolled %d, the view reads\n%s\nwant no line counting accounts out of view", at.scroll, strings.Join(view, "\n"))
+				}
+				if heading := slices.IndexFunc(view, func(row string) bool { return strings.HasPrefix(row, "BY ACCOUNT") }); heading >= 0 && heading+2 >= at.want.Page {
+					t.Errorf("scrolled %d, BY ACCOUNT is on the page's row %d of %d, without its first strip:\n%s", at.scroll, heading, at.want.Page, strings.Join(view, "\n"))
 				}
 			}
-			if last := textOf(historyDrawn(f).rows(Look{}))[f.top()+tt.want.Page-1]; !strings.HasPrefix(last, "test") && !strings.Contains(last, "······") {
+			if last := textOf(historyDrawn(f).rows(Look{}))[f.top()+tt.end.Page-1]; !strings.HasPrefix(last, "test") && !strings.Contains(last, "······") {
 				t.Errorf("scrolled to the end, the last row over the key reads %q, want the last account's", last)
 			}
 		})
 	}
-	if f := daysFrame(t, daysWorld(tenDays...), 160, 37); f.ScrollsRows() {
+	if f := daysFrame(t, daysWorld(tenDays...), 160, 37); f.ScrollsRows(status.Document{}, now) {
 		t.Error("ten accounts as tall as the frames scroll a row at a time, want an account at a time")
 	}
 }

@@ -48,7 +48,8 @@ func (f Frame) sessionsHelp() []helpPart {
 					"the limit moved, the jack taken till then. A move by pressure, a pin or by hand leaves the old cord hanging a " +
 					"moment, fading."),
 				said("Where the terminal hasn't the width for the cords, as on a phone, the Switchboard draws lanes instead: each " +
-					"account's line with its sessions under it, a session's words bold while it works."),
+					"account's line with its sessions under it, a session's words bold while it works. Where they don't all fit, " +
+					"they scroll an account at a time, or a row at a time where an account's lane doesn't fit."),
 			},
 			glyphs: []glyph{
 				{drawn: line{{plugGlyph + strings.Repeat(heavyCord.along, 2) + pluggedJack, cordInk(true)}}, means: "a session's cord"},

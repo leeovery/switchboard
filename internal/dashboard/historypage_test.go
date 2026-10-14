@@ -189,7 +189,7 @@ func TestHistoryScrollsAsItsSubTabShownDoes(t *testing.T) {
 					t.Errorf("row %d is under %v, want nothing that scrolls", tt.past+1, got)
 				}
 			}
-			if got := tt.f.ScrollsRows(); got != tt.rows {
+			if got := tt.f.ScrollsRows(status.Document{}, now); got != tt.rows {
 				t.Errorf("ScrollsRows() = %v, want %v", got, tt.rows)
 			}
 		})
@@ -207,6 +207,33 @@ func TestAScrolledYearShowsItsRowsFromWhereItsScrolledTo(t *testing.T) {
 		rows := textOf(historyDrawn(f).rows(Look{}))
 		if !slices.Equal(rows[6:28], whole[tt.from:tt.from+22]) || rows[28] != "" || rows[29] != "" {
 			t.Errorf("scrolled %d, the Year reads\n%s\nwant its rows from row %d of\n%s", tt.scroll, strings.Join(rows, "\n"), tt.from, strings.Join(whole, "\n"))
+		}
+	}
+}
+
+// A Year too tall for the view shows a heading with its first row under it,
+// or ends its page over the heading: BY MONTH with its heads and first
+// month, and on a phone, its numbers' heading with its first figures.
+func TestAScrolledYearShowsNoHeadingWithoutItsFirstRow(t *testing.T) {
+	tests := []struct {
+		name          string
+		width, height int
+		heading       string
+		want          Scrolling
+	}{
+		{name: "BY MONTH, its heading the page's last row", width: 160, height: 20, heading: "BY MONTH", want: Scrolling{Most: 16, Page: 11}},
+		{name: "BY MONTH, its heads the page's last row", width: 160, height: 21, heading: "BY MONTH", want: Scrolling{Most: 15, Page: 11}},
+		{name: "a phone's numbers, their heading the page's last row", width: 52, height: 22, heading: "LAST 12 MONTHS", want: Scrolling{Most: 11, Page: 11}},
+	}
+	for _, tt := range tests {
+		f := yearFrame(t, tt.width, tt.height, views.YearAsk{}, plainYear())
+		rows := textOf(historyDrawn(f).rows(Look{}))
+		if got := f.Scrolling(status.Document{}, now); got != tt.want || rowWith(rows, tt.heading) >= 0 {
+			t.Errorf("%s: the Year scrolls %+v, want %+v, and reads\n%s\nwant no %s", tt.name, got, tt.want, strings.Join(rows, "\n"), tt.heading)
+		}
+		f = yearFrame(t, tt.width, tt.height+2, views.YearAsk{}, plainYear())
+		if rows := textOf(historyDrawn(f).rows(Look{})); rowWith(rows, tt.heading) < 0 {
+			t.Errorf("%s: two rows taller, the Year reads\n%s\nwant %s with its first row", tt.name, strings.Join(rows, "\n"), tt.heading)
 		}
 	}
 }

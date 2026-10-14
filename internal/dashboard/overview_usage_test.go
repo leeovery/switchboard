@@ -414,6 +414,206 @@ func TestRevealingAnAccountInUSAGEScrollsOnlyWhereItIsntShownAndThenTillItIs(t *
 	}
 }
 
+// workAlone is the usage world's work alone: one account, its three
+// windows.
+func workAlone(d *status.Document) {
+	d.Accounts, d.Best, d.Primary, d.Sessions = d.Accounts[:1], "work", "", 2
+}
+
+// usageWhole is USAGE's block of doc as f lays it out whole, every account
+// in view, its key line apart, as text.
+func usageWhole(f Frame, doc status.Document) []string {
+	c := growing(f.Width)
+	f.overviewBlock(doc, now).draw(c, 0)
+	return textOf(c.rows(Look{}))
+}
+
+// rowsOut is what a line saying how many rows are out of view says of above
+// and below, as USAGE says it: "▲ 3 more above · ▼ 9 more below".
+func rowsOut(above, below int) string {
+	var said []string
+	if above > 0 {
+		said = append(said, fmt.Sprintf("▲ %d more above", above))
+	}
+	if below > 0 {
+		said = append(said, fmt.Sprintf("▼ %d more below", below))
+	}
+	return strings.Join(said, " · ")
+}
+
+// usageHeading matches a row of USAGE laid out whole that heads the rows
+// under it: a window's heading, stacked; the windows' headings over the
+// matrix; a block's name on a row of its own, by account; or the pool's rule.
+var usageHeading = regexp.MustCompile(`^([A-Z0-9 -]+|\s+5-HOUR\s.*|\s?(\d+|Σ) \S+|─+)$`)
+
+// Where one account a window, ▲ and ▼ by it, doesn't fit USAGE's rows, it's
+// shown whole, a row at a time, in every layout: paged through, every row of
+// it laid out whole shows; its key line keeps the body's last rows; the row
+// over it says how many rows are out of view, above and below; and no page
+// ends on a heading without the first row under it.
+func TestUSAGEIsShownWholeARowAtATimeWhereAnAccountAWindowDoesntFit(t *testing.T) {
+	tests := []struct {
+		name    string
+		width   int
+		by      By
+		doc     status.Document
+		rows    int
+		keyRows int
+	}{
+		{name: "one account's three windows, stacked under 150 columns", width: 80, doc: usageWorld(workAlone), rows: 11, keyRows: 2},
+		{name: "three accounts' three windows, stacked", width: 120, doc: usageWorld(), rows: 14, keyRows: 2},
+		{name: "ten accounts in the matrix", width: 160, doc: manyRead(10), rows: 7, keyRows: 1},
+		{name: "by account under 110 columns, each block's name on a row of its own", width: 80, by: ByAccount, doc: usageWorld(), rows: 12, keyRows: 2},
+		{name: "by account from 150 columns, ROUTING beside", width: 160, by: ByAccount, doc: usageWorld(), rows: 12, keyRows: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(tt.width, 60)
+			f.By = tt.by
+			usage := f.usageSection(tt.doc, now)
+			if !usage.rowsAtATime(tt.rows) {
+				t.Fatalf("in %d rows, USAGE scrolls an account at a time, want a row at a time", tt.rows)
+			}
+			whole, page := usageWhole(f, tt.doc), tt.rows-tt.keyRows-1
+			most := usage.scrolling(tt.rows, 0).Most
+			if most != len(whole)-page {
+				t.Fatalf("in %d rows, USAGE scrolls %d rows at most, want %d, as far as shows the last of its %d over its key line", tt.rows, most, len(whole)-page, len(whole))
+			}
+			var reached []string
+			for scroll := 0; scroll <= most; scroll++ {
+				f.Scroll = scroll
+				rows, _ := usageBody(f, tt.doc, now, tt.rows)
+				shown := usage.scrolling(tt.rows, scroll).Page
+				if !strings.Contains(rows[tt.rows-tt.keyRows], "even pace") {
+					t.Errorf("scrolled %d, USAGE reads\n%s\nwant its key line on its last %d rows", scroll, strings.Join(rows, "\n"), tt.keyRows)
+				}
+				if says, want := rows[page], rowsOut(scroll, len(whole)-scroll-shown); !strings.HasSuffix(says, want) || strings.TrimSpace(says) != want {
+					t.Errorf("scrolled %d, the row over the key line reads %q, want %q", scroll, says, want)
+				}
+				for i, row := range whole[scroll : scroll+shown] {
+					if !strings.HasPrefix(rows[i], row) {
+						t.Errorf("scrolled %d, the page's row %d reads %q, want it to start %q, the block's row %d", scroll, i, rows[i], row, scroll+i)
+					}
+				}
+				end := scroll + shown - 1
+				for end > scroll && whole[end] == "" {
+					end--
+				}
+				if end > scroll && usageHeading.MatchString(whole[end]) {
+					t.Errorf("scrolled %d, the page ends on %q, a heading without the first row under it", scroll, whole[end])
+				}
+				reached = append(reached, rows[0])
+				if scroll == most {
+					reached = append(reached, rows[1:shown]...)
+				}
+			}
+			for i, row := range whole {
+				if i >= len(reached) || !strings.HasPrefix(reached[i], row) {
+					t.Errorf("paged through, USAGE's row %d never reads %q", i, row)
+				}
+			}
+		})
+	}
+}
+
+// USAGE is shown whole just where an account a window, ▲ and ▼ by it, stops
+// fitting: a row more, and it scrolls an account at a time, every window
+// showing one.
+func TestUSAGEIsShownWholeJustWhereAnAccountAWindowStopsFitting(t *testing.T) {
+	f := frameOf(160, 60)
+	usage := f.usageSection(manyRead(10), now)
+	if usage.rowsAtATime(9) || !usage.rowsAtATime(8) {
+		t.Errorf("in 9 rows and 8, USAGE is shown whole: %t and %t, want it in 8 alone, as an account between ▲ and ▼ takes 9", usage.rowsAtATime(9), usage.rowsAtATime(8))
+	}
+	for scroll := range 10 {
+		f.Scroll = scroll
+		rows, _ := usageBody(f, manyRead(10), now, 9)
+		if !slices.ContainsFunc(rows, func(row string) bool { return accountsRow.MatchString(row) && strings.Contains(row, "%") }) {
+			t.Errorf("in 9 rows, scrolled %d, USAGE reads\n%s\nwant an account's row", scroll, strings.Join(rows, "\n"))
+		}
+	}
+}
+
+// The Overview scrolls a row at a time, a turn of the wheel scrolling
+// several, where its USAGE is shown whole, as at 80×24 with one account of
+// three windows; else an account at a time.
+func TestTheOverviewScrollsARowAtATimeWhereItsUSAGEIsShownWhole(t *testing.T) {
+	doc := usageWorld(workAlone)
+	for _, tt := range []struct {
+		height int
+		rows   bool
+	}{{24, true}, {40, false}} {
+		if got := frameOf(80, tt.height).ScrollsRows(doc, now); got != tt.rows {
+			t.Errorf("at 80×%d, the Overview scrolls a row at a time: %t, want %t", tt.height, got, tt.rows)
+		}
+	}
+	hidden := frameOf(80, 24)
+	hidden.Sections = hidden.Sections.Toggled(SectionUsage)
+	if hidden.ScrollsRows(doc, now) {
+		t.Error("at 80×24, USAGE hidden, the Overview scrolls a row at a time, want it not to")
+	}
+}
+
+// Shown whole, USAGE's targets are the rows of each account's shown, where
+// they're drawn; and ROUTING beside its blocks follows them, drawn on none of
+// the rows under those shown. By account from 150 columns, the blocks are
+// five rows, three apart: scrolled 4 rows, work's last shows on the page's
+// first row, personal's from its fourth, and side's first would be on the
+// scroll line's.
+func TestUSAGEShownWholeTargetsAndHasROUTINGBesideTheRowsItShows(t *testing.T) {
+	f := frameOf(160, 60)
+	f.By, f.Scroll = ByAccount, 4
+	usage := f.usageSection(usageWorld(), now)
+	body := bounds{y: 6, width: 160, rows: 12}
+	want := []Target{{Y: 6, Width: 160, On: OnAccount, Account: "work"}}
+	for y := 3; y < 8; y++ {
+		want = append(want, Target{Y: 6 + y, Width: 160, On: OnAccount, Account: "personal"})
+	}
+	if got := usage.targets(body); !slices.Equal(got, want) {
+		t.Errorf("scrolled 4 rows, USAGE's targets are\n%+v\nwant\n%+v", got, want)
+	}
+	rows, _ := usageBody(f, usageWorld(), now, 12)
+	at := f.overviewBlock(usageWorld(), now).routingAt()
+	beside := func(y int) string { return strings.TrimSpace(rows[y][min(len(rows[y]), at):]) }
+	if !strings.Contains(rows[3], "2 personal") || beside(3) == "" {
+		t.Errorf("scrolled 4 rows, personal's first row reads %q, want ROUTING's state beside it", rows[3])
+	}
+	for _, y := range []int{8, 9, 10} {
+		if beside(y) != "" {
+			t.Errorf("scrolled 4 rows, row %d reads %q, want nothing beside the rows under personal's, the scroll line's among them", y, rows[y])
+		}
+	}
+}
+
+// Shown whole, revealing an account scrolls nowhere while any of its rows
+// shows; else no further than shows its nearest row, below the page or above
+// it. Stacked at 120 columns in 8 rows, five show at once over the key line:
+// the 5-hour's heading on row 0 and its accounts on 2, 4 and 6; the week's
+// heading on 11, and its accounts on 13, 15 and 17; Fable week's on 22, and
+// 24, 26 and 28.
+func TestRevealingAnAccountInUSAGEShownWholeScrollsNoFurtherThanShowsARowOfIt(t *testing.T) {
+	usage := frameOf(120, 60).usageSection(usageWorld(), now)
+	tests := []struct {
+		name   string
+		scroll int
+		id     string
+		want   int
+	}{
+		{name: "shown at the top: where it is", id: "work", want: 0},
+		{name: "below the page: till it's the page's last", id: "side", want: 2},
+		{name: "a row of it the page's first: where it is", scroll: 13, id: "work", want: 13},
+		{name: "nearer below than above: down till it shows", scroll: 7, id: "work", want: 9},
+		{name: "nearer above than below: up till it's the page's first", scroll: 16, id: "work", want: 13},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := usage.revealing(8, tt.scroll, tt.id); got != tt.want {
+				t.Errorf("scrolled %d down, revealing %s scrolls to %d, want %d", tt.scroll, tt.id, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStackedEachWindowScrollsAlike(t *testing.T) {
 	f := frameOf(120, 60)
 	f.Scroll = 1

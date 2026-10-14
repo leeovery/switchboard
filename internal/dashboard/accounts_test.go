@@ -2,9 +2,11 @@ package dashboard
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -190,4 +192,67 @@ func namingCounted(f Frame) (Frame, *int) {
 		return key
 	}
 	return f, named
+}
+
+// Accounts' views, scrolled a row at a time, show each heading with the
+// first row under it, or end the page over the heading, at any height and
+// however far they're scrolled: Compare's groups; Detail's USAGE, the rule
+// over the last six weeks and SESSIONS; and on a phone, Compare's and
+// Detail's parts, each under its heading. A heading on the page's first row
+// stays, as the page has no row over it to end on.
+func TestAccountsShowNoHeadingWithoutItsFirstRow(t *testing.T) {
+	_, sessions, _ := overviewWorld()
+	compare, compareDoc := threeCompared(t, 160, 37)
+	detail := detailFrame(Look{}, framedAccounts, "side", "", detailsPage(t), sessions)
+	tests := []struct {
+		name     string
+		f        Frame
+		doc      status.Document
+		cells    func(row string) string
+		headings []string
+	}{
+		{name: "Compare", f: compare, doc: compareDoc, cells: plain, headings: []string{"ACTIVITY", "LIMITS", "VALUE"}},
+		{name: "Detail", f: detail, doc: usageWorld(extraOff, happened(onAuto()...)), cells: panelCells, headings: []string{"USAGE", "┄┄ the last six weeks", "SESSIONS"}},
+		{
+			name: "a phone's Compare", f: phoneText(t, 52, 37, AccountsCompare, "", phonePage(t), nil), doc: phoneDoc(), cells: plain,
+			headings: []string{"WEEK USED", "BY MODEL", "ACTIVITY", "LIMITS", "VALUE"},
+		},
+		{
+			name: "a phone's Detail", f: phoneText(t, 52, 37, AccountsDetail, "side", phonePage(t), sessions), doc: phoneDoc(), cells: plain,
+			headings: []string{"USAGE", "THIS WEEK", "SESSIONS", "LATELY"},
+		},
+	}
+	for _, tt := range tests {
+		for height := 14; height <= 37; height++ {
+			f := tt.f
+			f.Height = height
+			for scroll := range f.Scrolling(tt.doc, routedAt).Most + 1 {
+				f.Scroll = scroll
+				rows := textOf(f.Draw(tt.doc, routedAt))
+				view := rows[f.top() : f.top()+f.viewRows()]
+				if y := headingAlone(view, tt.cells, tt.headings); y > 0 {
+					t.Errorf("%s at %d rows, scrolled %d, row %d is a heading without its first row:\n%s", tt.name, height, scroll, f.top()+y+1, strings.Join(rows, "\n"))
+				}
+			}
+		}
+	}
+}
+
+// plain is a row's text, trimmed at its right.
+func plain(row string) string {
+	return strings.TrimRight(row, " ")
+}
+
+// headingAlone is the first of the view's rows, as cells reads them, that
+// leads with one of the headings given with none of the rows under it
+// drawn on, -1 where none does.
+func headingAlone(view []string, cells func(string) string, headings []string) int {
+	for y, row := range view {
+		text := strings.TrimLeft(cells(row), " ")
+		heading := slices.ContainsFunc(headings, func(h string) bool { return strings.HasPrefix(text, h) })
+		if heading && !slices.ContainsFunc(view[y+1:], func(r string) bool { return cells(r) != "" }) {
+			return y
+		}
+	}
+	return -1
 }

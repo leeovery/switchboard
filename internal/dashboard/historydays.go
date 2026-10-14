@@ -67,8 +67,8 @@ const (
 // historyDays draws Days from row top: the weeks over the days, BY MODEL's
 // strips and BY ACCOUNT's, its accounts scrolled as the frame has them, and
 // the key on the view's last row; where it scrolls whole, every account,
-// drawn whole and scrolled by rows over the key. Where nothing is recorded
-// in its eight weeks, it says so.
+// drawn whole and scrolled by rows over the key, as paged pages it. Where
+// nothing is recorded in its eight weeks, it says so.
 func (f Frame) historyDays(c *canvas, top int) {
 	p := f.History.Days
 	if p == nil || !p.Recorded() {
@@ -79,7 +79,7 @@ func (f Frame) historyDays(c *canvas, top int) {
 	if l.whole {
 		body := newCanvas(f.Width, l.rows())
 		f.daysStrips(body, l)
-		f.pasteWhole(c, body, top, l.keyRows)
+		f.pasteWhole(c, body, top, l.paged(f))
 	} else {
 		f.daysStrips(c, l)
 	}
@@ -182,6 +182,41 @@ func (l daysLayout) rows() int {
 	return l.accountRow(n-1) + 1
 }
 
+// paged is how Days, laid out whole, pages in the frame's view, over its
+// key, as heads holds its headings.
+func (l daysLayout) paged(f Frame) rowsPaged {
+	return f.wholePaged(l.rows(), l.keyRows, l.heads())
+}
+
+// heads are Days' headings, as it's laid out, each over the first row under
+// it: BY MODEL's and BY ACCOUNT's over their first strips, where each has
+// any; and on a phone, each strip's name over its days.
+func (l daysLayout) heads() []headed {
+	var heads []headed
+	if len(l.page.ByModel) > 0 {
+		heads = append(heads, headed{at: l.top + byModelRow, first: l.familyRow(0)})
+	}
+	for i := range l.page.ByModel {
+		heads = append(heads, l.named(l.familyRow(i))...)
+	}
+	if len(l.page.ByAccount) > 0 {
+		heads = append(heads, headed{at: l.byAccount, first: l.accountsAt})
+	}
+	for i := range l.page.ByAccount {
+		heads = append(heads, l.named(l.accountRow(i))...)
+	}
+	return heads
+}
+
+// named is the strip on row y's name over its days, on a phone, where they
+// take the row under it: none otherwise.
+func (l daysLayout) named(y int) []headed {
+	if !l.phone {
+		return nil
+	}
+	return []headed{{at: y, first: y + 1}}
+}
+
 // daysReach is the width Days' wide form of the page given takes: where its
 // widest row ends, and the margin after it, as Days ends its rows at the
 // edge, as its scroll line does.
@@ -253,7 +288,7 @@ func (f Frame) daysScrolling() Scrolling {
 	}
 	l := f.layOutDays(*p, f.top())
 	if l.whole {
-		return f.scrolledWhole(l.rows(), l.keyRows)
+		return l.paged(f).scrolling(f.Scroll)
 	}
 	return l.scrolling()
 }
@@ -269,7 +304,7 @@ func (f Frame) daysScrolls() (y, rows int) {
 	top := f.top()
 	l := f.layOutDays(*p, top)
 	if l.whole {
-		return top, f.scrolledWhole(l.rows(), l.keyRows).Page
+		return top, l.paged(f).page()
 	}
 	return l.accountsAt, l.scrollRow - l.accountsAt
 }

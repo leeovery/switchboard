@@ -195,12 +195,10 @@ func (col compareColumn) ink() ink {
 func (cp compared) draw(c *canvas, top int) {
 	cp.heads(c, top, cp.columns())
 	body := cp.rows()
-	content, rows := body.height(), cp.bodyRows()
-	offset := byRows(content, rows).clamped(cp.f.Scroll)
-	c.paste(body, offset, top+compareHeads, rows)
-	if content > rows {
-		c.line(0, cp.f.Height-underView, outOfView(offset, content-offset-rows, cp.f.edge(), compareOut))
-	}
+	paged := pagedWhole(body, cp.bodyRows())
+	from, to := paged.shown(cp.f.Scroll)
+	c.paste(body, from, top+compareHeads, to-from)
+	c.line(0, cp.f.Height-underView, outOfView(from, paged.content-to, cp.f.edge(), compareOut))
 }
 
 // bodyRows are the rows Compare's rows show in, under its heads.
@@ -209,9 +207,9 @@ func (cp compared) bodyRows() int {
 }
 
 // scrolling is how far Compare's rows scroll under its heads, a row at a
-// time, at every offset alike.
-func (cp compared) scrolling(int) Scrolling {
-	return byRows(cp.rows().height(), cp.bodyRows())
+// time, scrolled offset down, as pagedWhole pages them.
+func (cp compared) scrolling(offset int) Scrolling {
+	return pagedWhole(cp.rows(), cp.bodyRows()).scrolling(offset)
 }
 
 // scrolls is what of Compare scrolls: its rows under its heads, across the
@@ -334,6 +332,7 @@ func (cp compared) body(columns []compareColumn) *canvas {
 	for _, g := range groups {
 		y += groupApart
 		c.line(0, y, line{{g.name, dimInk}})
+		c.heading(y, y+1)
 		for _, r := range g.rows {
 			y++
 			c.line(2, y, line{{r.label, secondaryInk}})

@@ -28,40 +28,158 @@ func (s Scrolling) clamped(offset int) int {
 	return min(max(offset, 0), s.Most)
 }
 
-// ScrollsRows reports whether the view shown scrolls a row at a time, as
-// History's Year, and its Weeks and Days where they scroll whole, Sessions'
-// List and a session's page's turns do, rather than a thing at a time: an
-// account, as the Overview's USAGE does, History's Weeks and Days otherwise,
-// Sessions' Switchboard and Runway's lanes, or a period, as History's Tokens
+// leastPaged is the fewest rows a view shown a row at a time keeps over a
+// foot it can do without, as USAGE's key line and Tokens' footnote: a row of
+// it, and the row saying what's out of view.
+const leastPaged = 2
+
+// headed is a heading's row and the row of the first thing under it, which
+// a view scrolled a row at a time shows together, or the heading not at all.
+type headed struct {
+	at, first int
+}
+
+// rowsPaged is a view's rows laid out whole, content of them, shown a row at
+// a time in rows rows: a page of them, as many as fit over its foot rows,
+// foot of them, held on its last rows with a blank row over them, where it
+// keeps any; but a page ending between a heading and the first row under it,
+// as heads holds them in the order of their rows, ends over the heading,
+// unless the heading is its first row. Where says has it, the row after the
+// page says how many rows are out of view above it and below: the blank row
+// over the foot, or where there's none, the last row, the page a row shorter
+// where it scrolls, so long as that leaves it a row.
+type rowsPaged struct {
+	rows, foot, content int
+	heads               []headed
+	says                bool
+}
+
+// page is how many rows show at once, at most.
+func (p rowsPaged) page() int {
+	page := max(p.rows-p.foot-min(p.foot, 1), 0)
+	if p.says && p.foot == 0 && p.content > page && page > 1 {
+		page--
+	}
+	return page
+}
+
+// shown are the rows shown scrolled offset rows down, no further than shows
+// the last: from the first, up to to.
+func (p rowsPaged) shown(offset int) (from, to int) {
+	from = byRows(p.content, p.page()).clamped(offset)
+	return from, p.end(from)
+}
+
+// end is the row after the last shown from row from: a page on, or the
+// content's end, but over a heading whose first row that leaves out.
+func (p rowsPaged) end(from int) int {
+	to := min(from+p.page(), p.content)
+	for _, h := range slices.Backward(p.heads) {
+		if from < h.at && h.at < to && h.first >= to {
+			to = h.at
+		}
+	}
+	return to
+}
+
+// pagedWhole is how a view drawn whole on c pages in rows rows, a row at a
+// time, each heading marked on it shown with its first row.
+func pagedWhole(c *canvas, rows int) rowsPaged {
+	return rowsPaged{rows: rows, content: c.height(), heads: c.headings()}
+}
+
+// scrolling is how far the rows scroll, a row at a time, scrolled offset
+// down: as far as shows the last, a page at once, less the rows a heading
+// left out at its foot at the offset leaves.
+func (p rowsPaged) scrolling(offset int) Scrolling {
+	page := p.page()
+	from, to := p.shown(offset)
+	return Scrolling{Most: max(p.content-page, 0), Page: page - (min(from+page, p.content) - to)}
+}
+
+// paste draws the rows of whole, the view's rows laid out whole, shown
+// scrolled offset down, from row y, and under them, where it says, how many
+// are out of view, as said has it.
+func (p rowsPaged) paste(c, whole *canvas, y, offset, width int, forms ...outForm) {
+	from, to := p.shown(offset)
+	c.paste(whole, from, y, to-from)
+	p.said(c, y, from, to, width, forms...)
+}
+
+// said draws, where the rows say it and any from from up to to are out of
+// view, how many are, above and below, in the longest of the forms that fits
+// width cells, on the row after the page, the view's first row being y.
+func (p rowsPaged) said(c *canvas, y, from, to, width int, forms ...outForm) {
+	page := p.page()
+	if above, below := from, p.content-to; p.says && above+below > 0 && page > 0 && page < p.rows-p.foot {
+		c.line(0, y+page, outOfView(above, below, width, forms...))
+	}
+}
+
+// revealing is how far the rows, scrolled offset down, are scrolled to show
+// one of the spans given, in the order of their rows: where they are, while
+// any shows; else no further than it must go to, down till the first below
+// the page shows, or up till the last above it is the page's first,
+// whichever is nearer.
+func (p rowsPaged) revealing(offset int, spans []rowAt) int {
+	from, to := p.shown(offset)
+	if slices.ContainsFunc(spans, func(s rowAt) bool { return s.y < to && s.y+s.rows > from }) {
+		return from
+	}
+	up, down := -1, -1
+	for _, s := range spans {
+		if s.y < from {
+			up = s.y
+		}
+	}
+	if i := slices.IndexFunc(spans, func(s rowAt) bool { return s.y >= to }); i >= 0 {
+		most := p.scrolling(from).Most
+		down = from
+		for down < most && spans[i].y >= p.end(down) {
+			down++
+		}
+	}
+	switch {
+	case up < 0 && down < 0:
+		return from
+	case up < 0 || down >= 0 && down-from <= from-up:
+		return down
+	}
+	return up
+}
+
+// ScrollsRows reports whether the view shown of doc at now scrolls a row at a
+// time, as History's Year, its Weeks and Days where they scroll whole and
+// Tokens where a period doesn't fit, the Overview's USAGE where an account a
+// window doesn't, Sessions' List and a session's page's turns do, rather than
+// a thing at a time: an account, as USAGE does otherwise, History's Weeks and
+// Days, Sessions' Switchboard and Runway's lanes, or a period, as Tokens
 // does.
-func (f Frame) ScrollsRows() bool {
+func (f Frame) ScrollsRows(doc status.Document, now time.Time) bool {
 	switch f.Shown() {
-	case Overview, Runway:
+	case Overview:
+		return f.overviewScrollsRows(doc, now)
+	case Runway:
 		return false
 	case History:
-		return f.scrollsWhole()
+		return f.historyScrollsRows()
 	case Sessions:
-		return f.SessionsTab.Shown == SessionsList
+		return f.SessionsTab.Shown == SessionsList || f.sessionsForm(doc, now).byRows
 	}
 	return true
 }
 
 // Revealing is how far the Overview's USAGE of doc at now is scrolled to show
-// the account with the given id: as far as the frame has it scrolled, where
-// that shows it, else no further than it must go to. Scrolled down, a page
-// may show fewer than the one it left, as USAGE's does once a ▲ row comes
-// over it, so it goes on an account at a time until the account shows, the
-// page laid out once for every account it goes on.
+// the account with the given id, as its revealing has it, in the rows it's
+// laid out in: none where it doesn't scroll, as on a frame too short for the
+// view.
 func (f Frame) Revealing(doc status.Document, now time.Time, id string) int {
 	f = f.At(doc, now)
-	m := f.Moment(doc, now)
-	i := slices.IndexFunc(m.Accounts, func(a status.AccountNow) bool { return a.ID == id })
-	scrolling := f.scrollingAt(doc, now)
-	at := scrolling(f.Scroll).revealing(f.Scroll, i)
-	for s := scrolling(at); at < s.Most && i >= at+s.Page; s = scrolling(at) {
-		at++
+	usage := usageOf(f.laidOut(doc, now, f.top()))
+	if f.cramped() || usage.revealing == nil {
+		return 0
 	}
-	return at
+	return usage.revealing(usage.body.rows, f.Scroll, id)
 }
 
 // revealing is how far what's scrolled at, and scrolls as s says, is

@@ -100,10 +100,10 @@ func (r tokensRow) number(column string) Number {
 	return Number{Kind: NumberTokens, Of: column}
 }
 
-// historyTokens draws Tokens from row top: its heads, then its periods,
-// newest first, a blank row between them, as many as fit whole, scrolled as
-// the frame has it, with how many more are below; and the footnote on the
-// view's last rows. With nothing recorded, it says so.
+// historyTokens draws Tokens from row top: its heads; then its periods,
+// newest first, a blank row between them, as periods or byRows draws them,
+// as each fits whole or not; and the footnote on the view's last rows. With
+// nothing recorded, it says so.
 func (f Frame) historyTokens(c *canvas, top int) {
 	page := f.History.Tokens
 	if page == nil || len(page.Periods) == 0 {
@@ -116,16 +116,27 @@ func (f Frame) historyTokens(c *canvas, top int) {
 	for i, l := range note {
 		c.line(0, top+f.viewRows()-len(note)+i, l)
 	}
-	if placed.rows < 1 {
-		return
+	switch {
+	case placed.rows < 1:
+	case placed.byRows():
+		f.tokensByRows(c, cols, placed)
+	default:
+		f.tokensByPeriods(c, cols, placed)
 	}
+}
+
+// tokensByPeriods draws Tokens' periods, every one of which fits whole, as
+// placed places them: as many as fit, scrolled as the frame has it, a period
+// at a time, and under them how many more are below.
+func (f Frame) tokensByPeriods(c *canvas, cols tokensColumns, placed tokensPlaced) {
+	periods := f.History.Tokens.Periods
 	from := min(max(f.Scroll, 0), placed.most())
 	shown := placed.shown(from)
-	below := len(page.Periods) - from - shown
-	out := min(below, 1, placed.rows-1)
-	body := c.within(bounds{x: 0, y: placed.first, width: c.width, rows: placed.rows - out})
+	below := len(periods) - from - shown
+	out := min(below, 1)
+	body := c.within(bounds{y: placed.first, width: c.width, rows: placed.rows - out})
 	y := placed.first
-	for i, period := range page.Periods[from : from+shown] {
+	for i, period := range periods[from : from+shown] {
 		if i > 0 {
 			y++
 		}
@@ -135,8 +146,27 @@ func (f Frame) historyTokens(c *canvas, top int) {
 		}
 	}
 	if out > 0 {
-		c.line(0, min(y, placed.first+placed.rows-1), outOfView(0, below, f.Width, periodsOut(f.History.TokensAsk.Period.Name())))
+		c.line(0, y, outOfView(0, below, f.Width, periodsOut(f.History.TokensAsk.Period.Name())))
 	}
+}
+
+// tokensByRows draws Tokens' periods, where one doesn't fit whole, a row at
+// a time, as placed pages them: the rows shown, scrolled as the frame has
+// it, and after them how many rows are out of view, above and below.
+func (f Frame) tokensByRows(c *canvas, cols tokensColumns, placed tokensPlaced) {
+	paged := placed.paged()
+	from, to := paged.shown(f.Scroll)
+	body := c.within(bounds{y: placed.first, width: c.width, rows: to - from})
+	y := placed.first - from
+	for i, period := range f.History.Tokens.Periods {
+		if height := placed.heights[i]; y+height > placed.first && y < placed.first+to-from {
+			for j, r := range f.tokensRows(period) {
+				cols.draw(body, y+j, r)
+			}
+		}
+		y += placed.heights[i] + 1
+	}
+	paged.said(c, placed.first, from, to, f.Width, historyRowsOut...)
 }
 
 // tokensHeads draws Tokens' heads along row y, each cut to its column, as
@@ -364,17 +394,19 @@ func againstItsPrice(a views.Against, unit string) []part {
 
 // tokensPlaced is how Tokens' periods fit in the rows they have, from row
 // first, a blank row between each and a row under the last shown where more
-// are below: each period's height, as the frame has them split.
+// are below: each period's height, as the frame has them split; and their
+// headings, laid out one after another, as periodHeads has them.
 type tokensPlaced struct {
 	heights     []int
+	heads       []headed
 	first, rows int
 }
 
 // tokensPlaced is the frame's periods of Tokens, its view from row top,
 // placed from two rows under its heads to two over its footnote, and the
 // footnote, wrapped to the frame's width, which ends on the view's last row.
-// Where that leaves the periods fewer than two rows, a period's first and
-// the line saying what's below, the footnote goes, as it would soon reach
+// Where that leaves the periods fewer than leastPaged rows, a period's first
+// and the line saying what's below, the footnote goes, as it would soon reach
 // the heads, and the periods run to the view's last row.
 func (f Frame) tokensPlaced(top int) (tokensPlaced, []line) {
 	page := f.History.Tokens
@@ -383,14 +415,66 @@ func (f Frame) tokensPlaced(top int) (tokensPlaced, []line) {
 	}
 	note := wrapParts(f.Width, f.tokensFootnote(page.PricesAsOf)...)
 	p := tokensPlaced{first: top + 2}
-	if p.rows = p.over(top+f.viewRows(), note); p.rows < 2 {
+	if p.rows = p.over(top+f.viewRows(), note); p.rows < leastPaged {
 		note = nil
 		p.rows = p.over(top+f.viewRows(), note)
 	}
+	y := 0
 	for _, t := range page.Periods {
-		p.heights = append(p.heights, tokensHeight(t, f.History.TokensSplit))
+		height := tokensHeight(t, f.History.TokensSplit)
+		p.heights = append(p.heights, height)
+		p.heads = append(p.heads, periodHeads(t, f.History.TokensSplit, y)...)
+		y += height + 1
 	}
 	return p, note
+}
+
+// byRows reports whether Tokens' periods show a row at a time: where one of
+// them doesn't fit whole in the rows they have, with a row under it where
+// more are below.
+func (p tokensPlaced) byRows() bool {
+	for i, height := range p.heights {
+		if i < len(p.heights)-1 {
+			height++
+		}
+		if height > p.rows {
+			return true
+		}
+	}
+	return false
+}
+
+// paged is how Tokens' periods page a row at a time in the rows they have,
+// laid out one after another, a blank row between each, as heads holds their
+// headings, saying how many rows are out of view.
+func (p tokensPlaced) paged() rowsPaged {
+	content := max(len(p.heights)-1, 0)
+	for _, height := range p.heights {
+		content += height
+	}
+	return rowsPaged{rows: p.rows, content: content, heads: p.heads, says: true}
+}
+
+// periodHeads are the headings of a period, split as given, from row y, as
+// tokensRows makes its rows, each over the first row under it: its own row,
+// where it's split into any; and by account and model, each account's row,
+// where it has versions under it.
+func periodHeads(t views.TokenPeriod, split TokensSplit, y int) []headed {
+	if tokensHeight(t, split) < 2 {
+		return nil
+	}
+	heads := []headed{{at: y, first: y + 1}}
+	if split != TokensByAccountAndModel {
+		return heads
+	}
+	for _, a := range t.ByAccount {
+		y++
+		if len(a.ByModel) > 0 {
+			heads = append(heads, headed{at: y, first: y + 1})
+		}
+		y += len(a.ByModel)
+	}
+	return heads
 }
 
 // over is how many rows the periods have from their first to end, the row
@@ -419,7 +503,9 @@ func tokensHeight(t views.TokenPeriod, split TokensSplit) int {
 }
 
 // shown is how many periods show scrolled to the one from, whole, with a row
-// for how many more are below where they don't all show: at least one.
+// for how many more are below where they don't all show: none where the
+// first doesn't fit, as it does wherever byRows says they show a period at
+// a time.
 func (p tokensPlaced) shown(from int) int {
 	used, n := -1, 0
 	for i := from; i < len(p.heights); i++ {
@@ -432,7 +518,7 @@ func (p tokensPlaced) shown(from int) int {
 		}
 		used, n = used+1+p.heights[i], n+1
 	}
-	return max(n, 1)
+	return n
 }
 
 // most is the furthest Tokens scrolls, in periods: the first from which the
@@ -447,13 +533,17 @@ func (p tokensPlaced) most() int {
 	return 0
 }
 
-// tokensScrolling is how far Tokens, from row top, scrolls, a period at a
-// time, scrolled to each offset given: as far as most says, and as many
-// periods at once as show from there.
+// tokensScrolling is how far Tokens, from row top, scrolls, scrolled to each
+// offset given: a row at a time, where byRows says so, as paged has it; else
+// a period at a time, as far as most says, and as many periods at once as
+// show from there.
 func (f Frame) tokensScrolling(top int) func(offset int) Scrolling {
 	placed, _ := f.tokensPlaced(top)
-	if len(placed.heights) == 0 || placed.rows < 1 {
+	switch {
+	case len(placed.heights) == 0 || placed.rows < 1:
 		return func(int) Scrolling { return Scrolling{} }
+	case placed.byRows():
+		return placed.paged().scrolling
 	}
 	most := placed.most()
 	return func(offset int) Scrolling {
