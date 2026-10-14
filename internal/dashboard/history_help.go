@@ -22,7 +22,7 @@ func (f Frame) historyHelp() []helpPart {
 				said("`v` shows one model version alone, in four steps of its own colour, or one account, `←` and `→` stepping " +
 					"between the accounts; the shades, their key and the numbers re-scale to what's shown."),
 			},
-			glyphs: f.shadesHelp(),
+			glyphs: shadesHelp(f.yearDay),
 		},
 		{
 			heading: "BY MONTH",
@@ -52,10 +52,7 @@ func (f Frame) historyHelp() []helpPart {
 					"naming the account to drop; " + views.OneTooFew + ", where now is short on 4 or more of the 7 and one more " +
 					"would halve that; " + views.TooFew + ", where one more wouldn't, the row under it saying how short one more " +
 					"would still be; else " + views.AboutRight + "."),
-				said("An account's: hits its limit most weeks, in 3 or more of the 7; plenty to spare most weeks, 40% or more " +
-					"left at a reset on average; else ends most weeks with room. Could go, where the rest would cover it with " +
-					"no more weeks short, as it hit no limit and used 10% or less on average; barely used, 75% or more left at " +
-					"a reset on average."),
+				said("An account's: " + accountVerdictsMean),
 				said("`v` draws each week as a column filled to its peak, each row in the bar's colour at its height."),
 			},
 			glyphs: []glyph{
@@ -92,15 +89,21 @@ func (f Frame) historyHelp() []helpPart {
 	}
 }
 
+// accountVerdictsMean says what each of Weeks' verdicts on an account means,
+// as History's help and Accounts' say it.
+const accountVerdictsMean = views.HitsItsLimit + ", in 3 or more of the 7; " + views.PlentyToSpare + ", 40% or more left at a reset on " +
+	"average; else " + views.EndsWithRoom + ". Could go, where the rest would cover it with no more weeks short, as it hit no limit " +
+	"and used 10% or less on average; " + views.BarelyUsed + ", 75% or more left at a reset on average."
+
 // subTabHeading is the heading help explains a sub-tab of History under: its
 // name, as the heading row names it, in capitals.
 func subTabHeading(v HistoryView) string {
 	return strings.ToUpper(historyViews[v])
 }
 
-// shadesHelp are the five shades a day is drawn in, each as the Year draws a
-// day at its level, and what it means.
-func (f Frame) shadesHelp() []glyph {
+// shadesHelp are the five shades a day is drawn in, each as day draws a day
+// at its level, and what it means.
+func shadesHelp(day func(level int) line) []glyph {
 	means := [shadeLevels]string{
 		"a day with nothing on it",
 		"the quietest quarter of the active days",
@@ -110,9 +113,14 @@ func (f Frame) shadesHelp() []glyph {
 	}
 	glyphs := make([]glyph, 0, shadeLevels)
 	for level, m := range means {
-		glyphs = append(glyphs, glyph{drawn: line{f.daySquare(dayInk(level), level)}, means: m})
+		glyphs = append(glyphs, glyph{drawn: day(level), means: m})
 	}
 	return glyphs
+}
+
+// yearDay is a day of the Year at a level, as the Year draws it.
+func (f Frame) yearDay(level int) line {
+	return line{f.daySquare(dayInk(level), level)}
 }
 
 // familyBar is a BY MONTH bar as help draws it: a cell of each family, in its

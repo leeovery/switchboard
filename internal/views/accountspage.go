@@ -32,6 +32,9 @@ type AccountsPage struct {
 	// the version table's order, as every account's ByModel lists them, each
 	// as named names it.
 	Versions []ledger.Version
+	// PricesAsOf is the date of the day the price table worth is priced by
+	// was read, as help gives it.
+	PricesAsOf string
 
 	// in and days are what the six weeks are worked out from, for At to
 	// work them out afresh: the input the page was built of, and the days
@@ -92,7 +95,7 @@ func (p Past) Accounts(period AccountsPeriod) AccountsPage {
 	known := plans{accounts: in.Accounts, table: in.Prices}
 	costs := plansOf(days, known, first.Format(time.DateOnly), period.share())
 	_, weeks := splitAt(p.days, weeksTo(today, in.WeekStarts, weeksShown).AddDate(0, 0, -lookBack).Format(time.DateOnly))
-	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), in: in, days: weeks}
+	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), PricesAsOf: in.Prices.AsOf, in: in, days: weeks}
 	for x, a := range in.Accounts {
 		plan, _ := known.of(a.ID)
 		page.Rows[x] = AccountsRow{Label: a.Label, Totals: totals.Accounts[x], Plan: costs[x], PlanName: plan.Name}

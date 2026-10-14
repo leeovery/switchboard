@@ -6,7 +6,7 @@ import "slices"
 // reports false where that's the one drawn, or there's no such sub-tab: with
 // one account, Detail, the one there is, is drawn always.
 func (s AccountsShown) Showing(i int) (AccountsShown, bool) {
-	if s.alone() || i < 0 || i >= len(accountsViews) || AccountsView(i) == s.Shown {
+	if s.Alone() || i < 0 || i >= len(accountsViews) || AccountsView(i) == s.Shown {
 		return s, false
 	}
 	s.Shown = AccountsView(i)
@@ -44,7 +44,7 @@ func (s AccountsShown) Moved(by int, running []string) (AccountsShown, bool) {
 	switch {
 	case s.View() == AccountsCompare:
 		return s.focusing(by)
-	case s.alone() || by > 0 && len(running) == 0:
+	case s.Alone() || by > 0 && len(running) == 0:
 		return s, false
 	}
 	in := by > 0
@@ -123,7 +123,7 @@ func (s AccountsShown) Choosing(by int, running []string) (AccountsShown, bool) 
 	switch {
 	case s.View() != AccountsDetail:
 		return s, false
-	case s.InSessions || s.alone():
+	case s.InSessions || s.Alone():
 		return s.selecting(by, running)
 	}
 	listed := s.listed()
@@ -135,7 +135,7 @@ func (s AccountsShown) Choosing(by int, running []string) (AccountsShown, bool) 
 // given id, "" for all accounts, as a click on its row chooses it, as chose
 // has it; with no list, as off Detail or with one account, as it is.
 func (s AccountsShown) ChosenOn(id string) AccountsShown {
-	if s.View() != AccountsDetail || s.alone() {
+	if s.View() != AccountsDetail || s.Alone() {
 		return s
 	}
 	return s.chose(id)
@@ -178,7 +178,7 @@ func (s AccountsShown) selecting(by int, running []string) (AccountsShown, bool)
 // on its row selects it; off Detail, as it is.
 func (s AccountsShown) SelectedOn(id string) AccountsShown {
 	if s.View() == AccountsDetail {
-		s.Selected, s.InSessions = id, !s.alone()
+		s.Selected, s.InSessions = id, !s.Alone()
 	}
 	return s
 }

@@ -78,15 +78,15 @@ func (s AccountsShown) Kept() theme.AccountsPrefs {
 	return theme.AccountsPrefs{View: lowerNames(accountsViews)[s.Shown], Period: string(s.Period)}
 }
 
-// alone reports whether there's one account, which all accounts would only
+// Alone reports whether there's one account, which all accounts would only
 // repeat: Compare goes, Detail showing it.
-func (s AccountsShown) alone() bool {
+func (s AccountsShown) Alone() bool {
 	return len(s.Accounts) == 1
 }
 
 // View is the sub-tab drawn: Shown, but Detail where there's one account.
 func (s AccountsShown) View() AccountsView {
-	if s.alone() {
+	if s.Alone() {
 		return AccountsDetail
 	}
 	return s.Shown
@@ -95,7 +95,7 @@ func (s AccountsShown) View() AccountsView {
 // Account is the account Detail shows, by id: the one there is, where
 // there's one; else Chosen, "" for all accounts.
 func (s AccountsShown) Account() string {
-	if s.alone() {
+	if s.Alone() {
 		return s.Accounts[0].ID
 	}
 	return s.Chosen
@@ -107,7 +107,7 @@ func (s AccountsShown) Account() string {
 // period between < and >.
 func (s AccountsShown) heading() heading {
 	h := heading{name: strings.ToUpper(Accounts.Title()), subTabs: accountsViews, shown: int(s.View()), tight: true, period: s.Period.Name()}
-	if s.alone() {
+	if s.Alone() {
 		h.subTabs, h.shown = accountsViews[AccountsDetail:], 0
 	}
 	return h
