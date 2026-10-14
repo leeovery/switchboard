@@ -399,8 +399,8 @@ func TestTheEventsOfASessionPausedAtTheirTopReadBackPastItsFirstLine(t *testing.
 	writeLines(t, state, lines...)
 	lost := past(-2*day + time.Hour)
 	writeEvents(t, state,
-		events.Line{Event: status.Event{ID: 1, At: lost, Kind: status.EventStarted, Account: "work", Session: apiSession, Model: opus, Reason: "new"}, Run: past(-40 * day)},
-		events.Line{Event: status.Event{ID: 1, At: past(-70 * time.Minute), Kind: status.EventStarted, Account: "work", Session: apiSession, Model: opus, Reason: "new"}, Run: past(-80 * time.Minute)},
+		events.Line{ID: 1, At: lost, Kind: status.EventStarted, Account: "work", Session: apiSession, Model: opus, Reason: "new", Run: past(-40 * day)},
+		events.Line{ID: 1, At: past(-70 * time.Minute), Kind: status.EventStarted, Account: "work", Session: apiSession, Model: opus, Reason: "new", Run: past(-80 * time.Minute)},
 	)
 	h := newHarness(t, probedWithoutTheRouter())
 	h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
