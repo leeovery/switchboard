@@ -577,7 +577,7 @@ func (s Section) fills() bool {
 // for the watch to keep for the next look: the zero Layout off the Overview,
 // and under a session's page, which hides it.
 func (f Frame) LayoutOf(doc status.Document, now time.Time) Layout {
-	if f.View != Overview || f.Session != nil {
+	if f.Shown() != Overview {
 		return Layout{}
 	}
 	f = f.At(doc, now)

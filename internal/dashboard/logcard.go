@@ -83,7 +83,7 @@ func (c LogCard) card(f Frame) Card {
 	shown := min(max(room, 0), len(body))
 	from := min(max(c.Scroll, 0), len(body)-shown)
 	k.body, k.scroll = body[from:from+shown], cardScroll{above: from, below: len(body) - from - shown}
-	k.keys = c.keys(form.content, k.scroll != cardScroll{}, f.Session == nil)
+	k.keys = c.keys(form.content, k.scroll != cardScroll{}, f.Shown() != SessionPage)
 	return k
 }
 
@@ -716,7 +716,7 @@ func (f Frame) logLitRow() (int, bool) {
 // session's page, where one is open, its turn open's request chosen, as
 // turnLitRow has it; else the Log's line chosen, as logLitRow has it.
 func (f Frame) cardLine() (int, bool) {
-	if f.Session != nil {
+	if f.Shown() == SessionPage {
 		return f.turnLitRow()
 	}
 	return f.logLitRow()
@@ -726,7 +726,7 @@ func (f Frame) cardLine() (int, bool) {
 // session's page, where one is open, as turnCardRows has them; else the
 // Log's table's.
 func (f Frame) cardRows() (first, last int) {
-	if f.Session != nil {
+	if f.Shown() == SessionPage {
 		return f.turnCardRows()
 	}
 	return f.logTableRows()
@@ -762,7 +762,7 @@ func (f Frame) LogFitted(c LogCard) (LogPage, LogCard) {
 	c.Placed = len(c.body(f.logCardForm(), f.heldMoment())) + chrome(true)
 	first, last := f.cardRows()
 	to := last - 1 - c.Placed
-	if _, _, _, fits := f.logCardSpan(y, c.Placed); !ok || fits || to < first || f.Session != nil {
+	if _, _, _, fits := f.logCardSpan(y, c.Placed); !ok || fits || to < first || f.Shown() == SessionPage {
 		return f.Log, c
 	}
 	return f.Log.lifted(y-first, to-first, f.LogRows()), c

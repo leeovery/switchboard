@@ -41,10 +41,7 @@ func (s Scrolling) clamped(offset int) int {
 // than a thing at a time: an account, as the Overview's USAGE does, and
 // History's Weeks and Days, or a period, as its Tokens does.
 func (f Frame) ScrollsRows() bool {
-	if f.Session != nil {
-		return true
-	}
-	switch f.View {
+	switch f.Shown() {
 	case Overview:
 		return false
 	case History:
@@ -98,7 +95,7 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 // requests, as RequestsScrolling has it, which they scroll in its turns'
 // place; else the view, as Scrolling has it.
 func (f Frame) KeysScroll(doc status.Document, now time.Time) bool {
-	if f.Session != nil && f.Session.Open != 0 {
+	if f.Shown() == SessionPage && f.Session.Open != 0 {
 		return f.RequestsScrolling().Most > 0
 	}
 	return f.Scrolling(doc, now).Most > 0
@@ -130,7 +127,8 @@ func (f Frame) TurnsScrolling() Scrolling {
 // the view, as cramped says, never scrolls, nor one of a document of no
 // accounts, but History and a session's page.
 func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) Scrolling {
-	if f.Session != nil {
+	shown := f.Shown()
+	if shown == SessionPage {
 		s := f.TurnsScrolling()
 		return func(int) Scrolling { return s }
 	}
@@ -138,14 +136,14 @@ func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) 
 	var s Scrolling
 	switch top := f.top(); {
 	case f.cramped():
-	case f.View == History:
+	case shown == History:
 		return f.historyScrolling(top)
 	case len(m.Accounts) == 0:
-	case f.View == Overview:
+	case shown == Overview:
 		return f.overviewScrolling(doc, now)
-	case f.View == Sessions:
+	case shown == Sessions:
 		s = byRows(f.sessionsRows(doc, now, top))
-	case f.View == Runway:
+	case shown == Runway:
 		content, view := f.runwayRows(len(m.Accounts), top)
 		s = Scrolling{Most: content - view, Page: view}
 	}

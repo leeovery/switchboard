@@ -171,7 +171,7 @@ func (m Model) logRows() int {
 // details; s the page of its session, as openLineSession has it; f the
 // panel of what the table shows; and / the find.
 func (m Model) logKey(key string) (Model, tea.Cmd, bool) {
-	if m.view != dashboard.Log {
+	if m.shownView() != dashboard.Log {
 		return m, nil, false
 	}
 	p, rows := m.log.page, m.logRows()
@@ -220,7 +220,7 @@ func (m Model) scrollLog(by scrollStep) Model {
 // details, and paused, end following again; then f and /, a group of their
 // own while paused.
 func (m Model) logListings() []keyListing {
-	log, p := m.view == dashboard.Log, m.log.page
+	log, p := m.shownView() == dashboard.Log, m.log.page
 	paused := p.Paused()
 	return []keyListing{
 		{Key: logViewKey, works: log, apart: true},

@@ -60,7 +60,7 @@ func (m Model) openLogFind() (Model, tea.Cmd) {
 // key: never under a session's page open over it, which takes them, the
 // find waiting under it as it was.
 func (m Model) finding() bool {
-	return m.session == nil && m.view == dashboard.Log && m.log.page.Finding.Open
+	return m.shownView() == dashboard.Log && m.log.page.Finding.Open
 }
 
 // logFindKey acts on a key while the Log's find is open, which takes every

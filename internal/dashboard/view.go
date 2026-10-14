@@ -25,11 +25,16 @@ const (
 	// Log is every request and every event the router tells of, as they
 	// happen.
 	Log View = "log"
+	// SessionPage is no tab but a session's page, open over the tab it was
+	// opened from, as a frame's Shown has it: never one the title row lists,
+	// tab moves to, or the preferences keep.
+	SessionPage View = "session"
 )
 
-// titles are the tabs' names in the title row.
+// titles are the tabs' names in the title row, and a session's page's, as
+// help names it.
 var titles = map[View]string{
-	Overview: "Overview", Accounts: "Accounts", History: "History", Sessions: "Sessions", Runway: "Runway", Log: "Log",
+	Overview: "Overview", Accounts: "Accounts", History: "History", Sessions: "Sessions", Runway: "Runway", Log: "Log", SessionPage: "Session",
 }
 
 // Views are the tabs, in the order the title row shows them and tab moves

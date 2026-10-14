@@ -63,7 +63,7 @@ func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 	case dashboard.OnTab:
 		return m.acting().showTab(t.Tab), nil
 	case dashboard.OnSubTab:
-		if m.view == dashboard.Log {
+		if m.shownView() == dashboard.Log {
 			m.log.page = m.log.page.Showing(dashboard.LogView(t.SubTab))
 			return m, nil
 		}

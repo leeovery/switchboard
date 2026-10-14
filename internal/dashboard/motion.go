@@ -41,7 +41,7 @@ func (f Frame) moving(c *canvas, doc status.Document, now time.Time) Motion {
 // travelling has it, but nothing of a view too short to be drawn, as
 // cramped says, nor under a session's page, drawn in its place.
 func (f Frame) travel(doc status.Document, now time.Time) Motion {
-	if f.cramped() || f.View != Sessions || f.Session != nil {
+	if f.cramped() || f.Shown() != Sessions {
 		return Motion{}
 	}
 	return f.travelling(doc, now)
@@ -67,12 +67,11 @@ func (f Frame) MaySettle() bool {
 // draw them, but none of a window a panel draws without a bar; and none on a
 // view that draws no bar, nor under a session's page, which draws none.
 func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
-	switch m := f.Moment(doc, now); {
-	case f.Session != nil:
-	case f.View == Overview:
-		return overviewFilled(m)
-	case f.View == Sessions:
-		return sessionsFilled(m)
+	switch f.Shown() {
+	case Overview:
+		return overviewFilled(f.Moment(doc, now))
+	case Sessions:
+		return sessionsFilled(f.Moment(doc, now))
 	}
 	return nil
 }

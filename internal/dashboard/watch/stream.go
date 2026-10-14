@@ -83,8 +83,19 @@ type joinedMsg struct {
 // the requests in flight, the stream tells; and the router answers, unless
 // it's from before the stream.
 func (m Model) wantsStream() bool {
-	overview := m.view == dashboard.Overview && (m.sections.Has(dashboard.SectionRouting) || m.sections.Has(dashboard.SectionSessions))
-	return (m.session != nil || m.view == dashboard.Sessions || m.view == dashboard.Log || overview) && m.answering() && !m.stream.absent
+	return m.showsStream() && m.answering() && !m.stream.absent
+}
+
+// showsStream reports whether what the watch shows tells what the request
+// stream tells, as wantsStream has it.
+func (m Model) showsStream() bool {
+	switch m.shownView() {
+	case dashboard.SessionPage, dashboard.Sessions, dashboard.Log:
+		return true
+	case dashboard.Overview:
+		return m.sections.Has(dashboard.SectionRouting) || m.sections.Has(dashboard.SectionSessions)
+	}
+	return false
 }
 
 // tune opens the request stream when the watch wants it and has none open,

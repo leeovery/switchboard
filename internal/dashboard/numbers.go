@@ -115,7 +115,7 @@ func (c cell) numbered() (Number, bool) {
 // its moves re-patch. No other page draws one, a session's page over the
 // Overview among them, as the tests hold each to.
 func (f Frame) StreamNumbered() bool {
-	return f.View == Overview && f.Session == nil && (f.Sections.Has(SectionRouting) || f.Sections.Has(SectionSessions))
+	return f.Shown() == Overview && (f.Sections.Has(SectionRouting) || f.Sections.Has(SectionSessions))
 }
 
 // Numbers are the numbers the frame's page draws of doc at now that brighten

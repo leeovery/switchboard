@@ -692,7 +692,7 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.openHelp(), nil
 	case k == "R":
 		return m.refresh()
-	case m.session != nil:
+	case m.shownView() == dashboard.SessionPage:
 		return m.sessionKey(key)
 	}
 	return m.pageKey(key)
