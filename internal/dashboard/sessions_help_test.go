@@ -7,6 +7,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // sessionsHelping is Sessions' help on the sub-tab given, open at width
@@ -101,6 +102,47 @@ func TestSessionsHelpSaysWhatEachPartShows(t *testing.T) {
 	} {
 		if !strings.Contains(said, tc.want) {
 			t.Errorf("help reads\n%s\nwant it to explain %s, %q", said, tc.what, tc.want)
+		}
+	}
+}
+
+// Each mark help explains is drawn on the Switchboard in help's ink, so the
+// two never part: ↑ and ↓ where calls ask and answer, ✕ where one is
+// refused, a working call's plug, cord and jack, a free jack, and a cord a
+// limit let go. The lines, right of the jacks, are passed over, as their
+// own marks are the Overview's.
+func TestTheSwitchboardDrawsEachMarkInHelpsInk(t *testing.T) {
+	explained := map[string]ink{}
+	for _, part := range (Frame{View: Sessions}).sessionsHelp() {
+		for _, g := range part.glyphs {
+			for _, s := range g.drawn {
+				for _, r := range s.text {
+					explained[string(r)] = s.ink
+				}
+			}
+		}
+	}
+	at := atClock(16, 5, 41)
+	refused := Traffic{Calls: map[Plug]Call{{Session: id41E0, Account: "personal"}: {Doing: Refused}}}
+	stubs, stubbed := stubsOn(1)
+	drawn := []*canvas{
+		boardFrame(160, 37, Look{}, boardOf(boardLook{calls: sceneCalls()}), Traffic{}).page(usageWorld(), routedAt),
+		boardFrame(160, 37, Look{}, boardOf(boardLook{calls: at1605(inFlight(views.Refused, at, 429))}), refused).page(limitWorld(at, 0), at),
+		stubs.page(stubbed, routedAt),
+	}
+	for glyph, want := range explained {
+		var inks []ink
+		for _, c := range drawn {
+			for y := range c.height() {
+				for x := range 85 {
+					if cell := c.at(x, y); cell != nil && cell.glyph == glyph {
+						inks = append(inks, cell.ink)
+					}
+				}
+			}
+		}
+		if !slices.Contains(inks, want) {
+			t.Errorf("help explains %s in %+v; the Switchboard draws it in %+v", glyph, want, inks)
 		}
 	}
 }
