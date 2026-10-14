@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"maps"
 	"slices"
@@ -673,6 +674,32 @@ func TestHelpOpensOverHistoryListingItsKeys(t *testing.T) {
 	}
 	if got, want := listedKeys(h.model.helpCard().Keys), []string{"tab", "[ ]", "< >", "v", "p", "R", "?", "q"}; !slices.Equal(got, want) {
 		t.Errorf("help lists %q, want %q", got, want)
+	}
+}
+
+// v changes Weeks' shape, and the preferences keep it, only where the key
+// line lists v, as the frame's Split has it: never on a phone, whose form is
+// neither shape.
+func TestVChangesWeeksOnlyWhereTheKeyLineListsIt(t *testing.T) {
+	for _, tt := range []struct {
+		width   int
+		changes bool
+	}{{width: 160, changes: true}, {width: 52}} {
+		t.Run(fmt.Sprintf("%d columns", tt.width), func(t *testing.T) {
+			h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{Shown: dashboard.HistoryWeeks})
+			l.days[yesterday] = requested(yesterday, 10)
+			prefs := &fakePrefs{}
+			h.model.cfg.Prefs = prefs
+			h.update(tea.WindowSizeMsg{Width: tt.width, Height: 37})
+			h.start()
+			listed := slices.ContainsFunc(h.model.historyListings(), func(k keyListing) bool { return k.Key.Key == "v" && k.works })
+			h.keyed("v")
+			changed := h.model.past.page.WeeksShape != dashboard.WeeksTable
+			if listed != tt.changes || changed != tt.changes || (prefs.updates > 0) != tt.changes {
+				t.Errorf("v listed %t; pressed, it changed the shape %t, the preferences updated %d times; want listed, changed and kept %t",
+					listed, changed, prefs.updates, tt.changes)
+			}
+		})
 	}
 }
 
