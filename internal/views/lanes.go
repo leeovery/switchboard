@@ -130,8 +130,8 @@ type LaneStretch struct {
 	// Column is where its words start: the column its start falls in, the
 	// first, of a start before the timeline, and First, of one not known.
 	Column, First, Last int
-	// Over is set where it ended before now's column, as a live view
-	// doesn't say.
+	// Over is set where it's over, as the timeline's over has it, so not
+	// said.
 	Over bool
 }
 
@@ -248,7 +248,7 @@ func laneStretches(stood []stood, tl Timeline, hold stood) []LaneStretch {
 	}
 	for i := range stretches {
 		s := &stretches[i]
-		s.Column, s.Over = s.First, s.Last < now
+		s.Column, s.Over = s.First, tl.over(s.Last)
 		if !s.Start.IsZero() {
 			s.Column = max(tl.Column(s.Start), 0)
 		}

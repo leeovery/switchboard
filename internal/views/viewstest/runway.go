@@ -320,8 +320,9 @@ func failedReads() []RunwayMoment {
 }
 
 // refusals have work's token refused at 14:12 till 15:00; that refusal
-// lifted early, at 14:30; and its Opus requests refused alone, which its lane
-// doesn't draw, as it doesn't a model's own window.
+// lifted early, at 14:30, over and so unsaid live, and said on today stepped
+// back to; and its Opus requests refused alone, which its lane doesn't draw,
+// as it doesn't a model's own window.
 func refusals() []RunwayMoment {
 	refusedAt, refusal := onThu(14, 12, 0), status.Refusal{Until: onThu(15, 0, 0), Status: 401}
 	read := sorted(readEach(work, onThu(13, 0, 0), window(fiveHour, 0.3, onThu(16, 30, 0)), window(week, 0.5, mondayTen)), sideRead())
@@ -336,6 +337,11 @@ func refusals() []RunwayMoment {
 	family := status.Refusal{Until: refusal.Until, Status: 404, Family: "opus"}
 	familyEvent := status.Event{At: refusedAt, Kind: status.EventRefused, Account: work, Until: refusal.Until, Status: 404, Family: "opus"}
 	sideAt := sideOn(onThu(14, 41, 0))
+	liftedToday := fiveHourAt("its token's refusal lifted early, today stepped back to", routed(onThu(14, 41, 0), []status.Event{lifted}, workAt(status.Refusal{}), sideAt), read, map[string]Figures{
+		"":   {FigureDips: "1 14:12 – 14:30 @80 80-81"},
+		work: {FigureCells: "blank 0-73, room 74-79, refused 80-81, room 82-135", FigureStretches: "refused 14:12 – 14:30 @80 80-81"},
+	})
+	liftedToday.Day = civilDay(2026, time.October, 1)
 	return []RunwayMoment{
 		fiveHourAt("its token refused", routed(onThu(14, 41, 0), []status.Event{refused}, workAt(refusal), sideAt), read, map[string]Figures{
 			"": {FigurePool: "2 0-2, 1 3-7, 2 8-135", FigureDips: "1 14:12 – 15:00 @3 3-7", FigureDrawn: "room, refused, │"},
@@ -345,11 +351,13 @@ func refusals() []RunwayMoment {
 			},
 		}),
 		fiveHourAt("its token's refusal lifted early", routed(onThu(14, 41, 0), []status.Event{lifted}, workAt(status.Refusal{}), sideAt), read, map[string]Figures{
+			"": {FigureDips: "1 14:12 – 14:30 @3 3-4, over"},
 			work: {
 				FigureCells: "room 0-2, refused 3-4, room 5-135", FigureStretches: "refused 14:12 – 14:30 @3 3-4, over",
 				FigureRoom: "yes", FigureUse: "5h 30%",
 			},
 		}),
+		liftedToday,
 		fiveHourAt("its Opus requests refused alone", routed(onThu(14, 41, 0), []status.Event{familyEvent}, workAt(family), sideAt), read, map[string]Figures{
 			"":   {FigureDips: "", FigureDrawn: "room, │"},
 			work: {FigureCells: "room 0-135", FigureStretches: "", FigureRoom: "yes"},

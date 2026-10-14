@@ -82,15 +82,15 @@ type placed struct {
 // in time order: each from its dip's column, from the lanes' column x, or
 // phraseGap cells after the phrase before, from column from at the least, as
 // dipParts says it; or, where it would start nearer the phrase before than
-// that, joined to it, as joining says. A dip already over isn't said in the
-// live views. Words that don't fit before the column edge drop whole parts
-// from the end, so a dip whose first part doesn't fit isn't said, nor any
-// after it.
+// that, joined to it, as joining says. A dip over, as views has it, isn't
+// said. Words that don't fit before the column edge drop whole parts from
+// the end, so a dip whose first part doesn't fit isn't said, nor any after
+// it.
 func (r RunwayShown) poolPhrases(pool views.Pool, now time.Time, x, from, edge int) []placed {
 	against, nowAt := r.datedAgainst(now), r.Timeline.NowColumn()
 	w := phrasing{after: from, endsWith: -1, edge: edge}
 	for _, d := range pool.Dips {
-		if d.Over && r.Back.IsZero() {
+		if d.Over {
 			continue
 		}
 		steps, underWay := saidSteps(d, nowAt)

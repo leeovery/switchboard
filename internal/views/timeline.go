@@ -150,6 +150,15 @@ func (tl Timeline) NowColumn() int {
 	return tl.Column(tl.Now)
 }
 
+// over reports whether what ends in column last is over, as the live views,
+// which say nothing over, have it: it ends before now's column. A day or a
+// week stepped back to, today and this week among them, says all it held, so
+// nothing on it is over.
+func (tl Timeline) over(last int) bool {
+	_, _, named := tl.Named()
+	return !named && last < tl.NowColumn()
+}
+
 // Moment is the moment column i stands for: its middle, or in now's column,
 // now, which every column after it is ahead of.
 func (tl Timeline) Moment(i int) time.Time {
