@@ -27,9 +27,11 @@ var logger = logs.For("launch")
 // router answers gives it as long.
 const AskTimeout = 500 * time.Millisecond
 
-// Unanswered is why a router that didn't answer within AskTimeout is
+// Unanswered returns why a router that didn't answer within AskTimeout is
 // unhealthy, wherever that's said.
-var Unanswered = "no answer within " + AskTimeout.String()
+func Unanswered() string {
+	return "no answer within " + AskTimeout.String()
+}
 
 // lookAgain is how long run waits to look at a token file again, when it
 // finds it empty at first: a writer that empties the file before it writes
@@ -314,7 +316,7 @@ func (r Route) health(ctx context.Context) routerState {
 	case errors.Is(err, router.ErrNotRunning):
 		return routerState{name: notRunning}
 	case errors.Is(err, context.DeadlineExceeded):
-		return routerState{name: unhealthy, reason: Unanswered}
+		return routerState{name: unhealthy, reason: Unanswered()}
 	case err != nil:
 		return routerState{name: unhealthy, reason: err.Error()}
 	case !h.OK:
