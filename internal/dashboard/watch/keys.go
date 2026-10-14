@@ -124,9 +124,32 @@ func (m Model) keys() pageKeys {
 	return pageKeys{own: slices.Concat(own, m.accountsListings(), m.historyListings()), overview: overview, pin: pin, pinned: pinned, coloured: m.coloured()}
 }
 
-// accountsListings are Accounts' own keys: none yet.
+// accountsListings are Accounts' own keys, each move with enter in a group
+// of its own: [ ] view, where there are sub-tabs; < > and the period; on
+// Compare, ←→ along the accounts, enter opening the one focused in Detail,
+// faint till one is; on Detail's list, ↑↓ through the accounts, → into the
+// chosen one's SESSIONS, which the key line leaves to help, and enter
+// opening the session selected there, faint where none runs; in its
+// SESSIONS, ↑↓ through them, ← back to the list and enter; and with one
+// account, which has no list, ↑↓ and enter while sessions run on it. A
+// phone's line keeps [ ] view alone.
 func (m Model) accountsListings() []keyListing {
-	return nil
+	s := m.accounts.shown
+	shown := m.view == dashboard.Accounts
+	compare := shown && s.View() == dashboard.AccountsCompare
+	detail := shown && s.View() == dashboard.AccountsDetail
+	sessions := m.detailsSessions()
+	listed, inSessions := detail && !s.Alone(), sessions && (s.InSessions || s.Alone())
+	return []keyListing{
+		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: shown && !s.Alone(), apart: true},
+		{Key: dashboard.Key{Key: "< >", Does: "period", State: s.Period.Name()}, works: shown, apart: true, wide: true},
+		{Key: dashboard.Key{Key: "←→", Does: "account"}, works: compare, apart: true, wide: true},
+		{Key: dashboard.Key{Key: "↑↓", Does: "account"}, works: listed && !inSessions, apart: true, wide: true},
+		{Key: dashboard.Key{Key: "↑↓", Does: "session"}, works: inSessions, apart: true, wide: true},
+		{Key: dashboard.Key{Key: "→", Does: "sessions"}, works: listed && sessions && !inSessions, helpful: true},
+		{Key: dashboard.Key{Key: "←", Does: "accounts"}, works: listed && inSessions, wide: true},
+		{Key: dashboard.Key{Key: "enter", Does: "its page", Off: compare && !s.Focused || detail && !sessions}, works: compare || listed || inSessions, wide: true},
+	}
 }
 
 // listings are the page's own keys, where its view scrolls or not, in the
