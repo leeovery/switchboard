@@ -138,3 +138,23 @@ func TestTheEventsDrawEachKindOfRowAtEachWidth(t *testing.T) {
 		}
 	}
 }
+
+// The Events mark the router's health ⊕, bold, by LATELY's one rule: in
+// state.destructive while it's unhealthy, and state.positive once it's well
+// again.
+func TestTheEventsMarkTheRoutersHealthAsLatelyDoes(t *testing.T) {
+	unwell := status.Event{ID: 1, At: logDay, Kind: status.EventHealth, Reason: "the config won't load"}
+	well := status.Event{ID: 2, At: logDay.Add(time.Minute), Kind: status.EventHealth}
+	f := logFrameOf(eventsShown(unwell, well), 160, 24)
+	c := f.page(routerDoc("side", 0), logDayNoon)
+	var got []ink
+	for y := range f.Height {
+		if cell := c.at(0, y); cell.glyph == "⊕" {
+			got = append(got, cell.ink)
+		}
+	}
+	want := []ink{{token: theme.StateDestructive, bold: true}, {token: theme.StatePositive, bold: true}}
+	if !slices.Equal(got, want) {
+		t.Errorf("the router unhealthy, then well again, is marked ⊕ in %+v, want %+v", got, want)
+	}
+}

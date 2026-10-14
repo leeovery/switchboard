@@ -53,7 +53,7 @@ func TestLATELYsMarksAreOneAKindInTheirColours(t *testing.T) {
 		{kind: status.EventHealth, well: true, glyph: "⊕", token: theme.StatePositive},
 	}
 	for _, tt := range tests {
-		got := eventMark(views.Sentence{Kind: tt.kind, Well: tt.well})
+		got := eventMark(tt.kind, tt.well)
 		if got.text != tt.glyph || got.ink != (ink{token: tt.token}) {
 			t.Errorf("%s (well %v) is marked %q in %+v, want %q in %v", tt.kind, tt.well, got.text, got.ink, tt.glyph, tt.token)
 		}
