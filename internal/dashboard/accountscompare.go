@@ -268,16 +268,13 @@ func (cp compared) named(col compareColumn, cells int) line {
 }
 
 // stands is how the column's account stands, in the cells given: its state
-// in a word, as stateWord says it, not read where the moment doesn't have
-// it; all accounts', every account's states counted.
+// in a word, as stateWord says it, as StateInAWord has it; all accounts',
+// every configured account's states counted, as CountStatesOf counts them.
 func (cp compared) stands(col compareColumn, cells int) line {
-	switch {
-	case col.all:
-		return countedStates(status.CountStates(cp.m.Accounts), NumberAccountStates, cells)
-	case !col.known:
-		return stateWord(status.StateNotRead).fit(cells)
+	if col.all {
+		return countedStates(cp.m.CountStatesOf(cp.f.Accounts.Accounts.IDs()), NumberAccountStates, cells)
 	}
-	return stateWord(col.account.Routing.Kind.State()).fit(cells)
+	return stateWord(cp.m.StateInAWord(col.id)).fit(cells)
 }
 
 // stateWord is an account's state in a word, after its glyph, as the

@@ -432,6 +432,31 @@ func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 	}
 }
 
+// All accounts' head counts the configured accounts' states, as their
+// columns stand: one the document lacks yet as not read, and one the
+// document holds and the config doesn't, not at all.
+func TestAllAccountsCountsTheConfiguredAccountsStates(t *testing.T) {
+	tests := []struct {
+		name       string
+		configured config.Accounts
+		want       string
+	}{
+		{name: "one added the document lacks", configured: append(slices.Clone(threeFramed), config.Account{ID: "added"}), want: "2 open · 1 at cap · 1 not read"},
+		{name: "one the config no longer holds", configured: threeFramed[1:], want: "2 open"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, doc := threeCompared(t, 200, 37)
+			f.Accounts.Accounts = tt.configured
+			rows := f.Draw(doc, routedAt)
+			x := columnOf(rows[6], "0 all accounts")
+			if got := strings.TrimSpace(ansi.Cut(rows[7], x, f.Width)); got != tt.want {
+				t.Errorf("all accounts' states read %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // Once ← or → has put the focus on a column, its heads are on bg.selection
 // across its width less a cell; none is before.
 func TestComparesFocusedColumnsHeadsAreSelected(t *testing.T) {
