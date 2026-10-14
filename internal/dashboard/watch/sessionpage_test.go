@@ -612,6 +612,46 @@ func TestASessionsPageFollowsTheStream(t *testing.T) {
 	}
 }
 
+// A session's page is built afresh only as what it's built of changes: the
+// stream telling of another session's requests, the moment the same, builds
+// none of it again, its turns, its story and its turn open's requests as
+// they were; the stream telling of one of its own builds them afresh, once.
+func TestASessionsPageIsBuiltAgainOnlyAsWhatItsBuiltOfChanges(t *testing.T) {
+	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+	h.openPage(idD28C)
+	h.settle()
+	h.keys(enterKey)
+	built := func() [3]any {
+		s := h.shownPage()
+		if len(s.Page.Turns) == 0 || len(s.Story.Sent) == 0 || len(s.Requests) == 0 {
+			t.Fatalf("the page has %d turns, its story %d requests sent, its turn open %d requests; want some of each", len(s.Page.Turns), len(s.Story.Sent), len(s.Requests))
+		}
+		return [3]any{&s.Page.Turns[0], &s.Story.Sent[0], &s.Requests[0]}
+	}
+	another := func(request string) router.StreamEvent {
+		return alter(told(router.StreamSent, request, "work", 0), func(e *router.StreamEvent) { e.Session = id7F3A })
+	}
+
+	was := built()
+	for i := range 10 {
+		h.hear(another(fmt.Sprintf("o%d", i)))
+		if got := built(); got != was {
+			t.Fatalf("the stream told of 7f3a's request %d, and d28c's page was built afresh, want nothing of it built again", i+1)
+		}
+	}
+	h.hear(told(router.StreamSent, "r3", "work", 0))
+	again := built()
+	for i, what := range []string{"turns", "story", "turn open's requests"} {
+		if again[i] == was[i] {
+			t.Errorf("the stream told of d28c's own request, and its %s weren't built afresh", what)
+		}
+	}
+	h.hear(another("o10"))
+	if got := built(); got != again {
+		t.Errorf("built afresh for d28c's own request, the page was built again for 7f3a's after it, want once")
+	}
+}
+
 // On a session's page, a look that takes in lines raising the points of a
 // window the session took brightens them, as a number a look reads.
 func TestOnASessionsPageALookBrightensThePointsItTook(t *testing.T) {

@@ -46,6 +46,49 @@ func TestAPageHeldThenFedWhatItsDayGainedIsThePageBuiltWhole(t *testing.T) {
 	}
 }
 
+// A page, its story and its turn open's requests built together, as Build
+// builds them, are each as built alone, of the stream whole or of what it
+// told of the session alone, as Of has it; and the three are built of one
+// working of what's held, its requests taken in and their turns tallied
+// once for them all, so building them together allocates less than
+// building each alone.
+func TestAPageItsStoryAndItsTurnsRequestsAreBuiltTogetherOfOneWorking(t *testing.T) {
+	main := func(id, prompt, account string, at time.Time) ledger.Line {
+		return filedAs(id, took(10*time.Second, serving(prompt, ledger.ClassMain, line(paged, opus, account, "sticky", at, hourUsage))))
+	}
+	lines := []ledger.Line{
+		main("r1", p1, "work", local(12, 29, 4)),
+		main("r2", p1, "work", local(12, 30, 42)),
+		filedAs("o1", line(other, opus, "work", "sticky", local(12, 31, 0), hourUsage)),
+		main("r3", p2, "side", local(12, 32, 0)),
+	}
+	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
+	stream := heard(toldOf("r4", p2, ledger.ClassMain, opus, "side", local(13, 10, 0)), views.Told{Request: "o2", Session: other, Model: opus, Account: "work", Sent: local(13, 11, 0)})
+	stream.Moves = []views.Moved{{Request: "o2", Session: other, Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", At: local(13, 11, 0)}}
+	live := views.PageLive{Now: now, Stream: stream}
+	page, ok := held.Page(live)
+	if !ok {
+		t.Fatal("the page held built no page")
+	}
+	want := views.BuiltPage{Page: page, Story: held.Story(page, live), Requests: held.TurnRequests(2, live)}
+	if len(want.Requests) != 2 {
+		t.Fatalf("turn 2 has %d requests, want r3 and r4", len(want.Requests))
+	}
+	for name, live := range map[string]views.PageLive{"whole": live, "of the session alone": {Now: now, Stream: stream.Of(paged)}} {
+		if got, ok := held.Build(2, live); !ok || !reflect.DeepEqual(got, want) {
+			t.Errorf("built together, of the stream %s, the page is\n%+v\nwant each as built alone\n%+v", name, got, want)
+		}
+	}
+	alone := testing.AllocsPerRun(10, func() {
+		page, _ := held.Page(live)
+		held.Story(page, live)
+		held.TurnRequests(2, live)
+	})
+	if together := testing.AllocsPerRun(10, func() { held.Build(2, live) }); together >= alone {
+		t.Errorf("built together, the page, its story and its turn's requests allocate %.0f times, want fewer than the %.0f built alone", together, alone)
+	}
+}
+
 // A held page reads the ledger once, as it's held: each look after, and each
 // gain it takes, builds of what it holds.
 func TestAHeldPageReadsTheLedgerOnceHoweverOftenItsLookedAt(t *testing.T) {
