@@ -20,6 +20,16 @@ type DayTotals struct {
 	Worth
 }
 
+// LedgerDates reads the summaries of the request ledger's days by their
+// dates, as a ledger.Follower does.
+type LedgerDates interface {
+	// DaysOn gives the summaries of the local days with the dates given,
+	// oldest first, each once, as LedgerDays' Days gives them from the
+	// earliest: none of a date before the first day the ledger holds or
+	// after today's.
+	DaysOn(dates []string) []ledger.Summary
+}
+
 // TotalsOn are the figures of the local days with the dates given, oldest
 // first, of the ledger's days as days reads them from the earliest given: a
 // day's summary where the ledger holds one that stands, else, as of today,
