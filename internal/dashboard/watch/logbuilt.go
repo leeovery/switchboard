@@ -21,10 +21,12 @@ type logBuilt struct {
 }
 
 // requestsBasis is what the Log's Requests are made of: what the Log holds,
-// as held counts its changes; what the stream told, as logStream gives it;
-// the filter; and the day. The moment is none of it: an in-flight row counts
-// how long it has taken as it's drawn, as TookAt has it, so the clock
-// moving makes nothing afresh.
+// as held counts its changes; what the stream told of each request's row,
+// as logStream gives it and sameRows compares it; the filter; and the day.
+// Neither the moment nor what's told as an answer streams is of it: a row
+// in flight counts how long it has taken, and its characters, as it's
+// drawn, as views.RequestRow.Live has it, so neither the clock moving nor
+// the stream's progress makes anything afresh.
 type requestsBasis struct {
 	held   int
 	told   streamTold
@@ -34,7 +36,7 @@ type requestsBasis struct {
 
 // same reports whether b is o, the Requests made of one as of the other.
 func (b *requestsBasis) same(o requestsBasis) bool {
-	return b != nil && b.held == o.held && b.told.same(o.told) && b.filter.Equal(o.filter) && b.day == o.day
+	return b != nil && b.held == o.held && b.told.sameRows(o.told) && b.filter.Equal(o.filter) && b.day == o.day
 }
 
 // eventsBasis is what the Log's Events are made of: what the Log holds, as
@@ -89,6 +91,12 @@ func toldBy(s views.Stream) streamTold {
 // same reports whether s tells what o does.
 func (s streamTold) same(o streamTold) bool {
 	return s.live == o.live && maps.Equal(s.requests, o.requests)
+}
+
+// sameRows reports whether s tells what o does of the requests' rows, as
+// views.Told.SameRow compares each.
+func (s streamTold) sameRows(o streamTold) bool {
+	return s.live == o.live && maps.EqualFunc(s.requests, o.requests, views.Told.SameRow)
 }
 
 // sameSlice reports whether a and b are the very same slice: as long, and

@@ -321,6 +321,28 @@ func TestARequestsCardLeavesBlankWhatItsLineIsYetToGive(t *testing.T) {
 	}
 }
 
+// The card of a request answering counts its characters as it's drawn, as
+// the stream the page holds then counts them, its details made once.
+func TestARequestsCardInFlightCountsItsCharactersAsItsDrawn(t *testing.T) {
+	told := views.Told{
+		Request: "3f2a91c4", Session: "d28c5e17-0000-4000-8000-000000000001", Model: "claude-opus-5-5", Account: "side",
+		Sent: logDay, First: logDay.Add(time.Second), Chars: 1000,
+	}
+	stream := views.Stream{Live: true, Requests: map[string]views.Told{told.Request: told}}
+	d := views.RequestDetails{Row: views.LogRows(views.LogSources{From: logDay, Now: logDay.Add(2 * time.Second), Stream: stream}).Lines[0].Row}
+	f := logFrameOf(cardPage(1), 160, 37)
+	for _, chars := range []int{1000, 5100} {
+		streamed := told
+		streamed.Chars = chars
+		f.Log.Stream = views.Stream{Live: true, Requests: map[string]views.Told{told.Request: streamed}}
+		body := plainLines(LogCard{Request: &d}.card(f).body)
+		want := "answering · " + prose.Characters(chars) + " characters"
+		if !slices.ContainsFunc(body, func(l string) bool { return strings.Contains(l, want) }) {
+			t.Errorf("%d characters streamed, the card doesn't say %q:\n%s", chars, want, strings.Join(body, "\n"))
+		}
+	}
+}
+
 // A request's status is bold state.destructive where views says it failed,
 // as the table has it, whatever it was answered.
 func TestARequestsCardSaysItFailedAsItsRowDoes(t *testing.T) {

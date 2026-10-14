@@ -374,6 +374,42 @@ func TestARequestInFlightCountsOnWithoutItsTableMadeAgain(t *testing.T) {
 	}
 }
 
+// The stream telling how far a request's answer has streamed makes nothing
+// afresh, its row counting its characters as it's drawn; its end makes the
+// Requests again, once.
+func TestARequestsProgressMakesNothingAfreshItsEndOnce(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	h.hear(told(router.StreamSent, "0a000003", "work", 0))
+	h.hear(told(router.StreamFirst, "0a000003", "work", time.Second))
+
+	made := madeAt(h.model.log.page.Requests.Lines)
+	for i := range 10 {
+		chars := (i + 1) * 500
+		h.clock.now = past(time.Second + time.Duration(i+1)*250*time.Millisecond)
+		h.hear(alter(told(router.StreamProgress, "0a000003", "work", h.clock.now.Sub(start)), func(e *router.StreamEvent) { e.Chars = chars }))
+		if want := "answering · " + prose.Characters(chars) + " characters"; !strings.Contains(h.view(), want) {
+			t.Fatalf("%d characters streamed, the row doesn't read %q:\n%s", chars, want, h.view())
+		}
+	}
+	if madeAt(h.model.log.page.Requests.Lines) != made {
+		t.Error("ten times told how far a request's answer has streamed, the Requests were made again, want them made once")
+	}
+	h.hear(alter(told(router.StreamDone, "0a000003", "work", 5*time.Second), func(e *router.StreamEvent) { e.Status = 200 }))
+	ended := madeAt(h.model.log.page.Requests.Lines)
+	if ended == made {
+		t.Error("told the request ended, the Requests weren't made again, want its row ended")
+	}
+	h.clock.now = past(6 * time.Second)
+	h.deliver(frameMsg{gen: h.model.frames})
+	if madeAt(h.model.log.page.Requests.Lines) != ended {
+		t.Error("a frame after the request ended made the Requests again, want them made the once")
+	}
+}
+
 // The figures of the days read are folded into those held by their dates,
 // the oldest first, each in place of the one held of its day, those held
 // left as they were.

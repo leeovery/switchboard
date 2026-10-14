@@ -29,9 +29,9 @@ var logViews = []string{"Requests", "Events"}
 // the request stream, over the days from From, and the figures of those
 // days, which their day rules say; today; what the Requests show of their
 // columns and of the lines, and the Events of theirs; how each table
-// stands; whether the stream is live, and to when the ledger wrote what the
-// tables hold; the find, while it's open; and the tables' lines as drawn,
-// where Lined holds them.
+// stands; whether the stream is live, what it tells, and to when the ledger
+// wrote what the tables hold; the find, while it's open; and the tables'
+// lines as drawn, where Lined holds them.
 type LogPage struct {
 	Shown LogView
 	// Read is set once the first read lands: till then, the view is blank.
@@ -50,9 +50,12 @@ type LogPage struct {
 	// Stands are how the Requests and the Events each stand, by LogView.
 	Stands [2]LogStand
 	// Live is set while the request stream is the watch's, the router
-	// answering; Written is when the ledger last wrote of what the Requests
-	// hold, which the state line says while it isn't.
+	// answering; Stream is what it tells as the page is drawn, which a
+	// request's row in flight is drawn as, as views.RequestRow.Live has it;
+	// Written is when the ledger last wrote of what the Requests hold, which
+	// the state line says while it isn't.
 	Live    bool
+	Stream  views.Stream
 	Written time.Time
 	Finding LogFinding
 	lined   *tableLines

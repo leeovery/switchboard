@@ -179,31 +179,66 @@ func TestARowInFlightIsWhatTheStreamTold(t *testing.T) {
 	}
 }
 
-// A row's took at a moment counts on from when its request was sent while
-// it's in flight, whenever the row was built; once it's ended, it's what
-// the request took, and of one lost, nothing.
-func TestARowsTookAtAMomentCountsOnWhileItsInFlight(t *testing.T) {
+// A row drawn at a moment is as it stands then, whenever it was built:
+// in flight, its took counting on from when its request was sent, and
+// answering, its characters as the stream counts them then; ended or lost,
+// as it was built.
+func TestARowIsDrawnAsItStandsAtTheMoment(t *testing.T) {
 	sent := october(7, 13, 11)
 	base := views.Told{Request: "r9", Session: mover, Model: opus, Account: "side", Sent: sent, Heard: sent}
 	answering, ended, lost := base, base, base
-	answering.First = sent.Add(700 * time.Millisecond)
-	ended.First, ended.Ended, ended.Status = sent.Add(time.Second), sent.Add(14*time.Second), 200
+	answering.First, answering.Chars = sent.Add(700*time.Millisecond), 1000
+	ended.First, ended.Ended, ended.Status, ended.Chars = sent.Add(time.Second), sent.Add(14*time.Second), 200, 1000
 	lost.Lost = true
 	later := now.Add(90 * time.Second)
 	tests := []struct {
-		name string
-		t    views.Told
-		want *time.Duration
+		name  string
+		t     views.Told
+		took  *time.Duration
+		chars int
 	}{
-		{name: "asking", t: base, want: new(later.Sub(sent))},
-		{name: "answering", t: answering, want: new(later.Sub(sent))},
-		{name: "ended", t: ended, want: new(14 * time.Second)},
+		{name: "asking", t: base, took: new(later.Sub(sent))},
+		{name: "answering", t: answering, took: new(later.Sub(sent)), chars: 5100},
+		{name: "ended", t: ended, took: new(14 * time.Second)},
 		{name: "lost", t: lost},
 	}
 	for _, tt := range tests {
-		got := views.RowOfTold(tt.t, now).TookAt(later)
-		if (got == nil) != (tt.want == nil) || got != nil && *got != *tt.want {
-			t.Errorf("%s: built at one moment, at a later one its took is %v, want %v", tt.name, got, tt.want)
+		streamed := tt.t
+		streamed.Chars, streamed.Heard = 5100, later
+		got := views.RowOfTold(tt.t, now).Live(views.Stream{Live: true, Requests: map[string]views.Told{"r9": streamed}}, later)
+		if (got.Took == nil) != (tt.took == nil) || got.Took != nil && *got.Took != *tt.took {
+			t.Errorf("%s: built at one moment, at a later one its took is %v, want %v", tt.name, got.Took, tt.took)
+		}
+		if got.Chars != tt.chars {
+			t.Errorf("%s: built at one moment, at a later one its characters are %d, want %d", tt.name, got.Chars, tt.chars)
+		}
+	}
+}
+
+// What the stream tells of a request builds the same row while it tells
+// only what streams as it's answered, its characters and when it last told;
+// its being sent again, its first byte, a verdict, its end, being lost and
+// the account it's on each build another.
+func TestWhatTheStreamTellsBuildsTheSameRowButForItsStage(t *testing.T) {
+	sent := october(7, 13, 11)
+	told := views.Told{Request: "r9", Session: mover, Model: opus, Account: "side", Sent: sent, First: sent.Add(time.Second), Chars: 1000, Heard: sent}
+	tests := []struct {
+		name   string
+		change func(t *views.Told)
+		same   bool
+	}{
+		{name: "its characters and when it was told", change: func(t *views.Told) { t.Chars, t.Heard = 5100, sent.Add(time.Minute) }, same: true},
+		{name: "sent again", change: func(t *views.Told) { t.First, t.Chars = time.Time{}, 0 }},
+		{name: "a verdict", change: func(t *views.Told) { t.Verdict, t.Status = views.VerdictThrottled, 429 }},
+		{name: "its end", change: func(t *views.Told) { t.Ended, t.Status = sent.Add(time.Minute), 200 }},
+		{name: "lost", change: func(t *views.Told) { t.Lost = true }},
+		{name: "another account", change: func(t *views.Told) { t.Account = "work" }},
+	}
+	for _, tt := range tests {
+		changed := told
+		tt.change(&changed)
+		if got := told.SameRow(changed); got != tt.same {
+			t.Errorf("%s: the same row %t, want %t", tt.name, got, tt.same)
 		}
 	}
 }

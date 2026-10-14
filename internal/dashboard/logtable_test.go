@@ -193,20 +193,32 @@ func TestARequestsRowIsDrawnInTheColumnsItsLayoutGives(t *testing.T) {
 	}
 }
 
-// A row in flight counts how long it has taken as it's drawn, to the moment
-// it's drawn at, the table it's of made once.
-func TestARowInFlightCountsItsTookAsItsDrawn(t *testing.T) {
+// A row in flight is drawn as it stands at the moment it's drawn, its table
+// made once: its took counting on to that moment, and answering, its
+// characters as the stream the page holds then counts them.
+func TestARowInFlightIsDrawnAsItStands(t *testing.T) {
 	sent := time.Date(2026, 10, 1, 14, 31, 13, 0, now.Location())
-	asking := views.Told{Request: "0a000001", Session: "d28c5e17-0000-4000-8000-000000000001", Model: "claude-opus-5-5", Account: "side", Sent: sent, Heard: sent}
-	row := views.LogRows(views.LogSources{
-		From: sent, Now: sent.Add(20 * time.Second), Stream: views.Stream{Live: true, Requests: map[string]views.Told{asking.Request: asking}},
-	}).Lines[0].Row
-	layout := logLayout{places: []logPlace{{column: LogTook, x: 0, width: 6, aligned: alignRight}}}
-	for _, at := range []time.Duration{20 * time.Second, 21500 * time.Millisecond, 75 * time.Second} {
-		c := newCanvas(10, 1)
-		requestRow(c, 0, row, layout, func(id string) string { return id }, sent.Add(at))
-		if got, want := strings.TrimSpace(textOf(c.rows(Look{}))[0]), prose.Seconds(at); !strings.HasSuffix(got, want) {
-			t.Errorf("drawn %s after it was sent, the row in flight reads %q, want it to have taken %s", at, got, want)
+	answering := views.Told{
+		Request: "0a000001", Session: "d28c5e17-0000-4000-8000-000000000001", Model: "claude-opus-5-5", Account: "side",
+		Sent: sent, First: sent.Add(time.Second), Chars: 1000, Heard: sent,
+	}
+	streamed := func(chars int) views.Stream {
+		told := answering
+		told.Chars = chars
+		return views.Stream{Live: true, Requests: map[string]views.Told{told.Request: told}}
+	}
+	src := views.LogSources{From: sent, Now: sent.Add(20 * time.Second), Stream: streamed(1000)}
+	p := LogPage{Read: true, Requests: views.LogRows(src), From: views.Today(sent), Today: views.Today(sent), Live: true}
+	for _, tt := range []struct {
+		at    time.Duration
+		chars int
+	}{{at: 20 * time.Second, chars: 1000}, {at: 21500 * time.Millisecond, chars: 5100}, {at: 75 * time.Second, chars: 9900}} {
+		p.Stream = streamed(tt.chars)
+		text := strings.Join(textOf(logFrameOf(p, 160, 24).Draw(routerDoc("side", 0), sent.Add(tt.at))), "\n")
+		for _, want := range []string{prose.Seconds(tt.at), "answering · " + prose.Characters(tt.chars) + " characters"} {
+			if !strings.Contains(text, want) {
+				t.Errorf("drawn %s after it was sent, %d characters streamed, the row in flight doesn't read %q:\n%s", tt.at, tt.chars, want, text)
+			}
 		}
 	}
 }
