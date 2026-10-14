@@ -1203,10 +1203,15 @@ first byte. That's how a frame of motion is brought to its point in the animatio
 and holds the import guard. `internal/capture`, which it alone imports, holds the fixtures and their
 registry, `Names` and `ByName`, in `capture.go`; the sample worlds they're drawn over; the fakes
 the watch reads them through; the harness that settles a fixture at its moment and draws it; the
-scenarios; and the tests that hold the fixtures to `reference/`.
+scenarios, `routing`, `dashboard` and `repatch`, in `scenarios.go`; and the tests that hold the
+fixtures to `reference/`.
 
 `--scenario` plays a scenario through the same watch model in real time, its clock running and its
-timers firing, for the README's demos: [demo/README.md](../../demo/README.md) says how.
+timers firing, for the README's demos: [demo/README.md](../../demo/README.md) says how. A scenario
+starts from one of the fixtures' worlds, built whole before its clock starts, so its first frame
+is drawn at once; its cues, each at an offset from the start, and the orders its keys give, are
+laid over that world as they play, so the router answers, lists, pins and moves as its own rules
+have it, and nothing is ever written.
 
 A fixture is a moment of the dashboard: what the router and the files it reads give at it, the
 terminal it's drawn on, and the keys pressed once its document is read. What they give mirrors the
