@@ -192,6 +192,42 @@ func TestALineOfTheDayBeforeWrittenAfterTheTurnComesAsTheStreamTellsItEnded(t *t
 	}
 }
 
+// A request that arrived at 23:59:58 and first went upstream at 00:00:01
+// has its line filed under the day it arrived on, written after the turn:
+// the stream tells no arrival, so the Log awaits its line on the day before
+// the one it was sent on, reading that day again whole as the stream tells
+// it ended.
+func TestALineOfARequestSentJustAfterMidnightComesOnTheDayItArrived(t *testing.T) {
+	state := t.TempDir()
+	night := onTheDay(23, 59, 30)
+	writeLines(t, state, arrivedAt("0a000001", night.Add(-10*time.Minute)))
+	h := routedHarness(t, routerDocument(three()...))
+	l := onTheLog(h, state)
+	h.clock.now = night
+	h.start()
+
+	at := func(kind string, when time.Time) router.StreamEvent {
+		return alter(told(kind, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = when.UTC() })
+	}
+	h.hear(at(router.StreamSent, onTheDay(24, 0, 1)))
+	h.clock.now = onTheDay(24, 0, 5)
+	h.read(routerDocument(three()...))
+
+	line := took(arrivedAt("0a000002", onTheDay(23, 59, 58)), 20*time.Second)
+	writeLines(t, state, line)
+	ended := line.At.Add(20 * time.Second)
+	h.hear(alter(at(router.StreamDone, ended), func(e *router.StreamEvent) { e.Status = 200 }))
+	h.clock.now = onTheDay(24, 0, 25)
+	h.read(routerDocument(three()...))
+	yesterday := dayfile.DateOf(night)
+	if want := []string{yesterday, yesterday}; !slices.Equal(l.days, want) {
+		t.Errorf("the days %v were read whole, want %v: the day before at the turn, then again as the stream told its request ended", l.days, want)
+	}
+	if got := h.model.log.read.WrittenTo(); !got.Equal(ended) {
+		t.Errorf("the Log's read holds lines written to %s, want %s, the line of the request sent after midnight taken in", got, ended)
+	}
+}
+
 func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state,
