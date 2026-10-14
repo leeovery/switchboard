@@ -206,8 +206,7 @@ func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (u
 	if len(names) < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
 	}
-	digits := len(names[0].number)
-	row := usageRow{name: line{{strings.Repeat(" ", digits-1) + "Σ", dimInk}, {" pool", noteInk}}, pool: true}
+	row := usageRow{name: poolNamed(names), pool: true}
 	pinned := pool.Pinned
 	for _, w := range windows {
 		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindowNow) bool { return p.Key == w.key })
@@ -224,6 +223,13 @@ func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (u
 		pinned = false
 	}
 	return row, true
+}
+
+// poolNamed is the pool's name as its row heads it under the rows of
+// accounts named as names has them: Σ in their numbers' column, in
+// text.subtle, then pool, in text.secondary.
+func poolNamed(names []accountName) line {
+	return line{{strings.Repeat(" ", len(names[0].number)-1) + "Σ", dimInk}, {" pool", noteInk}}
 }
 
 // caps is the key line's cap part: ╎ and the cap of each account whose bars,

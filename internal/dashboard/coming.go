@@ -64,14 +64,7 @@ type happening struct {
 // names them.
 func (f Frame) upcoming(doc status.Document, now time.Time) []happening {
 	m := f.Moment(doc, now)
-	t := comingTeller{moment: m, names: overviewNames(m), window: f.windowNamer(m)}
-	var all []happening
-	for _, u := range m.ComingUp {
-		if h, ok := t.happening(u); ok {
-			all = append(all, h)
-		}
-	}
-	return all
+	return comingTeller{moment: m, names: overviewNames(m), window: f.windowNamer(m)}.happenings(m.ComingUp)
 }
 
 // comingTeller tells of the things coming up of a document at a moment, as
@@ -82,6 +75,18 @@ type comingTeller struct {
 	moment status.Moment
 	names  []accountName
 	window func(key string) string
+}
+
+// happenings are what COMING UP says comes of each of the things coming up
+// given, as happening says it, in their order, but those it doesn't tell of.
+func (t comingTeller) happenings(coming []status.Upcoming) []happening {
+	var all []happening
+	for _, u := range coming {
+		if h, ok := t.happening(u); ok {
+			all = append(all, h)
+		}
+	}
+	return all
 }
 
 // happening is what doc's COMING UP says comes of u: its account back from
