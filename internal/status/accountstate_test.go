@@ -66,6 +66,32 @@ func TestEachStateInAWordLeadsWithItsGlyph(t *testing.T) {
 	}
 }
 
+// Each state in a word means what State maps into it: open, among the rest,
+// an account a limit, a refusal or its cap in a model's own window holds
+// back from some models; at cap, one a pin spends too; and not read, one
+// without a usable token, unreadable or not yet read.
+func TestEachStateInAWordMeansWhatItsKindsAre(t *testing.T) {
+	tests := []struct {
+		state status.AccountState
+		means string
+	}{
+		{state: status.StateOpen, means: "new sessions can go to it, though a limit, a refusal or its cap in a model's own window may hold back some models"},
+		{state: status.StatePressure, means: "at its recent rate, it runs out before its window resets"},
+		{state: status.StateAtCap, means: "at its cap, where its reserve starts: the router passes it over, unless a pin spends it"},
+		{state: status.StateLimit, means: "a limit holds it back from every request"},
+		{state: status.StateRefused, means: "its token was refused"},
+		{state: status.StateNotRead, means: "its usage isn't read: it has no usable token, or its usage couldn't be read or hasn't been yet"},
+		{state: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.state.Word(), func(t *testing.T) {
+			if got := tt.state.Means(); got != tt.means {
+				t.Errorf("AccountState(%d).Means() = %q, want %q", tt.state, got, tt.means)
+			}
+		})
+	}
+}
+
 // Accounts' states are counted in their order, open, pressure, at cap,
 // limit, refused and not read, whatever the accounts' own, those none is in
 // left out; and too wide, how many are open, pressure counting as open.

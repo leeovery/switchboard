@@ -45,19 +45,11 @@ func compareHelp() helpPart {
 }
 
 // statesHelp are an account's states in a word, each as Compare's heads say
-// it, in the order they're counted in, and what it means.
+// it, in the order they're counted in, and what it means, as status says it.
 func statesHelp() []glyph {
-	means := map[status.AccountState]string{
-		status.StateOpen:     "new sessions can go to it, though a limit may hold back some models",
-		status.StatePressure: "at its recent rate, it runs out before its window resets",
-		status.StateAtCap:    "at its cap, where its reserve starts: the router passes it over, unless a pin spends it",
-		status.StateLimit:    "a limit holds it back from every request",
-		status.StateRefused:  "its token was refused",
-		status.StateNotRead:  "its usage isn't read: it has no usable token, or its usage couldn't be read or hasn't been yet",
-	}
-	glyphs := make([]glyph, 0, len(means))
+	var glyphs []glyph
 	for s := status.StateOpen; s <= status.StateNotRead; s++ {
-		glyphs = append(glyphs, glyph{drawn: stateWord(s), means: means[s]})
+		glyphs = append(glyphs, glyph{drawn: stateWord(s), means: s.Means()})
 	}
 	return glyphs
 }

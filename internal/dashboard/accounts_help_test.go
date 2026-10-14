@@ -8,6 +8,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -96,6 +97,20 @@ func TestAccountsHelpKeysEachStateAsCompareSaysIt(t *testing.T) {
 	}
 	if got := accountsHelpGlyphs(Look{}, "COMPARE"); !slices.EqualFunc(got, want, func(a, b line) bool { return slices.Equal(a, b) }) {
 		t.Errorf("Compare's help explains the states %v, want %v", got, want)
+	}
+}
+
+// What each state means is said as status says it.
+func TestAccountsHelpSaysWhatEachStateMeansAsStatusDoes(t *testing.T) {
+	var got, want []string
+	for _, g := range statesHelp() {
+		got = append(got, g.means)
+	}
+	for s := status.StateOpen; s <= status.StateNotRead; s++ {
+		want = append(want, s.Means())
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("help says the states mean %q, want %q", got, want)
 	}
 }
 
