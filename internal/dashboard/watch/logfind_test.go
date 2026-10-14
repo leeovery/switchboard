@@ -284,9 +284,13 @@ func TestAFoundSessionReadsBackNoFurtherThanItsFirstDay(t *testing.T) {
 // lines of its page's Reach reach, though the ledger and the router's files
 // go back thirty days: the Requests through quota checks alone, or an
 // account, no day holding a line of either, read back no day; through
-// checks alone, the first a week back, to that day; and the Events, shown
-// after a find, to the found session's first day. Each day read back is
-// read whole, so the days read are counted.
+// checks alone, the first a week back, to that day, where they stand filled,
+// short of their view, so the failed after them, which no summary bounds,
+// read back no further; and the Events, shown after a find, to the found
+// session's first day. Shown after the Requests through that account, the
+// Events read back by their own reach, not the Requests': every kind, no
+// summary bounds them, so they read back till a pin a day fills their view.
+// Each day read back is read whole, so the days read are counted.
 func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(t *testing.T) {
 	applied := func(tick func(*views.LogFilter)) func(h *harness) {
 		return func(h *harness) {
@@ -295,7 +299,23 @@ func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(
 			h.keys(enter)
 		}
 	}
+	settled := func(h *harness) {
+		for range 40 {
+			h.deliver(h.update(frameMsg{gen: h.model.frames})...)
+		}
+	}
 	checksAlone := applied(func(f *views.LogFilter) { f.Kinds = []views.RowKind{views.RowCheck} })
+	ofNoLines := applied(func(f *views.LogFilter) { f.Accounts = []string{"personal"} })
+	eventsAfterNoLines := func(h *harness) {
+		ofNoLines(h)
+		settled(h)
+		h.typed("]")
+	}
+	failedAfterChecks := func(h *harness) {
+		checksAlone(h)
+		settled(h)
+		applied(func(f *views.LogFilter) { f.Kinds, f.Failed = []views.RowKind{views.RowRequest}, true })(h)
+	}
 	foundAPI := func(h *harness) {
 		h.typed("/", "a", "p", "i")
 		h.keys(enter)
@@ -308,7 +328,9 @@ func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(
 	}{
 		{name: "the Requests through checks alone, none on any day", filter: checksAlone},
 		{name: "the Requests through checks alone, the first a week back", checked: 7, filter: checksAlone, reach: 7},
-		{name: "the Requests through an account of no lines", filter: applied(func(f *views.LogFilter) { f.Accounts = []string{"personal"} })},
+		{name: "the failed after checks alone, the first a week back", checked: 7, filter: failedAfterChecks, reach: 7},
+		{name: "the Requests through an account of no lines", filter: ofNoLines},
+		{name: "the Events after the Requests through an account of no lines", filter: eventsAfterNoLines, reach: 20},
 		{name: "the Events after a find", found: foundAPI, filter: func(h *harness) { h.typed("]") }, reach: 3},
 	}
 	for _, tt := range tests {
@@ -347,9 +369,7 @@ func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(
 			before := len(l.days)
 
 			tt.filter(h)
-			for range 40 {
-				h.deliver(h.update(frameMsg{gen: h.model.frames})...)
-			}
+			settled(h)
 			var want []string
 			for d := 1; d <= tt.reach; d++ {
 				want = append(want, dayfile.DateOf(past(-time.Duration(d)*day)))
@@ -358,6 +378,46 @@ func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(
 				t.Errorf("the Log read back the days %v, want %v", got, want)
 			}
 		})
+	}
+}
+
+// The Events through a session, paused at their top, read back past the
+// first day of its lines, which bounds only their filling: its first
+// request, two days back, lost as the router went away, the router filed
+// that it started but wrote no line, so its lines begin today.
+func TestTheEventsOfASessionPausedAtTheirTopReadBackPastItsFirstLine(t *testing.T) {
+	state := t.TempDir()
+	var lines []ledger.Held
+	for i := range 60 {
+		lines = append(lines, ranIn(fmt.Sprintf("0c%06d", i), apiSession, "~/Code/api", -time.Duration(70-i)*time.Minute))
+	}
+	for d := 1; d <= 30; d++ {
+		for i := range 20 {
+			lines = append(lines, ranIn(fmt.Sprintf("0d%02d%04d", d, i), webSession, "~/Code/web", -time.Duration(d)*day+time.Duration(i)*time.Minute))
+		}
+	}
+	writeLines(t, state, lines...)
+	lost := past(-2*day + time.Hour)
+	writeEvents(t, state,
+		events.Line{ID: 1, At: lost, Kind: status.EventStarted, Account: "work", Session: apiSession, Model: opus, Reason: "new", Run: past(-40 * day)},
+		events.Line{ID: 1, At: past(-70 * time.Minute), Kind: status.EventStarted, Account: "work", Session: apiSession, Model: opus, Reason: "new", Run: past(-80 * time.Minute)},
+	)
+	h := newHarness(t, probedWithoutTheRouter())
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
+	onTheLog(h, state)
+	h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+	h.start()
+	h.typed("/", "a", "p", "i")
+	h.keys(enter)
+	h.typed("]")
+	for range 10 {
+		h.keys(tea.KeyPressMsg{Code: tea.KeyUp})
+		for range 10 {
+			h.deliver(h.update(frameMsg{gen: h.model.frames})...)
+		}
+	}
+	if !slices.ContainsFunc(h.model.log.page.Events.Rows, func(e views.LogEvent) bool { return e.At.Equal(lost) }) {
+		t.Errorf("the Events through api, paused at their top, never show it started two days back, the tables spanning from %s", h.model.log.from.Date)
 	}
 }
 

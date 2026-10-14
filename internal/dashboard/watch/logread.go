@@ -69,7 +69,8 @@ type logReadMsg struct {
 // restarts, or a document skips events; at each look since, what the ledger
 // gained, as the tail reads it; and the day before those its tables span, as
 // they want it, as far back as the lines of the filter the page's Reach
-// gives reach, as wantsDayBefore has it, the days' summaries read first
+// gives reach, the Events paused at their top past it, as wantsDayBefore
+// and the page have it, the days' summaries read first
 // where it wants them, or as the event its details card is open on does,
 // or the find's pick, of an earlier day, as reaching has it.
 func (m Model) readLog() (Model, tea.Cmd) {
