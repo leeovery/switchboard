@@ -224,36 +224,49 @@ func TestLandingChoosesTheFirstRequestAtOrAfterAMoment(t *testing.T) {
 }
 
 // A table whose filter changes what it shows stands as it first opened,
-// unfilled, so, short of its view, it reads back to fill it: as the find's
-// enter, the panel's, and esc letting the filter go each change it, whether
-// the table filled its view before. One whose filter the days' summaries
-// can't bound stays as it stood, reading back only as its top is reached:
-// the Requests through a filter of the failed, and the Events through one of
-// a session.
+// unfilled, so, short of the view it filled, it reads back to fill it: as
+// the find's enter, the panel's, and esc letting the filter go each change
+// it. One whose filter the days' summaries can't bound stays as it stood,
+// reading back only as its top is reached, or its view grows: the Requests
+// through a filter of the failed, and the Events through one of a session.
 func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 	const session = "d28c5e17-0000-4000-8000-000000000001"
-	requests, events := threeAsked().Filling(3), threeAsked().Turned(1)
-	pinned := views.ReadEvents(filedEvents([]status.Event{{ID: 1, At: logDay, Kind: status.EventPin, Accounts: []string{"personal"}}}), logDay, logDayNoon)
-	events.Events = views.LogEvents(views.LogEventSources{From: logDay, Events: pinned, Filed: views.OldestKept(theDayBefore, 0, logDayNoon), Now: logDayNoon})
-	events = events.Filling(1)
-	failed := requests.Panel()
-	failed.Filter.Failed = true
+	src := views.LogSources{From: logDay, Now: logDayNoon}
+	ofSession := []ledger.Line{asked("1", logDay), asked("2", logDay.Add(time.Minute)), asked("3", logDay.Add(2*time.Minute))}
+	every := slices.Concat(ofSession, []ledger.Line{askedIn("4", "c4ec0000-0000-4000-8000-000000000009", logDay.Add(3*time.Minute))})
+	pinned := status.Event{ID: 1, At: logDay, Kind: status.EventPin, Accounts: []string{"personal"}}
+	// keeping is p, the table its filter's change refilters built afresh
+	// of the lines or events it keeps, as the watch builds it.
+	keeping := func(p LogPage, lines []ledger.Line, events ...status.Event) LogPage {
+		if p.Shown == LogEvents {
+			read := views.ReadEvents(filedEvents(events), logDay, logDayNoon)
+			p.Events = views.LogEvents(views.LogEventSources{From: logDay, Events: read, Filed: views.OldestKept(theDayBefore, 0, logDayNoon), Now: logDayNoon})
+			return p
+		}
+		p.Requests = requestsOf(src, lines).Requests
+		return p
+	}
+	requests := requestsOf(src, every).Filling(4)
+	events := keeping(threeAsked().Turned(1), nil, pinned, workAtItsCap).Filling(2)
+	picked, pins, failed := requests.Panel(), events.Panel(), requests.Panel()
+	picked.Filter.Sessions, pins.Shows.Kinds, failed.Filter.Failed = []string{session}, []string{status.EventPin}, true
 	tests := []struct {
 		name  string
 		page  LogPage
+		rows  int
 		wants bool
 	}{
-		{name: "the find's enter", page: requests.FoundOnly(session), wants: true},
-		{name: "the panel's enter", page: requests.Applied(requests.Panel()), wants: true},
-		{name: "the Events' panel's enter", page: events.Applied(events.Panel()), wants: true},
-		{name: "esc letting the filter go", page: requests.FoundOnly(session).Filling(3).Unfiltered(), wants: true},
-		{name: "the panel's enter on the failed", page: requests.Applied(failed)},
-		{name: "the find's enter, on the Events", page: events.FoundOnly(session)},
+		{name: "the find's enter", page: keeping(requests.FoundOnly(session), ofSession), rows: 4, wants: true},
+		{name: "the panel's enter", page: keeping(requests.Applied(picked), ofSession), rows: 4, wants: true},
+		{name: "the Events' panel's enter", page: keeping(events.Applied(pins), nil, pinned), rows: 2, wants: true},
+		{name: "esc letting the filter go", page: keeping(keeping(requests.FoundOnly(session), ofSession).Filling(3).Unfiltered(), every), rows: 5, wants: true},
+		{name: "the panel's enter on the failed", page: keeping(requests.Applied(failed), nil), rows: 4},
+		{name: "the find's enter, on the Events", page: keeping(events.FoundOnly(session), nil), rows: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.page.WantsDayBefore(10); got != tt.wants {
-				t.Errorf("refiltered, short of its view, the table wants the day before: %t, want %t", got, tt.wants)
+			if got := tt.page.WantsDayBefore(tt.rows); got != tt.wants {
+				t.Errorf("refiltered, short of the view of %d rows it filled, the table wants the day before: %t, want %t", tt.rows, got, tt.wants)
 			}
 		})
 	}
@@ -320,9 +333,10 @@ func TestATableHoldingNoRowDoesntPause(t *testing.T) {
 }
 
 // On opening, a table reads back a day at a time till it fills its view,
-// then only as its view's top, paused, reaches the first line held; never
-// past the oldest day the ledger keeps. A view of no rows fills nothing: the
-// table reads back to fill it once the terminal gives it rows.
+// then only as its view's top, paused, reaches the first line held, or,
+// following, as its view grows past the rows it filled; never past the
+// oldest day the ledger keeps. A view of no rows fills nothing: the table
+// reads back to fill it once the terminal gives it rows.
 func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 	src := views.LogSources{From: logDay, Now: logDayNoon}
 	oldest := src
@@ -335,7 +349,10 @@ func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 	}{
 		{name: "short of its view", page: threeAsked(), rows: 4, want: true},
 		{name: "its view filled", page: threeAsked().Filling(3), rows: 3},
-		{name: "filled, short again as the view grows", page: threeAsked().Filling(3), rows: 10},
+		{name: "filled, short again as the view grows, following", page: threeAsked().Filling(3), rows: 10, want: true},
+		{name: "filled again, as the view grew", page: threeAsked().Filling(1).Filling(3), rows: 3},
+		{name: "filled, the view grown, paused short of its first line", page: threeAsked().Filling(1).Scrolled(-1, 1), rows: 2},
+		{name: "filled, the view grown, paused at its first line", page: threeAsked().Filling(1).Scrolled(-1, 2), rows: 2, want: true},
 		{name: "with no rows, nothing to read", page: threeAsked().Filling(0), rows: 0},
 		{name: "opened with no rows, then given them", page: threeAsked().Filling(0), rows: 10, want: true},
 		{name: "filled, paused at its first line", page: threeAsked().Filling(3).Scrolled(-1, 2), rows: 2, want: true},

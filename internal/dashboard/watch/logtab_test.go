@@ -474,22 +474,42 @@ func TestReadingBackADayPricesItsFiguresAlone(t *testing.T) {
 	}
 }
 
-// Opened on a terminal too short for its table, the Log reads nothing back
-// to fill a view of no rows; given rows, it reads back to fill them.
-func TestTheLogOpenedTooShortReadsBackAsItsViewGrows(t *testing.T) {
-	state := t.TempDir()
-	writeLines(t, state, arrived("0a000001", "work", -day), arrived("0a000002", "work", -time.Minute))
-	h := newHarness(t, probedWithoutTheRouter())
-	l := onTheLog(h, state)
-	h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 10})...)
-	h.start()
-	if len(l.days) > 0 {
-		t.Fatalf("with no row for its table, the Log read back the days %v, want none", l.days)
+// Opened on a terminal too short for its table, or with a row or two for
+// it, which today's lines fill, the Log reads nothing back; grown, it reads
+// back to fill the rows it's given, as it follows.
+func TestTheLogOpenedShortReadsBackAsItsViewGrows(t *testing.T) {
+	tests := []struct {
+		name   string
+		height int
+		rows   int
+	}{
+		{name: "too short for its table", height: 10, rows: 0},
+		{name: "a row for its table", height: 11, rows: 1},
+		{name: "three rows for its table", height: 13, rows: 3},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state,
+				arrived("0a000001", "work", -day),
+				arrived("0a000002", "work", -3*time.Minute), arrived("0a000003", "work", -2*time.Minute), arrived("0a000004", "work", -time.Minute),
+			)
+			h := newHarness(t, probedWithoutTheRouter())
+			l := onTheLog(h, state)
+			h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: tt.height})...)
+			h.start()
+			if got := h.model.logRows(); got != tt.rows {
+				t.Fatalf("%d rows tall, the Log's view has %d rows, want %d", tt.height, got, tt.rows)
+			}
+			if len(l.days) > 0 {
+				t.Fatalf("with %d rows for its table, today's lines filling them, the Log read back the days %v, want none", tt.rows, l.days)
+			}
 
-	h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 50})...)
-	if want := []string{dayfile.DateOf(past(-day))}; !slices.Equal(l.days, want) {
-		t.Errorf("grown, the Log read back the days %v, want %v, to fill its view", l.days, want)
+			h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 50})...)
+			if want := []string{dayfile.DateOf(past(-day))}; !slices.Equal(l.days, want) {
+				t.Errorf("grown, the Log read back the days %v, want %v, to fill its view", l.days, want)
+			}
+		})
 	}
 }
 

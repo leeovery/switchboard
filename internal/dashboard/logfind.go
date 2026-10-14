@@ -57,7 +57,7 @@ func (p LogPage) FoundOnly(id string) LogPage {
 	p.Filter.Sessions, p.Shows.Sessions = []string{id}, []string{id}
 	p.Finding = LogFinding{}
 	for v, s := range p.Stands {
-		p.Stands[v] = LogStand{filled: s.filled}
+		p.Stands[v] = LogStand{filledAt: s.filledAt}
 	}
 	return p.refiltered(LogRequests, LogEvents)
 }
@@ -65,12 +65,13 @@ func (p LogPage) FoundOnly(id string) LogPage {
 // refiltered is p with the tables given unfilled, as each stood as it first
 // opened, whose filter has changed what it shows, where bounded says how far
 // back it would read is bounded: short of its view, each reads back to fill
-// it, as it did on opening, paused or following as it stands. Another reads
-// back only as its top is reached.
+// it, as it did on opening, paused or following as it stands. Another
+// stands filled as it was, reading back as WantsDayBefore has a filled
+// table read back.
 func (p LogPage) refiltered(tables ...LogView) LogPage {
 	for _, v := range tables {
 		if p.bounded(v) {
-			p.Stands[v].filled = false
+			p.Stands[v].filledAt = 0
 		}
 	}
 	return p
