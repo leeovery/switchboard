@@ -84,6 +84,10 @@ func TestTheLogsHeadingSaysWhatTheTableHides(t *testing.T) {
 	hidden := requestsOf(src, []ledger.Line{asked("1", logDay), checked})
 	filtered := hidden
 	filtered.Filter.Accounts = []string{"side"}
+	eventsFiltered := hidden.Turned(1)
+	eventsFiltered.Shows.Accounts = []string{"work"}
+	sessionsEvents := eventsOfItsSession(views.LogFilter{Accounts: []string{"work"}})
+	sessionsEvents.Shows.Sessions = []string{sessionsEvents.Events.Rows[0].Session}
 	tests := []struct {
 		name         string
 		page         LogPage
@@ -94,6 +98,12 @@ func TestTheLogsHeadingSaysWhatTheTableHides(t *testing.T) {
 		{name: "a check hidden", page: hidden, width: 120, starts: "LOG    Requests  Events  [ ]  ─", ends: "─  1 hidden: checks   f what it shows"},
 		{name: "filtered", page: filtered, width: 120, starts: "LOG    Requests  Events  [ ]   only side ─", ends: "─  1 hidden: checks   f what it shows"},
 		{name: "events", page: hidden.Turned(1), width: 120, starts: "LOG    Requests  Events  [ ]  ─", ends: "─  0 today   f what it shows"},
+		{name: "events filtered by their own panel", page: eventsFiltered, width: 120, starts: "LOG    Requests  Events  [ ]   only work ─", ends: "─  0 today   f what it shows"},
+		{name: "events, the Requests alone filtered", page: filtered.Turned(1), width: 120, starts: "LOG    Requests  Events  [ ]  ─", ends: "─  0 today   f what it shows"},
+		{
+			name: "events filtered to a session the Requests show none of, named by its directory as its event is", page: sessionsEvents, width: 120,
+			starts: "LOG    Requests  Events  [ ]   only d28c switchboard ─", ends: "─  1 today   f what it shows",
+		},
 		{name: "on a phone", page: hidden, width: 52, starts: "LOG   Requests  Events" + strings.Repeat(" ", 19), ends: "   1 hidden  f"},
 	}
 	for _, tt := range tests {
@@ -105,6 +115,23 @@ func TestTheLogsHeadingSaysWhatTheTableHides(t *testing.T) {
 			}
 		})
 	}
+}
+
+// eventsOfItsSession is the Log's page showing Events, at noon, of d28c
+// starting at 09:00 in switchboard, its one line on side, the Requests
+// filtered as filter says.
+func eventsOfItsSession(filter views.LogFilter) LogPage {
+	first := asked("1", logDay)
+	first.Dir = "/home/dev/switchboard"
+	lines := []ledger.Line{first}
+	src := views.LogSources{From: logDay, Now: logDayNoon, Filter: filter}
+	p := requestsOf(src, lines)
+	started := status.Event{ID: 1, At: logDay, Kind: status.EventStarted, Session: first.Session, Account: "side"}
+	p.Events = views.LogEvents(views.LogEventSources{
+		From: logDay, Events: views.ReadEvents(filedEvents{started}, logDay, logDayNoon), Now: logDayNoon,
+		Read: views.ReadLogHeld(sessionsHeld(lines), heldOf(lines), ledger.Pricing, logDayNoon),
+	})
+	return p.Turned(1)
 }
 
 // filedEvents are the router's files of events holding those given, of the

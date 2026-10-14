@@ -513,27 +513,45 @@ func kindsNamed(kinds []views.RowKind) string {
 	return strings.Join(names, " and ")
 }
 
-// filterNames are what the Requests' filter keeps, each named as the table
-// names it: a session by its id and directory, as a row of it does, else its
-// id alone; an account by its id; a model by its id less claude-.
+// filterNames are what the filter of the table shown keeps, each named as
+// the table names it: of the Requests', the sessions, accounts and models it
+// ticks, and whether it keeps those that failed alone; of the Events', the
+// sessions and accounts it ticks. The kinds it ticks the heading's count
+// says. A session is named by its id and directory, as a row of it does,
+// else its id alone; an account by its id; a model by its id less claude-.
 func (p LogPage) filterNames() logFilterNames {
-	f := p.Filter
-	names := logFilterNames{accounts: f.Accounts, failed: f.Failed}
-	for _, id := range f.Sessions {
-		names.sessions = append(names.sessions, sessionNamed(id, p.dirOf(id)))
+	if p.Shown == LogEvents {
+		return logFilterNames{sessions: p.sessionsNamed(p.Shows.Sessions), accounts: p.Shows.Accounts}
 	}
+	f := p.Filter
+	names := logFilterNames{sessions: p.sessionsNamed(f.Sessions), accounts: f.Accounts, failed: f.Failed}
 	for _, m := range f.Models {
 		names.models = append(names.models, ledger.ShortModelID(prose.Clean(m)))
 	}
 	return names
 }
 
+// sessionsNamed names the sessions with the given ids as sessionNamed does,
+// each by its directory as dirOf finds it.
+func (p LogPage) sessionsNamed(ids []string) []string {
+	var named []string
+	for _, id := range ids {
+		named = append(named, sessionNamed(id, p.dirOf(id)))
+	}
+	return named
+}
+
 // dirOf is the directory of the session with the given id as the Requests'
-// rows name it: "" where none does.
+// rows name it, else the Events': "" where none does.
 func (p LogPage) dirOf(id string) string {
 	for _, l := range p.Requests.Lines {
 		if l.IsRow() && l.Row.Session == id && l.Row.Dir != "" {
 			return l.Row.Dir
+		}
+	}
+	for _, e := range p.Events.Rows {
+		if e.Session == id && e.Dir != "" {
+			return e.Dir
 		}
 	}
 	return ""
