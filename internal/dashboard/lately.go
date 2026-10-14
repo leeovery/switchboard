@@ -154,8 +154,9 @@ func latelyLeads(m status.Moment, sentences []views.Sentence) []line {
 	return leads
 }
 
-// latelySaid are a sentence's words as LATELY tells them on the frame,
-// the Overview's and Detail's alike: short on a phone.
+// latelySaid are a sentence's words as the Overview's LATELY tells them on
+// the frame: short on a phone. Detail's tells them in full, as
+// accountLatelyLines has them.
 func (f Frame) latelySaid(s views.Sentence) views.Said {
 	if f.phone() {
 		return s.Short

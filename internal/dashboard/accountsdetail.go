@@ -458,22 +458,21 @@ func (d detailDrawn) lately(c *canvas, y, x, words int) {
 		d.f.quietly(c, d.m, x, y, d.f.edge())
 		return
 	}
-	for i, l := range d.f.accountLatelyLines(d.m, sentences, words) {
+	for i, l := range accountLatelyLines(d.m, sentences, words) {
 		end := c.line(x, y+i, l.fit(d.f.edge()-x))
 		d.f.freshen(c, sentences[i].ID, x, y+i, end)
 	}
 }
 
 // accountLatelyLines are Detail's LATELY lines of the sentences given, at the
-// moment m: each led as latelyLeads has it; then its words, as the frame
-// tells them, in text.muted, each account named as the dashboard names it,
-// cut to the cells given.
-func (f Frame) accountLatelyLines(m status.Moment, sentences []views.Sentence, words int) []line {
+// moment m: each led as latelyLeads has it; then its words in full, on a
+// phone as wide, in text.muted, each account named as the dashboard names
+// it, cut to the cells given.
+func accountLatelyLines(m status.Moment, sentences []views.Sentence, words int) []line {
 	lines := latelyLeads(m, sentences)
 	for i, s := range sentences {
-		said := f.latelySaid(s)
 		var told line
-		for _, p := range slices.Concat(said.Subject, said.Words, said.Object, said.Rest) {
+		for _, p := range slices.Concat(s.Full.Subject, s.Full.Words, s.Full.Object, s.Full.Rest) {
 			text := p.Text
 			if p.Kind == status.PartAccount {
 				text = named(m, p.Text)
