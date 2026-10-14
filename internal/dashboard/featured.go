@@ -51,7 +51,7 @@ func (f Feature) Next(doc status.Document, now time.Time, policy score.Policy) F
 	return cycle[(max(slices.Index(cycle, f), 0)+1)%len(cycle)]
 }
 
-// Name is what the footer and the help call the setting as doc stands at
+// Name is what the key line and the help call the setting as doc stands at
 // now, as the cards show it: "auto", which a setting w doesn't reach, as one
 // no longer in use, shows as; the window a request starts by its key, as
 // ROOM LEFT calls it, "5h"; and any other by its label as a narrow column

@@ -246,7 +246,7 @@ func TestKeysAreShownAsTheyrePressedTillTheyveHadTheirTime(t *testing.T) {
 		t.Errorf("the last row reads %q, want the keys pressed, in turn, at its right", last)
 	}
 	if last := lastRow(l); strings.Contains(last, "read") || !strings.Contains(last, "q quit") {
-		t.Errorf("the last row reads %q, want the footer's keys, but nothing of how long ago it was read, which the keys cut into", last)
+		t.Errorf("the last row reads %q, want the key line's keys, but nothing of how long ago it was read, which the keys cut into", last)
 	}
 	elapsed += typedFor - time.Millisecond
 	if last := lastRow(l); !strings.HasSuffix(last, " w  ") {
@@ -273,7 +273,7 @@ func TestTheLatestKeysPressedAreShown(t *testing.T) {
 	}
 }
 
-func TestKeysAreNamedAsTheFooterNamesThem(t *testing.T) {
+func TestKeysAreNamedAsTheKeyLineNamesThem(t *testing.T) {
 	tests := []struct {
 		key  tea.KeyPressMsg
 		want string
@@ -285,7 +285,7 @@ func TestKeysAreNamedAsTheFooterNamesThem(t *testing.T) {
 		{key: tea.KeyPressMsg{Code: tea.KeyDown}, want: "↓"},
 		{key: tea.KeyPressMsg{Code: tea.KeyLeft}, want: "←"},
 		{key: tea.KeyPressMsg{Code: tea.KeyRight}, want: "→"},
-		{key: tea.KeyPressMsg{Code: tea.KeyEnter}, want: "⏎"},
+		{key: tea.KeyPressMsg{Code: tea.KeyEnter}, want: "enter"},
 		{key: tea.KeyPressMsg{Code: tea.KeyEscape}, want: "esc"},
 		{key: tea.KeyPressMsg{Code: tea.KeyPgDown}, want: "PgDn"},
 		{key: tea.KeyPressMsg{Code: 'w', Text: "w"}, want: "w"},

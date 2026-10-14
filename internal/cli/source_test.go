@@ -17,9 +17,11 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -292,6 +294,9 @@ func TestDashboardReadsTheRouterWhileItRuns(t *testing.T) {
 	cfg := recordWatch(t, &srv.deps)
 	run(t, srv.deps, "dashboard")
 
+	if cfg.ProbeOnly {
+		t.Error("the watch is told it probes as asked, want it reading the router")
+	}
 	for _, r := range []status.Read{{Refresh: 30 * time.Minute, Probe: true}, {Probe: true}, {Refresh: 30 * time.Minute}} {
 		doc, health, err := cfg.Source.Read(t.Context(), r)
 		if err != nil || doc.Source != status.SourceRouter {
@@ -391,11 +396,93 @@ func TestDashboardPinsOneSessionAsPinSessionDoes(t *testing.T) {
 	}
 }
 
+func TestTheRoutingCardsOrdersReachTheRouter(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.start(t)
+	srv.waitForProbes(t)
+	cfg := recordWatch(t, &srv.deps)
+	run(t, srv.deps, "dashboard")
+	m := watching(t, *cfg)
+
+	// Personal, the second, has no token, so its number picks nothing.
+	m = pressed(m, "p", "2", "3", "m", "enter")
+	if got, want := srv.status(t).Pin, (status.Pin{Accounts: []string{"side"}, Since: testNow, Move: true}); !reflect.DeepEqual(got, want) {
+		t.Errorf("once p 2 3 m enter were pressed, the router's pin = %+v, want %+v", got, want)
+	}
+	if e := srv.told(t); e.Kind != status.EventPin || !e.Move || e.By != "dashboard" {
+		t.Errorf("once pinned, the router told of %+v, want a pin moving the sessions running, by the dashboard", e)
+	}
+
+	pressed(m, "p", "0", "enter")
+	if got := srv.status(t).Pin; !got.IsZero() {
+		t.Errorf("once p 0 enter were pressed, the router's pin = %+v, want none", got)
+	}
+	if e := srv.told(t); e.Kind != status.EventAuto || e.By != "dashboard" {
+		t.Errorf("once unpinned, the router told of %+v, want an auto by the dashboard", e)
+	}
+}
+
+// watching is the watch dashboard runs, as Watch was given cfg, started and
+// its first read taken: its timers, and its waits on the request stream,
+// held, so nothing it does waits.
+func watching(t *testing.T, cfg watch.Config) watch.Model {
+	t.Helper()
+	cfg.After = func(time.Duration, tea.Msg) tea.Cmd { return nil }
+	cfg.Await = func(tea.Cmd) tea.Cmd { return nil }
+	m := watch.New(t.Context(), cfg)
+	return delivered(m, sent(m.Init())...)
+}
+
+// pressed presses the keys given, in turn, as the terminal sends them.
+func pressed(m watch.Model, keys ...string) watch.Model {
+	for _, k := range keys {
+		key := tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
+		if k == "enter" {
+			key = tea.KeyPressMsg{Code: tea.KeyEnter}
+		}
+		m = delivered(m, key)
+	}
+	return m
+}
+
+// delivered gives the model each message, and each that the commands it
+// returns send back, until none is left, as Bubble Tea would, but at once.
+func delivered(m watch.Model, msgs ...tea.Msg) watch.Model {
+	for len(msgs) > 0 {
+		next, cmd := m.Update(msgs[0])
+		m = next.(watch.Model)
+		msgs = append(msgs[1:], sent(cmd)...)
+	}
+	return m
+}
+
+// sent runs cmd, and every command it batches, returning what they send back.
+func sent(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	switch msg := cmd().(type) {
+	case nil:
+		return nil
+	case tea.BatchMsg:
+		var msgs []tea.Msg
+		for _, c := range msg {
+			msgs = append(msgs, sent(c)...)
+		}
+		return msgs
+	default:
+		return []tea.Msg{msg}
+	}
+}
+
 func TestDashboardProbesAsAsked(t *testing.T) {
 	srv := routingSetup(t)
 	cfg := recordWatch(t, &srv.deps)
 	run(t, srv.deps, "dashboard", "--probe")
 
+	if !cfg.ProbeOnly {
+		t.Error("the watch isn't told it probes as asked, want it told: there's no router for a failed read to have lost")
+	}
 	doc, _, err := cfg.Source.Read(t.Context(), status.Read{Refresh: 30 * time.Minute, Probe: true})
 	if err != nil || doc.Source != status.SourceProbe || doc.Fallback != (status.Fallback{}) {
 		t.Errorf("Read() = %+v, %v, want one probed, as asked, while the router runs", doc, err)

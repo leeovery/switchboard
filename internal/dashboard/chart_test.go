@@ -30,7 +30,7 @@ func halfway() (status.Account, Trail) {
 // key, of the history given, width cells wide and rows tall, in attention's
 // colour, as an account under pressure has it, and returns the canvas it's
 // drawn on.
-func chartOf(t *testing.T, doc status.Document, a status.Account, key string, history History, width, rows int) *canvas {
+func chartOf(t *testing.T, doc status.Document, a status.Account, key string, history Trails, width, rows int) *canvas {
 	t.Helper()
 	return charting{doc: doc, account: a, key: key, history: history, condition: status.Pressed, width: width, rows: rows}.draw(t)
 }
@@ -45,7 +45,7 @@ type charting struct {
 	doc         status.Document
 	account     status.Account
 	key         string
-	history     History
+	history     Trails
 	condition   status.Condition
 	busy        bool
 	at          time.Time
@@ -64,7 +64,7 @@ func (ch charting) draw(t *testing.T) *canvas {
 	if ch.look != nil {
 		look = *ch.look
 	}
-	f := Frame{Look: look, Policy: claudeLike, History: ch.history, Chart: ch.style}
+	f := Frame{Look: look, Policy: claudeLike, Trails: ch.history, Chart: ch.style}
 	w, ok := ch.account.Window(ch.key)
 	if !ok {
 		t.Fatalf("no window %s", ch.key)
@@ -100,7 +100,7 @@ func TestGCyclesTheChartStyleRound(t *testing.T) {
 
 func TestAChartStyleGDoesntReachIsDrawnAsBurnDown(t *testing.T) {
 	a, trail := halfway()
-	history := History{{Account: "work", Window: "5h"}: trail}
+	history := Trails{{Account: "work", Window: "5h"}: trail}
 	drawn := func(style Chart) []string {
 		return charting{style: style, doc: routerDoc("", 0, a), account: a, key: "5h", history: history, condition: status.Pressed, width: 30, rows: 3}.draw(t).rows(Look{})
 	}
@@ -112,7 +112,7 @@ func TestAChartStyleGDoesntReachIsDrawnAsBurnDown(t *testing.T) {
 
 func TestAChartsLevelIsTheRoomItsReadingsLeftAndWhereItsHeading(t *testing.T) {
 	a, trail := halfway()
-	c := chartOf(t, routerDoc("", 0, a), a, "5h", History{{Account: "work", Window: "5h"}: trail}, 10, 2)
+	c := chartOf(t, routerDoc("", 0, a), a, "5h", Trails{{Account: "work", Window: "5h"}: trail}, 10, 2)
 
 	want := []string{"██▂▂  │", "████▆▆⠂⠄✕"}
 	if got := c.rows(Look{})[:2]; !slices.Equal(got, want) {
@@ -146,7 +146,7 @@ func TestAChartHeadingForItsResetEndsAtTheRoomItLeaves(t *testing.T) {
 func TestAChartsFloorIsItsReserveWhereThatHoldsItBack(t *testing.T) {
 	a, trail := halfway()
 	a.Reserve = 0.1
-	c := chartOf(t, routerDoc("", 0, a), a, "5h", History{{Account: "work", Window: "5h"}: trail}, 10, 2)
+	c := chartOf(t, routerDoc("", 0, a), a, "5h", Trails{{Account: "work", Window: "5h"}: trail}, 10, 2)
 
 	if got, want := c.rows(Look{})[1], "████▆▆⠂✕⠠"; got != want {
 		t.Errorf("row 2 = %q, want %q: ✕ where it reaches its reserve, sooner, on its floor, and the floor dotted on", got, want)
@@ -163,7 +163,7 @@ func TestAChartAtItsLimitRunsAlongTheFloorTillTheLimitLifts(t *testing.T) {
 	a.Limit = status.Limit{Windows: []string{"5h"}, Until: session.ResetsAt.Add(-time.Hour)}
 	start := session.ResetsAt.Add(-5 * time.Hour)
 	trail := Trail{Start: start, Readings: []score.Reading{{At: start, Utilization: 0.5}, {At: start.Add(time.Hour), Utilization: 1}}}
-	c := chartOf(t, routerDoc("", 0, a), a, "5h", History{{Account: "work", Window: "5h"}: trail}, 20, 2)
+	c := chartOf(t, routerDoc("", 0, a), a, "5h", Trails{{Account: "work", Window: "5h"}: trail}, 20, 2)
 
 	if got, want := c.rows(Look{}), []string{"           │", "████▁▁▁▁▁▁▁▁▁▁▁▁", "10:42    now   15:42"}; !slices.Equal(got, want) {
 		t.Errorf("drew\n%s\nwant\n%s\n: the level reaching the floor, and a line along it till the limit lifts", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -178,7 +178,7 @@ func TestAChartsLevelShowsALittleRoomLeftAsItsLowestEighth(t *testing.T) {
 	start := session.ResetsAt.Add(-5 * time.Hour)
 	a := readAccount("work", session, weekOf(0.3, 4*day))
 	trail := Trail{Start: start, Readings: []score.Reading{{At: start, Utilization: 0.5}, {At: start.Add(time.Hour), Utilization: 0.98}}}
-	c := chartOf(t, routerDoc("", 0, a), a, "5h", History{{Account: "work", Window: "5h"}: trail}, 20, 2)
+	c := chartOf(t, routerDoc("", 0, a), a, "5h", Trails{{Account: "work", Window: "5h"}: trail}, 20, 2)
 
 	if got := c.at(6, 1); got.glyph != "▁" || got.ink != (ink{token: theme.AccentAttention, fade: projectionFade}) {
 		t.Errorf("a column with 2%% left draws %q in %+v, want ▁ in the level's ink: no limit holds it", got.glyph, got.ink)
@@ -230,7 +230,7 @@ func TestALimitNamingNoWindowHoldsTheChartOnTheFloorFromWhenItWasReached(t *test
 	a.Limit = status.Limit{Until: now.Add(time.Hour)}
 	doc := routerDoc("", 0, a)
 	doc.Events = []status.Event{{ID: 1, At: reached.UTC(), Kind: status.EventLimit, Account: "work"}}
-	c := chartOf(t, doc, a, "5h", History{{Account: "work", Window: "5h"}: trail}, 20, 2)
+	c := chartOf(t, doc, a, "5h", Trails{{Account: "work", Window: "5h"}: trail}, 20, 2)
 
 	if got, want := c.rows(Look{}), []string{"████▂▂     │", "██████▁▁▁▁▁▁▁▁", "10:42    now   15:42"}; !slices.Equal(got, want) {
 		t.Errorf("drew\n%s\nwant\n%s\n: the level on the floor from the limit, and a line along it till the limit lifts", strings.Join(got, "\n"), strings.Join(want, "\n"))

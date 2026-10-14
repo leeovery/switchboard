@@ -1,6 +1,6 @@
-# The sessions-storyboard-1-request-out fixture, tab pressed to show Sessions,
-# c61b's request out, its pulse over half way to side, full screen at its 160 ×
-# 28, as capturetool runs it.
+# The sessions-storyboard-1-request-out fixture, tab pressed three times to show
+# Sessions, c61b's request out, its pulse over half way to side, full screen at
+# its 160 × 28, as capturetool runs it.
 # Run from the repository's root: vhs testdata/vhs/sessions-storyboard-1-request-out.tape
 
 Set Shell "bash"

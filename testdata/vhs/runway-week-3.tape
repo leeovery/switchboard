@@ -1,5 +1,5 @@
-# The runway-week-3 fixture, tab pressed twice to show Runway, then w for the
-# week, full screen at its 160 × 26, as capturetool runs it.
+# The runway-week-3 fixture, tab pressed four times to show Runway, then w for
+# the week, full screen at its 160 × 26, as capturetool runs it.
 # Run from the repository's root: vhs testdata/vhs/runway-week-3.tape
 
 Set Shell "bash"

@@ -11,13 +11,14 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 func TestStartsByReading(t *testing.T) {
 	h := newHarness(t, calm())
 
-	if got, want := h.footer(), unreadKeys+" · reading usage…"; got != want {
-		t.Errorf("before the first read, the footer is %q, want %q", got, want)
+	if got, want := h.keyLine(), unreadKeys; got != want {
+		t.Errorf("before the first read, the key line reads %q, want %q", got, want)
 	}
 	if view := h.view(); !strings.Contains(view, "SWITCHBOARD") || strings.Contains(view, "╭─ 1 Work ") {
 		t.Errorf("before the first read, the screen is\n%s\nwant the title row, and no account", view)
@@ -27,8 +28,8 @@ func TestStartsByReading(t *testing.T) {
 		t.Fatalf("starting read the source %d times, want once", h.source.reads)
 	}
 	h.deliver(read...)
-	if got, want := h.footer(), probingKeys+" · read 0s ago · next 13:42"; got != want {
-		t.Errorf("after the first read, the footer is %q, want %q", got, want)
+	if got, want := h.keyLine(), oneKeys; got != want {
+		t.Errorf("after the first read, the key line reads %q, want %q", got, want)
 	}
 	if !strings.Contains(h.view(), "╭─ 1 Work ") {
 		t.Errorf("after the first read, the screen is\n%s\nwant the account's card", h.view())
@@ -93,8 +94,8 @@ func TestReadsAgainWhenDue(t *testing.T) {
 			h := newHarness(t, tt.doc)
 			h.start()
 
-			if got, want := h.footer(), probingKeys+" · read 0s ago · next "+tt.wantNext; got != want {
-				t.Errorf("footer = %q, want %q", got, want)
+			if got := h.nextRead(); got != tt.wantNext {
+				t.Errorf("the next read is due at %s, want %s", got, tt.wantNext)
 			}
 			if got, want := h.tickUntilRead(), tt.wantRead.Add(tickSlack); !got.Equal(want) {
 				t.Errorf("read again at %s, want %s", got.Format(time.StampMilli), want.Format(time.StampMilli))
@@ -130,8 +131,8 @@ func TestBacksOffWhileReadsFail(t *testing.T) {
 		if got, want := h.tickUntilRead(), tt.wantRead.Add(tickSlack); !got.Equal(want) {
 			t.Fatalf("%s: read at %s, want %s", tt.name, got.Format(time.StampMilli), want.Format(time.StampMilli))
 		}
-		if got := h.footer(); !strings.HasSuffix(got, " · next "+tt.wantNext) {
-			t.Errorf("%s: footer = %q, want the next read at %s", tt.name, got, tt.wantNext)
+		if got := h.nextRead(); got != tt.wantNext {
+			t.Errorf("%s: the next read is due at %s, want %s", tt.name, got, tt.wantNext)
 		}
 	}
 }
@@ -147,8 +148,8 @@ func TestResetOnScreenBringsOnAReadWhileReadsFail(t *testing.T) {
 		h.clock.now = failedAt
 		h.read(calm())
 	}
-	if got, want := h.footer(), probingKeys+" · couldn't read usage: connection refused · next 13:26"; got != want {
-		t.Errorf("footer = %q, want %q", got, want)
+	if got, want := h.nextRead(), "13:26"; got != want {
+		t.Errorf("the next read is due at %s, want %s", got, want)
 	}
 }
 
@@ -180,12 +181,12 @@ func TestReadsOnTheFirstTickAfterSleep(t *testing.T) {
 	if h.source.reads != 2 {
 		t.Errorf("the first tick after the clock jumped past the read read the source %d times, want once more", h.source.reads-1)
 	}
-	if got, want := h.footer(), probingKeys+" · refreshing…"; got != want {
-		t.Errorf("while reading, footer = %q, want %q", got, want)
+	if !h.model.fetching {
+		t.Error("the read the tick asked for isn't under way")
 	}
 	h.deliver(read...)
-	if got, want := h.footer(), probingKeys+" · read 0s ago · next 21:42"; got != want {
-		t.Errorf("after reading, footer = %q, want %q", got, want)
+	if got, want := h.nextRead(), "21:42"; got != want {
+		t.Errorf("after reading, the next read is due at %s, want %s", got, want)
 	}
 }
 
@@ -193,25 +194,21 @@ func TestRefreshKey(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
 
-	pending := h.press("r")
-	if h.source.reads != 2 {
-		t.Fatalf("r read the source %d times, want once", h.source.reads-1)
+	if h.deliver(h.press("r")...); h.source.reads != 1 {
+		t.Errorf("r read the source %d times, want never: it does nothing", h.source.reads-1)
 	}
-	if got, want := h.footer(), probingKeys+" · refreshing…"; got != want {
-		t.Errorf("while reading, footer = %q, want %q", got, want)
-	}
-	h.deliver(h.press("r")...)
+	pending := h.press("R")
 	if h.source.reads != 2 {
-		t.Errorf("r while a read was under way read the source again")
+		t.Fatalf("R read the source %d times, want once", h.source.reads-1)
+	}
+	h.deliver(h.press("R")...)
+	if h.source.reads != 2 {
+		t.Errorf("R while a read was under way read the source again")
 	}
 	h.clock.now = at(13, 20, 0)
 	h.deliver(pending...)
-	if got, want := h.footer(), probingKeys+" · read 0s ago · next 13:50"; got != want {
-		t.Errorf("after the read, footer = %q, want %q", got, want)
-	}
-	h.deliver(h.press("R")...)
-	if h.source.reads != 3 {
-		t.Errorf("R read the source %d times in all, want 3", h.source.reads)
+	if got, want := h.nextRead(), "13:50"; got != want {
+		t.Errorf("after the read, the next is due at %s, want %s", got, want)
 	}
 }
 
@@ -221,7 +218,7 @@ func TestQuitKeys(t *testing.T) {
 		wantQuit bool
 	}{
 		{key: "q", wantQuit: true},
-		{key: "Q", wantQuit: true},
+		{key: "Q", wantQuit: false},
 		{key: "ctrl+c", wantQuit: true},
 		{key: "x", wantQuit: false},
 	}
@@ -270,8 +267,8 @@ func TestCountdownShowsSecondsBetweenTicks(t *testing.T) {
 	}
 }
 
-// between is the screen between its title row and its footer, which tell
-// the time and how long ago the document was read.
+// between is the screen between its title row, which tells the time, and its
+// key line.
 func between(screen string) string {
 	rows := strings.Split(screen, "\n")
 	return strings.Join(rows[1:len(rows)-1], "\n")
@@ -295,68 +292,21 @@ func TestATickFromBeforeAReadIsDropped(t *testing.T) {
 	}
 }
 
-func TestFooter(t *testing.T) {
-	failing := errors.New("connection refused")
-	tests := []struct {
-		name string
-		// then moves the model on from its first read.
-		then func(h *harness)
-		want string
-	}{
-		{
-			name: "read",
-			then: func(*harness) {},
-			want: probingKeys + " · read 0s ago · next 13:42",
-		},
-		{
-			name: "read a while ago",
-			then: func(h *harness) { h.clock.now = at(13, 12, 59) },
-			want: probingKeys + " · read 59s ago · next 13:42",
-		},
-		{
-			name: "read minutes ago",
-			then: func(h *harness) { h.clock.now = at(13, 15, 30) },
-			want: probingKeys + " · read 3m ago · next 13:42",
-		},
-		{
-			name: "reading again",
-			then: func(h *harness) { h.press("r") },
-			want: probingKeys + " · refreshing…",
-		},
-		{
-			name: "after a read failed",
-			then: func(h *harness) {
-				h.source.err = failing
-				h.clock.now = at(13, 20, 0)
-				h.read(calm())
-			},
-			want: probingKeys + " · couldn't read usage: connection refused · next 13:22",
-		},
-		{
-			name: "after a read failed, and the next didn't",
-			then: func(h *harness) {
-				h.source.err = failing
-				h.read(calm())
-				h.source.err = nil
-				h.clock.now = at(13, 20, 0)
-				h.read(calm())
-			},
-			want: probingKeys + " · read 0s ago · next 13:50",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h := newHarness(t, calm())
-			h.start()
+func TestAFailedReadKeepsWhatWasReadOnScreen(t *testing.T) {
+	h := newHarness(t, calm())
+	h.start()
+	h.source.err = errors.New("connection refused")
+	h.clock.now = at(13, 20, 0)
+	h.read(calm())
 
-			tt.then(h)
-			if got := h.footer(); got != tt.want {
-				t.Errorf("footer = %q, want %q", got, tt.want)
-			}
-			if !strings.Contains(h.view(), "╭─ 1 Work ") {
-				t.Errorf("screen is\n%s\nwant the account's card still", h.view())
-			}
-		})
+	if !strings.Contains(h.view(), "╭─ 1 Work ") {
+		t.Errorf("screen is\n%s\nwant the account's card still", h.view())
+	}
+	if got, want := h.nextRead(), "13:22"; got != want {
+		t.Errorf("the next read is due at %s, want %s", got, want)
+	}
+	if got, want := strings.TrimSpace(strings.Split(h.view(), "\n")[2]), "! couldn't read usage: connection refused  ·  next 13:22"; got != want {
+		t.Errorf("the status line reads %q, want %q, in the probed line's place", got, want)
 	}
 }
 
@@ -365,8 +315,8 @@ func TestFirstReadFails(t *testing.T) {
 	h.source.err = errors.New("connection refused")
 	h.start()
 
-	if got, want := h.footer(), unreadKeys+" · couldn't read usage: connection refused · next 13:14"; got != want {
-		t.Errorf("footer = %q, want %q", got, want)
+	if got, want := h.keyLine(), unreadKeys; got != want {
+		t.Errorf("the key line reads %q, want %q", got, want)
 	}
 	if strings.Contains(h.view(), "╭─ 1 Work ") {
 		t.Errorf("screen is\n%s\nwant no account, nothing having been read", h.view())
@@ -454,18 +404,39 @@ func TestDrawsAtTheGivenSizeUntilTheTerminalGivesOne(t *testing.T) {
 	}
 }
 
+// cardKeys are the Overview's own keys, as its key line lists them while
+// its cards feature each its own window.
+var cardKeys = []dashboard.Key{{Key: "w", Does: "window: auto"}, {Key: "←→", Does: "focus"}, {Key: "space", Does: "flip"}, {Key: "g", Does: "chart"}}
+
 // calmScreen is the screen of calm read at now, its windows used as trails
 // says, as a terminal of the size given shows it without colour, probing,
 // with nothing more to say.
-func calmScreen(size Size, now time.Time, trails dashboard.History) string {
+func calmScreen(size Size, now time.Time, trails dashboard.Trails) string {
 	return strings.Join(dashboard.Frame{
 		Width: size.Width, Height: size.Height, Look: dashboard.NoColour(),
-		Views: dashboard.Views(), View: dashboard.Accounts, History: trails,
-		Keys: []dashboard.Key{
-			{Key: "tab", Does: "views"}, {Key: "w", Does: "window: auto"}, {Key: "←→", Does: "focus"}, {Key: "space", Does: "flip"},
-			{Key: "g", Does: "chart"}, {Key: "?", Does: "keys", Always: true}, {Key: "q", Does: "quit", Always: true},
-		},
-		Status: "read 0s ago · next 13:42",
+		View: dashboard.Overview, Trails: trails,
+		KeyLine: dashboard.KeyLine{Lead: 5, Groups: [][]dashboard.Key{
+			{{Key: "tab", Does: "views"}},
+			cardKeys,
+			{{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}},
+		}, Phone: cardKeys, PhoneHelp: "keys and toggles"},
 		Policy: policy,
 	}.Draw(calm(), now), "\n")
+}
+
+func TestThePageBehindACardTakesTheLookAsItStands(t *testing.T) {
+	h, _ := themedHarness(t, theme.Choice{})
+	h.start()
+	h.answer(nil)
+	h.press("?")
+	h.deliver(tea.BackgroundColorMsg{Color: lightBackground})
+
+	canvas := hexOf(h.model.showing.Colour(theme.Canvas))
+	f, _, _ := h.model.screen(h.model.now())
+	if got := hexOf(f.Look.Canvas()); h.drawnIn() != "tokyo-night-day" || got != canvas {
+		t.Errorf("with help open, the light terminal's answer has the page drawn on %s, want %s, the canvas of %s, the theme it's drawn in", got, canvas, h.drawnIn())
+	}
+	if got := hexOf(h.model.View().BackgroundColor); got != canvas {
+		t.Errorf("the terminal's background is set to %s, want %s, the canvas of the theme it's drawn in", got, canvas)
+	}
 }

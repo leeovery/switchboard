@@ -14,7 +14,7 @@ import (
 )
 
 // readOnce is what status and usage ask of the source they read, reading
-// once: with --refresh, the read the dashboard's r asks for, else the
+// once: with --refresh, the read the dashboard's R asks for, else the
 // document as it stands.
 func readOnce(refresh bool) status.Read {
 	if refresh {

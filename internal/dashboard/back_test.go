@@ -75,13 +75,11 @@ func flippingSessions() []status.Session {
 	}
 }
 
-// flipped is a frame of flipping, every card flipped, work's focused, and
-// the keys that work on a card's sessions those of a router that answers.
+// flipped is a frame of flipping, every card flipped, and work's focused.
 func flipped(t *testing.T) Frame {
 	return Frame{
 		Look: Screen(builtin(t, "nord")), Policy: claudeLike, Sessions: flippingSessions(),
 		Focus: "work", Flipped: map[string]bool{"work": true, "personal": true, "side": true},
-		Patch: []Key{{Key: "↑↓", Does: "select"}, {Key: "1-3", Does: "move it"}},
 	}
 }
 
@@ -89,9 +87,7 @@ func TestTheBackOfACard(t *testing.T) {
 	tests := []struct {
 		name string
 		id   string
-		// selected is the session picked out on work's back.
-		selected Seat
-		want     []string
+		want []string
 	}{
 		{
 			name: "work's sessions, the one seen last first, each noted, and LATELY", id: "work",
@@ -111,29 +107,7 @@ func TestTheBackOfACard(t *testing.T) {
 				"┃  11:12  ▲ d28c started here, the best          ┃",
 				"┃                                                ┃",
 				"┃                                                ┃",
-				"┃  ↑↓ select  1-3 move it  space flip            ┃",
-				"┗━ ● ● ○ ━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3 sessions ━┛",
-			},
-		},
-		{
-			name: "a session picked out", id: "work", selected: Seat{Session: idD28C, Model: opus},
-			want: []string{
-				"┏━ 1 work ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ sessions ━┓",
-				"┃  3 sessions  ·  2 busy                         ┃",
-				"┃                                                ┃",
-				"┃    ● db8a  sonnet  seen       now              ┃",
-				"┃      ╰ its opus is on side                     ┃",
-				"┃  ▸ ● d28c  opus    seen       now              ┃",
-				"┃      ╰ here since 11:12                        ┃",
-				"┃    ○ 7f3a  haiku   idle       9m               ┃",
-				"┃      ╰ here since 10:12                        ┃",
-				"┃                                                ┃",
-				"┃  LATELY                                        ┃",
-				"┃  12:42  ● came under pressure                  ┃",
-				"┃  11:12  ▲ d28c started here, the best          ┃",
-				"┃                                                ┃",
-				"┃                                                ┃",
-				"┃  ↑↓ select  1-3 move it  space flip            ┃",
+				"┃  space flip                                    ┃",
 				"┗━ ● ● ○ ━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3 sessions ━┛",
 			},
 		},
@@ -177,16 +151,14 @@ func TestTheBackOfACard(t *testing.T) {
 				"│  12:22  ▸ 3 sessions arrived from personal     │",
 				"│  12:12  ◇ primed: its 5-hour window started    │",
 				"│                                                │",
-				"│  ↑↓ select  1-3 move it  space flip            │",
+				"│  space flip                                    │",
 				"╰─ ● ● ○ ─────────────────────────── 3 sessions ─╯",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := flipped(t)
-			f.Selected = tt.selected
-			got := cardOf(t, f, flipping(), tt.id, 50, densities[0])
+			got := cardOf(t, flipped(t), flipping(), tt.id, 50, densities[0])
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("drew\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
 			}
@@ -203,7 +175,6 @@ func TestABackWithMoreSessionsThanFit(t *testing.T) {
 		name     string
 		sessions []status.Session
 		density  density
-		selected Seat
 		want     []string
 	}{
 		{
@@ -217,7 +188,7 @@ func TestABackWithMoreSessionsThanFit(t *testing.T) {
 				"┃    ○ 7f3a  haiku   idle       9m               ┃",
 				"┃                                                ┃",
 				"┃                                                ┃",
-				"┃  ↑↓ select  1-3 move it  space flip            ┃",
+				"┃  space flip                                    ┃",
 				"┗━ ● ● ○ ━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3 sessions ━┛",
 			},
 		},
@@ -229,7 +200,7 @@ func TestABackWithMoreSessionsThanFit(t *testing.T) {
 				"┃    ● db8a  sonnet  seen       now              ┃",
 				"┃    ● d28c  opus    seen       now              ┃",
 				"┃    ○ 7f3a  haiku   idle       9m               ┃",
-				"┃  ↑↓ select  1-3 move it  space flip            ┃",
+				"┃  space flip                                    ┃",
 				"┗━ ● ● ○ ━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3 sessions ━┛",
 			},
 		},
@@ -241,20 +212,7 @@ func TestABackWithMoreSessionsThanFit(t *testing.T) {
 				"┃    ● db8a  sonnet  seen       now              ┃",
 				"┃    ● d28c  opus    seen       now              ┃",
 				"┃  +3 more                                       ┃",
-				"┃  ↑↓ select  1-3 move it  space flip            ┃",
-				"┗━ ● ● ○ ○ ○ ━━━━━━━━━━━━━━━━━━━━━━━ 5 sessions ━┛",
-			},
-		},
-		{
-			name: "as many rows as fit, the one picked out last among them", sessions: crowded, density: density{compactCard, 2},
-			selected: Seat{Session: "e4b06a2d-c71f-4e98-b3d5-0a8f2e6c9b14", Model: haiku},
-			want: []string{
-				"┏━ 1 work ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ sessions ━┓",
-				"┃  5 sessions  ·  2 busy                         ┃",
-				"┃    ○ 5c7a  sonnet  idle       20m              ┃",
-				"┃  ▸ ○ e4b0  haiku   idle       30m              ┃",
-				"┃  +3 more                                       ┃",
-				"┃  ↑↓ select  1-3 move it  space flip            ┃",
+				"┃  space flip                                    ┃",
 				"┗━ ● ● ○ ○ ○ ━━━━━━━━━━━━━━━━━━━━━━━ 5 sessions ━┛",
 			},
 		},
@@ -262,7 +220,7 @@ func TestABackWithMoreSessionsThanFit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := flipped(t)
-			f.Sessions, f.Selected = tt.sessions, tt.selected
+			f.Sessions = tt.sessions
 			got := cardOf(t, f, flipping(), "work", 50, tt.density)
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("drew\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
@@ -288,9 +246,6 @@ func TestTheBacksShowTheStreamsMoves(t *testing.T) {
 	if !strings.Contains(side, "● d28c  opus    streaming  ↓ ~1.2k") || !strings.Contains(side, "╰ here since 13:11") || !strings.Contains(side, "4 sessions  ·  3 busy") {
 		t.Errorf("side's back is\n%s\nwant d28c on it, streaming, here since it moved", side)
 	}
-	if got := f.Seats("side", now); !slices.Contains(got, d28c) || slices.Contains(f.Seats("work", now), d28c) {
-		t.Errorf("side's seats are %+v, and work's %+v, want d28c among side's alone", got, f.Seats("work", now))
-	}
 }
 
 func TestTheBacksCountTheSessionsTheStreamSawLately(t *testing.T) {
@@ -307,40 +262,12 @@ func TestTheBacksCountTheSessionsTheStreamSawLately(t *testing.T) {
 		Moves: []Move{{Seat: brought, From: "work", To: "side", At: now.Add(-time.Second), Reason: "moved: work hit its limit"}},
 		Seen:  map[Plug]time.Time{{Account: "work", Seat: cold}: now.Add(-5 * time.Second)},
 	}
-	if got := f.Seats("side", now); !slices.Contains(got, brought) {
-		t.Errorf("side's seats are %+v, want e5f6's among them: a move the stream told of brought it, before the router listed it", got)
-	}
-	if got := f.Seats("work", now); !slices.Contains(got, cold) {
+	if got := seatsOf(f, "work"); !slices.Contains(got, cold) {
 		t.Errorf("work's seats are %+v, want 7f3a's among them: the stream saw it there lately, though the router last listed it seen two hours ago", got)
 	}
 	side := strings.Join(cardOf(t, f, flipping(), "side", 50, densities[0]), "\n")
 	if !strings.Contains(side, "e5f6") || !strings.Contains(side, "4 sessions") {
-		t.Errorf("side's back is\n%s\nwant e5f6 on it, counted among its sessions", side)
-	}
-}
-
-func TestTheSessionPickedOutIsOnTheSelectionsSurface(t *testing.T) {
-	f := flipped(t)
-	f.Selected = Seat{Session: idD28C, Model: opus}
-	faces, shown := f.faces(flipping(), now)
-	c := newCanvas(50, densities[0].rows(1))
-	f.card(c, flipping(), faces[0], now, 0, 0, 50, densities[0], barRowsFor(len(shown), 44), labelColumn)
-
-	const row = 5
-	if got := c.at(3, row); got.glyph != "▸" || got.ink.token != theme.AccentKey || !got.ink.bold {
-		t.Errorf("the row picked out leads with %q in %+v, want ▸ in accent.key, bold", got.glyph, got.ink)
-	}
-	for x := range 50 {
-		want := hue{}
-		if x >= 1 && x <= 48 {
-			want = hue{token: theme.BgSelection}
-		}
-		if got := c.at(x, row).ink.on; got != want {
-			t.Errorf("cell %d of the row picked out is on %+v, want %+v: bg.selection from side to side, as LATELY's highlight", x, got, want)
-		}
-	}
-	if got := c.at(3, row+2).ink.on; got != (hue{}) {
-		t.Errorf("the row under the note is on %+v, want the canvas", got)
+		t.Errorf("side's back is\n%s\nwant e5f6 on it, counted among its sessions: a move the stream told of brought it, before the router listed it", side)
 	}
 }
 
@@ -421,7 +348,7 @@ func TestASeatsRowSaysWhatItsDoing(t *testing.T) {
 			if tt.call != nil {
 				f.Traffic.Calls = map[Plug]Call{s.plug(): *tt.call}
 			}
-			if got := f.seatLine(s, modelColumn, false, now); !slices.Equal(got, tt.want) {
+			if got := f.seatLine(s, modelColumn, now); !slices.Equal(got, tt.want) {
 				t.Errorf("reads %+v, want %+v", got, tt.want)
 			}
 		})
@@ -559,11 +486,18 @@ func TestSeatsAreTheSessionsOnAnAccountInTheRoutersOrder(t *testing.T) {
 		{account: "personal"},
 	}
 	for _, tt := range tests {
-		if got := (Frame{Sessions: flippingSessions()}).Seats(tt.account, now); !slices.Equal(got, tt.want) {
-			t.Errorf("Seats(%s) = %+v, want %+v", tt.account, got, tt.want)
+		if got := seatsOf(Frame{Sessions: flippingSessions()}, tt.account); !slices.Equal(got, tt.want) {
+			t.Errorf("the seats on %s's back are %+v, want %+v", tt.account, got, tt.want)
 		}
 	}
-	if got := (Seat{Session: idD28C, Model: opus}).Shown(); got != "d28c" {
-		t.Errorf("Shown() = %q, want d28c", got)
+}
+
+// seatsOf are the seats on the back of the card of the account with the
+// given id, as f draws them at now.
+func seatsOf(f Frame, id string) []Seat {
+	var seats []Seat
+	for _, s := range f.activeOn(f.listing(), id, now) {
+		seats = append(seats, s.seat())
 	}
+	return seats
 }

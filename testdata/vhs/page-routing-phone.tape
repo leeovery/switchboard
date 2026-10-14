@@ -1,14 +1,16 @@
-# The accounts-flipped-selected fixture, full screen at its 160 × 34, as capturetool runs it.
-# Run from the repository's root: vhs testdata/vhs/accounts-flipped-selected.tape
+# The page-routing-phone fixture, the routing card on a phone, p having
+# opened it, 2 picked personal and m ticked, full screen at its 52 × 36, as
+# capturetool runs it.
+# Run from the repository's root: vhs testdata/vhs/page-routing-phone.tape
 
 Set Shell "bash"
 Set FontFamily "JetBrains Mono"
 Set FontSize 15
 Set LetterSpacing 0
 Set LineHeight 1
-# 160 columns: 160 × 9 + 65. 34 rows: 34 × 20 + 72.
-Set Width 1505
-Set Height 752
+# 52 columns: 52 × 9 + 65. 36 rows: 36 × 20 + 72.
+Set Width 533
+Set Height 792
 Set Padding 16
 Set WindowBar Colorful
 Set WindowBarSize 30
@@ -17,10 +19,10 @@ Set Theme { "name": "nord", "background": "#2E3440", "foreground": "#D8DEE9", "c
 Set WaitTimeout 2m
 
 Hide
-Type "go run ./cmd/capturetool --fixture accounts-flipped-selected"
+Type "go run ./cmd/capturetool --fixture page-routing-phone"
 Enter
 Wait+Screen /14:42/
 Show
 Sleep 500ms
-Screenshot "testdata/vhs/accounts-flipped-selected.png"
+Screenshot "testdata/vhs/page-routing-phone.png"
 Sleep 500ms

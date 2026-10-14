@@ -159,24 +159,23 @@ func TestAnHourglassFallsWhereItShowsAlone(t *testing.T) {
 	busyOn := func(id string) []status.Session {
 		return []status.Session{{ID: "d28c5e17", Assignments: []status.Assignment{{Account: id, LastSeen: now.Add(-20 * time.Second).UTC()}}}}
 	}
-	help := []Key{{Key: "g", Does: "cycle the chart every card draws"}, {Key: "?", Does: "these keys, and the key to the glyphs"}}
 	tests := []struct {
 		name     string
 		busy     string
 		scrolled bool
-		help     []Key
+		card     Opened
 		want     bool
 	}{
 		{name: "a card in view", busy: "a", want: true},
 		{name: "a card scrolled out of view", busy: "h"},
 		{name: "scrolled into view", busy: "h", scrolled: true, want: true},
-		{name: "a card under the help", busy: "b", help: help},
-		{name: "a card beside the help", busy: "a", help: help, want: true},
+		{name: "a card in view, under help", busy: "a", card: Help{}},
+		{name: "a card in view, under the routing card", busy: "a", card: RoutingCard{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := frameOf(160, 28)
-			f.Chart, f.Sessions, f.Help = Hourglass, busyOn(tt.busy), tt.help
+			f := frameOf(160, 25)
+			f.Chart, f.Sessions, f.Card = Hourglass, busyOn(tt.busy), tt.card
 			doc := accountsOf(8, false)
 			if tt.scrolled {
 				f.Scroll = f.Scrolling(doc, now).Most
@@ -272,7 +271,7 @@ func TestAnHourglassStreamFallsWhileItsAccountIsBusyAndIsStillWhileItIsnt(t *tes
 
 func TestAnHourglassStandsOverNow(t *testing.T) {
 	a, trail := halfway()
-	c := charting{style: Hourglass, doc: routerDoc("", 0, a), account: a, key: "5h", history: History{{Account: "work", Window: "5h"}: trail}, condition: status.Open, width: 44, rows: 4}.draw(t)
+	c := charting{style: Hourglass, doc: routerDoc("", 0, a), account: a, key: "5h", history: Trails{{Account: "work", Window: "5h"}: trail}, condition: status.Open, width: 44, rows: 4}.draw(t)
 
 	rows := c.rows(Look{})
 	if got, want := rows[0], strings.Repeat(" ", 18)+"▜████████▛"; got != want {
@@ -368,10 +367,10 @@ func TestFallingSaysWhetherAnHourglassFallsOnACard(t *testing.T) {
 		flipped  bool
 		want     bool
 	}{
-		{name: "an hourglass, its account busy", view: Accounts, style: Hourglass, sessions: busy, want: true},
-		{name: "an hourglass, its account idle", view: Accounts, style: Hourglass, sessions: idle},
-		{name: "an hourglass, its card flipped", view: Accounts, style: Hourglass, sessions: busy, flipped: true},
-		{name: "a burn rate", view: Accounts, style: BurnRate, sessions: busy},
+		{name: "an hourglass, its account busy", view: Overview, style: Hourglass, sessions: busy, want: true},
+		{name: "an hourglass, its account idle", view: Overview, style: Hourglass, sessions: idle},
+		{name: "an hourglass, its card flipped", view: Overview, style: Hourglass, sessions: busy, flipped: true},
+		{name: "a burn rate", view: Overview, style: BurnRate, sessions: busy},
 		{name: "Sessions shown", view: Sessions, style: Hourglass, sessions: busy},
 	}
 	for _, tt := range tests {

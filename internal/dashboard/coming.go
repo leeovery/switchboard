@@ -1,11 +1,20 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+)
+
+const (
+	// comingThings is how many things COMING UP lists.
+	comingThings = 3
+	// comingTail is the cells at the end of a line of COMING UP that its
+	// countdown takes, with the gap before it.
+	comingTail = 12
 )
 
 // happening is something coming up: when, the account it befalls, by its
@@ -101,4 +110,21 @@ func runningOut(doc status.Document, u status.Upcoming, policy score.Policy) str
 func limited(a status.Account, now time.Time, policy score.Policy) bool {
 	held, ok := a.Held(now, policy)
 	return ok && held.Every
+}
+
+// comingLines draws up to n of the things coming up from row y, their words
+// from x, each after its time, in a column, timeGap after it, and their
+// countdowns ending at the frame's right.
+func (f Frame) comingLines(c *canvas, items []happening, now time.Time, x, y, n int) {
+	items = items[:min(n, len(items))]
+	column := 0
+	for _, h := range items {
+		column = max(column, len(status.When(now, h.at)))
+	}
+	for i, h := range items {
+		c.right(f.edge(), y+i, line{{status.Until(now, h.at), h.ink}})
+		at := fmt.Sprintf("%-*s", column, status.When(now, h.at)) + f.timeGap()
+		words := line{{at, secondaryInk}, {h.name, strongInk}, {h.what, h.ink}}
+		c.line(x, y+i, words.fit(f.edge()-comingTail-x))
+	}
 }

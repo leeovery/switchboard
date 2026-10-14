@@ -129,7 +129,7 @@ func TestACardAtEachDensityInEveryChartStyle(t *testing.T) {
 	doc := pressedWork()
 	session, _ := doc.Accounts[0].Window("5h")
 	start := session.ResetsAt.Add(-5 * time.Hour)
-	history := History{{Account: "work", Window: "5h"}: {Start: start, Readings: []score.Reading{
+	history := Trails{{Account: "work", Window: "5h"}: {Start: start, Readings: []score.Reading{
 		{At: start, Utilization: 0},
 		{At: start.Add(20 * time.Minute), Utilization: 0.1},
 		{At: start.Add(50 * time.Minute), Utilization: 0.18},
@@ -216,7 +216,7 @@ func TestACardAtEachDensityInEveryChartStyle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike, Chart: tt.style, History: history, Sessions: busy}
+			f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike, Chart: tt.style, Trails: history, Sessions: busy}
 			if got := cardOf(t, f, doc, "work", 50, tt.density); !slices.Equal(got, tt.want) {
 				t.Errorf("drew\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
 			}
@@ -500,7 +500,7 @@ func TestACardCountsTheSessionsActiveOnItAsTheRouterDoes(t *testing.T) {
 	if fc := faces[0]; fc.sessions != 1 || len(fc.busy) != 1 {
 		t.Errorf("work counts %d sessions, %d dots, want 1 of each: one cold there", fc.sessions, len(fc.busy))
 	}
-	if got := f.Seats("work", now); len(got) != 1 {
+	if got := seatsOf(f, "work"); len(got) != 1 {
 		t.Errorf("work's back has the seats %+v, want the one active there", got)
 	}
 }
@@ -684,7 +684,7 @@ func TestACardWhoseStateChangedHasItsStateLinePickedOutFadingBack(t *testing.T) 
 	f := frameOf(160, 40)
 	f.Changed = map[string]float64{"work": 0.25}
 	c := newCanvas(f.Width, f.Height)
-	top := f.above(c, threeRouted(), now)
+	top := f.top()
 	f.accounts(c, threeRouted(), now, top)
 
 	want := hue{token: theme.BgAttention, fade: 0.25}
@@ -720,7 +720,7 @@ func TestALiftedLimitsEventSaysNothingOfAWindowReadSpent(t *testing.T) {
 	}
 	start := session.ResetsAt.Add(-5 * time.Hour)
 	trail := Trail{Start: start, Readings: []score.Reading{{At: start, Utilization: 0.5}, {At: start.Add(time.Hour), Utilization: 1}}}
-	chart := chartOf(t, doc, a, "5h", History{{Account: "work", Window: "5h"}: trail}, 20, 2)
+	chart := chartOf(t, doc, a, "5h", Trails{{Account: "work", Window: "5h"}: trail}, 20, 2)
 	if got, want := chart.rows(Look{})[1], "████▁▁▁▁▁▁▁"; !strings.HasPrefix(got, want) {
 		t.Errorf("its chart's foot reads %q, want it to start %q: its readings, not the floor from the old limit", got, want)
 	}

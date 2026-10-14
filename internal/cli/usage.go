@@ -63,7 +63,7 @@ windows, wherever stdout is: off a terminal, without colour, as wide as
 $COLUMNS says, else 80 columns.
 
 With --refresh, the router first reads every account it may, as the
-dashboard's r has it do: each it hasn't read in the last minute, and each that
+dashboard's R has it do: each it hasn't read in the last minute, and each that
 can take no request anyway, however lately it read it, as while a limit holds
 back its every request, or a window every model shares reads spent. It passes
 over one whose 5-hour window has lapsed, which a probe would start, unless it
@@ -90,7 +90,7 @@ it.`,
 	opts.windows = addWindowFlags(cmd)
 	cmd.Flags().Var(&opts.by, "by", "lay the windows out by window or by account, over the config's [usage] by")
 	cmd.Flags().BoolVar(&opts.probe, "probe", false, "probe every account, even while the router runs")
-	cmd.Flags().BoolVarP(&opts.refresh, "refresh", "r", false, "have the router read every account it may first, as the dashboard's r does")
+	cmd.Flags().BoolVarP(&opts.refresh, "refresh", "r", false, "have the router read every account it may first, as the dashboard's R does")
 	opts.form.add(cmd)
 	return cmd
 }

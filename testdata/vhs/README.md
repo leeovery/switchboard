@@ -96,6 +96,21 @@ frame, with the cells `cells_test.go` reads and compares:
   adds its fixtures, named after its frames, and deletes their stems from `owed`, and from then on
   they're held; it's empty by stage 14. Milestone 5's fixtures, none named after a frame, are held
   to nothing, and go as their views do.
+- **What's held of a frame owed:** `holds`, beside `owed`, holds part of a frame no fixture draws
+  yet, drawn over the frame's world with the keys that reach it, at the frame's size, and compared
+  as a whole frame is, cell for cell, but over that part alone (`compareWithin`, in
+  `cells_test.go`), passing over the same cells. Stage 6, the page, holds two parts. **The
+  chrome,** rows 1 to 4, the title row and the status line, or 1 to 5 on a phone, whose tabs take a
+  row of their own: of `overview-default-160`, `overview-pinned-160` and `overview-bad-hour-160`,
+  over the auto, pinned and bad hour worlds; of `accounts-compare-160`, `history-year-160`,
+  `sessions-switchboard-160`, `runway-5-hour-160` and `log-requests-160`, over the auto world, its
+  tab reached with `tab`; and of `overview-phone-52` and `sessions-phone-52`. **The routing card's
+  box,** rows 10 to 27 and columns 40 to 121, which holds nothing of the page faded behind it:
+  `routing-auto-160` with `p`, `routing-two-160` with `p`, `2` and `3`, and `routing-move-160` with
+  `p`, `2` and `m`, over the auto world, which lists the Overview's six sessions, so the card's cost
+  is the moving set's, priced from the world's ledger as the watch prices it; and
+  `routing-limit-160` with `p` and `3`, over routing's world of a limit, where the router lists all
+  six on side. A frame's stem leaves `holds` as a fixture comes to draw it whole.
 - **The cells passed over** are `passedOver`, by stem: a row, or a row's cells from one column to
   another, each with what the frame's `.txt` reads there, which a test checks, as it checks that
   this file names every stem in it.
@@ -191,6 +206,22 @@ as Keys has them:
   `5% used`, in the line naming it to drop (row 9, columns 36 to 42) and in its verdict (row 19,
   columns 93 to 99), where its weeks average 6%, `6% used`; and `extra`'s `80% left at a reset`
   (row 22, columns 96 to 114), where its weeks average 78%, `78% left at a reset`.
+
+**The routing card's box,** held in part (see How the frames are held):
+
+- **The windows' figures,** coloured along a ramp in the frames, where the design colours them by
+  level, as `usage` does: the dashboard draws them in the ramp's first stop below 70%, its second
+  from 70% and its last from 90%. Each account's `5-hour` figure at columns 76 to 78 and its `week`
+  at 87 to 89, of work on row 15, personal on 16 and side on 17, in `routing-auto-160`,
+  `routing-two-160`, `routing-move-160` and `routing-limit-160`, whose personal at its limit,
+  `100%`, the frame colours as the design does.
+- **Personal's week in `routing-limit-160`,** row 16, columns 87 to 89, drawn `64%`, where the world
+  reads it at 66%, as the Overview's frames draw it (see What the worlds give otherwise than the
+  frames): the card draws `66%`.
+- **The move's cost in `routing-move-160`,** row 23, columns 76 to 79, `6.20` of `≈ $6.20`, typed by hand:
+  the auto world's ledger, through the moving set as the watch prices it, gives side's four
+  sessions' moves as `$4.15`, which the card draws. The world isn't fitted to it, as its sessions'
+  lines feed the frames owed at later stages.
 
 **A pressure event's mark:** in `accounts-detail-one-160`'s LATELY, row 28, column 20, `●`, drawn
 before each kind of event had a mark of its own, where the Log's marks give `◔`, in
@@ -289,6 +320,17 @@ router takes an order and changes nothing, and the clock stands still at the fix
 nothing moves of itself. A fixture named after a frame draws that frame, at its size; milestone
 5's, `accounts-*`, `runway-day-*`, `runway-week-3` and `sessions-*`, named after milestone 5's
 frames, stay until the stages that replace their views delete them.
+
+Stage 6's, `page-*`, draw the page as it's built, to judge by eye where no frame draws it yet, each
+with a tape of its name: `page-routing`, the routing card over the Overview of the auto world at
+160 × 40, `p` having opened it, `2` and `3` picked and `m` ticked, the page faded behind it;
+`page-routing-phone`, the card on a phone, 52 × 36, `2` picked and `m` ticked, saying what the move
+costs; `page-help-scrolled`, the help over Sessions on a terminal 16 rows tall, scrolled down three
+rows with `j` (`sessions-3-keys` is the help unscrolled, at 160 × 28); `page-log`, the Log's empty
+tab, the six tabs in the title row, its tape at 160 × 37 and `page-log-phone`'s at 52 × 36; and
+`page-not-answering`, the auto world's router gone as `R` reads it, the status line saying so and
+since when, and `p pin` faint on the key line. Each but the help's is drawn over the auto world,
+its records and the sessions its router lists.
 
 ### `--theme`, and `NO_COLOR`
 
@@ -496,9 +538,11 @@ own rules, which the test holds to the frame's, cell for cell.
 
 1. Add it to `fixtures` in `internal/capture/capture.go`, named after the frame it draws: the
    frame's size, the world it's drawn over, and the keys that reach it. `Names` and `ByName` both
-   read that one list. A printout of `usage` goes in `printouts`, with how it groups the windows
-   and which it prints, as its flags have them, and its flags in
-   `TestAPrintoutIsWhatUsagePrintsOfItsRouter`, which holds it to what `usage` prints given them.
+   read that one list, and the two drawn over the worlds, built as they're asked for: a page the
+   watch draws over a world goes in `pages`, with its world and keys, and a printout of `usage` in
+   `printouts`, with how it groups the windows and which it prints, as its flags have them, and its
+   flags in `TestAPrintoutIsWhatUsagePrintsOfItsRouter`, which holds it to what `usage` prints given
+   them. Where `holds` holds part of its frame, take its stem from there.
 2. Delete its stem from `owed` in `internal/capture/reference_test.go`: from then on, the test
    holds it to its frame.
 3. Where the frame drew a cell otherwise than the design says, the design holds; where its world

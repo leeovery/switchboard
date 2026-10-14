@@ -57,6 +57,58 @@ func (l line) fit(width int) line {
 	return kept
 }
 
+// wrap breaks the line at its spaces onto as many lines width cells wide as
+// it takes, each word in its ink, and a word wider than width cut short.
+func (l line) wrap(width int) []line {
+	var lines []line
+	var row line
+	for i, w := range l.words() {
+		switch {
+		case i == 0:
+			row = w.word
+		case row.width()+1+w.word.width() <= width:
+			row = slices.Concat(row, line{w.gap}, w.word)
+		default:
+			lines, row = append(lines, row.fit(width)), w.word
+		}
+	}
+	if row != nil {
+		lines = append(lines, row.fit(width))
+	}
+	return lines
+}
+
+// worded is a word of a line, its spans' parts up to a space, and the space
+// before it, in its ink.
+type worded struct {
+	word line
+	gap  span
+}
+
+// words are the line's words, as wrap breaks it between them: a word may
+// run across spans, as a name in its ink and the full stop after it.
+func (l line) words() []worded {
+	var words []worded
+	var w worded
+	for _, s := range l {
+		for i, part := range strings.Split(s.text, " ") {
+			if i > 0 && len(w.word) > 0 {
+				words, w = append(words, w), worded{}
+			}
+			if i > 0 {
+				w.gap = span{" ", s.ink}
+			}
+			if part != "" {
+				w.word = append(w.word, span{part, s.ink})
+			}
+		}
+	}
+	if len(w.word) > 0 {
+		words = append(words, w)
+	}
+	return words
+}
+
 // fitHead cuts the line to width cells as fit does, but keeps its first span
 // whole where that fits by itself: what follows is cut short, or left off
 // where fewer than leastShown cells of it would show.

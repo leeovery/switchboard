@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"slices"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -21,13 +22,76 @@ const (
 )
 
 // statusLine is how the router stands, as the status line says it, in its
-// parts: the router's state, and what a line short of room shortens it to; a
-// restart it has due; the mode; the sessions it has routed in the last hour;
-// and where new sessions go. Each part but the state is nil where the line
-// leaves it out: a document probed has no mode, sessions or new sessions.
+// parts: the router's state, since when, where it's a state that has a
+// since, and what a line short of room shortens the two to; a restart it has
+// due; the mode; the sessions it has routed in the last hour; and where new
+// sessions go. Each part but the state is nil where the line leaves it out: a
+// document probed has no mode, sessions or new sessions.
 type statusLine struct {
-	state, short                         line
+	state, since, short                  line
 	restart, mode, sessions, destination line
+}
+
+// routerStatus draws the page's status line of doc at now, as pageStatus
+// has it, on its row, from the first column, where that's over the key
+// line's. On a phone, it's always as a phone spaces it.
+func (f Frame) routerStatus(c *canvas, doc status.Document, now time.Time) {
+	y := f.statusRow()
+	if y >= f.Height-1 {
+		return
+	}
+	forms := f.pageStatus(doc, now).forms()
+	if f.phone() {
+		forms = forms[1:]
+	}
+	c.line(0, y, firstFit(f.Width, forms...))
+}
+
+// pageStatus is the page's status line of doc at now: the router's, as
+// newStatusLine has it, auto said where it has no global pin; or probed, as
+// probedLine has it. While the router doesn't answer, from when the frame
+// lost it, its state says so, the rest as its last document had them, or
+// before any document, that alone. A read that failed otherwise says why in
+// the state's place, as failing has it. Before any document, and before
+// either, it's blank.
+func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
+	var s statusLine
+	switch doc.Source {
+	case status.SourceProbe:
+		return f.failing(probedLine(doc), now)
+	case status.SourceRouter:
+		s = newStatusLine(doc)
+		if s.mode == nil {
+			s.mode = line{{"auto", secondaryInk}}
+		}
+	}
+	if f.Lost.IsZero() {
+		return f.failing(s, now)
+	}
+	lost := f.Lost.In(now.Location())
+	s.state = line{{"■ ", errorInk}, {"the router isn't answering", secondaryInk}}
+	s.since = line{{"since " + lost.Format("15:04:05"), mutedInk}}
+	s.short = line{{"■ ", errorInk}, {"no router", secondaryInk}, {" since " + lost.Format("15:04"), mutedInk}}
+	return s
+}
+
+// Failure is why a read failed, and when the next is due.
+type Failure struct {
+	Reason string
+	Next   time.Time
+}
+
+// failing is s with the frame's failed read, where it has one, in its
+// state's place: why, and when the next read is due, at now.
+func (f Frame) failing(s statusLine, now time.Time) statusLine {
+	if f.Failed.Reason == "" {
+		return s
+	}
+	next := "next " + status.TimeOfDay(now, f.Failed.Next)
+	s.state = line{{"! ", errorInk}, {"couldn't read usage: " + status.Clean(f.Failed.Reason), secondaryInk}}
+	s.since = line{{next, mutedInk}}
+	s.short = line{{"! ", errorInk}, {"couldn't read usage", secondaryInk}, {" " + next, mutedInk}}
+	return s
 }
 
 // newStatusLine is doc's status line, its mode shown only while the router
@@ -104,15 +168,16 @@ func (s statusLine) fit(width int) line {
 	return firstFit(width, s.forms()...)
 }
 
-// forms are the line's forms, each shorter than the one before.
+// forms are the line's forms, as fit tries them, each shorter than the one
+// before.
 func (s statusLine) forms() []line {
 	going := led(phoneDestinationLead, s.destination)
 	return []line{
-		joined(statusApart, s.state, s.restart, s.mode, s.sessions, led(destinationLead, s.destination)),
-		joined(phoneApart, s.state, s.restart, s.mode, s.sessions, going),
-		joined(phoneApart, s.state, s.restart, s.mode, going),
-		joined(phoneApart, s.state, s.restart, s.mode),
-		joined(phoneApart, s.state, s.mode),
+		joined(statusApart, s.state, s.since, s.restart, s.mode, s.sessions, led(destinationLead, s.destination)),
+		joined(phoneApart, s.state, s.since, s.restart, s.mode, s.sessions, going),
+		joined(phoneApart, s.state, s.since, s.restart, s.mode, going),
+		joined(phoneApart, s.state, s.since, s.restart, s.mode),
+		joined(phoneApart, s.state, s.since, s.mode),
 		joined(phoneApart, s.short, s.mode),
 	}
 }

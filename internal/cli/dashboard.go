@@ -46,23 +46,28 @@ It reads the router's usage every few seconds, and every interval has the
 router probe the accounts it hasn't read in that time: 30m unless given, and
 5m at the least. Give it as a duration, such as 15m or 1h, or as a number of
 minutes. Should the router stop answering, its last document stays on screen
-until it answers again, or the next full read, or r, probes the accounts
+until it answers again, or the next full read, or R, probes the accounts
 instead. Without the router it probes every account every interval, sooner
 for a window that resets or an account that couldn't be read, and reads the
 router again once it's back.
 
-Keys: r refresh, t the theme picker, w the window every card features (auto,
-for each its own, then the 5-hour window, the week, and any other in use),
-g the chart every card draws of it (burn-down, burn rate, hourglass),
-j, k, PgDn, PgUp and the wheel scroll the cards where they don't all fit,
-? every key and what the glyphs mean, q quit. While it reads the router, and
-the router answers, of more than one account, 1-9 pin new sessions to the
-account in that place, beside those pinned already, or unpin it, a routes
-every session automatically again, and m moves running sessions to the
-pinned accounts. While the router runs, it posts the desktop notifications,
---probe or not; without it, the dashboard posts its own of an account with
-room again and a window passing the warning, as the config's [notifications]
-asks, unless --no-notify.
+Keys: tab and shift-tab move between its tabs, the Overview, Accounts,
+History, Sessions, Runway and the Log. On the Overview, w the window every
+card features (auto, for each its own, then the 5-hour window, the week, and
+any other in use), g the chart every card draws of it (burn-down, burn rate,
+hourglass), the arrows the focus between the cards, space flips the card
+with it and s every card; on Runway, w the day or the week. j, k, PgDn, PgUp
+and the wheel scroll the view where it doesn't fit. p opens the routing
+card, which picks the accounts new sessions go to and changes nothing until
+enter; ? the page's help; esc closes either, or the theme picker. R
+refreshes, t opens the theme picker, q quits, and ctrl-c quits wherever it
+is. A click on a tab shows it, and on a key of the key line does what the
+key does, but p and q.
+
+While the router runs, it posts the desktop notifications, --probe or not;
+without it, the dashboard posts its own of an account with room again and a
+window passing the warning, as the config's [notifications] asks, unless
+--no-notify.
 
 The dashboard is drawn in the theme chosen in the picker, or the pair of
 tokyo-night-day for a light terminal and nord for a dark one, which the
@@ -125,15 +130,17 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 	kept := t.kept()
 	wc := watch.Config{
 		Source:        a.source(cfg, opts.probe),
+		ProbeOnly:     opts.probe,
 		Notifier:      notifier,
 		Notifications: cfg.Notifications,
 		Now:           a.Now,
 		Interval:      opts.interval,
 		Policy:        claude.Policy,
 		Size:          a.environSize(),
-		View:          dashboard.View(kept.View),
+		View:          dashboard.View(kept.Tab),
 		Featured:      dashboard.Feature(kept.Featured),
 		Chart:         dashboard.Chart(kept.Chart),
+		Prices:        pricing(cfg),
 	}
 	a.readers(&wc, cfg)
 	if t.prefs != nil {

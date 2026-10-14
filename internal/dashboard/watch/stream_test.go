@@ -16,8 +16,12 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// tabKey is tab, as the terminal sends it.
-var tabKey = tea.KeyPressMsg{Code: tea.KeyTab}
+// tabKey is tab, as the terminal sends it, and toSessions the tabs that show
+// Sessions from the Overview.
+var (
+	tabKey     = tea.KeyPressMsg{Code: tea.KeyTab}
+	toSessions = []tea.KeyPressMsg{tabKey, tabKey, tabKey}
+)
 
 // streamingHarness is a model of the router of three, d28c busy on work and
 // 7f3a idle there, in a terminal 160 columns wide and 40 tall, started on
@@ -67,7 +71,10 @@ func TestTheStreamIsReadWhileSessionsShowsOrACardIsFlipped(t *testing.T) {
 		open   bool
 	}{
 		{key: "", opened: 0},
+		{key: "tab", opened: 0},
+		{key: "tab", opened: 0},
 		{key: "tab", opened: 1, open: true},
+		{key: "tab", opened: 1},
 		{key: "tab", opened: 1},
 		{key: "tab", opened: 1},
 		{key: " ", opened: 2, open: true},
@@ -83,7 +90,7 @@ func TestTheStreamIsReadWhileSessionsShowsOrACardIsFlipped(t *testing.T) {
 		case " ":
 			h.keys(spaceKey)
 		case "tab":
-			h.deliver(h.update(tea.KeyPressMsg{Code: tea.KeyTab})...)
+			h.keys(tabKey)
 		default:
 			h.deliver(h.press(step.key)...)
 		}
@@ -98,7 +105,7 @@ func TestTheStreamIsReadWhileSessionsShowsOrACardIsFlipped(t *testing.T) {
 func TestTheStreamIsntReadWithoutTheRouter(t *testing.T) {
 	h := newHarness(t, probedWithoutTheRouter())
 	h.start()
-	h.deliver(h.update(tea.KeyPressMsg{Code: tea.KeyTab})...)
+	h.keys(toSessions...)
 
 	if h.opened() > 0 {
 		t.Errorf("probing, the stream was opened %d times, want none", h.opened())
@@ -107,7 +114,7 @@ func TestTheStreamIsntReadWithoutTheRouter(t *testing.T) {
 
 func TestTheStreamTellsOfRequestsAsTheyHappen(t *testing.T) {
 	h := streamingHarness(t)
-	h.deliver(h.update(tea.KeyPressMsg{Code: tea.KeyTab})...)
+	h.keys(toSessions...)
 
 	h.hear(told(router.StreamSent, "r1", "work", 0))
 	if !strings.Contains(h.view(), "d28c  opus    now  ↑ ask") {
@@ -133,7 +140,7 @@ func TestTheStreamTellsOfRequestsAsTheyHappen(t *testing.T) {
 
 func TestThrottlingAndTheQuotaCheckArentDrawnAsRequests(t *testing.T) {
 	h := streamingHarness(t)
-	h.deliver(h.update(tea.KeyPressMsg{Code: tea.KeyTab})...)
+	h.keys(toSessions...)
 
 	h.hear(alter(told(router.StreamSent, "r1", "work", 0), func(e *router.StreamEvent) { e.Check = true }))
 	if strings.Contains(h.view(), "↑ ask") {
@@ -151,7 +158,7 @@ func TestThrottlingAndTheQuotaCheckArentDrawnAsRequests(t *testing.T) {
 
 func TestTheStreamIsAskedForAgainOnceItEnds(t *testing.T) {
 	h := streamingHarness(t)
-	h.deliver(h.update(tea.KeyPressMsg{Code: tea.KeyTab})...)
+	h.keys(toSessions...)
 	h.hear(alter(told(router.StreamInFlight, "r1", "work", 0), func(e *router.StreamEvent) { e.SentAt = past(-5 * time.Second) }))
 
 	h.endStream()
@@ -179,7 +186,7 @@ func TestAStreamThatWontOpenIsAskedForLaterEachTime(t *testing.T) {
 	log := logstest.Capture(t)
 	h := streamingHarness(t)
 	h.source.streamErr = errors.New("ask the router: connection refused")
-	h.deliver(h.update(tea.KeyPressMsg{Code: tea.KeyTab})...)
+	h.keys(toSessions...)
 
 	var waits []time.Duration
 	for range 7 {
@@ -204,7 +211,7 @@ func TestARouterFromBeforeTheStreamGoesWithoutIt(t *testing.T) {
 	h.source.health = router.Health{OK: true, PID: 100, StartedAt: start.UTC()}
 	h.tickUntilAsked()
 	h.source.streamErr = fmt.Errorf("%w: the router answered GET /stream with 404 Not Found", router.ErrNoStream)
-	h.deliver(h.update(tea.KeyPressMsg{Code: tea.KeyTab})...)
+	h.keys(toSessions...)
 
 	if _, ok := h.pendingRejoin(); ok || !h.model.stream.absent {
 		t.Error("a router from before the stream has it asked for again, want the watch to go without it")
@@ -234,7 +241,7 @@ func TestAnotherRouterHasItsStreamAskedForAtOnce(t *testing.T) {
 	h.source.health = router.Health{OK: true, PID: 100, StartedAt: start.UTC()}
 	h.tickUntilAsked()
 	h.source.streamErr = errors.New("the router is stopping: ask again once it's back")
-	h.deliver(h.update(tea.KeyPressMsg{Code: tea.KeyTab})...)
+	h.keys(toSessions...)
 	for range 3 {
 		rejoin, _ := h.pendingRejoin()
 		h.fire(rejoin)
@@ -317,7 +324,7 @@ func TestWithoutTheStreamABackSaysWhenItsSessionsWereSeen(t *testing.T) {
 
 func TestWhatTheStreamSawOfASessionOutlastsItsAnswer(t *testing.T) {
 	h := streamingHarness(t)
-	h.keys(tabKey)
+	h.keys(toSessions...)
 	h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamFirst, "r1", "work", time.Second))
 	h.tickUntil(past(90 * time.Second))
 	h.hear(alter(told(router.StreamDone, "r1", "work", 90*time.Second), func(e *router.StreamEvent) { e.Status = 200 }))
@@ -347,10 +354,10 @@ func TestTheCordsDrawFramesOnSessionsSwitchboardAlone(t *testing.T) {
 		keys    []tea.KeyPressMsg
 		want    bool
 	}{
-		{name: "Sessions' switchboard, its cord shimmering", harness: streamingHarness, keys: []tea.KeyPressMsg{tabKey}, want: true},
+		{name: "Sessions' switchboard, its cord shimmering", harness: streamingHarness, keys: toSessions, want: true},
 		{name: "a card's back", harness: streamingHarness, keys: []tea.KeyPressMsg{spaceKey}},
-		{name: "Sessions' plain list of one account", harness: alone, keys: []tea.KeyPressMsg{tabKey}},
-		{name: "Sessions' plain list, under 90 columns", harness: narrow, keys: []tea.KeyPressMsg{tabKey}},
+		{name: "Sessions' plain list of one account", harness: alone, keys: toSessions},
+		{name: "Sessions' plain list, under 90 columns", harness: narrow, keys: toSessions},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -367,7 +374,7 @@ func TestTheCordsDrawFramesOnSessionsSwitchboardAlone(t *testing.T) {
 
 func TestAShimmerAloneIsDrawnAStepAtATime(t *testing.T) {
 	h := streamingHarness(t)
-	h.keys(tabKey)
+	h.keys(toSessions...)
 	h.settle()
 	h.hear(told(router.StreamSent, "r1", "work", -2*time.Second), told(router.StreamFirst, "r1", "work", -time.Second))
 
@@ -384,22 +391,10 @@ func TestAShimmerAloneIsDrawnAStepAtATime(t *testing.T) {
 	}
 }
 
-func TestShowingSessionsAsAnAnswerStreamsDrawsItsFrames(t *testing.T) {
-	h := streamingHarness(t)
-	h.keys(spaceKey)
-	h.settle()
-	h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamFirst, "r1", "work", 0))
-
-	h.keys(tabKey)
-	if _, ok := h.pendingFrame(); !ok {
-		t.Error("tab showing Sessions as d28c's answer streams, no frame is armed to draw its shimmer")
-	}
-}
-
 func TestAMoveToldAsTheSessionsAreListedRePatchesTillTheyreListedWhereItWent(t *testing.T) {
 	h := streamingHarness(t)
-	h.keys(tabKey)
-	read := h.press("r")
+	h.keys(toSessions...)
+	read := h.press("R")
 	h.clock.now = past(time.Second)
 	h.hear(
 		told(router.StreamSent, "r1", "work", 0),
@@ -440,7 +435,7 @@ func movedToSide(d time.Duration) []router.StreamEvent {
 
 func TestAMoveRePatchesThroughARejoinAndAViewSwitch(t *testing.T) {
 	h := streamingHarness(t)
-	h.keys(tabKey)
+	h.keys(toSessions...)
 	h.hear(movedToSide(0)...)
 	h.clock.now = past(pulseFor + 100*time.Millisecond)
 	const placeholder = "  d28c  ↪ moved to Side"
@@ -481,7 +476,7 @@ func twoOnWork(t *testing.T) *harness {
 	}
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
 	h.start()
-	h.keys(tabKey)
+	h.keys(toSessions...)
 	return h
 }
 
@@ -490,7 +485,7 @@ func TestAMovesRePatchLastsTillAListingShowsItWhereItWent(t *testing.T) {
 
 	// The look asks for the sessions as the router's clock, behind the
 	// watch's, has d28c move a moment later: the listing has it on work.
-	read := h.press("r")
+	read := h.press("R")
 	h.hear(pinnedToSide(-100 * time.Millisecond)...)
 	h.deliver(read...)
 	placeholder, other := rowStarting(h.view(), "  d28c  ↪ moved to Side"), rowStarting(h.view(), "  7f3a  opus")
@@ -499,7 +494,7 @@ func TestAMovesRePatchLastsTillAListingShowsItWhereItWent(t *testing.T) {
 	}
 
 	h.source.sessions[0] = sessionOn(idD28C, opus, "side", 0)
-	h.deliver(h.press("r")...)
+	h.deliver(h.press("R")...)
 	if strings.Contains(h.view(), "↪ moved to") || !strings.Contains(h.view(), "╌○") {
 		t.Errorf("the router listing d28c on side, the screen is\n%s\nwant its re-patch done, its cord hanging loose from a jack of work's", h.view())
 	}
@@ -517,7 +512,7 @@ func TestAListingThatShowsAMoveDoneEndsItsRePatch(t *testing.T) {
 	// The router lists d28c on side as its clock, ahead of the watch's, has
 	// it move a moment after the watch asks.
 	h.source.sessions[0] = sessionOn(idD28C, opus, "side", 0)
-	read := h.press("r")
+	read := h.press("R")
 	h.hear(pinnedToSide(100 * time.Millisecond)...)
 	h.clock.now = past(200 * time.Millisecond)
 	h.deliver(read...)
@@ -536,7 +531,7 @@ func TestARePatchedCallKeepsItsRowAtTheNextLook(t *testing.T) {
 	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 10*time.Second), onSide(id7F3A, -time.Minute), onSide(id9E21, -time.Hour)}
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
 	h.start()
-	h.keys(tabKey)
+	h.keys(toSessions...)
 	h.hear(
 		told(router.StreamSent, "r1", "work", 0),
 		alter(told(router.StreamLimited, "r1", "work", 0), func(e *router.StreamEvent) { e.Status = 429 }),

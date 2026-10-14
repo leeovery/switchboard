@@ -248,25 +248,25 @@ func (p plot) glassAt(width, rows int) (from, cells int) {
 }
 
 // falling reports whether the sand falls in an hourglass on screen in the
-// Accounts view of doc at now: the cards draw hourglasses, and one not
+// Overview's cards of doc at now: the cards draw hourglasses, and one not
 // flipped has its stream falling, its account busy, where any of its glass
-// shows, scrolled into view, and not under the help.
+// shows, scrolled into view, and no card is open over the page.
 func (f Frame) falling(doc status.Document, now time.Time) bool {
 	if f.Chart != Hourglass {
 		return false
 	}
 	faces, shown := f.faces(doc, now)
-	top := f.top(doc)
+	top := f.top()
 	l := f.layOut(doc, now, len(shown), top)
-	s := sight{top: top, offset: f.scrolled(l), rows: l.view, help: f.helpCovers()}
+	s := f.inSight(f.scrolled(l), l.view)
 	inside, rows := l.width-2*(padding+1), l.density.chart
 	for i, fc := range faces {
 		if !fc.hasFeatured || fc.flipped || !fc.chart.falls() {
 			continue
 		}
-		x, y := l.at(i, l.density)
-		from, cells := fc.chart.glassAt(inside, rows)
-		if s.shows(x+padding+1+from, y+l.density.offset(chartRows, l.bars), cells, rows) {
+		_, y := l.at(i, l.density)
+		_, cells := fc.chart.glassAt(inside, rows)
+		if s.shows(y+l.density.offset(chartRows, l.bars), cells, rows) {
 			return true
 		}
 	}

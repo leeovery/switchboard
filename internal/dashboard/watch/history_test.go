@@ -33,7 +33,7 @@ func TestReadsTheHistoryWithEachFullReadNeverALook(t *testing.T) {
 	if got := len(h.source.histories); got != 2 {
 		t.Errorf("a minute of looks asked for %d histories more, want none", got-2)
 	}
-	h.deliver(h.press("r")...)
+	h.deliver(h.press("R")...)
 	if got := len(h.source.histories); got != 4 {
 		t.Errorf("r asked for %d histories, want both again", got-2)
 	}
@@ -57,7 +57,7 @@ func TestReadsTheHistoryAsTheRouterAnswersAgain(t *testing.T) {
 		}},
 		{name: "once it answers after probing", then: func(h *harness) {
 			h.stopRouter()
-			h.deliver(h.press("r")...)
+			h.deliver(h.press("R")...)
 			h.startRouter(routerDocument(three()...))
 			h.tickUntil(at(13, 13, 0).Add(tickSlack))
 		}},
@@ -92,7 +92,7 @@ func TestARouterFromBeforeGETHistoryHasNone(t *testing.T) {
 	if !strings.Contains(h.view(), "restart the router for recent events") {
 		t.Errorf("the screen is\n%s\nwant RECENT to ask for the router to be restarted", h.view())
 	}
-	h.deliver(h.press("r")...)
+	h.deliver(h.press("R")...)
 	if n := strings.Count(log.String(), "the router is from before GET /history"); n != 1 {
 		t.Errorf("log reads\n%s\nwant the router from before GET /history noted once", log)
 	}
@@ -112,7 +112,7 @@ func TestAHistoryThatCantBeReadKeepsTheLast(t *testing.T) {
 	h.start()
 
 	h.source.historyErr = fmt.Errorf("ask the router: %w", errTimedOut)
-	h.deliver(h.press("r")...)
+	h.deliver(h.press("R")...)
 	if got := len(h.model.trails[dashboard.Ref{Account: "work", Window: "5h"}].Readings); got < 2 {
 		t.Errorf("work's session has %d readings, want the router's last history of it kept", got)
 	}
@@ -129,7 +129,7 @@ func TestAnAnswerALaterAskingOvertookIsDropped(t *testing.T) {
 	h.model, asking = h.model.askHistory(h.model.doc)
 	stale := asking()
 
-	h.deliver(h.press("r")...)
+	h.deliver(h.press("R")...)
 	h.deliver(stale)
 	if got := h.model.history.asked; got != stale.(historyMsg).asked+1 {
 		t.Fatalf("asked %d times, want the stale answer's asking overtaken", got)

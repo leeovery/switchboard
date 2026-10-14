@@ -66,7 +66,7 @@ func TestTheWindowsEveryCardShows(t *testing.T) {
 	}
 }
 
-func TestTheLineOverTheFooterSaysWhichWindowsHide(t *testing.T) {
+func TestTheLineOverTheKeyLineSaysWhichWindowsHide(t *testing.T) {
 	doc := routerDoc("", 0, readAccount("work", sessionOf(0.2, time.Hour), fableOf(0, 4*day), windowOf("7d_opus", "Opus week", 0, 4*day)))
 	tests := []struct {
 		keys []string

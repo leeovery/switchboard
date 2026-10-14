@@ -1,6 +1,6 @@
-# The sessions-storyboard-4-repatched fixture, tab pressed to show Sessions,
-# d28c re-patched to side, its request sent again there, full screen at its 160
-# × 28, as capturetool runs it.
+# The sessions-storyboard-4-repatched fixture, tab pressed three times to show
+# Sessions, d28c re-patched to side, its request sent again there, full screen
+# at its 160 × 28, as capturetool runs it.
 # Run from the repository's root: vhs testdata/vhs/sessions-storyboard-4-repatched.tape
 
 Set Shell "bash"

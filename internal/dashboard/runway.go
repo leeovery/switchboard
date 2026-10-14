@@ -44,13 +44,21 @@ const (
 	pastFade = 0.55
 	// saysGap is the fewest blank cells between the words under a lane.
 	saysGap = 2
-	// legendGap is the blank cells between the legend's glyphs.
-	legendGap = 6
+	// legendGap is the blank cells between the legend's glyphs, and
+	// phoneLegendGap on a phone.
+	legendGap      = 6
+	phoneLegendGap = 2
 	// noRoomGlyph is a lane where its account has no room, and resetGlyph
 	// where its week resets.
 	noRoomGlyph = "─"
 	resetGlyph  = "┃"
+	// roomGlyph is a lane where its account has room, whether it's draining
+	// or not, as its colour tells.
+	roomGlyph = "▆"
 )
+
+// nextInk is the badge of the account new sessions go to.
+var nextInk = ink{token: theme.AccentMode, bold: true}
 
 // The day's ticks fall on hours as many apart as the first of hourSteps
 // that puts them tickCells apart, at least, and its labels the first that
@@ -86,7 +94,7 @@ type runwayLayout struct {
 // a cell short of the frame's edge, clear of a scrollbar. They get the rows
 // first; then the legend, where a blank and its line are left over, and it
 // fits the width whole; where not even the lanes fit, they scroll between
-// the strip and the line over the footer.
+// the strip and the line over the key line.
 func (f Frame) layOutRunway(doc status.Document, now time.Time, top int) runwayLayout {
 	l := runwayLayout{top: top + lanesFrom}
 	for _, a := range doc.Accounts {
@@ -104,7 +112,7 @@ func (f Frame) layOutRunway(doc status.Document, now time.Time, top int) runwayL
 
 // runwayRows are how many rows n accounts' lanes take, content, and how many
 // of them show at once under the heading, which ends at row top, view: fewer
-// where they don't fit over the line over the footer.
+// where they don't fit over the line over the key line.
 func (f Frame) runwayRows(n, top int) (content, view int) {
 	content = max(n*(laneRows+laneGap)-laneGap, 0)
 	return content, min(content, max(f.Height-2-top-lanesFrom, 0))
@@ -153,7 +161,7 @@ func lanesAt(lanes []lane, width int) int {
 // runway draws Runway of doc at now from row top: over the timeline, the
 // axis; the strip; and the lanes, each with its words under it, scrolled
 // where they don't fit, a scrollbar beside them; now's column picked out
-// from the axis to the lanes' foot. Then, over the footer, the legend where
+// from the axis to the lanes' foot. Then, over the key line, the legend where
 // it shows, and under it, what the lanes don't show: those out of view,
 // where they scroll, or that the key's behind ?, where the legend doesn't
 // show.
@@ -577,15 +585,15 @@ func (f Frame) legendFits(tl timeline) bool {
 	return margin+f.legend(tl).width() <= f.edge()
 }
 
-// legend is Runway's key to its glyphs, the line over the footer, for the
+// legend is Runway's key to its glyphs, the line over the key line, for the
 // timeline tl: each glyph and what it means, legendGap apart, or on a phone,
-// as close as the footer's keys; then, where it fits, over the day, that the
+// phoneLegendGap; then, where it fits, over the day, that the
 // past is dimmed, where the look dims it, and what the words say; or over
 // the week, how long a column is, and that yesterday's dimmed, where it is.
 func (f Frame) legend(tl timeline) line {
 	gap := legendGap
 	if f.phone() {
-		gap = phoneKeysGap
+		gap = phoneLegendGap
 	}
 	var l line
 	for i, g := range f.legendGlyphs() {

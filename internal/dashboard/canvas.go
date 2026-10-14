@@ -159,6 +159,18 @@ func (c *canvas) paste(from *canvas, first, y, rows int) {
 	}
 }
 
+// fade fades everything drawn on the canvas, as the page behind a card is:
+// each cell's colours, as finally drawn, its own fade and glow included,
+// mixed behindFade of the way to the canvas, and nothing bold. What's drawn
+// after it, as the card, isn't faded.
+func (c *canvas) fade() {
+	for _, row := range c.cells {
+		for x := range row {
+			row[x].ink.behind, row[x].ink.bold = true, false
+		}
+	}
+}
+
 // rows draws the canvas as look draws it, a string a row. Where the look
 // paints its canvas, every row is the canvas's whole width; where it
 // doesn't, a row ends at its last glyph or surface.
@@ -172,7 +184,7 @@ func (c *canvas) rows(look Look) []string {
 
 // row draws row y as look draws it: each run of cells in one ink at once, a
 // blank, of which nothing shows but its surface, running on in the ink
-// before it on the same surface.
+// before it on the same surface, as faded behind a card.
 func (c *canvas) row(y int, look Look) string {
 	cells := c.cells[y]
 	end := len(cells)
@@ -189,7 +201,7 @@ func (c *canvas) row(y int, look Look) string {
 		case here.glyph == " " && k.on == pen.on:
 			k = pen
 		case here.glyph == " ":
-			k = ink{on: k.on}
+			k = ink{on: k.on, behind: k.behind}
 		}
 		if k != pen {
 			b.WriteString(look.render(run.String(), pen))

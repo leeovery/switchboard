@@ -92,6 +92,35 @@ func TestSpread(t *testing.T) {
 	}
 }
 
+func TestWrapBreaksALineAtItsSpaces(t *testing.T) {
+	sentence := line{{"New sessions go to ", secondaryInk}, {"personal", titleInk}, {". When it's full, the router chooses.", secondaryInk}}
+	tests := []struct {
+		name  string
+		l     line
+		width int
+		want  []string
+	}{
+		{name: "that fits, as it is", l: sentence, width: 76, want: []string{"New sessions go to personal. When it's full, the router chooses."}},
+		{name: "a word running across spans kept whole", l: sentence, width: 27, want: []string{"New sessions go to", "personal. When it's full,", "the router chooses."}},
+		{name: "a word wider than the line, cut short", l: line{{"a reasonably-long-word", secondaryInk}}, width: 10, want: []string{"a", "reasonabl…"}},
+		{name: "nothing, no lines", l: nil, width: 10, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, l := range tt.l.wrap(tt.width) {
+				got = append(got, l.plain())
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("wrap(%d) = %q, want %q", tt.width, got, tt.want)
+			}
+		})
+	}
+	if got := sentence.wrap(27)[1]; got[0] != (span{"personal", titleInk}) || got[1] != (span{".", secondaryInk}) {
+		t.Errorf("the second line leads %+v, want each part of a word in its own ink", got[:2])
+	}
+}
+
 // plain is the line's text without its inks.
 func (l line) plain() string {
 	var b strings.Builder

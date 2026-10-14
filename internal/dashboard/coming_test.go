@@ -214,11 +214,10 @@ func TestCOMINGUPsInks(t *testing.T) {
 func TestCOMINGUPListsThreeWithTheirCountdownsAtTheRight(t *testing.T) {
 	f := frameOf(160, 10)
 	c := newCanvas(f.Width, f.Height)
-	f.comingSlot(c, threeRouted(), now, 115, 0)
+	f.comingLines(c, upcoming(threeRouted(), now, f.Policy), now, 115, 0, comingThings)
 
 	rows := c.rows(Look{})
 	want := []string{
-		"COMING UP",
 		"14:12  personal back from its l… | in 1h",
 		"14:42  work runs out at its pace | in 1h 30m",
 		"16:12  work's session resets | in 3h",
@@ -228,11 +227,11 @@ func TestCOMINGUPListsThreeWithTheirCountdownsAtTheRight(t *testing.T) {
 			t.Errorf("row %d = %q, want %q", i+1, got, w)
 		}
 	}
-	if !strings.HasSuffix(rows[2], "in 1h 30m") || len([]rune(rows[2])) != f.edge() {
-		t.Errorf("row 3 = %q, want its countdown ending a column short of the frame's edge", rows[2])
+	if !strings.HasSuffix(rows[1], "in 1h 30m") || len([]rune(rows[1])) != f.edge() {
+		t.Errorf("row 2 = %q, want its countdown ending a column short of the frame's edge", rows[1])
 	}
-	if rows[4] != "" {
-		t.Errorf("row 5 = %q, want three things at most", rows[4])
+	if rows[3] != "" {
+		t.Errorf("row 4 = %q, want three things at most", rows[3])
 	}
 }
 

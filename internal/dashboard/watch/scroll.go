@@ -6,51 +6,81 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 )
 
-// wheelRows is how many rows a turn of the wheel scrolls the cards.
+// wheelRows is how many rows a turn of the wheel scrolls.
 const wheelRows = 3
 
-// scrollKey is how many rows the key scrolls the cards, down where more than
-// zero, up where less, reporting false for a key that doesn't scroll them: j
-// and k a row, PgDn and PgUp a page, as many rows as show at once.
-func (m Model) scrollKey(key string) (int, bool) {
-	switch key {
-	case "j", "J":
-		return 1, true
-	case "k", "K":
-		return -1, true
-	case "pgdown":
-		return m.scrolling().Page, true
-	case "pgup":
-		return -m.scrolling().Page, true
-	}
-	return 0, false
+// scrollStep is how far a key or a turn of the wheel scrolls, down where more
+// than zero, up where less: rows, and pages, as many rows as show at once.
+type scrollStep struct {
+	rows, pages int
 }
 
-// wheeled scrolls the cards as the wheel turns, wheelRows a turn, but while
-// the theme picker or the help is open over them.
+// scrollKey is how far the key scrolls, reporting false for a key that
+// doesn't: j and k a row, PgDn and PgUp a page.
+func scrollKey(key string) (scrollStep, bool) {
+	switch key {
+	case "j":
+		return scrollStep{rows: 1}, true
+	case "k":
+		return scrollStep{rows: -1}, true
+	case "pgdown":
+		return scrollStep{pages: 1}, true
+	case "pgup":
+		return scrollStep{pages: -1}, true
+	}
+	return scrollStep{}, false
+}
+
+// wheelTurn is how far the wheel turned scrolls, reporting false for a
+// button that isn't the wheel's.
+func wheelTurn(button tea.MouseButton) (scrollStep, bool) {
+	switch button {
+	case tea.MouseWheelDown:
+		return scrollStep{rows: wheelRows}, true
+	case tea.MouseWheelUp:
+		return scrollStep{rows: -wheelRows}, true
+	}
+	return scrollStep{}, false
+}
+
+// from is where what's scrolled at, and scrolls as s says, is scrolled to:
+// no further either way than it goes as it stands now, which may be less
+// than when it was last scrolled.
+func (by scrollStep) from(at int, s dashboard.Scrolling) int {
+	return min(max(min(at, s.Most)+by.rows+by.pages*s.Page, 0), s.Most)
+}
+
+// wheeled scrolls what the wheel turns under the pointer, as the screen
+// draws it: help, over its card; the view, over its rows, while no card is
+// open; and nothing else, the routing card among it, nor anything while the
+// theme picker is open. What's under the pointer is found from the frame
+// alone, which the key line doesn't move.
 func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
-	if m.picker.open || m.helping {
+	by, ok := wheelTurn(msg.Button)
+	if !ok || m.picker.open {
 		return m
 	}
-	switch msg.Button {
-	case tea.MouseWheelDown:
-		return m.scrollBy(wheelRows)
-	case tea.MouseWheelUp:
-		return m.scrollBy(-wheelRows)
+	now := m.now()
+	switch m.open {
+	case helpOpen:
+		if f, _, _ := m.screen(now); f.Under(msg.X, msg.Y) == dashboard.UnderCard {
+			m.help.scroll = by.from(m.help.scroll, f.CardScrolling())
+		}
+	case nothingOpen:
+		if f := m.frame(now); f.Under(msg.X, msg.Y) == dashboard.UnderView {
+			m.scroll = by.from(m.scroll, f.Scrolling(m.doc, now))
+		}
 	}
 	return m
 }
 
-// scrollBy scrolls the cards by rows, down where more than zero, up where
-// less, no further either way than they go as the screen stands now, which
-// may be less than when they were last scrolled.
-func (m Model) scrollBy(rows int) Model {
-	most := m.scrolling().Most
-	m.scroll = min(max(min(m.scroll, most)+rows, 0), most)
+// scrollView scrolls the view shown by.
+func (m Model) scrollView(by scrollStep) Model {
+	m.scroll = by.from(m.scroll, m.scrolling())
 	return m
 }
 
-// scrolling is how far the cards on screen scroll.
+// scrolling is how far the view on screen scrolls.
 func (m Model) scrolling() dashboard.Scrolling {
 	now := m.now()
 	return m.frame(now).Scrolling(m.doc, now)

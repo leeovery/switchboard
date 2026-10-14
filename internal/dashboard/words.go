@@ -40,6 +40,24 @@ func names(doc status.Document, ids []string) string {
 	return prose.List(listed)
 }
 
+// either lists the names as prose lists what's chosen between, each in k
+// and the words between them in between: "work", "work or side", "work,
+// side or personal".
+func either(names []string, k, between ink) line {
+	var l line
+	for i, n := range names {
+		switch {
+		case i == 0:
+		case i == len(names)-1:
+			l = append(l, span{" or ", between})
+		default:
+			l = append(l, span{", ", between})
+		}
+		l = append(l, span{n, k})
+	}
+	return l
+}
+
 // place is the account's place in doc, counting from 1 in the order they're
 // configured, as the digit that pins it numbers it: 0 where doc lacks it.
 func place(doc status.Document, id string) int {
@@ -84,4 +102,12 @@ func sessionID(id string) string {
 // readings, "last-2h".
 func lately(since, at time.Time) string {
 	return strings.ReplaceAll(status.Over(since, at), " ", "-")
+}
+
+// because follows what with why, cleaned, where there's a why.
+func because(what, why string) string {
+	if why = status.Clean(why); why == "" {
+		return what
+	}
+	return what + ": " + why
 }

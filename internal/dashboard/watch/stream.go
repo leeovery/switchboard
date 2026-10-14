@@ -57,12 +57,12 @@ type rejoinMsg struct {
 }
 
 // wantsStream reports whether the watch reads the router's request stream:
-// while Sessions shows, or the Accounts view with a card flipped, or its
-// cards drawing hourglasses, whose sand falls while the stream says their
+// while Sessions shows, or the Overview with a card flipped, or its cards
+// drawing hourglasses, whose sand falls while the stream says their
 // accounts are busy; and the router answers, unless it's from before the
 // stream.
 func (m Model) wantsStream() bool {
-	shows := m.view == dashboard.Sessions || m.view == dashboard.Accounts && (len(m.flipped) > 0 || m.chart == dashboard.Hourglass)
+	shows := m.view == dashboard.Sessions || m.view == dashboard.Overview && (len(m.flipped) > 0 || m.chart == dashboard.Hourglass)
 	return shows && m.answering() && !m.stream.absent
 }
 

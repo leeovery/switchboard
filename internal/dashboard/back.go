@@ -14,10 +14,9 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// The columns of a seat's row on a card's back: the cells before its dot,
-// where ▸ marks the one picked out; its session's id, its model, at the
-// least, and what it's doing's word, each with the blanks after it; and how
-// far in the note under it starts.
+// The columns of a seat's row on a card's back: the cells before its dot;
+// its session's id, its model, at the least, and what it's doing's word,
+// each with the blanks after it; and how far in the note under it starts.
 const (
 	seatLead    = 2
 	idColumn    = 6
@@ -26,40 +25,14 @@ const (
 	noteIndent  = 4
 )
 
-// backKeysGap is the blank cells between the keys at the foot of a card's
+// backKeys are the keys at the foot of a card's back: space, which flips it
 // back.
-const backKeysGap = 2
+var backKeys = line{{"space", keyInk}, {" flip", mutedInk}}
 
 // Seat is a session's requests of one model on an account: a row of the back
 // of the account's card.
 type Seat struct {
 	Session, Model string
-}
-
-// IsZero reports whether the seat is none, as while no session is picked
-// out.
-func (s Seat) IsZero() bool {
-	return s == Seat{}
-}
-
-// Shown is the seat's session's id as the dashboard shows it: its first
-// four characters, cleaned, such as d28c.
-func (s Seat) Shown() string {
-	return sessionID(s.Session)
-}
-
-// Seats are the seats of the sessions listed on the account with the given
-// id, the request stream's moves among them, active there at now, as
-// activeOn says, a row each of its card's back, in the order the router
-// lists them, the session seen last first, and of each session, the model
-// used last first.
-func (f Frame) Seats(id string, now time.Time) []Seat {
-	on := f.activeOn(f.listing(), id, now)
-	seats := make([]Seat, len(on))
-	for i, s := range on {
-		seats[i] = s.seat()
-	}
-	return seats
 }
 
 // seated is a session's model on an account, as the router listed it: the
@@ -81,13 +54,14 @@ func (s seated) plug() Plug {
 
 // activeOn are the seats of the sessions on the account with the given id,
 // of those listed, as listing has them, that count among its sessions at
-// now, as active says, in the order Seats gives.
+// now, as active says, in the order seatedOn gives.
 func (f Frame) activeOn(listing []status.Session, id string, now time.Time) []seated {
 	return slices.DeleteFunc(seatedOn(listing, id), func(s seated) bool { return !f.active(s, now) })
 }
 
 // seatedOn are the sessions listed on the account with the given id, a seat
-// each of their models there, in the order Seats gives.
+// each of their models there: in the order the router lists them, the
+// session seen last first, and of each session, the model used last first.
 func seatedOn(sessions []status.Session, id string) []seated {
 	var on []seated
 	for _, s := range sessions {
@@ -119,7 +93,7 @@ func (f Frame) back(c *canvas, doc status.Document, fc face, now time.Time, x, y
 	if len(seats) > foot-body {
 		body = y + 1
 	}
-	c.line(x, foot, f.backKeys(seats).fit(width))
+	c.line(x, foot, backKeys.fit(width))
 	under := y + 1
 	if drawn := f.backBody(c, doc, fc, seats, now, x, body, width, foot-body); drawn > 0 {
 		under = body + drawn
@@ -144,31 +118,12 @@ func tally(fc face) line {
 	return l
 }
 
-// backKeys is the line of keys at the foot of a card's back, whose seats
-// are those given: the keys that work on its sessions, where it has any, then
-// space, which flips it back.
-func (f Frame) backKeys(seats []seated) line {
-	keys := []Key{{Key: "space", Does: "flip"}}
-	if len(seats) > 0 {
-		keys = slices.Concat(f.Patch, keys)
-	}
-	var l line
-	for i, k := range keys {
-		if i > 0 {
-			l = append(l, spaces(backKeysGap))
-		}
-		l = append(l, k.words()...)
-	}
-	return l
-}
-
 // backBody draws the body of the card fc's back, its seats, from x along row
 // y, width cells wide and room rows tall at most, and returns how many rows
-// it drew: a row each, the one picked out marked, each with its note under
-// it where there's room for every one's; where there isn't room for every
-// row, as many as fit, among them the one picked out, then how many more
-// there are. Without seats, it's why the account has no sessions, where that
-// can be said.
+// it drew: a row each, each with its note under it where there's room for
+// every one's; where there isn't room for every row, as many as fit, then
+// how many more there are. Without seats, it's why the account has no
+// sessions, where that can be said.
 func (f Frame) backBody(c *canvas, doc status.Document, fc face, seats []seated, now time.Time, x, y, width, room int) int {
 	if room < 1 {
 		return 0
@@ -176,15 +131,10 @@ func (f Frame) backBody(c *canvas, doc status.Document, fc face, seats []seated,
 	if len(seats) == 0 {
 		return f.unseated(c, doc, fc, now, x, y, width, room)
 	}
-	picked := f.picked(fc)
-	first, shown := shownOf(seats, room, picked)
+	shown := shownOf(len(seats), room)
 	noted, column, row := 2*len(seats) <= room, modelColumnOf(seats), y
-	for _, s := range seats[first : first+shown] {
-		chosen := picked(s)
-		c.line(x, row, f.seatLine(s, column, chosen, now).fit(width))
-		if chosen {
-			c.surface(x-padding, row, width+2*padding, hue{token: theme.BgSelection})
-		}
+	for _, s := range seats[:shown] {
+		c.line(x, row, f.seatLine(s, column, now).fit(width))
 		row++
 		if noted {
 			c.line(x+noteIndent, row, line{{"╰ " + note(doc, fc.account.ID, s, now), mutedInk}}.fit(width-noteIndent))
@@ -198,26 +148,14 @@ func (f Frame) backBody(c *canvas, doc status.Document, fc face, seats []seated,
 	return row - y
 }
 
-// picked reports, of a seat on the back of the card fc, whether it's the one
-// picked out, which only the card with the focus has.
-func (f Frame) picked(fc face) func(seated) bool {
-	return func(s seated) bool {
-		return fc.focused && !f.Selected.IsZero() && s.seat() == f.Selected
+// shownOf is how many of n seats a back's body room rows tall shows: every
+// one where they fit; else as many as fit with a row left to say how many
+// more there are.
+func shownOf(n, room int) int {
+	if n <= room {
+		return n
 	}
-}
-
-// shownOf is which of the seats a back's body room rows tall shows: shown
-// of them from first, every one where they fit; else as many as fit with a
-// row left to say how many more there are, among them the one picked out.
-func shownOf(seats []seated, room int, picked func(seated) bool) (first, shown int) {
-	if len(seats) <= room {
-		return 0, len(seats)
-	}
-	shown = room - 1
-	if i := slices.IndexFunc(seats, picked); i >= shown {
-		first = i - shown + 1
-	}
-	return first, shown
+	return room - 1
 }
 
 // modelColumnOf is how many cells the column of the seats' models takes:
@@ -230,21 +168,17 @@ func modelColumnOf(seats []seated) int {
 	return column
 }
 
-// seatLine is a seat's row on a card's back: ▸ where it's the one picked out;
-// its dot, lit while busy; its session's id, bright and bold while busy; its
-// model, its column cells wide; and what it's doing.
-func (f Frame) seatLine(s seated, column int, chosen bool, now time.Time) line {
-	lead := spaces(seatLead)
-	if chosen {
-		lead = span{"▸ ", keyInk}
-	}
+// seatLine is a seat's row on a card's back: its dot, lit while busy; its
+// session's id, bright and bold while busy; its model, its column cells
+// wide; and what it's doing.
+func (f Frame) seatLine(s seated, column int, now time.Time) line {
 	busy := f.lit(s, now)
 	id := span{padded(sessionID(s.session.ID), idColumn), titleInk}
 	if !busy {
 		id.ink = idleIDInk
 	}
 	d := f.doing(s, now)
-	return line{lead, sessionDot(busy), spaces(1), id, {padded(s.assignment.Name(), column), secondaryInk}, {padded(d.word, doingColumn), d.ink}, {d.detail, secondaryInk}}
+	return line{spaces(seatLead), sessionDot(busy), spaces(1), id, {padded(s.assignment.Name(), column), secondaryInk}, {padded(d.word, doingColumn), d.ink}, {d.detail, secondaryInk}}
 }
 
 // idleIDInk is an idle session's id: muted, and not bold, as only a busy

@@ -88,23 +88,43 @@ func ByName(name string) (Fixture, error) {
 var local = sync.OnceValue(func() fixtureSet { return fixturesIn(time.Local) })
 
 // fixtureSet is every fixture drawn in a time zone, by name, each built the
-// first time it's asked for: usage's printouts are drawn over the worlds,
-// whose year takes a while, so no set builds them before a printout is asked
-// for.
+// first time it's asked for: usage's printouts and the pages are drawn over
+// the worlds, whose year takes a while, so no set builds them before one is
+// asked for.
 type fixtureSet map[string]func() Fixture
 
-// fixturesIn is every fixture drawn in the time zone given, as fixtures and
-// printouts say.
+// fixturesIn is every fixture drawn in the time zone given, as fixtures,
+// printouts and pages say.
 func fixturesIn(loc *time.Location) fixtureSet {
-	return setOf(fixtures(loc), printouts, worldsNow)
+	return setOf(fixtures(loc), overWorlds(), worldsNow)
 }
 
-// setOf is the watch's fixtures given and usage's printouts given, by name,
-// a printout drawn over what worlds gives the first time it's asked for, and
-// only then. It panics on a name given twice, as the second would hide the
-// first.
-func setOf(watched []Fixture, printed []printout, worlds func() accountWorlds) fixtureSet {
-	set := make(fixtureSet, len(watched)+len(printed))
+// overWorld is a fixture drawn over the accounts' worlds, built as it's asked
+// for: its name, and the fixture over the worlds given.
+type overWorld interface {
+	called() string
+	fixture(worlds accountWorlds) Fixture
+}
+
+// overWorlds are the fixtures drawn over the accounts' worlds: usage's
+// printouts, and the pages the watch draws.
+func overWorlds() []overWorld {
+	var over []overWorld
+	for _, p := range printouts {
+		over = append(over, p)
+	}
+	for _, p := range pages {
+		over = append(over, p)
+	}
+	return over
+}
+
+// setOf is the watch's fixtures given and those given over the worlds, by
+// name, one over the worlds drawn over what worlds gives the first time it's
+// asked for, and only then. It panics on a name given twice, as the second
+// would hide the first.
+func setOf(watched []Fixture, over []overWorld, worlds func() accountWorlds) fixtureSet {
+	set := make(fixtureSet, len(watched)+len(over))
 	add := func(name string, build func() Fixture) {
 		if _, ok := set[name]; ok {
 			panic(fmt.Sprintf("capture: two fixtures named %q", name))
@@ -114,8 +134,8 @@ func setOf(watched []Fixture, printed []printout, worlds func() accountWorlds) f
 	for _, f := range watched {
 		add(f.Name, func() Fixture { return f })
 	}
-	for _, p := range printed {
-		add(p.name, sync.OnceValue(func() Fixture { return p.fixture(worlds()) }))
+	for _, o := range over {
+		add(o.called(), sync.OnceValue(func() Fixture { return o.fixture(worlds()) }))
 	}
 	return set
 }
@@ -168,19 +188,19 @@ var worldsNow = sync.OnceValue(func() accountWorlds { return newAccountWorlds(lo
 
 // fixtures are the watch's fixtures, in the frames' theme, over milestone 5's
 // samples at the frames' moment in the zone given, as moment fixes it: one
-// for each set of accounts its frames draw, at the size of the frame it mirrors, or for five
-// accounts, which its final page draws only in Sessions and Runway, at
-// Sessions'. A frame of another view, or reached by a key, is a fixture with
-// its own size and keys over one of these sets: as every card flipped with s;
-// work's card flipped with space, and d28c, its second session as the router
-// lists them, picked out with ↓ twice; the theme picker, open, its cursor
-// moved up a theme from the frames' to show the one before; the help, which
-// the frames don't draw; and Runway, with tab, over the day, and with w, over
-// the week.
+// for each set of accounts its frames draw, at the size of the frame it
+// mirrors, or for five accounts, which its final page draws only in Sessions
+// and Runway, at Sessions'. Each opens on the Overview, which shows milestone
+// 5's cards until stage 7 builds it. A frame of another view, or reached by
+// a key, is a fixture with its own size and keys over one of these sets: as
+// every card flipped with s; the theme picker, open, its cursor moved up a
+// theme from the frames' to show the one before; the help, which the frames
+// don't draw, and the help over Sessions on a short terminal, scrolled down
+// three rows; Sessions, three tabs on; and Runway, four tabs on, over the
+// day, and with w, over the week.
 func fixtures(loc *time.Location) []Fixture {
 	now := moment(loc)
-	w, g, tab := tea.KeyPressMsg{Code: 'w', Text: "w"}, tea.KeyPressMsg{Code: 'g', Text: "g"}, tea.KeyPressMsg{Code: tea.KeyTab}
-	space, down := tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, tea.KeyPressMsg{Code: tea.KeyDown}
+	w, g, j, tab := tea.KeyPressMsg{Code: 'w', Text: "w"}, tea.KeyPressMsg{Code: 'g', Text: "g"}, tea.KeyPressMsg{Code: 'j', Text: "j"}, tea.KeyPressMsg{Code: tea.KeyTab}
 	storyboard := storyboardAt(now)
 	all := []Fixture{
 		{Name: "accounts-1", Size: wide(27), now: now, router: oneAccount(now)},
@@ -201,19 +221,19 @@ func fixtures(loc *time.Location) []Fixture {
 		{Name: "accounts-8-rate", Size: wide(40), now: now, router: eightAccounts(now), keys: []tea.KeyPressMsg{g}},
 		{Name: "accounts-8-scrolling", Size: wide(28), now: now, router: eightAccounts(now)},
 		{Name: "accounts-flipped-all", Size: wide(34), now: now, router: threeAccounts(now).telling(backs(now)...), keys: []tea.KeyPressMsg{{Code: 's', Text: "s"}}},
-		{Name: "accounts-flipped-selected", Size: wide(34), now: now, router: threeAccounts(now).telling(backs(now)...), keys: []tea.KeyPressMsg{space, down, down}},
 		{Name: "accounts-phone", Size: watch.Size{Width: 52, Height: 36}, now: now, router: threeAccounts(now)},
-		{Name: "runway-day-3", Size: wide(26), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab}},
-		{Name: "runway-day-5", Size: wide(32), now: now, router: fiveAccounts(now), keys: []tea.KeyPressMsg{tab, tab}},
-		{Name: "runway-week-3", Size: wide(26), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, w}},
-		{Name: "sessions-1", Size: wide(27), now: now, router: oneAccount(now), keys: []tea.KeyPressMsg{tab}},
-		{Name: "sessions-3", Size: wide(28), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab}},
-		{Name: "sessions-3-keys", Size: wide(28), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, {Code: '?', Text: "?"}}},
-		{Name: "sessions-5", Size: wide(40), now: now, router: fiveAccounts(now), keys: []tea.KeyPressMsg{tab}},
-		{Name: "sessions-storyboard-1-request-out", Size: wide(28), now: storyboard, router: requestOut(storyboard), keys: []tea.KeyPressMsg{tab}},
-		{Name: "sessions-storyboard-2-streaming-back", Size: wide(28), now: storyboard, router: streamingBack(storyboard), keys: []tea.KeyPressMsg{tab}},
-		{Name: "sessions-storyboard-3-refused", Size: wide(28), now: storyboard, router: refused(storyboard), keys: []tea.KeyPressMsg{tab}},
-		{Name: "sessions-storyboard-4-repatched", Size: wide(28), now: storyboard, router: repatched(storyboard), keys: []tea.KeyPressMsg{tab}},
+		{Name: "page-help-scrolled", Size: wide(16), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, {Code: '?', Text: "?"}, j, j, j}},
+		{Name: "runway-day-3", Size: wide(26), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, tab}},
+		{Name: "runway-day-5", Size: wide(32), now: now, router: fiveAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, tab}},
+		{Name: "runway-week-3", Size: wide(26), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, tab, w}},
+		{Name: "sessions-1", Size: wide(27), now: now, router: oneAccount(now), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "sessions-3", Size: wide(28), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "sessions-3-keys", Size: wide(28), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, {Code: '?', Text: "?"}}},
+		{Name: "sessions-5", Size: wide(40), now: now, router: fiveAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "sessions-storyboard-1-request-out", Size: wide(28), now: storyboard, router: requestOut(storyboard), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "sessions-storyboard-2-streaming-back", Size: wide(28), now: storyboard, router: streamingBack(storyboard), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "sessions-storyboard-3-refused", Size: wide(28), now: storyboard, router: refused(storyboard), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "sessions-storyboard-4-repatched", Size: wide(28), now: storyboard, router: repatched(storyboard), keys: []tea.KeyPressMsg{tab, tab, tab}},
 	}
 	for i := range all {
 		all[i].theme = framesTheme()
@@ -254,6 +274,11 @@ var printouts = []printout{
 	{name: "usage-one-account-160", size: watch.Size{Width: 160, Height: 7}, world: accountWorlds.alone},
 }
 
+// called is the printout's name.
+func (p printout) called() string {
+	return p.name
+}
+
 // fixture is the printout of its world of worlds, read at their moment, in
 // the frames' theme.
 func (p printout) fixture(worlds accountWorlds) Fixture {
@@ -261,6 +286,59 @@ func (p printout) fixture(worlds accountWorlds) Fixture {
 		Name: p.name, Size: p.size, Printout: true, now: worlds.now, router: routerOf(p.world(worlds), worlds.now),
 		by: p.by, windows: p.windows, theme: framesTheme(),
 	}
+}
+
+// page is the page the watch draws over one of the accounts' worlds, at their
+// moment, in the frames' theme, with its world's records: on a terminal of
+// its size, with its keys pressed once its document is read; and, gone, with
+// the router no longer answering from that moment, as a key that reads then
+// finds it.
+type page struct {
+	name  string
+	size  watch.Size
+	world func(accountWorlds) accountWorld
+	keys  []tea.KeyPressMsg
+	gone  bool
+}
+
+// called is the page's name.
+func (p page) called() string {
+	return p.name
+}
+
+// fixture is the page drawn over its world of worlds.
+func (p page) fixture(worlds accountWorlds) Fixture {
+	w := p.world(worlds)
+	router := routerOf(w, worlds.now)
+	if p.gone {
+		router = router.goneAt(worlds.now)
+	}
+	return Fixture{
+		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys),
+		theme: framesTheme(), records: worlds.recordsOf(w),
+	}
+}
+
+// pages are the page as stage 6 builds it, over the auto world, the frames'
+// tabs and cards not yet drawn as their frames are, to judge by eye: the
+// routing card over the Overview, two accounts picked and m ticked, at
+// 160×40, and on a phone, one picked and m ticked; the Log's empty tab, its
+// title row lit there; and the router gone, R having found it so, the status
+// line saying since when and p pin faint.
+var pages = []page{
+	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: keysOf("p", "2", "3", "m")},
+	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
+	{name: "page-log", size: wide(37), world: accountWorlds.auto, keys: []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}},
+	{name: "page-not-answering", size: wide(37), world: accountWorlds.auto, keys: keysOf("R"), gone: true},
+}
+
+// keysOf are the keys pressed as the text given, a key a character.
+func keysOf(text ...string) []tea.KeyPressMsg {
+	var keys []tea.KeyPressMsg
+	for _, t := range text {
+		keys = append(keys, tea.KeyPressMsg{Code: []rune(t)[0], Text: t})
+	}
+	return keys
 }
 
 // wide is a terminal as wide as the frames are, 160 columns, and as tall as

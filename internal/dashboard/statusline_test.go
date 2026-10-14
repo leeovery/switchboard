@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -194,5 +195,142 @@ func TestTheStatusLineShortensAsAPhonesDoes(t *testing.T) {
 				t.Errorf("in %d cells, the status line reads %q, want %q", tt.width, got, tt.want)
 			}
 		})
+	}
+}
+
+// lostAt is when the router stopped answering, in the frames: 14:40:55 in
+// printNow's time zone.
+var lostAt = printNow.Add(-72 * time.Second).UTC()
+
+// pageStatusOf is the status line the page draws of doc at printNow, on a
+// frame width cells wide, the router lost at lost: the canvas it's drawn on,
+// and its row there.
+func pageStatusOf(doc status.Document, width int, lost time.Time) (*canvas, int) {
+	f := Frame{Width: width, Height: 8, Lost: lost}
+	c := newCanvas(f.Width, f.Height)
+	f.routerStatus(c, doc, printNow)
+	return c, f.statusRow()
+}
+
+func TestThePagesStatusLine(t *testing.T) {
+	probedLost := routed(func(d *status.Document) {
+		d.Source, d.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterNotRunning}
+	})
+	notAnswering := "■ the router isn't answering  ·  since 14:40:55  ·  auto  ·  6 sessions  ·  new sessions → ▲ side"
+	tests := []struct {
+		name  string
+		doc   status.Document
+		width int
+		lost  time.Time
+		want  string
+	}{
+		{name: "on auto, saying so, as overview-default-160 draws it", doc: routed(), width: 160, want: "● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side"},
+		{
+			name: "pinned, as overview-pinned-160 draws it", width: 160,
+			doc:  routed(func(d *status.Document) { d.Pin, d.Best = status.Pin{Accounts: []string{"personal"}}, "personal" }),
+			want: "● healthy  ·  pinned to personal  ·  6 sessions  ·  new sessions → ▲ personal",
+		},
+		{
+			name: "unhealthy, the rest as its document has them", width: 160,
+			doc:  routed(func(d *status.Document) { d.Router = status.Health{Reason: "failed 6 of 8 requests"} }),
+			want: "● unhealthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side",
+		},
+		{name: "the router not answering, the rest as its last document had them, as log-not-live-160 draws it", doc: routed(), width: 160, lost: lostAt, want: notAnswering},
+		{
+			name: "not answering, the mode above all", width: 160, lost: lostAt,
+			doc:  routed(func(d *status.Document) { d.Pin = status.Pin{Accounts: []string{"personal", "side"}} }),
+			want: "■ the router isn't answering  ·  since 14:40:55  ·  pinned to personal and side  ·  6 sessions  ·  new sessions → ▲ side",
+		},
+		{name: "probed, the router lost before: the probed line", doc: probedLost, width: 160, lost: lostAt, want: "○ probed · router not running"},
+		{name: "before the first document: blank", width: 160},
+		{name: "before the first document, the router not answering: that alone", width: 160, lost: lostAt, want: "■ the router isn't answering  ·  since 14:40:55"},
+		{name: "at 100 columns, in full", doc: routed(), width: 100, want: "● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side"},
+		{name: "on a phone, as overview-phone-52 draws it", doc: routed(), width: 52, want: "● healthy · auto · 6 sessions · new → ▲ side"},
+		{name: "on a phone of 99 columns, as a phone spaces it, where the full form would fit", doc: routed(), width: 99, want: "● healthy · auto · 6 sessions · new → ▲ side"},
+		{name: "on a phone, not answering, without the sessions and where new sessions go", doc: routed(), width: 52, lost: lostAt, want: "■ the router isn't answering · since 14:40:55 · auto"},
+		{name: "on a phone, not answering, shortened", doc: routed(), width: 51, lost: lostAt, want: "■ no router since 14:40 · auto"},
+		{name: "on a phone, probed, shortened", doc: probedLost, width: 28, want: "○ probed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, y := pageStatusOf(tt.doc, tt.width, tt.lost)
+			if got := strings.TrimRight(c.rows(Look{})[y], " "); got != tt.want {
+				t.Errorf("the status line reads %q, want %q", got, tt.want)
+			}
+		})
+	}
+	if got := newStatusLine(routed()).fit(200).plain(); strings.Contains(got, "auto") {
+		t.Errorf("the printout's status line reads %q, want auto said on the page alone", got)
+	}
+}
+
+func TestThePagesStatusLineSaysWhyAReadFailed(t *testing.T) {
+	failed := Failure{Reason: "connection\nrefused", Next: printNow.Add(2 * time.Minute)}
+	probed := routed(func(d *status.Document) { d.Source = status.SourceProbe })
+	tests := []struct {
+		name  string
+		doc   status.Document
+		width int
+		lost  time.Time
+		want  string
+	}{
+		{name: "before the first document, why and when it reads next", width: 160, want: "! couldn't read usage: connection refused  ·  next 14:44"},
+		{name: "probed, in the probed line's place", doc: probed, width: 160, want: "! couldn't read usage: connection refused  ·  next 14:44"},
+		{name: "probed, the router lost before: in the probed line's place", doc: probed, width: 160, lost: lostAt, want: "! couldn't read usage: connection refused  ·  next 14:44"},
+		{name: "the router not answering, which says it", doc: routed(), width: 160, lost: lostAt, want: "■ the router isn't answering  ·  since 14:40:55  ·  auto  ·  6 sessions  ·  new sessions → ▲ side"},
+		{name: "on a phone, shortened", width: 40, want: "! couldn't read usage next 14:44"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Width: tt.width, Height: 8, Lost: tt.lost, Failed: failed}
+			c := newCanvas(f.Width, f.Height)
+			f.routerStatus(c, tt.doc, printNow)
+			if got := strings.TrimRight(c.rows(Look{})[f.statusRow()], " "); got != tt.want {
+				t.Errorf("the status line reads %q, want %q", got, tt.want)
+			}
+		})
+	}
+
+	f := Frame{Width: 160, Height: 8, Failed: failed}
+	c := newCanvas(f.Width, f.Height)
+	f.routerStatus(c, status.Document{}, printNow)
+	for _, tt := range []struct {
+		name string
+		x    int
+		want ink
+	}{{name: "!", x: 0, want: errorInk}, {name: "couldn't read usage", x: 2, want: secondaryInk}, {name: "next 14:44", x: 47, want: mutedInk}} {
+		if got := c.at(tt.x, f.statusRow()).ink; got != tt.want {
+			t.Errorf("%q, at column %d, is in %+v, want %+v", tt.name, tt.x, got, tt.want)
+		}
+	}
+}
+
+func TestThePagesStatusLineSaysItInItsInks(t *testing.T) {
+	c, y := pageStatusOf(routed(), 160, lostAt)
+	tests := []struct {
+		name string
+		x    int
+		want ink
+	}{
+		{name: "■", x: 0, want: errorInk},
+		{name: "the router isn't answering", x: 2, want: secondaryInk},
+		{name: "  ·  since 14:40:55  ·  ", x: 33, want: mutedInk},
+		{name: "auto", x: 52, want: secondaryInk},
+	}
+	for _, tt := range tests {
+		if got := c.at(tt.x, y).ink; got != tt.want {
+			t.Errorf("%q, at column %d, is in %+v, want %+v", tt.name, tt.x, got, tt.want)
+		}
+	}
+}
+
+func TestTheStatusLineIsOnItsRowFromTheFirstColumn(t *testing.T) {
+	for _, tt := range []struct {
+		width, row int
+	}{{width: 160, row: 2}, {width: 52, row: 3}} {
+		f := frameOf(tt.width, 40)
+		if got := textOf(f.Draw(routed(), printNow))[tt.row]; !strings.HasPrefix(got, "● healthy") {
+			t.Errorf("at %d columns, row %d reads %q, want the status line from its first column", tt.width, tt.row+1, got)
+		}
 	}
 }

@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -27,6 +28,30 @@ func TestAccountsAreCalledByTheirNames(t *testing.T) {
 	}
 	if got, want := names(doc, []string{"work", "side"}), "Work [2J and side"; got != want {
 		t.Errorf("names() = %q, want %q", got, want)
+	}
+}
+
+func TestEitherListsTheNamesAsProseDoesWhatsChosenBetween(t *testing.T) {
+	tests := []struct {
+		names []string
+		want  string
+	}{
+		{names: nil, want: ""},
+		{names: []string{"work"}, want: "work"},
+		{names: []string{"work", "side"}, want: "work or side"},
+		{names: []string{"work", "side", "personal"}, want: "work, side or personal"},
+		{names: []string{"work", "side", "personal", "client"}, want: "work, side, personal or client"},
+	}
+	for _, tt := range tests {
+		got := either(tt.names, titleInk, secondaryInk)
+		if got.plain() != tt.want {
+			t.Errorf("either(%q) = %q, want %q", tt.names, got.plain(), tt.want)
+		}
+		for _, s := range got {
+			if named := slices.Contains(tt.names, s.text); named != (s.ink == titleInk) {
+				t.Errorf("either(%q) drew %q in %+v, want the names in theirs and the words between in theirs", tt.names, s.text, s.ink)
+			}
+		}
 	}
 }
 

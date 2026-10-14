@@ -24,10 +24,10 @@ func TestOpensOnTheViewKept(t *testing.T) {
 		kept dashboard.View
 		want dashboard.View
 	}{
-		{name: "the view kept", kept: dashboard.Runway, want: dashboard.Runway},
-		{name: "Sessions kept", kept: dashboard.Sessions, want: dashboard.Sessions},
-		{name: "none kept: the first", kept: "", want: dashboard.Accounts},
-		{name: "one there isn't, as from a later switchboard: the first", kept: "a-later-view", want: dashboard.Accounts},
+		{name: "the tab kept", kept: dashboard.Runway, want: dashboard.Runway},
+		{name: "the Log kept", kept: dashboard.Log, want: dashboard.Log},
+		{name: "none kept: the Overview", kept: "", want: dashboard.Overview},
+		{name: "one there isn't, as from a later switchboard: the Overview", kept: "a-later-view", want: dashboard.Overview},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -39,70 +39,72 @@ func TestOpensOnTheViewKept(t *testing.T) {
 	}
 }
 
-func TestTabShowsTheNextViewAndKeepsIt(t *testing.T) {
+func TestTabShowsTheNextTabAndKeepsIt(t *testing.T) {
 	h := newHarness(t, calm())
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs = prefs
 	h.start()
 
-	if !strings.HasPrefix(h.footer(), "tab views · ") {
-		t.Errorf("the footer reads %q, want tab first, there being views to move between", h.footer())
+	if !strings.HasPrefix(h.keyLine(), "tab views · ") {
+		t.Errorf("the key line reads %q, want tab first", h.keyLine())
 	}
 	for _, step := range []struct {
 		key  string
 		want dashboard.View
 	}{
-		{key: "tab", want: dashboard.Sessions},
-		{key: "tab", want: dashboard.Runway},
 		{key: "tab", want: dashboard.Accounts},
-		{key: "shift+tab", want: dashboard.Runway},
+		{key: "tab", want: dashboard.History},
+		{key: "shift+tab", want: dashboard.Accounts},
+		{key: "shift+tab", want: dashboard.Overview},
+		{key: "shift+tab", want: dashboard.Log},
 	} {
 		h.press(step.key)
-		if h.model.view != step.want || prefs.kept.View != string(step.want) {
-			t.Errorf("%s showed %q and kept %q, want %q kept", step.key, h.model.view, prefs.kept.View, step.want)
+		if h.model.view != step.want || prefs.kept.Tab != string(step.want) {
+			t.Errorf("%s showed %q and kept %q, want %q kept", step.key, h.model.view, prefs.kept.Tab, step.want)
 		}
-	}
-	if !strings.Contains(h.view(), " Runway ") {
-		t.Errorf("the screen is\n%s\nwant Runway's tab", h.view())
 	}
 }
 
-func TestTabTurnsRoundTheViewsBuilt(t *testing.T) {
+func TestTabTurnsRoundTheSixTabs(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
 
-	if got, want := h.model.views, []dashboard.View{dashboard.Accounts, dashboard.Sessions, dashboard.Runway}; !slices.Equal(got, want) {
-		t.Fatalf("the views are %q, want %q", got, want)
+	if !strings.Contains(h.view(), " Overview   Accounts   History   Sessions   Runway   Log   tab ⇥") {
+		t.Errorf("the screen is\n%s\nwant the six tabs, and tab's hint", h.view())
 	}
+	cards := "╭─ 1 Work"
 	for _, step := range []struct {
 		key  string
 		want dashboard.View
-		// wantShows is what the screen shows of the view.
+		// wantShows is what the screen shows of the tab: "" for one not yet
+		// built, which shows none of the Overview's cards.
 		wantShows string
 	}{
+		{key: "tab", want: dashboard.Accounts},
+		{key: "tab", want: dashboard.History},
 		{key: "tab", want: dashboard.Sessions, wantShows: "┌─ 1 · WORK ─"},
 		{key: "tab", want: dashboard.Runway, wantShows: "accounts with room"},
-		{key: "tab", want: dashboard.Accounts, wantShows: "╭─ 1 Work"},
+		{key: "tab", want: dashboard.Log},
+		{key: "tab", want: dashboard.Overview, wantShows: cards},
+		{key: "shift+tab", want: dashboard.Log},
 		{key: "shift+tab", want: dashboard.Runway, wantShows: "accounts with room"},
-		{key: "shift+tab", want: dashboard.Sessions, wantShows: "┌─ 1 · WORK ─"},
-		{key: "shift+tab", want: dashboard.Accounts, wantShows: "╭─ 1 Work"},
 	} {
 		h.press(step.key)
-		if h.model.view != step.want || !strings.Contains(h.view(), step.wantShows) {
-			t.Errorf("%s showed %q, the screen\n%s\nwant %q, showing %q", step.key, h.model.view, h.view(), step.want, step.wantShows)
+		shown := h.view()
+		if h.model.view != step.want || !strings.Contains(shown, step.wantShows) || step.wantShows == "" && strings.Contains(shown, cards) {
+			t.Errorf("%s showed %q, the screen\n%s\nwant %q, showing %q", step.key, h.model.view, shown, step.want, step.wantShows)
 		}
-	}
-	if !strings.Contains(h.view(), " Accounts   Sessions   Runway   tab ⇥") {
-		t.Errorf("the screen is\n%s\nwant the views built as tabs, and tab's hint", h.view())
 	}
 }
 
 func TestAViewTabTurnsToShowsFromItsTop(t *testing.T) {
 	h := newHarness(t, twelve())
 	h.start()
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 49})
 	h.press("j")
 	h.press("j")
 
+	h.press("shift+tab")
 	h.press("shift+tab")
 	if h.model.scroll != 0 || !strings.Contains(h.view(), " 1 Account A") {
 		t.Errorf("turned to Runway, scrolled %d, the screen\n%s\nwant it from its first lane", h.model.scroll, h.view())
@@ -110,7 +112,7 @@ func TestAViewTabTurnsToShowsFromItsTop(t *testing.T) {
 	if h.press("j"); h.model.scroll != 1 || strings.Contains(h.view(), " 1 Account A") {
 		t.Errorf("j scrolled Runway to %d, the screen\n%s\nwant its lanes a row down", h.model.scroll, h.view())
 	}
-	if help := h.model.helpKeys(); !slices.Contains(help, dashboard.Key{Key: "j k", Does: "scroll the lanes; PgUp and PgDn a page, or the wheel"}) {
+	if help := helpOver(h.model); !slices.Contains(help, dashboard.Key{Key: "j k", Does: "scroll"}) {
 		t.Errorf("the help lists %+v, want j and k scrolling the lanes", help)
 	}
 }
@@ -121,24 +123,25 @@ func TestWSwitchesRunwayBetweenTheDayAndTheWeek(t *testing.T) {
 	h.model.cfg.Prefs = prefs
 	h.start()
 	h.press("shift+tab")
+	h.press("shift+tab")
 	prefs.updates = 0
 
 	for _, step := range []struct {
 		want       dashboard.Span
-		footer     string
-		help       string
+		keys       string
+		does       string
 		wantShows  string
 		wantHidden string
 	}{
-		{want: dashboard.Day, footer: "tab views · w window: day · ", help: "switch between the day and the week, now the day", wantShows: "accounts with room", wantHidden: "weeks with room"},
-		{want: dashboard.Week, footer: "tab views · w window: week · ", help: "switch between the day and the week, now the week", wantShows: "weeks with room", wantHidden: "accounts with room"},
-		{want: dashboard.Day, footer: "tab views · w window: day · ", help: "switch between the day and the week, now the day", wantShows: "accounts with room", wantHidden: "weeks with room"},
+		{want: dashboard.Day, keys: "tab views · w window: day · ", does: "window: day", wantShows: "accounts with room", wantHidden: "weeks with room"},
+		{want: dashboard.Week, keys: "tab views · w window: week · ", does: "window: week", wantShows: "weeks with room", wantHidden: "accounts with room"},
+		{want: dashboard.Day, keys: "tab views · w window: day · ", does: "window: day", wantShows: "accounts with room", wantHidden: "weeks with room"},
 	} {
-		if h.model.span != step.want || !strings.HasPrefix(h.footer(), step.footer) {
-			t.Errorf("Runway shows the %s, the footer reading %q, want the %s, it starting %q", h.model.span.Name(), h.footer(), step.want.Name(), step.footer)
+		if h.model.span != step.want || !strings.HasPrefix(h.keyLine(), step.keys) {
+			t.Errorf("Runway shows the %s, the key line reading %q, want the %s, it starting %q", h.model.span.Name(), h.keyLine(), step.want.Name(), step.keys)
 		}
-		if help := h.model.helpKeys(); !slices.Contains(help, dashboard.Key{Key: "w", Does: step.help}) {
-			t.Errorf("the help lists %+v, want w to %q", help, step.help)
+		if help := helpOver(h.model); !slices.Contains(help, dashboard.Key{Key: "w", Does: step.does}) {
+			t.Errorf("the help lists %+v, want w as %q", help, step.does)
 		}
 		if !strings.Contains(h.view(), step.wantShows) || strings.Contains(h.view(), step.wantHidden) {
 			t.Errorf("the screen is\n%s\nwant %q, and no %q", h.view(), step.wantShows, step.wantHidden)
@@ -149,25 +152,9 @@ func TestWSwitchesRunwayBetweenTheDayAndTheWeek(t *testing.T) {
 		t.Errorf("w in Runway featured %q, keeping the preferences %d times, want the cards' window left as it was, and nothing kept", h.model.featured, prefs.updates)
 	}
 	h.press("tab")
-	if h.press("w"); h.model.featured != "5h" || h.model.span != dashboard.Week {
-		t.Errorf("w in Accounts featured %q, Runway showing the %s, want the cards featuring the 5-hour window, and Runway left on the week", h.model.featured, h.model.span.Name())
-	}
-}
-
-func TestWithOneViewTabMovesNowhere(t *testing.T) {
-	h := newHarness(t, calm())
-	prefs := &fakePrefs{}
-	h.model.cfg.Prefs = prefs
-	h.model.views = []dashboard.View{dashboard.Accounts}
-	h.start()
-
 	h.press("tab")
-	h.press("shift+tab")
-	if h.model.view != dashboard.Accounts || prefs.updates > 0 {
-		t.Errorf("showing %q, and kept the view %d times; want Accounts, and nothing kept", h.model.view, prefs.updates)
-	}
-	if strings.Contains(h.footer(), "tab") || strings.Contains(h.view(), "tab ⇥") {
-		t.Errorf("the screen is\n%s\nwant no word of tab, there being no view to move to", h.view())
+	if h.press("w"); h.model.featured != "5h" || h.model.span != dashboard.Week {
+		t.Errorf("w on the Overview featured %q, Runway showing the %s, want the cards featuring the 5-hour window, and Runway left on the week", h.model.featured, h.model.span.Name())
 	}
 }
 
@@ -178,26 +165,11 @@ func TestAViewThatCantBeKeptIsShownAllTheSame(t *testing.T) {
 	h.start()
 
 	h.press("tab")
-	if h.model.view != dashboard.Sessions {
-		t.Errorf("showing %q, want sessions all the same", h.model.view)
+	if h.model.view != dashboard.Accounts {
+		t.Errorf("showing %q, want accounts all the same", h.model.view)
 	}
-	if want := []string{"level=WARN", `msg="couldn't keep the view shown"`, "view=sessions"}; !log.Has(want...) {
+	if want := []string{"level=WARN", `msg="couldn't keep the view shown"`, "view=accounts"}; !log.Has(want...) {
 		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
-	}
-}
-
-func TestTheKeysThatSendSessionsDoNothingWithOneAccount(t *testing.T) {
-	doc := routerDocument(three()[0])
-	for _, key := range []string{"1", "a", "m"} {
-		t.Run(key, func(t *testing.T) {
-			h := routedHarness(t, doc)
-			h.start()
-
-			h.deliver(h.press(key)...)
-			if len(h.source.orders) > 0 || h.model.note != "" {
-				t.Errorf("orders = %q, note %q, want neither: there's no other account", h.source.orders, h.model.note)
-			}
-		})
 	}
 }
 
@@ -211,24 +183,24 @@ func TestWCyclesTheWindowEveryCardFeaturesAndKeepsIt(t *testing.T) {
 	h.model.cfg.Prefs = prefs
 	h.start()
 
-	if !strings.HasPrefix(h.footer(), "tab views · w window: auto · ") {
-		t.Errorf("the footer reads %q, want w saying the cards feature each its own, as auto has it", h.footer())
+	if !strings.HasPrefix(h.keyLine(), "tab views · w window: auto · ") {
+		t.Errorf("the key line reads %q, want w saying the cards feature each its own, as auto has it", h.keyLine())
 	}
 	for _, step := range []struct {
-		want   dashboard.Feature
-		footer string
+		want dashboard.Feature
+		keys string
 	}{
-		{want: "5h", footer: "tab views · w window: 5h · "},
-		{want: "7d", footer: "tab views · w window: week · "},
-		{want: "7d_oi", footer: "tab views · w window: Fable wk · "},
-		{want: dashboard.Auto, footer: "tab views · w window: auto · "},
+		{want: "5h", keys: "tab views · w window: 5h · "},
+		{want: "7d", keys: "tab views · w window: week · "},
+		{want: "7d_oi", keys: "tab views · w window: Fable wk · "},
+		{want: dashboard.Auto, keys: "tab views · w window: auto · "},
 	} {
 		h.press("w")
 		if h.model.featured != step.want || prefs.kept.Featured != string(step.want) {
 			t.Errorf("w featured %q and kept %q, want %q kept", h.model.featured, prefs.kept.Featured, step.want)
 		}
-		if !strings.HasPrefix(h.footer(), step.footer) {
-			t.Errorf("the footer reads %q, want it to start %q", h.footer(), step.footer)
+		if !strings.HasPrefix(h.keyLine(), step.keys) {
+			t.Errorf("the key line reads %q, want it to start %q", h.keyLine(), step.keys)
 		}
 	}
 }
@@ -249,10 +221,10 @@ func TestAWindowKeptButNoLongerInUseIsNamedAsTheCardsShowItAuto(t *testing.T) {
 	h.model.featured = "7d_oi"
 	h.start()
 
-	if !strings.HasPrefix(h.footer(), "tab views · w window: auto · ") {
-		t.Errorf("the footer reads %q, want auto, as the cards show Fable's week, unused", h.footer())
+	if !strings.HasPrefix(h.keyLine(), "tab views · w window: auto · ") {
+		t.Errorf("the key line reads %q, want auto, as the cards show Fable's week, unused", h.keyLine())
 	}
-	if help := h.model.helpKeys(); help[1].Key != "w" || help[1].Does != "cycle the window every card features, now auto" {
+	if help := helpOver(h.model); help[1].Key != "w" || help[1].Does != "window: auto" {
 		t.Errorf("the help says %s does %q, want w to say auto", help[1].Key, help[1].Does)
 	}
 	if h.press("w"); h.model.featured != "5h" {
@@ -269,8 +241,8 @@ func TestOpensFeaturingTheWindowKept(t *testing.T) {
 	})
 	h.start()
 
-	if !strings.HasPrefix(h.footer(), "tab views · w window: week · ") {
-		t.Errorf("the footer reads %q, want the week the preferences kept", h.footer())
+	if !strings.HasPrefix(h.keyLine(), "tab views · w window: week · ") {
+		t.Errorf("the key line reads %q, want the week the preferences kept", h.keyLine())
 	}
 	if !strings.Contains(h.view(), "WEEK  7-day window") {
 		t.Errorf("the screen is\n%s\nwant the card featuring its week", h.view())
@@ -312,14 +284,13 @@ func TestGCyclesTheChartEveryCardDrawsAndKeepsIt(t *testing.T) {
 	h.start()
 
 	for _, step := range []struct {
-		want     dashboard.Chart
-		kept     string
-		glyphs   string
-		describe string
+		want   dashboard.Chart
+		kept   string
+		glyphs string
 	}{
-		{want: dashboard.BurnRate, kept: "burn-rate", glyphs: "▃▅ use per 10 min", describe: "now burn rate"},
-		{want: dashboard.Hourglass, kept: "hourglass", glyphs: "▐▌ its recent rate, falling while busy", describe: "now hourglass"},
-		{want: dashboard.Burndown, kept: "", glyphs: "⠂⠄⡀ heading", describe: "now burn-down"},
+		{want: dashboard.BurnRate, kept: "burn-rate", glyphs: "▃▅ use per 10 min"},
+		{want: dashboard.Hourglass, kept: "hourglass", glyphs: "▐▌ its recent rate, falling while busy"},
+		{want: dashboard.Burndown, kept: "", glyphs: "⠂⠄⡀ heading"},
 	} {
 		h.press("g")
 		if h.model.chart != step.want || prefs.kept.Chart != step.kept {
@@ -328,13 +299,13 @@ func TestGCyclesTheChartEveryCardDrawsAndKeepsIt(t *testing.T) {
 		if !strings.Contains(h.view(), step.glyphs) {
 			t.Errorf("the screen is\n%s\nwant the key line to explain the %s's glyphs, %q", h.view(), step.want.Name(), step.glyphs)
 		}
-		if g := listedHelp(h.model, "g"); !strings.HasSuffix(g, step.describe) {
-			t.Errorf("the help says g does %q, want it to end %q", g, step.describe)
+		if g := listedHelp(h.model, "g"); g != "chart" {
+			t.Errorf("the help says g does %q, want chart", g)
 		}
 	}
 }
 
-func TestGWorksInTheAccountsViewAlone(t *testing.T) {
+func TestGWorksOnTheOverviewAlone(t *testing.T) {
 	h := newHarness(t, calm())
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs = prefs
@@ -342,10 +313,10 @@ func TestGWorksInTheAccountsViewAlone(t *testing.T) {
 	h.press("tab")
 
 	if h.press("g"); h.model.chart != dashboard.Burndown || prefs.kept.Chart != "" {
-		t.Errorf("g in Sessions drew %q and kept %q, want the cards' style left as it was, and nothing kept", h.model.chart, prefs.kept.Chart)
+		t.Errorf("g in Accounts drew %q and kept %q, want the cards' style left as it was, and nothing kept", h.model.chart, prefs.kept.Chart)
 	}
-	if listedHelp(h.model, "g") != "" || strings.Contains(h.footer(), "g chart") {
-		t.Errorf("in Sessions, the help lists g as %q and the footer reads %q, want g in neither", listedHelp(h.model, "g"), h.footer())
+	if listedHelp(h.model, "g") != "" || strings.Contains(h.keyLine(), "g chart") {
+		t.Errorf("in Accounts, the help lists g as %q and the key line reads %q, want g in neither", listedHelp(h.model, "g"), h.keyLine())
 	}
 }
 
@@ -445,7 +416,7 @@ func TestFallingSandIsDrawnAGrainAtATimeAndWhatMovesSmoothlyAtOnce(t *testing.T)
 	moved := routerDocument(three()...)
 	moved.Accounts[1].Windows[0].Utilization = 0.3
 	h.startRouter(moved)
-	h.deliver(h.press("r")...)
+	h.deliver(h.press("R")...)
 	if frames := h.pendingFrames(); len(frames) != 2 || frames[0].delay != frameEvery {
 		t.Fatalf("as personal's bar starts to ease, %d frames are armed, the soonest after %v; want one at once, %v on, beside the sand's", len(frames), frames[0].delay, frameEvery)
 	}
@@ -517,26 +488,23 @@ func TestAnHourglassFallsThroughALongAnswer(t *testing.T) {
 	}
 }
 
-func TestAnHourglassUnderTheHelpDrawsNoFrames(t *testing.T) {
-	g, help := tea.KeyPressMsg{Code: 'g', Text: "g"}, tea.KeyPressMsg{Code: '?', Text: "?"}
-	tests := []struct {
-		name, busy string
-		want       bool
-	}{
-		{name: "work's, beside it", busy: "work", want: true},
-		{name: "personal's, under it", busy: "personal"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+func TestAnHourglassUnderACardDrawsNoFrames(t *testing.T) {
+	g := tea.KeyPressMsg{Code: 'g', Text: "g"}
+	for _, card := range []tea.KeyPressMsg{{Code: '?', Text: "?"}, {Code: 'p', Text: "p"}} {
+		t.Run(card.String(), func(t *testing.T) {
 			h := routedHarness(t, routerDocument(three()...))
-			h.source.sessions = []status.Session{sessionOn(idD28C, opus, tt.busy, 10*time.Second)}
+			h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 10*time.Second)}
 			h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
 			h.start()
 			h.settle()
-			h.keys(g, g, help)
+			h.keys(g, g)
+			if _, ok := h.pendingFrame(); !ok {
+				t.Fatal("drawing hourglasses, work busy, no frame is armed, want its sand falling")
+			}
+			h.keys(card)
 			h.framesUntil(h.clock.now.Add(time.Second))
-			if _, ok := h.pendingFrame(); ok != tt.want {
-				t.Errorf("the help open, a frame is armed: %v, want %v", ok, tt.want)
+			if _, ok := h.pendingFrame(); ok {
+				t.Errorf("with %s's card open, a frame is armed, want none: the page under it is still", card)
 			}
 		})
 	}
@@ -558,7 +526,7 @@ func TestAnHourglassOfAnIdleAccountDrawsNoFrames(t *testing.T) {
 // listedHelp is what the help says the key does, as m stands: "" where it
 // doesn't list it.
 func listedHelp(m Model, key string) string {
-	for _, k := range m.helpKeys() {
+	for _, k := range helpOver(m) {
 		if k.Key == key {
 			return k.Does
 		}

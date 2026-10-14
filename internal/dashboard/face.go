@@ -135,7 +135,7 @@ func (f Frame) face(doc status.Document, a status.Account, now time.Time, shown 
 func (f Frame) plotOf(doc status.Document, fc face, now time.Time) plot {
 	p := plot{standing: fc.featured, tone: fc.tone(), now: now, starts: doc.StartsAt(fc.account.ID, now), busy: slices.Contains(fc.busy, true)}
 	p.start, p.length, p.spanned = p.window.Span()
-	p.trail = f.History[Ref{Account: fc.account.ID, Window: p.window.Key}]
+	p.trail = f.Trails[Ref{Account: fc.account.ID, Window: p.window.Key}]
 	p.traced = len(p.trail.Readings) > 0
 	p.rate = recentRate(fc.account, p.window, p.trail, now)
 	return p
