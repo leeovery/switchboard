@@ -150,11 +150,13 @@ func (d sessionDrawn) pageRow(r turnsRow) pageRow {
 }
 
 // request draws the row of the turn open's request at index i along row y:
-// the Log's row of it, as requestRow draws it in the page's columns, its
-// tree's │ before it in border; lit across the width where it's chosen.
+// the Log's row of it, as requestRow draws it in the page's columns, as it
+// stands at now, the frame's stream telling what it holds of it, as the
+// Log's rows are drawn; its tree's │ before it in border; lit across the
+// width where it's chosen.
 func (d sessionDrawn) request(c *canvas, y, i int) {
 	c.text(treeAt, y, "│", borderInk)
-	requestRow(c, y, d.shown.Requests[i].Row, d.requestsLayout(), func(id string) string { return named(d.m, id) }, d.now)
+	requestRow(c, y, d.shown.Requests[i].Row.Live(d.Stream, d.now), d.requestsLayout(), func(id string) string { return named(d.m, id) }, d.now)
 	if i == d.shown.Request {
 		c.surface(0, y, d.Width, litInk)
 	}

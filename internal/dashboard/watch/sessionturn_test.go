@@ -10,6 +10,8 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -96,6 +98,39 @@ func TestATurnOpensIntoItsRequestsAndItsKeysMoveThroughThem(t *testing.T) {
 	h.keys(escKey)
 	if h.model.session != nil {
 		t.Error("esc again left the page open, want it gone back where it was opened from")
+	}
+}
+
+// A turn open's request in flight counts on as it's drawn, as the Log's row
+// of it does: a frame, which builds the page afresh not at all, draws its
+// took to the moment, and its characters as the stream last told them.
+func TestATurnOpensRequestInFlightCountsOnAsItsDrawn(t *testing.T) {
+	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+	h.openPage(idD28C)
+	h.settle()
+	h.keys(enterKey)
+	serving := func(e router.StreamEvent) router.StreamEvent {
+		e.Prompt, e.Class = "prompt-2", ledger.ClassMain
+		return e
+	}
+	sent := h.clock.now.Sub(start)
+	h.hear(serving(told(router.StreamSent, "r3", "work", sent)), serving(told(router.StreamFirst, "r3", "work", sent+time.Second)))
+	h.clock.now = past(sent + 1250*time.Millisecond)
+	h.hear(alter(serving(told(router.StreamProgress, "r3", "work", sent+1250*time.Millisecond)), func(e *router.StreamEvent) { e.Chars = 500 }))
+
+	for _, took := range []time.Duration{2 * time.Second, 3500 * time.Millisecond, 75 * time.Second} {
+		h.clock.now = past(sent + took)
+		h.deliver(frameMsg{gen: h.model.frames})
+		rows := strings.Split(h.view(), "\n")
+		i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "  │") && strings.Contains(row, "answering") })
+		if i < 0 {
+			t.Fatalf("%s after it was sent, the turn open has no row of r3 answering:\n%s", took, strings.Join(rows, "\n"))
+		}
+		for _, want := range []string{prose.Seconds(took), "answering · " + prose.Characters(500) + " characters"} {
+			if !strings.Contains(rows[i], want) {
+				t.Errorf("a frame %s after it was sent, the turn open's row of r3 doesn't read %q:\n%s", took, want, rows[i])
+			}
+		}
 	}
 }
 
