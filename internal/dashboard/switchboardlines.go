@@ -106,12 +106,12 @@ func (d linesDrawn) nameRow(c *canvas, a status.AccountNow, n accountName, y int
 // short, their short form, cut by whole clauses to end wordsGap cells short
 // of the pin's mark, which ends the row at the last column: ● pinned on an
 // account the global pin names, ✕ out of the pool, faint, on one it leaves
-// out, as pinMark has it, where it starts at x or after, clear of what's
-// before it, else not drawn; picked out while its state is newly changed,
-// as the Overview's ROUTING picks it out.
+// out, as pinMark has it, where pinFits has it room, else not drawn;
+// picked out while its state is newly changed, as the Overview's ROUTING
+// picks it out.
 func (d linesDrawn) stands(c *canvas, a status.AccountNow, x, y int, short bool) {
 	end := d.f.Width
-	if mark := pinMark(a); mark != nil && end-mark.width() >= x {
+	if mark := pinMark(a); mark != nil && pinFits(a, mark, x, end, short) {
 		end = c.right(d.f.Width, y, mark) - wordsGap
 	}
 	drawn := c.line(x, y, standingWords(a.Routing, short, end-x))
@@ -129,6 +129,14 @@ func pinMark(a status.AccountNow) line {
 		return line{outOfPoolSpan}
 	}
 	return nil
+}
+
+// pinFits reports whether a's pin mark, ending a row at column end, leaves
+// the words from x of how a stands, or short, their short form, their first
+// clause whole, wordsGap cells short of it: the words say how a stands
+// first, and the mark gives way to them.
+func pinFits(a status.AccountNow, mark line, x, end int, short bool) bool {
+	return end-mark.width()-wordsGap-x >= standingLeads(a.Routing, short).width()
 }
 
 // window draws a's window w along row y, as usage --by account draws it

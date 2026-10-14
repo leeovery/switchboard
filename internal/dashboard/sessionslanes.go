@@ -312,11 +312,12 @@ func (b lanesBoard) drawLane(s *lanesShown, y int, l boardLane) int {
 // cut to the name column; from it, how the account stands, in the Overview's
 // short words, cut by whole clauses to end wordsGap short of what ends the
 // row at the last column, where something does: ● pinned on an account the
-// global pin names, ✕ out of the pool on one it leaves out.
+// global pin names, ✕ out of the pool on one it leaves out, where pinFits
+// has it room.
 func (b lanesBoard) nameRow(c *canvas, y int, l boardLane) {
 	c.line(0, y, l.row.name)
 	end := b.f.Width
-	if mark := pinMark(l.account); mark != nil {
+	if mark := pinMark(l.account); mark != nil && pinFits(l.account, mark, b.block.names, end, true) {
 		end = c.right(end, y, mark)
 	}
 	c.line(b.block.names, y, standingWords(l.account.Routing, true, end-wordsGap-b.block.names))

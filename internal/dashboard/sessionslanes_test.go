@@ -137,6 +137,21 @@ func TestALanesNameRowSaysWhetherThePinNamesItOrLeavesItOut(t *testing.T) {
 	}
 }
 
+// Where a lane's mark would leave its state words short of their first
+// clause, the mark gives way, the words saying first how the account
+// stands: at 46 columns, work's ● at its cap · 17:10 shows whole, without
+// ✕ out of the pool, while personal's ● open leaves its ● pinned room.
+func TestALanesPinMarkGivesWayToItsFirstWords(t *testing.T) {
+	doc := usageWorld(extraOff, usagePinned("personal", "side"))
+	f := lanesFrame(46, 33, Look{}, phoneScene())
+	rows := lanesText(f, doc)
+	for _, want := range []string{"1 work          ● at its cap · 17:10", endsWith("2 personal ◆ ▲  ● open · next", "● pinned", f.Width)} {
+		if !slices.Contains(rows, want) {
+			t.Errorf("no row reads %q; drew\n%s", want, strings.Join(rows, "\n"))
+		}
+	}
+}
+
 // endsWith is a row width cells wide, left at its start and right ending
 // at its last column.
 func endsWith(left, right string, width int) string {

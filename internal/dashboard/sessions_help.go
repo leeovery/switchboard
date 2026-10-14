@@ -64,7 +64,8 @@ func (f Frame) sessionsHelp() []helpPart {
 					"how it stands with the router in ROUTING's words, then a row a window, its bar, its percentage and its words. " +
 					"Each of its rows has a jack; a line moves down to meet its calls, and grows a row for each session past its rows."),
 				said("● pinned ends the name row of each account the global pin names, and ✕ out of the pool that of each it leaves " +
-					"out, whose line is faded; an account closed by its cap or a limit never is, its words and colours saying why."),
+					"out, whose line is faded; an account closed by its cap or a limit never is, its words and colours saying why. " +
+					"Where the row is short, the mark gives way to the account's first words."),
 				said("As rows run short, the lines compact as the Overview's sections fold: no blank rows within a line, then two " +
 					"rows a line, then one, and past that they scroll, the calls with them."),
 			},

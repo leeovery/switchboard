@@ -152,11 +152,15 @@ func TestTheBarsEasedAreTheLinesBarsAtTheirStep(t *testing.T) {
 }
 
 // On a line of one row, the pin's mark ends the row where it clears the
-// percentage before it, and is left out where it doesn't: the meter is never
-// drawn over. At 120 columns, both marks show.
-func TestThePinsMarkNeverDrawsOverALinesMeter(t *testing.T) {
+// percentage before it and leaves the account's words their first clause
+// whole, and is left out where it doesn't: the meter is never drawn over,
+// and how the account stands is never given up for the mark. At 120
+// columns, side's ● open leaves its mark room, and personal's ■ limit
+// reached and work's ● at its cap leave theirs none.
+func TestThePinsMarkNeverDrawsOverALinesMeterOrItsFirstWords(t *testing.T) {
 	doc := pinnedWorld()
 	marks := map[string]string{"personal": "● pinned", "side": "● pinned", "work": "✕ out of the pool"}
+	leads := map[string]string{"personal": "■ limit reached", "side": "● open", "work": "● at its cap"}
 	for width := 100; width <= 120; width++ {
 		for height := 15; height <= 20; height++ {
 			f := boardFrame(width, height, Look{}, boardOf(boardLook{calls: pinnedCalls()}), Traffic{})
@@ -172,10 +176,14 @@ func TestThePinsMarkNeverDrawsOverALinesMeter(t *testing.T) {
 					t.Errorf("at %d×%d, %s's percentage reads %q, want it whole", width, height, ln.account, got)
 				}
 				row := rowOf(c, y)
-				if shown := strings.HasSuffix(row, marks[ln.account]); !shown && (strings.Contains(row, "pinned") || strings.Contains(row, "✕")) {
+				shown := strings.HasSuffix(row, marks[ln.account])
+				if !shown && (strings.Contains(row, "pinned") || strings.Contains(row, "✕")) {
 					t.Errorf("at %d×%d, %s's row reads %q, want its mark whole at its end, or none", width, height, ln.account, row)
-				} else if width == 120 && !shown {
-					t.Errorf("at %d×%d, %s's row reads %q, want it to end %q", width, height, ln.account, row, marks[ln.account])
+				} else if width == 120 && shown != (ln.account == "side") {
+					t.Errorf("at %d×%d, %s's row reads %q, its mark shown %v, want it shown on side's alone", width, height, ln.account, row, shown)
+				}
+				if shown && !strings.Contains(row, leads[ln.account]) {
+					t.Errorf("at %d×%d, %s's row reads %q, want %q whole before its mark", width, height, ln.account, row, leads[ln.account])
 				}
 			}
 		}
