@@ -102,8 +102,9 @@ func TestSessionsKeyLinesAreTheDesigns(t *testing.T) {
 }
 
 // enter is drawn faint exactly where pressing it opens nothing, as Opens
-// says, on both sub-tabs: with nothing chosen, and once esc ends the choice;
-// with a session chosen, it opens its page.
+// says, on both sub-tabs: with nothing chosen, and once esc ends the choice,
+// where pressed, it says why in the key line's place; with a session chosen,
+// it opens its page.
 func TestSessionsEnterIsFaintExactlyWhereItOpensNothing(t *testing.T) {
 	for _, shown := range []dashboard.SessionsView{dashboard.SessionsSwitchboard, dashboard.SessionsList} {
 		t.Run([]string{"Switchboard", "List"}[shown], func(t *testing.T) {
@@ -128,6 +129,9 @@ func TestSessionsEnterIsFaintExactlyWhereItOpensNothing(t *testing.T) {
 				opened := h.model.session != nil || h.model.opening > m.opening
 				if faint != tt.faint || opened == faint {
 					t.Errorf("%s, enter drawn faint %v, and pressed, opened %v; want it faint %v, exactly where it opens nothing", tt.name, faint, opened, tt.faint)
+				}
+				if said := h.model.noted(h.clock.now); faint && said != noSessionChosen {
+					t.Errorf("%s, enter pressed says %q in the key line's place, want %q", tt.name, said, noSessionChosen)
 				}
 				h.model = m
 			}

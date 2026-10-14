@@ -179,6 +179,10 @@ func (m Model) listTook(t listTaken) Model {
 	return m
 }
 
+// noSessionChosen is why enter opens nothing on Sessions while no session
+// is chosen.
+const noSessionChosen = "no session is chosen"
+
 // sessionsSteps are the ways Sessions' keys move: back, -1, or on, 1.
 var sessionsSteps = map[string]int{"[": -1, "]": 1, "up": -1, "down": 1}
 
@@ -186,8 +190,9 @@ var sessionsSteps = map[string]int{"[": -1, "]": 1, "up": -1, "down": 1}
 // doesn't take, or on another tab, and the command it starts, if any: [ and
 // ] turn the sub-tab, as Turned has it; ↑ and ↓ choose a row, as Choosing
 // has it; enter opens the page of the session chosen, as openSession opens
-// it, and does nothing while none is; and esc ends the choice, as Unchosen
-// has it. A key that changes what's shown shows it as showSessions has it.
+// it, and while none is, as the key line draws it faint, says why in the key
+// line's place; and esc ends the choice, as Unchosen has it. A key that
+// changes what's shown shows it as showSessions has it.
 func (m Model) sessionsKey(key string) (Model, tea.Cmd, bool) {
 	if m.view != dashboard.Sessions {
 		return m, nil, false
@@ -202,7 +207,8 @@ func (m Model) sessionsKey(key string) (Model, tea.Cmd, bool) {
 		next, changed = s.Choosing(sessionsSteps[key], m.boardAccounts())
 	case "enter":
 		if !s.Opens() {
-			return m, nil, true
+			noted, cmd := m.noting(noSessionChosen)
+			return noted, cmd, true
 		}
 		opened, cmd := m.openSession(s.Chosen.Session)
 		return opened, cmd, true
