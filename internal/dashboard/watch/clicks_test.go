@@ -409,3 +409,43 @@ func cellsToClick(targets []dashboard.Target, size tea.WindowSizeMsg, r *rand.Ra
 	}
 	return cells
 }
+
+// A click on a row of the Log's table chooses it, pausing it; on ▼ N new,
+// the table follows again; and on a sub-tab, it's shown.
+func TestAClickOnTheLogChoosesALineFollowsAgainAndShowsASubTab(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.start()
+	target := func(on dashboard.Clicked, is func(dashboard.Target) bool) dashboard.Target {
+		t.Helper()
+		f, doc, at := h.model.screen(h.clock.now)
+		targets := f.Targets(doc, at)
+		if i := slices.IndexFunc(targets, func(t dashboard.Target) bool { return t.On == on && is(t) }); i >= 0 {
+			return targets[i]
+		}
+		t.Fatalf("the page has no such target among %v", targets)
+		return dashboard.Target{}
+	}
+
+	row := target(dashboard.OnRow, func(dashboard.Target) bool { return true })
+	h.click(row.X, row.Y)
+	if r, _, ok := h.model.log.page.Chosen(); !ok || r.Request != "0a000001" || !h.model.log.page.Paused() {
+		t.Errorf("a click on the first row chose %q, paused %t; want it chosen, paused", r.Request, h.model.log.page.Paused())
+	}
+
+	writeLines(t, state, arrived("0a000003", "work", -3*time.Minute))
+	h.read(probedWithoutTheRouter())
+	fresh := target(dashboard.OnKey, func(t dashboard.Target) bool { return t.Key == "end" && t.Y == h.model.size.Height-2 })
+	h.click(fresh.X, fresh.Y)
+	if h.model.log.page.Paused() {
+		t.Error("a click on ▼ 1 new left the table paused, want it following")
+	}
+
+	events := target(dashboard.OnSubTab, func(t dashboard.Target) bool { return t.SubTab == int(dashboard.LogEvents) })
+	h.click(events.X, events.Y)
+	if h.model.log.page.Shown != dashboard.LogEvents {
+		t.Error("a click on Events didn't show them")
+	}
+}
