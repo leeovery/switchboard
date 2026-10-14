@@ -23,7 +23,7 @@ import (
 // was last read for it; how far back the lines of the filter the page's
 // Reach gives reach, as the days' summaries told; the oldest day the ledger
 // keeps, and the oldest the Events read back to, none known till each is
-// said, and the date of the day they were last asked on; who told the
+// said, and the date of the day both were last told on; who told the
 // events the Events last took in, and when; when the router's files are to
 // be read again from for the events a document skipped, as Skips has it,
 // none while none did; whether a read for it is under way, one at a time;
