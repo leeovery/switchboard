@@ -80,7 +80,7 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 ```
 
 - **Every `claude` goes through switchboard,** which starts the real Claude Code connected to the router.
-- **Only the token changes.** The request's body is never edited, so it stays Claude Code's own.
+- **The body is untouched.** Switchboard swaps in the account's token and never edits a request's body, so it stays Claude Code's own.
 - **Usage comes off real traffic.** Every answer says how full each window is, so knowing costs next to nothing.
 - **Each session gets an account,** the one whose quota most needs using, and keeps it while its cache is warm.
 - **A limit moves the session,** replaying its request on another account before Claude Code sees it.
