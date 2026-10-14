@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -173,6 +175,144 @@ func TestASessionStaysWhenFreshUsageFindsRoomOnItsAccount(t *testing.T) {
 	}
 }
 
+func TestAChoiceIsMadeAgainOnProbesThatEndedSinceItWasMade(t *testing.T) {
+	spent := session
+	spent.Utilization, spent.Status = 1, quota.StatusRejected
+	roomOnBoth := map[string]quota.Probe{"work": probed(nil, session, laterWeek), "side": probed(nil, session, soonWeek)}
+	workFirst := map[string][]quota.Window{"work": {session, soonWeek}, "side": {session, laterWeek}}
+	tests := []struct {
+		name string
+		// look names the check the readings land in, as readingsLandIn says.
+		look func(*scheduler) *func(id string, now time.Time) bool
+		// kept are the accounts' windows as read age ago, none where it's nil:
+		// 20 minutes is stale, so await would probe them, and two minutes
+		// isn't, though recheck would.
+		kept   map[string][]quota.Window
+		age    time.Duration
+		landed map[string]quota.Probe
+		client string
+		want   Choice
+		// overturned is what the log tells of the decision the readings
+		// overturned, nil where they overturned none.
+		overturned []string
+	}{
+		{
+			name:       "nothing read, so no account has room, as it looks for stale usage",
+			look:       dueCheck,
+			landed:     roomOnBoth,
+			client:     "work",
+			want:       Choice{Account: "side", Reason: "new", New: true},
+			overturned: []string{"account=side", "account_before=work", "reason=new", `reason_before="no account has room"`, "no_room=false", "no_room_before=true"},
+		},
+		{
+			name:       "read 20 minutes ago, work's quota needing using first, as it looks for stale usage",
+			look:       dueCheck,
+			kept:       workFirst,
+			age:        20 * time.Minute,
+			landed:     roomOnBoth,
+			client:     "work",
+			want:       Choice{Account: "side", Reason: "new", New: true},
+			overturned: []string{"account=side", "account_before=work"},
+		},
+		{
+			name:   "read 20 minutes ago, and read the same since, as it looks for stale usage",
+			look:   dueCheck,
+			kept:   workFirst,
+			age:    20 * time.Minute,
+			landed: map[string]quota.Probe{"work": probed(nil, session, soonWeek), "side": probed(nil, session, laterWeek)},
+			client: "work",
+			want:   Choice{Account: "work", Reason: "new", New: true},
+		},
+		{
+			name:       "read two minutes ago, neither with room, as it looks for accounts to probe again",
+			look:       dueAgainCheck,
+			kept:       map[string][]quota.Window{"work": {spent, laterWeek}, "side": {spent, soonWeek}},
+			age:        2 * time.Minute,
+			landed:     map[string]quota.Probe{"work": probed(nil, session, laterWeek), "side": probed(nil, spent, soonWeek)},
+			client:     "side",
+			want:       Choice{Account: "work", Reason: "new", New: true},
+			overturned: []string{"account=work", "account_before=side", "reason=new", `reason_before="no account has room"`, "no_room=false", "no_room_before=true"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			clock := &testClock{now: start.Add(-tt.age)}
+			prober := &stubProber{}
+			r := newTestRouter(t, clock.read, prober)
+			for id, windows := range tt.kept {
+				r.state.record(id, windows, r.state.mark())
+			}
+			clock.now = start
+			landed := readingsLandIn(r, tt.look, tt.landed)
+
+			got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: tt.client})
+			if !landed() {
+				t.Fatal("the readings never landed in the choice's look")
+			}
+			if got != tt.want {
+				t.Errorf("Choose() = %+v, want %+v, chosen on what the probes read", got, tt.want)
+			}
+			if got := prober.counts(); len(got) > 0 {
+				t.Errorf("probes = %v, want none: both accounts were read just now", got)
+			}
+			overturned := slices.Concat([]string{"level=DEBUG", `msg="decision overturned"`, "session=one", "model=" + opus}, tt.overturned)
+			if logged := log.Has(overturned...); logged != (tt.overturned != nil) {
+				t.Errorf("log reads\n%s\nwant a line with %q: %v", log, overturned, tt.overturned != nil)
+			}
+		})
+	}
+}
+
+func TestAnOverturnedDecisionIsLoggedByEachPartThatChanged(t *testing.T) {
+	was := decision{account: "work", reason: reasonNew, afresh: true}
+	back := start.Add(time.Hour)
+	tests := []struct {
+		name string
+		d    decision
+		want []any
+	}{
+		{name: "nothing", d: was},
+		{
+			name: "where it goes and why",
+			d:    decision{account: "side", reason: "rescored after 2h", afresh: true},
+			want: []any{"account", "side", "account_before", "work", "reason", "rescored after 2h", "reason_before", reasonNew},
+		},
+		{
+			name: "whether any account has room, alone",
+			d:    decision{account: "work", reason: reasonNew, afresh: true, noRoom: true},
+			want: []any{"no_room", true, "no_room_before", false},
+		},
+		{
+			name: "whether reserves alone hold it back, alone",
+			d:    decision{account: "work", reason: reasonNew, afresh: true, reserved: true},
+			want: []any{"reserved", true, "reserved_before", false},
+		},
+		{
+			name: "when the reserves let go, alone",
+			d:    decision{account: "work", reason: reasonNew, afresh: true, back: back},
+			want: []any{"back", back, "back_before", time.Time{}},
+		},
+		{
+			name: "what held the request back, and which limit",
+			d:    decision{account: "work", reason: reasonNew, afresh: true, held: HeldByLimit, limit: 2},
+			want: []any{"held", HeldByLimit, "held_before", Hold(0), "limit", 2, "limit_before", 0},
+		},
+		{
+			name: "the account it passed over, alone",
+			d:    decision{account: "work", reason: reasonNew, afresh: true, passedOver: "side"},
+			want: []any{"passed_over", "side", "passed_over_before", ""},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.d.changes(was); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("changes() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestChoicesMadeTogetherShareTheirProbes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		prober := &stubProber{gate: make(chan struct{}), readings: map[string]quota.Probe{
@@ -260,6 +400,30 @@ func TestAChoiceWaitsForProbesEightSecondsAtMost(t *testing.T) {
 		}
 		if !log.Has("level=DEBUG", `msg="stopped waiting for probes before choosing"`, "accounts=work,side", "after=8s") {
 			t.Errorf("log reads\n%s\nwant the wait cut short", log)
+		}
+	})
+}
+
+func TestAChoiceIsMadeAgainOnAWindowThatResetWhileItWaitedForProbes(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		began := time.Now()
+		read := start.Add(-20 * time.Minute)
+		prober := &stubProber{gate: make(chan struct{})}
+		r := newTestRouter(t, func() time.Time { return read.Add(time.Since(began)) }, prober)
+		defer r.probes.stop()
+		spentResetting := func(at time.Time) quota.Window {
+			return quota.Window{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: at, Status: quota.StatusRejected}
+		}
+		r.state.record("work", []quota.Window{spentResetting(start.Add(4 * time.Second)), laterWeek}, r.state.mark())
+		r.state.record("side", []quota.Window{spentResetting(start.Add(3 * time.Hour)), soonWeek}, r.state.mark())
+		time.Sleep(start.Sub(read))
+
+		got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "side"})
+		if want := (Choice{Account: "work", Reason: "new", New: true}); got != want {
+			t.Errorf("Choose() = %+v, want %+v: work's session window reset while the choice waited for probes that never ended", got, want)
+		}
+		if got, want := prober.counts(), map[string]int{workToken: 1, sideToken: 1}; !maps.Equal(got, want) {
+			t.Errorf("probes = %v, want %v", got, want)
 		}
 	})
 }
@@ -468,6 +632,42 @@ func TestForgettingANewSessionLeavesTheAccountAnotherRequestWasChosenSince(t *te
 	}
 	if log.Has("forgot") {
 		t.Errorf("log reads\n%s\nwant nothing forgotten", log)
+	}
+}
+
+func TestForgettingARequestLogsItsSessionMovedBackOrPutBackAsItStood(t *testing.T) {
+	assigned := start.Add(-time.Minute).Local().Format("2006-01-02T15:04:05.000-07:00")
+	movedBack := []string{"level=INFO", `msg="session back where it was before its request"`, "session=one", "account=work"}
+	putBack := []string{"level=DEBUG", `msg="session's assignment put back as it stood before its request"`, "session=one", "account=work", "reason=new",
+		"assigned=" + assigned, "last_seen=" + assigned}
+	tests := []struct {
+		name      string
+		pin       string
+		wantMoved bool
+	}{
+		{name: "moved by the request", pin: "side", wantMoved: true},
+		{name: "stayed on by the request"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			r := newTestRouter(t, at(start), &stubProber{})
+			r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
+			r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
+			assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
+			req := Request{ID: "b2c3d4e5", Session: "one", Model: opus, Pin: tt.pin, Client: "work"}
+			choose(t.Context(), r, req)
+
+			if back, ok := r.proxy.chooser.Forget(req); back != "work" || !ok {
+				t.Fatalf("Forget() = %q, %v, want work, true", back, ok)
+			}
+			if logged := log.Has(movedBack...); logged != tt.wantMoved {
+				t.Errorf("log reads\n%s\nwant a line with %q: %v", log, movedBack, tt.wantMoved)
+			}
+			if logged := log.Has(putBack...); logged == tt.wantMoved {
+				t.Errorf("log reads\n%s\nwant a line with %q: %v", log, putBack, !tt.wantMoved)
+			}
+		})
 	}
 }
 
@@ -794,4 +994,30 @@ func newReserving(t *testing.T) (*Router, *[]Event) {
 	r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
 	r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
 	return r, &heard
+}
+
+// dueCheck and dueAgainCheck name the checks a choice's looks make of which
+// accounts are due a probe: before a choice afresh, and again before one that
+// found no account with room.
+func dueCheck(s *scheduler) *func(id string, now time.Time) bool      { return &s.due }
+func dueAgainCheck(s *scheduler) *func(id string, now time.Time) bool { return &s.dueAgain }
+
+// readingsLandIn has the check look names, as it's first asked, take in what
+// read holds of each account, as a probe's end takes in what it read, then
+// answer as it would have: the readings land once the choice has decided, as
+// its look finds which accounts are due a probe. It returns what reports
+// whether they landed.
+func readingsLandIn(r *Router, look func(*scheduler) *func(id string, now time.Time) bool, read map[string]quota.Probe) (landed func() bool) {
+	check := look(r.proxy.chooser.(*scheduler))
+	due := *check
+	var ended atomic.Bool
+	*check = func(id string, now time.Time) bool {
+		if ended.CompareAndSwap(false, true) {
+			for account, probe := range read {
+				r.state.recordProbe(account, probe, nil, r.state.mark(), readings.FromProbe)
+			}
+		}
+		return due(id, now)
+	}
+	return ended.Load
 }

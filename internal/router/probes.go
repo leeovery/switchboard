@@ -153,14 +153,11 @@ func (p *probes) sourceOf(r *run) readings.Source {
 }
 
 // await probes the accounts as start does, and waits for those probes to end
-// as wait does, why saying what for. It reports whether there were any.
-func (p *probes) await(ctx context.Context, as accounts, due func(id string, now time.Time) bool, limit time.Duration, why string) bool {
-	underway := p.start(as, due)
-	if len(underway) == 0 {
-		return false
+// as wait does, why saying what for.
+func (p *probes) await(ctx context.Context, as accounts, due func(id string, now time.Time) bool, limit time.Duration, why string) {
+	if underway := p.start(as, due); len(underway) > 0 {
+		p.wait(ctx, underway, limit, why)
 	}
-	p.wait(ctx, underway, limit, why)
-	return true
 }
 
 // wait waits for probes under way, as settle does, and logs how that went,

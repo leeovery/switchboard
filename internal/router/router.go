@@ -269,7 +269,10 @@ func New(cfg Config) (*Router, error) {
 	probes := newProbes(cfg.Prober, state, cfg.Now, emit)
 	health := newHealth(cfg.Now, emit)
 	recent.judge = health.look
-	scheduler := &scheduler{accounts: accounts, state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
+	scheduler := &scheduler{
+		accounts: accounts, state: state, sessions: sessions, probes: probes,
+		due: state.due, dueAgain: state.dueAgain, now: cfg.Now, emit: emit,
+	}
 	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
 	rounds := newRounds(accounts, state, probes, primer)
 	inFlight := newInFlight()

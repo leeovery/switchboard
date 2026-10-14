@@ -77,14 +77,17 @@ func TestForgetForgetsAnAssignmentWhileItsRequestWasTheLastNotedOnIt(t *testing.
 		// since is what befell the session after req gave it work.
 		since      func(s *sessions)
 		wantForgot bool
+		// wantLeft is the account the session is taken off, "" where it isn't.
+		wantLeft string
 		// want is the session's account once it's done, "" for none.
 		want string
 	}{
-		{name: "made by the request", since: func(*sessions) {}, wantForgot: true},
+		{name: "made by the request", since: func(*sessions) {}, wantForgot: true, wantLeft: "work"},
 		{
 			name:       "moved on by the request",
 			since:      func(s *sessions) { assignFor(s, req, moved, start.Add(time.Second)) },
 			wantForgot: true,
+			wantLeft:   "side",
 		},
 		{
 			name:  "moved by another request since",
@@ -109,8 +112,8 @@ func TestForgetForgetsAnAssignmentWhileItsRequestWasTheLastNotedOnIt(t *testing.
 			tt.since(s)
 			before := changes
 
-			if back, forgot := s.forget(req); back != "" || forgot != tt.wantForgot {
-				t.Errorf("forget() = %q, %v, want \"\", %v", back, forgot, tt.wantForgot)
+			if left, back, forgot := s.forget(req); left.Account != tt.wantLeft || back != (assignment{}) || forgot != tt.wantForgot {
+				t.Errorf("forget() = %+v, %+v, %v, want one on %q, none, %v", left, back, forgot, tt.wantLeft, tt.wantForgot)
 			}
 			if got := s.lookup(req.key()); got.assigned != (tt.want != "") || got.current.Account != tt.want {
 				t.Errorf("the session is assigned %+v (%v), want %q", got.current, got.assigned, tt.want)
@@ -131,6 +134,7 @@ func TestForgetPutsASessionBackAsItWasBeforeTheRequest(t *testing.T) {
 	other := Request{ID: "e5f6a7b8", Session: "one", Model: opus}
 	toSide := decision{account: "side", reason: "moved: work was refused"}
 	toPersonal := decision{account: "personal", reason: "moved: side was refused"}
+	stay := decision{account: "work", reason: reasonSticky, sticky: true}
 	// onWork is the session's assignment before req, which another request
 	// made an hour before.
 	onWork := assignment{Account: "work", Reason: reasonNew, AssignedAt: start.Add(-time.Hour), LastSeen: start.Add(-time.Minute), by: other.ID}
@@ -139,6 +143,8 @@ func TestForgetPutsASessionBackAsItWasBeforeTheRequest(t *testing.T) {
 		// moves are what befell the session from req on.
 		moves    func(s *sessions)
 		wantBack bool
+		// wantLeft is the account the session is taken off, "" where it isn't.
+		wantLeft string
 		// want is the session's assignment once it's done.
 		want assignment
 	}{
@@ -146,6 +152,7 @@ func TestForgetPutsASessionBackAsItWasBeforeTheRequest(t *testing.T) {
 			name:     "moved by the request",
 			moves:    func(s *sessions) { assignFor(s, req, toSide, start) },
 			wantBack: true,
+			wantLeft: "side",
 			want:     onWork,
 		},
 		{
@@ -155,6 +162,14 @@ func TestForgetPutsASessionBackAsItWasBeforeTheRequest(t *testing.T) {
 				assignFor(s, req, toPersonal, start.Add(time.Second))
 			},
 			wantBack: true,
+			wantLeft: "personal",
+			want:     onWork,
+		},
+		{
+			name:     "stayed on by the request",
+			moves:    func(s *sessions) { assignFor(s, req, stay, start) },
+			wantBack: true,
+			wantLeft: "work",
 			want:     onWork,
 		},
 		{
@@ -174,9 +189,9 @@ func TestForgetPutsASessionBackAsItWasBeforeTheRequest(t *testing.T) {
 			tt.moves(s)
 			before := changes
 
-			back, ok := s.forget(req)
-			if wantBack := map[bool]string{true: "work"}[tt.wantBack]; back != wantBack || ok != tt.wantBack {
-				t.Errorf("forget() = %q, %v, want %q, %v", back, ok, wantBack, tt.wantBack)
+			left, back, ok := s.forget(req)
+			if wantBack := map[bool]assignment{true: onWork}[tt.wantBack]; left.Account != tt.wantLeft || back != wantBack || ok != tt.wantBack {
+				t.Errorf("forget() = %+v, %+v, %v, want one on %q, %+v, %v", left, back, ok, tt.wantLeft, wantBack, tt.wantBack)
 			}
 			if got := s.lookup(req.key()).current; got != tt.want {
 				t.Errorf("the session is assigned %+v, want %+v", got, tt.want)

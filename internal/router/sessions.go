@@ -240,25 +240,27 @@ func (s *sessions) noteBefore(k key, found assignment, had bool) {
 // forget puts the assignment of req's session and model back as it stood
 // before req first noted it, forgetting it when there was none, while req is
 // the last request noted on it: one noted since stands, whether it made the
-// assignment, moved it or stayed on it. It returns the account the session
-// is back on, "" when it's forgotten, and reports whether it put it back.
-func (s *sessions) forget(req Request) (string, bool) {
+// assignment, moved it or stayed on it. It returns the assignment req left,
+// and the one it put back, none when it's forgotten, and reports whether it
+// put it back.
+func (s *sessions) forget(req Request) (left, back assignment, ok bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	k := req.key()
-	if a, ok := s.assignments[k]; !ok || a.by != req.ID {
-		return "", false
+	left, ok = s.assignments[k]
+	if !ok || left.by != req.ID {
+		return assignment{}, assignment{}, false
 	}
-	was, had := s.before[k]
+	back, had := s.before[k]
 	delete(s.before, k)
 	if had {
-		s.assignments[k] = was
+		s.assignments[k] = back
 	} else {
 		delete(s.assignments, k)
 		delete(s.unstarted, k)
 	}
 	s.changed()
-	return was.Account, true
+	return left, back, true
 }
 
 // started notes that a request of the session and model k name was answered
