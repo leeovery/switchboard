@@ -10,8 +10,9 @@ import (
 // BenchmarkTheTrafficOfABusyHour times what the traffic does with an hour
 // of a busy run's requests, 3,600 of them, kept: taking in an answer
 // streaming on, as the stream tells every 250 ms of each; a tick with
-// nothing to let go; and comparing what the Log's Requests are made of, as
-// each frame on the Log does.
+// nothing to let go; a tick with one to let go, as one ended each second an
+// hour before, which copies every request it keeps; and comparing what the
+// Log's Requests are made of, as each frame on the Log does.
 func BenchmarkTheTrafficOfABusyHour(b *testing.B) {
 	now := past(2 * time.Hour)
 	tr := busyHour(3600, now)
@@ -26,6 +27,12 @@ func BenchmarkTheTrafficOfABusyHour(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
 			tr.tidied(now.Add(pulseFor / 2))
+		}
+	})
+	b.Run("a tick with one due", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			tr.tidied(now.Add(time.Second))
 		}
 	})
 	b.Run("the Log's Requests' basis", func(b *testing.B) {
