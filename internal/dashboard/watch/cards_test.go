@@ -31,15 +31,15 @@ func TestTheRoutingCardTakesEveryKeyButCtrlC(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
 	h.press("p")
-	for _, key := range []string{"w", "g", "t", "j", "s", " ", "tab", "?", "r", "R", "1", "a", "m", "q"} {
+	for _, key := range []string{"w", "u", "g", "b", "down", "t", "j", "s", " ", "tab", "?", "r", "R", "1", "a", "m", "q"} {
 		if quits(h.press(key)) {
 			t.Errorf("with the routing card open, %q quit, want it taken by the card", key)
 		}
 	}
-	if h.model.open != routingOpen || h.model.featured != dashboard.Auto || h.model.chart != dashboard.Burndown || h.model.view != dashboard.Overview ||
-		len(h.source.orders) > 0 || h.model.fetching || h.model.picker.open || h.model.flipped != nil {
-		t.Errorf("with the routing card open, keys acted: open %v, featuring %q, drawing %q, showing %q, orders %q, reading %v, picker open %v, flipped %v; want them all taken by the card",
-			h.model.open, h.model.featured, h.model.chart, h.model.view, h.source.orders, h.model.fetching, h.model.picker.open, h.model.flipped)
+	if h.model.open != routingOpen || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow || h.model.focus != "work" ||
+		h.model.view != dashboard.Overview || len(h.source.orders) > 0 || h.model.fetching || h.model.picker.open {
+		t.Errorf("with the routing card open, keys acted: open %v, sections %v, by %v, focus %q, showing %q, orders %q, reading %v, picker open %v; want them all taken by the card",
+			h.model.open, h.model.sections.Names(), h.model.by, h.model.focus, h.model.view, h.source.orders, h.model.fetching, h.model.picker.open)
 	}
 	if !quits(h.press("ctrl+c")) {
 		t.Error("with the routing card open, ctrl+c didn't quit, want it to")
@@ -89,7 +89,7 @@ func TestThePageUnderACardStandsStill(t *testing.T) {
 	h.start()
 	h.settle()
 	h.press("p")
-	under := h.view()
+	opened, under := h.clock.now.Format(time.TimeOnly), h.view()
 
 	moved := routerDocument(three()...)
 	moved.Accounts[0].Windows[0].Utilization = 0.9
@@ -98,8 +98,8 @@ func TestThePageUnderACardStandsStill(t *testing.T) {
 	if got := h.view(); behindCard(got) != behindCard(under) || !strings.Contains(got, "5-hour 90%") {
 		t.Errorf("half a minute on, a look read since, the screen is\n%s\nwant the page as the card opened over it, and the card's figures as read since\n%s", got, under)
 	}
-	if !strings.Contains(under, "13:12:00") {
-		t.Errorf("the screen is\n%s\nwant the clock stopped at 13:12:00, when the card opened", under)
+	if !strings.Contains(under, opened) {
+		t.Errorf("the screen is\n%s\nwant the clock stopped at %s, when the card opened", under, opened)
 	}
 	if _, ok := h.pendingFrame(); ok {
 		t.Error("a read eased a bar under the card, a frame armed, want none: the page under it is still")

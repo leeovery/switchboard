@@ -524,14 +524,16 @@ func (t tally) line(l *Line) {
 }
 
 // line tallies one of the day's lines of the model's requests on the
-// account.
+// account: a check and a count as such, sent on or not; one that went
+// upstream, as sentOn says, as upstream, and where its answer gave no usage,
+// as unmetered says, as that too; and the rest as unsent.
 func (m *modelTally) line(l *Line) {
 	switch {
 	case l.Kind == KindCheck:
 		m.day.Checks++
 	case l.Kind == KindCount:
 		m.day.Counts++
-	case l.Attempts > 0:
+	case l.sentOn():
 		m.day.Upstream++
 		if l.unmetered() {
 			m.day.NoUsage++

@@ -19,7 +19,7 @@ type helping struct {
 // it's open moves nothing in it.
 func (m Model) openHelp() Model {
 	m = m.cover(helpOpen)
-	m.help = helping{over: m.keysAt(m.page.at)}
+	m.help = helping{over: m.keys()}
 	return m
 }
 

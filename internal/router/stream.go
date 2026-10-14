@@ -93,8 +93,10 @@ type StreamEvent struct {
 	Prompt  string `json:"prompt,omitempty"`
 	Class   string `json:"class,omitempty"`
 	AgentID string `json:"agent_id,omitempty"`
-	// Check is set when the request is the client's quota check.
+	// Check is set when the request is the client's quota check, and Count
+	// when it's a count of tokens, which spends no quota.
 	Check bool `json:"check,omitzero"`
+	Count bool `json:"count,omitzero"`
 	// SentAt is when a request in flight last went upstream, and FirstAt when
 	// the first byte of its answer came, zero until it has.
 	SentAt  time.Time `json:"sent_at,omitzero"`

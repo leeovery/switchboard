@@ -197,6 +197,7 @@ func TestAnOrderSaysSoWhileTheRouterDoesntAnswer(t *testing.T) {
 			if len(h.source.orders) > 0 {
 				t.Errorf("orders = %q, want none", h.source.orders)
 			}
+			h.redraw()
 			if got, want := h.keyLine(), status.ErrNoRouter.Error(); got != want {
 				t.Errorf("the key line reads %q, want %q", got, want)
 			}

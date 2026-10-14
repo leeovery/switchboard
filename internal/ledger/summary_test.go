@@ -519,6 +519,10 @@ func TestAnUpstreamRequestWhoseAnswerGaveNoUsageIsCounted(t *testing.T) {
 		upstream("2", func(l *ledger.Line) { l.Canceled = true }),
 		upstream("3", func(l *ledger.Line) { l.CutOff = true }),
 		upstream("4", func(l *ledger.Line) { l.Status, l.Answer.Error = 529, ledger.Error{Type: "overloaded_error"} }),
+		// Tallied upstream whatever their kinds, so their missing usage is
+		// counted too: a line of none, and one of a kind a later router adds.
+		upstream("8", func(l *ledger.Line) { l.Kind, l.CutOff = "", true }),
+		upstream("9", func(l *ledger.Line) { l.Kind, l.CutOff = "batch", true }),
 		// None of these is counted in upstream: one the router answered itself,
 		// a count of tokens, and a quota check.
 		upstream("5", func(l *ledger.Line) { l.Attempts, l.Status = 0, 429 }),
@@ -530,8 +534,44 @@ func TestAnUpstreamRequestWhoseAnswerGaveNoUsageIsCounted(t *testing.T) {
 	if len(got.Accounts) != 1 || len(got.Accounts[0].Models) != 1 {
 		t.Fatalf("the summary is %+v, want work's requests of one model", got)
 	}
-	if m := got.Accounts[0].Models[0]; m.Upstream != 4 || m.NoUsage != 3 || m.Tokens() != (quota.Tokens{Input: 10, Output: 20}) {
-		t.Errorf("work's day of %s is %+v, want 4 requests upstream, the 3 whose answers gave no usage counted, and the usage of the one that gave it", opus, m)
+	if m := got.Accounts[0].Models[0]; m.Upstream != 6 || m.NoUsage != 5 || m.Tokens() != (quota.Tokens{Input: 10, Output: 20}) {
+		t.Errorf("work's day of %s is %+v, want 6 requests upstream, the 5 whose answers gave no usage counted, and the usage of the one that gave it", opus, m)
+	}
+}
+
+func TestALineThatWentUpstreamIsTalliedUpstreamWhateverItsKindButACheckOrACount(t *testing.T) {
+	type tally struct{ upstream, unsent, checks, counts int }
+	tests := []struct {
+		name     string
+		kind     string
+		attempts int
+		want     tally
+	}{
+		{name: "a message sent on", kind: ledger.KindMessage, attempts: 1, want: tally{upstream: 1}},
+		{name: "a message the router answered itself", kind: ledger.KindMessage, want: tally{unsent: 1}},
+		{name: "a line of no kind sent on", attempts: 1, want: tally{upstream: 1}},
+		{name: "a line of no kind the router answered itself", want: tally{unsent: 1}},
+		{name: "a kind a later router adds, sent on", kind: "batch", attempts: 2, want: tally{upstream: 1}},
+		{name: "a kind a later router adds, answered by the router", kind: "batch", want: tally{unsent: 1}},
+		{name: "the client's quota check sent on", kind: ledger.KindCheck, attempts: 1, want: tally{checks: 1}},
+		{name: "the client's quota check answered by the router", kind: ledger.KindCheck, want: tally{checks: 1}},
+		{name: "a count of tokens sent on", kind: ledger.KindCount, attempts: 1, want: tally{counts: 1}},
+		{name: "a count of tokens answered by the router", kind: ledger.KindCount, want: tally{counts: 1}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := asked("1", on(0, 9, 0))
+			l.Kind, l.Attempts = tt.kind, tt.attempts
+			got := summarised(t, noReadings, l)
+			if len(got.Accounts) != 1 || len(got.Accounts[0].Models) != 1 {
+				t.Fatalf("the summary is %+v, want work's request of one model", got)
+			}
+			m := got.Accounts[0].Models[0]
+			tallied := tally{upstream: m.Upstream, unsent: m.Unsent, checks: m.Checks, counts: m.Counts}
+			if tallied != tt.want {
+				t.Errorf("the request is tallied %+v, want %+v", tallied, tt.want)
+			}
+		})
 	}
 }
 

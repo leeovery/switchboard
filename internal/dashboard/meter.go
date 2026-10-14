@@ -2,26 +2,16 @@ package dashboard
 
 import (
 	"math"
-	"time"
 
-	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// The parts of a window's bar line on a card: its label, in a column of at
-// least labelColumn cells with the gap after it; its bar; its use,
-// right-aligned in useColumn cells with the gap before it; and in brief where
-// it's heading, in whitherColumn cells with the gap before it.
+// The parts of a window's bar line on a panel: its label, in a column of at
+// least labelColumn cells with the gap after it; its bar; and its use,
+// right-aligned in useColumn cells.
 const (
-	labelColumn   = 9
-	useColumn     = 5
-	whitherColumn = 12
-	// barLine is the fewest cells a bar line takes, as a 50-column card's
-	// inside, and barLinesGap the blank cells between bar lines side by side
-	// on a card wide enough for more than one to a row.
-	barLine     = 44
-	barLinesGap = 4
+	labelColumn = 9
+	useColumn   = 5
 )
 
 const (
@@ -35,41 +25,26 @@ const (
 	shadeCell = "▒"
 )
 
-// meter draws a window as it stands at now as a bar line, width cells from x
-// along row y, its label labelled cells wide: its label, short; a bar of its
-// use, its projection beyond, where even pace would be, and where its
-// account's reserve starts, at reserve of it, none for none; its use; and in
-// brief where it's heading.
-func (f Frame) meter(c *canvas, s standing, reserve float64, now time.Time, x, y, width, labelled int) {
-	cells := width - labelled - useColumn - whitherColumn
-	c.line(x, y, line{{truncate(status.Short(s.window.Label), labelled-1), textInk}})
-	if cells < 1 {
-		return
-	}
-	f.bar(c, s, reserve, now, x+labelled, y, cells)
-	c.right(x+labelled+cells+useColumn, y, line{s.use(titleInk)})
-	c.line(x+labelled+cells+useColumn+1, y, line{s.whither(now, "")}.fit(whitherColumn-1))
-}
-
-// bar draws a window standing as s at now as a bar cells long from x along
-// row y: its use, as eased has it, its projection beyond, where even pace
-// would be, and where its account's reserve, reserve of it, starts.
-func (f Frame) bar(c *canvas, s standing, reserve float64, now time.Time, x, y, cells int) {
+// bar draws a window standing as s as a bar cells long from x along row y,
+// marked as its window's: its use, as eased has it, its projection beyond,
+// where even pace would be, and where its account's reserve, reserve of it,
+// starts.
+func (f Frame) bar(c *canvas, s standing, reserve float64, x, y, cells int) {
 	share, ok := s.projected()
 	if !ok {
 		share = 0
 	}
-	f.fill(c, x, y, cells, f.eased(s.account, s.window), share, reserveCell(reserve, cells), s.paceCell(now, cells))
+	f.fill(c, x, y, cells, f.eased(s), share, reserveCell(reserve, cells), s.paceCell(cells))
+	c.barred(x, y, cells, Ref{Account: s.account, Window: s.window.Key})
 }
 
-// eased is how much of the account with the given id's window w its bar
-// fills: as far as the bars have eased to its reading, while they ease, else
-// as read.
-func (f Frame) eased(id string, w quota.Window) float64 {
-	if used, ok := f.Eased[Ref{Account: id, Window: w.Key}]; ok {
+// eased is how much of a window standing as s its bar fills: as far as the
+// bars have eased to its use, while they ease, else its use.
+func (f Frame) eased(s standing) float64 {
+	if used, ok := f.Eased[Ref{Account: s.account, Window: s.window.Key}]; ok {
 		return used
 	}
-	return w.Utilization
+	return s.used
 }
 
 // fill draws a bar cells long from x along row y: used filled in eighths, each

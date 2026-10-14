@@ -1,28 +1,26 @@
 package watch
 
 import (
-	"slices"
+	"maps"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 const (
 	// easeFor is how long a bar takes to move to a new reading.
-	easeFor = 600 * time.Millisecond
+	easeFor = time.Second
 	// frameEvery paces the frames while bars move: about 30 a second.
 	frameEvery = time.Second / 30
 )
 
-// windowRef names a window from one document to the next.
-type windowRef struct {
-	account, key string
-}
-
-// easing moves each bar from where it stood when a document arrived to that
-// document's reading. A bar it has no start for rises from nothing.
+// easing moves each bar from where it stood when a document arrived to the
+// bar its view draws of that document, as Filled has them, view by view, as
+// each draws its own: by its window's account and key, the pool's by its key
+// alone. A bar it has no start for rises from nothing.
 type easing struct {
-	from  map[windowRef]float64
+	from  map[dashboard.View]map[dashboard.Ref]float64
 	start time.Time
 }
 
@@ -31,44 +29,50 @@ func (e easing) done(now time.Time) bool {
 	return now.Sub(e.start) >= easeFor
 }
 
-// moves reports whether the easing moves any of doc's bars.
-func (e easing) moves(doc status.Document) bool {
-	for ref, to := range utilizations(doc) {
-		if e.from[ref] != to {
-			return true
-		}
-	}
-	return false
-}
-
-// apply returns doc as it's drawn at now: each window's utilization eased
-// along from its start. It copies what it changes, leaving doc as it was.
-func (e easing) apply(doc status.Document, now time.Time) status.Document {
+// eased are how much of each bar of f's view the easing moves fills at now,
+// by its window's account and key, the pool's by its key alone, on its way
+// from where it stood to filling as the view draws it of doc, as Filled has
+// it of f: none of a bar that stands where it's drawn, and none once the
+// easing's over.
+func (e easing) eased(f dashboard.Frame, doc status.Document, now time.Time) map[dashboard.Ref]float64 {
 	if e.done(now) {
-		return doc
+		return nil
 	}
-	t := easeOutCubic(progress(now.Sub(e.start), easeFor))
-	accounts := slices.Clone(doc.Accounts)
-	for i, a := range accounts {
-		windows := slices.Clone(a.Windows)
-		for j, w := range windows {
-			windows[j].Utilization = lerp(e.from[windowRef{a.ID, w.Key}], w.Utilization, t)
-		}
-		accounts[i].Windows = windows
-	}
-	doc.Accounts = accounts
-	return doc
+	return e.towards(f.View, f.Filled(doc, now), now)
 }
 
-// utilizations are how much of each of doc's windows is used.
-func utilizations(doc status.Document) map[windowRef]float64 {
-	used := make(map[windowRef]float64)
-	for _, a := range doc.Accounts {
-		for _, w := range a.Windows {
-			used[windowRef{a.ID, w.Key}] = w.Utilization
+// towards are how much of each bar of the view given, filled as filled has
+// it, the easing has it fill at now: none of a bar that stands where it's
+// filled.
+func (e easing) towards(view dashboard.View, filled map[dashboard.Ref]float64, now time.Time) map[dashboard.Ref]float64 {
+	t := easeOutCubic(progress(now.Sub(e.start), easeFor))
+	eased := make(map[dashboard.Ref]float64)
+	for ref, to := range filled {
+		if from := e.from[view][ref]; from != to {
+			eased[ref] = lerp(from, to, t)
 		}
 	}
-	return used
+	return eased
+}
+
+// standing are how much of each bar of each view that draws any of doc fills
+// at now, view by view, by its window's account and key, the pool's by its
+// key alone: as far as it has eased, where it's easing, else as the view
+// draws it, as Filled has it of f.
+func (e easing) standing(f dashboard.Frame, doc status.Document, now time.Time) map[dashboard.View]map[dashboard.Ref]float64 {
+	stand := make(map[dashboard.View]map[dashboard.Ref]float64)
+	for _, view := range dashboard.Views() {
+		f.View = view
+		filled := f.Filled(doc, now)
+		if filled == nil {
+			continue
+		}
+		if !e.done(now) {
+			maps.Copy(filled, e.towards(view, filled, now))
+		}
+		stand[view] = filled
+	}
+	return stand
 }
 
 // easeOutCubic eases t, from 0 to 1: quick at first, slowing to a stop.

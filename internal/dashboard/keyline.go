@@ -1,6 +1,9 @@
 package dashboard
 
-import "slices"
+import (
+	"cmp"
+	"slices"
+)
 
 // The blank cells the key line sets its keys apart by: within a group,
 // after one, and on a phone's line, between any two.
@@ -21,9 +24,10 @@ type KeyLine struct {
 	// last.
 	Groups [][]Key
 	// Lead is the blank cells after the first group, tab views: three, or
-	// five on the Overview. The rest are keysInGroup apart within a group,
-	// and KeysAfter after one.
-	Lead int
+	// five on the Overview; and After those after each group past it: five
+	// on the Overview, or where it's 0, KeysAfter. Within a group, keys are
+	// keysInGroup apart.
+	Lead, After int
 	// Phone are the keys a phone's line keeps between the first group, tab
 	// views, which leads it while it fits, and ? and q quit, which end it,
 	// as the page words them there; and PhoneHelp is ?'s word there: "keys",
@@ -37,20 +41,33 @@ type KeyLine struct {
 }
 
 // Key is a key the key line lists, or a card's keys row, and what it does, as
-// "p" and "pin". One Off can't act now, as p while the router doesn't
-// answer: it's drawn faint.
+// "p" and "pin"; and where it says how something's set, its State, as b's
+// "window", after "by". One Off can't act now, as p while the router doesn't
+// answer: it's drawn faint. One Hidden toggles a section that's hidden: its
+// key is drawn as any other's, and its word faint.
 type Key struct {
-	Key, Does string
-	Off       bool
+	Key, Does, State string
+	Off, Hidden      bool
 }
 
 // words are the key and what it does, as a key line lists them: the key in
-// bold accent.key and its word muted, or both faint where it's off.
+// bold accent.key, its word muted, faint where it's hidden, and a colon and
+// its state after it, the state in text.secondary; or all of it faint where
+// it's off.
 func (k Key) words() line {
-	if k.Off {
-		return line{{k.Key + " " + k.Does, faintInk}}
+	word := " " + k.Does
+	if k.State != "" {
+		word += ": "
 	}
-	return line{{k.Key, keyInk}, {" " + k.Does, mutedInk}}
+	switch {
+	case k.Off:
+		return line{{k.Key + word + k.State, faintInk}}
+	case k.Hidden:
+		return line{{k.Key, keyInk}, {word + k.State, faintInk}}
+	case k.State == "":
+		return line{{k.Key, keyInk}, {word, mutedInk}}
+	}
+	return line{{k.Key, keyInk}, {word, mutedInk}, {k.State, secondaryInk}}
 }
 
 // keyAt is a key as the key line lays it out: the key, and the column its
@@ -99,10 +116,11 @@ func (f Frame) keyLineRow() (y int, keys []keyAt, ok bool) {
 
 // keysAt are the key line's keys as it lays them out from column 0, each
 // where its words start, as many as fit whole in the frame's width: on a
-// phone, as phone chooses them, else as wide sets them apart.
+// phone, or wherever the wide line doesn't fit whole, as phone chooses them,
+// else as wide sets them apart.
 func (f Frame) keysAt() []keyAt {
 	keys := f.KeyLine.wide()
-	if f.phone() && f.KeyLine.PhoneHelp != "" {
+	if f.KeyLine.PhoneHelp != "" && (f.phone() || widthOf(keys) > f.Width) {
 		keys = f.KeyLine.phone(f.Width)
 	}
 	var laid []keyAt
@@ -118,8 +136,8 @@ func (f Frame) keysAt() []keyAt {
 	return laid
 }
 
-// wide are the line's groups in order, Lead cells after the first,
-// keysInGroup apart within a group and KeysAfter after one.
+// wide are the line's groups in order, Lead cells after the first, as many
+// as After has after each past it, and keysInGroup apart within a group.
 func (l KeyLine) wide() []spaced {
 	var keys []spaced
 	gap := 0
@@ -131,7 +149,7 @@ func (l KeyLine) wide() []spaced {
 			keys = append(keys, spaced{key: k, gap: gap})
 			gap = keysInGroup
 		}
-		gap = KeysAfter
+		gap = cmp.Or(l.After, KeysAfter)
 		if i == 0 {
 			gap = l.Lead
 		}

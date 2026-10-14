@@ -36,8 +36,9 @@ func TestTheRequestStreamTellsOfEachRequestAsItGoes(t *testing.T) {
 	const quotaCheck = `{"model":"` + haiku + `","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`
 	tests := []struct {
 		name string
-		// body is the request's, and session the session it's of.
-		body, session string
+		// path is the request's, /v1/messages unless it says, body its body,
+		// and session the session it's of.
+		path, body, session string
 		// work and side are the answers of each, in turn.
 		work, side []answer
 		// want are the events the stream tells of the request, but for their
@@ -124,6 +125,17 @@ func TestTheRequestStreamTellsOfEachRequestAsItGoes(t *testing.T) {
 				{Kind: StreamDone, Attempt: 1, Session: "check", Model: haiku, Account: "side", Check: true, Status: http.StatusOK},
 			},
 		},
+		{
+			name:    "a count of tokens, which spends no quota",
+			path:    "/v1/messages/count_tokens",
+			session: "one",
+			work:    []answer{countAnswered},
+			want: []StreamEvent{
+				{Kind: StreamSent, Attempt: 1, Session: "one", Model: opus, Account: "work", Count: true},
+				{Kind: StreamFirst, Attempt: 1, Session: "one", Model: opus, Account: "work", Count: true},
+				{Kind: StreamDone, Attempt: 1, Session: "one", Model: opus, Account: "work", Count: true, Status: http.StatusOK},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -137,7 +149,7 @@ func TestTheRequestStreamTellsOfEachRequestAsItGoes(t *testing.T) {
 				r.proxy.transport = &scriptedUpstream{answers: map[string][]answer{workToken: tt.work, sideToken: tt.side}}
 				reader := joined(t, r)
 
-				routeAsking(t.Context(), r, tt.session, cmp.Or(tt.body, opusAsked))
+				routeAs(t.Context(), r, cmp.Or(tt.path, "/v1/messages"), tt.session, cmp.Or(tt.body, opusAsked))
 				got := heard(reader)
 				if len(got) == 0 {
 					t.Fatal("the stream told of nothing, want the request")
@@ -597,6 +609,71 @@ func TestAReaderJoiningIsToldOfTheLastVerdictOnARequestInFlight(t *testing.T) {
 			t.Errorf("the reader joined to\n%s\nwant\n%s: the request throttled, waiting to go again", lines(inFlight), lines([]StreamEvent{want}))
 		}
 	})
+}
+
+func TestAReaderJoiningIsToldWhetherARequestInFlightIsACountOfTokens(t *testing.T) {
+	tests := []struct {
+		name, path string
+		count      bool
+	}{
+		{name: "a message", path: "/v1/messages"},
+		{name: "a count of tokens", path: "/v1/messages/count_tokens", count: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				began := time.Now().UTC()
+				r := newTestRouter(t, time.Now, &stubProber{})
+				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, began)
+				release := make(chan struct{})
+				r.proxy.transport = scripted(heldUntil(release, countAnswered), served)
+
+				answered := make(chan struct{})
+				go func() {
+					routeAs(context.Background(), r, tt.path, "one", opusAsked)
+					close(answered)
+				}()
+				synctest.Wait()
+				inFlight, reader := r.stream.join()
+				r.stream.leave(reader)
+				close(release)
+				<-answered
+				if len(inFlight) != 1 {
+					t.Fatalf("the reader joined to %d requests in flight, want 1", len(inFlight))
+				}
+				want := StreamEvent{At: began, Kind: StreamInFlight, Request: inFlight[0].Request, Attempt: 1, Session: "one", Model: opus, Account: "work",
+					SentAt: began, Count: tt.count}
+				if !reflect.DeepEqual(inFlight[0], want) {
+					t.Errorf("the reader joined to\n%s\nwant\n%s", lines(inFlight), lines([]StreamEvent{want}))
+				}
+			})
+		})
+	}
+}
+
+func TestAnEventSaysCheckAndCountOnlyWhereEachHolds(t *testing.T) {
+	message := StreamEvent{At: time.Date(2026, 10, 1, 13, 42, 7, 0, time.UTC), Kind: StreamSent, Request: "0a000001", Attempt: 1, Account: "work"}
+	check, count := message, message
+	check.Check, count.Count = true, true
+	const as = `{"at":"2026-10-01T13:42:07Z","kind":"sent","request":"0a000001","attempt":1,"account":"work"`
+	tests := []struct {
+		name  string
+		event StreamEvent
+		want  string
+	}{
+		{name: "a message", event: message, want: as + `}`},
+		{name: "the client's quota check", event: check, want: as + `,"check":true}`},
+		{name: "a count of tokens", event: count, want: as + `,"count":true}`},
+	}
+	for _, tt := range tests {
+		got, err := json.Marshal(tt.event)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != tt.want {
+			t.Errorf("%s's event is written as\n%s\nwant\n%s", tt.name, got, tt.want)
+		}
+	}
 }
 
 func TestTheRequestStreamSleepsWhileNoAnswerStreams(t *testing.T) {

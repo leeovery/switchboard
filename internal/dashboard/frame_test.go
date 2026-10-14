@@ -74,6 +74,20 @@ func routerDoc(best string, sessions int, accounts ...status.Account) status.Doc
 	}.WorkedOut(claudeLike)
 }
 
+// builtAt is the healthy router's document of the accounts as it built it
+// at the moment given, each as it stood then, as AsOf has it, with what's
+// worked out of it.
+func builtAt(at time.Time, accounts ...status.Account) status.Document {
+	built := make([]status.Account, len(accounts))
+	for i, a := range accounts {
+		built[i] = a.AsOf(claudeLike, at.UTC())
+	}
+	return status.Document{
+		GeneratedAt: at.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true},
+		Accounts: built,
+	}.WorkedOut(claudeLike)
+}
+
 // probed is a document of the accounts built by probing, the router not
 // running, with what's worked out of it, as the dashboard is given it.
 func probed(accounts ...status.Account) status.Document {
@@ -116,12 +130,12 @@ func TestAFrameFitsEveryWidth(t *testing.T) {
 		"nothing yet": {},
 	}
 	for name, doc := range docs {
-		for _, style := range charts {
-			t.Run(name+", "+style.Name(), func(t *testing.T) {
+		for _, view := range Views() {
+			t.Run(name+", "+view.Title(), func(t *testing.T) {
 				for width := 1; width <= 200; width++ {
 					for _, height := range []int{1, 3, 8, 40} {
 						f := frameOf(width, height)
-						f.Chart = style
+						f.View = view
 						rows := f.Draw(doc, now)
 						if len(rows) != height {
 							t.Errorf("at %d×%d, drew %d rows", width, height, len(rows))
@@ -149,10 +163,10 @@ func TestThePageDrawsEachPartOnItsRow(t *testing.T) {
 		tabs, status, heading, top int
 		first                      string
 	}{
-		{name: "the Overview, whose sections head themselves", width: 160, view: Overview, status: 2, heading: -1, top: 4, first: " ╭─ 1 work "},
+		{name: "the Overview, whose sections head themselves", width: 160, view: Overview, status: 2, heading: -1, top: 4, first: "USAGE"},
 		{name: "Sessions", width: 160, view: Sessions, status: 2, heading: 4, top: 6, first: "  CALLS"},
 		{name: "Runway", width: 160, view: Runway, status: 2, heading: 4, top: 6, first: textsAt(160, map[int]string{27: "now"})},
-		{name: "the Overview on a phone", width: 52, view: Overview, tabs: 1, status: 3, heading: -1, top: 5, first: " ╭─ 1 work "},
+		{name: "the Overview on a phone", width: 52, view: Overview, tabs: 1, status: 3, heading: -1, top: 5, first: "USAGE"},
 		{name: "Sessions on a phone", width: 52, view: Sessions, tabs: 1, status: 3, heading: 5, top: 7, first: " ┌─ 1 · WORK "},
 		{name: "a phone of 99 columns", width: 99, view: Sessions, tabs: 1, status: 3, heading: 5, top: 7, first: "  CALLS"},
 	}
@@ -270,42 +284,6 @@ func TestATerminalOfAFewRowsDrawsWhatFits(t *testing.T) {
 	}
 }
 
-func TestOneAccountUnder150ColumnsHasCOMINGUPUnderItsCardBeforeRECENT(t *testing.T) {
-	doc := routerDoc("work", 3, pressedAccount("work"))
-	doc.Events = []status.Event{{ID: 1, At: now.Add(-4 * time.Minute).UTC(), Kind: status.EventRoom, Account: "work"}}
-	rows := frameOf(149, 40).Draw(doc, now)
-
-	coming := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, " COMING UP") })
-	recent := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, " RECENT") })
-	if coming < 0 || recent < coming {
-		t.Fatalf("rows are\n%s\nwant COMING UP, then RECENT", strings.Join(rows, "\n"))
-	}
-	if got, want := rows[coming], " COMING UP   14:42      work runs out at its pace"; !strings.HasPrefix(got, want) {
-		t.Errorf("COMING UP reads %q, want %q, the strips' lines in one column", got, want)
-	}
-	if got, want := rows[recent], " RECENT      13:08  ● work has room again"; got != want {
-		t.Errorf("RECENT reads %q, want %q", got, want)
-	}
-}
-
-func TestTheLineOverTheKeyLineSaysWhichWindowsHideFromEveryCard(t *testing.T) {
-	doc := threeRouted()
-	for i := range doc.Accounts {
-		doc.Accounts[i].Windows = append(doc.Accounts[i].Windows, windowOf("7d_oi", "Fable week", 0, 4*day))
-	}
-	rows := frameOf(160, 40).Draw(doc, now)
-
-	if got, want := rows[38], "Fable wk hidden: unused on every account"; !strings.HasSuffix(got, want) {
-		t.Errorf("row 39 = %q, want it to end %q", got, want)
-	}
-	if strings.Contains(strings.Join(rows[:38], "\n"), "Fable wk ") {
-		t.Errorf("rows are\n%s\nwant Fable's week on no card", strings.Join(rows, "\n"))
-	}
-	if rows := frameOf(160, 40).Draw(threeRouted(), now); strings.TrimSpace(rows[38]) != "" {
-		t.Errorf("without a window hidden, row 39 = %q, want it blank", rows[38])
-	}
-}
-
 func TestATabNotBuiltDrawsItsHeadingRowAloneAndExplainsNoGlyphs(t *testing.T) {
 	for _, v := range []View{Accounts, History, Log, "a-later-view"} {
 		f := frameOf(160, 40)
@@ -324,5 +302,25 @@ func TestATabNotBuiltDrawsItsHeadingRowAloneAndExplainsNoGlyphs(t *testing.T) {
 		if glyphs := f.glyphs(); glyphs != nil {
 			t.Errorf("on %s, the glyphs explained are %v, want none", v, glyphs)
 		}
+	}
+}
+
+// twoWithRoom is the healthy router's document of work and side, both with
+// room, read a minute before threeRouted: another document, whose pool isn't
+// threeRouted's.
+func twoWithRoom() status.Document {
+	doc := routerDoc("work", 2, readAccount("work", sessionOf(0.5, 2*time.Hour), weekOf(0.2, 3*day)), readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.4, 5*day)))
+	doc.GeneratedAt = now.Add(-time.Minute).UTC()
+	return doc
+}
+
+func TestAFrameJudgedJudgesAnotherDocumentsPoolAfresh(t *testing.T) {
+	other := twoWithRoom()
+	want := other.PoolAt(now, claudeLike)
+	if first := threeRouted().PoolAt(now, claudeLike); slices.Equal(first.Accounts, want.Accounts) {
+		t.Fatalf("both documents pool %v, want pools that differ", want.Accounts)
+	}
+	if got := frameOf(160, 40).Judged(threeRouted(), now).pool(other, now); !slices.Equal(got.Accounts, want.Accounts) {
+		t.Errorf("judged of one document, the pool of another at the same moment is of %v, want its own, of %v", got.Accounts, want.Accounts)
 	}
 }

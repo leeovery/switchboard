@@ -1,10 +1,17 @@
 package dashboard
 
+import (
+	"time"
+
+	"github.com/leeovery/switchboard/internal/status"
+)
+
 // Target is a zone of the page a click acts on, from X along row Y, Width
 // cells wide, and what's there, as On says: a tab, Tab; a sub-tab, by its
 // place among them, SubTab; < or > by a period or a window, Step, -1 or 1; a
-// key of the key line, Key, as the line names it; or a row of the view,
-// Row, by its index.
+// key of the key line, Key, as the line names it; a row of the view, Row, by
+// its index; an Overview's section, Section; or an account, by its id,
+// Account.
 type Target struct {
 	X, Y, Width int
 	On          Clicked
@@ -13,6 +20,8 @@ type Target struct {
 	Step        int
 	Key         string
 	Row         int
+	Section     Section
+	Account     string
 }
 
 // Clicked is what a click lands on.
@@ -29,18 +38,28 @@ const (
 	OnKey
 	// OnRow is a row of the view.
 	OnRow
+	// OnSection is a section's heading on the Overview, or its key there,
+	// which hides it.
+	OnSection
+	// OnAccount is an account's row on the Overview, in USAGE or ROUTING,
+	// which moves the focus to it.
+	OnAccount
 )
 
-// Targets are the zones of the frame's page a click acts on, each over the
-// cells it's drawn on, laid out as the page draws them: its tabs; the
-// heading row's sub-tabs, and < and > by its period or window; and the key
-// line's keys, as keyTargets has them.
-func (f Frame) Targets() []Target {
+// Targets are the zones of the frame's page of doc at now a click acts on,
+// each over the cells it's drawn on, laid out as the page draws them: its
+// tabs; the heading row's sub-tabs, and < and > by its period or window; the
+// Overview's, as overviewTargets has them; and the key line's keys, as
+// keyTargets has them.
+func (f Frame) Targets(doc status.Document, now time.Time) []Target {
 	targets := f.tabTargets()
 	for _, p := range f.headingPieces() {
 		if p.click.On != 0 {
 			targets = append(targets, p.target())
 		}
+	}
+	if f.View == Overview && !f.cramped() {
+		targets = append(targets, f.overviewTargets(doc, now)...)
 	}
 	return append(targets, f.keyTargets()...)
 }

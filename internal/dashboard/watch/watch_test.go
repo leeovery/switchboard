@@ -20,7 +20,7 @@ func TestStartsByReading(t *testing.T) {
 	if got, want := h.keyLine(), unreadKeys; got != want {
 		t.Errorf("before the first read, the key line reads %q, want %q", got, want)
 	}
-	if view := h.view(); !strings.Contains(view, "SWITCHBOARD") || strings.Contains(view, "╭─ 1 Work ") {
+	if view := h.view(); !strings.Contains(view, "SWITCHBOARD") || strings.Contains(view, "1 Work") {
 		t.Errorf("before the first read, the screen is\n%s\nwant the title row, and no account", view)
 	}
 	read := h.init()
@@ -31,8 +31,8 @@ func TestStartsByReading(t *testing.T) {
 	if got, want := h.keyLine(), oneKeys; got != want {
 		t.Errorf("after the first read, the key line reads %q, want %q", got, want)
 	}
-	if !strings.Contains(h.view(), "╭─ 1 Work ") {
-		t.Errorf("after the first read, the screen is\n%s\nwant the account's card", h.view())
+	if !strings.Contains(h.view(), "1 Work") {
+		t.Errorf("after the first read, the screen is\n%s\nwant the account", h.view())
 	}
 }
 
@@ -253,27 +253,6 @@ func TestTicksEverySecond(t *testing.T) {
 	}
 }
 
-func TestCountdownShowsSecondsBetweenTicks(t *testing.T) {
-	h := newHarness(t, document(account("work", "Work", refused(session(1, 12*time.Minute)), week(0.5))))
-	h.start()
-
-	for h.clock.now.Before(at(13, 16, 17)) {
-		h.fire(h.lastTick())
-	}
-	before := between(h.view())
-	h.fire(h.lastTick())
-	if after := between(h.view()); after == before {
-		t.Errorf("at %s, a second on, the screen is\n%s\nwant the session's countdown, its last ten minutes in seconds, moved on", h.clock.now.Format(time.StampMilli), after)
-	}
-}
-
-// between is the screen between its title row, which tells the time, and its
-// key line.
-func between(screen string) string {
-	rows := strings.Split(screen, "\n")
-	return strings.Join(rows[1:len(rows)-1], "\n")
-}
-
 func TestATickFromBeforeAReadIsDropped(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
@@ -299,8 +278,8 @@ func TestAFailedReadKeepsWhatWasReadOnScreen(t *testing.T) {
 	h.clock.now = at(13, 20, 0)
 	h.read(calm())
 
-	if !strings.Contains(h.view(), "╭─ 1 Work ") {
-		t.Errorf("screen is\n%s\nwant the account's card still", h.view())
+	if !strings.Contains(h.view(), "1 Work") {
+		t.Errorf("screen is\n%s\nwant the account still", h.view())
 	}
 	if got, want := h.nextRead(), "13:22"; got != want {
 		t.Errorf("the next read is due at %s, want %s", got, want)
@@ -318,7 +297,7 @@ func TestFirstReadFails(t *testing.T) {
 	if got, want := h.keyLine(), unreadKeys; got != want {
 		t.Errorf("the key line reads %q, want %q", got, want)
 	}
-	if strings.Contains(h.view(), "╭─ 1 Work ") {
+	if strings.Contains(h.view(), "1 Work") {
 		t.Errorf("screen is\n%s\nwant no account, nothing having been read", h.view())
 	}
 	h.source.err = nil
@@ -404,24 +383,228 @@ func TestDrawsAtTheGivenSizeUntilTheTerminalGivesOne(t *testing.T) {
 	}
 }
 
-// cardKeys are the Overview's own keys, as its key line lists them while
-// its cards feature each its own window.
-var cardKeys = []dashboard.Key{{Key: "w", Does: "window: auto"}, {Key: "←→", Does: "focus"}, {Key: "space", Does: "flip"}, {Key: "g", Does: "chart"}}
-
 // calmScreen is the screen of calm read at now, its windows used as trails
 // says, as a terminal of the size given shows it without colour, probing,
 // with nothing more to say.
 func calmScreen(size Size, now time.Time, trails dashboard.Trails) string {
 	return strings.Join(dashboard.Frame{
 		Width: size.Width, Height: size.Height, Look: dashboard.NoColour(),
-		View: dashboard.Overview, Trails: trails,
-		KeyLine: dashboard.KeyLine{Lead: 5, Groups: [][]dashboard.Key{
+		View: dashboard.Overview, Trails: trails, Focus: "work",
+		KeyLine: dashboard.KeyLine{Lead: 5, After: 5, Groups: [][]dashboard.Key{
 			{{Key: "tab", Does: "views"}},
-			cardKeys,
+			{
+				{Key: "u", Does: "usage"}, {Key: "g", Does: "graphs", Hidden: true}, {Key: "r", Does: "routing"},
+				{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"},
+				{Key: "b", Does: "by", State: "window"},
+			},
 			{{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}},
-		}, Phone: cardKeys, PhoneHelp: "keys and toggles"},
+		}, PhoneHelp: "keys and toggles"},
 		Policy: policy,
 	}.Draw(calm(), now), "\n")
+}
+
+// sessionsRows are the rows of the screen the Overview's SESSIONS is laid out
+// on: its first, its heading's, and how many it takes, to COMING UP's heading
+// after the blank row under it.
+func (h *harness) sessionsRows() (first, rows int) {
+	screen := strings.Split(h.view(), "\n")
+	first = slices.IndexFunc(screen, func(r string) bool { return strings.HasPrefix(r, "SESSIONS ") })
+	coming := slices.IndexFunc(screen, func(r string) bool { return strings.HasPrefix(r, "COMING UP ") })
+	if first < 0 || coming < first {
+		h.t.Fatalf("the screen is\n%s\nwant SESSIONS shown, and COMING UP under it", h.view())
+	}
+	return first, coming - first - 1
+}
+
+func TestTheOverviewKeepsItsLayoutAsSessionsStartTillAKeyOrAResize(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	h.start()
+	h.deliver(h.press("s")...)
+	first, rows := h.sessionsRows()
+	if rows != 3 {
+		t.Fatalf("with none running, SESSIONS takes %d rows, want its heading's two and a row saying none run", rows)
+	}
+
+	h.source.sessions = threeRunning()
+	h.tickUntilAsked()
+	if len(h.model.sessions) != 3 {
+		t.Fatalf("a look listed %d sessions, want the three started", len(h.model.sessions))
+	}
+	if f, r := h.sessionsRows(); f != first || r != rows {
+		t.Errorf("three sessions started, SESSIONS is laid out on %d rows from row %d; want the %d from row %d it was given, till a key or a resize",
+			r, f+1, rows, first+1)
+	}
+
+	h.deliver(h.press("down")...)
+	if _, r := h.sessionsRows(); r != 5 {
+		t.Errorf("after a key, SESSIONS takes %d rows, want it laid out afresh, a row a session", r)
+	}
+	h.source.sessions = nil
+	h.tickUntilAsked()
+	if _, r := h.sessionsRows(); r != 5 {
+		t.Errorf("the sessions gone, SESSIONS takes %d rows, want the 5 it was given kept", r)
+	}
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 41})
+	if _, r := h.sessionsRows(); r != 3 {
+		t.Errorf("after a resize, SESSIONS takes %d rows, want it laid out afresh, a row saying none run", r)
+	}
+}
+
+// threeRunning are three sessions running, two on side and one on work.
+func threeRunning() []status.Session {
+	return []status.Session{
+		sessionOn(idD28C, "claude-opus-5-5", "side", 10*time.Second),
+		sessionOn(id7F3A, "claude-sonnet-5-5", "side", time.Minute),
+		sessionOn(id9E21, "claude-haiku-4-5", "work", 2*time.Minute),
+	}
+}
+
+func TestOnlyAKeyThePageActsOnLaysTheOverviewOutAfresh(t *testing.T) {
+	tests := []struct {
+		name string
+		keys []string
+	}{
+		{name: "help's keys: scrolling it, and closing it", keys: []string{"?", "j", "pgdown", "k", "esc"}},
+		{name: "the routing card's: moving in it, and closing it", keys: []string{"p", "down", "esc"}},
+		{name: "keys the page doesn't take", keys: []string{"w", "1", "m", "x"}},
+		{name: "j and k, every account in view, which scroll nothing", keys: []string{"j", "k"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(three()...))
+			h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+			h.start()
+			h.deliver(h.press("s")...)
+			first, rows := h.sessionsRows()
+			h.source.sessions = threeRunning()
+			h.tickUntilAsked()
+
+			for _, key := range tt.keys {
+				h.deliver(h.press(key)...)
+			}
+			if f, r := h.sessionsRows(); f != first || r != rows {
+				t.Errorf("after %q, SESSIONS is laid out on %d rows from row %d; want the %d from row %d it was given, the page behind a card standing still",
+					tt.keys, r, f+1, rows, first+1)
+			}
+		})
+	}
+}
+
+// The screen a message leaves is drawn as Update takes it in, where the page
+// settles anything, frames reading what moves from that one drawing: so it's
+// drawn laid out as the key has it, even with nothing moving on screen.
+func TestTheScreenAKeyLeavesIsLaidOutAsTheKeyLaysItOut(t *testing.T) {
+	h := routedHarness(t, withEvents(2, 1))
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	h.start()
+	for _, key := range []string{"s", "r", "l"} {
+		h.deliver(h.press(key)...)
+	}
+	h.settle()
+	h.source.sessions = threeRunning()
+	h.startRouter(withEvents(3, 2, 1))
+	h.tickUntilAsked()
+	if got := h.fresh(); !slices.Equal(got, []int{3}) {
+		t.Fatalf("picked out %v, want 3, new to the look, LATELY hidden", got)
+	}
+	if _, framing := h.pendingFrame(); framing {
+		t.Fatal("a frame is armed, want none, nothing moving on screen")
+	}
+	if _, r := h.sessionsRows(); r != 3 {
+		t.Fatalf("three sessions started, SESSIONS takes %d rows, want the 3 it was given kept", r)
+	}
+
+	h.deliver(h.press("down")...)
+	if _, r := h.sessionsRows(); r != 5 {
+		t.Errorf("after a key, SESSIONS is drawn on %d rows, want it as the key lays it out afresh, a row a session", r)
+	}
+}
+
+// clickWhere clicks the first of the page's targets on says it's on,
+// failing the test where there's none.
+func (h *harness) clickWhere(on func(dashboard.Target) bool) {
+	h.t.Helper()
+	i := slices.IndexFunc(h.targets(), on)
+	if i < 0 {
+		h.t.Fatalf("the page has no such target among %+v", h.targets())
+	}
+	h.click(h.targets()[i].X, h.targets()[i].Y)
+}
+
+func TestAClickOrTheWheelLaysTheOverviewOutAsItsKeyDoes(t *testing.T) {
+	key := func(k string) func(*harness) {
+		return func(h *harness) { h.deliver(h.press(k)...) }
+	}
+	tests := []struct {
+		name       string
+		key, mouse func(*harness)
+	}{
+		{name: "↓, and a click on an account's row", key: key("down"), mouse: func(h *harness) {
+			h.clickWhere(func(t dashboard.Target) bool { return t.On == dashboard.OnAccount && t.Account == "personal" })
+		}},
+		{name: "a section's key, and a click on its heading", key: key("c"), mouse: func(h *harness) {
+			h.clickWhere(func(t dashboard.Target) bool {
+				return t.On == dashboard.OnSection && t.Section == dashboard.SectionComing
+			})
+		}},
+		{name: "tab, and a click on the next tab", key: key("tab"), mouse: func(h *harness) {
+			tab := h.tabTarget(dashboard.Accounts)
+			h.click(tab.X, tab.Y)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var laid [2]dashboard.Layout
+			for i, input := range []func(*harness){tt.key, tt.mouse} {
+				h := routedHarness(t, routerDocument(three()...))
+				h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+				h.start()
+				h.deliver(h.press("s")...)
+				h.source.sessions = threeRunning()
+				h.tickUntilAsked()
+				kept := h.model.layout
+				input(h)
+				if laid[i] = h.model.layout; laid[i] == kept {
+					t.Errorf("input %d left the layout as kept, want it laid out afresh, SESSIONS a row a session", i+1)
+				}
+			}
+			if laid[0] != laid[1] {
+				t.Errorf("the mouse laid the Overview out as %+v, want it as the key does, %+v", laid[1], laid[0])
+			}
+		})
+	}
+}
+
+// usageRows are the rows of the screen the Overview's USAGE is drawn on, from
+// its heading's to ROUTING's.
+func (h *harness) usageRows() []string {
+	screen := strings.Split(h.view(), "\n")
+	first := slices.IndexFunc(screen, func(r string) bool { return strings.HasPrefix(r, "USAGE ") })
+	routing := slices.IndexFunc(screen, func(r string) bool { return strings.HasPrefix(r, "ROUTING ") })
+	if first < 0 || routing < first {
+		h.t.Fatalf("the screen is\n%s\nwant USAGE shown, and ROUTING under it", h.view())
+	}
+	return screen[first:routing]
+}
+
+func TestTheOverviewIsLaidOutAfreshAsTheAccountsWindowsAreFirstRead(t *testing.T) {
+	unread := routerDocument(three()...)
+	for i, a := range unread.Accounts {
+		unread.Accounts[i] = status.Account{ID: a.ID, Label: a.Label, TokenSet: true}
+	}
+	h := routedHarness(t, unread)
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	h.start()
+
+	h.startRouter(routerDocument(three()...))
+	h.tickUntilAsked()
+	usage := strings.Join(h.usageRows(), "\n")
+	for _, name := range []string{"1 Work", "2 Personal", "3 Side"} {
+		if !strings.Contains(usage, name) {
+			t.Errorf("the accounts' windows read, with no key pressed, USAGE is\n%s\nwant %s among the accounts shown, laid out afresh, as there's room for every one", usage, name)
+		}
+	}
 }
 
 func TestThePageBehindACardTakesTheLookAsItStands(t *testing.T) {

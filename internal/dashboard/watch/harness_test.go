@@ -287,19 +287,31 @@ func (h *harness) pendingFrames() []*timer {
 	return frames
 }
 
-// framesUntil fires the frames armed, the soonest due first, as timers fire,
-// until none is due by t.
-func (h *harness) framesUntil(t time.Time) {
+// nudgeMsg is a message the model takes in doing nothing with it, as Bubble
+// Tea passes on many.
+type nudgeMsg struct{}
+
+// redraw has the screen drawn as the model stands at the clock's time, as
+// Bubble Tea draws it after any message: the clock moved by hand moves
+// nothing on screen till one comes.
+func (h *harness) redraw() {
 	h.t.Helper()
-	for frames := h.pendingFrames(); len(frames) > 0 && !frames[0].due.After(t); frames = h.pendingFrames() {
-		h.fire(frames[0])
-	}
+	h.update(nudgeMsg{})
 }
 
 // settle fires frames until the bars have eased to their readings.
 func (h *harness) settle() {
 	h.t.Helper()
 	for tm, ok := h.pendingFrame(); ok; tm, ok = h.pendingFrame() {
+		h.fire(tm)
+	}
+}
+
+// framesUntil fires the frames armed, each in turn, until the next is due
+// after t, or none is armed.
+func (h *harness) framesUntil(t time.Time) {
+	h.t.Helper()
+	for tm, ok := h.pendingFrame(); ok && !tm.due.After(t); tm, ok = h.pendingFrame() {
 		h.fire(tm)
 	}
 }

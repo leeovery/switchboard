@@ -38,6 +38,28 @@ func TestALineIsCutToWhatTheLedgerHolds(t *testing.T) {
 	}
 }
 
+func TestARequestUpstreamIsAMessageTheRouterSentOn(t *testing.T) {
+	tests := []struct {
+		name     string
+		kind     string
+		attempts int
+		want     bool
+	}{
+		{name: "a message sent on once", kind: KindMessage, attempts: 1, want: true},
+		{name: "a message sent on again after a refusal", kind: KindMessage, attempts: 2, want: true},
+		{name: "a message the router answered itself", kind: KindMessage},
+		{name: "the client's quota check", kind: KindCheck, attempts: 1},
+		{name: "a count of tokens", kind: KindCount, attempts: 1},
+		{name: "a line of no kind, which the router never writes", attempts: 1},
+		{name: "a kind a later router adds", kind: "batch", attempts: 1},
+	}
+	for _, tt := range tests {
+		if got := (&Line{Kind: tt.kind, Attempts: tt.attempts}).Upstream(); got != tt.want {
+			t.Errorf("%s: Upstream() = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
 func TestHintsAreCutAsASessionIsAndTheirToolsTimesAsTheAccountsTried(t *testing.T) {
 	// long holds something shaped like a token at its start, which no cut
 	// may part from its prefix.

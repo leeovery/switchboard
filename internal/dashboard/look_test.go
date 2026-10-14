@@ -53,7 +53,8 @@ func threeAccounts() status.Document {
 }
 
 // frames are frames of threeAccounts the tests draw, as text alone: full
-// screen, at a size each, Runway over the day and the week among them.
+// screen, at a size each, Sessions, and Runway over the day and the week,
+// among them.
 func frames() map[string]dashboard.Frame {
 	frame := func(width, height int) dashboard.Frame {
 		return dashboard.Frame{
@@ -66,9 +67,11 @@ func frames() map[string]dashboard.Frame {
 		f.View, f.Span = dashboard.Runway, span
 		return f
 	}
+	sessions := frame(160, 40)
+	sessions.View = dashboard.Sessions
 	return map[string]dashboard.Frame{
 		"wide": frame(160, 40), "two rows": frame(120, 50), "short, scrolling": frame(160, 20), "phone": frame(52, 36),
-		"runway, the day": runway(dashboard.Day), "runway, the week": runway(dashboard.Week),
+		"sessions": sessions, "runway, the day": runway(dashboard.Day), "runway, the week": runway(dashboard.Week),
 	}
 }
 
@@ -98,7 +101,7 @@ func TestAFrameFullScreenPaintsTheCanvasOnEveryCell(t *testing.T) {
 	}
 }
 
-func TestAFrameWithoutColourTellsStateByGlyphsAndBold(t *testing.T) {
+func TestAFrameWithoutColourTellsStateByGlyphsBoldAndReverse(t *testing.T) {
 	for name, f := range frames() {
 		t.Run(name, func(t *testing.T) {
 			plain := strings.Join(drawn(f, dashboard.Look{}), "\n")
@@ -107,8 +110,8 @@ func TestAFrameWithoutColourTellsStateByGlyphsAndBold(t *testing.T) {
 				t.Errorf("drawn without colour, stripped of its escapes =\n%s\nwant the frame as text\n%s", stripped, plain)
 			}
 			for _, sgr := range regexp.MustCompile(`\x1b\[[0-9;]*m`).FindAllString(frame, -1) {
-				if sgr != "\x1b[1m" && sgr != "\x1b[m" && sgr != "\x1b[0m" {
-					t.Errorf("drawn without colour, it has %q, want bold alone", sgr)
+				if !slices.Contains([]string{"\x1b[1m", "\x1b[7m", "\x1b[1;7m", "\x1b[m", "\x1b[0m"}, sgr) {
+					t.Errorf("drawn without colour, it has %q, want bold and a selected row's reverse alone", sgr)
 				}
 			}
 			if !strings.Contains(frame, "\x1b[1m") {
@@ -141,12 +144,12 @@ func TestTheTerminalThemeDrawsInTheTerminalsOwnColoursAndShade(t *testing.T) {
 	if look.Canvas() != nil {
 		t.Errorf("Canvas() = %v, want none painted", look.Canvas())
 	}
-	frame := strings.Join(drawn(frames()["wide"], look), "\n")
+	frame := strings.Join(drawn(frames()["sessions"], look), "\n")
 	if strings.Contains(frame, "38;2;") || strings.Contains(frame, "48;2;") {
 		t.Errorf("drawn in the terminal's own colours, it has a colour of its own:\n%q", frame)
 	}
 	text := ansi.Strip(frame)
-	for _, want := range []string{"Session  ██████▋▒▒▒┃▒░░░░░░  37% → 62%", "▒▒ heading"} {
+	for _, want := range []string{"Session  ████████▉▒▒▒▒▒┃░░░░░░░░░  37%  → 62%", "Week     █████████▋▒▒▒┃▒▒▒░░░░░░░  40%  → 70%"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("drawn in the terminal's own colours\n%s\nwant %q, where it can't fade a bar's projection, in shade", text, want)
 		}
@@ -159,7 +162,7 @@ func TestTheTerminalThemeDrawsInTheTerminalsOwnColoursAndShade(t *testing.T) {
 }
 
 func TestTheTerminalThemeDrawsWhatsDimFaintAndWhatsPickedOutReversed(t *testing.T) {
-	f := frames()["wide"]
+	f := frames()["sessions"]
 	f.Fresh = map[int]float64{1: 0.2}
 	rows := drawn(f, dashboard.Screen(builtin(t, theme.Terminal)))
 
@@ -175,8 +178,8 @@ func TestTheTerminalThemeDrawsWhatsDimFaintAndWhatsPickedOutReversed(t *testing.
 	for _, tt := range []struct {
 		name, text, want string
 	}{
-		{name: "a card's border, faint", text: "╭─ ", want: "2"},
-		{name: "the tab shown, reversed", text: "Overview", want: "7"},
+		{name: "a panel's border, faint", text: "┌─ ", want: "2"},
+		{name: "the tab shown, reversed", text: "Sessions", want: "7"},
 		{name: "an event looked at newly, picked out reversed", text: "has room again", want: "7"},
 	} {
 		if params := drawnWith(rows, tt.text); !slices.Contains(params, tt.want) {
@@ -258,15 +261,20 @@ func TestTextFromElsewhereShowsItsControlCharactersAsSpaces(t *testing.T) {
 	doc.Events = append(doc.Events, status.Event{ID: 2, At: now.UTC(), Kind: status.EventMoved, Session: "5b19\x1b[1m", From: "work", To: "side", Reason: "moved: \x07pinned\n"})
 	probed := threeAccounts()
 	probed.Source, probed.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterUnhealthy, Reason: "the router answered\x07\n404"}
+	views := []dashboard.Frame{frames()["wide"], frames()["sessions"], frames()["runway, the day"]}
 	for name, doc := range map[string]status.Document{"from the router": doc, "probing past it": probed} {
 		t.Run(name, func(t *testing.T) {
-			frame := strings.Join(frames()["wide"].Draw(doc, now), "\n")
-			if strings.ContainsAny(frame, "\x1b\t\r\a") {
-				t.Errorf("drew %q, want no control characters from the document", frame)
+			for _, f := range views {
+				if frame := strings.Join(f.Draw(doc, now), "\n"); strings.ContainsAny(frame, "\x1b\t\r\a") {
+					t.Errorf("drew %q, want no control characters from the document", frame)
+				}
 			}
 		})
 	}
-	frame := strings.Join(frames()["wide"].Draw(doc, now), "\n")
+	var frame string
+	for _, f := range views {
+		frame += strings.Join(f.Draw(doc, now), "\n") + "\n"
+	}
 	for _, want := range []string{"Work [31m team", "HTTP 500 · bad gateway", "config [2J changed"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("drew\n%s\nwant it to say %q, its control characters as spaces", frame, want)

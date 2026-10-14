@@ -2,6 +2,7 @@ package watch
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -13,9 +14,8 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// twelve is the probe of twelve accounts, more than a terminal 150 by 50
-// shows at once: in six rows of two compact cards, 47 rows of them, of which
-// 42 show over RECENT's strip.
+// twelve is the probe of twelve accounts, more than Runway shows at once in
+// a terminal of runwaySize.
 func twelve() status.Document {
 	accounts := make([]status.Account, 12)
 	for i := range accounts {
@@ -24,16 +24,31 @@ func twelve() status.Document {
 	return document(accounts...)
 }
 
-// scrolled is the first row of cards the screen shows, under the status line.
-func (h *harness) scrolled() string {
-	return strings.Split(h.view(), "\n")[4]
+// runwaySize is a terminal Runway's lanes of twelve scroll in: 10 rows at
+// most, a page of 25.
+var runwaySize = tea.WindowSizeMsg{Width: 150, Height: 40}
+
+// runwayHarness is a model of the probe of twelve, showing Runway, in a
+// terminal of the size given, started.
+func runwayHarness(t *testing.T, size tea.WindowSizeMsg) *harness {
+	t.Helper()
+	h := newHarness(t, twelve())
+	h.model.view = dashboard.Runway
+	h.update(size)
+	h.start()
+	return h
 }
 
-func TestScrollKeysScrollTheCardsNoFurtherThanTheyGo(t *testing.T) {
-	h := newHarness(t, twelve())
-	h.start()
-	if got := h.model.scrolling(); got.Most != 5 || got.Page != 42 {
-		t.Fatalf("scrolling() = %+v, want 5 rows at most, a page of 42", got)
+// scrolled is the first row of Runway's lanes the screen shows, at
+// runwaySize, under its timeline.
+func (h *harness) scrolled() string {
+	return strings.Split(h.view(), "\n")[13]
+}
+
+func TestScrollKeysScrollTheViewNoFurtherThanItGoes(t *testing.T) {
+	h := runwayHarness(t, runwaySize)
+	if got := h.model.scrolling(); got.Most != 10 || got.Page != 25 {
+		t.Fatalf("scrolling() = %+v, want 10 rows at most, a page of 25", got)
 	}
 	steps := []struct {
 		name string
@@ -43,8 +58,8 @@ func TestScrollKeysScrollTheCardsNoFurtherThanTheyGo(t *testing.T) {
 		{name: "j, a row down", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: 1},
 		{name: "j again", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: 2},
 		{name: "k, a row up", key: tea.KeyPressMsg{Code: 'k', Text: "k"}, want: 1},
-		{name: "PgDn, a page, but no further than they go", key: tea.KeyPressMsg{Code: tea.KeyPgDown}, want: 5},
-		{name: "j at the foot, nowhere", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: 5},
+		{name: "PgDn, a page, but no further than it goes", key: tea.KeyPressMsg{Code: tea.KeyPgDown}, want: 10},
+		{name: "j at the foot, nowhere", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: 10},
 		{name: "PgUp, a page, but no further than the top", key: tea.KeyPressMsg{Code: tea.KeyPgUp}, want: 0},
 		{name: "k at the top, nowhere", key: tea.KeyPressMsg{Code: 'k', Text: "k"}, want: 0},
 	}
@@ -56,20 +71,19 @@ func TestScrollKeysScrollTheCardsNoFurtherThanTheyGo(t *testing.T) {
 	}
 }
 
-func TestScrollingMovesTheCardsUnderTheStatusLineWhichStaysPut(t *testing.T) {
-	h := newHarness(t, twelve())
-	h.start()
-	above := strings.Split(h.view(), "\n")[:4]
+func TestScrollingMovesTheLanesUnderTheTimelineWhichStaysPut(t *testing.T) {
+	h := runwayHarness(t, runwaySize)
+	above := strings.Split(h.view(), "\n")[:13]
 
 	h.press("j")
-	if got := h.scrolled(); !strings.HasPrefix(got, " │  ● open ") {
-		t.Errorf("a row down, the first row shown is %q, want the cards' second", got)
+	if got := h.scrolled(); !strings.Contains(got, "room all day") {
+		t.Errorf("a row down, the first row shown is %q, want the lanes' second", got)
 	}
-	if got := strings.Split(h.view(), "\n")[:4]; strings.Join(got, "\n") != strings.Join(above, "\n") {
-		t.Errorf("the title row and the status line moved, to\n%s", strings.Join(got, "\n"))
+	if got := strings.Split(h.view(), "\n")[:13]; strings.Join(got, "\n") != strings.Join(above, "\n") {
+		t.Errorf("the title row, the status line and the timeline moved, to\n%s", strings.Join(got, "\n"))
 	}
 	lines := strings.Split(h.view(), "\n")
-	if got := strings.TrimSpace(lines[48]); got != "▲ 2 more accounts above · ▼ 2 more accounts below · j/k or wheel to scroll" {
+	if got := strings.TrimSpace(lines[38]); got != "▲ 1 more account above · ▼ 3 more accounts below · j/k or wheel to scroll" {
 		t.Errorf("the line over the key line says %q, want what's out of view", got)
 	}
 }
@@ -94,50 +108,125 @@ func (h *harness) wheel(button tea.MouseButton, x, y int) {
 }
 
 func TestTheWheelScrollsTheViewUnderThePointerAndNothingElse(t *testing.T) {
-	for _, size := range []tea.WindowSizeMsg{{Width: 150, Height: 50}, {Width: 52, Height: 50}} {
+	for _, size := range []tea.WindowSizeMsg{runwaySize, {Width: 52, Height: 30}} {
 		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
-			h := newHarness(t, twelve())
-			h.update(size)
-			h.start()
+			h := runwayHarness(t, size)
 			most := h.model.scrolling().Most
 			if most == 0 {
-				t.Fatalf("the cards scroll no rows at %dx%d, want some", size.Width, size.Height)
+				t.Fatalf("the lanes scroll no rows at %dx%d, want some", size.Width, size.Height)
 			}
-			cardX, cardY := h.drawnAt("╭─ 1 Account A")
+			laneX, laneY := h.drawnAt(" 1 Account A")
 
-			h.wheel(tea.MouseWheelDown, cardX, cardY)
+			h.wheel(tea.MouseWheelDown, laneX, laneY)
 			if want := min(wheelRows, most); h.model.scroll != want {
-				t.Errorf("a turn down over the cards scrolled %d rows, want %d", h.model.scroll, want)
+				t.Errorf("a turn down over the lanes scrolled %d rows, want %d", h.model.scroll, want)
 			}
-			h.wheel(tea.MouseWheelUp, cardX+1, cardY)
+			h.wheel(tea.MouseWheelUp, laneX+1, laneY)
 			if h.model.scroll != 0 {
-				t.Errorf("a turn up over the cards scrolled to %d, want their top", h.model.scroll)
+				t.Errorf("a turn up over the lanes scrolled to %d, want their top", h.model.scroll)
 			}
 			for _, text := range []string{" SWITCHBOARD ", " Runway ", "○ probed", "q quit"} {
 				x, y := h.drawnAt(text)
 				h.wheel(tea.MouseWheelDown, x, y)
 				if h.model.scroll != 0 {
-					t.Errorf("a turn down over %q, at %d,%d, scrolled the cards %d rows, want none", text, x, y, h.model.scroll)
+					t.Errorf("a turn down over %q, at %d,%d, scrolled the lanes %d rows, want none", text, x, y, h.model.scroll)
 				}
 			}
 		})
 	}
 }
 
-func TestTheWheelScrollsTheCardsNoFurtherThanTheyGo(t *testing.T) {
-	h := newHarness(t, twelve())
-	h.start()
-	x, y := h.drawnAt("╭─ 1 Account A")
+func TestTheWheelScrollsTheViewNoFurtherThanItGoes(t *testing.T) {
+	h := runwayHarness(t, runwaySize)
+	x, y := h.drawnAt(" 1 Account A")
 
-	h.wheel(tea.MouseWheelDown, x, y)
-	h.wheel(tea.MouseWheelDown, x, y)
-	h.wheel(tea.MouseWheelDown, x, y)
-	if h.model.scroll != 5 {
-		t.Errorf("three turns down scrolled %d rows, want 5, as far as they go", h.model.scroll)
+	for range 4 {
+		h.wheel(tea.MouseWheelDown, x, y)
+	}
+	if h.model.scroll != 10 {
+		t.Errorf("four turns down scrolled %d rows, want 10, as far as the lanes go", h.model.scroll)
 	}
 	h.wheel(tea.MouseWheelUp, x, y)
-	if h.model.scroll != 5-wheelRows {
-		t.Errorf("a turn up scrolled to %d rows, want %d", h.model.scroll, 5-wheelRows)
+	if h.model.scroll != 10-wheelRows {
+		t.Errorf("a turn up scrolled to %d rows, want %d", h.model.scroll, 10-wheelRows)
+	}
+}
+
+// moreAbove is USAGE's line over its accounts while some are scrolled out of
+// view above, as in "▲ 2 more accounts".
+var moreAbove = regexp.MustCompile(`▲ \d+ more accounts?`)
+
+// tenRouted is the router's document of ten accounts, Account A to Account
+// J, more than USAGE shows at once in a short terminal.
+func tenRouted() status.Document {
+	accounts := make([]status.Account, 10)
+	for i := range accounts {
+		accounts[i] = account(string(rune('a'+i)), "Account "+string(rune('A'+i)), session(0.1, 3*time.Hour), week(0.2))
+	}
+	return routerDocument(accounts...)
+}
+
+func TestUSAGEScrollsAnAccountAtATimeAsTheFocusTheKeysAndTheWheelOverItMoveIt(t *testing.T) {
+	h := routedHarness(t, tenRouted())
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 24})
+	h.start()
+	s := h.model.scrolling()
+	if s.Most == 0 || s.Page == 0 || s.Page >= 10 {
+		t.Fatalf("USAGE scrolls %+v, want some accounts out of view, ten in 24 rows", s)
+	}
+	scrolled := func(step string, want int) {
+		t.Helper()
+		if h.model.scroll != want {
+			t.Errorf("%s, USAGE is scrolled %d accounts, want %d", step, h.model.scroll, want)
+		}
+		if above := moreAbove.MatchString(h.view()); above != (want > 0) {
+			t.Errorf("%s, the screen is\n%s\nwant ▲ over USAGE's accounts only while some are above", step, h.view())
+		}
+	}
+
+	for range s.Page - 1 {
+		h.keys(downKey)
+	}
+	scrolled("↓ to the last account in view", 0)
+	h.keys(downKey)
+	scrolled("↓ past it", 1)
+	for range s.Page {
+		h.keys(upKey)
+	}
+	scrolled("↑ back to the first", 0)
+
+	h.keys(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	scrolled("j", 1)
+	h.keys(tea.KeyPressMsg{Code: 'k', Text: "k"})
+	scrolled("k", 0)
+
+	x, y := h.drawnAt("Account A")
+	h.wheel(tea.MouseWheelDown, x, y)
+	scrolled("a turn of the wheel down over USAGE, an account", 1)
+	h.wheel(tea.MouseWheelUp, x, y)
+	scrolled("a turn up", 0)
+	x, y = h.drawnAt("ROUTING ")
+	h.wheel(tea.MouseWheelDown, x, y)
+	scrolled("a turn down over ROUTING's heading", 0)
+}
+
+func TestAScrollThatMovesNothingLeavesUSAGEScrolledNoFurtherThanItsDrawn(t *testing.T) {
+	short, tall := tea.WindowSizeMsg{Width: 160, Height: 24}, tea.WindowSizeMsg{Width: 160, Height: 80}
+	h := routedHarness(t, tenRouted())
+	h.update(short)
+	h.start()
+	h.keys(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	if h.model.scroll == 0 {
+		t.Fatal("PgDn left USAGE unscrolled, want it scrolled down")
+	}
+	h.update(tall)
+	if most := h.model.scrolling().Most; most != 0 {
+		t.Fatalf("a tall terminal scrolls USAGE %d accounts, want it to fit", most)
+	}
+	h.keys(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	h.update(short)
+	if h.model.scroll != 0 || moreAbove.MatchString(h.view()) {
+		t.Errorf("j, where USAGE fit, then a short terminal again: USAGE is scrolled %d accounts, the screen\n%s\nwant it unscrolled, as it was drawn when j moved nothing", h.model.scroll, h.view())
 	}
 }
 
@@ -147,36 +236,36 @@ func TestTheMouseIsOnWhileTheDashboardRuns(t *testing.T) {
 	for _, size := range []tea.WindowSizeMsg{{Width: 150, Height: 50}, {Width: 150, Height: 80}} {
 		h.update(size)
 		if got := h.model.View().MouseMode; got != tea.MouseModeCellMotion {
-			t.Errorf("at %dx%d, the mouse mode is %v, want clicks and the wheel, whether or not the cards scroll", size.Width, size.Height, got)
+			t.Errorf("at %dx%d, the mouse mode is %v, want clicks and the wheel, whether or not the view scrolls", size.Width, size.Height, got)
 		}
 	}
 }
 
 func TestAScrollTheScreenNoLongerTakesIsDrawnAsFarAsItGoes(t *testing.T) {
-	h := newHarness(t, twelve())
-	h.start()
+	h := runwayHarness(t, runwaySize)
 	h.update(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	h.update(tea.WindowSizeMsg{Width: 150, Height: 51})
-	if most := h.model.scrolling().Most; most != 4 {
-		t.Fatalf("a taller terminal scrolls %d rows at most, want 4", most)
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 41})
+	if most := h.model.scrolling().Most; most != 9 {
+		t.Fatalf("a taller terminal scrolls %d rows at most, want 9", most)
 	}
 	at := h.scrolled()
 	h.press("k")
-	if h.model.scroll != 3 || h.scrolled() == at {
-		t.Errorf("k, from as far as the cards go, scrolled to %d, showing %q; want 3, a row up from where they were drawn", h.model.scroll, h.scrolled())
+	if h.model.scroll != 8 || h.scrolled() == at {
+		t.Errorf("k, from as far as the lanes go, scrolled to %d, showing %q; want 8, a row up from where they were drawn", h.model.scroll, h.scrolled())
 	}
 }
 
-func TestTheCardsScrollAsFarAsTheyreDrawnWhileTheBarsRise(t *testing.T) {
+func TestTheViewScrollsAsFarAsItsDrawnWhileTheBarsRise(t *testing.T) {
 	accounts := make([]status.Account, 12)
 	for i := range accounts {
 		accounts[i] = account(string(rune('a'+i)), "Account "+string(rune('A'+i)), session(0.1, 3*time.Hour), week(0.2), fableWeek(0.1))
 	}
 	h := newHarness(t, document(accounts...))
+	h.model.view = dashboard.Sessions
 	h.start()
 	now := h.model.now()
-	if got, want := h.model.scrolling(), h.model.frame(now).Scrolling(h.model.doc, now); got != want {
-		t.Errorf("as the bars rise from nothing, the cards scroll %+v, want %+v, as far as the cards drawn, Fable's bars among them, go", got, want)
+	if got, want := h.model.scrolling(), h.model.frame(now).Scrolling(h.model.doc, now); got != want || got.Most == 0 {
+		t.Errorf("as the bars rise from nothing, Sessions scrolls %+v, want %+v, as far as the panels drawn, Fable's bars among them, go", got, want)
 	}
 }
 
@@ -209,6 +298,7 @@ func TestTheWheelScrollsHelpUnderThePointerAndNotThePageAroundIt(t *testing.T) {
 	for _, size := range []tea.WindowSizeMsg{{Width: 150, Height: 12}, {Width: 52, Height: 16}} {
 		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
 			h := newHarness(t, twelve())
+			h.model.view = dashboard.Sessions
 			h.update(size)
 			h.start()
 			h.press("?")
@@ -217,17 +307,17 @@ func TestTheWheelScrollsHelpUnderThePointerAndNotThePageAroundIt(t *testing.T) {
 			if most == 0 {
 				t.Fatalf("help scrolls no rows at %dx%d, want some", size.Width, size.Height)
 			}
-			left, top := h.drawnAt("╭─ HELP · OVERVIEW")
+			left, top := h.drawnAt("╭─ HELP · SESSIONS")
 
 			for _, cell := range [][2]int{{0, 0}, {left - 1, top + 2}, {left, top - 1}, {size.Width / 2, size.Height - 1}} {
 				h.wheel(tea.MouseWheelDown, cell[0], cell[1])
 				if h.model.help.scroll != 0 || h.model.scroll != 0 {
-					t.Errorf("a turn down at %d,%d, off help's card, scrolled help %d rows and the cards %d; want neither", cell[0], cell[1], h.model.help.scroll, h.model.scroll)
+					t.Errorf("a turn down at %d,%d, off help's card, scrolled help %d rows and the page %d; want neither", cell[0], cell[1], h.model.help.scroll, h.model.scroll)
 				}
 			}
 			h.wheel(tea.MouseWheelDown, left+4, top+2)
 			if want := min(wheelRows, most); h.model.help.scroll != want || h.model.scroll != 0 {
-				t.Errorf("a turn down over help's card scrolled it %d rows and the cards %d; want help %d, the cards none", h.model.help.scroll, h.model.scroll, want)
+				t.Errorf("a turn down over help's card scrolled it %d rows and the page %d; want help %d, the page none", h.model.help.scroll, h.model.scroll, want)
 			}
 			h.wheel(tea.MouseWheelUp, left, top)
 			if h.model.help.scroll != 0 {
@@ -239,6 +329,7 @@ func TestTheWheelScrollsHelpUnderThePointerAndNotThePageAroundIt(t *testing.T) {
 
 func TestHelpScrollsWithinItsCard(t *testing.T) {
 	h := newHarness(t, twelve())
+	h.model.view = dashboard.Sessions
 	h.update(tea.WindowSizeMsg{Width: 150, Height: 12})
 	h.start()
 	h.press("?")
@@ -262,7 +353,7 @@ func TestHelpScrollsWithinItsCard(t *testing.T) {
 	for _, step := range steps {
 		h.update(step.key)
 		if h.model.help.scroll != step.want || h.model.scroll != 0 || !h.inHelp() {
-			t.Errorf("%s: help scrolled %d rows, the cards %d, help open %v; want help %d, the cards none, help open", step.name, h.model.help.scroll, h.model.scroll, h.inHelp(), step.want)
+			t.Errorf("%s: help scrolled %d rows, the page %d, help open %v; want help %d, the page none, help open", step.name, h.model.help.scroll, h.model.scroll, h.inHelp(), step.want)
 		}
 	}
 	h.press("?")
@@ -289,13 +380,60 @@ func TestTheWheelDoesNothingWhileTheRoutingCardIsOpen(t *testing.T) {
 }
 
 func TestOnlyTheWheelScrolls(t *testing.T) {
-	h := newHarness(t, twelve())
-	h.start()
-	x, y := h.drawnAt("╭─ 1 Account A")
+	h := runwayHarness(t, runwaySize)
+	x, y := h.drawnAt(" 1 Account A")
 	for _, button := range []tea.MouseButton{tea.MouseWheelLeft, tea.MouseWheelRight, tea.MouseLeft} {
 		h.wheel(button, x, y)
 		if h.model.scroll != 0 {
-			t.Errorf("button %v scrolled the cards %d rows, want none", button, h.model.scroll)
+			t.Errorf("button %v scrolled the lanes %d rows, want none", button, h.model.scroll)
 		}
+	}
+}
+
+func TestAScrollLaysTheOverviewOutAfreshOnlyWhereItMoves(t *testing.T) {
+	over := func(button tea.MouseButton) func(*harness) {
+		return func(h *harness) {
+			x, y := h.drawnAt("Account A")
+			h.wheel(button, x, y)
+		}
+	}
+	tests := []struct {
+		name   string
+		input  func(*harness)
+		scroll int
+		afresh bool
+	}{
+		{name: "k at the top", input: func(h *harness) { h.keys(tea.KeyPressMsg{Code: 'k', Text: "k"}) }},
+		{name: "PgUp at the top", input: func(h *harness) { h.keys(tea.KeyPressMsg{Code: tea.KeyPgUp}) }},
+		{name: "the wheel turned up over USAGE at the top", input: over(tea.MouseWheelUp)},
+		{name: "j", input: func(h *harness) { h.keys(tea.KeyPressMsg{Code: 'j', Text: "j"}) }, scroll: 1, afresh: true},
+		{name: "the wheel turned down over USAGE", input: over(tea.MouseWheelDown), scroll: 1, afresh: true},
+	}
+	var laid []dashboard.Layout
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, tenRouted())
+			h.update(tea.WindowSizeMsg{Width: 160, Height: 30})
+			h.start()
+			h.deliver(h.press("s")...)
+			h.source.sessions = []status.Session{
+				sessionOn(idD28C, "claude-opus-5-5", "a", 10*time.Second), sessionOn(id7F3A, "claude-sonnet-5-5", "b", time.Minute),
+			}
+			h.tickUntilAsked()
+			kept := h.model.layout
+			tt.input(h)
+			if h.model.scroll != tt.scroll {
+				t.Fatalf("USAGE is scrolled %d accounts, want %d", h.model.scroll, tt.scroll)
+			}
+			if afresh := h.model.layout != kept; afresh != tt.afresh {
+				t.Errorf("laid out afresh %v, want %v: only a scroll that moves USAGE lets the layout kept go, as sessions started", afresh, tt.afresh)
+			}
+			if tt.afresh {
+				laid = append(laid, h.model.layout)
+			}
+		})
+	}
+	if len(laid) == 2 && laid[0] != laid[1] {
+		t.Errorf("the wheel laid the Overview out as %+v, want it as j does, %+v", laid[1], laid[0])
 	}
 }

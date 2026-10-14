@@ -11,9 +11,11 @@ import (
 
 // usageWords are what a window's words say of it, in full and short, as the
 // usage block draws them: the full form from fullWords columns, the short
-// below.
+// below; and the figure they lead with in either, where they lead with one,
+// an allowance or the pool's room.
 type usageWords struct {
 	full, short line
+	leads       NumberKind
 }
 
 // fullWords is the fewest columns the usage block draws its words in full at.
@@ -31,12 +33,12 @@ func alike(words string, k ink) usageWords {
 	return usageWords{full: l, short: l}
 }
 
-// wordsOf are the words of a window standing as st says at now, its
-// allowance a: what holds it back, and until when; when it runs out; that it
-// isn't started; or the allowance, to its reset. A time reads as Dated has it
-// in full, and short, its time today and only its weekday for another day;
-// but a reading's, as lastRead has it.
-func wordsOf(st status.WindowState, a quota.Allowance, now time.Time) usageWords {
+// wordsOf are the words of a window standing as st says at now: what holds
+// it back, and until when; when it runs out; that it isn't started; or its
+// allowance, to its reset. A time reads as Dated has it in full, and short,
+// its time today and only its weekday for another day; but a reading's, as
+// lastRead has it.
+func wordsOf(st status.WindowState, now time.Time) usageWords {
 	switch st.Kind {
 	case status.WindowTokenless:
 		return alike("no token", errorInk)
@@ -54,7 +56,7 @@ func wordsOf(st status.WindowState, a quota.Allowance, now time.Time) usageWords
 	case status.WindowNotStarted:
 		return alike("not started", mutedInk)
 	default:
-		return allowed(a, st.At, now)
+		return allowed(st.Allowance, st.At, now)
 	}
 }
 
@@ -90,6 +92,7 @@ func allowed(a quota.Allowance, reset time.Time, now time.Time) usageWords {
 	return usageWords{
 		full:  line{rate, {" till ", dimInk}, {status.Dated(now, reset), mutedInk}},
 		short: line{rate, {" · ", dimInk}, {brief(now, reset), mutedInk}},
+		leads: NumberAllowance,
 	}
 }
 
@@ -101,13 +104,34 @@ var perWords = map[string]string{quota.PerHour: "/h", quota.PerDay: "/day"}
 // where pinned is set, " · pinned" after.
 func poolWords(room float64, accounts int, pinned bool) usageWords {
 	l := line{
-		{strconv.FormatFloat(float64(halfEven(room*10))/10, 'f', 1, 64), strongInk},
+		{tenths(room), strongInk},
 		{" of " + strconv.Itoa(accounts) + " left", mutedInk},
 	}
 	if pinned {
 		l = append(l, span{" · pinned", mutedInk})
 	}
-	return usageWords{full: l, short: l}
+	return usageWords{full: l, short: l, leads: NumberRoom}
+}
+
+// tenths is room, in accounts' worth, to a tenth, as in "1.5".
+func tenths(room float64) string {
+	return strconv.FormatFloat(float64(halfEven(room*10))/10, 'f', 1, 64)
+}
+
+// faint is the words in text.faint, whatever their colours, as the Overview
+// words a window of an account out of the pool.
+func (w usageWords) faint() usageWords {
+	w.full, w.short = inFaint(w.full), inFaint(w.short)
+	return w
+}
+
+// inFaint is the line in text.faint, span for span.
+func inFaint(l line) line {
+	faint := make(line, len(l))
+	for i, s := range l {
+		faint[i] = span{s.text, faintInk}
+	}
+	return faint
 }
 
 // pick is the words as a block width columns wide draws them, in room cells,
@@ -123,14 +147,18 @@ func (w usageWords) pick(width, room int) line {
 
 // percentage is the bar's use as the usage block shows it: as a whole
 // percentage, in bold, in the ramp's last stop from 90%, its second from 70%,
-// and its first below, judged on the percentage shown; a stale reading's in
-// text.subtle, not bold; and of an empty bar, none, as — in text.faint.
+// and its first below, judged on the percentage shown; on the Overview, of an
+// account out of the pool, in bold text.faint, stale or not, as faint wins
+// over any colour; a stale reading's in text.subtle, not bold; and of an
+// empty bar, none, as — in text.faint.
 func (b usageBar) percentage() line {
 	shown := status.WholePercent(b.used)
 	k := ink{token: theme.VizRamp1, bold: true}
 	switch {
 	case b.empty:
 		return line{{"—", faintInk}}
+	case b.out:
+		k.token = theme.TextFaint
 	case b.stale:
 		k = dimInk
 	case shown >= 90:

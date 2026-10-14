@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -27,13 +26,15 @@ const (
 )
 
 // The labels at the lanes' left: the strip's, over the day and over the
-// week, under its heading; the most cells a name takes; the blank cells
-// between a badge, at the labels' right, and the lane; and the next
-// account's badge, briefly, where its name has too little room beside it.
+// week, under its heading, and the blank cells after them; the most cells a
+// name takes; the blank cells between a badge, at the labels' right, and the
+// lane; and the next account's badge, briefly, where its name has too little
+// room beside it.
 const (
 	stripHead      = "ROOM"
 	dayStripLabel  = "accounts with room"
 	weekStripLabel = "weeks with room"
+	labelGap       = 3
 	nameCells      = 24
 	badgeGap       = 2
 	briefNext      = "▲"
@@ -141,6 +142,12 @@ func (l runwayLayout) hidden(offset int) (above, below int) {
 		}
 	}
 	return above, below
+}
+
+// foot is where Runway's legend goes, over the line over the key line, and
+// where that line goes, over the key line.
+func (f Frame) foot() (legend, over int) {
+	return f.Height - 3, f.Height - 2
 }
 
 // lanesAt is the column lanes start at, as their labels leave it, on a
@@ -398,7 +405,7 @@ func (f Frame) badge(doc status.Document, l lane, now time.Time) line {
 	if len(weeks) == 0 {
 		return nil
 	}
-	s := standingOf(doc, l.account, weeks[0], now, f.Policy)
+	s := standingOf(doc, l.account, weeks[0].window, l.states, now)
 	if s.runsOut {
 		return line{s.use(warningInk)}
 	}
@@ -426,7 +433,7 @@ func (f Frame) runwayLane(c *canvas, doc status.Document, ln lane, cells []room,
 		c.text(l.x+col, y, glyph, k)
 	}
 	for _, w := range f.weeks(ln) {
-		if col := l.timeline.column(w.ResetsAt); col >= 0 && col < l.timeline.columns {
+		if col := l.timeline.column(w.next); col >= 0 && col < l.timeline.columns {
 			c.text(l.x+col, y, resetGlyph, titleInk)
 		}
 	}
@@ -454,11 +461,11 @@ func (f Frame) cellOf(r room) (string, ink) {
 
 // weeks are the windows of lane l's account the week counts, in the
 // account's order: none over the day, nor of an account nothing is known of.
-func (f Frame) weeks(l lane) []quota.Window {
-	if f.Span != Week || !l.known {
+func (f Frame) weeks(l lane) []laneWindow {
+	if f.Span != Week {
 		return nil
 	}
-	return slices.DeleteFunc(slices.Clone(l.account.Windows), func(w quota.Window) bool { return !f.counts(w) })
+	return l.counted
 }
 
 // placed is words placed under a lane, from its column col of the timeline.
@@ -471,10 +478,10 @@ type placed struct {
 // the column it's of, left to right, saysGap clear of those before, and
 // those after them left off where they don't fit whole: what holds it back
 // over each stretch without room, as placedTold places it; over the week, at
-// each week's reset in view that no stretch is back at, ending under it,
-// when it resets and how much it will have used by then; and where neither
-// is, from just after now, that it has room all along, or that nothing has
-// been read of it.
+// each week's next reset in view, as it stands at now, as WindowAt has it,
+// that no stretch is back at, ending under it, when it resets and how much it
+// will have used by then; and where neither is, from just after now, that it
+// has room all along, or that nothing has been read of it.
 func (f Frame) laneWords(c *canvas, doc status.Document, ln lane, l runwayLayout, now time.Time, y int) {
 	tl := l.timeline
 	var words []placed
@@ -482,12 +489,12 @@ func (f Frame) laneWords(c *canvas, doc status.Document, ln lane, l runwayLayout
 		words = append(words, placedTold(s, tl, now)...)
 	}
 	for _, w := range f.weeks(ln) {
-		col := tl.column(w.ResetsAt)
-		back := slices.ContainsFunc(ln.stretches, func(s stretch) bool { return s.until.Equal(w.ResetsAt) })
+		col := tl.column(w.next)
+		back := slices.ContainsFunc(ln.stretches, func(s stretch) bool { return s.until.Equal(w.next) })
 		if col < 0 || col >= tl.columns || back {
 			continue
 		}
-		says := resetSays(standingOf(doc, ln.account, w, now, f.Policy), now)
+		says := resetSays(standingOf(doc, ln.account, w.window, ln.states, now), w.next, now)
 		words = append(words, placed{col: max(col-says.width()+1, 0), words: says})
 	}
 	if len(words) == 0 {
@@ -506,10 +513,10 @@ func (f Frame) laneWords(c *canvas, doc status.Document, ln lane, l runwayLayout
 }
 
 // placedTold places what's told of the stretch s, as stretch.told has it, on
-// the timeline: its first cause's words from the column the stretch shows
-// from, and each other's from the column it shows from, none before the
-// first's; a cause that shows in none, as one starting after the timeline,
-// left untold.
+// the timeline: the first cause said from the column the stretch shows from,
+// and each other from the column it shows from, none before the first's. A
+// cause over at now, as over says, isn't said, so neither is a stretch over;
+// nor is one that shows in no column, as one starting after the timeline.
 func placedTold(s stretch, tl timeline, now time.Time) []placed {
 	first, ok := s.column(tl)
 	if !ok {
@@ -517,9 +524,13 @@ func placedTold(s stretch, tl timeline, now time.Time) []placed {
 	}
 	var told []placed
 	for i, says := range s.told(now) {
+		c := s.causes[i]
+		if c.over(now) {
+			continue
+		}
 		col := first
-		if i > 0 {
-			if col, ok = s.causes[i].column(tl); !ok {
+		if len(told) > 0 {
+			if col, ok = c.column(tl); !ok {
 				continue
 			}
 			col = max(col, first)
@@ -529,11 +540,11 @@ func placedTold(s stretch, tl timeline, now time.Time) []placed {
 	return told
 }
 
-// resetSays is what's said where a week standing as s resets: when, and
-// where it's heading, how much it will have used by then, as in "resets Mon
-// 21:00 · 87% used by then".
-func resetSays(s standing, now time.Time) line {
-	l := line{{"resets " + status.Dated(now, s.window.ResetsAt), secondaryInk}}
+// resetSays is what's said where a week standing as s resets next, at next:
+// when, and where it's heading, how much it will have used by then, as in
+// "resets Mon 21:00 · 87% used by then".
+func resetSays(s standing, next, now time.Time) line {
+	l := line{{"resets " + status.Dated(now, next), secondaryInk}}
 	if share, ok := s.projected(); ok {
 		l = append(l, span{status.Separator + status.Percent(share) + " used by then", mutedInk})
 	}
@@ -544,17 +555,22 @@ func resetSays(s standing, now time.Time) line {
 // view: that nothing has been read of its account; else that it has room
 // all day, and when it runs out, where it's heading to beyond the day shown,
 // as in "room all day · week runs out ~Sun 04:06"; or all week, and when its
-// week resets, beyond the week shown.
+// first week resets next, as it stands at now, as WindowAt has it, beyond the
+// week shown.
 func (f Frame) allAlong(l lane, now time.Time) line {
-	switch weeks := f.weeks(l); {
+	var next time.Time
+	if weeks := f.weeks(l); len(weeks) > 0 {
+		next = weeks[0].next
+	}
+	switch {
 	case !l.known:
 		return line{{"not read yet", dimInk}}
 	case f.Span != Week && l.drained != "":
 		return line{{"room all day" + status.Separator + l.drained, dimInk}}
 	case f.Span != Week:
 		return line{{"room all day", dimInk}}
-	case len(weeks) > 0 && !weeks[0].ResetsAt.IsZero():
-		return line{{"room all week" + status.Separator + "resets " + status.Dated(now, weeks[0].ResetsAt), dimInk}}
+	case !next.IsZero():
+		return line{{"room all week" + status.Separator + "resets " + status.Dated(now, next), dimInk}}
 	default:
 		return line{{"room all week", dimInk}}
 	}

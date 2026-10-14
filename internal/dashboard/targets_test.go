@@ -30,7 +30,7 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 		rows := textOf(f.Draw(threeRouted(), now))
 		var tabs []View
 		var keys []string
-		for _, tt := range f.Targets() {
+		for _, tt := range f.Targets(threeRouted(), now) {
 			var want string
 			switch tt.On {
 			case OnTab:
@@ -38,6 +38,15 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 			case OnKey:
 				i := slices.IndexFunc(f.keysAt(), func(k keyAt) bool { return k.key.Key == tt.Key })
 				keys, want = append(keys, tt.Key), f.keysAt()[i].key.words().plain()
+			case OnSection:
+				if heading := under(rows, tt); strings.HasPrefix(heading, tt.Section.heading()+" ") && strings.HasSuffix(heading, "─ "+tt.Section.Key()) {
+					want = heading
+				}
+			case OnAccount:
+				named := func(y int) bool { return y >= 0 && strings.Contains(rows[y], " "+tt.Account+" ") }
+				if row := under(rows, tt); named(tt.Y) || named(tt.Y-1) && strings.HasSuffix(row, "/min") {
+					want = row
+				}
 			}
 			if got := under(rows, tt); got != want || want == "" {
 				t.Errorf("at %d columns on %s, target %+v is over %q, want %q", f.Width, f.View, tt, got, want)
@@ -53,7 +62,7 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 }
 
 func TestAPhonesTabsAreTargetsOnTheRowOfTheirOwn(t *testing.T) {
-	for _, tt := range clickable(52, 33, Overview).Targets() {
+	for _, tt := range clickable(52, 33, Overview).Targets(threeRouted(), now) {
 		if tt.On == OnTab && tt.Y != 1 {
 			t.Errorf("on a phone, %s's tab is a target on row %d, want row 2", tt.Tab, tt.Y+1)
 		}
@@ -68,8 +77,8 @@ func TestTheKeyLinesKeysAreNoTargetsWhereTheyArentDrawn(t *testing.T) {
 		"where the line has no row of its own": clickable(160, 1, Overview),
 	}
 	for name, f := range tests {
-		if i := slices.IndexFunc(f.Targets(), func(t Target) bool { return t.On == OnKey }); i >= 0 {
-			t.Errorf("%s, %+v is a target, want no key", name, f.Targets()[i])
+		if targets := f.Targets(threeRouted(), now); slices.ContainsFunc(targets, func(t Target) bool { return t.On == OnKey }) {
+			t.Errorf("%s, the targets are %+v, want no key", name, targets)
 		}
 	}
 }

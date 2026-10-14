@@ -99,27 +99,24 @@ frame, with the cells `cells_test.go` reads and compares:
 - **What's held of a frame owed:** `holds`, beside `owed`, holds part of a frame no fixture draws
   yet, drawn over the frame's world with the keys that reach it, at the frame's size, and compared
   as a whole frame is, cell for cell, but over that part alone (`compareWithin`, in
-  `cells_test.go`), passing over the same cells. Stage 6, the page, holds two parts. **The
-  chrome,** rows 1 to 4, the title row and the status line, or 1 to 5 on a phone, whose tabs take a
-  row of their own: of `overview-default-160`, `overview-pinned-160` and `overview-bad-hour-160`,
-  over the auto, pinned and bad hour worlds; of `accounts-compare-160`, `history-year-160`,
+  `cells_test.go`), passing over the same cells. Stage 6, the page, held the chrome and the routing
+  card's box; stage 7 draws the Overview's frames and the routing card's whole, so `holds` keeps
+  **the chrome** alone, rows 1 to 4, the title row and the status line, or 1 to 5 on a phone, whose
+  tabs take a row of their own: of `accounts-compare-160`, `history-year-160`,
   `sessions-switchboard-160`, `runway-5-hour-160` and `log-requests-160`, over the auto world, its
-  tab reached with `tab`; and of `overview-phone-52` and `sessions-phone-52`. **The routing card's
-  box,** rows 10 to 27 and columns 40 to 121, which holds nothing of the page faded behind it:
-  `routing-auto-160` with `p`, `routing-two-160` with `p`, `2` and `3`, and `routing-move-160` with
-  `p`, `2` and `m`, over the auto world, which lists the Overview's six sessions, so the card's cost
-  is the moving set's, priced from the world's ledger as the watch prices it; and
-  `routing-limit-160` with `p` and `3`, over routing's world of a limit, where the router lists all
-  six on side. A frame's stem leaves `holds` as a fixture comes to draw it whole.
+  tab reached with `tab`, and of `sessions-phone-52`. A frame's stem leaves `holds` as a fixture
+  comes to draw it whole.
 - **The cells passed over** are `passedOver`, by stem: a row, or a row's cells from one column to
-  another, each with what the frame's `.txt` reads there, which a test checks, as it checks that
-  this file names every stem in it.
+  another, each with what the frame's `.txt` reads there: the words it starts with; or blank; or,
+  where the frame draws a trace or a chart from data no world gives, those glyphs alone, a chart's
+  lines among them. A test checks each, as it checks that this file names every stem in it.
 
 ## The cells passed over
 
-The cells a frame drew otherwise than `docs/design.md` says, by row and column, counted from 1 as
-the frame's `.txt` reads in an editor, and what the dashboard draws in their place, as the design
-says (see Files, "The capture harness", in `docs/design.md`).
+The cells a frame drew otherwise than `docs/design.md` says, or than its world gives (see What the
+worlds give otherwise than the frames), by row and column, counted from 1 as the frame's `.txt`
+reads in an editor, and what the dashboard draws in their place, as the design says and the world
+gives (see Files, "The capture harness", in `docs/design.md`).
 
 **`usage`'s printout, where its frames and the design part:**
 
@@ -207,7 +204,113 @@ as Keys has them:
   columns 93 to 99), where its weeks average 6%, `6% used`; and `extra`'s `80% left at a reset`
   (row 22, columns 96 to 114), where its weeks average 78%, `78% left at a reset`.
 
-**The routing card's box,** held in part (see How the frames are held):
+**The Overview, and the page behind the routing card, where their frames and the design part:**
+
+- **Even pace, a cell off,** as in `usage`'s frames, on the same windows: work's week and Fable
+  week on the compact matrix's row 9, columns 73 and 74 and 121 and 122, of
+  `overview-default-160`, `overview-pinned-160`, `overview-bad-hour-160`,
+  `overview-usage-alone-160`, `overview-everything-160x39` and `overview-six-accounts-160`, and
+  above the card, of `routing-auto-160`, `routing-two-160`, `routing-move-160` and
+  `routing-limit-160`; columns 74 and 75 and 122 and 123 of `overview-ten-accounts-160`, whose
+  numbers take two cells; by account, columns 52 and 53 of rows 9 and 11 of
+  `overview-by-account-160`; and in the big bars of `overview-default-216`,
+  `overview-sessions-216` and `overview-everything-216x106`, work's 5-hour window, 50.7% gone,
+  placed as if 51%, row 9, columns 103 and 104, and its week and Fable week, rows 20 and 31,
+  columns 107 and 108.
+- **Even pace, placed otherwise than the design's rule places it for the reset the frame gives,**
+  on the extras of `overview-six-accounts-160`, and of `overview-ten-accounts-160` a column on:
+  client's 5-hour window, resetting at 17:40, row 15, columns 23 and 24, and its week and Fable
+  week, at Sun 23:00, columns 73 and 74 and 121 and 122; spare's 5-hour window, at 19:35, row 17,
+  columns 17 and 18, the frame's `▋┃`, where the rule puts `┃` on the bar's first cell; and lab's
+  week and Fable week, at Mon 08:00, row 19, columns 72 and 73 and 120 and 121. Of ten alone:
+  team's 5-hour window, at 15:30, row 21, columns 29 to 31, and its week and Fable week, at Sat
+  22:00, columns 76 and 77 and 124 and 125; and studio's 5-hour window, at 16:20, row 27, columns
+  27 to 29, and its week and Fable week, at Sun 06:00, columns 72 to 76 and 120 to 124.
+- **GRAPHS' now, a column late,** in work's 5-hour chart at 216 columns, 64 cells wide: the frames
+  place now's column as if its pace were 51%, a column past the design's
+  `min(round(pace × width), width − 1)`, so they fill column 50, past the dashboard's now, and start
+  `now` on the axis a cell on, columns 48 to 51: rows 23 to 40, and 41, of
+  `overview-sessions-graphs-216`, and rows 45 to 62, and 63, of `overview-everything-216x106`.
+- **A state cut by whole clauses,** beside a block, by account: row 7 of `overview-by-account-160`,
+  columns 133 to 160, where the frame runs work's state to the edge, and the design ends it two
+  cells before it, so the dashboard draws `● at its cap · back 17:10` without
+  ` · new sessions go elsewhere`.
+- **A start under a pin, `as pinned`:** row 33 of `overview-bad-hour-160`, columns 112 to 137,
+  the frame's `: personal is at its limit` after `c61b started on side`, under a pin of personal
+  and side; LATELY's marks word a start under a pin `as pinned`, which the dashboard draws. The
+  design doesn't say how a start under a pin of several reads where it passed the first over.
+- **A folded heading's first line, as its section draws it:** row 37 of
+  `overview-everything-160x39`, columns 117 to 120, LATELY's `side`, which the frame draws in
+  `text.muted`; folded, LATELY keeps its first row as drawn, its object in bold `text.secondary`.
+- **An account out of the pool, faint wherever the page names it,** where the frames draw
+  COMING UP's and LATELY's names in their colours: in `overview-pinned-160`, `work` at columns 8 to
+  11 and 92 to 95 of row 34, and `side` at 134 to 137 of row 34 and 8 to 11 of row 35; in
+  `overview-bad-hour-160`, `work` at 92 to 95 of row 34.
+
+**The Overview, and the page behind the routing card, where their worlds give otherwise** (see What
+the worlds give otherwise than the frames), which the dashboard draws as its world gives it:
+
+- **Side's week, where it runs out,** `out ~Fri 12:20`, as in `usage`'s frames: row 13, columns 88
+  to 108, of `overview-default-160`, `overview-pinned-160`, `overview-bad-hour-160`,
+  `overview-usage-alone-160`, `overview-everything-160x39` and `overview-six-accounts-160`, 89 to
+  109 of `overview-ten-accounts-160`, and 126 to 146 of `overview-sessions-graphs-216`; row 23,
+  columns 82 to 102, of `overview-by-account-160`; row 24, columns 194 to 214, of
+  `overview-default-216`, `overview-sessions-216` and `overview-everything-216x106`; and short,
+  `out ~Fri`, columns 38 to 49 of row 25 of `overview-phone-52`.
+- **Personal's 5-hour window at its limit,** which the frames place as if it reset at 16:30, as the
+  auto world's does, though they say the limit lifts at 15:54, when the world's window, primed at
+  10:54, resets: its even pace, row 11, columns 27 to 29, and the pool's, row 15, columns 23 and 24
+  of `overview-bad-hour-160` and 24 and 25 of `routing-limit-160`.
+- **The extras' typed figures,** in `overview-six-accounts-160`, and in
+  `overview-ten-accounts-160` a column on: client's 5-hour words, `16%/h till 17:40`, row 15,
+  columns 40 to 55, where the world has it running out ~16:40, and so under pressure in ROUTING,
+  row 30, columns 17 to 45 (row 38 of ten), the frame's `● open`; its week's and Fable week's
+  allowances, `14%/day` and `25%/day`, columns 88 to 94 and 136 to 142; spare's 5-hour rate,
+  `19%/h`, row 17, columns 40 to 44, and its week and Fable week, which the frames reset `Thu 18:00`
+  with their even pace two days in, where the world resets them today at 18:00: their even paces,
+  columns 70 to 80 and 118 to 128, and words, 88 to 109 and 136 to 157; lab's 5-hour even pace, row
+  19, columns 26 and 27, its window starting at 11:55 in the world, later than the frame's; its
+  week's words, `11%/day till Mon 08:00`, columns 88 to 109, where the world has it run out ~Sat
+  23:41; its Fable week's allowance, `20%/day`, columns 136 to 142; and the pool's week's and Fable
+  week's even paces, the mean of its accounts', row 21, columns 73 to 75 and 121 to 123 (row 29 of
+  ten). Of ten alone: team's week's words, `4%/day till Sat 22:00`, row 21, columns 89 to 109, where
+  the world has it run out ~Fri 13:47, and its Fable week's allowance, columns 137 to 143; and the
+  5-hour rates and the weeks' allowances of extra, ops and studio, rows 23, 25 and 27, columns 41 to
+  45, 89 to 95 and 137 to 143.
+- **COMING UP,** as each world's status document gives it: at 216 columns, side's week running out
+  comes fourth, so the frames' lines from their fourth are a line early, columns 1 to 97, rows 58
+  to 62 of `overview-default-216`, 67 and 68 of `overview-sessions-216`, and 91 to 95 of
+  `overview-everything-216x106`, where the frames' eighth rows are blank; in the bad hour, rows 33
+  to 35, columns 1 to 72, which list work back from its cap at 17:10 and not personal's week running
+  out; under routing's limit, row 33, columns 1 to 72, which starts
+  `15:54  personal back from its limit`; and of six and ten accounts, rows 37 to 39 and 49 to 51,
+  columns 1 to 72, which start with lab running out ~16:05, of ten after team back from its limit
+  at 15:30, where the frames list the auto world's three.
+- **LATELY at 216 columns,** from its eighth line, as the world's day holds d28c's start at 12:02:
+  rows 62 to 66 of `overview-default-216` and 95 to 99 of `overview-everything-216x106`, columns 111
+  to 216.
+- **The traces and their rates,** which the frames draw from the generators' curves: each trace's
+  cells, from column 93 to eight columns from the edge, where its rate starts, and its rate.
+  ROUTING's at size 2, on rows 21 and 22, 24 and 25, and 27 and 28 of `overview-default-160`,
+  `overview-pinned-160` and `overview-bad-hour-160`, and of `routing-auto-160`, `routing-two-160`,
+  `routing-move-160` and `routing-limit-160` beside the card, from column 122, and under it, on row
+  28; on rows 43 to 50 of `overview-default-216` and `overview-sessions-216`, 45 to 52 of
+  `overview-sessions-graphs-216`, and 67 to 74 of `overview-everything-216x106`; personal's upper
+  row, blank in the frames, held blank. At size 1, rows 31 to 33 of `overview-everything-160x39`, 27
+  to 32 of `overview-six-accounts-160` and 35 to 44 of `overview-ten-accounts-160`. Beside USAGE's
+  blocks, rows 11, 18, 25 and 32 of `overview-by-account-160`, from column 108. On a phone, rows 46,
+  49 and 52 of `overview-phone-52`, the trace at columns 17 to 32 and the rate at 46 to 52. And
+  SESSIONS', rows 55 to 60 of `overview-sessions-216`, 57 to 62 of `overview-sessions-graphs-216`
+  and 79 to 84 of `overview-everything-216x106`. The dashboard's own tests hold how a trace is
+  drawn.
+- **GRAPHS' fills,** of work's windows, which its world read otherwise: in
+  `overview-everything-160x39`, the 5-hour window's, rows 22 to 26, columns 17 to 37, the week's,
+  rows 25 and 26, columns 68 to 87, and the Fable week's, row 26, columns 118 to 136; in
+  `overview-sessions-graphs-216`, rows 23 to 40, columns 17 to 47, rows 34 to 40, columns 87 to
+  117, and rows 38 to 40, columns 158 to 184; and in `overview-everything-216x106`, the same
+  columns of rows 45 to 62, 56 to 62 and 60 to 62.
+
+**The routing card:**
 
 - **The windows' figures,** coloured along a ramp in the frames, where the design colours them by
   level, as `usage` does: the dashboard draws them in the ramp's first stop below 70%, its second
@@ -215,6 +318,12 @@ as Keys has them:
   at 87 to 89, of work on row 15, personal on 16 and side on 17, in `routing-auto-160`,
   `routing-two-160`, `routing-move-160` and `routing-limit-160`, whose personal at its limit,
   `100%`, the frame colours as the design does.
+- **The cursor's row, lit,** which the frames draw on the canvas, where the design has the row the
+  cursor's on lit on `bg.selection` always, as the Log's `f` panel lights its row (Routing by hand,
+  "Its keys"; the owner's call, 12 October 2026): columns 42 to 119, from a cell before the card's
+  content to a cell after it, its glyphs, colours and bold kept, of row 14, `■ 0 auto`, in
+  `routing-auto-160`; row 17, `■ 3 side`, in `routing-two-160` and `routing-limit-160`; and row 16,
+  `■ 2 personal`, in `routing-move-160`.
 - **Personal's week in `routing-limit-160`,** row 16, columns 87 to 89, drawn `64%`, where the world
   reads it at 66%, as the Overview's frames draw it (see What the worlds give otherwise than the
   frames): the card draws `66%`.
@@ -245,16 +354,29 @@ cell by cell, listing each under The cells passed over with what the dashboard d
   its allowance, passed over; and `usage-one-account-160` counts six sessions on work, where the
   dashboard's frames of work alone count five, or three, so its world, work alone's, is fitted
   with six (`alone`, in `documents.go`).
-- **The Overview (stage 7):** personal's week running out ~Sat 06:00 is missing from COMING UP in
-  the bad hour and under routing's limit; personal's week reads 66% under routing's limit, where
-  the frame's card draws 64%; side's week runs out ~Fri 12:20 at its average pace, as in `usage`,
-  which COMING UP lists; the six accounts' pooled 5-hour window works out 47%, drawn 46%; the ten's
-  extras' rates and run-outs (client, lab, team, spare, extra, ops, studio) differ from what their
-  rows draw. LATELY (`dash2.LATELY_ALL`) and the Log's events (`log2.TODAY`) disagree: LATELY lacks
-  d28c's start at 12:02:10, has a prime of personal's at 06:25 the Log lacks, and draws work's cap
-  without its three moves. The Overview's sessions (41e0 sonnet answering, 7f3a sonnet idle) and
-  the List's and the Log's (every session opus, 41e0 idle, 7f3a answering) are two listings at one
-  moment: each frame's world holds its own.
+- **The Overview (stage 7):** the traces and their rates, which the frames draw from the
+  generators' curves (`dash1.rate`), where the worlds count requests from today's lines and the
+  stream, and the pinned, bad hour and limit worlds hold no lines; GRAPHS' fills, which work's
+  readings fill otherwise than the frames' curves; side's week runs out ~Fri 12:20 at its average
+  pace, as in `usage`, which COMING UP lists; in the bad hour and under routing's limit, personal's
+  week running out ~Sat 06:00 is missing from COMING UP, as an account held at its limit takes no
+  request, and personal's 5-hour window resets at 15:54, as its limit lifts, where the frames place
+  its even pace as if it reset at 16:30; in the bad hour, COMING UP lists work back from its cap at
+  17:10, its cap lifting, though its token's refused; personal's week reads 66% under routing's
+  limit, where the frame's card draws 64%; the six and ten accounts' COMING UP lists what their
+  worlds give, lab running out ~16:05 and, of ten, team back from its limit at 15:30, where the
+  frames list the auto world's three; and the extras' rates, allowances and run-outs (client, lab,
+  team, spare, extra, ops, studio) differ from what their rows draw: spare's weeks reset today at
+  18:00, lab's 5-hour window starts at 11:55, and client runs out ~16:40, so it's under pressure.
+  Fitted rather than passed over: the bad hour's 7f3a starts on side at 13:55:30, under the pin,
+  before personal's limit, as the frame's LATELY tells nothing between that limit and work's
+  refusal; the pinned world's cap moves work's sessions to side, as the frame draws it, where a
+  router would move them to personal, the pin's; and no event tells of work's cap at 14:15 in the
+  bad hour, as the frame tells none. LATELY (`dash2.LATELY_ALL`) and the Log's events
+  (`log2.TODAY`) disagree: LATELY lacks d28c's start at 12:02:10, has a prime of personal's at
+  06:25 the Log lacks, and draws work's cap without its three moves. The Overview's sessions (41e0
+  sonnet answering, 7f3a sonnet idle) and the List's and the Log's (every session opus, 41e0 idle,
+  7f3a answering) are two listings at one moment: each frame's world holds its own.
 - **History (stage 8):** the year's $27,480 and 236,410 requests, where its own months and today
   come to $24,736 and 212,885; against 3.8× (3.4×); limits; the busiest day (Tue 22 Sep, the
   world's Wed 30 Sep); the longest run (58 days, the world's 20); the Year's cuts; August's and
@@ -318,8 +440,22 @@ The fixture runs full screen, at the size the terminal gives, until `q`. An empt
 `--fixture` is an error that lists them all. Keys work as they do in the dashboard, though the
 router takes an order and changes nothing, and the clock stands still at the fixture's moment, so
 nothing moves of itself. A fixture named after a frame draws that frame, at its size; milestone
-5's, `accounts-*`, `runway-day-*`, `runway-week-3` and `sessions-*`, named after milestone 5's
-frames, stay until the stages that replace their views delete them.
+5's, `runway-day-*`, `runway-week-3` and `sessions-*`, named after milestone 5's frames, stay until
+the stages that replace their views delete them. Stage 7 deleted its cards' `accounts-*`, with
+their tapes.
+
+Stage 7's, `overview-*` and `routing-*`, draw the Overview's frames and the routing card's over it,
+each over its frame's world with the keys that reach it: `overview-by-account-160` with `b`,
+`overview-usage-alone-160` with `r`, `c` and `l`, `overview-everything-160x39` and
+`overview-everything-216x106` with `g` and `s`, `overview-sessions-216` with `s`, and
+`overview-sessions-graphs-216` with `s` and `g`; `routing-auto-160` with `p`, `routing-two-160`
+with `p`, `2` and `3`, and `routing-move-160` with `p`, `2` and `m`, over the auto world, which
+lists the Overview's six sessions, so the card's cost is the moving set's, priced from the world's
+ledger as the watch prices it; and `routing-limit-160` with `p` and `3`, over routing's world of a
+limit, where the router lists all six on side. `routing-session-160`, the card over a session's
+page, is owed until stage 10 builds the page. Tapes of their names screenshot
+`overview-default-160`, `overview-by-account-160`, `overview-everything-216x106`,
+`overview-phone-52` and `routing-move-160`, to judge by eye.
 
 Stage 6's, `page-*`, draw the page as it's built, to judge by eye where no frame draws it yet, each
 with a tape of its name: `page-routing`, the routing card over the Overview of the auto world at
@@ -379,7 +515,7 @@ From the repository's root, as the tapes' paths are from there:
 vhs testdata/vhs/<name>.tape
 ```
 
-It writes the PNG its `Screenshot` names. A fixture's tape, such as `accounts-3.tape`, runs it
+It writes the PNG its `Screenshot` names. A fixture's tape, such as `sessions-3.tape`, runs it
 through `go run`, so the first run waits on a build; it waits for the frame with `Wait+Screen`
 rather than sleeping a guess. `calibrate-overview-default-160.tape` cats the frame's `.ansi`
 instead, for the calibration below.
@@ -396,8 +532,8 @@ tests included, runs sandboxed.
 A path with a `/` in a tape must be quoted, or the tape doesn't parse:
 
 ```
-Screenshot "testdata/vhs/accounts-3.png"   # parses
-Screenshot testdata/vhs/accounts-3.png     # a parser error
+Screenshot "testdata/vhs/sessions-3.png"   # parses
+Screenshot testdata/vhs/sessions-3.png     # a parser error
 ```
 
 ### Gotcha 3: `vhs` can fail silently
@@ -406,9 +542,9 @@ Screenshot testdata/vhs/accounts-3.png     # a parser error
 Hash the capture before and after, or remove it first, and check it changed:
 
 ```bash
-shasum -a 256 testdata/vhs/accounts-3.png
-vhs testdata/vhs/accounts-3.tape
-shasum -a 256 testdata/vhs/accounts-3.png
+shasum -a 256 testdata/vhs/sessions-3.png
+vhs testdata/vhs/sessions-3.tape
+shasum -a 256 testdata/vhs/sessions-3.png
 ```
 
 ### Gotcha 4: settings come first
@@ -550,6 +686,6 @@ own rules, which the test holds to the frame's, cell for cell.
    the world where it can. Either way, pass over what's left in `passedOver`, beside `owed`, and
    list it here, under The cells passed over, with what the dashboard draws in its place. Never
    patch the frame.
-4. To judge it by eye too, write its tape, modelled on `accounts-3.tape`, its `Width` and `Height`
+4. To judge it by eye too, write its tape, modelled on `sessions-3.tape`, its `Width` and `Height`
    from the fixture's size, as the calibrated settings say; clear the tape and its capture at the
    milestone's sign-off. Leave the fixture.

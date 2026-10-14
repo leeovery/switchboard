@@ -209,42 +209,18 @@ func TestRECENTDoesntTellOfAKindItDoesntKnow(t *testing.T) {
 	if _, _, ok := told(doc.Events[0], doc, now); ok {
 		t.Error("told() = true of a kind RECENT doesn't know, want false")
 	}
-	if got := recent(doc, now, 4); len(got) != 1 || got[0].ID != 1 {
-		t.Errorf("recent() = %+v, want the event of the kind it knows", got)
+	if _, _, ok := told(doc.Events[1], doc, now); !ok {
+		t.Error("told() = false of a kind RECENT knows, want true")
 	}
 }
 
-func TestRECENTShowsAMoveALimitForcedWhereTheLimitsLineDoesnt(t *testing.T) {
-	doc := threeRouted()
-	room := func(id int) status.Event {
-		return status.Event{ID: id, At: now.UTC(), Kind: status.EventRoom, Account: "side"}
-	}
-	doc.Events = []status.Event{
-		room(9), room(8),
-		{ID: 7, At: now.UTC(), Kind: status.EventMoved, Session: "41e0b6c2", From: "personal", To: "side", Reason: "moved: personal hit its limit", Limit: 2},
-		room(6), room(5),
-		{ID: 2, At: now.UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 1, To: "side"},
-	}
-	var got []int
-	for _, e := range recent(doc, now, 3) {
-		got = append(got, e.ID)
-	}
-	if want := []int{9, 8, 7}; !slices.Equal(got, want) {
-		t.Errorf("RECENT lists the events %v, want %v: the move, its limit's line out of reach", got, want)
-	}
-	doc.Events = doc.Events[2:3]
-	if got := recent(doc, now, 4); len(got) != 1 {
-		t.Errorf("RECENT lists %+v, want the move whose limit's event is no longer kept", got)
-	}
-}
-
-func TestRECENTsTimesAreDatedAsTheCardsAre(t *testing.T) {
+func TestRECENTsTimesAreDated(t *testing.T) {
 	doc := threeRouted()
 	doc.Events = []status.Event{
 		{ID: 2, At: now.Add(-time.Hour).UTC(), Kind: status.EventRoom, Account: "work"},
 		{ID: 1, At: now.Add(-20 * time.Hour).UTC(), Kind: status.EventRoom, Account: "side"},
 	}
-	tellings := frameOf(160, 40).tellings(doc, now, 4)
+	tellings := frameOf(160, 40).tellingsOf(doc.Events, doc, now, told)
 	for i, want := range []string{"12:12      ● ", "Sun 17:12  ● "} {
 		if got := tellings[i].lead.plain(); got != want {
 			t.Errorf("event %d is led by %q, want %q: yesterday's with its weekday", i+1, got, want)
@@ -270,24 +246,6 @@ func TestRECENTNamesTheAccountsItsReasonsName(t *testing.T) {
 		if got := why(doc, tt.reason).plain(); got != tt.want {
 			t.Errorf("why(%q) = %q, want %q", tt.reason, got, tt.want)
 		}
-	}
-}
-
-func TestRECENTLeavesTheMovesALimitForcedToItsLine(t *testing.T) {
-	doc := threeRouted()
-	doc.Events = []status.Event{
-		{ID: 5, At: now.UTC(), Kind: status.EventMoved, Session: "9e21d4a8", From: "side", To: "client", Reason: "pinned"},
-		{ID: 4, At: now.UTC(), Kind: status.EventMoved, Session: "41e0b6c2", From: "personal", To: "side", Reason: "moved: personal has no room", Limit: 2},
-		{ID: 3, At: now.UTC(), Kind: status.EventMoved, Session: "db8a71e3", From: "personal", To: "side", Reason: "moved: personal hit its limit", Limit: 2},
-		{ID: 2, At: now.UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 2, To: "side", Limit: 1},
-		{ID: 1, At: now.UTC(), Kind: status.EventMoved, Session: "5c7a93f1", From: "personal", To: "side", Reason: "moved: personal has no room"},
-	}
-	var got []int
-	for _, e := range recent(doc, now, 4) {
-		got = append(got, e.ID)
-	}
-	if want := []int{5, 2, 1}; !slices.Equal(got, want) {
-		t.Errorf("RECENT lists the events %v, want %v: the limit's moves told of by its line alone", got, want)
 	}
 }
 
@@ -318,7 +276,7 @@ func TestRECENTSaysWhyThereAreNone(t *testing.T) {
 	}
 }
 
-func TestRECENTsStrip(t *testing.T) {
+func TestLOGsLinesHaveTheirTimesInAColumn(t *testing.T) {
 	doc := threeRouted()
 	doc.Events = []status.Event{
 		{ID: 5, At: now.Add(-time.Minute).UTC(), Kind: status.EventStarted, Account: "side", Session: "c61b", Reason: "new"},
@@ -332,13 +290,13 @@ func TestRECENTsStrip(t *testing.T) {
 		width int
 		want  []string
 	}{
-		{name: "its four newest, their times in a column", width: 120, want: []string{
+		{name: "its four newest, their times in a column", width: 122, want: []string{
 			"13:11      ▲ c61b started on side, the best",
 			"13:08      ● work has room again",
 			"Sun 12:12  ◇ side primed: its 5-hour window started",
 			"Sat 13:12  ● side has room again",
 		}},
-		{name: "on a phone, a single blank after its times, cut short", width: 40, want: []string{
+		{name: "on a phone, a single blank after its times, cut short", width: 42, want: []string{
 			"13:11     ▲ c61b started on side, the…",
 			"13:08     ● work has room again",
 			"Sun 12:12 ◇ side primed: its 5-hour wi…",
@@ -349,18 +307,19 @@ func TestRECENTsStrip(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(tt.width, 6)
 			c := newCanvas(f.Width, f.Height)
-			if got := f.recentStrip(c, doc, now, 0, 1, f.edge(), recentLines); got != 4 {
-				t.Errorf("recentStrip() = %d, want 4 lines", got)
+			f.drawLog(c, doc, logBlock{row: 0, lines: 4, end: f.edge()}, now)
+			var rows []string
+			for _, row := range c.rows(Look{})[1:5] {
+				rows = append(rows, strings.TrimPrefix(row, strings.Repeat(" ", callsAt)))
 			}
-			rows := c.rows(Look{})[1:5]
 			if !slices.Equal(rows, tt.want) {
-				t.Errorf("RECENT reads\n%s\nwant\n%s", strings.Join(rows, "\n"), strings.Join(tt.want, "\n"))
+				t.Errorf("LOG reads\n%s\nwant\n%s", strings.Join(rows, "\n"), strings.Join(tt.want, "\n"))
 			}
 		})
 	}
 }
 
-func TestRECENTsNewestTimeStandsOut(t *testing.T) {
+func TestLOGsNewestTimeStandsOut(t *testing.T) {
 	doc := threeRouted()
 	doc.Events = []status.Event{
 		{ID: 2, At: now.UTC(), Kind: status.EventRoom, Account: "work"},
@@ -368,40 +327,40 @@ func TestRECENTsNewestTimeStandsOut(t *testing.T) {
 	}
 	f := frameOf(80, 4)
 	c := newCanvas(f.Width, f.Height)
-	f.recentStrip(c, doc, now, 0, 0, f.edge(), recentLines)
+	f.drawLog(c, doc, logBlock{row: 0, lines: 2, end: f.edge()}, now)
 
-	if got := c.at(0, 0).ink.token; got != theme.TextSecondary {
+	if got := c.at(callsAt, 1).ink.token; got != theme.TextSecondary {
 		t.Errorf("the newest's time is in %v, want text.secondary", got)
 	}
-	if got := c.at(0, 1).ink.token; got != theme.TextSubtle {
+	if got := c.at(callsAt, 2).ink.token; got != theme.TextSubtle {
 		t.Errorf("the next's time is in %v, want text.subtle", got)
 	}
 }
 
-func TestRECENTPicksOutFreshEventsFadingBack(t *testing.T) {
+func TestLOGPicksOutFreshEventsFadingBack(t *testing.T) {
 	doc := threeRouted()
 	doc.Events = []status.Event{
 		{ID: 7, At: now.UTC(), Kind: status.EventRoom, Account: "work"},
 		{ID: 6, At: now.UTC(), Kind: status.EventRoom, Account: "side"},
 		{ID: 5, At: now.UTC(), Kind: status.EventRoom, Account: "personal"},
 	}
-	f := frameOf(80, 4)
+	f := frameOf(80, 5)
 	f.Fresh = map[int]float64{7: 0, 6: 0.75}
 	c := newCanvas(f.Width, f.Height)
-	f.recentStrip(c, doc, now, 10, 0, 60, recentLines)
+	f.drawLog(c, doc, logBlock{row: 0, lines: 3, end: 60}, now)
 
 	tests := []struct {
 		row int
 		on  hue
-	}{{row: 0, on: hue{token: theme.BgAttention}}, {row: 1, on: hue{token: theme.BgAttention, fade: 0.75}}, {row: 2}}
+	}{{row: 1, on: hue{token: theme.BgAttention}}, {row: 2, on: hue{token: theme.BgAttention, fade: 0.75}}, {row: 3}}
 	for _, tt := range tests {
-		for _, x := range []int{10, 40, 59} {
+		for _, x := range []int{callsAt, 40, 59} {
 			if got := c.at(x, tt.row).ink.on; got != tt.on {
 				t.Errorf("row %d, column %d, is on %+v, want on %+v", tt.row+1, x, got, tt.on)
 			}
 		}
-		if got := c.at(9, tt.row).ink.on; got != (hue{}) {
-			t.Errorf("row %d is picked out before its strip, at column 9, want from where its lines start", tt.row+1)
+		if got := c.at(callsAt-1, tt.row).ink.on; got != (hue{}) {
+			t.Errorf("row %d is picked out before its lines start, at column %d", tt.row+1, callsAt-1)
 		}
 	}
 }

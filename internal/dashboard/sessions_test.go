@@ -12,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -75,6 +76,23 @@ func cordOf(t *testing.T, b bay, shown, account string) cord {
 		t.Fatalf("there's no cord of %s to %s", shown, account)
 	}
 	return b.cords[i]
+}
+
+// accountsOf are n accounts read a minute ago, each with a session and a
+// week, and Fable's week, used where fable is set, else unused, and so
+// hidden. A recent event is told of.
+func accountsOf(n int, fable bool) status.Document {
+	used := 0.0
+	if fable {
+		used = 0.1
+	}
+	accounts := make([]status.Account, n)
+	for i := range accounts {
+		accounts[i] = readAccount(string(rune('a'+i)), sessionOf(0.2, 3*time.Hour), weekOf(0.3, 4*day), fableOf(used, 4*day))
+	}
+	doc := routerDoc("a", 0, accounts...)
+	doc.Events = []status.Event{{ID: 1, At: now.Add(-time.Minute).UTC(), Kind: status.EventRoom, Account: "a"}}
+	return doc
 }
 
 func TestTheCallsAreGroupedByTheLineTheyreOn(t *testing.T) {
@@ -477,7 +495,7 @@ func TestAPanelsUseIsTonedAsItRises(t *testing.T) {
 		{used: 0.9, want: theme.VizRamp4}, {used: 1, want: theme.VizRamp4},
 	}
 	for _, tt := range tests {
-		s := standing{window: weekOf(tt.used, day)}
+		s := standing{window: weekOf(tt.used, day), used: tt.used}
 		if got := panelUse(s); got.ink != (ink{token: tt.want, bold: true}) {
 			t.Errorf("at %.0f%%, the use is %+v, want %s, bold", tt.used*100, got.ink, tt.want)
 		}
@@ -957,6 +975,182 @@ func TestAnUnreadAccountsPanelSaysSoAsItsCardDoes(t *testing.T) {
 	}
 	if got := strings.TrimSpace(ansi.Cut(rowOf(c, p.bottom()), b.x, b.x+b.width)); got != "└"+strings.Repeat("─", b.width-2)+"┘" {
 		t.Errorf("its bottom edge reads %q, want it whole, nothing to say of its resets", got)
+	}
+}
+
+// Sessions judges a session at now, as ROUTING does: work, under pressure in
+// its session, on the tick after the session resets, before it's read again,
+// is idle, its session not started, with no bar, so none eases, and its
+// bottom edge lists no reset already past.
+func TestOnTheTickASessionResetsItsPanelHasItNotStarted(t *testing.T) {
+	doc := threeRouted()
+	session, _ := doc.Accounts[0].Window("5h")
+	after := session.ResetsAt.Add(time.Second).In(now.Location())
+	f := switchboard(160, 40, flippingSessions(), Traffic{})
+	b, ok := f.bayOf(doc, after, f.top())
+	if !ok {
+		t.Fatal("the view is a plain list, want a switchboard")
+	}
+	c := newCanvas(f.Width, b.content)
+	f.drawBay(c, doc, b, after)
+	p := b.panels[0]
+	panel := func(y int) string { return strings.TrimSpace(ansi.Cut(rowOf(c, y), b.x, b.x+b.width)) }
+
+	if top := panel(p.top); !strings.Contains(top, "○ idle") {
+		t.Errorf("work's top edge reads %q, want it idle", top)
+	}
+	if row := panel(p.top + 1); !strings.Contains(row, "Session  not started") || strings.ContainsAny(row, "█▒░┃") {
+		t.Errorf("work's session reads %q, want it not started, with no bar", row)
+	}
+	if bottom := panel(p.bottom()); strings.Contains(bottom, "session") {
+		t.Errorf("work's bottom edge reads %q, want no session reset, its own past", bottom)
+	}
+	if used, eased := f.Filled(doc, after)[Ref{Account: "work", Window: "5h"}]; eased {
+		t.Errorf("work's session fills %v, to be eased to, want no bar", used)
+	}
+}
+
+// sessionRow is the row of work's session on its panel, the first, of
+// Sessions' switchboard f lays doc out as at now, drawn, trimmed to the
+// panels' bounds.
+func sessionRow(t *testing.T, f Frame, doc status.Document, now time.Time) string {
+	t.Helper()
+	b, ok := f.bayOf(doc, now, f.top())
+	if !ok {
+		t.Fatal("the view is a plain list, want a switchboard")
+	}
+	c := newCanvas(f.Width, b.content)
+	f.drawBay(c, doc, b, now)
+	return strings.TrimSpace(ansi.Cut(rowOf(c, b.panels[0].top+1), b.x, b.x+b.width))
+}
+
+// statusOf is what status's text says of work, the first account, in doc at
+// now: its lines, to the blank line after them.
+func statusOf(doc status.Document, now time.Time) string {
+	text, _, _ := strings.Cut(doc.Text(now, claudeLike), "\n\n")
+	return text
+}
+
+// A window stands as one rule has it everywhere, in ROUTING's order: work,
+// read before, its last read failed, on the tick after its session resets,
+// before it's read again, is idle in ROUTING, nothing read since the reset,
+// and its session not started in USAGE, in Sessions' panel, with no bar, so
+// none eases, and in status's text.
+func TestOnTheTickASessionResetsAFailedReadAccountsSessionHasntStartedAsROUTINGHasItIdle(t *testing.T) {
+	doc := threeRouted()
+	doc.Accounts[0].Error = "HTTP 529 · Overloaded"
+	work := doc.Accounts[0]
+	session, _ := work.Window("5h")
+	after := session.ResetsAt.Add(time.Second).In(now.Location())
+	f := switchboard(160, 40, flippingSessions(), Traffic{})
+	ref := Ref{Account: "work", Window: "5h"}
+
+	if routing := doc.RoutingOf(work, after, claudeLike); routing.Kind != status.RoutingIdle {
+		t.Errorf("ROUTING says work is %q, want it idle", routing.Says)
+	}
+	if words := wordsOf(doc.WindowStatesOf(work, after, claudeLike).Of("5h"), after).full.plain(); words != "not started" {
+		t.Errorf("USAGE says work's session is %q, want it not started", words)
+	}
+	if used, ok := frameOf(160, 40).Filled(doc, after)[ref]; !ok || used != 0 {
+		t.Errorf("USAGE fills work's session to %v, drawn %t, want it drawn empty", used, ok)
+	}
+	if row := sessionRow(t, f, doc, after); !strings.Contains(row, "Session  not started") || strings.ContainsAny(row, "█▒░┃") {
+		t.Errorf("work's session reads %q on its panel, want it not started, with no bar", row)
+	}
+	if used, eased := f.Filled(doc, after)[ref]; eased {
+		t.Errorf("work's session fills %v on its panel, to be eased to, want no bar", used)
+	}
+	if text := statusOf(doc, after); !strings.Contains(text, "Session   0%  not started\n") {
+		t.Errorf("status says\n%s\nwant work's session not started", text)
+	}
+}
+
+// A session the router notes has lapsed hasn't started, though the account's
+// last probe failed: the router doesn't probe a lapsed account, so its error
+// stands until the prime, and its window reads empty, without a reset.
+// Sessions' panel says so, with no bar, as status's text does.
+func TestASessionNotedLapsedOnAnAccountWhoseProbeFailedHasntStarted(t *testing.T) {
+	doc := threeRouted()
+	work := &doc.Accounts[0]
+	work.Error = "HTTP 529 · Overloaded"
+	work.Windows[0] = quota.Window{Key: "5h", Label: "Session"}
+	work.Lapsed = []string{"5h"}
+	f := switchboard(160, 40, flippingSessions(), Traffic{})
+
+	if row := sessionRow(t, f, doc, now); !strings.Contains(row, "Session  not started") || strings.ContainsAny(row, "█▒░┃") {
+		t.Errorf("work's session reads %q on its panel, want it not started, with no bar", row)
+	}
+	if used, eased := f.Filled(doc, now)[Ref{Account: "work", Window: "5h"}]; eased {
+		t.Errorf("work's session fills %v on its panel, to be eased to, want no bar", used)
+	}
+	if text := statusOf(doc, now); !strings.Contains(text, "Session   0%  not started\n") {
+		t.Errorf("status says\n%s\nwant work's session not started", text)
+	}
+}
+
+// A window has one reading wherever its use is drawn: work, its session held
+// by the router's limit past its reset, on the tick after the reset, before
+// it's read again, reads its session empty, as it runs, in USAGE, on its
+// panel, its bar and its percentage, and in status's text, which gives it no
+// reset, as it has lapsed.
+func TestASessionHeldPastItsResetReadsEmptyWhereverItsUseIsDrawn(t *testing.T) {
+	doc := threeRouted()
+	session, _ := doc.Accounts[0].Window("5h")
+	doc.Accounts[0].Limit = status.Limit{Windows: []string{"5h"}, Until: session.ResetsAt.Add(time.Hour)}
+	after := session.ResetsAt.Add(time.Second).In(now.Location())
+	f := switchboard(160, 40, flippingSessions(), Traffic{})
+	ref := Ref{Account: "work", Window: "5h"}
+
+	if used, ok := frameOf(160, 40).Filled(doc, after)[ref]; !ok || used != 0 {
+		t.Errorf("USAGE fills work's session to %v, drawn %t, want it empty", used, ok)
+	}
+	if used, ok := f.Filled(doc, after)[ref]; !ok || used != 0 {
+		t.Errorf("work's panel fills its session to %v, drawn %t, want it empty", used, ok)
+	}
+	if row := sessionRow(t, f, doc, after); !strings.Contains(row, " 0%  back ") || strings.Contains(row, "58%") {
+		t.Errorf("work's session reads %q on its panel, want it held, empty, 0%%", row)
+	}
+	if text := statusOf(doc, after); !strings.Contains(text, "Session   0%\n") {
+		t.Errorf("status says\n%s\nwant work's session empty, with no reset, as it has lapsed", text)
+	}
+}
+
+// idleSince is side, idle, its session lapsed, and its week, used to 33%,
+// read two days ago, before the week reset, ago before now, and not read
+// since.
+func idleSince(ago time.Duration) status.Account {
+	side := readAccount("side", quota.Window{Key: "5h", Label: "Session"}, weekOf(0.33, -ago))
+	side.FetchedAt, side.Lapsed = now.Add(-2*day).UTC(), []string{"5h"}
+	return side
+}
+
+// Sessions' panels mark a window's even pace as it stands: side's week, reset
+// a day ago, since it was read, reads empty, and its even pace is a day into
+// its week, a seventh of the way along its bar, not at its end, where the
+// week as read had run its whole length.
+func TestAPanelMarksTheEvenPaceOfAWeekResetSinceItWasReadFromItsReset(t *testing.T) {
+	doc := routerDoc("side", 0, idleSince(day))
+	side := doc.Accounts[0]
+	s := standingOf(doc, side, side.Windows[1], doc.WindowStatesOf(side, now, claudeLike), now)
+
+	if s.used != 0 {
+		t.Errorf("side's week reads %v, want it empty, as it has reset since it was read", s.used)
+	}
+	if got, want := s.paceCell(panelBar), cellAt(1.0/7, panelBar); got != want {
+		t.Errorf("its even pace is marked at cell %d of %d, want %d, a seventh of the way along", got, panelBar, want)
+	}
+}
+
+// A panel's bottom edge says when its windows reset next, as they stand at
+// now: side's week, reset two hours ago, since it was read, resets a week on,
+// as the router's next read has it, not at 11:12, already past; and its
+// session, lapsed, has no reset to say.
+func TestAPanelSaysAWeekResetSinceItWasReadResetsAWeekOn(t *testing.T) {
+	doc := routerDoc("side", 0, idleSince(2*time.Hour))
+	p := switchboard(160, 40, nil, Traffic{}).linePanelOf(doc, doc.Accounts[0], now, []string{"5h", "7d"})
+
+	if got, want := p.resets(now), []string{"week Mon 11:12"}; !slices.Equal(got, want) {
+		t.Errorf("the panel says its windows reset %q, want %q", got, want)
 	}
 }
 

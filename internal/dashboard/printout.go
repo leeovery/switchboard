@@ -37,7 +37,10 @@ type Printout struct {
 	Windows []string
 	// Policy is the provider's say in which windows every model shares,
 	// which print whatever is read, so every account keeps its rows before
-	// any is.
+	// any is; and it judges the pool at the moment printed, as PoolAt has
+	// it. A zero Policy names no window: it prints only the windows read,
+	// and judges none lapsed but as the document notes, and no account's
+	// room in the window a request starts spent by its limit or its cap.
 	Policy score.Policy
 	// Name names a window by its key, as "5-hour" or "Fable week"; where
 	// it's nil, a window is named by its label in the document.
@@ -54,7 +57,7 @@ func (p Printout) Draw(doc status.Document, now time.Time) []string {
 	if p.By == ByAccount {
 		y++
 	}
-	block := newUsageBlock(doc, now, p.Width, p.Look, p.By, usageWindows(doc, p.Windows, p.Policy.Shared, p.Name))
+	block := newUsageBlock(doc, now, p.Policy, p.Width, p.Look, p.By, usageWindows(doc, p.Windows, p.Policy.Shared, p.Name))
 	block.key(c, block.draw(c, y)+1)
 	return c.rows(p.Look)
 }

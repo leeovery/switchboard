@@ -3,6 +3,7 @@ package dashboard
 import (
 	"image/color"
 	"math"
+	"unique"
 
 	"charm.land/lipgloss/v2"
 
@@ -12,8 +13,8 @@ import (
 // Look is how a frame is drawn: in a theme's colours, with its blends worked
 // out against the colour beneath them, and its canvas painted on every cell
 // where the dashboard fills the screen; or, as NO_COLOR asks, without colour,
-// state told by its glyphs and bold. The zero Look draws text alone, without
-// escapes.
+// state told by its glyphs and bold, and a selected row in reverse video. The
+// zero Look draws text alone, without escapes.
 type Look struct {
 	theme theme.Theme
 	// ground is what blends are worked out against: the canvas the look
@@ -42,7 +43,8 @@ func Print(t theme.Theme, background color.Color) Look {
 	return Look{theme: t, ground: background, styled: true, coloured: true}
 }
 
-// NoColour is the look NO_COLOR asks for: no canvas and no colour, bold alone.
+// NoColour is the look NO_COLOR asks for: no canvas and no colour, bold and a
+// selected row's reverse video alone.
 func NoColour() Look {
 	return Look{styled: true}
 }
@@ -97,7 +99,8 @@ type ink struct {
 	// faint, as a short bar's empty cells are.
 	fade float64
 	// glow blends the colour so far toward text.primary, from 0, all the
-	// colour, to 1, all text.primary: a cord lit by what travels it.
+	// colour, to 1, all text.primary: a cord lit by what travels it, or a
+	// number brightened as it changes.
 	glow float64
 	// ramp marks a bar's filled cell, coloured by where it sits along the
 	// bar, at, from 0 at its first cell to 1 at its last, rather than by a
@@ -117,6 +120,12 @@ type ink struct {
 	// the colour beneath; or, in a look that blends nothing, faint, on no
 	// surface.
 	behind bool
+	// mark is what of the page a span in the ink draws that moves as it
+	// changes, where it draws any, as a number the page brightens: the
+	// canvas notes it on the cells it draws the span in, and leaves it out of
+	// their ink. It's held by its handle, a word, as every cell of every
+	// frame has an ink.
+	mark unique.Handle[mark]
 }
 
 // behindFade is how far the page behind a card fades into the colour
@@ -138,13 +147,11 @@ func (k ink) hue() hue {
 }
 
 var (
-	textInk       = ink{token: theme.TextTertiary}
 	dimInk        = ink{token: theme.TextSubtle}
 	nameInk       = ink{token: theme.AccentMode, bold: true}
 	accentInk     = ink{token: theme.AccentMode}
 	borderInk     = ink{token: theme.Border}
 	bestBorderInk = ink{token: theme.AccentMode}
-	focusInk      = ink{token: theme.AccentKey}
 	titleInk      = ink{token: theme.TextPrimary, bold: true}
 	badgeInk      = ink{token: theme.AccentMode, bold: true}
 	pinBadgeInk   = ink{token: theme.AccentPrimary, bold: true}
@@ -192,11 +199,21 @@ func (l Look) faint(k ink) bool {
 }
 
 // reversed reports whether the look draws the ink's surface by swapping the
-// terminal's own foreground and background, as its theme draws the
-// surface's token: until it's faded halfway, as a look that blends nothing
-// shows a surface, and never behind a card.
+// terminal's own foreground and background, as it reverses the surface's
+// token: until it's faded halfway, as a look that blends nothing shows a
+// surface, and never behind a card.
 func (l Look) reversed(k ink) bool {
-	return l.coloured && !k.on.ramp && l.theme.Reversed(k.on.token) && k.on.fade < 0.5 && !k.behind
+	return !k.on.ramp && l.reverses(k.on.token) && k.on.fade < 0.5 && !k.behind
+}
+
+// reverses reports whether the look draws the surface tok by swapping the
+// terminal's own foreground and background: as its theme draws it, or,
+// without colour, a selected row's, as the terminal theme draws it.
+func (l Look) reverses(tok theme.Token) bool {
+	if !l.coloured {
+		return l.styled && tok == theme.BgSelection
+	}
+	return l.theme.Reversed(tok)
 }
 
 // colour is the ink's colour in the look, glowing and faded as the ink says,

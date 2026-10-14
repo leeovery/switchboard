@@ -40,9 +40,9 @@ const notStarted = "not started"
 
 // Text renders the document for a terminal: each account, the primary marked,
 // with its windows, when they reset and where they're heading, or that one
-// that has lapsed hasn't started, and when it's primed, whatever couldn't be
-// read, what holds it back, whether it's under pressure, and how many
-// sessions the router has sent it;
+// standing not started at now, as policy judges it, hasn't started, and when
+// it's primed, whatever couldn't be read, what holds it back, whether it's
+// under pressure, and how many sessions the router has sent it;
 // then the sessions given, as the router lists those it has routed in the
 // last hour, a line each; then the priming schedule, and what comes next of
 // it; then the account to use next; then where the usage came from, and last
@@ -50,11 +50,11 @@ const notStarted = "not started"
 // Countdowns run from now, and times show in now's time zone. Every text it
 // shows that came from elsewhere, such as the config's labels or the
 // upstream's errors, it shows cleaned.
-func (d Document) Text(now time.Time, sessions ...Session) string {
+func (d Document) Text(now time.Time, policy score.Policy, sessions ...Session) string {
 	width := labelWidth(d.Accounts)
 	var b strings.Builder
 	for _, account := range d.Accounts {
-		d.writeAccount(&b, account, width, now)
+		d.writeAccount(&b, account, width, now, policy)
 		d.writeNotes(&b, account, now)
 		b.WriteString("\n")
 	}
@@ -102,7 +102,7 @@ func (d Document) writePriming(b *strings.Builder, now time.Time) {
 // pressure, and how many sessions the router has sent it.
 func (d Document) writeNotes(b *strings.Builder, a Account, now time.Time) {
 	notes := a.HeldBy(now)
-	if reserved := d.Reserved(a); reserved != "" {
+	if reserved := d.Reserved(a, now); reserved != "" {
 		notes = append(notes, reserved)
 	}
 	if pressed := d.pressureNote(a, now); pressed != "" {
@@ -116,13 +116,14 @@ func (d Document) writeNotes(b *strings.Builder, a Account, now time.Time) {
 	}
 }
 
-// Reserved says how the account's reserve stands once a window has reached
-// it: "at its reserve (90%)", the router's own choices passing the account
-// over from that share of a window on, or, with the global pin naming it,
-// "spending its reserve (pinned)". It's "" while no window has reached it.
-func (d Document) Reserved(a Account) string {
+// Reserved says how the account's reserve stands at now once a window has
+// reached it, as ReachedReserve judges: "at its reserve (90%)", the router's
+// own choices passing the account over from that share of a window on, or,
+// with the global pin naming it, "spending its reserve (pinned)". It's ""
+// while no window has reached it.
+func (d Document) Reserved(a Account, now time.Time) string {
 	switch {
-	case len(a.AtReserve) == 0:
+	case len(a.ReachedReserve(now)) == 0:
 		return ""
 	case d.Pin.Has(a.ID):
 		return "spending its reserve (pinned)"
@@ -135,11 +136,11 @@ func (d Document) Reserved(a Account) string {
 // router saw its pressure window used, it runs out for the router, in now's
 // time zone: "under pressure: runs out ~18:21", or, with its reserve holding
 // it back there, "under pressure: at its reserve ~18:21". It's "" while it
-// isn't under pressure, which the router says of an account that can take a
-// request of some model alone: of one that can take none, pressure isn't
-// what passes it over.
+// isn't under pressure at now, as underPressure judges it. The router says
+// an account is under pressure only where it can take a request of some
+// model: of one that can take none, pressure isn't what passes it over.
 func (d Document) Pressed(a Account, now time.Time) string {
-	if !a.Pressure.Under {
+	if !a.underPressure(now) {
 		return ""
 	}
 	out := "runs out"
@@ -303,19 +304,18 @@ func (r Refusal) Answer() string {
 }
 
 // writeAccount writes the account's title, marking the primary, its windows
-// with their labels width wide, and whatever couldn't be read.
-func (d Document) writeAccount(b *strings.Builder, a Account, width int, now time.Time) {
+// with their labels width wide, each as accountWindow has it, as it stands at
+// now, as policy judges it, as WindowAt has it, and whatever couldn't be
+// read.
+func (d Document) writeAccount(b *strings.Builder, a Account, width int, now time.Time, policy score.Policy) {
 	title := a.Title()
 	if a.Primary {
 		title += " (primary)"
 	}
 	fmt.Fprintf(b, "%s\n", title)
+	states := d.WindowStatesOf(a, now, policy)
 	for _, w := range a.Windows {
-		notes := d.windowNotes(a, w, now)
-		if a.HasLapsed(w) {
-			notes = []string{d.NotStarted(a.ID, now)}
-		}
-		fmt.Fprintf(b, "  %s\n", windowLine(w, width, notes))
+		fmt.Fprintf(b, "  %s\n", d.accountWindow(a, w, a.asItStands(w, now, policy), states.Of(w.Key), width, now))
 	}
 	for _, f := range a.Failures {
 		fmt.Fprintf(b, "  %s offline: %s\n", Clean(f.Label), Clean(f.Error))
@@ -329,28 +329,33 @@ func (d Document) writeAccount(b *strings.Builder, a Account, width int, now tim
 // from a day away, "4h 57m" from an hour, else "7m"; "now" once t has come.
 // A second unit of zero is left off, as in "6d" and "4h".
 func Countdown(now, t time.Time) string {
-	d := t.Sub(now)
+	return countdown(t.Sub(now), "%dm")
+}
+
+// countdown says how long d is as Countdown does, the minutes after hours as
+// the format given writes them.
+func countdown(d time.Duration, minutesAfterHours string) string {
 	if d <= 0 {
 		return "now"
 	}
 	hours, minutes := int(d/time.Hour), int(d%time.Hour/time.Minute)
 	switch {
 	case hours >= 24:
-		return withRest(fmt.Sprintf("%dd", hours/24), hours%24, "h")
+		return withRest(fmt.Sprintf("%dd", hours/24), hours%24, "%dh")
 	case hours >= 1:
-		return withRest(fmt.Sprintf("%dh", hours), minutes, "m")
+		return withRest(fmt.Sprintf("%dh", hours), minutes, minutesAfterHours)
 	default:
 		return fmt.Sprintf("%dm", minutes)
 	}
 }
 
-// withRest follows a count with what's left over in the next unit down,
-// unless nothing is: "5d 12h", but "6d".
-func withRest(count string, rest int, unit string) string {
+// withRest follows a count with what's left over in the next unit down, as
+// the format given writes it, unless nothing is: "5d 12h", but "6d".
+func withRest(count string, rest int, format string) string {
 	if rest == 0 {
 		return count
 	}
-	return fmt.Sprintf("%s %d%s", count, rest, unit)
+	return count + " " + fmt.Sprintf(format, rest)
 }
 
 // Clock shows t as its weekday and 24-hour time in now's time zone, such as
@@ -419,12 +424,20 @@ func daysBetween(t, now time.Time) int {
 	return int(noon(now).Sub(noon(t)).Round(day) / day)
 }
 
-// Until counts down from now to t, as "in 1h 12m": "now" once t has come.
+// Until counts down from now to t, as "in 1h 12m", rounded up to the whole
+// minute, so within a day it never says less time is left than is, and the
+// minutes after hours two digits, as "in 4h 08m", so a column of them reads
+// evenly; from a day out, in days and whole hours, as "in 1d 15h", the
+// minutes left off, as the frames count them: "now" once t has come.
 func Until(now, t time.Time) string {
-	if !t.After(now) {
+	left := t.Sub(now)
+	if left <= 0 {
 		return "now"
 	}
-	return "in " + Countdown(now, t)
+	if up := left.Truncate(time.Minute); up < left {
+		left = up + time.Minute
+	}
+	return "in " + countdown(left, "%02dm")
 }
 
 // InProse is a window's label as a sentence has it, cleaned: one word, as
@@ -513,23 +526,36 @@ func (d Document) Account(id string) (Account, bool) {
 	return d.Accounts[i], true
 }
 
-// windowLine shows a window's label, labelWidth wide, and its utilization,
-// then the notes given of it.
-func windowLine(w quota.Window, labelWidth int, notes []string) string {
-	line := fmt.Sprintf("%-*s %4s", labelWidth, Clean(w.Label), Percent(w.Utilization))
+// accountWindow shows doc's account a's window w, read, its label width
+// wide, standing at now as stands, as WindowAt has it, and as st says, its
+// use as st reads it: not started, and when it's primed; else with when it
+// resets and where it's heading, as windowNotes has them.
+func (d Document) accountWindow(a Account, w, stands quota.Window, st WindowState, width int, now time.Time) string {
+	if st.Kind == WindowNotStarted {
+		return windowLine(w.Label, st.Used, width, []string{d.NotStarted(a.ID, now)})
+	}
+	return windowLine(w.Label, st.Used, width, d.windowNotes(a, w, stands, now))
+}
+
+// windowLine shows a window's label, labelWidth wide, and how much of it is
+// used, then the notes given of it.
+func windowLine(label string, used float64, labelWidth int, notes []string) string {
+	line := fmt.Sprintf("%-*s %4s", labelWidth, Clean(label), Percent(used))
 	if len(notes) == 0 {
 		return line
 	}
 	return line + "  " + strings.Join(notes, " · ")
 }
 
-// windowNotes say when doc's account a's window w resets and where it's
-// heading at now, as doc's Project says, as far as those are known, and when
-// that's at its rate over the last half hour, that it is.
-func (d Document) windowNotes(a Account, w quota.Window, now time.Time) []string {
+// windowNotes say when doc's account a's window w, read, resets, standing at
+// now as stands, as WindowAt has it, so its next reset once it has reset
+// since it was read, and none where it has lapsed; and where it's heading at
+// now, as doc's Project says, as far as those are known, and when that's at
+// its rate over the last half hour, that it is.
+func (d Document) windowNotes(a Account, w, stands quota.Window, now time.Time) []string {
 	var notes []string
-	if !w.ResetsAt.IsZero() {
-		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(now, w.ResetsAt))
+	if reset := stands.ResetsAt; !reset.IsZero() {
+		notes = append(notes, Resets(now, reset)+" · "+Clock(now, reset))
 	}
 	heading := d.Project(a, w, now)
 	if projection := Projection(now, heading.Projection); projection != "" {

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -39,11 +40,11 @@ const (
 // linePanel is an account's panel among the lines: the account and its
 // place, its state, whether new sessions go to it and whether the global
 // pin names it, when the router next primes it, zero where unknown; the
-// windows it shows, and the key of the one a request starts among them; its
-// top edge's row, and how many rows it has between its edges, a jack each:
-// one for each window shown, and one more for each of its calls past those.
-// A boxed panel, as the plain list has, has no jacks, its left side a side
-// like its right.
+// windows it shows, how they stand, and the policy that judges them, which
+// names the one a request starts; its top edge's row, and how many rows it
+// has between its edges, a jack each: one for each window shown, and one
+// more for each of its calls past those. A boxed panel, as the plain list
+// has, has no jacks, its left side a side like its right.
 type linePanel struct {
 	account      status.Account
 	place        int
@@ -51,7 +52,8 @@ type linePanel struct {
 	next, pinned bool
 	primed       time.Time
 	windows      []string
-	started      string
+	states       status.WindowStates
+	policy       score.Policy
 	top, rows    int
 	boxed        bool
 }
@@ -62,8 +64,18 @@ func (f Frame) linePanelOf(doc status.Document, a status.Account, now time.Time,
 	return linePanel{
 		account: a, place: place(doc, a.ID), state: doc.StateOf(a, now, f.Policy),
 		next: len(doc.Accounts) > 1 && doc.Best == a.ID, pinned: doc.Pin.Has(a.ID), primed: primedNext(doc, a.ID),
-		windows: shown, started: f.Policy.Started,
+		windows: shown, states: doc.WindowStatesOf(a, now, f.Policy), policy: f.Policy,
 	}
+}
+
+// primedNext is when the router next primes the account with the given id,
+// as doc's priming schedule says: zero where it doesn't.
+func primedNext(doc status.Document, id string) time.Time {
+	i := slices.IndexFunc(doc.Prime.Slots, func(s status.Slot) bool { return s.Account == id })
+	if i < 0 {
+		return time.Time{}
+	}
+	return doc.Prime.Slots[i].Next
 }
 
 // bottom is the panel's bottom edge's row.
@@ -103,11 +115,11 @@ func (f Frame) drawPanel(c *canvas, doc status.Document, p linePanel, x, width i
 }
 
 // panelTop draws the panel's top edge from x along its top row, width cells
-// wide: its place and its account's name, in capitals; its state, its mark
-// and its words, as its card leads with them, but idle's in text.tertiary,
-// and nothing read yet's dim; and at its right its badges, those leavingOff
-// leaves where they don't all fit, the name and the state cut short where
-// even they don't.
+// wide: its place and its account's name, in capitals; its state, its mark,
+// as marked has it, and its words, bold in its colour, but idle's in
+// text.tertiary, and nothing read yet's dim; and at its right its badges,
+// those leavingOff leaves where they don't all fit, the name and the state
+// cut short where even they don't.
 func panelTop(c *canvas, p linePanel, x, width int) {
 	edge := p.edges()
 	mark, tone := marked(p.state.Condition)
@@ -133,8 +145,31 @@ func panelTop(c *canvas, p linePanel, x, width int) {
 	c.right(x+width, p.top, end)
 }
 
-// badges are the badges on the panel's top edge, in order, as a card's are:
-// the primary's, the pin's, and the next account's.
+// marked is how a panel marks its account's state: the glyph its words lead
+// with, and its colour.
+func marked(c status.Condition) (string, theme.Token) {
+	switch c {
+	case status.Tokenless:
+		return "✕", theme.StateDestructive
+	case status.Unreadable:
+		return "!", theme.StateDestructive
+	case status.Unread:
+		return "…", theme.TextSubtle
+	case status.Limited:
+		return "■", theme.StateDestructive
+	case status.PartlyLimited:
+		return "■", theme.AccentAttention
+	case status.Reserved, status.Pressed:
+		return "●", theme.AccentAttention
+	case status.Idle:
+		return "○", theme.TextSubtle
+	default:
+		return "●", theme.StatePositive
+	}
+}
+
+// badges are the badges on the panel's top edge, in order: the primary's, the
+// pin's, and the next account's.
 func (p linePanel) badges() []span {
 	var badges []span
 	if p.account.Primary {
@@ -150,17 +185,18 @@ func (p linePanel) badges() []span {
 }
 
 // panelRow draws the row of a panel's window with the given key from x along
-// row y, width cells to the panel's side: its label; its bar, where bars is
-// set, as a card's bar is drawn; its use, toned as panelUse says; and where
-// it's heading, in full. A window that has lapsed says it hasn't started
-// where its bar would be, and one the account hasn't read leaves its row
-// blank.
+// row y, width cells to the panel's side, standing as the panel's states have
+// it: its label; its bar, where bars is set, as bar draws it; its use, toned
+// as panelUse says; and where it's heading, in full. A window standing not
+// started, lapsed with no limit holding it and its token not refused, says
+// so where its bar would be, and one the account hasn't reported leaves its
+// row blank.
 func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string, now time.Time, x, y, width int, bars bool) {
 	w, ok := p.account.Window(key)
 	if !ok {
 		return
 	}
-	s := standingOf(doc, p.account, w, now, f.Policy)
+	s := standingOf(doc, p.account, w, p.states, now)
 	c.line(x, y, line{{truncate(status.Short(w.Label), labelColumn-1), panelLabelInk}})
 	at := x + labelColumn
 	if s.lapsed {
@@ -168,7 +204,7 @@ func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string,
 		return
 	}
 	if bars {
-		f.bar(c, s, p.account.Reserve, now, at, y, panelBar)
+		f.bar(c, s, p.account.Reserve, at, y, panelBar)
 		at += panelBar
 	}
 	c.right(at+useColumn, y, line{panelUse(s)})
@@ -181,13 +217,13 @@ func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string,
 // else in text.primary.
 func panelUse(s standing) span {
 	k := ink{token: theme.TextPrimary, bold: true}
-	switch used := s.window.Utilization; {
-	case used >= 0.9:
+	switch {
+	case s.used >= 0.9:
 		k.token = theme.VizRamp4
-	case used >= 0.7:
+	case s.used >= 0.7:
 		k.token = theme.VizRamp2
 	}
-	return span{status.Percent(s.window.Utilization), k}
+	return span{status.Percent(s.used), k}
 }
 
 // panelBottom draws the panel's bottom edge from x along row y, width cells
@@ -238,17 +274,19 @@ func resetsSays(p linePanel, now time.Time, brief bool) line {
 	return append(l, span{" ", dimInk})
 }
 
-// resets says when the panel's windows reset, of those it shows: the window
-// a request starts, while it runs, as in "session 17:10"; then the rest,
-// together where they reset at once, as weeksReset has them.
+// resets says when the panel's windows reset next, of those it shows, each as
+// it stands at now, as WindowAt has it: the window a request starts, while it
+// runs, as in "session 17:10", none where it has lapsed; then the rest,
+// together where they reset at once, as weeksReset has them, at their next
+// resets once they have reset since they were read.
 func (p linePanel) resets(now time.Time) []string {
 	var said []string
 	var rest []quota.Window
 	for _, key := range p.windows {
-		w, ok := p.account.Window(key)
+		w, ok := p.account.WindowAt(key, now, p.policy)
 		switch {
-		case !ok || w.ResetsAt.IsZero() || p.account.HasLapsed(w):
-		case key == p.started:
+		case !ok || w.ResetsAt.IsZero():
+		case key == p.policy.Started:
 			said = append(said, status.InProse(w.Label)+" "+status.Dated(now, w.ResetsAt))
 		default:
 			rest = append(rest, w)

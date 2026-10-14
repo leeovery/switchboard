@@ -593,10 +593,13 @@ func (a Account) rate(key string) (Rate, bool) {
 	return a.Rates[i], true
 }
 
-// HasLapsed reports whether the account's window w has lapsed, and reads
-// empty until a request starts it.
-func (a Account) HasLapsed(w quota.Window) bool {
-	return slices.Contains(a.Lapsed, w.Key)
+// underPressure reports whether the account is under pressure at now: the
+// router found it so as it read it, and its pressure window hasn't reset
+// since, as the router, judging pressure afresh, finds none in a window that
+// has.
+func (a Account) underPressure(now time.Time) bool {
+	w, _ := a.Window(a.Pressure.Window)
+	return a.Pressure.Under && !w.ResetBy(now)
 }
 
 // PrimaryOf returns the id of the primary among accounts, or "" when none is

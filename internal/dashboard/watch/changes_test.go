@@ -1,16 +1,16 @@
 package watch
 
 import (
+	"cmp"
 	"maps"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // limitedWork is the router's document of three, work at the limit of its
@@ -21,12 +21,12 @@ func limitedWork() status.Document {
 	return doc
 }
 
-// changed are the ids of the accounts whose cards are picked out at now.
+// changed are the ids of the accounts whose states are picked out at now.
 func (h *harness) changed() []string {
 	return slices.Sorted(maps.Keys(h.model.changes.faded(h.clock.now)))
 }
 
-func TestTheFirstLookPicksOutNoCard(t *testing.T) {
+func TestTheFirstLookPicksOutNoState(t *testing.T) {
 	h := routedHarness(t, limitedWork())
 	h.start()
 
@@ -35,7 +35,7 @@ func TestTheFirstLookPicksOutNoCard(t *testing.T) {
 	}
 }
 
-func TestACardWhoseStateALookSeesChangeIsPickedOutFadingBack(t *testing.T) {
+func TestAStateALookSeesChangeIsPickedOutFadingBack(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
 	h.startRouter(limitedWork())
@@ -56,7 +56,7 @@ func TestACardWhoseStateALookSeesChangeIsPickedOutFadingBack(t *testing.T) {
 		}
 	}
 	if _, ok := h.pendingFrame(); !ok {
-		t.Fatal("no frames drawn as the highlight fades")
+		t.Fatal("no frames drawn as the cue fades")
 	}
 	h.tickUntilAsked()
 	if got := h.changed(); len(got) > 0 {
@@ -64,7 +64,7 @@ func TestACardWhoseStateALookSeesChangeIsPickedOutFadingBack(t *testing.T) {
 	}
 }
 
-func TestACardWhoseStateTheClockChangesIsPickedOutAsItTicks(t *testing.T) {
+func TestAStateTheClockChangesIsPickedOutAsItTicks(t *testing.T) {
 	spent := session(1, 10*time.Second)
 	spent.Status = quota.StatusRejected
 	h := newHarness(t, document(account("work", "Work", spent, week(0.5)), three()[1]))
@@ -89,7 +89,92 @@ func TestACountdownMovingOnIsNoChange(t *testing.T) {
 	}
 }
 
-func TestAReadFailingWhileALimitHoldsPicksOutNoCard(t *testing.T) {
+func TestAStateWhoseFirstWordsStayIsNoChange(t *testing.T) {
+	tests := []struct {
+		name         string
+		before, then func(*status.Document)
+	}{
+		{
+			name:   "new sessions coming to an account open",
+			before: func(d *status.Document) { d.Best = "personal" },
+			then:   func(d *status.Document) { d.Best = "work" },
+		},
+		{
+			name:   "the global pin spending the cap of an account at it",
+			before: func(d *status.Document) { d.Accounts[0] = reserving(d.Accounts[0], 0.8) },
+			then: func(d *status.Document) {
+				d.Accounts[0] = reserving(d.Accounts[0], 0.8)
+				d.Pin = status.Pin{Accounts: []string{"work"}, Since: start.UTC()}
+			},
+		},
+		{
+			name:   "the time an account is back from its limit",
+			before: func(d *status.Document) { *d = limitedWork() },
+			then: func(d *status.Document) {
+				*d = limitedWork()
+				d.Accounts[0].Limit.Until = start.Add(4 * time.Hour).UTC()
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before, then := routerDocument(three()...), routerDocument(three()...)
+			tt.before(&before)
+			tt.then(&then)
+			h := routedHarness(t, before)
+			policy := h.model.cfg.Policy
+			if was, is := before.RoutingOf(before.Accounts[0], start, policy), then.RoutingOf(then.Accounts[0], start, policy); was.String() == is.String() {
+				t.Fatalf("work stands as %q before and after, want its words changed past its first", was)
+			}
+			h.start()
+			h.startRouter(then)
+			h.tickUntilAsked()
+			if got := h.changed(); len(got) > 0 {
+				t.Errorf("picked out %v, want none: each account's state is said in the words it was", got)
+			}
+		})
+	}
+}
+
+func TestARefusalOfOneFamilyTurningToTheTokensIsPickedOut(t *testing.T) {
+	refusedBy := func(family string) status.Document {
+		doc := routerDocument(three()...)
+		doc.Accounts[0].Refused = status.Refusal{Until: start.Add(time.Hour).UTC(), Status: 403, Family: family}
+		return doc
+	}
+	h := routedHarness(t, refusedBy("opus"))
+	h.start()
+	h.startRouter(refusedBy(""))
+	h.tickUntilAsked()
+
+	if got := h.changed(); !slices.Equal(got, []string{"work"}) {
+		t.Errorf("as work's token was refused, after one family's requests, picked out %v, want work", got)
+	}
+}
+
+func TestAStatesCueComparesItsKindAndItsWords(t *testing.T) {
+	routing := func(kind status.RoutingKind, says string) status.Routing {
+		return status.Routing{Kind: kind, Says: says, Clauses: []string{"back 15:54"}}
+	}
+	tests := []struct {
+		name    string
+		was, is status.Routing
+		turned  bool
+	}{
+		{name: "another kind in the same words", was: routing(status.RoutingModelRefused, "refused (403)"), is: routing(status.RoutingRefused, "refused (403)"), turned: true},
+		{name: "the same kind in other words", was: routing(status.RoutingCapped, "at its cap"), is: routing(status.RoutingCapped, "Fable wk at its cap"), turned: true},
+		{name: "the same kind and words, its clauses moving on", was: routing(status.RoutingLimited, "limit reached"), is: status.Routing{Kind: status.RoutingLimited, Says: "limit reached"}},
+		{name: "open, new sessions coming to it", was: routing(status.RoutingOpen, "open"), is: routing(status.RoutingNext, "open")},
+		{name: "at its cap, the pin spending it", was: routing(status.RoutingCapped, "at its cap"), is: routing(status.RoutingCappedPinned, "at its cap")},
+	}
+	for _, tt := range tests {
+		if got := stateOf(tt.was) != stateOf(tt.is); got != tt.turned {
+			t.Errorf("%s: turned = %v, want %v", tt.name, got, tt.turned)
+		}
+	}
+}
+
+func TestAReadFailingWhileALimitHoldsPicksOutNoState(t *testing.T) {
 	h := routedHarness(t, limitedWork())
 	h.start()
 
@@ -148,20 +233,126 @@ func TestStatesProbedAfterTheRouterStartAfresh(t *testing.T) {
 	}
 }
 
-func TestAChangedCardIsPickedOutOnScreen(t *testing.T) {
-	h, _ := themedHarness(t, theme.Choice{})
-	h.startRouter(routerDocument(three()...))
-	h.start()
-	h.answer(darkBackground)
-	h.startRouter(limitedWork())
-	h.tickUntilAsked()
+// workWeek is work's week, as a window's cue is keyed.
+var workWeek = dashboard.Ref{Account: "work", Window: "7d"}
 
-	const attention = "48;2;61;64;70" // nord's bg.attention
-	if row := rowWith(h.model.View().Content, "limit reached"); !strings.Contains(row, attention) {
-		t.Errorf("work's state row is %q, want it on bg.attention", row)
+// runningOut is three, work's week used lately fast enough to run out ~10
+// hours on, long before it resets.
+func runningOut() []status.Account {
+	accounts := three()
+	accounts[0].Rates = []status.Rate{{Window: "7d", Rate: 0.05, Since: start.Add(-30 * time.Minute).UTC()}}
+	return accounts
+}
+
+// turnedOut are the windows whose words are picked out at now.
+func (h *harness) turnedOut() []dashboard.Ref {
+	return slices.SortedFunc(maps.Keys(h.model.changes.turnedOut(h.clock.now)), func(a, b dashboard.Ref) int {
+		return cmp.Or(cmp.Compare(a.Account, b.Account), cmp.Compare(a.Window, b.Window))
+	})
+}
+
+func TestTheFirstLookPicksOutNoWindowsWords(t *testing.T) {
+	h := routedHarness(t, routerDocument(runningOut()...))
+	h.start()
+
+	if got := h.turnedOut(); len(got) > 0 {
+		t.Errorf("the first look picked out %v, want none: there's no look before it to turn from", got)
 	}
-	h.clock.now = h.clock.now.Add(highlightFor)
-	if row := rowWith(h.model.View().Content, "limit reached"); strings.Contains(row, attention) {
-		t.Errorf("once its time is over, work's state row is %q, want it back on the canvas", row)
+}
+
+func TestAWindowsWordsALookSeesTurnToOutArePickedOutFadingBack(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	h.startRouter(routerDocument(runningOut()...))
+	seen := h.tickUntilAsked()
+
+	tests := []struct {
+		name  string
+		after time.Duration
+		want  map[dashboard.Ref]float64
+	}{
+		{name: "as the look sees it", after: 0, want: map[dashboard.Ref]float64{workWeek: 0}},
+		{name: "half its time on, faded an eighth", after: highlightFor / 2, want: map[dashboard.Ref]float64{workWeek: 0.125}},
+		{name: "its time over", after: highlightFor, want: nil},
+	}
+	for _, tt := range tests {
+		if got := h.model.changes.turnedOut(seen.Add(tt.after)); !maps.Equal(got, tt.want) {
+			t.Errorf("%s: turnedOut = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+	if got := h.model.frame(seen).TurnedOut; !maps.Equal(got, map[dashboard.Ref]float64{workWeek: 0}) {
+		t.Errorf("the frame drawn as the look sees it cues %v, want work's week", got)
+	}
+	if got := h.changed(); len(got) > 0 {
+		t.Errorf("picked out the states of %v, want none: work's state's first words stay", got)
+	}
+	if _, ok := h.pendingFrame(); !ok {
+		t.Fatal("no frames drawn as the cue fades")
+	}
+}
+
+func TestAWindowsWordsCueDrawsFramesOnlyOnScreen(t *testing.T) {
+	// runsOut has an account's week used lately fast enough to run out long
+	// before it resets, its bar and its numbers as they were.
+	runsOut := func(a *status.Account) {
+		a.Rates = []status.Rate{{Window: "7d", Rate: 0.05, Since: start.Add(-30 * time.Minute).UTC()}}
+	}
+	h := tenOnAShortScreen(t, tenWith(runsOut))
+	for _, read := range []struct {
+		name   string
+		moved  []string
+		words  string
+		frames bool
+	}{
+		{name: "a read cueing words scrolled out of view", moved: []string{"studio"}, words: "studio"},
+		{name: "a read cueing words on screen", moved: []string{"studio", "work"}, words: "work", frames: true},
+	} {
+		h.startRouter(tenWith(runsOut, read.moved...))
+		seen := h.tickUntilAsked()
+		if _, ok := h.model.changes.turnedOut(seen)[dashboard.Ref{Account: read.words, Window: "7d"}]; !ok {
+			t.Fatalf("%s: %s's week's words aren't cued, want them turned to out ~", read.name, read.words)
+		}
+		if eased, bright := h.model.ease.eased(h.model.frame(seen), h.model.doc, seen), h.brightened(); len(eased)+len(bright) > 0 {
+			t.Fatalf("%s: the look eased %v and brightened %v, want the cue alone", read.name, eased, bright)
+		}
+		if _, framing := h.pendingFrame(); framing != read.frames {
+			t.Errorf("%s: a frame is armed: %t, want %t", read.name, framing, read.frames)
+		}
+	}
+}
+
+func TestWindowsWordsThatDontTurnToOutArentPickedOut(t *testing.T) {
+	tests := []struct {
+		name         string
+		before, then []status.Account
+	}{
+		{name: "out ~ still, as it was", before: runningOut(), then: runningOut()},
+		{name: "turning from out ~", before: runningOut(), then: three()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(tt.before...))
+			h.start()
+			h.startRouter(routerDocument(tt.then...))
+			h.tickUntilAsked()
+			if got := h.turnedOut(); len(got) > 0 {
+				t.Errorf("picked out %v, want none: no window's words turned to out ~", got)
+			}
+		})
+	}
+}
+
+func TestAWindowsWordsTheClockTurnsToOutArePickedOutAsItTicks(t *testing.T) {
+	accounts := runningOut()
+	accounts[0].Limit = status.Limit{Windows: []string{"7d"}, Until: start.Add(10 * time.Second).UTC()}
+	h := newHarness(t, document(accounts...))
+	h.start()
+	h.tickUntil(start.Add(9 * time.Second))
+	if got := h.turnedOut(); len(got) > 0 {
+		t.Fatalf("while work's week is at its limit, picked out %v, want none", got)
+	}
+	h.tickUntil(start.Add(11 * time.Second))
+	if got, reads := h.turnedOut(), h.source.reads; !slices.Equal(got, []dashboard.Ref{workWeek}) || reads != 1 {
+		t.Errorf("once work's limit lifted, with %d reads, picked out %v, want work's week, out ~ as the second ticked, with no read since the first", reads, got)
 	}
 }

@@ -54,18 +54,19 @@ var groups = [][]Key{
 
 func TestTheKeyLineSetsItsKeysApartFromColumnZero(t *testing.T) {
 	tests := []struct {
-		name   string
-		groups [][]Key
-		lead   int
-		want   string
+		name        string
+		groups      [][]Key
+		lead, after int
+		want        string
 	}{
 		{name: "most pages, three cells after tab views", groups: groups, lead: 3, want: "tab views   w window: auto  ←→ focus    p pin    ? help  q quit"},
 		{name: "the Overview, five", groups: groups, lead: 5, want: "tab views     w window: auto  ←→ focus    p pin    ? help  q quit"},
 		{name: "a group with no keys, no room for it", groups: [][]Key{{tabViews}, nil, {pin}, nil, helpQuit}, lead: 3, want: "tab views   p pin    ? help  q quit"},
+		{name: "the Overview's, five after every group", groups: groups, lead: 5, after: 5, want: "tab views     w window: auto  ←→ focus     p pin     ? help  q quit"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := lastRow(keyed(160, KeyLine{Groups: tt.groups, Lead: tt.lead})); got != tt.want {
+			if got := lastRow(keyed(160, KeyLine{Groups: tt.groups, Lead: tt.lead, After: tt.after})); got != tt.want {
 				t.Errorf("the last row = %q, want %q", got, tt.want)
 			}
 		})
@@ -81,13 +82,16 @@ func TestTheKeyLineListsTheKeysThatFitWhole(t *testing.T) {
 	}
 }
 
-func TestAKeyThatCantActIsDrawnFaint(t *testing.T) {
+func TestAKeysWordsAreDrawnAsItStands(t *testing.T) {
 	tests := []struct {
 		key  Key
 		want line
 	}{
 		{key: pin, want: line{{"p", keyInk}, {" pin", mutedInk}}},
 		{key: Key{Key: "p", Does: "pin", Off: true}, want: line{{"p pin", faintInk}}},
+		{key: Key{Key: "g", Does: "graphs", Hidden: true}, want: line{{"g", keyInk}, {" graphs", faintInk}}},
+		{key: Key{Key: "b", Does: "by", State: "window"}, want: line{{"b", keyInk}, {" by: ", mutedInk}, {"window", secondaryInk}}},
+		{key: Key{Key: "b", Does: "by", State: "window", Off: true}, want: line{{"b by: window", faintInk}}},
 	}
 	for _, tt := range tests {
 		if got := tt.key.words(); !slices.Equal(got, tt.want) {
@@ -106,8 +110,30 @@ func TestAKeyThatCantActIsDrawnAsTheFrameDrawsIt(t *testing.T) {
 	}
 }
 
+func TestTheOverviewsTogglesAreDrawnAsTheFrameDrawsThem(t *testing.T) {
+	toggles := []Key{
+		{Key: "u", Does: "usage"}, {Key: "g", Does: "graphs", Hidden: true}, {Key: "r", Does: "routing"},
+		{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"},
+		{Key: "b", Does: "by", State: "window"},
+	}
+	text, frame := referenceRows(t, "overview-default-160", "txt"), referenceRows(t, "overview-default-160", "ansi")
+	f := keyed(160, KeyLine{Groups: [][]Key{{tabViews}, toggles, {{Key: "↑↓", Does: "focus"}}}, Lead: 5, After: 5})
+	f.Height, f.View = len(text), Overview
+	if got, want := lastRow(f), text[len(text)-1]; !strings.HasPrefix(want, got) {
+		t.Errorf("the key line reads\n%q\nwant the frame's, as far as ↑↓ focus\n%q", got, want)
+	}
+	f.Look = Screen(builtin(t, "nord"))
+	rows := f.Draw(threeRouted(), now)
+	for _, words := range []string{"usage", "graphs", "sessions", "by:", "window"} {
+		if got, want := sgrBefore(rows[len(rows)-1], words), sgrBefore(frame[len(frame)-1], words); got == "" || got != want {
+			t.Errorf("%q is drawn in %q, want %q, as overview-default-160 draws it", words, got, want)
+		}
+	}
+}
+
 // sgrBefore is the parameters of the last SGR sequence before text in the
-// row, without a reset leading them: "" where text isn't there.
+// row, and any spaces drawn in it before the text, without a reset leading
+// them: "" where text isn't there.
 func sgrBefore(row, text string) string {
 	at := strings.Index(row, text)
 	if at < 0 {
@@ -117,7 +143,7 @@ func sgrBefore(row, text string) string {
 	if from < 0 {
 		return ""
 	}
-	return strings.TrimPrefix(strings.TrimSuffix(row[from+2:at], "m"), "0;")
+	return strings.TrimPrefix(strings.TrimSuffix(strings.TrimRight(row[from+2:at], " "), "m"), "0;")
 }
 
 func TestANoteTakesTheKeyLinesPlace(t *testing.T) {
@@ -196,6 +222,31 @@ func TestAPhonesKeyLineKeepsTheKeysItEndsWith(t *testing.T) {
 	}
 	if got, want := lastRow(keyed(100, l)), "tab views   p pin    ? help  q quit"; got != want {
 		t.Errorf("at 100 columns, wider than a phone, the key line reads %q, want %q", got, want)
+	}
+}
+
+func TestAWideKeyLineThatDoesntFitWholeIsLaidOutAsAPhones(t *testing.T) {
+	toggles := []Key{
+		{Key: "u", Does: "usage"}, {Key: "g", Does: "graphs"}, {Key: "r", Does: "routing"}, {Key: "s", Does: "sessions"},
+		{Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"}, {Key: "b", Does: "by", State: "window"},
+	}
+	l := KeyLine{Groups: [][]Key{{tabViews}, toggles, {{Key: "↑↓", Does: "focus"}, pin, helpQuit[0], helpQuit[1]}}, Lead: 5, After: 5, PhoneHelp: "keys and toggles"}
+	wide := "tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ focus  p pin  ? help  q quit"
+	tests := []struct {
+		name  string
+		width int
+		want  string
+	}{
+		{name: "wide enough for it whole", width: ansi.StringWidth(wide), want: wide},
+		{name: "a cell short of it, wider than a phone", width: ansi.StringWidth(wide) - 1, want: "tab views   ? keys and toggles   q quit"},
+		{name: "a phone's width", width: phoneUnder - 1, want: "tab views   ? keys and toggles   q quit"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := lastRow(keyed(tt.width, l)); got != tt.want {
+				t.Errorf("at %d columns, the key line reads %q, want %q", tt.width, got, tt.want)
+			}
+		})
 	}
 }
 

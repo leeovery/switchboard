@@ -46,6 +46,9 @@ type Fixture struct {
 	now    time.Time
 	router source
 	keys   []tea.KeyPressMsg
+	// view is the tab it opens on, as the preferences keep one: the
+	// Overview where it's unset.
+	view dashboard.View
 	// by is how a printout groups the windows, and windows are the keys of
 	// those it prints, in Claude's order: none prints every one.
 	by      dashboard.By
@@ -188,52 +191,29 @@ var worldsNow = sync.OnceValue(func() accountWorlds { return newAccountWorlds(lo
 
 // fixtures are the watch's fixtures, in the frames' theme, over milestone 5's
 // samples at the frames' moment in the zone given, as moment fixes it: one
-// for each set of accounts its frames draw, at the size of the frame it
-// mirrors, or for five accounts, which its final page draws only in Sessions
-// and Runway, at Sessions'. Each opens on the Overview, which shows milestone
-// 5's cards until stage 7 builds it. A frame of another view, or reached by
-// a key, is a fixture with its own size and keys over one of these sets: as
-// every card flipped with s; the theme picker, open, its cursor moved up a
-// theme from the frames' to show the one before; the help, which the frames
-// don't draw, and the help over Sessions on a short terminal, scrolled down
-// three rows; Sessions, three tabs on; and Runway, four tabs on, over the
-// day, and with w, over the week.
+// for each set of accounts Sessions' and Runway's frames draw, at the size of
+// the frame it mirrors, or for five accounts, which its final page draws only
+// in Sessions and Runway, at Sessions'. Each opens on the view it draws: a
+// frame of Sessions, or Runway, over the day, and with w, over the week; or
+// the help over Sessions on a short terminal, scrolled down three rows, which
+// the frames don't draw.
 func fixtures(loc *time.Location) []Fixture {
 	now := moment(loc)
-	w, g, j, tab := tea.KeyPressMsg{Code: 'w', Text: "w"}, tea.KeyPressMsg{Code: 'g', Text: "g"}, tea.KeyPressMsg{Code: 'j', Text: "j"}, tea.KeyPressMsg{Code: tea.KeyTab}
+	w, j := tea.KeyPressMsg{Code: 'w', Text: "w"}, tea.KeyPressMsg{Code: 'j', Text: "j"}
 	storyboard := storyboardAt(now)
 	all := []Fixture{
-		{Name: "accounts-1", Size: wide(27), now: now, router: oneAccount(now)},
-		{Name: "accounts-3", Size: wide(34), now: now, router: threeAccounts(now)},
-		{Name: "accounts-3-5h", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{w}},
-		{Name: "accounts-3-hourglass", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{g, g}},
-		{Name: "accounts-3-keys", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{{Code: '?', Text: "?"}}},
-		{Name: "accounts-3-rate", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{g}},
-		{Name: "accounts-3-themes", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{{Code: 't', Text: "t"}, {Code: tea.KeyUp}}},
-		{Name: "accounts-3-week", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{w, w}},
-		{Name: "accounts-4", Size: wide(40), now: now, router: fourAccounts(now)},
-		{Name: "accounts-4-hourglass", Size: wide(40), now: now, router: fourAccounts(now), keys: []tea.KeyPressMsg{g, g}},
-		{Name: "accounts-4-rate", Size: wide(40), now: now, router: fourAccounts(now), keys: []tea.KeyPressMsg{g}},
-		{Name: "accounts-5", Size: wide(40), now: now, router: fiveAccounts(now)},
-		{Name: "accounts-6", Size: wide(40), now: now, router: sixAccounts(now)},
-		{Name: "accounts-8", Size: wide(40), now: now, router: eightAccounts(now)},
-		{Name: "accounts-8-hourglass", Size: wide(40), now: now, router: eightAccounts(now), keys: []tea.KeyPressMsg{g, g}},
-		{Name: "accounts-8-rate", Size: wide(40), now: now, router: eightAccounts(now), keys: []tea.KeyPressMsg{g}},
-		{Name: "accounts-8-scrolling", Size: wide(28), now: now, router: eightAccounts(now)},
-		{Name: "accounts-flipped-all", Size: wide(34), now: now, router: threeAccounts(now).telling(backs(now)...), keys: []tea.KeyPressMsg{{Code: 's', Text: "s"}}},
-		{Name: "accounts-phone", Size: watch.Size{Width: 52, Height: 36}, now: now, router: threeAccounts(now)},
-		{Name: "page-help-scrolled", Size: wide(16), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, {Code: '?', Text: "?"}, j, j, j}},
-		{Name: "runway-day-3", Size: wide(26), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, tab}},
-		{Name: "runway-day-5", Size: wide(32), now: now, router: fiveAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, tab}},
-		{Name: "runway-week-3", Size: wide(26), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, tab, w}},
-		{Name: "sessions-1", Size: wide(27), now: now, router: oneAccount(now), keys: []tea.KeyPressMsg{tab, tab, tab}},
-		{Name: "sessions-3", Size: wide(28), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab}},
-		{Name: "sessions-3-keys", Size: wide(28), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, {Code: '?', Text: "?"}}},
-		{Name: "sessions-5", Size: wide(40), now: now, router: fiveAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab}},
-		{Name: "sessions-storyboard-1-request-out", Size: wide(28), now: storyboard, router: requestOut(storyboard), keys: []tea.KeyPressMsg{tab, tab, tab}},
-		{Name: "sessions-storyboard-2-streaming-back", Size: wide(28), now: storyboard, router: streamingBack(storyboard), keys: []tea.KeyPressMsg{tab, tab, tab}},
-		{Name: "sessions-storyboard-3-refused", Size: wide(28), now: storyboard, router: refused(storyboard), keys: []tea.KeyPressMsg{tab, tab, tab}},
-		{Name: "sessions-storyboard-4-repatched", Size: wide(28), now: storyboard, router: repatched(storyboard), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "page-help-scrolled", Size: wide(16), now: now, router: threeAccounts(now), view: dashboard.Sessions, keys: []tea.KeyPressMsg{{Code: '?', Text: "?"}, j, j, j}},
+		{Name: "runway-day-3", Size: wide(26), now: now, router: threeAccounts(now), view: dashboard.Runway},
+		{Name: "runway-day-5", Size: wide(32), now: now, router: fiveAccounts(now), view: dashboard.Runway},
+		{Name: "runway-week-3", Size: wide(26), now: now, router: threeAccounts(now), view: dashboard.Runway, keys: []tea.KeyPressMsg{w}},
+		{Name: "sessions-1", Size: wide(27), now: now, router: oneAccount(now), view: dashboard.Sessions},
+		{Name: "sessions-3", Size: wide(28), now: now, router: threeAccounts(now), view: dashboard.Sessions},
+		{Name: "sessions-3-keys", Size: wide(28), now: now, router: threeAccounts(now), view: dashboard.Sessions, keys: []tea.KeyPressMsg{{Code: '?', Text: "?"}}},
+		{Name: "sessions-5", Size: wide(40), now: now, router: fiveAccounts(now), view: dashboard.Sessions},
+		{Name: "sessions-storyboard-1-request-out", Size: wide(28), now: storyboard, router: requestOut(storyboard), view: dashboard.Sessions},
+		{Name: "sessions-storyboard-2-streaming-back", Size: wide(28), now: storyboard, router: streamingBack(storyboard), view: dashboard.Sessions},
+		{Name: "sessions-storyboard-3-refused", Size: wide(28), now: storyboard, router: refused(storyboard), view: dashboard.Sessions},
+		{Name: "sessions-storyboard-4-repatched", Size: wide(28), now: storyboard, router: repatched(storyboard), view: dashboard.Sessions},
 	}
 	for i := range all {
 		all[i].theme = framesTheme()
@@ -315,17 +295,41 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys),
-		theme: framesTheme(), records: worlds.recordsOf(w),
+		theme: framesTheme(), records: w.records(),
 	}
 }
 
-// pages are the page as stage 6 builds it, over the auto world, the frames'
-// tabs and cards not yet drawn as their frames are, to judge by eye: the
-// routing card over the Overview, two accounts picked and m ticked, at
-// 160×40, and on a phone, one picked and m ticked; the Log's empty tab, its
-// title row lit there; and the router gone, R having found it so, the status
-// line saying since when and p pin faint.
+// pages are the pages the watch draws over the worlds. The Overview's frames
+// and the routing card's over it, each named after its frame, at its size,
+// over its world, with the keys that reach it: on auto, pinned and in the bad
+// hour; by account; USAGE alone; GRAPHS and SESSIONS shown, the rest folded;
+// six accounts and ten; at 216 columns, with SESSIONS, with SESSIONS and
+// GRAPHS, and everything shown; on a phone; and the routing card opened on
+// auto, with two picked, with one picked and m ticked, and over routing's
+// world of a limit, with side picked. Then the page as stage 6 builds it,
+// over the auto world, where no frame draws it, to judge by eye: the routing
+// card over the Overview, two accounts picked and m ticked, at 160×40, and on
+// a phone, one picked and m ticked; the Log's empty tab, its title row lit
+// there; and the router gone, R having found it so, the status line saying
+// since when and p pin faint.
 var pages = []page{
+	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
+	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
+	{name: "overview-bad-hour-160", size: wide(37), world: accountWorlds.badHour},
+	{name: "overview-by-account-160", size: wide(42), world: accountWorlds.auto, keys: keysOf("b")},
+	{name: "overview-usage-alone-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("r", "c", "l")},
+	{name: "overview-everything-160x39", size: wide(39), world: accountWorlds.auto, keys: keysOf("g", "s")},
+	{name: "overview-six-accounts-160", size: wide(41), world: manyAccounts(6)},
+	{name: "overview-ten-accounts-160", size: wide(53), world: manyAccounts(10)},
+	{name: "overview-default-216", size: broad(70), world: accountWorlds.auto},
+	{name: "overview-sessions-216", size: broad(70), world: accountWorlds.auto, keys: keysOf("s")},
+	{name: "overview-sessions-graphs-216", size: broad(70), world: accountWorlds.auto, keys: keysOf("s", "g")},
+	{name: "overview-everything-216x106", size: broad(106), world: accountWorlds.auto, keys: keysOf("g", "s")},
+	{name: "overview-phone-52", size: watch.Size{Width: 52, Height: 66}, world: accountWorlds.auto},
+	{name: "routing-auto-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p")},
+	{name: "routing-two-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "3")},
+	{name: "routing-move-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
+	{name: "routing-limit-160", size: wide(37), world: accountWorlds.limit, keys: keysOf("p", "3")},
 	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: keysOf("p", "2", "3", "m")},
 	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
 	{name: "page-log", size: wide(37), world: accountWorlds.auto, keys: []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}},
@@ -345,4 +349,15 @@ func keysOf(text ...string) []tea.KeyPressMsg {
 // given.
 func wide(height int) watch.Size {
 	return watch.Size{Width: 160, Height: height}
+}
+
+// broad is a terminal as wide as the Overview's widest frames, 216 columns,
+// and as tall as given.
+func broad(height int) watch.Size {
+	return watch.Size{Width: 216, Height: height}
+}
+
+// manyAccounts picks the world of n accounts of the worlds.
+func manyAccounts(n int) func(accountWorlds) accountWorld {
+	return func(a accountWorlds) accountWorld { return a.many(n) }
 }

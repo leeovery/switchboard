@@ -12,12 +12,12 @@ import (
 // requests at a moment, as the watch reads it: what each session's model is
 // doing on its account, and what travels its cord; when the stream last saw
 // each at work; and the moves the stream told of while they show. The zero
-// Traffic is a watch without the stream, whose cords and cards' backs draw
-// the sessions as each look reads them, with no requests travelling.
+// Traffic is a watch without the stream, whose cords and sessions are drawn
+// as each look reads them, with no requests travelling.
 type Traffic struct {
 	// Live is set while what the watch draws is the stream's: from when it
-	// opens until the watch forgets what it told. The cards' backs then say
-	// what each session is doing, or how long it has been idle.
+	// opens until the watch forgets what it told. The sessions then say what
+	// each is doing, or how long it has been idle.
 	Live bool
 	// Calls are what each session's model is doing on its account, where the
 	// stream has told of it lately, by where it's plugged in.
@@ -135,10 +135,10 @@ func (t Traffic) repatching() []Move {
 }
 
 // listing is the sessions as the router listed them, the request stream's
-// moves among them, as the cards' backs, their dots and the plain list
-// draw them: each seat a move re-patches put on the account it went to, as
-// movedIn has it, and a session the router didn't list, which a move
-// brought on, first, as the one seen last.
+// moves among them, as the cords and the plain list draw them: each seat a
+// move re-patches put on the account it went to, as movedIn has it, and a
+// session the router didn't list, which a move brought on, first, as the one
+// seen last.
 func (f Frame) listing() []status.Session {
 	repatching := f.Traffic.repatching()
 	if len(repatching) == 0 {

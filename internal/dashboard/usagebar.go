@@ -7,19 +7,24 @@ import (
 )
 
 // staleFade is how far a stale reading's bar fades into the colour beneath:
-// it keeps 35% of its colour.
+// it keeps 35% of its colour. The Overview fades an account out of the pool
+// as far, and one both stale and out of the pool keeps 35% of 35%.
 const staleFade = 0.65
 
 // usageBar is a window's bar as the usage block draws it: filled to used,
-// from 0 to 1, more filling it; its cap's mark where its account's cap is, at
-// capAt of it, off the bar at 1 or more; and even pace's mark at pace of it,
-// none where that's nil. An empty bar is its track alone, as of an account
-// nothing is read of; a stale one is faded, nothing in it bold.
+// from 0 to 1, more filling it, or on the Overview, while it eases to used
+// after a read, to eased; its cap's mark where its account's cap is, at capAt
+// of it, off the bar at 1 or more; and even pace's mark at pace of it, none
+// where that's nil. An empty bar is its track alone, as of an account
+// nothing is read of; a stale one is faded, nothing in it bold, and so, on
+// the Overview, is one of an account out of the pool.
 type usageBar struct {
 	used, capAt float64
 	pace        *float64
+	eased       *float64
 	empty       bool
 	stale       bool
+	out         bool
 }
 
 // draw draws the bar cells long from x along row y, as look draws its cells:
@@ -30,7 +35,7 @@ type usageBar struct {
 func (b usageBar) draw(c *canvas, look Look, x, y, cells int) {
 	filled := 0
 	if !b.empty {
-		filled = halfEven(min(max(b.used, 0), 1) * float64(cells) * 8)
+		filled = halfEven(min(max(b.fills(), 0), 1) * float64(cells) * 8)
 	}
 	for i := range cells {
 		glyph, k := barCell(look, min(max(filled-8*i, 0), 8), rampStep(i, cells))
@@ -88,17 +93,41 @@ func barCell(look Look, eighths int, t float64) (string, ink) {
 	}
 }
 
-// faded is the ink as the bar draws it: as it is, or for a stale reading,
-// faded, its surface too, and not bold.
+// fills is how much of the bar is filled: as far as it has eased, while it
+// eases, else as used.
+func (b usageBar) fills() float64 {
+	if b.eased != nil {
+		return *b.eased
+	}
+	return b.used
+}
+
+// faded is the ink as the bar draws it: as it is, or, for a stale reading or
+// an account out of the pool, faded as fade says, its surface too, and not
+// bold.
 func (b usageBar) faded(k ink) ink {
-	if !b.stale {
+	fade := b.fade()
+	if fade == 0 {
 		return k
 	}
-	k.fade, k.bold, k.dim = staleFade, false, true
+	k.fade, k.bold, k.dim = fade, false, true
 	if k.on != (hue{}) {
-		k.on.fade = staleFade
+		k.on.fade = fade
 	}
 	return k
+}
+
+// fade is how far the bar fades into the colour beneath: staleFade, keeping
+// 35% of its colour, where its reading is stale or its account out of the
+// pool; the two compounded, keeping 35% of 35%, where both hold; else none.
+func (b usageBar) fade() float64 {
+	switch {
+	case b.stale && b.out:
+		return 1 - (1-staleFade)*(1-staleFade)
+	case b.stale || b.out:
+		return staleFade
+	}
+	return 0
 }
 
 // rampStep is where cell i of a bar cells long sits along the ramp, to the

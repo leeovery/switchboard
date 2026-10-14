@@ -2,7 +2,6 @@ package watch
 
 import (
 	"maps"
-	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -38,7 +37,7 @@ func (r lastReads) alerts(doc status.Document, now time.Time, policy score.Polic
 		if settings.Room && roomAgain(last, reading{account: a, at: now}, policy) {
 			alerts = append(alerts, notify.RoomAgain(a))
 		}
-		for _, w := range passed(last.account.Windows, a.Windows, settings.Warning) {
+		for _, w := range passed(last.account, a, settings.Warning, now, policy) {
 			alerts = append(alerts, notify.Warning(a, w))
 		}
 	}
@@ -73,13 +72,20 @@ func roomAgain(last, this reading, policy score.Policy) bool {
 		score.Available(this.account.Windows, this.account.Reserve, policy.IsShared, this.at)
 }
 
-// passed lists the windows in after that have passed warning since before.
-func passed(before, after []quota.Window, warning float64) []quota.Window {
+// passed lists the windows of account a, read at now, that have passed
+// warning since it was read as last: each, in both readings, as it stands at
+// now, as policy judges it, as WindowAt has it, so one that has reset since
+// either was read counts from empty. Passing warning in its period after the
+// reset is news, however much of the period before it had used; a reading
+// still of the period before, as one taken before the window is read again
+// carries, is none.
+func passed(last, a status.Account, warning float64, now time.Time, policy score.Policy) []quota.Window {
 	var up []quota.Window
-	for _, w := range after {
-		i := slices.IndexFunc(before, func(b quota.Window) bool { return b.Key == w.Key })
-		if i >= 0 && notify.Passed(before[i].Utilization, w.Utilization, warning) {
-			up = append(up, w)
+	for _, w := range a.Windows {
+		was, ok := last.WindowAt(w.Key, now, policy)
+		is, _ := a.WindowAt(w.Key, now, policy)
+		if ok && notify.Passed(was.Utilization, is.Utilization, warning) {
+			up = append(up, is)
 		}
 	}
 	return up

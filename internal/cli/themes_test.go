@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"fmt"
 	"image/color"
 	"io"
 	"maps"
@@ -125,25 +126,59 @@ func TestDashboardOpensMilestone5sCardViewOnTheOverview(t *testing.T) {
 	}
 }
 
-func TestDashboardFeaturesTheWindowKept(t *testing.T) {
-	deps := statusDeps(t, fakeClaudeAPI(t), nil)
-	writePrefs(t, deps, `{"view": "accounts", "featured": "7d"}`)
-	cfg := recordWatch(t, &deps)
-	run(t, deps, "dashboard")
+func TestDashboardShowsTheOverviewsSectionsKept(t *testing.T) {
+	tests := []struct {
+		name, prefs string
+		want        []string
+	}{
+		{name: "none kept: those shown at first", prefs: `{"tab": "overview"}`, want: []string{"usage", "routing", "coming", "lately"}},
+		{name: "those kept", prefs: `{"sections": ["graphs", "usage"]}`, want: []string{"usage", "graphs"}},
+		{name: "none shown, kept as none", prefs: `{"sections": []}`, want: []string{}},
+		{name: "one a later switchboard names passed over", prefs: `{"sections": ["usage", "a-later-section"]}`, want: []string{"usage"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
 
-	if cfg.Featured != "7d" {
-		t.Errorf("the dashboard's cards feature %q, want the week prefs.json keeps", cfg.Featured)
+			if got := cfg.Sections.Names(); !slices.Equal(got, tt.want) {
+				t.Errorf("the dashboard opens showing %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
-func TestDashboardDrawsTheChartKept(t *testing.T) {
-	deps := statusDeps(t, fakeClaudeAPI(t), nil)
-	writePrefs(t, deps, `{"view": "accounts", "chart": "hourglass"}`)
-	cfg := recordWatch(t, &deps)
-	run(t, deps, "dashboard")
+func TestDashboardGroupsTheOverviewsWindowsAsKeptElseAsConfigured(t *testing.T) {
+	tests := []struct {
+		name, prefs string
+		// layout is [usage] by in the config, "" for none.
+		layout string
+		want   dashboard.By
+	}{
+		{name: "neither saying: by window", prefs: `{}`, want: dashboard.ByWindow},
+		{name: "as the config says", prefs: `{}`, layout: "account", want: dashboard.ByAccount},
+		{name: "as kept", prefs: `{"by": "account"}`, want: dashboard.ByAccount},
+		{name: "as kept, over the config", prefs: `{"by": "window"}`, layout: "account", want: dashboard.ByWindow},
+		{name: "one kept it doesn't know: as the config says", prefs: `{"by": "a-later-grouping"}`, layout: "account", want: dashboard.ByAccount},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := fakeClaudeAPI(t)
+			text := fmt.Sprintf("upstream = %q\n", upstream) + threeAccounts
+			if tt.layout != "" {
+				text += "\n[usage]\nby = \"" + tt.layout + "\"\n"
+			}
+			deps := statusDeps(t, upstream, map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, text)})
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
 
-	if cfg.Chart != dashboard.Hourglass {
-		t.Errorf("the dashboard's cards draw %q, want the hourglass prefs.json keeps", cfg.Chart)
+			if cfg.By != tt.want {
+				t.Errorf("the dashboard groups the Overview's windows by %v, want %v", cfg.By, tt.want)
+			}
+		})
 	}
 }
 

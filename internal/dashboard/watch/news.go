@@ -42,11 +42,7 @@ func (n news) looked(doc status.Document, from router.Health, now time.Time) new
 	case !n.told:
 		return news{told: true, router: from, last: newest, since: since}
 	case from.Same(n.router):
-		for id, at := range n.since {
-			if now.Sub(at) < highlightFor {
-				since[id] = at
-			}
-		}
+		since = lasting(n.since, now, highlightFor)
 	default:
 		n.last = 0
 	}
@@ -65,19 +61,31 @@ func (n news) another(from router.Health) bool {
 }
 
 // faded is how far the highlight of each event picked out at now has faded,
-// by id, as fading says.
+// by id, as fading says over highlightFor.
 func (n news) faded(now time.Time) map[int]float64 {
-	return fading(n.since, now)
+	return fading(n.since, now, highlightFor)
+}
+
+// lasting are the things picked out at the time since gives that are picked
+// out still at now, by their key: those picked out less than lasts before.
+func lasting[K comparable](since map[K]time.Time, now time.Time, lasts time.Duration) map[K]time.Time {
+	still := make(map[K]time.Time)
+	for key, at := range since {
+		if now.Sub(at) < lasts {
+			still[key] = at
+		}
+	}
+	return still
 }
 
 // fading is how far the highlight of each thing picked out at the time
 // since gives has faded at now, by its key: from 0, just seen, to 1, gone,
-// quickening as it goes, highlightFor after it was seen. It's nil when none
-// is picked out still.
-func fading[K comparable](since map[K]time.Time, now time.Time) map[K]float64 {
+// quickening as it goes, lasts after it was seen. It's nil when none is
+// picked out still.
+func fading[K comparable](since map[K]time.Time, now time.Time, lasts time.Duration) map[K]float64 {
 	var faded map[K]float64
 	for key, at := range since {
-		if p := progress(now.Sub(at), highlightFor); p < 1 {
+		if p := progress(now.Sub(at), lasts); p < 1 {
 			if faded == nil {
 				faded = make(map[K]float64)
 			}

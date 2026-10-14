@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -58,6 +59,17 @@ func textsAt(cells int, texts map[int]string) string {
 		}
 	}
 	return strings.TrimRight(strings.Join(row, ""), " ")
+}
+
+// cellsOf lists the cells of a row where glyph is drawn.
+func cellsOf(row string, glyph rune) []int {
+	var cells []int
+	for i, r := range []rune(row) {
+		if r == glyph {
+			cells = append(cells, i)
+		}
+	}
+	return cells
 }
 
 // repeated runs the glyphs given, each as many times as its count, in turn.
@@ -323,6 +335,116 @@ func TestAWeekResettingBeyondTheWeekShownHasRoomAllWeek(t *testing.T) {
 	}
 }
 
+// A week reset since it was read, before it's read again, resets next a week
+// on, as the router's next read has it: beyond the week shown, it has room
+// all week, rather than resetting, ┃, at a time already past.
+func TestAWeekResetSinceItWasReadResetsNextAWeekOn(t *testing.T) {
+	work := readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.4, -2*time.Hour))
+	work.FetchedAt = now.Add(-3 * time.Hour).UTC()
+	rows, l := drawnRunway(runwayFrame(t, Week, 160, 26), routerDoc("", 1, work))
+
+	if got, want := strings.TrimSpace(rows[l.top+1]), "room all week  ·  resets Mon 11:12"; got != want {
+		t.Errorf("work's words read %q, want %q", got, want)
+	}
+	if strings.Contains(rows[l.top], resetGlyph) {
+		t.Errorf("work's lane reads %q, want no reset in the week shown", rows[l.top])
+	}
+}
+
+// A window the router found at its reserve, reset since, before it's read
+// again: its lane's past columns are history, drawn by the account's state
+// then, so it had no room until that reset; and the stretch, over, isn't
+// said.
+func TestAStretchAtItsReserveOverSinceItWasReadIsDrawnButNotSaid(t *testing.T) {
+	built := now.Add(-time.Hour)
+	for _, tt := range []struct {
+		name string
+		span Span
+		work status.Account
+		want string
+	}{
+		{"its 5-hour window, over the day", Day, readAccount("work", sessionOf(0.95, -30*time.Minute), weekOf(0.3, 4*day)), "room all day"},
+		{"its week, over the week", Week, readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.95, -30*time.Minute)), "room all week  ·  resets Mon 12:42"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			work := reserving(tt.work, 0.1)
+			work.FetchedAt = built.UTC()
+			doc := builtAt(built, work)
+			f := runwayFrame(t, tt.span, 160, 26)
+			rows, l := drawnRunway(f, doc)
+
+			tl := l.timeline
+			col := tl.column(now.Add(-45 * time.Minute))
+			if got := f.laneOf(doc, doc.Accounts[0], now).cells(tl)[col]; got != roomNone {
+				t.Errorf("at column %d, before the reset, work's lane stands %v, want no room, at its reserve", col, got)
+			}
+			if got := strings.TrimSpace(rows[l.top+1]); got != tt.want {
+				t.Errorf("work's words read %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// A week at its reserve when the document was built, reset since, before
+// it's read again: its words carry no "back" at that reset, now past, but
+// say what its state does, room.
+func TestAWeekAtItsReserveResetSinceItWasReadSaysItHasRoom(t *testing.T) {
+	work := reserving(readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.95, -2*time.Hour)), 0.1)
+	work.FetchedAt = now.Add(-3 * time.Hour).UTC()
+	doc := builtAt(now.Add(-3*time.Hour), work)
+
+	for _, tt := range []struct {
+		name string
+		span Span
+		want string
+	}{
+		{"day", Day, "room all day"},
+		{"week", Week, "room all week  ·  resets Mon 11:12"},
+	} {
+		f := runwayFrame(t, tt.span, 160, 26)
+		if got := f.laneOf(doc, doc.Accounts[0], now).states.Of("7d").Kind; got != status.WindowOpen {
+			t.Errorf("over the %s, work's week stands as kind %d, want WindowOpen", tt.name, got)
+		}
+		rows, l := drawnRunway(f, doc)
+		if got := strings.TrimSpace(rows[l.top+1]); got != tt.want {
+			t.Errorf("over the %s, work's words read %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+// What's said under a lane is of now and after: a stretch over isn't said,
+// nor a cause over within a stretch under way, whose words start where the
+// stretch does.
+func TestWhatsOverIsntSaid(t *testing.T) {
+	at := func(minutes int) time.Time { return now.Add(time.Duration(minutes) * time.Minute) }
+	reserve := cause{until: at(-30), says: "week at its reserve", resets: at(-30)}
+	limit := cause{from: at(-50), until: at(60), says: "limit reached 12:22"}
+	tests := []struct {
+		name   string
+		causes []cause
+		want   []string
+	}{
+		{name: "a stretch over", causes: []cause{reserve}},
+		{name: "a stretch ending at now", causes: []cause{{until: now, says: "at its reserve", resets: now}}},
+		{name: "a cause over within a stretch under way", causes: []cause{reserve, limit}, want: []string{"0 limit reached 12:22  ·  back 14:12"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stretches := merged(tt.causes)
+			if len(stretches) != 1 {
+				t.Fatalf("the causes run together into %d stretches, want 1", len(stretches))
+			}
+			var got []string
+			for _, p := range placedTold(stretches[0], timelineOf(Day, now, 136), now) {
+				got = append(got, fmt.Sprintf("%d %s", p.col, p.words.plain()))
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("under the lane, said %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestALaneDrainingAllDaySaysWhenItRunsOut(t *testing.T) {
 	doc := routerDoc("", 1, readAccount("work", sessionOf(0.1, 4*time.Hour), weekRunningOut(2*day, 3*day)))
 	rows, l := drawnRunway(runwayFrame(t, Day, 160, 26), doc)
@@ -483,6 +605,8 @@ func TestTheStripsFewWithRoomFillItsLowestEighth(t *testing.T) {
 func TestALanesBadge(t *testing.T) {
 	held := runwayThree()
 	held.Accounts[2].Windows[1].Utilization, held.Accounts[2].Windows[1].Status = 1, quota.StatusRejected
+	reset := runwayThree()
+	reset.Accounts[0].Windows[1].ResetsAt = now.Add(-time.Hour).UTC()
 	tests := []struct {
 		name string
 		doc  status.Document
@@ -496,6 +620,7 @@ func TestALanesBadge(t *testing.T) {
 		{name: "over the week, its week's use", doc: runwayThree(), span: Week, i: 0, want: line{{"34%", strongInk}}},
 		{name: "over the week, a week running out", doc: runwayThree(), span: Week, i: 1, want: line{{"89%", alertInk}}},
 		{name: "over the week, a week at its limit", doc: held, span: Week, i: 2, want: line{{"100%", exhaustedInk}}},
+		{name: "over the week, a week reset since it was read: empty, as it runs", doc: reset, span: Week, i: 0, want: line{{"0%", strongInk}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

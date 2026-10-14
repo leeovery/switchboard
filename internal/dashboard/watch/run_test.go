@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -168,7 +169,7 @@ func noColourConfig() Config {
 	clock := &fakeClock{now: start}
 	return Config{
 		Source: &fakeSource{doc: calm()}, Notifier: &fakeNotifier{}, Now: clock.Now, Interval: interval, Policy: policy,
-		Size: Size{Width: 80, Height: 24}, After: func(time.Duration, tea.Msg) tea.Cmd { return nil },
+		Size: Size{Width: 80, Height: 24}, After: func(time.Duration, tea.Msg) tea.Cmd { return nil }, Readings: readings.Empty{},
 	}
 }
 

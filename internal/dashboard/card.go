@@ -1,6 +1,10 @@
 package dashboard
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/leeovery/switchboard/internal/theme"
+)
 
 // The widths a card wants, its edges included: the routing card's, and
 // help's.
@@ -23,8 +27,9 @@ type Opened interface {
 
 // Card is a card drawn over the page, centred across it and down it, the
 // page faded behind it: a rounded line, its title in its top edge; a blank
-// row; its body, from cardInset cells in; a blank row; and its keys, where it
-// has any, right-aligned cardInset cells in on its last row but one.
+// row; its body, from cardInset cells in, the rows the cursor's on lit; a
+// blank row; and its keys, where it has any, right-aligned cardInset cells
+// in on its last row but one.
 type Card struct {
 	// title is in its top edge, after ╭─, as ROUTING · NEW SESSIONS.
 	title string
@@ -39,6 +44,14 @@ type Card struct {
 	// scroll is how far its body is scrolled, where it's taller than the
 	// card has room for.
 	scroll cardScroll
+	// lit are the rows of its body the cursor's on: none where it has no
+	// cursor.
+	lit bodyRows
+}
+
+// bodyRows are rows of a card's body: n of them from its row first.
+type bodyRows struct {
+	first, n int
 }
 
 // cardScroll is how far a card's body is scrolled: how many of its rows are
@@ -94,7 +107,9 @@ func (k Card) box(width, height int) (x, y, w, h int) {
 }
 
 // draw draws the card over what's drawn on c, in its box, the cells inside
-// its line blank.
+// its line blank. Its lit rows are on bg.selection from a cell before its
+// content to a cell after it, a cell clear of its line either side, as the
+// Log's f panel lights a row a cell either side of what it says.
 func (k Card) draw(c *canvas) {
 	keys := len(k.keys) > 0
 	x, y, _, height := k.box(c.width, c.height())
@@ -107,6 +122,9 @@ func (k Card) draw(c *canvas) {
 	}
 	for i, l := range k.body {
 		c.line(x+cardInset, y+2+i, l.fit(content))
+	}
+	for i := range k.lit.n {
+		c.surface(x+cardInset-1, y+2+k.lit.first+i, content+2, hue{token: theme.BgSelection})
 	}
 	if keys {
 		c.right(x+k.width-cardInset, y+height-2, keyRow(k.keys).fit(content))

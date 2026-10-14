@@ -101,8 +101,8 @@ func TestAPinSpendsItsAccountsReserve(t *testing.T) {
 		t.Errorf("under a pin to work, a new session went to %s, want work", got)
 	}
 	doc := r.rt.Status()
-	if work, _ := doc.Account("work"); doc.Reserved(work) != "spending its reserve (pinned)" {
-		t.Errorf("the document says of work's reserve %q, want it spent by the pin", doc.Reserved(work))
+	if work, _ := doc.Account("work"); doc.Reserved(work, doc.GeneratedAt) != "spending its reserve (pinned)" {
+		t.Errorf("the document says of work's reserve %q, want it spent by the pin", doc.Reserved(work, doc.GeneratedAt))
 	}
 
 	if _, err := client.Unpin(t.Context(), false, ""); err != nil {

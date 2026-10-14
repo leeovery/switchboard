@@ -22,6 +22,10 @@ import (
 // otherwise.
 const interval = 30 * time.Minute
 
+// framesTraceScale is the requests a minute that fill a trace's height in the
+// frames, which pin it, where the live page scales as its rule says.
+const framesTraceScale = 16
+
 // Frame draws the fixture as a terminal of the given size shows it: a line
 // for each of its rows, styled as the dashboard draws them, each ending in a
 // newline. A printout is drawn as usage prints it instead.
@@ -48,9 +52,9 @@ func (f Fixture) Model() tea.Model {
 // settle builds the dashboard's watch model of the fixture, as watch.New
 // builds it for dashboard, on a terminal of the given size, and brings it to
 // the fixture's moment: its first read lands readAgo before, the terminal
-// says what its background is, then the clock reads the moment, and the
-// fixture's keys are pressed. Its timers never fire, so nothing moves from
-// there but what a key does.
+// says what its background is, then the clock reads the moment, which the
+// screen is drawn at, and the fixture's keys are pressed. Its timers never
+// fire, so nothing moves from there but what a key does.
 func (f Fixture) settle(size watch.Size) watch.Model {
 	clock := &clock{now: ago(f.now, readAgo)}
 	m := watch.New(context.Background(), f.config(size, clock.read))
@@ -59,6 +63,7 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 		m = deliver(m, tea.BackgroundColorMsg{Color: terminalBackground})
 	}
 	clock.now = f.now
+	m = deliver(m, reached{})
 	for _, key := range f.keys {
 		m = deliver(m, key)
 	}
@@ -69,14 +74,17 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 // by now's clock, as dashboard configures it, its seams the fixture's.
 func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 	cfg := watch.Config{
-		Source:   f.router.by(now),
-		Notifier: quiet{},
-		Now:      now,
-		After:    held,
-		Interval: interval,
-		Policy:   claude.Policy,
-		Size:     size,
-		Prices:   drawnPrices,
+		Source:     f.router.by(now),
+		Notifier:   quiet{},
+		Now:        now,
+		After:      held,
+		Interval:   interval,
+		Policy:     claude.Policy,
+		WindowName: claude.WindowName,
+		Size:       size,
+		View:       f.view,
+		Prices:     drawnPrices,
+		TraceScale: framesTraceScale,
 	}
 	cfg.Ledger, cfg.Readings, cfg.Events = f.readers(now)
 	dressed(&cfg, f.theme, f.colourless)
@@ -204,6 +212,11 @@ type quiet struct{}
 func (quiet) Notify(string) error {
 	return nil
 }
+
+// reached is the clock reaching a fixture's moment: the watch takes it in as
+// any message, doing nothing with it but drawing its screen there afresh,
+// as a tick would.
+type reached struct{}
 
 // settled is a watch model brought to its fixture's moment, as Bubble Tea
 // runs it: starting it reads nothing, its first read taken already.

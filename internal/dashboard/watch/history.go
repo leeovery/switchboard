@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // The steps GET /history is asked for, as the charts draw them: the 5-hour
@@ -34,15 +35,23 @@ const mostSeen = 1000
 
 // history is how the accounts' windows have been used, as the watch keeps it
 // for the charts: each window's as the router gave it at the last full read,
-// and the readings the watch has seen itself, which carry the router's on
-// since, or, without the router, stand in for it.
+// or without the router, as the readings history's files held it at the
+// last; and the readings the watch has seen itself, which carry those on
+// since.
 type history struct {
-	// asked counts the times the router has been asked: an answer to one a
-	// later asking overtook is dropped.
+	// asked counts the times the router, or the readings history's files,
+	// have been asked: an answer to one a later asking overtook is dropped.
 	asked int
 	// router is each window's history, by its key, as the router last gave
 	// it.
 	router map[string]router.History
+	// filed are the readings of each account's windows the readings
+	// history's files held when last read, the oldest first.
+	filed map[dashboard.Ref][]score.Reading
+	// filedSince is set once the files have been read since probing began:
+	// the readings the watch sees itself carry them on from then, so they're
+	// read again only once probing begins again.
+	filedSince bool
 	// outdated is set while the router is from before GET /history.
 	outdated bool
 	// seen are the readings of each account's windows the watch has seen
@@ -56,6 +65,13 @@ type historyMsg struct {
 	asked int
 	got   map[string]router.History
 	err   error
+}
+
+// filedMsg is what reading the readings history's files found: each
+// account's windows' readings, the oldest first.
+type filedMsg struct {
+	asked int
+	got   map[dashboard.Ref][]score.Reading
 }
 
 // stepFor is the step the history of the window with the given key is asked
@@ -118,6 +134,53 @@ func histories(ctx context.Context, source Source, doc status.Document, asked in
 	return msg
 }
 
+// readFiled reads the readings history's files for the readings of doc's
+// windows as they run at now, as the next asking, where there's no router to
+// ask: nothing where the watch has no readings history to read.
+func (m Model) readFiled(doc status.Document, now time.Time) (Model, tea.Cmd) {
+	if m.cfg.Readings == nil {
+		return m, nil
+	}
+	m.history.asked++
+	m.history.filedSince = true
+	asked, files, policy := m.history.asked, m.cfg.Readings, m.cfg.Policy
+	return m, func() tea.Msg {
+		return filedMsg{asked: asked, got: filedOf(files, doc, now, policy)}
+	}
+}
+
+// filedOf are the readings the readings history's files hold of doc's
+// windows, by account and window, read as the history verb reads them, from
+// the day the earliest of the spans the charts draw them over at now, as
+// ChartSpan has them, as policy judges the windows, started.
+func filedOf(files views.Readings, doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref][]score.Reading {
+	from := now
+	for _, a := range doc.Accounts {
+		for _, w := range a.Windows {
+			if start, _, ok := dashboard.ChartSpan(a, w.Key, now, policy); ok {
+				from = score.Earlier(from, start)
+			}
+		}
+	}
+	got := make(map[dashboard.Ref][]score.Reading)
+	for _, w := range views.NewWindows(files, nil, from, now).Windows {
+		ref := dashboard.Ref{Account: w.Account, Window: w.Window}
+		for _, r := range w.Readings {
+			got[ref] = append(got[ref], score.Reading{At: r.At, Utilization: r.Utilization})
+		}
+	}
+	return got
+}
+
+// filedAs takes in what reading the readings history's files found, unless a
+// later asking overtook it.
+func (h history) filedAs(msg filedMsg) history {
+	if msg.asked == h.asked {
+		h.filed = msg.got
+	}
+	return h
+}
+
 // answered takes in what asking the router found, unless a later asking
 // overtook it: the windows' histories it gave, beside those it couldn't
 // give again; and whether the router is from before GET /history.
@@ -141,18 +204,24 @@ func (h history) answered(msg historyMsg) history {
 	return h
 }
 
-// saw takes in the readings of doc's windows: each window's use as read,
-// when its account was read, one reading the same use again carrying the
-// last on to then. A window's readings from before it last started go.
-func (h history) saw(doc status.Document) history {
+// saw takes in the readings of doc's windows the charts draw at now, each
+// over its span then, as ChartSpan has it, as policy judges the windows: each
+// window's use as read, when its account was read, one reading the same use
+// again carrying the last on to then; but none read before its span starts,
+// as of one that has reset since, nor of one without a span, as of one not
+// started. A window's readings from before its span starts go.
+func (h history) saw(doc status.Document, now time.Time, policy score.Policy) history {
 	seen := maps.Clone(h.seen)
 	if seen == nil {
 		seen = make(map[dashboard.Ref][]score.Reading)
 	}
 	for _, a := range doc.Accounts {
+		if a.FetchedAt.IsZero() {
+			continue
+		}
 		for _, w := range a.Windows {
-			start, _, ok := w.Span()
-			if !ok || a.HasLapsed(w) || a.FetchedAt.IsZero() {
+			start, _, ok := dashboard.ChartSpan(a, w.Key, now, policy)
+			if !ok || a.FetchedAt.Before(start) {
 				continue
 			}
 			ref := dashboard.Ref{Account: a.ID, Window: w.Key}
@@ -181,25 +250,30 @@ func record(readings []score.Reading, r score.Reading) []score.Reading {
 	}
 }
 
-// drawn is the history the charts draw of doc's windows, each running now,
-// its readings in order: those the router gave, from when it started, then
-// those the watch has seen after the router's last; or those the watch has
-// seen alone, where the router gave none.
-func (h history) drawn(doc status.Document) dashboard.Trails {
+// drawn is the history the charts draw of doc's windows at now, each over its
+// span then, as ChartSpan has it, as policy judges the windows, its readings
+// in order from when that started, so none of one that has reset since it was
+// read: those the router gave, or where it gave none, those the readings
+// history's files held; then those the watch has seen after the last of them;
+// or those the watch has seen alone, where neither holds any.
+func (h history) drawn(doc status.Document, now time.Time, policy score.Policy) dashboard.Trails {
 	drawn := make(dashboard.Trails)
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
-			start, _, ok := w.Span()
-			if !ok || a.HasLapsed(w) {
+			start, _, ok := dashboard.ChartSpan(a, w.Key, now, policy)
+			if !ok {
 				continue
 			}
 			ref := dashboard.Ref{Account: a.ID, Window: w.Key}
 			readings, seen := h.routers(ref, start), since(h.seen[ref], start)
+			if len(readings) == 0 {
+				readings = slices.Clone(since(h.filed[ref], start))
+			}
 			if n := len(readings); n > 0 {
 				seen = beyond(seen, readings[n-1].At)
 			}
 			if readings = append(readings, seen...); len(readings) > 0 {
-				drawn[ref] = dashboard.Trail{Start: start, Readings: readings}
+				drawn[ref] = dashboard.Trail{Readings: readings}
 			}
 		}
 	}

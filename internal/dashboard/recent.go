@@ -9,25 +9,11 @@ import (
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // passedOver ends the reason the router gives for a choice that passed over
 // an account under pressure, as in "new, work under pressure".
 const passedOver = " under pressure"
-
-// recent are the events RECENT lists at now, newest first, n at most: those
-// of the kinds it tells of, but a move a limit counts while that limit's
-// line is among them, as newest has them.
-func recent(doc status.Document, now time.Time, n int) []status.Event {
-	var events []status.Event
-	for _, e := range doc.Events {
-		if _, _, ok := told(e, doc, now); ok {
-			events = append(events, e)
-		}
-	}
-	return newest(events, n, countedIn, countingOf)
-}
 
 // counted reports whether an event is a move a limit forced, which the
 // limit's own line counts.
@@ -35,29 +21,10 @@ func counted(e status.Event) bool {
 	return e.Kind == status.EventMoved && e.Limit != 0
 }
 
-// countedIn is the id of the limit's event that counts the move e tells of,
-// as counted has it: zero for any other event, a limit's own, whose Limit is
-// its identity, among them.
-func countedIn(e status.Event) int {
-	if counted(e) {
-		return e.Limit
-	}
-	return 0
-}
-
-// countingOf is the id of the limit's event e, whose line counts the moves
-// it forced: zero for any other event.
-func countingOf(e status.Event) int {
-	if e.Kind == status.EventLimit {
-		return e.ID
-	}
-	return 0
-}
-
-// quiet is what RECENT says where it lists no events: that the router isn't
-// running, or answering as it should, while probing for want of it; that
-// probing as asked reads none; that the router, from before it told of
-// events, wants restarting; or that it has told of none lately. It's nil
+// quiet is what LATELY and LOG say where they list no events: that the
+// router isn't running, or answering as it should, while probing for want of
+// it; that probing as asked reads none; that the router, from before it told
+// of events, wants restarting; or that it has told of none lately. It's nil
 // while nothing has been read.
 func (f Frame) quiet(doc status.Document) line {
 	switch {
@@ -102,8 +69,8 @@ func told(e status.Event, doc status.Document, now time.Time) (span, line, bool)
 }
 
 // aside is what's told of an event that befell an account, from the
-// account's side, which RECENT tells after its name and the account's card's
-// LATELY as it is: its mark, a glyph in the ink of what it tells of; its
+// account's side, which RECENT tells after its name: its mark, a glyph in the
+// ink of what it tells of; its
 // gist, as in "reached its session limit"; and what follows it, as in "; 3
 // sessions moved to side", in the ink of their own. It reports false for an
 // event of any other kind.
@@ -259,6 +226,15 @@ func moves(e status.Event, doc status.Document) line {
 	return l
 }
 
+// movedTo says where the sessions a limit moved went, where they all went to
+// one account, as in " to side": nothing where they didn't.
+func movedTo(doc status.Document, e status.Event) string {
+	if e.To == "" {
+		return ""
+	}
+	return " to " + named(doc, e.To)
+}
+
 // refusal is what's said of the upstream refusing requests on an account,
 // after its name: its mark, a refusal of its token, which holds back every
 // request, in state.destructive, or of a model family's requests alone,
@@ -313,12 +289,6 @@ type telling struct {
 	words line
 }
 
-// tellings are the events RECENT tells of at now, newest first, n at most,
-// as tellingsOf tells of them.
-func (f Frame) tellings(doc status.Document, now time.Time, n int) []telling {
-	return f.tellingsOf(recent(doc, now, n), doc, now, told)
-}
-
 // tellingsOf are the events given, as tell tells of each at now: each led by
 // its time, as Dated shows it, the first's standing out, in a column as wide
 // as the widest, timeGap after it, then its mark.
@@ -339,8 +309,8 @@ func (f Frame) tellingsOf(events []status.Event, doc status.Document, now time.T
 	return tellings
 }
 
-// timeGap is the blanks after a column of times, as RECENT and COMING UP
-// have them: two, but on a phone, one.
+// timeGap is the blanks after a column of times, as LOG has them: two, but
+// on a phone, one.
 func (f Frame) timeGap() string {
 	if f.phone() {
 		return " "
@@ -348,57 +318,8 @@ func (f Frame) timeGap() string {
 	return "  "
 }
 
-// recentStrip draws RECENT's lines from row y, from x until the column end,
-// n of them at most, and returns how many it drew: its events, newest first,
-// each with its time, its mark and its words, picked out while it's fresh;
-// or why there are none.
-func (f Frame) recentStrip(c *canvas, doc status.Document, now time.Time, x, y, end, n int) int {
-	tellings := f.tellings(doc, now, n)
-	if len(tellings) == 0 {
-		return f.quietly(c, doc, x, y, end)
-	}
-	for i, t := range tellings {
-		c.line(x, y+i, slices.Concat(t.lead, t.words).fit(end-x))
-		f.freshen(c, t.id, x, y+i, end)
-	}
-	return len(tellings)
-}
-
-// recentColumn draws RECENT's lines in a column, from row y until row last,
-// from x to the frame's edge: as many of its events as fit, recentLines at
-// most, newest first, each on a line with its time, its mark and its
-// subject, the account or session it befell, and under it, from its
-// subject's column, the rest of its words, which open with a blank; or why
-// there are none.
-func (f Frame) recentColumn(c *canvas, doc status.Document, now time.Time, x, y, last int) {
-	end := f.edge()
-	tellings := f.tellings(doc, now, recentLines)
-	if len(tellings) == 0 && y < last {
-		f.quietly(c, doc, x, y, end)
-	}
-	for _, t := range tellings {
-		subject, rest := t.words[:min(1, len(t.words))], t.words[min(1, len(t.words)):]
-		rows := 1
-		if len(rest) > 0 {
-			rows = 2
-		}
-		if y+rows > last {
-			return
-		}
-		c.line(x, y, slices.Concat(t.lead, subject).fit(end-x))
-		if rows == 2 {
-			under := x + t.lead.width()
-			c.line(under, y+1, rest.fit(end-under))
-		}
-		for i := range rows {
-			f.freshen(c, t.id, x, y+i, end)
-		}
-		y += rows
-	}
-}
-
-// quietly draws why RECENT lists no events, from x along row y until the
-// column end, where it says, and returns the lines it drew.
+// quietly draws why LATELY or LOG lists no events, from x along row y until
+// the column end, where it says, and returns the lines it drew.
 func (f Frame) quietly(c *canvas, doc status.Document, x, y, end int) int {
 	quiet := f.quiet(doc)
 	if quiet == nil {
@@ -409,20 +330,9 @@ func (f Frame) quietly(c *canvas, doc status.Document, x, y, end int) int {
 }
 
 // freshen picks out the row of the event with the given id, from x along
-// row y until the column end, while it's fresh: its highlight fading back.
+// row y until the column end, while it's fresh: cued, its cue fading back.
 func (f Frame) freshen(c *canvas, id, x, y, end int) {
 	if fade, ok := f.Fresh[id]; ok {
-		c.surface(x, y, end-x, hue{token: theme.BgAttention, fade: fade})
+		cue(c, f.Look, x, y, end-x, fade)
 	}
-}
-
-// recentCount is how many lines RECENT takes at now, n at most.
-func (f Frame) recentCount(doc status.Document, now time.Time, n int) int {
-	if events := recent(doc, now, n); len(events) > 0 {
-		return len(events)
-	}
-	if f.quiet(doc) != nil {
-		return 1
-	}
-	return 0
 }

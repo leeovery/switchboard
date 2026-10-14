@@ -1,12 +1,15 @@
 package watch
 
 import (
+	"time"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 )
 
-// wheelRows is how many rows a turn of the wheel scrolls.
+// wheelRows is how many rows a turn of the wheel scrolls help, and a view
+// that scrolls by rows.
 const wheelRows = 3
 
 // scrollStep is how far a key or a turn of the wheel scrolls, down where more
@@ -31,16 +34,16 @@ func scrollKey(key string) (scrollStep, bool) {
 	return scrollStep{}, false
 }
 
-// wheelTurn is how far the wheel turned scrolls, reporting false for a
-// button that isn't the wheel's.
-func wheelTurn(button tea.MouseButton) (scrollStep, bool) {
+// wheelTurn is the way the wheel turned, 1 down and -1 up, reporting false
+// for a button that isn't the wheel's.
+func wheelTurn(button tea.MouseButton) (int, bool) {
 	switch button {
 	case tea.MouseWheelDown:
-		return scrollStep{rows: wheelRows}, true
+		return 1, true
 	case tea.MouseWheelUp:
-		return scrollStep{rows: -wheelRows}, true
+		return -1, true
 	}
-	return scrollStep{}, false
+	return 0, false
 }
 
 // from is where what's scrolled at, and scrolls as s says, is scrolled to:
@@ -51,37 +54,71 @@ func (by scrollStep) from(at int, s dashboard.Scrolling) int {
 }
 
 // wheeled scrolls what the wheel turns under the pointer, as the screen
-// draws it: help, over its card; the view, over its rows, while no card is
-// open; and nothing else, the routing card among it, nor anything while the
-// theme picker is open. What's under the pointer is found from the frame
-// alone, which the key line doesn't move.
+// draws it: help, over its card; the view, over what of it scrolls, while no
+// card is open, as far as notch says, as scrollView scrolls it, as on j and
+// k; and nothing else, the routing card among it, nor anything while the
+// theme picker is open. A turn scrolls help wheelRows rows. What's under the
+// pointer with no card open is found from the page on screen alone, as
+// onScreen has it, which the key line doesn't move.
 func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
-	by, ok := wheelTurn(msg.Button)
+	way, ok := wheelTurn(msg.Button)
 	if !ok || m.picker.open {
 		return m
 	}
-	now := m.now()
 	switch m.open {
 	case helpOpen:
-		if f, _, _ := m.screen(now); f.Under(msg.X, msg.Y) == dashboard.UnderCard {
-			m.help.scroll = by.from(m.help.scroll, f.CardScrolling())
+		if f, doc, at := m.screen(m.now()); f.Under(doc, at, msg.X, msg.Y) == dashboard.UnderCard {
+			m.help.scroll = scrollStep{rows: way * wheelRows}.from(m.help.scroll, f.CardScrolling())
 		}
 	case nothingOpen:
-		if f := m.frame(now); f.Under(msg.X, msg.Y) == dashboard.UnderView {
-			m.scroll = by.from(m.scroll, f.Scrolling(m.doc, now))
+		if f, at := m.onScreen(); f.Under(m.doc, at, msg.X, msg.Y) == dashboard.UnderView {
+			return m.scrollView(m.notch(way))
 		}
 	}
 	return m
 }
 
-// scrollView scrolls the view shown by.
+// notch is how far a turn of the wheel the way given scrolls the view shown:
+// on the Overview, an account, as its USAGE scrolls an account at a time, as
+// j and k do; else wheelRows rows.
+func (m Model) notch(way int) scrollStep {
+	if m.view == dashboard.Overview {
+		return scrollStep{rows: way}
+	}
+	return scrollStep{rows: way * wheelRows}
+}
+
+// scrollView scrolls the view shown by, the page acting as acting has it
+// only where that moves it from where it's drawn: a scroll that moves
+// nothing leaves the Overview's layout as it's kept, but the view scrolled
+// no further than it's drawn, so an offset past where it now goes doesn't
+// come back once it goes further again.
 func (m Model) scrollView(by scrollStep) Model {
-	m.scroll = by.from(m.scroll, m.scrolling())
+	s := m.scrolling()
+	to := by.from(m.scroll, s)
+	if to == min(m.scroll, s.Most) {
+		m.scroll = to
+		return m
+	}
+	m = m.acting()
+	m.scroll = to
 	return m
 }
 
-// scrolling is how far the view on screen scrolls.
+// scrolling is how far the view on screen scrolls, as onScreen has it.
 func (m Model) scrolling() dashboard.Scrolling {
+	f, at := m.onScreen()
+	return f.Scrolling(m.doc, at)
+}
+
+// onScreen is the page on screen, but for its key line, and the moment it's
+// of: the page the last message left shown, its sections as Update built
+// them then, where it left one; else, as on a screen blank till the terminal
+// says what its background is, the page as m stands at the clock's time.
+func (m Model) onScreen() (dashboard.Frame, time.Time) {
+	if m.shown.page != nil {
+		return *m.shown.page, m.shown.at
+	}
 	now := m.now()
-	return m.frame(now).Scrolling(m.doc, now)
+	return m.frame(now), now
 }

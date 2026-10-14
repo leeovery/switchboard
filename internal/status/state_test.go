@@ -85,7 +85,7 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 		{
 			name:    "its last probe failing while a limit holds it back: the limit",
 			account: with(with(readNow(1, 0.3, 0), limited("5h")), func(a *status.Account) { a.Error = "timed out" }),
-			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 17:10, in 2h 27m"},
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 17:10, in 2h 28m"},
 		},
 		{
 			name:    "its last probe failing while a model's limit holds it back: the limit",
@@ -105,29 +105,29 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 		{
 			name:    "nothing read yet, but the limit the router saw it reach",
 			account: with(status.Account{ID: "work", TokenSet: true}, limited("5h")),
-			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 11m"},
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 12m"},
 		},
 		{
 			name:    "at its session's limit",
 			account: with(readNow(0.98, 0.3, 0), limited("5h")),
-			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 11m"},
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 12m"},
 		},
 		{
 			name:    "at its session's limit, which lifts before its session, read spent, resets",
 			account: with(readNow(1, 0.3, 0), limited("5h")),
-			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 17:10, in 2h 27m"},
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 17:10, in 2h 28m"},
 		},
 		{
 			name:    "at a limit naming no window",
 			account: with(readNow(0.6, 0.3, 0), limited()),
-			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 11m"},
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 12m"},
 		},
 		{
 			name: "its session read spent, as probing reads it",
 			account: with(readNow(1, 0.3, 0), func(a *status.Account) {
 				a.Windows[0].Status = quota.StatusRejected
 			}),
-			want: status.State{Condition: status.Limited, Says: "limit reached", Then: "back 17:10, in 2h 27m"},
+			want: status.State{Condition: status.Limited, Says: "limit reached", Then: "back 17:10, in 2h 28m"},
 		},
 		{
 			name:    "its token refused",
@@ -137,7 +137,7 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 		{
 			name:    "a limit before its token refused",
 			account: with(with(readNow(0.98, 0.3, 0), limited("5h")), refusing(401, "")),
-			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 11m"},
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 12m"},
 		},
 		{
 			name: "at Fable's week's limit",
@@ -151,7 +151,7 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 			account: with(readNow(1, 0.3, 0.5), func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: at(5, 21, 0).UTC()}
 			}),
-			want: status.State{Condition: status.Limited, Says: "limit reached", Then: "back 17:10, in 2h 27m"},
+			want: status.State{Condition: status.Limited, Says: "limit reached", Then: "back 17:10, in 2h 28m"},
 		},
 		{
 			name: "at Fable's week's limit, a shared window at its reserve holding back the rest",
@@ -282,6 +282,14 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 			name:    "open, Fable's week within 10 points of its reserve",
 			account: with(readNow(0.31, 0.5, 0.71), func(a *status.Account) { a.Reserve = 0.2 }),
 			want:    status.State{Condition: status.Open, Says: "open", Then: "its Fable week nears its reserve"},
+		},
+		{
+			name: "open, its week read within 10 points of its reserve, reset since, so empty at now",
+			account: with(readNow(0.31, 0.78, 0.2), func(a *status.Account) {
+				a.Reserve = 0.2
+				a.Windows[1].ResetsAt = at(1, 9, 0).UTC()
+			}),
+			want: status.State{Condition: status.Open, Says: "open"},
 		},
 		{
 			name:    "open, its week further from its reserve",

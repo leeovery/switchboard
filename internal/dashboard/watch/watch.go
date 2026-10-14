@@ -121,6 +121,10 @@ type Config struct {
 	// Policy is the provider's say in which windows leave an account without
 	// room.
 	Policy score.Policy
+	// WindowName names a window by its key wherever the Overview names one,
+	// as "5-hour" or "Fable week": nil names it by its label in the
+	// document.
+	WindowName func(key string) string
 	// Size is what to draw at until the terminal gives its size, and in place
 	// of a width or height it gives as zero, which means it doesn't know.
 	Size Size
@@ -133,13 +137,17 @@ type Config struct {
 	// NO_COLOR asks, and leaves t doing nothing.
 	Themes Themes
 	// View is the tab the preferences kept, which the watch opens on where
-	// it's one there is, Featured the window they keep the cards featuring,
-	// and Chart the style they keep the cards drawing it in; Prefs keeps
-	// each as it changes: nil keeps nothing.
+	// it's one there is; Sections the Overview's sections they keep shown;
+	// and By how they keep its windows grouped, else as the config's [usage]
+	// by has it. Prefs keeps each as it changes: nil keeps nothing.
 	View     dashboard.View
-	Featured dashboard.Feature
-	Chart    dashboard.Chart
+	Sections dashboard.Sections
+	By       dashboard.By
 	Prefs    Prefs
+	// TraceScale is the requests a minute that fill a trace's height on the
+	// Overview: 0 for the live rule, as the dashboard has it, the busiest
+	// column of every trace on the page, never less than 8.
+	TraceScale float64
 	// Ledger, Readings and Events read the request ledger, the readings
 	// history and the router's events where they lie: the watch opens none
 	// of their files itself.
@@ -223,38 +231,52 @@ type Model struct {
 	// view is the tab shown.
 	view dashboard.View
 	// news is what the looks have seen of the router's events, and changes
-	// of the cards' states.
+	// of the accounts' states; numbers what reads and the request stream
+	// changed of the numbers on the page.
 	news    news
 	changes changes
+	numbers numbers
 	// history is how the accounts' windows have been used, and trails the
 	// charts' share of it, of the document on screen.
 	history history
 	trails  dashboard.Trails
 	// sessions are the sessions the router listed with the document on
-	// screen, for the cards' dots and Sessions' calls: nil where it listed
-	// none. listedBy is the router that listed them, as its health check
-	// said; and order is the order Sessions' calls ran in as they were
+	// screen, for the sessions running and Sessions' calls: nil where it
+	// listed none. listedBy is the router that listed them, as its health
+	// check said; and order is the order Sessions' calls ran in as they were
 	// listed, which they keep from look to look.
 	sessions []status.Session
 	listedBy router.Health
 	order    dashboard.Order
-	// stream is the watch's hold on the router's request stream, and traffic
-	// what the stream has told of the routed requests.
+	// stream is the watch's hold on the router's request stream, traffic
+	// what the stream has told of the routed requests, and traces the
+	// requests the Overview's traces count, of today's lines and the stream.
 	stream  streaming
 	traffic traffic
-	// featured is which window every card features, chart the style every
-	// card draws it in, and span how far ahead Runway looks.
-	featured dashboard.Feature
-	chart    dashboard.Chart
+	traces  views.Traces
+	// toldBefore is what the stream had told before the message taken in
+	// told what can change a number the page draws, for compared to compare
+	// the numbers drawn of it with those drawn since: nil where it told
+	// nothing that can.
+	toldBefore *toldSoFar
+	// sections are the Overview's sections shown, and by how its windows are
+	// grouped; span is how far ahead Runway looks.
+	sections dashboard.Sections
+	by       dashboard.By
 	span     dashboard.Span
-	// scroll is how many rows the view shown is scrolled down by, where its
-	// cards, or its lanes, don't fit.
+	// layout is the Overview's layout as it was last made, kept from look to
+	// look, as keepLayout keeps it, so it changes only on an input the page
+	// acts on, a key, a click or the wheel, a resize, or a section's shape
+	// changing.
+	layout dashboard.Layout
+	// scroll is how many rows the view shown is scrolled down by, where it
+	// doesn't fit, or on the Overview, how many accounts USAGE is, within its
+	// section.
 	scroll int
-	// focus is the account whose card has the focus, "" while none has it;
-	// and flipped are the accounts whose cards are flipped, by id, a set no
-	// model changes once it's made.
-	focus   string
-	flipped map[string]bool
+	// focus is the account the Overview's focus is on, which GRAPHS follows:
+	// the first, in the config's order, till ↑ and ↓ move it, and "" while
+	// the document has none.
+	focus string
 
 	// open is the card open over the page, if any: the routing card, its
 	// picker as routing holds it, or help, scrolled as help holds it. page is
@@ -264,6 +286,25 @@ type Model struct {
 	routing routing
 	help    helping
 	page    frozen
+
+	// shown is what render made of the screen once the last message was
+	// taken in.
+	shown shown
+}
+
+// shown is the screen as the last message left it, for View to show, and
+// what moves on it, which has frames drawn: the live page, its sections built
+// once at the moment the message was taken in, as at says, which View draws
+// at that moment; and where render drew it, to know what moves, as drawn
+// says, the view drawn, which View shows rather than drawing it again.
+// Behind a card, and on a screen blank till the terminal says what its
+// background is, there's no page, and View draws the screen itself.
+type shown struct {
+	page   *dashboard.Frame
+	at     time.Time
+	moving dashboard.Motion
+	view   tea.View
+	drawn  bool
 }
 
 // opened is which card is open over the page.
@@ -315,7 +356,7 @@ type frameMsg struct {
 func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
-		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), featured: cfg.Featured, chart: cfg.Chart,
+		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By,
 	}
 	if m.after == nil {
 		m.after = after
@@ -341,15 +382,87 @@ func (m Model) Init() tea.Cmd {
 
 // Update takes in a message, as take says, then has the watch read the
 // router's request stream while it wants it, and only then, price the moves
-// the routing card would make while it wants them, and draw frames while
-// anything on screen moves. The view is drawn again after each, which is all
-// a note's lapsing asks.
+// the routing card would make while it wants them. Then, of the page as it
+// stands at one moment, its Overview's sections built once for each to
+// share, it keeps the Overview's layout, but for a frame, which takes
+// nothing in to lay it out afresh by; brightens the numbers what the stream
+// told changed, as compared has it; and only then, so the screen and its
+// frames see the layout the page will draw and the numbers it brightens,
+// shows the page, drawing frames while anything on it moves. The view is
+// drawn again after each, which is all a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.take(msg)
 	tuned, stream := next.(Model).tune()
 	tuned, costs := tuned.costing()
-	tuned, frames := tuned.startFrames(tuned.now())
+	now := tuned.now()
+	page := tuned.frame(now).Built(tuned.doc, now)
+	if _, frame := msg.(frameMsg); !frame {
+		tuned = tuned.keepLayout(page, now)
+	}
+	tuned = tuned.compared(page, now)
+	tuned, frames := tuned.startFrames(page, now)
 	return tuned, tea.Batch(cmd, stream, costs, frames)
+}
+
+// keepLayout keeps the Overview's layout as page, built at now, lays it out,
+// for the looks after: as it was kept, but laid out afresh where an input
+// the page acts on let it go, as acting does, on a resize, or as a section's
+// shape changes, as LayoutOf has it.
+func (m Model) keepLayout(page dashboard.Frame, now time.Time) Model {
+	m.layout = page.LayoutOf(m.doc, now)
+	return m
+}
+
+// laidOut is page, built at now, as the model stands since: its Overview
+// laid out as kept, and its numbers as bright as they are at now, neither of
+// which its sections draw.
+func (m Model) laidOut(page dashboard.Frame, now time.Time) dashboard.Frame {
+	page.Layout, page.Brightened = m.layout, m.numbers.brightened(now)
+	return page
+}
+
+// acting is m as the page acts on an input, its Overview's layout let go,
+// to be laid out afresh: whichever input asks, a key, a click or the wheel,
+// so the page is laid out alike whichever way it's asked.
+func (m Model) acting() Model {
+	m.layout = dashboard.Layout{}
+	return m
+}
+
+// shownOf is the screen page, built at now, shows, for View to draw: the
+// live page as the model stands since; but no page behind a card, nor on a
+// screen blank till the terminal says what its background is.
+func (m Model) shownOf(page dashboard.Frame, now time.Time) shown {
+	if m.open != nothingOpen || m.blank() {
+		return shown{}
+	}
+	live := m.laidOut(page, now)
+	return shown{page: &live, at: now}
+}
+
+// shownPage is the live page shown, as it's drawn: its key line listing the
+// keys that work on it as the message was taken in.
+func (m Model) shownPage() dashboard.Frame {
+	page := *m.shown.page
+	page.KeyLine = m.keyLine(page, m.shown.at)
+	return page
+}
+
+// render works out what moves on the page shown, for frames to be drawn
+// while anything does. Where anything it draws may be settling, it draws the
+// screen once to know, and keeps it for View to show; else what moves needs
+// no drawing, and View draws the page. Nothing moves where there's no page.
+func (m Model) render() Model {
+	switch page, at := m.shown.page, m.shown.at; {
+	case page == nil:
+	case !page.MaySettle():
+		m.shown.moving = page.Motion(m.doc, at)
+	default:
+		live := m.shownPage()
+		lines, moving := live.Rendered(m.doc, at)
+		m.shown.view, m.shown.moving, m.shown.drawn = m.viewOf(lines, live.Look), moving, true
+	}
+	return m
 }
 
 // take takes in a message: a key, a click, the wheel, a resize, the
@@ -382,7 +495,11 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.fetched(msg)
 	case historyMsg:
 		m.history = m.history.answered(msg)
-		m.trails = m.history.drawn(m.doc)
+		m.trails = m.history.drawn(m.doc, m.now(), m.cfg.Policy)
+		return m, nil
+	case filedMsg:
+		m.history = m.history.filedAs(msg)
+		m.trails = m.history.drawn(m.doc, m.now(), m.cfg.Policy)
 		return m, nil
 	case orderedMsg:
 		return m.ordered(msg)
@@ -402,26 +519,51 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View draws the dashboard full screen, as screen has it at the clock's
-// time, the theme picker over its right while it's open. In colour, it's
-// drawn once the terminal has said what its background is, or had its time
-// to, so it never shows one theme then another: in the theme shown, its
-// canvas painted on every cell, and set as the terminal's background too, as
-// background says. The mouse is on while it runs, for clicks and the wheel,
-// so the terminal's own selecting takes its modifier.
+// View draws the dashboard full screen as the last message left it: as
+// render drew it, where it did; else its live page, at the moment the
+// message was taken in, its sections as they were built then; else, as
+// behind a card, as screen has it at the clock's time. In colour, it's drawn
+// once the terminal has said what its background is, or had its time to, so
+// it never shows one theme then another.
 func (m Model) View() tea.View {
-	v := tea.NewView("")
-	v.AltScreen = true
-	if m.coloured() && !m.backdrop.settled {
-		return v
+	switch {
+	case m.shown.drawn:
+		return m.shown.view
+	case m.shown.page != nil:
+		live := m.shownPage()
+		return m.viewOf(live.Draw(m.doc, m.shown.at), live.Look)
+	case m.blank():
+		return blankView()
 	}
 	f, doc, at := m.screen(m.now())
-	lines := f.Draw(doc, at)
+	return m.viewOf(f.Draw(doc, at), f.Look)
+}
+
+// blank reports whether the screen is blank: in colour, till the terminal
+// has said what its background is, or had its time to.
+func (m Model) blank() bool {
+	return m.coloured() && !m.backdrop.settled
+}
+
+// blankView is the screen full and blank.
+func blankView() tea.View {
+	v := tea.NewView("")
+	v.AltScreen = true
+	return v
+}
+
+// viewOf is the screen of the lines drawn in look, full, the theme picker
+// over its right while it's open: in the theme shown, its canvas painted on
+// every cell, and set as the terminal's background too, as background says.
+// The mouse is on while it runs, for clicks and the wheel, so the terminal's
+// own selecting takes its modifier.
+func (m Model) viewOf(lines []string, look dashboard.Look) tea.View {
 	if m.picker.open {
-		lines = m.picker.drawn(m.choice).Over(lines, m.size.Width, f.Look)
+		lines = m.picker.drawn(m.choice).Over(lines, m.size.Width, look)
 	}
+	v := blankView()
 	v.SetContent(strings.Join(lines, "\n"))
-	v.BackgroundColor = m.background(f.Look)
+	v.BackgroundColor = m.background(look)
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
@@ -511,20 +653,26 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // frame is the dashboard's frame as the model stands at now, but for its key
 // line and any card over it: at the size drawn at, in the look, showing the
 // tab shown, with what the watch knows of the router, its events and its
-// history, the window the cards feature and the style they draw it in, how
-// far ahead Runway looks, the sessions listed, what the request stream tells
-// of their requests and the order Sessions' calls keep, how far the view is
-// scrolled, the card with the focus and the cards flipped.
+// history, the numbers brightening, the Overview's sections shown, how its
+// windows are grouped, the requests its traces count and its layout as
+// kept, how far ahead Runway looks, the sessions listed, what the request
+// stream tells of their requests and the order Sessions' calls keep, how far
+// the view is scrolled, and the account the focus is on. Its pool is judged
+// at now once, as Judged has it, for its bars eased to it and every look at
+// it to share.
 func (m Model) frame(now time.Time) dashboard.Frame {
-	return dashboard.Frame{
+	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), Trails: m.trails, Eased: m.eased(now),
-		Featured: m.featured, Chart: m.chart, Span: m.span,
+		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
+		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
-		Focus: m.focus, Flipped: m.flipped,
-		Policy: m.cfg.Policy,
-	}
+		Focus:      m.focus,
+		Policy:     m.cfg.Policy,
+		WindowName: m.cfg.WindowName,
+	}.Judged(m.doc, now)
+	f.Eased = m.ease.eased(f, m.doc, now)
+	return f
 }
 
 // resized takes in the size the terminal gives, keeping the size drawn at for
@@ -562,8 +710,8 @@ func (m Model) fetch(r status.Read) tea.Cmd {
 }
 
 // fetchFrom reads the source as r asks, and from a router, the sessions it
-// lists, for the cards' dots and Sessions' calls: a router that can't list
-// them leaves them out.
+// lists, for the sessions running and Sessions' calls: a router that can't
+// list them leaves them out.
 func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 	doc, from, err := source.Read(ctx, r)
 	msg := fetchedMsg{read: r, doc: doc, router: from, err: err}
@@ -651,11 +799,14 @@ func logRead(msg fetchedMsg, next time.Time) {
 // own, as nothing is to be told twice; follows the router as it goes and
 // comes back; notes the events new to it, and the readings it gives; asks
 // the router for its history with a full read, and as the router answers
-// again, or another router does, as one restarted; keeps the focus and the
-// cards flipped where they still are; and eases the bars to it from where
-// they stand.
+// again, or another router does, as one restarted, or probing, reads the
+// readings history's files with the first full read since probing began;
+// keeps the focus where its
+// account still is, else puts it on the first; eases the bars to it from
+// where they stand; and brightens each number on the page it changed.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	doc := msg.doc
+	was := m.numbersDrawn(now)
 	var post, asked tea.Cmd
 	if !routed(doc) {
 		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy, m.cfg.Notifications), probedAsAsked(doc))
@@ -663,13 +814,14 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	ask := routed(doc) && (full(msg.read) || !m.answering() || m.news.another(msg.router))
 	if routed(doc) {
 		m = m.answeredAgain(msg.router)
+		m.history.filedSince = false
 	}
 	m.readings = m.readings.with(doc, now)
 	m = m.follow(doc)
 	m.news = m.news.looked(doc, msg.router, now)
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
-	m.history = m.history.saw(doc)
-	m.ease = easing{from: utilizations(m.shown(now)), start: now}
+	m.history = m.history.saw(doc, now, m.cfg.Policy)
+	m.ease = easing{from: m.ease.standing(m.frame(now), m.doc, now), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
 	switch {
 	case msg.listed || !routed(doc):
@@ -680,9 +832,13 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 		m.sessions = nil
 	}
 	m = m.stillThere()
-	m.trails = m.history.drawn(doc)
-	if ask {
+	m.trails = m.history.drawn(doc, now, m.cfg.Policy)
+	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), originOf(doc, msg.router), now)
+	switch {
+	case ask:
 		m, asked = m.askHistory(doc)
+	case !routed(doc) && full(msg.read) && !m.history.filedSince:
+		m, asked = m.readFiled(doc, now)
 	}
 	return m, tea.Batch(post, asked)
 }
@@ -752,28 +908,6 @@ func (m Model) failure() dashboard.Failure {
 	return dashboard.Failure{Reason: m.failed, Next: m.plan.due}
 }
 
-// shown is the document as its bars stand at now, part way along their
-// easing.
-func (m Model) shown(now time.Time) status.Document {
-	return m.ease.apply(m.doc, now)
-}
-
-// eased are how much of each window the bars fill at now, by its account
-// and key, while they ease to the document's readings: nil once they're
-// there.
-func (m Model) eased(now time.Time) map[dashboard.Ref]float64 {
-	if m.ease.done(now) || !m.ease.moves(m.doc) {
-		return nil
-	}
-	eased := make(map[dashboard.Ref]float64)
-	for _, a := range m.shown(now).Accounts {
-		for _, w := range a.Windows {
-			eased[dashboard.Ref{Account: a.ID, Window: w.Key}] = w.Utilization
-		}
-	}
-	return eased
-}
-
 // ticked reads again once a read is due. Every tick redraws, as every message
 // does, so countdowns and the clock stay live.
 func (m Model) ticked(msg tickMsg) (tea.Model, tea.Cmd) {
@@ -809,14 +943,17 @@ func (m Model) armTick(now time.Time) tea.Cmd {
 // behind the timer that brings it, has turned over.
 const stepSlack = time.Millisecond
 
-// startFrames arms the next frame, while anything on screen moves at now,
-// as nextFrame has it, unless the one armed already comes as soon. One armed
-// to come within frameEvery stands without asking nextFrame, which lays a
-// whole frame out.
-func (m Model) startFrames(now time.Time) (Model, tea.Cmd) {
+// startFrames shows the screen of page, built at now, as shownOf has it, in
+// place of whatever a message before left, and arms the next frame, while
+// anything on screen moves at now, as nextFrame has it once render has worked
+// out what does, unless the one armed already comes as soon, as one armed to
+// come within frameEvery does, which asks nothing of render.
+func (m Model) startFrames(page dashboard.Frame, now time.Time) (Model, tea.Cmd) {
+	m.shown = m.shownOf(page, now)
 	if m.framing && !m.frameDue.After(now.Add(frameEvery)) {
 		return m, nil
 	}
+	m = m.render()
 	next, moving := m.nextFrame(now)
 	if !moving || m.framing && !m.frameDue.After(now.Add(next)) {
 		return m, nil
@@ -839,27 +976,24 @@ func (m Model) framed(msg frameMsg) Model {
 
 // nextFrame is how long after now what moves on screen next changes, and
 // whether anything does: nothing while a card is open, as the page behind it
-// stands still; else frameEvery while anything moves frame by frame, a bar
-// easing to its reading, the highlight on an event, or on a card's state,
-// fading back, or what travels the cords, as Motion says; else as soon as
-// the shimmer down a cord steps on, or the sand in a card's hourglass falls
-// a grain, on the clock's steps of each, or a move yet to show re-patches
-// Sessions' calls. The cards' backs and Sessions' plain list are drawn again
-// as the stream tells of more, and as the clock ticks.
+// stands still; else frameEvery while anything moves frame by frame on the
+// screen render drew at now: what travels the cords, or on the page, a bar
+// easing to its reading, or a number brightened, or the cue on an event, an
+// account's state or a window's words, fading back; else as soon as the
+// shimmer down a cord steps on, on the clock's steps of it, or a move yet to
+// show re-patches Sessions' calls. Sessions' plain list is drawn again as
+// the stream tells of more, and as the clock ticks.
 func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
 	if m.open != nothingOpen {
 		return 0, false
 	}
-	moving := m.frame(now).Motion(m.doc, now)
-	if moving.Smooth || m.ease.moves(m.doc) && !m.ease.done(now) || m.news.faded(now) != nil || m.changes.faded(now) != nil {
+	moving := m.shown.moving
+	if moving.Smooth {
 		return frameEvery, true
 	}
 	var next []time.Duration
 	if moving.Shimmer {
 		next = append(next, untilStep(now, shimmerStep)+stepSlack)
-	}
-	if moving.Falling {
-		next = append(next, untilStep(now, dashboard.FallStep)+stepSlack)
 	}
 	if shows, ok := m.traffic.showing(now); ok && m.view == dashboard.Sessions {
 		next = append(next, shows.Sub(now)+stepSlack)

@@ -99,6 +99,11 @@ type interval struct {
 	from, until time.Time
 }
 
+// over reports whether the interval is over at now: it ended then or before.
+func (i interval) over(now time.Time) bool {
+	return !i.until.IsZero() && !i.until.After(now)
+}
+
 // holds reports whether the interval holds the moment t.
 func (i interval) holds(t time.Time) bool {
 	return (i.from.IsZero() || !t.Before(i.from)) && (i.until.IsZero() || t.Before(i.until))
@@ -185,47 +190,57 @@ func (s stretch) backFrom() int {
 }
 
 // lane is an account's room over the time Runway shows, as the document has
-// it at a moment: the account, and its place; whether anything is known of
-// it; the stretches it can't take a session, in order; and until when, from
-// now, it's heading to run out, zero where it isn't, and in words, as in
-// "week runs out ~Sun 04:06".
+// it at a moment: the account, its place, and how its windows stand; whether
+// anything is known of it, and the windows the span counts, as counts says,
+// where it is; the stretches it can't take a session, in order; and until
+// when, from now, it's heading to run out, zero where it isn't, and in
+// words, as in "week runs out ~Sun 04:06".
 type lane struct {
 	account   status.Account
 	place     int
+	states    status.WindowStates
 	known     bool
+	counted   []laneWindow
 	stretches []stretch
 	drains    time.Time
 	drained   string
 }
 
+// laneWindow is a window a lane counts toward its account's room, as read, and
+// when it resets next, as it stands at the lane's moment, as WindowAt has it:
+// zero where it has lapsed, or that isn't known.
+type laneWindow struct {
+	window quota.Window
+	next   time.Time
+}
+
 // laneOf is doc's account a's lane at now, its room going by the windows the
-// span counts, as counts says: without a usable token, as its state says, or
-// with its usage unreadable, as Unread says, whatever holds it back, it has
-// none all along, and nothing is known of one not read yet. Read, it has
+// span counts, as counts says, its windows standing as WindowStatesOf has
+// them: nothing is known of one not read yet, whose windows stand unread;
+// without a usable token, as NoToken says, or with its usage unreadable, as
+// Unread says, whatever holds it back, it has none all along, its windows
+// standing as last read, which its week's badge and reset draw. Read, it has
 // none while a window counted holds it back, as causesOf says, nor, over the
 // day, while the upstream refuses its every request; and from now, it's
 // heading to run out until the last of those windows that run out before
 // they reset does.
 func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane {
-	l := lane{account: a, place: place(doc, a.ID), known: true}
-	state := doc.StateOf(a, now, f.Policy)
-	if unread, ok := a.Unread(); ok && a.TokenSet {
-		state = unread
+	l := lane{account: a, place: place(doc, a.ID), states: doc.WindowStatesOf(a, now, f.Policy)}
+	state, unknown := a.NoToken()
+	if !unknown {
+		state, unknown = a.Unread()
 	}
-	switch state.Condition {
-	case status.Tokenless, status.Unreadable:
-		l.stretches = merged([]cause{{says: state.Says, then: state.Then}})
+	if unknown && state.Condition == status.Unread {
 		return l
-	case status.Unread:
-		l.known = false
+	}
+	l.known, l.counted = true, f.countedOf(a, now)
+	if unknown {
+		l.stretches = merged([]cause{{says: state.Says, then: state.Then}})
 		return l
 	}
 	var causes []cause
-	for _, w := range a.Windows {
-		if !f.counts(w) {
-			continue
-		}
-		s := standingOf(doc, a, w, now, f.Policy)
+	for _, c := range l.counted {
+		s := standingOf(doc, a, c.window, l.states, now)
 		if s.runsOut && s.out.At.After(l.drains) {
 			l.drains, l.drained = s.out.At, f.runOutSaid(s, now)
 		}
@@ -236,6 +251,19 @@ func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane
 	}
 	l.stretches = merged(causes)
 	return l
+}
+
+// countedOf are account a's windows the span counts, as counts says, in the
+// account's order, each as it stands at now.
+func (f Frame) countedOf(a status.Account, now time.Time) []laneWindow {
+	var windows []laneWindow
+	for _, w := range a.Windows {
+		if f.counts(w) {
+			stands, _ := a.WindowAt(w.Key, now, f.Policy)
+			windows = append(windows, laneWindow{window: w, next: stands.ResetsAt})
+		}
+	}
+	return windows
 }
 
 // counts reports whether the span counts the window w toward an account's
@@ -254,11 +282,13 @@ func (f Frame) counts(w quota.Window) bool {
 
 // causesOf are what holds doc's account a back, at now, of its window
 // standing as s: while it's held at its limit, from when it reached it, as
-// its standing says, until it's back; or while it's at its reserve, where
-// that holds the account back, until the window resets; and once it runs
-// out before it resets, as RunsOut has it, until it resets, as a window a
-// limit naming none holds can, once that lifts. Over the day, a window other
-// than the one a request starts is named, as in "week runs out ~Fri 04:06".
+// its standing says, until it's back; or while it's at its reserve, as the
+// router noted it, where that holds the account back, until the window
+// resets as it was read, whether or not that has passed, as the stretch it
+// held the account over is drawn all the same; and once it runs out before
+// it resets, as RunsOut has it, until it resets, as a window a limit naming
+// none holds can, once that lifts. Over the day, a window other than the one
+// a request starts is named, as in "week runs out ~Fri 04:06".
 func (f Frame) causesOf(doc status.Document, a status.Account, s standing, now time.Time) []cause {
 	var causes []cause
 	w := s.window
