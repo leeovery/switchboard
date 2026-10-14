@@ -118,6 +118,16 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 	}
 	pool := m.Pool()
 	outOfQuota := held && hold.Every || doc.CapHolds(a, now, policy)
+	var lifts []time.Time
+	if held && hold.Every {
+		lifts = append(lifts, hold.Until)
+	}
+	if doc.CapHolds(a, now, policy) {
+		lifts = append(lifts, capBack)
+	}
+	if a.TokenRefused(now) {
+		lifts = append(lifts, a.Refused.Until)
+	}
 	limit, _ := doc.LimitEvent(a, now)
 	want := status.AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
@@ -131,6 +141,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		Pressure: status.PressureNow{Under: a.UnderPressure(now), Window: a.Pressure.Window, Out: pressureOut},
 		Idle:     a.HasLapsed(policy.Started, now, policy), NextPrime: primeOf(doc, a.ID),
 		OutOfQuota: outOfQuota, CanRise: a.TokenSet && !a.FetchedAt.IsZero() && !outOfQuota && !a.TokenRefused(now),
+		Back:    lastOf(lifts),
 		Windows: got.Windows,
 	}
 	if gotFacts := withoutUnreported(got); !reflect.DeepEqual(gotFacts, want) {
@@ -152,7 +163,7 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitHolds: a.LimitHolds, LimitSince: a.LimitSince, LimitMoved: a.LimitMoved,
 		ReachedReserve: a.ReachedReserve, CapHolds: a.CapHolds, CapSince: a.CapSince, CapBack: a.CapBack,
 		Refusal: a.Refusal, RefusedSince: a.RefusedSince, TokenRefused: a.TokenRefused, Pressure: a.Pressure,
-		Idle: a.Idle, NextPrime: a.NextPrime, OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Windows: a.Windows,
+		Idle: a.Idle, NextPrime: a.NextPrime, OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Back: a.Back, Windows: a.Windows,
 	}
 }
 
@@ -194,6 +205,21 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("%s's %s stands as\n%+v\nwant\n%+v", a.ID, w.Key, got, want)
 	}
+}
+
+// lastOf is the latest of the times given: zero where there are none, or one
+// is zero, as not known.
+func lastOf(times []time.Time) time.Time {
+	var last time.Time
+	for _, t := range times {
+		if t.IsZero() {
+			return time.Time{}
+		}
+		if t.After(last) {
+			last = t
+		}
+	}
+	return last
 }
 
 // primeOf is when doc says the router next primes the account with the given

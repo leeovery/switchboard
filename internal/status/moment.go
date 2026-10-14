@@ -141,6 +141,13 @@ type AccountNow struct {
 	// model at Now, so its use can rise: it has a usable token, its usage was
 	// read, it isn't out of quota, and its token isn't refused.
 	OutOfQuota, CanRise bool
+	// Back is when it's back from every hold that keeps it from new work at
+	// Now: once the last lifts of a limit holding back its every request, as
+	// Hold has it, its cap, at CapBack, and the refusal of its token, at
+	// Refusal's Until, each where it holds. It's zero where none does, or
+	// one of them lifts at no known time. Whatever says when an account held
+	// back is back says it.
+	Back time.Time
 	// Windows are its windows, in its order, each as it stands at Now.
 	Windows []WindowNow
 
@@ -501,7 +508,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitSince: limit.At, LimitMoved: limit.Count,
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapSince: capped.At, CapBack: s.capBack,
 		RefusedSince: refused.At, TokenRefused: s.stood.refused,
-		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(),
+		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(), Back: s.back,
 		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},
 	}
 	an.CanRise = an.TokenSet && an.Read && !s.stood.shut()

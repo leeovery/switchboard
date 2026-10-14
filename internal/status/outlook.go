@@ -221,6 +221,40 @@ func (s standing) shut() bool {
 	return s.outOfQuota() || s.refused
 }
 
+// back is when the account is back from every hold that keeps it from new
+// work: once the last lifts of a limit holding back its every request, as
+// held has it, its cap, at capBack, and the refusal of its token, at
+// refused, each where it holds; zero where none does, or one of them lifts
+// at no known time. capLast is set where its cap lifts after any such limit,
+// so it's its cap, of its quota's holds, it's back from.
+func (s standing) back(capBack, refused time.Time) (back time.Time, capLast bool) {
+	var lifts []time.Time
+	if s.every() {
+		lifts = append(lifts, s.held.Until)
+	}
+	if s.capped {
+		lifts = append(lifts, capBack)
+		capLast = !s.every() || capBack.After(s.held.Until)
+	}
+	if s.refused {
+		lifts = append(lifts, refused)
+	}
+	return lastLift(lifts), capLast
+}
+
+// lastLift is when the last of the lifts given comes: zero where there are
+// none, or one comes at no known time.
+func lastLift(lifts []time.Time) time.Time {
+	var last time.Time
+	for _, t := range lifts {
+		if t.IsZero() {
+			return time.Time{}
+		}
+		last = score.Later(last, t)
+	}
+	return last
+}
+
 // holds reports whether a limit holds the account's window with the given
 // key as its own: one the router's limit names, or one read spent. A limit
 // that names no window holds the account at its limit, as every says, but
@@ -377,9 +411,9 @@ func (d Document) comingTo(j judgedAccount) []Upcoming {
 }
 
 // backs are when the account judged as j has room again: held back from
-// every request, by a limit or its cap, once each has lifted, as
-// backFromEvery says; and held back from some models' requests, as each
-// window holding back theirs alone lifts, as backsOfModels says.
+// every request, by a limit or its cap, once it's back, as backFromEvery
+// says; and held back from some models' requests, as each window holding
+// back theirs alone lifts, as backsOfModels says.
 func (d Document) backs(j judgedAccount) []Upcoming {
 	var backs []Upcoming
 	if j.states.stood.outOfQuota() {
@@ -412,26 +446,15 @@ func (d Document) backsOfModels(j judgedAccount) []Upcoming {
 }
 
 // backFromEvery is when the account judged as j, held back from every
-// request by a limit or its cap, has room again: once each has lifted, Cap
-// set where its cap lifts last; none where either lifts at no known time.
+// request by a limit or its cap, has room again: once it's back, as its
+// moment's Back has it, Cap set where its cap is the last of its quota's
+// holds to lift; none where that isn't known.
 func (j judgedAccount) backFromEvery() []Upcoming {
-	s, capBack := j.states.stood, j.states.capBack
-	back := Upcoming{Account: j.states.account.ID, Kind: UpcomingBack}
-	if s.every() {
-		if s.held.Until.IsZero() {
-			return nil
-		}
-		back.At = s.held.Until
+	s := j.states
+	if s.back.IsZero() {
+		return nil
 	}
-	if s.capped {
-		if capBack.IsZero() {
-			return nil
-		}
-		if capBack.After(back.At) {
-			back.At, back.Cap = capBack, true
-		}
-	}
-	return []Upcoming{back}
+	return []Upcoming{{At: s.back, Account: s.account.ID, Kind: UpcomingBack, Cap: s.capLast}}
 }
 
 // runningOut is the windows of the account judged as j running out before

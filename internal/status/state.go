@@ -123,19 +123,21 @@ func (a Account) unread() (State, bool) {
 
 // heldBack is the state of doc's account a, held back at now by a limit or
 // the upstream's refusal, reporting false where neither holds it back:
-// first from every request, a limit, then its token refused; then from some
-// models' alone, a limit, then their family refused, which says other models
-// still come here, but where a window every model shares has reached the
-// reserve that holds the account back, which holds back the rest too, and is
-// said as reservedState says it.
+// first from every request, a limit, till it's back from every hold, as its
+// windows' states have it; then its token refused; then from some models'
+// alone, a limit, then their family refused, which says other models still
+// come here, but where a window every model shares has reached the reserve
+// that holds the account back, which holds back the rest too, and is said as
+// reservedState says it.
 func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State, bool) {
 	held, limited := a.held(now, policy)
 	refused := a.Refused.holds(now)
 	switch {
 	case limited && held.Every:
-		then := Back(now, held.Until)
+		back := d.windowStatesOf(a, now, policy).back
+		then := Back(now, back)
 		if then != "" {
-			then += ", " + prose.Until(now, held.Until)
+			then += ", " + prose.Until(now, back)
 		}
 		return State{Condition: Limited, Says: "limit reached", Then: then}, true
 	case refused && a.Refused.Family == "":
@@ -214,7 +216,9 @@ func clauseAt(words string, now, t time.Time) string {
 // whether it's held back from every request.
 type Hold struct {
 	Windows []string
-	// Until is when it has room again: zero where that's unknown.
+	// Until is when the hold lifts: zero where that's unknown. Its cap, or
+	// its token refused, can hold the account back past it, as the
+	// account's Back at a moment has it.
 	Until time.Time
 	// Every is set when it's held back from every request: at its limit in a
 	// window every model shares, or with a limit naming none.
