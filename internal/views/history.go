@@ -230,7 +230,7 @@ func (v versions) familyOf(model string) string {
 }
 
 // familyRank places a family as the version table orders them: Opus,
-// Sonnet, Fable, Haiku, then Mythos, those it doesn't know after.
+// Sonnet, Fable, then Haiku, those it doesn't know after.
 func (v versions) familyRank(family string) int {
 	i := slices.IndexFunc(v.table.Versions, func(version ledger.Version) bool { return version.Family == family })
 	if i < 0 {

@@ -47,8 +47,8 @@ func stepInk(h hue, level int) ink {
 
 // familyHue is the hue of the family with the given name, as the version
 // table gives it: viz.family.1 to viz.family.4, Opus's to Haiku's; or
-// text.muted, for a family with no hue of its own, as Mythos, or one the
-// table doesn't know.
+// text.muted, for a family with no hue of its own, as one the table doesn't
+// know.
 func familyHue(family string) hue {
 	if tok, ok := familyHues[family]; ok {
 		return hue{token: tok}
@@ -59,8 +59,8 @@ func familyHue(family string) hue {
 // versionHue is the shade the version is drawn in: the one of viz.version.1
 // to viz.version.6 the version table gives it; else its family's hue, mixed
 // toward the canvas where the table holds a newer version of the family, as
-// the theme mixes an older version's shade. A family with no hue of its own,
-// as Mythos, draws its versions in text.muted, none of them mixed.
+// the theme mixes an older version's shade. A family with no hue of its own
+// draws its versions in text.muted, none of them mixed.
 func versionHue(v ledger.Version) hue {
 	if v.Shade > 0 {
 		return hue{token: theme.VizVersion1 + theme.Token(v.Shade-1)}

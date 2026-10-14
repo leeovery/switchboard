@@ -3,8 +3,9 @@ package ledger
 import "testing"
 
 // A version added to the table takes the shades afresh: a newer Opus takes
-// viz.version.1, and Opus 5.5 and Opus 5 move down one, Opus 5 to none; and
-// a family with one version has none older.
+// viz.version.1, and Opus 5.5 and Opus 5 move down one, Opus 5 to none; a
+// family with one version has none older; and one the table gives no shades
+// gets none.
 func TestAVersionAddedToTheTableTakesTheShadesAfresh(t *testing.T) {
 	rows := shaded([]Version{
 		{Name: "Opus 6", Family: "opus"},
@@ -14,7 +15,7 @@ func TestAVersionAddedToTheTableTakesTheShadesAfresh(t *testing.T) {
 		{Name: "Fable 5.1", Family: "fable"},
 		{Name: "Haiku 5.5", Family: "haiku"},
 		{Name: "Haiku 4.5", Family: "haiku"},
-		{Name: "Mythos 5.1", Family: "mythos"},
+		{Name: "unknown-9", Family: "claude-unknown-9"},
 	})
 	want := []struct {
 		shade int
