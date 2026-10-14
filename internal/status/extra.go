@@ -32,8 +32,9 @@ func (a AccountNow) ExtraSaid() ExtraState {
 // AllExtra is how every account stands for extra usage, taken together, as
 // all accounts says it.
 type AllExtra struct {
-	// State is not read where none of them is, off where none read is on,
-	// and on where any is.
+	// State is on where any of them is read on, off where every one is read
+	// off, and not read otherwise: off claims every account is, and one not
+	// read may be on.
 	State ExtraState
 	// On is how many of them are read on, of Of, every account: all of them,
 	// as "on on all" says, or some, as "on for 1 of 3".
@@ -56,7 +57,7 @@ func ExtraOfAll(accounts []AccountNow) AllExtra {
 	switch {
 	case all.On > 0:
 		all.State = ExtraOn
-	case off > 0:
+	case off > 0 && off == all.Of:
 		all.State = ExtraOff
 	}
 	return all
