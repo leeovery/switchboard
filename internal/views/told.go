@@ -153,6 +153,29 @@ func (t Told) filedAs(l *ledger.Line) bool {
 	return sameRequest(l, t.Request, t.Sent)
 }
 
+// Of is what s told of the session with the given id alone: its requests,
+// its moves, and whether s is live. Its page is built of it as of s whole,
+// none of another session's telling of it, so what changes it alone builds
+// the page again.
+func (s Stream) Of(session string) Stream {
+	of := Stream{Live: s.Live}
+	for id, t := range s.Requests {
+		if t.Session != session {
+			continue
+		}
+		if of.Requests == nil {
+			of.Requests = make(map[string]Told)
+		}
+		of.Requests[id] = t
+	}
+	for _, m := range s.Moves {
+		if m.Session == session {
+			of.Moves = append(of.Moves, m)
+		}
+	}
+	return of
+}
+
 // known are the requests s told of that a view may take as s told them,
 // each view reading them through it alone: every one while s is live; else
 // those that ended, or were lost. What of a request in flight as s last told

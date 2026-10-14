@@ -61,21 +61,23 @@ func (m Model) openLogFind() (Model, tea.Cmd) {
 }
 
 // finding reports whether the Log's find is open, on the Log, taking every
-// key.
+// key: never under a session's page open over it, which takes them, the
+// find waiting under it as it was.
 func (m Model) finding() bool {
-	return m.view == dashboard.Log && m.log.page.Finding.Open
+	return m.shownView() == dashboard.Log && m.log.page.Finding.Open
 }
 
 // logFindKey acts on a key while the Log's find is open, which takes every
-// key but ctrl+c: esc cancels it; enter filters both tables to the session
-// picked, as foundPicked has it; ↑ and ↓ step the pick; backspace takes
-// back what was typed last; and a printable key, space among them, types,
-// the pick going back to the first found. The rest do nothing.
+// key but ctrl+c: esc cancels it, dropping a session's page asked to open,
+// as esc on the page does, as unasked has it; enter filters both tables to
+// the session picked, as foundPicked has it; ↑ and ↓ step the pick;
+// backspace takes back what was typed last; and a printable key, space among
+// them, types, the pick going back to the first found. The rest do nothing.
 func (m Model) logFindKey(key string) (tea.Model, tea.Cmd) {
 	f := m.log.page.Finding
 	switch key {
 	case "esc":
-		f = dashboard.LogFinding{}
+		f, m = dashboard.LogFinding{}, m.unasked()
 	case "enter":
 		return m.foundPicked(), nil
 	case "up":

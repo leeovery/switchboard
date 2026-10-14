@@ -1,6 +1,11 @@
 package watch
 
 import (
+	"slices"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
@@ -10,12 +15,17 @@ import (
 // them: one Mark for every reader of them, each folding in what the ledger
 // gained since, as the Log's Requests fold it into their read; the day the
 // mark is of, which a read on another day turns from, none before its first
-// read; whether a look since the last read asks what the ledger gained; and
-// whether a read of it is under way, one at a time.
+// read; whether a look since the last read asks what the ledger gained;
+// whether a read of it is under way, one at a time; and how many reads of
+// today's lines whole a reader has under way for itself alone, as a
+// session's page reads its lines as it opens, which no read of the tail
+// runs beside, so the mark never moves past where one ends without its
+// reader taking in what lies between.
 type ledgerTail struct {
 	tailRead
 	due     bool
 	reading bool
+	whole   int
 }
 
 // tailRead is where a read of today's lines read them to: the mark, and the
@@ -27,10 +37,20 @@ type tailRead struct {
 
 // tailedMsg is what a read of the ledger's tail found: where it read
 // today's lines to; and each reader as the read grew it, where it was read
-// for one: the Log, as logGrown has it.
+// for one: the Log, as logGrown has it, and a session's page, as pageTaken
+// has it.
 type tailedMsg struct {
 	tailRead
-	log *logGrown
+	log  *logGrown
+	page *pageTaken
+}
+
+// tailLines are what a read of the ledger's tail read: the lines today's
+// gained since the mark; and those of each day before today a reader reads
+// again whole, by its date, each read once for every reader.
+type tailLines struct {
+	gained []ledger.Held
+	days   map[string][]ledger.Held
 }
 
 // unread reports whether no reader has read the tail yet: the first to read
@@ -56,6 +76,12 @@ func (t ledgerTail) missed(today views.LedgerDay) []string {
 	return dayfile.Span(t.day.Start, dayfile.DayStart(today.Start, -1))
 }
 
+// busy reports whether a read of today's lines is under way: the tail's,
+// or one a reader reads whole for itself alone.
+func (t ledgerTail) busy() bool {
+	return t.reading || t.whole > 0
+}
+
 // asking is the tail with a read of it under way, none due till a look
 // since asks.
 func (t ledgerTail) asking() ledgerTail {
@@ -67,4 +93,88 @@ func (t ledgerTail) asking() ledgerTail {
 func (t ledgerTail) read(r tailRead) ledgerTail {
 	t.reading, t.tailRead = false, r
 	return t
+}
+
+// wholeAsked is the tail with a reader's own read of today's lines whole
+// under way, and wholeLanded the tail once it has landed.
+func (t ledgerTail) wholeAsked() ledgerTail {
+	t.whole++
+	return t
+}
+
+func (t ledgerTail) wholeLanded() ledgerTail {
+	t.whole--
+	return t
+}
+
+// readTail reads, at now, what the ledger gained since the tail's mark, and
+// the lines of the days before today its readers read again whole, each
+// once, the late days each has; and grows each reader by them, each noting
+// the days awaiting a line it reads: the Log, once opened, as logFold has
+// it, shown or not, as the mark moves past what the read gives for every
+// reader alike, its Requests built first of what it holds now, as
+// requestsBuilt builds them, for what they await; and the session's page
+// open, as pageFold has it.
+func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
+	r, mark, today := m.logReaders(), m.tail.mark, views.Today(now)
+	var log *logFold
+	if m.log.opened {
+		m = m.requestsBuilt(now)
+		f := m.logFold(now)
+		log, m.log.reading, m.log.awaited = &f, true, f.awaited
+	}
+	page := m.pageFold(now)
+	m = m.pageAwaiting(page)
+	late := lateDays(log, page)
+	m.tail = m.tail.asking()
+	return m, func() tea.Msg {
+		read, next := readLines(r.ledger, mark, late)
+		msg := tailedMsg{mark: next, day: today}
+		if log != nil {
+			msg.log = log.grown(r, read, now)
+		}
+		if page != nil {
+			msg.page = page.taken(read, today)
+		}
+		return msg
+	}
+}
+
+// lateDays are the dates of the days before today the readers that fold a
+// read of the tail read again whole, each once, the oldest first: nil where
+// a reader doesn't fold it.
+func lateDays(log *logFold, page *pageFold) []string {
+	var late []string
+	if log != nil {
+		late = append(late, log.late...)
+	}
+	if page != nil {
+		late = append(late, page.late...)
+	}
+	return slices.Compact(slices.Sorted(slices.Values(late)))
+}
+
+// readLines reads, through l, today's lines since mark, and the late days'
+// whole, returning them with the mark today's are read to.
+func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledger.Mark) {
+	gained, next, _ := l.Today(mark)
+	read := tailLines{gained: gained, days: make(map[string][]ledger.Held, len(late))}
+	for _, date := range late {
+		read.days[date] = l.Day(date)
+	}
+	return read, next
+}
+
+// tailed takes in what a read of the ledger's tail found: the tail read to
+// its mark, and each reader grown by it, where it was read for one, as
+// logGrown and pageTaken have them.
+func (m Model) tailed(msg tailedMsg) Model {
+	m.tail = m.tail.read(msg.tailRead)
+	if msg.log != nil {
+		m.log = m.log.grown(*msg.log)
+	}
+	if msg.page != nil {
+		m = m.pageTook(*msg.page)
+	}
+	return m
 }

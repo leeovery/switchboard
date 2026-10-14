@@ -31,7 +31,8 @@ type SessionPage struct {
 	State    string              `json:"state,omitempty"`
 	MoveCost *ledger.Picodollars `json:"move_cost,omitempty"`
 	Ended    time.Time           `json:"ended,omitzero"`
-	// Pin is its own pin, as the router lists it: "" where it has none, or
+	// Pin is its own pin, as the router lists it, or while no router lists
+	// the sessions, as its last listing had it: "" where it has none, or
 	// the router doesn't list it.
 	Pin string `json:"pin,omitempty"`
 	// Started is when its first request came, and Resumed the latest time it
@@ -50,6 +51,17 @@ type SessionPage struct {
 	// Activity is what it's doing, as the List has it. It's the views'
 	// alone.
 	Activity Activity `json:"-"`
+	// Goes are where its models go now, as its page's row 7 names them: as
+	// the router lists them, the moves the request stream told of since
+	// taken in, each with why it's there and since when; where the router
+	// lists it not, as before it does or once it has stopped answering, each
+	// model's latest account, as its lines and the stream give it, with the
+	// reason of its latest line. It's the views' alone.
+	Goes []SessionModel `json:"-"`
+	// Auto is the account the router would send its next request to were
+	// its own pin cleared, as autoOf has it: "" where the router can't say.
+	// It's the views' alone.
+	Auto string `json:"-"`
 }
 
 // SessionAccount is an account a session ran on: its first and last request
@@ -79,6 +91,11 @@ type SessionMove struct {
 	Reason  string              `json:"reason"`
 	Written int                 `json:"written"`
 	Cost    *ledger.Picodollars `json:"cost,omitempty"`
+	// Rewrote is set where its session's next request of its conversation
+	// wrote its context again on the account it moved to, its cache not yet
+	// run out, priced or not, as Cost isn't where the price table can't
+	// price it. It's the views' alone.
+	Rewrote bool `json:"-"`
 }
 
 // Turn is a prompt of a session and every request that serves it, as Claude
@@ -138,7 +155,7 @@ type PageSources struct {
 	// Prices are the price table worth is priced by.
 	Prices ledger.Table
 	// Keep is how long the ledger keeps a day's lines, as [ledger] keep
-	// says: dayfile.Forever keeps them for good.
+	// says, as ledgerKept reads it: dayfile.Forever keeps them for good.
 	Keep time.Duration
 	Now  time.Time
 }
@@ -196,38 +213,9 @@ func (r SessionsRead) Named(running []status.Session) []string {
 // while its last answer called a tool till the session has ended, as its
 // Activity says, so with no router, while the router's own rule keeps it.
 // It reports false where the ledger holds no request of it, and the router
-// doesn't list it.
+// doesn't list it. It's the page HoldPage holds, built once.
 func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
-	today := Today(src.Now)
-	requests := requestsOf(src.Read.lines[id], src.Prices, today.Date)
-	if len(requests) == 0 && src.Routed == nil {
-		return SessionPage{}, false
-	}
-	s := storyOf(requests, src.Prices, today)
-	var running []status.Session
-	if src.Routed != nil {
-		running = []status.Session{*src.Routed}
-	}
-	by := newLister(running, src.Unlisted, src.Stream, src.Now)
-	listed := by.listed(id, s)
-	page := SessionPage{
-		Session: listed.Session, Dir: listed.Dir, Account: listed.Account, Model: listed.Model, Running: listed.Running, LastSeen: listed.LastSeen,
-		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
-		Resumed: resumedAt(requests), Accounts: accountsOf(requests), Moves: movesOf(s),
-		Turns: turnsOf(requests, by.h.told[id], listed.Activity.Doing != Ended), Activity: listed.Activity,
-	}
-	if src.Routed != nil {
-		page.Pin = src.Routed.Pin
-	}
-	if !page.Running && s.first != nil {
-		page.KeptUntil, _ = dayfile.KeptUntil(Today(s.first.At).Date, src.Keep)
-	}
-	points := pointsOf(src.Read.requests, id, requests)
-	for i := range page.Accounts {
-		page.Accounts[i].Points = points[page.Accounts[i].Account]
-	}
-	page.Totals = totalsOf(requests, len(page.Turns))
-	return page, true
+	return HoldPage(id, src.Read, src.Prices, src.Keep, src.Now).Page(PageLive{Routed: src.Routed, Unlisted: src.Unlisted, Stream: src.Stream, Now: src.Now})
 }
 
 // KeptUntil says until when the ledger keeps a day's lines, by the date of
@@ -279,16 +267,25 @@ func ended(l *ledger.Line) time.Time {
 	return l.At.Add(time.Duration(l.TotalMS) * time.Millisecond)
 }
 
-// resumedAt returns when requests, a session's, oldest first, last came
-// back after an IdleHour or more without one: zero where they never did.
-func resumedAt(requests []request) time.Time {
+// resumedAt returns when a session's requests, oldest first, as its lines
+// and the stream tell of them, last came back after an idle gap, as idled
+// says: zero where they never did.
+func resumedAt(requests []sent) time.Time {
 	var resumed time.Time
 	for i := 1; i < len(requests); i++ {
-		if requests[i].At.Sub(requests[i-1].At) >= IdleHour {
-			resumed = requests[i].At.UTC()
+		if idled(requests[i-1].at, requests[i].at) {
+			resumed = requests[i].at.UTC()
 		}
 	}
 	return resumed
+}
+
+// idled reports whether a session's requests that came at prev and then at
+// next had an idle gap between them: an IdleHour or more, after which the
+// router chooses its account afresh, so it came back, and its story folds
+// the gap.
+func idled(prev, next time.Time) bool {
+	return next.Sub(prev) >= IdleHour
 }
 
 // accountsOf returns the accounts requests, a session's, oldest first, went
@@ -319,7 +316,7 @@ func accountsOf(requests []request) []SessionAccount {
 func movesOf(s *story) []SessionMove {
 	moves := make([]SessionMove, len(s.moves))
 	for i, m := range s.moves {
-		moves[i] = SessionMove{At: m.at.UTC(), Model: m.model, From: m.from, To: m.to, Reason: m.reason, Written: m.written, Cost: m.cost}
+		moves[i] = SessionMove{At: m.at.UTC(), Model: m.model, From: m.from, To: m.to, Reason: m.reason, Written: m.written, Cost: m.cost, Rewrote: m.rewrote != nil}
 	}
 	return moves
 }

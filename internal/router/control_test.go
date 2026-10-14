@@ -417,8 +417,8 @@ func TestClientSession(t *testing.T) {
 		ID:  sessionID,
 		Pin: "work",
 		Assignments: []status.Assignment{
-			{Model: opus, Family: "opus", Account: "work", Pinned: true, Reason: "pinned", AssignedAt: later, LastSeen: later},
-			{Model: haiku, Family: "haiku", Account: "side", Pinned: true, Reason: "pinned", AssignedAt: now, LastSeen: now},
+			{Model: opus, Family: "opus", Account: "work", Auto: "work", Pinned: true, Reason: "pinned", AssignedAt: later, LastSeen: later},
+			{Model: haiku, Family: "haiku", Account: "side", Auto: "side", Pinned: true, Reason: "pinned", AssignedAt: now, LastSeen: now},
 		},
 		Account: status.Account{ID: "work", Label: "Work", TokenSet: true, FetchedAt: later, Windows: []quota.Window{session, week}, Sessions: 1},
 	}
@@ -479,7 +479,7 @@ func TestClientSessions(t *testing.T) {
 	want := status.Session{
 		ID:          "latest",
 		Pin:         "side",
-		Assignments: []status.Assignment{{Model: haiku, Family: "haiku", Account: "side", Pinned: true, Reason: "pinned", AssignedAt: latest, LastSeen: latest}},
+		Assignments: []status.Assignment{{Model: haiku, Family: "haiku", Account: "side", Auto: "side", Pinned: true, Reason: "pinned", AssignedAt: latest, LastSeen: latest}},
 	}
 	if !reflect.DeepEqual(got[0], want) {
 		t.Errorf("Sessions() lists\n%+v\nwant it as Session() gives it, but for its account\n%+v", got[0], want)
@@ -509,7 +509,7 @@ func TestClientPinSession(t *testing.T) {
 	want := status.Session{
 		ID:          sessionID,
 		Pin:         "side",
-		Assignments: []status.Assignment{{Model: opus, Family: "opus", Account: "work", Pinned: true, PinnedAt: now, Reason: "pinned", AssignedAt: now, LastSeen: now}},
+		Assignments: []status.Assignment{{Model: opus, Family: "opus", Account: "work", Auto: "work", Pinned: true, PinnedAt: now, Reason: "pinned", AssignedAt: now, LastSeen: now}},
 		Account:     status.Account{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Sessions: 1},
 	}
 	got.Account.Windows = asRead(got.Account.Windows)

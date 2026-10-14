@@ -315,6 +315,70 @@ func TestReasonWords(t *testing.T) {
 	}
 }
 
+// A phone says why a forced move came without the account it left, which
+// it says apart; every other reason as an event reads it.
+func TestShortWordsSayAForcedMovesWhyWithoutItsAccount(t *testing.T) {
+	tests := []struct {
+		reason string
+		facts  status.Facts
+		want   string
+	}{
+		{reason: status.ReasonMovedOff + "work " + status.WhyReserve, want: "its cap"},
+		{reason: status.ReasonMovedOff + "work " + status.WhyLimit, want: "its limit"},
+		{reason: status.ReasonMovedOff + "work " + status.WhyRefused, want: "refused"},
+		{reason: status.ReasonMovedOff + "work " + status.WhyNoRoom, want: "no room"},
+		{reason: status.ReasonMovedOff + "work has a new token", want: "moved: [work] has a new token"},
+		{reason: status.Rescored(15*time.Hour + 7*time.Minute), facts: status.Facts{To: "personal"}, want: "rescored after {15h 7m} idle"},
+		{reason: status.ReasonPinned, want: "pinned here"},
+		{reason: status.ReasonMovedByPin, facts: status.Facts{From: "work", To: "side"}, want: "pinned to [side]"},
+		{reason: status.ReasonPinYields + "side has no room", want: "its pin to [side] yields: [side] has no room"},
+		{reason: status.ReasonSticky, want: "sticky"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.reason, func(t *testing.T) {
+			if got := marked(status.ShortWords(tt.reason, tt.facts)); got != tt.want {
+				t.Errorf("ShortWords(%q) = %q, want %q", tt.reason, got, tt.want)
+			}
+		})
+	}
+}
+
+// A move off an account names the account it left; a new session's reason,
+// sticky and kept for its thinking move nothing, the last two keeping it
+// where it was; and every other reason names none and moves its session.
+func TestAReasonSaysWhetherItMovedTheSessionAndFromWhere(t *testing.T) {
+	tests := []struct {
+		reason        string
+		from          string
+		nothing, kept bool
+	}{
+		{reason: status.ReasonMovedOff + "work " + status.WhyLimit, from: "work"},
+		{reason: status.ReasonMovedOff + "work\x1b" + status.WhyReserve, from: "work"},
+		{reason: status.ReasonNew, nothing: true},
+		{reason: status.PassingOver(status.ReasonNew, "personal"), nothing: true},
+		{reason: status.ReasonSticky, nothing: true, kept: true},
+		{reason: status.ReasonBound, nothing: true, kept: true},
+		{reason: status.ReasonBound + "\x07", nothing: true, kept: true},
+		{reason: status.ReasonPinned},
+		{reason: status.ReasonMovedByPin},
+		{reason: status.Rescored(time.Hour)},
+		{reason: status.ReasonPinYields + "side has no room"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.reason, func(t *testing.T) {
+			if got := status.MovedFrom(tt.reason); got != tt.from {
+				t.Errorf("MovedFrom(%q) = %q, want %q", tt.reason, got, tt.from)
+			}
+			if got := status.MovedNothing(tt.reason); got != tt.nothing {
+				t.Errorf("MovedNothing(%q) = %t, want %t", tt.reason, got, tt.nothing)
+			}
+			if got := status.Kept(tt.reason); got != tt.kept {
+				t.Errorf("Kept(%q) = %t, want %t", tt.reason, got, tt.kept)
+			}
+		})
+	}
+}
+
 func TestTriedWordsSayWhereARequestWentOutBeforeItWentAgainElsewhere(t *testing.T) {
 	tests := []struct {
 		name  string

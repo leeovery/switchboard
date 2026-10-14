@@ -84,7 +84,7 @@ func overviewHelp() []helpPart {
 			},
 			glyphs: []glyph{
 				{drawn: line{{"↑ ask", doingInk}}, means: "asking: its request sent, its answer not begun"},
-				{drawn: line{{answered(views.Activity{Doing: views.Answering, Chars: 1200 * views.CharsPerToken}), doingInk}}, means: "answering, its tokens so far at four characters a token"},
+				{drawn: line{runningDoing(views.Activity{Doing: views.Answering, Chars: 1200 * views.CharsPerToken})}, means: "answering, its tokens so far at four characters a token"},
 			},
 		},
 		{

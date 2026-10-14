@@ -54,13 +54,13 @@ func (by scrollStep) from(at int, s dashboard.Scrolling) int {
 }
 
 // wheeled scrolls what the wheel turns under the pointer, as the screen
-// draws it: help, or the Log's details, over its card; the view, over what
-// of it scrolls, while no card is open, as far as notch says, as scrollView
-// scrolls it, as on j and k; and nothing else, the routing card among it,
-// nor anything while the theme picker is open. A turn scrolls a card
-// wheelRows rows. What's under the
-// pointer with no card open is found from the page on screen alone, as
-// onScreen has it, which the key line doesn't move.
+// draws it: help, or the Log's details, over the Log or a session's page,
+// over its card; the view, over what of it scrolls, while no card is open,
+// as far as notch says, as scrollView scrolls it, as on j and k; and nothing
+// else, the routing card among it, nor anything while the theme picker is
+// open. A turn scrolls a card wheelRows rows. What's under the pointer with
+// no card open is found from the page on screen alone, as onScreen has it,
+// which the key line doesn't move.
 func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 	way, ok := wheelTurn(msg.Button)
 	if !ok || m.picker.open {
@@ -71,6 +71,8 @@ func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 		m.help.scroll = m.wheeledCard(m.help.scroll, way, msg)
 	case logCardOpen:
 		m.log.card.scroll = m.wheeledCard(m.log.card.scroll, way, msg)
+	case turnCardOpen:
+		return m.turnCardScrolled(m.wheeledCard(m.session.card.scroll, way, msg))
 	case nothingOpen:
 		if f, at := m.onScreen(); f.Under(m.doc, at, msg.X, msg.Y) == dashboard.UnderView {
 			return m.scrollView(notch(f, way))
@@ -104,10 +106,14 @@ func notch(f dashboard.Frame, way int) scrollStep {
 // only where that moves it from where it's drawn: a scroll that moves
 // nothing leaves the Overview's layout as it's kept, but the view scrolled
 // no further than it's drawn, so an offset past where it now goes doesn't
-// come back once it goes further again. The Log's table scrolls as
-// scrollLog has it.
+// come back once it goes further again. On a session's page, it scrolls its
+// turns, or its turn open's requests, as scrollSession has it; and the Log's
+// table scrolls as scrollLog has it.
 func (m Model) scrollView(by scrollStep) Model {
-	if m.view == dashboard.Log {
+	switch m.shownView() {
+	case dashboard.SessionPage:
+		return m.scrollSession(by)
+	case dashboard.Log:
 		return m.scrollLog(by)
 	}
 	s := m.scrolling()

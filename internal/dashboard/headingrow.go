@@ -55,13 +55,13 @@ func (p piece) target() Target {
 // their pages have them; else its name alone, as the views milestone 5
 // built and the tabs not built yet have it.
 func (f Frame) heading() heading {
-	switch f.View {
+	switch f.Shown() {
 	case History:
 		return f.History.heading()
 	case Log:
 		return f.Log.heading(f.phone(), f.Width, func(id string) string { return named(f.heldMoment(), id) })
 	}
-	return heading{name: strings.ToUpper(f.View.Title())}
+	return heading{name: strings.ToUpper(f.Shown().Title())}
 }
 
 // headingRow draws the tab's heading row, as headingPieces lays it out.
@@ -72,10 +72,11 @@ func (f Frame) headingRow(c *canvas) {
 }
 
 // headingPieces are the heading row of the tab shown, laid out under the
-// status line: none on the Overview, whose sections head themselves, nor on
-// a page too short for its view, as cramped says.
+// status line: none on the Overview, whose sections head themselves, nor
+// under a session's page, which heads itself, nor on a page too short for
+// its view, as cramped says.
 func (f Frame) headingPieces() []piece {
-	if f.View == Overview || f.cramped() {
+	if shown := f.Shown(); shown == Overview || shown == SessionPage || f.cramped() {
 		return nil
 	}
 	return f.heading().pieces(f.headingY(), f.Width, f.phone())

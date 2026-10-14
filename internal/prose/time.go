@@ -102,11 +102,21 @@ func Stint(now, from, to time.Time, dated bool) string {
 	}
 	if dated {
 		start = withDay(now, from)
-		if !to.IsZero() && !SameDay(now, from, to) {
-			end = withDay(now, to)
+		if !to.IsZero() {
+			end = Later(now, from, to)
 		}
 	}
 	return start + " – " + end
+}
+
+// Later says t, a time after start, in now's time zone, as it's said beside
+// start, which names its own day: its time of day on start's day, as
+// "16:02"; on another, with its day, as "today 00:40" or "yesterday 23:10".
+func Later(now, start, t time.Time) string {
+	if SameDay(now, start, t) {
+		return TimeOfDay(now, t)
+	}
+	return withDay(now, t)
 }
 
 // withDay says t with its day, in now's time zone: "today 09:12" on now's

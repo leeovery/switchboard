@@ -574,9 +574,10 @@ func (s Section) fills() bool {
 }
 
 // LayoutOf is the Overview's layout as the frame lays it out of doc at now,
-// for the watch to keep for the next look: the zero Layout off the Overview.
+// for the watch to keep for the next look: the zero Layout off the Overview,
+// and under a session's page, which hides it.
 func (f Frame) LayoutOf(doc status.Document, now time.Time) Layout {
-	if f.View != Overview {
+	if f.Shown() != Overview {
 		return Layout{}
 	}
 	f = f.At(doc, now)
@@ -710,11 +711,17 @@ func (f Frame) says(p planned) line {
 	case p.lists():
 		return holds
 	}
-	noRoom := line{{"no room at " + strconv.Itoa(f.Height) + " rows", dimInk}}
+	noRoom := f.noRoom()
 	if len(holds) == 0 {
 		return noRoom
 	}
 	return slices.Concat(holds, line{spaces(headingGap)}, noRoom)
+}
+
+// noRoom says a folded heading has no room for what it heads at the frame's
+// height, in text.subtle: "no room at 24 rows".
+func (f Frame) noRoom() line {
+	return line{{"no room at " + strconv.Itoa(f.Height) + " rows", dimInk}}
 }
 
 // saying is the line words gives, or none where it's nil.

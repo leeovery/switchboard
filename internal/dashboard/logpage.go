@@ -285,20 +285,6 @@ func (p LogPage) Chosen() (views.RequestRow, *views.LogEvent, bool) {
 	return views.RequestRow{}, lines[i].event, true
 }
 
-// ChosenSession is the session the line chosen of the table shown is of,
-// whose page s opens from it: a request's, the session it counts toward, as
-// views' CountedSession has it, none for a quota check; or an event's. It's
-// "" where none is chosen, or it's of none.
-func (p LogPage) ChosenSession() string {
-	if line, ok := p.ChosenRequest(); ok {
-		return line.CountedSession()
-	}
-	if _, event, ok := p.Chosen(); ok && event != nil {
-		return event.Session
-	}
-	return ""
-}
-
 // Chose is the table shown in a view rows rows tall, its choice moved by
 // places, ↑ -1 and ↓ 1, as the keys move it: following, ↑ chooses the newest
 // row and pauses there, ↓ doing nothing; paused with a row chosen, the row

@@ -10,8 +10,9 @@ import (
 // cells wide, and what's there, as On says: a tab, Tab; a sub-tab, by its
 // place among them, SubTab; < or > by a period or a window, Step, -1 or 1; a
 // key of the key line, Key, as the line names it; a row of the view, Row, by
-// its index; an Overview's section, Section; or an account, by its id,
-// Account.
+// its index; an Overview's section, Section; an account, by its id, Account;
+// a session, by its id, Session; a turn of a session's page, by its number,
+// Turn; or a request of its turn open, by its index among them, Row.
 type Target struct {
 	X, Y, Width int
 	On          Clicked
@@ -22,6 +23,8 @@ type Target struct {
 	Row         int
 	Section     Section
 	Account     string
+	Session     string
+	Turn        int
 }
 
 // Clicked is what a click lands on.
@@ -45,11 +48,19 @@ const (
 	// OnAccount is an account's row on the Overview, in USAGE or ROUTING,
 	// which moves the focus to it.
 	OnAccount
+	// OnSession is a session's row, which opens its page.
+	OnSession
+	// OnTurn is a turn's row on a session's page, which chooses it.
+	OnTurn
+	// OnRequest is a request's row in a session's turn open, which chooses
+	// it.
+	OnRequest
 )
 
 // Targets are the zones of the frame's page of doc at now a click acts on,
 // each over the cells it's drawn on, laid out as the page draws them: its
-// tabs; the heading row's sub-tabs, and < and > by its period or window; the
+// tabs; the heading row's sub-tabs, and < and > by its period or window; a
+// session's page's, where one is open, as sessionTargets has them, else the
 // Overview's, as overviewTargets has them, and the Log's, as logTargets has
 // them; and the key line's keys, as keyTargets has them.
 func (f Frame) Targets(doc status.Document, now time.Time) []Target {
@@ -59,13 +70,25 @@ func (f Frame) Targets(doc status.Document, now time.Time) []Target {
 			targets = append(targets, p.target())
 		}
 	}
-	if f.View == Overview && !f.cramped() {
-		targets = append(targets, f.At(doc, now).overviewTargets(doc, now)...)
-	}
-	if f.View == Log && !f.cramped() {
-		targets = append(targets, f.logTargets(now)...)
+	if !f.cramped() {
+		targets = append(targets, f.viewTargets(doc, now)...)
 	}
 	return append(targets, f.keyTargets()...)
+}
+
+// viewTargets are the zones of what the frame shows of doc at now a click
+// acts on, as Targets lays them out: a session's page's, the Overview's and
+// the Log's.
+func (f Frame) viewTargets(doc status.Document, now time.Time) []Target {
+	switch f.Shown() {
+	case SessionPage:
+		return f.At(doc, now).sessionTargets(doc, now)
+	case Overview:
+		return f.At(doc, now).overviewTargets(doc, now)
+	case Log:
+		return f.logTargets(now)
+	}
+	return nil
 }
 
 // tabTargets are the tabs, as tabs draws them.

@@ -336,7 +336,7 @@ func TestStatusSession(t *testing.T) {
 	}
 
 	wantAssignments := []status.Assignment{
-		{Model: "claude-haiku-4-5-20251001", Family: "haiku", Account: "work", Reason: "new", AssignedAt: testNow, LastSeen: testNow},
+		{Model: "claude-haiku-4-5-20251001", Family: "haiku", Account: "work", Auto: "work", Reason: "new", AssignedAt: testNow, LastSeen: testNow},
 	}
 	for _, form := range withJSON {
 		t.Run(form.name, func(t *testing.T) {

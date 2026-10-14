@@ -28,6 +28,17 @@ func opening(kept dashboard.View) dashboard.View {
 	return dashboard.Overview
 }
 
+// shownView is what the watch shows, as a frame's Shown has it: a session's
+// page, as dashboard.SessionPage, while one is open over its tab; else its
+// tab, the view, which a page open leaves under it. What acts on what's
+// shown reads it, so none passes over a page open.
+func (m Model) shownView() dashboard.View {
+	if m.session != nil {
+		return dashboard.SessionPage
+	}
+	return m.view
+}
+
 // turn shows the tab by places on from the one shown, round, as tab and
 // shift-tab move.
 func (m Model) turn(by int) (tea.Model, tea.Cmd) {
@@ -37,8 +48,10 @@ func (m Model) turn(by int) (tea.Model, tea.Cmd) {
 }
 
 // showTab shows the tab given, from its top, and keeps it, for the next watch
-// to open on. The tab shown already stays as it is.
+// to open on, leaving a session's page open over the tab shown, or asked to
+// open, as closeSession has it. The tab shown already stays as it is.
 func (m Model) showTab(tab dashboard.View) Model {
+	m = m.closeSession()
 	if tab == m.view {
 		return m
 	}

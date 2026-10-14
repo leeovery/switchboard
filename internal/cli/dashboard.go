@@ -142,6 +142,8 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 	}
 	t := a.themes()
 	kept := t.kept()
+	// Without a home directory, a session's directory shows whole.
+	home, _ := a.HomeDir()
 	wc := watch.Config{
 		Source:        a.source(cfg, opts.probe),
 		ProbeOnly:     opts.probe,
@@ -163,6 +165,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Log:           dashboard.LogKept(kept.Log),
 		LedgerKeep:    cfg.Ledger.Keep,
 		Prices:        pricing(cfg),
+		Home:          home,
 	}
 	a.readers(&wc, cfg)
 	if t.prefs != nil {

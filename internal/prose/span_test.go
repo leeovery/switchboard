@@ -81,22 +81,41 @@ func TestAboutIsToTheFiveMinutesUnderTwoHoursThenToTheHour(t *testing.T) {
 	}
 }
 
-// Minutes count from the minute one time falls in to the one another does,
-// so 14:02:59 to 14:05:00 is 3 minutes, and 14:02:00 to 14:04:59 is 2.
-func TestMinutesCountFromTheMinuteOneTimeFallsInToAnothers(t *testing.T) {
+// Minutes count the minutes from the one one time falls in to the one
+// another does, both counted, as a turn's took counts them: 14:29 to 14:37
+// is 9 minutes, and two times within one minute are 1.
+func TestMinutesCountEachMinuteFromTheOneOneTimeFallsInToAnothers(t *testing.T) {
 	at := func(minute, second int) time.Time { return time.Date(2026, 10, 7, 14, minute, second, 0, time.UTC) }
 	tests := []struct {
 		from, to time.Time
 		want     string
 	}{
-		{from: at(2, 0), to: at(2, 59), want: "0m"},
-		{from: at(2, 59), to: at(5, 0), want: "3m"},
-		{from: at(2, 0), to: at(4, 59), want: "2m"},
-		{from: at(2, 30), to: at(42, 10), want: "40m"},
+		{from: at(2, 0), to: at(2, 59), want: "1m"},
+		{from: at(2, 59), to: at(5, 0), want: "4m"},
+		{from: at(29, 4), to: at(37, 30), want: "9m"},
+		{from: at(40, 0), to: at(42, 7), want: "3m"},
+		{from: at(2, 30), to: at(42, 10), want: "41m"},
 	}
 	for _, tt := range tests {
 		if got := prose.Minutes(tt.from, tt.to); got != tt.want {
 			t.Errorf("Minutes(%v, %v) = %q, want %q", tt.from, tt.to, got, tt.want)
+		}
+	}
+}
+
+func TestHoursAreWholeWhatsLeftOverCut(t *testing.T) {
+	tests := []struct {
+		d    time.Duration
+		want string
+	}{
+		{d: time.Hour, want: "1h"},
+		{d: 15*time.Hour + 7*time.Minute, want: "15h"},
+		{d: 2*time.Hour - time.Second, want: "1h"},
+		{d: 30 * time.Hour, want: "30h"},
+	}
+	for _, tt := range tests {
+		if got := prose.Hours(tt.d); got != tt.want {
+			t.Errorf("Hours(%v) = %q, want %q", tt.d, got, tt.want)
 		}
 	}
 }

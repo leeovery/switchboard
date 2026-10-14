@@ -315,13 +315,8 @@ func (f Frame) cueStanding(c *canvas, id string, x, y, width int) {
 func cue(c *canvas, look Look, x, y, width int, fade float64) {
 	c.surface(x, y, width, hue{token: theme.BgAttention, fade: fade})
 	c.cued(x, y, width)
-	if look.coloured {
-		return
-	}
-	for i := range width {
-		if here := c.at(x+i, y); here != nil {
-			here.ink.bold = true
-		}
+	if !look.coloured {
+		c.emboldened(x, y, width)
 	}
 }
 

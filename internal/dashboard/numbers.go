@@ -55,6 +55,9 @@ const (
 	// NumberMoved are the sessions an event of the Log's Events moved, as
 	// its words count them, which Of names by the event's key.
 	NumberMoved
+	// NumberPoints are the points of an account's window a session took, on
+	// its page, as in "≈ 41", which Of names by the window's key.
+	NumberPoints
 )
 
 // Number names a number the page draws, which brightens as it changes:
@@ -109,9 +112,10 @@ func (c cell) numbered() (Number, bool) {
 // StreamNumbered reports whether the frame's page may draw a number the
 // request stream changes: the Overview's, with ROUTING or SESSIONS shown,
 // whose rates count the requests it tells of going out, and whose sessions
-// its moves re-patch. No other page draws one, as the tests hold each to.
+// its moves re-patch. No other page draws one, a session's page over the
+// Overview among them, as the tests hold each to.
 func (f Frame) StreamNumbered() bool {
-	return f.View == Overview && (f.Sections.Has(SectionRouting) || f.Sections.Has(SectionSessions))
+	return f.Shown() == Overview && (f.Sections.Has(SectionRouting) || f.Sections.Has(SectionSessions))
 }
 
 // Numbers are the numbers the frame's page draws of doc at now that brighten

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -64,8 +63,8 @@ func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 	if p.Dir != "" {
 		heading += "  " + prose.Clean(p.Dir)
 	}
-	doingNow := []string{doingSaid(p.Activity, now)}
-	if where := p.Where(now).String(); where != "" {
+	doingNow := []string{p.Activity.Said(now)}
+	if where := p.Where(now).Words().String(); where != "" {
 		doingNow = append(doingNow, where)
 	}
 	if !p.Started.IsZero() {
@@ -91,55 +90,35 @@ func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 	return err
 }
 
-// startedSaid says when the session p started, at now, and how long it has
-// run since, as "started 12:02 · 2h 40m"; when it came back after a while
-// without a request, as "started yesterday 16:40 · resumed 09:12"; or how
-// long it ran, of one ended, as its Activity says, as "started yesterday
-// 13:20 · ran 5h 27m".
+// startedSaid says when the session p started, at now, and how it has run
+// since, as row 6 says them: "started 12:02 · 2h 40m", "started yesterday
+// 16:40 · resumed 09:12", or "started yesterday 13:20 · ran 5h 27m".
 func startedSaid(p views.SessionPage, now time.Time) string {
-	started := "started " + prose.Past(now, p.Started)
-	switch {
-	case p.Activity.Doing == views.Ended:
-		return started + " · ran " + prose.Duration(p.Ended.Sub(p.Started))
-	case !p.Resumed.IsZero():
-		return started + " · resumed " + prose.Past(now, p.Resumed)
-	}
-	return started + " · " + prose.Countdown(p.Started, now)
+	return "started " + p.StartedSaid(now) + " · " + p.RanSaid(now)
 }
 
-// goesOrKept says, of the session p the router lists, where each of its
-// models goes, as "opus-5-5 → side   haiku-4-5 → side"; of one it doesn't,
-// until when the ledger keeps the lines of its first day, as views.KeptUntil
-// says it.
+// goesOrKept says, of the session p while it runs, as its Runs says, where
+// each of its models goes, as its Goes has them, as the page's row 7 names
+// them: "opus-5-5 → side   haiku-4-5 → side"; of one ended, until when the
+// ledger keeps the lines of its first day, as views.KeptUntil says it.
 func goesOrKept(p views.SessionPage, now time.Time) string {
-	if !p.Running {
+	if !p.Runs() {
 		return views.KeptUntil(p.KeptUntil, now)
 	}
-	goes := make([]string, len(p.Models))
-	for i, m := range p.Models {
-		goes[i] = ledger.ShortModelID(prose.Clean(m.Model)) + " → " + prose.Clean(m.Account)
+	goes := make([]string, len(p.Goes))
+	for i, g := range p.Goes {
+		goes[i] = ledger.ShortModelID(prose.Clean(g.Model)) + " → " + prose.Clean(g.Account)
 	}
 	return strings.Join(goes, "   ")
 }
 
-// ranOnRows are the rows of the accounts the session p ran on, one at least,
-// at now: each with its time there, as prose.Stint says, dated where the
-// session spans more than one day, to now for the one its latest request went
-// to till it has ended, as its Activity says, never one the router sends it
-// to but no request of it has gone to since; its requests; the points of each
+// ranOnRows are the rows of the accounts the session p ran on, at now: each
+// with its time there, as its Stays say it; its requests; the points of each
 // window they took, as PointsSaid says them; and their worth.
 func ranOnRows(p views.SessionPage, now time.Time) [][]string {
-	first := slices.MinFunc(p.Accounts, func(a, b views.SessionAccount) int { return a.From.Compare(b.From) }).From
-	last := slices.MaxFunc(p.Accounts, func(a, b views.SessionAccount) int { return a.To.Compare(b.To) })
-	spans := !prose.SameDay(now, first, last.To)
-	rows := make([][]string, len(p.Accounts))
-	for i, a := range p.Accounts {
-		to := a.To
-		if p.Activity.Doing != views.Ended && a.Account == last.Account {
-			to = time.Time{}
-		}
-		rows[i] = []string{prose.Clean(a.Account), prose.Stint(now, a.From, to, spans), prose.Counted(a.Requests, "request"),
-			a.PointsSaid(), a.Cents()}
+	var rows [][]string
+	for _, s := range p.Stays(now) {
+		rows = append(rows, []string{prose.Clean(s.Account), s.Said, prose.Counted(s.Requests, "request"), s.PointsSaid(), s.Cents()})
 	}
 	return rows
 }
@@ -158,14 +137,14 @@ func turnRows(p views.SessionPage, now time.Time) [][]string {
 	return rows
 }
 
-// turnTook says how long a turn took, as prose.Minutes says it, from the
-// minute it started to the one it ended in, as "3m"; and of one still going,
-// to the minute now is, "…" after it.
+// turnTook says how long a turn took, at now, as its Took says it, as "3m";
+// and of one still going, "…" after it.
 func turnTook(t views.Turn, now time.Time) string {
-	if t.Ended.IsZero() {
-		return prose.Minutes(t.Started, now) + prose.Ellipsis
+	minutes, going := t.Took(now)
+	if going {
+		return minutes + prose.Ellipsis
 	}
-	return prose.Minutes(t.Started, t.Ended)
+	return minutes
 }
 
 // accountsSaid says the accounts a turn went to, in the order it did, as the

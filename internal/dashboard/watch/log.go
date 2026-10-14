@@ -71,21 +71,31 @@ func openingLog(columns dashboard.LogTicks) logTab {
 // while it's open, the panel of what a table shows, as builtLogPanel has
 // it.
 func (m Model) builtLog(now time.Time) Model {
-	t := m.log
-	if !t.opened {
+	if !m.log.opened {
 		return m
 	}
+	m = m.requestsBuilt(now)
+	t := m.log
 	p := t.page
 	p.Read, p.From, p.Today, p.Totals = true, t.from, views.Today(now), t.totals
 	p.Live, p.Stream, p.Written, p.AtReach = m.answering(), m.logStream(now), t.read.WrittenTo(), t.atReach()
-	if basis := m.requestsBasis(p.Filter, now); !t.built.requests.same(basis) {
-		p.Requests, m.log.built.requests = views.LogRows(m.logSources(p.Filter, now)), &basis
-	}
 	if basis := m.eventsBasis(p.Shows, now); !t.built.events.same(basis) {
 		p.Events, m.log.built.events = views.LogEvents(m.logEventSources(p.Shows, now)), &basis
 	}
 	m.log.page = p.Lined().Filling(m.logRows())
 	return m.followedByLogCard().builtLogPanel(now)
+}
+
+// requestsBuilt is m with the Log's Requests built at now of what it holds,
+// shown or hidden: of the lines read and, while the router answers, what the
+// stream tells of those in flight, as its filter has them, made again only
+// as what they're made of changes, as logBuilt has it.
+func (m Model) requestsBuilt(now time.Time) Model {
+	p := &m.log.page
+	if basis := m.requestsBasis(p.Filter, now); !m.log.built.requests.same(basis) {
+		p.Requests, m.log.built.requests = views.LogRows(m.logSources(p.Filter, now)), &basis
+	}
+	return m
 }
 
 // logSources are what the Log's Requests are built from at now, through
@@ -170,9 +180,10 @@ func (m Model) logRows() int {
 // ↓ choose a line, as Chose has it; end follows again, as esc does while
 // the table shown is paused; esc, while it isn't, lets go of what the
 // filter keeps alone, as Unfiltered has it; enter opens the line chosen's
-// details; f the panel of what the table shows; and / the find.
+// details; s the page of its session, as openLineSession has it; f the
+// panel of what the table shows; and / the find.
 func (m Model) logKey(key string) (Model, tea.Cmd, bool) {
-	if m.view != dashboard.Log {
+	if m.shownView() != dashboard.Log {
 		return m, nil, false
 	}
 	p, rows := m.log.page, m.logRows()
@@ -191,6 +202,9 @@ func (m Model) logKey(key string) (Model, tea.Cmd, bool) {
 		p = p.Unfiltered()
 	case key == "enter":
 		next, cmd := m.openLogCard()
+		return next, cmd, true
+	case key == "s":
+		next, cmd := m.openLineSession()
 		return next, cmd, true
 	case key == "f":
 		next, cmd := m.openLogPanel()
@@ -218,12 +232,13 @@ func (m Model) scrollLog(by scrollStep) Model {
 // details, and paused, end following again; then f and /, a group of their
 // own while paused, / working where its find has a row, as LogFinds says.
 func (m Model) logListings() []keyListing {
-	log, p := m.view == dashboard.Log, m.log.page
+	log, p := m.shownView() == dashboard.Log, m.log.page
 	paused := p.Paused()
 	return []keyListing{
 		{Key: logViewKey, works: log, apart: true},
 		{Key: m.logChooseKey(), works: log, apart: true},
 		{Key: logOpenKey, works: log},
+		{Key: dashboard.Key{Key: "s", Does: "its session"}, works: log && p.ChosenSession() != "", wide: true},
 		{Key: logFollowKey, works: log && paused},
 		{Key: dashboard.Key{Key: "f", Does: "what it shows"}, works: log, apart: paused, wide: true},
 		{Key: dashboard.Key{Key: "/", Does: "find"}, works: log && m.logFrame().LogFinds(), wide: true},
@@ -255,4 +270,16 @@ func (m Model) logPhoneKeys() []dashboard.Key {
 		keys = append(keys, logFollowKey)
 	}
 	return append(keys, logViewKey)
+}
+
+// openLineSession opens the page of the session the Log's line chosen is
+// of, as ChosenSession has it, as s does, as openSession has it, over the
+// Log, which waits under it paused at that line for esc to come back to:
+// nothing where it's of none.
+func (m Model) openLineSession() (Model, tea.Cmd) {
+	id := m.log.page.ChosenSession()
+	if id == "" {
+		return m, nil
+	}
+	return m.openSession(id)
 }

@@ -543,12 +543,16 @@ func (r *routed) ask(t *testing.T, session, model, pin string) string {
 	t.Helper()
 	before := r.rt.InFlightOf(session, model)
 	header := with(with(claudeCode(workToken), claude.SessionHeader, session), "X-Switchboard-Account", pin)
-	body := `{"model":"` + model + `","max_tokens":1,"messages":[{"role":"user","content":"hello"}]}`
-	readAll(t, send(t, http.MethodPost, r.proxy+"/v1/messages", header, strings.NewReader(body)))
+	readAll(t, send(t, http.MethodPost, r.proxy+"/v1/messages", header, strings.NewReader(messageFor(model))))
 	waitUntil(t, "the router is done with the request", func() bool {
 		return !slices.ContainsFunc(r.rt.InFlightOf(session, model), func(id string) bool { return !slices.Contains(before, id) })
 	})
 	return r.api.lastAccount()
+}
+
+// messageFor is the body of a messages request for model, as ask sends it.
+func messageFor(model string) string {
+	return `{"model":"` + model + `","max_tokens":1,"messages":[{"role":"user","content":"hello"}]}`
 }
 
 // weekOf is a week used as given, which resets after left.

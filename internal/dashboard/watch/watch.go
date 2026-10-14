@@ -170,12 +170,17 @@ type Config struct {
 	Events   views.Events
 	// LedgerKeep is how long the ledger keeps a day's lines, as [ledger]
 	// keep gives it, which says the Log's oldest day, as views.OldestKept
-	// reads it: dayfile.Forever keeps them for good, and none, as a Config
-	// that doesn't say, config.DefaultLedgerKeep, as the router keeps them.
+	// reads it, and to when an ended session's page says its lines are kept,
+	// as views.HoldPage reads it: dayfile.Forever keeps them for good, and
+	// none, as a Config that doesn't say, config.DefaultLedgerKeep, as the
+	// router keeps them.
 	LedgerKeep time.Duration
 	// Prices are the price table a move's cost is worked out at, the
 	// config's prices in place of any of the table's.
 	Prices ledger.Table
+	// Home is the user's home directory, which a session's page shows a
+	// directory under as ~: "" shows it whole.
+	Home string
 }
 
 // Size is a terminal's size in cells.
@@ -305,6 +310,13 @@ type Model struct {
 	// past is what the watch holds of History: its page, the ledger's days
 	// it's built of, and the reads of them.
 	past historyTab
+	// session is the session's page open, drawn in place of the view: nil
+	// while none is. opening counts the pages asked to open, each opening
+	// once its read lands, but one asked for before the last; and pending is
+	// the id of the last, while its read waits for the ledger's tail's.
+	session *sessionShown
+	opening int
+	pending string
 	// log is what the watch holds of the Log, and tail today's lines of the
 	// ledger as its readers follow them.
 	log  logTab
@@ -353,6 +365,9 @@ const (
 	// the panel of what its table shows.
 	logCardOpen
 	logPanelOpen
+	// turnCardOpen is the Log's details of the request chosen of a session's
+	// turn open, over its page.
+	turnCardOpen
 )
 
 // frozen is the page as it stood when a card opened over it, or the Log's
@@ -420,10 +435,12 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update takes in a message, at the one time it came, as taking has it, as
-// take says, then has the watch read the router's request stream while it
-// wants it, and the ledger's days for History, the Log and its find as they
-// want them, the Log's page built of what it holds, and only then, price the
-// moves the routing card would make while it wants them.
+// take says, building the session's page open afresh, as relived says, and
+// closing a session's card it leaves no p for, as closing says, then has
+// the watch read the router's request stream while it wants it, and the
+// ledger's days for History, a session's page, the Log and its find as they
+// want them, the Log's page built of what it holds, and only then, price
+// the moves the routing card would make while it wants them.
 // Then, of the page as it stands at that moment, its Overview's sections
 // built once for each to share, it keeps the Overview's layout, but for a
 // frame, which takes nothing in to lay it out afresh by; brightens the
@@ -436,8 +453,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.taking = taking{at: now, moment: m.doc.HoldAt(now, m.cfg.Policy)}
 	next, cmd := m.take(msg)
-	tuned, stream := next.(Model).tune()
+	tuned, closed := next.(Model).relived(msg, now).closing()
+	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
+	tuned, paged := tuned.readPage()
 	tuned, logged := tuned.readLog()
 	tuned, found := tuned.readFind()
 	tuned, costs := tuned.costing()
@@ -448,7 +467,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, stream, past, logged, found, costs, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, costs, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look
@@ -527,7 +546,8 @@ func (m Model) render() Model {
 // kept as it stands, a read, the router's history, the ledger's days read
 // for History, the router carrying out an order, the sessions listed to
 // price the routing card's moves, the request stream opening, telling of
-// requests or falling due to be asked for again, a tick or a frame.
+// requests or falling due to be asked for again, a tick, a frame, or a
+// session's page read.
 func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -586,6 +606,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.ticked(msg)
 	case frameMsg:
 		return m.framed(msg), nil
+	case sessionReadMsg:
+		return m.sessionRead(msg), nil
 	}
 	return m, nil
 }
@@ -640,11 +662,12 @@ func (m Model) viewOf(lines []string, look dashboard.Look) tea.View {
 }
 
 // pressed acts on a key: ctrl+c quits, whatever's open. While a card is
-// open, its keys alone act, as routingKey, helpKey, logCardKey and
-// logPanelKey take them, as do the find's while the Log's is open. Else q
+// open, its keys alone act, as routingKey, helpKey, logCardKey, logPanelKey
+// and turnCardKey take them, as do the find's while the Log's is open. Else q
 // quits; while the theme picker is open, it takes every other key; and
 // otherwise p opens the routing card, ? opens the page's help, R refreshes,
-// and the rest are the page's, as pageKey takes them.
+// and the rest are a session's page's, while one is open, as sessionKey
+// takes them, else the page's, as pageKey takes them.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k := key.String(); {
 	case k == "ctrl+c":
@@ -657,6 +680,8 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.logCardKey(k)
 	case m.open == logPanelOpen:
 		return m.logPanelKey(k)
+	case m.open == turnCardOpen:
+		return m.turnCardKey(k)
 	case m.finding():
 		return m.logFindKey(k)
 	case k == "q":
@@ -669,6 +694,8 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.openHelp(), nil
 	case k == "R":
 		return m.refresh()
+	case m.shownView() == dashboard.SessionPage:
+		return m.sessionKey(key)
 	}
 	return m.pageKey(key)
 }
@@ -705,8 +732,8 @@ func (m Model) live(now time.Time) dashboard.Frame {
 }
 
 // card is the card open over the page, as the model stands at now: the
-// routing card, its figures read afresh; the Log's details or its panel; or
-// help.
+// routing card, its figures read afresh; the Log's details or its panel; the
+// Log's details of a session's turn open's request; or help.
 func (m Model) card(now time.Time) dashboard.Opened {
 	switch m.open {
 	case routingOpen:
@@ -715,16 +742,19 @@ func (m Model) card(now time.Time) dashboard.Opened {
 		return m.logCardAt(now)
 	case logPanelOpen:
 		return m.logPanel(now)
+	case turnCardOpen:
+		return m.turnCardAt(now)
 	}
 	return m.helpCard()
 }
 
 // cover opens the card given over the page, which stands still behind it as
-// it stands now.
+// it stands now, dropping a session's page asked to open, as unasked has it,
+// so no card opens over one page to stand over another.
 func (m Model) cover(card opened) Model {
 	now := m.now()
 	m.open, m.page = card, frozen{frame: m.live(now), doc: m.doc, at: now}
-	return m
+	return m.unasked()
 }
 
 // uncover closes the card open over the page, which is live again, and
@@ -756,6 +786,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
 		History:    m.past.page,
+		Session:    m.session.frame(),
 		Log:        m.log.page,
 	}.Holding(m.taking.moment).At(m.doc, now)
 	f.Eased = m.ease.eased(f, m.doc, now)

@@ -105,7 +105,7 @@ func pageDeps(t *testing.T, routed bool) cli.Deps {
 
 // pageText is what sessions prints of paging's page, the router listing it.
 const pageText = `session 5e6f9d33  ~/Code/web
-answering  ·  on side since 09:12, rescored after 15h 7m idle: side had the most room  ·  started yesterday 16:40 · resumed 09:12
+↓ answering  ·  on side since 09:12, rescored after 15h 7m idle: side had the most room  ·  started yesterday 16:40 · resumed 09:12
 opus-5-5 → side   haiku-4-5 → work
 
 work  yesterday 16:40 – today 09:13  3 requests  ≈ 4 points of its 5-hour · 1 of its week  $0.08
@@ -113,8 +113,8 @@ side  today 09:12 – now              2 requests  ≈ 2 points of its 5-hour   
 
 2 turns  ·  5 requests  ·  99% from cache  ·  $0.15 at API prices
 #  started          took   requests  tools                      read  written  out   worth  on
-2  09:12            240m…  3         Read ×3, Edit ×1, Grep ×1  200k  2.0k     1.0k  $0.08  side
-1  yesterday 16:40  86m    2         Bash ×2                    200k  2.0k     1.0k  $0.08  work
+2  09:12            241m…  3         Read ×3, Edit ×1, Grep ×1  200k  2.0k     1.0k  $0.08  side
+1  yesterday 16:40  87m    2         Bash ×2                    200k  2.0k     1.0k  $0.08  work
 `
 
 func TestSessionsShowsTheSessionGivenAsMuchOfItsIdAsIsUnique(t *testing.T) {
@@ -165,10 +165,10 @@ func TestASessionsPageJSONHoldsItsShape(t *testing.T) {
 func TestSessionsFindsASessionOfAnEarlierDayByItsWholeIdAlone(t *testing.T) {
 	deps := pageDeps(t, true)
 	const want = `session 3c4d5e6f  ~/Code/old
-ended Mon 10:00  ·  ran on work  ·  started Mon 10:00 · ran 0m
+ended Mon 10:00  ·  ran on work  ·  started Mon 10:00 · ran 0s
 kept until 9 Nov 2027
 
-work  10:00 – 10:00  1 request    $0.04
+work  Mon 10:00 – 10:00  1 request    $0.04
 
 0 turns  ·  1 request  ·  99% from cache  ·  $0.04 at API prices
 `
@@ -193,7 +193,7 @@ func TestASessionsPageWithoutTheRouterIsItsLinesAloneAsEnded(t *testing.T) {
 	deps := pageDeps(t, false)
 	const notice = "switchboard: the router isn't running — showing the session from the ledger alone, as not running\n"
 	const want = `session 5e6f9d33  ~/Code/web
-ended 09:20  ·  ran on work, then side from 09:12: rescored after 15h 7m idle  ·  started yesterday 16:40 · ran 16h 40m
+ended 09:20  ·  ran on work, then side from today 09:12: rescored after 15h 7m idle  ·  started yesterday 16:40 · ran 16h 40m
 kept until 10 Nov 2027
 
 work  yesterday 16:40 – today 09:13  3 requests  ≈ 4 points of its 5-hour · 1 of its week  $0.08
@@ -201,8 +201,8 @@ side  today 09:12 – 09:20            2 requests  ≈ 2 points of its 5-hour   
 
 2 turns  ·  5 requests  ·  99% from cache  ·  $0.15 at API prices
 #  started          took  requests  tools                      read  written  out   worth  on
-2  09:12            9m    3         Read ×3, Edit ×1, Grep ×1  200k  2.0k     1.0k  $0.08  side
-1  yesterday 16:40  86m   2         Bash ×2                    200k  2.0k     1.0k  $0.08  work
+2  09:12            10m   3         Read ×3, Edit ×1, Grep ×1  200k  2.0k     1.0k  $0.08  side
+1  yesterday 16:40  87m   2         Bash ×2                    200k  2.0k     1.0k  $0.08  work
 `
 	if got := run(t, deps, "sessions", "5e6f9", "--pretty"); got != (result{stdout: want, stderr: notice}) {
 		t.Errorf("switchboard sessions 5e6f9 --pretty = %+v, want it to print\n%s\nand say on stderr\n%s", got, want, notice)
@@ -234,11 +234,10 @@ func TestASessionsPageWithoutTheRouterReadsOneWithARequestWithinTheHourAsNotEnde
 	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": lines})
 	got := run(t, deps, "sessions", paging, "--pretty")
 	// Idle since its answer ended, on side since its move, and on it till
-	// now, as the router's own rule keeps it within the hour; its models'
-	// accounts, which the router alone says, give way to how long its lines
-	// are kept.
+	// now, as the router's own rule keeps it within the hour; its models
+	// going where its lines last sent them, as the page's row 7 has them.
 	for _, want := range []string{
-		"\nidle 31m  ·  on side since 12:40, moved from work: work reached its limit  ·  started 12:00 · 1h 12m\nkept until 11 Nov 2027\n",
+		"\nidle 31m  ·  on side since 12:40, moved from work: work reached its limit  ·  started 12:00 · 1h 12m\nopus-5-5 → side\n",
 		"\nside  12:40 – now",
 	} {
 		if got.code != 0 || !strings.Contains(got.stdout, want) {
@@ -259,7 +258,7 @@ func TestATurnWhoseConversationMovedReadsAsItsMove(t *testing.T) {
 	}
 	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": lines})
 	got := run(t, deps, "sessions", paging, "--pretty")
-	const row = "1  11:00    4m    4                300k  3.0k     1.5k  $0.11  work → side → work\n"
+	const row = "1  11:00    5m    4                300k  3.0k     1.5k  $0.11  work → side → work\n"
 	if got.code != 0 || !strings.Contains(got.stdout, row) {
 		t.Errorf("switchboard sessions %s --pretty = %+v, want its turn's row, on its conversation's accounts alone, in the order it went to them\n%s",
 			paging, got, row)

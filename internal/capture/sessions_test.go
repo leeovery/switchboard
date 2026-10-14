@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -75,5 +76,34 @@ func TestTheRoutersSessionsAtTheLimitAreTheSessionsFrames(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// f41a's world's router lists six sessions, as its status line counts them:
+// the Overview's, f41a, answering on personal, in 9c2e's place; and its
+// ledger holds f41a's lines, of yesterday and today, among the sessions'
+// world's.
+func TestF41AsWorldListsItInPlaceOf9C2EAndHoldsItsLines(t *testing.T) {
+	worlds := worldsNow()
+	w := worlds.resumed()
+	listed := w.routed(worlds.now)
+	if doc := w.document(worlds.now); len(listed) != doc.Sessions {
+		t.Errorf("the router lists %d sessions, where its status line counts %d", len(listed), doc.Sessions)
+	}
+	ids := make([]string, len(listed))
+	for i, s := range listed {
+		ids[i] = short(s.ID)
+	}
+	if want := []string{"d28c", "c61b", "41e0", "7f3a", "db8a", "f41a"}; !slices.Equal(ids, want) {
+		t.Errorf("the router lists %v, want %v", ids, want)
+	}
+	held := 0
+	for _, f := range w.records().lines {
+		if f.Session == idF41A {
+			held++
+		}
+	}
+	if want := len(resumedPlan(worlds.now).lines()); held != want {
+		t.Errorf("the ledger holds %d of f41a's lines, want its %d", held, want)
 	}
 }

@@ -173,6 +173,11 @@ func TestOnlyRequestsThatSpendQuotaAndWentUpstreamAreReadFromTheLines(t *testing
 			t.Errorf("session %s's trace counts requests sent %v ago, want %v", id[:4], got, want)
 		}
 	}
+
+	uncounted := []ledger.Held{lines[1], lines[2], lines[3]}
+	if allocs := testing.AllocsPerRun(10, func() { traces.Read(uncounted, tracedAt) }); allocs != 0 {
+		t.Errorf("reading lines the traces don't count allocates %.0f times, want none: only a line counted is kept", allocs)
+	}
 }
 
 func TestOnlyRequestsThatSpendQuotaAndWentUpstreamAreCountedFromTheStream(t *testing.T) {

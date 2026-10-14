@@ -3275,7 +3275,10 @@ ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`.
 - **The columns** (rows 11 to 15): its first minute at column 0 and now, or its end, at column 159,
   the minutes shared out evenly but for folds: `(minutes − folded) ÷ (160 − 5 × folds)` a column, so
   a minute a column for a session of 160 minutes, and a younger one never more than a column a
-  minute, drawn from the left, its axis ending at its newest minute (settled in the plan). Each
+  minute, drawn from the left, its axis ending at its newest minute (settled in the plan). A
+  column's span is that share exactly, never rounded to whole minutes, so the story always fills
+  the width: past 160 minutes every column's span grows a little each minute, and a peak can drift
+  between neighbouring columns as it does (the owner's call, 13 October 2026). Each
   column is the mean requests a minute over the minutes it stands for, a request counting in the
   minute it arrived. Five rows tall, filled `round(rate ÷ scale × 40)` eighths, halves to even, as
   the Overview's traces are drawn: full cells are background and the top cell an eighth block, in
@@ -3322,8 +3325,9 @@ first ran on them:
 - at column 0, the account's number in config order, as the Overview numbers it, in `text.subtle`,
   and a space; then its name bold `text.primary` and its marks;
 - at 14, its time there, from its first request on it to its last, in `text.secondary`: `12:02 –
-  14:31`, `14:31 – now`; with its day where the session spans more than one: `yesterday 16:40 –
-  18:05`, `today 09:12 – now`;
+  14:31`, `14:31 – now`; with its day where the session spans more than one, or began before today,
+  as an undated time reads as today's: `yesterday 16:40 – 18:05`, `today 09:12 – now`,
+  `yesterday 13:20 – 16:02` (settled in the plan);
 - at 40, its requests in `text.muted`: `404 requests`;
 - at 56, what it took of the account's windows, the points bold `text.primary` and the rest
   `text.muted`: `≈ 41 points of its 5-hour · 6 of its week`, a model's own window it used adding
@@ -3331,7 +3335,9 @@ first ran on them:
 - right-aligned to the last column, its worth at API prices, in `text.secondary`: `$41.06`.
 - **A turn that moved splits** between the two, each request counted on the account that answered
   it, the context written again on the account it moved to. The rows' requests and worth add up to
-  TURNS', each rounded on its own, so the rows can come a cent apart from it. Back on an account it
+  TURNS', each rounded on its own, so the rows can come a cent apart from it; a request the router
+  answered itself, as when no account has room, no account answered, so TURNS' alone counts it
+  (settled in the plan). Back on an account it
   left, it keeps one row an account, spanning its first request there to its last
   (settled in the plan).
 - **≈ points:** a window counts its account's whole use, every session's, so a session's share is
@@ -3574,7 +3580,10 @@ routing.
    reason or its sessions.
    - **`0 auto` first,** `0` in `text.subtle` and `auto` in bold `text.primary`, its description in
      `text.muted`: `the router chooses`; on a session's card, `the router chooses: side for now`,
-     the account auto would send it to, bold `text.primary`. Picking `auto` clears the accounts;
+     the account auto would send it to, bold `text.primary`: where the router's own rule for a
+     session of no pin of its own would send its next request, which keeps it where it runs while
+     that account has room and its cache is worth keeping, named by the router in its listing of
+     the sessions (the owner's call, 13 October 2026). Picking `auto` clears the accounts;
      picking an account clears `auto`; nothing picked is auto.
    - **Then each account,** numbered by its place in the config, `1 ` in `text.subtle`, its name in
      bold `text.primary`.
@@ -5160,7 +5169,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 |---|---|
 | `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that answers `ok` and gives `listen`, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all |
 | `GET /status` | The status document, as `status --json` prints it: see below |
-| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
+| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `0 auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |

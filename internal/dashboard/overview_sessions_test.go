@@ -173,6 +173,46 @@ func TestSESSIONSShowsAsManyAsFitTheLastRowSayingHowManyMore(t *testing.T) {
 	}
 }
 
+// A click on a session's row in SESSIONS opens its page: each row of each
+// session shown, across the body, both of a session's under 110 columns,
+// and a session's on each account its models go to; none on the row saying
+// how many more there are.
+func TestEachRowOfASessionInSESSIONSOpensItsPage(t *testing.T) {
+	doc, sessions, stream := overviewWorld()
+	two := slices.Clone(sessions)
+	two[0].Assignments = append(slices.Clone(two[0].Assignments), status.Assignment{Model: haiku, Family: "haiku", Account: "personal", Reason: status.ReasonNew, AssignedAt: routedAt, LastSeen: routedAt})
+	tests := []struct {
+		name     string
+		width    int
+		sessions []status.Session
+		rows     int
+		want     []string
+	}{
+		{name: "a row a session, the last saying how many more", width: 160, sessions: sessions, rows: 3, want: []string{id41E0, id9C2E, ""}},
+		{name: "two rows a session, under 110 columns", width: 109, sessions: sessions, rows: 5, want: []string{id41E0, id41E0, id9C2E, id9C2E, ""}},
+		{
+			name: "a session on two accounts, on each", width: 160, sessions: two, rows: 7,
+			want: []string{idC61B, id41E0, id9C2E, idC61B, idD28C, id7F3A, idDB8A},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Width: tt.width, Height: 40, View: Overview, Sessions: tt.sessions, Stream: stream}
+			body := bounds{x: 0, y: 30, width: tt.width, rows: tt.rows}
+			got := make([]string, tt.rows)
+			for _, target := range f.sessionsSection(doc, routedAt).targets(body) {
+				if target.On != OnSession || target.X != body.x || target.Width != body.width {
+					t.Errorf("SESSIONS gives %+v, want a session's row across the body", target)
+				}
+				got[target.Y-body.y] = target.Session
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("its rows open %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestUnder110ColumnsASessionTakesTwoRows(t *testing.T) {
 	doc, sessions, stream := overviewWorld()
 	for _, width := range []int{109, 52} {
@@ -217,7 +257,8 @@ func TestASessionRunningSaysWhatItsDoing(t *testing.T) {
 		{name: "answering, nothing counted yet", a: views.Activity{Doing: views.Answering}, want: span{"↓", doingInk}},
 		{name: "asking", a: views.Activity{Doing: views.Asking}, want: span{"↑ ask", doingInk}},
 		{name: "throttled, to be sent again: asking still", a: views.Activity{Doing: views.Throttled, Status: 529}, want: span{"↑ ask", doingInk}},
-		{name: "refused", a: views.Activity{Doing: views.Refused, Status: 429}, want: span{"idle", faintInk}},
+		{name: "refused at a limit, before it goes out again elsewhere: idle, as it has no word of its own", a: views.Activity{Doing: views.Refused, Status: 429}, want: span{"idle", faintInk}},
+		{name: "refused by a 403: idle", a: views.Activity{Doing: views.Refused, Status: 403}, want: span{"idle", faintInk}},
 		{name: "idle", a: views.Activity{Since: routedAt}, want: span{"idle", faintInk}},
 	}
 	for _, tt := range tests {

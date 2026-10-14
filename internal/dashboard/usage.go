@@ -281,15 +281,41 @@ func (n accountName) cells(label int) int {
 // line is the name, in a name column column cells wide, its label cut short
 // to keep its number, its marks and ▲'s cells.
 func (n accountName) line(column int) line {
-	label := prose.Cut(n.label, column-nameGap-n.cells(0))
-	number, primary, best := dimInk, primaryInk, accentInk
+	return n.labelIn(column - nameGap - n.cells(0))
+}
+
+// fitted is the name in the cells given, nameGap of them kept after it, its
+// label cut short to keep its number and its marks, and no cells kept for a
+// ▲ it hasn't.
+func (n accountName) fitted(cells int) line {
+	return n.labelIn(cells - nameGap - len(n.number) - 1 - n.marks().width())
+}
+
+// labelIn is the name, its label cut short to the cells given: its label
+// alone, unnumbered, where it has no number, as an account the config no
+// longer has.
+func (n accountName) labelIn(cells int) line {
+	label := span{prose.Cut(n.label, cells), n.inked(titleInk)}
+	if n.number == "" {
+		return append(line{label}, n.marks()...)
+	}
+	number := dimInk
 	if n.out {
 		number = faintInk
 	}
+	label.text = " " + label.text
+	return append(line{{n.number, number}, label}, n.marks()...)
+}
+
+// marks are the marks after the name's label, each after a space: ◆ on the
+// primary, in text.tertiary, and ▲ on the account new sessions go to, in
+// accent.mode; each faint where the name is.
+func (n accountName) marks() line {
+	primary, best := primaryInk, accentInk
 	if n.faint {
 		primary, best = faintInk, faintInk
 	}
-	l := line{{n.number, number}, {" " + label, n.inked(titleInk)}}
+	var l line
 	if n.primary {
 		l = append(l, span{" ◆", primary})
 	}

@@ -52,6 +52,24 @@ type SessionMoment struct {
 	Turns map[string][]Turn
 	// Named is what names each session, by its id.
 	Named map[string]Named
+	// Page is what each session's page tells of it, by its id.
+	Page map[string]PageFacts
+}
+
+// PageFacts are what a session's page tells of it at a moment: whether it
+// runs, as its page draws it; where its models go, as row 7 has them; whether
+// its newest turn goes on; whether a request of it waits for its answer; the
+// accounts its lines went to, its rows', in the order they first did; and,
+// of its story, the accounts its ribbon names, in turn, and how many moves
+// it marks.
+type PageFacts struct {
+	Runs     bool
+	Goes     []Named
+	Going    bool
+	Waiting  bool
+	Accounts []string
+	Ribbon   []string
+	Marks    int
 }
 
 // Named is the account and model naming a session, following its main
@@ -86,19 +104,25 @@ type Turn struct {
 // in flight, joined again with none; the router restarted; the router gone,
 // or probing; a session ended, then resumed; a move while it runs; two
 // models on two accounts; idle 59 minutes after an answer that called a
-// tool; a turn of side requests alone, its main in flight; its main failed;
-// a request of the newest turn in flight, its answer ended with its line to
-// come, then its line come; a turn that moved twice; a turn across
-// midnight; lines that name no prompt, nor class; a move by hand with no
-// request since; and a new session, its first line read before the router's
-// listing at the next look.
+// tool; a turn of side requests alone, its main in flight, as the stream
+// tells and as the router lists it with no stream; its main failed; a
+// request of the newest turn in flight, its answer ended with its line to
+// come, then its line come; a turn that moved twice; a turn across midnight;
+// lines that name no prompt, nor class; a move by hand with no request
+// since; a new session, its first line read before the router's listing at
+// the next look; a session idle with its page open, then ended an hour after
+// its last line; probing within the hour; a subagent's model moved, its main
+// thread staying; a request in flight naming no prompt after named turns;
+// refused on one account, then throttled on another; and a request the
+// router answered itself, no account having room.
 func SessionMoments() []SessionMoment {
 	return []SessionMoment{
 		asking(), askingAsListed(), answering(), refused(), throttled(), idleAsTheStreamTold(), idleAsItsLineGives(),
 		lostAsTheStreamEnded(), routerRestarted(), routerGone(), ended(), resumed(), movedAsItRuns(),
-		twoModelsOnTwoAccounts(), idleAfterAToolCall(), sideRequestsAloneItsMainInFlight(), itsMainFailed(),
-		inFlightInTheNewestTurn(), endedItsLineToCome(), itsLineCome(), movedTwice(), turnAcrossMidnight(), noPrompts(),
-		movedByHand(), newBeforeTheNextLook(),
+		twoModelsOnTwoAccounts(), idleAfterAToolCall(), sideRequestsAloneItsMainInFlight(), sideRequestsAloneAsListed(),
+		itsMainFailed(), inFlightInTheNewestTurn(), endedItsLineToCome(), itsLineCome(), movedTwice(), turnAcrossMidnight(),
+		noPrompts(), movedByHand(), newBeforeTheNextLook(), idleItsPageOpen(), endedItsPageOpen(), probingWithinTheHour(),
+		subagentMoved(), inFlightNamingNoPrompt(), refusedThenThrottled(), answeredByTheRouter(),
 	}
 }
 
@@ -238,6 +262,20 @@ func over(n int, started, ended time.Time, requests int, accounts ...string) Tur
 	return Turn{Turn: n, Started: started, Ended: ended, Requests: requests, Accounts: accounts}
 }
 
+// opusOn is a session's one model, Claude Opus 5.5, going to the account
+// given.
+func opusOn(account string) []Named {
+	return []Named{{account, Opus}}
+}
+
+// runsOn are the page facts of a session running its one model, Claude Opus
+// 5.5, on the account given, its story's ribbon on that account alone; its
+// newest turn going or not, and a request of it waiting for its answer or
+// not; its rows those of the accounts its lines went to, given.
+func runsOn(account string, going, waiting bool, rows ...string) PageFacts {
+	return PageFacts{Runs: true, Goes: opusOn(account), Going: going, Waiting: waiting, Accounts: rows, Ribbon: []string{account}}
+}
+
 func asking() SessionMoment {
 	sent := At(14, 42, 5)
 	m := moment("asking", session(D28C, seat(Opus, "work", sent, status.Asking)))
@@ -245,6 +283,7 @@ func asking() SessionMoment {
 	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Doing: views.Asking, Since: sent, LastSeen: sent})}
 	m.Turns = map[string][]Turn{D28C: {going(1, sent, 1, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", true, true)}
 	return m
 }
 
@@ -254,6 +293,7 @@ func askingAsListed() SessionMoment {
 	m.Stream = live()
 	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Doing: views.Asking, Since: sent, LastSeen: sent})}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: opusOn("work"), Waiting: true}}
 	return m
 }
 
@@ -266,6 +306,7 @@ func answering() SessionMoment {
 	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Doing: views.Answering, Chars: 4800, Since: sent, LastSeen: progress})}
 	m.Turns = map[string][]Turn{D28C: {going(1, sent, 1, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", true, false)}
 	return m
 }
 
@@ -286,6 +327,7 @@ func refused() SessionMoment {
 	}
 	m.Turns = map[string][]Turn{D28C: {going(1, sent, 1, "work")}, C61B: {going(1, At(14, 42, 3), 1, "side")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}, C61B: {"side", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", true, true), C61B: runsOn("side", true, true)}
 	return m
 }
 
@@ -298,6 +340,7 @@ func throttled() SessionMoment {
 	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Doing: views.Throttled, Status: 429, Since: sent, LastSeen: throttledAt})}
 	m.Turns = map[string][]Turn{D28C: {going(1, sent, 1, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", true, true)}
 	return m
 }
 
@@ -311,6 +354,7 @@ func idleAsTheStreamTold() SessionMoment {
 	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Since: answered, LastSeen: answered})}
 	m.Turns = map[string][]Turn{D28C: {over(1, sent, answered, 1, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", false, false, "work")}
 	return m
 }
 
@@ -325,6 +369,7 @@ func idleAsItsLineGives() SessionMoment {
 	}}
 	m.Turns = map[string][]Turn{D28C: {over(1, sent, answered, 1, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", false, false, "work")}
 	return m
 }
 
@@ -338,6 +383,7 @@ func lostAsTheStreamEnded() SessionMoment {
 	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Since: progress, LastSeen: progress})}
 	m.Turns = map[string][]Turn{D28C: {over(1, sent, progress, 1, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", false, false)}
 	return m
 }
 
@@ -361,6 +407,7 @@ func routerRestarted() SessionMoment {
 		C61B: {going(1, At(14, 41, 52), 2, "side")},
 	}
 	m.Named = map[string]Named{D28C: {"work", Opus}, C61B: {"side", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", false, false), C61B: runsOn("side", true, true)}
 	return m
 }
 
@@ -380,6 +427,10 @@ func routerGone() SessionMoment {
 		C61B: {over(1, At(13, 30, 0), At(13, 30, 20), 1, "side")},
 	}
 	m.Named = map[string]Named{D28C: {"work", Opus}, C61B: {"side", Opus}}
+	m.Page = map[string]PageFacts{
+		D28C: runsOn("work", true, false, "work"),
+		C61B: {Goes: opusOn("side"), Accounts: []string{"side"}, Ribbon: []string{"side"}},
+	}
 	return m
 }
 
@@ -392,6 +443,10 @@ func ended() SessionMoment {
 	}
 	m.Turns = map[string][]Turn{D28C: {over(1, At(13, 30, 0), At(13, 30, 20), 1, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}, C61B: {"side", Opus}}
+	m.Page = map[string]PageFacts{
+		D28C: {Goes: opusOn("work"), Accounts: []string{"work"}, Ribbon: []string{"work"}},
+		C61B: {Runs: true, Goes: opusOn("side")},
+	}
 	return m
 }
 
@@ -405,6 +460,7 @@ func resumed() SessionMoment {
 	m.Want = map[string]Doing{D28C: alike("side", views.Activity{Doing: views.Asking, Since: sent, LastSeen: sent})}
 	m.Turns = map[string][]Turn{D28C: {going(2, sent, 1, "side"), over(1, At(13, 30, 0), At(13, 30, 20), 1, "work")}}
 	m.Named = map[string]Named{D28C: {"side", Opus}}
+	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: opusOn("side"), Going: true, Waiting: true, Accounts: []string{"work"}, Ribbon: []string{"work", "side"}}}
 	return m
 }
 
@@ -424,6 +480,10 @@ func movedAsItRuns() SessionMoment {
 	}
 	m.Turns = map[string][]Turn{D28C: {going(1, At(14, 41, 0), 2, "work", "side")}}
 	m.Named = map[string]Named{D28C: {"side", Opus}, C61B: {"work", Opus}}
+	m.Page = map[string]PageFacts{
+		D28C: {Runs: true, Goes: opusOn("side"), Going: true, Waiting: true, Accounts: []string{"work"}, Ribbon: []string{"work", "side"}, Marks: 1},
+		C61B: {Runs: true, Goes: opusOn("work")},
+	}
 	return m
 }
 
@@ -445,6 +505,7 @@ func twoModelsOnTwoAccounts() SessionMoment {
 	}}
 	m.Turns = map[string][]Turn{D28C: {going(1, At(14, 39, 58), 2, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: []Named{{"work", Opus}, {"side", Haiku}}, Going: true, Accounts: []string{"side"}, Ribbon: []string{"work"}}}
 	return m
 }
 
@@ -461,6 +522,7 @@ func idleAfterAToolCall() SessionMoment {
 	}}
 	m.Turns = map[string][]Turn{D28C: {going(1, sent, 1, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", true, false, "work")}
 	return m
 }
 
@@ -485,7 +547,15 @@ func sideRequestsAloneItsMainInFlight() SessionMoment {
 	}}
 	m.Turns = map[string][]Turn{D28C: {going(2, sent, 2, "work"), over(1, At(14, 30, 0), At(14, 31, 0), 1, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: titledOnSide}
 	return m
+}
+
+// titledOnSide are the page facts of a session running Claude Opus 5.5 on
+// work and its titles, by Claude Haiku 4.5, on side, its newest turn going
+// as a request of its own conversation waits for its answer.
+var titledOnSide = PageFacts{
+	Runs: true, Goes: []Named{{"work", Opus}, {"side", Haiku}}, Going: true, Waiting: true, Accounts: []string{"work", "side"}, Ribbon: []string{"work"},
 }
 
 func itsMainFailed() SessionMoment {
@@ -506,6 +576,7 @@ func itsMainFailed() SessionMoment {
 	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Since: answered, LastSeen: answered})}
 	m.Turns = map[string][]Turn{D28C: {over(2, sent, failed, 2, "work"), over(1, At(14, 30, 0), At(14, 31, 0), 1, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: []Named{{"work", Opus}, {"work", Haiku}}, Accounts: []string{"work"}, Ribbon: []string{"work"}}}
 	return m
 }
 
@@ -526,6 +597,7 @@ func inFlightInTheNewestTurn() SessionMoment {
 	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Doing: views.Asking, Since: sent, LastSeen: sent})}
 	m.Turns = map[string][]Turn{D28C: {going(1, At(14, 40, 0), 2, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", true, true, "work")}
 	return m
 }
 
@@ -535,6 +607,7 @@ func endedItsLineToCome() SessionMoment {
 	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Since: answered, LastSeen: answered})}
 	m.Turns = map[string][]Turn{D28C: {going(1, At(14, 40, 0), 2, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", true, false, "work")}
 	return m
 }
 
@@ -545,6 +618,7 @@ func itsLineCome() SessionMoment {
 	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Since: answered, LastSeen: answered})}
 	m.Turns = map[string][]Turn{D28C: {over(1, At(14, 40, 0), answered, 2, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", false, false, "work")}
 	return m
 }
 
@@ -562,6 +636,7 @@ func movedTwice() SessionMoment {
 	}}
 	m.Turns = map[string][]Turn{D28C: {over(1, At(14, 40, 0), At(14, 42, 5), 3, "work", "side", "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: opusOn("work"), Accounts: []string{"work", "side"}, Ribbon: []string{"work", "side", "work"}, Marks: 2}}
 	return m
 }
 
@@ -579,6 +654,7 @@ func turnAcrossMidnight() SessionMoment {
 	}}
 	m.Turns = map[string][]Turn{D28C: {over(1, at(1, 23, 58), last.Add(10*time.Second), 2, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", false, false, "work")}
 	return m
 }
 
@@ -595,6 +671,7 @@ func noPrompts() SessionMoment {
 		On:    map[string]views.Activity{"work": {Since: first, LastSeen: first}, "side": {Since: last, LastSeen: last}},
 	}}
 	m.Named = map[string]Named{D28C: {"side", Haiku}}
+	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: []Named{{"side", Haiku}, {"work", Opus}}, Accounts: []string{"work", "side"}, Ribbon: []string{"work", "side"}}}
 	return m
 }
 
@@ -613,6 +690,10 @@ func newBeforeTheNextLook() SessionMoment {
 	}
 	m.Turns = map[string][]Turn{D28C: {going(1, sent, 2, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}, C61B: {"side", Opus}}
+	m.Page = map[string]PageFacts{
+		D28C: {Runs: true, Goes: []Named{{"work", Opus}, {"work", Haiku}}, Going: true, Waiting: true, Accounts: []string{"work"}, Ribbon: []string{"work"}},
+		C61B: {Runs: true, Goes: opusOn("side")},
+	}
 	return m
 }
 
@@ -628,5 +709,152 @@ func movedByHand() SessionMoment {
 	}}
 	m.Turns = map[string][]Turn{D28C: {over(1, last, At(14, 30, 10), 1, "work")}}
 	m.Named = map[string]Named{D28C: {"side", Opus}}
+	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: opusOn("side"), Accounts: []string{"work"}, Ribbon: []string{"work"}}}
+	return m
+}
+
+func sideRequestsAloneAsListed() SessionMoment {
+	sent, titled := At(14, 42, 0), At(14, 42, 1)
+	m := moment("the newest turn of side requests alone, its main in flight as the router lists it, with no stream",
+		session(D28C, seat(Opus, "work", sent, status.Asking), seat(Haiku, "side", titled, "")))
+	m.Lines = []ledger.Line{
+		withID("r1", asMain(p1, "end_turn", line(D28C, Opus, "work", At(14, 30, 0), time.Minute))),
+		withID("r3", asTitle(p2, line(D28C, Haiku, "side", titled, 2*time.Second))),
+	}
+	m.Want = map[string]Doing{D28C: {
+		Whole: views.Activity{Doing: views.Asking, Since: sent, LastSeen: titled},
+		On: map[string]views.Activity{
+			"work": {Doing: views.Asking, Since: sent, LastSeen: sent},
+			"side": {Since: titled, LastSeen: titled},
+		},
+	}}
+	m.Turns = map[string][]Turn{D28C: {going(2, titled, 1, "side"), over(1, At(14, 30, 0), At(14, 31, 0), 1, "work")}}
+	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: titledOnSide}
+	return m
+}
+
+// quietLines are D28C's two requests of its own conversation on work, at
+// 14:20 and 14:33, each answer calling a tool.
+func quietLines() []ledger.Line {
+	return []ledger.Line{
+		asMain(p1, "tool_use", line(D28C, Opus, "work", At(14, 20, 0), 10*time.Second)),
+		asMain(p1, "tool_use", line(D28C, Opus, "work", At(14, 33, 0), 10*time.Second)),
+	}
+}
+
+func idleItsPageOpen() SessionMoment {
+	last := At(14, 33, 0)
+	m := moment("idle 9 minutes, its page open, its last answer calling a tool", session(D28C, seat(Opus, "work", last, "")))
+	m.Lines = quietLines()
+	m.Want = map[string]Doing{D28C: {
+		Whole: views.Activity{Since: last.Add(10 * time.Second), LastSeen: last},
+		On:    on("work", views.Activity{Since: last, LastSeen: last}),
+	}}
+	m.Turns = map[string][]Turn{D28C: {going(1, At(14, 20, 0), 2, "work")}}
+	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", true, false, "work")}
+	return m
+}
+
+func endedItsPageOpen() SessionMoment {
+	last := At(14, 33, 0)
+	m := momentAt(last.Add(views.IdleHour+time.Second), "ended an hour after its last line, its page open, the router listing it no longer")
+	m.Unlisted = true
+	m.Lines = quietLines()
+	m.Want = map[string]Doing{D28C: {Whole: views.Activity{Doing: views.Ended, Since: last, LastSeen: last}}}
+	m.Turns = map[string][]Turn{D28C: {over(1, At(14, 20, 0), last.Add(10*time.Second), 2, "work")}}
+	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: {Goes: opusOn("work"), Accounts: []string{"work"}, Ribbon: []string{"work"}}}
+	return m
+}
+
+func probingWithinTheHour() SessionMoment {
+	m := moment("probing within the hour: idle, its models where its lines last sent them")
+	m.Unlisted = true
+	m.Lines = []ledger.Line{
+		asMain(p1, "end_turn", line(D28C, Opus, "work", At(14, 20, 0), 15*time.Second)),
+		asTitle(p1, line(D28C, Haiku, "side", At(14, 20, 5), 2*time.Second)),
+	}
+	m.Want = map[string]Doing{D28C: {Whole: views.Activity{Since: At(14, 20, 7), LastSeen: At(14, 20, 5)}}}
+	m.Turns = map[string][]Turn{D28C: {over(1, At(14, 20, 0), At(14, 20, 15), 2, "work")}}
+	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: []Named{{"work", Opus}, {"side", Haiku}}, Accounts: []string{"work", "side"}, Ribbon: []string{"work"}}}
+	return m
+}
+
+// asSubagent returns l, a request of the subagent with the given id, serving
+// the prompt given.
+func asSubagent(agent, prompt string, l ledger.Line) ledger.Line {
+	l.Prompt, l.Class, l.AgentID, l.Answer.Stop = prompt, "subagent", agent, "end_turn"
+	return l
+}
+
+func subagentMoved() SessionMoment {
+	moved := seat(Haiku, "side", At(14, 35, 0), "")
+	moved.Reason, moved.AssignedAt = status.ReasonMovedOff+"work "+status.WhyReserve, At(14, 35, 0)
+	m := moment("a subagent's model moved to side, its main thread staying on work",
+		session(D28C, seat(Opus, "work", At(14, 40, 0), ""), moved))
+	m.Lines = []ledger.Line{
+		asMain(p1, "tool_use", line(D28C, Opus, "work", At(14, 30, 0), 10*time.Second)),
+		asSubagent("a1", p1, line(D28C, Haiku, "work", At(14, 31, 0), 5*time.Second)),
+		movedOff("work", asSubagent("a1", p1, line(D28C, Haiku, "side", At(14, 35, 0), 5*time.Second))),
+		asMain(p1, "end_turn", line(D28C, Opus, "work", At(14, 40, 0), 10*time.Second)),
+	}
+	m.Want = map[string]Doing{D28C: {
+		Whole: views.Activity{Since: At(14, 40, 10), LastSeen: At(14, 40, 0)},
+		On:    map[string]views.Activity{"work": {Since: At(14, 40, 0), LastSeen: At(14, 40, 0)}, "side": {Since: At(14, 35, 0), LastSeen: At(14, 35, 0)}},
+	}}
+	m.Turns = map[string][]Turn{D28C: {over(1, At(14, 30, 0), At(14, 40, 10), 4, "work")}}
+	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: []Named{{"work", Opus}, {"side", Haiku}}, Accounts: []string{"work", "side"}, Ribbon: []string{"work"}}}
+	return m
+}
+
+func inFlightNamingNoPrompt() SessionMoment {
+	sent := At(14, 42, 0)
+	m := moment("a request in flight naming no prompt, after a named turn", session(D28C, seat(Opus, "work", sent, status.Asking)))
+	m.Stream = live(told("r2", D28C, Opus, "work", sent, sent))
+	m.Lines = []ledger.Line{withID("r1", asMain(p1, "end_turn", line(D28C, Opus, "work", At(14, 30, 0), time.Minute)))}
+	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Doing: views.Asking, Since: sent, LastSeen: sent})}
+	m.Turns = map[string][]Turn{D28C: {going(1, At(14, 30, 0), 1, "work")}}
+	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", true, true, "work")}
+	return m
+}
+
+func refusedThenThrottled() SessionMoment {
+	sent, refusedAt, throttledAt := At(14, 42, 0), At(14, 42, 2), At(14, 42, 4)
+	r := toldServing(p1, ledger.ClassMain, told("r1", D28C, Opus, "side", sent, throttledAt))
+	r.Verdict, r.Status = views.VerdictThrottled, 429
+	reason := status.ReasonMovedOff + "work " + status.WhyRefused
+	moved := seat(Opus, "side", sent, status.Asking)
+	moved.Reason, moved.AssignedAt = reason, refusedAt
+	m := moment("refused on work, then throttled on side", session(D28C, moved))
+	m.Stream = live(r)
+	m.Stream.Moves = []views.Moved{{Request: "r1", Session: D28C, Model: Opus, From: "work", To: "side", Reason: reason, At: refusedAt}}
+	m.Want = map[string]Doing{D28C: alike("side", views.Activity{Doing: views.Throttled, Status: 429, Since: sent, LastSeen: throttledAt})}
+	m.Turns = map[string][]Turn{D28C: {going(1, sent, 1, "side")}}
+	m.Named = map[string]Named{D28C: {"side", Opus}}
+	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: opusOn("side"), Going: true, Waiting: true, Ribbon: []string{"side"}, Marks: 1}}
+	return m
+}
+
+func answeredByTheRouter() SessionMoment {
+	last := At(14, 36, 0)
+	m := moment("a request of its own conversation the router answered itself, no account having room, then sent again on work",
+		session(D28C, seat(Opus, "work", last, "")))
+	m.Lines = []ledger.Line{
+		asMain(p1, "tool_use", line(D28C, Opus, "work", At(14, 30, 0), 10*time.Second)),
+		asMain(p1, "", unsent("r2", D28C, At(14, 35, 0))),
+		asMain(p1, "end_turn", line(D28C, Opus, "work", last, 10*time.Second)),
+	}
+	m.Want = map[string]Doing{D28C: {
+		Whole: views.Activity{Since: last.Add(10 * time.Second), LastSeen: last},
+		On:    on("work", views.Activity{Since: last, LastSeen: last}),
+	}}
+	m.Turns = map[string][]Turn{D28C: {over(1, At(14, 30, 0), last.Add(10*time.Second), 3, "work")}}
+	m.Named = map[string]Named{D28C: {"work", Opus}}
+	m.Page = map[string]PageFacts{D28C: runsOn("work", false, false, "work")}
 	return m
 }

@@ -39,9 +39,9 @@ func (f Frame) moving(c *canvas, doc status.Document, now time.Time) Motion {
 
 // travel is what travels the cords Sessions' switchboard shows, as
 // travelling has it, but nothing of a view too short to be drawn, as
-// cramped says.
+// cramped says, nor under a session's page, drawn in its place.
 func (f Frame) travel(doc status.Document, now time.Time) Motion {
-	if f.cramped() || f.View != Sessions {
+	if f.cramped() || f.Shown() != Sessions {
 		return Motion{}
 	}
 	return f.travelling(doc, now)
@@ -65,13 +65,13 @@ func (f Frame) MaySettle() bool {
 // Overview, as USAGE draws them, and the pool's at now, but none of a bar
 // USAGE draws empty, which has nothing to ease; on Sessions, as its panels
 // draw them, but none of a window a panel draws without a bar; and none on a
-// view that draws no bar.
+// view that draws no bar, nor under a session's page, which draws none.
 func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
-	switch m := f.Moment(doc, now); f.View {
+	switch f.Shown() {
 	case Overview:
-		return overviewFilled(m)
+		return overviewFilled(f.Moment(doc, now))
 	case Sessions:
-		return sessionsFilled(m)
+		return sessionsFilled(f.Moment(doc, now))
 	}
 	return nil
 }

@@ -78,13 +78,24 @@ type joinedMsg struct {
 }
 
 // wantsStream reports whether the watch reads the router's request stream:
-// while Sessions or the Log shows, or the Overview with ROUTING or SESSIONS
-// shown, whose traces, what each session is doing, and the requests in
-// flight, the stream tells; and the router answers, unless it's from before
-// the stream.
+// while a session's page shows, Sessions or the Log, or the Overview with
+// ROUTING or SESSIONS shown, whose traces, what each session is doing, and
+// the requests in flight, the stream tells; and the router answers, unless
+// it's from before the stream.
 func (m Model) wantsStream() bool {
-	overview := m.view == dashboard.Overview && (m.sections.Has(dashboard.SectionRouting) || m.sections.Has(dashboard.SectionSessions))
-	return (m.view == dashboard.Sessions || m.view == dashboard.Log || overview) && m.answering() && !m.stream.absent
+	return m.showsStream() && m.answering() && !m.stream.absent
+}
+
+// showsStream reports whether what the watch shows tells what the request
+// stream tells, as wantsStream has it.
+func (m Model) showsStream() bool {
+	switch m.shownView() {
+	case dashboard.SessionPage, dashboard.Sessions, dashboard.Log:
+		return true
+	case dashboard.Overview:
+		return m.sections.Has(dashboard.SectionRouting) || m.sections.Has(dashboard.SectionSessions)
+	}
+	return false
 }
 
 // tune opens the request stream when the watch wants it and has none open,
@@ -302,7 +313,7 @@ func (m Model) numbering(events []router.StreamEvent) bool {
 	return slices.ContainsFunc(events, func(e router.StreamEvent) bool {
 		_, sent := sentAt(e)
 		return sent || e.Kind == router.StreamMoved
-	}) && dashboard.Frame{View: m.view, Sections: m.sections}.StreamNumbered()
+	}) && dashboard.Frame{View: m.view, Sections: m.sections, Session: m.session.frame()}.StreamNumbered()
 }
 
 // rejoinIn has the request stream asked for again once wait has passed.

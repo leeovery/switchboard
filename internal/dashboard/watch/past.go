@@ -336,7 +336,7 @@ func (t historyTab) earliest(now time.Time) int {
 // after, round. A key that changes what's shown shows it as showHistory has
 // it.
 func (m Model) historyKey(key string) (Model, bool) {
-	if m.view != dashboard.History {
+	if m.shownView() != dashboard.History {
 		return m, false
 	}
 	p, now := m.past.page, m.now()
@@ -366,7 +366,7 @@ var historySteps = map[string]int{"[": -1, "]": 1, "<": -1, ">": 1, "left": -1, 
 // showSubTab shows History's sub-tab i, as a click on it does: on History,
 // where it isn't the one shown already.
 func (m Model) showSubTab(i int) Model {
-	if next, ok := m.past.page.Showing(i); ok && m.view == dashboard.History {
+	if next, ok := m.past.page.Showing(i); ok && m.shownView() == dashboard.History {
 		return m.showHistory(next)
 	}
 	return m

@@ -61,13 +61,20 @@ type upstream struct {
 // check, a count of tokens or one the router answered itself.
 func (t Traces) Read(lines []ledger.Held, now time.Time) Traces {
 	var sent []upstream
-	for _, l := range lines {
-		if l.Upstream() {
-			line := l.Line
-			sent = append(sent, upstream{request: l.Request, at: l.At, account: l.Account, session: l.Session, line: &line})
+	for i := range lines {
+		if u, ok := lineUpstream(&lines[i].Line); ok {
+			sent = append(sent, u.detached())
 		}
 	}
 	return t.count(sent, now)
+}
+
+// detached is u holding a line of its own, a copy of the one it was read
+// from, so the traces keep none of the lines it was read among.
+func (u upstream) detached() upstream {
+	line := *u.line
+	u.line = &line
+	return u
 }
 
 // Told is t with the requests the stream told of counted at now: those that
@@ -77,45 +84,65 @@ func (t Traces) Read(lines []ledger.Held, now time.Time) Traces {
 func (t Traces) Told(told []Told, now time.Time) Traces {
 	var sent []upstream
 	for _, r := range told {
-		if r.Spends() && !r.Sent.IsZero() {
-			sent = append(sent, upstream{request: r.Request, at: r.Sent, account: r.Account, session: r.Session})
+		if u, ok := toldUpstream(r); ok {
+			sent = append(sent, u)
 		}
 	}
 	return t.count(sent, now)
 }
 
-// count is t with the requests sent upstream counted at now: each once, as
-// same says. One told of again, as one going out again on another account
-// after a refusal, keeps when it was first sent, and is counted on the
-// account it went out on last. The requests sent more than TraceSpan and a
-// minute before now are let go of, as no trace reaches them.
+// lineUpstream is the request the line l tells of, as the traces count it,
+// reporting false where it isn't one they count: one that spends no quota,
+// or the router answered itself.
+func lineUpstream(l *ledger.Line) (upstream, bool) {
+	return upstream{request: l.Request, at: l.At, account: l.Account, session: l.Session, line: l}, l.Upstream()
+}
+
+// toldUpstream is the request the stream told of as r, as the traces count
+// it, from when it first went upstream, reporting false where it isn't one
+// they count: one that spends no quota, or hasn't gone upstream.
+func toldUpstream(r Told) (upstream, bool) {
+	return upstream{request: r.Request, at: r.Sent, account: r.Account, session: r.Session}, r.Spends() && !r.Sent.IsZero()
+}
+
+// count is t with the requests sent upstream counted at now, as counting
+// counts them, those sent more than TraceSpan and a minute before now let go
+// of, as no trace reaches them.
 func (t Traces) count(sent []upstream, now time.Time) Traces {
 	if len(sent) == 0 {
 		return t
 	}
-	from := now.Add(-tracesKept)
-	requests := make(map[string][]counted, len(t.requests)+len(sent))
-	for id, held := range t.requests {
-		for _, c := range held {
+	return tracesOf(counting(t.requests, sent, now.Add(-tracesKept)))
+}
+
+// counting returns the requests held, by their ids, with those sent upstream
+// counted in, each once, as same says, those sent before from let go of. One
+// told of again, as one going out again on another account after a refusal,
+// keeps when it was first sent, and is counted on the account it went out on
+// last.
+func counting(held map[string][]counted, sent []upstream, from time.Time) map[string][]counted {
+	requests := make(map[string][]counted, len(held)+len(sent))
+	for id, cs := range held {
+		for _, c := range cs {
 			if !c.at.Before(from) {
 				requests[id] = append(requests[id], c)
 			}
 		}
 	}
 	for _, s := range sent {
-		held := requests[s.request]
-		i := slices.IndexFunc(held, func(c counted) bool { return same(s.request, c, s.counted) })
+		kept := requests[s.request]
+		i := slices.IndexFunc(kept, func(c counted) bool { return same(s.request, c, s.counted) })
 		if i < 0 {
 			if s.at.Before(from) {
 				continue
 			}
-			held, i = append(held, counted{at: s.at}), len(held)
+			kept, i = append(kept, counted{at: s.at}), len(kept)
 		}
-		c := &held[i]
+		c := &kept[i]
 		c.account, c.session, c.line = cmp.Or(s.account, c.account), cmp.Or(c.session, s.session), cmp.Or(c.line, s.line)
-		requests[s.request] = held
+		requests[s.request] = kept
 	}
-	return tracesOf(requests)
+	return requests
 }
 
 // same reports whether a and b, each counted as the request with the given

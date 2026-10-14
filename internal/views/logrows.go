@@ -59,20 +59,10 @@ type LogLine struct {
 	Row    RequestRow
 	Rule   *DayRule
 	Oldest *OldestDay
-	// line is the line the row is of, nil before it comes; day the local day
-	// the row sits on; and session the session its request counts toward, as
-	// placedRow has it.
-	line    *ledger.Line
-	day     LedgerDay
-	session string
-}
-
-// CountedSession is the session the row's request counts toward, as its
-// line counts it, ledger.Line's CountedSession, or before it comes, as the
-// stream told of it: none for a quota check, sent under an id Claude Code
-// never uses again, nor for a line that isn't a row.
-func (l LogLine) CountedSession() string {
-	return l.session
+	// line is the line the row is of, nil before it comes; and day the
+	// local day the row sits on.
+	line *ledger.Line
+	day  LedgerDay
 }
 
 // DayRule is where one day's rows end and the next's begin, a night's quiet
@@ -134,15 +124,11 @@ func (t LogTable) Count(date string) LogCount {
 // placedRow is a request's row as the table places it: on the local day its
 // request arrived on, or, before its line comes, was sent on; and, within
 // it, where it was sent, where the stream told of that, else where it
-// arrived. Its session is the one its request counts toward, as
-// ledger.Line.CountedSession has it of its line, or Told.countedSession of
-// a request told alone: none for a quota check. Filed is the day its line
-// is filed on, as the ledger files it, or before it comes, as
-// Told.FiledOn has it.
+// arrived. Filed is the day its line is filed on, as the ledger files it,
+// or before it comes, as Told.FiledOn has it.
 type placedRow struct {
 	row        RequestRow
 	line       *ledger.Line
-	session    string
 	day, filed LedgerDay
 	place      time.Time
 }
@@ -172,11 +158,11 @@ func LogRows(src LogSources) LogTable {
 		if sent, told := src.Stream.sentOf(&h.line); told {
 			lined[h.line.Request], place = true, sent
 		}
-		rows = append(rows, placedRow{row: h.row, line: &h.line, session: h.line.CountedSession(), day: h.day, filed: h.day, place: place})
+		rows = append(rows, placedRow{row: h.row, line: &h.line, day: h.day, filed: h.day, place: place})
 	}
 	for _, t := range toldAlone(src.Stream, lined) {
 		filed, _ := t.FiledOn()
-		rows = append(rows, placedRow{row: toldRow(t, src.Now), session: t.countedSession(), day: Today(t.Sent), filed: filed, place: t.Sent})
+		rows = append(rows, placedRow{row: toldRow(t, src.Now), day: Today(t.Sent), filed: filed, place: t.Sent})
 	}
 	rows = slices.DeleteFunc(rows, func(p placedRow) bool { return p.day.Start.Before(first.Start) })
 	slices.SortStableFunc(rows, func(a, b placedRow) int {
@@ -233,7 +219,7 @@ func tableOf(rows []placedRow, first LedgerDay, src LogSources) LogTable {
 		if last != nil && last.Date != p.day.Date {
 			table.Lines = append(table.Lines, LogLine{Rule: rules.between(*last, p.day)})
 		}
-		table.Lines = append(table.Lines, LogLine{Row: p.row, line: p.line, day: p.day, session: p.session})
+		table.Lines = append(table.Lines, LogLine{Row: p.row, line: p.line, day: p.day})
 		last = &p.day
 	}
 	return table
