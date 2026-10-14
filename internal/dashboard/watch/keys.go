@@ -168,7 +168,8 @@ func (m Model) historyListings() []keyListing {
 // help aside, then p pin where a pin can be set, and ? help and q quit last;
 // and the note a key left in their place, while that's news. Most pages set
 // p pin apart, a phone's line keeping the page's own keys between those that
-// lead and ? and q quit, but those it leaves to a wider line; the Overview
+// lead and ? and q quit, but those it leaves to a wider line, or on the Log,
+// with no session's page open over it, those logPhoneKeys keeps; the Overview
 // sets ↑↓ focus, p pin, ? help and q quit as a group of their own,
 // overviewApart after its toggles, which a phone's line leaves to help.
 func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
@@ -192,7 +193,7 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 		return l
 	}
 	l.Phone = page.phone
-	if m.view == dashboard.Log {
+	if m.session == nil && m.view == dashboard.Log {
 		l.Phone = m.logPhoneKeys()
 	}
 	if keys.pinned {

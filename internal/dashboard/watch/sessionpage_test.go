@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -485,18 +486,24 @@ func TestOnASessionsPageALookBrightensItsWindowsAndTheStreamNothing(t *testing.T
 }
 
 // The key line of a session's page leads with esc back, in tab views' place,
-// four cells after it; a phone's with enter's word its own.
+// four cells after it; a phone's with enter's word its own. It's the page's
+// whatever tab it's open over, the Log, whose phone's line keeps keys of its
+// own, among them.
 func TestASessionsKeyLineLeadsWithEscBack(t *testing.T) {
 	tests := []struct {
+		over          dashboard.View
 		width, height int
 		want          string
 	}{
-		{width: 160, height: 37, want: "esc back    ↑↓ turn  enter its requests    p pin    ? help  q quit"},
-		{width: 52, height: 32, want: "esc back   ↑↓ turn   enter open   ? keys   q quit"},
+		{over: dashboard.Overview, width: 160, height: 37, want: "esc back    ↑↓ turn  enter its requests    p pin    ? help  q quit"},
+		{over: dashboard.Overview, width: 52, height: 32, want: "esc back   ↑↓ turn   enter open   ? keys   q quit"},
+		{over: dashboard.Log, width: 160, height: 37, want: "esc back    ↑↓ turn  enter its requests    p pin    ? help  q quit"},
+		{over: dashboard.Log, width: 52, height: 32, want: "esc back   ↑↓ turn   enter open   ? keys   q quit"},
 	}
 	for _, tt := range tests {
-		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
+		t.Run(fmt.Sprintf("over %s at %d", tt.over, tt.width), func(t *testing.T) {
 			h := sessionPaged(t, "")
+			h.model.view = tt.over
 			h.deliver(h.update(tea.WindowSizeMsg{Width: tt.width, Height: tt.height})...)
 			rows := strings.Split(h.view(), "\n")
 			if got := strings.TrimSpace(rows[len(rows)-1]); got != tt.want {
