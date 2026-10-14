@@ -471,12 +471,9 @@ func (cp compared) groups() []compareGroup {
 }
 
 // period is what a row of the period's figures says of each column, as said
-// says it, but a dash where the period records nothing.
+// says it, as periodParts has a figure of the period.
 func (cp compared) period(said func(col compareColumn) []part) func(col compareColumn) []part {
-	if cp.page.Recorded {
-		return said
-	}
-	return func(col compareColumn) []part { return noneOf(noFigure.text, col.ink()) }
+	return func(col compareColumn) []part { return periodParts(*cp.page, said(col), col.ink()) }
 }
 
 // extra is the column's extra usage, as it stands: an account's, as
