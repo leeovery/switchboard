@@ -60,6 +60,25 @@ func ReadList(l LedgerSessions, running []status.Session, ids ...string) ListRea
 	return ListRead{lines: lines, whole: append(wanted, slices.Collect(maps.Keys(lines))...)}
 }
 
+// ReadListOf reads, through l, the sessions with the given ids whole, each
+// from its first line, as a List held finds one it holds no read of: their
+// own lines alone, of the days that name them, rather than every one of
+// today's sessions again, as ReadList reads.
+func ReadListOf(l LedgerSession, ids ...string) ListRead {
+	read := ListRead{lines: make(map[string][]ledger.Line, len(ids)), whole: slices.Clone(ids)}
+	for _, id := range ids {
+		var lines []ledger.Line
+		for h := range l.Session(id) {
+			lines = append(lines, h.Line)
+		}
+		if len(lines) > 0 {
+			slices.Reverse(lines)
+			read.lines[id] = lines
+		}
+	}
+	return read
+}
+
 // HoldList holds the List of what read holds, at now, its requests priced by
 // prices at the day now falls on.
 func HoldList(read ListRead, prices ledger.Table, now time.Time) HeldList {

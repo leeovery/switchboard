@@ -48,10 +48,16 @@ type Ledger interface {
 	// day, whose lines are pruned, aside. It fails with fs.ErrNotExist where
 	// it holds no day's lines.
 	FirstLinesDay(now time.Time) (time.Time, error)
+	LedgerSession
+	LedgerSessions
+}
+
+// LedgerSession reads one session's lines where they lie, with no router, as
+// a ledger.Follower does: of the days that name it alone.
+type LedgerSession interface {
 	// Session gives the lines of the session with the given id, newest
 	// first, read as far back as the caller goes on.
 	Session(id string) iter.Seq[ledger.Held]
-	LedgerSessions
 }
 
 // LedgerSessions reads the request ledger's sessions where they lie, with no
