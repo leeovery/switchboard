@@ -99,17 +99,17 @@ func (m Model) detailShown() bool {
 	return m.view == dashboard.Accounts && m.accounts.shown.View() == dashboard.AccountsDetail
 }
 
-// sessionsOn are the ids of the sessions running at now on the account
-// Detail shows, of those the router listed, as the request stream s has
-// moved and seen them since, in its SESSIONS' order, as views.RunningOn has
-// them: none of all accounts, which none runs on alone, nor while Accounts
-// shows no Detail.
-func (m Model) sessionsOn(now time.Time, s views.Stream) []string {
+// sessionsOn are the ids of the sessions running at the moment mo on the
+// account Detail shows, of those the router listed, sessions, as the request
+// stream s has moved and seen them since, in its SESSIONS' order, as
+// views.RunningOn has them: none of all accounts, which none runs on alone,
+// nor while Accounts shows no Detail.
+func (m Model) sessionsOn(mo status.Moment, sessions []status.Session, s views.Stream) []string {
 	if !m.detailShown() {
 		return nil
 	}
 	var ids []string
-	for _, r := range views.RunningOn(views.RunningOf(m.moment(now), m.sessions, s), m.accounts.shown.Account()) {
+	for _, r := range views.RunningOn(views.RunningOf(mo, sessions, s), m.accounts.shown.Account()) {
 		ids = append(ids, r.Session)
 	}
 	return ids
@@ -118,7 +118,14 @@ func (m Model) sessionsOn(now time.Time, s views.Stream) []string {
 // running are the ids of the sessions Detail's SESSIONS lists at now, as
 // sessionsOn has them, as the request stream has moved and seen them.
 func (m Model) running(now time.Time) []string {
-	return m.sessionsOn(now, m.traffic.stream(now))
+	return m.sessionsOn(m.moment(now), m.sessions, m.traffic.stream(now))
+}
+
+// runningIn are the ids of the sessions Detail's SESSIONS lists on the frame
+// f drawn at now, as sessionsOn has them, at its moment, of its sessions and
+// its stream.
+func (m Model) runningIn(f dashboard.Frame, now time.Time) []string {
+	return m.sessionsOn(f.Moment(m.doc, now), f.Sessions, f.Stream)
 }
 
 // detailsSessions reports whether Detail shows an account that sessions run
@@ -126,7 +133,7 @@ func (m Model) running(now time.Time) []string {
 // doing, as the request stream tells it: never all accounts, which none
 // runs on alone.
 func (m Model) detailsSessions() bool {
-	return m.detailShown() && len(m.sessionsOn(m.now(), views.Stream{})) > 0
+	return m.detailShown() && len(m.sessionsOn(m.moment(m.now()), m.sessions, views.Stream{})) > 0
 }
 
 // followed is m with Detail's SESSIONS' selection following the sessions
