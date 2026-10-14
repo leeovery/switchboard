@@ -17,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -141,6 +142,36 @@ func TestTheLogReadsEveryDayItWasAwayForAgain(t *testing.T) {
 	}
 	if got, want := shownRequests(h), []string{"0a000001", "0a000002", "0a000003"}; !slices.Equal(got, want) {
 		t.Errorf("back on the Log two days on, the Requests show %v, want %v", got, want)
+	}
+}
+
+// The router drops a reader that falls behind: the Log fills the gap from
+// the ledger as the stream joins again, so a request that ended while it was
+// away shows as its line has it, never lost, with no look between.
+func TestARejoinedStreamFillsTheGapFromTheLedger(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	h.hear(told(router.StreamSent, "0a000002", "work", 0))
+
+	h.endStream()
+	writeLines(t, state, took(arrived("0a000002", "work", 0), 2*time.Second))
+	rejoin, _ := h.pendingRejoin()
+	h.fire(rejoin)
+	joining, ok := h.pending(joinedMsg{gen: h.model.stream.gen})
+	if !ok {
+		t.Fatal("the stream opened again, nothing waits for its first look")
+	}
+	h.fire(joining)
+
+	i := slices.IndexFunc(h.model.log.page.Requests.Lines, func(l views.LogLine) bool { return l.IsRow() && l.Row.Request == "0a000002" })
+	if i < 0 {
+		t.Fatalf("the Requests show %v, want 0a000002 among them", shownRequests(h))
+	}
+	if row := h.model.log.page.Requests.Lines[i].Row; row.Stage != views.RowLined || row.Failed {
+		t.Errorf("the stream joined again, 0a000002, which ended while it was away, is %+v, want it as its line has it", row)
 	}
 }
 
@@ -301,7 +332,8 @@ func madeAt[T any](s []T) *T {
 }
 
 // The Log's tables are made again only as what they're made of changes: a
-// frame or the pointer moving makes neither afresh; the stream telling of a
+// frame or the pointer moving makes neither afresh, the clock moved on a
+// tenth, a request in flight or not; the stream telling of a
 // request makes the Requests again, a look both, and the filter changing
 // the table it filters. Its panel, open, is made again as what it picks
 // changes, not as the pointer moves over it, nor its cursor.
@@ -319,7 +351,10 @@ func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 		p := h.model.log.page
 		return made{madeAt(p.Requests.Lines), madeAt(p.Events.Lines), madeAt(h.model.log.panel.Sessions)}
 	}
-	unmoved := func() { h.deliver(frameMsg{gen: h.model.frames}, tea.MouseMotionMsg{X: 10, Y: 10}) }
+	unmoved := func() {
+		h.clock.now = h.clock.now.Add(100 * time.Millisecond)
+		h.deliver(frameMsg{gen: h.model.frames}, tea.MouseMotionMsg{X: 10, Y: 10})
+	}
 	steps := []struct {
 		name                    string
 		step                    func()
@@ -343,6 +378,98 @@ func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 		if got := [3]bool{after.requests != before.requests, after.events != before.events, after.panel != before.panel}; got != [3]bool{s.requests, s.events, s.panel} {
 			t.Errorf("after %s, the Requests, the Events and the panel were made again: %v, want %v", s.name, got, [3]bool{s.requests, s.events, s.panel})
 		}
+	}
+}
+
+// A request in flight counts how long it has taken frame by frame, a tenth
+// at a time, the Requests it's among made not once more as it does.
+func TestARequestInFlightCountsOnWithoutItsTableMadeAgain(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	h.hear(told(router.StreamSent, "0a000003", "work", 0))
+
+	made := madeAt(h.model.log.page.Requests.Lines)
+	for range 10 {
+		h.clock.now = h.clock.now.Add(100 * time.Millisecond)
+		h.deliver(frameMsg{gen: h.model.frames})
+		if took := prose.Seconds(h.clock.now.Sub(past(0))); !strings.Contains(h.view(), took) {
+			t.Fatalf("at %s, the row in flight doesn't read %s:\n%s", h.clock.now.Format(time.StampMilli), took, h.view())
+		}
+	}
+	if madeAt(h.model.log.page.Requests.Lines) != made {
+		t.Error("over ten frames a tenth apart, a request in flight, the Requests were made again, want them made once")
+	}
+}
+
+// Paused, a request in flight's took counts on each second, as following;
+// behind a line's details card, the page stands still, its took with it,
+// and no frame is drawn for it.
+func TestARowInFlightCountsOnPausedAndStandsStillBehindACard(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	h.hear(told(router.StreamSent, "0a000003", "work", 0))
+	h.keys(tea.KeyPressMsg{Code: tea.KeyUp})
+	if !h.model.log.page.Paused() {
+		t.Fatal("after ↑, the Log follows, want it paused")
+	}
+
+	for _, at := range []time.Duration{time.Second, 2 * time.Second} {
+		h.tickUntil(past(at + 50*time.Millisecond))
+		if took := prose.Seconds(h.clock.now.Sub(past(0))); !strings.Contains(h.view(), took) {
+			t.Fatalf("paused, at %s, the row in flight doesn't read %s:\n%s", h.clock.now.Format(time.StampMilli), took, h.view())
+		}
+	}
+
+	h.keys(tea.KeyPressMsg{Code: tea.KeyEnter})
+	opened := h.view()
+	h.tickUntil(past(5 * time.Second))
+	if _, ok := h.pendingFrame(); ok {
+		t.Error("the card open over the Log, a frame is armed, want none: the page behind it stands still")
+	}
+	if got := h.view(); got != opened || strings.Contains(got, prose.Seconds(5*time.Second)) {
+		t.Errorf("3s on, behind the card, the screen is\n%s\nwant it as the card opened\n%s", got, opened)
+	}
+}
+
+// The stream telling how far a request's answer has streamed makes nothing
+// afresh, its row counting its characters as it's drawn; its end makes the
+// Requests again, once.
+func TestARequestsProgressMakesNothingAfreshItsEndOnce(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	h.hear(told(router.StreamSent, "0a000003", "work", 0))
+	h.hear(told(router.StreamFirst, "0a000003", "work", time.Second))
+
+	made := madeAt(h.model.log.page.Requests.Lines)
+	for i := range 10 {
+		chars := (i + 1) * 500
+		h.clock.now = past(time.Second + time.Duration(i+1)*250*time.Millisecond)
+		h.hear(alter(told(router.StreamProgress, "0a000003", "work", h.clock.now.Sub(start)), func(e *router.StreamEvent) { e.Chars = chars }))
+		if want := "answering · " + prose.Characters(chars) + " characters"; !strings.Contains(h.view(), want) {
+			t.Fatalf("%d characters streamed, the row doesn't read %q:\n%s", chars, want, h.view())
+		}
+	}
+	if madeAt(h.model.log.page.Requests.Lines) != made {
+		t.Error("ten times told how far a request's answer has streamed, the Requests were made again, want them made once")
+	}
+	h.hear(alter(told(router.StreamDone, "0a000003", "work", 5*time.Second), func(e *router.StreamEvent) { e.Status = 200 }))
+	ended := madeAt(h.model.log.page.Requests.Lines)
+	if ended == made {
+		t.Error("told the request ended, the Requests weren't made again, want its row ended")
+	}
+	h.clock.now = past(6 * time.Second)
+	h.deliver(frameMsg{gen: h.model.frames})
+	if madeAt(h.model.log.page.Requests.Lines) != ended {
+		t.Error("a frame after the request ended made the Requests again, want them made the once")
 	}
 }
 
@@ -403,8 +530,9 @@ func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 
 // summariesAsked is a request ledger followed as it grows, as daysCounted
 // counts its reads, each read of its days' summaries telling, of every day,
-// as many sessions on work as there have been reads of them: the figures of
-// a day tell which read priced them.
+// as many sessions on each of its accounts as there have been reads of
+// them, its requests as they are: the figures of a day tell which read
+// priced them.
 type summariesAsked struct {
 	daysCounted
 	asked int
@@ -418,13 +546,18 @@ func (l *summariesAsked) Days(from time.Time) []ledger.Summary {
 	}
 	days := l.daysCounted.Days(from)
 	for i := range days {
-		days[i].Accounts = []ledger.AccountDay{{Account: "work", Sessions: l.asked, SessionIDs: ids}}
+		days[i].Accounts = slices.Clone(days[i].Accounts)
+		for a := range days[i].Accounts {
+			days[i].Accounts[a].Sessions, days[i].Accounts[a].SessionIDs = l.asked, ids
+		}
 	}
 	return days
 }
 
 // Reading back a day prices its figures alone, folded into those held: the
-// days read back before aren't priced again with each.
+// days read back before aren't priced again with each. The first read of
+// the summaries is how far back the Requests' lines reach, which bounds
+// them, so the day before today is priced by the second.
 func TestReadingBackADayPricesItsFiguresAlone(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state,
@@ -440,28 +573,48 @@ func TestReadingBackADayPricesItsFiguresAlone(t *testing.T) {
 	for _, d := range h.model.log.totals {
 		got = append(got, fmt.Sprintf("%s %d", d.Date, d.Sessions))
 	}
-	want := []string{dayfile.DateOf(past(-3*day)) + " 3", dayfile.DateOf(past(-2*day)) + " 2", dayfile.DateOf(past(-day)) + " 1"}
+	want := []string{dayfile.DateOf(past(-3*day)) + " 4", dayfile.DateOf(past(-2*day)) + " 3", dayfile.DateOf(past(-day)) + " 2"}
 	if !slices.Equal(got, want) {
 		t.Errorf("read back to the oldest day, the figures held are %v, want %v: each day's priced as it was read back, alone", got, want)
 	}
 }
 
-// Opened on a terminal too short for its table, the Log reads nothing back
-// to fill a view of no rows; given rows, it reads back to fill them.
-func TestTheLogOpenedTooShortReadsBackAsItsViewGrows(t *testing.T) {
-	state := t.TempDir()
-	writeLines(t, state, arrived("0a000001", "work", -day), arrived("0a000002", "work", -time.Minute))
-	h := newHarness(t, probedWithoutTheRouter())
-	l := onTheLog(h, state)
-	h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 10})...)
-	h.start()
-	if len(l.days) > 0 {
-		t.Fatalf("with no row for its table, the Log read back the days %v, want none", l.days)
+// Opened on a terminal too short for its table, or with a row or two for
+// it, which today's lines fill, the Log reads nothing back; grown, it reads
+// back to fill the rows it's given, as it follows.
+func TestTheLogOpenedShortReadsBackAsItsViewGrows(t *testing.T) {
+	tests := []struct {
+		name   string
+		height int
+		rows   int
+	}{
+		{name: "too short for its table", height: 10, rows: 0},
+		{name: "a row for its table", height: 11, rows: 1},
+		{name: "three rows for its table", height: 13, rows: 3},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state,
+				arrived("0a000001", "work", -day),
+				arrived("0a000002", "work", -3*time.Minute), arrived("0a000003", "work", -2*time.Minute), arrived("0a000004", "work", -time.Minute),
+			)
+			h := newHarness(t, probedWithoutTheRouter())
+			l := onTheLog(h, state)
+			h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: tt.height})...)
+			h.start()
+			if got := h.model.logRows(); got != tt.rows {
+				t.Fatalf("%d rows tall, the Log's view has %d rows, want %d", tt.height, got, tt.rows)
+			}
+			if len(l.days) > 0 {
+				t.Fatalf("with %d rows for its table, today's lines filling them, the Log read back the days %v, want none", tt.rows, l.days)
+			}
 
-	h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 50})...)
-	if want := []string{dayfile.DateOf(past(-day))}; !slices.Equal(l.days, want) {
-		t.Errorf("grown, the Log read back the days %v, want %v, to fill its view", l.days, want)
+			h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 50})...)
+			if want := []string{dayfile.DateOf(past(-day))}; !slices.Equal(l.days, want) {
+				t.Errorf("grown, the Log read back the days %v, want %v, to fill its view", l.days, want)
+			}
+		})
 	}
 }
 
@@ -590,6 +743,72 @@ func TestTheEventsReadABurstTheDocumentSkippedOffTheFiles(t *testing.T) {
 	}
 	if !slices.Equal(shown, want) {
 		t.Errorf("60 events told between two looks, the document giving the newest 50, the Events show %v, want %v", shown, want)
+	}
+}
+
+// The events looks take in while a read of the router's files is under way
+// are kept as it lands, what it found taken in alongside them; and a skip
+// found meanwhile is read from the earliest moment any skip wants, so none
+// told is lost.
+func TestEventsTakenInWhileAReadIsUnderWayAreKept(t *testing.T) {
+	run := past(-time.Hour)
+	var told []status.Event
+	for id := 1; id <= 160; id++ {
+		told = append(told, status.Event{ID: id, At: past(time.Duration(id) * time.Second), Kind: status.EventPin, Accounts: []string{"work"}})
+	}
+	filed := func(es []status.Event) []events.Line {
+		var lines []events.Line
+		for _, e := range es {
+			lines = append(lines, events.Line{Event: e, Run: run})
+		}
+		return lines
+	}
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -time.Minute))
+	writeEvents(t, state, filed(told[:10])...)
+	doc := routerDocument(three()...)
+	doc.Events = told[:10]
+	h := routedHarness(t, doc)
+	h.source.health = router.Health{OK: true, PID: 1, StartedAt: run}
+	onTheLog(h, state)
+	h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+	h.clock.now = past(10*time.Second + 500*time.Millisecond)
+	h.source.router.GeneratedAt = h.clock.now.UTC()
+	h.start()
+	h.typed("]")
+
+	// look files the events from to to as told, and looks at the router's
+	// document at at, which gives the newest 50 of them, holding back the
+	// Log's reads it asks.
+	look := func(at time.Duration, from, to int) []tea.Msg {
+		writeEvents(t, state, filed(told[from:to])...)
+		h.clock.now = past(at)
+		d := doc
+		d.Events, d.GeneratedAt = told[max(to-50, 0):to], h.clock.now.UTC()
+		h.startRouter(d)
+		return h.holdingReads(h.press("R")...)
+	}
+	underWay := look(71*time.Second, 10, 70)
+	if len(underWay) != 1 {
+		t.Fatalf("the document skipping 11 to 20, the look asked %d reads of the Log's own, want one, of the files", len(underWay))
+	}
+	if more := look(101*time.Second, 70, 100); len(more) != 0 {
+		t.Fatal("a look asked a read while one was under way")
+	}
+	if more := look(161*time.Second, 100, 160); len(more) != 0 {
+		t.Fatal("a look asked a read while one was under way")
+	}
+	h.deliver(underWay...)
+	h.typed("R")
+
+	var missing []int
+	for id := 1; id <= 160; id++ {
+		if !slices.ContainsFunc(h.model.log.page.Events.Rows, func(e views.LogEvent) bool { return e.Key.ID == id }) {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) > 0 {
+		t.Errorf("160 events told, each filed, looks taking in 71 to 160 while a read of the files was under way, the Events miss %v", missing)
 	}
 }
 

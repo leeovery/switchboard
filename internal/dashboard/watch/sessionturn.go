@@ -1,6 +1,8 @@
 package watch
 
 import (
+	"time"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
@@ -58,24 +60,36 @@ func (m Model) closeTurn() Model {
 
 // moveRequest chooses the turn open's request by requests on from the one
 // chosen, oldest first, as ↑ and ↓ do, no further than the first and the
-// last, scrolling its requests no further than keeps it in view.
+// last, scrolling its requests, and its turns, no further than keeps it in
+// view, as requestInView has it.
 func (m Model) moveRequest(by int) Model {
 	s := *m.session
 	i := min(max(s.shown.Request+by, 0), max(len(s.shown.Requests)-1, 0))
 	scrolling := m.requestsScrolling()
-	s.shown.Request, s.shown.RequestsScroll = i, keptInView(s.shown.RequestsScroll, i, 0, scrolling)
+	s.shown.Request, s.shown.RequestsScroll = i, scrolling.Keeping(s.shown.RequestsScroll, i, 0)
 	m.session = &s
-	return m
+	return m.requestInView()
 }
 
 // scrollRequests scrolls the turn open's requests by, as j and k do with a
 // turn open, no further than they go, the request chosen kept in view: the
-// one nearest it in view, where it scrolls out.
+// one nearest it in view, where it scrolls out, its turns scrolling as
+// requestInView has it.
 func (m Model) scrollRequests(by scrollStep) Model {
 	s := *m.session
 	scrolling := m.requestsScrolling()
 	s.shown.RequestsScroll = by.from(s.shown.RequestsScroll, scrolling)
 	s.shown.Request = inViewAt(s.shown.Request, s.shown.RequestsScroll, scrolling)
+	m.session = &s
+	return m.requestInView()
+}
+
+// requestInView is m with its page's turns scrolled no further than keeps
+// the turn chosen in view, as choosing has it, with the rows under it Kept
+// keeps with it: of the turn open, those down to its request chosen.
+func (m Model) requestInView() Model {
+	s := *m.session
+	s.shown = choosing(s.shown, turnAt(s.shown, s.shown.Turn), m.turnsScrolling(s.shown))
 	m.session = &s
 	return m
 }
@@ -105,15 +119,6 @@ func (m Model) clickRequest(i int) (tea.Model, tea.Cmd) {
 		return m.openTurnCard()
 	}
 	return m.moveRequest(i - m.session.shown.Request), nil
-}
-
-// keptInView is scroll moved no further than keeps the rows from i to
-// i+under in view of what scrolls as s says, none past its ends.
-func keptInView(scroll, i, under int, s dashboard.Scrolling) int {
-	if s.Page > 0 {
-		scroll = min(max(scroll, i+under-s.Page+1), i)
-	}
-	return min(max(scroll, 0), s.Most)
 }
 
 // inViewAt is i moved no further than keeps it among the rows in view of
@@ -169,6 +174,15 @@ func (m Model) turnCard() dashboard.LogCard {
 	}
 	details, _ := line.Details()
 	return dashboard.LogCard{Request: &details, Scroll: m.session.card.scroll, Placed: m.session.card.placed}
+}
+
+// turnCardAt is the Log's details card over the session's page as it's drawn
+// at now: a request in flight's as the stream the page's rows are drawn by
+// tells it then, as the Log's card is, while the page behind stands still.
+func (m Model) turnCardAt(now time.Time) dashboard.LogCard {
+	c := m.turnCard()
+	c.Stream = m.traffic.stream(now)
+	return c
 }
 
 // turnCardKey acts on a key while the Log's details card is open over a

@@ -46,15 +46,19 @@ type Stretch struct {
 // model's moves, those row 6 tells, with those the stream told of whose
 // lines are yet to come.
 func (h HeldPage) Story(page SessionPage, live PageLive) Story {
-	told := live.Stream.hearing().told[h.id]
-	all := sentOf(h.requests, told)
+	return h.worked(live).story(page)
+}
+
+// story is the story Story tells, of w, its page page.
+func (w worked) story(page SessionPage) Story {
+	all, now := w.sent, w.live.Now
 	if len(all) == 0 {
 		return Story{}
 	}
-	s := Story{Start: all[0].at, End: all[len(all)-1].at.In(live.Now.Location()), Ended: !page.Runs(),
-		Sent: upstreamOf(h.requests, told), Folds: foldsOf(all), Moves: h.movesOf(page, live.Stream), Stretches: stretchesOf(all)}
+	s := Story{Start: all[0].at, End: all[len(all)-1].at.In(now.Location()), Ended: !page.Runs(),
+		Sent: upstreamOf(w.h.requests, w.told), Folds: foldsOf(all), Moves: w.h.movesOf(page, w.live.Stream), Stretches: stretchesOf(all)}
 	if !s.Ended {
-		s.End = score.Later(s.End, live.Now)
+		s.End = score.Later(s.End, now)
 	}
 	return s
 }

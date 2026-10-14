@@ -17,11 +17,14 @@ import (
 
 // logGrown is the Log as a read for it grew it: its read of the ledger's
 // lines; and where the read read them, the day its tables span from, its
-// events, the figures of its days, and how far back its tables read.
+// events as it first shows, or what the router's files were found to hold
+// since, to be taken in beside the events looks took in while the read was
+// under way, the figures of its days, and how far back its tables read.
 type logGrown struct {
 	read   views.LogRead
 	from   views.LedgerDay
 	events *views.EventsRead
+	found  *views.EventsFiled
 	totals []views.DayTotals
 	logBounds
 }
@@ -65,8 +68,10 @@ type logReadMsg struct {
 // keeps; the router's files of events again, as the router stops or
 // restarts, or a document skips events; at each look since, what the ledger
 // gained, as the tail reads it; and the day before those its tables span, as
-// they want it, or as the event its details card is open on does, or the
-// find's pick, of an earlier day, as reaching has it.
+// they want it, as far back as the lines of the filter the page's Reach
+// gives reach, as wantsDayBefore has it, the days' summaries read first
+// where it wants them, or as the event its details card is open on does,
+// or the find's pick, of an earlier day, as reaching has it.
 func (m Model) readLog() (Model, tea.Cmd) {
 	if m.view != dashboard.Log || m.cfg.Ledger == nil {
 		return m, nil
@@ -85,7 +90,9 @@ func (m Model) readLog() (Model, tea.Cmd) {
 		return m.readSkipped(now)
 	case m.tail.due:
 		return m.readTail(now)
-	case m.log.page.WantsDayBefore(m.logRows()), m.log.wantsFactsBack(), m.reaching():
+	case m.log.wantsReach(m.logRows()):
+		return m.readReach()
+	case m.log.wantsDayBefore(m.logRows()), m.log.wantsFactsBack(), m.reaching():
 		return m.readBack(now)
 	}
 	return m, nil
@@ -156,8 +163,8 @@ func (m Model) refiledFrom(from, now time.Time) (Model, tea.Cmd) {
 	t, filed := m.log, m.cfg.Events
 	m.log.reading = true
 	return m, func() tea.Msg {
-		events := t.events.Refiled(filed, from, now)
-		return logReadMsg{grown: logGrown{read: t.read, events: &events}}
+		refiled := t.events.Refiled(filed, from, now)
+		return logReadMsg{grown: logGrown{read: t.read, found: &refiled}}
 	}
 }
 
@@ -272,9 +279,9 @@ func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 	r := m.logReaders()
 	m.log.reading = true
 	return m, func() tea.Msg {
-		l, events := r.ledger, t.events.Back(r.filed, day.Start)
+		l, back := r.ledger, t.events.Back(r.filed, day.Start)
 		return logReadMsg{grown: logGrown{
-			read: t.read.Grown(l, l.Day(day.Date), now), from: day, events: &events, totals: views.TotalsOn(l, []string{day.Date}, now, r.prices),
+			read: t.read.Grown(l, l.Day(day.Date), now), from: day, found: &back, totals: views.TotalsOn(l, []string{day.Date}, now, r.prices),
 		}}
 	}
 }
@@ -314,8 +321,9 @@ func keptFrom(first time.Time, err error, keep time.Duration, now time.Time) (*v
 // logRead takes in what a read for the Log of its own found: the tail read
 // to where it read today's lines, where it read them for it; the Log grown
 // by it, and opened, its events taking in again those of the document on
-// screen while the router answers, as a look taken while the read was under
-// way gave them to the events it grew from.
+// screen while the router answers: as it first shows, as no look took them
+// in before it opened; and since, as the router holds them, in place of the
+// versions the read found on its files.
 func (m Model) logRead(msg logReadMsg) Model {
 	if msg.tail != nil {
 		m.tail = m.tail.read(*msg.tail)
@@ -326,14 +334,19 @@ func (m Model) logRead(msg logReadMsg) Model {
 	return m
 }
 
-// grown is the Log grown as g says, its read no longer under way, the
-// figures of the days read folded into those held: where how far back its
-// tables read couldn't be said, logged, the first time alone, as each read
-// after asks again.
+// grown is the Log grown as g says, its read no longer under way: its
+// events those read as it first shows, or those held with what the router's
+// files were found to hold taken in, as Took has it, so none a look took in
+// while the read was under way is lost; the figures of the days read folded
+// into those held; and where how far back its tables read couldn't be
+// said, logged, the first time alone, as each read after asks again.
 func (t logTab) grown(g logGrown) logTab {
 	t.reading, t.read, t.held = false, g.read, t.held+1
 	if g.events != nil {
 		t.events = *g.events
+	}
+	if g.found != nil {
+		t.events = t.events.Took(*g.found)
 	}
 	if !g.from.Start.IsZero() {
 		t.from = g.from

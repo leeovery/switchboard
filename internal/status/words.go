@@ -238,8 +238,16 @@ func MovedFrom(reason string) string {
 // choice passed an account over for pressure; sticky; or kept for its
 // thinking.
 func MovedNothing(reason string) bool {
+	return isNew(prose.Clean(reason)) || Kept(reason)
+}
+
+// Kept reports whether the reason, cleaned, as it's from elsewhere, is one
+// a request gives that the router kept where its session was: sticky, or
+// kept for its thinking. The router keeps the reason its session's
+// assignment came by as it keeps it.
+func Kept(reason string) bool {
 	reason = prose.Clean(reason)
-	return isNew(reason) || reason == ReasonSticky || reason == ReasonBound
+	return reason == ReasonSticky || reason == ReasonBound
 }
 
 // isNew reports whether the reason, cleaned, is a new session's, whether or

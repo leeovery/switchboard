@@ -18,16 +18,15 @@ const (
 )
 
 // turnsOf returns the turns of a session, newest first, as TURNS has them:
-// of its requests, oldest first, and those the request stream told of, told,
-// the first sent first, as talliesOf tallies them. A turn goes on while it's
+// of their tallies, the first started first, as talliesOf tallies them,
+// inNone saying a request in none is in flight. A turn goes on while it's
 // open, as open says; and, running saying the session runs, not having
 // ended, its newest goes on while its last answer of its own conversation
 // stopped to call a tool, or while a request of the session is in flight
 // that neither its lines nor the stream place in a turn: one the stream told
 // of naming no prompt, or, as unplaced says, one the router lists in flight
 // that the stream hasn't told of.
-func turnsOf(requests []request, told []Told, running, unplaced bool) []Turn {
-	tallies, inNone := talliesOf(requests, told)
+func turnsOf(tallies []*turnTally, inNone, running, unplaced bool) []Turn {
 	turns := make([]Turn, len(tallies))
 	for i, t := range tallies {
 		newest := i == len(tallies)-1
@@ -37,17 +36,15 @@ func turnsOf(requests []request, told []Told, running, unplaced bool) []Turn {
 }
 
 // talliesOf returns the tallies of a session's turns, the first started
-// first, of its requests, oldest first, and those the request stream told
-// of, told, the first sent first, each counted in its turn as it's sent, as
-// sentOf takes them in, reporting too whether a request in none is in
+// first, of its requests as they're sent, as sentOf takes them in, each
+// counted in its turn, reporting too whether a request in none is in
 // flight. A turn is the requests of one prompt, as Claude Code names it; a
 // subagent's, nested ones too, count in the turn of the prompt its first
 // request names, whatever prompts come meanwhile; and a request that names
 // no prompt is in none.
-func talliesOf(requests []request, told []Told) (tallies []*turnTally, inNone bool) {
+func talliesOf(sent []sent) (tallies []*turnTally, inNone bool) {
 	byPrompt := make(map[string]*turnTally)
 	agents := make(map[string]string)
-	sent := sentOf(requests, told)
 	for i := range sent {
 		r := &sent[i]
 		prompt := promptOf(r.agentID, r.prompt, agents)

@@ -96,6 +96,16 @@ type Moved struct {
 	At                      time.Time
 }
 
+// SameRow reports whether t tells what o does of its request's row as its
+// table is built: all but what the stream tells as its answer streams, its
+// characters so far and when it last told of it, which a row in flight
+// draws as it's drawn, as RequestRow.Live has it. Its stage is of the row,
+// so sent, its first byte, a verdict and its end each tell another.
+func (t Told) SameRow(o Told) bool {
+	t.Chars, t.Heard, o.Chars, o.Heard = 0, time.Time{}, 0, time.Time{}
+	return t == o
+}
+
 // InFlight reports whether the request is in flight, as the stream told:
 // neither ended nor lost.
 func (t Told) InFlight() bool {
@@ -141,6 +151,29 @@ func (t Told) FiledOn() (LedgerDay, bool) {
 // sameRequest has it, by when it first went upstream.
 func (t Told) filedAs(l *ledger.Line) bool {
 	return sameRequest(l, t.Request, t.Sent)
+}
+
+// Of is what s told of the session with the given id alone: its requests,
+// its moves, and whether s is live. Its page is built of it as of s whole,
+// none of another session's telling of it, so what changes it alone builds
+// the page again.
+func (s Stream) Of(session string) Stream {
+	of := Stream{Live: s.Live}
+	for id, t := range s.Requests {
+		if t.Session != session {
+			continue
+		}
+		if of.Requests == nil {
+			of.Requests = make(map[string]Told)
+		}
+		of.Requests[id] = t
+	}
+	for _, m := range s.Moves {
+		if m.Session == session {
+			of.Moves = append(of.Moves, m)
+		}
+	}
+	return of
 }
 
 // known are the requests s told of that a view may take as s told them,

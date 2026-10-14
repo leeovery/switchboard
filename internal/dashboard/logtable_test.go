@@ -193,6 +193,36 @@ func TestARequestsRowIsDrawnInTheColumnsItsLayoutGives(t *testing.T) {
 	}
 }
 
+// A row in flight is drawn as it stands at the moment it's drawn, its table
+// made once: its took counting on to that moment, and answering, its
+// characters as the stream the page holds then counts them.
+func TestARowInFlightIsDrawnAsItStands(t *testing.T) {
+	sent := time.Date(2026, 10, 1, 14, 31, 13, 0, now.Location())
+	answering := views.Told{
+		Request: "0a000001", Session: "d28c5e17-0000-4000-8000-000000000001", Model: "claude-opus-5-5", Account: "side",
+		Sent: sent, First: sent.Add(time.Second), Chars: 1000, Heard: sent,
+	}
+	streamed := func(chars int) views.Stream {
+		told := answering
+		told.Chars = chars
+		return views.Stream{Live: true, Requests: map[string]views.Told{told.Request: told}}
+	}
+	src := views.LogSources{From: sent, Now: sent.Add(20 * time.Second), Stream: streamed(1000)}
+	p := LogPage{Read: true, Requests: views.LogRows(src), From: views.Today(sent), Today: views.Today(sent), Live: true}
+	for _, tt := range []struct {
+		at    time.Duration
+		chars int
+	}{{at: 20 * time.Second, chars: 1000}, {at: 21500 * time.Millisecond, chars: 5100}, {at: 75 * time.Second, chars: 9900}} {
+		p.Stream = streamed(tt.chars)
+		text := strings.Join(textOf(logFrameOf(p, 160, 24).Draw(routerDoc("side", 0), sent.Add(tt.at))), "\n")
+		for _, want := range []string{prose.Seconds(tt.at), "answering · " + prose.Characters(tt.chars) + " characters"} {
+			if !strings.Contains(text, want) {
+				t.Errorf("drawn %s after it was sent, %d characters streamed, the row in flight doesn't read %q:\n%s", tt.at, tt.chars, want, text)
+			}
+		}
+	}
+}
+
 // The Log's window, as it follows and as it's paused: following, its
 // newest lines; ↑ from following pauses at the newest row, choosing it; ↑
 // and ↓ move the choice a row at a time, passing over a day's rule and

@@ -203,10 +203,10 @@ func runningSeen(seen, now time.Time) string {
 }
 
 // runningDoing is what a session running is doing, as SESSIONS says its
-// Activity, in the views' short words: in accent.key while a request of it
-// is in flight, else faint.
+// Activity, in the views' short words: in accent.key while it works, as
+// Works says, else faint, refused as well, as it reads idle.
 func runningDoing(a views.Activity) span {
-	if a.InFlight() {
+	if a.Works() {
 		return span{a.Short(), doingInk}
 	}
 	return span{a.Short(), faintInk}

@@ -32,6 +32,19 @@ func (f EventFilter) Keeps(e LogEvent) bool {
 	return ticked(f.Kinds, e.Kind) && tickedAny(f.Accounts, e.Accounts) && ticked(f.Sessions, e.Session)
 }
 
+// Reach is the filter of the ledger's lines whose reach, as KeptFrom reads
+// it, bounds how far back the Events read through f, and whether one does:
+// the lines of every kind counted toward the sessions f keeps the events of,
+// as the router tells of a session only once a request of it has come; none
+// where f keeps every session's. No summary tells the days of an event's
+// kind or account as the router tells of them: it tells of a limit no
+// reading counts, as a refusal naming no window has it; of a move no line
+// names, as one whose request is answered from an account it left; and of
+// room again as a limit lapses, no window reset.
+func (f EventFilter) Reach() (LogFilter, bool) {
+	return LogFilter{Sessions: f.Sessions}, len(f.Sessions) > 0
+}
+
 // EventCount is what today's events count: every one, and those the filter
 // shows; and every one by its kind, as the router names it, by each account
 // it names, and by its session, by the session's whole id, an account's

@@ -87,21 +87,52 @@ func TestTheFindsLineIsInkedAsThePageInksIt(t *testing.T) {
 	}
 }
 
-// While the find is open, its line takes the state line's place; closed,
-// the state line is drawn.
+// While the find is open, its line takes the state line's place, on a
+// terminal too short for the view as on any, where the row's under the
+// status line; closed, the state line is drawn, where the view is.
 func TestTheFindsLineTakesTheStateLinesPlace(t *testing.T) {
 	for _, tt := range []struct {
-		name string
-		page LogPage
-		want string
+		name   string
+		page   LogPage
+		height int
+		want   string
 	}{
-		{name: "open", page: findingThree(""), want: "/ api▏   7f3a api  today"},
-		{name: "closed", page: threeAsked(), want: "● following"},
+		{name: "open", page: findingThree(""), height: 24, want: "/ api▏   7f3a api  today"},
+		{name: "closed", page: threeAsked(), height: 24, want: "● following"},
+		{name: "open, cramped", page: findingThree(""), height: 10, want: "/ api▏   7f3a api  today"},
+		{name: "closed, cramped", page: threeAsked(), height: 10},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			text := textOf(logFrameOf(tt.page, 160, 24).Draw(routerDoc("side", 0), logDayNoon))
-			if got := text[22]; !strings.HasPrefix(got, tt.want) {
+			text := textOf(logFrameOf(tt.page, 160, tt.height).Draw(routerDoc("side", 0), logDayNoon))
+			got := text[tt.height-2]
+			if tt.want == "" && strings.TrimSpace(got) != "" || !strings.HasPrefix(got, tt.want) {
 				t.Errorf("the state line's row reads %q, want it to start %q", got, tt.want)
+			}
+		})
+	}
+	text := textOf(logFrameOf(findingThree(""), 160, 4).Draw(routerDoc("side", 0), logDayNoon))
+	if slices.ContainsFunc(text, func(row string) bool { return strings.Contains(row, "/ api▏") }) {
+		t.Errorf("no row under the status line, the find's line is drawn over the page:\n%s", strings.Join(text, "\n"))
+	}
+}
+
+// The find's line has a row, the state line's, only under the status line:
+// none on a terminal 4 rows tall, or 5 on a phone, its title and tabs taking
+// a row more.
+func TestTheFindsLineHasARowOnlyUnderTheStatusLine(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		width, height int
+		finds         bool
+	}{
+		{name: "wide, 4 rows", width: 160, height: 4},
+		{name: "wide, 5 rows", width: 160, height: 5, finds: true},
+		{name: "a phone, 5 rows", width: 52, height: 5},
+		{name: "a phone, 6 rows", width: 52, height: 6, finds: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := logFrameOf(findingThree(""), tt.width, tt.height).LogFinds(); got != tt.finds {
+				t.Errorf("the find's line has a row: %t, want %t", got, tt.finds)
 			}
 		})
 	}
@@ -159,7 +190,7 @@ func TestTheFindsPickFiltersBothTablesToItsSessionAlone(t *testing.T) {
 	if got.Finding.Open {
 		t.Error("the find is open still, want it closed")
 	}
-	if said := got.filterNames().said().plain(); said != "only 7f3a" {
+	if said := got.filterNames(func(id string) string { return id }).said().plain(); said != "only 7f3a" {
 		t.Errorf("the heading says %q of the filter, want only 7f3a", said)
 	}
 }

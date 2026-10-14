@@ -10,6 +10,8 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -99,6 +101,84 @@ func TestATurnOpensIntoItsRequestsAndItsKeysMoveThroughThem(t *testing.T) {
 	}
 }
 
+// A turn open's request in flight counts on as it's drawn, as the Log's row
+// of it does: a frame, which builds the page afresh not at all, draws its
+// took to the moment, and its characters as the stream last told them.
+func TestATurnOpensRequestInFlightCountsOnAsItsDrawn(t *testing.T) {
+	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+	h.openPage(idD28C)
+	h.settle()
+	h.keys(enterKey)
+	serving := func(e router.StreamEvent) router.StreamEvent {
+		e.Prompt, e.Class = "prompt-2", ledger.ClassMain
+		return e
+	}
+	sent := h.clock.now.Sub(start)
+	h.hear(serving(told(router.StreamSent, "r3", "work", sent)), serving(told(router.StreamFirst, "r3", "work", sent+time.Second)))
+	h.clock.now = past(sent + 1250*time.Millisecond)
+	h.hear(alter(serving(told(router.StreamProgress, "r3", "work", sent+1250*time.Millisecond)), func(e *router.StreamEvent) { e.Chars = 500 }))
+
+	for _, took := range []time.Duration{2 * time.Second, 3500 * time.Millisecond, 75 * time.Second} {
+		h.clock.now = past(sent + took)
+		h.deliver(frameMsg{gen: h.model.frames})
+		rows := strings.Split(h.view(), "\n")
+		i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "  │") && strings.Contains(row, "answering") })
+		if i < 0 {
+			t.Fatalf("%s after it was sent, the turn open has no row of r3 answering:\n%s", took, strings.Join(rows, "\n"))
+		}
+		for _, want := range []string{prose.Seconds(took), "answering · " + prose.Characters(500) + " characters"} {
+			if !strings.Contains(rows[i], want) {
+				t.Errorf("a frame %s after it was sent, the turn open's row of r3 doesn't read %q:\n%s", took, want, rows[i])
+			}
+		}
+	}
+}
+
+// The Log's card of a turn open's request in flight counts its characters
+// as the stream tells them as it's drawn, as the Log's card does, whatever
+// the page last built the request's row of; the page behind it standing
+// still as the card opened.
+func TestATurnOpensCardInFlightCountsItsCharactersAsTheStreamTellsThem(t *testing.T) {
+	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+	h.openPage(idD28C)
+	h.settle()
+	h.keys(enterKey)
+	serving := func(e router.StreamEvent) router.StreamEvent {
+		e.Prompt, e.Class = "prompt-2", ledger.ClassMain
+		return e
+	}
+	sent := h.clock.now.Sub(start)
+	streamed := func(chars int) {
+		h.hear(alter(serving(told(router.StreamProgress, "r3", "work", h.clock.now.Sub(start))), func(e *router.StreamEvent) { e.Chars = chars }))
+	}
+	h.hear(serving(told(router.StreamSent, "r3", "work", sent)), serving(told(router.StreamFirst, "r3", "work", sent+time.Second)))
+	h.clock.now = past(sent + 1250*time.Millisecond)
+	streamed(500)
+	h.keys(downKey, enterKey)
+	if card := h.model.turnCard(); h.model.open != turnCardOpen || card.Request == nil || card.Request.Row.Request != "r3" {
+		t.Fatalf("↓ and enter opened card %d of %+v, want the Log's card of r3", h.model.open, card.Request)
+	}
+
+	answering := func(chars int) string { return "answering · " + prose.Characters(chars) + " characters" }
+	for i, chars := range []int{1500, 4200, 9800} {
+		h.clock.now = past(sent + time.Second + time.Duration(i+2)*250*time.Millisecond)
+		streamed(chars)
+		built := *h.model.session
+		built.shown.Requests = slices.Clone(built.shown.Requests)
+		built.shown.Requests[built.shown.Request].Row.Chars = 500
+		h.model.session = &built
+		rows := strings.Split(h.view(), "\n")
+		card := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "├ stopped") })
+		row := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "  │") && strings.Contains(row, "answering") })
+		if card < 0 || !strings.Contains(rows[card], answering(chars)) {
+			t.Errorf("%d characters streamed, the card doesn't read %q:\n%s", chars, answering(chars), strings.Join(rows, "\n"))
+		}
+		if row < 0 || !strings.Contains(rows[row], answering(500)) {
+			t.Errorf("%d characters streamed, the row behind the card doesn't read %q, as it stood as the card opened:\n%s", chars, answering(500), strings.Join(rows, "\n"))
+		}
+	}
+}
+
 // enter on a request of the turn open opens the Log's details card of it
 // over the page, the turn open behind, with no s, as its session's page is
 // the one it's over; ↑ and ↓ step the card through the turn's requests, the
@@ -183,9 +263,85 @@ func TestATurnOpenedKeepsItsRowAndItsFirstRequestInView(t *testing.T) {
 			if tt.open {
 				shown.Turn, shown.Open, shown.Requests = 10, 10, make([]views.LogLine, 8)
 			}
-			if got := choosing(shown, 10, m.turnsScrolling(shown, start)).Scroll; got != tt.scroll {
+			if got := choosing(shown, 10, m.turnsScrolling(shown)).Scroll; got != tt.scroll {
 				t.Errorf("the turn at 10 chosen, the turns scroll %d, want %d", got, tt.scroll)
 			}
 		})
+	}
+}
+
+// With a turn open, ↑ and ↓ keep the request chosen in view, the turns
+// scrolling as far as they must: of twenty turns in eleven rows, the tenth at
+// their foot, opened, its second request chosen comes up into view, and
+// enter places its card by its row, over it, a row between.
+func TestATurnOpenKeepsItsRequestChosenInViewAsTheTurnsScroll(t *testing.T) {
+	counts := slices.Repeat([]int{1}, 20)
+	counts[9] = 6
+	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), counts...))
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
+	h.openPage(idD28C)
+	h.keys(slices.Repeat([]tea.KeyPressMsg{downKey}, 10)...)
+	if got := h.shownPage(); got.Turn != 10 || got.Scroll != 0 {
+		t.Fatalf("↓ ten times chose turn %d, the turns scrolled %d; want turn 10 at their foot, unscrolled", got.Turn, got.Scroll)
+	}
+
+	h.keys(enterKey, downKey)
+	got := h.shownPage()
+	if got.Open != 10 || got.Request != 1 || got.Scroll != 3 {
+		t.Errorf("enter, ↓ left turn %d open, request %d chosen, the turns scrolled %d; want turn 10 open, its second request, scrolled 3 to show it",
+			got.Open, got.Request, got.Scroll)
+	}
+	i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnRequest && t.Row == 1 })
+	if i < 0 {
+		t.Fatalf("the request chosen has no row in view:\n%s", h.view())
+	}
+	lit := h.targets()[i].Y
+
+	h.keys(enterKey)
+	_, top := h.drawnAt("╭─ REQUEST")
+	rows := strings.Split(h.view(), "\n")
+	bottom := slices.IndexFunc(rows[top:], func(row string) bool { return strings.Contains(row, "╰") }) + top
+	if bottom != lit-2 {
+		t.Errorf("enter placed the card on rows %d to %d, want it over the request's row %d, a row between:\n%s", top+1, bottom+1, lit+1, h.view())
+	}
+}
+
+// With a turn open whose requests have scrolled, ↓ scrolls the turns no
+// further than keeps the request chosen in view: they keep the rows down to
+// it from the first request shown, not from the turn's first. Of twenty
+// turns in eleven rows, the tenth of eight requests at their foot, opened,
+// its seventh request chosen has its requests scrolled 2 and the turns 6.
+func TestATurnOpenScrollsItsTurnsNoFurtherThanItsRequestChosen(t *testing.T) {
+	counts := slices.Repeat([]int{1}, 20)
+	counts[9] = 8
+	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), counts...))
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
+	h.openPage(idD28C)
+	h.keys(slices.Repeat([]tea.KeyPressMsg{downKey}, 10)...)
+	h.keys(enterKey)
+	h.keys(slices.Repeat([]tea.KeyPressMsg{downKey}, 6)...)
+	got := h.shownPage()
+	if got.Open != 10 || got.Request != 6 || got.RequestsScroll != 2 || got.Scroll != 6 {
+		t.Errorf("enter, ↓ six times left turn %d open, request %d chosen, its requests scrolled %d, the turns %d; want turn 10, request 6, scrolled 2, the turns 6",
+			got.Open, got.Request, got.RequestsScroll, got.Scroll)
+	}
+}
+
+// How far a page's turns scroll, which each key, look and stream event on
+// the page asks, is laid out of the page alone at the size drawn at, as
+// TurnsScrolling has it: nothing more of the frame is built for it.
+func TestHowFarAPagesTurnsScrollIsLaidOutOfThePageAlone(t *testing.T) {
+	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), slices.Repeat([]int{1}, 20)...))
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
+	h.openPage(idD28C)
+	shown := h.shownPage()
+	bare := dashboard.Frame{Width: 160, Height: 37, Session: &shown}
+	f, doc, at := h.model.screen(h.clock.now)
+	if got, want := h.model.turnsScrolling(shown), f.Scrolling(doc, at); got != want || want.Most == 0 {
+		t.Fatalf("the page alone lays its turns out scrolling %+v, want %+v, as the frame drawn does, scrolling", got, want)
+	}
+	least := testing.AllocsPerRun(10, func() { bare.TurnsScrolling() })
+	if got := testing.AllocsPerRun(10, func() { h.model.turnsScrolling(shown) }); got > least {
+		t.Errorf("how far the turns scroll allocates %.0f times, want no more than the page alone laid out does, %.0f", got, least)
 	}
 }

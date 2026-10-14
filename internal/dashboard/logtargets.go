@@ -21,7 +21,7 @@ func (f Frame) logTargets(now time.Time) []Target {
 		}
 	}
 	if x, width, ok := p.freshAt(rows, f.Width, now); ok {
-		targets = append(targets, Target{X: x, Y: f.Height - underView, Width: width, On: OnKey, Key: "end"})
+		targets = append(targets, Target{X: x, Y: f.stateRow(), Width: width, On: OnKey, Key: "end"})
 	}
 	return targets
 }

@@ -597,6 +597,65 @@ func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 	}
 }
 
+// manyTurns are n turns, newest first, each of nine minutes and 37 requests
+// but the newest, still going, of the requests given.
+func manyTurns(n, requests int) []views.Turn {
+	turns := make([]views.Turn, n)
+	for i := range turns {
+		turns[i] = turnRow{n - i, at(14, 29), 9, 37, nil, 0, 0, 0, 661, []string{"side"}}.turn()
+	}
+	turns[0] = turnRow{n, at(14, 29), 0, requests, nil, 0, 0, 0, 661, []string{"side"}}.turn()
+	return turns
+}
+
+// A phone's turn rows keep every figure whole: past turn 99 the numbers take
+// as many cells as the widest, past 99 minutes the minutes as many as the
+// longest, two blanks after the start, and past 999 requests the counts as
+// many as the most, the columns after them moving on as far on every row, so
+// turn 105 reads apart from turn 5, a turn of 1,000 minutes apart from its
+// start, and the newest's … stays by its minutes.
+func TestAPhonesTurnRowsKeepEveryFigureWhole(t *testing.T) {
+	tests := []struct {
+		name            string
+		turns, requests int
+		oldestTook      int
+		width           int
+		want            []string
+	}{
+		{name: "105 turns at 100 columns", turns: 105, requests: 6, width: 100, want: []string{
+			"105 14:29  14m…   6 req", "104 14:29   9m   37 req", "100 14:29   9m   37 req", " 99 14:29   9m   37 req",
+		}},
+		{name: "a turn of 1,234 requests at 52 columns", turns: 13, requests: 1234, width: 52, want: []string{
+			"13 14:29  14m…1,234 req", "12 14:29   9m    37 req",
+		}},
+		{name: "a turn of 1,000 minutes at 52 columns", turns: 3, requests: 6, oldestTook: 1000, width: 52, want: []string{
+			" 3 14:29    14m…   6 req", " 2 14:29     9m   37 req", " 1 14:29  1000m   37 req",
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shown := moved()
+			shown.Page.Turns, shown.Turn = manyTurns(tt.turns, tt.requests), tt.turns
+			if tt.oldestTook > 0 {
+				shown.Page.Turns[tt.turns-1] = turnRow{1, at(14, 29).Add(-24 * time.Hour), tt.oldestTook, 37, nil, 0, 0, 0, 661, []string{"side"}}.turn()
+			}
+			f := pageFrame(t, shown, tt.width, 40)
+			rows := pageText(f)
+			at := f.sessionLayout(len(shown.Page.Accounts)).turnsAt
+			for _, want := range tt.want {
+				i := slices.IndexFunc(rows[at:], func(row string) bool { return strings.HasPrefix(row, want) })
+				if i < 0 {
+					t.Errorf("no turn's row starts %q among\n%s", want, strings.Join(rows[at:], "\n"))
+					continue
+				}
+				if row := rows[at+i]; !strings.HasSuffix(row, "$6.61  side") {
+					t.Errorf("the row %q ends %q, want its worth and account at the right as ever", want, row)
+				}
+			}
+		})
+	}
+}
+
 // A session's page names an account by its label wherever it names it, its
 // story among its parts, where the config gives one other than its id.
 func TestASessionsPageNamesItsAccountsByTheirLabels(t *testing.T) {
@@ -612,6 +671,41 @@ func TestASessionsPageNamesItsAccountsByTheirLabels(t *testing.T) {
 	}
 	if strings.Contains(text, "work") {
 		t.Errorf("the page names work by its id:\n%s", text)
+	}
+}
+
+// A session's page's heading names it by its directory: one with none by
+// its id alone; a long one cut from its start with …, its name kept whole.
+// A phone names it by its id and its directory's name. Each holds here with
+// its rule, whatever its length, as one ─.
+func TestASessionsHeadingNamesItByItsDirectory(t *testing.T) {
+	long := "/home/dev/Code/clients/acme-corporation/platform/services/reconciliation/workers/nightly/billing"
+	tests := []struct {
+		name, dir string
+		width     int
+		want      string
+	}{
+		{name: "none", width: 160, want: "SESSION   d28c ─  esc back"},
+		{name: "none, on a phone", width: 52, want: "SESSION  d28c                               esc back"},
+		{name: "a long one, whole where it fits", dir: long, width: 160,
+			want: "SESSION   d28c   billing  ~/Code/clients/acme-corporation/platform/services/reconciliation/workers/nightly/billing ─  esc back"},
+		{name: "a long one, cut from its start", dir: long, width: 122,
+			want: "SESSION   d28c   billing  …e/clients/acme-corporation/platform/services/reconciliation/workers/nightly/billing ─  esc back"},
+		{name: "a long one, on a phone", dir: long, width: 52, want: "SESSION  d28c  billing                      esc back"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shown := moved()
+			shown.Page.Dir = tt.dir
+			f := pageFrame(t, shown, tt.width, 37)
+			got := pageText(f)[f.sessionLayout(len(shown.Page.Accounts)).heading]
+			for strings.Contains(got, "──") {
+				got = strings.ReplaceAll(got, "──", "─")
+			}
+			if got != tt.want {
+				t.Errorf("the heading reads\n%q\nwant\n%q", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -631,6 +725,46 @@ func TestTURNSSaysWhyASessionHasNoTurns(t *testing.T) {
 		if got := rowOf(pageCanvas(pageFrame(t, shown, width, 37)), l.turnsHeading+2); got != "" {
 			t.Errorf("at %d columns, with no request, TURNS' rows read %q, want nothing", width, got)
 		}
+	}
+}
+
+// Row 7 draws nothing at its right where the document lacks the account the
+// session runs on, as one the config has since dropped: its models alone,
+// with the whole row to them.
+func TestRow7DrawsNoWindowsOfAnAccountTheDocumentLacks(t *testing.T) {
+	shown := moved()
+	shown.Page.Account = "gone"
+	shown.Page.Goes = []views.SessionModel{{Model: opus, Account: "gone"}, {Model: haiku, Account: "gone"}}
+	f := pageFrame(t, shown, 160, 37)
+	if got := pageText(f)[f.sessionLayout(len(shown.Page.Accounts)).now+1]; got != "opus-5-5 → gone   haiku-4-5 → gone" {
+		t.Errorf("row 7 reads %q, want its models alone", got)
+	}
+}
+
+// A phone's two rows of now say a pin's move as its views do, short, the
+// second cut with … to leave how it has run whole at its right: its own pin
+// moving it, and its pin yielding, which the hard moments don't hold.
+func TestAPhonesNowRowsSayAPinsMoveShort(t *testing.T) {
+	tests := []struct {
+		name, reason, from, to string
+		row7, row8             string
+	}{
+		{name: "pinned here", reason: status.ReasonPinned, from: "work", to: "side",
+			row7: "↑ asking  on side ▲ since 14:31", row8: "pinned here                                   2h 40m"},
+		{name: "its pin yielding", reason: status.ReasonPinYields + "side has no room", from: "side", to: "work",
+			row7: "↑ asking  on work since 14:31", row8: "its pin to side yields: side has no room      2h 40m"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shown := moved()
+			shown.Page.Account = tt.to
+			shown.Page.Moves = []views.SessionMove{{At: at(14, 31), Model: opus, From: tt.from, To: tt.to, Reason: tt.reason}}
+			f := pageFrame(t, shown, 52, 32)
+			rows, now := pageText(f), f.sessionLayout(len(shown.Page.Accounts)).now
+			if rows[now] != tt.row7 || rows[now+1] != tt.row8 {
+				t.Errorf("a phone's rows of now read\n%q\n%q\nwant\n%q\n%q", rows[now], rows[now+1], tt.row7, tt.row8)
+			}
+		})
 	}
 }
 
@@ -723,8 +857,8 @@ func TestASessionsPageOverTheLogTargetsNoneOfTheLogsLines(t *testing.T) {
 
 // Nothing travels a session's page, nor is a bar eased on it, nor a number
 // the request stream changes; row 7's windows are the account's own
-// numbers, which brighten as a look changes them, and move the frame while
-// they settle.
+// numbers, and its accounts' points the session's, which brighten as a look
+// changes them, and move the frame while they settle.
 func TestWhatMovesOnASessionsPage(t *testing.T) {
 	doc := threeRouted()
 	f := switchboard(160, 40, flippingSessions(), Traffic{Live: true, Calls: map[Plug]Call{
@@ -746,8 +880,14 @@ func TestWhatMovesOnASessionsPage(t *testing.T) {
 	}
 	page := pageFrame(t, moved(), 160, 37)
 	side5h := Number{Kind: NumberUsed, Account: "side", Of: "5h"}
-	if got := page.Numbers(pageDoc(), sessionNow); got[side5h] != "13%" {
-		t.Errorf("the page's numbers are %v, want side's 5-hour, 13%%, among them", got)
+	numbers := page.Numbers(pageDoc(), sessionNow)
+	if numbers[side5h] != "13%" {
+		t.Errorf("the page's numbers are %v, want side's 5-hour, 13%%, among them", numbers)
+	}
+	for _, n := range []Number{{Kind: NumberPoints, Account: "work", Of: "5h"}, {Kind: NumberPoints, Account: "side", Of: "7d"}} {
+		if numbers[n] == "" {
+			t.Errorf("the page's numbers are %v, want the points %+v the session took among them, as a look reads them", numbers, n)
+		}
 	}
 	page.Brightened = map[Number]float64{side5h: 0.5}
 	if got := page.Motion(pageDoc(), sessionNow); got != (Motion{Smooth: true}) {

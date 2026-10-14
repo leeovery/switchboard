@@ -23,7 +23,7 @@ type glyph struct {
 // legend's. Of Sessions, its switchboard's and its requests', as
 // switchboardGlyphs has them. A tab not built yet has none.
 func (f Frame) glyphs() [][]glyph {
-	switch f.View {
+	switch f.Shown() {
 	case Runway:
 		return [][]glyph{f.legendGlyphs()}
 	case Sessions:

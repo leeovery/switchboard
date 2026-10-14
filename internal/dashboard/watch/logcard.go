@@ -1,6 +1,8 @@
 package watch
 
 import (
+	"time"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
@@ -71,9 +73,8 @@ func (m Model) openLogCard() (Model, tea.Cmd) {
 // fits under it, as LogFitted has it; the page standing still behind the
 // card as it stands now, till a key steps the card on.
 func (m Model) placeLogCard() Model {
-	f := dashboard.Frame{Width: m.size.Width, Height: m.size.Height, View: dashboard.Log, Log: m.log.page}
 	var placed dashboard.LogCard
-	m.log.page, placed = f.LogFitted(m.logCard())
+	m.log.page, placed = m.logFrame().LogFitted(m.logCard())
 	m.log.card.placed = placed.Placed
 	return m.cover(logCardOpen)
 }
@@ -143,6 +144,14 @@ func (m Model) stepLogCard(by int) Model {
 func (m Model) logCard() dashboard.LogCard {
 	c := m.log.card
 	return dashboard.LogCard{Request: c.request, Event: c.event, Scroll: c.scroll, Placed: c.placed}
+}
+
+// logCardAt is the Log's details card as it's drawn at now: a request in
+// flight's as the stream tells it then, while the page behind stands still.
+func (m Model) logCardAt(now time.Time) dashboard.LogCard {
+	c := m.logCard()
+	c.Stream = m.logStream(now)
+	return c
 }
 
 // followedByLogCard is m with the details of the Log's card built afresh of
