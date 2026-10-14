@@ -641,8 +641,7 @@ func TestForgettingARequestLogsItsSessionMovedBackOrPutBackAsItStood(t *testing.
 	putBack := []string{"level=DEBUG", `msg="session's assignment put back as it stood before its request"`, "session=one", "account=work", "reason=new",
 		"assigned=" + assigned, "last_seen=" + assigned}
 	tests := []struct {
-		name string
-		// pin is the pin the request carries.
+		name      string
 		pin       string
 		wantMoved bool
 	}{
