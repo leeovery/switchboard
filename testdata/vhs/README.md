@@ -102,10 +102,10 @@ frame, with the cells `cells_test.go` reads and compares:
   `cells_test.go`), passing over the same cells. Stage 6, the page, held the chrome and the routing
   card's box; stage 7 draws the Overview's frames and the routing card's whole, so `holds` keeps
   **the chrome** alone, rows 1 to 4, the title row and the status line, or 1 to 5 on a phone, whose
-  tabs take a row of their own: of `accounts-compare-160`, `sessions-switchboard-160` and
-  `runway-5-hour-160`, over the auto world, its tab reached with `tab`, and of
-  `sessions-phone-52`. A frame's stem leaves `holds` as a fixture comes to draw it whole, as
-  `history-year-160` did at stage 8, and `log-requests-160` at stage 9.
+  tabs take a row of their own: of `sessions-switchboard-160` and `runway-5-hour-160`, over the
+  auto world, its tab reached with `tab`, and of `sessions-phone-52`. A frame's stem leaves `holds`
+  as a fixture comes to draw it whole, as `history-year-160` did at stage 8, `log-requests-160` at
+  stage 9, and `accounts-compare-160` at stage 11.
 - **The cells passed over** are `passedOver`, by stem: a row, or a row's cells from one column to
   another, each with what the frame's `.txt` reads there: the words it starts with; or blank; or,
   where the frame draws a trace or a chart from data no world gives, those glyphs alone, a chart's
@@ -167,12 +167,14 @@ as Keys has them:
   `accounts-phone-compare-52`, `accounts-phone-detail-52` and `history-phone-year-52`.
 - **Accounts' key line,** row 37, of each frame wider than a phone, as its period, its pin and its
   groups' spacing all differ. The dashboard draws Compare's
-  `tab views   [ ] view    < > period: this week    ←→ account  enter its page    p pin    ? help  q quit`,
-  and Detail's the same with `↑↓ account`, in `accounts-compare-160`,
-  `accounts-compare-bad-hour-160`, `accounts-compare-month-160` (`30 days`),
-  `accounts-compare-ten-160`, `accounts-detail-all-160`, `accounts-detail-limit-160`,
-  `accounts-detail-sessions-160` and `accounts-detail-work-160`; and with one account, in
-  `accounts-detail-one-160`, `tab views   < > period: this week    ? help  q quit`.
+  `tab views   [ ] view    < > period: this week    ←→ account  enter its page    p pin    ? help  q quit`
+  in `accounts-compare-160`, `accounts-compare-bad-hour-160`, `accounts-compare-month-160`
+  (`30 days`) and `accounts-compare-ten-160`; Detail's, the same with `↑↓ account`, in
+  `accounts-detail-all-160`, `accounts-detail-limit-160` and `accounts-detail-work-160`; and in
+  `accounts-detail-sessions-160`, whose fixture reaches SESSIONS, as d28c's row, lit, and
+  `enter opens d28c's page` read, where the frame draws the list's line, SESSIONS',
+  `↑↓ session  ← accounts  enter its page` in place of `↑↓ account  enter its page`; and with one
+  account, in `accounts-detail-one-160`, `tab views   < > period: this week    ? help  q quit`.
 - **History's key line,** row 37, of each frame wider than a phone, as its period, its pin and its
   groups' spacing differ: from column 24, where the frames' `p period` starts and the dashboard
   leaves a cell more after `[ ] view`, to the last cell either draws otherwise,
@@ -483,9 +485,108 @@ frames):
   where the cursor starts: the frame lights no tick, where the design lights the row the cursor's
   on, as the routing card's (see The routing card).
 
-**A pressure event's mark:** in `accounts-detail-one-160`'s LATELY, row 28, column 20, `●`, drawn
-before each kind of event had a mark of its own, where the Log's marks give `◔`, in
-`accent.attention`.
+**Accounts, where its frames and the design part** (see Accounts in `docs/design.md`):
+
+- **`▲` after side,** where new sessions go, which the frames mark, where Accounts and History show
+  no routing (1744–1745), as History's frames pass it over: on Compare's heads, row 7, column 100
+  of `accounts-compare-160`, `accounts-compare-bad-hour-160` and `accounts-compare-month-160`, and
+  72 of `accounts-compare-ten-160`; in Detail's list, row 13, column 9, of
+  `accounts-detail-all-160`, `accounts-detail-limit-160`, `accounts-detail-sessions-160` and
+  `accounts-detail-work-160`; on Detail's head, `3 side ▲`, in `accounts-detail-sessions-160`, row 7,
+  columns 32 to 66, its state two cells sooner without it; and on a phone, column 7 of rows 15, 25,
+  32, 38 and 44 of `accounts-phone-compare-52`. Of `1 work ▲`, `accounts-detail-one-160`'s head,
+  row 7, column 8, where the dashboard marks work, the primary, `◆`, as `usage` marks it with one
+  account (see `usage-one-account-160`, above).
+- **Haiku 4.5's shade,** which the frames draw as Haiku's own, where the version table holds Haiku
+  5.5, so the dashboard mixes 4.5's 30% toward the canvas, as an older version's (1755–1758): its
+  `●` in Compare's frames, row 18, column 3, and its cells of Compare's bars, row 12, columns 83 and
+  149 of `accounts-compare-160`, 83 of `accounts-compare-month-160`, and 60, 98 and 117 of
+  `accounts-compare-ten-160`; of Detail's bar, row 16, and its `●`, row 17: columns 139 and 140, and
+  115, of `accounts-detail-work-160`, and 140, and 87, of `accounts-detail-sessions-160`; and on a
+  phone, row 23, column 33, of `accounts-phone-compare-52`, and row 24, column 50, and row 26,
+  column 32, of `accounts-phone-detail-52`. All accounts' bar in `accounts-detail-all-160` is passed
+  over with its shares, below.
+- **A stale reading's percentage, bold,** work's `34%` on WEEK USED in
+  `accounts-compare-bad-hour-160`, row 10, columns 47 to 49, where `usage` draws a stale reading's
+  percentage in `text.subtle`, nothing bold (1279–1281).
+- **Even pace a cell off,** placed as if it were a whole percent, in `accounts-detail-one-160`:
+  work's 5-hour window, row 10, columns 35 and 36, and its week and Fable week, rows 12 and 14,
+  columns 36 and 37.
+- **All accounts' WEEKS,** in `accounts-detail-all-160`, row 24, whose bars the frame fills to the
+  mean of the accounts' peaks rounded to a whole percent, where the dashboard fills them to the mean
+  itself (1890–1891): the week of 14 September's, column 97, `▋`, to 73%, where the mean of 81%, 90%
+  and 47% is 72.7%, `▌`; and this week's, column 132, `▎`, to 59%, where the mean is 59.3%, `▍`.
+- **LATELY of an account,** which tells the account's events, the moves onto it and the starts on
+  it (1899–1903), where the frames leave some out: in `accounts-detail-work-160`, row 30, columns 37
+  to 160, the frame's `12:10  ◇ primed: its 5-hour window started`, where the dashboard tells db8a's
+  move onto work, `13:22  ▸ db8a came from personal: personal came under pressure`, and on a phone,
+  row 38 of `accounts-phone-detail-52`; in `accounts-detail-limit-160`, row 30, columns 37 to 160,
+  the frame's `11:30  ◇ primed`, where the dashboard tells 41e0's start on personal,
+  `12:47  ▲ 41e0 started here`, the bad hour's morning holding it and 9c2e's at 11:55 after its
+  prime at 10:54, as its 5-hour window resets at 15:54; in `accounts-detail-one-160`, `, the best`
+  after `7f3a started here`, row 29, columns 39 to 49, as 7f3a started on the router's best,
+  work (1901–1902); and there, the pressure event's mark, row 28, column 20, `●`, drawn before each
+  kind of event had a mark of its own, where the Log's marks give `◔`, in `accent.attention`.
+- **Detail's key line** in `accounts-detail-sessions-160`, under Key lines drawn before the keys were
+  swept, above.
+
+**Accounts, where its worlds give otherwise** (see What the worlds give otherwise than the frames),
+which the dashboard draws as its world gives it:
+
+- **This week of the three,** as the auto world counts it, in `accounts-compare-160`, in
+  `accounts-compare-ten-160`, whose columns are 19 wide, personal's from column 46 and side's from
+  65, and on a phone: personal's and side's sessions served, `6` and `11`, row 22, where the world
+  gives 10 and 14; work's moves, `3 out`, row 23, which the world gives `1 in · 3 out`, db8a's move
+  from personal under pressure at 13:22:40, as the Log's frames draw it, its move in; personal's,
+  `1 out`, the world's `2 out`, that move too; and personal's limits hit, `none`, and its time at a
+  limit, `—`, rows 26 and 27, where the world counts its limit of 19:12:40 yesterday, `5-hour ×1` and
+  `4h 45m`. All accounts' too, in `accounts-compare-160`, from column 126: BY MODEL's Opus 5.5,
+  Sonnet 5.5 and Haiku 4.5, `57%`, `33%` and `3%`, rows 13, 15 and 18, the world's 56%, 34% and 2%;
+  sessions served, `19`, the world's 27; moves, `4 moves`, its 5; limits hit, `3`, its 4; and at cap
+  or limit, `4h 02m`, its 8h 47m. On a phone, in `accounts-phone-compare-52`, the same: sessions
+  served, columns 24 and 25 of rows 31 to 33; moves, from column 36 of rows 30, 31 and 33; personal's
+  limits and time at a limit, row 37, columns 14 to 18 and 27 to 32, and all accounts', row 39,
+  column 14 and columns 27 to 32; and all accounts' BY MODEL, its bar, row 27, columns 32 and 33,
+  and its `57%`, columns 47 to 49. In Detail, `accounts-detail-all-160`'s: THIS WEEK's limits hit,
+  `3`, row 11, column 119; BY MODEL's `57%`, `33%` and `3%`, row 17, columns 48 to 50, 79 to 81 and
+  127 and 128, and its bar, row 16, columns 136 to 140; and the share left at a reset in its
+  verdict, `30%`, row 26, columns 50 to 52, the world's 32%.
+- **The ten's,** in `accounts-compare-ten-160`: client's state, `● open`, row 8, columns 84 to 93,
+  where the world has client run out ~16:40, under pressure, as the Overview's frames of ten have it;
+  lab's moves, `1 out`, row 23, and its time at a limit, `35m`, row 27, from column 122, where the
+  world gives none and `2h`; client's and lab's left at their last reset, `22%` and `30%`, row 28,
+  from columns 84 and 122, the world's 37% and 21%; and all accounts' column, from column 141, typed,
+  not summed from its rows: BY MODEL's `53%`, `4%`, `4%` and `1%`, rows 13, 14, 16 and 17, the
+  world's 55%, 3%, 2% and 2%; and `12,598` requests, `51` sessions served, `10 moves`, `9h 57m` at cap
+  or limit, `$1,342` and `3.4×`, rows 21 to 23, 27, 33 and 34, the world's 11,698, 53, 5, 13h 31m,
+  $1,310 and 3.3×.
+- **The 30 days,** typed, in `accounts-compare-month-160`: each column's requests, sessions served,
+  moves, limits hit, time at cap or limit, worth and against its price, rows 21 to 23, 26, 27, 33
+  and 34, from column 27, but all accounts' `31 moves`, which the world gives; and all accounts' BY
+  MODEL, its bar, row 12, columns 126 to 160, and its Opus 5.5, Sonnet 5.5 and Fable 5.1, `54%`,
+  `35%` and `2%`, rows 13, 15 and 17, the world's 51%, 37% and 3%.
+- **The bad hour's week,** which its frames draw as the auto world's, where the bad hour's world
+  holds no lines today, so its week counts the days before today's: in
+  `accounts-compare-bad-hour-160`, BY MODEL's bars, row 12 from column 27, and its shares, rows 13
+  to 18, each column's that differs; and the rows of ACTIVITY, LIMITS, worth and against, rows 21 to
+  23, 26, 27, 33 and 34, each column's that differs, personal's `5-hour ×1` and `—` among them, where
+  the world counts today's limit at 14:12 as well as yesterday's. In `accounts-detail-limit-160`,
+  personal's THIS WEEK, its `2,330` requests, `5-hour ×1` and `$212  4.6×`, rows 10, 11 and 13 from
+  column 119; its BY MODEL, its bar, row 16, columns 37 to 140, and its versions, row 17 from column
+  37; and its 5-hour window's even pace, row 10, columns 60 to 64, placed as if its window reset at
+  16:30, where the world's, primed at 10:54, resets at 15:54, as in `overview-bad-hour-160`.
+- **Work alone's week,** which `accounts-detail-one-160` draws as the auto world's of work, where
+  work alone's world holds no lines today: THIS WEEK's `1,204` requests and `$184  4.0×`, rows 10
+  and 13, from column 111; and BY MODEL, which leaves Fable 5.1 out, its bar and its versions, rows
+  16 and 17, columns 13 to 143.
+- **Side's week, where it runs out,** `out ~Fri 12:20`, as in `usage`'s frames: row 12, columns 81 to
+  102, of `accounts-detail-sessions-160`.
+- **BY DAY,** whose days the frames shade from their generators' own, and mark `▪` where they have a
+  5-hour limit hit, where the world's records shade and mark them otherwise, this week's limits as
+  the Log tells of them (`byDays`, in `reference_test.go`): row 21 of `accounts-detail-all-160`,
+  `accounts-detail-work-160`, `accounts-detail-limit-160`, `accounts-detail-sessions-160` and
+  `accounts-detail-one-160`, and row 28 of `accounts-phone-detail-52`, the days that differ, each 2
+  cells, or 3 with one account.
 
 **A session's page, where its frames and the design part:**
 
@@ -672,16 +773,27 @@ cell by cell, listing each under The cells passed over with what the dashboard d
   sessions, as the status line counts them.
 - **Accounts (stage 11):** this week's sessions served on personal and side and in all, drawn 6, 11
   and 19, where the world gives 10, 14 and 27 (yesterday's 17 and today's 14, 4 of them both, are
-  27); personal's moves, drawn 1 out and 4 in all (2 and 5: db8a's move under pressure at 13:22:40
-  as well as 8a2c's); personal's 5-hour limit and 4h 45m at it, from the Log's limit of 19:12:40
-  yesterday, where Accounts draws none (all accounts 4 and 8h 47m, drawn 3 and 4h 02m); work's 0%
-  and personal's 15% left at their last reset, whose weeks reset on Sunday, before this week's
-  Monday; the 30 days; the share left at a reset (32%, drawn 30%); lab's and team's minutes at a
-  limit; the ten's all-accounts row (drawn 12,598 requests, 51 sessions, 10 moves, 9h 57m, $1,342
-  and 3.4×, the world 11,698, 53, 5, 13h 31m, $1,310 and 3.3×), typed, not summed from its rows; all
-  accounts' BY MODEL this week (drawn 57/2/33/3/2/3, the world 56/2/34/3/2/2); Detail's BY DAY
-  marks; `accounts-detail-one-160`'s `[ ]` on its heading row, where the design gives one account
-  Detail alone.
+  27); work's and personal's moves, drawn 3 out and 1 out, and 4 in all (1 in · 3 out, 2 out and 5:
+  db8a's move from personal to work under pressure at 13:22:40, as well as 8a2c's); personal's
+  5-hour limit and 4h 45m at it, from the Log's limit of 19:12:40 yesterday, where Accounts draws
+  none (all accounts 4 and 8h 47m, drawn 3 and 4h 02m); the 30 days; the share left at a reset (32%,
+  drawn 30%); client's and lab's left at their last reset (37% and 21%, drawn 22% and 30%), lab's
+  move and minutes at a limit, and client under pressure; the ten's all-accounts row (drawn 12,598
+  requests, 51 sessions, 10 moves, 9h 57m, $1,342 and 3.4×, the world 11,698, 53, 5, 13h 31m, $1,310
+  and 3.3×), typed, not summed from its rows; all accounts' BY MODEL this week (drawn 57/2/33/3/2/3,
+  the world 56/2/34/3/2/2), and its WEEKS' bars, filled to the rounded mean of the peaks; Detail's
+  BY DAY; the bad hour's week, and work alone's, which their frames draw as the auto world's, where
+  neither world holds lines today, work alone's with no Fable 5.1; and the bad hour's LATELY of
+  personal, which leaves out 41e0's start of 12:47. Fitted rather than passed over: every account
+  reads extra usage off, rejected, as every frame draws it; work alone's world as Accounts' frame
+  has it (`oneLately`, in `documents.go`), three sessions on work, which its router lists none of, as
+  the frame draws no SESSIONS, and its router telling of work's prime at 12:10, 7f3a's start at
+  14:12:30 and its pressure at 14:38, where `one`, usage's, has five and tells of nothing; and
+  `accounts-detail-sessions-160` opens on Accounts, as its preferences keep it, so the request stream
+  first opens on Detail and tells each request in flight as it went, c61b's answer seen after d28c's
+  ask, as the frame orders side's sessions: reached with `tab` from the Overview, whose stream closes
+  on Compare, it opens again, and tells the requests in flight as it's joined, with no time their
+  answers were last heard, so SESSIONS lists d28c, asked last, first.
 - **Sessions (stage 12):** c61b's worth ($0.22, drawn $0.29) and today's ($125.94, drawn
   $126.02); 8a2c's move, made yesterday, which the List shows only of today's; b9c4's move of
   yesterday, which yesterday's summary doesn't hold.
@@ -773,6 +885,19 @@ f41a's world, `resumed`: `session-resumed-160`, f41a's, come back this morning. 
 `routing-session-160`, the routing card over 9c2e's page, with `p` and `3`. Each pins its story's
 scale at 8 requests a minute, as its frame draws it, where the Overview's traces are pinned at 16.
 Tapes of `session-moved-160` and `session-phone-52` screenshot them, to judge by eye.
+
+Stage 11's, `accounts-*`, draw Accounts' frames, Accounts reached from the Overview with `tab`, on
+Compare as it opens: `accounts-compare-160` over the auto world, `accounts-compare-bad-hour-160`
+over the bad hour's and `accounts-compare-ten-160` over ten accounts'; and
+`accounts-compare-month-160` with `>`, a period longer, the last 30 days. Detail, with `]`:
+`accounts-detail-all-160`, all accounts chosen as it opens; `accounts-detail-work-160` with `↓`,
+work chosen; and `accounts-detail-limit-160`, over the bad hour's world, with `↓` twice, personal.
+`accounts-detail-sessions-160` opens on Accounts, as its preferences keep it (see What the worlds
+give otherwise than the frames), then `]`, `↓` three times to side, `→` into its SESSIONS and `↓`
+to d28c. With one account, `accounts-detail-one-160`, over work alone's world as Accounts' frame of
+it has it, Detail alone, as `tab` reaches it. On a phone, `accounts-phone-compare-52` with `tab`,
+and `accounts-phone-detail-52` with `tab`, `]` and `↓`, work. Tapes of `accounts-compare-160` and
+`accounts-detail-sessions-160` screenshot them, to judge by eye.
 
 ### `--theme`, and `NO_COLOR`
 

@@ -291,7 +291,8 @@ func (p printout) fixture(worlds accountWorlds) Fixture {
 // its size, with its keys pressed once its document is read, and those
 // before it pressed then; gone, with the router no longer answering from
 // that moment, as a key that reads then finds it, or from goneFor before it,
-// as the fixture's settling finds it; the Log's columns its preferences
+// as the fixture's settling finds it; the tab its preferences keep, which
+// it opens on, the Overview where it's unset, and the Log's columns they
 // keep shown; and the requests a minute that fill a trace's height, where
 // its frame pins them otherwise than the frames' usual.
 type page struct {
@@ -302,6 +303,7 @@ type page struct {
 	before  earlier
 	gone    bool
 	goneFor time.Duration
+	view    dashboard.View
 	log     dashboard.LogTicks
 	scale   float64
 }
@@ -320,7 +322,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys), before: p.before,
-		theme: framesTheme(), records: w.records(), accounts: w.accounts, log: p.log, scale: p.scale,
+		theme: framesTheme(), records: w.records(), accounts: w.accounts, view: p.view, log: p.log, scale: p.scale,
 	}
 }
 
@@ -353,7 +355,14 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // frames, each reached through the Log, its story's scale pinned at 8: d28c's
 // page, and on a phone; 9c2e's; b9c4's, ended yesterday; f41a's, over its
 // world, come back this morning; d28c's with ↓ to turn 12 and enter; and
-// the routing card over 9c2e's page, with p and 3.
+// the routing card over 9c2e's page, with p and 3. Then Accounts' frames,
+// each reached from the Overview with tab: Compare as it opens, over the
+// auto world, ten accounts' and the bad hour's, and with >, the last 30
+// days; Detail with ], all accounts chosen, ↓ to work, and over the bad
+// hour's world, ↓ twice to personal; side's SESSIONS, d28c selected, opening
+// on Accounts, so the stream first opens there, telling each request in
+// flight as it went; Detail alone, over work alone's world; and on a phone,
+// Compare, and Detail of work.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -412,6 +421,20 @@ var pages = []page{
 	{name: "session-turn-opened-160", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c", downKey, enterKey), scale: storyScale},
 	{name: "session-phone-52", size: watch.Size{Width: 52, Height: 32}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
 	{name: "routing-session-160", size: wide(37), world: accountWorlds.auto, keys: toSession("9c2e", keysOf("p", "3")...), scale: storyScale},
+	{name: "accounts-compare-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts()},
+	{name: "accounts-compare-month-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts(">")},
+	{name: "accounts-compare-ten-160", size: wide(37), world: manyAccounts(10), keys: toAccounts()},
+	{name: "accounts-compare-bad-hour-160", size: wide(37), world: accountWorlds.badHour, keys: toAccounts()},
+	{name: "accounts-detail-all-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts("]")},
+	{name: "accounts-detail-work-160", size: wide(37), world: accountWorlds.auto, keys: toDetail(downKey)},
+	{name: "accounts-detail-limit-160", size: wide(37), world: accountWorlds.badHour, keys: toDetail(downKey, downKey)},
+	{
+		name: "accounts-detail-sessions-160", size: wide(37), world: accountWorlds.auto, view: dashboard.Accounts,
+		keys: slices.Concat(keysOf("]"), repeated(downKey, 3), []tea.KeyPressMsg{rightKey, downKey}),
+	},
+	{name: "accounts-detail-one-160", size: wide(37), world: accountWorlds.oneLately, keys: toAccounts()},
+	{name: "accounts-phone-compare-52", size: watch.Size{Width: 52, Height: 48}, world: accountWorlds.auto, keys: toAccounts()},
+	{name: "accounts-phone-detail-52", size: watch.Size{Width: 52, Height: 41}, world: accountWorlds.auto, keys: toDetail(downKey)},
 }
 
 // keysOf are the keys pressed as the text given, a key a character.
@@ -427,6 +450,18 @@ func keysOf(text ...string) []tea.KeyPressMsg {
 // then the text given, a key a character.
 func toHistory(text ...string) []tea.KeyPressMsg {
 	return append([]tea.KeyPressMsg{{Code: tea.KeyTab}, {Code: tea.KeyTab}}, keysOf(text...)...)
+}
+
+// toAccounts are the keys that reach Accounts from the Overview, tab, then
+// the text given, a key a character.
+func toAccounts(text ...string) []tea.KeyPressMsg {
+	return append([]tea.KeyPressMsg{{Code: tea.KeyTab}}, keysOf(text...)...)
+}
+
+// toDetail are the keys that reach Accounts' Detail from the Overview, tab
+// and ], then the keys given.
+func toDetail(then ...tea.KeyPressMsg) []tea.KeyPressMsg {
+	return append(toAccounts("]"), then...)
 }
 
 // toLog are the keys that reach the Log from the Overview, shift-tab, back
