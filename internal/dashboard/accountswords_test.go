@@ -352,10 +352,10 @@ func TestExtraUsageIsItsFramesCells(t *testing.T) {
 			figures = append(figures, figureAt{26 + colw*i, 31, colw, extraParts(a, secondaryInk)})
 		}
 		x := 26 + colw*shown
-		return append(figures, figureAt{x, 31, 160 - x, extraOfAll(accounts, strongInk)})
+		return append(figures, figureAt{x, 31, 160 - x, extraOfAll(status.ExtraOfAll(accounts), strongInk)})
 	}
 	thisWeek := func(x int, accounts ...status.AccountNow) []figureAt {
-		return []figureAt{{x, 13, 160 - x, extraShort(accounts)}}
+		return []figureAt{{x, 13, 160 - x, extraShort(status.ExtraOfAll(accounts))}}
 	}
 	tests := []struct {
 		stem          string
@@ -367,7 +367,7 @@ func TestExtraUsageIsItsFramesCells(t *testing.T) {
 		{stem: "accounts-detail-all-160", width: 160, height: 37, figures: thisWeek(118, three...)},
 		{stem: "accounts-detail-work-160", width: 160, height: 37, figures: thisWeek(118, three[0])},
 		{stem: "accounts-detail-one-160", width: 160, height: 37, figures: thisWeek(110, three[0])},
-		{stem: "accounts-phone-detail-52", width: 52, height: 41, figures: []figureAt{{36, 20, 16, extraShort(three[:1])}}},
+		{stem: "accounts-phone-detail-52", width: 52, height: 41, figures: []figureAt{{36, 20, 16, extraShort(status.ExtraOfAll(three[:1]))}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.stem, func(t *testing.T) {
@@ -421,14 +421,14 @@ func TestExtraUsageSaysEachForm(t *testing.T) {
 		{name: "an account's on", parts: extraParts(extraOf("work", on), secondaryInk), want: line{{"on · billed past its limit", warningInk}}},
 		{name: "an account's on, its use alone given", parts: extraParts(used, secondaryInk), want: line{{"on · billed past its limit", warningInk}}},
 		{name: "an account's not read", parts: extraParts(extraOf("work", unread), secondaryInk), want: line{{"—", faintInk}}},
-		{name: "every account on", parts: extraOfAll([]status.AccountNow{extraOf("work", on), used}, strongInk), want: line{{"on on all", boldWarning}}},
-		{name: "every account, one of three on", parts: extraOfAll(mixed, strongInk), want: line{{"on for 1 of 3", boldWarning}}},
-		{name: "every account read off, one not read", parts: extraOfAll(mixed[1:], strongInk), want: line{{"off on all", boldMuted}}},
-		{name: "every account not read", parts: extraOfAll(mixed[2:], strongInk), want: line{{"—", faintBold}}},
-		{name: "short, an account on", parts: extraShort(mixed[:1]), want: line{{"on", warningInk}}},
-		{name: "short, every account, one of three on", parts: extraShort(mixed), want: line{{"on for 1 of 3", warningInk}}},
-		{name: "short, every account read off", parts: extraShort(mixed[1:]), want: line{{"off", mutedInk}}},
-		{name: "short, none read", parts: extraShort(mixed[2:]), want: line{{"—", faintInk}}},
+		{name: "every account on", parts: extraOfAll(status.ExtraOfAll([]status.AccountNow{extraOf("work", on), used}), strongInk), want: line{{"on on all", boldWarning}}},
+		{name: "every account, one of three on", parts: extraOfAll(status.ExtraOfAll(mixed), strongInk), want: line{{"on for 1 of 3", boldWarning}}},
+		{name: "every account read off, one not read", parts: extraOfAll(status.ExtraOfAll(mixed[1:]), strongInk), want: line{{"off on all", boldMuted}}},
+		{name: "every account not read", parts: extraOfAll(status.ExtraOfAll(mixed[2:]), strongInk), want: line{{"—", faintBold}}},
+		{name: "short, an account on", parts: extraShort(status.ExtraOfAll(mixed[:1])), want: line{{"on", warningInk}}},
+		{name: "short, every account, one of three on", parts: extraShort(status.ExtraOfAll(mixed)), want: line{{"on for 1 of 3", warningInk}}},
+		{name: "short, every account read off", parts: extraShort(status.ExtraOfAll(mixed[1:])), want: line{{"off", mutedInk}}},
+		{name: "short, none read", parts: extraShort(status.ExtraOfAll(mixed[2:])), want: line{{"—", faintInk}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

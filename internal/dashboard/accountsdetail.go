@@ -382,16 +382,17 @@ func (d detailDrawn) thisWeekItems() []thisWeekItem {
 		{"limits", periodParts(page, limitsParts(totals, d.f.windowNamer(d.m), secondaryInk), secondaryInk)},
 		{"plan", planNamed(d.row, secondaryInk)},
 		{"worth", periodParts(page, worthAgainst(d.row, secondaryInk), secondaryInk)},
-		{"extra use", extraShort(d.shown())},
+		{"extra use", extraShort(d.extra())},
 	}
 }
 
-// shown are the accounts Detail shows: the account, or every account.
-func (d detailDrawn) shown() []status.AccountNow {
+// extra is the extra usage of what Detail shows, as ExtraOf takes it: the
+// account's, or every configured account's together.
+func (d detailDrawn) extra() status.AllExtra {
 	if d.id == "" {
-		return d.m.Accounts
+		return d.m.ExtraOf(d.f.Accounts.Accounts.IDs())
 	}
-	return []status.AccountNow{d.account}
+	return d.m.ExtraOf([]string{d.id})
 }
 
 // byModel draws BY MODEL along row y: its heading, the period's share of use

@@ -464,6 +464,43 @@ func TestAllAccountsCountsTheConfiguredAccountsStates(t *testing.T) {
 	}
 }
 
+// All accounts' extra usage counts every configured account, as its states
+// counted do: one the document lacks yet among them, not read, so with work's
+// on, it's on for 1 of 4, in Compare's column, in Detail's THIS WEEK and in a
+// phone's.
+func TestAllAccountsExtraUsageCountsTheConfiguredAccounts(t *testing.T) {
+	added := append(slices.Clone(threeFramed), config.Account{ID: "added"})
+	workOn := func(d *status.Document) { d.Accounts[0].Extra = quota.ExtraUsage{Status: quota.StatusAllowed} }
+	after := func(row, label string) string {
+		_, said, _ := strings.Cut(row, label)
+		return strings.TrimSpace(said)
+	}
+	const want = "on for 1 of 4"
+
+	compare, _ := threeCompared(t, 200, 37)
+	compare.Accounts.Accounts = added
+	rows := textOf(compare.Draw(usageWorld(extraOff, workOn), routedAt))
+	x := columnOf(rows[6], "0 all accounts")
+	if got := strings.TrimSpace(ansi.Cut(rows[rowWith(rows, "extra usage")], x, compare.Width)); got != want {
+		t.Errorf("Compare's all accounts' extra usage reads %q, want %q", got, want)
+	}
+
+	detail := detailFrame(Look{}, added, "", "", detailsPage(t), nil)
+	rows = textOf(detail.Draw(usageWorld(extraOff, workOn), routedAt))
+	if got := after(rows[rowWith(rows, "extra use")], "extra use"); got != want {
+		t.Errorf("Detail's all accounts' extra use reads %q, want %q", got, want)
+	}
+
+	phone := phoneText(t, 52, 60, AccountsDetail, "", phonePage(t), nil)
+	phone.Accounts.Accounts = added
+	doc := phoneDoc()
+	workOn(&doc)
+	rows = textOf(phone.Draw(doc, routedAt))
+	if got := after(rows[rowWith(rows, "extra use")], "extra use"); got != want {
+		t.Errorf("a phone's all accounts' extra use reads %q, want %q", got, want)
+	}
+}
+
 // Once ← or → has put the focus on a column, its heads are on bg.selection
 // across its width less a cell; none is before.
 func TestComparesFocusedColumnsHeadsAreSelected(t *testing.T) {

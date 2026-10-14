@@ -394,7 +394,7 @@ func (s stacked) thisWeekItems() [][]thisWeekItem {
 		},
 		{
 			{"worth", periodParts(page, worthParts(s.row, secondaryInk), secondaryInk)},
-			{"extra use", extraShort(s.shown())},
+			{"extra use", extraShort(s.extra())},
 			{"against", periodParts(page, againstShort(s.row), secondaryInk)},
 		},
 	}

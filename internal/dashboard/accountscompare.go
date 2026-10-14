@@ -481,10 +481,11 @@ func (cp compared) period(said func(col compareColumn) []part) func(col compareC
 }
 
 // extra is the column's extra usage, as it stands: an account's, as
-// extraParts says it, or every account's, as extraOfAll does.
+// extraParts says it, or every configured account's, as extraOfAll does, as
+// ExtraOf takes them together.
 func (cp compared) extra(col compareColumn) []part {
 	if col.all {
-		return extraOfAll(cp.m.Accounts, col.ink())
+		return extraOfAll(cp.m.ExtraOf(cp.f.Accounts.Accounts.IDs()), col.ink())
 	}
 	if !col.known {
 		return noneOf(noFigure.text, col.ink())

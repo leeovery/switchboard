@@ -189,19 +189,19 @@ func extraParts(a status.AccountNow, k ink) []part {
 	return extraSaid(status.ExtraOfAll([]status.AccountNow{a}), " · billed past its limit", "off", k)
 }
 
-// extraOfAll say every account's extra usage as Compare's VALUE does, as
-// ExtraOfAll has it: "off on all"; "on on all" where each is on, else how
-// many are, "on for 1 of 3"; a dash where none is read.
-func extraOfAll(accounts []status.AccountNow, k ink) []part {
-	return extraSaid(status.ExtraOfAll(accounts), " on all", "off on all", k)
+// extraOfAll say every account's extra usage, taken together, as Compare's
+// VALUE does: "off on all"; "on on all" where each is on, else how many are,
+// "on for 1 of 3"; a dash where none is read.
+func extraOfAll(all status.AllExtra, k ink) []part {
+	return extraSaid(all, " on all", "off on all", k)
 }
 
 // extraShort says extra usage as Detail's THIS WEEK and a phone's Detail do,
 // in text.secondary's place: of the accounts shown, an account alone or
-// every account, taken together as ExtraOfAll has it, "off"; "on" where each
-// is on, else how many are, "on for 1 of 3"; a dash where none is read.
-func extraShort(accounts []status.AccountNow) []part {
-	return extraSaid(status.ExtraOfAll(accounts), "", "off", secondaryInk)
+// every account, taken together, "off"; "on" where each is on, else how many
+// are, "on for 1 of 3"; a dash where none is read.
+func extraShort(all status.AllExtra) []part {
+	return extraSaid(all, "", "off", secondaryInk)
 }
 
 // extraSaid says extra usage as all has it: off as the words given say it,

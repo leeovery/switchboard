@@ -147,3 +147,25 @@ func TestEveryAccountsExtraUsageTakenTogether(t *testing.T) {
 		})
 	}
 }
+
+// The extra usage of the accounts asked for, taken together, counts those
+// the config has, whatever the moment holds: one it lacks yet as not read,
+// counted in Of, and one it holds that isn't asked for, not at all.
+func TestTheExtraUsageOfTheAccountsAskedForCountsThoseTheMomentLacksNotRead(t *testing.T) {
+	on, off := quota.ExtraUsage{Status: quota.StatusAllowed}, quota.ExtraUsage{Status: quota.StatusRejected}
+	m := status.Moment{Accounts: []status.AccountNow{{ID: "work", Extra: on}, {ID: "personal", Extra: off}, {ID: "side", Extra: off}}}
+	tests := []struct {
+		name string
+		ids  []string
+		want status.AllExtra
+	}{
+		{name: "one the moment lacks", ids: []string{"work", "personal", "side", "added"}, want: status.AllExtra{State: status.ExtraOn, On: 1, Of: 4}},
+		{name: "one the moment holds not asked for", ids: []string{"personal", "side"}, want: status.AllExtra{State: status.ExtraOff, Of: 2}},
+		{name: "the one asked for, the moment lacks", ids: []string{"added"}, want: status.AllExtra{State: status.ExtraNotRead, Of: 1}},
+	}
+	for _, tt := range tests {
+		if got := m.ExtraOf(tt.ids); got != tt.want {
+			t.Errorf("%s: ExtraOf(%q) = %+v, want %+v", tt.name, tt.ids, got, tt.want)
+		}
+	}
+}
