@@ -94,11 +94,11 @@ func (m Moment) writePriming(b *strings.Builder) {
 }
 
 // writeNotes writes what's noted of the account a, as read, beside its usage,
-// as it stands at the moment as an has it: what the router saw hold it back
-// then, how its reserve stands, whether it's under pressure, and how many
-// sessions the router has sent it.
+// as it stands at the moment as an has it: what holds it back then, as
+// heldBy says, how its reserve stands, whether it's under pressure, and how
+// many sessions the router has sent it.
 func (m Moment) writeNotes(b *strings.Builder, an AccountNow, a Account) {
-	notes := a.heldBy(m.Now)
+	notes := an.heldBy(m.Now)
 	if said := reserved(an.ReachedReserve, an.Pinned, an.Reserve); said != "" {
 		notes = append(notes, said)
 	}
@@ -186,18 +186,33 @@ func (a Account) Window(key string) (quota.Window, bool) {
 	return a.Windows[i], true
 }
 
-// heldBy says what holds the account back at now, as the router saw it, a
-// line each: the limit it reached, then the upstream's refusal, each while it
-// holds.
-func (a Account) heldBy(now time.Time) []string {
+// heldBy says what holds the account back as it stands at now, a line each:
+// its limit, as its Hold has it, as limitLine says it, till it's back, of
+// one holding back its every request, else till the limit lifts; then the
+// upstream's refusal; each while it holds.
+func (a AccountNow) heldBy(now time.Time) []string {
 	var held []string
-	if a.Limit.holds(now) {
-		held = append(held, a.Limit.Text(now))
+	if a.Held {
+		until := a.Hold.Until
+		if a.Hold.Every {
+			until = a.Back
+		}
+		held = append(held, limitLine(now, until))
 	}
-	if a.Refused.holds(now) {
-		held = append(held, a.Refused.Text(now))
+	if a.Refusal.holds(now) {
+		held = append(held, a.Refusal.Text(now))
 	}
 	return held
+}
+
+// limitLine says until when a limit holds an account back, at until, in
+// now's time zone, as in "limit until Mon 21:00": that it's reached alone,
+// as ROUTING says it, where that isn't known.
+func limitLine(now, until time.Time) string {
+	if until.IsZero() {
+		return "limit reached"
+	}
+	return "limit until " + prose.Clock(now, until)
 }
 
 // origin says where the document's usage came from: the router, with how it
@@ -260,12 +275,6 @@ func (d Document) Names(ids []string) string {
 		}
 	}
 	return prose.List(names)
-}
-
-// Text says until when the limit holds, such as "limit until Mon 21:00", in
-// now's time zone.
-func (l Limit) Text(now time.Time) string {
-	return "limit until " + prose.Clock(now, l.Until)
 }
 
 // Text says why the restart is due, and since when, in now's time zone, and

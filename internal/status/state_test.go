@@ -135,9 +135,14 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 			want:    status.State{Condition: status.Limited, Says: "refused (401)", Then: "until 21:40"},
 		},
 		{
-			name:    "a limit before its token refused",
+			name:    "a limit before its token refused, back once the refusal, the later, ends",
 			account: with(with(readNow(0.98, 0.3, 0), limited("5h")), refusing(401, "")),
-			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 12m"},
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 21:40, in 6h 58m"},
+		},
+		{
+			name:    "a limit before its cap, back once its cap, the later, lets it go",
+			account: with(with(readNow(0.6, 0.92, 0), limited()), func(a *status.Account) { a.Reserve = 0.1 }),
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back Mon 21:00, in 4d 6h"},
 		},
 		{
 			name: "at Fable's week's limit",

@@ -48,15 +48,16 @@ type AccountFacts struct {
 	LimitHolds                                         bool
 	LimitSince, CapSince, RefusedSince                 time.Time
 	LimitMoved                                         int
+	Back                                               time.Time
 	Windows                                            map[string]WindowFacts
 }
 
 // String says how the account stands but for its windows, its times as
 // sinceBuilt has them.
 func (a AccountFacts) String() string {
-	return fmt.Sprintf("{Routing:%d Held:%v CapHolds:%v Idle:%v OutOfQuota:%v CanRise:%v Pressed:%v LimitHolds:%v LimitSince:%s CapSince:%s RefusedSince:%s LimitMoved:%d}",
+	return fmt.Sprintf("{Routing:%d Held:%v CapHolds:%v Idle:%v OutOfQuota:%v CanRise:%v Pressed:%v LimitHolds:%v LimitSince:%s CapSince:%s RefusedSince:%s LimitMoved:%d Back:%s}",
 		a.Routing, a.Held, a.CapHolds, a.Idle, a.OutOfQuota, a.CanRise, a.Pressed, a.LimitHolds,
-		sinceBuilt(a.LimitSince), sinceBuilt(a.CapSince), sinceBuilt(a.RefusedSince), a.LimitMoved)
+		sinceBuilt(a.LimitSince), sinceBuilt(a.CapSince), sinceBuilt(a.RefusedSince), a.LimitMoved, sinceBuilt(a.Back))
 }
 
 // WindowFacts are how a window stands at a moment, as its WindowNow has it.
@@ -101,6 +102,7 @@ func FactsOf(m status.Moment) Facts {
 			Routing: a.Routing.Kind, Held: a.Held, CapHolds: a.CapHolds, Idle: a.Idle,
 			OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Pressed: a.Pressure.Under, LimitHolds: a.LimitHolds,
 			LimitSince: a.LimitSince, CapSince: a.CapSince, RefusedSince: a.RefusedSince, LimitMoved: a.LimitMoved,
+			Back:    a.Back,
 			Windows: make(map[string]WindowFacts, len(a.Windows)),
 		}
 		for _, w := range a.Windows {
@@ -136,6 +138,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 	limited.Events = limitedWorkEvents
 	workLimited := AccountFacts{
 		Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true, LimitSince: Built.Add(-20 * time.Minute),
+		Back: Built.Add(40 * time.Minute),
 		Windows: map[string]WindowFacts{
 			"5h": {
 				Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 1, Next: Built.Add(40 * time.Minute),
@@ -191,7 +194,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 		a.Refused = status.Refusal{Until: Built.Add(time.Hour), Status: 401}
 	}
 	workUnnamed := AccountFacts{
-		Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true,
+		Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true, Back: Built.Add(40 * time.Minute),
 		Windows: map[string]WindowFacts{
 			"5h": {
 				Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 0.5, Next: Built.Add(3 * time.Hour),
@@ -235,7 +238,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 		return f
 	}
 	cappedWork := with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.92, time.Hour)), reserving)
-	workCapped := AccountFacts{Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Windows: map[string]WindowFacts{
+	workCapped := AccountFacts{Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Back: Built.Add(time.Hour), Windows: map[string]WindowFacts{
 		"5h": {Kind: status.WindowOpen, At: Built.Add(3 * time.Hour), Used: 0.3, Next: Built.Add(3 * time.Hour)},
 		"7d": {Kind: status.WindowCapped, At: Built.Add(time.Hour), Used: 0.92, Next: Built.Add(time.Hour), Capped: true, CappedAsRead: true},
 	}}
@@ -282,7 +285,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 	// cappedSession is work with its session at its cap, its reserve a
 	// fifth, so short of the 90% a warning's posted at.
 	cappedSession := with(readAt("work", windowIn("5h", 0.85, 2*time.Hour), windowIn("7d", 0.4, 3*day)), reservingAFifth)
-	workSessionCapped := AccountFacts{Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Windows: map[string]WindowFacts{
+	workSessionCapped := AccountFacts{Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Back: Built.Add(2 * time.Hour), Windows: map[string]WindowFacts{
 		"5h": {Kind: status.WindowCapped, At: Built.Add(2 * time.Hour), Used: 0.85, Next: Built.Add(2 * time.Hour), Capped: true, CappedAsRead: true},
 		"7d": {Kind: status.WindowOpen, At: Built.Add(3 * day), Used: 0.4, Next: Built.Add(3 * day)},
 	}}
@@ -345,7 +348,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			),
 			Now: Built.Add(10 * time.Minute),
 			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
-				"work": {Routing: status.RoutingRefused, Windows: map[string]WindowFacts{
+				"work": {Routing: status.RoutingRefused, Back: Built.Add(time.Hour), Windows: map[string]WindowFacts{
 					"5h": {Kind: status.WindowStale, At: Built, Used: 0.4, Next: Built.Add(2 * time.Hour), Out: Built.Add(90 * time.Minute)},
 					"7d": {Kind: status.WindowStale, At: Built, Used: 0.5, Next: Built.Add(2 * day)},
 				}},
@@ -414,7 +417,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Name: "every account at its cap, none with room", Doc: everyCapped, Now: Built.Add(10 * time.Minute),
 			Want: Facts{Accounts: map[string]AccountFacts{
 				"work": workCapped,
-				"side": {Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Windows: map[string]WindowFacts{
+				"side": {Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Back: Built.Add(4 * time.Hour), Windows: map[string]WindowFacts{
 					"5h": {Kind: status.WindowCapped, At: Built.Add(4 * time.Hour), Used: 0.95, Next: Built.Add(4 * time.Hour), Capped: true, CappedAsRead: true},
 					"7d": sideOpen.Windows["7d"],
 				}},
@@ -482,7 +485,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Doc:  unnamed(nil, unchanged, with(side, tokenRefused)), Now: Built.Add(10 * time.Minute),
 			Want: Facts{Accounts: map[string]AccountFacts{
 				"work": workUnnamed,
-				"side": {Routing: status.RoutingRefused, Windows: map[string]WindowFacts{
+				"side": {Routing: status.RoutingRefused, Back: Built.Add(time.Hour), Windows: map[string]WindowFacts{
 					"5h": {Kind: status.WindowStale, At: Built, Used: 0.1, Next: Built.Add(4 * time.Hour)},
 					"7d": {Kind: status.WindowStale, At: Built, Used: 0.2, Next: Built.Add(5 * day)},
 				}},
@@ -494,7 +497,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Now:  Built.Add(10 * time.Minute),
 			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
 				"work": {
-					Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true,
+					Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true, Back: Built.Add(time.Hour),
 					Windows: map[string]WindowFacts{
 						"5h": {
 							Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 0.5, Next: Built.Add(3 * time.Hour),
@@ -556,7 +559,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Doc:  Probed(policy, readAt("work", windowIn("5h", 0.3, 3*time.Hour), spentIn("7d", 1, 2*day))),
 			Now:  Built.Add(time.Minute),
 			Want: Facts{Next: "work", Accounts: map[string]AccountFacts{
-				"work": {Routing: status.RoutingLimited, Held: true, OutOfQuota: true, Windows: map[string]WindowFacts{
+				"work": {Routing: status.RoutingLimited, Held: true, OutOfQuota: true, Back: Built.Add(2 * day), Windows: map[string]WindowFacts{
 					"5h": {Kind: status.WindowOpen, At: Built.Add(3 * time.Hour), Used: 0.3, Next: Built.Add(3 * time.Hour)},
 					"7d": {Kind: status.WindowLimited, At: Built.Add(2 * day), Used: 1, Next: Built.Add(2 * day), Held: true},
 				}},
@@ -569,7 +572,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Doc:  Probed(policy, readAt("work", spentIn("5h", 1, 40*time.Minute), windowIn("7d", 0.6, 3*day)), side),
 			Now:  Built.Add(time.Minute),
 			Want: Facts{Accounts: map[string]AccountFacts{
-				"work": {Routing: status.RoutingLimited, Held: true, OutOfQuota: true, Windows: map[string]WindowFacts{
+				"work": {Routing: status.RoutingLimited, Held: true, OutOfQuota: true, Back: Built.Add(40 * time.Minute), Windows: map[string]WindowFacts{
 					"5h": {Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 1, Next: Built.Add(40 * time.Minute), Held: true},
 					"7d": workLimited.Windows["7d"],
 				}},
@@ -614,7 +617,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 		{
 			Name: "its token refused again, after a refusal lifted early", Doc: refusedAgain, Now: Built.Add(10 * time.Minute),
 			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
-				"work": {Routing: status.RoutingRefused, RefusedSince: Built.Add(-20 * time.Minute), Windows: map[string]WindowFacts{
+				"work": {Routing: status.RoutingRefused, RefusedSince: Built.Add(-20 * time.Minute), Back: Built.Add(40 * time.Minute), Windows: map[string]WindowFacts{
 					"5h": {Kind: status.WindowStale, At: Built, Used: 0.3, Next: Built.Add(3 * time.Hour)},
 					"7d": {Kind: status.WindowStale, At: Built, Used: 0.5, Next: Built.Add(2 * day)},
 				}},

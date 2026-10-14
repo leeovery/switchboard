@@ -65,9 +65,23 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 			want:    status.Routing{Kind: status.RoutingLimited, Says: "limit reached", Clauses: []string{"back 15:54"}, Short: []string{"limit reached", "15:54"}, Back: at(1, 15, 54).UTC()},
 		},
 		{
-			name:    "a limit before its token refused",
+			name:    "a limit before its token refused, back once the refusal, the later, ends",
 			account: with(with(readNow(0.98, 0.3, 0), limited("5h")), refusing(401, "")),
-			want:    status.Routing{Kind: status.RoutingLimited, Says: "limit reached", Clauses: []string{"back 15:54"}, Short: []string{"limit reached", "15:54"}, Back: at(1, 15, 54).UTC()},
+			want:    status.Routing{Kind: status.RoutingLimited, Says: "limit reached", Clauses: []string{"back 21:40"}, Short: []string{"limit reached", "21:40"}, Back: at(1, 21, 40).UTC()},
+		},
+		{
+			name:    "a limit before its cap, back once its cap, the later, lets it go",
+			account: with(with(readNow(0.6, 0.92, 0), limited()), capped(0.1)),
+			others:  []status.Account{{ID: "side"}},
+			best:    "side",
+			want: status.Routing{
+				Kind: status.RoutingLimited, Says: "limit reached", Clauses: []string{"back Mon 21:00"}, Short: []string{"limit reached", "Mon 21:00"}, Back: at(5, 21, 0).UTC(),
+			},
+		},
+		{
+			name:    "a limit outlasting its cap, back as it lifts",
+			account: with(with(readNow(0.92, 0.3, 0), limited()), func(a *status.Account) { a.Reserve, a.Limit.Until = 0.1, at(1, 18, 0).UTC() }),
+			want:    status.Routing{Kind: status.RoutingLimited, Says: "limit reached", Clauses: []string{"back 18:00"}, Short: []string{"limit reached", "18:00"}, Back: at(1, 18, 0).UTC()},
 		},
 		{
 			name:    "at Fable's week's limit",

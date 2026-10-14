@@ -3,6 +3,7 @@ package status_test
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -59,6 +60,7 @@ side · Side
   Fable week 104%  resets in 7m · Mon 14:19 · exhausted
   30d          5%
   burst      100%  exhausted
+  limit reached
 
 personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
@@ -1168,12 +1170,92 @@ func TestRefusal(t *testing.T) {
 	}
 }
 
+// status's text says a limit holding an account back as the moment's hold
+// has it, whatever the router's limit says, or where there's none, as
+// probing reads it: of one holding back every request, until the account's
+// back from every hold, its cap and its token's refusal too; of one holding
+// back some models' alone, until it lifts; and that it's reached alone where
+// that isn't known.
+func TestTextSaysALimitTillTheAccountsBack(t *testing.T) {
+	now := built.In(time.FixedZone("UTC+1", 60*60))
+	routerLimit := func(windows ...string) func(*status.Account) {
+		return func(a *status.Account) {
+			a.Limit = status.Limit{ID: 4, Windows: windows, Until: built.Add(40 * time.Minute)}
+		}
+	}
+	refused := func(a *status.Account) { a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401} }
+	tests := []struct {
+		name string
+		doc  status.Document
+		// want are the lines the text gives work of what holds it back.
+		want []string
+	}{
+		{
+			name: "the router's limit, till it lifts",
+			doc:  routerDocOf(with(readAt("work", spentIn("5h", 1, 40*time.Minute), windowIn("7d", 0.3, 3*day)), routerLimit("5h"))),
+			want: []string{"limit until Mon 14:52"},
+		},
+		{
+			name: "a limit, its cap holding it back longer: till its cap lets it go",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.5, 3*time.Hour), windowIn("7d", 0.85, 70*time.Minute)), func(a *status.Account) {
+				a.Reserve = 0.2
+				routerLimit()(a)
+			})),
+			want: []string{"limit until Mon 15:22"},
+		},
+		{
+			name: "a limit, its token refused longer: till the refusal ends",
+			doc:  routerDocOf(with(with(readAt("work", spentIn("5h", 1, 40*time.Minute), windowIn("7d", 0.3, 3*day)), routerLimit("5h")), refused)),
+			want: []string{"limit until Mon 15:12", "refused (401) until 15:12"},
+		},
+		{
+			name: "the router's limit, its week read spent too: till the week resets",
+			doc:  routerDocOf(with(readAt("work", spentIn("5h", 1, 40*time.Minute), spentIn("7d", 1, 2*day)), routerLimit("5h"))),
+			want: []string{"limit until Wed 14:12"},
+		},
+		{
+			name: "probed, its week read spent: till it resets",
+			doc:  status.Document{GeneratedAt: built, Source: status.SourceProbe, Accounts: []status.Account{readAt("work", windowIn("5h", 0.3, 3*time.Hour), spentIn("7d", 1, 2*day))}},
+			want: []string{"limit until Wed 14:12"},
+		},
+		{
+			name: "a model's own week at its limit, its cap holding back the rest longer: till the limit lifts",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.95, 3*day), spentIn("7d_oi", 1, 2*day)), func(a *status.Account) {
+				a.Reserve = 0.1
+				routerLimit("7d_oi")(a)
+			})),
+			want: []string{"limit until Wed 14:12"},
+		},
+		{
+			name: "its session read spent, when it resets not known",
+			doc:  routerDocOf(readAt("work", quota.Window{Key: "5h", Label: "Session", Utilization: 1, Status: quota.StatusRejected}, windowIn("7d", 0.3, 3*day))),
+			want: []string{"limit reached"},
+		},
+		{
+			name: "the router's limit lifted",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.3, 3*time.Hour)), func(a *status.Account) {
+				a.Limit = status.Limit{Until: built.Add(-time.Minute)}
+			})),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, l := range textOf(tt.doc.At(now, policy))["work"] {
+				if strings.HasPrefix(l, "limit ") || strings.HasPrefix(l, "refused ") {
+					got = append(got, l)
+				}
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("the text says %q of what holds work back, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestLimit(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	limit := status.Limit{Windows: []string{"5h"}, Until: time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC)}
-	if got, want := limit.Text(now), "limit until Mon 21:00"; got != want {
-		t.Errorf("Text() = %q, want %q, in now's time zone", got, want)
-	}
 	for _, tt := range []struct {
 		at   time.Time
 		want bool

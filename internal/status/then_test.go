@@ -479,23 +479,25 @@ func eventSince(a status.AccountNow, kind status.WasKind) time.Time {
 }
 
 // asTheMomentHasIt is how the moment has the account a stand, as Then says
-// it, by ROUTING's kind: held back from every request by a limit, back when
-// ROUTING says; its token refused, till the refusal ends; nothing read of
-// it; at its cap, which holds it back, back when ROUTING says; and room, as
-// a hold of some models' requests alone, a cap the global pin spends,
-// pressure and an idle window all leave it.
+// it, by ROUTING's kind, each hold lifting as that hold alone does, as Then
+// says a kind at a time, though another may hold the account back after it:
+// held back from every request by a limit, till its hold lifts; its token
+// refused, till the refusal ends; nothing read of it; at its cap, which
+// holds it back, till its cap lets it go; and room, as a hold of some
+// models' requests alone, a cap the global pin spends, pressure and an idle
+// window all leave it.
 func asTheMomentHasIt(a status.AccountNow) status.Was {
 	switch a.Routing.Kind {
 	case status.RoutingTokenless:
 		return status.Was{Kind: status.WasTokenless}
 	case status.RoutingLimited:
-		return status.Was{Kind: status.WasLimited, Until: a.Routing.Back}
+		return status.Was{Kind: status.WasLimited, Until: a.Hold.Until}
 	case status.RoutingRefused:
 		return status.Was{Kind: status.WasRefused, Until: a.Refusal.Until}
 	case status.RoutingUnreadable, status.RoutingUnread:
 		return status.Was{Kind: status.WasUnread}
 	case status.RoutingCapped:
-		return status.Was{Kind: status.WasCapped, Until: a.Routing.Back}
+		return status.Was{Kind: status.WasCapped, Until: a.CapBack}
 	}
 	return status.Was{Kind: status.WasRoom}
 }
