@@ -10,8 +10,6 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -45,7 +43,8 @@ var compareOut = outForm{above: " above", below: " below", gap: " · ", keys: "j
 
 // compared is Compare as a frame lays it out of a moment: the accounts its
 // columns show, from the first shown, then all accounts'; each colw cells
-// wide; and the key of the week every model shares, which WEEK USED shows.
+// wide; and the key of the accounts' own week, as the frame names it, which
+// WEEK USED shows.
 type compared struct {
 	f     Frame
 	m     status.Moment
@@ -88,7 +87,7 @@ func (f Frame) comparing(doc status.Document, now time.Time) compared {
 	shown := f.compareShows()
 	return compared{
 		f: f, m: m, now: now, page: f.Accounts.Page, first: f.compareFirst(), shown: shown,
-		colw: (f.Width - compareLabels) / (shown + 1), week: sharedWeekKey(m.Policy()),
+		colw: (f.Width - compareLabels) / (shown + 1), week: f.WeekWindow,
 	}
 }
 
@@ -131,15 +130,6 @@ func (f Frame) compareState() []line {
 	which := line{{fmt.Sprintf("accounts %d–%d of %d", first+1, first+shown, n), faintInk}}
 	moves := slices.Concat(which, line{{"  ·  ", faintInk}, {"←→", keyInk}, {" moves along them", faintInk}})
 	return []line{slices.Concat(moves, line{{"; all accounts stays put", faintInk}}), moves, which}
-}
-
-// sharedWeekKey is the key of the window a week long that every model
-// shares, as policy names it: the accounts' own week.
-func sharedWeekKey(policy score.Policy) string {
-	if i := slices.IndexFunc(policy.Shared, quota.WeekLong); i >= 0 {
-		return policy.Shared[i]
-	}
-	return ""
 }
 
 // columns are Compare's columns: each account's shown, from the first, then

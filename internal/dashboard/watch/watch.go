@@ -747,6 +747,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
+		WeekWindow: m.cfg.WeekWindow,
 		Accounts:   m.accounts.shown,
 		History:    m.past.page,
 		Session:    m.session.frame(),

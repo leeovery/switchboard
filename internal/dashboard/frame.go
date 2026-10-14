@@ -107,6 +107,10 @@ type Frame struct {
 	// as "5-hour" or "Fable week": nil names it by its label in the
 	// document, as status.NameOfWindow has it.
 	WindowName func(key string) string
+	// WeekWindow is the key of the window a week long every model shares,
+	// the accounts' own week, as the config names it: the week Accounts'
+	// WEEK USED shows, and its page reads the weeks of.
+	WeekWindow string
 	// Accounts is Accounts' sub-tab shown, its period, what's chosen in it,
 	// and its page.
 	Accounts AccountsShown

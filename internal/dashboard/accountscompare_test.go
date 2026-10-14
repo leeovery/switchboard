@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -193,7 +194,7 @@ var threeFramed = config.Accounts{{ID: "work"}, {ID: "personal", Primary: true},
 // accounts configured and the period's page given.
 func compareFrame(t *testing.T, configured config.Accounts, page views.AccountsPage) Frame {
 	f := frameOf(160, 37)
-	f.View, f.Look = Accounts, Screen(builtin(t, "nord"))
+	f.View, f.Look, f.WeekWindow = Accounts, Screen(builtin(t, "nord")), "7d"
 	f.Accounts = AccountsShown{Period: page.Period, Accounts: configured, Page: &page}
 	return f
 }
@@ -565,6 +566,32 @@ func TestCompareScrollsItsRowsUnderItsHeadsHeld(t *testing.T) {
 	f.Height = 37
 	if rows := f.Draw(doc, routedAt); strings.TrimSpace(rows[35]) != "" {
 		t.Errorf("with room for every row, the row over the key line is %q, want it blank", rows[35])
+	}
+}
+
+// percentages match a percentage, or the dash said for none.
+var percentages = regexp.MustCompile(`\d+%|—`)
+
+// WEEK USED shows the week the frame names the accounts' own, as Accounts'
+// page reads it, whatever the policy shares: of every account, and of all
+// accounts; and nothing of a week the frame names none.
+func TestWEEKUSEDShowsTheWeekTheFrameNames(t *testing.T) {
+	tests := []struct {
+		name, week string
+		want       []string
+	}{
+		{name: "the accounts' week", week: "7d", want: []string{"34%", "66%", "78%", "59%"}},
+		{name: "Fable's week named so", week: "7d_oi", want: []string{"12%", "0%", "4%", "5%"}},
+		{name: "none named", want: []string{"—", "—", "—", "—"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, doc := threeCompared(t, 160, 37)
+			f.WeekWindow = tt.week
+			if got := percentages.FindAllString(f.Draw(doc, routedAt)[9], -1); !slices.Equal(got, tt.want) {
+				t.Errorf("WEEK USED reads %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
