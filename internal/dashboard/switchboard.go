@@ -138,9 +138,10 @@ func (d boardDrawn) cord(c *canvas, lc laidCall, works bool) {
 // key draws the key, the Overview's, on its two rows, where the layout gives
 // them, a cell after the lines' column: even pace's on the first; the cap's,
 // on the bars the layout draws, and the marks the accounts carry on the
-// second. A row that would pass the last column starts at column 0.
+// second. A row that would pass the last column starts at column 0. With
+// no lines, it has nothing to key, and draws none.
 func (d boardDrawn) key(c *canvas) {
-	if d.laid.keyAt < 0 {
+	if d.laid.keyAt < 0 || len(d.laid.lines) == 0 {
 		return
 	}
 	m := d.lines.m
