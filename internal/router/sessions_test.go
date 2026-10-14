@@ -112,8 +112,8 @@ func TestForgetForgetsAnAssignmentWhileItsRequestWasTheLastNotedOnIt(t *testing.
 			tt.since(s)
 			before := changes
 
-			if left, back, forgot := s.forget(req); left != tt.wantLeft || back != "" || forgot != tt.wantForgot {
-				t.Errorf("forget() = %q, %q, %v, want %q, \"\", %v", left, back, forgot, tt.wantLeft, tt.wantForgot)
+			if left, back, forgot := s.forget(req); left.Account != tt.wantLeft || back != (assignment{}) || forgot != tt.wantForgot {
+				t.Errorf("forget() = %+v, %+v, %v, want one on %q, none, %v", left, back, forgot, tt.wantLeft, tt.wantForgot)
 			}
 			if got := s.lookup(req.key()); got.assigned != (tt.want != "") || got.current.Account != tt.want {
 				t.Errorf("the session is assigned %+v (%v), want %q", got.current, got.assigned, tt.want)
@@ -190,8 +190,8 @@ func TestForgetPutsASessionBackAsItWasBeforeTheRequest(t *testing.T) {
 			before := changes
 
 			left, back, ok := s.forget(req)
-			if wantBack := map[bool]string{true: "work"}[tt.wantBack]; left != tt.wantLeft || back != wantBack || ok != tt.wantBack {
-				t.Errorf("forget() = %q, %q, %v, want %q, %q, %v", left, back, ok, tt.wantLeft, wantBack, tt.wantBack)
+			if wantBack := map[bool]assignment{true: onWork}[tt.wantBack]; left.Account != tt.wantLeft || back != wantBack || ok != tt.wantBack {
+				t.Errorf("forget() = %+v, %+v, %v, want one on %q, %+v, %v", left, back, ok, tt.wantLeft, wantBack, tt.wantBack)
 			}
 			if got := s.lookup(req.key()).current; got != tt.want {
 				t.Errorf("the session is assigned %+v, want %+v", got, tt.want)
