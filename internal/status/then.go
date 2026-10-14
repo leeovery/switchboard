@@ -54,21 +54,79 @@ func (s Span) holds(t time.Time) bool {
 	return !t.Before(s.From) && s.Until.After(t)
 }
 
+// Told are the holds of the account with the given id that the router told
+// of and the readings history can't show, as Then takes them: those its
+// events tell, as toldBy has them, newest first; then its limit naming no
+// window, and the refusal of its token, where either holds at Now and none
+// told of its kind holds then, as where the router no longer keeps its event,
+// from before anything.
+func (m Moment) Told(id string) []Span {
+	told := m.doc.toldBy(id)
+	a, _ := m.doc.Account(id)
+	if a.Limit.holds(m.Now) && len(a.Limit.Windows) == 0 {
+		told = untold(told, Span{Kind: WasLimited, Until: a.Limit.Until}, m.Now)
+	}
+	if a.Refused.holds(m.Now) && a.Refused.Family == "" {
+		told = untold(told, Span{Kind: WasRefused, Until: a.Refused.Until}, m.Now)
+	}
+	return told
+}
+
+// toldBy are the holds of the account with the given id that the router's
+// events tell, as the document gives them, newest first: each limit naming
+// no window, till its until, or the account's room after it, as roomAfter
+// has it, where that comes first, as the router keeps a limit's until as it
+// lifts early and tells of the room instead; and each refusal of its token,
+// till its until, which the router brings forward as a refusal lifts early.
+func (d Document) toldBy(id string) []Span {
+	var told []Span
+	for _, e := range d.Events {
+		switch {
+		case e.Account != id:
+		case e.Kind == EventLimit && len(e.Windows) == 0:
+			told = append(told, Span{Kind: WasLimited, From: e.At, Until: d.roomAfter(id, e.At, e.Until)})
+		case e.Kind == EventRefused && e.Family == "":
+			told = append(told, Span{Kind: WasRefused, From: e.At, Until: e.Until})
+		}
+	}
+	return told
+}
+
+// roomAfter is when the router told of the account with the given id having
+// room again first after from and before until, else until.
+func (d Document) roomAfter(id string, from, until time.Time) time.Time {
+	for _, e := range d.Events {
+		if e.Kind == EventRoom && e.Account == id && e.At.After(from) && e.At.Before(until) {
+			until = e.At
+		}
+	}
+	return until
+}
+
+// untold is the spans told, with s, a hold holding at now, added where none
+// of its kind told holds then.
+func untold(told []Span, s Span, now time.Time) []Span {
+	if slices.ContainsFunc(told, func(held Span) bool { return held.Kind == s.Kind && held.holds(now) }) {
+		return told
+	}
+	return append(told, s)
+}
+
 // Then is how the moment's account a stood at t: one rule for every moment
 // gone, live or stepped back to, which at Now agrees with how the moment has
 // the account stand. It goes by the readings history's readings given,
 // oldest first, as the history reads them, of the windows the moment's
 // policy says every model shares, each by its last reading by t, a window
 // whose reset has passed by then counting as reset, unused; and by the holds
-// the router told of that the readings can't show. Its kind is the first
-// that holds of: without a usable token now, none at any moment; a limit
-// told of, or a window read spent, holding at t; its token refused, as told
-// of; nothing read by t; its cap, where its reserve holds now, a window read
-// at where its reserve, as configured now, starts, as the readings keep no
-// reserve; and room. Of a hold, Since is when the first part of what holds
-// it at t began: a told hold's From, or the first reading, of those given,
-// of the unbroken run of a window's readings that shows it; and Until is when
-// the last part lifts, zero where one lifts at no known time.
+// the router told of that the readings can't show, as Told has them. Its
+// kind is the first that holds of: without a usable token now, none at any
+// moment; a limit told of, or a window read spent, holding at t; its token
+// refused, as told of; nothing read by t; its cap, where its reserve holds
+// now, a window read at where its reserve, as configured now, starts, as the
+// readings keep no reserve; and room. Of a hold, Since is when the first part
+// of what holds it at t began: a told hold's From, or the first reading, of
+// those given, of the unbroken run of a window's readings that shows it; and
+// Until is when the last part lifts, zero where one lifts at no known time.
 func (m Moment) Then(a AccountNow, read []readings.Reading, told []Span, t time.Time) Was {
 	if !a.TokenSet {
 		return Was{Kind: WasTokenless}

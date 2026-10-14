@@ -180,14 +180,23 @@ func TestTheMomentGuardFindsWhatItGuardsAgainst(t *testing.T) {
 }
 
 // How an account stood at a moment gone is worked out by status, for a view
-// to draw the past by: Then takes none of the wire's types, so a view calls
-// it without callsAllowed naming it.
+// to draw the past by: Then, and Told, which gives it the holds the router
+// told of, take and give none of the wire's types, so a view calls them
+// without callsAllowed naming them.
 func TestAViewMayAskHowAnAccountStoodThen(t *testing.T) {
-	then := reflect.TypeOf(status.Moment.Then)
-	for i := range then.NumIn() {
-		if wire := wireTypeIn(then.In(i)); wire != "" {
-			t.Errorf("Then takes the wire's %s, as its argument %d; want none, so a view may call it", wire, i)
-		}
+	methods := []struct {
+		name   string
+		method any
+	}{
+		{name: "Then", method: status.Moment.Then},
+		{name: "Told", method: status.Moment.Told},
+	}
+	for _, m := range methods {
+		t.Run(m.name, func(t *testing.T) {
+			if wire := wireTypeIn(reflect.TypeOf(m.method)); wire != "" {
+				t.Errorf("%s takes or gives the wire's %s; want none, so a view may call it", m.name, wire)
+			}
+		})
 	}
 }
 

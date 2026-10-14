@@ -2,6 +2,8 @@ package status_test
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -248,7 +250,7 @@ func TestThenAtNowIsHowTheMomentHasEachAccountStand(t *testing.T) {
 			m := hm.Doc.At(hm.Now, policy)
 			for i, a := range m.Accounts {
 				read := hm.Doc.Accounts[i]
-				if got, want := m.Then(a, readingsOf(read), toldOf(read, a, m.Now), m.Now), asTheMomentHasIt(a); got.Kind != want.Kind || !got.Until.Equal(want.Until) {
+				if got, want := m.Then(a, readingsOf(read), m.Told(a.ID), m.Now), asTheMomentHasIt(a); got.Kind != want.Kind || !got.Until.Equal(want.Until) {
 					t.Errorf("Then(%s, Now) = %s, want %s, as the moment has it", a.ID, wasString(got), wasString(want))
 				}
 			}
@@ -265,19 +267,132 @@ func readingsOf(a status.Account) []readings.Reading {
 	return readings.Of(a.ID, a.Windows, a.FetchedAt, readings.FromAnswer)
 }
 
-// toldOf are the holds of the account a, read as its document has it, at
-// now as an, that the router told of and the readings can't show: its limit
-// naming no window, and the refusal of its token, each holding at now, from
-// when it began, as the moment has it.
-func toldOf(a status.Account, an status.AccountNow, now time.Time) []status.Span {
-	var told []status.Span
-	if a.Limit.Holds(now) && len(a.Limit.Windows) == 0 {
-		told = append(told, status.Span{Kind: status.WasLimited, From: an.LimitSince, Until: a.Limit.Until})
+// The holds the router told of that the readings can't show, as Then takes
+// them: a limit naming no window, as its event tells, till it lifts, or till
+// the account has room again, as the router tells of a limit lifting early
+// without bringing its event's until forward; the refusal of its token, as its
+// event tells, whose until the router does bring forward; and either holding
+// at Now that no event tells of, from before anything.
+func TestTheHoldsTheRouterToldOf(t *testing.T) {
+	unnamed := status.Event{At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "work", Until: at(1, 15, 30).UTC(), Limit: 3}
+	refused := status.Event{At: at(1, 14, 12).UTC(), Kind: status.EventRefused, Account: "work", Until: at(1, 15, 0).UTC(), Status: 401}
+	// earlier is a limit naming no window from 12:00, held till 13:30.
+	earlier := status.Event{At: at(1, 12, 0).UTC(), Kind: status.EventLimit, Account: "work", Until: at(1, 13, 30).UTC(), Limit: 2}
+	roomAt := func(h, m int) status.Event {
+		return status.Event{At: at(1, h, m).UTC(), Kind: status.EventRoom, Account: "work"}
 	}
-	if a.Refused.Holds(now) && a.Refused.Family == "" {
-		told = append(told, status.Span{Kind: status.WasRefused, From: an.RefusedSince, Until: a.Refused.Until})
+	limitHolding := status.Limit{ID: 3, Until: at(1, 15, 30).UTC()}
+	refusalHolding := status.Refusal{Until: at(1, 15, 0).UTC(), Status: 401}
+	tests := []struct {
+		name string
+		// events are the router's, newest first; limit and refused are
+		// work's, as its document has them.
+		events  []status.Event
+		limit   status.Limit
+		refused status.Refusal
+		want    []status.Span
+	}{
+		{name: "none"},
+		{
+			name: "a limit naming no window, as its event tells", events: []status.Event{unnamed}, limit: limitHolding,
+			want: []status.Span{{Kind: status.WasLimited, From: at(1, 14, 20), Until: at(1, 15, 30)}},
+		},
+		{
+			name:   "a limit naming a window, which the readings show",
+			events: []status.Event{{At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: at(1, 17, 10).UTC(), Limit: 4}},
+			limit:  status.Limit{ID: 4, Windows: []string{"5h"}, Until: at(1, 17, 10).UTC()},
+		},
+		{
+			name: "a limit naming no window, lifted early, as the room after it tells", events: []status.Event{roomAt(13, 10), earlier},
+			want: []status.Span{{Kind: status.WasLimited, From: at(1, 12, 0), Until: at(1, 13, 10)}},
+		},
+		{
+			name: "a limit naming no window, lifted on time, the room after it of its cap", events: []status.Event{roomAt(14, 0), earlier},
+			want: []status.Span{{Kind: status.WasLimited, From: at(1, 12, 0), Until: at(1, 13, 30)}},
+		},
+		{
+			name: "a limit naming no window, the room before it of an older hold", events: []status.Event{unnamed, roomAt(14, 0)}, limit: limitHolding,
+			want: []status.Span{{Kind: status.WasLimited, From: at(1, 14, 20), Until: at(1, 15, 30)}},
+		},
+		{
+			name:   "a limit naming no window, the room after it another account's",
+			events: []status.Event{{At: at(1, 13, 10).UTC(), Kind: status.EventRoom, Account: "side"}, earlier},
+			want:   []status.Span{{Kind: status.WasLimited, From: at(1, 12, 0), Until: at(1, 13, 30)}},
+		},
+		{
+			name: "its token refused, as its event tells", events: []status.Event{refused}, refused: refusalHolding,
+			want: []status.Span{{Kind: status.WasRefused, From: at(1, 14, 12), Until: at(1, 15, 0)}},
+		},
+		{
+			name:   "its token refused, lifted early, the router bringing its until forward, the room after it of its cap",
+			events: []status.Event{roomAt(14, 20), {At: at(1, 14, 12).UTC(), Kind: status.EventRefused, Account: "work", Until: at(1, 14, 30).UTC(), Status: 401}},
+			want:   []status.Span{{Kind: status.WasRefused, From: at(1, 14, 12), Until: at(1, 14, 30)}},
+		},
+		{
+			name:    "a model family refused, which holds some models' requests alone",
+			events:  []status.Event{{At: at(1, 14, 12).UTC(), Kind: status.EventRefused, Account: "work", Until: at(1, 15, 0).UTC(), Status: 429, Family: "fable"}},
+			refused: status.Refusal{Until: at(1, 15, 0).UTC(), Status: 429, Family: "fable"},
+		},
+		{
+			name: "another account's",
+			events: []status.Event{
+				{At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "side", Until: at(1, 15, 30).UTC(), Limit: 5},
+				{At: at(1, 14, 12).UTC(), Kind: status.EventRefused, Account: "side", Until: at(1, 15, 0).UTC(), Status: 401},
+			},
+		},
+		{
+			name: "a limit naming no window holding at Now, no event telling", limit: limitHolding,
+			want: []status.Span{{Kind: status.WasLimited, Until: at(1, 15, 30)}},
+		},
+		{
+			name: "its token refused at Now, no event telling", refused: refusalHolding,
+			want: []status.Span{{Kind: status.WasRefused, Until: at(1, 15, 0)}},
+		},
+		{
+			name: "a limit naming no window holding at Now, an older one's event told", events: []status.Event{earlier}, limit: limitHolding,
+			want: []status.Span{{Kind: status.WasLimited, From: at(1, 12, 0), Until: at(1, 13, 30)}, {Kind: status.WasLimited, Until: at(1, 15, 30)}},
+		},
+		{
+			name:   "a limit naming no window holding at Now, as an event without its identity tells, as a router from before limits had them",
+			events: []status.Event{{At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "work", Until: at(1, 15, 30).UTC()}},
+			limit:  status.Limit{Until: at(1, 15, 30).UTC()},
+			want:   []status.Span{{Kind: status.WasLimited, From: at(1, 14, 20), Until: at(1, 15, 30)}},
+		},
+		{
+			name: "a limit naming no window holding at Now untold, its token's refusal told", events: []status.Event{refused}, limit: limitHolding, refused: refusalHolding,
+			want: []status.Span{{Kind: status.WasRefused, From: at(1, 14, 12), Until: at(1, 15, 0)}, {Kind: status.WasLimited, Until: at(1, 15, 30)}},
+		},
+		{
+			name: "both, each as its event tells", events: []status.Event{unnamed, refused}, limit: limitHolding, refused: refusalHolding,
+			want: []status.Span{{Kind: status.WasLimited, From: at(1, 14, 20), Until: at(1, 15, 30)}, {Kind: status.WasRefused, From: at(1, 14, 12), Until: at(1, 15, 0)}},
+		},
 	}
-	return told
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := workAt(func(d *status.Document) {
+				d.Events, d.Accounts[0].Limit, d.Accounts[0].Refused = tt.events, tt.limit, tt.refused
+			})
+			if got := m.Told("work"); !slices.EqualFunc(got, tt.want, sameSpan) {
+				t.Errorf("Told(work) = %s, want %s", spansString(got), spansString(tt.want))
+			}
+		})
+	}
+}
+
+// sameSpan reports whether a and b say the same, their times the same
+// instants.
+func sameSpan(a, b status.Span) bool {
+	return a.Kind == b.Kind && a.From.Equal(b.From) && a.Until.Equal(b.Until)
+}
+
+// spansString shows the spans, their times on their days as stateNow's zone
+// has them.
+func spansString(spans []status.Span) string {
+	shown := make([]string, len(spans))
+	for i, s := range spans {
+		shown[i] = fmt.Sprintf("{Kind:%d From:%s Until:%s}", s.Kind, onDay(s.From), onDay(s.Until))
+	}
+	return "[" + strings.Join(shown, " ") + "]"
 }
 
 // When a hold began is told by the router's event of it, as the moment has
@@ -340,7 +455,7 @@ func TestWhenAHoldBeganByItsEventAndByItsReadings(t *testing.T) {
 			doc := status.Document{GeneratedAt: stateNow.UTC(), Source: status.SourceRouter, Accounts: []status.Account{tt.account}, Events: tt.events}
 			m := doc.At(stateNow, policy)
 			a := m.Accounts[0]
-			was := m.Then(a, tt.read, toldOf(tt.account, a, m.Now), m.Now)
+			was := m.Then(a, tt.read, m.Told(a.ID), m.Now)
 			if was.Kind != tt.kind || !eventSince(a, tt.kind).Equal(tt.event) || !was.Since.Equal(tt.reading) {
 				t.Errorf("Then(work, Now) = %s, its event telling it began at %s; want of kind %d, as its event tells at %s, as its readings tell at %s",
 					wasString(was), onDay(eventSince(a, tt.kind)), tt.kind, onDay(tt.event), onDay(tt.reading))
