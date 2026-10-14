@@ -93,6 +93,9 @@ func TestAnAccountsStateInAWordIsPickedOutOnlyWhereItTurns(t *testing.T) {
 	if routing, worded := h.changed(), h.worded(); !slices.Equal(routing, []string{"work"}) || !slices.Equal(worded, []string{"work"}) {
 		t.Errorf("as work reached its cap, picked out %v in ROUTING and %v in a word, want work in both", routing, worded)
 	}
+	if drawn := slices.Sorted(maps.Keys(h.model.frame(h.clock.now).StateChanged)); !slices.Equal(drawn, []string{"work"}) {
+		t.Errorf("the frame cues %v's states in a word, want work's", drawn)
+	}
 }
 
 func TestAStateTheClockChangesIsPickedOutAsItTicks(t *testing.T) {

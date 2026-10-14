@@ -117,19 +117,22 @@ func (f Frame) CompareFirst(id string) int {
 }
 
 // compareState is what Compare's heading says after [ ] where it shows fewer
-// accounts than there are, in forms each a clause shorter than the one
-// before: which it shows, as "accounts 1–6 of 10", that ←→ moves along them,
-// and that all accounts stays put. It says nothing on a phone, whose Compare
-// shows every account a row.
+// accounts than there are: which it shows, as "accounts 1–6 of 10", that ←→
+// moves along them, and that all accounts stays put; and, a clause shorter,
+// for less room, without the last. The heading's room at 100 columns holds
+// the shorter form, so none shorter is needed. It says nothing on a phone,
+// whose Compare shows every account a row.
 func (f Frame) compareState() []line {
 	n, shown := len(f.Accounts.Accounts), f.compareShows()
 	if f.phone() || shown >= n {
 		return nil
 	}
 	first := f.compareFirst()
-	which := line{{fmt.Sprintf("accounts %d–%d of %d", first+1, first+shown, n), faintInk}}
-	moves := slices.Concat(which, line{{"  ·  ", faintInk}, {"←→", keyInk}, {" moves along them", faintInk}})
-	return []line{slices.Concat(moves, line{{"; all accounts stays put", faintInk}}), moves, which}
+	moves := line{
+		{fmt.Sprintf("accounts %d–%d of %d", first+1, first+shown, n), faintInk},
+		{"  ·  ", faintInk}, {"←→", keyInk}, {" moves along them", faintInk},
+	}
+	return []line{slices.Concat(moves, line{{"; all accounts stays put", faintInk}}), moves}
 }
 
 // columns are Compare's columns: each account's shown, from the first, then
