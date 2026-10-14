@@ -13,7 +13,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-stills=" runway-week phone help "
+stills=" runway-week phone help history-year accounts-compare log-requests session "
 
 names=("$@")
 if [ ${#names[@]} -eq 0 ]; then
