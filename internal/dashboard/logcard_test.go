@@ -463,7 +463,8 @@ func TestAnEventsCardSaysHowItsAccountStoodThen(t *testing.T) {
 // then they leave from the first, esc staying.
 func TestALogCardsKeysFitItsContent(t *testing.T) {
 	session := "d28c5e17-0000-4000-8000-000000000001"
-	request := LogCard{Request: &views.RequestDetails{Row: views.RequestRow{Session: session}}}
+	request := LogCard{Request: &views.RequestDetails{Row: views.RequestRow{Session: session, CountedSession: session}}}
+	unshown := "\x1b\x07"
 	tests := []struct {
 		name    string
 		card    LogCard
@@ -475,6 +476,8 @@ func TestALogCardsKeysFitItsContent(t *testing.T) {
 		{name: "a request of none", card: LogCard{Request: &views.RequestDetails{}}, content: 122, want: "↑↓ previous/next request   esc close"},
 		{name: "a quota check, of no session", card: LogCard{Request: &views.RequestDetails{Row: views.RequestRow{Session: session, Kind: views.RowCheck}}}, content: 122,
 			want: "↑↓ previous/next request   esc close"},
+		{name: "a session whose id shows as nothing, as the title has it", card: LogCard{Request: &views.RequestDetails{Row: views.RequestRow{Session: unshown, CountedSession: unshown}}},
+			content: 122, want: "↑↓ previous/next request   esc close"},
 		{name: "an event of none", card: LogCard{Event: &views.EventDetails{}}, content: 122, want: "↑↓ previous/next event   g in Requests   esc close"},
 		{name: "an event of a session", card: LogCard{Event: &views.EventDetails{Row: views.LogEvent{Session: session}}}, content: 122,
 			want: "↑↓ previous/next event   g in Requests   s its session   esc close"},

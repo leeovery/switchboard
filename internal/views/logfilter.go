@@ -48,7 +48,7 @@ func (f LogFilter) hiding(p placedRow) hidden {
 // chose reports whether the filter's choices but its kinds keep the row p.
 func (f LogFilter) chose(p placedRow) bool {
 	r := p.row
-	return ticked(f.Accounts, r.Account) && ticked(f.Models, r.Model) && ticked(f.Sessions, p.session) && (!f.Failed || r.Failed)
+	return ticked(f.Accounts, r.Account) && ticked(f.Models, r.Model) && ticked(f.Sessions, r.CountedSession) && (!f.Failed || r.Failed)
 }
 
 // hidden is what of a filter hides a row.
@@ -147,7 +147,7 @@ func (c *LogCount) add(p placedRow, hid hidden) {
 	if r.Failed {
 		c.Failed++
 	}
-	c.Models, c.Accounts, c.Sessions = tally(c.Models, r.Model), tally(c.Accounts, r.Account), tally(c.Sessions, p.session)
+	c.Models, c.Accounts, c.Sessions = tally(c.Models, r.Model), tally(c.Accounts, r.Account), tally(c.Sessions, r.CountedSession)
 	switch hid {
 	case notHidden:
 		c.Shown++

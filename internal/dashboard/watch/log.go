@@ -194,7 +194,7 @@ func (m Model) logListings() []keyListing {
 		{Key: logViewKey, works: log, apart: true},
 		{Key: m.logChooseKey(), works: log, apart: true},
 		{Key: logOpenKey, works: log},
-		{Key: dashboard.Key{Key: "s", Does: "its session"}, works: log && m.chosenSession() != "", wide: true},
+		{Key: dashboard.Key{Key: "s", Does: "its session"}, works: log && p.ChosenSession() != "", wide: true},
 		{Key: logFollowKey, works: log && paused},
 		{Key: dashboard.Key{Key: "f", Does: "what it shows"}, works: log, apart: paused, wide: true},
 		{Key: dashboard.Key{Key: "/", Does: "find"}, works: log, wide: true},
@@ -228,26 +228,12 @@ func (m Model) logPhoneKeys() []dashboard.Key {
 	return append(keys, logViewKey)
 }
 
-// chosenSession is the whole id of the session the Log's line chosen is
-// of, whose page s opens: a request's, as its row counts it, none for a
-// quota check; an event's; none where nothing is chosen, or of an account's
-// event.
-func (m Model) chosenSession() string {
-	row, event, ok := m.log.page.Chosen()
-	switch {
-	case !ok:
-		return ""
-	case event != nil:
-		return event.Session
-	}
-	return row.CountedSession()
-}
-
 // openLineSession opens the page of the session the Log's line chosen is
-// of, as s does, as openSession has it, over the Log, which waits under it
-// paused at that line for esc to come back to: nothing where it's of none.
+// of, as ChosenSession has it, as s does, as openSession has it, over the
+// Log, which waits under it paused at that line for esc to come back to:
+// nothing where it's of none.
 func (m Model) openLineSession() (Model, tea.Cmd) {
-	id := m.chosenSession()
+	id := m.log.page.ChosenSession()
 	if id == "" {
 		return m, nil
 	}
