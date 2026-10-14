@@ -58,15 +58,16 @@ func (m Model) finding() bool {
 }
 
 // logFindKey acts on a key while the Log's find is open, which takes every
-// key but ctrl+c: esc cancels it; enter filters both tables to the session
-// picked, as foundPicked has it; ↑ and ↓ step the pick; backspace takes
-// back what was typed last; and a printable key, space among them, types,
-// the pick going back to the first found. The rest do nothing.
+// key but ctrl+c: esc cancels it, dropping a session's page asked to open,
+// as esc on the page does, as unasked has it; enter filters both tables to
+// the session picked, as foundPicked has it; ↑ and ↓ step the pick;
+// backspace takes back what was typed last; and a printable key, space among
+// them, types, the pick going back to the first found. The rest do nothing.
 func (m Model) logFindKey(key string) (tea.Model, tea.Cmd) {
 	f := m.log.page.Finding
 	switch key {
 	case "esc":
-		f = dashboard.LogFinding{}
+		f, m = dashboard.LogFinding{}, m.unasked()
 	case "enter":
 		return m.foundPicked(), nil
 	case "up":

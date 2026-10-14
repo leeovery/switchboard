@@ -175,19 +175,22 @@ func TestAPageAskedToOpenOpensNothingOnceLeftBeforeItsLinesAreRead(t *testing.T)
 	}
 }
 
-// On the Log, esc acts as the Log has it, and drops a session's page asked
-// to open all the same, as s asks one: paused, the Log follows again, and
-// following, it stays as it is; either way the page's read opens nothing as
-// it lands. Left alone, the read opens the page over the Log, paused as it
-// was.
+// On the Log, esc acts as the Log has it, the newest first: its find, then
+// a pause, then a filter; and drops a session's page asked to open all the
+// same, as s asks one, so its read opens nothing as it lands. Left alone,
+// the read opens the page over the Log, paused as it was.
 func TestEscOnTheLogDropsAPageAskedToOpenAsTheLogTakesIt(t *testing.T) {
 	tests := []struct {
-		name        string
-		paused, esc bool
+		name                            string
+		filtered, paused, finding, esc  bool
+		wantFiltered, wantPaused, opens bool
 	}{
-		{name: "paused, esc", paused: true, esc: true},
+		{name: "paused, esc: following again", paused: true, esc: true},
+		{name: "paused and filtered, esc: following again, the filter kept", filtered: true, paused: true, esc: true, wantFiltered: true},
+		{name: "filtered, esc: the filter let go", filtered: true, esc: true},
+		{name: "finding, paused and filtered, esc: the find closed alone", filtered: true, paused: true, finding: true, esc: true, wantFiltered: true, wantPaused: true},
 		{name: "following, esc", esc: true},
-		{name: "paused, no esc", paused: true},
+		{name: "paused, no esc: the page opens", paused: true, wantPaused: true, opens: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -196,18 +199,25 @@ func TestEscOnTheLogDropsAPageAskedToOpenAsTheLogTakesIt(t *testing.T) {
 			h := routedHarness(t, routerDocument(three()...))
 			onTheLog(h, state)
 			h.start()
+			if tt.filtered {
+				h.model.log.page = h.model.log.page.FoundOnly(idD28C)
+			}
 			if tt.paused {
 				h.keys(upKey)
 			}
 			next, read := h.model.openSession(idD28C)
 			h.model = next
+			if tt.finding {
+				h.typed("/")
+			}
 			if tt.esc {
 				h.keys(escKey)
 			}
 			h.deliver(h.run(read)...)
-			opened, paused := h.model.session != nil, h.model.log.page.Paused()
-			if opened == tt.esc || paused != (tt.paused && !tt.esc) {
-				t.Errorf("the read landed: a page open %t, the Log paused %t; want a page open %t, the Log paused %t", opened, paused, !tt.esc, tt.paused && !tt.esc)
+			p := h.model.log.page
+			if opened := h.model.session != nil; opened != tt.opens || p.Filtered() != tt.wantFiltered || p.Paused() != tt.wantPaused || p.Finding.Open {
+				t.Errorf("the read landed: a page open %t, the Log filtered %t, paused %t, finding %t; want a page open %t, filtered %t, paused %t, not finding",
+					opened, p.Filtered(), p.Paused(), p.Finding.Open, tt.opens, tt.wantFiltered, tt.wantPaused)
 			}
 		})
 	}
