@@ -224,3 +224,32 @@ func TestHistorysPeriodsAndSplitsAsTheKeyLineNamesThem(t *testing.T) {
 		}
 	}
 }
+
+// v names what it has the sub-tab shown show only where that changes what
+// the frame draws: on Weeks, where a shape takes its wide form, as the table
+// does from 100 columns, its page built or not; never on a phone, whose form
+// is neither. Tokens' splits show on a phone too.
+func TestVNamesWhatItShowsOnlyWhereItChangesWhatsDrawn(t *testing.T) {
+	weeks := threeWeeks()
+	tests := []struct {
+		name  string
+		page  HistoryPage
+		width int
+		want  string
+	}{
+		{name: "Weeks' table at 160", page: HistoryPage{Shown: HistoryWeeks, Weeks: &weeks}, width: 160, want: "table"},
+		{name: "Weeks' columns at 100", page: HistoryPage{Shown: HistoryWeeks, WeeksShape: WeeksColumns, Weeks: &weeks}, width: 100, want: "columns"},
+		{name: "Weeks on a phone of 99", page: HistoryPage{Shown: HistoryWeeks, Weeks: &weeks}, width: 99},
+		{name: "Weeks' columns on a phone", page: HistoryPage{Shown: HistoryWeeks, WeeksShape: WeeksColumns, Weeks: &weeks}, width: 52},
+		{name: "Weeks unbuilt at 160", page: HistoryPage{Shown: HistoryWeeks}, width: 160, want: "table"},
+		{name: "Weeks unbuilt on a phone", page: HistoryPage{Shown: HistoryWeeks}, width: 52},
+		{name: "Tokens on a phone", page: HistoryPage{Shown: HistoryTokens, TokensSplit: TokensByModel}, width: 52, want: "by model"},
+	}
+	for _, tt := range tests {
+		f := frameOf(tt.width, 37)
+		f.View, f.History = History, tt.page
+		if got := f.Split(); got != tt.want {
+			t.Errorf("%s, v names %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}

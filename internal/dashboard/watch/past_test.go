@@ -675,3 +675,19 @@ func TestHelpOpensOverHistoryListingItsKeys(t *testing.T) {
 		t.Errorf("help lists %q, want %q", got, want)
 	}
 }
+
+// Help over Weeks lists v where it changes Weeks' shape, and leaves it out
+// on a phone, whose form is neither shape.
+func TestHelpOverWeeksListsVWhereItChangesItsShape(t *testing.T) {
+	for _, tt := range []struct {
+		width int
+		want  bool
+	}{{width: 160, want: true}, {width: 52}} {
+		h, _ := historyHarness(t, dashboard.History, dashboard.HistoryPage{Shown: dashboard.HistoryWeeks})
+		h.update(tea.WindowSizeMsg{Width: tt.width, Height: 37})
+		h.start()
+		if got := slices.Contains(listedKeys(helpOver(h.model)), "v"); got != tt.want {
+			t.Errorf("at %d columns, help lists v: %t, want %t", tt.width, got, tt.want)
+		}
+	}
+}
