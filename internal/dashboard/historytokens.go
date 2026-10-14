@@ -122,7 +122,8 @@ func (f Frame) historyTokens(c *canvas, top int) {
 	from := min(max(f.Scroll, 0), placed.most())
 	shown := placed.shown(from)
 	below := len(page.Periods) - from - shown
-	body := c.within(bounds{x: 0, y: placed.first, width: c.width, rows: placed.rows - min(below, 1)})
+	out := min(below, 1, placed.rows-1)
+	body := c.within(bounds{x: 0, y: placed.first, width: c.width, rows: placed.rows - out})
 	y := placed.first
 	for i, period := range page.Periods[from : from+shown] {
 		if i > 0 {
@@ -133,7 +134,7 @@ func (f Frame) historyTokens(c *canvas, top int) {
 			y++
 		}
 	}
-	if below > 0 {
+	if out > 0 {
 		c.line(0, min(y, placed.first+placed.rows-1), outOfView(0, below, f.Width, periodsOut(f.History.TokensAsk.Period.Name())))
 	}
 }
@@ -372,6 +373,9 @@ type tokensPlaced struct {
 // tokensPlaced is the frame's periods of Tokens, its view from row top,
 // placed from two rows under its heads to two over its footnote, and the
 // footnote, wrapped to the frame's width, which ends on the view's last row.
+// Where that leaves the periods fewer than two rows, a period's first and
+// the line saying what's below, the footnote goes, as it would soon reach
+// the heads, and the periods run to the view's last row.
 func (f Frame) tokensPlaced(top int) (tokensPlaced, []line) {
 	page := f.History.Tokens
 	if page == nil {
@@ -379,11 +383,21 @@ func (f Frame) tokensPlaced(top int) (tokensPlaced, []line) {
 	}
 	note := wrapParts(f.Width, f.tokensFootnote(page.PricesAsOf)...)
 	p := tokensPlaced{first: top + 2}
-	p.rows = top + f.viewRows() - len(note) - 1 - p.first
+	if p.rows = p.over(top+f.viewRows(), note); p.rows < 2 {
+		note = nil
+		p.rows = p.over(top+f.viewRows(), note)
+	}
 	for _, t := range page.Periods {
 		p.heights = append(p.heights, tokensHeight(t, f.History.TokensSplit))
 	}
 	return p, note
+}
+
+// over is how many rows the periods have from their first to end, the row
+// the view ends before, over the footnote given and the blank row over it,
+// where there's one.
+func (p tokensPlaced) over(end int, note []line) int {
+	return end - len(note) - min(len(note), 1) - p.first
 }
 
 // tokensHeight is how many rows a period takes, split as given, as
