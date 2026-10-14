@@ -141,19 +141,25 @@ func TestTheEventsGivenAreACopy(t *testing.T) {
 	r.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 1})
 	r.hear(Pinned{Accounts: []string{"work", "side"}, Account: "work"})
 
-	given := r.events()
-	for i := range given {
-		if len(given[i].Windows) > 0 {
-			given[i].Windows[0] = "7d"
-		}
-		if len(given[i].Accounts) > 0 {
-			given[i].Accounts[0] = "personal"
+	spoil := func(given []status.Event) {
+		for i := range given {
+			if len(given[i].Windows) > 0 {
+				given[i].Windows[0] = "7d"
+			}
+			if len(given[i].Accounts) > 0 {
+				given[i].Accounts[0] = "personal"
+			}
+			for key := range given[i].Joined {
+				given[i].Joined[key] = time.Time{}
+			}
 		}
 	}
+	spoil(r.events())
 	r.hear(LimitReached{Account: "work", Windows: []string{"7d_oi", "5h"}, Until: start.Add(time.Hour), Limit: 1, Again: true})
+	spoil(r.events())
 	want := []status.Event{
 		{ID: 3, At: start, Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}},
-		{ID: 2, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h", "7d_oi"}, Until: start.Add(time.Hour), Limit: 1},
+		{ID: 2, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h", "7d_oi"}, Joined: map[string]time.Time{"7d_oi": start}, Until: start.Add(time.Hour), Limit: 1},
 		{ID: 1, At: start, Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: start.Add(5 * time.Hour)},
 	}
 	if got := r.events(); !reflect.DeepEqual(got, want) {
@@ -237,8 +243,26 @@ func TestALimitReachedAgainJoinsItsEventInPlace(t *testing.T) {
 	want := []status.Event{
 		{ID: 3, At: clock.now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1, ForcedBy: 1},
 		{ID: 2, At: start, Kind: status.EventLimit, Account: "side", Windows: []string{"5h"}, Until: start.Add(2 * time.Hour), Limit: 2},
-		{ID: 1, At: start, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h", "7d"}, Until: start.Add(2 * 24 * time.Hour), Count: 1, Limit: 1},
+		{
+			ID: 1, At: start, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h", "7d"},
+			Joined: map[string]time.Time{"7d": start.Add(time.Minute)}, Until: start.Add(2 * 24 * time.Hour), Count: 1, Limit: 1,
+		},
 	}
+	if got := r.events(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events() =\n%+v\nwant\n%+v: the week joining it as it was reached again", got, want)
+	}
+}
+
+// A limit naming no window holds them all from when it's reached, so a
+// window it's reached again in joins it as it began.
+func TestAWindowJoiningALimitNamingNoneJoinsItAsItBegan(t *testing.T) {
+	clock := &testClock{now: start}
+	r := newTestRecent(clock)
+	r.hear(LimitReached{Account: "work", Until: start.Add(time.Hour), Limit: 1})
+	clock.now = start.Add(time.Minute)
+	r.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 1, Again: true})
+
+	want := []status.Event{{ID: 1, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 1}}
 	if got := r.events(); !reflect.DeepEqual(got, want) {
 		t.Errorf("events() =\n%+v\nwant\n%+v", got, want)
 	}

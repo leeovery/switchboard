@@ -471,7 +471,15 @@ func TestWhenALimitHoldingAWindowBegan(t *testing.T) {
 	reached := func(at time.Duration, limit int, windows ...string) status.Event {
 		return status.Event{At: built.Add(at), Kind: status.EventLimit, Account: "work", Windows: windows, Limit: limit}
 	}
+	// joined is the limit with the given identity of work's Fable week,
+	// reached two days before, the 5-hour joining it at at.
+	joined := func(at time.Duration, limit int) status.Event {
+		e := reached(-2*day, limit, "7d_oi", "5h")
+		e.Joined = map[string]time.Time{"5h": built.Add(at)}
+		return e
+	}
 	spent := readAt("work", spentIn("5h", 1, time.Hour), windowIn("7d", 0.5, 2*day))
+	fableSpent := readAt("work", spentIn("5h", 1, time.Hour), windowIn("7d", 0.5, 2*day), spentIn("7d_oi", 1, 2*day))
 	tests := []struct {
 		name    string
 		account status.Account
@@ -509,6 +517,29 @@ func TestWhenALimitHoldingAWindowBegan(t *testing.T) {
 			account: with(readAt("work", spentIn("5h", 1, time.Hour), spentIn("7d", 1, 2*day)), limit(4, "5h")),
 			events:  []status.Event{reached(-20*time.Minute, 4, "5h"), reached(-2*day, 0, "7d")},
 			since:   built.Add(-20 * time.Minute), limitSince: built.Add(-2 * day),
+		},
+		{
+			name:    "the week held as read, no event telling when, beside the router's limit of the 5-hour: the account's untold, as the week's may be the earlier",
+			account: with(readAt("work", spentIn("5h", 1, time.Hour), spentIn("7d", 1, 2*day)), limit(4, "5h")),
+			events:  []status.Event{reached(-20*time.Minute, 4, "5h")},
+			since:   built.Add(-20 * time.Minute),
+		},
+		{
+			name:    "the router's limit of a model's own week, the 5-hour joining it: as the 5-hour joined",
+			account: with(fableSpent, limit(4, "7d_oi", "5h")),
+			events:  []status.Event{joined(-20*time.Minute, 4)},
+			since:   built.Add(-20 * time.Minute), limitSince: built.Add(-20 * time.Minute),
+		},
+		{
+			name:    "the router's limit of a model's own week, the 5-hour joining it before its period began, of an earlier hold",
+			account: with(fableSpent, limit(4, "7d_oi", "5h")),
+			events:  []status.Event{joined(-5*time.Hour, 4)},
+		},
+		{
+			name:    "a limit from a router from before limits had an identity, a window joining it: as the window joined",
+			account: with(fableSpent, limit(0, "7d_oi", "5h")),
+			events:  []status.Event{joined(-20*time.Minute, 0)},
+			since:   built.Add(-20 * time.Minute), limitSince: built.Add(-20 * time.Minute),
 		},
 		{
 			name:    "an event from before the window started",
@@ -579,6 +610,17 @@ func TestWhenTheCapHoldingAnAccountBegan(t *testing.T) {
 	}
 	untilUntold := reached(-10*time.Minute, 0)
 	untilUntold.Until = time.Time{}
+	// fableCapped has work's Fable week at its reserve too, and both, its
+	// week too.
+	fableCapped := routerDocOf(with(readAt("work", windowIn("5h", 0.95, 3*time.Hour), windowIn("7d", 0.4, 3*day), windowIn("7d_oi", 0.95, 3*day)), reserving))
+	bothCapped := routerDocOf(with(readAt("work", windowIn("5h", 0.95, 3*time.Hour), windowIn("7d", 0.95, 3*day), windowIn("7d_oi", 0.95, 3*day)), reserving))
+	// joined is work's cap of the windows given, begun as the first reached
+	// its reserve, at at, those after joining it as joined says.
+	joined := func(at time.Duration, windows []string, joined map[string]time.Time) status.Event {
+		e := reached(at, 3*day)
+		e.Windows, e.Joined = windows, joined
+		return e
+	}
 	tests := []struct {
 		name   string
 		doc    status.Document
@@ -601,6 +643,30 @@ func TestWhenTheCapHoldingAnAccountBegan(t *testing.T) {
 		{name: "its event told after now", doc: capped, events: []status.Event{reached(5*time.Minute, 3*time.Hour)}, now: built},
 		{name: "its window reset since read, its cap gone", doc: capped, events: []status.Event{reached(-10*time.Minute, 3*time.Hour)}, now: built.Add(3*time.Hour + time.Second)},
 		{name: "the global pin spending its cap", doc: pinnedTo(capped, "work"), events: []status.Event{reached(-10*time.Minute, 3*time.Hour)}, now: built},
+		{
+			name: "the 5-hour joining the cap of a model's own week a day old, as it joined", doc: fableCapped,
+			events: []status.Event{joined(-day, []string{"7d_oi", "5h"}, map[string]time.Time{"5h": built.Add(-10 * time.Minute)})}, now: built, want: built.Add(-10 * time.Minute),
+		},
+		{
+			name: "the 5-hour joining the cap of a model's own week in its period, as it joined", doc: fableCapped,
+			events: []status.Event{joined(-time.Hour, []string{"7d_oi", "5h"}, map[string]time.Time{"5h": built.Add(-10 * time.Minute)})}, now: built, want: built.Add(-10 * time.Minute),
+		},
+		{
+			name: "the 5-hour joining the cap of a model's own week before its period began, of an earlier hold", doc: fableCapped,
+			events: []status.Event{joined(-day, []string{"7d_oi", "5h"}, map[string]time.Time{"5h": built.Add(-4 * time.Hour)})}, now: built,
+		},
+		{
+			name: "both windows every model shares at its reserve, as the first reached it", doc: bothCapped,
+			events: []status.Event{joined(-day, []string{"7d_oi", "7d", "5h"}, map[string]time.Time{"7d": built.Add(-time.Hour), "5h": built.Add(-10 * time.Minute)})}, now: built, want: built.Add(-time.Hour),
+		},
+		{
+			name: "both windows every model shares at its reserve, one's start of an earlier hold, as it may be the first", doc: bothCapped,
+			events: []status.Event{joined(-day, []string{"7d_oi", "7d", "5h"}, map[string]time.Time{"7d": built.Add(-time.Hour), "5h": built.Add(-4 * time.Hour)})}, now: built,
+		},
+		{
+			name: "the 5-hour joining a cap, as an event told before events kept when each joined", doc: fableCapped,
+			events: []status.Event{joined(-time.Hour, []string{"7d_oi", "5h"}, nil)}, now: built, want: built.Add(-time.Hour),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

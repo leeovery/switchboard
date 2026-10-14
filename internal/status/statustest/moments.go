@@ -317,6 +317,57 @@ func HardMoments(policy score.Policy) []HardMoment {
 	limitAndCap.Events = []status.Event{{
 		ID: 24, At: Built.Add(-20 * time.Minute), Kind: status.EventLimit, Account: "work", Until: Built.Add(40 * time.Minute), Limit: 8,
 	}}
+	// fableCapped has work's Fable week at its reserve since began, as its
+	// cap's event tells, which holds back Fable's requests alone, and its
+	// session at its reserve since 10 minutes before Built, which joined
+	// that cap, holding back every request from then.
+	fableCapped := func(began time.Duration) status.Document {
+		doc := Router(policy, nil,
+			Routed{Account: with(readAt("work", windowIn("5h", 0.95, 2*time.Hour), windowIn("7d", 0.4, 3*day), windowIn("7d_oi", 0.95, 3*day)), reserving)},
+			Routed{Account: side},
+		)
+		doc.Events = []status.Event{{
+			ID: 25, At: Built.Add(began), Kind: status.EventCap, Account: "work", Windows: []string{"7d_oi", "5h"},
+			Joined: map[string]time.Time{"5h": Built.Add(-10 * time.Minute)}, Until: Built.Add(3 * day), Reserve: 0.1,
+		}}
+		return doc
+	}
+	workFableCapped := AccountFacts{
+		Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, CapSince: Built.Add(-10 * time.Minute), Back: Built.Add(2 * time.Hour),
+		Windows: map[string]WindowFacts{
+			"5h":    {Kind: status.WindowCapped, At: Built.Add(2 * time.Hour), Used: 0.95, Next: Built.Add(2 * time.Hour), Capped: true, CappedAsRead: true},
+			"7d":    {Kind: status.WindowOpen, At: Built.Add(3 * day), Used: 0.4, Next: Built.Add(3 * day)},
+			"7d_oi": {Kind: status.WindowCapped, At: Built.Add(3 * day), Used: 0.95, Next: Built.Add(3 * day), Capped: true, CappedAsRead: true},
+		},
+	}
+	// fableSpent has work's Fable week spent since a day before Built, the
+	// router's limit of it holding until it resets, and its session spent
+	// since 20 minutes before, which joined that limit, as an answer named
+	// both, holding back every request till the session resets.
+	fableSpent := Router(policy, nil,
+		Routed{Account: with(readAt("work", spentIn("5h", 1, 40*time.Minute), windowIn("7d", 0.6, 3*day), spentIn("7d_oi", 1, 2*day)), func(a *status.Account) {
+			a.Limit = status.Limit{ID: 9, Windows: []string{"7d_oi", "5h"}, Until: Built.Add(40 * time.Minute)}
+		})},
+		Routed{Account: side},
+	)
+	fableSpent.Events = []status.Event{{
+		ID: 26, At: Built.Add(-day), Kind: status.EventLimit, Account: "work", Windows: []string{"7d_oi", "5h"},
+		Joined: map[string]time.Time{"5h": Built.Add(-20 * time.Minute)}, Until: Built.Add(2 * day), Limit: 9,
+	}}
+	workFableSpent := AccountFacts{
+		Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true, LimitSince: Built.Add(-20 * time.Minute), Back: Built.Add(40 * time.Minute),
+		Windows: map[string]WindowFacts{
+			"5h": {
+				Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 1, Next: Built.Add(40 * time.Minute),
+				Held: true, Since: Built.Add(-20 * time.Minute),
+			},
+			"7d": workLimited.Windows["7d"],
+			"7d_oi": {
+				Kind: status.WindowLimited, At: Built.Add(2 * day), Used: 1, Next: Built.Add(2 * day),
+				Held: true, Since: Built.Add(-day),
+			},
+		},
+	}
 	moments := []HardMoment{
 		{
 			Name: "just after a reset, before the reread",
@@ -706,6 +757,18 @@ func HardMoments(policy score.Policy) []HardMoment {
 				}},
 				"side": sideOpen,
 			}},
+		},
+		{
+			Name: "a model's own week at its cap since the day before, the session joining it", Doc: fableCapped(-day), Now: Built.Add(10 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{"work": workFableCapped, "side": sideOpen}},
+		},
+		{
+			Name: "a model's own week at its cap since the session's period began, the session joining it", Doc: fableCapped(-time.Hour), Now: Built.Add(10 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{"work": workFableCapped, "side": sideOpen}},
+		},
+		{
+			Name: "a model's own week at its limit since the day before, the session joining it", Doc: fableSpent, Now: Built.Add(10 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{"work": workFableSpent, "side": sideOpen}},
 		},
 	}
 	for i := range moments {

@@ -41,7 +41,7 @@ type awaiting struct {
 // before, whose event is no longer kept, or can't change, is dropped.
 func (r *recent) reached(e LimitReached, now time.Time) {
 	if h, ok := r.limitEvent(e.Limit, now); ok {
-		r.join(h, e.Windows, e.Until)
+		r.join(h, e.Windows, e.Until, now)
 		return
 	}
 	if e.Limit <= r.limits[e.Account] {
@@ -62,7 +62,7 @@ func (r *recent) refused(e Refused, now time.Time) {
 	h, renewed := r.find(func(h *happening) bool { return holds(h) && h.Status == e.Status })
 	if renewed {
 		h.requests = append(h.requests, refusal)
-		r.join(h, nil, e.Until)
+		r.join(h, nil, e.Until, now)
 	} else {
 		h = r.keep(happening{Kind: status.EventRefused, Account: e.Account, Until: e.Until, Status: e.Status, Family: e.Family, requests: []refusedUntil{refusal}}, now)
 	}
@@ -125,7 +125,7 @@ func (r *recent) capping(accounts []status.Account, pin status.Pin, now time.Tim
 		default:
 			is.event = was.event
 			if h, ok := r.capEvent(a.ID, now); ok {
-				r.join(h, is.windows, lastReset(a, is.windows))
+				r.join(h, is.windows, lastReset(a, is.windows), now)
 			}
 		}
 		r.caps[a.ID] = is
@@ -154,13 +154,32 @@ func lastReset(a status.Account, keys []string) time.Time {
 }
 
 // join has the event of what holds an account back take in that reached
-// again while it holds, in more windows perhaps, and till later, marking it
-// where that changed it.
-func (r *recent) join(h *happening, windows []string, until time.Time) {
+// again at now while it holds, in more windows perhaps, and till later,
+// marking it where that changed it. Each window it didn't hold joins it at
+// now, as its Joined keeps: a window it names held it already, as did every
+// window where it names none, as a limit naming none holds them all.
+func (r *recent) join(h *happening, windows []string, until, now time.Time) {
+	if len(h.Windows) > 0 {
+		for _, key := range windows {
+			if !slices.Contains(h.Windows, key) {
+				h.Joined = withJoined(h.Joined, key, now)
+			}
+		}
+	}
 	var changed bool
 	if h.Windows, h.Until, changed = widen(h.Windows, h.Until, windows, until); changed {
 		h.mark()
 	}
+}
+
+// withJoined is joined, made where it's nil, with the window with the given
+// key joining at at.
+func withJoined(joined map[string]time.Time, key string, at time.Time) map[string]time.Time {
+	if joined == nil {
+		joined = make(map[string]time.Time)
+	}
+	joined[key] = at
+	return joined
 }
 
 // moved keeps a session's move at now, counting it among the sessions what

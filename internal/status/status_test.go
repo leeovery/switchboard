@@ -1330,7 +1330,7 @@ func TestDocumentJSON(t *testing.T) {
 				Events: []status.Event{
 					{ID: 10, At: generated, Kind: status.EventRoom, Account: "side", Windows: []string{"5h"}},
 					{ID: 9, At: generated, Kind: status.EventMoved, Session: "7f3a1c2e-0b5c-4a3b-9c8e-1f2a3b4c5d6e", Model: "claude-opus-5-5", From: "side", To: "work", Reason: "moved: side is at its reserve", ForcedBy: 8},
-					{ID: 8, At: generated, Kind: status.EventCap, Account: "side", To: "work", Windows: []string{"5h", "7d"}, Until: generated.Add(3 * time.Hour), Count: 1, Reserve: 0.05},
+					{ID: 8, At: generated.Add(-time.Hour), Kind: status.EventCap, Account: "side", To: "work", Windows: []string{"5h", "7d"}, Joined: map[string]time.Time{"7d": generated}, Until: generated.Add(3 * time.Hour), Count: 1, Reserve: 0.05},
 					{ID: 7, At: generated, Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}, Move: true, Force: true, By: "cli"},
 					{ID: 6, At: generated, Kind: status.EventAuto, Account: "side", Session: "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e", By: "dashboard"},
 					{ID: 5, At: generated, Kind: status.EventMoved, Session: "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e", Model: "claude-opus-5-5", From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 3, ForcedBy: 3},
@@ -1372,7 +1372,7 @@ func TestDocumentJSON(t *testing.T) {
     },
     {
       "id": 8,
-      "at": "2026-09-28T13:12:00Z",
+      "at": "2026-09-28T12:12:00Z",
       "kind": "cap",
       "account": "side",
       "to": "work",
@@ -1380,6 +1380,9 @@ func TestDocumentJSON(t *testing.T) {
         "5h",
         "7d"
       ],
+      "joined": {
+        "7d": "2026-09-28T13:12:00Z"
+      },
       "until": "2026-09-28T16:12:00Z",
       "count": 1,
       "reserve": 0.05
