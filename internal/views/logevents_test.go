@@ -217,7 +217,7 @@ func TestAMoveAfterMidnightSaysWhenThePressureToldTheDayBeforeRunsOut(t *testing
 	if len(rows) != 1 || rows[0].Kind != status.EventMoved {
 		t.Fatalf("the Log's Events of the day after the pressure are %+v, want the move alone", rows)
 	}
-	if got, want := rows[0].Line.What.String(), "personal came under pressure, its 5-hour to run out at 01:10"; got != want {
+	if got, want := rows[0].Line.What.String(), "work reached its cap, personal came under pressure, its 5-hour to run out at 01:10"; got != want {
 		t.Errorf("the move says %q, want %q", got, want)
 	}
 }

@@ -118,7 +118,7 @@ func keyOf(run time.Time, e status.Event) Key {
 // midnight, its choice passing personal over, whose pressure was told at
 // 22:50 the day before, to run out at 01:10: the Log's Events, and the
 // events command, show the day of the move alone, read from five hours
-// before it.
+// before it, saying why it moved, then the pressure.
 func PressureTheDayBefore() EventMoment {
 	run := localOn(6, 9, 0)
 	pressure := status.Event{ID: 1, At: localOn(6, 22, 50), Kind: status.EventPressure, Account: personal, Windows: []string{fiveHour}, Until: localOn(7, 1, 10)}
@@ -131,9 +131,9 @@ func PressureTheDayBefore() EventMoment {
 	m.Facts = map[Key]Facts{keyOf(run, pressure): {Windows: fiveHourNamed}, keyOf(run, move): {RunsOut: localOn(7, 1, 10)}}
 	m.Moves = map[Key]Move{keyOf(run, move): {Request: "d1", Written: 1_000_000, Cost: writeCost(1_000_000)}}
 	m.Details = map[Key]Details{keyOf(run, move): {
-		Headline: "personal came under pressure, its 5-hour to run out at 01:10",
+		Headline: "work reached its cap, personal came under pressure, its 5-hour to run out at 01:10",
 		Happened: []string{
-			"event: personal came under pressure, its 5-hour to run out at 01:10", "session: d28c switchboard", "model: opus-5-5",
+			"event: work reached its cap, personal came under pressure, its 5-hour to run out at 01:10", "session: d28c switchboard", "model: opus-5-5",
 			"from: work", "to: side",
 		},
 		Followed: []string{"request: d1", "cached again: 1000000", "the move: $8.00"},
