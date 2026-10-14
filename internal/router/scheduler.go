@@ -36,10 +36,12 @@ type scheduler struct {
 	emit     func(Event)
 }
 
+// Choose decides again once it has looked for probes to wait on before a
+// choice afresh, and again once it has looked for accounts without room to
+// probe again, whether it found any or not: a probe that ended since the
+// decision before leaves nothing to wait for, but a reading it lacked.
 func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	d, on := s.decide(req)
-	// Decided again even when nothing was waited on: a probe that ended since
-	// the decision before leaves nothing to wait for, but a reading it lacked.
 	if d.afresh {
 		s.probes.await(ctx, s.accounts.sendable(), s.state.due, probeWait, beforeChoosing)
 		d, on = s.decide(req)

@@ -6,6 +6,7 @@ import (
 	"maps"
 	"net/http"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -176,22 +177,47 @@ func TestASessionStaysWhenFreshUsageFindsRoomOnItsAccount(t *testing.T) {
 }
 
 func TestAChoiceAfreshIsMadeAgainOnProbesThatEndedSinceItWasMade(t *testing.T) {
-	prober := &stubProber{}
-	r := newTestRouter(t, at(start), prober)
-	// Nothing has been read of either account, and the probes the router
-	// started with end once the choice is made, as it looks for the accounts
-	// whose usage is stale: it finds none, and nothing to wait for.
-	probesEndOnRead(r, 1, map[string]quota.Probe{
-		"work": probed(nil, session, laterWeek),
-		"side": probed(nil, session, soonWeek),
-	})
-
-	got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
-	if want := (Choice{Account: "side", Reason: "new", New: true}); got != want {
-		t.Errorf("Choose() = %+v, want %+v, chosen on what the probes read", got, want)
+	tests := []struct {
+		name string
+		// kept are the accounts' windows as read 20 minutes ago, none where
+		// it's nil: the choice first decides on them.
+		kept map[string][]quota.Window
+	}{
+		{name: "nothing read, so no account has room"},
+		{
+			name: "read 20 minutes ago, work's quota needing using first",
+			kept: map[string][]quota.Window{"work": {session, soonWeek}, "side": {session, laterWeek}},
+		},
 	}
-	if got := prober.counts(); len(got) > 0 {
-		t.Errorf("probes = %v, want none: both accounts were read just now", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start.Add(-20 * time.Minute)}
+			prober := &stubProber{}
+			r := newTestRouter(t, clock.read, prober)
+			for id, windows := range tt.kept {
+				r.state.record(id, windows, r.state.mark())
+			}
+			clock.now = start
+			// Once the choice has decided, as it looks for the accounts whose
+			// usage is stale, before it checks which are, readings of both
+			// land, as probes ending then record them: side's quota needs
+			// using first now, and neither is stale, so it waits for nothing.
+			landed := readingsLandIn(r, (*probes).await, map[string]quota.Probe{
+				"work": probed(nil, session, laterWeek),
+				"side": probed(nil, session, soonWeek),
+			})
+
+			got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
+			if !landed() {
+				t.Fatal("the readings never landed as the choice looked for the accounts whose usage is stale")
+			}
+			if want := (Choice{Account: "side", Reason: "new", New: true}); got != want {
+				t.Errorf("Choose() = %+v, want %+v, chosen on what the probes read", got, want)
+			}
+			if got := prober.counts(); len(got) > 0 {
+				t.Errorf("probes = %v, want none: both accounts were read just now", got)
+			}
+		})
 	}
 }
 
@@ -204,15 +230,20 @@ func TestAChoiceWithNoRoomIsMadeAgainOnProbesThatEndedSinceItWasMade(t *testing.
 	r.state.record("work", []quota.Window{spent, laterWeek}, r.state.mark())
 	r.state.record("side", []quota.Window{spent, soonWeek}, r.state.mark())
 	clock.now = start
-	// Read two minutes ago, neither account had room, and probes of both end
-	// once the choice is made, as it looks for those to probe again: work
-	// reads room now, and side none still.
-	probesEndOnRead(r, 2, map[string]quota.Probe{
+	// Read two minutes ago, neither account has room as the choice decides.
+	// Then, as it looks for those to probe again, having found both full,
+	// before it checks which are due a probe, readings of both land, as
+	// probes ending then record them: work reads room now, and side none
+	// still.
+	landed := readingsLandIn(r, (*scheduler).recheck, map[string]quota.Probe{
 		"work": probed(nil, session, laterWeek),
 		"side": probed(nil, spent, soonWeek),
 	})
 
 	got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "side"})
+	if !landed() {
+		t.Fatal("the readings never landed as the choice looked for the accounts to probe again")
+	}
 	if want := (Choice{Account: "work", Reason: "new", New: true}); got != want {
 		t.Errorf("Choose() = %+v, want %+v, chosen on what the probes read", got, want)
 	}
@@ -844,20 +875,39 @@ func newReserving(t *testing.T) (*Router, *[]Event) {
 	return r, &heard
 }
 
-// probesEndOnRead takes in what read holds of each account, as a probe's end
-// takes in what it read, as the router's probes read their clock for the nth
-// time: a choice reads it first as it looks for the accounts whose usage is
-// stale, its first decision made, and next as it looks for those without
-// room to probe again.
-func probesEndOnRead(r *Router, n int32, read map[string]quota.Probe) {
+// readingsLandIn takes in what read holds of each account, as a probe's end
+// takes in what it read, the first time the router's probes read their clock
+// within look, the step of a choice that looks for accounts to probe: as
+// each look reads it before it checks which accounts are due one, they land
+// after the decision that called for the look, and before that check. It
+// returns what reports whether they landed.
+func readingsLandIn(r *Router, look any, read map[string]quota.Probe) (landed func() bool) {
+	in := runtime.FuncForPC(reflect.ValueOf(look).Pointer()).Name()
 	clock := r.probes.now
-	var reads atomic.Int32
+	var ended atomic.Bool
 	r.probes.now = func() time.Time {
-		if reads.Add(1) == n {
+		if calledIn(in) && ended.CompareAndSwap(false, true) {
 			for id, probe := range read {
 				r.state.recordProbe(id, probe, nil, r.state.mark(), readings.FromProbe)
 			}
 		}
 		return clock()
+	}
+	return ended.Load
+}
+
+// calledIn reports whether its caller was called, however far down, within
+// the function named.
+func calledIn(name string) bool {
+	pcs := make([]uintptr, 32)
+	frames := runtime.CallersFrames(pcs[:runtime.Callers(2, pcs)])
+	for {
+		f, more := frames.Next()
+		if f.Function == name {
+			return true
+		}
+		if !more {
+			return false
+		}
 	}
 }
