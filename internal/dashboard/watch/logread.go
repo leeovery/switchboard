@@ -273,7 +273,7 @@ func foldedTotals(held, read []views.DayTotals) []views.DayTotals {
 
 // readBack reads the day before those the Log's tables span, at now, as the
 // oldest day the ledger keeps allows, once known: its lines, its events and
-// the figures of the days from it.
+// its figures alone, those of the days after it held already.
 func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 	t := m.log
 	day, ok := t.oldest.DayBefore(t.from)
@@ -285,7 +285,7 @@ func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 	return m, func() tea.Msg {
 		l, events := r.ledger, t.events.Back(r.filed, day.Start)
 		return logReadMsg{grown: logGrown{
-			read: t.read.Back(l, l.Day(day.Date), now), from: day, events: &events, totals: views.TotalsByDay(l, day.Start, now, r.prices),
+			read: t.read.Back(l, l.Day(day.Date), now), from: day, events: &events, totals: views.TotalsOn(l, []string{day.Date}, now, r.prices),
 		}}
 	}
 }

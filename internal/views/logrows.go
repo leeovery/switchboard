@@ -24,7 +24,7 @@ type LogSources struct {
 	// Stream is what the request stream told: each request in flight, and
 	// each ended or lost, by its id. The zero Stream told of none.
 	Stream Stream
-	// Totals are the figures of the days, as TotalsByDay gives them: a day's
+	// Totals are the figures of the days, as TotalsOn gives them: a day's
 	// rule says those of the day that ended.
 	Totals []DayTotals
 	// Filter is what the table shows of the days' lines: the zero Filter

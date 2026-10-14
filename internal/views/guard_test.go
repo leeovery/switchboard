@@ -112,7 +112,7 @@ var (
 	builtInTheWatch = []string{
 		"views.DaySessions", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsRead.Refiled", "views.EventsRead.Skips",
 		"views.EventsSince", "views.EventsTable.Details", "views.FindSessions", "views.LogEvents", "views.LogRead.Back", "views.LogRead.Grown",
-		"views.LogRows", "views.LogSessions", "views.ReadEvents", "views.ReadLogHeld", "views.Today", "views.TotalsByDay", "views.TotalsOn",
+		"views.LogRows", "views.LogSessions", "views.ReadEvents", "views.ReadLogHeld", "views.Today", "views.TotalsOn",
 	}
 )
 

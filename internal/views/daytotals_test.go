@@ -83,7 +83,7 @@ func sameFigures(a, b viewstest.DayFigures) bool {
 func TestEachDaysTotalsAreItsSummarysAsTheLedgerReadsItsDays(t *testing.T) {
 	for _, hm := range viewstest.DayMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
-			got := views.TotalsByDay(ledgerIn(t, hm), hm.From, hm.Now, ledger.Pricing)
+			got := views.TotalsOn(ledgerIn(t, hm), dayfile.Span(hm.From, hm.Now), hm.Now, ledger.Pricing)
 			if len(got) != len(hm.Want) {
 				t.Fatalf("the days' totals are %+v, want %+v", got, hm.Want)
 			}
@@ -155,7 +155,7 @@ func TestADaysTotalsAreHistorysOfTheDayAlone(t *testing.T) {
 	for _, hm := range viewstest.DayMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
 			follower := ledgerIn(t, hm)
-			for _, d := range views.TotalsByDay(follower, hm.From, hm.Now, ledger.Pricing) {
+			for _, d := range views.TotalsOn(follower, dayfile.Span(hm.From, hm.Now), hm.Now, ledger.Pricing) {
 				day, _, _ := dayfile.Day(d.Date)
 				in := views.HistoryInput{Ledger: dayAlone{days: follower, from: hm.From, date: d.Date}, From: day, Now: hm.Now, Prices: ledger.Pricing,
 					WeekStarts: time.Monday, WeekWindow: "7d", Family: family}

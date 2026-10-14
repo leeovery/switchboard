@@ -346,6 +346,51 @@ func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 	}
 }
 
+// summariesAsked is a request ledger followed as it grows, as daysCounted
+// counts its reads, each read of its days' summaries telling, of every day,
+// as many sessions on work as there have been reads of them: the figures of
+// a day tell which read priced them.
+type summariesAsked struct {
+	daysCounted
+	asked int
+}
+
+func (l *summariesAsked) Days(from time.Time) []ledger.Summary {
+	l.asked++
+	ids := make([]string, l.asked)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("s%d", i)
+	}
+	days := l.daysCounted.Days(from)
+	for i := range days {
+		days[i].Accounts = []ledger.AccountDay{{Account: "work", Sessions: l.asked, SessionIDs: ids}}
+	}
+	return days
+}
+
+// Reading back a day prices its figures alone, folded into those held: the
+// days read back before aren't priced again with each.
+func TestReadingBackADayPricesItsFiguresAlone(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state,
+		arrived("0a000001", "work", -3*day), arrived("0a000002", "work", -2*day), arrived("0a000003", "work", -day),
+		arrived("0a000004", "work", -time.Minute),
+	)
+	h := newHarness(t, probedWithoutTheRouter())
+	l := &summariesAsked{daysCounted: *onTheLog(h, state)}
+	h.model.cfg.Ledger = l
+	h.start()
+
+	var got []string
+	for _, d := range h.model.log.totals {
+		got = append(got, fmt.Sprintf("%s %d", d.Date, d.Sessions))
+	}
+	want := []string{dayfile.DateOf(past(-3*day)) + " 3", dayfile.DateOf(past(-2*day)) + " 2", dayfile.DateOf(past(-day)) + " 1"}
+	if !slices.Equal(got, want) {
+		t.Errorf("read back to the oldest day, the figures held are %v, want %v: each day's priced as it was read back, alone", got, want)
+	}
+}
+
 // Opened on a terminal too short for its table, the Log reads nothing back
 // to fill a view of no rows; given rows, it reads back to fill them.
 func TestTheLogOpenedTooShortReadsBackAsItsViewGrows(t *testing.T) {
