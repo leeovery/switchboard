@@ -11,6 +11,44 @@ import (
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
+// Two filters are equal where they tick the same, each choice in the same
+// order, and unequal where any one choice differs.
+func TestFiltersAreEqualWhereEveryChoiceTicksTheSame(t *testing.T) {
+	logs := func() views.LogFilter {
+		return views.LogFilter{Accounts: []string{"work"}, Models: []string{opus}, Sessions: []string{mover, older}, Kinds: []views.RowKind{views.RowRequest}, Failed: true}
+	}
+	events := func() views.EventFilter {
+		return views.EventFilter{Kinds: []string{"cap"}, Accounts: []string{"work"}, Sessions: []string{mover, older}}
+	}
+	if !logs().Equal(logs()) || !events().Equal(events()) {
+		t.Error("a filter isn't equal to one ticking the same")
+	}
+	logChanges := map[string]func(*views.LogFilter){
+		"accounts":                  func(f *views.LogFilter) { f.Accounts = []string{"side"} },
+		"models":                    func(f *views.LogFilter) { f.Models = []string{haiku} },
+		"sessions in another order": func(f *views.LogFilter) { f.Sessions = []string{older, mover} },
+		"kinds":                     func(f *views.LogFilter) { f.Kinds = nil },
+		"failed":                    func(f *views.LogFilter) { f.Failed = false },
+	}
+	for name, change := range logChanges {
+		f := logs()
+		if change(&f); logs().Equal(f) {
+			t.Errorf("the Requests' filters ticking other %s, %+v and %+v, are equal", name, logs(), f)
+		}
+	}
+	eventChanges := map[string]func(*views.EventFilter){
+		"kinds":                     func(f *views.EventFilter) { f.Kinds = []string{"limit"} },
+		"accounts":                  func(f *views.EventFilter) { f.Accounts = nil },
+		"sessions in another order": func(f *views.EventFilter) { f.Sessions = []string{older, mover} },
+	}
+	for name, change := range eventChanges {
+		f := events()
+		if change(&f); events().Equal(f) {
+			t.Errorf("the Events' filters ticking other %s, %+v and %+v, are equal", name, events(), f)
+		}
+	}
+}
+
 // filterWorld are the lines the filter's tests pick among, today's: of two
 // sessions and none, two models, two accounts and none, every kind, some
 // failed; a quota check naming a session, toward which it counts none.

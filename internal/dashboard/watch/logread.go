@@ -352,7 +352,7 @@ func (m Model) logRead(msg logReadMsg) Model {
 // tables read couldn't be said, logged, the first time alone, as each read
 // after asks again.
 func (t logTab) grown(g logGrown) logTab {
-	t.reading, t.read = false, g.read
+	t.reading, t.read, t.held = false, g.read, t.held+1
 	if g.events != nil {
 		t.events = *g.events
 	}

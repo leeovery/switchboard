@@ -291,6 +291,61 @@ func TestADayAwaitingALineIsReadAgainOnlyAsItsLineCouldHaveCome(t *testing.T) {
 	}
 }
 
+// madeAt is where the slice s begins, which a slice made afresh begins
+// elsewhere than: nil where it's empty.
+func madeAt[T any](s []T) *T {
+	if len(s) == 0 {
+		return nil
+	}
+	return &s[0]
+}
+
+// The Log's tables are made again only as what they're made of changes: a
+// frame or the pointer moving makes neither afresh; the stream telling of a
+// request makes the Requests again, a look both, and the filter changing
+// the table it filters. Its panel, open, is made again as what it picks
+// changes, not as the pointer moves over it, nor its cursor.
+func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
+	doc := routerDocument(three()...)
+	doc.Events = []status.Event{{ID: 1, At: past(-time.Minute), Kind: status.EventPin, Accounts: []string{"personal"}}}
+	h := routedHarness(t, doc)
+	onTheLog(h, state)
+	h.start()
+
+	type made struct{ requests, events, panel any }
+	madeNow := func() made {
+		p := h.model.log.page
+		return made{madeAt(p.Requests.Lines), madeAt(p.Events.Lines), madeAt(h.model.log.panel.Sessions)}
+	}
+	unmoved := func() { h.deliver(frameMsg{gen: h.model.frames}, tea.MouseMotionMsg{X: 10, Y: 10}) }
+	steps := []struct {
+		name                    string
+		step                    func()
+		requests, events, panel bool
+	}{
+		{name: "a frame and the pointer moving", step: unmoved},
+		{name: "the stream telling of a request", step: func() { h.hear(told(router.StreamSent, "0a000003", "work", 0)) }, requests: true},
+		{name: "a look", step: func() { h.read(doc) }, requests: true, events: true},
+		{name: "the panel opening", step: func() { h.typed("f") }, panel: true},
+		{name: "the pointer moving over the panel, and its cursor", step: func() {
+			unmoved()
+			h.keys(tea.KeyPressMsg{Code: tea.KeyRight})
+		}},
+		{name: "a tick on the panel", step: func() { h.keys(spaceKey) }, panel: true},
+		{name: "what the panel picks applied", step: func() { h.keys(enter) }, requests: true},
+	}
+	for _, s := range steps {
+		before := madeNow()
+		s.step()
+		after := madeNow()
+		if got := [3]bool{after.requests != before.requests, after.events != before.events, after.panel != before.panel}; got != [3]bool{s.requests, s.events, s.panel} {
+			t.Errorf("after %s, the Requests, the Events and the panel were made again: %v, want %v", s.name, got, [3]bool{s.requests, s.events, s.panel})
+		}
+	}
+}
+
 // The figures of the days read are folded into those held by their dates,
 // the oldest first, each in place of the one held of its day, those held
 // left as they were.

@@ -30,7 +30,8 @@ var logViews = []string{"Requests", "Events"}
 // days, which their day rules say; today; what the Requests show of their
 // columns and of the lines, and the Events of theirs; how each table
 // stands; whether the stream is live, and to when the ledger wrote what the
-// tables hold; and the find, while it's open.
+// tables hold; the find, while it's open; and the tables' lines as drawn,
+// where Lined holds them.
 type LogPage struct {
 	Shown LogView
 	// Read is set once the first read lands: till then, the view is blank.
@@ -54,6 +55,7 @@ type LogPage struct {
 	Live    bool
 	Written time.Time
 	Finding LogFinding
+	lined   *tableLines
 }
 
 // LogStand is how one of the Log's tables stands: following, its newest
@@ -119,12 +121,54 @@ func (l logLine) choosable() bool {
 }
 
 // lines are the lines of the table shown, the oldest first, as the frame
-// draws them.
+// draws them: those Lined holds, while they're of the table; else made
+// afresh.
 func (p LogPage) lines() []logLine {
 	if p.Shown == LogEvents {
+		if h := p.lined; h != nil && h.events.of(p.Events.Lines, p.eventsEmpty()) {
+			return h.events.lines
+		}
 		return p.eventLines()
 	}
+	if h := p.lined; h != nil && h.requests.of(p.Requests.Lines, p.requestsEmpty()) {
+		return h.requests.lines
+	}
 	return p.requestLines()
+}
+
+// Lined is p with the lines of both its tables, as the frame draws them,
+// made once and held, for each read of them to take while its table is the
+// one they were made of: the watch lines each page it builds, so a table is
+// made into lines once a build, not at each look at it.
+func (p LogPage) Lined() LogPage {
+	if h := p.lined; h != nil && h.requests.of(p.Requests.Lines, p.requestsEmpty()) && h.events.of(p.Events.Lines, p.eventsEmpty()) {
+		return p
+	}
+	p.lined = &tableLines{
+		requests: heldLines[views.LogLine]{made: p.Requests.Lines, empty: p.requestsEmpty(), lines: p.requestLines()},
+		events:   heldLines[views.EventsLine]{made: p.Events.Lines, empty: p.eventsEmpty(), lines: p.eventLines()},
+	}
+	return p
+}
+
+// tableLines are the lines of the Log's tables as Lined holds them.
+type tableLines struct {
+	requests heldLines[views.LogLine]
+	events   heldLines[views.EventsLine]
+}
+
+// heldLines are a table's lines as drawn, made of its lines as views gave
+// them, the table saying it had nothing today where empty is set.
+type heldLines[T any] struct {
+	made  []T
+	empty bool
+	lines []logLine
+}
+
+// of reports whether h were made of the lines given, the very ones, the
+// table saying it had nothing today where empty is set.
+func (h heldLines[T]) of(lines []T, empty bool) bool {
+	return h.empty == empty && len(h.made) == len(lines) && (len(lines) == 0 || &h.made[0] == &lines[0])
 }
 
 // stand is how the table shown stands.

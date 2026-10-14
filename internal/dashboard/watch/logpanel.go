@@ -11,9 +11,10 @@ import (
 )
 
 // openLogPanel opens the panel of what the Log's table shown shows, as f
-// does, over the page, picking what it shows now.
+// does, over the page, picking what it shows now, its figures yet to be
+// made.
 func (m Model) openLogPanel() (Model, tea.Cmd) {
-	m.log.panel = m.log.page.Panel()
+	m.log.panel, m.log.built.panel = m.log.page.Panel(), nil
 	return m.cover(logPanelOpen), nil
 }
 
@@ -72,16 +73,28 @@ func (m Model) appliedLogPanel() (Model, tea.Cmd) {
 }
 
 // builtLogPanel is m with the Log's panel built at now of what the watch
-// holds, while it's open: today's lines and events counted, those it would
-// show through what it picks among them; today's sessions, those with lines
-// today on Requests', those with events today on Events', each as the List
-// has it, and those its filter ticks that have none, with what the find
-// found of them, as foundSessions has it; and every account.
+// holds, while it's open: its figures, made again only as what they're made
+// of changes, as logBuilt has it; and every account.
 func (m Model) builtLogPanel(now time.Time) Model {
 	if m.open != logPanelOpen {
 		return m
 	}
 	p := m.log.panel
+	if basis := m.panelBasis(p, now); !m.log.built.panel.same(basis) {
+		p, m.log.built.panel = m.panelFigures(p, now), &basis
+	}
+	p.Accounts = m.moment(now).Accounts
+	m.log.panel = p
+	return m
+}
+
+// panelFigures are the Log's panel p's figures made at now: today's lines
+// and events counted, those it would show through what it picks among
+// them; and today's sessions, those with lines today on Requests', those
+// with events today on Events', each as the List has it, and those its
+// filter ticks that have none, with what the find found of them, as
+// foundSessions has it, their doing told at now.
+func (m Model) panelFigures(p dashboard.LogPanel, now time.Time) dashboard.LogPanel {
 	src := views.LogSessionSources{
 		Read: m.log.read, Ticked: p.TickedSessions(), Found: m.foundSessions(), Running: m.sessions, Unlisted: !m.answering(), Stream: m.logStream(now),
 		Now: now,
@@ -93,9 +106,8 @@ func (m Model) builtLogPanel(now time.Time) Model {
 		p.Lines = views.LogRows(m.logSources(p.Filter, now)).Count(views.Today(now).Date)
 		src.Lines = p.Lines.Sessions
 	}
-	p.Sessions, p.Accounts, p.Now = views.LogSessions(src), m.moment(now).Accounts, now
-	m.log.panel = p
-	return m
+	p.Sessions, p.Now = views.LogSessions(src), now
+	return p
 }
 
 // logPanel is the Log's panel, as it was built last.

@@ -61,6 +61,35 @@ func logFrameOf(p LogPage, width, height int) Frame {
 	return f
 }
 
+// A lined page makes the lines of its tables once: each read of a table's
+// lines after takes those held, making nothing, while the table is the one
+// they were made of; a table built afresh is read as it is.
+func TestALinedPageMakesItsTablesLinesOnce(t *testing.T) {
+	p := cardPage(40)
+	p.Events = views.LogEvents(views.LogEventSources{From: logDay, Events: views.ReadEvents(filedEvents{workAtItsCap}, logDay, logDayNoon), Now: logDayNoon})
+	lined := p.Lined()
+	for _, shown := range []LogView{LogRequests, LogEvents} {
+		lined.Shown = shown
+		if allocs := testing.AllocsPerRun(10, func() { lined.lines() }); allocs != 0 {
+			t.Errorf("each read of %s's lines made %v allocations, want none: their lines held", logViews[shown], allocs)
+		}
+	}
+
+	lined.Shown, lined.Requests = LogRequests, cardPage(41).Requests
+	if got, want := keysOf(lined.lines()), keysOf(lined.requestLines()); !slices.Equal(got, want) {
+		t.Errorf("built afresh, the Requests read as %d lines, want %d, those of the table as it is", len(got), len(want))
+	}
+}
+
+// keysOf are the keys of lines, in order.
+func keysOf(lines []logLine) []LogKey {
+	keys := make([]LogKey, len(lines))
+	for i, l := range lines {
+		keys[i] = l.key
+	}
+	return keys
+}
+
 // The widths the Log's page is checked at, as the design's widths check
 // has them, a phone's among them, and its heights.
 var (

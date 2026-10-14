@@ -13,25 +13,29 @@ import (
 )
 
 // logTab is what the watch holds of the Log: its page, built afresh of what
-// it holds at each change, as builtLog has it; once opened, as the Log first
-// shows, the ledger's lines read for its Requests and the router's events
-// for its Events, over the local days from from, today's grown at each look
-// since and the days before read back as the tables want them; the figures
-// of those days, which their rules say; when each day the Requests await a
-// line on was last read for it; the oldest day the ledger keeps, and the
-// oldest the Events read back to, none known till each is said; who told
-// the events the Events last took in, and when; when the router's files are
-// to be read again from for the events a document skipped, as Skips has it,
-// none while none did; whether a read for it is under way, one at a time;
-// whether a failure to say how far back its tables read has been logged,
-// the once; its details card, while it's open; the panel of what a table
-// shows, while f has it open; and its find's walk back through the days.
+// it holds at each change, as builtLog has it, and what each of its builds
+// was last made of; once opened, as the Log first shows, the ledger's lines
+// read for its Requests and the router's events for its Events, over the
+// local days from from, today's grown at each look since and the days
+// before read back as the tables want them; the figures of those days,
+// which their rules say; how many times what it holds has changed, as
+// grown and looked change it; when each day the Requests await a line on
+// was last read for it; the oldest day the ledger keeps, and the oldest the
+// Events read back to, none known till each is said; who told the events
+// the Events last took in, and when; when the router's files are to be read
+// again from for the events a document skipped, as Skips has it, none while
+// none did; whether a read for it is under way, one at a time; whether a
+// failure to say how far back its tables read has been logged, the once;
+// its details card, while it's open; the panel of what a table shows, while
+// f has it open; and its find's walk back through the days.
 type logTab struct {
 	page    dashboard.LogPage
+	built   logBuilt
 	opened  bool
 	read    views.LogRead
 	events  views.EventsRead
 	totals  []views.DayTotals
+	held    int
 	awaited awaitedReads
 	from    views.LedgerDay
 	oldest  views.OldestDay
@@ -55,10 +59,12 @@ func openingLog(columns dashboard.LogTicks) logTab {
 // once its first read has landed: its Requests of the lines read and, while
 // the router answers, what the stream tells of those in flight; its Events
 // of the events read; each as its filter has them, over the days from the
-// first read; whether the router answers, and to when the ledger wrote;
-// on opening, the table shown filled once it fills its view; the details
-// card, where it's open, of what it holds; and while it's open, the panel of
-// what a table shows, as builtLogPanel has it.
+// first read, and made again only as what it's made of changes, as
+// logBuilt has it, its lines held, as Lined holds them; whether the router
+// answers, and to when the ledger wrote; on opening, the table shown filled
+// once it fills its view; the details card, where it's open, of what it
+// holds; and while it's open, the panel of what a table shows, as
+// builtLogPanel has it.
 func (m Model) builtLog(now time.Time) Model {
 	t := m.log
 	if !t.opened {
@@ -67,9 +73,13 @@ func (m Model) builtLog(now time.Time) Model {
 	p := t.page
 	p.Read, p.From, p.Today, p.Totals = true, t.from, views.Today(now), t.totals
 	p.Live, p.Written = m.answering(), t.read.WrittenTo()
-	p.Requests = views.LogRows(m.logSources(p.Filter, now))
-	p.Events = views.LogEvents(m.logEventSources(p.Shows, now))
-	m.log.page = p.Filling(m.logRows())
+	if basis := m.requestsBasis(p.Filter, now); !t.built.requests.same(basis) {
+		p.Requests, m.log.built.requests = views.LogRows(m.logSources(p.Filter, now)), &basis
+	}
+	if basis := m.eventsBasis(p.Shows, now); !t.built.events.same(basis) {
+		p.Events, m.log.built.events = views.LogEvents(m.logEventSources(p.Shows, now)), &basis
+	}
+	m.log.page = p.Lined().Filling(m.logRows())
 	return m.followedByLogCard().builtLogPanel(now)
 }
 
@@ -119,7 +129,7 @@ func (t logTab) looked(look status.Moment, from router.Health, answering bool) l
 	if t.events.Skips(look, from.StartedAt) && t.skipped.IsZero() {
 		t.skipped = cmp.Or(t.told.at, t.events.Since())
 	}
-	t.events = t.events.Look(look, from.StartedAt)
+	t.events, t.held = t.events.Look(look, from.StartedAt), t.held+1
 	if t.told.at.IsZero() || t.told.run.Equal(from.StartedAt) {
 		t.told = logTold{run: from.StartedAt, at: look.ReadAt}
 	}

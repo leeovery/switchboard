@@ -33,6 +33,13 @@ func LogOpening() LogFilter {
 // rowKinds are the kinds of RowKind, in the panel's order.
 var rowKinds = [...]RowKind{RowRequest, RowCheck, RowCount}
 
+// Equal reports whether f and o tick the same, each choice in the same
+// order.
+func (f LogFilter) Equal(o LogFilter) bool {
+	return slices.Equal(f.Accounts, o.Accounts) && slices.Equal(f.Models, o.Models) && slices.Equal(f.Sessions, o.Sessions) &&
+		slices.Equal(f.Kinds, o.Kinds) && f.Failed == o.Failed
+}
+
 // hiding is what of the filter f hides the row p: none; its kind alone; or a
 // choice of another, its kind kept or not.
 func (f LogFilter) hiding(p placedRow) hidden {

@@ -20,6 +20,12 @@ type EventFilter struct {
 	Sessions []string
 }
 
+// Equal reports whether f and o tick the same, each choice in the same
+// order.
+func (f EventFilter) Equal(o EventFilter) bool {
+	return slices.Equal(f.Kinds, o.Kinds) && slices.Equal(f.Accounts, o.Accounts) && slices.Equal(f.Sessions, o.Sessions)
+}
+
 // Keeps reports whether the filter shows the event e: of each choice, where
 // any is ticked, e is of one ticked.
 func (f EventFilter) Keeps(e LogEvent) bool {

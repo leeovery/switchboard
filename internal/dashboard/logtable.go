@@ -40,10 +40,16 @@ func (p LogPage) requestLines() []logLine {
 			lines[i].row, lines[i].at = &l.Row, l.Row.At
 		}
 	}
-	if p.today().Shown == 0 {
+	if p.requestsEmpty() {
 		lines = append(lines, logLine{key: LogKey{other: emptyKey}, empty: noRequestsToday})
 	}
 	return lines
+}
+
+// requestsEmpty reports whether the Requests show none of today's lines,
+// so they say so at their foot.
+func (p LogPage) requestsEmpty() bool {
+	return p.today().Shown == 0
 }
 
 // log draws the Log's table shown from row top, once its first read lands:
