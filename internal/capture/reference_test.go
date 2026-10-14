@@ -752,6 +752,10 @@ var passedOver = map[string][]passing{
 		},
 		tableRows(32, "14:32:29  d28c", "14:32:34  db8a", "14:32:36  9c2e"),
 		[]passing{cellsOf(15, 35, 62, "req_011CQx…"), cellsOf(36, 26, 28, "214"), cellsOf(36, 144, 148, "1,240")},
+		[]passing{
+			cellsOf(30, 90, 141, "↑↓ previous/next request   s its session   esc close"),
+			cellsOf(37, 49, 127, "s its session  end follow    f what it shows  / find    p pin    ? help  q quit"),
+		},
 	),
 	"log-requests-filtered-160": slices.Concat(
 		[]passing{cellsOf(5, 133, 135, "830")}, tableRows(8, filteredTail...), []passing{cellsOf(36, 142, 144, "445")},

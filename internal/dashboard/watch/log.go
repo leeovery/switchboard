@@ -192,8 +192,8 @@ func (m Model) scrollLog(by scrollStep) Model {
 
 // logListings are the Log's own keys, in the design's order: [ ] view, in a
 // group of its own; ↑↓ choosing a request or an event, enter opening its
-// details, and paused, s its session where the line chosen is of one, and
-// end following again; then f and /, a group of their own while paused.
+// details, and paused, end following again; then f and /, a group of their
+// own while paused.
 func (m Model) logListings() []keyListing {
 	log, p := m.view == dashboard.Log, m.log.page
 	paused := p.Paused()
@@ -201,7 +201,6 @@ func (m Model) logListings() []keyListing {
 		{Key: logViewKey, works: log, apart: true},
 		{Key: m.logChooseKey(), works: log, apart: true},
 		{Key: logOpenKey, works: log},
-		{Key: dashboard.Key{Key: "s", Does: "its session"}, works: log && m.chosenSession(), wide: true},
 		{Key: logFollowKey, works: log && paused},
 		{Key: dashboard.Key{Key: "f", Does: "what it shows"}, works: log, apart: paused, wide: true},
 		{Key: dashboard.Key{Key: "/", Does: "find"}, works: log, wide: true},
@@ -233,17 +232,4 @@ func (m Model) logPhoneKeys() []dashboard.Key {
 		keys = append(keys, logFollowKey)
 	}
 	return append(keys, logViewKey)
-}
-
-// chosenSession reports whether the Log's line chosen is of a session: a
-// request's of one, or an event's.
-func (m Model) chosenSession() bool {
-	row, event, ok := m.log.page.Chosen()
-	switch {
-	case !ok:
-		return false
-	case event != nil:
-		return event.Session != ""
-	}
-	return row.Session != ""
 }

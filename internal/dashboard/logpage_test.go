@@ -223,6 +223,36 @@ func TestLandingChoosesTheFirstRequestAtOrAfterAMoment(t *testing.T) {
 	}
 }
 
+// The session of the line chosen, whose page s opens, is the one a request
+// counts toward, as views count it: none for a quota check, sent under an
+// id never used again; a session's event's; and none of an account's event,
+// nor with nothing chosen.
+func TestTheLineChosensSessionIsTheOneItCountsToward(t *testing.T) {
+	const session = "d28c5e17-0000-4000-8000-000000000001"
+	check := asked("2", logDay.Add(time.Minute))
+	check.Kind, check.Session = ledger.KindCheck, "c4ec0000-0000-4000-8000-000000000009"
+	requests := requestsOf(views.LogSources{From: logDay, Now: logDayNoon}, []ledger.Line{asked("1", logDay), check})
+	started := status.Event{ID: 1, At: logDay, Kind: status.EventStarted, Account: "work", Session: session}
+	tests := []struct {
+		name string
+		page LogPage
+		want string
+	}{
+		{name: "nothing chosen", page: requests},
+		{name: "a request", page: times(chose(-1, 4), 2)(requests), want: session},
+		{name: "a quota check", page: requests.Chose(-1, 4)},
+		{name: "a session's event", page: eventsShown(started, workAtItsCap).Chose(-1, 4).Chose(-1, 4), want: session},
+		{name: "an account's event", page: eventsShown(started, workAtItsCap).Chose(-1, 4)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.page.ChosenSession(); got != tt.want {
+				t.Errorf("the line chosen is of the session %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // A table holding no row has nothing to pause at: ↑ and scrolling up leave
 // it following. One holding rows, but none in view, chooses the newest above
 // it, scrolled into view.

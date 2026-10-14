@@ -156,21 +156,15 @@ func (c LogCard) title(m status.Moment) line {
 }
 
 // keys are the card's keys, as its keys row lists them in content cells:
-// ↑↓ stepping, an event's g, s where the line is of a session, j k where its
-// body scrolls, and esc. Where they don't fit, ↑↓ says what it steps to as
-// the key line does, then the keys leave from the first, esc staying.
+// ↑↓ stepping, an event's g, j k where its body scrolls, and esc. Where they
+// don't fit, ↑↓ says what it steps to as the key line does, then the keys
+// leave from the first, esc staying.
 func (c LogCard) keys(content int, scrolls bool) []Key {
-	noun, session := "request", ""
+	noun := "request"
 	var middle []Key
-	switch {
-	case c.Event != nil:
-		noun, session = "event", c.Event.Row.Session
+	if c.Event != nil {
+		noun = "event"
 		middle = append(middle, Key{Key: "g", Does: "in Requests"})
-	case c.Request != nil:
-		session = c.Request.Row.Session
-	}
-	if prose.Clean(session) != "" {
-		middle = append(middle, Key{Key: "s", Does: "its session"})
 	}
 	if scrolls {
 		middle = append(middle, Key{Key: "j k", Does: "scroll"})

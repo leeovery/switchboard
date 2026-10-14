@@ -58,10 +58,20 @@ type LogLine struct {
 	Row    RequestRow
 	Rule   *DayRule
 	Oldest *OldestDay
-	// line is the line the row is of, nil before it comes; and day the
-	// local day the row sits on.
-	line *ledger.Line
-	day  LedgerDay
+	// line is the line the row is of, nil before it comes; day the local day
+	// the row sits on; and session the session its request counts toward, as
+	// placedRow has it.
+	line    *ledger.Line
+	day     LedgerDay
+	session string
+}
+
+// CountedSession is the session the row's request counts toward, as its
+// line counts it, ledger.Line's CountedSession, or before it comes, as the
+// stream told of it: none for a quota check, sent under an id Claude Code
+// never uses again, nor for a line that isn't a row.
+func (l LogLine) CountedSession() string {
+	return l.session
 }
 
 // DayRule is where one day's rows end and the next's begin, a night's quiet
@@ -219,7 +229,7 @@ func tableOf(rows []placedRow, first LedgerDay, src LogSources) LogTable {
 		if last != nil && last.Date != p.day.Date {
 			table.Lines = append(table.Lines, LogLine{Rule: rules.between(*last, p.day)})
 		}
-		table.Lines = append(table.Lines, LogLine{Row: p.row, line: p.line, day: p.day})
+		table.Lines = append(table.Lines, LogLine{Row: p.row, line: p.line, day: p.day, session: p.session})
 		last = &p.day
 	}
 	return table

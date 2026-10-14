@@ -361,7 +361,8 @@ func writeEvents(t *testing.T, state string, lines ...events.Line) {
 
 // ↑ pauses the Log at its newest line, chosen; lines come since are counted
 // under the paused foot; and end follows again. Paused, the key line puts
-// what acts on the line chosen together, f and / apart.
+// what acts on the line chosen together, f and / apart, s its session
+// listed nowhere till a session's page opens from it.
 func TestTheLogPausesOnTheLineChosenAndFollowsAgain(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
@@ -380,7 +381,7 @@ func TestTheLogPausesOnTheLineChosenAndFollowsAgain(t *testing.T) {
 	for _, group := range l.Groups {
 		got = append(got, listedKeys(group))
 	}
-	want := [][]string{{"tab"}, {"[ ]"}, {"↑↓", "enter", "s", "end"}, {"f", "/"}, {"p"}, {"?", "q"}}
+	want := [][]string{{"tab"}, {"[ ]"}, {"↑↓", "enter", "end"}, {"f", "/"}, {"p"}, {"?", "q"}}
 	if !slices.EqualFunc(got, want, slices.Equal) || !slices.Equal(listedKeys(l.Phone), []string{"↑↓", "enter", "end", "[ ]"}) {
 		t.Errorf("paused, the key line is %q, a phone's keeping %q; want %q, and [↑↓ enter end [ ]]", got, listedKeys(l.Phone), want)
 	}

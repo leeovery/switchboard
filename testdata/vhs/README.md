@@ -483,6 +483,12 @@ frames):
   where the cursor starts: the frame lights no tick, where the design lights the row the cursor's
   on, as the routing card's (see The routing card).
 
+**`s its session`, till a session's page opens from the Log:** stage 10 builds the page `s` opens,
+and till it does the dashboard lists `s` nowhere, as it would do nothing. In
+`log-request-details-160`, the card's keys, row 30, columns 90 to 141, which the dashboard draws
+`↑↓ previous/next request   esc close`, ending where the frame's end; and the key line faded behind
+the card, row 37, columns 49 to 127, from `s its session` on, the rest drawn 15 cells to the left.
+
 **A pressure event's mark:** in `accounts-detail-one-160`'s LATELY, row 28, column 20, `●`, drawn
 before each kind of event had a mark of its own, where the Log's marks give `◔`, in
 `accent.attention`.
