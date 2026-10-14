@@ -364,7 +364,7 @@ func TestARequestTheStreamOpenedAgainTellsOfLateInItsFirstLookIsNeverLost(t *tes
 func d28cRunning(t *testing.T, h *harness, now time.Time) views.Running {
 	t.Helper()
 	f := h.model.frame(now)
-	running := views.RunningOf(h.model.moment(now), f.Sessions, f.Stream, views.HeldList{})
+	running := views.RunningOf(h.model.moment(now), f.Sessions, f.Stream, f.HeldList)
 	i := slices.IndexFunc(running, func(r views.Running) bool { return r.Session == idD28C && r.Account == "work" })
 	if i < 0 {
 		t.Fatalf("the views run %+v, want d28c on work", running)

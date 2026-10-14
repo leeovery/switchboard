@@ -5,6 +5,7 @@ import (
 	"iter"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -382,6 +383,46 @@ func TestTheListIsReadOnceAsSessionsFirstShowsThenFedByTheTail(t *testing.T) {
 	h.keys(tabKey, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 	if len(l.asked) != 1 || len(l.alone) != 1 || h.model.view != dashboard.Sessions {
 		t.Errorf("Sessions shown again, on %s, the List was read whole %d times, sessions alone %q, want no more, held for the run", h.model.view, len(l.asked), l.alone)
+	}
+}
+
+// Every view naming the sessions running names each as the List held does,
+// by its main thread's lines first, so the List is read as the first of
+// them shows: SESSIONS on the Overview, Accounts' Detail or Sessions. Till
+// then, a session is named by the model the router saw it on last.
+func TestAViewNamingTheSessionsRunningReadsTheListAndNamesThemByIt(t *testing.T) {
+	tests := []struct {
+		name string
+		show func(*harness)
+	}{
+		{name: "SESSIONS on the Overview", show: func(h *harness) { h.keyed("s") }},
+		{name: "Accounts' Detail", show: func(h *harness) {
+			h.model.view, h.model.accounts.shown = dashboard.Accounts, dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Accounts: threeConfigured}
+			h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 40})...)
+		}},
+		{name: "Sessions", show: func(h *harness) { h.keys(toSessions...) }},
+	}
+	seat := func(model string, seen time.Duration) status.Assignment {
+		return status.Assignment{
+			Model: model, Family: strings.Split(model, "-")[1], Account: "work", Reason: "new",
+			AssignedAt: start.Add(-time.Hour).UTC(), LastSeen: start.Add(-seen).UTC(),
+		}
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, four())
+			h.source.sessions = []status.Session{{ID: idD28C, Assignments: []status.Assignment{seat(opus, 2*time.Minute), seat(haiku, 10*time.Second)}}}
+			l := h.withLines(promptedLines(1, start.Add(-30*time.Minute)))
+			h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+			h.start()
+			if r := d28cRunning(t, h, h.clock.now); len(l.asked) != 0 || r.Model != haiku {
+				t.Fatalf("on the Overview, SESSIONS hidden, the List was read %d times, d28c named %s; want it unread, d28c named by the model the router saw it on last, %s", len(l.asked), r.Model, haiku)
+			}
+			tt.show(h)
+			if r := d28cRunning(t, h, h.clock.now); len(l.asked) != 1 || r.Model != opus || r.Family != "opus" {
+				t.Errorf("shown, the List was read %d times, d28c named %s, of %s; want it read once, d28c named by its main thread's lines, %s", len(l.asked), r.Model, r.Family, opus)
+			}
+		})
 	}
 }
 

@@ -101,21 +101,22 @@ func TestAClickOnASessionInSESSIONSOpensItsPageOnceItsLinesAreRead(t *testing.T)
 	h.model.cfg.Home = "/home/someone"
 	h.keyed("s c l")
 	click := h.sessionClick(idD28C)
+	listed := len(l.asked)
 
 	next, stale := h.model.Update(click)
 	h.model = next.(Model)
 	next, read := h.model.Update(click)
 	h.model = next.(Model)
-	if len(l.asked) != 0 || h.model.session != nil {
-		t.Fatalf("clicked, the ledger was read %d times and a page is open %v; want neither till the read runs", len(l.asked), h.model.session != nil)
+	if len(l.asked) != listed || h.model.session != nil {
+		t.Fatalf("clicked, the ledger was read %d times and a page is open %v; want neither till the read runs", len(l.asked)-listed, h.model.session != nil)
 	}
 	h.deliver(h.run(stale)...)
 	if h.model.session != nil {
 		t.Fatal("the read asked for before the last landed and opened its page, want it dropped")
 	}
 	h.deliver(h.run(read)...)
-	if !slices.EqualFunc(l.asked, [][]string{{idD28C}, {idD28C}}, slices.Equal) {
-		t.Errorf("the reads asked the ledger for %q, want d28c's lines alone each time", l.asked)
+	if !slices.EqualFunc(l.asked[listed:], [][]string{{idD28C}, {idD28C}}, slices.Equal) {
+		t.Errorf("the reads asked the ledger for %q, want d28c's lines alone each time", l.asked[listed:])
 	}
 	page := h.shownPage()
 	if page.Page.Session != idD28C || page.Turn != 2 || page.Home != "/home/someone" || h.model.view != dashboard.Overview {

@@ -53,13 +53,13 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 
 // running are the sessions running on doc's accounts at now, as views lists
 // them, of the router's listing as the request stream has moved and seen
-// them since: as holdRunning holds them, where the frame holds them of doc
-// at now, else worked out afresh.
+// them since, each named as the List held names it: as holdRunning holds
+// them, where the frame holds them of doc at now, else worked out afresh.
 func (f Frame) running(doc status.Document, now time.Time) []views.Running {
 	if f.runs != nil && f.runs.at.Of(doc, now, f.Policy) {
 		return f.runs.list()
 	}
-	return views.RunningOf(f.Moment(doc, now), f.Sessions, f.Stream, views.HeldList{})
+	return views.RunningOf(f.Moment(doc, now), f.Sessions, f.Stream, f.HeldList)
 }
 
 // runningHeld are the sessions running of a document at a moment, as

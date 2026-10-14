@@ -797,9 +797,10 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // tab shown, with what the watch knows of the router, its events and its
 // history, the numbers brightening, the Overview's sections shown, how its
 // windows are grouped, the requests its traces count and its layout as
-// kept, what Runway shows, the sessions listed, what the request
-// stream tells of their requests, how far the view is scrolled, the account
-// the focus is on, and what Accounts, as standing has it, and History show.
+// kept, what Runway shows, the sessions listed, what the request stream
+// tells of their requests, the List held, whose lines name them, how far the
+// view is scrolled, the account the focus is on, and what Accounts, as
+// standing has it, and History show.
 // It holds the one moment of the document at now, as At has it, for its
 // bars eased to it and every look at it to share: the message's, as taking
 // has it, where now is when the message came.
@@ -809,7 +810,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		View: m.view,
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
-		Sessions: m.sessions, Stream: m.traffic.stream(now), Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
+		Sessions: m.sessions, Stream: m.traffic.stream(now), HeldList: m.sessionsTab.list(), Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,

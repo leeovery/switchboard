@@ -457,7 +457,7 @@ func accountsHarness(t *testing.T, shown dashboard.AccountsShown) *harness {
 	h.source.sessions = runningOnWork()
 	shown.Accounts = threeConfigured
 	h.model.view, h.model.accounts.shown = dashboard.Accounts, shown
-	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
 	h.start()
 	return h
 }
