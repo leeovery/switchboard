@@ -88,107 +88,7 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - **Everything is recorded:** each reading, request and event, a file a day, for the dashboard and the verbs to read back.
 - **It looks after itself,** taking up new tokens and config, and restarting in place after an upgrade.
 
-### Routing
-
-- **Every `claude` goes through switchboard.** `setup` puts a link named `claude` in switchboard's own bin directory, which you put on `PATH` ahead of the real one. Run by that name, switchboard starts the real Claude Code connected to the router: from a shell, a tmux pane, a script, or a tool that runs `claude -p`.
-- **A token swapped, the body untouched.** Switchboard replaces the `Authorization` header of each conversation request (`/v1/messages` and its `count_tokens`) with the chosen account's token, and never edits a request's body, so the request is still Claude Code's own, and Claude's thinking stays valid from turn to turn.
-  - It narrows the request's `Accept-Encoding` to gzip, deflate and identity, the encodings it can read a copy of the answer in, to count the answer as it streams.
-  - Everything else passes through on Claude Code's own token, as it came.
-  - Either way, every header of switchboard's own, named `X-Switchboard-…`, is taken off on the way, so the API never sees one: the pin `run --account` sets, the directory `run` names for the ledger, and any a newer `run` sends.
-- **Usage off real traffic.** Every response carries each window's utilization and reset: the 5-hour window, the weekly window every model shares, and a model's own weekly window where it has one. Only a 429 that refuses the request itself carries none. Switchboard reads them off every response, so looking costs next to nothing.
-  - It probes an account, one request per model family, each capped at one output token, only when nothing has been read of it, a decision needs fresher numbers than traffic has given, a dashboard asks, it's due a [prime](#priming), or on the router's own [rounds](#priming): once nothing has read it in half an hour, and 5 minutes before each of its weeks resets.
-- **Choosing an account.** A new session goes to the account whose quota most needs using, among those with room in every window its model counts against: the room left in the shared weekly window, divided by the hours until it resets.
-  - So quota that resets tomorrow is used before quota that resets next week, and an account with little left scores low unless its week resets soon.
-  - Among accounts scoring at least 0.8 of the best, the one whose 5-hour window resets soonest wins, as what's left in a window at its reset is lost; with [priming](#priming), the accounts' resets are spread through the day.
-- **Sticky, for the cache.** Prompt caches are per account, and the first turn after a move costs around 40× a warm one.
-  - A session is remembered by its session id and model once a request of it is answered with success, so a resumed session finds its account again, and a request under an id never used again that fails, as the quota check `claude --resume` sends as it starts can, leaves nothing behind.
-  - It stays on that account while its cache is warm, for an hour after its last request, and the account has room.
-  - Idle past the hour, its cache is cold and a move costs nothing, so it's re-scored, keeping its own account unless another beats it by 20%. A Claude Sonnet 5.5 session isn't re-scored for idling: its thinking works only on the account that produced it, and a move would lose it.
-- **Pressure.** Several busy sessions on one account run its 5-hour window out together, then all move at once, each rebuilding its cache elsewhere. So the router watches each account's 5-hour window, and steers sessions off one heading for its limit:
-  - **The rate** is how fast its use rose over the last 30 minutes, or across a longer gap in its readings, spread over the gap, as use outside the router shows only when the router next reads the account, so an account gone quiet reads quiet; for a window with no reading from 10 minutes back, it's its use since the window started.
-  - **Under pressure** is an account whose window, at that rate, reaches its reserve before it resets, or its limit, without a reserve or on an account pinned.
-  - **What moves:** a new session, a request without one, or a session chosen afresh after an idle hour, because its account can't serve it or because its own pin yields, goes to the best of the others, the pin's first. Running sessions stay put, a session's own pin holds, and when every account is under pressure, it changes nothing.
-- **Limits and refusals.**
-  - **A limit:** a 429 that says a limit is reached is replayed on the next candidate before any of the answer reaches Claude Code, and the session moves there and stays, with one slower turn while its cache rebuilds there, and no exiting or resuming. The account sits out of the requests the limit counts, so a limit on Fable's own week leaves its other models' sessions where they are, until the reset the 429 gives, or for five minutes when it gives none, or sooner when a request sent since shows it lifted, as after you reset a limit by hand.
-  - **Throttling:** a 429 that's only throttling waits and retries on the same account, twice at most, as moving would throw the cache away for nothing.
-  - **A 429 without usage headers** says nothing of the account, but refuses the request itself, so it reaches Claude Code at once, as it came.
-  - **A refusal:** a request the API refuses is replayed elsewhere too, and the refusal never relayed, as Claude Code drops its login on a 403. An account whose token the API refuses sits out every request for ten minutes, and one that refuses the request itself sits out that model's requests as long, unless every account the request went out on refused it, which says more of the request than of the accounts, so none sits out for it, and its session stays where it was.
-  - **Nowhere to go:** when no account has room, Claude Code gets a 429, as it would from one account at its limit; when every account has refused the request, a 502 that gives the API's reason and tells it not to retry.
-- **Pins.** `switchboard pin` sends new sessions to one account, or to the best of several, or moves running ones there; `pin --session` pins one running session; `switchboard run --account` pins a session as it starts. The dashboard's routing card sets the same pins, and Claude does when you ask. Every pin yields at a limit rather than failing. See [`pin`](#pin).
-
-### What it records
-
-Switchboard keeps a record of everything the router reads and does, in the state directory, so the dashboard and the verbs can look back, with or without the router. The formats are in the [Reference](#reference).
-
-- **State that outlasts restarts.** The router keeps each session's account, the pins and each account's last readings in `state.json`, so a restart doesn't scatter sessions or need a probe.
-- **A readings history.** Each reading that changes how a window of an account reads, and nothing when nothing moved, is appended to a file a day in `history/`, kept for 400 days, or as long as [`[history]`](#history-keys) says, `forever` included. It's there for you to look back at how the accounts were used.
-  - As it starts, the router takes up the readings of its two newest days, so the recent rates outlast a restart.
-  - It never stands in routing's way: a line it can't write goes unwritten, logged once.
-- **A request ledger.** A line for each request the router routes, as it finishes with it, whether it went upstream or the router answered it itself, is appended to a file a day in `ledger/`, kept for 400 days, or as long as [`[ledger]`](#ledger-keys) says, `forever` included, and never pruned before its day's summary is written.
-  - It keeps everything about a request but its content: its session, model and account, why it went there, its timing, its shape and settings, and the answer's usage, but never its messages, its system prompt or its tools.
-  - It never holds a request up: the lines wait, 8,192 at most, for a goroutine of their own to write them, and a line it can't write goes unwritten, logged once.
-  - An hour after each day ends, giving the requests still in flight then time to end, the router summarises the day beside its lines, each account's requests, sessions, moves, limits and highest use, and the summary is kept for good.
-  - [`requests`](#requests), [`history`](#history) and [`sessions`](#sessions) read it all back, with or without the router.
-- **The router's events.** Beside the ledger's lines, the router files its events, a JSON line for each version of one, so they outlast a restart: a session started or moved, an account under pressure, at its cap, at its limit, refused, primed or with room again, routing set by hand, a restart falling due, and its own health turning. [`events`](#events) reads them back.
-
-### Looking after itself
-
-- **Tokens.** The router takes up a change to a token file as it comes, and a token file caught empty while it's rewritten doesn't cost its account its token.
-- **Sleep.** Once your Mac wakes, it sends the requests it routes upstream on fresh connections, as a sleep can leave those it kept dead; probes go out on connections of their own, each given 5 seconds.
-- **Restarts.** The service's router restarts itself, once no request is in flight, when its config changes, `brew upgrade` replaces it or your Mac's time zone changes, so `accounts add`, an edit by hand, an upgrade and a new time zone all take effect without a command; a router started by hand with `serve` logs that a restart is due instead.
-  - It restarts in place, running its new binary in the same process and handing it the sockets it listens on, so a request made meanwhile waits a moment rather than being refused, and launchd isn't asked to start an upgraded binary afresh, which macOS has been seen to refuse, where it lets the router run it in place, as the first such upgrade showed.
-  - With many long sessions, a moment with no request in flight can be hours coming: `switchboard status` and the dashboard say while a restart is due, and `switchboard service restart` has it now. See [`serve`](#serve).
-
-### The primary
-
-One account is the primary: the one your browser and the Claude apps are signed into. `primary = true` marks it; without it, the first account is the primary. Remove the primary, and the account marked, else the first, is the primary from then on, as `accounts remove` says; the sessions already running, which hold the removed one's token, stay routed while the new primary has a usable token.
-
-Artifacts live on the primary. Claude Code's own token is the primary's in every routed session, whichever account the conversation goes to, a pinned session included: a pin moves the conversation alone. (While the primary's token isn't usable, it's another account's: see [`claude`](#claude).) So what Claude Code sends that isn't the conversation, such as publishing an artifact or uploading a file, goes out on the primary, and every session's artifacts open in a browser signed into it.
-
-### Reserves
-
-Any account can keep a reserve, leaving a share of it for use outside the router, as the primary might for the Claude apps.
-
-- **The reserve** is the share of every window the router leaves unused: `0` unless the account's `reserve` sets another, so with none set, the router runs every account to its limit. Once a window reaches its reserve, at 90% with a reserve of `0.1`, the router's own choices pass the account over: new sessions skip it, and sessions on it move as at a limit. The router never spends a reserve, even when no other account has room.
-- **Pins spend it.** The reserve holds back the router's choices, and a pin is yours: a pinned account runs to its limit. So when an account is at its reserve and every other is out, `switchboard pin <account> --move` carries the running sessions on there, and `switchboard pin auto` hands them back to the router, reserve and all.
-
-Readings come off responses, so one large turn can take an account a point or two past its reserve before the router sees it, and use outside the router, such as in the Claude apps on the primary, takes it further, as intended.
-
-### Priming
-
-Anthropic's 5-hour window starts with an account's first message after its last window ended, and resets five hours later. Left alone, an account's first window starts with the day's first request on it, so an 08:00–23:00 day meets three of its windows, and accounts started together come back together. With a day set in [`[prime]`](#prime-keys), switchboard starts each account's window at a time of its own, so they come back one at a time: once all are spent, the wait for the next is at most 5 hours ÷ the number of accounts.
-
-With N accounts that have usable tokens, resets fall every 5 hours ÷ N, the first half a step after the day starts, and each account, in config order, is primed five hours before its first reset, taken back to the ten-minute mark that falls in, and the resets it predicts with it: every reset seen falls on one, as the API takes a window's start back to its mark, so the schedule shows where each window really starts and resets. With two accounts, the first is primed at 04:10 and resets at 09:10, not at 04:15 and 09:15. Taken back, never on, a slot stays before the day starts, and the slots stay as evenly apart as the marks allow. Every prime falls before the day starts, so your first requests don't disturb the schedule, and goes 5 seconds after its slot, so it lands within the slot's ten minutes though the Mac's clock runs a little ahead of the API's. For a day starting at 08:00:
-
-| Accounts | Primed | Resets |
-|---|---|---|
-| 4 | 03:30, 04:50, 06:00, 07:20 | 08:30, 09:50, 11:00, 12:20, 13:30, 14:50, 16:00, 17:20, 18:30, 19:50, 21:00, 22:20 |
-| 3 | 03:50, 05:30, 07:10 | 08:50, 10:30, 12:10, 13:50, 15:30, 17:10, 18:50, 20:30, 22:10 |
-| 2 | 04:10, 06:40 | 09:10, 11:40, 14:10, 16:40, 19:10, 21:40 |
-
-Each account then meets four windows in an 08:00–23:00 day. The cost is short windows at the day's edges: with three accounts, the first has 50 minutes of its first window left at 08:00, and the third's last window starts at 22:10.
-
-- **A prime** is a probe, one request per model family, Haiku and Fable (falling back to the previous Fable), each capped at one output token, sent to an account whose 5-hour window isn't running. An account whose window is already running, as after a late night, gets none, and its slot shifts for the day. A prime that reads nothing, or doesn't start the window, is logged as a warning and sent again five minutes on. An account that can take no request anyway, or whose token is refused, isn't primed while it's so, as a prime couldn't start its window.
-- **Through the day,** whenever an account's window resets, in use or not, the router primes it 5 seconds on, so its windows run back to back, a prime being sure to land after the reset though the Mac's clock runs a little ahead of the API's. After the day ends it stops, and the windows lapse overnight, but for those the router's rounds start where they reset before the account's slot.
-- **A prime missed** while the Mac slept, or the router was away, goes out as soon as it can, unless the day has ended.
-- **No accidental windows.** A probe is a request, so probing an idle account starts its window. The router never probes an account whose 5-hour window has lapsed except to prime it, on its rounds where the window it starts resets before the account's slot, or while it can take no request anyway, as while a limit holds back its every request or its week reads spent: starting its window costs nothing then, and a probe is how the router sees a limit you've reset by hand. An account nothing has been read of has no window known to have lapsed, so the router probes it as it starts, and, should that fail or the account be given its first token while the router runs, on its rounds, or sooner when a decision or a dashboard needs it, at any hour, which may start its window off the schedule, once. `usage --probe` and `dashboard --probe`, and `usage`, `status` or `dashboard` without the router, probe every account, as asked, and `accounts add`, `accounts token` and `setup` probe a token they're given, to check it.
-- **The router's rounds.** Every answer the router relays carries its account's whole usage, from wherever it was used: your phone, claude.ai, Claude Code run directly. So an account in use through the router is always current, and the router reads the others itself, around the clock, dashboard or not: each account nothing has read, by an answer, a probe or a prime, in the last half hour. One whose 5-hour window has lapsed and that can take a request is probed, starting its window, only where its slot is more than 5 hours off, so that window resets before its prime is due; without priming, it's probed. One that can take no request anyway is probed at any hour, so a reset you make by hand is seen within the half hour. Each account is also probed once in the 5 minutes before each of its weeks resets, whatever the schedule, unless something read that week in them, so a week's last use is read before it goes; where that starts a lapsed window, the account's prime is skipped as for a window already running, and its schedule settles back by itself. Routing comes first, then the readings' accuracy, then priming. A probe that reads nothing is tried again 2 minutes on, doubling to the half hour, until it reads the account or the account goes out on another token, and a probe due while your Mac slept goes out within a minute of its waking.
-
-`status` shows the schedule. `status` and the dashboard show the next reset among the 5-hour windows and, from the router, the next prime, and a 5-hour window that hasn't started says when its account is next primed.
-
-### What doesn't go through the router
-
-Claude Code's own token is the primary's, so what isn't routed lands there:
-
-- **Fast mode** ignores `ANTHROPIC_BASE_URL`, and isn't supported. **WebFetch's site checks** ignore it too; they're small.
-- **Claude Code's own `/usage` and `/status`** report the primary, not the accounts the conversation went to: `switchboard usage` and `switchboard status --session` do.
-- **Account-bound features**, such as remote sessions and file uploads, pass through untouched, on the primary.
-- **Programs whose `PATH` lacks the link's directory**, such as launchd jobs and some GUI apps, find the real `claude`, and aren't routed.
-- **Extra usage:** an account with extra usage turned on may serve, and bill, the request that crosses its limit, rather than refuse it. The router moves sessions off once the headers show the window spent.
-- **A direct launch**, without the router, can spend the reserve of the account it goes out on.
-- **Claude Code with an API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude Code may use the key rather than an account's token, so `claude` starts without switchboard, and its requests go out on the key (see [`claude`](#claude)).
-
-The full design, including the cache facts it rests on, is in [docs/design.md](docs/design.md).
+The detail of each is in [How it works, in depth](#how-it-works-in-depth), after the dashboard.
 
 ## The Dashboard
 
@@ -322,6 +222,110 @@ The dashboard, probing without the router, posts its own, of an account with roo
 - **It looks back.** `sessions`, `requests`, `history` and `events` give it your sessions, their requests, your days and what the router did, with what each was worth.
 - **It steers when you ask.** It pins new sessions to an account with [`pin`](#pin), moves running ones there with `--move`, or pins one session alone with `--session`; inside a session, `$CLAUDE_CODE_SESSION_ID` holds its own id, and `switchboard status --session` names the account it's on.
 - **JSON without asking.** Run by an agent, `status`, `usage`, `sessions`, `requests`, `history` and `events` print JSON with no flag, as anywhere their output isn't a terminal. What each prints is built by the same code its view on the dashboard draws from, so the two never disagree, and nothing a view shows is out of Claude's reach.
+
+## How it works, in depth
+
+### Routing
+
+- **Every `claude` goes through switchboard.** `setup` puts a link named `claude` in switchboard's own bin directory, which you put on `PATH` ahead of the real one. Run by that name, switchboard starts the real Claude Code connected to the router: from a shell, a tmux pane, a script, or a tool that runs `claude -p`.
+- **A token swapped, the body untouched.** Switchboard replaces the `Authorization` header of each conversation request (`/v1/messages` and its `count_tokens`) with the chosen account's token, and never edits a request's body, so the request is still Claude Code's own, and Claude's thinking stays valid from turn to turn.
+  - It narrows the request's `Accept-Encoding` to gzip, deflate and identity, the encodings it can read a copy of the answer in, to count the answer as it streams.
+  - Everything else passes through on Claude Code's own token, as it came.
+  - Either way, every header of switchboard's own, named `X-Switchboard-…`, is taken off on the way, so the API never sees one: the pin `run --account` sets, the directory `run` names for the ledger, and any a newer `run` sends.
+- **Usage off real traffic.** Every response carries each window's utilization and reset: the 5-hour window, the weekly window every model shares, and a model's own weekly window where it has one. Only a 429 that refuses the request itself carries none. Switchboard reads them off every response, so looking costs next to nothing.
+  - It probes an account, one request per model family, each capped at one output token, only when nothing has been read of it, a decision needs fresher numbers than traffic has given, a dashboard asks, it's due a [prime](#priming), or on the router's own [rounds](#priming): once nothing has read it in half an hour, and 5 minutes before each of its weeks resets.
+- **Choosing an account.** A new session goes to the account whose quota most needs using, among those with room in every window its model counts against: the room left in the shared weekly window, divided by the hours until it resets.
+  - So quota that resets tomorrow is used before quota that resets next week, and an account with little left scores low unless its week resets soon.
+  - Among accounts scoring at least 0.8 of the best, the one whose 5-hour window resets soonest wins, as what's left in a window at its reset is lost; with [priming](#priming), the accounts' resets are spread through the day.
+- **Sticky, for the cache.** Prompt caches are per account, and the first turn after a move costs around 40× a warm one.
+  - A session is remembered by its session id and model once a request of it is answered with success, so a resumed session finds its account again, and a request under an id never used again that fails, as the quota check `claude --resume` sends as it starts can, leaves nothing behind.
+  - It stays on that account while its cache is warm, for an hour after its last request, and the account has room.
+  - Idle past the hour, its cache is cold and a move costs nothing, so it's re-scored, keeping its own account unless another beats it by 20%. A Claude Sonnet 5.5 session isn't re-scored for idling: its thinking works only on the account that produced it, and a move would lose it.
+- **Pressure.** Several busy sessions on one account run its 5-hour window out together, then all move at once, each rebuilding its cache elsewhere. So the router watches each account's 5-hour window, and steers sessions off one heading for its limit:
+  - **The rate** is how fast its use rose over the last 30 minutes, or across a longer gap in its readings, spread over the gap, as use outside the router shows only when the router next reads the account, so an account gone quiet reads quiet; for a window with no reading from 10 minutes back, it's its use since the window started.
+  - **Under pressure** is an account whose window, at that rate, reaches its reserve before it resets, or its limit, without a reserve or on an account pinned.
+  - **What moves:** a new session, a request without one, or a session chosen afresh after an idle hour, because its account can't serve it or because its own pin yields, goes to the best of the others, the pin's first. Running sessions stay put, a session's own pin holds, and when every account is under pressure, it changes nothing.
+- **Limits and refusals.**
+  - **A limit:** a 429 that says a limit is reached is replayed on the next candidate before any of the answer reaches Claude Code, and the session moves there and stays, with one slower turn while its cache rebuilds there, and no exiting or resuming. The account sits out of the requests the limit counts, so a limit on Fable's own week leaves its other models' sessions where they are, until the reset the 429 gives, or for five minutes when it gives none, or sooner when a request sent since shows it lifted, as after you reset a limit by hand.
+  - **Throttling:** a 429 that's only throttling waits and retries on the same account, twice at most, as moving would throw the cache away for nothing.
+  - **A 429 without usage headers** says nothing of the account, but refuses the request itself, so it reaches Claude Code at once, as it came.
+  - **A refusal:** a request the API refuses is replayed elsewhere too, and the refusal never relayed, as Claude Code drops its login on a 403. An account whose token the API refuses sits out every request for ten minutes, and one that refuses the request itself sits out that model's requests as long, unless every account the request went out on refused it, which says more of the request than of the accounts, so none sits out for it, and its session stays where it was.
+  - **Nowhere to go:** when no account has room, Claude Code gets a 429, as it would from one account at its limit; when every account has refused the request, a 502 that gives the API's reason and tells it not to retry.
+- **Pins.** `switchboard pin` sends new sessions to one account, or to the best of several, or moves running ones there; `pin --session` pins one running session; `switchboard run --account` pins a session as it starts. The dashboard's routing card sets the same pins, and Claude does when you ask. Every pin yields at a limit rather than failing. See [`pin`](#pin).
+
+### What it records
+
+Switchboard keeps a record of everything the router reads and does, in the state directory, so the dashboard and the verbs can look back, with or without the router. The formats are in the [Reference](#reference).
+
+- **State that outlasts restarts.** The router keeps each session's account, the pins and each account's last readings in `state.json`, so a restart doesn't scatter sessions or need a probe.
+- **A readings history.** Each reading that changes how a window of an account reads, and nothing when nothing moved, is appended to a file a day in `history/`, kept for 400 days, or as long as [`[history]`](#history-keys) says, `forever` included. It's there for you to look back at how the accounts were used.
+  - As it starts, the router takes up the readings of its two newest days, so the recent rates outlast a restart.
+  - It never stands in routing's way: a line it can't write goes unwritten, logged once.
+- **A request ledger.** A line for each request the router routes, as it finishes with it, whether it went upstream or the router answered it itself, is appended to a file a day in `ledger/`, kept for 400 days, or as long as [`[ledger]`](#ledger-keys) says, `forever` included, and never pruned before its day's summary is written.
+  - It keeps everything about a request but its content: its session, model and account, why it went there, its timing, its shape and settings, and the answer's usage, but never its messages, its system prompt or its tools.
+  - It never holds a request up: the lines wait, 8,192 at most, for a goroutine of their own to write them, and a line it can't write goes unwritten, logged once.
+  - An hour after each day ends, giving the requests still in flight then time to end, the router summarises the day beside its lines, each account's requests, sessions, moves, limits and highest use, and the summary is kept for good.
+  - [`requests`](#requests), [`history`](#history) and [`sessions`](#sessions) read it all back, with or without the router.
+- **The router's events.** Beside the ledger's lines, the router files its events, a JSON line for each version of one, so they outlast a restart: a session started or moved, an account under pressure, at its cap, at its limit, refused, primed or with room again, routing set by hand, a restart falling due, and its own health turning. [`events`](#events) reads them back.
+
+### Looking after itself
+
+- **Tokens.** The router takes up a change to a token file as it comes, and a token file caught empty while it's rewritten doesn't cost its account its token.
+- **Sleep.** Once your Mac wakes, it sends the requests it routes upstream on fresh connections, as a sleep can leave those it kept dead; probes go out on connections of their own, each given 5 seconds.
+- **Restarts.** The service's router restarts itself, once no request is in flight, when its config changes, `brew upgrade` replaces it or your Mac's time zone changes, so `accounts add`, an edit by hand, an upgrade and a new time zone all take effect without a command; a router started by hand with `serve` logs that a restart is due instead.
+  - It restarts in place, running its new binary in the same process and handing it the sockets it listens on, so a request made meanwhile waits a moment rather than being refused, and launchd isn't asked to start an upgraded binary afresh, which macOS has been seen to refuse, where it lets the router run it in place, as the first such upgrade showed.
+  - With many long sessions, a moment with no request in flight can be hours coming: `switchboard status` and the dashboard say while a restart is due, and `switchboard service restart` has it now. See [`serve`](#serve).
+
+### The primary
+
+One account is the primary: the one your browser and the Claude apps are signed into. `primary = true` marks it; without it, the first account is the primary. Remove the primary, and the account marked, else the first, is the primary from then on, as `accounts remove` says; the sessions already running, which hold the removed one's token, stay routed while the new primary has a usable token.
+
+Artifacts live on the primary. Claude Code's own token is the primary's in every routed session, whichever account the conversation goes to, a pinned session included: a pin moves the conversation alone. (While the primary's token isn't usable, it's another account's: see [`claude`](#claude).) So what Claude Code sends that isn't the conversation, such as publishing an artifact or uploading a file, goes out on the primary, and every session's artifacts open in a browser signed into it.
+
+### Reserves
+
+Any account can keep a reserve, leaving a share of it for use outside the router, as the primary might for the Claude apps.
+
+- **The reserve** is the share of every window the router leaves unused: `0` unless the account's `reserve` sets another, so with none set, the router runs every account to its limit. Once a window reaches its reserve, at 90% with a reserve of `0.1`, the router's own choices pass the account over: new sessions skip it, and sessions on it move as at a limit. The router never spends a reserve, even when no other account has room.
+- **Pins spend it.** The reserve holds back the router's choices, and a pin is yours: a pinned account runs to its limit. So when an account is at its reserve and every other is out, `switchboard pin <account> --move` carries the running sessions on there, and `switchboard pin auto` hands them back to the router, reserve and all.
+
+Readings come off responses, so one large turn can take an account a point or two past its reserve before the router sees it, and use outside the router, such as in the Claude apps on the primary, takes it further, as intended.
+
+### Priming
+
+Anthropic's 5-hour window starts with an account's first message after its last window ended, and resets five hours later. Left alone, an account's first window starts with the day's first request on it, so an 08:00–23:00 day meets three of its windows, and accounts started together come back together. With a day set in [`[prime]`](#prime-keys), switchboard starts each account's window at a time of its own, so they come back one at a time: once all are spent, the wait for the next is at most 5 hours ÷ the number of accounts.
+
+With N accounts that have usable tokens, resets fall every 5 hours ÷ N, the first half a step after the day starts, and each account, in config order, is primed five hours before its first reset, taken back to the ten-minute mark that falls in, and the resets it predicts with it: every reset seen falls on one, as the API takes a window's start back to its mark, so the schedule shows where each window really starts and resets. With two accounts, the first is primed at 04:10 and resets at 09:10, not at 04:15 and 09:15. Taken back, never on, a slot stays before the day starts, and the slots stay as evenly apart as the marks allow. Every prime falls before the day starts, so your first requests don't disturb the schedule, and goes 5 seconds after its slot, so it lands within the slot's ten minutes though the Mac's clock runs a little ahead of the API's. For a day starting at 08:00:
+
+| Accounts | Primed | Resets |
+|---|---|---|
+| 4 | 03:30, 04:50, 06:00, 07:20 | 08:30, 09:50, 11:00, 12:20, 13:30, 14:50, 16:00, 17:20, 18:30, 19:50, 21:00, 22:20 |
+| 3 | 03:50, 05:30, 07:10 | 08:50, 10:30, 12:10, 13:50, 15:30, 17:10, 18:50, 20:30, 22:10 |
+| 2 | 04:10, 06:40 | 09:10, 11:40, 14:10, 16:40, 19:10, 21:40 |
+
+Each account then meets four windows in an 08:00–23:00 day. The cost is short windows at the day's edges: with three accounts, the first has 50 minutes of its first window left at 08:00, and the third's last window starts at 22:10.
+
+- **A prime** is a probe, one request per model family, Haiku and Fable (falling back to the previous Fable), each capped at one output token, sent to an account whose 5-hour window isn't running. An account whose window is already running, as after a late night, gets none, and its slot shifts for the day. A prime that reads nothing, or doesn't start the window, is logged as a warning and sent again five minutes on. An account that can take no request anyway, or whose token is refused, isn't primed while it's so, as a prime couldn't start its window.
+- **Through the day,** whenever an account's window resets, in use or not, the router primes it 5 seconds on, so its windows run back to back, a prime being sure to land after the reset though the Mac's clock runs a little ahead of the API's. After the day ends it stops, and the windows lapse overnight, but for those the router's rounds start where they reset before the account's slot.
+- **A prime missed** while the Mac slept, or the router was away, goes out as soon as it can, unless the day has ended.
+- **No accidental windows.** A probe is a request, so probing an idle account starts its window. The router never probes an account whose 5-hour window has lapsed except to prime it, on its rounds where the window it starts resets before the account's slot, or while it can take no request anyway, as while a limit holds back its every request or its week reads spent: starting its window costs nothing then, and a probe is how the router sees a limit you've reset by hand. An account nothing has been read of has no window known to have lapsed, so the router probes it as it starts, and, should that fail or the account be given its first token while the router runs, on its rounds, or sooner when a decision or a dashboard needs it, at any hour, which may start its window off the schedule, once. `usage --probe` and `dashboard --probe`, and `usage`, `status` or `dashboard` without the router, probe every account, as asked, and `accounts add`, `accounts token` and `setup` probe a token they're given, to check it.
+- **The router's rounds.** Every answer the router relays carries its account's whole usage, from wherever it was used: your phone, claude.ai, Claude Code run directly. So an account in use through the router is always current, and the router reads the others itself, around the clock, dashboard or not: each account nothing has read, by an answer, a probe or a prime, in the last half hour. One whose 5-hour window has lapsed and that can take a request is probed, starting its window, only where its slot is more than 5 hours off, so that window resets before its prime is due; without priming, it's probed. One that can take no request anyway is probed at any hour, so a reset you make by hand is seen within the half hour. Each account is also probed once in the 5 minutes before each of its weeks resets, whatever the schedule, unless something read that week in them, so a week's last use is read before it goes; where that starts a lapsed window, the account's prime is skipped as for a window already running, and its schedule settles back by itself. Routing comes first, then the readings' accuracy, then priming. A probe that reads nothing is tried again 2 minutes on, doubling to the half hour, until it reads the account or the account goes out on another token, and a probe due while your Mac slept goes out within a minute of its waking.
+
+`status` shows the schedule. `status` and the dashboard show the next reset among the 5-hour windows and, from the router, the next prime, and a 5-hour window that hasn't started says when its account is next primed.
+
+### What doesn't go through the router
+
+Claude Code's own token is the primary's, so what isn't routed lands there:
+
+- **Fast mode** ignores `ANTHROPIC_BASE_URL`, and isn't supported. **WebFetch's site checks** ignore it too; they're small.
+- **Claude Code's own `/usage` and `/status`** report the primary, not the accounts the conversation went to: `switchboard usage` and `switchboard status --session` do.
+- **Account-bound features**, such as remote sessions and file uploads, pass through untouched, on the primary.
+- **Programs whose `PATH` lacks the link's directory**, such as launchd jobs and some GUI apps, find the real `claude`, and aren't routed.
+- **Extra usage:** an account with extra usage turned on may serve, and bill, the request that crosses its limit, rather than refuse it. The router moves sessions off once the headers show the window spent.
+- **A direct launch**, without the router, can spend the reserve of the account it goes out on.
+- **Claude Code with an API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude Code may use the key rather than an account's token, so `claude` starts without switchboard, and its requests go out on the key (see [`claude`](#claude)).
+
+The full design, including the cache facts it rests on, is in [docs/design.md](docs/design.md).
 
 ## Commands
 
