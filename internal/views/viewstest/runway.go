@@ -372,7 +372,9 @@ func refusals() []RunwayMoment {
 // event of it, as the ten world has it, its words from 13:58's column, a
 // column before its first drawn; work held by a limit naming no window that
 // neither an event nor a reading tells the start of, from before the
-// timeline; and work read spent by probing at 14:41, in now's column.
+// timeline, but not on a day gone, a week before, read with room all day, as
+// such a hold is known only to hold now; and work read spent by probing at
+// 14:41, in now's column.
 func holdsNoEventTells() []RunwayMoment {
 	back := onThu(15, 30, 0)
 	probe := status.Document{GeneratedAt: onThu(14, 41, 0), Source: status.SourceProbe, Fallback: status.Fallback{Router: status.RouterNotRunning}}
@@ -382,6 +384,13 @@ func holdsNoEventTells() []RunwayMoment {
 	team := readAccount("team", onThu(14, 41, 0), spent(fiveHour, 1, back), window(week, 0.4, mondayTen))
 	unnamed := readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.5, onThu(16, 30, 0)), window(week, 0.5, mondayTen))
 	unnamed.Limit = status.Limit{ID: 3, Until: back}
+	weekOn := thursday.AddDate(0, 0, 7)
+	unnamedWeekOn := readAccount(work, weekOn.Add(-time.Minute), window(fiveHour, 0.5, weekOn.Add(time.Hour)), window(week, 0.5, weekOn.Add(72*time.Hour)))
+	unnamedWeekOn.Limit = status.Limit{ID: 3, Until: weekOn.Add(20 * time.Minute)}
+	var weekBefore []readings.Reading
+	for at := onWed(23, 0, 0); at.Before(onThu(24, 1, 0)); at = at.Add(30 * time.Minute) {
+		weekBefore = append(weekBefore, readEach(work, at, window(fiveHour, 0.2, at.Add(3*time.Hour)), window(week, 0.2, mondayTen))...)
+	}
 	return []RunwayMoment{
 		fiveHourAt("a hold no event tells of, probed", probe.WorkedOut(claude.Policy), sorted(
 			readEach(work, onThu(13, 30, 0), window(fiveHour, 0.8, back), window(week, 0.5, mondayTen)),
@@ -406,6 +415,12 @@ func holdsNoEventTells() []RunwayMoment {
 			"":   {FigureDips: "1 — – 15:30 @0 0-10"},
 			work: {FigureCells: "limited 0-10, room 11-135", FigureStretches: "limited — – 15:30 @0 0-10"},
 		}),
+		{
+			Name: "a hold neither an event nor a reading tells the start of, a day a week before stepped back to",
+			Doc:  routed(weekOn.Add(-time.Minute), nil, unnamedWeekOn, sideOn(weekOn.Add(-time.Minute))), Now: weekOn, Readings: weekBefore,
+			Day: civilDay(2026, time.October, 1), Columns: lanes,
+			Want: map[string]Figures{work: {FigureCells: "room 0-135", FigureStretches: "", FigureRoom: "yes"}},
+		},
 		fiveHourAt("a hold begun in now's column, no event telling", probedAt(onThu(14, 41, 0), probed), sorted(
 			readEach(work, onThu(13, 30, 0), window(fiveHour, 0.8, back), window(week, 0.5, mondayTen)),
 			readEach(work, onThu(14, 41, 0), probed.Windows...),
