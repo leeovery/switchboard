@@ -85,13 +85,13 @@ func TestALanesSessionSaysWhatItsDoingAndIsBoldWhileItWorks(t *testing.T) {
 			if y < 0 {
 				t.Fatalf("no row says c61b; drew\n%s", strings.Join(lanesText(f, doc), "\n"))
 			}
-			if got := strings.TrimRight(c.rows(Look{})[y][laneDoing:], " "); got != tt.said {
-				t.Errorf("c61b's row says %q at column %d, want %q", got, laneDoing, tt.said)
+			if got := strings.TrimRight(c.rows(Look{})[y][laneCall.doing:], " "); got != tt.said {
+				t.Errorf("c61b's row says %q at column %d, want %q", got, laneCall.doing, tt.said)
 			}
-			if got := c.at(laneDoing, y).ink; got.token != tt.doing.token || got.bold != tt.doing.bold {
+			if got := c.at(laneCall.doing, y).ink; got.token != tt.doing.token || got.bold != tt.doing.bold {
 				t.Errorf("what c61b's doing is in %+v, want %+v", got, tt.doing)
 			}
-			if got := c.at(laneID, y).ink; got.token != tt.id.token || got.bold != tt.id.bold {
+			if got := c.at(laneCall.id, y).ink; got.token != tt.id.token || got.bold != tt.id.bold {
 				t.Errorf("c61b's id is in %+v, want %+v", got, tt.id)
 			}
 		})
@@ -221,7 +221,7 @@ func TestWhereBentCordsOutnumberTheRoomTheSwitchboardDrawsLanes(t *testing.T) {
 			t.Errorf("row %d reads %q, want %q", want.y+1, got, want.says)
 		}
 	}
-	bar := (160 - laneBeside) / 2
+	bar := (160 - 26) / 2
 	if got := []rune(rows[top+1])[laneWindowsAt+laneFirstBar+bar+1:][:4]; string(got) != " 95%" {
 		t.Errorf("work's 5-hour percentage reads %q, want a bar of %d before it", string(got), bar)
 	}

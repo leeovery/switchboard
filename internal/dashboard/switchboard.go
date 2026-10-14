@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -51,10 +50,6 @@ func (d boardDrawn) draw(c *canvas, top int) {
 		c.right(d.f.Width, d.f.Height-underView, outOfView(0, s.below, d.f.Width, usageOut))
 	}
 }
-
-// noSessionsRunning is what the Switchboard's first call's row says while
-// none runs, as while no router lists any.
-const noSessionsRunning = "no sessions running"
 
 // board is the whole Switchboard drawn, its rows counted from its first: its
 // lines and their jacks, the stubs a limit hangs and the cords moves let go,
@@ -116,56 +111,12 @@ func (d boardDrawn) gone(fade float64) bool {
 	return fade >= 1 || fade >= 0.5 && !d.f.Look.blends()
 }
 
-// call draws the call lc along its row: its session's id, cut to 4, bold
-// text.primary while it works, else text.muted, and its directory, cut to
-// the cells the columns give it, in text.muted; what it's doing, as doing
-// says it; where it came from, as from says it, while the move that brought
-// it is its latest; and its cord, as cord draws it.
+// call draws the call lc along its row, as drawCall draws it at the
+// columns the layout gives it, and its cord, as cord draws it.
 func (d boardDrawn) call(c *canvas, lc laidCall) {
 	call := d.calls[Plug{Session: lc.session, Account: lc.account}]
-	k, y := d.laid.columns, lc.cord.from
-	works := call.Activity.Works()
-	id := mutedInk
-	if works {
-		id = titleInk
-	}
-	x := c.text(0, y, status.ShownID(lc.session), id)
-	if dir := status.DirName(call.Dir, k.dir); dir != "" {
-		c.text(x, y, " "+dir, mutedInk)
-	}
-	c.line(k.doing, y, doing(call.Activity, d.lines.m.Now))
-	if call.From != "" {
-		c.line(k.from, y, d.from(call.From))
-	}
-	d.cord(c, lc, works)
-}
-
-// doing is what a call's session is doing at now, as a session's page says
-// it: ↑ asking or ↓ answering, bold accent.key; refused, bold
-// state.destructive; throttled, text.subtle; else idle, text.faint.
-func doing(a views.Activity, now time.Time) line {
-	k := faintInk
-	switch a.Doing {
-	case views.Asking, views.Answering:
-		k = keyInk
-	case views.Refused:
-		k = exhaustedInk
-	case views.Throttled:
-		k = dimInk
-	}
-	return line{{a.Said(now), k}}
-}
-
-// from is where a call came from, the account with the given id it left:
-// ▸ in accent.key, from in text.muted, where the columns keep it, and the
-// account's name, cut to the cells they give it, in text.secondary.
-func (d boardDrawn) from(id string) line {
-	k := d.laid.columns
-	words := " from "
-	if k.fromShort {
-		words = " "
-	}
-	return line{{"▸", keyMarkInk}, {words, mutedInk}, {prose.Cut(named(d.lines.m, id), k.account), secondaryInk}}
+	drawCall(c, lc.cord.from, call, d.laid.columns.callColumns, d.lines.m, d.lines.m.Now)
+	d.cord(c, lc, call.Activity.Works())
 }
 
 // cord draws lc's cord from its plug to its jack, ◉, in accent.key while its

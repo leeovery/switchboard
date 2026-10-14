@@ -4,26 +4,30 @@ import (
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 // The cells of a line's parts as its steps draw them: a window's label, the
-// first's a cell in, and at step 3, the second's beside it, groupGap cells
-// on, the two taking sideBySideCells besides their bars; and at step 4, its
-// 5-hour bar's.
+// first's a cell in, and at step 3, the second's beside it; and at step 4,
+// its 5-hour bar's.
 const (
 	firstLabelCells  = windowLabelCells + 1
 	secondLabelCells = 5
-	sideBySideCells  = 1 + firstLabelCells + 2*(1+percentCells) + groupGap + secondLabelCells
 	oneRowBar        = 14
 )
+
+// stepThreeLabels are the cells of the labels of step 3's two windows, side
+// by side.
+var stepThreeLabels = []int{firstLabelCells, secondLabelCells}
 
 // widestLines are the columns the lines take at their widest, from 145
 // columns: narrower, step 4's state words take the short form.
 const widestLines = lineBeside + lineBar + lineWords
 
-// outOfThePool ends the name row of an account the global pin leaves out.
-const outOfThePool = "✕ out of the pool"
+// outOfPoolSpan ends the name row of an account the global pin leaves out
+// of the pool, in text.faint, cross and words.
+var outOfPoolSpan = span{"✕ out of the pool", faintInk}
 
 // linesDrawn are the Switchboard's lines of a moment as its form draws them,
 // laid out as laid lays them: each account's name as the Overview names it,
@@ -36,6 +40,7 @@ type linesDrawn struct {
 	names   []accountName
 	column  int
 	windows []shownWindow
+	beside  []shownWindow
 }
 
 // linesDrawn are the Switchboard's lines of m, laid out as laid lays them.
@@ -43,7 +48,7 @@ func (f Frame) linesDrawn(m status.Moment, laid boardLayout) linesDrawn {
 	names := overviewNames(m)
 	return linesDrawn{
 		f: f, m: m, laid: laid, names: names, column: nameColumn(names, f.Width),
-		windows: usageWindows(m, nil, f.windowNamer(m)),
+		windows: usageWindows(m, nil, f.windowNamer(m)), beside: f.besideWindows(m),
 	}
 }
 
@@ -120,7 +125,7 @@ func pinMark(a status.AccountNow) line {
 	case a.Pinned:
 		return line{pinnedSpan}
 	case a.OutOfPool:
-		return line{{outOfThePool, faintInk}}
+		return line{outOfPoolSpan}
 	}
 	return nil
 }
@@ -130,7 +135,7 @@ func pinMark(a status.AccountNow) line {
 // give it, its words in their form, ending a cell short of the edge.
 func (d linesDrawn) window(c *canvas, a status.AccountNow, w shownWindow, y int) {
 	x := d.x() + 1
-	c.line(x, y, d.label(w, windowLabelCells))
+	c.line(x, y, windowLabel(w, windowLabelCells))
 	d.wordsBlock().gauge(c, d.gauge(a, w.key), x+firstLabelCells, y, d.laid.columns.bar, d.f.Width-afterWords)
 }
 
@@ -142,21 +147,59 @@ func (d linesDrawn) barDrawn() int {
 	case 1, 2:
 		return d.laid.columns.bar
 	case 3:
-		return (d.width() - sideBySideCells) / 2
+		return sideBySideBar(d.width(), stepThreeLabels)
 	}
 	return oneRowBar
 }
 
-// sideBySide draws a's 5-hour and week along row y: each its label, then its
-// bar, a cell and its percentage, with no words, groupGap cells apart, the
-// first's label a cell in, the two bars sharing what the lines' width leaves
-// them, ending at the last column.
+// sideBySide draws a's 5-hour and week along row y, as windowsBeside draws
+// them, a cell in, the two bars sharing what the lines' width leaves them,
+// ending at the last column.
 func (d linesDrawn) sideBySide(c *canvas, a status.AccountNow, y int) {
-	labels := []int{firstLabelCells, secondLabelCells}
-	x := d.x() + 1
-	for i, w := range d.windowsShown() {
-		c.line(x, y, d.label(w, labels[i]-1))
-		x = d.meter(c, d.gauge(a, w.key), x+labels[i], y, d.barDrawn()) + groupGap
+	shown := d.windowsShown()
+	gauges := make([]gauge, len(shown))
+	for i, w := range shown {
+		gauges[i] = d.gauge(a, w.key)
+	}
+	windowsBeside(c, d.f.Look, d.x()+1, y, d.barDrawn(), stepThreeLabels, shown, gauges)
+}
+
+// besideWindows are the windows drawn side by side of m, as step 3 and a
+// lane draw them: the first two every model shares, its 5-hour and its
+// week, as the policy m was judged by has them, in Claude's order, each
+// named as the frame names it.
+func (f Frame) besideWindows(m status.Moment) []shownWindow {
+	keys := slices.SortedFunc(slices.Values(m.Policy().Shared), quota.CompareKeys)
+	shown := usageWindows(m, keys, f.windowNamer(m))
+	return shown[:min(len(shown), len(stepThreeLabels))]
+}
+
+// sideBySideCells are the cells windows side by side take besides their bars,
+// their labels of the cells given: a cell in, each label, and after its bar,
+// a cell and its percentage, groupGap cells between each.
+func sideBySideCells(labels []int) int {
+	cells := 1 + (len(labels)-1)*groupGap
+	for _, l := range labels {
+		cells += l + 1 + percentCells
+	}
+	return cells
+}
+
+// sideBySideBar is the cells of each bar of windows side by side across width
+// cells, their labels of the cells given: what the rest leaves them, shared.
+func sideBySideBar(width int, labels []int) int {
+	return max((width-sideBySideCells(labels))/len(labels), 0)
+}
+
+// windowsBeside draws the windows given, each by its gauge, side by side
+// along row y from x: each its label, cut a cell short of the cells labels
+// gives it, in text.subtle; then its bar, bar cells long, a cell and its
+// percentage, with no words, as meter draws them; the next groupGap cells
+// on.
+func windowsBeside(c *canvas, look Look, x, y, bar int, labels []int, windows []shownWindow, gauges []gauge) {
+	for i, g := range gauges[:min(len(gauges), len(windows), len(labels))] {
+		c.line(x, y, windowLabel(windows[i], labels[i]-1))
+		x = meter(c, look, g, x+labels[i], y, bar) + groupGap
 	}
 }
 
@@ -168,14 +211,14 @@ func (d linesDrawn) oneRow(c *canvas, a status.AccountNow, n accountName, y int)
 	x := d.x() + d.column
 	c.line(d.x(), y, n.line(d.column))
 	for _, w := range d.windowsShown() {
-		d.meter(c, d.gauge(a, w.key), x, y, oneRowBar)
+		meter(c, d.f.Look, d.gauge(a, w.key), x, y, oneRowBar)
 	}
 	d.stands(c, a, x+oneRowBar+afterBar, y, d.width() < widestLines)
 }
 
-// label is the window w's name, short, cut to the cells given, in
+// windowLabel is the window w's name, short, cut to the cells given, in
 // text.subtle.
-func (d linesDrawn) label(w shownWindow, cells int) line {
+func windowLabel(w shownWindow, cells int) line {
 	return line{{prose.Cut(status.Short(w.name), cells), dimInk}}
 }
 
@@ -186,11 +229,11 @@ func (d linesDrawn) gauge(a status.AccountNow, key string) gauge {
 	return d.f.overviewGauge(accountGauge(a, key, d.m.Now), a.OutOfPool)
 }
 
-// meter draws g's bar, bar cells long from x along row y, marked as its
-// window's, then a cell and its percentage, with no words, and returns the
-// column after it.
-func (d linesDrawn) meter(c *canvas, g gauge, x, y, bar int) int {
-	g.bar.draw(c, d.f.Look, x, y, bar)
+// meter draws g's bar in the look, bar cells long from x along row y,
+// marked as its window's, then a cell and its percentage, with no words, and
+// returns the column after it.
+func meter(c *canvas, look Look, g gauge, x, y, bar int) int {
+	g.bar.draw(c, look, x, y, bar)
 	c.barred(x, y, bar, g.of)
 	end := x + bar + 1 + percentCells
 	c.right(end, y, g.percentage())
@@ -212,14 +255,14 @@ func (d linesDrawn) wordsBlock() usageBlock {
 }
 
 // windowsShown are the windows a line draws at the layout's step: every
-// window usage shows at steps 1 and 2; at step 3, the first two, its 5-hour
-// and its week; and from step 4, its 5-hour alone.
+// window usage shows at steps 1 and 2; at step 3, its 5-hour and its week,
+// as besideWindows has them; and from step 4, its 5-hour alone.
 func (d linesDrawn) windowsShown() []shownWindow {
 	switch d.laid.step {
 	case 1, 2:
 		return d.windows
 	case 3:
-		return d.windows[:min(len(d.windows), 2)]
+		return d.beside
 	}
 	return d.windows[:min(len(d.windows), 1)]
 }

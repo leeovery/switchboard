@@ -10,6 +10,11 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
+// noSessionsRunning is what the dashboard says where it lists the sessions
+// running and none runs, as while no router lists any: SESSIONS on the
+// Overview, and Sessions' Switchboard, with cords or in lanes.
+const noSessionsRunning = "no sessions running"
+
 // name is what the dashboard calls an account: its label, which is its id
 // unless the config gives another, cleaned.
 func name(a status.AccountNow) string {

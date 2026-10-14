@@ -102,7 +102,7 @@ func (f Frame) runningForm() runningForm {
 // they don't all; or, with none running, a row saying so.
 func (f Frame) drawRunning(c *canvas, m status.Moment, running []views.Running, body bounds) {
 	if len(running) == 0 {
-		c.line(0, body.y, line{{"no sessions running", faintInk}})
+		c.line(0, body.y, line{{noSessionsRunning, faintInk}})
 		return
 	}
 	form := f.runningForm()
@@ -223,7 +223,7 @@ func runningCount(m status.Moment, running []views.Running) string {
 		byAccount[r.Account]++
 	}
 	if len(sessions) == 0 {
-		return "no sessions running"
+		return noSessionsRunning
 	}
 	var on []string
 	for _, a := range m.Accounts {

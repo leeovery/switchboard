@@ -4,8 +4,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -16,37 +14,29 @@ import (
 // it, a row each, then the pool and the key. Nothing travels them: what a
 // session's doing says what moves.
 
-// A lane's columns: a session's id at laneID, a cell, and its directory, cut
-// to laneDir cells; what it's doing at laneDoing; and where it came from at
-// laneFrom. Its windows' row: the first's label at laneWindowsAt, its bar
-// laneFirstBar cells after it, a cell and its percentage; laneApart cells
-// on, the second's label, its bar laneNextBar cells after it, a cell and its
-// percentage. laneBeside are the cells the row takes beside its bars, so
-// each bar is half of what the width leaves them.
+// laneCall is where a lane puts a call's parts, at every width: its id at
+// column 2, its directory cut to 11 cells, what it's doing at 20, and
+// ▸ from at 33, the account cut to fromAccount.
+var laneCall = callColumns{id: 2, dir: 11, doing: 20, from: 33, account: fromAccount}
+
+// A lane's windows' row: the first's label at laneWindowsAt, its bar
+// laneFirstBar cells after it; the second's bar laneNextBar cells after its
+// label, as windowsBeside draws them. The foot's room line sets each window
+// laneApart cells from the last.
 const (
-	laneID        = 2
-	laneDir       = 11
-	laneDoing     = 20
-	laneFrom      = 33
 	laneWindowsAt = 1
 	laneFirstBar  = 7
 	laneNextBar   = 5
 	laneApart     = 3
-	laneBeside    = laneWindowsAt + laneFirstBar + laneNextBar + 2*(1+percentCells) + laneApart
 )
 
 // laneBarsAfter are how many cells after its label each window's bar starts
 // on a lane's windows' row: the 5-hour's, then the week's.
 var laneBarsAfter = []int{laneFirstBar, laneNextBar}
 
-// outOfPoolSpan marks an account the global pin leaves out of the pool, in
-// text.faint, cross and words.
-var outOfPoolSpan = span{"✕ out of the pool", faintInk}
-
 // lanesBoard is the Switchboard of a moment drawn in lanes: the frame, the
-// moment and the time it's drawn at; the accounts' names, unfaded, as ▸
-// names the account a session came from; the usage block its lines are
-// drawn from, of the windows a lane shows, its bars a lane's; its lanes, an
+// moment and the time it's drawn at; the usage block its lines are drawn
+// from, of the windows a lane shows, its bars a lane's; its lanes, an
 // account's each, in the config's order; the pool's row, nil where there's
 // no pool, as with one account; and the rows it takes drawn whole, the foot
 // under its lanes.
@@ -54,7 +44,6 @@ type lanesBoard struct {
 	f     Frame
 	m     status.Moment
 	now   time.Time
-	names []accountName
 	block usageBlock
 	lanes []boardLane
 	pool  *usageRow
@@ -96,14 +85,14 @@ func (f Frame) lanesForm(doc status.Document, now time.Time, laid boardLayout) s
 func (f Frame) lanesOf(doc status.Document, now time.Time, laid boardLayout) lanesBoard {
 	m := f.Moment(doc, now)
 	names := overviewNames(m)
-	block := blockOf(m, f.Width, f.Look, ByAccount, f.laneWindows(m), names)
-	block.accountBar, block.marks = max((f.Width-laneBeside)/2, 0), keyMarks(names, f.phone())
+	block := blockOf(m, f.Width, f.Look, ByAccount, f.besideWindows(m), names)
+	block.accountBar, block.marks = sideBySideBar(f.Width, laneBarsAfter), keyMarks(names, f.phone())
 	found := make(map[Plug]views.Call, len(f.SessionsTab.Calls))
 	for _, c := range f.SessionsTab.Calls {
 		found[Plug{Session: c.Session, Account: c.Account}] = c
 	}
 	accounts, pool := block.split()
-	b := lanesBoard{f: f, m: m, now: now, names: namesOf(m), block: block, pool: pool}
+	b := lanesBoard{f: f, m: m, now: now, block: block, pool: pool}
 	for i, a := range m.Accounts {
 		l := boardLane{account: a, row: accounts[i]}
 		for j, g := range l.row.gauges {
@@ -124,16 +113,6 @@ func (f Frame) lanesOf(doc status.Document, now time.Time, laid boardLayout) lan
 	b.foot(whole, b.drawLanes(&stack{c: whole, filled: make(map[Ref]float64)}, 0, b.lanes))
 	b.whole = whole.height()
 	return b
-}
-
-// laneWindows are the windows a lane's row shows of m, as step 3 shows them:
-// the first that every model shares, as the policy m was judged by has
-// them, in Claude's order, a bar for each laneBarsAfter has, each named as
-// the frame names it.
-func (f Frame) laneWindows(m status.Moment) []shownWindow {
-	keys := slices.SortedFunc(slices.Values(m.Policy().Shared), quota.CompareKeys)
-	shown := usageWindows(m, keys, f.windowNamer(m))
-	return shown[:min(len(shown), len(laneBarsAfter))]
 }
 
 // draw draws the lanes the view shows from row top, as shown has them, cut
@@ -265,73 +244,31 @@ func (b lanesBoard) drawLane(s *stack, y int, l boardLane) int {
 func (b lanesBoard) nameRow(c *canvas, y int, l boardLane) {
 	c.line(0, y, l.row.name)
 	end := b.f.Width
-	switch {
-	case l.account.Pinned:
-		end = c.right(end, y, line{pinnedSpan})
-	case l.account.OutOfPool:
-		end = c.right(end, y, line{outOfPoolSpan})
+	if mark := pinMark(l.account); mark != nil {
+		end = c.right(end, y, mark)
 	}
 	c.line(b.block.names, y, standingWords(l.account.Routing, true, end-wordsGap-b.block.names))
 }
 
 // windowsRow draws the windows of the account's row along row y onto the
-// stack, as step 3 draws them: each its label, in text.subtle, its bar, a
-// cell and its percentage, the next laneApart cells on; each bar marked as
-// its window's, and counted among the bars the stack fills.
+// stack, as windowsBeside draws them, from laneWindowsAt, each bar counted
+// among the bars the stack fills.
 func (b lanesBoard) windowsRow(s *stack, y int, row usageRow) {
-	bar, x := b.block.accountBar, laneWindowsAt
-	for j, g := range row.gauges {
-		after := laneBarsAfter[j]
-		s.c.line(x, y, line{{prose.Cut(status.Short(b.block.windows[j].name), after-1), dimInk}})
-		g.bar.draw(s.c, b.f.Look, x+after, y, bar)
-		s.c.barred(x+after, y, bar, g.of)
-		x += after + bar + 1 + percentCells
-		s.c.right(x, y, g.percentage())
-		x += laneApart
+	windowsBeside(s.c, b.f.Look, laneWindowsAt, y, b.block.accountBar, laneBarsAfter, b.block.windows, row.gauges)
+	for _, g := range row.gauges {
 		if !g.bar.empty {
 			s.filled[g.of] = g.bar.used
 		}
 	}
 }
 
-// callRow draws the call along row y: its session's id, bold text.primary
-// while it works, else text.muted, and its directory in text.muted; what
-// it's doing, in a session's page's words; ▸ from and the account it came
-// from, where a move brought it; all on bg.selection across the row where
-// it's the row chosen.
+// callRow draws the call along row y, as drawCall draws it at a lane's
+// columns, all on bg.selection across the row where it's the row chosen.
 func (b lanesBoard) callRow(c *canvas, y int, call views.Call) {
-	id := mutedInk
-	if call.Activity.Works() {
-		id = titleInk
-	}
-	x := c.line(laneID, y, line{{status.ShownID(call.Session), id}})
-	if dir := status.DirName(call.Dir, laneDir); dir != "" {
-		c.line(x, y, line{{" " + dir, mutedInk}})
-	}
-	c.line(laneDoing, y, line{{call.Activity.Said(b.now), callSaidInk(call.Activity.Doing)}})
-	if call.From != "" {
-		from := overviewNamed(b.m, b.names, call.From, secondaryInk)
-		from.text = prose.Cut(from.text, fromAccount)
-		c.line(laneFrom, y, line{{"▸", ink{token: theme.AccentKey}}, {" from ", mutedInk}, from})
-	}
+	drawCall(c, y, call, laneCall, b.m, b.now)
 	if b.f.SessionsTab.Chosen == (Plug{Session: call.Session, Account: call.Account}) {
 		c.surface(0, y, b.f.Width, hue{token: theme.BgSelection})
 	}
-}
-
-// callSaidInk is the ink what a session's doing is said in, by what it's doing:
-// asking or answering bold accent.key; refused bold state.destructive;
-// throttled text.subtle; else text.faint.
-func callSaidInk(d views.Doing) ink {
-	switch d {
-	case views.Asking, views.Answering:
-		return keyInk
-	case views.Refused:
-		return exhaustedInk
-	case views.Throttled:
-		return dimInk
-	}
-	return faintInk
 }
 
 // foot draws the foot under the lanes onto c from row y, the row after the
