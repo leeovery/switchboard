@@ -40,7 +40,7 @@ func phonePage(t *testing.T) *views.AccountsPage {
 	}
 	days := make([]views.StripDay, 7*stackWeeks, 7*2*stackWeeks)
 	for i := range 7 * stackWeeks {
-		cell := seenAt(frame, phoneDaysAt+i/7*stackWeekApart+i%7*swatchCells, phoneDaysRow)
+		cell := seenAt(frame, phoneDaysAt+i/7*stackLayout.step()+i%7*swatchCells, phoneDaysRow)
 		days = append(days, views.StripDay{Level: levels[cell.bg], Limit: cell.glyph == '▪'})
 	}
 	var peaks []views.WeekPeak
@@ -296,6 +296,17 @@ func TestAPhonesDetailCountsTheConfiguredAccountsStates(t *testing.T) {
 	}
 }
 
+// An account the config has and the document lacks yet is picked on a
+// phone's Detail as the config names it, and stands not read.
+func TestAPhonesDetailOfAnAccountNotReadYet(t *testing.T) {
+	f := phoneText(t, 52, 41, AccountsDetail, "added", nil, nil)
+	f.Accounts.Accounts = append(slices.Clone(threeFramed), config.Account{ID: "added"})
+	rows := textOf(f.Draw(phoneDoc(), routedAt))
+	if !strings.HasPrefix(rows[8], "◂ 4 added ▸") || rows[9] != "○ not read" {
+		t.Errorf("Detail of an account not read yet heads\n%s\n%s", rows[8], rows[9])
+	}
+}
+
 // With one account, a phone's Detail has no other to pick: its name stands
 // alone, with neither ◂ and ▸ nor the keys that pick.
 func TestAPhonesDetailOfOneAccountNamesItAlone(t *testing.T) {
@@ -385,8 +396,8 @@ func TestAPhonesDetailStacksSESSIONSBeforeLATELY(t *testing.T) {
 		}
 	}
 	top := f.At(phoneDoc(), routedAt).top()
-	if len(on) != 3 || on[0].Session != idD28C || on[0].Y != top+at-8-10+1 || on[0].X != 0 || on[0].Width != stackSessionLit {
-		t.Errorf("the session targets scrolled 10 rows are %+v, want d28c's first on row %d, %d wide", on, top+at-8-10+1, stackSessionLit)
+	if len(on) != 3 || on[0].Session != idD28C || on[0].Y != top+at-8-10+1 || on[0].X != 0 || on[0].Width != sessionLit {
+		t.Errorf("the session targets scrolled 10 rows are %+v, want d28c's first on row %d, %d wide", on, top+at-8-10+1, sessionLit)
 	}
 }
 
@@ -445,22 +456,34 @@ func TestAPhonesBarsEaseAndItsLookReadNumbersBrighten(t *testing.T) {
 			t.Errorf("a phone's Detail of all accounts numbers %+v, the pool's kind", n)
 		}
 	}
-	if filled := detail.Filled(phoneDoc(), routedAt); filled[Ref{Window: "7d"}] != week || len(filled) != 3 {
-		t.Errorf("a phone's Detail of all accounts fills %v, want each window's bar, its week's %v", filled, week)
+	if filled := detail.Filled(phoneDoc(), routedAt); filled[Ref{Window: "7d"}] != week || filled[Ref{Account: "work", Window: "7d"}] != 0.34 {
+		t.Errorf("a phone's Detail of all accounts fills %v, want all accounts' week, %v, and every account's", filled, week)
 	}
 }
 
-// The account's state is cued on a phone's Detail as it changes, as
-// ROUTING's is.
-func TestAPhonesDetailCuesTheStateAsItChanges(t *testing.T) {
-	f := phoneFrame(t, 41, AccountsDetail, "work", phonePage(t))
-	f.Changed = map[string]float64{"work": 0.25}
-	c := f.At(phoneDoc(), routedAt).page(phoneDoc(), routedAt)
-	for x := range 20 {
-		cued := c.at(x, 9).ink.on.token == theme.BgAttention
-		if want := x < ansi.StringWidth("● at its cap"); cued != want {
-			t.Errorf("column %d of the state cued: %v, want %v", x, cued, want)
-		}
+// The account's state is cued on a phone's Detail as its word changes, as
+// Detail's head is, and not at a change ROUTING alone sees.
+func TestAPhonesDetailCuesTheStateAsItsWordChanges(t *testing.T) {
+	tests := []struct {
+		name          string
+		changed, word map[string]float64
+		cued          bool
+	}{
+		{name: "its word changed", word: map[string]float64{"work": 0.25}, cued: true},
+		{name: "ROUTING's state alone changed", changed: map[string]float64{"work": 0.25}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := phoneFrame(t, 41, AccountsDetail, "work", phonePage(t))
+			f.Changed, f.StateChanged = tt.changed, tt.word
+			c := f.At(phoneDoc(), routedAt).page(phoneDoc(), routedAt)
+			for x := range 20 {
+				cued := c.at(x, 9).ink.on.token == theme.BgAttention
+				if want := tt.cued && x < ansi.StringWidth("● at its cap"); cued != want {
+					t.Errorf("column %d of the state cued: %v, want %v", x, cued, want)
+				}
+			}
+		})
 	}
 }
 
@@ -493,7 +516,7 @@ func TestAPhonesBYMODELNamesTheVersionsOverTwoRows(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []string
-			for _, l := range versionsOver(versions, compareFramed{shares: tt.shares}.row(), tt.width) {
+			for _, l := range versionsOver(versionsUsed(compareFramed{shares: tt.shares}.row(), versions), tt.width) {
 				got = append(got, l.plain())
 			}
 			if !slices.Equal(got, tt.want) {
@@ -504,14 +527,21 @@ func TestAPhonesBYMODELNamesTheVersionsOverTwoRows(t *testing.T) {
 }
 
 // The version a row used most is its largest share's, the first in the
-// table's order of those alike; none where it used none priced.
+// table's order of those alike; none where it used none, or none's share is
+// known.
 func TestTheVersionARowUsedMostIsItsLargestShares(t *testing.T) {
 	versions := comparedVersions(t)
-	if most, ok := largestVersion(versions, compareFramed{shares: []int{40, -1, 40, 20, -1, -1}}.row()); !ok || most.Name != "Opus 5.5" {
-		t.Errorf("of two alike, the most used is %q, want Opus 5.5, the first", most.Name)
+	unknown := compareWork.row()
+	unknown.Totals.ByModel = unknown.Totals.ByModel[:1]
+	unknown.Totals.ByModel[0].Share = nil
+	if most, ok := largestVersion(versionsUsed(unknown, versions)); ok {
+		t.Errorf("of one used, its share not known, the most used is %q, want none", most.version.Name)
 	}
-	if most, ok := largestVersion(versions, compareFramed{shares: []int{-1, -1, -1, -1, -1, -1}}.row()); ok {
-		t.Errorf("of none used, the most used is %q, want none", most.Name)
+	if most, ok := largestVersion(versionsUsed(compareFramed{shares: []int{40, -1, 40, 20, -1, -1}}.row(), versions)); !ok || most.version.Name != "Opus 5.5" {
+		t.Errorf("of two alike, the most used is %q, want Opus 5.5, the first", most.version.Name)
+	}
+	if most, ok := largestVersion(versionsUsed(compareFramed{shares: []int{-1, -1, -1, -1, -1, -1}}.row(), versions)); ok {
+		t.Errorf("of none used, the most used is %q, want none", most.version.Name)
 	}
 }
 

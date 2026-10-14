@@ -11,24 +11,27 @@ import (
 // Detail's last six weeks, under its rule: BY DAY, WEEKS and the verdict, of
 // the account shown, or all accounts.
 
-// byDay draws BY DAY along row y: its heading; from cx, the six weeks' days,
-// a day dw cells wide and the weeks gap cells apart, each in Days' shades at
-// its level on the account's own scale, a red ▪ in its middle where it hit a
-// 5-hour limit, and · in text.faint a cell of each day still to come; and on
-// the row under them, each week's first day, this week's bold.
-func (d detailDrawn) byDay(c *canvas, y int) {
+// byDay draws BY DAY along row y: its heading; from cx, the days of the last
+// of its weeks, as many as given, a day dw cells wide and the weeks gap cells
+// apart, each in Days' shades at its level on the account's own scale, a red
+// ▪ in its middle where it hit a 5-hour limit, and · in text.faint a cell of
+// each day still to come; and on the row under them, each week's first day,
+// this week's bold.
+func (d detailDrawn) byDay(c *canvas, y, weeks int) {
 	c.line(d.l.panel, y, line{{"BY DAY", dimInk}})
-	coming := len(d.row.Days) - d.page.ToCome
-	for i, day := range d.row.Days {
-		x := d.l.cx() + i/7*d.l.step() + i%7*d.l.dw
+	days, coming := d.row.Days, len(d.row.Days)-d.page.ToCome
+	first := max(len(days)-7*weeks, 0)
+	for i := first; i < len(days); i++ {
+		x := d.l.cx() + (i-first)/7*d.l.step() + (i-first)%7*d.l.dw
 		if i >= coming {
 			c.text(x, y, strings.Repeat("·", d.l.dw), faintInk)
 			continue
 		}
-		c.line(x, y, d.f.daySwatch(dayInk(day.Level), day.Level, day.Limit, d.l.dw))
+		c.line(x, y, d.f.daySwatch(dayInk(days[i].Level), days[i].Level, days[i].Limit, d.l.dw))
 	}
-	for i, week := range d.page.Weeks {
-		c.line(d.l.cx()+i*d.l.step(), y+1, weekHead(week, i == len(d.page.Weeks)-1))
+	heads := d.page.Weeks[max(len(d.page.Weeks)-weeks, 0):]
+	for i, week := range heads {
+		c.line(d.l.cx()+i*d.l.step(), y+1, weekHead(week, i == len(heads)-1))
 	}
 }
 
