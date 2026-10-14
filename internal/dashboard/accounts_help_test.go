@@ -1,12 +1,14 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -95,6 +97,20 @@ func TestAccountsHelpKeysEachStateAsCompareSaysIt(t *testing.T) {
 	}
 	if got := accountsHelpGlyphs(Look{}, "COMPARE"); !slices.EqualFunc(got, want, func(a, b line) bool { return slices.Equal(a, b) }) {
 		t.Errorf("Compare's help explains the states %v, want %v", got, want)
+	}
+}
+
+// What each state means is said as status says it.
+func TestAccountsHelpSaysWhatEachStateMeansAsStatusDoes(t *testing.T) {
+	var got, want []string
+	for _, g := range statesHelp() {
+		got = append(got, g.means)
+	}
+	for s := status.StateOpen; s <= status.StateNotRead; s++ {
+		want = append(want, s.Means())
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("help says the states mean %q, want %q", got, want)
 	}
 }
 
@@ -194,19 +210,65 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 	}
 }
 
-func TestAccountsHelpSaysWhatEachVerdictMeans(t *testing.T) {
-	said := accountsSaid(threeShown)
-	for _, verdict := range []string{
-		views.HitsItsLimit + ", in 3 or more",
-		views.PlentyToSpare + ", 40% or more",
+// History's help and Accounts' say each verdict at the cuts views judges it
+// by, each word as views words it.
+func TestHelpSaysEachVerdictAtViewsCuts(t *testing.T) {
+	accountsVerdicts := []string{
+		fmt.Sprintf("%s, in %d or more of the %d;", views.HitsItsLimit, views.LimitWeeks, views.VerdictWeeks),
+		fmt.Sprintf("%s, %d%% or more left at a reset on average;", views.PlentyToSpare, views.PlentyLeft),
 		"else " + views.EndsWithRoom + ".",
-		"Could go, where",
-		views.BarelyUsed + ", 75% or more",
-		views.RoomToSpare + " where their weeks left 25% or more",
-		"else " + views.LittleToSpare + ",",
+		fmt.Sprintf("%s%s, where the rest would cover it", strings.ToUpper(views.CouldGo[:1]), views.CouldGo[1:]),
+		fmt.Sprintf("used %d%% or less on average;", views.CouldGoUsed),
+		fmt.Sprintf("%s, %d%% or more left at a reset on average.", views.BarelyUsed, views.BarelyLeft),
+	}
+	for _, tc := range []struct {
+		name string
+		said string
+		want []string
+	}{
+		{"History's", historySaid(), accountsVerdicts},
+		{"Accounts'", accountsSaid(threeShown), append(accountsVerdicts,
+			fmt.Sprintf("%s where their weeks left %d%% or more at a reset", views.RoomToSpare, views.RoomLeft),
+			"else "+views.LittleToSpare+",",
+		)},
 	} {
-		if !strings.Contains(said, verdict) {
-			t.Errorf("help reads\n%s\nwant it to say %q", said, verdict)
+		for _, verdict := range tc.want {
+			if !strings.Contains(tc.said, verdict) {
+				t.Errorf("%s help reads\n%s\nwant it to say %q", tc.name, tc.said, verdict)
+			}
+		}
+	}
+}
+
+// With one account, help explains what its Detail draws, THIS WEEK's limits
+// by window and its extra usage among them, and says nothing of all
+// accounts, which goes.
+func TestAccountsHelpOfOneAccountExplainsWhatItDraws(t *testing.T) {
+	said := accountsSaid(oneShown)
+	for _, want := range []string{
+		"the limits it hit, by window",
+		"Extra usage is on where Claude bills past the plan's limit",
+	} {
+		if !strings.Contains(said, want) {
+			t.Errorf("help of one account reads\n%s\nwant it to say %q", said, want)
+		}
+	}
+	if strings.Contains(said, "all accounts") {
+		t.Errorf("help of one account reads\n%s\nwant nothing of all accounts", said)
+	}
+}
+
+// Compare's focus is explained where it's drawn, wide; a phone's Compare
+// draws none.
+func TestAccountsHelpExplainsComparesFocusWhereItsDrawn(t *testing.T) {
+	const focus = "← and → move the focus along the columns"
+	for _, tc := range []struct {
+		width int
+		want  bool
+	}{{160, true}, {100, true}, {99, false}, {52, false}} {
+		said := strings.Join(plainLines(accountsHelping(tc.width, threeShown, Look{}).body), " ")
+		if got := strings.Contains(said, focus); got != tc.want {
+			t.Errorf("at %d columns, help reads\n%s\nwant %q said %v", tc.width, said, focus, tc.want)
 		}
 	}
 }

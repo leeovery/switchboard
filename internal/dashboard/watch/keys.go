@@ -128,16 +128,17 @@ func (m Model) keys() pageKeys {
 // of its own, as the facts Accounts' moves act on have them: [ ] view, where
 // there are sub-tabs; < > and the period; on Compare, ←→ along the
 // accounts, enter opening the one focused in Detail, faint till one is, and
-// esc ending the focus while there is one; on Detail's list, ↑↓ through the
-// accounts, → into the chosen one's SESSIONS, which the key line leaves to
-// help, and enter opening the session selected there, faint where none is;
-// in its SESSIONS, ↑↓ through them, ← back to the list and enter; and with
-// one account, which has no list, ↑↓ and enter while a session is selected.
-// A phone's line keeps [ ] view alone.
+// esc ending the focus while there is one, none of them on a phone, whose
+// Compare draws no focus; on Detail's list, ↑↓ through the accounts, → into
+// the chosen one's SESSIONS, which the key line leaves to help, and enter
+// opening the session selected there, faint where none is; in its SESSIONS,
+// ↑↓ through them, ← back to the list and enter; and with one account, which
+// has no list, ↑↓ and enter while a session is selected. A phone's line
+// keeps [ ] view alone.
 func (m Model) accountsListings() []keyListing {
 	s := m.accounts.shown
 	shown := m.view == dashboard.Accounts
-	compare := shown && s.View() == dashboard.AccountsCompare
+	compare := m.comparing()
 	listed, alone := shown && s.View() == dashboard.AccountsDetail && !s.Alone(), shown && s.Alone()
 	selected := s.Selection(m.running(m.now())) != ""
 	inSessions := listed && s.InSessions || alone && selected

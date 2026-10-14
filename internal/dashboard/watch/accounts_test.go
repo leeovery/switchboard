@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,6 +100,37 @@ func TestAccountsPageIsBuiltOnceForTheDaysHeldAndThePeriod(t *testing.T) {
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
 	if page := h.model.accounts.page; page == today || page.ToCome != today.ToCome-1 {
 		t.Errorf("past midnight, before a look, Accounts' page has %d days of the week to come, want it built afresh with %d", page.ToCome, today.ToCome-1)
+	}
+}
+
+// Accounts' page is stood once a message, at its moment, for every frame of
+// it to read: frames read the one stood, as does a message of the same
+// moment; a message of a moment later stands it afresh, as does one that
+// builds it afresh, though of the same moment.
+func TestAccountsPageIsStoodOnceAMessage(t *testing.T) {
+	h, _ := historyHarness(t, dashboard.Accounts, dashboard.HistoryPage{})
+	h.start()
+	now := h.clock.now
+	stood := h.model.frame(now).Accounts.Page
+	if stood == nil || h.model.frame(now).Accounts.Page != stood {
+		t.Fatalf("two frames drew Accounts' page stood at %p then at %p, want both the one stood", stood, h.model.frame(now).Accounts.Page)
+	}
+
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.frame(now).Accounts.Page != stood {
+		t.Errorf("a message of the same moment stood Accounts' page afresh, want it held")
+	}
+
+	h.keyed("<")
+	if got := h.model.frame(now).Accounts.Page.Period; got != views.AccountsToday {
+		t.Errorf("< pressed, Accounts' page drawn is over %q, want it stood afresh over today", got)
+	}
+
+	stood = h.model.frame(now).Accounts.Page
+	h.clock.now = now.Add(time.Second)
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.frame(h.clock.now).Accounts.Page == stood {
+		t.Errorf("a message a second on left Accounts' page stood as it was, want it stood afresh at its moment")
 	}
 }
 
@@ -211,7 +243,7 @@ func TestDetailReadsTheStreamWhileItShowsAnAccountSessionsRunOn(t *testing.T) {
 		shown dashboard.AccountsShown
 		want  bool
 	}{
-		{name: "Compare", shown: dashboard.AccountsShown{}},
+		{name: "Compare, with the account sessions run on chosen in Detail", shown: dashboard.AccountsShown{Accounts: threeConfigured, Chosen: "work"}},
 		{name: "Detail of all accounts", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail}},
 		{name: "Detail of an account sessions run on", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"}, want: true},
 		{name: "Detail of an account none runs on", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "side"}},
@@ -307,11 +339,7 @@ func TestAccountsKeysTurnTheSubTabAndStepThePeriodKeptAsTheyChange(t *testing.T)
 // enter opens the account focused in Detail, from its top.
 func TestComparesFocusMovesAlongItsColumnsAndEnterOpensItInDetail(t *testing.T) {
 	h := accountsHarness(t, dashboard.AccountsShown{})
-	ten := make(config.Accounts, 10)
-	for i := range ten {
-		ten[i] = config.Account{ID: "acct-" + strconv.Itoa(i+1)}
-	}
-	h.model.accounts.shown.Accounts = ten
+	h.model.accounts.shown.Accounts = tenAccounts()
 	h.keys(enterKey)
 	if s := h.model.accounts.shown; s.View() != dashboard.AccountsCompare || s.Focused {
 		t.Fatalf("enter with nothing focused showed %d, focused %v; want Compare, unfocused", s.View(), s.Focused)
@@ -325,6 +353,73 @@ func TestComparesFocusMovesAlongItsColumnsAndEnterOpensItInDetail(t *testing.T) 
 	h.keys(enterKey)
 	if s := h.model.accounts.shown; s.View() != dashboard.AccountsDetail || s.Chosen != "acct-7" || h.model.scroll != 0 {
 		t.Errorf("enter showed %d of %q, scrolled %d; want Detail of acct-7, from its top", s.View(), s.Chosen, h.model.scroll)
+	}
+}
+
+// esc ends Compare's focus, which enter then has nothing to open of, the
+// columns staying where they are; and on Detail it does nothing.
+func TestEscEndsComparesFocus(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{})
+	h.keys(rightKey, escKey, enterKey)
+	if s := h.model.accounts.shown; s.Focused || s.View() != dashboard.AccountsCompare {
+		t.Fatalf("→ esc enter left the focus %v on %q, showing %d; want no focus, Compare", s.Focused, s.Focus, s.View())
+	}
+	h.keys(rightKey, enterKey, escKey)
+	if s := h.model.accounts.shown; s.View() != dashboard.AccountsDetail || !s.Focused || s.Focus != "work" {
+		t.Errorf("→ enter esc showed %d, Compare focused %v on %q; want Detail, Compare's focus held on work", s.View(), s.Focused, s.Focus)
+	}
+}
+
+// A frame too narrow for the columns Compare showed its focus among scrolls
+// them on to show it: ten accounts focused on acct-7 at 160 columns, six
+// showing, show acct-4 to acct-7 at 122, four showing, as the heading says.
+func TestAResizeKeepsComparesFocusInView(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{})
+	h.model.accounts.shown.Accounts = tenAccounts()
+	h.keys(slices.Repeat([]tea.KeyPressMsg{rightKey}, 7)...)
+	h.update(tea.WindowSizeMsg{Width: 122, Height: 37})
+	var columns []string
+	for _, t := range h.targets() {
+		if t.On == dashboard.OnColumn && !slices.Contains(columns, t.Account) {
+			columns = append(columns, t.Account)
+		}
+	}
+	heading := strings.Split(h.view(), "\n")[4]
+	if want := []string{"acct-4", "acct-5", "acct-6", "acct-7", ""}; !slices.Equal(columns, want) || !strings.Contains(heading, "accounts 4–7 of 10") {
+		t.Errorf("at 122 columns, focused on acct-7, Compare draws the columns %q under %q; want %q, accounts 4–7 of 10", columns, heading, want)
+	}
+}
+
+// tenAccounts are ten accounts, acct-1 to acct-10, in the config's order.
+func tenAccounts() config.Accounts {
+	ten := make(config.Accounts, 10)
+	for i := range ten {
+		ten[i] = config.Account{ID: "acct-" + strconv.Itoa(i+1)}
+	}
+	return ten
+}
+
+// Detail's list scrolls to show the account chosen no further than it must,
+// from where it was left: of ten accounts at 24 rows, acct-10 chosen then
+// acct-9, the list shows the accounts it showed with acct-10 chosen.
+func TestDetailsListStaysScrolledWhereItWasLeft(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail})
+	h.model.accounts.shown.Accounts = tenAccounts()
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 24})
+	listed := func() []string {
+		var ids []string
+		for _, t := range h.targets() {
+			if t.On == dashboard.OnAccount && t.Account != "" {
+				ids = append(ids, t.Account)
+			}
+		}
+		return ids
+	}
+	h.keys(slices.Repeat([]tea.KeyPressMsg{downKey}, 10)...)
+	last := listed()
+	h.keys(upKey)
+	if got := listed(); h.model.accounts.shown.Chosen != "acct-9" || !slices.Equal(got, last) || !slices.Contains(last, "acct-10") || len(last) == 10 {
+		t.Errorf("acct-9 chosen after acct-10, chosen %q, the list shows %q; want the accounts shown with acct-10 chosen, %q, fewer than ten", h.model.accounts.shown.Chosen, got, last)
 	}
 }
 
@@ -362,6 +457,58 @@ func TestDetailsKeysChooseAnAccountAndOpenTheSelectedSessionsPage(t *testing.T) 
 	}
 }
 
+// On a phone, whose Compare draws no focus, its focus keys, ←→, enter and
+// esc, do nothing there, nor say anything, though a wider frame left a
+// column focused; Detail takes its keys as ever.
+func TestOnAPhoneComparesFocusKeysDoNothing(t *testing.T) {
+	for _, key := range []tea.KeyPressMsg{leftKey, rightKey, enterKey, escKey} {
+		h := accountsHarness(t, dashboard.AccountsShown{})
+		h.keys(rightKey, rightKey)
+		h.update(tea.WindowSizeMsg{Width: 52, Height: 37})
+		was := h.model.accounts.shown
+		h.keys(key)
+		if s := h.model.accounts.shown; !reflect.DeepEqual(s, was) || h.model.note != "" {
+			t.Errorf("on a phone, %s left the focus %v on %q, showing %d, noting %q; want nothing done", key, s.Focused, s.Focus, s.View(), h.model.note)
+		}
+	}
+
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail})
+	h.update(tea.WindowSizeMsg{Width: 52, Height: 37})
+	h.keys(downKey, enterKey)
+	if h.pageOpen() != idD28C {
+		t.Errorf("on a phone, ↓ enter on Detail opened %q's page, want %s's", h.pageOpen(), idD28C)
+	}
+}
+
+// enter, drawn faint as it has nothing to open, says why in the key line's
+// place, as p does; with one account none runs on, whose key line has no
+// enter, it says nothing.
+func TestAFaintEnterSaysWhyInTheKeyLinesPlace(t *testing.T) {
+	tests := []struct {
+		name  string
+		shown dashboard.AccountsShown
+		alone bool
+		want  string
+	}{
+		{name: "Compare, no column focused", want: "no account is focused"},
+		{name: "Detail of all accounts", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail}, want: "all accounts lists no sessions"},
+		{name: "Detail of an account none runs on", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "side"}, want: "no session is running on this account"},
+		{name: "the one account there is, none running on it", alone: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := accountsHarness(t, tt.shown)
+			if tt.alone {
+				h.model.accounts.shown.Accounts = config.Accounts{{ID: "side"}}
+			}
+			h.keys(enterKey)
+			if h.model.note != tt.want || h.model.session != nil {
+				t.Errorf("enter noted %q, opening %q's page; want %q noted, nothing opened", h.model.note, h.pageOpen(), tt.want)
+			}
+		})
+	}
+}
+
 // The session selected in Detail's SESSIONS ending gives the selection to the
 // one in its place, else the last; with none left, ↑↓ go back to the list.
 func TestTheSessionSelectedEndingSelectsTheOneInItsPlace(t *testing.T) {
@@ -382,6 +529,58 @@ func TestTheSessionSelectedEndingSelectsTheOneInItsPlace(t *testing.T) {
 		if s := h.model.accounts.shown; s.Selected != step.selected || s.InSessions != step.inSessions {
 			t.Fatalf("after %s, %q is selected, ↑↓ in SESSIONS %v; want %q, %v", step.name, s.Selected, s.InSessions, step.selected, step.inSessions)
 		}
+	}
+}
+
+// A frame takes nothing in, so the selection follows no session ending at
+// it, as the clock ends 7f3a, idle past the hour; the next message that
+// takes anything in follows it.
+func TestAFrameLeavesTheSelectionForTheNextMessageToFollow(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"})
+	h.keys(rightKey, downKey, downKey)
+	h.clock.now = start.Add(52 * time.Minute)
+	h.update(frameMsg{gen: h.model.frames})
+	if got := h.model.accounts.shown.Selected; got != id7F3A {
+		t.Fatalf("a frame moved the selection to %q, want it on 7f3a still", got)
+	}
+	h.redraw()
+	if got := h.model.accounts.shown.Selected; got != id9E21 {
+		t.Errorf("the message after the frame selected %q, want 9e21, in 7f3a's place", got)
+	}
+}
+
+// A click that opens on Accounts opens what it lands on, whatever has the
+// keys: with the theme picker open, which takes enter as setting the theme
+// under its cursor, the click opens Compare's focused column in Detail, or
+// the selected session's page, and sets no theme.
+func TestAClickThatOpensOnAccountsSetsNoThemeWithThePickerOpen(t *testing.T) {
+	tests := []struct {
+		name   string
+		shown  dashboard.AccountsShown
+		click  dashboard.Target
+		opened string
+	}{
+		{name: "Compare's focused column", shown: dashboard.AccountsShown{Focused: true, Focus: "side"}, click: dashboard.Target{On: dashboard.OnColumn, Account: "side"}},
+		{name: "Detail's selected session", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "side"}, click: dashboard.Target{On: dashboard.OnSession, Session: id9E21}, opened: id9E21},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := accountsHarness(t, tt.shown)
+			h.model.sessions = append(h.model.sessions, sessionOn(id9E21, "claude-sonnet-5-5", "side", time.Second))
+			choice := theme.One("amber")
+			themes := &fakeThemes{listing: listing(), choice: choice}
+			h.model.cfg.Themes, h.model.choice, h.model.pair = themes, choice, themes.listing.Pair(choice)
+			h.answer(darkBackground)
+			h.typed("t")
+			h.keys(downKey)
+			if !h.model.picker.open {
+				t.Fatal("t didn't open the theme picker")
+			}
+			h.clickOn(tt.click)
+			if s := h.model.accounts.shown; len(themes.kept) > 0 || s.View() != dashboard.AccountsDetail || s.Chosen != "side" || h.pageOpen() != tt.opened {
+				t.Errorf("the click kept themes %+v, showed %d of %q, %q's page open; want none kept, Detail of side, %q's page open", themes.kept, s.View(), s.Chosen, h.pageOpen(), tt.opened)
+			}
+		})
 	}
 }
 
@@ -459,6 +658,19 @@ func TestALookOnAccountsBrightensTheNumbersItChanged(t *testing.T) {
 	h.deliver(h.press("R")...)
 	if got := h.brightened(); got[work] != 1 || got[all] != 1 || got[side] != 0 {
 		t.Errorf("a look that read work's week at 80%% brightened %v, want work's week and all accounts' at 1, side's not", got)
+	}
+}
+
+// → puts the selection on the session it lands on, the first, and there it
+// stays as the request stream reorders SESSIONS, the one seen last first:
+// enter opens it, whatever's listed first since.
+func TestTheSelectionStaysWithItsSessionAsTheStreamReordersSESSIONS(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"})
+	h.keys(rightKey)
+	h.hear(alter(told(router.StreamSent, "r1", "work", 0), func(e *router.StreamEvent) { e.Session, e.Model = id7F3A, "claude-haiku-4-5" }))
+	h.keys(enterKey)
+	if got := h.pageOpen(); got != idD28C {
+		t.Errorf("enter opened %q's page, want d28c's, selected as → landed, though 7f3a was seen since", got)
 	}
 }
 

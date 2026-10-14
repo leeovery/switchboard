@@ -128,6 +128,23 @@ func TestEnterOpensComparesFocusedColumnInDetail(t *testing.T) {
 	}
 }
 
+// esc ends Compare's focus, its columns staying where they are; with no
+// column focused, or on Detail, it does nothing.
+func TestEscEndsComparesFocusWhereTheColumnsAre(t *testing.T) {
+	focused := AccountsShown{Accounts: tenConfigured(), Focused: true, Focus: "acct-7", First: 1}
+	if got, ok := focused.Unfocused(); !ok || got.Focused || got.Focus != "" || got.First != 1 {
+		t.Errorf("Unfocused() = %+v, %v; want no focus, the columns from the 2nd still", got, ok)
+	}
+	for _, s := range []AccountsShown{
+		{Accounts: threeConfigured},
+		{Shown: AccountsDetail, Accounts: threeConfigured, Focused: true, Focus: "side"},
+	} {
+		if got, ok := s.Unfocused(); ok || got.Focused != s.Focused {
+			t.Errorf("Unfocused() of %+v = %+v, %v; want nothing", s, got, ok)
+		}
+	}
+}
+
 // ↑ and ↓ on Detail choose an account in its list, all accounts first, no
 // further than either end, a choice of another account selecting its first
 // session; in its SESSIONS, and with one account, which has no list, they
@@ -150,6 +167,8 @@ func TestUpAndDownChooseAnAccountInDetailsListOrASessionInItsSESSIONS(t *testing
 		{name: "↓ in SESSIONS, at the last", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Chosen: "work", InSessions: true, Selected: "9e21"}, by: 1, chosen: "work", selected: "9e21"},
 		{name: "↑ in SESSIONS", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Chosen: "work", InSessions: true, Selected: "9e21"}, by: -1, chosen: "work", selected: "7f3a", changed: true},
 		{name: "↓ with one account", shown: AccountsShown{Accounts: threeConfigured[:1]}, by: 1, selected: "7f3a", changed: true},
+		{name: "↑ with one account, at the first, none selected yet", shown: AccountsShown{Accounts: threeConfigured[:1]}, by: -1, selected: "d28c", changed: true},
+		{name: "↑ with one account, at the first", shown: AccountsShown{Accounts: threeConfigured[:1], Selected: "d28c"}, by: -1, selected: "d28c"},
 		{name: "↓ on Compare", shown: AccountsShown{Accounts: threeConfigured, Selected: "7f3a"}, by: 1, selected: "7f3a"},
 	}
 	for _, tt := range tests {
@@ -166,30 +185,34 @@ func TestUpAndDownChooseAnAccountInDetailsListOrASessionInItsSESSIONS(t *testing
 }
 
 // → takes ↑ and ↓ from Detail's list into its SESSIONS, where sessions run
-// on the account it shows, and ← back; with one account, which has no list,
-// neither does anything.
+// on the account it shows, putting the selection on the session it lands on,
+// so it stays with it as SESSIONS reorder; ← takes them back, the selection
+// held; and with one account, which has no list, neither does anything.
 func TestRightTakesUpAndDownIntoDetailsSESSIONSAndLeftBack(t *testing.T) {
 	work := AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Chosen: "work"}
+	inSessions := AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Chosen: "work", InSessions: true, Selected: "7f3a"}
 	tests := []struct {
-		name    string
-		shown   AccountsShown
-		by      int
-		running []string
-		in      bool
-		changed bool
+		name     string
+		shown    AccountsShown
+		by       int
+		running  []string
+		in       bool
+		selected string
+		changed  bool
 	}{
-		{name: "→ with sessions", shown: work, by: 1, running: workRunning, in: true, changed: true},
+		{name: "→ with sessions", shown: work, by: 1, running: workRunning, in: true, selected: "d28c", changed: true},
 		{name: "→ with none", shown: work, by: 1},
-		{name: "→ in SESSIONS", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Chosen: "work", InSessions: true}, by: 1, running: workRunning, in: true},
-		{name: "← from SESSIONS", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Chosen: "work", InSessions: true}, by: -1, running: workRunning, changed: true},
+		{name: "→ in SESSIONS", shown: inSessions, by: 1, running: workRunning, in: true, selected: "7f3a"},
+		{name: "← from SESSIONS", shown: inSessions, by: -1, running: workRunning, selected: "7f3a", changed: true},
 		{name: "← in the list", shown: work, by: -1, running: workRunning},
 		{name: "→ with one account", shown: AccountsShown{Accounts: threeConfigured[:1]}, by: 1, running: workRunning},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, changed := tt.shown.Moved(tt.by, tt.running)
-			if got.InSessions != tt.in || changed != tt.changed || got.Chosen != tt.shown.Chosen {
-				t.Errorf("Moved(%d) put ↑↓ in SESSIONS %v, changed %v, chose %q; want %v, %v, %q", tt.by, got.InSessions, changed, got.Chosen, tt.in, tt.changed, tt.shown.Chosen)
+			if got.InSessions != tt.in || got.Selected != tt.selected || changed != tt.changed || got.Chosen != tt.shown.Chosen {
+				t.Errorf("Moved(%d) put ↑↓ in SESSIONS %v, selected %q, changed %v, chose %q; want %v, %q, %v, %q",
+					tt.by, got.InSessions, got.Selected, changed, got.Chosen, tt.in, tt.selected, tt.changed, tt.shown.Chosen)
 			}
 		})
 	}
@@ -257,6 +280,10 @@ func TestAClickPutsTheFocusOrTheChoiceWhereItLands(t *testing.T) {
 	}
 	if got := compare.FocusedOn(""); !got.Focused || got.Focus != "" {
 		t.Errorf("a click on all accounts' heads focused %v on %q, want all accounts", got.Focused, got.Focus)
+	}
+	focused := AccountsShown{Accounts: threeConfigured, Focused: true, Focus: "side"}
+	if got := focused.FocusedOn("side"); got.View() != AccountsDetail || got.Chosen != "side" {
+		t.Errorf("a click on side's heads, focused, showed %d of %q, want Detail of side", got.View(), got.Chosen)
 	}
 
 	detail := AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Chosen: "work", InSessions: true, Selected: "7f3a"}

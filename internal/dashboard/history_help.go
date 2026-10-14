@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/views"
@@ -52,7 +53,7 @@ func (f Frame) historyHelp() []helpPart {
 					"naming the account to drop; " + views.OneTooFew + ", where now is short on 4 or more of the 7 and one more " +
 					"would halve that; " + views.TooFew + ", where one more wouldn't, the row under it saying how short one more " +
 					"would still be; else " + views.AboutRight + "."),
-				said("An account's: " + accountVerdictsMean),
+				said("An account's: " + accountVerdictsMean()),
 				said("`v` draws each week as a column filled to its peak, each row in the bar's colour at its height."),
 			},
 			glyphs: []glyph{
@@ -90,10 +91,14 @@ func (f Frame) historyHelp() []helpPart {
 }
 
 // accountVerdictsMean says what each of Weeks' verdicts on an account means,
-// as History's help and Accounts' say it.
-const accountVerdictsMean = views.HitsItsLimit + ", in 3 or more of the 7; " + views.PlentyToSpare + ", 40% or more left at a reset on " +
-	"average; else " + views.EndsWithRoom + ". Could go, where the rest would cover it with no more weeks short, as it hit no limit " +
-	"and used 10% or less on average; " + views.BarelyUsed + ", 75% or more left at a reset on average."
+// at the cuts views judges it by, as History's help and Accounts' say it.
+func accountVerdictsMean() string {
+	return fmt.Sprintf("%s, in %d or more of the %d; %s, %d%% or more left at a reset on average; else %s. %s, where the "+
+		"rest would cover it with no more weeks short, as it hit no limit and used %d%% or less on average; %s, %d%% or "+
+		"more left at a reset on average.",
+		views.HitsItsLimit, views.LimitWeeks, views.VerdictWeeks, views.PlentyToSpare, views.PlentyLeft, views.EndsWithRoom,
+		capitalised(views.CouldGo), views.CouldGoUsed, views.BarelyUsed, views.BarelyLeft)
+}
 
 // subTabHeading is the heading help explains a sub-tab of History under: its
 // name, as the heading row names it, in capitals.
