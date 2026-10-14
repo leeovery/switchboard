@@ -47,14 +47,15 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 // accountsClick and sessionsClick have it; on a tab, it shows it, as showTab
 // has it, unless the theme picker is open, as the tab key does nothing then;
 // on a sub-tab, it shows it, as showSubTab has it, or the Log's; on < or >
-// by a period, it presses it; on a key of the key line, it presses it, as
-// pressOf says, as on the Log's ▼ N new, which presses end; on an Overview's
-// section's heading, it hides the section, as its key does; on an account's
-// row there, it moves the focus to it, as focusOn has it; on a session's
-// row, it opens its page, as openSession has it; on a turn's row on its
-// page, it acts as clickTurn has it, and on a request's row of its turn
-// open, as clickRequest has it; and on a line of the Log's table, it chooses
-// it, as clickedLine has it. Nothing else on the page takes a click yet.
+// by a period or Runway's window, it presses it; on a key of the key line,
+// it presses it, as pressOf says, as on the Log's ▼ N new, which presses
+// end; on an Overview's section's heading, it hides the section, as its key
+// does; on an account's row there, it moves the focus to it, as focusOn has
+// it; on a session's row, it opens its page, as openSession has it; on a
+// turn's row on its page, it acts as clickTurn has it, and on a request's
+// row of its turn open, as clickRequest has it; and on a line of the Log's
+// table, it chooses it, as clickedLine has it. Nothing else on the page
+// takes a click yet.
 func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 	if next, cmd, ok := m.accountsClick(t); ok {
 		return next, cmd
@@ -128,8 +129,9 @@ var namedPresses = map[string]tea.KeyPressMsg{
 	"←→":    {Code: tea.KeyRight},
 }
 
-// stepPress is the press of the key that steps a period the way given, as
-// a click on < or > by it does: < back, for -1, and > on.
+// stepPress is the press of the key that steps a period, or Runway's
+// window, the way given, as a click on < or > by it does: < back, for -1,
+// and > on.
 func stepPress(way int) tea.KeyPressMsg {
 	if way < 0 {
 		return tea.KeyPressMsg{Code: '<', Text: "<"}

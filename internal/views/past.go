@@ -78,6 +78,18 @@ func (p Past) began() string {
 	return dayfile.DateOf(p.in.Began)
 }
 
+// Summaries are the summaries of the days the Past holds from first to last,
+// each as dayfile.Civil gives a day, oldest first, as the ledger gave them:
+// what Runway's lanes read of the days a timeline stepped back to shows, and
+// of the week before them.
+func (p Past) Summaries(first, last time.Time) []ledger.Summary {
+	var held []ledger.Summary
+	for _, d := range between(p.days, first.Format(time.DateOnly), last.Format(time.DateOnly)) {
+		held = append(held, d.Summary)
+	}
+	return held
+}
+
 // Weeks is Weeks' page: the eight weeks to this one.
 func (p Past) Weeks() WeeksPage {
 	return p.weeksPage()

@@ -90,8 +90,8 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 				h.model.view = dashboard.Runway
 				return h
 			},
-			wantHelp: []string{"tab", "p", "R", "?", "q"},
-			wantLine: []string{"tab", "p", "?", "q"},
+			wantHelp: []string{"tab", "< >", "←→", "p", "R", "?", "q"},
+			wantLine: []string{"tab", "< >", "←→", "p", "?", "q"},
 		},
 		{
 			name:     "one account, with nowhere else to pin",

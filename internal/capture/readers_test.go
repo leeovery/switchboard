@@ -345,6 +345,28 @@ func TestTheRecordsReadingsAreThoseReadInTheSpanByNowInTheOrderRead(t *testing.T
 	}
 }
 
+// The records' readings history begins on the day of the first reading read
+// by now, as a Reader's begins on its oldest file's: none before one is.
+func TestTheRecordsReadingsBeginOnTheDayOfTheFirstReadByNow(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		now  time.Time
+		want time.Time
+	}{
+		{name: "before the first is read", now: readersAt(0, 7, 0, 0)},
+		{name: "once it's read", now: readersAt(0, 8, 0, 0), want: dayfile.DayStart(readersNow, 0)},
+		{name: "a day on", now: readersAt(1, 9, 0, 0), want: dayfile.DayStart(readersNow, 0)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, read, _ := heldRecords(t).readers(func() time.Time { return tt.now })
+			got, err := read.FirstDay()
+			if tt.want.IsZero() != errors.Is(err, fs.ErrNotExist) || !got.Equal(tt.want) {
+				t.Errorf("FirstDay() = %v, %v; want %v", got, err, tt.want)
+			}
+		})
+	}
+}
+
 func TestTheRecordsEventsAreTheirLastVersionsOldestFirstAsAReaderGivesThem(t *testing.T) {
 	r := heldRecords(t)
 	_, _, happened := r.readers(func() time.Time { return readersNow })

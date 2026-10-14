@@ -3,6 +3,7 @@ package watch
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"iter"
 	"regexp"
 	"slices"
@@ -300,15 +301,25 @@ func TestProbingTheChartsDrawTheReadingsTheWatchSees(t *testing.T) {
 }
 
 // filedReadings are a readings history's files as the watch reads them,
-// holding the readings given; reads counts the times they're read between
-// two times, and from is where the last such read started; starts are the
+// holding the readings given, from the start of the first day, first, zero
+// where they hold none; reads counts the times they're read between two
+// times, and from is where the last such read started; starts are the
 // starts of the tails made, in turn, and tails counts their reads.
 type filedReadings struct {
 	held   []readings.Reading
+	first  time.Time
 	reads  int
 	from   time.Time
 	starts []time.Time
 	tails  int
+}
+
+// FirstDay gives the start of the first day the files hold, as first says.
+func (f *filedReadings) FirstDay() (time.Time, error) {
+	if f.first.IsZero() {
+		return time.Time{}, fs.ErrNotExist
+	}
+	return f.first, nil
 }
 
 // Tail gives a read of the readings held from start up to end, each window's

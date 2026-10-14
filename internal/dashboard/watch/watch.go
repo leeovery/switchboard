@@ -959,8 +959,8 @@ func logRead(msg fetchedMsg, look status.Moment, next time.Time) {
 // again, or another router does, as one restarted, or probing, reads the
 // readings history's files with the first full read since probing began; keeps
 // the focus where its account still is, else puts it on the first; eases the
-// bars to it from where they stand; and brightens each number on the page it
-// changed.
+// bars to it from where they stand; has Runway see it, as runwaySaw has it;
+// and brightens each number on the page it changed.
 func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	doc, now, read := msg.doc, look.Now, originOf(look, msg.router)
 	was := m.numbersDrawn(now)
@@ -989,7 +989,7 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	}
 	m = m.stillThere(look)
 	m.trails = m.history.drawn(look)
-	m = m.lookedLog(look, msg.router)
+	m = m.lookedLog(look, msg.router).runwaySaw(look)
 	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), read, now)
 	switch {
 	case ask:
