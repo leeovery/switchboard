@@ -1,6 +1,7 @@
 package views
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -36,10 +37,11 @@ func prorate(monthly ledger.Picodollars, s monthPart) ledger.Picodollars {
 // askedShare is the share of a month the days from the one with the date
 // from to today's, each as dayfile.Civil gives one, are, asked for from it:
 // as Accounts prices the period they make, where they make one, whole while
-// it's still running, the shortest where two begin on the one day, as today
-// and this week do on the week's first; else a day each.
+// it's still running, the longest where two begin on the one day, as this
+// week does with today on the week's first, Accounts' own to begin with;
+// else a day each.
 func askedShare(from, today time.Time, weekStarts time.Weekday) monthPart {
-	for _, p := range accountsPeriods {
+	for _, p := range slices.Backward(accountsPeriods) {
 		if from.Equal(p.first(today, weekStarts)) {
 			return p.share()
 		}

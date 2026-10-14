@@ -33,13 +33,6 @@ type HistoryInput struct {
 	// From is when the days asked for start, and Now the time now: they're
 	// the local days from From's to today's, those the ledger holds.
 	From, Now time.Time
-	// Period is the period of Accounts' the days asked for are, From its
-	// first day, where they're asked for as one, as Accounts' page is: their
-	// plans are priced as Accounts prices it, whole, whenever the ledger
-	// began. Nil where they're asked for from a day, as history asks for
-	// them, their plans priced from the later of that day and the first the
-	// ledger holds, as askedShare prices the days from it.
-	Period *AccountsPeriod
 	// Began is the start of the ledger's first day, as LedgerStart tells it,
 	// for a Past to take as the day the ledger began recording: zero where
 	// it's unknown.
@@ -71,7 +64,7 @@ type HistoryInput struct {
 const lookBack = 7
 
 // NewHistory builds the History of the days in asks for, its plans priced
-// as its Period says.
+// as plansPriced prices them.
 func NewHistory(in HistoryInput) History {
 	from, to := dayfile.CivilOf(in.From), dayfile.CivilOf(in.Now)
 	asked, today := from.Format(time.DateOnly), to.Format(time.DateOnly)
@@ -94,13 +87,9 @@ func NewHistory(in HistoryInput) History {
 
 // plansPriced is the day the plans over in's days, from the day from to
 // today, each as dayfile.Civil gives one, are priced from, and the share of
-// a month they cost: of a period of Accounts', as its Period says, from its
-// first day, whole, as Accounts prices it; else from the later of from and
-// the first of days, as askedShare prices the days from then.
+// a month they cost: from the later of from and the first of days, as
+// askedShare prices the days from then.
 func plansPriced(in HistoryInput, from, today time.Time, days []Day) (time.Time, monthPart) {
-	if in.Period != nil {
-		return from, in.Period.share()
-	}
 	priced := from
 	if first, ok := firstDay(days); ok && first.After(from) {
 		priced = first
