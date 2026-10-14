@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -56,7 +57,8 @@ func (f Frame) phoneAccounts(doc status.Document, now time.Time) accountsForm {
 	case len(f.Accounts.Accounts) == 0:
 		return accountsForm{}
 	case f.Accounts.View() == AccountsCompare:
-		return f.stackForm(func() stack { return f.turned(doc, now).turnedWhole() })
+		cp := f.turned(doc, now)
+		return f.stackForm(cp.turnedWhole, cp.filled)
 	}
 	return f.detailPhoneBody(doc, now)
 }
@@ -65,27 +67,29 @@ func (f Frame) phoneAccounts(doc status.Document, now time.Time) accountsForm {
 // and as Detail's body where the frame is too narrow for its wide form,
 // under the wide chrome.
 func (f Frame) detailPhoneBody(doc status.Document, now time.Time) accountsForm {
-	return f.stackForm(func() stack { return f.stackedOf(doc, now).whole() })
+	s := f.stackedOf(doc, now)
+	return f.stackForm(s.whole, s.filled)
 }
 
 // stack is a phone's view drawn whole: its rows, on a canvas the frame's
-// width; the zones of them a click acts on, by their rows on it; and how much
-// of each bar it draws it fills, as Filled has them.
+// width; and the zones of them a click acts on, by their rows on it.
 type stack struct {
 	c       *canvas
 	targets []Target
-	filled  map[Ref]float64
 }
 
-// stackForm is the form of the stack drawn whole as drawn draws it: as many
-// of its rows as the view has, from as far down as the frame has it
-// scrolled, a row at a time.
-func (f Frame) stackForm(drawn func() stack) accountsForm {
+// stackForm is the form of the stack drawn whole as drawn draws it, drawn
+// once, the first time a look asks, for every look to share: as many of its
+// rows as the view has, from as far down as the frame has it scrolled, a row
+// at a time; and how much of each bar it draws it fills, as filled has them
+// without drawing it.
+func (f Frame) stackForm(drawn func() stack, filled func() map[Ref]float64) accountsForm {
+	drawn = sync.OnceValue(drawn)
 	return accountsForm{
 		draw:      func(c *canvas, top int) { f.drawStack(c, drawn(), top) },
 		scrolling: func(int) Scrolling { return byRows(drawn().c.height(), f.viewRows()) },
 		targets:   func() []Target { return f.stackTargets(drawn()) },
-		filled:    func() map[Ref]float64 { return drawn().filled },
+		filled:    filled,
 	}
 }
 
@@ -137,7 +141,7 @@ func (cp compared) turnedWhole() stack {
 			y = cp.turnedGroup(c, y+partsApart, g, columns)
 		}
 	}
-	return stack{c: c, filled: cp.filled()}
+	return stack{c: c}
 }
 
 // turnedName is the column's name as a phone's row heads it, from
@@ -315,7 +319,7 @@ func (s stacked) whole() stack {
 	y += partsApart
 	c.line(0, y, line{{"LATELY", dimInk}})
 	s.lately(c, y+1, 0, stackLatelyWords)
-	return stack{c: c, targets: targets, filled: s.filled()}
+	return stack{c: c, targets: targets}
 }
 
 // picker draws the picker along row y: the account shown, or all accounts,
