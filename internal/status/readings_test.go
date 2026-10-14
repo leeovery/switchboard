@@ -45,7 +45,7 @@ func TestAMomentsOwnReadingsJudgeEachAccountAtNowAsTheMomentDoes(t *testing.T) {
 		t.Run(hm.Name, func(t *testing.T) {
 			m := hm.Doc.At(hm.Now, policy)
 			for _, a := range m.Accounts {
-				if got, want := m.Then(a, m.ReadingsOf(a.ID), time.Time{}, m.Told(a.ID), m.Now), asTheMomentHasIt(a); got.Kind != want.Kind || !got.Until.Equal(want.Until) {
+				if got, want := m.Then(a, m.ReadingsOf(a.ID), status.Reach{}, m.Told(a.ID), m.Now), asTheMomentHasIt(a); got.Kind != want.Kind || !got.Until.Equal(want.Until) {
 					t.Errorf("Then(%s, Now) over its own readings = %s, want %s, as the moment has it", a.ID, wasString(got), wasString(want))
 				}
 			}

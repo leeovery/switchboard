@@ -127,16 +127,13 @@ func untold(told []Span, s Span, now time.Time) []Span {
 // of what holds it at t began: a told hold's From, or the first reading, of
 // those given, of the unbroken run of a window's readings that shows it; and
 // Until is when the last part lifts, zero where one lifts at no known time.
-// kept is when the first day the readings history holds starts, those given
-// before it standing for the days its readings are gone from, zero where it
-// holds every day: a run whose first reading is its window's first from then
-// on, its window begun before then, may have begun before the history keeps
-// anything, so tells no start.
-func (m Moment) Then(a AccountNow, read []readings.Reading, kept time.Time, told []Span, t time.Time) Was {
+// A run begun at either edge of what the readings reach tells no start, as
+// Reach says.
+func (m Moment) Then(a AccountNow, read []readings.Reading, reach Reach, told []Span, t time.Time) Was {
 	if !a.TokenSet {
 		return Was{Kind: WasTokenless}
 	}
-	windows := m.readBy(a, read, kept, t)
+	windows := m.readBy(a, read, reach, t)
 	if was, ok := heldAs(WasLimited, slices.Concat(toldAt(told, WasLimited, t), shownAt(windows, WasLimited, t))); ok {
 		return was
 	}
@@ -152,14 +149,32 @@ func (m Moment) Then(a AccountNow, read []readings.Reading, kept time.Time, told
 	return Was{Kind: WasRoom}
 }
 
+// Reach is how far back what the readings Then is given read reaches, each
+// edge zero where it reaches back past anything asked of: Kept, when the
+// first day the readings history holds starts, those before it standing for
+// the days its readings are gone from; and Seen, when the readings the
+// dashboard read itself begin, as it probes, or the router doesn't answer,
+// which the history holds none of, nor keeps once it's closed. A run whose
+// first reading is its window's first from either edge on, its window begun
+// before that edge, may have begun before anything read tells, so has no
+// start.
+type Reach struct {
+	Kept, Seen time.Time
+}
+
+// edges are the reach's edges, Kept's and Seen's.
+func (r Reach) edges() [2]time.Time {
+	return [2]time.Time{r.Kept, r.Seen}
+}
+
 // windowRead is a window of an account as its readings by a moment have it:
 // the last of them; the unbroken run of them ending with it that reads it
 // spent, and that reads it at its account's cap; and whether one was read
-// from the history's keep on.
+// from each of the reach's edges on.
 type windowRead struct {
 	last          quota.Window
 	spent, capped run
-	kept          bool
+	reached       [2]bool
 }
 
 // run is an unbroken run of a window's readings that shows a hold: whether
@@ -172,47 +187,52 @@ type run struct {
 // readBy are the windows of the account a that the moment's policy says
 // every model shares, by key, each as its readings of those given, by t,
 // have it, its cap where its reserve, as configured now, starts, the
-// readings history keeping the days from kept on.
-func (m Moment) readBy(a AccountNow, read []readings.Reading, kept, t time.Time) map[string]windowRead {
+// readings reaching back as reach says.
+func (m Moment) readBy(a AccountNow, read []readings.Reading, reach Reach, t time.Time) map[string]windowRead {
 	windows := make(map[string]windowRead)
 	for _, r := range read {
 		if r.Account != a.ID || !m.policy.IsShared(r.Key) || r.At.After(t) {
 			continue
 		}
-		windows[r.Key] = windows[r.Key].readAgain(r.Window(), r.At, kept, a.Reserve)
+		windows[r.Key] = windows[r.Key].readAgain(r.Window(), r.At, reach, a.Reserve)
 	}
 	return windows
 }
 
 // readAgain is the window w, read again at at as window, the readings
-// history keeping the days from kept on, its account's reserve given: a run
-// of its readings runs on to it where the last one's reset hadn't passed by
-// then; and one it begins began at at, but where it's the window's first
-// read from the keep on, of a window begun before it, as untold says.
-func (w windowRead) readAgain(window quota.Window, at, kept time.Time, reserve float64) windowRead {
+// reaching back as reach says, its account's reserve given: a run of its
+// readings runs on to it where the last one's reset hadn't passed by then;
+// and one it begins began at at, but where it's the window's first read from
+// an edge of the reach on, of a window begun before it, as untold says.
+func (w windowRead) readAgain(window quota.Window, at time.Time, reach Reach, reserve float64) windowRead {
 	ranOn, begun := !w.last.ResetBy(at), at
-	if w.untold(window, at, kept) {
+	if w.untold(window, at, reach) {
 		begun = time.Time{}
 	}
-	return windowRead{
+	read := windowRead{
 		last:   window,
 		spent:  w.spent.joined(ranOn, score.Spent(window), begun),
 		capped: w.capped.joined(ranOn, score.HeldByReserve(window, reserve), begun),
-		kept:   w.kept || !kept.IsZero() && !at.Before(kept),
 	}
+	for i, edge := range reach.edges() {
+		read.reached[i] = w.reached[i] || !edge.IsZero() && !at.Before(edge)
+	}
+	return read
 }
 
 // untold reports whether a run of the window's readings begun by its reading
 // at at, as window, began at no time the readings tell: the reading is the
-// window's first from kept on, when the first day the readings history holds
-// starts, and the window began before then, or when isn't known, so the run
-// may have begun before the history keeps anything.
-func (w windowRead) untold(window quota.Window, at, kept time.Time) bool {
-	if kept.IsZero() || at.Before(kept) || w.kept {
-		return false
+// window's first from an edge of the reach on, and the window began before
+// that edge, or when isn't known, so the run may have begun before anything
+// read tells.
+func (w windowRead) untold(window quota.Window, at time.Time, reach Reach) bool {
+	began, _, spanned := window.Span()
+	for i, edge := range reach.edges() {
+		if !edge.IsZero() && !at.Before(edge) && !w.reached[i] && (!spanned || began.Before(edge)) {
+			return true
+		}
 	}
-	began, _, ok := window.Span()
-	return !ok || began.Before(kept)
+	return false
 }
 
 // joined is the run r, once a reading, which shows its hold, or not, joins
