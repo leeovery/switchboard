@@ -1,6 +1,7 @@
 package views
 
 import (
+	"iter"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -107,8 +108,47 @@ func (t Told) Spends() bool {
 	return !t.Check && !t.Count
 }
 
+// countedSession is the session the request counts toward, as its line
+// will by ledger.Line.CountedSession: none for Claude Code's quota check,
+// sent under an id it never uses again.
+func (t Told) countedSession() string {
+	if t.Check {
+		return ""
+	}
+	return t.Session
+}
+
 // filedAs reports whether l is the request's line: the same request, as
 // sameRequest has it, by when it first went upstream.
 func (t Told) filedAs(l *ledger.Line) bool {
 	return sameRequest(l, t.Request, t.Sent)
+}
+
+// known are the requests s told of that a view may take as s told them,
+// each view reading them through it alone: every one while s is live; else
+// those that ended, or were lost. What of a request in flight as s last told
+// of it is unknown while s isn't live, as the watch keeps what s told as it
+// stands while s is closed: whether it's in flight still, the account it went
+// out on last, and what its answer has streamed. It's known again as s, open
+// again, tells of it, or forgets it, which loses it, or its line comes.
+func (s Stream) known() iter.Seq[Told] {
+	return func(yield func(Told) bool) {
+		for _, t := range s.Requests {
+			if (s.Live || !t.InFlight()) && !yield(t) {
+				return
+			}
+		}
+	}
+}
+
+// sentOf is when the request whose line l is went upstream, as s told,
+// reporting false where s told of no such request, as filedAs has it. A
+// request's sending, once told, stands whatever s knows of it now, as known
+// has it, so a row stays where it sat in flight as its line fills it in.
+func (s Stream) sentOf(l *ledger.Line) (time.Time, bool) {
+	t, told := s.Requests[l.Request]
+	if !told || !t.filedAs(l) {
+		return time.Time{}, false
+	}
+	return t.Sent, true
 }

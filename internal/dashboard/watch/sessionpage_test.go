@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -10,9 +11,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -49,19 +53,29 @@ func promptedLines(n int, from time.Time) []ledger.Line {
 func pageHarness(t *testing.T, lines []ledger.Line) (*harness, *pageLedger) {
 	t.Helper()
 	h := gridHarness(t)
-	l := &pageLedger{Empty: h.emptyLedger(), lines: map[string][]ledger.Line{idD28C: lines}}
-	h.model.cfg.Ledger, h.model.cfg.Prices = l, ledger.Pricing
-	return h, l
+	return h, h.withLines(lines)
 }
 
-// openPage opens idD28C's page, as a click on its row does, its read landing.
-func (h *harness) openPage() {
+// withLines has the model read the lines given in its ledger, each its
+// session's, priced at the price table's prices.
+func (h *harness) withLines(lines []ledger.Line) *pageLedger {
+	l := &pageLedger{Empty: h.emptyLedger(), lines: make(map[string][]ledger.Line)}
+	for _, line := range lines {
+		l.lines[line.Session] = append(l.lines[line.Session], line)
+	}
+	h.model.cfg.Ledger, h.model.cfg.Prices = l, ledger.Pricing
+	return l
+}
+
+// openPage opens the page of the session with the given id, as a click on
+// its row does, its read landing.
+func (h *harness) openPage(id string) {
 	h.t.Helper()
-	next, cmd := h.model.openSession(idD28C)
+	next, cmd := h.model.openSession(id)
 	h.model = next
 	h.deliver(h.run(cmd)...)
 	if h.model.session == nil {
-		h.t.Fatal("idD28C's page didn't open")
+		h.t.Fatalf("%s's page didn't open", id)
 	}
 }
 
@@ -84,11 +98,7 @@ func TestAClickOnASessionInSESSIONSOpensItsPageOnceItsLinesAreRead(t *testing.T)
 	h, l := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
 	h.model.cfg.Home = "/home/someone"
 	h.keyed("s c l")
-	i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == idD28C })
-	if i < 0 {
-		t.Fatalf("SESSIONS gives d28c no target among %+v", h.targets())
-	}
-	click := tea.MouseClickMsg{X: h.targets()[i].X, Y: h.targets()[i].Y, Button: tea.MouseLeft}
+	click := h.sessionClick(idD28C)
 
 	next, stale := h.model.Update(click)
 	h.model = next.(Model)
@@ -97,20 +107,146 @@ func TestAClickOnASessionInSESSIONSOpensItsPageOnceItsLinesAreRead(t *testing.T)
 	if len(l.asked) != 0 || h.model.session != nil {
 		t.Fatalf("clicked, the ledger was read %d times and a page is open %v; want neither till the read runs", len(l.asked), h.model.session != nil)
 	}
+	h.deliver(h.run(stale)...)
+	if h.model.session != nil {
+		t.Fatal("the read asked for before the last landed and opened its page, want it dropped")
+	}
 	h.deliver(h.run(read)...)
-	if !slices.EqualFunc(l.asked, [][]string{{idD28C}}, slices.Equal) {
-		t.Errorf("the read asked the ledger for %q, want d28c's lines alone", l.asked)
+	if !slices.EqualFunc(l.asked, [][]string{{idD28C}, {idD28C}}, slices.Equal) {
+		t.Errorf("the reads asked the ledger for %q, want d28c's lines alone each time", l.asked)
 	}
 	page := h.shownPage()
 	if page.Page.Session != idD28C || page.Turn != 2 || page.Home != "/home/someone" || h.model.view != dashboard.Overview {
 		t.Errorf("the read landed, the page is %s's, turn %d chosen, under %q, over %s; want d28c's, its newest, turn 2, under the home given, over the Overview",
 			page.Page.Session, page.Turn, page.Home, h.model.view)
 	}
+}
 
-	h.keyed("esc")
-	h.deliver(h.run(stale)...)
-	if h.model.session != nil {
-		t.Error("the page closed, the read asked for before the last landed and opened it, want it dropped")
+// sessionClick is a click on the row of the session with the given id in
+// SESSIONS, failing the test where it gives none.
+func (h *harness) sessionClick(id string) tea.MouseClickMsg {
+	h.t.Helper()
+	i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == id })
+	if i < 0 {
+		h.t.Fatalf("SESSIONS gives %s no target among %+v", id, h.targets())
+	}
+	return tea.MouseClickMsg{X: h.targets()[i].X, Y: h.targets()[i].Y, Button: tea.MouseLeft}
+}
+
+// A page asked to open opens nothing once its read lands where the user has
+// left the tab it was asked over, or covered it with a card, before then: by
+// esc, tab or shift-tab, a click on a tab, the one shown among them, p or ?.
+func TestAPageAskedToOpenOpensNothingOnceLeftBeforeItsLinesAreRead(t *testing.T) {
+	press := func(key tea.KeyPressMsg) func(*harness) {
+		return func(h *harness) { h.deliver(h.update(key)...) }
+	}
+	click := func(tab dashboard.View) func(*harness) {
+		return func(h *harness) {
+			target := h.tabTarget(tab)
+			h.click(target.X, target.Y)
+		}
+	}
+	tests := []struct {
+		name  string
+		leave func(*harness)
+		open  opened
+	}{
+		{name: "esc", leave: press(escKey)},
+		{name: "tab", leave: press(tea.KeyPressMsg{Code: tea.KeyTab})},
+		{name: "shift-tab", leave: press(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})},
+		{name: "a click on Accounts' tab", leave: click(dashboard.Accounts)},
+		{name: "a click on the Overview's tab, shown", leave: click(dashboard.Overview)},
+		{name: "p", leave: press(tea.KeyPressMsg{Code: 'p', Text: "p"}), open: routingOpen},
+		{name: "?", leave: press(tea.KeyPressMsg{Code: '?', Text: "?"}), open: helpOpen},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+			h.keyed("s c l")
+			next, read := h.model.Update(h.sessionClick(idD28C))
+			h.model = next.(Model)
+			tt.leave(h)
+			view := h.model.view
+			h.deliver(h.run(read)...)
+			if h.model.session != nil || h.model.open != tt.open {
+				t.Errorf("left on %s, the read landed: a page open %v, card %d open; want no page, card %d as it was", view, h.model.session != nil, h.model.open, tt.open)
+			}
+		})
+	}
+}
+
+// On the Log, esc acts as the Log has it, the newest first: its find, then
+// a pause, then a filter; and drops a session's page asked to open all the
+// same, as s asks one, so its read opens nothing as it lands. Left alone,
+// the read opens the page over the Log, paused as it was.
+func TestEscOnTheLogDropsAPageAskedToOpenAsTheLogTakesIt(t *testing.T) {
+	tests := []struct {
+		name                            string
+		filtered, paused, finding, esc  bool
+		wantFiltered, wantPaused, opens bool
+	}{
+		{name: "paused, esc: following again", paused: true, esc: true},
+		{name: "paused and filtered, esc: following again, the filter kept", filtered: true, paused: true, esc: true, wantFiltered: true},
+		{name: "filtered, esc: the filter let go", filtered: true, esc: true},
+		{name: "finding, paused and filtered, esc: the find closed alone", filtered: true, paused: true, finding: true, esc: true, wantFiltered: true, wantPaused: true},
+		{name: "following, esc", esc: true},
+		{name: "paused, no esc: the page opens", paused: true, wantPaused: true, opens: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
+			h := routedHarness(t, routerDocument(three()...))
+			onTheLog(h, state)
+			h.start()
+			if tt.filtered {
+				h.model.log.page = h.model.log.page.FoundOnly(idD28C)
+			}
+			if tt.paused {
+				h.keys(upKey)
+			}
+			next, read := h.model.openSession(idD28C)
+			h.model = next
+			if tt.finding {
+				h.typed("/")
+			}
+			if tt.esc {
+				h.keys(escKey)
+			}
+			h.deliver(h.run(read)...)
+			p := h.model.log.page
+			if opened := h.model.session != nil; opened != tt.opens || p.Filtered() != tt.wantFiltered || p.Paused() != tt.wantPaused || p.Finding.Open {
+				t.Errorf("the read landed: a page open %t, the Log filtered %t, paused %t, finding %t; want a page open %t, filtered %t, paused %t, not finding",
+					opened, p.Filtered(), p.Paused(), p.Finding.Open, tt.opens, tt.wantFiltered, tt.wantPaused)
+			}
+		})
+	}
+}
+
+// A session's page that opens over the Log while its find is open takes the
+// keys and the key line, drawn in the Log's place: the find waits under it as
+// it was, for esc to come back to.
+func TestASessionsPageOpenOverTheLogsFindTakesItsKeys(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	next, read := h.model.openSession(idD28C)
+	h.model = next
+	h.typed("/", "a")
+	h.deliver(h.run(read)...)
+	if h.model.session == nil {
+		t.Fatal("the page's read landed and opened nothing, want its page open")
+	}
+
+	h.typed("j")
+	if typed, listed := h.model.log.page.Finding.Typed, h.listed(); typed != "a" || len(listed) == 0 || listed[0] != "esc" {
+		t.Errorf("j pressed on the page, the find holds %q, the key line lists %q; want the find as it was, a, the page's line, esc first", typed, listed)
+	}
+	h.keys(escKey)
+	if f := h.model.log.page.Finding; h.model.session != nil || !f.Open || f.Typed != "a" {
+		t.Errorf("esc pressed, a page open %t, the find open %t holding %q; want the page closed, the find open as it was, a", h.model.session != nil, f.Open, f.Typed)
 	}
 }
 
@@ -167,7 +303,9 @@ func turnsModel(n int) Model {
 
 // ↑ and ↓ move the turn chosen, no further than the first and the last,
 // scrolling no further than keeps it in view; j and k, PgDn and PgUp, and
-// the wheel over the turns scroll them, the turn chosen kept in view.
+// the wheel over the turns scroll them, the turn chosen kept in view;
+// whatever tab the page is open over, the Log, whose table scrolls, among
+// them.
 func TestASessionsKeysAndTheWheelMoveThroughItsTurns(t *testing.T) {
 	press := func(key tea.KeyPressMsg, times int) func(Model) Model {
 		return func(m Model) Model {
@@ -196,12 +334,17 @@ func TestASessionsKeysAndTheWheelMoveThroughItsTurns(t *testing.T) {
 		{name: "PgUp", act: press(tea.KeyPressMsg{Code: tea.KeyPgUp}, 1), turn: 11, scroll: 0},
 		{name: "↓ twenty times, past the oldest", act: press(downKey, 20), turn: 1, scroll: 9},
 	}
-	m := turnsModel(20)
-	for _, step := range steps {
-		m = step.act(m)
-		if got := m.session.shown; got.Turn != step.turn || got.Scroll != step.scroll {
-			t.Fatalf("after %s, turn %d is chosen, the turns scrolled %d; want turn %d, scrolled %d", step.name, got.Turn, got.Scroll, step.turn, step.scroll)
-		}
+	for _, over := range []dashboard.View{dashboard.Overview, dashboard.Log} {
+		t.Run(string(over), func(t *testing.T) {
+			m := turnsModel(20)
+			m.view = over
+			for _, step := range steps {
+				m = step.act(m)
+				if got := m.session.shown; got.Turn != step.turn || got.Scroll != step.scroll {
+					t.Fatalf("after %s, turn %d is chosen, the turns scrolled %d; want turn %d, scrolled %d", step.name, got.Turn, got.Scroll, step.turn, step.scroll)
+				}
+			}
+		})
 	}
 }
 
@@ -248,7 +391,7 @@ func TestASessionsPageReadsTheStreamWhileTheRouterAnswers(t *testing.T) {
 func TestASessionsPageFollowsEachLookAndTickAndStaysOnceItEnds(t *testing.T) {
 	lines := promptedLines(3, start.Add(-30*time.Minute))
 	h, _ := pageHarness(t, lines)
-	h.openPage()
+	h.openPage(idD28C)
 
 	h.fire(h.lastTick())
 	if story := h.shownPage().Story; story.Ended || !story.End.Equal(h.clock.now) {
@@ -272,6 +415,72 @@ func TestASessionsPageFollowsEachLookAndTickAndStaysOnceItEnds(t *testing.T) {
 	h.fire(h.lastTick())
 	if end := h.shownPage().Story.End; !end.Equal(last) {
 		t.Errorf("ended, a tick on, the story ends at %s, want still at %s", end, last)
+	}
+}
+
+// A session's page reads [ledger] keep as the Log's oldest day does: a
+// Config that doesn't say keeps a day's lines config.DefaultLedgerKeep, as
+// the router keeps them, so an ended session's lines are kept until that
+// long after its first day's, never for good.
+func TestAnEndedSessionsPageReadsTheKeepAsTheLogDoes(t *testing.T) {
+	lines := promptedLines(2, start.Add(-30*time.Minute))
+	h, _ := pageHarness(t, lines)
+	h.source.sessions = slices.DeleteFunc(h.source.sessions, func(s status.Session) bool { return s.ID == idD28C })
+	h.tickUntilAsked()
+	h.openPage(idD28C)
+
+	want, _ := dayfile.KeptUntil(views.Today(lines[0].At).Date, config.DefaultLedgerKeep)
+	if page := h.shownPage().Page; page.Runs() || page.KeptUntil != want {
+		t.Errorf("its keep not said, the page runs %t, kept until %q; want it ended, kept until %q", page.Runs(), page.KeptUntil, want)
+	}
+}
+
+// While the router doesn't answer, a session's page keeps its own pin as
+// the router last listed it: its card, open, still picks it, naming no
+// account auto would choose, as the router can't say; and clearing it says
+// the router isn't answering, as new sessions' card does, sending nothing.
+func TestASessionsCardKeepsItsOwnPinWhileTheRouterDoesntAnswer(t *testing.T) {
+	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+	h.source.sessions[0].Pin = "side"
+	h.source.sessions[0].Assignments[0].Account, h.source.sessions[0].Assignments[0].Auto = "side", "work"
+	h.tickUntilAsked()
+	h.openPage(idD28C)
+	h.keyed("p")
+	if card := h.card(); !slices.Equal(card.Picked, []string{"side"}) || card.Session.Auto != "work" {
+		t.Fatalf("the card picks %q, auto naming %q; want side, its own pin, and work", card.Picked, card.Session.Auto)
+	}
+
+	h.stopRouter()
+	h.tickUntilAsked()
+	if card := h.card(); h.model.open != routingOpen || !slices.Equal(card.Picked, []string{"side"}) || card.Session.Auto != "" {
+		t.Fatalf("the router gone, the card is open %t, picking %q, auto naming %q; want it open, picking side, auto naming none",
+			h.model.open == routingOpen, card.Picked, card.Session.Auto)
+	}
+	h.keyed("0 enter")
+	if len(h.source.orders) > 0 || h.model.open != routingOpen || h.card().Refused != status.ErrNoRouter.Error() {
+		t.Errorf("0 enter sent %q, the card open %t, saying %q; want nothing sent, the card open, saying %q",
+			h.source.orders, h.model.open == routingOpen, h.card().Refused, status.ErrNoRouter)
+	}
+}
+
+// With one account, a session's page lists p while its own pin stands, as
+// the router last listed it: faint while the router doesn't answer.
+func TestASessionsPageListsPForItsOwnPinWhileTheRouterDoesntAnswer(t *testing.T) {
+	one := account("work", "Work", session(0.25, 3*time.Hour), week(0.5))
+	h := routedHarness(t, routerDocument(one))
+	h.source.doc = document(one)
+	pinned := sessionOn(idD28C, opus, "work", 10*time.Second)
+	pinned.Pin = "work"
+	h.source.sessions = []status.Session{pinned}
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	h.start()
+	h.withLines(promptedLines(2, start.Add(-30*time.Minute)))
+	h.openPage(idD28C)
+
+	h.stopRouter()
+	h.tickUntilAsked()
+	if pin, listed := h.model.pinKey(); !listed || !pin.Off {
+		t.Errorf("the router gone, p is listed %t, faint %t; want it listed, faint", listed, pin.Off)
 	}
 }
 
@@ -299,7 +508,7 @@ func TestASessionsPageFollowsItsNewestTurnTillAnotherIsChosen(t *testing.T) {
 // with the traffic.
 func TestOnASessionsPageALookBrightensItsWindowsAndTheStreamNothing(t *testing.T) {
 	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
-	h.openPage()
+	h.openPage(idD28C)
 	h.settle()
 
 	doc := four()
@@ -321,18 +530,24 @@ func TestOnASessionsPageALookBrightensItsWindowsAndTheStreamNothing(t *testing.T
 }
 
 // The key line of a session's page leads with esc back, in tab views' place,
-// four cells after it; a phone's with enter's word its own.
+// four cells after it; a phone's with enter's word its own. It's the page's
+// whatever tab it's open over, the Log, whose phone's line keeps keys of its
+// own, among them.
 func TestASessionsKeyLineLeadsWithEscBack(t *testing.T) {
 	tests := []struct {
+		over          dashboard.View
 		width, height int
 		want          string
 	}{
-		{width: 160, height: 37, want: "esc back    ↑↓ turn  enter its requests    p pin    ? help  q quit"},
-		{width: 52, height: 32, want: "esc back   ↑↓ turn   enter open   ? keys   q quit"},
+		{over: dashboard.Overview, width: 160, height: 37, want: "esc back    ↑↓ turn  enter its requests    p pin    ? help  q quit"},
+		{over: dashboard.Overview, width: 52, height: 32, want: "esc back   ↑↓ turn   enter open   ? keys   q quit"},
+		{over: dashboard.Log, width: 160, height: 37, want: "esc back    ↑↓ turn  enter its requests    p pin    ? help  q quit"},
+		{over: dashboard.Log, width: 52, height: 32, want: "esc back   ↑↓ turn   enter open   ? keys   q quit"},
 	}
 	for _, tt := range tests {
-		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
+		t.Run(fmt.Sprintf("over %s at %d", tt.over, tt.width), func(t *testing.T) {
 			h := sessionPaged(t, "")
+			h.model.view = tt.over
 			h.deliver(h.update(tea.WindowSizeMsg{Width: tt.width, Height: tt.height})...)
 			rows := strings.Split(h.view(), "\n")
 			if got := strings.TrimSpace(rows[len(rows)-1]); got != tt.want {

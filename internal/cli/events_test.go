@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // The runs of the router in the events' tests: one started on the 6th, and
@@ -199,6 +201,37 @@ func TestEventsJSONPrintsEachEventAsTheRouterFilesIt(t *testing.T) {
 				if got.stdout != tt.want || got.code != 0 {
 					t.Errorf("switchboard events %s %s printed\n%s(%d, %s)\nwant\n%s",
 						strings.Join(tt.args, " "), strings.Join(form.args, " "), got.stdout, got.code, got.stderr, tt.want)
+				}
+			})
+		}
+	}
+}
+
+// A move after midnight says when the pressure told the day before runs out,
+// as the Log's Events say it: the events are told from views.EventsFrom the
+// first day listed, those before it printed in no form.
+func TestEventsTellAMoveAfterMidnightWhenThePressureToldTheDayBeforeRunsOut(t *testing.T) {
+	hm := viewstest.PressureTheDayBefore()
+	deps := testDeps(nil, t.TempDir())
+	deps.Now = func() time.Time { return hm.Now }
+	var moved []events.Line
+	for _, f := range hm.Filed {
+		fileEvent(t, deps, dayfile.DateOf(f.Filed), f.Line)
+		if !f.Line.At.Before(hm.From) {
+			moved = append(moved, f.Line)
+		}
+	}
+	text := `Wed 7 Oct 2026, so far
+  00:20      d28c5e17  moved  work → side  personal came under pressure, its 5-hour to run out at 01:10
+`
+	for _, tt := range []struct {
+		forms []printForm
+		want  string
+	}{{forms: prettyForms(), want: text}, {forms: jsonForms(), want: eventJSON(t, moved...)}} {
+		for _, form := range tt.forms {
+			t.Run(form.name, func(t *testing.T) {
+				if got := form.run(t, deps, "events"); got.stdout != tt.want || got.code != 0 {
+					t.Errorf("switchboard events %s printed\n%s(%d, %s)\nwant\n%s", strings.Join(form.args, " "), got.stdout, got.code, got.stderr, tt.want)
 				}
 			})
 		}

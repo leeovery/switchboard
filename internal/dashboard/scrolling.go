@@ -95,7 +95,8 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 
 // scrollingAt is how far the frame's view of doc scrolls at now, scrolled to
 // each offset given: a session's page's turns, where one is open, a row a
-// turn, in the rows its layout gives them; History's, of the ledger's days
+// turn and its turn open's rows under its own, as turnsRows lays them out,
+// in the rows its layout gives them; History's, of the ledger's days
 // alone, as historyScrolling says; the Overview's, as overviewScrolling
 // says, laid out once for every offset; Accounts', as accountsScrolling
 // says; Sessions, where its calls and lines,
@@ -109,7 +110,8 @@ func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) 
 	switch top := f.top(); {
 	case f.cramped():
 	case f.Session != nil:
-		s = byRows(len(f.Session.Page.Turns), f.sessionLayout(len(f.Session.Page.Accounts)).turns)
+		l := f.sessionLayout(len(f.Session.Page.Accounts))
+		s = byRows(len(f.Session.turnsRows(l)), l.turns)
 	case f.View == History:
 		return f.historyScrolling(top)
 	case len(m.Accounts) == 0:

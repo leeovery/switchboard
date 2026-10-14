@@ -6,19 +6,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 // LogSessionSources are what the Log's panel's sessions are built from.
 type LogSessionSources struct {
-	// Read holds today's lines, and every line of their sessions, whatever
-	// day it's of, as the Log reads them.
+	// Read is the Log's read, which its Requests are built from: every line
+	// of each of its sessions, whatever day it's of, and the story each
+	// tells, priced, as it holds them.
 	Read LogRead
 	// Lines and Events count each session's lines today and its events
 	// today, by its whole id, as the Log counts them: the panel's sessions
 	// are those either counts.
 	Lines, Events map[string]int
+	// Ticked are the sessions the panel's filter ticks, by their whole ids,
+	// which join its sessions though neither count counts them, as one
+	// ticked before midnight, or of another day the find picked: each once.
+	Ticked []string
+	// Found are the sessions the Log's find picked, as FindSessions gives
+	// them: what's known of one ticked that the read holds no lines of.
+	Found []FoundSession
 	// Running are the sessions the router lists, as GET /sessions gives
 	// them: none without the router.
 	Running []status.Session
@@ -27,8 +34,6 @@ type LogSessionSources struct {
 	Unlisted bool
 	// Stream is what the request stream told.
 	Stream Stream
-	// Prices are the price table its sessions' stories are told by.
-	Prices ledger.Table
 	Now    time.Time
 }
 
@@ -93,23 +98,55 @@ func (s LogSession) Doing(now time.Time) (doing LogDoing, since time.Time) {
 
 // LogSessions are today's sessions as the Log's panel lists them: those src
 // counts lines or events of today, each as the List has it, from its story,
-// as its lines, of whatever day, tell it, and what the router and the
-// request stream say of it; those that haven't ended first, seen last
-// first, then those ended, the latest ended first.
+// as src's Read holds it told, and what the router and the request stream
+// say of it; and those src ticks that it counts none of, as tickedSession
+// has them, so a session the filter keeps always has a tick; those that
+// haven't ended first, seen last first, then those ended, the latest ended
+// first.
 func LogSessions(src LogSessionSources) []LogSession {
-	today := Today(src.Now)
 	by := newLister(src.Running, src.Unlisted, src.Stream, src.Now)
+	counted := countedIDs(src.Lines, src.Events)
 	var sessions []LogSession
-	for _, id := range countedIDs(src.Lines, src.Events) {
-		s := storyOf(requestsOf(src.Read.sessions[id], src.Prices, today.Date), src.Prices, today)
-		listed := by.listed(id, s)
+	for _, id := range counted {
+		listed := by.listed(id, src.Read.sessionStory(id))
 		sessions = append(sessions, LogSession{
 			ID: id, Dir: listed.Dir, Account: listed.Account, Lines: src.Lines[id], Events: src.Events[id],
 			Activity: listed.Activity, Started: listed.Started,
 		})
 	}
+	for _, id := range notAmong(src.Ticked, counted) {
+		sessions = append(sessions, tickedSession(by, id, src.Found, src.Read.sessionStory(id)))
+	}
 	slices.SortFunc(sessions, inLogOrder)
 	return sessions
+}
+
+// tickedSession is the session with the given id, ticked, as the panel lists
+// it with no lines nor events today: as the List has it, from its story s,
+// where the Log's read holds its lines; else as the find found it, among
+// found, its directory as its day's lines named it, ended at its last
+// request, its account not known; else its id alone, with what the router
+// and the request stream say of it.
+func tickedSession(by lister, id string, found []FoundSession, s *story) LogSession {
+	listed := by.listed(id, s)
+	ticked := LogSession{ID: id, Dir: listed.Dir, Account: listed.Account, Activity: listed.Activity, Started: listed.Started}
+	i := slices.IndexFunc(found, func(f FoundSession) bool { return f.ID == id })
+	if i < 0 {
+		return ticked
+	}
+	ticked.Dir = cmp.Or(ticked.Dir, found[i].Dir)
+	if s.last == nil {
+		ticked.Activity = Activity{Doing: Ended, Since: found[i].Last, LastSeen: found[i].Last}
+	}
+	return ticked
+}
+
+// notAmong are the ids given that aren't among those, nor "", each once, in
+// the order of their ids.
+func notAmong(ids, among []string) []string {
+	not := slices.DeleteFunc(slices.Clone(ids), func(id string) bool { return id == "" || slices.Contains(among, id) })
+	slices.Sort(not)
+	return slices.Compact(not)
 }
 
 // countedIDs are the ids of the sessions either count counts any of, each

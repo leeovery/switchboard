@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -292,6 +293,13 @@ func TestASessionsPageDrawsItsFramesRows(t *testing.T) {
 				// the frame says 15h, so the where-words run 3 cells longer.
 				{row: 6, first: 56, last: 94},
 			},
+		},
+		{
+			stem: "session-turn-opened-160", shown: turnOpened(), width: 160, height: 37, storyFrom: 9, storyTo: 17,
+			// The frame lights no request of the turn open, where the design
+			// has its first chosen as it opens (3417); its text is held by
+			// TestATurnOpenedLightsItsRequestChosenAndSaysWhatsOutOfView.
+			passed: []spot{{row: 28, first: 0, last: 159}},
 		},
 		{
 			stem: "session-phone-52", shown: moved(), width: 52, height: 32, tabs: 1, storyFrom: 10, storyTo: 16,
@@ -589,6 +597,24 @@ func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 	}
 }
 
+// A session's page names an account by its label wherever it names it, its
+// story among its parts, where the config gives one other than its id.
+func TestASessionsPageNamesItsAccountsByTheirLabels(t *testing.T) {
+	doc := pageDoc()
+	doc.Accounts[0].Label = "office"
+	shown := moved()
+	shown.Story = movedStory()
+	text := strings.Join(textOf(pageFrame(t, shown, 160, 37).Draw(doc, sessionNow)), "\n")
+	for _, want := range []string{"moved from office: office reached its cap", "office reached its cap → side · 182k", "─ office ─", "1 office "} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the page doesn't say %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "work") {
+		t.Errorf("the page names work by its id:\n%s", text)
+	}
+}
+
 // Where a session's requests name no prompt, TURNS says why it has no
 // turns, in text.faint, where its rows would be (C14); with no request at
 // all, it says nothing.
@@ -648,6 +674,50 @@ func TestASessionsPageTargetsItsTurnsShown(t *testing.T) {
 	f.Height = 20
 	if slices.ContainsFunc(f.Targets(pageDoc(), sessionNow), func(t Target) bool { return t.On == OnTurn }) {
 		t.Error("under the chrome alone, the page targets its turns, want none")
+	}
+}
+
+// A session's page open over the Log draws as over a Log not read yet: the
+// state line the Log draws under its table once it's read is none of the
+// page's, whose row it would be says how many more turns there are.
+func TestASessionsPageOverTheLogDrawsNoneOfTheLogsStateLine(t *testing.T) {
+	tests := []struct {
+		width, height int
+	}{
+		{width: 160, height: 37},
+		{width: 52, height: 32},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%d×%d", tt.width, tt.height), func(t *testing.T) {
+			unread := pageFrame(t, moved(), tt.width, tt.height)
+			read := unread
+			read.Log = LogPage{Read: true}
+			want, got := pageText(unread), pageText(read)
+			for y := range want {
+				if got[y] != want[y] {
+					t.Errorf("over the Log read, row %d reads\n%q\nwant, as over the Log unread,\n%q", y+1, got[y], want[y])
+				}
+			}
+		})
+	}
+}
+
+// A session's page open over the Log takes a click as the page does: on its
+// turns, never on the lines of the Log's table behind it.
+func TestASessionsPageOverTheLogTargetsNoneOfTheLogsLines(t *testing.T) {
+	f := pageFrame(t, moved(), 160, 37)
+	f.Log = cardPage(40)
+	var turns int
+	for _, target := range f.Targets(pageDoc(), sessionNow) {
+		switch target.On {
+		case OnRow:
+			t.Errorf("the Log's line %d is a target along row %d, under the page", target.Row, target.Y+1)
+		case OnTurn:
+			turns++
+		}
+	}
+	if turns == 0 {
+		t.Error("the page's turns are no targets, want a target each")
 	}
 }
 

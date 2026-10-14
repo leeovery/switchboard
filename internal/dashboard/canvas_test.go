@@ -196,7 +196,7 @@ func TestWithoutColourASurfaceShowsOnlyOnBgSelectionAndThereReversed(t *testing.
 	}{
 		{name: "a bar's ramp", on: hue{ramp: true, at: 0.5}},
 		{name: "bg.selection faded halfway", on: hue{token: theme.BgSelection, fade: 0.5}},
-		{name: "bg.selection behind a card", on: hue{token: theme.BgSelection}, draw: (*canvas).fade},
+		{name: "bg.selection behind a card", on: hue{token: theme.BgSelection}, draw: func(c *canvas) { c.fade() }},
 	} {
 		c := newCanvas(4, 1)
 		c.text(0, 0, "ab", ink{})
@@ -359,6 +359,19 @@ func TestAFadeBehindACardComesAfterTheCellsOwn(t *testing.T) {
 	}
 	if faded.bold {
 		t.Error("it's bold behind the card, want nothing bold")
+	}
+}
+
+func TestAFadeLeavesTheRowsKeptAsTheyreDrawn(t *testing.T) {
+	c := newCanvas(2, 3)
+	for y := range 3 {
+		c.text(0, y, "ab", ink{token: theme.AccentKey, bold: true})
+	}
+	c.fade(1)
+	for y, row := range c.cells {
+		if kept := y == 1; row[0].ink.behind == kept || row[0].ink.bold != kept {
+			t.Errorf("row %d is behind the card %v and bold %v, want it %v and %v", y+1, row[0].ink.behind, row[0].ink.bold, !kept, kept)
+		}
 	}
 }
 

@@ -1,12 +1,14 @@
 package views_test
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
@@ -86,29 +88,21 @@ func TestThePanelSaysWhatASessionIsDoing(t *testing.T) {
 
 // panelOf is the panel's sessions of the ledger's lines that arrived by now,
 // the router listing those given, the stream telling what it did: today's
-// sessions counted as the Log counts them, each line of today's of a session,
-// and each request the stream told of whose line hasn't come; and the events
-// of each, as counted.
+// sessions counted as the Log's Requests count them, each line of today's,
+// and each request the stream told of whose line hasn't come, toward the
+// session it counts toward; and the events of each, as counted.
 func panelOf(lines []ledger.Line, running []status.Session, unlisted bool, stream views.Stream, events map[string]int, at time.Time) []views.LogSession {
 	today := views.Today(at)
 	var todays []ledger.Line
-	counted := make(map[string]int)
-	lined := make(map[string]bool)
 	for _, l := range lines {
 		if today.Holds(l.At) && !l.At.After(at) {
 			todays = append(todays, l)
-			counted[l.Session]++
-			lined[l.Request] = true
 		}
 	}
-	for id, t := range stream.Requests {
-		if !lined[id] && today.Holds(t.Sent) {
-			counted[t.Session]++
-		}
-	}
+	read := views.ReadLogHeld(ledgerHolding(at, lines...), heldOf(todays...), ledger.Pricing, at)
+	counted := views.LogRows(views.LogSources{From: at, Now: at, Read: read, Stream: stream}).Count(today.Date)
 	return views.LogSessions(views.LogSessionSources{
-		Read: views.ReadLog(ledgerHolding(at, lines...), todays), Lines: counted, Events: events,
-		Running: running, Unlisted: unlisted, Stream: stream, Prices: ledger.Pricing, Now: at,
+		Read: read, Lines: counted.Sessions, Events: events, Running: running, Unlisted: unlisted, Stream: stream, Now: at,
 	})
 }
 
@@ -193,5 +187,153 @@ func TestThePanelListsTodaysSessionsInItsOrder(t *testing.T) {
 	wantCounts := map[string][2]int{mover: {1, 0}, quiet: {0, 2}, older: {1, 1}, rescored: {2, 0}, early: {2, 0}}
 	if !maps.Equal(counts, wantCounts) {
 		t.Errorf("the panel counts %v lines and events, want %v, as the Log counts them", counts, wantCounts)
+	}
+}
+
+// A quota check, which Claude Code sends as it resumes a session under an id
+// it never uses again, counts toward no session, its line come or in flight:
+// the panel never lists that id, nor counts a check among a session's lines.
+func TestTheQuotaChecksSessionIsNoneThePanelLists(t *testing.T) {
+	const throwaway = "99999999-0000-4000-8000-000000000009"
+	r0 := withID("r0", line(mover, opus, "work", "new", october(7, 12, 0), hourUsage))
+	checking := func(session string) ledger.Line {
+		l := withID("c0", line(session, haiku, "work", "sticky", october(7, 12, 1), ""))
+		l.Kind = ledger.KindCheck
+		return l
+	}
+	inFlight := views.Told{Request: "c1", Session: throwaway, Model: haiku, Account: "work", Check: true, Sent: october(7, 13, 11), Heard: october(7, 13, 11)}
+	tests := []struct {
+		name   string
+		lines  []ledger.Line
+		stream views.Stream
+	}{
+		{name: "its line come", lines: []ledger.Line{r0, checking(throwaway)}},
+		{name: "in flight, as the stream tells it", lines: []ledger.Line{r0}, stream: streamOf(inFlight)},
+		{name: "its line naming a session of today's", lines: []ledger.Line{r0, checking(mover)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			panel := panelOf(tt.lines, nil, true, tt.stream, nil, now)
+			if len(panel) != 1 || panel[0].ID != mover || panel[0].Lines != 1 {
+				var listed []string
+				for _, s := range panel {
+					listed = append(listed, fmt.Sprintf("%s, %d lines", s.ID[:8], s.Lines))
+				}
+				t.Errorf("the panel lists %q, want %s alone, its line alone", listed, mover[:8])
+			}
+		})
+	}
+}
+
+// At each hard moment the Log's rows have to get right, the panel lists the
+// sessions today's lines count toward, each with as many lines, as the day's
+// sessions read off its lines do, by the one counted rule; and the day's
+// summary names them alike.
+func TestThePanelTheDaysSessionsAndItsSummaryNameTheSameSessionsAtEachHardMoment(t *testing.T) {
+	checked := 0
+	for _, hm := range viewstest.LogMoments() {
+		t.Run(hm.Name, func(t *testing.T) {
+			today := views.Today(hm.Now)
+			var todays []ledger.Line
+			for _, l := range hm.Lines {
+				if views.Today(l.At).Date != today.Date {
+					continue
+				}
+				todays = append(todays, l)
+				if l.Kind == ledger.KindCheck {
+					checked++
+				}
+			}
+			src := logSourcesOf(hm)
+			src.Stream = views.Stream{}
+			counted := views.LogRows(src).Count(today.Date)
+			panel := make(map[string]int)
+			for _, s := range views.LogSessions(views.LogSessionSources{Read: src.Read, Lines: counted.Sessions, Unlisted: true, Now: hm.Now}) {
+				panel[s.ID] = s.Lines
+			}
+			days := make(map[string]int)
+			for _, s := range views.DaySessions(heldOf(todays...)) {
+				days[s.ID] = s.Lines
+			}
+			if !maps.Equal(panel, days) {
+				t.Errorf("the panel lists %v, by their lines today, but the day's sessions are %v", panel, days)
+			}
+			summary, err := ledger.Summarise(today.Date, slices.Values(todays), readings.Empty{}.Between, nil, ledger.Caps{}, hm.Now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var named []string
+			for _, a := range summary.Accounts {
+				named = append(named, a.SessionIDs...)
+			}
+			slices.Sort(named)
+			if listed := slices.Sorted(maps.Keys(panel)); !slices.Equal(listed, slices.Compact(named)) {
+				t.Errorf("the panel lists %q, but the day's summary names %q", listed, named)
+			}
+		})
+	}
+	if checked == 0 {
+		t.Error("no hard moment holds a quota check of today's")
+	}
+}
+
+// A session the filter ticks joins the panel's sessions, ticked, though it
+// has no lines nor events today, as one ticked before midnight, or of
+// another day the find picked: as the List has it from its story where the
+// Log's read holds its lines; else as the find found it, ended at its last
+// request, its account not known; else its id alone. It's listed after those
+// that haven't ended, and once, as one of today's or ticked twice; and one
+// the find found that's not ticked isn't.
+func TestASessionTickedThatTodayCountsNoneOfJoinsThePanel(t *testing.T) {
+	last := local(15, 0, 0).AddDate(0, 0, -2)
+	theirs := []ledger.Line{
+		in("~/Code/api", line(older, opus, "side", "new", last.Add(-time.Hour), smallUsage)),
+		in("~/Code/api", line(older, opus, "side", "sticky", last, smallUsage)),
+	}
+	todays := []ledger.Line{in("~/Code/web", line(early, opus, "work", "new", local(13, 0, 0), smallUsage))}
+	l := ledgerHolding(now, slices.Concat(theirs, todays)...)
+	unread := views.ReadLogHeld(l, heldOf(todays...), ledger.Pricing, now)
+	read := unread.Back(l, heldOf(theirs...), now)
+	found := []views.FoundSession{{ID: older, Dir: "~/Code/api", Day: views.Today(last), Ended: true, Last: last}}
+	tests := []struct {
+		name   string
+		read   views.LogRead
+		ticked []string
+		found  []views.FoundSession
+		want   []string
+		// ended is whether older is listed ended at its last request.
+		ended bool
+	}{
+		{name: "its lines read", read: read, ticked: []string{older}, want: []string{early + " ~/Code/web work", older + " ~/Code/api side"}, ended: true},
+		{
+			name: "its lines read and found", read: read, ticked: []string{older}, found: found,
+			want: []string{early + " ~/Code/web work", older + " ~/Code/api side"}, ended: true,
+		},
+		{name: "found alone", read: unread, ticked: []string{older}, found: found, want: []string{early + " ~/Code/web work", older + " ~/Code/api "}, ended: true},
+		{name: "neither read nor found", read: unread, ticked: []string{older}, want: []string{early + " ~/Code/web work", older + "  "}},
+		{name: "ticked twice", read: read, ticked: []string{older, early, older}, want: []string{early + " ~/Code/web work", older + " ~/Code/api side"}, ended: true},
+		{name: "one of today's", read: unread, ticked: []string{early}, found: []views.FoundSession{{ID: early, Day: views.Today(now)}}, want: []string{early + " ~/Code/web work"}},
+		{name: "found, not ticked", read: read, found: found, want: []string{early + " ~/Code/web work"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			panel := views.LogSessions(views.LogSessionSources{
+				Read: tt.read, Lines: map[string]int{early: 1}, Ticked: tt.ticked, Found: tt.found, Unlisted: true, Now: now,
+			})
+			var got []string
+			for _, s := range panel {
+				got = append(got, s.ID+" "+s.Dir+" "+s.Account)
+				if s.ID != older {
+					continue
+				}
+				if doing, since := s.Doing(now); tt.ended && (doing != views.LogEnded || !since.Equal(last)) || s.Lines != 0 {
+					t.Errorf("the session ticked is %s since %v, %d lines today; want none today, ended at its last request, %v, where it's known",
+						logDoingNames[doing], since, s.Lines, last)
+				}
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("the panel lists %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

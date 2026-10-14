@@ -152,6 +152,28 @@ func TestHelpIsTitledAsThePageIsNamed(t *testing.T) {
 	}
 }
 
+// A card of a line placed by it sits where it's placed; one of no line, or
+// of one it couldn't be placed by, is centred.
+func TestACardPlacedByItsLineSitsThere(t *testing.T) {
+	tests := []struct {
+		name string
+		of   *ofLine
+		want int
+	}{
+		{name: "of no line", want: 9},
+		{name: "placed by its line", of: &ofLine{row: 5, top: 7, placed: true}, want: 7},
+		{name: "of a line it couldn't be placed by", of: &ofLine{row: 5}, want: 9},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := Card{width: 20, body: make([]line, 3), of: tt.of}
+			if _, y, _, _ := k.box(40, 25); y != tt.want {
+				t.Errorf("its top edge is on row %d, want %d", y+1, tt.want+1)
+			}
+		})
+	}
+}
+
 func TestNoCardScrollsWhileNoneIsOpen(t *testing.T) {
 	if got := frameOf(160, 40).CardScrolling(); got != (Scrolling{}) {
 		t.Errorf("with no card open, the card scrolls %+v, want nothing", got)

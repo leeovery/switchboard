@@ -131,7 +131,12 @@ type AccountDay struct {
 // names them all, or that counts none, as an account the readings history
 // alone tells of.
 func (a AccountDay) Unnamed() int {
-	return max(a.Sessions-len(a.SessionIDs), 0)
+	return unnamed(a.Sessions, a.SessionIDs)
+}
+
+// unnamed is how many of the sessions counted the ids given don't name.
+func unnamed(sessions int, ids []string) int {
+	return max(sessions-len(ids), 0)
 }
 
 // Unnamed is how many of the sessions its accounts' days count they don't
@@ -189,6 +194,14 @@ type ModelDay struct {
 // never among them.
 func (m ModelDay) Requests() int {
 	return m.Upstream + m.Unsent
+}
+
+// Unnamed is how many of the sessions the model's day counts it doesn't name
+// by their ids, as AccountDay.Unnamed says of an account's: every one, where
+// its sessions were never named, as ModelDay says; none, of one that names
+// them all.
+func (m ModelDay) Unnamed() int {
+	return unnamed(m.Sessions, m.SessionIDs)
 }
 
 // Tokens returns the tokens the requests' usage counts, summed.

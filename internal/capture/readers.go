@@ -34,11 +34,15 @@ type records struct {
 // recordsOf are the world's records: the year's days of its accounts,
 // summarised from its readings history, that history, and its accounts'
 // caps; and, where today's traffic of the three is the world's, every line
-// the sessions' world holds, and the router's events.
+// the sessions' world holds, or the world's own lines in their place, and
+// the router's events.
 func (a accountWorlds) recordsOf(w accountWorld) *records {
 	r := &records{days: a.year.summaries(w.history, w.accounts), readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows)}
 	if w.traffic {
 		r.lines, r.events = a.traffic()
+	}
+	if w.lines != nil {
+		r.lines = filedOf(heldAsWritten(w.lines(a.now)))
 	}
 	return r
 }
@@ -285,7 +289,7 @@ func (h heldReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
 }
 
 // heldEvents reads the records' router's events as an events.Reader reads
-// their files, by now's clock.
+// their files, by now's clock, each filed on the day it happened.
 type heldEvents struct {
 	records *records
 	now     func() time.Time
@@ -323,4 +327,20 @@ func (h heldEvents) Between(from, to time.Time) iter.Seq[events.Line] {
 			}
 		}
 	}
+}
+
+// FirstDay gives the start of the first local day an event happened on by
+// now: fs.ErrNotExist where none had.
+func (h heldEvents) FirstDay() (time.Time, error) {
+	now := h.now()
+	var first time.Time
+	for _, e := range h.records.events {
+		if !e.At.After(now) && (first.IsZero() || e.At.Before(first)) {
+			first = e.At
+		}
+	}
+	if first.IsZero() {
+		return time.Time{}, fs.ErrNotExist
+	}
+	return dayfile.DayStart(first.Local(), 0), nil
 }

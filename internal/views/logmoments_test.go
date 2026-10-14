@@ -4,10 +4,12 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -17,13 +19,43 @@ import (
 
 // logSourcesOf are what the Log's table is built from at the moment given:
 // the lines of the days it spans, read with their sessions' through the
-// ledger holding the moment's lines, and the rest as the moment gives them.
+// ledger holding the moment's lines, as readAtOnce reads them, and the rest
+// as the moment gives them.
 func logSourcesOf(hm viewstest.LogMoment) views.LogSources {
-	spanned := slices.DeleteFunc(slices.Clone(hm.Lines), func(l ledger.Line) bool { return !views.Today(hm.From).Holds(l.At) })
 	return views.LogSources{
-		From: hm.From, Now: hm.Now, Read: views.ReadLog(ledgerHolding(hm.Now, hm.Lines...), spanned),
-		Stream: hm.Stream, Totals: hm.Totals, ShowChecks: hm.Shown, ShowCounts: hm.Shown, Prices: ledger.Pricing,
+		From: hm.From, Oldest: hm.Oldest, Now: hm.Now, Read: readAtOnce(hm, ledgerHolding(hm.Now, hm.Lines...)),
+		Stream: hm.Stream, Totals: hm.Totals, Filter: hm.Filter,
 	}
+}
+
+// readAtOnce is the Log's read of the moment's lines through l, as the watch
+// reads it on opening: today's, as the ledger's Today gives them, then each
+// day before, newest first, as its Day gives one, as spannedDays has them.
+func readAtOnce(hm viewstest.LogMoment, l views.LedgerSessions) views.LogRead {
+	days := spannedDays(hm)
+	read := views.ReadLogHeld(l, days[0], ledger.Pricing, hm.Now)
+	for _, day := range days[1:] {
+		read = read.Back(l, day, hm.Now)
+	}
+	return read
+}
+
+// spannedDays are the moment's lines of the days the Log reads, as the
+// ledger holds them, a day's together, in the order the moment gives them:
+// today's first, then each day before, newest first, as the oldest day's
+// DayBefore gives them, back to the table's first; none for a day with none.
+func spannedDays(hm viewstest.LogMoment) [][]ledger.Held {
+	byDate := make(map[string][]ledger.Held)
+	for _, l := range hm.Lines {
+		date := views.Today(l.At).Date
+		byDate[date] = append(byDate[date], ledger.Held{Line: l})
+	}
+	today, first := views.Today(hm.Now), views.Today(hm.From)
+	days := [][]ledger.Held{byDate[today.Date]}
+	for day, ok := hm.Oldest.DayBefore(today); ok && first.Holds(day.Start); day, ok = hm.Oldest.DayBefore(day) {
+		days = append(days, byDate[day.Date])
+	}
+	return days
 }
 
 // logLineOf is what a line of the table says of what the Log's rules decide,
@@ -31,6 +63,9 @@ func logSourcesOf(hm viewstest.LogMoment) views.LogSources {
 func logLineOf(l views.LogLine) viewstest.LogLine {
 	if r := l.Rule; r != nil {
 		return viewstest.LogLine{Rule: r.Ended.Date + " → " + r.Began.Date}
+	}
+	if o := l.Oldest; o != nil {
+		return viewstest.LogLine{Oldest: o.Day.Date + ", " + keptSaid(o.Keep)}
 	}
 	r := l.Row
 	row := viewstest.Row{
@@ -42,6 +77,15 @@ func logLineOf(l views.LogLine) viewstest.LogLine {
 		row.Cost = *r.Routing.Cost
 	}
 	return viewstest.LogLine{Row: row}
+}
+
+// keptSaid is how long the ledger keeps its lines, as a moment wants it:
+// "400 days", or "for good".
+func keptSaid(keep time.Duration) string {
+	if keep == dayfile.Forever {
+		return "for good"
+	}
+	return strconv.Itoa(int(keep/(24*time.Hour))) + " days"
 }
 
 // secondsOf is a time a row knows, as prose.Seconds says it: "" for one it
@@ -71,11 +115,53 @@ func TestTheLogsRowsAtEachHardMoment(t *testing.T) {
 			}
 			dates := slices.Concat([]string{views.Today(hm.From).Date, views.Today(hm.Now).Date}, slices.Collect(maps.Keys(hm.Counts)))
 			for _, date := range dates {
-				if got, want := table.Count(date), hm.Counts[date]; got != want {
+				if got, want := countOf(table.Count(date)), hm.Counts[date]; !reflect.DeepEqual(got, want) {
 					t.Errorf("%s counts %+v, want %+v", date, got, want)
 				}
 			}
 		})
+	}
+}
+
+// countOf is what a day's lines count of what a moment wants.
+func countOf(c views.LogCount) viewstest.Count {
+	return viewstest.Count{Shown: c.Shown, Requests: c.Requests, Checks: c.Checks, Counts: c.Counts, Failed: c.Failed, HiddenBy: c.HiddenBy()}
+}
+
+// TestANarrowTableAndAPhoneFoldARowsRoutingInAlikeAtEachHardMoment holds the
+// table under 160 columns, its routing folded into stopped, to the phone's,
+// at each row of each hard moment, every kind shown: each says the row's
+// routing in its stopped's place for the same rows, the narrow table as the
+// routing column says it, the phone in its own form.
+func TestANarrowTableAndAPhoneFoldARowsRoutingInAlikeAtEachHardMoment(t *testing.T) {
+	folding, staying := 0, 0
+	for _, hm := range viewstest.LogMoments() {
+		src := logSourcesOf(hm)
+		src.Filter = views.LogFilter{}
+		for _, l := range views.LogRows(src).Lines {
+			r := l.Row
+			if !l.IsRow() {
+				continue
+			}
+			phoneRouting := r.Routing.Words
+			if r.Routing.From != "" {
+				phoneRouting = status.FromWords(r.Routing.From)
+			}
+			routed := len(r.Routing.Words) > 0
+			folded := routed && reflect.DeepEqual(r.Folded(), r.Routing.Said())
+			phoned := routed && r.PhoneStopped().String() == phoneRouting.String()
+			if folded != phoned {
+				t.Errorf("%s: %s's row folds its routing in narrow %t, as %q, but on a phone %t, as %q", hm.Name, r.Request, folded, r.Folded(), phoned, r.PhoneStopped())
+			}
+			if folded {
+				folding++
+			} else {
+				staying++
+			}
+		}
+	}
+	if folding < 10 || staying < 10 {
+		t.Errorf("the moments fold %d rows' routing in and keep %d rows' stopped, want ten of each at least", folding, staying)
 	}
 }
 
@@ -92,8 +178,8 @@ func ruleFigures(totals []views.DayTotals, date string) views.DayTotals {
 func logSaid(lines []viewstest.LogLine) string {
 	said := make([]string, len(lines))
 	for i, l := range lines {
-		if l.Rule != "" {
-			said[i] = "── " + l.Rule
+		if l.Rule != "" || l.Oldest != "" {
+			said[i] = "── " + l.Rule + l.Oldest
 			continue
 		}
 		said[i] = strings.TrimSpace(strings.Join([]string{
@@ -178,7 +264,7 @@ func TestTheListAndTheLogAgreeOnASessionsLatestRequest(t *testing.T) {
 // in flight: false where it holds none.
 func latestOf(table views.LogTable, session string) (latest views.RequestRow, flying int, ok bool) {
 	for _, l := range table.Lines {
-		if l.Rule != nil || l.Row.Session != session || l.Row.Kind != views.RowRequest {
+		if !l.IsRow() || l.Row.Session != session || l.Row.Kind != views.RowRequest {
 			continue
 		}
 		latest, ok = l.Row, true

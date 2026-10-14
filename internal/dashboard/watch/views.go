@@ -37,8 +37,10 @@ func (m Model) turn(by int) (tea.Model, tea.Cmd) {
 }
 
 // showTab shows the tab given, from its top, and keeps it, for the next watch
-// to open on. The tab shown already stays as it is.
+// to open on, leaving a session's page open over the tab shown, or asked to
+// open, as closeSession has it. The tab shown already stays as it is.
 func (m Model) showTab(tab dashboard.View) Model {
+	m = m.closeSession()
 	if tab == m.view {
 		return m
 	}

@@ -55,6 +55,26 @@ func TestASummaryCountsTheSessionsItDoesntName(t *testing.T) {
 	}
 }
 
+// A model's day counts the sessions it doesn't name as an account's does:
+// those it counts beyond its ids, not only every one where it names none.
+func TestAModelsDayCountsTheSessionsItDoesntName(t *testing.T) {
+	tests := []struct {
+		name string
+		day  ledger.ModelDay
+		want int
+	}{
+		{name: "before version 4, naming none of its sessions", day: ledger.ModelDay{Upstream: 4, Sessions: 3}, want: 3},
+		{name: "naming every one", day: ledger.ModelDay{Upstream: 4, Sessions: 2, SessionIDs: []string{"one", "two"}}},
+		{name: "of no session", day: ledger.ModelDay{Checks: 1, SessionIDs: []string{}}},
+		{name: "naming some of those it counts", day: ledger.ModelDay{Upstream: 4, Sessions: 3, SessionIDs: []string{"one"}}, want: 2},
+	}
+	for _, tt := range tests {
+		if got := tt.day.Unnamed(); got != tt.want {
+			t.Errorf("%s: Unnamed() of %+v = %d, want %d", tt.name, tt.day, got, tt.want)
+		}
+	}
+}
+
 // A session's lines are read of a day whose summary might be of it, and of
 // no other: a day before version 2 whose accounts served no session, its
 // readings alone telling of them, never is, so a quota check of the session's

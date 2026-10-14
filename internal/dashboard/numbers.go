@@ -64,6 +64,9 @@ const (
 	// running into: of an account, or of a model version, by its id before
 	// the column, as "claude-opus-5-5 input", or of both.
 	NumberTokensSplit
+	// NumberMoved are the sessions an event of the Log's Events moved, as
+	// its words count them, which Of names by the event's key.
+	NumberMoved
 )
 
 // Number names a number the page draws, which brightens as it changes:

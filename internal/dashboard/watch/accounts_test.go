@@ -262,11 +262,10 @@ func TestDetailReadsTheStreamWhileItShowsAnAccountSessionsRunOn(t *testing.T) {
 }
 
 // Keys Accounts takes as the terminal sends them, beside those focus_test
-// names.
+// and sessionturn_test name.
 var (
 	leftKey  = tea.KeyPressMsg{Code: tea.KeyLeft}
 	rightKey = tea.KeyPressMsg{Code: tea.KeyRight}
-	enterKey = tea.KeyPressMsg{Code: tea.KeyEnter}
 )
 
 // runningOnWork are three sessions on work, as SESSIONS lists them, the one

@@ -28,8 +28,9 @@ func accountsHelping(width int, shown AccountsShown, look Look, keys ...Key) Car
 	return f.Card.card(f)
 }
 
-// accountsSaid is what Accounts' help as shown says, its rows run together.
-func accountsSaid(shown AccountsShown) string {
+// accountsHelpSaid is what Accounts' help as shown says, its rows run
+// together.
+func accountsHelpSaid(shown AccountsShown) string {
 	return strings.Join(plainLines(accountsHelping(160, shown, Look{}).body), " ")
 }
 
@@ -177,7 +178,7 @@ func TestAccountsHelpGivesThePriceTablesDate(t *testing.T) {
 		{"the page not yet read", threeShown, "at the price table's prices, worked out"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if said := accountsSaid(tc.shown); !strings.Contains(said, tc.want) {
+			if said := accountsHelpSaid(tc.shown); !strings.Contains(said, tc.want) {
 				t.Errorf("help reads\n%s\nwant it to say %q", said, tc.want)
 			}
 		})
@@ -185,7 +186,7 @@ func TestAccountsHelpGivesThePriceTablesDate(t *testing.T) {
 }
 
 func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
-	said := accountsSaid(threeShown)
+	said := accountsHelpSaid(threeShown)
 	for _, tc := range []struct{ what, want string }{
 		{"a session served once", "each counted once, however many days and accounts it ran on"},
 		{"Compare's keys", "← and → move the focus along the columns"},
@@ -227,7 +228,7 @@ func TestHelpSaysEachVerdictAtViewsCuts(t *testing.T) {
 		want []string
 	}{
 		{"History's", historySaid(), accountsVerdicts},
-		{"Accounts'", accountsSaid(threeShown), append(accountsVerdicts,
+		{"Accounts'", accountsHelpSaid(threeShown), append(accountsVerdicts,
 			fmt.Sprintf("%s where their weeks left %d%% or more at a reset", views.RoomToSpare, views.RoomLeft),
 			"else "+views.LittleToSpare+",",
 		)},
@@ -244,7 +245,7 @@ func TestHelpSaysEachVerdictAtViewsCuts(t *testing.T) {
 // by window and its extra usage among them, and says nothing of all
 // accounts, which goes.
 func TestAccountsHelpOfOneAccountExplainsWhatItDraws(t *testing.T) {
-	said := accountsSaid(oneShown)
+	said := accountsHelpSaid(oneShown)
 	for _, want := range []string{
 		"the limits it hit, by window",
 		"Extra usage is on where Claude bills past the plan's limit",
@@ -287,7 +288,7 @@ func TestAccountsHelpExplainsTheListWhereThereIsOne(t *testing.T) {
 		{"one account", oneShown, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			said := accountsSaid(tc.shown)
+			said := accountsHelpSaid(tc.shown)
 			for _, explained := range []string{list, between} {
 				if got := strings.Contains(said, explained); got != tc.wantList {
 					t.Errorf("help reads\n%s\nwant %q said %v", said, explained, tc.wantList)

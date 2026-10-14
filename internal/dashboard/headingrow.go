@@ -10,11 +10,11 @@ import (
 // The blank cells the heading row sets its parts apart by: before the
 // sub-tabs and before the state; between the rule and what's either side of
 // it, but the state, which the rule starts a cell after; and on a phone,
-// before sub-tabs set tight.
+// before the sub-tabs.
 const (
 	headingGap = 3
 	ruleGap    = 2
-	tightGap   = 2
+	compactGap = 2
 )
 
 // shownSubTabInk picks out the sub-tab shown.
@@ -55,14 +55,16 @@ func (p piece) target() Target {
 }
 
 // heading is the heading row of the tab shown: Accounts', as accountsHeading
-// has it; History's, as its page has it; else its name alone, as the views
-// milestone 5 built and the tabs not built yet have it.
+// has it; History's and the Log's, as their pages have them; else its name
+// alone, as the views milestone 5 built and the tabs not built yet have it.
 func (f Frame) heading() heading {
 	switch f.View {
 	case Accounts:
 		return f.accountsHeading()
 	case History:
 		return f.History.heading()
+	case Log:
+		return f.Log.heading(f.phone(), f.Width)
 	}
 	return heading{name: strings.ToUpper(f.View.Title())}
 }
@@ -101,8 +103,7 @@ func (h heading) compact(phone bool) bool {
 }
 
 // tightly reports whether the heading's sub-tabs are set tight, as a phone
-// sets them where the heading says to: two cells after the name, each its
-// name and a cell after it.
+// sets them where the heading says to: each its name and a cell after it.
 func (h heading) tightly(phone bool) bool {
 	return h.tight && h.compact(phone)
 }
@@ -152,16 +153,17 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 
 // named lays the heading's name out from the first column of row y, then,
 // where it has them, its sub-tabs, touching, three cells on, or two where
-// they're set tight, and a cell on, [ ], but where it's compact; and returns
-// the column after them.
+// it's compact, set tight or not, as the Log's and History's phone frames
+// draw them, and a cell on, [ ], but where it's compact; and returns the
+// column after them.
 func (h heading) named(laid *laying, y int, phone bool) int {
 	x := laid.put(0, y, line{{h.name, dimInk}}, Target{})
 	if len(h.subTabs) == 0 {
 		return x
 	}
 	gap := headingGap
-	if h.tightly(phone) {
-		gap = tightGap
+	if h.compact(phone) {
+		gap = compactGap
 	}
 	x += gap
 	for i := range h.subTabs {

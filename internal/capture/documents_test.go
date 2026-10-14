@@ -175,6 +175,7 @@ func TestTheWorldsRouterStandsAsTheFramesDrawIt(t *testing.T) {
 			}
 		}},
 		{name: "work alone", world: worlds.one(), sessions: 5},
+		{name: "f41a resumed", world: worlds.resumed(), sessions: 6},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

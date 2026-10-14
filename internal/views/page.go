@@ -31,7 +31,8 @@ type SessionPage struct {
 	State    string              `json:"state,omitempty"`
 	MoveCost *ledger.Picodollars `json:"move_cost,omitempty"`
 	Ended    time.Time           `json:"ended,omitzero"`
-	// Pin is its own pin, as the router lists it: "" where it has none, or
+	// Pin is its own pin, as the router lists it, or while no router lists
+	// the sessions, as its last listing had it: "" where it has none, or
 	// the router doesn't list it.
 	Pin string `json:"pin,omitempty"`
 	// Started is when its first request came, and Resumed the latest time it
@@ -154,7 +155,7 @@ type PageSources struct {
 	// Prices are the price table worth is priced by.
 	Prices ledger.Table
 	// Keep is how long the ledger keeps a day's lines, as [ledger] keep
-	// says: dayfile.Forever keeps them for good.
+	// says, as ledgerKept reads it: dayfile.Forever keeps them for good.
 	Keep time.Duration
 	Now  time.Time
 }

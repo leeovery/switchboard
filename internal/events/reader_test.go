@@ -1,6 +1,8 @@
 package events_test
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -265,5 +267,33 @@ func TestAnEventIsHandedOnOnceNoFileLeftCanHoldAVersionOfIt(t *testing.T) {
 func TestNoEventsReadNothing(t *testing.T) {
 	if got := slices.Collect(events.Empty{}.Between(september(1, 0, 0), now)); len(got) > 0 {
 		t.Errorf("Between() = %+v, want none", got)
+	}
+	if _, err := (events.Empty{}).FirstDay(); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("FirstDay() fails with %v, want fs.ErrNotExist", err)
+	}
+}
+
+// The first day the router filed events on is the oldest its files' names
+// give, plain or compressed; with none filed, or no directory, there's none.
+func TestTheFirstDayIsTheOldestFiled(t *testing.T) {
+	filedOn := filed{day: 12, lines: []string{`{"id":1}`}}
+	tests := []struct {
+		name string
+		days []filed
+		want time.Time
+	}{
+		{name: "none filed"},
+		{name: "a day filed", days: []filed{filedOn}, want: september(12, 0, 0)},
+		{name: "an older day compressed", days: []filed{filedOn, {day: 10, compressed: true, lines: []string{`{"id":1}`}}}, want: september(10, 0, 0)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			fileDays(t, state, tt.days...)
+			got, err := events.NewReader(state, func() time.Time { return now }, logs.For("cli")).FirstDay()
+			if tt.want.IsZero() != errors.Is(err, fs.ErrNotExist) || !got.Equal(tt.want) {
+				t.Errorf("FirstDay() = %v, %v; want %v", got, err, tt.want)
+			}
+		})
 	}
 }
