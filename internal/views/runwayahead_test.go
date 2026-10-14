@@ -18,13 +18,14 @@ import (
 // later look has them in the past, the document and the readings unchanged:
 // at every hard moment, and at every moment Runway has to get right, in
 // either view, of today and of this week, each column after now's that a
-// look later, now in the timeline's last column, has before it. The readings
-// hold what the document read, as the router keeps them; a moment whose
-// readings read an account later than its document did, so that the two
-// tell it otherwise, is left out. A column a window's run-out projects held
-// is a guess no reading confirms, so has room once past, as one running out
-// does; and a column a hold no event tells covers is left out, as nothing
-// keeps such a hold once it lifts.
+// look later, now in the timeline's last column, has before it; and the
+// stretch holding now's column begins where the later look has it begin.
+// The readings hold what the document read, as the router keeps them; a
+// moment whose readings read an account later than its document did, so
+// that the two tell it otherwise, is left out. A column a window's run-out
+// projects held is a guess no reading confirms, so has room once past, as
+// one running out does; and a column a hold no event tells covers is left
+// out, as nothing keeps such a hold once it lifts.
 func TestALaneDrawsAheadWhatItDrawsOnceThoseColumnsArePast(t *testing.T) {
 	for _, c := range laterCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -43,9 +44,25 @@ func TestALaneDrawsAheadWhatItDrawsOnceThoseColumnsArePast(t *testing.T) {
 					t.Errorf("%s's column %d, at %s, is drawn %s ahead and %s once past, and %d more columns differ",
 						a.ID, col, tl.Moment(col).Format("Mon 15:04"), cellWords[lane.Cells[col]], cellWords[past.Accounts[i].Cells[col]], len(differ)-1)
 				}
+				now := tl.NowColumn()
+				if s, ok := holding(lane.Stretches, now); ok && !s.Projected && !untold(m, a.ID, tl.Moment(now)) {
+					if later, ok := holding(past.Accounts[i].Stretches, now); ok && later.Cell == s.Cell && !later.Start.Equal(s.Start) {
+						t.Errorf("%s's stretch holding now, %s, begins %v drawn now and %v once past", a.ID, cellWords[s.Cell], s.Start, later.Start)
+					}
+				}
 			}
 		})
 	}
+}
+
+// holding is the stretch of those given that holds the column col,
+// reporting false where none does.
+func holding(stretches []views.LaneStretch, col int) (views.LaneStretch, bool) {
+	i := slices.IndexFunc(stretches, func(s views.LaneStretch) bool { return s.First <= col && col <= s.Last })
+	if i < 0 {
+		return views.LaneStretch{}, false
+	}
+	return stretches[i], true
 }
 
 // laterCase is what the lanes at a moment are built from, named, and what a

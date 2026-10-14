@@ -268,12 +268,15 @@ func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
 	warned := map[string][]string{
 		"a week at its reserve when built":                           {"work · work: Week at 92%"},
 		"a week at its reserve when built, the global pin naming it": {"work · work: Week at 92%"},
-		"a limit holding":                                                     {"work · work: 5-hour at 100%"},
-		"probed, of one account, with no room":                                {"work · work: Week at 100%"},
-		"probed, one of several at its limit":                                 {"work · work: 5-hour at 100%"},
-		"every account at its cap, none with room":                            {"work · work: Week at 92%", "side · side: 5-hour at 95%"},
-		"a model's own window at its limit, its account open to the rest":     {"work · work: Fable week at 100%"},
-		"the global pin set from the command line to an account at its limit": {"work · work: 5-hour at 100%"},
+		"a limit holding":                                                                        {"work · work: 5-hour at 100%"},
+		"probed, of one account, with no room":                                                   {"work · work: Week at 100%"},
+		"probed, one of several at its limit":                                                    {"work · work: 5-hour at 100%"},
+		"every account at its cap, none with room":                                               {"work · work: Week at 92%", "side · side: 5-hour at 95%"},
+		"a model's own window at its limit, its account open to the rest":                        {"work · work: Fable week at 100%"},
+		"the global pin set from the command line to an account at its limit":                    {"work · work: 5-hour at 100%"},
+		"a model's own week at its cap since the day before, the session joining it":             {"work · work: 5-hour at 95%", "work · work: Fable week at 95%"},
+		"a model's own week at its cap since the session's period began, the session joining it": {"work · work: 5-hour at 95%", "work · work: Fable week at 95%"},
+		"a model's own week at its limit since the day before, the session joining it":           {"work · work: 5-hour at 100%", "work · work: Fable week at 100%"},
 	}
 	for _, hm := range statustest.HardMoments(policy) {
 		t.Run(hm.Name, func(t *testing.T) {
