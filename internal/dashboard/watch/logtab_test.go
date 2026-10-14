@@ -927,3 +927,44 @@ func TestTheLogsKeysWorkOnATerminalWithNoRowForItsTable(t *testing.T) {
 		})
 	}
 }
+
+// Help lists esc where it acts on the Log, as the key line leaves it to
+// help: paused, following again, as end does; following with a filter on,
+// clearing it; and nowhere else.
+func TestTheLogsHelpListsEscWhereItActs(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -day), arrived("0a000002", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	steps := []struct {
+		name  string
+		press func()
+		want  []string
+	}{
+		{name: "following", press: func() {}},
+		{name: "paused", press: func() { h.keys(upKey) }, want: []string{"follow"}},
+		{name: "following again", press: func() { h.keys(escKey) }},
+		{name: "filtered, following", press: func() { h.typed("/", "a", "p", "i"); h.keys(enter, tea.KeyPressMsg{Code: tea.KeyEnd}) }, want: []string{"clear the filter"}},
+		{name: "filtered, paused", press: func() { h.keys(upKey) }, want: []string{"follow"}},
+	}
+	for _, step := range steps {
+		step.press()
+		var escs []string
+		for _, k := range helpOver(h.model) {
+			if k.Key == "esc" {
+				escs = append(escs, k.Does)
+			}
+		}
+		if !slices.Equal(escs, step.want) {
+			t.Errorf("%s, help lists esc for %q, want %q", step.name, escs, step.want)
+		}
+		rows := strings.Split(h.view(), "\n")
+		if line := rows[len(rows)-1]; strings.Contains(line, "esc") {
+			t.Errorf("%s, the key line reads %q, want esc left to help", step.name, line)
+		}
+	}
+	if !h.model.log.page.Filtered() {
+		t.Error("after the find landed, the Log isn't filtered")
+	}
+}

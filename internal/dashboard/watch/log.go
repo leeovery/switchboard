@@ -229,8 +229,10 @@ func (m Model) scrollLog(by scrollStep) Model {
 
 // logListings are the Log's own keys, in the design's order: [ ] view, in a
 // group of its own; ↑↓ choosing a request or an event, enter opening its
-// details, and paused, end following again; then f and /, a group of their
-// own while paused, / working where its find has a row, as LogFinds says.
+// details, and paused, end following again, as esc does; then f and /, a
+// group of their own while paused, / working where its find has a row, as
+// LogFinds says; and with a filter on while following, esc clearing it.
+// The key line leaves esc to help.
 func (m Model) logListings() []keyListing {
 	log, p := m.shownView() == dashboard.Log, m.log.page
 	paused := p.Paused()
@@ -240,8 +242,10 @@ func (m Model) logListings() []keyListing {
 		{Key: logOpenKey, works: log},
 		{Key: dashboard.Key{Key: "s", Does: "its session"}, works: log && p.ChosenSession() != "", wide: true},
 		{Key: logFollowKey, works: log && paused},
+		{Key: dashboard.Key{Key: "esc", Does: "follow"}, works: log && paused, helpful: true},
 		{Key: dashboard.Key{Key: "f", Does: "what it shows"}, works: log, apart: paused, wide: true},
 		{Key: dashboard.Key{Key: "/", Does: "find"}, works: log && m.logFrame().LogFinds(), wide: true},
+		{Key: dashboard.Key{Key: "esc", Does: "clear the filter"}, works: log && !paused && p.Filtered(), helpful: true},
 	}
 }
 
