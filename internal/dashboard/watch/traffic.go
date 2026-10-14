@@ -467,18 +467,6 @@ func (m move) drawn(now time.Time) dashboard.Move {
 	return d
 }
 
-// showing is when the next of the moves yet to show at now shows, reporting
-// false where none is yet to.
-func (t traffic) showing(now time.Time) (time.Time, bool) {
-	var next time.Time
-	for _, m := range t.moves {
-		if m.shows.After(now) && (next.IsZero() || m.shows.Before(next)) {
-			next = m.shows
-		}
-	}
-	return next, !next.IsZero()
-}
-
 // listedAs is the traffic once the router has listed its sessions as given,
 // putting each seat on an account, which shows each move that put it there
 // done.

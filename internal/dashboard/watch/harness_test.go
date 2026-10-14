@@ -283,19 +283,6 @@ func (h *harness) pendingFrame() (*timer, bool) {
 	return nil, false
 }
 
-// pendingFrames are the frames armed and not yet fired, the soonest due
-// first.
-func (h *harness) pendingFrames() []*timer {
-	var frames []*timer
-	for _, tm := range h.timers {
-		if _, ok := tm.msg.(frameMsg); ok && !tm.fired {
-			frames = append(frames, tm)
-		}
-	}
-	slices.SortStableFunc(frames, func(a, b *timer) int { return a.due.Compare(b.due) })
-	return frames
-}
-
 // nudgeMsg is a message the model takes in doing nothing with it, as Bubble
 // Tea passes on many.
 type nudgeMsg struct{}

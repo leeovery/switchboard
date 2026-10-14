@@ -209,29 +209,15 @@ var worldsNow = sync.OnceValue(func() accountWorlds { return newAccountWorlds(lo
 
 // fixtures are the watch's fixtures, in the frames' theme, over milestone 5's
 // samples at the frames' moment in the zone given, as moment fixes it: one
-// for each set of accounts Sessions' and Runway's frames draw, at the size of
-// the frame it mirrors, or for five accounts, which its final page draws only
-// in Sessions and Runway, at Sessions'. Each opens on the view it draws: a
-// frame of Sessions, or Runway, over the day, and with w, over the week; or
-// the help over Sessions on a short terminal, scrolled down three rows, which
-// the frames don't draw.
+// for each set of accounts Runway's frames draw, at the size of the frame it
+// mirrors. Each opens on Runway, over the day, and with w, over the week.
 func fixtures(loc *time.Location) []Fixture {
 	now := moment(loc)
-	w, j := tea.KeyPressMsg{Code: 'w', Text: "w"}, tea.KeyPressMsg{Code: 'j', Text: "j"}
-	storyboard := storyboardAt(now)
+	w := tea.KeyPressMsg{Code: 'w', Text: "w"}
 	all := []Fixture{
-		{Name: "page-help-scrolled", Size: wide(16), now: now, router: threeAccounts(now), view: dashboard.Sessions, keys: []tea.KeyPressMsg{{Code: '?', Text: "?"}, j, j, j}},
 		{Name: "runway-day-3", Size: wide(26), now: now, router: threeAccounts(now), view: dashboard.Runway},
 		{Name: "runway-day-5", Size: wide(32), now: now, router: fiveAccounts(now), view: dashboard.Runway},
 		{Name: "runway-week-3", Size: wide(26), now: now, router: threeAccounts(now), view: dashboard.Runway, keys: []tea.KeyPressMsg{w}},
-		{Name: "sessions-1", Size: wide(27), now: now, router: oneAccount(now), view: dashboard.Sessions},
-		{Name: "sessions-3", Size: wide(28), now: now, router: threeAccounts(now), view: dashboard.Sessions},
-		{Name: "sessions-3-keys", Size: wide(28), now: now, router: threeAccounts(now), view: dashboard.Sessions, keys: []tea.KeyPressMsg{{Code: '?', Text: "?"}}},
-		{Name: "sessions-5", Size: wide(40), now: now, router: fiveAccounts(now), view: dashboard.Sessions},
-		{Name: "sessions-storyboard-1-request-out", Size: wide(28), now: storyboard, router: requestOut(storyboard), view: dashboard.Sessions},
-		{Name: "sessions-storyboard-2-streaming-back", Size: wide(28), now: storyboard, router: streamingBack(storyboard), view: dashboard.Sessions},
-		{Name: "sessions-storyboard-3-refused", Size: wide(28), now: storyboard, router: refused(storyboard), view: dashboard.Sessions},
-		{Name: "sessions-storyboard-4-repatched", Size: wide(28), now: storyboard, router: repatched(storyboard), view: dashboard.Sessions},
 	}
 	for i := range all {
 		all[i].theme = framesTheme()
@@ -338,8 +324,9 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // on a phone. Then the page as stage 6 builds it, over the auto world, where
 // no frame draws it, to judge by eye: the routing card over the Overview, two
 // accounts picked and m ticked, at 160×40, and on a phone, one picked and m
-// ticked; and the router gone, R having found it so, the status line saying
-// since when and p pin faint. Then the Log's frames, each reached from the
+// ticked; the router gone, R having found it so, the status line saying
+// since when and p pin faint; and the Overview's help on a short terminal,
+// scrolled down three rows. Then the Log's frames, each reached from the
 // Overview with shift-tab: Events, with ]; Requests as it opens; the router
 // gone, over the world of the Log not live; Requests on a phone; an event's
 // details, the cap's, ↑ five times on Events and enter; a request's, d28c's
@@ -385,6 +372,7 @@ var pages = []page{
 	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: keysOf("p", "2", "3", "m")},
 	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
 	{name: "page-not-answering", size: wide(37), world: accountWorlds.auto, keys: keysOf("R"), gone: true},
+	{name: "page-help-scrolled", size: wide(16), world: accountWorlds.auto, keys: keysOf("?", "j", "j", "j")},
 	{name: "log-events-160", size: wide(37), world: accountWorlds.auto, keys: toLog("]")},
 	{name: "log-requests-160", size: wide(37), world: accountWorlds.auto, keys: toLog()},
 	{name: "log-not-live-160", size: wide(37), world: accountWorlds.notLive, keys: toLog(), gone: true, goneFor: notLiveGone},

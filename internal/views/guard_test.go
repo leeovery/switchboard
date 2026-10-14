@@ -42,13 +42,6 @@ var readersAllowed = []string{
 	"internal/dashboard/watch/stream.go:Model.numbering",
 	"internal/cli/requests.go:writeLines",
 	"internal/cli/events.go:eventsJSON.follow",
-	// Milestone 5's views, which stages 12 and 13 delete, and what they alone
-	// read. Its panel.go and plain.go read none.
-	"internal/dashboard/cords.go",
-	"internal/dashboard/log.go",
-	"internal/dashboard/recent_log.go",
-	"internal/dashboard/seats.go",
-	"internal/dashboard/sessions.go",
 }
 
 // callsAllowed are the functions and methods of rawPackages that take raw

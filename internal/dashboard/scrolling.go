@@ -37,7 +37,7 @@ func (s Scrolling) clamped(offset int) int {
 }
 
 // ScrollsRows reports whether the view shown scrolls a row at a time, as
-// Sessions, Runway, History's Year and a session's page's turns do, rather
+// Runway, History's Year and a session's page's turns do, rather
 // than a thing at a time: an account, as the Overview's USAGE does, and
 // History's Weeks and Days, or a period, as its Tokens does.
 func (f Frame) ScrollsRows() bool {
@@ -98,11 +98,11 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 // turn and its turn open's rows under its own, as turnsRows lays them out,
 // in the rows its layout gives them; History's, of the ledger's days alone,
 // as historyScrolling says; the Overview's, as overviewScrolling says, laid
-// out once for every offset; Accounts', as accountsScrolling says; Sessions,
-// where its calls and lines, or its plain list, don't fit; and Runway, where
-// its lanes don't, as runwayRows counts them, each alike at every offset. A
-// frame too short for the view, as cramped says, never scrolls, nor one of a
-// document of no accounts, but History and a session's page.
+// out once for every offset; Accounts', as accountsScrolling says; and
+// Runway, where its lanes don't fit, as runwayRows counts them, alike at
+// every offset. A frame too short for the view, as cramped says, never
+// scrolls, nor one of a document of no accounts, but History and a
+// session's page.
 func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) Scrolling {
 	m := f.Moment(doc, now)
 	var s Scrolling
@@ -118,8 +118,6 @@ func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) 
 		return f.overviewScrolling(doc, now)
 	case f.View == Accounts:
 		return f.accountsScrolling(doc, now)
-	case f.View == Sessions:
-		s = byRows(f.sessionsRows(doc, now, top))
 	case f.View == Runway:
 		content, view := f.runwayRows(len(m.Accounts), top)
 		s = Scrolling{Most: content - view, Page: view}
@@ -158,11 +156,11 @@ var (
 	subtleOut = outInks{mark: dimInk, space: dimInk, count: dimInk, gap: dimInk, keys: dimInk, does: dimInk}
 )
 
-// rowsOut is how Sessions and Runway say what's out of view until their
-// stages draw them as the design does: "▼ 2 more accounts below · j/k or
-// wheel to scroll", the marks, and the space after each, bold accent.key,
-// the counts in text.muted and the rest in text.subtle, cut short as words
-// where it doesn't fit, as line.fit cuts it.
+// rowsOut is how Runway says what's out of view until its stage draws it as
+// the design does: "▼ 2 more accounts below · j/k or wheel to scroll", the
+// marks, and the space after each, bold accent.key, the counts in
+// text.muted and the rest in text.subtle, cut short as words where it
+// doesn't fit, as line.fit cuts it.
 var rowsOut = outForm{
 	noun: "account", above: " above", below: " below", gap: " · ", keys: "j/k", does: " or wheel to scroll",
 	inks: outInks{mark: keyInk, space: keyInk, count: mutedInk, gap: dimInk, keys: dimInk, does: dimInk},

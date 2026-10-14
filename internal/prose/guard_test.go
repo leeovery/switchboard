@@ -44,9 +44,6 @@ var wordingAllowed = []string{
 	"internal/dashboard/picker.go:Picker.Over",
 	// An error's text: the price the config gives, as it gives it.
 	"internal/config/prices.go:checkPrice",
-	// Milestone 5's recent log, which stage 12 deletes, naming a window by
-	// its length in its own words.
-	"internal/dashboard/words.go:spanOf",
 	// A name, not a span: a window of whole hours, called by its length as
 	// "5-hour" wherever a window's named, its hours a count.
 	"internal/status/moment.go:NameOfWindow",

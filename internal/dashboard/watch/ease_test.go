@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -85,7 +84,7 @@ func TestBarsRiseFromNothingOnTheFirstRead(t *testing.T) {
 			h.clock.now = start.Add(tt.after)
 			h.redraw()
 			checkScreen(t, h, tt.session, tt.week)
-			if view := h.view(); !strings.Contains(view, "  25%  → 44%") {
+			if view := h.view(); !strings.Contains(view, "  25%  25%/day till Thu 13:12") {
 				t.Errorf("the screen is\n%s\nwant the room left as read, the bars alone easing", view)
 			}
 		})
@@ -228,28 +227,6 @@ func TestAReadLeavingABarEmptyStartsNoFrames(t *testing.T) {
 	}
 }
 
-// Sessions' panels draw a lapsed window as not started, with no bar: a read
-// that changes its use, here as it lapses, moves nothing on screen, so it
-// eases nothing and starts no frames.
-func TestOnSessionsAReadChangingALapsedWindowsUseStartsNoFrames(t *testing.T) {
-	h := easingHarness(t, sessionAndWeek(0.5, 0.25))
-	h.settle()
-
-	work := account("work", "Work", quota.Window{Key: "5h", Label: "Session"}, week(0.25))
-	work.Lapsed = []string{"5h"}
-	h.read(document(work))
-	if !strings.Contains(h.view(), "not started") {
-		t.Fatalf("the screen is\n%s\nwant work's session not started", h.view())
-	}
-	now := h.model.now()
-	if got := h.model.ease.eased(h.model.frame(now), h.model.doc, now); len(got) > 0 {
-		t.Errorf("the read eased %v, want no bar easing, work's session drawn without one", got)
-	}
-	if _, framing := h.pendingFrame(); framing {
-		t.Error("a read changing the use of work's lapsed session started frames")
-	}
-}
-
 // drawnAfresh is the screen as View draws it of the model as it stands,
 // keeping nothing Update drew.
 func (h *harness) drawnAfresh() string {
@@ -384,9 +361,9 @@ func TestThePoolsBarsEaseAsTheAccountsDo(t *testing.T) {
 }
 
 // A session read before its reset has lapsed once it resets: the Overview
-// draws it empty, and Sessions' panels draw it not started, with no bar.
-// Each view's bar eases from the bar that view drew, whichever view showed as
-// the read landed: from nothing, never from the use last read.
+// draws it empty, and Accounts draws it no bar. The Overview's bar eases from
+// the bar it drew, whichever view showed as the read landed: from nothing,
+// never from the use last read.
 func TestAcrossAResetEachViewEasesItsBarFromTheBarItDrew(t *testing.T) {
 	before := document(account("work", "Work", session(0.75, 10*time.Minute), week(0.5)))
 	after := document(account("work", "Work", session(0.25, 20*time.Minute+5*time.Hour), week(0.5)))
@@ -396,8 +373,7 @@ func TestAcrossAResetEachViewEasesItsBarFromTheBarItDrew(t *testing.T) {
 		readOn, shownOn dashboard.View
 	}{
 		{name: "the Overview", readOn: dashboard.Overview, shownOn: dashboard.Overview},
-		{name: "Sessions", readOn: dashboard.Sessions, shownOn: dashboard.Sessions},
-		{name: "the Overview, shown after Sessions as the read landed", readOn: dashboard.Sessions, shownOn: dashboard.Overview},
+		{name: "the Overview, shown after Accounts as the read landed", readOn: dashboard.Accounts, shownOn: dashboard.Overview},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -433,12 +409,11 @@ func TestEasingLeavesTheDocumentAlone(t *testing.T) {
 	}
 }
 
-// easingHarness is a model of a source that reads doc, showing Sessions,
-// whose panels draw the bars as they ease, started.
+// easingHarness is a model of a source that reads doc, showing the
+// Overview, whose USAGE draws the bars as they ease, started.
 func easingHarness(t *testing.T, doc status.Document) *harness {
 	t.Helper()
 	h := newHarness(t, doc)
-	h.model.view = dashboard.Sessions
 	h.start()
 	return h
 }

@@ -1,11 +1,6 @@
 package dashboard
 
-import (
-	"time"
-
-	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/status"
-)
+import "time"
 
 // Traffic is what the router's request stream tells of the sessions'
 // requests at a moment, as the watch reads it: what each session's model is
@@ -30,6 +25,11 @@ type Traffic struct {
 	// shows: as a re-patch until a listing of the router's sessions shows it
 	// done, and as the cord it left hanging loose until that's gone.
 	Moves []Move
+}
+
+// Seat is a session's requests of one model on an account.
+type Seat struct {
+	Session, Model string
 }
 
 // Plug is where a seat is plugged in: the account its requests go to.
@@ -112,38 +112,4 @@ type Move struct {
 	// Fade is how far its cord, hanging loose, has faded: from 0, just let
 	// go, to 1, gone.
 	Fade float64
-}
-
-// call is what the seat plugged in at p is doing, as the stream tells of it,
-// reporting false where it tells of nothing.
-func (t Traffic) call(p Plug) (Call, bool) {
-	c, ok := t.Calls[p]
-	return c, ok
-}
-
-// repatching are the moves that re-patch at the moment: those no listing of
-// the router's sessions has shown done.
-func (t Traffic) repatching() []Move {
-	var moves []Move
-	for _, m := range t.Moves {
-		if !m.Listed {
-			moves = append(moves, m)
-		}
-	}
-	return moves
-}
-
-// event is the move as the router's events tell of one, for LOG, which tells
-// of it before the router's document does.
-func (m Move) event() status.Event {
-	return status.Event{Kind: status.EventMoved, At: m.At, Session: m.Seat.Session, Model: m.Seat.Model, From: m.From, To: m.To, Reason: m.Reason}
-}
-
-// streamed says how many tokens the call's answer has streamed, as in "↓
-// ~1.2k", the tilde marking an estimate.
-func (c Call) streamed() string {
-	if c.Exact {
-		return "↓ " + prose.Tokens(c.Tokens)
-	}
-	return "↓ ~" + prose.Tokens(c.Tokens)
 }

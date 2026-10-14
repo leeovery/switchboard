@@ -14,9 +14,7 @@ func TestUnderTheViewsRowsIsTheViewAndElsewhereNothing(t *testing.T) {
 		width int
 		view  View
 	}{
-		{width: 160, view: Sessions},
 		{width: 160, view: Runway},
-		{width: 52, view: Sessions},
 		{width: 52, view: Runway},
 	}
 	for _, tt := range tests {

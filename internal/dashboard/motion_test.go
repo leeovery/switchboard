@@ -60,8 +60,8 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 		f.Sections = Sections{}.Toggled(SectionRouting).Toggled(SectionComing).Toggled(SectionLately)
 		return f
 	}
-	sessions := frameOf(160, 60)
-	sessions.View = Sessions
+	unbuilt := frameOf(160, 60)
+	unbuilt.View = "a-later-view"
 	workBar, studioBar := Ref{Account: "work", Window: "5h"}, Ref{Account: "studio", Window: "5h"}
 	tests := []struct {
 		name   string
@@ -90,9 +90,8 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 			name: "a bar scrolled out of view easing", f: usageAlone(30), doc: ten, at: routedAt,
 			settle: func(f *Frame) { f.Eased = map[Ref]float64{studioBar: 0.3} },
 		},
-		{name: "on Sessions, nothing settling", f: sessions, doc: ten, at: routedAt, settle: func(*Frame) {}},
 		{
-			name: "on Sessions, a panel's bar easing", f: sessions, doc: ten, at: routedAt, want: true,
+			name: "on a tab that draws no bar, a bar easing", f: unbuilt, doc: ten, at: routedAt,
 			settle: func(f *Frame) { f.Eased = map[Ref]float64{workBar: 0.3} },
 		},
 		{
@@ -118,10 +117,6 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 		{
 			name: "an event fresh, LATELY folded", f: frameOf(160, 30), doc: news, at: now,
 			settle: func(f *Frame) { f.Fresh = map[int]float64{2: 0.5} },
-		},
-		{
-			name: "an event fresh, its row on screen in LOG", f: sessions, doc: news, at: now, want: true,
-			settle: func(f *Frame) { f.Fresh = map[int]float64{1: 0.5} },
 		},
 	}
 	for _, tt := range tests {

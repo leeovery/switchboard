@@ -76,10 +76,6 @@ type Frame struct {
 	// requests, as Sessions' switchboard draws it, while the watch reads it:
 	// zero while it doesn't.
 	Traffic Traffic
-	// Order is the order Sessions' calls run in, as the watch keeps it from
-	// look to look: a seat keeps its row while the router lists it there,
-	// and one new to its account joins its group's foot.
-	Order Order
 	// Scroll is how far the view is scrolled down, where it doesn't fit: in
 	// rows; on the Overview, in accounts, USAGE's, within its section; and
 	// on History, the Year in rows, Weeks in accounts, Days in accounts too,
@@ -185,7 +181,7 @@ func (f Frame) Draw(doc status.Document, now time.Time) []string {
 func (f Frame) Rendered(doc status.Document, now time.Time) ([]string, Motion) {
 	f = f.At(doc, now)
 	c := f.page(doc, now)
-	moving := f.moving(c, doc, now)
+	moving := f.moving(c)
 	return f.finish(c).rows(f.Look), moving
 }
 
@@ -219,8 +215,8 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 
 // view draws the tab shown of doc at now from row top, where the page has
 // room for it, as cramped says: a session's page, where one is open, in its
-// place; else the tab shown: the Overview, Accounts, History, Sessions,
-// Runway or the Log.
+// place; else the tab shown: the Overview, Accounts, History, Runway or the
+// Log. Sessions draws nothing until its stage draws it.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
@@ -235,8 +231,6 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 		f.accounts(c, doc, now, top)
 	case f.View == History:
 		f.history(c, top)
-	case f.View == Sessions:
-		f.sessions(c, doc, now, top)
 	case f.View == Runway:
 		f.runway(c, doc, now, top)
 	case f.View == Log:

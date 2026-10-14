@@ -712,9 +712,9 @@ The fixture runs full screen, at the size the terminal gives, until `q`. An empt
 `--fixture` is an error that lists them all. Keys work as they do in the dashboard, though the
 router takes an order and changes nothing, and the clock stands still at the fixture's moment, so
 nothing moves of itself. A fixture named after a frame draws that frame, at its size; milestone
-5's, `runway-day-*`, `runway-week-3` and `sessions-*`, named after milestone 5's frames, stay until
-the stages that replace their views delete them. Stage 7 deleted its cards' `accounts-*`, with
-their tapes.
+5's, `runway-day-*` and `runway-week-3`, named after milestone 5's frames, stay until stage 13
+replaces Runway and deletes them. Stage 7 deleted its cards' `accounts-*`, and stage 12 its
+Sessions' `sessions-*` and storyboards, with their tapes.
 
 Stage 7's, `overview-*` and `routing-*`, draw the Overview's frames and the routing card's over it,
 each over its frame's world with the keys that reach it: `overview-by-account-160` with `b`,
@@ -740,11 +740,10 @@ Stage 6's, `page-*`, draw the page as it's built, to judge by eye where no frame
 with a tape of its name: `page-routing`, the routing card over the Overview of the auto world at
 160 × 40, `p` having opened it, `2` and `3` picked and `m` ticked, the page faded behind it;
 `page-routing-phone`, the card on a phone, 52 × 36, `2` picked and `m` ticked, saying what the move
-costs; `page-help-scrolled`, the help over Sessions on a terminal 16 rows tall, scrolled down three
-rows with `j` (`sessions-3-keys` is the help unscrolled, at 160 × 28); and
-`page-not-answering`, the auto world's router gone as `R` reads it, the status line saying so and
-since when, and `p pin` faint on the key line. Each but the help's is drawn over the auto world,
-its records and the sessions its router lists.
+costs; `page-help-scrolled`, the help over the Overview on a terminal 16 rows tall, scrolled down
+three rows with `j`; and `page-not-answering`, the auto world's router gone as `R` reads it, the
+status line saying so and since when, and `p pin` faint on the key line. Each is drawn over the
+auto world, its records and the sessions its router lists.
 
 Stage 9's, `log-*`, draw the Log's frames, the Log reached from the Overview with `shift-tab`:
 `log-requests-160` and, on a phone, `log-requests-phone-52`, as it opens, on Requests;
@@ -821,8 +820,8 @@ From the repository's root, as the tapes' paths are from there:
 vhs testdata/vhs/<name>.tape
 ```
 
-It writes the PNG its `Screenshot` names. A fixture's tape, such as `sessions-3.tape`, runs it
-through `go run`, so the first run waits on a build; it waits for the frame with `Wait+Screen`
+It writes the PNG its `Screenshot` names. A fixture's tape, such as `history-year-160.tape`, runs
+it through `go run`, so the first run waits on a build; it waits for the frame with `Wait+Screen`
 rather than sleeping a guess. `calibrate-overview-default-160.tape` cats the frame's `.ansi`
 instead, for the calibration below.
 
@@ -838,8 +837,8 @@ tests included, runs sandboxed.
 A path with a `/` in a tape must be quoted, or the tape doesn't parse:
 
 ```
-Screenshot "testdata/vhs/sessions-3.png"   # parses
-Screenshot testdata/vhs/sessions-3.png     # a parser error
+Screenshot "testdata/vhs/history-year-160.png"   # parses
+Screenshot testdata/vhs/history-year-160.png     # a parser error
 ```
 
 ### Gotcha 3: `vhs` can fail silently
@@ -848,9 +847,9 @@ Screenshot testdata/vhs/sessions-3.png     # a parser error
 Hash the capture before and after, or remove it first, and check it changed:
 
 ```bash
-shasum -a 256 testdata/vhs/sessions-3.png
-vhs testdata/vhs/sessions-3.tape
-shasum -a 256 testdata/vhs/sessions-3.png
+shasum -a 256 testdata/vhs/history-year-160.png
+vhs testdata/vhs/history-year-160.tape
+shasum -a 256 testdata/vhs/history-year-160.png
 ```
 
 ### Gotcha 4: settings come first
@@ -992,6 +991,6 @@ own rules, which the test holds to the frame's, cell for cell.
    the world where it can. Either way, pass over what's left in `passedOver`, beside `owed`, and
    list it here, under The cells passed over, with what the dashboard draws in its place. Never
    patch the frame.
-4. To judge it by eye too, write its tape, modelled on `sessions-3.tape`, its `Width` and `Height`
-   from the fixture's size, as the calibrated settings say; clear the tape and its capture at the
-   milestone's sign-off. Leave the fixture.
+4. To judge it by eye too, write its tape, modelled on `history-year-160.tape`, its `Width` and
+   `Height` from the fixture's size, as the calibrated settings say; clear the tape and its capture
+   at the milestone's sign-off. Leave the fixture.

@@ -14,11 +14,11 @@ import (
 )
 
 func TestPrintsAFixturesFrameAsTextAtItsSize(t *testing.T) {
-	out := capturing(t, "--fixture", "sessions-3", "--print")
+	out := capturing(t, "--fixture", "overview-default-160", "--print")
 
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
-	if len(lines) != 28 {
-		t.Errorf("printed %d lines, want the fixture's 28", len(lines))
+	if len(lines) != 37 {
+		t.Errorf("printed %d lines, want the fixture's 37", len(lines))
 	}
 	if !strings.Contains(out, "SWITCHBOARD") {
 		t.Errorf("printed\n%s\nwant the dashboard", out)
@@ -34,18 +34,18 @@ func TestPrintsAFixturesFrameAsTextAtItsSize(t *testing.T) {
 }
 
 func TestPrintsItsColoursWithAnsi(t *testing.T) {
-	out := capturing(t, "--fixture", "sessions-3", "--print", "--ansi")
+	out := capturing(t, "--fixture", "overview-default-160", "--print", "--ansi")
 
 	if !strings.ContainsRune(out, ansi.ESC) {
 		t.Errorf("printed\n%s\nwant it in colour", out)
 	}
-	if text := capturing(t, "--fixture", "sessions-3", "--print"); plain(out) != text {
+	if text := capturing(t, "--fixture", "overview-default-160", "--print"); plain(out) != text {
 		t.Errorf("in colour, the frame reads\n%s\nwant it to read as it does without\n%s", plain(out), text)
 	}
 }
 
 func TestPrintsAtTheSizeGiven(t *testing.T) {
-	out := capturing(t, "--fixture", "sessions-3", "--print", "--size", "100x20")
+	out := capturing(t, "--fixture", "overview-default-160", "--print", "--size", "100x20")
 
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
 	if len(lines) != 20 {
@@ -68,12 +68,12 @@ func TestRefusesWhatTheCommandLineCantMean(t *testing.T) {
 	}{
 		{name: "no fixture", args: []string{"--print"}, want: "--fixture: name a fixture " + available},
 		{name: "an unknown fixture", args: []string{"--fixture", "sessions-2", "--print"}, want: `--fixture: unknown fixture "sessions-2" ` + available},
-		{name: "a size full screen", args: []string{"--fixture", "sessions-3", "--size", "80x24"}, want: "--size takes --print: full screen, the terminal gives the size"},
-		{name: "colours full screen", args: []string{"--fixture", "sessions-3", "--ansi"}, want: "--ansi takes --print: full screen, the frame is drawn in colour"},
-		{name: "an argument", args: []string{"--fixture", "sessions-3", "--print", "now"}, want: `unexpected argument "now"`},
-		{name: "full screen without a terminal", args: []string{"--fixture", "sessions-3"}, want: "full screen, it needs a terminal: --print draws without one"},
-		{name: "an unknown scenario", args: []string{"--scenario", "sessions-3"}, want: `--scenario: unknown scenario "sessions-3" ` + scenarios},
-		{name: "a fixture and a scenario", args: []string{"--fixture", "sessions-3", "--scenario", "routing"}, want: "--scenario and --fixture: name one"},
+		{name: "a size full screen", args: []string{"--fixture", "overview-default-160", "--size", "80x24"}, want: "--size takes --print: full screen, the terminal gives the size"},
+		{name: "colours full screen", args: []string{"--fixture", "overview-default-160", "--ansi"}, want: "--ansi takes --print: full screen, the frame is drawn in colour"},
+		{name: "an argument", args: []string{"--fixture", "overview-default-160", "--print", "now"}, want: `unexpected argument "now"`},
+		{name: "full screen without a terminal", args: []string{"--fixture", "overview-default-160"}, want: "full screen, it needs a terminal: --print draws without one"},
+		{name: "an unknown scenario", args: []string{"--scenario", "overview-default-160"}, want: `--scenario: unknown scenario "overview-default-160" ` + scenarios},
+		{name: "a fixture and a scenario", args: []string{"--fixture", "overview-default-160", "--scenario", "routing"}, want: "--scenario and --fixture: name one"},
 		{name: "a scenario printed", args: []string{"--scenario", "routing", "--print"}, want: "--print takes a fixture: a scenario plays in time, full screen"},
 		{name: "a scenario's size", args: []string{"--scenario", "routing", "--size", "80x24"}, want: "--size takes --print: full screen, the terminal gives the size"},
 		{name: "a scenario in a theme there isn't", args: []string{"--scenario", "routing", "--theme", "solarized"}, want: `--theme "solarized" names no built-in theme (built in: amber, exchange, nord, terminal, tokyo-night, tokyo-night-day), nor a .theme file`},
@@ -142,7 +142,7 @@ func TestDrawsInTheThemeGiven(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out := capturing(t, append([]string{"--fixture", "sessions-3", "--print", "--ansi"}, tt.args...)...)
+			out := capturing(t, append([]string{"--fixture", "overview-default-160", "--print", "--ansi"}, tt.args...)...)
 			for i, line := range strings.Split(strings.TrimSuffix(out, "\n"), "\n") {
 				if !strings.Contains(line, tt.want) {
 					t.Fatalf("line %d is off the canvas %s: %q", i+1, tt.want, line)
@@ -167,7 +167,7 @@ func TestRefusesAThemeThatDoesntLoad(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			err := run([]string{"--fixture", "sessions-3", "--print", "--theme", tt.theme}, &stdout, &stderr, noEnv)
+			err := run([]string{"--fixture", "overview-default-160", "--print", "--theme", tt.theme}, &stdout, &stderr, noEnv)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Errorf("run() error = %v, want one saying %s", err, tt.want)
 			}
@@ -181,7 +181,7 @@ func TestRefusesAThemeThatDoesntLoad(t *testing.T) {
 func TestDrawsWithoutColourUnderNoColour(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	noColour := func(key string) string { return map[string]string{"NO_COLOR": "1"}[key] }
-	if err := run([]string{"--fixture", "sessions-3", "--print", "--ansi"}, &stdout, &stderr, noColour); err != nil {
+	if err := run([]string{"--fixture", "overview-default-160", "--print", "--ansi"}, &stdout, &stderr, noColour); err != nil {
 		t.Fatal(err)
 	}
 

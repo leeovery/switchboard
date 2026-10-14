@@ -75,25 +75,13 @@ func TestTheWindowsShown(t *testing.T) {
 	}
 }
 
-func TestTheLineOverTheKeyLineSaysWhichWindowsHide(t *testing.T) {
-	m := routerDoc("", 0, readAccount("work", sessionOf(0.2, time.Hour), fableOf(0, 4*quota.Day), windowOf("7d_opus", "Opus week", 0, 4*quota.Day))).At(now, claudeLike)
-	tests := []struct {
-		keys []string
-		want string
-	}{
-		{keys: []string{"7d_oi"}, want: "Fable wk hidden: unused on every account"},
-		{keys: []string{"7d_oi", "7d_opus"}, want: "Fable wk and Opus wk hidden: unused on every account"},
-		{keys: nil, want: ""},
+// windowKeys are the keys of the windows given, in their order.
+func windowKeys(windows []status.WindowName) []string {
+	keys := make([]string, len(windows))
+	for i, w := range windows {
+		keys[i] = w.Key
 	}
-	for _, tt := range tests {
-		var hidden []status.WindowName
-		for _, key := range tt.keys {
-			hidden = append(hidden, windowNamed(m, key))
-		}
-		if got := text(hiddenNote(hidden)); got != tt.want {
-			t.Errorf("hiddenNote(%q) = %q, want %q", tt.keys, got, tt.want)
-		}
-	}
+	return keys
 }
 
 func TestAWindowIsNamedAsTheMomentNamesIt(t *testing.T) {
@@ -119,13 +107,4 @@ func TestAWindowIsNamedAsTheMomentNamesIt(t *testing.T) {
 			t.Errorf("labelsOf()(%q) = %q, want %q", tt.key, got, want)
 		}
 	}
-}
-
-// text is the line's text, without its inks.
-func text(l line) string {
-	var s string
-	for _, sp := range l {
-		s += sp.text
-	}
-	return s
 }

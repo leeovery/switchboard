@@ -83,13 +83,9 @@ type fiveHours struct {
 	limit   int
 }
 
-// The identities of the samples' limits, as the router numbers its limits
-// from 1 as it starts: personal's, reached first, and work's, reached in
-// the storyboard's last frames.
-const (
-	personalLimit = 1
-	workLimit     = 2
-)
+// personalLimit is the identity of personal's limit, as the router numbers
+// its limits from 1 as it starts: the samples' first.
+const personalLimit = 1
 
 // weekly is a sample's week, or Fable's, used at the pace its use since it
 // started sets.
@@ -194,15 +190,6 @@ func spare(now time.Time) sample {
 		fable:   weekly{resets: on(now, 7, 14, 0)},
 		prime:   on(now, 1, 16, 20),
 	}
-}
-
-// oneAccount is work alone, which new sessions go to under pressure as it is:
-// there's no other.
-func oneAccount(now time.Time) source {
-	return newSource(now, []sample{work(now)}, "work",
-		pressured(now, on(now, 1, 14, 38), work(now)),
-		primed(on(now, 1, 12, 10), work(now)),
-	)
 }
 
 // threeAccounts are work, personal and side, as most frames draw them.

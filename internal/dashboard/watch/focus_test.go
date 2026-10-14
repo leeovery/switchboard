@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/router"
@@ -69,7 +70,6 @@ func (h *harness) keys(keys ...tea.KeyPressMsg) {
 
 func TestALookThatCantListTheSessionsKeepsThoseListedLast(t *testing.T) {
 	h := gridHarness(t)
-	h.model.view = dashboard.Sessions
 	listed := h.model.sessions
 	h.source.sessionsErr = errors.New("connection reset")
 	asked := h.source.listed
@@ -78,8 +78,8 @@ func TestALookThatCantListTheSessionsKeepsThoseListedLast(t *testing.T) {
 	if h.source.listed != asked+1 || !reflect.DeepEqual(h.model.sessions, listed) {
 		t.Errorf("listing failed on a look, the watch asked %d times, holding %+v; want it asked once more, holding those listed last %+v", h.source.listed-asked, h.model.sessions, listed)
 	}
-	if !strings.Contains(h.view(), "d28c  opus") {
-		t.Errorf("the screen is\n%s\nwant d28c still listed", h.view())
+	if row := rowWith(h.view(), "1 Work        ● open"); !strings.Contains(row, "2 sessions") {
+		t.Errorf("ROUTING's work reads %q, want its 2 sessions still listed", ansi.Strip(row))
 	}
 
 	h.stopRouter()
