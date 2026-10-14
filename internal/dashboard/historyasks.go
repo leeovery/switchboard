@@ -125,20 +125,21 @@ func (p HistoryPage) Split() string {
 }
 
 // Split is what v has History's sub-tab shown show, as HistoryPage's Split
-// names it, where v changes what the frame draws: "" for Weeks where
-// neither of its shapes takes its wide form, as on a phone, whose form is
-// neither.
+// names it, where v changes what the frame draws: "" for Weeks where its
+// shapes don't both take their wide form, as on a phone, whose form is
+// neither, so v has no other to change to.
 func (f Frame) Split() string {
-	if f.History.Shown == HistoryWeeks && !f.weeksShaped() {
+	if f.History.Shown == HistoryWeeks && !f.weeksCycles() {
 		return ""
 	}
 	return f.History.Split()
 }
 
-// weeksShaped reports whether a shape of Weeks takes its wide form in the
-// frame: never on a phone; else either, where its page isn't built yet, or
-// the table or the columns, where its widest row fits.
-func (f Frame) weeksShaped() bool {
+// weeksCycles reports whether v has a shape of Weeks to change to in the
+// frame: never on a phone; else either, where its page isn't built yet;
+// else where the table and the columns both take their wide form, each
+// drawn as itself, their widest rows fitting.
+func (f Frame) weeksCycles() bool {
 	p := f.History.Weeks
 	if f.phone() || p == nil {
 		return !f.phone()
@@ -146,11 +147,11 @@ func (f Frame) weeksShaped() bool {
 	for _, shape := range []WeeksShape{WeeksTable, WeeksColumns} {
 		shaped := f
 		shaped.History.WeeksShape = shape
-		if !shaped.weeksDrawn(*p).phone {
-			return true
+		if w := shaped.weeksDrawn(*p); w.phone || w.columns != (shape == WeeksColumns) {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 // yearShown names what the Year is shown for alone: an account, as label

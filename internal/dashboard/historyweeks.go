@@ -147,12 +147,16 @@ func (w weeksDrawn) heads() []headed {
 }
 
 // weeksDrawn is Weeks' page as the frame draws it: in the shape v gives it,
-// where that fits, else in its phone form.
+// where that fits; else in the other, where that does, as v has no shape to
+// change to there; else in its phone form.
 func (f Frame) weeksDrawn(p views.WeeksPage) weeksDrawn {
-	w := weeksDrawn{page: p, columns: f.History.WeeksShape == WeeksColumns, edge: f.edge()}
-	w.phone = f.phoneForm(w.reach)
-	w.columns = w.columns && !w.phone
-	return w
+	chosen := f.History.WeeksShape == WeeksColumns
+	for _, columns := range []bool{chosen, !chosen} {
+		if w := (weeksDrawn{page: p, columns: columns, edge: f.edge()}); !f.phoneForm(w.reach) {
+			return w
+		}
+	}
+	return weeksDrawn{page: p, edge: f.edge(), phone: true}
 }
 
 // reach is the width Weeks' wide form, in its shape, takes: where its widest
