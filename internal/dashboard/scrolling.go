@@ -93,6 +93,17 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 	return f.At(doc, now).scrollingAt(doc, now)(f.Scroll)
 }
 
+// KeysScroll reports whether j and k, PgUp and PgDn and the wheel scroll
+// anything of the frame's view of doc at now: with a session's turn open, its
+// requests, as RequestsScrolling has it, which they scroll in its turns'
+// place; else the view, as Scrolling has it.
+func (f Frame) KeysScroll(doc status.Document, now time.Time) bool {
+	if f.Session != nil && f.Session.Open != 0 {
+		return f.RequestsScrolling().Most > 0
+	}
+	return f.Scrolling(doc, now).Most > 0
+}
+
 // scrollingAt is how far the frame's view of doc scrolls at now, scrolled to
 // each offset given: a session's page's turns, where one is open, a row a
 // turn and its turn open's rows under its own, as turnsRows lays them out,

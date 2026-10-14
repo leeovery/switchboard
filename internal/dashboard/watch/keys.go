@@ -185,7 +185,7 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 		return dashboard.KeyLine{Groups: [][]dashboard.Key{findKeys()}, Note: m.noted(now)}
 	}
 	keys := m.keys()
-	page := grouped(keys.listings(f.Scrolling(m.doc, now).Most > 0))
+	page := grouped(keys.listings(f.KeysScroll(m.doc, now)))
 	lead, apart := []dashboard.Key{tabViews}, 3
 	if page.lead != nil {
 		lead, apart = page.lead, dashboard.KeysAfter
