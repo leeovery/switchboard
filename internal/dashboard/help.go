@@ -78,18 +78,18 @@ type helpPart struct {
 // and logHelp have them; of the other views built, a part a group of the
 // glyphs their key explains.
 func (f Frame) helpParts() []helpPart {
-	switch {
-	case f.Session != nil:
+	switch f.Shown() {
+	case SessionPage:
 		return sessionHelp()
-	case f.View == Overview:
+	case Overview:
 		return overviewHelp()
-	case f.View == Accounts:
+	case Accounts:
 		return f.accountsHelp()
-	case f.View == History:
+	case History:
 		return f.historyHelp()
-	case f.View == Sessions:
+	case Sessions:
 		return f.sessionsHelp()
-	case f.View == Log:
+	case Log:
 		return f.logHelp()
 	}
 	var parts []helpPart

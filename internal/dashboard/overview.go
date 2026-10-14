@@ -214,27 +214,32 @@ func (s section) mostRows() int {
 	return s.most
 }
 
-// sectionsBuilt are the Overview's sections of a frame, as Built builds
-// them, of a document at a moment: built once, the first time they're asked
-// for.
-type sectionsBuilt struct {
+// viewsBuilt are the Overview's sections of a frame and Accounts' form, as
+// Built builds them, of a document at a moment: each built once, the first
+// time it's asked for.
+type viewsBuilt struct {
 	at       *status.HeldMoment
 	sections func() []section
+	accounts func() accountsForm
 }
 
-// Built is the frame with the Overview's sections of doc at now built once,
-// the first time a look at them asks, and shared by every look it, or a copy
-// of it, takes of doc at now after: its layout, its page and its numbers, its
-// click targets and how it scrolls. They're built of the frame as it stands,
-// holding the moment of doc at now, as At has it, so a copy whose Layout,
-// KeyLine, Brightened or Card change draws them as a frame built afresh
-// would, as they draw none of those, and a copy changed otherwise draws them
-// as they were built. A look at another moment, or of another document,
-// builds them afresh.
+// Built is the frame with the Overview's sections and Accounts' form of doc
+// at now each built once, the first time a look at them asks, and shared by
+// every look it, or a copy of it, takes of doc at now after: its layout, its
+// page and its numbers, its click targets, how it scrolls and its bars
+// filled. They're built of the frame as it stands, holding the moment of doc
+// at now, as At has it, so a copy whose Layout, KeyLine, Brightened, Card or
+// View change draws them as a frame built afresh would, as they draw none of
+// those, and a copy changed otherwise draws them as they were built. A look
+// at another moment, or of another document, builds them afresh.
 func (f Frame) Built(doc status.Document, now time.Time) Frame {
 	f = f.At(doc, now)
 	of := f
-	f.built = &sectionsBuilt{at: f.held, sections: sync.OnceValue(func() []section { return of.buildSections(doc, now) })}
+	f.built = &viewsBuilt{
+		at:       f.held,
+		sections: sync.OnceValue(func() []section { return of.buildSections(doc, now) }),
+		accounts: sync.OnceValue(func() accountsForm { return of.buildAccountsForm(doc, now) }),
+	}
 	return f
 }
 
@@ -574,9 +579,10 @@ func (s Section) fills() bool {
 }
 
 // LayoutOf is the Overview's layout as the frame lays it out of doc at now,
-// for the watch to keep for the next look: the zero Layout off the Overview.
+// for the watch to keep for the next look: the zero Layout off the Overview,
+// and under a session's page, which hides it.
 func (f Frame) LayoutOf(doc status.Document, now time.Time) Layout {
-	if f.View != Overview {
+	if f.Shown() != Overview {
 		return Layout{}
 	}
 	f = f.At(doc, now)

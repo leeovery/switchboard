@@ -108,7 +108,8 @@ func panelOf(lines []ledger.Line, running []status.Session, unlisted bool, strea
 
 // At each moment the views have to tell what a session is doing at, the
 // panel holds each of today's sessions as the List does: its directory, the
-// account it's on and what it's doing; and says it asking exactly where it
+// account it's on and what it's doing; started at its first line today, not
+// the List's first request on any day; and says it asking exactly where it
 // waits for an answer, as Activity.Waiting says, the one rule SESSIONS says
 // ↑ ask by.
 func TestThePanelsSessionsAreTheListsAtEachHardMoment(t *testing.T) {
@@ -131,9 +132,12 @@ func TestThePanelsSessionsAreTheListsAtEachHardMoment(t *testing.T) {
 					continue
 				}
 				compared++
-				if said(s.Activity) != said(l.Activity) || s.Account != l.Account || s.Dir != l.Dir || !s.Started.Equal(l.Started) {
-					t.Errorf("the panel holds %s %s on %q in %q, started %v; the List %s on %q in %q, started %v",
-						s.ID[:4], said(s.Activity), s.Account, s.Dir, s.Started, said(l.Activity), l.Account, l.Dir, l.Started)
+				if said(s.Activity) != said(l.Activity) || s.Account != l.Account || s.Dir != l.Dir {
+					t.Errorf("the panel holds %s %s on %q in %q; the List %s on %q in %q",
+						s.ID[:4], said(s.Activity), s.Account, s.Dir, said(l.Activity), l.Account, l.Dir)
+				}
+				if want := firstToday(hm.Lines, s.ID, hm.Now); !s.Started.Equal(want) {
+					t.Errorf("the panel has %s started %v, want %v, its first line today", s.ID[:4], s.Started, want)
 				}
 				if doing, _ := s.Doing(hm.Now); (doing == views.LogAsking) != l.Activity.Waiting() {
 					t.Errorf("the panel says %s is %s, but it's %s, waiting = %t", s.ID[:4], logDoingNames[doing], said(l.Activity), l.Activity.Waiting())
@@ -149,6 +153,43 @@ func TestThePanelsSessionsAreTheListsAtEachHardMoment(t *testing.T) {
 	}
 	if want := map[views.Doing]bool{views.Asking: true, views.Throttled: true, views.Refused: true}; !maps.Equal(waited, want) {
 		t.Errorf("the moments hold sessions waiting as %v, want asking, throttled and refused among them", waited)
+	}
+}
+
+// firstToday is when the first of lines that arrived today by now and count
+// toward the session with the given id arrived: zero where none did.
+func firstToday(lines []ledger.Line, id string, now time.Time) time.Time {
+	var first time.Time
+	for _, l := range lines {
+		if l.CountedSession() == id && views.Today(now).Holds(l.At) && !l.At.After(now) && (first.IsZero() || l.At.Before(first)) {
+			first = l.At
+		}
+	}
+	return first
+}
+
+// A session's started is its first line's time today: one begun the day
+// before reads started at its first line after midnight, while that came
+// within the busy minute, and a count of its tokens is a line of it.
+func TestThePanelsStartedIsASessionsFirstLineToday(t *testing.T) {
+	counted := withID("t0", line(older, opus, "work", "sticky", october(7, 0, 4), ""))
+	counted.Kind = ledger.KindCount
+	lines := []ledger.Line{
+		withID("y1", line(older, opus, "work", "new", october(6, 23, 50), smallUsage)),
+		counted,
+		withID("t1", line(older, opus, "work", "sticky", october(7, 0, 4).Add(30*time.Second), smallUsage)),
+	}
+	at := october(7, 0, 4).Add(50 * time.Second)
+	panel := panelOf(lines, nil, true, views.Stream{}, nil, at)
+	i := slices.IndexFunc(panel, func(s views.LogSession) bool { return s.ID == older })
+	if i < 0 {
+		t.Fatalf("the panel lists %+v, want %s among them", panel, older[:4])
+	}
+	if s := panel[i]; !s.Started.Equal(october(7, 0, 4)) {
+		t.Errorf("begun the day before, %s started %v, want 00:04, its first line today", older[:4], s.Started.Local())
+	}
+	if doing, since := panel[i].Doing(at); doing != views.LogStarted || !since.Equal(october(7, 0, 4)) {
+		t.Errorf("50s after its first line today, %s is %s since %v, want started at 00:04", older[:4], logDoingNames[doing], since.Local())
 	}
 }
 

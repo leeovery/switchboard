@@ -61,7 +61,8 @@ func momentsShown(hm viewstest.SessionMoment, id string) (*SessionShown, bool) {
 // once it's over, its models and how long its lines are kept; a row each of
 // the accounts it ran on, its time there and its requests; a row each of its
 // turns, its number and how long it took; and ↑ asking on its newest turn
-// while it waits, and only then.
+// while it waits, and only then. A phone's two rows of now say the same,
+// short, at each moment too.
 func TestASessionsPageSaysWhatItsViewsSayAtEachHardMoment(t *testing.T) {
 	for _, hm := range viewstest.SessionMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
@@ -76,6 +77,10 @@ func TestASessionsPageSaysWhatItsViewsSayAtEachHardMoment(t *testing.T) {
 				checkNowRows(t, c, f.sessionLayout(len(shown.Page.Accounts)), shown.Page, hm.Now)
 				checkAccountRows(t, c, f.sessionLayout(len(shown.Page.Accounts)), shown.Page, hm.Now)
 				checkTurnRows(t, c, f.sessionLayout(len(shown.Page.Accounts)), shown.Page, hm.Now)
+
+				phone := frameOf(52, 32)
+				phone.Sessions, phone.Stream, phone.Session = hm.Sessions, hm.Stream, shown
+				checkPhoneNowRows(t, phone.At(hm.Doc, hm.Now).page(hm.Doc, hm.Now), phone.sessionLayout(len(shown.Page.Accounts)), shown.Page, hm.Now)
 			}
 		})
 	}
@@ -112,6 +117,34 @@ func checkNowRows(t *testing.T, c *canvas, l sessionLayout, p views.SessionPage,
 	if !strings.HasPrefix(goes, want) {
 		t.Errorf("%s's row 7 reads\n%q\nwant it to say\n%q", shown, goes, want)
 	}
+}
+
+// checkPhoneNowRows checks that a phone's two rows of now, drawn on c as l
+// lays them out, say what the views say of page p at now, each cut with …
+// where it doesn't fit: what it's doing, then where it runs, since when; and
+// why, short, then at the right how it has run.
+func checkPhoneNowRows(t *testing.T, c *canvas, l sessionLayout, p views.SessionPage, now time.Time) {
+	t.Helper()
+	shown := status.ShownID(p.Session)
+	said, why := unmarked.Replace(rowOf(c, l.now)), rowOf(c, l.now+1)
+	want := p.Activity.Said(now)
+	if where := p.Where(now).OnSince.String(); where != "" {
+		want += "  " + where
+	}
+	if !saysCut(said, want) {
+		t.Errorf("%s's phone row 7 reads\n%q\nwant it to say\n%q", shown, said, want)
+	}
+	ran := p.RanSaid(now)
+	short := strings.TrimRight(strings.TrimSuffix(why, ran), " ")
+	if !strings.HasSuffix(why, ran) || !saysCut(short, p.Where(now).Short.String()) {
+		t.Errorf("%s's phone row 8 reads\n%q\nwant it to say\n%q\nthen at the right %q", shown, why, p.Where(now).Short.String(), ran)
+	}
+}
+
+// saysCut reports whether a row drawn says want, whole, or cut with … where
+// it doesn't fit.
+func saysCut(drawn, want string) bool {
+	return drawn == want || strings.HasSuffix(drawn, prose.Ellipsis) && strings.HasPrefix(want, strings.TrimSuffix(drawn, prose.Ellipsis))
 }
 
 // checkAccountRows checks that the page's rows of the accounts it ran on,

@@ -299,3 +299,30 @@ func TestLeftAtItsLastResetIsItsLastWeeksWhateverThePeriod(t *testing.T) {
 		})
 	}
 }
+
+// Left at its last reset, and the day the week ran out, are of a week that
+// ended among the six weeks' days and the week before them, the days from
+// Monday 24 August: an account idle since one ended before, in the two weeks
+// before those that Weeks judges too, or the days read before them, has
+// neither, as Compare says "—".
+func TestLeftAtItsLastResetIsOfAWeekEndedInTheSixWeeksOrTheWeekBefore(t *testing.T) {
+	tests := []struct {
+		name, ended, left, ranOut string
+	}{
+		{name: "in the days read before the eight weeks", ended: "2026-08-12", left: "—"},
+		{name: "in the first of the eight weeks", ended: "2026-08-20", left: "—"},
+		{name: "in the week before the six", ended: "2026-08-27", left: "0%", ranOut: "2026-08-26"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ran := on(tt.ended).AddDate(0, 0, -1).Format(time.DateOnly)
+			days := daysFrom("2026-08-10",
+				day(ran, windowsDay{limits: []ledger.Limit{limit("7d", ran, "18:00")}}.of("work")),
+				day(tt.ended, windowsDay{resets: []ledger.Reset{reset("7d", tt.ended, "10:00", 1)}}.of("work")))
+			work := accountsPageOf(days, workAndSide).Rows[0]
+			if got := shareRead(work.WeekLeft); got != tt.left || work.RanOut != tt.ranOut {
+				t.Errorf("work, idle since its week ended on %s, left %s, ran out %q; want %s, %q", tt.ended, got, work.RanOut, tt.left, tt.ranOut)
+			}
+		})
+	}
+}

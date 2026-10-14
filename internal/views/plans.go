@@ -1,6 +1,7 @@
 package views
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -34,23 +35,19 @@ func prorate(monthly ledger.Picodollars, s monthPart) ledger.Picodollars {
 }
 
 // askedShare is the share of a month the days from the one with the date
-// from to today's, each as dayfile.Civil gives one, are: as Accounts prices
-// the period they make, where they make one, each whole while it's still
-// running, this week before today where the two begin on the same day, as
-// Accounts opens on this week; else a day each.
+// from to today's, each as dayfile.Civil gives one, are, asked for from it:
+// as Accounts prices the period they make, where they make one, whole while
+// it's still running, the longest where two begin on the one day, as this
+// week does with today on the week's first, Accounts' own to begin with;
+// else a day each.
 func askedShare(from, today time.Time, weekStarts time.Weekday) monthPart {
-	for _, p := range askedPeriods {
+	for _, p := range slices.Backward(accountsPeriods) {
 		if from.Equal(p.first(today, weekStarts)) {
 			return p.share()
 		}
 	}
 	return days(int(today.Sub(from)/(24*time.Hour)) + 1)
 }
-
-// askedPeriods are the periods the days asked for may make, in the order
-// askedShare tries them: this week first, as on its first day it begins
-// when today does.
-var askedPeriods = []AccountsPeriod{AccountsThisWeek, AccountsToday, AccountsThirtyDays, AccountsTwelveWeeks}
 
 // cutShort is the share of a month a period from the day with the date first
 // to the one with the date last is priced at, and the date of the day its

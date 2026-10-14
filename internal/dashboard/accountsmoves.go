@@ -212,14 +212,32 @@ func (s AccountsShown) Selection(running []string) string {
 
 // Following is Accounts as the sessions running on the account Detail shows
 // go from was to is, by id, in its SESSIONS' order: the session selected,
-// where it ends, gives the selection to the one in its place now, else to the
-// last; and with none left, ↑ and ↓ go back to the list (settled in the plan).
+// where it ends, gives the selection to the one in its place now, as
+// inItsPlace finds it; and with none left, ↑ and ↓ go back to the list
+// (settled in the plan).
 func (s AccountsShown) Following(was, is []string) AccountsShown {
 	switch {
 	case len(is) == 0:
 		s.InSessions, s.Selected = false, ""
 	case s.Selected != "" && !slices.Contains(is, s.Selected):
-		s.Selected = is[min(max(slices.Index(was, s.Selected), 0), len(is)-1)]
+		s.Selected = inItsPlace(was, is, s.Selected)
 	}
 	return s
+}
+
+// inItsPlace is the session of those running now, is, in the place of the
+// one with the given id, which ended, of those running before, was, by id,
+// in SESSIONS' order: the first listed after it before that runs now, as
+// the rest move up into its place, however they've moved since; else the
+// last now; or, where it wasn't listed before, the first, as Selection has
+// it.
+func inItsPlace(was, is []string, ended string) string {
+	at := slices.Index(was, ended)
+	if at < 0 {
+		return is[0]
+	}
+	if next := slices.IndexFunc(was[at+1:], func(id string) bool { return slices.Contains(is, id) }); next >= 0 {
+		return was[at+1+next]
+	}
+	return is[len(is)-1]
 }

@@ -19,6 +19,12 @@ type Month struct {
 	ByFamily []FamilyWorth  `json:"by_family,omitempty"`
 }
 
+// LimitCount is how many limits were reached in the month, every account's
+// and every window's together, as AccountTotals.LimitCount counts them.
+func (m Month) LimitCount() int {
+	return limitCount(m.Limits)
+}
+
 // monthsOf are BY MONTH's rows over days, asked for from the day with the
 // date from, a month each. A month costs its plans' monthly prices whole, as
 // of its first day, the month the ledger began part-way through among them,

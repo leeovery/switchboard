@@ -52,6 +52,10 @@ type HistoryInput struct {
 	// Family reads a model's family from its id, as internal/claude does,
 	// for a model the version table doesn't name.
 	Family func(model string) string
+	// read is when a Past's days were read, as it takes them: its Now as
+	// NewPast takes them, and as Since takes those it's given; never moved
+	// on as it's taken to a later Now alone.
+	read time.Time
 }
 
 // lookBack is how many days before the first asked for the ledger's days are
@@ -59,9 +63,8 @@ type HistoryInput struct {
 // running as the days asked for begin is known by the reset that began it.
 const lookBack = 7
 
-// NewHistory builds the History of the days in asks for. The plans are
-// priced from the later of the day asked for and the first day the ledger
-// holds.
+// NewHistory builds the History of the days in asks for, its plans priced
+// as plansPriced prices them.
 func NewHistory(in HistoryInput) History {
 	from, to := dayfile.CivilOf(in.From), dayfile.CivilOf(in.Now)
 	asked, today := from.Format(time.DateOnly), to.Format(time.DateOnly)
@@ -69,10 +72,7 @@ func NewHistory(in HistoryInput) History {
 	p := plans{accounts: in.Accounts, table: in.Prices}
 	before, days := splitAt(pricedDays(in.Ledger.Days(in.From.AddDate(0, 0, -lookBack)), in.Prices, today, v), asked)
 	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
-	priced := from
-	if first, ok := firstDay(days); ok && first.After(from) {
-		priced = first
-	}
+	priced, share := plansPriced(in, from, to, days)
 	return History{
 		Days:     days,
 		Year:     yearOf(days),
@@ -80,9 +80,21 @@ func NewHistory(in HistoryInput) History {
 		Weeks:    weeksOf(placed, in.Accounts),
 		Tokens:   tokensOf(days, p, v, asked, in.WeekStarts),
 		Totals:   accountTotalsOf(before, days, in.Accounts, v),
-		Plans:    plansOf(days, p, priced.Format(time.DateOnly), askedShare(priced, to, in.WeekStarts)),
+		Plans:    plansOf(days, p, priced.Format(time.DateOnly), share),
 		Capacity: capacityOf(placed, wholeWeek(days, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
 	}
+}
+
+// plansPriced is the day the plans over in's days, from the day from to
+// today, each as dayfile.Civil gives one, are priced from, and the share of
+// a month they cost: from the later of from and the first of days, as
+// askedShare prices the days from then.
+func plansPriced(in HistoryInput, from, today time.Time, days []Day) (time.Time, monthPart) {
+	priced := from
+	if first, ok := firstDay(days); ok && first.After(from) {
+		priced = first
+	}
+	return priced, askedShare(priced, today, in.WeekStarts)
 }
 
 // splitAt splits days, in order, at the one with the given date: those

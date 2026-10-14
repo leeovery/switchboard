@@ -119,7 +119,7 @@ func (f Frame) lanesOf(doc status.Document, now time.Time, laid boardLayout) lan
 		b.lanes[0].saysNone = true
 	}
 	whole := growing(f.Width)
-	b.foot(whole, b.drawLanes(&stack{c: whole, filled: make(map[Ref]float64)}, 0, b.lanes))
+	b.foot(whole, b.drawLanes(&lanesShown{c: whole, filled: make(map[Ref]float64)}, 0, b.lanes))
 	b.whole = whole.height()
 	return b
 }
@@ -150,11 +150,13 @@ func (b lanesBoard) targets() []Target {
 }
 
 // lanesShown are the lanes the view shows, drawn from its first row: the
-// rows, the zones a click acts on and the bars, as a stack has them; and how
-// many accounts are out of view below.
+// rows and the zones a click acts on, as a stack has them; how much of each
+// bar they draw it fills, as Filled has them; and how many accounts are out
+// of view below.
 type lanesShown struct {
 	stack
-	below int
+	filled map[Ref]float64
+	below  int
 }
 
 // shown are the lanes the view shows: every lane, and the foot under them,
@@ -164,7 +166,7 @@ type lanesShown struct {
 func (b lanesBoard) shown() lanesShown {
 	s := lanesShown{c: growing(b.f.Width), filled: make(map[Ref]float64)}
 	if b.fits() {
-		b.foot(s.c, b.drawLanes(&s.stack, 0, b.lanes))
+		b.foot(s.c, b.drawLanes(&s, 0, b.lanes))
 		return s
 	}
 	scrolling := b.scrolling(b.f.Scroll)
@@ -174,7 +176,7 @@ func (b lanesBoard) shown() lanesShown {
 		s.c.line(0, y, outOfView(above, 0, b.f.Width, usageOut))
 		y++
 	}
-	b.drawLanes(&s.stack, y, b.lanes[above:above+scrolling.Page])
+	b.drawLanes(&s, y, b.lanes[above:above+scrolling.Page])
 	s.below = len(b.lanes) - above - scrolling.Page
 	return s
 }
@@ -218,9 +220,9 @@ func (b lanesBoard) fitting(first int) int {
 	return shown
 }
 
-// drawLanes draws the lanes given onto the stack from row y, a blank row
+// drawLanes draws the lanes given onto s from row y, a blank row
 // between each, and returns the row after the last's last row.
-func (b lanesBoard) drawLanes(s *stack, y int, lanes []boardLane) int {
+func (b lanesBoard) drawLanes(s *lanesShown, y int, lanes []boardLane) int {
 	for i, l := range lanes {
 		if i > 0 {
 			y++
@@ -230,11 +232,11 @@ func (b lanesBoard) drawLanes(s *stack, y int, lanes []boardLane) int {
 	return y
 }
 
-// drawLane draws the lane onto the stack from row y: its name row, its
+// drawLane draws the lane onto s from row y: its name row, its
 // windows' row and its calls, a row each, each a zone a click chooses it by,
 // or where it says none runs, a row saying so in text.faint, where its first
 // call would be; and returns the row after its last.
-func (b lanesBoard) drawLane(s *stack, y int, l boardLane) int {
+func (b lanesBoard) drawLane(s *lanesShown, y int, l boardLane) int {
 	b.nameRow(s.c, y, l)
 	b.windowsRow(s, y+1, l.row)
 	y += 2
@@ -265,9 +267,9 @@ func (b lanesBoard) nameRow(c *canvas, y int, l boardLane) {
 }
 
 // windowsRow draws the windows of the account's row along row y onto the
-// stack, as windowsBeside draws them, from laneWindowsAt, each bar counted
-// among the bars the stack fills.
-func (b lanesBoard) windowsRow(s *stack, y int, row usageRow) {
+// lanes, as windowsBeside draws them, from laneWindowsAt, each bar counted
+// among the bars they fill.
+func (b lanesBoard) windowsRow(s *lanesShown, y int, row usageRow) {
 	windowsBeside(s.c, b.f.Look, laneWindowsAt, y, b.block.accountBar, laneBarsAfter, b.block.windows, row.gauges)
 	for _, g := range row.gauges {
 		if !g.bar.empty {

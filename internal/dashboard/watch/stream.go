@@ -84,8 +84,19 @@ type joinedMsg struct {
 // the stream tells; and the router answers, unless it's from before the
 // stream.
 func (m Model) wantsStream() bool {
-	overview := m.view == dashboard.Overview && (m.sections.Has(dashboard.SectionRouting) || m.sections.Has(dashboard.SectionSessions))
-	return (m.session != nil || m.view == dashboard.Sessions || m.view == dashboard.Log || overview || m.detailsSessions()) && m.answering() && !m.stream.absent
+	return m.showsStream() && m.answering() && !m.stream.absent
+}
+
+// showsStream reports whether what the watch shows tells what the request
+// stream tells, as wantsStream has it.
+func (m Model) showsStream() bool {
+	switch m.shownView() {
+	case dashboard.SessionPage, dashboard.Sessions, dashboard.Log:
+		return true
+	case dashboard.Overview:
+		return m.sections.Has(dashboard.SectionRouting) || m.sections.Has(dashboard.SectionSessions)
+	}
+	return m.detailsSessions()
 }
 
 // tune opens the request stream when the watch wants it and has none open,
@@ -143,12 +154,14 @@ func (s streaming) end() {
 // opened takes in the request stream opening, or why it couldn't. Open, its
 // traffic is as reopened has it, what it tells as it opens telling of the
 // requests in flight afresh, its first look to settle those it told of in
-// flight before, by joinFor at the latest; and the watch counts the requests
+// flight before, by joinFor at the latest; the watch counts the requests
 // today's lines told of for the traces, and listens to it, what it draws
-// live. Otherwise the watch forgets what it told before of the requests, as
-// afresh has it, their router gone. From a router from before it, the watch
-// goes without it until another router answers; else it asks for it again,
-// later each time it fails in a row.
+// live; and what the ledger gained is due to be read, so the Log fills the
+// gap from it as it joins, the lines of the requests that ended untold
+// meanwhile taking their rows over. Otherwise the watch forgets what it told
+// before of the requests, as afresh has it, their router gone. From a router
+// from before it, the watch goes without it until another router answers;
+// else it asks for it again, later each time it fails in a row.
 func (m Model) opened(msg streamOpenedMsg) (Model, tea.Cmd) {
 	if msg.gen != m.stream.gen {
 		return m, nil
@@ -157,7 +170,7 @@ func (m Model) opened(msg streamOpenedMsg) (Model, tea.Cmd) {
 	switch {
 	case msg.err == nil:
 		m.stream.open, m.stream.events, m.stream.fails = true, msg.events, 0
-		m.traffic = m.traffic.reopened()
+		m.traffic, m.tail.due = m.traffic.reopened(), true
 		m = m.traced(msg.traced)
 		logger.Debug("reading the router's request stream")
 		return m, tea.Batch(m.listen(), m.awaitJoin())

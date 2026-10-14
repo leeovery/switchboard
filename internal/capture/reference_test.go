@@ -678,9 +678,9 @@ var d28cPage = slices.Concat(fromTheLog(1, 16, 68), []passing{
 }, d28cStory)
 
 // What 9c2e's frames draw otherwise than its world gives above its story:
-// sticky, where the router lists it as new; and how long it has run, from
-// 11:55:00 where its first request came at 11:55:31.
-var quietPage = slices.Concat(fromTheLog(1, 16, 68), []passing{wordsAt(7, 41, ": sticky"), wordsAt(7, 155, "2h 47m")})
+// how long it has run, from 11:55:00 where its first request came at
+// 11:55:31.
+var quietPage = slices.Concat(fromTheLog(1, 16, 68), []passing{wordsAt(7, 155, "2h 47m")})
 
 // enterLit and enterOpenLit pass over enter on Sessions' key line, wide and
 // on a phone, which the frames draw lit, bold accent.key, where nothing is
@@ -838,12 +838,15 @@ var passedOver = map[string][]passing{
 			wordsAt(17, 48, "57%"), wordsAt(17, 79, "33%"), cellsOf(17, 115, 115, "●"), wordsAt(17, 127, "3%"),
 		},
 		byDays(21, 2, 43, 45, 57, 67, 73, 77, 91, 101, 119, 121, 129, 131, 133),
-		[]passing{cellsOf(24, 97, 97, "▋"), cellsOf(24, 132, 132, "▎"), wordsAt(26, 50, "30%"), wholeRow(37, accountsKeys)},
+		[]passing{
+			cellsOf(24, 97, 97, "▋"), cellsOf(24, 132, 132, "▎"), wordsAt(26, 50, "30%"), blankCells(30, 66, 75),
+			wholeRow(37, accountsKeys),
+		},
 	),
 	"accounts-detail-work-160": slices.Concat(
 		[]passing{period(150, "this week"), unrouted(13, 9), blankCells(16, 139, 140), cellsOf(17, 115, 115, "●")},
 		byDays(21, 2, 37, 47, 49, 55, 57, 61, 63, 67, 83, 85, 99, 101, 111, 119, 121, 129, 131, 133),
-		[]passing{cellsOf(30, 37, 160, "12:10"), wholeRow(37, accountsKeys)},
+		[]passing{blankCells(29, 63, 72), cellsOf(30, 37, 160, "12:10"), wholeRow(37, accountsKeys)},
 	),
 	"accounts-detail-limit-160": slices.Concat(
 		[]passing{
@@ -879,7 +882,7 @@ var passedOver = map[string][]passing{
 	"accounts-phone-detail-52": slices.Concat(
 		[]passing{phonePeriod("this week"), blankCells(24, 50, 50), cellsOf(26, 32, 32, "●")},
 		byDays(28, 2, 13, 15, 19, 21, 28, 34, 36, 38, 43, 45, 47),
-		[]passing{wholeRow(38, "12:10")},
+		[]passing{blankCells(37, 27, 36), wholeRow(38, "12:10")},
 	),
 
 	"history-year-160": slices.Concat(

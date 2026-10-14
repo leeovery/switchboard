@@ -9,7 +9,23 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
+// Help over a session's page lists its own keys, not its tab's, j and k,
+// PgUp and PgDn and the wheel among them wherever they scroll something: its
+// turns, or with a turn open, that turn's requests, which they scroll in its
+// turns' place.
 func TestHelpOverASessionsPageListsItsKeysNotItsTabs(t *testing.T) {
+	running := []string{"tab views", "esc back", "↑↓ turn", "enter its requests", "p pin", "R refresh", "? help", "q quit"}
+	opened := []string{"tab views", "esc close", "↑↓ request", "enter open", "p pin", "R refresh", "? help", "q quit"}
+	scrolled := func(keys []string) []string {
+		return slices.Concat(keys[:4], []string{"j k scroll", "PgUp PgDn page", "wheel scroll"}, keys[4:])
+	}
+	turns := func(s *dashboard.SessionShown, n int) {
+		s.Page.Turns = make([]views.Turn, n)
+		for i := range s.Page.Turns {
+			s.Page.Turns[i].Turn = n - i
+		}
+		s.Turn = n
+	}
 	tests := []struct {
 		name string
 		page func(*dashboard.SessionShown)
@@ -18,13 +34,16 @@ func TestHelpOverASessionsPageListsItsKeysNotItsTabs(t *testing.T) {
 		over dashboard.View
 		want []string
 	}{
-		{name: "running", want: []string{"tab views", "esc back", "↑↓ turn", "enter its requests", "p pin", "R refresh", "? help", "q quit"}},
-		{name: "running, over the Log, whose own keys don't work on it", over: dashboard.Log,
-			want: []string{"tab views", "esc back", "↑↓ turn", "enter its requests", "p pin", "R refresh", "? help", "q quit"}},
+		{name: "running", want: running},
+		{name: "running, over the Log, whose own keys don't work on it", over: dashboard.Log, want: running},
 		{name: "ended, with no p", page: func(s *dashboard.SessionShown) { s.Page.Activity.Doing = views.Ended },
 			want: []string{"tab views", "esc back", "↑↓ turn", "enter its requests", "R refresh", "? help", "q quit"}},
-		{name: "a turn open", page: func(s *dashboard.SessionShown) { s.Open = 1 },
-			want: []string{"tab views", "esc close", "↑↓ request", "enter open", "p pin", "R refresh", "? help", "q quit"}},
+		{name: "a turn open", page: func(s *dashboard.SessionShown) { s.Open = 1 }, want: opened},
+		{name: "its turns scrolling", page: func(s *dashboard.SessionShown) { turns(s, 60) }, want: scrolled(running)},
+		{name: "a turn open, its requests scrolling where its turns don't",
+			page: func(s *dashboard.SessionShown) { s.Open, s.Requests = 1, make([]views.LogLine, 40) }, want: scrolled(opened)},
+		{name: "a turn open, its requests all in view where its turns scroll",
+			page: func(s *dashboard.SessionShown) { turns(s, 60); s.Open, s.Requests = 60, make([]views.LogLine, 2) }, want: opened},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -38,12 +57,10 @@ func TestHelpOverASessionsPageListsItsKeysNotItsTabs(t *testing.T) {
 			}
 			var got []string
 			for _, k := range helpOver(h.model) {
-				if !slices.Contains([]string{"j k", "PgUp PgDn", "wheel"}, k.Key) {
-					got = append(got, strings.TrimSpace(k.Key+" "+k.Does))
-				}
+				got = append(got, strings.TrimSpace(k.Key+" "+k.Does))
 			}
 			if !slices.Equal(got, tt.want) {
-				t.Errorf("help lists %q, want %q, but for the scroll keys, which follow its turns", got, tt.want)
+				t.Errorf("help lists %q, want %q", got, tt.want)
 			}
 		})
 	}

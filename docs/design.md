@@ -1970,8 +1970,11 @@ days' `resets` give them: a week's peak is the use read just before its reset, t
 highest use so far, and `left at its last reset` 100% less the peak of the week that ended last. BY
 DAY is each day's `rise` of the week window. Days before today are read once and kept; today's lines
 are read as they're added, from where the last read ended. An account added part-way through a
-period shows what was recorded of it, priced against the whole period; a period with nothing
-recorded, as on a fresh install, shows `—` in every row (settled in the plan).
+period shows what was recorded of it, priced against the whole period. A period with nothing
+recorded, as on a fresh install or a week's first morning before any request, shows `—` in each
+of its own figures: requests, sessions, moves, limits, time at cap or limit, worth and the like.
+`left at its last reset`, of the six weeks, `plan`, from the config, and `extra usage`, live, are
+no figures of the period, and show as they are (the owner's decision, 14 Oct 2026).
 
 ### History
 

@@ -234,11 +234,10 @@ func TestASessionsPageWithoutTheRouterReadsOneWithARequestWithinTheHourAsNotEnde
 	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": lines})
 	got := run(t, deps, "sessions", paging, "--pretty")
 	// Idle since its answer ended, on side since its move, and on it till
-	// now, as the router's own rule keeps it within the hour; its models'
-	// accounts, which the router alone says, give way to how long its lines
-	// are kept.
+	// now, as the router's own rule keeps it within the hour; its models
+	// going where its lines last sent them, as the page's row 7 has them.
 	for _, want := range []string{
-		"\nidle 31m  ·  on side since 12:40, moved from work: work reached its limit  ·  started 12:00 · 1h 12m\nkept until 11 Nov 2027\n",
+		"\nidle 31m  ·  on side since 12:40, moved from work: work reached its limit  ·  started 12:00 · 1h 12m\nopus-5-5 → side\n",
 		"\nside  12:40 – now",
 	} {
 		if got.code != 0 || !strings.Contains(got.stdout, want) {

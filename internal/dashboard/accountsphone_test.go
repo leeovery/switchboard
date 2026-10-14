@@ -88,6 +88,9 @@ var (
 	// prime at 12:10 and leaves out db8a's move onto it at 13:22, which
 	// LATELY tells from work's side, as any move onto it (P12).
 	stackedMovedOn = spot{37, 0, 51}
+	// stackedBest is ", the best" after 7f3a's start on work's LATELY,
+	// which the frame leaves out, as startedBest has it.
+	stackedBest = spot{36, 26, 35}
 )
 
 // A phone's Compare and Detail are drawn as their frames, cell for cell, in
@@ -110,7 +113,7 @@ func TestAPhonesAccountsAreDrawnAsTheirFrames(t *testing.T) {
 		},
 		{
 			stem: "accounts-phone-detail-52", height: 41, shown: AccountsDetail, chosen: "work", in: region{top: 8, bottom: 39, right: 51},
-			passed: append(stackedOlderHaiku, stackedMovedOn),
+			passed: append(stackedOlderHaiku, stackedMovedOn, stackedBest),
 		},
 	}
 	for _, tt := range tests {
@@ -217,9 +220,10 @@ func TestAPhonesWEEKUSEDShowsTheWeekTheFrameNames(t *testing.T) {
 	}
 }
 
-// A period with nothing recorded, as on a fresh install, says a dash in every
-// row on a phone too, Compare's and Detail's THIS WEEK's, left at its last
-// reset, the plan and extra usage among them.
+// A period with nothing recorded, as on a fresh install or a week's first
+// morning, says a dash in each of its own figures on a phone too, Compare's
+// and Detail's THIS WEEK's; left at its last reset, the plan and extra
+// usage, no figures of the period, say what they are.
 func TestAPhonesAccountsSayADashForEachFigureOfAPeriodWithNothingRecorded(t *testing.T) {
 	page := phonePage(t)
 	page.Recorded = false
@@ -229,14 +233,14 @@ func TestAPhonesAccountsSayADashForEachFigureOfAPeriodWithNothingRecorded(t *tes
 	}{
 		{shown: AccountsCompare, want: map[int]string{
 			29: " work        —         —           —",
-			35: " work        —            —         —",
-			41: " work        —            —         —",
-			44: " all         —            —         —",
+			35: " work        —            —         0%",
+			41: " work        $200/mo      —         —",
+			44: " all         $600/mo      —         —",
 		}},
 		{shown: AccountsDetail, want: map[int]string{
 			19: "requests  —               worth     —",
-			20: "limits    —               extra use —",
-			21: "plan      —               against   —",
+			20: "limits    —               extra use off",
+			21: "plan      Max 20x         against   —",
 		}},
 	}
 	for _, tt := range tests {
@@ -557,6 +561,31 @@ func TestAPhonesCompareCutsEachFigureACellShortOfTheNext(t *testing.T) {
 	rows := textOf(phoneText(t, 52, 48, AccountsCompare, "", page, nil).Draw(phoneDoc(), routedAt))
 	if got, want := rows[29], " work        …         9           3 out"; got != want {
 		t.Errorf("work's requests are %q, want %q, 12,345,678 a cell too wide", got, want)
+	}
+}
+
+// On a phone, Detail's LATELY tells an account's events in their full words,
+// never the short words the Overview's LATELY tells there, cut to 44 cells,
+// or short of the frame's edge, where that comes first: work's cap that
+// moved its sessions to other accounts, 51 cells in full.
+func TestAPhonesDetailTellsLATELYInFullCutTo44(t *testing.T) {
+	doc := eventsOf(
+		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventMoved, Session: "d28c0b1e", From: "work", To: "side", Reason: "moved: work is at its reserve", ForcedBy: 1},
+		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventMoved, Session: "9e21d4a8", From: "work", To: "personal", Reason: "moved: work is at its reserve", ForcedBy: 1},
+		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventCap, Account: "work", Count: 2},
+	)
+	tests := []struct {
+		width int
+		want  string
+	}{
+		{width: 52, want: "13:11  ╎ reached its cap: 2 sessions moved to othe…"},
+		{width: 60, want: "13:11  ╎ reached its cap: 2 sessions moved to other…"},
+	}
+	for _, tt := range tests {
+		rows := textOf(phoneText(t, tt.width, 41, AccountsDetail, "work", phonePage(t), nil).Draw(doc, now))
+		if !slices.Contains(rows, tt.want) {
+			t.Errorf("at %d columns, a phone's Detail doesn't tell %q in LATELY:\n%s", tt.width, tt.want, strings.Join(rows, "\n"))
+		}
 	}
 }
 

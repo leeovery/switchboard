@@ -110,10 +110,10 @@ func notch(f dashboard.Frame, way int) scrollStep {
 // turns, or its turn open's requests, as scrollSession has it; and the Log's
 // table scrolls as scrollLog has it.
 func (m Model) scrollView(by scrollStep) Model {
-	switch {
-	case m.session != nil:
+	switch m.shownView() {
+	case dashboard.SessionPage:
 		return m.scrollSession(by)
-	case m.view == dashboard.Log:
+	case dashboard.Log:
 		return m.scrollLog(by)
 	}
 	s := m.scrolling()

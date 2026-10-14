@@ -139,3 +139,55 @@ func TestAccountsHeadingOnAPhone(t *testing.T) {
 		t.Errorf("the view starts at row %d, want row 9", top+1)
 	}
 }
+
+// Accounts' form is built once a frame, as the Overview's sections are:
+// every look a frame Built of a moment takes, its page, how it scrolls, its
+// click targets and its bars filled, shares one drawing of Compare's body,
+// Detail's panel or a phone's stack, naming the windows no more often than
+// the page alone does; and its bars filled draw nothing.
+func TestAccountsFormIsBuiltOnceAFrame(t *testing.T) {
+	doc, page := phoneDoc(), phonePage(t)
+	tests := []struct {
+		name string
+		f    Frame
+	}{
+		{name: "Compare", f: compareFrame(t, threeFramed, *page)},
+		{name: "Detail", f: detailFrame(Screen(builtin(t, "nord")), threeFramed, "work", "", page, nil)},
+		{name: "a phone's Compare", f: phoneFrame(t, 48, AccountsCompare, "", page)},
+		{name: "a phone's Detail", f: phoneFrame(t, 41, AccountsDetail, "work", page)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			alone, drawn := namingCounted(tt.f)
+			alone.Built(doc, routedAt).Draw(doc, routedAt)
+			if *drawn == 0 {
+				t.Fatal("the page names no window, so counting tells nothing")
+			}
+			f, looked := namingCounted(tt.f)
+			built := f.Built(doc, routedAt)
+			built.Draw(doc, routedAt)
+			built.Scrolling(doc, routedAt)
+			built.Targets(doc, routedAt)
+			built.Filled(doc, routedAt)
+			if *looked != *drawn {
+				t.Errorf("the frame's looks named windows %d times, want %d, as its page alone does", *looked, *drawn)
+			}
+			f, filled := namingCounted(tt.f)
+			f.Built(doc, routedAt).Filled(doc, routedAt)
+			if *filled != 0 {
+				t.Errorf("its bars filled named windows %d times, want none: drawing nothing", *filled)
+			}
+		})
+	}
+}
+
+// namingCounted is the frame naming each window by its key, and how many
+// times it has named one.
+func namingCounted(f Frame) (Frame, *int) {
+	named := new(int)
+	f.WindowName = func(key string) string {
+		*named++
+		return key
+	}
+	return f, named
+}

@@ -3,6 +3,7 @@ package views
 import (
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -60,4 +61,11 @@ func CountingPrices(r LogRead, priced map[string]int) LogRead {
 // RowOfTold is the row of the request t, as the stream told of it, at now.
 func RowOfTold(t Told, now time.Time) RequestRow {
 	return toldRow(t, now)
+}
+
+// From is when the period begins at now, weeks starting on the day given: at
+// the start of its first local day.
+func (p AccountsPeriod) From(now time.Time, starts time.Weekday) time.Time {
+	start, _, _ := dayfile.Day(p.first(dayfile.CivilOf(now), starts).Format(time.DateOnly))
+	return start
 }

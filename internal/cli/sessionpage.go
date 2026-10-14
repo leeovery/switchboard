@@ -97,17 +97,17 @@ func startedSaid(p views.SessionPage, now time.Time) string {
 	return "started " + p.StartedSaid(now) + " · " + p.RanSaid(now)
 }
 
-// goesOrKept says, of the session p the router lists, where each of its
-// models goes, as "opus-5-5 → side   haiku-4-5 → side"; of one it doesn't,
-// until when the ledger keeps the lines of its first day, as views.KeptUntil
-// says it.
+// goesOrKept says, of the session p while it runs, as its Runs says, where
+// each of its models goes, as its Goes has them, as the page's row 7 names
+// them: "opus-5-5 → side   haiku-4-5 → side"; of one ended, until when the
+// ledger keeps the lines of its first day, as views.KeptUntil says it.
 func goesOrKept(p views.SessionPage, now time.Time) string {
-	if !p.Running {
+	if !p.Runs() {
 		return views.KeptUntil(p.KeptUntil, now)
 	}
-	goes := make([]string, len(p.Models))
-	for i, m := range p.Models {
-		goes[i] = ledger.ShortModelID(prose.Clean(m.Model)) + " → " + prose.Clean(m.Account)
+	goes := make([]string, len(p.Goes))
+	for i, g := range p.Goes {
+		goes[i] = ledger.ShortModelID(prose.Clean(g.Model)) + " → " + prose.Clean(g.Account)
 	}
 	return strings.Join(goes, "   ")
 }

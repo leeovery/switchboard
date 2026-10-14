@@ -147,16 +147,18 @@ func onItsOwnScale(values []float64, limits []int) []StripDay {
 
 // weeked sets the page's six weeks and each row's peaks and verdict, as
 // Weeks gives them of days at in's Now, and each account's left at its last
-// reset, as lastEnded tells its week's.
+// reset, as lastEnded tells its week's of the six weeks' days and the week
+// before them.
 func (page *AccountsPage) weeked(in HistoryInput, days []Day) {
 	weeks := Past{in: in, days: days}.weeksPage()
 	shown := len(weeks.Weeks) - accountsWeeks
 	page.Weeks = weeks.Weeks[shown:]
+	_, ended := splitAt(days, weeksTo(dayfile.CivilOf(in.Now), in.WeekStarts, accountsWeeks).AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	for x, a := range in.Accounts {
 		row := &page.Rows[x]
 		row.Peaks, row.Verdict = weeks.Accounts[x].Peaks[shown:], weeks.Accounts[x].AccountVerdict
 		row.WeekLeft, row.RanOut = nil, ""
-		if run, ok := lastEnded(accountDays(days, a.ID), in.WeekWindow); ok {
+		if run, ok := lastEnded(accountDays(ended, a.ID), in.WeekWindow); ok {
 			row.WeekLeft, row.RanOut = &run.left, run.ranOut
 		}
 	}

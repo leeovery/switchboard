@@ -16,12 +16,15 @@ import (
 // LogCard is the Log's details card of the line chosen, as enter opens it
 // over the page: a request's details, or an event's, as the watch builds
 // them of what it holds, afresh at each change, so the card follows each
-// read; how far its body is scrolled, where it hasn't the rows for it; and
-// how many rows it took as LogFitted placed it, by which it keeps its side
-// of its line as it grows, none where it's yet to be placed.
+// read; what the request stream tells as the card is drawn, which a request
+// in flight's details are drawn as, while the page behind stands still as
+// its own stream told it; how far its body is scrolled, where it hasn't the
+// rows for it; and how many rows it took as LogFitted placed it, by which it
+// keeps its side of its line as it grows, none where it's yet to be placed.
 type LogCard struct {
 	Request *views.RequestDetails
 	Event   *views.EventDetails
+	Stream  views.Stream
 	Scroll  int
 	Placed  int
 }
@@ -62,10 +65,17 @@ func (f Frame) logCardForm() cardForm {
 // is. Placed, it keeps the edge by its line where it was as it grows, as far
 // as the table's rows on that side, so its line never moves under it; its
 // body scrolls within it past the rows it has. Its line, wherever it's in
-// view, is left bright as the page fades behind it.
+// view, is left bright as the page fades behind it. A request in flight's
+// is as it stands at the moment drawn, as its row is, as the card's stream
+// tells it.
 func (c LogCard) card(f Frame) Card {
 	form := f.logCardForm()
 	m := f.heldMoment()
+	if c.Request != nil {
+		d := *c.Request
+		d.Row = d.Row.Live(c.Stream, m.Now)
+		c.Request = &d
+	}
 	body := c.body(form, m)
 	h := len(body) + chrome(true)
 	k := Card{titled: c.title(m), width: form.width}
@@ -83,7 +93,7 @@ func (c LogCard) card(f Frame) Card {
 	shown := min(max(room, 0), len(body))
 	from := min(max(c.Scroll, 0), len(body)-shown)
 	k.body, k.scroll = body[from:from+shown], cardScroll{above: from, below: len(body) - from - shown}
-	k.keys = c.keys(form.content, k.scroll != cardScroll{}, f.Session == nil)
+	k.keys = c.keys(form.content, k.scroll != cardScroll{}, f.Shown() != SessionPage)
 	return k
 }
 
@@ -716,7 +726,7 @@ func (f Frame) logLitRow() (int, bool) {
 // session's page, where one is open, its turn open's request chosen, as
 // turnLitRow has it; else the Log's line chosen, as logLitRow has it.
 func (f Frame) cardLine() (int, bool) {
-	if f.Session != nil {
+	if f.Shown() == SessionPage {
 		return f.turnLitRow()
 	}
 	return f.logLitRow()
@@ -726,7 +736,7 @@ func (f Frame) cardLine() (int, bool) {
 // session's page, where one is open, as turnCardRows has them; else the
 // Log's table's.
 func (f Frame) cardRows() (first, last int) {
-	if f.Session != nil {
+	if f.Shown() == SessionPage {
 		return f.turnCardRows()
 	}
 	return f.logTableRows()
@@ -762,7 +772,7 @@ func (f Frame) LogFitted(c LogCard) (LogPage, LogCard) {
 	c.Placed = len(c.body(f.logCardForm(), f.heldMoment())) + chrome(true)
 	first, last := f.cardRows()
 	to := last - 1 - c.Placed
-	if _, _, _, fits := f.logCardSpan(y, c.Placed); !ok || fits || to < first || f.Session != nil {
+	if _, _, _, fits := f.logCardSpan(y, c.Placed); !ok || fits || to < first || f.Shown() == SessionPage {
 		return f.Log, c
 	}
 	return f.Log.lifted(y-first, to-first, f.LogRows()), c

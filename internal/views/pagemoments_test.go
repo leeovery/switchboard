@@ -68,16 +68,16 @@ func TestWhatEachSessionsPageTellsAtEachHardMoment(t *testing.T) {
 }
 
 // shortened is what a session's doing, as its page says it on row 6, reads
-// as in SESSIONS' few cells, by rule 1's mapping: asking, throttled and
-// refused alike as a request still waiting, answering by its arrow, and
-// idle by its word.
+// as in SESSIONS' few cells: asking and throttled alike as a request still
+// waiting, answering by its arrow, and idle by its word, as refused reads
+// there too, having no word of its own.
 func shortened(said string) string {
 	switch {
-	case strings.HasPrefix(said, "↑ asking"), strings.HasPrefix(said, "… "), strings.HasPrefix(said, "✕ "):
+	case strings.HasPrefix(said, "↑ asking"), strings.HasPrefix(said, "… "):
 		return "↑ ask"
 	case strings.HasPrefix(said, "↓ answering"):
 		return "↓"
-	case strings.HasPrefix(said, "idle"):
+	case strings.HasPrefix(said, "idle"), strings.HasPrefix(said, "✕ "):
 		return "idle"
 	}
 	return said

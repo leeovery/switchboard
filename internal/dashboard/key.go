@@ -18,7 +18,7 @@ type glyph struct {
 // glyphs are the glyphs the key explains of the view shown: of Runway, its
 // legend's. A tab not built yet has none.
 func (f Frame) glyphs() [][]glyph {
-	if f.View == Runway {
+	if f.Shown() == Runway {
 		return [][]glyph{f.legendGlyphs()}
 	}
 	return nil

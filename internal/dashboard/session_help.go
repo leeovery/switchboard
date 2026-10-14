@@ -6,10 +6,7 @@ import "strconv"
 // it: Session on a session's page, else the tab's, as the title row names
 // it.
 func (f Frame) helpName() string {
-	if f.Session != nil {
-		return "Session"
-	}
-	return f.View.Title()
+	return f.Shown().Title()
 }
 
 // sessionHelp are a session's page's parts as help explains them, after its

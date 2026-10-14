@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,6 +143,28 @@ func TestASessionsCardClosesOnceItsSessionEnds(t *testing.T) {
 	}
 	if page := h.shownPage().Page; page.Runs() || len(h.source.orders) > 0 {
 		t.Errorf("listed no more, the page runs %t, orders %q; want it ended, sending nothing", page.Runs(), h.source.orders)
+	}
+}
+
+// A session's page under its card stands still, as the card found it, while
+// the card's session follows each look: the account it runs on, and where
+// auto would send it, as the router lists them since.
+func TestASessionsPageUnderItsCardStandsStill(t *testing.T) {
+	h := sessionPaged(t, "")
+	h.keyed("p")
+	under := h.view()
+	if !strings.Contains(under, "runs on Personal") || !strings.Contains(under, "Side for now") {
+		t.Fatalf("the card opened reads\n%s\nwant it running on personal, auto sending it to side", under)
+	}
+
+	h.source.sessions[0].Assignments[0].Account, h.source.sessions[0].Assignments[0].Auto = "work", "personal"
+	h.tickUntilAsked()
+	got := h.view()
+	if behindCard(got) != behindCard(under) {
+		t.Errorf("a look moved the session, and the page under its card reads\n%s\nwant it as the card opened over it\n%s", got, under)
+	}
+	if !strings.Contains(got, "runs on Work") || !strings.Contains(got, "Personal for now") {
+		t.Errorf("a look moved the session, and the card reads\n%s\nwant it running on work, auto sending it to personal", got)
 	}
 }
 

@@ -175,11 +175,13 @@ func (t latelyTeller) started(e status.Event, f eventFact) (Said, Said) {
 }
 
 // startedWhy says why a session started where it did, as started has it:
-// on the router's best, nothing, or ", the best" where best says so.
-func (t latelyTeller) startedWhy(e status.Event, f eventFact, best bool) status.Words {
+// on the router's best, as a new session's reason says it did, nothing, or
+// ", the best" where saysBest says to, the event's own fact whatever the
+// best is since.
+func (t latelyTeller) startedWhy(e status.Event, f eventFact, saysBest bool) status.Words {
 	switch prose.Clean(e.Reason) {
 	case "", status.ReasonNew:
-		if best {
+		if saysBest {
 			return clause(", the best")
 		}
 		return nil

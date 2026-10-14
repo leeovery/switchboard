@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -43,8 +44,9 @@ var compareOut = outForm{above: " above", below: " below", gap: " · ", keys: "j
 
 // compared is Compare as a frame lays it out of a moment: the accounts its
 // columns show, from the first shown, then all accounts'; each colw cells
-// wide; and the key of the accounts' own week, as the frame names it, which
-// WEEK USED shows.
+// wide; the key of the accounts' own week, as the frame names it, which
+// WEEK USED shows; and its rows drawn whole, once, for every look to share,
+// where it's laid out to draw wide, as comparing lays it out.
 type compared struct {
 	f     Frame
 	m     status.Moment
@@ -54,6 +56,7 @@ type compared struct {
 	shown int
 	colw  int
 	week  string
+	rows  func() *canvas
 }
 
 // compareColumn is a column of Compare: from column x, its values cut to
@@ -81,14 +84,17 @@ func (f Frame) compareForm(doc status.Document, now time.Time) accountsForm {
 	return accountsForm{draw: cp.draw, scrolling: cp.scrolling, scrolls: cp.scrolls, targets: cp.targets, filled: cp.filled}
 }
 
-// comparing is Compare of doc at now, laid out as the frame has it.
+// comparing is Compare of doc at now, laid out as the frame has it, its rows
+// drawn whole once, the first time a look asks.
 func (f Frame) comparing(doc status.Document, now time.Time) compared {
 	m := f.Moment(doc, now)
 	shown := f.compareShows()
-	return compared{
+	cp := compared{
 		f: f, m: m, now: now, page: f.Accounts.Page, first: f.compareFirst(), shown: shown,
 		colw: (f.Width - compareLabels) / (shown + 1), week: f.WeekWindow,
 	}
+	cp.rows = sync.OnceValue(func() *canvas { return cp.body(cp.columns()) })
+	return cp
 }
 
 // compareShows is how many accounts Compare shows a column of, beside all
@@ -187,9 +193,8 @@ func (col compareColumn) ink() ink {
 // under the heads, and over the key line, where they don't all show, how
 // many are out of view.
 func (cp compared) draw(c *canvas, top int) {
-	columns := cp.columns()
-	cp.heads(c, top, columns)
-	body := cp.body(columns)
+	cp.heads(c, top, cp.columns())
+	body := cp.rows()
 	content, rows := body.height(), cp.bodyRows()
 	offset := byRows(content, rows).clamped(cp.f.Scroll)
 	c.paste(body, offset, top+compareHeads, rows)
@@ -206,7 +211,7 @@ func (cp compared) bodyRows() int {
 // scrolling is how far Compare's rows scroll under its heads, a row at a
 // time, at every offset alike.
 func (cp compared) scrolling(int) Scrolling {
-	return byRows(cp.body(cp.columns()).height(), cp.bodyRows())
+	return byRows(cp.rows().height(), cp.bodyRows())
 }
 
 // scrolls is what of Compare scrolls: its rows under its heads, across the
@@ -446,7 +451,8 @@ type compareRow struct {
 
 // groups are Compare's groups under BY MODEL: ACTIVITY, LIMITS and VALUE, as
 // Accounts' words say each figure. A period with nothing recorded, as on a
-// fresh install, says a dash in every row, as period has it.
+// fresh install, says a dash in each of its own figures, as period has it;
+// left at its last reset, the plan and extra usage are none of them.
 func (cp compared) groups() []compareGroup {
 	page := *cp.page
 	names := cp.f.windowNamer(cp.m)
@@ -463,11 +469,11 @@ func (cp compared) groups() []compareGroup {
 		{name: "LIMITS", rows: []compareRow{
 			{"limits hit", cp.period(func(col compareColumn) []part { return limitsParts(col.row.Totals, names, col.ink()) })},
 			{"at cap or limit", cp.period(func(col compareColumn) []part { return atCapParts(col.row.Totals, col.ink()) })},
-			{"left at its last reset", cp.period(func(col compareColumn) []part { return leftParts(col.row, col.ink()) })},
+			{"left at its last reset", func(col compareColumn) []part { return leftParts(col.row, col.ink()) }},
 		}},
 		{name: "VALUE", rows: []compareRow{
-			{"plan", cp.period(func(col compareColumn) []part { return planParts(page, col.row, col.ink()) })},
-			{"extra usage", cp.period(cp.extra)},
+			{"plan", func(col compareColumn) []part { return planParts(page, col.row, col.ink()) }},
+			{"extra usage", cp.extra},
 			{"worth at API prices", cp.period(func(col compareColumn) []part { return worthParts(col.row, col.ink()) })},
 			{"against its price", cp.period(func(col compareColumn) []part { return againstParts(page, col.row) })},
 		}},

@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
@@ -104,6 +105,50 @@ func TestARereadWeekStartingOffTheFiledResetIsCountedOnce(t *testing.T) {
 	}
 }
 
+// Days that hold the filed reset and use read since it, the document giving
+// the run it reads a start after they were read, as Claude gives a reset to
+// the second or so, don't have that reset counted again: the run they read
+// since it is the document's, and the week had 0% left as it reset, never
+// the use since taken as a week ended at that start.
+func TestAFiledResetWithUseReadSinceIsntCountedAgainAtARunStartingAfterTheRead(t *testing.T) {
+	am := weekRisenToday(weekReadAs(weekResetsOff(accountsMoment(t, onceItsReFiled), "work", 90*time.Second), "work", 0.02), "work", 0.02)
+	page, _ := accountsAt(am)
+	if got := shareRead(rowOf(t, page, "work").WeekLeft); got != "0%" {
+		t.Errorf("read at %v, the week starting 21:01:30, work's week had %s left as it reset, want 0%%", am.Now.Format(time.TimeOnly), got)
+	}
+}
+
+// weekRisenToday is the moment am, today's day of its days holding the week
+// of the account with the given id risen the more given.
+func weekRisenToday(am viewstest.AccountsMoment, id string, more float64) viewstest.AccountsMoment {
+	days := slices.Clone(am.Days)
+	today := &days[len(days)-1]
+	today.Accounts = slices.Clone(today.Accounts)
+	for j, a := range today.Accounts {
+		if a.Account == id {
+			today.Accounts[j].Rise = maps.Clone(a.Rise)
+			today.Accounts[j].Rise[claude.WeekWindow] += more
+		}
+	}
+	am.Days = days
+	return am
+}
+
+// A page built after its days were read, stamped at its build, as the watch
+// builds one where the period steps, the day turns, or Accounts first shows
+// after History read them, folds a reset of a run begun since they were read
+// as one built as they landed does: the days are read when they were, not
+// when the page is built.
+func TestAPageBuiltAfterItsDaysWereReadFoldsAResetSinceAsOneBuiltAsTheyLanded(t *testing.T) {
+	am := accountsMoment(t, rereadUnfiled)
+	want, _ := accountsAt(accountsMoment(t, onceItsReFiled))
+	got := pastOf(am).Since(nil, am.Now).Accounts(am.Period).At(am.Doc.At(am.Now, claude.Policy))
+	if weeksSaid(got) != weeksSaid(want) {
+		t.Errorf("built at %v of days read at %v, the weeks say\n%s\nwant them as once the reset is filed\n%s",
+			am.Now.Format(time.TimeOnly), am.DaysRead.Format(time.TimeOnly), weeksSaid(got), weeksSaid(want))
+	}
+}
+
 // weekResetsOff is the moment am, its document reading the week of the
 // account with the given id to reset off as given.
 func weekResetsOff(am viewstest.AccountsMoment, id string, off time.Duration) viewstest.AccountsMoment {
@@ -193,6 +238,27 @@ func TestAWeekResetBeforeTheRereadOfNothingReadIsntFoldedIn(t *testing.T) {
 	}
 }
 
+// The week the router reads began with no reset the days hold, as the ledger
+// files none of a week it never read, of one of no use, or of one that
+// lapsed but at its own reset: on a fresh install, an account added
+// part-way through its week, a week that lapsed and one of no use before
+// it. That week ends none before it, so standing the page at its moment
+// leaves its weeks as built: no week closes at its start at its own use.
+func TestAWeekBegunWithNoResetTheDaysHoldEndsNoneBeforeIt(t *testing.T) {
+	for _, name := range []string{
+		"a fresh install", "an account added part-way through the period",
+		"a week lapsed before the one the router reads", "a week of no use before the one the router reads",
+	} {
+		t.Run(name, func(t *testing.T) {
+			am := accountsMoment(t, name)
+			built := builtOf(am)
+			if stood := built.At(am.Doc.At(am.Now, claude.Policy)); weeksSaid(stood) != weeksSaid(built) {
+				t.Errorf("standing the page, its weeks say\n%s\nwant them as built\n%s", weeksSaid(stood), weeksSaid(built))
+			}
+		})
+	}
+}
+
 // weekReadAs is the moment am, its document reading the week of the
 // account with the given id used as given.
 func weekReadAs(am viewstest.AccountsMoment, id string, used float64) viewstest.AccountsMoment {
@@ -253,5 +319,65 @@ func TestStandingThePageAtAResetLeavesTheBuiltPageAndThePeriodAsTheyWere(t *test
 			t.Errorf("row %d stood counts %+v, %+v and %v, want as built, %+v, %+v and %v", i,
 				row.Totals, row.Plan, row.Days, built.Rows[i].Totals, built.Rows[i].Plan, built.Rows[i].Days)
 		}
+	}
+}
+
+// A window a week long of a model's own, as Fable's week, reset since it was
+// read, leaves the page as it was built: Accounts' weeks are of the accounts'
+// own week alone, so nothing of it is worked out again.
+func TestAResetOfAWindowButTheAccountsWeekLeavesThePageAsBuilt(t *testing.T) {
+	am := accountsMoment(t, aSecondBefore)
+	fable := quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 0.5, ResetsAt: am.Now.Add(-15 * time.Second)}
+	am = withWindow(am, "work", fable)
+	built := views.NewPast(accountsIn(am), am.Days).Accounts(am.Period)
+	if stood := built.At(am.Doc.At(am.Now, claude.Policy)); &stood.Rows[0] != &built.Rows[0] {
+		t.Errorf("standing the page at Fable's week reset worked its rows out again, want the page as built")
+	}
+}
+
+// withWindow is the moment am, its document reading the window given of the
+// account with the given id, beside those it reads.
+func withWindow(am viewstest.AccountsMoment, id string, w quota.Window) viewstest.AccountsMoment {
+	am.Doc.Accounts = slices.Clone(am.Doc.Accounts)
+	for i, a := range am.Doc.Accounts {
+		if a.ID == id {
+			am.Doc.Accounts[i].Windows = append(slices.Clone(a.Windows), w)
+		}
+	}
+	return am
+}
+
+// Accounts' page, and Weeks', each stands alike at every moment of a
+// document from the one it's stood at till Until, at each of Accounts' hard
+// moments: a second before work's week resets, till the reset, after which
+// it stands otherwise, the week closed.
+func TestAPageStandsAlikeTillUntil(t *testing.T) {
+	for _, am := range viewstest.AccountsMoments() {
+		t.Run(am.Name, func(t *testing.T) {
+			page, weeks := builtOf(am), pastOf(am).Weeks()
+			m := am.Doc.At(am.Now, claude.Policy)
+			until := page.Until(m)
+			if got := weeks.Until(m); !got.Equal(until) || !until.After(am.Now) {
+				t.Fatalf("Weeks stands till %v, Accounts' page till %v, want them alike, after %v", got, until, am.Now)
+			}
+			stood, stoodWeeks := page.At(m), weeks.At(m)
+			for _, at := range []time.Time{am.Now.Add(until.Sub(am.Now) / 2), until.Add(-time.Millisecond)} {
+				later := am.Doc.At(at, claude.Policy)
+				if got := page.At(later); weeksSaid(got) != weeksSaid(stood) {
+					t.Errorf("at %v, before %v, Accounts' page stands\n%s\nwant as at %v\n%s", at, until, weeksSaid(got), am.Now, weeksSaid(stood))
+				}
+				if got := weeks.At(later); !reflect.DeepEqual(got.Accounts, stoodWeeks.Accounts) || !reflect.DeepEqual(got.Capacity, stoodWeeks.Capacity) {
+					t.Errorf("at %v, before %v, Weeks stands otherwise than at %v", at, until, am.Now)
+				}
+			}
+		})
+	}
+	am := accountsMoment(t, aSecondBefore)
+	page, m := builtOf(am), am.Doc.At(am.Now, claude.Policy)
+	if until, want := page.Until(m), am.Now.Add(time.Second); !until.Equal(want) {
+		t.Fatalf("a second before work's week resets, the page stands till %v, want %v", until, want)
+	}
+	if after := page.At(am.Doc.At(am.Now.Add(2*time.Second), claude.Policy)); weeksSaid(after) == weeksSaid(page.At(m)) {
+		t.Errorf("past work's week's reset, the page stands as it did before it, want the week closed")
 	}
 }

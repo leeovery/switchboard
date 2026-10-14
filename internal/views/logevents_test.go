@@ -180,7 +180,9 @@ func TestTheLogsEventsReadTheFilesOnceASpan(t *testing.T) {
 	}
 
 	yesterday := today.AddDate(0, 0, -1)
-	read = read.Back(files, yesterday).Back(files, yesterday).Back(files, today)
+	for _, first := range []time.Time{yesterday, yesterday, today} {
+		read = read.Took(read.Back(files, first))
+	}
 	want = append(want, span{from: yesterday.Add(-views.FactsReach), to: today.Add(-views.FactsReach)})
 	if !slices.Equal(asked, want) {
 		t.Errorf("reading back a day, and to it again, read the files over %v, want %v", asked, want)
@@ -263,13 +265,55 @@ func TestRefiledReadsTheFilesFromTheMomentGiven(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []string
-			for _, e := range read.Refiled(filed, tt.from, october(7, 11, 0)).Events() {
+			for _, e := range read.Took(read.Refiled(filed, tt.from, october(7, 11, 0))).Events() {
 				got = append(got, strconv.Itoa(e.Key.ID)+" "+e.Event.Account)
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("the events read are %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// What a read of the files finds is taken in beside the events looks took
+// in while it was under way, dropping none of them: each event found in
+// place of the version held, and the events reaching back as far as the
+// read did, never less far.
+func TestWhatTheFilesAreFoundToHoldIsTakenInBesideWhatLooksTookIn(t *testing.T) {
+	run := october(7, 8, 0)
+	room := func(id int, at time.Time, account string) events.Line {
+		return events.Line{ID: id, At: at, Kind: status.EventRoom, Account: account, Run: run}
+	}
+	asked := views.ReadEvents(nil, october(7, 0, 0), october(7, 10, 0)).Look(liveAt([]status.Event{room(1, october(7, 9, 0), "work").Event}, october(7, 10, 0)), run)
+	filed := filedLines{room(8, october(6, 12, 0), "personal"), room(1, october(7, 9, 0), "side"), room(2, october(7, 10, 0), "side")}
+	refiled, back := asked.Refiled(filed, october(7, 9, 0), october(7, 11, 0)), asked.Back(filed, october(6, 0, 0))
+	meanwhile := asked.Look(liveAt([]status.Event{room(3, october(7, 10, 30), "work").Event}, october(7, 10, 30)), run)
+	tests := []struct {
+		name  string
+		took  views.EventsRead
+		want  []string
+		since time.Time
+	}{
+		{name: "refiled", took: meanwhile.Took(refiled), want: []string{"1 side", "2 side", "3 work"}, since: views.EventsFrom(october(7, 0, 0))},
+		{name: "read back", took: meanwhile.Took(back), want: []string{"8 personal", "1 work", "3 work"}, since: views.EventsFrom(october(6, 0, 0))},
+		{name: "refiled, after reading back", took: meanwhile.Took(back).Took(refiled), want: []string{"8 personal", "1 side", "2 side", "3 work"}, since: views.EventsFrom(october(6, 0, 0))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, e := range tt.took.Events() {
+				got = append(got, strconv.Itoa(e.Key.ID)+" "+e.Event.Account)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("the events read are %q, want %q", got, tt.want)
+			}
+			if !tt.took.Since().Equal(tt.since) {
+				t.Errorf("the events begin at %s, want %s", tt.took.Since(), tt.since)
+			}
+		})
+	}
+	if got := len(meanwhile.Events()); got != 2 {
+		t.Errorf("taken in, what the files held changed the events it was taken into, now %d, want 2", got)
 	}
 }
 
@@ -303,7 +347,7 @@ func TestADocumentSkipsTheEventsBetweenItAndTheLastTakenIn(t *testing.T) {
 		{name: "another run's", read: looked, doc: told(5, 6), run: restarted},
 		{name: "telling of none", read: looked, doc: told(), run: run},
 		{name: "after one that told of none", read: read.Look(told(), run), doc: told(51, 52), run: run, skips: true},
-		{name: "refiled since", read: looked.Refiled(nil, october(7, 0, 0), october(7, 10, 0)), doc: told(5, 6), run: run, skips: true},
+		{name: "refiled since", read: looked.Took(looked.Refiled(nil, october(7, 0, 0), october(7, 10, 0))), doc: told(5, 6), run: run, skips: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

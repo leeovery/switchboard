@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -56,7 +57,8 @@ func (f Frame) phoneAccounts(doc status.Document, now time.Time) accountsForm {
 	case len(f.Accounts.Accounts) == 0:
 		return accountsForm{}
 	case f.Accounts.View() == AccountsCompare:
-		return f.stackForm(func() stack { return f.turned(doc, now).turnedWhole() })
+		cp := f.turned(doc, now)
+		return f.stackForm(cp.turnedWhole, cp.filled)
 	}
 	return f.detailPhoneBody(doc, now)
 }
@@ -65,27 +67,29 @@ func (f Frame) phoneAccounts(doc status.Document, now time.Time) accountsForm {
 // and as Detail's body where the frame is too narrow for its wide form,
 // under the wide chrome.
 func (f Frame) detailPhoneBody(doc status.Document, now time.Time) accountsForm {
-	return f.stackForm(func() stack { return f.stackedOf(doc, now).whole() })
+	s := f.stackedOf(doc, now)
+	return f.stackForm(s.whole, s.filled)
 }
 
 // stack is a phone's view drawn whole: its rows, on a canvas the frame's
-// width; the zones of them a click acts on, by their rows on it; and how much
-// of each bar it draws it fills, as Filled has them.
+// width; and the zones of them a click acts on, by their rows on it.
 type stack struct {
 	c       *canvas
 	targets []Target
-	filled  map[Ref]float64
 }
 
-// stackForm is the form of the stack drawn whole as drawn draws it: as many
-// of its rows as the view has, from as far down as the frame has it
-// scrolled, a row at a time.
-func (f Frame) stackForm(drawn func() stack) accountsForm {
+// stackForm is the form of the stack drawn whole as drawn draws it, drawn
+// once, the first time a look asks, for every look to share: as many of its
+// rows as the view has, from as far down as the frame has it scrolled, a row
+// at a time; and how much of each bar it draws it fills, as filled has them
+// without drawing it.
+func (f Frame) stackForm(drawn func() stack, filled func() map[Ref]float64) accountsForm {
+	drawn = sync.OnceValue(drawn)
 	return accountsForm{
 		draw:      func(c *canvas, top int) { f.drawStack(c, drawn(), top) },
 		scrolling: func(int) Scrolling { return byRows(drawn().c.height(), f.viewRows()) },
 		targets:   func() []Target { return f.stackTargets(drawn()) },
-		filled:    func() map[Ref]float64 { return drawn().filled },
+		filled:    filled,
 	}
 }
 
@@ -137,7 +141,7 @@ func (cp compared) turnedWhole() stack {
 			y = cp.turnedGroup(c, y+partsApart, g, columns)
 		}
 	}
-	return stack{c: c, filled: cp.filled()}
+	return stack{c: c}
 }
 
 // turnedName is the column's name as a phone's row heads it, from
@@ -223,8 +227,8 @@ type turnedColumn struct {
 // turnedGroups are a phone's Compare's groups under BY MODEL, ACTIVITY,
 // LIMITS and VALUE, each column at its place, as Accounts' words say each
 // figure in their short forms, a window of hours named by them, as 5h. A
-// period with nothing recorded, as on a fresh install, says a dash in every
-// row, as period has it.
+// period with nothing recorded, as on a fresh install, says a dash in each
+// of its own figures, as period has it; left and the plan are none of them.
 func (cp compared) turnedGroups() []turnedGroup {
 	limits := shortWindows(cp.f.windowNamer(cp.m))
 	return []turnedGroup{
@@ -240,10 +244,10 @@ func (cp compared) turnedGroups() []turnedGroup {
 		{name: "LIMITS", columns: []turnedColumn{
 			{turnedAt, "hit", cp.period(func(col compareColumn) []part { return limitsParts(col.row.Totals, limits, col.ink()) })},
 			{26, "at cap", cp.period(func(col compareColumn) []part { return atCapParts(col.row.Totals, col.ink()) })},
-			{36, "left", cp.period(func(col compareColumn) []part { return leftShort(col.row, col.ink()) })},
+			{36, "left", func(col compareColumn) []part { return leftShort(col.row, col.ink()) }},
 		}},
 		{name: "VALUE", columns: []turnedColumn{
-			{turnedAt, "plan", cp.period(func(col compareColumn) []part { return planPriced(col.row, col.ink()) })},
+			{turnedAt, "plan", func(col compareColumn) []part { return planPriced(col.row, col.ink()) }},
 			{26, "worth", cp.period(func(col compareColumn) []part { return worthParts(col.row, col.ink()) })},
 			{36, "against it", cp.period(func(col compareColumn) []part { return againstShort(col.row) })},
 		}},
@@ -315,7 +319,7 @@ func (s stacked) whole() stack {
 	y += partsApart
 	c.line(0, y, line{{"LATELY", dimInk}})
 	s.lately(c, y+1, 0, stackLatelyWords)
-	return stack{c: c, targets: targets, filled: s.filled()}
+	return stack{c: c, targets: targets}
 }
 
 // picker draws the picker along row y: the account shown, or all accounts,
@@ -382,19 +386,20 @@ func (s stacked) thisWeek(c *canvas, y int) int {
 // Accounts say them, in text.secondary: the requests, the limits, by window,
 // or all accounts' how many, and the plan, by its name, or all accounts'
 // summed; then the worth, the extra usage of the accounts shown, and the
-// worth against the plan's price. Each is as periodParts says it, a dash
-// where the period records nothing.
+// worth against the plan's price. Each of the period's figures is as
+// periodParts says it, a dash where the period records nothing; the plan
+// and extra use are none of them.
 func (s stacked) thisWeekItems() [][]thisWeekItem {
 	totals, page := s.row.Totals, *s.page
 	return [][]thisWeekItem{
 		{
 			{"requests", periodParts(page, []part{figureIn(prose.Grouped(totals.Requests), secondaryInk)}, secondaryInk)},
 			{"limits", periodParts(page, limitsParts(totals, s.f.windowNamer(s.m), secondaryInk), secondaryInk)},
-			{"plan", periodParts(page, planNamed(s.row, secondaryInk), secondaryInk)},
+			{"plan", planNamed(s.row, secondaryInk)},
 		},
 		{
 			{"worth", periodParts(page, worthParts(s.row, secondaryInk), secondaryInk)},
-			{"extra use", periodParts(page, extraShort(s.extra()), secondaryInk)},
+			{"extra use", extraShort(s.extra())},
 			{"against", periodParts(page, againstShort(s.row), secondaryInk)},
 		},
 	}

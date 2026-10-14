@@ -119,8 +119,8 @@ func TestAnAccountsExtraUsageIsOnWhileItsStatusIsntRejected(t *testing.T) {
 }
 
 // Every account's extra usage, taken together, counts those read on, of
-// every account: on where any is, off where those read are all off, and not
-// read where none is.
+// every account: on where any is, off where every one is read off, and not
+// read otherwise, as off claims every account is, and one not read may be on.
 func TestEveryAccountsExtraUsageTakenTogether(t *testing.T) {
 	on, off, unread := quota.ExtraUsage{Status: quota.StatusAllowed}, quota.ExtraUsage{Status: quota.StatusRejected}, quota.ExtraUsage{}
 	tests := []struct {
@@ -132,7 +132,7 @@ func TestEveryAccountsExtraUsageTakenTogether(t *testing.T) {
 		{name: "off on all", extra: []quota.ExtraUsage{off, off, off}, want: status.AllExtra{State: status.ExtraOff, Of: 3}},
 		{name: "on on all", extra: []quota.ExtraUsage{on, on, on}, want: status.AllExtra{State: status.ExtraOn, On: 3, Of: 3}},
 		{name: "one on, one off, one not read", extra: []quota.ExtraUsage{off, on, unread}, want: status.AllExtra{State: status.ExtraOn, On: 1, Of: 3}},
-		{name: "those read off, one not read", extra: []quota.ExtraUsage{off, unread, off}, want: status.AllExtra{State: status.ExtraOff, Of: 3}},
+		{name: "those read off, one not read", extra: []quota.ExtraUsage{off, unread, off}, want: status.AllExtra{State: status.ExtraNotRead, Of: 3}},
 		{name: "the one read on, two not read", extra: []quota.ExtraUsage{unread, unread, on}, want: status.AllExtra{State: status.ExtraOn, On: 1, Of: 3}},
 	}
 	for _, tt := range tests {
@@ -161,6 +161,7 @@ func TestTheExtraUsageOfTheAccountsAskedForCountsThoseTheMomentLacksNotRead(t *t
 	}{
 		{name: "one the moment lacks", ids: []string{"work", "personal", "side", "added"}, want: status.AllExtra{State: status.ExtraOn, On: 1, Of: 4}},
 		{name: "one the moment holds not asked for", ids: []string{"personal", "side"}, want: status.AllExtra{State: status.ExtraOff, Of: 2}},
+		{name: "one the moment lacks, the rest read off", ids: []string{"personal", "side", "added"}, want: status.AllExtra{State: status.ExtraNotRead, Of: 3}},
 		{name: "the one asked for, the moment lacks", ids: []string{"added"}, want: status.AllExtra{State: status.ExtraNotRead, Of: 1}},
 	}
 	for _, tt := range tests {

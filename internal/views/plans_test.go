@@ -1,7 +1,7 @@
 package views_test
 
 import (
-	"slices"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -120,25 +120,30 @@ func TestAPlansCostIsProratedAsThePeriodAskedFor(t *testing.T) {
 	}
 }
 
-// Asked for from today, on the week's first day, the days are this week, as
-// Accounts opens on it: the plans cost a week, as the same document's tokens
-// price this week's row and Accounts' this week, not a day.
-func TestOnTheWeeksFirstDayTheDaysAskedForFromTodayAreThisWeek(t *testing.T) {
+// On the week's first day, today and this week begin together: the days
+// asked for from it are the longer, this week, Accounts' own to begin with,
+// priced a week, as Accounts' this week and the tokens' row of it are.
+// Accounts' today, priced a day, is the one period history can't be asked
+// for by its first day.
+func TestOnTheWeeksFirstDayTheDaysAskedForFromItAreThisWeek(t *testing.T) {
 	monday := on("2026-10-05").Add(15 * time.Hour)
 	days := daysTo("2026-10-01", monday, day("2026-10-05", account("work", sent("claude-opus-5-5", 1, inputUsage))))
 	in := input(days)
 	in.From, in.Now = on("2026-10-05"), monday
 	history := views.NewHistory(in)
-	accounts := views.NewPast(in, days).Accounts(views.AccountsThisWeek)
-
-	week := "50.769230769231"
-	got := []string{
-		jsonOf(t, history.Plans[len(history.Plans)-1].Cost),
-		jsonOf(t, history.Tokens[len(history.Tokens)-1].Cost),
-		jsonOf(t, accounts.All.Plan.Cost),
+	past := views.NewPast(in, days)
+	got := map[string]string{
+		"history's plans":     jsonOf(t, history.Plans[len(history.Plans)-1].Cost),
+		"its tokens' row":     jsonOf(t, history.Tokens[len(history.Tokens)-1].Cost),
+		"Accounts' this week": jsonOf(t, past.Accounts(views.AccountsThisWeek).All.Plan.Cost),
+		"Accounts' today":     jsonOf(t, past.Accounts(views.AccountsToday).All.Plan.Cost),
 	}
-	if !slices.Equal(got, []string{week, week, week}) {
-		t.Errorf("the plans, this week's tokens and Accounts' this week cost %v, want each %s, a week", got, week)
+	want := map[string]string{
+		"history's plans": "50.769230769231", "its tokens' row": "50.769230769231",
+		"Accounts' this week": "50.769230769231", "Accounts' today": "7.232876712328",
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("asked for from the week's first day, on it, the plans cost %v, want %v", got, want)
 	}
 }
 

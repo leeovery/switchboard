@@ -61,13 +61,20 @@ type upstream struct {
 // check, a count of tokens or one the router answered itself.
 func (t Traces) Read(lines []ledger.Held, now time.Time) Traces {
 	var sent []upstream
-	for _, l := range lines {
-		line := l.Line
-		if u, ok := lineUpstream(&line); ok {
-			sent = append(sent, u)
+	for i := range lines {
+		if u, ok := lineUpstream(&lines[i].Line); ok {
+			sent = append(sent, u.detached())
 		}
 	}
 	return t.count(sent, now)
+}
+
+// detached is u holding a line of its own, a copy of the one it was read
+// from, so the traces keep none of the lines it was read among.
+func (u upstream) detached() upstream {
+	line := *u.line
+	u.line = &line
+	return u
 }
 
 // Told is t with the requests the stream told of counted at now: those that

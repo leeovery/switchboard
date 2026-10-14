@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"slices"
@@ -28,11 +29,25 @@ func accountsIn(am viewstest.AccountsMoment) views.HistoryInput {
 }
 
 // accountsAt is Accounts' page at the moment am, as the watch has it: built
-// of the moment's days, for its period, then stood at its moment; and the
-// moment.
+// of the moment's days, for its period, as they were read, then stood at its
+// moment; and the moment.
 func accountsAt(am viewstest.AccountsMoment) (views.AccountsPage, status.Moment) {
 	m := am.Doc.At(am.Now, claude.Policy)
-	return views.NewPast(accountsIn(am), am.Days).Accounts(am.Period).At(m), m
+	return builtOf(am).At(m), m
+}
+
+// builtOf is Accounts' page of the moment am's days, for its period, built
+// as they were read, as pastOf has them.
+func builtOf(am viewstest.AccountsMoment) views.AccountsPage {
+	return pastOf(am).Accounts(am.Period)
+}
+
+// pastOf is the Past of the moment am's days, as they were read, at its
+// DaysRead, else its Now.
+func pastOf(am viewstest.AccountsMoment) views.Past {
+	in := accountsIn(am)
+	in.Now = cmp.Or(am.DaysRead, am.Now)
+	return views.NewPast(in, am.Days)
 }
 
 // rowOf is the page's row of the account with the given id, or every
