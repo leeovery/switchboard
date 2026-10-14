@@ -159,7 +159,7 @@ func TestTheFindsPickFiltersBothTablesToItsSessionAlone(t *testing.T) {
 	if got.Finding.Open {
 		t.Error("the find is open still, want it closed")
 	}
-	if said := got.filterNames().said().plain(); said != "only 7f3a" {
+	if said := got.filterNames(func(id string) string { return id }).said().plain(); said != "only 7f3a" {
 		t.Errorf("the heading says %q of the filter, want only 7f3a", said)
 	}
 }

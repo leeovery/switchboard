@@ -467,9 +467,10 @@ func (p LogPage) oldest() *views.OldestDay {
 
 // heading is the Log's heading row, on a phone where phone says, width cells
 // wide: its name and its sub-tabs, the one shown picked out, and what the
-// filter keeps, as the heading says it; at its right, the table's count, as
-// logHeadingRight picks its form, or on a phone, as phone has it.
-func (p LogPage) heading(phone bool, width int) heading {
+// filter keeps, as the heading says it, each account named as name names it;
+// at its right, the table's count, as logHeadingRight picks its form, or on
+// a phone, as phone has it.
+func (p LogPage) heading(phone bool, width int, name func(id string) string) heading {
 	h := heading{name: strings.ToUpper(Log.Title()), subTabs: logViews, shown: int(p.Shown)}
 	if !p.Read {
 		return h
@@ -479,7 +480,7 @@ func (p LogPage) heading(phone bool, width int) heading {
 		h.right = count.phone()
 		return h
 	}
-	h.state = p.filterNames().said()
+	h.state = p.filterNames(name).said()
 	h.right = logHeadingRight(count.forms(), h.state, width-h.named(new(laying), 0, false))
 	return h
 }
@@ -518,27 +519,33 @@ func kindsNamed(kinds []views.RowKind) string {
 // ticks, and whether it keeps those that failed alone; of the Events', the
 // sessions and accounts it ticks. The kinds it ticks the heading's count
 // says. A session is named by its id and directory, as a row of it does,
-// else its id alone; an account by its id; a model by its id less claude-.
-func (p LogPage) filterNames() logFilterNames {
+// else its id alone; an account as name names it, as the rows name it; a
+// model by its id less claude-.
+func (p LogPage) filterNames(name func(id string) string) logFilterNames {
 	if p.Shown == LogEvents {
-		return logFilterNames{sessions: p.sessionsNamed(p.Shows.Sessions), accounts: p.Shows.Accounts}
+		return logFilterNames{sessions: namedEach(p.Shows.Sessions, p.sessionNamed), accounts: namedEach(p.Shows.Accounts, name)}
 	}
 	f := p.Filter
-	names := logFilterNames{sessions: p.sessionsNamed(f.Sessions), accounts: f.Accounts, failed: f.Failed}
+	names := logFilterNames{sessions: namedEach(f.Sessions, p.sessionNamed), accounts: namedEach(f.Accounts, name), failed: f.Failed}
 	for _, m := range f.Models {
 		names.models = append(names.models, ledger.ShortModelID(prose.Clean(m)))
 	}
 	return names
 }
 
-// sessionsNamed names the sessions with the given ids as sessionNamed does,
-// each by its directory as dirOf finds it.
-func (p LogPage) sessionsNamed(ids []string) []string {
+// namedEach is each of the ids, named as name names it.
+func namedEach(ids []string, name func(id string) string) []string {
 	var named []string
 	for _, id := range ids {
-		named = append(named, sessionNamed(id, p.dirOf(id)))
+		named = append(named, name(id))
 	}
 	return named
+}
+
+// sessionNamed names the session with the given id as sessionNamed does,
+// by its directory as dirOf finds it.
+func (p LogPage) sessionNamed(id string) string {
+	return sessionNamed(id, p.dirOf(id))
 }
 
 // dirOf is the directory of the session with the given id as the Requests'

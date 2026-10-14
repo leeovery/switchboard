@@ -73,6 +73,10 @@ func TestThePausedStateLineCountsTheLinesComeSince(t *testing.T) {
 	}
 }
 
+// labelledWork is the router's document of work, labelled Work, and side,
+// where new sessions go.
+var labelledWork = routerDoc("side", 0, status.Account{ID: "work", Label: "Work", TokenSet: true}, status.Account{ID: "side", TokenSet: true})
+
 // The heading row names the Log, its sub-tabs and what its filter keeps,
 // and at its right, the table's count: of Requests, today's lines hidden,
 // and by what where one thing alone hides them; of Events, today's; on a
@@ -84,6 +88,8 @@ func TestTheLogsHeadingSaysWhatTheTableHides(t *testing.T) {
 	hidden := requestsOf(src, []ledger.Line{asked("1", logDay), checked})
 	filtered := hidden
 	filtered.Filter.Accounts = []string{"side"}
+	onWork := hidden
+	onWork.Filter.Accounts = []string{"work"}
 	eventsFiltered := hidden.Turned(1)
 	eventsFiltered.Shows.Accounts = []string{"work"}
 	sessionsEvents := eventsOfItsSession(views.LogFilter{Accounts: []string{"work"}})
@@ -98,7 +104,8 @@ func TestTheLogsHeadingSaysWhatTheTableHides(t *testing.T) {
 		{name: "a check hidden", page: hidden, width: 120, starts: "LOG    Requests  Events  [ ]  ─", ends: "─  1 hidden: checks   f what it shows"},
 		{name: "filtered", page: filtered, width: 120, starts: "LOG    Requests  Events  [ ]   only side ─", ends: "─  1 hidden: checks   f what it shows"},
 		{name: "events", page: hidden.Turned(1), width: 120, starts: "LOG    Requests  Events  [ ]  ─", ends: "─  0 today   f what it shows"},
-		{name: "events filtered by their own panel", page: eventsFiltered, width: 120, starts: "LOG    Requests  Events  [ ]   only work ─", ends: "─  0 today   f what it shows"},
+		{name: "filtered to an account, named by its label", page: onWork, width: 120, starts: "LOG    Requests  Events  [ ]   only Work ─", ends: "─  1 hidden: checks   f what it shows"},
+		{name: "events filtered by their own panel", page: eventsFiltered, width: 120, starts: "LOG    Requests  Events  [ ]   only Work ─", ends: "─  0 today   f what it shows"},
 		{name: "events, the Requests alone filtered", page: filtered.Turned(1), width: 120, starts: "LOG    Requests  Events  [ ]  ─", ends: "─  0 today   f what it shows"},
 		{
 			name: "events filtered to a session the Requests show none of, named by its directory as its event is", page: sessionsEvents, width: 120,
@@ -109,7 +116,7 @@ func TestTheLogsHeadingSaysWhatTheTableHides(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := logFrameOf(tt.page, tt.width, 24)
-			got := textOf(f.Draw(routerDoc("side", 0), logDayNoon))[f.headingY()]
+			got := textOf(f.Draw(labelledWork, logDayNoon))[f.headingY()]
 			if !strings.HasPrefix(got, tt.starts) || !strings.HasSuffix(got, tt.ends) || utf8.RuneCountInString(got) != tt.width {
 				t.Errorf("the heading row reads\n%q\nwant it to start %q and end %q, at the last column", got, tt.starts, tt.ends)
 			}
