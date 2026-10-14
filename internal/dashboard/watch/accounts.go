@@ -142,10 +142,10 @@ var accountsSteps = map[string]int{"[": -1, "]": 1, "<": -1, ">": 1, "left": -1,
 // ] turn the sub-tab, and < and > step the period, as Turned and Stepped have
 // them; ← and → move Compare's focus, or Detail's ↑ and ↓ between its list
 // and its SESSIONS, as Moved has it; ↑ and ↓ choose in Detail, as Choosing
-// has it; and enter opens, on Compare, the column focused in Detail, as
-// Opened has it, and on Detail, the page of the session selected, as
-// openSelected has it. A key that changes what's shown shows it as
-// showAccounts has it.
+// has it; enter opens, on Compare, the column focused in Detail, as Opened
+// has it, and on Detail, the page of the session selected, as openSelected
+// has it; and esc ends Compare's focus, as Unfocused has it. A key that
+// changes what's shown shows it as showAccounts has it.
 func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 	if m.view != dashboard.Accounts {
 		return m, nil, false
@@ -168,6 +168,8 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 			return opened, cmd, true
 		}
 		next, changed = s.Opened()
+	case "esc":
+		next, changed = s.Unfocused()
 	default:
 		return m, nil, false
 	}

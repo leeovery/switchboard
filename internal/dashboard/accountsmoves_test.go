@@ -128,6 +128,23 @@ func TestEnterOpensComparesFocusedColumnInDetail(t *testing.T) {
 	}
 }
 
+// esc ends Compare's focus, its columns staying where they are; with no
+// column focused, or on Detail, it does nothing.
+func TestEscEndsComparesFocusWhereTheColumnsAre(t *testing.T) {
+	focused := AccountsShown{Accounts: tenConfigured(), Focused: true, Focus: "acct-7", First: 1}
+	if got, ok := focused.Unfocused(); !ok || got.Focused || got.Focus != "" || got.First != 1 {
+		t.Errorf("Unfocused() = %+v, %v; want no focus, the columns from the 2nd still", got, ok)
+	}
+	for _, s := range []AccountsShown{
+		{Accounts: threeConfigured},
+		{Shown: AccountsDetail, Accounts: threeConfigured, Focused: true, Focus: "side"},
+	} {
+		if got, ok := s.Unfocused(); ok || got.Focused != s.Focused {
+			t.Errorf("Unfocused() of %+v = %+v, %v; want nothing", s, got, ok)
+		}
+	}
+}
+
 // ↑ and ↓ on Detail choose an account in its list, all accounts first, no
 // further than either end, a choice of another account selecting its first
 // session; in its SESSIONS, and with one account, which has no list, they

@@ -101,6 +101,17 @@ func (s AccountsShown) Opened() (AccountsShown, bool) {
 	return s.chose(s.Focus), true
 }
 
+// Unfocused is Accounts with Compare's focus ended, as esc ends a choice, its
+// columns where they are (settled in the plan). It reports false where no
+// column is focused, or off Compare.
+func (s AccountsShown) Unfocused() (AccountsShown, bool) {
+	if s.View() != AccountsCompare || !s.Focused {
+		return s, false
+	}
+	s.Focused, s.Focus = false, ""
+	return s, true
+}
+
 // Choosing is Accounts with ↑ or ↓ pressed on Detail, by -1 or 1, running
 // being the sessions running on the account it shows, by id, in its
 // SESSIONS' order: in its SESSIONS, or with one account, which has no list,

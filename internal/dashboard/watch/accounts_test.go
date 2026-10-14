@@ -329,6 +329,20 @@ func TestComparesFocusMovesAlongItsColumnsAndEnterOpensItInDetail(t *testing.T) 
 	}
 }
 
+// esc ends Compare's focus, which enter then has nothing to open of, the
+// columns staying where they are; and on Detail it does nothing.
+func TestEscEndsComparesFocus(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{})
+	h.keys(rightKey, escKey, enterKey)
+	if s := h.model.accounts.shown; s.Focused || s.View() != dashboard.AccountsCompare {
+		t.Fatalf("→ esc enter left the focus %v on %q, showing %d; want no focus, Compare", s.Focused, s.Focus, s.View())
+	}
+	h.keys(rightKey, enterKey, escKey)
+	if s := h.model.accounts.shown; s.View() != dashboard.AccountsDetail || !s.Focused || s.Focus != "work" {
+		t.Errorf("→ enter esc showed %d, Compare focused %v on %q; want Detail, Compare's focus held on work", s.View(), s.Focused, s.Focus)
+	}
+}
+
 // A frame too narrow for the columns Compare showed its focus among scrolls
 // them on to show it: ten accounts focused on acct-7 at 160 columns, six
 // showing, show acct-4 to acct-7 at 122, four showing, as the heading says.
