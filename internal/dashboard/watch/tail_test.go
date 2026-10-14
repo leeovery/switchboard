@@ -198,6 +198,27 @@ func TestASessionsPagesReadAndTheTailsReadNeverRunTogether(t *testing.T) {
 	})
 }
 
+// A session's page closed while a read of the ledger's tail that grows it is
+// under way takes nothing in as it lands: no page opens again, and the Log
+// behind it, grown by the read as ever, shows what it gained.
+func TestASessionsPageClosedAsTheTailIsReadForItTakesNothingIn(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	h.openPage(idD28C)
+
+	gained := arrived("0a000002", "side", -4*time.Minute)
+	writeLines(t, state, gained)
+	tail := h.readingTheTail()
+	h.keys(escKey)
+	h.deliver(h.run(tail)...)
+	if got := h.model.log.read.WrittenTo(); h.model.session != nil || !got.Equal(gained.At) {
+		t.Errorf("the read landed, a page open %t, the Log's read written to %s; want no page, the Log's read to %s", h.model.session != nil, got, gained.At)
+	}
+}
+
 // Past midnight, a session's page takes in what its session's day before
 // gained after the tail last read it: the day read again whole at the first
 // look past the turn, then again as the stream tells a request across
