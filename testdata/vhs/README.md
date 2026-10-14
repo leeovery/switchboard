@@ -487,6 +487,10 @@ frames):
 
 **Accounts, where its frames and the design part** (see Accounts in `docs/design.md`):
 
+- **`[ ]` after Detail alone,** on `accounts-detail-one-160`'s heading row, row 5, columns 21 to 25,
+  where with one account the heading shows ` Detail ` alone, with no sub-tabs and so no `[ ]`
+  (1834–1835, 1947): the dashboard draws the rule two cells after ` Detail `.
+
 - **`▲` after side,** where new sessions go, which the frames mark, where Accounts and History show
   no routing (1744–1745), as History's frames pass it over: on Compare's heads, row 7, column 100
   of `accounts-compare-160`, `accounts-compare-bad-hour-160` and `accounts-compare-month-160`, and

@@ -833,7 +833,7 @@ var passedOver = map[string][]passing{
 	),
 	"accounts-detail-one-160": slices.Concat(
 		[]passing{
-			period(150, "this week"), cellsOf(7, 8, 8, "▲"), evenPace(10, 35), wordsAt(10, 111, "1,204"), evenPace(12, 36),
+			cellsOf(5, 21, 25, "[ ]"), period(150, "this week"), cellsOf(7, 8, 8, "▲"), evenPace(10, 35), wordsAt(10, 111, "1,204"), evenPace(12, 36),
 			wordsAt(13, 111, "$184  4.0×"), evenPace(14, 36), blankCells(16, 13, 143), cellsOf(17, 13, 143, "● Opus 5.5 60%"),
 		},
 		byDays(21, 3, 13, 28, 31, 35, 38, 44, 47, 53, 72, 75, 91, 94, 104, 116, 119, 126, 129, 132),
