@@ -404,6 +404,30 @@ func TestAChoiceWaitsForProbesEightSecondsAtMost(t *testing.T) {
 	})
 }
 
+func TestAChoiceIsMadeAgainOnAWindowThatResetWhileItWaitedForProbes(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		began := time.Now()
+		read := start.Add(-20 * time.Minute)
+		prober := &stubProber{gate: make(chan struct{})}
+		r := newTestRouter(t, func() time.Time { return read.Add(time.Since(began)) }, prober)
+		defer r.probes.stop()
+		spentResetting := func(at time.Time) quota.Window {
+			return quota.Window{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: at, Status: quota.StatusRejected}
+		}
+		r.state.record("work", []quota.Window{spentResetting(start.Add(4 * time.Second)), laterWeek}, r.state.mark())
+		r.state.record("side", []quota.Window{spentResetting(start.Add(3 * time.Hour)), soonWeek}, r.state.mark())
+		time.Sleep(start.Sub(read))
+
+		got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "side"})
+		if want := (Choice{Account: "work", Reason: "new", New: true}); got != want {
+			t.Errorf("Choose() = %+v, want %+v: work's session window reset while the choice waited for probes that never ended", got, want)
+		}
+		if got, want := prober.counts(), map[string]int{workToken: 1, sideToken: 1}; !maps.Equal(got, want) {
+			t.Errorf("probes = %v, want %v", got, want)
+		}
+	})
+}
+
 func TestAChoiceStopsWaitingForProbesWhenItsClientGoes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		r := newTestRouter(t, at(start), &stubProber{gate: make(chan struct{})})
