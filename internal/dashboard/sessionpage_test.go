@@ -723,8 +723,8 @@ func TestASessionsPageOverTheLogTargetsNoneOfTheLogsLines(t *testing.T) {
 
 // Nothing travels a session's page, nor is a bar eased on it, nor a number
 // the request stream changes; row 7's windows are the account's own
-// numbers, which brighten as a look changes them, and move the frame while
-// they settle.
+// numbers, and its accounts' points the session's, which brighten as a look
+// changes them, and move the frame while they settle.
 func TestWhatMovesOnASessionsPage(t *testing.T) {
 	doc := threeRouted()
 	f := switchboard(160, 40, flippingSessions(), Traffic{Live: true, Calls: map[Plug]Call{
@@ -746,8 +746,14 @@ func TestWhatMovesOnASessionsPage(t *testing.T) {
 	}
 	page := pageFrame(t, moved(), 160, 37)
 	side5h := Number{Kind: NumberUsed, Account: "side", Of: "5h"}
-	if got := page.Numbers(pageDoc(), sessionNow); got[side5h] != "13%" {
-		t.Errorf("the page's numbers are %v, want side's 5-hour, 13%%, among them", got)
+	numbers := page.Numbers(pageDoc(), sessionNow)
+	if numbers[side5h] != "13%" {
+		t.Errorf("the page's numbers are %v, want side's 5-hour, 13%%, among them", numbers)
+	}
+	for _, n := range []Number{{Kind: NumberPoints, Account: "work", Of: "5h"}, {Kind: NumberPoints, Account: "side", Of: "7d"}} {
+		if numbers[n] == "" {
+			t.Errorf("the page's numbers are %v, want the points %+v the session took among them, as a look reads them", numbers, n)
+		}
 	}
 	page.Brightened = map[Number]float64{side5h: 0.5}
 	if got := page.Motion(pageDoc(), sessionNow); got != (Motion{Smooth: true}) {

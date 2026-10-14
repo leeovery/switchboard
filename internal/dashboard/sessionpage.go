@@ -395,16 +395,17 @@ func (d sessionDrawn) account(c *canvas, y int, s views.Stay) {
 }
 
 // points are the points of the account's windows the session took, in
-// form, the points bold text.primary and the rest text.muted: as many
-// windows as fit whole in room cells.
+// form, the points bold text.primary, each window's numbered, and the rest
+// text.muted: as many windows as fit whole in room cells.
 func (d sessionDrawn) points(a views.SessionAccount, form views.PointsForm, room int) line {
 	var l line
-	for _, w := range a.PointsWords(form) {
+	keys := a.PointsKeys()
+	for i, w := range a.PointsWords(form) {
 		next := slices.Clip(l)
 		for _, p := range w {
 			k := mutedInk
 			if p.Kind == status.PartFigure {
-				k = titleInk
+				k = titleInk.numbered(Number{Kind: NumberPoints, Account: a.Account, Of: keys[i]})
 			}
 			next = append(next, span{p.Text, k})
 		}

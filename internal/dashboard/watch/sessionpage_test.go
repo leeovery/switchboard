@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"slices"
@@ -526,6 +527,34 @@ func TestOnASessionsPageALookBrightensItsWindowsAndTheStreamNothing(t *testing.T
 		if !slices.Contains(was, n) {
 			t.Errorf("the stream told of d28c's request going out, and %+v brightened, want nothing", n)
 		}
+	}
+}
+
+// On a session's page, a look that takes in lines raising the points of a
+// window the session took brightens them, as a number a look reads.
+func TestOnASessionsPageALookBrightensThePointsItTook(t *testing.T) {
+	state := t.TempDir()
+	read := func(request string, d time.Duration, used string) ledger.Held {
+		l := arrived(request, "work", d)
+		l.Usage = json.RawMessage(`{"input_tokens":1000}`)
+		l.Limits = map[string]string{"5h-utilization": used, "5h-reset": strconv.FormatInt(start.Add(2*time.Hour).Unix(), 10)}
+		return l
+	}
+	writeLines(t, state, read("0a000001", -5*time.Minute, "0.10"), read("0a000002", -4*time.Minute, "0.20"))
+	h, _ := pageBeside(t, state, logNever)
+	h.settle()
+	fiveHour := dashboard.Number{Kind: dashboard.NumberPoints, Account: "work", Of: "5h"}
+	if got := h.drawnNumber(fiveHour); got != "10" {
+		t.Fatalf("the page draws d28c's points of work's 5-hour %q, want 10", got)
+	}
+
+	writeLines(t, state, read("0a000003", -3*time.Minute, "0.30"))
+	h.read(probedWithoutTheRouter())
+	if got := h.drawnNumber(fiveHour); got != "20" {
+		t.Errorf("after the look, the page draws d28c's points of work's 5-hour %q, want 20", got)
+	}
+	if got := h.brightened()[fiveHour]; got != 1 {
+		t.Errorf("a look raised d28c's points of work's 5-hour, and they're %v bright, want 1", got)
 	}
 }
 

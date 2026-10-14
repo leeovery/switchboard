@@ -55,6 +55,9 @@ const (
 	// NumberMoved are the sessions an event of the Log's Events moved, as
 	// its words count them, which Of names by the event's key.
 	NumberMoved
+	// NumberPoints are the points of an account's window a session took, on
+	// its page, as in "≈ 41", which Of names by the window's key.
+	NumberPoints
 )
 
 // Number names a number the page draws, which brightens as it changes:

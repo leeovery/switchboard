@@ -170,14 +170,20 @@ func (f pageFold) taken(read tailLines, today views.LedgerDay) *pageTaken {
 
 // pageTook is m with the page held as a read of the ledger's tail grew it,
 // where the session's page open is still of its session: one closed since
-// takes nothing in.
+// takes nothing in. Its page is built afresh, and each number on it the
+// lines taken in change brightens, as a look's changes do: the points of the
+// windows the session took, which only its lines move.
 func (m Model) pageTook(t pageTaken) Model {
 	if m.session == nil || m.session.id != t.id {
 		return m
 	}
+	now := m.now()
+	was := m.numbersDrawn(now)
 	s := *m.session
 	s.held = t.held
 	m.session = &s
+	m = m.relived(t, now)
+	m.numbers = m.numbers.changed(was, m.numbersDrawn(now), now)
 	return m
 }
 
