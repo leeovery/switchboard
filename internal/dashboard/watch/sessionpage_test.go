@@ -652,6 +652,61 @@ func TestASessionsPageIsBuiltAgainOnlyAsWhatItsBuiltOfChanges(t *testing.T) {
 	}
 }
 
+// A session's page is made to the tenth of a second while a request of it is
+// in flight, as its turn open's row of it counts how long it's taken to a
+// tenth, and to the second while none is: a tenth on, what the stream tells
+// of another session builds the page afresh, that row a tenth further on,
+// only while one of its own is in flight.
+func TestASessionsPageIsMadeToTheTenthWhileARequestOfItIsInFlight(t *testing.T) {
+	serving := func(e router.StreamEvent) router.StreamEvent {
+		e.Prompt, e.Class = "prompt-2", ledger.ClassMain
+		return e
+	}
+	another := func(request string) router.StreamEvent {
+		return alter(told(router.StreamSent, request, "work", 0), func(e *router.StreamEvent) { e.Session = id7F3A })
+	}
+	done := alter(told(router.StreamDone, "r3", "work", 0), func(e *router.StreamEvent) { e.Status = 200 })
+	tests := []struct {
+		name  string
+		heard []router.StreamEvent
+		tenth bool
+		grew  time.Duration
+	}{
+		{name: "a request of it in flight", heard: []router.StreamEvent{serving(told(router.StreamSent, "r3", "work", 0))}, tenth: true, grew: time.Second / 10},
+		{name: "none in flight", heard: []router.StreamEvent{serving(told(router.StreamSent, "r3", "work", 0)), serving(done)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+			h.openPage(idD28C)
+			h.settle()
+			h.keys(enterKey)
+			h.hear(tt.heard...)
+			r3 := func() (*views.LogLine, time.Duration) {
+				requests := h.shownPage().Requests
+				i := slices.IndexFunc(requests, func(l views.LogLine) bool { return l.Row.Request == "r3" })
+				if i < 0 || requests[i].Row.Took == nil {
+					t.Fatalf("the turn open has no row of r3 saying how long it's taken among %d", len(requests))
+				}
+				return &requests[i], *requests[i].Row.Took
+			}
+			h.clock.now = h.clock.now.Truncate(time.Second).Add(time.Second + 200*time.Millisecond)
+			h.hear(another("o1"))
+			was, wasTook := r3()
+
+			h.clock.now = h.clock.now.Add(time.Second / 10)
+			h.hear(another("o2"))
+			is, took := r3()
+			if built := is != was; built != tt.tenth {
+				t.Errorf("a tenth on, 7f3a's request built d28c's page afresh %t, want %t", built, tt.tenth)
+			}
+			if grew := took - wasTook; grew != tt.grew {
+				t.Errorf("a tenth on, r3's row says it took %s more, want %s", grew, tt.grew)
+			}
+		})
+	}
+}
+
 // On a session's page, a look that takes in lines raising the points of a
 // window the session took brightens them, as a number a look reads.
 func TestOnASessionsPageALookBrightensThePointsItTook(t *testing.T) {
