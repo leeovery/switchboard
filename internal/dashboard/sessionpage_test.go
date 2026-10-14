@@ -609,13 +609,16 @@ func manyTurns(n, requests int) []views.Turn {
 }
 
 // A phone's turn rows keep every figure whole: past turn 99 the numbers take
-// as many cells as the widest, and past 999 requests the counts as many as
-// the most, the columns after them moving on as far on every row, so turn 105
-// reads apart from turn 5 and the newest's … stays by its minutes.
+// as many cells as the widest, past 99 minutes the minutes as many as the
+// longest, two blanks after the start, and past 999 requests the counts as
+// many as the most, the columns after them moving on as far on every row, so
+// turn 105 reads apart from turn 5, a turn of 1,000 minutes apart from its
+// start, and the newest's … stays by its minutes.
 func TestAPhonesTurnRowsKeepEveryFigureWhole(t *testing.T) {
 	tests := []struct {
 		name            string
 		turns, requests int
+		oldestTook      int
 		width           int
 		want            []string
 	}{
@@ -625,11 +628,17 @@ func TestAPhonesTurnRowsKeepEveryFigureWhole(t *testing.T) {
 		{name: "a turn of 1,234 requests at 52 columns", turns: 13, requests: 1234, width: 52, want: []string{
 			"13 14:29  14m…1,234 req", "12 14:29   9m    37 req",
 		}},
+		{name: "a turn of 1,000 minutes at 52 columns", turns: 3, requests: 6, oldestTook: 1000, width: 52, want: []string{
+			" 3 14:29    14m…   6 req", " 2 14:29     9m   37 req", " 1 14:29  1000m   37 req",
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			shown := moved()
 			shown.Page.Turns, shown.Turn = manyTurns(tt.turns, tt.requests), tt.turns
+			if tt.oldestTook > 0 {
+				shown.Page.Turns[tt.turns-1] = turnRow{1, at(14, 29).Add(-24 * time.Hour), tt.oldestTook, 37, nil, 0, 0, 0, 661, []string{"side"}}.turn()
+			}
 			f := pageFrame(t, shown, tt.width, 40)
 			rows := pageText(f)
 			at := f.sessionLayout(len(shown.Page.Accounts)).turnsAt

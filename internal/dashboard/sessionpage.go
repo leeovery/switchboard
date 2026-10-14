@@ -69,14 +69,17 @@ const (
 )
 
 // The cells of a phone's turn row: its number right-aligned in
-// phoneNumberCells at the least, then a blank; its start, its minutes ending
-// phoneTookAfter cells after the start does, the mark of one going after
-// them, and its requests right-aligned in phoneRequestsCells at the least, "
+// phoneNumberCells at the least, then a blank; its start, in
+// phoneStartCells; phoneTookApart blanks at the least, then its minutes
+// right-aligned in phoneTookCells at the least, the mark of one going after
+// them; and its requests right-aligned in phoneRequestsCells at the least, "
 // req" after them; and at the right, the accounts it went to, in
 // phoneOnCells, its worth sessionPhoneApart cells before them.
 const (
 	phoneNumberCells   = 2
-	phoneTookAfter     = 10
+	phoneStartCells    = 5
+	phoneTookApart     = 2
+	phoneTookCells     = 3
 	phoneRequestsCells = 4
 	phoneOnCells       = 9
 )
@@ -90,18 +93,21 @@ type phoneTurnCells struct {
 }
 
 // phoneTurnCellsOf are where a phone's rows of the turns given set their
-// parts: the numbers in phoneNumberCells, or past 99 as many as the widest
-// takes, and the requests in phoneRequestsCells, or past 999 as many as the
-// most take, each part after moving on as far on every row, so each figure
-// is whole and the columns line up.
-func phoneTurnCellsOf(turns []views.Turn) phoneTurnCells {
-	number, requests := phoneNumberCells, phoneRequestsCells
+// parts at now: the numbers in phoneNumberCells, or past 99 as many as the
+// widest takes, the minutes in phoneTookCells, or past 99 as many as the
+// longest take, and the requests in phoneRequestsCells, or past 999 as many
+// as the most take, each part after moving on as far on every row, so each
+// figure is whole and the columns line up.
+func phoneTurnCellsOf(turns []views.Turn, now time.Time) phoneTurnCells {
+	number, took, requests := phoneNumberCells, phoneTookCells, phoneRequestsCells
 	for _, t := range turns {
 		number = max(number, len(strconv.Itoa(t.Turn)))
+		minutes, _ := t.Took(now)
+		took = max(took, len(minutes))
 		requests = max(requests, len(prose.Grouped(t.Requests)))
 	}
 	c := phoneTurnCells{numberEnd: number, startAt: number + 1}
-	c.tookEnd = c.startAt + phoneTookAfter
+	c.tookEnd = c.startAt + phoneStartCells + phoneTookApart + took
 	c.requestsEnd = c.tookEnd + ansi.StringWidth(prose.Ellipsis) + requests
 	return c
 }
@@ -149,7 +155,7 @@ func (f Frame) sessionDrawn(doc status.Document, now time.Time) sessionDrawn {
 	m := f.Moment(doc, now)
 	return sessionDrawn{
 		Frame: f, shown: f.Session, page: f.Session.Page, m: m, names: namesOf(m),
-		l: f.sessionLayout(len(f.Session.Page.Accounts)), phoneCells: phoneTurnCellsOf(f.Session.Page.Turns), now: now,
+		l: f.sessionLayout(len(f.Session.Page.Accounts)), phoneCells: phoneTurnCellsOf(f.Session.Page.Turns, now), now: now,
 	}
 }
 
