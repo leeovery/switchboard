@@ -1,10 +1,12 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -21,9 +23,28 @@ import (
 const accountsApart = " · "
 
 // noneOf is a figure Accounts has none of, as the word given says it, "—"
-// or "none", in text.faint, bold where k is.
+// or "none", in text.faint, bold where k is: words, as no figure, so it's
+// never a number, its figure appearing or going brightening nothing.
 func noneOf(word string, k ink) []part {
-	return []part{figureIn(word, boldAs(faintInk, k))}
+	return []part{wordsIn(word, boldAs(faintInk, k))}
+}
+
+// periodNumbered are the parts of a figure of Accounts' period, of the
+// account with the id given, "" for all accounts', each figure among them
+// numbered as the one the name given names, as NumberPeriod has it: a dash
+// or none, words, never.
+func periodNumbered(parts []part, id, name string) []part {
+	numbered := slices.Clone(parts)
+	for i := range numbered {
+		numbered[i].number = Number{Kind: NumberPeriod, Account: id, Of: name}
+	}
+	return numbered
+}
+
+// shareNamed is what a version's share of use is numbered by, after its
+// name, as "Opus 5.5 share".
+func shareNamed(v ledger.Version) string {
+	return v.Name + " share"
 }
 
 // periodParts say a row of the page's period as said says it: but where the

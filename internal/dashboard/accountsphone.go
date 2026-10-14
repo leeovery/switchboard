@@ -268,7 +268,7 @@ func (cp compared) turnedGroup(c *canvas, y int, g turnedGroup, columns []compar
 			if i+1 < len(g.columns) {
 				end = g.columns[i+1].at - 1
 			}
-			c.line(figure.at, y, fitParts(end-figure.at, figure.said(col)...))
+			c.line(figure.at, y, fitParts(end-figure.at, periodNumbered(figure.said(col), col.id, figure.head)...))
 		}
 	}
 	return y
@@ -372,7 +372,7 @@ func (s stacked) thisWeek(c *canvas, y int) int {
 		}
 		for i, item := range items {
 			c.line(x, y+1+i, line{{padded(item.label, stackLabels), dimInk}})
-			c.line(x+stackLabels, y+1+i, fitParts(end-x-stackLabels, item.parts...))
+			c.line(x+stackLabels, y+1+i, fitParts(end-x-stackLabels, periodNumbered(item.parts, s.id, item.label)...))
 		}
 	}
 	return y + len(halves[0])

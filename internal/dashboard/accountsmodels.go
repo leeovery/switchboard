@@ -40,10 +40,12 @@ func shareAmounts(row views.AccountsRow, versions []ledger.Version) []ledger.Pic
 }
 
 // versionUsed is a version a row used, and its share of the row's use, nil
-// where it isn't known.
+// where it isn't known; and the account the row is of, by its id, "" for all
+// accounts.
 type versionUsed struct {
 	version ledger.Version
 	share   *float64
+	of      string
 }
 
 // versionsUsed are the versions of those given that the row used, in their
@@ -52,7 +54,7 @@ func versionsUsed(row views.AccountsRow, versions []ledger.Version) []versionUse
 	var used []versionUsed
 	for _, v := range versions {
 		if s, ok := shareOf(row, v); ok {
-			used = append(used, versionUsed{version: v, share: s.Share})
+			used = append(used, versionUsed{version: v, share: s.Share, of: row.Totals.Account})
 		}
 	}
 	return used
@@ -93,8 +95,8 @@ func shareSize(share *float64) float64 {
 }
 
 // versionsNamed are the versions given, each its ● in its shade, then its
-// name, in text.secondary, and its share, as shareParts says it, as "● Opus
-// 5.5 55%", versionsApart between them; then, where more is any, how many
+// name, in text.secondary, and its share, as shareParts says it, numbered as
+// the period's, as "● Opus 5.5 55%", versionsApart between them; then, where more is any, how many
 // more there are, as "+2 more", in text.subtle.
 func versionsNamed(used []versionUsed, more int) []part {
 	var parts []part
@@ -103,7 +105,7 @@ func versionsNamed(used []versionUsed, more int) []part {
 			parts = append(parts, wordsIn(versionsApart, ink{}))
 		}
 		named := line{{"●", versionHue(u.version).ink()}, {" " + prose.Clean(u.version.Name) + " ", secondaryInk}}
-		parts = append(append(parts, wordsPart(named)), shareParts(u.share, secondaryInk)...)
+		parts = append(append(parts, wordsPart(named)), periodNumbered(shareParts(u.share, secondaryInk), u.of, shareNamed(u.version))...)
 	}
 	if more > 0 {
 		if parts != nil {

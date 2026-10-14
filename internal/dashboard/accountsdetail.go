@@ -387,7 +387,7 @@ func (d detailDrawn) thisWeek(c *canvas, y int) {
 	c.line(x, y, line{{d.page.Period.Title(), dimInk}})
 	for i, item := range d.thisWeekItems() {
 		c.line(x, y+1+i, line{{padded(item.label, thisWeekLabels), dimInk}})
-		c.line(x+thisWeekLabels, y+1+i, fitParts(d.f.edge()-x-thisWeekLabels, item.parts...))
+		c.line(x+thisWeekLabels, y+1+i, fitParts(d.f.edge()-x-thisWeekLabels, periodNumbered(item.parts, d.id, item.label)...))
 	}
 }
 

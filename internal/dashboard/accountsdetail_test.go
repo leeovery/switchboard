@@ -773,8 +773,9 @@ func formDrawn(f Frame, form accountsForm) []string {
 }
 
 // Detail names each look-read figure it draws by what it is, all accounts'
-// use and room their own, never the pool's; the period's figures it names as
-// none, as they never brighten.
+// use and room their own, never the pool's, and THIS WEEK's and BY MODEL's,
+// the period's, of the account shown, or all accounts, "", by their rows, a
+// version's share by its name.
 func TestDetailNamesTheNumbersItDraws(t *testing.T) {
 	doc := usageWorld(extraOff)
 	page := detailsPage(t)
@@ -788,12 +789,16 @@ func TestDetailNamesTheNumbersItDraws(t *testing.T) {
 			want: map[Number]string{
 				{Kind: NumberAllUsed, Of: "5h"}: "49%", {Kind: NumberAllRoom, Of: "5h"}: "1.5",
 				{Kind: NumberAllUsed, Of: "7d"}: "59%", {Kind: NumberAllRoom, Of: "7d"}: "1.2",
+				{Kind: NumberPeriod, Of: "requests"}: "5,410", {Kind: NumberPeriod, Of: "Opus 5.5 share"}: "57%",
 			},
 			none: []Number{{Kind: NumberUsed, Of: "5h"}, {Kind: NumberRoom, Of: "5h"}},
 		},
 		{
 			name: "an account", chosen: "work",
-			want: map[Number]string{{Kind: NumberUsed, Account: "work", Of: "5h"}: "95%", {Kind: NumberUsed, Account: "work", Of: "7d"}: "34%"},
+			want: map[Number]string{
+				{Kind: NumberUsed, Account: "work", Of: "5h"}: "95%", {Kind: NumberUsed, Account: "work", Of: "7d"}: "34%",
+				{Kind: NumberPeriod, Account: "work", Of: "requests"}: "1,204", {Kind: NumberPeriod, Account: "work", Of: "worth"}: "$1844.0×",
+			},
 			none: []Number{{Kind: NumberUsed, Account: "personal", Of: "5h"}},
 		},
 	}
@@ -808,11 +813,6 @@ func TestDetailNamesTheNumbersItDraws(t *testing.T) {
 			for _, n := range tt.none {
 				if said, ok := got[n]; ok {
 					t.Errorf("%+v is named, reading %q", n, said)
-				}
-			}
-			for n, said := range got {
-				if strings.Contains(said, "1,204") || strings.Contains(said, "5,410") {
-					t.Errorf("the period's requests are named %+v", n)
 				}
 			}
 		})

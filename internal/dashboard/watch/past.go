@@ -255,10 +255,11 @@ func (t historyTab) checked() dashboard.HistoryPage {
 
 // sinceRead takes in the days read since those held were read to, and where
 // the ledger began, where the read learned it, but those of a read another
-// overtook. While History shows, its page is drawn before the days and
-// after, at the one moment, now, both knowing where the ledger began, each
-// number on it the days change brightens, as changed has it, as a look's
-// changes do; else the page is left behind the days, as since leaves it, for
+// overtook. While History or Accounts shows, its page is drawn before the
+// days and after, at the one moment, now, History's both knowing where the
+// ledger began, Accounts' built as accountsBuilt builds it, each number on
+// it the days change brightening, as changed has it, as a look's changes
+// do; else History's page is left behind the days, as since leaves it, for
 // historyBuilt to build once History shows.
 func (m Model) sinceRead(msg sinceMsg) Model {
 	if msg.asked != m.past.asked {
@@ -267,13 +268,20 @@ func (m Model) sinceRead(msg sinceMsg) Model {
 	m.past = m.past.learned(msg.beginning)
 	m.past.reading = false
 	now := m.now()
-	if m.view != dashboard.History {
+	var was Model
+	switch m.view {
+	case dashboard.History:
+		was = m
+		was.past = m.past.since(nil, now, now).built()
+		m.past = m.past.since(msg.days, msg.at, now).built()
+	case dashboard.Accounts:
+		was = m.accountsBuilt()
+		m.past = m.past.since(msg.days, msg.at, now)
+		m = m.accountsBuilt()
+	default:
 		m.past = m.past.since(msg.days, msg.at, now)
 		return m
 	}
-	was := m
-	was.past = m.past.since(nil, now, now).built()
-	m.past = m.past.since(msg.days, msg.at, now).built()
 	m.numbers = m.numbers.changed(was.numbersDrawn(now), m.numbersDrawn(now), now)
 	return m
 }

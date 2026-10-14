@@ -750,6 +750,39 @@ func TestALookOnAccountsBrightensTheNumbersItChanged(t *testing.T) {
 	}
 }
 
+// A look that reads today's days afresh brightens the period's figures on
+// Accounts it changes, drawn before and after at the one moment, as History's
+// do: work's requests and all accounts', on Compare and on Detail; never
+// another's that stood still, nor any where the look found nothing new.
+func TestALookThatAddsRequestsTodayBrightensAccountsPeriodFigures(t *testing.T) {
+	for name, shown := range map[string]dashboard.AccountsView{"Compare": dashboard.AccountsCompare, "Detail": dashboard.AccountsDetail} {
+		t.Run(name, func(t *testing.T) {
+			h, l := historyHarness(t, dashboard.Accounts, dashboard.HistoryPage{})
+			h.model.accounts.shown.Shown = shown
+			today := dayfile.DateOf(start)
+			l.days[today] = requested(today, 2)
+			h.start()
+			h.tickUntilAsked()
+			if got := h.brightened(); len(got) > 0 {
+				t.Fatalf("a look that found nothing new brightened %v, want none", got)
+			}
+
+			l.days[today] = requested(today, 5)
+			h.tickUntilAsked()
+			work := dashboard.Number{Kind: dashboard.NumberPeriod, Account: "work", Of: "requests"}
+			all := dashboard.Number{Kind: dashboard.NumberPeriod, Of: "requests"}
+			side := dashboard.Number{Kind: dashboard.NumberPeriod, Account: "side", Of: "requests"}
+			got := h.brightened()
+			if shown == dashboard.AccountsCompare && (got[work] != 1 || got[all] != 1 || got[side] != 0) {
+				t.Errorf("on Compare, a look that found 3 more requests on work today brightened %v, want work's requests and all accounts' at 1, side's not", got)
+			}
+			if shown == dashboard.AccountsDetail && got[all] != 1 {
+				t.Errorf("on Detail of all accounts, a look that found 3 more requests today brightened %v, want its requests at 1", got)
+			}
+		})
+	}
+}
+
 // → puts the selection on the session it lands on, the first, and there it
 // stays as the request stream reorders SESSIONS, the one seen last first:
 // enter opens it, whatever's listed first since.

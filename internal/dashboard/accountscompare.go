@@ -333,7 +333,7 @@ func (cp compared) body(columns []compareColumn) *canvas {
 			y++
 			c.line(2, y, line{{r.label, secondaryInk}})
 			for _, col := range columns {
-				c.line(col.x, y, fitParts(col.width, r.said(col)...))
+				c.line(col.x, y, fitParts(col.width, periodNumbered(r.said(col), col.id, r.label)...))
 			}
 		}
 	}
@@ -400,7 +400,7 @@ func (cp compared) byModel(c *canvas, y int, columns []compareColumn) int {
 			if s, ok := shareOf(col.row, v); ok {
 				share = s.Share
 			}
-			c.right(col.x+percentCells, y, fitParts(percentCells, shareParts(share, col.ink())...))
+			c.right(col.x+percentCells, y, fitParts(percentCells, periodNumbered(shareParts(share, col.ink()), col.id, shareNamed(v))...))
 		}
 	}
 	return y

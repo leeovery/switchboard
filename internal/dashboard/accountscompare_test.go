@@ -735,11 +735,17 @@ func TestWEEKUSEDFillsEveryAccountsWeekShownOrNot(t *testing.T) {
 
 // What a look reads brightens as it changes: each account's week's
 // percentage, as USAGE's is numbered, and all accounts', a figure of its own,
-// and its accounts' states counted; the period's figures don't.
+// and its accounts' states counted; and the period's figures, as a look reads
+// today's days, each of an account, or all accounts', "", by its row, the
+// figures of a row one number, a version's share of use by its name, but no
+// dash or none, which says there's no figure.
 func TestComparesNumbersAreWhatALookReads(t *testing.T) {
 	f, doc := threeCompared(t, 160, 37)
 	got := f.Numbers(doc, routedAt)
 	delete(got, Number{Kind: NumberRouted})
+	period := make(map[Number]string)
+	maps.Copy(period, got)
+	maps.DeleteFunc(got, func(n Number, _ string) bool { return n.Kind == NumberPeriod })
 	want := map[Number]string{
 		{Kind: NumberUsed, Account: "work", Of: "7d"}:     "34%",
 		{Kind: NumberUsed, Account: "personal", Of: "7d"}: "66%",
@@ -749,7 +755,39 @@ func TestComparesNumbersAreWhatALookReads(t *testing.T) {
 		{Kind: NumberAccountStates, Of: "at cap"}:         "1 at cap",
 	}
 	if !maps.Equal(got, want) {
-		t.Errorf("Compare's numbers are %v, want %v", got, want)
+		t.Errorf("Compare's numbers but the period's are %v, want %v", got, want)
+	}
+	for n, want := range map[Number]string{
+		{Kind: NumberPeriod, Account: "work", Of: "requests"}:               "1,204",
+		{Kind: NumberPeriod, Of: "requests"}:                                "5,410",
+		{Kind: NumberPeriod, Account: "side", Of: "sessions moved"}:         "4",
+		{Kind: NumberPeriod, Account: "work", Of: "limits hit"}:             "5-hour ×2",
+		{Kind: NumberPeriod, Account: "side", Of: "at cap or limit"}:        "52m",
+		{Kind: NumberPeriod, Account: "work", Of: "left at its last reset"}: "0%",
+		{Kind: NumberPeriod, Account: "work", Of: "worth at API prices"}:    "$184",
+		{Kind: NumberPeriod, Of: "against its price"}:                       "4.6×$138",
+		{Kind: NumberPeriod, Account: "work", Of: "Opus 5.5 share"}:         "55%",
+	} {
+		if period[n] != want {
+			t.Errorf("%+v reads %q, want %q", n, period[n], want)
+		}
+	}
+	for _, n := range []Number{
+		{Kind: NumberPeriod, Account: "personal", Of: "limits hit"},
+		{Kind: NumberPeriod, Account: "personal", Of: "at cap or limit"},
+		{Kind: NumberPeriod, Of: "left at its last reset"},
+		{Kind: NumberPeriod, Account: "personal", Of: "Opus 5 share"},
+	} {
+		if said, ok := period[n]; ok {
+			t.Errorf("%+v is numbered, reading %q, where it says there's none", n, said)
+		}
+	}
+
+	f.Accounts.Page.Recorded, f.Accounts.Page.Versions = false, nil
+	for n, said := range f.Numbers(doc, routedAt) {
+		if n.Kind == NumberPeriod {
+			t.Errorf("a period with nothing recorded numbers %+v, reading %q, its dash", n, said)
+		}
 	}
 }
 
