@@ -615,6 +615,41 @@ func TestASessionsPageNamesItsAccountsByTheirLabels(t *testing.T) {
 	}
 }
 
+// A session's page's heading names it by its directory: one with none by
+// its id alone; a long one cut from its start with …, its name kept whole.
+// A phone names it by its id and its directory's name. Each holds here with
+// its rule, whatever its length, as one ─.
+func TestASessionsHeadingNamesItByItsDirectory(t *testing.T) {
+	long := "/home/dev/Code/clients/acme-corporation/platform/services/reconciliation/workers/nightly/billing"
+	tests := []struct {
+		name, dir string
+		width     int
+		want      string
+	}{
+		{name: "none", width: 160, want: "SESSION   d28c ─  esc back"},
+		{name: "none, on a phone", width: 52, want: "SESSION  d28c                               esc back"},
+		{name: "a long one, whole where it fits", dir: long, width: 160,
+			want: "SESSION   d28c   billing  ~/Code/clients/acme-corporation/platform/services/reconciliation/workers/nightly/billing ─  esc back"},
+		{name: "a long one, cut from its start", dir: long, width: 122,
+			want: "SESSION   d28c   billing  …e/clients/acme-corporation/platform/services/reconciliation/workers/nightly/billing ─  esc back"},
+		{name: "a long one, on a phone", dir: long, width: 52, want: "SESSION  d28c  billing                      esc back"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shown := moved()
+			shown.Page.Dir = tt.dir
+			f := pageFrame(t, shown, tt.width, 37)
+			got := pageText(f)[f.sessionLayout(len(shown.Page.Accounts)).heading]
+			for strings.Contains(got, "──") {
+				got = strings.ReplaceAll(got, "──", "─")
+			}
+			if got != tt.want {
+				t.Errorf("the heading reads\n%q\nwant\n%q", got, tt.want)
+			}
+		})
+	}
+}
+
 // Where a session's requests name no prompt, TURNS says why it has no
 // turns, in text.faint, where its rows would be (C14); with no request at
 // all, it says nothing.

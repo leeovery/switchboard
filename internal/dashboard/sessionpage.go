@@ -170,7 +170,8 @@ func (f Frame) sessionTargets(doc status.Document, now time.Time) []Target {
 
 // heading draws the page's heading: SESSION, the session's id and its
 // directory's name; wide, the directory, its home as ~, cut from its start
-// to fit, and a rule; and at the right, esc back.
+// to leave the rule after it a cell at least, and the rule; and at the
+// right, esc back.
 func (d sessionDrawn) heading(c *canvas) {
 	y, apart := d.l.heading, sessionPhoneApart
 	if d.l.wide {
@@ -186,7 +187,7 @@ func (d sessionDrawn) heading(c *canvas) {
 	if !d.l.wide {
 		return
 	}
-	if path := status.DirPath(d.page.Dir, d.shown.Home, end-x-ruleGap-1); path != "" {
+	if path := status.DirPath(d.page.Dir, d.shown.Home, end-x-ruleGap-2); path != "" {
 		x = c.text(x+ruleGap, y, path, faintInk)
 	}
 	c.text(x+1, y, rule(end-x-1), borderInk)
