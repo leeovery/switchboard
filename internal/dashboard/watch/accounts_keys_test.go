@@ -121,6 +121,31 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 	}
 }
 
+// The page shown lists Accounts' keys as it was drawn, at its moment, never
+// the clock's as it's viewed: d28c, the one session on work, crossing the
+// idle hour after the page was drawn, is still the one enter opens, as the
+// page's SESSIONS still list it.
+func TestTheKeyLineListsAccountsKeysAtThePagesMoment(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", views.IdleHour-time.Second)}
+	h.start()
+	h.model.view = dashboard.Accounts
+	h.model.accounts.shown = dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail, Chosen: "work", InSessions: true}
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
+	if running := h.model.running(h.clock.now); !slices.Equal(running, []string{idD28C}) {
+		t.Fatalf("the page is drawn with %v running on work, want d28c", running)
+	}
+
+	h.clock.now = h.clock.now.Add(2 * time.Second)
+	for _, group := range h.model.shownPage().KeyLine.Groups {
+		for _, k := range group {
+			if k.Key == "enter" && k.Off {
+				t.Errorf("d28c crossing the idle hour since the page was drawn, its key line draws enter faint, want it as drawn")
+			}
+		}
+	}
+}
+
 // Help over Detail's list lists → into the chosen account's SESSIONS, which
 // the key line leaves to help, while a session is selected there; not where
 // none runs, nor from SESSIONS, where ← is on the line.

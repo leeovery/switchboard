@@ -153,10 +153,19 @@ type accountsForm struct {
 	filled    func() map[Ref]float64
 }
 
-// accountsForm is the form Accounts' view shown is drawn in, of doc at now: a
-// phone's, as phoneAccounts has it; else Compare's, as compareForm has it,
-// or Detail's, as detailForm has it.
+// accountsForm is the form Accounts' view shown is drawn in, of doc at now:
+// as Built built it, where it built it of doc at now, else afresh.
 func (f Frame) accountsForm(doc status.Document, now time.Time) accountsForm {
+	if f.built != nil && f.built.at.Of(doc, now, f.Policy) {
+		return f.built.accounts()
+	}
+	return f.buildAccountsForm(doc, now)
+}
+
+// buildAccountsForm builds the form Accounts' view shown is drawn in, of doc
+// at now: a phone's, as phoneAccounts has it; else Compare's, as compareForm
+// has it, or Detail's, as detailForm has it.
+func (f Frame) buildAccountsForm(doc status.Document, now time.Time) accountsForm {
 	switch {
 	case f.phone():
 		return f.phoneAccounts(doc, now)

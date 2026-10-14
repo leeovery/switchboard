@@ -273,9 +273,11 @@ func TestOneSessionIsSelectedWhileAnyRuns(t *testing.T) {
 }
 
 // The session selected ending gives the selection to the one in its place
-// now, else to the last; with none left, ↑ and ↓ go back to the list. One
-// still running keeps it.
+// now, the first listed after it still running, by id, however the rest
+// moved since, else to the last; with none left, ↑ and ↓ go back to the
+// list. One still running keeps it.
 func TestTheSelectedSessionEndingSelectsTheOneInItsPlace(t *testing.T) {
+	five := []string{"d28c", "c61b", "7f3a", "db8a", "9c2e"}
 	tests := []struct {
 		name       string
 		selected   string
@@ -285,6 +287,9 @@ func TestTheSelectedSessionEndingSelectsTheOneInItsPlace(t *testing.T) {
 	}{
 		{name: "one in the middle ends", selected: "7f3a", was: workRunning, is: []string{"d28c", "9e21"}, want: "9e21", inSessions: true},
 		{name: "the last ends", selected: "9e21", was: workRunning, is: []string{"d28c", "7f3a"}, want: "7f3a", inSessions: true},
+		{name: "the third of five ends as the rest reorder", selected: "7f3a", was: five, is: []string{"9c2e", "db8a", "c61b", "d28c"}, want: "db8a", inSessions: true},
+		{name: "the third of five ends, those after it with it", selected: "7f3a", was: five, is: []string{"c61b", "d28c"}, want: "d28c", inSessions: true},
+		{name: "one not listed before ends", selected: "41e0", was: five, is: []string{"c61b", "d28c"}, want: "c61b", inSessions: true},
 		{name: "it moves up as another ends", selected: "9e21", was: workRunning, is: []string{"7f3a", "9e21"}, want: "9e21", inSessions: true},
 		{name: "the first, as none was moved to, ends", was: workRunning, is: []string{"7f3a", "9e21"}, inSessions: true},
 		{name: "none is left", selected: "7f3a", was: workRunning},

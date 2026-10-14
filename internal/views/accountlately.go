@@ -16,39 +16,37 @@ import (
 // naming it, and the sessions that started on it. Of every account, id "",
 // they're every account's, each naming its account, as Lately tells them.
 // Restarts, the router's health, and routing given back to it name no
-// account, so neither tells them. Each tells a session starting on the
-// account new sessions go to, which ▲ marks, ", the best".
+// account, so neither tells them. Each tells a session that started on the
+// router's best, as its reason says, ", the best", as it started, wherever ▲
+// marks since.
 func AccountLately(m status.Moment, id string, n int) []Sentence {
 	if id == "" {
-		return toldFrom(m, n, everyAccount(m.Next))
+		return toldFrom(m, n, everyAccount)
 	}
-	return toldFrom(m, n, accountSide{id: id, next: m.Next}.side())
+	return toldFrom(m, n, accountSide{id: id}.side())
 }
 
 // unnamed are the kinds of events that name no account.
 var unnamed = []string{status.EventAuto, status.EventRestart, status.EventHealth}
 
-// everyAccount is every account's side, the account new sessions go to the
-// one with the given id: the Overview's, but the events that name no
-// account, a session starting there said to have started on the best.
-func everyAccount(next string) side {
-	return side{
-		tells: func(e status.Event) bool { return overview.tells(e) && !slices.Contains(unnamed, e.Kind) },
-		tell: func(t latelyTeller, e status.Event, f eventFact) (string, Said, Said) {
-			kind, full, short := overview.tell(t, e, f)
-			if e.Kind == status.EventStarted {
-				full.Rest = t.startedWhy(e, f, e.Account == next)
-				short.Rest = full.Rest
-			}
-			return kind, full, short
-		},
-	}
+// everyAccount is every account's side: the Overview's, but the events that
+// name no account, a session that started on the router's best said to
+// have.
+var everyAccount = side{
+	tells: func(e status.Event) bool { return overview.tells(e) && !slices.Contains(unnamed, e.Kind) },
+	tell: func(t latelyTeller, e status.Event, f eventFact) (string, Said, Said) {
+		kind, full, short := overview.tell(t, e, f)
+		if e.Kind == status.EventStarted {
+			full.Rest = t.startedWhy(e, f, true)
+			short.Rest = full.Rest
+		}
+		return kind, full, short
+	},
 }
 
-// accountSide is the side of the account with the given id, new sessions
-// going to the one next names.
+// accountSide is the side of the account with the given id.
 type accountSide struct {
-	id, next string
+	id string
 }
 
 // side is the account's side, as AccountLately tells it.
@@ -91,7 +89,7 @@ func (s accountSide) pinned(e status.Event) bool {
 func (s accountSide) tell(t latelyTeller, e status.Event, f eventFact) (string, Said, Said) {
 	switch e.Kind {
 	case status.EventStarted:
-		said := Said{Subject: session(e.Session), Words: clause(" started here"), Rest: t.startedWhy(e, f, s.id == s.next)}
+		said := Said{Subject: session(e.Session), Words: clause(" started here"), Rest: t.startedWhy(e, f, true)}
 		return e.Kind, said, said
 	case status.EventMoved:
 		said := t.cameHere(e, f)

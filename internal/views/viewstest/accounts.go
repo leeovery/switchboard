@@ -28,9 +28,16 @@ type AccountsMoment struct {
 	// first it holds to Now's, oldest first.
 	Days []ledger.Summary
 	// Doc is the router's document, or probing's, and Now when it's all
-	// read: the days, the document, the sessions and the stream.
-	Doc status.Document
-	Now time.Time
+	// read: the document, the sessions and the stream, and the days but
+	// where DaysRead says they were read before, the page built of them
+	// then, as the watch builds it as they land.
+	Doc      status.Document
+	Now      time.Time
+	DaysRead time.Time
+	// Held are the days the ledger holds at Now, as history reads them,
+	// today's as far as it has gone, where Days, read before, don't hold
+	// what it has filed since: nil where they do.
+	Held []ledger.Summary
 	// Period is the period Accounts is shown over.
 	Period views.AccountsPeriod
 	// Sessions are those the router lists, and Stream what the request
@@ -91,17 +98,18 @@ const (
 // AccountsMoments are the moments Accounts has to get right: a week at its
 // limit reset before the router reads it again, at 20:59:59, at 21:00:01
 // before the reread, once it's reread, the reset filed, and reread before the
-// days file it; fewer than
-// seven weeks recorded; a fresh install; an account added part-way through
-// the period; ten accounts, extra usage on for one; six sessions on the
-// account shown, then the one selected ended; today at midnight, and this
-// week's first day at midnight; sessions moved both ways, limits in two
-// windows, a week run out and one used up with no limit told; no plan, two
-// of three plans, worth part unpriced and wholly unpriced; a summary of
-// version 1 among the days; and probing, with no sessions and no events.
+// days file it; fewer than seven weeks recorded; a fresh install; an account
+// added part-way through the period, and through its week; a week that
+// lapsed, and one of no use, each before the week the router reads; ten
+// accounts, extra usage on for one; six sessions on the account shown, then
+// the one selected ended; today at midnight, and this week's first day at
+// midnight; sessions moved both ways, limits in two windows, a week run out
+// and one used up with no limit told; no plan, two of three plans, worth part
+// unpriced and wholly unpriced; a summary of version 1 among the days; and
+// probing, with no sessions and no events.
 func AccountsMoments() []AccountsMoment {
 	return slices.Concat(weekResetBeforeTheReread(), []AccountsMoment{
-		fewerThanSevenWeeks(), freshInstall(), addedPartWay(), tenAccounts(),
+		fewerThanSevenWeeks(), freshInstall(), addedPartWay(), lapsedWeek(), weekOfNoUse(), tenAccounts(),
 	}, sixSessions(), atMidnight(), []AccountsMoment{
 		movesLimitsAndRunsOut(), plansAndUnpriced(), versionOneAmongTheDays(), probing(),
 	})
@@ -131,8 +139,9 @@ func in2026(month time.Month, day, hour, minute, second int) time.Time {
 // peaks and its verdict change with it: the week that reset closed at its
 // use, 100%, under 28 September, a whole week, so its verdict now counts it.
 // Once reread, the days hold the reset, and every figure is as it was at
-// 21:00:01; and so it is reread over days read before 21:00, as a page held
-// since then has them.
+// 21:00:01; and so it is reread over days read at 20:58, before the router
+// last read the week before its reset, as a page built of them then has
+// them.
 func weekResetBeforeTheReread() []AccountsMoment {
 	accounts := config.Accounts{workMax, sideMax}
 	asRead, reread := in2026(time.October, 5, 20, 59, 30), in2026(time.October, 5, 21, 0, 30)
@@ -164,7 +173,7 @@ func weekResetBeforeTheReread() []AccountsMoment {
 		},
 		{
 			Name: "a week reset at 21:00, at 21:00:01, before the router reads it again", Accounts: accounts, WeekStarts: time.Monday,
-			Days: before, Doc: readBefore, Now: in2026(time.October, 5, 21, 0, 1), Page: sixWeeks, Want: afterTheReset,
+			Days: before, Doc: readBefore, Now: in2026(time.October, 5, 21, 0, 1), Held: mondayWeeks(true), Page: sixWeeks, Want: afterTheReset,
 		},
 		{
 			Name: "a week reset at 21:00, reread at 21:00:30, the reset filed", Accounts: accounts, WeekStarts: time.Monday,
@@ -172,7 +181,8 @@ func weekResetBeforeTheReread() []AccountsMoment {
 		},
 		{
 			Name: "a week reset at 21:00, reread at 21:00:30, the days read before it", Accounts: accounts, WeekStarts: time.Monday,
-			Days: before, Doc: readAgain, Now: in2026(time.October, 5, 21, 0, 31), Page: sixWeeks, Want: afterTheReset,
+			Days: before, Doc: readAgain, Now: in2026(time.October, 5, 21, 0, 31), DaysRead: in2026(time.October, 5, 20, 58, 0),
+			Held: mondayWeeks(true), Page: sixWeeks, Want: afterTheReset,
 		},
 	}
 }
@@ -234,42 +244,103 @@ func fewerThanSevenWeeks() AccountsMoment {
 }
 
 // freshInstall is Thursday 1 October, the day switchboard was installed: the
-// router has read work's and side's windows, but nothing is recorded, so
-// every figure is unknown.
+// router has read work's and side's windows since 9:00, part-way through
+// their weeks, work's from Monday at 21:00 and side's from Wednesday at
+// 10:00, but nothing is recorded, nor has either week ended since, so every
+// figure is unknown.
 func freshInstall() AccountsMoment {
 	f := filing{}
-	f.on(work, At(9, 0, 0))
-	f.on(side, At(9, 0, 0))
+	f.on(work, At(9, 0, 0)).Highest[week] = 0.3
+	f.on(side, At(9, 0, 0)).Highest[week] = 0.12
 	now := At(14, 42, 7)
 	nothing := Figures{FigureRequests: "0", FigureWorth: "—", FigureLeft: "—", FigurePeaks: "— — — — — —", FigureVerdict: "0 weeks"}
+	doc := readDoc(now,
+		readAccount(work, now, window(fiveHour, 0.2, At(18, 0, 0)), window(week, 0.3, in2026(time.October, 5, 21, 0, 0))),
+		readAccount(side, now, window(fiveHour, 0.1, At(19, 0, 0)), window(week, 0.12, in2026(time.October, 7, 10, 0, 0))))
 	return AccountsMoment{
 		Name: "a fresh install", Accounts: config.Accounts{workMax, sideMax}, WeekStarts: time.Monday,
-		Days: f.summaries(At(0, 0, 0), now), Doc: readDoc(now), Now: now,
+		Days: f.summaries(At(0, 0, 0), now), Doc: doc, Now: now,
 		Page: Figures{FigureRecorded: "no"},
 		Want: map[string]Figures{work: nothing, side: nothing, "": {FigureRequests: "0", FigureWorth: "—", FigureVerdict: "0 weeks", FigureMostLeft: ""}},
 	}
 }
 
-// addedPartWay is the last 30 days to Thursday 1 October, spare added on
-// Monday 21 September: it shows what was recorded of it, priced against the
-// whole 30 days.
+// addedPartWay is the last 30 days to Thursday 1 October, the ledger begun
+// on Wednesday 2 September: work's week, which resets each Sunday at 21:00,
+// has ended four times since, last with 30% left; spare, added on Monday 28
+// September, part-way through its week from Saturday 26 September at 10:00,
+// shows what was recorded of it, priced against the whole 30 days, and no
+// week of it has ended since.
 func addedPartWay() AccountsMoment {
 	f := filing{}
 	for day := 2; day <= 30; day++ {
 		f.serve(work, in2026(time.September, day, 11, 0, 0), opus, 1, "w"+dayfile.DateOf(in2026(time.September, day, 0, 0, 0)))
 	}
-	for day := 21; day <= 30; day++ {
+	f.weekly(work, in2026(time.September, 6, 21, 0, 0), 0.5, 0.6, 0.55, 0.7)
+	f.on(work, At(11, 0, 0)).Highest[week] = 0.3
+	for day, use := range map[int]float64{28: 0.1, 29: 0.2, 30: 0.3} {
 		f.serve("spare", in2026(time.September, day, 11, 0, 0), haiku, 1, "s"+dayfile.DateOf(in2026(time.September, day, 0, 0, 0)))
+		f.on("spare", in2026(time.September, day, 11, 0, 0)).Highest[week] = use
 	}
+	f.on("spare", At(11, 0, 0)).Highest[week] = 0.35
 	now := At(14, 42, 7)
+	doc := readDoc(now,
+		readAccount(work, now, window(fiveHour, 0.2, At(18, 0, 0)), window(week, 0.3, in2026(time.October, 4, 21, 0, 0))),
+		readAccount("spare", now, window(fiveHour, 0.1, At(19, 0, 0)), window(week, 0.35, in2026(time.October, 3, 10, 0, 0))))
 	return AccountsMoment{
 		Name: "an account added part-way through the period", Accounts: config.Accounts{workMax, spareFive}, WeekStarts: time.Monday,
-		Days: f.summaries(in2026(time.September, 2, 0, 0, 0), now), Doc: readDoc(now), Now: now, Period: views.AccountsThirtyDays,
+		Days: f.summaries(in2026(time.September, 2, 0, 0, 0), now), Doc: doc, Now: now, Period: views.AccountsThirtyDays,
 		Want: map[string]Figures{
-			work:    {FigureRequests: "29", FigureWorth: "$116", FigurePlan: "Max 20x $200/mo", FigureAgainst: "0.6× of $200"},
-			"spare": {FigureRequests: "10", FigureWorth: "$10", FigurePlan: "Max 5x $100/mo", FigureAgainst: "0.1× of $100"},
-			"":      {FigureRequests: "39", FigureSessions: "39", FigurePlan: "$300/mo", FigurePlansOf: "2 of 2", FigureAgainst: "0.4× of $300"},
+			work:    {FigureRequests: "29", FigureWorth: "$116", FigurePlan: "Max 20x $200/mo", FigureAgainst: "0.6× of $200", FigureLeft: "30%"},
+			"spare": {FigureRequests: "3", FigureWorth: "$3", FigurePlan: "Max 5x $100/mo", FigureAgainst: "0.0× of $100", FigureLeft: "—"},
+			"":      {FigureRequests: "32", FigureSessions: "32", FigurePlan: "$300/mo", FigurePlansOf: "2 of 2", FigureAgainst: "0.4× of $300"},
 		},
+	}
+}
+
+// lapsedWeek is Thursday 1 October: work's week, which reset each Monday at
+// 21:00 to 21 September, last with 40% left, lapsed then, nothing using it
+// till a request started it again on Sunday 27 September at 15:00, long
+// after the ledger filed its reset. The week the router reads has ended
+// nothing since, as the ledger files no reset of a week that lapsed but its
+// own.
+func lapsedWeek() AccountsMoment {
+	f := filing{}
+	f.weekly(work, in2026(time.September, 7, 21, 0, 0), 0.5, 0.4, 0.6)
+	for day, use := range map[int]float64{27: 0.1, 28: 0.15, 29: 0.2, 30: 0.25} {
+		f.on(work, in2026(time.September, day, 15, 0, 0)).Highest[week] = use
+	}
+	f.on(work, At(11, 0, 0)).Highest[week] = 0.3
+	now := At(14, 42, 7)
+	doc := readDoc(now, readAccount(work, now, window(fiveHour, 0.2, At(18, 0, 0)), window(week, 0.3, in2026(time.October, 4, 15, 0, 0))))
+	return AccountsMoment{
+		Name: "a week lapsed before the one the router reads", Accounts: config.Accounts{workMax}, WeekStarts: time.Monday,
+		Days: f.summaries(in2026(time.September, 1, 0, 0, 0), now), Doc: doc, Now: now,
+		Want: map[string]Figures{work: {FigureLeft: "40%"}},
+	}
+}
+
+// weekOfNoUse is Thursday 1 October: work's week, which reset each Monday at
+// 21:00 to 21 September, last with 40% left, went unused the week after, the
+// router reading none of it, so the ledger filed no reset of that week; a
+// request started it again on Tuesday 29 September at 10:00. The week the
+// router reads has ended nothing since.
+func weekOfNoUse() AccountsMoment {
+	f := filing{}
+	f.weekly(work, in2026(time.September, 7, 21, 0, 0), 0.5, 0.4, 0.6)
+	for day := 22; day <= 28; day++ {
+		f.on(work, in2026(time.September, day, 12, 0, 0)).Highest[week] = 0
+	}
+	for day, use := range map[int]float64{29: 0.1, 30: 0.2} {
+		f.on(work, in2026(time.September, day, 12, 0, 0)).Highest[week] = use
+	}
+	f.on(work, At(11, 0, 0)).Highest[week] = 0.3
+	now := At(14, 42, 7)
+	doc := readDoc(now, readAccount(work, now, window(fiveHour, 0.2, At(18, 0, 0)), window(week, 0.3, in2026(time.October, 6, 10, 0, 0))))
+	return AccountsMoment{
+		Name: "a week of no use before the one the router reads", Accounts: config.Accounts{workMax}, WeekStarts: time.Monday,
+		Days: f.summaries(in2026(time.September, 1, 0, 0, 0), now), Doc: doc, Now: now,
+		Want: map[string]Figures{work: {FigureLeft: "40%"}},
 	}
 }
 

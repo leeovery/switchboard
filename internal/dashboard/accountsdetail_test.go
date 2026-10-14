@@ -188,10 +188,10 @@ var (
 	// draws ●, where LATELY marks pressure ◔, as testdata/vhs/README.md
 	// lists.
 	alonePressure = spot{27, 19, 19}
-	// aloneBest is where work's start is told, which the frame tells as
-	// "7f3a started here", where, the account new sessions go to, LATELY
-	// says it started there ", the best".
-	aloneBest = spot{28, 38, 48}
+	// startedBest is where 7f3a's start is told, which the frames tell
+	// without ", the best", where LATELY says it, as 7f3a started on the
+	// router's best, as its reason says.
+	startedBest = map[string]spot{"all": {29, 65, 74}, "work": {28, 62, 71}, "one": {28, 38, 48}}
 	// olderHaikus are Haiku 4.5's part of BY MODEL's bar, and its ●, which
 	// the frames draw in Haiku's own shade, where the version table holds
 	// Haiku 5.5, so Haiku 4.5 is older, mixed toward the canvas, as
@@ -227,11 +227,11 @@ func TestDetailIsDrawnAsItsFrames(t *testing.T) {
 	}{
 		{
 			stem: "accounts-detail-all-160", doc: auto, configured: framedAccounts, page: page, sessions: sessions,
-			passed: slices.Concat([]spot{sidesMark}, olderHaikus["all"]),
+			passed: slices.Concat([]spot{sidesMark, startedBest["all"]}, olderHaikus["all"]),
 		},
 		{
 			stem: "accounts-detail-work-160", doc: auto, configured: framedAccounts, chosen: "work", page: page, sessions: sessions,
-			passed: slices.Concat([]spot{sidesMark, workMovedOn}, olderHaikus["work"]),
+			passed: slices.Concat([]spot{sidesMark, workMovedOn, startedBest["work"]}, olderHaikus["work"]),
 		},
 		{
 			stem: "accounts-detail-limit-160", doc: badHour, configured: framedAccounts, chosen: "personal", page: page, sessions: movedToSide,
@@ -243,7 +243,7 @@ func TestDetailIsDrawnAsItsFrames(t *testing.T) {
 		},
 		{
 			stem: "accounts-detail-one-160", doc: aloneDoc(), configured: framedAccounts[:1], page: alonePage(t),
-			passed: slices.Concat([]spot{markedHead["one"], alonePressure, aloneBest}, alonePace, olderHaikus["one"]),
+			passed: slices.Concat([]spot{markedHead["one"], alonePressure, startedBest["one"]}, alonePace, olderHaikus["one"]),
 		},
 	}
 	for _, tt := range tests {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -14,17 +15,37 @@ import (
 
 // accountsTab is what the watch holds of Accounts: what it shows; the
 // period's page, built of the days History's reads hold, and what it was
-// built of, as builtOf has it; that page stood at a moment, and the moment,
-// as accountsBuilt stands it; and the sessions Detail's SESSIONS listed
-// last, by id, in their order, for its selection to follow, as followed has
-// it.
+// built of, as builtOf has it; that page stood at a moment, and what it was
+// stood at, as accountsBuilt stands it; and the sessions Detail's SESSIONS
+// listed last, by id, in their order, for its selection to follow, as
+// followed has it.
 type accountsTab struct {
 	shown   dashboard.AccountsShown
 	page    *views.AccountsPage
 	of      builtOf
 	stood   *views.AccountsPage
-	at      *status.HeldMoment
+	at      *stoodAt
 	running []string
+}
+
+// stoodAt is what a page was stood at: the moment, held, and its time; and
+// when it stands otherwise, as the page's Until has it.
+type stoodAt struct {
+	moment      *status.HeldMoment
+	from, until time.Time
+}
+
+// stoodTill is what a page stood at the moment mo, till until, was stood at.
+func stoodTill(mo status.Moment, until time.Time) *stoodAt {
+	return &stoodAt{moment: mo.Held(), from: mo.Now, until: until}
+}
+
+// holds reports whether a page stood at s stands at now, of doc, as policy
+// judges it, as it was stood: of the one document, judged alike, as the
+// moment it was stood at is, from then till it stands otherwise. nil holds
+// none.
+func (s *stoodAt) holds(doc status.Document, now time.Time, policy score.Policy) bool {
+	return s != nil && s.moment.Of(doc, s.from, policy) && !now.Before(s.from) && now.Before(s.until)
 }
 
 // builtOf is what Accounts' page was built of: the days held, as historyTab
@@ -42,8 +63,9 @@ type builtOf struct {
 // reads today's days afresh, as readHistory reads them, so the page follows
 // them from look to look; and past midnight it moves on to the new day
 // before the next look reads it. It's stood at the moment of the message
-// taken in, as views.AccountsPage.At stands it, where it's built afresh or
-// was stood at another: once a message, for every frame of it to read.
+// taken in, as views.AccountsPage.At stands it, where it's built afresh, the
+// document or the policy is another, or the page stands otherwise since, as
+// its Until has it: never a frame at a time.
 func (m Model) accountsBuilt() Model {
 	if m.view != dashboard.Accounts || !m.past.last.held() {
 		return m
@@ -54,9 +76,10 @@ func (m Model) accountsBuilt() Model {
 		page := m.past.last.past.Since(nil, now).Accounts(of.period)
 		m.accounts.page, m.accounts.of, m.accounts.at = &page, of, nil
 	}
-	if !m.accounts.at.Of(m.doc, now, m.cfg.Policy) {
+	if !m.accounts.at.holds(m.doc, now, m.cfg.Policy) {
 		mo := m.moment(now)
-		m.accounts.stood, m.accounts.at = new(m.accounts.page.At(mo)), mo.Held()
+		m.accounts.stood = new(m.accounts.page.At(mo))
+		m.accounts.at = stoodTill(mo, m.accounts.page.Until(mo))
 	}
 	return m
 }
@@ -99,17 +122,17 @@ func (m Model) detailShown() bool {
 	return m.view == dashboard.Accounts && m.accounts.shown.View() == dashboard.AccountsDetail
 }
 
-// sessionsOn are the ids of the sessions running at now on the account
-// Detail shows, of those the router listed, as the request stream s has
-// moved and seen them since, in its SESSIONS' order, as views.RunningOn has
-// them: none of all accounts, which none runs on alone, nor while Accounts
-// shows no Detail.
-func (m Model) sessionsOn(now time.Time, s views.Stream) []string {
+// sessionsOn are the ids of the sessions running at the moment mo on the
+// account Detail shows, of those the router listed, sessions, as the request
+// stream s has moved and seen them since, in its SESSIONS' order, as
+// views.RunningOn has them: none of all accounts, which none runs on alone,
+// nor while Accounts shows no Detail.
+func (m Model) sessionsOn(mo status.Moment, sessions []status.Session, s views.Stream) []string {
 	if !m.detailShown() {
 		return nil
 	}
 	var ids []string
-	for _, r := range views.RunningOn(views.RunningOf(m.moment(now), m.sessions, s), m.accounts.shown.Account()) {
+	for _, r := range views.RunningOn(views.RunningOf(mo, sessions, s), m.accounts.shown.Account()) {
 		ids = append(ids, r.Session)
 	}
 	return ids
@@ -118,7 +141,14 @@ func (m Model) sessionsOn(now time.Time, s views.Stream) []string {
 // running are the ids of the sessions Detail's SESSIONS lists at now, as
 // sessionsOn has them, as the request stream has moved and seen them.
 func (m Model) running(now time.Time) []string {
-	return m.sessionsOn(now, m.traffic.stream(now))
+	return m.sessionsOn(m.moment(now), m.sessions, m.traffic.stream(now))
+}
+
+// runningIn are the ids of the sessions Detail's SESSIONS lists on the frame
+// f drawn at now, as sessionsOn has them, at its moment, of its sessions and
+// its stream.
+func (m Model) runningIn(f dashboard.Frame, now time.Time) []string {
+	return m.sessionsOn(f.Moment(m.doc, now), f.Sessions, f.Stream)
 }
 
 // detailsSessions reports whether Detail shows an account that sessions run
@@ -126,7 +156,7 @@ func (m Model) running(now time.Time) []string {
 // doing, as the request stream tells it: never all accounts, which none
 // runs on alone.
 func (m Model) detailsSessions() bool {
-	return m.detailShown() && len(m.sessionsOn(m.now(), views.Stream{})) > 0
+	return m.detailShown() && len(m.sessionsOn(m.moment(m.now()), m.sessions, views.Stream{})) > 0
 }
 
 // followed is m with Detail's SESSIONS' selection following the sessions

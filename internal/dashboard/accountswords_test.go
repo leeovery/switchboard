@@ -404,12 +404,14 @@ func TestAPeriodsFigureIsADashWhereThePeriodRecordsNothing(t *testing.T) {
 // Extra usage says each form as the design does: an account's on in
 // accent.attention, billed past its limit, read so where only its use is
 // given; every account's on on all, or on for how many of them, those not
-// read counted among them; off where none read is on; and a dash where none
-// is read. Detail's short forms say on and off alone.
+// read counted among them; off on all where every one is read off; and a
+// dash where none is read on and one isn't read. Detail's short forms say on
+// and off alone.
 func TestExtraUsageSaysEachForm(t *testing.T) {
 	on, off, unread := quota.StatusAllowed, quota.StatusRejected, quota.Status("")
 	used := status.AccountNow{ID: "side", Extra: quota.ExtraUsage{Utilization: new(0.2)}}
 	mixed := []status.AccountNow{extraOf("work", on), extraOf("personal", off), extraOf("side", unread)}
+	allOff := []status.AccountNow{extraOf("work", off), extraOf("personal", off)}
 	boldMuted, boldWarning, faintBold := mutedInk, warningInk, faintInk
 	boldMuted.bold, boldWarning.bold, faintBold.bold = true, true, true
 	tests := []struct {
@@ -423,11 +425,13 @@ func TestExtraUsageSaysEachForm(t *testing.T) {
 		{name: "an account's not read", parts: extraParts(extraOf("work", unread), secondaryInk), want: line{{"—", faintInk}}},
 		{name: "every account on", parts: extraOfAll(status.ExtraOfAll([]status.AccountNow{extraOf("work", on), used}), strongInk), want: line{{"on on all", boldWarning}}},
 		{name: "every account, one of three on", parts: extraOfAll(status.ExtraOfAll(mixed), strongInk), want: line{{"on for 1 of 3", boldWarning}}},
-		{name: "every account read off, one not read", parts: extraOfAll(status.ExtraOfAll(mixed[1:]), strongInk), want: line{{"off on all", boldMuted}}},
+		{name: "every account read off", parts: extraOfAll(status.ExtraOfAll(allOff), strongInk), want: line{{"off on all", boldMuted}}},
+		{name: "those read off, one not read", parts: extraOfAll(status.ExtraOfAll(mixed[1:]), strongInk), want: line{{"—", faintBold}}},
 		{name: "every account not read", parts: extraOfAll(status.ExtraOfAll(mixed[2:]), strongInk), want: line{{"—", faintBold}}},
 		{name: "short, an account on", parts: extraShort(status.ExtraOfAll(mixed[:1])), want: line{{"on", warningInk}}},
 		{name: "short, every account, one of three on", parts: extraShort(status.ExtraOfAll(mixed)), want: line{{"on for 1 of 3", warningInk}}},
-		{name: "short, every account read off", parts: extraShort(status.ExtraOfAll(mixed[1:])), want: line{{"off", mutedInk}}},
+		{name: "short, every account read off", parts: extraShort(status.ExtraOfAll(allOff)), want: line{{"off", mutedInk}}},
+		{name: "short, those read off, one not read", parts: extraShort(status.ExtraOfAll(mixed[1:])), want: line{{"—", faintInk}}},
 		{name: "short, none read", parts: extraShort(status.ExtraOfAll(mixed[2:])), want: line{{"—", faintInk}}},
 	}
 	for _, tt := range tests {

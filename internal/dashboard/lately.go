@@ -125,28 +125,43 @@ func (f Frame) drawLately(c *canvas, m status.Moment, sentences []views.Sentence
 }
 
 // latelyLines are the sentences given as LATELY's lines at m's moment: each
-// its time, in a column as wide as the widest, the first's in text.secondary
-// and the rest's in text.subtle; its mark; and its words, as saidLine draws
-// them, short on a phone.
+// led as latelyLeads has it, the first's time in text.secondary; then its
+// words, as the frame tells them, as saidLine draws them.
 func (f Frame) latelyLines(m status.Moment, sentences []views.Sentence) []line {
 	names := overviewNames(m)
+	lines := latelyLeads(m, sentences)
+	for i, s := range sentences {
+		if i == 0 {
+			lines[i][0].ink = secondaryInk
+		}
+		lines[i] = append(lines[i], saidLine(m, names, f.latelySaid(s))...)
+	}
+	return lines
+}
+
+// latelyLeads are the leads of LATELY's lines, the Overview's and Detail's
+// alike, of the sentences given at m's moment: each its time, in a column as
+// wide as the widest, in text.subtle; then its mark.
+func latelyLeads(m status.Moment, sentences []views.Sentence) []line {
 	column := 0
 	for _, s := range sentences {
 		column = max(column, len(prose.Dated(m.Now, s.At)))
 	}
-	lines := make([]line, len(sentences))
+	leads := make([]line, len(sentences))
 	for i, s := range sentences {
-		at := span{padded(prose.Dated(m.Now, s.At), column) + afterTime, dimInk}
-		if i == 0 {
-			at.ink = secondaryInk
-		}
-		said := s.Full
-		if f.phone() {
-			said = s.Short
-		}
-		lines[i] = append(line{at, eventMark(s), spaces(1)}, saidLine(m, names, said)...)
+		leads[i] = line{{padded(prose.Dated(m.Now, s.At), column) + afterTime, dimInk}, eventMark(s), spaces(1)}
 	}
-	return lines
+	return leads
+}
+
+// latelySaid are a sentence's words as the Overview's LATELY tells them on
+// the frame: short on a phone. Detail's tells them in full, as
+// accountLatelyLines has them.
+func (f Frame) latelySaid(s views.Sentence) views.Said {
+	if f.phone() {
+		return s.Short
+	}
+	return s.Full
 }
 
 // saidLine is a sentence's words as LATELY draws them: its subject in bold

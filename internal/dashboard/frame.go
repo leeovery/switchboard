@@ -123,12 +123,12 @@ type Frame struct {
 	Log LogPage
 
 	// held is the moment of a document as At holds it, and built the
-	// Overview's sections as Built built them, each for every look the frame,
-	// or a copy of it, takes of their document at their moment to share; and
-	// runs the sessions running, for the sections built together to share:
-	// nil, where each look works them out afresh.
+	// Overview's sections and Accounts' form as Built built them, each for
+	// every look the frame, or a copy of it, takes of their document at their
+	// moment to share; and runs the sessions running, for the sections built
+	// together to share: nil, where each look works them out afresh.
 	held  *status.HeldMoment
-	built *sectionsBuilt
+	built *viewsBuilt
 	runs  *runningHeld
 }
 

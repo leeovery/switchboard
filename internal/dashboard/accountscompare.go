@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -43,8 +44,9 @@ var compareOut = outForm{above: " above", below: " below", gap: " · ", keys: "j
 
 // compared is Compare as a frame lays it out of a moment: the accounts its
 // columns show, from the first shown, then all accounts'; each colw cells
-// wide; and the key of the accounts' own week, as the frame names it, which
-// WEEK USED shows.
+// wide; the key of the accounts' own week, as the frame names it, which
+// WEEK USED shows; and its rows drawn whole, once, for every look to share,
+// where it's laid out to draw wide, as comparing lays it out.
 type compared struct {
 	f     Frame
 	m     status.Moment
@@ -54,6 +56,7 @@ type compared struct {
 	shown int
 	colw  int
 	week  string
+	rows  func() *canvas
 }
 
 // compareColumn is a column of Compare: from column x, its values cut to
@@ -81,14 +84,17 @@ func (f Frame) compareForm(doc status.Document, now time.Time) accountsForm {
 	return accountsForm{draw: cp.draw, scrolling: cp.scrolling, scrolls: cp.scrolls, targets: cp.targets, filled: cp.filled}
 }
 
-// comparing is Compare of doc at now, laid out as the frame has it.
+// comparing is Compare of doc at now, laid out as the frame has it, its rows
+// drawn whole once, the first time a look asks.
 func (f Frame) comparing(doc status.Document, now time.Time) compared {
 	m := f.Moment(doc, now)
 	shown := f.compareShows()
-	return compared{
+	cp := compared{
 		f: f, m: m, now: now, page: f.Accounts.Page, first: f.compareFirst(), shown: shown,
 		colw: (f.Width - compareLabels) / (shown + 1), week: f.WeekWindow,
 	}
+	cp.rows = sync.OnceValue(func() *canvas { return cp.body(cp.columns()) })
+	return cp
 }
 
 // compareShows is how many accounts Compare shows a column of, beside all
@@ -187,9 +193,8 @@ func (col compareColumn) ink() ink {
 // under the heads, and over the key line, where they don't all show, how
 // many are out of view.
 func (cp compared) draw(c *canvas, top int) {
-	columns := cp.columns()
-	cp.heads(c, top, columns)
-	body := cp.body(columns)
+	cp.heads(c, top, cp.columns())
+	body := cp.rows()
 	content, rows := body.height(), cp.bodyRows()
 	offset := byRows(content, rows).clamped(cp.f.Scroll)
 	c.paste(body, offset, top+compareHeads, rows)
@@ -206,7 +211,7 @@ func (cp compared) bodyRows() int {
 // scrolling is how far Compare's rows scroll under its heads, a row at a
 // time, at every offset alike.
 func (cp compared) scrolling(int) Scrolling {
-	return byRows(cp.body(cp.columns()).height(), cp.bodyRows())
+	return byRows(cp.rows().height(), cp.bodyRows())
 }
 
 // scrolls is what of Compare scrolls: its rows under its heads, across the

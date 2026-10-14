@@ -589,3 +589,48 @@ func TestAnAccountKeptFromASummaryOfVersionOneIsKeptAsItWasNeverRead(t *testing.
 		})
 	}
 }
+
+// A climb's resets are those a day's summary files of the readings it takes:
+// one between two readings, at the reset the first read; one its end comes
+// after, at the reset the last read; each with the highest use of the run it
+// ended, the use it began at among it; and none of a run that read nothing.
+func TestAClimbsResetsAreThoseItsRunsEndedReadingAboveNothing(t *testing.T) {
+	week := func(used float64, resets time.Time) quota.Window {
+		return quota.Window{Key: "7d", Utilization: used, ResetsAt: resets}
+	}
+	monday := time.Date(2026, 10, 5, 21, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		began float64
+		take  func(c *ledger.Climb)
+		want  []ledger.Reset
+	}{
+		{name: "between two readings", began: 0.8, take: func(c *ledger.Climb) {
+			c.Take(week(0.6, monday), monday.Add(-time.Hour))
+			c.Take(week(0, monday.AddDate(0, 0, 7)), monday.Add(time.Minute))
+			c.End(monday.Add(time.Hour))
+		}, want: []ledger.Reset{{Window: "7d", At: monday, Before: 0.8}}},
+		{name: "as it ends", take: func(c *ledger.Climb) {
+			c.Take(week(0.6, monday), monday.Add(-time.Hour))
+			c.End(monday.Add(time.Second))
+		}, want: []ledger.Reset{{Window: "7d", At: monday, Before: 0.6}}},
+		{name: "before it ends", take: func(c *ledger.Climb) {
+			c.Take(week(0.6, monday), monday.Add(-time.Hour))
+			c.End(monday.Add(-time.Second))
+		}},
+		{name: "of a run that read nothing", take: func(c *ledger.Climb) {
+			c.Take(week(0, monday), monday.Add(-time.Hour))
+			c.End(monday.Add(time.Second))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := ledger.NewClimb("7d", nil)
+			c.BeginAt(tt.began)
+			tt.take(c)
+			if got := c.Resets(); !slices.Equal(got, tt.want) {
+				t.Errorf("Resets() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}

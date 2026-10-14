@@ -8,6 +8,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // WeeksPage is Weeks as the dashboard draws it: the eight weeks to this one,
@@ -37,6 +38,28 @@ type WeeksPage struct {
 	// DropPrice is what the plan of Capacity's Drop costs a month, as of
 	// today: nil where its plan isn't known, or none is named to drop.
 	DropPrice *ledger.Picodollars
+
+	// past is what the page was built of, for At to build it afresh.
+	past Past
+}
+
+// At is the page as it stands at the moment m, of the document of its
+// accounts: built afresh of the days as they stand at m, as Past's filedAt
+// files them, where they stand otherwise than as it was built, so its weeks
+// are Accounts' at the same moment; else as it was built.
+func (page WeeksPage) At(m status.Moment) WeeksPage {
+	stood, ok := page.past.filedAt(m)
+	if !ok {
+		return page
+	}
+	return stood.weeksPage()
+}
+
+// Until is when the page, as At stands it at the moment m, next stands
+// otherwise, as Past's standsUntil has it: till then, At stands it alike at
+// every moment of m's document.
+func (page WeeksPage) Until(m status.Moment) time.Time {
+	return page.past.standsUntil(m)
 }
 
 // WeeksRow is an account's row of Weeks, or every account's: its verdict, as
@@ -90,6 +113,7 @@ func (p Past) weeksPage() WeeksPage {
 		Weeks:    weekDates(first, weeksShown),
 		Capacity: j.capacity(),
 		Window:   in.WeekWindow,
+		past:     p,
 	}
 	byWeek := make(map[string]Week, len(placed))
 	for _, w := range weeksOf(placed, in.Accounts) {

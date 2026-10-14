@@ -10,25 +10,29 @@ import (
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
-// At each of Accounts' hard moments, the totals Compare and THIS WEEK read
-// off a row are history's over the same days, every one of them, of each
-// account and of every account: its requests, its limits, its sessions
-// served and its worth among them, and each window's last run, told from the
-// days before the period too.
-func TestAccountsTotalsAreHistorysOverThePeriod(t *testing.T) {
+// At each of Accounts' hard moments, the totals and plans Compare and THIS
+// WEEK read off a row are history's over the same period, every one of
+// them, of each account and of every account: its requests, its limits, its
+// sessions served and its worth among them, each window's last run, told
+// from the days before the period too, and what its plan cost over the
+// period and its worth against it.
+func TestAccountsTotalsAndPlansAreHistorysOverThePeriod(t *testing.T) {
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
 			page, _ := accountsAt(am)
 			in := accountsIn(am)
-			in.From = am.Period.From(am.Now, am.WeekStarts)
-			history := views.NewHistory(in).Totals.Accounts
+			in.From, in.Period = am.Period.From(am.Now, am.WeekStarts), &am.Period
+			history := views.NewHistory(in)
 			rows := append(slices.Clone(page.Rows), page.All)
-			if len(rows) != len(history) {
-				t.Fatalf("the page has %d rows, history %d totals", len(rows), len(history))
+			if len(rows) != len(history.Totals.Accounts) || len(rows) != len(history.Plans) {
+				t.Fatalf("the page has %d rows, history %d totals and %d plans", len(rows), len(history.Totals.Accounts), len(history.Plans))
 			}
 			for i, row := range rows {
-				if got, want := jsonOf(t, row.Totals), jsonOf(t, history[i]); got != want {
+				if got, want := jsonOf(t, row.Totals), jsonOf(t, history.Totals.Accounts[i]); got != want {
 					t.Errorf("row %d counts\n%s\nhistory counts\n%s", i, got, want)
+				}
+				if got, want := jsonOf(t, row.Plan), jsonOf(t, history.Plans[i]); got != want {
+					t.Errorf("row %d's plan is\n%s\nhistory's\n%s", i, got, want)
 				}
 			}
 		})
@@ -106,27 +110,76 @@ func TestDetailsLATELYTellsOnlyEventsLATELYTells(t *testing.T) {
 	}
 }
 
-// Detail's WEEKS and verdict are Weeks', of History, over the same days, as
-// the page is built: its six weeks the last six of Weeks' eight, each row's
-// peaks and verdict theirs.
-func TestDetailsWeeksAreHistoryWeeksLastSix(t *testing.T) {
+// At each of Accounts' hard moments, Detail's WEEKS, its verdicts and what
+// each account had left at its last reset are History's Weeks' and
+// history's, each as it stands then: Accounts' page and Weeks' built of the
+// days as they were read, as the watch builds them, and stood at the moment;
+// history of the days the ledger holds then, from Weeks' first week. Its six
+// weeks are the last six of Weeks' eight, each row's peaks and verdict
+// theirs, and its left at its last reset history's, where history gives one.
+func TestDetailsWeeksAreHistorysAtTheMoment(t *testing.T) {
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
-			past := views.NewPast(accountsIn(am), am.Days)
-			built, weeks := past.Accounts(am.Period), past.Weeks()
-			shown := len(weeks.Weeks) - len(built.Weeks)
-			if shown < 0 || !slices.Equal(built.Weeks, weeks.Weeks[shown:]) {
-				t.Fatalf("Detail's weeks are %v, Weeks' %v", built.Weeks, weeks.Weeks)
+			page, m := accountsAt(am)
+			weeks := pastOf(am).Weeks().At(m)
+			shown := len(weeks.Weeks) - len(page.Weeks)
+			if shown < 0 || !slices.Equal(page.Weeks, weeks.Weeks[shown:]) {
+				t.Fatalf("Detail's weeks are %v, Weeks' %v", page.Weeks, weeks.Weeks)
 			}
+			history := heldHistory(am, weeks.Weeks[0])
 			rows := append(slices.Clone(weeks.Accounts), weeks.All)
-			for i, row := range append(slices.Clone(built.Rows), built.All) {
-				if got, want := peaksRead(row.Peaks), peaksRead(rows[i].Peaks[shown:]); got != want {
-					t.Errorf("row %d's peaks are %s, Weeks' %s", i, got, want)
+			for i, row := range append(slices.Clone(page.Rows), page.All) {
+				peaks := []string{peaksRead(row.Peaks), peaksRead(rows[i].Peaks[shown:]), peaksRead(historysPeaks(history, i, page.Weeks))}
+				if !allSame(peaks) {
+					t.Errorf("row %d's peaks are %s, Weeks' %s, history's %s", i, peaks[0], peaks[1], peaks[2])
 				}
-				if got, want := verdictRead(row.Verdict), verdictRead(rows[i].AccountVerdict); got != want {
-					t.Errorf("row %d's verdict is %s, Weeks' %s", i, got, want)
+				verdicts := []string{verdictRead(row.Verdict), verdictRead(rows[i].AccountVerdict), verdictRead(history.Capacity.Accounts[i])}
+				if !allSame(verdicts) {
+					t.Errorf("row %d's verdict is %s, Weeks' %s, history's %s", i, verdicts[0], verdicts[1], verdicts[2])
+				}
+				if i == len(page.Rows) {
+					continue
+				}
+				if left, ok := history.Totals.Accounts[i].LeftAtReset[claude.WeekWindow]; ok && shareRead(row.WeekLeft) != shareRead(&left) {
+					t.Errorf("row %d had %s left at its last reset, history %s", i, shareRead(row.WeekLeft), shareRead(&left))
 				}
 			}
 		})
 	}
+}
+
+// heldHistory is history at the moment am, of the days the ledger holds then
+// from the day with the given date.
+func heldHistory(am viewstest.AccountsMoment, from string) views.History {
+	in := accountsIn(am)
+	if am.Held != nil {
+		in.Ledger = ledgerOf(am.Held)
+	}
+	in.From = on(from)
+	return views.NewHistory(in)
+}
+
+// historysPeaks are history's peaks of its week window of the account with
+// index x among its weeks' own, or every account's, past theirs, in the
+// weeks with the dates given, as WEEKS has them: unknown in a week it
+// doesn't give.
+func historysPeaks(h views.History, x int, dates []string) []views.WeekPeak {
+	peaks := make([]views.WeekPeak, len(dates))
+	for i, date := range dates {
+		w := slices.IndexFunc(h.Weeks, func(w views.Week) bool { return w.Week == date })
+		if w < 0 {
+			continue
+		}
+		a := h.Weeks[w].Accounts[x]
+		if share, ok := a.Peaks[claude.WeekWindow]; ok {
+			peaks[i].Share = &share
+		}
+		peaks[i].Open = slices.Contains(a.Open, claude.WeekWindow)
+	}
+	return peaks
+}
+
+// allSame reports whether each of said is the first.
+func allSame(said []string) bool {
+	return !slices.ContainsFunc(said, func(s string) bool { return s != said[0] })
 }

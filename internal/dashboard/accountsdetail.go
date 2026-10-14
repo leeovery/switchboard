@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -165,8 +166,8 @@ func (f Frame) detailDrawnIn() detailLayout {
 // detailDrawn is Detail of a moment as it's drawn wide: the frame and its
 // layout; the account shown, by its id, "" for all accounts, as
 // configuredNow has it, and whether the moment has it; its row of the
-// period's page, where the page is read and holds one; and the sessions
-// running on it.
+// period's page, where the page is read and holds one; the sessions running
+// on it; and its panel drawn whole, once, for every look to share.
 type detailDrawn struct {
 	f       Frame
 	m       status.Moment
@@ -177,10 +178,12 @@ type detailDrawn struct {
 	page    *views.AccountsPage
 	row     views.AccountsRow
 	running []views.Running
+	drawn   func() *canvas
 }
 
 // detailDrawn is Detail of doc at now laid out as l: the account the frame's
-// Accounts shows, else all accounts, where it shows none the config has.
+// Accounts shows, else all accounts, where it shows none the config has; its
+// panel drawn once, the first time a look asks.
 func (f Frame) detailDrawn(doc status.Document, now time.Time, l detailLayout) detailDrawn {
 	d := detailDrawn{f: f, m: f.Moment(doc, now), l: l}
 	configured := f.Accounts.Accounts
@@ -190,6 +193,7 @@ func (f Frame) detailDrawn(doc status.Document, now time.Time, l detailLayout) d
 		d.running = views.RunningOn(f.running(doc, now), d.id)
 	}
 	d.page, d.row = pageRowOf(f.Accounts.Page, d.id)
+	d.drawn = sync.OnceValue(d.panel)
 	return d
 }
 
@@ -233,7 +237,7 @@ var listOut = []outForm{{noun: "account", gap: " · ", inks: keyedOut}, {gap: " 
 // show, how many of the panel's rows are out of view, from its column, as
 // Compare's line says it, and under the list, how many of its accounts.
 func (d detailDrawn) draw(c *canvas, top int) {
-	panel := d.panel()
+	panel := d.drawn()
 	rows, y := d.f.viewRows(), d.f.Height-underView
 	offset := byRows(panel.height(), rows).clamped(d.f.Scroll)
 	c.paste(panel, offset, top, rows)
@@ -249,7 +253,7 @@ func (d detailDrawn) draw(c *canvas, top int) {
 // scrolling is how far Detail's panel scrolls, by rows, at any offset: as far
 // as it runs past the view's rows.
 func (d detailDrawn) scrolling(int) Scrolling {
-	return byRows(d.panel().height(), d.f.viewRows())
+	return byRows(d.drawn().height(), d.f.viewRows())
 }
 
 // scrolls is what of Detail scrolls: its panel, from its column to the
@@ -461,26 +465,21 @@ func (d detailDrawn) lately(c *canvas, y, x, words int) {
 }
 
 // accountLatelyLines are Detail's LATELY lines of the sentences given, at the
-// moment m: each its time, in a column as wide as the widest, in
-// text.subtle; its mark, as LATELY marks it; and its words, in text.muted,
-// each account named as the dashboard names it, cut to the cells given.
+// moment m: each led as latelyLeads has it; then its words in full, on a
+// phone as wide, in text.muted, each account named as the dashboard names
+// it, cut to the cells given.
 func accountLatelyLines(m status.Moment, sentences []views.Sentence, words int) []line {
-	column := 0
-	for _, s := range sentences {
-		column = max(column, len(prose.Dated(m.Now, s.At)))
-	}
-	lines := make([]line, len(sentences))
+	lines := latelyLeads(m, sentences)
 	for i, s := range sentences {
-		var said line
+		var told line
 		for _, p := range slices.Concat(s.Full.Subject, s.Full.Words, s.Full.Object, s.Full.Rest) {
 			text := p.Text
 			if p.Kind == status.PartAccount {
 				text = named(m, p.Text)
 			}
-			said = append(said, span{text, mutedInk})
+			told = append(told, span{text, mutedInk})
 		}
-		lead := line{{padded(prose.Dated(m.Now, s.At), column) + afterTime, dimInk}, eventMark(s), spaces(1)}
-		lines[i] = append(lead, said.fit(words)...)
+		lines[i] = append(lines[i], told.fit(words)...)
 	}
 	return lines
 }
@@ -673,7 +672,7 @@ func (d detailDrawn) sessionTargets() []Target {
 		return nil
 	}
 	top, rows := d.f.top(), d.f.viewRows()
-	at := d.latelyAt() + 1 - byRows(d.panel().height(), rows).clamped(d.f.Scroll)
+	at := d.latelyAt() + 1 - byRows(d.drawn().height(), rows).clamped(d.f.Scroll)
 	first, shown := sessionsScrolled(len(d.running), d.selected())
 	var targets []Target
 	for i, r := range d.running[first : first+shown] {
