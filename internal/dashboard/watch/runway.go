@@ -87,15 +87,14 @@ const carriedFor = 7
 
 // liveSpan is the span of the readings history the live tail reads at now,
 // weeks starting on the day given: from the start of the day before now's,
-// or of this week where that's earlier, so the live views, today and this
-// week are each read of it, to a week on from now's day, each window's last
-// from a week before carried in. It moves as the day turns, and the tail is
-// read afresh then, but only what the history gains at each look between.
+// of this week, or of the week's live view, whichever is earliest, so the
+// live views, today and this week are each read of it, to a week on from
+// now's day, each window's last from a week before carried in. The week's
+// live view starts before the day before now's in the hour after the clocks
+// go forward. It moves as the day turns, and the tail is read afresh then,
+// but only what the history gains at each look between.
 func liveSpan(now time.Time, starts time.Weekday) readingsSpan {
-	start := dayfile.DayStart(now, -1)
-	if week := views.WeekStart(now, starts); week.Before(start) {
-		start = week
-	}
+	start := slices.MinFunc([]time.Time{dayfile.DayStart(now, -1), views.WeekStart(now, starts), views.LiveTimeline(views.RunwayWeek, now, 0).Start}, time.Time.Compare)
 	return readingsSpan{from: dayfile.DayStart(start, -carriedFor), start: start, end: dayfile.DayStart(now, 7)}
 }
 

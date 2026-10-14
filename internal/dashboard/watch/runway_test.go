@@ -243,6 +243,41 @@ func TestADayOrAWeekSteppedBackToIsReadOnceAndHeld(t *testing.T) {
 	}
 }
 
+// Each live view, today and this week is read of the live tail, whatever the
+// clocks did: the week's live view, from 24 hours before now, starts before
+// yesterday's midnight in the hour after the clocks go forward, and the live
+// tail starts no later.
+func TestEachLiveViewTodayAndThisWeekAreReadOfTheLiveTail(t *testing.T) {
+	london, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Fatalf("load Europe/London: %v", err)
+	}
+	nows := []time.Time{
+		start,
+		time.Date(2026, time.March, 30, 0, 30, 0, 0, london),
+		time.Date(2026, time.March, 30, 0, 50, 0, 0, london),
+		time.Date(2026, time.March, 30, 1, 5, 0, 0, london),
+		time.Date(2026, time.October, 26, 0, 30, 0, 0, london),
+	}
+	for _, now := range nows {
+		for _, starts := range []time.Weekday{time.Sunday, time.Monday} {
+			live := liveSpan(now, starts)
+			timelines := map[string]views.Timeline{
+				"the live 5-hour": views.LiveTimeline(views.RunwayFiveHour, now, 136),
+				"the live week":   views.LiveTimeline(views.RunwayWeek, now, 136),
+				"today":           views.Stepped(views.RunwayFiveHour, civilOf(now), now, starts, 136),
+				"this week":       views.Stepped(views.RunwayWeek, civilOf(now), now, starts, 136),
+			}
+			for name, tl := range timelines {
+				if s := spanOf(tl, live); !s.is(live) {
+					t.Errorf("at %s, weeks starting %s, %s from %s is read of a span of its own from %s, want the live tail's, from %s",
+						now.Format(time.RFC3339), starts, name, tl.Start.Format(time.RFC3339), s.start.Format(time.RFC3339), live.start.Format(time.RFC3339))
+				}
+			}
+		}
+	}
+}
+
 // As the day turns, the live tail is made afresh over the span from the day
 // before the new today, and holds what it read till its read lands, so the
 // lanes never go blank as it's read.
