@@ -314,6 +314,33 @@ func TestEscOnTheLogClosesTheFindThenFollowsThenLetsTheFilterGo(t *testing.T) {
 	}
 }
 
+// On a terminal too short for the Log's table, as on any, / opens the find,
+// its line drawn in the state line's row, what's typed shown, q among it:
+// the page otherwise its title row, its status line and its key line alone.
+func TestTheFindOnACrampedTerminalDrawsItsLine(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 10})...)
+	h.start()
+	h.typed("/", "a", "p", "q")
+
+	if !h.model.finding() {
+		t.Fatal("/ then a, p and q on a cramped terminal, the find isn't open")
+	}
+	rows := strings.Split(h.view(), "\n")
+	if got := strings.TrimSpace(rows[len(rows)-2]); !strings.HasPrefix(got, "/ apq▏") {
+		t.Errorf("/ then a, p and q on a cramped terminal, the state line's row reads %q, want the find's line, / apq▏", got)
+	}
+	_, statusRow := h.drawnAt("router not running")
+	for y := statusRow + 1; y < len(rows)-2; y++ {
+		if strings.TrimSpace(rows[y]) != "" {
+			t.Errorf("cramped, the find open, row %d reads %q, want it blank, as the view's rows are", y, rows[y])
+		}
+	}
+}
+
 // / before the Log's first read lands opens the find, its line drawn in the
 // state line's row as the design has / open it, what's typed shown as it's
 // typed, finding none of today's sessions till the read counts them; and it
