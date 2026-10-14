@@ -425,6 +425,36 @@ func TestTheFindOnACrampedTerminalDrawsItsLine(t *testing.T) {
 	}
 }
 
+// / opens no find where its line has no row, under the status line, as on a
+// terminal 4 rows tall, or 5 on a phone: there it works not, and isn't
+// listed. A row taller, it opens.
+func TestSlashOpensNoFindWhereItsLineHasNoRow(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		width, height int
+		opens         bool
+	}{
+		{name: "wide, 4 rows", width: 150, height: 4},
+		{name: "wide, 5 rows", width: 150, height: 5, opens: true},
+		{name: "a phone, 5 rows", width: 52, height: 5},
+		{name: "a phone, 6 rows", width: 52, height: 6, opens: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -time.Minute))
+			h := newHarness(t, probedWithoutTheRouter())
+			onTheLog(h, state)
+			h.deliver(h.update(tea.WindowSizeMsg{Width: tt.width, Height: tt.height})...)
+			h.start()
+			listed := slices.ContainsFunc(h.model.logListings(), func(k keyListing) bool { return k.Key.Key == "/" && k.works })
+			h.typed("/")
+			if h.model.finding() != tt.opens || listed != tt.opens {
+				t.Errorf("/ opened the find: %t, listed as working: %t; want %t", h.model.finding(), listed, tt.opens)
+			}
+		})
+	}
+}
+
 // / before the Log's first read lands opens the find, its line drawn in the
 // state line's row as the design has / open it, what's typed shown as it's
 // typed, finding none of today's sessions till the read counts them; and it

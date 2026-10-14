@@ -73,9 +73,8 @@ func (m Model) openLogCard() (Model, tea.Cmd) {
 // fits under it, as LogFitted has it; the page standing still behind the
 // card as it stands now, till a key steps the card on.
 func (m Model) placeLogCard() Model {
-	f := dashboard.Frame{Width: m.size.Width, Height: m.size.Height, View: dashboard.Log, Log: m.log.page}
 	var placed dashboard.LogCard
-	m.log.page, placed = f.LogFitted(m.logCard())
+	m.log.page, placed = m.logFrame().LogFitted(m.logCard())
 	m.log.card.placed = placed.Placed
 	return m.cover(logCardOpen)
 }

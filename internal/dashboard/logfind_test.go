@@ -116,6 +116,28 @@ func TestTheFindsLineTakesTheStateLinesPlace(t *testing.T) {
 	}
 }
 
+// The find's line has a row, the state line's, only under the status line:
+// none on a terminal 4 rows tall, or 5 on a phone, its title and tabs taking
+// a row more.
+func TestTheFindsLineHasARowOnlyUnderTheStatusLine(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		width, height int
+		finds         bool
+	}{
+		{name: "wide, 4 rows", width: 160, height: 4},
+		{name: "wide, 5 rows", width: 160, height: 5, finds: true},
+		{name: "a phone, 5 rows", width: 52, height: 5},
+		{name: "a phone, 6 rows", width: 52, height: 6, finds: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := logFrameOf(findingThree(""), tt.width, tt.height).LogFinds(); got != tt.finds {
+				t.Errorf("the find's line has a row: %t, want %t", got, tt.finds)
+			}
+		})
+	}
+}
+
 // ↑ and ↓ step the pick through those found, no further than the first or
 // the last; one picked that's no longer found picks the first.
 func TestTheFindsPickStepsThroughThoseFound(t *testing.T) {

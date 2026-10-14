@@ -151,10 +151,17 @@ func (m Model) lookedLog(look status.Moment, from router.Health) Model {
 	return m.builtLog(look.Now)
 }
 
+// logFrame is the Log's frame at the size drawn at, which lays its page
+// out: how many lines its view shows, where its card sits, and whether its
+// find has a row.
+func (m Model) logFrame() dashboard.Frame {
+	return dashboard.Frame{Width: m.size.Width, Height: m.size.Height, View: dashboard.Log, Log: m.log.page}
+}
+
 // logRows is how many of the Log's lines its view shows at once, at the
 // size drawn at.
 func (m Model) logRows() int {
-	return dashboard.Frame{Width: m.size.Width, Height: m.size.Height, View: dashboard.Log, Log: m.log.page}.LogRows()
+	return m.logFrame().LogRows()
 }
 
 // logKey acts on a key of the Log's, reporting false for a key it doesn't
@@ -208,7 +215,7 @@ func (m Model) scrollLog(by scrollStep) Model {
 // logListings are the Log's own keys, in the design's order: [ ] view, in a
 // group of its own; ↑↓ choosing a request or an event, enter opening its
 // details, and paused, end following again; then f and /, a group of their
-// own while paused.
+// own while paused, / working where its find has a row, as LogFinds says.
 func (m Model) logListings() []keyListing {
 	log, p := m.view == dashboard.Log, m.log.page
 	paused := p.Paused()
@@ -218,7 +225,7 @@ func (m Model) logListings() []keyListing {
 		{Key: logOpenKey, works: log},
 		{Key: logFollowKey, works: log && paused},
 		{Key: dashboard.Key{Key: "f", Does: "what it shows"}, works: log, apart: paused, wide: true},
-		{Key: dashboard.Key{Key: "/", Does: "find"}, works: log, wide: true},
+		{Key: dashboard.Key{Key: "/", Does: "find"}, works: log && m.logFrame().LogFinds(), wide: true},
 	}
 }
 

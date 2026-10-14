@@ -230,21 +230,33 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 // stateLine draws the view's state line, over the key line, as told at now:
 // the Log's, once its first read lands, where the page has room for the
 // view, as cramped says; and while its find is open, read or not, the
-// find's line in its place, cramped or not, where the row's under the
-// status line, as what's typed into it is drawn nowhere else. The views
-// milestone 5 built draw their own line there.
+// find's line in its place, cramped or not, where LogFinds says it has the
+// row, as what's typed into it is drawn nowhere else. The views milestone 5
+// built draw their own line there.
 func (f Frame) stateLine(c *canvas, now time.Time) {
 	if f.View != Log {
 		return
 	}
-	y := f.Height - underView
-	if found, ok := f.Log.findLine(f.Width); ok && y > f.statusRow() {
+	y := f.stateRow()
+	if found, ok := f.Log.findLine(f.Width); ok && f.LogFinds() {
 		c.line(0, y, found)
 		return
 	}
 	if f.Log.Read && !f.cramped() {
 		c.line(0, y, f.Log.state(f.LogRows()).line(f.Width, now))
 	}
+}
+
+// stateRow is the row the state line is on: the key line's but one.
+func (f Frame) stateRow() int {
+	return f.Height - underView
+}
+
+// LogFinds reports whether the frame has a row for the Log's find line, so
+// / opens it: the state line's, where it's under the status line, as it
+// isn't on a terminal 4 rows tall, or 5 on a phone.
+func (f Frame) LogFinds() bool {
+	return f.stateRow() > f.statusRow()
 }
 
 // The page's rows under its view: the state line, or the blank row that
