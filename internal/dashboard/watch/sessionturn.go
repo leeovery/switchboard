@@ -58,24 +58,36 @@ func (m Model) closeTurn() Model {
 
 // moveRequest chooses the turn open's request by requests on from the one
 // chosen, oldest first, as ↑ and ↓ do, no further than the first and the
-// last, scrolling its requests no further than keeps it in view.
+// last, scrolling its requests, and its turns, no further than keeps it in
+// view, as requestInView has it.
 func (m Model) moveRequest(by int) Model {
 	s := *m.session
 	i := min(max(s.shown.Request+by, 0), max(len(s.shown.Requests)-1, 0))
 	scrolling := m.requestsScrolling()
 	s.shown.Request, s.shown.RequestsScroll = i, keptInView(s.shown.RequestsScroll, i, 0, scrolling)
 	m.session = &s
-	return m
+	return m.requestInView()
 }
 
 // scrollRequests scrolls the turn open's requests by, as j and k do with a
 // turn open, no further than they go, the request chosen kept in view: the
-// one nearest it in view, where it scrolls out.
+// one nearest it in view, where it scrolls out, its turns scrolling as
+// requestInView has it.
 func (m Model) scrollRequests(by scrollStep) Model {
 	s := *m.session
 	scrolling := m.requestsScrolling()
 	s.shown.RequestsScroll = by.from(s.shown.RequestsScroll, scrolling)
 	s.shown.Request = inViewAt(s.shown.Request, s.shown.RequestsScroll, scrolling)
+	m.session = &s
+	return m.requestInView()
+}
+
+// requestInView is m with its page's turns scrolled no further than keeps
+// the turn chosen in view, as choosing has it, with the rows under it Kept
+// keeps with it: of the turn open, those down to its request chosen.
+func (m Model) requestInView() Model {
+	s := *m.session
+	s.shown = choosing(s.shown, turnAt(s.shown, s.shown.Turn), m.turnsScrolling(s.shown, m.now()))
 	m.session = &s
 	return m
 }

@@ -189,3 +189,39 @@ func TestATurnOpenedKeepsItsRowAndItsFirstRequestInView(t *testing.T) {
 		})
 	}
 }
+
+// With a turn open, ↑ and ↓ keep the request chosen in view, the turns
+// scrolling as far as they must: of twenty turns in eleven rows, the tenth at
+// their foot, opened, its second request chosen comes up into view, and
+// enter places its card by its row, over it, a row between.
+func TestATurnOpenKeepsItsRequestChosenInViewAsTheTurnsScroll(t *testing.T) {
+	counts := slices.Repeat([]int{1}, 20)
+	counts[9] = 6
+	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), counts...))
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
+	h.openPage(idD28C)
+	h.keys(slices.Repeat([]tea.KeyPressMsg{downKey}, 10)...)
+	if got := h.shownPage(); got.Turn != 10 || got.Scroll != 0 {
+		t.Fatalf("↓ ten times chose turn %d, the turns scrolled %d; want turn 10 at their foot, unscrolled", got.Turn, got.Scroll)
+	}
+
+	h.keys(enterKey, downKey)
+	got := h.shownPage()
+	if got.Open != 10 || got.Request != 1 || got.Scroll != 3 {
+		t.Errorf("enter, ↓ left turn %d open, request %d chosen, the turns scrolled %d; want turn 10 open, its second request, scrolled 3 to show it",
+			got.Open, got.Request, got.Scroll)
+	}
+	i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnRequest && t.Row == 1 })
+	if i < 0 {
+		t.Fatalf("the request chosen has no row in view:\n%s", h.view())
+	}
+	lit := h.targets()[i].Y
+
+	h.keys(enterKey)
+	_, top := h.drawnAt("╭─ REQUEST")
+	rows := strings.Split(h.view(), "\n")
+	bottom := slices.IndexFunc(rows[top:], func(row string) bool { return strings.Contains(row, "╰") }) + top
+	if bottom != lit-2 {
+		t.Errorf("enter placed the card on rows %d to %d, want it over the request's row %d, a row between:\n%s", top+1, bottom+1, lit+1, h.view())
+	}
+}
