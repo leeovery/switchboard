@@ -168,6 +168,50 @@ func TestSessionsKeysChooseOpenAndTurn(t *testing.T) {
 	}
 }
 
+// The choice follows its session from look to look: on the Switchboard, to
+// its row on another account as the router lists it there, and ended once
+// the router lists it no more, but kept while the router doesn't answer, as
+// its last listing is drawn; on the List, kept on its row as its session
+// ends, the row going among those ended today.
+func TestSessionsChoiceFollowsItsSessionAtEachLook(t *testing.T) {
+	tests := []struct {
+		name string
+		list bool
+		then func(h *harness)
+		want dashboard.Plug
+	}{
+		{
+			name: "the router listing it on side", then: func(h *harness) { h.source.sessions[0] = sessionOn(idD28C, opus, "side", 0) },
+			want: dashboard.Plug{Session: idD28C, Account: "side"},
+		},
+		{name: "the router listing it no more", then: func(h *harness) { h.source.sessions = h.source.sessions[1:] }},
+		{name: "the router not answering", then: (*harness).stopRouter, want: dashboard.Plug{Session: idD28C, Account: "work"}},
+		{
+			name: "on the List, the router listing it no more", list: true, then: func(h *harness) { h.source.sessions = h.source.sessions[1:] },
+			want: dashboard.Plug{Session: idD28C},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := streamingHarness(t)
+			h.withLines(promptedLines(2, start.Add(-10*time.Minute)))
+			h.keys(toSessions...)
+			if tt.list {
+				h.keyed("]")
+			}
+			h.keyed("down")
+			if chosen := h.model.sessionsTab.shown.Chosen; chosen.Session != idD28C {
+				t.Fatalf("↓ chose %+v, want d28c", chosen)
+			}
+			tt.then(h)
+			h.tickUntilAsked()
+			if got := h.model.sessionsTab.shown.Chosen; got != tt.want {
+				t.Errorf("a look on, %+v is chosen, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
 // A click on a call chooses it, and on the one chosen, opens its session's
 // page; a click on a sub-tab shows it.
 func TestSessionsClicksChooseThenOpen(t *testing.T) {

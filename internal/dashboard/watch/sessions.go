@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -35,10 +36,11 @@ type listReadMsg struct {
 // it shows with no session's page over it: the calls of the sessions
 // running, as views.CallsOf has them, of the List held; who sits where on
 // the Switchboard, kept from the look before, as views.Patch keeps it, the
-// stubs hanging as views.StubsOf has them; and the List, as the List held
-// builds it, once it's held. A frame takes nothing in, so builds nothing,
-// but where a move the views read comes to show at it, putting its session
-// on the account it went to.
+// stubs hanging as views.StubsOf has them; the List, as the List held
+// builds it, once it's held; and the choice following its session, as
+// Following has it. A frame takes nothing in, so builds nothing, but where
+// a move the views read comes to show at it, putting its session on the
+// account it went to.
 func (m Model) sessionsLooked(msg tea.Msg) Model {
 	if m.view != dashboard.Sessions || m.session != nil {
 		return m
@@ -57,6 +59,7 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 	}
 	t.shown.Calls = views.CallsOf(mo, m.sessions, s, held)
 	t.shown.Patched = views.Patch(t.shown.Patched, t.shown.Calls, views.StubsOf(mo))
+	t.shown = t.shown.Following(accountIDs(mo))
 	t.moves = len(s.Moves)
 	m.sessionsTab = t
 	return m
@@ -219,11 +222,16 @@ func (m Model) sessionsKey(key string) (Model, tea.Cmd, bool) {
 }
 
 // boardAccounts are the ids of the accounts whose lines the Switchboard
-// draws, in their order: the document's at now.
+// draws, in their order: the document's at now, as accountIDs has them.
 func (m Model) boardAccounts() []string {
-	var ids []string
-	for _, a := range m.moment(m.now()).Accounts {
-		ids = append(ids, a.ID)
+	return accountIDs(m.moment(m.now()))
+}
+
+// accountIDs are the ids of the accounts of the moment mo, in its order.
+func accountIDs(mo status.Moment) []string {
+	ids := make([]string, len(mo.Accounts))
+	for i, a := range mo.Accounts {
+		ids[i] = a.ID
 	}
 	return ids
 }
