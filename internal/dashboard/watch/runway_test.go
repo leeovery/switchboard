@@ -2,6 +2,7 @@ package watch
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -519,4 +520,83 @@ func lastReadOf(read []readings.Reading, id string) time.Time {
 		}
 	}
 	return last
+}
+
+// A look on Runway brightens each number it reads that it changed, as on
+// every page: the use under the name of the account whose 5-hour window rose,
+// and the pool's room; never another's that stood still.
+func TestALookOnRunwayBrightensTheNumbersItChanged(t *testing.T) {
+	r := runwayHarness(t, dashboard.Runway, nil)
+	work := dashboard.Number{Kind: dashboard.NumberUsed, Account: "work", Of: "5h"}
+	side := dashboard.Number{Kind: dashboard.NumberUsed, Account: "side", Of: "5h"}
+	room := dashboard.Number{Kind: dashboard.NumberRoom, Of: "5h"}
+	if r.drawnNumber(work) == "" || r.drawnNumber(side) == "" || r.drawnNumber(room) == "" {
+		t.Fatalf("Runway draws work's use %q, side's %q and the pool's room %q, want each", r.drawnNumber(work), r.drawnNumber(side), r.drawnNumber(room))
+	}
+	doc := routerDocument(three()...)
+	doc.Accounts[0].Windows[0].Utilization = 0.8
+	r.startRouter(doc)
+	r.deliver(r.press("R")...)
+	if got := r.brightened(); got[work] != 1 || got[room] != 1 || got[side] != 0 {
+		t.Errorf("a look that read work's 5-hour window at 80%% brightened %v, want work's use and the pool's room at 1, side's not", got)
+	}
+}
+
+// A read of the ledger's days landing on today stepped back to draws today's
+// highest afresh and brightens nothing: a use stepped back to is the days'
+// highest, never numbered, as only the live view's use is.
+func TestASinceReadOnRunwayBrightensNothingSteppedBackTo(t *testing.T) {
+	today := dayfile.DateOf(start)
+	r := runwayHarness(t, dashboard.Runway, nil)
+	r.ledger.days[today] = usedAt(today, 0.3)
+	r.keyed("left")
+
+	r.ledger.days[today] = usedAt(today, 0.5)
+	pending := r.lastTick()
+	r.clock.now, pending.fired = start.Add(interval), true
+	fetched := r.pick(r.update(pending.msg), isFetched)
+	r.update(r.pick(r.update(fetched), isSince))
+	if use := r.model.runwayTab.shown.Lanes.Accounts[0].Use; use.Used != 0.5 {
+		t.Fatalf("today's summary read afresh left work's use under its name %+v, want today's highest, 50%%", use)
+	}
+	if got := r.brightened(); len(got) > 0 {
+		t.Errorf("a read of today's summary stepped back to brightened %v, want none", got)
+	}
+}
+
+// Where Runway's lanes don't all fit, at the last step of its compaction, j
+// and k scroll them an account at a time, PgUp and PgDn a page of them, and a
+// turn of the wheel over them an account, never a wheel's rows: no further
+// than the last lane, nor above the first.
+func TestRunwaysLanesScrollAnAccountAtATimeByTheKeysAndTheWheel(t *testing.T) {
+	h := runwayKeysHarness(t, twelve(), 160, "")
+	s := h.model.scrolling()
+	if s.Most == 0 || s.Page == 0 {
+		t.Fatalf("Runway's twelve lanes scroll %+v at 160x37, want some out of view", s)
+	}
+	x, y := 10, h.overTheView()
+	steps := []struct {
+		name   string
+		scroll func()
+		want   int
+	}{
+		{name: "j, an account down", scroll: func() { h.keyed("j") }, want: 1},
+		{name: "k, an account up", scroll: func() { h.keyed("k") }, want: 0},
+		{name: "k at the first, nowhere", scroll: func() { h.keyed("k") }, want: 0},
+		{name: "PgDn, a page, no further than the last lane", scroll: func() { h.keys(tea.KeyPressMsg{Code: tea.KeyPgDown}) }, want: min(s.Page, s.Most)},
+		{name: "j at the last lane, nowhere", scroll: func() { h.keyed("j") }, want: min(s.Page, s.Most)},
+		{name: "PgUp, a page", scroll: func() { h.keys(tea.KeyPressMsg{Code: tea.KeyPgUp}) }, want: 0},
+		{name: "a turn of the wheel down, an account", scroll: func() { h.wheel(tea.MouseWheelDown, x, y) }, want: 1},
+		{name: "a turn up", scroll: func() { h.wheel(tea.MouseWheelUp, x, y) }, want: 0},
+	}
+	for _, step := range steps {
+		step.scroll()
+		if h.model.scroll != step.want {
+			t.Errorf("%s: Runway's lanes scrolled %d accounts, want %d", step.name, h.model.scroll, step.want)
+		}
+	}
+	h.keyed("j")
+	if view := h.view(); strings.Contains(view, "Account A") || !strings.Contains(view, "Account B") {
+		t.Errorf("scrolled an account, Runway reads\n%s\nwant Account A's lane out of view, Account B's first", view)
+	}
 }

@@ -207,6 +207,17 @@ func TestOneAccountHasNoPoolsLane(t *testing.T) {
 	}
 }
 
+// Lanes of a pool of three drawn for a moment of no accounts draw no pool's
+// lane, as they draw no account's: there's no account to name it under.
+func TestThePoolsLaneIsntDrawnForAMomentOfNoAccounts(t *testing.T) {
+	c := runwayDrawn(runwayFrame(t, 37, lanesOf(3), nil), status.Document{})
+	for y, row := range textOf(c.rows(Look{})) {
+		if strings.Contains(row, "Σ") || strings.Contains(row, " with room") {
+			t.Errorf("row %d reads %q, want nothing of a pool", y, row)
+		}
+	}
+}
+
 // The pool's room, from column 2, is usage's words for the pool in the
 // view's window: the window's name in text.subtle, the room bold
 // text.secondary, brightening as it changes, and " of 3 left" in

@@ -99,7 +99,6 @@ func TestRunwaysHelpListsItsKeys(t *testing.T) {
 // lists j and k, PgUp and PgDn, and the wheel, which the key line leaves to
 // it.
 func TestRunwaysHelpListsTheKeysThatScrollItsLanes(t *testing.T) {
-	t.Skip("Runway's lanes scroll by lane P's runwayFit.scrolling, still to land")
 	h := runwayKeysHarness(t, twelve(), 160, "")
 	if f, doc, at := h.model.screen(h.clock.now); f.Scrolling(doc, at).Most == 0 {
 		t.Fatal("Runway's twelve lanes don't scroll at 160x37, want them to")

@@ -15,10 +15,10 @@ import (
 // its columns, with Σ pool beside them; its room, where it has one; and its
 // words, from phraseGap cells after the room where they share its row, else
 // from the lanes' column, as poolPhrases has them. With one account, there's
-// none.
+// none, nor for a moment of none, whatever the lanes hold.
 func (f Frame) runwayPool(c *canvas, laid runwayLaid) {
 	fit := laid.fit
-	if !fit.draws(fit.pool) {
+	if !fit.draws(fit.pool) || len(laid.m.Accounts) == 0 {
 		return
 	}
 	pool := f.Runway.Lanes.Pool

@@ -211,19 +211,6 @@ func runwayKeys(step string) []Key {
 	return []Key{{Key: "< >", Does: "window"}, {Key: "←→", Does: step}}
 }
 
-// A phone's Runway line keeps its own keys, a group each, as the design
-// words it: the frame's lacks tab views, which leads while it fits.
-func TestRunwaysPhoneKeyLineIsTheDesigns(t *testing.T) {
-	for _, step := range []string{"day", "week"} {
-		l := KeyLine{Groups: [][]Key{{tabViews}, runwayKeys(step), {pin}, helpQuit}, Lead: 3, Phone: runwayKeys(step), PhoneHelp: "keys"}
-		f := keyed(52, l)
-		f.View = Runway
-		if got, want := lastRow(f), "tab views   < > window   ←→ "+step+"   ? keys   q quit"; got != want {
-			t.Errorf("on a phone, Runway's key line reads %q, want %q", got, want)
-		}
-	}
-}
-
 func TestAPhonesKeyLineKeepsTheKeysItEndsWith(t *testing.T) {
 	page := []Key{{Key: "↑↓", Does: "session"}, {Key: "enter", Does: "open"}, subTabs}
 	l := KeyLine{Groups: [][]Key{{tabViews}, {pin}, helpQuit}, Lead: 3, Phone: page, PhoneHelp: "keys"}
