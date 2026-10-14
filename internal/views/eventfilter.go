@@ -39,11 +39,11 @@ func (f EventFilter) Keeps(e LogEvent) bool {
 // of it has come; none where f keeps every session's. It bounds only their
 // filling, as the router files a session's start and moves as it routes,
 // before the line is written, which a request lost as the router goes away
-// never has. No summary tells the days of an event's
-// kind or account as the router tells of them: it tells of a limit no
-// reading counts, as a refusal naming no window has it; of a move no line
-// names, as one whose request is answered from an account it left; and of
-// room again as a limit lapses, no window reset.
+// never has. No summary tells the days of an event's kind or account as the
+// router tells of them: it tells of a limit no reading counts, as a refusal
+// naming no window has it; of a move no line names, as one whose request is
+// answered from an account it left; and of room again as a limit lapses, no
+// window reset.
 func (f EventFilter) Reach() (LogFilter, bool) {
 	return LogFilter{Sessions: f.Sessions}, len(f.Sessions) > 0
 }

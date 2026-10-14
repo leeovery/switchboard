@@ -72,8 +72,8 @@ type LogPage struct {
 // line top, no further down than foot, the table's last line as it paused,
 // the line chosen lit where one is; and, of Requests', the table as it
 // paused, which says the lines come since. filledAt is the rows of the
-// tallest view the table has filled, or reached the oldest day in, none
-// till it does: after, it reads back only as its top is reached, or,
+// tallest view the table has filled, or reached the oldest day or its reach
+// in, as Filling has it, none till it does: after, it reads back only as its top is reached, or,
 // following, as its view grows past them, where it refills, as refills
 // says.
 type LogStand struct {
