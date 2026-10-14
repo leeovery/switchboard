@@ -52,14 +52,22 @@ func (d boardDrawn) draw(c *canvas, top int) {
 	}
 }
 
+// noSessionsRunning is what the Switchboard's first call's row says while
+// none runs, as while no router lists any.
+const noSessionsRunning = "no sessions running"
+
 // board is the whole Switchboard drawn, its rows counted from its first: its
 // lines and their jacks, the stubs a limit hangs and the cords moves let go,
-// each call and its cord, the key, and the row chosen picked out.
+// each call and its cord, or, with none, a row saying so in text.faint, the
+// key, and the row chosen picked out.
 func (d boardDrawn) board() *canvas {
 	c := growing(d.f.Width)
 	d.lines.draw(c)
 	for _, ln := range d.laid.lines {
 		d.jacks(c, ln)
+	}
+	if len(d.laid.calls) == 0 {
+		c.line(0, 0, line{{noSessionsRunning, faintInk}})
 	}
 	for _, call := range d.laid.calls {
 		d.call(c, call)

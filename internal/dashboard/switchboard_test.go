@@ -481,6 +481,23 @@ func TestACallSaysItsSessionWhatItsDoingAndWhereItCameFrom(t *testing.T) {
 	}
 }
 
+// With no session running, as while no router lists any, the Switchboard's
+// first row says so in text.faint, and its lines stand with every jack free.
+func TestWithNoSessionRunningTheLinesStandAlone(t *testing.T) {
+	c := boardFrame(160, 37, Look{}, SessionsShown{}, Traffic{}).page(usageWorld(), routedAt)
+	if got := rowOf(c, 6); !strings.HasPrefix(got, noSessionsRunning+strings.Repeat(" ", 65)+freeJack+" 1 work") {
+		t.Errorf("the view's first row reads %q, want %q, then work's line", got, noSessionsRunning)
+	}
+	if got := c.at(0, 6).ink; got != faintInk {
+		t.Errorf("it's in %+v, want text.faint", got)
+	}
+	for row := 6; row < 28; row++ {
+		if got := c.at(84, row).glyph; got != freeJack && got != " " {
+			t.Errorf("row %d's jack is %q, want every jack free", row+1, got)
+		}
+	}
+}
+
 // The scene's calls' rows at 160 by 37: 41e0's, at rest, and c61b's, at
 // work; and the row 41e0's cord ends on, at personal's first jack.
 const (
