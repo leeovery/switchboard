@@ -424,6 +424,23 @@ func TestTheSessionSelectedEndingSelectsTheOneInItsPlace(t *testing.T) {
 	}
 }
 
+// A frame takes nothing in, so the selection follows no session ending at
+// it, as the clock ends 7f3a, idle past the hour; the next message that
+// takes anything in follows it.
+func TestAFrameLeavesTheSelectionForTheNextMessageToFollow(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"})
+	h.keys(rightKey, downKey, downKey)
+	h.clock.now = start.Add(52 * time.Minute)
+	h.update(frameMsg{gen: h.model.frames})
+	if got := h.model.accounts.shown.Selected; got != id7F3A {
+		t.Fatalf("a frame moved the selection to %q, want it on 7f3a still", got)
+	}
+	h.redraw()
+	if got := h.model.accounts.shown.Selected; got != id9E21 {
+		t.Errorf("the message after the frame selected %q, want 9e21, in 7f3a's place", got)
+	}
+}
+
 // A click that opens on Accounts opens what it lands on, whatever has the
 // keys: with the theme picker open, which takes enter as setting the theme
 // under its cursor, the click opens Compare's focused column in Detail, or

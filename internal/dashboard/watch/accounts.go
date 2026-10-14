@@ -123,10 +123,11 @@ func (m Model) detailsSessions() bool {
 
 // followed is m with Detail's SESSIONS' selection following the sessions
 // running on the account it shows, as Following has it, from those it listed
-// last to those it lists now, kept for the next: while Detail shows; while
-// it doesn't, the selection holds as it was, for the run.
-func (m Model) followed() Model {
-	if !m.detailShown() {
+// last to those it lists now, kept for the next: while Detail shows, but for
+// a frame, which takes nothing in; while it doesn't, the selection holds as
+// it was, for the run.
+func (m Model) followed(msg tea.Msg) Model {
+	if _, frame := msg.(frameMsg); frame || !m.detailShown() {
 		return m
 	}
 	is := m.running(m.now())
