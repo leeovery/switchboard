@@ -568,11 +568,16 @@ func (d Document) readAt(now time.Time) time.Time {
 // router's pressure judges it and the dashboard shows it, reporting false
 // where it doesn't before it resets: where its use, heading as doc's project
 // says, reaches its floor, which is its reserve, where that would hold the
-// account back, as reserveHolds says, else its limit.
+// account back, as reserveHolds says, else its limit. A run-out the clock has
+// reached, as of a document left on screen while the router doesn't answer,
+// is past, not to come: there's none, and nowhere it heads.
 func (d Document) runOutOf(a Account, w quota.Window, now time.Time) (RunOut, bool) {
 	out := RunOut{Heading: d.project(a, w, now), Reserve: d.reserveHolds(a)}
-	var ok bool
-	out.At, ok = score.Reaches(w, out.Projection, d.floor(a), d.readAt(now))
+	at, ok := score.Reaches(w, out.Projection, d.floor(a), d.readAt(now))
+	if ok && !at.After(now) {
+		return RunOut{}, false
+	}
+	out.At = at
 	return out, ok
 }
 

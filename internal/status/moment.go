@@ -238,7 +238,8 @@ type WindowNow struct {
 	// runOutOf says, projected from when the document was read, whatever
 	// holds it: At zero where it doesn't before it resets, as once it has
 	// reset since it was read. Its Heading is where it's heading, as the
-	// document's project says. A bar's projection goes by it.
+	// document's project says, and nowhere once Now has reached where it
+	// runs out. A bar's projection goes by it.
 	Out RunOut
 	// Projected is the share of it it's heading for by its reset at Now, as
 	// a bar's projection fills to: all of it where it runs out at its limit;

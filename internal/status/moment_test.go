@@ -718,6 +718,60 @@ func TestAWindowRunsOutWhereNothingBeforeItHolds(t *testing.T) {
 	}
 }
 
+// A document stays on screen while the router doesn't answer, its
+// projections put from when it was read. Once the clock reaches where one has
+// a window run out, that's past, not to come: the window runs out nowhere, in
+// USAGE's kind, the pressure clause and COMING UP alike, and heads nowhere.
+func TestARunOutTheClockHasReachedIsNone(t *testing.T) {
+	// Side's session, used at 1.2 an hour lately: 85% used, it runs out 7m30s
+	// after it was read; 70% used, a fifth kept back, it reaches its reserve
+	// 5 minutes after, and its limit 15.
+	running := statustest.Routed{Account: readAt("side", windowIn("5h", 0.85, 2*time.Hour)), Rate: 1.2}
+	reserved := statustest.Routed{Account: with(readAt("side", windowIn("5h", 0.7, 2*time.Hour)), func(a *status.Account) { a.Reserve = 0.2 }), Rate: 1.2}
+	open := statustest.Routed{Account: readAt("work", windowIn("5h", 0.2, 2*time.Hour))}
+	tests := []struct {
+		name string
+		side statustest.Routed
+		now  time.Time
+		// out is where side's session runs out at now, zero where it doesn't.
+		out time.Time
+	}{
+		{name: "a minute before its run-out", side: running, now: built.Add(6*time.Minute + 30*time.Second), out: built.Add(7*time.Minute + 30*time.Second)},
+		{name: "as the clock reaches its run-out", side: running, now: built.Add(7*time.Minute + 30*time.Second)},
+		{name: "once the clock has passed its run-out", side: running, now: built.Add(10 * time.Minute)},
+		{name: "a minute before its reserve", side: reserved, now: built.Add(4 * time.Minute), out: built.Add(5 * time.Minute)},
+		{name: "past its reserve, its limit still ahead", side: reserved, now: built.Add(10 * time.Minute)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := statustest.Router(policy, nil, open, tt.side).WorkedOut(policy).At(tt.now, policy)
+			a, _ := m.Account("side")
+			w, _ := a.Window("5h")
+			runsOut := !tt.out.IsZero()
+			if !w.Out.At.Equal(tt.out) || !a.Pressure.Out.At.Equal(tt.out) {
+				t.Errorf("the session runs out at %v, by its pressure at %v; want %v", w.Out.At, a.Pressure.Out.At, tt.out)
+			}
+			if w.RunsOut != runsOut || w.RunsOutAhead != runsOut || (w.Kind == status.WindowRunsOut) != runsOut {
+				t.Errorf("the session stands as kind %d, running out %v, ahead %v; want running out %v", w.Kind, w.RunsOut, w.RunsOutAhead, runsOut)
+			}
+			coming := slices.ContainsFunc(m.ComingUp, func(u status.Upcoming) bool { return u.Account == "side" && u.Kind == status.UpcomingRunsOut })
+			if coming != runsOut {
+				t.Errorf("COMING UP lists the session's run-out %v, want %v, as USAGE says it", coming, runsOut)
+			}
+			var clauses []string
+			if runsOut {
+				clauses = []string{"out ~" + prose.Dated(tt.now, tt.out)}
+			}
+			if a.Routing.Kind != status.RoutingPressed || !slices.Equal(a.Routing.Clauses, clauses) {
+				t.Errorf("Routing = %+v, want under pressure, saying %q", a.Routing, clauses)
+			}
+			if !runsOut && (w.Out != status.RunOut{} || w.Projected != nil || w.Nearing) {
+				t.Errorf("the session heads to %+v, projected %v, nearing %v; want nowhere", w.Out, w.Projected, w.Nearing)
+			}
+		})
+	}
+}
+
 // The pressure line's time comes from where the pressure window runs out,
 // as RunsOut has it, not from the time the router gave: for any document
 // the router builds, they're one time, as the router's pressure goes by the

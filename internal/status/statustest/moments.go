@@ -288,11 +288,11 @@ func HardMoments(policy score.Policy) []HardMoment {
 	}}
 	// unanswered is the router's last document as it stopped answering: work
 	// at its cap since half an hour before Built, as its event tells; side's
-	// session running out a quarter of an hour after Built at its last half
-	// hour's rate, as projected from when it was read, not from now.
+	// session running out 7m30s after Built at its last half hour's rate, as
+	// projected from when it was read, not from now.
 	unanswered := Router(policy, nil,
 		Routed{Account: cappedSession},
-		Routed{Account: readAt("side", windowIn("5h", 0.85, 2*time.Hour), windowIn("7d", 0.2, 5*day)), Rate: 0.6},
+		Routed{Account: readAt("side", windowIn("5h", 0.85, 2*time.Hour), windowIn("7d", 0.2, 5*day)), Rate: 1.2},
 	)
 	unanswered.Events = []status.Event{{
 		ID: 23, At: Built.Add(-30 * time.Minute), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Until: Built.Add(2 * time.Hour), Reserve: 0.2,
@@ -643,15 +643,13 @@ func HardMoments(policy score.Policy) []HardMoment {
 		{
 			// The dashboard draws from the router's last document while it
 			// doesn't answer: its projections stay put, from when it was
-			// read, as now moves on.
+			// read, as now moves on, and side's run-out, which now has
+			// passed, is none.
 			Name: "the router not answering for 10 minutes", Doc: unanswered, Now: Built.Add(10 * time.Minute),
 			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
 				"work": unansweredWork,
 				"side": {Routing: status.RoutingPressed, CanRise: true, Pressed: true, Windows: map[string]WindowFacts{
-					"5h": {
-						Kind: status.WindowRunsOut, At: Built.Add(15 * time.Minute), Used: 0.85, Next: Built.Add(2 * time.Hour),
-						RunsOut: true, RunsOutAhead: true, Out: Built.Add(15 * time.Minute),
-					},
+					"5h": {Kind: status.WindowOpen, At: Built.Add(2 * time.Hour), Used: 0.85, Next: Built.Add(2 * time.Hour)},
 					"7d": sideOpen.Windows["7d"],
 				}},
 			}},
