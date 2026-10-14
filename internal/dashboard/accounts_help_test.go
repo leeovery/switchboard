@@ -164,6 +164,49 @@ func TestAccountsHelpDrawsBYDAYAndWEEKSAsDetailDoes(t *testing.T) {
 	}
 }
 
+// BY DAY's key draws a day as many cells wide as Detail draws its days in
+// the form it's drawn in, the limit's ▪ in its middle cell, the first of two,
+// and a day to come a · a cell: two with the list, three with one account,
+// whose days grow into the width, and two again where one account's Detail
+// is stacked, as on a phone, or too narrow for its wide form.
+func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
+	look := Screen(builtin(t, "nord"))
+	tests := []struct {
+		name  string
+		shown AccountsShown
+		width int
+		cells int
+	}{
+		{name: "three accounts, the list beside the panel", shown: threeShown, width: 160, cells: 2},
+		{name: "one account, wide", shown: oneShown, width: 160, cells: 3},
+		{name: "one account, too narrow for its wide form", shown: oneShown, width: 120, cells: 2},
+		{name: "one account on a phone", shown: oneShown, width: 52, cells: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var want []line
+			for level := range shadeLevels {
+				want = append(want, line{{strings.Repeat(" ", tt.cells), ink{on: dayInk(level).hue()}}})
+			}
+			on := ink{on: dayInk(2).hue()}
+			limited := line{{"▪", ink{token: theme.StateDestructive, on: on.on}}, {" ", on}}
+			if tt.cells == 3 {
+				limited = slices.Concat(line{{" ", on}}, limited)
+			}
+			want = append(want, limited, line{{strings.Repeat("·", tt.cells), faintInk}})
+			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Look: look}.accountsHelp()
+			glyphs := parts[len(parts)-1].glyphs
+			var got []line
+			for _, g := range glyphs[:len(glyphs)-1] {
+				got = append(got, g.drawn)
+			}
+			if !slices.EqualFunc(got, want, func(a, b line) bool { return slices.Equal(a, b) }) {
+				t.Errorf("Detail's help draws its days\n%v\nwant\n%v", got, want)
+			}
+		})
+	}
+}
+
 // Worth is said to be priced as of the price table's date once the page is
 // read, and before, at the price table's prices alone.
 func TestAccountsHelpGivesThePriceTablesDate(t *testing.T) {

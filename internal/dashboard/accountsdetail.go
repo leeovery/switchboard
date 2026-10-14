@@ -139,12 +139,27 @@ func (l detailLayout) reach() int {
 // wide enough for its widest fixed rows; narrower, as a phone's body draws
 // it, under the wide chrome, as detailPhoneBody has it.
 func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
-	l := f.detailLayout()
-	if l.reach() > f.Width {
+	if f.detailStacked() {
 		return f.detailPhoneBody(doc, now)
 	}
-	d := f.detailDrawn(doc, now, l)
+	d := f.detailDrawn(doc, now, f.detailLayout())
 	return accountsForm{draw: d.draw, scrolling: d.scrolling, scrolls: d.scrolls, targets: d.targets, filled: d.filled}
+}
+
+// detailStacked reports whether Detail is stacked, as a phone stacks it: on a
+// phone, and where the frame is too narrow for its wide form's widest fixed
+// rows.
+func (f Frame) detailStacked() bool {
+	return f.phone() || f.detailLayout().reach() > f.Width
+}
+
+// detailDrawnIn is the layout Detail is drawn in on the frame: a phone's
+// stack's, where it's stacked, else its wide layout.
+func (f Frame) detailDrawnIn() detailLayout {
+	if f.detailStacked() {
+		return stackLayout
+	}
+	return f.detailLayout()
 }
 
 // detailDrawn is Detail of a moment as it's drawn wide: the frame and its

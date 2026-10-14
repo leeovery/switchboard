@@ -24,7 +24,7 @@ func (d detailDrawn) byDay(c *canvas, y, weeks int) {
 	for i := first; i < len(days); i++ {
 		x := d.l.cx() + (i-first)/7*d.l.step() + (i-first)%7*d.l.dw
 		if i >= coming {
-			c.text(x, y, strings.Repeat("·", d.l.dw), faintInk)
+			c.line(x, y, dayToCome(d.l.dw))
 			continue
 		}
 		c.line(x, y, d.f.daySwatch(dayInk(days[i].Level), days[i].Level, days[i].Limit, d.l.dw))
@@ -33,6 +33,12 @@ func (d detailDrawn) byDay(c *canvas, y, weeks int) {
 	for i, week := range heads {
 		c.line(d.l.cx()+i*d.l.step(), y+1, weekHead(week, i == len(heads)-1))
 	}
+}
+
+// dayToCome is a day of BY DAY still to come, cells wide: a · a cell, in
+// text.faint.
+func dayToCome(cells int) line {
+	return line{{strings.Repeat("·", cells), faintInk}}
 }
 
 // weeks draws WEEKS along row y: its heading; and from cx, a step apart,

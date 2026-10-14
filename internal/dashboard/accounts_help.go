@@ -148,16 +148,17 @@ func (f Frame) detailHelp() helpPart {
 			said(sessions),
 		),
 		glyphs: append(shadesHelp(f.byDaySwatch),
-			glyph{drawn: f.swatch(dayInk(2), 2, true), means: daysLimitNote},
-			glyph{drawn: line{{toCome, faintInk}}, means: "a day still to come"},
+			glyph{drawn: f.daySwatch(dayInk(2), 2, true, f.detailDrawnIn().dw), means: daysLimitNote},
+			glyph{drawn: dayToCome(f.detailDrawnIn().dw), means: "a day still to come"},
 			glyph{drawn: line{{"100", exhaustedInk}}, means: "a week it hit its limit"},
 		),
 	}
 }
 
-// byDaySwatch is a day of Detail's BY DAY at a level, as Days draws a day.
+// byDaySwatch is a day of Detail's BY DAY at a level, as Days draws a day,
+// as wide as Detail draws its days in the layout it's drawn in.
 func (f Frame) byDaySwatch(level int) line {
-	return f.swatch(dayInk(level), level, false)
+	return f.daySwatch(dayInk(level), level, false, f.detailDrawnIn().dw)
 }
 
 // accountsHeading is the heading help explains a sub-tab of Accounts under:
