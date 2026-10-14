@@ -266,7 +266,9 @@ func turnsModel(n int) Model {
 
 // ↑ and ↓ move the turn chosen, no further than the first and the last,
 // scrolling no further than keeps it in view; j and k, PgDn and PgUp, and
-// the wheel over the turns scroll them, the turn chosen kept in view.
+// the wheel over the turns scroll them, the turn chosen kept in view;
+// whatever tab the page is open over, the Log, whose table scrolls, among
+// them.
 func TestASessionsKeysAndTheWheelMoveThroughItsTurns(t *testing.T) {
 	press := func(key tea.KeyPressMsg, times int) func(Model) Model {
 		return func(m Model) Model {
@@ -295,12 +297,17 @@ func TestASessionsKeysAndTheWheelMoveThroughItsTurns(t *testing.T) {
 		{name: "PgUp", act: press(tea.KeyPressMsg{Code: tea.KeyPgUp}, 1), turn: 11, scroll: 0},
 		{name: "↓ twenty times, past the oldest", act: press(downKey, 20), turn: 1, scroll: 9},
 	}
-	m := turnsModel(20)
-	for _, step := range steps {
-		m = step.act(m)
-		if got := m.session.shown; got.Turn != step.turn || got.Scroll != step.scroll {
-			t.Fatalf("after %s, turn %d is chosen, the turns scrolled %d; want turn %d, scrolled %d", step.name, got.Turn, got.Scroll, step.turn, step.scroll)
-		}
+	for _, over := range []dashboard.View{dashboard.Overview, dashboard.Log} {
+		t.Run(string(over), func(t *testing.T) {
+			m := turnsModel(20)
+			m.view = over
+			for _, step := range steps {
+				m = step.act(m)
+				if got := m.session.shown; got.Turn != step.turn || got.Scroll != step.scroll {
+					t.Fatalf("after %s, turn %d is chosen, the turns scrolled %d; want turn %d, scrolled %d", step.name, got.Turn, got.Scroll, step.turn, step.scroll)
+				}
+			}
+		})
 	}
 }
 
