@@ -226,6 +226,27 @@ func TestATurnOpenKeepsItsRequestChosenInViewAsTheTurnsScroll(t *testing.T) {
 	}
 }
 
+// With a turn open whose requests have scrolled, ↓ scrolls the turns no
+// further than keeps the request chosen in view: they keep the rows down to
+// it from the first request shown, not from the turn's first. Of twenty
+// turns in eleven rows, the tenth of eight requests at their foot, opened,
+// its seventh request chosen has its requests scrolled 2 and the turns 6.
+func TestATurnOpenScrollsItsTurnsNoFurtherThanItsRequestChosen(t *testing.T) {
+	counts := slices.Repeat([]int{1}, 20)
+	counts[9] = 8
+	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), counts...))
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
+	h.openPage(idD28C)
+	h.keys(slices.Repeat([]tea.KeyPressMsg{downKey}, 10)...)
+	h.keys(enterKey)
+	h.keys(slices.Repeat([]tea.KeyPressMsg{downKey}, 6)...)
+	got := h.shownPage()
+	if got.Open != 10 || got.Request != 6 || got.RequestsScroll != 2 || got.Scroll != 6 {
+		t.Errorf("enter, ↓ six times left turn %d open, request %d chosen, its requests scrolled %d, the turns %d; want turn 10, request 6, scrolled 2, the turns 6",
+			got.Open, got.Request, got.RequestsScroll, got.Scroll)
+	}
+}
+
 // How far a page's turns scroll, which each key, look and stream event on
 // the page asks, is laid out of the page alone at the size drawn at, as
 // TurnsScrolling has it: nothing more of the frame is built for it.
