@@ -38,10 +38,14 @@ type scheduler struct {
 
 func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	d, on := s.decide(req)
-	if d.afresh && s.probes.await(ctx, s.accounts.sendable(), s.state.due, probeWait, beforeChoosing) {
+	// Decided again even when nothing was waited on: a probe that ended since
+	// the decision before leaves nothing to wait for, but a reading it lacked.
+	if d.afresh {
+		s.probes.await(ctx, s.accounts.sendable(), s.state.due, probeWait, beforeChoosing)
 		d, on = s.decide(req)
 	}
-	if d.noRoom && s.recheck(ctx, req) {
+	if d.noRoom {
+		s.recheck(ctx, req)
 		d, on = s.decide(req)
 	}
 	if d.passedOver != "" {
@@ -115,16 +119,15 @@ func notePressure(req Request, d decision) {
 
 // recheck probes again the accounts whose usage as last read leaves no room
 // for req, once a minute at most, as a window may have reset with no traffic
-// to show it. It reports whether it did.
-func (s *scheduler) recheck(ctx context.Context, req Request) bool {
+// to show it.
+func (s *scheduler) recheck(ctx context.Context, req Request) {
 	full := s.view(req, s.now()).full()
 	underway := s.probes.start(s.accounts.sendable().only(full), s.state.dueAgain)
 	if len(underway) == 0 {
-		return false
+		return
 	}
 	logger.Warn("no account has room; probing again", "accounts", accountsOf(underway))
 	s.probes.wait(ctx, underway, recheckWait, beforeChoosing)
-	return true
 }
 
 // remember notes where a session's request went, as its choice d says, made

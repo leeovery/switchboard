@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -170,6 +172,52 @@ func TestASessionStaysWhenFreshUsageFindsRoomOnItsAccount(t *testing.T) {
 	got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
 	if want := (Choice{Account: "work", Reason: "sticky"}); got != want {
 		t.Errorf("Choose() = %+v, want %+v: work was refused in a reading since read again with room", got, want)
+	}
+}
+
+func TestAChoiceAfreshIsMadeAgainOnProbesThatEndedSinceItWasMade(t *testing.T) {
+	prober := &stubProber{}
+	r := newTestRouter(t, at(start), prober)
+	// Nothing has been read of either account, and the probes the router
+	// started with end once the choice is made, as it looks for the accounts
+	// whose usage is stale: it finds none, and nothing to wait for.
+	probesEndOnRead(r, 1, map[string]quota.Probe{
+		"work": probed(nil, session, laterWeek),
+		"side": probed(nil, session, soonWeek),
+	})
+
+	got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
+	if want := (Choice{Account: "side", Reason: "new", New: true}); got != want {
+		t.Errorf("Choose() = %+v, want %+v, chosen on what the probes read", got, want)
+	}
+	if got := prober.counts(); len(got) > 0 {
+		t.Errorf("probes = %v, want none: both accounts were read just now", got)
+	}
+}
+
+func TestAChoiceWithNoRoomIsMadeAgainOnProbesThatEndedSinceItWasMade(t *testing.T) {
+	clock := &testClock{now: start.Add(-2 * time.Minute)}
+	prober := &stubProber{}
+	r := newTestRouter(t, clock.read, prober)
+	spent := session
+	spent.Utilization, spent.Status = 1, quota.StatusRejected
+	r.state.record("work", []quota.Window{spent, laterWeek}, r.state.mark())
+	r.state.record("side", []quota.Window{spent, soonWeek}, r.state.mark())
+	clock.now = start
+	// Read two minutes ago, neither account had room, and probes of both end
+	// once the choice is made, as it looks for those to probe again: work
+	// reads room now, and side none still.
+	probesEndOnRead(r, 2, map[string]quota.Probe{
+		"work": probed(nil, session, laterWeek),
+		"side": probed(nil, spent, soonWeek),
+	})
+
+	got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "side"})
+	if want := (Choice{Account: "work", Reason: "new", New: true}); got != want {
+		t.Errorf("Choose() = %+v, want %+v, chosen on what the probes read", got, want)
+	}
+	if got := prober.counts(); len(got) > 0 {
+		t.Errorf("probes = %v, want none: both accounts were read just now", got)
 	}
 }
 
@@ -794,4 +842,22 @@ func newReserving(t *testing.T) (*Router, *[]Event) {
 	r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
 	r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
 	return r, &heard
+}
+
+// probesEndOnRead takes in what read holds of each account, as a probe's end
+// takes in what it read, as the router's probes read their clock for the nth
+// time: a choice reads it first as it looks for the accounts whose usage is
+// stale, its first decision made, and next as it looks for those without
+// room to probe again.
+func probesEndOnRead(r *Router, n int32, read map[string]quota.Probe) {
+	clock := r.probes.now
+	var reads atomic.Int32
+	r.probes.now = func() time.Time {
+		if reads.Add(1) == n {
+			for id, probe := range read {
+				r.state.recordProbe(id, probe, nil, r.state.mark(), readings.FromProbe)
+			}
+		}
+		return clock()
+	}
 }
