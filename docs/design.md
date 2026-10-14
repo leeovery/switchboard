@@ -5343,9 +5343,7 @@ verbs).
     with what the choice found, `personal had the most room`;
   - a reason ending `, personal under pressure`, naming an account the choice passed over:
     `personal came under pressure, its 5-hour to run out at 15:10`, the time its `pressure`
-    event's `until`; where the session was forced off where it was, by a move off its account or
-    its pin yielding, those words follow the move's own: `work reached its cap, personal came under
-    pressure, …`, `from work, at its cap, personal came under pressure, …`;
+    event's `until`;
   - `pin yields: side has no room`: `its pin to side yields: side has no room`;
   - `new`: `started` on Events, `new session` in `routing`, `since it started` on a session's page;
   - `back where it was before its request`: `back where it was`;
