@@ -35,7 +35,7 @@ func readAtOnce(hm viewstest.LogMoment, l views.LedgerSessions) views.LogRead {
 	days := spannedDays(hm)
 	read := views.ReadLogHeld(l, days[0], ledger.Pricing, hm.Now)
 	for _, day := range days[1:] {
-		read = read.Back(l, day, hm.Now)
+		read = read.Grown(l, day, hm.Now)
 	}
 	return read
 }

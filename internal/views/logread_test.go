@@ -63,7 +63,7 @@ func readGrowing(hm viewstest.LogMoment, l *countingLedger, priced map[string]in
 	opened := slices.SortedStableFunc(slices.Values(today[:half]), func(a, b ledger.Held) int { return a.At.Compare(b.At) })
 	read := views.CountingPrices(views.ReadLogHeld(l, nil, ledger.Pricing, hm.Now), priced).Grown(l, opened, hm.Now)
 	for _, day := range days[1:] {
-		read = read.Back(l, day, hm.Now)
+		read = read.Grown(l, day, hm.Now)
 	}
 	for i := half; i < len(today); i++ {
 		l.now = writtenAt(today[i].Line)

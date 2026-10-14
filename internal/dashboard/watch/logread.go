@@ -206,7 +206,7 @@ func (f logFold) grown(r logReaders, lines []ledger.Held, now time.Time) *logGro
 	l := r.ledger
 	g := logGrown{read: f.read.Grown(l, lines, now), totals: views.TotalsOn(l, f.late, now, r.prices)}
 	for _, date := range f.late {
-		g.read = g.read.Back(l, l.Day(date), now)
+		g.read = g.read.Grown(l, l.Day(date), now)
 	}
 	if f.asks {
 		g.logBounds = r.bounds(now)
@@ -285,7 +285,7 @@ func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 	return m, func() tea.Msg {
 		l, events := r.ledger, t.events.Back(r.filed, day.Start)
 		return logReadMsg{grown: logGrown{
-			read: t.read.Back(l, l.Day(day.Date), now), from: day, events: &events, totals: views.TotalsOn(l, []string{day.Date}, now, r.prices),
+			read: t.read.Grown(l, l.Day(day.Date), now), from: day, events: &events, totals: views.TotalsOn(l, []string{day.Date}, now, r.prices),
 		}}
 	}
 }
