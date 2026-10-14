@@ -223,9 +223,9 @@ var majorVersion = regexp.MustCompile(`^v[0-9]+$`)
 
 // check type-checks the package at importPath, its source in dir, as built
 // for the loader's platform, noting the non-test files it doesn't build: of
-// a directory read whole, its function bodies too,
-// keeping what each of its files' expressions is, its type and any constant
-// value; of the rest, its declarations alone. A package of the module
+// a directory read whole, its function bodies too, keeping what each of its
+// files' expressions is, its type and any constant value; of the rest, its
+// declarations alone. A package of the module
 // type-checks past any error, as what it uses of a stubbed package is
 // unknown: what a rule would judge there, it can't, so it breaks the rule,
 // as Rule.Breaches has it. The standard library's type-checks clean, or the
