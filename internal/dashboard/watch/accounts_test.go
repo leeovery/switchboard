@@ -1,7 +1,9 @@
 package watch
 
 import (
+	"reflect"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,6 +15,8 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
@@ -210,5 +214,249 @@ func TestDetailReadsTheStreamWhileItShowsAnAccountSessionsRunOn(t *testing.T) {
 				t.Errorf("the stream is open %v, want %v", open, tt.want)
 			}
 		})
+	}
+}
+
+// Keys Accounts takes as the terminal sends them, beside those focus_test
+// names.
+var (
+	leftKey  = tea.KeyPressMsg{Code: tea.KeyLeft}
+	rightKey = tea.KeyPressMsg{Code: tea.KeyRight}
+	enterKey = tea.KeyPressMsg{Code: tea.KeyEnter}
+)
+
+// runningOnWork are three sessions on work, as SESSIONS lists them, the one
+// seen last first: d28c, busy, then 9e21 and 7f3a.
+func runningOnWork() []status.Session {
+	return []status.Session{
+		sessionOn(idD28C, opus, "work", 10*time.Second),
+		sessionOn(id9E21, "claude-sonnet-5-5", "work", 20*time.Second),
+		sessionOn(id7F3A, "claude-haiku-4-5", "work", 9*time.Minute),
+	}
+}
+
+// accountsHarness is a model of the router of three, which says which it is,
+// configured as threeConfigured, runningOnWork running on work, showing
+// Accounts as given, in a terminal 160 columns wide and 37 tall, started.
+func accountsHarness(t *testing.T, shown dashboard.AccountsShown) *harness {
+	t.Helper()
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.health = router.Health{PID: 7, StartedAt: start.Add(-time.Hour).UTC()}
+	h.source.sessions = runningOnWork()
+	shown.Accounts = threeConfigured
+	h.model.view, h.model.accounts.shown = dashboard.Accounts, shown
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
+	h.start()
+	return h
+}
+
+// pageOpen is the id of the session whose page is open, "" where none is.
+func (h *harness) pageOpen() string {
+	if h.model.session == nil {
+		return ""
+	}
+	return h.model.session.id
+}
+
+// [ and ] turn Accounts' sub-tab and < and > step its period, each shown from
+// the view's top, and the preferences keep each change; at either end, < and
+// > change nothing, nor keep anything.
+func TestAccountsKeysTurnTheSubTabAndStepThePeriodKeptAsTheyChange(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{})
+	prefs := &fakePrefs{}
+	h.model.cfg.Prefs = prefs
+	steps := []struct {
+		key    string
+		kept   theme.AccountsPrefs
+		scroll int
+	}{
+		{key: "]", kept: theme.AccountsPrefs{View: "detail"}},
+		{key: "<", kept: theme.AccountsPrefs{View: "detail", Period: "today"}},
+		{key: "<", kept: theme.AccountsPrefs{View: "detail", Period: "today"}, scroll: 2},
+		{key: ">", kept: theme.AccountsPrefs{View: "detail"}},
+		{key: "[", kept: theme.AccountsPrefs{View: "compare"}},
+	}
+	updates := 0
+	for _, step := range steps {
+		h.model.scroll = 2
+		h.keyed(step.key)
+		if step.scroll == 0 {
+			updates++
+		}
+		if got := h.model.accounts.shown.Kept(); got != step.kept || prefs.kept.Accounts != step.kept || prefs.updates != updates || h.model.scroll != step.scroll {
+			t.Fatalf("after %s, Accounts shows %+v, the preferences keep %+v, updated %d times, the view scrolled %d; want %+v kept, %d times, scrolled %d",
+				step.key, got, prefs.kept.Accounts, prefs.updates, h.model.scroll, step.kept, updates, step.scroll)
+		}
+	}
+}
+
+// On Compare, enter does nothing till → focuses a column, the first, and
+// moves the focus along them, the columns scrolling to keep it in view; then
+// enter opens the account focused in Detail, from its top.
+func TestComparesFocusMovesAlongItsColumnsAndEnterOpensItInDetail(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{})
+	ten := make(config.Accounts, 10)
+	for i := range ten {
+		ten[i] = config.Account{ID: "acct-" + strconv.Itoa(i+1)}
+	}
+	h.model.accounts.shown.Accounts = ten
+	h.keys(enterKey)
+	if s := h.model.accounts.shown; s.View() != dashboard.AccountsCompare || s.Focused {
+		t.Fatalf("enter with nothing focused showed %d, focused %v; want Compare, unfocused", s.View(), s.Focused)
+	}
+
+	h.keys(slices.Repeat([]tea.KeyPressMsg{rightKey}, 7)...)
+	if s := h.model.accounts.shown; s.Focus != "acct-7" || s.First != 1 {
+		t.Fatalf("→ 7 times focused %q, the columns from %d; want acct-7, from the 2nd, six showing", s.Focus, s.First)
+	}
+	h.model.scroll = 2
+	h.keys(enterKey)
+	if s := h.model.accounts.shown; s.View() != dashboard.AccountsDetail || s.Chosen != "acct-7" || h.model.scroll != 0 {
+		t.Errorf("enter showed %d of %q, scrolled %d; want Detail of acct-7, from its top", s.View(), s.Chosen, h.model.scroll)
+	}
+}
+
+// On Detail, ↓ chooses an account in its list, and enter opens the page of
+// the session selected, the first, from the list; → takes ↑↓ into its
+// SESSIONS, where ↓ selects the next, whose page enter opens; and ← takes
+// them back. esc goes back to Detail as it was left, and what's chosen holds
+// across the tabs, for the run.
+func TestDetailsKeysChooseAnAccountAndOpenTheSelectedSessionsPage(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail})
+	steps := []struct {
+		name   string
+		keys   []tea.KeyPressMsg
+		opened string
+		want   dashboard.AccountsShown
+	}{
+		{name: "↓ enter", keys: []tea.KeyPressMsg{downKey, enterKey}, opened: idD28C, want: dashboard.AccountsShown{Chosen: "work"}},
+		{name: "→ ↓ enter", keys: []tea.KeyPressMsg{rightKey, downKey, enterKey}, opened: id9E21, want: dashboard.AccountsShown{Chosen: "work", InSessions: true, Selected: id9E21}},
+		{name: "tab shift-tab ←", keys: []tea.KeyPressMsg{tabKey, shiftTabKey, leftKey}, want: dashboard.AccountsShown{Chosen: "work", Selected: id9E21}},
+	}
+	for _, step := range steps {
+		h.model.scroll = 1
+		h.keys(step.keys...)
+		step.want.Shown, step.want.Accounts = dashboard.AccountsDetail, threeConfigured
+		if got := h.model.accounts.shown; h.pageOpen() != step.opened || !reflect.DeepEqual(got, step.want) {
+			t.Fatalf("after %s, %q's page is open, Accounts shows %+v; want %q's, over %+v", step.name, h.pageOpen(), got, step.opened, step.want)
+		}
+		if step.opened == "" {
+			continue
+		}
+		h.keys(escKey)
+		if got := h.model.accounts.shown; h.model.session != nil || h.model.view != dashboard.Accounts || !reflect.DeepEqual(got, step.want) || h.model.scroll != 1 {
+			t.Fatalf("esc left %q's page open, %s showing %+v, scrolled %d; want Accounts as left, %+v, scrolled 1", h.pageOpen(), h.model.view, got, h.model.scroll, step.want)
+		}
+	}
+}
+
+// The session selected in Detail's SESSIONS ending gives the selection to the
+// one in its place, else the last; with none left, ↑↓ go back to the list.
+func TestTheSessionSelectedEndingSelectsTheOneInItsPlace(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"})
+	h.keys(rightKey, downKey)
+	steps := []struct {
+		name       string
+		running    []status.Session
+		selected   string
+		inSessions bool
+	}{
+		{name: "9e21 ended", running: []status.Session{runningOnWork()[0], runningOnWork()[2]}, selected: id7F3A, inSessions: true},
+		{name: "every session ended"},
+	}
+	for _, step := range steps {
+		h.source.sessions = step.running
+		h.deliver(h.press("R")...)
+		if s := h.model.accounts.shown; s.Selected != step.selected || s.InSessions != step.inSessions {
+			t.Fatalf("after %s, %q is selected, ↑↓ in SESSIONS %v; want %q, %v", step.name, s.Selected, s.InSessions, step.selected, step.inSessions)
+		}
+	}
+}
+
+// A click on Accounts acts as its keys do: on a sub-tab, it shows it; on an
+// account in Detail's list, it chooses it; on a session, it selects it, and
+// on the one selected, opens its page; on a Compare column's heads, it
+// focuses it, and on the one focused, opens it in Detail.
+func TestAClickOnAccountsChoosesWhatItLandsOnAndOpensWhatsChosen(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{})
+	onSubTab := func(v dashboard.AccountsView) func(dashboard.Target) bool {
+		return func(t dashboard.Target) bool { return t.On == dashboard.OnSubTab && t.SubTab == int(v) }
+	}
+	onSide := func(t dashboard.Target) bool { return t.On == dashboard.OnColumn && t.Account == "side" }
+	selected := dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work", InSessions: true, Selected: id9E21}
+	steps := []struct {
+		name   string
+		click  func()
+		opened string
+		want   dashboard.AccountsShown
+	}{
+		{name: "Detail", click: func() { h.clickWhere(onSubTab(dashboard.AccountsDetail)) }, want: dashboard.AccountsShown{Shown: dashboard.AccountsDetail}},
+		{name: "work", click: func() { h.clickOn(dashboard.Target{On: dashboard.OnAccount, Account: "work"}) }, want: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"}},
+		{name: "9e21", click: func() { h.clickOn(dashboard.Target{On: dashboard.OnSession, Session: id9E21}) }, want: selected},
+		{name: "9e21 again", click: func() { h.clickOn(dashboard.Target{On: dashboard.OnSession, Session: id9E21}) }, opened: id9E21, want: selected},
+		{name: "Compare", click: func() { h.keys(escKey); h.clickWhere(onSubTab(dashboard.AccountsCompare)) }, want: dashboard.AccountsShown{Chosen: "work", InSessions: true, Selected: id9E21}},
+		{name: "side's heads", click: func() { h.clickWhere(onSide) }, want: dashboard.AccountsShown{Focused: true, Focus: "side", Chosen: "work", InSessions: true, Selected: id9E21}},
+		{name: "side's heads again", click: func() { h.clickWhere(onSide) }, want: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Focused: true, Focus: "side", Chosen: "side"}},
+	}
+	for _, step := range steps {
+		step.click()
+		step.want.Accounts = threeConfigured
+		if got := h.model.accounts.shown; h.pageOpen() != step.opened || !reflect.DeepEqual(got, step.want) {
+			t.Fatalf("after a click on %s, %q's page is open, Accounts shows %+v; want %q's, over %+v", step.name, h.pageOpen(), got, step.opened, step.want)
+		}
+	}
+}
+
+// A look on Accounts reads today's days for its page alone, History's page
+// left behind them, unbuilt, till History shows, which builds it of them.
+func TestALookOnAccountsLeavesHistorysPageToBeBuiltOnceItShows(t *testing.T) {
+	h, l := historyHarness(t, dashboard.Accounts, dashboard.HistoryPage{})
+	h.start()
+	year := h.model.past.page.Year
+	today := dayfile.DateOf(start)
+	l.days[today] = requested(today, 3)
+	h.tickUntilAsked()
+	if h.model.past.page.Year != year {
+		t.Fatal("a look on Accounts built History's Year afresh, want it left till History shows")
+	}
+	h.keys(tabKey)
+	built := h.model.past.page.Year
+	if got, ok := gridDay(*built, today); h.model.view != dashboard.History || !ok || got.Requests != 3 {
+		t.Fatalf("on %s, today is %+v on the Year, want History, today's 3 requests drawn", h.model.view, got)
+	}
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.past.page.Year != built {
+		t.Error("a frame built History's Year afresh, want it held as built")
+	}
+}
+
+// A look on Accounts brightens each number it reads that it changed, as on
+// every page: on Compare, the week of the account whose use rose, and all
+// accounts', its mean; never another's that stood still.
+func TestALookOnAccountsBrightensTheNumbersItChanged(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{})
+	work := dashboard.Number{Kind: dashboard.NumberUsed, Account: "work", Of: "7d"}
+	side := dashboard.Number{Kind: dashboard.NumberUsed, Account: "side", Of: "7d"}
+	all := dashboard.Number{Kind: dashboard.NumberAllUsed, Of: "7d"}
+	if h.drawnNumber(work) == "" || h.drawnNumber(all) == "" {
+		t.Fatalf("Compare draws work's week %q and all accounts' %q, want both", h.drawnNumber(work), h.drawnNumber(all))
+	}
+	doc := routerDocument(three()...)
+	doc.Accounts[0].Windows[1].Utilization = 0.8
+	h.startRouter(doc)
+	h.deliver(h.press("R")...)
+	if got := h.brightened(); got[work] != 1 || got[all] != 1 || got[side] != 0 {
+		t.Errorf("a look that read work's week at 80%% brightened %v, want work's week and all accounts' at 1, side's not", got)
+	}
+}
+
+// Detail's SESSIONS list the sessions as the request stream has seen them,
+// the one seen last first, and enter opens the first as they're listed.
+func TestEnterOpensTheSessionDetailListsFirstAsTheStreamHasSeenThem(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"})
+	h.hear(alter(told(router.StreamSent, "r1", "work", 0), func(e *router.StreamEvent) { e.Session, e.Model = id7F3A, "claude-haiku-4-5" }))
+	h.keys(enterKey)
+	if got := h.pageOpen(); got != id7F3A {
+		t.Errorf("enter opened %q's page, want 7f3a's, seen last as the stream told", got)
 	}
 }

@@ -427,9 +427,10 @@ func (m Model) Init() tea.Cmd {
 // take says, building the session's page open afresh, as relived says, and
 // closing a session's card it leaves no p for, as closing says, then has
 // the watch read the router's request stream while it wants it, and the
-// ledger's days for History and Accounts as they want them, Accounts' page
-// built of them as accountsBuilt has it, and only then, price the moves the
-// routing card would make while it wants them.
+// ledger's days for History and Accounts as they want them, each's page
+// built of them as historyBuilt and accountsBuilt have it, Detail's
+// selection following its sessions, as followed has it, and only then, price
+// the moves the routing card would make while it wants them.
 // Then, of the page as it stands at that moment, its Overview's sections
 // built once for each to share, it keeps the Overview's layout, but for a
 // frame, which takes nothing in to lay it out afresh by; brightens the
@@ -445,7 +446,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, closed := next.(Model).relived(msg, now).closing()
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
-	tuned = tuned.accountsBuilt()
+	tuned = tuned.historyBuilt().accountsBuilt().followed()
 	tuned, costs := tuned.costing()
 	page := tuned.frame(now).Built(tuned.doc, now)
 	if _, frame := msg.(frameMsg); !frame {
