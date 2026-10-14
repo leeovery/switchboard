@@ -152,21 +152,31 @@ func (w usageWords) pick(width, room int) line {
 // over any colour; a stale reading's in text.subtle, not bold; and of an
 // empty bar, none, as — in text.faint.
 func (b usageBar) percentage() line {
-	shown := status.WholePercent(b.used)
-	k := ink{token: theme.VizRamp1, bold: true}
+	var k ink
 	switch {
 	case b.empty:
 		return line{{"—", faintInk}}
 	case b.out:
-		k.token = theme.TextFaint
+		k = ink{token: theme.TextFaint, bold: true}
 	case b.stale:
 		k = dimInk
-	case shown >= 90:
-		k.token = theme.VizRamp4
-	case shown >= 70:
-		k.token = theme.VizRamp2
+	default:
+		k = usedInk(b.used, ink{token: theme.VizRamp1, bold: true})
 	}
-	return line{{strconv.Itoa(shown) + "%", k}}
+	return line{{status.Percent(b.used), k}}
+}
+
+// usedInk is the ink of a share used, as usage tones it, judged on the whole
+// percentage status.Percent shows: from 90%, the ramp's last stop, from 70%,
+// its second, else below's.
+func usedInk(used float64, below ink) ink {
+	switch shown := status.WholePercent(used); {
+	case shown >= 90:
+		below.token = theme.VizRamp4
+	case shown >= 70:
+		below.token = theme.VizRamp2
+	}
+	return below
 }
 
 // percentCells are the cells a window's percentage is right-aligned in.

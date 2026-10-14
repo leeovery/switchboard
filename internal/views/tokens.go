@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 )
@@ -32,8 +33,8 @@ func (t *Tokens) count(given quota.Tokens) {
 
 // TokenWeek is a row of Tokens, a calendar week, by its first day: its
 // tokens and their worth, what the plans cost that week and the worth
-// against it; then by account, each by model version too, and by model
-// version, with the accounts it ran on.
+// against it; then by account, in the config's order, each by model version
+// too, and by model version, with the accounts it ran on.
 type TokenWeek struct {
 	Week string `json:"week"`
 	Tokens
@@ -45,9 +46,12 @@ type TokenWeek struct {
 
 // AccountTokens are an account's tokens in a week, and their worth, then by
 // model version. The account is left out of those the router answered with
-// none.
+// none. Label is its label, as the config gives it, none where the config
+// doesn't configure it: the JSON names an account by its id alone, as
+// everywhere.
 type AccountTokens struct {
 	Account string `json:"account,omitempty"`
+	Label   string `json:"-"`
 	Tokens
 	Worth
 	ByModel []ModelTokens `json:"by_model,omitempty"`
@@ -56,7 +60,7 @@ type AccountTokens struct {
 // ModelTokens are a model version's tokens in a week, by the shortest id the
 // version table names it by, or its own where the table doesn't, and their
 // worth, each of its ids at its own prices. On, of every account's, are the
-// accounts it ran on.
+// accounts it ran on, the one it was worth most on first.
 type ModelTokens struct {
 	Model string   `json:"model"`
 	On    []string `json:"on,omitempty"`
@@ -65,26 +69,41 @@ type ModelTokens struct {
 }
 
 // tokensOf are Tokens' rows over days, asked for from the day with the date
-// from, a calendar week each, weeks starting on the day given, each costing
-// its plans 12/52 of a month as of its first day, the week so far whole, but
-// for one the days asked for begin part-way through, as cutShort says.
+// from, a calendar week each, weeks starting on the day given, as
+// tokenPeriodsOf gives them.
 func tokensOf(days []Day, p plans, v versions, from string, weekStarts time.Weekday) []TokenWeek {
-	weeks := []TokenWeek{}
-	for _, s := range spansOf(days, weekKey(weekStarts)) {
-		week := tokenWeekOf(s, v)
-		first, _ := civil(s.key)
-		priced, at := cutShort(s.key, first.AddDate(0, 0, 6).Format(time.DateOnly), from, aWeek)
-		week.Against = p.against(accountWorths(s.days), at, priced)
-		weeks = append(weeks, week)
+	periods := tokenPeriodsOf(days, p, v, from, TokensByWeek.shape(weekStarts))
+	weeks := make([]TokenWeek, len(periods))
+	for i, t := range periods {
+		weeks[i] = TokenWeek{Week: t.First, Tokens: t.Tokens, Worth: t.Worth, Against: t.Against, ByAccount: t.ByAccount, ByModel: t.ByModel}
 	}
 	return weeks
 }
 
-// tokenWeekOf is the week the span's days make: their tokens and worth, by
-// account and by model version. An account whose days hold no model's, as
-// one whose windows were read but that wasn't used, has none.
-func tokenWeekOf(s span, v versions) TokenWeek {
-	week := TokenWeek{Week: s.key}
+// tokenPeriodsOf are Tokens' rows over days, asked for from the day with the
+// date from, a period each, as the shape given makes them, oldest first,
+// each costing its plans its share of a month as of its first day, the
+// period so far whole, but for one the days asked for begin part-way
+// through, as cutShort says.
+func tokenPeriodsOf(days []Day, p plans, v versions, from string, by periodShape) []TokenPeriod {
+	periods := []TokenPeriod{}
+	for _, s := range spansOf(days, by.key) {
+		period := tokenPeriodOf(s, p, v)
+		first, last := by.dates(s.key)
+		priced, at := cutShort(first, last, from, by.share)
+		period.Against = p.against(accountWorths(s.days), at, priced)
+		periods = append(periods, period)
+	}
+	return periods
+}
+
+// tokenPeriodOf is the period the span's days make: their tokens and worth,
+// by account, in the config's order, those it doesn't configure after, and
+// by model version, and how many versions they were of. An account whose
+// days hold no model's, as one whose windows were read but that wasn't used,
+// has none.
+func tokenPeriodOf(s span, p plans, v versions) TokenPeriod {
+	period := TokenPeriod{First: s.key}
 	models, accounts := modelTally{}, accountTally{}
 	for _, d := range s.days {
 		for _, a := range d.Accounts {
@@ -94,8 +113,8 @@ func tokenWeekOf(s span, v versions) TokenWeek {
 			account := accounts.of(a.Account)
 			for _, m := range a.Models {
 				tokens := m.Tokens()
-				week.count(tokens)
-				week.addModel(m)
+				period.count(tokens)
+				period.addModel(m)
 				account.count(tokens)
 				account.addModel(m)
 				account.models.add(v, m, tokens, "")
@@ -103,8 +122,9 @@ func tokenWeekOf(s span, v versions) TokenWeek {
 			}
 		}
 	}
-	week.ByAccount, week.ByModel = accounts.list(), models.list()
-	return week
+	period.ByAccount, period.ByModel = accounts.list(p.accounts), models.list()
+	period.Versions = len(period.ByModel)
+	return period
 }
 
 // accountTally is accounts' tokens and worth, by account, and by model
@@ -127,23 +147,40 @@ func (t accountTally) of(id string) *talliedAccount {
 	return account
 }
 
-// list lists the accounts in the order of their ids, each with its model
-// versions.
-func (t accountTally) list() []AccountTokens {
+// list lists the accounts in the config's order, those it doesn't configure
+// after, by id, each with its label and its model versions.
+func (t accountTally) list(configured config.Accounts) []AccountTokens {
 	listed := make([]AccountTokens, 0, len(t))
-	for _, id := range slices.Sorted(maps.Keys(t)) {
+	for _, id := range slices.SortedFunc(maps.Keys(t), byConfig(configured)) {
 		account := t[id].AccountTokens
-		account.ByModel = t[id].models.list()
+		account.Label, account.ByModel = labelOf(configured, id), t[id].models.list()
 		listed = append(listed, account)
 	}
 	return listed
 }
 
+// labelOf is the config's label for the account with the given id: none
+// where it doesn't configure it.
+func labelOf(configured config.Accounts, id string) string {
+	if i := slices.IndexFunc(configured, func(a config.Account) bool { return a.ID == id }); i >= 0 {
+		return configured[i].Label
+	}
+	return ""
+}
+
 // weekKey is a key giving the first day of the week a day falls in, weeks
 // starting on the day given.
 func weekKey(starts time.Weekday) func(Day) (string, bool) {
-	return func(d Day) (string, bool) {
-		day, ok := civil(d.Day)
+	week := weekDate(starts)
+	return func(d Day) (string, bool) { return week(d.Day) }
+}
+
+// weekDate gives the date of the first day of the week the day with the
+// date given falls in, weeks starting on the day given, reporting false for
+// a date that isn't one.
+func weekDate(starts time.Weekday) func(date string) (string, bool) {
+	return func(date string) (string, bool) {
+		day, ok := civil(date)
 		return weekOf(day, starts).Format(time.DateOnly), ok
 	}
 }
@@ -152,17 +189,19 @@ func weekKey(starts time.Weekday) func(Day) (string, bool) {
 // versions.of gives it, with where the version table places it.
 type modelTally map[string]*rankedModel
 
-// rankedModel is a model version's tokens and worth, and where the version
-// table places it.
+// rankedModel is a model version's tokens and worth, where the version table
+// places it, and what it was worth on each account it ran on, by the
+// account's id.
 type rankedModel struct {
 	ModelTokens
 	rank int
+	on   map[string]Worth
 }
 
-// add adds a model's day, its tokens given, to its version's, and the
-// account it ran on, where one's given, to those the version ran on: none
-// of the requests whose bodies couldn't be read, which name no model, and so
-// spent nothing.
+// add adds a model's day, its tokens given, to its version's, and what it
+// was worth on the account it ran on, where one's given, to the version's
+// there: none of the requests whose bodies couldn't be read, which name no
+// model, and so spent nothing.
 func (t modelTally) add(v versions, m ledger.PricedModel, tokens quota.Tokens, account string) {
 	if m.Model == "" {
 		return
@@ -170,18 +209,21 @@ func (t modelTally) add(v versions, m ledger.PricedModel, tokens quota.Tokens, a
 	id, rank := v.of(m.Model)
 	model, ok := t[id]
 	if !ok {
-		model = &rankedModel{Model: id, rank: rank}
+		model = &rankedModel{Model: id, rank: rank, on: make(map[string]Worth)}
 		t[id] = model
 	}
 	model.count(tokens)
 	model.addModel(m)
-	if i, found := slices.BinarySearch(model.On, account); account != "" && !found {
-		model.On = slices.Insert(model.On, i, account)
+	if account != "" {
+		on := model.on[account]
+		on.addModel(m)
+		model.on[account] = on
 	}
 }
 
 // list lists the versions in the version table's order, those it doesn't
-// name after, by id.
+// name after, by id, each with the accounts it ran on, as onByWorth orders
+// them.
 func (t modelTally) list() []ModelTokens {
 	ranked := slices.SortedFunc(maps.Values(t), func(a, b *rankedModel) int {
 		return cmp.Or(cmp.Compare(a.rank, b.rank), cmp.Compare(a.Model, b.Model))
@@ -189,6 +231,18 @@ func (t modelTally) list() []ModelTokens {
 	listed := make([]ModelTokens, len(ranked))
 	for i, model := range ranked {
 		listed[i] = model.ModelTokens
+		listed[i].On = model.onByWorth()
 	}
 	return listed
+}
+
+// onByWorth are the accounts the version ran on, the one it was worth most
+// on first, then by id: nil where it ran on none it was told of.
+func (m *rankedModel) onByWorth() []string {
+	if len(m.on) == 0 {
+		return nil
+	}
+	return slices.SortedFunc(maps.Keys(m.on), func(a, b string) int {
+		return cmp.Or(cmp.Compare(m.on[b].amount(), m.on[a].amount()), cmp.Compare(a, b))
+	})
 }

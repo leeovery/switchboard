@@ -107,6 +107,9 @@ type ink struct {
 	// token.
 	ramp bool
 	at   float64
+	// step draws it at a step of its colour's ramp of shades, 1 to 4, from
+	// viz.day.0 toward it, as a family's strips are: 0 for the colour itself.
+	step int
 	// on is the surface it's drawn on, such as a selected row's, or a bar's
 	// projection under the cell its fill ends in: the zero hue for the
 	// canvas.
@@ -133,17 +136,19 @@ type ink struct {
 const behindFade = 0.8
 
 // hue is a colour as an ink has one: a token's, or a bar's ramp's at a place
-// along it, faded so far into the colour beneath. The zero hue is no colour.
+// along it, faded so far into the colour beneath, then taken to a step of its
+// ramp of shades. The zero hue is no colour.
 type hue struct {
 	token theme.Token
 	ramp  bool
 	at    float64
 	fade  float64
+	step  int
 }
 
 // hue is the ink's own colour, as a hue.
 func (k ink) hue() hue {
-	return hue{token: k.token, ramp: k.ramp, at: k.at, fade: k.fade}
+	return hue{token: k.token, ramp: k.ramp, at: k.at, fade: k.fade, step: k.step}
 }
 
 var (
@@ -172,6 +177,10 @@ var (
 	primedInk     = ink{token: theme.AccentPrimary}
 	keyInk        = ink{token: theme.AccentKey, bold: true}
 	noteInk       = ink{token: theme.TextSecondary}
+
+	// boldPositiveInk is what's gone well, as alertInk is what hasn't: a
+	// worth against its price at 1× or more, and a verdict of enough.
+	boldPositiveInk = ink{token: theme.StatePositive, bold: true}
 )
 
 // render draws text in the ink, as the look draws it.
@@ -216,14 +225,14 @@ func (l Look) reverses(tok theme.Token) bool {
 	return l.theme.Reversed(tok)
 }
 
-// colour is the ink's colour in the look, glowing and faded as the ink says,
-// then veiled behind a card: nil without colour.
+// colour is the ink's colour in the look, glowing, faded and stepped as the
+// ink says, then veiled behind a card: nil without colour.
 func (l Look) colour(k ink) color.Color {
 	if !l.coloured {
 		return nil
 	}
 	h := k.hue()
-	return l.veiled(l.faded(l.glowing(l.unfaded(h), k.glow), h.fade), k)
+	return l.veiled(l.stepped(l.faded(l.glowing(l.unfaded(h), k.glow), h.fade), h.step), k)
 }
 
 // veiled is c, a colour of the ink k as finally drawn, faded behindFade into
@@ -270,9 +279,9 @@ func (l Look) faded(c color.Color, amount float64) color.Color {
 }
 
 // surface is the colour the ink is drawn on in the look: its own surface's,
-// faded as the ink says, then veiled behind a card, else the canvas, where
-// the look paints it. In a look that blends nothing, a surface shows until
-// it's faded halfway, and never behind a card.
+// faded and stepped as the ink says, then veiled behind a card, else the
+// canvas, where the look paints it. In a look that blends nothing, a surface
+// shows until it's faded halfway, and never behind a card.
 func (l Look) surface(k ink) color.Color {
 	if !l.coloured {
 		return l.Canvas()
@@ -281,5 +290,5 @@ func (l Look) surface(k ink) color.Color {
 	if on == nil || (k.on.fade >= 0.5 || k.behind) && !l.blends() {
 		return l.Canvas()
 	}
-	return l.veiled(l.faded(on, k.on.fade), k)
+	return l.veiled(l.stepped(l.faded(on, k.on.fade), k.on.step), k)
 }

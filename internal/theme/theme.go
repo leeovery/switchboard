@@ -59,6 +59,27 @@ const (
 	VizSeries4
 	VizSeries5
 	VizSeries6
+	// VizFamily1 to VizFamily4 are the model families' hues, in the version
+	// table's order: Opus, Sonnet, Fable, Haiku.
+	VizFamily1
+	VizFamily2
+	VizFamily3
+	VizFamily4
+	// VizVersion1 to VizVersion6 are the model versions' shades, as the
+	// version table assigns them, a family's newest first.
+	VizVersion1
+	VizVersion2
+	VizVersion3
+	VizVersion4
+	VizVersion5
+	VizVersion6
+	// VizDay0 to VizDay4 are a day's shades by how busy it was: VizDay0 a day
+	// with nothing on it, then the active days' quarters, the busiest last.
+	VizDay0
+	VizDay1
+	VizDay2
+	VizDay3
+	VizDay4
 	tokens
 )
 
@@ -104,6 +125,21 @@ var names = [tokens]string{
 	VizSeries4:       "viz.series.4",
 	VizSeries5:       "viz.series.5",
 	VizSeries6:       "viz.series.6",
+	VizFamily1:       "viz.family.1",
+	VizFamily2:       "viz.family.2",
+	VizFamily3:       "viz.family.3",
+	VizFamily4:       "viz.family.4",
+	VizVersion1:      "viz.version.1",
+	VizVersion2:      "viz.version.2",
+	VizVersion3:      "viz.version.3",
+	VizVersion4:      "viz.version.4",
+	VizVersion5:      "viz.version.5",
+	VizVersion6:      "viz.version.6",
+	VizDay0:          "viz.day.0",
+	VizDay1:          "viz.day.1",
+	VizDay2:          "viz.day.2",
+	VizDay3:          "viz.day.3",
+	VizDay4:          "viz.day.4",
 }
 
 // String is the token's key in a .theme file, such as text.primary.
@@ -128,7 +164,8 @@ type Theme struct {
 
 // Colour is the theme's colour for a token. It's nil for the zero Token, and
 // for what the terminal theme leaves as the terminal has it: its canvas, its
-// text in the terminal's own foreground, and what it draws faint or reversed.
+// text in the terminal's own foreground, and the dim text and surfaces it
+// draws faint or reversed.
 func (t Theme) Colour(tok Token) color.Color {
 	if tok <= 0 || tok >= tokens {
 		return nil
@@ -136,10 +173,11 @@ func (t Theme) Colour(tok Token) color.Color {
 	return t.colours[tok]
 }
 
-// Faint reports whether the theme draws tok faint, in the terminal's own
-// foreground, rather than in a colour of its own: the terminal theme's dim
-// text, borders and tracks, as of the terminal's sixteen colours none is dim
-// on every terminal, bright black being Solarized Dark's background.
+// Faint reports whether the theme draws tok faint: the terminal theme's dim
+// text, borders and tracks, in the terminal's own foreground, as of the
+// terminal's sixteen colours none is dim on every terminal, bright black
+// being Solarized Dark's background; and its older versions, in their
+// family's colour, as it mixes no colour toward a canvas.
 func (t Theme) Faint(tok Token) bool {
 	return tok > 0 && tok < tokens && t.faint[tok]
 }
@@ -205,6 +243,70 @@ func (t *Theme) derive() {
 	for i, from := range []Token{AccentKey, StatePositive, AccentPrimary, AccentMode, TextSecondary, AccentAttention} {
 		or(VizSeries1+Token(i), c[from])
 	}
+	for i, from := range []Token{AccentKey, AccentMode, AccentPrimary, TextTertiary} {
+		or(VizFamily1+Token(i), c[from])
+	}
+	for i, slot := range versionSlots {
+		or(VizVersion1+Token(i), t.version(c[slot.family], slot.older))
+	}
+	or(VizDay0, c[BgSubtle])
+	for i, step := range t.Steps(c[AccentKey]) {
+		or(VizDay1+Token(i), step)
+	}
+}
+
+// versionSlots are the families viz.version.1 to viz.version.6 take their
+// hues from, as the version table assigns them, and which are older than
+// their family's newest: Opus 5.5 and Opus 5, Sonnet 5.5 and Sonnet 5, Fable
+// 5.1, and Haiku 5.5.
+var versionSlots = [...]struct {
+	family Token
+	older  bool
+}{
+	{family: VizFamily1},
+	{family: VizFamily1, older: true},
+	{family: VizFamily2},
+	{family: VizFamily2, older: true},
+	{family: VizFamily3},
+	{family: VizFamily4},
+}
+
+// OlderFade is how far a version older than its family's newest is mixed
+// toward the canvas from its family's hue, where the theme gives it no shade
+// of its own.
+const OlderFade = 0.3
+
+// version is the shade of a version of the family whose hue is given: the hue
+// itself, for the family's newest; for an older one, the hue mixed OlderFade
+// toward the canvas, where the theme paints one, else the hue, as the
+// terminal theme draws an older version faint instead.
+func (t Theme) version(family color.Color, older bool) color.Color {
+	if !older || !t.Paints() {
+		return family
+	}
+	return Mix(family, t.colours[Canvas], OlderFade)
+}
+
+// Steps are the four steps a ramp of shades takes toward hue, from the
+// theme's viz.day.0, as Shades works them out on its canvas; or, in a theme
+// that blends nothing, as the terminal's doesn't, hue at every step, a glyph's
+// density telling them apart.
+func (t Theme) Steps(hue color.Color) [4]color.Color {
+	if !t.Paints() {
+		return [4]color.Color{hue, hue, hue, hue}
+	}
+	return Shades(t.colours[VizDay0], hue, !Dark(t.colours[Canvas]))
+}
+
+// Shades is the rule every ramp of shades is drawn by: from base, 40% and
+// then 70% of the way to hue, then hue itself, then hue mixed 55% toward
+// white, or toward black on a light canvas.
+func Shades(base, hue color.Color, light bool) [4]color.Color {
+	var far color.Color = color.White
+	if light {
+		far = color.Black
+	}
+	return [4]color.Color{Mix(base, hue, 0.4), Mix(base, hue, 0.7), hue, Mix(hue, far, 0.55)}
 }
 
 // Mix blends from a to b by t, from 0, all a, to 1, all b.

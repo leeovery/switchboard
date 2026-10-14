@@ -18,7 +18,13 @@ const sessionShown = 4
 // name is what the dashboard calls an account: its label, which is its id
 // unless the config gives another, cleaned.
 func name(a status.Account) string {
-	return status.Clean(cmp.Or(a.Label, a.ID))
+	return labelled(a.Label, a.ID)
+}
+
+// labelled is what the dashboard calls the account with the given label
+// and id: its label, else its id, cleaned.
+func labelled(label, id string) string {
+	return status.Clean(cmp.Or(label, id))
 }
 
 // named is what the dashboard calls the account of doc with the given id:

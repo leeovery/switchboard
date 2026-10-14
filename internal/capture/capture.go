@@ -26,6 +26,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -59,8 +60,10 @@ type Fixture struct {
 	// colourless draws it without colour, as NO_COLOR asks.
 	colourless bool
 	// records are what its world's readers serve the watch: nil serves
-	// none.
-	records *records
+	// none. accounts are its world's, as configured, whose plans History
+	// prices against: none where it has no records to price.
+	records  *records
+	accounts config.Accounts
 }
 
 // InTheme is the fixture drawn in t, as the one theme chosen.
@@ -295,7 +298,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys),
-		theme: framesTheme(), records: w.records(),
+		theme: framesTheme(), records: w.records(), accounts: w.accounts,
 	}
 }
 
@@ -306,12 +309,15 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // six accounts and ten; at 216 columns, with SESSIONS, with SESSIONS and
 // GRAPHS, and everything shown; on a phone; and the routing card opened on
 // auto, with two picked, with one picked and m ticked, and over routing's
-// world of a limit, with side picked. Then the page as stage 6 builds it,
-// over the auto world, where no frame draws it, to judge by eye: the routing
-// card over the Overview, two accounts picked and m ticked, at 160×40, and on
-// a phone, one picked and m ticked; the Log's empty tab, its title row lit
-// there; and the router gone, R having found it so, the status line saying
-// since when and p pin faint.
+// world of a limit, with side picked. History's frames, each reached from
+// the Overview with tab twice, then the keys to its view: the Year, and
+// filtered to Opus 5.5; Weeks, its table and its columns, and of ten
+// accounts; Days, and of ten; Tokens by account, and by model; and the Year
+// on a phone. Then the page as stage 6 builds it, over the auto world, where
+// no frame draws it, to judge by eye: the routing card over the Overview, two
+// accounts picked and m ticked, at 160×40, and on a phone, one picked and m
+// ticked; the Log's empty tab, its title row lit there; and the router gone,
+// R having found it so, the status line saying since when and p pin faint.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -330,6 +336,16 @@ var pages = []page{
 	{name: "routing-two-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "3")},
 	{name: "routing-move-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
 	{name: "routing-limit-160", size: wide(37), world: accountWorlds.limit, keys: keysOf("p", "3")},
+	{name: "history-year-160", size: wide(37), world: accountWorlds.auto, keys: toHistory()},
+	{name: "history-year-opus-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("v")},
+	{name: "history-weeks-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]")},
+	{name: "history-weeks-columns-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "v")},
+	{name: "history-weeks-ten-160", size: wide(37), world: manyAccounts(10), keys: toHistory("]")},
+	{name: "history-days-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]")},
+	{name: "history-days-ten-160", size: wide(37), world: manyAccounts(10), keys: toHistory("]", "]")},
+	{name: "history-tokens-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]")},
+	{name: "history-tokens-models-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]", "v")},
+	{name: "history-phone-year-52", size: watch.Size{Width: 52, Height: 35}, world: accountWorlds.auto, keys: toHistory()},
 	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: keysOf("p", "2", "3", "m")},
 	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
 	{name: "page-log", size: wide(37), world: accountWorlds.auto, keys: []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}},
@@ -343,6 +359,12 @@ func keysOf(text ...string) []tea.KeyPressMsg {
 		keys = append(keys, tea.KeyPressMsg{Code: []rune(t)[0], Text: t})
 	}
 	return keys
+}
+
+// toHistory are the keys that reach History from the Overview, tab twice,
+// then the text given, a key a character.
+func toHistory(text ...string) []tea.KeyPressMsg {
+	return append([]tea.KeyPressMsg{{Code: tea.KeyTab}, {Code: tea.KeyTab}}, keysOf(text...)...)
 }
 
 // wide is a terminal as wide as the frames are, 160 columns, and as tall as

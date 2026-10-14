@@ -58,14 +58,23 @@ show and hide its sections, USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and
 LATELY; b groups its windows by window or by account, as the config's
 [usage] by has them until b is pressed; and ↑ and ↓ move the focus between
 the accounts, which GRAPHS follows. The sections shown and b are kept for
-the next dashboard to open with. On Runway, w shows the day or the week. j,
-k, PgDn, PgUp and the wheel scroll the view where it doesn't fit, and on the
-Overview, USAGE, where its accounts don't. p opens the routing card, which
-picks the accounts new sessions go to and changes nothing until enter; ?
-the page's help; esc closes either, or the theme picker. R refreshes, t
-opens the theme picker, q quits, and ctrl-c quits wherever it is. A click
-on a tab shows it; on a key of the key line, does what the key does, but p
-and q; and on the Overview, on a section's heading hides it, and on an
+the next dashboard to open with. On History, [ and ] move between its views,
+the Year, Weeks, Days and Tokens; < and > step the Year back through each
+calendar year the ledger holds and forward again, and Tokens' periods
+between a day, a week and a month; v cycles what the Year shows, all use, a
+model version or an account, Weeks' shape, and how Tokens splits each
+period; and ← and → step the Year shown for one account between the
+accounts. Each is kept for the next dashboard, but a calendar year stepped
+back to. On Runway, w shows the day or the week. j, k, PgDn, PgUp and the
+wheel scroll the view where it doesn't fit: on the Overview, USAGE, where
+its accounts don't, and on History, the Year, Weeks' accounts, Days' BY
+ACCOUNT and Tokens' periods. p opens the routing card, which picks the
+accounts new sessions go to and changes nothing until enter; ? the page's
+help; esc closes either, or the theme picker. R refreshes, t opens the
+theme picker, q quits, and ctrl-c quits wherever it is. A click on a tab
+shows it; on a key of the key line, does what the key does, but p and q;
+on History, on a view's name shows it, and on < or > by its period steps
+it; and on the Overview, on a section's heading hides it, and on an
 account's row moves the focus there.
 
 While the router runs, it posts the desktop notifications, --probe or not;
@@ -141,10 +150,15 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Interval:      opts.interval,
 		Policy:        claude.Policy,
 		WindowName:    claude.WindowName,
+		Accounts:      cfg.Accounts,
+		WeekStarts:    cfg.WeekStarts,
+		WeekWindow:    claude.WeekWindow,
+		Family:        claude.Provider{}.Family,
 		Size:          a.environSize(),
 		View:          dashboard.View(kept.Tab),
 		Sections:      dashboard.SectionsNamed(kept.Sections),
 		By:            keptBy(kept.By, cfg.Usage.By),
+		History:       dashboard.HistoryKept(kept.History, cfg.Accounts),
 		Prices:        pricing(cfg),
 	}
 	a.readers(&wc, cfg)

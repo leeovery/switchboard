@@ -94,6 +94,36 @@ func TestTheOverviewNamesEachNumberItDrawsByWhatItIs(t *testing.T) {
 	}
 }
 
+// Each kind of number is its own, none the zero kind, so a figure of one
+// kind never brightens as another's changes.
+func TestNoTwoKindsOfNumberShareAValue(t *testing.T) {
+	kinds := map[string]NumberKind{
+		"NumberUsed":        NumberUsed,
+		"NumberAllowance":   NumberAllowance,
+		"NumberRoom":        NumberRoom,
+		"NumberSessions":    NumberSessions,
+		"NumberRate":        NumberRate,
+		"NumberStates":      NumberStates,
+		"NumberRouted":      NumberRouted,
+		"NumberYear":        NumberYear,
+		"NumberShareOfUse":  NumberShareOfUse,
+		"NumberLimitsHit":   NumberLimitsHit,
+		"NumberTokens":      NumberTokens,
+		"NumberTokensSplit": NumberTokensSplit,
+	}
+	named := make(map[NumberKind]string)
+	for _, name := range slices.Sorted(maps.Keys(kinds)) {
+		kind := kinds[name]
+		if kind == 0 {
+			t.Errorf("%s is the zero kind, which names no number", name)
+		}
+		if other, ok := named[kind]; ok {
+			t.Errorf("%s and %s are both kind %d", other, name, kind)
+		}
+		named[kind] = name
+	}
+}
+
 func TestWhatIsntANumberIsNeverNamed(t *testing.T) {
 	tokenless := threeRouted()
 	tokenless.Accounts[2].TokenSet = false

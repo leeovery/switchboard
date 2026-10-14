@@ -12,7 +12,8 @@ type NumberKind int
 
 const (
 	// NumberUsed is how much of a window is used, as its percentage says:
-	// an account's, or the pool's.
+	// an account's, or the pool's, as History's Weeks gives this week's
+	// peak.
 	NumberUsed NumberKind = iota + 1
 	// NumberAllowance is an account's allowance in a window, as its words
 	// lead with it: "19%/day", or the room itself, "34%".
@@ -32,6 +33,25 @@ const (
 	// NumberRouted are the sessions the router has routed in the last hour,
 	// as the status line counts them.
 	NumberRouted
+	// NumberYear is a figure of History's Year a look can change within a
+	// day: one of LAST 12 MONTHS', or a calendar year's, or of BY MONTH's
+	// month so far, which Of names as its label does, after the month's, as
+	// 2026-10, and after the version shown's name, its Account the account
+	// shown.
+	NumberYear
+	// NumberShareOfUse is a family's share of what History's Days weighs,
+	// its eight weeks' worth, as in "59%".
+	NumberShareOfUse
+	// NumberLimitsHit are the limits of a window an account hit in History's
+	// Days, its eight weeks.
+	NumberLimitsHit
+	// NumberTokens is a figure of Tokens' period still running, by its
+	// column, as "input" or "against".
+	NumberTokens
+	// NumberTokensSplit is a figure of a row Tokens splits its period still
+	// running into: of an account, or of a model version, by its id before
+	// the column, as "claude-opus-5-5 input", or of both.
+	NumberTokensSplit
 )
 
 // Number names a number the page draws, which brightens as it changes:
@@ -49,6 +69,12 @@ type Number struct {
 // changes.
 func (k ink) numbered(n Number) ink {
 	k.mark = unique.Make(mark{number: n})
+	return k
+}
+
+// unnumbered is the ink as no number's.
+func (k ink) unnumbered() ink {
+	k.mark = unique.Handle[mark]{}
 	return k
 }
 

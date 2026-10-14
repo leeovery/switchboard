@@ -156,7 +156,7 @@ func TestLinesAreReadBackOldestFirstWhicheverDaysFileTheyreIn(t *testing.T) {
 // noRequests is the summary of the day with the given date of no requests,
 // made from as many lines as lines says.
 func noRequests(date string, lines int) string {
-	return fmt.Sprintf(`{"version":3,"day":"%s","lines":%d}`, date, lines)
+	return fmt.Sprintf(`{"version":4,"day":"%s","lines":%d}`, date, lines)
 }
 
 // summariesJSON returns each of summaries as JSON, but for the sizes of its
@@ -204,7 +204,7 @@ func TestADayOfNoRequestsIsReadWithTheAccountsItsReadingsTellOf(t *testing.T) {
 
 			got := summariesJSON(t, days(on(-1, 0, 0)))
 			quiet := windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
-			want := []string{summaryOf("2026-10-04", 1, 1, windowsRead{}), `{"version":3,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", quiet) + `]}`,
+			want := []string{summaryOf("2026-10-04", 1, 1, windowsRead{}), `{"version":4,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", quiet) + `]}`,
 				noRequests("2026-10-06", 0)}
 			if !slices.Equal(got, want) {
 				t.Errorf("Days() =\n%s\nwant\n%s: the 5th summarised from its readings as it's read", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -232,7 +232,7 @@ func TestADayIsReadWithItsReadingsWhereTheReadingsHistoryCantBeListed(t *testing
 			}
 
 			quiet := windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
-			want := `{"version":3,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", quiet) + `]}`
+			want := `{"version":4,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", quiet) + `]}`
 			if got := summariesJSON(t, days(on(0, 0, 0))[:1])[0]; got != want {
 				t.Errorf("the 5th is\n%s\nwant\n%s: a listing that failed tells of no day the history holds no readings of", got, want)
 			}

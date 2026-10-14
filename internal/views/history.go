@@ -32,6 +32,10 @@ type HistoryInput struct {
 	// From is when the days asked for start, and Now the time now: they're
 	// the local days from From's to today's, those the ledger holds.
 	From, Now time.Time
+	// Began is the start of the ledger's first day, as LedgerStart tells it,
+	// for a Past to take as the day the ledger began recording: zero where
+	// it's unknown.
+	Began time.Time
 	// Prices price the days' requests, at today's prices, and the plans, and
 	// name the models' versions and families.
 	Prices ledger.Table
@@ -132,16 +136,20 @@ type FamilyWorth struct {
 func pricedDays(summaries []ledger.Summary, prices ledger.Table, today string, v versions) []Day {
 	days := make([]Day, len(summaries))
 	for i, s := range summaries {
-		priced := prices.Priced(s, today)
-		sums := familySums{}
-		for _, a := range priced.Accounts {
-			for _, m := range a.Models {
-				sums.addModel(v, m)
-			}
-		}
-		days[i] = Day{Priced: priced, ByFamily: v.byFamily(sums)}
+		days[i] = v.day(prices.Priced(s, today))
 	}
 	return days
+}
+
+// day is the priced summary as a Day, with its worth by family.
+func (v versions) day(priced ledger.Priced) Day {
+	sums := familySums{}
+	for _, a := range priced.Accounts {
+		for _, m := range a.Models {
+			sums.addModel(v, m)
+		}
+	}
+	return Day{Priced: priced, ByFamily: v.byFamily(sums)}
 }
 
 // requests counts the day's requests, every account's.

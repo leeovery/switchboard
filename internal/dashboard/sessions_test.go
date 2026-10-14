@@ -492,12 +492,12 @@ func TestAPanelsUseIsTonedAsItRises(t *testing.T) {
 		want theme.Token
 	}{
 		{used: 0.69, want: theme.TextPrimary}, {used: 0.7, want: theme.VizRamp2}, {used: 0.89, want: theme.VizRamp2},
-		{used: 0.9, want: theme.VizRamp4}, {used: 1, want: theme.VizRamp4},
+		{used: 0.895, want: theme.VizRamp4}, {used: 0.9, want: theme.VizRamp4}, {used: 1, want: theme.VizRamp4},
 	}
 	for _, tt := range tests {
 		s := standing{window: weekOf(tt.used, day), used: tt.used}
 		if got := panelUse(s); got.ink != (ink{token: tt.want, bold: true}) {
-			t.Errorf("at %.0f%%, the use is %+v, want %s, bold", tt.used*100, got.ink, tt.want)
+			t.Errorf("at %.1f%%, shown as %s, the use is %+v, want %s, bold", tt.used*100, got.text, got.ink, tt.want)
 		}
 	}
 }

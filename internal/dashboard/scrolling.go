@@ -17,11 +17,37 @@ var (
 )
 
 // Scrolling is how far a frame's view scrolls: Most, the furthest, in rows,
-// or on the Overview, whose USAGE scrolls an account at a time, in accounts,
-// zero where it fits; and Page, how many of them show at once, as the frame
-// has it scrolled.
+// or where it scrolls a thing at a time, as ScrollsRows says it doesn't, in
+// those things, zero where it fits; and Page, how many of them show at once,
+// as the frame has it scrolled.
 type Scrolling struct {
 	Most, Page int
+}
+
+// byRows is how far content rows tall scrolls in a view rows tall: as far
+// as it runs past it, the view's rows at once.
+func byRows(content, rows int) Scrolling {
+	return Scrolling{Most: max(content-rows, 0), Page: rows}
+}
+
+// clamped is offset as far as what scrolls as s says goes: none before the
+// first, and no further than Most.
+func (s Scrolling) clamped(offset int) int {
+	return min(max(offset, 0), s.Most)
+}
+
+// ScrollsRows reports whether the view shown scrolls a row at a time, as
+// Sessions, Runway and History's Year do, rather than a thing at a time: an
+// account, as the Overview's USAGE does, and History's Weeks and Days, or a
+// period, as its Tokens does.
+func (f Frame) ScrollsRows() bool {
+	switch f.View {
+	case Overview:
+		return false
+	case History:
+		return f.History.Shown == HistoryYear
+	}
+	return true
 }
 
 // Revealing is how far the Overview's USAGE of doc at now is scrolled to show
@@ -44,7 +70,7 @@ func (f Frame) Revealing(doc status.Document, now time.Time, id string) int {
 // scrolled to show its i-th account: no further than it must go to, and no
 // further than it goes. An i of none of them leaves it where it is.
 func (s Scrolling) revealing(at, i int) int {
-	at = min(max(at, 0), s.Most)
+	at = s.clamped(at)
 	switch {
 	case i < 0:
 		return at
@@ -63,23 +89,25 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 }
 
 // scrollingAt is how far the frame's view of doc scrolls at now, scrolled to
-// each offset given: the Overview's, as overviewScrolling says, laid out once
-// for every offset; Sessions, where its calls and lines, or its plain list,
-// don't fit; and Runway, where its lanes don't, as runwayRows counts them,
-// each alike at every offset. A frame too short for the view, as cramped
-// says, never scrolls.
+// each offset given: History's, of the ledger's days alone, as
+// historyScrolling says; the Overview's, as overviewScrolling says, laid out
+// once for every offset; Sessions, where its calls and lines, or its plain
+// list, don't fit; and Runway, where its lanes don't, as runwayRows counts
+// them, each alike at every offset. A frame too short for the view, as
+// cramped says, never scrolls, nor one of a document of no accounts, but
+// History.
 func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) Scrolling {
 	var s Scrolling
-	if len(doc.Accounts) == 0 || f.cramped() {
-		return func(int) Scrolling { return s }
-	}
-	switch top := f.top(); f.View {
-	case Overview:
+	switch top := f.top(); {
+	case f.cramped():
+	case f.View == History:
+		return f.historyScrolling(top)
+	case len(doc.Accounts) == 0:
+	case f.View == Overview:
 		return f.overviewScrolling(doc, now)
-	case Sessions:
-		content, view := f.sessionsRows(doc, now, top)
-		s = Scrolling{Most: max(content-view, 0), Page: view}
-	case Runway:
+	case f.View == Sessions:
+		s = byRows(f.sessionsRows(doc, now, top))
+	case f.View == Runway:
 		content, view := f.runwayRows(len(doc.Accounts), top)
 		s = Scrolling{Most: content - view, Page: view}
 	}

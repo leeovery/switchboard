@@ -212,18 +212,10 @@ func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string,
 	c.line(at+useColumn+whitherGap, y, line{s.headed(now, "~", status.Dated)}.fit(whither))
 }
 
-// panelUse is how much of a window standing as s is used, bold, as a panel
-// tones it: from 90%, in the ramp's last colour, from 70%, in its second,
-// else in text.primary.
+// panelUse is how much of a window standing as s is used, a whole
+// percentage, bold, toned as usedInk tones it, below 70% in text.primary.
 func panelUse(s standing) span {
-	k := ink{token: theme.TextPrimary, bold: true}
-	switch {
-	case s.used >= 0.9:
-		k.token = theme.VizRamp4
-	case s.used >= 0.7:
-		k.token = theme.VizRamp2
-	}
-	return span{status.Percent(s.used), k}
+	return span{status.Percent(s.used), usedInk(s.used, ink{token: theme.TextPrimary, bold: true})}
 }
 
 // panelBottom draws the panel's bottom edge from x along row y, width cells

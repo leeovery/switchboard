@@ -31,12 +31,12 @@ const (
 		`"by_model":[{"model":"claude-opus-5-5","on":["work"],` + saturdaysTokens + `}]`
 	mondaysRows = `"input":2000005,"output":7,"cache_write":0,"cache_read":0,"total":2000012,"worth":2,"unpriced":["claude-opus-9"],` +
 		`"cost":50.769230769231,"against":0.03939393939393922,` +
-		`"by_account":[{"account":"side","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1,` +
+		`"by_account":[{"account":"work","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1,` +
+		`"by_model":[{"model":"claude-haiku-4-5","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1}]},` +
+		`{"account":"side","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1,` +
 		`"by_model":[{"model":"claude-haiku-4-5","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1}]},` +
 		`{"account":"spare","input":5,"output":7,"cache_write":0,"cache_read":0,"total":12,"unpriced":["claude-opus-9"],` +
-		`"by_model":[{"model":"claude-opus-9","input":5,"output":7,"cache_write":0,"cache_read":0,"total":12,"unpriced":["claude-opus-9"]}]},` +
-		`{"account":"work","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1,` +
-		`"by_model":[{"model":"claude-haiku-4-5","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1}]}],` +
+		`"by_model":[{"model":"claude-opus-9","input":5,"output":7,"cache_write":0,"cache_read":0,"total":12,"unpriced":["claude-opus-9"]}]}],` +
 		`"by_model":[{"model":"claude-haiku-4-5","on":["side","work"],"input":2000000,"output":0,"cache_write":0,"cache_read":0,"total":2000000,"worth":2},` +
 		`{"model":"claude-opus-9","on":["spare"],"input":5,"output":7,"cache_write":0,"cache_read":0,"total":12,"unpriced":["claude-opus-9"]}]`
 )

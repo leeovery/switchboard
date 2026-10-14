@@ -125,6 +125,15 @@ type Config struct {
 	// as "5-hour" or "Fable week": nil names it by its label in the
 	// document.
 	WindowName func(key string) string
+	// Accounts are the configured accounts, whose plans History prices its
+	// worth against, and WeekStarts the day its calendar weeks start on.
+	Accounts   config.Accounts
+	WeekStarts time.Weekday
+	// WeekWindow is the key of the window a week long every model shares,
+	// the accounts' own weeks, which History's Weeks counts; and Family reads
+	// a model's family from its id, for one the version table doesn't name.
+	WeekWindow string
+	Family     func(model string) string
 	// Size is what to draw at until the terminal gives its size, and in place
 	// of a width or height it gives as zero, which means it doesn't know.
 	Size Size
@@ -138,11 +147,14 @@ type Config struct {
 	Themes Themes
 	// View is the tab the preferences kept, which the watch opens on where
 	// it's one there is; Sections the Overview's sections they keep shown;
-	// and By how they keep its windows grouped, else as the config's [usage]
-	// by has it. Prefs keeps each as it changes: nil keeps nothing.
+	// By how they keep its windows grouped, else as the config's [usage] by
+	// has it; and History what they keep History's views showing, as
+	// dashboard.HistoryKept reads it. Prefs keeps each as it changes: nil
+	// keeps nothing.
 	View     dashboard.View
 	Sections dashboard.Sections
 	By       dashboard.By
+	History  dashboard.HistoryPage
 	Prefs    Prefs
 	// TraceScale is the requests a minute that fill a trace's height on the
 	// Overview: 0 for the live rule, as the dashboard has it, the busiest
@@ -277,6 +289,9 @@ type Model struct {
 	// the first, in the config's order, till ↑ and ↓ move it, and "" while
 	// the document has none.
 	focus string
+	// past is what the watch holds of History: its page, the ledger's days
+	// it's built of, and the reads of them.
+	past historyTab
 
 	// open is the card open over the page, if any: the routing card, its
 	// picker as routing holds it, or help, scrolled as help holds it. page is
@@ -357,7 +372,9 @@ func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By,
+		past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
 	}
+	m.past.page.Accounts = cfg.Accounts
 	if m.after == nil {
 		m.after = after
 	}
@@ -381,8 +398,9 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update takes in a message, as take says, then has the watch read the
-// router's request stream while it wants it, and only then, price the moves
-// the routing card would make while it wants them. Then, of the page as it
+// router's request stream while it wants it, and the ledger's days for
+// History as it wants them, and only then, price the moves the routing card
+// would make while it wants them. Then, of the page as it
 // stands at one moment, its Overview's sections built once for each to
 // share, it keeps the Overview's layout, but for a frame, which takes
 // nothing in to lay it out afresh by; brightens the numbers what the stream
@@ -393,6 +411,7 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.take(msg)
 	tuned, stream := next.(Model).tune()
+	tuned, past := tuned.readHistory()
 	tuned, costs := tuned.costing()
 	now := tuned.now()
 	page := tuned.frame(now).Built(tuned.doc, now)
@@ -401,7 +420,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
-	return tuned, tea.Batch(cmd, stream, costs, frames)
+	return tuned, tea.Batch(cmd, stream, past, costs, frames)
 }
 
 // keepLayout keeps the Overview's layout as page, built at now, lays it out,
@@ -467,10 +486,10 @@ func (m Model) render() Model {
 
 // take takes in a message: a key, a click, the wheel, a resize, the
 // terminal's background, the themes listed for the picker, or the choice
-// kept as it stands, a read, the router's history, the router carrying out
-// an order, the sessions listed to price the routing card's moves, the
-// request stream opening, telling of requests or falling due to be asked for
-// again, a tick or a frame.
+// kept as it stands, a read, the router's history, the ledger's days read
+// for History, the router carrying out an order, the sessions listed to
+// price the routing card's moves, the request stream opening, telling of
+// requests or falling due to be asked for again, a tick or a frame.
 func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -501,6 +520,10 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.history = m.history.filedAs(msg)
 		m.trails = m.history.drawn(m.doc, m.now(), m.cfg.Policy)
 		return m, nil
+	case yearReadMsg:
+		return m.yearRead(msg), nil
+	case sinceMsg:
+		return m.sinceRead(msg), nil
 	case orderedMsg:
 		return m.ordered(msg)
 	case costedMsg:
@@ -670,6 +693,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
+		History:    m.past.page,
 	}.Judged(m.doc, now)
 	f.Eased = m.ease.eased(f, m.doc, now)
 	return f
@@ -738,11 +762,12 @@ func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 // status line say that reason, as lostShown has it. Elsewhere a read that
 // found the router gone leaves the last read's why standing, as nothing new
 // was found. Each read starts a new chain of ticks at the pace it calls for,
-// and lets a look at the router's document asked for while it was under way
-// go ahead.
+// lets a look at the router's document asked for while it was under way go
+// ahead, and as any look does, asks for the ledger's days since History's
+// were read, as readHistory reads them while History shows.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
-	m.fetching = false
+	m.fetching, m.past.due = false, true
 	var shown tea.Cmd
 	switch {
 	case errors.Is(msg.err, status.ErrNoRouter):

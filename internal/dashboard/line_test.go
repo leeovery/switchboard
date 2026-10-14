@@ -51,6 +51,90 @@ func TestFit(t *testing.T) {
 	}
 }
 
+// A figure is drawn whole where it fits, else as an ellipsis alone, in its
+// first span's ink, never cut part-way; marked as its number only where it's
+// drawn whole, as an ellipsis is no number.
+func TestFitPartsDrawsAFigureWholeOrAnEllipsis(t *testing.T) {
+	worth := line{{"$1,234,567", secondaryInk}, {"+", faintInk}}
+	n := Number{Kind: NumberYear, Of: "worth"}
+	tests := []struct {
+		name   string
+		figure part
+		width  int
+		want   line
+	}{
+		{name: "fits", figure: figurePart(worth, Number{}), width: 11, want: worth},
+		{name: "a cell short", figure: figurePart(worth, Number{}), width: 10, want: line{{"…", secondaryInk}}},
+		{name: "numbered, fitting", figure: figurePart(worth, n), width: 11, want: worth.numbered(n)},
+		{name: "numbered, a cell short", figure: figurePart(worth, n), width: 10, want: line{{"…", secondaryInk}}},
+		{name: "numbered beforehand, a cell short", figure: figurePart(worth.numbered(n), Number{}), width: 10, want: line{{"…", secondaryInk}}},
+		{name: "no room", figure: figurePart(worth, Number{}), width: 0, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := fitParts(tt.width, tt.figure); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("fitParts(%d) = %+v, want %+v", tt.width, got, tt.want)
+			}
+		})
+	}
+}
+
+// Parts are cut as fit cuts a line, ending with an ellipsis where they're
+// cut, but that a figure is never cut part-way: drawn whole where it fits
+// what's left, the parts after it left off where it fills it, else an
+// ellipsis alone; words may cut.
+func TestFitPartsCutsWordsButNeverAFigurePartWay(t *testing.T) {
+	ratio, words, price, unit := span{"4.6×", boldPositiveInk}, span{" its ", dimInk}, span{"$1,800", dimInk}, span{" month", dimInk}
+	parts := []part{figurePart(line{ratio}, Number{}), wordsPart(line{words}), figurePart(line{price}, Number{}), wordsPart(line{unit})}
+	tests := []struct {
+		name  string
+		width int
+		want  line
+	}{
+		{name: "fits", width: 21, want: line{ratio, words, price, unit}},
+		{name: "its last words cut", width: 18, want: line{ratio, words, price, {" m…", dimInk}}},
+		{name: "its last words cut to an ellipsis", width: 16, want: line{ratio, words, price, {"…", dimInk}}},
+		{name: "a figure filling what's left, the words after it left off", width: 15, want: line{ratio, words, price}},
+		{name: "a figure a cell short", width: 14, want: line{ratio, words, {"…", dimInk}}},
+		{name: "a figure that doesn't fit", width: 12, want: line{ratio, words, {"…", dimInk}}},
+		{name: "words cut", width: 7, want: line{ratio, {" i…", dimInk}}},
+		{name: "the first figure filling it", width: 4, want: line{ratio}},
+		{name: "the first figure a cell short", width: 3, want: line{{"…", boldPositiveInk}}},
+		{name: "no room", width: 0, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := fitParts(tt.width, parts...); !reflect.DeepEqual(got, tt.want) || got.width() > tt.width {
+				t.Errorf("fitParts(%d) = %+v, want %+v", tt.width, got, tt.want)
+			}
+		})
+	}
+}
+
+// A part's number marks it only where it's a figure drawn whole: never the
+// words around it, nor the ellipsis they're cut to.
+func TestFitPartsMarksOnlyAFigureDrawnWhole(t *testing.T) {
+	n := Number{Kind: NumberTokens, Of: "against"}
+	ratio, words, price, unit := span{"4.6×", boldPositiveInk}, span{" its ", dimInk}, span{"$1,800", dimInk}, span{" month", dimInk}
+	parts := []part{figurePart(line{ratio}, n), {said: line{words}, number: n}, figurePart(line{price}, n), {said: line{unit}, number: n}}
+	tests := []struct {
+		name  string
+		width int
+		want  line
+	}{
+		{name: "fits", width: 21, want: line{ratio.numbered(n), words, price.numbered(n), unit}},
+		{name: "its last words cut to an ellipsis", width: 16, want: line{ratio.numbered(n), words, price.numbered(n), {"…", dimInk}}},
+		{name: "a figure as an ellipsis", width: 14, want: line{ratio.numbered(n), words, {"…", dimInk}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := fitParts(tt.width, parts...); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("fitParts(%d) = %+v, want %+v", tt.width, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFitWholeLeavesOffWholeSpans(t *testing.T) {
 	says := line{{"runs out ~16:05", exhaustedInk}, {"  ·  back 17:10", mutedInk}, {", as it resets", mutedInk}}
 	tests := []struct {
@@ -128,4 +212,18 @@ func (l line) plain() string {
 		b.WriteString(s.text)
 	}
 	return b.String()
+}
+
+// inked is the line as it's drawn, each run of one ink a span, however its
+// spans were split.
+func (l line) inked() line {
+	var runs line
+	for _, s := range l {
+		if n := len(runs); n > 0 && runs[n-1].ink == s.ink {
+			runs[n-1].text += s.text
+			continue
+		}
+		runs = append(runs, s)
+	}
+	return runs
 }

@@ -15,6 +15,34 @@ type Version struct {
 	// Family is its family, as internal/claude reads it from its ids, as
 	// opus.
 	Family string
+	// Shade is its shade among the versions' six, viz.version.1 to
+	// viz.version.6, as the table assigns them, a family's newest first: 0
+	// for none.
+	Shade int
+	// Older is whether the table holds a newer version of its family: where
+	// it has no shade, it's drawn in its family's hue mixed toward the canvas.
+	Older bool
+}
+
+// familyShades are the shades the table assigns each family's versions,
+// newest first: two each to Opus and Sonnet, one each to Fable and Haiku, and
+// none to Mythos.
+var familyShades = map[string][]int{"opus": {1, 2}, "sonnet": {3, 4}, "fable": {5}, "haiku": {6}}
+
+// shaded is the table's rows, by family and within a family newest first,
+// each given its shade and whether it's older than its family's newest, so a
+// version added to the table takes them afresh.
+func shaded(rows []Version) []Version {
+	seen := make(map[string]int)
+	for i, v := range rows {
+		nth := seen[v.Family]
+		seen[v.Family]++
+		rows[i].Older = nth > 0
+		if shades := familyShades[v.Family]; nth < len(shades) {
+			rows[i].Shade = shades[nth]
+		}
+	}
+	return rows
 }
 
 // Version returns the version the table names with the id given, reporting

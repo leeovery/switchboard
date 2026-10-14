@@ -7,25 +7,29 @@ import (
 )
 
 // The blank cells the heading row sets its parts apart by: before the
-// sub-tabs and before the state; and between the rule and what's either side
-// of it, but the state, which the rule starts a cell after.
+// sub-tabs and before the state; between the rule and what's either side of
+// it, but the state, which the rule starts a cell after; and on a phone,
+// before sub-tabs set tight.
 const (
 	headingGap = 3
 	ruleGap    = 2
+	tightGap   = 2
 )
 
 // shownSubTabInk picks out the sub-tab shown.
 var shownSubTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSubtle}, bold: true}
 
 // heading is a tab's heading row, as the tab gives it: its name; its
-// sub-tabs, where it has them, and which of them is shown; the state the
-// screen can't otherwise show, in text.faint, a key within it in bold
+// sub-tabs, where it has them, which of them is shown, and whether a phone
+// sets them tight, as the rule Accounts and History share has it; the state
+// the screen can't otherwise show, in text.faint, a key within it in bold
 // accent.key, where there's any; and at its right, its period or window,
 // which < and > step, or another line, as the Log's count and its f.
 type heading struct {
 	name    string
 	subTabs []string
 	shown   int
+	tight   bool
 	state   line
 	period  string
 	right   line
@@ -47,9 +51,14 @@ func (p piece) target() Target {
 	return t
 }
 
-// heading is the heading row of the tab shown: its name alone, as the views
-// milestone 5 built and the tabs not built yet have it.
+// heading is the heading row of the tab shown: History's, as its page has
+// it; else its name alone, as the views milestone 5 built and the tabs not
+// built yet have it.
 func (f Frame) heading() heading {
+	switch f.View {
+	case History:
+		return f.History.heading()
+	}
 	return heading{name: strings.ToUpper(f.View.Title())}
 }
 
@@ -83,6 +92,13 @@ func (h heading) rows(phone bool) int {
 // with sub-tabs: without [ ] or a rule.
 func (h heading) compact(phone bool) bool {
 	return phone && len(h.subTabs) > 0
+}
+
+// tightly reports whether the heading's sub-tabs are set tight, as a phone
+// sets them where the heading says to: two cells after the name, each its
+// name and a cell after it.
+func (h heading) tightly(phone bool) bool {
+	return h.tight && h.compact(phone)
 }
 
 // ownPeriod reports whether the heading's period takes the row under it, as
@@ -128,16 +144,21 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 }
 
 // named lays the heading's name out from the first column of row y, then,
-// where it has them, three cells on, its sub-tabs, touching, and a cell on,
-// [ ], but where it's compact; and returns the column after them.
+// where it has them, its sub-tabs, touching, three cells on, or two where
+// they're set tight, and a cell on, [ ], but where it's compact; and returns
+// the column after them.
 func (h heading) named(laid *laying, y int, phone bool) int {
 	x := laid.put(0, y, line{{h.name, dimInk}}, Target{})
 	if len(h.subTabs) == 0 {
 		return x
 	}
-	x += headingGap
+	gap := headingGap
+	if h.tightly(phone) {
+		gap = tightGap
+	}
+	x += gap
 	for i := range h.subTabs {
-		x = laid.put(x, y, h.subTab(i), Target{On: OnSubTab, SubTab: i})
+		x = laid.put(x, y, h.subTab(i, phone), Target{On: OnSubTab, SubTab: i})
 	}
 	if h.compact(phone) {
 		return x
@@ -157,13 +178,18 @@ func (l *laying) put(x, y int, ln line, click Target) int {
 	return x + ln.width()
 }
 
-// subTab is the heading's sub-tab i, its name with a space either side,
-// picked out where it's the one shown.
-func (h heading) subTab(i int) line {
-	if i == h.shown {
-		return line{{" " + h.subTabs[i] + " ", shownSubTabInk}}
+// subTab is the heading's sub-tab i, on a phone where phone says, its name
+// with a space either side, or after it alone where it's set tight, picked
+// out, the space with it, where it's the one shown.
+func (h heading) subTab(i int, phone bool) line {
+	name := " " + h.subTabs[i] + " "
+	if h.tightly(phone) {
+		name = h.subTabs[i] + " "
 	}
-	return line{{" " + h.subTabs[i] + " ", tabInk}}
+	if i == h.shown {
+		return line{{name, shownSubTabInk}}
+	}
+	return line{{name, tabInk}}
 }
 
 // rightPieces are what sits at the heading's right, in order, where they
