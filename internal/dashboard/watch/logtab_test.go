@@ -621,6 +621,72 @@ func TestTheEventsReadABurstTheDocumentSkippedOffTheFiles(t *testing.T) {
 	}
 }
 
+// The events looks take in while a read of the router's files is under way
+// are kept as it lands, what it found taken in alongside them; and a skip
+// found meanwhile is read from the earliest moment any skip wants, so none
+// told is lost.
+func TestEventsTakenInWhileAReadIsUnderWayAreKept(t *testing.T) {
+	run := past(-time.Hour)
+	var told []status.Event
+	for id := 1; id <= 160; id++ {
+		told = append(told, status.Event{ID: id, At: past(time.Duration(id) * time.Second), Kind: status.EventPin, Accounts: []string{"work"}})
+	}
+	filed := func(es []status.Event) []events.Line {
+		var lines []events.Line
+		for _, e := range es {
+			lines = append(lines, events.Line{Event: e, Run: run})
+		}
+		return lines
+	}
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -time.Minute))
+	writeEvents(t, state, filed(told[:10])...)
+	doc := routerDocument(three()...)
+	doc.Events = told[:10]
+	h := routedHarness(t, doc)
+	h.source.health = router.Health{OK: true, PID: 1, StartedAt: run}
+	onTheLog(h, state)
+	h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+	h.clock.now = past(10*time.Second + 500*time.Millisecond)
+	h.source.router.GeneratedAt = h.clock.now.UTC()
+	h.start()
+	h.typed("]")
+
+	// look files the events from to to as told, and looks at the router's
+	// document at at, which gives the newest 50 of them, holding back the
+	// Log's reads it asks.
+	look := func(at time.Duration, from, to int) []tea.Msg {
+		writeEvents(t, state, filed(told[from:to])...)
+		h.clock.now = past(at)
+		d := doc
+		d.Events, d.GeneratedAt = told[max(to-50, 0):to], h.clock.now.UTC()
+		h.startRouter(d)
+		return h.holdingReads(h.press("R")...)
+	}
+	underWay := look(71*time.Second, 10, 70)
+	if len(underWay) != 1 {
+		t.Fatalf("the document skipping 11 to 20, the look asked %d reads of the Log's own, want one, of the files", len(underWay))
+	}
+	if more := look(101*time.Second, 70, 100); len(more) != 0 {
+		t.Fatal("a look asked a read while one was under way")
+	}
+	if more := look(161*time.Second, 100, 160); len(more) != 0 {
+		t.Fatal("a look asked a read while one was under way")
+	}
+	h.deliver(underWay...)
+	h.typed("R")
+
+	var missing []int
+	for id := 1; id <= 160; id++ {
+		if !slices.ContainsFunc(h.model.log.page.Events.Rows, func(e views.LogEvent) bool { return e.Key.ID == id }) {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) > 0 {
+		t.Errorf("160 events told, each filed, looks taking in 71 to 160 while a read of the files was under way, the Events miss %v", missing)
+	}
+}
+
 // writeEvents files the router's events given in the state directory given,
 // each under the day it happened on, as the router files them as they're told.
 func writeEvents(t *testing.T, state string, lines ...events.Line) {

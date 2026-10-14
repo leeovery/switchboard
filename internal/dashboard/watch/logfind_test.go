@@ -323,14 +323,7 @@ func TestTheFindDrawsItsLineBeforeTheLogsFirstReadLands(t *testing.T) {
 	writeLines(t, state, ranIn("0a000001", idD28C, "~/Code/web", -time.Minute))
 	h := newHarness(t, probedWithoutTheRouter())
 	onTheLog(h, state)
-	var unread []tea.Msg
-	for msgs := h.init(); len(msgs) > 0; msgs = msgs[1:] {
-		if _, ok := msgs[0].(logReadMsg); ok {
-			unread = append(unread, msgs[0])
-			continue
-		}
-		msgs = append(msgs, h.update(msgs[0])...)
-	}
+	unread := h.holdingReads(h.init()...)
 	if len(unread) == 0 || h.model.log.page.Read {
 		t.Fatal("the Log's first read landed, want it held")
 	}
