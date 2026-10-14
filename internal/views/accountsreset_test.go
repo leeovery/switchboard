@@ -194,6 +194,27 @@ func TestAWeekResetBeforeTheRereadOfNothingReadIsntFoldedIn(t *testing.T) {
 	}
 }
 
+// The week the router reads began with no reset the days hold, as the ledger
+// files none of a week it never read, of one of no use, or of one that
+// lapsed but at its own reset: on a fresh install, an account added
+// part-way through its week, a week that lapsed and one of no use before
+// it. That week ends none before it, so standing the page at its moment
+// leaves its weeks as built: no week closes at its start at its own use.
+func TestAWeekBegunWithNoResetTheDaysHoldEndsNoneBeforeIt(t *testing.T) {
+	for _, name := range []string{
+		"a fresh install", "an account added part-way through the period",
+		"a week lapsed before the one the router reads", "a week of no use before the one the router reads",
+	} {
+		t.Run(name, func(t *testing.T) {
+			am := accountsMoment(t, name)
+			built := builtOf(am)
+			if stood := built.At(am.Doc.At(am.Now, claude.Policy)); weeksSaid(stood) != weeksSaid(built) {
+				t.Errorf("standing the page, its weeks say\n%s\nwant them as built\n%s", weeksSaid(stood), weeksSaid(built))
+			}
+		})
+	}
+}
+
 // weekReadAs is the moment am, its document reading the week of the
 // account with the given id used as given.
 func weekReadAs(am viewstest.AccountsMoment, id string, used float64) viewstest.AccountsMoment {

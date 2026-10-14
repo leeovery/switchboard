@@ -243,6 +243,13 @@ func (c *Climb) Rise() float64 {
 	return c.rise
 }
 
+// Resets returns the resets that ended the window's runs, in the order they
+// came, as a day's summary files them: those that read above nothing, each
+// with the highest use of the run it ended.
+func (c *Climb) Resets() []Reset {
+	return slices.Clone(c.resets)
+}
+
 // reset notes the window's reset at at, the highest use of the run it ended
 // before it, and ends that run, the next beginning at nothing. A run that
 // never read above nothing, the use carried into it included, notes none:
