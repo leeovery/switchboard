@@ -120,25 +120,38 @@ func TestAPlansCostIsProratedAsThePeriodAskedFor(t *testing.T) {
 	}
 }
 
-// Asked for from today, on the week's first day, the days are this week, as
-// Accounts opens on it: the plans cost a week, as the same document's tokens
-// price this week's row and Accounts' this week, not a day.
-func TestOnTheWeeksFirstDayTheDaysAskedForFromTodayAreThisWeek(t *testing.T) {
+// On the week's first day, today and this week begin together: the days
+// asked for from today are today, priced a day, as Accounts' today is; asked
+// for as this week, they're priced a week, as Accounts' this week and the
+// tokens' row of it are.
+func TestOnTheWeeksFirstDayTheDaysAreThePeriodAskedFor(t *testing.T) {
 	monday := on("2026-10-05").Add(15 * time.Hour)
 	days := daysTo("2026-10-01", monday, day("2026-10-05", account("work", sent("claude-opus-5-5", 1, inputUsage))))
 	in := input(days)
 	in.From, in.Now = on("2026-10-05"), monday
-	history := views.NewHistory(in)
-	accounts := views.NewPast(in, days).Accounts(views.AccountsThisWeek)
-
-	week := "50.769230769231"
-	got := []string{
-		jsonOf(t, history.Plans[len(history.Plans)-1].Cost),
-		jsonOf(t, history.Tokens[len(history.Tokens)-1].Cost),
-		jsonOf(t, accounts.All.Plan.Cost),
+	thisWeek := in
+	thisWeek.Period = new(views.AccountsThisWeek)
+	tests := []struct {
+		name   string
+		in     views.HistoryInput
+		period views.AccountsPeriod
+		want   string
+	}{
+		{name: "asked for from today, a day", in: in, period: views.AccountsToday, want: "7.232876712328"},
+		{name: "asked for as this week, a week", in: thisWeek, period: views.AccountsThisWeek, want: "50.769230769231"},
 	}
-	if !slices.Equal(got, []string{week, week, week}) {
-		t.Errorf("the plans, this week's tokens and Accounts' this week cost %v, want each %s, a week", got, week)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			history := views.NewHistory(tt.in)
+			got := []string{jsonOf(t, history.Plans[len(history.Plans)-1].Cost), jsonOf(t, views.NewPast(in, days).Accounts(tt.period).All.Plan.Cost)}
+			if !slices.Equal(got, []string{tt.want, tt.want}) {
+				t.Errorf("the plans and Accounts' %s cost %v, want each %s", tt.period.Name(), got, tt.want)
+			}
+		})
+	}
+	tokens := views.NewHistory(thisWeek).Tokens
+	if got, want := jsonOf(t, tokens[len(tokens)-1].Cost), "50.769230769231"; got != want {
+		t.Errorf("this week's tokens' row costs %s, want %s, a week", got, want)
 	}
 }
 

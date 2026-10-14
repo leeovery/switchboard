@@ -10,25 +10,29 @@ import (
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
-// At each of Accounts' hard moments, the totals Compare and THIS WEEK read
-// off a row are history's over the same days, every one of them, of each
-// account and of every account: its requests, its limits, its sessions
-// served and its worth among them, and each window's last run, told from the
-// days before the period too.
-func TestAccountsTotalsAreHistorysOverThePeriod(t *testing.T) {
+// At each of Accounts' hard moments, the totals and plans Compare and THIS
+// WEEK read off a row are history's over the same period, every one of
+// them, of each account and of every account: its requests, its limits, its
+// sessions served and its worth among them, each window's last run, told
+// from the days before the period too, and what its plan cost over the
+// period and its worth against it.
+func TestAccountsTotalsAndPlansAreHistorysOverThePeriod(t *testing.T) {
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
 			page, _ := accountsAt(am)
 			in := accountsIn(am)
-			in.From = am.Period.From(am.Now, am.WeekStarts)
-			history := views.NewHistory(in).Totals.Accounts
+			in.From, in.Period = am.Period.From(am.Now, am.WeekStarts), &am.Period
+			history := views.NewHistory(in)
 			rows := append(slices.Clone(page.Rows), page.All)
-			if len(rows) != len(history) {
-				t.Fatalf("the page has %d rows, history %d totals", len(rows), len(history))
+			if len(rows) != len(history.Totals.Accounts) || len(rows) != len(history.Plans) {
+				t.Fatalf("the page has %d rows, history %d totals and %d plans", len(rows), len(history.Totals.Accounts), len(history.Plans))
 			}
 			for i, row := range rows {
-				if got, want := jsonOf(t, row.Totals), jsonOf(t, history[i]); got != want {
+				if got, want := jsonOf(t, row.Totals), jsonOf(t, history.Totals.Accounts[i]); got != want {
 					t.Errorf("row %d counts\n%s\nhistory counts\n%s", i, got, want)
+				}
+				if got, want := jsonOf(t, row.Plan), jsonOf(t, history.Plans[i]); got != want {
+					t.Errorf("row %d's plan is\n%s\nhistory's\n%s", i, got, want)
 				}
 			}
 		})
