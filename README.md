@@ -15,7 +15,7 @@ A local router for Claude Code that tracks, routes and analyses
 
 <br>
 
-<img src="art/routing.webp" alt="Switchboard's dashboard routing three accounts: the Overview's usage, routing and sessions, a new session starting on side, then the routing card pinning new and running sessions to side, personal's two moving there" width="840">
+<img src="art/routing.webp" alt="Switchboard's dashboard routing three accounts: the Overview's usage, routing and LATELY, a new session starting on side, then the routing card pinning new and running sessions to side, personal's two moving there" width="840">
 
 </div>
 
@@ -715,10 +715,10 @@ The router reads the tokens as it starts, every account's file again every 3 sec
 ## The Dashboard
 
 <div align="center">
-<img src="art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace, sessions and LATELY, then Runway's 5-hour, its lane running to its cap about 16:05" width="840">
+<img src="art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then GRAPHS, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
 </div>
 
-One account: work alone on the Overview, its usage, its routing trace, its sessions and LATELY; then `g` to GRAPHS, and `tab` on to Runway's 5-hour, its lane running to its cap about 16:05.
+One account: work alone on the Overview, its usage, its routing trace and LATELY; then `g` to GRAPHS, and `tab` on to Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10.
 
 `switchboard dashboard` draws every page in one frame: the title row, with the tabs and the clock; under it, the status line; then, on every tab but the Overview, the tab's heading row, its name and a rule; the view; and the key line last.
 
@@ -744,7 +744,7 @@ It reads, and takes its keys, as [`dashboard`](#dashboard) says.
 <table>
   <tr>
     <td align="center"><img src="art/repatch.webp" alt="Sessions' Switchboard as personal reaches its limit: the 429 back red along 41e0's cord, its old cord left hanging, and personal's sessions re-patched to side" width="280"><br><b>Sessions, re-patched at a limit</b></td>
-    <td align="center"><img src="art/runway-week.webp" alt="Runway over the week: each account's lane from the readings, work's limit on Wednesday afternoon in its past" width="280"><br><b>Runway, over the week</b></td>
+    <td align="center"><img src="art/runway-week.webp" alt="Runway over the week: a lane an account to next Wednesday, work at its cap till 17:10, personal's and side's weeks running out at their pace before they reset, and the pool's room under them" width="280"><br><b>Runway, over the week</b></td>
     <td align="center" rowspan="2"><img src="art/phone.webp" alt="The Overview in a phone's terminal, 52 columns wide" width="200"><br><b>In a phone's terminal</b></td>
   </tr>
   <tr>
