@@ -200,10 +200,22 @@ func (l listed) cell(c *canvas, y int, col listColumn, said line) {
 }
 
 // shown are the List's lines in view, from first to before last, as far as
-// the frame has them scrolled.
+// the frame has them scrolled, as paged has them.
 func (l listed) shown() (first, last int) {
-	first = l.scrolling(0).clamped(l.f.Scroll)
-	return first, min(first+l.rows, len(l.lines))
+	return l.paged().shown(l.f.Scroll)
+}
+
+// paged is how the List's lines page in its rows, a row at a time, the
+// ended rule shown with the first session under it, or not at all. It says
+// nothing of what's out of view, as the Log's table doesn't.
+func (l listed) paged() rowsPaged {
+	var heads []headed
+	for i, ll := range l.lines {
+		if ll.ruled {
+			heads = append(heads, headed{at: i, first: i + 1})
+		}
+	}
+	return rowsPaged{rows: l.rows, content: len(l.lines), heads: heads}
 }
 
 // drawLine draws the line ll along row y: a session's row, its mark two
@@ -235,9 +247,9 @@ func (l listed) row(c *canvas, y int, s views.ListedSession) {
 }
 
 // scrolling is how far the List's lines scroll under its heads, a row at a
-// time, at every offset alike.
-func (l listed) scrolling(int) Scrolling {
-	return byRows(len(l.lines), l.rows)
+// time, scrolled offset down, as paged has them.
+func (l listed) scrolling(offset int) Scrolling {
+	return l.paged().scrolling(offset)
 }
 
 // scrolls is what of the List scrolls: its lines under its heads, across
