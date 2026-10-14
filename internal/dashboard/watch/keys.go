@@ -152,7 +152,7 @@ func (m Model) keys(running []string) pageKeys {
 // keeps [ ] view alone.
 func (m Model) accountsListings(running []string) []keyListing {
 	s := m.accounts.shown
-	shown := m.view == dashboard.Accounts
+	shown := m.shownView() == dashboard.Accounts
 	compare := m.comparing()
 	listed, alone := shown && s.View() == dashboard.AccountsDetail && !s.Alone(), shown && s.Alone()
 	selected := s.Selection(running) != ""
