@@ -113,6 +113,12 @@ func TestEnterOnARequestOfATurnOpenOpensTheLogsCardOfIt(t *testing.T) {
 	if view := h.view(); !strings.Contains(view, "↑↓ previous/next request   esc close") {
 		t.Errorf("the card's keys aren't ↑↓ and esc alone:\n%s", view)
 	}
+	opening := h.model.opening
+	h.typed("s")
+	if h.model.open != turnCardOpen || h.model.opening != opening || h.model.pending != "" || h.shownPage().Request != 1 {
+		t.Errorf("s on the card left card %d open, %d pages asked, %q pending, request %d chosen; want nothing done",
+			h.model.open, h.model.opening-opening, h.model.pending, h.shownPage().Request)
+	}
 
 	h.keys(downKey)
 	if got := h.shownPage().Request; got != 2 || h.model.open != turnCardOpen || !h.model.turnCard().Request.Row.At.Equal(lines[2].At) {
