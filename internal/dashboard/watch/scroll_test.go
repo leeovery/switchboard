@@ -211,6 +211,49 @@ func TestUSAGEScrollsAnAccountAtATimeAsTheFocusTheKeysAndTheWheelOverItMoveIt(t 
 	scrolled("a turn down over ROUTING's heading", 0)
 }
 
+// Where USAGE scrolls whole, a row at a time, as only the document drawn
+// says, a turn of the wheel over it scrolls wheelRows rows, as j scrolls
+// one: from 14 rows, as under them USAGE shows no rows to scroll.
+func TestTheWheelScrollsUSAGEByRowsWhereItScrollsWhole(t *testing.T) {
+	found := 0
+	for _, width := range []int{52, 100, 160} {
+		for height := 14; height <= 40; height++ {
+			h := routedHarness(t, tenRouted())
+			h.update(tea.WindowSizeMsg{Width: width, Height: height})
+			h.start()
+			f, at := h.model.onScreen()
+			if f.Shown() != dashboard.Overview || !f.ScrollsRows(h.model.doc, at) || h.model.scrolling().Most <= wheelRows {
+				continue
+			}
+			y := -1
+			for row := range height {
+				if f.Under(h.model.doc, at, 2, row) == dashboard.UnderView {
+					y = row
+					break
+				}
+			}
+			if y < 0 {
+				t.Errorf("%dx%d: USAGE scrolls by rows, but no cell is over it", width, height)
+				continue
+			}
+			found++
+			t.Run(fmt.Sprintf("%dx%d", width, height), func(t *testing.T) {
+				h.wheel(tea.MouseWheelDown, 2, y)
+				if h.model.scroll != wheelRows {
+					t.Errorf("a turn down scrolled USAGE to %d, want %d rows", h.model.scroll, wheelRows)
+				}
+				h.press("j")
+				if h.model.scroll != wheelRows+1 {
+					t.Errorf("j then scrolled USAGE to %d, want %d", h.model.scroll, wheelRows+1)
+				}
+			})
+		}
+	}
+	if found == 0 {
+		t.Fatal("no size scrolls USAGE whole, want some")
+	}
+}
+
 func TestAScrollThatMovesNothingLeavesUSAGEScrolledNoFurtherThanItsDrawn(t *testing.T) {
 	short, tall := tea.WindowSizeMsg{Width: 160, Height: 24}, tea.WindowSizeMsg{Width: 160, Height: 80}
 	h := routedHarness(t, tenRouted())
