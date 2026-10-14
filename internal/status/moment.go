@@ -527,6 +527,10 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 	return an
 }
 
+// near is how close a window comes to where its account runs out before it's
+// said to near it: within 10 points.
+const near = 0.1
+
 // windowNow is the window judged as w, of the account whose windows stand as
 // s says, as it stands at the moment, named as given.
 func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
@@ -738,6 +742,13 @@ func (d Document) capEvent(a Account, now time.Time, policy score.Policy) (Event
 		return Event{}, false
 	}
 	return e, true
+}
+
+// capHolds reports whether doc's account a's cap holds it back from every
+// request at now: a window every model shares, as policy says, has reached
+// its reserve, as reachedReserve judges, and the global pin doesn't spend it.
+func (d Document) capHolds(a Account, now time.Time, policy score.Policy) bool {
+	return d.reserveHolds(a) && slices.ContainsFunc(a.reachedReserve(now), policy.IsShared)
 }
 
 // refusalEvent is the router's event of the upstream's refusal of account

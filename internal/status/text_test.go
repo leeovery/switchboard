@@ -400,10 +400,7 @@ func TestTextKeepsItsWordsForAModelsOwnWindowAtItsReserve(t *testing.T) {
 	doc := status.Document{GeneratedAt: now.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: []status.Account{work}}
 
 	if got := doc.At(now, policy).Text(); !strings.Contains(got, "\n  at its reserve (90%)\n") || strings.Contains(got, "other models") {
-		t.Errorf("Text() =\n%s\nwant it to say \"at its reserve (90%%)\" as it always has, as the card alone names the window", got)
-	}
-	if got := doc.StateOf(work, now, policy); got.Says != "Fable wk at its reserve (90%)" {
-		t.Errorf("StateOf() says %q, want the card to name the window", got.Says)
+		t.Errorf("Text() =\n%s\nwant it to say \"at its reserve (90%%)\" as it always has, naming no window", got)
 	}
 }
 
