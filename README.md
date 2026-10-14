@@ -23,7 +23,7 @@ A local router for Claude Code. It spreads your sessions across your Claude subs
 
 ## Why Switchboard?
 
-Every Claude subscription has a 5-hour limit and a weekly one. Hit one and Claude Code stops. `/usage` says where you stand when you think to ask, but not where you're heading, and Claude can't see it at all. Moving to another subscription by hand means exiting, switching, resuming and rebuilding the prompt cache from cold, while the weekly quota you didn't reach before its reset is lost.
+Every Claude subscription has a 5-hour limit and a weekly one, and hitting one stops Claude Code. Claude can't see them coming, and switching accounts by hand costs an exit, a resume and a cold prompt cache.
 
 - **Claude sees its own limits.** A skill lets Claude read every account's usage, pace and resets, and plan its work around them.
 - **Limits stop interrupting you.** A request that hits a limit is replayed on another account before Claude Code sees it, and the session carries on.
