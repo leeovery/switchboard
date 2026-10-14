@@ -116,6 +116,11 @@ var (
 		// out, as Accounts says them, whatever its period.
 		"views.AccountTotals.LeftAtReset": "views.AccountsRow.WeekLeft",
 		"views.AccountTotals.RanOut":      "views.AccountsRow.RanOut",
+		// How an account stood at a moment gone, and the holds the router
+		// told of that the readings can't show, as Runway's lanes draw the
+		// past, live or stepped back to.
+		"status.Moment.Then": "views.Lanes.Look",
+		"status.Moment.Told": "views.Lanes.Look",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.
@@ -137,9 +142,9 @@ var (
 		"views.CallsOf", "views.DaySessions", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsRead.Refiled",
 		"views.EventsRead.Skips", "views.EventsSince", "views.EventsTable.Details", "views.FindSessions",
 		"views.HeldList.Awaited", "views.HeldList.Found", "views.HeldList.List", "views.HeldList.Take", "views.HeldList.Unfound",
-		"views.HeldList.Unread", "views.HoldList", "views.ListSessions", "views.LogEvents", "views.LogRead.Grown", "views.LogRows",
-		"views.LogSessions", "views.Patch", "views.ReadEvents", "views.ReadList", "views.ReadLogHeld", "views.StubsOf",
-		"views.Today", "views.TotalsOn",
+		"views.HeldList.Unread", "views.HoldList", "views.Lanes.Look", "views.ListSessions", "views.LogEvents", "views.LogRead.Grown",
+		"views.LogRows", "views.LogSessions", "views.Patch", "views.ReadEvents", "views.ReadList", "views.ReadLogHeld",
+		"views.StubsOf", "views.Today", "views.TotalsOn",
 	}
 )
 

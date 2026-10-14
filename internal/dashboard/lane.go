@@ -4,10 +4,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // room is how an account stands at a moment, as a lane of Runway draws it.
@@ -30,70 +30,6 @@ func (r room) has() bool {
 	return r == roomOpen || r == roomDraining
 }
 
-// The day's timeline starts the hour before now, on the ten minutes, and
-// spans dayColumns columns of dayStep each, as the lanes take them at 160
-// columns: across any other number, it spans as long.
-const (
-	dayBefore  = time.Hour
-	dayStep    = 10 * time.Minute
-	dayColumns = 136
-)
-
-// The week's timeline starts a day before now, and spans a week.
-const (
-	weekBefore = 24 * time.Hour
-	weekSpan   = 7 * 24 * time.Hour
-)
-
-// timeline is the time Runway's lanes show, across columns cells: from
-// start, each column step long, now falling in one of them.
-type timeline struct {
-	start   time.Time
-	step    time.Duration
-	columns int
-	now     time.Time
-}
-
-// timelineOf is the span's timeline at now across columns cells: the day,
-// from the hour before now, its start on the ten minutes since its day's
-// start, as dayfile.DayStart gives it, so that where a column is dayStep, the
-// hours fall where columns start; or the week, from a day before now.
-func timelineOf(s Span, now time.Time, columns int) timeline {
-	across := time.Duration(max(columns, 1))
-	if s == Week {
-		return timeline{start: now.Add(-weekBefore), step: weekSpan / across, columns: columns, now: now}
-	}
-	from := now.Add(-dayBefore)
-	dayStart := dayfile.DayStart(from, 0)
-	start := dayStart.Add(from.Sub(dayStart).Truncate(dayStep))
-	return timeline{start: start, step: dayColumns * dayStep / across, columns: columns, now: now}
-}
-
-// column is the column the moment t falls in: less than zero before the
-// first, and columns or more after the last.
-func (tl timeline) column(t time.Time) int {
-	d := t.Sub(tl.start)
-	col := int(d / tl.step)
-	if d < 0 && d%tl.step != 0 {
-		col--
-	}
-	return col
-}
-
-// nowColumn is the column now falls in.
-func (tl timeline) nowColumn() int {
-	return tl.column(tl.now)
-}
-
-// moment is the moment column col stands for: its middle, or in the column
-// now falls in, now, which every column after it is ahead of.
-func (tl timeline) moment(col int) time.Time {
-	if col == tl.nowColumn() {
-		return tl.now
-	}
-	return tl.start.Add(time.Duration(col)*tl.step + tl.step/2)
-}
-
 // interval is a stretch of time: from when, zero for since before anything
 // Runway shows; until when, zero where that isn't known.
 type interval struct {
@@ -113,21 +49,21 @@ func (i interval) holds(t time.Time) bool {
 // column is the column of the timeline the interval shows from, reporting
 // false where it shows in none: the first whose moment it holds; or, too
 // short to hold any, the column it starts in, so none goes unseen.
-func (i interval) column(tl timeline) (int, bool) {
-	first, last := 0, tl.columns-1
+func (i interval) column(tl views.Timeline) (int, bool) {
+	first, last := 0, tl.Columns-1
 	if !i.from.IsZero() {
-		first = max(tl.column(i.from), 0)
+		first = max(tl.Column(i.from), 0)
 	}
 	if !i.until.IsZero() {
-		last = min(last, tl.column(i.until))
+		last = min(last, tl.Column(i.until))
 	}
 	for col := first; col <= last; col++ {
-		if i.holds(tl.moment(col)) {
+		if i.holds(tl.Moment(col)) {
 			return col, true
 		}
 	}
-	col := tl.column(i.from)
-	return col, !i.from.IsZero() && col >= 0 && col < tl.columns
+	col := tl.Column(i.from)
+	return col, !i.from.IsZero() && col >= 0 && col < tl.Columns
 }
 
 // cause is what holds an account back over its interval: in words, as in
@@ -365,10 +301,10 @@ func (l lane) at(t, now time.Time) room {
 // cells are how the lane's account stands in each column of the timeline, at
 // the moment each stands for, and in the column each stretch shows from, as
 // column says, without room.
-func (l lane) cells(tl timeline) []room {
-	cells := make([]room, max(tl.columns, 0))
+func (l lane) cells(tl views.Timeline) []room {
+	cells := make([]room, max(tl.Columns, 0))
 	for col := range cells {
-		cells[col] = l.at(tl.moment(col), tl.now)
+		cells[col] = l.at(tl.Moment(col), tl.Now)
 	}
 	for _, s := range l.stretches {
 		if col, ok := s.column(tl); ok {

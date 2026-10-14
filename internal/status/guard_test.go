@@ -4,11 +4,14 @@ import (
 	"cmp"
 	"go/ast"
 	"go/types"
+	"path"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/sourcecheck"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // These tests read the module's source, so a view can't work out a fact of a
@@ -166,6 +169,54 @@ func TestTheMomentGuardFindsWhatItGuardsAgainst(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
+}
+
+// How an account stood at a moment gone is worked out by status, for a view
+// to draw the past by: Then, and Told, which gives it the holds the router
+// told of, take and give none of the wire's types, so a view calls them
+// without callsAllowed naming them.
+func TestAViewMayAskHowAnAccountStoodThen(t *testing.T) {
+	methods := []struct {
+		name   string
+		method any
+	}{
+		{name: "Then", method: status.Moment.Then},
+		{name: "Told", method: status.Moment.Told},
+	}
+	for _, m := range methods {
+		t.Run(m.name, func(t *testing.T) {
+			if wire := wireTypeIn(reflect.TypeOf(m.method)); wire != "" {
+				t.Errorf("%s takes or gives the wire's %s; want none, so a view may call it", m.name, wire)
+			}
+		})
+	}
+}
+
+// wireTypeIn names the one of wireTypes t is, or holds as the guard looks
+// for one, through pointers, slices, arrays, maps, channels and functions,
+// but never a struct's fields: "" where it's none.
+func wireTypeIn(t reflect.Type) string {
+	if name := path.Base(t.PkgPath()) + "." + t.Name(); t.Name() != "" && slices.Contains(wireTypes, name) {
+		return name
+	}
+	switch t.Kind() {
+	case reflect.Pointer, reflect.Slice, reflect.Array, reflect.Chan:
+		return wireTypeIn(t.Elem())
+	case reflect.Map:
+		return cmp.Or(wireTypeIn(t.Key()), wireTypeIn(t.Elem()))
+	case reflect.Func:
+		for p := range t.Ins() {
+			if wire := wireTypeIn(p); wire != "" {
+				return wire
+			}
+		}
+		for p := range t.Outs() {
+			if wire := wireTypeIn(p); wire != "" {
+				return wire
+			}
+		}
+	}
+	return ""
 }
 
 func TestALookWorksOutOneMoment(t *testing.T) {

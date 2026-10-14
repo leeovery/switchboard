@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // runwayThree is the router's document of three accounts, as Runway's frames
@@ -189,11 +190,11 @@ func TestTheColumnsAndTheirMinutesByWidth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, span := range []Span{Day, Week} {
 				l := runwayFrame(t, span, tt.width, 26).layOutRunway(tt.doc, now, 7)
-				if l.x != tt.wantX || l.timeline.columns != tt.wantColumns {
-					t.Errorf("over the %s, the lanes take %d cells from column %d, want %d from %d", span.Name(), l.timeline.columns, l.x, tt.wantColumns, tt.wantX)
+				if l.x != tt.wantX || l.timeline.Columns != tt.wantColumns {
+					t.Errorf("over the %s, the lanes take %d cells from column %d, want %d from %d", span.Name(), l.timeline.Columns, l.x, tt.wantColumns, tt.wantX)
 				}
-				if span == Day && l.timeline.step != tt.wantStep {
-					t.Errorf("a column is %s, want %s", l.timeline.step, tt.wantStep)
+				if span == Day && l.timeline.Step() != tt.wantStep {
+					t.Errorf("a column is %s, want %s", l.timeline.Step(), tt.wantStep)
 				}
 			}
 		})
@@ -258,7 +259,7 @@ func TestTheStripCountsTheAccountsKnownToHaveRoom(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := runwayLayout{x: 22, timeline: timeline{start: now, step: 10 * time.Minute, columns: 4, now: now}, cells: tt.cells}
+			l := runwayLayout{x: 22, timeline: views.Timeline{Start: now, End: now.Add(40 * time.Minute), Columns: 4, Now: now}, cells: tt.cells}
 			f := Frame{Width: 30, Height: 2}
 			c := newCanvas(f.Width, f.Height)
 			f.roomStrip(c, l, 0)
@@ -375,7 +376,7 @@ func TestAStretchAtItsReserveOverSinceItWasReadIsDrawnButNotSaid(t *testing.T) {
 			rows, l := drawnRunway(f, doc)
 
 			tl := l.timeline
-			col := tl.column(now.Add(-45 * time.Minute))
+			col := tl.Column(now.Add(-45 * time.Minute))
 			if got := laneIn(f, doc, 0).cells(tl)[col]; got != roomNone {
 				t.Errorf("at column %d, before the reset, work's lane stands %v, want no room, at its reserve", col, got)
 			}
@@ -436,7 +437,7 @@ func TestWhatsOverIsntSaid(t *testing.T) {
 				t.Fatalf("the causes run together into %d stretches, want 1", len(stretches))
 			}
 			var got []string
-			for _, p := range placedTold(stretches[0], timelineOf(Day, now, 136), now) {
+			for _, p := range placedTold(stretches[0], views.LiveTimeline(views.RunwayFiveHour, now, 136), now) {
 				got = append(got, fmt.Sprintf("%d %s", p.col, p.words.plain()))
 			}
 			if !slices.Equal(got, tt.want) {
@@ -460,8 +461,8 @@ func TestOnAPhoneTheLanesLabelsGiveWayToTheTimeline(t *testing.T) {
 	doc := routerDoc("a-long-account-named-so", 1, long, readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*quota.Day)))
 	rows, l := drawnRunway(runwayFrame(t, Day, 52, 26), doc)
 
-	if l.x > 26 || l.timeline.columns < 24 {
-		t.Errorf("the lanes start at %d, %d columns across, want halfway at most, leaving the timeline room", l.x, l.timeline.columns)
+	if l.x > 26 || l.timeline.Columns < 24 {
+		t.Errorf("the lanes start at %d, %d columns across, want halfway at most, leaving the timeline room", l.x, l.timeline.Columns)
 	}
 	if got, want := rows[l.top], " 1 a-long-account-nam… ▲  "; !strings.HasPrefix(got, want) {
 		t.Errorf("its lane starts %q, want %q: the name cut, and its badge brief", got, want)
@@ -469,12 +470,12 @@ func TestOnAPhoneTheLanesLabelsGiveWayToTheTimeline(t *testing.T) {
 }
 
 func TestTheWeeksAxisTicksTheQuartersOfItsFirstDayToo(t *testing.T) {
-	tl := timelineOf(Week, now, 136)
+	tl := views.LiveTimeline(views.RunwayWeek, now, 136)
 	c := newCanvas(140, 2)
 	weekdays(c, tl, 0, 0)
-	evening := time.Date(tl.start.Year(), tl.start.Month(), tl.start.Day(), 18, 0, 0, 0, tl.start.Location())
-	if got := c.at(tl.column(evening), 1).glyph; got != "╵" {
-		t.Errorf("the first day's 18:00, in column %d, is ticked %q, want ╵", tl.column(evening), got)
+	evening := time.Date(tl.Start.Year(), tl.Start.Month(), tl.Start.Day(), 18, 0, 0, 0, tl.Start.Location())
+	if got := c.at(tl.Column(evening), 1).glyph; got != "╵" {
+		t.Errorf("the first day's 18:00, in column %d, is ticked %q, want ╵", tl.Column(evening), got)
 	}
 }
 
@@ -485,7 +486,7 @@ func TestTheWeeksAxisTicksEachDaysStartAndNoQuarterBeforeItWhereTheClocksGoForwa
 	}
 	// Chile's clocks went from 00:00 to 01:00 on Sunday 6 September 2026: a
 	// week of hours, from noon on the 4th.
-	tl := timelineOf(Week, time.Date(2026, 9, 5, 12, 0, 0, 0, santiago), 168)
+	tl := views.LiveTimeline(views.RunwayWeek, time.Date(2026, 9, 5, 12, 0, 0, 0, santiago), 168)
 	c := newCanvas(168, 2)
 	weekdays(c, tl, 0, 0)
 	at := func(day, hour int) time.Time { return time.Date(2026, 9, day, hour, 0, 0, 0, santiago) }
@@ -500,8 +501,8 @@ func TestTheWeeksAxisTicksEachDaysStartAndNoQuarterBeforeItWhereTheClocksGoForwa
 		{name: "the 7th's start", at: at(7, 0), want: "┬"},
 	}
 	for _, tt := range tests {
-		if got := c.at(tl.column(tt.at), 1).glyph; got != tt.want {
-			t.Errorf("%s, %v, in column %d, is ticked %q, want %q", tt.name, tt.at, tl.column(tt.at), got, tt.want)
+		if got := c.at(tl.Column(tt.at), 1).glyph; got != tt.want {
+			t.Errorf("%s, %v, in column %d, is ticked %q, want %q", tt.name, tt.at, tl.Column(tt.at), got, tt.want)
 		}
 	}
 }
@@ -543,12 +544,12 @@ func TestTheDaysAxisNamesEachDayAtItsStartWhereTheClocksChangeOverMidnight(t *te
 			if err != nil {
 				t.Fatalf("load %s: %v", tt.zone, err)
 			}
-			tl := timelineOf(Day, tt.now.In(loc), 136)
+			tl := views.LiveTimeline(views.RunwayFiveHour, tt.now.In(loc), 136)
 			c := newCanvas(136, 2)
 
 			hours(c, tl, 0, 0)
 			for at, want := range tt.want {
-				col := tl.column(at)
+				col := tl.Column(at)
 				got, tick := labelAt(c, col), c.at(col, 1).glyph
 				switch {
 				case want == "-" && (tick != " " || got != ""):
@@ -595,7 +596,7 @@ func TestTheStripsFewWithRoomFillItsLowestEighth(t *testing.T) {
 		cells[i] = []room{roomNone}
 	}
 	cells[0] = []room{roomOpen}
-	l := runwayLayout{x: 22, timeline: timeline{start: now, step: 10 * time.Minute, columns: 1, now: now}, cells: cells}
+	l := runwayLayout{x: 22, timeline: views.Timeline{Start: now, End: now.Add(10 * time.Minute), Columns: 1, Now: now}, cells: cells}
 	c := newCanvas(30, 2)
 	Frame{Width: 30, Height: 2}.roomStrip(c, l, 0)
 	if got := c.at(22, 1); got.glyph != levels[1] || got.ink != (ink{ramp: true, at: stripTone(1, 40)}) {
@@ -731,9 +732,9 @@ func TestAboutHowLongAColumnIs(t *testing.T) {
 		d    time.Duration
 		want string
 	}{
-		{d: weekSpan / 136, want: "75 min"},
+		{d: 7 * quota.Day / 136, want: "75 min"},
 		{d: 23 * time.Minute, want: "25 min"},
-		{d: weekSpan / 28, want: "6h"},
+		{d: 7 * quota.Day / 28, want: "6h"},
 	} {
 		if got := prose.About(tt.d); got != tt.want {
 			t.Errorf("prose.About(%s) = %q, want %q", tt.d, got, tt.want)

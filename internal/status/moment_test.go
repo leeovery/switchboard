@@ -112,8 +112,10 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 	if doc.CapHolds(a, now, policy) {
 		capBack, _ = score.LetGo(a.Windows, a.Reserve, policy.IsShared, now)
 	}
-	session, _ := a.Window(a.Pressure.Window)
-	pressureOut, _ := doc.RunsOut(a, session, now)
+	var pressureOut status.RunOut
+	if session, ok := a.Window(a.Pressure.Window); ok {
+		pressureOut, _ = doc.RunsOut(a, session, now)
+	}
 	pool := m.Pool()
 	outOfQuota := held && hold.Every || doc.CapHolds(a, now, policy)
 	limit, _ := doc.LimitEvent(a, now)
@@ -124,8 +126,8 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		InPool: slices.Contains(pool.Accounts, a.ID), OutOfPool: len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions, Extra: a.Extra,
 		Routing: got.Routing, Hold: hold, Held: held, LimitHolds: a.Limit.Holds(now), LimitSince: got.LimitSince, LimitMoved: limit.Count,
-		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapBack: capBack,
-		Refusal: refusal, TokenRefused: a.TokenRefused(now),
+		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapSince: got.CapSince, CapBack: capBack,
+		Refusal: refusal, RefusedSince: got.RefusedSince, TokenRefused: a.TokenRefused(now),
 		Pressure: status.PressureNow{Under: a.UnderPressure(now), Window: a.Pressure.Window, Out: pressureOut},
 		Idle:     a.HasLapsed(policy.Started, now, policy), NextPrime: primeOf(doc, a.ID),
 		OutOfQuota: outOfQuota, CanRise: a.TokenSet && !a.FetchedAt.IsZero() && !outOfQuota && !a.TokenRefused(now),
@@ -148,8 +150,8 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 		Pinned: a.Pinned, Next: a.Next, Elsewhere: a.Elsewhere, InPool: a.InPool, OutOfPool: a.OutOfPool,
 		TokenSet: a.TokenSet, Read: a.Read, ReadAt: a.ReadAt, Error: a.Error, Failures: a.Failures, Sessions: a.Sessions, Extra: a.Extra,
 		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitHolds: a.LimitHolds, LimitSince: a.LimitSince, LimitMoved: a.LimitMoved,
-		ReachedReserve: a.ReachedReserve, CapHolds: a.CapHolds, CapBack: a.CapBack,
-		Refusal: a.Refusal, TokenRefused: a.TokenRefused, Pressure: a.Pressure,
+		ReachedReserve: a.ReachedReserve, CapHolds: a.CapHolds, CapSince: a.CapSince, CapBack: a.CapBack,
+		Refusal: a.Refusal, RefusedSince: a.RefusedSince, TokenRefused: a.TokenRefused, Pressure: a.Pressure,
 		Idle: a.Idle, NextPrime: a.NextPrime, OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Windows: a.Windows,
 	}
 }
@@ -537,6 +539,108 @@ func TestHowManySessionsALimitMovedWhileItHolds(t *testing.T) {
 	}
 }
 
+func TestWhenTheCapHoldingAnAccountBegan(t *testing.T) {
+	capped := routerDocOf(with(readAt("work", windowIn("5h", 0.95, 3*time.Hour), windowIn("7d", 0.4, 3*day)), reserving))
+	reached := func(at, until time.Duration) status.Event {
+		return status.Event{At: built.Add(at), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Until: built.Add(until), Reserve: 0.1}
+	}
+	untilUntold := reached(-10*time.Minute, 0)
+	untilUntold.Until = time.Time{}
+	tests := []struct {
+		name   string
+		doc    status.Document
+		events []status.Event
+		now    time.Time
+		want   time.Time
+	}{
+		{name: "as its event tells", doc: capped, events: []status.Event{reached(-10*time.Minute, 3*time.Hour)}, now: built, want: built.Add(-10 * time.Minute)},
+		{
+			name: "as the newest of its events tells", doc: capped,
+			events: []status.Event{reached(-10*time.Minute, 3*time.Hour), reached(-4*time.Hour, -2*time.Hour)}, now: built, want: built.Add(-10 * time.Minute),
+		},
+		{name: "as its event tells, telling no until", doc: capped, events: []status.Event{untilUntold}, now: built, want: built.Add(-10 * time.Minute)},
+		{name: "its event missing", doc: capped, now: built},
+		{name: "its event missing, an earlier cap's told, lifted since", doc: capped, events: []status.Event{reached(-4*time.Hour, -2*time.Hour)}, now: built},
+		{
+			name: "another account's event", doc: capped, now: built,
+			events: []status.Event{{At: built.Add(-10 * time.Minute), Kind: status.EventCap, Account: "side", Windows: []string{"5h"}, Until: built.Add(3 * time.Hour)}},
+		},
+		{name: "its event told after now", doc: capped, events: []status.Event{reached(5*time.Minute, 3*time.Hour)}, now: built},
+		{name: "its window reset since read, its cap gone", doc: capped, events: []status.Event{reached(-10*time.Minute, 3*time.Hour)}, now: built.Add(3*time.Hour + time.Second)},
+		{name: "the global pin spending its cap", doc: pinnedTo(capped, "work"), events: []status.Event{reached(-10*time.Minute, 3*time.Hour)}, now: built},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := tt.doc
+			doc.Events = tt.events
+			if a, _ := doc.At(tt.now, policy).Account("work"); !a.CapSince.Equal(tt.want) {
+				t.Errorf("CapSince = %v, want %v", a.CapSince, tt.want)
+			}
+		})
+	}
+}
+
+func TestWhenTheRefusalHoldingAnAccountBegan(t *testing.T) {
+	refusing := func(r status.Refusal) status.Account {
+		return with(readAt("work", windowIn("5h", 0.3, 3*time.Hour)), func(a *status.Account) { a.Refused = r })
+	}
+	token := refusing(status.Refusal{Until: built.Add(time.Hour), Status: 401})
+	family := refusing(status.Refusal{Until: built.Add(30 * time.Minute), Status: 403, Family: "opus"})
+	refused := func(at, until time.Duration, code int, family string) status.Event {
+		return status.Event{At: built.Add(at), Kind: status.EventRefused, Account: "work", Until: built.Add(until), Status: code, Family: family}
+	}
+	// liftedEarly is a refusal of work's token, its until brought forward to
+	// when it was lifted, as the token was replaced.
+	liftedEarly := refused(-50*time.Minute, -35*time.Minute, 401, "")
+	tests := []struct {
+		name    string
+		account status.Account
+		events  []status.Event
+		want    time.Time
+	}{
+		{name: "its token's, as its event tells", account: token, events: []status.Event{refused(-20*time.Minute, time.Hour, 401, "")}, want: built.Add(-20 * time.Minute)},
+		{name: "a model family's, as its event tells", account: family, events: []status.Event{refused(-15*time.Minute, 30*time.Minute, 403, "opus")}, want: built.Add(-15 * time.Minute)},
+		{name: "its event missing", account: token},
+		{name: "its event missing, an earlier refusal's told, lifted early", account: token, events: []status.Event{liftedEarly}},
+		{
+			name: "its token refused again, after a refusal lifted early", account: token,
+			events: []status.Event{refused(-20*time.Minute, time.Hour, 401, ""), liftedEarly}, want: built.Add(-20 * time.Minute),
+		},
+		{name: "a refusal lifted early, none holding", account: refusing(status.Refusal{}), events: []status.Event{liftedEarly}},
+		{name: "another answer's event", account: token, events: []status.Event{refused(-20*time.Minute, time.Hour, 403, "")}},
+		{name: "another model family's event", account: family, events: []status.Event{refused(-15*time.Minute, 30*time.Minute, 403, "sonnet")}},
+		{name: "its event told after now", account: token, events: []status.Event{refused(5*time.Minute, time.Hour, 401, "")}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := routerDocOf(tt.account)
+			doc.Events = tt.events
+			if a, _ := doc.At(built, policy).Account("work"); !a.RefusedSince.Equal(tt.want) {
+				t.Errorf("RefusedSince = %v, want %v", a.RefusedSince, tt.want)
+			}
+		})
+	}
+}
+
+// A window reset by hand runs from then till its reset, kept, and its even
+// pace goes by that: at its hard moment, work's session, restarted an hour
+// before its document was built, runs four hours, a quarter of them gone as
+// it was read.
+func TestAWindowRestartedByHandRunsFromItsRestart(t *testing.T) {
+	for _, hm := range statustest.HardMoments(policy) {
+		if hm.Name != "a 5-hour window restarted by hand" {
+			continue
+		}
+		a, _ := hm.Doc.At(hm.Now, policy).Account("work")
+		w, _ := a.Window("5h")
+		if !w.Start.Equal(statustest.Built.Add(-time.Hour)) || w.Length != 4*time.Hour || w.Pace == nil || *w.Pace != 0.25 {
+			t.Errorf("the session runs from %v for %v, its pace %s; want from an hour before %v, for 4h, its pace 0.25", w.Start, w.Length, paceOf(w.Pace), statustest.Built)
+		}
+		return
+	}
+	t.Fatal("no hard moment of a window restarted by hand")
+}
+
 func TestAWindowNotHeldBeganNoLimit(t *testing.T) {
 	doc := routerDocOf(readAt("work", windowIn("5h", 0.5, time.Hour)))
 	doc.Events = []status.Event{{At: built.Add(-time.Minute), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}}}
@@ -609,6 +713,60 @@ func TestAWindowRunsOutWhereNothingBeforeItHolds(t *testing.T) {
 			}
 			if tt.runsOut && !w.At.Equal(w.Out.At) {
 				t.Errorf("the week runs out at %v, want %v, as its projection has it", w.At, w.Out.At)
+			}
+		})
+	}
+}
+
+// A document stays on screen while the router doesn't answer, its
+// projections put from when it was read. Once the clock reaches where one has
+// a window run out, that's past, not to come: the window runs out nowhere, in
+// USAGE's kind, the pressure clause and COMING UP alike, and heads nowhere.
+func TestARunOutTheClockHasReachedIsNone(t *testing.T) {
+	// Side's session, used at 1.2 an hour lately: 85% used, it runs out 7m30s
+	// after it was read; 70% used, a fifth kept back, it reaches its reserve
+	// 5 minutes after, and its limit 15.
+	running := statustest.Routed{Account: readAt("side", windowIn("5h", 0.85, 2*time.Hour)), Rate: 1.2}
+	reserved := statustest.Routed{Account: with(readAt("side", windowIn("5h", 0.7, 2*time.Hour)), func(a *status.Account) { a.Reserve = 0.2 }), Rate: 1.2}
+	open := statustest.Routed{Account: readAt("work", windowIn("5h", 0.2, 2*time.Hour))}
+	tests := []struct {
+		name string
+		side statustest.Routed
+		now  time.Time
+		// out is where side's session runs out at now, zero where it doesn't.
+		out time.Time
+	}{
+		{name: "a minute before its run-out", side: running, now: built.Add(6*time.Minute + 30*time.Second), out: built.Add(7*time.Minute + 30*time.Second)},
+		{name: "as the clock reaches its run-out", side: running, now: built.Add(7*time.Minute + 30*time.Second)},
+		{name: "once the clock has passed its run-out", side: running, now: built.Add(10 * time.Minute)},
+		{name: "a minute before its reserve", side: reserved, now: built.Add(4 * time.Minute), out: built.Add(5 * time.Minute)},
+		{name: "past its reserve, its limit still ahead", side: reserved, now: built.Add(10 * time.Minute)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := statustest.Router(policy, nil, open, tt.side).WorkedOut(policy).At(tt.now, policy)
+			a, _ := m.Account("side")
+			w, _ := a.Window("5h")
+			runsOut := !tt.out.IsZero()
+			if !w.Out.At.Equal(tt.out) || !a.Pressure.Out.At.Equal(tt.out) {
+				t.Errorf("the session runs out at %v, by its pressure at %v; want %v", w.Out.At, a.Pressure.Out.At, tt.out)
+			}
+			if w.RunsOut != runsOut || w.RunsOutAhead != runsOut || (w.Kind == status.WindowRunsOut) != runsOut {
+				t.Errorf("the session stands as kind %d, running out %v, ahead %v; want running out %v", w.Kind, w.RunsOut, w.RunsOutAhead, runsOut)
+			}
+			coming := slices.ContainsFunc(m.ComingUp, func(u status.Upcoming) bool { return u.Account == "side" && u.Kind == status.UpcomingRunsOut })
+			if coming != runsOut {
+				t.Errorf("COMING UP lists the session's run-out %v, want %v, as USAGE says it", coming, runsOut)
+			}
+			var clauses []string
+			if runsOut {
+				clauses = []string{"out ~" + prose.Dated(tt.now, tt.out)}
+			}
+			if a.Routing.Kind != status.RoutingPressed || !slices.Equal(a.Routing.Clauses, clauses) {
+				t.Errorf("Routing = %+v, want under pressure, saying %q", a.Routing, clauses)
+			}
+			if !runsOut && (w.Out != status.RunOut{} || w.Projected != nil || w.Nearing) {
+				t.Errorf("the session heads to %+v, projected %v, nearing %v; want nowhere", w.Out, w.Projected, w.Nearing)
 			}
 		})
 	}

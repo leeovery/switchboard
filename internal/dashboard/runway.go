@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // The rows Runway takes under the heading, from its top: now's label, the
@@ -87,7 +88,7 @@ const (
 // shows.
 type runwayLayout struct {
 	x             int
-	timeline      timeline
+	timeline      views.Timeline
 	lanes         []lane
 	cells         [][]room
 	top           int
@@ -109,7 +110,7 @@ func (f Frame) layOutRunway(doc status.Document, now time.Time, top int) runwayL
 		l.lanes = append(l.lanes, f.laneOf(a, m.Now))
 	}
 	l.x = lanesAt(l.lanes, f.Width)
-	l.timeline = timelineOf(f.Span, now, f.edge()-1-l.x)
+	l.timeline = views.LiveTimeline(f.Span.runway(), now, f.edge()-1-l.x)
 	for _, ln := range l.lanes {
 		l.cells = append(l.cells, ln.cells(l.timeline))
 	}
@@ -192,7 +193,7 @@ func (f Frame) runway(c *canvas, doc status.Document, now time.Time, top int) {
 		f.runwayLane(area, ln, l.cells[i], l, now, laneAt(i))
 	}
 	c.paste(area, offset, l.top, l.view)
-	if col := l.timeline.nowColumn(); col >= 0 && col < l.timeline.columns {
+	if col := l.timeline.NowColumn(); col >= 0 && col < l.timeline.Columns {
 		for y := top; y < l.top+l.view; y++ {
 			c.surface(l.x+col, y, 1, hue{token: theme.BgSubtle})
 		}
@@ -219,10 +220,10 @@ func (f Frame) runway(c *canvas, doc status.Document, now time.Time, top int) {
 // and under them, their ticks along a rule.
 func (f Frame) runwayAxis(c *canvas, l runwayLayout, y int) {
 	tl := l.timeline
-	if col := tl.nowColumn(); col >= 0 && col < tl.columns {
+	if col := tl.NowColumn(); col >= 0 && col < tl.Columns {
 		c.text(l.x+col-1, y, "now", titleInk)
 	}
-	c.text(l.x, y+2, rule(tl.columns), borderInk)
+	c.text(l.x, y+2, rule(tl.Columns), borderInk)
 	if f.Span == Week {
 		weekdays(c, tl, l.x, y+1)
 		return
@@ -231,10 +232,10 @@ func (f Frame) runwayAxis(c *canvas, l runwayLayout, y int) {
 }
 
 // apart is the first of hourSteps whose hours span cells columns of the
-// timeline at least.
-func (tl timeline) apart(cells int) int {
+// timeline tl at least.
+func apart(tl views.Timeline, cells int) int {
 	for _, h := range hourSteps {
-		if time.Duration(h)*time.Hour >= time.Duration(cells)*tl.step {
+		if time.Duration(h)*time.Hour >= time.Duration(cells)*tl.Step() {
 			return h
 		}
 	}
@@ -249,24 +250,24 @@ func (tl timeline) apart(cells int) int {
 // labelCells asks, a tick too, and over it, where it fits, the hour, as
 // 16:00, muted, but where it would come within labelCells of a day's name.
 // An hour the clocks never read, as they went forward over it, has neither.
-func hours(c *canvas, tl timeline, x, y int) {
-	ticks, labels := tl.apart(tickCells), tl.apart(labelCells)
+func hours(c *canvas, tl views.Timeline, x, y int) {
+	ticks, labels := apart(tl, tickCells), apart(tl, labelCells)
 	named := dayNames(c, tl, x, y)
-	from := tl.start
+	from := tl.Start
 	for i := 0; ; i++ {
 		hour := (from.Hour() + i) % 24
 		t := time.Date(from.Year(), from.Month(), from.Day(), from.Hour()+i, 0, 0, 0, from.Location())
-		col := tl.column(t)
+		col := tl.Column(t)
 		switch {
-		case col >= tl.columns:
+		case col >= tl.Columns:
 			return
 		case col < 0 || t.Hour() != hour || t.Minute() != 0 || t.Equal(dayfile.DayStart(t, 0)) || hour%ticks != 0 && hour%labels != 0:
 			continue
 		}
 		c.text(x+col, y+1, "┬", borderInk)
-		label := line{{prose.TimeOfDay(tl.now, t), mutedInk}}
+		label := line{{prose.TimeOfDay(tl.Now, t), mutedInk}}
 		crowded := slices.ContainsFunc(named, func(name int) bool { return max(col-name, name-col) < labelCells })
-		if hour%labels == 0 && col+label.width() <= tl.columns && !crowded {
+		if hour%labels == 0 && col+label.width() <= tl.Columns && !crowded {
 			c.line(x+col, y, label)
 		}
 	}
@@ -275,18 +276,18 @@ func hours(c *canvas, tl timeline, x, y int) {
 // dayNames ticks the start of each day over the timeline from x along the
 // rule on row y+1, as hours says, and names it over the tick on row y, where
 // that fits, and returns the columns of the names it drew.
-func dayNames(c *canvas, tl timeline, x, y int) []int {
+func dayNames(c *canvas, tl views.Timeline, x, y int) []int {
 	var named []int
-	for at := range dayStarts(tl.start, 0) {
-		col := tl.column(at)
+	for at := range dayStarts(tl.Start, 0) {
+		col := tl.Column(at)
 		switch {
-		case col >= tl.columns:
+		case col >= tl.Columns:
 			return named
 		case col < 0:
 			continue
 		}
 		c.text(x+col, y+1, "┬", borderInk)
-		if name := (line{{prose.Weekday(at.Weekday()), strongInk}}); col+name.width() <= tl.columns {
+		if name := (line{{prose.Weekday(at.Weekday()), strongInk}}); col+name.width() <= tl.Columns {
 			c.line(x+col, y, name)
 			named = append(named, col)
 		}
@@ -299,12 +300,11 @@ func dayNames(c *canvas, tl timeline, x, y int) []int {
 // columns, its quarters, as quarters ticks them; and a tick at each
 // midnight, and over it, the day's name, where it clears the one before and
 // fits, as midnights has them, today's picked out.
-func weekdays(c *canvas, tl timeline, x, y int) {
-	if quota.Day >= quarterCells*tl.step {
+func weekdays(c *canvas, tl views.Timeline, x, y int) {
+	if quota.Day >= quarterCells*tl.Step() {
 		quarters(c, tl, x, y+1)
 	}
-	end := tl.start.Add(time.Duration(tl.columns) * tl.step)
-	for _, m := range midnights(tl.start, end, tl.now, tl.column, tl.columns, len(prose.Weekday(time.Monday))) {
+	for _, m := range midnights(tl.Start, tl.End, tl.Now, tl.Column, tl.Columns, len(prose.Weekday(time.Monday))) {
 		c.text(x+m.col, y+1, "┬", borderInk)
 		if !m.named {
 			continue
@@ -321,13 +321,13 @@ func weekdays(c *canvas, tl timeline, x, y int) {
 // row y, faint, the first day's among them, which starts before the
 // timeline, but each fourth, the midnight, which its day's own tick marks:
 // time.Date puts one the clocks went forward over in the hour before.
-func quarters(c *canvas, tl timeline, x, y int) {
-	from := tl.start
+func quarters(c *canvas, tl views.Timeline, x, y int) {
+	from := tl.Start
 	for i := 1; ; i++ {
 		at := time.Date(from.Year(), from.Month(), from.Day(), 6*i, 0, 0, 0, from.Location())
-		col := tl.column(at)
+		col := tl.Column(at)
 		switch {
-		case col >= tl.columns:
+		case col >= tl.Columns:
 			return
 		case col >= 0 && i%4 != 0:
 			c.text(x+col, y, "╵", faintInk)
@@ -348,7 +348,7 @@ func (f Frame) roomStrip(c *canvas, l runwayLayout, y int) {
 	}
 	c.line(margin, y, line{{stripHead, labelInk}})
 	c.line(margin, y+1, line{{label, mutedInk}})
-	for col := range l.timeline.columns {
+	for col := range l.timeline.Columns {
 		known, with := 0, 0
 		for _, cells := range l.cells {
 			if r := cells[col]; r != roomUnknown {
@@ -362,7 +362,7 @@ func (f Frame) roomStrip(c *canvas, l runwayLayout, y int) {
 			continue
 		}
 		k := ink{ramp: true, at: stripTone(with, known)}
-		if col < l.timeline.nowColumn() {
+		if col < l.timeline.NowColumn() {
 			k.fade = pastFade
 		}
 		if with == 0 {
@@ -447,13 +447,13 @@ func (f Frame) runwayLane(c *canvas, ln lane, cells []room, l runwayLayout, now 
 	c.right(l.x-badgeGap, y, badge)
 	for col, r := range cells {
 		glyph, k := f.cellOf(r)
-		if col < l.timeline.nowColumn() {
+		if col < l.timeline.NowColumn() {
 			k.fade = pastFade
 		}
 		c.text(l.x+col, y, glyph, k)
 	}
 	for _, w := range f.weeks(ln) {
-		if col := l.timeline.column(w.Next); col >= 0 && col < l.timeline.columns {
+		if col := l.timeline.Column(w.Next); col >= 0 && col < l.timeline.Columns {
 			c.text(l.x+col, y, resetGlyph, titleInk)
 		}
 	}
@@ -509,16 +509,16 @@ func (f Frame) laneWords(c *canvas, ln lane, l runwayLayout, now time.Time, y in
 		words = append(words, placedTold(s, tl, now)...)
 	}
 	for _, w := range f.weeks(ln) {
-		col := tl.column(w.Next)
+		col := tl.Column(w.Next)
 		back := slices.ContainsFunc(ln.stretches, func(s stretch) bool { return s.until.Equal(w.Next) })
-		if col < 0 || col >= tl.columns || back {
+		if col < 0 || col >= tl.Columns || back {
 			continue
 		}
 		says := resetSays(w, now)
 		words = append(words, placed{col: max(col-says.width()+1, 0), words: says})
 	}
 	if len(words) == 0 {
-		words = []placed{{col: tl.nowColumn() + 1, words: f.allAlong(ln, now)}}
+		words = []placed{{col: tl.NowColumn() + 1, words: f.allAlong(ln, now)}}
 	}
 	slices.SortStableFunc(words, func(a, b placed) int { return a.col - b.col })
 	end := l.x - saysGap
@@ -537,7 +537,7 @@ func (f Frame) laneWords(c *canvas, ln lane, l runwayLayout, now time.Time, y in
 // and each other from the column it shows from, none before the first's. A
 // cause over at now, as over says, isn't said, so neither is a stretch over;
 // nor is one that shows in no column, as one starting after the timeline.
-func placedTold(s stretch, tl timeline, now time.Time) []placed {
+func placedTold(s stretch, tl views.Timeline, now time.Time) []placed {
 	first, ok := s.column(tl)
 	if !ok {
 		return nil
@@ -616,7 +616,7 @@ func (f Frame) legendGlyphs() []glyph {
 
 // legendFits reports whether the legend, for the timeline tl, fits the
 // frame's width whole: where it doesn't, the key's behind ?.
-func (f Frame) legendFits(tl timeline) bool {
+func (f Frame) legendFits(tl views.Timeline) bool {
 	return margin+f.legend(tl).width() <= f.edge()
 }
 
@@ -625,7 +625,7 @@ func (f Frame) legendFits(tl timeline) bool {
 // phoneLegendGap; then, where it fits, over the day, that the
 // past is dimmed, where the look dims it, and what the words say; or over
 // the week, how long a column is, and that yesterday's dimmed, where it is.
-func (f Frame) legend(tl timeline) line {
+func (f Frame) legend(tl views.Timeline) line {
 	gap := legendGap
 	if f.phone() {
 		gap = phoneLegendGap
@@ -647,13 +647,13 @@ func (f Frame) legend(tl timeline) line {
 // tl: over the day, that the past is dimmed, where the look dims it, and
 // what the words say; over the week, how long a column is, and that
 // yesterday's dimmed, where it is.
-func (f Frame) legendNote(tl timeline) string {
+func (f Frame) legendNote(tl views.Timeline) string {
 	dims := f.Look.blends()
 	if f.Span == Week {
 		if dims {
-			return "one column ≈ " + prose.About(tl.step) + " · yesterday dimmed"
+			return "one column ≈ " + prose.About(tl.Step()) + " · yesterday dimmed"
 		}
-		return "one column ≈ " + prose.About(tl.step)
+		return "one column ≈ " + prose.About(tl.Step())
 	}
 	if dims {
 		return "past hours dimmed · labels say when, and when it's back"
