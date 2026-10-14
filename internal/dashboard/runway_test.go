@@ -279,7 +279,8 @@ func TestRunwayIsDrawnAsItsFrames(t *testing.T) {
 
 // Each account's use of the view's window under its name is a number a look
 // reads, which brightens as it changes, as is the pool's room under Σ pool;
-// the highest a day gone read isn't, and it has no room.
+// so is the highest a day gone read, which never changes, and it has no
+// room.
 func TestTheUseUnderEachNameIsANumberALookReads(t *testing.T) {
 	tests := []struct {
 		moment string
@@ -293,7 +294,9 @@ func TestTheUseUnderEachNameIsANumberALookReads(t *testing.T) {
 			{Kind: NumberUsed, Account: "work", Of: "7d"}: "34%", {Kind: NumberUsed, Account: "personal", Of: "7d"}: "66%", {Kind: NumberUsed, Account: "side", Of: "7d"}: "78%",
 			{Kind: NumberRoom, Of: "7d"}: "1.2",
 		}},
-		{moment: "the auto world, Wednesday stepped back to", want: map[Number]string{}},
+		{moment: "the auto world, Wednesday stepped back to", want: map[Number]string{
+			{Kind: NumberUsed, Account: "work", Of: "5h"}: "100%", {Kind: NumberUsed, Account: "personal", Of: "5h"}: "100%", {Kind: NumberUsed, Account: "side", Of: "5h"}: "62%",
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.moment, func(t *testing.T) {

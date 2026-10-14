@@ -150,8 +150,8 @@ func TestALaneMarksEachResetOfTheViewsWindowItHas(t *testing.T) {
 // Each lane is headed by its account's name, its number and marks kept, and
 // under it, its use of the view's window from the second column: live, its
 // share, bold in its level's colour and numbered; stepped back, the highest
-// the days read, or —; not read, why, in full where it fits; and out of the
-// pool, the whole label faint.
+// the days read, so too, or —; not read, why, in full where it fits; and out
+// of the pool, the whole label faint.
 func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 	work := accountName{number: "1", label: "work"}
 	stale := views.Use{Key: "5h", Used: 0.95, Read: true, Stale: true, ReadAt: routedClock(1, 14, 20)}
@@ -176,7 +176,7 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 		},
 		{
 			name: "stepped back, the day's highest", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Used: 1, Read: true, Highest: true}}},
-			head: "1 work", use: "5-hour 100%", useInks: []ink{dimInk, {token: theme.VizRamp4, bold: true}},
+			head: "1 work", use: "5-hour 100%", useInks: []ink{dimInk, usedFigure(1, "work", "5h")},
 		},
 		{
 			name: "stepped back, nothing read", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Highest: true}}},
@@ -197,7 +197,7 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 			name: "on a phone's label column, cut", x: phoneRunwayLanesFrom, lane: laidLane{
 				name: accountName{number: "2", label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "5h", Used: 1, Read: true, Highest: true}},
 			},
-			head: "2 perso… ◆", use: "5-hour 100%", useInks: []ink{dimInk, {token: theme.VizRamp4, bold: true}},
+			head: "2 perso… ◆", use: "5-hour 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "5h")},
 		},
 		{
 			name: "on a phone's label column, short where the blank before the lane leaves too few cells", x: phoneRunwayLanesFrom,

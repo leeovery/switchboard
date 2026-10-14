@@ -166,8 +166,9 @@ func (ln laidLane) useLine(window string, now time.Time, width, cells int) line 
 // read, not read yet or no token, as USAGE says each of a window; else after
 // the window's name in text.subtle, its share used, bold in its level's
 // colour, as usage colours it, stepped back the highest the days shown read,
-// live numbered as its window's use, which brightens as it changes; or — in
-// text.faint, where none's read of it.
+// numbered as its window's use, which brightens as it changes, as today's
+// highest can and a day gone's never does; or — in text.faint, where none's
+// read of it.
 func (ln laidLane) useWords(window string, now time.Time) usageWords {
 	u := ln.Use
 	switch {
@@ -181,10 +182,7 @@ func (ln laidLane) useWords(window string, now time.Time) usageWords {
 		return alikeLine(line{{window + " ", dimInk}, noFigure})
 	}
 	used := span{prose.Percent(u.Used), usedInk(u.Used, ink{token: theme.VizRamp1, bold: true})}
-	if !u.Highest {
-		used = used.numbered(Number{Kind: NumberUsed, Account: ln.ID, Of: u.Key})
-	}
-	return alikeLine(line{{window + " ", dimInk}, used})
+	return alikeLine(line{{window + " ", dimInk}, used.numbered(Number{Kind: NumberUsed, Account: ln.ID, Of: u.Key})})
 }
 
 // nowTo is the last row now's column is picked out on, as fitted: the pool's

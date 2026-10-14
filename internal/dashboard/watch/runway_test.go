@@ -543,9 +543,10 @@ func TestALookOnRunwayBrightensTheNumbersItChanged(t *testing.T) {
 }
 
 // A read of the ledger's days landing on today stepped back to draws today's
-// highest afresh and brightens nothing: a use stepped back to is the days'
-// highest, never numbered, as only the live view's use is.
-func TestASinceReadOnRunwayBrightensNothingSteppedBackTo(t *testing.T) {
+// highest afresh, and brightens it as it changed, as a number a look reads
+// does: a use stepped back to is numbered as a live one is, and only
+// today's changes.
+func TestASinceReadOnRunwayBrightensTodaysHighestAsItChanges(t *testing.T) {
 	today := dayfile.DateOf(start)
 	r := runwayHarness(t, dashboard.Runway, nil)
 	r.ledger.days[today] = usedAt(today, 0.3)
@@ -559,8 +560,9 @@ func TestASinceReadOnRunwayBrightensNothingSteppedBackTo(t *testing.T) {
 	if use := r.model.runwayTab.shown.Lanes.Accounts[0].Use; use.Used != 0.5 {
 		t.Fatalf("today's summary read afresh left work's use under its name %+v, want today's highest, 50%%", use)
 	}
-	if got := r.brightened(); len(got) > 0 {
-		t.Errorf("a read of today's summary stepped back to brightened %v, want none", got)
+	work := dashboard.Number{Kind: dashboard.NumberUsed, Account: "work", Of: "5h"}
+	if got := r.brightened(); len(got) != 1 || got[work] != 1 {
+		t.Errorf("a read of today's summary stepped back to brightened %v, want work's use alone, at 1", got)
 	}
 }
 
