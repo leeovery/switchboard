@@ -279,18 +279,29 @@ func countAt(count []part) int {
 	return daysCount + daysCountCells - partsWidth(count[:1])
 }
 
-// swatch is a day swatchCells wide in its shade's ink, k, at its level: spaces
-// on its colour; or where the look blends nothing, its level's glyph, in its
-// colour. A day it hit a 5-hour limit has a red ▪ in its first cell.
+// swatch is a day swatchCells wide, as daySwatch draws one.
 func (f Frame) swatch(k ink, level int, limited bool) line {
+	return f.daySwatch(k, level, limited, swatchCells)
+}
+
+// daySwatch is a day cells wide in its shade's ink, k, at its level: spaces
+// on its colour; or where the look blends nothing, its level's glyph, in its
+// colour. A day it hit a 5-hour limit has a red ▪ in its middle cell, the
+// first of two.
+func (f Frame) daySwatch(k ink, level int, limited bool, cells int) line {
 	glyph, drawn := " ", ink{on: k.hue()}
 	if !f.Look.blends() {
 		glyph, drawn = shadeGlyph(level), k
 	}
-	if limited {
-		return line{{limitMark, ink{token: theme.StateDestructive, on: drawn.on}}, {strings.Repeat(glyph, swatchCells-1), drawn}}
+	if !limited {
+		return line{{strings.Repeat(glyph, cells), drawn}}
 	}
-	return line{{strings.Repeat(glyph, swatchCells), drawn}}
+	before := (cells - 1) / 2
+	marked := line{{limitMark, ink{token: theme.StateDestructive, on: drawn.on}}, {strings.Repeat(glyph, cells-1-before), drawn}}
+	if before == 0 {
+		return marked
+	}
+	return append(line{{strings.Repeat(glyph, before), drawn}}, marked...)
 }
 
 // shareOfUse is a family's share of the eight weeks' worth, a figure, bold
