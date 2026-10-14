@@ -63,6 +63,10 @@ type Fixture struct {
 	theme theme.Theme
 	// colourless draws it without colour, as NO_COLOR asks.
 	colourless bool
+	// scale is the requests a minute that fill a trace's height, where its
+	// frame pins them otherwise than the frames' usual, as a session's story's
+	// frames do: zero for the usual.
+	scale float64
 	// records are what its world's readers serve the watch: nil serves
 	// none. accounts are its world's, as configured, whose plans History
 	// prices against: none where it has no records to price.
@@ -287,8 +291,9 @@ func (p printout) fixture(worlds accountWorlds) Fixture {
 // its size, with its keys pressed once its document is read, and those
 // before it pressed then; gone, with the router no longer answering from
 // that moment, as a key that reads then finds it, or from goneFor before it,
-// as the fixture's settling finds it; and the Log's columns its preferences
-// keep shown.
+// as the fixture's settling finds it; the Log's columns its preferences
+// keep shown; and the requests a minute that fill a trace's height, where
+// its frame pins them otherwise than the frames' usual.
 type page struct {
 	name    string
 	size    watch.Size
@@ -298,6 +303,7 @@ type page struct {
 	gone    bool
 	goneFor time.Duration
 	log     dashboard.LogTicks
+	scale   float64
 }
 
 // called is the page's name.
@@ -314,7 +320,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys), before: p.before,
-		theme: framesTheme(), records: w.records(), accounts: w.accounts, log: p.log,
+		theme: framesTheme(), records: w.records(), accounts: w.accounts, log: p.log, scale: p.scale,
 	}
 }
 
@@ -343,7 +349,11 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // twelve times to d28c's row; and Requests filtered to d28c's lines alone,
 // found with / d28c and enter, worth shown as the preferences keep it.
 // Where no frame draws them, to judge by eye: the Log's find open on
-// Requests, / sw typed, and HELP · LOG over them.
+// Requests, / sw typed, and HELP · LOG over them. Then a session's page's
+// frames, each reached through the Log, its story's scale pinned at 8: d28c's
+// page, and on a phone; 9c2e's; b9c4's, ended yesterday; f41a's, over its
+// world, come back this morning; d28c's with ↓ to turn 12 and enter; and
+// the routing card over 9c2e's page, with p and 3.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -395,6 +405,13 @@ var pages = []page{
 	},
 	{name: "page-log-find", size: wide(37), world: accountWorlds.auto, keys: toLog("/", "s", "w")},
 	{name: "page-log-help", size: wide(37), world: accountWorlds.auto, keys: toLog("?")},
+	{name: "session-moved-160", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
+	{name: "session-quiet-160", size: wide(37), world: accountWorlds.auto, keys: toSession("9c2e"), scale: storyScale},
+	{name: "session-ended-160", size: wide(37), world: accountWorlds.auto, keys: toSession("b9c4"), scale: storyScale},
+	{name: "session-resumed-160", size: wide(37), world: accountWorlds.resumed, keys: toSession("f41a"), scale: storyScale},
+	{name: "session-turn-opened-160", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c", downKey, enterKey), scale: storyScale},
+	{name: "session-phone-52", size: watch.Size{Width: 52, Height: 32}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
+	{name: "routing-session-160", size: wide(37), world: accountWorlds.auto, keys: toSession("9c2e", keysOf("p", "3")...), scale: storyScale},
 }
 
 // keysOf are the keys pressed as the text given, a key a character.
@@ -416,6 +433,16 @@ func toHistory(text ...string) []tea.KeyPressMsg {
 // round the tabs, then the text given, a key a character.
 func toLog(text ...string) []tea.KeyPressMsg {
 	return append([]tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}, keysOf(text...)...)
+}
+
+// toSession are the keys that reach a session's page from the Overview,
+// through the Log, as the Overview's SESSIONS has no room for it at the
+// frames' size, nor ever shows an ended session: the Log's find, / and the
+// session's short id, enter to filter the Log to its lines, ↑ to its
+// newest, and s to open its page; then the keys given.
+func toSession(id string, then ...tea.KeyPressMsg) []tea.KeyPressMsg {
+	keys := append(toLog("/"), keysOf(strings.Split(id, "")...)...)
+	return slices.Concat(keys, []tea.KeyPressMsg{enterKey, upKey}, keysOf("s"), then)
 }
 
 // The keys ↑, ↓, → and enter, as pressed.

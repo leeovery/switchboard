@@ -487,6 +487,97 @@ frames):
 before each kind of event had a mark of its own, where the Log's marks give `◔`, in
 `accent.attention`.
 
+**A session's page, where its frames and the design part:**
+
+- **The tab lit,** on the title row: the frames light ` Overview `, where the fixtures reach the
+  page from the Log, `/`, the session's id, `enter`, `↑` and `s`, as the Overview has no room for
+  SESSIONS at 37 rows, nor ever shows an ended session, so the dashboard lights ` Log `: row 1,
+  columns 16 to 25 and 68 to 72, of `session-moved-160`, `session-quiet-160`, `session-ended-160`,
+  `session-resumed-160`, `session-turn-opened-160` and `routing-session-160`; and on a phone, row 2,
+  columns 1 to 10 and 48 to 52, of `session-phone-52`.
+- **`↓ streaming`,** row 7 of `session-resumed-160`, columns 1 to 11, where the design's state for
+  an answer streaming is `↓ answering`.
+- **`: sticky`,** after `since it started` on row 7 of `session-quiet-160` and
+  `routing-session-160`, columns 41 to 48: the router lists 9c2e's reason as it began, `new`, as a
+  request that keeps a session where it runs leaves the reason as it was, and the design words
+  `new` `since it started` on a session's page, which the dashboard draws alone.
+- **The first request of a turn opened,** chosen as the turn opens, on `bg.selection`, where the
+  frame lights none: row 29 of `session-turn-opened-160`.
+- **More turns than fit on a phone,** row 31 of `session-phone-52`, blank in the frame, where the
+  dashboard draws `▼ 6 more turns   ·   j/k to scroll`, as the wide page's turns say it, its seven
+  turns' rows holding the newest seven of its 13.
+- **Behind the routing card,** in `routing-session-160`, drawn before the page's headings settled:
+  STORY's heading, row 10, which goes on `, its whole life, the turn chosen lit`, where the dashboard
+  draws `requests a minute` alone; personal's stay, row 20, columns 1 to 39, `personal ◆  11:55 –
+  now`, which the dashboard numbers `2 personal ◆`; TURNS' heading, row 22, columns 1 to 39, which
+  goes on `newest first, a prompt to the a…`, where the dashboard draws its rule. And faded, `◆`
+  after personal on row 7, column 23, and on row 8 `personal`, columns 12 to 19 and 110 to 117, and
+  `66%`, columns 142 to 144, which the frame fades from other colours than its own
+  `session-quiet-160` draws them in, where the dashboard fades each as it draws it there.
+- **The card's figures and its cursor's row,** as the routing card's over the Overview: the windows'
+  figures coloured along a ramp, of work on row 18 and personal on row 19, columns 76 to 78 and 87
+  to 89; and the cursor's row, `● 3 side`, row 20, columns 42 to 119, lit.
+- **Where auto would send it,** `: side for now`, row 17, columns 77 to 94 of
+  `routing-session-160`: the frame predates the owner's call, and the router names where it would
+  send it, its own rule keeping 9c2e where it runs, so the dashboard draws `: personal for now`.
+- **The key lines** of `session-phone-52` and `session-turn-opened-160`, under Key lines drawn before
+  the keys were swept, above.
+
+**A session's page, where its world gives otherwise** (see What the worlds give otherwise than the
+frames), which the dashboard draws as its world gives it:
+
+- **How long it's run,** which the frames count from the minute it started, where the world's first
+  requests came at 12:02:10 and 11:55:31, as their started events tell: d28c's `2h 40m`, row 7,
+  columns 155 to 160, of `session-moved-160` and `session-turn-opened-160`, and row 9, columns 47 to
+  52, of `session-phone-52`, which the dashboard draws `2h 39m`; and 9c2e's `2h 47m`, row 7, columns
+  155 to 160, of `session-quiet-160` and `routing-session-160`, drawn `2h 46m`.
+- **The stays' points,** `≈ 41 points of its 5-hour · 6 of its week` and the like: two of the
+  world's lines read their accounts' windows, 7f3a's answer of 14:30:51 work's and d28c's move side's,
+  a reading each, which climb no window, so no rise is shared out, and the dashboard draws no points.
+  Rows 20 and 21, from column 57, of
+  `session-moved-160`, `session-turn-opened-160`, `session-ended-160` and `session-resumed-160`, and
+  row 20 of `session-quiet-160`; on a phone, rows 19 and 20, from column 12, of `session-phone-52`.
+- **d28c's stays,** its work's ending `14:31`, row 20, columns 23 to 27, where its last request
+  there came at 14:30, and their worth, `$41.06` and `$7.14`, rows 20 and 21, columns 155 to 160 and
+  156 to 160, which the world gives `$41.09` and `$7.12`; on a phone, rows 19 and 20, columns 47 to
+  52 and 48 to 52.
+- **b9c4's end,** `18:47`, at the start of row 7, columns 17 to 21, and on row 21, columns 33 to 37,
+  and how long it ran, `5h 27m`, row 7, columns 155 to 160, where its last request came at 18:46,
+  in the 11 minutes its last turn took from 18:36; its stay on work ending `16:02`, row 20, columns
+  33 to 37, where its last request there came at 16:01; and its story's axis, a minute shorter, so
+  `15:00`, row 18, columns 49 to 54, a column on, in `session-ended-160`.
+- **b9c4's models,** row 8, columns 10 to 40, `· haiku-4-5` and `kept until 29 Dec` after it: the
+  world's side requests ask Opus, as every page's world's do, so the dashboard draws `opus-5-5`
+  alone, `kept until 29 Dec` after it.
+- **f41a's stay on side ending `18:05`,** row 20, columns 33 to 37 of `session-resumed-160`, where
+  its last request there came at 18:04:38, so its story's fold comes a column sooner: the fold, rows
+  12 to 16, columns 32 to 37; side's stretch on the ribbon, its name, row 17, columns 14 to 20, and
+  its end and the come-back's start, columns 32 to 37; and the fold's hours and the come-back's time
+  on the axis, row 18, columns 32 to 42.
+- **f41a's rescore,** after `15h 7m` idle, from 18:04:38 to 09:12:15, as the router writes it,
+  where the frame says `15h`: row 7, columns 57 to 95, and the move's label, row 11, columns 36 to
+  83, a column sooner too.
+- **A half the generator rounds to even:** b9c4's turn 15 put out 40,500 tokens, `40k` in the frame
+  and `41k` in the dashboard, row 27, columns 86 to 88, of `session-ended-160`; and f41a's turn 20
+  read 16,150,000 and put out 76,500, `16.1M` and `76k` (`16.2M`, `77k`), row 27, columns 67 to 71
+  and 86 to 88, and its turn 14 read 14,250,000, `14.2M` (`14.3M`), row 33, columns 67 to 71, of
+  `session-resumed-160`.
+- **The share from cache,** `97%` on TURNS' heading, which the frames wrote in: row 23, columns 124
+  to 126 of `session-ended-160` and 123 to 125 of `session-resumed-160`, which their worlds give
+  `98%`.
+- **b9c4's turn 8's tools,** row 34, columns 33 to 45, `Edit ×2, Bash ×2`, which the generator
+  listed in its sample's order, where the views list those called as often by their names.
+- **The move's cost** in `routing-session-160`, `1.56` of `≈ $1.56`, row 23, columns 73 to 76: 9c2e's
+  context, priced as the watch prices a move, which the dashboard draws `$1.97`.
+- **The stories' columns,** which the frames draw from their generator's curves, where the worlds
+  spread each turn's requests over its minutes by a sine of their own: only the columns whose
+  heights differ, rows 12 to 16, or 12 to 15 on a phone, each cell an eighth, `┊` where a move's
+  marker runs down to its column, or blank (`storyColumns`, and `d28cStory`, `d28cPhoneStory`,
+  `quietStory`, `behindTheSessionsCard`, `endedStory` and `resumedStory`, in `reference_test.go`).
+  The rest of each story is held: its floor, the markers, the labels, the folds, the ribbon and the
+  axis, as the world's minutes place them, and the scale, which capture pins at 8 requests a minute
+  for a session's story, as its frames draw it.
+
 ## What the worlds give otherwise than the frames
 
 `internal/capture` builds the worlds the frames were drawn from (its `testdata/README.md` says where
@@ -569,7 +660,16 @@ cell by cell, listing each under The cells passed over with what the dashboard d
   14:40:55 (`internal/capture/testdata/README.md` says how).
 - **A session's page (stage 10):** d28c's split, $41.09 and $7.12 (drawn $41.06 and $7.14), its
   work ending 14:30; b9c4's stretches ending 16:01 and 18:46, ended 18:46, 5h 26m; turn 8's tools
-  in another order; f41a's side stretch ending 18:04; the `% from cache` figures, written in.
+  in another order; f41a's side stretch ending 18:04; the `% from cache` figures, written in; how
+  long d28c and 9c2e have run, counted from their first requests, at 12:02:10 and 11:55:31, where
+  the frames count from the minute; the stays' points, as the lines read no windows; b9c4's side
+  requests, which ask Opus, not Haiku; a half its turns' tokens come to, which the generator rounds
+  to even; 9c2e's move's cost; and each story's columns, which the frames draw from their
+  generator's curves. Fitted rather than passed over: the ledger keeps a day's lines 90 days, as
+  `kept until 29 Dec` reads; the router says auto would keep 9c2e on personal, where it runs; f41a
+  is rescored after the idle the router measures, 15h 7m; and f41a's world, `resumed`, the auto
+  world with f41a's lines among the sessions' world's, its router listing it in 9c2e's place, six
+  sessions, as the status line counts them.
 - **Accounts (stage 11):** this week's sessions served on personal and side and in all, drawn 6, 11
   and 19, where the world gives 10, 14 and 27 (yesterday's 17 and today's 14, 4 of them both, are
   27); personal's moves, drawn 1 out and 4 in all (2 and 5: db8a's move under pressure at 13:22:40
@@ -624,8 +724,7 @@ each over its frame's world with the keys that reach it: `overview-by-account-16
 with `p`, `2` and `3`, and `routing-move-160` with `p`, `2` and `m`, over the auto world, which
 lists the Overview's six sessions, so the card's cost is the moving set's, priced from the world's
 ledger as the watch prices it; and `routing-limit-160` with `p` and `3`, over routing's world of a
-limit, where the router lists all six on side. `routing-session-160`, the card over a session's
-page, is owed until stage 10 builds the page. Tapes of their names screenshot
+limit, where the router lists all six on side. Tapes of their names screenshot
 `overview-default-160`, `overview-by-account-160`, `overview-everything-216x106`,
 `overview-phone-52` and `routing-move-160`, to judge by eye.
 
@@ -663,6 +762,17 @@ to draw it. Tapes of their names screenshot `log-requests-160`, `log-events-160`
 `log-requests-filter-160` and `log-requests-filtered-160`, to judge by eye. Where no frame draws
 them, `page-log-find` draws the find open on Requests, `/ sw` typed, and `page-log-help` HELP · LOG
 over them, each with a tape of its name.
+
+Stage 10's, `session-*`, draw a session's page, reached from the Overview through the Log: `shift-tab`,
+then the find, `/` and the session's id, `enter` to filter the Log to its lines, `↑` to its newest,
+and `s` to open its page, as the Overview's SESSIONS has no room for it at 37 rows, nor ever shows
+an ended session. Over the auto world: `session-moved-160` and, on a phone, `session-phone-52`,
+d28c's page; `session-turn-opened-160`, d28c's with `↓` to turn 12 and `enter`; `session-quiet-160`,
+9c2e's; and `session-ended-160`, b9c4's, ended yesterday, the find walking back to its day. Over
+f41a's world, `resumed`: `session-resumed-160`, f41a's, come back this morning. And
+`routing-session-160`, the routing card over 9c2e's page, with `p` and `3`. Each pins its story's
+scale at 8 requests a minute, as its frame draws it, where the Overview's traces are pinned at 16.
+Tapes of `session-moved-160` and `session-phone-52` screenshot them, to judge by eye.
 
 ### `--theme`, and `NO_COLOR`
 

@@ -121,6 +121,7 @@ func TestEachWorldsRecordsAreItsDaysReadingsCapsAndTraffic(t *testing.T) {
 		{name: "six accounts", world: worlds.many(6), traffic: true, minutes: map[string]atCapAndLimit{"work": {11, 0}, "lab": {}}},
 		{name: "ten accounts", world: tenWorld(), traffic: true, minutes: map[string]atCapAndLimit{"work": {11, 0}, "team": {0, 44}}},
 		{name: "work alone", world: worlds.one(), minutes: map[string]atCapAndLimit{"work": {}}},
+		{name: "f41a resumed", world: worlds.resumed(), traffic: true, minutes: map[string]atCapAndLimit{"work": {11, 0}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

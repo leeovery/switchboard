@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"cmp"
 	"context"
 	"image/color"
 	"strings"
@@ -24,8 +25,16 @@ import (
 const interval = 30 * time.Minute
 
 // framesTraceScale is the requests a minute that fill a trace's height in the
-// frames, which pin it, where the live page scales as its rule says.
-const framesTraceScale = 16
+// frames, which pin it, where the live page scales as its rule says; and
+// storyScale, a session's story's, which its frames pin at 8.
+const (
+	framesTraceScale = 16
+	storyScale       = 8
+)
+
+// framesKeep is how long the frames' ledger keeps a day's lines: [ledger]
+// keep at 90 days.
+const framesKeep = 90 * 24 * time.Hour
 
 // framesWeekStarts is the day the frames' calendar weeks start on, as their
 // worlds' config sets it.
@@ -120,7 +129,8 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		View:       f.view,
 		Log:        f.log,
 		Prices:     drawnPrices,
-		TraceScale: framesTraceScale,
+		TraceScale: cmp.Or(f.scale, framesTraceScale),
+		LedgerKeep: framesKeep,
 	}
 	cfg.Ledger, cfg.Readings, cfg.Events = f.readers(now)
 	dressed(&cfg, f.theme, f.colourless)
