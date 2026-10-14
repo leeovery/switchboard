@@ -129,6 +129,33 @@ func About(d time.Duration) string {
 	return fmt.Sprintf("%dh", d.Round(time.Hour)/time.Hour)
 }
 
+// ColumnLength says how long a column of Runway's timeline is, as its legend
+// says it: in whole minutes where it's whole, "10 minutes"; else about that
+// long, to a tenth of a minute under 20 minutes, "≈ 10.6 minutes", a tenth
+// that rounds whole said whole, "≈ 11 minutes", and to the minute from 20,
+// "≈ 74 minutes".
+func ColumnLength(d time.Duration) string {
+	if d%time.Minute == 0 {
+		return minutesSaid(strconv.Itoa(int(d / time.Minute)))
+	}
+	if tenths := int(d.Round(tenthOfAMinute) / tenthOfAMinute); d < 20*time.Minute && tenths%10 != 0 {
+		return "≈ " + minutesSaid(fmt.Sprintf("%d.%d", tenths/10, tenths%10))
+	}
+	return "≈ " + minutesSaid(strconv.Itoa(int(d.Round(time.Minute)/time.Minute)))
+}
+
+// tenthOfAMinute is a tenth of a minute, as ColumnLength rounds to.
+const tenthOfAMinute = 6 * time.Second
+
+// minutesSaid is a count of minutes, as written, then its unit: "1 minute",
+// else "10 minutes".
+func minutesSaid(count string) string {
+	if count == "1" {
+		return count + " minute"
+	}
+	return count + " minutes"
+}
+
 // Minutes says how many minutes there are from the minute from falls in to
 // the one to falls in, both counted, as a turn's length is said: "9m" from
 // 14:29 to 14:37, and "1m" within one minute.
