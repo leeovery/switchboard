@@ -105,6 +105,11 @@ func (r LogRead) Grown(l LedgerSessions, held []ledger.Held, now time.Time) LogR
 	return grown
 }
 
+// Len is how many lines r holds: it changes only as r grows.
+func (r LogRead) Len() int {
+	return len(r.lines)
+}
+
 // WrittenTo is when the ledger last wrote of what r holds: the latest end of
 // its lines, every kind's, each its arrival and its total_ms after; zero
 // where it holds none. The Log not live is to it.

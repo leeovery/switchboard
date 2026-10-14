@@ -19,15 +19,16 @@ type logBuilt struct {
 	panel    *panelBasis
 }
 
-// requestsBasis is what the Log's Requests are made of: what the Log holds,
-// as held counts its changes; what the stream told of each request's row,
+// requestsBasis is what the Log's Requests are made of: the lines and
+// figures the Log holds, as lined counts their changes, and not its
+// events, which a look changes; what the stream told of each request's row,
 // as logTold gives it and sameRows compares it; the filter; and the day.
 // Neither the moment nor what's told as an answer streams is of it: a row
 // in flight counts how long it has taken, and its characters, as it's
 // drawn, as views.RequestRow.Live has it, so neither the clock moving nor
 // the stream's progress makes anything afresh.
 type requestsBasis struct {
-	held   int
+	lined  int
 	told   streamTold
 	filter views.LogFilter
 	day    string
@@ -35,7 +36,7 @@ type requestsBasis struct {
 
 // same reports whether b is o, the Requests made of one as of the other.
 func (b *requestsBasis) same(o requestsBasis) bool {
-	return b != nil && b.held == o.held && b.told.sameRows(o.told) && b.filter.Equal(o.filter) && b.day == o.day
+	return b != nil && b.lined == o.lined && b.told.sameRows(o.told) && b.filter.Equal(o.filter) && b.day == o.day
 }
 
 // eventsBasis is what the Log's Events are made of: what the Log holds, as
@@ -115,7 +116,7 @@ func sameSlice[T any](a, b []T) bool {
 // requestsBasis is what the Log's Requests are made of at now, through the
 // filter given.
 func (m Model) requestsBasis(filter views.LogFilter, now time.Time) requestsBasis {
-	return requestsBasis{held: m.log.held, told: m.logTold(), filter: filter, day: views.Today(now).Date}
+	return requestsBasis{lined: m.log.lined, told: m.logTold(), filter: filter, day: views.Today(now).Date}
 }
 
 // eventsBasis is what the Log's Events are made of at now, through the
