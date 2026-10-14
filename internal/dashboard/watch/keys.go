@@ -14,8 +14,8 @@ import (
 // rest each as acting has the page act: on the Overview, u, g, r, s, c and l
 // show and hide its sections, b switches how its windows are grouped, and ↑
 // and ↓ move the focus, as overviewKey says; on History, [ ], < >, v and ←
-// → act as historyKey says; on the Log, [ ], ↑ ↓, end, esc, enter, f and /
-// act as logKey says; tab and shift-tab show the next tab and the one
+// → act as historyKey says; on the Log, [ ], ↑ ↓, end, esc, enter, s, f and
+// / act as logKey says; tab and shift-tab show the next tab and the one
 // before, as turn has it; t opens the theme picker; and w, in Runway,
 // switches between the day and the week. esc, whatever the page does with
 // it, drops a session's page asked to open, as unasked has it. The rest do

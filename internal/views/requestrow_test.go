@@ -179,6 +179,24 @@ func TestARowInFlightIsWhatTheStreamTold(t *testing.T) {
 	}
 }
 
+// A row counts toward the session its line does, or, before its line
+// comes, the one the stream told it of: a quota check toward none.
+func TestARowCountsTowardTheSessionItsLineDoes(t *testing.T) {
+	at := october(7, 13, 11)
+	for _, kind := range []string{ledger.KindMessage, ledger.KindCheck, ledger.KindCount} {
+		l := withID("r1", line(mover, opus, "work", "sticky", at, ""))
+		l.Kind = kind
+		told := views.Told{Request: "r1", Session: mover, Model: opus, Account: "work", Sent: at, Heard: at, Check: kind == ledger.KindCheck, Count: kind == ledger.KindCount}
+		lined, toldOf := views.RowOfLine(l, []ledger.Line{l}, ledger.Pricing, now), views.RowOfTold(told, now)
+		if got, want := lined.CountedSession(), l.CountedSession(); got != want {
+			t.Errorf("a %s's row counts toward %q, want %q, as its line does", kind, got, want)
+		}
+		if got, want := toldOf.CountedSession(), l.CountedSession(); got != want {
+			t.Errorf("a %s's row as the stream told it counts toward %q, want %q, as its line will", kind, got, want)
+		}
+	}
+}
+
 func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 	sent := october(7, 13, 11)
 	first := withID("r0", of(ledger.ClassMain, line(mover, opus, "work", "new", october(7, 12, 0), hourUsage)))

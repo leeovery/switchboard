@@ -136,7 +136,8 @@ func (m Model) logRows() int {
 // ↓ choose a line, as Chose has it; end follows again, as esc does while
 // the table shown is paused; esc, while it isn't, lets go of what the
 // filter keeps alone, as Unfiltered has it; enter opens the line chosen's
-// details; f the panel of what the table shows; and / the find.
+// details; s the page of its session, as openLineSession has it; f the
+// panel of what the table shows; and / the find.
 func (m Model) logKey(key string) (Model, tea.Cmd, bool) {
 	if m.view != dashboard.Log {
 		return m, nil, false
@@ -157,6 +158,9 @@ func (m Model) logKey(key string) (Model, tea.Cmd, bool) {
 		p = p.Unfiltered()
 	case key == "enter":
 		next, cmd := m.openLogCard()
+		return next, cmd, true
+	case key == "s":
+		next, cmd := m.openLineSession()
 		return next, cmd, true
 	case key == "f":
 		next, cmd := m.openLogPanel()
@@ -190,7 +194,7 @@ func (m Model) logListings() []keyListing {
 		{Key: logViewKey, works: log, apart: true},
 		{Key: m.logChooseKey(), works: log, apart: true},
 		{Key: logOpenKey, works: log},
-		{Key: dashboard.Key{Key: "s", Does: "its session"}, works: log && m.chosenSession(), wide: true},
+		{Key: dashboard.Key{Key: "s", Does: "its session"}, works: log && m.chosenSession() != "", wide: true},
 		{Key: logFollowKey, works: log && paused},
 		{Key: dashboard.Key{Key: "f", Does: "what it shows"}, works: log, apart: paused, wide: true},
 		{Key: dashboard.Key{Key: "/", Does: "find"}, works: log, wide: true},
@@ -224,15 +228,28 @@ func (m Model) logPhoneKeys() []dashboard.Key {
 	return append(keys, logViewKey)
 }
 
-// chosenSession reports whether the Log's line chosen is of a session: a
-// request's of one, or an event's.
-func (m Model) chosenSession() bool {
+// chosenSession is the whole id of the session the Log's line chosen is
+// of, whose page s opens: a request's, as its row counts it, none for a
+// quota check; an event's; none where nothing is chosen, or of an account's
+// event.
+func (m Model) chosenSession() string {
 	row, event, ok := m.log.page.Chosen()
 	switch {
 	case !ok:
-		return false
+		return ""
 	case event != nil:
-		return event.Session != ""
+		return event.Session
 	}
-	return row.Session != ""
+	return row.CountedSession()
+}
+
+// openLineSession opens the page of the session the Log's line chosen is
+// of, as s does, as openSession has it, over the Log, which waits under it
+// paused at that line for esc to come back to: nothing where it's of none.
+func (m Model) openLineSession() (Model, tea.Cmd) {
+	id := m.chosenSession()
+	if id == "" {
+		return m, nil
+	}
+	return m.openSession(id)
 }
