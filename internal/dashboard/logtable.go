@@ -219,14 +219,14 @@ func countCell(r views.RequestRow, column LogColumn) line {
 }
 
 // sessionCell names a request's session: its id in text.secondary, a space
-// and its directory's last part, cut to sessionDirCells, in text.muted; on
-// a phone, its id alone; and — of no session.
+// and its directory's last part, cut to views.SessionDirCells, in
+// text.muted; on a phone, its id alone; and — of no session.
 func sessionCell(id, dir string, phone bool) line {
 	if prose.Clean(id) == "" {
 		return line{{"—", faintInk}}
 	}
 	l := line{{status.ShownID(id), secondaryInk}}
-	if name := status.DirName(dir, sessionDirCells); name != "" && !phone {
+	if name := status.DirName(dir, views.SessionDirCells); name != "" && !phone {
 		l = append(l, span{" " + name, mutedInk})
 	}
 	return l

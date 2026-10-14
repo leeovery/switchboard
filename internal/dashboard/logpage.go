@@ -499,15 +499,11 @@ func (p LogPage) dirOf(id string) string {
 // session column does: "d28c switchboard", the id alone where there's no
 // directory.
 func sessionNamed(id, dir string) string {
-	if name := status.DirName(dir, sessionDirCells); name != "" {
+	if name := status.DirName(dir, views.SessionDirCells); name != "" {
 		return status.ShownID(id) + " " + name
 	}
 	return status.ShownID(id)
 }
-
-// sessionDirCells are the most cells a session's directory takes in the
-// Log's session column, cut with an ellipsis past them.
-const sessionDirCells = 12
 
 // state is the Log's state line of the table shown: paused, at the line
 // chosen, or the newest in view, with the lines come since; not live, to

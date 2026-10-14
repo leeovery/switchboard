@@ -328,14 +328,11 @@ func (d detailing) sessionWords() DetailWords {
 		return nil
 	}
 	w := valued(id)
-	if dir := status.DirName(d.row.Dir, dirCells); dir != "" {
+	if dir := status.DirName(d.row.Dir, SessionDirCells); dir != "" {
 		w = append(w, DetailPart{Text: " " + dir})
 	}
 	return w
 }
-
-// dirCells is how many cells the Log names a session's directory in.
-const dirCells = 12
 
 // windowsWords name the windows the event names, as its line does: "its
 // 5-hour window", or "its 5-hour and week windows"; none where it names

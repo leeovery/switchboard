@@ -9,6 +9,12 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
+// SessionDirCells are the most cells a session's directory takes where the
+// Log names a session by its id and its directory, as status.DirName cuts
+// it: its tables' session column, its panel's sessions, and an event's
+// card.
+const SessionDirCells = 12
+
 // LogSessionSources are what the Log's panel's sessions are built from.
 type LogSessionSources struct {
 	// Read is the Log's read, which its Requests are built from: every line

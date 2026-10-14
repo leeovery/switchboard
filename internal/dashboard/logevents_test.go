@@ -12,6 +12,27 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
+// An event's card names its session as the Log's tables do, its directory
+// cut to as many cells, of the one rule of how many.
+func TestAnEventsCardNamesItsSessionAsTheTablesDo(t *testing.T) {
+	lines, _, at := rowsOfEachKind()
+	dir := "~/Code/a-directory-named-at-length"
+	for i := range lines {
+		lines[i].Dir = dir
+	}
+	moved := status.Event{ID: 3, At: lines[1].At.Add(500 * time.Millisecond), Kind: status.EventMoved, Session: lines[1].Session, Model: lines[1].Model, From: "work", To: "side"}
+	read := views.ReadLogHeld(sessionsHeld(lines), heldOf(lines), ledger.Pricing, at)
+	events := views.LogEvents(views.LogEventSources{From: theDayBefore, Events: views.ReadEvents(filedEvents{moved}, theDayBefore, at), Read: read, Now: at})
+	if len(events.Rows) != 1 {
+		t.Fatalf("the Events hold %d rows, want the move's alone", len(events.Rows))
+	}
+	d, _ := events.Details(events.Rows[0].Key, read)
+	j := slices.IndexFunc(d.Happened, func(it views.DetailItem) bool { return it.Name == "session" })
+	if want := sessionNamed(lines[1].Session, dir); j < 0 || d.Happened[j].Value.String() != want {
+		t.Errorf("the move's card names its session %q, want %q, as the tables name it", d.Happened[max(j, 0)].Value.String(), want)
+	}
+}
+
 // The Events draw each kind of row in their columns at each width the
 // design checks, a phone's at 52 and 80, the session leaving: a pin, ● in
 // accent.key; the day's rule; a cap, ╎ in accent.attention, its use bold in
