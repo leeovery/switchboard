@@ -2,13 +2,16 @@ package watch
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -383,6 +386,84 @@ func TestEachFrameReadsTheStreamAsTheViewsLastHeardIt(t *testing.T) {
 	if heard, afresh := look(f.Stream), look(views.Stream{Live: f.Stream.Live, Requests: f.Stream.Requests, Moves: f.Stream.Moves}); heard >= afresh {
 		t.Errorf("a look at the frame's stream allocates %.0f times, one at it heard afresh %.0f: the frame's is heard again at each look", heard, afresh)
 	}
+}
+
+// The views hear each change to the requests the traffic holds through its
+// one Hearing, by whichever path it comes: taken in from the stream, let go
+// at a tick, lost as the stream is forgotten, or lost as it opens again
+// without telling of them; and a tick that lets go of none of them has them
+// heard again by none. The Hearing reads a change by the requests being
+// another map, so they're another once anything in them changes, the map
+// before left as it was, and the very same map where nothing does.
+func TestTheViewsHearEachChangeToTheRequestsAndNoTickThatChangesNone(t *testing.T) {
+	main := func(e router.StreamEvent) router.StreamEvent {
+		return ofHaiku(alter(e, func(e *router.StreamEvent) { e.Class = ledger.ClassMain }))
+	}
+	done := main(alter(told(router.StreamDone, "r1", "work", time.Second), func(e *router.StreamEvent) { e.Status = 200 }))
+	asking := traffic{live: true}.took([]router.StreamEvent{main(told(router.StreamSent, "r1", "work", 0))}, heldNowhere, past(0))
+	answered := asking.took([]router.StreamEvent{done}, heldNowhere, past(time.Second))
+	tidiedAt := func(d time.Duration) func(traffic) traffic {
+		return func(tr traffic) traffic { return tr.tidied(past(d)) }
+	}
+	steps := []struct {
+		name    string
+		from    traffic
+		to      func(traffic) traffic
+		at      time.Duration
+		changes bool
+	}{
+		{name: "its answer taken in", from: asking, to: func(tr traffic) traffic { return tr.took([]router.StreamEvent{done}, heldNowhere, past(time.Second)) }, at: time.Second, changes: true},
+		{name: "let go at a tick", from: answered, to: tidiedAt(time.Second + seenFor), at: time.Second + seenFor, changes: true},
+		{name: "lost as the stream is forgotten", from: asking, to: traffic.afresh, at: time.Second, changes: true},
+		{name: "lost as the stream opens again without it", from: asking.reopened(), to: traffic.settled, at: time.Second, changes: true},
+		{name: "lost as the stream opens again telling of another first", from: asking.reopened(), to: func(tr traffic) traffic {
+			return tr.took([]router.StreamEvent{told(router.StreamSent, "r2", "work", time.Second)}, heldNowhere, past(time.Second))
+		}, at: time.Second, changes: true},
+		{name: "a tick with nothing to let go", from: answered, to: tidiedAt(time.Second + pulseFor/2), at: time.Second},
+		{name: "a tick letting go of a call's pulse alone", from: answered, to: tidiedAt(time.Second + pulseFor), at: time.Second + pulseFor},
+	}
+	for _, s := range steps {
+		t.Run(s.name, func(t *testing.T) {
+			at := past(s.at)
+			from := s.from
+			from.heard = new(views.Hearing)
+			heard, kept := runningOnWorkHeard(from.stream(at), at), maps.Clone(from.requests)
+			to := s.to(from)
+			if to.heard != from.heard {
+				t.Fatal("the traffic's Hearing is another, want the one it had carried")
+			}
+			stream := to.stream(at)
+			got, want := runningOnWorkHeard(stream, at), runningOnWorkHeard(views.Stream{Live: stream.Live, Requests: stream.Requests, Moves: stream.Moves}, at)
+			if s.changes && reflect.DeepEqual(heard, want) {
+				t.Fatalf("the views run %+v before and after, want the step to change what they show", want)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("the views run %+v, heard afresh %+v: the Hearing holds what it heard before", got, want)
+			}
+			if !maps.Equal(from.requests, kept) {
+				t.Error("the requests before changed where they lie, want them left as they were")
+			}
+			if same := sameMap(from.requests, to.requests); same == s.changes {
+				t.Errorf("the requests after are the very same map: %t, want %t, as they changed: %t", same, !s.changes, s.changes)
+			}
+		})
+	}
+}
+
+// runningOnWorkHeard is what the views run at at, of the stream s as it's
+// heard, of d28c as the router lists it on work: its opus seen a minute
+// before, and its haiku two.
+func runningOnWorkHeard(s views.Stream, at time.Time) []views.Running {
+	seen := func(model string, ago time.Duration) status.Assignment {
+		return status.Assignment{Model: model, Family: strings.Split(model, "-")[1], Account: "work", Reason: "new", AssignedAt: at.Add(-2 * time.Hour), LastSeen: at.Add(-ago)}
+	}
+	listed := []status.Session{{ID: idD28C, Assignments: []status.Assignment{seen(opus, time.Minute), seen(haiku, 2*time.Minute)}}}
+	return views.RunningOf(routerDocument(three()...).At(at, policy), listed, s, views.HeldList{})
+}
+
+// sameMap reports whether a and b are the very same map, not alike ones.
+func sameMap[K comparable, V any](a, b map[K]V) bool {
+	return reflect.ValueOf(a).UnsafePointer() == reflect.ValueOf(b).UnsafePointer()
 }
 
 // d28cRunning is d28c, as the views have it run on work in the frame of the
