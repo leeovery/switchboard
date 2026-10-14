@@ -204,6 +204,13 @@ func TestRunwaysTimelineIsTheLiveViewsOrTheDaySteppedBacksAcrossItsColumns(t *te
 // the document it's drawn of, at the moment's now.
 func runwayFramed(t *testing.T, name string) (Frame, status.Document, time.Time) {
 	t.Helper()
+	return runwayFramedAt(t, name, 160, 37)
+}
+
+// runwayFramedAt is Runway of the moment named as runwayFramed has it, on a
+// terminal width columns wide and height rows tall.
+func runwayFramedAt(t *testing.T, name string, width, height int) (Frame, status.Document, time.Time) {
+	t.Helper()
 	moments := viewstest.RunwayMoments()
 	i := slices.IndexFunc(moments, func(rm viewstest.RunwayMoment) bool { return rm.Name == name })
 	if i < 0 {
@@ -213,10 +220,10 @@ func runwayFramed(t *testing.T, name string) (Frame, status.Document, time.Time)
 	doc := rm.Doc
 	doc.Best = "side"
 	m := doc.At(rm.Now, claude.Policy)
-	tl := views.Stepped(rm.Window, rm.Day, rm.Now, rm.WeekStarts, RunwayColumns(160))
+	tl := views.Stepped(rm.Window, rm.Day, rm.Now, rm.WeekStarts, RunwayColumns(width))
 	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Readings: rm.Readings, Days: filed(rm.Days), Kept: rm.Kept, Timeline: tl, Window: rm.Window})
 	f := Frame{
-		Width: 160, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claude.Policy,
+		Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claude.Policy,
 		Runway: RunwayShown{Window: rm.Window, Back: rm.Day, Timeline: tl, Lanes: &lanes, Coming: views.RunwayComing(m, rm.Window)},
 	}
 	return f, doc, rm.Now
