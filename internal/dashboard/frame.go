@@ -236,9 +236,10 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 // stateLine draws the view's state line, over the key line, as told at now,
 // where the page has room for the view, as cramped says: the Log's, once
 // its first read lands, or while its find is open, the find's line in its
-// place. The views milestone 5 built draw their own line there.
+// place; but none under a session's page, drawn in the view's place. The
+// views milestone 5 built draw their own line there.
 func (f Frame) stateLine(c *canvas, now time.Time) {
-	if f.cramped() || f.View != Log || !f.Log.Read {
+	if f.cramped() || f.Session != nil || f.View != Log || !f.Log.Read {
 		return
 	}
 	y := f.Height - underView

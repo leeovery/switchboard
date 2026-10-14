@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -666,6 +667,31 @@ func TestASessionsPageTargetsItsTurnsShown(t *testing.T) {
 	f.Height = 20
 	if slices.ContainsFunc(f.Targets(pageDoc(), sessionNow), func(t Target) bool { return t.On == OnTurn }) {
 		t.Error("under the chrome alone, the page targets its turns, want none")
+	}
+}
+
+// A session's page open over the Log draws as over a Log not read yet: the
+// state line the Log draws under its table once it's read is none of the
+// page's, whose row it would be says how many more turns there are.
+func TestASessionsPageOverTheLogDrawsNoneOfTheLogsStateLine(t *testing.T) {
+	tests := []struct {
+		width, height int
+	}{
+		{width: 160, height: 37},
+		{width: 52, height: 32},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%d×%d", tt.width, tt.height), func(t *testing.T) {
+			unread := pageFrame(t, moved(), tt.width, tt.height)
+			read := unread
+			read.Log = LogPage{Read: true}
+			want, got := pageText(unread), pageText(read)
+			for y := range want {
+				if got[y] != want[y] {
+					t.Errorf("over the Log read, row %d reads\n%q\nwant, as over the Log unread,\n%q", y+1, got[y], want[y])
+				}
+			}
+		})
 	}
 }
 
