@@ -2,11 +2,11 @@
 // fixtures of the dashboard that cmd/capturetool draws, the scenarios it
 // plays for the README's demos, and the fakes it draws them through. A
 // fixture is a moment of the dashboard as a signed-off frame draws it, on a
-// terminal of the frame's size: milestone 7's, over the specs' worlds, each
-// its accounts as the router stands with them and its records, a year of
-// days, today's lines and the router's events, served through fake readers;
-// or milestone 5's, kept until the views they draw go. A scenario is a
-// stretch of the router's life, played in real time. Both are drawn by the
+// terminal of the frame's size, over the specs' worlds, each its accounts as
+// the router stands with them and its records, a year of days, today's lines
+// and the router's events, served through fake readers. A scenario is a
+// stretch of the router's life, played in real time from one of those
+// worlds. Both are drawn by the
 // dashboard's own watch model, built through watch.New, with every seam
 // faked; a printout of usage, through a path of its own, from the fake
 // router's status document, read as usage reads it. So a capture never
@@ -68,9 +68,9 @@ type Fixture struct {
 	// frame pins them otherwise than the frames' usual, as a session's story's
 	// frames do: zero for the usual.
 	scale float64
-	// records are what its world's readers serve the watch: nil serves
-	// none. accounts are its world's, as configured, whose plans History
-	// prices against: none where it has no records to price.
+	// records are what its world's readers serve the watch, and accounts
+	// its world's, as configured, whose plans History prices against: a
+	// printout has neither, and a watch drawn of it reads none.
 	records  *records
 	accounts config.Accounts
 }
@@ -169,17 +169,6 @@ func (s fixtureSet) named(name string) (Fixture, error) {
 type earlier struct {
 	by   time.Duration
 	keys []tea.KeyPressMsg
-}
-
-// moment is when every scenario over milestone 5's samples plays from, as
-// the frames are drawn: Thursday 1 October 2026, 14:42:07, in the time zone
-// given, fixed as its clocks are then. Such a scenario is built and played in
-// that, a zone whose clocks never change: where the given zone's change
-// within the samples' week, as Sydney's do on the Sunday, their resets would
-// move by an hour.
-func moment(loc *time.Location) time.Time {
-	name, offset := time.Date(2026, time.October, 1, 14, 42, 7, 0, loc).Zone()
-	return time.Date(2026, time.October, 1, 14, 42, 7, 0, time.FixedZone(name, offset))
 }
 
 // localMoment is when every fixture over a world is drawn, its records or its
