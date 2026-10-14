@@ -19,6 +19,10 @@ type LogSessionSources struct {
 	// today, by its whole id, as the Log counts them: the panel's sessions
 	// are those either counts.
 	Lines, Events map[string]int
+	// Found are the sessions the Log's find picked, as FindSessions gives
+	// them, which join the panel's sessions though neither count counts
+	// them, as a session of another day: each once.
+	Found []FoundSession
 	// Running are the sessions the router lists, as GET /sessions gives
 	// them: none without the router.
 	Running []status.Session
@@ -92,8 +96,9 @@ func (s LogSession) Doing(now time.Time) (doing LogDoing, since time.Time) {
 // LogSessions are today's sessions as the Log's panel lists them: those src
 // counts lines or events of today, each as the List has it, from its story,
 // as src's Read holds it told, and what the router and the request stream
-// say of it; those that haven't ended first, seen last first, then those
-// ended, the latest ended first.
+// say of it; and those the find picked, as foundSession has them, but one
+// among them already; those that haven't ended first, seen last first, then
+// those ended, the latest ended first.
 func LogSessions(src LogSessionSources) []LogSession {
 	by := newLister(src.Running, src.Unlisted, src.Stream, src.Now)
 	var sessions []LogSession
@@ -104,8 +109,27 @@ func LogSessions(src LogSessionSources) []LogSession {
 			Activity: listed.Activity, Started: listed.Started,
 		})
 	}
+	for _, f := range src.Found {
+		if !slices.ContainsFunc(sessions, func(s LogSession) bool { return s.ID == f.ID }) {
+			sessions = append(sessions, foundSession(by, f, src.Read.sessionStory(f.ID)))
+		}
+	}
 	slices.SortFunc(sessions, inLogOrder)
 	return sessions
+}
+
+// foundSession is f, a session the find picked, as the panel lists it with
+// no lines nor events today: as the List has it, from its story s, where
+// the Log's read holds its lines; else as the find found it, its directory
+// as its day's lines named it, ended at its last request, its account not
+// known.
+func foundSession(by lister, f FoundSession, s *story) LogSession {
+	listed := by.listed(f.ID, s)
+	found := LogSession{ID: f.ID, Dir: cmp.Or(listed.Dir, f.Dir), Account: listed.Account, Activity: listed.Activity, Started: listed.Started}
+	if s.last == nil {
+		found.Activity = Activity{Doing: Ended, Since: f.Last, LastSeen: f.Last}
+	}
+	return found
 }
 
 // countedIDs are the ids of the sessions either count counts any of, each

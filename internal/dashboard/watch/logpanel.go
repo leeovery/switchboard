@@ -75,13 +75,16 @@ func (m Model) appliedLogPanel() (Model, tea.Cmd) {
 // holds, while it's open: today's lines and events counted, those it would
 // show through what it picks among them; today's sessions, those with lines
 // today on Requests', those with events today on Events', each as the List
-// has it; and every account.
+// has it, and the one the find picked, as foundSessions has it; and every
+// account.
 func (m Model) builtLogPanel(now time.Time) Model {
 	if m.open != logPanelOpen {
 		return m
 	}
 	p := m.log.panel
-	src := views.LogSessionSources{Read: m.log.read, Running: m.sessions, Unlisted: !m.answering(), Stream: m.logStream(now), Now: now}
+	src := views.LogSessionSources{
+		Read: m.log.read, Found: m.foundSessions(), Running: m.sessions, Unlisted: !m.answering(), Stream: m.logStream(now), Now: now,
+	}
 	if p.Of == dashboard.LogEvents {
 		p.Events = views.LogEvents(m.logEventSources(p.Shows, now)).Today
 		src.Events = p.Events.Sessions

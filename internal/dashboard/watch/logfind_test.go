@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // The sessions the find's tests find: api and api-docs, which "api" finds,
@@ -119,9 +120,9 @@ func TestTheFindReadsTheDaysSummariesAfreshAsItOpens(t *testing.T) {
 }
 
 // enter on a session of an earlier day filters both tables to it, the
-// tables reading back to its day, then pauses at its newest line, chosen;
-// but with the filter let go on the way, they read back no further, and
-// nothing pauses.
+// tables reading back to its day, then pauses at its newest line, chosen,
+// the panel listing it among today's sessions, ticked; but with the filter
+// let go on the way, they read back no further, and nothing pauses.
 func TestEnterOnAnEarlierDaysSessionShowsItsLinesAlonePausedAtItsNewest(t *testing.T) {
 	state := t.TempDir()
 	var today []ledger.Held
@@ -162,6 +163,12 @@ func TestEnterOnAnEarlierDaysSessionShowsItsLinesAlonePausedAtItsNewest(t *testi
 		t.Errorf("the Requests show %v, want api's lines alone", got)
 	}
 
+	h.typed("f")
+	panel := h.model.log.panel
+	listed := slices.IndexFunc(panel.Sessions, func(s views.LogSession) bool { return s.ID == apiSession })
+	if listed < 0 || panel.Sessions[listed].Dir != "~/Code/api" || !slices.Contains(panel.Filter.Sessions, apiSession) {
+		t.Errorf("the panel lists %+v, ticking %v; want api among them, in ~/Code/api, ticked", panel.Sessions, panel.Filter.Sessions)
+	}
 }
 
 // esc on the Log, the newest first: closes the find; follows again where
@@ -198,5 +205,16 @@ func TestEscOnTheLogClosesTheFindThenFollowsThenLetsTheFilterGo(t *testing.T) {
 	}
 	if got := shownRequests(h); !slices.Equal(got, []string{"0a000001", "0a000002", "0a000003"}) {
 		t.Errorf("the filter let go, the Requests show %v, want every session's", got)
+	}
+}
+
+// The panel's /, as it offers, closes it and opens the find.
+func TestThePanelsSlashOpensTheFind(t *testing.T) {
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, t.TempDir())
+	h.start()
+	h.typed("f", "/")
+	if h.model.open != nothingOpen || !h.model.finding() {
+		t.Errorf("/ on the panel left %d open, finding %t; want the panel closed, the find open", h.model.open, h.model.finding())
 	}
 }

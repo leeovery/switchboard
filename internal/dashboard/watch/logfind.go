@@ -19,15 +19,17 @@ import (
 // held for the run, so it walks back through the days once a run; the
 // summaries of the days the ledger keeps, which name the sessions of each
 // before its lines are read, and whether they're read since the find last
-// opened; whether a read for it is under way, one at a time; and the
-// session enter picked, once it has ended, for the table shown to pause at
-// its newest line once the tables reach its day.
+// opened; whether a read for it is under way, one at a time; the session
+// enter picked, once it has ended, for the table shown to pause at its
+// newest line once the tables reach its day; and the session enter picked
+// last, which joins the panel's sessions while the filter keeps it.
 type findWalk struct {
 	days      map[string][]views.DaySession
 	summaries []ledger.Summary
 	summed    bool
 	reading   bool
 	landing   *views.FoundSession
+	picked    *views.FoundSession
 }
 
 // findReadMsg is what a read for the Log's find found: the summaries of the
@@ -99,20 +101,32 @@ func typedRune(key string) (rune, bool) {
 }
 
 // foundPicked is m with both of the Log's tables filtered to the session
-// the find picked, as FoundOnly has it, the find closed: where it has
-// ended, its newest line to be paused at once the tables reach its day, as
-// landed has it. With none found, enter does nothing.
+// the find picked, as FoundOnly has it, the find closed, the session joining
+// the panel's, as foundSessions has it: where it has ended, its newest line
+// to be paused at once the tables reach its day, as landed has it. With
+// none found, enter does nothing.
 func (m Model) foundPicked() Model {
 	s, ok := m.log.page.Finding.Pick()
 	if !ok {
 		return m
 	}
 	m.log.page = m.log.page.FoundOnly(s.ID)
-	m.log.find.landing = nil
+	m.log.find.picked, m.log.find.landing = &s, nil
 	if s.Ended {
 		m.log.find.landing = &s
 	}
 	return m
+}
+
+// foundSessions are the sessions the find picked that join the panel's
+// sessions, as views.LogSessions lists them, though they've no lines today:
+// the one picked last, while either table's filter keeps it.
+func (m Model) foundSessions() []views.FoundSession {
+	s, f := m.log.find.picked, m.log.page
+	if s == nil || !slices.Contains(f.Filter.Sessions, s.ID) && !slices.Contains(f.Shows.Sessions, s.ID) {
+		return nil
+	}
+	return []views.FoundSession{*s}
 }
 
 // readFind has the watch, while the Log shows, pause the table shown at the
@@ -214,19 +228,16 @@ func (m Model) landed() Model {
 	return m
 }
 
-// logSessions are today's sessions as the Log's panel lists them, as
+// logSessions are today's sessions as the find finds them first, as
 // views.LogSessions has them, of the Log's read, today's lines and events
-// counted by session, the sessions the router lists, and while it answers,
-// what the request stream tells.
+// counted by session, the sessions the router lists, and what the request
+// stream tells: none it picked of another day among them, which would be
+// found as today's.
 func (m Model) logSessions(now time.Time) []views.LogSession {
 	p := m.log.page
-	var stream views.Stream
-	if m.answering() {
-		stream = m.traffic.stream(now)
-	}
 	return views.LogSessions(views.LogSessionSources{
 		Read: m.log.read, Lines: p.Requests.Count(views.Today(now).Date).Sessions, Events: p.Events.Today.Sessions,
-		Running: m.sessions, Unlisted: !m.answering(), Stream: stream, Now: now,
+		Running: m.sessions, Unlisted: !m.answering(), Stream: m.logStream(now), Now: now,
 	})
 }
 
