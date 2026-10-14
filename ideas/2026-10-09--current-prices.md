@@ -28,3 +28,5 @@ Nothing notices when Anthropic changes a price. On 9 October 2026 the owner noti
   lands as a reviewed pull request, never straight into the table.
 - **To settle with the owner:** which runs it, how often, and how it tells a price that changed
   from a page that did.
+- **When, the owner (14 October 2026):** after milestone 7's release. On the same day, Claude Mythos
+  left the table, as no subscription can use it.

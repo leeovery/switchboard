@@ -3829,8 +3829,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   itself, then the hue mixed 55% toward white, or toward black on a light canvas
   (settled in the plan). The days' hue is `accent.key`, and a family's strips' its family's. A
   version the version table gives no shade, as an older one past the six, draws as its default
-  would, in its family's hue mixed 30% toward `canvas`; and a family it gives no hue of its own, as
-  Mythos, draws in `text.muted`, its versions with it (settled in the plan).
+  would, in its family's hue mixed 30% toward `canvas`; and a family it gives no hue of its own
+  draws in `text.muted`, its versions with it (settled in the plan).
 - **Files:** `<slug>.theme`, flat `key = #RRGGBB` lines, `#` starting a comment only at the start
   of a line, unquoted, a key once, unknown keys ignored, a missing base key rejecting the file; the
   slug matching `^[a-z0-9][a-z0-9-]*$`. They're read from `SWITCHBOARD_THEMES_DIR`, else
@@ -4485,11 +4485,11 @@ from the first day a router that has it runs, so nothing before then is in it.
 - **The version table,** beside the price table, names each model version as the views show it, and
   gives it its colour. A row a version, by its ids as the price table holds them: its name,
   `Opus 5.5`, `Sonnet 4.5`, `Haiku 4.5`, `Fable 5.1`; its family, as `internal/claude` reads it from
-  the id, `opus`; and its shade. Its rows go by family, Opus, Sonnet, Fable, Haiku, then Mythos, and
-  within a family newest first, by the day each launched, so `Opus 5.5` comes before `Opus 5`. The
-  first four families are drawn in `viz.family.1` to `viz.family.4`; Mythos, the price table's
-  `claude-mythos-5-1` and `claude-mythos-5`, is a fifth, with no hue of its own, drawn in
-  `text.muted` with its versions, in charts and tables alike. The table assigns `viz.version.1` to
+  the id, `opus`; and its shade. Its rows go by family, Opus, Sonnet, Fable, then Haiku, and within
+  a family newest first, by the day each launched, so `Opus 5.5` comes before `Opus 5`. The four
+  families are drawn in `viz.family.1` to `viz.family.4`; a family with no hue of its own would draw
+  in `text.muted` with its versions, in charts and tables alike. Mythos, which no subscription can
+  use, is left out of both tables (the owner, 14 Oct 2026). The table assigns `viz.version.1` to
   `viz.version.6` in its rows' order: Opus 5.5 and Opus 5, Sonnet 5.5 and Sonnet 5, Fable 5.1, and
   Haiku 5.5, which took Haiku 4.5's as it was priced on 7 Oct 2026; a release that adds a version
   assigns them afresh. A version without one draws in its family's colour, mixed 30% toward the
@@ -5852,9 +5852,16 @@ why.
 | A reserve spent as a last resort, when no account has room outside one | next, a fast follow | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
+| A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | next, after milestone 7's release, the owner's choice on 14 October 2026 | [doctor](../ideas/2026-10-14--doctor.md) |
 | Three things the router keeps that grow without bound, each only when something rare happens | open: small fixes, any time; a restart's request stream ending before its last events fixed on 11 October 2026 | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
-| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
+| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner after milestone 7's release; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
 | Stage 3's loose ends: Weeks' headline for a set short every week, and the cleanups its reviews left | open: the cleanups any time; the headline settled by its owner on 12 October 2026; the two router tests a loaded machine failed steadied on 11 October 2026, one by a fix to the request stream's end | [stage-3-loose-ends](../ideas/2026-10-11--stage-3-loose-ends.md) |
+| Milestone 7's loose ends: the edge cases and costs its reviews left | open: any time | [milestone-7-loose-ends](../ideas/2026-10-14--milestone-7-loose-ends.md) |
+| testguard failing a run when Claude Code's updater re-creates the `claude` link to the same target | open: a small fix, any time | [testguard-relinked-claude](../ideas/2026-10-14--testguard-relinked-claude.md) |
+| A pin that ends on its own, at a time or at its account's reset | open: to settle with its owner | [pin-until](../ideas/2026-10-14--pin-until.md) |
+| A scheduled review of switchboard's records, raising what it finds as an issue or a pull request | open: to discuss with its owner | [scheduled-review](../ideas/2026-10-14--scheduled-review.md) |
+| Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
+| Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
 | Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
 | Worth past what it's counted in: a config's price, or a period's sum, too large to hold | open: a small fix, its bound to settle | [worth-range](../ideas/2026-10-09--worth-range.md) |
 | What a routed session's environment carries to a `claude` switchboard steps aside for, as one a script points at another gateway | open: a small fix, any time | [stepping-aside](../ideas/2026-10-09--stepping-aside.md) |
