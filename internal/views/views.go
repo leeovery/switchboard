@@ -77,6 +77,10 @@ type Readings interface {
 	// after only what the history gained since, as Runway's lanes read the
 	// past at each look. A read isn't safe for concurrent use.
 	Tail(from, start, end time.Time) func() []readings.Reading
+	// FirstDay gives the start of the first local day the history holds
+	// readings of, a day before it drawn from its summary alone, as Runway's
+	// lanes draw it. It fails with fs.ErrNotExist where it holds none.
+	FirstDay() (time.Time, error)
 }
 
 // Events reads the router's events where they lie, with no router, as an

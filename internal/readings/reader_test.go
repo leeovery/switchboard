@@ -1,6 +1,8 @@
 package readings_test
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -67,5 +69,48 @@ func TestAnEmptyHistoryReadsNothing(t *testing.T) {
 	}
 	if got := (readings.Empty{}).Tail(from.AddDate(0, 0, -7), from, from.AddDate(0, 0, 1))(); len(got) > 0 {
 		t.Errorf("Tail()() = %+v, want none", got)
+	}
+	if _, err := (readings.Empty{}).FirstDay(); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("FirstDay() fails with %v, want fs.ErrNotExist", err)
+	}
+}
+
+// The first day the history holds is the oldest its files' names give, plain
+// or compressed; with none, or no directory, there's none.
+func TestAReadersFirstDayIsTheOldestTheHistoryHolds(t *testing.T) {
+	read := linesOf(t, workRead(time.Date(2026, 9, 27, 9, 0, 0, 0, time.Local), 0.1))
+	tests := []struct {
+		name  string
+		files map[string][]byte
+		want  time.Time
+	}{
+		{name: "none held"},
+		{name: "a day held", files: map[string][]byte{"readings-2026-09-27.jsonl": []byte(read)}, want: time.Date(2026, 9, 27, 0, 0, 0, 0, time.Local)},
+		{
+			name:  "an older day compressed",
+			files: map[string][]byte{"readings-2026-09-27.jsonl": []byte(read), "readings-2026-09-25.jsonl.gz": gzipOf(t, read)},
+			want:  time.Date(2026, 9, 25, 0, 0, 0, 0, time.Local),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			if err := os.Mkdir(readings.Dir(state), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			for name, data := range tt.files {
+				writeDay(t, readings.Dir(state), name, data)
+			}
+			got, err := readings.NewReader(state, logs.For("cli")).FirstDay()
+			if tt.want.IsZero() != errors.Is(err, fs.ErrNotExist) || !got.Equal(tt.want) {
+				t.Errorf("FirstDay() = %v, %v; want %v", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestAReaderOfAStateDirectoryThatIsntThereHoldsNoFirstDay(t *testing.T) {
+	if _, err := readings.NewReader(filepath.Join(t.TempDir(), "switchboard"), logs.For("cli")).FirstDay(); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("FirstDay() fails with %v, want fs.ErrNotExist", err)
 	}
 }
