@@ -113,8 +113,10 @@ type Turn struct {
 // the next look; a session idle with its page open, then ended an hour after
 // its last line; probing within the hour; a subagent's model moved, its main
 // thread staying; a request in flight naming no prompt after named turns;
-// refused on one account, then throttled on another; and a request the
-// router answered itself, no account having room.
+// refused on one account, then throttled on another; a request the router
+// answered itself, no account having room; and an Opus session's Haiku title
+// on its account after its main, the stream just opened telling of neither,
+// then its next main request heard.
 func SessionMoments() []SessionMoment {
 	return []SessionMoment{
 		asking(), askingAsListed(), answering(), refused(), throttled(), idleAsTheStreamTold(), idleAsItsLineGives(),
@@ -123,6 +125,7 @@ func SessionMoments() []SessionMoment {
 		itsMainFailed(), inFlightInTheNewestTurn(), endedItsLineToCome(), itsLineCome(), movedTwice(), turnAcrossMidnight(),
 		noPrompts(), movedByHand(), newBeforeTheNextLook(), idleItsPageOpen(), endedItsPageOpen(), probingWithinTheHour(),
 		subagentMoved(), inFlightNamingNoPrompt(), refusedThenThrottled(), answeredByTheRouter(),
+		titledAfterItsMainUnheard(), titledAfterItsMainThenItsMainHeard(),
 	}
 }
 
@@ -856,5 +859,49 @@ func answeredByTheRouter() SessionMoment {
 	m.Turns = map[string][]Turn{D28C: {over(1, At(14, 30, 0), last.Add(10*time.Second), 3, "work")}}
 	m.Named = map[string]Named{D28C: {"work", Opus}}
 	m.Page = map[string]PageFacts{D28C: runsOn("work", false, false, "work")}
+	return m
+}
+
+// titledAfterItsMain is a moment, named, of a session whose main thread is
+// Claude Opus 5.5 on work, and its title by Claude Haiku 4.5 on work too,
+// after its main request, each put there as it first came, its Opus last
+// seen at opusSeen, doing what inFlight says; the stream telling what's
+// given. Its lines name it Opus, whatever the stream tells.
+func titledAfterItsMain(name string, stream views.Stream, opusSeen time.Time, inFlight string) SessionMoment {
+	mainAt, titledAt := At(14, 30, 0), At(14, 31, 30)
+	opus := seat(Opus, "work", opusSeen, inFlight)
+	opus.AssignedAt = mainAt
+	haiku := seat(Haiku, "work", titledAt, "")
+	haiku.AssignedAt = titledAt
+	m := moment(name, session(D28C, opus, haiku))
+	m.Stream = stream
+	m.Lines = []ledger.Line{
+		withID("r1", asMain(p1, "end_turn", line(D28C, Opus, "work", mainAt, time.Minute))),
+		withID("r2", asTitle(p1, line(D28C, Haiku, "work", titledAt, 2*time.Second))),
+	}
+	m.Named = map[string]Named{D28C: {"work", Opus}}
+	return m
+}
+
+func titledAfterItsMainUnheard() SessionMoment {
+	titledAt := At(14, 31, 30)
+	m := titledAfterItsMain("an Opus session's Haiku title on its account after its main, the stream just opened, telling of neither",
+		live(), At(14, 30, 0), "")
+	m.Want = map[string]Doing{D28C: {
+		Whole: views.Activity{Since: titledAt.Add(2 * time.Second), LastSeen: titledAt},
+		On:    on("work", views.Activity{Since: titledAt, LastSeen: titledAt}),
+	}}
+	m.Turns = map[string][]Turn{D28C: {over(1, At(14, 30, 0), At(14, 31, 0), 2, "work")}}
+	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: []Named{{"work", Opus}, {"work", Haiku}}, Accounts: []string{"work"}, Ribbon: []string{"work"}}}
+	return m
+}
+
+func titledAfterItsMainThenItsMainHeard() SessionMoment {
+	sent := At(14, 42, 0)
+	m := titledAfterItsMain("an Opus session's Haiku title on its account after its main, then its next main request heard",
+		live(toldServing(p2, ledger.ClassMain, told("r3", D28C, Opus, "work", sent, sent))), sent, status.Asking)
+	m.Want = map[string]Doing{D28C: alike("work", views.Activity{Doing: views.Asking, Since: sent, LastSeen: sent})}
+	m.Turns = map[string][]Turn{D28C: {going(2, sent, 1, "work"), over(1, At(14, 30, 0), At(14, 31, 0), 2, "work")}}
+	m.Page = map[string]PageFacts{D28C: {Runs: true, Goes: []Named{{"work", Opus}, {"work", Haiku}}, Going: true, Waiting: true, Accounts: []string{"work"}, Ribbon: []string{"work"}}}
 	return m
 }

@@ -79,3 +79,10 @@ func (p AccountsPeriod) From(now time.Time, starts time.Weekday) time.Time {
 	start, _, _ := dayfile.Day(p.first(dayfile.CivilOf(now), starts).Format(time.DateOnly))
 	return start
 }
+
+// WhyRunning is why the model of the session with the given id is on its
+// account at the moment m, as SESSIONS says it, as the List gives where that
+// model goes and why, in sm.
+func WhyRunning(m status.Moment, session string, sm SessionModel) status.Words {
+	return whyRunning(m, session, status.Assignment{Model: sm.Model, Account: sm.Account, Reason: sm.Reason, AssignedAt: sm.Since})
+}

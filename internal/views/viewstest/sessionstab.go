@@ -104,12 +104,15 @@ type SessionsLook struct {
 // move; an answer's end; midnight; the router not answering for ten minutes,
 // then restarted; a router that gives no directory; 25 bent cords; fifty
 // sessions; a new session joining, one ending, and asking again; a group
-// starting below its line's first jack; and one account with eight sessions.
+// starting below its line's first jack; one account with eight sessions; and
+// an Opus session's Haiku title after its main, before its next main request
+// is heard and after.
 func SessionsMoments() []SessionsMoment {
 	return []SessionsMoment{
 		noSessions(), probingTheLedger(), theSceneAt1442(), onTwoAccounts(), refusedThenMovedByTheLimit(),
 		movedWithNoLimit(), throttledAndRefused(), anAnswersEnd(), acrossTheNight(), theRouterSilent(),
 		noDirFromTheRouter(), bentCords(), fiftySessions(), joiningAndEnding(), aGroupBelowItsLine(), oneAccountEight(),
+		titledAfterItsMainOnTheBoard(),
 	}
 }
 
@@ -982,6 +985,38 @@ func joiningAndEnding() SessionsMoment {
 				"c61b idle 2m · started 14:00 · 1 requests", "d28c asking · started 14:10 · 2 requests",
 				"7f3a idle 3m · started 14:20 · 1 requests", "f41a idle 1m · started 15:00 · 1 requests", "5b19 asking · 0 requests",
 			},
+		},
+	}}
+}
+
+// titledAfterItsMainOnTheBoard is d28c, whose main thread is Claude Opus 5.5
+// on work, its title by Claude Haiku 4.5 on work too, after its main
+// request: its lines name it Opus as the stream, just opened, tells of
+// neither; then as its next main request is heard.
+func titledAfterItsMainOnTheBoard() SessionsMoment {
+	mainAt, titledAt, sent := At(14, 30, 0), At(14, 31, 30), At(14, 42, 20)
+	title := withID("t2", asTitle(p1, line(D28C, Haiku, work, titledAt, 2*time.Second)))
+	title.Dir = switchboardDir
+	lines := []ledger.Line{called("t1", D28C, Opus, work, switchboardDir, mainAt, time.Minute), title}
+	listing := func(opusSeen time.Time, inFlight string) []status.Session {
+		return []status.Session{session(D28C,
+			listedOn(Opus, work, switchboardDir, status.ReasonNew, mainAt, opusSeen, inFlight),
+			listedOn(Haiku, work, switchboardDir, status.ReasonNew, titledAt, titledAt, ""),
+		)}
+	}
+	return SessionsMoment{Name: "an Opus session's Haiku title after its main, named Opus by its lines, before its next main request is heard and after", Looks: []SessionsLook{
+		{
+			Doc: threeAt(At(14, 42, 7)), Now: At(14, 42, 7), Sessions: listing(mainAt, ""), Stream: live(), Lines: lines,
+			Board: map[string]string{work: "d28c@0"},
+			Calls: map[string]string{"d28c work": "idle 10m · ~/Code/switchboard · rests"},
+			List:  []string{"d28c idle 10m · started 14:30 · 2 requests"},
+		},
+		{
+			Doc: threeAt(At(14, 42, 30)), Now: At(14, 42, 30), Sessions: listing(sent, status.Asking), Lines: lines,
+			Stream: live(toldAsking("t3", D28C, Opus, work, sent, sent)),
+			Board:  map[string]string{work: "d28c@0"},
+			Calls:  map[string]string{"d28c work": "↑ asking · ~/Code/switchboard · works"},
+			List:   []string{"d28c asking · started 14:30 · 2 requests"},
 		},
 	}}
 }

@@ -216,7 +216,7 @@ func TestTheListHeldIsTheListBuiltAfreshOfTheSameLinesAtEveryLook(t *testing.T) 
 // disagree; and each line holds a call for each row ROUTING counts.
 func TestTheCallsAreRunningOfsRowsAndTheBoardROUTINGsCounts(t *testing.T) {
 	eachLook(t, func(t *testing.T, w walked) {
-		running := views.RunningOf(w.m, w.look.Sessions, w.look.Stream)
+		running := views.RunningOf(w.m, w.look.Sessions, w.look.Stream, w.held)
 		var rows []views.Running
 		for _, c := range w.calls {
 			rows = append(rows, c.Running)
@@ -235,9 +235,10 @@ func TestTheCallsAreRunningOfsRowsAndTheBoardROUTINGsCounts(t *testing.T) {
 
 // The List's running are the sessions the calls name, each once; and of a
 // session on one account, the List and its call agree: the account it's
-// on, what it's doing, and the move that brought it there, where the List's
-// lines tell of it, or else the stream alone told of it, its line yet to
-// come.
+// on, the model it's named by, and why that model is there, as the List
+// gives its reason and since when, what it's doing, and the move that
+// brought it there, where the List's lines tell of it, or else the stream
+// alone told of it, its line yet to come.
 func TestTheListAndTheCallsAgreeOnTheSessionsRunning(t *testing.T) {
 	eachLook(t, func(t *testing.T, w walked) {
 		list := w.held.List(liveOf(w.look))
@@ -262,6 +263,14 @@ func TestTheListAndTheCallsAgreeOnTheSessionsRunning(t *testing.T) {
 			c, shown := calls[0], status.ShownID(s.Session)
 			if s.Account != c.Account || s.Activity.Doing != c.Activity.Doing {
 				t.Errorf("%s is on %s doing %d on the List, want it on %s doing %d, as its call", shown, s.Account, s.Activity.Doing, c.Account, c.Activity.Doing)
+			}
+			if s.Model != c.Model {
+				t.Errorf("%s is named by %s on the List, want %s, as its call", shown, s.Model, c.Model)
+			}
+			if i := slices.IndexFunc(s.Models, func(m views.SessionModel) bool { return m.Model == s.Model && m.Account == s.Account }); i >= 0 {
+				if why := views.WhyRunning(w.m, s.Session, s.Models[i]); c.Why.String() != why.String() {
+					t.Errorf("%s's call says it's there as %q, want %q, as the List gives its model's reason and since when", shown, c.Why, why)
+				}
 			}
 			switch {
 			case s.Moved != nil && c.From != s.Moved.From:

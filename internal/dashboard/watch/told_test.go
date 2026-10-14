@@ -277,7 +277,7 @@ func TestTheViewsSeeAMoveFromWhenTheCordsShowIt(t *testing.T) {
 			if drawn, read := f.Traffic.On(idD28C, "side").Doing != 0, len(f.Stream.Moves) > 0; drawn != tt.shown || read != tt.shown {
 				t.Errorf("the cords draw d28c on side: %t, and the views read its move: %t, want both %t", drawn, read, tt.shown)
 			}
-			if got, want := views.RunningCounts(views.RunningOf(h.model.moment(tt.at), f.Sessions, f.Stream))["side"], map[bool]int{true: 1}[tt.shown]; got != want {
+			if got, want := views.RunningCountsOf(h.model.moment(tt.at), f.Sessions, f.Stream)["side"], map[bool]int{true: 1}[tt.shown]; got != want {
 				t.Errorf("RunningCounts on side = %d, want %d, as the cords show d28c there", got, want)
 			}
 		})
@@ -364,7 +364,7 @@ func TestARequestTheStreamOpenedAgainTellsOfLateInItsFirstLookIsNeverLost(t *tes
 func d28cRunning(t *testing.T, h *harness, now time.Time) views.Running {
 	t.Helper()
 	f := h.model.frame(now)
-	running := views.RunningOf(h.model.moment(now), f.Sessions, f.Stream)
+	running := views.RunningOf(h.model.moment(now), f.Sessions, f.Stream, views.HeldList{})
 	i := slices.IndexFunc(running, func(r views.Running) bool { return r.Session == idD28C && r.Account == "work" })
 	if i < 0 {
 		t.Fatalf("the views run %+v, want d28c on work", running)

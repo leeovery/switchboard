@@ -129,30 +129,43 @@ func TestASessionIsNamedByItsMainThread(t *testing.T) {
 
 // At each moment the views have to get right, the List and a session's page
 // name each session alike, as the moment has it; and SESSIONS, on the
-// account the List names it on, where it runs there, names it by the family
-// of the model the List names.
+// account the List names it on, where it runs there, names it by the model
+// the List names, and its family, and says why that model is there, as the
+// List gives its reason and since when.
 func TestTheListAPageAndSESSIONSNameEachSessionAlikeAtEachHardMoment(t *testing.T) {
 	for _, hm := range viewstest.SessionMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
 			list := views.ListSessions(views.SessionSources{
 				Running: hm.Sessions, Unlisted: hm.Unlisted, Stream: hm.Stream, Ledger: fakeLedger{lines: hm.Lines, now: hm.Now}, Now: hm.Now,
 			})
-			listed := make(map[string]named)
+			listed := make(map[string]views.ListedSession)
 			for _, s := range list.Sessions {
-				listed[s.Session] = named{s.Account, s.Model}
+				listed[s.Session] = s
 			}
-			rows := views.RunningOf(hm.Doc.At(hm.Now, claude.Policy), hm.Sessions, hm.Stream)
+			m := hm.Doc.At(hm.Now, claude.Policy)
+			rows := views.RunningOf(m, hm.Sessions, hm.Stream, listHeldOf(hm.Lines, hm.Sessions, hm.Now))
 			for _, id := range slices.Sorted(maps.Keys(hm.Want)) {
 				want := named{hm.Named[id].Account, hm.Named[id].Model}
-				if got := listed[id]; got != want {
+				s := listed[id]
+				if got := (named{s.Account, s.Model}); got != want {
 					t.Errorf("the List names %s %+v, want %+v", id[:4], got, want)
 				}
 				if page := momentsPage(t, hm, id); (named{page.Account, page.Model}) != want {
 					t.Errorf("its page names %s %s, %s, want %+v", id[:4], page.Account, page.Model, want)
 				}
 				i := slices.IndexFunc(rows, func(r views.Running) bool { return r.Session == id && r.Account == want.account })
-				if family := (claude.Provider{}).Family(want.model); i >= 0 && rows[i].Family != family {
-					t.Errorf("SESSIONS names %s on %s by %s, want %s's family", id[:4], want.account, rows[i].Family, want.model)
+				if i < 0 {
+					continue
+				}
+				if r, family := rows[i], (claude.Provider{}).Family(want.model); r.Model != want.model || r.Family != family {
+					t.Errorf("SESSIONS names %s on %s by %s, %s; want %s, its family %s, as the List", id[:4], want.account, r.Model, r.Family, want.model, family)
+				}
+				j := slices.IndexFunc(s.Models, func(sm views.SessionModel) bool { return sm.Model == want.model && sm.Account == want.account })
+				if j < 0 {
+					continue
+				}
+				if why := views.WhyRunning(m, id, s.Models[j]); rows[i].Why.String() != why.String() {
+					t.Errorf("SESSIONS says %s is on %s as %q, want %q, as the List gives %s's reason and since when", id[:4], want.account, rows[i].Why, why, want.model)
 				}
 			}
 		})
