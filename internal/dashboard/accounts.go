@@ -114,12 +114,15 @@ func (s AccountsShown) heading() heading {
 }
 
 // accountsHeading is the frame's heading row on Accounts, as its heading has
-// it, and after [ ], on Compare, which of its accounts it shows, as
-// compareState says.
+// it, and after [ ], on Compare, which of its accounts it shows, in the forms
+// compareState says it in.
 func (f Frame) accountsHeading() heading {
 	h := f.Accounts.heading()
-	if f.Accounts.View() == AccountsCompare {
-		h.state = f.compareState()
+	if f.Accounts.View() != AccountsCompare {
+		return h
+	}
+	if forms := f.compareState(); len(forms) > 0 {
+		h.state, h.shorter = forms[0], forms[1:]
 	}
 	return h
 }

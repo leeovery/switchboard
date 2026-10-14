@@ -313,3 +313,16 @@ func verdictShort(row views.AccountsRow) [][]part {
 	}
 	return [][]part{{wordsIn(v.Verdict, verdictInk(v.Verdict))}, record}
 }
+
+// shareParts say a version's share of a row's use over the period, as BY
+// MODEL does, as a whole percentage, "55%"; "<1%" where it rounds to
+// nothing; a dash where it used none of it, or none of its use is priced.
+func shareParts(share *float64, k ink) []part {
+	switch {
+	case share == nil:
+		return noneOf(noFigure.text, k)
+	case prose.WholePercent(*share) == 0:
+		return []part{figureIn("<1%", k)}
+	}
+	return []part{figureIn(prose.Percent(*share), k)}
+}
