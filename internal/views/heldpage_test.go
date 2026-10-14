@@ -80,6 +80,42 @@ func TestAHeldPagePricesAfreshAsTheDayTurns(t *testing.T) {
 	}
 }
 
+// A held page awaits a line on the day its request was sent, where the
+// stream told that request ended before today, its line yet to come: a line
+// is filed under the day its request arrived on, which today's tail never
+// reads. It awaits none once the line is taken, nor for a request in
+// flight, one lost, or one sent today.
+func TestAHeldPageAwaitsTheLineOfARequestThatEndedAcrossMidnight(t *testing.T) {
+	night := local(23, 59, 50)
+	morning := night.Add(10 * time.Minute)
+	lined := filedAs("r2", took(22*time.Second, serving(p1, ledger.ClassMain, line(paged, opus, "side", "sticky", night, hourUsage))))
+	sent := toldOf("r2", p1, ledger.ClassMain, opus, "side", night.Add(100*time.Millisecond))
+	tests := []struct {
+		name   string
+		told   views.Told
+		taken  bool
+		awaits []string
+	}{
+		{name: "ended after midnight, its line to come", told: endedAt(night.Add(22*time.Second), sent), awaits: []string{"2026-10-07"}},
+		{name: "ended, its line taken", told: endedAt(night.Add(22*time.Second), sent), taken: true},
+		{name: "in flight", told: sent},
+		{name: "lost", told: lostAt(night.Add(time.Minute), sent)},
+		{name: "sent today", told: endedAt(morning.Add(time.Second), toldOf("r3", p1, ledger.ClassMain, opus, "side", morning))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			first := []ledger.Line{filedAs("r1", mainOn(p1, local(23, 0, 0), "tool_use"))}
+			held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(first), nil, night, paged), ledger.Pricing, kept90, night)
+			if tt.taken {
+				held = held.Take("2026-10-07", heldOf(lined))
+			}
+			if got := held.Awaited(views.PageLive{Stream: heard(tt.told), Now: morning}); !slices.Equal(got, tt.awaits) {
+				t.Errorf("the page awaits lines on %v, want %v", got, tt.awaits)
+			}
+		})
+	}
+}
+
 // turnRow is what a turn's request row holds that a frame draws: when it
 // came, its model and account, its status, its first byte and its end,
 // the tokens it read, wrote and put out, why its answer stopped and the
