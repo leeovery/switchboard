@@ -92,8 +92,8 @@ func TestARouterFromBeforeGETHistoryHasNone(t *testing.T) {
 	if want := []string{"5h 5m0s"}; !slices.Equal(h.source.histories, want) {
 		t.Errorf("asked for the history of %q, want %q: nothing more once the router can't be asked", h.source.histories, want)
 	}
-	if h.model.view = dashboard.Sessions; !strings.Contains(h.view(), "restart the router for recent events") {
-		t.Errorf("the screen is\n%s\nwant LOG to ask for the router to be restarted", h.view())
+	if !strings.Contains(h.view(), "restart the router for recent events") {
+		t.Errorf("the screen is\n%s\nwant LATELY to ask for the router to be restarted", h.view())
 	}
 	h.deliver(h.press("R")...)
 	if n := strings.Count(log.String(), "the router is from before GET /history"); n != 1 {

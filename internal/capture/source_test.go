@@ -333,13 +333,34 @@ func TestAWorldsRouterAnswersHistoryAPointEachStepAsLastRead(t *testing.T) {
 	}
 }
 
+// d28cOnWork and d28cOnSide are d28c's request r1, on work, and on side,
+// where the router sends it again.
+var (
+	d28cOnWork = request{id: "00000301", session: idD28C, model: opus, account: "work"}
+	d28cOnSide = request{id: "00000301", session: idD28C, model: opus, account: "side"}
+)
+
+// movedAndSentAgain is the router of three at now, its stream telling of
+// d28c's request r1, sent on work 1.3s ago and refused there by work's limit
+// 1.07s ago, as the router moves d28c to side and sends it again there.
+func movedAndSentAgain(now time.Time) source {
+	refusedAt := ago(now, 1070*time.Millisecond)
+	limited := d28cOnWork.told(router.StreamLimited, refusedAt)
+	limited.Status = 429
+	moved := d28cOnSide.told(router.StreamMoved, refusedAt)
+	moved.From, moved.To, moved.Reason = "work", "side", "moved: work hit its limit"
+	again := d28cOnSide.told(router.StreamSent, refusedAt)
+	again.Attempt = 2
+	return threeAccounts(now).telling(d28cOnWork.told(router.StreamSent, ago(now, 1300*time.Millisecond)), limited, moved, again)
+}
+
 // A watch joining the stream again, as it does when it shows a view that
 // reads it after one that didn't, is told only what's still in flight, each
 // request as it stands, never what befell it before again, as a router tells
 // it; a source no watch reads tells it all, each time. Each time, the stream
 // stays open once it has told it, telling nothing more.
 func TestAWatchJoiningTheStreamAgainIsToldOnlyWhatsStillInFlight(t *testing.T) {
-	now := storyboardAt(moment(time.UTC))
+	now := moment(time.UTC)
 	opened := func(s source) []router.StreamEvent {
 		events, err := s.Stream(t.Context())
 		if err != nil {
@@ -356,7 +377,7 @@ func TestAWatchJoiningTheStreamAgainIsToldOnlyWhatsStillInFlight(t *testing.T) {
 		}
 		return told
 	}
-	unread := repatched(now)
+	unread := movedAndSentAgain(now)
 	read := unread.by(func() time.Time { return now })
 	if got := opened(read); !reflect.DeepEqual(got, unread.stream) {
 		t.Errorf("first opened, the stream tells %+v, want all of it, %+v", got, unread.stream)
@@ -380,8 +401,8 @@ func TestAWatchJoiningTheStreamAgainIsToldOnlyWhatsStillInFlight(t *testing.T) {
 // that told is yet to be heard, and is held after, as the stream, open,
 // tells nothing more; a stream that told nothing holds it at once.
 func TestAWatchWaitsOnTheStreamTillItHasHeardAllItTold(t *testing.T) {
-	now := storyboardAt(moment(time.UTC))
-	read := repatched(now).by(func() time.Time { return now })
+	now := moment(time.UTC)
+	read := movedAndSentAgain(now).by(func() time.Time { return now })
 	wait := func() tea.Msg { return nil }
 	waits := func() []bool {
 		if _, err := read.Stream(t.Context()); err != nil {
@@ -395,7 +416,7 @@ func TestAWatchWaitsOnTheStreamTillItHasHeardAllItTold(t *testing.T) {
 	if got, want := waits(), []bool{true, false}; !slices.Equal(got, want) {
 		t.Errorf("opened again, telling what's in flight, the watch waits %v, want %v", got, want)
 	}
-	quiet := storyboard(now, false).by(func() time.Time { return now })
+	quiet := threeAccounts(now).by(func() time.Time { return now })
 	if _, err := quiet.Stream(t.Context()); err != nil {
 		t.Fatal(err)
 	}

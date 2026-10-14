@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"slices"
 	"strings"
 	"time"
 
@@ -275,12 +274,10 @@ type Model struct {
 	trails  dashboard.Trails
 	// sessions are the sessions the router listed with the document on
 	// screen, for the sessions running and Sessions' calls: nil where it
-	// listed none. listedBy is the router that listed them, as its health
-	// check said; and order is the order Sessions' calls ran in as they were
-	// listed, which they keep from look to look.
+	// listed none; and listedBy is the router that listed them, as its health
+	// check said.
 	sessions []status.Session
 	listedBy router.Health
-	order    dashboard.Order
 	// stream is the watch's hold on the router's request stream, traffic
 	// what the stream has told of the routed requests, and traces the
 	// requests the Overview's traces count, of today's lines and the stream.
@@ -779,19 +776,18 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // history, the numbers brightening, the Overview's sections shown, how its
 // windows are grouped, the requests its traces count and its layout as
 // kept, how far ahead Runway looks, the sessions listed, what the request
-// stream tells of their requests and the order Sessions' calls keep, how far
-// the view is scrolled, the account the focus is on, and what Accounts, as
-// standing has it, and History show. It holds the one moment of the
-// document at now, as At has it, for its bars eased to it and every look at
-// it to share: the message's, as taking has it, where now is when the
-// message came.
+// stream tells of their requests, how far the view is scrolled, the account
+// the focus is on, and what Accounts, as standing has it, and History show.
+// It holds the one moment of the document at now, as At has it, for its
+// bars eased to it and every look at it to share: the message's, as taking
+// has it, where now is when the message came.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
-		Sessions: m.sessions, Stream: m.traffic.stream(now), Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
+		Sessions: m.sessions, Stream: m.traffic.stream(now), Traffic: m.traffic.at(now), Scroll: m.scroll,
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
@@ -929,13 +925,13 @@ func logRead(msg fetchedMsg, look status.Moment, next time.Time) {
 
 // show puts the document a read found on screen, as look has it at its moment,
 // which every look at it within the message shares, as taking has it, with
-// the sessions the router listed, Sessions' calls keeping the order they ran
-// in, each move they show done no longer re-patching them; or where it
-// couldn't list them, those it listed last, while the router that listed them
-// answers, as a router restarted or replaced lists its own; and none while
-// probing. It posts what the change calls for, unless the router is there to
-// post its own, as nothing is to be told twice; follows the router as it goes
-// and comes back; notes the events new to it, and the readings it gives; asks
+// the sessions the router listed, each move they show done no longer telling
+// the views where its session is; or where it couldn't list them, those it
+// listed last, while the router that listed them answers, as a router
+// restarted or replaced lists its own; and none while probing. It posts what
+// the change calls for, unless the router is there to post its own, as
+// nothing is to be told twice; follows the router as it goes and comes back;
+// notes the events new to it, and the readings it gives; asks
 // the router for its history with a full read, and as the router answers
 // again, or another router does, as one restarted, or probing, reads the
 // readings history's files with the first full read since probing began; keeps
@@ -963,7 +959,6 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	m.doc, m.asRead, m.taking.moment, m.updated, m.failed = doc, asReadOf(look), look.Held(), now, ""
 	switch {
 	case msg.listed || !look.Routed:
-		m.order = m.frame(now).OrderOf(doc)
 		m.sessions, m.listedBy = msg.sessions, msg.router
 		m.traffic = m.traffic.listedAs(msg.sessions)
 	case !msg.router.Same(m.listedBy):
@@ -1120,28 +1115,17 @@ func (m Model) framed(msg frameMsg) Model {
 // screen render drew at now: what travels the cords, or on the page, a bar
 // easing to its reading, or a number brightened, or the cue on an event, an
 // account's state or a window's words, fading back; else as soon as the
-// shimmer down a cord steps on, on the clock's steps of it, or a move yet to
-// show re-patches Sessions' calls. Sessions' plain list is drawn again as
-// the stream tells of more, and as the clock ticks.
+// shimmer down a cord steps on, on the clock's steps of it.
 func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
-	if m.open != nothingOpen {
+	switch moving := m.shown.moving; {
+	case m.open != nothingOpen:
 		return 0, false
-	}
-	moving := m.shown.moving
-	if moving.Smooth {
+	case moving.Smooth:
 		return frameEvery, true
+	case moving.Shimmer:
+		return untilStep(now, shimmerStep) + stepSlack, true
 	}
-	var next []time.Duration
-	if moving.Shimmer {
-		next = append(next, untilStep(now, shimmerStep)+stepSlack)
-	}
-	if shows, ok := m.traffic.showing(now); ok && m.view == dashboard.Sessions {
-		next = append(next, shows.Sub(now)+stepSlack)
-	}
-	if len(next) == 0 {
-		return 0, false
-	}
-	return slices.Min(next), true
+	return 0, false
 }
 
 // untilStep is how long after now the clock passes its next whole step of

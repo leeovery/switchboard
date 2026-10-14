@@ -29,14 +29,6 @@ var viewPackages = []string{
 // path from the module's root. The list only shrinks: a file it names must
 // still be there, and still break the rule.
 var readsAllowed = []string{
-	// Milestone 5's views, which stage 12 deletes, and what they alone read.
-	"internal/dashboard/cords.go",
-	"internal/dashboard/log.go",
-	"internal/dashboard/panel.go",
-	"internal/dashboard/plain.go",
-	"internal/dashboard/recent_log.go",
-	"internal/dashboard/seats.go",
-	"internal/dashboard/sessions.go",
 	// Producers, which build the documents moments are of.
 	"internal/cli/source.go",
 	// History's points, worked out of the readings the ledger keeps of

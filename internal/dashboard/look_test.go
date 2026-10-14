@@ -53,8 +53,7 @@ func threeAccounts() status.Document {
 }
 
 // frames are frames of threeAccounts the tests draw, as text alone: full
-// screen, at a size each, Sessions, and Runway over the day and the week,
-// among them.
+// screen, at a size each, and Runway over the day and the week, among them.
 func frames() map[string]dashboard.Frame {
 	frame := func(width, height int) dashboard.Frame {
 		return dashboard.Frame{
@@ -67,11 +66,9 @@ func frames() map[string]dashboard.Frame {
 		f.View, f.Span = dashboard.Runway, span
 		return f
 	}
-	sessions := frame(160, 40)
-	sessions.View = dashboard.Sessions
 	return map[string]dashboard.Frame{
 		"wide": frame(160, 40), "two rows": frame(120, 50), "short, scrolling": frame(160, 20), "phone": frame(52, 36),
-		"sessions": sessions, "runway, the day": runway(dashboard.Day), "runway, the week": runway(dashboard.Week),
+		"runway, the day": runway(dashboard.Day), "runway, the week": runway(dashboard.Week),
 	}
 }
 
@@ -139,20 +136,18 @@ func TestAFrameReadsTheSameInEveryBuiltInThatBlends(t *testing.T) {
 	}
 }
 
-func TestTheTerminalThemeDrawsInTheTerminalsOwnColoursAndShade(t *testing.T) {
+func TestTheTerminalThemeDrawsInTheTerminalsOwnColours(t *testing.T) {
 	look := dashboard.Screen(builtin(t, theme.Terminal))
 	if look.Canvas() != nil {
 		t.Errorf("Canvas() = %v, want none painted", look.Canvas())
 	}
-	frame := strings.Join(drawn(frames()["sessions"], look), "\n")
+	frame := strings.Join(drawn(frames()["wide"], look), "\n")
 	if strings.Contains(frame, "38;2;") || strings.Contains(frame, "48;2;") {
 		t.Errorf("drawn in the terminal's own colours, it has a colour of its own:\n%q", frame)
 	}
 	text := ansi.Strip(frame)
-	for _, want := range []string{"Session  ████████▉▒▒▒▒▒┃░░░░░░░░░  37%  → 62%", "Week     █████████▋▒▒▒┃▒▒▒░░░░░░░  40%  → 70%"} {
-		if !strings.Contains(text, want) {
-			t.Errorf("drawn in the terminal's own colours\n%s\nwant %q, where it can't fade a bar's projection, in shade", text, want)
-		}
+	if want := "1 work ◆      ██████▎░░░┃░░░░░░  37%"; !strings.Contains(text, want) {
+		t.Errorf("drawn in the terminal's own colours\n%s\nwant %q, its bars drawn whole", text, want)
 	}
 	for i, row := range strings.Split(text, "\n") {
 		if strings.TrimRight(row, " ") != row {
@@ -162,7 +157,7 @@ func TestTheTerminalThemeDrawsInTheTerminalsOwnColoursAndShade(t *testing.T) {
 }
 
 func TestTheTerminalThemeDrawsWhatsDimFaintAndWhatsPickedOutReversed(t *testing.T) {
-	f := frames()["sessions"]
+	f := frames()["wide"]
 	f.Fresh = map[int]float64{1: 0.2}
 	rows := drawn(f, dashboard.Screen(builtin(t, theme.Terminal)))
 
@@ -178,9 +173,9 @@ func TestTheTerminalThemeDrawsWhatsDimFaintAndWhatsPickedOutReversed(t *testing.
 	for _, tt := range []struct {
 		name, text, want string
 	}{
-		{name: "a panel's border, faint", text: "┌─ ", want: "2"},
-		{name: "the tab shown, reversed", text: "Sessions", want: "7"},
-		{name: "an event looked at newly, picked out reversed", text: "has room again", want: "7"},
+		{name: "a heading's rule, faint", text: "──────", want: "2"},
+		{name: "the tab shown, reversed", text: "Overview", want: "7"},
+		{name: "an event looked at newly, picked out reversed", text: "13:11", want: "7"},
 	} {
 		if params := drawnWith(rows, tt.text); !slices.Contains(params, tt.want) {
 			t.Errorf("%s: %q is drawn with SGR %q, want %s among them", tt.name, tt.text, params, tt.want)
@@ -261,7 +256,7 @@ func TestTextFromElsewhereShowsItsControlCharactersAsSpaces(t *testing.T) {
 	doc.Events = append(doc.Events, status.Event{ID: 2, At: now.UTC(), Kind: status.EventMoved, Session: "5b19\x1b[1m", From: "work", To: "side", Reason: "moved: \x07pinned\n"})
 	probed := threeAccounts()
 	probed.Source, probed.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterUnhealthy, Reason: "the router answered\x07\n404"}
-	views := []dashboard.Frame{frames()["wide"], frames()["sessions"], frames()["runway, the day"]}
+	views := []dashboard.Frame{frames()["wide"], frames()["runway, the day"]}
 	for name, doc := range map[string]status.Document{"from the router": doc, "probing past it": probed} {
 		t.Run(name, func(t *testing.T) {
 			for _, f := range views {

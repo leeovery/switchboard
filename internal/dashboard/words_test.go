@@ -4,7 +4,6 @@ import (
 	"slices"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -26,12 +25,6 @@ func TestAccountsAreCalledByTheirNames(t *testing.T) {
 		}
 		if got := place(m, tt.id); got != tt.place {
 			t.Errorf("place(%q) = %d, want %d", tt.id, got, tt.place)
-		}
-		if got := docNamed(doc, tt.id); got != tt.want {
-			t.Errorf("docNamed(%q) = %q, want %q, as named has it", tt.id, got, tt.want)
-		}
-		if got := docPlace(doc, tt.id); got != tt.place {
-			t.Errorf("docPlace(%q) = %d, want %d, as place has it", tt.id, got, tt.place)
 		}
 	}
 	if got, want := names(m, []string{"work", "side"}), "Work [2J and side"; got != want {
@@ -59,22 +52,6 @@ func TestEitherListsTheNamesAsProseDoesWhatsChosenBetween(t *testing.T) {
 			if named := slices.Contains(tt.names, s.text); named != (s.ink == titleInk) {
 				t.Errorf("either(%q) drew %q in %+v, want the names in theirs and the words between in theirs", tt.names, s.text, s.ink)
 			}
-		}
-	}
-}
-
-func TestWindowsInWords(t *testing.T) {
-	for key, want := range map[string]string{"5h": "5-hour window", "7d": "7-day window", "7d_oi": "7-day window", "overage": "overage"} {
-		if got := spanOf(key); got != want {
-			t.Errorf("spanOf(%q) = %q, want %q", key, got, want)
-		}
-	}
-}
-
-func TestSpansInWords(t *testing.T) {
-	for since, want := range map[time.Duration]string{30 * time.Minute: "last-30-min", 18 * time.Minute: "last-18-min", 2 * time.Hour: "last-2h"} {
-		if got := lately(now.Add(-since), now); got != want {
-			t.Errorf("lately() over %v = %q, want %q", since, got, want)
 		}
 	}
 }

@@ -1,6 +1,6 @@
-# The page-help-scrolled fixture, tab pressed three times to show Sessions,
-# then ? the help over it, scrolled down three rows with j on a terminal too
-# short for it, full screen at its 160 × 16, as capturetool runs it.
+# The page-help-scrolled fixture, ? the help over the Overview, scrolled down
+# three rows with j on a terminal too short for it, full screen at its
+# 160 × 16, as capturetool runs it.
 # Run from the repository's root: vhs testdata/vhs/page-help-scrolled.tape
 
 Set Shell "bash"

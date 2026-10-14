@@ -166,11 +166,10 @@ func TestThePageDrawsEachPartOnItsRow(t *testing.T) {
 		first                      string
 	}{
 		{name: "the Overview, whose sections head themselves", width: 160, view: Overview, status: 2, heading: -1, top: 4, first: "USAGE"},
-		{name: "Sessions", width: 160, view: Sessions, status: 2, heading: 4, top: 6, first: "  CALLS"},
 		{name: "Runway", width: 160, view: Runway, status: 2, heading: 4, top: 6, first: textsAt(160, map[int]string{27: "now"})},
 		{name: "the Overview on a phone", width: 52, view: Overview, tabs: 1, status: 3, heading: -1, top: 5, first: "USAGE"},
-		{name: "Sessions on a phone", width: 52, view: Sessions, tabs: 1, status: 3, heading: 5, top: 7, first: " ┌─ 1 · WORK "},
-		{name: "a phone of 99 columns", width: 99, view: Sessions, tabs: 1, status: 3, heading: 5, top: 7, first: "  CALLS"},
+		{name: "Runway on a phone", width: 52, view: Runway, tabs: 1, status: 3, heading: 5, top: 7, first: textsAt(52, map[int]string{22: "now"})},
+		{name: "a phone of 99 columns", width: 99, view: Runway, tabs: 1, status: 3, heading: 5, top: 7, first: textsAt(99, map[int]string{24: "now"})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -212,7 +211,7 @@ func TestATerminalTooShortForTheViewDrawsTheTitleRowTheStatusLineAndTheKeyLineAl
 		least int
 	}{
 		{name: "the Overview", width: 160, view: Overview, least: 9},
-		{name: "a tab with a heading row", width: 160, view: Sessions, least: 11},
+		{name: "a tab with a heading row", width: 160, view: Runway, least: 11},
 		{name: "the Overview on a phone", width: 52, view: Overview, least: 10},
 		{name: "a phone's tab with a heading row", width: 52, view: Runway, least: 12},
 	}

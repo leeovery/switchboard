@@ -116,13 +116,14 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 	pressureOut, _ := doc.RunsOut(a, session, now)
 	pool := m.Pool()
 	outOfQuota := held && hold.Every || doc.CapHolds(a, now, policy)
+	limit, _ := doc.LimitEvent(a, now)
 	want := status.AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: doc.Floor(a), ReserveHolds: doc.ReserveHolds(a),
 		Pinned: doc.Pin.Has(a.ID), Next: a.ID == m.Next, Elsewhere: m.Next != "" && a.ID != m.Next,
 		InPool: slices.Contains(pool.Accounts, a.ID), OutOfPool: len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions, Extra: a.Extra,
-		Routing: got.Routing, Hold: hold, Held: held, LimitHolds: a.Limit.Holds(now), LimitSince: got.LimitSince,
+		Routing: got.Routing, Hold: hold, Held: held, LimitHolds: a.Limit.Holds(now), LimitSince: got.LimitSince, LimitMoved: limit.Count,
 		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapBack: capBack,
 		Refusal: refusal, TokenRefused: a.TokenRefused(now),
 		Pressure: status.PressureNow{Under: a.UnderPressure(now), Window: a.Pressure.Window, Out: pressureOut},
@@ -146,7 +147,7 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 		Reserve: a.Reserve, Cap: a.Cap, Floor: a.Floor, ReserveHolds: a.ReserveHolds,
 		Pinned: a.Pinned, Next: a.Next, Elsewhere: a.Elsewhere, InPool: a.InPool, OutOfPool: a.OutOfPool,
 		TokenSet: a.TokenSet, Read: a.Read, ReadAt: a.ReadAt, Error: a.Error, Failures: a.Failures, Sessions: a.Sessions, Extra: a.Extra,
-		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitHolds: a.LimitHolds, LimitSince: a.LimitSince,
+		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitHolds: a.LimitHolds, LimitSince: a.LimitSince, LimitMoved: a.LimitMoved,
 		ReachedReserve: a.ReachedReserve, CapHolds: a.CapHolds, CapBack: a.CapBack,
 		Refusal: a.Refusal, TokenRefused: a.TokenRefused, Pressure: a.Pressure,
 		Idle: a.Idle, NextPrime: a.NextPrime, OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Windows: a.Windows,
@@ -494,6 +495,43 @@ func TestWhenALimitHoldingAWindowBegan(t *testing.T) {
 			if !w.Held || !w.Since.Equal(tt.since) || !a.LimitSince.Equal(tt.limitSince) {
 				t.Errorf("the session, held %v, reached its limit at %v, the account the router's at %v; want held, at %v and %v",
 					w.Held, w.Since, a.LimitSince, tt.since, tt.limitSince)
+			}
+		})
+	}
+}
+
+func TestHowManySessionsALimitMovedWhileItHolds(t *testing.T) {
+	limited := with(readAt("work", spentIn("5h", 1, time.Hour)), func(a *status.Account) {
+		a.Limit = status.Limit{ID: 4, Windows: []string{"5h"}, Until: built.Add(time.Hour)}
+	})
+	reached := func(limit, count int) status.Event {
+		return status.Event{ID: 9, At: built.Add(-time.Minute), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Limit: limit, Count: count}
+	}
+	// newer are the router's newest 50 events, each newer than the limit's,
+	// which has aged out of them.
+	newer := make([]status.Event, 50)
+	for i := range newer {
+		newer[i] = status.Event{ID: 60 - i, At: built.Add(-time.Duration(i) * time.Second), Kind: status.EventMoved, Session: "c61b0e4f", From: "side", To: "personal"}
+	}
+	tests := []struct {
+		name   string
+		events []status.Event
+		now    time.Time
+		want   int
+	}{
+		{name: "one moved at once", events: []status.Event{reached(4, 1)}, now: built, want: 1},
+		{name: "a second moved at its next request", events: []status.Event{reached(4, 2)}, now: built, want: 2},
+		{name: "the limit lifted", events: []status.Event{reached(4, 2)}, now: built.Add(time.Hour + time.Second)},
+		{name: "its event carrying no count", events: []status.Event{reached(4, 0)}, now: built},
+		{name: "an older limit's event, the one holding untold", events: []status.Event{reached(3, 2)}, now: built},
+		{name: "its event aged out of the newest 50", events: newer, now: built},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := routerDocOf(limited)
+			doc.Events = tt.events
+			if a, _ := doc.At(tt.now, policy).Account("work"); a.LimitMoved != tt.want {
+				t.Errorf("LimitMoved = %d, want %d", a.LimitMoved, tt.want)
 			}
 		})
 	}

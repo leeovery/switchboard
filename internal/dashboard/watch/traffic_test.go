@@ -407,11 +407,11 @@ func TestAMoveYetToShowShowsOnceItsRefusalHasBouncedBack(t *testing.T) {
 	refused := 300 * time.Millisecond
 	tr := traffic{}.took(movedToSide(refused), heldNowhere, past(refused))
 
-	if shows, ok := tr.showing(past(refused + time.Millisecond)); !ok || !shows.Equal(past(refused+pulseFor)) {
-		t.Errorf("as its refusal bounces back, the move shows next at %s, %v, want at %s", shows, ok, past(refused+pulseFor))
+	if moves := tr.at(past(refused + pulseFor - time.Millisecond)).Moves; len(moves) > 0 {
+		t.Errorf("as its refusal bounces back, the moves shown are %+v, want none yet", moves)
 	}
-	if shows, ok := tr.showing(past(refused + pulseFor)); ok {
-		t.Errorf("once it shows, the next move shows at %s, want none yet to", shows)
+	if moves := tr.at(past(refused + pulseFor)).Moves; len(moves) != 1 {
+		t.Errorf("once its refusal has bounced back, the moves shown are %+v, want the one", moves)
 	}
 }
 

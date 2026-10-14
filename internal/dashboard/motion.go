@@ -17,34 +17,20 @@ type Motion struct {
 }
 
 // Motion is what moves on screen of the frame of doc at now, as moving has
-// it: its page drawn, of the one moment, as At holds it, to know only where
-// anything on it may settle, as MaySettle says, as what travels the cords
-// needs none of it drawn.
+// it: its page drawn, of the one moment, as At holds it, only where anything
+// on it may settle, as MaySettle says.
 func (f Frame) Motion(doc status.Document, now time.Time) Motion {
 	f = f.At(doc, now)
 	if !f.MaySettle() {
-		return f.travel(doc, now)
-	}
-	return f.moving(f.page(doc, now), doc, now)
-}
-
-// moving is what moves on screen of the frame of doc at now, its page drawn
-// on c: what travels the cords, as travel has it; and anything the page
-// draws settling, as settling says.
-func (f Frame) moving(c *canvas, doc status.Document, now time.Time) Motion {
-	moving := f.travel(doc, now)
-	moving.Smooth = moving.Smooth || f.settling(c)
-	return moving
-}
-
-// travel is what travels the cords Sessions' switchboard shows, as
-// travelling has it, but nothing of a view too short to be drawn, as
-// cramped says, nor under a session's page, drawn in its place.
-func (f Frame) travel(doc status.Document, now time.Time) Motion {
-	if f.cramped() || f.View != Sessions || f.Session != nil {
 		return Motion{}
 	}
-	return f.travelling(doc, now)
+	return f.moving(f.page(doc, now))
+}
+
+// moving is what moves on screen of the frame's page, drawn on c: anything
+// it draws settling, as settling says.
+func (f Frame) moving(c *canvas) Motion {
+	return Motion{Smooth: f.settling(c)}
 }
 
 // MaySettle reports whether anything the frame's page draws may be
@@ -65,9 +51,8 @@ func (f Frame) MaySettle() bool {
 // at now, which reads empty once it has reset since it was read; on the
 // Overview, as USAGE draws them, and the pool's at now, but none of a bar
 // USAGE draws empty, which has nothing to ease; on Accounts, as
-// accountsFilled has them; on Sessions, as its panels draw them, but none of
-// a window a panel draws without a bar; and none on a view that draws no
-// bar, nor under a session's page, which draws none.
+// accountsFilled has them; and none on a view that draws no bar, nor under
+// a session's page, which draws none.
 func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
 	switch m := f.Moment(doc, now); {
 	case f.Session != nil:
@@ -75,8 +60,6 @@ func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
 		return overviewFilled(m)
 	case f.View == Accounts:
 		return f.accountsFilled(doc, now)
-	case f.View == Sessions:
-		return sessionsFilled(m)
 	}
 	return nil
 }
@@ -89,14 +72,6 @@ func overviewFilled(m status.Moment) map[Ref]float64 {
 		filled[Ref{Window: p.Key}] = p.Used
 	}
 	return filled
-}
-
-// sessionsFilled are how much of each bar Sessions' panels draw of m it
-// fills, as Filled has them, by its account and key: each window as it
-// stands, where its panel draws it a bar, as it does where it doesn't stand
-// not started.
-func sessionsFilled(m status.Moment) map[Ref]float64 {
-	return windowsFilled(m, func(w status.WindowNow) bool { return w.Kind != status.WindowNotStarted })
 }
 
 // windowsFilled are how much of each of m's accounts' windows a bar drawn of
@@ -143,24 +118,4 @@ func (f Frame) settles(m mark) bool {
 		return easing
 	}
 	return f.Brightened[m.number] > 0
-}
-
-// sight is how a view's content shows on screen: rows of its rows, from the
-// row offset; and none of it where a card is open over the page, which
-// stands still behind it.
-type sight struct {
-	offset, rows int
-	covered      bool
-}
-
-// inSight is how the frame's page shows its view's content, rows of its rows
-// from the row offset.
-func (f Frame) inSight(offset, rows int) sight {
-	return sight{offset: offset, rows: rows, covered: f.Card != nil}
-}
-
-// shows reports whether any of the content's cells, width cells wide from
-// its row y, rows tall, shows on screen.
-func (s sight) shows(y, width, rows int) bool {
-	return !s.covered && width > 0 && max(y, s.offset) < min(y+rows, s.offset+s.rows)
 }

@@ -11,19 +11,25 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// sessionsKeys are the keys help lists on Sessions, as the key line words
-// them, those it leaves out among them.
-var sessionsKeys = []Key{
-	tabViews, subTabs, {Key: "↑↓", Does: "session"}, {Key: "enter", Does: "its page"},
-	{Key: "j k", Does: "scroll"}, {Key: "PgUp PgDn", Does: "page"}, {Key: "wheel", Does: "scroll"},
-	pin, {Key: "t", Does: "themes"}, {Key: "R", Does: "refresh"}, helpQuit[0], helpQuit[1],
+// overviewKeys are the keys help lists on the Overview, as the key line
+// words them, those it leaves out among them.
+func overviewKeys() []Key {
+	keys := []Key{tabViews}
+	for _, s := range EverySection() {
+		keys = append(keys, Key{Key: s.Key(), Does: s.Word()})
+	}
+	return append(keys,
+		Key{Key: "b", Does: "by"}, Key{Key: "↑↓", Does: "focus"},
+		Key{Key: "j k", Does: "scroll"}, Key{Key: "PgUp PgDn", Does: "page"}, Key{Key: "wheel", Does: "scroll"},
+		pin, Key{Key: "t", Does: "themes"}, Key{Key: "R", Does: "refresh"}, helpQuit[0], helpQuit[1],
+	)
 }
 
-// helping is a frame of Sessions width by height, as text alone, its help
-// open, listing sessionsKeys.
+// helping is a frame of the Overview width by height, as text alone, its
+// help open, listing overviewKeys.
 func helping(width, height int) Frame {
-	f := switchboard(width, height, flippingSessions(), Traffic{})
-	f.Card = Help{Keys: sessionsKeys}
+	f := frameOf(width, height)
+	f.Card = Help{Keys: overviewKeys()}
 	return f
 }
 
@@ -37,27 +43,20 @@ func plainLines(lines []line) []string {
 }
 
 func TestHelpListsThePagesKeysThenItsParts(t *testing.T) {
-	f := helping(160, 40)
+	f := helping(160, 400)
 	card := f.Card.card(f)
-	want := []string{
-		"tab views   [ ] view   ↑↓ session   enter its page   j k scroll   PgUp PgDn page   wheel scroll   p pin   t themes",
-		"R refresh   ? help   q quit",
-		"",
-		"●━━◉   a session's cord to its account",
-		"○      a free jack",
-		"╌╌○    a cord a move let go",
-		"",
-		"↑      asking",
-		"↓      streaming back, ~ its tokens so far",
-		"✕      a limit or a refusal",
-		"…      throttled",
-		"↪      moved here",
+	keys := []string{
+		"tab views   u usage   g graphs   r routing   s sessions   c coming up   l lately   b by   ↑↓ focus   j k scroll",
+		"PgUp PgDn page   wheel scroll   p pin   t themes   R refresh   ? help   q quit",
 	}
-	if got := plainLines(card.body); !slices.Equal(got, want) {
-		t.Errorf("help reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	if got := plainLines(card.body[:len(keys)]); !slices.Equal(got, keys) {
+		t.Errorf("help opens\n%s\nwant its keys\n%s", strings.Join(got, "\n"), strings.Join(keys, "\n"))
 	}
-	if card.title != "HELP · SESSIONS" || card.width != helpWidth {
-		t.Errorf("help is titled %q, %d cells wide; want HELP · SESSIONS, %d", card.title, card.width, helpWidth)
+	if got, want := plainLines(card.body[len(keys):]), plainLines(helpRows(overviewHelp(), helpWidth-2*cardInset)); !slices.Equal(got, want) {
+		t.Errorf("after its keys, help reads\n%s\nwant its parts\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if card.title != "HELP · OVERVIEW" || card.width != helpWidth {
+		t.Errorf("help is titled %q, %d cells wide; want HELP · OVERVIEW, %d", card.title, card.width, helpWidth)
 	}
 	if got := keyRow(card.keys).plain(); got != "esc close" {
 		t.Errorf("its keys row reads %q, want esc close", got)
@@ -65,27 +64,27 @@ func TestHelpListsThePagesKeysThenItsParts(t *testing.T) {
 }
 
 func TestHelpWordsItsKeysAsTheKeyLineDoesAndItsGlyphsAsTheViewDraws(t *testing.T) {
-	f := helping(160, 40)
+	f := helping(160, 400)
 	f.Card = Help{Keys: []Key{tabViews, {Key: "p", Does: "pin", Off: true}}}
 	body := f.Card.card(f).body
 	if want := slices.Concat(tabViews.words(), line{spaces(keysApart)}, line{{"p pin", faintInk}}); !slices.Equal(body[0], want) {
 		t.Errorf("its keys are drawn %v, want %v, as the key line draws them", body[0], want)
 	}
-	at := 1
-	for _, group := range switchboardGlyphs() {
-		at++
-		for _, g := range group {
-			if row := body[at]; !slices.Equal(row[:len(g.drawn)], g.drawn) || row[len(row)-1] != (span{g.means, secondaryInk}) {
-				t.Errorf("%q is drawn %v, want %v then what it means in text.secondary", g.means, row, g.drawn)
+	for _, part := range overviewHelp() {
+		for _, g := range part.glyphs {
+			drawn := slices.ContainsFunc(body, func(row line) bool {
+				return len(row) > len(g.drawn) && slices.Equal(row[:len(g.drawn)], g.drawn) && strings.HasPrefix(g.means, row[len(row)-1].text) && row[len(row)-1].ink == secondaryInk
+			})
+			if !drawn {
+				t.Errorf("%q isn't drawn %v then what it means in text.secondary", g.means, g.drawn)
 			}
-			at++
 		}
 	}
 }
 
 func TestHelpIsDrawnInTheCard(t *testing.T) {
 	rows := helping(160, 40).Draw(threeRouted(), now)
-	for _, want := range []string{"╭─ HELP · SESSIONS ─", "│  ●━━◉   a session's cord to its account", "│  ↓      streaming back, ~ its tokens so far", "esc close"} {
+	for _, want := range []string{"╭─ HELP · OVERVIEW ─", "│  tab views   u usage", "│  USAGE", "esc close"} {
 		if !slices.ContainsFunc(rows, func(r string) bool { return strings.Contains(r, want) }) {
 			t.Errorf("rows are\n%s\nwant %q among them", strings.Join(rows, "\n"), want)
 		}
@@ -97,9 +96,11 @@ func TestHelpsKeysWrapToTheCard(t *testing.T) {
 	card := f.Card.card(f)
 	keys := plainLines(card.body[:slices.IndexFunc(card.body, func(l line) bool { return len(l) == 0 })])
 	want := []string{
-		"tab views   [ ] view   ↑↓ session   enter its page",
-		"j k scroll   PgUp PgDn page   wheel scroll   p pin",
-		"t themes   R refresh   ? help   q quit",
+		"tab views   u usage   g graphs   r routing",
+		"s sessions   c coming up   l lately   b by",
+		"↑↓ focus   j k scroll   PgUp PgDn page",
+		"wheel scroll   p pin   t themes   R refresh   ? help",
+		"q quit",
 	}
 	if card.width != 58 || !slices.Equal(keys, want) {
 		t.Errorf("at 60 columns, help is %d cells wide, its keys\n%s\nwant 58, its keys\n%s", card.width, strings.Join(keys, "\n"), strings.Join(want, "\n"))
@@ -107,8 +108,9 @@ func TestHelpsKeysWrapToTheCard(t *testing.T) {
 }
 
 func TestHelpScrollsPastThePagesHeightLessTwoRows(t *testing.T) {
-	full := helping(160, 40)
+	full := helping(160, 400)
 	all := plainLines(full.Card.card(full).body)
+	n := len(all)
 	tests := []struct {
 		name          string
 		scroll        int
@@ -116,16 +118,16 @@ func TestHelpScrollsPastThePagesHeightLessTwoRows(t *testing.T) {
 		above, below  int
 		height, shown int
 	}{
-		{name: "from its top", scroll: 0, height: 14, shown: 7, from: 0, above: 0, below: 5},
-		{name: "scrolled", scroll: 3, height: 14, shown: 7, from: 3, above: 3, below: 2},
-		{name: "no further than its last row", scroll: 9, height: 14, shown: 7, from: 5, above: 5, below: 0},
-		{name: "never above its top", scroll: -2, height: 14, shown: 7, from: 0, above: 0, below: 5},
-		{name: "too short for any", scroll: 0, height: 5, shown: 0, from: 0, above: 0, below: 12},
+		{name: "from its top", scroll: 0, height: 14, shown: 7, from: 0, above: 0, below: n - 7},
+		{name: "scrolled", scroll: 3, height: 14, shown: 7, from: 3, above: 3, below: n - 10},
+		{name: "no further than its last row", scroll: n + 2, height: 14, shown: 7, from: n - 7, above: n - 7, below: 0},
+		{name: "never above its top", scroll: -2, height: 14, shown: 7, from: 0, above: 0, below: n - 7},
+		{name: "too short for any", scroll: 0, height: 5, shown: 0, from: 0, above: 0, below: n},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := helping(160, tt.height)
-			f.Card = Help{Keys: sessionsKeys, Scroll: tt.scroll}
+			f.Card = Help{Keys: overviewKeys(), Scroll: tt.scroll}
 			card := f.Card.card(f)
 			if got := plainLines(card.body); !slices.Equal(got, all[tt.from:tt.from+tt.shown]) {
 				t.Errorf("help shows\n%s\nwant its rows from %d\n%s", strings.Join(got, "\n"), tt.from, strings.Join(all[tt.from:tt.from+tt.shown], "\n"))
@@ -136,8 +138,8 @@ func TestHelpScrollsPastThePagesHeightLessTwoRows(t *testing.T) {
 			if got := keyRow(card.keys).plain(); got != "j k scroll   esc close" {
 				t.Errorf("its keys row reads %q, want j k scroll   esc close while it scrolls", got)
 			}
-			if got := f.CardScrolling(); got != (Scrolling{Most: 12 - tt.shown, Page: tt.shown}) {
-				t.Errorf("CardScrolling() = %+v, want it to scroll %d rows, %d at once", got, 12-tt.shown, tt.shown)
+			if got := f.CardScrolling(); got != (Scrolling{Most: n - tt.shown, Page: tt.shown}) {
+				t.Errorf("CardScrolling() = %+v, want it to scroll %d rows, %d at once", got, n-tt.shown, tt.shown)
 			}
 		})
 	}
@@ -146,7 +148,7 @@ func TestHelpScrollsPastThePagesHeightLessTwoRows(t *testing.T) {
 func TestHelpIsNoTallerThanThePageLessTwoRows(t *testing.T) {
 	for _, height := range []int{14, 16, 18} {
 		rows := helping(160, height).Draw(threeRouted(), now)
-		top := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "╭─ HELP · SESSIONS") })
+		top := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "╭─ HELP · OVERVIEW") })
 		bottom := slices.IndexFunc(rows[max(top, 0):], func(r string) bool { return strings.Contains(r, "╰────") })
 		if top < 0 || bottom < 0 || bottom+1 > height-2 {
 			t.Errorf("at %d rows, help is %d rows tall from row %d, want %d at most", height, bottom+1, top+1, height-2)

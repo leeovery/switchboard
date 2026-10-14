@@ -68,8 +68,9 @@ func tenRouting() status.Document {
 	team.Windows[0].Status = quota.StatusRejected
 	team.Limit = status.Limit{Windows: []string{"5h"}, Until: routedClock(1, 15, 30)}
 	doc.Accounts = append(accounts, open("client", 0.52), open("spare", 0.04), lab, team, open("extra", 0.22), open("ops", 0.06), open("studio", 0.33))
+	m := doc.At(routedAt, claudeLike)
 	for id, n := range map[string]int{"personal": 2, "side": 4, "client": 3, "lab": 2, "extra": 1, "studio": 2} {
-		doc.Accounts[docPlace(doc, id)-1].Sessions = n
+		doc.Accounts[place(m, id)-1].Sessions = n
 	}
 	return doc.WorkedOut(claudeLike)
 }

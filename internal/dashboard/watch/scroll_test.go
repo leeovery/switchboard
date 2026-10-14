@@ -261,11 +261,11 @@ func TestTheViewScrollsAsFarAsItsDrawnWhileTheBarsRise(t *testing.T) {
 		accounts[i] = account(string(rune('a'+i)), "Account "+string(rune('A'+i)), session(0.1, 3*time.Hour), week(0.2), fableWeek(0.1))
 	}
 	h := newHarness(t, document(accounts...))
-	h.model.view = dashboard.Sessions
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 24})
 	h.start()
 	now := h.model.now()
 	if got, want := h.model.scrolling(), h.model.frame(now).Scrolling(h.model.doc, now); got != want || got.Most == 0 {
-		t.Errorf("as the bars rise from nothing, Sessions scrolls %+v, want %+v, as far as the panels drawn, Fable's bars among them, go", got, want)
+		t.Errorf("as the bars rise from nothing, the Overview scrolls %+v, want %+v, as far as USAGE drawn, Fable's bars among them, goes", got, want)
 	}
 }
 
@@ -298,7 +298,6 @@ func TestTheWheelScrollsHelpUnderThePointerAndNotThePageAroundIt(t *testing.T) {
 	for _, size := range []tea.WindowSizeMsg{{Width: 150, Height: 12}, {Width: 52, Height: 16}} {
 		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
 			h := newHarness(t, twelve())
-			h.model.view = dashboard.Sessions
 			h.update(size)
 			h.start()
 			h.press("?")
@@ -307,7 +306,7 @@ func TestTheWheelScrollsHelpUnderThePointerAndNotThePageAroundIt(t *testing.T) {
 			if most == 0 {
 				t.Fatalf("help scrolls no rows at %dx%d, want some", size.Width, size.Height)
 			}
-			left, top := h.drawnAt("╭─ HELP · SESSIONS")
+			left, top := h.drawnAt("╭─ HELP · OVERVIEW")
 
 			for _, cell := range [][2]int{{0, 0}, {left - 1, top + 2}, {left, top - 1}, {size.Width / 2, size.Height - 1}} {
 				h.wheel(tea.MouseWheelDown, cell[0], cell[1])
@@ -329,7 +328,6 @@ func TestTheWheelScrollsHelpUnderThePointerAndNotThePageAroundIt(t *testing.T) {
 
 func TestHelpScrollsWithinItsCard(t *testing.T) {
 	h := newHarness(t, twelve())
-	h.model.view = dashboard.Sessions
 	h.update(tea.WindowSizeMsg{Width: 150, Height: 12})
 	h.start()
 	h.press("?")
