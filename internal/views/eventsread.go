@@ -34,6 +34,11 @@ func EventsFrom(first time.Time) time.Time {
 type EventsRead struct {
 	since time.Time
 	held  map[eventKey]Event
+	// newest is the newest event the last document taken in gave, by its
+	// router's run and its id, the id 0 where it gave none; looked is set
+	// once a document is taken in.
+	newest EventKey
+	looked bool
 }
 
 // ReadEvents reads, through filed, the router's files' events of the span
@@ -71,12 +76,29 @@ func (r EventsRead) Back(filed Events, first time.Time) EventsRead {
 // passed over.
 func (r EventsRead) Look(m status.Moment, run time.Time) EventsRead {
 	looked := r.clone()
+	looked.newest, looked.looked = EventKey{Run: run}, true
 	for _, e := range m.Events {
+		looked.newest.ID = max(looked.newest.ID, e.ID)
 		if !e.At.Before(r.since) {
 			looked.hold(Event{Key: EventKey{Run: run, ID: e.ID}, Event: e})
 		}
 	}
 	return looked
+}
+
+// Skips reports whether the status document m is a moment of, told by the
+// router whose run began at run, skips events the router told after those
+// the last document r took in gave: its oldest comes more than one after
+// their newest, of the same run, as the router numbers its events one after
+// another as it runs, and gives its newest alone in its document, so those
+// between are on its files alone. It's false where the last document taken
+// in was another run's, or none was.
+func (r EventsRead) Skips(m status.Moment, run time.Time) bool {
+	if !r.looked || !r.newest.Run.Equal(run) || len(m.Events) == 0 {
+		return false
+	}
+	oldest := slices.MinFunc(m.Events, func(a, b status.Event) int { return cmp.Compare(a.ID, b.ID) })
+	return oldest.ID > r.newest.ID+1
 }
 
 // Refiled is r with the events the router filed that happened from from to
@@ -107,7 +129,7 @@ func (r EventsRead) clone() EventsRead {
 	if held == nil {
 		held = make(map[eventKey]Event)
 	}
-	return EventsRead{since: r.since, held: held}
+	return EventsRead{since: r.since, held: held, newest: r.newest, looked: r.looked}
 }
 
 // file holds the events filed reads as having happened from from up to to,

@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"cmp"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -18,11 +19,13 @@ import (
 // since and the days before read back as the tables want them; the figures
 // of those days, which their rules say; the oldest day the ledger keeps,
 // and the oldest the Events read back to, none known till each is said; who
-// told the events the Events last took in, and when; whether a read for it
-// is under way, one at a time; whether a failure to say how far back its
-// tables read has been logged, the once; its details card, while it's open;
-// the panel of what a table shows, while f has it open; and its find's walk
-// back through the days.
+// told the events the Events last took in, and when; when the router's files
+// are to be read again from for the events a document skipped, as Skips has
+// it, none while none did; whether a read for it is under way, one at a
+// time; whether a failure to say how far back its tables read has been
+// logged, the once; its details card, while it's open; the panel of what a
+// table shows, while f has it open; and its find's walk back through the
+// days.
 type logTab struct {
 	page    dashboard.LogPage
 	opened  bool
@@ -33,6 +36,7 @@ type logTab struct {
 	oldest  views.OldestDay
 	filed   views.OldestDay
 	told    logTold
+	skipped time.Time
 	reading bool
 	warned  bool
 	card    logCarding
@@ -102,10 +106,17 @@ func (m Model) logStream(now time.Time) views.Stream {
 // says: a probed document's tell of none, and once the router's gone, the
 // document on screen is stale, its files read in its place. Who told them,
 // and when, is noted, as logTold has it, the first router's alone till its
-// files are read again.
+// files are read again. Where the document skips events the router told
+// since the last, as Skips has it, its files are to be read again from when
+// the last was built, or where that's not noted, as since they were read
+// again, from where the events begin, the earliest such moment kept till
+// they are.
 func (t logTab) looked(look status.Moment, from router.Health, answering bool) logTab {
 	if !t.opened || !look.Routed || !answering {
 		return t
+	}
+	if t.events.Skips(look, from.StartedAt) && t.skipped.IsZero() {
+		t.skipped = cmp.Or(t.told.at, t.events.Since())
 	}
 	t.events = t.events.Look(look, from.StartedAt)
 	if t.told.at.IsZero() || t.told.run.Equal(from.StartedAt) {

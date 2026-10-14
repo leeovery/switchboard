@@ -295,6 +295,47 @@ func TestTheEventsReadWhatTheRouterFiledAsItStoppedOrRestarted(t *testing.T) {
 	}
 }
 
+// A burst of more events than the router gives in its document, between two
+// looks at it, skips those no document tells of: the Log reads them off the
+// router's files, from the look before, as it does as the router stops.
+func TestTheEventsReadABurstTheDocumentSkippedOffTheFiles(t *testing.T) {
+	run := past(-time.Hour)
+	pinned := func(id int, at time.Time) status.Event {
+		return status.Event{ID: id, At: at, Kind: status.EventPin, Accounts: []string{"work"}}
+	}
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -time.Minute))
+	first := pinned(1, past(-30*time.Minute))
+	writeEvents(t, state, events.Line{Event: first, Run: run})
+	doc := routerDocument(three()...)
+	doc.Events = []status.Event{first}
+	h := routedHarness(t, doc)
+	h.source.health = router.Health{OK: true, PID: 1, StartedAt: run}
+	onTheLog(h, state)
+	h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+	h.start()
+	h.typed("]")
+
+	var burst []status.Event
+	want := []int{1}
+	for id := 2; id <= 61; id++ {
+		e := pinned(id, past(time.Duration(id)*time.Second))
+		burst, want = append(burst, e), append(want, id)
+		writeEvents(t, state, events.Line{Event: e, Run: run})
+	}
+	h.clock.now = past(2 * time.Minute)
+	doc.Events = burst[len(burst)-50:]
+	h.startRouter(doc)
+	h.typed("R")
+	var shown []int
+	for _, e := range h.model.log.page.Events.Rows {
+		shown = append(shown, e.Key.ID)
+	}
+	if !slices.Equal(shown, want) {
+		t.Errorf("60 events told between two looks, the document giving the newest 50, the Events show %v, want %v", shown, want)
+	}
+}
+
 // writeEvents files the router's events given in the state directory given,
 // each under the day it happened on, as the router files them as they're told.
 func writeEvents(t *testing.T, state string, lines ...events.Line) {

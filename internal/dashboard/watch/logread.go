@@ -60,10 +60,11 @@ type logReadMsg struct {
 // read of the ledger at a time, what's wanted meanwhile waiting for it to
 // land, its page first built of what it holds: as it first shows, every one
 // of today's lines, the router's events from today, and the oldest day the
-// ledger keeps; at each look since, what the ledger gained, as the tail
-// reads it; and the day before those its tables span, as they want it, or
-// as the event its details card is open on does, or the find's pick, of an
-// earlier day, as reaching has it.
+// ledger keeps; the router's files of events again, as the router stops or
+// restarts, or a document skips events; at each look since, what the ledger
+// gained, as the tail reads it; and the day before those its tables span, as
+// they want it, or as the event its details card is open on does, or the
+// find's pick, of an earlier day, as reaching has it.
 func (m Model) readLog() (Model, tea.Cmd) {
 	if m.view != dashboard.Log || m.cfg.Ledger == nil {
 		return m, nil
@@ -78,6 +79,8 @@ func (m Model) readLog() (Model, tea.Cmd) {
 		return m.openLog(now)
 	case m.log.refiles(m.answering(), m.news.router):
 		return m.readRefiled(now)
+	case !m.log.skipped.IsZero():
+		return m.readSkipped(now)
 	case m.tail.due:
 		return m.readTail(now)
 	case m.log.page.WantsDayBefore(m.logRows()), m.log.wantsFactsBack(), m.reaching():
@@ -128,12 +131,30 @@ func (t logTab) refiles(answering bool, routed router.Health) bool {
 }
 
 // readRefiled reads the router's files of events again at now, from when
-// the document the Log's Events last took in was built, as Refiled does.
+// the document the Log's Events last took in was built, as refiledFrom does,
+// who told it forgotten.
 func (m Model) readRefiled(now time.Time) (Model, tea.Cmd) {
+	from := m.log.told.at
+	m.log.told = logTold{}
+	return m.refiledFrom(from, now)
+}
+
+// readSkipped reads the router's files of events again at now, from when
+// the Log's Events want them for what a document skipped, as refiledFrom
+// does.
+func (m Model) readSkipped(now time.Time) (Model, tea.Cmd) {
+	from := m.log.skipped
+	m.log.skipped = time.Time{}
+	return m.refiledFrom(from, now)
+}
+
+// refiledFrom reads the router's files of events again at now, from the
+// moment given, into the Log's Events, as Refiled does.
+func (m Model) refiledFrom(from, now time.Time) (Model, tea.Cmd) {
 	t, filed := m.log, m.cfg.Events
-	m.log.told, m.log.reading = logTold{}, true
+	m.log.reading = true
 	return m, func() tea.Msg {
-		events := t.events.Refiled(filed, t.told.at, now)
+		events := t.events.Refiled(filed, from, now)
 		return logReadMsg{grown: logGrown{read: t.read, events: &events}}
 	}
 }
