@@ -201,19 +201,46 @@ type lister struct {
 
 // newLister returns the lister of the sessions running, as the router lists
 // them, unlisted saying no router does, the request stream s telling of
-// them, at now.
+// them, at now. Where none does, running is the last listing the watch
+// holds, read as runningNow has it: each session with only its models that
+// still run, none of one with none, as the Switchboard reads it.
 func newLister(running []status.Session, unlisted bool, s Stream, now time.Time) lister {
 	by := lister{
 		routed: make(map[string]status.Session, len(running)), goes: make(map[string][]status.Assignment),
 		unlisted: unlisted, h: s.hearing(), now: now,
 	}
+	placed := s.placed(running, by.h)
+	if unlisted {
+		placed = runningNow(placed, now)
+		running = goingAs(running, placed)
+	}
+	for _, session := range placed {
+		by.goes[session.ID] = session.Assignments
+	}
 	for _, session := range running {
 		by.routed[session.ID] = session
 	}
-	for _, session := range s.placed(running, by.h) {
-		by.goes[session.ID] = session.Assignments
-	}
 	return by
+}
+
+// goingAs are the sessions given, each with only its models placed has go
+// anywhere, none of one with none: the listing, of the models still going as
+// the stream placed them.
+func goingAs(sessions, placed []status.Session) []status.Session {
+	going := make(map[string][]status.Assignment, len(placed))
+	for _, s := range placed {
+		going[s.ID] = s.Assignments
+	}
+	var kept []status.Session
+	for _, s := range sessions {
+		s.Assignments = slices.DeleteFunc(slices.Clone(s.Assignments), func(a status.Assignment) bool {
+			return !slices.ContainsFunc(going[s.ID], func(g status.Assignment) bool { return g.Model == a.Model })
+		})
+		if len(s.Assignments) > 0 {
+			kept = append(kept, s)
+		}
+	}
+	return kept
 }
 
 // listed returns the session with the given id as the List has it, its story

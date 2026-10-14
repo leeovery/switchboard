@@ -168,15 +168,15 @@ func (m Model) listAwaiting(f *listFold) Model {
 
 // taken is the List held grown by what a read of the ledger's tail on the
 // day given read, as the fold says, reading whole through l the sessions it
-// then lists that it holds no read of.
-func (f listFold) taken(l views.LedgerSessions, read tailLines, today views.LedgerDay) *listTaken {
+// then lists that it holds no read of, as ReadListOf reads them.
+func (f listFold) taken(l views.LedgerSession, read tailLines, today views.LedgerDay) *listTaken {
 	held := f.held
 	for _, date := range f.late {
 		held = held.Take(date, read.days[date])
 	}
 	held = held.Take(today.Date, read.gained)
 	if unfound := held.Unfound(f.live); len(unfound) > 0 {
-		held = held.Found(views.ReadList(l, nil, unfound...))
+		held = held.Found(views.ReadListOf(l, unfound...))
 	}
 	return &listTaken{held: held}
 }

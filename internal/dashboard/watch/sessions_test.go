@@ -2,6 +2,7 @@ package watch
 
 import (
 	"fmt"
+	"iter"
 	"reflect"
 	"slices"
 	"testing"
@@ -283,11 +284,17 @@ func TestSessionsOpensAsKept(t *testing.T) {
 type sessionsCounted struct {
 	followed
 	asked [][]string
+	alone []string
 }
 
 func (l *sessionsCounted) Sessions(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
 	l.asked = append(l.asked, slices.Clone(ids))
 	return l.Ledger.Sessions(ids, take)
+}
+
+func (l *sessionsCounted) Session(id string) iter.Seq[ledger.Held] {
+	l.alone = append(l.alone, id)
+	return l.Ledger.Session(id)
 }
 
 // The List's first read waits for a read of the ledger's tail under way, and
@@ -337,7 +344,7 @@ func TestTheListIsReadOneReadOfTheLedgerAtATime(t *testing.T) {
 // The List is read whole once, as Sessions first shows, and held for the
 // run, each look's read of the ledger's tail feeding it what today's lines
 // gained: never read whole again, but a session it first meets there, read
-// whole the once.
+// whole the once, alone, not every one of today's again.
 func TestTheListIsReadOnceAsSessionsFirstShowsThenFedByTheTail(t *testing.T) {
 	h := newHarness(t, probedWithoutTheRouter())
 	state := t.TempDir()
@@ -365,16 +372,16 @@ func TestTheListIsReadOnceAsSessionsFirstShowsThenFedByTheTail(t *testing.T) {
 	met.Session = id9E21
 	writeLines(t, state, arrived("0a000003", "work", -3*time.Minute), met)
 	h.read(probedWithoutTheRouter())
-	if requests() != 3 || l.given[len(l.given)-1] != 2 || !slices.Equal(l.asked[len(l.asked)-1], []string{id9E21}) {
-		t.Errorf("a look on, d28c is listed with %d requests, the tail's last read giving %v, the List's reads whole asking for %q; want 3, the lines gained, 9e21 read whole", requests(), l.given, l.asked)
+	if requests() != 3 || l.given[len(l.given)-1] != 2 || len(l.asked) != 1 || !slices.Equal(l.alone, []string{id9E21}) {
+		t.Errorf("a look on, d28c is listed with %d requests, the tail's last read giving %v, the List read whole %d times, sessions read alone %q; want 3, the lines gained, once, 9e21 alone", requests(), l.given, len(l.asked), l.alone)
 	}
 	h.read(probedWithoutTheRouter())
-	if len(l.asked) != 2 {
-		t.Errorf("another look on, the List was read whole %d times, want twice: 9e21 read the once", len(l.asked))
+	if len(l.asked) != 1 || len(l.alone) != 1 {
+		t.Errorf("another look on, the List was read whole %d times, sessions alone %q; want once, 9e21 the once", len(l.asked), l.alone)
 	}
 	h.keys(tabKey, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
-	if len(l.asked) != 2 || h.model.view != dashboard.Sessions {
-		t.Errorf("Sessions shown again, on %s, the List was read whole %d times, want no more, held for the run", h.model.view, len(l.asked))
+	if len(l.asked) != 1 || len(l.alone) != 1 || h.model.view != dashboard.Sessions {
+		t.Errorf("Sessions shown again, on %s, the List was read whole %d times, sessions alone %q, want no more, held for the run", h.model.view, len(l.asked), l.alone)
 	}
 }
 

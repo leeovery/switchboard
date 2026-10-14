@@ -726,9 +726,11 @@ func acrossTheNight() SessionsMoment {
 // theRouterSilent is the 14:42:07 scene's running sessions, then the router
 // not answering for ten minutes, each drawn from its last listing, idle
 // counting on; then restarted, the stream it told forgotten, each where it
-// sat.
+// sat; then not answering again, past every session's hour, when its last
+// listing runs none, each ended by its lines.
 func theRouterSilent() SessionsMoment {
 	first, silent, back := At(14, 42, 7), At(14, 52, 7), At(14, 52, 30)
+	past := back.Add(70 * time.Minute)
 	listing := sceneListed()[:4]
 	lines := slices.DeleteFunc(sceneLines(), func(l ledger.Line) bool {
 		return !slices.Contains([]string{ID41E0, ID9C2E, C61B, D28C}, l.Session)
@@ -741,13 +743,15 @@ func theRouterSilent() SessionsMoment {
 	delete(heard.Requests, "f4")
 	stale := heard
 	stale.Live = false
+	unheard := live()
+	unheard.Live = false
 	relisted := []status.Session{
 		listing[0], listing[1],
 		session(C61B, listedOn(Opus, side, mobileDir, status.ReasonNew, At(14, 41, 11), At(14, 44, 50), "")),
 		session(D28C, listedOn(Opus, side, switchboardDir, capped(work), At(14, 31, 13), At(14, 44, 0), "")),
 	}
 	board := map[string]string{personal: "41e0@0 9c2e@1", side: "c61b@0 d28c@1"}
-	return SessionsMoment{Name: "the router not answering for ten minutes, then restarted, the stream forgotten", Looks: []SessionsLook{
+	return SessionsMoment{Name: "the router not answering for ten minutes, then restarted, the stream forgotten, then not answering past the hour", Looks: []SessionsLook{
 		{
 			Doc: threeAt(first), Now: first, Sessions: listing, Stream: heard, Lines: lines, Board: board,
 			Calls: map[string]string{
@@ -758,7 +762,7 @@ func theRouterSilent() SessionsMoment {
 			},
 		},
 		{
-			Doc: threeAt(first), Now: silent, Sessions: listing, Stream: stale, Lines: lines, Board: board,
+			Doc: threeAt(first), Now: silent, Sessions: listing, Unlisted: true, Stream: stale, Lines: lines, Board: board,
 			Calls: map[string]string{
 				"41e0 personal": "idle 10m · ~/Code/docs · rests",
 				"9c2e personal": "idle 19m · ~/Code/website · rests",
@@ -774,6 +778,17 @@ func theRouterSilent() SessionsMoment {
 				"c61b side":     "idle 7m · ~/Code/mobile · rests",
 				"d28c side":     "idle 8m ▸ from work · ~/Code/switchboard · rests",
 			},
+		},
+		{
+			Doc: threeAt(back), Now: past, Sessions: relisted, Unlisted: true, Stream: unheard, Lines: afterOutage, Board: map[string]string{},
+			Calls: map[string]string{},
+			List: []string{
+				"d28c ended 14:42 · started 12:02 · 4 requests",
+				"c61b ended 14:41 · started 14:41 · 2 requests",
+				"41e0 ended 14:41 · started 12:47 · 2 requests",
+				"9c2e ended 14:32 · started 11:55 · 2 requests",
+			},
+			Today: "4 sessions · 10 requests",
 		},
 	}}
 }
