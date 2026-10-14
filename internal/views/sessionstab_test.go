@@ -292,6 +292,38 @@ func TestASessionsPageRunsAsTheListAndTheSwitchboardHaveIt(t *testing.T) {
 	})
 }
 
+// A session running by its listing names every model the listing gives it,
+// cold ones too, on the List and its page, as the router lists a session:
+// whether the router answers, or the listing is the last it gave.
+func TestARunningSessionKeepsEveryModelItsListingGives(t *testing.T) {
+	modelsOf := func(models []views.SessionModel) []string {
+		var named []string
+		for _, m := range models {
+			named = append(named, m.Model)
+		}
+		return slices.Sorted(slices.Values(named))
+	}
+	eachLook(t, func(t *testing.T, w walked) {
+		for _, s := range w.held.List(liveOf(w.look)).Sessions {
+			routed := views.Routed(w.look.Sessions, s.Session)
+			if !s.Running || routed == nil {
+				continue
+			}
+			var want []string
+			for _, a := range routed.Assignments {
+				want = append(want, a.Model)
+			}
+			slices.Sort(want)
+			read := views.ReadSessions(sessionsLedger(w.look.Lines, w.look.Now), w.look.Sessions, w.look.Now, s.Session)
+			live := views.PageLive{Routed: routed, Unlisted: w.look.Unlisted, Stream: w.look.Stream, Now: w.look.Now}
+			page, _ := views.HoldPage(s.Session, read, ledger.Pricing, 0, w.look.Now).Page(live)
+			if got, goes := modelsOf(s.Models), modelsOf(page.Goes); !slices.Equal(got, want) || !slices.Equal(goes, want) {
+				t.Errorf("%s names the models %v on the List and %v on its page, want %v, every one its listing gives", status.ShownID(s.Session), got, goes, want)
+			}
+		}
+	})
+}
+
 // toldMoved reports whether the stream s told of the session with the
 // given id moving from one account to another.
 func toldMoved(s views.Stream, session, from, to string) bool {

@@ -40,8 +40,9 @@ type Running struct {
 // RunningOf are the sessions running on the accounts at the moment m, of
 // the sessions the router listed, as the request stream s has moved and seen
 // them since, as placed has them, those that run, as runningNow has them: a
-// row on each account their models go to, the accounts in the config's
-// order, and on each, the session seen last first.
+// row on each account their models go to that run there, as runningOn has
+// it, the accounts in the config's order, and on each, the session seen last
+// first.
 func RunningOf(m status.Moment, sessions []status.Session, s Stream) []Running {
 	h := s.hearing()
 	placed := runningNow(s.placed(sessions, h), m.Now)
@@ -92,31 +93,25 @@ func runs(a status.Assignment, now time.Time) bool {
 }
 
 // runningNow are the sessions given, as a listing of the router's places
-// them, that run at now, each with only its models that do, as runs says;
-// none of a session none of whose models does: the one rule of a session
-// running by a listing. The Switchboard's calls and Detail's SESSIONS read
-// every listing through it, as RunningOf does; the List and a session's page
-// read the router's own as it gives it, but the last listing the watch holds
-// while the router doesn't answer, which grows stale, through it too, as
-// newLister does.
+// them, that run at now, as the router keeps a session: any of whose models
+// runs, as runs says, each with all of them, cold ones too. It's the one rule
+// of a session running by a listing, which every view reads every listing
+// through, as RunningOf and newLister do: the router's own listing keeps no
+// other, so it changes nothing of a fresh one, but one the watch holds while
+// the router doesn't answer, or its sessions can't be listed, grows stale.
 func runningNow(sessions []status.Session, now time.Time) []status.Session {
-	var running []status.Session
-	for _, s := range sessions {
-		s.Assignments = slices.DeleteFunc(slices.Clone(s.Assignments), func(a status.Assignment) bool { return !runs(a, now) })
-		if len(s.Assignments) > 0 {
-			running = append(running, s)
-		}
-	}
-	return running
+	return slices.DeleteFunc(slices.Clone(sessions), func(s status.Session) bool {
+		return !slices.ContainsFunc(s.Assignments, func(a status.Assignment) bool { return runs(a, now) })
+	})
 }
 
-// runningOn is the session s, of models that run, as runningNow has them, as
-// it runs on the account with the given id at the moment m, as h hears its
-// models there, reporting false where none of them goes there: named there
-// by the model naming it, as names has it of what the stream told, where
-// that runs there, else by its model seen last there.
+// runningOn is the session s as it runs on the account with the given id at
+// the moment m, as h hears its models there, reporting false where none of
+// them runs there, as runs says: named there by the model naming it, as
+// names has it of what the stream told, where that runs there, else by its
+// model seen last there.
 func runningOn(m status.Moment, s status.Session, id string, h hearing) (Running, bool) {
-	there := slices.DeleteFunc(slices.Clone(s.Assignments), func(a status.Assignment) bool { return a.Account != id })
+	there := slices.DeleteFunc(slices.Clone(s.Assignments), func(a status.Assignment) bool { return a.Account != id || !runs(a, m.Now) })
 	if len(there) == 0 {
 		return Running{}, false
 	}
