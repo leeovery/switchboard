@@ -92,24 +92,29 @@ type beginning struct {
 }
 
 // readHistory has the watch read the ledger's days for History and
-// Accounts while either is shown, as they want them, one read at a time,
-// what's wanted meanwhile waiting for it to land, the two sharing every read
-// and the days it holds: the last 12 months, once a run, as either is first
-// shown; while History shows, a calendar year the Year steps back to that
-// the days held don't reach; and the days since those held were read to,
-// once a look since the last asks.
+// Accounts while either is shown, and for Runway while its lanes want them,
+// as runwayYearWanted says, as they want them, one read at a time, what's
+// wanted meanwhile waiting for it to land, all sharing every read and the
+// days it holds: the last 12 months, once a run, as any is first shown;
+// while History shows, a calendar year the Year steps back to that the days
+// held don't reach, and while Runway does, the one its lanes want; and the
+// days since those held were read to, once a look since the last asks.
 func (m Model) readHistory() (Model, tea.Cmd) {
 	history := m.view == dashboard.History
-	shown := history || m.view == dashboard.Accounts
+	runwayYear, runway := m.runwayYearWanted()
+	shown := history || m.view == dashboard.Accounts || runway
 	if !shown || m.past.reading || m.cfg.Ledger == nil {
 		return m, nil
 	}
 	now, year := m.now(), m.past.page.YearAsk.Year
+	_, runwayReached := m.past.reaching(runwayYear)
 	switch _, reached := m.past.reaching(year); {
 	case !m.past.last.held():
 		return m.readYear(0, now)
 	case history && m.past.page.Shown == dashboard.HistoryYear && !reached:
 		return m.readYear(year, now)
+	case runway && !runwayReached:
+		return m.readYear(runwayYear, now)
 	case m.past.due:
 		return m.readSince(now)
 	}
@@ -259,12 +264,13 @@ func (t historyTab) checked() dashboard.HistoryPage {
 
 // sinceRead takes in the days read since those held were read to, and where
 // the ledger began, where the read learned it, but those of a read another
-// overtook. While History or Accounts shows, its page is drawn before the
-// days and after, at the one moment, now, History's both knowing where the
-// ledger began, Accounts' built as accountsBuilt builds it, each number on
-// it the days change brightening, as changed has it, as a look's changes
-// do; else History's page is left behind the days, as since leaves it, for
-// historyBuilt to build once History shows.
+// overtook. While History, Accounts or Runway shows, its page is drawn
+// before the days and after, at the one moment, now, History's both knowing
+// where the ledger began, Accounts' built as accountsBuilt builds it,
+// Runway's as runwayBuilt does, each number on it the days change
+// brightening, as changed has it, as a look's changes do; else History's
+// page is left behind the days, as since leaves it, for historyBuilt to
+// build once History shows.
 func (m Model) sinceRead(msg sinceMsg) Model {
 	if msg.asked != m.past.asked {
 		return m
@@ -282,6 +288,10 @@ func (m Model) sinceRead(msg sinceMsg) Model {
 		was = m.accountsBuilt()
 		m.past = m.past.since(msg.days, msg.at, now)
 		m = m.accountsBuilt()
+	case dashboard.Runway:
+		was = m
+		m.past = m.past.since(msg.days, msg.at, now)
+		m = m.runwayBuilt()
 	default:
 		m.past = m.past.since(msg.days, msg.at, now)
 		return m
