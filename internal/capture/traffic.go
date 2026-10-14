@@ -26,24 +26,26 @@ var madeTraffic []byte
 // frames name it; the account it went to; its kind, a message where none's
 // given; its status, 200 where none's given; how long its answer took to
 // start and to end, in milliseconds; and its usage, 3 tokens in where none's
-// given, its writes to the cache lasting an hour; and how its answer stopped,
-// and the tool it called.
+// given, its writes to the cache lasting an hour; how its answer stopped, and
+// the tool it called; and the account's windows as its answer read them,
+// where the frames draw them.
 type madeLine struct {
-	Day     int    `json:"day"`
-	At      string `json:"at"`
-	Session string `json:"session"`
-	Model   string `json:"model"`
-	Account string `json:"on"`
-	Kind    string `json:"kind"`
-	Status  int    `json:"status"`
-	First   int64  `json:"first"`
-	Took    int64  `json:"took"`
-	In      int    `json:"in"`
-	Read    int    `json:"read"`
-	Wrote   int    `json:"wrote"`
-	Out     int    `json:"out"`
-	Stop    string `json:"stop"`
-	Tool    string `json:"tool"`
+	Day     int               `json:"day"`
+	At      string            `json:"at"`
+	Session string            `json:"session"`
+	Model   string            `json:"model"`
+	Account string            `json:"on"`
+	Kind    string            `json:"kind"`
+	Status  int               `json:"status"`
+	First   int64             `json:"first"`
+	Took    int64             `json:"took"`
+	In      int               `json:"in"`
+	Read    int               `json:"read"`
+	Wrote   int               `json:"wrote"`
+	Out     int               `json:"out"`
+	Stop    string            `json:"stop"`
+	Tool    string            `json:"tool"`
+	Limits  map[string]string `json:"limits"`
 }
 
 // trafficSession is a session of the traffic's: its whole id, and the
@@ -57,7 +59,7 @@ var trafficSessions = map[string]trafficSession{
 	"41e0": {id41E0, "~/Code/docs"}, "7f3a": {id7F3A, "~/Code/api"}, "db8a": {idDB8A, "~/Code/infra"}, "c61b": {idC61B, "~/Code/mobile"},
 	"5b19": {id5B19, "~/Code/mobile"}, "3d7a": {id3D7A, "~/Code/docs"}, "e0c4": {idE0C4, "~/Code/infra"},
 	"a8f1": {idA8F1, "~/Code/website"}, "2b6d": {id2B6D, "~/Code/api"}, "5e7d": {id5E7D, "~/Code/api"},
-	"4b0e": {id4B0E, "~/Code/infra"}, "8a2c": {id8A2C, "~/Code/docs"},
+	"4b0e": {id4B0E, "~/Code/infra"}, "8a2c": {id8A2C, "~/Code/docs"}, "d28c": {idD28C, "~/Code/switchboard"},
 }
 
 // reasonUnsessioned is the router's reason for a request of no session's.
@@ -70,16 +72,20 @@ const reasonUnsessioned = "unsessioned"
 // draw as they draw them; and Claude Code's quota checks, three of them
 // failed, and its counts of tokens.
 func traffic(now time.Time) []ledger.Line {
-	var lines []ledger.Line
-	route := newRouting()
-	for kept := range bytes.Lines(madeTraffic) {
+	return newRouting().made(madeTraffic, now, nil)
+}
+
+// made are lines with the made lines kept as data after them, each read at
+// now, given its id by its place among them, and routed in turn.
+func (r routing) made(data []byte, now time.Time, lines []ledger.Line) []ledger.Line {
+	for kept := range bytes.Lines(data) {
 		var made madeLine
 		if err := json.Unmarshal(kept, &made); err != nil {
 			panic(fmt.Sprintf("capture: the traffic's line %q: %v", kept, err))
 		}
 		l := made.line(now)
 		l.Request = requestID(l.Session, len(lines))
-		route.request(&l)
+		r.request(&l)
 		lines = append(lines, l)
 	}
 	return lines
@@ -100,7 +106,7 @@ func (m madeLine) line(now time.Time) ledger.Line {
 	if m.First > 0 {
 		l.FirstMS = &m.First
 	}
-	l.Answer.Stop = m.Stop
+	l.Answer.Stop, l.Limits = m.Stop, m.Limits
 	if m.Tool != "" {
 		l.Answer.Tools = []string{m.Tool}
 	}
@@ -172,6 +178,14 @@ func (r routing) request(l *ledger.Line) {
 	l.Prompt = fmt.Sprintf("%s-prompt-%d", l.Session[:8], r.prompts[l.Session]+1)
 	if l.Class == classMain && l.Answer.Stop == "end_turn" {
 		r.prompts[l.Session]++
+	}
+}
+
+// saw takes in l, routed already, as its session's model's line last routed:
+// a check's and a count's route nothing after them.
+func (r routing) saw(l ledger.Line) {
+	if l.Kind == ledger.KindMessage && l.Session != "" {
+		r.last[[2]string{l.Session, l.Model}] = l
 	}
 }
 

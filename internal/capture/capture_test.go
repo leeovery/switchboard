@@ -49,7 +49,7 @@ func TestTwoFixturesOfANamePanicNamingIt(t *testing.T) {
 	}{
 		{name: "two the watch draws", watched: []Fixture{{Name: "sessions-1"}, {Name: "sessions-3"}, {Name: "sessions-1", Size: wide(10)}}},
 		{name: "one the watch draws, and a printout", watched: []Fixture{{Name: "sessions-1"}}, over: []overWorld{printout{name: "usage-160"}, printout{name: "sessions-1"}}},
-		{name: "a printout, and a page", over: []overWorld{printout{name: "sessions-1"}, page{name: "page-log"}, page{name: "sessions-1"}}},
+		{name: "a printout, and a page", over: []overWorld{printout{name: "sessions-1"}, page{name: "log-requests-160"}, page{name: "sessions-1"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -393,7 +393,6 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		}},
 		{name: "page-routing-phone", want: []string{"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "The 4 sessions running elsewhere move there", "Rebuilding their caches costs ≈ $"}},
 		{name: "page-help-scrolled", want: []string{"─ HELP · SESSIONS ", "│  ●━━◉   a session's cord to its account"}, wantNoneOf: []string{"t themes"}},
-		{name: "page-log", want: []string{" Overview   Accounts   History   Sessions   Runway   Log   tab ⇥", "LOG  ─", "tab views   p pin    ? help  q quit"}},
 		{name: "page-not-answering", want: []string{"■ the router isn't answering  ·  since 14:42:07  ·  auto  ·  6 sessions"}},
 	}
 	for _, tt := range tests {

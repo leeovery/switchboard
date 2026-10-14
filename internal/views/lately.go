@@ -55,8 +55,7 @@ func Lately(m status.Moment, n int) []Sentence {
 	sentences := make([]Sentence, len(shown))
 	for i, e := range shown {
 		full, short := latelyTellers[e.Kind](t, e, facts[e.ID])
-		well := e.Kind == status.EventHealth && prose.Clean(e.Reason) == ""
-		sentences[i] = Sentence{ID: e.ID, At: e.At, Kind: e.Kind, Well: well, Full: full, Short: short}
+		sentences[i] = Sentence{ID: e.ID, At: e.At, Kind: e.Kind, Well: wellAgain(e), Full: full, Short: short}
 	}
 	return sentences
 }
@@ -258,10 +257,7 @@ func (latelyTeller) unpinned(e status.Event, _ eventFact) (Said, Said) {
 // restarting tells of a restart falling due, and why, in the Log's words:
 // "restart due: the config changed".
 func (latelyTeller) restarting(e status.Event, _ eventFact) (Said, Said) {
-	reason := prose.Clean(e.Reason)
-	if words, ok := restartWords[reason]; ok {
-		reason = words
-	}
+	reason := restartWhy(e.Reason)
 	s := Said{Subject: clause("restart"), Words: clause(" due")}
 	if reason != "" {
 		s.Words = clause(" due: " + reason)

@@ -53,11 +53,12 @@ func kindMark(kind string) span {
 	return span{}
 }
 
-// eventMark is a sentence's mark, as kindMark gives its kind's: but the
-// router's health well again, in state.positive.
-func eventMark(s views.Sentence) span {
-	mark := kindMark(s.Kind)
-	if s.Well {
+// eventMark is the mark of an event of the kind given, as LATELY and the
+// Log's Events draw it: its kind's, as kindMark gives it, but the router's
+// health well again, as well says, in state.positive.
+func eventMark(kind string, well bool) span {
+	mark := kindMark(kind)
+	if well {
 		mark.ink = positiveInk
 	}
 	return mark
@@ -144,7 +145,7 @@ func (f Frame) latelyLines(m status.Moment, sentences []views.Sentence) []line {
 		if f.phone() {
 			said = s.Short
 		}
-		lines[i] = append(line{at, eventMark(s), spaces(1)}, saidLine(m, names, said)...)
+		lines[i] = append(line{at, eventMark(s.Kind, s.Well), spaces(1)}, saidLine(m, names, said)...)
 	}
 	return lines
 }

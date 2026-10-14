@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 	"unique"
 
@@ -228,12 +229,17 @@ func (c *canvas) paste(from *canvas, first, y, rows int) {
 	}
 }
 
-// fade fades everything drawn on the canvas, as the page behind a card is:
-// each cell's colours, as finally drawn, its own fade and glow included,
-// mixed behindFade of the way to the canvas, and nothing bold. What's drawn
-// after it, as the card, isn't faded.
-func (c *canvas) fade() {
-	for _, row := range c.cells {
+// fade fades everything drawn on the canvas but the rows kept, as the page
+// behind a card is: each cell's colours, as finally drawn, its own fade and
+// glow included, mixed behindFade of the way to the canvas, and nothing bold.
+// A row kept, as the line the Log's details are of, stays as it's drawn,
+// its colours, its surface and its bold. What's drawn after it, as the card,
+// isn't faded.
+func (c *canvas) fade(kept ...int) {
+	for y, row := range c.cells {
+		if slices.Contains(kept, y) {
+			continue
+		}
 		for x := range row {
 			row[x].ink.behind, row[x].ink.bold = true, false
 		}

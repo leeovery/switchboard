@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
@@ -27,7 +28,8 @@ import (
 // where the world has them; what it has told of since it started, its events,
 // oldest first, as it numbers them; what its request stream tells as it's
 // opened, where anything's in flight; whether today's traffic of the three,
-// the sessions' world's, is the world's; and, where the worlds keep it, its
+// the sessions' world's, is the world's, and where its ledger holds lines of
+// its own in their place, those, by now; and, where the worlds keep it, its
 // records, built once, as they're first asked for.
 type accountWorld struct {
 	accounts config.Accounts
@@ -42,6 +44,7 @@ type accountWorld struct {
 	events   []status.Event
 	stream   []router.StreamEvent
 	traffic  bool
+	lines    func(now time.Time) []ledger.Line
 	records  func() *records
 }
 

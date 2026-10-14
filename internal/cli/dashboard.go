@@ -160,6 +160,8 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Sections:      dashboard.SectionsNamed(kept.Sections),
 		By:            keptBy(kept.By, cfg.Usage.By),
 		History:       dashboard.HistoryKept(kept.History, cfg.Accounts),
+		Log:           dashboard.LogKept(kept.Log),
+		LedgerKeep:    cfg.Ledger.Keep,
 		Prices:        pricing(cfg),
 	}
 	a.readers(&wc, cfg)

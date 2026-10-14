@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/theme"
@@ -25,14 +26,18 @@ type Opened interface {
 	card(f Frame) Card
 }
 
-// Card is a card drawn over the page, centred across it and down it, the
-// page faded behind it: a rounded line, its title in its top edge; a blank
-// row; its body, from cardInset cells in, the rows the cursor's on lit; a
-// blank row; and its keys, where it has any, right-aligned cardInset cells
-// in on its last row but one.
+// Card is a card drawn over the page, centred across it and down it, or
+// where it's of a line of the page, by that line, the page faded behind it:
+// a rounded line, its title in its top edge; a blank row; its body, from
+// cardInset cells in, the rows the cursor's on lit; a blank row; and its
+// keys, where it has any, right-aligned cardInset cells in on its last row
+// but one.
 type Card struct {
-	// title is in its top edge, after ╭─, as ROUTING · NEW SESSIONS.
-	title string
+	// title is in its top edge, after ╭─, as ROUTING · NEW SESSIONS, in
+	// text.subtle; or, where titled is set, as titled draws it, an account
+	// it names in text.primary, as the Log's details name one.
+	title  string
+	titled line
 	// width is the cells it takes across, its edges included, as cardWidth
 	// gives it.
 	width int
@@ -47,11 +52,36 @@ type Card struct {
 	// lit are the rows of its body the cursor's on: none where it has no
 	// cursor.
 	lit bodyRows
+	// of is the line of the page it's of, as the Log's details are of the
+	// line chosen: nil where it's of none.
+	of *ofLine
 }
 
-// bodyRows are rows of a card's body: n of them from its row first.
+// ofLine is the line of the page a card is of: its row, which stays as the
+// page draws it, bright, as the page fades behind the card; and, where the
+// card sits by it, under it or over it, the row its top edge is on.
+type ofLine struct {
+	row    int
+	top    int
+	placed bool
+}
+
+// kept are the rows of the page the card keeps bright as the page fades
+// behind it: the row of the line it's of, where it's of one.
+func (k Card) kept() []int {
+	if k.of == nil {
+		return nil
+	}
+	return []int{k.of.row}
+}
+
+// bodyRows are rows of a card's body: n of them from its row first; where
+// cells is set, cells of each from a cell before the one x cells into its
+// content, as the Log's f panel lights a tick a cell either side; else each
+// from a cell before its content to a cell after it.
 type bodyRows struct {
 	first, n int
+	x, cells int
 }
 
 // cardScroll is how far a card's body is scrolled: how many of its rows are
@@ -99,22 +129,30 @@ func (f Frame) CardScrolling() Scrolling {
 
 // box is the cells the card takes on a page width × height, its edges
 // included: from x along row y, w cells across and h down, centred across
-// the page and down it; or, taller than the page, from its top, so its
-// title shows and its foot is cut.
+// the page; down it, where it sits by the line it's of, from the row it's
+// placed at; else centred down it, or, taller than the page, from its top,
+// so its title shows and its foot is cut.
 func (k Card) box(width, height int) (x, y, w, h int) {
 	h = len(k.body) + chrome(len(k.keys) > 0)
-	return (width - k.width) / 2, max((height-h)/2, 0), k.width, h
+	y = max((height-h)/2, 0)
+	if k.of != nil && k.of.placed {
+		y = k.of.top
+	}
+	return (width - k.width) / 2, y, k.width, h
 }
 
 // draw draws the card over what's drawn on c, in its box, the cells inside
-// its line blank. Its lit rows are on bg.selection from a cell before its
-// content to a cell after it, a cell clear of its line either side, as the
-// Log's f panel lights a row a cell either side of what it says.
+// its line blank. Its lit rows are on bg.selection over the cells they
+// light, as bodyRows has them, a cell clear of its line either side.
 func (k Card) draw(c *canvas) {
 	keys := len(k.keys) > 0
 	x, y, _, height := k.box(c.width, c.height())
 	inside, content := max(k.width-2, 0), max(k.width-2*cardInset, 0)
-	title := line{{"─ " + k.title + " ", dimInk}}.fit(inside)
+	title := k.titled
+	if title == nil {
+		title = line{{k.title, dimInk}}
+	}
+	title = slices.Concat(line{{"─ ", dimInk}}, title, line{{" ", dimInk}}).fit(inside)
 	c.text(x, y, "╭", dimInk)
 	c.text(c.line(x+1, y, title), y, rule(inside-title.width())+"╮", dimInk)
 	for row := 1; row < height-1; row++ {
@@ -123,8 +161,12 @@ func (k Card) draw(c *canvas) {
 	for i, l := range k.body {
 		c.line(x+cardInset, y+2+i, l.fit(content))
 	}
+	from, cells := k.lit.x, k.lit.cells
+	if cells == 0 {
+		from, cells = 0, content+2
+	}
 	for i := range k.lit.n {
-		c.surface(x+cardInset-1, y+2+k.lit.first+i, content+2, hue{token: theme.BgSelection})
+		c.surface(x+cardInset-1+from, y+2+k.lit.first+i, cells, hue{token: theme.BgSelection})
 	}
 	if keys {
 		c.right(x+k.width-cardInset, y+height-2, keyRow(k.keys).fit(content))

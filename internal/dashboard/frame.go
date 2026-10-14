@@ -108,6 +108,8 @@ type Frame struct {
 	// History is History's sub-tab shown, what each of its views shows, and
 	// their pages.
 	History HistoryPage
+	// Log is the Log's sub-tab shown, its tables and how each stands.
+	Log LogPage
 
 	// held is the moment of a document as At holds it, and built the
 	// Overview's sections as Built built them, each for every look the frame,
@@ -176,13 +178,14 @@ func (f Frame) Rendered(doc status.Document, now time.Time) ([]string, Motion) {
 }
 
 // finish finishes the page drawn on c: its numbers brightened as Brightened
-// says; then, where a card is open, the page faded and the card drawn over
-// it.
+// says; then, where a card is open, the page faded, but for the line the
+// card is of, where it's of one, and the card drawn over it.
 func (f Frame) finish(c *canvas) *canvas {
 	c.brighten(f.Brightened, f.Look)
 	if f.Card != nil {
-		c.fade()
-		f.Card.card(f).draw(c)
+		card := f.Card.card(f)
+		c.fade(card.kept()...)
+		card.draw(c)
 	}
 	return c
 }
@@ -197,14 +200,14 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 	f.routerStatus(c, doc, now)
 	f.headingRow(c)
 	f.view(c, doc, now)
-	f.stateLine(c)
+	f.stateLine(c, now)
 	f.keyLine(c)
 	return c
 }
 
 // view draws the tab shown of doc at now from row top, where the page has
-// room for it, as cramped says: the Overview, History, Sessions and Runway;
-// and nothing of a tab not built yet.
+// room for it, as cramped says: the Overview, History, Sessions, Runway and
+// the Log; and nothing of a tab not built yet.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
@@ -219,12 +222,42 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 		f.sessions(c, doc, now, top)
 	case Runway:
 		f.runway(c, doc, now, top)
+	case Log:
+		f.log(c, doc, now, top)
 	}
 }
 
-// stateLine draws the view's state line, over the key line. The views
-// milestone 5 built draw their own line there.
-func (f Frame) stateLine(*canvas) {}
+// stateLine draws the view's state line, over the key line, as told at now:
+// the Log's, once its first read lands, where the page has room for the
+// view, as cramped says; and while its find is open, read or not, the
+// find's line in its place, cramped or not, where LogFinds says it has the
+// row, as what's typed into it is drawn nowhere else. The views milestone 5
+// built draw their own line there.
+func (f Frame) stateLine(c *canvas, now time.Time) {
+	if f.View != Log {
+		return
+	}
+	y := f.stateRow()
+	if found, ok := f.Log.findLine(f.Width); ok && f.LogFinds() {
+		c.line(0, y, found)
+		return
+	}
+	if f.Log.Read && !f.cramped() {
+		c.line(0, y, f.Log.state(f.LogRows()).line(f.Width, now))
+	}
+}
+
+// stateRow is the row the state line is on: the key line's but one.
+func (f Frame) stateRow() int {
+	return f.Height - underView
+}
+
+// LogFinds reports whether the frame has a row for the Log's find line, so
+// / opens it: the state line's, where it's under the status line, as it
+// isn't on a terminal 4 rows tall, or 5 on a phone.
+func (f Frame) LogFinds() bool {
+	return f.stateRow() > f.statusRow()
+}
 
 // The page's rows under its view: the state line, or the blank row that
 // keeps the view off the key line, and the key line. leastView is the fewest
@@ -299,7 +332,8 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 // scrolls is what of the view of doc at now scrolls, from column x along row
 // y, width cells wide and rows tall: on the Overview, USAGE's body, as
 // overviewScrolls has it; on History, what of its sub-tab shown does, as
-// historyScrolls has it, across the frame; elsewhere, the view's rows.
+// historyScrolls has it, across the frame; on the Log, its table's lines,
+// under its heads; elsewhere, the view's rows.
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
 	switch f.View {
 	case Overview:
@@ -307,13 +341,16 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 	case History:
 		y, rows = f.historyScrolls()
 		return 0, y, f.Width, rows
+	case Log:
+		return 0, f.top() + 1, f.Width, f.LogRows()
 	}
 	return 0, f.top(), f.Width, f.viewRows()
 }
 
 // cramped reports whether the terminal is too short for the page's fixed
 // rows and leastView of the view's: the page is then its title row, its
-// status line and its key line alone.
+// status line and its key line alone, but for the Log's find's line while
+// it's open, as stateLine has it.
 func (f Frame) cramped() bool {
 	return f.viewRows() < leastView
 }

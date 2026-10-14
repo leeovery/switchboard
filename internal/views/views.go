@@ -39,6 +39,15 @@ type Ledger interface {
 	// to, reporting afresh where they're every one of today's, for those
 	// read before to be let go of.
 	Today(mark ledger.Mark) (lines []ledger.Held, next ledger.Mark, afresh bool)
+	// Day gives the lines of the requests that arrived on the local day with
+	// the given date, by now, oldest first, read whole at each call: none of
+	// a day the ledger holds no lines of.
+	Day(date string) []ledger.Held
+	// FirstLinesDay gives the start of the first local day the ledger holds
+	// lines of, at now: the first Day reads back to, a summary of an earlier
+	// day, whose lines are pruned, aside. It fails with fs.ErrNotExist where
+	// it holds no day's lines.
+	FirstLinesDay(now time.Time) (time.Time, error)
 	// Session gives the lines of the session with the given id, newest
 	// first, read as far back as the caller goes on.
 	Session(id string) iter.Seq[ledger.Held]
@@ -70,4 +79,8 @@ type Events interface {
 	// Between gives the events that happened from from up to to, each as it
 	// last stands, oldest first.
 	Between(from, to time.Time) iter.Seq[events.Line]
+	// FirstDay gives the start of the first local day the router filed
+	// events on, which the Log's Events read back no further than. It fails
+	// with fs.ErrNotExist where it filed none.
+	FirstDay() (time.Time, error)
 }

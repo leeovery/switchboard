@@ -19,8 +19,8 @@ func withID(id string, l ledger.Line) ledger.Line {
 
 // rowWords runs a row's words together, each part's kind marked, so a test
 // sees both what they say and how each is drawn: what's named in brackets,
-// what stands between in braces, and what a request in flight is doing in
-// angle brackets.
+// what stands between in braces, what a request in flight is doing in angle
+// brackets, and what a move cost in parentheses.
 func rowWords(w views.RowWords) string {
 	var b strings.Builder
 	for _, p := range w {
@@ -31,6 +31,8 @@ func rowWords(w views.RowWords) string {
 			b.WriteString("{" + p.Text + "}")
 		case views.RowDoing:
 			b.WriteString("<" + p.Text + ">")
+		case views.RowCost:
+			b.WriteString("(" + p.Text + ")")
 		default:
 			b.WriteString(p.Text)
 		}
@@ -58,12 +60,14 @@ func routingWords(r views.RoutingSaid) string {
 func TestARequestsRowHoldsItsLinesFacts(t *testing.T) {
 	l := withID("r1", in("~/Code/api", stopped("tool_use", headersAfter(800*time.Millisecond, took(11800*time.Millisecond,
 		line(mover, opus, "work", "sticky", october(7, 13, 0), hourUsage))), "Bash", "Read", "Edit")))
-	l.Canceled = true
+	l.Canceled, l.Attempts, l.Agent = true, 2, "claude-cli/2.1.0 (external, cli)"
+	l.Shape = ledger.Shape{Bytes: 482_000, Messages: 12, Tools: 9, Thinking: ledger.Thinking{BudgetTokens: new(int64(16_000))}}
 	got := views.RowOfLine(l, []ledger.Line{l}, ledger.Pricing, now)
 	want := views.RequestRow{
 		Request: "r1", At: l.At, Session: mover, Dir: "~/Code/api", Model: opus, Account: "work", Status: 200, Canceled: true,
 		First: new(800 * time.Millisecond), Took: new(11800 * time.Millisecond),
-		Read: 100000, Written: 1000, Out: 500, Metered: true, Worth: priced(hourWorth), Stop: "tool_use", Tool: "Bash", More: 2,
+		Read: 100000, Written: 1000, Out: 500, Input: 10, Metered: true, Worth: priced(hourWorth), Stop: "tool_use", Tool: "Bash", More: 2,
+		Attempts: 2, Size: 482_000, Messages: 12, Tools: 9, Thinking: 16_000, Agent: "claude-cli/2.1.0",
 		NewSession: true, Routing: views.RoutingSaid{Words: status.RoutingWords(status.ReasonNew, status.Facts{})}, Mark: views.MarkNew,
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -175,9 +179,73 @@ func TestARowInFlightIsWhatTheStreamTold(t *testing.T) {
 	}
 }
 
+// A row drawn at a moment is as it stands then, whenever it was built:
+// in flight, its took counting on from when its request was sent, and
+// answering, its characters as the stream counts them then; ended or lost,
+// as it was built.
+func TestARowIsDrawnAsItStandsAtTheMoment(t *testing.T) {
+	sent := october(7, 13, 11)
+	base := views.Told{Request: "r9", Session: mover, Model: opus, Account: "side", Sent: sent, Heard: sent}
+	answering, ended, lost := base, base, base
+	answering.First, answering.Chars = sent.Add(700*time.Millisecond), 1000
+	ended.First, ended.Ended, ended.Status, ended.Chars = sent.Add(time.Second), sent.Add(14*time.Second), 200, 1000
+	lost.Lost = true
+	later := now.Add(90 * time.Second)
+	tests := []struct {
+		name  string
+		t     views.Told
+		took  *time.Duration
+		chars int
+	}{
+		{name: "asking", t: base, took: new(later.Sub(sent))},
+		{name: "answering", t: answering, took: new(later.Sub(sent)), chars: 5100},
+		{name: "ended", t: ended, took: new(14 * time.Second)},
+		{name: "lost", t: lost},
+	}
+	for _, tt := range tests {
+		streamed := tt.t
+		streamed.Chars, streamed.Heard = 5100, later
+		got := views.RowOfTold(tt.t, now).Live(views.Stream{Live: true, Requests: map[string]views.Told{"r9": streamed}}, later)
+		if (got.Took == nil) != (tt.took == nil) || got.Took != nil && *got.Took != *tt.took {
+			t.Errorf("%s: built at one moment, at a later one its took is %v, want %v", tt.name, got.Took, tt.took)
+		}
+		if got.Chars != tt.chars {
+			t.Errorf("%s: built at one moment, at a later one its characters are %d, want %d", tt.name, got.Chars, tt.chars)
+		}
+	}
+}
+
+// What the stream tells of a request builds the same row while it tells
+// only what streams as it's answered, its characters and when it last told;
+// its being sent again, its first byte, a verdict, its end, being lost and
+// the account it's on each build another.
+func TestWhatTheStreamTellsBuildsTheSameRowButForItsStage(t *testing.T) {
+	sent := october(7, 13, 11)
+	told := views.Told{Request: "r9", Session: mover, Model: opus, Account: "side", Sent: sent, First: sent.Add(time.Second), Chars: 1000, Heard: sent}
+	tests := []struct {
+		name   string
+		change func(t *views.Told)
+		same   bool
+	}{
+		{name: "its characters and when it was told", change: func(t *views.Told) { t.Chars, t.Heard = 5100, sent.Add(time.Minute) }, same: true},
+		{name: "sent again", change: func(t *views.Told) { t.First, t.Chars = time.Time{}, 0 }},
+		{name: "a verdict", change: func(t *views.Told) { t.Verdict, t.Status = views.VerdictThrottled, 429 }},
+		{name: "its end", change: func(t *views.Told) { t.Ended, t.Status = sent.Add(time.Minute), 200 }},
+		{name: "lost", change: func(t *views.Told) { t.Lost = true }},
+		{name: "another account", change: func(t *views.Told) { t.Account = "work" }},
+	}
+	for _, tt := range tests {
+		changed := told
+		tt.change(&changed)
+		if got := told.SameRow(changed); got != tt.same {
+			t.Errorf("%s: the same row %t, want %t", tt.name, got, tt.same)
+		}
+	}
+}
+
 func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 	sent := october(7, 13, 11)
-	first := withID("r0", line(mover, opus, "work", "new", october(7, 12, 0), hourUsage))
+	first := withID("r0", of(ledger.ClassMain, line(mover, opus, "work", "new", october(7, 12, 0), hourUsage)))
 	lined := func(l ledger.Line) views.RequestRow {
 		return views.RowOfLine(l, []ledger.Line{first, l}, ledger.Pricing, now)
 	}
@@ -185,39 +253,82 @@ func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 		return stopped(why, withID("r1", line(mover, opus, "work", "sticky", october(7, 13, 0), hourUsage)), tools...)
 	}
 	moved := movedFrom("work", withID("r1", line(mover, opus, "side", "moved: work is at its reserve", october(7, 13, 0), hourUsage)))
+	// A move of its conversation's, writing its context again on side, is
+	// costed; one two hours after its last request, its cache cold, isn't.
+	settled := of(ledger.ClassMain, stopped("end_turn", moved))
+	costed := views.RowOfLine(settled, []ledger.Line{first, settled}, ledger.Pricing, now)
+	cold := views.RowOfLine(settled, []ledger.Line{withID("r0", of(ledger.ClassMain, line(mover, opus, "work", "new", october(7, 11, 0), hourUsage))), settled},
+		ledger.Pricing, now)
+	refused := withID("r1", line(mover, opus, "work", "sticky", october(7, 13, 0), ""))
+	refused.Status, refused.Tried = 429, []ledger.Tried{{Account: "work", Why: status.WhyLimit}}
 	toldDoing := func(first time.Time, chars int, lost bool) views.RequestRow {
 		return views.RowOfTold(views.Told{Request: "r9", Session: mover, Model: opus, Account: "side", Sent: sent, First: first, Chars: chars, Lost: lost}, now)
 	}
 	check := stop("end_turn")
 	check.Kind = ledger.KindCheck
+	paid := "  (" + views.Worth{Amount: cost(hourWrite)}.Cents() + ")"
 	tests := []struct {
-		name        string
-		row         views.RequestRow
-		wide, phone string
+		name                string
+		row                 views.RequestRow
+		wide, phone, folded string
 	}{
-		{name: "its answer ended", row: lined(stop("end_turn")), wide: "end_turn", phone: "end_turn"},
-		{name: "to call a tool", row: lined(stop("tool_use", "Bash")), wide: "tool_use{ · }[Bash]", phone: "[Bash]"},
-		{name: "to call several tools", row: lined(stop("tool_use", "TodoWrite", "Bash")), wide: "tool_use{ · }[TodoWrite] +1", phone: "[TodoWrite] +1"},
-		{name: "its answer telling no why", row: lined(stop("")), wide: "", phone: ""},
-		{name: "its why and tool from elsewhere, cleaned", row: lined(stop("tool\x07use", "Ba\nsh")), wide: "tool use{ · }[Ba sh]", phone: "[Ba sh]"},
-		{name: "a session's first, on a phone", row: lined(stopped("tool_use", first, "Bash")), wide: "tool_use{ · }[Bash]", phone: "new session"},
-		{name: "a move, on a phone", row: lined(stopped("end_turn", moved)), wide: "end_turn", phone: "from [work]"},
-		{name: "asking", row: toldDoing(time.Time{}, 0, false), wide: "<asking>", phone: "<asking>"},
-		{name: "answering, no characters counted yet", row: toldDoing(sent.Add(time.Second), 0, false), wide: "<answering>", phone: "<answering>"},
-		{name: "answering, its first characters under 0.1k", row: toldDoing(sent.Add(time.Second), 49, false), wide: "<answering>", phone: "<answering>"},
-		{name: "answering, its characters come to 0.1k", row: toldDoing(sent.Add(time.Second), 50, false), wide: "<answering> · 0.1k characters", phone: "<answering>"},
-		{name: "answering", row: toldDoing(sent.Add(time.Second), 5100, false), wide: "<answering> · 5.1k characters", phone: "<answering>"},
-		{name: "answering at length", row: toldDoing(sent.Add(time.Second), 958_200, false), wide: "<answering> · 958.2k characters", phone: "<answering>"},
-		{name: "lost", row: toldDoing(sent.Add(time.Second), 2000, true), wide: lostAnswer, phone: lostAnswer},
-		{name: "a quota check", row: lined(check), wide: "", phone: ""},
+		{name: "its answer ended", row: lined(stop("end_turn")), wide: "end_turn", phone: "end_turn", folded: "end_turn"},
+		{name: "to call a tool", row: lined(stop("tool_use", "Bash")), wide: "tool_use{ · }[Bash]", phone: "[Bash]", folded: "tool_use{ · }[Bash]"},
+		{name: "to call several tools", row: lined(stop("tool_use", "TodoWrite", "Bash")), wide: "tool_use{ · }[TodoWrite] +1", phone: "[TodoWrite] +1",
+			folded: "tool_use{ · }[TodoWrite] +1"},
+		{name: "its answer telling no why", row: lined(stop(""))},
+		{name: "its why and tool from elsewhere, cleaned", row: lined(stop("tool\x07use", "Ba\nsh")), wide: "tool use{ · }[Ba sh]", phone: "[Ba sh]",
+			folded: "tool use{ · }[Ba sh]"},
+		{name: "a session's first: its routing folded in", row: lined(stopped("tool_use", first, "Bash")), wide: "tool_use{ · }[Bash]", phone: "new session",
+			folded: "new session"},
+		{name: "a move, its cache cold: its routing folded in", row: cold, wide: "end_turn", phone: "from [work]", folded: "from [work], at its cap"},
+		{name: "a move, costed: its cost folded in whole", row: costed, wide: "end_turn", phone: "from [work]", folded: "from [work], at its cap" + paid},
+		{name: "sent again after a limit, every account refusing: its routing folded in", row: lined(refused), phone: "after [work]'s limit",
+			folded: "after [work]'s limit"},
+		{name: "asking", row: toldDoing(time.Time{}, 0, false), wide: "<asking>", phone: "<asking>", folded: "<asking>"},
+		{name: "answering, no characters counted yet", row: toldDoing(sent.Add(time.Second), 0, false), wide: "<answering>", phone: "<answering>",
+			folded: "<answering>"},
+		{name: "answering, its first characters under 0.1k", row: toldDoing(sent.Add(time.Second), 49, false), wide: "<answering>", phone: "<answering>",
+			folded: "<answering>"},
+		{name: "answering, its characters come to 0.1k", row: toldDoing(sent.Add(time.Second), 50, false), wide: "<answering> · 0.1k characters",
+			phone: "<answering>", folded: "<answering> · 0.1k characters"},
+		{name: "answering", row: toldDoing(sent.Add(time.Second), 5100, false), wide: "<answering> · 5.1k characters", phone: "<answering>",
+			folded: "<answering> · 5.1k characters"},
+		{name: "answering at length", row: toldDoing(sent.Add(time.Second), 958_200, false), wide: "<answering> · 958.2k characters", phone: "<answering>",
+			folded: "<answering> · 958.2k characters"},
+		{name: "lost", row: toldDoing(sent.Add(time.Second), 2000, true), wide: lostAnswer, phone: lostAnswer, folded: lostAnswer},
+		{name: "a quota check", row: lined(check)},
 	}
 	for _, tt := range tests {
-		if got := rowWords(tt.row.Stopped()); got != tt.wide {
-			t.Errorf("%s: Stopped() = %q, want %q", tt.name, got, tt.wide)
-		}
-		if got := rowWords(tt.row.PhoneStopped()); got != tt.phone {
-			t.Errorf("%s: PhoneStopped() = %q, want %q", tt.name, got, tt.phone)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := rowWords(tt.row.Stopped()); got != tt.wide {
+				t.Errorf("Stopped() = %q, want %q", got, tt.wide)
+			}
+			if got := rowWords(tt.row.PhoneStopped()); got != tt.phone {
+				t.Errorf("PhoneStopped() = %q, want %q", got, tt.phone)
+			}
+			if got := rowWords(tt.row.Folded()); got != tt.folded {
+				t.Errorf("Folded() = %q, want %q", got, tt.folded)
+			}
+		})
+	}
+}
+
+func TestARowsAgentIsItsClientsNameAndVersion(t *testing.T) {
+	tests := []struct{ name, agent, want string }{
+		{name: "Claude Code's", agent: "claude-cli/2.1.0 (external, cli)", want: "claude-cli/2.1.0"},
+		{name: "one of a name and version alone", agent: "curl/8.7.1", want: "curl/8.7.1"},
+		{name: "one led by space", agent: "  claude-cli/2.1.0 (external, sdk-ts)", want: "claude-cli/2.1.0"},
+		{name: "none", agent: "", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := withID("r1", line(mover, opus, "work", "new", october(7, 13, 0), hourUsage))
+			l.Agent = tt.agent
+			if got := views.RowOfLine(l, []ledger.Line{l}, ledger.Pricing, now).Agent; got != tt.want {
+				t.Errorf("the row of a request from %q names its agent %q, want %q", tt.agent, got, tt.want)
+			}
+		})
 	}
 }
 

@@ -206,11 +206,12 @@ type hearing struct {
 }
 
 // hearing is what s told of each session's model on each account, and of
-// each session's requests.
+// each session's requests, of those it knows, as known has them: so nothing
+// is in flight while s isn't live.
 func (s Stream) hearing() hearing {
 	h := hearing{live: s.Live, seats: make(map[seatOf]heard), told: make(map[string][]Told)}
-	for _, t := range s.Requests {
-		if t.Check || t.Session == "" {
+	for t := range s.known() {
+		if t.countedSession() == "" {
 			continue
 		}
 		k := seatOf{session: t.Session, model: t.Model, account: t.Account}
@@ -242,7 +243,6 @@ func (h hearing) seat(session string, a status.Assignment) Activity {
 	if h.live && told {
 		return listed.with(got.doing())
 	}
-	got.flying = false
 	return listed.with(got.doing()).with(listedDoing(a))
 }
 
@@ -293,9 +293,7 @@ func (h hearing) session(s status.Session) Activity {
 		return cmp.Or(strings.Compare(x.model, y.model), strings.Compare(x.account, y.account))
 	})
 	for _, k := range unlisted {
-		got := h.seats[k]
-		got.flying = got.flying && h.live
-		activities = append(activities, got.doing())
+		activities = append(activities, h.seats[k].doing())
 	}
 	return busiest(activities)
 }

@@ -32,6 +32,9 @@ const (
 	PartDuration
 	// PartFigure is a figure among words, as a count of weeks.
 	PartFigure
+	// PartUse is how much of a window is used, as "95%", drawn in its
+	// level's colour.
+	PartUse
 )
 
 // String runs the words together, as a page drawn without colour shows them.
@@ -77,23 +80,36 @@ func EventWords(reason string, f Facts) Words {
 
 // RoutingWords are the reason as a request's routing reads: "new session" for
 // a session's first request; none for a request that stayed where its session
-// was, as From says; else "from work, " and why, as in "from work, at its
-// cap", the account the one From gives. Any reason not in the dashboard's
-// words reads as the router gives it, cleaned.
+// was, as From says; else "from " and its LeftWords, as in "from work, at its
+// cap". Any reason not in the dashboard's words reads as the router gives it,
+// cleaned.
 func RoutingWords(reason string, f Facts) Words {
-	switch {
-	case isNew(prose.Clean(reason)):
+	if isNew(prose.Clean(reason)) {
 		return Words{Plain("new session")}
-	case f.From == "":
-		return nil
 	}
-	return slices.Concat(FromWords(f.From), Words{Plain(", ")}, wordsOf(reason, f).routed)
+	if left := LeftWords(reason, f); left != nil {
+		return slices.Concat(Words{Plain("from ")}, left)
+	}
+	return nil
 }
 
 // FromWords are a request's move of its session, the account it left alone,
 // as a phone's Log says it: "from work", as RoutingWords starts.
 func FromWords(from string) Words {
 	return Words{Plain("from "), Named(from)}
+}
+
+// LeftWords are a request's move of its session as a request's card says it
+// beside from: the account it left, the one From gives, and why, as in
+// "work, at its cap", as RoutingWords says them after "from ". None for a
+// session's first request, which left none, or one that stayed where its
+// session was. Any reason not in the dashboard's words reads as the router
+// gives it, cleaned.
+func LeftWords(reason string, f Facts) Words {
+	if f.From == "" || isNew(prose.Clean(reason)) {
+		return nil
+	}
+	return slices.Concat(Words{Named(f.From), Plain(", ")}, wordsOf(reason, f).routed)
 }
 
 // SessionWords are the reason as a session's page reads, as in "since it
@@ -169,6 +185,11 @@ func Named(id string) Part {
 // Figure is a figure among words, as a count.
 func Figure(text string) Part {
 	return Part{Text: text, Kind: PartFigure}
+}
+
+// Use is how much of a window is used among words, as "95%".
+func Use(text string) Part {
+	return Part{Text: text, Kind: PartUse}
 }
 
 // readers each read a kind of reason, reporting false for any other, in the

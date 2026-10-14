@@ -2,6 +2,8 @@ package capture
 
 import (
 	"cmp"
+	"fmt"
+	"io/fs"
 	"iter"
 	"slices"
 	"strings"
@@ -32,11 +34,15 @@ type records struct {
 // recordsOf are the world's records: the year's days of its accounts,
 // summarised from its readings history, that history, and its accounts'
 // caps; and, where today's traffic of the three is the world's, every line
-// the sessions' world holds, and the router's events.
+// the sessions' world holds, or the world's own lines in their place, and
+// the router's events.
 func (a accountWorlds) recordsOf(w accountWorld) *records {
 	r := &records{days: a.year.summaries(w.history, w.accounts), readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows)}
 	if w.traffic {
 		r.lines, r.events = a.traffic()
+	}
+	if w.lines != nil {
+		r.lines = filedOf(heldAsWritten(w.lines(a.now)))
 	}
 	return r
 }
@@ -128,6 +134,19 @@ func (l heldLedger) FirstDay(now time.Time) (time.Time, error) {
 	return start, nil
 }
 
+// FirstLinesDay gives the start of the first day the records' lines that
+// arrived by now are filed under, as a Follower finds the first day its
+// files hold lines of, failing with fs.ErrNotExist where none has.
+func (l heldLedger) FirstLinesDay(now time.Time) (time.Time, error) {
+	lines := l.arrived(now)
+	if len(lines) == 0 {
+		return time.Time{}, fmt.Errorf("the records hold no day's lines: %w", fs.ErrNotExist)
+	}
+	first := slices.MinFunc(lines, func(a, b filed) int { return strings.Compare(a.date, b.date) })
+	start, _, _ := dayfile.Day(first.date)
+	return start, nil
+}
+
 // Today gives every line that arrived from today's start to now, oldest
 // first, as a Follower orders them, afresh, whatever mark says, as a Follower
 // gives them where today's files were replaced: a ledger.Mark is the ledger
@@ -146,6 +165,28 @@ func (l heldLedger) Today(ledger.Mark) (lines []ledger.Held, next ledger.Mark, a
 		lines = append(lines, f.Held)
 	}
 	return lines, ledger.Mark{}, true
+}
+
+// Day gives the lines that arrived on the local day with the given date, by
+// now, oldest first, as a Follower orders them: whichever day's files hold
+// them, as a Follower reads the day's files and its neighbours'.
+func (l heldLedger) Day(date string) []ledger.Held {
+	start, end, ok := dayfile.Day(date)
+	if !ok {
+		return nil
+	}
+	var day []filed
+	for _, f := range l.arrived(l.now()) {
+		if !f.At.Before(start) && f.At.Before(end) {
+			day = append(day, f)
+		}
+	}
+	slices.SortStableFunc(day, byArrival)
+	lines := make([]ledger.Held, len(day))
+	for i, f := range day {
+		lines[i] = f.Held
+	}
+	return lines
 }
 
 // Session gives the lines of the session with the given id that arrived by
@@ -215,11 +256,12 @@ func (l heldLedger) Sessions(ids []string, take func(date string, line ledger.Li
 }
 
 // naming are the dates of the days whose lines name a session wanted, as
-// their summaries would: among those their lines, but quota checks, were of.
+// their summaries would: one a line counts toward, as Line.CountedSession
+// says.
 func naming(lines []filed, wanted map[string]bool) map[string]bool {
 	named := make(map[string]bool)
 	for _, f := range lines {
-		if f.Kind != ledger.KindCheck && wanted[f.Session] {
+		if wanted[f.CountedSession()] {
 			named[f.date] = true
 		}
 	}
@@ -247,7 +289,7 @@ func (h heldReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
 }
 
 // heldEvents reads the records' router's events as an events.Reader reads
-// their files, by now's clock.
+// their files, by now's clock, each filed on the day it happened.
 type heldEvents struct {
 	records *records
 	now     func() time.Time
@@ -285,4 +327,20 @@ func (h heldEvents) Between(from, to time.Time) iter.Seq[events.Line] {
 			}
 		}
 	}
+}
+
+// FirstDay gives the start of the first local day an event happened on by
+// now: fs.ErrNotExist where none had.
+func (h heldEvents) FirstDay() (time.Time, error) {
+	now := h.now()
+	var first time.Time
+	for _, e := range h.records.events {
+		if !e.At.After(now) && (first.IsZero() || e.At.Before(first)) {
+			first = e.At
+		}
+	}
+	if first.IsZero() {
+		return time.Time{}, fs.ErrNotExist
+	}
+	return dayfile.DayStart(first.Local(), 0), nil
 }
