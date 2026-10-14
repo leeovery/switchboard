@@ -228,36 +228,31 @@ func (h HeldPage) TurnRequests(n int, live PageLive) []LogLine {
 }
 
 // Awaited are the dates of the days before the day live's now falls on that
-// a request of the session h holds the page of was sent on, the stream
-// having told its end, its line yet to come, as its row's stage says, each
-// once, the oldest first: its line is filed under the day its request
-// arrived on, which a later day's tail of the ledger never reads, as the
-// Log's Requests await theirs.
+// the line of a request of the session h holds the page of is filed on, as
+// Told.FiledOn has it, the stream having told its end, its line yet to
+// come, as its row's stage says, each once, the oldest first: a later day's
+// tail of the ledger never reads it, as the Log's Requests await theirs.
+// None is awaited of a request the stream told no sending of.
 func (h HeldPage) Awaited(live PageLive) []string {
 	today := Today(live.Now)
 	var dates []string
 	for _, s := range sentOf(h.requests, live.Stream.hearing().told[h.id]) {
-		day := Today(s.at)
-		if s.told != nil && toldRow(*s.told, live.Now).Stage == RowEnded && day.Start.Before(today.Start) && !slices.Contains(dates, day.Date) {
+		if s.told == nil || toldRow(*s.told, live.Now).Stage != RowEnded {
+			continue
+		}
+		if day, ok := s.told.FiledOn(); ok && day.Start.Before(today.Start) && !slices.Contains(dates, day.Date) {
 			dates = append(dates, day.Date)
 		}
 	}
 	return dates
 }
 
-// Late are the dates of the days before the day live's now falls on that a
-// read of the ledger's tail reads again whole for the page h holds, each
-// once, the oldest first: of the days missed, those the tail followed no
-// further, the day h is held at and those after it, as it read or took in
-// every line filed on a day before it; and the days Awaited has.
-func (h HeldPage) Late(missed []string, live PageLive) []string {
-	late := h.Awaited(live)
-	for _, date := range missed {
-		if date >= h.day.Date {
-			late = append(late, date)
-		}
-	}
-	return slices.Compact(slices.Sorted(slices.Values(late)))
+// Unread are the dates of those of the days missed, the days the ledger's
+// tail followed no further, oldest first, that a read of it reads again
+// whole for the page h holds: the day h is held at and those after it, as
+// it read or took in every line filed on a day before it.
+func (h HeldPage) Unread(missed []string) []string {
+	return slices.DeleteFunc(slices.Clone(missed), func(date string) bool { return date < h.day.Date })
 }
 
 // unplaced reports whether the router lists a request of the session s in

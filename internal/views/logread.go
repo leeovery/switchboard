@@ -62,46 +62,16 @@ func ReadLogHeld(l LedgerSessions, held []ledger.Held, prices ledger.Table, now 
 	return LogRead{prices: prices}.Grown(l, held, now)
 }
 
-// Grown is r with held taken in at now, a tail of today's lines as Ledger's
-// Today gives it, or every one of them again, as when it reads them afresh:
-// those of its lines r holds already are passed over, so a look costs what
-// the ledger gained, never what r holds. Each line taken in is priced, at
-// now's prices; the sessions of its requests r doesn't hold yet are read
-// through l, all at once, and only those; and the stories of the sessions
-// they're of are told again.
+// Grown is r with held taken in at now: a tail of today's lines as Ledger's
+// Today gives it, or every one of them again, as when it reads them afresh;
+// or a day's, as Ledger's Day reads them, as the tables reach back a day,
+// or a day is read again whole. Those of its lines r holds already are
+// passed over, so a read costs what the ledger gained, never what r holds.
+// Each line taken in is priced, at now's prices; the sessions of its
+// requests r doesn't hold yet are read through l, all at once, and only
+// those; and the stories of the sessions they're of are told again.
 func (r LogRead) Grown(l LedgerSessions, held []ledger.Held, now time.Time) LogRead {
-	return r.take(l, held, now)
-}
-
-// Back is r with day taken in at now, the lines of a day before those r
-// holds, as the ledger's Day reads them, as Grown takes lines in: the table
-// reaching back a day costs that day, and the sessions of its requests r
-// doesn't hold yet.
-func (r LogRead) Back(l LedgerSessions, day []ledger.Held, now time.Time) LogRead {
-	return r.take(l, day, now)
-}
-
-// WrittenTo is when the ledger last wrote of what r holds: the latest end of
-// its lines, every kind's, each its arrival and its total_ms after; zero
-// where it holds none. The Log not live is to it.
-func (r LogRead) WrittenTo() time.Time {
-	return r.written
-}
-
-// sessionStory is the story of the session with the given id, as r holds it
-// told from every line of it, priced as r prices: one of no requests where r
-// holds none of its lines. Every view r is read for tells a session from it,
-// building none of its own.
-func (r LogRead) sessionStory(id string) *story {
-	if s := r.sessions[id]; s != nil && s.story != nil {
-		return s.story
-	}
-	return newStory(r.prices, LedgerDay{})
-}
-
-// take is r with lines taken in at now, as Grown says.
-func (r LogRead) take(l LedgerSessions, lines []ledger.Held, now time.Time) LogRead {
-	fresh := r.unheld(lines)
+	fresh := r.unheld(held)
 	if len(fresh) == 0 {
 		return r
 	}
@@ -133,6 +103,24 @@ func (r LogRead) take(l LedgerSessions, lines []ledger.Held, now time.Time) LogR
 		grown.retell(id, today)
 	}
 	return grown
+}
+
+// WrittenTo is when the ledger last wrote of what r holds: the latest end of
+// its lines, every kind's, each its arrival and its total_ms after; zero
+// where it holds none. The Log not live is to it.
+func (r LogRead) WrittenTo() time.Time {
+	return r.written
+}
+
+// sessionStory is the story of the session with the given id, as r holds it
+// told from every line of it, priced as r prices: one of no requests where r
+// holds none of its lines. Every view r is read for tells a session from it,
+// building none of its own.
+func (r LogRead) sessionStory(id string) *story {
+	if s := r.sessions[id]; s != nil && s.story != nil {
+		return s.story
+	}
+	return newStory(r.prices, LedgerDay{})
 }
 
 // worthOf is what the request l was worth at the prices of the local day

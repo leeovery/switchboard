@@ -23,15 +23,21 @@ import (
 )
 
 // daysCounted is a request ledger followed as it grows, as followed notes
-// its reads of today's, which notes too the dates of the days read whole.
+// its reads of today's, which notes too the dates of the days read whole,
+// and of the first day each read of the days' summaries is from.
 type daysCounted struct {
 	followed
-	days []string
+	days, summed []string
 }
 
 func (l *daysCounted) Day(date string) []ledger.Held {
 	l.days = append(l.days, date)
 	return l.Ledger.Day(date)
+}
+
+func (l *daysCounted) Days(from time.Time) []ledger.Summary {
+	l.summed = append(l.summed, dayfile.DateOf(from))
+	return l.Ledger.Days(from)
 }
 
 // onTheLog has h show the Log, reading the request ledger in the state
@@ -192,6 +198,193 @@ func TestALineOfTheDayBeforeWrittenAfterTheTurnComesAsTheStreamTellsItEnded(t *t
 	}
 }
 
+// A request that arrived at 23:59:58 and first went upstream at 00:00:01
+// has its line filed under the day it arrived on, written after the turn:
+// the stream tells no arrival, so the Log awaits its line on the day before
+// the one it was sent on, reading that day again whole as the stream tells
+// it ended.
+func TestALineOfARequestSentJustAfterMidnightComesOnTheDayItArrived(t *testing.T) {
+	state := t.TempDir()
+	night := onTheDay(23, 59, 30)
+	writeLines(t, state, arrivedAt("0a000001", night.Add(-10*time.Minute)))
+	h := routedHarness(t, routerDocument(three()...))
+	l := onTheLog(h, state)
+	h.clock.now = night
+	h.start()
+
+	at := func(kind string, when time.Time) router.StreamEvent {
+		return alter(told(kind, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = when.UTC() })
+	}
+	h.hear(at(router.StreamSent, onTheDay(24, 0, 1)))
+	h.clock.now = onTheDay(24, 0, 5)
+	h.read(routerDocument(three()...))
+
+	line := took(arrivedAt("0a000002", onTheDay(23, 59, 58)), 20*time.Second)
+	writeLines(t, state, line)
+	ended := line.At.Add(20 * time.Second)
+	h.hear(alter(at(router.StreamDone, ended), func(e *router.StreamEvent) { e.Status = 200 }))
+	h.clock.now = onTheDay(24, 0, 25)
+	h.read(routerDocument(three()...))
+	yesterday := dayfile.DateOf(night)
+	if want := []string{yesterday, yesterday}; !slices.Equal(l.days, want) {
+		t.Errorf("the days %v were read whole, want %v: the day before at the turn, then again as the stream told its request ended", l.days, want)
+	}
+	if got := h.model.log.read.WrittenTo(); !got.Equal(ended) {
+		t.Errorf("the Log's read holds lines written to %s, want %s, the line of the request sent after midnight taken in", got, ended)
+	}
+}
+
+// A day awaiting a line is read whole again only as its line could have
+// come: at the look after a request whose line is filed on it ended, then
+// once a minute while none comes, as for one written late; never at every
+// look. Its figures alone are read again, the ledger's days read from it,
+// not from the first the tables span.
+func TestADayAwaitingALineIsReadAgainOnlyAsItsLineCouldHaveCome(t *testing.T) {
+	state := t.TempDir()
+	twoBefore := onTheDay(23, 50, 0).AddDate(0, 0, -1)
+	writeLines(t, state, arrivedAt("0a000001", twoBefore), arrivedAt("0a000002", onTheDay(23, 50, 0)))
+	h := routedHarness(t, routerDocument(three()...))
+	l := onTheLog(h, state)
+	h.clock.now = onTheDay(24, 0, 30)
+	h.start()
+	if h.model.log.from.Date != dayfile.DateOf(twoBefore) {
+		t.Fatalf("the Log spans from %s as it opens, want %s, the first day the ledger keeps", h.model.log.from.Date, dayfile.DateOf(twoBefore))
+	}
+
+	at := func(kind, request string, when time.Time) router.StreamEvent {
+		return alter(told(kind, request, "work", 0), func(e *router.StreamEvent) { e.At = when.UTC() })
+	}
+	ended := func(request string, when time.Time) router.StreamEvent {
+		return alter(at(router.StreamDone, request, when), func(e *router.StreamEvent) { e.Status = 200 })
+	}
+	sent := onTheDay(23, 59, 50)
+	h.hear(at(router.StreamSent, "0a000003", sent), at(router.StreamSent, "0a000004", sent))
+	opened, summed := len(l.days), len(l.summed)
+	yesterday := dayfile.DateOf(sent)
+	steps := []struct {
+		name     string
+		ends     string
+		from, to time.Time
+		readings int
+	}{
+		{name: "the looks after the first ended", ends: "0a000003", from: onTheDay(24, 0, 45), to: onTheDay(24, 1, 10), readings: 1},
+		{name: "the look after the second ended", ends: "0a000004", from: onTheDay(24, 1, 15), to: onTheDay(24, 1, 15), readings: 2},
+		{name: "the looks of the minute after", from: onTheDay(24, 1, 20), to: onTheDay(24, 2, 10), readings: 2},
+		{name: "a minute on", from: onTheDay(24, 2, 15), to: onTheDay(24, 2, 15), readings: 3},
+	}
+	for _, s := range steps {
+		if s.ends != "" {
+			h.hear(ended(s.ends, s.from.Add(-3*time.Second)))
+		}
+		for h.clock.now = s.from; !h.clock.now.After(s.to); h.clock.now = h.clock.now.Add(lookEvery) {
+			h.read(routerDocument(three()...))
+		}
+		if got := l.days[opened:]; !slices.Equal(got, slices.Repeat([]string{yesterday}, s.readings)) {
+			t.Errorf("after %s, the days %v were read whole, want the day before %d times", s.name, got, s.readings)
+		}
+	}
+	for _, from := range l.summed[summed:] {
+		if from != yesterday {
+			t.Errorf("the days' summaries were read from %v, want from the day before alone", l.summed[summed:])
+			break
+		}
+	}
+}
+
+// madeAt is where the slice s begins, which a slice made afresh begins
+// elsewhere than: nil where it's empty.
+func madeAt[T any](s []T) *T {
+	if len(s) == 0 {
+		return nil
+	}
+	return &s[0]
+}
+
+// The Log's tables are made again only as what they're made of changes: a
+// frame or the pointer moving makes neither afresh; the stream telling of a
+// request makes the Requests again, a look both, and the filter changing
+// the table it filters. Its panel, open, is made again as what it picks
+// changes, not as the pointer moves over it, nor its cursor.
+func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
+	doc := routerDocument(three()...)
+	doc.Events = []status.Event{{ID: 1, At: past(-time.Minute), Kind: status.EventPin, Accounts: []string{"personal"}}}
+	h := routedHarness(t, doc)
+	onTheLog(h, state)
+	h.start()
+
+	type made struct{ requests, events, panel any }
+	madeNow := func() made {
+		p := h.model.log.page
+		return made{madeAt(p.Requests.Lines), madeAt(p.Events.Lines), madeAt(h.model.log.panel.Sessions)}
+	}
+	unmoved := func() { h.deliver(frameMsg{gen: h.model.frames}, tea.MouseMotionMsg{X: 10, Y: 10}) }
+	steps := []struct {
+		name                    string
+		step                    func()
+		requests, events, panel bool
+	}{
+		{name: "a frame and the pointer moving", step: unmoved},
+		{name: "the stream telling of a request", step: func() { h.hear(told(router.StreamSent, "0a000003", "work", 0)) }, requests: true},
+		{name: "a look", step: func() { h.read(doc) }, requests: true, events: true},
+		{name: "the panel opening", step: func() { h.typed("f") }, panel: true},
+		{name: "the pointer moving over the panel, and its cursor", step: func() {
+			unmoved()
+			h.keys(tea.KeyPressMsg{Code: tea.KeyRight})
+		}},
+		{name: "a tick on the panel", step: func() { h.keys(spaceKey) }, panel: true},
+		{name: "what the panel picks applied", step: func() { h.keys(enter) }, requests: true},
+	}
+	for _, s := range steps {
+		before := madeNow()
+		s.step()
+		after := madeNow()
+		if got := [3]bool{after.requests != before.requests, after.events != before.events, after.panel != before.panel}; got != [3]bool{s.requests, s.events, s.panel} {
+			t.Errorf("after %s, the Requests, the Events and the panel were made again: %v, want %v", s.name, got, [3]bool{s.requests, s.events, s.panel})
+		}
+	}
+}
+
+// The figures of the days read are folded into those held by their dates,
+// the oldest first, each in place of the one held of its day, those held
+// left as they were.
+func TestTheFiguresReadAreFoldedIntoThoseHeldByTheirDays(t *testing.T) {
+	counted := func(totals []views.DayTotals) []string {
+		var dated []string
+		for _, d := range totals {
+			dated = append(dated, fmt.Sprintf("%s %d", d.Date, d.Requests))
+		}
+		return dated
+	}
+	day := func(date string, requests int) views.DayTotals {
+		return views.DayTotals{Date: date, Requests: requests}
+	}
+	held := []views.DayTotals{day("2026-09-26", 1), day("2026-09-28", 1)}
+	tests := []struct {
+		name string
+		read []views.DayTotals
+		want []string
+	}{
+		{name: "none read", want: []string{"2026-09-26 1", "2026-09-28 1"}},
+		{name: "a day held, read again", read: []views.DayTotals{day("2026-09-28", 2)}, want: []string{"2026-09-26 1", "2026-09-28 2"}},
+		{
+			name: "days before, between and after", read: []views.DayTotals{day("2026-09-25", 3), day("2026-09-27", 3), day("2026-09-29", 3)},
+			want: []string{"2026-09-25 3", "2026-09-26 1", "2026-09-27 3", "2026-09-28 1", "2026-09-29 3"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := counted(foldedTotals(held, tt.read)); !slices.Equal(got, tt.want) {
+				t.Errorf("folded, the figures are %v, want %v", got, tt.want)
+			}
+			if got := counted(held); !slices.Equal(got, []string{"2026-09-26 1", "2026-09-28 1"}) {
+				t.Errorf("the figures held became %v, want them left as they were", got)
+			}
+		})
+	}
+}
+
 func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state,
@@ -205,6 +398,70 @@ func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 
 	if want := []string{dayfile.DateOf(past(-day)), dayfile.DateOf(past(-2 * day))}; !slices.Equal(l.days, want) {
 		t.Errorf("short of its view, the Log read back the days %v, want %v, a day at a time, no further than the oldest its keep of 2 days keeps", l.days, want)
+	}
+}
+
+// summariesAsked is a request ledger followed as it grows, as daysCounted
+// counts its reads, each read of its days' summaries telling, of every day,
+// as many sessions on work as there have been reads of them: the figures of
+// a day tell which read priced them.
+type summariesAsked struct {
+	daysCounted
+	asked int
+}
+
+func (l *summariesAsked) Days(from time.Time) []ledger.Summary {
+	l.asked++
+	ids := make([]string, l.asked)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("s%d", i)
+	}
+	days := l.daysCounted.Days(from)
+	for i := range days {
+		days[i].Accounts = []ledger.AccountDay{{Account: "work", Sessions: l.asked, SessionIDs: ids}}
+	}
+	return days
+}
+
+// Reading back a day prices its figures alone, folded into those held: the
+// days read back before aren't priced again with each.
+func TestReadingBackADayPricesItsFiguresAlone(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state,
+		arrived("0a000001", "work", -3*day), arrived("0a000002", "work", -2*day), arrived("0a000003", "work", -day),
+		arrived("0a000004", "work", -time.Minute),
+	)
+	h := newHarness(t, probedWithoutTheRouter())
+	l := &summariesAsked{daysCounted: *onTheLog(h, state)}
+	h.model.cfg.Ledger = l
+	h.start()
+
+	var got []string
+	for _, d := range h.model.log.totals {
+		got = append(got, fmt.Sprintf("%s %d", d.Date, d.Sessions))
+	}
+	want := []string{dayfile.DateOf(past(-3*day)) + " 3", dayfile.DateOf(past(-2*day)) + " 2", dayfile.DateOf(past(-day)) + " 1"}
+	if !slices.Equal(got, want) {
+		t.Errorf("read back to the oldest day, the figures held are %v, want %v: each day's priced as it was read back, alone", got, want)
+	}
+}
+
+// Opened on a terminal too short for its table, the Log reads nothing back
+// to fill a view of no rows; given rows, it reads back to fill them.
+func TestTheLogOpenedTooShortReadsBackAsItsViewGrows(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -day), arrived("0a000002", "work", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	l := onTheLog(h, state)
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 10})...)
+	h.start()
+	if len(l.days) > 0 {
+		t.Fatalf("with no row for its table, the Log read back the days %v, want none", l.days)
+	}
+
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 50})...)
+	if want := []string{dayfile.DateOf(past(-day))}; !slices.Equal(l.days, want) {
+		t.Errorf("grown, the Log read back the days %v, want %v, to fill its view", l.days, want)
 	}
 }
 
@@ -295,6 +552,47 @@ func TestTheEventsReadWhatTheRouterFiledAsItStoppedOrRestarted(t *testing.T) {
 	}
 }
 
+// A burst of more events than the router gives in its document, between two
+// looks at it, skips those no document tells of: the Log reads them off the
+// router's files, from the look before, as it does as the router stops.
+func TestTheEventsReadABurstTheDocumentSkippedOffTheFiles(t *testing.T) {
+	run := past(-time.Hour)
+	pinned := func(id int, at time.Time) status.Event {
+		return status.Event{ID: id, At: at, Kind: status.EventPin, Accounts: []string{"work"}}
+	}
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -time.Minute))
+	first := pinned(1, past(-30*time.Minute))
+	writeEvents(t, state, events.Line{Event: first, Run: run})
+	doc := routerDocument(three()...)
+	doc.Events = []status.Event{first}
+	h := routedHarness(t, doc)
+	h.source.health = router.Health{OK: true, PID: 1, StartedAt: run}
+	onTheLog(h, state)
+	h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+	h.start()
+	h.typed("]")
+
+	var burst []status.Event
+	want := []int{1}
+	for id := 2; id <= 61; id++ {
+		e := pinned(id, past(time.Duration(id)*time.Second))
+		burst, want = append(burst, e), append(want, id)
+		writeEvents(t, state, events.Line{Event: e, Run: run})
+	}
+	h.clock.now = past(2 * time.Minute)
+	doc.Events = burst[len(burst)-50:]
+	h.startRouter(doc)
+	h.typed("R")
+	var shown []int
+	for _, e := range h.model.log.page.Events.Rows {
+		shown = append(shown, e.Key.ID)
+	}
+	if !slices.Equal(shown, want) {
+		t.Errorf("60 events told between two looks, the document giving the newest 50, the Events show %v, want %v", shown, want)
+	}
+}
+
 // writeEvents files the router's events given in the state directory given,
 // each under the day it happened on, as the router files them as they're told.
 func writeEvents(t *testing.T, state string, lines ...events.Line) {
@@ -370,5 +668,43 @@ func TestAnEventsMovedCountBrightensAsALookRaisesIt(t *testing.T) {
 	got := h.brightened()
 	if len(got) != 1 || !slices.ContainsFunc(slices.Collect(maps.Keys(got)), func(n dashboard.Number) bool { return n.Kind == dashboard.NumberMoved }) {
 		t.Errorf("the cap's sessions moved rising from 2 to 3, the numbers brightened are %v, want its count alone", got)
+	}
+}
+
+// On a terminal too short for the Log's table, its view has no row: each key
+// that moves the table, g from an event's details, and the find's landing on
+// a session ended, still pause it as their rules have it, crashing nothing.
+func TestTheLogsKeysWorkOnATerminalWithNoRowForItsTable(t *testing.T) {
+	tests := []struct {
+		name  string
+		press func(h *harness)
+		shown dashboard.LogView
+	}{
+		{name: "↑", press: func(h *harness) { h.keys(upKey) }},
+		{name: "k", press: func(h *harness) { h.typed("k") }},
+		{name: "↑ on Events", press: func(h *harness) { h.typed("]"); h.keys(upKey) }, shown: dashboard.LogEvents},
+		{name: "g from an event's details", press: func(h *harness) { h.typed("]"); h.keys(upKey, enter); h.typed("g") }},
+		{name: "the find landing", press: func(h *harness) { h.typed("/", "a", "p", "i"); h.keys(enter) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -day), arrived("0a000002", "work", -5*time.Minute))
+			doc := routerDocument(three()...)
+			doc.Events = []status.Event{{ID: 1, At: past(-6 * time.Minute), Kind: status.EventPin, Accounts: []string{"work"}}}
+			h := routedHarness(t, doc)
+			onTheLog(h, state)
+			h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 10})...)
+			h.start()
+			if rows := h.model.logRows(); rows != 0 {
+				t.Fatalf("the Log's view has %d rows, want none", rows)
+			}
+
+			tt.press(h)
+			p := h.model.log.page
+			if !p.Paused() || p.Shown != tt.shown {
+				t.Errorf("the table shown is %d, paused %t; want %d, paused", p.Shown, p.Paused(), tt.shown)
+			}
+		})
 	}
 }

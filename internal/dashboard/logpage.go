@@ -30,7 +30,8 @@ var logViews = []string{"Requests", "Events"}
 // days, which their day rules say; today; what the Requests show of their
 // columns and of the lines, and the Events of theirs; how each table
 // stands; whether the stream is live, and to when the ledger wrote what the
-// tables hold; and the find, while it's open.
+// tables hold; the find, while it's open; and the tables' lines as drawn,
+// where Lined holds them.
 type LogPage struct {
 	Shown LogView
 	// Read is set once the first read lands: till then, the view is blank.
@@ -54,6 +55,7 @@ type LogPage struct {
 	Live    bool
 	Written time.Time
 	Finding LogFinding
+	lined   *tableLines
 }
 
 // LogStand is how one of the Log's tables stands: following, its newest
@@ -119,12 +121,54 @@ func (l logLine) choosable() bool {
 }
 
 // lines are the lines of the table shown, the oldest first, as the frame
-// draws them.
+// draws them: those Lined holds, while they're of the table; else made
+// afresh.
 func (p LogPage) lines() []logLine {
 	if p.Shown == LogEvents {
+		if h := p.lined; h != nil && h.events.of(p.Events.Lines, p.eventsEmpty()) {
+			return h.events.lines
+		}
 		return p.eventLines()
 	}
+	if h := p.lined; h != nil && h.requests.of(p.Requests.Lines, p.requestsEmpty()) {
+		return h.requests.lines
+	}
 	return p.requestLines()
+}
+
+// Lined is p with the lines of both its tables, as the frame draws them,
+// made once and held, for each read of them to take while its table is the
+// one they were made of: the watch lines each page it builds, so a table is
+// made into lines once a build, not at each look at it.
+func (p LogPage) Lined() LogPage {
+	if h := p.lined; h != nil && h.requests.of(p.Requests.Lines, p.requestsEmpty()) && h.events.of(p.Events.Lines, p.eventsEmpty()) {
+		return p
+	}
+	p.lined = &tableLines{
+		requests: heldLines[views.LogLine]{made: p.Requests.Lines, empty: p.requestsEmpty(), lines: p.requestLines()},
+		events:   heldLines[views.EventsLine]{made: p.Events.Lines, empty: p.eventsEmpty(), lines: p.eventLines()},
+	}
+	return p
+}
+
+// tableLines are the lines of the Log's tables as Lined holds them.
+type tableLines struct {
+	requests heldLines[views.LogLine]
+	events   heldLines[views.EventsLine]
+}
+
+// heldLines are a table's lines as drawn, made of its lines as views gave
+// them, the table saying it had nothing today where empty is set.
+type heldLines[T any] struct {
+	made  []T
+	empty bool
+	lines []logLine
+}
+
+// of reports whether h were made of the lines given, the very ones, the
+// table saying it had nothing today where empty is set.
+func (h heldLines[T]) of(lines []T, empty bool) bool {
+	return h.empty == empty && len(h.made) == len(lines) && (len(lines) == 0 || &h.made[0] == &lines[0])
 }
 
 // stand is how the table shown stands.
@@ -154,14 +198,14 @@ func (p LogPage) find(lines []logLine, k LogKey) (int, bool) {
 
 // window is what of lines is in view in rows rows, as s stands: following,
 // the newest rows lines; paused, from its top, but no further down than its
-// foot, or the table's words under it, while it says it has nothing today. A
-// key no longer among them, as one a filter hides, falls back to where
-// following has its view, or its foot to the last line.
+// foot, or the table's words under it, while it says it has nothing today.
+// A foot no longer among them, as one a filter hides, falls back to the last
+// line; a top, to the view ending at the foot, but rising to the line chosen
+// where that's above it.
 func (p LogPage) window(lines []logLine, s LogStand, rows int) (first, last int) {
 	last = len(lines) - 1
-	first = max(len(lines)-rows, 0)
 	if !s.paused {
-		return first, last
+		return max(len(lines)-rows, 0), last
 	}
 	if foot, ok := p.find(lines, s.foot); ok {
 		last = foot
@@ -169,9 +213,14 @@ func (p LogPage) window(lines []logLine, s LogStand, rows int) (first, last int)
 			last++
 		}
 	}
-	if top, ok := p.find(lines, s.top); ok {
-		first = min(top, last)
+	top, ok := p.find(lines, s.top)
+	if !ok {
+		top = max(last-rows+1, 0)
+		if at, chosen := p.lit(lines, s); chosen {
+			top = min(top, at)
+		}
 	}
+	first = min(top, last)
 	return first, min(last, first+rows-1)
 }
 
@@ -182,6 +231,14 @@ func (p LogPage) lit(lines []logLine, s LogStand) (int, bool) {
 		return 0, false
 	}
 	return p.find(lines, s.chosen)
+}
+
+// placedRows is how many rows a view rows rows tall is placed by, as the keys
+// move it: a view the terminal leaves no row for stands as one a row tall
+// would, its top the line it would show first, so it shows what's chosen as
+// the terminal grows.
+func placedRows(rows int) int {
+	return max(rows, 1)
 }
 
 // Turned is the Log showing the sub-tab by places on from the one shown,
@@ -224,9 +281,9 @@ func (p LogPage) Chosen() (views.RequestRow, *views.LogEvent, bool) {
 // foot, the view scrolling to keep it in; paused with none chosen, either
 // chooses the newest row in view, or above it. A day rule, the oldest day's
 // line and a table's words are passed over, and a table holding no row never
-// pauses.
+// pauses. A view of no rows is placed as placedRows has it.
 func (p LogPage) Chose(by, rows int) LogPage {
-	lines, s := p.lines(), p.stand()
+	lines, s, rows := p.lines(), p.stand(), placedRows(rows)
 	if !s.paused && (by > 0 || !holdsRow(lines)) {
 		return p
 	}
@@ -264,14 +321,14 @@ func (p LogPage) choosing(lines []logLine, s LogStand, at, rows int) LogStand {
 // Landed is the Log showing Requests in a view rows rows tall, paused at
 // its newest line and the first request at or after at chosen, the view
 // scrolled to keep it in, as g lands from an event's details: as it stood
-// where no request is.
+// where no request is. A view of no rows is placed as placedRows has it.
 func (p LogPage) Landed(at time.Time, rows int) LogPage {
 	p.Shown = LogRequests
 	i, ok := p.Requests.At(at)
 	if !ok {
 		return p
 	}
-	lines := p.Followed().lines()
+	lines, rows := p.Followed().lines(), placedRows(rows)
 	return p.standing(p.choosing(lines, p.Followed().pausedAt(lines, rows), i, rows))
 }
 
@@ -279,9 +336,10 @@ func (p LogPage) Landed(at time.Time, rows int) LogPage {
 // down, or up where by is less than nothing, as j, k, PgUp, PgDn and the
 // wheel scroll it: following, scrolled up, it pauses there, nothing chosen,
 // where it holds a row; paused, its view goes no higher than the first line
-// held, nor lower than to end at the paused foot.
+// held, nor lower than to end at the paused foot. A view of no rows is
+// placed as placedRows has it.
 func (p LogPage) Scrolled(by, rows int) LogPage {
-	lines, s := p.lines(), p.stand()
+	lines, s, rows := p.lines(), p.stand(), placedRows(rows)
 	if len(lines) == 0 || !s.paused && (by >= 0 || !holdsRow(lines)) {
 		return p
 	}
@@ -349,13 +407,14 @@ func nextRow(lines []logLine, at, by, foot int) int {
 
 // Filling is the Log, the table shown filled once it fills a view rows rows
 // tall, or reaches as far back as it reads, from where it reads back only as
-// its top is reached.
+// its top is reached. A view of no rows fills nothing, so the table fills
+// the view it's given as the terminal grows.
 func (p LogPage) Filling(rows int) LogPage {
 	s := p.stand()
 	if s.filled || !p.Read {
 		return p
 	}
-	s.filled = len(p.lines()) >= rows || p.reached()
+	s.filled = rows > 0 && len(p.lines()) >= rows || p.reached()
 	return p.standing(s)
 }
 
@@ -470,15 +529,11 @@ func (p LogPage) dirOf(id string) string {
 // session column does: "d28c switchboard", the id alone where there's no
 // directory.
 func sessionNamed(id, dir string) string {
-	if name := status.DirName(dir, sessionDirCells); name != "" {
+	if name := status.DirName(dir, views.SessionDirCells); name != "" {
 		return status.ShownID(id) + " " + name
 	}
 	return status.ShownID(id)
 }
-
-// sessionDirCells are the most cells a session's directory takes in the
-// Log's session column, cut with an ellipsis past them.
-const sessionDirCells = 12
 
 // state is the Log's state line of the table shown: paused, at the line
 // chosen, or the newest in view, with the lines come since; not live, to

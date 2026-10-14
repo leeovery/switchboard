@@ -118,6 +118,25 @@ func (t Told) countedSession() string {
 	return t.Session
 }
 
+// arrivesWithin is how long before a request first went upstream it may
+// have arrived: the router reads it and chooses its account as it comes,
+// moments, which a body slow to come draws out.
+const arrivesWithin = time.Minute
+
+// FiledOn is the local day the request's line is filed on, as the ledger
+// files a line, by when its request arrived; false where the stream told of
+// no sending. The stream tells no arrival, only when it first went upstream,
+// moments after, so it's the earliest day it may have arrived on: of one
+// sent within arrivesWithin after midnight, the day before, which today's
+// lines as the ledger's tail reads them never hold. Its line filed on the
+// day it was sent after all comes with today's.
+func (t Told) FiledOn() (LedgerDay, bool) {
+	if t.Sent.IsZero() {
+		return LedgerDay{}, false
+	}
+	return Today(t.Sent.Add(-arrivesWithin)), true
+}
+
 // filedAs reports whether l is the request's line: the same request, as
 // sameRequest has it, by when it first went upstream.
 func (t Told) filedAs(l *ledger.Line) bool {

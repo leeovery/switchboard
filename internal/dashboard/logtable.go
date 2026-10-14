@@ -40,10 +40,16 @@ func (p LogPage) requestLines() []logLine {
 			lines[i].row, lines[i].at = &l.Row, l.Row.At
 		}
 	}
-	if p.today().Shown == 0 {
+	if p.requestsEmpty() {
 		lines = append(lines, logLine{key: LogKey{other: emptyKey}, empty: noRequestsToday})
 	}
 	return lines
+}
+
+// requestsEmpty reports whether the Requests show none of today's lines,
+// so they say so at their foot.
+func (p LogPage) requestsEmpty() bool {
+	return p.today().Shown == 0
 }
 
 // log draws the Log's table shown from row top, once its first read lands:
@@ -220,14 +226,14 @@ func countCell(r views.RequestRow, column LogColumn) line {
 }
 
 // sessionCell names a request's session: its id in text.secondary, a space
-// and its directory's last part, cut to sessionDirCells, in text.muted; on
-// a phone, its id alone; and — of no session.
+// and its directory's last part, cut to views.SessionDirCells, in
+// text.muted; on a phone, its id alone; and — of no session.
 func sessionCell(id, dir string, phone bool) line {
 	if prose.Clean(id) == "" {
 		return line{{"—", faintInk}}
 	}
 	l := line{{status.ShownID(id), secondaryInk}}
-	if name := status.DirName(dir, sessionDirCells); name != "" && !phone {
+	if name := status.DirName(dir, views.SessionDirCells); name != "" && !phone {
 		l = append(l, span{" " + name, mutedInk})
 	}
 	return l

@@ -80,11 +80,12 @@ func TestAHeldPagePricesAfreshAsTheDayTurns(t *testing.T) {
 	}
 }
 
-// A held page awaits a line on the day its request was sent, where the
-// stream told that request ended before today, its line yet to come: a line
-// is filed under the day its request arrived on, which today's tail never
-// reads. It awaits none once the line is taken, nor for a request in
-// flight, one lost, or one sent today.
+// A held page awaits a line on the day it's filed on, where the stream told
+// its request ended, its line yet to come, before today: a line is filed
+// under the day its request arrived on, as Told.FiledOn has it, which
+// today's tail never reads, the day before for one sent as today began. It
+// awaits none once the line is taken, nor for a request in flight, one
+// lost, one sent and arrived today, or one the stream told no sending of.
 func TestAHeldPageAwaitsTheLineOfARequestThatEndedAcrossMidnight(t *testing.T) {
 	night := local(23, 59, 50)
 	morning := night.Add(10 * time.Minute)
@@ -101,6 +102,9 @@ func TestAHeldPageAwaitsTheLineOfARequestThatEndedAcrossMidnight(t *testing.T) {
 		{name: "in flight", told: sent},
 		{name: "lost", told: lostAt(night.Add(time.Minute), sent)},
 		{name: "sent today", told: endedAt(morning.Add(time.Second), toldOf("r3", p1, ledger.ClassMain, opus, "side", morning))},
+		{name: "sent as today began, arrived the day before", told: endedAt(night.Add(40*time.Second), toldOf("r4", p1, ledger.ClassMain, opus, "side", night.Add(20*time.Second))),
+			awaits: []string{"2026-10-07"}},
+		{name: "ended, never told sent", told: endedAt(morning.Add(-time.Second), toldOf("r9", p1, ledger.ClassMain, opus, "side", time.Time{}))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -118,29 +122,25 @@ func TestAHeldPageAwaitsTheLineOfARequestThatEndedAcrossMidnight(t *testing.T) {
 
 // Of the days the ledger's tail followed no further, a held page reads
 // again whole only the day it's held at and those after it, as it holds
-// every line filed before it already, but for those it awaits.
+// every line filed before it already.
 func TestAHeldPageReadsAgainTheDaysMissedFromTheDayItsHeldAt(t *testing.T) {
 	night := local(23, 59, 50)
 	first := []ledger.Line{filedAs("r1", mainOn(p1, local(23, 0, 0), "tool_use"))}
 	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(first), nil, night, paged), ledger.Pricing, kept90, night)
-	rolled := held.Take("2026-10-08", nil)
-	ended := endedAt(night.Add(22*time.Second), toldOf("r2", p1, ledger.ClassMain, opus, "side", night.Add(100*time.Millisecond)))
 	missed := []string{"2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"}
 	tests := []struct {
-		name string
-		held views.HeldPage
-		told []views.Told
-		late []string
+		name   string
+		held   views.HeldPage
+		unread []string
 	}{
-		{name: "held the day before last", held: held, late: []string{"2026-10-07", "2026-10-08"}},
-		{name: "rolled on to the day before", held: rolled, late: []string{"2026-10-08"}},
-		{name: "rolled on to the day before, awaiting a line the day before that", held: rolled, told: []views.Told{ended}, late: []string{"2026-10-07", "2026-10-08"}},
+		{name: "held the day before last", held: held, unread: []string{"2026-10-07", "2026-10-08"}},
+		{name: "rolled on to the day before", held: held.Take("2026-10-08", nil), unread: []string{"2026-10-08"}},
+		{name: "rolled on past them", held: held.Take("2026-10-09", nil)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			live := views.PageLive{Stream: heard(tt.told...), Now: night.AddDate(0, 0, 2)}
-			if got := tt.held.Late(missed, live); !slices.Equal(got, tt.late) {
-				t.Errorf("the page reads again whole the days %v of %v, want %v", got, missed, tt.late)
+			if got := tt.held.Unread(missed); !slices.Equal(got, tt.unread) {
+				t.Errorf("the page reads again whole the days %v of %v, want %v", got, missed, tt.unread)
 			}
 		})
 	}

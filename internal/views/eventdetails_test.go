@@ -220,6 +220,24 @@ func TestAnEventsSessionsCountNoQuotaCheck(t *testing.T) {
 	}
 }
 
+// A cap's card says its use as its row has it, of the one rule of a cap's
+// use: its figure, and the use its level is drawn by.
+func TestACapsCardSaysItsUseAsItsRowHasIt(t *testing.T) {
+	for _, reserve := range []float64{0.05, 0.2, 0.375} {
+		at, run := october(7, 13, 0), october(7, 8, 0)
+		cap := status.Event{ID: 1, At: at, Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Reserve: reserve}
+		read := views.ReadEvents(nil, at, at).Look(liveAt([]status.Event{cap}, at), run)
+		d, _ := views.LogEvents(views.LogEventSources{From: at, Events: read, Now: at}).Details(views.EventKey{Run: run, ID: 1}, views.LogRead{})
+		i := slices.IndexFunc(d.Happened, func(it views.DetailItem) bool { return it.Name == "its cap" })
+		if i < 0 || len(d.Happened[i].Value) == 0 {
+			t.Fatalf("a cap at a reserve of %v has no use on its card", reserve)
+		}
+		if p := d.Happened[i].Value[0]; p.Kind != views.DetailUse || p.Use != d.Row.Use || p.Text != prose.Percent(d.Row.Use) {
+			t.Errorf("a cap at a reserve of %v says its use on its card as %q, %v; want %s, %v, as its row has it", reserve, p.Text, p.Use, prose.Percent(d.Row.Use), d.Row.Use)
+		}
+	}
+}
+
 // The accounts an event's items name are marked as accounts, by their ids,
 // so a card names them as the document does: those its headline names, a
 // move's from and to, and a pin's.

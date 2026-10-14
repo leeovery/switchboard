@@ -293,7 +293,7 @@ func TestASessionTickedThatTodayCountsNoneOfJoinsThePanel(t *testing.T) {
 	todays := []ledger.Line{in("~/Code/web", line(early, opus, "work", "new", local(13, 0, 0), smallUsage))}
 	l := ledgerHolding(now, slices.Concat(theirs, todays)...)
 	unread := views.ReadLogHeld(l, heldOf(todays...), ledger.Pricing, now)
-	read := unread.Back(l, heldOf(theirs...), now)
+	read := unread.Grown(l, heldOf(theirs...), now)
 	found := []views.FoundSession{{ID: older, Dir: "~/Code/api", Day: views.Today(last), Ended: true, Last: last}}
 	tests := []struct {
 		name   string

@@ -223,6 +223,64 @@ func TestLandingChoosesTheFirstRequestAtOrAfterAMoment(t *testing.T) {
 	}
 }
 
+// A table whose filter changes what it shows stands as it first opened,
+// unfilled, so, short of its view, it reads back to fill it: as the find's
+// enter, the panel's, and esc letting the filter go each change it, whether
+// the table filled its view before.
+func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
+	const session = "d28c5e17-0000-4000-8000-000000000001"
+	requests, events := threeAsked().Filling(3), threeAsked().Turned(1)
+	pinned := views.ReadEvents(filedEvents([]status.Event{{ID: 1, At: logDay, Kind: status.EventPin, Accounts: []string{"personal"}}}), logDay, logDayNoon)
+	events.Events = views.LogEvents(views.LogEventSources{From: logDay, Events: pinned, Filed: views.OldestKept(theDayBefore, 0, logDayNoon), Now: logDayNoon})
+	events = events.Filling(1)
+	tests := []struct {
+		name string
+		page LogPage
+	}{
+		{name: "the find's enter", page: requests.FoundOnly(session)},
+		{name: "the panel's enter", page: requests.Applied(requests.Panel())},
+		{name: "the Events' panel's enter", page: events.Applied(events.Panel())},
+		{name: "esc letting the filter go", page: requests.FoundOnly(session).Filling(3).Unfiltered()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !tt.page.WantsDayBefore(10) {
+				t.Error("refiltered, the table doesn't want the day before, short of its view")
+			}
+		})
+	}
+}
+
+// The session of the line chosen, whose page s opens, is the one a request
+// counts toward, as views count it: none for a quota check, sent under an
+// id never used again; a session's event's; and none of an account's event,
+// nor with nothing chosen.
+func TestTheLineChosensSessionIsTheOneItCountsToward(t *testing.T) {
+	const session = "d28c5e17-0000-4000-8000-000000000001"
+	check := asked("2", logDay.Add(time.Minute))
+	check.Kind, check.Session = ledger.KindCheck, "c4ec0000-0000-4000-8000-000000000009"
+	requests := requestsOf(views.LogSources{From: logDay, Now: logDayNoon}, []ledger.Line{asked("1", logDay), check})
+	started := status.Event{ID: 1, At: logDay, Kind: status.EventStarted, Account: "work", Session: session}
+	tests := []struct {
+		name string
+		page LogPage
+		want string
+	}{
+		{name: "nothing chosen", page: requests},
+		{name: "a request", page: times(chose(-1, 4), 2)(requests), want: session},
+		{name: "a quota check", page: requests.Chose(-1, 4)},
+		{name: "a session's event", page: eventsShown(started, workAtItsCap).Chose(-1, 4).Chose(-1, 4), want: session},
+		{name: "an account's event", page: eventsShown(started, workAtItsCap).Chose(-1, 4)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.page.ChosenSession(); got != tt.want {
+				t.Errorf("the line chosen is of the session %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // A table holding no row has nothing to pause at: ↑ and scrolling up leave
 // it following. One holding rows, but none in view, chooses the newest above
 // it, scrolled into view.
@@ -255,7 +313,8 @@ func TestATableHoldingNoRowDoesntPause(t *testing.T) {
 
 // On opening, a table reads back a day at a time till it fills its view,
 // then only as its view's top, paused, reaches the first line held; never
-// past the oldest day the ledger keeps.
+// past the oldest day the ledger keeps. A view of no rows fills nothing: the
+// table reads back to fill it once the terminal gives it rows.
 func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 	src := views.LogSources{From: logDay, Now: logDayNoon}
 	oldest := src
@@ -269,6 +328,8 @@ func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 		{name: "short of its view", page: threeAsked(), rows: 4, want: true},
 		{name: "its view filled", page: threeAsked().Filling(3), rows: 3},
 		{name: "filled, short again as the view grows", page: threeAsked().Filling(3), rows: 10},
+		{name: "with no rows, nothing to read", page: threeAsked().Filling(0), rows: 0},
+		{name: "opened with no rows, then given them", page: threeAsked().Filling(0), rows: 10, want: true},
 		{name: "filled, paused at its first line", page: threeAsked().Filling(3).Scrolled(-1, 2), rows: 2, want: true},
 		{name: "at the oldest day kept", page: requestsOf(oldest, nil), rows: 4},
 	}

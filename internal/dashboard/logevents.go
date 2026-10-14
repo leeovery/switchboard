@@ -72,10 +72,16 @@ func (p LogPage) eventLines() []logLine {
 			lines[i] = logLine{key: LogKey{other: oldestKey}, oldest: l.Oldest}
 		}
 	}
-	if p.Events.Today.Shown == 0 {
+	if p.eventsEmpty() {
 		lines = append(lines, logLine{key: LogKey{other: emptyKey}, empty: noEventsToday})
 	}
 	return lines
+}
+
+// eventsEmpty reports whether the Events show none of today's events, so
+// they say so at their foot.
+func (p LogPage) eventsEmpty() bool {
+	return p.Events.Today.Shown == 0
 }
 
 // eventsHeads draws the Events' heads along row y, in text.subtle, each at

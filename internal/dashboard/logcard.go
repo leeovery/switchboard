@@ -779,9 +779,10 @@ func (p LogPage) lifted(from, to, rows int) LogPage {
 
 // Unlifted is p as the card that lifted it closes: the table shown, paused,
 // its view in rows rows lifted past where scrolling reaches, ending at its
-// paused foot again, the line chosen still in it; as it stands otherwise.
+// paused foot again, the line chosen still in it; as it stands otherwise. A
+// view of no rows is placed as placedRows has it.
 func (p LogPage) Unlifted(rows int) LogPage {
-	lines, s := p.lines(), p.stand()
+	lines, s, rows := p.lines(), p.stand(), placedRows(rows)
 	if !s.paused || len(lines) == 0 {
 		return p
 	}
