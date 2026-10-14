@@ -50,11 +50,12 @@ func (f Frame) travel(doc status.Document, now time.Time) Motion {
 // MaySettle reports whether anything the frame's page draws may be
 // settling: a number brightening, as its Brightened says; a bar easing, as
 // its Eased says; or a cue fading back, on an event fresh, as its Fresh
-// says, an account's state changed, as its Changed says, or a window's words
-// turned to out ~, as its TurnedOut says. Where nothing may, what moves on
-// screen needs none of the page drawn.
+// says, an account's state changed, as its Changed says, or in a word, as
+// its StateChanged says, or a window's words turned to out ~, as its
+// TurnedOut says. Where nothing may, what moves on screen needs none of the
+// page drawn.
 func (f Frame) MaySettle() bool {
-	return len(f.Brightened)+len(f.Eased)+len(f.Fresh)+len(f.Changed)+len(f.TurnedOut) > 0
+	return len(f.Brightened)+len(f.Eased)+len(f.Fresh)+len(f.Changed)+len(f.StateChanged)+len(f.TurnedOut) > 0
 }
 
 // Filled are how much of each bar the frame's view draws of doc at now it

@@ -6,6 +6,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -371,6 +372,31 @@ func TestExtraUsageIsItsFramesCells(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.stem, func(t *testing.T) {
 			heldToFigures(t, tt.stem, tt.width, tt.height, tt.figures)
+		})
+	}
+}
+
+// A figure of the period is said as its words say it while the period
+// records anything, and a dash in text.faint, bold where all accounts' is,
+// where it records nothing, as on a fresh install, whatever its words.
+func TestAPeriodsFigureIsADashWhereThePeriodRecordsNothing(t *testing.T) {
+	said := []part{figureIn("0", strongInk)}
+	tests := []struct {
+		name     string
+		recorded bool
+		k        ink
+		want     line
+	}{
+		{name: "recorded", recorded: true, k: strongInk, want: line{{"0", strongInk}}},
+		{name: "nothing recorded", k: secondaryInk, want: line{noFigure}},
+		{name: "nothing recorded, all accounts'", k: strongInk, want: line{{"—", ink{token: theme.TextFaint, bold: true}}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			page := views.AccountsPage{Recorded: tt.recorded}
+			if got := fitParts(20, periodParts(page, said, tt.k)...).inked(); !slices.Equal(got, tt.want) {
+				t.Errorf("said %+v, want %+v", got, tt.want)
+			}
 		})
 	}
 }
