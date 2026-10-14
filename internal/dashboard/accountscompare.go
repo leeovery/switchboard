@@ -116,13 +116,6 @@ func (f Frame) CompareFirst(id string) int {
 	return Scrolling{Most: max(n-shown, 0), Page: shown}.revealing(f.Accounts.First, i)
 }
 
-// CompareFocuses reports whether Compare, as the frame draws it, has a focus
-// for ←→ to move and enter to open: never on a phone, whose Compare shows
-// every account a row.
-func (f Frame) CompareFocuses() bool {
-	return !f.phone()
-}
-
 // compareState is what Compare's heading says after [ ] where it shows fewer
 // accounts than there are: which it shows, as "accounts 1–6 of 10", that ←→
 // moves along them, and that all accounts stays put; and, a clause shorter,

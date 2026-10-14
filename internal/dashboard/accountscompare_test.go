@@ -407,19 +407,6 @@ func TestComparesColumnsScrollToShowTheFocusNoFurtherThanTheyMust(t *testing.T) 
 	}
 }
 
-// Compare has a focus for ←→ and enter wherever it draws columns: never on a
-// phone, whose Compare shows every account a row.
-func TestCompareFocusesButOnAPhone(t *testing.T) {
-	for _, tt := range []struct {
-		width int
-		want  bool
-	}{{width: 100, want: true}, {width: 99}} {
-		if f, _ := tenOnCompare(t, tt.width, 37, 0); f.CompareFocuses() != tt.want {
-			t.Errorf("at %d columns, Compare focuses %v, want %v", tt.width, !tt.want, tt.want)
-		}
-	}
-}
-
 // Each head is cut to its column less a cell: a long name with …, keeping
 // its number and its marks. An account the config holds and the document
 // doesn't yet, as one just added, stands not read, its week empty and its

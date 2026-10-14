@@ -457,16 +457,23 @@ func TestDetailsKeysChooseAnAccountAndOpenTheSelectedSessionsPage(t *testing.T) 
 	}
 }
 
-// On a phone, whose Compare draws no focus, ←→ and enter do nothing there,
-// enter saying nothing either; Detail takes them as ever.
+// On a phone, whose Compare draws no focus, its focus keys, ←→, enter and
+// esc, do nothing there, nor say anything, though a wider frame left a
+// column focused; Detail takes its keys as ever.
 func TestOnAPhoneComparesFocusKeysDoNothing(t *testing.T) {
-	h := accountsHarness(t, dashboard.AccountsShown{})
-	h.update(tea.WindowSizeMsg{Width: 52, Height: 37})
-	h.keys(rightKey, enterKey)
-	if s := h.model.accounts.shown; s.Focused || s.View() != dashboard.AccountsCompare || h.model.note != "" {
-		t.Fatalf("on a phone, → enter focused %v on %q, showing %d, noting %q; want nothing done", s.Focused, s.Focus, s.View(), h.model.note)
+	for _, key := range []tea.KeyPressMsg{leftKey, rightKey, enterKey, escKey} {
+		h := accountsHarness(t, dashboard.AccountsShown{})
+		h.keys(rightKey, rightKey)
+		h.update(tea.WindowSizeMsg{Width: 52, Height: 37})
+		was := h.model.accounts.shown
+		h.keys(key)
+		if s := h.model.accounts.shown; !reflect.DeepEqual(s, was) || h.model.note != "" {
+			t.Errorf("on a phone, %s left the focus %v on %q, showing %d, noting %q; want nothing done", key, s.Focused, s.Focus, s.View(), h.model.note)
+		}
 	}
-	h.keyed("]")
+
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail})
+	h.update(tea.WindowSizeMsg{Width: 52, Height: 37})
 	h.keys(downKey, enterKey)
 	if h.pageOpen() != idD28C {
 		t.Errorf("on a phone, ↓ enter on Detail opened %q's page, want %s's", h.pageOpen(), idD28C)

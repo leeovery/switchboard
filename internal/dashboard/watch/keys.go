@@ -138,7 +138,7 @@ func (m Model) keys() pageKeys {
 func (m Model) accountsListings() []keyListing {
 	s := m.accounts.shown
 	shown := m.view == dashboard.Accounts
-	compare := shown && s.View() == dashboard.AccountsCompare && !dashboard.Phone(m.size.Width)
+	compare := m.comparing()
 	listed, alone := shown && s.View() == dashboard.AccountsDetail && !s.Alone(), shown && s.Alone()
 	selected := s.Selection(m.running(m.now())) != ""
 	inSessions := listed && s.InSessions || alone && selected

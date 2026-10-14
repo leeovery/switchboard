@@ -154,15 +154,15 @@ var accountsSteps = map[string]int{"[": -1, "]": 1, "<": -1, ">": 1, "left": -1,
 // has it; enter opens what's focused or selected, as entered has it; and esc
 // ends Compare's focus, as Unfocused has it. A key that changes what's shown
 // shows it as showAccounts has it. Where Compare draws no focus, as on a
-// phone, ←→ and enter there do nothing, as unfocused has it.
+// phone, its focus keys do nothing, as focusless has it.
 func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 	if m.view != dashboard.Accounts {
 		return m, nil, false
 	}
-	s, now, by := m.accounts.shown, m.now(), accountsSteps[key]
-	if m.unfocused(key, now) {
+	if m.focusless(key) {
 		return m, nil, true
 	}
+	s, now, by := m.accounts.shown, m.now(), accountsSteps[key]
 	var next dashboard.AccountsShown
 	var changed bool
 	switch key {
@@ -188,15 +188,21 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 	return m, nil, true
 }
 
-// focusKeys are the keys that move Compare's focus and open the column it's
-// on.
-var focusKeys = map[string]bool{"left": true, "right": true, "enter": true}
+// comparing reports whether Accounts shows Compare with a focus for ← and →
+// to move, enter to open and esc to end: never on a phone, whose Compare
+// draws none, as dashboard.Phone tells one.
+func (m Model) comparing() bool {
+	return m.view == dashboard.Accounts && m.accounts.shown.View() == dashboard.AccountsCompare && !dashboard.Phone(m.size.Width)
+}
 
-// unfocused reports whether key moves Compare's focus or opens the column
-// it's on where Compare, as the frame at now draws it, has no focus, as
-// CompareFocuses has it.
-func (m Model) unfocused(key string, now time.Time) bool {
-	return focusKeys[key] && m.accounts.shown.View() == dashboard.AccountsCompare && !m.frame(now).CompareFocuses()
+// focusKeys are Compare's focus keys: those that move its focus, open the
+// column it's on and end it.
+var focusKeys = map[string]bool{"left": true, "right": true, "enter": true, "esc": true}
+
+// focusless reports whether key is one of Compare's focus keys, pressed on
+// Compare where it draws no focus, as comparing has it.
+func (m Model) focusless(key string) bool {
+	return focusKeys[key] && m.accounts.shown.View() == dashboard.AccountsCompare && !m.comparing()
 }
 
 // entered is m with enter pressed on Accounts, running being the sessions
