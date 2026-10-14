@@ -1,7 +1,6 @@
 package views
 
 import (
-	"maps"
 	"slices"
 	"time"
 
@@ -18,16 +17,18 @@ import (
 // it ran on, with what they took. Take takes in the lines a day gained since,
 // each once; Page builds the page of what's held, what the router lists and
 // what the stream told. What changes it returns afresh, so a copy holding it
-// never sees it change.
+// never sees it change, sharing what it took before, which nothing changes.
 type HeldPage struct {
 	id     string
 	day    LedgerDay
 	prices ledger.Table
 	keep   time.Duration
-	// held are the lines taken, of whichever session, by keyOf: none where
-	// they have no id.
-	held     map[lineKey]bool
-	answers  map[string][]answered
+	// held are the keys of the lines taken, as heldKeys has them; answers
+	// every account's requests taken, answered, by the date of the day whose
+	// files hold them; and over what the session's points are taken over.
+	held     heldKeys
+	answers  map[string]answersTaken
+	over     pointsOver
 	requests []request
 	story    *story
 	accounts []SessionAccount
@@ -66,30 +67,38 @@ type PageLive struct {
 // prices at the day now falls on, and keep the ledger's [ledger] keep, as
 // ledgerKept reads it.
 func HoldPage(id string, read SessionsRead, prices ledger.Table, keep time.Duration, now time.Time) HeldPage {
-	h := HeldPage{id: id, day: Today(now), prices: prices, keep: ledgerKept(keep), held: make(map[lineKey]bool), answers: answersOf(read.requests, id)}
-	for _, lines := range read.requests {
-		h.hold(lines)
+	h := HeldPage{id: id, day: Today(now), prices: prices, keep: ledgerKept(keep)}
+	answers := answersOf(read.requests, id)
+	for date, lines := range read.requests {
+		h.held = holding(h.held, lines)
+		h.answers = answering(h.answers, date, answers[date])
 	}
-	h.hold(read.lines[id])
+	h.held = holding(h.held, read.lines[id])
 	h.requests = requestsOf(read.lines[id], prices, h.day.Date)
+	h.over.days = daysOf(answers)
 	return h.built()
 }
 
-// hold notes each of lines as taken.
-func (h HeldPage) hold(lines []ledger.Line) {
-	for i := range lines {
-		if k, ok := keyOf(&lines[i]); ok {
-			h.held[k] = true
-		}
-	}
-}
-
 // built is h with what its requests and answers make worked out: its story,
-// and the accounts it ran on, with the points they took.
+// and the accounts it ran on, with the points they took, as pointed has
+// them.
 func (h HeldPage) built() HeldPage {
 	h.story = storyOf(h.requests, h.prices, h.day)
 	h.accounts = accountsOf(h.requests)
-	points := pointsOf(h.answers, h.requests)
+	h.over = pointsOverOf(h.requests, h.over.days)
+	return h.pointed()
+}
+
+// pointed is h with the points the session took of the windows of the
+// accounts it ran on worked out afresh, as pointsOf has them, of the answers
+// it holds of the days they're taken over, its accounts given them afresh.
+func (h HeldPage) pointed() HeldPage {
+	answers := make(map[string][]answered, len(h.over.days))
+	for _, date := range h.over.days {
+		answers[date] = takenAll(h.answers[date])
+	}
+	points := pointsOf(answers, h.over)
+	h.accounts = slices.Clone(h.accounts)
 	for i := range h.accounts {
 		h.accounts[i].Points = points[h.accounts[i].Account]
 	}
@@ -99,15 +108,19 @@ func (h HeldPage) built() HeldPage {
 // Take is h with the lines given taken in, those a day, of the given date,
 // gained since it was held, as the ledger's Today gives them: each request
 // of the session's, priced once, and each of an account's, every session's,
-// for the points, each line once, whether it was held already or not. A
-// date after the day h is held at rolls it on to that day, its requests
-// priced afresh, as Page would price them every look until it's held there;
-// an earlier one, of a ledger yet to turn its day, never rolls it back. It's
-// h itself where none is new and the date is no later than its day.
+// for the points, each line once, whether it was held already or not. Only
+// what they change is worked out afresh: the whole page, where they're of
+// the session; else its points, where one is of an account it ran on, on a
+// day it made requests on, as its points are shared out among them; else
+// none of it. A date after the day h is held at rolls it on to that day,
+// its requests priced afresh, as Page would price them every look until
+// it's held there; an earlier one, of a ledger yet to turn its day, never
+// rolls it back. It's h itself where none is new and the date is no later
+// than its day.
 func (h HeldPage) Take(date string, lines []ledger.Held) HeldPage {
 	var gained []ledger.Line
 	for _, l := range lines {
-		if k, ok := keyOf(&l.Line); !ok || !h.held[k] {
+		if k, ok := keyOf(&l.Line); !ok || !holds(h.held, k) {
 			gained = append(gained, l.Line)
 		}
 	}
@@ -118,20 +131,30 @@ func (h HeldPage) Take(date string, lines []ledger.Held) HeldPage {
 	if rolls {
 		h = h.on(dayOf(date))
 	}
-	h.held, h.answers = maps.Clone(h.held), maps.Clone(h.answers)
-	h.hold(gained)
+	h.held = holding(h.held, gained)
 	var mine []ledger.Line
+	var answers []answered
+	counts := false
 	for i := range gained {
 		l := &gained[i]
 		if l.Counted() && l.Account != "" {
-			h.answers[date] = append(slices.Clip(h.answers[date]), answeredOf(l, h.id))
+			a := answeredOf(l, h.id)
+			answers, counts = append(answers, a), counts || h.over.counts(date, a)
 		}
 		if l.Session == h.id {
 			mine = append(mine, *l)
 		}
 	}
-	h.requests = inArrival(h.requests, requestsOf(mine, h.prices, h.day.Date))
-	return h.built()
+	h.answers = answering(h.answers, date, answers)
+	switch {
+	case len(mine) > 0 || rolls:
+		h.requests = inArrival(h.requests, requestsOf(mine, h.prices, h.day.Date))
+		h.over = h.over.withDay(date, answers)
+		return h.built()
+	case counts:
+		return h.pointed()
+	}
+	return h
 }
 
 // inArrival returns held, a session's requests oldest first, with those
