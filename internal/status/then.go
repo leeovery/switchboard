@@ -39,14 +39,18 @@ type Was struct {
 	Since, Until time.Time
 }
 
-// Span is a hold of an account the router told of, which the readings
-// history can't show: of Kind WasLimited, a limit naming no window, which
-// holds back every request; of Kind WasRefused, the upstream refusing its
-// token. It holds from From, zero where nothing tells when it began, as from
-// before any moment asked of, up to Until.
+// Span is a hold of an account the router told of: of Kind WasLimited, a
+// limit; of Kind WasRefused, the upstream refusing its token; of Kind
+// WasCapped, its cap. It holds from From, zero where nothing tells when it
+// began, as from before any moment asked of, up to Until, zero where that
+// isn't known. Windows are those a limit or a cap names: such a hold the
+// readings history shows itself, so the span tells only when one the
+// readings show began; a limit naming none holds back every request, and
+// the readings can't show it.
 type Span struct {
 	Kind        WasKind
 	From, Until time.Time
+	Windows     []string
 }
 
 // holds reports whether the span holds at t.
@@ -55,11 +59,11 @@ func (s Span) holds(t time.Time) bool {
 }
 
 // Told are the holds of the account with the given id that the router told
-// of and the readings history can't show, as Then takes them: those its
-// events tell, as toldBy has them, newest first; then its limit naming no
-// window, and the refusal of its token, where either holds at Now and none
-// told of its kind holds then, as where the router no longer keeps its event,
-// from before anything.
+// of, as Then takes them: those its events tell, as toldBy has them, newest
+// first; then its limit naming no window, and the refusal of its token,
+// where either holds at Now and no span told of its kind naming no window
+// holds then, as where the router no longer keeps its event, from before
+// anything.
 func (m Moment) Told(id string) []Span {
 	told := m.doc.toldBy(id)
 	a, _ := m.doc.Account(id)
@@ -73,18 +77,21 @@ func (m Moment) Told(id string) []Span {
 }
 
 // toldBy are the holds of the account with the given id that the router's
-// events tell, as the document gives them, newest first: each limit naming
-// no window, till its until, or the account's room after it, as roomAfter
-// has it, where that comes first, as the router keeps a limit's until as it
-// lifts early and tells of the room instead; and each refusal of its token,
-// till its until, which the router brings forward as a refusal lifts early.
+// events tell, as the document gives them, newest first: each limit, and
+// each cap, naming the windows it names, till its until, or the account's
+// room after it, as roomAfter has it, where that comes first, as the router
+// keeps a limit's until as it lifts early and tells of the room instead; and
+// each refusal of its token, till its until, which the router brings forward
+// as a refusal lifts early.
 func (d Document) toldBy(id string) []Span {
 	var told []Span
 	for _, e := range d.Events {
 		switch {
 		case e.Account != id:
-		case e.Kind == EventLimit && len(e.Windows) == 0:
-			told = append(told, Span{Kind: WasLimited, From: e.At, Until: d.roomAfter(id, e.At, e.Until)})
+		case e.Kind == EventLimit:
+			told = append(told, Span{Kind: WasLimited, From: e.At, Until: d.roomAfter(id, e.At, e.Until), Windows: e.Windows})
+		case e.Kind == EventCap:
+			told = append(told, Span{Kind: WasCapped, From: e.At, Until: d.roomAfter(id, e.At, e.Until), Windows: e.Windows})
 		case e.Kind == EventRefused && e.Family == "":
 			told = append(told, Span{Kind: WasRefused, From: e.At, Until: e.Until})
 		}
@@ -103,10 +110,10 @@ func (d Document) roomAfter(id string, from, until time.Time) time.Time {
 	return until
 }
 
-// untold is the spans told, with s, a hold holding at now, added where none
-// of its kind told holds then.
+// untold is the spans told, with s, a hold naming no window holding at now,
+// added where none of its kind told naming none holds then.
 func untold(told []Span, s Span, now time.Time) []Span {
-	if slices.ContainsFunc(told, func(held Span) bool { return held.Kind == s.Kind && held.holds(now) }) {
+	if slices.ContainsFunc(told, func(held Span) bool { return held.Kind == s.Kind && len(held.Windows) == 0 && held.holds(now) }) {
 		return told
 	}
 	return append(told, s)
@@ -118,15 +125,17 @@ func untold(told []Span, s Span, now time.Time) []Span {
 // oldest first, as the history reads them, of the windows the moment's
 // policy says every model shares, each by its last reading by t, a window
 // whose reset has passed by then counting as reset, unused; and by the holds
-// the router told of that the readings can't show, as Told has them. Its
-// kind is the first that holds of: without a usable token now, none at any
-// moment; a limit told of, or a window read spent, holding at t; its token
-// refused, as told of; nothing read by t; its cap, where its reserve holds
-// now, a window read at where its reserve, as configured now, starts, as the
-// readings keep no reserve; and room. Of a hold, Since is when the first part
-// of what holds it at t began: a told hold's From, or the first reading, of
-// those given, of the unbroken run of a window's readings that shows it; and
-// Until is when the last part lifts, zero where one lifts at no known time.
+// the router told of, as Told has them, those naming windows telling only
+// when a hold the readings show began. Its kind is the first that holds of:
+// without a usable token now, none at any moment; a limit told of naming no
+// window, or a window read spent, holding at t; its token refused, as told
+// of; nothing read by t; its cap, where its reserve holds now, a window read
+// at where its reserve, as configured now, starts, as the readings keep no
+// reserve; and room. Of a hold, Since is when the first part of what holds
+// it at t began: a told hold's From; of a window's, the router's event of
+// it, as reachedAt finds it, else the first reading, of those given, of the
+// unbroken run of the window's readings that shows it; and Until is when the
+// last part lifts, zero where one lifts at no known time.
 // A run begun at either edge of what the readings reach tells no start, as
 // Reach says.
 func (m Moment) Then(a AccountNow, read []readings.Reading, reach Reach, told []Span, t time.Time) Was {
@@ -134,7 +143,7 @@ func (m Moment) Then(a AccountNow, read []readings.Reading, reach Reach, told []
 		return Was{Kind: WasTokenless}
 	}
 	windows := m.readBy(a, read, reach, t)
-	if was, ok := heldAs(WasLimited, slices.Concat(toldAt(told, WasLimited, t), shownAt(windows, WasLimited, t))); ok {
+	if was, ok := heldAs(WasLimited, slices.Concat(toldAt(told, WasLimited, t), shownAt(windows, told, WasLimited, t))); ok {
 		return was
 	}
 	if was, ok := heldAs(WasRefused, toldAt(told, WasRefused, t)); ok {
@@ -143,7 +152,7 @@ func (m Moment) Then(a AccountNow, read []readings.Reading, reach Reach, told []
 	if len(windows) == 0 {
 		return Was{Kind: WasUnread}
 	}
-	if was, ok := heldAs(WasCapped, shownAt(windows, WasCapped, t)); ok && a.ReserveHolds {
+	if was, ok := heldAs(WasCapped, shownAt(windows, told, WasCapped, t)); ok && a.ReserveHolds {
 		return was
 	}
 	return Was{Kind: WasRoom}
@@ -272,23 +281,50 @@ type part struct {
 }
 
 // shownAt are the parts of a hold of the given kind, WasLimited or
-// WasCapped, the windows' readings show at t, as heldAt has them.
-func shownAt(windows map[string]windowRead, kind WasKind, t time.Time) []part {
+// WasCapped, the windows' readings show at t, as heldAt has them, each from
+// when the router's event of it, of the spans told, says it began, where one
+// does, as reachedAt finds it.
+func shownAt(windows map[string]windowRead, told []Span, kind WasKind, t time.Time) []part {
 	var parts []part
-	for _, w := range windows {
+	for key, w := range windows {
 		if p, ok := w.heldAt(kind, t); ok {
+			if at, ok := reachedAt(told, kind, key, w.last, t); ok {
+				p.from = at
+			}
 			parts = append(parts, p)
 		}
 	}
 	return parts
 }
 
+// reachedAt is when the hold of the given kind of the window with the given
+// key, last read as window, holding at t, began, as the router's event of it
+// tells, of the spans told: the newest naming it that came by t, in the
+// window's period, as its last reading has it, and lifts after t, where its
+// lift is known. It reports false where none does, as a hold the router
+// first read, or one whose event it no longer keeps.
+func reachedAt(told []Span, kind WasKind, key string, window quota.Window, t time.Time) (time.Time, bool) {
+	start, _, spanned := window.Span()
+	var at time.Time
+	var found bool
+	for _, s := range told {
+		switch {
+		case s.Kind != kind || !slices.Contains(s.Windows, key) || s.From.After(t):
+		case !s.Until.IsZero() && !s.Until.After(t), spanned && s.From.Before(start):
+		case !found || s.From.After(at):
+			at, found = s.From, true
+		}
+	}
+	return at, found
+}
+
 // toldAt are the parts of a hold of the given kind the router told of that
-// hold at t, of the spans given.
+// hold at t, of the spans given naming no window, as those naming one are
+// the readings' to show.
 func toldAt(told []Span, kind WasKind, t time.Time) []part {
 	var parts []part
 	for _, s := range told {
-		if s.Kind == kind && s.holds(t) {
+		if s.Kind == kind && len(s.Windows) == 0 && s.holds(t) {
 			parts = append(parts, part{from: s.From, until: s.Until})
 		}
 	}

@@ -51,7 +51,7 @@ func heldReadingsOf(read []readings.Reading) heldReadings {
 
 // pastOf is an account's past: what Then reads of the account besides its
 // readings, its id, whether its token is usable, its reserve and whether it
-// holds, and the holds the router told of that the readings can't show; its
+// holds, and the holds the router told of; its
 // readings, oldest first, those the days before the keep stand for among
 // them; the resets of the view's window they give; and how it stood at each
 // column's moment.
@@ -83,10 +83,10 @@ func (p heldPast) holds(from LanesFrom) bool {
 	return true
 }
 
-// told are the holds of the account with the given id the router told of
-// that the readings can't show, as the moment's Told has them, where the
-// timeline holds now; on a day or a week gone, those its events tell alone,
-// as one no event tells, from before anything, is known only to hold now.
+// told are the holds of the account with the given id the router told of,
+// as the moment's Told has them, where the timeline holds now; on a day or a
+// week gone, those its events tell alone, as one no event tells, from before
+// anything, is known only to hold now.
 func (from LanesFrom) told(id string) []status.Span {
 	told := from.Moment.Told(id)
 	if from.Timeline.NowColumn() >= 0 {
@@ -109,7 +109,7 @@ func sameReach(a, b status.Reach) bool {
 
 // sameSpan reports whether two spans are the one hold.
 func sameSpan(a, b status.Span) bool {
-	return a.Kind == b.Kind && a.From.Equal(b.From) && a.Until.Equal(b.Until)
+	return a.Kind == b.Kind && a.From.Equal(b.From) && a.Until.Equal(b.Until) && slices.Equal(a.Windows, b.Windows)
 }
 
 // judgePast is the past of the timeline given, as heldPast has it, each

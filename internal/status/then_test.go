@@ -56,9 +56,10 @@ func onDay(t time.Time) string {
 
 // Then is how an account stood at a moment gone, by the last reading of each
 // window every model shares by then, a reset passed counting as reset, and
-// by the holds the router told of that the readings can't show: the first
-// that holds of no token now, a limit, its token refused, nothing read, its
-// cap by its reserve as it holds now, and room.
+// by the holds the router told of, those of a window telling only when one
+// the readings show began: the first that holds of no token now, a limit,
+// its token refused, nothing read, its cap by its reserve as it holds now,
+// and room.
 func TestHowAnAccountStoodThen(t *testing.T) {
 	// Work's week, and its 5-hour window on Thursday: at its limit in the
 	// morning; afresh from 12:10; at its cap from 14:31:03, as the auto
@@ -83,6 +84,11 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 	nearlySpent := readOf(yesterday.Add(15*time.Hour), "5h", 0.93, yesterday.Add(17*time.Hour))
 	refusal := status.Span{Kind: status.WasRefused, From: at(1, 14, 12), Until: at(1, 15, 0)}
 	untoldLimit := status.Span{Kind: status.WasLimited, Until: at(1, 15, 30)}
+	// fiveHourLimit is the router's limit of work's 5-hour from 15:01:30, as
+	// its event tells, a little before the reading shows it; capReached its
+	// cap from 14:31, read at 14:31:03.
+	fiveHourLimit := status.Span{Kind: status.WasLimited, From: at(1, 15, 1).Add(30 * time.Second), Until: at(1, 17, 10), Windows: []string{"5h"}}
+	capReached := status.Span{Kind: status.WasCapped, From: at(1, 14, 31), Until: at(1, 17, 10), Windows: []string{"5h"}}
 
 	capping := workAt(func(*status.Document) {})
 	reservingLess := workAt(func(d *status.Document) { d.Accounts[0].Reserve = 0.02 })
@@ -263,6 +269,27 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 			want: status.Was{Kind: status.WasLimited, Until: at(1, 15, 30)},
 		},
 		{
+			name: "a window's limit as its event tells, read after", moment: capping,
+			read: []readings.Reading{week, afresh, capped, stillCapped, limited}, told: []status.Span{fiveHourLimit}, t: at(1, 16, 0),
+			want: status.Was{Kind: status.WasLimited, Since: fiveHourLimit.From, Until: at(1, 17, 10)},
+		},
+		{
+			name: "a window's limit an event of the period before tells nothing of", moment: capping,
+			read: []readings.Reading{week, afresh, capped, stillCapped, limited}, t: at(1, 16, 0),
+			told: []status.Span{{Kind: status.WasLimited, From: at(1, 11, 45), Until: at(1, 12, 10), Windows: []string{"5h"}}},
+			want: status.Was{Kind: status.WasLimited, Since: limited.At, Until: at(1, 17, 10)},
+		},
+		{
+			name: "a cap as its event tells, read after", moment: capping,
+			read: []readings.Reading{week, afresh, capped, stillCapped}, told: []status.Span{capReached}, t: at(1, 15, 0),
+			want: status.Was{Kind: status.WasCapped, Since: capReached.From, Until: at(1, 17, 10)},
+		},
+		{
+			name: "a window's limit told, the readings showing room", moment: capping,
+			read: []readings.Reading{week, afresh}, told: []status.Span{fiveHourLimit}, t: at(1, 16, 0),
+			want: status.Was{Kind: status.WasRoom},
+		},
+		{
 			name: "a limit naming no window, as told, then a window read rejected", moment: capping, read: []readings.Reading{week, afresh, limited},
 			told: []status.Span{{Kind: status.WasLimited, From: at(1, 14, 0), Until: at(1, 15, 30)}}, t: at(1, 15, 10),
 			want: status.Was{Kind: status.WasLimited, Since: at(1, 14, 0), Until: at(1, 17, 10)},
@@ -279,9 +306,9 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 
 // Then at a moment's Now is how the moment has each account stand, at every
 // hard moment, given the readings its document read and the holds the
-// router told of holding then that they can't show: its kind, as ROUTING's
-// has it, and when its hold lifts. When a hold began is told by the readings
-// and the router's events each as they can, so the two may differ.
+// router told of: its kind, as ROUTING's has it, and when its hold lifts.
+// When a hold began is told by the readings and the router's events each as
+// they can, so the two may differ.
 func TestThenAtNowIsHowTheMomentHasEachAccountStand(t *testing.T) {
 	for _, hm := range statustest.HardMoments(policy) {
 		t.Run(hm.Name, func(t *testing.T) {
@@ -305,12 +332,13 @@ func readingsOf(a status.Account) []readings.Reading {
 	return readings.Of(a.ID, a.Windows, a.FetchedAt, readings.FromAnswer)
 }
 
-// The holds the router told of that the readings can't show, as Then takes
-// them: a limit naming no window, as its event tells, till it lifts, or till
-// the account has room again, as the router tells of a limit lifting early
-// without bringing its event's until forward; the refusal of its token, as its
-// event tells, whose until the router does bring forward; and either holding
-// at Now that no event tells of, from before anything.
+// The holds the router told of, as Then takes them: a limit, as its event
+// tells, naming the windows it names, till it lifts, or till the account has
+// room again, as the router tells of a limit lifting early without bringing
+// its event's until forward; a cap alike; the refusal of its token, as its
+// event tells, whose until the router does bring forward; and a limit naming
+// no window, or a refusal, holding at Now that no event tells of, from
+// before anything.
 func TestTheHoldsTheRouterToldOf(t *testing.T) {
 	unnamed := status.Event{At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "work", Until: at(1, 15, 30).UTC(), Limit: 3}
 	refused := status.Event{At: at(1, 14, 12).UTC(), Kind: status.EventRefused, Account: "work", Until: at(1, 15, 0).UTC(), Status: 401}
@@ -339,6 +367,27 @@ func TestTheHoldsTheRouterToldOf(t *testing.T) {
 			name:   "a limit naming a window, which the readings show",
 			events: []status.Event{{At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: at(1, 17, 10).UTC(), Limit: 4}},
 			limit:  status.Limit{ID: 4, Windows: []string{"5h"}, Until: at(1, 17, 10).UTC()},
+			want:   []status.Span{{Kind: status.WasLimited, From: at(1, 14, 20), Until: at(1, 17, 10), Windows: []string{"5h"}}},
+		},
+		{
+			name: "a limit naming a window, lifted, the room after it",
+			events: []status.Event{
+				roomAt(14, 40), {At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: at(1, 17, 10).UTC(), Limit: 4},
+			},
+			want: []status.Span{{Kind: status.WasLimited, From: at(1, 14, 20), Until: at(1, 14, 40), Windows: []string{"5h"}}},
+		},
+		{
+			name:   "a cap, which the readings show",
+			events: []status.Event{{At: at(1, 14, 31).UTC(), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Until: at(1, 17, 10).UTC(), Reserve: 0.1}},
+			want:   []status.Span{{Kind: status.WasCapped, From: at(1, 14, 31), Until: at(1, 17, 10), Windows: []string{"5h"}}},
+		},
+		{
+			name:   "a limit naming a window holding, and one naming none holding at Now untold",
+			events: []status.Event{{At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: at(1, 17, 10).UTC(), Limit: 4}},
+			limit:  limitHolding,
+			want: []status.Span{
+				{Kind: status.WasLimited, From: at(1, 14, 20), Until: at(1, 17, 10), Windows: []string{"5h"}}, {Kind: status.WasLimited, Until: at(1, 15, 30)},
+			},
 		},
 		{
 			name: "a limit naming no window, lifted early, as the room after it tells", events: []status.Event{roomAt(13, 10), earlier},
@@ -420,7 +469,7 @@ func TestTheHoldsTheRouterToldOf(t *testing.T) {
 // sameSpan reports whether a and b say the same, their times the same
 // instants.
 func sameSpan(a, b status.Span) bool {
-	return a.Kind == b.Kind && a.From.Equal(b.From) && a.Until.Equal(b.Until)
+	return a.Kind == b.Kind && a.From.Equal(b.From) && a.Until.Equal(b.Until) && slices.Equal(a.Windows, b.Windows)
 }
 
 // spansString shows the spans, their times on their days as stateNow's zone
@@ -428,7 +477,7 @@ func sameSpan(a, b status.Span) bool {
 func spansString(spans []status.Span) string {
 	shown := make([]string, len(spans))
 	for i, s := range spans {
-		shown[i] = fmt.Sprintf("{Kind:%d From:%s Until:%s}", s.Kind, onDay(s.From), onDay(s.Until))
+		shown[i] = fmt.Sprintf("{Kind:%d From:%s Until:%s Windows:%v}", s.Kind, onDay(s.From), onDay(s.Until), s.Windows)
 	}
 	return "[" + strings.Join(shown, " ") + "]"
 }

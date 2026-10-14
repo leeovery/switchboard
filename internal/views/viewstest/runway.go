@@ -452,8 +452,9 @@ func holdsNoEventTells() []RunwayMoment {
 // 14:31:30, or with the readings history holding none of it, its words
 // starting in the column the event tells though the lane's blank there; its
 // limit at 14:03:30, read spent at 14:04, as the event of the router's limit
-// tells; and as an event naming its window, of no limit the router still
-// holds, tells.
+// tells; as an event naming its window, of no limit the router still holds,
+// tells; and each, the cap and the limit, as its event tells on today stepped
+// back to once it's lifted, the router keeping the event.
 func holdsEventsTell() []RunwayMoment {
 	back, capBack := onThu(15, 30, 0), onThu(17, 10, 0)
 	capped := reserving(readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.96, capBack), window(week, 0.4, mondayTen)), 0.05)
@@ -468,7 +469,27 @@ func holdsEventsTell() []RunwayMoment {
 		sideRead(),
 	)
 	limitWant := map[string]Figures{work: {FigureCells: "room 0-1, limited 2-10, room 11-135", FigureStretches: "limited 14:03:30 – 15:30, as it resets @2 2-10"}}
+	lifted := func(name string, at time.Time, events []status.Event, read []readings.Reading, want map[string]Figures) RunwayMoment {
+		fresh := reserving(readAccount(work, at, window(fiveHour, 0.02, at.Add(5*time.Hour)), window(week, 0.4, mondayTen)), 0.05)
+		return RunwayMoment{
+			Name: name, Doc: routed(at, events, fresh, sideOn(at)), Now: at.Add(time.Minute + 7*time.Second),
+			Readings: sorted(read, readEach(work, at, fresh.Windows...)), Day: civilDay(2026, time.October, 1), Columns: lanes, Want: want,
+		}
+	}
 	return []RunwayMoment{
+		lifted("a cap its event tells the start of, read later, today stepped back to once it's lifted", onThu(17, 29, 0), []status.Event{capEvent}, sorted(
+			readEach(work, onThu(13, 30, 0), window(fiveHour, 0.8, capBack), window(week, 0.4, mondayTen)),
+			readEach(work, onThu(14, 31, 30), window(fiveHour, 0.95, capBack)),
+			readEach(work, onThu(14, 41, 0), capped.Windows...),
+			sideRead(),
+		), map[string]Figures{
+			"":   {FigureDips: "1 — – — @74 74-76; 1 14:31:03 – 17:10 @82 82-96"},
+			work: {FigureStretches: "capped 14:31:03 – 17:10, as it resets @82 82-96"},
+		}),
+		lifted("a limit its event tells the start of, read later, today stepped back to once it's lifted", onThu(15, 59, 0), []status.Event{limitEvent}, spentRead, map[string]Figures{
+			"":   {FigureDips: "1 — – — @74 74-76; 1 14:03:30 – 15:30 @79 80-87"},
+			work: {FigureStretches: "limited 14:03:30 – 15:30, as it resets @79 80-87"},
+		}),
 		fiveHourAt("a cap its event tells the start of, read later", routed(onThu(14, 41, 0), []status.Event{capEvent}, capped, sideOn(onThu(14, 41, 0))), sorted(
 			readEach(work, onThu(13, 30, 0), window(fiveHour, 0.8, capBack), window(week, 0.4, mondayTen)),
 			readEach(work, onThu(14, 31, 30), window(fiveHour, 0.95, capBack)),
