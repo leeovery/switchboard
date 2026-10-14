@@ -712,7 +712,7 @@ func (m Model) card(now time.Time) dashboard.Opened {
 	case routingOpen:
 		return m.routingCard(now)
 	case logCardOpen:
-		return m.logCard()
+		return m.logCardAt(now)
 	case logPanelOpen:
 		return m.logPanel(now)
 	}

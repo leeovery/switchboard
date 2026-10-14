@@ -16,12 +16,15 @@ import (
 // LogCard is the Log's details card of the line chosen, as enter opens it
 // over the page: a request's details, or an event's, as the watch builds
 // them of what it holds, afresh at each change, so the card follows each
-// read; how far its body is scrolled, where it hasn't the rows for it; and
-// how many rows it took as LogFitted placed it, by which it keeps its side
-// of its line as it grows, none where it's yet to be placed.
+// read; what the request stream tells as the card is drawn, which a request
+// in flight's details are drawn as, while the page behind stands still as
+// its own stream told it; how far its body is scrolled, where it hasn't the
+// rows for it; and how many rows it took as LogFitted placed it, by which it
+// keeps its side of its line as it grows, none where it's yet to be placed.
 type LogCard struct {
 	Request *views.RequestDetails
 	Event   *views.EventDetails
+	Stream  views.Stream
 	Scroll  int
 	Placed  int
 }
@@ -63,13 +66,14 @@ func (f Frame) logCardForm() cardForm {
 // as the table's rows on that side, so its line never moves under it; its
 // body scrolls within it past the rows it has. Its line, wherever it's in
 // view, is left bright as the page fades behind it. A request in flight's
-// is as it stands at the moment drawn, as its row is.
+// is as it stands at the moment drawn, as its row is, as the card's stream
+// tells it.
 func (c LogCard) card(f Frame) Card {
 	form := f.logCardForm()
 	m := f.heldMoment()
 	if c.Request != nil {
 		d := *c.Request
-		d.Row = d.Row.Live(f.Log.Stream, m.Now)
+		d.Row = d.Row.Live(c.Stream, m.Now)
 		c.Request = &d
 	}
 	body := c.body(form, m)

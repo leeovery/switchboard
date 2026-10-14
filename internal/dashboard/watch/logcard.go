@@ -1,6 +1,8 @@
 package watch
 
 import (
+	"time"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
@@ -128,6 +130,14 @@ func (m Model) stepLogCard(by int) Model {
 func (m Model) logCard() dashboard.LogCard {
 	c := m.log.card
 	return dashboard.LogCard{Request: c.request, Event: c.event, Scroll: c.scroll, Placed: c.placed}
+}
+
+// logCardAt is the Log's details card as it's drawn at now: a request in
+// flight's as the stream tells it then, while the page behind stands still.
+func (m Model) logCardAt(now time.Time) dashboard.LogCard {
+	c := m.logCard()
+	c.Stream = m.logStream(now)
+	return c
 }
 
 // followedByLogCard is m with the details of the Log's card built afresh of
