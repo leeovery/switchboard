@@ -59,7 +59,7 @@ func (f Frame) heading() heading {
 	case History:
 		return f.History.heading()
 	case Log:
-		return f.Log.heading(f.phone(), f.Width)
+		return f.Log.heading(f.phone(), f.Width, func(id string) string { return named(f.heldMoment(), id) })
 	}
 	return heading{name: strings.ToUpper(f.Shown().Title())}
 }

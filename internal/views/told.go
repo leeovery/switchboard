@@ -96,6 +96,16 @@ type Moved struct {
 	At                      time.Time
 }
 
+// SameRow reports whether t tells what o does of its request's row as its
+// table is built: all but what the stream tells as its answer streams, its
+// characters so far and when it last told of it, which a row in flight
+// draws as it's drawn, as RequestRow.Live has it. Its stage is of the row,
+// so sent, its first byte, a verdict and its end each tell another.
+func (t Told) SameRow(o Told) bool {
+	t.Chars, t.Heard, o.Chars, o.Heard = 0, time.Time{}, 0, time.Time{}
+	return t == o
+}
+
 // InFlight reports whether the request is in flight, as the stream told:
 // neither ended nor lost.
 func (t Told) InFlight() bool {

@@ -253,13 +253,23 @@ func (m Model) pageBasis(live views.PageLive) pageBasis {
 // pageAt is the moment a session's page is made at, at now, s being what the
 // stream tells of the session: to a tenth of a second while a request of it
 // s tells of is in flight, its turn open's row of it counting how long it's
-// taken, to a tenth, as toldAt has it; else the second, as its story runs to
-// now while it runs.
+// taken, to a tenth; else the second, as its story runs to now while it
+// runs.
 func pageAt(s views.Stream, now time.Time) time.Time {
 	if s.Live && anyInFlight(s.Requests) {
 		return now.Truncate(time.Second / 10)
 	}
 	return now.Truncate(time.Second)
+}
+
+// anyInFlight reports whether any of the requests told of is in flight.
+func anyInFlight(requests map[string]views.Told) bool {
+	for _, t := range requests {
+		if t.InFlight() {
+			return true
+		}
+	}
+	return false
 }
 
 // pageLive is what a session's page is built of at now beside its lines:

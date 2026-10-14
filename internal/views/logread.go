@@ -123,6 +123,24 @@ func (r LogRead) sessionStory(id string) *story {
 	return newStory(r.prices, LedgerDay{})
 }
 
+// firstsOn are when each session's first line filed on the day d arrived,
+// by the session's whole id, of the lines r holds: each that counts toward
+// a session, as ledger.Line.CountedSession has it, so as the Log counts a
+// session's lines.
+func (r LogRead) firstsOn(d LedgerDay) map[string]time.Time {
+	firsts := make(map[string]time.Time)
+	for _, l := range r.lines {
+		id := l.line.CountedSession()
+		if id == "" || l.day.Date != d.Date {
+			continue
+		}
+		if at, ok := firsts[id]; !ok || l.line.At.Before(at) {
+			firsts[id] = l.line.At.UTC()
+		}
+	}
+	return firsts
+}
+
 // worthOf is what the request l was worth at the prices of the local day
 // with the given date, as summed has it.
 func (r LogRead) worthOf(l *ledger.Line, date string) Worth {

@@ -58,8 +58,8 @@ type LogSession struct {
 	// Activity is what it's doing, as the List has it, one rule with the
 	// Overview's SESSIONS.
 	Activity Activity
-	// Started is when its first request came, today or on an earlier day:
-	// zero where none has come yet.
+	// Started is when its first line today came, as the Log counts its
+	// lines: zero where none has come today.
 	Started time.Time
 }
 
@@ -105,19 +105,20 @@ func (s LogSession) Doing(now time.Time) (doing LogDoing, since time.Time) {
 // LogSessions are today's sessions as the Log's panel lists them: those src
 // counts lines or events of today, each as the List has it, from its story,
 // as src's Read holds it told, and what the router and the request stream
-// say of it; and those src ticks that it counts none of, as tickedSession
-// has them, so a session the filter keeps always has a tick; those that
-// haven't ended first, seen last first, then those ended, the latest ended
-// first.
+// say of it, started at its first line today; and those src ticks that it
+// counts none of, as tickedSession has them, so a session the filter keeps
+// always has a tick; those that haven't ended first, seen last first, then
+// those ended, the latest ended first.
 func LogSessions(src LogSessionSources) []LogSession {
 	by := newLister(src.Running, src.Unlisted, src.Stream, src.Now)
 	counted := countedIDs(src.Lines, src.Events)
+	firsts := src.Read.firstsOn(Today(src.Now))
 	var sessions []LogSession
 	for _, id := range counted {
 		listed := by.listed(id, src.Read.sessionStory(id))
 		sessions = append(sessions, LogSession{
 			ID: id, Dir: listed.Dir, Account: listed.Account, Lines: src.Lines[id], Events: src.Events[id],
-			Activity: listed.Activity, Started: listed.Started,
+			Activity: listed.Activity, Started: firsts[id],
 		})
 	}
 	for _, id := range notAmong(src.Ticked, counted) {
@@ -128,14 +129,14 @@ func LogSessions(src LogSessionSources) []LogSession {
 }
 
 // tickedSession is the session with the given id, ticked, as the panel lists
-// it with no lines nor events today: as the List has it, from its story s,
-// where the Log's read holds its lines; else as the find found it, among
-// found, its directory as its day's lines named it, ended at its last
-// request, its account not known; else its id alone, with what the router
-// and the request stream say of it.
+// it with no lines nor events today, so not started today: as the List has
+// it, from its story s, where the Log's read holds its lines; else as the
+// find found it, among found, its directory as its day's lines named it,
+// ended at its last request, its account not known; else its id alone, with
+// what the router and the request stream say of it.
 func tickedSession(by lister, id string, found []FoundSession, s *story) LogSession {
 	listed := by.listed(id, s)
-	ticked := LogSession{ID: id, Dir: listed.Dir, Account: listed.Account, Activity: listed.Activity, Started: listed.Started}
+	ticked := LogSession{ID: id, Dir: listed.Dir, Account: listed.Account, Activity: listed.Activity}
 	i := slices.IndexFunc(found, func(f FoundSession) bool { return f.ID == id })
 	if i < 0 {
 		return ticked

@@ -233,23 +233,37 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	}
 }
 
-// stateLine draws the view's state line, over the key line, as told at now,
-// where the page has room for the view, as cramped says: the Log's, once
-// its first read lands; or while its find is open, read or not, the find's
-// line in its place; but none under a session's page, drawn in the view's
-// place. The views milestone 5 built draw their own line there.
+// stateLine draws the view's state line, over the key line, as told at now:
+// the Log's, once its first read lands, where the page has room for the
+// view, as cramped says; and while its find is open, read or not, the
+// find's line in its place, cramped or not, where LogFinds says it has the
+// row, as what's typed into it is drawn nowhere else; but none under a
+// session's page, drawn in the view's place. The views milestone 5 built
+// draw their own line there.
 func (f Frame) stateLine(c *canvas, now time.Time) {
-	if f.cramped() || f.Shown() != Log {
+	if f.Shown() != Log {
 		return
 	}
-	y := f.Height - underView
-	if found, ok := f.Log.findLine(f.Width); ok {
+	y := f.stateRow()
+	if found, ok := f.Log.findLine(f.Width); ok && f.LogFinds() {
 		c.line(0, y, found)
 		return
 	}
-	if f.Log.Read {
+	if f.Log.Read && !f.cramped() {
 		c.line(0, y, f.Log.state(f.LogRows()).line(f.Width, now))
 	}
+}
+
+// stateRow is the row the state line is on: the key line's but one.
+func (f Frame) stateRow() int {
+	return f.Height - underView
+}
+
+// LogFinds reports whether the frame has a row for the Log's find line, so
+// / opens it: the state line's, where it's under the status line, as it
+// isn't on a terminal 4 rows tall, or 5 on a phone.
+func (f Frame) LogFinds() bool {
+	return f.stateRow() > f.statusRow()
 }
 
 // The page's rows under its view: the state line, or the blank row that
@@ -357,7 +371,8 @@ func (f Frame) Shown() View {
 // cramped reports whether the terminal is too short for the page's fixed
 // rows and leastView of the view's, or for a session's page, where one is
 // open, as its layout says: the page is then its title row, its status line
-// and its key line alone.
+// and its key line alone, but for the Log's find's line while it's open
+// over the Log, as stateLine has it.
 func (f Frame) cramped() bool {
 	if f.Shown() == SessionPage {
 		return f.sessionLayout(len(f.Session.Page.Accounts)).chrome

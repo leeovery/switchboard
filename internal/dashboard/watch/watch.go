@@ -588,6 +588,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.logRead(msg), nil
 	case findReadMsg:
 		return m.findRead(msg), nil
+	case reachMsg:
+		return m.reachRead(msg), nil
 	case orderedMsg:
 		return m.ordered(msg)
 	case costedMsg:
@@ -737,7 +739,7 @@ func (m Model) card(now time.Time) dashboard.Opened {
 	case routingOpen:
 		return m.routingCard(now)
 	case logCardOpen:
-		return m.logCard()
+		return m.logCardAt(now)
 	case logPanelOpen:
 		return m.logPanel(now)
 	case turnCardOpen:

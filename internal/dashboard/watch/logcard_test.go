@@ -13,6 +13,8 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -159,6 +161,43 @@ func TestTheLogsEventCardFollowsEachLook(t *testing.T) {
 	h.typed("g")
 	if h.model.open != nothingOpen || h.model.log.page.Shown != dashboard.LogRequests {
 		t.Errorf("after g, the card open is %v and the Log shows %v, want none open, and Requests", h.model.open, h.model.log.page.Shown)
+	}
+}
+
+// A request in flight's card counts its characters as the stream tells them,
+// while its row behind it stands still at the count it read as the card
+// opened.
+func TestARequestsCardInFlightCountsItsCharactersAsTheStreamTellsThem(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
+	onTheLog(h, state)
+	h.start()
+	streamed := func(chars int) {
+		h.hear(alter(told(router.StreamProgress, "0a000003", "work", h.clock.now.Sub(start)), func(e *router.StreamEvent) { e.Chars = chars }))
+	}
+	h.hear(told(router.StreamSent, "0a000003", "work", 0), told(router.StreamFirst, "0a000003", "work", time.Second))
+	h.clock.now = past(1250 * time.Millisecond)
+	streamed(500)
+	h.keys(tea.KeyPressMsg{Code: tea.KeyUp}, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if h.model.open != logCardOpen {
+		t.Fatal("after ↑ and enter, the card isn't open")
+	}
+
+	answering := func(chars int) string { return "answering · " + prose.Characters(chars) + " characters" }
+	for i, chars := range []int{1500, 4200, 9800} {
+		h.clock.now = past(time.Second + time.Duration(i+2)*250*time.Millisecond)
+		streamed(chars)
+		rows := strings.Split(h.view(), "\n")
+		card := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "├ stopped") })
+		row := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "↓ ") })
+		if card < 0 || !strings.Contains(rows[card], answering(chars)) {
+			t.Errorf("%d characters streamed, the card doesn't read %q:\n%s", chars, answering(chars), strings.Join(rows, "\n"))
+		}
+		if row < 0 || !strings.Contains(rows[row], answering(500)) {
+			t.Errorf("%d characters streamed, the row behind the card doesn't read %q, as it stood as the card opened:\n%s", chars, answering(500), strings.Join(rows, "\n"))
+		}
 	}
 }
 

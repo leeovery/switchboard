@@ -20,14 +20,16 @@ import (
 // before read back as the tables want them; the figures of those days,
 // which their rules say; how many times what it holds has changed, as
 // grown and looked change it; when each day the Requests await a line on
-// was last read for it; the oldest day the ledger keeps, and the oldest the
-// Events read back to, none known till each is said; who told the events
-// the Events last took in, and when; when the router's files are to be read
-// again from for the events a document skipped, as Skips has it, none while
-// none did; whether a read for it is under way, one at a time; whether a
-// failure to say how far back its tables read has been logged, the once;
-// its details card, while it's open; the panel of what a table shows, while
-// f has it open; and its find's walk back through the days.
+// was last read for it; how far back the lines of the filter the page's
+// Reach gives reach, as the days' summaries told; the oldest day the ledger
+// keeps, and the oldest the Events read back to, none known till each is
+// said; who told the events the Events last took in, and when; when the
+// router's files are to be read again from for the events a document
+// skipped, as Skips has it, none while none did; whether a read for it is
+// under way, one at a time; whether a failure to say how far back its
+// tables read has been logged, the once; its details card, while it's
+// open; the panel of what a table shows, while f has it open; and its
+// find's walk back through the days.
 type logTab struct {
 	page    dashboard.LogPage
 	built   logBuilt
@@ -37,6 +39,7 @@ type logTab struct {
 	totals  []views.DayTotals
 	held    int
 	awaited awaitedReads
+	reach   keptReach
 	from    views.LedgerDay
 	oldest  views.OldestDay
 	filed   views.OldestDay
@@ -61,10 +64,11 @@ func openingLog(columns dashboard.LogTicks) logTab {
 // of the events read; each as its filter has them, over the days from the
 // first read, and made again only as what it's made of changes, as
 // logBuilt has it, its lines held, as Lined holds them; whether the router
-// answers, and to when the ledger wrote; on opening, the table shown filled
-// once it fills its view; the details card, where it's open, of what it
-// holds; and while it's open, the panel of what a table shows, as
-// builtLogPanel has it.
+// answers, what the stream tells, which a row in flight is drawn as, and
+// to when the ledger wrote; on opening, the table shown filled once it
+// fills its view; the details card, where it's open, of what it holds; and
+// while it's open, the panel of what a table shows, as builtLogPanel has
+// it.
 func (m Model) builtLog(now time.Time) Model {
 	if !m.log.opened {
 		return m
@@ -73,7 +77,7 @@ func (m Model) builtLog(now time.Time) Model {
 	t := m.log
 	p := t.page
 	p.Read, p.From, p.Today, p.Totals = true, t.from, views.Today(now), t.totals
-	p.Live, p.Written = m.answering(), t.read.WrittenTo()
+	p.Live, p.Stream, p.Written = m.answering(), m.logStream(now), t.read.WrittenTo()
 	if basis := m.eventsBasis(p.Shows, now); !t.built.events.same(basis) {
 		p.Events, m.log.built.events = views.LogEvents(m.logEventSources(p.Shows, now)), &basis
 	}
@@ -157,10 +161,17 @@ func (m Model) lookedLog(look status.Moment, from router.Health) Model {
 	return m.builtLog(look.Now)
 }
 
+// logFrame is the Log's frame at the size drawn at, which lays its page
+// out: how many lines its view shows, where its card sits, and whether its
+// find has a row.
+func (m Model) logFrame() dashboard.Frame {
+	return dashboard.Frame{Width: m.size.Width, Height: m.size.Height, View: dashboard.Log, Log: m.log.page}
+}
+
 // logRows is how many of the Log's lines its view shows at once, at the
 // size drawn at.
 func (m Model) logRows() int {
-	return dashboard.Frame{Width: m.size.Width, Height: m.size.Height, View: dashboard.Log, Log: m.log.page}.LogRows()
+	return m.logFrame().LogRows()
 }
 
 // logKey acts on a key of the Log's, reporting false for a key it doesn't
@@ -218,7 +229,7 @@ func (m Model) scrollLog(by scrollStep) Model {
 // logListings are the Log's own keys, in the design's order: [ ] view, in a
 // group of its own; ↑↓ choosing a request or an event, enter opening its
 // details, and paused, end following again; then f and /, a group of their
-// own while paused.
+// own while paused, / working where its find has a row, as LogFinds says.
 func (m Model) logListings() []keyListing {
 	log, p := m.shownView() == dashboard.Log, m.log.page
 	paused := p.Paused()
@@ -229,7 +240,7 @@ func (m Model) logListings() []keyListing {
 		{Key: dashboard.Key{Key: "s", Does: "its session"}, works: log && p.ChosenSession() != "", wide: true},
 		{Key: logFollowKey, works: log && paused},
 		{Key: dashboard.Key{Key: "f", Does: "what it shows"}, works: log, apart: paused, wide: true},
-		{Key: dashboard.Key{Key: "/", Does: "find"}, works: log, wide: true},
+		{Key: dashboard.Key{Key: "/", Does: "find"}, works: log && m.logFrame().LogFinds(), wide: true},
 	}
 }
 

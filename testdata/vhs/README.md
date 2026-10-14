@@ -447,8 +447,9 @@ frames):
   count of the requests since the fixture paused at 14:32:41, `126`, and `1,240`, columns 144 to
   148, its `1,242`.
 - **Anthropic's id,** row 15 of `log-request-details-160`, columns 35 to 62, `req_011CQx…`: the
-  frame cut an id longer than the column's room, and the world's, `req_011CQx4n7RkV2bW9pT3sYd6M`,
-  as long as Anthropic's are, fits it whole, as the dashboard draws it.
+  frame cut the id to 11 cells, well short of the column's room, which holds `context-1m,
+  interleaved-thinking`, 32 cells, whole two rows down; the world's, `req_011CQx4n7RkV2bW9pT3sYd6M`,
+  as long as Anthropic's are, fits that room whole, as the dashboard draws it.
 - **d28c's lines alone,** rows 8 to 34 of `log-requests-filtered-160`, its newest 27, from
   `14:36:27`: the frame's generator drew them, where the world's are as d28c's page draws them, and
   its request in flight the Overview's frames' (`14:42:06`, with no directory); the dashboard draws
