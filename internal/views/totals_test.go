@@ -179,6 +179,44 @@ func TestAModelsShareOfUseIsLeftOutWhereItsWorthIsUnpriced(t *testing.T) {
 	}
 }
 
+// A version whose requests were sent upstream and answered without a usage,
+// none of its use priced, has no share of use.
+func TestAModelsShareOfUseIsLeftOutWhereNoneOfItsUseIsPriced(t *testing.T) {
+	unanswered := sent("claude-fable-5", 3, "")
+	unanswered.NoUsage = 3
+	days := daysFrom("2026-10-07", day("2026-10-07", account("work", sent("claude-opus-5-5", 1, inputUsage), unanswered)))
+
+	for _, m := range views.NewHistory(input(days)).Totals.Accounts[0].ByModel {
+		if m.Model == "claude-fable-5" && m.Share != nil {
+			t.Errorf("fable's share of work's use is %v, want none, as none of its use is priced", *m.Share)
+		}
+	}
+}
+
+// A version's share of a row's use is said as a whole percentage, "<1%"
+// where it rounds to none, and not where it has none.
+func TestAModelsShareOfUseIsSaidAsAWholePercentage(t *testing.T) {
+	tests := []struct {
+		name   string
+		share  *float64
+		want   string
+		wantOK bool
+	}{
+		{name: "a share", share: new(0.55), want: "55%", wantOK: true},
+		{name: "rounding to one", share: new(0.006), want: "1%", wantOK: true},
+		{name: "a half percent, to the even, none", share: new(0.005), want: "<1%", wantOK: true},
+		{name: "a sliver", share: new(0.0001), want: "<1%", wantOK: true},
+		{name: "none"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, ok := views.ShareSaid(tt.share); got != tt.want || ok != tt.wantOK {
+				t.Errorf("ShareSaid = %q, %v; want %q, %v", got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
 func TestAnAccountsDayOfNoRequestsCountsNone(t *testing.T) {
 	// Side's windows were read yesterday and today, and work's today, none
 	// of them used but work yesterday.
