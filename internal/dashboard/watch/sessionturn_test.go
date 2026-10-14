@@ -256,8 +256,9 @@ func TestHowFarAPagesTurnsScrollIsLaidOutOfThePageAlone(t *testing.T) {
 	h.openPage(idD28C)
 	shown := h.shownPage()
 	bare := dashboard.Frame{Width: 160, Height: 37, Session: &shown}
-	if got, want := h.model.turnsScrolling(shown), bare.TurnsScrolling(); got != want || want.Most == 0 {
-		t.Fatalf("the turns scroll %+v, want %+v, as the page alone lays them out, scrolling", got, want)
+	f, doc, at := h.model.screen(h.clock.now)
+	if got, want := h.model.turnsScrolling(shown), f.Scrolling(doc, at); got != want || want.Most == 0 {
+		t.Fatalf("the page alone lays its turns out scrolling %+v, want %+v, as the frame drawn does, scrolling", got, want)
 	}
 	least := testing.AllocsPerRun(10, func() { bare.TurnsScrolling() })
 	if got := testing.AllocsPerRun(10, func() { h.model.turnsScrolling(shown) }); got > least {
