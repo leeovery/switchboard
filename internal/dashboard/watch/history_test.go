@@ -104,7 +104,7 @@ func TestARouterFromBeforeGETHistoryHasNone(t *testing.T) {
 	h.source.health = router.Health{PID: 9}
 	h.tickUntilAsked()
 	if strings.Contains(h.view(), "restart the router") {
-		t.Errorf("once a router with GET /history answers, the screen is\n%s\nwant RECENT to ask for nothing", h.view())
+		t.Errorf("once a router with GET /history answers, the screen is\n%s\nwant LATELY to ask for nothing", h.view())
 	}
 }
 

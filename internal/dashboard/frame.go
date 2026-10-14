@@ -28,7 +28,7 @@ type Frame struct {
 	// the router isn't answering.
 	Failed Failure
 	// Outdated is set when the router is from before it told of events and
-	// gave its history: RECENT asks for it to be restarted.
+	// gave its history: LATELY asks for it to be restarted.
 	Outdated bool
 	// Fresh are the events looks saw newly, by id; Changed the accounts whose
 	// states looks saw change, by id, and StateChanged those whose states in
