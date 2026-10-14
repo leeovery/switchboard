@@ -31,12 +31,14 @@ type Frame struct {
 	// gave its history: RECENT asks for it to be restarted.
 	Outdated bool
 	// Fresh are the events looks saw newly, by id; Changed the accounts whose
-	// states looks saw change, by id; and TurnedOut the windows whose words
-	// looks saw turn to out ~, by account and key: each as far as the cue on
-	// it has faded, from 0, just seen, to 1, gone.
-	Fresh     map[int]float64
-	Changed   map[string]float64
-	TurnedOut map[Ref]float64
+	// states looks saw change, by id, and StateChanged those whose states in
+	// a word, as Accounts says them, looks saw change; and TurnedOut the
+	// windows whose words looks saw turn to out ~, by account and key: each
+	// as far as the cue on it has faded, from 0, just seen, to 1, gone.
+	Fresh        map[int]float64
+	Changed      map[string]float64
+	StateChanged map[string]float64
+	TurnedOut    map[Ref]float64
 	// Trails are how the accounts' windows have been used, for the charts.
 	Trails Trails
 	// Eased are how much of each bar easing after a read it fills, by its
@@ -105,6 +107,10 @@ type Frame struct {
 	// as "5-hour" or "Fable week": nil names it by its label in the
 	// document, as status.NameOfWindow has it.
 	WindowName func(key string) string
+	// WeekWindow is the key of the window a week long every model shares,
+	// the accounts' own week, as the config names it: the week Accounts'
+	// WEEK USED shows, and its page reads the weeks of.
+	WeekWindow string
 	// Accounts is Accounts' sub-tab shown, its period, what's chosen in it,
 	// and its page.
 	Accounts AccountsShown

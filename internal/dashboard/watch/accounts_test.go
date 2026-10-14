@@ -142,6 +142,18 @@ func TestAccountsOpensAsKept(t *testing.T) {
 	}
 }
 
+// The frame names the accounts' own week as the config does, the one key
+// Accounts' page and its WEEK USED read it by.
+func TestTheFrameNamesTheAccountsWeekAsTheConfigDoes(t *testing.T) {
+	h := newHarness(t, probedWithoutTheRouter())
+	cfg := h.config(Size{Width: 160, Height: 37})
+	cfg.WeekWindow = "7d_test"
+	m := New(t.Context(), cfg)
+	if got := m.frame(h.clock.now).WeekWindow; got != "7d_test" {
+		t.Errorf("the frame's week is %q, want the config's, 7d_test", got)
+	}
+}
+
 // Each look stands Accounts' page at its moment: a week reset before the
 // router reads it again closes that week in the page the frame draws, as
 // views.AccountsPage.At has it, while the page as built of the days, which

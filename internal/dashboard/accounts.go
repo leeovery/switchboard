@@ -127,6 +127,17 @@ func (f Frame) accountsHeading() heading {
 	return h
 }
 
+// cueState picks out width cells from x along row y, the state in a word of
+// the account with the given id, as Accounts says it, while it's newly
+// changed, as far faded back as the frame's StateChanged says, as cue picks
+// them out: never for a change ROUTING alone sees, as an open account going
+// idle.
+func (f Frame) cueState(c *canvas, id string, x, y, width int) {
+	if fade, ok := f.StateChanged[id]; ok {
+		cue(c, f.Look, x, y, width, fade)
+	}
+}
+
 // accountsForm is Accounts' view shown as its form draws it: what it draws
 // from row top; how far it scrolls, scrolled to each offset; what of it
 // scrolls, from column x along row y, width cells wide and rows tall; the

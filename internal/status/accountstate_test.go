@@ -125,6 +125,38 @@ func TestAccountsStatesAreCountedInTheirOrder(t *testing.T) {
 	}
 }
 
+// The accounts asked for are counted, those the config has, whatever the
+// moment holds: one it lacks yet as not read, and one it holds that isn't
+// asked for, not at all.
+func TestTheAccountsAskedForAreCountedThoseTheMomentLacksNotRead(t *testing.T) {
+	accounts := accountsOfKinds(status.RoutingCapped, status.RoutingOpen, status.RoutingIdle)
+	for i, id := range []string{"work", "personal", "side"} {
+		accounts[i].ID = id
+	}
+	m := status.Moment{Accounts: accounts}
+	tests := []struct {
+		name string
+		ids  []string
+		want status.StateCounts
+	}{
+		{name: "one the moment lacks", ids: []string{"work", "personal", "side", "added"}, want: status.StateCounts{
+			{State: status.StateOpen, N: 2}, {State: status.StateAtCap, N: 1}, {State: status.StateNotRead, N: 1},
+		}},
+		{name: "one the moment holds not asked for", ids: []string{"personal", "side"}, want: status.StateCounts{{State: status.StateOpen, N: 2}}},
+	}
+	for _, tt := range tests {
+		if got := m.CountStatesOf(tt.ids); !slices.Equal(got, tt.want) {
+			t.Errorf("%s: CountStatesOf(%q) = %+v, want %+v", tt.name, tt.ids, got, tt.want)
+		}
+	}
+	if got := m.StateInAWord("side"); got != status.StateOpen {
+		t.Errorf("side, idle, is %v in a word, want open", got)
+	}
+	if got := m.StateInAWord("added"); got != status.StateNotRead {
+		t.Errorf("an account the moment lacks is %v in a word, want not read", got)
+	}
+}
+
 // accountsOfKinds are accounts at a moment, each standing with the router as
 // the kind given.
 func accountsOfKinds(kinds ...status.RoutingKind) []status.AccountNow {
