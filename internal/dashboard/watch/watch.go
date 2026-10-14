@@ -363,6 +363,9 @@ const (
 	// the panel of what its table shows.
 	logCardOpen
 	logPanelOpen
+	// turnCardOpen is the Log's details of the request chosen of a session's
+	// turn open, over its page.
+	turnCardOpen
 )
 
 // frozen is the page as it stood when a card opened over it, or the Log's
@@ -654,8 +657,8 @@ func (m Model) viewOf(lines []string, look dashboard.Look) tea.View {
 }
 
 // pressed acts on a key: ctrl+c quits, whatever's open. While a card is
-// open, its keys alone act, as routingKey, helpKey, logCardKey and
-// logPanelKey take them, as do the find's while the Log's is open. Else q
+// open, its keys alone act, as routingKey, helpKey, logCardKey, logPanelKey
+// and turnCardKey take them, as do the find's while the Log's is open. Else q
 // quits; while the theme picker is open, it takes every other key; and
 // otherwise p opens the routing card, ? opens the page's help, R refreshes,
 // and the rest are a session's page's, while one is open, as sessionKey
@@ -672,6 +675,8 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.logCardKey(k)
 	case m.open == logPanelOpen:
 		return m.logPanelKey(k)
+	case m.open == turnCardOpen:
+		return m.turnCardKey(k)
 	case m.finding():
 		return m.logFindKey(k)
 	case k == "q":
@@ -722,8 +727,8 @@ func (m Model) live(now time.Time) dashboard.Frame {
 }
 
 // card is the card open over the page, as the model stands at now: the
-// routing card, its figures read afresh; the Log's details or its panel; or
-// help.
+// routing card, its figures read afresh; the Log's details or its panel; the
+// Log's details of a session's turn open's request; or help.
 func (m Model) card(now time.Time) dashboard.Opened {
 	switch m.open {
 	case routingOpen:
@@ -732,6 +737,8 @@ func (m Model) card(now time.Time) dashboard.Opened {
 		return m.logCard()
 	case logPanelOpen:
 		return m.logPanel(now)
+	case turnCardOpen:
+		return m.turnCard()
 	}
 	return m.helpCard()
 }

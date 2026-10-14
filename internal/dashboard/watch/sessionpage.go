@@ -12,12 +12,14 @@ import (
 
 // sessionShown is what the watch holds of a session's page while it's open:
 // the session's id; its page as its lines build it, held between looks, as
-// views.HeldPage holds it; and the page as the frame shows it, built afresh
-// of what's held as relived builds it.
+// views.HeldPage holds it; the page as the frame shows it, built afresh of
+// what's held as relived builds it; and the Log's details card over it,
+// while it's open.
 type sessionShown struct {
 	id    string
 	held  views.HeldPage
 	shown dashboard.SessionShown
+	card  turnCarding
 }
 
 // sessionReadMsg is a read of the ledger for a session's page, the asked'th
@@ -77,9 +79,10 @@ func (m Model) sessionRead(msg sessionReadMsg) Model {
 // relived is m with the session's page open built afresh at now, but for a
 // frame, which takes nothing in: of what it holds of the session's lines, of
 // the router's last listing of it, while the router answers, and of what the
-// request stream told, as the views build it, its turn chosen as following
-// has it. A page that can't be built, of no request and listed by no router,
-// stays as it was last built, and doesn't open where it never was.
+// request stream told, as the views build it, its turn open's requests
+// among it, its turn chosen as following has it. A page that can't be
+// built, of no request and listed by no router, stays as it was last built,
+// and doesn't open where it never was.
 func (m Model) relived(msg tea.Msg, now time.Time) Model {
 	if _, frame := msg.(frameMsg); frame || m.session == nil {
 		return m
@@ -91,6 +94,7 @@ func (m Model) relived(msg tea.Msg, now time.Time) Model {
 	case ok:
 		was := s.shown
 		s.shown.Page, s.shown.Story = page, s.held.Story(page, live)
+		s.shown.Requests = s.held.TurnRequests(s.shown.Open, live)
 		s.shown = following(was, s.shown, m.turnsScrolling(s.shown, now))
 		m.session = &s
 	case s.shown.Page.Session == "":
@@ -141,8 +145,9 @@ func turnAt(shown dashboard.SessionShown, n int) int {
 }
 
 // choosing is the page shown with its turn at index i, newest first, chosen,
-// or the nearest there is, scrolled no further than keeps it in view, its
-// turns scrolling as s says: none chosen of a page with no turns.
+// or the nearest there is, scrolled no further than keeps it in view, with
+// the rows under it the page keeps with it, as Kept has them, its turns
+// scrolling as s says: none chosen of a page with no turns.
 func choosing(shown dashboard.SessionShown, i int, s dashboard.Scrolling) dashboard.SessionShown {
 	turns := shown.Page.Turns
 	if len(turns) == 0 {
@@ -151,24 +156,28 @@ func choosing(shown dashboard.SessionShown, i int, s dashboard.Scrolling) dashbo
 	}
 	i = min(max(i, 0), len(turns)-1)
 	shown.Turn = turns[i].Turn
-	if s.Page > 0 {
-		shown.Scroll = min(max(shown.Scroll, i-s.Page+1), i)
-	}
-	shown.Scroll = min(max(shown.Scroll, 0), s.Most)
+	shown.Scroll = keptInView(shown.Scroll, i, shown.Kept(), s)
 	return shown
 }
 
 // sessionKey acts on a key while a session's page is open, as pressed hands
-// it on: esc goes back where the page was opened from, its tab as it was
-// left; tab and shift-tab show the tab after or before that one, leaving the
-// page, as pageKey has them; ↑ and ↓ choose the turn before and after, newest
-// first, as moveTurn has it; j, k, PgDn and PgUp scroll the turns, as
-// scrollTurns has it; and t opens the theme picker. The rest do nothing, the
-// tab's own keys among them.
+// it on: with a turn open, its keys first, as turnKey has them; esc goes
+// back where the page was opened from, its tab as it was left; tab and
+// shift-tab show the tab after or before that one, leaving the page, as
+// pageKey has them; ↑ and ↓ choose the turn before and after, newest first,
+// as moveTurn has it; enter opens the turn chosen, as openTurn has it; j,
+// k, PgDn and PgUp scroll the turns, or the turn open's requests, as
+// scrollSession has it; and t opens the theme picker. The rest do nothing,
+// the tab's own keys among them.
 func (m Model) sessionKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
 	if by, ok := scrollKey(k); ok {
-		return m.scrollTurns(by), nil
+		return m.scrollSession(by), nil
+	}
+	if m.session.shown.Open != 0 {
+		if next, cmd, ok := m.turnKey(k); ok {
+			return next, cmd
+		}
 	}
 	switch k {
 	case "esc":
@@ -179,6 +188,8 @@ func (m Model) sessionKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.moveTurn(-1), nil
 	case "down":
 		return m.moveTurn(1), nil
+	case "enter":
+		return m.openTurn(), nil
 	case "t":
 		return m.openPicker()
 	}
@@ -222,19 +233,22 @@ func (m Model) scrollTurns(by scrollStep) Model {
 	s := *m.session
 	turns := m.turnsScrolling(s.shown, m.now())
 	s.shown.Scroll = by.from(s.shown.Scroll, turns)
-	i := turnAt(s.shown, s.shown.Turn)
-	if turns.Page > 0 {
-		i = min(max(i, s.shown.Scroll), s.shown.Scroll+turns.Page-1)
-	}
-	s.shown = choosing(s.shown, i, turns)
+	s.shown = choosing(s.shown, inViewAt(turnAt(s.shown, s.shown.Turn), s.shown.Scroll, turns), turns)
 	m.session = &s
 	return m
 }
 
-// clickTurn acts on a click on the row of the turn numbered n: on the turn
-// chosen, it opens it, as enter does; on another, it chooses it.
+// clickTurn acts on a click on the row of the turn numbered n: with a turn
+// open, it closes it, as esc does, and on another turn, chooses it; else on
+// the turn chosen, it opens it, as enter does, and on another, it chooses
+// it.
 func (m Model) clickTurn(n int) (tea.Model, tea.Cmd) {
-	if n == m.session.shown.Turn {
+	if open := m.session.shown.Open; open != 0 {
+		m = m.closeTurn()
+		if n == open {
+			return m, nil
+		}
+	} else if n == m.session.shown.Turn {
 		return m.pressed(namedPresses["enter"])
 	}
 	if i := turnAt(m.session.shown, n); i >= 0 {
