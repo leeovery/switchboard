@@ -59,6 +59,10 @@ type HistoryInput struct {
 	// Family reads a model's family from its id, as internal/claude does,
 	// for a model the version table doesn't name.
 	Family func(model string) string
+	// read is when a Past's days were read, as it takes them: its Now as
+	// NewPast takes them, and as Since takes those it's given; never moved
+	// on as it's taken to a later Now alone.
+	read time.Time
 }
 
 // lookBack is how many days before the first asked for the ledger's days are

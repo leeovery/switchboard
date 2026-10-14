@@ -290,15 +290,17 @@ func (m Model) sinceRead(msg sinceMsg) Model {
 	return m
 }
 
-// since is the tab at now, the days given, read at at, in place of those
-// each year held held of them, as Past.Since has it, its page behind them.
+// since is the tab at now, the days given, read at at, as the read was asked,
+// before the ledger summarised them, so they hold nothing they're taken to
+// hold of what came after, in place of those each year held held of them, as
+// Past.Since has it, its page behind them.
 func (t historyTab) since(days []ledger.Summary, at, now time.Time) historyTab {
 	t.held, t.behind = t.held+1, true
 	for _, d := range []*heldDays{&t.last, &t.back} {
 		if !d.held() {
 			continue
 		}
-		d.past = d.past.Since(days, now)
+		d.past = d.past.Since(days, at).Since(nil, now)
 		if len(days) > 0 {
 			d.to = at
 		}

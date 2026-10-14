@@ -105,6 +105,21 @@ func TestARereadWeekStartingOffTheFiledResetIsCountedOnce(t *testing.T) {
 	}
 }
 
+// A page built after its days were read, stamped at its build, as the watch
+// builds one where the period steps, the day turns, or Accounts first shows
+// after History read them, folds a reset of a run begun since they were read
+// as one built as they landed does: the days are read when they were, not
+// when the page is built.
+func TestAPageBuiltAfterItsDaysWereReadFoldsAResetSinceAsOneBuiltAsTheyLanded(t *testing.T) {
+	am := accountsMoment(t, rereadUnfiled)
+	want, _ := accountsAt(accountsMoment(t, onceItsReFiled))
+	got := pastOf(am).Since(nil, am.Now).Accounts(am.Period).At(am.Doc.At(am.Now, claude.Policy))
+	if weeksSaid(got) != weeksSaid(want) {
+		t.Errorf("built at %v of days read at %v, the weeks say\n%s\nwant them as once the reset is filed\n%s",
+			am.Now.Format(time.TimeOnly), am.DaysRead.Format(time.TimeOnly), weeksSaid(got), weeksSaid(want))
+	}
+}
+
 // weekResetsOff is the moment am, its document reading the week of the
 // account with the given id to reset off as given.
 func weekResetsOff(am viewstest.AccountsMoment, id string, off time.Duration) viewstest.AccountsMoment {

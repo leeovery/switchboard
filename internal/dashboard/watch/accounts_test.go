@@ -298,6 +298,50 @@ func TestHistorysWeeksTellTheAccountsWeeksAsAccountsAtTheMoment(t *testing.T) {
 	}
 }
 
+// Accounts first shown after History read the days, its page built later,
+// before the days are read again, folds the reset of a run its document
+// reads begun since they were read, as a page built as they landed does.
+func TestAccountsShownAfterHistoryReadItsDaysFoldsAResetSinceTheRead(t *testing.T) {
+	mo := accountsMoment(t, "a week reset at 21:00, reread at 21:00:30, the days read before it")
+	h := momentHarness(t, mo, dashboard.History)
+	h.clock.now = mo.DaysRead
+	h.start()
+	reads := len(h.model.cfg.Ledger.(*daysLedger).reads)
+	h.clock.now = mo.Now
+	h.keys(shiftTabKey)
+
+	if got := len(h.model.cfg.Ledger.(*daysLedger).reads); got != reads {
+		t.Fatalf("Accounts shown read the days %d times more, want it shown of those History read", got-reads)
+	}
+	page := h.model.frame(mo.Now).Accounts.Page
+	if page == nil {
+		t.Fatal("Accounts' page isn't drawn")
+	}
+	if got, want := leftOf(page.Rows[0]), mo.Want["work"][viewstest.FigureLeft]; got != want {
+		t.Errorf("work's left at its last reset is drawn %s, want %s: its week closed at the reset", got, want)
+	}
+}
+
+// The days read are read as the read was asked, not as they land: asked a
+// moment before a reset, landing after it, they fold the reset of the run
+// begun between, which they can't hold.
+func TestDaysReadAcrossAResetFoldItAsReadWhenAsked(t *testing.T) {
+	mo := accountsMoment(t, "a week reset at 21:00, reread at 21:00:30, the days read before it")
+	h := momentHarness(t, mo, dashboard.Accounts)
+	h.clock.now = mo.DaysRead
+	h.start()
+	h.clock.now = mo.Now
+	h.deliver(sinceMsg{asked: h.model.past.asked, days: mo.Days[len(mo.Days)-1:], at: time.Date(2026, time.October, 5, 20, 59, 59, 0, time.Local)})
+
+	page := h.model.frame(mo.Now).Accounts.Page
+	if page == nil {
+		t.Fatal("Accounts' page isn't drawn")
+	}
+	if got, want := leftOf(page.Rows[0]), mo.Want["work"][viewstest.FigureLeft]; got != want {
+		t.Errorf("work's left at its last reset is drawn %s, want %s: its week closed at the reset", got, want)
+	}
+}
+
 // resetBeforeTheReread is the moment of a week reset at 21:00, at 21:00:01,
 // before the router reads it again.
 func resetBeforeTheReread(t *testing.T) viewstest.AccountsMoment {
