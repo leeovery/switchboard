@@ -55,6 +55,51 @@ func TestALogFiltersLinesReachBackToTheFirstDayASummaryMayHoldOne(t *testing.T) 
 	}
 }
 
+// The days' summaries bound how far back the Requests read through every
+// filter but one keeping the failed of no session, by the lines it keeps;
+// and the Events through a filter keeping some sessions' events, by those
+// sessions' lines of every kind; never the Events through every session's,
+// as no summary tells the days of an event's kind or account.
+func TestTheDaysSummariesBoundATablesReachWhereTheyTellOfWhatItKeeps(t *testing.T) {
+	ticked := func(f views.LogFilter, tick func(*views.LogFilter)) views.LogFilter {
+		tick(&f)
+		return f
+	}
+	checks := views.LogFilter{Kinds: []views.RowKind{views.RowCheck}}
+	ofWork := ticked(views.LogOpening(), func(f *views.LogFilter) { f.Accounts = []string{"work"} })
+	failed := ticked(views.LogOpening(), func(f *views.LogFilter) { f.Failed = true })
+	failedOfWork := ticked(ofWork, func(f *views.LogFilter) { f.Failed = true })
+	failedOfMover := ticked(failed, func(f *views.LogFilter) { f.Sessions = []string{mover} })
+	tests := []struct {
+		name   string
+		reach  func() (views.LogFilter, bool)
+		want   views.LogFilter
+		bounds bool
+	}{
+		{name: "the Requests through the kinds alone", reach: views.LogOpening().Reach, want: views.LogOpening(), bounds: true},
+		{name: "the Requests through checks alone", reach: checks.Reach, want: checks, bounds: true},
+		{name: "the Requests through an account", reach: ofWork.Reach, want: ofWork, bounds: true},
+		{name: "the Requests through the failed of a session", reach: failedOfMover.Reach, want: failedOfMover, bounds: true},
+		{name: "the Requests through the failed alone", reach: failed.Reach},
+		{name: "the Requests through the failed of an account", reach: failedOfWork.Reach},
+		{
+			name: "the Events through a session's moves", reach: views.EventFilter{Kinds: []string{"moved"}, Sessions: []string{mover}}.Reach,
+			want: views.LogFilter{Sessions: []string{mover}}, bounds: true,
+		},
+		{name: "the Events through every one", reach: views.EventFilter{}.Reach},
+		{name: "the Events through a kind alone", reach: views.EventFilter{Kinds: []string{"limit"}}.Reach},
+		{name: "the Events through an account", reach: views.EventFilter{Accounts: []string{"work"}}.Reach},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, bounds := tt.reach()
+			if bounds != tt.bounds || bounds && !got.Equal(tt.want) {
+				t.Errorf("the reach is of %+v, bounding %t; want of %+v, bounding %t", got, bounds, tt.want, tt.bounds)
+			}
+		})
+	}
+}
+
 // Two filters are equal where they tick the same, each choice in the same
 // order, and unequal where any one choice differs.
 func TestFiltersAreEqualWhereEveryChoiceTicksTheSame(t *testing.T) {

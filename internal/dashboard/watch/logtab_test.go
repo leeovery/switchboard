@@ -530,8 +530,9 @@ func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 
 // summariesAsked is a request ledger followed as it grows, as daysCounted
 // counts its reads, each read of its days' summaries telling, of every day,
-// as many sessions on work as there have been reads of them: the figures of
-// a day tell which read priced them.
+// as many sessions on each of its accounts as there have been reads of
+// them, its requests as they are: the figures of a day tell which read
+// priced them.
 type summariesAsked struct {
 	daysCounted
 	asked int
@@ -545,13 +546,18 @@ func (l *summariesAsked) Days(from time.Time) []ledger.Summary {
 	}
 	days := l.daysCounted.Days(from)
 	for i := range days {
-		days[i].Accounts = []ledger.AccountDay{{Account: "work", Sessions: l.asked, SessionIDs: ids}}
+		days[i].Accounts = slices.Clone(days[i].Accounts)
+		for a := range days[i].Accounts {
+			days[i].Accounts[a].Sessions, days[i].Accounts[a].SessionIDs = l.asked, ids
+		}
 	}
 	return days
 }
 
 // Reading back a day prices its figures alone, folded into those held: the
-// days read back before aren't priced again with each.
+// days read back before aren't priced again with each. The first read of
+// the summaries is how far back the Requests' lines reach, which bounds
+// them, so the day before today is priced by the second.
 func TestReadingBackADayPricesItsFiguresAlone(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state,
@@ -567,7 +573,7 @@ func TestReadingBackADayPricesItsFiguresAlone(t *testing.T) {
 	for _, d := range h.model.log.totals {
 		got = append(got, fmt.Sprintf("%s %d", d.Date, d.Sessions))
 	}
-	want := []string{dayfile.DateOf(past(-3*day)) + " 3", dayfile.DateOf(past(-2*day)) + " 2", dayfile.DateOf(past(-day)) + " 1"}
+	want := []string{dayfile.DateOf(past(-3*day)) + " 4", dayfile.DateOf(past(-2*day)) + " 3", dayfile.DateOf(past(-day)) + " 2"}
 	if !slices.Equal(got, want) {
 		t.Errorf("read back to the oldest day, the figures held are %v, want %v: each day's priced as it was read back, alone", got, want)
 	}

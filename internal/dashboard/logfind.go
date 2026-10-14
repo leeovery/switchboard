@@ -63,31 +63,49 @@ func (p LogPage) FoundOnly(id string) LogPage {
 }
 
 // refiltered is p with the tables given unfilled, as each stood as it first
-// opened, whose filter has changed what it shows, where bounded says how far
-// back it would read is bounded: short of its view, each reads back to fill
-// it, as it did on opening, paused or following as it stands. Another
-// stands filled as it was, reading back as WantsDayBefore has a filled
-// table read back.
+// opened, whose filter has changed what it shows, where refills says it
+// reads back to fill its view: short of it, each reads back to fill it, as
+// it did on opening, paused or following as it stands. Another stands
+// filled as it was, reading back as WantsDayBefore has a filled table read
+// back.
 func (p LogPage) refiltered(tables ...LogView) LogPage {
 	for _, v := range tables {
-		if p.bounded(v) {
+		if p.refills(v) {
 			p.Stands[v].filledAt = 0
 		}
 	}
 	return p
 }
 
-// bounded reports whether how far back the table given reads to fill its
-// view through its filter is bounded: the Requests' by how far back the days'
-// summaries say the lines it keeps reach, as the watch reads them, but of
-// the failed, as no summary counts a day's failures; the Events' where their
-// filter keeps kinds alone, as on opening, never some sessions or accounts,
-// which no summary of the ledger's lines tells the days of.
-func (p LogPage) bounded(v LogView) bool {
-	if v == LogEvents {
-		return len(p.Shows.Sessions)+len(p.Shows.Accounts) == 0
+// refills reports whether the table given reads back to fill its view as its
+// filter changes, or, following, as its view grows: where the days'
+// summaries bound how far back it reads through its filter, as reach has
+// it; and the Events through a filter choosing no account, as on opening,
+// every day back to the oldest they read, as no summary tells the days of
+// an event's kind.
+func (p LogPage) refills(v LogView) bool {
+	if _, ok := p.reach(v); ok {
+		return true
 	}
-	return !p.Filter.Failed
+	return v == LogEvents && len(p.Shows.Accounts) == 0
+}
+
+// Reach is the filter of the ledger's lines whose reach, as the days'
+// summaries tell it, bounds how far back the table shown reads, and whether
+// one does, as reach has it.
+func (p LogPage) Reach() (views.LogFilter, bool) {
+	return p.reach(p.Shown)
+}
+
+// reach is the filter of the ledger's lines whose reach bounds how far back
+// the table given reads, and whether one does, as views' Reach has it of
+// its filter: the one rule the watch reads the days' summaries by, and the
+// page refills its tables by.
+func (p LogPage) reach(v LogView) (views.LogFilter, bool) {
+	if v == LogEvents {
+		return p.Shows.Reach()
+	}
+	return p.Filter.Reach()
 }
 
 // Filtered reports whether the Log's filter keeps some lines alone, as the

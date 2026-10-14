@@ -20,15 +20,16 @@ import (
 // before read back as the tables want them; the figures of those days,
 // which their rules say; how many times what it holds has changed, as
 // grown and looked change it; when each day the Requests await a line on
-// was last read for it; how far back the lines the Requests' filter keeps
-// reach, as the days' summaries told; the oldest day the ledger keeps, and
-// the oldest the Events read back to, none known till each is said; who told the events
-// the Events last took in, and when; when the router's files are to be read
-// again from for the events a document skipped, as Skips has it, none while
-// none did; whether a read for it is under way, one at a time; whether a
-// failure to say how far back its tables read has been logged, the once;
-// its details card, while it's open; the panel of what a table shows, while
-// f has it open; and its find's walk back through the days.
+// was last read for it; how far back the lines of the filter the page's
+// Reach gives reach, as the days' summaries told; the oldest day the ledger
+// keeps, and the oldest the Events read back to, none known till each is
+// said; who told the events the Events last took in, and when; when the
+// router's files are to be read again from for the events a document
+// skipped, as Skips has it, none while none did; whether a read for it is
+// under way, one at a time; whether a failure to say how far back its
+// tables read has been logged, the once; its details card, while it's
+// open; the panel of what a table shows, while f has it open; and its
+// find's walk back through the days.
 type logTab struct {
 	page    dashboard.LogPage
 	built   logBuilt

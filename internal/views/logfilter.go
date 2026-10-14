@@ -42,11 +42,14 @@ func (f LogFilter) Equal(o LogFilter) bool {
 		slices.Equal(f.Kinds, o.Kinds) && f.Failed == o.Failed
 }
 
-// Chooses reports whether f keeps lines by some of their sessions, accounts
-// or models, which the days' summaries tell the days of, as KeptFrom reads
-// them.
-func (f LogFilter) Chooses() bool {
-	return len(f.Sessions)+len(f.Accounts)+len(f.Models) > 0
+// Reach is the filter of the ledger's lines whose reach, as KeptFrom reads
+// it, bounds how far back the Requests read through f, and whether one does:
+// f itself, of every filter but one keeping the failed of no session. No
+// summary counts a day's failures, so the failed reach as far back as every
+// line of their accounts, models and kinds, likely every day kept, where a
+// session's reach its days alone.
+func (f LogFilter) Reach() (LogFilter, bool) {
+	return f, !f.Failed || len(f.Sessions) > 0
 }
 
 // KeptFrom is the date of the earliest of the days summaries are of whose

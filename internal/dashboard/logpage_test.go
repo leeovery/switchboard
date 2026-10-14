@@ -268,9 +268,11 @@ func TestLandingChoosesTheFirstRequestAtOrAfterAMoment(t *testing.T) {
 // A table whose filter changes what it shows stands as it first opened,
 // unfilled, so, short of the view it filled, it reads back to fill it: as
 // the find's enter, the panel's, and esc letting the filter go each change
-// it. One whose filter the days' summaries can't bound stays as it stood,
-// reading back only as its top is reached: the Requests through a filter of
-// the failed, and the Events through one of a session.
+// it, where the days' summaries bound it, as its page's Reach has it, the
+// Events through kinds alone reading back as on opening. One they don't
+// bound stays as it stood, reading back only as its top is reached: the
+// Requests through a filter of the failed of no session, and the Events
+// through one of an account.
 func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 	const session = "d28c5e17-0000-4000-8000-000000000001"
 	src := views.LogSources{From: logDay, Now: logDayNoon}
@@ -290,8 +292,9 @@ func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 	}
 	requests := requestsOf(src, every).Filling(4)
 	events := keeping(threeAsked().Turned(1), nil, pinned, workAtItsCap).Filling(2)
-	picked, pins, failed := requests.Panel(), events.Panel(), requests.Panel()
+	picked, pins, failed, failedOf, worked := requests.Panel(), events.Panel(), requests.Panel(), requests.Panel(), events.Panel()
 	picked.Filter.Sessions, pins.Shows.Kinds, failed.Filter.Failed = []string{session}, []string{status.EventPin}, true
+	failedOf.Filter.Sessions, failedOf.Filter.Failed, worked.Shows.Accounts = []string{session}, true, []string{"work"}
 	tests := []struct {
 		name  string
 		page  LogPage
@@ -302,8 +305,10 @@ func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 		{name: "the panel's enter", page: keeping(requests.Applied(picked), ofSession), rows: 4, wants: true},
 		{name: "the Events' panel's enter", page: keeping(events.Applied(pins), nil, pinned), rows: 2, wants: true},
 		{name: "esc letting the filter go", page: keeping(keeping(requests.FoundOnly(session), ofSession).Filling(3).Unfiltered(), every), rows: 5, wants: true},
+		{name: "the panel's enter on the failed of a session", page: keeping(requests.Applied(failedOf), nil), rows: 4, wants: true},
+		{name: "the find's enter, on the Events", page: keeping(events.FoundOnly(session), nil), rows: 2, wants: true},
 		{name: "the panel's enter on the failed", page: keeping(requests.Applied(failed), nil), rows: 4},
-		{name: "the find's enter, on the Events", page: keeping(events.FoundOnly(session), nil), rows: 2},
+		{name: "the Events' panel's enter on an account", page: keeping(events.Applied(worked), nil, workAtItsCap), rows: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -376,9 +381,8 @@ func TestATableHoldingNoRowDoesntPause(t *testing.T) {
 
 // On opening, a table reads back a day at a time till it fills its view,
 // then only as its view's top, paused, reaches the first line held, or,
-// following, as its view grows past the rows it filled, where its filter is
-// bounded, as the failed alone aren't; never past the oldest day the ledger
-// keeps. A view of no rows fills nothing: the table reads back to fill it
+// following, as its view grows past the rows it filled, where it refills,
+// as the failed alone don't; never past the oldest day the ledger keeps. A view of no rows fills nothing: the table reads back to fill it
 // once the terminal gives it rows.
 func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 	src := views.LogSources{From: logDay, Now: logDayNoon}

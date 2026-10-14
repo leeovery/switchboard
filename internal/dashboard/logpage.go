@@ -68,7 +68,8 @@ type LogPage struct {
 // paused, which says the lines come since. filledAt is the rows of the
 // tallest view the table has filled, or reached the oldest day in, none
 // till it does: after, it reads back only as its top is reached, or,
-// following, as its view grows past them, where its filter is bounded.
+// following, as its view grows past them, where it refills, as refills
+// says.
 type LogStand struct {
 	paused    bool
 	top, foot LogKey
@@ -442,16 +443,14 @@ func (p LogPage) Filling(rows int) LogPage {
 // WantsDayBefore reports whether the table shown, in a view rows rows tall,
 // wants the day before those it spans read: on opening, until it fills its
 // view, and following, until it fills one grown past the rows it filled,
-// where how far back it would read is bounded, as bounded says, so growing
-// the terminal never walks a table through every day kept; and paused, its
-// view's top at the first line held. Never once it reaches as far back as
-// it reads.
+// where it refills, as refills says; and paused, its view's top at the
+// first line held. Never once it reaches as far back as it reads.
 func (p LogPage) WantsDayBefore(rows int) bool {
 	if !p.Read || p.reached() {
 		return false
 	}
 	lines, s := p.lines(), p.stand()
-	if s.filledAt == 0 || !s.paused && rows > s.filledAt && p.bounded(p.Shown) {
+	if s.filledAt == 0 || !s.paused && rows > s.filledAt && p.refills(p.Shown) {
 		return len(lines) < rows
 	}
 	first, _ := p.window(lines, s, rows)

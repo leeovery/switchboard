@@ -10,7 +10,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -272,6 +275,83 @@ func TestAFoundSessionReadsBackNoFurtherThanItsFirstDay(t *testing.T) {
 			}
 			if got := l.days[found:]; !slices.Equal(got, want) {
 				t.Errorf("found api, the Log read back the days %v, want %v: to api's first day, and no further", got, want)
+			}
+		})
+	}
+}
+
+// A table refiltered reads back no further than the days' summaries say the
+// lines of its page's Reach reach, though the ledger and the router's files
+// go back thirty days: the Requests through quota checks alone, no day
+// holding one, read back no day; through checks alone, the first a week
+// back, to that day; and the Events, shown after a find, to the found
+// session's first day. Each day read back is read whole, so the days read
+// are counted.
+func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(t *testing.T) {
+	checksAlone := func(h *harness) {
+		h.keyed("f")
+		h.model.log.panel.Filter.Kinds = []views.RowKind{views.RowCheck}
+		h.keys(enter)
+	}
+	foundAPI := func(h *harness) {
+		h.typed("/", "a", "p", "i")
+		h.keys(enter)
+	}
+	tests := []struct {
+		name          string
+		checked       int
+		found, filter func(h *harness)
+		reach         int
+	}{
+		{name: "the Requests through checks alone, none on any day", filter: checksAlone},
+		{name: "the Requests through checks alone, the first a week back", checked: 7, filter: checksAlone, reach: 7},
+		{name: "the Events after a find", found: foundAPI, filter: func(h *harness) { h.typed("]") }, reach: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			var lines []ledger.Held
+			var pins []events.Line
+			for i := range 60 {
+				lines = append(lines, ranIn(fmt.Sprintf("0c%06d", i), apiSession, "~/Code/api", -time.Duration(70-i)*time.Minute))
+			}
+			for d := 1; d <= 30; d++ {
+				for i := range 20 {
+					lines = append(lines, ranIn(fmt.Sprintf("0d%02d%04d", d, i), webSession, "~/Code/web", -time.Duration(d)*day+time.Duration(i)*time.Minute))
+				}
+				pins = append(pins, events.Line{ID: d, At: past(-time.Duration(d) * day), Kind: status.EventPin, Accounts: []string{"work"}, Run: past(-40 * day)})
+			}
+			lines = append(lines, ranIn("0b000003", apiSession, "~/Code/api", -3*day+time.Hour))
+			if tt.checked > 0 {
+				check := ranIn("0e000001", webSession, "~/Code/web", -time.Duration(tt.checked)*day+time.Hour)
+				check.Kind = ledger.KindCheck
+				lines = append(lines, check)
+			}
+			writeLines(t, state, lines...)
+			writeEvents(t, state, pins...)
+			h := newHarness(t, probedWithoutTheRouter())
+			h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
+			l := onTheLog(h, state)
+			h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+			h.start()
+			if tt.found != nil {
+				tt.found(h)
+			}
+			if got := shownRequests(h); len(got) != 60 {
+				t.Fatalf("the Requests show %d lines, want today's 60, which fill the view", len(got))
+			}
+			before := len(l.days)
+
+			tt.filter(h)
+			for range 40 {
+				h.deliver(h.update(frameMsg{gen: h.model.frames})...)
+			}
+			var want []string
+			for d := 1; d <= tt.reach; d++ {
+				want = append(want, dayfile.DateOf(past(-time.Duration(d)*day)))
+			}
+			if got := l.days[before:]; !slices.Equal(got, want) {
+				t.Errorf("the Log read back the days %v, want %v", got, want)
 			}
 		})
 	}
