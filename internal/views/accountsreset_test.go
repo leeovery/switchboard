@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
@@ -254,4 +255,29 @@ func TestStandingThePageAtAResetLeavesTheBuiltPageAndThePeriodAsTheyWere(t *test
 				row.Totals, row.Plan, row.Days, built.Rows[i].Totals, built.Rows[i].Plan, built.Rows[i].Days)
 		}
 	}
+}
+
+// A window a week long of a model's own, as Fable's week, reset since it was
+// read, leaves the page as it was built: Accounts' weeks are of the accounts'
+// own week alone, so nothing of it is worked out again.
+func TestAResetOfAWindowButTheAccountsWeekLeavesThePageAsBuilt(t *testing.T) {
+	am := accountsMoment(t, aSecondBefore)
+	fable := quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 0.5, ResetsAt: am.Now.Add(-15 * time.Second)}
+	am = withWindow(am, "work", fable)
+	built := views.NewPast(accountsIn(am), am.Days).Accounts(am.Period)
+	if stood := built.At(am.Doc.At(am.Now, claude.Policy)); &stood.Rows[0] != &built.Rows[0] {
+		t.Errorf("standing the page at Fable's week reset worked its rows out again, want the page as built")
+	}
+}
+
+// withWindow is the moment am, its document reading the window given of the
+// account with the given id, beside those it reads.
+func withWindow(am viewstest.AccountsMoment, id string, w quota.Window) viewstest.AccountsMoment {
+	am.Doc.Accounts = slices.Clone(am.Doc.Accounts)
+	for i, a := range am.Doc.Accounts {
+		if a.ID == id {
+			am.Doc.Accounts[i].Windows = append(slices.Clone(a.Windows), w)
+		}
+	}
+	return am
 }

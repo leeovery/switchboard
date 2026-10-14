@@ -38,19 +38,18 @@ type accountReset struct {
 	reset   ledger.Reset
 }
 
-// unfiled are the resets of the windows a week long of the page's accounts
-// that m tells of and the page's days don't hold, as endedSince has them.
+// unfiled are the resets of the page's accounts' own weeks, the week window
+// alone, as the page's weeks are of it alone, that m tells of and the page's
+// days don't hold, as endedSince has them.
 func (p AccountsPage) unfiled(m status.Moment) []accountReset {
 	var resets []accountReset
 	for _, a := range m.Accounts {
-		if !slices.ContainsFunc(p.in.Accounts, func(c config.Account) bool { return c.ID == a.ID }) {
+		w, read := a.Window(p.in.WeekWindow)
+		if !read || !slices.ContainsFunc(p.in.Accounts, func(c config.Account) bool { return c.ID == a.ID }) {
 			continue
 		}
-		own := accountDays(p.days, a.ID)
-		for _, w := range a.Windows {
-			if reset, ok := endedSince(w, p.days, own); ok {
-				resets = append(resets, accountReset{account: a.ID, reset: reset})
-			}
+		if reset, ok := endedSince(w, p.days, accountDays(p.days, a.ID)); ok {
+			resets = append(resets, accountReset{account: a.ID, reset: reset})
 		}
 	}
 	return resets
