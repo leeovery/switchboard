@@ -7,6 +7,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 )
 
 func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
@@ -95,6 +96,8 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 		{
 			name:    "at Fable's week's limit, a shared window at its cap holding back the rest: the cap",
 			account: with(with(readNow(0.2, 0.92, 1), fableLimited), capped(0.1)),
+			others:  []status.Account{{ID: "side"}},
+			best:    "side",
 			want: status.Routing{
 				Kind: status.RoutingCapped, Says: "at its cap", Clauses: []string{"back Mon 21:00", "new sessions go elsewhere"}, Short: []string{"at its cap", "Mon 21:00"}, Back: at(5, 21, 0).UTC(),
 			},
@@ -117,6 +120,8 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 		{
 			name:    "a family's requests refused, its session at its cap holding back the rest: the cap",
 			account: with(with(readNow(0.92, 0.3, 0), refusing(403, "opus")), capped(0.1)),
+			others:  []status.Account{{ID: "side"}},
+			best:    "side",
 			want: status.Routing{
 				Kind: status.RoutingCapped, Says: "at its cap", Clauses: []string{"back 17:10", "new sessions go elsewhere"}, Short: []string{"at its cap", "17:10"}, Back: at(1, 17, 10).UTC(),
 			},
@@ -150,9 +155,23 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 		{
 			name:    "at its cap in its session and its week: back as the last of them resets",
 			account: with(readNow(0.95, 0.96, 0.12), capped(0.05)),
+			others:  []status.Account{{ID: "side"}},
+			best:    "side",
 			want: status.Routing{
 				Kind: status.RoutingCapped, Says: "at its cap", Clauses: []string{"back Mon 21:00", "new sessions go elsewhere"}, Short: []string{"at its cap", "Mon 21:00"}, Back: at(5, 21, 0).UTC(),
 			},
+		},
+		{
+			name:    "at its cap, the one account there is: nowhere else for new sessions to go",
+			account: with(readNow(0.95, 0.34, 0.12), capped(0.05)),
+			best:    "work",
+			want:    status.Routing{Kind: status.RoutingCapped, Says: "at its cap", Clauses: []string{"back 17:10"}, Short: []string{"at its cap", "17:10"}, Back: at(1, 17, 10).UTC()},
+		},
+		{
+			name:    "at its cap, no account with room: nowhere else for new sessions to go",
+			account: with(readNow(0.95, 0.34, 0.12), capped(0.05)),
+			others:  []status.Account{{ID: "side"}},
+			want:    status.Routing{Kind: status.RoutingCapped, Says: "at its cap", Clauses: []string{"back 17:10"}, Short: []string{"at its cap", "17:10"}, Back: at(1, 17, 10).UTC()},
 		},
 		{
 			name:    "at its cap, the global pin naming it",
@@ -248,6 +267,23 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 			if got.Kind != tt.want.Kind || got.Says != tt.want.Says || !slices.Equal(got.Clauses, tt.want.Clauses) || !slices.Equal(got.Short, tt.want.Short) ||
 				!got.Back.Equal(tt.want.Back) {
 				t.Errorf("Routing = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// At each hard moment, ROUTING says new sessions go elsewhere of an account
+// its cap holds back where ▲ marks another account, and only there: where it
+// marks none, as where no account has room, there's nowhere else they go.
+func TestROUTINGSendsNewSessionsElsewhereOnlyWhereAnotherIsNext(t *testing.T) {
+	for _, hm := range statustest.HardMoments(policy) {
+		t.Run(hm.Name, func(t *testing.T) {
+			m := hm.Doc.At(hm.Now, policy)
+			for _, a := range m.Accounts {
+				away := slices.Contains(a.Routing.Clauses, goElsewhere)
+				if another := m.Next != "" && m.Next != a.ID; away != (a.Routing.Kind == status.RoutingCapped && another) {
+					t.Errorf("%s: ROUTING says %q, new sessions going elsewhere: %v; ▲ marks %q", a.ID, a.Routing, away, m.Next)
+				}
 			}
 		})
 	}

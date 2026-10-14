@@ -169,11 +169,12 @@ func (s windowStates) heldRouting() (Routing, bool) {
 // which windows every model shares, reporting false while no window of it
 // has reached its cap, as reachedReserve judges: at it in a window every model
 // shares, which holds it back from every request, as in "at its cap · back
-// 17:10 · new sessions go elsewhere", back as the last of those resets; else
-// in a model's own, as Fable's week, which holds back that model's requests
-// alone, as in "Fable wk at its cap · back Mon 21:00 · other models still
-// come here", of its own kind, pinned or not. The global pin naming it spends
-// its cap, so new sessions still come here.
+// 17:10 · new sessions go elsewhere", back as the last of those resets, and
+// saying new sessions go elsewhere only where they go to another account, as
+// elsewhere says; else in a model's own, as Fable's week, which holds back
+// that model's requests alone, as in "Fable wk at its cap · back Mon 21:00 ·
+// other models still come here", of its own kind, pinned or not. The global
+// pin naming it spends its cap, so new sessions still come here.
 func (s windowStates) cappedRouting() (Routing, bool) {
 	a, now, policy := s.account, s.now, s.policy
 	keys := slices.SortedStableFunc(slices.Values(s.reached), func(x, y string) int { return sharedFirst(policy, x, y) })
@@ -181,9 +182,9 @@ func (s windowStates) cappedRouting() (Routing, bool) {
 		return Routing{}, false
 	}
 	shared := policy.IsShared(keys[0])
-	kind, says, then := RoutingCapped, "at its cap", goElsewhere
+	kind, says, then := RoutingCapped, "at its cap", onlyIf(s.doc.elsewhere(a.ID), goElsewhere)
 	if !shared {
-		kind, says, then = RoutingModelCapped, Short(a.label(keys[0]))+" at its cap", stillComes
+		kind, says, then = RoutingModelCapped, Short(a.label(keys[0]))+" at its cap", []string{stillComes}
 	}
 	if s.doc.Pin.Has(a.ID) {
 		if shared {
@@ -195,7 +196,7 @@ func (s windowStates) cappedRouting() (Routing, bool) {
 	if !shared {
 		back, _ = score.LetGo(a.Windows, a.Reserve, func(key string) bool { return !policy.IsShared(key) }, now)
 	}
-	return Routing{Kind: kind, Says: says, Clauses: append(backAt(now, back), then), Short: shortBack(says, now, back), Back: back}, true
+	return Routing{Kind: kind, Says: says, Clauses: append(backAt(now, back), then...), Short: shortBack(says, now, back), Back: back}, true
 }
 
 // pressedRouting is how an account stands under pressure at now: when its
@@ -207,6 +208,14 @@ func pressedRouting(out RunOut, now time.Time) Routing {
 		r.Clauses = []string{"out ~" + prose.Dated(now, out.At)}
 	}
 	return r
+}
+
+// onlyIf is the clause given, where so, else none.
+func onlyIf(so bool, clause string) []string {
+	if !so {
+		return nil
+	}
+	return []string{clause}
 }
 
 // backAt is the clause that says when an account held back at now has room

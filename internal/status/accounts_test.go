@@ -79,7 +79,7 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
 		"no account able to take a request": {
-			"work": {state: "■ limit", head: "■ limit reached · new sessions go elsewhere"},
+			"work": {state: "■ limit", head: "■ limit reached"},
 			"side": {state: "■ refused", head: "■ refused (401) · its token needs renewing"},
 		},
 		"its token refused, a limit naming no window holding": {
@@ -100,6 +100,14 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 		},
 		"probed, of one account, with no room": {
 			"work": {state: "■ limit", head: "■ limit reached"},
+		},
+		"every account at its cap, none with room": {
+			"work": {state: "● at cap", head: "● at its cap"},
+			"side": {state: "● at cap", head: "● at its cap"},
+		},
+		"probed, one of several at its limit": {
+			"work": {state: "■ limit", head: "■ limit reached"},
+			"side": {state: "● open", head: "● open"},
 		},
 		"a week at its limit, reset since read, before the reread": {
 			"work": {state: "● open", head: "● open"},
@@ -146,18 +154,20 @@ const (
 
 // At each hard moment, what Accounts says of each account agrees with
 // ROUTING and with ▲: Detail's head is of ROUTING's kind, its glyph and
-// colour, and its first words, never says when room returns, and says new
+// colour, and its first words, never says when room returns, says new
 // sessions come to an account open or under pressure where ▲ marks it alone,
-// and go elsewhere where it doesn't; the pool's states counted, as ROUTING
-// counts them, are each of its accounts' once, in the state its kind wants;
-// and all accounts takes every account's windows whose use is known, whatever
-// the pool, or with one account, none.
+// and says they go elsewhere from one held back from every request where ▲
+// marks another account alone, as where none is ▲, there's nowhere else they
+// go; the pool's states counted, as ROUTING counts them, are each of its
+// accounts' once, in the state its kind wants; and all accounts takes every
+// account's windows whose use is known, whatever the pool, or with one
+// account, none.
 func TestAccountsAgreesWithROUTINGAtEachHardMoment(t *testing.T) {
 	for _, hm := range statustest.HardMoments(policy) {
 		t.Run(hm.Name, func(t *testing.T) {
 			m := hm.Doc.At(hm.Now, policy)
 			for _, a := range m.Accounts {
-				checkHeadAgrees(t, a)
+				checkHeadAgrees(t, m.Next, a)
 			}
 			checkPoolsStatesCounted(t, m, hm.Want)
 			checkAllTakesEveryAccount(t, m)
@@ -166,8 +176,9 @@ func TestAccountsAgreesWithROUTINGAtEachHardMoment(t *testing.T) {
 }
 
 // checkHeadAgrees checks Detail's head of the account a against ROUTING's
-// words and ▲.
-func checkHeadAgrees(t *testing.T, a status.AccountNow) {
+// words and ▲, which marks the account with the id next, "" where none is
+// marked.
+func checkHeadAgrees(t *testing.T, next string, a status.AccountNow) {
 	t.Helper()
 	head, routing := a.Headed(), a.Routing
 	if head.Kind != routing.Kind || head.Says != routing.Says {
@@ -181,8 +192,10 @@ func checkHeadAgrees(t *testing.T, a status.AccountNow) {
 	if comes != (opens && a.Next) {
 		t.Errorf("%s: the head says %q, new sessions coming here: %v; ▲ marks it: %v", a.ID, head, comes, a.Next)
 	}
-	if slices.Contains(head.Clauses, goElsewhere) && a.Next {
-		t.Errorf("%s: the head says %q, but ▲ marks it", a.ID, head)
+	away := slices.Contains(head.Clauses, goElsewhere)
+	held := routing.Kind == status.RoutingLimited || routing.Kind == status.RoutingCapped
+	if another := next != "" && next != a.ID; away != (held && another) {
+		t.Errorf("%s: the head says %q, new sessions going elsewhere: %v; ▲ marks %q", a.ID, head, away, next)
 	}
 }
 

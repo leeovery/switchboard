@@ -199,12 +199,20 @@ func HardMoments(policy score.Policy) []HardMoment {
 			},
 		},
 	}
+	cappedWork := with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.92, time.Hour)), reserving)
+	workCapped := AccountFacts{Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Windows: map[string]WindowFacts{
+		"5h": {Kind: status.WindowOpen, At: Built.Add(3 * time.Hour), Used: 0.3, Next: Built.Add(3 * time.Hour)},
+		"7d": {Kind: status.WindowCapped, At: Built.Add(time.Hour), Used: 0.92, Next: Built.Add(time.Hour), Capped: true, CappedAsRead: true},
+	}}
 	capped := func(pinned []string) status.Document {
-		return Router(policy, pinned,
-			Routed{Account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.92, time.Hour)), reserving)},
-			Routed{Account: side},
-		)
+		return Router(policy, pinned, Routed{Account: cappedWork}, Routed{Account: side})
 	}
+	// everyCapped has side's session at its reserve beside work's week, so no
+	// account has room outside its reserve, which the router never spends.
+	everyCapped := Router(policy, nil,
+		Routed{Account: cappedWork},
+		Routed{Account: with(readAt("side", windowIn("5h", 0.95, 4*time.Hour), windowIn("7d", 0.2, 5*day)), reserving)},
+	)
 	lapsed := Router(policy, nil,
 		Routed{Account: with(readAt("work", windowIn("5h", 0.5, -time.Hour), windowIn("7d", 0.3, 3*day)), readEarlier(Built.Add(-6*time.Hour)))},
 		Routed{Account: side},
@@ -302,13 +310,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 		},
 		{
 			Name: "a week at its reserve when built", Doc: capped(nil), Now: Built.Add(10 * time.Minute),
-			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
-				"work": {Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Windows: map[string]WindowFacts{
-					"5h": {Kind: status.WindowOpen, At: Built.Add(3 * time.Hour), Used: 0.3, Next: Built.Add(3 * time.Hour)},
-					"7d": {Kind: status.WindowCapped, At: Built.Add(time.Hour), Used: 0.92, Next: Built.Add(time.Hour), Capped: true, CappedAsRead: true},
-				}},
-				"side": sideOpen,
-			}},
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{"work": workCapped, "side": sideOpen}},
 		},
 		{
 			Name: "a week at its reserve when built, then reset", Doc: capped(nil), Now: Built.Add(time.Hour + time.Minute),
@@ -328,6 +330,16 @@ func HardMoments(policy score.Policy) []HardMoment {
 					"7d": {Kind: status.WindowOpen, At: Built.Add(time.Hour), Used: 0.92, Next: Built.Add(time.Hour)},
 				}},
 				"side": {Routing: status.RoutingOpen, CanRise: true, Windows: sideOpen.Windows},
+			}},
+		},
+		{
+			Name: "every account at its cap, none with room", Doc: everyCapped, Now: Built.Add(10 * time.Minute),
+			Want: Facts{Accounts: map[string]AccountFacts{
+				"work": workCapped,
+				"side": {Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Windows: map[string]WindowFacts{
+					"5h": {Kind: status.WindowCapped, At: Built.Add(4 * time.Hour), Used: 0.95, Next: Built.Add(4 * time.Hour), Capped: true, CappedAsRead: true},
+					"7d": sideOpen.Windows["7d"],
+				}},
 			}},
 		},
 		{
@@ -460,6 +472,20 @@ func HardMoments(policy score.Policy) []HardMoment {
 					"5h": {Kind: status.WindowOpen, At: Built.Add(3 * time.Hour), Used: 0.3, Next: Built.Add(3 * time.Hour)},
 					"7d": {Kind: status.WindowLimited, At: Built.Add(2 * day), Used: 1, Next: Built.Add(2 * day), Held: true},
 				}},
+			}},
+		},
+		{
+			// Where new sessions go is the router's to say, and it isn't
+			// running: no account is ▲.
+			Name: "probed, one of several at its limit",
+			Doc:  Probed(policy, readAt("work", spentIn("5h", 1, 40*time.Minute), windowIn("7d", 0.6, 3*day)), side),
+			Now:  Built.Add(time.Minute),
+			Want: Facts{Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingLimited, Held: true, OutOfQuota: true, Windows: map[string]WindowFacts{
+					"5h": {Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 1, Next: Built.Add(40 * time.Minute), Held: true},
+					"7d": workLimited.Windows["7d"],
+				}},
+				"side": {Routing: status.RoutingOpen, CanRise: true, Windows: sideOpen.Windows},
 			}},
 		},
 		{
