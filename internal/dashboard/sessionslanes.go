@@ -51,17 +51,23 @@ type lanesBoard struct {
 }
 
 // boardLane is an account's lane: the account, how it stands, its row of the
-// block, and its calls, in the order the patch keeps them.
+// block, and its calls, in the order the patch keeps them; and whether it
+// says no session is running, as the first lane does where none is.
 type boardLane struct {
-	account status.AccountNow
-	row     usageRow
-	calls   []views.Call
+	account  status.AccountNow
+	row      usageRow
+	calls    []views.Call
+	saysNone bool
 }
 
-// rows are the rows the lane takes: its name row, its windows' row and a row
-// a session.
+// rows are the rows the lane takes: its name row, its windows' row, a row a
+// session, and one saying none runs, where it says so.
 func (l boardLane) rows() int {
-	return 2 + len(l.calls)
+	rows := 2 + len(l.calls)
+	if l.saysNone {
+		rows++
+	}
+	return rows
 }
 
 // lanesForm is the Switchboard of doc at now in lanes, in place of cords,
@@ -108,6 +114,9 @@ func (f Frame) lanesOf(doc status.Document, now time.Time, laid boardLayout) lan
 			l.calls = append(l.calls, c)
 		}
 		b.lanes = append(b.lanes, l)
+	}
+	if len(b.lanes) > 0 && !slices.ContainsFunc(b.lanes, func(l boardLane) bool { return len(l.calls) > 0 }) {
+		b.lanes[0].saysNone = true
 	}
 	whole := growing(f.Width)
 	b.foot(whole, b.drawLanes(&stack{c: whole, filled: make(map[Ref]float64)}, 0, b.lanes))
@@ -222,12 +231,17 @@ func (b lanesBoard) drawLanes(s *stack, y int, lanes []boardLane) int {
 }
 
 // drawLane draws the lane onto the stack from row y: its name row, its
-// windows' row and its calls, a row each, each a zone a click chooses it by;
-// and returns the row after its last.
+// windows' row and its calls, a row each, each a zone a click chooses it by,
+// or where it says none runs, a row saying so in text.faint, where its first
+// call would be; and returns the row after its last.
 func (b lanesBoard) drawLane(s *stack, y int, l boardLane) int {
 	b.nameRow(s.c, y, l)
 	b.windowsRow(s, y+1, l.row)
 	y += 2
+	if l.saysNone {
+		s.c.line(laneCall.id, y, line{{noSessionsRunning, faintInk}})
+		y++
+	}
 	for _, call := range l.calls {
 		b.callRow(s.c, y, call)
 		s.targets = append(s.targets, Target{Y: y, Width: b.f.Width, On: OnSession, Session: call.Session, Account: call.Account})

@@ -195,6 +195,35 @@ func TestWithOneAccountTheLanesHaveNoPool(t *testing.T) {
 	}
 }
 
+// With no session running, as while no router lists any, the lanes say so
+// as the Switchboard does, in text.faint, where the first session would be:
+// under the first account's windows, its lane a row longer, the others
+// standing empty after it.
+func TestWithNoSessionRunningTheLanesSaySo(t *testing.T) {
+	doc := phoneDoc()
+	f := lanesFrame(52, 33, Look{}, nil)
+	c := f.At(doc, routedAt).page(doc, routedAt)
+	rows := lanesText(f, doc)
+	top := f.top()
+	if got := rows[top+2]; got != "  "+noSessionsRunning {
+		t.Errorf("the row under work's windows reads %q, want %q", got, "  "+noSessionsRunning)
+	}
+	if got := c.at(2, top+2).ink; got != faintInk {
+		t.Errorf("it's in %+v, want text.faint", got)
+	}
+	for _, want := range []struct {
+		y    int
+		says string
+	}{{top + 3, ""}, {top + 4, "2 personal ◆"}, {top + 6, ""}, {top + 7, "3 side ▲"}} {
+		if got := rows[want.y]; !strings.HasPrefix(got, want.says) || want.says == "" && got != "" {
+			t.Errorf("row %d reads %q, want it to start %q", want.y+1, got, want.says)
+		}
+	}
+	if n := strings.Count(strings.Join(rows, "\n"), noSessionsRunning); n != 1 {
+		t.Errorf("the lanes say %q %d times, want once", noSessionsRunning, n)
+	}
+}
+
 // From 100 columns, where the bent cords outnumber the bends' room, the
 // Switchboard draws lanes under the wide heading: the bars half what the
 // width leaves, and the wide key, its marks four cells apart.
