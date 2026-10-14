@@ -143,6 +143,16 @@ func TestThePeriodsVersionsAreTheTablesInItsOrder(t *testing.T) {
 	}
 }
 
+// The page's worth is priced as of the price table's date, as help gives it,
+// with nothing recorded as with days.
+func TestThePagesPricesAreAsOfThePriceTablesDate(t *testing.T) {
+	for _, days := range [][]ledger.Summary{nil, daysFrom("2026-10-07")} {
+		if got := accountsPageOf(days, threeAccounts).PricesAsOf; got != ledger.Pricing.AsOf {
+			t.Errorf("of %d days, the page's prices are as of %q, want %q", len(days), got, ledger.Pricing.AsOf)
+		}
+	}
+}
+
 // Where one account's weeks are known, it ends weeks with both the most and
 // the least left; where none's are, none does.
 func TestTheEndsOfOneAccountsWeeksAreItsOwn(t *testing.T) {

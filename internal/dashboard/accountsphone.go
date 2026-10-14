@@ -377,7 +377,7 @@ func (s stacked) whole() stack {
 // and at the right, where it fits beside it, ↑↓ an account, or all. With one
 // account, there's no other to pick: its name alone.
 func (s stacked) picker(c *canvas, y int) {
-	if s.f.Accounts.alone() {
+	if s.f.Accounts.Alone() {
 		c.line(0, y, s.named(s.f.edge()))
 		return
 	}
