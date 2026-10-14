@@ -55,6 +55,13 @@ func (page WeeksPage) At(m status.Moment) WeeksPage {
 	return stood.weeksPage()
 }
 
+// Until is when the page, as At stands it at the moment m, next stands
+// otherwise, as Past's standsUntil has it: till then, At stands it alike at
+// every moment of m's document.
+func (page WeeksPage) Until(m status.Moment) time.Time {
+	return page.past.standsUntil(m)
+}
+
 // WeeksRow is an account's row of Weeks, or every account's: its verdict, as
 // Capacity gives it, and its peak in each of the eight weeks, as Weeks lists
 // them. Of an account, Label is its label, as the config gives it, and

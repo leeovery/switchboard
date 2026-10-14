@@ -44,6 +44,46 @@ func (p Past) filedAt(m status.Moment) (Past, bool) {
 	return p, true
 }
 
+// Until is when the page, as At stands it at the moment m, next stands
+// otherwise, as Past's standsUntil has it: till then, At stands it alike at
+// every moment of m's document.
+func (p AccountsPage) Until(m status.Moment) time.Time {
+	return Past{in: p.in, days: p.days}.standsUntil(m)
+}
+
+// standsUntil is when the Past, as filedAt stands it at the moment m, next
+// stands otherwise, at a moment of m's document: the first time after m's
+// Now that the day ends, as a Past at m's Now tells its weeks to today, that
+// a configured account's week resets, as m reads it, or that a week long
+// window runs a length on from a reset the days, as they stand, give, as the
+// week it began ends then. Till then, filedAt stands it alike at every
+// moment of m's document, as what it files, and the weeks the days tell,
+// change only as those come.
+func (p Past) standsUntil(m status.Moment) time.Time {
+	stood, _ := p.filedAt(m)
+	next := dayfile.DayStart(m.Now, 1)
+	ahead := func(at time.Time) {
+		if at.After(m.Now) && at.Before(next) {
+			next = at
+		}
+	}
+	for _, c := range p.in.Accounts {
+		if a, ok := m.Account(c.ID); ok {
+			if w, read := a.Window(p.in.WeekWindow); read {
+				ahead(w.Read.ResetsAt)
+			}
+		}
+		for _, d := range accountDays(stood.days, c.ID) {
+			for _, r := range d.Resets {
+				if length, ok := quota.Length(r.Window); ok && quota.WeekLong(r.Window) {
+					ahead(r.At.Add(length))
+				}
+			}
+		}
+	}
+	return next
+}
+
 // accountReset is a reset of the window of the account with the given id.
 type accountReset struct {
 	account string

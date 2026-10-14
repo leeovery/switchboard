@@ -105,11 +105,10 @@ func TestAccountsPageIsBuiltOnceForTheDaysHeldAndThePeriod(t *testing.T) {
 	}
 }
 
-// Accounts' page is stood once a message, at its moment, for every frame of
-// it to read: frames read the one stood, as does a message of the same
-// moment; a message of a moment later stands it afresh, as does one that
-// builds it afresh, though of the same moment.
-func TestAccountsPageIsStoodOnceAMessage(t *testing.T) {
+// Accounts' page is stood afresh only as what it stands at changes, for
+// every frame to read: frames read the one stood, as does a message of the
+// same moment; one that builds it afresh stands it afresh, as < does.
+func TestAccountsPageIsStoodAfreshAsItsBuiltAfresh(t *testing.T) {
 	h, _ := historyHarness(t, dashboard.Accounts, dashboard.HistoryPage{})
 	h.start()
 	now := h.clock.now
@@ -127,13 +126,76 @@ func TestAccountsPageIsStoodOnceAMessage(t *testing.T) {
 	if got := h.model.frame(now).Accounts.Page.Period; got != views.AccountsToday {
 		t.Errorf("< pressed, Accounts' page drawn is over %q, want it stood afresh over today", got)
 	}
+}
 
-	stood = h.model.frame(now).Accounts.Page
-	h.clock.now = now.Add(time.Second)
-	h.update(frameMsg{gen: h.model.frames})
-	if h.model.frame(h.clock.now).Accounts.Page == stood {
-		t.Errorf("a message a second on left Accounts' page stood as it was, want it stood afresh at its moment")
+// Accounts' page, and History's Weeks, are stood afresh only as what they
+// stand at changes, counted over a second of frames: never by a frame of the
+// one document; afresh as a look reads the document afresh; and as the time
+// passes work's week's reset, when each stands otherwise, the week closed.
+func TestPagesAreStoodAfreshOnlyAsWhatTheyStandAtChanges(t *testing.T) {
+	tests := []struct {
+		view  dashboard.View
+		stood func(m Model) any
+		weeks func(m Model) []views.WeekPeak
+	}{
+		{
+			view: dashboard.Accounts, stood: func(m Model) any { return m.accounts.stood },
+			weeks: func(m Model) []views.WeekPeak { return m.accounts.stood.Rows[0].Peaks },
+		},
+		{
+			view: dashboard.History, stood: func(m Model) any { return m.past.page.Weeks },
+			weeks: func(m Model) []views.WeekPeak { return m.past.page.Weeks.Accounts[0].Peaks },
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.view.Title(), func(t *testing.T) {
+			mo := accountsMoment(t, "a week at its limit at 20:59:59, a second before it resets")
+			h := momentHarness(t, mo, tt.view)
+			h.start()
+			stood := []any{tt.stood(h.model)}
+			stands := func() {
+				if s := tt.stood(h.model); s != stood[len(stood)-1] {
+					stood = append(stood, s)
+				}
+			}
+			for range 10 {
+				h.clock.now = h.clock.now.Add(50 * time.Millisecond)
+				h.update(frameMsg{gen: h.model.frames})
+				stands()
+			}
+			if len(stood) != 1 {
+				t.Errorf("over 10 frames of the one document, the page was stood %d times, want once", len(stood))
+			}
+
+			before := peaksOf(tt.weeks(h.model))
+			h.clock.now = mo.Now.Add(1500 * time.Millisecond)
+			h.update(frameMsg{gen: h.model.frames})
+			stands()
+			if after := peaksOf(tt.weeks(h.model)); len(stood) != 2 || slices.Equal(after, before) {
+				t.Errorf("past work's week's reset, the page was stood %d times since, work's peaks %v, want once, the week closed, as against %v", len(stood)-1, after, before)
+			}
+
+			read := mo.Doc
+			read.GeneratedAt = read.GeneratedAt.Add(time.Millisecond)
+			h.source.router = &read
+			h.tickUntilAsked()
+			stands()
+			if len(stood) == 2 {
+				t.Errorf("a look reading the document afresh left the page stood as it was, want it stood afresh")
+			}
+		})
+	}
+}
+
+// accountsMoment is the moment of AccountsMoments with the given name.
+func accountsMoment(t *testing.T, name string) viewstest.AccountsMoment {
+	t.Helper()
+	moments := viewstest.AccountsMoments()
+	i := slices.IndexFunc(moments, func(mo viewstest.AccountsMoment) bool { return mo.Name == name })
+	if i < 0 {
+		t.Fatalf("no moment %q", name)
+	}
+	return moments[i]
 }
 
 // What Accounts shows that the preferences keep, the sub-tab and the period,
@@ -240,14 +302,7 @@ func TestHistorysWeeksTellTheAccountsWeeksAsAccountsAtTheMoment(t *testing.T) {
 // before the router reads it again.
 func resetBeforeTheReread(t *testing.T) viewstest.AccountsMoment {
 	t.Helper()
-	moments := viewstest.AccountsMoments()
-	i := slices.IndexFunc(moments, func(mo viewstest.AccountsMoment) bool {
-		return mo.Name == "a week reset at 21:00, at 21:00:01, before the router reads it again"
-	})
-	if i < 0 {
-		t.Fatal("no moment of a week reset before the reread")
-	}
-	return moments[i]
+	return accountsMoment(t, "a week reset at 21:00, at 21:00:01, before the router reads it again")
 }
 
 // momentHarness is a harness of a watch opening on the view given, at the

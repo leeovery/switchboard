@@ -302,3 +302,38 @@ func withWindow(am viewstest.AccountsMoment, id string, w quota.Window) viewstes
 	}
 	return am
 }
+
+// Accounts' page, and Weeks', each stands alike at every moment of a
+// document from the one it's stood at till Until, at each of Accounts' hard
+// moments: a second before work's week resets, till the reset, after which
+// it stands otherwise, the week closed.
+func TestAPageStandsAlikeTillUntil(t *testing.T) {
+	for _, am := range viewstest.AccountsMoments() {
+		t.Run(am.Name, func(t *testing.T) {
+			page, weeks := builtOf(am), pastOf(am).Weeks()
+			m := am.Doc.At(am.Now, claude.Policy)
+			until := page.Until(m)
+			if got := weeks.Until(m); !got.Equal(until) || !until.After(am.Now) {
+				t.Fatalf("Weeks stands till %v, Accounts' page till %v, want them alike, after %v", got, until, am.Now)
+			}
+			stood, stoodWeeks := page.At(m), weeks.At(m)
+			for _, at := range []time.Time{am.Now.Add(until.Sub(am.Now) / 2), until.Add(-time.Millisecond)} {
+				later := am.Doc.At(at, claude.Policy)
+				if got := page.At(later); weeksSaid(got) != weeksSaid(stood) {
+					t.Errorf("at %v, before %v, Accounts' page stands\n%s\nwant as at %v\n%s", at, until, weeksSaid(got), am.Now, weeksSaid(stood))
+				}
+				if got := weeks.At(later); !reflect.DeepEqual(got.Accounts, stoodWeeks.Accounts) || !reflect.DeepEqual(got.Capacity, stoodWeeks.Capacity) {
+					t.Errorf("at %v, before %v, Weeks stands otherwise than at %v", at, until, am.Now)
+				}
+			}
+		})
+	}
+	am := accountsMoment(t, aSecondBefore)
+	page, m := builtOf(am), am.Doc.At(am.Now, claude.Policy)
+	if until, want := page.Until(m), am.Now.Add(time.Second); !until.Equal(want) {
+		t.Fatalf("a second before work's week resets, the page stands till %v, want %v", until, want)
+	}
+	if after := page.At(am.Doc.At(am.Now.Add(2*time.Second), claude.Policy)); weeksSaid(after) == weeksSaid(page.At(m)) {
+		t.Errorf("past work's week's reset, the page stands as it did before it, want the week closed")
+	}
+}

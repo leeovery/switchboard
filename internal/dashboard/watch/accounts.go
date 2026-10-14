@@ -7,6 +7,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -14,17 +15,37 @@ import (
 
 // accountsTab is what the watch holds of Accounts: what it shows; the
 // period's page, built of the days History's reads hold, and what it was
-// built of, as builtOf has it; that page stood at a moment, and the moment,
-// as accountsBuilt stands it; and the sessions Detail's SESSIONS listed
-// last, by id, in their order, for its selection to follow, as followed has
-// it.
+// built of, as builtOf has it; that page stood at a moment, and what it was
+// stood at, as accountsBuilt stands it; and the sessions Detail's SESSIONS
+// listed last, by id, in their order, for its selection to follow, as
+// followed has it.
 type accountsTab struct {
 	shown   dashboard.AccountsShown
 	page    *views.AccountsPage
 	of      builtOf
 	stood   *views.AccountsPage
-	at      *status.HeldMoment
+	at      *stoodAt
 	running []string
+}
+
+// stoodAt is what a page was stood at: the moment, held, and its time; and
+// when it stands otherwise, as the page's Until has it.
+type stoodAt struct {
+	moment      *status.HeldMoment
+	from, until time.Time
+}
+
+// stoodTill is what a page stood at the moment mo, till until, was stood at.
+func stoodTill(mo status.Moment, until time.Time) *stoodAt {
+	return &stoodAt{moment: mo.Held(), from: mo.Now, until: until}
+}
+
+// holds reports whether a page stood at s stands at now, of doc, as policy
+// judges it, as it was stood: of the one document, judged alike, as the
+// moment it was stood at is, from then till it stands otherwise. nil holds
+// none.
+func (s *stoodAt) holds(doc status.Document, now time.Time, policy score.Policy) bool {
+	return s != nil && s.moment.Of(doc, s.from, policy) && !now.Before(s.from) && now.Before(s.until)
 }
 
 // builtOf is what Accounts' page was built of: the days held, as historyTab
@@ -42,8 +63,9 @@ type builtOf struct {
 // reads today's days afresh, as readHistory reads them, so the page follows
 // them from look to look; and past midnight it moves on to the new day
 // before the next look reads it. It's stood at the moment of the message
-// taken in, as views.AccountsPage.At stands it, where it's built afresh or
-// was stood at another: once a message, for every frame of it to read.
+// taken in, as views.AccountsPage.At stands it, where it's built afresh, the
+// document or the policy is another, or the page stands otherwise since, as
+// its Until has it: never a frame at a time.
 func (m Model) accountsBuilt() Model {
 	if m.view != dashboard.Accounts || !m.past.last.held() {
 		return m
@@ -54,9 +76,10 @@ func (m Model) accountsBuilt() Model {
 		page := m.past.last.past.Since(nil, now).Accounts(of.period)
 		m.accounts.page, m.accounts.of, m.accounts.at = &page, of, nil
 	}
-	if !m.accounts.at.Of(m.doc, now, m.cfg.Policy) {
+	if !m.accounts.at.holds(m.doc, now, m.cfg.Policy) {
 		mo := m.moment(now)
-		m.accounts.stood, m.accounts.at = new(m.accounts.page.At(mo)), mo.Held()
+		m.accounts.stood = new(m.accounts.page.At(mo))
+		m.accounts.at = stoodTill(mo, m.accounts.page.Until(mo))
 	}
 	return m
 }

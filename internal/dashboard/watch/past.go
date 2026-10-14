@@ -11,7 +11,6 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -29,11 +28,11 @@ import (
 // while the page lags the days held, as a look while History doesn't show
 // leaves it, for historyBuilt to build it afresh once History shows. weeks
 // is Weeks' page as built, where the page shows it, which the page holds
-// stood at a moment, and at the moment, as weeksStood stands it.
+// stood at a moment, and what it was stood at, as weeksStood stands it.
 type historyTab struct {
 	page       dashboard.HistoryPage
 	weeks      *views.WeeksPage
-	at         *status.HeldMoment
+	at         *stoodAt
 	last, back heldDays
 	held       int
 	behind     bool
@@ -319,16 +318,18 @@ func (m Model) historyBuilt() Model {
 
 // weeksStood is m with History's Weeks, while it shows, stood at the moment
 // of the message taken in, as views.WeeksPage.At stands it, where it's built
-// afresh or was stood at another: once a message, for every frame of it to
-// read, as Accounts' page is, so the two tell the accounts' weeks alike.
+// afresh, the document or the policy is another, or the page stands
+// otherwise since, as its Until has it: as Accounts' page is, so the two
+// tell the accounts' weeks alike, never a frame at a time.
 func (m Model) weeksStood() Model {
 	if m.view != dashboard.History || m.past.weeks == nil {
 		return m
 	}
 	now := m.now()
-	if !m.past.at.Of(m.doc, now, m.cfg.Policy) {
+	if !m.past.at.holds(m.doc, now, m.cfg.Policy) {
 		mo := m.moment(now)
-		m.past.page.Weeks, m.past.at = new(m.past.weeks.At(mo)), mo.Held()
+		m.past.page.Weeks = new(m.past.weeks.At(mo))
+		m.past.at = stoodTill(mo, m.past.weeks.Until(mo))
 	}
 	return m
 }
