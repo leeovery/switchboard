@@ -116,6 +116,36 @@ func TestAHeldPageAwaitsTheLineOfARequestThatEndedAcrossMidnight(t *testing.T) {
 	}
 }
 
+// Of the days the ledger's tail followed no further, a held page reads
+// again whole only the day it's held at and those after it, as it holds
+// every line filed before it already, but for those it awaits.
+func TestAHeldPageReadsAgainTheDaysMissedFromTheDayItsHeldAt(t *testing.T) {
+	night := local(23, 59, 50)
+	first := []ledger.Line{filedAs("r1", mainOn(p1, local(23, 0, 0), "tool_use"))}
+	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(first), nil, night, paged), ledger.Pricing, kept90, night)
+	rolled := held.Take("2026-10-08", nil)
+	ended := endedAt(night.Add(22*time.Second), toldOf("r2", p1, ledger.ClassMain, opus, "side", night.Add(100*time.Millisecond)))
+	missed := []string{"2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"}
+	tests := []struct {
+		name string
+		held views.HeldPage
+		told []views.Told
+		late []string
+	}{
+		{name: "held the day before last", held: held, late: []string{"2026-10-07", "2026-10-08"}},
+		{name: "rolled on to the day before", held: rolled, late: []string{"2026-10-08"}},
+		{name: "rolled on to the day before, awaiting a line the day before that", held: rolled, told: []views.Told{ended}, late: []string{"2026-10-07", "2026-10-08"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			live := views.PageLive{Stream: heard(tt.told...), Now: night.AddDate(0, 0, 2)}
+			if got := tt.held.Late(missed, live); !slices.Equal(got, tt.late) {
+				t.Errorf("the page reads again whole the days %v of %v, want %v", got, missed, tt.late)
+			}
+		})
+	}
+}
+
 // turnRow is what a turn's request row holds that a frame draws: when it
 // came, its model and account, its status, its first byte and its end,
 // the tokens it read, wrote and put out, why its answer stopped and the

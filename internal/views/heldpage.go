@@ -244,6 +244,21 @@ func (h HeldPage) Awaited(live PageLive) []string {
 	return dates
 }
 
+// Late are the dates of the days before the day live's now falls on that a
+// read of the ledger's tail reads again whole for the page h holds, each
+// once, the oldest first: of the days missed, those the tail followed no
+// further, the day h is held at and those after it, as it read or took in
+// every line filed on a day before it; and the days Awaited has.
+func (h HeldPage) Late(missed []string, live PageLive) []string {
+	late := h.Awaited(live)
+	for _, date := range missed {
+		if date >= h.day.Date {
+			late = append(late, date)
+		}
+	}
+	return slices.Compact(slices.Sorted(slices.Values(late)))
+}
+
 // unplaced reports whether the router lists a request of the session s in
 // flight that the request stream doesn't place: on a model's seat it hasn't
 // told of, or with the stream unheard, as by the verbs, or from a router

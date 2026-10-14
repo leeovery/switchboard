@@ -235,6 +235,29 @@ func TestASessionsPageClosedAsTheTailIsReadForItTakesNothingIn(t *testing.T) {
 	}
 }
 
+// A session's page opened days after the ledger's tail was last read reads
+// none of the days between again at its looks, as it read them whole as it
+// opened.
+func TestASessionsPageOpenedDaysAfterTheTailWasReadReadsNoneOfThemAgain(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h, l := pageBeside(t, state, logNever)
+	h.read(probedWithoutTheRouter())
+	h.keys(escKey)
+
+	h.clock.now = h.clock.now.AddDate(0, 0, 3)
+	writeLines(t, state, arrivedAt("0a000002", h.clock.now.AddDate(0, 0, -2)))
+	h.read(probedWithoutTheRouter())
+	h.openPage(idD28C)
+	h.read(probedWithoutTheRouter())
+	if len(l.days) > 0 {
+		t.Errorf("the page's looks read the days %v again whole, want none", l.days)
+	}
+	if got := h.shownPage().Page.Totals.Requests; got != 2 {
+		t.Errorf("the page counts %d requests, want 2, of both days", got)
+	}
+}
+
 // Past midnight, a session's page takes in what its session's day before
 // gained after the tail last read it: the day read again whole at the first
 // look past the turn, then again as the stream tells a request across
