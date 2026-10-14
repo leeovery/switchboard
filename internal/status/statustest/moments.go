@@ -5,6 +5,7 @@ package statustest
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
@@ -46,14 +47,15 @@ type AccountFacts struct {
 	Held, CapHolds, Idle, OutOfQuota, CanRise, Pressed bool
 	LimitHolds                                         bool
 	LimitSince                                         time.Time
+	LimitMoved                                         int
 	Windows                                            map[string]WindowFacts
 }
 
 // String says how the account stands but for its windows, its times as
 // sinceBuilt has them.
 func (a AccountFacts) String() string {
-	return fmt.Sprintf("{Routing:%d Held:%v CapHolds:%v Idle:%v OutOfQuota:%v CanRise:%v Pressed:%v LimitHolds:%v LimitSince:%s}",
-		a.Routing, a.Held, a.CapHolds, a.Idle, a.OutOfQuota, a.CanRise, a.Pressed, a.LimitHolds, sinceBuilt(a.LimitSince))
+	return fmt.Sprintf("{Routing:%d Held:%v CapHolds:%v Idle:%v OutOfQuota:%v CanRise:%v Pressed:%v LimitHolds:%v LimitSince:%s LimitMoved:%d}",
+		a.Routing, a.Held, a.CapHolds, a.Idle, a.OutOfQuota, a.CanRise, a.Pressed, a.LimitHolds, sinceBuilt(a.LimitSince), a.LimitMoved)
 }
 
 // WindowFacts are how a window stands at a moment, as its WindowNow has it.
@@ -96,7 +98,7 @@ func FactsOf(m status.Moment) Facts {
 	for _, a := range m.Accounts {
 		af := AccountFacts{
 			Routing: a.Routing.Kind, Held: a.Held, CapHolds: a.CapHolds, Idle: a.Idle,
-			OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Pressed: a.Pressure.Under, LimitHolds: a.LimitHolds, LimitSince: a.LimitSince,
+			OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Pressed: a.Pressure.Under, LimitHolds: a.LimitHolds, LimitSince: a.LimitSince, LimitMoved: a.LimitMoved,
 			Windows: make(map[string]WindowFacts, len(a.Windows)),
 		}
 		for _, w := range a.Windows {
@@ -198,6 +200,37 @@ func HardMoments(policy score.Policy) []HardMoment {
 				Held: true, RunsOutAhead: true, Out: Built.Add(64 * time.Hour),
 			},
 		},
+	}
+	// limitMoving is work held back by a limit naming no window, reached
+	// half a minute before Built, which moved the sessions given off it to
+	// side, as its event counts them: the first, refused as the limit was
+	// reached, at once, and each after at its next request.
+	limitReached := Built.Add(-30 * time.Second)
+	limitMoving := func(sessions ...string) status.Document {
+		doc := unnamed(nil, unchanged, side)
+		doc.Events = []status.Event{{
+			ID: 12, At: limitReached, Kind: status.EventLimit, Account: "work", To: "side",
+			Until: Built.Add(40 * time.Minute), Count: len(sessions), Limit: 5,
+		}}
+		for i, session := range sessions {
+			doc.Events = slices.Insert(doc.Events, 0, status.Event{
+				ID: 13 + i, At: limitReached.Add(time.Duration(i) * 20 * time.Second), Kind: status.EventMoved,
+				Session: session, Model: "claude-opus-5-5", From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 12, ForcedBy: 12,
+			})
+		}
+		return doc
+	}
+	// workMoving is work as limitMoving has it, the limit having moved the
+	// number of sessions given: as workUnnamed, but that its limit's event
+	// tells when it, and each window it holds, began.
+	workMoving := func(moved int) AccountFacts {
+		f := workUnnamed
+		f.LimitSince, f.LimitMoved, f.Windows = limitReached, moved, maps.Clone(workUnnamed.Windows)
+		for key, w := range f.Windows {
+			w.Since = limitReached
+			f.Windows[key] = w
+		}
+		return f
 	}
 	cappedWork := with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.92, time.Hour)), reserving)
 	workCapped := AccountFacts{Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Windows: map[string]WindowFacts{
@@ -383,6 +416,16 @@ func HardMoments(policy score.Policy) []HardMoment {
 		{
 			Name: "a limit naming no window holding", Doc: unnamed(nil, unchanged, side), Now: Built.Add(10 * time.Minute),
 			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{"work": workUnnamed, "side": sideOpen}},
+		},
+		{
+			Name: "a limit moving the session it refused, at once",
+			Doc:  limitMoving("41e0b7c3"), Now: Built.Add(time.Second),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{"work": workMoving(1), "side": sideOpen}},
+		},
+		{
+			Name: "a limit moving a second session, at its next request",
+			Doc:  limitMoving("41e0b7c3", "9c2e5a1d"), Now: Built.Add(time.Second),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{"work": workMoving(2), "side": sideOpen}},
 		},
 		{
 			Name: "the global pin's one account held back, new sessions going elsewhere",
