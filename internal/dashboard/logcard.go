@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 	"time"
@@ -15,12 +16,14 @@ import (
 // LogCard is the Log's details card of the line chosen, as enter opens it
 // over the page: a request's details, or an event's, as the watch builds
 // them of what it holds, afresh at each change, so the card follows each
-// read; and how far its body is scrolled, where the page hasn't the rows for
-// it.
+// read; how far its body is scrolled, where it hasn't the rows for it; and
+// how many rows it took as LogFitted placed it, by which it keeps its side
+// of its line as it grows, none where it's yet to be placed.
 type LogCard struct {
 	Request *views.RequestDetails
 	Event   *views.EventDetails
 	Scroll  int
+	Placed  int
 }
 
 // The card's wide form: logCardWidth cells wide, its edges included, as it
@@ -55,25 +58,31 @@ func (f Frame) logCardForm() cardForm {
 
 // card is the details card on the frame: titled as the line it's of is, its
 // tree, and of a request, its foot; placed by its line, under it or over it,
-// a row between, where it fits there, else centred, as help is, its body
-// scrolled within it where the page hasn't the rows; its line, wherever it's
-// in view, left bright as the page fades behind it.
+// a row between, where it fits there as it was placed, else centred, as help
+// is. Placed, it keeps the edge by its line where it was as it grows, as far
+// as the table's rows on that side, so its line never moves under it; its
+// body scrolls within it past the rows it has. Its line, wherever it's in
+// view, is left bright as the page fades behind it.
 func (c LogCard) card(f Frame) Card {
 	form := f.logCardForm()
 	m := f.heldMoment()
 	body := c.body(form, m)
-	k := Card{titled: c.title(m), width: form.width, body: body}
-	placed := false
+	h := len(body) + chrome(true)
+	k := Card{titled: c.title(m), width: form.width}
+	room := f.bodyRoom(2, true)
 	if y, ok := f.logLitRow(); ok {
-		var top int
-		top, placed = f.logCardTop(y, len(body)+chrome(true))
-		k.of = &ofLine{row: y, top: top, placed: placed}
+		k.of = &ofLine{row: y}
+		if from, to, up, placed := f.logCardSpan(y, cmp.Or(c.Placed, h)); placed {
+			rows := min(h, to-from+1)
+			k.of.top, k.of.placed, room = from, true, rows-chrome(true)
+			if up {
+				k.of.top = to - rows + 1
+			}
+		}
 	}
-	if !placed {
-		shown := min(max(f.bodyRoom(2, true), 0), len(body))
-		from := min(max(c.Scroll, 0), len(body)-shown)
-		k.body, k.scroll = body[from:from+shown], cardScroll{above: from, below: len(body) - from - shown}
-	}
+	shown := min(max(room, 0), len(body))
+	from := min(max(c.Scroll, 0), len(body)-shown)
+	k.body, k.scroll = body[from:from+shown], cardScroll{above: from, below: len(body) - from - shown}
 	k.keys = c.keys(form.content, k.scroll != cardScroll{})
 	return k
 }
@@ -403,15 +412,15 @@ func answeredSection(d views.RequestDetails, lined lineGives) cardSection {
 }
 
 // statusSaid is what the request was answered, once its line came or the
-// stream told its end, bold state.destructive where it failed, as the table
-// has it: blank in flight, and — where it was lost.
+// stream told its end, bold state.destructive where its row says it failed:
+// blank in flight, and — where it was lost.
 func statusSaid(r views.RequestRow) line {
 	switch {
 	case r.Stage.InFlight():
 		return nil
 	case r.Stage == views.RowLost:
 		return valued("")
-	case ledger.Failing(r.Status):
+	case r.Failed:
 		return line{{prose.Grouped(r.Status), exhaustedInk}}
 	}
 	return valued(prose.Grouped(r.Status))
@@ -659,38 +668,38 @@ func (f Frame) logLitRow() (int, bool) {
 	return top + at - first, true
 }
 
-// logCardTop is the row the top edge of a card h rows tall sits on by the
-// Log's line on row y: under it, a row between, where its bottom edge is on
-// the table's last row or above; else over it, a row between, where its top
-// edge is on the table's first row or below. It's false where it fits on
-// neither side.
-func (f Frame) logCardTop(y, h int) (int, bool) {
+// logCardSpan is the rows a card placed rows tall by the Log's line on row
+// y sits within: under its line, a row between, from there to the table's
+// last row, where it fits there, growing down; else over it, a row between,
+// from the table's first row to there, growing up. It's false where it fits
+// on neither side.
+func (f Frame) logCardSpan(y, placed int) (from, to int, up, ok bool) {
 	first, last := f.logTableRows()
 	switch {
-	case y+1+h <= last:
-		return y + 2, true
-	case y-1-h >= first:
-		return y - 1 - h, true
+	case y+1+placed <= last:
+		return y + 2, last, false, true
+	case y-1-placed >= first:
+		return first, y - 2, true, true
 	}
-	return 0, false
+	return 0, 0, false, false
 }
 
-// LogFitted is the Log as the frame shows it with the card c open over it:
-// where c fits by the line chosen on neither side, the table scrolled, the
-// line coming up its view until c fits under it, its bottom edge on the
-// table's last row, any rows past the paused foot left blank under it; as
-// it stands where c fits by its line already, or where the table hasn't the
-// rows for c under a line on its first row, as c is then centred over the
-// page.
-func (f Frame) LogFitted(c LogCard) LogPage {
+// LogFitted is the Log as the frame shows it with the card c open over it,
+// and c placed there, holding the rows it takes: where c fits by the line
+// chosen on neither side, the table scrolled, the line coming up its view
+// until c fits under it, its bottom edge on the table's last row, any rows
+// past the paused foot left blank under it; as it stands where c fits by
+// its line already, or where the table hasn't the rows for c under a line
+// on its first row, as c is then centred over the page.
+func (f Frame) LogFitted(c LogCard) (LogPage, LogCard) {
 	y, ok := f.logLitRow()
-	h := len(c.body(f.logCardForm(), f.heldMoment())) + chrome(true)
+	c.Placed = len(c.body(f.logCardForm(), f.heldMoment())) + chrome(true)
 	first, last := f.logTableRows()
-	to := last - 1 - h
-	if _, fits := f.logCardTop(y, h); !ok || fits || to < first {
-		return f.Log
+	to := last - 1 - c.Placed
+	if _, _, _, fits := f.logCardSpan(y, c.Placed); !ok || fits || to < first {
+		return f.Log, c
 	}
-	return f.Log.lifted(y-first, to-first, f.LogRows())
+	return f.Log.lifted(y-first, to-first, f.LogRows()), c
 }
 
 // lifted is p, the table shown in a view rows rows tall scrolled down, so
@@ -699,6 +708,22 @@ func (p LogPage) lifted(from, to, rows int) LogPage {
 	lines, s := p.lines(), p.stand()
 	first, _ := p.window(lines, s, rows)
 	s.top = lines[first+from-to].key
+	return p.standing(s)
+}
+
+// Unlifted is p as the card that lifted it closes: the table shown, paused,
+// its view in rows rows lifted past where scrolling reaches, ending at its
+// paused foot again, the line chosen still in it; as it stands otherwise.
+func (p LogPage) Unlifted(rows int) LogPage {
+	lines, s := p.lines(), p.stand()
+	if !s.paused || len(lines) == 0 {
+		return p
+	}
+	lowest := max(p.footOf(lines, s)-rows+1, 0)
+	if first, _ := p.window(lines, s, rows); first <= lowest {
+		return p
+	}
+	s.top = lines[lowest].key
 	return p.standing(s)
 }
 
