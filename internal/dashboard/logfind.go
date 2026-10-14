@@ -56,19 +56,37 @@ func (f LogFinding) Stepped(by int) LogFinding {
 func (p LogPage) FoundOnly(id string) LogPage {
 	p.Filter.Sessions, p.Shows.Sessions = []string{id}, []string{id}
 	p.Finding = LogFinding{}
-	p.Stands = [2]LogStand{}
-	return p
+	for v, s := range p.Stands {
+		p.Stands[v] = LogStand{filled: s.filled}
+	}
+	return p.refiltered(LogRequests, LogEvents)
 }
 
 // refiltered is p with the tables given unfilled, as each stood as it first
-// opened, whose filter has changed what it shows: short of its view, each
-// reads back to fill it, as it did on opening, paused or following as it
-// stands.
+// opened, whose filter has changed what it shows, where bounded says how far
+// back it would read is bounded: short of its view, each reads back to fill
+// it, as it did on opening, paused or following as it stands. Another reads
+// back only as its top is reached.
 func (p LogPage) refiltered(tables ...LogView) LogPage {
 	for _, v := range tables {
-		p.Stands[v].filled = false
+		if p.bounded(v) {
+			p.Stands[v].filled = false
+		}
 	}
 	return p
+}
+
+// bounded reports whether how far back the table given reads to fill its
+// view through its filter is bounded: the Requests' by how far back the days'
+// summaries say the lines it keeps reach, as the watch reads them, but of
+// the failed, as no summary counts a day's failures; the Events' where their
+// filter keeps kinds alone, as on opening, never some sessions or accounts,
+// which no summary of the ledger's lines tells the days of.
+func (p LogPage) bounded(v LogView) bool {
+	if v == LogEvents {
+		return len(p.Shows.Sessions)+len(p.Shows.Accounts) == 0
+	}
+	return !p.Filter.Failed
 }
 
 // Filtered reports whether the Log's filter keeps some lines alone, as the

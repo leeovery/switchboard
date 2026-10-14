@@ -226,26 +226,34 @@ func TestLandingChoosesTheFirstRequestAtOrAfterAMoment(t *testing.T) {
 // A table whose filter changes what it shows stands as it first opened,
 // unfilled, so, short of its view, it reads back to fill it: as the find's
 // enter, the panel's, and esc letting the filter go each change it, whether
-// the table filled its view before.
+// the table filled its view before. One whose filter the days' summaries
+// can't bound stays as it stood, reading back only as its top is reached:
+// the Requests through a filter of the failed, and the Events through one of
+// a session.
 func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 	const session = "d28c5e17-0000-4000-8000-000000000001"
 	requests, events := threeAsked().Filling(3), threeAsked().Turned(1)
 	pinned := views.ReadEvents(filedEvents([]status.Event{{ID: 1, At: logDay, Kind: status.EventPin, Accounts: []string{"personal"}}}), logDay, logDayNoon)
 	events.Events = views.LogEvents(views.LogEventSources{From: logDay, Events: pinned, Filed: views.OldestKept(theDayBefore, 0, logDayNoon), Now: logDayNoon})
 	events = events.Filling(1)
+	failed := requests.Panel()
+	failed.Filter.Failed = true
 	tests := []struct {
-		name string
-		page LogPage
+		name  string
+		page  LogPage
+		wants bool
 	}{
-		{name: "the find's enter", page: requests.FoundOnly(session)},
-		{name: "the panel's enter", page: requests.Applied(requests.Panel())},
-		{name: "the Events' panel's enter", page: events.Applied(events.Panel())},
-		{name: "esc letting the filter go", page: requests.FoundOnly(session).Filling(3).Unfiltered()},
+		{name: "the find's enter", page: requests.FoundOnly(session), wants: true},
+		{name: "the panel's enter", page: requests.Applied(requests.Panel()), wants: true},
+		{name: "the Events' panel's enter", page: events.Applied(events.Panel()), wants: true},
+		{name: "esc letting the filter go", page: requests.FoundOnly(session).Filling(3).Unfiltered(), wants: true},
+		{name: "the panel's enter on the failed", page: requests.Applied(failed)},
+		{name: "the find's enter, on the Events", page: events.FoundOnly(session)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if !tt.page.WantsDayBefore(10) {
-				t.Error("refiltered, the table doesn't want the day before, short of its view")
+			if got := tt.page.WantsDayBefore(10); got != tt.wants {
+				t.Errorf("refiltered, short of its view, the table wants the day before: %t, want %t", got, tt.wants)
 			}
 		})
 	}

@@ -143,9 +143,10 @@ func TestTheFindDropsASummariesReadOfAnEarlierOpening(t *testing.T) {
 }
 
 // enter on a session of an earlier day filters both tables to it, the
-// tables reading back to its day, then pauses at its newest line, chosen,
-// the panel listing it among today's sessions, ticked; but with the filter
-// let go on the way, they read back no further, and nothing pauses.
+// tables reading back to its day, how far its lines reach read from the
+// days' summaries first, then pauses at its newest line, chosen, the panel
+// listing it among today's sessions, ticked; but with the filter let go on
+// the way, they read back no further, and nothing pauses.
 func TestEnterOnAnEarlierDaysSessionShowsItsLinesAlonePausedAtItsNewest(t *testing.T) {
 	state := t.TempDir()
 	var today []ledger.Held
@@ -162,7 +163,10 @@ func TestEnterOnAnEarlierDaysSessionShowsItsLinesAlonePausedAtItsNewest(t *testi
 	}
 
 	h.typed("/", "a", "p", "i")
-	reading := h.update(enter)
+	var reading []tea.Msg
+	for _, reach := range h.update(enter) {
+		reading = append(reading, h.update(reach)...)
+	}
 	h.keys(escape)
 	h.deliver(reading...)
 	if got, want := h.model.log.from.Date, dayfile.DateOf(past(-day)); got != want || h.model.log.page.Paused() {
@@ -222,6 +226,54 @@ func TestEnterOnARunningSessionReadsBackItsEarlierLinesToFillTheView(t *testing.
 	}
 	if got, want := shownRequests(h), []string{"0b000001", "0b000002", "0b000003"}; !slices.Equal(got, want) {
 		t.Errorf("filtered to api, the Requests show %v, want %v, yesterday's read back to fill the view", got, want)
+	}
+}
+
+// A session found, its lines fewer than the view, reads back no further
+// than the days' summaries say its lines reach: to its first day, every day
+// after it read, as the tables hold every day from the first they span; not
+// to the oldest day the ledger keeps.
+func TestAFoundSessionReadsBackNoFurtherThanItsFirstDay(t *testing.T) {
+	tests := []struct {
+		name  string
+		ran   []int
+		reach int
+	}{
+		{name: "api ran the two days before today", ran: []int{1, 2}, reach: 2},
+		{name: "api ran first six days before today", ran: []int{2, 6}, reach: 6},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			var lines []ledger.Held
+			for i := range 60 {
+				lines = append(lines, ranIn(fmt.Sprintf("0c%06d", i), webSession, "~/Code/web", -time.Duration(70-i)*time.Minute))
+			}
+			for d := 1; d <= 30; d++ {
+				for i := range 20 {
+					lines = append(lines, ranIn(fmt.Sprintf("0d%02d%04d", d, i), webSession, "~/Code/web", -time.Duration(d)*day+time.Duration(i)*time.Minute))
+				}
+			}
+			for _, d := range tt.ran {
+				lines = append(lines, ranIn(fmt.Sprintf("0b%06d", d), apiSession, "~/Code/api", -time.Duration(d)*day+time.Hour))
+			}
+			lines = append(lines, ranIn("0b100001", apiSession, "~/Code/api", -5*time.Minute), ranIn("0b100002", apiSession, "~/Code/api", -4*time.Minute))
+			writeLines(t, state, lines...)
+			h := newHarness(t, probedWithoutTheRouter())
+			l := onTheLog(h, state)
+			h.start()
+			h.typed("/", "a", "p", "i")
+			found := len(l.days)
+
+			h.keys(enter)
+			var want []string
+			for d := 1; d <= tt.reach; d++ {
+				want = append(want, dayfile.DateOf(past(-time.Duration(d)*day)))
+			}
+			if got := l.days[found:]; !slices.Equal(got, want) {
+				t.Errorf("found api, the Log read back the days %v, want %v: to api's first day, and no further", got, want)
+			}
+		})
 	}
 }
 

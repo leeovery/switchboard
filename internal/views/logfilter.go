@@ -5,6 +5,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/leeovery/switchboard/internal/ledger"
 )
 
 // LogFilter is what the Log's Requests show, as its f panel picks it. A
@@ -38,6 +40,51 @@ var rowKinds = [...]RowKind{RowRequest, RowCheck, RowCount}
 func (f LogFilter) Equal(o LogFilter) bool {
 	return slices.Equal(f.Accounts, o.Accounts) && slices.Equal(f.Models, o.Models) && slices.Equal(f.Sessions, o.Sessions) &&
 		slices.Equal(f.Kinds, o.Kinds) && f.Failed == o.Failed
+}
+
+// Chooses reports whether f keeps lines by some of their sessions, accounts
+// or models, which the days' summaries tell the days of, as KeptFrom reads
+// them.
+func (f LogFilter) Chooses() bool {
+	return len(f.Sessions)+len(f.Accounts)+len(f.Models) > 0
+}
+
+// KeptFrom is the date of the earliest of the days summaries are of whose
+// summary may hold a line f keeps: an account's day of a model's, each
+// ticked, of a kind ticked, and naming a session ticked, or not naming every
+// session it counts; "" where none may. Of a session alone, it's the
+// session's first day. No summary counts a day's failures, so what f keeps
+// of the failed alone it bounds as it does all of them.
+func (f LogFilter) KeptFrom(summaries []ledger.Summary) string {
+	from := ""
+	for _, s := range summaries {
+		if f.mayKeep(s) && (from == "" || s.Day < from) {
+			from = s.Day
+		}
+	}
+	return from
+}
+
+// mayKeep reports whether the day s summarises may hold a line f keeps, as
+// KeptFrom reads it.
+func (f LogFilter) mayKeep(s ledger.Summary) bool {
+	for _, a := range s.Accounts {
+		if !ticked(f.Accounts, a.Account) {
+			continue
+		}
+		for _, m := range a.Models {
+			if ticked(f.Models, m.Model) && f.keepsKindOf(m) && (tickedAny(f.Sessions, m.SessionIDs) || m.Unnamed() > 0) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// keepsKindOf reports whether f keeps lines of a kind the model's day m
+// counts any of.
+func (f LogFilter) keepsKindOf(m ledger.ModelDay) bool {
+	return m.Requests() > 0 && ticked(f.Kinds, RowRequest) || m.Checks > 0 && ticked(f.Kinds, RowCheck) || m.Counts > 0 && ticked(f.Kinds, RowCount)
 }
 
 // hiding is what of the filter f hides the row p: none; its kind alone; or a

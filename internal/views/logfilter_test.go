@@ -11,6 +11,50 @@ import (
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
+// The lines a filter keeps reach back to the earliest day whose summary may
+// hold one: of a session alone, its first day; of an account or a model,
+// the first day of its lines; of the kinds ticked alone, the first that
+// counts one; a day whose summary names none of its sessions alike where it
+// doesn't name every one it counts; none where no day may; and of the
+// failed alone, as of all lines, as no summary counts a day's failures.
+func TestALogFiltersLinesReachBackToTheFirstDayASummaryMayHoldOne(t *testing.T) {
+	day := func(date, account, model string, requests, checks int, sessions ...string) ledger.Summary {
+		m := ledger.ModelDay{Model: model, Upstream: requests, Checks: checks, Sessions: len(sessions), SessionIDs: sessions}
+		return ledger.Summary{Day: date, Accounts: []ledger.AccountDay{{Account: account, Models: []ledger.ModelDay{m}}}}
+	}
+	unnamed := day("2026-10-02", "side", opus, 1, 0)
+	unnamed.Accounts[0].Models[0].Sessions = 1
+	summaries := []ledger.Summary{
+		day("2026-10-01", "work", haiku, 0, 2),
+		unnamed,
+		day("2026-10-03", "work", opus, 4, 0, older),
+		day("2026-10-05", "side", haiku, 2, 1, older, mover),
+		day("2026-10-07", "work", opus, 3, 0, mover),
+	}
+	tests := []struct {
+		name   string
+		filter views.LogFilter
+		want   string
+	}{
+		{name: "a session alone", filter: views.LogFilter{Sessions: []string{mover}, Kinds: []views.RowKind{views.RowRequest}}, want: "2026-10-02"},
+		{name: "a session every summary names", filter: views.LogFilter{Sessions: []string{mover}, Accounts: []string{"work"}}, want: "2026-10-07"},
+		{name: "an account", filter: views.LogFilter{Accounts: []string{"side"}}, want: "2026-10-02"},
+		{name: "a model", filter: views.LogFilter{Models: []string{opus}, Kinds: []views.RowKind{views.RowRequest}}, want: "2026-10-02"},
+		{name: "the kinds alone", filter: views.LogOpening(), want: "2026-10-02"},
+		{name: "a kind only some days count", filter: views.LogFilter{Kinds: []views.RowKind{views.RowCheck}}, want: "2026-10-01"},
+		{name: "a session of none of a kind", filter: views.LogFilter{Sessions: []string{older}, Kinds: []views.RowKind{views.RowCount}}},
+		{name: "a session no day names", filter: views.LogFilter{Sessions: []string{"0eb00000-0000-4000-8000-000000000003"}, Accounts: []string{"work"}}},
+		{name: "the failed alone", filter: views.LogFilter{Kinds: []views.RowKind{views.RowRequest}, Failed: true}, want: "2026-10-02"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.filter.KeptFrom(summaries); got != tt.want {
+				t.Errorf("the lines %+v keeps reach back to %q, want %q", tt.filter, got, tt.want)
+			}
+		})
+	}
+}
+
 // Two filters are equal where they tick the same, each choice in the same
 // order, and unequal where any one choice differs.
 func TestFiltersAreEqualWhereEveryChoiceTicksTheSame(t *testing.T) {
