@@ -616,8 +616,8 @@ func capped(id string) bool {
 // before its window reset, its cap 4 minutes before that, and side's 52
 // minutes before its; on Wednesday, work's window from 12:10, at its cap at
 // 14:58 and its limit at 15:02 till 17:10, personal's from 18:58, at its
-// limit at 19:12:40 till 23:58, and side's from 19:30, running past midnight,
-// at 62% at its highest.
+// limit at 19:12:40 till 23:58, and side's from 19:30, at 62% at its highest
+// by 23:55, as Runway's day says, and running on past midnight.
 func (y year) limitThisWeek() {
 	at := func(d, hour, minute, second int) time.Time { return dayAt(y.now, d, hour, minute, second) }
 	tuesday, wednesday := thisWeek+1, thisWeek+2
@@ -635,7 +635,7 @@ func (y year) limitThisWeek() {
 	side.limited = at(tuesday, 17, 58, 0)
 	y.days["work"][wednesday].windows = []session{{start: at(wednesday, 12, 10, 0), capped: at(wednesday, 14, 58, 0), limited: at(wednesday, 15, 2, 0)}}
 	y.days["personal"][wednesday].windows = []session{{start: at(wednesday, 18, 58, 0), limited: at(wednesday, 19, 12, 40)}}
-	y.days["side"][wednesday].windows = []session{{start: at(wednesday, 19, 30, 0), use: 0.62, ran: 4*time.Hour + 50*time.Minute}}
+	y.days["side"][wednesday].windows = []session{{start: at(wednesday, 19, 30, 0), use: 0.62, ran: 4*time.Hour + 25*time.Minute}}
 }
 
 // afternoon is the account with the given id's afternoon 5-hour window on day

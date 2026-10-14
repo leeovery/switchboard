@@ -350,6 +350,10 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // pinned to personal and side, looked at a minute before; and at personal's
 // limit, refused at 16:05:41, and moved at 16:05:42, looked at at 14:42:07.
 // Where no frame draws it, to judge by eye: the Switchboard at 120 × 30.
+// Then Runway's frames, each reached from the Overview with tab four times:
+// the 5-hour view, wide and on a phone; the week, with >; Wednesday, ← twice,
+// today and the day before; all over the auto world; and the 5-hour view of
+// ten accounts.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -448,6 +452,11 @@ var pages = []page{
 		looked: &looked{after: movedAfter, listed: inTheFramesOrder(sceneSessions)},
 	},
 	{name: "page-sessions-120x30", size: watch.Size{Width: 120, Height: 30}, world: accountWorlds.scene, keys: toSessions()},
+	{name: "runway-5-hour-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
+	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway(">")},
+	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(), leftKey, leftKey)},
+	{name: "runway-ten-accounts-160", size: wide(37), world: manyAccounts(10), keys: toRunway()},
+	{name: "runway-phone-52", size: phone(33), world: accountWorlds.auto, keys: toRunway()},
 }
 
 // lookedAway are the keys a look at Sessions' Switchboard by before a page's
@@ -494,6 +503,12 @@ func toSessions(text ...string) []tea.KeyPressMsg {
 	return append(repeated(tabKey, 3), keysOf(text...)...)
 }
 
+// toRunway are the keys that reach Runway from the Overview, tab four times,
+// then the text given, a key a character.
+func toRunway(text ...string) []tea.KeyPressMsg {
+	return append(repeated(tabKey, 4), keysOf(text...)...)
+}
+
 // toLog are the keys that reach the Log from the Overview, shift-tab, back
 // round the tabs, then the text given, a key a character.
 func toLog(text ...string) []tea.KeyPressMsg {
@@ -510,11 +525,12 @@ func toSession(id string, then ...tea.KeyPressMsg) []tea.KeyPressMsg {
 	return slices.Concat(keys, []tea.KeyPressMsg{enterKey, upKey}, keysOf("s"), then)
 }
 
-// The keys tab, ↑, ↓, → and enter, as pressed.
+// The keys tab, ↑, ↓, ←, → and enter, as pressed.
 var (
 	tabKey   = tea.KeyPressMsg{Code: tea.KeyTab}
 	upKey    = tea.KeyPressMsg{Code: tea.KeyUp}
 	downKey  = tea.KeyPressMsg{Code: tea.KeyDown}
+	leftKey  = tea.KeyPressMsg{Code: tea.KeyLeft}
 	rightKey = tea.KeyPressMsg{Code: tea.KeyRight}
 	enterKey = tea.KeyPressMsg{Code: tea.KeyEnter}
 )
