@@ -27,6 +27,10 @@ const interval = 30 * time.Minute
 // frames, which pin it, where the live page scales as its rule says.
 const framesTraceScale = 16
 
+// framesKeep is how long the frames' ledger keeps a day's lines: [ledger]
+// keep at 90 days.
+const framesKeep = 90 * 24 * time.Hour
+
 // framesWeekStarts is the day the frames' calendar weeks start on, as their
 // worlds' config sets it.
 const framesWeekStarts = time.Monday
@@ -121,6 +125,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		Log:        f.log,
 		Prices:     drawnPrices,
 		TraceScale: framesTraceScale,
+		LedgerKeep: framesKeep,
 	}
 	cfg.Ledger, cfg.Readings, cfg.Events = f.readers(now)
 	dressed(&cfg, f.theme, f.colourless)
