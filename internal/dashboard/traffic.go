@@ -1,45 +1,34 @@
 package dashboard
 
-import "time"
-
 // Traffic is what the router's request stream tells of the sessions'
-// requests at a moment, as the watch reads it: what each session's model is
-// doing on its account, and what travels its cord; when the stream last saw
-// each at work; and the moves the stream told of while they show. The zero
-// Traffic is a watch without the stream, whose cords and sessions are drawn
-// as each look reads them, with no requests travelling.
+// requests at a moment, as the watch reads it, for Sessions' Switchboard to
+// draw: what travels each call's cord; and the cords moves no limit forced
+// let go, while they hang loose. The zero Traffic is a watch without the
+// stream, whose cords are drawn as each look reads them, nothing travelling.
 type Traffic struct {
-	// Live is set while what the watch draws is the stream's: from when it
-	// opens until the watch forgets what it told. The sessions then say what
-	// each is doing, or how long it has been idle.
-	Live bool
-	// Calls are what each session's model is doing on its account, where the
-	// stream has told of it lately, by where it's plugged in.
+	// Calls are what travels each call's cord, by its row: a session on an
+	// account, its every model's requests there travelling the one cord.
 	Calls map[Plug]Call
-	// Seen are when the stream last told of each session's model on its
-	// account, by where it's plugged in, kept once its calls are done with:
-	// the router's sessions say when each was last seen as its request
-	// arrived, which a long answer leaves far behind.
-	Seen map[Plug]time.Time
-	// Moves are the moves the stream told of, the oldest first, while each
-	// shows: as a re-patch until a listing of the router's sessions shows it
-	// done, and as the cord it left hanging loose until that's gone.
-	Moves []Move
+	// Loose are the cords moves no limit forced let go, the oldest first,
+	// while they fade.
+	Loose []Loose
 }
 
-// Seat is a session's requests of one model on an account.
-type Seat struct {
-	Session, Model string
-}
-
-// Plug is where a seat is plugged in: the account its requests go to.
+// Plug is where a call's cord is plugged in: a session's row on an account,
+// each by its id.
 type Plug struct {
-	Account string
-	Seat    Seat
+	Session, Account string
 }
 
-// Doing is what a session's model is doing on its account, as the request
-// stream tells of its latest request there.
+// On is what travels the cord of the call of the session with the given id
+// on the account with the given id: nothing, the zero Call, where the stream
+// tells of none.
+func (t Traffic) On(session, account string) Call {
+	return t.Calls[Plug{Session: session, Account: account}]
+}
+
+// Doing is what a call's requests are doing on its account, as the request
+// stream tells of the latest of each.
 type Doing int
 
 const (
@@ -47,7 +36,7 @@ const (
 	Asking Doing = iota + 1
 	// Streaming is its answer streaming back.
 	Streaming
-	// Answered is its answer just ended.
+	// Answered is its answer just ended, its pulse running home.
 	Answered
 	// Refused is the upstream refusing its request on the account: its
 	// limit reached, or a refusal.
@@ -56,33 +45,40 @@ const (
 	Throttled
 )
 
-// InFlight reports whether a request doing d is in flight on its account:
-// asking, streaming, or throttled, to be sent again.
-func (d Doing) InFlight() bool {
-	return d == Asking || d == Streaming || d == Throttled
+// Busier reports whether a call doing d says more of its row than one doing
+// e, as the busiest of a session's models says what it's doing: streaming,
+// then asking, throttled, refused, and answered last.
+func (d Doing) Busier(e Doing) bool {
+	return d.rank() > e.rank()
 }
 
-// Call is what a seat is doing on its account at a moment, as the request
-// stream tells of it, and what travels its cord.
+// rank ranks what's done by how busy it is, as Busier has it: none ranks
+// lowest.
+func (d Doing) rank() int {
+	switch d {
+	case Streaming:
+		return 5
+	case Asking:
+		return 4
+	case Throttled:
+		return 3
+	case Refused:
+		return 2
+	case Answered:
+		return 1
+	}
+	return 0
+}
+
+// Call is what travels a call's cord at a moment, as the request stream
+// tells of its requests: what they're doing, the busiest of them, which its
+// jack shows; the pulse travelling it, while Pulsing; and while an answer
+// streams back, how many steps its shimmer has taken, each moving its lit
+// cells a cell toward the call.
 type Call struct {
-	Doing Doing
-	// Since is when its request went out, which it waits on while it asks.
-	Since time.Time
-	// Tokens are how many tokens its answer has streamed: estimated at four
-	// characters a token, or, where Exact is set, as its closing usage counts
-	// them.
-	Tokens int
-	Exact  bool
-	// Status is the upstream's answer that refused or throttled it.
-	Status int
-	// New is set while it asks on an account a move has just brought it to.
-	New bool
-	// Pulse travels its cord while Pulsing is set.
+	Doing   Doing
 	Pulse   Pulse
 	Pulsing bool
-	// Shimmer is how many steps the shimmer down its cord has taken while
-	// its answer streams: each step, its lit cells move a cell toward the
-	// call.
 	Shimmer int
 }
 
@@ -94,22 +90,10 @@ type Pulse struct {
 	Back, Red bool
 }
 
-// Move is a session's model moving from one account to another, as the
-// stream told of it: the seat, the accounts, when, and why, as the router's
-// reason gives it.
-type Move struct {
-	Seat     Seat
-	From, To string
-	At       time.Time
-	Reason   string
-	// Listed is set once a listing of the router's sessions shows the move
-	// done, the seat where it went: it no longer re-patches, its cord alone
-	// hanging loose.
-	Listed bool
-	// Held is set where a limit moved it: its cord hangs as a stub, unfaded,
-	// while the move re-patches.
-	Held bool
-	// Fade is how far its cord, hanging loose, has faded: from 0, just let
-	// go, to 1, gone.
-	Fade float64
+// Loose is a cord a move no limit forced let go, hanging loose from the jack
+// its session left on the account it left, each by its id: how far it has
+// faded, from 0, just let go, to 1, gone.
+type Loose struct {
+	Session, From string
+	Fade          float64
 }

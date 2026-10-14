@@ -175,25 +175,20 @@ func TestAnAnswersTokensAreNoNumber(t *testing.T) {
 }
 
 // The watch compares the page's numbers for the request stream's events only
-// where they send a request, which the traces count, or move a seat, which
-// re-patches the sessions counted: whatever else the stream tells, as the
+// where they send a request, which the traces count, or move a session,
+// which the sessions counted follow: whatever else the stream tells, as the
 // traffic and as the views read it, has to change no number, or it'd change
-// unlit. So every field of each but its moves is set here, each call and
-// each request doing one thing of each.
+// unlit. So every field of each but the views' moves is set here, each call
+// and each request doing one thing of each.
 func TestTheTrafficChangesNoNumberButByItsMoves(t *testing.T) {
 	f, doc := sessionsShown(160, 60)
-	plug := func(account, session, model string) Plug {
-		return Plug{Account: account, Seat: Seat{Session: session, Model: model}}
-	}
-	f.Traffic = Traffic{Live: true, Calls: map[Plug]Call{
-		plug("side", idC61B, opus):       {Doing: Streaming, Tokens: 1200},
-		plug("side", idD28C, haiku):      {Doing: Asking, Since: routedAt, New: true, Pulse: Pulse{Along: 0.5}, Pulsing: true},
-		plug("side", id7F3A, sonnet):     {Doing: Answered, Tokens: 3400, Exact: true},
-		plug("side", idDB8A, opus):       {Doing: Refused, Status: 429, Pulse: Pulse{Along: 0.5, Back: true, Red: true}, Pulsing: true},
-		plug("personal", id9C2E, opus):   {Doing: Throttled, Status: 529, Shimmer: 3},
-		plug("personal", id41E0, sonnet): {Doing: Streaming, Tokens: 860},
-	}}
-	f.Traffic.Seen = map[Plug]time.Time{plug("side", idDB8A, opus): routedAt}
+	f.Traffic = Traffic{Calls: map[Plug]Call{
+		{Session: idC61B, Account: "side"}:     {Doing: Streaming, Shimmer: 3},
+		{Session: idD28C, Account: "side"}:     {Doing: Asking, Pulse: Pulse{Along: 0.5}, Pulsing: true},
+		{Session: id7F3A, Account: "side"}:     {Doing: Answered, Pulse: Pulse{Along: 0.5, Back: true}, Pulsing: true},
+		{Session: idDB8A, Account: "side"}:     {Doing: Refused, Pulse: Pulse{Along: 0.5, Back: true, Red: true}, Pulsing: true},
+		{Session: id9C2E, Account: "personal"}: {Doing: Throttled},
+	}, Loose: []Loose{{Session: id41E0, From: "work", Fade: 0.5}}}
 	told := func(request, account, session, model string) views.Told {
 		return views.Told{Request: request, Session: session, Model: model, Account: account, Sent: routedAt.Add(-20 * time.Second), Heard: routedAt}
 	}
@@ -251,7 +246,6 @@ func TestOnlyAPageStreamNumberedDrawsANumberTheStreamChanges(t *testing.T) {
 		{Request: "a", Session: idC61B, Account: "side", Sent: routedAt},
 		{Request: "b", Session: id41E0, Account: "personal", Sent: routedAt},
 	}
-	move := Move{Seat: Seat{Session: idD28C, Model: opus}, From: "side", To: "personal", At: routedAt}
 	moved := views.Moved{Session: idD28C, Model: opus, From: "side", To: "personal", At: routedAt}
 	usageAlone := Sections{}.Toggled(SectionRouting).Toggled(SectionComing).Toggled(SectionLately)
 	shown := []Sections{{}, Sections{}.Toggled(SectionSessions), usageAlone, usageAlone.Toggled(SectionRouting), usageAlone.Toggled(SectionSessions)}
@@ -263,7 +257,7 @@ func TestOnlyAPageStreamNumberedDrawsANumberTheStreamChanges(t *testing.T) {
 				quiet.View, quiet.Sections, quiet.By = view, sections, by
 				streamed := quiet
 				streamed.Traces = views.Traces{}.Told(sent, routedAt)
-				streamed.Traffic.Moves, streamed.Stream.Moves = []Move{move}, []views.Moved{moved}
+				streamed.Traffic.Loose, streamed.Stream.Moves = []Loose{{Session: idD28C, From: "side"}}, []views.Moved{moved}
 				changed := changedOf(quiet.Numbers(doc, routedAt), streamed.Numbers(doc, routedAt))
 				if len(changed) == 0 {
 					continue

@@ -182,6 +182,59 @@ func TestThePatchKeepsWhoSitsWhereFromLookToLook(t *testing.T) {
 	}
 }
 
+// leftOf says the jacks the sessions that moved off the account's line left,
+// the last to leave last, as "41e0@0 5b19@2".
+func leftOf(p views.Patched, account string) string {
+	var left []string
+	for _, c := range p.Line(account).Left {
+		left = append(left, fmt.Sprintf("%s@%d", c.Session, c.Jack))
+	}
+	return strings.Join(left, " ")
+}
+
+// A cord a move let go hangs loose from the jack its session left, so a line
+// keeps each, by its session, till a call or a stub takes it, or its session
+// comes back.
+func TestALineKeepsTheJackEachSessionThatMovedElsewhereLeftTillItsTaken(t *testing.T) {
+	three := slices.Concat(group("personal", s41e0, s9c2e, s5b19), group("side", sc61b))
+	moved := slices.Concat(group("personal", s9c2e, s5b19), group("side", sc61b, s41e0))
+	twoMoved := slices.Concat(group("personal", s9c2e), group("side", sc61b, s41e0, s5b19))
+	tests := []struct {
+		name  string
+		looks []patchLook
+		want  string
+	}{
+		{name: "a move no limit counts: the jack its session left", looks: []patchLook{{calls: three}, {calls: moved}}, want: "41e0@0"},
+		{name: "two moving off: the last to leave last", looks: []patchLook{{calls: three}, {calls: moved}, {calls: twoMoved}}, want: "41e0@0 5b19@2"},
+		{
+			name:  "a session ending: none, as it went nowhere",
+			looks: []patchLook{{calls: three}, {calls: slices.Concat(group("personal", s9c2e, s5b19), group("side", sc61b))}},
+		},
+		{
+			name:  "a session joining the line: none, its jack taken",
+			looks: []patchLook{{calls: three}, {calls: moved}, {calls: slices.Concat(group("personal", s9c2e, s5b19, sf41a), group("side", sc61b, s41e0))}},
+		},
+		{
+			name:  "a limit's stub: none, the stub hanging from it",
+			looks: []patchLook{{calls: three}, {calls: moved, stubs: map[string]int{"personal": 1}}},
+		},
+		{
+			name: "a session coming back to another jack: none of its own, nor of the jack it takes",
+			looks: []patchLook{
+				{calls: three}, {calls: moved}, {calls: twoMoved},
+				{calls: slices.Concat(group("personal", s9c2e, s5b19), group("side", sc61b, s41e0))},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := leftOf(looked(tt.looks...), "personal"); got != tt.want {
+				t.Errorf("personal's jacks left are %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // A board kept is never changed by the patch of a later look, nor by what
 // its line's caller does with what it's given.
 func TestABoardKeptNeverChangesUnderItsHolder(t *testing.T) {

@@ -270,8 +270,8 @@ func TestTheViewsSeeAMoveFromWhenTheCordsShowIt(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			f := h.model.frame(tt.at)
-			if drawn, read := len(f.Traffic.Moves) > 0, len(f.Stream.Moves) > 0; drawn != tt.shown || read != tt.shown {
-				t.Errorf("the cords draw a move: %t, and the views read one: %t, want both %t", drawn, read, tt.shown)
+			if drawn, read := f.Traffic.On(idD28C, "side").Doing != 0, len(f.Stream.Moves) > 0; drawn != tt.shown || read != tt.shown {
+				t.Errorf("the cords draw d28c on side: %t, and the views read its move: %t, want both %t", drawn, read, tt.shown)
 			}
 			if got, want := views.RunningCounts(views.RunningOf(h.model.moment(tt.at), f.Sessions, f.Stream))["side"], map[bool]int{true: 1}[tt.shown]; got != want {
 				t.Errorf("RunningCounts on side = %d, want %d, as the cords show d28c there", got, want)

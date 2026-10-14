@@ -38,6 +38,30 @@ var (
 	lightCord = cordGlyphs{along: "─", turnDown: "┐", down: "│", turnAlong: "└"}
 )
 
+// restingCord is how far a cord at rest fades toward the canvas: keeping 45%
+// of accent.key, mix(canvas, accent.key, 0.45).
+const restingCord = 0.55
+
+// cordInk is a call's cord's ink, which says what's happening, never which
+// account: accent.key while its session works, and at rest, faded
+// restingCord toward the canvas.
+func cordInk(works bool) ink {
+	k := ink{token: theme.AccentKey}
+	if !works {
+		k.fade = restingCord
+	}
+	return k
+}
+
+// cordDrawn are the glyphs a call's cord is drawn in, in the look: heavy, but
+// light at rest where the look can't dim it.
+func (l Look) cordDrawn(works bool) cordGlyphs {
+	if !works && !l.blends() {
+		return lightCord
+	}
+	return heavyCord
+}
+
 // cord is a cord from a call's plug, in column plug of the call's row from,
 // to a jack on row to: along the call's row, and where the jack's row is
 // lower, down at its bend, then along that to the jack.

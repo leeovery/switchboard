@@ -109,8 +109,8 @@ func TestWhatTravelsACordIsWhatItsCallIsDoing(t *testing.T) {
 		{name: "asking", call: Call{Doing: Asking}, jack: pluggedJack, jackInk: cordInk},
 		{name: "its answer streaming, every fourth cell lit and its jack", call: Call{Doing: Streaming, Shimmer: 1}, jack: pluggedJack, jackInk: titleInk, shimmers: true},
 		{name: "its answer ended", call: Call{Doing: Answered}, jack: pluggedJack, jackInk: cordInk},
-		{name: "refused", call: Call{Doing: Refused, Status: 429}, jack: refusedJack, jackInk: exhaustedInk},
-		{name: "throttled", call: Call{Doing: Throttled, Status: 429}, jack: pluggedJack, jackInk: cordInk},
+		{name: "refused", call: Call{Doing: Refused}, jack: refusedJack, jackInk: exhaustedInk},
+		{name: "throttled", call: Call{Doing: Throttled}, jack: pluggedJack, jackInk: cordInk},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -128,6 +128,46 @@ func TestWhatTravelsACordIsWhatItsCallIsDoing(t *testing.T) {
 				if got := c.cells[path[i].y][path[i].x].ink; got != want {
 					t.Errorf("its cord's cell %d is %+v, want %+v", i, got, want)
 				}
+			}
+		})
+	}
+}
+
+func TestACordIsAccentKeyWhileItsSessionWorksAndDimmedTowardTheCanvasAtRest(t *testing.T) {
+	nord := themed(t, "nord")
+	for _, tt := range []struct {
+		name  string
+		works bool
+		want  string
+	}{
+		{name: "working", works: true, want: "#81A1C1"},
+		{name: "at rest, mix(canvas, accent.key, 0.45), as the frames draw it", want: "#53657A"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := hexOf(nord.colour(cordInk(tt.works))); got != tt.want {
+				t.Errorf("the cord is %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestACordAtRestIsDrawnLightWhereTheLookCantDimIt(t *testing.T) {
+	nord := themed(t, "nord")
+	tests := []struct {
+		name  string
+		look  Look
+		works bool
+		want  cordGlyphs
+	}{
+		{name: "working, in colour", look: nord, works: true, want: heavyCord},
+		{name: "at rest, in colour", look: nord, want: heavyCord},
+		{name: "working, NO_COLOR", look: NoColour(), works: true, want: heavyCord},
+		{name: "at rest, NO_COLOR", look: NoColour(), want: lightCord},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.look.cordDrawn(tt.works); got != tt.want {
+				t.Errorf("the cord is drawn in %+v, want %+v", got, tt.want)
 			}
 		})
 	}

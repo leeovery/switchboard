@@ -17,17 +17,18 @@ type Patched struct {
 }
 
 // PatchedLine is an account's line as the patch keeps it: its calls, top to
-// bottom, each on its jack; and the jacks its stubs hang from, the first
-// hung first, as each is a cell shorter than the one before. Jacks are
-// counted down the line from its first, 0; one past its rows grows it.
+// bottom, each on its jack; the jacks its stubs hang from, the first hung
+// first, as each is a cell shorter than the one before; and the sessions
+// that moved elsewhere, each on the jack it left, the last to leave last,
+// that nothing has taken since, the jack a cord a move let go hangs loose
+// from. A stub the line's limit counts later hangs from the jack its session
+// left, as the request stream may tell of the move before the router's
+// document counts it. Jacks are counted down the line from its first, 0; one
+// past its rows grows it.
 type PatchedLine struct {
 	Calls []Plugged
 	Stubs []int
-	// vacated are the jacks sessions that moved elsewhere left, the last to
-	// leave last, that nothing has taken since: a stub the line's limit
-	// counts later hangs from the jack its session left, as the request
-	// stream may tell of the move before the router's document counts it.
-	vacated []int
+	Left  []Plugged
 }
 
 // Plugged is a call as the patch keeps it: its session, by its id, and the
@@ -42,7 +43,7 @@ type Plugged struct {
 // caller's.
 func (p Patched) Line(account string) PatchedLine {
 	l := p.lines[account]
-	return PatchedLine{Calls: slices.Clone(l.Calls), Stubs: slices.Clone(l.Stubs)}
+	return PatchedLine{Calls: slices.Clone(l.Calls), Stubs: slices.Clone(l.Stubs), Left: slices.Clone(l.Left)}
 }
 
 // StubsOf are the stubs each account's line hangs at the moment m, by its
@@ -84,7 +85,7 @@ func Patch(kept Patched, calls []Call, stubs map[string]int) Patched {
 			return slices.ContainsFunc(goes[session], func(a string) bool { return a != account })
 		}
 		l := kept.lines[account].patched(on[account], stubs[account], elsewhere)
-		if len(l.Calls) > 0 || len(l.Stubs) > 0 || len(l.vacated) > 0 {
+		if len(l.Calls) > 0 || len(l.Stubs) > 0 || len(l.Left) > 0 {
 			patched.lines[account] = l
 		}
 	}
@@ -95,20 +96,22 @@ func Patch(kept Patched, calls []Call, stubs map[string]int) Patched {
 // calls' order, its limit having moved stubs sessions off it, elsewhere
 // telling of a session gone from it whether it runs on another account now.
 func (l PatchedLine) patched(on []string, stubs int, elsewhere func(session string) bool) PatchedLine {
-	next := PatchedLine{vacated: slices.Clone(l.vacated)}
+	next := PatchedLine{Left: slices.Clone(l.Left)}
 	for _, c := range l.Calls {
 		switch {
 		case slices.Contains(on, c.Session):
 			next.Calls = append(next.Calls, c)
 		case elsewhere(c.Session):
-			next.vacated = append(next.vacated, c.Jack)
+			next.Left = append(next.Left, c)
 		}
 	}
 	next.Stubs = slices.Clone(l.Stubs[:min(len(l.Stubs), stubs)])
-	if left := min(stubs-len(next.Stubs), len(next.vacated)); left > 0 {
-		cut := len(next.vacated) - left
-		next.Stubs = append(next.Stubs, next.vacated[cut:]...)
-		next.vacated = next.vacated[:cut]
+	if hung := min(stubs-len(next.Stubs), len(next.Left)); hung > 0 {
+		cut := len(next.Left) - hung
+		for _, c := range next.Left[cut:] {
+			next.Stubs = append(next.Stubs, c.Jack)
+		}
+		next.Left = next.Left[:cut]
 	}
 	for _, session := range on {
 		if !slices.ContainsFunc(next.Calls, func(c Plugged) bool { return c.Session == session }) {
@@ -118,7 +121,9 @@ func (l PatchedLine) patched(on []string, stubs int, elsewhere func(session stri
 	for len(next.Stubs) < stubs {
 		next.Stubs = append(next.Stubs, next.free())
 	}
-	next.vacated = slices.DeleteFunc(next.vacated, next.taken)
+	next.Left = slices.DeleteFunc(next.Left, func(c Plugged) bool {
+		return next.taken(c.Jack) || slices.ContainsFunc(next.Calls, func(on Plugged) bool { return on.Session == c.Session })
+	})
 	return next
 }
 

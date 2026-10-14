@@ -333,7 +333,7 @@ func TestWhatTheStreamSawOfASessionOutlastsItsAnswer(t *testing.T) {
 	h.tickUntil(past(90 * time.Second))
 	h.hear(alter(told(router.StreamDone, "r1", "work", 90*time.Second), func(e *router.StreamEvent) { e.Status = 200 }))
 
-	h.tickUntil(past(90*time.Second + answeredFor + time.Second))
+	h.tickUntil(past(90*time.Second + pulseFor + time.Second))
 	if want := "d28c  opus    now "; !strings.Contains(h.view(), want) {
 		t.Errorf("once its 90-second answer is done with, the screen is\n%s\nwant d28c seen now, as the stream saw it as its answer ended, %q", h.view(), want)
 	}
