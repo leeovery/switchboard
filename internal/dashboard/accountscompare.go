@@ -283,10 +283,20 @@ func (cp compared) stands(col compareColumn, cells int) line {
 // Overview colours a state: open's glyph in state.positive and its word in
 // text.secondary; any other's both in its colour, as stateInk has it.
 func stateWord(s status.AccountState) line {
+	word := stateInk(s)
 	if s == status.StateOpen {
-		return line{{s.Glyph(), positiveInk}, {" " + s.Word(), secondaryInk}}
+		word = secondaryInk
 	}
-	return line{{s.Glyph() + " " + s.Word(), stateInk(s)}}
+	return line{stateMark(s), {" " + s.Word(), word}}
+}
+
+// stateMark is an account's state's glyph, as stateWord colours it, and
+// Detail's list draws it alone.
+func stateMark(s status.AccountState) span {
+	if s == status.StateOpen {
+		return span{s.Glyph(), positiveInk}
+	}
+	return span{s.Glyph(), stateInk(s)}
 }
 
 // body is Compare's rows under its heads, drawn on a canvas of their own:
@@ -335,28 +345,19 @@ func (cp compared) weekUsed(c *canvas, y int, columns []compareColumn) {
 		g := cp.weekGauge(col)
 		g.bar.draw(c, cp.f.Look, col.x, y, bar)
 		c.barred(col.x, y, bar, g.of)
-		percentage := g.percentage()
-		if col.all && !g.bar.empty {
-			percentage = g.bar.percentage().numbered(Number{Kind: NumberAllUsed, Of: cp.week})
-		}
-		c.right(col.x+bar+1+percentCells, y, percentage)
+		c.right(col.x+bar+1+percentCells, y, g.percentage())
 	}
 }
 
 // weekGauge is the column's week as WEEK USED draws it, as far as its bar
 // has eased: an account's as usage draws its window, its cap and even pace
 // marked, faded where it's stale, and empty where the moment doesn't have
-// the account; all accounts', as every account's week together, the mean of
-// their use and of their paces, with no cap, faded where all are stale, and
-// empty where none's use is known.
+// the account; all accounts', as allGauge has it.
 func (cp compared) weekGauge(col compareColumn) gauge {
 	g := gauge{of: Ref{Account: col.id, Window: cp.week}, bar: usageBar{empty: true}}
 	switch {
 	case col.all:
-		all := cp.m.All().Windows
-		if i := slices.IndexFunc(all, func(w status.AllWindowNow) bool { return w.Key == cp.week }); i >= 0 {
-			g.bar = usageBar{used: all[i].Used, capAt: 1, pace: all[i].Pace, stale: all[i].Stale}
-		}
+		g = allGauge(cp.m, cp.week)
 	case col.known:
 		g = accountGauge(col.account, cp.week, cp.now)
 	}
@@ -375,19 +376,10 @@ func (cp compared) weekGauge(col compareColumn) gauge {
 func (cp compared) byModel(c *canvas, y int, columns []compareColumn) int {
 	c.line(0, y, groupHead("BY MODEL", "share of use", false))
 	versions := cp.page.Versions
-	hues := make([]hue, len(versions))
-	for i, v := range versions {
-		hues[i] = versionHue(v)
-	}
+	hues := versionHues(versions)
 	bar := min(shareBar, cp.colw-shareSpare)
 	for _, col := range columns {
-		amounts := make([]ledger.Picodollars, len(versions))
-		for i, v := range versions {
-			if s, ok := shareOf(col.row, v); ok {
-				amounts[i] = amountOf(s.Worth)
-			}
-		}
-		stackedBar(c, cp.f.Look, col.x, y, splitCells(amounts, bar), hues)
+		stackedBar(c, cp.f.Look, col.x, y, splitCells(shareAmounts(col.row, versions), bar), hues)
 	}
 	for i, v := range versions {
 		y++

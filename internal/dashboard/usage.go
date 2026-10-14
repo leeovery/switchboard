@@ -109,11 +109,13 @@ type usageRow struct {
 }
 
 // gauge is a window of an account, or the pool's, as a row draws it: the
-// window it is, by its account's id, "" for the pool's, and its key; its bar;
-// its words, and whether they say it runs out; and, while the Overview cues
-// its words, how far their cue has faded, nil where they aren't cued.
+// window it is, by its account's id, "" for the pool's, and its key, or with
+// all set, all accounts' window, which is never the pool's, by its key; its
+// bar; its words, and whether they say it runs out; and, while the Overview
+// cues its words, how far their cue has faded, nil where they aren't cued.
 type gauge struct {
 	of      Ref
+	all     bool
 	bar     usageBar
 	words   usageWords
 	runsOut bool
@@ -602,8 +604,15 @@ func (g gauge) said(width, room int) line {
 	return slices.Concat(line{said[0].numbered(g.number(g.words.leads))}, said[1:])
 }
 
-// number is g's window's number of the kind given.
+// number is g's window's number of the kind given: all accounts' use and
+// room their own, as all accounts is never the pool.
 func (g gauge) number(kind NumberKind) Number {
+	switch {
+	case g.all && kind == NumberUsed:
+		kind = NumberAllUsed
+	case g.all && kind == NumberRoom:
+		kind = NumberAllRoom
+	}
 	return Number{Kind: kind, Account: g.of.Account, Of: g.of.Window}
 }
 
