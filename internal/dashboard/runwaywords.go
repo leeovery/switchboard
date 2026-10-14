@@ -13,15 +13,8 @@ import (
 )
 
 // phraseGap is the fewest blank cells between two of the phrases under a
-// lane.
+// lane, the pool's too, and between the pool's room and its words.
 const phraseGap = 2
-
-// placedWords are words under a lane, from the column given, counted from
-// the lanes' first.
-type placedWords struct {
-	col  int
-	said line
-}
 
 // phrase is what's said under a lane of a stretch, of a reset, or of the
 // lane as a whole: its parts, whole ones dropped from the end where they
@@ -39,44 +32,42 @@ type phrase struct {
 // its account newly stands so, as wordsCue has it.
 func (f Frame) runwayWords(c *canvas, laid runwayLaid) {
 	for _, ln := range laid.lanes {
-		if ln.row < 0 {
-			continue
-		}
-		words := f.wordsUnder(ln, laid.now)
+		words := f.wordsUnder(ln, laid.m.Now)
 		for _, w := range words {
-			c.line(laid.x+w.col, ln.row+1, w.said)
+			c.line(laid.x+w.x, ln.row+1, w.said)
 		}
 		if fade, ok := f.wordsCue(ln); ok && len(words) > 0 {
 			first, last := words[0], words[len(words)-1]
-			cue(c, f.Look, laid.x+first.col, ln.row+1, last.col+last.said.width()-first.col, fade)
+			cue(c, f.Look, laid.x+first.x, ln.row+1, last.x+last.said.width()-first.x, fade)
 		}
 	}
 }
 
-// wordsUnder are the words under the lane ln at now, as placed along its row:
-// of an account whose first read failed, where the view holds now, that it
-// can't be read, and why, in text.subtle; on a day or week gone that read
-// nothing of it, that, in text.faint; else what phrasesOf says; and where
-// that's nothing, of a lane with room throughout, that it has, in
-// text.subtle, from the cell after now's column, or stepped back, the first.
-func (f Frame) wordsUnder(ln laidLane, now time.Time) []placedWords {
+// wordsUnder are the words under the lane ln at now, each placed from a
+// column counted from the lanes' first: of an account whose first read
+// failed, where the view holds now, that it can't be read, and why, in
+// text.subtle; on a day or week gone that read nothing of it, that, in
+// text.faint; else what phrasesOf says; and where that's nothing, of a lane
+// with room throughout, that it has, in text.subtle, from the cell after
+// now's column, or stepped back, the first.
+func (f Frame) wordsUnder(ln laidLane, now time.Time) []placed {
 	tl := f.Runway.Timeline
 	cols, period := tl.Columns, f.Runway.period()
 	_, _, named := tl.Named()
 	switch {
 	case ln.account.Routing.Kind == status.RoutingUnreadable && tl.NowColumn() >= 0:
-		return placed(cols, phrase{parts: []line{{{unreadable(ln.account.Routing), dimInk}}}})
+		return placeAlong(cols, phrase{parts: []line{{{unreadable(ln.account.Routing), dimInk}}}})
 	case named && tl.Now.IsZero() && !slices.ContainsFunc(ln.Cells, func(c views.Cell) bool { return c != views.CellUnknown }):
-		return placed(cols, phrase{parts: []line{{{"nothing read that " + period, faintInk}}}})
+		return placeAlong(cols, phrase{parts: []line{{{"nothing read that " + period, faintInk}}}})
 	}
-	if said := placed(cols, f.phrasesOf(ln, f.Runway.against(now))...); said != nil || !ln.Room {
+	if said := placeAlong(cols, f.phrasesOf(ln, f.Runway.datedAgainst(now))...); said != nil || !ln.Room {
 		return said
 	}
 	from := tl.NowColumn() + 1
 	if named {
 		from = 0
 	}
-	return placed(cols, phrase{parts: []line{{{"room all " + period, dimInk}}}, col: from})
+	return placeAlong(cols, phrase{parts: []line{{{"room all " + period, dimInk}}}, col: from})
 }
 
 // unreadable is what's said of an account whose first read failed, as its
@@ -176,13 +167,13 @@ func refusedWith(s views.LaneStretch, a status.AccountNow) string {
 	return " (" + strconv.Itoa(a.Refusal.Status) + ")"
 }
 
-// placed are the phrases given, in order, placed along a row cols columns
-// wide, as placedWords has them: each from its column, or phraseGap cells
-// after the words before, as many of its parts, whole, as fit; or, where it
-// ends at its column, there, whole, where that clears the words before; and
-// none from the first whose first part doesn't fit.
-func placed(cols int, phrases ...phrase) []placedWords {
-	var words []placedWords
+// placeAlong places the phrases given, in order, along a row cols columns
+// wide: each from its column, or phraseGap cells after the words before, as
+// many of its parts, whole, as fit; or, where it ends at its column, there,
+// whole, where that clears the words before; and none from the first whose
+// first part doesn't fit.
+func placeAlong(cols int, phrases ...phrase) []placed {
+	var words []placed
 	next := 0
 	for _, p := range phrases {
 		said, start := slices.Concat(p.parts...), max(p.col, next)
@@ -193,7 +184,7 @@ func placed(cols int, phrases ...phrase) []placedWords {
 		} else if said = wholeParts(p.parts, cols-start); said == nil {
 			break
 		}
-		words = append(words, placedWords{col: start, said: said})
+		words = append(words, placed{x: start, said: said})
 		next = start + said.width() + phraseGap
 	}
 	return words

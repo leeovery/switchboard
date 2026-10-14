@@ -129,32 +129,3 @@ func TestOutOfViewSaysNothingWhereNothingIsOutOfView(t *testing.T) {
 		}
 	}
 }
-
-// Sessions' and Runway's scroll line says how many accounts are out of view
-// above and below, and how to scroll to them, its marks and the space after
-// each bold accent.key, its counts muted and the rest text.subtle; cut short
-// as words where it doesn't fit, as it always was: a cell into how to scroll,
-// its gap cut; two cells into a mark, the mark and an ellipsis in its ink.
-func TestSessionsAndRunwaysScrollLineIsCutShortAsWords(t *testing.T) {
-	mark, muted, rest := ink{token: theme.AccentKey, bold: true}, ink{token: theme.TextMuted}, ink{token: theme.TextSubtle}
-	tests := []struct {
-		above, below, width int
-		want                line
-	}{
-		{
-			above: 2, below: 3, width: 160,
-			want: line{{"▲ ", mark}, {"2 more accounts above", muted}, {" · ", rest}, {"▼ ", mark}, {"3 more accounts below", muted}, {" · j/k or wheel to scroll", rest}},
-		},
-		{below: 5, width: 160, want: line{{"▼ ", mark}, {"5 more accounts below", muted}, {" · j/k or wheel to scroll", rest}}},
-		{above: 1, width: 160, want: line{{"▲ ", mark}, {"1 more account above", muted}, {" · j/k or wheel to scroll", rest}}},
-		{below: 5, width: 40, want: line{{"▼ ", mark}, {"5 more accounts below", muted}, {" · j/k or wheel…", rest}}},
-		{below: 5, width: 27, want: line{{"▼ ", mark}, {"5 more accounts below", muted}, {" ·…", rest}}},
-		{above: 2, below: 3, width: 28, want: line{{"▲ ", mark}, {"2 more accounts above", muted}, {" · ", rest}, {"▼…", mark}}},
-		{below: 5, width: 2, want: line{{"▼…", mark}}},
-	}
-	for _, tt := range tests {
-		if got := rowsOut.said(tt.above, tt.below).fit(tt.width); !slices.Equal(got, tt.want) {
-			t.Errorf("%d above and %d below, in %d cells, the line reads %q, %+v, want %q, %+v", tt.above, tt.below, tt.width, got.plain(), got, tt.want.plain(), tt.want)
-		}
-	}
-}

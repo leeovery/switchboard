@@ -24,9 +24,18 @@ var cellsMean = map[views.Cell]string{
 // runwayLegend draws the legend, as laid out, from column 0, a line a row
 // from its row down, as runwayLegendLines has them.
 func (f Frame) runwayLegend(c *canvas, laid runwayLaid) {
-	for i, l := range f.runwayLegendLines() {
-		c.line(0, laid.legend+i, l)
+	if !laid.fit.draws(laid.fit.legend) {
+		return
 	}
+	for i, l := range f.runwayLegendLines() {
+		c.line(0, laid.fit.legend+i, l)
+	}
+}
+
+// runwayLegendRows is how many rows the legend takes, as runwayLegend draws
+// it, for Runway's compaction to count.
+func (f Frame) runwayLegendRows() int {
+	return len(f.runwayLegendLines())
 }
 
 // runwayLegendLines are the lines of Runway's legend: the keys of what the

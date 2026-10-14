@@ -22,7 +22,7 @@ func laneCells(cells ...views.Cell) []views.Cell {
 // its lanes from column 24.
 func drawnLane(f Frame, ln laidLane) *canvas {
 	c := newCanvas(f.Width, 20)
-	f.runwayLanes(c, runwayLaid{now: routedAt, top: 6, x: runwayLanesFrom, lanes: []laidLane{ln}})
+	f.runwayLanes(c, runwayLaid{m: status.Moment{Now: routedAt}, x: runwayLanesFrom, lanes: []laidLane{ln}})
 	return c
 }
 
@@ -210,7 +210,7 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 			ln := tt.lane
 			ln.row = 10
 			c := newCanvas(160, 20)
-			f.runwayLanes(c, runwayLaid{now: routedAt, top: 6, x: x, lanes: []laidLane{ln}})
+			f.runwayLanes(c, runwayLaid{m: status.Moment{Now: routedAt}, x: x, lanes: []laidLane{ln}})
 			if head := textAt(c, 0, 10, x-2); head != tt.head {
 				t.Errorf("the lane's head reads %q, want %q", head, tt.head)
 			}
@@ -256,19 +256,22 @@ func textAt(c *canvas, x, y, cells int) string {
 // Now's column is picked out on bg.subtle from the axis's first row down to
 // the pool's words, under every cell without a surface of its own, where
 // the timeline has a now: on a day gone, nothing; nor where the look can't
-// blend, as it can't dim the past either.
+// blend, as it can't dim the past either; nor where nothing fits.
 func TestNowsColumnIsPickedOutDownToThePoolsWords(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
+	fitted := runwayFit{fits: true, axis: 6, lanes: 10, apart: 3, shown: 3, words: 21}
 	for _, tt := range []struct {
 		name  string
 		shown RunwayShown
 		look  Look
+		fit   runwayFit
 		col   int
 	}{
-		{name: "live", shown: runwayLive(views.RunwayFiveHour), look: nord, col: 6},
-		{name: "today, stepped back to", shown: runwayBack(views.RunwayFiveHour, civilDay(10, 1)), look: nord, col: 83},
-		{name: "a day gone", shown: runwayBack(views.RunwayFiveHour, civilDay(9, 30)), look: nord, col: -1},
-		{name: "a look that can't blend", shown: runwayLive(views.RunwayFiveHour), look: Screen(builtin(t, "terminal")), col: -1},
+		{name: "live", shown: runwayLive(views.RunwayFiveHour), look: nord, fit: fitted, col: 6},
+		{name: "today, stepped back to", shown: runwayBack(views.RunwayFiveHour, civilDay(10, 1)), look: nord, fit: fitted, col: 83},
+		{name: "a day gone", shown: runwayBack(views.RunwayFiveHour, civilDay(9, 30)), look: nord, fit: fitted, col: -1},
+		{name: "a look that can't blend", shown: runwayLive(views.RunwayFiveHour), look: Screen(builtin(t, "terminal")), fit: fitted, col: -1},
+		{name: "nothing fits", shown: runwayLive(views.RunwayFiveHour), look: nord, col: -1},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			f := runwayShowing(tt.shown)
@@ -276,7 +279,7 @@ func TestNowsColumnIsPickedOutDownToThePoolsWords(t *testing.T) {
 			c := newCanvas(160, 30)
 			x := runwayLanesFrom + max(tt.col, 6)
 			c.text(x, 15, " ", ink{on: hue{token: theme.VizRamp1}})
-			f.runwayNow(c, runwayLaid{top: 6, x: runwayLanesFrom, nowTo: 21})
+			f.runwayNow(c, runwayLaid{x: runwayLanesFrom, fit: tt.fit})
 			for y := range 30 {
 				want := hue{}
 				switch {
@@ -296,57 +299,64 @@ func TestNowsColumnIsPickedOutDownToThePoolsWords(t *testing.T) {
 	}
 }
 
-// Runway's lanes are the lanes' accounts the moment has, in the lanes'
-// order, each with its account as the moment has it and its name as the
-// moment numbers it, the whole name faint where the pool leaves it out; none
-// before the watch builds them.
-func TestRunwaysLanesAreItsAccountsInTheLanesOrder(t *testing.T) {
+// Runway's lanes are those the fit shows of the lanes' accounts the moment
+// has, in the lanes' order, each on the row the fit gives it, with its
+// account as the moment has it and its name as the moment numbers it, the
+// whole name faint where the pool leaves it out; none before the watch
+// builds them, nor where nothing fits.
+func TestRunwaysLanesAreThoseTheFitShowsOnItsRows(t *testing.T) {
 	m := status.Moment{Accounts: []status.AccountNow{
 		{ID: "work", Label: "work"}, {ID: "personal", Label: "personal", OutOfPool: true}, {ID: "side", Label: "side"},
 	}}
+	every := runwayFit{fits: true, lanes: 10, apart: 3, shown: 4}
 	f := runwayShowing(runwayLive(views.RunwayFiveHour))
-	if lanes := f.lanesOf(m); lanes != nil {
+	if lanes := f.lanesOf(m, every); lanes != nil {
 		t.Errorf("before the lanes are built, Runway has %d lanes, want none", len(lanes))
 	}
 	f.Runway.Lanes = &views.Lanes{Accounts: []views.Lane{{ID: "side"}, {ID: "gone"}, {ID: "personal"}, {ID: "work"}}}
-	var got []string
-	for _, ln := range f.lanesOf(m) {
-		got = append(got, fmt.Sprintf("%s %s %s faint %t row %d", ln.ID, ln.account.ID, ln.name.line(runwayLanesFrom).plain(), ln.name.faint, ln.row))
-	}
-	want := []string{"side side 3 side faint false row -1", "personal personal 2 personal faint true row -1", "work work 1 work faint false row -1"}
-	if !slices.Equal(got, want) {
-		t.Errorf("Runway's lanes are\n%q, want\n%q", got, want)
-	}
-}
-
-func TestRunwayLaysOutItsRowsWithRowsToSpare(t *testing.T) {
-	f := runwayShowing(runwayLive(views.RunwayFiveHour))
 	tests := []struct {
-		name          string
-		accounts      []string
-		rows          []int
-		nowTo, legend int
+		name string
+		fit  runwayFit
+		want []string
 	}{
-		{name: "three accounts", accounts: []string{"work", "personal", "side"}, rows: []int{10, 13, 16}, nowTo: 21, legend: 23},
-		{name: "one account, no pool's lane", accounts: []string{"work"}, rows: []int{10}, nowTo: 11, legend: 13},
+		{
+			name: "every lane shown, three rows apart", fit: every,
+			want: []string{"side side 3 side faint false row 10", "personal personal 2 personal faint true row 16", "work work 1 work faint false row 19"},
+		},
+		{
+			name: "scrolled to the third, two shown, two rows apart", fit: runwayFit{fits: true, lanes: 7, apart: 2, first: 2, shown: 2},
+			want: []string{"personal personal 2 personal faint true row 7", "work work 1 work faint false row 9"},
+		},
+		{name: "nothing fits", fit: runwayFit{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var m status.Moment
-			lanes := &views.Lanes{}
-			for _, id := range tt.accounts {
-				m.Accounts = append(m.Accounts, status.AccountNow{ID: id})
-				lanes.Accounts = append(lanes.Accounts, views.Lane{ID: id})
+			var got []string
+			for _, ln := range f.lanesOf(m, tt.fit) {
+				got = append(got, fmt.Sprintf("%s %s %s faint %t row %d", ln.ID, ln.account.ID, ln.name.line(runwayLanesFrom).plain(), ln.name.faint, ln.row))
 			}
-			f.Runway.Lanes = lanes
-			laid := f.runwayLaidOut(m, routedAt, 6, runwayLanesFrom)
-			var rows []int
-			for _, ln := range laid.lanes {
-				rows = append(rows, ln.row)
-			}
-			if !slices.Equal(rows, tt.rows) || laid.nowTo != tt.nowTo || laid.legend != tt.legend {
-				t.Errorf("laid out lanes on rows %v, now's column to row %d, the legend on %d; want %v, %d, %d", rows, laid.nowTo, laid.legend, tt.rows, tt.nowTo, tt.legend)
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("Runway's lanes are\n%q, want\n%q", got, tt.want)
 			}
 		})
+	}
+}
+
+// Now's column runs down to the pool's words, or without a pool's lane, to
+// the last lane shown's words.
+func TestNowsColumnRunsDownToThePoolsWordsOrTheLastLanesShown(t *testing.T) {
+	tests := []struct {
+		name string
+		fit  runwayFit
+		want int
+	}{
+		{name: "the pool's words", fit: runwayFit{fits: true, lanes: 10, apart: 3, shown: 3, words: 21}, want: 21},
+		{name: "one account, no pool's lane", fit: runwayFit{fits: true, lanes: 10, apart: 3, shown: 1, words: noRow}, want: 11},
+		{name: "scrolled, the last lane shown's", fit: runwayFit{fits: true, lanes: 7, apart: 2, first: 3, shown: 4, words: noRow}, want: 14},
+	}
+	for _, tt := range tests {
+		if got := tt.fit.nowTo(); got != tt.want {
+			t.Errorf("%s: now's column runs down to row %d, want %d", tt.name, got, tt.want)
+		}
 	}
 }

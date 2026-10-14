@@ -117,6 +117,12 @@ func TestTheLegendTakesOneLineWhereItFitsElseWrapsWholeKeys(t *testing.T) {
 			if got := legendOf(shown, tt.width, nord, four); !slices.Equal(got, tt.want) {
 				t.Errorf("at %d columns the legend reads\n%q, want\n%q", tt.width, got, tt.want)
 			}
+			shown.Lanes = &views.Lanes{Drawn: four}
+			f := runwayShowing(shown)
+			f.Width, f.Look = tt.width, nord
+			if rows := f.runwayLegendRows(); rows != len(tt.want) {
+				t.Errorf("at %d columns the fit counts the legend %d rows, want %d", tt.width, rows, len(tt.want))
+			}
 		})
 	}
 }
@@ -150,7 +156,7 @@ func TestTheLegendIsDrawnFromItsRowALineARow(t *testing.T) {
 	f.Width, f.Look = 101, Screen(builtin(t, "nord"))
 	f.Runway.Lanes = &views.Lanes{Drawn: everyCell}
 	c := newCanvas(f.Width, 40)
-	f.runwayLegend(c, runwayLaid{legend: 23})
+	f.runwayLegend(c, runwayLaid{fit: runwayFit{fits: true, legend: 23}})
 	for y, want := range map[int]string{22: "", 23: "▆ room    ▆ room, but it runs out at its pace    ─ at its cap    ─ at its limit    ─ token refused", 24: "─ no token    │ its 5-hour resets", 25: "a column 10 minutes · the past dimmed", 26: ""} {
 		if got := textAt(c, 0, y, f.Width); got != want {
 			t.Errorf("row %d reads %q, want %q", y, got, want)

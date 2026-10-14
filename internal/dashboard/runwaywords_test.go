@@ -49,10 +49,10 @@ func laneWith(stretches ...views.LaneStretch) laidLane {
 
 // wordsRead is what the words placed say, read off a row of the lanes' columns,
 // as a terminal shows them.
-func wordsRead(words []placedWords) string {
+func wordsRead(words []placed) string {
 	var row []rune
 	for _, w := range words {
-		for len(row) < w.col {
+		for len(row) < w.x {
 			row = append(row, ' ')
 		}
 		row = append(row, []rune(w.said.plain())...)
@@ -142,7 +142,7 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 				ln.account = *tt.account
 			}
 			words := runwayShowing(tt.shown).wordsUnder(ln, routedAt)
-			if len(words) != 1 || words[0].said.plain() != tt.want || words[0].col != tt.stretch.Column {
+			if len(words) != 1 || words[0].said.plain() != tt.want || words[0].x != tt.stretch.Column {
 				t.Fatalf("the words say %q, want %q from column %d", wordsRead(words), tt.want, tt.stretch.Column)
 			}
 			var inks []ink
@@ -394,7 +394,7 @@ func TestTheWordsUnderALaneAreDrawnOnTheRowUnderItCuedWhereTheyAre(t *testing.T)
 	f := runwayShowing(five)
 	f.Look, f.Changed = Screen(builtin(t, "nord")), map[string]float64{"work": 0.25}
 	c := newCanvas(160, 20)
-	f.runwayWords(c, runwayLaid{now: routedAt, top: 6, x: runwayLanesFrom, lanes: []laidLane{ln}})
+	f.runwayWords(c, runwayLaid{m: status.Moment{Now: routedAt}, x: runwayLanesFrom, lanes: []laidLane{ln}})
 	words := "at its cap 14:31  ·  back 15:00  at its limit 16:00  ·  back 17:00"
 	if got := textAt(c, runwayLanesFrom+5, 11, 136); got != words {
 		t.Fatalf("the row under the lane reads %q, want %q", got, words)

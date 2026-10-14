@@ -27,7 +27,7 @@ func TestRunwaysAxisHasNowOverItsColumnAndARuleUnderItsLabels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newCanvas(160, 12)
-			runwayShowing(tt.shown).runwayAxis(c, runwayLaid{top: 6, x: runwayLanesFrom})
+			runwayShowing(tt.shown).runwayAxis(c, runwayLaid{x: runwayLanesFrom, fit: runwayFit{fits: true, axis: 6}})
 			row := textAt(c, 0, 6, 160)
 			if want := strings.Repeat(" ", runwayLanesFrom+tt.now-1) + "now"; tt.now >= 0 && row != want || tt.now < 0 && row != "" {
 				t.Errorf("the axis's first row reads %q", row)

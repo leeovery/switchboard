@@ -30,19 +30,19 @@ const (
 // weekdays draws them, or the hours of any other, as hours draws them; and
 // under them, their ticks along a rule.
 func (f Frame) runwayAxis(c *canvas, laid runwayLaid) {
-	tl := f.Runway.Timeline
-	if tl.Columns <= 0 {
+	tl, top := f.Runway.Timeline, laid.fit.axis
+	if !laid.fit.draws(top) || tl.Columns <= 0 {
 		return
 	}
 	if col := tl.NowColumn(); col >= 0 && col < tl.Columns {
-		c.text(laid.x+col-1, laid.top, "now", titleInk)
+		c.text(laid.x+col-1, top, "now", titleInk)
 	}
-	c.text(laid.x, laid.top+2, rule(tl.Columns), borderInk)
+	c.text(laid.x, top+2, rule(tl.Columns), borderInk)
 	if f.Runway.Window == views.RunwayWeek {
-		weekdays(c, tl, laid.x, laid.top+1)
+		weekdays(c, tl, laid.x, top+1)
 		return
 	}
-	hours(c, tl, laid.x, laid.top+1)
+	hours(c, tl, laid.x, top+1)
 }
 
 // apart is the first of hourSteps whose hours span cells columns of the

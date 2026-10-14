@@ -153,13 +153,21 @@ func (ch chart) top(c *canvas, at bounds) {
 }
 
 // fillColumn fills a chart's column at x, h rows tall up from row floor,
-// eighths eighths of a cell: each row in the ramp's colour at its height,
-// (r + 0.5) ÷ h for row r from the floor, chartFade into the canvas; a full
-// cell and the top cell as filledCell draws them.
+// eighths eighths of a cell, as fillUp fills it: each row in the ramp's
+// colour at its height, (r + 0.5) ÷ h for row r from the floor, chartFade
+// into the canvas.
 func fillColumn(c *canvas, look Look, x, floor, h, eighths int) {
+	fillUp(c, look, x, floor, eighths, func(r int) ink {
+		return ink{ramp: true, at: (float64(r) + 0.5) / float64(h), fade: chartFade}
+	})
+}
+
+// fillUp fills a column at x up from row floor eighths eighths of a cell,
+// row r from the floor in the ink tone gives it: a full cell and the top
+// cell as filledCell draws them.
+func fillUp(c *canvas, look Look, x, floor, eighths int, tone func(r int) ink) {
 	for r := 0; 8*r < eighths; r++ {
-		tone := ink{ramp: true, at: (float64(r) + 0.5) / float64(h), fade: chartFade}
-		glyph, k := filledCell(look, min(eighths-8*r, 8), tone)
+		glyph, k := filledCell(look, min(eighths-8*r, 8), tone(r))
 		c.text(x, floor-r, glyph, k)
 	}
 }

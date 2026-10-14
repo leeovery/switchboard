@@ -151,48 +151,20 @@ type runwayForm struct {
 }
 
 // runwayLaid is Runway laid out on the page, for each of its drawers to draw
-// its part where it lies: drawn at now; from row top, the axis; the lanes
-// from column x, their labels in the cells before them, each account's on
-// its row, as laidLane has it; now's column picked out down to row nowTo;
-// the legend from row legend; and its rows fitted as fit has them.
+// its part where it lies: of the moment m, which each reads; its lanes from
+// column x, their labels in the cells before them, those shown each on its
+// row, as laidLane has it; and its rows fitted as fit has them.
 type runwayLaid struct {
-	now           time.Time
-	top, x        int
-	lanes         []laidLane
-	nowTo, legend int
-	fit           runwayFit
+	x     int
+	m     status.Moment
+	lanes []laidLane
+	fit   runwayFit
 }
 
-// The rows Runway's parts take where it has rows to spare: the axis's, its
-// now, its labels and its ticks, and a blank row; an account's, its lane,
-// its words and a blank row; and the pool's, its lane, two rows, and its
-// words.
-const (
-	runwayAxisRows    = 4
-	runwayAccountRows = 3
-	runwayPoolRows    = 3
-)
-
-// runwayLaidOut is Runway of the moment m laid out at now from row top, its
-// lanes from column x, with rows to spare for each part: the axis and a
-// blank row; then each account's lane, its words and a blank row, in the
-// lanes' order; where there's more than one account, the pool's rule on the
-// last account's blank row, and its lane and words under it, which now's
-// column is picked out down to, else down to the last account's words; and
-// a blank row and the legend.
-func (f Frame) runwayLaidOut(m status.Moment, now time.Time, top, x int) runwayLaid {
-	laid := runwayLaid{now: now, top: top, x: x, lanes: f.lanesOf(m), fit: f.runwayFitted(top)}
-	y := top + runwayAxisRows
-	for i := range laid.lanes {
-		laid.lanes[i].row = y
-		y += runwayAccountRows
-	}
-	laid.nowTo = y - runwayAccountRows + 1
-	if len(laid.lanes) > 1 {
-		laid.nowTo = y - 1 + runwayPoolRows
-	}
-	laid.legend = laid.nowTo + 2
-	return laid
+// runwayLaidOut is Runway of the moment m laid out as fit fits it, its lanes
+// from column x, those shown as lanesOf has them.
+func (f Frame) runwayLaidOut(m status.Moment, x int, fit runwayFit) runwayLaid {
+	return runwayLaid{x: x, m: m, lanes: f.lanesOf(m, fit), fit: fit}
 }
 
 // runwayForm is the form Runway is drawn in, of doc at now: a phone's, as
@@ -205,19 +177,20 @@ func (f Frame) runwayForm(doc status.Document, now time.Time) runwayForm {
 }
 
 // wideRunway is Runway of doc at now from phoneUnder columns, as its form
-// draws it, laid out as runwayLaidOut lays it out: the axis, the lanes and
-// the words under them, the pool's lane, the legend and COMING UP, each as
-// its drawer has it; then now's column picked out under them all.
+// draws it, laid out as runwayFitted fits it: the axis, the lanes and the
+// words under them, the pool's lane, the legend, COMING UP and what's out of
+// view, each as its drawer has it; then now's column picked out under them.
 func (f Frame) wideRunway(doc status.Document, now time.Time) runwayForm {
 	return runwayForm{
 		draw: func(c *canvas, top int) {
-			laid := f.runwayLaidOut(f.Moment(doc, now), now, top, runwayLanesFrom)
+			laid := f.runwayLaidOut(f.Moment(doc, now), runwayLanesFrom, f.runwayFitted(top))
 			f.runwayAxis(c, laid)
 			f.runwayLanes(c, laid)
 			f.runwayWords(c, laid)
 			f.runwayPool(c, laid)
 			f.runwayLegend(c, laid)
 			f.runwayComing(c, laid)
+			f.runwayOut(c, laid)
 			f.runwayNow(c, laid)
 		},
 		scrolling: f.runwayFitted(f.top()).scrolling,
@@ -232,17 +205,6 @@ func (r RunwayShown) period() string {
 		return "week"
 	}
 	return "day"
-}
-
-// against is when the times Runway shown as r says are told against, as
-// prose.Dated tells them, at now: now, but on a day stepped back to that's
-// gone, that day, so its own times read as times of day.
-func (r RunwayShown) against(now time.Time) time.Time {
-	tl := r.Timeline
-	if first, last, named := tl.Named(); named && first.Equal(last) && tl.Now.IsZero() {
-		return tl.Start
-	}
-	return now
 }
 
 // runway draws Runway of doc at now from row top, as its form draws it.

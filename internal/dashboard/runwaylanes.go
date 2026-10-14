@@ -22,18 +22,18 @@ const (
 )
 
 const (
-	// pastFade is how far a lane's past fades into the canvas: it keeps 45%
-	// of its colour.
+	// pastFade is how far Runway fades what's before now's column into the
+	// canvas, mix(canvas, colour, 0.45): 45% of its colour shows.
 	pastFade = 0.55
-	// runwayUseFrom is the column the use under an account's name starts at.
+	// runwayUseFrom is the column the use under each account's name starts
+	// at, and the pool's room under Σ pool.
 	runwayUseFrom = 2
 )
 
 // laidLane is an account's lane as Runway lays it out: its facts, as
 // views.Lanes built them; its account, as the moment has it stand; its name,
 // as its label heads it, faint where the pool leaves it out; and the row
-// it's on, its use and its words on the row under it, -1 where it's out of
-// view.
+// it's on, its use and its words on the row under it.
 type laidLane struct {
 	views.Lane
 	account status.AccountNow
@@ -41,23 +41,24 @@ type laidLane struct {
 	row     int
 }
 
-// lanesOf are the lanes Runway shows of the moment m, each as laidLane has
-// it, in the lanes' order, out of view till they're laid out: none before
-// the watch builds them.
-func (f Frame) lanesOf(m status.Moment) []laidLane {
+// lanesOf are the lanes of the moment m that fit shows, each as laidLane has
+// it, on the row the fit gives it, in the lanes' order: none before the
+// watch builds them, nor where nothing fits.
+func (f Frame) lanesOf(m status.Moment, fit runwayFit) []laidLane {
 	if f.Runway.Lanes == nil {
 		return nil
 	}
 	names := namesOf(m)
 	var lanes []laidLane
-	for _, l := range f.Runway.Lanes.Accounts {
+	for n, l := range f.Runway.Lanes.Accounts {
+		row, shown := fit.laneRow(n)
 		i := slices.IndexFunc(m.Accounts, func(a status.AccountNow) bool { return a.ID == l.ID })
-		if i < 0 {
+		if !shown || i < 0 {
 			continue
 		}
 		name := names[i]
 		name.faint = name.out
-		lanes = append(lanes, laidLane{Lane: l, account: m.Accounts[i], name: name, row: -1})
+		lanes = append(lanes, laidLane{Lane: l, account: m.Accounts[i], name: name, row: row})
 	}
 	return lanes
 }
@@ -69,11 +70,8 @@ func (f Frame) lanesOf(m status.Moment) []laidLane {
 func (f Frame) runwayLanes(c *canvas, laid runwayLaid) {
 	window := runwayNames[f.Runway.Window]
 	for _, ln := range laid.lanes {
-		if ln.row < 0 {
-			continue
-		}
 		c.line(0, ln.row, ln.name.line(laid.x))
-		c.line(runwayUseFrom, ln.row+1, ln.useLine(window, laid.now, f.Width, laid.x-runwayUseFrom-1))
+		c.line(runwayUseFrom, ln.row+1, ln.useLine(window, laid.m.Now, f.Width, laid.x-runwayUseFrom-1))
 		f.drawLane(c, ln, laid.x)
 	}
 }
@@ -189,6 +187,15 @@ func (ln laidLane) useWords(window string, now time.Time) usageWords {
 	return alikeLine(line{{window + " ", dimInk}, used})
 }
 
+// nowTo is the last row now's column is picked out on, as fitted: the pool's
+// words', or without a pool's lane, the last lane shown's words'.
+func (r runwayFit) nowTo() int {
+	if r.draws(r.words) {
+		return r.words
+	}
+	return r.lanes + (r.shown-1)*r.apart + 1
+}
+
 // alikeLine is words that read as l in either form.
 func alikeLine(l line) usageWords {
 	return usageWords{full: l, short: l}
@@ -196,15 +203,15 @@ func alikeLine(l line) usageWords {
 
 // runwayNow picks out now's column, as laid out, where the timeline has a
 // now: bg.subtle under every cell of it from the axis's first row down to
-// row nowTo that has no surface of its own. Where the look can't blend, as
-// it can't dim the past either, it's left as it is.
+// the fit's nowTo that has no surface of its own. Where the look can't
+// blend, as it can't dim the past either, it's left as it is.
 func (f Frame) runwayNow(c *canvas, laid runwayLaid) {
-	tl := f.Runway.Timeline
+	tl, fit := f.Runway.Timeline, laid.fit
 	col := tl.NowColumn()
-	if col < 0 || col >= tl.Columns || !f.Look.blends() {
+	if !fit.fits || col < 0 || col >= tl.Columns || !f.Look.blends() {
 		return
 	}
-	for y := laid.top; y <= laid.nowTo; y++ {
+	for y := fit.axis; y <= fit.nowTo(); y++ {
 		if here := c.at(laid.x+col, y); here != nil && here.ink.on == (hue{}) {
 			here.ink.on = hue{token: theme.BgSubtle}
 		}
