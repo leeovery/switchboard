@@ -3,8 +3,6 @@ package views
 import (
 	"slices"
 	"time"
-
-	"github.com/leeovery/switchboard/internal/dayfile"
 )
 
 // AccountsPeriod is the period Accounts counts its accounts' use over, Compare
@@ -90,13 +88,6 @@ func (p AccountsPeriod) stepped(by int) (AccountsPeriod, bool) {
 		return p, false
 	}
 	return accountsPeriods[i], true
-}
-
-// From is when the period begins at now, weeks starting on the day given: at
-// the start of its first local day.
-func (p AccountsPeriod) From(now time.Time, starts time.Weekday) time.Time {
-	start, _, _ := dayfile.Day(p.first(dayfile.CivilOf(now), starts).Format(time.DateOnly))
-	return start
 }
 
 // first is the period's first day, today being the day given, as
