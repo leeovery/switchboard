@@ -34,7 +34,9 @@ func scenarios() []Scenario {
 // the best, at 2.5, shown at the look by 5. demo/routing.tape presses p at
 // 9, 3 at 10.5, m at 12, the card counting 41e0 and 9c2e to move, and enter
 // at 14.5, pinning new and running sessions to side: neither asks again till
-// then, when 41e0's next request, at 17, and 9c2e's, at 20, each go to side.
+// then, when 41e0's next request, at 17, and 9c2e's, at 21, each go to side,
+// a move shown at each of the looks by 20 and 25, and the tape hides at 27.
+// 9c2e asks clear of the look at 20, which a cue on it races.
 var routingCues = []cue{
 	asks(1.2, idDB8A, opus, brief),
 	starts(2.5, idB3E9, opus, "~/Code/cli", long),
@@ -57,7 +59,7 @@ var routingCues = []cue{
 	asks(17, id41E0, sonnet, steady),
 	asks(17.4, idC61B, opus, brief),
 	asks(18.8, id7F3A, sonnet, brief),
-	asks(20, id9C2E, opus, steady),
+	asks(21, id9C2E, opus, steady),
 	asks(21.2, idD28C, opus, brief),
 	asks(22.5, idDB8A, opus, steady),
 	asks(23.8, idB3E9, opus, brief),
@@ -169,7 +171,8 @@ func routedBeforeTheLimit(now time.Time) []status.Session {
 // hanging from the look by 20, as the limit counts it; and 9c2e asking at
 // 21, after that look, moved to side, the limit counting it second, its cord
 // hanging from the look by 25. demo/repatch.tape presses tab three times,
-// hidden, to Sessions' Switchboard, and shows it from 2.
+// hidden, to Sessions' Switchboard, shows it from 2, and hides it at 27,
+// the second cord hanging 2 seconds.
 var repatchCues = []cue{
 	asks(1, idDB8A, opus, brief),
 	asks(3, id7F3A, opus, brief),

@@ -17,7 +17,7 @@ demo/record.sh routing help   # the tapes named
 | Tape | Scenario | Size | Art |
 |---|---|---|---|
 | `routing` | `routing` | 160 × 37 | `art/routing.webp`, `.mp4`: the README's lead, the Overview, then the routing card pinning new and running sessions to side |
-| `dashboard` | `dashboard` | 160 × 37 | `art/dashboard.webp`, `.mp4`: one account's Overview, then Runway |
+| `dashboard` | `dashboard` | 160 × 37 | `art/dashboard.webp`, `.mp4`: one account's Overview, its GRAPHS, then Runway |
 | `themes` | `routing` | 160 × 37 | `art/themes.webp`, `.mp4`: the theme picker, previewing the built-ins over the Overview |
 | `repatch` | `repatch` | 160 × 37 | `art/repatch.webp`, `.mp4`: Sessions as personal reaches its limit |
 | `runway-week` | `routing` | 160 × 37 | `art/runway-week.webp`, a still: Runway over the week |
@@ -68,6 +68,10 @@ either way; and the moment each key comes, by the milliseconds vhs takes to type
 pressed is shown at the bottom right of the screen for a moment, as a keycap, so a reader sees
 what was typed: the capture tool draws them, not the dashboard.
 
+Each tape runs the capture tool under `TZ=UTC`, as capture's tests draw the frames, so the art
+doesn't depend on the recording machine's zone, and no zone where the frames fail, or where the
+week crosses a change of the clocks, reaches it.
+
 The keys are the tape's, timed to the cues: a tape's comments say which, and each scenario's cues
 say which keys they're timed against. Change a cue's moment and the tape's sleeps follow it.
 `go test ./internal/capture` plays every scenario at its tape's size, with its tape's keys at
@@ -81,7 +85,7 @@ frames to `finalize.sh`, which makes the art:
 - **The frames, not a video.** vhs writes every frame it shows to `demo/out/<name>/`, as the
   terminal drew it. A video's compression shifts every pixel a little from frame to frame, which
   an animated WebP then stores whole; from the frames themselves it stores only what changed,
-  losslessly. The lead clip, about 26 seconds at 30 frames a second, is half a megabyte.
+  losslessly. The lead clip, about 27 seconds at 30 frames a second, is half a megabyte.
 - **The art.** For a clip, an animated WebP, which GitHub shows inline, at the frames' 30 a
   second, and an H.264 MP4 of the same frames; for a still, a lossless WebP of the last frame.
   Each frame is set in a margin of its own canvas, as the theme picker changes it.

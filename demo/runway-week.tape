@@ -1,6 +1,6 @@
-# A still for the README's grid: Runway over the week, once work has reached
-# its limit in the routing scenario: when each account has room, personal's
-# week reaching its reserve on Saturday, back as it resets on Sunday.
+# A still for the README's grid: Runway over the week, in the routing
+# scenario: each account's lane from the readings, work's limit on Wednesday
+# afternoon in its past.
 #
 # Record it, and make art/runway-week.webp:
 #   demo/record.sh runway-week
@@ -12,9 +12,9 @@ Set FontFamily "JetBrains Mono"
 Set FontSize 17
 Set LetterSpacing 0
 Set LineHeight 1
-# 160 × 34 cells of 10 × 22 px.
+# 160 × 37 cells of 10 × 22 px: the frames' size.
 Set Width 1660
-Set Height 792
+Set Height 858
 Set Padding 16
 Set CursorBlink false
 Set Framerate 30
@@ -22,14 +22,18 @@ Set Theme { "name": "nord", "background": "#2E3440", "foreground": "#D8DEE9", "c
 Set WaitTimeout 2m
 
 Hide
-Type "demo/out/capturetool --scenario routing"
+# In UTC, as the frames are drawn, whatever the recording machine's zone.
+Type "TZ=UTC demo/out/capturetool --scenario routing"
 Enter
 Wait+Screen /SWITCHBOARD/
-Sleep 14500ms
+Sleep 2s
+Tab
+Tab
 Tab
 Tab
 Type ">"
-Sleep 1700ms
+# Shown at 5s, its keycaps gone.
+Sleep 2600ms
 Show
 
 Sleep 600ms

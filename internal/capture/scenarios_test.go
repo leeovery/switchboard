@@ -56,7 +56,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 					"pinned to side  ·  7 sessions", "ROUTING   pinned to side since 14:42   p back to auto",
 					"● pin set by hand: new and running sessions go to side",
 				}},
-				{at: 20.5, says: []string{"▸ 41e0 moved personal → side: pinned to side"}},
+				{at: 20.5, says: []string{"▸ 41e0 moved personal → side: pinned to side"}, not: []string{"9c2e moved"}},
 				{at: 25.5, says: []string{"pinned to side  ·  7 sessions", "▸ 9c2e moved personal → side: pinned to side"}},
 			},
 		},

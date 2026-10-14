@@ -1,5 +1,5 @@
-# A still for the README's grid: ? over the Accounts view, in the routing
-# scenario: every key that works there, and what the dashboard's glyphs mean.
+# A still for the README's grid: ? over the Overview, in the routing
+# scenario: every key that works there, and what its marks mean.
 #
 # Record it, and make art/help.webp:
 #   demo/record.sh help
@@ -11,9 +11,9 @@ Set FontFamily "JetBrains Mono"
 Set FontSize 17
 Set LetterSpacing 0
 Set LineHeight 1
-# 160 × 34 cells of 10 × 22 px.
+# 160 × 37 cells of 10 × 22 px: the frames' size.
 Set Width 1660
-Set Height 792
+Set Height 858
 Set Padding 16
 Set CursorBlink false
 Set Framerate 30
@@ -21,11 +21,13 @@ Set Theme { "name": "nord", "background": "#2E3440", "foreground": "#D8DEE9", "c
 Set WaitTimeout 2m
 
 Hide
-Type "demo/out/capturetool --scenario routing"
+# In UTC, as the frames are drawn, whatever the recording machine's zone.
+Type "TZ=UTC demo/out/capturetool --scenario routing"
 Enter
 Wait+Screen /SWITCHBOARD/
 Sleep 3s
 Type "?"
+# Shown at 4.7s, its keycap gone.
 Sleep 1700ms
 Show
 
