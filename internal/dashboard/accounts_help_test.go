@@ -240,6 +240,24 @@ func TestHelpSaysEachVerdictAtViewsCuts(t *testing.T) {
 	}
 }
 
+// With one account, help explains what its Detail draws, THIS WEEK's limits
+// by window and its extra usage among them, and says nothing of all
+// accounts, which goes.
+func TestAccountsHelpOfOneAccountExplainsWhatItDraws(t *testing.T) {
+	said := accountsSaid(oneShown)
+	for _, want := range []string{
+		"the limits it hit, by window",
+		"Extra usage is on where Claude bills past the plan's limit",
+	} {
+		if !strings.Contains(said, want) {
+			t.Errorf("help of one account reads\n%s\nwant it to say %q", said, want)
+		}
+	}
+	if strings.Contains(said, "all accounts") {
+		t.Errorf("help of one account reads\n%s\nwant nothing of all accounts", said)
+	}
+}
+
 // Detail's list, and → and ← between it and SESSIONS, are explained where
 // there's a list; with one account, which has none, ↑ and ↓ move through
 // SESSIONS alone.

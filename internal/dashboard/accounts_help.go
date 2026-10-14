@@ -38,7 +38,7 @@ func compareHelp() helpPart {
 				"accounts it ran on; and the sessions moved onto each account and off it. LIMITS counts the limits each hit, " +
 				"by window; the time it spent at its cap or at a limit; and what its week had left as it last reset, 100% " +
 				"less the peak of the week that ended last, naming the day it ran out where it did. VALUE gives each " +
-				"account's plan and its price a month, and whether extra usage is on, Claude billing past the limit."),
+				"account's plan and its price a month, and its extra usage."),
 		},
 		glyphs: statesHelp(),
 	}
@@ -56,11 +56,18 @@ func statesHelp() []glyph {
 
 // valueHelp is what the period's use was worth as help explains it: worth at
 // API prices, as of the price table's date where the page is read; against
-// its price, and how a period is priced; and a key to their marks.
+// its price, how a period is priced, and how all accounts sums the plans,
+// where there's more than one account; extra usage; and a key to their
+// marks.
 func (f Frame) valueHelp() helpPart {
-	asOf := ""
+	asOf, plans, shared := "", " An account without a plan has none.", "."
 	if page := f.Accounts.Page; page != nil {
 		asOf = " as of " + pricesDated(page.PricesAsOf)
+	}
+	if !f.Accounts.Alone() {
+		plans = " An account without a plan has none, and all accounts sums the plans it knows, its ratio counting only " +
+			"their accounts' worth."
+		shared = ", Compare and Detail sharing the period."
 	}
 	more, less := 4.0, 0.6
 	return helpPart{
@@ -72,11 +79,11 @@ func (f Frame) valueHelp() helpPart {
 				"all of it."),
 			said("Against its price is that worth over what the plans cost over the same period, a plan's price a month " +
 				"prorated: a day 12/365 of a month, a week 12/52, 30 days a month, and 12 weeks twelve weeks', a period still " +
-				"running priced whole. An account without a plan has none, and all accounts sums the plans it knows, its " +
-				"ratio counting only their accounts' worth. An account added part-way shows what was recorded of it, " +
-				"priced against the whole period."),
+				"running priced whole." + plans + " An account added part-way shows what was recorded of it, priced " +
+				"against the whole period."),
+			said("Extra usage is on where Claude bills past the plan's limit, and off where the limit holds."),
 			said("The periods are rolling, never billing months, as switchboard knows no renewal date: `<` and `>` step " +
-				"through today, this week, the last 30 days and the last 12 weeks, Compare and Detail sharing the period."),
+				"through today, this week, the last 30 days and the last 12 weeks" + shared),
 		},
 		glyphs: []glyph{
 			{drawn: line{{"$184", secondaryInk}, {views.PartUnpriced, faintInk}}, means: "worth, part of it unpriced"},
@@ -126,7 +133,9 @@ func (f Frame) detailHelp() helpPart {
 		says: append(says,
 			said("The head says how the account stands with the router, and where new sessions go. Above the rule, USAGE "+
 				"is now, every window read as switchboard usage reads them; THIS WEEK, named for the period, and BY MODEL "+
-				"are the period's. Below it, BY DAY and WEEKS always cover the last six weeks."),
+				"are the period's, THIS WEEK counting its requests and the limits it hit, by window, beside its plan, its "+
+				"worth against its price, and whether its extra usage is on. Below the rule, BY DAY and WEEKS always cover "+
+				"the last six weeks."),
 			said("BY DAY shades each day by how much of its week the account used that day, in History's five shades, on "+
 				"the account's own scale: each a quarter of its active days."),
 			said("WEEKS gives each week's peak, the use read just before the reset that ended it, and this week's, its "+
