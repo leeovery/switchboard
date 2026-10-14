@@ -186,11 +186,11 @@ func (h HeldPage) Page(live PageLive) (SessionPage, bool) {
 	unplaced := live.Routed != nil && by.h.unplaced(*live.Routed)
 	page.Turns = turnsOf(h.requests, told, page.Runs(), unplaced)
 	page.Goes = by.goesOf(h.id, live.Stream, h.requests, told)
-	if live.Routed != nil {
-		page.Pin = live.Routed.Pin
-	}
-	if live.Routed != nil && !live.Unlisted {
-		page.Auto = autoOf(*live.Routed, page.Model)
+	if routed := live.Routed; routed != nil {
+		page.Pin = routed.Pin
+		if !live.Unlisted {
+			page.Auto = autoOf(*routed, page.Model)
+		}
 	}
 	if !page.Running && h.story.first != nil {
 		page.KeptUntil, _ = dayfile.KeptUntil(Today(h.story.first.At).Date, h.keep)
