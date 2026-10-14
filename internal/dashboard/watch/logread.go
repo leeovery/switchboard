@@ -10,6 +10,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -74,6 +75,8 @@ func (m Model) readLog() (Model, tea.Cmd) {
 	switch {
 	case !m.log.opened:
 		return m.openLog(now)
+	case m.log.refiles(m.answering(), m.news.router):
+		return m.readRefiled(now)
 	case m.tail.due:
 		return m.readTail(now)
 	case m.log.page.WantsDayBefore(m.logRows()), m.log.wantsFactsBack():
@@ -104,6 +107,33 @@ func (m Model) openLog(now time.Time) (Model, tea.Cmd) {
 			msg.tail = &tailRead{mark: next, day: today}
 		}
 		return msg
+	}
+}
+
+// logTold is the router whose document the Log's Events last took in, by
+// when its run started, and when that document was built: none before the
+// first, nor once its files are read again.
+type logTold struct {
+	run, at time.Time
+}
+
+// refiles reports whether the Log's Events want the router's files read
+// again from when the document they last took in was built: the router
+// that told it no longer answering, as answering says, or another, routed,
+// answering in its place. What it filed after that document no document
+// tells of.
+func (t logTab) refiles(answering bool, routed router.Health) bool {
+	return !t.told.at.IsZero() && (!answering || !t.told.run.Equal(routed.StartedAt))
+}
+
+// readRefiled reads the router's files of events again at now, from when
+// the document the Log's Events last took in was built, as Refiled does.
+func (m Model) readRefiled(now time.Time) (Model, tea.Cmd) {
+	t, filed := m.log, m.cfg.Events
+	m.log.told, m.log.reading = logTold{}, true
+	return m, func() tea.Msg {
+		events := t.events.Refiled(filed, t.told.at, now)
+		return logReadMsg{grown: logGrown{read: t.read, events: &events}}
 	}
 }
 
@@ -224,15 +254,15 @@ func (m Model) tailed(msg tailedMsg) Model {
 // logRead takes in what a read for the Log of its own found: the tail read
 // to where it read today's lines, where it read them for it; the Log grown
 // by it, and opened, its events taking in again those of the document on
-// screen, as a look taken while the read was under way gave them to the
-// events it grew from.
+// screen while the router answers, as a look taken while the read was under
+// way gave them to the events it grew from.
 func (m Model) logRead(msg logReadMsg) Model {
 	if msg.tail != nil {
 		m.tail = m.tail.read(*msg.tail)
 	}
 	m.log = m.log.grown(msg.grown)
 	m.log.opened = true
-	m.log = m.log.looked(m.moment(m.now()), m.news.router)
+	m.log = m.log.looked(m.moment(m.now()), m.news.router, m.answering())
 	return m
 }
 

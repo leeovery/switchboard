@@ -79,6 +79,20 @@ func (r EventsRead) Look(m status.Moment, run time.Time) EventsRead {
 	return looked
 }
 
+// Refiled is r with the events the router filed that happened from from to
+// the end of now's day read, through filed, each as the files last hold it
+// in place of the version held: as the router stops, or restarts, those it
+// filed after the last look at its document, which no later document tells
+// of. Those before r begins are passed over.
+func (r EventsRead) Refiled(filed Events, from, now time.Time) EventsRead {
+	if from.Before(r.since) {
+		from = r.since
+	}
+	refiled := r.clone()
+	refiled.file(filed, from, dayfile.DayStart(now.Local(), 1))
+	return refiled
+}
+
 // Events are the events read, oldest first, by when each happened, then by
 // run and id.
 func (r EventsRead) Events() []Event {

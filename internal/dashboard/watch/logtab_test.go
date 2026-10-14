@@ -250,6 +250,51 @@ func TestTheEventsReadBackNoFurtherThanTheRouterFiledEvents(t *testing.T) {
 	}
 }
 
+// An event the router filed after the last look at its document, as it
+// stopped or restarted, is read off its files: the next look finds the
+// router gone, or another run's document, which tells of none of it.
+func TestTheEventsReadWhatTheRouterFiledAsItStoppedOrRestarted(t *testing.T) {
+	run := past(-time.Hour)
+	tests := []struct {
+		name string
+		then func(h *harness)
+	}{
+		{name: "stopped", then: (*harness).stopRouter},
+		{name: "restarted", then: func(h *harness) {
+			h.source.health = router.Health{OK: true, PID: 2, StartedAt: past(time.Minute)}
+			h.startRouter(routerDocument(three()...))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, arrived("0a000001", "work", -time.Minute))
+			pinned := status.Event{ID: 1, At: past(-30 * time.Minute), Kind: status.EventPin, Accounts: []string{"work"}}
+			writeEvents(t, state, events.Line{Event: pinned, Run: run})
+			doc := routerDocument(three()...)
+			doc.Events = []status.Event{pinned}
+			h := routedHarness(t, doc)
+			h.source.health = router.Health{OK: true, PID: 1, StartedAt: run}
+			onTheLog(h, state)
+			h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+			h.start()
+			h.typed("]")
+
+			h.clock.now = past(2 * time.Second)
+			writeEvents(t, state, events.Line{ID: 2, At: past(time.Second), Kind: status.EventPin, Accounts: []string{"side"}, Run: run})
+			tt.then(h)
+			h.typed("R")
+			var shown []int
+			for _, e := range h.model.log.page.Events.Rows {
+				shown = append(shown, e.Key.ID)
+			}
+			if !slices.Equal(shown, []int{1, 2}) {
+				t.Errorf("the router %s, the Events show the events %v, want [1 2], the one it filed after the last look among them", tt.name, shown)
+			}
+		})
+	}
+}
+
 // writeEvents files the router's events given in the state directory given,
 // each under the day it happened on, as the router files them as they're told.
 func writeEvents(t *testing.T, state string, lines ...events.Line) {

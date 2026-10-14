@@ -17,9 +17,11 @@ import (
 // for its Events, over the local days from from, today's grown at each look
 // since and the days before read back as the tables want them; the figures
 // of those days, which their rules say; the oldest day the ledger keeps,
-// none known till it says; whether a read for it is under way, one at a
-// time; whether a failure to say where the ledger's lines begin has been
-// logged, the once; and its details card, while it's open.
+// and the oldest the Events read back to, none known till each is said; who
+// told the events the Events last took in, and when; whether a read for it
+// is under way, one at a time; whether a failure to say how far back its
+// tables read has been logged, the once; and its details card, while it's
+// open.
 type logTab struct {
 	page    dashboard.LogPage
 	opened  bool
@@ -29,6 +31,7 @@ type logTab struct {
 	from    views.LedgerDay
 	oldest  views.OldestDay
 	filed   views.OldestDay
+	told    logTold
 	reading bool
 	warned  bool
 	card    logCarding
@@ -70,13 +73,19 @@ func (m Model) builtLog(now time.Time) Model {
 }
 
 // looked is the Log's events with those the document look is a moment of
-// gives taken in, told by the router from: a probed document's tell of
-// none.
-func (t logTab) looked(look status.Moment, from router.Health) logTab {
-	if !t.opened || !look.Routed {
+// gives taken in, told by the router from, while it answers, as answering
+// says: a probed document's tell of none, and once the router's gone, the
+// document on screen is stale, its files read in its place. Who told them,
+// and when, is noted, as logTold has it, the first router's alone till its
+// files are read again.
+func (t logTab) looked(look status.Moment, from router.Health, answering bool) logTab {
+	if !t.opened || !look.Routed || !answering {
 		return t
 	}
 	t.events = t.events.Look(look, from.StartedAt)
+	if t.told.at.IsZero() || t.told.run.Equal(from.StartedAt) {
+		t.told = logTold{run: from.StartedAt, at: look.ReadAt}
+	}
 	return t
 }
 
@@ -84,7 +93,7 @@ func (t logTab) looked(look status.Moment, from router.Health) logTab {
 // moment of, read from the router from, and the page built afresh at its
 // moment while the Log shows, so a number a look changes on it brightens.
 func (m Model) lookedLog(look status.Moment, from router.Health) Model {
-	m.log = m.log.looked(look, from)
+	m.log = m.log.looked(look, from, m.answering())
 	if m.view != dashboard.Log {
 		return m
 	}
