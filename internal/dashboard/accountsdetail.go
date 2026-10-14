@@ -146,30 +146,56 @@ func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
 }
 
 // detailDrawn is Detail of a moment as it's drawn wide: the frame and its
-// layout; the account shown, by its id, "" for all accounts, and as the
-// moment has it; its row of the period's page, where the page is read and
-// holds one; and the sessions running on it.
+// layout; the account shown, by its id, "" for all accounts, as
+// configuredNow has it, and whether the moment has it; its row of the
+// period's page, where the page is read and holds one; and the sessions
+// running on it.
 type detailDrawn struct {
 	f       Frame
 	m       status.Moment
 	l       detailLayout
 	id      string
 	account status.AccountNow
+	known   bool
 	page    *views.AccountsPage
 	row     views.AccountsRow
 	running []views.Running
 }
 
 // detailDrawn is Detail of doc at now laid out as l: the account the frame's
-// Accounts shows, else all accounts, where the moment lacks it.
+// Accounts shows, else all accounts, where it shows none the config has.
 func (f Frame) detailDrawn(doc status.Document, now time.Time, l detailLayout) detailDrawn {
 	d := detailDrawn{f: f, m: f.Moment(doc, now), l: l}
-	if a, ok := d.m.Account(f.Accounts.Account()); ok {
-		d.id, d.account = a.ID, a
-		d.running = views.RunningOn(f.running(doc, now), a.ID)
+	configured := f.Accounts.Accounts
+	if i := slices.IndexFunc(configured, func(a config.Account) bool { return a.ID == f.Accounts.Account() }); i >= 0 {
+		d.id = configured[i].ID
+		d.account, d.known = configuredNow(d.m, configured[i], i+1)
+		d.running = views.RunningOn(f.running(doc, now), d.id)
 	}
 	d.page, d.row = pageRowOf(f.Accounts.Page, d.id)
 	return d
+}
+
+// configuredNow is the configured account a, at the place given among them,
+// as the moment m has it, reporting false where m lacks it, as one the
+// config has just gained: then as the config names and marks it, nothing
+// read of it.
+func configuredNow(m status.Moment, a config.Account, place int) (status.AccountNow, bool) {
+	now, ok := m.Account(a.ID)
+	if !ok {
+		now = status.AccountNow{ID: a.ID, Label: a.Label, Primary: a.Primary}
+	}
+	now.Place = place
+	return now, ok
+}
+
+// stateOf is an account's state in a word, as configuredNow has it, and
+// whether the moment has it: not read where it doesn't.
+func stateOf(now status.AccountNow, known bool) status.AccountState {
+	if !known {
+		return status.StateNotRead
+	}
+	return now.Routing.Kind.State()
 }
 
 // pageRowOf is the page's row of the account with the given id, "" for all
@@ -262,8 +288,9 @@ func (d detailDrawn) panel() *canvas {
 
 // head draws the panel's head along row y: the account's number, name and
 // marks, then headApart cells on, how it stands, as its Headed says, in
-// ROUTING's glyph and colours, picked out while its state is newly changed;
-// or 0 all accounts and its accounts' states counted.
+// ROUTING's glyph and colours, picked out while its state is newly changed,
+// or not read, as stateWord says it, where the moment lacks it; or 0 all
+// accounts and its accounts' states counted.
 func (d detailDrawn) head(c *canvas, y int) {
 	x := d.l.panel
 	if d.id == "" {
@@ -272,6 +299,10 @@ func (d detailDrawn) head(c *canvas, y int) {
 		return
 	}
 	x = c.line(x, y, listName(d.account, 1).fitted(d.f.edge()-x)) + headApart
+	if !d.known {
+		c.line(x, y, stateWord(status.StateNotRead).fit(d.f.edge()-x))
+		return
+	}
 	end := c.line(x, y, standingWords(d.account.Headed(), false, d.f.edge()-x))
 	d.f.cueStanding(c, d.id, x, y, end-x)
 }
@@ -291,11 +322,14 @@ func (d detailDrawn) usage(c *canvas, y int) {
 }
 
 // gauge is the window with the given key as USAGE draws it, eased and cued
-// as the Overview's: the account's, as usage draws it; or all accounts', as
-// allGauge has it.
+// as the Overview's: the account's, as usage draws it, empty where the
+// moment lacks it; or all accounts', as allGauge has it.
 func (d detailDrawn) gauge(key string) gauge {
-	if d.id == "" {
+	switch {
+	case d.id == "":
 		return d.f.overviewGauge(allGauge(d.m, key), false)
+	case !d.known:
+		return gauge{of: Ref{Account: d.id, Window: key}, bar: usageBar{empty: true}}
 	}
 	return d.f.overviewGauge(accountGauge(d.account, key, d.m.Now), false)
 }
@@ -500,19 +534,22 @@ func (d detailDrawn) session(c *canvas, r views.Running, x, y int, selected bool
 }
 
 // list draws Detail's list from row top, rows tall, as listShown scrolls it:
-// 0 all accounts, then each account shown, listApart rows apart, its number,
-// name and marks, as listName has them, and at listDotAt its state's glyph,
-// as stateMark has it; the chosen row lit; ↑↓ choose chooseUnder rows under
-// the last; and the │ beside them, to the panel's foot.
+// 0 all accounts, then each configured account shown, listApart rows apart,
+// as configuredNow has it, its number, name and marks, as listName has them,
+// and at listDotAt its state's glyph, as stateOf and stateMark have it; the
+// chosen row lit; ↑↓ choose chooseUnder rows under the last; and the │
+// beside them, to the panel's foot.
 func (d detailDrawn) list(c *canvas, top, rows int) {
-	digits := len(strconv.Itoa(len(d.m.Accounts)))
-	d.listed(c, top, allAccountsName(digits), d.id == "")
-	first, shown := d.listShown(rows)
+	configured := d.f.Accounts.Accounts
+	digits := len(strconv.Itoa(len(configured)))
+	d.listRow(c, top, allAccountsName(digits), d.id == "")
+	first, shown := d.listShown()
 	y := top
-	for _, a := range d.m.Accounts[first : first+shown] {
+	for i, a := range configured[first : first+shown] {
 		y += listApart
-		c.line(listDotAt, y, line{stateMark(a.Routing.Kind.State())})
-		d.listed(c, y, listName(a, digits).fitted(listDotAt-listAt), a.ID == d.id)
+		now, known := configuredNow(d.m, a, first+i+1)
+		c.line(listDotAt, y, line{stateMark(stateOf(now, known))})
+		d.listRow(c, y, listName(now, digits).fitted(listDotAt-listAt), a.ID == d.id)
 	}
 	c.line(listAt, y+chooseUnder, line{{"↑↓", keyInk}, {" choose", dimInk}})
 	for row := range min(d.ruleRows(), rows) {
@@ -520,9 +557,9 @@ func (d detailDrawn) list(c *canvas, top, rows int) {
 	}
 }
 
-// listed draws a row of the list along row y, named as given, lit where it's
-// the one chosen, over what's drawn of it already.
-func (d detailDrawn) listed(c *canvas, y int, name line, chosen bool) {
+// listRow draws a row of the list along row y, named as given, lit where
+// it's the one chosen, over what's drawn of it already.
+func (d detailDrawn) listRow(c *canvas, y int, name line, chosen bool) {
 	c.line(listAt, y, name)
 	if chosen {
 		c.surface(0, y, listLit, hue{token: theme.BgSelection})
@@ -539,14 +576,11 @@ func (d detailDrawn) ruleRows() int {
 	return rows
 }
 
-// listShown are the first of the accounts the list shows, by their place
-// among them from 0, and how many it shows, in rows rows: as far as the
-// frame's ListScroll has it scrolled, where that shows the one chosen, else
-// no further than it must go to; every one where they fit.
-func (d detailDrawn) listShown(rows int) (first, shown int) {
-	chosen := slices.IndexFunc(d.m.Accounts, func(a status.AccountNow) bool { return a.ID == d.id })
-	s := listScrolling(len(d.m.Accounts), rows)
-	return s.revealing(d.f.Accounts.ListScroll, chosen), s.Page
+// listShown are the first of the configured accounts the list shows, by
+// their place among them from 0, as DetailListScroll has it, and how many it
+// shows in the view's rows: every one where they fit.
+func (d detailDrawn) listShown() (first, shown int) {
+	return d.f.DetailListScroll(), listScrolling(len(d.f.Accounts.Accounts), d.f.viewRows()).Page
 }
 
 // listScrolling is how far Detail's list of n accounts scrolls in rows rows,
@@ -592,13 +626,11 @@ func (d detailDrawn) listTargets() []Target {
 	if !d.l.list {
 		return nil
 	}
-	top, rows := d.f.top(), d.f.viewRows()
+	top := d.f.top()
 	targets := []Target{{X: 0, Y: top, Width: listLit, On: OnAccount}}
-	first, shown := d.listShown(rows)
-	for i, a := range d.m.Accounts[first : first+shown] {
-		if y := (i + 1) * listApart; y < rows {
-			targets = append(targets, Target{X: 0, Y: top + y, Width: listLit, On: OnAccount, Account: a.ID})
-		}
+	first, shown := d.listShown()
+	for i, a := range d.f.Accounts.Accounts[first : first+shown] {
+		targets = append(targets, Target{X: 0, Y: top + (i+1)*listApart, Width: listLit, On: OnAccount, Account: a.ID})
 	}
 	return targets
 }

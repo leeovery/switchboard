@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -306,8 +307,8 @@ func TestDetailsSESSIONSScrollWithTheSessionSelected(t *testing.T) {
 					if selected := tt.first+i == tt.selected; (row[listPanelAt] == '▸') != selected {
 						t.Errorf("SESSIONS' row %d reads %q, want ▸ %t", i+1, string(row), selected)
 					}
-				case !strings.Contains(string(row), tt.more):
-					t.Errorf("SESSIONS' row %d reads %q, want %q", i+1, string(row), tt.more)
+				case !strings.HasPrefix(string(row[listPanelAt+enterIn:]), tt.more):
+					t.Errorf("SESSIONS' row %d reads %q, want %q from column %d", i+1, string(row), tt.more, listPanelAt+enterIn)
 				}
 			}
 			if want := "enter opens " + status.ShownID(picked) + "'s page"; !strings.Contains(rows[heading+enterUnder], want) {
@@ -410,7 +411,6 @@ func TestDetailsListScrollsWithTheChoice(t *testing.T) {
 			if got := f.DetailListScroll(); got != tt.want {
 				t.Errorf("DetailListScroll() = %d, want %d", got, tt.want)
 			}
-			f.Accounts.ListScroll = f.DetailListScroll()
 			rows := textOf(f.Draw(doc, now))
 			top, page := f.top(), listScrolling(len(configured), f.viewRows()).Page
 			if page != 6 {
@@ -429,6 +429,34 @@ func TestDetailsListScrollsWithTheChoice(t *testing.T) {
 				t.Errorf("%d rows under the last account, the list reads %q, want ↑↓ choose", chooseUnder, got)
 			}
 		})
+	}
+}
+
+// Detail's list holds the configured accounts, one the document lacks yet,
+// as one the config has just gained, named as the config names it, ○ not
+// read; chosen, its head says it's not read, and USAGE draws its windows
+// empty.
+func TestDetailListsAnAccountTheDocumentLacksAsNotRead(t *testing.T) {
+	doc := usageWorld(extraOff)
+	configured := append(slices.Clone(framedAccounts), config.Account{ID: "added", Label: "lab"})
+	f := detailFrame(Look{}, configured, "added", "", nil, nil)
+	rows := textOf(f.Draw(doc, routedAt))
+	top := f.top()
+	if got, want := listCells(rows[top+4*listApart]), "4 lab         ○"; got != want {
+		t.Errorf("the list's fourth row reads %q, want %q", got, want)
+	}
+	if got, want := panelCells(rows[top]), "4 lab   ○ not read"; got != want {
+		t.Errorf("the head reads %q, want %q", got, want)
+	}
+	d := f.detailDrawn(doc, routedAt, f.detailLayout())
+	for _, w := range d.windows() {
+		if g := d.gauge(w.key); !g.bar.empty {
+			t.Errorf("USAGE draws its %s %+v, want it empty", w.key, g.bar)
+		}
+	}
+	targets := d.listTargets()
+	if last := targets[len(targets)-1]; last.Account != "added" || last.Y != top+4*listApart {
+		t.Errorf("the list's last target is %+v, want added's, on its row", last)
 	}
 }
 
@@ -709,23 +737,95 @@ func TestDetailNamesTheNumbersItDraws(t *testing.T) {
 // next eases from where it stood, and all accounts', by their windows' keys
 // alone.
 func TestDetailFillsEveryAccountsBarsAndAllAccounts(t *testing.T) {
-	doc := usageWorld(extraOff)
+	doc := usageWorld(extraOff, func(d *status.Document) { d.Accounts[2].TokenSet = false })
 	filled := detailFrame(Look{}, framedAccounts, "work", "", nil, nil).Filled(doc, routedAt)
-	m := doc.At(routedAt, claudeLike)
-	want := windowsFilled(m, func(w status.WindowNow) bool { return !drawsEmpty(w.Kind) })
-	for _, w := range m.All().Windows {
-		want[Ref{Window: w.Key}] = w.Used
+	want := map[Ref]float64{
+		{Account: "work", Window: "5h"}: 0.95, {Account: "work", Window: "7d"}: 0.34, {Account: "work", Window: "7d_oi"}: 0.12,
+		{Account: "personal", Window: "5h"}: 0.39, {Account: "personal", Window: "7d"}: 0.66, {Account: "personal", Window: "7d_oi"}: 0,
+		{Window: "5h"}: (0.95 + 0.39) / 2, {Window: "7d"}: (0.34 + 0.66) / 2, {Window: "7d_oi"}: 0.12 / 2,
 	}
 	if len(filled) != len(want) {
-		t.Errorf("Detail fills %d bars, want %d: %v", len(filled), len(want), filled)
+		t.Errorf("Detail fills %v, want %v: none of side's, without a token", filled, want)
 	}
 	for ref, used := range want {
-		if filled[ref] != used {
-			t.Errorf("%+v fills %v, want %v", ref, filled[ref], used)
+		if got, ok := filled[ref]; !ok || math.Abs(got-used) > 1e-9 {
+			t.Errorf("%+v fills %v, want %v", ref, got, used)
 		}
 	}
-	if filled[Ref{Account: "personal", Window: "5h"}] != 0.39 {
-		t.Errorf("personal's 5-hour fills %v, chosen or not, want 0.39", filled[Ref{Account: "personal", Window: "5h"}])
+}
+
+// Detail's USAGE draws each bar as far as it has eased, as the Overview's:
+// an account's by its window, all accounts' by its window's key alone.
+func TestDetailsUSAGEEasesItsBars(t *testing.T) {
+	doc := usageWorld(extraOff)
+	for _, tt := range []struct {
+		name, chosen string
+		of           Ref
+	}{
+		{name: "an account's", chosen: "work", of: Ref{Account: "work", Window: "5h"}},
+		{name: "all accounts'", of: Ref{Window: "5h"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := detailFrame(Look{}, framedAccounts, tt.chosen, "", nil, nil)
+			f.Eased = map[Ref]float64{tt.of: 0.2}
+			if g := f.detailDrawn(doc, routedAt, f.detailLayout()).gauge("5h"); g.bar.eased == nil || *g.bar.eased != 0.2 {
+				t.Errorf("the 5-hour bar is drawn eased to %v, want 0.2", g.bar.eased)
+			}
+		})
+	}
+}
+
+// All accounts' bar of a window fades where every account it counts is
+// stale, its token refused or its last read failed; not while any is read.
+func TestAllAccountsBarFadesWhereEveryAccountsIsStale(t *testing.T) {
+	failed := func(ids ...string) func(*status.Document) {
+		return func(d *status.Document) {
+			for i, a := range d.Accounts {
+				if slices.Contains(ids, a.ID) {
+					d.Accounts[i].Error = "timed out"
+				}
+			}
+		}
+	}
+	for _, tt := range []struct {
+		name  string
+		doc   status.Document
+		stale bool
+	}{
+		{name: "every account's last read failed", doc: usageWorld(failed("work", "personal", "side")), stale: true},
+		{name: "one read", doc: usageWorld(failed("work", "personal")), stale: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if g := allGauge(tt.doc.At(routedAt, claudeLike), "7d"); g.bar.empty || g.bar.stale != tt.stale {
+				t.Errorf("all accounts' week is drawn %+v, want stale %t", g.bar, tt.stale)
+			}
+		})
+	}
+}
+
+// BY MODEL stands two rows under the lower of USAGE's last window and THIS
+// WEEK's last item: under THIS WEEK's while USAGE has three windows or
+// fewer, and under USAGE's past them.
+func TestDetailsBYMODELStandsUnderUSAGEAndTHISWEEK(t *testing.T) {
+	oi := func(used float64) quota.Window { return windowOf("7d_oi", "Fable week", used, 3*quota.Day) }
+	opus := func(used float64) quota.Window { return windowOf("7d_opus", "Opus week", used, 3*quota.Day) }
+	for _, tt := range []struct {
+		name    string
+		windows []quota.Window
+		want    int
+	}{
+		{name: "two windows", windows: []quota.Window{sessionOf(0.2, time.Hour), weekOf(0.3, 3*quota.Day)}, want: 9},
+		{name: "three windows", windows: []quota.Window{sessionOf(0.2, time.Hour), weekOf(0.3, 3*quota.Day), oi(0.1)}, want: 9},
+		{name: "four windows", windows: []quota.Window{sessionOf(0.2, time.Hour), weekOf(0.3, 3*quota.Day), oi(0.1), opus(0.1)}, want: 11},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := routerDoc("work", 0, readAccount("work", tt.windows...), readAccount("personal", tt.windows...))
+			f := detailFrame(Look{}, framedAccounts[:2], "", "", detailsPage(t), nil)
+			rows := textOf(f.Draw(doc, now))
+			if got := rowWith(rows, "BY MODEL") - f.top(); got != tt.want {
+				t.Errorf("BY MODEL is on the panel's row %d, want %d", got, tt.want)
+			}
+		})
 	}
 }
 
