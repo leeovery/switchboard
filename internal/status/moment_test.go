@@ -124,8 +124,8 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		InPool: slices.Contains(pool.Accounts, a.ID), OutOfPool: len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions, Extra: a.Extra,
 		Routing: got.Routing, Hold: hold, Held: held, LimitHolds: a.Limit.Holds(now), LimitSince: got.LimitSince, LimitMoved: limit.Count,
-		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapBack: capBack,
-		Refusal: refusal, TokenRefused: a.TokenRefused(now),
+		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapSince: got.CapSince, CapBack: capBack,
+		Refusal: refusal, RefusedSince: got.RefusedSince, TokenRefused: a.TokenRefused(now),
 		Pressure: status.PressureNow{Under: a.UnderPressure(now), Window: a.Pressure.Window, Out: pressureOut},
 		Idle:     a.HasLapsed(policy.Started, now, policy), NextPrime: primeOf(doc, a.ID),
 		OutOfQuota: outOfQuota, CanRise: a.TokenSet && !a.FetchedAt.IsZero() && !outOfQuota && !a.TokenRefused(now),
@@ -148,8 +148,8 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 		Pinned: a.Pinned, Next: a.Next, Elsewhere: a.Elsewhere, InPool: a.InPool, OutOfPool: a.OutOfPool,
 		TokenSet: a.TokenSet, Read: a.Read, ReadAt: a.ReadAt, Error: a.Error, Failures: a.Failures, Sessions: a.Sessions, Extra: a.Extra,
 		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitHolds: a.LimitHolds, LimitSince: a.LimitSince, LimitMoved: a.LimitMoved,
-		ReachedReserve: a.ReachedReserve, CapHolds: a.CapHolds, CapBack: a.CapBack,
-		Refusal: a.Refusal, TokenRefused: a.TokenRefused, Pressure: a.Pressure,
+		ReachedReserve: a.ReachedReserve, CapHolds: a.CapHolds, CapSince: a.CapSince, CapBack: a.CapBack,
+		Refusal: a.Refusal, RefusedSince: a.RefusedSince, TokenRefused: a.TokenRefused, Pressure: a.Pressure,
 		Idle: a.Idle, NextPrime: a.NextPrime, OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Windows: a.Windows,
 	}
 }
@@ -532,6 +532,89 @@ func TestHowManySessionsALimitMovedWhileItHolds(t *testing.T) {
 			doc.Events = tt.events
 			if a, _ := doc.At(tt.now, policy).Account("work"); a.LimitMoved != tt.want {
 				t.Errorf("LimitMoved = %d, want %d", a.LimitMoved, tt.want)
+			}
+		})
+	}
+}
+
+func TestWhenTheCapHoldingAnAccountBegan(t *testing.T) {
+	capped := routerDocOf(with(readAt("work", windowIn("5h", 0.95, 3*time.Hour), windowIn("7d", 0.4, 3*day)), reserving))
+	reached := func(at, until time.Duration) status.Event {
+		return status.Event{At: built.Add(at), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Until: built.Add(until), Reserve: 0.1}
+	}
+	untilUntold := reached(-10*time.Minute, 0)
+	untilUntold.Until = time.Time{}
+	tests := []struct {
+		name   string
+		doc    status.Document
+		events []status.Event
+		now    time.Time
+		want   time.Time
+	}{
+		{name: "as its event tells", doc: capped, events: []status.Event{reached(-10*time.Minute, 3*time.Hour)}, now: built, want: built.Add(-10 * time.Minute)},
+		{
+			name: "as the newest of its events tells", doc: capped,
+			events: []status.Event{reached(-10*time.Minute, 3*time.Hour), reached(-4*time.Hour, -2*time.Hour)}, now: built, want: built.Add(-10 * time.Minute),
+		},
+		{name: "as its event tells, telling no until", doc: capped, events: []status.Event{untilUntold}, now: built, want: built.Add(-10 * time.Minute)},
+		{name: "its event missing", doc: capped, now: built},
+		{name: "its event missing, an earlier cap's told, lifted since", doc: capped, events: []status.Event{reached(-4*time.Hour, -2*time.Hour)}, now: built},
+		{
+			name: "another account's event", doc: capped, now: built,
+			events: []status.Event{{At: built.Add(-10 * time.Minute), Kind: status.EventCap, Account: "side", Windows: []string{"5h"}, Until: built.Add(3 * time.Hour)}},
+		},
+		{name: "its event told after now", doc: capped, events: []status.Event{reached(5*time.Minute, 3*time.Hour)}, now: built},
+		{name: "its window reset since read, its cap gone", doc: capped, events: []status.Event{reached(-10*time.Minute, 3*time.Hour)}, now: built.Add(3*time.Hour + time.Second)},
+		{name: "the global pin spending its cap", doc: pinnedTo(capped, "work"), events: []status.Event{reached(-10*time.Minute, 3*time.Hour)}, now: built},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := tt.doc
+			doc.Events = tt.events
+			if a, _ := doc.At(tt.now, policy).Account("work"); !a.CapSince.Equal(tt.want) {
+				t.Errorf("CapSince = %v, want %v", a.CapSince, tt.want)
+			}
+		})
+	}
+}
+
+func TestWhenTheRefusalHoldingAnAccountBegan(t *testing.T) {
+	refusing := func(r status.Refusal) status.Account {
+		return with(readAt("work", windowIn("5h", 0.3, 3*time.Hour)), func(a *status.Account) { a.Refused = r })
+	}
+	token := refusing(status.Refusal{Until: built.Add(time.Hour), Status: 401})
+	family := refusing(status.Refusal{Until: built.Add(30 * time.Minute), Status: 403, Family: "opus"})
+	refused := func(at, until time.Duration, code int, family string) status.Event {
+		return status.Event{At: built.Add(at), Kind: status.EventRefused, Account: "work", Until: built.Add(until), Status: code, Family: family}
+	}
+	// liftedEarly is a refusal of work's token, its until brought forward to
+	// when it was lifted, as the token was replaced.
+	liftedEarly := refused(-50*time.Minute, -35*time.Minute, 401, "")
+	tests := []struct {
+		name    string
+		account status.Account
+		events  []status.Event
+		want    time.Time
+	}{
+		{name: "its token's, as its event tells", account: token, events: []status.Event{refused(-20*time.Minute, time.Hour, 401, "")}, want: built.Add(-20 * time.Minute)},
+		{name: "a model family's, as its event tells", account: family, events: []status.Event{refused(-15*time.Minute, 30*time.Minute, 403, "opus")}, want: built.Add(-15 * time.Minute)},
+		{name: "its event missing", account: token},
+		{name: "its event missing, an earlier refusal's told, lifted early", account: token, events: []status.Event{liftedEarly}},
+		{
+			name: "its token refused again, after a refusal lifted early", account: token,
+			events: []status.Event{refused(-20*time.Minute, time.Hour, 401, ""), liftedEarly}, want: built.Add(-20 * time.Minute),
+		},
+		{name: "a refusal lifted early, none holding", account: refusing(status.Refusal{}), events: []status.Event{liftedEarly}},
+		{name: "another answer's event", account: token, events: []status.Event{refused(-20*time.Minute, time.Hour, 403, "")}},
+		{name: "another model family's event", account: family, events: []status.Event{refused(-15*time.Minute, 30*time.Minute, 403, "sonnet")}},
+		{name: "its event told after now", account: token, events: []status.Event{refused(5*time.Minute, time.Hour, 401, "")}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := routerDocOf(tt.account)
+			doc.Events = tt.events
+			if a, _ := doc.At(built, policy).Account("work"); !a.RefusedSince.Equal(tt.want) {
+				t.Errorf("RefusedSince = %v, want %v", a.RefusedSince, tt.want)
 			}
 		})
 	}

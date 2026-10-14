@@ -275,9 +275,92 @@ func toldOf(a status.Account, an status.AccountNow, now time.Time) []status.Span
 		told = append(told, status.Span{Kind: status.WasLimited, From: an.LimitSince, Until: a.Limit.Until})
 	}
 	if a.Refused.Holds(now) && a.Refused.Family == "" {
-		told = append(told, status.Span{Kind: status.WasRefused, Until: a.Refused.Until})
+		told = append(told, status.Span{Kind: status.WasRefused, From: an.RefusedSince, Until: a.Refused.Until})
 	}
 	return told
+}
+
+// When a hold began is told by the router's event of it, as the moment has
+// it, and by the first reading of the unbroken run that shows it, as Then has
+// it: where both tell, they agree; where the event is missing, the readings
+// tell; and a hold neither tells of, as a limit naming no window untold,
+// began before anything given.
+func TestWhenAHoldBeganByItsEventAndByItsReadings(t *testing.T) {
+	// The auto world's cap: work's 5-hour window at 95% at 14:31:03, as
+	// the router's event of it tells, and 97% at 14:40.
+	capping := with(readNow(0.97, 0.4, 0.2), reserving)
+	capReached := status.Event{At: at(1, 14, 31).Add(3 * time.Second).UTC(), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Until: at(1, 17, 10).UTC(), Reserve: 0.1}
+	capRead := []readings.Reading{
+		readOf(at(1, 12, 20), "5h", 0.05, at(1, 17, 10)),
+		readOf(at(1, 14, 31).Add(3*time.Second), "5h", 0.95, at(1, 17, 10)),
+		readOf(at(1, 14, 40), "5h", 0.97, at(1, 17, 10)),
+	}
+	// spent is work's 5-hour window read rejected at 14:20, the router's
+	// limit of it holding till it resets.
+	spent := with(readNow(0.2, 0.4, 0.2), func(a *status.Account) {
+		a.Windows[0].Utilization, a.Windows[0].Status = 1, quota.StatusRejected
+		a.Limit = status.Limit{ID: 4, Windows: []string{"5h"}, Until: at(1, 17, 10).UTC()}
+	})
+	unnamed := with(readNow(0.2, 0.4, 0.2), func(a *status.Account) { a.Limit = status.Limit{ID: 3, Until: at(1, 15, 30).UTC()} })
+	refused := with(readNow(0.2, 0.4, 0.2), func(a *status.Account) { a.Refused = status.Refusal{Until: at(1, 15, 0).UTC(), Status: 401} })
+	tests := []struct {
+		name    string
+		account status.Account
+		events  []status.Event
+		read    []readings.Reading
+		kind    status.WasKind
+		// event is when the hold began as the router's event tells, and
+		// reading as the readings tell: zero where they don't.
+		event, reading time.Time
+	}{
+		{name: "a cap, its event and its first reading agreeing", account: capping, events: []status.Event{capReached}, read: capRead, kind: status.WasCapped, event: capReached.At, reading: capReached.At},
+		{name: "a cap, its event missing", account: capping, read: capRead, kind: status.WasCapped, reading: capReached.At},
+		{
+			name: "a window read spent, its limit's event and its reading agreeing", account: spent,
+			events: []status.Event{{At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: at(1, 17, 10).UTC(), Limit: 4}},
+			read:   []readings.Reading{rejected(readOf(at(1, 14, 20), "5h", 1, at(1, 17, 10)))}, kind: status.WasLimited, event: at(1, 14, 20), reading: at(1, 14, 20),
+		},
+		{
+			name: "a limit naming no window, as its event tells", account: unnamed,
+			events: []status.Event{{At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "work", Until: at(1, 15, 30).UTC(), Limit: 3}},
+			read:   []readings.Reading{readOf(at(1, 12, 20), "5h", 0.2, at(1, 17, 10))}, kind: status.WasLimited, event: at(1, 14, 20), reading: at(1, 14, 20),
+		},
+		{
+			name: "a limit naming no window, neither its event nor a reading telling", account: unnamed,
+			read: []readings.Reading{readOf(at(1, 12, 20), "5h", 0.2, at(1, 17, 10))}, kind: status.WasLimited,
+		},
+		{
+			name: "its token refused, as its event tells", account: refused,
+			events: []status.Event{{At: at(1, 14, 12).UTC(), Kind: status.EventRefused, Account: "work", Until: at(1, 15, 0).UTC(), Status: 401}},
+			read:   []readings.Reading{readOf(at(1, 12, 20), "5h", 0.2, at(1, 17, 10))}, kind: status.WasRefused, event: at(1, 14, 12), reading: at(1, 14, 12),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := status.Document{GeneratedAt: stateNow.UTC(), Source: status.SourceRouter, Accounts: []status.Account{tt.account}, Events: tt.events}
+			m := doc.At(stateNow, policy)
+			a := m.Accounts[0]
+			was := m.Then(a, tt.read, toldOf(tt.account, a, m.Now), m.Now)
+			if was.Kind != tt.kind || !eventSince(a, tt.kind).Equal(tt.event) || !was.Since.Equal(tt.reading) {
+				t.Errorf("Then(work, Now) = %s, its event telling it began at %s; want of kind %d, as its event tells at %s, as its readings tell at %s",
+					wasString(was), onDay(eventSince(a, tt.kind)), tt.kind, onDay(tt.event), onDay(tt.reading))
+			}
+		})
+	}
+}
+
+// eventSince is when the hold of the given kind holding the account a at
+// its moment began, as the router's event of it tells, as the moment has it.
+func eventSince(a status.AccountNow, kind status.WasKind) time.Time {
+	switch kind {
+	case status.WasLimited:
+		return a.LimitSince
+	case status.WasCapped:
+		return a.CapSince
+	case status.WasRefused:
+		return a.RefusedSince
+	}
+	return time.Time{}
 }
 
 // asTheMomentHasIt is how the moment has the account a stand, as Then says

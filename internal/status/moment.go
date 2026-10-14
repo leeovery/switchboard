@@ -113,16 +113,19 @@ type AccountNow struct {
 	// ReachedReserve are the keys of its windows at its reserve at Now,
 	// whether or not the global pin spends it, as reachedReserve has them.
 	// CapHolds is set where its cap holds it back from every request at Now,
-	// as capHolds says, and CapBack is when it lets go: once the last of
-	// those windows resets, zero where its cap doesn't hold or that isn't
-	// known.
-	ReachedReserve []string
-	CapHolds       bool
-	CapBack        time.Time
-	// Refusal is the upstream's refusal of its requests holding at Now: zero
-	// where none does. TokenRefused is set where the refusal is of its
-	// token, which holds back every request.
+	// as capHolds says; CapSince is when it reached its cap, as the router's
+	// event of it, which capEvent finds, tells; and CapBack is when it lets
+	// go: once the last of those windows resets. Each is zero where its cap
+	// doesn't hold, or what it says isn't known.
+	ReachedReserve    []string
+	CapHolds          bool
+	CapSince, CapBack time.Time
+	// Refusal is the upstream's refusal of its requests holding at Now, and
+	// RefusedSince when it began, as the router's event of it, which
+	// refusalEvent finds, tells: each zero where none does. TokenRefused is
+	// set where the refusal is of its token, which holds back every request.
 	Refusal      Refusal
+	RefusedSince time.Time
 	TokenRefused bool
 	// Pressure is how it stands under pressure at Now.
 	Pressure PressureNow
@@ -487,13 +490,16 @@ func (j judgedAccount) measured() []quota.Window {
 func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowName) AccountNow {
 	d, s, a := m.doc, j.states, j.states.account
 	limit, _ := d.LimitEvent(a, m.Now)
+	capped, _ := d.capEvent(a, m.Now, m.policy)
+	refused, _ := d.refusalEvent(a, m.Now)
 	an := AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, Elsewhere: d.elsewhere(a.ID), InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitSince: limit.At, LimitMoved: limit.Count,
-		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
+		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapSince: capped.At, CapBack: s.capBack,
+		RefusedSince: refused.At, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(),
 		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},
 	}
@@ -685,14 +691,10 @@ func (d Document) reachedIn(a Account, w quota.Window, now time.Time) (Event, bo
 	if !spanned {
 		return Event{}, false
 	}
-	i := slices.IndexFunc(d.Events, func(e Event) bool {
+	return d.newestEvent(func(e Event) bool {
 		named := len(e.Windows) == 0 || slices.Contains(e.Windows, w.Key)
 		return e.Kind == EventLimit && e.Account == a.ID && named && !e.At.Before(start) && !e.At.After(now)
 	})
-	if i < 0 {
-		return Event{}, false
-	}
-	return d.Events[i], true
 }
 
 // LimitEvent is the router's event of the limit holding account a at now: the
@@ -704,9 +706,49 @@ func (d Document) LimitEvent(a Account, now time.Time) (Event, bool) {
 	if a.Limit.ID == 0 || !a.Limit.holds(now) {
 		return Event{}, false
 	}
-	i := slices.IndexFunc(d.Events, func(e Event) bool {
+	return d.newestEvent(func(e Event) bool {
 		return e.Kind == EventLimit && e.Account == a.ID && e.Limit == a.Limit.ID
 	})
+}
+
+// capEvent is the router's event of account a reaching the cap that holds it
+// back from every request at now, as capHolds says, as policy says which
+// windows every model shares, reporting false where its cap doesn't hold, or
+// no event tells of it. A cap has no identity, but the router tells of a cap
+// as an account reaches it afresh, and of no other while it holds, so it's
+// the newest of the account's that came by now: unless that one tells of a
+// cap that lifted by now, as its until says, the cap holding now untold, as
+// where the router first read the account at its cap.
+func (d Document) capEvent(a Account, now time.Time, policy score.Policy) (Event, bool) {
+	if !d.capHolds(a, now, policy) {
+		return Event{}, false
+	}
+	e, ok := d.newestEvent(func(e Event) bool {
+		return e.Kind == EventCap && e.Account == a.ID && !e.At.After(now)
+	})
+	if !ok || !e.Until.IsZero() && !e.Until.After(now) {
+		return Event{}, false
+	}
+	return e, true
+}
+
+// refusalEvent is the router's event of the upstream's refusal of account
+// a's requests holding at now, as its Refused gives it, reporting false where
+// no event tells of one: the newest of the account's refused with the
+// refusal's answer, and of its model family, or none, that came by now and
+// holds past it, as the router tells of a refusal renewed while it holds in
+// its event, and brings an event's until forward as its refusal lifts early.
+func (d Document) refusalEvent(a Account, now time.Time) (Event, bool) {
+	r := a.Refused
+	return d.newestEvent(func(e Event) bool {
+		return e.Kind == EventRefused && e.Account == a.ID && e.Status == r.Status && e.Family == r.Family && !e.At.After(now) && e.Until.After(now)
+	})
+}
+
+// newestEvent is the newest of the router's events that is reports true of,
+// as the document gives them newest first, reporting false where none is.
+func (d Document) newestEvent(is func(Event) bool) (Event, bool) {
+	i := slices.IndexFunc(d.Events, is)
 	if i < 0 {
 		return Event{}, false
 	}

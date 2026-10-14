@@ -46,7 +46,7 @@ type AccountFacts struct {
 	Routing                                            status.RoutingKind
 	Held, CapHolds, Idle, OutOfQuota, CanRise, Pressed bool
 	LimitHolds                                         bool
-	LimitSince                                         time.Time
+	LimitSince, CapSince, RefusedSince                 time.Time
 	LimitMoved                                         int
 	Windows                                            map[string]WindowFacts
 }
@@ -54,8 +54,9 @@ type AccountFacts struct {
 // String says how the account stands but for its windows, its times as
 // sinceBuilt has them.
 func (a AccountFacts) String() string {
-	return fmt.Sprintf("{Routing:%d Held:%v CapHolds:%v Idle:%v OutOfQuota:%v CanRise:%v Pressed:%v LimitHolds:%v LimitSince:%s LimitMoved:%d}",
-		a.Routing, a.Held, a.CapHolds, a.Idle, a.OutOfQuota, a.CanRise, a.Pressed, a.LimitHolds, sinceBuilt(a.LimitSince), a.LimitMoved)
+	return fmt.Sprintf("{Routing:%d Held:%v CapHolds:%v Idle:%v OutOfQuota:%v CanRise:%v Pressed:%v LimitHolds:%v LimitSince:%s CapSince:%s RefusedSince:%s LimitMoved:%d}",
+		a.Routing, a.Held, a.CapHolds, a.Idle, a.OutOfQuota, a.CanRise, a.Pressed, a.LimitHolds,
+		sinceBuilt(a.LimitSince), sinceBuilt(a.CapSince), sinceBuilt(a.RefusedSince), a.LimitMoved)
 }
 
 // WindowFacts are how a window stands at a moment, as its WindowNow has it.
@@ -98,7 +99,8 @@ func FactsOf(m status.Moment) Facts {
 	for _, a := range m.Accounts {
 		af := AccountFacts{
 			Routing: a.Routing.Kind, Held: a.Held, CapHolds: a.CapHolds, Idle: a.Idle,
-			OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Pressed: a.Pressure.Under, LimitHolds: a.LimitHolds, LimitSince: a.LimitSince, LimitMoved: a.LimitMoved,
+			OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Pressed: a.Pressure.Under, LimitHolds: a.LimitHolds,
+			LimitSince: a.LimitSince, CapSince: a.CapSince, RefusedSince: a.RefusedSince, LimitMoved: a.LimitMoved,
 			Windows: make(map[string]WindowFacts, len(a.Windows)),
 		}
 		for _, w := range a.Windows {
