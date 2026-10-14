@@ -29,6 +29,14 @@ type logGrown struct {
 	logBounds
 }
 
+// lines reports whether g changes what the Log's Requests read, its read
+// held as given before it: lines taken in, or the figures of days read, or
+// where the tables start or how far back the ledger keeps its lines said,
+// as a read of the tail that gained nothing changes none of them.
+func (g logGrown) lines(held views.LogRead) bool {
+	return g.read.Len() != held.Len() || len(g.totals) > 0 || !g.from.Start.IsZero() || g.oldest != nil
+}
+
 // logBounds are how far back the Log's tables read, where a read asked: the
 // oldest day the ledger keeps, and the oldest the Events read back to; none
 // of either where it couldn't be said, and why; and the date of the day it
@@ -345,6 +353,9 @@ func (m Model) logRead(msg logReadMsg) Model {
 // only where both were said, so the next read asks again whatever the day;
 // and where they couldn't be, logged, the first time alone.
 func (t logTab) grown(g logGrown) logTab {
+	if g.lines(t.read) {
+		t.lined++
+	}
 	t.reading, t.read, t.held = false, g.read, t.held+1
 	if g.events != nil {
 		t.events = *g.events

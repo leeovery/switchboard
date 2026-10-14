@@ -409,6 +409,23 @@ func TestASessionIsTheBestWhereTheMomentMarksItsAccountAtEachHardMoment(t *testi
 	}
 }
 
+// A session the router didn't list that a move brought on is named by its
+// model's family, as the one owner of a model's family reads it, though
+// the router lists no other session of that model.
+func TestASessionAMoveBroughtOnIsNamedByItsModelsFamily(t *testing.T) {
+	sessions := []status.Session{
+		{ID: asking, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, time.Hour, time.Minute, status.Asking)}},
+	}
+	stream := views.Stream{Live: true, Moves: []views.Moved{
+		{Session: gone, Model: "claude-haiku-4-5", From: "work", To: "side", Reason: status.ReasonMovedOff + "work " + status.WhyLimit, At: now.Add(-2 * time.Second)},
+	}}
+	for _, r := range views.RunningOf(runningDoc().At(now, claude.Policy), sessions, stream, views.HeldList{}) {
+		if r.Session == gone && r.Family != "haiku" {
+			t.Errorf("the session a move brought on is named by family %q, want haiku", r.Family)
+		}
+	}
+}
+
 // The stream's moves put each model the newest move of it took where it
 // went, till a listing of the router's sessions shows it done: the session
 // runs there, and nowhere it ran only by that model; one the router didn't

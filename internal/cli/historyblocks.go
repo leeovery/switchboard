@@ -118,17 +118,16 @@ func byModelRows(totals views.Totals, prices ledger.Table) [][]string {
 }
 
 // shareText says the share of use of the model version with the given id
-// among shares, as "55%", "<1%" where it rounds to none, or a dash where it
-// has none, or none priced.
+// among shares, as views.ShareSaid says it, or a dash where it has none.
 func shareText(shares []views.ModelShare, model string) string {
 	i := slices.IndexFunc(shares, func(s views.ModelShare) bool { return s.Model == model })
-	switch {
-	case i < 0 || shares[i].Share == nil:
+	if i < 0 {
 		return dash
-	case *shares[i].Share > 0 && *shares[i].Share < 0.005:
-		return "<1%"
 	}
-	return prose.Percent(*shares[i].Share)
+	if said, ok := views.ShareSaid(shares[i].Share); ok {
+		return said
+	}
+	return dash
 }
 
 // The totals' words: none, of a figure that counts nothing; and what sets the

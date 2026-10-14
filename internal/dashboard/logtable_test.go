@@ -81,6 +81,23 @@ func TestALinedPageMakesItsTablesLinesOnce(t *testing.T) {
 	}
 }
 
+// A page lined again after one of its tables is built afresh makes that
+// table's lines again alone, the other's held, as a look builds the Events
+// afresh and not the Requests.
+func TestALinedPageMakesTheLinesOfATableBuiltAfreshAlone(t *testing.T) {
+	events := func() views.EventsTable {
+		return views.LogEvents(views.LogEventSources{From: logDay, Events: views.ReadEvents(filedEvents{workAtItsCap}, logDay, logDayNoon), Now: logDayNoon})
+	}
+	p := cardPage(40)
+	p.Events = events()
+	lined := p.Lined()
+	lined.Events = events()
+	again := lined.Lined()
+	if madeRequests, madeEvents := &again.lined.requests.lines[0], &again.lined.events.lines[0]; madeRequests != &lined.lined.requests.lines[0] || madeEvents == &lined.lined.events.lines[0] {
+		t.Error("lined again, the Events built afresh, the Requests' lines were made again, or the Events' weren't: want the Events' alone made again")
+	}
+}
+
 // keysOf are the keys of lines, in order.
 func keysOf(lines []logLine) []LogKey {
 	keys := make([]LogKey, len(lines))

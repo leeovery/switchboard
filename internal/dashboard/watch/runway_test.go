@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -326,6 +328,49 @@ func TestTheLanesAreJudgedByTheLedgersDaysSteppedBackOrBeforeTheReadingsKeep(t *
 	keptLater := runwayHarness(t, dashboard.Runway, func(r *runwayed, _ *Config) { r.filed.first = kept })
 	if got, want := summaryDates(keptLater.from.Days), datesFrom(civilDay(-7), civilDay(0)); !keptLater.from.Kept.Equal(kept) || !slices.Equal(got, want) {
 		t.Errorf("live, the readings history holding days from %s, the lanes were built of the days %q, kept from %s; want %q, kept from its first day", kept, got, keptLater.from.Kept, want)
+	}
+}
+
+// flakyKept is a readings history's files that fail to say where they
+// begin the first fails times they're asked, as of too many files open,
+// then say it as the files they hold do; asked counts the times.
+type flakyKept struct {
+	*filedReadings
+	fails, asked int
+}
+
+func (f *flakyKept) FirstDay() (time.Time, error) {
+	f.asked++
+	if f.asked <= f.fails {
+		return time.Time{}, errors.New("too many open files")
+	}
+	return f.filedReadings.FirstDay()
+}
+
+// A failure to say where the readings history begins is passing: each look
+// after it asks again, till the history says, the failures logged the once;
+// then no look asks again till the live span moves.
+func TestAReadingsHistoryThatFailsToSayWhereItBeginsIsAskedAgainTillItSays(t *testing.T) {
+	log := logstest.Capture(t)
+	kept := dayfile.DayStart(start, -3)
+	var flaky *flakyKept
+	r := runwayHarness(t, dashboard.Runway, func(r *runwayed, cfg *Config) {
+		r.filed.first = kept
+		flaky = &flakyKept{filedReadings: r.filed, fails: 2}
+		cfg.Readings = flaky
+	})
+	if !r.model.runwayTab.kept.IsZero() {
+		t.Fatalf("the readings history failed to say where it begins, but it's taken as %s", r.model.runwayTab.kept)
+	}
+
+	for i := range 3 {
+		r.lookAt(start.Add(time.Duration(i+1) * interval))
+	}
+	if !r.model.runwayTab.kept.Equal(kept) || flaky.asked != 3 {
+		t.Errorf("three looks on, the history is taken to begin %s, asked %d times; want %s, asked till it said, 3 times", r.model.runwayTab.kept, flaky.asked, kept)
+	}
+	if got := strings.Count(log.String(), "couldn't read where the readings history begins"); got != 1 {
+		t.Errorf("the log reads\n%s\nwant one warning that the history couldn't say where it begins, of two failures", log)
 	}
 }
 

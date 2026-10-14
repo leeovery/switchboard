@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // Weeks' headlines, by whether there are as many accounts as the use needs:
@@ -432,15 +433,21 @@ func (rec *record) add(use millionths) {
 }
 
 // leftAtLeast reports whether the record's weeks had percent or more left
-// at a reset, on average.
+// at a reset, on average, as leftSaid has it.
 func (rec record) leftAtLeast(percent int) bool {
-	return 100*rec.left >= rec.ofAll(percent)
+	return rec.leftSaid() >= percent
 }
 
-// ofAll is percent of every week of the record's, in hundredths of
-// millionths, as a hundred times its sums are.
-func (rec record) ofAll(percent int) millionths {
-	return millionths(percent) * whole * millionths(rec.weeks)
+// leftSaid is what the record's weeks had left at a reset, on average, and
+// usedSaid what they used, each as the whole percentage the figure beside
+// the verdict says it, which the verdicts are judged on, so none sits beside
+// a figure that says otherwise.
+func (rec record) leftSaid() int {
+	return prose.WholePercent(meanOf(rec.left, rec.weeks))
+}
+
+func (rec record) usedSaid() int {
+	return prose.WholePercent(meanOf(rec.used, rec.weeks))
 }
 
 // verdict is Weeks' verdict on the record's account, spared, where the rest
@@ -455,7 +462,7 @@ func (rec record) verdict(spared bool) AccountVerdict {
 	share := meanOf(rec.left, rec.weeks)
 	v.LeftAtReset = &share
 	switch {
-	case spared && rec.limits == 0 && 100*rec.used <= rec.ofAll(CouldGoUsed):
+	case spared && rec.limits == 0 && rec.usedSaid() <= CouldGoUsed:
 		v.Verdict = CouldGo
 	case rec.leftAtLeast(BarelyLeft):
 		v.Verdict = BarelyUsed

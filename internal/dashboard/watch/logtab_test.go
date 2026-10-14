@@ -340,10 +340,11 @@ func madeAt[T any](s []T) *T {
 
 // The Log's tables are made again only as what they're made of changes: a
 // frame or the pointer moving makes neither afresh, the clock moved on a
-// tenth, a request in flight or not; the stream telling of a
-// request makes the Requests again, a look both, and the filter changing
-// the table it filters. Its panel, open, is made again as what it picks
-// changes, not as the pointer moves over it, nor its cursor.
+// tenth, a request in flight or not; the stream telling of a request makes
+// the Requests again; a look the Events, and the Requests only where the
+// ledger's tail it reads gains a line; and the filter changing the table it
+// filters. Its panel, open, is made again as what it picks changes, not as
+// the pointer moves over it, nor its cursor.
 func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
@@ -369,7 +370,11 @@ func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 	}{
 		{name: "a frame and the pointer moving", step: unmoved},
 		{name: "the stream telling of a request", step: func() { h.hear(told(router.StreamSent, "0a000003", "work", 0)) }, requests: true},
-		{name: "a look", step: func() { h.read(doc) }, requests: true, events: true},
+		{name: "a look", step: func() { h.read(doc) }, events: true},
+		{name: "a look whose tail read gains a line", step: func() {
+			writeLines(t, state, arrived("0a000004", "work", 0))
+			h.read(doc)
+		}, requests: true, events: true},
 		{name: "the panel opening", step: func() { h.typed("f") }, panel: true},
 		{name: "the pointer moving over the panel, and its cursor", step: func() {
 			unmoved()

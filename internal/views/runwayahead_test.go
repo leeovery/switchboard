@@ -19,7 +19,9 @@ import (
 // at every hard moment, and at every moment Runway has to get right, in
 // either view, of today and of this week, each column after now's that a
 // look later, now in the timeline's last column, has before it; and the
-// stretch holding now's column begins where the later look has it begin.
+// stretch holding now's column begins where the later look has it begin,
+// and where a look later still, the timeline gone by with no now in it, has
+// it begin.
 // The readings hold what the document read, as the router keeps them; a
 // moment whose readings read an account later than its document did, so
 // that the two tell it otherwise, is left out. A column a window's run-out
@@ -29,7 +31,7 @@ import (
 func TestALaneDrawsAheadWhatItDrawsOnceThoseColumnsArePast(t *testing.T) {
 	for _, c := range laterCases() {
 		t.Run(c.name, func(t *testing.T) {
-			ahead, past := views.Lanes{}.Look(c.now), views.Lanes{}.Look(c.later)
+			ahead, past, gone := views.Lanes{}.Look(c.now), views.Lanes{}.Look(c.later), views.Lanes{}.Look(c.gone)
 			tl, m := c.now.Timeline, c.now.Moment
 			for i, lane := range ahead.Accounts {
 				a := m.Accounts[i]
@@ -46,8 +48,10 @@ func TestALaneDrawsAheadWhatItDrawsOnceThoseColumnsArePast(t *testing.T) {
 				}
 				now := tl.NowColumn()
 				if s, ok := holding(lane.Stretches, now); ok && !s.Projected && !untold(m, a.ID, tl.Moment(now)) {
-					if later, ok := holding(past.Accounts[i].Stretches, now); ok && later.Cell == s.Cell && !later.Start.Equal(s.Start) {
-						t.Errorf("%s's stretch holding now, %s, begins %v drawn now and %v once past", a.ID, cellWords[s.Cell], s.Start, later.Start)
+					for look, lanes := range map[string]views.Lanes{"once past": past, "once its timeline's gone by": gone} {
+						if later, ok := holding(lanes.Accounts[i].Stretches, now); ok && later.Cell == s.Cell && !later.Start.Equal(s.Start) {
+							t.Errorf("%s's stretch holding now, %s, begins %v drawn now and %v %s", a.ID, cellWords[s.Cell], s.Start, later.Start, look)
+						}
 					}
 				}
 			}
@@ -66,11 +70,12 @@ func holding(stretches []views.LaneStretch, col int) (views.LaneStretch, bool) {
 }
 
 // laterCase is what the lanes at a moment are built from, named, and what a
-// later look's are: of the same timeline, its now in its last column, the
-// moment's document and readings unchanged.
+// later look's are: of the same timeline, its now in its last column; and
+// what a look later still's are, of the same timeline, gone by, with no now
+// in it, a day after that; the moment's document and readings unchanged.
 type laterCase struct {
-	name       string
-	now, later views.LanesFrom
+	name             string
+	now, later, gone views.LanesFrom
 }
 
 // laterCases are the lanes the test builds, now and later: of each hard
@@ -114,7 +119,7 @@ func laterOf(name string, doc status.Document, now time.Time, read []readings.Re
 		}
 		first := at(now)
 		later, _ := first.Timeline.Bounds(first.Timeline.Columns - 1)
-		cases = append(cases, laterCase{name: fmt.Sprintf("%s, the %s view", name, viewKeys[w]), now: first, later: at(later)})
+		cases = append(cases, laterCase{name: fmt.Sprintf("%s, the %s view", name, viewKeys[w]), now: first, later: at(later), gone: at(later.Add(24 * time.Hour))})
 	}
 	return cases
 }
