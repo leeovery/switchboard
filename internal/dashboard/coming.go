@@ -70,11 +70,14 @@ func (f Frame) upcoming(doc status.Document, now time.Time) []happening {
 // comingTeller tells of the things coming up of a document at a moment, as
 // COMING UP says them: its accounts named as names, overviewNames' of the
 // moment, have them; its windows as window names them; and the window a
-// request starts as the policy the moment was judged by says.
+// request starts as the policy the moment was judged by says, unnamed but
+// where namesStarted is set, as Runway names it, as in "lab's 5-hour runs
+// out at its pace", where the Overview has "lab runs out at its pace".
 type comingTeller struct {
-	moment status.Moment
-	names  []accountName
-	window func(key string) string
+	moment       status.Moment
+	names        []accountName
+	window       func(key string) string
+	namesStarted bool
 }
 
 // happenings are what COMING UP says comes of each of the things coming up
@@ -129,14 +132,14 @@ func (t comingTeller) holder(u status.Upcoming) string {
 // runningOut says what befalls an account as its window runs out, as u
 // says: it runs out at its pace, or reaches its cap where that holds it
 // back; as the window a request starts does, unnamed, as in "work runs out
-// at its pace", or as any other, named, as in "client's week reaches its
-// cap".
+// at its pace", but where the teller names it, or as any other, named, as in
+// "client's week reaches its cap".
 func (t comingTeller) runningOut(u status.Upcoming) string {
 	what := " runs out at its pace"
 	if u.Cap {
 		what = " reaches its cap"
 	}
-	if u.Window == t.moment.Policy().Started {
+	if u.Window == t.moment.Policy().Started && !t.namesStarted {
 		return what
 	}
 	return "'s " + t.windowOf(u.Window) + what
