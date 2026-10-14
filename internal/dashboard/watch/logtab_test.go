@@ -372,3 +372,41 @@ func TestAnEventsMovedCountBrightensAsALookRaisesIt(t *testing.T) {
 		t.Errorf("the cap's sessions moved rising from 2 to 3, the numbers brightened are %v, want its count alone", got)
 	}
 }
+
+// On a terminal too short for the Log's table, its view has no row: each key
+// that moves the table, g from an event's details, and the find's landing on
+// a session ended, still pause it as their rules have it, crashing nothing.
+func TestTheLogsKeysWorkOnATerminalWithNoRowForItsTable(t *testing.T) {
+	tests := []struct {
+		name  string
+		press func(h *harness)
+		shown dashboard.LogView
+	}{
+		{name: "↑", press: func(h *harness) { h.keys(upKey) }},
+		{name: "k", press: func(h *harness) { h.typed("k") }},
+		{name: "↑ on Events", press: func(h *harness) { h.typed("]"); h.keys(upKey) }, shown: dashboard.LogEvents},
+		{name: "g from an event's details", press: func(h *harness) { h.typed("]"); h.keys(upKey, enter); h.typed("g") }},
+		{name: "the find landing", press: func(h *harness) { h.typed("/", "a", "p", "i"); h.keys(enter) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -day), arrived("0a000002", "work", -5*time.Minute))
+			doc := routerDocument(three()...)
+			doc.Events = []status.Event{{ID: 1, At: past(-6 * time.Minute), Kind: status.EventPin, Accounts: []string{"work"}}}
+			h := routedHarness(t, doc)
+			onTheLog(h, state)
+			h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 10})...)
+			h.start()
+			if rows := h.model.logRows(); rows != 0 {
+				t.Fatalf("the Log's view has %d rows, want none", rows)
+			}
+
+			tt.press(h)
+			p := h.model.log.page
+			if !p.Paused() || p.Shown != tt.shown {
+				t.Errorf("the table shown is %d, paused %t; want %d, paused", p.Shown, p.Paused(), tt.shown)
+			}
+		})
+	}
+}

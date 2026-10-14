@@ -184,6 +184,14 @@ func (p LogPage) lit(lines []logLine, s LogStand) (int, bool) {
 	return p.find(lines, s.chosen)
 }
 
+// placedRows is how many rows a view rows rows tall is placed by, as the keys
+// move it: a view the terminal leaves no row for stands as one a row tall
+// would, its top the line it would show first, so it shows what's chosen as
+// the terminal grows.
+func placedRows(rows int) int {
+	return max(rows, 1)
+}
+
 // Turned is the Log showing the sub-tab by places on from the one shown,
 // round, as [ and ] step: each table stands as it stood.
 func (p LogPage) Turned(by int) LogPage {
@@ -224,9 +232,9 @@ func (p LogPage) Chosen() (views.RequestRow, *views.LogEvent, bool) {
 // foot, the view scrolling to keep it in; paused with none chosen, either
 // chooses the newest row in view, or above it. A day rule, the oldest day's
 // line and a table's words are passed over, and a table holding no row never
-// pauses.
+// pauses. A view of no rows is placed as placedRows has it.
 func (p LogPage) Chose(by, rows int) LogPage {
-	lines, s := p.lines(), p.stand()
+	lines, s, rows := p.lines(), p.stand(), placedRows(rows)
 	if !s.paused && (by > 0 || !holdsRow(lines)) {
 		return p
 	}
@@ -264,14 +272,14 @@ func (p LogPage) choosing(lines []logLine, s LogStand, at, rows int) LogStand {
 // Landed is the Log showing Requests in a view rows rows tall, paused at
 // its newest line and the first request at or after at chosen, the view
 // scrolled to keep it in, as g lands from an event's details: as it stood
-// where no request is.
+// where no request is. A view of no rows is placed as placedRows has it.
 func (p LogPage) Landed(at time.Time, rows int) LogPage {
 	p.Shown = LogRequests
 	i, ok := p.Requests.At(at)
 	if !ok {
 		return p
 	}
-	lines := p.Followed().lines()
+	lines, rows := p.Followed().lines(), placedRows(rows)
 	return p.standing(p.choosing(lines, p.Followed().pausedAt(lines, rows), i, rows))
 }
 
@@ -279,9 +287,10 @@ func (p LogPage) Landed(at time.Time, rows int) LogPage {
 // down, or up where by is less than nothing, as j, k, PgUp, PgDn and the
 // wheel scroll it: following, scrolled up, it pauses there, nothing chosen,
 // where it holds a row; paused, its view goes no higher than the first line
-// held, nor lower than to end at the paused foot.
+// held, nor lower than to end at the paused foot. A view of no rows is
+// placed as placedRows has it.
 func (p LogPage) Scrolled(by, rows int) LogPage {
-	lines, s := p.lines(), p.stand()
+	lines, s, rows := p.lines(), p.stand(), placedRows(rows)
 	if len(lines) == 0 || !s.paused && (by >= 0 || !holdsRow(lines)) {
 		return p
 	}
