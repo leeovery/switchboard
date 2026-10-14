@@ -339,9 +339,10 @@ func TestCompareShowsAColumnAnAccountAsManyAsFitAllAccountsLast(t *testing.T) {
 }
 
 // Where Compare shows fewer accounts than there are, the heading says which,
-// that ←→ moves along them and that all accounts stays put, dropping whole
-// clauses from its end where it hasn't the room; where it shows every
-// account, nothing.
+// that ←→ moves along them and that all accounts stays put, dropping its
+// last clause where it hasn't the room, as at 100 columns, the narrowest
+// Compare is drawn at, which holds the rest at the widest it reads; where it
+// shows every account, nothing.
 func TestComparesHeadingSaysWhichAccountsItShowsOfMoreThanFit(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -358,6 +359,11 @@ func TestComparesHeadingSaysWhichAccountsItShowsOfMoreThanFit(t *testing.T) {
 			name:  "three at 100, its last clause dropped",
 			frame: func(t *testing.T) (Frame, status.Document) { return threeCompared(t, 100, 37) },
 			want:  "accounts 1–2 of 3  ·  ←→ moves along them",
+		},
+		{
+			name:  "ten at 100 from the ninth, its last clause dropped",
+			frame: func(t *testing.T) (Frame, status.Document) { return tenOnCompare(t, 100, 37, 8) },
+			want:  "accounts 9–10 of 10  ·  ←→ moves along them",
 		},
 	}
 	for _, tt := range tests {
@@ -489,16 +495,19 @@ func TestComparesFocusedColumnsHeadsAreSelected(t *testing.T) {
 }
 
 // A value wider than its column is cut to the column less a cell, its words
-// with … and its figures whole or left off; but all accounts', which runs to
-// the frame's edge.
+// with … and its figures whole or left off, … in their place, as a limit cut
+// part-way would say fewer; but all accounts', which runs to the frame's
+// edge.
 func TestComparesValuesAreCutToTheirColumnsAllAccountsToTheEdge(t *testing.T) {
 	f, doc := tenOnCompare(t, 122, 37, 0)
 	account("work", func(a *status.Account) { a.Extra = quota.ExtraUsage{Status: quota.StatusAllowed} })(&doc)
+	f.Accounts.Page.Rows[0].Totals.Limits = map[string]int{"5h": 2, "7d": 1}
 	rows := f.Draw(doc.WorkedOut(claudeLike), routedAt)
 	tests := []struct {
 		row, column int
 		want        string
 	}{
+		{row: 25, column: 26, want: "5-hour ×2 · …      n"},
 		{row: 31, column: 26, want: "on · billed past…  o"},
 		{row: 31, column: 102, want: "on for 1 of 10"},
 		{row: 30, column: 102, want: "$1,700/mo · 10 plans"},
