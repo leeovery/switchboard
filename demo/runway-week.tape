@@ -1,6 +1,6 @@
 # A still for the README's grid: Runway over the week, in the routing
-# scenario: each account's lane from the readings, work's limit on Wednesday
-# afternoon in its past.
+# scenario: a lane an account to next Wednesday, from the readings, work at
+# its cap till 17:10, and the pool's room under them.
 #
 # Record it, and make art/runway-week.webp:
 #   demo/record.sh runway-week
