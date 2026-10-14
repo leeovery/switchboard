@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -54,11 +55,11 @@ func phonePage(t *testing.T) *views.AccountsPage {
 }
 
 // phoneFrame is a frame of Accounts at routedAt, 52 columns by the rows
-// given, in nord, of work, personal and side, the sub-tab shown, the account
-// chosen and the page given.
+// given, in nord, of work, personal and side, their week 7d, the sub-tab
+// shown, the account chosen and the page given.
 func phoneFrame(t *testing.T, height int, shown AccountsView, chosen string, page *views.AccountsPage) Frame {
 	f := frameOf(52, height)
-	f.View, f.Look = Accounts, Screen(builtin(t, "nord"))
+	f.View, f.Look, f.WeekWindow = Accounts, Screen(builtin(t, "nord")), "7d"
 	f.Accounts = AccountsShown{Shown: shown, Accounts: threeFramed, Chosen: chosen, Page: page}
 	return f
 }
@@ -193,6 +194,29 @@ func TestAPhonesCompareDrawsWEEKUSEDAloneTillItsDaysAreRead(t *testing.T) {
 	}
 }
 
+// A phone's WEEK USED shows the week the frame names the accounts' own, as
+// Compare's does: of every account, then of all accounts.
+func TestAPhonesWEEKUSEDShowsTheWeekTheFrameNames(t *testing.T) {
+	tests := []struct {
+		name, week string
+		want       []string
+	}{
+		{name: "the accounts' week", week: "7d", want: []string{"34%", "66%", "78%", "59%"}},
+		{name: "Fable's week named so", week: "7d_oi", want: []string{"12%", "0%", "4%", "5%"}},
+		{name: "none named", want: []string{"—", "—", "—", "—"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := phoneText(t, 52, 48, AccountsCompare, "", nil, nil)
+			f.WeekWindow = tt.week
+			week := strings.Join(rowsFrom(textOf(f.Draw(phoneDoc(), routedAt)), 9)[:8], "\n")
+			if got := percentages.FindAllString(week, -1); !slices.Equal(got, tt.want) {
+				t.Errorf("WEEK USED reads %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // A period with nothing recorded, as on a fresh install, says a dash for
 // each of its figures on a phone too, Compare's and Detail's THIS WEEK's;
 // left at its last reset, the plan and extra usage, not the period's, stand.
@@ -246,6 +270,29 @@ func TestAPhonesDetailOfAllAccounts(t *testing.T) {
 		if rows[y] != want {
 			t.Errorf("row %d is %q, want %q", y, rows[y], want)
 		}
+	}
+}
+
+// All accounts' Detail on a phone counts the configured accounts' states:
+// one the document lacks yet as not read, and one the document holds and the
+// config doesn't, not at all.
+func TestAPhonesDetailCountsTheConfiguredAccountsStates(t *testing.T) {
+	tests := []struct {
+		name       string
+		configured config.Accounts
+		want       string
+	}{
+		{name: "one added the document lacks", configured: append(slices.Clone(threeFramed), config.Account{ID: "added"}), want: "2 open · 1 at cap · 1 not read"},
+		{name: "one the config no longer holds", configured: threeFramed[1:], want: "2 open"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := phoneText(t, 52, 41, AccountsDetail, "", nil, nil)
+			f.Accounts.Accounts = tt.configured
+			if got := textOf(f.Draw(phoneDoc(), routedAt))[9]; got != tt.want {
+				t.Errorf("all accounts' states read %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

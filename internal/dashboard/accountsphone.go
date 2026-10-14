@@ -137,7 +137,7 @@ func (f Frame) stackTargets(s stack) []Target {
 // them, each a row.
 func (f Frame) turned(doc status.Document, now time.Time) compared {
 	m := f.Moment(doc, now)
-	return compared{f: f, m: m, now: now, page: f.Accounts.Page, shown: len(f.Accounts.Accounts), week: sharedWeekKey(m.Policy())}
+	return compared{f: f, m: m, now: now, page: f.Accounts.Page, shown: len(f.Accounts.Accounts), week: f.WeekWindow}
 }
 
 // turnedWhole is a phone's Compare drawn whole: WEEK USED; then, once the
@@ -401,11 +401,12 @@ func (s stacked) named(cells int) line {
 
 // stands draws how the account shown stands along row y: its glyph and
 // words, as its Headed says them short, picked out while its state is newly
-// changed; or all accounts' states counted.
+// changed, as Detail's head is; or every configured account's states
+// counted, as CountStatesOf counts them.
 func (s stacked) stands(c *canvas, y int) {
 	width := s.f.edge()
 	if s.id == "" {
-		c.line(0, y, countedStates(status.CountStates(s.m.Accounts), NumberAccountStates, width))
+		c.line(0, y, countedStates(s.m.CountStatesOf(s.f.Accounts.Accounts.IDs()), NumberAccountStates, width))
 		return
 	}
 	end := c.line(0, y, standingWords(s.account.Headed(), true, width))
@@ -487,31 +488,22 @@ func (s stacked) thisWeek(c *canvas, y int) int {
 // Accounts say them, in text.secondary: the requests, the limits, by window,
 // or all accounts' how many, and the plan, by its name, or all accounts'
 // summed; then the worth, the extra usage of the accounts shown, and the
-// worth against the plan's price. The period's figures are a dash where it
-// records nothing, as on a fresh install.
+// worth against the plan's price. The period's figures are as periodParts
+// says them.
 func (s stacked) thisWeekItems() [][]stackItem {
 	totals := s.row.Totals
 	return [][]stackItem{
 		{
-			{"requests", s.recorded([]part{figureIn(prose.Grouped(totals.Requests), secondaryInk)})},
-			{"limits", s.recorded(limitsParts(totals, s.f.windowNamer(s.m), secondaryInk))},
+			{"requests", periodParts(*s.page, []part{figureIn(prose.Grouped(totals.Requests), secondaryInk)}, secondaryInk)},
+			{"limits", periodParts(*s.page, limitsParts(totals, s.f.windowNamer(s.m), secondaryInk), secondaryInk)},
 			{"plan", planNamed(s.row, secondaryInk)},
 		},
 		{
-			{"worth", s.recorded(worthParts(s.row, secondaryInk))},
+			{"worth", periodParts(*s.page, worthParts(s.row, secondaryInk), secondaryInk)},
 			{"extra use", extraShort(s.shown())},
-			{"against", s.recorded(againstShort(s.row))},
+			{"against", periodParts(*s.page, againstShort(s.row), secondaryInk)},
 		},
 	}
-}
-
-// recorded is a figure of the period, as the parts given say it, where it
-// records anything; else a dash.
-func (s stacked) recorded(parts []part) []part {
-	if !s.page.Recorded {
-		return noneOf(noFigure.text, secondaryInk)
-	}
-	return parts
 }
 
 // shown are the accounts the phone's Detail shows: the account, or every
