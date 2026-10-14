@@ -459,9 +459,10 @@ func TestThePoolsWordsInks(t *testing.T) {
 
 // On a phone, as its frame has them, the pool's words start from the lanes'
 // column, the dip's, its room on the row under them, from column 2; the
-// rule, the columns and Σ pool as on a frame from 100 columns. Now's column
-// is passed over: the lanes' drawer picks it out, and the frame's
-// part-filled cell is on the canvas where the design has bg.subtle (D4).
+// rule, the columns and Σ pool as on a frame from 100 columns; now's column
+// picked out down to the words, not the room under them. The frame's
+// part-filled cell of now's column is passed over, on the canvas where the
+// design has bg.subtle (D4).
 func TestThePoolsLaneOnAPhoneIsDrawnAsItsFrame(t *testing.T) {
 	doc := framesDoc()
 	nord := Screen(builtin(t, "nord"))
@@ -474,9 +475,10 @@ func TestThePoolsLaneOnAPhoneIsDrawnAsItsFrame(t *testing.T) {
 	f.Runway.Timeline = tl
 	c := newCanvas(f.Width, f.Height)
 	fit := f.runwayFittedAs(f.top(), runwayShape{roomRow: true, legend: 2})
-	f.runwayPool(c, runwayLaid{x: phoneRunwayLanesFrom, fit: fit, m: f.Moment(doc, routedAt)})
-	nows := []spot{{19, 15, 15}, {20, 15, 15}, {21, 15, 15}, {22, 15, 15}}
-	heldTo(t, "runway-phone-52", reference(t, "runway-phone-52"), screenOf(t, c.rows(nord)), region{top: 19, bottom: 23, right: 51}, shadeOf(nord.Canvas()), nows, nil)
+	laid := runwayLaid{x: phoneRunwayLanesFrom, fit: fit, m: f.Moment(doc, routedAt)}
+	f.runwayPool(c, laid)
+	f.runwayNow(c, laid)
+	heldTo(t, "runway-phone-52", reference(t, "runway-phone-52"), screenOf(t, c.rows(nord)), region{top: 19, bottom: 23, right: 51}, shadeOf(nord.Canvas()), []spot{{20, 15, 15}}, nil)
 }
 
 // Runway's pool's lane, its room and its words, and COMING UP, are drawn as
