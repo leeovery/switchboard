@@ -404,12 +404,13 @@ func TestDetailsListScrollsWithTheChoice(t *testing.T) {
 		{name: "the last, as far as it goes", chosen: "spare", scroll: 0, want: 4},
 		{name: "an account above, scrolled to the top", chosen: "personal", scroll: 3, want: 1},
 		{name: "all accounts, where it was", chosen: "", scroll: 3, want: 3},
+		{name: "an account the config doesn't hold, where it was", chosen: "gone", scroll: 3, want: 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Frame{Width: 160, Height: 24, View: Accounts, Policy: claudeLike, Accounts: AccountsShown{Shown: AccountsDetail, Accounts: configured, Chosen: tt.chosen, ListScroll: tt.scroll}}
-			if got := f.DetailListScroll(); got != tt.want {
-				t.Errorf("DetailListScroll() = %d, want %d", got, tt.want)
+			if got := f.DetailListScroll(tt.chosen); got != tt.want {
+				t.Errorf("DetailListScroll(%q) = %d, want %d", tt.chosen, got, tt.want)
 			}
 			rows := textOf(f.Draw(doc, now))
 			top, page := f.top(), listScrolling(len(configured), f.viewRows()).Page

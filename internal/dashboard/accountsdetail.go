@@ -484,10 +484,14 @@ func (d detailDrawn) sessions(c *canvas, y int) {
 	c.line(x+enterIn, y+enterUnder, line{{"enter", keyInk}, {" opens " + status.ShownID(opens) + "'s page", mutedInk}})
 }
 
-// selected is the place among the sessions running of the one selected: the
-// first, where none is, or the one selected no longer runs there.
+// selected is the place among the sessions running of the one selected, as
+// the frame's Accounts' Selection has it.
 func (d detailDrawn) selected() int {
-	return max(slices.IndexFunc(d.running, func(r views.Running) bool { return r.Session == d.f.Accounts.Selected }), 0)
+	ids := make([]string, len(d.running))
+	for i, r := range d.running {
+		ids[i] = r.Session
+	}
+	return max(slices.Index(ids, d.f.Accounts.Selection(ids)), 0)
 }
 
 // sessionsScrolled are the first of n sessions SESSIONS shows, the one with the
@@ -577,10 +581,11 @@ func (d detailDrawn) ruleRows() int {
 }
 
 // listShown are the first of the configured accounts the list shows, by
-// their place among them from 0, as DetailListScroll has it, and how many it
-// shows in the view's rows: every one where they fit.
+// their place among them from 0, scrolled to show the one shown, as
+// DetailListScroll has it, and how many it shows in the view's rows: every
+// one where they fit.
 func (d detailDrawn) listShown() (first, shown int) {
-	return d.f.DetailListScroll(), listScrolling(len(d.f.Accounts.Accounts), d.f.viewRows()).Page
+	return d.f.DetailListScroll(d.id), listScrolling(len(d.f.Accounts.Accounts), d.f.viewRows()).Page
 }
 
 // listScrolling is how far Detail's list of n accounts scrolls in rows rows,
@@ -591,13 +596,15 @@ func listScrolling(n, rows int) Scrolling {
 	return Scrolling{Most: n - page, Page: page}
 }
 
-// DetailListScroll is how far Detail's list is scrolled to show the account
-// chosen, as its Chosen has it: as far as its ListScroll has it, where that
-// shows it, else no further than it must go to.
-func (f Frame) DetailListScroll() int {
-	ids := f.Accounts.Accounts
-	chosen := slices.IndexFunc(ids, func(a config.Account) bool { return a.ID == f.Accounts.Chosen })
-	return listScrolling(len(ids), f.viewRows()).revealing(f.Accounts.ListScroll, chosen)
+// DetailListScroll is how far Detail's list is scrolled, by accounts, to show
+// the account with the id given: as far as the frame's ListScroll has it,
+// where that shows it, else no further than it must go to. All accounts, "",
+// always shows, held at the list's top, as does an account the config
+// doesn't hold, so neither moves it.
+func (f Frame) DetailListScroll(id string) int {
+	configured := f.Accounts.Accounts
+	i := slices.IndexFunc(configured, func(a config.Account) bool { return a.ID == id })
+	return listScrolling(len(configured), f.viewRows()).revealing(f.Accounts.ListScroll, i)
 }
 
 // listName is account a's name as Detail's list and head name it: its
