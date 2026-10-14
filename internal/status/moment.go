@@ -100,11 +100,11 @@ type AccountNow struct {
 	// that holds.
 	Routing Routing
 	// Hold is what holds it back at its limit at Now, as held has it, and
-	// Held is set where anything does. LimitHolds is set where the limit the
-	// router saw it reach holds at Now, whatever its windows read,
-	// LimitSince is when it reached it, and LimitMoved how many sessions it
-	// has moved off the account so far, each as that limit's event tells:
-	// zero where none tells.
+	// Held is set where anything does; LimitSince is when it reached what
+	// holds it, as limitSince has it: zero where nothing tells. LimitHolds is
+	// set where the limit the router saw it reach holds at Now, whatever its
+	// windows read, and LimitMoved is how many sessions that limit has moved
+	// off the account so far, as its event tells: zero where none tells.
 	Hold       Hold
 	Held       bool
 	LimitHolds bool
@@ -505,7 +505,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, Elsewhere: d.elsewhere(a.ID), InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
-		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitSince: limit.At, LimitMoved: limit.Count,
+		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitMoved: limit.Count,
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapSince: capped.At, CapBack: s.capBack,
 		RefusedSince: refused.At, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(), Back: s.back,
@@ -524,7 +524,24 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 	for i, w := range j.windows {
 		an.Windows[i] = m.windowNow(s, w, names[w.window.Key])
 	}
+	an.LimitSince = limitSince(an.Hold, an.Windows)
 	return an
+}
+
+// limitSince is when an account held as hold has it reached what holds it,
+// its windows standing as given, as the router's events tell: the earliest
+// of the windows it holds that it's back from, each as the event of the
+// limit holding it tells, as reachedIn has it; of a hold of every request,
+// those every model shares, which hold it back from every request, else
+// each it holds. Zero where none tells.
+func limitSince(hold Hold, windows []WindowNow) time.Time {
+	var since time.Time
+	for _, w := range windows {
+		if w.Held && (w.Shared || !hold.Every) && !w.Since.IsZero() && (since.IsZero() || w.Since.Before(since)) {
+			since = w.Since
+		}
+	}
+	return since
 }
 
 // near is how close a window comes to where its account runs out before it's

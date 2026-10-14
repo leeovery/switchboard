@@ -477,7 +477,8 @@ func TestWhenALimitHoldingAWindowBegan(t *testing.T) {
 		account status.Account
 		events  []status.Event
 		// since is when the session reached its limit, and limitSince when
-		// the account reached the router's.
+		// the account reached the limit holding it back from every request,
+		// as the earliest window every model shares that it holds tells.
 		since, limitSince time.Time
 	}{
 		{
@@ -495,13 +496,19 @@ func TestWhenALimitHoldingAWindowBegan(t *testing.T) {
 			name:    "a limit from a router from before limits had an identity: the newest event naming the window",
 			account: with(spent, limit(0, "5h")),
 			events:  []status.Event{reached(-5*time.Minute, 0, "5h"), reached(-20*time.Minute, 0, "5h")},
-			since:   built.Add(-5 * time.Minute),
+			since:   built.Add(-5 * time.Minute), limitSince: built.Add(-5 * time.Minute),
 		},
 		{
 			name:    "a window read spent, probed: the newest event naming no window",
 			account: spent,
 			events:  []status.Event{reached(-10*time.Minute, 0), reached(-20*time.Minute, 0, "5h")},
-			since:   built.Add(-10 * time.Minute),
+			since:   built.Add(-10 * time.Minute), limitSince: built.Add(-10 * time.Minute),
+		},
+		{
+			name:    "the week held before the router's limit of the 5-hour: the account held since the week's",
+			account: with(readAt("work", spentIn("5h", 1, time.Hour), spentIn("7d", 1, 2*day)), limit(4, "5h")),
+			events:  []status.Event{reached(-20*time.Minute, 4, "5h"), reached(-2*day, 0, "7d")},
+			since:   built.Add(-20 * time.Minute), limitSince: built.Add(-2 * day),
 		},
 		{
 			name:    "an event from before the window started",
@@ -521,7 +528,7 @@ func TestWhenALimitHoldingAWindowBegan(t *testing.T) {
 			a, _ := doc.At(built, policy).Account("work")
 			w, _ := a.Window("5h")
 			if !w.Held || !w.Since.Equal(tt.since) || !a.LimitSince.Equal(tt.limitSince) {
-				t.Errorf("the session, held %v, reached its limit at %v, the account the router's at %v; want held, at %v and %v",
+				t.Errorf("the session, held %v, reached its limit at %v, the account its limit at %v; want held, at %v and %v",
 					w.Held, w.Since, a.LimitSince, tt.since, tt.limitSince)
 			}
 		})

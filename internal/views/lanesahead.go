@@ -70,7 +70,7 @@ func aheadOf(a status.AccountNow, w RunwayWindow) ahead {
 		h.unknown = true
 	}
 	if a.Held && a.Hold.Every {
-		h.holds = append(h.holds, stood{cell: CellLimited, since: limitSince(a), until: a.Hold.Until})
+		h.holds = append(h.holds, stood{cell: CellLimited, since: a.LimitSince, until: a.Hold.Until})
 	}
 	if a.TokenRefused {
 		h.holds = append(h.holds, stood{cell: CellRefused, since: a.RefusedSince, until: a.Refusal.Until})
@@ -89,21 +89,6 @@ func aheadOf(a status.AccountNow, w RunwayWindow) ahead {
 		h.outs = append(h.outs, out)
 	}
 	return h
-}
-
-// limitSince is when the account a reached the limit holding it back from
-// every request, as the router's events tell: the earliest of the windows
-// every model shares that a limit holds, each as the event of the limit
-// naming it, or naming none, tells; zero where none tells. The router's own
-// limit's event is among those, as it names those windows, or none.
-func limitSince(a status.AccountNow) time.Time {
-	var since time.Time
-	for _, w := range a.Windows {
-		if w.Shared && w.Held && !w.Since.IsZero() && (since.IsZero() || w.Since.Before(since)) {
-			since = w.Since
-		}
-	}
-	return since
 }
 
 // at is how the account stands at t, from now on: without a usable token, or
