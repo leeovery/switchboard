@@ -165,6 +165,12 @@ func (b bounds) holds(x, y int) bool {
 	return b.x <= x && x < b.x+b.width && b.y <= y && y < b.y+b.rows
 }
 
+// and is where the bounds and o overlap: none where they don't.
+func (b bounds) and(o bounds) bounds {
+	x, y := max(b.x, o.x), max(b.y, o.y)
+	return bounds{x: x, y: y, width: max(min(b.x+b.width, o.x+o.width)-x, 0), rows: max(min(b.y+b.rows, o.y+o.rows)-y, 0)}
+}
+
 // sectionHead are the rows a section takes over its body: its heading, and
 // the blank row under it.
 const sectionHead = 2

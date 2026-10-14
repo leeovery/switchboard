@@ -29,16 +29,17 @@ func (s Scrolling) clamped(offset int) int {
 }
 
 // ScrollsRows reports whether the view shown scrolls a row at a time, as
-// History's Year, Sessions' List and a session's page's turns do, rather
-// than a thing at a time: an account, as the Overview's USAGE does,
-// History's Weeks and Days, Sessions' Switchboard and Runway's lanes, or a
-// period, as History's Tokens does.
+// History's Year, and its Weeks and Days where they scroll whole, Sessions'
+// List and a session's page's turns do, rather than a thing at a time: an
+// account, as the Overview's USAGE does, History's Weeks and Days otherwise,
+// Sessions' Switchboard and Runway's lanes, or a period, as History's Tokens
+// does.
 func (f Frame) ScrollsRows() bool {
 	switch f.Shown() {
 	case Overview, Runway:
 		return false
 	case History:
-		return f.History.Shown == HistoryYear
+		return f.scrollsWhole()
 	case Sessions:
 		return f.SessionsTab.Shown == SessionsList
 	}

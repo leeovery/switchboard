@@ -82,10 +82,13 @@ func (c *canvas) grow(height int) {
 }
 
 // within is the canvas, one that doesn't grow, drawn on only in the bounds
-// given, as a section's body is in those the planner gives it: what's drawn
-// outside them isn't drawn.
+// given, as a section's body is in those the planner gives it, and in its
+// own clip, where it has one: what's drawn outside either isn't drawn.
 func (c *canvas) within(b bounds) *canvas {
 	in := *c
+	if c.clip != nil {
+		b = b.and(*c.clip)
+	}
 	in.clip = &b
 	return &in
 }

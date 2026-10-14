@@ -218,13 +218,15 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 }
 
 // view draws the tab shown of doc at now from row top, where the page has
-// room for it, as cramped says: a session's page, where one is open, in its
+// room for it, as cramped says, and nowhere but between the status line and
+// the key line, as body has it: a session's page, where one is open, in its
 // place; else the tab shown: the Overview, Accounts, History, Sessions,
 // Runway or the Log.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
 	}
+	c = c.within(f.body())
 	top := f.top()
 	switch f.Shown() {
 	case SessionPage:
@@ -305,6 +307,14 @@ func (f Frame) top() int {
 		return f.headingY()
 	}
 	return f.headingY() + f.heading().rows(f.phone()) + 1
+}
+
+// body is the rows between the status line and the key line, across the
+// frame: those a view draws in, its heading row and its state line among
+// them, as the page leaves the rest to its chrome.
+func (f Frame) body() bounds {
+	y := f.statusRow() + 1
+	return bounds{y: y, width: f.Width, rows: f.Height - 1 - y}
 }
 
 // viewRows is how many rows the view has: from its top to the row over the
