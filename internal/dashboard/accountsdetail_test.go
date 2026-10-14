@@ -505,6 +505,87 @@ func TestDetailsPanelScrollsTheListHeld(t *testing.T) {
 	}
 }
 
+// While Detail's panel scrolls, the row over the key line says, from the
+// panel's column, how many of its rows are out of view, above and below, and
+// how to scroll to them, as Compare's line says it; where it all shows, it's
+// blank. With one account, there's no list, and it says so from column 0.
+func TestDetailSaysWhatOfItsPanelIsOutOfView(t *testing.T) {
+	doc := usageWorld(extraOff, happened(onAuto()...))
+	_, sessions, _ := overviewWorld()
+	f := detailFrame(Look{}, framedAccounts, "side", "", detailsPage(t), sessions)
+	f.Height = 29
+	most := f.Scrolling(doc, routedAt).Most
+	if most < 2 {
+		t.Fatalf("at 29 rows, the panel scrolls %d rows, want it to scroll", most)
+	}
+	tests := []struct {
+		name   string
+		scroll int
+		want   string
+	}{
+		{name: "at its top", want: fmt.Sprintf("▼ %d more below · j/k", most)},
+		{name: "a row down", scroll: 1, want: fmt.Sprintf("▲ 1 more above · ▼ %d more below · j/k", most-1)},
+		{name: "at its foot", scroll: most, want: fmt.Sprintf("▲ %d more above · j/k", most)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f.Scroll = tt.scroll
+			c := f.At(doc, routedAt).page(doc, routedAt)
+			rows := textOf(c.rows(Look{}))
+			y := f.Height - underView
+			if got := panelCells(rows[y]); got != tt.want {
+				t.Errorf("the row over the key line reads %q in the panel, want %q", got, tt.want)
+			}
+			if got := listCells(rows[y]); got != "" {
+				t.Errorf("the row over the key line reads %q under the list, want it blank, the list all shown", got)
+			}
+			if got := c.at(listPanelAt, y).ink; got != keyMarkInk {
+				t.Errorf("the line's mark is in %+v, want %+v, as Compare's", got, keyMarkInk)
+			}
+		})
+	}
+
+	t.Run("all shown", func(t *testing.T) {
+		whole := detailFrame(Look{}, framedAccounts, "side", "", detailsPage(t), sessions)
+		if got := textOf(whole.Draw(doc, routedAt))[whole.Height-underView]; got != "" {
+			t.Errorf("at 37 rows, the row over the key line reads %q, want it blank", got)
+		}
+	})
+
+	t.Run("one account", func(t *testing.T) {
+		alone := detailFrame(Look{}, framedAccounts[:1], "", "", alonePage(t), nil)
+		alone.Height = 29
+		most := alone.Scrolling(aloneDoc(), routedAt).Most
+		if got, want := textOf(alone.Draw(aloneDoc(), routedAt))[alone.Height-underView], fmt.Sprintf("▼ %d more below · j/k", most); got != want {
+			t.Errorf("the row over the key line reads %q, want %q from column 0", got, want)
+		}
+	})
+}
+
+// While Detail's list scrolls with the choice, the row over the key line
+// says under it how many accounts are out of view, above and below, as
+// briefly as its cells need: none where they all show.
+func TestDetailSaysWhatOfItsListIsOutOfView(t *testing.T) {
+	doc, configured := tenAccounts()
+	tests := []struct {
+		name, chosen string
+		scroll       int
+		want         string
+	}{
+		{name: "at its top", chosen: "work", want: "▼ 4 more accounts"},
+		{name: "part way", chosen: "client", scroll: 2, want: "▲ 2 more · ▼ 2 more"},
+		{name: "at its foot", chosen: "spare", scroll: 4, want: "▲ 4 more accounts"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Width: 160, Height: 24, View: Accounts, Policy: claudeLike, Accounts: AccountsShown{Shown: AccountsDetail, Accounts: configured, Chosen: tt.chosen, ListScroll: tt.scroll}}
+			if got := listCells(textOf(f.Draw(doc, now))[f.Height-underView]); got != tt.want {
+				t.Errorf("under the list, the row over the key line reads %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // panelCells are the panel's cells of a row, trimmed.
 func panelCells(row string) string {
 	cells := []rune(row)

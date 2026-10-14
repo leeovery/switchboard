@@ -223,15 +223,27 @@ func pageRowOf(page *views.AccountsPage, id string) (*views.AccountsPage, views.
 	return page, page.Rows[i]
 }
 
+// listOut are the forms of the line saying how many of Detail's list's
+// accounts are out of view, in the list's cells: "▼ 4 more accounts", and
+// for less room, the counts alone, "▲ 2 more · ▼ 2 more".
+var listOut = []outForm{{noun: "account", gap: " · ", inks: keyedOut}, {gap: " · ", inks: keyedOut}}
+
 // draw draws Detail from row top: its panel, as far down as it's scrolled,
-// and its list beside it, held.
+// and its list beside it, held; and over the key line, where they don't all
+// show, how many of the panel's rows are out of view, from its column, as
+// Compare's line says it, and under the list, how many of its accounts.
 func (d detailDrawn) draw(c *canvas, top int) {
 	panel := d.panel()
-	rows := d.f.viewRows()
-	c.paste(panel, byRows(panel.height(), rows).clamped(d.f.Scroll), top, rows)
-	if d.l.list {
-		d.list(c.within(bounds{y: top, width: listRuleAt + 1, rows: rows}), top, rows)
+	rows, y := d.f.viewRows(), d.f.Height-underView
+	offset := byRows(panel.height(), rows).clamped(d.f.Scroll)
+	c.paste(panel, offset, top, rows)
+	c.line(d.l.panel, y, outOfView(offset, max(panel.height()-offset-rows, 0), d.f.edge()-d.l.panel, compareOut))
+	if !d.l.list {
+		return
 	}
+	d.list(c.within(bounds{y: top, width: listRuleAt + 1, rows: rows}), top, rows)
+	first, shown := d.listShown()
+	c.line(listAt, y, outOfView(first, len(d.f.Accounts.Accounts)-first-shown, listRuleAt-listAt, listOut...))
 }
 
 // scrolling is how far Detail's panel scrolls, by rows, at any offset: as far
