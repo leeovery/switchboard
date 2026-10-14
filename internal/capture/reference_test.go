@@ -26,8 +26,6 @@ var owed = []string{
 	"accounts-compare-160", "accounts-compare-bad-hour-160", "accounts-compare-month-160", "accounts-compare-ten-160",
 	"accounts-detail-all-160", "accounts-detail-limit-160", "accounts-detail-one-160", "accounts-detail-sessions-160",
 	"accounts-detail-work-160", "accounts-phone-compare-52", "accounts-phone-detail-52",
-	"log-events-filter-160", "log-requests-filter-160",
-	"log-requests-filtered-160",
 	"routing-session-160",
 	"runway-5-hour-160", "runway-phone-52", "runway-stepped-back-160", "runway-ten-accounts-160", "runway-week-160",
 	"session-ended-160", "session-moved-160", "session-phone-52", "session-quiet-160", "session-resumed-160",
@@ -494,6 +492,16 @@ var logTail = []string{
 	"14:41:25", "14:41:29", "14:41:38", "14:41:39", "14:41:41", "14:41:45", "↓ 14:41:53", "↑ 14:42:00", "↓ 14:42:01",
 }
 
+// filteredTail are the times of the rows log-requests-filtered-160 draws,
+// each after its mark, d28c's newest 27 lines: its generator's, where the
+// world's are as d28c's page draws them, and its request in flight the
+// Overview's frames'.
+var filteredTail = []string{
+	"14:36:27", "14:36:29", "14:36:48", "14:37:09", "14:37:25", "14:37:38", "14:37:54", "14:38:03", "14:38:17",
+	"14:38:36", "14:38:44", "14:38:58", "14:39:15", "14:39:34", "14:39:48", "14:39:53", "14:40:03", "14:40:18",
+	"14:40:37", "14:40:40", "14:40:41", "14:41:00", "14:41:14", "14:41:16", "14:41:22", "14:41:45", "↑ 14:42:00",
+}
+
 // aroundTheCap are the rows log-request-details-160 draws beside its card,
 // from row 11 to 31, each after its mark, to its session's short id, as its
 // generator drew them, where the world's d28c's and 9c2e's lines are as their
@@ -522,6 +530,31 @@ func tableRows(first int, reads ...string) []passing {
 	p := make([]passing, len(reads))
 	for i, r := range reads {
 		p[i] = wholeRow(first+i, r)
+	}
+	return p
+}
+
+// behindThePanel passes over the Log's tail as log-requests-filter-160 draws
+// it behind the f panel, faded, as log-requests-160 passes it over: left of
+// the panel's card from row 8 to 29, and whole under it.
+func behindThePanel() []passing {
+	beside := len(logTail) - 5
+	p := make([]passing, beside)
+	for i, r := range logTail[:beside] {
+		p[i] = cellsOf(8+i, 1, 18, r)
+	}
+	return append(p, tableRows(8+beside, logTail[beside:]...)...)
+}
+
+// panelSessions passes over the rows of today's sessions in a panel's frame,
+// from column from to column to, each its session's row, reading as given,
+// a row's from row first on, where the reads aren't blank.
+func panelSessions(first, from, to int, reads ...string) []passing {
+	var p []passing
+	for i, r := range reads {
+		if r != "" {
+			p = append(p, cellsOf(first+i, from, to, r))
+		}
 	}
 	return p
 }
@@ -700,6 +733,17 @@ var passedOver = map[string][]passing{
 	"log-events-160":        {cellsOf(27, 88, 160, ", its 5-hour to run out at 15:10   48k cached again, $0.48")},
 	"log-requests-160":      append(tableRows(8, logTail...), cellsOf(36, 144, 148, "1,240")),
 	"log-requests-phone-52": append(tableRows(9, logTail[len(logTail)-22:]...), cellsOf(32, 36, 40, "1,240")),
+	"log-events-filter-160": slices.Concat(
+		[]passing{cellsOf(13, 21, 31, "■ started")},
+		panelSessions(15, 80, 138, "□ d28c", "", "□ 7f3a", "□ db8a", "□ 41e0"),
+		[]passing{cellsOf(27, 143, 145, ".48")},
+	),
+	"log-requests-filter-160": slices.Concat(
+		behindThePanel(),
+		[]passing{cellsOf(10, 70, 74, "1,275"), blankCells(14, 98, 110), cellsOf(15, 83, 87, "1,240")},
+		panelSessions(18, 73, 131, "□ d28c", "", "□ 7f3a", "□ db8a", "□ 41e0"),
+		[]passing{cellsOf(26, 31, 45, "1,240 of 1,275"), cellsOf(36, 144, 148, "1,240")},
+	),
 	"log-request-details-160": slices.Concat(
 		[]passing{wholeRow(10, "14:31:18  9c2e")}, besideTheCard(11, aroundTheCap...),
 		[]passing{
@@ -708,6 +752,9 @@ var passedOver = map[string][]passing{
 		},
 		tableRows(32, "14:32:29  d28c", "14:32:34  db8a", "14:32:36  9c2e"),
 		[]passing{cellsOf(15, 35, 62, "req_011CQx…"), cellsOf(36, 26, 28, "214"), cellsOf(36, 144, 148, "1,240")},
+	),
+	"log-requests-filtered-160": slices.Concat(
+		[]passing{cellsOf(5, 133, 135, "830")}, tableRows(8, filteredTail...), []passing{cellsOf(36, 142, 144, "445")},
 	),
 
 	"routing-auto-160": slices.Concat(routingFigures, []passing{cursorRow(14, "■ 0 auto")}, behindTheCard("0/min", "2/min", "15/min")),

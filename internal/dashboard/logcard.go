@@ -106,7 +106,7 @@ func (c LogCard) body(form cardForm, m status.Moment) []line {
 }
 
 // neverKept is a request's foot: what the ledger keeps none of.
-var neverKept = line{{"never kept: the messages, the system prompt, the tools' definitions, their inputs and results", faintInk}}
+var neverKept = line{{"never kept: " + ledgerNeverKeeps, faintInk}}
 
 // tree is the card's tree, its sections in its three columns.
 func (c LogCard) tree(m status.Moment) [3][]cardSection {

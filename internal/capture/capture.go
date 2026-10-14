@@ -51,8 +51,9 @@ type Fixture struct {
 	// table paused while lines came has them: none where it has none.
 	before earlier
 	// view is the tab it opens on, as the preferences keep one: the
-	// Overview where it's unset.
+	// Overview where it's unset; and log the Log's columns they keep shown.
 	view dashboard.View
+	log  dashboard.LogTicks
 	// by is how a printout groups the windows, and windows are the keys of
 	// those it prints, in Claude's order: none prints every one.
 	by      dashboard.By
@@ -284,9 +285,10 @@ func (p printout) fixture(worlds accountWorlds) Fixture {
 // page is the page the watch draws over one of the accounts' worlds, at their
 // moment, in the frames' theme, with its world's records: on a terminal of
 // its size, with its keys pressed once its document is read, and those
-// before it pressed then; and, gone, with the router no longer answering
-// from that moment, as a key that reads then finds it, or from goneFor
-// before it, as the fixture's settling finds it.
+// before it pressed then; gone, with the router no longer answering from
+// that moment, as a key that reads then finds it, or from goneFor before it,
+// as the fixture's settling finds it; and the Log's columns its preferences
+// keep shown.
 type page struct {
 	name    string
 	size    watch.Size
@@ -295,6 +297,7 @@ type page struct {
 	before  earlier
 	gone    bool
 	goneFor time.Duration
+	log     dashboard.LogTicks
 }
 
 // called is the page's name.
@@ -311,7 +314,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: worlds.now, router: router, keys: slices.Clone(p.keys), before: p.before,
-		theme: framesTheme(), records: w.records(), accounts: w.accounts,
+		theme: framesTheme(), records: w.records(), accounts: w.accounts, log: p.log,
 	}
 }
 
@@ -333,9 +336,14 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // since when and p pin faint. Then the Log's frames, each reached from the
 // Overview with shift-tab: Events, with ]; Requests as it opens; the router
 // gone, over the world of the Log not live; Requests on a phone; an event's
-// details, the cap's, ↑ five times on Events and enter; and a request's,
-// d28c's move, ↑ to 14:31:09 and ↓ to it as the Log stood at 14:32:41, the
-// table paused there, then enter at the moment, what came since read.
+// details, the cap's, ↑ five times on Events and enter; a request's, d28c's
+// move, ↑ to 14:31:09 and ↓ to it as the Log stood at 14:32:41, the table
+// paused there, then enter at the moment, what came since read; the f
+// panel, over Events, with ] and f, and over Requests, with f, then → and ↓
+// twelve times to d28c's row; and Requests filtered to d28c's lines alone,
+// found with / d28c and enter, worth shown as the preferences keep it.
+// Where no frame draws them, to judge by eye: the Log's find open on
+// Requests, / sw typed, and HELP · LOG over them.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -376,6 +384,17 @@ var pages = []page{
 		name: "log-request-details-160", size: wide(37), world: accountWorlds.auto, keys: []tea.KeyPressMsg{enterKey},
 		before: earlier{by: 9*time.Minute + 26*time.Second, keys: slices.Concat(toLog(), repeated(upKey, 30), []tea.KeyPressMsg{downKey})},
 	},
+	{name: "log-events-filter-160", size: wide(37), world: accountWorlds.auto, keys: toLog("]", "f")},
+	{
+		name: "log-requests-filter-160", size: wide(37), world: accountWorlds.auto,
+		keys: slices.Concat(toLog("f"), []tea.KeyPressMsg{rightKey}, repeated(downKey, 12)),
+	},
+	{
+		name: "log-requests-filtered-160", size: wide(37), world: accountWorlds.auto, keys: append(toLog("/", "d", "2", "8", "c"), enterKey),
+		log: dashboard.LogTicks{}.Toggled(dashboard.LogWorth),
+	},
+	{name: "page-log-find", size: wide(37), world: accountWorlds.auto, keys: toLog("/", "s", "w")},
+	{name: "page-log-help", size: wide(37), world: accountWorlds.auto, keys: toLog("?")},
 }
 
 // keysOf are the keys pressed as the text given, a key a character.
@@ -399,10 +418,11 @@ func toLog(text ...string) []tea.KeyPressMsg {
 	return append([]tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}, keysOf(text...)...)
 }
 
-// The keys ↑, ↓ and enter, as pressed.
+// The keys ↑, ↓, → and enter, as pressed.
 var (
 	upKey    = tea.KeyPressMsg{Code: tea.KeyUp}
 	downKey  = tea.KeyPressMsg{Code: tea.KeyDown}
+	rightKey = tea.KeyPressMsg{Code: tea.KeyRight}
 	enterKey = tea.KeyPressMsg{Code: tea.KeyEnter}
 )
 

@@ -20,8 +20,9 @@ import (
 // and the oldest the Events read back to, none known till each is said; who
 // told the events the Events last took in, and when; whether a read for it
 // is under way, one at a time; whether a failure to say how far back its
-// tables read has been logged, the once; and its details card, while it's
-// open.
+// tables read has been logged, the once; its details card, while it's open;
+// the panel of what a table shows, while f has it open; and its find's walk
+// back through the days.
 type logTab struct {
 	page    dashboard.LogPage
 	opened  bool
@@ -35,6 +36,8 @@ type logTab struct {
 	reading bool
 	warned  bool
 	card    logCarding
+	panel   dashboard.LogPanel
+	find    findWalk
 }
 
 // openingLog is the Log as it first shows: its columns as the preferences
@@ -48,28 +51,50 @@ func openingLog(columns dashboard.LogTicks) logTab {
 // the router answers, what the stream tells of those in flight; its Events
 // of the events read; each as its filter has them, over the days from the
 // first read; whether the router answers, and to when the ledger wrote;
-// on opening, the table shown filled once it fills its view; and the
-// details card, where it's open, of what it holds.
+// on opening, the table shown filled once it fills its view; the details
+// card, where it's open, of what it holds; and while it's open, the panel of
+// what a table shows, as builtLogPanel has it.
 func (m Model) builtLog(now time.Time) Model {
 	t := m.log
 	if !t.opened {
 		return m
 	}
-	var stream views.Stream
-	if m.answering() {
-		stream = m.traffic.stream(now)
-	}
 	p := t.page
 	p.Read, p.From, p.Today, p.Totals = true, t.from, views.Today(now), t.totals
 	p.Live, p.Written = m.answering(), t.read.WrittenTo()
-	p.Requests = views.LogRows(views.LogSources{
-		From: t.from.Start, Oldest: t.oldest, Read: t.read, Stream: stream, Totals: t.totals, Filter: p.Filter, Now: now,
-	})
-	p.Events = views.LogEvents(views.LogEventSources{
-		From: t.from.Start, Events: t.events, Read: t.read, Filter: p.Shows, Names: m.cfg.WindowName, Totals: t.totals, Oldest: t.oldest, Filed: t.filed, Now: now,
-	})
+	p.Requests = views.LogRows(m.logSources(p.Filter, now))
+	p.Events = views.LogEvents(m.logEventSources(p.Shows, now))
 	m.log.page = p.Filling(m.logRows())
-	return m.followedByLogCard()
+	return m.followedByLogCard().builtLogPanel(now)
+}
+
+// logSources are what the Log's Requests are built from at now, through
+// the filter given: the lines read and, while the router answers, what the
+// stream tells of those in flight.
+func (m Model) logSources(filter views.LogFilter, now time.Time) views.LogSources {
+	t := m.log
+	return views.LogSources{
+		From: t.from.Start, Oldest: t.oldest, Read: t.read, Stream: m.logStream(now), Totals: t.totals, Filter: filter, Now: now,
+	}
+}
+
+// logEventSources are what the Log's Events are built from at now, through
+// the filter given.
+func (m Model) logEventSources(filter views.EventFilter, now time.Time) views.LogEventSources {
+	t := m.log
+	return views.LogEventSources{
+		From: t.from.Start, Events: t.events, Read: t.read, Filter: filter, Names: m.cfg.WindowName, Totals: t.totals, Oldest: t.oldest, Filed: t.filed,
+		Now: now,
+	}
+}
+
+// logStream is what the request stream tells at now, while the router
+// answers: nothing while it doesn't, as the stream isn't live.
+func (m Model) logStream(now time.Time) views.Stream {
+	if !m.answering() {
+		return views.Stream{}
+	}
+	return m.traffic.stream(now)
 }
 
 // looked is the Log's events with those the document look is a moment of
@@ -109,8 +134,9 @@ func (m Model) logRows() int {
 // logKey acts on a key of the Log's, reporting false for a key it doesn't
 // take, or on another tab: [ and ] turn between Requests and Events; ↑ and
 // ↓ choose a line, as Chose has it; end follows again, as esc does while
-// the table shown is paused; enter opens the line chosen's details; f the
-// panel of what the table shows; and / the find.
+// the table shown is paused; esc, while it isn't, lets go of what the
+// filter keeps alone, as Unfiltered has it; enter opens the line chosen's
+// details; f the panel of what the table shows; and / the find.
 func (m Model) logKey(key string) (Model, tea.Cmd, bool) {
 	if m.view != dashboard.Log {
 		return m, nil, false
@@ -127,6 +153,8 @@ func (m Model) logKey(key string) (Model, tea.Cmd, bool) {
 		p = p.Chose(1, rows)
 	case key == "end", key == "esc" && p.Paused():
 		p = p.Followed()
+	case key == "esc" && p.Filtered():
+		p = p.Unfiltered()
 	case key == "enter":
 		next, cmd := m.openLogCard()
 		return next, cmd, true

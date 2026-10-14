@@ -449,12 +449,39 @@ frames):
 - **Anthropic's id,** row 15 of `log-request-details-160`, columns 35 to 62, `req_011CQx…`: the
   frame cut an id longer than the column's room, and the world's, `req_011CQx4n7RkV2bW9pT3sYd6M`,
   as long as Anthropic's are, fits it whole, as the dashboard draws it.
+- **d28c's lines alone,** rows 8 to 34 of `log-requests-filtered-160`, its newest 27, from
+  `14:36:27`: the frame's generator drew them, where the world's are as d28c's page draws them, and
+  its request in flight the Overview's frames' (`14:42:06`, with no directory); the dashboard draws
+  the world's in their place. The counts are the world's, as `log-requests-160`'s: `830` of `830
+  hidden`, row 5, columns 133 to 135, is `831`; and `445` of `445 of d28c's today`, row 36,
+  columns 142 to 144, is `446`.
 - **db8a's move of 13:22:40,** row 27 of `log-events-160`, columns 88 to 160, `, its 5-hour to run
   out at 15:10   48k cached again, $0.48`: no pressure event of personal's behind the run-out fits
   in the world, as none shows among the frame's rows, and a move made afresh after 21 hours idle
   writes no cache again, its cache gone cold; the dashboard draws `personal came under pressure`
   alone. Its last cell shows past the details card's edge in `log-event-details-160`, row 27,
   column 145, the `8` of `$0.48`, faded: the dashboard draws the row ending under the card.
+- **Behind the `f` panel,** faded: in `log-requests-filter-160`, the Requests' tail, as
+  `log-requests-160` passes it over, left of the panel, rows 8 to 29, columns 1 to 18, and whole
+  under it, rows 30 to 34, with today's count on the state line, row 36, columns 144 to 148,
+  `1,240`; and in `log-events-filter-160`, db8a's move's cost right of the panel, row 27, columns
+  143 to 145, `.48`, as `log-events-160` passes it over.
+- **The panel's counts of today's lines** in `log-requests-filter-160`, the world's, as the state
+  line's: `1,275` of `which of today's 1,275 lines`, row 10, columns 70 to 74, drawn `1,277`;
+  requests' `1,240`, row 15, columns 83 to 87, drawn `1,242`; and `1,240 of 1,275`, row 26,
+  columns 31 to 45, drawn `1,242 of 1,277`.
+- **The panel's models,** row 14 of `log-requests-filter-160`, columns 98 to 110, blank in the
+  frame: the world's lines today ask Sonnet 5.5 too, 41e0's in flight among them, so the dashboard
+  ticks `sonnet-5-5` after `haiku-4-5`.
+- **Today's sessions in the panel,** whose order and doing are the world's: 41e0, answering, seen
+  last, lists first, and db8a, its last request ended over a minute before, reads `idle 1m`, where
+  the frames list d28c first and draw db8a busy. In `log-requests-filter-160`, rows 18, 20, 21 and
+  22, columns 73 to 131, `□ d28c`, `□ 7f3a`, `□ db8a` and `□ 41e0`, the cursor on d28c, third in
+  the world's list, lighting row 20; in `log-events-filter-160`, rows 15, 17, 18 and 19, columns
+  80 to 138, the same four.
+- **The cursor's tick, lit,** in `log-events-filter-160`, row 13, columns 21 to 31, `■ started`,
+  where the cursor starts: the frame lights no tick, where the design lights the row the cursor's
+  on, as the routing card's (see The routing card).
 
 **A pressure event's mark:** in `accounts-detail-one-160`'s LATELY, row 28, column 20, `●`, drawn
 before each kind of event had a mark of its own, where the Log's marks give `◔`, in
@@ -626,10 +653,16 @@ Stage 9's, `log-*`, draw the Log's frames, the Log reached from the Overview wit
 its router gone at 14:40:55, as the fixture's settling finds it with `R` then. The details card:
 `log-event-details-160`, the cap's, `↑` five times on Events and `enter`; and
 `log-request-details-160`, d28c's move to side, as the Log stood at 14:32:41, `↑` to 14:31:09 and
-`↓` to the move, the table paused there; then at 14:42:07, read again with `R`, `enter`. The page
-as stage 6 built it, `page-log`, went with its tapes as they came to draw it. Tapes of their names
-screenshot `log-requests-160`, `log-events-160`, `log-not-live-160`, `log-event-details-160` and
-`log-request-details-160`, to judge by eye.
+`↓` to the move, the table paused there; then at 14:42:07, read again with `R`, `enter`. The `f`
+panel: `log-events-filter-160`, over Events, with `]` and `f`; and `log-requests-filter-160`, over
+Requests, with `f`, then `→` and `↓` twelve times, the cursor on d28c's row. The find:
+`log-requests-filtered-160`, d28c's lines alone, found with `/ d28c` and `enter`, `worth` shown as
+its preferences keep it. The page as stage 6 built it, `page-log`, went with its tapes as they came
+to draw it. Tapes of their names screenshot `log-requests-160`, `log-events-160`,
+`log-not-live-160`, `log-event-details-160`, `log-request-details-160`, `log-events-filter-160`,
+`log-requests-filter-160` and `log-requests-filtered-160`, to judge by eye. Where no frame draws
+them, `page-log-find` draws the find open on Requests, `/ sw` typed, and `page-log-help` HELP · LOG
+over them, each with a tape of its name.
 
 ### `--theme`, and `NO_COLOR`
 

@@ -276,3 +276,52 @@ func TestThePanelTheDaysSessionsAndItsSummaryNameTheSameSessionsAtEachHardMoment
 		t.Error("no hard moment holds a quota check of today's")
 	}
 }
+
+// A session the find picked joins the panel's sessions, though it has no
+// lines nor events today: of another day, as the List has it from its story
+// where the Log's read holds its lines, else as the find found it, ended at
+// its last request, its account not known; after those that haven't ended;
+// and one of today's, once.
+func TestASessionTheFindPickedJoinsThePanel(t *testing.T) {
+	last := local(15, 0, 0).AddDate(0, 0, -2)
+	theirs := []ledger.Line{
+		in("~/Code/api", line(older, opus, "side", "new", last.Add(-time.Hour), smallUsage)),
+		in("~/Code/api", line(older, opus, "side", "sticky", last, smallUsage)),
+	}
+	todays := []ledger.Line{in("~/Code/web", line(early, opus, "work", "new", local(13, 0, 0), smallUsage))}
+	l := ledgerHolding(now, slices.Concat(theirs, todays)...)
+	unread := views.ReadLogHeld(l, heldOf(todays...), ledger.Pricing, now)
+	read := unread.Back(l, heldOf(theirs...), now)
+	found := views.FoundSession{ID: older, Dir: "~/Code/api", Day: views.Today(last), Ended: true, Last: last}
+	tests := []struct {
+		name  string
+		read  views.LogRead
+		found []views.FoundSession
+		want  []string
+	}{
+		{name: "its day read", read: read, found: []views.FoundSession{found}, want: []string{early + " ~/Code/web work", older + " ~/Code/api side"}},
+		{name: "its day not read", read: unread, found: []views.FoundSession{found}, want: []string{early + " ~/Code/web work", older + " ~/Code/api "}},
+		{name: "one of today's", read: unread, found: []views.FoundSession{{ID: early, Day: views.Today(now)}}, want: []string{early + " ~/Code/web work"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			panel := views.LogSessions(views.LogSessionSources{
+				Read: tt.read, Lines: map[string]int{early: 1}, Found: tt.found, Unlisted: true, Now: now,
+			})
+			var got []string
+			for _, s := range panel {
+				got = append(got, s.ID+" "+s.Dir+" "+s.Account)
+				if s.ID != older {
+					continue
+				}
+				if doing, since := s.Doing(now); doing != views.LogEnded || !since.Equal(last) || s.Lines != 0 {
+					t.Errorf("the session found is %s since %v, %d lines today; want ended at its last request, %v, none today",
+						logDoingNames[doing], since, s.Lines, last)
+				}
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("the panel lists %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

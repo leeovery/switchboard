@@ -190,3 +190,18 @@ func listedKeys(keys []dashboard.Key) []string {
 	}
 	return listed
 }
+
+// Help on the Log lists j and k, PgUp and PgDn and the wheel, as its tables
+// scroll back through the days, however few lines they hold.
+func TestTheLogsHelpListsTheKeysThatScrollIt(t *testing.T) {
+	h := newHarness(t, probedWithoutTheRouter())
+	h.model.view = dashboard.Log
+	h.start()
+	h.typed("?")
+	got := listedKeys(h.model.helpCard().Keys)
+	for _, want := range []string{"j k", "PgUp PgDn", "wheel"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("the Log's help lists %q, want %s among them", got, want)
+		}
+	}
+}
