@@ -92,18 +92,17 @@ The detail of each is in [How it works, in depth](#how-it-works-in-depth), after
 
 ## The Dashboard
 
+`switchboard dashboard` keeps every account's usage on screen, live, on six tabs, with the router's sessions, its record of every request, and a page for each session.
+
+**The Overview** is every account's windows and how the router stands with each, on one screen that never scrolls.
+
 <div align="center">
 <img src="art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then GRAPHS, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
 </div>
 
 One account: work alone on the Overview, its usage, its routing trace and LATELY; then `g` to GRAPHS, and `tab` on to Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10.
 
-`switchboard dashboard` draws every page in one frame: the title row, with the tabs and the clock; under it, the status line; then, on every tab but the Overview, the tab's heading row, its name and a rule; the view; and the key line last.
-
-- **The tabs:** `tab` and `shift-tab` move between six, in the title row's order: the Overview, Accounts, History, Sessions, Runway and the Log. The next dashboard opens on the tab last shown. A session's page opens over a tab, and `esc` goes back to it.
-- **The status line** says how the router stands, always, whatever a tab shows: `● healthy`; `■ the router isn't answering  ·  since 14:40:55` while its last view stays on screen; or `○ probed · router not running`; then how it routes, `auto` or `pinned to personal`, the sessions it has routed in the last hour, and where new sessions go, `new sessions → ▲ side`.
-
-**The Overview** is one screen that never scrolls, in six sections, in an order that never changes: USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY, each shown and hidden by its key, `u`, `g`, `r`, `s`, `c` and `l`, at any size, GRAPHS and SESSIONS hidden at first. Size never decides what shows, only how much room each section gets: where rows run short, sections fold to their headings, each still saying what it holds, SESSIONS first, then COMING UP and LATELY, GRAPHS and ROUTING; USAGE never folds, and with many accounts scrolls within itself. Rows to spare grow the sections shown, to their most.
+It has six sections, in an order that never changes: USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY, each shown and hidden by its key, `u`, `g`, `r`, `s`, `c` and `l`, at any size, GRAPHS and SESSIONS hidden at first. Size never decides what shows, only how much room each section gets: where rows run short, sections fold to their headings, each still saying what it holds, SESSIONS first, then COMING UP and LATELY, GRAPHS and ROUTING; USAGE never folds, and with many accounts scrolls within itself. Rows to spare grow the sections shown, to their most.
 
 - **USAGE** is [`usage`](#usage)'s block, every account's windows and the pool's: the matrix from 150 columns, or given the room, the windows stacked at the full width, their bars as long; narrower, stacked as `usage` stacks them. An account out of the pool, under a pin, is faint, and the key line under the block names the marks: `┃` even pace, `╎` the cap, `◆` the primary and `▲` where new sessions go.
 - **GRAPHS** charts the focused account's use so far in each window, each chart under its window's column, from the window's start to its reset, with its cap, even pace and now. `↑` and `↓` move the focus, and USAGE lights the account with it.
@@ -114,61 +113,72 @@ One account: work alone on the Overview, its usage, its routing trace and LATELY
 
 **Accounts** is each account in depth and every account together, in two views on sub-tabs, `[` and `]` moving between them.
 
-- **Compare** is a column an account and one for `all accounts`: its week as a bar, its share of use by model version, its requests, sessions served and moved, its limits hit, the time it spent at its cap or a limit and what it had left at its last reset, and its plan, its extra usage, and what the plan costs against what its use was worth at API prices. `←` and `→` move a focus along the columns, and `enter` opens the one focused in Detail.
-- **Detail** is one account, or all of them, chosen from a list at its left: its windows now, the period's requests, limits, plan, worth and extra usage, its use by model, the last six weeks a day and a week at a time, its verdict as History's Weeks gives it, its SESSIONS now, `enter` opening one's page, and its LATELY.
-- **The period:** `<` and `>` step the period both count over, today, this week, 30 days and 12 weeks, rolling, never billing months.
-
 <div align="center">
 <img src="art/accounts-compare.webp" alt="Accounts' Compare over this week: a column each for work, personal and side and one for all accounts, each with its week used, its use by model version, its requests, sessions and moves, its limits and time at its cap, and what its plan costs against the worth of its use at API prices, 4.0× to 5.2×" width="840">
 </div>
 
+- **Compare** is a column an account and one for `all accounts`: its week as a bar, its share of use by model version, its requests, sessions served and moved, its limits hit, the time it spent at its cap or a limit and what it had left at its last reset, and its plan, its extra usage, and what the plan costs against what its use was worth at API prices. `←` and `→` move a focus along the columns, and `enter` opens the one focused in Detail.
+- **Detail** is one account, or all of them, chosen from a list at its left: its windows now, the period's requests, limits, plan, worth and extra usage, its use by model, the last six weeks a day and a week at a time, its verdict as History's Weeks gives it, its SESSIONS now, `enter` opening one's page, and its LATELY.
+- **The period:** `<` and `>` step the period both count over, today, this week, 30 days and 12 weeks, rolling, never billing months.
+
 **History** is how use has gone over time, in four views on sub-tabs, `[` and `]` moving between them.
+
+<div align="center">
+<img src="art/history-year.webp" alt="History's Year: a square a day over the last 12 months, shaded by its requests; beside it, 212,885 requests worth $24,736 at API prices against $7,200 of plans; and BY MONTH under it, each month's requests, worth, ratio, limits and use by model family" width="840">
+</div>
 
 - **Year,** the default, is a square a day over the last 12 months, a column a week, each shaded by how many requests it made, never its worth: a day with nothing on it in a shade of its own, and the active days in quarters by how much each did. Beside it, the 12 months' requests, sessions, limits hit, worth, what the plans cost and the worth against it, the busiest day and the longest run; under it, BY MONTH, a row a month, its bar its worth split by family. `v` shows one model version alone, in four steps of its own colour, or one account, `←` and `→` stepping between them; `<` and `>` step back through each calendar year the ledger holds. Shown for one version, the Year counts each of its sessions once, but for a day whose summary was written before the ledger kept a model's sessions by their ids, its lines since gone, it adds that day's count, as nothing tells those sessions from another day's.
 - **Weeks** is how full each account's own week got over eight weeks, and whether there are as many accounts as the use needs, its verdict as [`history`](#history) words it, from replaying the last 7 whole weeks with an account fewer or more; `v` draws the weeks as columns.
 - **Days** is the eight weeks a day at a time, each family's worth a day, and how much of its week each account used each day, the days it hit a 5-hour limit marked.
 - **Tokens** is ccusage's report inside switchboard, each period's tokens by kind and its worth at API prices against what its plans cost, by day, week or month with `<` and `>`, split with `v` by account, by model, by both or not at all.
 
-<div align="center">
-<img src="art/history-year.webp" alt="History's Year: a square a day over the last 12 months, shaded by its requests; beside it, 212,885 requests worth $24,736 at API prices against $7,200 of plans; and BY MONTH under it, each month's requests, worth, ratio, limits and use by model family" width="840">
-</div>
-
 **Sessions** is where each session's requests are going now, in two views on sub-tabs.
-
-- **The Switchboard,** the default, is a switchboard: the sessions down the left as calls, the accounts down the right as lines, and a cord from each call to its account, its requests travelling it, out as they go and back as their answers stream, a refusal bouncing back red, `✕ 429`. A session a limit moves joins its new account's group, and its old cord hangs red from the old jack, one cell shorter for each session the limit moved; a move made for any other reason hangs faint for 3 seconds. Where the cords don't fit, as on a phone, each account's line carries its sessions under it.
-- **The List** is one table of today's sessions, those running first, then those ended: each one's account, model, state, when it started, its requests and their worth at API prices, and how it came to its account.
 
 <div align="center">
 <img src="art/repatch.webp" alt="Sessions' Switchboard as personal reaches its limit: the 429 back red along 41e0's cord, its old cord left hanging, and personal's sessions re-patched to side" width="840">
 </div>
 
-**Runway** is when each account has room, a lane each, in the 5-hour view, from the hour before now for 22 hours 40 minutes, or, with `<` and `>`, the week: a cell a column, room, or at its cap, or at its limit, the past dimmed, with words under a lane that say where a stretch without room starts and when it's back, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`. Under the lanes, with more than one account, the pool's: how many accounts have room, a column at a time. `←` steps back a day, or a week, and `→` forward to the live view; a step back is never kept.
+- **The Switchboard,** the default, is a switchboard: the sessions down the left as calls, the accounts down the right as lines, and a cord from each call to its account, its requests travelling it, out as they go and back as their answers stream, a refusal bouncing back red, `✕ 429`. A session a limit moves joins its new account's group, and its old cord hangs red from the old jack, one cell shorter for each session the limit moved; a move made for any other reason hangs faint for 3 seconds. Where the cords don't fit, as on a phone, each account's line carries its sessions under it.
+- **The List** is one table of today's sessions, those running first, then those ended: each one's account, model, state, when it started, its requests and their worth at API prices, and how it came to its account.
+
+**Runway** is when each account has room, a lane each.
 
 <div align="center">
 <img src="art/runway-week.webp" alt="Runway over the week: a lane an account to next Wednesday, work at its cap till 17:10, personal's and side's weeks running out at their pace before they reset, and the pool's room under them" width="840">
 </div>
 
-**The Log** is the router's traffic, as it happens and back through the days, in two tables under one tab, `[` and `]` moving between them, the newest line at the foot.
+In the 5-hour view, from the hour before now for 22 hours 40 minutes, or, with `<` and `>`, the week: a cell a column, room, or at its cap, or at its limit, the past dimmed, with words under a lane that say where a stretch without room starts and when it's back, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`. Under the lanes, with more than one account, the pool's: how many accounts have room, a column at a time. `←` steps back a day, or a week, and `→` forward to the live view; a step back is never kept.
 
-- **Requests** is a line for each request the router routes: when, its session, model and account, its status, how long it took, its tokens by kind, why its answer stopped, and how the router chose its account, a move's cost with it; `f` shows more columns, its worth at API prices, its input tokens, its attempts, its size, messages, tools and thinking budget, the client that sent it and the router's id for it, and Claude Code's quota checks and counts of tokens, hidden until then, as neither is work done for you.
-- **Events** is a line for each thing the router decides or notices, every move it makes with why.
-- **Its keys:** `↑` chooses a line and pauses the table, `end` follows again, `enter` opens a line's details, `s` its session's page, `f` sets what it shows, its columns and which lines, and `/` finds a session.
+**The Log** is the router's traffic, as it happens and back through the days, in two tables under one tab, `[` and `]` moving between them, the newest line at the foot.
 
 <div align="center">
 <img src="art/log-requests.webp" alt="The Log's Requests, following the newest: a line a request, with its time, session and directory, model, account, status, time to first byte and in all, tokens read from the cache, written to it and put out, why its answer stopped, and a new session's routing, the requests in flight at the foot" width="840">
 </div>
 
-**A session's page** follows one session through its whole life: what it's doing now and where it runs; its STORY, its requests a minute from its first to now, each move marked and costed; the accounts it ran on and what it took of each; and its turns, newest first, `enter` opening one into its requests. It opens with `enter` on a session's row on Sessions, or on Accounts' Detail, with `s` on a line of the Log, and with a click on a row of the Overview's SESSIONS; `esc` goes back to the tab as it was left. While the session runs, `p` on its page pins it.
+- **Requests** is a line for each request the router routes: when, its session, model and account, its status, how long it took, its tokens by kind, why its answer stopped, and how the router chose its account, a move's cost with it; `f` shows more columns, its worth at API prices, its input tokens, its attempts, its size, messages, tools and thinking budget, the client that sent it and the router's id for it, and Claude Code's quota checks and counts of tokens, hidden until then, as neither is work done for you.
+- **Events** is a line for each thing the router decides or notices, every move it makes with why.
+- **Its keys:** `↑` chooses a line and pauses the table, `end` follows again, `enter` opens a line's details, `s` its session's page, `f` sets what it shows, its columns and which lines, and `/` finds a session.
+
+**A session's page** follows one session through its whole life.
 
 <div align="center">
 <img src="art/session.webp" alt="A session's page for d28c in ~/Code/switchboard: its STORY of requests a minute, its move from work to side at 14:31 marked with the $1.82 its cache cost, its time and worth on each account, and its turns, the one that moved it opened into its requests" width="840">
 </div>
 
-**Under 100 columns,** the dashboard is a phone's: the tabs on a row of their own, under the clock. The Overview's USAGE stacks its windows in short words, ROUTING and SESSIONS take two rows an account or a session, and LATELY comes under COMING UP.
+It shows what it's doing now and where it runs; its STORY, its requests a minute from its first to now, each move marked and costed; the accounts it ran on and what it took of each; and its turns, newest first, `enter` opening one into its requests. It opens with `enter` on a session's row on Sessions, or on Accounts' Detail, with `s` on a line of the Log, and with a click on a row of the Overview's SESSIONS; `esc` goes back to the tab as it was left. While the session runs, `p` on its page pins it.
+
+**Under 100 columns,** the dashboard is a phone's.
 
 <div align="center">
 <img src="art/phone.webp" alt="The Overview in a phone's terminal, 52 columns wide" width="260">
 </div>
+
+The tabs sit on a row of their own, under the clock. The Overview's USAGE stacks its windows in short words, ROUTING and SESSIONS take two rows an account or a session, and LATELY comes under COMING UP.
+
+**Every page** is one frame: the title row, with the tabs and the clock; under it, the status line; then, on every tab but the Overview, the tab's heading row, its name and a rule; the view; and the key line last.
+
+- **The tabs:** `tab` and `shift-tab` move between six, in the title row's order: the Overview, Accounts, History, Sessions, Runway and the Log. The next dashboard opens on the tab last shown. A session's page opens over a tab, and `esc` goes back to it.
+- **The status line** says how the router stands, always, whatever a tab shows: `● healthy`; `■ the router isn't answering  ·  since 14:40:55` while its last view stays on screen; or `○ probed · router not running`; then how it routes, `auto` or `pinned to personal`, the sessions it has routed in the last hour, and where new sessions go, `new sessions → ▲ side`.
 
 It reads, and takes its keys, as [`dashboard`](#dashboard) says, and `?` on any page shows every key that works there, and what its marks mean.
 
