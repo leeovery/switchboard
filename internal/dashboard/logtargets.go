@@ -60,9 +60,10 @@ func (p LogPage) Lit(at int) bool {
 // ChoseLine is the table shown in a view rows rows tall with the row at the
 // place given among its lines chosen, as a click on it chooses it:
 // following, it pauses where it is, as Chose pauses it. A line that's no
-// row, or no line, chooses nothing.
+// row, or no line, chooses nothing. A view of no rows is placed as
+// placedRows has it.
 func (p LogPage) ChoseLine(at, rows int) LogPage {
-	lines, s := p.lines(), p.stand()
+	lines, s, rows := p.lines(), p.stand(), placedRows(rows)
 	if at < 0 || at >= len(lines) || !lines[at].choosable() {
 		return p
 	}

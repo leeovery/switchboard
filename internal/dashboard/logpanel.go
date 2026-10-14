@@ -80,10 +80,11 @@ func sessionsOf(of LogView, filter views.LogFilter, shows views.EventFilter) []s
 	return filter.Sessions
 }
 
-// Applied is p showing what the panel picks, as enter applies it.
+// Applied is p showing what the panel picks, as enter applies it, the table
+// it's of refiltered.
 func (p LogPage) Applied(panel LogPanel) LogPage {
 	p.Columns, p.Filter, p.Shows = panel.Columns, panel.Filter, panel.Shows
-	return p
+	return p.refiltered(panel.Of)
 }
 
 // tickGroup is what a tick of the panel's ticks: a column, a kind of event,
@@ -375,7 +376,7 @@ func (p LogPanel) sessionWords(s views.LogSession) line {
 		count = countedSaid(s.Events, "event", secondaryInk, mutedInk)
 	}
 	words := line{{status.ShownID(s.ID), secondaryInk}}
-	words = padTo(words, sessionDirAt-tickBox, line{{status.DirName(s.Dir, sessionDirCells), mutedInk}})
+	words = padTo(words, sessionDirAt-tickBox, line{{status.DirName(s.Dir, views.SessionDirCells), mutedInk}})
 	words = padTo(words, sessionAccountAt-tickBox, line{{prose.Cut(p.named(s.Account), logAccountCells), accountInk}})
 	words = padTo(words, sessionCountEnd-tickBox-count[:1].width(), count)
 	if doing := sessionDoing(s, p.Now); doing.text != "" {

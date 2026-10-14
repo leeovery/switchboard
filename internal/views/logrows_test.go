@@ -273,7 +273,9 @@ func TestARequestInFlightAsTheDayEndedSitsAboveTheNextDaysRule(t *testing.T) {
 // The table awaits a line on each day before the one given that it holds a
 // row on, shown or hidden, of a request whose end the stream told, its line
 // yet to come, each day once: none of one in flight, lost or lined, nor of
-// the day given.
+// the day given, nor of one the stream never told sent, which has no day. A
+// request first sent just after midnight awaits it on the day before, which
+// it may have arrived on, its line filed under it.
 func TestTheTableAwaitsTheLineOfARequestTheStreamToldEndedOnAnEarlierDay(t *testing.T) {
 	sent := october(6, 23, 59).Add(50 * time.Second)
 	ended := func(id string, at time.Time) views.Told {
@@ -285,6 +287,8 @@ func TestTheTableAwaitsTheLineOfARequestTheStreamToldEndedOnAnEarlierDay(t *test
 	check.Check = true
 	lost := sentAt("r1", sent)
 	lost.Lost = true
+	unsent := ended("r1", sent)
+	unsent.Sent = time.Time{}
 	lined := withID("r1", took(22*time.Second, arrived(sent.Add(-100*time.Millisecond), line(mover, opus, "side", "sticky", time.Time{}, hourUsage))))
 	tests := []struct {
 		name   string
@@ -297,8 +301,10 @@ func TestTheTableAwaitsTheLineOfARequestTheStreamToldEndedOnAnEarlierDay(t *test
 		{name: "a quota check ended the day before, hidden", stream: streamOf(check), filter: views.LogOpening(), want: []string{"2026-10-06"}},
 		{name: "two ended the day before: the day once", stream: streamOf(ended("r1", sent), ended("r2", sent.Add(time.Second))), want: []string{"2026-10-06"}},
 		{name: "ended today", stream: streamOf(ended("r1", october(7, 13, 0)))},
+		{name: "sent as today began, arrived the day before", stream: streamOf(ended("r1", october(7, 0, 0).Add(time.Second))), want: []string{"2026-10-06"}},
 		{name: "in flight the day before", stream: streamOf(sentAt("r1", sent))},
 		{name: "lost the day before", stream: streamOf(lost)},
+		{name: "ended, never told sent", stream: streamOf(unsent)},
 		{name: "ended the day before, its line come", lines: []ledger.Line{lined}, stream: streamOf(ended("r1", sent))},
 	}
 	for _, tt := range tests {

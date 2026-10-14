@@ -25,7 +25,7 @@ type LogMoment struct {
 	Sessions []status.Session
 	// Stream is what the request stream told, as the watch heard it.
 	Stream views.Stream
-	// Totals are the days' figures, as TotalsByDay gives them.
+	// Totals are the days' figures, as TotalsOn gives them.
 	Totals []views.DayTotals
 	// Filter is what the table shows: the zero Filter every line.
 	Filter views.LogFilter

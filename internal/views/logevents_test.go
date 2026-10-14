@@ -220,9 +220,6 @@ func TestAMoveAfterMidnightSaysWhenThePressureToldTheDayBeforeRunsOut(t *testing
 	}
 }
 
-// The document's events are kept as it gives newer ones, and as a router
-// restarted gives its own, each once, by run and id, as it last stands; and
-// one that happened before the read begins is passed over.
 // filedLines are the router's files of events holding those given, each as
 // it was last filed.
 type filedLines []events.Line
@@ -276,6 +273,50 @@ func TestRefiledReadsTheFilesFromTheMomentGiven(t *testing.T) {
 	}
 }
 
+// A document skips events where its oldest comes more than one after the
+// newest the last document taken in told of, of the same run, as the router
+// gives its newest alone in its document and numbers them one after another
+// as it runs: none where it follows on, is another run's, tells of none, or
+// follows none taken in.
+func TestADocumentSkipsTheEventsBetweenItAndTheLastTakenIn(t *testing.T) {
+	run, restarted := october(7, 8, 0), october(7, 12, 0)
+	told := func(ids ...int) status.Moment {
+		var live []status.Event
+		for _, id := range ids {
+			live = append(live, status.Event{ID: id, At: october(7, 9, id), Kind: status.EventRoom, Account: "work"})
+		}
+		return liveAt(live, october(7, 10, 0))
+	}
+	read := views.ReadEvents(nil, october(7, 0, 0), october(7, 10, 0))
+	looked := read.Look(told(1, 2, 3), run)
+	tests := []struct {
+		name  string
+		read  views.EventsRead
+		doc   status.Moment
+		run   time.Time
+		skips bool
+	}{
+		{name: "none taken in", read: read, doc: told(5, 6), run: run},
+		{name: "following on", read: looked, doc: told(2, 3, 4), run: run},
+		{name: "the next", read: looked, doc: told(4, 5), run: run},
+		{name: "one skipped", read: looked, doc: told(5, 6), run: run, skips: true},
+		{name: "another run's", read: looked, doc: told(5, 6), run: restarted},
+		{name: "telling of none", read: looked, doc: told(), run: run},
+		{name: "after one that told of none", read: read.Look(told(), run), doc: told(51, 52), run: run, skips: true},
+		{name: "refiled since", read: looked.Refiled(nil, october(7, 0, 0), october(7, 10, 0)), doc: told(5, 6), run: run, skips: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.read.Skips(tt.doc, tt.run); got != tt.skips {
+				t.Errorf("the document skips events %t, want %t", got, tt.skips)
+			}
+		})
+	}
+}
+
+// The document's events are kept as it gives newer ones, and as a router
+// restarted gives its own, each once, by run and id, as it last stands; and
+// one that happened before the read begins is passed over.
 func TestTheDocumentsEventsAreKeptAsItGivesNewer(t *testing.T) {
 	first, second := october(7, 8, 0), october(7, 12, 0)
 	room := func(id int, at time.Time, account string) status.Event {

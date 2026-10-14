@@ -119,6 +119,29 @@ func TestTheFindReadsTheDaysSummariesAfreshAsItOpens(t *testing.T) {
 	}
 }
 
+// A read of the days' summaries under way as the find closes, landing once
+// it has opened again, is of the find as it last opened: it's dropped, and
+// they're read afresh, so a session of a day that has turned between is
+// found.
+func TestTheFindDropsASummariesReadOfAnEarlierOpening(t *testing.T) {
+	state := t.TempDir()
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.clock.now = onTheDay(13, 0, 0)
+	h.start()
+	stale := h.press("/")
+	h.keys(escape)
+
+	writeLines(t, state, arrivedAt("0d000001", onTheDay(23, 0, 0)))
+	h.clock.now = onTheDay(24, 1, 0)
+	h.read(probedWithoutTheRouter())
+	h.typed("/")
+	h.deliver(stale...)
+	if got, want := foundIDs(h), []string{idD28C}; !slices.Equal(got, want) {
+		t.Errorf("open again as the read of its last opening came, the find finds %q, want %q, of the day before, its summary read afresh", got, want)
+	}
+}
+
 // enter on a session of an earlier day filters both tables to it, the
 // tables reading back to its day, then pauses at its newest line, chosen,
 // the panel listing it among today's sessions, ticked; but with the filter
@@ -171,6 +194,37 @@ func TestEnterOnAnEarlierDaysSessionShowsItsLinesAlonePausedAtItsNewest(t *testi
 	}
 }
 
+// enter on a session running today that also worked yesterday filters the
+// tables to its few lines, which read back as on opening to fill the view,
+// yesterday's among them, though the table filled its view before.
+func TestEnterOnARunningSessionReadsBackItsEarlierLinesToFillTheView(t *testing.T) {
+	state := t.TempDir()
+	var today []ledger.Held
+	for i := range 60 {
+		today = append(today, ranIn(fmt.Sprintf("0c%06d", i), webSession, "~/Code/web", -time.Duration(70-i)*time.Minute))
+	}
+	writeLines(t, state, today...)
+	writeLines(t, state,
+		ranIn("0b000001", apiSession, "~/Code/api", -day),
+		ranIn("0b000002", apiSession, "~/Code/api", -5*time.Minute), ranIn("0b000003", apiSession, "~/Code/api", -4*time.Minute),
+	)
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.start()
+	if h.model.log.from.Date != dayfile.DateOf(past(0)) {
+		t.Fatalf("the Log spans from %s as it opens, want today alone, its view filled", h.model.log.from.Date)
+	}
+
+	h.typed("/", "a", "p", "i")
+	h.keys(enter)
+	if h.model.log.page.Paused() {
+		t.Fatal("found as running, api's lines are paused at, want them followed")
+	}
+	if got, want := shownRequests(h), []string{"0b000001", "0b000002", "0b000003"}; !slices.Equal(got, want) {
+		t.Errorf("filtered to api, the Requests show %v, want %v, yesterday's read back to fill the view", got, want)
+	}
+}
+
 // esc on the Log, the newest first: closes the find; follows again where
 // the table is paused; then lets the filter go, as the find set it.
 func TestEscOnTheLogClosesTheFindThenFollowsThenLetsTheFilterGo(t *testing.T) {
@@ -205,6 +259,41 @@ func TestEscOnTheLogClosesTheFindThenFollowsThenLetsTheFilterGo(t *testing.T) {
 	}
 	if got := shownRequests(h); !slices.Equal(got, []string{"0a000001", "0a000002", "0a000003"}) {
 		t.Errorf("the filter let go, the Requests show %v, want every session's", got)
+	}
+}
+
+// / before the Log's first read lands opens the find, its line drawn in the
+// state line's row as the design has / open it, what's typed shown as it's
+// typed, finding none of today's sessions till the read counts them; and it
+// stays open as the read lands, finding the session it reads.
+func TestTheFindDrawsItsLineBeforeTheLogsFirstReadLands(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, ranIn("0a000001", idD28C, "~/Code/web", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	var unread []tea.Msg
+	for msgs := h.init(); len(msgs) > 0; msgs = msgs[1:] {
+		if _, ok := msgs[0].(logReadMsg); ok {
+			unread = append(unread, msgs[0])
+			continue
+		}
+		msgs = append(msgs, h.update(msgs[0])...)
+	}
+	if len(unread) == 0 || h.model.log.page.Read {
+		t.Fatal("the Log's first read landed, want it held")
+	}
+
+	h.typed("/", "d")
+	stateRow := func() string {
+		rows := strings.Split(h.view(), "\n")
+		return strings.TrimSpace(rows[len(rows)-2])
+	}
+	if got := stateRow(); !strings.HasPrefix(got, "/ d▏") || !strings.HasSuffix(got, "no sessions") {
+		t.Errorf("/ then d before the Log's first read lands, the state line's row reads %q, want the find's line, finding none yet", got)
+	}
+	h.deliver(unread...)
+	if got := stateRow(); !h.model.log.page.Read || !strings.HasPrefix(got, "/ d▏") || !strings.Contains(got, "d28c web  today") {
+		t.Errorf("the Log's first read landed with the find open, the state line's row reads %q, want the find's line still, d28c found today", got)
 	}
 }
 

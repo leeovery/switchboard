@@ -9,32 +9,41 @@ import (
 
 // logCarding is what the watch holds of the Log's details card while it's
 // open: the details of the line it's of, a request's or an event's, built
-// afresh of what the Log holds at each change, so its figures follow each
-// read while the page behind it stands still; how far its body is scrolled,
+// afresh of what the Log holds as the table it's of is made again, so its
+// figures follow each read while the page behind it stands still; the
+// build of that table they were made of; how far its body is scrolled,
 // where it scrolls within; and how many rows it took as it was placed, as
 // dashboard.LogCard's Placed has it.
 type logCarding struct {
-	request *views.RequestDetails
-	event   *views.EventDetails
-	scroll  int
-	placed  int
+	request  *views.RequestDetails
+	event    *views.EventDetails
+	requests *requestsBasis
+	events   *eventsBasis
+	scroll   int
+	placed   int
 }
 
 // detailed is the details of the Log's line chosen, as its card holds them:
 // a request's, of its row and its line; an event's, of every event the
-// Events read and the ledger's lines the Log read. It's false where no line
-// is chosen.
+// Events read and the ledger's lines the Log read; each of the build of its
+// table it's made of. It's false where no line is chosen.
 func (t logTab) detailed() (logCarding, bool) {
 	if line, ok := t.page.ChosenRequest(); ok {
 		d, ok := line.Details()
-		return logCarding{request: &d}, ok
+		return logCarding{request: &d, requests: t.built.requests}, ok
 	}
 	_, event, ok := t.page.Chosen()
 	if !ok || event == nil {
 		return logCarding{}, false
 	}
 	d, ok := t.page.Events.Details(event.Key, t.read)
-	return logCarding{event: &d}, ok
+	return logCarding{event: &d, events: t.built.events}, ok
+}
+
+// current reports whether c's details were made of the build of their
+// table b holds, so they're as it would make them.
+func (c logCarding) current(b logBuilt) bool {
+	return c.request != nil && c.requests == b.requests || c.event != nil && c.events == b.events
 }
 
 // wantsFactsBack reports whether the event the Log's details card is open
@@ -137,10 +146,11 @@ func (m Model) logCard() dashboard.LogCard {
 }
 
 // followedByLogCard is m with the details of the Log's card built afresh of
-// what the Log holds, while the card is open, scrolled and placed as it
-// was, so its figures follow each read where it stands.
+// what the Log holds, while the card is open, as the table it's of is made
+// again, scrolled and placed as it was, so its figures follow each read
+// where it stands.
 func (m Model) followedByLogCard() Model {
-	if m.open != logCardOpen {
+	if m.open != logCardOpen || m.log.card.current(m.log.built) {
 		return m
 	}
 	if card, ok := m.log.detailed(); ok {
