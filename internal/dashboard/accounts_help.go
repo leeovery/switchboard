@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/status"
@@ -108,9 +109,9 @@ func allAccountsHelp() helpPart {
 			said("It isn't the pool, the accounts new sessions can go to now, each to its cap, which only the Overview " +
 				"shows: an account's state on Accounts is its own."),
 			said("In Detail, its days are every account's together, marked where any hit a 5-hour limit, and each week's " +
-				"peak the mean of theirs. Its verdict is " + views.RoomToSpare + " where their weeks left 25% or more at " +
-				"a reset, on average, else " + views.LittleToSpare + ", naming the accounts that end weeks with the most " +
-				"and the least left."),
+				"peak the mean of theirs. Its verdict is " + views.RoomToSpare + " where their weeks left " +
+				strconv.Itoa(views.RoomLeft) + "% or more at a reset, on average, else " + views.LittleToSpare + ", naming " +
+				"the accounts that end weeks with the most and the least left."),
 		},
 	}
 }
@@ -138,7 +139,7 @@ func (f Frame) detailHelp() helpPart {
 				"the account's own scale: each a quarter of its active days."),
 			said("WEEKS gives each week's peak, the use read just before the reset that ended it, and this week's, its "+
 				"highest so far. Under them, the verdict on the last 7 whole weeks, as History's Weeks gives it: "+
-				accountVerdictsMean),
+				accountVerdictsMean()),
 			said(sessions),
 		),
 		glyphs: append(shadesHelp(f.byDaySwatch),

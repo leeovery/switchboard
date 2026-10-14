@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -194,19 +195,32 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 	}
 }
 
-func TestAccountsHelpSaysWhatEachVerdictMeans(t *testing.T) {
-	said := accountsSaid(threeShown)
-	for _, verdict := range []string{
-		views.HitsItsLimit + ", in 3 or more",
-		views.PlentyToSpare + ", 40% or more",
+// History's help and Accounts' say each verdict at the cuts views judges it
+// by, each word as views words it.
+func TestHelpSaysEachVerdictAtViewsCuts(t *testing.T) {
+	accountsVerdicts := []string{
+		fmt.Sprintf("%s, in %d or more of the %d;", views.HitsItsLimit, views.LimitWeeks, views.VerdictWeeks),
+		fmt.Sprintf("%s, %d%% or more left at a reset on average;", views.PlentyToSpare, views.PlentyLeft),
 		"else " + views.EndsWithRoom + ".",
-		"Could go, where",
-		views.BarelyUsed + ", 75% or more",
-		views.RoomToSpare + " where their weeks left 25% or more",
-		"else " + views.LittleToSpare + ",",
+		fmt.Sprintf("%s%s, where the rest would cover it", strings.ToUpper(views.CouldGo[:1]), views.CouldGo[1:]),
+		fmt.Sprintf("used %d%% or less on average;", views.CouldGoUsed),
+		fmt.Sprintf("%s, %d%% or more left at a reset on average.", views.BarelyUsed, views.BarelyLeft),
+	}
+	for _, tc := range []struct {
+		name string
+		said string
+		want []string
+	}{
+		{"History's", historySaid(), accountsVerdicts},
+		{"Accounts'", accountsSaid(threeShown), append(accountsVerdicts,
+			fmt.Sprintf("%s where their weeks left %d%% or more at a reset", views.RoomToSpare, views.RoomLeft),
+			"else "+views.LittleToSpare+",",
+		)},
 	} {
-		if !strings.Contains(said, verdict) {
-			t.Errorf("help reads\n%s\nwant it to say %q", said, verdict)
+		for _, verdict := range tc.want {
+			if !strings.Contains(tc.said, verdict) {
+				t.Errorf("%s help reads\n%s\nwant it to say %q", tc.name, tc.said, verdict)
+			}
 		}
 	}
 }

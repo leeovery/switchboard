@@ -95,11 +95,16 @@ func shareSaid(share *float64, k ink) line {
 // familyName is a family's name as History shows it, its first letter
 // capital: Opus.
 func familyName(family string) string {
-	name := prose.Clean(family)
-	if first, size := utf8.DecodeRuneInString(name); size > 0 {
-		name = string(unicode.ToUpper(first)) + name[size:]
+	return capitalised(prose.Clean(family))
+}
+
+// capitalised is words with their first letter capital, as a sentence
+// starts: Could go.
+func capitalised(words string) string {
+	if first, size := utf8.DecodeRuneInString(words); size > 0 {
+		return string(unicode.ToUpper(first)) + words[size:]
 	}
-	return name
+	return words
 }
 
 // familyDot is a family as History's keys and strips name it: its dot in
