@@ -127,11 +127,16 @@ func untold(told []Span, s Span, now time.Time) []Span {
 // of what holds it at t began: a told hold's From, or the first reading, of
 // those given, of the unbroken run of a window's readings that shows it; and
 // Until is when the last part lifts, zero where one lifts at no known time.
-func (m Moment) Then(a AccountNow, read []readings.Reading, told []Span, t time.Time) Was {
+// kept is when the first day the readings history holds starts, those given
+// before it standing for the days its readings are gone from, zero where it
+// holds every day: a run whose first reading is its window's first from then
+// on, its window begun before then, may have begun before the history keeps
+// anything, so tells no start.
+func (m Moment) Then(a AccountNow, read []readings.Reading, kept time.Time, told []Span, t time.Time) Was {
 	if !a.TokenSet {
 		return Was{Kind: WasTokenless}
 	}
-	windows := m.readBy(a, read, t)
+	windows := m.readBy(a, read, kept, t)
 	if was, ok := heldAs(WasLimited, slices.Concat(toldAt(told, WasLimited, t), shownAt(windows, WasLimited, t))); ok {
 		return was
 	}
@@ -148,51 +153,80 @@ func (m Moment) Then(a AccountNow, read []readings.Reading, told []Span, t time.
 }
 
 // windowRead is a window of an account as its readings by a moment have it:
-// the last of them, and when the unbroken run of them ending with it that
-// reads it spent, or at its account's cap, began, zero where the last doesn't.
+// the last of them; the unbroken run of them ending with it that reads it
+// spent, and that reads it at its account's cap; and whether one was read
+// from the history's keep on.
 type windowRead struct {
-	last               quota.Window
-	spentFrom, capFrom time.Time
+	last          quota.Window
+	spent, capped run
+	kept          bool
+}
+
+// run is an unbroken run of a window's readings that shows a hold: whether
+// there's one, and when it began, zero where the readings don't tell.
+type run struct {
+	shown bool
+	from  time.Time
 }
 
 // readBy are the windows of the account a that the moment's policy says
 // every model shares, by key, each as its readings of those given, by t,
-// have it, its cap where its reserve, as configured now, starts.
-func (m Moment) readBy(a AccountNow, read []readings.Reading, t time.Time) map[string]windowRead {
+// have it, its cap where its reserve, as configured now, starts, the
+// readings history keeping the days from kept on.
+func (m Moment) readBy(a AccountNow, read []readings.Reading, kept, t time.Time) map[string]windowRead {
 	windows := make(map[string]windowRead)
 	for _, r := range read {
 		if r.Account != a.ID || !m.policy.IsShared(r.Key) || r.At.After(t) {
 			continue
 		}
-		windows[r.Key] = windows[r.Key].readAgain(r.Window(), r.At, a.Reserve)
+		windows[r.Key] = windows[r.Key].readAgain(r.Window(), r.At, kept, a.Reserve)
 	}
 	return windows
 }
 
-// readAgain is the window w, read again at at as window, its account's
-// reserve given: a run of its readings runs on to it where the last one's
-// reset hadn't passed by then.
-func (w windowRead) readAgain(window quota.Window, at time.Time, reserve float64) windowRead {
-	ranOn := !w.last.ResetBy(at)
+// readAgain is the window w, read again at at as window, the readings
+// history keeping the days from kept on, its account's reserve given: a run
+// of its readings runs on to it where the last one's reset hadn't passed by
+// then; and one it begins began at at, but where it's the window's first
+// read from the keep on, of a window begun before it, as untold says.
+func (w windowRead) readAgain(window quota.Window, at, kept time.Time, reserve float64) windowRead {
+	ranOn, begun := !w.last.ResetBy(at), at
+	if w.untold(window, at, kept) {
+		begun = time.Time{}
+	}
 	return windowRead{
-		last:      window,
-		spentFrom: runFrom(w.spentFrom, ranOn, score.Spent(window), at),
-		capFrom:   runFrom(w.capFrom, ranOn, score.HeldByReserve(window, reserve), at),
+		last:   window,
+		spent:  w.spent.joined(ranOn, score.Spent(window), begun),
+		capped: w.capped.joined(ranOn, score.HeldByReserve(window, reserve), begun),
+		kept:   w.kept || !kept.IsZero() && !at.Before(kept),
 	}
 }
 
-// runFrom is when the unbroken run of a window's readings that shows a hold
-// began, once a reading at at, which shows it, or not, joins the run that
-// began at from, zero where there was none: where it shows it, from, where
-// the run ran on to it, else at; and zero where it doesn't.
-func runFrom(from time.Time, ranOn, shows bool, at time.Time) time.Time {
+// untold reports whether a run of the window's readings begun by its reading
+// at at, as window, began at no time the readings tell: the reading is the
+// window's first from kept on, when the first day the readings history holds
+// starts, and the window began before then, or when isn't known, so the run
+// may have begun before the history keeps anything.
+func (w windowRead) untold(window quota.Window, at, kept time.Time) bool {
+	if kept.IsZero() || at.Before(kept) || w.kept {
+		return false
+	}
+	began, _, ok := window.Span()
+	return !ok || began.Before(kept)
+}
+
+// joined is the run r, once a reading, which shows its hold, or not, joins
+// it, a run begun by the reading beginning at begun, zero where the readings
+// don't tell when: where it shows it, r, where it ran on to the reading,
+// else a run begun then; and none where it doesn't.
+func (r run) joined(ranOn, shows bool, begun time.Time) run {
 	switch {
 	case !shows:
-		return time.Time{}
-	case ranOn && !from.IsZero():
-		return from
+		return run{}
+	case ranOn && r.shown:
+		return r
 	}
-	return at
+	return run{shown: true, from: begun}
 }
 
 // heldAt is the part of a hold of the given kind, WasLimited or WasCapped,
@@ -200,14 +234,14 @@ func runFrom(from time.Time, ranOn, shows bool, at time.Time) time.Time {
 // as where its reset has passed: from when the run of them showing it began,
 // till its reset.
 func (w windowRead) heldAt(kind WasKind, t time.Time) (part, bool) {
-	from := w.spentFrom
+	r := w.spent
 	if kind == WasCapped {
-		from = w.capFrom
+		r = w.capped
 	}
-	if from.IsZero() || w.last.ResetBy(t) {
+	if !r.shown || w.last.ResetBy(t) {
 		return part{}, false
 	}
-	return part{from: from, until: w.last.ResetsAt}, true
+	return part{from: r.from, until: w.last.ResetsAt}, true
 }
 
 // part is a part of what holds an account back at a moment: from when it

@@ -83,7 +83,11 @@ func compressDay(t *testing.T, dir, date string) {
 	}
 }
 
-func TestADaysReadingsReadAsTheyGrowAreThoseAWholeReadGivesItsSummary(t *testing.T) {
+// A Day's readings read as they grow are those a whole read of the history
+// gives its summary, each window's last before the day; and Runway's tail,
+// read as it grows, is what a whole read carries in of each window's run,
+// whatever its files go through.
+func TestADaysReadingsReadAsTheyGrowAreThoseAWholeReadGives(t *testing.T) {
 	start := time.Date(2026, 9, 27, 0, 0, 0, 0, time.Local)
 	end, from := dayfile.DayStart(start, 1), start.Add(-7*24*time.Hour)
 	on := func(days, hour, minute int) time.Time {
@@ -95,11 +99,15 @@ func TestADaysReadingsReadAsTheyGrowAreThoseAWholeReadGivesItsSummary(t *testing
 		do   func(t *testing.T, dir string)
 	}{
 		{
-			name: "the week before, its oldest days compressed, a reading from before it, and the day's first",
+			name: "the week before, its oldest days compressed, a reading from before it, a run across two days' files broken by a reset made early, and the day's first",
 			do: func(t *testing.T, dir string) {
 				appendDay(t, dir, name(-8), linesOf(t, read("work", "7d", on(-8, 12, 0), 0.9)))
 				appendDay(t, dir, name(-6), linesOf(t, read("work", "7d", on(-6, 9, 0), 0.1), read("personal", "7d", on(-6, 10, 0), 0.2)))
 				appendDay(t, dir, name(-3), linesOf(t, read("work", "7d", on(-3, 9, 0), 0.3)))
+				appendDay(t, dir, name(-2), linesOf(t, read("personal", "5h", on(-2, 23, 0), 0.3)))
+				resetEarly := read("personal", "5h", on(-1, 1, 0), 0.35)
+				resetEarly.ResetsAt = on(-1, 2, 0).UTC()
+				appendDay(t, dir, name(-1), linesOf(t, resetEarly, read("personal", "5h", on(-1, 3, 0), 0.05)))
 				for _, days := range []int{-8, -6, -3} {
 					compressDay(t, dir, on(days, 12, 0).Format(time.DateOnly))
 				}
@@ -142,9 +150,13 @@ func TestADaysReadingsReadAsTheyGrowAreThoseAWholeReadGivesItsSummary(t *testing
 		},
 		{name: "nothing changed", do: func(*testing.T, string) {}},
 	}
-	dir := t.TempDir()
+	state := t.TempDir()
+	dir := readings.Dir(state)
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	files := readings.Files(dir, logs.For("cli"))
-	day := readings.NewDay(files, from, start, end)
+	day, tail := readings.NewDay(files, from, start, end), readings.NewReader(state, logs.For("cli")).Tail(from, start, end)
 	for _, step := range steps {
 		step.do(t, dir)
 
@@ -154,6 +166,9 @@ func TestADaysReadingsReadAsTheyGrowAreThoseAWholeReadGivesItsSummary(t *testing
 		}
 		if got := readings.Carried(readings.Between(files, from, end, nil), from, start, end); !slices.EqualFunc(got, want, sameReading) {
 			t.Errorf("%s: Carried() =\n%+v\nwant\n%+v, as a whole read gives", step.name, got, want)
+		}
+		if got, want := tail(), readings.CarriedRuns(readings.Between(files, from, end, nil), from, start, end); !slices.EqualFunc(got, want, sameReading) {
+			t.Errorf("%s: the tail read\n%+v\nwant\n%+v, as a whole read carries in each window's run", step.name, got, want)
 		}
 	}
 }

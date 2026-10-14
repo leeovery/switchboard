@@ -73,6 +73,11 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 	// reset at Thursday's 21:00, read again 30 seconds after.
 	weekOut := rejected(readOf(at(1, 10, 0).AddDate(0, 0, -3), "7d", 1, at(1, 21, 0)))
 	weekReread := readOf(at(1, 21, 0).Add(30*time.Second), "7d", 0, at(8, 21, 0))
+	// keptFrom is Tuesday's start, the first day the readings history keeps
+	// in the moments that say so; weekKept is work's week as it read it first
+	// that day, at its limit since before, as weekOut has it.
+	keptFrom := at(1, 0, 0).AddDate(0, 0, -2)
+	weekKept := rejected(readOf(keptFrom.Add(8*time.Hour), "7d", 1, at(1, 21, 0)))
 	// yesterday is Wednesday's 5-hour window, read at 93% at 15:00.
 	yesterday := at(1, 0, 0).AddDate(0, 0, -1)
 	nearlySpent := readOf(yesterday.Add(15*time.Hour), "5h", 0.93, yesterday.Add(17*time.Hour))
@@ -89,9 +94,12 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 		// the global pin, and whether its token is usable.
 		moment status.Moment
 		read   []readings.Reading
-		told   []status.Span
-		t      time.Time
-		want   status.Was
+		// kept is when the first day the readings history holds starts, zero
+		// where it holds every day.
+		kept time.Time
+		told []status.Span
+		t    time.Time
+		want status.Was
 	}{
 		{
 			name: "room, each window read with room", moment: capping, read: []readings.Reading{week, afresh}, t: at(1, 13, 0),
@@ -137,6 +145,26 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 			name: "a week at its limit before it reset, as a reading carried in from Monday has it", moment: capping,
 			read: []readings.Reading{weekOut, afresh, weekReread}, t: at(1, 20, 50),
 			want: status.Was{Kind: status.WasLimited, Since: weekOut.At, Until: at(1, 21, 0)},
+		},
+		{
+			name: "a week at its limit before the readings history's keep, read first from it", moment: capping,
+			read: []readings.Reading{weekKept, afresh}, kept: keptFrom, t: at(1, 20, 50),
+			want: status.Was{Kind: status.WasLimited, Until: at(1, 21, 0)},
+		},
+		{
+			name: "a week at its limit before the readings history's keep, as a reading carried in before it has it", moment: capping,
+			read: []readings.Reading{weekOut, weekKept, afresh}, kept: keptFrom, t: at(1, 20, 50),
+			want: status.Was{Kind: status.WasLimited, Since: weekOut.At, Until: at(1, 21, 0)},
+		},
+		{
+			name: "a week reaching its limit after the readings history's keep, read first from it with room", moment: capping,
+			read: []readings.Reading{readOf(keptFrom.Add(6*time.Hour), "7d", 0.9, at(1, 21, 0)), weekKept, afresh}, kept: keptFrom, t: at(1, 20, 50),
+			want: status.Was{Kind: status.WasLimited, Since: weekKept.At, Until: at(1, 21, 0)},
+		},
+		{
+			name: "at its cap, read first from the readings history's keep, its window begun since", moment: capping,
+			read: []readings.Reading{capped, stillCapped}, kept: keptFrom, t: at(1, 15, 0),
+			want: status.Was{Kind: status.WasCapped, Since: capped.At, Until: at(1, 17, 10)},
 		},
 		{
 			name: "a week at its limit, reset since, before the reread", moment: capping,
@@ -232,7 +260,7 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.moment.Then(tt.moment.Accounts[0], tt.read, tt.told, tt.t); !sameWas(got, tt.want) {
+			if got := tt.moment.Then(tt.moment.Accounts[0], tt.read, tt.kept, tt.told, tt.t); !sameWas(got, tt.want) {
 				t.Errorf("Then(work, %s) = %s, want %s", onDay(tt.t), wasString(got), wasString(tt.want))
 			}
 		})
@@ -250,7 +278,7 @@ func TestThenAtNowIsHowTheMomentHasEachAccountStand(t *testing.T) {
 			m := hm.Doc.At(hm.Now, policy)
 			for i, a := range m.Accounts {
 				read := hm.Doc.Accounts[i]
-				if got, want := m.Then(a, readingsOf(read), m.Told(a.ID), m.Now), asTheMomentHasIt(a); got.Kind != want.Kind || !got.Until.Equal(want.Until) {
+				if got, want := m.Then(a, readingsOf(read), time.Time{}, m.Told(a.ID), m.Now), asTheMomentHasIt(a); got.Kind != want.Kind || !got.Until.Equal(want.Until) {
 					t.Errorf("Then(%s, Now) = %s, want %s, as the moment has it", a.ID, wasString(got), wasString(want))
 				}
 			}
@@ -455,7 +483,7 @@ func TestWhenAHoldBeganByItsEventAndByItsReadings(t *testing.T) {
 			doc := status.Document{GeneratedAt: stateNow.UTC(), Source: status.SourceRouter, Accounts: []status.Account{tt.account}, Events: tt.events}
 			m := doc.At(stateNow, policy)
 			a := m.Accounts[0]
-			was := m.Then(a, tt.read, m.Told(a.ID), m.Now)
+			was := m.Then(a, tt.read, time.Time{}, m.Told(a.ID), m.Now)
 			if was.Kind != tt.kind || !eventSince(a, tt.kind).Equal(tt.event) || !was.Since.Equal(tt.reading) {
 				t.Errorf("Then(work, Now) = %s, its event telling it began at %s; want of kind %d, as its event tells at %s, as its readings tell at %s",
 					wasString(was), onDay(eventSince(a, tt.kind)), tt.kind, onDay(tt.event), onDay(tt.reading))

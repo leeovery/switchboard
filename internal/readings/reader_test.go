@@ -36,16 +36,19 @@ func TestAReadersTailReadsTheHistoryInTheStateDirectoryAsItGrows(t *testing.T) {
 	}
 	start := time.Date(2026, 9, 27, 0, 0, 0, 0, time.Local)
 	from, end := start.AddDate(0, 0, -7), start.AddDate(0, 0, 1)
-	carried, first, gained := workRead(start.Add(-time.Hour), 0.1), workRead(start.Add(time.Hour), 0.2), workRead(start.Add(2*time.Hour), 0.3)
-	writeDay(t, readings.Dir(state), "readings-2026-09-26.jsonl.gz", gzipOf(t, linesOf(t, workRead(start.Add(-2*time.Hour), 0.05), carried)))
+	periodBefore := workRead(start.Add(-3*time.Hour), 0.9)
+	periodBefore.ResetsAt = start.Add(-150 * time.Minute).UTC()
+	runFirst, carried := workRead(start.Add(-2*time.Hour), 0.05), workRead(start.Add(-time.Hour), 0.1)
+	first, gained := workRead(start.Add(time.Hour), 0.2), workRead(start.Add(2*time.Hour), 0.3)
+	writeDay(t, readings.Dir(state), "readings-2026-09-26.jsonl.gz", gzipOf(t, linesOf(t, periodBefore, runFirst, carried)))
 	writeDay(t, readings.Dir(state), "readings-2026-09-27.jsonl", []byte(linesOf(t, first)))
 	read := readings.NewReader(state, logs.For("cli")).Tail(from, start, end)
 
-	if got, want := read(), []readings.Reading{carried, first}; !slices.EqualFunc(got, want, sameReading) {
-		t.Errorf("the first read gave %+v, want %+v: each window's last before the start carried in, then those since", got, want)
+	if got, want := read(), []readings.Reading{runFirst, carried, first}; !slices.EqualFunc(got, want, sameReading) {
+		t.Errorf("the first read gave %+v, want %+v: each window's run before the start carried in, then those since", got, want)
 	}
 	appendDay(t, readings.Dir(state), "readings-2026-09-27.jsonl", linesOf(t, gained))
-	if got, want := read(), []readings.Reading{carried, first, gained}; !slices.EqualFunc(got, want, sameReading) {
+	if got, want := read(), []readings.Reading{runFirst, carried, first, gained}; !slices.EqualFunc(got, want, sameReading) {
 		t.Errorf("once the day's file gained a reading, the read gave %+v, want %+v", got, want)
 	}
 }

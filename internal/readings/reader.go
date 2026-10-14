@@ -29,10 +29,11 @@ func (r *Reader) Between(from, to time.Time) iter.Seq[Reading] {
 }
 
 // Tail returns a read of the readings from start up to end, each window's
-// last from from up to start carried in, as a Day reads them: the first call
-// reads them whole, and each after only what the files gained since.
+// run from from up to start carried in, as CarriedRuns has them, for Runway:
+// the first call reads them whole, and each after only what the files
+// gained since, as a Day reads them.
 func (r *Reader) Tail(from, start, end time.Time) func() []Reading {
-	return NewDay(r.files, from, start, end).Read
+	return newRunsDay(r.files, from, start, end).Read
 }
 
 // FirstDay returns the start of the first local day the history holds

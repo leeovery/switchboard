@@ -21,7 +21,7 @@ type RunwayMoment struct {
 	// is given it, and Now when it's read.
 	Doc status.Document
 	Now time.Time
-	// Readings are the readings history's, oldest first, each window's last
+	// Readings are the readings history's, oldest first, each window's run
 	// before the timeline among them; Days the ledger's summaries of the days
 	// the view shows, oldest first, with any before them it carries in; and
 	// Kept when the first day the readings history holds starts, zero where
@@ -91,17 +91,18 @@ const (
 // failed, and a failed read after an earlier one; a refused token, a refusal
 // lifted early and a family's refusal; a hold with no event, probed, told by
 // the readings alone, and told by neither; a cap outlasting a limit and a
-// refusal; the router not answering for 10 minutes; a pool of one, a pin
-// naming an account at its limit, and one
-// account; stepped back to a day with nothing read, a day older than the
-// readings' keep, today across midnight, a 23- and a 25-hour day and a week
-// across a clock change; a 5-hour window restarted by hand; a cap turning to
-// a limit, and two limits too close; a run-out reaching the cap first; a
-// model's own window at its limit; and the frames' moments.
+// refusal; a hold begun before the span of the readings history the tail
+// reads, and before its keep; the router not answering for 10 minutes; a
+// pool of one, a pin naming an account at its limit, and one account;
+// stepped back to a day with nothing read, a day older than the readings'
+// keep, today across midnight, a 23- and a 25-hour day and a week across a
+// clock change; a 5-hour window restarted by hand; a cap turning to a limit,
+// and two limits too close; a run-out reaching the cap first; a model's own
+// window at its limit; and the frames' moments.
 func RunwayMoments() []RunwayMoment {
 	return slices.Concat(
 		weekResetBeforeRunwayRereads(), justAfterAFiveHourReset(), failedReads(), refusals(), holdsNoEventTells(), holdsEventsTell(), holdsChanging(), holdsAhead(),
-		holdsOutlasted(), routerSilent(), pools(), steppedBack(),
+		holdsOutlasted(), holdsCarriedIn(), routerSilent(), pools(), steppedBack(),
 		[]RunwayMoment{tokenless(), restartedByHand(), capTurningToALimit(), twoLimitsClose(), runOutReachingTheCap(), modelsOwnLimit()},
 		framesMoments(),
 	)
@@ -627,6 +628,76 @@ func holdsOutlasted() []RunwayMoment {
 				FigureResets:    "20 17:00", FigureRoom: "no",
 			},
 		}),
+	}
+}
+
+// holdsCarriedIn are holds begun before the span of the readings history
+// Runway's live tail reads, from Monday 28 September, which carries each in,
+// probed, so no event tells when it began: work's week at its limit from
+// 15:00 on Saturday 26 September, resetting Monday 5 October at 10:00, read
+// every half hour, live in either view and on Tuesday stepped back to; the
+// same limit read once, then again on Sunday at noon, as a restarted
+// router's first read is; and read at it from Tuesday, the first day the
+// readings history holds, its week begun before, with no summary telling
+// when the limit began, and with Saturday's telling it.
+func holdsCarriedIn() []RunwayMoment {
+	saturday := time.Date(2026, 9, 26, 15, 0, 0, 0, time.UTC)
+	sunday := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	tuesday := time.Date(2026, 9, 29, 0, 0, 0, 0, time.UTC)
+	limited := readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.3, onThu(17, 0, 0)), spent(week, 1, mondayTen))
+	doc := probedAt(onThu(14, 41, 0), limited)
+	var halfHourly []readings.Reading
+	for at := saturday.Add(-time.Hour); at.Before(onThu(14, 41, 0)); at = at.Add(30 * time.Minute) {
+		weekRead := spent(week, 1, mondayTen)
+		if at.Before(saturday) {
+			weekRead = window(week, 0.97, mondayTen)
+		}
+		halfHourly = append(halfHourly, readEach(work, at, window(fiveHour, 0.3, at.Add(3*time.Hour)), weekRead)...)
+	}
+	halfHourly = sorted(halfHourly, readEach(work, onThu(14, 41, 0), limited.Windows...), sideRead())
+	restarted := sorted(
+		readEach(work, saturday.Add(-time.Hour), window(week, 0.97, mondayTen)),
+		readEach(work, saturday, spent(week, 1, mondayTen)),
+		readEach(work, sunday, spent(week, 1, mondayTen)),
+		readEach(work, onThu(14, 41, 0), limited.Windows...),
+		sideRead(),
+	)
+	fromTuesday := sorted(
+		readEach(work, tuesday.Add(5*time.Minute), spent(week, 1, mondayTen)),
+		readEach(work, onThu(14, 41, 0), limited.Windows...),
+		sideRead(),
+	)
+	limitedDay := func(day string, limits ...ledger.Limit) ledger.Summary {
+		return ledger.Summary{Version: 2, Day: day, Accounts: []ledger.AccountDay{{Account: work, Highest: map[string]float64{week: 1}, Limits: limits}}}
+	}
+	saturdays := []ledger.Summary{
+		limitedDay("2026-09-26", ledger.Limit{Window: week, At: saturday, ResetsAt: mondayTen}), limitedDay("2026-09-27"), limitedDay("2026-09-28"),
+	}
+	sinceSaturday := map[string]Figures{
+		"":   {FigureDips: "1 Sat 15:00 – Mon 10:00 @0 0-135"},
+		work: {FigureCells: "limited 0-135", FigureStretches: "limited Sat 15:00 – Mon 10:00 @0 0-135"},
+	}
+	weekView := fiveHourAt("a week at its limit since before the live tail, read every half hour, the week view", doc, halfHourly, map[string]Figures{
+		work: {FigureStretches: "limited Sat 15:00 – Mon 10:00, as it resets @0 0-92"},
+	})
+	weekView.Window, weekView.WeekStarts = views.RunwayWeek, time.Monday
+	keptWith := fiveHourAt("a week at its limit since before the readings history's keep, a summary telling when", doc, fromTuesday, sinceSaturday)
+	keptWith.Days, keptWith.Kept = saturdays, tuesday
+	keptWithout := fiveHourAt("a week at its limit since before the readings history's keep", doc, fromTuesday, map[string]Figures{
+		work: {FigureStretches: "limited — – Mon 10:00 @0 0-135"},
+	})
+	keptWithout.Kept = tuesday
+	return []RunwayMoment{
+		fiveHourAt("a week at its limit since before the live tail, read every half hour", doc, halfHourly, sinceSaturday),
+		weekView,
+		{
+			Name: "a week at its limit since before the live tail, read every half hour, Tuesday stepped back to", Doc: doc, Now: thursday,
+			Readings: halfHourly, Day: civilDay(2026, time.September, 29), WeekStarts: time.Monday, Columns: lanes,
+			Want: map[string]Figures{work: {FigureStretches: "limited Sat 15:00 – Mon 10:00 @0 0-135"}},
+		},
+		fiveHourAt("a week at its limit since before the live tail, read again by a restarted router", doc, restarted, sinceSaturday),
+		keptWith,
+		keptWithout,
 	}
 }
 

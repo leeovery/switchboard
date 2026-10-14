@@ -62,9 +62,9 @@ func CountingPrices(r LogRead, priced map[string]int) LogRead {
 // CountingLanes are lanes not yet looked at that count in judged each time
 // a look judges how an account stood at a moment gone, as Then judges it.
 func CountingLanes(judged *int) Lanes {
-	return Lanes{then: func(m status.Moment, a status.AccountNow, read []readings.Reading, told []status.Span, t time.Time) status.Was {
+	return Lanes{then: func(m status.Moment, a status.AccountNow, read []readings.Reading, kept time.Time, told []status.Span, t time.Time) status.Was {
 		*judged++
-		return m.Then(a, read, told, t)
+		return m.Then(a, read, kept, told, t)
 	}}
 }
 

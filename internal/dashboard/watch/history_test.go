@@ -323,12 +323,12 @@ func (f *filedReadings) FirstDay() (time.Time, error) {
 }
 
 // Tail gives a read of the readings held from start up to end, each window's
-// last from from up to start carried in, as readings.Carried has them.
+// run from from up to start carried in, as readings.CarriedRuns has them.
 func (f *filedReadings) Tail(from, start, end time.Time) func() []readings.Reading {
 	f.starts = append(f.starts, start)
 	return func() []readings.Reading {
 		f.tails++
-		return readings.Carried(slices.Values(f.held), from, start, end)
+		return readings.CarriedRuns(slices.Values(f.held), from, start, end)
 	}
 }
 

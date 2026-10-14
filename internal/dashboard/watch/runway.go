@@ -58,7 +58,7 @@ type heldSpan struct {
 }
 
 // readingsSpan is the span of the readings history a tail reads: from start
-// up to end, each window's last from from up to start carried in.
+// up to end, each window's run from from up to start carried in.
 type readingsSpan struct {
 	from, start, end time.Time
 }
@@ -80,29 +80,29 @@ type runwayReadMsg struct {
 	beginning
 }
 
-// carriedFor is how far before a span a tail carries each window's last
-// reading in from, in days: a week, as a summary carries in the week before
-// its day.
+// carriedFor is how far before a span a tail carries each window's run in
+// from, in days: a week, as a summary carries in the week before its day,
+// and as no window runs longer, so a run that holds at the span's start
+// began in it.
 const carriedFor = 7
 
 // liveSpan is the span of the readings history the live tail reads at now,
 // weeks starting on the day given: from the start of the day before now's,
-// or of this week where that's earlier, so the live views, today and this
-// week are each read of it, to a week on from now's day, each window's last
-// from a week before carried in. It moves as the day turns, and the tail is
-// read afresh then, but only what the history gains at each look between.
+// of this week, or of the week's live view, whichever is earliest, so the
+// live views, today and this week are each read of it, to a week on from
+// now's day, each window's run from a week before carried in. The week's
+// live view starts before the day before now's in the hour after the clocks
+// go forward. It moves as the day turns, and the tail is read afresh then,
+// but only what the history gains at each look between.
 func liveSpan(now time.Time, starts time.Weekday) readingsSpan {
-	start := dayfile.DayStart(now, -1)
-	if week := views.WeekStart(now, starts); week.Before(start) {
-		start = week
-	}
+	start := slices.MinFunc([]time.Time{dayfile.DayStart(now, -1), views.WeekStart(now, starts), views.LiveTimeline(views.RunwayWeek, now, 0).Start}, time.Time.Compare)
 	return readingsSpan{from: dayfile.DayStart(start, -carriedFor), start: start, end: dayfile.DayStart(now, 7)}
 }
 
 // spanOf is the span of the readings history the lanes over the timeline tl
 // are judged by, the live tail's span being live: live, where tl starts in
 // it, as the live views, today and this week do; else tl's own, of a day or
-// a week gone, each window's last from a week before it carried in.
+// a week gone, each window's run from a week before it carried in.
 func spanOf(tl views.Timeline, live readingsSpan) readingsSpan {
 	if !tl.Start.Before(live.start) {
 		return live
@@ -249,7 +249,7 @@ func (m Model) runwayBuilt() Model {
 // each name is its highest, and whose resets its summaries give; and of a
 // timeline whose readings reach back before the first day the readings
 // history holds, a day before which is drawn from its summary. Each takes
-// the week before it, as its readings carry each window's last in. It
+// the week before it, as its readings carry each window's run in. It
 // reports false where the lanes want none.
 func (m Model) runwayWants(tl views.Timeline) (first, last time.Time, ok bool) {
 	from := dayfile.DayStart(tl.Start, -carriedFor)
