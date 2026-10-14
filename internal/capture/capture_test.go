@@ -207,13 +207,22 @@ func drawnInTheMachinesZone(t *testing.T, name string, asked []zonedSet) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.now.Location() != time.Local || !f.now.Equal(localMoment()) {
-			t.Errorf("%s, over a world, asked for in %s, is drawn at %s, want the frames' moment in the machine's zone", name, a.zone, f.now)
+		if f.now.Location() != time.Local || !f.now.Equal(framesMoment(name)) {
+			t.Errorf("%s, over a world, asked for in %s, is drawn at %s, want its frame's moment in the machine's zone", name, a.zone, f.now)
 		}
 		if drawn := f.Frame(f.Size); drawn != mine {
 			t.Errorf("%s, over a world, asked for in %s, is drawn\n%s\nwant it as asked for in the machine's zone\n%s", name, a.zone, drawn, mine)
 		}
 	}
+}
+
+// framesMoment is the moment the frame with the given stem is drawn at, in
+// the machine's zone: the frames', but where a page's later look has its own.
+func framesMoment(stem string) time.Time {
+	if i := slices.IndexFunc(pages, func(p page) bool { return p.name == stem && p.looked != nil }); i >= 0 {
+		return localMoment().Add(pages[i].looked.after)
+	}
+	return localMoment()
 }
 
 func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {

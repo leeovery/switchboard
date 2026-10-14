@@ -24,8 +24,6 @@ const referenceDir = "../../testdata/vhs/reference"
 // from here; by stage 14 none is owed.
 var owed = []string{
 	"runway-5-hour-160", "runway-phone-52", "runway-stepped-back-160", "runway-ten-accounts-160", "runway-week-160",
-	"sessions-list-160", "sessions-list-phone-52", "sessions-moved-160", "sessions-one-account-160", "sessions-phone-52",
-	"sessions-pinned-160", "sessions-refused-160", "sessions-switchboard-160", "sessions-ten-accounts-160",
 }
 
 // passing is cells a frame drew otherwise than the design says, or than its
@@ -684,6 +682,38 @@ var d28cPage = slices.Concat(fromTheLog(1, 16, 68), []passing{
 // 11:55:00 where its first request came at 11:55:31.
 var quietPage = slices.Concat(fromTheLog(1, 16, 68), []passing{wordsAt(7, 41, ": sticky"), wordsAt(7, 155, "2h 47m")})
 
+// enterLit and enterOpenLit pass over enter on Sessions' key line, wide and
+// on a phone, which the frames draw lit, bold accent.key, where nothing is
+// chosen, so the dashboard draws it faint, as a key that can't act now.
+var (
+	enterLit     = wordsAt(37, 37, "enter its page")
+	enterOpenLit = wordsAt(33, 14, "enter open")
+)
+
+// atTheLimit passes over what the frames at personal's limit, at 16:05:41
+// and 16:05:42, draw as at 14:42:07: each Fable week's allowance, rows 12,
+// 20 and 28, a percent a day less than the world's at 16:05; personal's week
+// running out ~Sat 06:00, row 18, where its world, read no more since 14:20,
+// has it run out ~Sun 00:48 at its rate by then; and side's week's
+// allowance, where it runs out.
+var atTheLimit = []passing{
+	cellsOf(12, 138, 139, "25"), cellsOf(20, 138, 139, "40"), cellsOf(28, 138, 139, "25"),
+	wordsAt(18, 138, "out ~Sat 06:00"), cellsOf(26, 138, 158, sidesWeek),
+}
+
+// c61bsFifth passes over c61b's requests on the List, on row n, at column
+// requests, and its worth, from column worth, where it has a column for it,
+// none on a phone: the frames count its fifth request, its answer
+// streaming, which the ledger writes as it ends, and price it $0.29, where
+// the world's lines give 4 and $0.22.
+func c61bsFifth(n, requests, worth int) []passing {
+	passings := []passing{wordsAt(n, requests, "5")}
+	if worth > 0 {
+		passings = append(passings, wordsAt(n, worth, "$0.29"))
+	}
+	return passings
+}
+
 // passedOver is, by stem, the rows and cells each frame drew otherwise than
 // the design says, or than its world gives, which testdata/vhs/README.md
 // lists, with what the dashboard draws in their place.
@@ -1020,8 +1050,27 @@ var passedOver = map[string][]passing{
 		},
 		d28cPhoneStory,
 	),
-	"sessions-one-account-160": {wholeRow(37, "tab views   [ ] view    ↑↓ session  enter its page    p pin")},
-	"runway-phone-52":          {wholeRow(33, "< > window   ←→ day   ? keys")},
+	"sessions-switchboard-160": {evenPace(24, 104), cellsOf(26, 138, 158, sidesWeek), enterLit},
+	"sessions-list-160": slices.Concat(c61bsFifth(13, 80, 85), []passing{
+		cellsOf(22, 92, 126, "from personal, at its limit  $0.61"), wordsAt(36, 123, "1,240"), wordsAt(36, 140, "$126.02"), enterLit,
+	}),
+	"sessions-phone-52": {enterOpenLit},
+	"sessions-list-phone-52": slices.Concat(c61bsFifth(14, 52, 0), []passing{
+		wordsAt(31, 39, "1,240"), wordsAt(32, 32, "$126.02"), enterOpenLit,
+	}),
+	"sessions-refused-160": slices.Concat(atTheLimit, []passing{enterLit}),
+	"sessions-moved-160":   slices.Concat(atTheLimit, []passing{wordsAt(13, 32, "▸ from personal"), enterLit}),
+	"sessions-pinned-160":  {cellsOf(16, 119, 123, "┃"), evenPace(24, 104), cellsOf(26, 138, 158, sidesWeek), enterLit},
+	"sessions-ten-accounts-160": {
+		cellsOf(15, 104, 160, "● open"), cellsOf(16, 145, 147, "┃"), cellsOf(19, 140, 141, "┃"),
+		cellsOf(21, 111, 113, "┃"), cellsOf(21, 144, 145, "┃"), cellsOf(23, 114, 117, "┃"), cellsOf(23, 147, 149, "┃"),
+		cellsOf(27, 101, 102, "┃"), cellsOf(29, 111, 114, "┃"), cellsOf(29, 142, 148, "┃"), enterLit,
+	},
+	"sessions-one-account-160": {
+		cellsOf(7, 94, 96, "▲"), cellsOf(16, 110, 144, "▲ new sessions go here"),
+		wholeRow(37, "tab views   [ ] view    ↑↓ session  enter its page    p pin"),
+	},
+	"runway-phone-52": {wholeRow(33, "< > window   ←→ day   ? keys")},
 }
 
 func TestReferenceKeepsEachFrameAsTextANSIAndPNG(t *testing.T) {
@@ -1124,13 +1173,9 @@ type partial struct {
 	area area
 }
 
-// The areas the page is held to: the chrome, the title row and the status
-// line, the design's rows 0 to 3, or 0 to 4 on a phone, whose tabs take a
-// row of their own.
-var (
-	chrome      = area{top: 1, bottom: 4}
-	phoneChrome = area{top: 1, bottom: 5}
-)
+// chrome is the area the page is held to: the title row and the status
+// line, the design's rows 0 to 3.
+var chrome = area{top: 1, bottom: 4}
 
 // heldTabbed is the page over the auto world, tab pressed the times given,
 // held over the area given.
@@ -1140,12 +1185,10 @@ func heldTabbed(tabs int, within area) partial {
 }
 
 // holds are, by stem, the frames the page is held to in part until their
-// fixtures draw them whole: the chrome of a frame of each tab but the
-// Overview's, and of Sessions on a phone.
+// fixtures draw them whole: the chrome of Runway's, the last tab no fixture
+// draws.
 var holds = map[string]partial{
-	"sessions-switchboard-160": heldTabbed(3, chrome),
-	"runway-5-hour-160":        heldTabbed(4, chrome),
-	"sessions-phone-52":        heldTabbed(3, phoneChrome),
+	"runway-5-hour-160": heldTabbed(4, chrome),
 }
 
 func TestThePageDrawsWhatItHoldsOfAFrameCellForCell(t *testing.T) {

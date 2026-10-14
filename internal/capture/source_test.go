@@ -354,6 +354,46 @@ func movedAndSentAgain(now time.Time) source {
 	return threeAccounts(now).telling(d28cOnWork.told(router.StreamSent, ago(now, 1300*time.Millisecond)), limited, moved, again)
 }
 
+// A source that turns stands as it did until its time, then as the next
+// does, read by the same clock: its document and its sessions the next's,
+// and its stream, first opened after the turn, telling all the next's,
+// though the watch opened it before, which a later look's fixture needs to
+// time what travels its cords.
+func TestASourceThatTurnsStandsAsTheNextFromItsTime(t *testing.T) {
+	now := moment(time.UTC)
+	next := movedAndSentAgain(now)
+	next.doc.Best = "personal"
+	clock := ago(now, time.Minute)
+	s := threeAccounts(now).then(now, next).by(func() time.Time { return clock })
+	look := func() (string, int, []router.StreamEvent) {
+		doc, _, err := s.Read(t.Context(), status.Read{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		listed, err := s.Sessions(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		events, err := s.Stream(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		told := make([]router.StreamEvent, 0, len(events))
+		for range len(events) {
+			told = append(told, <-events)
+		}
+		return doc.Best, len(listed), told
+	}
+	before := threeAccounts(now)
+	if best, listed, told := look(); best != before.doc.Best || listed != len(before.sessions) || len(told) != len(before.stream) {
+		t.Errorf("before its time, the source gives best %q, %d sessions and %d events, want its own", best, listed, len(told))
+	}
+	clock = now
+	if best, listed, told := look(); best != "personal" || listed != len(next.sessions) || !reflect.DeepEqual(told, next.stream) {
+		t.Errorf("from its time, the source gives best %q, %d sessions and the stream %+v, want the next's whole, %+v", best, listed, told, next.stream)
+	}
+}
+
 // A watch joining the stream again, as it does when it shows a view that
 // reads it after one that didn't, is told only what's still in flight, each
 // request as it stands, never what befell it before again, as a router tells
