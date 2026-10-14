@@ -181,11 +181,11 @@ type logPlace struct {
 // with the columns shown at first, routing is cut to the room left under
 // 158 columns, to its least at 152; under that it folds into stopped, and
 // first, read, written and out leave, each where stopped, run to the last
-// column, would have fewer than its 27 cells. Under 100, a phone's columns
-// are at a phone's places, those ticked, and stopped, or routing alone,
-// runs from 37 to the last column, as logSpread has them.
+// column, would have fewer than its 27 cells. On a phone, as Phone tells
+// one, the columns are at a phone's places, those ticked, and stopped, or
+// routing alone, runs from 37 to the last column, as logSpread has them.
 func logColumns(width int, ticked LogTicks) logLayout {
-	if width < phoneUnder {
+	if Phone(width) {
 		return logSpread.phoned(width, ticked)
 	}
 	return logSpread.wide(width, ticked)
