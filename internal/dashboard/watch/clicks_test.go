@@ -359,9 +359,10 @@ func pickerOpened(t *testing.T, h *harness, keys string) *fakeThemes {
 // page opened or closed, and the Overview's focus and what Accounts shows
 // where they were. On the Log, two clicks on a line, which choose it and
 // open its details as enter does, neither choose it nor open them; on
-// Accounts, two on Compare's focused column, or on Detail's selected
-// session, which open them, open neither. No < or > by a period lies left of
-// the picker.
+// Accounts, two on any of its targets, its sub-tabs, Compare's columns, or
+// Detail's accounts and sessions, which focus, choose and select what they
+// land on, and open it the second time, do none of it. No < or > by a period
+// lies left of the picker.
 func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 	onPage := func(keys string) func(*testing.T) (*harness, *fakeThemes) {
 		return func(t *testing.T) (*harness, *fakeThemes) {
@@ -413,9 +414,29 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 		{name: "a turn's row", opened: onPage(""), target: is(dashboard.OnTurn, func(t dashboard.Target) bool { return t.Turn == 2 })},
 		{name: "a request's row of the turn open", opened: onPage("enter"), target: is(dashboard.OnRequest, func(t dashboard.Target) bool { return t.Row == 1 })},
 		{
+			name:   "a sub-tab of Accounts'",
+			opened: onAccounts(dashboard.AccountsShown{}),
+			target: is(dashboard.OnSubTab, func(t dashboard.Target) bool { return t.SubTab == int(dashboard.AccountsDetail) }),
+		},
+		{
+			name:   "a column of Compare's",
+			opened: onAccounts(dashboard.AccountsShown{}),
+			target: is(dashboard.OnColumn, func(t dashboard.Target) bool { return t.Account == "personal" }),
+		},
+		{
 			name:   "Compare's focused column",
 			opened: onAccounts(dashboard.AccountsShown{Focused: true, Focus: "personal"}),
 			target: is(dashboard.OnColumn, func(t dashboard.Target) bool { return t.Account == "personal" }),
+		},
+		{
+			name:   "an account of Detail's list",
+			opened: onAccounts(dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"}),
+			target: is(dashboard.OnAccount, func(t dashboard.Target) bool { return t.Account == "personal" }),
+		},
+		{
+			name:   "a session of Detail's SESSIONS",
+			opened: onAccounts(dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"}),
+			target: is(dashboard.OnSession, func(t dashboard.Target) bool { return t.Session == id7F3A }),
 		},
 		{
 			name:   "Detail's selected session",
