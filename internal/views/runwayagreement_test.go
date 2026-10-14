@@ -17,11 +17,11 @@ import (
 // moment, in either view, and at every moment Runway has to get right that
 // holds now: now's column stands as the moment has the account stand; the
 // use under a name, live, is its view's window's, as usage has it; the
-// pool's lane counts the moment's pool; COMING UP lists what the moment
-// does, in its order; a stretch holding now ends where the moment has room
-// return, or, where a window runs out before then, as it resets, the run-out
-// carrying the hold on; and a run-out's starts where its window runs out, as
-// usage's out ~ has it.
+// pool's lane counts the moment's pool, its room of the view's window;
+// COMING UP lists what the moment does, in its order; a stretch holding now
+// ends where the moment has room return, or, where a window runs out before
+// then, as it resets, the run-out carrying the hold on; and a run-out's
+// starts where its window runs out, as usage's out ~ has it.
 func TestRunwaysLanesAgreeWithTheMoment(t *testing.T) {
 	for _, c := range agreementCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -46,6 +46,9 @@ func TestRunwaysLanesAgreeWithTheMoment(t *testing.T) {
 			}
 			if want := poolOf(m); l.Pool.Of != want {
 				t.Errorf("the pool is of %d, want %d", l.Pool.Of, want)
+			}
+			if want := viewKeys[c.from.Window]; l.Pool.Of > 0 && l.Pool.Key != want {
+				t.Errorf("the pool's room is of the window %q, want %q, the view's", l.Pool.Key, want)
 			}
 			if coming := views.RunwayComing(m, c.from.Window); !inOrderAmong(coming, m.ComingUp) {
 				t.Errorf("COMING UP lists %v, not in order among the moment's %v", coming, m.ComingUp)
