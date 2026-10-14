@@ -144,7 +144,7 @@ var (
 		"views.HeldList.Awaited", "views.HeldList.Found", "views.HeldList.List", "views.HeldList.Take", "views.HeldList.Unfound",
 		"views.HeldList.Unread", "views.HoldList", "views.Lanes.Look", "views.ListSessions", "views.LogEvents", "views.LogRead.Grown",
 		"views.LogRows", "views.LogSessions", "views.Patch", "views.ReadEvents", "views.ReadList", "views.ReadLogHeld",
-		"views.StubsOf", "views.Today", "views.TotalsOn",
+		"views.RunwayReadings", "views.StubsOf", "views.Today", "views.TotalsOn",
 	}
 )
 
