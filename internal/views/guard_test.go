@@ -474,45 +474,53 @@ func drawingBreaches(t *testing.T, root, module string, dirs, allowed, calls, bu
 		Entries: allowed, List: "readersAllowed", Fix: allowedFix,
 		Calls: "callsAllowed", Callers: "drawing package", CallFix: allowedCallFix,
 	})
-	return append(problems, builtGone(t, root, module, built)...)
+	return append(problems, builtGone(t, root, module, built, "builtInTheWatch", builtFix)...)
 }
 
 // builtGone are how each of built, as Names names a function, that views, of
-// the module at root with the given path, doesn't declare breaks the rule.
-func builtGone(t *testing.T, root, module string, built []string) []string {
+// the module at root with the given path, doesn't declare breaks the rule,
+// as the list named bans it, fixed as fix says.
+func builtGone(t *testing.T, root, module string, built []string, list, fix string) []string {
 	t.Helper()
-	views, err := sourcecheck.NewLoader(t, root, module, nil).Import(module + "/internal/views")
-	if err != nil {
-		t.Fatal(err)
-	}
+	views := imported(t, root, module, "views")
 	var gone []string
 	for _, name := range built {
-		if !declares(views, name) {
-			gone = append(gone, name+": builtInTheWatch bans it, but views declares no such function; "+builtFix)
+		if _, ok := lookup(views, name).(*types.Func); !ok {
+			gone = append(gone, name+": "+list+" bans it, but views declares no such function; "+fix)
 		}
 	}
 	return gone
 }
 
-// declares reports whether views declares the function named, as Names names
-// it: "views.LogRows", or, of a method, "views.LogRead.Grown".
-func declares(views *types.Package, name string) bool {
-	fn, ok := strings.CutPrefix(name, views.Name()+".")
+// imported is the package by its path under the internal directory of the
+// module at root with the given path, type-checked from its source.
+func imported(t *testing.T, root, module, pkg string) *types.Package {
+	t.Helper()
+	imported, err := sourcecheck.NewLoader(t, root, module, nil).Import(module + "/internal/" + pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return imported
+}
+
+// lookup is what pkg declares by the name given, as Names names it:
+// "views.LogRows", or, of a method or a field, "views.LogRead.Grown"; nil
+// where it declares none.
+func lookup(pkg *types.Package, name string) types.Object {
+	declared, ok := strings.CutPrefix(name, pkg.Name()+".")
 	if !ok {
-		return false
+		return nil
 	}
-	typ, method, isMethod := strings.Cut(fn, ".")
-	if !isMethod {
-		_, ok := views.Scope().Lookup(fn).(*types.Func)
-		return ok
+	typ, member, isMember := strings.Cut(declared, ".")
+	if !isMember {
+		return pkg.Scope().Lookup(declared)
 	}
-	named, ok := views.Scope().Lookup(typ).(*types.TypeName)
+	named, ok := pkg.Scope().Lookup(typ).(*types.TypeName)
 	if !ok {
-		return false
+		return nil
 	}
-	found, _, _ := types.LookupFieldOrMethod(named.Type(), true, views, method)
-	_, ok = found.(*types.Func)
-	return ok
+	found, _, _ := types.LookupFieldOrMethod(named.Type(), true, pkg, member)
+	return found
 }
 
 // drawingRule is the views' rule, of the module with the given path, the
