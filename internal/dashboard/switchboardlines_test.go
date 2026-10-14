@@ -151,6 +151,37 @@ func TestTheBarsEasedAreTheLinesBarsAtTheirStep(t *testing.T) {
 	}
 }
 
+// On a line of one row, the pin's mark ends the row where it clears the
+// percentage before it, and is left out where it doesn't: the meter is never
+// drawn over. At 120 columns, both marks show.
+func TestThePinsMarkNeverDrawsOverALinesMeter(t *testing.T) {
+	doc := pinnedWorld()
+	marks := map[string]string{"personal": "● pinned", "side": "● pinned", "work": "✕ out of the pool"}
+	for width := 100; width <= 120; width++ {
+		for height := 15; height <= 20; height++ {
+			f := boardFrame(width, height, Look{}, boardOf(boardLook{calls: pinnedCalls()}), Traffic{})
+			laid := f.switchboardLaid(doc, routedAt)
+			if laid.lanes || laid.step < 4 {
+				continue
+			}
+			d := f.linesDrawn(f.Moment(doc, routedAt), laid)
+			c := f.page(doc, routedAt)
+			for _, ln := range laid.lines {
+				y, at := f.top()+ln.top, d.x()+d.column+oneRowBar+1
+				if got := textFrom(c, at, at+percentCells, y); !strings.HasSuffix(got, "%") {
+					t.Errorf("at %d×%d, %s's percentage reads %q, want it whole", width, height, ln.account, got)
+				}
+				row := rowOf(c, y)
+				if shown := strings.HasSuffix(row, marks[ln.account]); !shown && (strings.Contains(row, "pinned") || strings.Contains(row, "✕")) {
+					t.Errorf("at %d×%d, %s's row reads %q, want its mark whole at its end, or none", width, height, ln.account, row)
+				} else if width == 120 && !shown {
+					t.Errorf("at %d×%d, %s's row reads %q, want it to end %q", width, height, ln.account, row, marks[ln.account])
+				}
+			}
+		}
+	}
+}
+
 // moreAccounts counts n more accounts, as a line saying what's out of view
 // counts them.
 func moreAccounts(n int) string {
