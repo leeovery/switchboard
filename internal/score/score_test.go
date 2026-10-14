@@ -2,6 +2,7 @@ package score_test
 
 import (
 	"math"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -88,6 +89,33 @@ func TestAWindowARequestStartsLapsesAtItsReset(t *testing.T) {
 				t.Errorf("the windows read became\n%+v\nwant them as they were\n%+v", tt.windows, read)
 			}
 		})
+	}
+}
+
+// A policy is another where any of its parts names another window, or none:
+// each of its fields, as reflect finds them, so one added is held too.
+func TestAPolicyIsAnotherWhereAnyPartDiffers(t *testing.T) {
+	if !policy.Equal(policy) || !policy.Equal(score.Policy{Shared: slices.Clone(policy.Shared), Perishable: "7d", Tiebreak: "5h", Started: "5h", Pressure: "5h"}) {
+		t.Fatal("a policy isn't itself, or one naming the same windows")
+	}
+	if (score.Policy{}).Equal(policy) || !(score.Policy{}).Equal(score.Policy{}) {
+		t.Error("the zero policy is the policy, or isn't itself")
+	}
+	fields := reflect.TypeFor[score.Policy]().NumField()
+	for i := range fields {
+		other := policy
+		other.Shared = slices.Clone(policy.Shared)
+		switch f := reflect.ValueOf(&other).Elem().Field(i); f.Kind() {
+		case reflect.String:
+			f.SetString(f.String() + "_oi")
+		case reflect.Slice:
+			f.Set(reflect.ValueOf([]string{"7d", "5h"}))
+		default:
+			t.Fatalf("%s is a %s, which this test can't change", reflect.TypeFor[score.Policy]().Field(i).Name, f.Kind())
+		}
+		if policy.Equal(other) || other.Equal(policy) {
+			t.Errorf("a policy whose %s differs is the policy", reflect.TypeFor[score.Policy]().Field(i).Name)
+		}
 	}
 }
 

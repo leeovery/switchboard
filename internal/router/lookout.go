@@ -45,10 +45,10 @@ func (l *lookout) look(accounts standings) []notify.Notice {
 	var due []notify.Notice
 	for _, s := range accounts {
 		if _, again := l.short.roomAgain(s); again && l.room {
-			due = append(due, notify.RoomAgain(s.Account))
+			due = append(due, notify.RoomAgain(s.ID, s.Title()))
 		}
 		for _, w := range l.passed(s) {
-			due = append(due, notify.Warning(s.Account, w))
+			due = append(due, notify.Warning(s.ID, s.Title(), w.Label, w.Utilization))
 		}
 	}
 	return due

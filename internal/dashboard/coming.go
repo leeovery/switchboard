@@ -3,7 +3,6 @@ package dashboard
 import (
 	"time"
 
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -58,28 +57,30 @@ type happening struct {
 	runsOut bool
 }
 
-// upcoming are the things coming up after now, as doc's COMING UP lists
-// them, in its order, soonest first, each as happening says it, its account
-// named as the Overview names it, and its windows as windowNamer names them.
+// upcoming are the things coming up after now, as the moment of doc at now
+// has them, in their order, soonest first, each as happening says it, its
+// account named as the Overview names it, and its windows as windowNamer
+// names them.
 func (f Frame) upcoming(doc status.Document, now time.Time) []happening {
-	t := comingTeller{doc: doc, names: overviewNames(doc, f.pool(doc, now)), window: f.windowNamer(doc), policy: f.Policy}
+	m := f.Moment(doc, now)
+	t := comingTeller{moment: m, names: overviewNames(m), window: f.windowNamer(m)}
 	var all []happening
-	for _, u := range doc.ComingUp {
-		if h, ok := t.happening(u); ok && h.at.After(now) {
+	for _, u := range m.ComingUp {
+		if h, ok := t.happening(u); ok {
 			all = append(all, h)
 		}
 	}
 	return all
 }
 
-// comingTeller tells of doc's things coming up, as COMING UP says them: its
-// accounts named as names, overviewNames' of doc, have them; its windows as
-// window names them; and the window a request starts as policy says.
+// comingTeller tells of the things coming up of a document at a moment, as
+// COMING UP says them: its accounts named as names, overviewNames' of the
+// moment, have them; its windows as window names them; and the window a
+// request starts as the policy the moment was judged by says.
 type comingTeller struct {
-	doc    status.Document
+	moment status.Moment
 	names  []accountName
 	window func(key string) string
-	policy score.Policy
 }
 
 // happening is what doc's COMING UP says comes of u: its account back from
@@ -89,7 +90,7 @@ type comingTeller struct {
 // "'s 5-hour resets"; or its being primed. It reports false for a kind it
 // doesn't tell of, as one from a later router.
 func (t comingTeller) happening(u status.Upcoming) (happening, bool) {
-	h := happening{at: u.At, name: overviewNamed(t.doc, t.names, u.Account, titleInk)}
+	h := happening{at: u.At, name: overviewNamed(t.moment, t.names, u.Account, titleInk)}
 	switch u.Kind {
 	case status.UpcomingBack:
 		h.what = " back from its " + t.holder(u)
@@ -129,7 +130,7 @@ func (t comingTeller) runningOut(u status.Upcoming) string {
 	if u.Cap {
 		what = " reaches its cap"
 	}
-	if u.Window == t.policy.Started {
+	if u.Window == t.moment.Policy().Started {
 		return what
 	}
 	return "'s " + t.windowOf(u.Window) + what
@@ -143,10 +144,9 @@ func (t comingTeller) windowOf(key string) string {
 }
 
 // limited reports whether a limit holds the account back from every request
-// at now, as Held says.
-func limited(a status.Account, now time.Time, policy score.Policy) bool {
-	held, ok := a.Held(now, policy)
-	return ok && held.Every
+// as it stands, as its Hold says.
+func limited(a status.AccountNow) bool {
+	return a.Held && a.Hold.Every
 }
 
 // comingLines draws as many of the things coming up as body has rows for,

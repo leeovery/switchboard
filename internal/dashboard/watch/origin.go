@@ -13,10 +13,10 @@ type origin struct {
 	router router.Health
 }
 
-// originOf is where doc came from, read from the router whose health check
-// said from, or by probing.
-func originOf(doc status.Document, from router.Health) origin {
-	return origin{read: true, routed: routed(doc), router: from}
+// originOf is where the document look is a moment of came from, read from the
+// router whose health check said from, or by probing.
+func originOf(look status.Moment, from router.Health) origin {
+	return origin{read: true, routed: look.Routed, router: from}
 }
 
 // follows reports whether a look from o follows on from one from was, what

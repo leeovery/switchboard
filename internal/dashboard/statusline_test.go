@@ -1,11 +1,13 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 )
 
 // routed is the healthy router's document of work, personal and side, each
@@ -107,7 +109,7 @@ func TestTheStatusLineSaysHowTheRouterStands(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := newStatusLine(tt.doc).fit(200).plain(); got != tt.want {
+			if got := newStatusLine(tt.doc.At(printNow, printPolicy)).fit(200).plain(); got != tt.want {
 				t.Errorf("the status line reads %q, want %q", got, tt.want)
 			}
 		})
@@ -152,7 +154,7 @@ func TestTheStatusLineSaysItInItsInks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := inkOf(newStatusLine(tt.doc).fit(200), tt.text)
+			got, ok := inkOf(newStatusLine(tt.doc.At(printNow, printPolicy)).fit(200), tt.text)
 			if !ok || got != tt.want {
 				t.Errorf("%q is drawn in %+v (found: %t), want %+v", tt.text, got, ok, tt.want)
 			}
@@ -191,7 +193,7 @@ func TestTheStatusLineShortensAsAPhonesDoes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := newStatusLine(tt.doc).fit(tt.width).plain(); got != tt.want {
+			if got := newStatusLine(tt.doc.At(printNow, printPolicy)).fit(tt.width).plain(); got != tt.want {
 				t.Errorf("in %d cells, the status line reads %q, want %q", tt.width, got, tt.want)
 			}
 		})
@@ -259,7 +261,7 @@ func TestThePagesStatusLine(t *testing.T) {
 			}
 		})
 	}
-	if got := newStatusLine(routed()).fit(200).plain(); strings.Contains(got, "auto") {
+	if got := newStatusLine(routed().At(printNow, printPolicy)).fit(200).plain(); strings.Contains(got, "auto") {
 		t.Errorf("the printout's status line reads %q, want auto said on the page alone", got)
 	}
 }
@@ -332,5 +334,36 @@ func TestTheStatusLineIsOnItsRowFromTheFirstColumn(t *testing.T) {
 		if got := textOf(f.Draw(routed(), printNow))[tt.row]; !strings.HasPrefix(got, "● healthy") {
 			t.Errorf("at %d columns, row %d reads %q, want the status line from its first column", tt.width, tt.row+1, got)
 		}
+	}
+}
+
+// The page's status line says where new sessions go as the moment's Next has
+// it, at each of the hard moments, which USAGE's ▲ marks: the router's says
+// the account it names, or that none has room, or, of several accounts none
+// of which is read, that nothing is; a probed document's says nothing of it,
+// and is the probed line.
+func TestTheStatusLineAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
+	for _, hm := range statustest.HardMoments(claudeLike) {
+		t.Run(hm.Name, func(t *testing.T) {
+			f := Frame{Width: 200, Height: 8, Policy: claudeLike}
+			m := f.Moment(hm.Doc, hm.Now)
+			s := f.pageStatus(hm.Doc, hm.Now)
+			var want string
+			switch {
+			case m.Probed:
+				if got := s.state.plain(); !strings.HasPrefix(got, "○ probed") {
+					t.Errorf("the status line's state reads %q, want the probed line", got)
+				}
+			case len(m.Accounts) > 1 && !slices.ContainsFunc(m.Accounts, func(a status.AccountNow) bool { return a.Read }):
+				want = "nothing read yet"
+			case m.Next == "":
+				want = "no account has room"
+			default:
+				want = "▲ " + named(m, m.Next)
+			}
+			if got := s.destination.plain(); got != want {
+				t.Errorf("the status line says new sessions go to %q, want %q, as the moment's Next is %q", got, want, m.Next)
+			}
+		})
 	}
 }

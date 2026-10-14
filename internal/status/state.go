@@ -39,9 +39,9 @@ const (
 	Open
 )
 
-// Near is how close a window comes to where an account runs out before it's
+// near is how close a window comes to where an account runs out before it's
 // said to near it: within 10 points, as a week nears its reserve.
-const Near = 0.1
+const near = 0.1
 
 // State is what an account's card says of it: its condition, and its words,
 // what holds it back or what it's doing, then, where there's more to say,
@@ -69,48 +69,48 @@ func dotted(parts ...string) string {
 // Condition's order of precedence: without a usable token, how to give it
 // one; a limit, or a refusal, holding it back, and until when, as heldBack
 // says, even where its last read failed; that its usage couldn't be read, or
-// hasn't been, as Unread says; its reserve, as reservedState says; that it's
+// hasn't been, as unread says; its reserve, as reservedState says; that it's
 // under pressure at now, as underPressure judges it, and whether new
-// sessions go elsewhere, else when it runs out, as RunsOut has it; that it's
+// sessions go elsewhere, else when it runs out, as runOutOf has it; that it's
 // idle at now, as idleAt judges it, and when a prime starts it, where the
 // router says; and last that it's open, its week nearing its reserve, or new
 // sessions coming here. Words from elsewhere show cleaned, and times as Dated
 // shows them.
 func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
-	if tokenless, ok := a.NoToken(); ok {
+	if tokenless, ok := a.noToken(); ok {
 		return tokenless
 	}
 	if held, ok := d.heldBack(a, now, policy); ok {
 		return held
 	}
-	if unread, ok := a.Unread(); ok {
+	if unread, ok := a.unread(); ok {
 		return unread
 	}
-	if reserved := d.Reserved(a, now); reserved != "" {
+	if reserved := d.reservedOf(a, now); reserved != "" {
 		return d.reservedState(a, reserved, now, policy)
 	}
 	if a.underPressure(now) {
 		return d.pressed(a, now)
 	}
 	if a.idleAt(now, policy) {
-		return State{Condition: Idle, Says: "idle", Then: d.StartsAt(a.ID, now)}
+		return State{Condition: Idle, Says: "idle", Then: d.startsAt(a.ID, now)}
 	}
 	return d.open(a, now)
 }
 
-// NoToken is the state of account a without a usable token, reporting false
+// noToken is the state of account a without a usable token, reporting false
 // where it has one: how to give it one.
-func (a Account) NoToken() (State, bool) {
+func (a Account) noToken() (State, bool) {
 	if a.TokenSet {
 		return State{}, false
 	}
 	return State{Condition: Tokenless, Says: "no token", Then: "switchboard accounts token " + Clean(a.ID)}, true
 }
 
-// Unread is the state of account a while its usage isn't read, reporting
+// unread is the state of account a while its usage isn't read, reporting
 // false once it is: why its last read failed, whatever was read of it
 // before; else that nothing has been read of it yet.
-func (a Account) Unread() (State, bool) {
+func (a Account) unread() (State, bool) {
 	switch {
 	case a.Error != "":
 		return State{Condition: Unreadable, Says: "can't read it", Then: Clean(a.Error)}, true
@@ -128,8 +128,8 @@ func (a Account) Unread() (State, bool) {
 // reserve that holds the account back, which holds back the rest too, and is
 // said as reservedState says it.
 func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State, bool) {
-	held, limited := a.Held(now, policy)
-	refused := a.Refused.Holds(now)
+	held, limited := a.held(now, policy)
+	refused := a.Refused.holds(now)
 	switch {
 	case limited && held.Every:
 		then := back(now, held.Until)
@@ -139,8 +139,8 @@ func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State
 		return State{Condition: Limited, Says: "limit reached", Then: then}, true
 	case refused && a.Refused.Family == "":
 		return State{Condition: Limited, Says: a.Refused.Answer(), Then: "until " + Dated(now, a.Refused.Until)}, true
-	case (limited || refused) && d.CapHolds(a, now, policy):
-		return d.reservedState(a, d.Reserved(a, now), now, policy), true
+	case (limited || refused) && d.capHolds(a, now, policy):
+		return d.reservedState(a, d.reservedOf(a, now), now, policy), true
 	case limited:
 		says := Short(a.label(held.Windows[0])) + " limit"
 		return State{Condition: PartlyLimited, Says: says, Then: dotted(back(now, held.Until), stillComes)}, true
@@ -155,14 +155,14 @@ func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State
 const stillComes = "other models still come here"
 
 // reservedState is the state of account a at its reserve at now, as
-// Reserved says it: held back from every request where a window every model
+// reservedOf says it: held back from every request where a window every model
 // shares has reached it, or spending it, the global pin naming the account;
 // else from some models' requests alone, their own window naming them, which
 // says other models still come here, as in "Fable wk at its reserve (90%) ·
 // other models still come here".
 func (d Document) reservedState(a Account, reserved string, now time.Time, policy score.Policy) State {
 	s := State{Condition: Reserved, Says: reserved}
-	keys := a.ReachedReserve(now)
+	keys := a.reachedReserve(now)
 	if d.Pin.Has(a.ID) || slices.ContainsFunc(keys, policy.IsShared) {
 		return s
 	}
@@ -170,21 +170,21 @@ func (d Document) reservedState(a Account, reserved string, now time.Time, polic
 	return s
 }
 
-// ReachedReserve are the keys of account a's windows that have reached its
+// reachedReserve are the keys of account a's windows that have reached its
 // reserve at now, in Usage's order, as the router judges them afresh at each
 // request: a window that has reset by now is none of them, though it isn't
 // read again till later. Whatever says whether its cap holds judges it so, on
 // the clock's tick, rather than as AtReserve noted it when the document was
 // built.
-func (a Account) ReachedReserve(now time.Time) []string {
+func (a Account) reachedReserve(now time.Time) []string {
 	return score.AtReserve(a.Windows, a.Reserve, now)
 }
 
-// CapHolds reports whether doc's account a's cap holds it back from every
+// capHolds reports whether doc's account a's cap holds it back from every
 // request at now: a window every model shares, as policy says, has reached
-// its reserve, as ReachedReserve judges, and the global pin doesn't spend it.
-func (d Document) CapHolds(a Account, now time.Time, policy score.Policy) bool {
-	return d.ReserveHolds(a) && slices.ContainsFunc(a.ReachedReserve(now), policy.IsShared)
+// its reserve, as reachedReserve judges, and the global pin doesn't spend it.
+func (d Document) capHolds(a Account, now time.Time, policy score.Policy) bool {
+	return d.reserveHolds(a) && slices.ContainsFunc(a.reachedReserve(now), policy.IsShared)
 }
 
 // back says when an account held back at now has room again, at t, as in
@@ -237,16 +237,16 @@ func (h Hold) Lifts(key string) time.Time {
 	}
 }
 
-// Held returns what holds the account back at its limit at now, as policy
+// held returns what holds the account back at its limit at now, as policy
 // says which windows every model shares, reporting false where nothing does:
 // the limit the router saw it reach, while it holds, and every window read
 // spent, until it resets, as probing reads them, those every model shares
 // first. It's back once the last of what holds it back has lifted, as the
 // router reckons it: of what holds back every request, where it's held back
 // from every request.
-func (a Account) Held(now time.Time, policy score.Policy) (Hold, bool) {
+func (a Account) held(now time.Time, policy score.Policy) (Hold, bool) {
 	h := Hold{spent: make(map[string]time.Time)}
-	if a.Limit.Holds(now) {
+	if a.Limit.holds(now) {
 		h.limit, h.named, h.Windows = a.Limit.Until, a.Limit.Windows, slices.Clone(a.Limit.Windows)
 	}
 	unnamed := !h.limit.IsZero() && len(h.named) == 0
@@ -289,7 +289,7 @@ func (h Hold) back(policy score.Policy) time.Time {
 	return last
 }
 
-// sharedFirst orders the windows with keys x and y as Held lists them: one
+// sharedFirst orders the windows with keys x and y as held lists them: one
 // every model shares, as policy says, before one that isn't.
 func sharedFirst(policy score.Policy, x, y string) int {
 	switch shared := policy.IsShared(x); {
@@ -312,12 +312,12 @@ func (a Account) label(key string) string {
 }
 
 // pressed is the state of account a under pressure at now: while new sessions
-// go to another account, that they go elsewhere; else when its pressure
-// window runs out, as RunsOut has it, as in "runs out ~16:05 at this pace",
-// or, its reserve holding it back there, "at its reserve ~18:21".
+// go to another account, as next says, that they go elsewhere; else when its
+// pressure window runs out, as runOutOf has it, as in "runs out ~16:05 at this
+// pace", or, its reserve holding it back there, "at its reserve ~18:21".
 func (d Document) pressed(a Account, now time.Time) State {
 	s := State{Condition: Pressed, Says: "under pressure"}
-	if d.Best != "" && d.Best != a.ID {
+	if next := d.next(); next != "" && next != a.ID {
 		s.Then = "new sessions go elsewhere"
 		return s
 	}
@@ -325,7 +325,7 @@ func (d Document) pressed(a Account, now time.Time) State {
 	if !ok {
 		return s
 	}
-	if out, ok := d.RunsOut(a, w, now); ok && out.Reserve {
+	if out, ok := d.runOutOf(a, w, now); ok && out.Reserve {
 		s.Then = "at its reserve ~" + Dated(now, out.At)
 	} else if ok {
 		s.Then = "runs out ~" + Dated(now, out.At) + " at this pace"
@@ -333,28 +333,28 @@ func (d Document) pressed(a Account, now time.Time) State {
 	return s
 }
 
-// StartsAt says when the lapsed window of the account with the given id
-// starts again: at its prime, where the router says when that is, as in
-// "window starts at its prime, 16:20"; else with its next request. The words
-// fit a 50-column card's state line beside "○ idle · ", as the frames have
-// them.
-func (d Document) StartsAt(id string, now time.Time) string {
-	i := slices.IndexFunc(d.Prime.Slots, func(s Slot) bool { return s.Account == id && !s.Next.IsZero() })
-	if i < 0 {
+// startsAt says when the lapsed window of the account with the given id
+// starts again: at its prime, where the router says when that is, as primeOf
+// has it, as in "window starts at its prime, 16:20"; else with its next
+// request. The words fit a 50-column card's state line beside "○ idle · ",
+// as the frames have them.
+func (d Document) startsAt(id string, now time.Time) string {
+	next := d.primeOf(id)
+	if next.IsZero() {
 		return "window starts with its next request"
 	}
-	return "window starts at its prime, " + Dated(now, d.Prime.Slots[i].Next)
+	return "window starts at its prime, " + Dated(now, next)
 }
 
 // open is the state of account a with room at now: once a week of it comes
 // within 10 points of where its reserve starts, that it nears its reserve, as
-// in "its week nears its reserve"; on the account new sessions go to, of
-// several, that they come here.
+// in "its week nears its reserve"; on the account new sessions go to, as next
+// says, of several, that they come here.
 func (d Document) open(a Account, now time.Time) State {
 	s := State{Condition: Open, Says: "open"}
 	if week, ok := d.nearing(a, now); ok {
 		s.Then = "its " + InProse(week.Label) + " nears its reserve"
-	} else if len(d.Accounts) > 1 && d.Best == a.ID {
+	} else if len(d.Accounts) > 1 && d.next() == a.ID {
 		s.Then = "new sessions come here"
 	}
 	return s
@@ -365,11 +365,11 @@ func (d Document) open(a Account, now time.Time) State {
 // runs then, as score.Current has it, so none once it has reset since it was
 // read, where the reserve holds it back, reporting false where none is.
 func (d Document) nearing(a Account, now time.Time) (quota.Window, bool) {
-	if !d.ReserveHolds(a) {
+	if !d.reserveHolds(a) {
 		return quota.Window{}, false
 	}
 	i := slices.IndexFunc(a.Windows, func(w quota.Window) bool {
-		return quota.MultiDay(w.Key) && score.Current(w, now).Utilization >= 1-a.Reserve-Near-score.Tolerance
+		return quota.MultiDay(w.Key) && score.Current(w, now).Utilization >= 1-a.Reserve-near-score.Tolerance
 	})
 	if i < 0 {
 		return quota.Window{}, false

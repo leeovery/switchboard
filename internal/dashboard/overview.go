@@ -217,7 +217,7 @@ func (s section) mostRows() int {
 // them, of a document at a moment: built once, the first time they're asked
 // for.
 type sectionsBuilt struct {
-	of       docAt
+	at       *status.HeldMoment
 	sections func() []section
 }
 
@@ -225,15 +225,15 @@ type sectionsBuilt struct {
 // the first time a look at them asks, and shared by every look it, or a copy
 // of it, takes of doc at now after: its layout, its page and its numbers, its
 // click targets and how it scrolls. They're built of the frame as it stands,
-// its pool judged at now, as Judged has it, so a copy whose Layout, KeyLine,
-// Brightened or Card change draws them as a frame built afresh would, as
-// they draw none of those, and a copy changed otherwise draws them as they
-// were built. A look at another moment, or of another document, builds them
-// afresh.
+// holding the moment of doc at now, as At has it, so a copy whose Layout,
+// KeyLine, Brightened or Card change draws them as a frame built afresh
+// would, as they draw none of those, and a copy changed otherwise draws them
+// as they were built. A look at another moment, or of another document,
+// builds them afresh.
 func (f Frame) Built(doc status.Document, now time.Time) Frame {
-	f = f.Judged(doc, now)
+	f = f.At(doc, now)
 	of := f
-	f.built = &sectionsBuilt{of: docAtOf(doc, now), sections: sync.OnceValue(func() []section { return of.buildSections(doc, now) })}
+	f.built = &sectionsBuilt{at: f.held, sections: sync.OnceValue(func() []section { return of.buildSections(doc, now) })}
 	return f
 }
 
@@ -241,17 +241,17 @@ func (f Frame) Built(doc status.Document, now time.Time) Frame {
 // the order the page draws them: as Built built them, where it built them of
 // doc at now, else afresh.
 func (f Frame) sectionsOf(doc status.Document, now time.Time) []section {
-	if f.built != nil && f.built.of.is(doc, now) {
+	if f.built != nil && f.built.at.Of(doc, now, f.Policy) {
 		return f.built.sections()
 	}
 	return f.buildSections(doc, now)
 }
 
 // buildSections builds the Overview's sections the frame shows, of doc at
-// now, in the order the page draws them, each of the one pool judged at now,
-// as Judged has it.
+// now, in the order the page draws them, each of the one moment of doc at
+// now, as At holds it.
 func (f Frame) buildSections(doc status.Document, now time.Time) []section {
-	f = f.Judged(doc, now)
+	f = f.At(doc, now)
 	builds := [...]func(status.Document, time.Time) section{
 		SectionUsage:    f.usageSection,
 		SectionGraphs:   f.graphsSection,
@@ -577,6 +577,7 @@ func (f Frame) LayoutOf(doc status.Document, now time.Time) Layout {
 	if f.View != Overview {
 		return Layout{}
 	}
+	f = f.At(doc, now)
 	units := f.unitsOf(f.sectionsOf(doc, now))
 	made := f.layoutFor(units)
 	if f.keeps(made) {

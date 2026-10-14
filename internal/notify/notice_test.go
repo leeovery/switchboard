@@ -1,14 +1,8 @@
 package notify
 
-import (
-	"testing"
-
-	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/status"
-)
+import "testing"
 
 func TestNotices(t *testing.T) {
-	work := status.Account{ID: "work", Label: "Work"}
 	tests := []struct {
 		name string
 		got  Notice
@@ -16,12 +10,12 @@ func TestNotices(t *testing.T) {
 	}{
 		{
 			name: "room again",
-			got:  RoomAgain(work),
+			got:  RoomAgain("work", "work · Work"),
 			want: Notice{Account: "work", News: "room again", Message: "work · Work has room again"},
 		},
 		{
 			name: "a warning",
-			got:  Warning(work, quota.Window{Key: "7d", Label: "Week", Utilization: 0.912}),
+			got:  Warning("work", "work · Work", "Week", 0.912),
 			want: Notice{Account: "work", News: "Week at 91%", Message: "work · Work: Week at 91%"},
 		},
 	}

@@ -17,9 +17,11 @@ type Motion struct {
 }
 
 // Motion is what moves on screen of the frame of doc at now, as moving has
-// it: its page drawn to know only where anything on it may settle, as
-// MaySettle says, as what travels the cords needs none of it drawn.
+// it: its page drawn, of the one moment, as At holds it, to know only where
+// anything on it may settle, as MaySettle says, as what travels the cords
+// needs none of it drawn.
 func (f Frame) Motion(doc status.Document, now time.Time) Motion {
+	f = f.At(doc, now)
 	if !f.MaySettle() {
 		return f.travel(doc, now)
 	}
@@ -57,55 +59,54 @@ func (f Frame) MaySettle() bool {
 
 // Filled are how much of each bar the frame's view draws of doc at now it
 // fills, as drawn without easing, by its window's account and key, the
-// pool's by its key alone, for a watch to ease each bar from and to: each
-// account's window as it stands at now, which reads empty once it has reset
-// since it was read; on the Overview, as USAGE draws them, and the pool's as
-// the frame judges it at now, but none of a bar USAGE draws empty, which has
-// nothing to ease; on Sessions, as its panels draw them, but none of a window
-// a panel draws without a bar; and none on a view that draws no bar.
+// pool's by its key alone, for a watch to ease each bar from and to, of the
+// moment of doc at now, as At holds it: each account's window as it stands
+// at now, which reads empty once it has reset since it was read; on the
+// Overview, as USAGE draws them, and the pool's at now, but none of a bar
+// USAGE draws empty, which has nothing to ease; on Sessions, as its panels
+// draw them, but none of a window a panel draws without a bar; and none on a
+// view that draws no bar.
 func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
-	switch f.View {
+	switch m := f.Moment(doc, now); f.View {
 	case Overview:
-		return f.overviewFilled(doc, now)
+		return overviewFilled(m)
 	case Sessions:
-		return f.sessionsFilled(doc, now)
+		return sessionsFilled(m)
 	}
 	return nil
 }
 
-// overviewFilled are how much of each bar the Overview's USAGE draws of doc
-// at now it fills, as Filled has them.
-func (f Frame) overviewFilled(doc status.Document, now time.Time) map[Ref]float64 {
-	filled := make(map[Ref]float64)
-	for _, a := range doc.Accounts {
-		states := doc.WindowStatesOf(a, now, f.Policy)
-		for _, w := range a.Windows {
-			if st := states.Of(w.Key); !drawsEmpty(st) {
-				filled[Ref{Account: a.ID, Window: w.Key}] = st.Used
-			}
-		}
-	}
-	for _, p := range f.pool(doc, now).Windows {
+// overviewFilled are how much of each bar the Overview's USAGE draws of m it
+// fills, as Filled has them.
+func overviewFilled(m status.Moment) map[Ref]float64 {
+	filled := windowsFilled(m, func(w status.WindowNow) bool { return !drawsEmpty(w.Kind) })
+	for _, p := range m.Pool().Windows {
 		filled[Ref{Window: p.Key}] = p.Used
 	}
 	return filled
 }
 
-// sessionsFilled are how much of each bar Sessions' panels draw of doc at
-// now it fills, as Filled has them, by its account and key: each window as
-// its state reads it, where its panel draws it a bar, as it does where it
-// doesn't stand not started.
-func (f Frame) sessionsFilled(doc status.Document, now time.Time) map[Ref]float64 {
-	used := make(map[Ref]float64)
-	for _, a := range doc.Accounts {
-		states := doc.WindowStatesOf(a, now, f.Policy)
+// sessionsFilled are how much of each bar Sessions' panels draw of m it
+// fills, as Filled has them, by its account and key: each window as it
+// stands, where its panel draws it a bar, as it does where it doesn't stand
+// not started.
+func sessionsFilled(m status.Moment) map[Ref]float64 {
+	return windowsFilled(m, func(w status.WindowNow) bool { return w.Kind != status.WindowNotStarted })
+}
+
+// windowsFilled are how much of each of m's accounts' windows a bar drawn of
+// it fills, as it's used as it stands, by its account and key, of those
+// drawn says draws a bar.
+func windowsFilled(m status.Moment, drawn func(status.WindowNow) bool) map[Ref]float64 {
+	filled := make(map[Ref]float64)
+	for _, a := range m.Accounts {
 		for _, w := range a.Windows {
-			if st := states.Of(w.Key); st.Kind != status.WindowNotStarted {
-				used[Ref{Account: a.ID, Window: w.Key}] = st.Used
+			if drawn(w) {
+				filled[Ref{Account: a.ID, Window: w.Key}] = w.Used
 			}
 		}
 	}
-	return used
+	return filled
 }
 
 // settling reports whether anything the frame's page, drawn on c, settles

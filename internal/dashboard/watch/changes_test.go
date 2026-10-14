@@ -10,7 +10,9 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 )
 
 // limitedWork is the router's document of three, work at the limit of its
@@ -123,7 +125,7 @@ func TestAStateWhoseFirstWordsStayIsNoChange(t *testing.T) {
 			tt.then(&then)
 			h := routedHarness(t, before)
 			policy := h.model.cfg.Policy
-			if was, is := before.RoutingOf(before.Accounts[0], start, policy), then.RoutingOf(then.Accounts[0], start, policy); was.String() == is.String() {
+			if was, is := routingAt(before, start, policy), routingAt(then, start, policy); was.String() == is.String() {
 				t.Fatalf("work stands as %q before and after, want its words changed past its first", was)
 			}
 			h.start()
@@ -355,4 +357,45 @@ func TestAWindowsWordsTheClockTurnsToOutArePickedOutAsItTicks(t *testing.T) {
 	if got, reads := h.turnedOut(), h.source.reads; !slices.Equal(got, []dashboard.Ref{workWeek}) || reads != 1 {
 		t.Errorf("once work's limit lifted, with %d reads, picked out %v, want work's week, out ~ as the second ticked, with no read since the first", reads, got)
 	}
+}
+
+// At each hard moment, the cues on an account's state and a window's words
+// compare the moments of the two looks they come between, each look's facts
+// its own moment's: a look as the document was built, then the clock ticking
+// on to the hard moment, picks out each account whose state differs between
+// the two moments, and each window whose words turn to out ~ between them.
+func TestTheCuesCompareTheMomentsOfTheirTwoLooksAtEachHardMoment(t *testing.T) {
+	for _, hm := range statustest.HardMoments(policy) {
+		t.Run(hm.Name, func(t *testing.T) {
+			built := hm.Doc.GeneratedAt
+			was, is := hm.Doc.At(built, policy), hm.Doc.At(hm.Now, policy)
+			c := changes{}.looked(was, router.Health{}).ticked(is)
+			var states []string
+			outs := map[dashboard.Ref]float64{}
+			for i, a := range is.Accounts {
+				then := was.Accounts[i]
+				if stateOf(a.Routing) != stateOf(then.Routing) {
+					states = append(states, a.ID)
+				}
+				for j, w := range a.Windows {
+					if w.RunsOut && !then.Windows[j].RunsOut {
+						outs[dashboard.Ref{Account: a.ID, Window: w.Key}] = 0
+					}
+				}
+			}
+			slices.Sort(states)
+			if got := slices.Sorted(maps.Keys(c.faded(hm.Now))); !slices.Equal(got, states) {
+				t.Errorf("states picked out: %v, want %v, as the two moments' differ", got, states)
+			}
+			if got := c.turnedOut(hm.Now); !maps.Equal(got, outs) {
+				t.Errorf("windows' words picked out: %v, want %v, as they turn to out ~ between the two moments", got, outs)
+			}
+		})
+	}
+}
+
+// routingAt is how doc's first account stands with the router at now, as the
+// document's moment then has it, as policy judges it.
+func routingAt(doc status.Document, now time.Time, policy score.Policy) status.Routing {
+	return doc.At(now, policy).Accounts[0].Routing
 }

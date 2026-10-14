@@ -45,11 +45,20 @@ func openFile(dir string, role Role) (*logFile, error) {
 	return openLog(role.Path(dir), maxSize, keep)
 }
 
+// MakeDir makes dir, a directory logs are written in, where it isn't there,
+// for its owner alone to use.
+func MakeDir(dir string) error {
+	if err := os.MkdirAll(dir, dirMode); err != nil {
+		return fmt.Errorf("create the log directory: %w", err)
+	}
+	return nil
+}
+
 // openLog opens the log at path to append to, rolling it over first if it's
 // full.
 func openLog(path string, maxSize int64, keep int) (*logFile, error) {
-	if err := os.MkdirAll(filepath.Dir(path), dirMode); err != nil {
-		return nil, fmt.Errorf("create log directory: %w", err)
+	if err := MakeDir(filepath.Dir(path)); err != nil {
+		return nil, err
 	}
 	l := &logFile{path: path, maxSize: maxSize, keep: keep}
 	file, err := l.open()

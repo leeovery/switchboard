@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -109,7 +110,7 @@ func TestThePrintoutFitsEveryWidth(t *testing.T) {
 }
 
 func TestAPrintoutWithoutColourTellsStateByGlyphsAndBold(t *testing.T) {
-	rows := Printout{Width: 160, Look: NoColour()}.Draw(trio(), printNow)
+	rows := Printout{Width: 160, Look: NoColour()}.Draw(trio().At(printNow, score.Policy{}))
 	for i, r := range rows {
 		if strings.Contains(r, "38;") || strings.Contains(r, "48;") {
 			t.Fatalf("row %d is drawn %q, want no colour", i, r)

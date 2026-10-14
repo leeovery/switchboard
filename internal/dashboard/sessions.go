@@ -132,7 +132,7 @@ func (f Frame) overKeyLine(c *canvas, doc status.Document, now time.Time, top, c
 		scrollbar(c, f.Width-1, over-view, view, content, offset)
 	}
 	above, below := hidden(offset, view)
-	switch note := hiddenNote(doc, hiddenWindows(doc, now, f.Policy)); {
+	switch note := hiddenNote(f.Moment(doc, now).Hidden); {
 	case content > view && above+below > 0:
 		says := outOfView(above, below).fit(f.edge() - margin)
 		c.line((f.Width-says.width())/2, over, says)
@@ -231,7 +231,7 @@ func (f Frame) bayOfWidth(doc status.Document, now time.Time, top, width int, ba
 // the cords' bends don't fit.
 func (f Frame) layOutBay(doc status.Document, now time.Time, x, width int, bars bool, view int) (bay, bool) {
 	b := bay{x: x, width: width, bars: bars}
-	shown := shownWindows(doc, now, f.Policy)
+	shown := windowKeys(f.Moment(doc, now).Shown)
 	groups, firsts := f.groupsOf(doc), make([]int, len(doc.Accounts))
 	row := 1
 	for i, g := range groups {
@@ -456,7 +456,7 @@ func noCalls(doc status.Document) string {
 func (f Frame) drawCall(c *canvas, doc status.Document, r callRow, now time.Time) {
 	id := sessionID(r.session.ID)
 	if r.gone {
-		c.line(callsAt, r.row, line{{id, goneIDInk}, {"  ↪ moved to " + named(doc, r.to), goneInk}}.fit(plugAt-callsAt))
+		c.line(callsAt, r.row, line{{id, goneIDInk}, {"  ↪ moved to " + docNamed(doc, r.to), goneInk}}.fit(plugAt-callsAt))
 		return
 	}
 	idInk := titleInk
@@ -521,4 +521,24 @@ func seenAgo(now, seen time.Time) string {
 	default:
 		return strconv.Itoa(int((d+time.Hour/2)/time.Hour)) + "h"
 	}
+}
+
+// docName is name of an account of the document as read, for milestone 5's
+// views, which read the document rather than its moment, and go with it; as
+// are docNamed and docPlace of named and place.
+func docName(a status.Account) string {
+	return labelled(a.Label, a.ID)
+}
+
+// docNamed is named of doc, as docName has it.
+func docNamed(doc status.Document, id string) string {
+	if a, ok := doc.Account(id); ok {
+		return docName(a)
+	}
+	return status.Clean(id)
+}
+
+// docPlace is place of doc, as docName has it.
+func docPlace(doc status.Document, id string) int {
+	return slices.IndexFunc(doc.Accounts, func(a status.Account) bool { return a.ID == id }) + 1
 }

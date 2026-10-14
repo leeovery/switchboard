@@ -56,16 +56,17 @@ func (f Frame) routerStatus(c *canvas, doc status.Document, now time.Time) {
 // says why in the state's place, as failing has it. Before any document, and
 // before either, it's blank.
 func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
+	m := f.Moment(doc, now)
 	var s statusLine
-	switch doc.Source {
-	case status.SourceProbe:
-		return f.failing(probedLine(doc), now)
-	case status.SourceRouter:
-		s = newStatusLine(doc)
+	switch {
+	case m.Probed:
+		return f.failing(probedLine(m), now)
+	case m.Routed:
+		s = newStatusLine(m)
 		if s.mode == nil {
 			s.mode = line{{"auto", secondaryInk}}
 		}
-		if doc.Sessions > 0 {
+		if m.Sessions > 0 {
 			s.sessions = s.sessions.numbered(Number{Kind: NumberRouted})
 		}
 	}
@@ -98,70 +99,55 @@ func (f Frame) failing(s statusLine, now time.Time) statusLine {
 	return s
 }
 
-// newStatusLine is doc's status line, its mode shown only while the router
-// has a global pin.
-func newStatusLine(doc status.Document) statusLine {
-	if doc.Source != status.SourceRouter {
-		return probedLine(doc)
+// newStatusLine is the status line of the moment m, its mode shown only while
+// the router has a global pin.
+func newStatusLine(m status.Moment) statusLine {
+	if !m.Routed {
+		return probedLine(m)
 	}
-	s := statusLine{sessions: line{{status.SessionCount(doc.Sessions), mutedInk}}, destination: destination(doc)}
+	s := statusLine{sessions: line{{status.SessionCount(m.Sessions), mutedInk}}, destination: destination(m)}
 	s.state = line{{"● ", positiveInk}, {"healthy", secondaryInk}}
-	if !doc.Router.Healthy {
+	if !m.Health.Healthy {
 		s.state = line{{"● unhealthy", errorInk}}
 	}
 	s.short = s.state
-	if doc.Restart.Due() {
-		s.restart = line{{"restart due (" + status.Clean(doc.Restart.Reason) + ")", warningInk}}
+	if m.Restart.Due() {
+		s.restart = line{{"restart due (" + status.Clean(m.Restart.Reason) + ")", warningInk}}
 	}
-	if !doc.Pin.IsZero() {
-		s.mode = line{{"pinned to " + names(doc, doc.Pin.Accounts), alertInk}}
+	if !m.Pin.IsZero() {
+		s.mode = line{{"pinned to " + names(m, m.Pin.Accounts), alertInk}}
 	}
 	return s
 }
 
-// probedLine is the status line of doc, probed rather than the router's: why
-// the router's document wasn't read, or that probing was asked for.
-func probedLine(doc status.Document) statusLine {
+// probedLine is the status line of the moment m, probed rather than the
+// router's: why the router's document wasn't read, or that probing was asked
+// for.
+func probedLine(m status.Moment) statusLine {
 	why := ", as asked"
-	switch doc.Fallback.Router {
+	switch m.Fallback.Router {
 	case status.RouterNotRunning:
 		why = " · router not running"
 	case status.RouterUnhealthy:
-		why = " · " + because("router unhealthy", doc.Fallback.Reason)
+		why = " · " + because("router unhealthy", m.Fallback.Reason)
 	}
 	return statusLine{state: line{{"○ probed" + why, dimInk}}, short: line{{"○ probed", dimInk}}}
 }
 
-// destination says where the router sends new sessions: ▲ and the account,
-// or, where none has room, that none has, or before anything has been read of
-// any, that nothing has; a lone account it names regardless, as its row
-// carries ▲ regardless.
-func destination(doc status.Document) line {
-	read := slices.ContainsFunc(doc.Accounts, func(a status.Account) bool { return !a.FetchedAt.IsZero() })
-	to := bestOf(doc)
+// destination says where the router sends new sessions, as m's Next has it:
+// ▲ and the account, or, where none has room, that none has, or before
+// anything has been read of any, that nothing has; a lone account it names
+// regardless, as its row carries ▲ regardless.
+func destination(m status.Moment) line {
+	read := slices.ContainsFunc(m.Accounts, func(a status.AccountNow) bool { return a.Read })
 	switch {
-	case len(doc.Accounts) != 1 && !read:
+	case len(m.Accounts) != 1 && !read:
 		return line{{"nothing read yet", dimInk}}
-	case to == "":
+	case m.Next == "":
 		return line{{"no account has room", exhaustedInk}}
 	default:
-		return line{{"▲ " + named(doc, to), nameInk}}
+		return line{{"▲ " + named(m, m.Next), nameInk}}
 	}
-}
-
-// bestOf is the id of the account ▲ marks as where new sessions go:
-// doc's best, "" where none has room; or with one account, that one, whatever
-// its room, as there's nowhere else for them to go. A probed document marks
-// none of several, as where new sessions go is the router's to say, and its
-// best is worked out without the router's pin.
-func bestOf(doc status.Document) string {
-	switch {
-	case len(doc.Accounts) == 1:
-		return doc.Accounts[0].ID
-	case doc.Source != status.SourceRouter:
-		return ""
-	}
-	return doc.Best
 }
 
 // fit is the line in width cells at most: in full where it fits; else as a

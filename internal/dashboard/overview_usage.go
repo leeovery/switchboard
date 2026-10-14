@@ -59,12 +59,12 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 // Overview alone has. By account from 150 columns, its bars leave room for
 // ROUTING beside them. While GRAPHS shows, the matrix picks out the account
 // the focus is on. Its key line names the marks the accounts carry. An
-// account out of the pool, as the frame judges it at now, is faint, as
-// overviewGauge draws its windows and overviewNames its name.
+// account out of the pool at now is faint, as overviewGauge draws its windows
+// and overviewNames its name.
 func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
-	pool := f.pool(doc, now)
-	names := overviewNames(doc, pool)
-	b := blockOf(doc, now, f.Policy, pool, f.Width, f.Look, f.By, f.overviewWindows(doc), names)
+	m := f.Moment(doc, now)
+	names := overviewNames(m)
+	b := blockOf(m, f.Width, f.Look, f.By, f.overviewWindows(doc, now), names)
 	b.marks = keyMarks(names, f.phone())
 	if f.By == ByAccount && f.Width >= matrixWidth {
 		b.accountBar = besideBar - (b.names - matrixNames)
@@ -82,40 +82,42 @@ func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 }
 
 // overviewWindows are the windows of doc the Overview shows, in USAGE and
-// GRAPHS, as usage prints them: those every model shares, as the frame's
-// Policy has them, so every account keeps its rows before any is read, and
+// GRAPHS, as usage prints them: those every model shares, as the policy the
+// moment was judged by has them, so every account keeps its rows before any
+// is read, and
 // every other any account reports, in Claude's order, each named as
-// windowNamer names it.
-func (f Frame) overviewWindows(doc status.Document) []shownWindow {
-	return usageWindows(doc, nil, f.Policy.Shared, f.windowNamer(doc))
+// windowNamer names it of doc at now.
+func (f Frame) overviewWindows(doc status.Document, now time.Time) []shownWindow {
+	m := f.Moment(doc, now)
+	return usageWindows(m, nil, f.windowNamer(m))
 }
 
-// windowNamer names doc's windows by their keys as the Overview names them
-// wherever it does: as the frame's WindowName has it, else as nameOfWindow
-// names one by its label, as labelOf has it.
-func (f Frame) windowNamer(doc status.Document) func(key string) string {
+// windowNamer names m's windows by their keys as the Overview names them
+// wherever it does: as the frame's WindowName has it, else as m names them,
+// as windowNamed has them.
+func (f Frame) windowNamer(m status.Moment) func(key string) string {
 	if f.WindowName != nil {
 		return f.WindowName
 	}
-	return func(key string) string { return nameOfWindow(key, labelOf(doc, key)) }
+	return func(key string) string { return windowNamed(m, key).Name }
 }
 
-// overviewNames are the names of doc's accounts as the Overview names them
+// overviewNames are the names of m's accounts as the Overview names them
 // wherever it does: as namesOf has them, but faint, number, label and marks,
-// where an account is out of the pool given.
-func overviewNames(doc status.Document, pool status.Pool) []accountName {
-	names := namesOf(doc, pool)
+// where an account is out of the pool.
+func overviewNames(m status.Moment) []accountName {
+	names := namesOf(m)
 	for i := range names {
 		names[i].faint = names[i].out
 	}
 	return names
 }
 
-// overviewNamed is the account of doc with the given id as the Overview names
-// it in a line, in k: its label, as names, overviewNames' of doc, have it,
-// faint where it's out of the pool; where doc lacks it, its id, cleaned.
-func overviewNamed(doc status.Document, names []accountName, id string, k ink) span {
-	if i := place(doc, id); i > 0 {
+// overviewNamed is the account of m with the given id as the Overview names
+// it in a line, in k: its label, as names, overviewNames' of m, have it,
+// faint where it's out of the pool; where m lacks it, its id, cleaned.
+func overviewNamed(m status.Moment, names []accountName, id string, k ink) span {
+	if i := place(m, id); i > 0 {
 		return span{names[i-1].label, names[i-1].inked(k)}
 	}
 	return span{status.Clean(id), k}
@@ -159,19 +161,26 @@ func keyMarks(names []accountName, phone bool) []line {
 }
 
 // roomLeft is USAGE's description of doc at now: with one account, which has
-// no pool, the room it has left in its 5-hour window and its week at now, as
-// RoomOf judges it, and numbered as its window's room, as in "room
-// left  5h 0.4 of 1  ·  week 0.6 of 1"; none on a phone, nor with more
-// accounts, whose pool's row says the room.
+// no pool, the room it has left in its 5-hour window and its week at now,
+// where it has them, as their Room has it, and numbered as its window's room,
+// as in "room left  5h 0.4 of 1  ·  week 0.6 of 1"; none on a phone, nor with
+// more accounts, whose pool's row says the room.
 func (f Frame) roomLeft(doc status.Document, now time.Time) line {
-	if len(doc.Accounts) != 1 || f.phone() {
+	m := f.Moment(doc, now)
+	if len(m.Accounts) != 1 || f.phone() {
 		return nil
 	}
-	a := doc.Accounts[0]
+	a := m.Accounts[0]
+	session, hasSession := a.Window(m.Policy().Started)
+	week, hasWeek := sharedWeek(a)
 	var parts []line
-	for _, w := range []struct{ key, word string }{{f.Policy.Started, "5h"}, {sharedWeek(f.Policy), "week"}} {
-		if room, ok := doc.RoomOf(a, w.key, now, f.Policy); ok {
-			left := span{tenths(room), strongInk}.numbered(Number{Kind: NumberRoom, Account: a.ID, Of: w.key})
+	for _, w := range []struct {
+		window status.WindowNow
+		has    bool
+		word   string
+	}{{session, hasSession, "5h"}, {week, hasWeek, "week"}} {
+		if w.has {
+			left := span{tenths(w.window.Room), strongInk}.numbered(Number{Kind: NumberRoom, Account: a.ID, Of: w.window.Key})
 			parts = append(parts, line{{w.word + " ", dimInk}, left, {" of 1", dimInk}})
 		}
 	}

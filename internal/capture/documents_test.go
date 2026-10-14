@@ -8,24 +8,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 // usageWords are how a world's document reads at the frames' moment, as the
 // usage block draws it: each account's windows, their use and even pace in
-// whole percent, then where they run out, or their allowance; the pool's
-// windows, their bars' use and the room left; and what's coming up.
+// whole percent, then where they run out, as the moment has it, or their
+// allowance; the pool's windows, their bars' use and the room left; and
+// what's coming up.
 func usageWords(doc status.Document, now time.Time) []string {
+	m := doc.At(now, claude.Policy)
 	var words []string
 	for _, a := range doc.Accounts {
+		at, _ := m.Account(a.ID)
 		for _, w := range a.Windows {
 			line := fmt.Sprintf("%s %s %d%%", a.ID, w.Key, percent(w.Utilization))
 			if w.Pace != nil {
 				line += fmt.Sprintf(" pace %d%%", percent(*w.Pace))
 			}
-			if out, ok := doc.RunsOut(a, w, now); ok {
-				line += " out " + out.At.In(now.Location()).Format("Mon 15:04")
+			if stands, _ := at.Window(w.Key); !stands.Out.At.IsZero() {
+				line += " out " + stands.Out.At.In(now.Location()).Format("Mon 15:04")
 			} else if w.Allowance.Per != "" {
 				line += fmt.Sprintf(" %d%%/%s", percent(w.Allowance.Share), w.Allowance.Per)
 			}

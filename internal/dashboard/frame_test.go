@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 )
 
 // claudeLike judges windows as Claude's are judged: the session and the week
@@ -314,13 +316,62 @@ func twoWithRoom() status.Document {
 	return doc
 }
 
-func TestAFrameJudgedJudgesAnotherDocumentsPoolAfresh(t *testing.T) {
+func TestAFrameAtOneDocumentReadsAnothersMomentAfresh(t *testing.T) {
 	other := twoWithRoom()
-	want := other.PoolAt(now, claudeLike)
-	if first := threeRouted().PoolAt(now, claudeLike); slices.Equal(first.Accounts, want.Accounts) {
+	want := other.At(now, claudeLike).Pool()
+	if first := threeRouted().At(now, claudeLike).Pool(); slices.Equal(first.Accounts, want.Accounts) {
 		t.Fatalf("both documents pool %v, want pools that differ", want.Accounts)
 	}
-	if got := frameOf(160, 40).Judged(threeRouted(), now).pool(other, now); !slices.Equal(got.Accounts, want.Accounts) {
-		t.Errorf("judged of one document, the pool of another at the same moment is of %v, want its own, of %v", got.Accounts, want.Accounts)
+	if got := frameOf(160, 40).At(threeRouted(), now).Moment(other, now).Pool(); !slices.Equal(got.Accounts, want.Accounts) {
+		t.Errorf("held at one document, the pool of another at the same moment is of %v, want its own, of %v", got.Accounts, want.Accounts)
+	}
+}
+
+// A frame holding a document's moment, and the Overview's sections built of
+// it, draws every row just as one that works the moment out afresh for every
+// look draws it, at each hard moment, on every tab, as wide as the frames
+// and as narrow as a phone: holding it changes how often it's worked out,
+// never what's drawn.
+func TestAHeldFrameDrawsWhatOneWorkingItsMomentOutAfreshDoes(t *testing.T) {
+	for _, hm := range statustest.HardMoments(claudeLike) {
+		for _, v := range Views() {
+			for _, size := range [][2]int{{160, 40}, {52, 36}} {
+				f := frameOf(size[0], size[1])
+				f.View = v
+				held := f.At(hm.Doc, hm.Now).Built(hm.Doc, hm.Now)
+				got, want := held.Draw(hm.Doc, hm.Now), f.finish(f.page(hm.Doc, hm.Now)).rows(f.Look)
+				if !slices.Equal(got, want) {
+					t.Errorf("%s, %s at %d×%d: held, it draws\n%s\nwant, afresh\n%s", hm.Name, v.Title(), size[0], size[1], strings.Join(got, "\n"), strings.Join(want, "\n"))
+				}
+			}
+		}
+	}
+}
+
+// A frame holds the one moment of a document for every look a copy of it
+// takes of that document at that moment, as its Policy judged it: a copy
+// whose Policy has changed since, or a frame given a moment another policy
+// judged, works the moment out afresh, by its own Policy. Here the two
+// policies judge work's cap, and so the pool's 5-hour room, apart.
+func TestAFrameKeepsAMomentItHoldsOnlyWhereItsPolicyJudgedIt(t *testing.T) {
+	capped := readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.95, 3*day))
+	capped.Reserve = 0.1
+	doc := routerDoc("side", 0, capped, readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.4, 5*day)))
+	unjudged := frameOf(160, 40)
+	unjudged.Policy = score.Policy{}
+	judged, afresh := frameOf(160, 40).Filled(doc, now), unjudged.Filled(doc, now)
+	if maps.Equal(afresh, judged) {
+		t.Fatalf("both policies fill the bars %v, want fills that differ", judged)
+	}
+	held := frameOf(160, 40).At(doc, now)
+	held.Policy = score.Policy{}
+	if got := held.Filled(doc, now); !maps.Equal(got, afresh) {
+		t.Errorf("a copy of a frame held at doc, its Policy changed since, fills the bars %v, want them afresh, by its own Policy, %v", got, afresh)
+	}
+	if got := unjudged.Holding(doc.HoldAt(now, claudeLike)).At(doc, now).Filled(doc, now); !maps.Equal(got, afresh) {
+		t.Errorf("a frame given a moment another policy judged fills the bars %v, want them by its own Policy, %v", got, afresh)
+	}
+	if got := frameOf(160, 40).Holding(doc.HoldAt(now, claudeLike)).At(doc, now).Filled(doc, now); !maps.Equal(got, judged) {
+		t.Errorf("a frame given a moment its Policy judged fills the bars %v, want them as that moment has them, %v", got, judged)
 	}
 }

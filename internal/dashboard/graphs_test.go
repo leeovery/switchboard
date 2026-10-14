@@ -267,11 +267,20 @@ func TestAWindowWithNoHistorySaysSo(t *testing.T) {
 	}
 }
 
+// accountAt is doc's account with the given id as it stands at the moment
+// given.
+func accountAt(doc status.Document, id string, at time.Time) status.AccountNow {
+	a, _ := doc.At(at, claudeLike).Account(id)
+	return a
+}
+
 func TestAWindowResetSinceItWasReadIsChartedFromItsReset(t *testing.T) {
-	work, _ := trio().Account("work")
+	doc := trio()
+	work, _ := doc.Account("work")
 	window, _ := work.Window("7d")
 	before := Trail{Readings: []score.Reading{{At: window.ResetsAt.Add(-time.Hour), Utilization: 0.5}}}
-	got := chartOf(work, shownWindow{key: "7d", name: "Week"}, before, window.ResetsAt.Add(time.Hour), claudeLike)
+	after := window.ResetsAt.Add(time.Hour)
+	got := chartOf(accountAt(doc, "work", after), shownWindow{key: "7d", name: "Week"}, before, after)
 	if len(got.readings) != 0 || !got.start.Equal(window.ResetsAt) {
 		t.Errorf("charted from %v with %d readings, want from its reset, %v, with none of before it", got.start, len(got.readings), window.ResetsAt)
 	}
@@ -283,15 +292,18 @@ func TestAWindowResetSinceItWasReadIsChartedFromItsReset(t *testing.T) {
 // router's next document has it empty, without a reset, rather than an axis
 // and even pace over a span it hasn't started.
 func TestOnTheTickASessionLapsesItsChartIsAsTheRoutersNextDocumentHasIt(t *testing.T) {
-	work, _ := trio().Account("work")
+	doc := trio()
+	work, _ := doc.Account("work")
 	session, _ := work.Window("5h")
 	after := session.ResetsAt.Add(time.Second)
 	trail := Trail{Readings: []score.Reading{{At: session.ResetsAt.Add(-time.Hour), Utilization: 0.5}}}
 	shown := shownWindow{key: "5h", name: "5-hour"}
 	nord := Screen(builtin(t, "nord"))
+	nextDoc := trio()
+	nextDoc.Accounts[0] = work.AsOf(claudeLike, after)
 
-	tick := chartOf(work, shown, trail, after, claudeLike)
-	next := chartOf(work.AsOf(claudeLike, after), shown, trail, after, claudeLike)
+	tick := chartOf(accountAt(doc, "work", after), shown, trail, after)
+	next := chartOf(accountAt(nextDoc, "work", after), shown, trail, after)
 	if tick.spanned {
 		t.Errorf("the session is charted from %v over %v, want no span, as it has lapsed", tick.start, tick.length)
 	}

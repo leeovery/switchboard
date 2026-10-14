@@ -32,8 +32,8 @@ func (e easing) done(now time.Time) bool {
 // eased are how much of each bar of f's view the easing moves fills at now,
 // by its window's account and key, the pool's by its key alone, on its way
 // from where it stood to filling as the view draws it of doc, as Filled has
-// it of f: none of a bar that stands where it's drawn, and none once the
-// easing's over.
+// it of f, of the moment f holds, as the frame drawn reads it: none of a bar
+// that stands where it's drawn, and none once the easing's over.
 func (e easing) eased(f dashboard.Frame, doc status.Document, now time.Time) map[dashboard.Ref]float64 {
 	if e.done(now) {
 		return nil
@@ -58,7 +58,7 @@ func (e easing) towards(view dashboard.View, filled map[dashboard.Ref]float64, n
 // standing are how much of each bar of each view that draws any of doc fills
 // at now, view by view, by its window's account and key, the pool's by its
 // key alone: as far as it has eased, where it's easing, else as the view
-// draws it, as Filled has it of f.
+// draws it, as Filled has it of f, each view of the one moment f holds.
 func (e easing) standing(f dashboard.Frame, doc status.Document, now time.Time) map[dashboard.View]map[dashboard.Ref]float64 {
 	stand := make(map[dashboard.View]map[dashboard.Ref]float64)
 	for _, view := range dashboard.Views() {

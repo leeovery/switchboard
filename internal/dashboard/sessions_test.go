@@ -495,7 +495,7 @@ func TestAPanelsUseIsTonedAsItRises(t *testing.T) {
 		{used: 0.895, want: theme.VizRamp4}, {used: 0.9, want: theme.VizRamp4}, {used: 1, want: theme.VizRamp4},
 	}
 	for _, tt := range tests {
-		s := standing{window: weekOf(tt.used, day), used: tt.used}
+		s := standing{account: "work", w: status.WindowNow{WindowName: status.WindowName{Key: "7d"}, Used: tt.used}}
 		if got := panelUse(s); got.ink != (ink{token: tt.want, bold: true}) {
 			t.Errorf("at %.1f%%, shown as %s, the use is %+v, want %s, bold", tt.used*100, got.text, got.ink, tt.want)
 		}
@@ -1027,7 +1027,7 @@ func sessionRow(t *testing.T, f Frame, doc status.Document, now time.Time) strin
 // statusOf is what status's text says of work, the first account, in doc at
 // now: its lines, to the blank line after them.
 func statusOf(doc status.Document, now time.Time) string {
-	text, _, _ := strings.Cut(doc.Text(now, claudeLike), "\n\n")
+	text, _, _ := strings.Cut(doc.At(now, claudeLike).Text(), "\n\n")
 	return text
 }
 
@@ -1045,10 +1045,10 @@ func TestOnTheTickASessionResetsAFailedReadAccountsSessionHasntStartedAsROUTINGH
 	f := switchboard(160, 40, flippingSessions(), Traffic{})
 	ref := Ref{Account: "work", Window: "5h"}
 
-	if routing := doc.RoutingOf(work, after, claudeLike); routing.Kind != status.RoutingIdle {
-		t.Errorf("ROUTING says work is %q, want it idle", routing.Says)
+	if a, _ := doc.At(after, claudeLike).Account(work.ID); a.Routing.Kind != status.RoutingIdle {
+		t.Errorf("ROUTING says work is %q, want it idle", a.Routing.Says)
 	}
-	if words := wordsOf(doc.WindowStatesOf(work, after, claudeLike).Of("5h"), after).full.plain(); words != "not started" {
+	if words := wordsOf(windowNowOf(doc, work.ID, "5h", after), after).full.plain(); words != "not started" {
 		t.Errorf("USAGE says work's session is %q, want it not started", words)
 	}
 	if used, ok := frameOf(160, 40).Filled(doc, after)[ref]; !ok || used != 0 {
@@ -1131,13 +1131,43 @@ func idleSince(ago time.Duration) status.Account {
 func TestAPanelMarksTheEvenPaceOfAWeekResetSinceItWasReadFromItsReset(t *testing.T) {
 	doc := routerDoc("side", 0, idleSince(day))
 	side := doc.Accounts[0]
-	s := standingOf(doc, side, side.Windows[1], doc.WindowStatesOf(side, now, claudeLike), now)
+	week, _ := switchboard(160, 40, nil, Traffic{}).linePanelOf(doc, side, now, []string{"5h", "7d"}).stands.Window(side.Windows[1].Key)
+	s := standing{account: side.ID, w: week}
 
-	if s.used != 0 {
-		t.Errorf("side's week reads %v, want it empty, as it has reset since it was read", s.used)
+	if s.w.Used != 0 {
+		t.Errorf("side's week reads %v, want it empty, as it has reset since it was read", s.w.Used)
 	}
 	if got, want := s.paceCell(panelBar), cellAt(1.0/7, panelBar); got != want {
 		t.Errorf("its even pace is marked at cell %d of %d, want %d, a seventh of the way along", got, panelBar, want)
+	}
+}
+
+// Sessions' panels mark the account new sessions go to, with ▲ and an accent
+// border, by the one rule the moment says it by: the router's best of
+// several; of several probed, none, as where new sessions go is the
+// router's to say, though probing names its best.
+func TestAPanelMarksWhereNewSessionsGoAsTheMomentHasIt(t *testing.T) {
+	routed := threeRouted()
+	probed := routed
+	probed.Source = status.SourceProbe
+	tests := []struct {
+		name string
+		doc  status.Document
+		next string
+	}{
+		{name: "the router's, of several", doc: routed, next: "side"},
+		{name: "probed, of several", doc: probed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := switchboard(160, 40, nil, Traffic{}).At(tt.doc, now)
+			for _, a := range tt.doc.Accounts {
+				p := f.linePanelOf(tt.doc, a, now, []string{"5h", "7d"})
+				if marked := p.edges() == bestBorderInk && slices.Contains(p.badges(), span{nextBadge, badgeInk}); marked != (a.ID == tt.next) {
+					t.Errorf("%s's panel marked %v, want %v", a.ID, marked, a.ID == tt.next)
+				}
+			}
+		})
 	}
 }
 

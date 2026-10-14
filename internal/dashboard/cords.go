@@ -243,7 +243,7 @@ func (f Frame) looseCords(doc status.Document, b bay, now time.Time) []looseCord
 	for i, p := range b.panels {
 		plugged := make([]bool, p.rows)
 		for _, r := range b.calls {
-			if place(doc, r.assignment.Account) != i+1 {
+			if docPlace(doc, r.assignment.Account) != i+1 {
 				continue
 			}
 			plugged[r.jack] = true
@@ -293,10 +293,10 @@ func (f Frame) gone(fade float64) bool {
 }
 
 // stubbed is how many sessions doc's account a's limit moved off it, while
-// the limit holds at now, as its event, which limitOf finds, tells: none
+// the limit holds at now, as its event, which LimitEvent finds, tells: none
 // otherwise.
 func stubbed(doc status.Document, a status.Account, now time.Time) int {
-	if e, ok := limitOf(doc, a, now); ok {
+	if e, ok := doc.LimitEvent(a, now); ok {
 		return e.Count
 	}
 	return 0

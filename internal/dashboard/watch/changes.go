@@ -5,7 +5,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/router"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -39,36 +38,38 @@ func (c cues[K, V]) seen(found map[K]V, now time.Time, turned func(was, is V) bo
 	return cues[K, V]{found: found, since: since}
 }
 
-// looked takes in doc, read at now from the router whose health check said
-// from, or by probing, as found says. A look that doesn't follow on from the
-// last, as follows says, picks out nothing: what it finds starts afresh.
-func (c changes) looked(doc status.Document, from router.Health, now time.Time, policy score.Policy) changes {
-	read := originOf(doc, from)
+// looked takes in the moment look of a document as it's read, from the router
+// whose health check said from, or by probing, as found says of it. A look
+// that doesn't follow on from the last, as follows says, picks out nothing:
+// what it finds starts afresh.
+func (c changes) looked(look status.Moment, from router.Health) changes {
+	read := originOf(look, from)
 	if !read.follows(c.from) {
 		c = changes{}
 	}
 	c.from = read
-	return c.found(doc, now, policy)
+	return c.found(look)
 }
 
-// ticked takes in doc at now, as found says, as the clock moves on with no
-// read, as a limit lifting at its reset moves an account's state on, or a
-// window's use heading past its floor before it resets has its words turn to
-// out ~. Before anything is read, there's nothing to tell apart.
-func (c changes) ticked(doc status.Document, now time.Time, policy score.Policy) changes {
+// ticked takes in the moment m of the document on screen, as found says of
+// it, as the clock moves on with no read, as a limit lifting at its reset
+// moves an account's state on, or a window's use heading past its floor
+// before it resets has its words turn to out ~. Before anything is read,
+// there's nothing to tell apart.
+func (c changes) ticked(m status.Moment) changes {
 	if !c.from.read {
 		return c
 	}
-	return c.found(doc, now, policy)
+	return c.found(m)
 }
 
-// found takes in doc's accounts' states at now, as policy judges them, and
-// whether its windows' words say they run out: each account whose state
-// differs from what was found last is picked out from now, and each window
-// whose words turn to out ~.
-func (c changes) found(doc status.Document, now time.Time, policy score.Policy) changes {
-	c.states = c.states.seen(statesOf(doc, now, policy), now, func(was, is state) bool { return was != is })
-	c.outs = c.outs.seen(outsOf(doc, now, policy), now, func(was, is bool) bool { return is && !was })
+// found takes in the accounts' states at the moment m, and whether their
+// windows' words say they run out: each account whose state differs from
+// what was found at the last look's moment is picked out from m's, and each
+// window whose words turn to out ~.
+func (c changes) found(m status.Moment) changes {
+	c.states = c.states.seen(statesOf(m), m.Now, func(was, is state) bool { return was != is })
+	c.outs = c.outs.seen(outsOf(m), m.Now, func(was, is bool) bool { return is && !was })
 	return c
 }
 
@@ -96,24 +97,23 @@ func stateOf(routing status.Routing) state {
 	return state{kind: kind, says: routing.Says}
 }
 
-// statesOf are the states of doc's accounts at now, as policy judges them,
-// by id, as stateOf tells them apart.
-func statesOf(doc status.Document, now time.Time, policy score.Policy) map[string]state {
-	states := make(map[string]state, len(doc.Accounts))
-	for _, a := range doc.Accounts {
-		states[a.ID] = stateOf(doc.RoutingOf(a, now, policy))
+// statesOf are the states of m's accounts, by id, as stateOf tells them
+// apart.
+func statesOf(m status.Moment) map[string]state {
+	states := make(map[string]state, len(m.Accounts))
+	for _, a := range m.Accounts {
+		states[a.ID] = stateOf(a.Routing)
 	}
 	return states
 }
 
-// outsOf are whether the words of each window of doc's accounts say at now,
-// as policy judges it, that it runs out, out ~…, by its account and key.
-func outsOf(doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref]bool {
+// outsOf are whether the words of each window of m's accounts say that it
+// runs out, out ~…, by its account and key.
+func outsOf(m status.Moment) map[dashboard.Ref]bool {
 	outs := make(map[dashboard.Ref]bool)
-	for _, a := range doc.Accounts {
-		states := doc.WindowStatesOf(a, now, policy)
+	for _, a := range m.Accounts {
 		for _, w := range a.Windows {
-			outs[dashboard.Ref{Account: a.ID, Window: w.Key}] = states.Of(w.Key).Kind == status.WindowRunsOut
+			outs[dashboard.Ref{Account: a.ID, Window: w.Key}] = w.RunsOut
 		}
 	}
 	return outs

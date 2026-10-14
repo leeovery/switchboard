@@ -35,16 +35,16 @@ type Running struct {
 	InFlight string
 }
 
-// RunningOf are the sessions running on doc's accounts at now, as the router
-// lists them in sessions: a row on each account their models go to, those
-// it routed there within RunningWithin, the accounts in the config's order,
-// and on each, the session seen last first.
-func RunningOf(doc status.Document, sessions []status.Session, now time.Time) []Running {
+// RunningOf are the sessions running on the accounts at the moment m, as the
+// router lists them in sessions: a row on each account their models go to,
+// those it routed there within RunningWithin, the accounts in the config's
+// order, and on each, the session seen last first.
+func RunningOf(m status.Moment, sessions []status.Session) []Running {
 	var running []Running
-	for _, a := range doc.Accounts {
+	for _, a := range m.Accounts {
 		var on []Running
 		for _, s := range sessions {
-			if r, ok := runningOn(doc, s, a.ID, now); ok {
+			if r, ok := runningOn(m, s, a.ID); ok {
 				on = append(on, r)
 			}
 		}
@@ -55,11 +55,11 @@ func RunningOf(doc status.Document, sessions []status.Session, now time.Time) []
 }
 
 // runningOn is the session s as it runs on the account with the given id at
-// now, of doc, reporting false where none of its models runs there.
-func runningOn(doc status.Document, s status.Session, id string, now time.Time) (Running, bool) {
+// the moment m, reporting false where none of its models runs there.
+func runningOn(m status.Moment, s status.Session, id string) (Running, bool) {
 	var there []status.Assignment
 	for _, a := range s.Assignments {
-		if a.Account == id && now.Sub(score.Later(a.LastSeen, a.AssignedAt)) <= RunningWithin {
+		if a.Account == id && m.Now.Sub(score.Later(a.LastSeen, a.AssignedAt)) <= RunningWithin {
 			there = append(there, a)
 		}
 	}
@@ -70,7 +70,7 @@ func runningOn(doc status.Document, s status.Session, id string, now time.Time) 
 	last := there[0]
 	r := Running{
 		Account: id, Session: s.ID, Family: last.Name(), LastSeen: last.LastSeen,
-		Why: whyRunning(doc, s, last, now), InFlight: inFlight(there),
+		Why: whyRunning(m, s, last), InFlight: inFlight(there),
 	}
 	for _, a := range there {
 		r.Models = append(r.Models, a.Model)
@@ -79,19 +79,20 @@ func runningOn(doc status.Document, s status.Session, id string, now time.Time) 
 }
 
 // whyRunning is why the session s's model is on the account its assignment
-// a gives, at now, as status.RunningWords says it: since it was pinned
-// there, where it was pinned as it ran, else since it went there; from the
-// account doc's newest event moving it there tells, where one does.
-func whyRunning(doc status.Document, s status.Session, a status.Assignment, now time.Time) status.Words {
-	facts := status.Facts{To: a.Account, At: a.AssignedAt, Best: a.Account == doc.Best, Now: now}
+// a gives, at the moment m, as status.RunningWords says it: since it was
+// pinned there, where it was pinned as it ran, else since it went there; from
+// the account m's newest event moving it there tells, where one does; the
+// best while that account is where new sessions go, which ▲ marks.
+func whyRunning(m status.Moment, s status.Session, a status.Assignment) status.Words {
+	facts := status.Facts{To: a.Account, At: a.AssignedAt, Best: a.Account == m.Next, Now: m.Now}
 	if a.Pinned && !a.PinnedAt.IsZero() {
 		facts.At = a.PinnedAt
 	}
-	i := slices.IndexFunc(doc.Events, func(e status.Event) bool {
+	i := slices.IndexFunc(m.Events, func(e status.Event) bool {
 		return e.Kind == status.EventMoved && e.Session == s.ID && e.Model == a.Model && e.To == a.Account
 	})
 	if i >= 0 {
-		facts.From = doc.Events[i].From
+		facts.From = m.Events[i].From
 	}
 	return status.RunningWords(a.Reason, facts)
 }

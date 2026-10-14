@@ -90,11 +90,12 @@ func stepFor(key string) (time.Duration, bool) {
 	return max(step, least.Truncate(time.Minute)+time.Minute), true
 }
 
-// keysOf are the keys of doc's windows that have a step to ask the history
-// at, each once, in the order the accounts first have them.
-func keysOf(doc status.Document) []string {
+// keysOf are the keys of the windows of the moment's accounts that have a
+// step to ask the history at, each once, in the order the accounts first
+// have them.
+func keysOf(moment status.Moment) []string {
 	var keys []string
-	for _, a := range doc.Accounts {
+	for _, a := range moment.Accounts {
 		for _, w := range a.Windows {
 			if _, ok := stepFor(w.Key); ok && !slices.Contains(keys, w.Key) {
 				keys = append(keys, w.Key)
@@ -104,22 +105,22 @@ func keysOf(doc status.Document) []string {
 	return keys
 }
 
-// askHistory asks the router for the history of doc's windows, as the next
-// asking, as histories asks it.
-func (m Model) askHistory(doc status.Document) (Model, tea.Cmd) {
+// askHistory asks the router for the history of the moment's windows, as
+// the next asking, as histories asks it.
+func (m Model) askHistory(moment status.Moment) (Model, tea.Cmd) {
 	m.history.asked++
-	asked, ctx, source := m.history.asked, m.ctx, m.cfg.Source
+	asked, ctx, source, keys := m.history.asked, m.ctx, m.cfg.Source, keysOf(moment)
 	return m, func() tea.Msg {
-		return histories(ctx, source, doc, asked)
+		return histories(ctx, source, keys, asked)
 	}
 }
 
-// histories asks the source for the history of doc's windows, each at its
-// step, as the asking given: a router from before GET /history stops it,
-// there being nothing more to ask of it.
-func histories(ctx context.Context, source Source, doc status.Document, asked int) historyMsg {
+// histories asks the source for the history of the windows with the given
+// keys, each at its step, as the asking given: a router from before GET
+// /history stops it, there being nothing more to ask of it.
+func histories(ctx context.Context, source Source, keys []string, asked int) historyMsg {
 	msg := historyMsg{asked: asked, got: make(map[string]router.History)}
-	for _, key := range keysOf(doc) {
+	for _, key := range keys {
 		step, _ := stepFor(key)
 		got, err := source.History(ctx, key, step)
 		if err != nil {
@@ -134,36 +135,36 @@ func histories(ctx context.Context, source Source, doc status.Document, asked in
 	return msg
 }
 
-// readFiled reads the readings history's files for the readings of doc's
-// windows as they run at now, as the next asking, where there's no router to
-// ask: nothing where the watch has no readings history to read.
-func (m Model) readFiled(doc status.Document, now time.Time) (Model, tea.Cmd) {
+// readFiled reads the readings history's files for the readings of the
+// moment's windows as they run then, as the next asking, where there's no
+// router to ask: nothing where the watch has no readings history to read.
+func (m Model) readFiled(moment status.Moment) (Model, tea.Cmd) {
 	if m.cfg.Readings == nil {
 		return m, nil
 	}
 	m.history.asked++
 	m.history.filedSince = true
-	asked, files, policy := m.history.asked, m.cfg.Readings, m.cfg.Policy
+	asked, files := m.history.asked, m.cfg.Readings
 	return m, func() tea.Msg {
-		return filedMsg{asked: asked, got: filedOf(files, doc, now, policy)}
+		return filedMsg{asked: asked, got: filedOf(files, moment)}
 	}
 }
 
-// filedOf are the readings the readings history's files hold of doc's
+// filedOf are the readings the readings history's files hold of the moment's
 // windows, by account and window, read as the history verb reads them, from
-// the day the earliest of the spans the charts draw them over at now, as
-// ChartSpan has them, as policy judges the windows, started.
-func filedOf(files views.Readings, doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref][]score.Reading {
-	from := now
-	for _, a := range doc.Accounts {
+// the day the earliest of the spans the charts draw them over then, as
+// ChartSpan has them, started.
+func filedOf(files views.Readings, moment status.Moment) map[dashboard.Ref][]score.Reading {
+	from := moment.Now
+	for _, a := range moment.Accounts {
 		for _, w := range a.Windows {
-			if start, _, ok := dashboard.ChartSpan(a, w.Key, now, policy); ok {
+			if start, _, ok := dashboard.ChartSpan(w); ok {
 				from = score.Earlier(from, start)
 			}
 		}
 	}
 	got := make(map[dashboard.Ref][]score.Reading)
-	for _, w := range views.NewWindows(files, nil, from, now).Windows {
+	for _, w := range views.NewWindows(files, nil, from, moment.Now).Windows {
 		ref := dashboard.Ref{Account: w.Account, Window: w.Window}
 		for _, r := range w.Readings {
 			got[ref] = append(got[ref], score.Reading{At: r.At, Utilization: r.Utilization})
@@ -204,28 +205,28 @@ func (h history) answered(msg historyMsg) history {
 	return h
 }
 
-// saw takes in the readings of doc's windows the charts draw at now, each
-// over its span then, as ChartSpan has it, as policy judges the windows: each
-// window's use as read, when its account was read, one reading the same use
-// again carrying the last on to then; but none read before its span starts,
-// as of one that has reset since, nor of one without a span, as of one not
-// started. A window's readings from before its span starts go.
-func (h history) saw(doc status.Document, now time.Time, policy score.Policy) history {
+// saw takes in the readings of the moment's windows the charts draw then,
+// each over its span, as ChartSpan has it: each window's use as read, when it
+// was read, one reading the same use again carrying the last on to then; but
+// none of an account not read, none read before its span starts, as of one
+// that has reset since, nor of one without a span, as of one not started. A
+// window's readings from before its span starts go.
+func (h history) saw(moment status.Moment) history {
 	seen := maps.Clone(h.seen)
 	if seen == nil {
 		seen = make(map[dashboard.Ref][]score.Reading)
 	}
-	for _, a := range doc.Accounts {
-		if a.FetchedAt.IsZero() {
+	for _, a := range moment.Accounts {
+		if !a.Read {
 			continue
 		}
 		for _, w := range a.Windows {
-			start, _, ok := dashboard.ChartSpan(a, w.Key, now, policy)
-			if !ok || a.FetchedAt.Before(start) {
+			start, _, ok := dashboard.ChartSpan(w)
+			if !ok || w.Read.At.Before(start) {
 				continue
 			}
 			ref := dashboard.Ref{Account: a.ID, Window: w.Key}
-			seen[ref] = record(since(seen[ref], start), score.Reading{At: a.FetchedAt, Utilization: w.Utilization})
+			seen[ref] = record(since(seen[ref], start), score.Reading{At: w.Read.At, Utilization: w.Read.Used})
 		}
 	}
 	h.seen = seen
@@ -250,17 +251,17 @@ func record(readings []score.Reading, r score.Reading) []score.Reading {
 	}
 }
 
-// drawn is the history the charts draw of doc's windows at now, each over its
-// span then, as ChartSpan has it, as policy judges the windows, its readings
-// in order from when that started, so none of one that has reset since it was
-// read: those the router gave, or where it gave none, those the readings
-// history's files held; then those the watch has seen after the last of them;
-// or those the watch has seen alone, where neither holds any.
-func (h history) drawn(doc status.Document, now time.Time, policy score.Policy) dashboard.Trails {
+// drawn is the history the charts draw of the moment's windows, each over
+// its span then, as ChartSpan has it, its readings in order from when that
+// started, so none of one that has reset since it was read: those the router
+// gave, or where it gave none, those the readings history's files held; then
+// those the watch has seen after the last of them; or those the watch has
+// seen alone, where neither holds any.
+func (h history) drawn(moment status.Moment) dashboard.Trails {
 	drawn := make(dashboard.Trails)
-	for _, a := range doc.Accounts {
+	for _, a := range moment.Accounts {
 		for _, w := range a.Windows {
-			start, _, ok := dashboard.ChartSpan(a, w.Key, now, policy)
+			start, _, ok := dashboard.ChartSpan(w)
 			if !ok {
 				continue
 			}

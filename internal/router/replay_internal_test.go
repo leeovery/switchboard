@@ -179,7 +179,7 @@ func TestA429WithoutUsageHeadersIsTheClientsAtOnce(t *testing.T) {
 		if got := upstream.sent(); !slices.Equal(got, []string{"work"}) {
 			t.Errorf("the request went out on %q, want work alone: the 429 says nothing of work's quota", got)
 		}
-		if work, _ := r.Status().Account("work"); work.Limit.Holds(start) || work.Refused.Status != 0 {
+		if work, _ := r.Status().Account("work"); !work.Limit.Until.IsZero() || work.Refused.Status != 0 {
 			t.Errorf("work's limit = %+v, refusal = %+v, want neither: the 429 says nothing against it", work.Limit, work.Refused)
 		}
 		if !log.Has("level=INFO", "msg=routed", "account=work", "status=429") {

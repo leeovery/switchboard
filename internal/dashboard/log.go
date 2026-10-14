@@ -68,7 +68,7 @@ func (f Frame) logCount(doc status.Document, now time.Time) int {
 	if n := len(f.logged(doc, now, logLines)); n > 0 {
 		return n
 	}
-	if f.quiet(doc) != nil {
+	if f.quiet(f.Moment(doc, now)) != nil {
 		return 1
 	}
 	return 0
@@ -84,7 +84,7 @@ func (f Frame) drawLog(c *canvas, doc status.Document, l logBlock, now time.Time
 	c.line(callsAt, l.row, line{{logLabel, labelInk}})
 	tellings := f.tellingsOf(f.logged(doc, now, l.lines), doc, now, logTold)
 	if len(tellings) == 0 {
-		f.quietly(c, doc, callsAt, l.row+1, l.end)
+		f.quietly(c, f.Moment(doc, now), callsAt, l.row+1, l.end)
 		return
 	}
 	for i, t := range tellings {
@@ -132,7 +132,7 @@ func retriedWhy(e status.Event, doc status.Document) line {
 	if rest, ok := strings.CutPrefix(said, status.ReasonMovedOff); ok {
 		account, befell, _ := strings.Cut(rest, " ")
 		if words, ok := retried[befell]; ok {
-			retry := line{{": " + named(doc, account) + " " + words + ", so its request was retried on " + named(doc, e.To), mutedInk}}
+			retry := line{{": " + docNamed(doc, account) + " " + words + ", so its request was retried on " + docNamed(doc, e.To), mutedInk}}
 			return slices.Concat(retry, passing(doc, passed))
 		}
 	}

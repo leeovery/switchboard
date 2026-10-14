@@ -98,20 +98,22 @@ const (
 	comeHere    = "new sessions come here"
 )
 
-// RoutingOf is how doc's account a stands with the router at now, as policy
-// says which windows every model shares: the first of the kinds that holds.
-// A limit or a refusal is said even where its last read failed, as
-// heldRouting says; its usage unreadable only where nothing was read of it
-// before, as otherwise its windows as last read say how it stands; its cap
-// as cappedRouting says; under pressure at now, as underPressure judges it,
-// when its pressure window runs out; idle at now, as idleAt judges it, when
-// a prime starts it; and open, where new sessions go, of several accounts.
-// Words from elsewhere show cleaned, and times as Dated shows them.
-func (d Document) RoutingOf(a Account, now time.Time, policy score.Policy) Routing {
+// routing is how the account stands with the router at now: the first of the
+// kinds that holds. A limit or a refusal is said even where its last read
+// failed, as heldRouting says; its usage unreadable only where nothing was
+// read of it before, as otherwise its windows as last read say how it
+// stands; its cap as cappedRouting says; under pressure at now, as
+// underPressure judges it, when its pressure window runs out, as pressure
+// says, At zero where it doesn't; idle at now, as idleAt judges it, when a
+// prime starts it; and open, where new sessions go, as next says, of
+// several accounts. Words from elsewhere show cleaned, and times as Dated
+// shows them.
+func (s windowStates) routing(pressure RunOut) Routing {
+	d, a, now := s.doc, s.account, s.now
 	if !a.TokenSet {
 		return Routing{Kind: RoutingTokenless, Says: "no token", Clauses: []string{"switchboard accounts token " + Clean(a.ID)}, Short: []string{"no token"}}
 	}
-	if held, ok := d.heldRouting(a, now, policy); ok {
+	if held, ok := s.heldRouting(); ok {
 		return held
 	}
 	switch {
@@ -120,37 +122,37 @@ func (d Document) RoutingOf(a Account, now time.Time, policy score.Policy) Routi
 	case a.FetchedAt.IsZero():
 		return Routing{Kind: RoutingUnread, Says: "not read yet", Short: []string{"not read yet"}}
 	}
-	if capped, ok := d.cappedRouting(a, now, policy); ok {
+	if capped, ok := s.cappedRouting(); ok {
 		return capped
 	}
 	switch {
-	case a.underPressure(now):
-		return d.pressedRouting(a, now)
-	case a.idleAt(now, policy):
-		return Routing{Kind: RoutingIdle, Says: "idle", Clauses: []string{d.StartsAt(a.ID, now)}, Short: []string{"idle"}}
-	case len(d.Accounts) > 1 && d.Best == a.ID:
+	case s.pressed:
+		return pressedRouting(pressure, now)
+	case s.idle:
+		return Routing{Kind: RoutingIdle, Says: "idle", Clauses: []string{d.startsAt(a.ID, now)}, Short: []string{"idle"}}
+	case len(d.Accounts) > 1 && d.next() == a.ID:
 		return Routing{Kind: RoutingNext, Says: "open", Clauses: []string{comeHere}, Short: []string{"open", "next"}}
 	}
 	return Routing{Kind: RoutingOpen, Says: "open", Short: []string{"open"}}
 }
 
-// heldRouting is how doc's account a stands, held back at now by a limit or
-// the upstream's refusal, reporting false where neither holds it back: from
-// every request, a limit, then its token refused; else, where its cap holds
-// it back from every request, as cappedRouting says that; else from some
+// heldRouting is how the account stands, held back at now by a limit or the
+// upstream's refusal, reporting false where neither holds it back: from every
+// request, a limit, then its token refused; else, where its cap holds it
+// back from every request, as cappedRouting says that; else from some
 // models' alone, a limit, then their family refused.
-func (d Document) heldRouting(a Account, now time.Time, policy score.Policy) (Routing, bool) {
-	held, limited := a.Held(now, policy)
+func (s windowStates) heldRouting() (Routing, bool) {
+	a, now, held, limited := s.account, s.now, s.stood.held, s.stood.limited
 	switch {
 	case limited && held.Every:
 		return Routing{Kind: RoutingLimited, Says: "limit reached", Clauses: backAt(now, held.Until), Short: shortBack("limit reached", now, held.Until)}, true
-	case a.TokenRefused(now):
+	case s.stood.refused:
 		answer := a.Refused.Answer()
 		return Routing{Kind: RoutingRefused, Says: answer, Clauses: []string{"its token needs renewing"}, Short: []string{answer}}, true
-	case !limited && !a.Refused.Holds(now):
+	case !limited && !s.refusing:
 		return Routing{}, false
-	case d.CapHolds(a, now, policy):
-		return d.cappedRouting(a, now, policy)
+	case s.stood.capped:
+		return s.cappedRouting()
 	case limited:
 		says := Short(a.label(held.Windows[0])) + " limit"
 		return Routing{Kind: RoutingModelLimited, Says: says, Clauses: append(backAt(now, held.Until), stillComes), Short: []string{says}}, true
@@ -159,17 +161,18 @@ func (d Document) heldRouting(a Account, now time.Time, policy score.Policy) (Ro
 	return Routing{Kind: RoutingModelRefused, Says: a.Refused.Answer(), Clauses: []string{stillComes}, Short: []string{short}}, true
 }
 
-// cappedRouting is how account a stands at its cap at now, as policy says
+// cappedRouting is how the account stands at its cap at now, as policy says
 // which windows every model shares, reporting false while no window of it
-// has reached its cap, as ReachedReserve judges: at it in a window every model
+// has reached its cap, as reachedReserve judges: at it in a window every model
 // shares, which holds it back from every request, as in "at its cap · back
 // 17:10 · new sessions go elsewhere", back as the last of those resets; else
 // in a model's own, as Fable's week, which holds back that model's requests
 // alone, as in "Fable wk at its cap · back Mon 21:00 · other models still
 // come here", of its own kind, pinned or not. The global pin naming it spends
 // its cap, so new sessions still come here.
-func (d Document) cappedRouting(a Account, now time.Time, policy score.Policy) (Routing, bool) {
-	keys := slices.SortedStableFunc(slices.Values(a.ReachedReserve(now)), func(x, y string) int { return sharedFirst(policy, x, y) })
+func (s windowStates) cappedRouting() (Routing, bool) {
+	a, now, policy := s.account, s.now, s.policy
+	keys := slices.SortedStableFunc(slices.Values(s.reached), func(x, y string) int { return sharedFirst(policy, x, y) })
 	if len(keys) == 0 {
 		return Routing{}, false
 	}
@@ -178,25 +181,26 @@ func (d Document) cappedRouting(a Account, now time.Time, policy score.Policy) (
 	if !shared {
 		kind, says, then = RoutingModelCapped, Short(a.label(keys[0]))+" at its cap", stillComes
 	}
-	if d.Pin.Has(a.ID) {
+	if s.doc.Pin.Has(a.ID) {
 		if shared {
 			kind = RoutingCappedPinned
 		}
 		return Routing{Kind: kind, Says: says, Clauses: []string{stillPinned}, Short: []string{says, "pinned"}}, true
 	}
-	back, _ := score.LetGo(a.Windows, a.Reserve, func(key string) bool { return policy.IsShared(key) == shared }, now)
+	back := s.capBack
+	if !shared {
+		back, _ = score.LetGo(a.Windows, a.Reserve, func(key string) bool { return !policy.IsShared(key) }, now)
+	}
 	return Routing{Kind: kind, Says: says, Clauses: append(backAt(now, back), then), Short: shortBack(says, now, back)}, true
 }
 
-// pressedRouting is how account a stands under pressure at now: when its
-// pressure window runs out, as RunsOut has it, as in "out ~16:05", where it
-// does before it resets.
-func (d Document) pressedRouting(a Account, now time.Time) Routing {
+// pressedRouting is how an account stands under pressure at now: when its
+// pressure window runs out, as out says, as in "out ~16:05", where it does
+// before it resets.
+func pressedRouting(out RunOut, now time.Time) Routing {
 	r := Routing{Kind: RoutingPressed, Says: "under pressure", Short: []string{"under pressure"}}
-	if w, ok := a.Window(a.Pressure.Window); ok {
-		if out, ok := d.RunsOut(a, w, now); ok {
-			r.Clauses = []string{"out ~" + Dated(now, out.At)}
-		}
+	if !out.At.IsZero() {
+		r.Clauses = []string{"out ~" + Dated(now, out.At)}
 	}
 	return r
 }

@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"cmp"
 	"fmt"
 	"slices"
 	"strconv"
@@ -11,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -121,43 +119,41 @@ type gauge struct {
 	cue     *float64
 }
 
-// newUsageBlock is the usage block of doc at now, its pool and its accounts'
-// windows as policy judges them then, width cells wide, drawn in look,
-// grouped by, of the windows given.
-func newUsageBlock(doc status.Document, now time.Time, policy score.Policy, width int, look Look, by By, windows []shownWindow) usageBlock {
-	pool := doc.PoolAt(now, policy)
-	return blockOf(doc, now, policy, pool, width, look, by, windows, namesOf(doc, pool))
+// newUsageBlock is the usage block of the moment m, width cells wide, drawn
+// in look, grouped by, of the windows given: its accounts' windows and its
+// pool as they stand at m, its accounts named as namesOf has them.
+func newUsageBlock(m status.Moment, width int, look Look, by By, windows []shownWindow) usageBlock {
+	return blockOf(m, width, look, by, windows, namesOf(m))
 }
 
-// blockOf is the usage block of doc at now, as newUsageBlock has it, of the
-// pool given, its accounts named as names has them.
-func blockOf(doc status.Document, now time.Time, policy score.Policy, pool status.Pool, width int, look Look, by By, windows []shownWindow, names []accountName) usageBlock {
+// blockOf is the usage block of m, as newUsageBlock has it, its accounts
+// named as names has them.
+func blockOf(m status.Moment, width int, look Look, by By, windows []shownWindow, names []accountName) usageBlock {
 	b := usageBlock{width: width, look: look, by: by, windows: windows}
 	b.names = nameColumn(names, width)
-	for i, a := range doc.Accounts {
+	for i, a := range m.Accounts {
 		row := usageRow{id: a.ID, name: names[i].line(b.names)}
 		if a.Reserve > 0 {
-			row.cap = name(a) + " at " + status.Percent(1-a.Reserve)
+			row.cap = name(a) + " at " + status.Percent(a.Cap)
 		}
-		states := doc.WindowStatesOf(a, now, policy)
 		for _, w := range b.windows {
-			row.gauges = append(row.gauges, accountGauge(a, w.key, states.Of(w.key), now))
+			row.gauges = append(row.gauges, accountGauge(a, w.key, m.Now))
 		}
 		b.rows = append(b.rows, row)
 	}
-	if row, ok := poolRow(pool, names, b.windows); ok {
+	if row, ok := poolRow(m.Pool(), names, b.windows); ok {
 		b.rows = append(b.rows, row)
 	}
 	return b
 }
 
-// UsageWindows are the keys of the windows usage shows of doc where none is
-// given: those every model shares, as shared has them, and every other any
-// account reports, so every account keeps its rows before any is read; in
-// Claude's order.
-func UsageWindows(doc status.Document, shared []string) []string {
-	keys := slices.Clone(shared)
-	for _, a := range doc.Accounts {
+// UsageWindows are the keys of the windows usage shows of m where none is
+// given: those every model shares, as the policy m was judged by has them,
+// and every other any account reports, so every account keeps its rows
+// before any is read; in Claude's order.
+func UsageWindows(m status.Moment) []string {
+	keys := slices.Clone(m.Policy().Shared)
+	for _, a := range m.Accounts {
 		for _, w := range a.Windows {
 			keys = append(keys, w.Key)
 		}
@@ -165,15 +161,12 @@ func UsageWindows(doc status.Document, shared []string) []string {
 	return slices.Compact(slices.SortedFunc(slices.Values(keys), quota.CompareKeys))
 }
 
-// usageWindows are the windows of doc with the keys given, in their order,
+// usageWindows are the windows of m with the keys given, in their order,
 // which is Claude's, or with none, those UsageWindows has, each named as name
-// names it, cleaned, or where name is nil, by its label as labelOf has it.
-func usageWindows(doc status.Document, keys, shared []string, name func(key string) string) []shownWindow {
+// names it, cleaned.
+func usageWindows(m status.Moment, keys []string, name func(key string) string) []shownWindow {
 	if len(keys) == 0 {
-		keys = UsageWindows(doc, shared)
-	}
-	if name == nil {
-		name = func(key string) string { return labelOf(doc, key) }
+		keys = UsageWindows(m)
 	}
 	shown := make([]shownWindow, 0, len(keys))
 	for _, key := range keys {
@@ -182,33 +175,23 @@ func usageWindows(doc status.Document, keys, shared []string, name func(key stri
 	return shown
 }
 
-// nameOfWindow names a window by its key and label: one of whole hours,
-// under a day, by them, as "5-hour", and any other by its label, cleaned, as
-// "Week" or "Fable week", or its key where it has none.
-func nameOfWindow(key, label string) string {
-	if length, ok := quota.Length(key); ok && length%time.Hour == 0 && length < day {
-		return fmt.Sprintf("%d-hour", length/time.Hour)
-	}
-	return status.Clean(cmp.Or(label, key))
-}
-
-// accountGauge is account a's window with the given key, standing as st says
-// at now, as its row draws it: empty, and nothing on it, where the account
-// has no usable token or nothing is read of the window; else filled to its
-// use, with its cap's mark and even pace's, as st reads them, and faded where
-// it's stale.
-func accountGauge(a status.Account, key string, st status.WindowState, now time.Time) gauge {
-	bar := usageBar{used: st.Used, capAt: 1 - a.Reserve, pace: st.Pace, stale: st.Kind == status.WindowStale}
-	if drawsEmpty(st) {
+// accountGauge is account a's window with the given key, as it stands at
+// now, as its row draws it: empty, and nothing on it, where the account has
+// no usable token or nothing is read of the window; else filled to its use,
+// with its cap's mark and even pace's, and faded where it's stale.
+func accountGauge(a status.AccountNow, key string, now time.Time) gauge {
+	w, _ := a.Window(key)
+	bar := usageBar{used: w.Used, capAt: a.Cap, pace: w.Pace, stale: w.Kind == status.WindowStale}
+	if drawsEmpty(w.Kind) {
 		bar = usageBar{empty: true}
 	}
-	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(st, now), runsOut: st.Kind == status.WindowRunsOut}
+	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(w, now), runsOut: w.RunsOut}
 }
 
-// drawsEmpty reports whether a window standing as st draws an empty bar:
+// drawsEmpty reports whether a window of the given kind draws an empty bar:
 // where its account has no usable token or nothing is read of it.
-func drawsEmpty(st status.WindowState) bool {
-	return st.Kind == status.WindowTokenless || st.Kind == status.WindowUnread
+func drawsEmpty(kind status.WindowKind) bool {
+	return kind == status.WindowTokenless || kind == status.WindowUnread
 }
 
 // poolRow is pool's row under the rows of accounts named as names has them,
@@ -216,7 +199,7 @@ func drawsEmpty(st status.WindowState) bool {
 // there's no pool, as with one account: each window's bar filled to what the
 // pool has used, with its accounts' even pace and no cap's mark, and its
 // words its room, the first it has words for saying it's pinned, where it is.
-func poolRow(pool status.Pool, names []accountName, windows []shownWindow) (usageRow, bool) {
+func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (usageRow, bool) {
 	if len(names) < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
 	}
@@ -224,7 +207,7 @@ func poolRow(pool status.Pool, names []accountName, windows []shownWindow) (usag
 	row := usageRow{name: line{{strings.Repeat(" ", digits-1) + "Σ", dimInk}, {" pool", noteInk}}, pool: true}
 	pinned := pool.Pinned
 	for _, w := range windows {
-		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindow) bool { return p.Key == w.key })
+		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindowNow) bool { return p.Key == w.key })
 		if j < 0 {
 			row.gauges = append(row.gauges, gauge{bar: usageBar{empty: true}})
 			continue
@@ -270,15 +253,15 @@ type accountName struct {
 	faint   bool
 }
 
-// namesOf are the names of doc's accounts, in the config's order, numbered
-// right-aligned once there are ten, each out of the pool given where it is.
-func namesOf(doc status.Document, pool status.Pool) []accountName {
-	digits := len(strconv.Itoa(len(doc.Accounts)))
-	best := bestOf(doc)
-	names := make([]accountName, len(doc.Accounts))
-	for i, a := range doc.Accounts {
+// namesOf are the names of m's accounts, in the config's order, numbered
+// right-aligned once there are ten, ▲ on the one new sessions go to, and
+// each out of the pool where it is.
+func namesOf(m status.Moment) []accountName {
+	digits := len(strconv.Itoa(len(m.Accounts)))
+	names := make([]accountName, len(m.Accounts))
+	for i, a := range m.Accounts {
 		names[i] = accountName{
-			number: fmt.Sprintf("%*d", digits, i+1), label: name(a), primary: a.Primary, best: a.ID == best, out: outOfPool(pool, a.ID),
+			number: fmt.Sprintf("%*d", digits, i+1), label: name(a), primary: a.Primary, best: a.Next, out: a.OutOfPool,
 		}
 	}
 	return names

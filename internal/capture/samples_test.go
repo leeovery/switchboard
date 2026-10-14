@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -35,7 +37,7 @@ func TestTheSamplesReadAsTheFramesHaveThem(t *testing.T) {
 			if got := status.Percent(w.Utilization); got != tt.used {
 				t.Errorf("%s's %s is %s used, want %s", a.ID, tt.window, got, tt.used)
 			}
-			if got := status.Projection(now, a.Project(w, now).Projection); got != tt.projected {
+			if got := projection(now, projected(a, tt.window, now)); got != tt.projected {
 				t.Errorf("%s's %s projects %q, want %q", a.ID, tt.window, got, tt.projected)
 			}
 		})
@@ -64,10 +66,32 @@ func TestTheSamplesStandAsTheFramesHaveThem(t *testing.T) {
 	if want := []string{"spare"}; !slices.Equal(lapsed, want) {
 		t.Errorf("lapsed are %v, want %v", lapsed, want)
 	}
-	if limit := byID["personal"].Limit; !limit.Holds(now) || !limit.Until.Equal(on(now, 1, 15, 54)) {
+	if limit := byID["personal"].Limit; !limit.Until.Equal(on(now, 1, 15, 54)) {
 		t.Errorf("personal's limit is %+v, want it holding until 15:54", limit)
 	}
 	if got := status.Over(byID["work"].Pressure.Since, now); got != "last 30 min" {
 		t.Errorf("work's pressure is measured over the %s, want the last 30 min", got)
 	}
+}
+
+// projection words where a window is heading, p, as the frames do, times in
+// now's time zone.
+func projection(now time.Time, p score.Projection) string {
+	switch p.Kind {
+	case score.OnPace:
+		return "on pace for " + status.Percent(p.AtReset)
+	case score.RunsOut:
+		return "runs out ~" + status.Clock(now, p.At)
+	case score.Exhausted:
+		return "exhausted"
+	}
+	return ""
+}
+
+// projected is where account a's window with the given key is heading at now,
+// read then, as its moment has it.
+func projected(a status.Account, key string, now time.Time) score.Projection {
+	at, _ := status.Document{GeneratedAt: now, Accounts: []status.Account{a}}.At(now, claude.Policy).Account(a.ID)
+	w, _ := at.Window(key)
+	return w.Out.Projection
 }

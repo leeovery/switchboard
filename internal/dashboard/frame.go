@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
@@ -99,84 +98,71 @@ type Frame struct {
 	Policy score.Policy
 	// WindowName names a window by its key wherever the Overview names one,
 	// as "5-hour" or "Fable week": nil names it by its label in the
-	// document, as nameOfWindow has it.
+	// document, as status.NameOfWindow has it.
 	WindowName func(key string) string
 	// History is History's sub-tab shown, what each of its views shows, and
 	// their pages.
 	History HistoryPage
 
-	// judged is the pool as Judged judged it, and built the Overview's
-	// sections as Built built them, each for every look the frame takes of
-	// their document at their moment to share: nil, where each look works
-	// them out afresh.
-	judged *poolJudged
-	built  *sectionsBuilt
+	// held is the moment of a document as At holds it, and built the
+	// Overview's sections as Built built them, each for every look the frame,
+	// or a copy of it, takes of their document at their moment to share: nil,
+	// where each look works them out afresh.
+	held  *status.HeldMoment
+	built *sectionsBuilt
 }
 
-// docAt is a document at a moment, as a frame's pool is judged and its
-// sections built of: the document known by when it was generated.
-type docAt struct {
-	generated, at time.Time
-}
-
-// docAtOf is doc at now, as docAt has it.
-func docAtOf(doc status.Document, now time.Time) docAt {
-	return docAt{generated: doc.GeneratedAt, at: now}
-}
-
-// is reports whether d is doc at now.
-func (d docAt) is(doc status.Document, now time.Time) bool {
-	return d.generated.Equal(doc.GeneratedAt) && d.at.Equal(now)
-}
-
-// poolJudged is the pool of a document as Judged judges it at a moment:
-// judged once, the first time it's asked for.
-type poolJudged struct {
-	of   docAt
-	pool func() status.Pool
-}
-
-// Judged is the frame with the pool of doc judged at now once, as its Policy
-// judges it, the first time a look asks, and shared by every look it, or a
-// copy of it, takes of doc at now after: wherever the Overview reads it, and
-// the bars eased to it, as Filled has them. A frame judged of doc at now
-// already is as it was; a look at another moment, or of another document,
-// judges it afresh.
-func (f Frame) Judged(doc status.Document, now time.Time) Frame {
-	if f.judges(doc, now) {
+// At is the frame holding the moment of doc at now, as its Policy judges it:
+// worked out once, the first time a look asks, and shared by every look the
+// frame, or a copy of it, takes of doc at now after, each view's and the bars
+// eased to it, as Filled has them. A frame holding the moment of doc at now,
+// as its Policy judges it, already is as it was; a look at another moment, of
+// another document, or one another policy judged, works it out afresh. Each
+// look the frame takes, as Draw, Numbers and Scrolling do, holds the moment
+// first, so none works out two.
+func (f Frame) At(doc status.Document, now time.Time) Frame {
+	if f.held.Of(doc, now, f.Policy) {
 		return f
 	}
-	policy := f.Policy
-	f.judged = &poolJudged{of: docAtOf(doc, now), pool: sync.OnceValue(func() status.Pool { return doc.PoolAt(now, policy) })}
+	f.held = doc.HoldAt(now, f.Policy)
 	return f
 }
 
-// judges reports whether the frame has judged the pool of doc at now.
-func (f Frame) judges(doc status.Document, now time.Time) bool {
-	return f.judged != nil && f.judged.of.is(doc, now)
+// Holding is the frame holding h, a moment of a document at a time held
+// already, as one a read worked out: At keeps it for a look at that document
+// at that time, where the frame's Policy judged it, and works one out afresh
+// for any other.
+func (f Frame) Holding(h *status.HeldMoment) Frame {
+	f.held = h
+	return f
 }
 
-// pool is the pool of doc at now: as Judged judged it, where it judged it of
-// doc at now, else judged afresh, as the frame's Policy judges it.
-func (f Frame) pool(doc status.Document, now time.Time) status.Pool {
-	if f.judges(doc, now) {
-		return f.judged.pool()
+// Moment is doc at now, as every view reads it: as At holds it, where the
+// frame holds the moment of doc at now as its Policy judges it, else worked
+// out afresh, as its Policy judges it.
+func (f Frame) Moment(doc status.Document, now time.Time) status.Moment {
+	if f.held.Of(doc, now, f.Policy) {
+		return f.held.Moment()
 	}
-	return doc.PoolAt(now, f.Policy)
+	return doc.At(now, f.Policy)
 }
 
 // Draw draws the frame of doc at now: a string for each of its rows, each,
 // where the look paints its canvas, the terminal's whole width. It draws the
 // page, as page has it, its numbers brightened as Brightened says; then,
 // where a card is open, fades the page and draws the card over it.
-// Countdowns run from now, and times show in now's time zone.
+// Countdowns run from now, and times show in now's time zone. Every view
+// reads the one moment of doc at now, as At holds it.
 func (f Frame) Draw(doc status.Document, now time.Time) []string {
+	f = f.At(doc, now)
 	return f.finish(f.page(doc, now)).rows(f.Look)
 }
 
 // Rendered is the frame of doc at now drawn once: its rows, as Draw draws
-// them, and what moves on screen in it, as moving reads it off the same page.
+// them, and what moves on screen in it, as moving reads it off the same page,
+// of the one moment, as At holds it.
 func (f Frame) Rendered(doc status.Document, now time.Time) ([]string, Motion) {
+	f = f.At(doc, now)
 	c := f.page(doc, now)
 	moving := f.moving(c, doc, now)
 	return f.finish(c).rows(f.Look), moving
@@ -290,6 +276,7 @@ const (
 // else what of the view scrolls, as scrolls has it, where the page has room
 // for the view, as cramped says.
 func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
+	f = f.At(doc, now)
 	inside := func(left, top, width, height int) bool {
 		return left <= x && x < left+width && top <= y && y < top+height
 	}

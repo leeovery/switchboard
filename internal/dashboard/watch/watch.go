@@ -193,7 +193,13 @@ type Model struct {
 	// known.
 	size Size
 
-	doc status.Document
+	// doc is the document on screen, and asRead what the watch reads of it
+	// as it was read.
+	doc    status.Document
+	asRead asRead
+	// taking is the message Update is taking in, while it takes it: zero
+	// outside Update.
+	taking taking
 	// updated is when doc arrived: zero until one has.
 	updated time.Time
 	// plan is when the next reads are due, and what they ask for.
@@ -397,30 +403,43 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// Update takes in a message, as take says, then has the watch read the
-// router's request stream while it wants it, and the ledger's days for
-// History as it wants them, and only then, price the moves the routing card
-// would make while it wants them. Then, of the page as it
-// stands at one moment, its Overview's sections built once for each to
-// share, it keeps the Overview's layout, but for a frame, which takes
-// nothing in to lay it out afresh by; brightens the numbers what the stream
-// told changed, as compared has it; and only then, so the screen and its
-// frames see the layout the page will draw and the numbers it brightens,
-// shows the page, drawing frames while anything on it moves. The view is
-// drawn again after each, which is all a note's lapsing asks.
+// Update takes in a message, at the one time it came, as taking has it, as
+// take says, then has the watch read the router's request stream while it
+// wants it, and the ledger's days for History as it wants them, and only
+// then, price the moves the routing card would make while it wants them.
+// Then, of the page as it stands at that moment, its Overview's sections
+// built once for each to share, it keeps the Overview's layout, but for a
+// frame, which takes nothing in to lay it out afresh by; brightens the
+// numbers what the stream told changed, as compared has it; and only then,
+// so the screen and its frames see the layout the page will draw and the
+// numbers it brightens, shows the page, drawing frames while anything on it
+// moves. The view is drawn again after each, which is all a note's lapsing
+// asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	now := m.now()
+	m.taking = taking{at: now, moment: m.doc.HoldAt(now, m.cfg.Policy)}
 	next, cmd := m.take(msg)
 	tuned, stream := next.(Model).tune()
 	tuned, past := tuned.readHistory()
 	tuned, costs := tuned.costing()
-	now := tuned.now()
 	page := tuned.frame(now).Built(tuned.doc, now)
 	if _, frame := msg.(frameMsg); !frame {
 		tuned = tuned.keepLayout(page, now)
 	}
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
+	tuned.taking = taking{}
 	return tuned, tea.Batch(cmd, stream, past, costs, frames)
+}
+
+// taking is a message as Update takes it in: when it came, which every look
+// within it reads as now, as now has it, so they're all of one moment; and
+// the moment of the document on screen then, worked out the first time a
+// look asks, for every look at it then to share, as frame and moment have
+// it, the document a read finds taking it over.
+type taking struct {
+	at     time.Time
+	moment *status.HeldMoment
 }
 
 // keepLayout keeps the Overview's layout as page, built at now, lays it out,
@@ -514,11 +533,11 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.fetched(msg)
 	case historyMsg:
 		m.history = m.history.answered(msg)
-		m.trails = m.history.drawn(m.doc, m.now(), m.cfg.Policy)
+		m.trails = m.history.drawn(m.moment(m.now()))
 		return m, nil
 	case filedMsg:
 		m.history = m.history.filedAs(msg)
-		m.trails = m.history.drawn(m.doc, m.now(), m.cfg.Policy)
+		m.trails = m.history.drawn(m.moment(m.now()))
 		return m, nil
 	case yearReadMsg:
 		return m.yearRead(msg), nil
@@ -680,9 +699,10 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // windows are grouped, the requests its traces count and its layout as
 // kept, how far ahead Runway looks, the sessions listed, what the request
 // stream tells of their requests and the order Sessions' calls keep, how far
-// the view is scrolled, and the account the focus is on. Its pool is judged
-// at now once, as Judged has it, for its bars eased to it and every look at
-// it to share.
+// the view is scrolled, and the account the focus is on. It holds the one
+// moment of the document at now, as At has it, for its bars eased to it and
+// every look at it to share: the message's, as taking has it, where now is
+// when the message came.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
@@ -694,7 +714,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
 		History:    m.past.page,
-	}.Judged(m.doc, now)
+	}.Holding(m.taking.moment).At(m.doc, now)
 	f.Eased = m.ease.eased(f, m.doc, now)
 	return f
 }
@@ -725,21 +745,22 @@ func (m Model) read(r status.Read) (Model, tea.Cmd) {
 	return m, m.fetch(r)
 }
 
-// fetch reads the source as r asks, as fetchFrom reads it.
+// fetch reads the source as r asks, as fetchFrom reads it, asked now.
 func (m Model) fetch(r status.Read) tea.Cmd {
-	ctx, source := m.ctx, m.cfg.Source
+	ctx, source, policy, asked := m.ctx, m.cfg.Source, m.cfg.Policy, m.now()
 	return func() tea.Msg {
-		return fetchFrom(ctx, source, r)
+		return fetchFrom(ctx, source, r, policy, asked)
 	}
 }
 
-// fetchFrom reads the source as r asks, and from a router, the sessions it
+// fetchFrom reads the source as r asks, and from a router, as the moment of
+// what it read as it was asked says, as policy judges it, the sessions it
 // lists, for the sessions running and Sessions' calls: a router that can't
 // list them leaves them out.
-func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
+func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.Policy, asked time.Time) fetchedMsg {
 	doc, from, err := source.Read(ctx, r)
 	msg := fetchedMsg{read: r, doc: doc, router: from, err: err}
-	if err != nil || !routed(doc) {
+	if err != nil || !doc.At(asked, policy).Routed {
 		return msg
 	}
 	sessions, err := source.Sessions(ctx)
@@ -782,9 +803,10 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
 		m = m.lose(now)
 	default:
-		m.plan = m.plan.landed(msg.read, msg.doc, now)
-		m, shown = m.show(msg, now)
-		logRead(msg, m.plan.due)
+		look := msg.doc.At(now, m.cfg.Policy)
+		m.plan = m.plan.landed(msg.read, msg.doc, look.Routed, now)
+		m, shown = m.show(msg, look)
+		logRead(msg, look, m.plan.due)
 	}
 	m.chain++
 	var again tea.Cmd
@@ -796,85 +818,88 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 }
 
 // logRead notes a read: where it came from, the accounts it read and those it
-// couldn't, and when the next full read is due. A look at the router's
-// document as it stands, every few seconds, is noted only at debug.
-func logRead(msg fetchedMsg, next time.Time) {
+// couldn't, as look has them, and when the next full read is due. A look at
+// the router's document as it stands, every few seconds, is noted only at
+// debug.
+func logRead(msg fetchedMsg, look status.Moment, next time.Time) {
 	var read, failed []string
-	for _, a := range msg.doc.Accounts {
-		if wasRead(a) {
+	for _, a := range look.Accounts {
+		if a.Read {
 			read = append(read, a.ID)
 		} else {
 			failed = append(failed, a.ID)
 		}
 	}
 	level := slog.LevelInfo
-	if routed(msg.doc) && msg.read.Refresh == 0 {
+	if look.Routed && msg.read.Refresh == 0 {
 		level = slog.LevelDebug
 	}
-	logger.Log(context.Background(), level, "usage read", "source", msg.doc.Source,
+	logger.Log(context.Background(), level, "usage read", "source", sourceOf(look),
 		"read", strings.Join(read, ","), "failed", strings.Join(failed, ","), "next", next)
 }
 
-// show puts the document a read found at now on screen, with the sessions
-// the router listed, Sessions' calls keeping the order they ran in, each
-// move they show done no longer re-patching them; or where it couldn't list
-// them, those it listed last, while the router that listed them answers, as
-// a router restarted or replaced lists its own; and none while probing. It
-// posts what the change calls for, unless the router is there to post its
-// own, as nothing is to be told twice; follows the router as it goes and
-// comes back; notes the events new to it, and the readings it gives; asks
+// show puts the document a read found on screen, as look has it at its moment,
+// which every look at it within the message shares, as taking has it, with
+// the sessions the router listed, Sessions' calls keeping the order they ran
+// in, each move they show done no longer re-patching them; or where it
+// couldn't list them, those it listed last, while the router that listed them
+// answers, as a router restarted or replaced lists its own; and none while
+// probing. It posts what the change calls for, unless the router is there to
+// post its own, as nothing is to be told twice; follows the router as it goes
+// and comes back; notes the events new to it, and the readings it gives; asks
 // the router for its history with a full read, and as the router answers
 // again, or another router does, as one restarted, or probing, reads the
-// readings history's files with the first full read since probing began;
-// keeps the focus where its
-// account still is, else puts it on the first; eases the bars to it from
-// where they stand; and brightens each number on the page it changed.
-func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
-	doc := msg.doc
+// readings history's files with the first full read since probing began; keeps
+// the focus where its account still is, else puts it on the first; eases the
+// bars to it from where they stand; and brightens each number on the page it
+// changed.
+func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
+	doc, now, read := msg.doc, look.Now, originOf(look, msg.router)
 	was := m.numbersDrawn(now)
 	var post, asked tea.Cmd
-	if !routed(doc) {
-		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy, m.cfg.Notifications), probedAsAsked(doc))
+	if !look.Routed {
+		post = m.post(m.readings.alerts(look, read, m.cfg.Notifications), probedAsAsked(look))
 	}
-	ask := routed(doc) && (full(msg.read) || !m.answering() || m.news.another(msg.router))
-	if routed(doc) {
+	ask := look.Routed && (full(msg.read) || !m.answering() || m.news.another(msg.router))
+	if look.Routed {
 		m = m.answeredAgain(msg.router)
 		m.history.filedSince = false
 	}
-	m.readings = m.readings.with(doc, now)
-	m = m.follow(doc)
-	m.news = m.news.looked(doc, msg.router, now)
-	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
-	m.history = m.history.saw(doc, now, m.cfg.Policy)
+	m.readings = m.readings.with(look, read)
+	m = m.follow(look)
+	m.news = m.news.looked(look, msg.router)
+	m.changes = m.changes.looked(look, msg.router)
+	m.history = m.history.saw(look)
 	m.ease = easing{from: m.ease.standing(m.frame(now), m.doc, now), start: now}
-	m.doc, m.updated, m.failed = doc, now, ""
+	m.doc, m.asRead, m.taking.moment, m.updated, m.failed = doc, asReadOf(look), look.Held(), now, ""
 	switch {
-	case msg.listed || !routed(doc):
+	case msg.listed || !look.Routed:
 		m.order = m.frame(now).OrderOf(doc)
 		m.sessions, m.listedBy = msg.sessions, msg.router
 		m.traffic = m.traffic.listedAs(msg.sessions)
 	case !msg.router.Same(m.listedBy):
 		m.sessions = nil
 	}
-	m = m.stillThere()
-	m.trails = m.history.drawn(doc, now, m.cfg.Policy)
-	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), originOf(doc, msg.router), now)
+	m = m.stillThere(look)
+	m.trails = m.history.drawn(look)
+	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), read, now)
 	switch {
 	case ask:
-		m, asked = m.askHistory(doc)
-	case !routed(doc) && full(msg.read) && !m.history.filedSince:
-		m, asked = m.readFiled(doc, now)
+		m, asked = m.askHistory(look)
+	case !look.Routed && full(msg.read) && !m.history.filedSince:
+		m, asked = m.readFiled(look)
 	}
 	return m, tea.Batch(post, asked)
 }
 
-// follow notes where doc came from, against where the document on screen
-// did, as the router stops answering or answers again; and, a document having
-// landed from whatever source, that the router is lost no more.
-func (m Model) follow(doc status.Document) Model {
-	switch was, is := m.routed(), routed(doc); {
+// follow notes where the document look is a moment of came from, against
+// where the document on screen did, as the router stops answering or answers
+// again; and, a document having landed from whatever source, that the router
+// is lost no more.
+func (m Model) follow(look status.Moment) Model {
+	switch was, is := m.routed(), look.Routed; {
 	case was && !is:
-		logger.Warn("the router stopped answering; probing directly", "router", doc.Fallback.Router, "reason", doc.Fallback.Reason)
+		logger.Warn("the router stopped answering; probing directly", "router", look.Fallback.Router, "reason", look.Fallback.Reason)
 	case is && (!was || !m.lost.IsZero()):
 		logger.Info("reading the router")
 	}
@@ -941,7 +966,7 @@ func (m Model) ticked(msg tickMsg) (tea.Model, tea.Cmd) {
 	}
 	now := m.now()
 	m.traffic = m.traffic.tidied(now)
-	m.changes = m.changes.ticked(m.doc, now, m.cfg.Policy)
+	m.changes = m.changes.ticked(m.moment(now))
 	var read tea.Cmd
 	if r, ok := m.plan.at(now, m.routed()); ok {
 		m, read = m.read(r)
@@ -1071,23 +1096,51 @@ func (m Model) noted(now time.Time) string {
 
 // routed reports whether the document on screen is the router's.
 func (m Model) routed() bool {
-	return routed(m.doc)
+	return m.asRead.routed
 }
 
-// routed reports whether doc is the router's.
-func routed(doc status.Document) bool {
-	return doc.Source == status.SourceRouter
+// asRead is what the watch reads of a document as it was read, which holds
+// whatever the time: whether it's the router's, how many accounts it has,
+// and whether a pin stands.
+type asRead struct {
+	routed   bool
+	accounts int
+	pinned   bool
 }
 
-// probedAsAsked reports whether doc was built by probing as asked, rather
-// than for want of the router, which may be running all the same: one probed
-// for want of it says why.
-func probedAsAsked(doc status.Document) bool {
-	return !routed(doc) && doc.Fallback == (status.Fallback{})
+// asReadOf is what the watch reads of the document look is a moment of, as
+// it was read.
+func asReadOf(look status.Moment) asRead {
+	return asRead{routed: look.Routed, accounts: len(look.Accounts), pinned: !look.Pin.IsZero()}
 }
 
-// now reads the wall clock without its monotonic reading, which stops while a
-// Mac sleeps: kept, it would put every deadline off by the time spent asleep.
+// probedAsAsked reports whether the document look is a moment of was built by
+// probing as asked, rather than for want of the router, which may be running
+// all the same: one probed for want of it says why.
+func probedAsAsked(look status.Moment) bool {
+	return !look.Routed && look.Fallback == (status.Fallback{})
+}
+
+// sourceOf names where the document look is a moment of came from, as its log
+// says: the router, probing, or "" before any document.
+func sourceOf(look status.Moment) string {
+	switch {
+	case look.Routed:
+		return status.SourceRouter
+	case look.Probed:
+		return status.SourceProbe
+	default:
+		return ""
+	}
+}
+
+// now is the time the message Update is taking in came, as taking has it;
+// else it reads the wall clock without its monotonic reading, which stops
+// while a Mac sleeps: kept, it would put every deadline off by the time spent
+// asleep.
 func (m Model) now() time.Time {
+	if !m.taking.at.IsZero() {
+		return m.taking.at
+	}
 	return m.cfg.Now().Round(0)
 }

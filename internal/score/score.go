@@ -55,6 +55,13 @@ type Policy struct {
 	Pressure string
 }
 
+// Equal reports whether p and q are the one policy: they name the same
+// windows to each part, those every model shares in the same order.
+func (p Policy) Equal(q Policy) bool {
+	return slices.Equal(p.Shared, q.Shared) && p.Perishable == q.Perishable && p.Tiebreak == q.Tiebreak &&
+		p.Started == q.Started && p.Pressure == q.Pressure
+}
+
 // IsShared reports whether the window named key applies to every model.
 func (p Policy) IsShared(key string) bool {
 	return slices.Contains(p.Shared, key)
@@ -210,17 +217,6 @@ func (p Policy) Pick(candidates []Candidate, applies func(key string) bool, pref
 		c.PassedOver, c.Pressure = passed.id, passed.pressure
 	}
 	return c, true
-}
-
-// Among returns the ids of the candidates Pick chooses among, in the order
-// given: those that qualify, as Pick says, but those under pressure while
-// another isn't.
-func (p Policy) Among(candidates []Candidate, applies func(key string) bool, now time.Time) []string {
-	var ids []string
-	for _, r := range among(p.qualifying(candidates, applies, now)) {
-		ids = append(ids, r.id)
-	}
-	return ids
 }
 
 // among are the ratings Pick chooses among: those not under pressure, or

@@ -39,10 +39,10 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 	return section{
 		Section: SectionSessions, least: rows, most: rows,
 		draw: func(c *canvas, body bounds) {
-			f.drawRunning(c, doc, running, now, body)
+			f.drawRunning(c, f.Moment(doc, now), running, body)
 		},
 		folded: func() line {
-			return line{{runningCount(doc, running), mutedInk}}
+			return line{{runningCount(f.Moment(doc, now), running), mutedInk}}
 		},
 	}
 }
@@ -51,7 +51,7 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 // them, of the router's listing as the request stream has moved and seen
 // them since.
 func (f Frame) running(doc status.Document, now time.Time) []views.Running {
-	return views.RunningOf(doc, f.seenListing(), now)
+	return views.RunningOf(f.Moment(doc, now), f.seenListing())
 }
 
 // seenListing is the listing, each of its sessions' models last seen as
@@ -76,11 +76,10 @@ func (f Frame) seenListing() []status.Session {
 
 // runningForm is how SESSIONS draws a session running: the rows it takes;
 // the column its account's name starts at, on its account's first; and what
-// draws the rest of it, of a document at a moment, from a row, the name
-// column given.
+// draws the rest of it, of a moment, from a row, the name column given.
 type runningForm struct {
 	rows, nameAt int
-	draw         func(c *canvas, doc status.Document, r views.Running, column int, now time.Time, y int)
+	draw         func(c *canvas, m status.Moment, r views.Running, column, y int)
 }
 
 // runningForm is how the frame draws a session running: a row, from
@@ -92,10 +91,10 @@ func (f Frame) runningForm() runningForm {
 	return runningForm{rows: 1, draw: f.wideRunning}
 }
 
-// drawRunning draws the sessions running, of doc at now, in the body's
+// drawRunning draws the sessions running, of the moment m, in the body's
 // bounds: as many as fit, the last row saying how many more there are where
 // they don't all; or, with none running, a row saying so.
-func (f Frame) drawRunning(c *canvas, doc status.Document, running []views.Running, now time.Time, body bounds) {
+func (f Frame) drawRunning(c *canvas, m status.Moment, running []views.Running, body bounds) {
 	if len(running) == 0 {
 		c.line(0, body.y, line{{"no sessions running", faintInk}})
 		return
@@ -104,25 +103,26 @@ func (f Frame) drawRunning(c *canvas, doc status.Document, running []views.Runni
 	if shown*form.rows > body.rows {
 		shown = max(body.rows-1, 0) / form.rows
 	}
-	names := overviewNames(doc, f.pool(doc, now))
+	names := overviewNames(m)
 	column := nameColumn(names, f.Width)
 	for i, r := range running[:shown] {
 		y := body.y + i*form.rows
 		if i == 0 || running[i-1].Account != r.Account {
-			c.line(form.nameAt, y, names[place(doc, r.Account)-1].line(column))
+			c.line(form.nameAt, y, names[place(m, r.Account)-1].line(column))
 		}
-		form.draw(c, doc, r, column, now, y)
+		form.draw(c, m, r, column, y)
 	}
 	if more := len(running) - shown; more > 0 {
 		c.line(column, body.y+shown*form.rows, line{{"+" + strconv.Itoa(more) + " more", dimInk}})
 	}
 }
 
-// wideRunning draws the session running r on row y, from routingRows
-// columns: from the name column, its id, its family, when it was last seen,
-// what it's doing, and why it's there, cut to end before its trace; then its
-// trace, and its rate right-aligned at the last column.
-func (f Frame) wideRunning(c *canvas, doc status.Document, r views.Running, column int, now time.Time, y int) {
+// wideRunning draws the session running r on row y, of the moment m, from
+// routingRows columns: from the name column, its id, its family, when it was
+// last seen, what it's doing, and why it's there, cut to end before its
+// trace; then its trace, and its rate right-aligned at the last column.
+func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, column, y int) {
+	now := m.Now
 	seen := runningSeen(r.LastSeen, now)
 	doing := f.runningDoing(r)
 	c.line(column, y, line{
@@ -134,16 +134,17 @@ func (f Frame) wideRunning(c *canvas, doc status.Document, r views.Running, colu
 	})
 	why := column + runningWhy
 	c.line(why, y, line{{r.Why.String(), dimInk}}.fit(traceFrom-beforeTraceAt-why))
-	faded, t := outOfPool(f.pool(doc, now), r.Account), f.Traces.Sessions[r.Session]
+	faded, t := outOfPool(m, r.Account), f.Traces.Sessions[r.Session]
 	f.drawTrace(c, t, now, bounds{x: traceFrom, y: y, width: f.wideTraceCells(), rows: 1}, faded)
 	c.right(f.Width, y, line{traceRate(t, now, faded).numbered(Number{Kind: NumberRate, Account: r.Account, Of: r.Session})})
 }
 
-// narrowRunning draws the session running r on rows y and y + 1, under
-// routingRows columns: on the first, its id at the name column and what it's
-// doing right-aligned; on the second, why it's there, from the name column.
-func (f Frame) narrowRunning(c *canvas, _ status.Document, r views.Running, column int, now time.Time, y int) {
-	c.line(column, y, line{f.runningID(r, now)})
+// narrowRunning draws the session running r on rows y and y + 1, of the
+// moment m, under routingRows columns: on the first, its id at the name
+// column and what it's doing right-aligned; on the second, why it's there,
+// from the name column.
+func (f Frame) narrowRunning(c *canvas, m status.Moment, r views.Running, column, y int) {
+	c.line(column, y, line{f.runningID(r, m.Now)})
 	c.right(f.Width, y, line{f.runningDoing(r)})
 	c.line(column, y+1, line{{r.Why.String(), dimInk}}.fit(f.Width-column))
 }
@@ -211,11 +212,11 @@ func runningPlug(r views.Running, model string) Plug {
 	return Plug{Account: r.Account, Seat: Seat{Session: r.Session, Model: model}}
 }
 
-// runningCount says how many sessions run, and how many on each of doc's
+// runningCount says how many sessions run, and how many on each of m's
 // accounts, as SESSIONS' heading says it where it folds: "6 running: 2 on
 // personal, 4 on side", a session whose models go to two accounts counted
 // once, and on each; or "no sessions running".
-func runningCount(doc status.Document, running []views.Running) string {
+func runningCount(m status.Moment, running []views.Running) string {
 	sessions, byAccount := map[string]bool{}, map[string]int{}
 	for _, r := range running {
 		sessions[r.Session] = true
@@ -225,7 +226,7 @@ func runningCount(doc status.Document, running []views.Running) string {
 		return "no sessions running"
 	}
 	var on []string
-	for _, a := range doc.Accounts {
+	for _, a := range m.Accounts {
 		if n := byAccount[a.ID]; n > 0 {
 			on = append(on, strconv.Itoa(n)+" on "+name(a))
 		}
@@ -233,8 +234,9 @@ func runningCount(doc status.Document, running []views.Running) string {
 	return strconv.Itoa(len(sessions)) + " running: " + strings.Join(on, ", ")
 }
 
-// outOfPool reports whether the account with the given id is out of the
-// pool, where there's one.
-func outOfPool(pool status.Pool, id string) bool {
-	return len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, id)
+// outOfPool reports whether the account of m with the given id is out of the
+// pool, as its OutOfPool says: not where m lacks it.
+func outOfPool(m status.Moment, id string) bool {
+	a, _ := m.Account(id)
+	return a.OutOfPool
 }

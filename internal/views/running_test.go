@@ -2,10 +2,13 @@ package views_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -73,7 +76,7 @@ func TestTheSessionsRunningAreGroupedByAccountInTheConfigsOrderTheOneSeenLastFir
 		{account: "personal", session: idler, family: "opus", seen: 9 * time.Minute, why: "started here 10:12", models: []string{"claude-opus-5-5"}},
 		{account: "side", session: asking, family: "opus", seen: time.Second, why: "moved from work 13:01: work reached its cap", models: []string{"claude-opus-5-5"}, inFlight: status.Asking},
 	}
-	if got := rowsOf(views.RunningOf(runningDoc(), sessions, now)); !reflect.DeepEqual(got, want) {
+	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions)); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
 	}
 }
@@ -88,7 +91,7 @@ func TestASessionsModelsOnOneAccountAreOneRowItsModelSeenLastLeading(t *testing.
 		account: "side", session: asking, family: "opus", seen: time.Minute, why: "pinned here 12:42",
 		models: []string{"claude-opus-5-5", "claude-haiku-4-5", "claude-sonnet-5-5"}, inFlight: status.Answering,
 	}}
-	if got := rowsOf(views.RunningOf(runningDoc(), sessions, now)); !reflect.DeepEqual(got, want) {
+	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions)); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
 	}
 }
@@ -107,7 +110,7 @@ func TestASessionRunsWhereItWasRoutedWithinTheHour(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sessions := []status.Session{{ID: idler, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, tt.made, tt.seen, "")}}}
-			if got := len(views.RunningOf(runningDoc(), sessions, now)) == 1; got != tt.runs {
+			if got := len(views.RunningOf(runningDoc().At(now, claude.Policy), sessions)) == 1; got != tt.runs {
 				t.Errorf("runs = %t, want %t", got, tt.runs)
 			}
 		})
@@ -141,12 +144,77 @@ func TestWhyASessionRunsWhereItDoes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := runningDoc()
 			doc.Events = tt.events
-			rows := views.RunningOf(doc, []status.Session{{ID: asking, Assignments: []status.Assignment{tt.seat}}}, now)
+			rows := views.RunningOf(doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{tt.seat}}})
 			if len(rows) != 1 {
 				t.Fatalf("RunningOf gave %d rows, want 1", len(rows))
 			}
 			if got := rows[0].Why.String(); got != tt.want {
 				t.Errorf("Why = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// A session started on the account new sessions go to says so, as ▲ marks
+// it: a lone account always, whatever its room, and of several, the router's
+// best alone.
+func TestASessionStartedWhereNewSessionsGoIsTheBest(t *testing.T) {
+	started := seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, 3*time.Minute, 0, "")
+	tests := []struct {
+		name string
+		doc  status.Document
+		want string
+	}{
+		{
+			name: "the router's, of several, its best",
+			doc:  status.Document{Source: status.SourceRouter, Best: "work", Accounts: []status.Account{{ID: "work"}, {ID: "side"}}},
+			want: "started here 13:09, the best",
+		},
+		{
+			name: "the router's, of several, another its best",
+			doc:  status.Document{Source: status.SourceRouter, Best: "side", Accounts: []status.Account{{ID: "work"}, {ID: "side"}}},
+			want: "started here 13:09",
+		},
+		{
+			name: "the router's, of one, though the router names no best, as with no room",
+			doc:  status.Document{Source: status.SourceRouter, Accounts: []status.Account{{ID: "work"}}},
+			want: "started here 13:09, the best",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows := views.RunningOf(tt.doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{started}}})
+			if len(rows) != 1 {
+				t.Fatalf("RunningOf gave %d rows, want 1", len(rows))
+			}
+			if got := rows[0].Why.String(); got != tt.want {
+				t.Errorf("Why = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// At each hard moment, a session started on an account says it's the best
+// where ▲ marks the account, as the moment has it, and nowhere else.
+func TestASessionIsTheBestWhereTheMomentMarksItsAccountAtEachHardMoment(t *testing.T) {
+	for _, hm := range statustest.HardMoments(claude.Policy) {
+		t.Run(hm.Name, func(t *testing.T) {
+			m := hm.Doc.At(hm.Now, claude.Policy)
+			var sessions []status.Session
+			for _, a := range m.Accounts {
+				sessions = append(sessions, status.Session{ID: a.ID + "-session", Assignments: []status.Assignment{{
+					Model: "claude-opus-5-5", Family: "opus", Account: a.ID, Reason: status.ReasonNew,
+					AssignedAt: hm.Now.Add(-time.Minute), LastSeen: hm.Now,
+				}}})
+			}
+			rows := views.RunningOf(m, sessions)
+			if len(rows) != len(m.Accounts) {
+				t.Fatalf("RunningOf gave %d rows, want one an account, %d", len(rows), len(m.Accounts))
+			}
+			for i, a := range m.Accounts {
+				if best := strings.HasSuffix(rows[i].Why.String(), ", the best"); best != a.Next {
+					t.Errorf("%s: a session started there says it's the best: %v; ▲ marks it: %v", a.ID, best, a.Next)
+				}
 			}
 		})
 	}

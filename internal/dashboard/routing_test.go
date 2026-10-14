@@ -68,7 +68,7 @@ func tenRouting() status.Document {
 	team.Limit = status.Limit{Windows: []string{"5h"}, Until: routedClock(1, 15, 30)}
 	doc.Accounts = append(accounts, open("client", 0.52), open("spare", 0.04), lab, team, open("extra", 0.22), open("ops", 0.06), open("studio", 0.33))
 	for id, n := range map[string]int{"personal": 2, "side": 4, "client": 3, "lab": 2, "extra": 1, "studio": 2} {
-		doc.Accounts[place(doc, id)-1].Sessions = n
+		doc.Accounts[docPlace(doc, id)-1].Sessions = n
 	}
 	return doc.WorkedOut(claudeLike)
 }
@@ -319,7 +319,7 @@ func TestTheModeIsROUTINGsDescription(t *testing.T) {
 		{name: "probed: no mode", doc: probe},
 	}
 	for _, tt := range tests {
-		if got := routingMode(tt.doc, routedAt, tt.alone); !slices.Equal(got, tt.want) {
+		if got := routingMode(tt.doc.At(routedAt, claudeLike), tt.alone); !slices.Equal(got, tt.want) {
 			t.Errorf("%s: %v, want %v", tt.name, got, tt.want)
 		}
 	}
@@ -327,7 +327,7 @@ func TestTheModeIsROUTINGsDescription(t *testing.T) {
 
 func TestROUTINGsHeadingSaysTheModeAloneBesideUSAGEOnAPhoneAndFolded(t *testing.T) {
 	doc := pinnedRouting()
-	full, alone := routingMode(doc, routedAt, false), routingMode(doc, routedAt, true)
+	full, alone := routingMode(doc.At(routedAt, claudeLike), false), routingMode(doc.At(routedAt, claudeLike), true)
 	tests := []struct {
 		name        string
 		frame       Frame
@@ -384,8 +384,8 @@ func TestAcrossAResetBetweenReadsROUTINGUSAGEAndTheRoutingCardAgree(t *testing.T
 	}
 	for _, tt := range tests {
 		routing := f.routingTableOf(doc, tt.now).accounts[0].standing.Kind == status.RoutingCapped
-		usage := strings.HasPrefix(wordsOf(doc.WindowStatesOf(work, tt.now, claudeLike).Of("5h"), tt.now).full.plain(), "at cap")
-		card := RoutingRows(doc, nil, tt.now, claudeLike)[1].Capped
+		usage := strings.HasPrefix(wordsOf(windowNowOf(doc, work.ID, "5h", tt.now), tt.now).full.plain(), "at cap")
+		card := RoutingRows(doc.At(tt.now, claudeLike), nil)[1].Capped
 		if routing != tt.capped || usage != tt.capped || card != tt.capped {
 			t.Errorf("%s: ROUTING capped %t, USAGE's words %t, the routing card %t; want each %t", tt.name, routing, usage, card, tt.capped)
 		}

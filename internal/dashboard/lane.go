@@ -189,89 +189,80 @@ func (s stretch) backFrom() int {
 	return i
 }
 
-// lane is an account's room over the time Runway shows, as the document has
-// it at a moment: the account, its place, and how its windows stand; whether
-// anything is known of it, and the windows the span counts, as counts says,
-// where it is; the stretches it can't take a session, in order; and until
-// when, from now, it's heading to run out, zero where it isn't, and in
-// words, as in "week runs out ~Sun 04:06".
+// lane is an account's room over the time Runway shows, as the document
+// stands at a moment: the account, as it stands then; whether anything is
+// known of it, and the windows the span counts, as counts says, where it is,
+// each as it stands then; the stretches it can't take a session, in order;
+// and until when, from now, it's heading to run out, zero where it isn't,
+// and in words, as in "week runs out ~Sun 04:06".
 type lane struct {
-	account   status.Account
-	place     int
-	states    status.WindowStates
+	account   status.AccountNow
 	known     bool
-	counted   []laneWindow
+	counted   []status.WindowNow
 	stretches []stretch
 	drains    time.Time
 	drained   string
 }
 
-// laneWindow is a window a lane counts toward its account's room, as read, and
-// when it resets next, as it stands at the lane's moment, as WindowAt has it:
-// zero where it has lapsed, or that isn't known.
-type laneWindow struct {
-	window quota.Window
-	next   time.Time
-}
-
-// laneOf is doc's account a's lane at now, its room going by the windows the
-// span counts, as counts says, its windows standing as WindowStatesOf has
-// them: nothing is known of one not read yet, whose windows stand unread;
-// without a usable token, as NoToken says, or with its usage unreadable, as
-// Unread says, whatever holds it back, it has none all along, its windows
-// standing as last read, which its week's badge and reset draw. Read, it has
-// none while a window counted holds it back, as causesOf says, nor, over the
-// day, while the upstream refuses its every request; and from now, it's
-// heading to run out until the last of those windows that run out before
-// they reset does.
-func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane {
-	l := lane{account: a, place: place(doc, a.ID), states: doc.WindowStatesOf(a, now, f.Policy)}
-	state, unknown := a.NoToken()
-	if !unknown {
-		state, unknown = a.Unread()
-	}
-	if unknown && state.Condition == status.Unread {
+// laneOf is account a's lane, as it stands at now, its room going by the
+// windows the span counts, as counts says: nothing is known of one not read
+// yet; one whose state holds it back all along, as stateCause says, has none
+// all along, whatever else holds it back, its windows standing as last read,
+// which its week's badge and reset draw. Read, it has none while a window
+// counted holds it back, as causesOf says, nor, over the day, while the
+// upstream refuses its token; and from now, it's heading to run out until the
+// last of those windows that run out ahead of it, as their RunsOutAhead has
+// them, does.
+func (f Frame) laneOf(a status.AccountNow, now time.Time) lane {
+	l := lane{account: a}
+	state, all := stateCause(a)
+	if !all && !a.Read {
 		return l
 	}
-	l.known, l.counted = true, f.countedOf(a, now)
-	if unknown {
-		l.stretches = merged([]cause{{says: state.Says, then: state.Then}})
+	l.known, l.counted = true, f.countedOf(a)
+	if all {
+		l.stretches = merged([]cause{state})
 		return l
 	}
 	var causes []cause
-	for _, c := range l.counted {
-		s := standingOf(doc, a, c.window, l.states, now)
-		if s.runsOut && s.out.At.After(l.drains) {
-			l.drains, l.drained = s.out.At, f.runOutSaid(s, now)
+	for _, w := range l.counted {
+		if w.RunsOutAhead && w.Out.At.After(l.drains) {
+			l.drains, l.drained = w.Out.At, f.runOutSaid(w, now)
 		}
-		causes = append(causes, f.causesOf(doc, a, s, now)...)
+		causes = append(causes, f.causesOf(w, now)...)
 	}
-	if f.Span == Day && a.Refused.Holds(now) && a.Refused.Family == "" {
-		causes = append(causes, cause{until: a.Refused.Until, says: a.Refused.Answer()})
+	if f.Span == Day && a.TokenRefused {
+		causes = append(causes, cause{until: a.Refusal.Until, says: a.Refusal.Answer()})
 	}
 	l.stretches = merged(causes)
 	return l
 }
 
-// countedOf are account a's windows the span counts, as counts says, in the
-// account's order, each as it stands at now.
-func (f Frame) countedOf(a status.Account, now time.Time) []laneWindow {
-	var windows []laneWindow
-	for _, w := range a.Windows {
-		if f.counts(w) {
-			stands, _ := a.WindowAt(w.Key, now, f.Policy)
-			windows = append(windows, laneWindow{window: w, next: stands.ResetsAt})
-		}
+// stateCause is what holds account a back all along, whatever else does,
+// reporting false where nothing does: without a usable token, how to give it
+// one; or where its last read failed, why, whatever was read of it before.
+func stateCause(a status.AccountNow) (cause, bool) {
+	switch {
+	case !a.TokenSet:
+		return cause{says: "no token", then: "switchboard accounts token " + status.Clean(a.ID)}, true
+	case a.Error != "":
+		return cause{says: "can't read it", then: a.Error}, true
 	}
-	return windows
+	return cause{}, false
+}
+
+// countedOf are account a's windows the span counts, as counts says, in the
+// account's order.
+func (f Frame) countedOf(a status.AccountNow) []status.WindowNow {
+	return slices.DeleteFunc(slices.Clone(a.Windows), func(w status.WindowNow) bool { return !f.counts(w) })
 }
 
 // counts reports whether the span counts the window w toward an account's
 // room: over the day, every window every model shares; over the week, the
 // weeks among them, those longer than a day.
-func (f Frame) counts(w quota.Window) bool {
+func (f Frame) counts(w status.WindowNow) bool {
 	switch {
-	case !f.Policy.IsShared(w.Key):
+	case !w.Shared:
 		return false
 	case f.Span == Week:
 		return quota.MultiDay(w.Key)
@@ -280,51 +271,50 @@ func (f Frame) counts(w quota.Window) bool {
 	}
 }
 
-// causesOf are what holds doc's account a back, at now, of its window
-// standing as s: while it's held at its limit, from when it reached it, as
-// its standing says, until it's back; or while it's at its reserve, as the
-// router noted it, where that holds the account back, until the window
-// resets as it was read, whether or not that has passed, as the stretch it
-// held the account over is drawn all the same; and once it runs out before
-// it resets, as RunsOut has it, until it resets, as a window a limit naming
-// none holds can, once that lifts. Over the day, a window other than the one
-// a request starts is named, as in "week runs out ~Fri 04:06".
-func (f Frame) causesOf(doc status.Document, a status.Account, s standing, now time.Time) []cause {
+// causesOf are what holds an account back, at now, of its window w: while
+// it's held at its limit, from when the account reached it, until it's back;
+// or while it's at its reserve, as the router noted it as it read it, until
+// the window resets as it was read, whether or not that has passed, as the
+// stretch it held the account over is drawn all the same; and once it runs
+// out ahead of now, as its RunsOutAhead has it, until it resets. Over the
+// day, a window other than the one a request starts is named, as in "week
+// runs out ~Fri 04:06".
+func (f Frame) causesOf(w status.WindowNow, now time.Time) []cause {
 	var causes []cause
-	w := s.window
+	resets := w.Read.ResetsAt
 	switch {
-	case s.held:
+	case w.Held:
 		says := "limit reached"
-		if !s.since.IsZero() {
-			says += " " + status.Dated(now, s.since)
+		if !w.Since.IsZero() {
+			says += " " + status.Dated(now, w.Since)
 		}
-		causes = append(causes, cause{from: s.since, until: s.back, says: says})
-	case doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key):
-		causes = append(causes, cause{until: w.ResetsAt, says: f.naming(w) + "at its reserve", resets: w.ResetsAt})
+		causes = append(causes, cause{from: w.Since, until: w.Back, says: says})
+	case w.CappedAsRead:
+		causes = append(causes, cause{until: resets, says: f.naming(w) + "at its reserve", resets: resets})
 	}
-	if s.runsOut {
-		causes = append(causes, cause{from: s.out.At, until: w.ResetsAt, says: f.runOutSaid(s, now), resets: w.ResetsAt})
+	if w.RunsOutAhead {
+		causes = append(causes, cause{from: w.Out.At, until: resets, says: f.runOutSaid(w, now), resets: resets})
 	}
 	return causes
 }
 
-// runOutSaid says where the window standing as s runs out, as Runway says
-// it at now: that it runs out, or reaches its account's reserve where that
-// holds it back, and when, its window named as naming has it, as in "week
-// runs out ~Fri 04:06".
-func (f Frame) runOutSaid(s standing, now time.Time) string {
+// runOutSaid says where the window w runs out, as Runway says it at now: that
+// it runs out, or reaches its account's reserve where that holds it back,
+// and when, as its Out has it, its window named as naming has it, as in
+// "week runs out ~Fri 04:06".
+func (f Frame) runOutSaid(w status.WindowNow, now time.Time) string {
 	verb := "runs out ~"
-	if s.out.Reserve {
+	if w.Out.Reserve {
 		verb = "reaches its reserve ~"
 	}
-	return f.naming(s.window) + verb + status.Dated(now, s.out.At)
+	return f.naming(w) + verb + status.Dated(now, w.Out.At)
 }
 
 // naming is how the words of what the window w holds an account back for
 // lead: over the day, with the window's name, but for the window a request
 // starts, as in "week "; over the week, without it, as it's the weeks' alone.
-func (f Frame) naming(w quota.Window) string {
-	if f.Span == Week || w.Key == f.Policy.Started {
+func (f Frame) naming(w status.WindowNow) string {
+	if f.Span == Week || w.Started {
 		return ""
 	}
 	return status.InProse(w.Label) + " "

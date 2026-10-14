@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
@@ -401,8 +402,9 @@ func absolute(path string) (string, error) {
 	return filepath.Abs(path)
 }
 
-// write writes the agent's plist, readable by all as launchd's are, and
-// makes the directory launchd writes its log in, which launchd leaves to it.
+// write writes the agent's plist whole, where any link in its place leads,
+// readable by all as launchd's are, and has logs make the directory launchd
+// writes its log in, which launchd leaves to it.
 func (s *Service) write(a agent) error {
 	data, err := a.plist()
 	if err != nil {
@@ -411,16 +413,14 @@ func (s *Service) write(a agent) error {
 	if err := os.MkdirAll(filepath.Dir(s.Plist()), 0o755); err != nil {
 		return fmt.Errorf("create the LaunchAgents directory: %w", err)
 	}
-	if err := os.WriteFile(s.Plist(), data, 0o644); err != nil {
+	target, err := atomicfile.Target(s.Plist())
+	if err != nil {
+		return fmt.Errorf("find where the service's plist goes: %w", err)
+	}
+	if err := atomicfile.Write(target, data, 0o644); err != nil {
 		return fmt.Errorf("write the service's plist: %w", err)
 	}
-	if err := os.Chmod(s.Plist(), 0o644); err != nil {
-		return fmt.Errorf("make the service's plist readable: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(a.Log), 0o700); err != nil {
-		return fmt.Errorf("create the log directory: %w", err)
-	}
-	return nil
+	return logs.MakeDir(filepath.Dir(a.Log))
 }
 
 // bootstrap has launchd load the service from its plist, trying again,

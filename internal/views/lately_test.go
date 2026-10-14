@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -19,10 +20,16 @@ func latelyOf(events ...status.Event) status.Document {
 	return status.Document{Source: status.SourceRouter, Events: events}
 }
 
+// lately are doc's events as LATELY tells them at now, n at most, as Lately
+// has them of its moment then.
+func lately(doc status.Document, now time.Time, n int) []views.Sentence {
+	return views.Lately(doc.At(now, claude.Policy), n)
+}
+
 // sentenceOf is the one sentence LATELY tells of e, told at now.
 func sentenceOf(t *testing.T, e status.Event, now time.Time) views.Sentence {
 	t.Helper()
-	got := views.Lately(latelyOf(e), now, 12)
+	got := lately(latelyOf(e), now, 12)
 	if len(got) != 1 {
 		t.Fatalf("Lately() = %+v, want e told", got)
 	}
@@ -167,13 +174,13 @@ func TestLATELYTellsTheKindsItKnowsNewestFirstNAtMost(t *testing.T) {
 	}
 	doc := latelyOf(room("work"), status.Event{At: at(12, 0), Kind: "eclipse", Account: "work"}, room("personal"), room("side"))
 	var got []int
-	for _, s := range views.Lately(doc, at(16, 0), 2) {
+	for _, s := range lately(doc, at(16, 0), 2) {
 		got = append(got, s.ID)
 	}
 	if want := []int{4, 2}; !slices.Equal(got, want) {
 		t.Errorf("LATELY tells of the events %v, want %v: the newest two of the kinds it knows", got, want)
 	}
-	if got := views.Lately(doc, at(16, 0), 0); len(got) != 0 {
+	if got := lately(doc, at(16, 0), 0); len(got) != 0 {
 		t.Errorf("LATELY with no lines tells %+v, want none", got)
 	}
 }
@@ -222,7 +229,7 @@ func TestLATELYFoldsTheMovesALimitACapOrARefusalForcedIntoItsLine(t *testing.T) 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []string
-			for _, s := range views.Lately(tt.doc, at(16, 0), 3) {
+			for _, s := range lately(tt.doc, at(16, 0), 3) {
 				got = append(got, s.Full.String())
 			}
 			if !slices.Equal(got, tt.want) {
@@ -255,7 +262,7 @@ func TestLATELYShowsAMoveAloneOnlyWhereItsLineIsntAmongThoseShown(t *testing.T) 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []int
-			for _, s := range views.Lately(tt.doc, at(16, 0), tt.n) {
+			for _, s := range lately(tt.doc, at(16, 0), tt.n) {
 				got = append(got, s.ID)
 			}
 			if !slices.Equal(got, tt.want) {
@@ -287,7 +294,7 @@ func TestLATELYSaysWhenAnAccountPassedOverRunsOutAsItsLatestPressureEventSaid(t 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := latelyOf(tt.events...)
-			got := views.Lately(doc, at(16, 0), 12)
+			got := lately(doc, at(16, 0), 12)
 			i := slices.IndexFunc(got, func(s views.Sentence) bool { return s.Kind == status.EventStarted })
 			if i < 0 || got[i].Full.String() != tt.want {
 				t.Errorf("LATELY tells %+v, want c61b's start as %q", got, tt.want)

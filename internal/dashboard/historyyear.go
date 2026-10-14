@@ -464,7 +464,7 @@ func (y yearDrawn) windowName(key string) string {
 	if y.WindowName != nil {
 		return status.InProse(y.WindowName(key))
 	}
-	return status.InProse(nameOfWindow(key, ""))
+	return status.InProse(status.NameOfWindow(key, ""))
 }
 
 // costSaid is what the plans cost, as worthSaid writes a priced worth: a

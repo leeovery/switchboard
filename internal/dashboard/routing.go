@@ -62,26 +62,25 @@ type routingTable struct {
 
 // routingTableOf is ROUTING of doc at now, as the frame draws it: each
 // account's sessions counted as the router listed them, where it listed any,
-// else as doc counts them; and its pool, and who's out of it, as the frame
-// judges it at now.
+// else as doc counts them; and its pool, and who's out of it, at now.
 func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
-	pool := f.pool(doc, now)
-	names := overviewNames(doc, pool)
+	m := f.Moment(doc, now)
+	names := overviewNames(m)
 	t := routingTable{names: nameColumn(names, f.Width), now: now}
 	var listing []status.Session
 	if f.Sessions != nil {
 		listing = f.listing()
 	}
-	for i, a := range doc.Accounts {
+	for i, a := range m.Accounts {
 		r := accountRouting{
-			id: a.ID, name: names[i].line(t.names), standing: doc.RoutingOf(a, now, f.Policy), pinned: doc.Pin.Has(a.ID),
-			sessions: a.Sessions, trace: f.Traces.Accounts[a.ID], faded: outOfPool(pool, a.ID),
+			id: a.ID, name: names[i].line(t.names), standing: a.Routing, pinned: a.Pinned,
+			sessions: a.Sessions, trace: f.Traces.Accounts[a.ID], faded: a.OutOfPool,
 		}
 		if listing != nil {
 			r.sessions = len(f.busy(listing, a.ID, now))
 		}
 		t.accounts = append(t.accounts, r)
-		if slices.Contains(pool.Accounts, a.ID) {
+		if a.InPool {
 			t.pool = append(t.pool, r)
 		}
 	}
@@ -104,10 +103,11 @@ func (f Frame) routingBesideUsage() bool {
 // its most. Beside USAGE's blocks, it's as routingAside has it. Folded, its
 // heading says the mode alone. Its table is built only as it's first drawn.
 func (f Frame) routingSection(doc status.Document, now time.Time) section {
+	m := f.Moment(doc, now)
 	if f.routingBesideUsage() {
-		return routingAside(doc, now)
+		return routingAside(m)
 	}
-	a := len(doc.Accounts)
+	a := len(m.Accounts)
 	least, most := a+3, 3*a+2
 	if f.Width < routingRows {
 		least, most = 3*a+1, 3*a+1
@@ -115,15 +115,15 @@ func (f Frame) routingSection(doc status.Document, now time.Time) section {
 	t := sync.OnceValue(func() routingTable { return f.routingTableOf(doc, now) })
 	return section{
 		Section: SectionRouting, least: least, most: most,
-		description: func() line { return routingMode(doc, now, f.phone()) },
-		folded:      func() line { return routingMode(doc, now, true) },
+		description: func() line { return routingMode(m, f.phone()) },
+		folded:      func() line { return routingMode(m, true) },
 		draw: func(c *canvas, body bounds) {
 			f.drawRouting(c, t(), body)
 		},
 		targets: func(body bounds) []Target {
 			var targets []Target
-			for i, a := range doc.Accounts {
-				for _, y := range f.accountRows(i, len(doc.Accounts), body) {
+			for i, a := range m.Accounts {
+				for _, y := range f.accountRows(i, len(m.Accounts), body) {
 					targets = append(targets, Target{Y: y, Width: f.Width, On: OnAccount, Account: a.ID})
 				}
 			}
@@ -132,12 +132,11 @@ func (f Frame) routingSection(doc status.Document, now time.Time) section {
 	}
 }
 
-// routingAside is ROUTING of doc at now beside USAGE's blocks: no rows of its
-// own, and nothing drawn and no targets of its own, as USAGE's draw has
-// routingBeside draw it where its blocks lie; its heading the mode alone,
-// folded or not.
-func routingAside(doc status.Document, now time.Time) section {
-	mode := func() line { return routingMode(doc, now, true) }
+// routingAside is ROUTING of m beside USAGE's blocks: no rows of its own, and
+// nothing drawn and no targets of its own, as USAGE's draw has routingBeside
+// draw it where its blocks lie; its heading the mode alone, folded or not.
+func routingAside(m status.Moment) section {
+	mode := func() line { return routingMode(m, true) }
 	return section{
 		Section: SectionRouting, description: mode, folded: mode,
 		draw:    func(*canvas, bounds) {},
@@ -145,24 +144,24 @@ func routingAside(doc status.Document, now time.Time) section {
 	}
 }
 
-// routingMode is the mode of doc's router at now, as ROUTING's heading says
-// it: auto, in bold text.secondary; or pinned to the accounts the global pin
-// names, in bold accent.attention, since when, then p back to auto, or, where
-// alone is set, as by account and on a phone, the mode alone. A document
-// probed has none.
-func routingMode(doc status.Document, now time.Time, alone bool) line {
+// routingMode is the mode of m's router, as ROUTING's heading says it: auto,
+// in bold text.secondary; or pinned to the accounts the global pin names, in
+// bold accent.attention, since when, then p back to auto, or, where alone is
+// set, as by account and on a phone, the mode alone. A document probed has
+// none.
+func routingMode(m status.Moment, alone bool) line {
 	switch {
-	case doc.Source != status.SourceRouter:
+	case !m.Routed:
 		return nil
-	case doc.Pin.IsZero():
+	case m.Pin.IsZero():
 		return line{{"auto", strongInk}}
 	}
-	mode := line{{"pinned to " + names(doc, doc.Pin.Accounts), alertInk}}
+	mode := line{{"pinned to " + names(m, m.Pin.Accounts), alertInk}}
 	if alone {
 		return mode
 	}
-	if !doc.Pin.Since.IsZero() {
-		mode = append(mode, span{" since " + status.Dated(now, doc.Pin.Since), dimInk})
+	if !m.Pin.Since.IsZero() {
+		mode = append(mode, span{" since " + status.Dated(m.Now, m.Pin.Since), dimInk})
 	}
 	return append(mode, spaces(3), span{"p", keyInk}, span{" back to auto", faintInk})
 }

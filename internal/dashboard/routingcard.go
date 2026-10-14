@@ -8,7 +8,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -112,20 +111,21 @@ type Figure struct {
 	Read, Stale bool
 }
 
-// RoutingRows are the routing card's rows of doc at now, by policy, with
-// the sessions the router listed: 0 auto's, then an account's each, in the
-// config's order, each with its state, as closedBy says, its windows' use,
-// and its sessions running.
-func RoutingRows(doc status.Document, sessions []status.Session, now time.Time, policy score.Policy) []RoutingRow {
+// RoutingRows are the routing card's rows of the moment m, with the sessions
+// the router listed: 0 auto's, then an account's each, in the config's
+// order, each with its state, as closedBy says, its windows' use, and its
+// sessions running.
+func RoutingRows(m status.Moment, sessions []status.Session) []RoutingRow {
 	rows := []RoutingRow{{Key: "0", Name: "auto", Open: true, Pickable: true}}
-	for i, a := range doc.Accounts {
-		states := doc.WindowStatesOf(a, now, policy)
+	for i, a := range m.Accounts {
+		session, _ := startedWindow(a)
+		week, _ := sharedWeek(a)
 		row := RoutingRow{
-			Account: a.ID, Name: name(a), Pickable: pickable(a, now, policy),
-			Session: figureOf(states, policy.Started), Week: figureOf(states, sharedWeek(policy)),
-			Running: running(sessions, a.ID, now),
+			Account: a.ID, Name: name(a), Pickable: pickable(a),
+			Session: figureOf(session), Week: figureOf(week),
+			Running: running(sessions, a.ID, m.Now),
 		}
-		row.Reason, row.Capped = closedBy(doc, a, now, policy)
+		row.Reason, row.Capped = closedBy(a, m.Now)
 		row.Open = row.Reason == ""
 		if i < numbered {
 			row.Key = strconv.Itoa(i + 1)
@@ -135,29 +135,28 @@ func RoutingRows(doc status.Document, sessions []status.Session, now time.Time, 
 	return rows
 }
 
-// pickable reports whether the account can be picked at now: it has a
+// pickable reports whether the account can be picked as it stands: it has a
 // usable token, not refused, and no limit holds back its every request.
-func pickable(a status.Account, now time.Time, policy score.Policy) bool {
-	return a.TokenSet && !a.TokenRefused(now) && !limited(a, now, policy)
+func pickable(a status.AccountNow) bool {
+	return a.TokenSet && !a.TokenRefused && !limited(a)
 }
 
-// closedBy says why doc's account a takes no new session at now, and
-// whether its own cap closed it rather than Anthropic: no usable token; a
-// limit holding back its every request, till it's back; its token refused;
-// or its cap holding it back from the router's own choices, till the
-// windows at it reset. It's "" where the account is open.
-func closedBy(doc status.Document, a status.Account, now time.Time, policy score.Policy) (reason string, capped bool) {
-	hold, held := a.Held(now, policy)
+// closedBy says why the account takes no new session as it stands, its times
+// in now's time zone, and whether its own cap closed it rather than
+// Anthropic: no usable token; a limit holding back its every request, till
+// it's back; its token refused; or its cap holding it back from the router's
+// own choices, till the windows at it reset. It's "" where the account is
+// open.
+func closedBy(a status.AccountNow, now time.Time) (reason string, capped bool) {
 	switch {
 	case !a.TokenSet:
 		return "no token", false
-	case held && hold.Every:
-		return till("at its limit", hold.Until, now), false
-	case a.TokenRefused(now):
-		return "token " + a.Refused.Answer(), false
-	case doc.CapHolds(a, now, policy):
-		back, _ := score.LetGo(a.Windows, a.Reserve, policy.IsShared, now)
-		return till("at its cap", back, now), true
+	case limited(a):
+		return till("at its limit", a.Hold.Until, now), false
+	case a.TokenRefused:
+		return "token " + a.Refusal.Answer(), false
+	case a.CapHolds:
+		return till("at its cap", a.CapBack, now), true
 	}
 	return "", false
 }
@@ -178,26 +177,38 @@ func running(sessions []status.Session, id string, now time.Time) int {
 	return len(Frame{}.busy(sessions, id, now))
 }
 
-// figureOf is the use of an account's window with the given key, as states
-// stand it and usage reads it: none where the account has no usable token or
-// nothing is read of the window; else as its state reads it, stale or not.
-func figureOf(states status.WindowStates, key string) Figure {
-	switch st := states.Of(key); st.Kind {
-	case status.WindowTokenless, status.WindowUnread:
+// figureOf is the use of an account's window as it stands, as usage reads it:
+// none where its bar draws empty, as where the account has no usable token or
+// nothing is read of the window; else its use, stale or not.
+func figureOf(w status.WindowNow) Figure {
+	if drawsEmpty(w.Kind) {
 		return Figure{}
-	default:
-		return Figure{Used: st.Used, Read: true, Stale: st.Kind == status.WindowStale}
 	}
+	return Figure{Used: w.Used, Read: true, Stale: w.Kind == status.WindowStale}
 }
 
-// sharedWeek is the key of the week every model shares, as policy says: ""
-// where it names none.
-func sharedWeek(policy score.Policy) string {
-	i := slices.IndexFunc(policy.Shared, quota.WeekLong)
-	if i < 0 {
-		return ""
+// sharedWeek is the account's week every model shares, as it stands; or,
+// reporting false, where it has none, one it hasn't reported, as Window has
+// it.
+func sharedWeek(a status.AccountNow) (status.WindowNow, bool) {
+	return windowWhere(a, func(w status.WindowNow) bool { return w.Shared && quota.WeekLong(w.Key) })
+}
+
+// startedWindow is the account's window a request starts, as it stands; or,
+// reporting false, where it has none, one it hasn't reported, as Window has
+// it.
+func startedWindow(a status.AccountNow) (status.WindowNow, bool) {
+	return windowWhere(a, func(w status.WindowNow) bool { return w.Started })
+}
+
+// windowWhere is the first of the account's windows that is, as it stands;
+// or, reporting false, where none is, one it hasn't reported, as Window has
+// it.
+func windowWhere(a status.AccountNow, is func(status.WindowNow) bool) (status.WindowNow, bool) {
+	if i := slices.IndexFunc(a.Windows, is); i >= 0 {
+		return a.Windows[i], true
 	}
-	return policy.Shared[i]
+	return a.Window("")
 }
 
 // card is the routing card on the frame: titled as m stands; its opening

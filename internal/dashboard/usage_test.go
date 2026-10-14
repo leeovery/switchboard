@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -87,7 +88,7 @@ func printName(key string) string {
 // printed is doc's printout width columns wide, grouped by, of the windows
 // with the keys given, as text alone, its windows named as Claude's are.
 func printed(doc status.Document, width int, by By, windows ...string) []string {
-	return Printout{Width: width, By: by, Windows: windows, Policy: printPolicy, Name: printName}.Draw(doc, printNow)
+	return Printout{Width: width, By: by, Windows: windows, Name: printName}.Draw(doc.At(printNow, printPolicy))
 }
 
 // colAt is the n cells of row from column col: fewer where it ends sooner.
@@ -108,8 +109,30 @@ func blockOn(t *testing.T, doc status.Document, width int, slug string) *canvas 
 		t.Fatalf("no built-in theme %s", slug)
 	}
 	c := growing(width)
-	newUsageBlock(doc, printNow, printPolicy, width, Print(th, nil), ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).draw(c, 0)
+	printBlock(doc, width, Print(th, nil)).draw(c, 0)
 	return c
+}
+
+// printBlock is doc's usage block width cells wide, drawn in look, as usage
+// prints it at printNow, by window, of every window, named as Claude's are.
+func printBlock(doc status.Document, width int, look Look) usageBlock {
+	m := doc.At(printNow, printPolicy)
+	return newUsageBlock(m, width, look, ByWindow, usageWindows(m, nil, printName))
+}
+
+// windowNowOf is the window with the given key of doc's account with the
+// given id, as it stands at the moment given, as claudeLike judges it.
+func windowNowOf(doc status.Document, id, key string, at time.Time) status.WindowNow {
+	a, _ := doc.At(at, claudeLike).Account(id)
+	w, _ := a.Window(key)
+	return w
+}
+
+// accountNowOf is doc's account with the given id as it stands at the moment
+// given, as claudeLike judges it.
+func accountNowOf(doc status.Document, id string, at time.Time) status.AccountNow {
+	a, _ := doc.At(at, claudeLike).Account(id)
+	return a
 }
 
 func TestTheMatrixLaysEachWindowOutAsAGroupFromTheNameColumn(t *testing.T) {
@@ -399,11 +422,10 @@ func TestAStaleReadingShowsAsItWasLastReadFaded(t *testing.T) {
 // without a reset, rather than the mark the document worked out at its end.
 func TestOnTheTickASessionLapsesUSAGEMarksNoEvenPaceOnIt(t *testing.T) {
 	doc := threeRouted()
-	work := doc.Accounts[0]
-	session, _ := work.Window("5h")
+	session, _ := doc.Accounts[0].Window("5h")
 	after := session.ResetsAt.Add(time.Second)
 
-	if g := accountGauge(work, "5h", doc.WindowStatesOf(work, after, claudeLike).Of("5h"), after); g.bar.pace != nil {
+	if g := accountGauge(accountNowOf(doc, "work", after), "5h", after); g.bar.pace != nil {
 		t.Errorf("work's session is marked at even pace %v, want no mark, as it has lapsed", *g.bar.pace)
 	}
 }
@@ -414,10 +436,9 @@ func TestOnTheTickASessionLapsesUSAGEMarksNoEvenPaceOnIt(t *testing.T) {
 // week on, not the room it had left before, till a time already past.
 func TestOnTheTickAWeekResetsUSAGEWordsItsAllowanceFromEmpty(t *testing.T) {
 	doc := routerDoc("work", 0, readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.6, 2*time.Hour)))
-	work := doc.Accounts[0]
 	after := now.Add(2*time.Hour + time.Second)
 
-	g := accountGauge(work, "7d", doc.WindowStatesOf(work, after, claudeLike).Of("7d"), after)
+	g := accountGauge(accountNowOf(doc, "work", after), "7d", after)
 	if got, want := g.words.full.plain(), "14%/day till Mon 15:12"; got != want {
 		t.Errorf("work's week's words read %q, want %q", got, want)
 	}
@@ -582,7 +603,9 @@ func TestUsageShowsTheSharedWindowsAndEveryOneReportedOnceInClaudesOrder(t *test
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := UsageWindows(tt.doc, tt.shared); !slices.Equal(got, tt.want) {
+			policy := printPolicy
+			policy.Shared = tt.shared
+			if got := UsageWindows(tt.doc.At(printNow, policy)); !slices.Equal(got, tt.want) {
 				t.Errorf("UsageWindows() = %q, want %q", got, tt.want)
 			}
 		})
@@ -615,7 +638,10 @@ func TestTheWindowsAreNamedAsNameNamesThem(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := usageWindows(trio(), nil, tt.shared, tt.namer); !slices.Equal(got, tt.want) {
+			policy := printPolicy
+			policy.Shared = tt.shared
+			m := trio().At(printNow, policy)
+			if got := usageWindows(m, nil, Printout{Name: tt.namer}.namer(m)); !slices.Equal(got, tt.want) {
 				t.Errorf("the windows are %+v, want %+v", got, tt.want)
 			}
 		})
@@ -665,4 +691,94 @@ func TestAProbedPrintoutMarksNoneOfSeveralAccountsAsWhereNewSessionsGo(t *testin
 	if got, want := colAt(printed(lone, 160, ByWindow)[4], 0, 9), "1 work ▲ "; got != want {
 		t.Errorf("a probed printout's lone account's row starts %q, want %q, as there's nowhere else new sessions go", got, want)
 	}
+}
+
+// USAGE says of each window what the moment has of it, at each of the hard
+// moments: its words say its Kind, in its colour, at its At; its bar is empty,
+// stale, filled and marked as the moment has it; and ▲ marks the account the
+// moment's Next names.
+func TestUSAGEAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
+	for _, hm := range statustest.HardMoments(claudeLike) {
+		t.Run(hm.Name, func(t *testing.T) {
+			m := hm.Doc.At(hm.Now, claudeLike)
+			b := newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, labelsOf(m)))
+			for i, a := range m.Accounts {
+				row := b.rows[i]
+				if marked := strings.Contains(row.name.plain(), "▲"); marked != a.Next {
+					t.Errorf("%s's row is marked ▲ %t, want %t, as the moment's Next is %q", a.ID, marked, a.Next, m.Next)
+				}
+				for j, shown := range b.windows {
+					w, _ := a.Window(shown.key)
+					checkGaugeAgrees(t, a, w, row.gauges[j], m.Now)
+				}
+			}
+		})
+	}
+}
+
+// checkGaugeAgrees checks that the gauge g USAGE draws of account a's window
+// w, as it stands at now, says what w says.
+func checkGaugeAgrees(t *testing.T, a status.AccountNow, w status.WindowNow, g gauge, now time.Time) {
+	t.Helper()
+	full := g.words.full.plain()
+	if said, ink := kindSaid(full); said != w.Kind || len(g.words.full) > 0 && g.words.full[0].ink != ink {
+		t.Errorf("%s's %s reads %q, as of kind %d in %+v, want kind %d", a.ID, w.Key, full, said, g.words.full[0].ink, w.Kind)
+	}
+	if at := timeSaid(w, now); at != "" && !strings.HasSuffix(full, at) {
+		t.Errorf("%s's %s reads %q, want it to end at %q, its At", a.ID, w.Key, full, at)
+	}
+	if g.runsOut != w.RunsOut {
+		t.Errorf("%s's %s runs out %t, want %t", a.ID, w.Key, g.runsOut, w.RunsOut)
+	}
+	want := usageBar{used: w.Used, capAt: a.Cap, pace: w.Pace, stale: w.Kind == status.WindowStale}
+	if drawsEmpty(w.Kind) {
+		want = usageBar{empty: true}
+	}
+	if got := g.bar; got.empty != want.empty || got.stale != want.stale || got.used != want.used || got.capAt != want.capAt || paceAt(got.pace) != paceAt(want.pace) {
+		t.Errorf("%s's %s bar is %+v, pace %s, want %+v, pace %s", a.ID, w.Key, got, paceAt(got.pace), want, paceAt(want.pace))
+	}
+}
+
+// kindSaid is the kind of window USAGE's words, in full, say it is, and the
+// ink they say it in.
+func kindSaid(full string) (status.WindowKind, ink) {
+	for _, said := range []struct {
+		lead string
+		kind status.WindowKind
+		ink  ink
+	}{
+		{"no token", status.WindowTokenless, errorInk},
+		{"not read yet", status.WindowUnread, dimInk},
+		{"not read since ", status.WindowStale, dimInk},
+		{"limit", status.WindowLimited, errorInk},
+		{"at cap", status.WindowCapped, warningInk},
+		{"out ~", status.WindowRunsOut, warningInk},
+		{"not started", status.WindowNotStarted, mutedInk},
+	} {
+		if strings.HasPrefix(full, said.lead) {
+			return said.kind, said.ink
+		}
+	}
+	return status.WindowOpen, mutedInk
+}
+
+// timeSaid is when USAGE's words, in full, say what w's Kind says comes, or
+// came, as of now: "" where they say no time.
+func timeSaid(w status.WindowNow, now time.Time) string {
+	switch {
+	case w.At.IsZero(), w.Kind == status.WindowOpen && w.Allowance == (quota.Allowance{}):
+		return ""
+	case w.Kind == status.WindowStale:
+		full, _ := lastRead(now, w.At)
+		return full
+	}
+	return status.Dated(now, w.At)
+}
+
+// paceAt shows an even pace, "none" where it's nil.
+func paceAt(pace *float64) string {
+	if pace == nil {
+		return "none"
+	}
+	return fmt.Sprint(*pace)
 }

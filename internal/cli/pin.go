@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -121,7 +122,7 @@ func (a *app) pinning(ctx context.Context, client *router.Client, accounts []str
 	if err != nil {
 		return "", err
 	}
-	return forced(pinned(doc), opts.force), nil
+	return forced(pinned(doc.At(a.Now(), claude.Policy)), opts.force), nil
 }
 
 // pinSession pins the session given, by as much of its id as is unique, to
@@ -144,10 +145,10 @@ func (a *app) pinSession(ctx context.Context, client *router.Client, given, acco
 	return session + " goes to " + account + " from its next request", nil
 }
 
-// pinned says what the document's pin does.
-func pinned(doc status.Document) string {
-	said := "new sessions go to " + doc.Destination(doc.Pin.Accounts)
-	if doc.Pin.Move {
+// pinned says what the pin of the document m is a moment of does.
+func pinned(m status.Moment) string {
+	said := "new sessions go to " + m.Destination(m.Pin.Accounts)
+	if m.Pin.Move {
 		said += ", and running sessions move on their next request"
 	}
 	return said

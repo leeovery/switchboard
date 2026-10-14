@@ -241,12 +241,12 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{
-				GeneratedAt: stateNow.UTC(), Best: tt.best, Pin: status.Pin{Accounts: tt.pin}, Prime: status.Prime{Window: "5h", Slots: tt.prime},
+				GeneratedAt: stateNow.UTC(), Source: status.SourceRouter, Best: tt.best, Pin: status.Pin{Accounts: tt.pin}, Prime: status.Prime{Window: "5h", Slots: tt.prime},
 				Accounts: append([]status.Account{tt.account}, tt.others...),
 			}
-			got := doc.RoutingOf(tt.account, stateNow, policy)
+			got := routingOf(doc, tt.account, stateNow)
 			if got.Kind != tt.want.Kind || got.Says != tt.want.Says || !slices.Equal(got.Clauses, tt.want.Clauses) || !slices.Equal(got.Short, tt.want.Short) {
-				t.Errorf("RoutingOf() = %+v, want %+v", got, tt.want)
+				t.Errorf("Routing = %+v, want %+v", got, tt.want)
 			}
 		})
 	}
@@ -276,7 +276,7 @@ func TestROUTINGAndAnAccountsStateJudgeItsCapAlike(t *testing.T) {
 				a = a.AsOf(policy, tt.built)
 			}
 			doc := status.Document{GeneratedAt: tt.built.UTC(), Source: status.SourceRouter, Accounts: []status.Account{a}}
-			routing, state := doc.RoutingOf(a, tt.now, policy).Kind, doc.StateOf(a, tt.now, policy).Condition
+			routing, state := routingOf(doc, a, tt.now).Kind, doc.StateOf(a, tt.now, policy).Condition
 			if routing != tt.routing || state != tt.state {
 				t.Errorf("%s, the router noting its reserve as built %t: ROUTING says %d, its state %d; want %d and %d", tt.name, noted, routing, state, tt.routing, tt.state)
 			}
@@ -289,10 +289,10 @@ func TestAnAccountAtItsCapIsIdleOnTheTickItsSessionResets(t *testing.T) {
 	a := with(readNow(0.95, 0.3, 0), func(a *status.Account) { a.Reserve = 0.1 }).AsOf(policy, built)
 	doc := status.Document{GeneratedAt: built.UTC(), Source: status.SourceRouter, Accounts: []status.Account{a}}
 	// A moment after its session resets at 17:10, before it's read again.
-	got := doc.RoutingOf(a, at(1, 17, 10).Add(time.Second), policy)
+	got := routingOf(doc, a, at(1, 17, 10).Add(time.Second))
 	want := status.Routing{Kind: status.RoutingIdle, Says: "idle", Clauses: []string{"window starts with its next request"}, Short: []string{"idle"}}
 	if got.Kind != want.Kind || got.Says != want.Says || !slices.Equal(got.Clauses, want.Clauses) || !slices.Equal(got.Short, want.Short) {
-		t.Errorf("RoutingOf() = %+v, want %+v, no time to be back", got, want)
+		t.Errorf("Routing = %+v, want %+v, no time to be back", got, want)
 	}
 }
 
@@ -315,7 +315,7 @@ func TestAnOpenAccountIsIdleOnTheTickItsSessionResets(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			routing, state := doc.RoutingOf(a, tt.now, policy), doc.StateOf(a, tt.now, policy)
+			routing, state := routingOf(doc, a, tt.now), doc.StateOf(a, tt.now, policy)
 			if routing.Kind != tt.routing || state.Condition != tt.state {
 				t.Errorf("ROUTING says %q, its state %q; want kinds %d and %d", routing, state.Says, tt.routing, tt.state)
 			}
@@ -332,7 +332,7 @@ func TestAnAccountIsIdleWhereItsSessionIsNotedLapsedThoughItsNotListed(t *testin
 		a.Lapsed = []string{"5h"}
 	})
 	doc := status.Document{GeneratedAt: stateNow.UTC(), Source: status.SourceRouter, Accounts: []status.Account{a}}
-	routing, state := doc.RoutingOf(a, stateNow, policy), doc.StateOf(a, stateNow, policy)
+	routing, state := routingOf(doc, a, stateNow), doc.StateOf(a, stateNow, policy)
 	if routing.Kind != status.RoutingIdle || state.Condition != status.Idle {
 		t.Errorf("ROUTING says %q, its state %q; want both idle", routing, state)
 	}
@@ -357,7 +357,7 @@ func TestAnAccountUnderPressureIsIdleOnTheTickItsSessionResets(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			routing, state := doc.RoutingOf(a, tt.now, policy), doc.StateOf(a, tt.now, policy)
+			routing, state := routingOf(doc, a, tt.now), doc.StateOf(a, tt.now, policy)
 			if routing.Kind != tt.routing || state.Condition != tt.state {
 				t.Errorf("ROUTING says %q, its state %q; want kinds %d and %d", routing, state, tt.routing, tt.state)
 			}
@@ -402,4 +402,11 @@ func TestAnAccountsStandingInWords(t *testing.T) {
 			t.Errorf("String() = %q, want %q", got, tt.want)
 		}
 	}
+}
+
+// routingOf is how doc's account a stands with the router at now, as the
+// document's moment then has it.
+func routingOf(doc status.Document, a status.Account, now time.Time) status.Routing {
+	got, _ := doc.At(now, policy).Account(a.ID)
+	return got.Routing
 }
