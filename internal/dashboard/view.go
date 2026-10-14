@@ -8,8 +8,7 @@ type View string
 
 const (
 	// Overview is the default tab: every account's windows and the router,
-	// understood at a glance. Until stage 7 builds it, it shows milestone 5's
-	// view of a card per account.
+	// understood at a glance.
 	Overview View = "overview"
 	// Accounts is each account in depth, and all of them together.
 	Accounts View = "accounts"

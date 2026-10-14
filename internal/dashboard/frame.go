@@ -248,7 +248,7 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 // where the page has room for the view, as cramped says: the Log's, once
 // its first read lands; or while its find is open, read or not, the find's
 // line in its place; but none under a session's page, drawn in the view's
-// place. The views milestone 5 built draw their own line there.
+// place. Accounts draws its own line there, of how much of it is out of view.
 func (f Frame) stateLine(c *canvas, now time.Time) {
 	if f.cramped() || f.Session != nil || f.View != Log {
 		return
