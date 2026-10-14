@@ -23,15 +23,7 @@ const referenceDir = "../../testdata/vhs/reference"
 // adds its fixtures, named after the frames they draw, and takes their stems
 // from here; by stage 14 none is owed.
 var owed = []string{
-	"accounts-compare-160", "accounts-compare-bad-hour-160", "accounts-compare-month-160", "accounts-compare-ten-160",
-	"accounts-detail-all-160", "accounts-detail-limit-160", "accounts-detail-one-160", "accounts-detail-sessions-160",
-	"accounts-detail-work-160", "accounts-phone-compare-52", "accounts-phone-detail-52",
-	"log-event-details-160", "log-events-160", "log-events-filter-160", "log-not-live-160", "log-request-details-160",
-	"log-requests-160", "log-requests-filter-160", "log-requests-filtered-160", "log-requests-phone-52",
-	"routing-session-160",
 	"runway-5-hour-160", "runway-phone-52", "runway-stepped-back-160", "runway-ten-accounts-160", "runway-week-160",
-	"session-ended-160", "session-moved-160", "session-phone-52", "session-quiet-160", "session-resumed-160",
-	"session-turn-opened-160",
 	"sessions-list-160", "sessions-list-phone-52", "sessions-moved-160", "sessions-one-account-160", "sessions-phone-52",
 	"sessions-pinned-160", "sessions-refused-160", "sessions-switchboard-160", "sessions-ten-accounts-160",
 }
@@ -46,8 +38,10 @@ type passing struct {
 	reads string
 	// glyphs, where they're given, are what the frame draws over the span
 	// instead of words, in place of reads: those glyphs alone, and blanks,
-	// as a trace's.
-	glyphs string
+	// as a trace's; or, orBlank, nothing at all, as a column of a story
+	// that has none of its height in a row.
+	glyphs  string
+	orBlank bool
 }
 
 // holds reports whether text, what the frame reads over the passing's span,
@@ -56,7 +50,7 @@ func (p passing) holds(text string) bool {
 	got := strings.TrimSpace(text)
 	switch {
 	case p.glyphs != "":
-		return got != "" && !strings.ContainsFunc(got, func(r rune) bool { return r != ' ' && !strings.ContainsRune(p.glyphs, r) })
+		return (got != "" || p.orBlank) && !strings.ContainsFunc(got, func(r rune) bool { return r != ' ' && !strings.ContainsRune(p.glyphs, r) })
 	case p.reads == "":
 		return got == ""
 	}
@@ -66,6 +60,8 @@ func (p passing) holds(text string) bool {
 // want says what the passing says the frame reads, as a failure gives it.
 func (p passing) want() string {
 	switch {
+	case p.glyphs != "" && p.orBlank:
+		return fmt.Sprintf("only %q, or blanks", p.glyphs)
 	case p.glyphs != "":
 		return fmt.Sprintf("only %q, and blanks", p.glyphs)
 	case p.reads == "":
@@ -150,10 +146,57 @@ func currentMonth(grid, september, byMonth, name int) []passing {
 	}
 }
 
-// unrouted passes over the ▲ after side, at column 6 of row n, where new
-// sessions go, which the frames mark, where History shows no routing.
-func unrouted(n int) passing {
-	return cellsOf(n, 6, 6, "▲")
+// unrouted passes over the ▲ after side, at column c of row n, where new
+// sessions go, which the frames mark, where Accounts and History show no
+// routing.
+func unrouted(n, c int) passing {
+	return cellsOf(n, c, c, "▲")
+}
+
+// inColumns passes over row n's values in Compare's columns of a frame 160
+// wide, colw cells each from column 27, all accounts' last, as reads gives
+// them in turn: each value's column but the blank before the next, and all
+// accounts' to the frame's edge, as its values may run there, reading as
+// given; "" passes over none of a column.
+func inColumns(n, colw int, reads ...string) []passing {
+	all := (160-26)/colw - 1
+	var p []passing
+	for i, r := range reads {
+		if r == "" {
+			continue
+		}
+		from, to := 27+i*colw, 25+(i+1)*colw
+		if i == all {
+			to = 160
+		}
+		p = append(p, cellsOf(n, from, to, r))
+	}
+	return p
+}
+
+// haikuInCompare passes over Haiku 4.5's cells in Compare's BY MODEL, which
+// the frames draw in its own shade, where the version table holds Haiku 5.5,
+// so the dashboard mixes 4.5's toward the canvas, as an older version's: its
+// dot, row 18, column 3, and its cells of the bars on row 12 at the columns
+// given.
+func haikuInCompare(columns ...int) []passing {
+	p := []passing{cellsOf(18, 3, 3, "●")}
+	for _, c := range columns {
+		p = append(p, blankCells(12, c, c))
+	}
+	return p
+}
+
+// byDays passes over the days of Detail's BY DAY on row n, each cells wide,
+// from each of the columns given, which the frame shades from its
+// generator's days, and marks ▪ where it has them hit a 5-hour limit, where
+// the world's records shade and mark them otherwise: blank or ▪ in the frame.
+func byDays(n, cells int, firsts ...int) []passing {
+	p := make([]passing, len(firsts))
+	for i, c := range firsts {
+		p[i] = passing{row: n, from: c, to: c + cells - 1, glyphs: "▪", orBlank: true}
+	}
+	return p
 }
 
 // squares passes over the Year's squares, ■, on row n at the columns given,
@@ -219,7 +262,13 @@ func evenPace(n, c int) passing {
 // pool, which the frame draws in its colours, where the design has it faint
 // wherever the page names it.
 func outOfPool(n, c int, name string) passing {
-	return cellsOf(n, c, c+utf8.RuneCountInString(name)-1, name)
+	return wordsAt(n, c, name)
+}
+
+// wordsAt passes over the words on row n from column c, as many cells as
+// they take, which read as given.
+func wordsAt(n, c int, reads string) passing {
+	return cellsOf(n, c, c+utf8.RuneCountInString(reads)-1, reads)
 }
 
 // pastNow passes over column c of rows top to bottom, which the frame's chart
@@ -483,6 +532,158 @@ var (
 	}
 )
 
+// logTail are the times of the rows log-requests-160 draws, each after its
+// mark, the newest 27 of the Log's tail: its generator's lines, where the
+// world's d28c's are as its session's page draws them, and its requests in
+// flight are the Overview's frames', so the world draws others in their
+// place. A phone draws the newest 22.
+var logTail = []string{
+	"14:40:26", "14:40:26", "14:40:28", "14:40:37", "14:40:39", "14:40:40", "14:40:40", "14:40:41", "14:40:49",
+	"14:40:59", "14:41:00", "14:41:00", "▲ 14:41:11", "14:41:14", "14:41:14", "14:41:16", "14:41:19", "14:41:22",
+	"14:41:25", "14:41:29", "14:41:38", "14:41:39", "14:41:41", "14:41:45", "↓ 14:41:53", "↑ 14:42:00", "↓ 14:42:01",
+}
+
+// filteredTail are the times of the rows log-requests-filtered-160 draws,
+// each after its mark, d28c's newest 27 lines: its generator's, where the
+// world's are as d28c's page draws them, and its request in flight the
+// Overview's frames'.
+var filteredTail = []string{
+	"14:36:27", "14:36:29", "14:36:48", "14:37:09", "14:37:25", "14:37:38", "14:37:54", "14:38:03", "14:38:17",
+	"14:38:36", "14:38:44", "14:38:58", "14:39:15", "14:39:34", "14:39:48", "14:39:53", "14:40:03", "14:40:18",
+	"14:40:37", "14:40:40", "14:40:41", "14:41:00", "14:41:14", "14:41:16", "14:41:22", "14:41:45", "↑ 14:42:00",
+}
+
+// aroundTheCap are the rows log-request-details-160 draws beside its card,
+// from row 11 to 31, each after its mark, to its session's short id, as its
+// generator drew them, where the world's d28c's and 9c2e's lines are as their
+// sessions' pages draw them.
+var aroundTheCap = []string{
+	"14:31:20  9c2e", "▸ 14:31:20  7f3a", "14:31:21  41e0", "14:31:32  41e0", "14:31:40  9c2e", "▸ 14:31:40  db8a",
+	"14:31:42  41e0", "14:31:44  d28c", "14:31:49  d28c", "14:31:51  db8a", "14:31:53  9c2e", "14:31:54  9c2e",
+	"14:31:58  7f3a", "14:32:02  41e0", "14:32:04  9c2e", "14:32:14  9c2e", "14:32:16  9c2e", "14:32:19  db8a",
+	"14:32:20  d28c", "14:32:22  7f3a", "14:32:23  41e0",
+}
+
+// besideTheCard passes over the row each of reads, from row first on, that a
+// details card covers at 160 columns but its first 16 cells, which read as
+// given.
+func besideTheCard(first int, reads ...string) []passing {
+	p := make([]passing, len(reads))
+	for i, r := range reads {
+		p[i] = cellsOf(first+i, 1, 16, r)
+	}
+	return p
+}
+
+// tableRows passes over a row each of reads, from row first on, each reading
+// as given.
+func tableRows(first int, reads ...string) []passing {
+	p := make([]passing, len(reads))
+	for i, r := range reads {
+		p[i] = wholeRow(first+i, r)
+	}
+	return p
+}
+
+// behindThePanel passes over the Log's tail as log-requests-filter-160 draws
+// it behind the f panel, faded, as log-requests-160 passes it over: left of
+// the panel's card from row 8 to 29, and whole under it.
+func behindThePanel() []passing {
+	beside := len(logTail) - 5
+	p := make([]passing, beside)
+	for i, r := range logTail[:beside] {
+		p[i] = cellsOf(8+i, 1, 18, r)
+	}
+	return append(p, tableRows(8+beside, logTail[beside:]...)...)
+}
+
+// panelSessions passes over the rows of today's sessions in a panel's frame,
+// from column from to column to, each its session's row, reading as given,
+// a row's from row first on, where the reads aren't blank.
+func panelSessions(first, from, to int, reads ...string) []passing {
+	var p []passing
+	for i, r := range reads {
+		if r != "" {
+			p = append(p, cellsOf(first+i, from, to, r))
+		}
+	}
+	return p
+}
+
+// fromTheLog passes over the tabs on the title row, row n, ` Overview ` and
+// ` Log `, from the columns given: a session's page's frames light the
+// Overview's, where its fixtures, which reach the page from the Log, light
+// the Log's.
+func fromTheLog(n, overview, log int) []passing {
+	return []passing{cellsOf(n, overview, overview+9, "Overview"), cellsOf(n, log, log+4, "Log")}
+}
+
+// storyColumns passes over the columns given of a session's story, from row
+// top to row bottom, which the frame draws from its generator's curves,
+// where the world's requests fall in their minutes otherwise: each cell an
+// eighth, ┊ where a move's marker runs down to its column, or blank. The
+// story's other cells, its floor, markers, folds and ribbon among them, are
+// held.
+func storyColumns(top, bottom int, columns ...int) []passing {
+	var p []passing
+	for n := top; n <= bottom; n++ {
+		for from := 0; from < len(columns); {
+			to := from
+			for to+1 < len(columns) && columns[to+1] == columns[to]+1 {
+				to++
+			}
+			p = append(p, passing{row: n, from: columns[from], to: columns[to], glyphs: eighths + "┊", orBlank: true})
+			from = to + 1
+		}
+	}
+	return p
+}
+
+// The columns of the sessions' stories, wide, from row 12 to 16, and on a
+// phone, from row 12 to 15, that their frames draw otherwise than the
+// world's requests fill them: d28c's, wide and on a phone, 9c2e's, and that
+// of 9c2e's frame behind the routing card, b9c4's, and f41a's but its fold.
+var (
+	d28cStory = storyColumns(12, 16,
+		1, 2, 3, 4, 11, 12, 14, 15, 16, 18, 19, 27, 28, 29, 36, 37, 38, 39, 41, 42, 43, 44, 45, 53, 58, 65, 66, 71, 72, 73, 75, 77, 78,
+		80, 82, 83, 85, 87, 88, 89, 97, 98, 99, 100, 101, 102, 109, 111, 113, 120, 121, 123, 126, 128, 129, 134, 135, 136, 138, 140,
+		141, 142, 144, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 159, 160)
+	d28cPhoneStory = storyColumns(12, 15,
+		1, 2, 3, 4, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 27, 28, 29, 31, 32, 33, 34, 36, 37, 39, 40, 41, 42, 43, 44,
+		45, 47, 48, 49, 50, 51, 52)
+	quietStory = storyColumns(12, 16,
+		1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 15, 16, 17, 21, 22, 23, 24, 25, 26, 27, 28, 36, 37, 38, 39, 40, 41, 42, 44, 45, 59, 61, 76, 78,
+		84, 85, 86, 87, 88, 89, 90, 91, 92, 102, 103, 104, 105, 106, 107, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128,
+		129, 130, 139, 140, 141, 142, 148, 149, 150, 151, 152)
+	behindTheSessionsCard = storyColumns(12, 16,
+		1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 15, 16, 17, 21, 22, 23, 24, 25, 26, 27, 28, 36, 37, 38, 39, 122, 123, 124, 125, 126, 128, 129,
+		130, 139, 140, 141, 142, 148, 149, 150, 151, 152)
+	endedStory = storyColumns(12, 16,
+		1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 22, 23, 24, 25, 26, 27, 28, 29, 34, 35, 41, 42, 43, 44, 46, 47, 48, 49, 50, 51,
+		52, 53, 54, 55, 61, 62, 63, 70, 71, 78, 79, 80, 81, 82, 90, 91, 93, 94, 95, 99, 100, 101, 103, 104, 105, 113, 114, 116, 117, 118,
+		123, 124, 125, 126, 128, 129, 130, 135, 136, 137, 138, 139, 140, 141, 142, 143, 155, 156, 157, 159, 160)
+	resumedStory = storyColumns(12, 16,
+		1, 2, 8, 9, 15, 16, 18, 19, 20, 23, 24, 26, 28, 29, 31, 38, 39, 40, 41, 43, 44, 45, 46, 47, 48, 50, 51, 52, 53, 54, 55, 56, 57, 60,
+		61, 62, 63, 64, 65, 68, 69, 70, 73, 74, 80, 81, 82, 83, 87, 88, 90, 91, 92, 93, 94, 95, 98, 100, 101, 102, 103, 104, 107, 108,
+		110, 111, 112, 116, 117, 118, 119, 120, 123, 125, 129, 131, 133, 134, 135, 136, 137, 138, 139, 140, 144, 145, 148, 150, 154, 155,
+		157, 158)
+)
+
+// What d28c's frames, wide, draw otherwise than its world gives: how long
+// it has run, from 12:02:00 where its first request came at 12:02:10; its
+// stay on work ending 14:31 where its last request there came at 14:30; and
+// each stay's points, where the world's lines climb no window, and worth.
+var d28cPage = slices.Concat(fromTheLog(1, 16, 68), []passing{
+	wordsAt(7, 155, "2h 40m"),
+	wordsAt(20, 23, "14:31"), wordsAt(20, 57, "≈ 41 points of its 5-hour · 6 of its week"), wordsAt(20, 155, "$41.06"),
+	wordsAt(21, 57, "≈ 9 points of its 5-hour · 1 of its week"), wordsAt(21, 156, "$7.14"),
+}, d28cStory)
+
+// What 9c2e's frames draw otherwise than its world gives above its story:
+// sticky, where the router lists it as new; and how long it has run, from
+// 11:55:00 where its first request came at 11:55:31.
+var quietPage = slices.Concat(fromTheLog(1, 16, 68), []passing{wordsAt(7, 41, ": sticky"), wordsAt(7, 155, "2h 47m")})
+
 // passedOver is, by stem, the rows and cells each frame drew otherwise than
 // the design says, or than its world gives, which testdata/vhs/README.md
 // lists, with what the dashboard draws in their place.
@@ -563,17 +764,93 @@ var passedOver = map[string][]passing{
 	),
 	"overview-phone-52": slices.Concat([]passing{cellsOf(25, 38, 49, sidesWeekShort)}, onAPhone(46, "0/min", "2/min", "15/min")),
 
-	"accounts-compare-160":          {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-compare-bad-hour-160": {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-compare-month-160":    {period(152, "30 days"), wholeRow(37, accountsKeys)},
-	"accounts-compare-ten-160":      {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-detail-all-160":       {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-detail-limit-160":     {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-detail-one-160":       {period(150, "this week"), cellsOf(28, 20, 20, "●"), wholeRow(37, accountsKeys)},
-	"accounts-detail-sessions-160":  {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-detail-work-160":      {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-phone-compare-52":     {phonePeriod("this week")},
-	"accounts-phone-detail-52":      {phonePeriod("this week")},
+	"accounts-compare-160": slices.Concat(
+		[]passing{period(150, "this week"), unrouted(7, 100)}, haikuInCompare(83, 149),
+		inColumns(13, 33, "", "", "", "57%"), inColumns(15, 33, "", "", "", "33%"), inColumns(18, 33, "", "", "", "3%"),
+		inColumns(22, 33, "", "6", "11", "19"), inColumns(23, 33, "3 out", "1 out", "", "4 moves"),
+		inColumns(26, 33, "", "none", "", "3"), inColumns(27, 33, "", "—", "", "4h 02m"),
+		[]passing{wholeRow(37, accountsKeys)},
+	),
+	"accounts-compare-bad-hour-160": slices.Concat(
+		[]passing{period(150, "this week"), unrouted(7, 100), cellsOf(10, 47, 49, "34%"), blankCells(12, 27, 160)}, haikuInCompare(),
+		inColumns(13, 33, "55%", "29%", "82%", "57%"), inColumns(14, 33, "7%", "", "", "2%"),
+		inColumns(15, 33, "28%", "60%", "16%", "33%"), inColumns(16, 33, "3%", "7%", "", "3%"),
+		inColumns(17, 33, "5%"), inColumns(18, 33, "2%", "4%"),
+		inColumns(21, 33, "1,204", "2,330", "1,876", "5,410"), inColumns(22, 33, "9", "6", "11", "19"),
+		inColumns(23, 33, "3 out", "", "4 in", "4 moves"),
+		inColumns(26, 33, "", "5-hour ×1", "", "3"), inColumns(27, 33, "3h 10m", "—", "", "4h 02m"),
+		inColumns(33, 33, "$184", "$212", "$239", "$635"), inColumns(34, 33, "4.0×", "4.6×", "5.2×", "4.6×"),
+		[]passing{wholeRow(37, accountsKeys)},
+	),
+	"accounts-compare-month-160": slices.Concat(
+		[]passing{period(152, "30 days"), unrouted(7, 100), blankCells(12, 126, 160)}, haikuInCompare(83),
+		inColumns(13, 33, "", "", "", "54%"), inColumns(15, 33, "", "", "", "35%"), inColumns(17, 33, "", "", "", "2%"),
+		inColumns(21, 33, "5,180", "9,930", "8,050", "23,160"), inColumns(22, 33, "38", "27", "41", "71"),
+		inColumns(23, 33, "12 out", "5 out", "14 in"),
+		inColumns(26, 33, "5-hour ×9", "5-hour ×3", "5-hour ×4", "16"), inColumns(27, 33, "13h 40m", "2h 05m", "3h 10m", "18h 55m"),
+		inColumns(33, 33, "$790", "$905", "$1,020", "$2,715"), inColumns(34, 33, "4.0×", "4.5×", "5.1×", "4.5×"),
+		[]passing{wholeRow(37, accountsKeys)},
+	),
+	"accounts-compare-ten-160": slices.Concat(
+		[]passing{period(150, "this week"), unrouted(7, 72), cellsOf(8, 84, 93, "● open")}, haikuInCompare(60, 98, 117),
+		inColumns(13, 19, "", "", "", "", "", "", "53%"), inColumns(14, 19, "", "", "", "", "", "", "4%"),
+		inColumns(16, 19, "", "", "", "", "", "", "4%"), inColumns(17, 19, "", "", "", "", "", "", "1%"),
+		inColumns(21, 19, "", "", "", "", "", "", "12,598"), inColumns(22, 19, "", "6", "11", "", "", "", "51"),
+		inColumns(23, 19, "3 out", "1 out", "", "", "", "1 out", "10 moves"),
+		inColumns(26, 19, "", "none"), inColumns(27, 19, "", "—", "", "", "", "35m", "9h 57m"),
+		inColumns(28, 19, "", "", "", "22%", "", "30%"),
+		inColumns(33, 19, "", "", "", "", "", "", "$1,342"), inColumns(34, 19, "", "", "", "", "", "", "3.4×"),
+		[]passing{wholeRow(37, accountsKeys)},
+	),
+	"accounts-detail-all-160": slices.Concat(
+		[]passing{
+			period(150, "this week"), wordsAt(11, 119, "3"), unrouted(13, 9), blankCells(16, 136, 140),
+			wordsAt(17, 48, "57%"), wordsAt(17, 79, "33%"), cellsOf(17, 115, 115, "●"), wordsAt(17, 127, "3%"),
+		},
+		byDays(21, 2, 43, 45, 57, 67, 73, 77, 91, 101, 119, 121, 129, 131, 133),
+		[]passing{cellsOf(24, 97, 97, "▋"), cellsOf(24, 132, 132, "▎"), wordsAt(26, 50, "30%"), wholeRow(37, accountsKeys)},
+	),
+	"accounts-detail-work-160": slices.Concat(
+		[]passing{period(150, "this week"), unrouted(13, 9), blankCells(16, 139, 140), cellsOf(17, 115, 115, "●")},
+		byDays(21, 2, 37, 47, 49, 55, 57, 61, 63, 67, 83, 85, 99, 101, 111, 119, 121, 129, 131, 133),
+		[]passing{cellsOf(30, 37, 160, "12:10"), wholeRow(37, accountsKeys)},
+	),
+	"accounts-detail-limit-160": slices.Concat(
+		[]passing{
+			period(150, "this week"), cellsOf(10, 60, 64, "┃"), wordsAt(10, 119, "2,330"), wordsAt(11, 119, "5-hour ×1"),
+			unrouted(13, 9), wordsAt(13, 119, "$212  4.6×"), blankCells(16, 37, 140), cellsOf(17, 37, 160, "● Opus 5.5 29%"),
+		},
+		byDays(21, 2, 67, 73, 101, 119, 121, 131, 133),
+		[]passing{cellsOf(30, 37, 160, "11:30"), wholeRow(37, accountsKeys)},
+	),
+	"accounts-detail-sessions-160": slices.Concat(
+		[]passing{
+			period(150, "this week"), cellsOf(7, 32, 66, "▲"), cellsOf(12, 81, 102, sidesWeek), unrouted(13, 9),
+			blankCells(16, 140, 140), cellsOf(17, 87, 87, "●"),
+		},
+		byDays(21, 2, 37, 41, 49, 59, 63, 67, 85, 99, 101, 103, 117, 119, 121, 127),
+		[]passing{wholeRow(37, accountsKeys)},
+	),
+	"accounts-detail-one-160": slices.Concat(
+		[]passing{
+			cellsOf(5, 21, 25, "[ ]"), period(150, "this week"), cellsOf(7, 8, 8, "▲"), evenPace(10, 35), wordsAt(10, 111, "1,204"), evenPace(12, 36),
+			wordsAt(13, 111, "$184  4.0×"), evenPace(14, 36), blankCells(16, 13, 143), cellsOf(17, 13, 143, "● Opus 5.5 60%"),
+		},
+		byDays(21, 3, 13, 28, 31, 35, 38, 44, 47, 53, 72, 75, 91, 94, 104, 116, 119, 126, 129, 132),
+		[]passing{cellsOf(28, 20, 20, "●"), blankCells(29, 39, 49), wholeRow(37, accountsKeys)},
+	),
+	"accounts-phone-compare-52": {
+		phonePeriod("this week"), unrouted(15, 7), blankCells(23, 33, 33), unrouted(25, 7), blankCells(27, 32, 33), wordsAt(27, 47, "57%"),
+		cellsOf(30, 36, 47, "3 out"), cellsOf(31, 24, 25, "6"), cellsOf(31, 36, 40, "1 out"), unrouted(32, 7), cellsOf(32, 24, 25, "11"),
+		cellsOf(33, 24, 25, "19"), cellsOf(33, 36, 42, "4 moves"),
+		cellsOf(37, 14, 18, "none"), cellsOf(37, 27, 32, "—"), unrouted(38, 7), wordsAt(39, 14, "3"), cellsOf(39, 27, 32, "4h 02m"),
+		unrouted(44, 7),
+	},
+	"accounts-phone-detail-52": slices.Concat(
+		[]passing{phonePeriod("this week"), blankCells(24, 50, 50), cellsOf(26, 32, 32, "●")},
+		byDays(28, 2, 13, 15, 19, 21, 28, 34, 36, 38, 43, 45, 47),
+		[]passing{wholeRow(38, "12:10")},
+	),
 
 	"history-year-160": slices.Concat(
 		[]passing{period(145, "last 12 months")}, currentMonth(7, 111, 31, 3), yearSquares,
@@ -614,14 +891,14 @@ var passedOver = map[string][]passing{
 	),
 	"history-weeks-160": {
 		period(148, "eight weeks"),
-		cellsOf(15, 137, 137, "6"), cellsOf(16, 138, 138, "5"), unrouted(17), cellsOf(17, 139, 139, "3"),
+		cellsOf(15, 137, 137, "6"), cellsOf(16, 138, 138, "5"), unrouted(17, 6), cellsOf(17, 139, 139, "3"),
 		cellsOf(35, 57, 58, "59"),
 		historyKeys(92),
 	},
 	"history-weeks-columns-160": {
 		period(148, "eight weeks"),
 		drawnIn(8, 31, 35, "█"), cellsOf(8, 121, 142, ", each time work alone"),
-		cellsOf(15, 114, 114, "6"), drawnIn(20, 71, 75, "█"), cellsOf(21, 114, 114, "5"), unrouted(25), cellsOf(27, 114, 114, "3"),
+		cellsOf(15, 114, 114, "6"), drawnIn(20, 71, 75, "█"), cellsOf(21, 114, 114, "5"), unrouted(25, 6), cellsOf(27, 114, 114, "3"),
 		cellsOf(35, 48, 125, "100% it hit its limit"),
 		historyKeys(94),
 	},
@@ -631,7 +908,7 @@ var passedOver = map[string][]passing{
 		cellsOf(8, 150, 150, "6"),
 		cellsOf(9, 36, 42, "5% used"),
 		cellsOf(13, 42, 42, "4"), cellsOf(13, 92, 92, "4"),
-		unrouted(17),
+		unrouted(17, 6),
 		cellsOf(19, 93, 99, "5% used"),
 		cellsOf(22, 96, 114, "80% left at a reset"),
 		historyKeys(92),
@@ -639,18 +916,46 @@ var passedOver = map[string][]passing{
 	"history-days-160": slices.Concat(
 		[]passing{period(148, "eight weeks"), cellsOf(11, 138, 139, "59"), cellsOf(13, 138, 139, "37")},
 		daysStrips,
-		[]passing{cellsOf(24, 140, 140, "1"), unrouted(26), historyKeys(75)},
+		[]passing{cellsOf(24, 140, 140, "1"), unrouted(26, 6), historyKeys(75)},
 	),
 	"history-days-ten-160": slices.Concat(
 		[]passing{period(148, "eight weeks"), cellsOf(15, 139, 139, "1")},
 		daysTenStrips,
-		[]passing{cellsOf(24, 140, 140, "1"), unrouted(26), historyKeys(75)},
+		[]passing{cellsOf(24, 140, 140, "1"), unrouted(26, 6), historyKeys(75)},
 	),
 	"history-tokens-160": slices.Concat(
 		[]passing{period(152, "by week")}, byAccountFigures, []passing{cellsOf(33, 3, 41, "3 more weeks below"), historyKeys(77)},
 	),
 	"history-tokens-models-160": slices.Concat(
 		[]passing{period(152, "by week")}, byModelFigures, []passing{cellsOf(32, 3, 41, "5 more weeks below"), historyKeys(75)},
+	),
+
+	"log-event-details-160": {cellsOf(27, 145, 145, "8")},
+	"log-events-160":        {cellsOf(27, 88, 160, ", its 5-hour to run out at 15:10   48k cached again, $0.48")},
+	"log-requests-160":      append(tableRows(8, logTail...), cellsOf(36, 144, 148, "1,240")),
+	"log-requests-phone-52": append(tableRows(9, logTail[len(logTail)-22:]...), cellsOf(32, 36, 40, "1,240")),
+	"log-events-filter-160": slices.Concat(
+		[]passing{cellsOf(13, 21, 31, "■ started")},
+		panelSessions(15, 80, 138, "□ d28c", "", "□ 7f3a", "□ db8a", "□ 41e0"),
+		[]passing{cellsOf(27, 143, 145, ".48")},
+	),
+	"log-requests-filter-160": slices.Concat(
+		behindThePanel(),
+		[]passing{cellsOf(10, 70, 74, "1,275"), blankCells(14, 98, 110), cellsOf(15, 83, 87, "1,240")},
+		panelSessions(18, 73, 131, "□ d28c", "", "□ 7f3a", "□ db8a", "□ 41e0"),
+		[]passing{cellsOf(26, 31, 45, "1,240 of 1,275"), cellsOf(36, 144, 148, "1,240")},
+	),
+	"log-request-details-160": slices.Concat(
+		[]passing{wholeRow(10, "14:31:18  9c2e")}, besideTheCard(11, aroundTheCap...),
+		[]passing{
+			blankCells(11, 145, 160), cellsOf(12, 145, 160, "s cap  $0.98"),
+			blankCells(15, 145, 160), cellsOf(16, 145, 160, "s cap  $0.66"),
+		},
+		tableRows(32, "14:32:29  d28c", "14:32:34  db8a", "14:32:36  9c2e"),
+		[]passing{cellsOf(15, 35, 62, "req_011CQx…"), cellsOf(36, 26, 28, "214"), cellsOf(36, 144, 148, "1,240")},
+	),
+	"log-requests-filtered-160": slices.Concat(
+		[]passing{cellsOf(5, 133, 135, "830")}, tableRows(8, filteredTail...), []passing{cellsOf(36, 142, 144, "445")},
 	),
 
 	"routing-auto-160": slices.Concat(routingFigures, []passing{cursorRow(14, "■ 0 auto")}, behindTheCard("0/min", "2/min", "15/min")),
@@ -664,8 +969,57 @@ var passedOver = map[string][]passing{
 		behindTheCard("0/min", "0/min", "15/min"), comingLines(33, 72, "16:30"),
 	),
 
-	"session-phone-52":         {wholeRow(32, "esc back   ↑↓ turn   enter open   ? keys")},
-	"session-turn-opened-160":  {wholeRow(37, "esc close    ↑↓ request  p pin")},
+	"routing-session-160": slices.Concat(
+		quietPage,
+		[]passing{
+			cellsOf(7, 23, 23, "◆"), wordsAt(8, 12, "personal"), wordsAt(8, 110, "personal"), wordsAt(8, 142, "66%"),
+			wholeRow(10, "STORY   requests a minute, its whole life"), cellsOf(17, 77, 94, ": side for now"),
+		},
+		figures(18, "95%", "34%"), figures(19, "39%", "66%"),
+		[]passing{
+			cellsOf(20, 1, 39, "personal ◆"), cursorRow(20, "● 3 side"), cellsOf(22, 1, 39, "TURNS   newest first"),
+			wordsAt(23, 73, "1.56"),
+		},
+		behindTheSessionsCard,
+	),
+
+	"session-moved-160": d28cPage,
+	"session-quiet-160": slices.Concat(quietPage, quietStory, []passing{wordsAt(20, 57, "≈ 23 points of its 5-hour · 4 of its week")}),
+	"session-ended-160": slices.Concat(
+		fromTheLog(1, 16, 68),
+		[]passing{
+			wordsAt(7, 17, "18:47"), wordsAt(7, 155, "5h 27m"), cellsOf(8, 10, 40, "· haiku-4-5"),
+			cellsOf(18, 49, 54, "15:00"),
+			wordsAt(20, 33, "16:02"), wordsAt(20, 57, "≈ 52 points of its 5-hour · 8 of its week"),
+			wordsAt(21, 33, "18:47"), wordsAt(21, 57, "≈ 38 points of its 5-hour · 6 of its week"),
+			wordsAt(23, 124, "97%"), wordsAt(27, 86, "40k"), wordsAt(34, 33, "Edit ×2, Bash"),
+		},
+		endedStory,
+	),
+	"session-resumed-160": slices.Concat(
+		fromTheLog(1, 16, 68),
+		[]passing{
+			wordsAt(7, 1, "↓ streaming"), cellsOf(7, 57, 95, "15h idle"), cellsOf(11, 36, 83, "┊ 09:12  rescored after 15h idle"),
+			drawnIn(12, 32, 37, eighths+"╱┊"), drawnIn(13, 32, 37, eighths+"╱┊"), drawnIn(14, 32, 37, eighths+"╱┊"),
+			drawnIn(15, 32, 37, eighths+"╱┊"), drawnIn(16, 32, 37, eighths+"╱┊"),
+			cellsOf(17, 14, 20, "─ side"), cellsOf(17, 32, 37, "─┤"), cellsOf(18, 32, 42, "15h  09:12"),
+			wordsAt(20, 33, "18:05"), wordsAt(20, 57, "≈ 18 points of its 5-hour · 3 of its week"),
+			wordsAt(21, 57, "≈ 31 points of its 5-hour · 9 of its week"),
+			wordsAt(23, 123, "97%"), wordsAt(27, 67, "16.1M"), wordsAt(27, 86, "76k"), wordsAt(33, 67, "14.2M"),
+		},
+		resumedStory,
+	),
+	"session-turn-opened-160": slices.Concat(d28cPage, []passing{wholeRow(29, "│  14:29:04"), wholeRow(37, "esc close    ↑↓ request  p pin")}),
+	"session-phone-52": slices.Concat(
+		fromTheLog(2, 1, 48),
+		[]passing{
+			wordsAt(9, 47, "2h 40m"),
+			wordsAt(19, 12, "≈ 41 of 5-hour · 6 of week"), wordsAt(19, 47, "$41.06"),
+			wordsAt(20, 12, "≈ 9 of 5-hour · 1 of week"), wordsAt(20, 48, "$7.14"),
+			blankCells(31, 1, 34), wholeRow(32, "esc back   ↑↓ turn   enter open   ? keys"),
+		},
+		d28cPhoneStory,
+	),
 	"sessions-one-account-160": {wholeRow(37, "tab views   [ ] view    ↑↓ session  enter its page    p pin")},
 	"runway-phone-52":          {wholeRow(33, "< > window   ←→ day   ? keys")},
 }
@@ -789,10 +1143,8 @@ func heldTabbed(tabs int, within area) partial {
 // fixtures draw them whole: the chrome of a frame of each tab but the
 // Overview's, and of Sessions on a phone.
 var holds = map[string]partial{
-	"accounts-compare-160":     heldTabbed(1, chrome),
 	"sessions-switchboard-160": heldTabbed(3, chrome),
 	"runway-5-hour-160":        heldTabbed(4, chrome),
-	"log-requests-160":         heldTabbed(5, chrome),
 	"sessions-phone-52":        heldTabbed(3, phoneChrome),
 }
 
@@ -861,6 +1213,9 @@ func TestAPassingHoldsTheFrameToWhatItSaysItReads(t *testing.T) {
 		{name: "blank where it says a trace", passing: traced(1, 1, 9), text: "      "},
 		{name: "a chart's fill and lines", passing: charted(1, 1, 1, 9)[0], text: "··▂▅╌╌ │", want: true},
 		{name: "a trace's glyphs and an axis's words", passing: charted(1, 1, 1, 9)[0], text: "▂▅ now"},
+		{name: "a story's columns", passing: storyColumns(1, 1, 1, 2, 3)[0], text: "▂┊▅", want: true},
+		{name: "a story's columns, none of their height in the row", passing: storyColumns(1, 1, 1, 2, 3)[0], text: "   ", want: true},
+		{name: "words where it says a story's columns", passing: storyColumns(1, 1, 1, 2, 3)[0], text: "14:31"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

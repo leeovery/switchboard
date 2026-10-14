@@ -64,6 +64,15 @@ const (
 	// running into: of an account, or of a model version, by its id before
 	// the column, as "claude-opus-5-5 input", or of both.
 	NumberTokensSplit
+	// NumberMoved are the sessions an event of the Log's Events moved, as
+	// its words count them, which Of names by the event's key.
+	NumberMoved
+	// NumberPeriod is a figure of the period Accounts counts over, a look
+	// reading today's days: of a row of Compare's groups or THIS WEEK, which
+	// Of names as its label does, as "requests", every figure of the row one
+	// number; or a version's share of use, after its name, as "Opus 5.5
+	// share". Its Account is the account's id, "" for all accounts'.
+	NumberPeriod
 )
 
 // Number names a number the page draws, which brightens as it changes:

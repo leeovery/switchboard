@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"cmp"
 	"context"
 	"image/color"
 	"strings"
@@ -24,8 +25,16 @@ import (
 const interval = 30 * time.Minute
 
 // framesTraceScale is the requests a minute that fill a trace's height in the
-// frames, which pin it, where the live page scales as its rule says.
-const framesTraceScale = 16
+// frames, which pin it, where the live page scales as its rule says; and
+// storyScale, a session's story's, which its frames pin at 8.
+const (
+	framesTraceScale = 16
+	storyScale       = 8
+)
+
+// framesKeep is how long the frames' ledger keeps a day's lines: [ledger]
+// keep at 90 days.
+const framesKeep = 90 * 24 * time.Hour
 
 // framesWeekStarts is the day the frames' calendar weeks start on, as their
 // worlds' config sets it.
@@ -58,18 +67,42 @@ func (f Fixture) Model() tea.Model {
 // builds it for dashboard, on a terminal of the given size, and brings it to
 // the fixture's moment: its first read lands readAgo before, the terminal
 // says what its background is, then the clock reads the moment, which the
-// screen is drawn at, and the fixture's keys are pressed. Its timers never
-// fire, so nothing moves from there but what a key does.
+// screen is drawn at, and the fixture's keys are pressed. A router that
+// stops answering before the moment is read last readAgo before it goes,
+// and found gone as it goes, by R. A fixture with keys pressed before its
+// moment is read first readAgo before those, which are pressed then; then
+// at its moment, read again, by R, so what its ledger has gained since is
+// read. Its timers never fire, so nothing moves from there but what a key
+// does.
 func (f Fixture) settle(size watch.Size) watch.Model {
-	clock := &clock{now: ago(f.now, readAgo)}
+	gone := f.router.gone
+	read := !gone.IsZero() && gone.Before(f.now)
+	clock := &clock{now: ago(f.now, readAgo+f.before.by)}
+	if read {
+		clock.now = ago(gone, readAgo)
+	}
 	m := watch.New(context.Background(), f.config(size, clock.read))
 	m = deliver(m, run(m.Init())...)
 	if !f.colourless {
 		m = deliver(m, tea.BackgroundColorMsg{Color: terminalBackground})
 	}
+	if read {
+		clock.now = gone
+		m = deliver(m, keysOf("R")[0])
+	}
+	if len(f.before.keys) > 0 {
+		clock.now = ago(f.now, f.before.by)
+		m = pressed(deliver(m, reached{}), f.before.keys)
+		clock.now = f.now
+		m = deliver(m, keysOf("R")[0])
+	}
 	clock.now = f.now
-	m = deliver(m, reached{})
-	for _, key := range f.keys {
+	return pressed(deliver(m, reached{}), f.keys)
+}
+
+// pressed is the model with the keys given pressed, in turn.
+func pressed(m watch.Model, keys []tea.KeyPressMsg) watch.Model {
+	for _, key := range keys {
 		m = deliver(m, key)
 	}
 	return m
@@ -94,8 +127,10 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		Family:     claude.Provider{}.Family,
 		Size:       size,
 		View:       f.view,
+		Log:        f.log,
 		Prices:     drawnPrices,
-		TraceScale: framesTraceScale,
+		TraceScale: cmp.Or(f.scale, framesTraceScale),
+		LedgerKeep: framesKeep,
 	}
 	cfg.Ledger, cfg.Readings, cfg.Events = f.readers(now)
 	dressed(&cfg, f.theme, f.colourless)

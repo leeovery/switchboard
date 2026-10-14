@@ -73,8 +73,8 @@ func TestAWorldsRouterGivesItsDocumentAndListsItsSessions(t *testing.T) {
 			if want := tt.world.document(worlds.now); err != nil || !reflect.DeepEqual(doc, want) {
 				t.Errorf("Read() = %+v, %v, want the world's document, as the router gives it", doc, err)
 			}
-			if !health.OK || health.PID != routerPID || !health.StartedAt.Equal(on(worlds.now, 1, 12, 0)) {
-				t.Errorf("Read() says the router is %+v, want the one the fixtures have, healthy, started at noon", health)
+			if !health.OK || health.PID != routerPID || !health.StartedAt.Equal(routerRun(worlds.now)) {
+				t.Errorf("Read() says the router is %+v, want the one the fixtures have, healthy, started as its events' run did", health)
 			}
 			if doc.Sessions != tt.sessions {
 				t.Errorf("the document counts %d sessions, want %d", doc.Sessions, tt.sessions)

@@ -636,9 +636,9 @@ func (b usageBlock) key(c *canvas, y int) {
 }
 
 // keyApart is the cells between the parts of a key line width columns wide:
-// four, or on a phone three.
+// four, or on a phone, as Phone tells one, three.
 func keyApart(width int) int {
-	if width < phoneUnder {
+	if Phone(width) {
 		return 3
 	}
 	return 4

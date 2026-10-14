@@ -182,6 +182,32 @@ func HeldByReserve(w quota.Window, reserve float64) bool {
 	return reserve > 0 && w.Utilization >= 1-reserve-Tolerance && !Spent(w)
 }
 
+// Hold is how far a reading of a window holds its account back, each further
+// than the one before.
+type Hold int
+
+const (
+	// NotHeld holds it back at nothing.
+	NotHeld Hold = iota
+	// HeldAtCap is the window at or past the account's cap, short of its
+	// limit, as HeldByReserve says.
+	HeldAtCap
+	// HeldAtLimit is the window refused, or used up, as Spent says.
+	HeldAtLimit
+)
+
+// HoldOf returns how far w, a reading of a window of an account whose
+// reserve is the one given, holds the account back.
+func HoldOf(w quota.Window, reserve float64) Hold {
+	switch {
+	case Spent(w):
+		return HeldAtLimit
+	case HeldByReserve(w, reserve):
+		return HeldAtCap
+	}
+	return NotHeld
+}
+
 // handReset is how far a window's use must fall, its reset kept, for the
 // reading taken as current to show it started again, as a reset made by hand
 // starts it, emptying it: a smaller dip, as a 429 reading a point below the

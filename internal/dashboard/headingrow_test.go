@@ -58,8 +58,8 @@ func TestTheHeadingRow(t *testing.T) {
 			want: []string{"ACCOUNTS    Compare  Detail  [ ]  " + rule(111) + "  < this week >"},
 		},
 		{
-			name: "on a phone, the sub-tabs without [ ] or a rule, the period on the row under them", heading: comparing, width: 52, phone: true,
-			want: []string{"ACCOUNTS    Compare  Detail", blanks(39) + "< this week >"},
+			name: "on a phone, the sub-tabs two cells after the name, without [ ] or a rule, the period on the row under them", heading: comparing, width: 52, phone: true,
+			want: []string{"ACCOUNTS   Compare  Detail", blanks(39) + "< this week >"},
 		},
 		{
 			name:    "on a phone, the sub-tabs set tight, two cells after the name, each its name and a space, as history-phone-year-52 draws them",
@@ -71,9 +71,9 @@ func TestTheHeadingRow(t *testing.T) {
 			want: []string{"HISTORY    Year  Weeks  Days  Tokens  [ ]  " + rule(97) + "  < last 12 months >"},
 		},
 		{
-			name: "on a phone, a line at the right on the sub-tabs' row", width: 52, phone: true,
+			name: "on a phone, the sub-tabs two cells after the name, padded, and a line at the right on their row, as log-requests-phone-52 draws them", width: 52, phone: true,
 			heading: heading{name: "LOG", subTabs: []string{"Requests", "Events"}, right: line{{"35 hidden", secondaryInk}, spaces(2), {"f", keyInk}}},
-			want:    []string{"LOG    Requests  Events" + blanks(17) + "35 hidden  f"},
+			want:    []string{"LOG   Requests  Events" + blanks(18) + "35 hidden  f"},
 		},
 		{
 			name: "on a phone, a tab without sub-tabs keeps its rule and its window, as runway-phone-52 draws it", width: 52, phone: true,
@@ -87,7 +87,7 @@ func TestTheHeadingRow(t *testing.T) {
 		},
 		{
 			name: "the right left out where it doesn't fit beside the name and the sub-tabs", heading: filteredLog, width: 40, phone: true,
-			want: []string{"LOG    Requests  Events    only d28c sw…"},
+			want: []string{"LOG   Requests  Events    only d28c swi…"},
 		},
 	}
 	for _, tt := range tests {

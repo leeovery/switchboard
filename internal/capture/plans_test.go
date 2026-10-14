@@ -12,10 +12,6 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// keptFor is how long the frames' ledger keeps a day's lines: [ledger] keep
-// at 90 days.
-const keptFor = 90 * 24 * time.Hour
-
 // shownTokens is a count of tokens as the frames show it: 5.7M, 958k, 5.4k,
 // 900 (session2.tok).
 func shownTokens(n int) string {
@@ -84,7 +80,7 @@ func pageOf(t *testing.T, r *records, id string, routed *status.Session, now tim
 		running = []status.Session{*routed}
 	}
 	page, ok := views.SessionPageOf(id, views.PageSources{Routed: routed, Read: views.ReadSessions(l, running, now, id), Prices: drawnPrices,
-		Keep: keptFor, Now: now})
+		Keep: framesKeep, Now: now})
 	if !ok {
 		t.Fatalf("SessionPageOf(%s) found no session", id)
 	}
@@ -306,6 +302,13 @@ func TestF41AsPageIsItsFrameFromItsLinesOfYesterdayAndToday(t *testing.T) {
 		t.Errorf("the page has f41a resumed at %s, %s, want resumed at 09:12, answering", resumed, page.State)
 	}
 	checkMove(t, page, now, "09:12", "side", "personal", 96_000, "none")
+	// The router says it idled from its last request on side, as it saw it
+	// come, to its first back.
+	lines := resumedPlan(now).lines()
+	back := slices.IndexFunc(lines, func(l ledger.Line) bool { return l.Account == "personal" })
+	if want := status.Rescored(lines[back].At.Sub(lines[back-1].At)); page.Moves[0].Reason != want {
+		t.Errorf("f41a's move says %q, want %q", page.Moves[0].Reason, want)
+	}
 	checkTurns(t, page, now, []turnRow{
 		{21, "14:25", "18m…", 44, "Bash ×14, Edit ×11, Read ×8", "8.4M", "132k", "40k", "$6.49", "personal"},
 		{20, "13:58", "17m", 85, "Edit ×28, Bash ×21, Read ×17", "16.1M", "255k", "76k", "$12.54", "personal"},

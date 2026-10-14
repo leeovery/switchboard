@@ -79,4 +79,8 @@ type Events interface {
 	// Between gives the events that happened from from up to to, each as it
 	// last stands, oldest first.
 	Between(from, to time.Time) iter.Seq[events.Line]
+	// FirstDay gives the start of the first local day the router filed
+	// events on, which the Log's Events read back no further than. It fails
+	// with fs.ErrNotExist where it filed none.
+	FirstDay() (time.Time, error)
 }

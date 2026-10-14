@@ -218,12 +218,17 @@ func (s *story) toldOf(l *ledger.Line) (first bool, made *move, rewrote bool) {
 
 // sameRequest reports whether the line l is of the request with the given
 // id that arrived, or went upstream, at at, as its line or the request
-// stream tells it: the same id, and at while l was in flight, from its
-// arrival to its end, as an id is unique only while the router that gave it
-// runs. TotalMS is cut to the millisecond, so l may have ended up to a
-// millisecond after it says.
+// stream tells it: the same id, and at while l was in flight, as inFlightAt
+// has it, as an id is unique only while the router that gave it runs.
 func sameRequest(l *ledger.Line, id string, at time.Time) bool {
-	return l.Request == id && !at.Before(l.At) && at.Before(ended(l).Add(time.Millisecond))
+	return l.Request == id && inFlightAt(l, at)
+}
+
+// inFlightAt reports whether the request of the line l was in flight at at:
+// from its arrival to its end. TotalMS is cut to the millisecond, so l may
+// have ended up to a millisecond after it says.
+func inFlightAt(l *ledger.Line, at time.Time) bool {
+	return !at.Before(l.At) && at.Before(ended(l).Add(time.Millisecond))
 }
 
 // moveOnto returns the move of the model with the given id that brought

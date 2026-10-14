@@ -333,7 +333,7 @@ func (cp compared) body(columns []compareColumn) *canvas {
 			y++
 			c.line(2, y, line{{r.label, secondaryInk}})
 			for _, col := range columns {
-				c.line(col.x, y, fitParts(col.width, r.said(col)...))
+				c.line(col.x, y, fitParts(col.width, periodNumbered(r.said(col), col.id, r.label)...))
 			}
 		}
 	}
@@ -400,7 +400,7 @@ func (cp compared) byModel(c *canvas, y int, columns []compareColumn) int {
 			if s, ok := shareOf(col.row, v); ok {
 				share = s.Share
 			}
-			c.right(col.x+percentCells, y, fitParts(percentCells, shareParts(share, col.ink())...))
+			c.right(col.x+percentCells, y, fitParts(percentCells, periodNumbered(shareParts(share, col.ink()), col.id, shareNamed(v))...))
 		}
 	}
 	return y
@@ -446,7 +446,7 @@ type compareRow struct {
 
 // groups are Compare's groups under BY MODEL: ACTIVITY, LIMITS and VALUE, as
 // Accounts' words say each figure. A period with nothing recorded, as on a
-// fresh install, says a dash for each of its figures, as period has it.
+// fresh install, says a dash in every row, as period has it.
 func (cp compared) groups() []compareGroup {
 	page := *cp.page
 	names := cp.f.windowNamer(cp.m)
@@ -463,28 +463,29 @@ func (cp compared) groups() []compareGroup {
 		{name: "LIMITS", rows: []compareRow{
 			{"limits hit", cp.period(func(col compareColumn) []part { return limitsParts(col.row.Totals, names, col.ink()) })},
 			{"at cap or limit", cp.period(func(col compareColumn) []part { return atCapParts(col.row.Totals, col.ink()) })},
-			{"left at its last reset", func(col compareColumn) []part { return leftParts(col.row, col.ink()) }},
+			{"left at its last reset", cp.period(func(col compareColumn) []part { return leftParts(col.row, col.ink()) })},
 		}},
 		{name: "VALUE", rows: []compareRow{
-			{"plan", func(col compareColumn) []part { return planParts(page, col.row, col.ink()) }},
-			{"extra usage", cp.extra},
+			{"plan", cp.period(func(col compareColumn) []part { return planParts(page, col.row, col.ink()) })},
+			{"extra usage", cp.period(cp.extra)},
 			{"worth at API prices", cp.period(func(col compareColumn) []part { return worthParts(col.row, col.ink()) })},
 			{"against its price", cp.period(func(col compareColumn) []part { return againstParts(page, col.row) })},
 		}},
 	}
 }
 
-// period is what a row of the period's figures says of each column, as said
-// says it, as periodParts has a figure of the period.
+// period is what a row of Compare's groups says of each column, as said says
+// it, as periodParts has a row of the period.
 func (cp compared) period(said func(col compareColumn) []part) func(col compareColumn) []part {
 	return func(col compareColumn) []part { return periodParts(*cp.page, said(col), col.ink()) }
 }
 
 // extra is the column's extra usage, as it stands: an account's, as
-// extraParts says it, or every account's, as extraOfAll does.
+// extraParts says it, or every configured account's, as extraOfAll does, as
+// ExtraOf takes them together.
 func (cp compared) extra(col compareColumn) []part {
 	if col.all {
-		return extraOfAll(cp.m.Accounts, col.ink())
+		return extraOfAll(cp.m.ExtraOf(cp.f.Accounts.Accounts.IDs()), col.ink())
 	}
 	if !col.known {
 		return noneOf(noFigure.text, col.ink())

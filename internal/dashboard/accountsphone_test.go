@@ -217,9 +217,9 @@ func TestAPhonesWEEKUSEDShowsTheWeekTheFrameNames(t *testing.T) {
 	}
 }
 
-// A period with nothing recorded, as on a fresh install, says a dash for
-// each of its figures on a phone too, Compare's and Detail's THIS WEEK's;
-// left at its last reset, the plan and extra usage, not the period's, stand.
+// A period with nothing recorded, as on a fresh install, says a dash in every
+// row on a phone too, Compare's and Detail's THIS WEEK's, left at its last
+// reset, the plan and extra usage among them.
 func TestAPhonesAccountsSayADashForEachFigureOfAPeriodWithNothingRecorded(t *testing.T) {
 	page := phonePage(t)
 	page.Recorded = false
@@ -229,14 +229,14 @@ func TestAPhonesAccountsSayADashForEachFigureOfAPeriodWithNothingRecorded(t *tes
 	}{
 		{shown: AccountsCompare, want: map[int]string{
 			29: " work        —         —           —",
-			35: " work        —            —         0%",
-			41: " work        $200/mo      —         —",
-			44: " all         $600/mo      —         —",
+			35: " work        —            —         —",
+			41: " work        —            —         —",
+			44: " all         —            —         —",
 		}},
 		{shown: AccountsDetail, want: map[int]string{
 			19: "requests  —               worth     —",
-			20: "limits    —               extra use off",
-			21: "plan      Max 20x         against   —",
+			20: "limits    —               extra use —",
+			21: "plan      —               against   —",
 		}},
 	}
 	for _, tt := range tests {
@@ -422,7 +422,7 @@ func TestDetailsPhoneBodyFollowsTheWidth(t *testing.T) {
 // its id and its window's key, and all accounts' by the key alone; and what
 // a look reads brightens as it changes: each account's week's percentage,
 // all accounts' and their room each a figure of its own, and their states
-// counted; the period's figures don't.
+// counted; and the period's figures, each by its row.
 func TestAPhonesBarsEaseAndItsLookReadNumbersBrighten(t *testing.T) {
 	compare := phoneText(t, 52, 48, AccountsCompare, "", phonePage(t), nil)
 	all := compare.Moment(phoneDoc(), routedAt).All().Windows
@@ -433,6 +433,10 @@ func TestAPhonesBarsEaseAndItsLookReadNumbersBrighten(t *testing.T) {
 	}
 	got := compare.Numbers(phoneDoc(), routedAt)
 	delete(got, Number{Kind: NumberRouted})
+	if said := got[Number{Kind: NumberPeriod, Account: "work", Of: "reqs"}]; said != "1,204" {
+		t.Errorf("a phone's Compare numbers work's requests %q, want 1,204", said)
+	}
+	maps.DeleteFunc(got, func(n Number, _ string) bool { return n.Kind == NumberPeriod })
 	wantNumbers := map[Number]string{
 		{Kind: NumberUsed, Account: "work", Of: "7d"}: "34%", {Kind: NumberUsed, Account: "personal", Of: "7d"}: "66%",
 		{Kind: NumberUsed, Account: "side", Of: "7d"}: "78%", {Kind: NumberAllUsed, Of: "7d"}: "59%",
@@ -445,7 +449,7 @@ func TestAPhonesBarsEaseAndItsLookReadNumbersBrighten(t *testing.T) {
 	got = detail.Numbers(phoneDoc(), routedAt)
 	for _, n := range []Number{
 		{Kind: NumberAllUsed, Of: "7d"}, {Kind: NumberAllRoom, Of: "7d"}, {Kind: NumberAllUsed, Of: "5h"},
-		{Kind: NumberAccountStates, Of: "open"},
+		{Kind: NumberAccountStates, Of: "open"}, {Kind: NumberPeriod, Of: "requests"},
 	} {
 		if _, ok := got[n]; !ok {
 			t.Errorf("a phone's Detail of all accounts numbers no %+v among %v", n, got)

@@ -139,12 +139,27 @@ func (l detailLayout) reach() int {
 // wide enough for its widest fixed rows; narrower, as a phone's body draws
 // it, under the wide chrome, as detailPhoneBody has it.
 func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
-	l := f.detailLayout()
-	if l.reach() > f.Width {
+	if f.detailStacked() {
 		return f.detailPhoneBody(doc, now)
 	}
-	d := f.detailDrawn(doc, now, l)
+	d := f.detailDrawn(doc, now, f.detailLayout())
 	return accountsForm{draw: d.draw, scrolling: d.scrolling, scrolls: d.scrolls, targets: d.targets, filled: d.filled}
+}
+
+// detailStacked reports whether Detail is stacked, as a phone stacks it:
+// where the frame is too narrow for its wide form's widest fixed rows, as
+// every phone's is.
+func (f Frame) detailStacked() bool {
+	return f.detailLayout().reach() > f.Width
+}
+
+// detailDrawnIn is the layout Detail is drawn in on the frame: a phone's
+// stack's, where it's stacked, else its wide layout.
+func (f Frame) detailDrawnIn() detailLayout {
+	if f.detailStacked() {
+		return stackLayout
+	}
+	return f.detailLayout()
 }
 
 // detailDrawn is Detail of a moment as it's drawn wide: the frame and its
@@ -208,15 +223,27 @@ func pageRowOf(page *views.AccountsPage, id string) (*views.AccountsPage, views.
 	return page, page.Rows[i]
 }
 
+// listOut are the forms of the line saying how many of Detail's list's
+// accounts are out of view, in the list's cells: "▼ 4 more accounts", and
+// for less room, the counts alone, "▲ 2 more · ▼ 2 more".
+var listOut = []outForm{{noun: "account", gap: " · ", inks: keyedOut}, {gap: " · ", inks: keyedOut}}
+
 // draw draws Detail from row top: its panel, as far down as it's scrolled,
-// and its list beside it, held.
+// and its list beside it, held; and over the key line, where they don't all
+// show, how many of the panel's rows are out of view, from its column, as
+// Compare's line says it, and under the list, how many of its accounts.
 func (d detailDrawn) draw(c *canvas, top int) {
 	panel := d.panel()
-	rows := d.f.viewRows()
-	c.paste(panel, byRows(panel.height(), rows).clamped(d.f.Scroll), top, rows)
-	if d.l.list {
-		d.list(c.within(bounds{y: top, width: listRuleAt + 1, rows: rows}), top, rows)
+	rows, y := d.f.viewRows(), d.f.Height-underView
+	offset := byRows(panel.height(), rows).clamped(d.f.Scroll)
+	c.paste(panel, offset, top, rows)
+	c.line(d.l.panel, y, outOfView(offset, max(panel.height()-offset-rows, 0), d.f.edge()-d.l.panel, compareOut))
+	if !d.l.list {
+		return
 	}
+	d.list(c.within(bounds{y: top, width: listRuleAt + 1, rows: rows}), top, rows)
+	first, shown := d.listShown()
+	c.line(listAt, y, outOfView(first, len(d.f.Accounts.Accounts)-first-shown, listRuleAt-listAt, listOut...))
 }
 
 // scrolling is how far Detail's panel scrolls, by rows, at any offset: as far
@@ -360,7 +387,7 @@ func (d detailDrawn) thisWeek(c *canvas, y int) {
 	c.line(x, y, line{{d.page.Period.Title(), dimInk}})
 	for i, item := range d.thisWeekItems() {
 		c.line(x, y+1+i, line{{padded(item.label, thisWeekLabels), dimInk}})
-		c.line(x+thisWeekLabels, y+1+i, fitParts(d.f.edge()-x-thisWeekLabels, item.parts...))
+		c.line(x+thisWeekLabels, y+1+i, fitParts(d.f.edge()-x-thisWeekLabels, periodNumbered(item.parts, d.id, item.label)...))
 	}
 }
 
@@ -373,25 +400,26 @@ type thisWeekItem struct {
 // thisWeekItems are THIS WEEK's items, as the words of Accounts say them, in
 // text.secondary: the requests; the limits, by window, or all accounts' how
 // many; the plan, by its name, or all accounts' summed; the worth, with its
-// ratio; and the extra usage of the accounts shown. The period's figures are
-// as periodParts says them, a dash where it records nothing.
+// ratio; and the extra usage of the accounts shown. Each is as periodParts
+// says it, a dash where the period records nothing.
 func (d detailDrawn) thisWeekItems() []thisWeekItem {
 	totals, page := d.row.Totals, *d.page
 	return []thisWeekItem{
 		{"requests", periodParts(page, []part{figureIn(prose.Grouped(totals.Requests), secondaryInk)}, secondaryInk)},
 		{"limits", periodParts(page, limitsParts(totals, d.f.windowNamer(d.m), secondaryInk), secondaryInk)},
-		{"plan", planNamed(d.row, secondaryInk)},
+		{"plan", periodParts(page, planNamed(d.row, secondaryInk), secondaryInk)},
 		{"worth", periodParts(page, worthAgainst(d.row, secondaryInk), secondaryInk)},
-		{"extra use", extraShort(d.shown())},
+		{"extra use", periodParts(page, extraShort(d.extra()), secondaryInk)},
 	}
 }
 
-// shown are the accounts Detail shows: the account, or every account.
-func (d detailDrawn) shown() []status.AccountNow {
+// extra is the extra usage of what Detail shows, as ExtraOf takes it: the
+// account's, or every configured account's together.
+func (d detailDrawn) extra() status.AllExtra {
 	if d.id == "" {
-		return d.m.Accounts
+		return d.m.ExtraOf(d.f.Accounts.Accounts.IDs())
 	}
-	return []status.AccountNow{d.account}
+	return d.m.ExtraOf([]string{d.id})
 }
 
 // byModel draws BY MODEL along row y: its heading, the period's share of use

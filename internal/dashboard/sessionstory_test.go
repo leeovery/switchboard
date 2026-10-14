@@ -9,6 +9,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -78,7 +79,7 @@ func storyFrame(width, height int, look Look) Frame {
 // chosen.
 func storyDrawnOn(f Frame, accounts int, story views.Story, chosen views.Turn) *canvas {
 	c := newCanvas(f.Width, f.Height)
-	f.sessionStory(c, f.sessionLayout(accounts), story, chosen)
+	f.sessionStory(c, status.Moment{}, f.sessionLayout(accounts), story, chosen)
 	return c
 }
 
@@ -246,8 +247,8 @@ func minutely(from, to time.Time) []time.Time {
 	return sent
 }
 
-// times are n requests at at.
-func times(n int, at time.Time) []time.Time {
+// sentAt are n requests sent at at.
+func sentAt(n int, at time.Time) []time.Time {
 	return slices.Repeat([]time.Time{at}, n)
 }
 
@@ -270,8 +271,8 @@ func twentyMinutes(sent ...[]time.Time) views.Story {
 func TestAStorysColumnsFillEighthsOfItsRowsToItsScale(t *testing.T) {
 	// Columns of two minutes: 1 request is half a request a minute, 3 one
 	// and a half, 16 eight and 40 twenty.
-	busy := twentyMinutes(times(1, storyAt(8, 12, 0, 0)), times(3, storyAt(8, 12, 2, 0)), times(16, storyAt(8, 12, 4, 0)), times(40, storyAt(8, 12, 6, 0)))
-	quiet := twentyMinutes(times(1, storyAt(8, 12, 0, 0)), times(3, storyAt(8, 12, 2, 0)))
+	busy := twentyMinutes(sentAt(1, storyAt(8, 12, 0, 0)), sentAt(3, storyAt(8, 12, 2, 0)), sentAt(16, storyAt(8, 12, 4, 0)), sentAt(40, storyAt(8, 12, 6, 0)))
+	quiet := twentyMinutes(sentAt(1, storyAt(8, 12, 0, 0)), sentAt(3, storyAt(8, 12, 2, 0)))
 	tests := []struct {
 		name  string
 		story views.Story
@@ -288,7 +289,7 @@ func TestAStorysColumnsFillEighthsOfItsRowsToItsScale(t *testing.T) {
 			f := storyFrame(10, 9, Screen(builtin(t, "nord")))
 			f.TraceScale = tt.scale
 			c := newCanvas(10, 9)
-			f.sessionStory(c, wideStory, tt.story, views.Turn{})
+			f.sessionStory(c, status.Moment{}, wideStory, tt.story, views.Turn{})
 			if got := tracedOf(c, 0, 10, 6, 5, 4, 3, 2); !slices.Equal(got, tt.want) {
 				t.Errorf("the columns fill %v eighths, want %v", got, tt.want)
 			}
@@ -322,7 +323,7 @@ func TestTheTurnChosensColumnsAreLit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newCanvas(10, 9)
-			storyFrame(10, 9, Screen(builtin(t, "nord"))).sessionStory(c, wideStory, story, tt.chosen)
+			storyFrame(10, 9, Screen(builtin(t, "nord"))).sessionStory(c, status.Moment{}, wideStory, story, tt.chosen)
 			for x := range 10 {
 				bottom, want := c.at(x, 6).ink, traceFade
 				if slices.Contains(tt.lit, x) {
@@ -415,9 +416,51 @@ func TestAMovesLabelEndsAtItsMarker(t *testing.T) {
 				layout, row = sessionLayout{story: true}, 0
 			}
 			c := newCanvas(tt.width, 9)
-			storyFrame(tt.width, 9, Look{}).sessionStory(c, layout, tt.story, views.Turn{})
+			storyFrame(tt.width, 9, Look{}).sessionStory(c, status.Moment{}, layout, tt.story, views.Turn{})
 			if got := c.row(row, Look{}); got != tt.want {
 				t.Errorf("the label's row reads\n%q\nwant\n%q", got, tt.want)
+			}
+		})
+	}
+}
+
+// The story names each account as the rest of the page does, by its label
+// where the config gives one other than its id: in a move's label, whole or
+// short, in its names alone where it doesn't fit, and on the ribbon.
+func TestAStoryNamesItsAccountsByTheirLabels(t *testing.T) {
+	doc := status.Document{Accounts: []status.Account{{ID: "work", Label: "office"}, {ID: "side", Label: "spare"}, {ID: "personal", Label: "home"}}}
+	tests := []struct {
+		name   string
+		width  int
+		phone  bool
+		story  views.Story
+		label  string
+		ribbon []string
+	}{
+		{
+			name: "whole", width: 160, story: movedStory(),
+			label: "office reached its cap → spare · 182k cached again, $1.82  14:31 ┊", ribbon: []string{" office ", " spare "},
+		},
+		{name: "short, on a phone", width: 52, phone: true, story: movedStory(), label: "its cap → spare, $1.82  14:31 ┊"},
+		{name: "its names alone", width: 52, phone: true, story: resumedStory(), label: "┊ 09:12  spare → home"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			layout, row, tall := wideStory, 1, wideStoryColumns
+			if tt.phone {
+				layout, row, tall = sessionLayout{story: true}, 0, phoneStoryColumns
+			}
+			f := storyFrame(tt.width, 9, Look{})
+			c := newCanvas(tt.width, 9)
+			f.sessionStory(c, f.Moment(doc, tt.story.End), layout, tt.story, views.Turn{})
+			if got := strings.TrimSpace(c.row(row, Look{})); got != tt.label {
+				t.Errorf("the label reads %q, want %q", got, tt.label)
+			}
+			ribbon := c.row(row+tall+1, Look{})
+			for _, name := range tt.ribbon {
+				if !strings.Contains(ribbon, name) {
+					t.Errorf("the ribbon reads %q, want it naming %q", ribbon, name)
+				}
 			}
 		})
 	}

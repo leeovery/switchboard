@@ -21,7 +21,10 @@ import (
 const numbered = 9
 
 // routingSpare is how many of the frame's rows the routing card leaves
-// spare, at its tallest: past that, its rows scroll within it.
+// spare, at its tallest, its rows scrolling within it past that. It never
+// shows fewer rows than the one the cursor is on, so on a terminal too short
+// for that and its fixed rows it's taller; and taller than the page, it's
+// drawn from the page's top, its foot cut, as Card.box has it.
 const routingSpare = 4
 
 // The fewest rows the routing card keeps for its outcome, new sessions' and
@@ -97,11 +100,12 @@ const (
 )
 
 // RoutingSession is the session a session's card routes, as its page has
-// it: its id; the directory it runs in, as the ledger holds it, the home as
-// ~; the account it runs on; and the account the router would send its next
+// it: its id; the directory it runs in; the home directory, which the row
+// shows it under as ~, as its page's heading does, "" showing it whole; the
+// account it runs on; and the account the router would send its next
 // request to were its own pin cleared, "" where the router can't say.
 type RoutingSession struct {
-	ID, Dir, On, Auto string
+	ID, Dir, Home, On, Auto string
 }
 
 // RoutingRow is a row of the routing card: auto's, or an account's.
@@ -307,21 +311,21 @@ func (r RoutingCard) sessionRow(phone bool, width int) line {
 	if name := status.DirName(s.Dir, max(room-row.width()-2, 1)); name != "" {
 		row = slices.Concat(row, line{spaces(2), {name, mutedInk}})
 	}
-	if path := pathIn(s.Dir, phone, room-row.width()-2); path != "" {
+	if path := pathIn(s.Dir, s.Home, phone, room-row.width()-2); path != "" {
 		row = slices.Concat(row, line{spaces(2), {path, secondaryInk}})
 	}
 	return atEnd(row, on, width)
 }
 
-// pathIn is the directory dir in room cells, the home as ~, cut from its
-// start, its name kept, as a session's page heads it: none on a phone, as a
-// phone's page heads it with none, nor where cutting it would leave no more
-// than its name, which the row says already.
-func pathIn(dir string, phone bool, room int) string {
+// pathIn is the directory dir in room cells, the home directory given as ~,
+// cut from its start, its name kept, as a session's page heads it: none on
+// a phone, as a phone's page heads it with none, nor where cutting it would
+// leave no more than its name, which the row says already.
+func pathIn(dir, home string, phone bool, room int) string {
 	if phone || room < ansi.StringWidth(status.DirName(dir, math.MaxInt))+2 {
 		return ""
 	}
-	return status.DirPath(dir, "", room)
+	return status.DirPath(dir, home, room)
 }
 
 // atLeast is lines with blank lines after them to rows, or as many as it

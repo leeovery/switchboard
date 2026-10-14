@@ -137,7 +137,7 @@ func (f Frame) sessionPage(c *canvas, doc status.Document, now time.Time) {
 	} else {
 		d.phoneNow(c)
 	}
-	f.sessionStory(c, d.l, d.shown.Story, d.chosen())
+	f.sessionStory(c, d.m, d.l, d.shown.Story, d.chosen())
 	d.accounts(c)
 	d.turns(c)
 }
@@ -151,12 +151,16 @@ func (d sessionDrawn) chosen() views.Turn {
 }
 
 // sessionTargets are the zones of the session's page of doc at now a click
-// acts on: a row each of its turns shown, which chooses it.
+// acts on: a row each of its turns shown, and of its turn open's requests
+// shown, which chooses it.
 func (f Frame) sessionTargets(doc status.Document, now time.Time) []Target {
 	d := f.sessionDrawn(doc, now)
 	rows, from, to := d.turnsShown()
 	targets := make([]Target, 0, to-from)
 	for i, r := range rows[from:to] {
+		if r.click.On == 0 {
+			continue
+		}
 		t := r.click
 		t.X, t.Y, t.Width = 0, d.l.turnsAt+i, d.Width
 		targets = append(targets, t)
@@ -413,8 +417,9 @@ func (d sessionDrawn) points(a views.SessionAccount, form views.PointsForm, room
 }
 
 // turns draws TURNS: its heading; wide, its columns' heads; and its turns
-// shown, as far as they're scrolled, with a row saying how many are out of
-// view; or where it has none, why.
+// shown, as far as they're scrolled, the turn open's requests under its own,
+// with a row saying how many turns are out of view; or where it has none,
+// why.
 func (d sessionDrawn) turns(c *canvas) {
 	d.turnsHeading(c)
 	if len(d.page.Turns) == 0 {
@@ -432,7 +437,7 @@ func (d sessionDrawn) turns(c *canvas) {
 	for i, r := range rows[from:to] {
 		r.draw(c, d.l.turnsAt+i)
 	}
-	c.line(0, d.l.moreTurns, outOfView(from, len(rows)-to, d.Width, turnsOut))
+	c.line(0, d.l.moreTurns, outOfView(turnsIn(rows[:from]), turnsIn(rows[to:]), d.Width, turnsOut))
 }
 
 // turnsHeading draws TURNS' heading: TURNS, a rule, and at the right the
@@ -453,23 +458,24 @@ func (d sessionDrawn) turnsHeading(c *canvas) {
 	c.text(turnsRuleAt, y, rule(end-turnsRuleAt), borderInk)
 }
 
-// pageRow is a row of a session's turns: what a click on it does, and how
-// it's drawn along a row.
+// pageRow is a row of a session's turns: what it is, what a click on it
+// does, none where nothing, and how it's drawn along a row.
 type pageRow struct {
+	turnsRow
 	click Target
 	draw  func(c *canvas, y int)
 }
 
-// turnsShown are the rows of the session's turns, newest first, and the
-// first shown and the one after the last, as they're scrolled: no further
-// than leaves the rows the layout gives them full.
+// turnsShown are the rows of the session's turns, newest first, the turn
+// open's requests under its own, and the first shown and the one after the
+// last, as turnsInView has them.
 func (d sessionDrawn) turnsShown() (rows []pageRow, from, to int) {
-	rows = make([]pageRow, len(d.page.Turns))
-	for i, t := range d.page.Turns {
-		rows[i] = pageRow{click: Target{On: OnTurn, Turn: t.Turn}, draw: func(c *canvas, y int) { d.turn(c, y, t, i == 0) }}
+	laid, from, to := d.shown.turnsInView(d.l)
+	rows = make([]pageRow, len(laid))
+	for i, r := range laid {
+		rows[i] = d.pageRow(r)
 	}
-	from = min(max(d.shown.Scroll, 0), max(len(rows)-d.l.turns, 0))
-	return rows, from, min(from+d.l.turns, len(rows))
+	return rows, from, to
 }
 
 // turn draws the turn t's row along row y, the newest where newest says.
@@ -499,8 +505,8 @@ func (d sessionDrawn) turn(c *canvas, y int, t views.Turn, newest bool) {
 		c.surface(0, y, chosenCells, chosenTurn)
 		emboldened(c, y, chosenCells)
 	}
-	if newest && d.page.Activity.Waiting() {
-		c.text(askingAt, y, views.MarkAsking.String()+" "+status.Asking, keyInk)
+	if said := d.page.Activity.WaitingSaid(); newest && said != "" {
+		c.text(askingAt, y, said, keyInk)
 	}
 }
 

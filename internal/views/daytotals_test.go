@@ -83,7 +83,7 @@ func sameFigures(a, b viewstest.DayFigures) bool {
 func TestEachDaysTotalsAreItsSummarysAsTheLedgerReadsItsDays(t *testing.T) {
 	for _, hm := range viewstest.DayMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
-			got := views.TotalsByDay(ledgerIn(t, hm), hm.From, hm.Now, ledger.Pricing)
+			got := views.TotalsOn(ledgerIn(t, hm), dayfile.Span(hm.From, hm.Now), hm.Now, ledger.Pricing)
 			if len(got) != len(hm.Want) {
 				t.Fatalf("the days' totals are %+v, want %+v", got, hm.Want)
 			}
@@ -91,6 +91,42 @@ func TestEachDaysTotalsAreItsSummarysAsTheLedgerReadsItsDays(t *testing.T) {
 				if figures := figuresOf(got[i]); !sameFigures(figures, want) || len(got[i].Unpriced) > 0 {
 					t.Errorf("%s's totals are %+v, unpriced %v; want %+v", want.Date, figures, got[i].Unpriced, want)
 				}
+			}
+		})
+	}
+}
+
+// daysAsked reads a ledger's days, noting where each read of them is from.
+type daysAsked struct {
+	views.LedgerDays
+	from []time.Time
+}
+
+func (d *daysAsked) Days(from time.Time) []ledger.Summary {
+	d.from = append(d.from, from)
+	return d.LedgerDays.Days(from)
+}
+
+// The figures on a day given, at each hard moment, are its alone, as they
+// are among every day's, the ledger's days read once, from that day; none
+// where none is given.
+func TestTheTotalsOnTheDaysGivenAreEachDaysAlone(t *testing.T) {
+	for _, hm := range viewstest.DayMoments() {
+		t.Run(hm.Name, func(t *testing.T) {
+			follower := ledgerIn(t, hm)
+			for _, want := range hm.Want {
+				days := &daysAsked{LedgerDays: follower}
+				got := views.TotalsOn(days, []string{want.Date}, hm.Now, ledger.Pricing)
+				if len(got) != 1 || !sameFigures(figuresOf(got[0]), want) {
+					t.Errorf("the totals on %s are %+v, want %+v alone", want.Date, got, want)
+				}
+				if start, _, _ := dayfile.Day(want.Date); len(days.from) != 1 || !days.from[0].Equal(start) {
+					t.Errorf("the ledger's days were read from %v, want once, from %s", days.from, want.Date)
+				}
+			}
+			days := &daysAsked{LedgerDays: follower}
+			if got := views.TotalsOn(days, nil, hm.Now, ledger.Pricing); got != nil || days.from != nil {
+				t.Errorf("given no day, the totals are %+v, the days read from %v; want none, nothing read", got, days.from)
 			}
 		})
 	}
@@ -119,7 +155,7 @@ func TestADaysTotalsAreHistorysOfTheDayAlone(t *testing.T) {
 	for _, hm := range viewstest.DayMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
 			follower := ledgerIn(t, hm)
-			for _, d := range views.TotalsByDay(follower, hm.From, hm.Now, ledger.Pricing) {
+			for _, d := range views.TotalsOn(follower, dayfile.Span(hm.From, hm.Now), hm.Now, ledger.Pricing) {
 				day, _, _ := dayfile.Day(d.Date)
 				in := views.HistoryInput{Ledger: dayAlone{days: follower, from: hm.From, date: d.Date}, From: day, Now: hm.Now, Prices: ledger.Pricing,
 					WeekStarts: time.Monday, WeekWindow: "7d", Family: family}

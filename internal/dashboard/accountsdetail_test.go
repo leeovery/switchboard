@@ -505,6 +505,147 @@ func TestDetailsPanelScrollsTheListHeld(t *testing.T) {
 	}
 }
 
+// While Detail's panel scrolls, the row over the key line says, from the
+// panel's column, how many of its rows are out of view, above and below, and
+// how to scroll to them, as Compare's line says it; where it all shows, it's
+// blank. With one account, there's no list, and it says so from column 0.
+func TestDetailSaysWhatOfItsPanelIsOutOfView(t *testing.T) {
+	doc := usageWorld(extraOff, happened(onAuto()...))
+	_, sessions, _ := overviewWorld()
+	f := detailFrame(Look{}, framedAccounts, "side", "", detailsPage(t), sessions)
+	f.Height = 29
+	most := f.Scrolling(doc, routedAt).Most
+	if most < 2 {
+		t.Fatalf("at 29 rows, the panel scrolls %d rows, want it to scroll", most)
+	}
+	tests := []struct {
+		name   string
+		scroll int
+		want   string
+	}{
+		{name: "at its top", want: fmt.Sprintf("▼ %d more below · j/k", most)},
+		{name: "a row down", scroll: 1, want: fmt.Sprintf("▲ 1 more above · ▼ %d more below · j/k", most-1)},
+		{name: "at its foot", scroll: most, want: fmt.Sprintf("▲ %d more above · j/k", most)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f.Scroll = tt.scroll
+			c := f.At(doc, routedAt).page(doc, routedAt)
+			rows := textOf(c.rows(Look{}))
+			y := f.Height - underView
+			if got := panelCells(rows[y]); got != tt.want {
+				t.Errorf("the row over the key line reads %q in the panel, want %q", got, tt.want)
+			}
+			if got := listCells(rows[y]); got != "" {
+				t.Errorf("the row over the key line reads %q under the list, want it blank, the list all shown", got)
+			}
+			if got := c.at(listPanelAt, y).ink; got != keyMarkInk {
+				t.Errorf("the line's mark is in %+v, want %+v, as Compare's", got, keyMarkInk)
+			}
+		})
+	}
+
+	t.Run("all shown", func(t *testing.T) {
+		whole := detailFrame(Look{}, framedAccounts, "side", "", detailsPage(t), sessions)
+		if got := textOf(whole.Draw(doc, routedAt))[whole.Height-underView]; got != "" {
+			t.Errorf("at 37 rows, the row over the key line reads %q, want it blank", got)
+		}
+	})
+
+	t.Run("one account", func(t *testing.T) {
+		alone := detailFrame(Look{}, framedAccounts[:1], "", "", alonePage(t), nil)
+		alone.Height = 29
+		most := alone.Scrolling(aloneDoc(), routedAt).Most
+		if got, want := textOf(alone.Draw(aloneDoc(), routedAt))[alone.Height-underView], fmt.Sprintf("▼ %d more below · j/k", most); got != want {
+			t.Errorf("the row over the key line reads %q, want %q from column 0", got, want)
+		}
+	})
+}
+
+// While Detail's list scrolls with the choice, the row over the key line
+// says under it how many accounts are out of view, above and below, as
+// briefly as its cells need: none where they all show.
+func TestDetailSaysWhatOfItsListIsOutOfView(t *testing.T) {
+	doc, configured := tenAccounts()
+	tests := []struct {
+		name, chosen string
+		scroll       int
+		want         string
+	}{
+		{name: "at its top", chosen: "work", want: "▼ 4 more accounts"},
+		{name: "part way", chosen: "client", scroll: 2, want: "▲ 2 more · ▼ 2 more"},
+		{name: "at its foot", chosen: "spare", scroll: 4, want: "▲ 4 more accounts"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Width: 160, Height: 24, View: Accounts, Policy: claudeLike, Accounts: AccountsShown{Shown: AccountsDetail, Accounts: configured, Chosen: tt.chosen, ListScroll: tt.scroll}}
+			if got := listCells(textOf(f.Draw(doc, now))[f.Height-underView]); got != tt.want {
+				t.Errorf("under the list, the row over the key line reads %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// With one account and sessions running on it, there's no list: SESSIONS
+// stands at the panel's left, column 0, on LATELY's row, LATELY beside it
+// latelyBeside columns in; the session selected is lit from a cell before
+// its ▸, which the frame's edge cuts to column 0, to sessionLit cells on; and
+// the enter line is two cells in, enterUnder rows under SESSIONS.
+func TestDetailOfOneAccountWithSessionsDrawsThemFromTheFramesLeft(t *testing.T) {
+	var sessions []status.Session
+	for i, id := range []string{"e04f2a71-6b3c-4d85-9e10-a2b3c4d5e6f7", "f19b3c82-7c4d-4e96-8f21-b3c4d5e6f7a8"} {
+		seat := status.Assignment{Model: opus, Family: "opus", Account: "work", Reason: status.ReasonNew, AssignedAt: routedClock(1, 14, 0), LastSeen: routedAt.Add(-time.Duration(i+1) * time.Minute)}
+		sessions = append(sessions, status.Session{ID: id, Assignments: []status.Assignment{seat}})
+	}
+	doc := aloneDoc()
+	f := detailFrame(Look{}, framedAccounts[:1], "", "", alonePage(t), sessions)
+	c := f.At(doc, routedAt).page(doc, routedAt)
+	rows := textOf(c.rows(Look{}))
+	y := rowWith(rows, "SESSIONS")
+	if y < 0 {
+		t.Fatalf("no SESSIONS drawn, want it, sessions running on work:\n%s", strings.Join(rows, "\n"))
+	}
+	if !strings.HasPrefix(rows[y], "SESSIONS  now") || columnOf(rows[y], "LATELY") != latelyBeside {
+		t.Errorf("SESSIONS' row reads %q, want SESSIONS from column 0, LATELY from %d", rows[y], latelyBeside)
+	}
+	if !strings.HasPrefix(rows[y+1], "▸ ") {
+		t.Errorf("the first session's row reads %q, want ▸ at column 0, it selected", rows[y+1])
+	}
+	for x := range sessionLit {
+		if lit := c.at(x, y+1).ink.on.token == theme.BgSelection; lit != (x < sessionLit-1) {
+			t.Errorf("column %d of the session selected is lit %v, want columns 0 to %d lit", x, lit, sessionLit-2)
+		}
+	}
+	if columnOf(rows[y+enterUnder], "enter opens") != enterIn {
+		t.Errorf("%d rows under SESSIONS reads %q, want enter opens from column %d", enterUnder, rows[y+enterUnder], enterIn)
+	}
+}
+
+// Detail's USAGE cues a window's words as they turn to out ~, as the
+// Overview's do, while the frame's TurnedOut says, and no other window's.
+func TestDetailsUSAGECuesAWindowsWordsAsTheyTurnOut(t *testing.T) {
+	doc := threeRouted()
+	f := detailFrame(Screen(builtin(t, "nord")), framedAccounts, "work", "", nil, nil)
+	f.TurnedOut = map[Ref]float64{{Account: "work", Window: "5h"}: 0.25}
+	c := f.At(doc, now).page(doc, now)
+	rows := textOf(c.rows(Look{}))
+	cue := hue{token: theme.BgAttention, fade: 0.25}
+	for _, tt := range []struct {
+		window string
+		cued   bool
+	}{{window: "5-hour", cued: true}, {window: "Week"}} {
+		y := rowWith(rows, tt.window)
+		x := columnOf(rows[y], "out ~")
+		if tt.cued != (x >= 0) {
+			t.Fatalf("%s's row reads %q, want out ~ in it %v", tt.window, rows[y], tt.cued)
+		}
+		x = max(x, columnOf(rows[y], "%")+3)
+		if got := c.at(x, y).ink.on; (got == cue) != tt.cued {
+			t.Errorf("%s's words, at column %d, are on %+v, want cued %v", tt.window, x, got, tt.cued)
+		}
+	}
+}
+
 // panelCells are the panel's cells of a row, trimmed.
 func panelCells(row string) string {
 	cells := []rune(row)
@@ -581,8 +722,8 @@ func TestDetailWhileProbingHasNoSESSIONSAndAQuietLATELY(t *testing.T) {
 
 // Until the period's page is read, Detail draws the moment's parts alone:
 // its head, USAGE and LATELY, where each stands once it's read. Read on a
-// fresh install, recording nothing, THIS WEEK's figures of the period are a
-// dash, its plan named still.
+// fresh install, recording nothing, every row of THIS WEEK is a dash, its
+// plan and extra use among them.
 func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 	doc := usageWorld(extraOff, happened(onAuto()...))
 	fresh := detailsPage(t)
@@ -600,8 +741,8 @@ func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 			t.Errorf("unread, %s is on row %d, want %d, where it stands once read", part, rowWith(unread, part), rowWith(read, part))
 		}
 	}
-	for label, want := range map[string]string{"requests": "—", "limits": "—", "worth": "—", "plan": "Max 20x"} {
-		y := rowWith(onFresh, label+"  ")
+	for label, want := range map[string]string{"requests": "—", "limits": "—", "plan": "—", "worth": "—", "extra use": "—"} {
+		y := rowWith(onFresh, padded(label, thisWeekLabels))
 		if y < 0 {
 			t.Fatalf("no %s in THIS WEEK", label)
 		}
@@ -692,8 +833,9 @@ func formDrawn(f Frame, form accountsForm) []string {
 }
 
 // Detail names each look-read figure it draws by what it is, all accounts'
-// use and room their own, never the pool's; the period's figures it names as
-// none, as they never brighten.
+// use and room their own, never the pool's, and THIS WEEK's and BY MODEL's,
+// the period's, of the account shown, or all accounts, "", by their rows, a
+// version's share by its name.
 func TestDetailNamesTheNumbersItDraws(t *testing.T) {
 	doc := usageWorld(extraOff)
 	page := detailsPage(t)
@@ -707,12 +849,16 @@ func TestDetailNamesTheNumbersItDraws(t *testing.T) {
 			want: map[Number]string{
 				{Kind: NumberAllUsed, Of: "5h"}: "49%", {Kind: NumberAllRoom, Of: "5h"}: "1.5",
 				{Kind: NumberAllUsed, Of: "7d"}: "59%", {Kind: NumberAllRoom, Of: "7d"}: "1.2",
+				{Kind: NumberPeriod, Of: "requests"}: "5,410", {Kind: NumberPeriod, Of: "Opus 5.5 share"}: "57%",
 			},
 			none: []Number{{Kind: NumberUsed, Of: "5h"}, {Kind: NumberRoom, Of: "5h"}},
 		},
 		{
 			name: "an account", chosen: "work",
-			want: map[Number]string{{Kind: NumberUsed, Account: "work", Of: "5h"}: "95%", {Kind: NumberUsed, Account: "work", Of: "7d"}: "34%"},
+			want: map[Number]string{
+				{Kind: NumberUsed, Account: "work", Of: "5h"}: "95%", {Kind: NumberUsed, Account: "work", Of: "7d"}: "34%",
+				{Kind: NumberPeriod, Account: "work", Of: "requests"}: "1,204", {Kind: NumberPeriod, Account: "work", Of: "worth"}: "$1844.0×",
+			},
 			none: []Number{{Kind: NumberUsed, Account: "personal", Of: "5h"}},
 		},
 	}
@@ -727,11 +873,6 @@ func TestDetailNamesTheNumbersItDraws(t *testing.T) {
 			for _, n := range tt.none {
 				if said, ok := got[n]; ok {
 					t.Errorf("%+v is named, reading %q", n, said)
-				}
-			}
-			for n, said := range got {
-				if strings.Contains(said, "1,204") || strings.Contains(said, "5,410") {
-					t.Errorf("the period's requests are named %+v", n)
 				}
 			}
 		})

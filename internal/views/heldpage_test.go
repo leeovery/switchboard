@@ -16,15 +16,6 @@ import (
 // pageOf keeps them.
 const kept90 = 90 * 24 * time.Hour
 
-// heldOf is lines as the ledger's Today gives them.
-func heldOf(lines ...ledger.Line) []ledger.Held {
-	held := make([]ledger.Held, len(lines))
-	for i, l := range lines {
-		held[i] = ledger.Held{Line: l}
-	}
-	return held
-}
-
 // A page held at noon, then fed the lines its day gained since, the
 // session's and another's on its accounts, one it held already among them,
 // is the page built whole of every line at once.
@@ -89,6 +80,72 @@ func TestAHeldPagePricesAfreshAsTheDayTurns(t *testing.T) {
 	}
 }
 
+// A held page awaits a line on the day it's filed on, where the stream told
+// its request ended, its line yet to come, before today: a line is filed
+// under the day its request arrived on, as Told.FiledOn has it, which
+// today's tail never reads, the day before for one sent as today began. It
+// awaits none once the line is taken, nor for a request in flight, one
+// lost, one sent and arrived today, or one the stream told no sending of.
+func TestAHeldPageAwaitsTheLineOfARequestThatEndedAcrossMidnight(t *testing.T) {
+	night := local(23, 59, 50)
+	morning := night.Add(10 * time.Minute)
+	lined := filedAs("r2", took(22*time.Second, serving(p1, ledger.ClassMain, line(paged, opus, "side", "sticky", night, hourUsage))))
+	sent := toldOf("r2", p1, ledger.ClassMain, opus, "side", night.Add(100*time.Millisecond))
+	tests := []struct {
+		name   string
+		told   views.Told
+		taken  bool
+		awaits []string
+	}{
+		{name: "ended after midnight, its line to come", told: endedAt(night.Add(22*time.Second), sent), awaits: []string{"2026-10-07"}},
+		{name: "ended, its line taken", told: endedAt(night.Add(22*time.Second), sent), taken: true},
+		{name: "in flight", told: sent},
+		{name: "lost", told: lostAt(night.Add(time.Minute), sent)},
+		{name: "sent today", told: endedAt(morning.Add(time.Second), toldOf("r3", p1, ledger.ClassMain, opus, "side", morning))},
+		{name: "sent as today began, arrived the day before", told: endedAt(night.Add(40*time.Second), toldOf("r4", p1, ledger.ClassMain, opus, "side", night.Add(20*time.Second))),
+			awaits: []string{"2026-10-07"}},
+		{name: "ended, never told sent", told: endedAt(morning.Add(-time.Second), toldOf("r9", p1, ledger.ClassMain, opus, "side", time.Time{}))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			first := []ledger.Line{filedAs("r1", mainOn(p1, local(23, 0, 0), "tool_use"))}
+			held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(first), nil, night, paged), ledger.Pricing, kept90, night)
+			if tt.taken {
+				held = held.Take("2026-10-07", heldOf(lined))
+			}
+			if got := held.Awaited(views.PageLive{Stream: heard(tt.told), Now: morning}); !slices.Equal(got, tt.awaits) {
+				t.Errorf("the page awaits lines on %v, want %v", got, tt.awaits)
+			}
+		})
+	}
+}
+
+// Of the days the ledger's tail followed no further, a held page reads
+// again whole only the day it's held at and those after it, as it holds
+// every line filed before it already.
+func TestAHeldPageReadsAgainTheDaysMissedFromTheDayItsHeldAt(t *testing.T) {
+	night := local(23, 59, 50)
+	first := []ledger.Line{filedAs("r1", mainOn(p1, local(23, 0, 0), "tool_use"))}
+	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(first), nil, night, paged), ledger.Pricing, kept90, night)
+	missed := []string{"2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"}
+	tests := []struct {
+		name   string
+		held   views.HeldPage
+		unread []string
+	}{
+		{name: "held the day before last", held: held, unread: []string{"2026-10-07", "2026-10-08"}},
+		{name: "rolled on to the day before", held: held.Take("2026-10-08", nil), unread: []string{"2026-10-08"}},
+		{name: "rolled on past them", held: held.Take("2026-10-09", nil)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.held.Unread(missed); !slices.Equal(got, tt.unread) {
+				t.Errorf("the page reads again whole the days %v of %v, want %v", got, missed, tt.unread)
+			}
+		})
+	}
+}
+
 // turnRow is what a turn's request row holds that a frame draws: when it
 // came, its model and account, its status, its first byte and its end,
 // the tokens it read, wrote and put out, why its answer stopped and the
@@ -133,7 +190,7 @@ func TestATurnOpenedIsTheFramesRowsOfItsRequests(t *testing.T) {
 	at := local(14, 42, 7)
 	l := summarisedLedger(lines)
 	l.now = at
-	rows := views.HoldPage(paged, views.ReadSessions(l, nil, at, paged), ledger.Pricing, kept90, at).TurnRequests(1, views.PageLive{Unlisted: true, Now: at})
+	rows := turnRowsOf(views.HoldPage(paged, views.ReadSessions(l, nil, at, paged), ledger.Pricing, kept90, at).TurnRequests(1, views.PageLive{Unlisted: true, Now: at}))
 	want := []turnRow{
 		{local(14, 29, 4), opus, "work", 200, sec(8), sec(112), 176_000, 2100, 1300, "tool_use", "Bash"},
 		{local(14, 30, 42), opus, "work", 200, sec(9), sec(124), 181_000, 2400, 1100, "tool_use", "Bash"},
@@ -154,12 +211,21 @@ func TestATurnOpenedIsTheFramesRowsOfItsRequests(t *testing.T) {
 	}
 }
 
-// A turn opened shows its requests oldest first, each the Log's row of it
-// with no mark: by its line, the one that wrote the context again on the
-// account it moved to saying so, and where it moved from and what that
-// cost; one sent again after a limit, as tried; a 429 every account
-// refused, failed; and one in flight, as the stream tells it. Another
-// turn's requests are none of them.
+// turnRowsOf are the rows of a turn's Log lines given.
+func turnRowsOf(lines []views.LogLine) []views.RequestRow {
+	rows := make([]views.RequestRow, len(lines))
+	for i, l := range lines {
+		rows[i] = l.Row
+	}
+	return rows
+}
+
+// A turn opened shows its requests oldest first, each the Log's line of it
+// with no mark, its details the Log's: by its line, the one that wrote the
+// context again on the account it moved to saying so, and where it moved
+// from and what that cost; one sent again after a limit, as tried; a 429
+// every account refused, failed; and one in flight, as the stream tells it.
+// Another turn's requests are none of them.
 func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 	main := func(id, account string, at time.Time) ledger.Line {
 		return filedAs(id, took(10*time.Second, serving(p1, ledger.ClassMain, line(paged, opus, account, "sticky", at, hourUsage))))
@@ -179,15 +245,34 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 		tried,
 		refused,
 	}
-	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
-	rows := held.TurnRequests(1, views.PageLive{Now: now, Stream: heard(toldOf("r8", p1, ledger.ClassMain, opus, "side", local(13, 10, 0)))})
+	l := summarisedLedger(lines)
+	held := views.HoldPage(paged, views.ReadSessions(l, nil, now, paged), ledger.Pricing, kept90, now)
+	stream := heard(toldOf("r8", p1, ledger.ClassMain, opus, "side", local(13, 10, 0)))
+	turn := held.TurnRequests(1, views.PageLive{Now: now, Stream: stream})
+	table := views.LogRows(views.LogSources{
+		From: now, Read: views.ReadLogHeld(l, heldOf(lines...), ledger.Pricing, now), Stream: stream, Now: now,
+	})
+	logged := logRowsByID(table)
 	var ids []string
-	for _, r := range rows {
+	for _, line := range turn {
+		r := line.Row
 		ids = append(ids, r.Request)
 		if r.Mark != views.NoMark {
 			t.Errorf("%s has mark %q, want none", r.Request, r.Mark)
 		}
+		want := logged[r.Request]
+		want.Mark = views.NoMark
+		if !reflect.DeepEqual(r, want) {
+			t.Errorf("%s's row is\n%+v\nwant the Log's, but for its mark,\n%+v", r.Request, r, want)
+		}
+		got, _ := line.Details()
+		details := logDetailsOf(t, table, r.Request)
+		details.Row.Mark = views.NoMark
+		if !reflect.DeepEqual(got, details) {
+			t.Errorf("%s's details are\n%+v\nwant the Log's, but for its mark,\n%+v", r.Request, got, details)
+		}
 	}
+	rows := turnRowsOf(turn)
 	if want := []string{"r1", "r2", "r3", "r4", "r6", "r7", "r8"}; !slices.Equal(ids, want) {
 		t.Fatalf("turn 1's requests are %v, want %v, oldest first, turn 2's none of them", ids, want)
 	}
@@ -206,5 +291,61 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 	}
 	if got := held.TurnRequests(3, views.PageLive{Now: now}); got != nil {
 		t.Errorf("TurnRequests(3) = %+v, want none, the session having two turns", got)
+	}
+}
+
+// logDetailsOf are the details of the request with the given id, as the
+// Log's table holds its line, failing the test where it holds none.
+func logDetailsOf(t *testing.T, table views.LogTable, id string) views.RequestDetails {
+	t.Helper()
+	for _, l := range table.Lines {
+		if l.IsRow() && l.Row.Request == id {
+			d, _ := l.Details()
+			return d
+		}
+	}
+	t.Fatalf("the Log holds no line of %s", id)
+	return views.RequestDetails{}
+}
+
+// logRowsByID are the rows the Log's table holds, by their requests' ids.
+func logRowsByID(table views.LogTable) map[string]views.RequestRow {
+	rows := make(map[string]views.RequestRow)
+	for _, l := range table.Lines {
+		if l.IsRow() {
+			rows[l.Row.Request] = l.Row
+		}
+	}
+	return rows
+}
+
+// While no router lists the sessions, a page keeps the session's own pin as
+// the router's last listing had it, as it stands at the router all the
+// same; but not where auto would send it, which the router can't say then,
+// nor anything else of that listing: it's no more running than its lines
+// say. Where the router answers without listing it, it has no pin.
+func TestAPageKeepsItsOwnPinFromTheLastListingWhileNoRouterListsIt(t *testing.T) {
+	lines := []ledger.Line{filedAs("p1", mainOn(p1, local(12, 50, 0), "end_turn"))}
+	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
+	last := runningOn("side")
+	last.Pin, last.Assignments[0].Auto = "side", "work"
+	tests := []struct {
+		name string
+		live views.PageLive
+		pin  string
+	}{
+		{name: "no router listing the sessions", live: views.PageLive{Unlisted: true, LastRouted: last, Now: now}, pin: "side"},
+		{name: "no router listing the sessions, nor one ever having listed it", live: views.PageLive{Unlisted: true, Now: now}},
+		{name: "the router answering, listing it no more", live: views.PageLive{LastRouted: last, Now: now}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := held.Page(tt.live)
+			want, _ := held.Page(views.PageLive{Unlisted: tt.live.Unlisted, Now: now})
+			want.Pin = tt.pin
+			if !ok || !reflect.DeepEqual(got, want) {
+				t.Errorf("the page is\n%+v\nwant it built of its lines alone, its own pin %q\n%+v", got, tt.pin, want)
+			}
+		})
 	}
 }

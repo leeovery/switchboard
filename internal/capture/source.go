@@ -70,12 +70,13 @@ func newSource(now time.Time, samples []sample, best string, events ...status.Ev
 }
 
 // routerOf is the router of the world w at now: its status document and its
-// health check's answer, started at noon, which are all usage reads of it;
-// the history of its accounts' windows, from their readings; what its
-// request stream tells; and the sessions it lists, where the world has them.
+// health check's answer, started as the run its events are of did, which
+// are all usage reads of it; the history of its accounts' windows, from
+// their readings; what its request stream tells; and the sessions it lists,
+// where the world has them.
 func routerOf(w accountWorld, now time.Time) source {
 	doc := w.document(now)
-	s := source{doc: doc, health: startedAtNoon(now), trails: w.trails(doc, now), stream: w.stream, now: now}
+	s := source{doc: doc, health: startedAt(routerRun(now)), trails: w.trails(doc, now), stream: w.stream, now: now}
 	if w.routed != nil {
 		s.sessions = w.routed(now)
 	}
@@ -103,7 +104,13 @@ func (s source) isGone() bool {
 // startedAtNoon is the health check's answer of the fixtures' router, started
 // at noon on the frames' day, in now's time zone: healthy.
 func startedAtNoon(now time.Time) router.Health {
-	return router.Health{OK: true, PID: routerPID, StartedAt: on(now, 1, 12, 0)}
+	return startedAt(on(now, 1, 12, 0))
+}
+
+// startedAt is the health check's answer of the fixtures' router, started at
+// the time given: healthy.
+func startedAt(t time.Time) router.Health {
+	return router.Health{OK: true, PID: routerPID, StartedAt: t}
 }
 
 // Read reads the router's document, whatever the read asks, with what's

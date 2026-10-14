@@ -175,12 +175,24 @@ func TestTheWorldsRouterStandsAsTheFramesDrawIt(t *testing.T) {
 			}
 		}},
 		{name: "work alone", world: worlds.one(), sessions: 5},
+		{name: "work alone, its afternoon told", world: worlds.oneLately(), sessions: 3, check: func(t *testing.T, doc status.Document) {
+			pressed := doc.Events[0]
+			if work, _ := doc.Account("work"); !work.Pressure.Under || !pressed.Until.Equal(work.Pressure.RunsOut) {
+				t.Errorf("work came under pressure running out %s, and stands %+v, want it under pressure, running out then", pressed.Until, work.Pressure)
+			}
+		}},
+		{name: "f41a resumed", world: worlds.resumed(), sessions: 6},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := tt.world.document(worlds.now)
 			if doc.Sessions != tt.sessions {
 				t.Errorf("the router has sent %d sessions in the last hour, want %d", doc.Sessions, tt.sessions)
+			}
+			for _, a := range doc.Accounts {
+				if a.Extra != extraOff {
+					t.Errorf("%s's extra usage reads %+v, want it off, as the frames draw every account's", a.ID, a.Extra)
+				}
 			}
 			if !doc.GeneratedAt.Equal(worlds.now.Add(-readAgo).UTC()) {
 				t.Errorf("the document was read at %s, want %s before the moment", doc.GeneratedAt, readAgo)

@@ -28,8 +28,9 @@ func accountsHelping(width int, shown AccountsShown, look Look, keys ...Key) Car
 	return f.Card.card(f)
 }
 
-// accountsSaid is what Accounts' help as shown says, its rows run together.
-func accountsSaid(shown AccountsShown) string {
+// accountsHelpSaid is what Accounts' help as shown says, its rows run
+// together.
+func accountsHelpSaid(shown AccountsShown) string {
 	return strings.Join(plainLines(accountsHelping(160, shown, Look{}).body), " ")
 }
 
@@ -163,6 +164,49 @@ func TestAccountsHelpDrawsBYDAYAndWEEKSAsDetailDoes(t *testing.T) {
 	}
 }
 
+// BY DAY's key draws a day as many cells wide as Detail draws its days in
+// the form it's drawn in, the limit's ▪ in its middle cell, the first of two,
+// and a day to come a · a cell: two with the list, three with one account,
+// whose days grow into the width, and two again where one account's Detail
+// is stacked, as on a phone, or too narrow for its wide form.
+func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
+	look := Screen(builtin(t, "nord"))
+	tests := []struct {
+		name  string
+		shown AccountsShown
+		width int
+		cells int
+	}{
+		{name: "three accounts, the list beside the panel", shown: threeShown, width: 160, cells: 2},
+		{name: "one account, wide", shown: oneShown, width: 160, cells: 3},
+		{name: "one account, too narrow for its wide form", shown: oneShown, width: 120, cells: 2},
+		{name: "one account on a phone", shown: oneShown, width: 52, cells: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var want []line
+			for level := range shadeLevels {
+				want = append(want, line{{strings.Repeat(" ", tt.cells), ink{on: dayInk(level).hue()}}})
+			}
+			on := ink{on: dayInk(2).hue()}
+			limited := line{{"▪", ink{token: theme.StateDestructive, on: on.on}}, {" ", on}}
+			if tt.cells == 3 {
+				limited = slices.Concat(line{{" ", on}}, limited)
+			}
+			want = append(want, limited, line{{strings.Repeat("·", tt.cells), faintInk}})
+			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Look: look}.accountsHelp()
+			glyphs := parts[len(parts)-1].glyphs
+			var got []line
+			for _, g := range glyphs[:len(glyphs)-1] {
+				got = append(got, g.drawn)
+			}
+			if !slices.EqualFunc(got, want, func(a, b line) bool { return slices.Equal(a, b) }) {
+				t.Errorf("Detail's help draws its days\n%v\nwant\n%v", got, want)
+			}
+		})
+	}
+}
+
 // Worth is said to be priced as of the price table's date once the page is
 // read, and before, at the price table's prices alone.
 func TestAccountsHelpGivesThePriceTablesDate(t *testing.T) {
@@ -177,7 +221,7 @@ func TestAccountsHelpGivesThePriceTablesDate(t *testing.T) {
 		{"the page not yet read", threeShown, "at the price table's prices, worked out"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if said := accountsSaid(tc.shown); !strings.Contains(said, tc.want) {
+			if said := accountsHelpSaid(tc.shown); !strings.Contains(said, tc.want) {
 				t.Errorf("help reads\n%s\nwant it to say %q", said, tc.want)
 			}
 		})
@@ -185,7 +229,7 @@ func TestAccountsHelpGivesThePriceTablesDate(t *testing.T) {
 }
 
 func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
-	said := accountsSaid(threeShown)
+	said := accountsHelpSaid(threeShown)
 	for _, tc := range []struct{ what, want string }{
 		{"a session served once", "each counted once, however many days and accounts it ran on"},
 		{"Compare's keys", "← and → move the focus along the columns"},
@@ -227,7 +271,7 @@ func TestHelpSaysEachVerdictAtViewsCuts(t *testing.T) {
 		want []string
 	}{
 		{"History's", historySaid(), accountsVerdicts},
-		{"Accounts'", accountsSaid(threeShown), append(accountsVerdicts,
+		{"Accounts'", accountsHelpSaid(threeShown), append(accountsVerdicts,
 			fmt.Sprintf("%s where their weeks left %d%% or more at a reset", views.RoomToSpare, views.RoomLeft),
 			"else "+views.LittleToSpare+",",
 		)},
@@ -244,7 +288,7 @@ func TestHelpSaysEachVerdictAtViewsCuts(t *testing.T) {
 // by window and its extra usage among them, and says nothing of all
 // accounts, which goes.
 func TestAccountsHelpOfOneAccountExplainsWhatItDraws(t *testing.T) {
-	said := accountsSaid(oneShown)
+	said := accountsHelpSaid(oneShown)
 	for _, want := range []string{
 		"the limits it hit, by window",
 		"Extra usage is on where Claude bills past the plan's limit",
@@ -287,7 +331,7 @@ func TestAccountsHelpExplainsTheListWhereThereIsOne(t *testing.T) {
 		{"one account", oneShown, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			said := accountsSaid(tc.shown)
+			said := accountsHelpSaid(tc.shown)
 			for _, explained := range []string{list, between} {
 				if got := strings.Contains(said, explained); got != tc.wantList {
 					t.Errorf("help reads\n%s\nwant %q said %v", said, explained, tc.wantList)
