@@ -2499,7 +2499,9 @@ rows run from row 7 (settled in the plan):
 **Other states.**
 
 - **The router not answering:** the status line says so (see The page); the Switchboard draws from
-  the last document, nothing travelling, and `p pin` is faint (settled in the plan).
+  the last document, nothing travelling, and `p pin` is faint (settled in the plan). The
+  Switchboard, the List and a session's page all draw the last listing's running sessions, their
+  idle times counting on (the owner's call, 14 October 2026).
 - **A look that can't blend,** the terminal's own colours or `NO_COLOR` (see Themes): an idle cord
   is drawn light, `─ ┐ │ └`, and a glow of 0.5 or more as `text.primary`. A light theme's glows and
   dimming are mixed against its own canvas (settled in the plan).
