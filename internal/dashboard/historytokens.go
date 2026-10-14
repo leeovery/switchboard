@@ -185,14 +185,20 @@ func (cols tokensColumns) reach() int {
 // where the rows are split by model, that each version is at its own price:
 // the date a figure, so it's never cut or broken across rows.
 func (f Frame) tokensFootnote(asOf string) []part {
-	if day, ok := dayfile.Civil(asOf); ok {
-		asOf = prose.DayMonthYear(day)
-	}
-	note := []part{wordsIn("worth: what the same tokens would cost through the API, at its prices as of ", faintInk), figureIn(asOf, faintInk)}
+	note := []part{wordsIn("worth: what the same tokens would cost through the API, at its prices as of ", faintInk), figureIn(pricesDated(asOf), faintInk)}
 	if f.History.TokensSplit == TokensByModel || f.History.TokensSplit == TokensByAccountAndModel {
 		note = append(note, wordsIn(", each version at its own price", faintInk))
 	}
 	return note
+}
+
+// pricesDated is the price table's date as worth is said to be priced as
+// of it, as "1 Oct 2026": as given where it isn't a date.
+func pricesDated(asOf string) string {
+	if day, ok := dayfile.Civil(asOf); ok {
+		return prose.DayMonthYear(day)
+	}
+	return asOf
 }
 
 // draw draws the row along row y, each column cut to its cells.

@@ -94,9 +94,9 @@ func TestHelpIsDrawnInTheCard(t *testing.T) {
 
 func TestHelpOnATabNotBuiltListsItsKeysAlone(t *testing.T) {
 	f := frameOf(160, 40)
-	f.View, f.Card = Accounts, Help{Keys: []Key{tabViews, pin, helpQuit[0], helpQuit[1]}}
+	f.View, f.Card = Log, Help{Keys: []Key{tabViews, pin, helpQuit[0], helpQuit[1]}}
 	if got, want := plainLines(f.Card.card(f).body), []string{"tab views   p pin   ? help   q quit"}; !slices.Equal(got, want) {
-		t.Errorf("help on Accounts reads %q, want %q", got, want)
+		t.Errorf("help on the Log reads %q, want %q", got, want)
 	}
 }
 
