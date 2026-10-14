@@ -312,9 +312,11 @@ type Model struct {
 	past historyTab
 	// session is the session's page open, drawn in place of the view: nil
 	// while none is. opening counts the pages asked to open, each opening
-	// once its read lands, but one asked for before the last.
+	// once its read lands, but one asked for before the last; and pending is
+	// the id of the last, while its read waits for the ledger's tail's.
 	session *sessionShown
 	opening int
+	pending string
 	// log is what the watch holds of the Log, and tail today's lines of the
 	// ledger as its readers follow them.
 	log  logTab
@@ -436,9 +438,9 @@ func (m Model) Init() tea.Cmd {
 // take says, building the session's page open afresh, as relived says, and
 // closing a session's card it leaves no p for, as closing says, then has
 // the watch read the router's request stream while it wants it, and the
-// ledger's days for History, the Log and its find as they want them, the
-// Log's page built of what it holds, and only then, price the moves the
-// routing card would make while it wants them.
+// ledger's days for History, a session's page, the Log and its find as they
+// want them, the Log's page built of what it holds, and only then, price
+// the moves the routing card would make while it wants them.
 // Then, of the page as it stands at that moment, its Overview's sections
 // built once for each to share, it keeps the Overview's layout, but for a
 // frame, which takes nothing in to lay it out afresh by; brightens the
@@ -454,6 +456,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, closed := next.(Model).relived(msg, now).closing()
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
+	tuned, paged := tuned.readPage()
 	tuned, logged := tuned.readLog()
 	tuned, found := tuned.readFind()
 	tuned, costs := tuned.costing()
@@ -464,7 +467,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, closed, stream, past, logged, found, costs, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, costs, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look

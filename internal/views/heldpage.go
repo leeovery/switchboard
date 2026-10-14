@@ -227,6 +227,24 @@ func (h HeldPage) TurnRequests(n int, live PageLive) []LogLine {
 	return lines
 }
 
+// Awaited are the dates of the days before the day live's now falls on that
+// a request of the session h holds the page of was sent on, the stream
+// having told its end, its line yet to come, as its row's stage says, each
+// once, the oldest first: its line is filed under the day its request
+// arrived on, which a later day's tail of the ledger never reads, as the
+// Log's Requests await theirs.
+func (h HeldPage) Awaited(live PageLive) []string {
+	today := Today(live.Now)
+	var dates []string
+	for _, s := range sentOf(h.requests, live.Stream.hearing().told[h.id]) {
+		day := Today(s.at)
+		if s.told != nil && toldRow(*s.told, live.Now).Stage == RowEnded && day.Start.Before(today.Start) && !slices.Contains(dates, day.Date) {
+			dates = append(dates, day.Date)
+		}
+	}
+	return dates
+}
+
 // unplaced reports whether the router lists a request of the session s in
 // flight that the request stream doesn't place: on a model's seat it hasn't
 // told of, or with the stream unheard, as by the verbs, or from a router

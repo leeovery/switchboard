@@ -108,6 +108,16 @@ const (
 	RowCount
 )
 
+// CountedSession is the session the row's request counts toward, as
+// ledger.Line.CountedSession has it of its line, and Told.countedSession of
+// what the stream told before it came: none for a quota check.
+func (r RequestRow) CountedSession() string {
+	if r.Kind == RowCheck {
+		return ""
+	}
+	return r.Session
+}
+
 // RowStage is how far a request has come, as its row tells it.
 type RowStage int
 

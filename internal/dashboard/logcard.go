@@ -155,23 +155,33 @@ func (c LogCard) title(m status.Moment) line {
 	return nil
 }
 
-// keys are the card's keys, as its keys row lists them in content cells:
-// ↑↓ stepping, an event's g, s where the line is of a session, but where
-// sessions says s opens none, as over that session's own page (call 63), j
-// k where its body scrolls, and esc. Where they don't fit, ↑↓ says what it
-// steps to as the key line does, then the keys leave from the first, esc
-// staying.
-func (c LogCard) keys(content int, scrolls, sessions bool) []Key {
-	noun, session := "request", ""
-	var middle []Key
+// Session is the whole id of the session the card's line is of, whose page
+// s opens: a request's, as its row counts it, none for a quota check; an
+// event's; none for an account's event.
+func (c LogCard) Session() string {
 	switch {
 	case c.Event != nil:
-		noun, session = "event", c.Event.Row.Session
-		middle = append(middle, Key{Key: "g", Does: "in Requests"})
+		return c.Event.Row.Session
 	case c.Request != nil:
-		session = c.Request.Row.Session
+		return c.Request.Row.CountedSession()
 	}
-	if prose.Clean(session) != "" && sessions {
+	return ""
+}
+
+// keys are the card's keys, as its keys row lists them in content cells:
+// ↑↓ stepping, an event's g, s where the line is of a session, as Session
+// has it, but where sessions says s opens none, as over that session's own
+// page (call 63), j k where its body scrolls, and esc. Where they don't fit,
+// ↑↓ says what it steps to as the key line does, then the keys leave from
+// the first, esc staying.
+func (c LogCard) keys(content int, scrolls, sessions bool) []Key {
+	noun := "request"
+	var middle []Key
+	if c.Event != nil {
+		noun = "event"
+		middle = append(middle, Key{Key: "g", Does: "in Requests"})
+	}
+	if c.Session() != "" && sessions {
 		middle = append(middle, Key{Key: "s", Does: "its session"})
 	}
 	if scrolls {

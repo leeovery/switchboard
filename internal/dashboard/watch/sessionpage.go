@@ -41,10 +41,25 @@ func (s *sessionShown) frame() *dashboard.SessionShown {
 }
 
 // openSession opens the page of the session with the given id, as a click on
-// its row does, once its lines are read, as readSession reads them: till then
+// its row does, once its lines are read, as readAsked reads them: till then
 // the tab it opens over shows, and acts, as it is.
 func (m Model) openSession(id string) (Model, tea.Cmd) {
-	m.opening++
+	m.opening, m.pending = m.opening+1, id
+	return m.readAsked()
+}
+
+// readAsked reads the lines of the page asked to open last, as readSession
+// reads them, once no read of the ledger's tail is under way, holding the
+// tail's reads off till it lands: so the mark never moves past where its
+// read of today's lines ends, the page yet to take what lies between. What
+// it reads past the mark comes again at the tail's next read, and the page
+// takes each line once. Till then it waits.
+func (m Model) readAsked() (Model, tea.Cmd) {
+	if m.pending == "" || m.tail.reading {
+		return m, nil
+	}
+	id := m.pending
+	m.pending, m.tail = "", m.tail.wholeAsked()
 	return m, m.readSession(m.opening, id)
 }
 
@@ -65,14 +80,84 @@ func (m Model) readSession(asked int, id string) tea.Cmd {
 	}
 }
 
-// sessionRead takes in a page's read, which opens it, but one of an open
-// asked for before the last, or dropped since, as unasked has it: the page
-// is built as relived builds it, its directory shown under the home the
-// watch is given.
+// sessionRead takes in a page's read, the tail's reads no longer held off
+// by it, which opens it, but one of an open asked for before the last, or
+// dropped since, as unasked has it: the page is built as relived builds it,
+// its directory shown under the home the watch is given.
 func (m Model) sessionRead(msg sessionReadMsg) Model {
+	m.tail = m.tail.wholeLanded()
 	if msg.asked == m.opening {
 		m.session = &sessionShown{id: msg.id, held: msg.held, shown: dashboard.SessionShown{Home: m.cfg.Home}}
 	}
+	return m
+}
+
+// readPage has the watch read for a session's page as it wants: the page
+// asked to open last, as readAsked reads it; and while one is open, at each
+// look, what the ledger gained since the tail's mark, as readTail reads it
+// for every reader, once no other read of the ledger is under way.
+func (m Model) readPage() (Model, tea.Cmd) {
+	switch {
+	case m.pending != "":
+		return m.readAsked()
+	case m.session == nil || m.cfg.Ledger == nil || !m.tail.due || m.tail.busy() || m.log.reading:
+		return m, nil
+	}
+	return m.readTail(m.now())
+}
+
+// pageFold is what a read of the ledger's tail does for the session's page
+// open as it's asked: the page held, of the session with the given id,
+// takes in the lines of the days before today it reads again whole, late,
+// the oldest first, then what today's gained, each at its day's date, so
+// it's rolled on to today even where nothing is new, and no look past
+// midnight prices it afresh.
+type pageFold struct {
+	id   string
+	held views.HeldPage
+	late []string
+}
+
+// pageTaken is the page held of the session with the given id, as a read
+// of the ledger's tail grew it.
+type pageTaken struct {
+	id   string
+	held views.HeldPage
+}
+
+// pageFold is what a read of the ledger's tail at now does for the session's
+// page open, nil where none is: its late days those the tail missed, as
+// missed has them, and those a request of the session awaits its line on,
+// as Awaited has them, each once.
+func (m Model) pageFold(now time.Time) *pageFold {
+	s := m.session
+	if s == nil {
+		return nil
+	}
+	late := slices.Concat(s.held.Awaited(m.pageLive(s.id, now)), m.tail.missed(views.Today(now)))
+	return &pageFold{id: s.id, held: s.held, late: slices.Compact(slices.Sorted(slices.Values(late)))}
+}
+
+// taken is the page held grown by what a read of the ledger's tail on the
+// day given read, as the fold says.
+func (f pageFold) taken(read tailLines, today views.LedgerDay) *pageTaken {
+	held := f.held
+	for _, date := range f.late {
+		held = held.Take(date, read.days[date])
+	}
+	return &pageTaken{id: f.id, held: held.Take(today.Date, read.gained)}
+}
+
+// pageTook is m with the page held as a read of the ledger's tail grew it,
+// where the session's page open is still of its session: one closed since
+// takes nothing in.
+func (m Model) pageTook(t pageTaken) Model {
+	if m.session == nil || m.session.id != t.id {
+		return m
+	}
+	s := *m.session
+	s.held = t.held
+	m.session = &s
 	return m
 }
 
@@ -205,9 +290,10 @@ func (m Model) closeSession() Model {
 }
 
 // unasked is m with no session's page asked to open: one whose lines are
-// still being read opens nothing once they are, as sessionRead has it.
+// still being read opens nothing once they are, as sessionRead has it, and
+// one whose read waits is never read.
 func (m Model) unasked() Model {
-	m.opening++
+	m.opening, m.pending = m.opening+1, ""
 	return m
 }
 
