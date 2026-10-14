@@ -449,15 +449,16 @@ func (p LogPage) Filling(rows int) LogPage {
 // WantsDayBefore reports whether the table shown, in a view rows rows tall,
 // wants the day before those it spans read: on opening, until it fills its
 // view, and following, until it fills one grown past the rows it filled,
-// where it refills, as refills says; and paused, its view's top at the
-// first line held. Never once it reaches as far back as it reads.
+// where it refills, as refills says, each short of where AtReach says; and
+// paused, its view's top at the first line held. Never once it reaches as
+// far back as it reads.
 func (p LogPage) WantsDayBefore(rows int) bool {
 	if !p.Read || p.reached() {
 		return false
 	}
 	lines, s := p.lines(), p.stand()
 	if s.filledAt == 0 || !s.paused && rows > s.filledAt && p.refills(p.Shown) {
-		return len(lines) < rows
+		return !p.AtReach && len(lines) < rows
 	}
 	first, _ := p.window(lines, s, rows)
 	return s.paused && first == 0
@@ -465,10 +466,12 @@ func (p LogPage) WantsDayBefore(rows int) bool {
 
 // reached reports whether the table shown reaches as far back as it reads:
 // the oldest day the ledger keeps, as the Requests' oldest day's line, atop
-// them, says; or of the Events, the oldest they read back to, as their
-// Reached says.
+// them, says; of the Requests, where AtReach says, as their lines go no
+// further back; or of the Events, the oldest they read back to, as their
+// Reached says, paused at their top reading back past their reach, as
+// views' EventFilter.Reach has it.
 func (p LogPage) reached() bool {
-	return p.oldest() != nil || p.Shown == LogEvents && p.Events.Reached()
+	return p.oldest() != nil || p.Shown == LogEvents && p.Events.Reached() || p.Shown == LogRequests && p.AtReach
 }
 
 // oldest is the oldest day the ledger keeps, where the tables reach it: nil

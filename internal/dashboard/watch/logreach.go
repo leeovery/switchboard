@@ -38,23 +38,20 @@ func (t logTab) wantsReach(rows int) bool {
 
 // wantsDayBefore reports whether the table shown, in a view rows rows tall,
 // wants the day before those the tables span read, as WantsDayBefore has
-// it: where the page's Reach bounds it, only while the lines of the filter
-// it gives reach further back than the first day the tables span, so it
-// reads back no further than the earliest day that may hold one, of a
-// session its first day, and none where no day may. Read back a day at a
-// time, as every day from the first the tables span is held.
+// it, the page told where it's at its reach, as atReach has it: where the
+// page's Reach bounds it, only once the lines of the filter it gives are
+// known to reach, as the days' summaries told. Read back a day at a time,
+// as every day from the first the tables span is held.
 func (t logTab) wantsDayBefore(rows int) bool {
-	if !t.page.WantsDayBefore(rows) {
-		return false
-	}
 	f, bounds := t.page.Reach()
-	return !bounds || t.reach.of(f) && !t.atReach()
+	return t.page.WantsDayBefore(rows) && (!bounds || t.reach.of(f))
 }
 
 // atReach reports whether the page's Reach bounds the table shown and the
 // tables span from as far back as the lines of the filter it gives reach,
-// as the days' summaries told: to the earliest day that may hold one, or
-// where none may.
+// as the days' summaries told: to the earliest day that may hold one, of a
+// session its first day, or where none may. The page fills its table no
+// further back, and of the Requests reads back no further at all.
 func (t logTab) atReach() bool {
 	f, bounds := t.page.Reach()
 	return bounds && t.reach.of(f) && (t.reach.from == "" || t.reach.from >= t.from.Date)

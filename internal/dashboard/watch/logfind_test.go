@@ -372,6 +372,46 @@ func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(
 	}
 }
 
+// The Events through a session, paused at their top, read back past the
+// first day of its lines, which bounds only their filling: its first
+// request, two days back, lost as the router went away, the router filed
+// that it started but wrote no line, so its lines begin today.
+func TestTheEventsOfASessionPausedAtTheirTopReadBackPastItsFirstLine(t *testing.T) {
+	state := t.TempDir()
+	var lines []ledger.Held
+	for i := range 60 {
+		lines = append(lines, ranIn(fmt.Sprintf("0c%06d", i), apiSession, "~/Code/api", -time.Duration(70-i)*time.Minute))
+	}
+	for d := 1; d <= 30; d++ {
+		for i := range 20 {
+			lines = append(lines, ranIn(fmt.Sprintf("0d%02d%04d", d, i), webSession, "~/Code/web", -time.Duration(d)*day+time.Duration(i)*time.Minute))
+		}
+	}
+	writeLines(t, state, lines...)
+	lost := past(-2*day + time.Hour)
+	writeEvents(t, state,
+		events.Line{Event: status.Event{ID: 1, At: lost, Kind: status.EventStarted, Account: "work", Session: apiSession, Model: opus, Reason: "new"}, Run: past(-40 * day)},
+		events.Line{Event: status.Event{ID: 1, At: past(-70 * time.Minute), Kind: status.EventStarted, Account: "work", Session: apiSession, Model: opus, Reason: "new"}, Run: past(-80 * time.Minute)},
+	)
+	h := newHarness(t, probedWithoutTheRouter())
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
+	onTheLog(h, state)
+	h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+	h.start()
+	h.typed("/", "a", "p", "i")
+	h.keys(enter)
+	h.typed("]")
+	for range 10 {
+		h.keys(tea.KeyPressMsg{Code: tea.KeyUp})
+		for range 10 {
+			h.deliver(h.update(frameMsg{gen: h.model.frames})...)
+		}
+	}
+	if !slices.ContainsFunc(h.model.log.page.Events.Rows, func(e views.LogEvent) bool { return e.At.Equal(lost) }) {
+		t.Errorf("the Events through api, paused at their top, never show it started two days back, the tables spanning from %s", h.model.log.from.Date)
+	}
+}
+
 // esc on the Log, the newest first: closes the find; follows again where
 // the table is paused; then lets the filter go, as the find set it.
 func TestEscOnTheLogClosesTheFindThenFollowsThenLetsTheFilterGo(t *testing.T) {

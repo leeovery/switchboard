@@ -33,10 +33,13 @@ func (f EventFilter) Keeps(e LogEvent) bool {
 }
 
 // Reach is the filter of the ledger's lines whose reach, as KeptFrom reads
-// it, bounds how far back the Events read through f, and whether one does:
-// the lines of every kind counted toward the sessions f keeps the events of,
-// as the router tells of a session only once a request of it has come; none
-// where f keeps every session's. No summary tells the days of an event's
+// it, bounds how far back the Events read through f to fill their view, and
+// whether one does: the lines of every kind counted toward the sessions f
+// keeps the events of, as the router tells of a session only once a request
+// of it has come; none where f keeps every session's. It bounds only their
+// filling, as the router files a session's start and moves as it routes,
+// before the line is written, which a request lost as the router goes away
+// never has. No summary tells the days of an event's
 // kind or account as the router tells of them: it tells of a limit no
 // reading counts, as a refusal naming no window has it; of a move no line
 // names, as one whose request is answered from an account it left; and of
