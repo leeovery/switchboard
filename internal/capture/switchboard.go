@@ -251,10 +251,7 @@ func (a accountWorlds) movedAt() accountWorld {
 // telling of 41e0's request, as limitStream has it, and of c61b's answer
 // streaming back.
 func (a accountWorlds) limitedAt(now, refused time.Time, moved int, routed func(time.Time) []status.Session) accountWorld {
-	accounts, t, h := firstAccounts(3), a.today(), happenings{a.now}
-	t.work()
-	t.personal(level{refused, 1})
-	t.side(level{t.at(16, 5, 0), .31})
+	accounts, t, h := firstAccounts(3), a.today().towardTheLimit(refused), happenings{a.now}
 	until := h.today(16, 30, 0)
 	limit := status.Event{
 		Kind: status.EventLimit, At: refused, Account: "personal", Windows: []string{fiveHourKey}, Until: until, Count: moved, To: "side",
@@ -266,6 +263,16 @@ func (a accountWorlds) limitedAt(now, refused time.Time, moved int, routed func(
 		routed: routed, events: ofTheRun(append(h.auto(), limit)), stream: limitStream(now, refused, moved > 0),
 		traffic: true, fresh: true,
 	}
+}
+
+// towardTheLimit takes in today's readings of the three as the auto world
+// has them, but personal's 5-hour window rising on to its limit at refused,
+// and side's to 31% by 16:05.
+func (t *todayOf) towardTheLimit(refused time.Time) *todayOf {
+	t.work()
+	t.personal(level{refused, 1})
+	t.side(level{t.at(16, 5, 0), .31})
+	return t
 }
 
 // limitStream is what the request stream tells of at now, 41e0's request on
