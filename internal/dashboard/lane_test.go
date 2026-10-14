@@ -8,6 +8,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // clockAt is a time on the day the frames are drawn.
@@ -37,77 +38,6 @@ func limitedAt(id string, reached time.Time) (status.Account, status.Event) {
 	a := readAccount(id, session, weekRunningOut(12*time.Hour, 3*quota.Day))
 	a.Limit = status.Limit{Windows: []string{"5h"}, Until: session.ResetsAt}
 	return a, status.Event{ID: 1, At: reached.UTC(), Kind: status.EventLimit, Account: id, Windows: []string{"5h"}, Until: session.ResetsAt}
-}
-
-func TestTheTimelineOfEachSpan(t *testing.T) {
-	tests := []struct {
-		name    string
-		span    Span
-		columns int
-		start   time.Time
-		step    time.Duration
-		// wantNow is the column now falls in.
-		wantNow int
-	}{
-		{name: "the day at 160 columns: from the hour before now, on the ten minutes, a column every 10", span: Day, columns: 136, start: clockAt(12, 10), step: 10 * time.Minute, wantNow: 6},
-		{name: "the day narrower: more minutes a column, spanning as long", span: Day, columns: 68, start: clockAt(12, 10), step: 20 * time.Minute, wantNow: 3},
-		{name: "the day wider: fewer", span: Day, columns: 170, start: clockAt(12, 10), step: 8 * time.Minute, wantNow: 7},
-		{name: "the week: from a day before now, a column about every 75 minutes", span: Week, columns: 136, start: now.Add(-24 * time.Hour), step: weekSpan / 136, wantNow: 19},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tl := timelineOf(tt.span, now, tt.columns)
-			if !tl.start.Equal(tt.start) || tl.step != tt.step || tl.columns != tt.columns {
-				t.Errorf("timeline from %s, a column every %s across %d, want from %s, every %s", tl.start.Format(time.DateTime), tl.step, tl.columns, tt.start.Format(time.DateTime), tt.step)
-			}
-			if got := tl.nowColumn(); got != tt.wantNow {
-				t.Errorf("now falls in column %d, want %d", got, tt.wantNow)
-			}
-		})
-	}
-}
-
-func TestTheDaysTimelineStartsOnTheTenMinutesBeforeAnHourBeforeNowWhereMidnightCameTwice(t *testing.T) {
-	gaza, err := time.LoadLocation("Asia/Gaza")
-	if err != nil {
-		t.Fatalf("load Asia/Gaza: %v", err)
-	}
-	// Gaza's clocks went back from 01:00 to 00:00 on 24 October 2020: now
-	// is 00:25 the second time, so the hour before it is 00:25 the first.
-	now := time.Date(2020, 10, 23, 22, 25, 0, 0, time.UTC).In(gaza)
-
-	if got, want := timelineOf(Day, now, 136).start, time.Date(2020, 10, 23, 21, 20, 0, 0, time.UTC); !got.Equal(want) {
-		t.Errorf("the day's timeline starts at %v, want %v: the hour before now, taken back to its ten-minute mark", got, want.In(gaza))
-	}
-}
-
-func TestATimelinesColumnsStandForTheirMiddlesButNowsForNow(t *testing.T) {
-	tl := timelineOf(Day, now, 136)
-	for _, tt := range []struct {
-		col  int
-		want time.Time
-	}{
-		{col: 0, want: clockAt(12, 15)},
-		{col: 5, want: clockAt(13, 5)},
-		{col: 6, want: now},
-		{col: 7, want: clockAt(13, 25)},
-	} {
-		if got := tl.moment(tt.col); !got.Equal(tt.want) {
-			t.Errorf("column %d stands for %s, want %s", tt.col, got.Format(time.TimeOnly), tt.want.Format(time.TimeOnly))
-		}
-	}
-	for _, tt := range []struct {
-		at   time.Time
-		want int
-	}{
-		{at: clockAt(12, 10), want: 0},
-		{at: clockAt(12, 9), want: -1},
-		{at: clockAt(14, 42), want: 15},
-	} {
-		if got := tl.column(tt.at); got != tt.want {
-			t.Errorf("%s falls in column %d, want %d", tt.at.Format(time.TimeOnly), got, tt.want)
-		}
-	}
 }
 
 func TestALanesRoomFromEachCause(t *testing.T) {
@@ -406,7 +336,7 @@ func TestEachCauseIsToldWhereItStartsAndWhenItsBackOnce(t *testing.T) {
 }
 
 func TestAStretchTooShortForAnyColumnsMomentShowsInTheColumnItStartsIn(t *testing.T) {
-	tl := timelineOf(Day, now, 136)
+	tl := views.LiveTimeline(views.RunwayFiveHour, now, 136)
 	short := lane{known: true, stretches: merged([]cause{{from: clockAt(14, 46), until: clockAt(14, 52), says: "runs out ~14:46"}})}
 
 	cells := short.cells(tl)

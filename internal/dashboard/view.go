@@ -1,6 +1,10 @@
 package dashboard
 
-import "cmp"
+import (
+	"cmp"
+
+	"github.com/leeovery/switchboard/internal/views"
+)
 
 // View is one of the dashboard's tabs, each a view of the document, as the
 // preferences file keeps the one shown.
@@ -65,4 +69,13 @@ func (s Span) Next() Span {
 // Name is what the key line and the help call the span: "day" or "week".
 func (s Span) Name() string {
 	return cmp.Or(string(s), "day")
+}
+
+// runway is the window whose live view the span shows: the 5-hour's over the
+// day, the week's over the week.
+func (s Span) runway() views.RunwayWindow {
+	if s == Week {
+		return views.RunwayWeek
+	}
+	return views.RunwayFiveHour
 }
