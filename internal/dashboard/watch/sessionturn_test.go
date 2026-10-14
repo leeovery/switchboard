@@ -134,6 +134,51 @@ func TestATurnOpensRequestInFlightCountsOnAsItsDrawn(t *testing.T) {
 	}
 }
 
+// The Log's card of a turn open's request in flight counts its characters
+// as the stream tells them as it's drawn, as the Log's card does, whatever
+// the page last built the request's row of; the page behind it standing
+// still as the card opened.
+func TestATurnOpensCardInFlightCountsItsCharactersAsTheStreamTellsThem(t *testing.T) {
+	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+	h.openPage(idD28C)
+	h.settle()
+	h.keys(enterKey)
+	serving := func(e router.StreamEvent) router.StreamEvent {
+		e.Prompt, e.Class = "prompt-2", ledger.ClassMain
+		return e
+	}
+	sent := h.clock.now.Sub(start)
+	streamed := func(chars int) {
+		h.hear(alter(serving(told(router.StreamProgress, "r3", "work", h.clock.now.Sub(start))), func(e *router.StreamEvent) { e.Chars = chars }))
+	}
+	h.hear(serving(told(router.StreamSent, "r3", "work", sent)), serving(told(router.StreamFirst, "r3", "work", sent+time.Second)))
+	h.clock.now = past(sent + 1250*time.Millisecond)
+	streamed(500)
+	h.keys(downKey, enterKey)
+	if card := h.model.turnCard(); h.model.open != turnCardOpen || card.Request == nil || card.Request.Row.Request != "r3" {
+		t.Fatalf("↓ and enter opened card %d of %+v, want the Log's card of r3", h.model.open, card.Request)
+	}
+
+	answering := func(chars int) string { return "answering · " + prose.Characters(chars) + " characters" }
+	for i, chars := range []int{1500, 4200, 9800} {
+		h.clock.now = past(sent + time.Second + time.Duration(i+2)*250*time.Millisecond)
+		streamed(chars)
+		built := *h.model.session
+		built.shown.Requests = slices.Clone(built.shown.Requests)
+		built.shown.Requests[built.shown.Request].Row.Chars = 500
+		h.model.session = &built
+		rows := strings.Split(h.view(), "\n")
+		card := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "├ stopped") })
+		row := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "  │") && strings.Contains(row, "answering") })
+		if card < 0 || !strings.Contains(rows[card], answering(chars)) {
+			t.Errorf("%d characters streamed, the card doesn't read %q:\n%s", chars, answering(chars), strings.Join(rows, "\n"))
+		}
+		if row < 0 || !strings.Contains(rows[row], answering(500)) {
+			t.Errorf("%d characters streamed, the row behind the card doesn't read %q, as it stood as the card opened:\n%s", chars, answering(500), strings.Join(rows, "\n"))
+		}
+	}
+}
+
 // enter on a request of the turn open opens the Log's details card of it
 // over the page, the turn open behind, with no s, as its session's page is
 // the one it's over; ↑ and ↓ step the card through the turn's requests, the

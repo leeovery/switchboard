@@ -1,6 +1,8 @@
 package watch
 
 import (
+	"time"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
@@ -172,6 +174,15 @@ func (m Model) turnCard() dashboard.LogCard {
 	}
 	details, _ := line.Details()
 	return dashboard.LogCard{Request: &details, Scroll: m.session.card.scroll, Placed: m.session.card.placed}
+}
+
+// turnCardAt is the Log's details card over the session's page as it's drawn
+// at now: a request in flight's as the stream the page's rows are drawn by
+// tells it then, as the Log's card is, while the page behind stands still.
+func (m Model) turnCardAt(now time.Time) dashboard.LogCard {
+	c := m.turnCard()
+	c.Stream = m.traffic.stream(now)
+	return c
 }
 
 // turnCardKey acts on a key while the Log's details card is open over a
