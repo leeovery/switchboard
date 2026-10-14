@@ -432,6 +432,22 @@ func TestDetailsKeysChooseAnAccountAndOpenTheSelectedSessionsPage(t *testing.T) 
 	}
 }
 
+// On a phone, whose Compare draws no focus, ←→ and enter do nothing there,
+// enter saying nothing either; Detail takes them as ever.
+func TestOnAPhoneComparesFocusKeysDoNothing(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{})
+	h.update(tea.WindowSizeMsg{Width: 52, Height: 37})
+	h.keys(rightKey, enterKey)
+	if s := h.model.accounts.shown; s.Focused || s.View() != dashboard.AccountsCompare || h.model.note != "" {
+		t.Fatalf("on a phone, → enter focused %v on %q, showing %d, noting %q; want nothing done", s.Focused, s.Focus, s.View(), h.model.note)
+	}
+	h.keyed("]")
+	h.keys(downKey, enterKey)
+	if h.pageOpen() != idD28C {
+		t.Errorf("on a phone, ↓ enter on Detail opened %q's page, want %s's", h.pageOpen(), idD28C)
+	}
+}
+
 // enter, drawn faint as it has nothing to open, says why in the key line's
 // place, as p does; with one account none runs on, whose key line has no
 // enter, it says nothing.
