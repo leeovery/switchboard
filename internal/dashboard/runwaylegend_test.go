@@ -131,14 +131,14 @@ func TestTheLegendsGlyphsAreTheLanes(t *testing.T) {
 	}
 	var glyphs []span
 	for _, s := range lines[0] {
-		if slices.Contains([]string{roomGlyph, shadeCell, noRoomGlyph, resetGlyph}, s.text) {
+		if slices.Contains([]string{roomCell, runsOutCell, heldCell, resetCell}, s.text) {
 			glyphs = append(glyphs, s)
 		}
 	}
 	want := []span{
-		{roomGlyph, ink{token: theme.VizRamp1}}, {roomGlyph, warningInk}, {noRoomGlyph, warningInk},
-		{noRoomGlyph, ink{token: theme.StateDestructive}}, {noRoomGlyph, ink{token: theme.StateDestructive}}, {noRoomGlyph, ink{token: theme.StateDestructive}},
-		{resetGlyph, dimInk},
+		{roomCell, ink{token: theme.VizRamp1}}, {roomCell, warningInk}, {heldCell, warningInk},
+		{heldCell, errorInk}, {heldCell, errorInk}, {heldCell, errorInk},
+		{resetCell, dimInk},
 	}
 	if !slices.Equal(glyphs, want) {
 		t.Errorf("the legend's glyphs are %v, want %v", glyphs, want)

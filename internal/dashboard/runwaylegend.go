@@ -57,18 +57,17 @@ func (f Frame) runwayLegendLines() []line {
 }
 
 // legendKeys are the keys of what the lanes draw, in the legend's order:
-// each cell, its glyph as the lanes draw it, then what it means, muted, as
+// each cell, marked as laneMark marks it, then what it means, muted, as
 // cellsMean says it; then, where a lane marks one, │ in text.subtle and the
 // view's window's resets, as " its 5-hour resets".
 func (f Frame) legendKeys() []line {
 	drawn := f.Runway.Lanes.Drawn
 	var keys []line
 	for _, cell := range drawn.Cells {
-		glyph, k := cellDrawn(f.Look, cell)
-		keys = append(keys, line{{glyph, k}, {cellsMean[cell], mutedInk}})
+		keys = append(keys, line{f.Look.laneMark(cell), {cellsMean[cell], mutedInk}})
 	}
 	if drawn.Resets {
-		keys = append(keys, line{{resetGlyph, dimInk}, {" its " + runwayNames[f.Runway.Window] + " resets", mutedInk}})
+		keys = append(keys, line{{resetCell, dimInk}, {" its " + runwayNames[f.Runway.Window] + " resets", mutedInk}})
 	}
 	return keys
 }

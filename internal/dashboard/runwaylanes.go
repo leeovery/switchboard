@@ -10,15 +10,15 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The glyphs a lane is drawn in: a column with room, running out or not, as
-// its colour tells; one running out where the look has no colour; one
-// without room; and a reset of the view's window.
+// The glyphs a lane draws: a column where its account has room, whether it
+// runs out at its pace or not, as its colour tells, or where the look has
+// no colour, runsOutCell; one where it has none; and where the view's window
+// resets.
 const (
-	roomGlyph = "▆"
-	// shadeCell is a lane draining where the look has no colour.
-	shadeCell   = "▒"
-	noRoomGlyph = "─"
-	resetGlyph  = "│"
+	roomCell    = "▆"
+	runsOutCell = "▒"
+	heldCell    = "─"
+	resetCell   = "│"
 )
 
 const (
@@ -78,43 +78,48 @@ func (f Frame) runwayLanes(c *canvas, laid runwayLaid) {
 	}
 }
 
-// drawLane draws the lane ln along its row from column x: a cell a column, as
-// cellDrawn draws each, and │ in text.subtle at each reset of the view's
+// drawLane draws the lane ln along its row from column x: each column known,
+// as laneMark marks it, and │ in text.subtle at each reset of the view's
 // window it marks; each faded as laneInk fades it, before now's column as the
 // past.
 func (f Frame) drawLane(c *canvas, ln laidLane, x int) {
 	now, fade := f.Runway.Timeline.NowColumn(), ln.fade()
 	for col, cell := range ln.Cells {
-		if glyph, k := cellDrawn(f.Look, cell); glyph != "" {
-			c.text(x+col, ln.row, glyph, laneInk(k, col < now, fade))
+		if cell != views.CellUnknown {
+			mark := f.Look.laneMark(cell)
+			c.text(x+col, ln.row, mark.text, laneInk(mark.ink, col < now, fade))
 		}
 	}
 	for _, r := range ln.Resets {
-		c.text(x+r.Column, ln.row, resetGlyph, laneInk(dimInk, r.Column < now, fade))
+		c.text(x+r.Column, ln.row, resetCell, laneInk(dimInk, r.Column < now, fade))
 	}
 }
 
-// cellDrawn is the glyph and ink a lane draws a column in where its account
-// stands as cell says: none where nothing is known of it; with room, ▆ in the
-// ramp's first stop; running out at its pace, ▆ in accent.attention, or where
-// the look has no colour, ▒; at its cap, ─ in accent.attention; and at its
-// limit, its token refused or without one, ─ in state.destructive, bold where
-// the look has no colour to tell it from a cap.
-func cellDrawn(look Look, cell views.Cell) (string, ink) {
-	switch cell {
+// laneMark is a column of a lane where its account stands as c, as the lane
+// draws it in the look: room, ▆ in the ramp's first colour; room that runs
+// out at its pace, ▆ in accent.attention, or without colour, runsOutCell;
+// at its cap, ─ in accent.attention; and held back from every request, at
+// its limit, its token refused or without a usable token, ─ in
+// state.destructive, bold without colour, so it tells from a cap. Nothing
+// known, it's blank.
+func (l Look) laneMark(c views.Cell) span {
+	switch c {
 	case views.CellRoom:
-		return roomGlyph, ink{token: theme.VizRamp1}
+		return span{roomCell, ink{token: theme.VizRamp1}}
 	case views.CellRunsOut:
-		if !look.coloured {
-			return shadeCell, warningInk
+		if !l.coloured {
+			return span{runsOutCell, warningInk}
 		}
-		return roomGlyph, warningInk
+		return span{roomCell, warningInk}
 	case views.CellCapped:
-		return noRoomGlyph, warningInk
+		return span{heldCell, warningInk}
 	case views.CellLimited, views.CellRefused, views.CellTokenless:
-		return noRoomGlyph, ink{token: theme.StateDestructive, bold: !look.coloured}
+		if !l.coloured {
+			return span{heldCell, exhaustedInk}
+		}
+		return span{heldCell, errorInk}
 	}
-	return "", ink{}
+	return spaces(1)
 }
 
 // laneInk is k as a lane draws it: faded fade into the canvas, as a lane

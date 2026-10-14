@@ -4,19 +4,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
-)
-
-// The glyphs a lane draws: a column where its account has room, whether it
-// runs out at its pace or not, as its colour tells, or where the look has
-// no colour, runsOutCell; one where it has none; and where the view's window
-// resets.
-const (
-	roomCell    = "▆"
-	runsOutCell = "▒"
-	heldCell    = "─"
-	resetCell   = "│"
 )
 
 // runwayHelp are Runway's parts as help explains them, after its keys, in
@@ -76,33 +64,6 @@ func (f Frame) lanesHelp() helpPart {
 			{drawn: line{{resetCell, dimInk}}, means: "where its " + runwayNames[f.Runway.Window] + " resets"},
 		},
 	}
-}
-
-// laneMark is a column of a lane where its account stands as c, as the lane
-// draws it in the look: room, ▆ in the ramp's first colour; room that runs
-// out at its pace, ▆ in accent.attention, or without colour, runsOutCell;
-// at its cap, ─ in accent.attention; and held back from every request, at
-// its limit, its token refused or without a usable token, ─ in
-// state.destructive, bold without colour, so it tells from a cap. Nothing
-// known, it's blank.
-func (l Look) laneMark(c views.Cell) span {
-	switch c {
-	case views.CellRoom:
-		return span{roomCell, ink{token: theme.VizRamp1}}
-	case views.CellRunsOut:
-		if !l.coloured {
-			return span{runsOutCell, warningInk}
-		}
-		return span{roomCell, warningInk}
-	case views.CellCapped:
-		return span{heldCell, warningInk}
-	case views.CellLimited, views.CellRefused, views.CellTokenless:
-		if !l.coloured {
-			return span{heldCell, exhaustedInk}
-		}
-		return span{heldCell, errorInk}
-	}
-	return spaces(1)
 }
 
 // poolHelp is the pool's lane as help explains it: its columns, how they're
