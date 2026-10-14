@@ -79,22 +79,29 @@ func (m Model) placeLogCard() Model {
 func (m Model) logCardKey(key string) (tea.Model, tea.Cmd) {
 	switch {
 	case key == "esc":
-		m.log.card = logCarding{}
-		return m.uncover()
+		return m.closeLogCard()
 	case key == "up":
 		return m.stepLogCard(-1), nil
 	case key == "down":
 		return m.stepLogCard(1), nil
 	case key == "g" && m.log.card.event != nil:
-		m.log.page = m.log.page.Landed(m.log.card.event.Row.At, m.logRows())
-		m.log.card = logCarding{}
-		return m.uncover()
+		at := m.log.card.event.Row.At
+		closed, cmd := m.closeLogCard()
+		closed.log.page = closed.log.page.Landed(at, closed.logRows())
+		return closed, cmd
 	}
 	if by, ok := scrollKey(key); ok {
 		f, _, _ := m.screen(m.now())
 		m.log.card.scroll = by.from(m.log.card.scroll, f.CardScrolling())
 	}
 	return m, nil
+}
+
+// closeLogCard closes the Log's details card, the table it was over left
+// paused at the line chosen, as scrolling reaches it, as Unlifted has it.
+func (m Model) closeLogCard() (Model, tea.Cmd) {
+	m.log.page, m.log.card = m.log.page.Unlifted(m.logRows()), logCarding{}
+	return m.uncover()
 }
 
 // stepLogCard steps the card by places, ↑ -1 and ↓ 1, to the line before or

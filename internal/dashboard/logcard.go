@@ -711,6 +711,22 @@ func (p LogPage) lifted(from, to, rows int) LogPage {
 	return p.standing(s)
 }
 
+// Unlifted is p as the card that lifted it closes: the table shown, paused,
+// its view in rows rows lifted past where scrolling reaches, ending at its
+// paused foot again, the line chosen still in it; as it stands otherwise.
+func (p LogPage) Unlifted(rows int) LogPage {
+	lines, s := p.lines(), p.stand()
+	if !s.paused || len(lines) == 0 {
+		return p
+	}
+	lowest := max(p.footOf(lines, s)-rows+1, 0)
+	if first, _ := p.window(lines, s, rows); first <= lowest {
+		return p
+	}
+	s.top = lines[lowest].key
+	return p.standing(s)
+}
+
 // ChosenRequest is the Requests' line chosen, while Requests show and one is
 // chosen: false otherwise.
 func (p LogPage) ChosenRequest() (views.LogLine, bool) {

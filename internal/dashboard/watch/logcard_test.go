@@ -65,6 +65,31 @@ func TestTheWheelScrollsTheLogsCardUnderThePointer(t *testing.T) {
 	}
 }
 
+// A card that lifted the table to fit under its line, closed, leaves the
+// table as scrolling reaches it: no blank rows under its paused foot, the
+// line it was of still in view.
+func TestTheLogsDetailsCardClosedLeavesTheTableAsScrollingReachesIt(t *testing.T) {
+	state := t.TempDir()
+	for i := range 40 {
+		writeLines(t, state, arrived(fmt.Sprintf("0a0000%02d", i+1), "work", time.Duration(i-40)*time.Minute))
+	}
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
+	h.keys(slices.Repeat([]tea.KeyPressMsg{{Code: tea.KeyUp}}, 12)...)
+	h.keys(tea.KeyPressMsg{Code: tea.KeyEnter}, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	rows := strings.Split(h.view(), "\n")
+	_, heads := h.drawnAt("  at  ")
+	table := rows[heads+1 : heads+1+h.model.logRows()]
+	at := past(-12 * time.Minute).In(time.Local).Format(time.TimeOnly)
+	blank := slices.IndexFunc(table, func(row string) bool { return strings.TrimSpace(row) == "" })
+	if blank >= 0 || !slices.ContainsFunc(table, func(row string) bool { return strings.Contains(row, at) }) {
+		t.Errorf("closed, the table reads\n%s\nwant no blank row in it, and %s, the line chosen, in view", strings.Join(table, "\n"), at)
+	}
+}
+
 // A cap's card that fits under its line with no row to spare keeps its place
 // as a look tells of its moves and it grows, its body scrolling within it,
 // its line left in sight.

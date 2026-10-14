@@ -157,6 +157,34 @@ func TestALogCardKeepsItsPlaceAsItGrows(t *testing.T) {
 	}
 }
 
+// As the card that lifted the table closes, the table's view comes back down
+// to end at its paused foot, the line chosen still in it; a view scrolled up
+// short of its foot, and one following, stand as they are. 40 lines in a
+// view of 27, the paused foot the 40th.
+func TestALiftedTableComesBackDownAsItsCardCloses(t *testing.T) {
+	tests := []struct {
+		name        string
+		f           Frame
+		first, last int
+	}{
+		{name: "lifted, the card under the 29th line", f: opened(chosenOn(cardPage(40), 12, 160, 37)), first: 13, last: 39},
+		{name: "scrolled up to the 10th line", f: chosenOn(cardPage(40), 31, 160, 37), first: 9, last: 35},
+		{name: "following", f: logFrameOf(cardPage(40), 160, 37), first: 13, last: 39},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows := tt.f.LogRows()
+			p := tt.f.Log.Unlifted(rows)
+			lines, s := p.lines(), p.stand()
+			first, last := p.window(lines, s, rows)
+			at, chosen := p.lit(lines, s)
+			if first != tt.first || last != tt.last || chosen && (at < first || at > last) {
+				t.Errorf("the view runs from line %d to %d, the line chosen %d; want from %d to %d, the line chosen in it", first+1, last+1, at+1, tt.first+1, tt.last+1)
+			}
+		})
+	}
+}
+
 // The line a card is of stays lit as the page fades behind the card: its row
 // is drawn as the page draws it without the card, where the rows around it
 // fade.
