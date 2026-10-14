@@ -272,12 +272,15 @@ func (h hearing) unplaced(s status.Session) bool {
 // time of the move that took it there; else each model's latest account, in
 // the order the models first came, as its requests, oldest first, and those
 // the stream told of, told, give them, each with the reason of its latest
-// line.
+// line the router didn't keep where it was. Either way, a model that came
+// there by starting there gives why a request since kept it there, as
+// keptLines has it.
 func (by lister) goesOf(id string, s Stream, requests []request, told []Told) []SessionModel {
+	kept := keptOf(requests)
 	if _, listed := by.routed[id]; listed {
 		var goes []SessionModel
 		for _, a := range by.goes[id] {
-			goes = append(goes, SessionModel{Model: a.Model, Account: a.Account, Reason: a.Reason, Since: cameAt(a)})
+			goes = append(goes, SessionModel{Model: a.Model, Account: a.Account, Reason: kept[a.Model].why(a.Account, a.Reason), Since: cameAt(a)})
 		}
 		for _, m := range newestMoves(s.Moves) {
 			if i := slices.IndexFunc(goes, func(g SessionModel) bool { return m.Session == id && g.Model == m.Model && g.Account == m.To }); i >= 0 {
@@ -296,9 +299,43 @@ func (by lister) goesOf(id string, s Stream, requests []request, told []Told) []
 			i, goes = len(goes), append(goes, SessionModel{Model: r.model})
 		}
 		goes[i].Account = r.account
-		if r.line != nil {
-			goes[i].Reason = r.line.Reason
-		}
+	}
+	for i, g := range goes {
+		goes[i].Reason = kept[g.Model].why(g.Account, kept[g.Model].came)
 	}
 	return goes
+}
+
+// keptLines are what a session model's lines tell of why it goes where it
+// does: the account its latest went to, the reason of its latest the router
+// didn't keep where it was, which the router keeps as the reason its
+// assignment came by, and its latest's own reason where the router kept it.
+type keptLines struct {
+	account, came, kept string
+}
+
+// keptOf are what the lines of requests, a session's, oldest first, tell of
+// each of its models, as keptLines has it, by model.
+func keptOf(requests []request) map[string]keptLines {
+	by := make(map[string]keptLines)
+	for _, r := range requests {
+		k := keptLines{account: r.Account, came: by[r.Model].came}
+		if status.Kept(r.Reason) {
+			k.kept = r.Reason
+		} else {
+			k.came = r.Reason
+		}
+		by[r.Model] = k
+	}
+	return by
+}
+
+// why is why the model goes to account, having come there for the reason
+// came: where it came by starting there, why its latest line there says a
+// request since kept it there, as the router never says; else came.
+func (k keptLines) why(account, came string) string {
+	if k.kept != "" && k.account == account && (came == "" || status.MovedNothing(came)) {
+		return k.kept
+	}
+	return came
 }

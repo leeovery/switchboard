@@ -497,10 +497,6 @@ before each kind of event had a mark of its own, where the Log's marks give `◔
   columns 1 to 10 and 48 to 52, of `session-phone-52`.
 - **`↓ streaming`,** row 7 of `session-resumed-160`, columns 1 to 11, where the design's state for
   an answer streaming is `↓ answering`.
-- **`: sticky`,** after `since it started` on row 7 of `session-quiet-160` and
-  `routing-session-160`, columns 41 to 48: the router lists 9c2e's reason as it began, `new`, as a
-  request that keeps a session where it runs leaves the reason as it was, and the design words
-  `new` `since it started` on a session's page, which the dashboard draws alone.
 - **The first request of a turn opened,** chosen as the turn opens, on `bg.selection`, where the
   frame lights none: row 29 of `session-turn-opened-160`.
 - **More turns than fit on a phone,** row 31 of `session-phone-52`, blank in the frame, where the

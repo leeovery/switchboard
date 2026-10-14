@@ -636,9 +636,9 @@ var d28cPage = slices.Concat(fromTheLog(1, 16, 68), []passing{
 }, d28cStory)
 
 // What 9c2e's frames draw otherwise than its world gives above its story:
-// sticky, where the router lists it as new; and how long it has run, from
-// 11:55:00 where its first request came at 11:55:31.
-var quietPage = slices.Concat(fromTheLog(1, 16, 68), []passing{wordsAt(7, 41, ": sticky"), wordsAt(7, 155, "2h 47m")})
+// how long it has run, from 11:55:00 where its first request came at
+// 11:55:31.
+var quietPage = slices.Concat(fromTheLog(1, 16, 68), []passing{wordsAt(7, 155, "2h 47m")})
 
 // passedOver is, by stem, the rows and cells each frame drew otherwise than
 // the design says, or than its world gives, which testdata/vhs/README.md

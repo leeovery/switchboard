@@ -349,3 +349,72 @@ func TestAPageKeepsItsOwnPinFromTheLastListingWhileNoRouterListsIt(t *testing.T)
 		})
 	}
 }
+
+// A session kept where it started says so on its page, sticky, or kept for
+// its thinking, whether the router answers or not: the router keeps the
+// reason the assignment came by, new, while it keeps a session where it is,
+// and its lines say each request kept it. One with no request since its
+// first says it started there alone, as does one the router lists, new, on
+// another account than a request kept it on.
+func TestASessionKeptWhereItStartedSaysSoWhetherTheRouterAnswersOrNot(t *testing.T) {
+	asked := func(id, account, reason string, at time.Time) ledger.Line {
+		return filedAs(id, stopped("end_turn", took(time.Minute, serving(p1, ledger.ClassMain, line(paged, opus, account, reason, at, hourUsage)))))
+	}
+	first := asked("p1", "side", status.ReasonNew, local(12, 20, 0))
+	listing := func(account, reason string) *status.Session {
+		return &status.Session{ID: paged, Assignments: []status.Assignment{{Model: opus, Account: account, Reason: reason, AssignedAt: local(12, 20, 0), LastSeen: local(12, 40, 0)}}}
+	}
+	pressed := status.PassingOver(status.ReasonNew, "personal")
+	tests := []struct {
+		name             string
+		lines            []ledger.Line
+		routed           *status.Session
+		listed, unlisted string
+		short            string
+	}{
+		{name: "kept while its cache was warm", lines: []ledger.Line{first, asked("p2", "side", status.ReasonSticky, local(12, 40, 0))},
+			routed: listing("side", status.ReasonNew), listed: "on [side] since it started: sticky", unlisted: "on [side] since it started: sticky", short: "sticky"},
+		{name: "kept for its thinking once its cache went cold", lines: []ledger.Line{first, asked("p2", "side", status.ReasonBound, local(12, 40, 0))},
+			routed:   listing("side", status.ReasonNew),
+			listed:   "on [side] since it started: kept for its thinking",
+			unlisted: "on [side] since it started: kept for its thinking", short: "kept for its thinking"},
+		{name: "started passing an account over for pressure, then kept",
+			lines:  []ledger.Line{asked("p1", "side", pressed, local(12, 20, 0)), asked("p2", "side", status.ReasonSticky, local(12, 40, 0))},
+			routed: listing("side", pressed), listed: "on [side] since it started: sticky", unlisted: "on [side] since it started: sticky", short: "sticky"},
+		{name: "rescored where it ran, then kept, as it was rescored",
+			lines: []ledger.Line{asked("p1", "side", status.ReasonNew, local(10, 0, 0)), asked("p2", "side", "rescored after 2h idle", local(12, 20, 0)),
+				asked("p3", "side", status.ReasonSticky, local(12, 40, 0))},
+			routed:   listing("side", "rescored after 2h idle"),
+			listed:   "on [side] since 12:20, rescored after 2h idle: [side] had the most room",
+			unlisted: "on [side]: rescored after 2h idle: [side] had the most room"},
+		{name: "its first request alone", lines: []ledger.Line{first},
+			routed: listing("side", status.ReasonNew), listed: "on [side] since it started", unlisted: "on [side] since it started"},
+		{name: "listed new on another account than a request kept it on",
+			lines:  []ledger.Line{asked("p1", "work", status.ReasonNew, local(12, 20, 0)), asked("p2", "work", status.ReasonSticky, local(12, 40, 0))},
+			routed: listing("side", status.ReasonNew), listed: "on [side] since it started", unlisted: "on [work] since it started: sticky"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(tt.lines), []status.Session{*tt.routed}, now, paged), ledger.Pricing, kept90, now)
+			for _, c := range []struct {
+				live views.PageLive
+				want string
+			}{
+				{live: views.PageLive{Routed: tt.routed, Now: now}, want: tt.listed},
+				{live: views.PageLive{Unlisted: true, LastRouted: tt.routed, Now: now}, want: tt.unlisted},
+			} {
+				page, ok := held.Page(c.live)
+				if !ok {
+					t.Fatalf("no page, the router answering %v", !c.live.Unlisted)
+				}
+				where := page.Where(now)
+				if got := wordsSaid(where.Words()); got != c.want {
+					t.Errorf("row 6, the router answering %v, says %q, want %q", !c.live.Unlisted, got, c.want)
+				}
+				if got := wordsSaid(where.Short); tt.listed == tt.unlisted && got != tt.short {
+					t.Errorf("a phone's row 8, the router answering %v, says %q, want %q", !c.live.Unlisted, got, tt.short)
+				}
+			}
+		})
+	}
+}
