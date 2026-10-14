@@ -676,12 +676,13 @@ func (d detailDrawn) sessionTargets() []Target {
 	if len(d.running) == 0 {
 		return nil
 	}
-	top, rows := d.f.top(), d.f.viewRows()
-	at := d.latelyAt() + 1 - byRows(d.drawn().height(), rows).clamped(d.f.Scroll)
+	top := d.f.top()
+	from, to := pagedWhole(d.drawn(), d.f.viewRows()).shown(d.f.Scroll)
+	at := d.latelyAt() + 1 - from
 	first, shown := sessionsScrolled(len(d.running), d.selected())
 	var targets []Target
 	for i, r := range d.running[first : first+shown] {
-		if y := at + i; y >= 0 && y < rows {
+		if y := at + i; y >= 0 && y < to-from {
 			targets = append(targets, Target{X: max(d.l.panel-1, 0), Y: top + y, Width: sessionLit, On: OnSession, Session: r.Session})
 		}
 	}
