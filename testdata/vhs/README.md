@@ -611,12 +611,6 @@ which the dashboard draws as its world gives it:
   columns 110 to 144, where the dashboard marks the primary with one account as with several (the
   owner's call, 11 October 2026), `1 work ◆ ▲`, and `◆ primary` four cells before `▲ new sessions go
   here`.
-- **`▸ from personal` on 41e0's row** in `sessions-moved-160`, row 13, columns 32 to 46, which the
-  design draws as the session joins side's foot, where the dashboard draws none: a finding, not the
-  design. The router lists 41e0 on side at 16:05:42, so the watch's traffic takes its move as done,
-  and, the limit having forced it, lets it go at once, its stub standing for its cord; and the
-  ledger holds no line of its yet, its request in flight. So nothing tells the views where it came
-  from.
 
 **Sessions, where its world gives otherwise** (see What the worlds give otherwise than the
 frames), which the dashboard draws as its world gives it:

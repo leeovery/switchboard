@@ -1062,7 +1062,7 @@ var passedOver = map[string][]passing{
 		wordsAt(31, 39, "1,240"), wordsAt(32, 32, "$126.02"), enterOpenLit,
 	}),
 	"sessions-refused-160": slices.Concat(atTheLimit, []passing{enterLit}),
-	"sessions-moved-160":   slices.Concat(atTheLimit, []passing{wordsAt(13, 32, "▸ from personal"), enterLit}),
+	"sessions-moved-160":   slices.Concat(atTheLimit, []passing{enterLit}),
 	"sessions-pinned-160":  {cellsOf(16, 119, 123, "┃"), evenPace(24, 104), cellsOf(26, 138, 158, sidesWeek), enterLit},
 	"sessions-ten-accounts-160": {
 		cellsOf(15, 104, 160, "● open"), cellsOf(16, 145, 147, "┃"), cellsOf(19, 140, 141, "┃"),

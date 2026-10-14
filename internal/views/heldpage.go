@@ -346,13 +346,13 @@ func (h hearing) unplaced(s status.Session) bool {
 
 // goesOf are where the models of the session with the given id go now, as
 // its page's row 7 has them: where the router lists it, as it lists them,
-// the moves the stream s told of since taken in, each with the reason and
-// time of the move that took it there; else each model's latest account, in
-// the order the models first came, as its requests as its turns take them
-// in, sent, give them, each with the reason of its latest line, of its
-// requests, oldest first, the router didn't keep where it was. Either way, a
-// model that came there by starting there gives why a request since kept it
-// there, as keptLines has it.
+// the moves the stream s told of since, as unlisted has them, taken in, each
+// with the reason and time of the move that took it there; else each model's
+// latest account, in the order the models first came, as its requests as
+// its turns take them in, sent, give them, each with the reason of its
+// latest line, of its requests, oldest first, the router didn't keep where
+// it was. Either way, a model that came there by starting there gives why a
+// request since kept it there, as keptLines has it.
 func (by lister) goesOf(id string, s Stream, requests []request, sent []sent) []SessionModel {
 	kept := keptOf(requests)
 	if _, listed := by.routed[id]; listed {
@@ -360,7 +360,7 @@ func (by lister) goesOf(id string, s Stream, requests []request, sent []sent) []
 		for _, a := range by.goes[id] {
 			goes = append(goes, SessionModel{Model: a.Model, Account: a.Account, Reason: kept[a.Model].why(a.Account, a.Reason), Since: cameAt(a)})
 		}
-		for _, m := range newestMoves(s.Moves) {
+		for _, m := range newestMoves(s.unlisted()) {
 			if i := slices.IndexFunc(goes, func(g SessionModel) bool { return m.Session == id && g.Model == m.Model && g.Account == m.To }); i >= 0 {
 				goes[i].Reason, goes[i].Since = m.Reason, m.At
 			}
