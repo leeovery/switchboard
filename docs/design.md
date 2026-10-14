@@ -5666,10 +5666,15 @@ no code left commented out. After every stage, every gate in `CLAUDE.md` passes,
     5's day, and `w` itself with it, with their fixtures and tests. Its fixtures draw `runway-*`.
 14. **The demos and the clean-up.** The README's demos and art are recorded again through capture's
     scenarios: `usage`'s, renamed `dashboard`, and `routing`, `themes`, `repatch`, `runway-week`,
-    `phone` and `help`; `flipped`, with no flip left to show, goes. `testdata/vhs/`'s milestone 5
-    tapes and captures are cleared, and `viz.series.1`–`viz.series.6` go, with the built-ins'
-    values of them. No code of milestone 5's dashboard is left but what the redesign kept (see
-    Packages).
+    `phone` and `help`; `flipped`, with no flip left to show, goes. Each is recorded at 160 × 37,
+    the frames' size; the phone's at 52 × 36. `routing` shows the Overview, then the routing card
+    picking side with `m`; `dashboard` one account's Overview, then Runway; `repatch` the
+    Switchboard as personal reaches its limit, the cords hanging; `runway-week` Runway's week;
+    `phone` the Overview at 52 × 36; `help` the Overview's help. The limit is personal's, at
+    16:05:41, as the signed-off Sessions frames draw it (the owner's call, 14 October 2026).
+    `testdata/vhs/`'s milestone 5 tapes and captures are cleared, and `viz.series.1`–`viz.series.6`
+    go, with the built-ins' values of them. No code of milestone 5's dashboard is left but what the
+    redesign kept (see Packages).
 
 Stage 1 merges and is released at once, as v0.1.3. Stages 2 to 4 merge as each is ready, with
 `usage -w` still there, so main can be released through them. Stage 2's second pull request and
