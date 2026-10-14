@@ -58,19 +58,20 @@ type logReadMsg struct {
 
 // readLog has the watch read for the Log while it shows, as it wants, one
 // read of the ledger at a time, what's wanted meanwhile waiting for it to
-// land, its page first built of what it holds: as it first shows, every one
-// of today's lines, the router's events from today, and the oldest day the
-// ledger keeps; at each look since, what the ledger gained, as the tail
-// reads it; and the day before those its tables span, as they want it, or
-// as the event its details card is open on does, or the find's pick, of an
-// earlier day, as reaching has it.
+// land, and for a session's page asked to open to read first, its page
+// first built of what it holds: as it first shows, every one of today's
+// lines, the router's events from today, and the oldest day the ledger
+// keeps; at each look since, what the ledger gained, as the tail reads it;
+// and the day before those its tables span, as they want it, or as the
+// event its details card is open on does, or the find's pick, of an earlier
+// day, as reaching has it.
 func (m Model) readLog() (Model, tea.Cmd) {
 	if m.view != dashboard.Log || m.cfg.Ledger == nil {
 		return m, nil
 	}
 	now := m.now()
 	m = m.builtLog(now)
-	if m.tail.busy() || m.log.reading {
+	if m.tail.busy() || m.log.reading || m.pending != "" {
 		return m, nil
 	}
 	switch {

@@ -123,9 +123,10 @@ func isLogRead(msg tea.Msg) bool {
 
 // One read of today's lines at a time: a session's page asked to open while
 // a read of the ledger's tail is under way reads its lines once that lands,
-// or never, where esc dropped it meanwhile; no read of the tail starts while
-// the page's is under way, nor while a read of the Log's own is. So the page,
-// and the Log, take in every line either read.
+// before the tail is read again, or never, where esc dropped it meanwhile;
+// no read of the tail starts while the page's is under way, nor while a read
+// of the Log's own is. So the page, and the Log, take in every line either
+// read.
 func TestASessionsPagesReadAndTheTailsReadNeverRunTogether(t *testing.T) {
 	onTheLogOf := func(t *testing.T) (*harness, string) {
 		state := t.TempDir()
@@ -157,6 +158,21 @@ func TestASessionsPagesReadAndTheTailsReadNeverRunTogether(t *testing.T) {
 		h.deliver(h.run(tail)...)
 		if read != nil || h.model.session == nil || h.shownPage().Page.Totals.Requests != 2 {
 			t.Errorf("the page's read ran beside the tail's %t, and once that landed the page opened %t; want it open after, of both lines", read != nil, h.model.session != nil)
+		}
+	})
+
+	t.Run("a page asked while the tail is read, a look meanwhile", func(t *testing.T) {
+		h, _ := onTheLogOf(t)
+		tail := h.readingTheTail()
+		opened, _ := h.model.openSession(idD28C)
+		h.model = opened
+		h.read(routerDocument(three()...))
+		for _, landed := range h.run(tail) {
+			h.update(landed)
+		}
+		if h.model.tail.reading || h.model.tail.whole != 1 {
+			t.Errorf("the tail's read landed, the tail read again %t, the page's read under way %t; want the page's read before the tail's again",
+				h.model.tail.reading, h.model.tail.whole == 1)
 		}
 	})
 
