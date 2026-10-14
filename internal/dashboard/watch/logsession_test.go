@@ -32,7 +32,8 @@ func lineChosen(h *harness) string {
 // the table or from the line's details card, which s closes as it asks; esc
 // on the page comes back to the Log, paused at that line, no card open. A
 // quota check's line, which counts toward no session, and an account's
-// event list no s, and s opens nothing on them.
+// event list no s, in the table or the card, and s opens nothing on them,
+// the card staying open.
 func TestSOnTheLogOpensTheChosenLinesSessionAndEscComesBack(t *testing.T) {
 	enter := tea.KeyPressMsg{Code: tea.KeyEnter}
 	check := arrived("0a000003", "work", -3*time.Minute)
@@ -48,8 +49,10 @@ func TestSOnTheLogOpensTheChosenLinesSessionAndEscComesBack(t *testing.T) {
 		{name: "a request's line, from the table", keys: []tea.KeyPressMsg{upKey}, opens: true},
 		{name: "a request's line, from its card", keys: []tea.KeyPressMsg{upKey, enter}, card: true, opens: true},
 		{name: "a quota check's line", checks: true, keys: []tea.KeyPressMsg{upKey}},
+		{name: "a quota check's line, from its card", checks: true, keys: []tea.KeyPressMsg{upKey, enter}, card: true},
 		{name: "a session's event, from its card", events: true, keys: []tea.KeyPressMsg{upKey, enter}, card: true, opens: true},
 		{name: "an account's event", events: true, keys: []tea.KeyPressMsg{upKey, upKey}},
+		{name: "an account's event, from its card", events: true, keys: []tea.KeyPressMsg{upKey, upKey, enter}, card: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -73,16 +76,21 @@ func TestSOnTheLogOpensTheChosenLinesSessionAndEscComesBack(t *testing.T) {
 			chosen, asked := lineChosen(h), h.model.opening
 			listed := slices.Contains(h.listed(), "s")
 			if tt.card {
+				if h.model.open != logCardOpen {
+					t.Fatalf("enter on %s opened %v, want its card", chosen, h.model.open)
+				}
 				listed = strings.Contains(h.view(), "s its session")
 			}
 			if listed != tt.opens {
 				t.Errorf("%s chosen, s is listed %t, want %t", chosen, listed, tt.opens)
 			}
 
+			open := h.model.open
 			h.typed("s")
 			if !tt.opens {
-				if h.model.session != nil || h.model.opening != asked {
-					t.Errorf("s on %s opened a page %t, asked for %d more; want none asked", chosen, h.model.session != nil, h.model.opening-asked)
+				if h.model.session != nil || h.model.opening != asked || h.model.open != open {
+					t.Errorf("s on %s opened a page %t, asked for %d more, and left %v open; want none asked, %v open as it was",
+						chosen, h.model.session != nil, h.model.opening-asked, h.model.open, open)
 				}
 				return
 			}

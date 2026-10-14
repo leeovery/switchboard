@@ -126,16 +126,15 @@ type pageTaken struct {
 }
 
 // pageFold is what a read of the ledger's tail at now does for the session's
-// page open, nil where none is: its late days those the tail missed, as
-// missed has them, and those a request of the session awaits its line on,
-// as Awaited has them, each once.
+// page open, nil where none is: its late days those Late has of the days
+// the tail missed, as missed has them.
 func (m Model) pageFold(now time.Time) *pageFold {
 	s := m.session
 	if s == nil {
 		return nil
 	}
-	late := slices.Concat(s.held.Awaited(m.pageLive(s.id, now)), m.tail.missed(views.Today(now)))
-	return &pageFold{id: s.id, held: s.held, late: slices.Compact(slices.Sorted(slices.Values(late)))}
+	late := s.held.Late(m.tail.missed(views.Today(now)), m.pageLive(s.id, now))
+	return &pageFold{id: s.id, held: s.held, late: late}
 }
 
 // taken is the page held grown by what a read of the ledger's tail on the

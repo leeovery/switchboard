@@ -156,16 +156,48 @@ func (c LogCard) title(m status.Moment) line {
 }
 
 // Session is the whole id of the session the card's line is of, whose page
-// s opens: a request's, as its row counts it, none for a quota check; an
-// event's; none for an account's event.
+// s opens, as sessionOfLine has it.
 func (c LogCard) Session() string {
-	switch {
-	case c.Event != nil:
-		return c.Event.Row.Session
-	case c.Request != nil:
-		return c.Request.Row.CountedSession()
+	if c.Event != nil {
+		return sessionOfLine(nil, &c.Event.Row)
+	}
+	if c.Request != nil {
+		return sessionOfLine(&c.Request.Row, nil)
 	}
 	return ""
+}
+
+// sessionOfLine is the whole id of the session a line of the Log's is of,
+// whose page s opens, the line chosen in its table or its card's alike: a
+// request's row's, as the row counts it, none for a quota check; an
+// event's; none for an account's event, nor where the id shows as nothing,
+// as the card's title and the Events have it.
+func sessionOfLine(row *views.RequestRow, event *views.LogEvent) string {
+	var id string
+	switch {
+	case event != nil:
+		id = event.Session
+	case row != nil:
+		id = row.CountedSession
+	}
+	if prose.Clean(id) == "" {
+		return ""
+	}
+	return id
+}
+
+// ChosenSession is the whole id of the session the line chosen of the table
+// shown is of, whose page s opens, as sessionOfLine has it: "" where none is
+// chosen.
+func (p LogPage) ChosenSession() string {
+	row, event, ok := p.Chosen()
+	switch {
+	case !ok:
+		return ""
+	case event != nil:
+		return sessionOfLine(nil, event)
+	}
+	return sessionOfLine(&row, nil)
 }
 
 // keys are the card's keys, as its keys row lists them in content cells:

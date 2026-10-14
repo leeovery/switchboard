@@ -33,6 +33,11 @@ type RequestRow struct {
 	// session was started in, as its line or the stream names them: each ""
 	// where it names none.
 	Session, Dir string
+	// CountedSession is the session its request counts toward, as
+	// ledger.Line.CountedSession has it of its line, or
+	// Told.countedSession of what the stream told before it came: none for
+	// a quota check.
+	CountedSession string
 	// Model is the model it asked for, its whole id.
 	Model string
 	// Account is the account whose answer its client got, or, before its
@@ -107,16 +112,6 @@ const (
 	// RowCount is a count of a request's tokens, hidden until it's shown.
 	RowCount
 )
-
-// CountedSession is the session the row's request counts toward, as
-// ledger.Line.CountedSession has it of its line, and Told.countedSession of
-// what the stream told before it came: none for a quota check.
-func (r RequestRow) CountedSession() string {
-	if r.Kind == RowCheck {
-		return ""
-	}
-	return r.Session
-}
 
 // RowStage is how far a request has come, as its row tells it.
 type RowStage int
@@ -311,7 +306,7 @@ func lineRow(l *ledger.Line, s *story) RequestRow {
 // as toldBy has it.
 func lineFacts(l *ledger.Line) RequestRow {
 	r := RequestRow{
-		Request: l.Request, At: l.At, Kind: kindOf(l), Session: l.Session, Dir: l.Dir, Model: l.Model, Account: l.Account,
+		Request: l.Request, At: l.At, Kind: kindOf(l), Session: l.Session, Dir: l.Dir, CountedSession: l.CountedSession(), Model: l.Model, Account: l.Account,
 		Status: l.Status, Canceled: l.Canceled, CutOff: l.CutOff, Failed: l.Failed(), Took: millis(l.TotalMS), Stop: l.Answer.Stop,
 		Attempts: l.Attempts, Size: l.Shape.Bytes, Messages: l.Shape.Messages, Tools: l.Shape.Tools, Agent: agentOf(l.Agent),
 	}
@@ -376,7 +371,9 @@ func since(from, to time.Time) *time.Duration {
 // line came, at now: lost; ended, its status as told; else in flight, its
 // took counting to now.
 func toldRow(t Told, now time.Time) RequestRow {
-	r := RequestRow{Request: t.Request, At: t.Sent, Kind: toldKind(t), Session: t.Session, Dir: t.Dir, Model: t.Model, Account: t.Account}
+	r := RequestRow{
+		Request: t.Request, At: t.Sent, Kind: toldKind(t), Session: t.Session, Dir: t.Dir, CountedSession: t.countedSession(), Model: t.Model, Account: t.Account,
+	}
 	switch {
 	case t.Lost:
 		r.Stage, r.Failed = RowLost, true
