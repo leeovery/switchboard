@@ -201,29 +201,30 @@ func (h HeldPage) Page(live PageLive) (SessionPage, bool) {
 	return page, true
 }
 
-// TurnRequests are the rows of the requests of the session's turn numbered
-// n, from 1 at its first, as a turn opened shows them, oldest first, of what
-// h holds and what the stream told, as live gives it: each the Log's row of
-// it, by its line, as LogRows builds it, with the session's story, or before
-// its line comes, by what the stream told; each with no mark, as a turn's
-// rows have none. None where it has no such turn.
-func (h HeldPage) TurnRequests(n int, live PageLive) []RequestRow {
+// TurnRequests are the Log's lines of the requests of the session's turn
+// numbered n, from 1 at its first, as a turn opened shows them, oldest
+// first, of what h holds and what the stream told, as live gives it: each
+// its row as the Log's, by its line, as LogRows builds it, with the
+// session's story, or before its line comes, by what the stream told; each
+// with no mark, as a turn's rows have none; and its details, as Details
+// gives them. None where it has no such turn.
+func (h HeldPage) TurnRequests(n int, live PageLive) []LogLine {
 	h = h.at(live.Now)
 	tallies, _ := talliesOf(h.requests, live.Stream.hearing().told[h.id])
 	if n < 1 || n > len(tallies) {
 		return nil
 	}
-	rows := make([]RequestRow, len(tallies[n-1].members))
+	lines := make([]LogLine, len(tallies[n-1].members))
 	for i, r := range tallies[n-1].members {
 		if r.line != nil {
-			rows[i] = lineRow(r.line.Line, h.story)
-			rows[i].Worth = r.line.worth
+			lines[i] = LogLine{Row: lineRow(r.line.Line, h.story), line: r.line.Line}
+			lines[i].Row.Worth = r.line.worth
 		} else {
-			rows[i] = toldRow(*r.told, live.Now)
+			lines[i] = LogLine{Row: toldRow(*r.told, live.Now)}
 		}
-		rows[i].Mark = NoMark
+		lines[i].Row.Mark = NoMark
 	}
-	return rows
+	return lines
 }
 
 // unplaced reports whether the router lists a request of the session s in
