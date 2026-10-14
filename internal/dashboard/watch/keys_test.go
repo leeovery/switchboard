@@ -56,7 +56,7 @@ func TestTheKeyLineGroupsTheKeysOfEachTab(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.view), func(t *testing.T) {
 			h := routedHarness(t, routerDocument(three()...))
-			h.model.view = tt.view
+			h.model.view, h.model.accounts.shown.Accounts = tt.view, threeConfigured
 			h.start()
 
 			l := h.model.live(h.clock.now).KeyLine
