@@ -2,6 +2,7 @@ package views_test
 
 import (
 	"cmp"
+	"maps"
 	"slices"
 	"testing"
 	"time"
@@ -34,9 +35,10 @@ func accountLately(doc status.Document, id, best string) []toldLine {
 // limit or refusal moved onto it, folded into one line as Lately folds them,
 // or one move onto it alone where they went to several, the sessions that
 // started on it, and the pins naming it, the others they name with it. Of
-// every account, it tells the Overview's words, a session starting on the
-// account new sessions go to "the best". Restarts, the router's health and
-// routing given back to it name no account, so neither tells them.
+// every account, it tells the Overview's words. Each says a session started
+// on the router's best, as its reason says, "the best". Restarts, the
+// router's health and routing given back to it name no account, so neither
+// tells them.
 func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
 	capped := func(id, count int) status.Event {
 		return status.Event{ID: id, Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Count: count}
@@ -66,21 +68,21 @@ func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
 	}{
 		{name: "a cap, from the account it held back", doc: heldBackAt(status.EventCap, false), id: "work", want: []toldLine{
 			{kind: status.EventCap, full: "reached its cap: 3 sessions moved to side", short: "at its cap: 3 moved to side"},
-			{kind: status.EventStarted, full: "7f3a started here"}}},
+			{kind: status.EventStarted, full: "7f3a started here, the best"}}},
 		{name: "a cap, from the account its sessions moved to", doc: heldBackAt(status.EventCap, false), id: "side", want: []toldLine{
-			{kind: status.EventStarted, full: "c61b started here"},
+			{kind: status.EventStarted, full: "c61b started here, the best"},
 			{kind: status.EventMoved, full: "3 sessions came from work: work reached its cap", short: "3 came from work: work at its cap"}}},
 		{name: "a limit, from the account it held back", doc: heldBackAt(status.EventLimit, false), id: "work", want: []toldLine{
 			{kind: status.EventLimit, full: "reached its 5-hour limit: 3 sessions moved to side", short: "at its limit: 3 moved to side"},
-			{kind: status.EventStarted, full: "7f3a started here"}}},
+			{kind: status.EventStarted, full: "7f3a started here, the best"}}},
 		{name: "a limit, from the account its sessions moved to", doc: heldBackAt(status.EventLimit, false), id: "side", want: []toldLine{
-			{kind: status.EventStarted, full: "c61b started here"},
+			{kind: status.EventStarted, full: "c61b started here, the best"},
 			{kind: status.EventMoved, full: "3 sessions came from work: work reached its 5-hour limit", short: "3 came from work: work at its limit"}}},
 		{name: "a refusal, from the account it held back", doc: heldBackAt(status.EventRefused, false), id: "work", want: []toldLine{
 			{kind: status.EventRefused, full: "refused (401): 3 sessions moved to side", short: "refused (401): 3 moved to side"},
-			{kind: status.EventStarted, full: "7f3a started here"}}},
+			{kind: status.EventStarted, full: "7f3a started here, the best"}}},
 		{name: "a refusal, from the account its sessions moved to", doc: heldBackAt(status.EventRefused, false), id: "side", want: []toldLine{
-			{kind: status.EventStarted, full: "c61b started here"},
+			{kind: status.EventStarted, full: "c61b started here, the best"},
 			{kind: status.EventMoved, full: "3 sessions came from work: work refused (401)", short: "3 came from work: work refused (401)"}}},
 		{name: "a cap moving sessions to several accounts, from the account it held back", doc: spread, id: "work", want: []toldLine{
 			{kind: status.EventCap, full: "reached its cap: 2 sessions moved to other accounts", short: "at its cap: 2 moved to other accounts"}}},
@@ -99,8 +101,8 @@ func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
 		{name: "pressure on another account", doc: latelyOf(status.Event{Kind: status.EventPressure, Account: "personal"}), id: "side"},
 		{name: "a session starting on the account new sessions go to", doc: started("side", status.ReasonNew), id: "side", best: "side", want: []toldLine{
 			{kind: status.EventStarted, full: "c61b started here, the best"}}},
-		{name: "a session starting on the account, new sessions going elsewhere", doc: started("side", status.ReasonNew), id: "side", best: "work", want: []toldLine{
-			{kind: status.EventStarted, full: "c61b started here"}}},
+		{name: "a session starting on the router's best, new sessions going elsewhere since", doc: started("side", status.ReasonNew), id: "side", best: "work", want: []toldLine{
+			{kind: status.EventStarted, full: "c61b started here, the best"}}},
 		{name: "a session starting as pinned", doc: started("side", status.ReasonGlobalPin), id: "side", best: "side", want: []toldLine{
 			{kind: status.EventStarted, full: "c61b started here, as pinned"}}},
 		{name: "a session starting, passing over an account under pressure", doc: started("side", "new, personal under pressure"), id: "side", best: "side", want: []toldLine{
@@ -124,7 +126,7 @@ func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
 		{name: "every account's, a session starting on the best", doc: heldBackAt(status.EventCap, false), best: "side", want: []toldLine{
 			{kind: status.EventStarted, full: "c61b started on side, the best"},
 			{kind: status.EventCap, full: "work reached its cap: 3 sessions moved to side", short: "work at its cap: 3 moved to side"},
-			{kind: status.EventStarted, full: "7f3a started on work"}}},
+			{kind: status.EventStarted, full: "7f3a started on work, the best"}}},
 		{name: "every account's, a session starting as pinned", doc: started("side", status.ReasonPinned), best: "side", want: []toldLine{
 			{kind: status.EventStarted, full: "c61b started on side, as pinned"}}},
 		{name: "every account's, routing given back, a restart and the router's health", doc: unnamed},
@@ -139,6 +141,33 @@ func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
 				t.Errorf("%q's LATELY tells\n%q\nwant\n%q", tt.id, got, want)
 			}
 		})
+	}
+}
+
+// ", the best" is said of a session that started on the router's best, as
+// its reason says, as it started: whichever account ▲ marks since, or none,
+// each line LATELY tells of a start reads as it did, and no start whose
+// reason says another gains it.
+func TestTheBestIsSaidOfAStartAsItStartedWhereverTheBestIsSince(t *testing.T) {
+	doc := latelyOf(
+		status.Event{Kind: status.EventStarted, Account: "side", Session: "c61b2f8d", Reason: status.ReasonNew},
+		status.Event{Kind: status.EventStarted, Account: "work", Session: "7f3a5c90", Reason: status.Rescored(15 * time.Hour)},
+	)
+	want := map[string][]string{
+		"side": {"c61b started here, the best"},
+		"work": {"7f3a started here: rescored after 15h idle"},
+		"":     {"c61b started on side, the best", "7f3a started on work: rescored after 15h idle"},
+	}
+	for _, id := range slices.Sorted(maps.Keys(want)) {
+		for _, best := range []string{"side", "work", ""} {
+			var got []string
+			for _, l := range accountLately(doc, id, best) {
+				got = append(got, l.full)
+			}
+			if !slices.Equal(got, want[id]) {
+				t.Errorf("%q's LATELY, ▲ on %q since, tells %q, want %q", id, best, got, want[id])
+			}
+		}
 	}
 }
 

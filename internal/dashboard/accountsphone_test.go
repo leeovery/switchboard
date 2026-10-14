@@ -88,6 +88,9 @@ var (
 	// prime at 12:10 and leaves out db8a's move onto it at 13:22, which
 	// LATELY tells from work's side, as any move onto it (P12).
 	stackedMovedOn = spot{37, 0, 51}
+	// stackedBest is ", the best" after 7f3a's start on work's LATELY,
+	// which the frame leaves out, as startedBest has it.
+	stackedBest = spot{36, 26, 35}
 )
 
 // A phone's Compare and Detail are drawn as their frames, cell for cell, in
@@ -110,7 +113,7 @@ func TestAPhonesAccountsAreDrawnAsTheirFrames(t *testing.T) {
 		},
 		{
 			stem: "accounts-phone-detail-52", height: 41, shown: AccountsDetail, chosen: "work", in: region{top: 8, bottom: 39, right: 51},
-			passed: append(stackedOlderHaiku, stackedMovedOn),
+			passed: append(stackedOlderHaiku, stackedMovedOn, stackedBest),
 		},
 	}
 	for _, tt := range tests {

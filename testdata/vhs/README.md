@@ -527,10 +527,14 @@ frames):
   row 38 of `accounts-phone-detail-52`; in `accounts-detail-limit-160`, row 30, columns 37 to 160,
   the frame's `11:30  ◇ primed`, where the dashboard tells 41e0's start on personal,
   `12:47  ▲ 41e0 started here`, the bad hour's morning holding it and 9c2e's at 11:55 after its
-  prime at 10:54, as its 5-hour window resets at 15:54; in `accounts-detail-one-160`, `, the best`
-  after `7f3a started here`, row 29, columns 39 to 49, as 7f3a started on the router's best,
-  work (1901–1902); and there, the pressure event's mark, row 28, column 20, `●`, drawn before each
-  kind of event had a mark of its own, where the Log's marks give `◔`, in `accent.attention`.
+  prime at 10:54, as its 5-hour window resets at 15:54; `, the best` after 7f3a's start, as 7f3a
+  started on the router's best, as its reason says, wherever ▲ marks since (1901–1902), in
+  `accounts-detail-one-160`, after `7f3a started here`, row 29, columns 39 to 49, in
+  `accounts-detail-work-160`, row 29, columns 63 to 72, in `accounts-detail-all-160`, after
+  `7f3a started on work`, row 30, columns 66 to 75, and on a phone, row 37, columns 27 to 36 of
+  `accounts-phone-detail-52`; and in `accounts-detail-one-160`, the pressure event's mark, row 28,
+  column 20, `●`, drawn before each kind of event had a mark of its own, where the Log's marks give
+  `◔`, in `accent.attention`.
 - **Detail's key line** in `accounts-detail-sessions-160`, under Key lines drawn before the keys were
   swept, above.
 
