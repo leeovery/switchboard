@@ -695,6 +695,25 @@ func TestASessionsPageOverTheLogDrawsNoneOfTheLogsStateLine(t *testing.T) {
 	}
 }
 
+// A session's page open over the Log takes a click as the page does: on its
+// turns, never on the lines of the Log's table behind it.
+func TestASessionsPageOverTheLogTargetsNoneOfTheLogsLines(t *testing.T) {
+	f := pageFrame(t, moved(), 160, 37)
+	f.Log = cardPage(40)
+	var turns int
+	for _, target := range f.Targets(pageDoc(), sessionNow) {
+		switch target.On {
+		case OnRow:
+			t.Errorf("the Log's line %d is a target along row %d, under the page", target.Row, target.Y+1)
+		case OnTurn:
+			turns++
+		}
+	}
+	if turns == 0 {
+		t.Error("the page's turns are no targets, want a target each")
+	}
+}
+
 // Nothing travels a session's page, nor is a bar eased on it, nor a number
 // the request stream changes; row 7's windows are the account's own
 // numbers, which brighten as a look changes them, and move the frame while
