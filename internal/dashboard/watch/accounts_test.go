@@ -370,6 +370,29 @@ func TestEscEndsComparesFocus(t *testing.T) {
 	}
 }
 
+// esc closes what's open over Compare before it ends Compare's focus: help
+// and the routing card each close, the focus held; the next esc ends it.
+func TestEscClosesWhatsOpenOverCompareBeforeItEndsItsFocus(t *testing.T) {
+	for _, key := range []string{"?", "p"} {
+		t.Run(key, func(t *testing.T) {
+			h := accountsHarness(t, dashboard.AccountsShown{})
+			h.keys(rightKey)
+			h.deliver(h.press(key)...)
+			if h.model.open == nothingOpen {
+				t.Fatalf("%s opened nothing over Compare", key)
+			}
+			h.keys(escKey)
+			if s := h.model.accounts.shown; h.model.open != nothingOpen || !s.Focused || s.Focus != "work" {
+				t.Fatalf("%s then esc left %v open, Compare focused %v on %q; want it closed, the focus held on work", key, h.model.open, s.Focused, s.Focus)
+			}
+			h.keys(escKey)
+			if s := h.model.accounts.shown; s.Focused {
+				t.Errorf("the next esc left Compare focused on %q, want its focus ended", s.Focus)
+			}
+		})
+	}
+}
+
 // A frame too narrow for the columns Compare showed its focus among scrolls
 // them on to show it: ten accounts focused on acct-7 at 160 columns, six
 // showing, show acct-4 to acct-7 at 122, four showing, as the heading says.
