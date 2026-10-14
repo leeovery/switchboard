@@ -44,11 +44,11 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	d, on := s.decide(req)
 	if d.afresh {
 		s.probes.await(ctx, s.accounts.sendable(), s.state.due, probeWait, beforeChoosing)
-		d, on = s.decide(req)
+		d, on = s.decideAgain(req, d)
 	}
 	if d.noRoom {
 		s.recheck(ctx, req)
-		d, on = s.decide(req)
+		d, on = s.decideAgain(req, d)
 	}
 	if d.passedOver != "" {
 		notePressure(req, d)
@@ -75,12 +75,12 @@ func (s *scheduler) Answered(req Request, account, reason string) {
 }
 
 func (s *scheduler) Forget(req Request) (string, bool) {
-	back, ok := s.sessions.forget(req)
+	left, back, ok := s.sessions.forget(req)
 	switch {
 	case !ok:
 	case back == "":
 		logger.Debug("forgot a new session whose request went unanswered", "id", req.ID, "session", status.ShortID(req.Session), "model", req.Model)
-	default:
+	case back != left:
 		logger.Info("session back where it was before its request", "id", req.ID, "session", status.ShortID(req.Session), "model", req.Model, "account", back)
 	}
 	return back, ok
@@ -102,6 +102,17 @@ func (s *scheduler) decide(req Request) (decision, situation) {
 	}
 	on.req.Pin, on.pinnedAt = found.pin(req.Pin)
 	return decide(on), on
+}
+
+// decideAgain decides as decide does, and notes in the log where that
+// overturns was, the decision before: what's known changed between them.
+func (s *scheduler) decideAgain(req Request, was decision) (decision, situation) {
+	d, on := s.decide(req)
+	if d.account != was.account || d.reason != was.reason {
+		logger.Debug("decision overturned", "id", req.ID, "session", status.ShortID(req.Session), "model", req.Model,
+			"account", d.account, "reason", d.reason, "before", was.account, "reason_before", was.reason)
+	}
+	return d, on
 }
 
 // view is what a choice for req knows at now: an account the request has

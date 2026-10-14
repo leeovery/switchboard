@@ -176,79 +176,93 @@ func TestASessionStaysWhenFreshUsageFindsRoomOnItsAccount(t *testing.T) {
 	}
 }
 
-func TestAChoiceAfreshIsMadeAgainOnProbesThatEndedSinceItWasMade(t *testing.T) {
+func TestAChoiceIsMadeAgainOnProbesThatEndedSinceItWasMade(t *testing.T) {
+	spent := session
+	spent.Utilization, spent.Status = 1, quota.StatusRejected
+	roomOnBoth := map[string]quota.Probe{"work": probed(nil, session, laterWeek), "side": probed(nil, session, soonWeek)}
+	workFirst := map[string][]quota.Window{"work": {session, soonWeek}, "side": {session, laterWeek}}
 	tests := []struct {
 		name string
-		// kept are the accounts' windows as read 20 minutes ago, none where
-		// it's nil: the choice first decides on them.
-		kept map[string][]quota.Window
+		// look is the choice's step the readings land in, as readingsLandIn
+		// says.
+		look any
+		// kept are the accounts' windows as read age ago, none where it's nil:
+		// 20 minutes is stale, so await would probe them, and two minutes
+		// isn't, though recheck would.
+		kept   map[string][]quota.Window
+		age    time.Duration
+		landed map[string]quota.Probe
+		client string
+		want   Choice
+		// overturned is what the log tells of the decision the readings
+		// overturned, nil where they overturned none.
+		overturned []string
 	}{
-		{name: "nothing read, so no account has room"},
 		{
-			name: "read 20 minutes ago, work's quota needing using first",
-			kept: map[string][]quota.Window{"work": {session, soonWeek}, "side": {session, laterWeek}},
+			name:       "nothing read, so no account has room, as it looks for stale usage",
+			look:       (*probes).await,
+			landed:     roomOnBoth,
+			client:     "work",
+			want:       Choice{Account: "side", Reason: "new", New: true},
+			overturned: []string{"account=side", "reason=new", "before=work", `reason_before="no account has room"`},
+		},
+		{
+			name:       "read 20 minutes ago, work's quota needing using first, as it looks for stale usage",
+			look:       (*probes).await,
+			kept:       workFirst,
+			age:        20 * time.Minute,
+			landed:     roomOnBoth,
+			client:     "work",
+			want:       Choice{Account: "side", Reason: "new", New: true},
+			overturned: []string{"account=side", "reason=new", "before=work", "reason_before=new"},
+		},
+		{
+			name:   "read 20 minutes ago, and read the same since, as it looks for stale usage",
+			look:   (*probes).await,
+			kept:   workFirst,
+			age:    20 * time.Minute,
+			landed: map[string]quota.Probe{"work": probed(nil, session, soonWeek), "side": probed(nil, session, laterWeek)},
+			client: "work",
+			want:   Choice{Account: "work", Reason: "new", New: true},
+		},
+		{
+			name:       "read two minutes ago, neither with room, as it looks for accounts to probe again",
+			look:       (*scheduler).recheck,
+			kept:       map[string][]quota.Window{"work": {spent, laterWeek}, "side": {spent, soonWeek}},
+			age:        2 * time.Minute,
+			landed:     map[string]quota.Probe{"work": probed(nil, session, laterWeek), "side": probed(nil, spent, soonWeek)},
+			client:     "side",
+			want:       Choice{Account: "work", Reason: "new", New: true},
+			overturned: []string{"account=work", "reason=new", "before=side", `reason_before="no account has room"`},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clock := &testClock{now: start.Add(-20 * time.Minute)}
+			log := logstest.Capture(t)
+			clock := &testClock{now: start.Add(-tt.age)}
 			prober := &stubProber{}
 			r := newTestRouter(t, clock.read, prober)
 			for id, windows := range tt.kept {
 				r.state.record(id, windows, r.state.mark())
 			}
 			clock.now = start
-			// Once the choice has decided, as it looks for the accounts whose
-			// usage is stale, before it checks which are, readings of both
-			// land, as probes ending then record them: side's quota needs
-			// using first now, and neither is stale, so it waits for nothing.
-			landed := readingsLandIn(r, (*probes).await, map[string]quota.Probe{
-				"work": probed(nil, session, laterWeek),
-				"side": probed(nil, session, soonWeek),
-			})
+			landed := readingsLandIn(r, tt.look, tt.landed)
 
-			got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
+			got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: tt.client})
 			if !landed() {
-				t.Fatal("the readings never landed as the choice looked for the accounts whose usage is stale")
+				t.Fatal("the readings never landed in the choice's look")
 			}
-			if want := (Choice{Account: "side", Reason: "new", New: true}); got != want {
-				t.Errorf("Choose() = %+v, want %+v, chosen on what the probes read", got, want)
+			if got != tt.want {
+				t.Errorf("Choose() = %+v, want %+v, chosen on what the probes read", got, tt.want)
 			}
 			if got := prober.counts(); len(got) > 0 {
 				t.Errorf("probes = %v, want none: both accounts were read just now", got)
 			}
+			overturned := slices.Concat([]string{"level=DEBUG", `msg="decision overturned"`, "session=one", "model=" + opus}, tt.overturned)
+			if logged := log.Has(overturned...); logged != (tt.overturned != nil) {
+				t.Errorf("log reads\n%s\nwant a line with %q: %v", log, overturned, tt.overturned != nil)
+			}
 		})
-	}
-}
-
-func TestAChoiceWithNoRoomIsMadeAgainOnProbesThatEndedSinceItWasMade(t *testing.T) {
-	clock := &testClock{now: start.Add(-2 * time.Minute)}
-	prober := &stubProber{}
-	r := newTestRouter(t, clock.read, prober)
-	spent := session
-	spent.Utilization, spent.Status = 1, quota.StatusRejected
-	r.state.record("work", []quota.Window{spent, laterWeek}, r.state.mark())
-	r.state.record("side", []quota.Window{spent, soonWeek}, r.state.mark())
-	clock.now = start
-	// Read two minutes ago, neither account has room as the choice decides.
-	// Then, as it looks for those to probe again, having found both full,
-	// before it checks which are due a probe, readings of both land, as
-	// probes ending then record them: work reads room now, and side none
-	// still.
-	landed := readingsLandIn(r, (*scheduler).recheck, map[string]quota.Probe{
-		"work": probed(nil, session, laterWeek),
-		"side": probed(nil, spent, soonWeek),
-	})
-
-	got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "side"})
-	if !landed() {
-		t.Fatal("the readings never landed as the choice looked for the accounts to probe again")
-	}
-	if want := (Choice{Account: "work", Reason: "new", New: true}); got != want {
-		t.Errorf("Choose() = %+v, want %+v, chosen on what the probes read", got, want)
-	}
-	if got := prober.counts(); len(got) > 0 {
-		t.Errorf("probes = %v, want none: both accounts were read just now", got)
 	}
 }
 
@@ -547,6 +561,37 @@ func TestForgettingANewSessionLeavesTheAccountAnotherRequestWasChosenSince(t *te
 	}
 	if log.Has("forgot") {
 		t.Errorf("log reads\n%s\nwant nothing forgotten", log)
+	}
+}
+
+func TestForgettingARequestLogsItsSessionBackOnlyWhereTheRequestMovedIt(t *testing.T) {
+	tests := []struct {
+		name string
+		// pin is the pin the request carries.
+		pin        string
+		wantLogged bool
+	}{
+		{name: "moved by the request", pin: "side", wantLogged: true},
+		{name: "stayed on by the request"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			r := newTestRouter(t, at(start), &stubProber{})
+			r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
+			r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
+			assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
+			req := Request{ID: "b2c3d4e5", Session: "one", Model: opus, Pin: tt.pin, Client: "work"}
+			choose(t.Context(), r, req)
+
+			if back, ok := r.proxy.chooser.Forget(req); back != "work" || !ok {
+				t.Fatalf("Forget() = %q, %v, want work, true", back, ok)
+			}
+			backOn := []string{"level=INFO", `msg="session back where it was before its request"`, "session=one", "account=work"}
+			if logged := log.Has(backOn...); logged != tt.wantLogged {
+				t.Errorf("log reads\n%s\nwant a line with %q: %v", log, backOn, tt.wantLogged)
+			}
+		})
 	}
 }
 
