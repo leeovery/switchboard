@@ -25,7 +25,8 @@ import (
 
 // daysCounted is a request ledger followed as it grows, as followed notes
 // its reads of today's, which notes too the dates of the days read whole,
-// and of the first day each read of the days' summaries is from.
+// and of the days' summaries read: the first each read from a day is from,
+// and each read by its date.
 type daysCounted struct {
 	followed
 	days, summed []string
@@ -39,6 +40,11 @@ func (l *daysCounted) Day(date string) []ledger.Held {
 func (l *daysCounted) Days(from time.Time) []ledger.Summary {
 	l.summed = append(l.summed, dayfile.DateOf(from))
 	return l.Ledger.Days(from)
+}
+
+func (l *daysCounted) DaysOn(dates []string) []ledger.Summary {
+	l.summed = append(l.summed, dates...)
+	return l.Ledger.DaysOn(dates)
 }
 
 // onTheLog has h show the Log, reading the request ledger in the state
@@ -539,12 +545,20 @@ type summariesAsked struct {
 }
 
 func (l *summariesAsked) Days(from time.Time) []ledger.Summary {
+	return l.told(l.daysCounted.Days(from))
+}
+
+func (l *summariesAsked) DaysOn(dates []string) []ledger.Summary {
+	return l.told(l.daysCounted.DaysOn(dates))
+}
+
+// told are the days a read of their summaries gave, as the read tells them.
+func (l *summariesAsked) told(days []ledger.Summary) []ledger.Summary {
 	l.asked++
 	ids := make([]string, l.asked)
 	for i := range ids {
 		ids[i] = fmt.Sprintf("s%d", i)
 	}
-	days := l.daysCounted.Days(from)
 	for i := range days {
 		days[i].Accounts = slices.Clone(days[i].Accounts)
 		for a := range days[i].Accounts {

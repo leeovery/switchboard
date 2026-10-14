@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -96,37 +97,38 @@ func TestEachDaysTotalsAreItsSummarysAsTheLedgerReadsItsDays(t *testing.T) {
 	}
 }
 
-// daysAsked reads a ledger's days, noting where each read of them is from.
+// daysAsked reads a ledger's days, noting the dates of each read of them by
+// their dates.
 type daysAsked struct {
-	views.LedgerDays
-	from []time.Time
+	views.LedgerDates
+	on [][]string
 }
 
-func (d *daysAsked) Days(from time.Time) []ledger.Summary {
-	d.from = append(d.from, from)
-	return d.LedgerDays.Days(from)
+func (d *daysAsked) DaysOn(dates []string) []ledger.Summary {
+	d.on = append(d.on, dates)
+	return d.LedgerDates.DaysOn(dates)
 }
 
 // The figures on a day given, at each hard moment, are its alone, as they
-// are among every day's, the ledger's days read once, from that day; none
-// where none is given.
+// are among every day's, the ledger's days read once, that day's alone,
+// however long ago it was; none where none is given.
 func TestTheTotalsOnTheDaysGivenAreEachDaysAlone(t *testing.T) {
 	for _, hm := range viewstest.DayMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
 			follower := ledgerIn(t, hm)
 			for _, want := range hm.Want {
-				days := &daysAsked{LedgerDays: follower}
+				days := &daysAsked{LedgerDates: follower}
 				got := views.TotalsOn(days, []string{want.Date}, hm.Now, ledger.Pricing)
 				if len(got) != 1 || !sameFigures(figuresOf(got[0]), want) {
 					t.Errorf("the totals on %s are %+v, want %+v alone", want.Date, got, want)
 				}
-				if start, _, _ := dayfile.Day(want.Date); len(days.from) != 1 || !days.from[0].Equal(start) {
-					t.Errorf("the ledger's days were read from %v, want once, from %s", days.from, want.Date)
+				if !slices.EqualFunc(days.on, [][]string{{want.Date}}, slices.Equal) {
+					t.Errorf("the ledger's days were read on %q, want once, on %s alone", days.on, want.Date)
 				}
 			}
-			days := &daysAsked{LedgerDays: follower}
-			if got := views.TotalsOn(days, nil, hm.Now, ledger.Pricing); got != nil || days.from != nil {
-				t.Errorf("given no day, the totals are %+v, the days read from %v; want none, nothing read", got, days.from)
+			days := &daysAsked{LedgerDates: follower}
+			if got := views.TotalsOn(days, nil, hm.Now, ledger.Pricing); got != nil || days.on != nil {
+				t.Errorf("given no day, the totals are %+v, the days read on %q; want none, nothing read", got, days.on)
 			}
 		})
 	}
