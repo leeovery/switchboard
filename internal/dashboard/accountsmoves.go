@@ -71,11 +71,16 @@ func (s AccountsShown) focusing(by int) (AccountsShown, bool) {
 	return s, changed
 }
 
-// FocusedOn is Accounts with Compare's focus on the column of the account
-// with the given id, "" for all accounts', as a click on its heads puts it
-// there; off Compare, as it is.
+// FocusedOn is Accounts as a click on the heads of Compare's column of the
+// account with the given id, "" for all accounts', has it: the focus put
+// there, or where it's there already, the column opened in Detail, as Opened
+// has it; off Compare, as it is.
 func (s AccountsShown) FocusedOn(id string) AccountsShown {
-	if s.View() == AccountsCompare {
+	switch {
+	case s.View() != AccountsCompare:
+	case s.Focused && s.Focus == id:
+		s, _ = s.Opened()
+	default:
 		s.Focused, s.Focus = true, id
 	}
 	return s

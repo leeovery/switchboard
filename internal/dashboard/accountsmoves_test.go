@@ -258,6 +258,10 @@ func TestAClickPutsTheFocusOrTheChoiceWhereItLands(t *testing.T) {
 	if got := compare.FocusedOn(""); !got.Focused || got.Focus != "" {
 		t.Errorf("a click on all accounts' heads focused %v on %q, want all accounts", got.Focused, got.Focus)
 	}
+	focused := AccountsShown{Accounts: threeConfigured, Focused: true, Focus: "side"}
+	if got := focused.FocusedOn("side"); got.View() != AccountsDetail || got.Chosen != "side" {
+		t.Errorf("a click on side's heads, focused, showed %d of %q, want Detail of side", got.View(), got.Chosen)
+	}
 
 	detail := AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Chosen: "work", InSessions: true, Selected: "7f3a"}
 	if got := detail.ChosenOn("side"); got.Chosen != "side" || got.InSessions || got.Selected != "" {

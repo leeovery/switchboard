@@ -189,32 +189,33 @@ func (m Model) openSelected(running []string) (Model, tea.Cmd) {
 // accountsClick acts on a click on Accounts, reporting false for one it
 // doesn't take, or on another tab, or under a session's page: on a sub-tab,
 // it shows it, as Showing has it; on a Compare column's heads, it focuses
-// it; on an account in Detail's list, it chooses it; and on a session in its
-// SESSIONS, it selects it. On the column focused, or the session selected,
-// it opens it, as enter does (settled in the plan). The page acts as acting
-// has it.
+// it, and on the one focused, opens it in Detail, as FocusedOn has it; on an
+// account in Detail's list, it chooses it; and on a session in its SESSIONS,
+// it selects it, and on the one selected, opens its page, as openSession
+// has it (settled in the plan). Each opens as enter does, but never through
+// the key, which the theme picker takes while it's open. The page acts as
+// acting has it.
 func (m Model) accountsClick(t dashboard.Target) (tea.Model, tea.Cmd, bool) {
 	if m.view != dashboard.Accounts || m.session != nil {
 		return m, nil, false
 	}
 	s := m.accounts.shown
 	var next dashboard.AccountsShown
-	var opens bool
 	switch t.On {
 	case dashboard.OnSubTab:
 		next, _ = s.Showing(t.SubTab)
 	case dashboard.OnColumn:
-		next, opens = s.FocusedOn(t.Account), s.Focused && s.Focus == t.Account
+		next = s.FocusedOn(t.Account)
 	case dashboard.OnAccount:
 		next = s.ChosenOn(t.Account)
 	case dashboard.OnSession:
-		next, opens = s.SelectedOn(t.Session), t.Session == s.Selection(m.running(m.now()))
+		if t.Session == s.Selection(m.running(m.now())) {
+			opened, cmd := m.openSession(t.Session)
+			return opened, cmd, true
+		}
+		next = s.SelectedOn(t.Session)
 	default:
 		return m, nil, false
-	}
-	if opens {
-		opened, cmd := m.pressed(namedPresses["enter"])
-		return opened, cmd, true
 	}
 	return m.acting().showAccounts(next), nil, true
 }
