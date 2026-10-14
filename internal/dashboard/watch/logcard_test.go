@@ -162,6 +162,33 @@ func TestTheLogsEventCardFollowsEachLook(t *testing.T) {
 	}
 }
 
+// An event's card, made of every line the Log read, is made again as its
+// table is, at a look: never at a frame, or as the pointer moves.
+func TestAnEventsCardIsMadeAgainOnlyAsItsTableIs(t *testing.T) {
+	capped := status.Event{ID: 1, At: past(-time.Minute), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Reserve: 0.05, To: "side"}
+	doc := routerDocument(three()...)
+	doc.Events = []status.Event{capped}
+	h := routedHarness(t, doc)
+	h.model.view = dashboard.Log
+	h.start()
+	h.typed("]")
+	h.keys(tea.KeyPressMsg{Code: tea.KeyUp}, tea.KeyPressMsg{Code: tea.KeyEnter})
+	opened := h.model.log.card.event
+	if opened == nil {
+		t.Fatal("no event's card is open")
+	}
+
+	h.deliver(frameMsg{gen: h.model.frames}, tea.MouseMotionMsg{X: 10, Y: 10})
+	if h.model.log.card.event != opened {
+		t.Error("a frame and the pointer moving made the cap's card again, want it made as its table is")
+	}
+	h.startRouter(doc)
+	h.tickUntilAsked()
+	if h.model.log.card.event == opened {
+		t.Error("a look left the cap's card as it was made, want it made again with its table")
+	}
+}
+
 // An event's card opened within views.FactsReach of the first day the Log
 // has read reads the day before, though its tables fill their views, so
 // what told of the event shows: a cap just after midnight, known from a
