@@ -162,18 +162,20 @@ var (
 // have two rows to page, reach every row they draw as tall as everything
 // fits, so the frame cuts nothing short that they can't scroll to, and say
 // on their first page that more lies below, where they page, but the Year,
-// as its frames draw it.
+// as its frames draw it. The Log's tables are passed over: they hold no
+// heading, say where they are on their own status line, and paging a day's
+// lines at every size would take the sweep's time many times over.
 func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 	for _, name := range Names() {
 		f := fixture(t, name)
-		if f.Printout {
+		if f.Printout || strings.HasPrefix(name, "log-") || strings.HasPrefix(name, "page-log-") {
 			continue
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
 			for _, width := range pagedWidths {
-				reached := reachOf(name, width)
+				reached, tall := reachOf(name, width), plainRows(m, width, tallest)
 				for _, height := range pagedHeights {
 					pages := pagesOf(m, width, height)
 					for _, p := range pages {
@@ -190,7 +192,7 @@ func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 					if first := pages[0]; len(pages) > 1 && !strings.Contains(name, "-year") && !saysMore(first.rows, "▼") {
 						t.Errorf("at %d×%d, the view pages, but its first page doesn't say more lies below:\n%s", width, height, strings.Join(first.rows, "\n"))
 					}
-					if missing := unreached(reached, pages, plainRows(m, width, tallest), width); len(missing) > 0 {
+					if missing := unreached(reached, pages, tall, width); len(missing) > 0 {
 						t.Errorf("at %d×%d, paged as far as it goes, the view never shows %d of the rows it draws at %d rows:\n%s", width, height, len(missing), tallest, strings.Join(missing, "\n"))
 					}
 				}
