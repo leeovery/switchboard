@@ -421,8 +421,8 @@ func (m Model) Init() tea.Cmd {
 
 // Update takes in a message, at the one time it came, as taking has it, as
 // take says, then has the watch read the router's request stream while it
-// wants it, and the ledger's days for History and the Log as they want
-// them, the Log's page built of what it holds, and only then, price the
+// wants it, and the ledger's days for History, the Log and its find as they
+// want them, the Log's page built of what it holds, and only then, price the
 // moves the routing card would make while it wants them.
 // Then, of the page as it stands at that moment, its Overview's sections
 // built once for each to share, it keeps the Overview's layout, but for a
@@ -439,6 +439,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, stream := next.(Model).tune()
 	tuned, past := tuned.readHistory()
 	tuned, logged := tuned.readLog()
+	tuned, found := tuned.readFind()
 	tuned, costs := tuned.costing()
 	page := tuned.frame(now).Built(tuned.doc, now)
 	if _, frame := msg.(frameMsg); !frame {
@@ -447,7 +448,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, stream, past, logged, costs, frames)
+	return tuned, tea.Batch(cmd, stream, past, logged, found, costs, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look
@@ -565,6 +566,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.tailed(msg), nil
 	case logReadMsg:
 		return m.logRead(msg), nil
+	case findReadMsg:
+		return m.findRead(msg), nil
 	case orderedMsg:
 		return m.ordered(msg)
 	case costedMsg:

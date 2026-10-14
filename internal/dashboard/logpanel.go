@@ -36,7 +36,7 @@ type LogPanel struct {
 	Accounts []status.AccountNow
 	// Sessions are today's sessions as views.LogSessions lists them: of
 	// Requests' panel, those with lines today; of Events', those with events
-	// today.
+	// today; and on either, the one the find picked while it's ticked.
 	Sessions []views.LogSession
 	// Now is when it was built, which its sessions' doing is said at.
 	Now time.Time
