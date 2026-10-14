@@ -750,6 +750,29 @@ func TestALookOnAccountsBrightensTheNumbersItChanged(t *testing.T) {
 	}
 }
 
+// A click on the heading's < or > steps the period Compare and Detail share,
+// as the key does: < to a shorter one and > to a longer, no further than
+// today or the last 12 weeks.
+func TestAClickOnTheHeadingsLessOrMoreStepsAccountsPeriod(t *testing.T) {
+	for name, shown := range map[string]dashboard.AccountsView{"Compare": dashboard.AccountsCompare, "Detail": dashboard.AccountsDetail} {
+		t.Run(name, func(t *testing.T) {
+			h := accountsHarness(t, dashboard.AccountsShown{Shown: shown})
+			for i, step := range []struct {
+				way  int
+				want views.AccountsPeriod
+			}{
+				{-1, views.AccountsToday}, {-1, views.AccountsToday}, {1, views.AccountsThisWeek},
+				{1, views.AccountsThirtyDays}, {1, views.AccountsTwelveWeeks}, {1, views.AccountsTwelveWeeks},
+			} {
+				h.clickWhere(onStep(step.way))
+				if got := h.model.accounts.shown; got.Period != step.want || got.Shown != shown {
+					t.Fatalf("after click %d, on the step %+d, Accounts shows %d over %q, want %d over %q", i+1, step.way, got.Shown, got.Period, shown, step.want)
+				}
+			}
+		})
+	}
+}
+
 // A look that reads today's days afresh brightens the period's figures on
 // Accounts it changes, drawn before and after at the one moment, as History's
 // do: work's requests and all accounts', on Compare and on Detail; never

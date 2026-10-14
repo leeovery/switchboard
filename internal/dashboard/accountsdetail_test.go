@@ -586,6 +586,66 @@ func TestDetailSaysWhatOfItsListIsOutOfView(t *testing.T) {
 	}
 }
 
+// With one account and sessions running on it, there's no list: SESSIONS
+// stands at the panel's left, column 0, on LATELY's row, LATELY beside it
+// latelyBeside columns in; the session selected is lit from a cell before
+// its ▸, which the frame's edge cuts to column 0, to sessionLit cells on; and
+// the enter line is two cells in, enterUnder rows under SESSIONS.
+func TestDetailOfOneAccountWithSessionsDrawsThemFromTheFramesLeft(t *testing.T) {
+	var sessions []status.Session
+	for i, id := range []string{"e04f2a71-6b3c-4d85-9e10-a2b3c4d5e6f7", "f19b3c82-7c4d-4e96-8f21-b3c4d5e6f7a8"} {
+		seat := status.Assignment{Model: opus, Family: "opus", Account: "work", Reason: status.ReasonNew, AssignedAt: routedClock(1, 14, 0), LastSeen: routedAt.Add(-time.Duration(i+1) * time.Minute)}
+		sessions = append(sessions, status.Session{ID: id, Assignments: []status.Assignment{seat}})
+	}
+	doc := aloneDoc()
+	f := detailFrame(Look{}, framedAccounts[:1], "", "", alonePage(t), sessions)
+	c := f.At(doc, routedAt).page(doc, routedAt)
+	rows := textOf(c.rows(Look{}))
+	y := rowWith(rows, "SESSIONS")
+	if y < 0 {
+		t.Fatalf("no SESSIONS drawn, want it, sessions running on work:\n%s", strings.Join(rows, "\n"))
+	}
+	if !strings.HasPrefix(rows[y], "SESSIONS  now") || columnOf(rows[y], "LATELY") != latelyBeside {
+		t.Errorf("SESSIONS' row reads %q, want SESSIONS from column 0, LATELY from %d", rows[y], latelyBeside)
+	}
+	if !strings.HasPrefix(rows[y+1], "▸ ") {
+		t.Errorf("the first session's row reads %q, want ▸ at column 0, it selected", rows[y+1])
+	}
+	for x := range sessionLit {
+		if lit := c.at(x, y+1).ink.on.token == theme.BgSelection; lit != (x < sessionLit-1) {
+			t.Errorf("column %d of the session selected is lit %v, want columns 0 to %d lit", x, lit, sessionLit-2)
+		}
+	}
+	if columnOf(rows[y+enterUnder], "enter opens") != enterIn {
+		t.Errorf("%d rows under SESSIONS reads %q, want enter opens from column %d", enterUnder, rows[y+enterUnder], enterIn)
+	}
+}
+
+// Detail's USAGE cues a window's words as they turn to out ~, as the
+// Overview's do, while the frame's TurnedOut says, and no other window's.
+func TestDetailsUSAGECuesAWindowsWordsAsTheyTurnOut(t *testing.T) {
+	doc := threeRouted()
+	f := detailFrame(Screen(builtin(t, "nord")), framedAccounts, "work", "", nil, nil)
+	f.TurnedOut = map[Ref]float64{{Account: "work", Window: "5h"}: 0.25}
+	c := f.At(doc, now).page(doc, now)
+	rows := textOf(c.rows(Look{}))
+	cue := hue{token: theme.BgAttention, fade: 0.25}
+	for _, tt := range []struct {
+		window string
+		cued   bool
+	}{{window: "5-hour", cued: true}, {window: "Week"}} {
+		y := rowWith(rows, tt.window)
+		x := columnOf(rows[y], "out ~")
+		if tt.cued != (x >= 0) {
+			t.Fatalf("%s's row reads %q, want out ~ in it %v", tt.window, rows[y], tt.cued)
+		}
+		x = max(x, columnOf(rows[y], "%")+3)
+		if got := c.at(x, y).ink.on; (got == cue) != tt.cued {
+			t.Errorf("%s's words, at column %d, are on %+v, want cued %v", tt.window, x, got, tt.cued)
+		}
+	}
+}
+
 // panelCells are the panel's cells of a row, trimmed.
 func panelCells(row string) string {
 	cells := []rune(row)
