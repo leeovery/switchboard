@@ -26,6 +26,13 @@ func (r *Reader) Between(from, to time.Time) iter.Seq[Reading] {
 	return Between(r.files, from, to, nil)
 }
 
+// Tail returns a read of the readings from start up to end, each window's
+// last from from up to start carried in, as a Day reads them: the first call
+// reads them whole, and each after only what the files gained since.
+func (r *Reader) Tail(from, start, end time.Time) func() []Reading {
+	return NewDay(r.files, from, start, end).Read
+}
+
 // Empty reads as a readings history that holds no reading, with no files to
 // read: for one who reads the history where there's none to find.
 type Empty struct{}
@@ -33,4 +40,9 @@ type Empty struct{}
 // Between returns no reading.
 func (Empty) Between(time.Time, time.Time) iter.Seq[Reading] {
 	return func(func(Reading) bool) {}
+}
+
+// Tail returns a read that gives no reading.
+func (Empty) Tail(time.Time, time.Time, time.Time) func() []Reading {
+	return func() []Reading { return nil }
 }

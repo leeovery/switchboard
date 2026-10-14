@@ -119,16 +119,6 @@ func Over(d time.Duration) string {
 	return "last " + countdown(d, "%dm")
 }
 
-// About says about how long d is, as Runway's key says what a column spans:
-// to the five minutes, as "75 min", under two hours; else to the hour, as
-// "6h".
-func About(d time.Duration) string {
-	if d < 2*time.Hour {
-		return fmt.Sprintf("%d min", d.Round(5*time.Minute)/time.Minute)
-	}
-	return fmt.Sprintf("%dh", d.Round(time.Hour)/time.Hour)
-}
-
 // ColumnLength says how long a column of Runway's timeline is, as its legend
 // says it: in whole minutes where it's whole, "10 minutes"; else about that
 // long, to a tenth of a minute under 20 minutes, "≈ 10.6 minutes", a tenth

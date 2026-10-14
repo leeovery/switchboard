@@ -21,7 +21,7 @@ import (
 // namedKeys are the keys the routing card and History take that the
 // terminal sends by name, as a test names them.
 var namedKeys = map[string]tea.KeyPressMsg{
-	"up": upKey, "down": downKey, "space": spaceKey, "esc": escKey, "enter": {Code: tea.KeyEnter}, "right": {Code: tea.KeyRight},
+	"up": upKey, "down": downKey, "space": spaceKey, "esc": escKey, "enter": {Code: tea.KeyEnter}, "right": {Code: tea.KeyRight}, "left": {Code: tea.KeyLeft},
 }
 
 // keyed presses the keys given, a space between each, as "2 3 m enter", in

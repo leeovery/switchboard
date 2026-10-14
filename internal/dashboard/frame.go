@@ -61,8 +61,6 @@ type Frame struct {
 	// column of every trace that shows on the page, never less than 8.
 	Traces     views.Traces
 	TraceScale float64
-	// Span is how far ahead Runway looks, as w switches it.
-	Span Span
 	// Sessions are the sessions the router listed, the one seen last first,
 	// for Sessions' calls, SESSIONS and ROUTING's counts: nil where it listed
 	// none, as while probing, and each account's sessions are counted as the
@@ -116,6 +114,9 @@ type Frame struct {
 	// SessionsTab is Sessions' sub-tab shown, its Switchboard and its List as
 	// the watch built them at the look, and the row chosen.
 	SessionsTab SessionsShown
+	// Runway is Runway's window, the day or week stepped back to, and its
+	// timeline, lanes and COMING UP as the watch built them at the look.
+	Runway RunwayShown
 	// Session is the session's page open, drawn in place of the view: nil
 	// while none is.
 	Session *SessionShown
@@ -337,8 +338,9 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 // its turns' rows, across the frame; on the Overview, USAGE's body, as
 // overviewScrolls has it; on Accounts, as accountsScrolls has it; on
 // History, what of its sub-tab shown does, as historyScrolls has it, across
-// the frame; on Sessions, as sessionsScrolls has it; on the Log, its table's
-// lines, under its heads; elsewhere, the view's rows.
+// the frame; on Sessions, as sessionsScrolls has it; on Runway, as
+// runwayScrolls has it; on the Log, its table's lines, under its heads;
+// elsewhere, the view's rows.
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
 	if f.Session != nil {
 		l := f.sessionLayout(len(f.Session.Page.Accounts))
@@ -354,6 +356,8 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 		return 0, y, f.Width, rows
 	case Sessions:
 		return f.sessionsScrolls(doc, now)
+	case Runway:
+		return f.runwayScrolls(doc, now)
 	case Log:
 		return 0, f.top() + 1, f.Width, f.LogRows()
 	}

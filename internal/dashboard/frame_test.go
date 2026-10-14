@@ -76,20 +76,6 @@ func routerDoc(best string, sessions int, accounts ...status.Account) status.Doc
 	}.WorkedOut(claudeLike)
 }
 
-// builtAt is the healthy router's document of the accounts as it built it
-// at the moment given, each as it stood then, as AsOf has it, with what's
-// worked out of it.
-func builtAt(at time.Time, accounts ...status.Account) status.Document {
-	built := make([]status.Account, len(accounts))
-	for i, a := range accounts {
-		built[i] = a.AsOf(claudeLike, at.UTC())
-	}
-	return status.Document{
-		GeneratedAt: at.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true},
-		Accounts: built,
-	}.WorkedOut(claudeLike)
-}
-
 // probed is a document of the accounts built by probing, the router not
 // running, with what's worked out of it, as the dashboard is given it.
 func probed(accounts ...status.Account) status.Document {
@@ -166,15 +152,15 @@ func TestThePageDrawsEachPartOnItsRow(t *testing.T) {
 		first                      string
 	}{
 		{name: "the Overview, whose sections head themselves", width: 160, view: Overview, status: 2, heading: -1, top: 4, first: "USAGE"},
-		{name: "Runway", width: 160, view: Runway, status: 2, heading: 4, top: 6, first: textsAt(160, map[int]string{27: "now"})},
+		{name: "the Log", width: 160, view: Log, status: 2, heading: 4, top: 6, first: "  at        session"},
 		{name: "the Overview on a phone", width: 52, view: Overview, tabs: 1, status: 3, heading: -1, top: 5, first: "USAGE"},
-		{name: "Runway on a phone", width: 52, view: Runway, tabs: 1, status: 3, heading: 5, top: 7, first: textsAt(52, map[int]string{22: "now"})},
-		{name: "a phone of 99 columns", width: 99, view: Runway, tabs: 1, status: 3, heading: 5, top: 7, first: textsAt(99, map[int]string{24: "now"})},
+		{name: "the Log on a phone", width: 52, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at       session"},
+		{name: "a phone of 99 columns", width: 99, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at       session"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(tt.width, 40)
-			f.View = tt.view
+			f.View, f.Log.Read = tt.view, true
 			rows := textOf(f.Draw(runwayThree(), now))
 
 			if !strings.HasPrefix(rows[0], " SWITCHBOARD ") || !strings.Contains(rows[tt.tabs], " Overview ") {
@@ -183,7 +169,7 @@ func TestThePageDrawsEachPartOnItsRow(t *testing.T) {
 			if !strings.HasPrefix(rows[tt.status], "● healthy") {
 				t.Errorf("row %d reads %q, want the status line", tt.status+1, rows[tt.status])
 			}
-			if tt.heading >= 0 && !strings.HasPrefix(rows[tt.heading], strings.ToUpper(tt.view.Title())+"  ─") {
+			if tt.heading >= 0 && !strings.HasPrefix(rows[tt.heading], strings.ToUpper(tt.view.Title())+"  ") {
 				t.Errorf("row %d reads %q, want the heading row", tt.heading+1, rows[tt.heading])
 			}
 			if !strings.HasPrefix(rows[tt.top], tt.first) {
@@ -211,14 +197,14 @@ func TestATerminalTooShortForTheViewDrawsTheTitleRowTheStatusLineAndTheKeyLineAl
 		least int
 	}{
 		{name: "the Overview", width: 160, view: Overview, least: 9},
-		{name: "a tab with a heading row", width: 160, view: Runway, least: 11},
+		{name: "a tab with a heading row", width: 160, view: Log, least: 11},
 		{name: "the Overview on a phone", width: 52, view: Overview, least: 10},
-		{name: "a phone's tab with a heading row", width: 52, view: Runway, least: 12},
+		{name: "a phone's tab with a heading row", width: 52, view: Log, least: 12},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(tt.width, tt.least-1)
-			f.View = tt.view
+			f.View, f.Log.Read = tt.view, true
 			for y, row := range textOf(f.Draw(threeRouted(), now)) {
 				switch {
 				case y < f.titleRows():
@@ -285,7 +271,7 @@ func TestATerminalOfAFewRowsDrawsWhatFits(t *testing.T) {
 	}
 }
 
-func TestATabNotBuiltDrawsItsHeadingRowAloneAndExplainsNoGlyphs(t *testing.T) {
+func TestATabNotBuiltDrawsItsHeadingRowAloneAndHelpExplainsNothing(t *testing.T) {
 	for _, v := range []View{"a-later-view"} {
 		f := frameOf(160, 40)
 		f.View = v
@@ -300,8 +286,8 @@ func TestATabNotBuiltDrawsItsHeadingRowAloneAndExplainsNoGlyphs(t *testing.T) {
 				t.Errorf("on %s, row %d = %q, want nothing drawn of a tab not built", v, i+6, row)
 			}
 		}
-		if glyphs := f.glyphs(); glyphs != nil {
-			t.Errorf("on %s, the glyphs explained are %v, want none", v, glyphs)
+		if parts := f.helpParts(); parts != nil {
+			t.Errorf("on %s, help explains %v, want nothing", v, parts)
 		}
 	}
 }

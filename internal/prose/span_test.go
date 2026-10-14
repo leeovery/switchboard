@@ -61,26 +61,6 @@ func TestADurationIsInWholeUnitsAsCountdownSaysIt(t *testing.T) {
 	}
 }
 
-func TestAboutIsToTheFiveMinutesUnderTwoHoursThenToTheHour(t *testing.T) {
-	tests := []struct {
-		d    time.Duration
-		want string
-	}{
-		{d: 12 * time.Minute, want: "10 min"},
-		{d: 12*time.Minute + 30*time.Second, want: "15 min"},
-		{d: 75 * time.Minute, want: "75 min"},
-		{d: 2*time.Hour - time.Second, want: "120 min"},
-		{d: 2 * time.Hour, want: "2h"},
-		{d: 6*time.Hour + 29*time.Minute, want: "6h"},
-		{d: 6*time.Hour + 30*time.Minute, want: "7h"},
-	}
-	for _, tt := range tests {
-		if got := prose.About(tt.d); got != tt.want {
-			t.Errorf("About(%v) = %q, want %q", tt.d, got, tt.want)
-		}
-	}
-}
-
 // A column of Runway's timeline is said in whole minutes where it's whole,
 // else about as long: to a tenth of a minute under 20 minutes, a tenth that
 // rounds whole said whole, and to the minute from 20.

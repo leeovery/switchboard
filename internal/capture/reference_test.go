@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
@@ -1093,7 +1092,7 @@ func TestEveryFramesANSIParsesToItsText(t *testing.T) {
 }
 
 func TestEveryFixtureNamedAfterAFrameDrawsItCellForCell(t *testing.T) {
-	utc := fixturesIn(time.UTC)
+	utc := local()
 	canvas := rgb(terminalBackground.R, terminalBackground.G, terminalBackground.B)
 	names := Names()
 	for _, stem := range stems(t) {

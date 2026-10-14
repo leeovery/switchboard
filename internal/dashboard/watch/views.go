@@ -61,13 +61,6 @@ func (m Model) keepPrefs(what string, change func(*theme.Prefs), attrs ...any) {
 	}
 }
 
-// nextSpan switches how far ahead Runway looks, as w does there, from the
-// day to the week, and back.
-func (m Model) nextSpan() Model {
-	m.span = m.span.Next()
-	return m
-}
-
 // toggle shows the Overview's section given where it's hidden, and hides it
 // where it shows, as its key does, and keeps the sections shown, for the next
 // watch to open with.

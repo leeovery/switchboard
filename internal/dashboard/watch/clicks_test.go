@@ -89,14 +89,14 @@ func TestAClickOnATabShowsItFromItsTopAndKeepsIt(t *testing.T) {
 }
 
 func TestAClickOnTheTabShownChangesNothing(t *testing.T) {
-	h := runwayHarness(t, runwaySize)
+	h := yearHarness(t, yearSize)
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs = prefs
 	h.press("j")
 
-	target := h.tabTarget(dashboard.Runway)
+	target := h.tabTarget(dashboard.History)
 	h.click(target.X, target.Y)
-	if h.model.view != dashboard.Runway || h.model.scroll != 1 || prefs.updates != 0 {
+	if h.model.view != dashboard.History || h.model.scroll != 1 || prefs.updates != 0 {
 		t.Errorf("a click on the tab shown showed %q scrolled %d, keeping it %d times; want it as it was, a row down, nothing kept", h.model.view, h.model.scroll, prefs.updates)
 	}
 }

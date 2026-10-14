@@ -13,7 +13,7 @@ func clickable(width, height int, v View) Frame {
 	f := frameOf(width, height)
 	f.View = v
 	f.KeyLine = KeyLine{Groups: [][]Key{
-		{{Key: "tab", Does: "views"}}, {{Key: "w", Does: "window: day"}}, {{Key: "p", Does: "pin"}}, {{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}},
+		{{Key: "tab", Does: "views"}}, {{Key: "< >", Does: "window"}}, {{Key: "p", Does: "pin"}}, {{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}},
 	}, Lead: 3}
 	return f
 }
@@ -37,6 +37,8 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 				tabs, want = append(tabs, tt.Tab), " "+tt.Tab.Title()+" "
 			case OnSubTab:
 				want = " " + f.heading().subTabs[tt.SubTab] + " "
+			case OnStep:
+				want = map[int]string{-1: "<", 1: ">"}[tt.Step]
 			case OnKey:
 				i := slices.IndexFunc(f.keysAt(), func(k keyAt) bool { return k.key.Key == tt.Key })
 				keys, want = append(keys, tt.Key), f.keysAt()[i].key.words().plain()
@@ -57,7 +59,7 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 		if !slices.Equal(tabs, Views()) {
 			t.Errorf("at %d columns, the tabs' targets are %v, want the six tabs'", f.Width, tabs)
 		}
-		if want := []string{"tab", "w", "?"}; !slices.Equal(keys, want) {
+		if want := []string{"tab", "< >", "?"}; !slices.Equal(keys, want) {
 			t.Errorf("at %d columns, the key line's targets are %q, want %q: never p pin, as no click opens the routing card, nor q quit", f.Width, keys, want)
 		}
 	}

@@ -66,16 +66,19 @@ between a day, a week and a month; v cycles what the Year shows, all use, a
 model version or an account, Weeks' shape, and how Tokens splits each
 period; and ← and → step the Year shown for one account between the
 accounts. Each is kept for the next dashboard, but a calendar year stepped
-back to. On Runway, w shows the day or the week. j, k, PgDn, PgUp and the
-wheel scroll the view where it doesn't fit: on the Overview, USAGE, where
-its accounts don't, and on History, the Year, Weeks' accounts, Days' BY
-ACCOUNT and Tokens' periods. p opens the routing card, which picks the
-accounts new sessions go to and changes nothing until enter; ? the page's
-help; esc closes either, or the theme picker. R refreshes, t opens the
-theme picker, q quits, and ctrl-c quits wherever it is. A click on a tab
-shows it; on a key of the key line, does what the key does, but p and q;
-on History, on a view's name shows it, and on < or > by its period steps
-it; and on the Overview, on a section's heading hides it, and on an
+back to. On Runway, < and > move between the 5-hour and the week views, kept
+for the next dashboard; ← steps back to today, then a day at a time, or to
+this week, then a week at a time, and → on again to the live view. j, k,
+PgDn, PgUp and the wheel scroll the view where it doesn't fit: on the
+Overview, USAGE, where its accounts don't, and on History, the Year, Weeks'
+accounts, Days' BY ACCOUNT and Tokens' periods. p opens the routing card,
+which picks the accounts new sessions go to and changes nothing until
+enter; ? the page's help; esc closes either, or the theme picker. R
+refreshes, t opens the theme picker, q quits, and ctrl-c quits wherever it
+is. A click on a tab shows it; on a key of the key line, does what the key
+does, but p and q; on History, on a view's name shows it, and on < or > by
+its period steps it; on Runway, on < or > by its window, moves between the
+views; and on the Overview, on a section's heading hides it, and on an
 account's row moves the focus there.
 
 While the router runs, it posts the desktop notifications, --probe or not;
@@ -163,6 +166,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		By:            keptBy(kept.By, cfg.Usage.By),
 		AccountsShown: dashboard.AccountsKept(kept.Accounts),
 		SessionsShown: dashboard.SessionsKept(kept.Sessions),
+		RunwayShown:   dashboard.RunwayKept(kept.Runway),
 		History:       dashboard.HistoryKept(kept.History, cfg.Accounts),
 		Log:           dashboard.LogKept(kept.Log),
 		LedgerKeep:    cfg.Ledger.Keep,

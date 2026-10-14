@@ -2,6 +2,7 @@ package readings
 
 import (
 	"cmp"
+	"iter"
 	"maps"
 	"slices"
 	"strings"
@@ -108,15 +109,44 @@ func (d *Day) Read() []Reading {
 		}
 		ofDay += len(file.day) + 1
 	}
-	read := slices.AppendSeq(make([]Reading, 0, len(last)+ofDay), maps.Values(last))
-	slices.SortFunc(read, byWindowRead)
+	day := make([]Reading, 0, ofDay)
 	for _, file := range d.files {
-		read = append(read, file.day...)
+		day = append(day, file.day...)
 		if cut, ok := file.tail.Cut(); ok && d.span.of(cut) == during {
-			read = append(read, cut)
+			day = append(day, cut)
 		}
 	}
-	slices.SortStableFunc(read[len(last):], func(a, b Reading) int { return a.At.Compare(b.At) })
+	return last.then(day)
+}
+
+// Carried returns what a Day from from, starting at start and ending at end,
+// reads of the readings given, oldest first, as its Read returns them: the
+// last reading of each window from from up to start, then those from start
+// up to end. It's for a reader that holds the history's readings itself, as
+// a Day reads them from the files.
+func Carried(read iter.Seq[Reading], from, start, end time.Time) []Reading {
+	s := span{from: from, start: start, end: end}
+	last := make(lastRead)
+	var day []Reading
+	for r := range read {
+		switch s.of(r) {
+		case before:
+			last.keep(r)
+		case during:
+			day = append(day, r)
+		}
+	}
+	return last.then(day)
+}
+
+// then is the last reading of each window, ordered by when they were read,
+// then by their accounts' ids and their windows' keys, then the day's, by
+// when each was read, those read at one time in the order given.
+func (l lastRead) then(day []Reading) []Reading {
+	read := slices.AppendSeq(make([]Reading, 0, len(l)+len(day)), maps.Values(l))
+	slices.SortFunc(read, byWindowRead)
+	read = append(read, day...)
+	slices.SortStableFunc(read[len(l):], func(a, b Reading) int { return a.At.Compare(b.At) })
 	return read
 }
 

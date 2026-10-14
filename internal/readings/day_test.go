@@ -152,5 +152,8 @@ func TestADaysReadingsReadAsTheyGrowAreThoseAWholeReadGivesItsSummary(t *testing
 		if !slices.EqualFunc(got, want, sameReading) {
 			t.Errorf("%s: Read() =\n%+v\nwant\n%+v, as a whole read gives", step.name, got, want)
 		}
+		if got := readings.Carried(readings.Between(files, from, end, nil), from, start, end); !slices.EqualFunc(got, want, sameReading) {
+			t.Errorf("%s: Carried() =\n%+v\nwant\n%+v, as a whole read gives", step.name, got, want)
+		}
 	}
 }

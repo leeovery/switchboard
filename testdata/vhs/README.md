@@ -94,8 +94,7 @@ frame, with the cells `cells_test.go` reads and compares:
 - **What's owed:** `owed`, in `reference_test.go`, names the frames no fixture draws yet. Every
   frame is drawn by a fixture of its stem's name or owed, never both. A stage that builds a view
   adds its fixtures, named after its frames, and deletes their stems from `owed`, and from then on
-  they're held; it's empty by stage 14. Milestone 5's fixtures, none named after a frame, are held
-  to nothing, and go as their views do.
+  they're held; it's empty by stage 14.
 - **What's held of a frame owed:** `holds`, beside `owed`, holds part of a frame no fixture draws
   yet, drawn over the frame's world with the keys that reach it, at the frame's size, and compared
   as a whole frame is, cell for cell, but over that part alone (`compareWithin`, in
@@ -831,10 +830,9 @@ go run ./cmd/capturetool --fixture <name>
 The fixture runs full screen, at the size the terminal gives, until `q`. An empty or unknown
 `--fixture` is an error that lists them all. Keys work as they do in the dashboard, though the
 router takes an order and changes nothing, and the clock stands still at the fixture's moment, so
-nothing moves of itself. A fixture named after a frame draws that frame, at its size; milestone
-5's, `runway-day-*` and `runway-week-3`, named after milestone 5's frames, stay until stage 13
-replaces Runway and deletes them. Stage 7 deleted its cards' `accounts-*`, and stage 12 its
-Sessions' `sessions-*` and storyboards, with their tapes.
+nothing moves of itself. A fixture named after a frame draws that frame, at its size. Stage 7
+deleted milestone 5's cards' `accounts-*`, stage 12 its Sessions' `sessions-*` and storyboards,
+and stage 13 its Runway's `runway-day-*` and `runway-week-3`, with their tapes.
 
 Stage 7's, `overview-*` and `routing-*`, draw the Overview's frames and the routing card's over it,
 each over its frame's world with the keys that reach it: `overview-by-account-160` with `b`,
@@ -1072,12 +1070,10 @@ before the moment drawn, then sets the clock to the moment, presses the fixture'
 then hands the model to Bubble Tea, which starts it reading nothing more. So there's no first
 paint to race, and nothing on screen moves until a key does.
 
-A fixture over milestone 5's samples is drawn at the frames' moment in a zone whose clocks never
-change, fixed as the zone it's asked for stands then, so it reads the same in every zone. One over a
-world, its records or, as `usage`'s printouts are, its status document alone, is built and drawn in
-the machine's own zone, `time.Local` itself, as the ledger, its readers and the views split days
-there, which a test can't change in process; the worlds are built there once, and every zone's
-fixtures share them. So its frame reads the same in any zone whose clocks don't change from the
+Every fixture is over a world, its records or, as `usage`'s printouts are, its status document
+alone, and is built and drawn at the frames' moment in the machine's own zone, `time.Local` itself,
+as the ledger, its readers and the views split days there, which a test can't change in process;
+the worlds are built there once. So its frame reads the same in any zone whose clocks don't change from the
 moment drawn to the weeks' resets. Capture's tests under `TZ` (11 October 2026), `usage`'s
 printouts held to their frames among them, pass in UTC, London, Tokyo, Los Angeles, Santiago,
 Havana and Auckland, and fail in Sydney, whose clocks go forward at 02:00 on Sunday 4 October:

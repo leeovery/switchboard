@@ -11,11 +11,12 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// twelve is the probe of twelve accounts, more than Runway shows at once in
-// a terminal of runwaySize.
+// twelve is the probe of twelve accounts, more than USAGE shows at once in a
+// short terminal.
 func twelve() status.Document {
 	accounts := make([]status.Account, 12)
 	for i := range accounts {
@@ -24,31 +25,34 @@ func twelve() status.Document {
 	return document(accounts...)
 }
 
-// runwaySize is a terminal Runway's lanes of twelve scroll in: 10 rows at
-// most, a page of 25.
-var runwaySize = tea.WindowSizeMsg{Width: 150, Height: 40}
+// yearSize is a terminal History's Year of a month's requests scrolls in: 8
+// rows at most, a page of 18.
+var yearSize = tea.WindowSizeMsg{Width: 150, Height: 26}
 
-// runwayHarness is a model of the probe of twelve, showing Runway, in a
-// terminal of the size given, started.
-func runwayHarness(t *testing.T, size tea.WindowSizeMsg) *harness {
+// yearHarness is a model of the router of three, showing History's Year of
+// the ledger's last 30 days, ten requests each, in a terminal of the size
+// given, started.
+func yearHarness(t *testing.T, size tea.WindowSizeMsg) *harness {
 	t.Helper()
-	h := newHarness(t, twelve())
-	h.model.view = dashboard.Runway
-	h.update(size)
+	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
+	for i := range 30 {
+		date := dayfile.DateOf(dayfile.DayStart(start.Local(), -i))
+		l.days[date] = requested(date, 10)
+	}
+	h.deliver(h.update(size)...)
 	h.start()
 	return h
 }
 
-// scrolled is the first row of Runway's lanes the screen shows, at
-// runwaySize, under its timeline.
+// scrolled is the first row of what scrolls the screen shows.
 func (h *harness) scrolled() string {
-	return strings.Split(h.view(), "\n")[13]
+	return strings.Split(h.view(), "\n")[h.overTheView()]
 }
 
 func TestScrollKeysScrollTheViewNoFurtherThanItGoes(t *testing.T) {
-	h := runwayHarness(t, runwaySize)
-	if got := h.model.scrolling(); got.Most != 10 || got.Page != 25 {
-		t.Fatalf("scrolling() = %+v, want 10 rows at most, a page of 25", got)
+	h := yearHarness(t, yearSize)
+	if got := h.model.scrolling(); got.Most != 8 || got.Page != 18 {
+		t.Fatalf("scrolling() = %+v, want 8 rows at most, a page of 18", got)
 	}
 	steps := []struct {
 		name string
@@ -58,8 +62,8 @@ func TestScrollKeysScrollTheViewNoFurtherThanItGoes(t *testing.T) {
 		{name: "j, a row down", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: 1},
 		{name: "j again", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: 2},
 		{name: "k, a row up", key: tea.KeyPressMsg{Code: 'k', Text: "k"}, want: 1},
-		{name: "PgDn, a page, but no further than it goes", key: tea.KeyPressMsg{Code: tea.KeyPgDown}, want: 10},
-		{name: "j at the foot, nowhere", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: 10},
+		{name: "PgDn, a page, but no further than it goes", key: tea.KeyPressMsg{Code: tea.KeyPgDown}, want: 8},
+		{name: "j at the foot, nowhere", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: 8},
 		{name: "PgUp, a page, but no further than the top", key: tea.KeyPressMsg{Code: tea.KeyPgUp}, want: 0},
 		{name: "k at the top, nowhere", key: tea.KeyPressMsg{Code: 'k', Text: "k"}, want: 0},
 	}
@@ -71,20 +75,17 @@ func TestScrollKeysScrollTheViewNoFurtherThanItGoes(t *testing.T) {
 	}
 }
 
-func TestScrollingMovesTheLanesUnderTheTimelineWhichStaysPut(t *testing.T) {
-	h := runwayHarness(t, runwaySize)
-	above := strings.Split(h.view(), "\n")[:13]
+func TestScrollingMovesWhatScrollsUnderTheRowsOverItWhichStayPut(t *testing.T) {
+	h := yearHarness(t, yearSize)
+	y := h.overTheView()
+	above, first := strings.Split(h.view(), "\n")[:y], h.scrolled()
 
 	h.press("j")
-	if got := h.scrolled(); !strings.Contains(got, "room all day") {
-		t.Errorf("a row down, the first row shown is %q, want the lanes' second", got)
+	if got := h.scrolled(); got == first {
+		t.Errorf("a row down, the first row shown is still %q, want the next", got)
 	}
-	if got := strings.Split(h.view(), "\n")[:13]; strings.Join(got, "\n") != strings.Join(above, "\n") {
-		t.Errorf("the title row, the status line and the timeline moved, to\n%s", strings.Join(got, "\n"))
-	}
-	lines := strings.Split(h.view(), "\n")
-	if got := strings.TrimSpace(lines[38]); got != "▲ 1 more account above · ▼ 3 more accounts below · j/k or wheel to scroll" {
-		t.Errorf("the line over the key line says %q, want what's out of view", got)
+	if got := strings.Split(h.view(), "\n")[:y]; strings.Join(got, "\n") != strings.Join(above, "\n") {
+		t.Errorf("the title row, the status line and the heading row moved, to\n%s", strings.Join(got, "\n"))
 	}
 }
 
@@ -108,28 +109,28 @@ func (h *harness) wheel(button tea.MouseButton, x, y int) {
 }
 
 func TestTheWheelScrollsTheViewUnderThePointerAndNothingElse(t *testing.T) {
-	for _, size := range []tea.WindowSizeMsg{runwaySize, {Width: 52, Height: 30}} {
+	for _, size := range []tea.WindowSizeMsg{yearSize, {Width: 52, Height: 30}} {
 		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
-			h := runwayHarness(t, size)
+			h := yearHarness(t, size)
 			most := h.model.scrolling().Most
 			if most == 0 {
-				t.Fatalf("the lanes scroll no rows at %dx%d, want some", size.Width, size.Height)
+				t.Fatalf("the Year scrolls no rows at %dx%d, want some", size.Width, size.Height)
 			}
-			laneX, laneY := h.drawnAt(" 1 Account A")
+			yearX, yearY := 10, h.overTheView()
 
-			h.wheel(tea.MouseWheelDown, laneX, laneY)
+			h.wheel(tea.MouseWheelDown, yearX, yearY)
 			if want := min(wheelRows, most); h.model.scroll != want {
-				t.Errorf("a turn down over the lanes scrolled %d rows, want %d", h.model.scroll, want)
+				t.Errorf("a turn down over the Year scrolled %d rows, want %d", h.model.scroll, want)
 			}
-			h.wheel(tea.MouseWheelUp, laneX+1, laneY)
+			h.wheel(tea.MouseWheelUp, yearX+1, yearY)
 			if h.model.scroll != 0 {
-				t.Errorf("a turn up over the lanes scrolled to %d, want their top", h.model.scroll)
+				t.Errorf("a turn up over the Year scrolled to %d, want its top", h.model.scroll)
 			}
-			for _, text := range []string{" SWITCHBOARD ", " Runway ", "○ probed", "q quit"} {
+			for _, text := range []string{" SWITCHBOARD ", " Runway ", "● healthy", "q quit"} {
 				x, y := h.drawnAt(text)
 				h.wheel(tea.MouseWheelDown, x, y)
 				if h.model.scroll != 0 {
-					t.Errorf("a turn down over %q, at %d,%d, scrolled the lanes %d rows, want none", text, x, y, h.model.scroll)
+					t.Errorf("a turn down over %q, at %d,%d, scrolled the Year %d rows, want none", text, x, y, h.model.scroll)
 				}
 			}
 		})
@@ -137,18 +138,18 @@ func TestTheWheelScrollsTheViewUnderThePointerAndNothingElse(t *testing.T) {
 }
 
 func TestTheWheelScrollsTheViewNoFurtherThanItGoes(t *testing.T) {
-	h := runwayHarness(t, runwaySize)
-	x, y := h.drawnAt(" 1 Account A")
+	h := yearHarness(t, yearSize)
+	x, y := 10, h.overTheView()
 
 	for range 4 {
 		h.wheel(tea.MouseWheelDown, x, y)
 	}
-	if h.model.scroll != 10 {
-		t.Errorf("four turns down scrolled %d rows, want 10, as far as the lanes go", h.model.scroll)
+	if h.model.scroll != 8 {
+		t.Errorf("four turns down scrolled %d rows, want 8, as far as the Year goes", h.model.scroll)
 	}
 	h.wheel(tea.MouseWheelUp, x, y)
-	if h.model.scroll != 10-wheelRows {
-		t.Errorf("a turn up scrolled to %d rows, want %d", h.model.scroll, 10-wheelRows)
+	if h.model.scroll != 8-wheelRows {
+		t.Errorf("a turn up scrolled to %d rows, want %d", h.model.scroll, 8-wheelRows)
 	}
 }
 
@@ -242,16 +243,16 @@ func TestTheMouseIsOnWhileTheDashboardRuns(t *testing.T) {
 }
 
 func TestAScrollTheScreenNoLongerTakesIsDrawnAsFarAsItGoes(t *testing.T) {
-	h := runwayHarness(t, runwaySize)
+	h := yearHarness(t, yearSize)
 	h.update(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	h.update(tea.WindowSizeMsg{Width: 150, Height: 41})
-	if most := h.model.scrolling().Most; most != 9 {
-		t.Fatalf("a taller terminal scrolls %d rows at most, want 9", most)
+	h.update(tea.WindowSizeMsg{Width: yearSize.Width, Height: yearSize.Height + 1})
+	if most := h.model.scrolling().Most; most != 7 {
+		t.Fatalf("a taller terminal scrolls %d rows at most, want 7", most)
 	}
 	at := h.scrolled()
 	h.press("k")
-	if h.model.scroll != 8 || h.scrolled() == at {
-		t.Errorf("k, from as far as the lanes go, scrolled to %d, showing %q; want 8, a row up from where they were drawn", h.model.scroll, h.scrolled())
+	if h.model.scroll != 6 || h.scrolled() == at {
+		t.Errorf("k, from as far as the Year goes, scrolled to %d, showing %q; want 6, a row up from where it was drawn", h.model.scroll, h.scrolled())
 	}
 }
 
@@ -378,12 +379,12 @@ func TestTheWheelDoesNothingWhileTheRoutingCardIsOpen(t *testing.T) {
 }
 
 func TestOnlyTheWheelScrolls(t *testing.T) {
-	h := runwayHarness(t, runwaySize)
-	x, y := h.drawnAt(" 1 Account A")
+	h := yearHarness(t, yearSize)
+	x, y := 10, h.overTheView()
 	for _, button := range []tea.MouseButton{tea.MouseWheelLeft, tea.MouseWheelRight, tea.MouseLeft} {
 		h.wheel(button, x, y)
 		if h.model.scroll != 0 {
-			t.Errorf("button %v scrolled the lanes %d rows, want none", button, h.model.scroll)
+			t.Errorf("button %v scrolled the Year %d rows, want none", button, h.model.scroll)
 		}
 	}
 }

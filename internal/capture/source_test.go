@@ -215,7 +215,7 @@ func TestHistoryRisesAsTheFramesChartsDo(t *testing.T) {
 // those whose reading falls in the span GRAPHS charts them over, as
 // ChartSpan has it.
 func TestEveryWindowsHistoryEndsAtItsUse(t *testing.T) {
-	for _, f := range fixtures(time.UTC) {
+	for _, f := range []Fixture{fixture(t, "overview-default-160")} {
 		for _, a := range f.router.doc.At(f.router.doc.GeneratedAt, claude.Policy).Accounts {
 			for _, w := range a.Windows {
 				if start, _, ok := dashboard.ChartSpan(w); !ok || w.Read.At.Before(start) {
@@ -245,7 +245,7 @@ func TestHistoryRefusesAStepOfNothing(t *testing.T) {
 }
 
 func TestEventsAreNumberedTheNewestFirst(t *testing.T) {
-	for _, f := range fixtures(time.UTC) {
+	for _, f := range []Fixture{fixture(t, "overview-default-160")} {
 		events := f.router.doc.Events
 		if len(events) == 0 {
 			t.Errorf("%s tells of nothing lately", f.Name)

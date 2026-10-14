@@ -2,6 +2,7 @@ package views_test
 
 import (
 	"iter"
+	"slices"
 	"testing"
 	"time"
 
@@ -14,6 +15,12 @@ import (
 // readings.Reader gives them: those of times from from up to to, in the
 // order given.
 type historyOf []readings.Reading
+
+// Tail gives a read of the readings held from start up to end, each window's
+// last from from up to start carried in, as readings.Carried has them.
+func (h historyOf) Tail(from, start, end time.Time) func() []readings.Reading {
+	return func() []readings.Reading { return readings.Carried(slices.Values(h), from, start, end) }
+}
 
 func (h historyOf) Between(from, to time.Time) iter.Seq[readings.Reading] {
 	return func(yield func(readings.Reading) bool) {

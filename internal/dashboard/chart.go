@@ -28,10 +28,6 @@ func filledCell(look Look, eighths int, fill ink) (string, ink) {
 	return levels[eighths], fill
 }
 
-// floorLine is drawn along a chart's floor where its window has nothing
-// left.
-const floorLine = "▁"
-
 // The lines a GRAPHS chart draws: the limit's, along its top row; and, on its
 // empty cells, its account's cap, even pace, and now.
 const (

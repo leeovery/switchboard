@@ -159,10 +159,12 @@ type Config struct {
 	Log      dashboard.LogTicks
 	Prefs    Prefs
 	// AccountsShown is what the preferences keep Accounts showing, as
-	// dashboard.AccountsKept reads it, and SessionsShown Sessions, as
-	// dashboard.SessionsKept reads it, which Prefs keeps as each changes.
+	// dashboard.AccountsKept reads it, SessionsShown Sessions, as
+	// dashboard.SessionsKept reads it, and RunwayShown Runway, as
+	// dashboard.RunwayKept reads it, which Prefs keeps as each changes.
 	AccountsShown dashboard.AccountsShown
 	SessionsShown dashboard.SessionsShown
+	RunwayShown   dashboard.RunwayShown
 	// TraceScale is the requests a minute that fill a trace's height on the
 	// Overview: 0 for the live rule, as the dashboard has it, the busiest
 	// column of every trace on the page, never less than 8.
@@ -293,10 +295,9 @@ type Model struct {
 	// nothing that can.
 	toldBefore *toldSoFar
 	// sections are the Overview's sections shown, and by how its windows are
-	// grouped; span is how far ahead Runway looks.
+	// grouped.
 	sections dashboard.Sections
 	by       dashboard.By
-	span     dashboard.Span
 	// layout is the Overview's layout as it was last made, kept from look to
 	// look, as keepLayout keeps it, so it changes only on an input the page
 	// acts on, a key, a click or the wheel, a resize, or a section's shape
@@ -320,6 +321,10 @@ type Model struct {
 	// Switchboard and its List as the last look built them, and the List
 	// held, fed by the ledger's tail.
 	sessionsTab sessionsTab
+	// runwayTab is what the watch holds of Runway: what it shows, its lanes
+	// as the last look built them, and the readings history's tail they're
+	// judged by.
+	runwayTab runwayTab
 	// session is the session's page open, drawn in place of the view: nil
 	// while none is. opening counts the pages asked to open, each opening
 	// once its read lands, but one asked for before the last; and pending is
@@ -420,7 +425,7 @@ func New(ctx context.Context, cfg Config) Model {
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By,
 		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
-		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, log: openingLog(cfg.Log),
+		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 	}
 	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
 	if m.after == nil {
@@ -452,8 +457,10 @@ func (m Model) Init() tea.Cmd {
 // ledger's days for History, Accounts, a session's page, the Log and its
 // find, and Sessions, as they want them, History's and Accounts' pages built
 // of them as historyBuilt and accountsBuilt have it, Detail's selection
-// following its sessions, as followed has it, Sessions built at the look, as
-// sessionsLooked has it, and the Log's page built of what it holds, and only
+// following its sessions, as followed has it, Sessions and Runway built at
+// the look, as sessionsLooked and runwayLooked have it, the readings
+// history's tail read for Runway, as readRunway has it, and the Log's page
+// built of what it holds, and only
 // then, price the moves the routing card would make while it wants them.
 // Then, of the page as it stands at that moment, its Overview's sections
 // built once for each to share, it keeps the Overview's layout, but for a
@@ -470,11 +477,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, closed := next.(Model).relived(msg, now).closing()
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
-	tuned = tuned.historyBuilt().accountsBuilt().followed(msg).sessionsLooked(msg)
+	tuned = tuned.historyBuilt().accountsBuilt().followed(msg).sessionsLooked(msg).runwayLooked(msg)
 	tuned, paged := tuned.readPage()
 	tuned, logged := tuned.readLog()
 	tuned, found := tuned.readFind()
 	tuned, listed := tuned.readSessions()
+	tuned, ran := tuned.readRunway()
 	tuned, costs := tuned.costing()
 	page := tuned.frame(now).Built(tuned.doc, now)
 	if _, frame := msg.(frameMsg); !frame {
@@ -483,7 +491,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, costs, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, costs, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look
@@ -624,6 +632,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.sessionRead(msg), nil
 	case listReadMsg:
 		return m.listRead(msg), nil
+	case runwayReadMsg:
+		return m.runwayRead(msg), nil
 	}
 	return m, nil
 }
@@ -785,7 +795,7 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // tab shown, with what the watch knows of the router, its events and its
 // history, the numbers brightening, the Overview's sections shown, how its
 // windows are grouped, the requests its traces count and its layout as
-// kept, how far ahead Runway looks, the sessions listed, what the request
+// kept, what Runway shows, the sessions listed, what the request
 // stream tells of their requests, how far the view is scrolled, the account
 // the focus is on, and what Accounts, as standing has it, and History show.
 // It holds the one moment of the document at now, as At has it, for its
@@ -796,13 +806,14 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
-		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
+		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
 		Sessions: m.sessions, Stream: m.traffic.stream(now), Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
 		WeekWindow: m.cfg.WeekWindow,
 		Accounts:   m.accounts.shown,
+		Runway:     m.runwayTab.shown,
 		History:    m.past.page,
 		Session:    m.session.frame(),
 		Log:        m.log.page,
@@ -880,10 +891,12 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 // was found. Each read starts a new chain of ticks at the pace it calls for,
 // lets a look at the router's document asked for while it was under way go
 // ahead, and as any look does, asks for the ledger's days since History's
-// were read, as readHistory reads them while History or Accounts shows.
+// were read, as readHistory reads them while History or Accounts shows, and
+// what the readings history gained, as readRunway reads it while Runway
+// shows.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
-	m.fetching, m.past.due, m.tail.due = false, true, true
+	m.fetching, m.past.due, m.tail.due, m.runwayTab.due = false, true, true, true
 	var shown tea.Cmd
 	switch {
 	case errors.Is(msg.err, status.ErrNoRouter):

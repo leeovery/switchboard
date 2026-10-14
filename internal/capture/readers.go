@@ -288,6 +288,13 @@ func (h heldReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
 	}
 }
 
+// Tail gives a read of the readings from start up to end read by now, each
+// window's last from from up to start carried in, as readings.Carried has
+// them: each call reads them whole, as they're held, not filed.
+func (h heldReadings) Tail(from, start, end time.Time) func() []readings.Reading {
+	return func() []readings.Reading { return readings.Carried(h.Between(from, end), from, start, end) }
+}
+
 // heldEvents reads the records' router's events as an events.Reader reads
 // their files, by now's clock, each filed on the day it happened.
 type heldEvents struct {

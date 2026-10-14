@@ -15,11 +15,11 @@ import (
 // show and hide its sections, b switches how its windows are grouped, and ↑
 // and ↓ move the focus, as overviewKey says; on Accounts, its keys act as
 // accountsKey says; on History, [ ], < >, v and ← → act as historyKey says;
-// on Sessions, its keys act as sessionsKey says; on the Log, [ ], ↑ ↓, end,
-// esc, enter, s, f and / act as logKey says; tab
-// and shift-tab show the next tab and the one before, as turn has it; t
-// opens the theme picker; and w, in Runway, switches between the day and the
-// week. esc, whatever the page does with it, drops a session's page asked to
+// on Sessions, its keys act as sessionsKey says; on Runway, < > and ← → act
+// as runwayKey says; on the Log, [ ], ↑ ↓, end, esc, enter, s, f and / act
+// as logKey says; tab and shift-tab show the next tab and the one before, as
+// turn has it; and t opens the theme picker. esc, whatever the page does
+// with it, drops a session's page asked to
 // open, as unasked has it. The rest do nothing: the number keys and m among
 // them, which act in the routing card alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -43,6 +43,9 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, ok := afresh.sessionsKey(k); ok {
 		return next, cmd
 	}
+	if next, ok := afresh.runwayKey(k); ok {
+		return next, nil
+	}
 	if next, cmd, ok := afresh.logKey(k); ok {
 		return next, cmd
 	}
@@ -53,10 +56,6 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return afresh.turn(-1)
 	case "t":
 		return afresh.openPicker()
-	case "w":
-		if m.view == dashboard.Runway {
-			return afresh.nextSpan(), nil
-		}
 	}
 	return m, nil
 }
@@ -116,12 +115,11 @@ type pageKeys struct {
 // scroll it in the design's order: on the Overview, its toggles, each word
 // faint where its section is hidden; b, its word saying how the windows are
 // grouped; and with more than one account, ↑↓, which the key line sets with
-// p, ? and q; w, in Runway, switching between the day and the week, its word
-// saying which it shows; and Accounts', History's, Sessions' and the Log's,
-// as accountsListings, historyListings, sessionsListings and logListings
-// have them, Detail's SESSIONS listing the sessions running given. A
-// session's page lists its own, as sessionKeys has them, in place of its
-// tab's.
+// p, ? and q; and Accounts', History's, Sessions', Runway's and the Log's,
+// as accountsListings, historyListings, sessionsListings, runwayListings and
+// logListings have them, Detail's SESSIONS listing the sessions running
+// given. A session's page lists its own, as sessionKeys has them, in place
+// of its tab's.
 func (m Model) keys(running []string) pageKeys {
 	if m.session != nil {
 		return m.sessionKeys()
@@ -134,10 +132,9 @@ func (m Model) keys(running []string) pageKeys {
 	own = append(own,
 		keyListing{Key: dashboard.Key{Key: "b", Does: "by", State: string(layoutOf(m.by))}, works: overview},
 		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && m.asRead.accounts > 1, withEnds: true},
-		keyListing{Key: dashboard.Key{Key: "w", Does: "window: " + m.span.Name()}, works: m.view == dashboard.Runway},
 	)
 	pin, pinned := m.pinKey()
-	own = slices.Concat(own, m.accountsListings(running), m.historyListings(), m.sessionsListings(), m.logListings())
+	own = slices.Concat(own, m.accountsListings(running), m.historyListings(), m.sessionsListings(), m.runwayListings(), m.logListings())
 	scrollsAlways := overview || m.view == dashboard.Log
 	return pageKeys{own: own, overview: overview, scrollsAlways: scrollsAlways, pin: pin, pinned: pinned, coloured: m.coloured()}
 }

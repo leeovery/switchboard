@@ -6,14 +6,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
-)
-
-var (
-	// thumbInk is the part of a scrollbar its view shows, and railInk its
-	// track.
-	thumbInk = ink{token: theme.TextMuted}
-	railInk  = ink{token: theme.TextFaint}
 )
 
 // Scrolling is how far a frame's view scrolls: Most, the furthest, in rows,
@@ -102,8 +94,8 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 // in the rows its layout gives them; History's, of the ledger's days alone,
 // as historyScrolling says; Sessions', as sessionsScrolling says; the
 // Overview's, as overviewScrolling says, laid out once for every offset;
-// Accounts', as accountsScrolling says; and Runway, where its lanes don't
-// fit, as runwayRows counts them, alike at every offset. A frame too short
+// Accounts', as accountsScrolling says; and Runway's, as runwayScrolling
+// says. A frame too short
 // for the view, as cramped says, never scrolls, nor one of a document of no
 // accounts, but History, Sessions, whose List lists the ledger's sessions
 // whatever the document holds, and a session's page.
@@ -125,8 +117,7 @@ func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) 
 	case f.View == Accounts:
 		return f.accountsScrolling(doc, now)
 	case f.View == Runway:
-		content, view := f.runwayRows(len(m.Accounts), top)
-		s = Scrolling{Most: content - view, Page: view}
+		return f.runwayScrolling(doc, now)
 	}
 	return func(int) Scrolling { return s }
 }
@@ -257,23 +248,4 @@ func moreParts(n int, noun string, k ink) []part {
 		return []part{figureIn(prose.Grouped(n), k), wordsIn(" more", k)}
 	}
 	return countedParts(n, "more "+noun, k)
-}
-
-// scrollbar draws a scrollbar down column x from row y, rows tall, for
-// content rows that scroll, shown from the row offset: ┃ the part shown,
-// as long as the share it shows, on a │ track, the whole of it.
-func scrollbar(c *canvas, x, y, rows, content, offset int) {
-	if rows < 1 || content <= rows {
-		return
-	}
-	thumb := max(1, rows*rows/content)
-	most := content - rows
-	start := (offset*(rows-thumb) + most/2) / most
-	for i := range rows {
-		if i >= start && i < start+thumb {
-			c.text(x, y+i, "┃", thumbInk)
-		} else {
-			c.text(x, y+i, "│", railInk)
-		}
-	}
 }

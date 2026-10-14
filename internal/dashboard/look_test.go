@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // now is the clock every frame is drawn at: a Monday, 13:12 an hour east of
@@ -53,7 +54,8 @@ func threeAccounts() status.Document {
 }
 
 // frames are frames of threeAccounts the tests draw, as text alone: full
-// screen, at a size each, and Runway over the day and the week, among them.
+// screen, at a size each, and Runway over the 5-hour and the week, among
+// them.
 func frames() map[string]dashboard.Frame {
 	frame := func(width, height int) dashboard.Frame {
 		return dashboard.Frame{
@@ -61,14 +63,14 @@ func frames() map[string]dashboard.Frame {
 			KeyLine: dashboard.KeyLine{Groups: [][]dashboard.Key{{{Key: "q", Does: "quit"}}}},
 		}
 	}
-	runway := func(span dashboard.Span) dashboard.Frame {
+	runway := func(w views.RunwayWindow) dashboard.Frame {
 		f := frame(160, 26)
-		f.View, f.Span = dashboard.Runway, span
+		f.View, f.Runway = dashboard.Runway, dashboard.RunwayShown{Window: w}
 		return f
 	}
 	return map[string]dashboard.Frame{
 		"wide": frame(160, 40), "two rows": frame(120, 50), "short, scrolling": frame(160, 20), "phone": frame(52, 36),
-		"runway, the day": runway(dashboard.Day), "runway, the week": runway(dashboard.Week),
+		"runway, the 5-hour": runway(views.RunwayFiveHour), "runway, the week": runway(views.RunwayWeek),
 	}
 }
 
@@ -250,16 +252,16 @@ func TestTextFromElsewhereShowsItsControlCharactersAsSpaces(t *testing.T) {
 	doc := threeAccounts()
 	doc.Accounts[0].Label = "Work\x1b[31m\tteam\n"
 	doc.Accounts[2].Error = "HTTP 500 ·\r\nbad\x07 gateway"
-	doc.Accounts[2].Windows = nil
+	doc.Accounts[2].Windows, doc.Accounts[2].FetchedAt = nil, time.Time{}
 	doc.Router = status.Health{Reason: "7 of\x1b[31m the 9\r\nfailed"}
 	doc.Restart = status.Restart{Reason: "config\x1b[2J changed", Since: now.Add(-time.Hour).UTC()}
 	doc.Events = append(doc.Events, status.Event{ID: 2, At: now.UTC(), Kind: status.EventMoved, Session: "5b19\x1b[1m", From: "work", To: "side", Reason: "moved: \x07pinned\n"})
 	probed := threeAccounts()
 	probed.Source, probed.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterUnhealthy, Reason: "the router answered\x07\n404"}
-	views := []dashboard.Frame{frames()["wide"], frames()["runway, the day"]}
+	shown := []dashboard.Frame{frames()["wide"], frames()["runway, the 5-hour"]}
 	for name, doc := range map[string]status.Document{"from the router": doc, "probing past it": probed} {
 		t.Run(name, func(t *testing.T) {
-			for _, f := range views {
+			for _, f := range shown {
 				if frame := strings.Join(f.Draw(doc, now), "\n"); strings.ContainsAny(frame, "\x1b\t\r\a") {
 					t.Errorf("drew %q, want no control characters from the document", frame)
 				}
@@ -267,7 +269,7 @@ func TestTextFromElsewhereShowsItsControlCharactersAsSpaces(t *testing.T) {
 		})
 	}
 	var frame string
-	for _, f := range views {
+	for _, f := range shown {
 		frame += strings.Join(f.Draw(doc, now), "\n") + "\n"
 	}
 	for _, want := range []string{"Work [31m team", "HTTP 500 · bad gateway", "config [2J changed"} {

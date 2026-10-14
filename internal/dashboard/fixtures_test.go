@@ -1,9 +1,13 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -54,4 +58,64 @@ func flippingSessions() []status.Session {
 // rowOf is row y of the canvas as text, its trailing blanks trimmed.
 func rowOf(c *canvas, y int) string {
 	return strings.TrimRight(c.row(y, Look{}), " ")
+}
+
+// runwayThree is the router's document of three accounts, as Runway's frames
+// have them: work's session running out at its pace at 14:42, back as it
+// resets at 16:12; personal at its limit since 12:50, as the router told of
+// it, until 14:12, its week running out at 01:12 on Tuesday, before it
+// resets on Thursday; and side, where new sessions go, with room all along.
+func runwayThree() status.Document {
+	personal, reached := limitedAt("personal", clockAt(12, 50))
+	side := readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*quota.Day))
+	return withEvents(routerDoc("side", 5, pressedAccount("work"), personal, side), reached)
+}
+
+// clockAt is a time on the day the frames are drawn.
+func clockAt(hour, minute int) time.Time {
+	return time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
+}
+
+// weekRunningOut is a week resetting in resets, used so that at the pace its
+// use since it started sets, it runs out in out.
+func weekRunningOut(out, resets time.Duration) quota.Window {
+	passed := 7*quota.Day - resets
+	return weekOf(passed.Hours()/(passed+out).Hours(), resets)
+}
+
+// limitedAt is an account whose session reached its limit at reached, as
+// the router told of it, which holds until it resets in an hour, and whose
+// week, resetting in three days, runs out in twelve hours.
+func limitedAt(id string, reached time.Time) (status.Account, status.Event) {
+	session := sessionOf(1, time.Hour)
+	session.Status = quota.StatusRejected
+	a := readAccount(id, session, weekRunningOut(12*time.Hour, 3*quota.Day))
+	a.Limit = status.Limit{Windows: []string{"5h"}, Until: session.ResetsAt}
+	return a, status.Event{ID: 1, At: reached.UTC(), Kind: status.EventLimit, Account: id, Windows: []string{"5h"}, Until: session.ResetsAt}
+}
+
+// withEvents is doc telling of events.
+func withEvents(doc status.Document, events ...status.Event) status.Document {
+	doc.Events = events
+	return doc
+}
+
+// textOf is rows as text alone, each without the blanks at its end.
+func textOf(rows []string) []string {
+	text := make([]string, len(rows))
+	for i, row := range rows {
+		text[i] = strings.TrimRight(ansi.Strip(row), " ")
+	}
+	return text
+}
+
+// textsAt is a row of cells cells, blank but for the texts at their columns.
+func textsAt(cells int, texts map[int]string) string {
+	row := slices.Repeat([]string{" "}, cells)
+	for col, text := range texts {
+		for i, r := range []rune(text) {
+			row[col+i] = string(r)
+		}
+	}
+	return strings.TrimRight(strings.Join(row, ""), " ")
 }

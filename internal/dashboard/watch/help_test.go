@@ -84,15 +84,14 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 			wantLine: []string{"tab", "p", "?", "q"},
 		},
 		{
-			name: "probing twelve in Runway, which scroll",
+			name: "probing twelve in Runway, its lanes not drawn",
 			h: func(t *testing.T) *harness {
 				h := newHarness(t, twelve())
 				h.model.view = dashboard.Runway
-				h.update(runwaySize)
 				return h
 			},
-			wantHelp: []string{"tab", "w", "j k", "PgUp PgDn", "wheel", "p", "R", "?", "q"},
-			wantLine: []string{"tab", "w", "p", "?", "q"},
+			wantHelp: []string{"tab", "p", "R", "?", "q"},
+			wantLine: []string{"tab", "p", "?", "q"},
 		},
 		{
 			name:     "one account, with nowhere else to pin",
@@ -148,10 +147,8 @@ func TestADocumentLandingUnderHelpMovesNothingInIt(t *testing.T) {
 
 func TestHelpListsTheScrollingKeysOfThePageAtTheSizeItsDrawnAt(t *testing.T) {
 	scrolling := []string{"j k", "PgUp PgDn", "wheel"}
-	h := newHarness(t, document(three()...))
-	// Runway, as the Overview lists its scrolling keys at any size.
-	h.model.view = dashboard.Runway
-	h.start()
+	// History's Year, as the Overview lists its scrolling keys at any size.
+	h := yearHarness(t, tea.WindowSizeMsg{Width: 150, Height: 40})
 	h.press("?")
 	if got := listedKeys(h.model.helpCard().Keys); slices.ContainsFunc(scrolling, func(k string) bool { return slices.Contains(got, k) }) {
 		t.Fatalf("help over a page that fits lists %q, want no scrolling keys", got)
