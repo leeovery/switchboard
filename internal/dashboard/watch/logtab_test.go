@@ -404,6 +404,39 @@ func TestARequestInFlightCountsOnWithoutItsTableMadeAgain(t *testing.T) {
 	}
 }
 
+// Paused, a request in flight's took counts on each second, as following;
+// behind a line's details card, the page stands still, its took with it,
+// and no frame is drawn for it.
+func TestARowInFlightCountsOnPausedAndStandsStillBehindACard(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	h.hear(told(router.StreamSent, "0a000003", "work", 0))
+	h.keys(tea.KeyPressMsg{Code: tea.KeyUp})
+	if !h.model.log.page.Paused() {
+		t.Fatal("after ↑, the Log follows, want it paused")
+	}
+
+	for _, at := range []time.Duration{time.Second, 2 * time.Second} {
+		h.tickUntil(past(at + 50*time.Millisecond))
+		if took := prose.Seconds(h.clock.now.Sub(past(0))); !strings.Contains(h.view(), took) {
+			t.Fatalf("paused, at %s, the row in flight doesn't read %s:\n%s", h.clock.now.Format(time.StampMilli), took, h.view())
+		}
+	}
+
+	h.keys(tea.KeyPressMsg{Code: tea.KeyEnter})
+	opened := h.view()
+	h.tickUntil(past(5 * time.Second))
+	if _, ok := h.pendingFrame(); ok {
+		t.Error("the card open over the Log, a frame is armed, want none: the page behind it stands still")
+	}
+	if got := h.view(); got != opened || strings.Contains(got, prose.Seconds(5*time.Second)) {
+		t.Errorf("3s on, behind the card, the screen is\n%s\nwant it as the card opened\n%s", got, opened)
+	}
+}
+
 // The stream telling how far a request's answer has streamed makes nothing
 // afresh, its row counting its characters as it's drawn; its end makes the
 // Requests again, once.
