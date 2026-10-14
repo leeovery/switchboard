@@ -51,9 +51,10 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 // Overview's section's heading, it hides the section, as its key does; on
 // an account's row there, it moves the focus to it, as focusOn has it; on a
 // session's row, it opens its page, as openSession has it; on a turn's row
-// on its page, it acts as clickTurn has it; and on a line of the Log's
-// table, it chooses it, as clickedLine has it. Nothing else on the page
-// takes a click yet.
+// on its page, it acts as clickTurn has it, and on a request's row of its
+// turn open, as clickRequest has it; and on a line of the Log's table, it
+// chooses it, as clickedLine has it. Nothing else on the page takes a click
+// yet.
 func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 	switch t.On {
 	case dashboard.OnTab:
@@ -81,6 +82,8 @@ func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 		return m.openSession(t.Session)
 	case dashboard.OnTurn:
 		return m.clickTurn(t.Turn)
+	case dashboard.OnRequest:
+		return m.clickRequest(t.Row)
 	case dashboard.OnRow:
 		return m.clickedLine(t.Row)
 	}
