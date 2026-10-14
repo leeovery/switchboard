@@ -66,21 +66,31 @@ func openingLog(columns dashboard.LogTicks) logTab {
 // holds; and while it's open, the panel of what a table shows, as
 // builtLogPanel has it.
 func (m Model) builtLog(now time.Time) Model {
-	t := m.log
-	if !t.opened {
+	if !m.log.opened {
 		return m
 	}
+	m = m.requestsBuilt(now)
+	t := m.log
 	p := t.page
 	p.Read, p.From, p.Today, p.Totals = true, t.from, views.Today(now), t.totals
 	p.Live, p.Written = m.answering(), t.read.WrittenTo()
-	if basis := m.requestsBasis(p.Filter, now); !t.built.requests.same(basis) {
-		p.Requests, m.log.built.requests = views.LogRows(m.logSources(p.Filter, now)), &basis
-	}
 	if basis := m.eventsBasis(p.Shows, now); !t.built.events.same(basis) {
 		p.Events, m.log.built.events = views.LogEvents(m.logEventSources(p.Shows, now)), &basis
 	}
 	m.log.page = p.Lined().Filling(m.logRows())
 	return m.followedByLogCard().builtLogPanel(now)
+}
+
+// requestsBuilt is m with the Log's Requests built at now of what it holds,
+// shown or hidden: of the lines read and, while the router answers, what the
+// stream tells of those in flight, as its filter has them, made again only
+// as what they're made of changes, as logBuilt has it.
+func (m Model) requestsBuilt(now time.Time) Model {
+	p := &m.log.page
+	if basis := m.requestsBasis(p.Filter, now); !m.log.built.requests.same(basis) {
+		p.Requests, m.log.built.requests = views.LogRows(m.logSources(p.Filter, now)), &basis
+	}
+	return m
 }
 
 // logSources are what the Log's Requests are built from at now, through

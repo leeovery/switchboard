@@ -112,11 +112,14 @@ func (t ledgerTail) wholeLanded() ledgerTail {
 // once, the late days each has; and grows each reader by them, each noting
 // the days awaiting a line it reads: the Log, once opened, as logFold has
 // it, shown or not, as the mark moves past what the read gives for every
-// reader alike; and the session's page open, as pageFold has it.
+// reader alike, its Requests built first of what it holds now, as
+// requestsBuilt builds them, for what they await; and the session's page
+// open, as pageFold has it.
 func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	r, mark, today := m.logReaders(), m.tail.mark, views.Today(now)
 	var log *logFold
 	if m.log.opened {
+		m = m.requestsBuilt(now)
 		f := m.logFold(now)
 		log, m.log.reading, m.log.awaited = &f, true, f.awaited
 	}
