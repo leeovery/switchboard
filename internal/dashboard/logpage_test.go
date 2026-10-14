@@ -269,10 +269,11 @@ func TestLandingChoosesTheFirstRequestAtOrAfterAMoment(t *testing.T) {
 // unfilled, so, short of the view it filled, it reads back to fill it: as
 // the find's enter, the panel's, and esc letting the filter go each change
 // it, where the days' summaries bound it, as its page's Reach has it, the
-// Events through kinds alone reading back as on opening. One they don't
-// bound stays as it stood, reading back only as its top is reached: the
-// Requests through a filter of the failed of no session, and the Events
-// through one of an account.
+// Events through a session so bound though an account is chosen too, and
+// through kinds alone reading back as on opening. One they don't bound
+// stays as it stood, reading back only as its top is reached: the Requests
+// through a filter of the failed of no session, and the Events through one
+// of an account alone.
 func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 	const session = "d28c5e17-0000-4000-8000-000000000001"
 	src := views.LogSources{From: logDay, Now: logDayNoon}
@@ -295,6 +296,8 @@ func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 	picked, pins, failed, failedOf, worked := requests.Panel(), events.Panel(), requests.Panel(), requests.Panel(), events.Panel()
 	picked.Filter.Sessions, pins.Shows.Kinds, failed.Filter.Failed = []string{session}, []string{status.EventPin}, true
 	failedOf.Filter.Sessions, failedOf.Filter.Failed, worked.Shows.Accounts = []string{session}, true, []string{"work"}
+	workedOf := worked
+	workedOf.Shows.Sessions = []string{session}
 	tests := []struct {
 		name  string
 		page  LogPage
@@ -307,6 +310,7 @@ func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 		{name: "esc letting the filter go", page: keeping(keeping(requests.FoundOnly(session), ofSession).Filling(3).Unfiltered(), every), rows: 5, wants: true},
 		{name: "the panel's enter on the failed of a session", page: keeping(requests.Applied(failedOf), nil), rows: 4, wants: true},
 		{name: "the find's enter, on the Events", page: keeping(events.FoundOnly(session), nil), rows: 2, wants: true},
+		{name: "the Events' panel's enter on a session and an account", page: keeping(events.Applied(workedOf), nil), rows: 2, wants: true},
 		{name: "the panel's enter on the failed", page: keeping(requests.Applied(failed), nil), rows: 4},
 		{name: "the Events' panel's enter on an account", page: keeping(events.Applied(worked), nil, workAtItsCap), rows: 2},
 	}
@@ -382,14 +386,25 @@ func TestATableHoldingNoRowDoesntPause(t *testing.T) {
 // On opening, a table reads back a day at a time till it fills its view,
 // then only as its view's top, paused, reaches the first line held, or,
 // following, as its view grows past the rows it filled, where it refills,
-// as the failed alone don't; never past the oldest day the ledger keeps. A view of no rows fills nothing: the table reads back to fill it
-// once the terminal gives it rows.
+// as the failed alone don't; never past the oldest day the ledger keeps.
+// At its reach, it fills its view no further back, and of the Requests
+// reads back no further at all, while the Events, paused at their top, read
+// back past it. A view of no rows fills nothing: the table reads back to
+// fill it once the terminal gives it rows.
 func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 	src := views.LogSources{From: logDay, Now: logDayNoon}
 	oldest := src
 	oldest.Oldest = views.OldestKept(logDay, 0, logDayNoon)
 	failed := threeAsked()
 	failed.Filter.Failed = true
+	atReach := func(p LogPage) LogPage {
+		p.AtReach = true
+		return p
+	}
+	pinned := status.Event{ID: 1, At: logDay, Kind: status.EventPin, Accounts: []string{"personal"}}
+	events := threeAsked().Turned(1)
+	read := views.ReadEvents(filedEvents([]status.Event{pinned, workAtItsCap}), logDay, logDayNoon)
+	events.Events = views.LogEvents(views.LogEventSources{From: logDay, Events: read, Filed: views.OldestKept(theDayBefore, 0, logDayNoon), Now: logDayNoon})
 	tests := []struct {
 		name string
 		page LogPage
@@ -408,6 +423,11 @@ func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 		{name: "opened with no rows, then given them", page: threeAsked().Filling(0), rows: 10, want: true},
 		{name: "filled, paused at its first line", page: threeAsked().Filling(3).Scrolled(-1, 2), rows: 2, want: true},
 		{name: "at the oldest day kept", page: requestsOf(oldest, nil), rows: 4},
+		{name: "at its reach, short of its view", page: atReach(threeAsked()), rows: 4},
+		{name: "at its reach, paused at its first line", page: atReach(threeAsked()).Filling(1).Scrolled(-1, 2), rows: 2},
+		{name: "the Events short of their view", page: events, rows: 10, want: true},
+		{name: "the Events at their reach, short of their view", page: atReach(events), rows: 10},
+		{name: "the Events at their reach, paused at their first line", page: atReach(events).Filling(1).Scrolled(-1, 2), rows: 2, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

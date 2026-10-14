@@ -30,8 +30,9 @@ var logViews = []string{"Requests", "Events"}
 // days, which their day rules say; today; what the Requests show of their
 // columns and of the lines, and the Events of theirs; how each table
 // stands; whether the stream is live, what it tells, and to when the ledger
-// wrote what the tables hold; the find, while it's open; and the tables'
-// lines as drawn, where Lined holds them.
+// wrote what the tables hold; whether the table shown reaches as far back
+// as the days' summaries say it reads; the find, while it's open; and the
+// tables' lines as drawn, where Lined holds them.
 type LogPage struct {
 	Shown LogView
 	// Read is set once the first read lands: till then, the view is blank.
@@ -57,6 +58,11 @@ type LogPage struct {
 	Live    bool
 	Stream  views.Stream
 	Written time.Time
+	// AtReach is set where Reach bounds the table shown and the tables span
+	// from as far back as the lines of the filter it gives reach, as the
+	// days' summaries told: to the earliest day that may hold one, or where
+	// none may. The table fills its view no further back.
+	AtReach bool
 	Finding LogFinding
 	lined   *tableLines
 }
@@ -66,8 +72,8 @@ type LogPage struct {
 // line top, no further down than foot, the table's last line as it paused,
 // the line chosen lit where one is; and, of Requests', the table as it
 // paused, which says the lines come since. filledAt is the rows of the
-// tallest view the table has filled, or reached the oldest day in, none
-// till it does: after, it reads back only as its top is reached, or,
+// tallest view the table has filled, or reached the oldest day or its reach
+// in, as Filling has it, none till it does: after, it reads back only as its top is reached, or,
 // following, as its view grows past them, where it refills, as refills
 // says.
 type LogStand struct {
@@ -411,16 +417,16 @@ func nextRow(lines []logLine, at, by, foot int) int {
 }
 
 // Filling is the Log, the table shown filled at a view rows rows tall once
-// it fills it, or reaches as far back as it reads, from where it reads back
-// only as WantsDayBefore has a filled table read back. A view of no rows
-// fills nothing, so the table fills the view it's given as the terminal
-// grows.
+// it fills it, or reaches as far back as it reads, or as AtReach says, from
+// where it reads back only as WantsDayBefore has a filled table read back.
+// A view of no rows fills nothing, so the table fills the view it's given
+// as the terminal grows.
 func (p LogPage) Filling(rows int) LogPage {
 	s := p.stand()
 	if s.filledAt >= rows || !p.Read {
 		return p
 	}
-	if len(p.lines()) >= rows || p.reached() {
+	if len(p.lines()) >= rows || p.reached() || p.AtReach {
 		s.filledAt = rows
 	}
 	return p.standing(s)
@@ -429,15 +435,16 @@ func (p LogPage) Filling(rows int) LogPage {
 // WantsDayBefore reports whether the table shown, in a view rows rows tall,
 // wants the day before those it spans read: on opening, until it fills its
 // view, and following, until it fills one grown past the rows it filled,
-// where it refills, as refills says; and paused, its view's top at the
-// first line held. Never once it reaches as far back as it reads.
+// where it refills, as refills says, each short of where AtReach says; and
+// paused, its view's top at the first line held. Never once it reaches as
+// far back as it reads.
 func (p LogPage) WantsDayBefore(rows int) bool {
 	if !p.Read || p.reached() {
 		return false
 	}
 	lines, s := p.lines(), p.stand()
 	if s.filledAt == 0 || !s.paused && rows > s.filledAt && p.refills(p.Shown) {
-		return len(lines) < rows
+		return !p.AtReach && len(lines) < rows
 	}
 	first, _ := p.window(lines, s, rows)
 	return s.paused && first == 0
@@ -445,10 +452,12 @@ func (p LogPage) WantsDayBefore(rows int) bool {
 
 // reached reports whether the table shown reaches as far back as it reads:
 // the oldest day the ledger keeps, as the Requests' oldest day's line, atop
-// them, says; or of the Events, the oldest they read back to, as their
-// Reached says.
+// them, says; of the Requests, where AtReach says, as their lines go no
+// further back; or of the Events, the oldest they read back to, as their
+// Reached says, paused at their top reading back past their reach, as
+// views' EventFilter.Reach has it.
 func (p LogPage) reached() bool {
-	return p.oldest() != nil || p.Shown == LogEvents && p.Events.Reached()
+	return p.oldest() != nil || p.Shown == LogEvents && p.Events.Reached() || p.Shown == LogRequests && p.AtReach
 }
 
 // oldest is the oldest day the ledger keeps, where the tables reach it: nil

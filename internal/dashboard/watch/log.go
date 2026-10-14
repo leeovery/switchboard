@@ -65,8 +65,9 @@ func openingLog(columns dashboard.LogTicks) logTab {
 // first read, and made again only as what it's made of changes, as
 // logBuilt has it, its lines held, as Lined holds them; whether the router
 // answers, what the stream tells, which a row in flight is drawn as, and
-// to when the ledger wrote; on opening, the table shown filled once it
-// fills its view; the details card, where it's open, of what it holds; and
+// to when the ledger wrote; whether the table shown is at its reach, as
+// atReach has it; on opening, the table shown filled once it fills its
+// view; the details card, where it's open, of what it holds; and
 // while it's open, the panel of what a table shows, as builtLogPanel has
 // it.
 func (m Model) builtLog(now time.Time) Model {
@@ -77,7 +78,7 @@ func (m Model) builtLog(now time.Time) Model {
 	t := m.log
 	p := t.page
 	p.Read, p.From, p.Today, p.Totals = true, t.from, views.Today(now), t.totals
-	p.Live, p.Stream, p.Written = m.answering(), m.logStream(now), t.read.WrittenTo()
+	p.Live, p.Stream, p.Written, p.AtReach = m.answering(), m.logStream(now), t.read.WrittenTo(), t.atReach()
 	if basis := m.eventsBasis(p.Shows, now); !t.built.events.same(basis) {
 		p.Events, m.log.built.events = views.LogEvents(m.logEventSources(p.Shows, now)), &basis
 	}
