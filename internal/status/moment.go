@@ -506,7 +506,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, Elsewhere: d.elsewhere(a.ID), InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitMoved: limit.Count,
-		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapSince: s.capSince(capped, capTold), CapBack: s.capBack,
+		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapSince: m.ranOn(a.ID, WasCapped, s.capSince(capped, capTold)), CapBack: s.capBack,
 		RefusedSince: refused.At, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(), Back: s.back,
 		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},
@@ -525,7 +525,21 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		an.Windows[i] = m.windowNow(s, w, names[w.window.Key])
 	}
 	an.LimitSince = limitSince(an.Hold, an.Windows)
+	if an.Hold.Every {
+		an.LimitSince = m.ranOn(a.ID, WasLimited, an.LimitSince)
+	}
 	return an
+}
+
+// ranOn is when the hold of every request of the given kind holding the
+// account with the given id began, given that the windows holding it now
+// came to be held from from, as the holds the router told of have the run
+// of it reaching from begin, as ranFrom has it; zero where from is.
+func (m Moment) ranOn(id string, kind WasKind, from time.Time) time.Time {
+	if from.IsZero() {
+		return from
+	}
+	return ranFrom(m.Told(id), kind, m.policy.IsShared, from)
 }
 
 // limitSince is when an account held as hold has it reached what holds it,
@@ -541,7 +555,7 @@ func limitSince(hold Hold, windows []WindowNow) time.Time {
 			since = append(since, w.Since)
 		}
 	}
-	return firstHeld(since)
+	return firstHeld(since...)
 }
 
 // capSince is when the account, its windows standing as s has them, reached
@@ -560,14 +574,14 @@ func (s windowStates) capSince(e Event, told bool) time.Time {
 			since = append(since, from)
 		}
 	}
-	return firstHeld(since)
+	return firstHeld(since...)
 }
 
-// firstHeld is when a hold of several windows began, given when each came to
+// firstHeld is when a hold of several parts began, given when each came to
 // be held, zero where nothing tells: the earliest, so zero where none is
-// given, or where one isn't known, as that one may have been held first, as
-// a part of Then's from before anything given begins first.
-func firstHeld(since []time.Time) time.Time {
+// given, or where one isn't known, as that one may have been held first.
+// It's the one rule the parts of a hold are dated by.
+func firstHeld(since ...time.Time) time.Time {
 	if len(since) == 0 {
 		return time.Time{}
 	}

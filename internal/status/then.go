@@ -206,16 +206,20 @@ func untold(told []Span, s Span, now time.Time) []Span {
 // reserve; and room. Of a hold, Since is when the first part of what holds
 // it at t began: a told hold's From; of a window's, the router's event of
 // it, as reachedAt finds it, else the first reading, of those given, of the
-// unbroken run of the window's readings that shows it; and Until is when the
-// last part lifts, zero where one lifts at no known time.
+// unbroken run of the window's readings that shows it, a limit's or a cap's
+// then begun as the run of the holds told reaching back from it did, as
+// ranFrom has it; and Until is when the last part lifts, zero where one
+// lifts at no known time.
 // A run begun at either edge of what the readings reach tells no start, as
-// Reach says.
+// Reach says. The readings alone tell a window's own run, not one across
+// windows, as Runway's tail carries in each window's own run alone.
 func (m Moment) Then(a AccountNow, read []readings.Reading, reach Reach, told []Span, t time.Time) Was {
 	if !a.TokenSet {
 		return Was{Kind: WasTokenless}
 	}
 	windows := m.readBy(a, read, reach, t)
 	if was, ok := heldAs(WasLimited, slices.Concat(toldAt(told, WasLimited, t), shownAt(windows, told, WasLimited, t))); ok {
+		was.Since = ranFrom(told, WasLimited, m.policy.IsShared, was.Since)
 		return was
 	}
 	if was, ok := heldAs(WasRefused, toldAt(told, WasRefused, t)); ok {
@@ -225,6 +229,7 @@ func (m Moment) Then(a AccountNow, read []readings.Reading, reach Reach, told []
 		return Was{Kind: WasUnread}
 	}
 	if was, ok := heldAs(WasCapped, shownAt(windows, told, WasCapped, t)); ok && a.ReserveHolds {
+		was.Since = ranFrom(told, WasCapped, m.policy.IsShared, was.Since)
 		return was
 	}
 	return Was{Kind: WasRoom}
@@ -405,16 +410,15 @@ func toldAt(told []Span, kind WasKind, t time.Time) []part {
 
 // heldAs is how an account stood, held back as kind says by the parts
 // given, reporting false where there are none: since the first of them
-// began, as score.Earlier has it, so a part from before anything Then is
-// given begins first; until the last of them lifts, zero where one lifts at
-// no known time.
+// began, as firstHeld has it; until the last of them lifts, zero where one
+// lifts at no known time.
 func heldAs(kind WasKind, parts []part) (Was, bool) {
 	if len(parts) == 0 {
 		return Was{}, false
 	}
 	was := Was{Kind: kind, Since: parts[0].from, Until: parts[0].until}
 	for _, p := range parts[1:] {
-		was.Since = score.Earlier(was.Since, p.from)
+		was.Since = firstHeld(was.Since, p.from)
 		if was.Until.IsZero() || p.until.IsZero() {
 			was.Until = time.Time{}
 		} else {
@@ -422,4 +426,30 @@ func heldAs(kind WasKind, parts []part) (Was, bool) {
 		}
 	}
 	return was, true
+}
+
+// ranFrom is when the unbroken run of the holds of every request of the
+// given kind told of, the windows every model shares as shared says, that
+// holds at from began: from, but where such a hold began before it and held
+// on past it, as that one began, and so on back, as one window can take
+// over a hold another began. A told hold holds on only till the account's
+// room after it began, as toldBy has it, so room between ends a run, and
+// one whose lift isn't known holds on past nothing. Zero stays zero.
+func ranFrom(told []Span, kind WasKind, shared func(string) bool, from time.Time) time.Time {
+	for {
+		i := slices.IndexFunc(told, func(s Span) bool { return s.heldOnPast(kind, shared, from) })
+		if i < 0 {
+			return from
+		}
+		from = told[i].From
+	}
+}
+
+// heldOnPast reports whether the span is a hold of every request of the
+// given kind, the windows every model shares as shared says, that began
+// before at and held on past it: one naming no window, or one naming such a
+// window.
+func (s Span) heldOnPast(kind WasKind, shared func(string) bool, at time.Time) bool {
+	every := len(s.Windows) == 0 || slices.ContainsFunc(s.Windows, shared)
+	return s.Kind == kind && every && s.From.Before(at) && s.Until.After(at)
 }
