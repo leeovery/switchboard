@@ -135,6 +135,17 @@ func (s RowStage) InFlight() bool {
 	return s == RowAsking || s == RowAnswering
 }
 
+// TookAt is how long the request took, as Took says; but while it's in
+// flight, how long it has taken at now, since it was sent, as the stream
+// told, so a row drawn at each frame counts on between the builds of its
+// table.
+func (r RequestRow) TookAt(now time.Time) *time.Duration {
+	if r.Stage.InFlight() {
+		return since(r.At, now)
+	}
+	return r.Took
+}
+
 // RowMark is a row's mark.
 type RowMark int
 

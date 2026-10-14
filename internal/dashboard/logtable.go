@@ -163,7 +163,8 @@ func rowMark(r views.RequestRow) span {
 
 // requestCell is what the request's row r says in the column given, but
 // stopped and routing, which requestWords say, laid out as layout, each
-// account named as name names it, its times in now's time zone.
+// account named as name names it, its times in now's time zone, and in
+// flight, how long it has taken counting to now.
 func requestCell(r views.RequestRow, column LogColumn, layout logLayout, name func(id string) string, now time.Time) line {
 	switch column {
 	case LogAt:
@@ -180,7 +181,7 @@ func requestCell(r views.RequestRow, column LogColumn, layout logLayout, name fu
 		return seconds(r.First, mutedInk)
 	case LogTook:
 		if r.Stage.InFlight() {
-			return seconds(r.Took, countingInk)
+			return seconds(r.TookAt(now), countingInk)
 		}
 		return seconds(r.Took, mutedInk)
 	case LogWorth:

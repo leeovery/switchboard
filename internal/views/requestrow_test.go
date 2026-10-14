@@ -179,6 +179,35 @@ func TestARowInFlightIsWhatTheStreamTold(t *testing.T) {
 	}
 }
 
+// A row's took at a moment counts on from when its request was sent while
+// it's in flight, whenever the row was built; once it's ended, it's what
+// the request took, and of one lost, nothing.
+func TestARowsTookAtAMomentCountsOnWhileItsInFlight(t *testing.T) {
+	sent := october(7, 13, 11)
+	base := views.Told{Request: "r9", Session: mover, Model: opus, Account: "side", Sent: sent, Heard: sent}
+	answering, ended, lost := base, base, base
+	answering.First = sent.Add(700 * time.Millisecond)
+	ended.First, ended.Ended, ended.Status = sent.Add(time.Second), sent.Add(14*time.Second), 200
+	lost.Lost = true
+	later := now.Add(90 * time.Second)
+	tests := []struct {
+		name string
+		t    views.Told
+		want *time.Duration
+	}{
+		{name: "asking", t: base, want: new(later.Sub(sent))},
+		{name: "answering", t: answering, want: new(later.Sub(sent))},
+		{name: "ended", t: ended, want: new(14 * time.Second)},
+		{name: "lost", t: lost},
+	}
+	for _, tt := range tests {
+		got := views.RowOfTold(tt.t, now).TookAt(later)
+		if (got == nil) != (tt.want == nil) || got != nil && *got != *tt.want {
+			t.Errorf("%s: built at one moment, at a later one its took is %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
 func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 	sent := october(7, 13, 11)
 	first := withID("r0", of(ledger.ClassMain, line(mover, opus, "work", "new", october(7, 12, 0), hourUsage)))

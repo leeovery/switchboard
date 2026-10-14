@@ -17,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -301,7 +302,8 @@ func madeAt[T any](s []T) *T {
 }
 
 // The Log's tables are made again only as what they're made of changes: a
-// frame or the pointer moving makes neither afresh; the stream telling of a
+// frame or the pointer moving makes neither afresh, the clock moved on a
+// tenth, a request in flight or not; the stream telling of a
 // request makes the Requests again, a look both, and the filter changing
 // the table it filters. Its panel, open, is made again as what it picks
 // changes, not as the pointer moves over it, nor its cursor.
@@ -319,7 +321,10 @@ func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 		p := h.model.log.page
 		return made{madeAt(p.Requests.Lines), madeAt(p.Events.Lines), madeAt(h.model.log.panel.Sessions)}
 	}
-	unmoved := func() { h.deliver(frameMsg{gen: h.model.frames}, tea.MouseMotionMsg{X: 10, Y: 10}) }
+	unmoved := func() {
+		h.clock.now = h.clock.now.Add(100 * time.Millisecond)
+		h.deliver(frameMsg{gen: h.model.frames}, tea.MouseMotionMsg{X: 10, Y: 10})
+	}
 	steps := []struct {
 		name                    string
 		step                    func()
@@ -343,6 +348,29 @@ func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 		if got := [3]bool{after.requests != before.requests, after.events != before.events, after.panel != before.panel}; got != [3]bool{s.requests, s.events, s.panel} {
 			t.Errorf("after %s, the Requests, the Events and the panel were made again: %v, want %v", s.name, got, [3]bool{s.requests, s.events, s.panel})
 		}
+	}
+}
+
+// A request in flight counts how long it has taken frame by frame, a tenth
+// at a time, the Requests it's among made not once more as it does.
+func TestARequestInFlightCountsOnWithoutItsTableMadeAgain(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	h.hear(told(router.StreamSent, "0a000003", "work", 0))
+
+	made := madeAt(h.model.log.page.Requests.Lines)
+	for range 10 {
+		h.clock.now = h.clock.now.Add(100 * time.Millisecond)
+		h.deliver(frameMsg{gen: h.model.frames})
+		if took := prose.Seconds(h.clock.now.Sub(past(0))); !strings.Contains(h.view(), took) {
+			t.Fatalf("at %s, the row in flight doesn't read %s:\n%s", h.clock.now.Format(time.StampMilli), took, h.view())
+		}
+	}
+	if madeAt(h.model.log.page.Requests.Lines) != made {
+		t.Error("over ten frames a tenth apart, a request in flight, the Requests were made again, want them made once")
 	}
 }
 
