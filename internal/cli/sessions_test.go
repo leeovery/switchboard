@@ -147,6 +147,19 @@ func TestSessionsListsTodaysSessions(t *testing.T) {
 	}
 }
 
+// A model recorded with stray spaces or control characters is named as the
+// ledger's ShortModelID names it, as every view names a model by its id.
+func TestSessionsNamesAModelAsTheLedgerDoes(t *testing.T) {
+	const recorded = "  claude-opus-9\x1b[2J"
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
+		{At: october(7, 9, 0, 0), Request: "u1", Kind: ledger.KindMessage, Session: ended, Model: recorded, Account: "work", Reason: "new",
+			Status: 200, Attempts: 1, TotalMS: 900, Usage: json.RawMessage(unknownUsage)},
+	}})
+	if got, want := run(t, deps, "sessions", "--pretty"), "  "+ledger.ShortModelID(recorded)+"  "; got.code != 0 || !strings.Contains(got.stdout, want) {
+		t.Errorf("switchboard sessions --pretty = %+v, want its model named %q", got, want)
+	}
+}
+
 func TestSessionsSaysTodaysWorthAsEachRowDoes(t *testing.T) {
 	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
 		{At: october(7, 9, 0, 0), Request: "u1", Kind: ledger.KindMessage, Session: ended, Model: "claude-opus-9", Account: "work", Reason: "new",

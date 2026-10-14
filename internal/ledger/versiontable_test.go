@@ -114,6 +114,24 @@ func TestEveryFamilyTheVersionTableNamesIsOneTheRouterKnows(t *testing.T) {
 	}
 }
 
+// A model named by its id is named by its id less claude-, cleaned first, so
+// a recorded id with stray spaces or control characters is named as any
+// other, wherever it's named: the one owner the CLI, the views and the
+// dashboard call.
+func TestAModelsShortIDIsItsIDLessClaudeCleaned(t *testing.T) {
+	for id, want := range map[string]string{
+		"claude-opus-5-5":        "opus-5-5",
+		"  claude-opus-5-5\t":    "opus-5-5",
+		"claude-opus-5-5\x1b[2J": "opus-5-5 [2J",
+		"gpt-x":                  "gpt-x",
+		"":                       "",
+	} {
+		if got := ledger.ShortModelID(id); got != want {
+			t.Errorf("ShortModelID(%q) = %q, want %q", id, got, want)
+		}
+	}
+}
+
 func TestAVersionIsNamedByTheTableElseByItsID(t *testing.T) {
 	tests := []struct {
 		id, want string

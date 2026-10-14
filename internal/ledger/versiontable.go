@@ -3,6 +3,8 @@ package ledger
 import (
 	"slices"
 	"strings"
+
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // Version is a model version as the views name it: a row of the version
@@ -90,7 +92,10 @@ func (t Table) VersionName(id string) string {
 }
 
 // ShortModelID returns a model's id as the views show it where they name a
-// model by its id: claude- taken off, as opus-5-5.
+// model by its id: cleaned, as prose.Clean has it, so a recorded id with
+// stray spaces or control characters is named as any other, and claude-
+// taken off, as opus-5-5. It's the one owner of a model's short name, which
+// the CLI, the views and the dashboard all call.
 func ShortModelID(id string) string {
-	return strings.TrimPrefix(id, "claude-")
+	return strings.TrimPrefix(prose.Clean(id), "claude-")
 }
