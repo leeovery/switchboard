@@ -365,16 +365,20 @@ func Short(label string) string {
 	return label
 }
 
-// projection says where a window is heading, such as "on pace for 92%",
-// "runs out ~Fri 19:40" or "exhausted", with times in now's time zone. It's
-// empty when the projection says nothing.
-func projection(now time.Time, p score.Projection) string {
-	switch p.Kind {
-	case score.OnPace:
+// projection says where a window standing at now as w has it is heading,
+// such as "on pace for 92%", "runs out ~Fri 19:40" or "exhausted", with
+// times in now's time zone: where it runs out, as its RunsOut and Out have
+// it, so where its cap starts where its reserve holds; else as its
+// projection has it, but never that it runs out, as of a window held, stale,
+// at its cap or not started, or whose run-out the clock has reached. It's
+// empty where that says nothing.
+func projection(now time.Time, w WindowNow) string {
+	switch p := w.Out.Projection; {
+	case w.RunsOut:
+		return "runs out ~" + prose.Clock(now, w.Out.At)
+	case p.Kind == score.OnPace:
 		return "on pace for " + prose.Percent(p.AtReset)
-	case score.RunsOut:
-		return "runs out ~" + prose.Clock(now, p.At)
-	case score.Exhausted:
+	case p.Kind == score.Exhausted:
 		return "exhausted"
 	default:
 		return ""
@@ -410,7 +414,7 @@ func (m Moment) accountWindow(a AccountNow, wn WindowNow, w judged, width int) s
 	if wn.Kind == WindowNotStarted {
 		return windowLine(name, wn.Used, width, []string{notStartedNote(a.NextPrime, m.Now)})
 	}
-	return windowLine(name, wn.Used, width, windowNotes(w.stands, w.out.Heading, m.Now))
+	return windowLine(name, wn.Used, width, windowNotes(w.stands, wn, m.Now))
 }
 
 // windowLine shows a window's name, nameWidth wide, and how much of it is
@@ -425,17 +429,17 @@ func windowLine(name string, used float64, nameWidth int, notes []string) string
 
 // windowNotes say when a window resets, standing at now as stands, as
 // WindowAt has it, so its next reset once it has reset since it was read,
-// and none where it has lapsed; and where it's heading at now, as heading,
-// the document's project of it, says, as far as those are known, and when
+// and none where it has lapsed; and where it's heading at now, as projection
+// says of it standing as w has it, as far as those are known, and when
 // that's at its rate over the last half hour, that it is.
-func windowNotes(stands quota.Window, heading Heading, now time.Time) []string {
+func windowNotes(stands quota.Window, w WindowNow, now time.Time) []string {
 	var notes []string
 	if reset := stands.ResetsAt; !reset.IsZero() {
 		notes = append(notes, prose.Resets(now, reset)+" · "+prose.Clock(now, reset))
 	}
-	if heads := projection(now, heading.Projection); heads != "" {
-		if heading.Recent {
-			heads += " at its rate over the " + Over(heading.Since, now)
+	if heads := projection(now, w); heads != "" {
+		if h := w.Out.Heading; h.Recent {
+			heads += " at its rate over the " + Over(h.Since, now)
 		}
 		notes = append(notes, heads)
 	}

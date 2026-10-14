@@ -165,3 +165,46 @@ func firstOr[T any](things []T, none T) T {
 	}
 	return things[0]
 }
+
+// At each moment of agreementMoments, status's text says a window runs out
+// where USAGE's out ~ does, as the moment has it: at its Out where it
+// RunsOut, as runOutOf owns it, so at its cap where its reserve holds; and
+// nowhere for a window held, stale, at its cap or not started, or whose
+// run-out the clock has reached, whatever its projection says. USAGE's
+// words are held to RunsOut and Out by its own test at each hard moment.
+func TestTheTextSaysWhereAWindowRunsOutAsUSAGEDoes(t *testing.T) {
+	for _, hm := range agreementMoments() {
+		t.Run(hm.Name, func(t *testing.T) {
+			m := hm.Doc.At(hm.Now, policy)
+			text := textOf(m)
+			for _, a := range m.Accounts {
+				for _, w := range a.Windows {
+					want := "nowhere"
+					if w.RunsOut {
+						want = prose.Clock(m.Now, w.Out.At)
+					}
+					if said := runOutSaid(text[a.ID], w.Name); said != want {
+						t.Errorf("%s's %s: status's text says it runs out %s; want %s, as USAGE says it", a.ID, w.Key, said, want)
+					}
+				}
+			}
+		})
+	}
+}
+
+// runOutSaid is where the line of an account's lines of status's text of
+// the window named as given says it runs out: when, after its "runs out ~",
+// or "nowhere" where it says none.
+func runOutSaid(lines []string, name string) string {
+	i := slices.IndexFunc(lines, func(l string) bool { return strings.HasPrefix(l, name+" ") })
+	if i < 0 {
+		return "nowhere"
+	}
+	_, out, ok := strings.Cut(lines[i], "runs out ~")
+	if !ok {
+		return "nowhere"
+	}
+	out, _, _ = strings.Cut(out, " at its rate")
+	out, _, _ = strings.Cut(out, " · ")
+	return out
+}

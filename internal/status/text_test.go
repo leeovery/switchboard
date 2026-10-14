@@ -129,7 +129,7 @@ probed directly
   2 sessions
 
 side · Side
-  5-hour  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33
+  5-hour  60%  resets in 2h 58m · Mon 17:10
   limit until Mon 21:00
   1 session
 
@@ -343,17 +343,21 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 	tests := []struct {
 		name string
 		pin  status.Pin
-		// work are the lines status gives work beside its usage.
-		work string
+		// week is work's week's line, at its cap, which it runs out nowhere
+		// past, unless the pin spends its reserve; and work are the lines
+		// status gives work beside its usage.
+		week, work string
 	}{
 		{
 			name: "at its reserve",
 			pin:  status.Pin{Accounts: []string{"side"}, Since: now.UTC().Add(-time.Hour)},
+			week: "  Week    93%  resets in 5d 11h · Sun 02:10\n",
 			work: "  limit until Mon 21:00\n  at its reserve (90%)\n  2 sessions\n",
 		},
 		{
 			name: "spending its reserve, pinned",
 			pin:  status.Pin{Accounts: []string{"work"}, Since: now.UTC().Add(-time.Hour)},
+			week: "  Week    93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54\n",
 			work: "  limit until Mon 21:00\n  spending its reserve (pinned)\n  2 sessions\n",
 		},
 	}
@@ -370,7 +374,7 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 			}
 			want := "work · Work (primary)\n" +
 				"  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%\n" +
-				"  Week    93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54\n" +
+				tt.week +
 				tt.work + "\n" +
 				"side · Side\n" +
 				"  5-hour  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +
@@ -530,7 +534,7 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 			name:     "reaching its reserve",
 			reserve:  0.1,
 			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC), Under: true},
-			heading:  "runs out ~Mon 15:32 at its rate over the last 30 min",
+			heading:  "runs out ~Mon 15:12 at its rate over the last 30 min",
 			notes:    "  under pressure: at its reserve ~15:12 at 5-hour's rate over the last 30 min, before its reset at 17:10\n",
 		},
 		{
@@ -1296,24 +1300,39 @@ func TestOver(t *testing.T) {
 	}
 }
 
+// status's text says where a window is heading as its moment has it: where
+// it runs out at Now, at its Out, as runOutOf owns it, so where its cap
+// starts where its reserve holds, its projection short of its limit; else
+// where its projection has it, but never that it runs out, as of a window
+// held, stale, at its cap, not started, or whose run-out the clock has
+// reached, whatever its projection says.
 func TestProjection(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	out := time.Date(2026, 10, 2, 18, 40, 0, 0, time.UTC)
+	heading := func(p score.Projection) status.Heading { return status.Heading{Projection: p} }
+	runsOut := heading(score.Projection{Kind: score.RunsOut, At: out})
 	tests := []struct {
-		name       string
-		projection score.Projection
-		want       string
+		name   string
+		window status.WindowNow
+		want   string
 	}{
-		{name: "on pace", projection: score.Projection{Kind: score.OnPace, AtReset: 0.92}, want: "on pace for 92%"},
-		{name: "on pace, having used nothing", projection: score.Projection{Kind: score.OnPace}, want: "on pace for 0%"},
-		{name: "runs out, in now's time zone", projection: score.Projection{Kind: score.RunsOut, At: time.Date(2026, 10, 2, 18, 40, 0, 0, time.UTC)}, want: "runs out ~Fri 19:40"},
-		{name: "exhausted", projection: score.Projection{Kind: score.Exhausted, At: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)}, want: "exhausted"},
-		{name: "exhausted, back at an unknown time", projection: score.Projection{Kind: score.Exhausted}, want: "exhausted"},
-		{name: "nothing to say", projection: score.Projection{}, want: ""},
+		{name: "on pace", window: status.WindowNow{Out: status.RunOut{Heading: heading(score.Projection{Kind: score.OnPace, AtReset: 0.92})}}, want: "on pace for 92%"},
+		{name: "on pace, having used nothing", window: status.WindowNow{Out: status.RunOut{Heading: heading(score.Projection{Kind: score.OnPace})}}, want: "on pace for 0%"},
+		{name: "running out, in now's time zone", window: status.WindowNow{RunsOut: true, Out: status.RunOut{At: out, Heading: runsOut}}, want: "runs out ~Fri 19:40"},
+		{
+			name:   "running out where its cap starts, its projection short of its limit",
+			window: status.WindowNow{RunsOut: true, Out: status.RunOut{At: out, Reserve: true, Heading: heading(score.Projection{Kind: score.OnPace, AtReset: 0.95})}},
+			want:   "runs out ~Fri 19:40",
+		},
+		{name: "its projection running out, the window not, as one held, stale or at its cap", window: status.WindowNow{Out: status.RunOut{Heading: runsOut}}, want: ""},
+		{name: "exhausted", window: status.WindowNow{Out: status.RunOut{Heading: heading(score.Projection{Kind: score.Exhausted, At: out})}}, want: "exhausted"},
+		{name: "exhausted, back at an unknown time", window: status.WindowNow{Out: status.RunOut{Heading: heading(score.Projection{Kind: score.Exhausted})}}, want: "exhausted"},
+		{name: "nothing to say", want: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := status.Projection(now, tt.projection); got != tt.want {
-				t.Errorf("Projection(%+v) = %q, want %q", tt.projection, got, tt.want)
+			if got := status.Projection(now, tt.window); got != tt.want {
+				t.Errorf("Projection(%+v) = %q, want %q", tt.window, got, tt.want)
 			}
 		})
 	}
