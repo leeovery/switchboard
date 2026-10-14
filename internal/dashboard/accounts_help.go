@@ -17,19 +17,23 @@ func (f Frame) accountsHelp() []helpPart {
 	if f.Accounts.Alone() {
 		return []helpPart{f.valueHelp(), f.detailHelp()}
 	}
-	return []helpPart{compareHelp(), f.valueHelp(), allAccountsHelp(), f.detailHelp()}
+	return []helpPart{f.compareHelp(), f.valueHelp(), allAccountsHelp(), f.detailHelp()}
 }
 
-// compareHelp is Compare as help explains it: its columns and heads, each
-// group and how each row is counted, and a key to the states its heads say.
-func compareHelp() helpPart {
+// compareHelp is Compare as help explains it: its columns and heads, and
+// their focus, but on a phone, whose Compare draws none; each group and how
+// each row is counted; and a key to the states its heads say.
+func (f Frame) compareHelp() helpPart {
+	focus := " `←` and `→` move the focus along the columns, scrolling them past as many as fit, all accounts staying " +
+		"put at the right; `enter` opens the account focused in Detail, and `esc` ends the focus."
+	if f.phone() {
+		focus = ""
+	}
 	return helpPart{
 		heading: accountsHeading(AccountsCompare),
 		says: []line{
 			said("A column an account, numbered by its place in the config, the routing picker's key, and all accounts last; " +
-				"under each name, how the account stands with the router, in a word. `←` and `→` move the focus along the " +
-				"columns, scrolling them past as many as fit, all accounts staying put at the right; `enter` opens the " +
-				"account focused in Detail, and `esc` ends the focus."),
+				"under each name, how the account stands with the router, in a word." + focus),
 			said("WEEK USED is each account's week window as switchboard usage draws it, its cap and even pace marked, and " +
 				"always as it stands now, whatever the period. BY MODEL is each account's share of use over the period, a " +
 				"row a version, its tokens weighed as worth weighs them, so cache reads, which run to millions and cost " +
