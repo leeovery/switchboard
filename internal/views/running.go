@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -199,8 +200,8 @@ func newestMoves(moves []Moved) []Moved {
 // brought is the model the move m took to the account it went to, put there
 // as it moved: as the router listed it before it moved, of those listed in
 // sessions, its reason the router's still; or, where it didn't, as the move
-// tells of it, its family as the router names the model for any session it
-// lists.
+// tells of it, its family as ledger.FamilyOf, which the router names it by,
+// reads it.
 func brought(sessions []status.Session, m Moved) status.Assignment {
 	for _, s := range sessions {
 		if s.ID != m.Session {
@@ -213,20 +214,7 @@ func brought(sessions []status.Session, m Moved) status.Assignment {
 			}
 		}
 	}
-	return status.Assignment{Model: m.Model, Family: familyOf(sessions, m.Model), Account: m.To, AssignedAt: m.At}
-}
-
-// familyOf is the family the router names the model with the given id by,
-// as it lists any session of it in sessions: "" where it lists none.
-func familyOf(sessions []status.Session, model string) string {
-	for _, s := range sessions {
-		for _, a := range s.Assignments {
-			if a.Model == model && a.Family != "" {
-				return a.Family
-			}
-		}
-	}
-	return ""
+	return status.Assignment{Model: m.Model, Family: ledger.FamilyOf(m.Model), Account: m.To, AssignedAt: m.At}
 }
 
 // cameAt is when a session's model came to the account its assignment a
