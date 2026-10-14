@@ -46,6 +46,49 @@ func TestAPageHeldThenFedWhatItsDayGainedIsThePageBuiltWhole(t *testing.T) {
 	}
 }
 
+// A page, its story and its turn open's requests built together, as Build
+// builds them, are each as built alone, of the stream whole or of what it
+// told of the session alone, as Of has it; and the three are built of one
+// working of what's held, its requests taken in and their turns tallied
+// once for them all, so building them together allocates less than
+// building each alone.
+func TestAPageItsStoryAndItsTurnsRequestsAreBuiltTogetherOfOneWorking(t *testing.T) {
+	main := func(id, prompt, account string, at time.Time) ledger.Line {
+		return filedAs(id, took(10*time.Second, serving(prompt, ledger.ClassMain, line(paged, opus, account, "sticky", at, hourUsage))))
+	}
+	lines := []ledger.Line{
+		main("r1", p1, "work", local(12, 29, 4)),
+		main("r2", p1, "work", local(12, 30, 42)),
+		filedAs("o1", line(other, opus, "work", "sticky", local(12, 31, 0), hourUsage)),
+		main("r3", p2, "side", local(12, 32, 0)),
+	}
+	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
+	stream := heard(toldOf("r4", p2, ledger.ClassMain, opus, "side", local(13, 10, 0)), views.Told{Request: "o2", Session: other, Model: opus, Account: "work", Sent: local(13, 11, 0)})
+	stream.Moves = []views.Moved{{Request: "o2", Session: other, Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", At: local(13, 11, 0)}}
+	live := views.PageLive{Now: now, Stream: stream}
+	page, ok := held.Page(live)
+	if !ok {
+		t.Fatal("the page held built no page")
+	}
+	want := views.BuiltPage{Page: page, Story: held.Story(page, live), Requests: held.TurnRequests(2, live)}
+	if len(want.Requests) != 2 {
+		t.Fatalf("turn 2 has %d requests, want r3 and r4", len(want.Requests))
+	}
+	for name, live := range map[string]views.PageLive{"whole": live, "of the session alone": {Now: now, Stream: stream.Of(paged)}} {
+		if got, ok := held.Build(2, live); !ok || !reflect.DeepEqual(got, want) {
+			t.Errorf("built together, of the stream %s, the page is\n%+v\nwant each as built alone\n%+v", name, got, want)
+		}
+	}
+	alone := testing.AllocsPerRun(10, func() {
+		page, _ := held.Page(live)
+		held.Story(page, live)
+		held.TurnRequests(2, live)
+	})
+	if together := testing.AllocsPerRun(10, func() { held.Build(2, live) }); together >= alone {
+		t.Errorf("built together, the page, its story and its turn's requests allocate %.0f times, want fewer than the %.0f built alone", together, alone)
+	}
+}
+
 // A held page reads the ledger once, as it's held: each look after, and each
 // gain it takes, builds of what it holds.
 func TestAHeldPageReadsTheLedgerOnceHoweverOftenItsLookedAt(t *testing.T) {
@@ -319,32 +362,110 @@ func logRowsByID(table views.LogTable) map[string]views.RequestRow {
 	return rows
 }
 
-// While no router lists the sessions, a page keeps the session's own pin as
-// the router's last listing had it, as it stands at the router all the
-// same; but not where auto would send it, which the router can't say then,
-// nor anything else of that listing: it's no more running than its lines
-// say. Where the router answers without listing it, it has no pin.
-func TestAPageKeepsItsOwnPinFromTheLastListingWhileNoRouterListsIt(t *testing.T) {
-	lines := []ledger.Line{filedAs("p1", mainOn(p1, local(12, 50, 0), "end_turn"))}
+// While no router answers, a page reads its session as the router's last
+// listing had it, as the List draws it then, the owner's call of 14 October
+// 2026: running, idle counting on, though its last line came more than an
+// hour before, and its own pin standing, as it stands at the router all the
+// same; but not where auto would send it, which the router can't say then.
+// Listed by no router, it's as its lines say: ended an hour after the last.
+func TestAPageReadsTheLastListingWhileNoRouterAnswers(t *testing.T) {
+	lines := []ledger.Line{filedAs("p1", mainOn(p1, local(11, 50, 0), "end_turn"))}
 	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
+	list := views.HoldList(views.ReadList(summarisedLedger(lines), nil, paged), ledger.Pricing, now)
 	last := runningOn("side")
 	last.Pin, last.Assignments[0].Auto = "side", "work"
 	tests := []struct {
-		name string
-		live views.PageLive
-		pin  string
+		name    string
+		live    views.PageLive
+		running bool
+		pin     string
 	}{
-		{name: "no router listing the sessions", live: views.PageLive{Unlisted: true, LastRouted: last, Now: now}, pin: "side"},
-		{name: "no router listing the sessions, nor one ever having listed it", live: views.PageLive{Unlisted: true, Now: now}},
-		{name: "the router answering, listing it no more", live: views.PageLive{LastRouted: last, Now: now}},
+		{name: "no router answering, its last listing running it", live: views.PageLive{Routed: last, Unlisted: true, Now: now}, running: true, pin: "side"},
+		{name: "no router answering, nor one ever having listed it", live: views.PageLive{Unlisted: true, Now: now}},
+		{name: "the router answering, listing it no more", live: views.PageLive{Now: now}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, ok := held.Page(tt.live)
-			want, _ := held.Page(views.PageLive{Unlisted: tt.live.Unlisted, Now: now})
-			want.Pin = tt.pin
-			if !ok || !reflect.DeepEqual(got, want) {
-				t.Errorf("the page is\n%+v\nwant it built of its lines alone, its own pin %q\n%+v", got, tt.pin, want)
+			if !ok || got.Running != tt.running || got.Runs() != tt.running || got.Pin != tt.pin || got.Auto != "" {
+				t.Fatalf("the page runs %t (%t by its activity), its own pin %q, auto naming %q; want running %t, pin %q, auto naming none",
+					got.Running, got.Runs(), got.Pin, got.Auto, tt.running, tt.pin)
+			}
+			var routed []status.Session
+			if tt.live.Routed != nil {
+				routed = []status.Session{*tt.live.Routed}
+			}
+			listed := list.List(views.ListLive{Running: routed, Unlisted: tt.live.Unlisted, Now: now}).Sessions
+			if len(listed) != 1 || listed[0].Running != got.Running || listed[0].Activity != got.Activity {
+				t.Errorf("the List has it %+v, want it as its page has it, running %t, %+v", listed, got.Running, got.Activity)
+			}
+		})
+	}
+}
+
+// A session kept where it started says so on its page, sticky, or kept for
+// its thinking, whether the router answers or not: the router keeps the
+// reason the assignment came by, new, while it keeps a session where it is,
+// and its lines say each request kept it. One with no request since its
+// first says it started there alone, as does one the router lists, new, on
+// another account than a request kept it on. Its page reads the router's
+// last listing while the router doesn't answer, so says the same either way.
+func TestASessionKeptWhereItStartedSaysSoWhetherTheRouterAnswersOrNot(t *testing.T) {
+	asked := func(id, account, reason string, at time.Time) ledger.Line {
+		return filedAs(id, stopped("end_turn", took(time.Minute, serving(p1, ledger.ClassMain, line(paged, opus, account, reason, at, hourUsage)))))
+	}
+	first := asked("p1", "side", status.ReasonNew, local(12, 20, 0))
+	listing := func(account, reason string) *status.Session {
+		return &status.Session{ID: paged, Assignments: []status.Assignment{{Model: opus, Account: account, Reason: reason, AssignedAt: local(12, 20, 0), LastSeen: local(12, 40, 0)}}}
+	}
+	pressed := status.PassingOver(status.ReasonNew, "personal")
+	tests := []struct {
+		name   string
+		lines  []ledger.Line
+		routed *status.Session
+		said   string
+		short  string
+	}{
+		{name: "kept while its cache was warm", lines: []ledger.Line{first, asked("p2", "side", status.ReasonSticky, local(12, 40, 0))},
+			routed: listing("side", status.ReasonNew), said: "on [side] since it started: sticky", short: "sticky"},
+		{name: "kept for its thinking once its cache went cold", lines: []ledger.Line{first, asked("p2", "side", status.ReasonBound, local(12, 40, 0))},
+			routed: listing("side", status.ReasonNew),
+			said:   "on [side] since it started: kept for its thinking", short: "kept for its thinking"},
+		{name: "started passing an account over for pressure, then kept",
+			lines:  []ledger.Line{asked("p1", "side", pressed, local(12, 20, 0)), asked("p2", "side", status.ReasonSticky, local(12, 40, 0))},
+			routed: listing("side", pressed), said: "on [side] since it started: sticky", short: "sticky"},
+		{name: "rescored where it ran, then kept, as it was rescored",
+			lines: []ledger.Line{asked("p1", "side", status.ReasonNew, local(10, 0, 0)), asked("p2", "side", "rescored after 2h idle", local(12, 20, 0)),
+				asked("p3", "side", status.ReasonSticky, local(12, 40, 0))},
+			routed: listing("side", "rescored after 2h idle"),
+			said:   "on [side] since 12:20, rescored after 2h idle: [side] had the most room", short: "rescored after 2h idle"},
+		{name: "its first request alone", lines: []ledger.Line{first},
+			routed: listing("side", status.ReasonNew), said: "on [side] since it started"},
+		{name: "listed new on another account than a request kept it on",
+			lines:  []ledger.Line{asked("p1", "work", status.ReasonNew, local(12, 20, 0)), asked("p2", "work", status.ReasonSticky, local(12, 40, 0))},
+			routed: listing("side", status.ReasonNew), said: "on [side] since it started"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(tt.lines), []status.Session{*tt.routed}, now, paged), ledger.Pricing, kept90, now)
+			for _, c := range []struct {
+				live views.PageLive
+				want string
+			}{
+				{live: views.PageLive{Routed: tt.routed, Now: now}, want: tt.said},
+				{live: views.PageLive{Routed: tt.routed, Unlisted: true, Now: now}, want: tt.said},
+			} {
+				page, ok := held.Page(c.live)
+				if !ok {
+					t.Fatalf("no page, the router answering %v", !c.live.Unlisted)
+				}
+				where := page.Where(now)
+				if got := wordsSaid(where.Words()); got != c.want {
+					t.Errorf("row 6, the router answering %v, says %q, want %q", !c.live.Unlisted, got, c.want)
+				}
+				if got := wordsSaid(where.Short); got != tt.short {
+					t.Errorf("a phone's row 8, the router answering %v, says %q, want %q", !c.live.Unlisted, got, tt.short)
+				}
 			}
 		})
 	}

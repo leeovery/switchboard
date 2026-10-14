@@ -53,8 +53,8 @@ func (m Model) helpCard() dashboard.Help {
 // design's order: esc, back where the page was opened from, or with a turn
 // open, closing it; ↑↓ through its turns, or the open turn's requests; enter
 // opening the turn chosen into its requests, or the request chosen; and p,
-// as pinKey has it. Its scroll keys follow, where its turns scroll, as
-// listings has them.
+// as pinKey has it. Its scroll keys follow, where they scroll its turns, or
+// the open turn's requests, as KeysScroll has it, as listings has them.
 func (m Model) sessionKeys() pageKeys {
 	esc, move, enter := dashboard.Key{Key: "esc", Does: "back"}, dashboard.Key{Key: "↑↓", Does: "turn"}, dashboard.Key{Key: "enter", Does: "its requests"}
 	if m.session.shown.Open != 0 {
@@ -70,9 +70,10 @@ func (m Model) sessionKeys() pageKeys {
 }
 
 // helpKeys are the keys help lists, those of the page it stands still over,
-// drawn at the size drawn at now, which says whether the page scrolls.
+// drawn at the size drawn at now, which says whether its scroll keys scroll
+// anything, as KeysScroll has it.
 func (m Model) helpKeys() []dashboard.Key {
 	f := m.page.frame
 	f.Width, f.Height = m.size.Width, m.size.Height
-	return m.help.over.helpKeys(f.Scrolling(m.page.doc, m.page.at).Most > 0)
+	return m.help.over.helpKeys(f.KeysScroll(m.page.doc, m.page.at))
 }

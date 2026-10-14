@@ -68,18 +68,49 @@ const (
 	askingAt    = 114
 )
 
-// The cells of a phone's turn row: its number ends before phoneNumberEnd,
-// its start from phoneStartAt, its minutes end before phoneTookEnd, the
-// mark of one going after them, and its requests end before
-// phoneRequestsEnd, " req" after them; and at the right, the accounts it
-// went to, in phoneOnCells, its worth sessionPhoneApart cells before them.
+// The cells of a phone's turn row: its number right-aligned in
+// phoneNumberCells at the least, then a blank; its start, in
+// phoneStartCells; phoneTookApart blanks at the least, then its minutes
+// right-aligned in phoneTookCells at the least, the mark of one going after
+// them; and its requests right-aligned in phoneRequestsCells at the least, "
+// req" after them; and at the right, the accounts it went to, in
+// phoneOnCells, its worth sessionPhoneApart cells before them.
 const (
-	phoneNumberEnd   = 2
-	phoneStartAt     = 3
-	phoneTookEnd     = 13
-	phoneRequestsEnd = 18
-	phoneOnCells     = 9
+	phoneNumberCells   = 2
+	phoneStartCells    = 5
+	phoneTookApart     = 2
+	phoneTookCells     = 3
+	phoneRequestsCells = 4
+	phoneOnCells       = 9
 )
+
+// phoneTurnCells are where a phone's turn rows set their parts: each
+// number ends before numberEnd, each start is from startAt, each turn's
+// minutes end before tookEnd, the mark of one going after them, and its
+// requests end before requestsEnd.
+type phoneTurnCells struct {
+	numberEnd, startAt, tookEnd, requestsEnd int
+}
+
+// phoneTurnCellsOf are where a phone's rows of the turns given set their
+// parts at now: the numbers in phoneNumberCells, or past 99 as many as the
+// widest takes, the minutes in phoneTookCells, or past 99 as many as the
+// longest take, and the requests in phoneRequestsCells, or past 999 as many
+// as the most take, each part after moving on as far on every row, so each
+// figure is whole and the columns line up.
+func phoneTurnCellsOf(turns []views.Turn, now time.Time) phoneTurnCells {
+	number, took, requests := phoneNumberCells, phoneTookCells, phoneRequestsCells
+	for _, t := range turns {
+		number = max(number, len(strconv.Itoa(t.Turn)))
+		minutes, _ := t.Took(now)
+		took = max(took, len(minutes))
+		requests = max(requests, len(prose.Grouped(t.Requests)))
+	}
+	c := phoneTurnCells{numberEnd: number, startAt: number + 1}
+	c.tookEnd = c.startAt + phoneStartCells + phoneTookApart + took
+	c.requestsEnd = c.tookEnd + ansi.StringWidth(prose.Ellipsis) + requests
+	return c
+}
 
 // noTurns is what TURNS says of a session whose requests name no prompt,
 // as one from before Claude Code named them.
@@ -105,15 +136,17 @@ var turnsOut = outForm{
 
 // sessionDrawn is a session's page as the frame draws it of a moment at
 // now: the page open, laid out as sessionLayout lays it out, its accounts
-// named as the Overview names them.
+// named as the Overview names them, and on a phone, its turns' rows set out
+// as phoneTurnCellsOf sets them.
 type sessionDrawn struct {
 	Frame
-	shown *SessionShown
-	page  views.SessionPage
-	m     status.Moment
-	names []accountName
-	l     sessionLayout
-	now   time.Time
+	shown      *SessionShown
+	page       views.SessionPage
+	m          status.Moment
+	names      []accountName
+	l          sessionLayout
+	phoneCells phoneTurnCells
+	now        time.Time
 }
 
 // sessionDrawn is the session's page open, as the frame draws it of doc at
@@ -122,7 +155,7 @@ func (f Frame) sessionDrawn(doc status.Document, now time.Time) sessionDrawn {
 	m := f.Moment(doc, now)
 	return sessionDrawn{
 		Frame: f, shown: f.Session, page: f.Session.Page, m: m, names: namesOf(m),
-		l: f.sessionLayout(len(f.Session.Page.Accounts)), now: now,
+		l: f.sessionLayout(len(f.Session.Page.Accounts)), phoneCells: phoneTurnCellsOf(f.Session.Page.Turns, now), now: now,
 	}
 }
 
@@ -170,7 +203,8 @@ func (f Frame) sessionTargets(doc status.Document, now time.Time) []Target {
 
 // heading draws the page's heading: SESSION, the session's id and its
 // directory's name; wide, the directory, its home as ~, cut from its start
-// to fit, and a rule; and at the right, esc back.
+// to leave the rule after it a cell at least, and the rule; and at the
+// right, esc back.
 func (d sessionDrawn) heading(c *canvas) {
 	y, apart := d.l.heading, sessionPhoneApart
 	if d.l.wide {
@@ -186,7 +220,7 @@ func (d sessionDrawn) heading(c *canvas) {
 	if !d.l.wide {
 		return
 	}
-	if path := status.DirPath(d.page.Dir, d.shown.Home, end-x-ruleGap-1); path != "" {
+	if path := status.DirPath(d.page.Dir, d.shown.Home, end-x-ruleGap-2); path != "" {
 		x = c.text(x+ruleGap, y, path, faintInk)
 	}
 	c.text(x+1, y, rule(end-x-1), borderInk)
@@ -395,16 +429,17 @@ func (d sessionDrawn) account(c *canvas, y int, s views.Stay) {
 }
 
 // points are the points of the account's windows the session took, in
-// form, the points bold text.primary and the rest text.muted: as many
-// windows as fit whole in room cells.
+// form, the points bold text.primary, each window's numbered, and the rest
+// text.muted: as many windows as fit whole in room cells.
 func (d sessionDrawn) points(a views.SessionAccount, form views.PointsForm, room int) line {
 	var l line
-	for _, w := range a.PointsWords(form) {
+	keys := a.PointsKeys()
+	for i, w := range a.PointsWords(form) {
 		next := slices.Clip(l)
 		for _, p := range w {
 			k := mutedInk
 			if p.Kind == status.PartFigure {
-				k = titleInk
+				k = titleInk.numbered(Number{Kind: NumberPoints, Account: a.Account, Of: keys[i]})
 			}
 			next = append(next, span{p.Text, k})
 		}
@@ -503,7 +538,7 @@ func (d sessionDrawn) turn(c *canvas, y int, t views.Turn, newest bool) {
 	}
 	if t.Turn == d.shown.Turn {
 		c.surface(0, y, chosenCells, chosenTurn)
-		emboldened(c, y, chosenCells)
+		c.emboldened(0, y, chosenCells)
 	}
 	if said := d.page.Activity.WaitingSaid(); newest && said != "" {
 		c.text(askingAt, y, said, keyInk)
@@ -518,15 +553,6 @@ func (col turnColumn) draw(c *canvas, y int, l line) {
 		return
 	}
 	c.line(col.at, y, l)
-}
-
-// emboldened makes the cells from column 0 along row y bold, n of them.
-func emboldened(c *canvas, y, n int) {
-	for x := range n {
-		if here := c.at(x, y); here != nil {
-			here.ink.bold = true
-		}
-	}
 }
 
 // turnOn names the accounts a turn went to, in text.secondary, in its
@@ -561,14 +587,15 @@ func (d sessionDrawn) turnOn(accounts []string) line {
 // and the accounts it went to, lit across the row where it's chosen.
 func (d sessionDrawn) phoneTurn(c *canvas, y int, t views.Turn) {
 	took, going := t.Took(d.now)
-	c.right(phoneNumberEnd, y, line{{strconv.Itoa(t.Turn), titleInk}})
-	c.text(phoneStartAt, y, prose.TimeOfDay(d.now, t.Started), secondaryInk)
-	c.right(phoneTookEnd, y, line{{took, mutedInk}})
+	at := d.phoneCells
+	c.right(at.numberEnd, y, line{{strconv.Itoa(t.Turn), titleInk}})
+	c.text(at.startAt, y, prose.TimeOfDay(d.now, t.Started), secondaryInk)
+	c.right(at.tookEnd, y, line{{took, mutedInk}})
 	if going {
-		c.text(phoneTookEnd, y, prose.Ellipsis, mutedInk)
+		c.text(at.tookEnd, y, prose.Ellipsis, mutedInk)
 	}
-	c.right(phoneRequestsEnd, y, line{{prose.Grouped(t.Requests), mutedInk}})
-	c.text(phoneRequestsEnd, y, " req", mutedInk)
+	c.right(at.requestsEnd, y, line{{prose.Grouped(t.Requests), mutedInk}})
+	c.text(at.requestsEnd, y, " req", mutedInk)
 	on := d.Width - phoneOnCells
 	c.right(on-sessionPhoneApart, y, line{{t.Cents(), mutedInk}})
 	c.line(on, y, d.phoneOn(t.Accounts))

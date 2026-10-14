@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -198,6 +199,39 @@ func TestATurnOpenedsRequestsAreTheLogsRowsInThePagesColumns(t *testing.T) {
 				t.Errorf("the tree is in %+v, want border", k)
 			}
 		})
+	}
+}
+
+// A turn open's request in flight is drawn as the Log's row of it is, as it
+// stands at the moment it's drawn, its rows built once: its took counting on
+// to that moment, and answering, its characters as the stream the frame
+// holds then counts them.
+func TestATurnOpensRequestInFlightIsDrawnAsItStands(t *testing.T) {
+	sent := sessionNow.Add(-20 * time.Second)
+	answering := views.Told{
+		Request: "0a000001", Session: moved().Page.Session, Model: opus, Account: "side",
+		Sent: sent, First: sent.Add(time.Second), Chars: 1000, Heard: sent,
+	}
+	streamed := func(chars int) views.Stream {
+		told := answering
+		told.Chars = chars
+		return views.Stream{Live: true, Requests: map[string]views.Told{told.Request: told}}
+	}
+	shown := turnOpened()
+	shown.Requests[0] = views.LogRows(views.LogSources{From: sent, Now: sessionNow, Stream: streamed(1000)}).Lines[0]
+	for _, tt := range []struct {
+		at    time.Duration
+		chars int
+	}{{at: 20 * time.Second, chars: 1000}, {at: 21500 * time.Millisecond, chars: 5100}, {at: 75 * time.Second, chars: 9900}} {
+		f := pageFrame(t, shown, 160, 37)
+		f.Stream = streamed(tt.chars)
+		rows := textOf(f.Draw(pageDoc(), sent.Add(tt.at)))
+		row := rows[f.sessionLayout(2).turnsAt+3]
+		for _, want := range []string{prose.Seconds(tt.at), "answering · " + prose.Characters(tt.chars) + " characters"} {
+			if !strings.Contains(row, want) {
+				t.Errorf("drawn %s after it was sent, %d characters streamed, the turn open's row in flight doesn't read %q:\n%s", tt.at, tt.chars, want, row)
+			}
+		}
 	}
 }
 

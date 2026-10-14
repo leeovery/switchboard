@@ -79,12 +79,23 @@ func (s SessionsShown) Turned(by int, accounts []string) (SessionsShown, bool) {
 	return s.Showing(round(int(s.Shown)+by, len(sessionsViews)), accounts)
 }
 
-// chosenThere is the row of the sub-tab shown that keeps the choice, its
-// session's: on the List, its session's row; on the Switchboard, its
-// session's first call, on the lines of the accounts given; none where its
-// session shows on neither.
+// Following is Sessions with its choice following its session as a look
+// built it afresh, on the lines of the accounts given, as chosenThere has
+// it: kept on its row, or on another of its session's, else ended.
+func (s SessionsShown) Following(accounts []string) SessionsShown {
+	s.Chosen = s.chosenThere(accounts)
+	return s
+}
+
+// chosenThere is the row of the sub-tab shown that keeps the choice: its
+// own, where it shows; else its session's: on the List, its session's row;
+// on the Switchboard, its session's first call, on the lines of the accounts
+// given; none where its session shows on neither.
 func (s SessionsShown) chosenThere(accounts []string) Plug {
 	stops := s.stops(accounts)
+	if slices.Contains(stops, s.Chosen) {
+		return s.Chosen
+	}
 	if i := slices.IndexFunc(stops, func(p Plug) bool { return p.Session == s.Chosen.Session }); i >= 0 {
 		return stops[i]
 	}

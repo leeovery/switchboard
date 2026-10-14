@@ -300,15 +300,17 @@ func (m Model) sinceRead(msg sinceMsg) Model {
 	return m
 }
 
-// since is the tab at now, the days given, read at at, in place of those
-// each year held held of them, as Past.Since has it, its page behind them.
+// since is the tab at now, the days given, read at at, as the read was asked,
+// before the ledger summarised them, so they hold nothing they're taken to
+// hold of what came after, in place of those each year held held of them, as
+// Past.Since has it, its page behind them.
 func (t historyTab) since(days []ledger.Summary, at, now time.Time) historyTab {
 	t.held, t.behind = t.held+1, true
 	for _, d := range []*heldDays{&t.last, &t.back} {
 		if !d.held() {
 			continue
 		}
-		d.past = d.past.Since(days, now)
+		d.past = d.past.Since(days, at).Since(nil, now)
 		if len(days) > 0 {
 			d.to = at
 		}
@@ -405,7 +407,7 @@ func (t historyTab) earliest(now time.Time) int {
 // after, round. A key that changes what's shown shows it as showHistory has
 // it.
 func (m Model) historyKey(key string) (Model, bool) {
-	if m.view != dashboard.History {
+	if m.shownView() != dashboard.History {
 		return m, false
 	}
 	p, now := m.past.page, m.now()
@@ -435,7 +437,7 @@ var historySteps = map[string]int{"[": -1, "]": 1, "<": -1, ">": 1, "left": -1, 
 // showSubTab shows History's sub-tab i, as a click on it does: on History,
 // where it isn't the one shown already.
 func (m Model) showSubTab(i int) Model {
-	if next, ok := m.past.page.Showing(i); ok && m.view == dashboard.History {
+	if next, ok := m.past.page.Showing(i); ok && m.shownView() == dashboard.History {
 		return m.showHistory(next)
 	}
 	return m

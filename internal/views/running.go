@@ -117,7 +117,8 @@ func runningOn(m status.Moment, s status.Session, id string, h hearing) (Running
 	return r, true
 }
 
-// placed are the sessions the router listed, as the stream s has moved and
+// placed are the sessions the router listed, as the stream s has moved them
+// since, by the moves no listing has shown done, as unlisted has them, and
 // seen them since, h hearing what it told of them: each model the newest
 // move of it took to another account put there, as brought has it, a
 // session the router didn't list that a move brought on put first, as the
@@ -130,7 +131,7 @@ func (s Stream) placed(sessions []status.Session, h hearing) []status.Session {
 		session.Assignments = slices.Clone(session.Assignments)
 		placed[i] = session
 	}
-	for _, m := range newestMoves(s.Moves) {
+	for _, m := range newestMoves(s.unlisted()) {
 		brought := brought(sessions, m)
 		i := slices.IndexFunc(placed, func(session status.Session) bool { return session.ID == m.Session })
 		if i < 0 {

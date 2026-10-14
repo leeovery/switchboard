@@ -72,3 +72,40 @@ func TestAutoNamesNoAccountForAnAssignmentTheRouterHasNone(t *testing.T) {
 		})
 	}
 }
+
+// The router's listing of its sessions glances at the accounts once for each
+// model they run, however many run it, each glance taking the lock every
+// request's choice takes; and says where each session's next request would
+// go as auto alone says it.
+func TestTheListingGlancesAtTheAccountsOnceForEachModel(t *testing.T) {
+	r := newTestRouter(t, at(start), &stubProber{})
+	r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
+	r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
+	for _, id := range []string{"one", "two", "three"} {
+		assign(r.sessions, key{session: id, model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+		assign(r.sessions, key{session: id, model: haiku}, "", decision{account: "side", reason: reasonNew}, start)
+	}
+	looks := 0
+	r.state.mu.Lock()
+	family := r.state.family
+	r.state.family = func(model string) string {
+		looks++
+		return family(model)
+	}
+	r.state.mu.Unlock()
+	r.state.glance(opus, start)
+	glance := looks
+
+	looks = 0
+	listed := r.running()
+	if want := 2 * glance; looks != want {
+		t.Errorf("listing three sessions of opus and haiku looked at the accounts %d times, want %d: a glance for each model", looks/glance, want/glance)
+	}
+	for _, s := range listed {
+		for _, a := range s.Assignments {
+			if want := r.scheduler.auto(s.ID, a.Model, start); a.Auto != want {
+				t.Errorf("the listing says %s's %s goes to %q, auto %q", s.ID, a.Model, a.Auto, want)
+			}
+		}
+	}
+}

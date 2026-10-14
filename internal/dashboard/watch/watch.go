@@ -612,6 +612,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.logRead(msg), nil
 	case findReadMsg:
 		return m.findRead(msg), nil
+	case reachMsg:
+		return m.reachRead(msg), nil
 	case orderedMsg:
 		return m.ordered(msg)
 	case costedMsg:
@@ -720,7 +722,7 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.openHelp(), nil
 	case k == "R":
 		return m.refresh()
-	case m.session != nil:
+	case m.shownView() == dashboard.SessionPage:
 		return m.sessionKey(key)
 	}
 	return m.pageKey(key)
@@ -765,11 +767,11 @@ func (m Model) card(now time.Time) dashboard.Opened {
 	case routingOpen:
 		return m.routingCard(now)
 	case logCardOpen:
-		return m.logCard()
+		return m.logCardAt(now)
 	case logPanelOpen:
 		return m.logPanel(now)
 	case turnCardOpen:
-		return m.turnCard()
+		return m.turnCardAt(now)
 	}
 	return m.helpCard()
 }

@@ -55,19 +55,40 @@ func (r EventsRead) Since() time.Time {
 	return r.since
 }
 
-// Back is r reaching back, through filed, to EventsFrom of the local day
-// first falls on, where that's before it reaches: the files' events from then
-// up to when r began read, and r's own kept as they stand. It's r where it
-// reaches that far already.
-func (r EventsRead) Back(filed Events, first time.Time) EventsRead {
+// EventsFiled are what a read of the router's files for an EventsRead
+// found, apart from the events held as it was asked, so those a look takes
+// in while it's under way are kept as it lands, as Took has it: when the
+// events read reach back to with them, and the events found, each as the
+// files last hold it.
+type EventsFiled struct {
+	since  time.Time
+	events []Event
+}
+
+// Took is r with what the files were found to hold taken in: reaching back
+// as far as f does, where that's further, and each event found in place of
+// the version held, those held besides kept as they stand.
+func (r EventsRead) Took(f EventsFiled) EventsRead {
+	took := r.clone()
+	if f.since.Before(took.since) {
+		took.since = f.since
+	}
+	for _, e := range f.events {
+		took.hold(e)
+	}
+	return took
+}
+
+// Back is what r reaching back, through filed, to EventsFrom of the local
+// day first falls on finds, where that's before it reaches, to be taken in
+// as Took has it: the files' events from then up to when r began. It finds
+// nothing where r reaches that far already.
+func (r EventsRead) Back(filed Events, first time.Time) EventsFiled {
 	since := EventsFrom(first)
 	if !since.Before(r.since) {
-		return r
+		return EventsFiled{since: r.since}
 	}
-	back := r.clone()
-	back.since = since
-	back.file(filed, since, r.since)
-	return back
+	return EventsFiled{since: since, events: filedBetween(filed, since, r.since)}
 }
 
 // Look is r with the events the status document m is a moment of gives,
@@ -101,18 +122,17 @@ func (r EventsRead) Skips(m status.Moment, run time.Time) bool {
 	return oldest.ID > r.newest.ID+1
 }
 
-// Refiled is r with the events the router filed that happened from from to
-// the end of now's day read, through filed, each as the files last hold it
-// in place of the version held: as the router stops, or restarts, those it
-// filed after the last look at its document, which no later document tells
-// of. Those before r begins are passed over.
-func (r EventsRead) Refiled(filed Events, from, now time.Time) EventsRead {
+// Refiled is what reading, through filed, the events the router filed that
+// happened from from to the end of now's day finds, to be taken in as Took
+// has it, each as the files last hold it in place of the version held: as
+// the router stops, or restarts, those it filed after the last look at its
+// document, which no later document tells of. Those before r begins are
+// passed over.
+func (r EventsRead) Refiled(filed Events, from, now time.Time) EventsFiled {
 	if from.Before(r.since) {
 		from = r.since
 	}
-	refiled := r.clone()
-	refiled.file(filed, from, dayfile.DayStart(now.Local(), 1))
-	return refiled
+	return EventsFiled{since: r.since, events: filedBetween(filed, from, dayfile.DayStart(now.Local(), 1))}
 }
 
 // Events are the events read, oldest first, by when each happened, then by
@@ -133,14 +153,25 @@ func (r EventsRead) clone() EventsRead {
 }
 
 // file holds the events filed reads as having happened from from up to to,
-// each as it last stands: a nil filed reads none.
+// each as it last stands, as filedBetween finds them.
 func (r *EventsRead) file(filed Events, from, to time.Time) {
+	for _, e := range filedBetween(filed, from, to) {
+		r.hold(e)
+	}
+}
+
+// filedBetween are the events filed reads as having happened from from up
+// to to, in the order filed, so the last of an event's versions is as it
+// last stands: none of a nil filed.
+func filedBetween(filed Events, from, to time.Time) []Event {
 	if filed == nil {
-		return
+		return nil
 	}
+	var found []Event
 	for line := range filed.Between(from, to) {
-		r.hold(Event{Key: EventKey{Run: line.Run, ID: line.ID}, Event: line.Event})
+		found = append(found, Event{Key: EventKey{Run: line.Run, ID: line.ID}, Event: line.Event})
 	}
+	return found
 }
 
 // hold holds e in place of any version of its event held.

@@ -52,16 +52,13 @@ const (
 )
 
 // boardColumns are where the Switchboard's parts sit across a frame, as the
-// narrowing table gives them for its width: the cells a call's directory is
-// cut to, and the columns what it's doing and ▸ start at; whether ▸ drops
-// its "from", and the cells the account after it is cut to; the plugs'
-// column, the bends' room's columns after it, the jacks' column and the
-// column the lines start at; and the cells of the lines' bars and words, the
-// words in usage's short form where shortWords says.
+// narrowing table gives them for its width: a call's parts, its id at the
+// first column; the plugs' column, the bends' room's columns after it, the
+// jacks' column and the column the lines start at; and the cells of the
+// lines' bars and words, the words in usage's short form where shortWords
+// says.
 type boardColumns struct {
-	dir, doing, from  int
-	fromShort         bool
-	account           int
+	callColumns
 	plug, room, jacks int
 	lines             int
 	bar, words        int

@@ -628,9 +628,8 @@ func (g gauge) number(kind NumberKind) Number {
 // The marks the Overview names follow the cap's part, each part keyApart
 // cells after the one before.
 func (b usageBlock) key(c *canvas, y int) {
-	pace := line{{paceMark, paceInk}, {" even pace: where you would be now, used evenly", mutedInk}}
-	apart := span{strings.Repeat(" ", keyApart(b.width)), mutedInk}
-	after := slices.Concat([]line{b.caps(b.bar())}, b.marks)
+	pace, after := b.keyParts(b.bar())
+	apart := keyGap(b.width)
 	if b.width >= matrixWidth {
 		c.line(b.names, y, joined(apart, slices.Concat([]line{pace}, after)...).fit(b.width-b.names))
 		return
@@ -639,6 +638,20 @@ func (b usageBlock) key(c *canvas, y int) {
 	if second := joined(apart, after...); second != nil {
 		c.line(0, y+1, second.fit(b.width))
 	}
+}
+
+// keyParts are the parts of the block's key line, its bars bar cells long:
+// even pace's; then the cap's, where its bars draw one, and the marks the
+// Overview names.
+func (b usageBlock) keyParts(bar int) (pace line, after []line) {
+	pace = line{{paceMark, paceInk}, {" even pace: where you would be now, used evenly", mutedInk}}
+	return pace, slices.Concat([]line{b.caps(bar)}, b.marks)
+}
+
+// keyGap is what sets a key line's parts apart, width columns wide, as
+// keyApart has it.
+func keyGap(width int) span {
+	return span{strings.Repeat(" ", keyApart(width)), mutedInk}
 }
 
 // keyApart is the cells between the parts of a key line width columns wide:

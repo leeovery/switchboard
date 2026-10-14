@@ -162,9 +162,9 @@ type runwayLaid struct {
 }
 
 // runwayLaidOut is Runway of the moment m laid out as fit fits it, its lanes
-// from column x, those shown as lanesOf has them.
+// from column x, those shown as laidLanes has them.
 func (f Frame) runwayLaidOut(m status.Moment, x int, fit runwayFit) runwayLaid {
-	return runwayLaid{x: x, m: m, lanes: f.lanesOf(m, fit), fit: fit}
+	return runwayLaid{x: x, m: m, lanes: f.laidLanes(m, fit), fit: fit}
 }
 
 // runwayForm is the form Runway is drawn in, of doc at now: a phone's, as

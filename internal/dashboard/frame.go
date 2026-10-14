@@ -226,41 +226,55 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 		return
 	}
 	top := f.top()
-	switch {
-	case f.Session != nil:
+	switch f.Shown() {
+	case SessionPage:
 		f.sessionPage(c, doc, now)
-	case f.View == Overview:
+	case Overview:
 		f.overview(c, doc, now, top)
-	case f.View == Accounts:
+	case Accounts:
 		f.accounts(c, doc, now, top)
-	case f.View == History:
+	case History:
 		f.history(c, top)
-	case f.View == Sessions:
+	case Sessions:
 		f.sessions(c, doc, now, top)
-	case f.View == Runway:
+	case Runway:
 		f.runway(c, doc, now, top)
-	case f.View == Log:
+	case Log:
 		f.log(c, doc, now, top)
 	}
 }
 
-// stateLine draws the view's state line, over the key line, as told at now,
-// where the page has room for the view, as cramped says: the Log's, once
-// its first read lands; or while its find is open, read or not, the find's
-// line in its place; but none under a session's page, drawn in the view's
-// place. The views milestone 5 built draw their own line there.
+// stateLine draws the view's state line, over the key line, as told at now:
+// the Log's, once its first read lands, where the page has room for the
+// view, as cramped says; and while its find is open, read or not, the
+// find's line in its place, cramped or not, where LogFinds says it has the
+// row, as what's typed into it is drawn nowhere else; but none under a
+// session's page, drawn in the view's place. The views milestone 5 built
+// draw their own line there.
 func (f Frame) stateLine(c *canvas, now time.Time) {
-	if f.cramped() || f.Session != nil || f.View != Log {
+	if f.Shown() != Log {
 		return
 	}
-	y := f.Height - underView
-	if found, ok := f.Log.findLine(f.Width); ok {
+	y := f.stateRow()
+	if found, ok := f.Log.findLine(f.Width); ok && f.LogFinds() {
 		c.line(0, y, found)
 		return
 	}
-	if f.Log.Read {
+	if f.Log.Read && !f.cramped() {
 		c.line(0, y, f.Log.state(f.LogRows()).line(f.Width, now))
 	}
+}
+
+// stateRow is the row the state line is on: the key line's but one.
+func (f Frame) stateRow() int {
+	return f.Height - underView
+}
+
+// LogFinds reports whether the frame has a row for the Log's find line, so
+// / opens it: the state line's, where it's under the status line, as it
+// isn't on a terminal 4 rows tall, or 5 on a phone.
+func (f Frame) LogFinds() bool {
+	return f.stateRow() > f.statusRow()
 }
 
 // The page's rows under its view: the state line, or the blank row that
@@ -287,7 +301,7 @@ func (f Frame) headingY() int {
 // heading row, and on a phone, its period's, where that takes a row of its
 // own; or on the Overview, whose sections head themselves, the heading row's.
 func (f Frame) top() int {
-	if f.View == Overview {
+	if f.Shown() == Overview {
 		return f.headingY()
 	}
 	return f.headingY() + f.heading().rows(f.phone()) + 1
@@ -342,11 +356,10 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 // runwayScrolls has it; on the Log, its table's lines, under its heads;
 // elsewhere, the view's rows.
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
-	if f.Session != nil {
+	switch f.Shown() {
+	case SessionPage:
 		l := f.sessionLayout(len(f.Session.Page.Accounts))
 		return 0, l.turnsAt, f.Width, l.turns
-	}
-	switch f.View {
 	case Overview:
 		return f.overviewScrolls(doc, now)
 	case Accounts:
@@ -364,12 +377,23 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 	return 0, f.top(), f.Width, f.viewRows()
 }
 
+// Shown is what the frame shows: a session's page, as SessionPage, while one
+// is open over its tab; else its tab. A switch on what's shown reads it, so
+// none passes over a page open.
+func (f Frame) Shown() View {
+	if f.Session != nil {
+		return SessionPage
+	}
+	return f.View
+}
+
 // cramped reports whether the terminal is too short for the page's fixed
 // rows and leastView of the view's, or for a session's page, where one is
 // open, as its layout says: the page is then its title row, its status line
-// and its key line alone.
+// and its key line alone, but for the Log's find's line while it's open
+// over the Log, as stateLine has it.
 func (f Frame) cramped() bool {
-	if f.Session != nil {
+	if f.Shown() == SessionPage {
 		return f.sessionLayout(len(f.Session.Page.Accounts)).chrome
 	}
 	return f.viewRows() < leastView

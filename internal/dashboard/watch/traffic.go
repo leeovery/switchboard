@@ -26,17 +26,16 @@ const (
 )
 
 // seenFor is how long the watch keeps a request the stream told of that's
-// no longer in flight, and a move it told of that no listing of the router's
-// sessions has shown done: the router lists the sessions it has seen in the
-// last IdleHour, so one it lists after that it has seen since, as its own
-// listing says.
+// no longer in flight, and a move it told of: the router lists the sessions
+// it has seen in the last IdleHour, so one it lists after that it has seen
+// since, as its own listing says.
 const seenFor = views.IdleHour
 
 // traffic is what the router's request stream has told of the routed
 // requests, as the watch keeps it for the frame: each request it told of,
 // as the views read it, by its id; what each request is doing on each
 // account it went out on, as the cords draw it; the moves the stream told
-// of, while they show; the account the router's last listing of its
+// of, for seenFor; the account the router's last listing of its
 // sessions put each seat on, which shows each move there done, so the views
 // no longer read it; whether it's live, the stream open and telling what's
 // in flight, as the views trust it; and, the stream opened again, the
@@ -350,7 +349,7 @@ func (t traffic) tidied(now time.Time) traffic {
 
 // tidy lets go of what has ended by now: the requests no longer in flight
 // that the stream told of last seenFor ago, the calls with nothing more to
-// show, as over has it, and the moves that no longer show. It changes t's
+// show, as over has it, and the moves told of seenFor ago. It changes t's
 // maps and moves, which must be its own copies.
 func (t *traffic) tidy(now time.Time) {
 	maps.DeleteFunc(t.requests, func(_ string, r views.Told) bool { return !r.InFlight() && now.Sub(r.Heard) >= seenFor })
@@ -377,12 +376,12 @@ func (c call) shown(now time.Time) bool {
 	return !c.over(now) && (!c.brought || !now.Before(c.shows))
 }
 
-// over reports whether the move shows no more at now: a listing of the
-// router's sessions shows it done, and a limit moved it, so the router's
-// document's stubs stand for its cord, or its cord has faded; or none has,
-// seenFor since it.
+// over reports whether the move is let go at now, seenFor since it: the
+// views read it until then, what brought its model where it is, though a
+// listing of the router's sessions has shown it done and its cord, held or
+// faded, no longer hangs, until a line of the model's own takes over.
 func (m move) over(now time.Time) bool {
-	return m.listed && (m.held || now.Sub(m.shows) >= looseFor) || now.Sub(m.at) >= seenFor
+	return now.Sub(m.at) >= seenFor
 }
 
 // showsAt reports whether the move shows at now: from when it shows, until
@@ -608,15 +607,15 @@ func (t traffic) settled() traffic {
 }
 
 // stream is the traffic as the views read it at now: live or not, the
-// requests the stream told of, and its moves that no listing of the router's
-// sessions has shown done, each while it shows, as at draws it, so a frame
-// never puts a session on an account its cords don't.
+// requests the stream told of, and its moves, each while it shows, as at
+// draws it, so a frame never puts a session on an account its cords don't,
+// and whether a listing of the router's sessions has shown it done.
 func (t traffic) stream(now time.Time) views.Stream {
 	s := views.Stream{Live: t.live, Requests: t.requests}
 	for _, m := range t.moves {
-		if !m.listed && m.showsAt(now) {
+		if m.showsAt(now) {
 			s.Moves = append(s.Moves, views.Moved{
-				Request: m.request, Session: m.seat.session, Model: m.seat.model, From: m.from, To: m.to, Reason: m.reason, At: m.at,
+				Request: m.request, Session: m.seat.session, Model: m.seat.model, From: m.from, To: m.to, Reason: m.reason, At: m.at, Listed: m.listed,
 			})
 		}
 	}

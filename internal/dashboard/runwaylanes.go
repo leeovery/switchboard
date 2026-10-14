@@ -41,10 +41,10 @@ type laidLane struct {
 	row     int
 }
 
-// lanesOf are the lanes of the moment m that fit shows, each as laidLane has
+// laidLanes are the lanes of the moment m that fit shows, each as laidLane has
 // it, on the row the fit gives it, in the lanes' order: none before the
 // watch builds them, nor where nothing fits.
-func (f Frame) lanesOf(m status.Moment, fit runwayFit) []laidLane {
+func (f Frame) laidLanes(m status.Moment, fit runwayFit) []laidLane {
 	if f.Runway.Lanes == nil {
 		return nil
 	}

@@ -74,13 +74,14 @@ func (s *SessionShown) requestsShown(l sessionLayout) (from, to int) {
 }
 
 // Kept is how many rows under the turn chosen's own its turns keep in view
-// with it as they scroll: of the turn open, its heads and its first request
-// shown (call 57); of any other, none.
+// with it as they scroll: of the turn open, its heads and its requests shown
+// down to the one chosen, as it opens its first (call 57); of any other,
+// none.
 func (s *SessionShown) Kept() int {
 	if s.Open == 0 || s.Open != s.Turn {
 		return 0
 	}
-	return 2
+	return 2 + max(s.Request-s.RequestsScroll, 0)
 }
 
 // RequestsScrolling is how far the requests of the turn open on the
@@ -149,11 +150,13 @@ func (d sessionDrawn) pageRow(r turnsRow) pageRow {
 }
 
 // request draws the row of the turn open's request at index i along row y:
-// the Log's row of it, as requestRow draws it in the page's columns, its
-// tree's │ before it in border; lit across the width where it's chosen.
+// the Log's row of it, as requestRow draws it in the page's columns, as it
+// stands at now, the frame's stream telling what it holds of it, as the
+// Log's rows are drawn; its tree's │ before it in border; lit across the
+// width where it's chosen.
 func (d sessionDrawn) request(c *canvas, y, i int) {
 	c.text(treeAt, y, "│", borderInk)
-	requestRow(c, y, d.shown.Requests[i].Row, d.requestsLayout(), func(id string) string { return named(d.m, id) }, d.now)
+	requestRow(c, y, d.shown.Requests[i].Row.Live(d.Stream, d.now), d.requestsLayout(), func(id string) string { return named(d.m, id) }, d.now)
 	if i == d.shown.Request {
 		c.surface(0, y, d.Width, litInk)
 	}

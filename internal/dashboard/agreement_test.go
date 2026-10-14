@@ -108,7 +108,7 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 // lane is account a's lane in Runway's live view of the window given, as
 // laid out with every lane shown.
 func (d drawn) lane(a status.AccountNow, w views.RunwayWindow) laidLane {
-	lanes := d.runway[w].lanesOf(d.moment, runwayFit{fits: true, shown: len(d.moment.Accounts)})
+	lanes := d.runway[w].laidLanes(d.moment, runwayFit{fits: true, shown: len(d.moment.Accounts)})
 	return lanes[slices.IndexFunc(lanes, func(ln laidLane) bool { return ln.ID == a.ID })]
 }
 

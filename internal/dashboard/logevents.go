@@ -101,16 +101,13 @@ func (f Frame) logEvent(m status.Moment, now time.Time) func(c *canvas, y int, l
 }
 
 // eventRow draws the event e's row along row y, of the moment m at now:
-// its kind's mark, bold, at column 0; then in its columns, when it happened,
-// to the second; its session, as Requests' names one, blank for an
-// account's event; its kind's word, in text.secondary; the account it
-// befell, white, a move's two as moveNames cuts them; and what happened, in
-// text.muted, cut as whatHappened has it.
+// its mark, as eventMark gives it, bold, at column 0; then in its columns,
+// when it happened, to the second; its session, as Requests' names one,
+// blank for an account's event; its kind's word, in text.secondary; the
+// account it befell, white, a move's two as moveNames cuts them; and what
+// happened, in text.muted, cut as whatHappened has it.
 func (f Frame) eventRow(c *canvas, y int, e views.LogEvent, m status.Moment, now time.Time) {
-	mark := kindMark(e.Kind)
-	if e.Well {
-		mark.ink = positiveInk
-	}
+	mark := eventMark(e.Kind, e.Well)
 	mark.ink.bold = true
 	c.line(0, y, line{mark})
 	for _, col := range f.eventColumns() {

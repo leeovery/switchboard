@@ -100,11 +100,11 @@ frame, with the cells `cells_test.go` reads and compares:
   as a whole frame is, cell for cell, but over that part alone (`compareWithin`, in
   `cells_test.go`), passing over the same cells. Stage 6, the page, held the chrome and the routing
   card's box; stage 7 draws the Overview's frames and the routing card's whole, so `holds` keeps
-  **the chrome** alone, rows 1 to 4, the title row and the status line, or 1 to 5 on a phone, whose
-  tabs take a row of their own: of `sessions-switchboard-160` and `runway-5-hour-160`, over the
-  auto world, its tab reached with `tab`, and of `sessions-phone-52`. A frame's stem leaves `holds`
-  as a fixture comes to draw it whole, as `history-year-160` did at stage 8, `log-requests-160` at
-  stage 9, and `accounts-compare-160` at stage 11.
+  **the chrome** alone, rows 1 to 4, the title row and the status line, of `runway-5-hour-160`,
+  over the auto world, its tab reached with `tab`. A frame's stem leaves `holds` as a fixture comes
+  to draw it whole, as `history-year-160` did at stage 8, `log-requests-160` at stage 9,
+  `accounts-compare-160` at stage 11, and `sessions-switchboard-160` and `sessions-phone-52`, the
+  chrome of a phone, at stage 12.
 - **The cells passed over** are `passedOver`, by stem: a row, or a row's cells from one column to
   another, each with what the frame's `.txt` reads there: the words it starts with; or blank; or,
   where the frame draws a trace or a chart from data no world gives, those glyphs alone, a chart's
@@ -195,6 +195,13 @@ as Keys has them:
   `esc close    ↑↓ request  enter open    p pin    ? help  q quit`.
 - **`sessions-one-account-160`'s key line,** row 37, which shows `p pin` with one account, where
   no page shows it: `tab views   [ ] view    ↑↓ session  enter its page    ? help  q quit`.
+- **Sessions' `enter`,** which every Sessions frame draws lit, bold `accent.key`, though nothing is
+  chosen, where a key that can't act now is faint: the dashboard draws `enter its page` faint until
+  a session is chosen, row 37, columns 37 to 50, of `sessions-switchboard-160`,
+  `sessions-refused-160`, `sessions-moved-160`, `sessions-pinned-160`, `sessions-ten-accounts-160`
+  and `sessions-list-160`, and on a phone `enter open`, row 33, columns 14 to 23, of
+  `sessions-phone-52` and `sessions-list-phone-52`. `sessions-one-account-160`'s row is passed over
+  whole, below.
 - **`runway-phone-52`'s key line,** row 33, which lacks `tab views`, leading a phone's line while
   it fits: `tab views   < > window   ←→ day   ? keys   q quit`.
 
@@ -448,8 +455,9 @@ frames):
   count of the requests since the fixture paused at 14:32:41, `126`, and `1,240`, columns 144 to
   148, its `1,242`.
 - **Anthropic's id,** row 15 of `log-request-details-160`, columns 35 to 62, `req_011CQx…`: the
-  frame cut an id longer than the column's room, and the world's, `req_011CQx4n7RkV2bW9pT3sYd6M`,
-  as long as Anthropic's are, fits it whole, as the dashboard draws it.
+  frame cut the id to 11 cells, well short of the column's room, which holds `context-1m,
+  interleaved-thinking`, 32 cells, whole two rows down; the world's, `req_011CQx4n7RkV2bW9pT3sYd6M`,
+  as long as Anthropic's are, fits that room whole, as the dashboard draws it.
 - **d28c's lines alone,** rows 8 to 34 of `log-requests-filtered-160`, its newest 27, from
   `14:36:27`: the frame's generator drew them, where the world's are as d28c's page draws them, and
   its request in flight the Overview's frames' (`14:42:06`, with no directory); the dashboard draws
@@ -595,6 +603,49 @@ which the dashboard draws as its world gives it:
   `accounts-detail-one-160`, and row 28 of `accounts-phone-detail-52`, the days that differ, each 2
   cells, or 3 with one account.
 
+**Sessions, where its frames and the design part:**
+
+- **`◆` on work alone,** in `sessions-one-account-160`, as in `usage-one-account-160`: the frame
+  draws `1 work ▲`, row 7, columns 94 to 96, and its key `▲ new sessions go here` alone, row 16,
+  columns 110 to 144, where the dashboard marks the primary with one account as with several (the
+  owner's call, 11 October 2026), `1 work ◆ ▲`, and `◆ primary` four cells before `▲ new sessions go
+  here`.
+
+**Sessions, where its world gives otherwise** (see What the worlds give otherwise than the
+frames), which the dashboard draws as its world gives it:
+
+- **Side's week, where it runs out,** `out ~Fri 12:20`, as in `usage`'s frames, where the frames
+  give its allowance, `6%/day till Mon 10:00`: row 26, columns 138 to 158, of
+  `sessions-switchboard-160`, `sessions-refused-160`, `sessions-moved-160` and
+  `sessions-pinned-160`.
+- **Side's 5-hour even pace, a cell off,** as the frames place it as if it were a whole percent:
+  row 24, columns 104 and 105, of `sessions-switchboard-160` and `sessions-pinned-160`.
+- **Personal's 5-hour even pace in `sessions-pinned-160`,** row 16, columns 119 to 123, which the
+  frame places as if its window reset at 16:30, as the auto world's, where its world's resets at
+  15:54, as its limit lifts.
+- **The extras of ten,** in `sessions-ten-accounts-160`, as the Overview's frame of ten types them:
+  client's state, `● open`, row 15, from column 104, where its world has it under pressure and says
+  when it runs out; and the even paces its world places otherwise, a cell or a few off: client's
+  week, row 16, columns 145 to 147; spare's week, row 19, columns 140 and 141; lab's 5-hour and
+  week, row 21, columns 111 to 113 and 144 and 145; team's, row 23, columns 114 to 117 and 147 to
+  149, as if its window reset at about 16:17, where its world's resets at 15:30; ops's 5-hour, row
+  27, columns 101 and 102; and studio's 5-hour and week, row 29, columns 111 to 114 and 142 to 148.
+- **At personal's limit,** in `sessions-refused-160` and `sessions-moved-160`, drawn at 16:05:41
+  and 16:05:42 with 14:42:07's figures: each Fable week's allowance, `25`, `40` and `25`, rows 12,
+  20 and 28, columns 138 and 139, a percent a day less than its world's then; and personal's week,
+  `out ~Sat 06:00`, row 18, columns 138 to 151, where its world, read no more since 14:20, has it
+  run out `~Sun 00:48` at its rate by 16:05.
+- **c61b's fifth request,** its answer streaming, which the frames count and price, where the ledger
+  writes a line as its request ends: on the List of `sessions-list-160`, its requests, `5`, row 13,
+  column 80, and its worth, `$0.29`, row 13, columns 85 to 89, which the world gives `4` and `$0.22`;
+  and the `today` line's `1,240` requests, row 36, columns 123 to 127, and `$126.02`, columns 140 to
+  146, the world's `1,239` and `$125.94`. On a phone, `sessions-list-phone-52`: its requests, row
+  14, column 52, and the `today` line's, row 31, columns 39 to 43, and worth, row 32, columns 32 to
+  38.
+- **8a2c's routing,** `from personal, at its limit  $0.61`, row 22, columns 92 to 126 of
+  `sessions-list-160`, its move made yesterday, which the List draws only of a move made today, so
+  the dashboard leaves it blank.
+
 **A session's page, where its frames and the design part:**
 
 - **The tab lit,** on the title row: the frames light ` Overview `, where the fixtures reach the
@@ -605,10 +656,12 @@ which the dashboard draws as its world gives it:
   columns 1 to 10 and 48 to 52, of `session-phone-52`.
 - **`↓ streaming`,** row 7 of `session-resumed-160`, columns 1 to 11, where the design's state for
   an answer streaming is `↓ answering`.
-- **`: sticky`,** after `since it started` on row 7 of `session-quiet-160` and
-  `routing-session-160`, columns 41 to 48: the router lists 9c2e's reason as it began, `new`, as a
-  request that keeps a session where it runs leaves the reason as it was, and the design words
-  `new` `since it started` on a session's page, which the dashboard draws alone.
+- **f41a's rescore,** `rescored after 15h idle` in `session-resumed-160`, on row 7, columns 57 to
+  95, and in the move's label, row 11, columns 36 to 83: the frame says it as the design's examples
+  of a session's page do, where the design has the page say the router's reason as it is (see The
+  router's events in `docs/design.md`), and the router writes f41a's, idle from 18:04:38 to
+  09:12:15, `rescored after 15h 7m idle`. The label sits a column sooner too, as f41a's fold does
+  (see f41a's stay on side, below).
 - **The first request of a turn opened,** chosen as the turn opens, on `bg.selection`, where the
   frame lights none: row 29 of `session-turn-opened-160`.
 - **More turns than fit on a phone,** row 31 of `session-phone-52`, blank in the frame, where the
@@ -662,9 +715,6 @@ frames), which the dashboard draws as its world gives it:
   12 to 16, columns 32 to 37; side's stretch on the ribbon, its name, row 17, columns 14 to 20, and
   its end and the come-back's start, columns 32 to 37; and the fold's hours and the come-back's time
   on the axis, row 18, columns 32 to 42.
-- **f41a's rescore,** after `15h 7m` idle, from 18:04:38 to 09:12:15, as the router writes it,
-  where the frame says `15h`: row 7, columns 57 to 95, and the move's label, row 11, columns 36 to
-  83, a column sooner too.
 - **A half the generator rounds to even:** b9c4's turn 15 put out 40,500 tokens, `40k` in the frame
   and `41k` in the dashboard, row 27, columns 86 to 88, of `session-ended-160`; and f41a's turn 20
   read 16,150,000 and put out 76,500, `16.1M` and `76k` (`16.2M`, `77k`), row 27, columns 67 to 71
@@ -802,8 +852,23 @@ cell by cell, listing each under The cells passed over with what the dashboard d
   on Compare, it opens again, and tells the requests in flight as it's joined, with no time their
   answers were last heard, so SESSIONS lists d28c, asked last, first.
 - **Sessions (stage 12):** c61b's worth ($0.22, drawn $0.29) and today's ($125.94, drawn
-  $126.02); 8a2c's move, made yesterday, which the List shows only of today's; b9c4's move of
-  yesterday, which yesterday's summary doesn't hold.
+  $126.02), and its fifth request, still answering, which the frames count; 8a2c's move, made
+  yesterday, which the List shows only of today's; b9c4's move of yesterday, which yesterday's
+  summary doesn't hold; the extras of ten as the Overview's frame of ten types them; and the frames
+  at personal's limit, drawn with 14:42:07's figures at 16:05. Fitted rather than passed over: the
+  scene, `scene` (in `internal/capture/switchboard.go`), the auto world, its router listing the six
+  sessions as the frames draw them at 14:42:07, each of opus, their idle times the frames', and its
+  stream telling of c61b's and 7f3a's answers streaming and d28c's request going out, timed so each
+  frozen pulse and shimmer falls where its frame has it; ten accounts' world, `ten`, the scene's and
+  the eight more; work alone's, `aloneOnWork`, the scene's but db8a's on work; the pinned frame's,
+  `pinnedAtTheLimit`, routing's world of a limit pinned to personal and side, every session on side,
+  41e0's and 9c2e's lines on side from 14:12 and 7f3a's from its start; and the frames at
+  personal's limit, `refusedAt` and `movedAt`, the auto world at 16:05:41 and 16:05:42, personal
+  reaching its limit as 41e0's request is refused, the router read as it does. Where a frame's order
+  is no first look's (the calls are seen last first at a first look), its fixture looks at the
+  Switchboard before its moment, its router then listing the sessions in the frame's order, its
+  limits yet to move any, and the Switchboard keeps them so: of ten, of work alone and pinned, a
+  minute before; at personal's limit, at 14:42:07.
 - **Runway (stage 13):** work at its 5-hour limit Wed 15:02–17:10, while b9c4 and 4b0e ran on it
   then.
 
@@ -903,6 +968,20 @@ to d28c. With one account, `accounts-detail-one-160`, over work alone's world as
 it has it, Detail alone, as `tab` reaches it. On a phone, `accounts-phone-compare-52` with `tab`,
 and `accounts-phone-detail-52` with `tab`, `]` and `↓`, work. Tapes of `accounts-compare-160` and
 `accounts-detail-sessions-160` screenshot them, to judge by eye.
+
+Stage 12's, `sessions-*`, draw Sessions' frames, Sessions reached from the Overview with `tab`
+three times: `sessions-switchboard-160` and, on a phone, `sessions-phone-52`, as it opens, on the
+Switchboard, and `sessions-list-160` and `sessions-list-phone-52` with `]`, the List, over the
+scene's world, the auto world with its router listing the six sessions as the frames draw them.
+The rest are later looks, each over a world of its own: the Switchboard looked at before the
+fixture's moment, its router listing the sessions in the frame's order, left with `tab` for Runway,
+its request stream closing, and come back to at the moment with `shift-tab`, so the Switchboard
+keeps the order the look saw and the stream opens again on what it tells then:
+`sessions-ten-accounts-160`, `sessions-one-account-160` and `sessions-pinned-160`, looked at a
+minute before; and `sessions-refused-160` and `sessions-moved-160`, at 16:05:41 and 16:05:42,
+looked at at 14:42:07. Where no frame draws it, `page-sessions-120x30` draws the Switchboard on a
+terminal 120 × 30, to judge by eye. Tapes of `sessions-switchboard-160`, `sessions-moved-160`,
+`sessions-list-160` and `page-sessions-120x30` screenshot them.
 
 ### `--theme`, and `NO_COLOR`
 

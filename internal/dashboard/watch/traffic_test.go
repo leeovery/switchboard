@@ -295,13 +295,21 @@ func TestTwoModelsOfASessionOnAnAccountTravelItsOneCord(t *testing.T) {
 	}
 }
 
+// placing are the moves of s no listing has shown done, which put a session's
+// model where it went, as the views read them.
+func placing(s views.Stream) []views.Moved {
+	return slices.DeleteFunc(slices.Clone(s.Moves), func(m views.Moved) bool { return m.Listed })
+}
+
 // d28cListedOn is the router's listing of its sessions, d28c's opus on the
 // account with the given id.
 func d28cListedOn(account string) []status.Session {
 	return []status.Session{{ID: idD28C, Assignments: []status.Assignment{{Model: opus, Family: "opus", Account: account}}}}
 }
 
-func TestTheViewsReadAMoveTillAListingShowsItDone(t *testing.T) {
+// The views read a move as placing its session's model where it went till a
+// listing shows it done, and listed done from then on.
+func TestTheViewsReadAMoveListedDoneOnceAListingShowsIt(t *testing.T) {
 	tests := []struct {
 		name string
 		tr   traffic
@@ -325,9 +333,10 @@ func TestTheViewsReadAMoveTillAListingShowsItDone(t *testing.T) {
 			if i < 0 || tt.tr.moves[i].listed != tt.want {
 				t.Errorf("the moves are %+v, want the move to side listed done: %v", tt.tr.moves, tt.want)
 			}
-			read := slices.ContainsFunc(tt.tr.stream(past(time.Second)).Moves, func(m views.Moved) bool { return m.To == "side" })
-			if read == tt.want {
-				t.Errorf("the views read the move to side: %v, want %v", read, !tt.want)
+			moves := tt.tr.stream(past(time.Second)).Moves
+			i = slices.IndexFunc(moves, func(m views.Moved) bool { return m.To == "side" })
+			if i < 0 || moves[i].Listed != tt.want {
+				t.Errorf("the views read the moves %+v, want the move to side among them, listed done: %v", moves, tt.want)
 			}
 		})
 	}
@@ -361,12 +370,12 @@ func TestARouterRestartedForgetsWhatWasInFlightButKeepsItsMoves(t *testing.T) {
 		t.Errorf("the loose cords are %+v, want d28c's off work fading still", drawn.Loose)
 	}
 	s := tr.stream(at)
-	if s.Live || !s.Requests["r1"].Lost || len(s.Moves) != 1 {
-		t.Errorf("the views read %+v, want it not live, r1 lost, and the move read, no listing having shown it done", s)
+	if s.Live || !s.Requests["r1"].Lost || len(placing(s)) != 1 {
+		t.Errorf("the views read %+v, want it not live, r1 lost, and the move placing d28c, no listing having shown it done", s)
 	}
 	relisted := traffic{}.listedAs(d28cListedOn("side")).afresh().took([]router.StreamEvent{pinnedToSide(time.Second)}, heldNowhere, at)
-	if moves := relisted.stream(at).Moves; len(moves) > 0 {
-		t.Errorf("listed on side before another router answered, the views read the moves %+v, want none: where the last listing put each seat is kept", moves)
+	if s := relisted.stream(at); len(s.Moves) != 1 || len(placing(s)) > 0 {
+		t.Errorf("listed on side before another router answered, the views read the moves %+v, want the one, listed done: where the last listing put each seat is kept", s.Moves)
 	}
 }
 
@@ -469,13 +478,14 @@ func TestALooseCordFadesOverLooseFor(t *testing.T) {
 		listed bool
 		at     time.Duration
 		// fade is how far its loose cord has faded, -1 for none hanging;
-		// and read whether the views read its move.
-		fade float64
-		read bool
+		// and placed whether the views read its move as putting d28c on
+		// side, as they read it either way.
+		fade   float64
+		placed bool
 	}{
-		{name: "at once", at: 0, fade: 0, read: true},
-		{name: "half faded", at: looseFor / 2, fade: 0.5, read: true},
-		{name: "faded, but read until a listing shows it done", at: looseFor, fade: -1, read: true},
+		{name: "at once", at: 0, fade: 0, placed: true},
+		{name: "half faded", at: looseFor / 2, fade: 0.5, placed: true},
+		{name: "faded, but placing it until a listing shows it done", at: looseFor, fade: -1, placed: true},
 		{name: "listed done, fading still", listed: true, at: looseFor / 2, fade: 0.5},
 		{name: "listed done, and faded: gone", listed: true, at: looseFor, fade: -1},
 	}
@@ -492,8 +502,9 @@ func TestALooseCordFadesOverLooseFor(t *testing.T) {
 			if loose := at.at(past(tt.at)).Loose; !slices.Equal(loose, want) {
 				t.Errorf("the loose cords are %+v, want %+v", loose, want)
 			}
-			if read := len(at.stream(past(tt.at)).Moves) == 1; read != tt.read {
-				t.Errorf("the views read its move: %v, want %v", read, tt.read)
+			s := at.stream(past(tt.at))
+			if placed := len(placing(s)) == 1; len(s.Moves) != 1 || placed != tt.placed {
+				t.Errorf("the views read the moves %+v, want its move, placing d28c on side: %v", s.Moves, tt.placed)
 			}
 		})
 	}
@@ -509,8 +520,12 @@ func TestAMoveOffAnAccountALimitHoldsBackHangsNoLooseCord(t *testing.T) {
 	if moves := tr.stream(past(0)).Moves; len(moves) != 1 {
 		t.Errorf("the views read the moves %+v, want the one", moves)
 	}
-	if listed := tr.listedAs(d28cListedOn("side")); len(listed.tidied(past(0)).moves) > 0 {
-		t.Errorf("listed where it went, the moves kept are %+v, want none, the stub standing for it", listed.moves)
+	listed := tr.listedAs(d28cListedOn("side")).tidied(past(0))
+	if loose := listed.at(past(0)).Loose; len(loose) > 0 {
+		t.Errorf("listed where it went, the loose cords are %+v, want none, the stub standing for it", loose)
+	}
+	if moves := listed.stream(past(0)).Moves; len(moves) != 1 || !moves[0].Listed {
+		t.Errorf("listed where it went, the views read the moves %+v, want the one, listed done", moves)
 	}
 }
 

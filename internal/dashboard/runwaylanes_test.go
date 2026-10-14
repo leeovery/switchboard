@@ -310,7 +310,7 @@ func TestRunwaysLanesAreThoseTheFitShowsOnItsRows(t *testing.T) {
 	}}
 	every := runwayFit{fits: true, lanes: 10, apart: 3, shown: 4}
 	f := runwayShowing(runwayLive(views.RunwayFiveHour))
-	if lanes := f.lanesOf(m, every); lanes != nil {
+	if lanes := f.laidLanes(m, every); lanes != nil {
 		t.Errorf("before the lanes are built, Runway has %d lanes, want none", len(lanes))
 	}
 	f.Runway.Lanes = &views.Lanes{Accounts: []views.Lane{{ID: "side"}, {ID: "gone"}, {ID: "personal"}, {ID: "work"}}}
@@ -332,7 +332,7 @@ func TestRunwaysLanesAreThoseTheFitShowsOnItsRows(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []string
-			for _, ln := range f.lanesOf(m, tt.fit) {
+			for _, ln := range f.laidLanes(m, tt.fit) {
 				got = append(got, fmt.Sprintf("%s %s %s faint %t row %d", ln.ID, ln.account.ID, ln.name.line(runwayLanesFrom).plain(), ln.name.faint, ln.row))
 			}
 			if !slices.Equal(got, tt.want) {

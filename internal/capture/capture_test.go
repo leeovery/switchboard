@@ -141,16 +141,25 @@ func TestFramesAreDeterministic(t *testing.T) {
 	}
 }
 
-// Every fixture is drawn at the frames' moment in the machine's own zone,
+// Every fixture is drawn at its frame's moment in the machine's own zone,
 // time.Local itself: the ledger and the views split its world's days in it,
 // which a test can't change in process, so its zone is varied by running the
 // tests under TZ, as testdata/vhs/README.md says.
 func TestEveryFixtureIsDrawnAtTheFramesMomentInTheMachinesZone(t *testing.T) {
 	for _, name := range Names() {
-		if f := fixture(t, name); f.now.Location() != time.Local || !f.now.Equal(localMoment()) {
-			t.Errorf("%s is drawn at %s, want the frames' moment in the machine's zone", name, f.now)
+		if f := fixture(t, name); f.now.Location() != time.Local || !f.now.Equal(framesMoment(name)) {
+			t.Errorf("%s is drawn at %s, want its frame's moment in the machine's zone", name, f.now)
 		}
 	}
+}
+
+// framesMoment is the moment the frame with the given stem is drawn at, in
+// the machine's zone: the frames', but where a page's later look has its own.
+func framesMoment(stem string) time.Time {
+	if i := slices.IndexFunc(pages, func(p page) bool { return p.name == stem && p.looked != nil }); i >= 0 {
+		return localMoment().Add(pages[i].looked.after)
+	}
+	return localMoment()
 }
 
 func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {

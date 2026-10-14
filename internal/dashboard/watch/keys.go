@@ -65,7 +65,7 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // toggle has it; b switches how its windows are grouped, as regroup has it;
 // and ↑ and ↓ move the focus, as moveFocus has it.
 func (m Model) overviewKey(key string) (Model, bool) {
-	if m.view != dashboard.Overview {
+	if m.shownView() != dashboard.Overview {
 		return m, false
 	}
 	if section, ok := dashboard.SectionKeyed(key); ok {
@@ -121,10 +121,11 @@ type pageKeys struct {
 // given. A session's page lists its own, as sessionKeys has them, in place
 // of its tab's.
 func (m Model) keys(running []string) pageKeys {
-	if m.session != nil {
+	shown := m.shownView()
+	if shown == dashboard.SessionPage {
 		return m.sessionKeys()
 	}
-	overview := m.view == dashboard.Overview
+	overview := shown == dashboard.Overview
 	var own []keyListing
 	for _, s := range dashboard.EverySection() {
 		own = append(own, keyListing{Key: dashboard.Key{Key: s.Key(), Does: s.Word(), Hidden: !m.sections.Has(s)}, works: overview})
@@ -135,7 +136,7 @@ func (m Model) keys(running []string) pageKeys {
 	)
 	pin, pinned := m.pinKey()
 	own = slices.Concat(own, m.accountsListings(running), m.historyListings(), m.sessionsListings(), m.runwayListings(), m.logListings())
-	scrollsAlways := overview || m.view == dashboard.Log
+	scrollsAlways := overview || shown == dashboard.Log
 	return pageKeys{own: own, overview: overview, scrollsAlways: scrollsAlways, pin: pin, pinned: pinned, coloured: m.coloured()}
 }
 
@@ -153,7 +154,7 @@ func (m Model) keys(running []string) pageKeys {
 // keeps [ ] view alone.
 func (m Model) accountsListings(running []string) []keyListing {
 	s := m.accounts.shown
-	shown := m.view == dashboard.Accounts
+	shown := m.shownView() == dashboard.Accounts
 	compare := m.comparing()
 	listed, alone := shown && s.View() == dashboard.AccountsDetail && !s.Alone(), shown && s.Alone()
 	selected := s.Selection(running) != ""
@@ -192,7 +193,7 @@ func (p pageKeys) listings(scrolls bool) []keyListing {
 // Year shows one account alone, ←→ stepping between the accounts. A phone's
 // line keeps [ ] view alone.
 func (m Model) historyListings() []keyListing {
-	history, p := m.view == dashboard.History, m.past.page
+	history, p := m.shownView() == dashboard.History, m.past.page
 	period, split := p.Period(), p.Split()
 	return []keyListing{
 		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: history, apart: true},
@@ -211,11 +212,12 @@ func (m Model) historyListings() []keyListing {
 // pin where a pin can be set, and ? help and q quit last; and the note a key
 // left in their place, while that's news. Most pages set p pin apart, a
 // phone's line keeping the page's own keys between those that lead and ?
-// and q quit, but those it leaves to a wider line, or on the Log, with no
-// session's page open over it, those logPhoneKeys keeps; the Overview sets
-// ↑↓ focus, p pin, ? help and q quit as a group of their own, overviewApart
-// after its toggles, which a phone's line leaves to help. Each key works as
-// the page drawn as f has it, at now, the moment it was drawn at.
+// and q quit, but those it leaves to a wider line, or on the Log and
+// Sessions, with no session's page open over it, those logPhoneKeys and
+// sessionsPhoneKeys keep; the Overview sets ↑↓ focus, p pin, ? help and q
+// quit as a group of their own, overviewApart after its toggles, which a
+// phone's line leaves to help. Each key works as the page drawn as f has
+// it, at now, the moment it was drawn at.
 func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	if m.picker.open {
 		return dashboard.KeyLine{Groups: [][]dashboard.Key{m.picker.keys(), {dashboard.Quit}}, Lead: dashboard.KeysAfter, Note: m.noted(now)}
@@ -224,7 +226,7 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 		return dashboard.KeyLine{Groups: [][]dashboard.Key{findKeys()}, Note: m.noted(now)}
 	}
 	keys := m.keys(m.runningIn(f, now))
-	page := grouped(keys.listings(f.Scrolling(m.doc, now).Most > 0))
+	page := grouped(keys.listings(f.KeysScroll(m.doc, now)))
 	lead, apart := []dashboard.Key{tabViews}, 3
 	if page.lead != nil {
 		lead, apart = page.lead, dashboard.KeysAfter
@@ -240,8 +242,11 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 		return l
 	}
 	l.Phone = page.phone
-	if m.session == nil && m.view == dashboard.Log {
+	switch m.shownView() {
+	case dashboard.Log:
 		l.Phone = m.logPhoneKeys()
+	case dashboard.Sessions:
+		l.Phone = m.sessionsPhoneKeys()
 	}
 	if keys.pinned {
 		l.Groups = append(l.Groups, []dashboard.Key{keys.pin})

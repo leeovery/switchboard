@@ -227,8 +227,8 @@ type turnedColumn struct {
 // turnedGroups are a phone's Compare's groups under BY MODEL, ACTIVITY,
 // LIMITS and VALUE, each column at its place, as Accounts' words say each
 // figure in their short forms, a window of hours named by them, as 5h. A
-// period with nothing recorded, as on a fresh install, says a dash in every
-// row, as period has it.
+// period with nothing recorded, as on a fresh install, says a dash in each
+// of its own figures, as period has it; left and the plan are none of them.
 func (cp compared) turnedGroups() []turnedGroup {
 	limits := shortWindows(cp.f.windowNamer(cp.m))
 	return []turnedGroup{
@@ -244,10 +244,10 @@ func (cp compared) turnedGroups() []turnedGroup {
 		{name: "LIMITS", columns: []turnedColumn{
 			{turnedAt, "hit", cp.period(func(col compareColumn) []part { return limitsParts(col.row.Totals, limits, col.ink()) })},
 			{26, "at cap", cp.period(func(col compareColumn) []part { return atCapParts(col.row.Totals, col.ink()) })},
-			{36, "left", cp.period(func(col compareColumn) []part { return leftShort(col.row, col.ink()) })},
+			{36, "left", func(col compareColumn) []part { return leftShort(col.row, col.ink()) }},
 		}},
 		{name: "VALUE", columns: []turnedColumn{
-			{turnedAt, "plan", cp.period(func(col compareColumn) []part { return planPriced(col.row, col.ink()) })},
+			{turnedAt, "plan", func(col compareColumn) []part { return planPriced(col.row, col.ink()) }},
 			{26, "worth", cp.period(func(col compareColumn) []part { return worthParts(col.row, col.ink()) })},
 			{36, "against it", cp.period(func(col compareColumn) []part { return againstShort(col.row) })},
 		}},
@@ -386,19 +386,20 @@ func (s stacked) thisWeek(c *canvas, y int) int {
 // Accounts say them, in text.secondary: the requests, the limits, by window,
 // or all accounts' how many, and the plan, by its name, or all accounts'
 // summed; then the worth, the extra usage of the accounts shown, and the
-// worth against the plan's price. Each is as periodParts says it, a dash
-// where the period records nothing.
+// worth against the plan's price. Each of the period's figures is as
+// periodParts says it, a dash where the period records nothing; the plan
+// and extra use are none of them.
 func (s stacked) thisWeekItems() [][]thisWeekItem {
 	totals, page := s.row.Totals, *s.page
 	return [][]thisWeekItem{
 		{
 			{"requests", periodParts(page, []part{figureIn(prose.Grouped(totals.Requests), secondaryInk)}, secondaryInk)},
 			{"limits", periodParts(page, limitsParts(totals, s.f.windowNamer(s.m), secondaryInk), secondaryInk)},
-			{"plan", periodParts(page, planNamed(s.row, secondaryInk), secondaryInk)},
+			{"plan", planNamed(s.row, secondaryInk)},
 		},
 		{
 			{"worth", periodParts(page, worthParts(s.row, secondaryInk), secondaryInk)},
-			{"extra use", periodParts(page, extraShort(s.extra()), secondaryInk)},
+			{"extra use", extraShort(s.extra())},
 			{"against", periodParts(page, againstShort(s.row), secondaryInk)},
 		},
 	}

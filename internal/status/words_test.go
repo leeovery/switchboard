@@ -344,20 +344,21 @@ func TestShortWordsSayAForcedMovesWhyWithoutItsAccount(t *testing.T) {
 }
 
 // A move off an account names the account it left; a new session's reason,
-// sticky and kept for its thinking move nothing; and every other reason
-// names none and moves its session.
+// sticky and kept for its thinking move nothing, the last two keeping it
+// where it was; and every other reason names none and moves its session.
 func TestAReasonSaysWhetherItMovedTheSessionAndFromWhere(t *testing.T) {
 	tests := []struct {
-		reason  string
-		from    string
-		nothing bool
+		reason        string
+		from          string
+		nothing, kept bool
 	}{
 		{reason: status.ReasonMovedOff + "work " + status.WhyLimit, from: "work"},
 		{reason: status.ReasonMovedOff + "work\x1b" + status.WhyReserve, from: "work"},
 		{reason: status.ReasonNew, nothing: true},
 		{reason: status.PassingOver(status.ReasonNew, "personal"), nothing: true},
-		{reason: status.ReasonSticky, nothing: true},
-		{reason: status.ReasonBound, nothing: true},
+		{reason: status.ReasonSticky, nothing: true, kept: true},
+		{reason: status.ReasonBound, nothing: true, kept: true},
+		{reason: status.ReasonBound + "\x07", nothing: true, kept: true},
 		{reason: status.ReasonPinned},
 		{reason: status.ReasonMovedByPin},
 		{reason: status.Rescored(time.Hour)},
@@ -370,6 +371,9 @@ func TestAReasonSaysWhetherItMovedTheSessionAndFromWhere(t *testing.T) {
 			}
 			if got := status.MovedNothing(tt.reason); got != tt.nothing {
 				t.Errorf("MovedNothing(%q) = %t, want %t", tt.reason, got, tt.nothing)
+			}
+			if got := status.Kept(tt.reason); got != tt.kept {
+				t.Errorf("Kept(%q) = %t, want %t", tt.reason, got, tt.kept)
 			}
 		})
 	}

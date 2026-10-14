@@ -451,7 +451,8 @@ type compareRow struct {
 
 // groups are Compare's groups under BY MODEL: ACTIVITY, LIMITS and VALUE, as
 // Accounts' words say each figure. A period with nothing recorded, as on a
-// fresh install, says a dash in every row, as period has it.
+// fresh install, says a dash in each of its own figures, as period has it;
+// left at its last reset, the plan and extra usage are none of them.
 func (cp compared) groups() []compareGroup {
 	page := *cp.page
 	names := cp.f.windowNamer(cp.m)
@@ -468,11 +469,11 @@ func (cp compared) groups() []compareGroup {
 		{name: "LIMITS", rows: []compareRow{
 			{"limits hit", cp.period(func(col compareColumn) []part { return limitsParts(col.row.Totals, names, col.ink()) })},
 			{"at cap or limit", cp.period(func(col compareColumn) []part { return atCapParts(col.row.Totals, col.ink()) })},
-			{"left at its last reset", cp.period(func(col compareColumn) []part { return leftParts(col.row, col.ink()) })},
+			{"left at its last reset", func(col compareColumn) []part { return leftParts(col.row, col.ink()) }},
 		}},
 		{name: "VALUE", rows: []compareRow{
-			{"plan", cp.period(func(col compareColumn) []part { return planParts(page, col.row, col.ink()) })},
-			{"extra usage", cp.period(cp.extra)},
+			{"plan", func(col compareColumn) []part { return planParts(page, col.row, col.ink()) }},
+			{"extra usage", cp.extra},
 			{"worth at API prices", cp.period(func(col compareColumn) []part { return worthParts(col.row, col.ink()) })},
 			{"against its price", cp.period(func(col compareColumn) []part { return againstParts(page, col.row) })},
 		}},

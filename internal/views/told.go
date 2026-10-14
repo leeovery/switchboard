@@ -2,6 +2,7 @@ package views
 
 import (
 	"iter"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -25,9 +26,19 @@ type Stream struct {
 	// and each it told of last within the hour a session runs for unseen,
 	// ended or lost.
 	Requests map[string]Told
-	// Moves are the moves it told of that no listing of the router's
-	// sessions has shown done, the oldest first.
+	// Moves are the moves it told of within the hour a session runs for
+	// unseen, the oldest first, each once it shows, a listing of the
+	// router's sessions showing it done or not: what brought a model where
+	// it is says so until a line of its own takes over, while only those no
+	// listing has shown done put a model where it went, as unlisted has them.
 	Moves []Moved
+}
+
+// unlisted are the moves s told of that no listing of the router's sessions
+// has shown done, the oldest first: those that put a model where it went,
+// as the router doesn't list it there yet.
+func (s Stream) unlisted() []Moved {
+	return slices.DeleteFunc(slices.Clone(s.Moves), func(m Moved) bool { return m.Listed })
 }
 
 // Told is a request as the request stream has told of it, by its id, each
@@ -89,11 +100,24 @@ const (
 
 // Moved is a session's model moving to another account, as the request
 // stream told of it: the request that moved it, the session and its model,
-// the accounts it left and went to, why, as the router gave it, and when.
+// the accounts it left and went to, why, as the router gave it, and when;
+// and whether a listing of the router's sessions has shown it done, listing
+// the model where it went, or where a move of it since went.
 type Moved struct {
 	Request, Session, Model string
 	From, To, Reason        string
 	At                      time.Time
+	Listed                  bool
+}
+
+// SameRow reports whether t tells what o does of its request's row as its
+// table is built: all but what the stream tells as its answer streams, its
+// characters so far and when it last told of it, which a row in flight
+// draws as it's drawn, as RequestRow.Live has it. Its stage is of the row,
+// so sent, its first byte, a verdict and its end each tell another.
+func (t Told) SameRow(o Told) bool {
+	t.Chars, t.Heard, o.Chars, o.Heard = 0, time.Time{}, 0, time.Time{}
+	return t == o
 }
 
 // InFlight reports whether the request is in flight, as the stream told:
@@ -141,6 +165,29 @@ func (t Told) FiledOn() (LedgerDay, bool) {
 // sameRequest has it, by when it first went upstream.
 func (t Told) filedAs(l *ledger.Line) bool {
 	return sameRequest(l, t.Request, t.Sent)
+}
+
+// Of is what s told of the session with the given id alone: its requests,
+// its moves, and whether s is live. Its page is built of it as of s whole,
+// none of another session's telling of it, so what changes it alone builds
+// the page again.
+func (s Stream) Of(session string) Stream {
+	of := Stream{Live: s.Live}
+	for id, t := range s.Requests {
+		if t.Session != session {
+			continue
+		}
+		if of.Requests == nil {
+			of.Requests = make(map[string]Told)
+		}
+		of.Requests[id] = t
+	}
+	for _, m := range s.Moves {
+		if m.Session == session {
+			of.Moves = append(of.Moves, m)
+		}
+	}
+	return of
 }
 
 // known are the requests s told of that a view may take as s told them,
