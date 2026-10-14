@@ -76,17 +76,21 @@ func (w accountWorld) document(now time.Time) status.Document {
 	return doc.WorkedOut(claude.Policy)
 }
 
+// extraOff is extra usage as the provider gives it of an account that has
+// none turned on: rejected, as every account of the frames reads it.
+var extraOff = quota.ExtraUsage{Status: quota.StatusRejected}
+
 // account is the account a's status at at, its readings history h, as the
 // router gives it: as last read at at, or, where the world has the router
 // unable to read it since a time, then, its rates and pressure worked out
-// from its readings to then.
+// from its readings to then, and its extra usage off.
 func (w accountWorld) account(a config.Account, h history, at time.Time) status.Account {
 	read := w.readAt(a.ID, at)
 	st := status.Configured(a)
 	st.TokenSet, st.FetchedAt = true, read.UTC()
 	held := h.before(read)
 	latest := held.windows(claude.WindowLabel)
-	st.Windows = latest
+	st.Windows, st.Extra = latest, extraOff
 	st = st.AsOf(claude.Policy, at)
 	st.Limit, st.Refused, st.Sessions = w.limits[a.ID], w.refused[a.ID], w.sessions[a.ID]
 	trails := held.trails()
@@ -464,4 +468,26 @@ func (a accountWorlds) alone() accountWorld {
 	w := a.one()
 	w.sessions = map[string]int{"work": 6}
 	return w
+}
+
+// oneLately is work alone as Accounts' frame of it has it: one's world, with
+// three sessions on work, which the router lists none of, as the frame draws
+// no SESSIONS; and the router telling of its afternoon: its 5-hour window
+// primed at 12:10, 7f3a started on it at 14:12:30, and its coming under
+// pressure at 14:38, as its document has it running out then.
+func (a accountWorlds) oneLately() accountWorld {
+	return a.kept("oneLately", func() accountWorld {
+		w, h := a.one(), happenings{a.now}
+		pressed := h.today(14, 38, 0)
+		w.sessions = map[string]int{"work": 3}
+		w.events = ofTheRun([]status.Event{
+			h.primed(h.today(12, 10, 0), "work", h.today(17, 10, 0)),
+			h.started(h.today(14, 12, 30), id7F3A, "work", status.ReasonNew),
+			{
+				Kind: status.EventPressure, At: pressed, Account: "work", Windows: []string{fiveHourKey},
+				Until: w.document(a.now).Accounts[0].Pressure.RunsOut, Since: pressed.Add(-score.Recent),
+			},
+		})
+		return w
+	})
 }

@@ -170,6 +170,11 @@ func TestEachWorldsDocumentTellsTheNewestOfItsEventsAsItsFramesHaveThem(t *testi
 			"13:50:00 primed side",
 			"13:40:00 pin personal, side",
 		}},
+		{name: "work alone, its afternoon told", world: worlds.oneLately(), want: []string{
+			"14:38:00 pressure work",
+			"14:12:30 started 7f3a work: new",
+			"12:10:00 primed work",
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -206,6 +211,7 @@ func TestEachWorldsRouterNumbersAndCountsItsEventsAsTheRouterDoes(t *testing.T) 
 		{name: "routing's limit", world: worlds.limit()},
 		{name: "the bad hour", world: worlds.badHour()},
 		{name: "ten accounts, the auto world's events", world: worlds.many(10), untold: []string{"team"}},
+		{name: "work alone, its afternoon told", world: worlds.oneLately()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
