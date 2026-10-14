@@ -177,7 +177,7 @@ func TestASurfaceShowsInALookThatCantBlendUntilHalfFaded(t *testing.T) {
 }
 
 func TestWithoutColourASurfaceShowsOnlyOnBgSelectionAndThereReversed(t *testing.T) {
-	for tok := theme.TextPrimary; tok <= theme.VizSeries6; tok++ {
+	for tok := theme.TextPrimary; tok.String() != ""; tok++ {
 		c := newCanvas(4, 1)
 		c.text(0, 0, "ab", ink{})
 		c.surface(0, 0, 2, hue{token: tok})

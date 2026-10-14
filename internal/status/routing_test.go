@@ -303,7 +303,10 @@ func TestROUTINGSendsNewSessionsElsewhereOnlyWhereAnotherIsNext(t *testing.T) {
 	}
 }
 
-func TestROUTINGAndAnAccountsStateJudgeItsCapAlike(t *testing.T) {
+// ROUTING judges an account's cap at now, whether or not the router noted its
+// reserve as the document was built: not yet reached, reached, and lifted on
+// the tick its session resets, before it's read again.
+func TestROUTINGJudgesAnAccountsCapAtNow(t *testing.T) {
 	reset := at(1, 17, 10)
 	tests := []struct {
 		name string
@@ -312,13 +315,12 @@ func TestROUTINGAndAnAccountsStateJudgeItsCapAlike(t *testing.T) {
 		session    float64
 		built, now time.Time
 		routing    status.RoutingKind
-		state      status.Condition
 	}{
-		{name: "short of its reserve", session: 0.85, built: stateNow, now: stateNow, routing: status.RoutingOpen, state: status.Open},
-		{name: "at its reserve", session: 0.9, built: stateNow, now: stateNow, routing: status.RoutingCapped, state: status.Reserved},
-		{name: "past it", session: 0.95, built: stateNow, now: stateNow, routing: status.RoutingCapped, state: status.Reserved},
-		{name: "a moment before the session resets", session: 0.95, built: reset.Add(-10 * time.Second), now: reset.Add(-time.Second), routing: status.RoutingCapped, state: status.Reserved},
-		{name: "a moment after it resets, before it's read again", session: 0.95, built: reset.Add(-10 * time.Second), now: reset.Add(time.Second), routing: status.RoutingIdle, state: status.Idle},
+		{name: "short of its reserve", session: 0.85, built: stateNow, now: stateNow, routing: status.RoutingOpen},
+		{name: "at its reserve", session: 0.9, built: stateNow, now: stateNow, routing: status.RoutingCapped},
+		{name: "past it", session: 0.95, built: stateNow, now: stateNow, routing: status.RoutingCapped},
+		{name: "a moment before the session resets", session: 0.95, built: reset.Add(-10 * time.Second), now: reset.Add(-time.Second), routing: status.RoutingCapped},
+		{name: "a moment after it resets, before it's read again", session: 0.95, built: reset.Add(-10 * time.Second), now: reset.Add(time.Second), routing: status.RoutingIdle},
 	}
 	for _, tt := range tests {
 		for _, noted := range []bool{true, false} {
@@ -327,9 +329,8 @@ func TestROUTINGAndAnAccountsStateJudgeItsCapAlike(t *testing.T) {
 				a = a.AsOf(policy, tt.built)
 			}
 			doc := status.Document{GeneratedAt: tt.built.UTC(), Source: status.SourceRouter, Accounts: []status.Account{a}}
-			routing, state := routingOf(doc, a, tt.now).Kind, doc.StateOf(a, tt.now, policy).Condition
-			if routing != tt.routing || state != tt.state {
-				t.Errorf("%s, the router noting its reserve as built %t: ROUTING says %d, its state %d; want %d and %d", tt.name, noted, routing, state, tt.routing, tt.state)
+			if routing := routingOf(doc, a, tt.now).Kind; routing != tt.routing {
+				t.Errorf("%s, the router noting its reserve as built %t: ROUTING says %d, want %d", tt.name, noted, routing, tt.routing)
 			}
 		}
 	}
@@ -349,7 +350,7 @@ func TestAnAccountAtItsCapIsIdleOnTheTickItsSessionResets(t *testing.T) {
 
 // ROUTING judges an account idle at now, as the pool does: an account new
 // sessions go to, read before its session resets, says it's idle on the tick
-// after the reset, before it's read again, and its state with it.
+// after the reset, before it's read again.
 func TestAnOpenAccountIsIdleOnTheTickItsSessionResets(t *testing.T) {
 	reset := at(1, 17, 10)
 	built := reset.Add(-30 * time.Second)
@@ -359,16 +360,14 @@ func TestAnOpenAccountIsIdleOnTheTickItsSessionResets(t *testing.T) {
 		name    string
 		now     time.Time
 		routing status.RoutingKind
-		state   status.Condition
 	}{
-		{name: "the tick before it resets", now: reset.Add(-time.Second), routing: status.RoutingNext, state: status.Open},
-		{name: "the tick after it resets", now: reset.Add(time.Second), routing: status.RoutingIdle, state: status.Idle},
+		{name: "the tick before it resets", now: reset.Add(-time.Second), routing: status.RoutingNext},
+		{name: "the tick after it resets", now: reset.Add(time.Second), routing: status.RoutingIdle},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			routing, state := routingOf(doc, a, tt.now), doc.StateOf(a, tt.now, policy)
-			if routing.Kind != tt.routing || state.Condition != tt.state {
-				t.Errorf("ROUTING says %q, its state %q; want kinds %d and %d", routing, state.Says, tt.routing, tt.state)
+			if routing := routingOf(doc, a, tt.now); routing.Kind != tt.routing {
+				t.Errorf("ROUTING says %q, want kind %d", routing, tt.routing)
 			}
 		})
 	}
@@ -376,23 +375,22 @@ func TestAnOpenAccountIsIdleOnTheTickItsSessionResets(t *testing.T) {
 
 // An account is idle where its document notes its session lapsed, though it
 // lists no session, as an older router's document, or one whose probe dropped
-// the window, has it: in ROUTING and in its state.
+// the window, has it.
 func TestAnAccountIsIdleWhereItsSessionIsNotedLapsedThoughItsNotListed(t *testing.T) {
 	a := with(readNow(0, 0.3, 0), func(a *status.Account) {
 		a.Windows = a.Windows[1:]
 		a.Lapsed = []string{"5h"}
 	})
 	doc := status.Document{GeneratedAt: stateNow.UTC(), Source: status.SourceRouter, Accounts: []status.Account{a}}
-	routing, state := routingOf(doc, a, stateNow), doc.StateOf(a, stateNow, policy)
-	if routing.Kind != status.RoutingIdle || state.Condition != status.Idle {
-		t.Errorf("ROUTING says %q, its state %q; want both idle", routing, state)
+	if routing := routingOf(doc, a, stateNow); routing.Kind != status.RoutingIdle {
+		t.Errorf("ROUTING says %q, want idle", routing)
 	}
 }
 
 // Pressure holds while its window runs: an account under pressure in its
 // session, read before the session resets, is idle on the tick after the
-// reset, before it's read again, in ROUTING and in its state, as the router,
-// judging pressure afresh, finds none in a window that has reset.
+// reset, before it's read again, as the router, judging pressure afresh,
+// finds none in a window that has reset.
 func TestAnAccountUnderPressureIsIdleOnTheTickItsSessionResets(t *testing.T) {
 	reset := at(1, 17, 10)
 	a := with(readNow(0.58, 0.34, 0.12), pressing).AsOf(policy, stateNow)
@@ -401,16 +399,14 @@ func TestAnAccountUnderPressureIsIdleOnTheTickItsSessionResets(t *testing.T) {
 		name    string
 		now     time.Time
 		routing status.RoutingKind
-		state   status.Condition
 	}{
-		{name: "the tick before it resets", now: reset.Add(-time.Second), routing: status.RoutingPressed, state: status.Pressed},
-		{name: "the tick after it resets", now: reset.Add(time.Second), routing: status.RoutingIdle, state: status.Idle},
+		{name: "the tick before it resets", now: reset.Add(-time.Second), routing: status.RoutingPressed},
+		{name: "the tick after it resets", now: reset.Add(time.Second), routing: status.RoutingIdle},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			routing, state := routingOf(doc, a, tt.now), doc.StateOf(a, tt.now, policy)
-			if routing.Kind != tt.routing || state.Condition != tt.state {
-				t.Errorf("ROUTING says %q, its state %q; want kinds %d and %d", routing, state, tt.routing, tt.state)
+			if routing := routingOf(doc, a, tt.now); routing.Kind != tt.routing {
+				t.Errorf("ROUTING says %q, want kind %d", routing, tt.routing)
 			}
 		})
 	}

@@ -98,11 +98,14 @@ func (r Routing) String() string {
 }
 
 // What's said of an account at its cap, which holds it back, or the global
-// pin spends; and of the account new sessions go to.
+// pin spends; of the account new sessions go to; and of an account held back
+// from some models' requests alone, while another model's can still go
+// there.
 const (
 	goElsewhere = "new sessions go elsewhere"
 	stillPinned = "pinned, so new sessions still come here"
 	comeHere    = "new sessions come here"
+	stillComes  = "other models still come here"
 )
 
 // routing is how the account stands with the router at now: the first of the
@@ -240,4 +243,59 @@ func shortBack(says string, now, t time.Time) []string {
 		return []string{says}
 	}
 	return []string{says, prose.Dated(now, t)}
+}
+
+// Back says when an account held back at now has room again, at t, as Dated
+// shows it, as in "back 15:54": "" where that's unknown.
+func Back(now, t time.Time) string {
+	return clauseAt("back ", now, t)
+}
+
+// Till says until when what holds an account back at now holds, at t, as
+// Dated shows it, as in "till 23:58": "" where that's unknown.
+func Till(now, t time.Time) string {
+	return clauseAt("till ", now, t)
+}
+
+// clauseAt is the words given then t as Dated shows it at now: "" where t is
+// unknown.
+func clauseAt(words string, now, t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return words + prose.Dated(now, t)
+}
+
+// startsAt says when the lapsed window of the account with the given id
+// starts again, as ROUTING says it of an idle account: at its prime, where
+// the router says when that is, as primeOf has it, as in "window starts at
+// its prime, 16:20"; else with its next request.
+func (d Document) startsAt(id string, now time.Time) string {
+	next := d.primeOf(id)
+	if next.IsZero() {
+		return "window starts with its next request"
+	}
+	return "window starts at its prime, " + prose.Dated(now, next)
+}
+
+// sharedFirst orders the windows with keys x and y as held lists them: one
+// every model shares, as policy says, before one that isn't.
+func sharedFirst(policy score.Policy, x, y string) int {
+	switch shared := policy.IsShared(x); {
+	case shared == policy.IsShared(y):
+		return 0
+	case shared:
+		return -1
+	default:
+		return 1
+	}
+}
+
+// label is the label of the account's window with the given key, or the key
+// where it has none.
+func (a Account) label(key string) string {
+	if w, ok := a.Window(key); ok {
+		return w.Label
+	}
+	return key
 }

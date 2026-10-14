@@ -49,7 +49,7 @@ func leftToTheTerminal(b theme.Theme, tok theme.Token) bool {
 	}
 	return slices.Contains([]theme.Token{
 		theme.TextPrimary, theme.TextSecondary, theme.TextTertiary, theme.TextOnSelection,
-		theme.Canvas, theme.BgSubtle, theme.VizPace, theme.VizSeries5,
+		theme.Canvas, theme.BgSubtle, theme.VizPace,
 		theme.VizFamily4, theme.VizVersion6, theme.VizDay0,
 	}, tok)
 }
@@ -120,7 +120,6 @@ func TestNordIsNordTunedWithTheDashboardsOwnBars(t *testing.T) {
 		theme.VizTrack:         "#3B4252",
 		theme.VizPace:          "#ECEFF4",
 		theme.VizReserve:       "#EBCB8B",
-		theme.VizSeries1:       "#81A1C1",
 		theme.VizFamily1:       "#5E81AC",
 		theme.VizFamily2:       "#88C0D0",
 		theme.VizFamily3:       "#B48EAD",
@@ -203,11 +202,6 @@ func TestTheBuiltInsAsTheirSheetsDrawThem(t *testing.T) {
 			for tok, want := range tt.want {
 				if got := hex(b.Colour(tok)); got != want {
 					t.Errorf("%s's %s = %s, want %s", tt.slug, tok, got, want)
-				}
-			}
-			for n := 1; n <= 6; n++ {
-				if b.Series(n) == b.Colour(theme.StateDestructive) {
-					t.Errorf("%s's series %d is its state.destructive, which a limit or a refusal is drawn in", tt.slug, n)
 				}
 			}
 		})

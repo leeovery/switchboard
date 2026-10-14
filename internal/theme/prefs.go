@@ -26,7 +26,7 @@ type Prefs struct {
 	// Tab names the tab shown, one of overview, accounts, history, sessions,
 	// runway and log, for a watch to open on: "" for the default, the
 	// Overview, as one it doesn't name reads. Milestone 5 kept its card view
-	// under "view", as "accounts", which the Overview shows now: a file of
+	// under "view", as "accounts", which isn't today's Accounts: a file of
 	// then is read as having no tab, its "view" kept as a key these don't
 	// know.
 	Tab string `json:"tab,omitempty"`
