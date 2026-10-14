@@ -48,7 +48,8 @@ func (f Frame) sessionsHelp() []helpPart {
 					"the limit moved, the jack taken till then. A move by pressure, a pin or by hand leaves the old cord hanging a " +
 					"moment, fading."),
 				said("Where the terminal hasn't the width for the cords, as on a phone, the Switchboard draws lanes instead: each " +
-					"account's line with its sessions under it, a session's words bold while it works."),
+					"account's line with its sessions under it, a session's words bold while it works. Where they don't all fit, " +
+					"they scroll an account at a time, or a row at a time where an account's lane doesn't fit."),
 			},
 			glyphs: []glyph{
 				{drawn: line{{plugGlyph + strings.Repeat(heavyCord.along, 2) + pluggedJack, cordInk(true)}}, means: "a session's cord"},
@@ -63,7 +64,8 @@ func (f Frame) sessionsHelp() []helpPart {
 					"how it stands with the router in ROUTING's words, then a row a window, its bar, its percentage and its words. " +
 					"Each of its rows has a jack; a line moves down to meet its calls, and grows a row for each session past its rows."),
 				said("● pinned ends the name row of each account the global pin names, and ✕ out of the pool that of each it leaves " +
-					"out, whose line is faded; an account closed by its cap or a limit never is, its words and colours saying why."),
+					"out, whose line is faded; an account closed by its cap or a limit never is, its words and colours saying why. " +
+					"Where the row is short, the mark gives way to the account's first words."),
 				said("As rows run short, the lines compact as the Overview's sections fold: no blank rows within a line, then two " +
 					"rows a line, then one, and past that they scroll, the calls with them."),
 			},

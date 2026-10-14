@@ -65,7 +65,7 @@ func (f Frame) historyWeeks(c *canvas, top int) {
 	if f.weeksWhole(w) {
 		body := newCanvas(f.Width, w.rows())
 		w.draw(body, f.Look, 0, w.page.Accounts)
-		f.pasteWhole(c, body, top, w.footRows())
+		f.pasteWhole(c, body, top, f.weeksPaged(w))
 	} else {
 		shown, above, below := f.weeksShown(w)
 		w.draw(c, f.Look, top, shown)
@@ -121,13 +121,42 @@ func (w weeksDrawn) rows() int {
 	return weeksFirstRow + n
 }
 
+// weeksPaged is how Weeks, drawn whole, as given, pages in the frame's view,
+// over its foot, as heads holds its heading.
+func (f Frame) weeksPaged(w weeksDrawn) rowsPaged {
+	return f.wholePaged(w.rows(), w.footRows(), w.heads())
+}
+
+// heads are Weeks' headings, drawn whole, each over the first row under it:
+// the table's weeks' first days, over every account's peaks, or with one
+// account, its own; none in columns, whose blocks are named on their first
+// rows, nor with no account under them.
+func (w weeksDrawn) heads() []headed {
+	if w.columns || len(w.page.Accounts) == 0 {
+		return nil
+	}
+	at := weeksHeadRow
+	if w.phone {
+		at = len(w.phoneVerdict()) + 1
+	}
+	first := weeksFirstRow
+	if w.several() {
+		first = weeksAllRow
+	}
+	return []headed{{at: at, first: at + first - weeksHeadRow}}
+}
+
 // weeksDrawn is Weeks' page as the frame draws it: in the shape v gives it,
-// where that fits, else in its phone form.
+// where that fits; else in the other, where that does, as v has no shape to
+// change to there; else in its phone form.
 func (f Frame) weeksDrawn(p views.WeeksPage) weeksDrawn {
-	w := weeksDrawn{page: p, columns: f.History.WeeksShape == WeeksColumns, edge: f.edge()}
-	w.phone = f.phoneForm(w.reach)
-	w.columns = w.columns && !w.phone
-	return w
+	chosen := f.History.WeeksShape == WeeksColumns
+	for _, columns := range []bool{chosen, !chosen} {
+		if w := (weeksDrawn{page: p, columns: columns, edge: f.edge()}); !f.phoneForm(w.reach) {
+			return w
+		}
+	}
+	return weeksDrawn{page: p, edge: f.edge(), phone: true}
 }
 
 // reach is the width Weeks' wide form, in its shape, takes: where its widest
@@ -171,7 +200,7 @@ func (f Frame) weeksScrolling() Scrolling {
 	}
 	w := f.weeksDrawn(*p)
 	if f.weeksWhole(w) {
-		return f.scrolledWhole(w.rows(), w.footRows())
+		return f.weeksPaged(w).scrolling(f.Scroll)
 	}
 	page := f.weeksPage(w)
 	return Scrolling{Most: max(len(p.Accounts)-page, 0), Page: page}
@@ -188,7 +217,7 @@ func (f Frame) weeksScrolls() (y, rows int) {
 	}
 	w := f.weeksDrawn(*p)
 	if f.weeksWhole(w) {
-		return f.top(), f.scrolledWhole(w.rows(), w.footRows()).Page
+		return f.top(), f.weeksPaged(w).page()
 	}
 	if rows = f.weeksPage(w); w.columns {
 		rows *= blockRows

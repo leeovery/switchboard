@@ -24,6 +24,9 @@ type canvas struct {
 	// one is drawn, as holdingTraces has it: nil where each is painted as
 	// it's drawn.
 	traces *[]tracing
+	// heads are the headings drawn on the canvas, and on those within it,
+	// marked as heading has them.
+	heads *[]headed
 }
 
 // cell is a glyph, the ink it's drawn in, and what of the page it draws
@@ -53,7 +56,7 @@ var blank = cell{glyph: " "}
 
 // newCanvas is a canvas width cells wide and height tall, every cell blank.
 func newCanvas(width, height int) *canvas {
-	c := &canvas{width: max(width, 0)}
+	c := &canvas{width: max(width, 0), heads: new([]headed)}
 	c.grow(height)
 	return c
 }
@@ -63,6 +66,19 @@ func growing(width int) *canvas {
 	c := newCanvas(width, 0)
 	c.grows = true
 	return c
+}
+
+// heading marks the row at as a heading of the rows from first under it,
+// which a view drawn whole on the canvas and shown a row at a time shows
+// together, as rowsPaged has them.
+func (c *canvas) heading(at, first int) {
+	*c.heads = append(*c.heads, headed{at: at, first: first})
+}
+
+// headings are the headings marked on the canvas, in the order of their
+// rows.
+func (c *canvas) headings() []headed {
+	return slices.SortedFunc(slices.Values(*c.heads), func(a, b headed) int { return a.at - b.at })
 }
 
 // height is how many rows the canvas has.

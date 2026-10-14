@@ -525,7 +525,7 @@ func TestTheYearsHeightIsTheRowsItDraws(t *testing.T) {
 		drawn := growing(f.Width)
 		y, _ := f.yearDrawn()
 		y.draw(drawn, 0)
-		if got := f.yearHeight(); got != drawn.height() || got != tt.want {
+		if got := y.height(); got != drawn.height() || got != tt.want {
 			t.Errorf("%s: the Year's height is %d, and it draws %d rows; want %d", tt.name, got, drawn.height(), tt.want)
 		}
 	}

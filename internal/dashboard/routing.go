@@ -257,10 +257,7 @@ func (f Frame) drawStanding(c *canvas, r accountRouting, x, y, width int, short 
 // text.muted, as many of those as fit, cut whole from the end; where even
 // the first words don't fit, cut short.
 func standingWords(r status.Routing, short bool, width int) line {
-	parts := slices.Concat([]string{r.Says}, r.Clauses)
-	if short {
-		parts = r.Short
-	}
+	parts := standingParts(r, short)
 	if len(parts) == 0 {
 		return nil
 	}
@@ -273,6 +270,25 @@ func standingWords(r status.Routing, short bool, width int) line {
 		words = more
 	}
 	return words.fit(width)
+}
+
+// standingParts are the clauses of how an account stands, or short, of its
+// short form, first words first.
+func standingParts(r status.Routing, short bool) []string {
+	if short {
+		return r.Short
+	}
+	return slices.Concat([]string{r.Says}, r.Clauses)
+}
+
+// standingLeads are the glyph and first words standingWords leads with, of
+// how an account stands, or short, of its short form, whole: none where it
+// says nothing.
+func standingLeads(r status.Routing, short bool) line {
+	if parts := standingParts(r, short); len(parts) > 0 {
+		return standingLead(r.Kind, parts[0])
+	}
+	return nil
 }
 
 // standingLead is an account's glyph and first words, says, of its kind: an

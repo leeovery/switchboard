@@ -221,8 +221,8 @@ func TestRunwaysLanesScrollAnAccountAtATimeAndSayWhatsOutOfView(t *testing.T) {
 			f := runwayFrame(t, tt.rows, lanesOf(10), thingsComing(3))
 			f.Scroll = tt.scroll
 			fit := f.runwayFitted(f.top())
-			if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: 10 - fit.shown, Page: fit.shown}); got != want || f.ScrollsRows() {
-				t.Errorf("Runway scrolls %+v, rows at a time %t; want %+v, an account at a time", got, f.ScrollsRows(), want)
+			if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: 10 - fit.shown, Page: fit.shown}); got != want || f.ScrollsRows(doc, routedAt) {
+				t.Errorf("Runway scrolls %+v, rows at a time %t; want %+v, an account at a time", got, f.ScrollsRows(doc, routedAt), want)
 			}
 			if fit.first != tt.first {
 				t.Errorf("the first lane shown is the %d-th, want the %d-th", fit.first, tt.first)

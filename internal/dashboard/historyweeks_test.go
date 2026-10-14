@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -480,9 +481,10 @@ func TestWeeksScrollsAccountsPastWhatFits(t *testing.T) {
 
 // Shorter than History's frames, or where it would show none of its
 // accounts, Weeks is drawn whole, every account, and scrolls by rows over its
-// legend, which keeps the view's last row, as a phone's form has none: no
-// line counts accounts it doesn't show, and the last row shows scrolled to
-// the end.
+// legend, which keeps the view's last row, as a phone's form has none: the
+// row after the page, the one over the legend, or a phone's last, says how
+// many rows are out of view, above and below, and no line counts accounts it
+// doesn't show; and the last row shows scrolled to the end.
 func TestWeeksScrollsWholeWhereItsFramesDontFit(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -491,37 +493,57 @@ func TestWeeksScrollsWholeWhereItsFramesDontFit(t *testing.T) {
 		width, height int
 		want          Scrolling
 		// legend is how the view's last row starts, "" where it has none;
-		// and last how the last row over it starts, scrolled to the end.
-		legend, last string
+		// last how the last row over it starts, scrolled to the end; and
+		// below and above what the row after the page says at the top and
+		// at the end, "" where it says nothing.
+		legend, last, below, above string
 	}{
 		{name: "the table, a row short of the frames", page: tenWeeks(), width: 160, height: 36, want: Scrolling{Page: 26}, legend: "each week", last: ""},
-		{name: "the table at 160×20", page: tenWeeks(), width: 160, height: 20, want: Scrolling{Most: 8, Page: 10}, legend: "each week", last: "studio "},
-		{name: "columns at 160×30", page: threeWeeks(), shape: WeeksColumns, width: 160, height: 30, want: Scrolling{Most: 3, Page: 20}, legend: "short: ", last: "              10 Aug"},
-		{name: "a phone at 52×24", page: tenWeeks(), width: 52, height: 24, want: Scrolling{Most: 8, Page: 15}, last: "studio "},
-		{name: "a narrow phone as tall as the frames", page: tenWeeks(), width: 12, height: 37, want: Scrolling{Most: 20, Page: 28}, last: "studio"},
+		{
+			name: "the table at 160×20", page: tenWeeks(), width: 160, height: 20, want: Scrolling{Most: 8, Page: 10}, legend: "each week", last: "studio ",
+			below: "▼ 8 more below   ·   j/k to scroll", above: "▲ 8 more above   ·   j/k to scroll",
+		},
+		{
+			name: "columns at 160×30", page: threeWeeks(), shape: WeeksColumns, width: 160, height: 30, want: Scrolling{Most: 3, Page: 20}, legend: "short: ", last: "              10 Aug",
+			below: "▼ 3 more below   ·   j/k to scroll", above: "▲ 3 more above   ·   j/k to scroll",
+		},
+		{
+			name: "a phone at 52×24, the line on its last row", page: tenWeeks(), width: 52, height: 24, want: Scrolling{Most: 9, Page: 14}, last: "studio ",
+			below: "▼ 9 more below   ·   j/k to scroll", above: "▲ 9 more above   ·   j/k to scroll",
+		},
+		{
+			name: "a narrow phone as tall as the frames", page: tenWeeks(), width: 12, height: 37, want: Scrolling{Most: 21, Page: 27}, last: "studio",
+			below: "▼ 21 more…", above: "▲ 21 more…",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := weeksFrame(tt.page, tt.shape, tt.width, tt.height, Look{})
-			if got := f.weeksScrolling(); got != tt.want || !f.ScrollsRows() {
-				t.Errorf("it scrolls %+v, a row at a time: %t; want %+v, a row at a time", got, f.ScrollsRows(), tt.want)
+			if got := f.weeksScrolling(); got != tt.want || !f.ScrollsRows(status.Document{}, now) {
+				t.Errorf("it scrolls %+v, a row at a time: %t; want %+v, a row at a time", got, f.ScrollsRows(status.Document{}, now), tt.want)
 			}
-			for _, scroll := range []int{0, tt.want.Most} {
-				f.Scroll = scroll
+			for _, at := range []struct {
+				scroll int
+				says   string
+			}{{0, tt.below}, {tt.want.Most, tt.above}} {
+				f.Scroll = at.scroll
 				view := weeksText(f)[:f.viewRows()]
-				if foot := view[len(view)-1]; !strings.HasPrefix(foot, tt.legend) {
-					t.Errorf("scrolled %d, the view's last row reads %q, want it to start %q", scroll, foot, tt.legend)
+				if foot := view[len(view)-1]; tt.legend != "" && !strings.HasPrefix(foot, tt.legend) {
+					t.Errorf("scrolled %d, the view's last row reads %q, want it to start %q", at.scroll, foot, tt.legend)
+				}
+				if says := view[tt.want.Page]; says != at.says {
+					t.Errorf("scrolled %d, the row after the page reads %q, want %q", at.scroll, says, at.says)
 				}
 				if slices.ContainsFunc(view, func(row string) bool { return strings.Contains(row, "more account") }) {
-					t.Errorf("scrolled %d, the view reads\n%s\nwant no line counting accounts out of view", scroll, strings.Join(view, "\n"))
+					t.Errorf("scrolled %d, the view reads\n%s\nwant no line counting accounts out of view", at.scroll, strings.Join(view, "\n"))
 				}
-				if scroll == tt.want.Most && !strings.HasPrefix(view[tt.want.Page-1], tt.last) {
+				if at.scroll == tt.want.Most && !strings.HasPrefix(view[tt.want.Page-1], tt.last) {
 					t.Errorf("scrolled to the end, the last row over the legend reads %q, want it to start %q", view[tt.want.Page-1], tt.last)
 				}
 			}
 		})
 	}
-	if f := weeksFrame(tenWeeks(), WeeksTable, 160, 37, Look{}); f.ScrollsRows() {
+	if f := weeksFrame(tenWeeks(), WeeksTable, 160, 37, Look{}); f.ScrollsRows(status.Document{}, now) {
 		t.Error("ten accounts as tall as the frames scroll a row at a time, want an account at a time")
 	}
 }

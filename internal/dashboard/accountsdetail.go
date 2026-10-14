@@ -239,9 +239,10 @@ var listOut = []outForm{{noun: "account", gap: " · ", inks: keyedOut}, {gap: " 
 func (d detailDrawn) draw(c *canvas, top int) {
 	panel := d.drawn()
 	rows, y := d.f.viewRows(), d.f.Height-underView
-	offset := byRows(panel.height(), rows).clamped(d.f.Scroll)
-	c.paste(panel, offset, top, rows)
-	c.line(d.l.panel, y, outOfView(offset, max(panel.height()-offset-rows, 0), d.f.edge()-d.l.panel, compareOut))
+	paged := pagedWhole(panel, rows)
+	from, to := paged.shown(d.f.Scroll)
+	c.paste(panel, from, top, to-from)
+	c.line(d.l.panel, y, outOfView(from, paged.content-to, d.f.edge()-d.l.panel, compareOut))
 	if !d.l.list {
 		return
 	}
@@ -250,10 +251,10 @@ func (d detailDrawn) draw(c *canvas, top int) {
 	c.line(listAt, y, outOfView(first, len(d.f.Accounts.Accounts)-first-shown, listRuleAt-listAt, listOut...))
 }
 
-// scrolling is how far Detail's panel scrolls, by rows, at any offset: as far
-// as it runs past the view's rows.
-func (d detailDrawn) scrolling(int) Scrolling {
-	return byRows(d.drawn().height(), d.f.viewRows())
+// scrolling is how far Detail's panel scrolls, by rows, scrolled offset
+// down, as pagedWhole pages it.
+func (d detailDrawn) scrolling(offset int) Scrolling {
+	return pagedWhole(d.drawn(), d.f.viewRows()).scrolling(offset)
 }
 
 // scrolls is what of Detail scrolls: its panel, from its column to the
@@ -293,6 +294,7 @@ func (d detailDrawn) panel() *canvas {
 		d.thisWeek(c, usageAt)
 		d.byModel(c, at)
 		d.rule(c, at+ruleUnder)
+		c.heading(at+ruleUnder, at+byDayUnder)
 		d.byDay(c, at+byDayUnder, sixWeeks)
 		d.weeks(c, at+weeksUnder)
 		d.verdict(c, at+verdictUnder)
@@ -346,6 +348,7 @@ func (d detailDrawn) stands(c *canvas, x, y int, short bool) {
 // cells short of THIS WEEK.
 func (d detailDrawn) usage(c *canvas, y int) {
 	c.line(d.l.panel, y, line{{"USAGE", dimInk}})
+	c.heading(y, y+1)
 	b := usageBlock{width: d.f.Width, look: d.f.Look}
 	for i, w := range d.windows() {
 		row := y + 1 + i*windowsApart
@@ -493,6 +496,7 @@ func accountLatelyLines(m status.Moment, sentences []views.Sentence, words int) 
 func (d detailDrawn) sessions(c *canvas, y int) {
 	x := d.l.panel
 	c.line(x, y, line{{"SESSIONS", dimInk}, {"  now", faintInk}})
+	c.heading(y, y+1)
 	selected := d.selected()
 	first, shown := sessionsScrolled(len(d.running), selected)
 	for i, r := range d.running[first : first+shown] {

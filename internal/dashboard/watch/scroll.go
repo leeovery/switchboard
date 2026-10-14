@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // wheelRows is how many rows a turn of the wheel scrolls help, and a view
@@ -75,7 +76,7 @@ func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 		return m.turnCardScrolled(m.wheeledCard(m.session.card.scroll, way, msg))
 	case nothingOpen:
 		if f, at := m.onScreen(); f.Under(m.doc, at, msg.X, msg.Y) == dashboard.UnderView {
-			return m.scrollView(notch(f, way))
+			return m.scrollView(notch(f, m.doc, at, way))
 		}
 	}
 	return m
@@ -92,11 +93,11 @@ func (m Model) wheeledCard(scroll, way int, msg tea.MouseWheelMsg) int {
 }
 
 // notch is how far a turn of the wheel the way given scrolls the view f
-// shows: wheelRows rows, where it scrolls a row at a time; else a thing, as
-// j and k do, as the Overview's USAGE scrolls an account at a time, and
-// History's Tokens a period.
-func notch(f dashboard.Frame, way int) scrollStep {
-	if f.ScrollsRows() {
+// shows of doc at at: wheelRows rows, where it scrolls a row at a time; else
+// a thing, as j and k do, as the Overview's USAGE scrolls an account at a
+// time, and History's Tokens a period.
+func notch(f dashboard.Frame, doc status.Document, at time.Time, way int) scrollStep {
+	if f.ScrollsRows(doc, at) {
 		return scrollStep{rows: way * wheelRows}
 	}
 	return scrollStep{rows: way}

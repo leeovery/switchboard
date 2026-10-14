@@ -87,7 +87,7 @@ func (f Frame) stackForm(drawn func() stack, filled func() map[Ref]float64) acco
 	drawn = sync.OnceValue(drawn)
 	return accountsForm{
 		draw:      func(c *canvas, top int) { f.drawStack(c, drawn(), top) },
-		scrolling: func(int) Scrolling { return byRows(drawn().c.height(), f.viewRows()) },
+		scrolling: func(offset int) Scrolling { return pagedWhole(drawn().c, f.viewRows()).scrolling(offset) },
 		targets:   func() []Target { return f.stackTargets(drawn()) },
 		filled:    filled,
 	}
@@ -97,23 +97,20 @@ func (f Frame) stackForm(drawn func() stack, filled func() map[Ref]float64) acco
 // key line, where they don't all show, how many are out of view, as
 // Compare's line says it.
 func (f Frame) drawStack(c *canvas, s stack, top int) {
-	content, rows := s.c.height(), f.viewRows()
-	offset := byRows(content, rows).clamped(f.Scroll)
-	c.paste(s.c, offset, top, rows)
-	if content > rows {
-		c.line(0, f.Height-underView, outOfView(offset, content-offset-rows, f.edge(), compareOut))
-	}
+	paged := pagedWhole(s.c, f.viewRows())
+	from, to := paged.shown(f.Scroll)
+	c.paste(s.c, from, top, to-from)
+	c.line(0, f.Height-underView, outOfView(from, paged.content-to, f.edge(), compareOut))
 }
 
 // stackTargets are the stack's zones the view shows, at the rows it shows
 // them on.
 func (f Frame) stackTargets(s stack) []Target {
-	top, rows := f.top(), f.viewRows()
-	offset := byRows(s.c.height(), rows).clamped(f.Scroll)
+	from, to := pagedWhole(s.c, f.viewRows()).shown(f.Scroll)
 	var shown []Target
 	for _, t := range s.targets {
-		if y := t.Y - offset; y >= 0 && y < rows {
-			t.Y = top + y
+		if y := t.Y - from; y >= 0 && y < to-from {
+			t.Y = f.top() + y
 			shown = append(shown, t)
 		}
 	}
@@ -167,6 +164,7 @@ func (cp compared) turnedWeek(c *canvas, y int, columns []compareColumn) int {
 		label = append(label, span{"  now", faintInk})
 	}
 	c.line(0, y, label)
+	c.heading(y, y+partsApart)
 	for _, col := range columns {
 		y += partsApart
 		c.line(turnedNameAt, y, turnedName(col))
@@ -184,6 +182,7 @@ func (cp compared) turnedWeek(c *canvas, y int, columns []compareColumn) int {
 // and at turnedLargestAt the version it used most, as versionsNamed names it.
 func (cp compared) turnedByModel(c *canvas, y int, columns []compareColumn) int {
 	c.line(0, y, line{{"BY MODEL", dimInk}})
+	c.heading(y, y+partsApart)
 	versions := cp.page.Versions
 	hues := versionHues(versions)
 	for _, col := range columns {
@@ -261,6 +260,7 @@ func (cp compared) turnedGroups() []turnedGroup {
 // edge.
 func (cp compared) turnedGroup(c *canvas, y int, g turnedGroup, columns []compareColumn) int {
 	c.line(0, y, line{{g.name, dimInk}})
+	c.heading(y, y+1)
 	for _, head := range g.columns {
 		c.line(head.at, y, line{{head.head, dimInk}})
 	}
@@ -318,6 +318,7 @@ func (s stacked) whole() stack {
 	}
 	y += partsApart
 	c.line(0, y, line{{"LATELY", dimInk}})
+	c.heading(y, y+1)
 	s.lately(c, y+1, 0, stackLatelyWords)
 	return stack{c: c, targets: targets}
 }
@@ -352,6 +353,7 @@ func (s stacked) named(cells int) line {
 // from stackUsageAt, its words ending at the frame's edge.
 func (s stacked) usage(c *canvas, y int) int {
 	c.line(0, y, line{{"USAGE", dimInk}})
+	c.heading(y, y+1)
 	b := usageBlock{width: s.f.Width, look: s.f.Look}
 	last := y
 	for i, w := range s.windows() {
@@ -368,6 +370,7 @@ func (s stacked) usage(c *canvas, y int) int {
 // cell short of the next column, or of the frame's edge.
 func (s stacked) thisWeek(c *canvas, y int) int {
 	c.line(0, y, line{{s.page.Period.Title(), dimInk}})
+	c.heading(y, y+1)
 	halves := s.thisWeekItems()
 	for h, items := range halves {
 		x, end := h*stackHalf, s.f.edge()

@@ -81,7 +81,10 @@ type Frame struct {
 	// rows; on the Overview, in accounts, USAGE's, within its section; on
 	// History, the Year in rows, Weeks in accounts, Days in accounts too,
 	// BY ACCOUNT's, within it, and Tokens in periods; and on Runway, in
-	// accounts, its lanes'. It goes no further than Scrolling says it goes.
+	// accounts, its lanes'; but in rows wherever ScrollsRows says the view
+	// scrolls a row at a time, as USAGE, Weeks, Days and Tokens do where what
+	// they show one of doesn't fit. It goes no further than Scrolling says it
+	// goes.
 	Scroll int
 	// Focus is the account the Overview's focus is on, by id, which ↑ and ↓
 	// move and GRAPHS follows: "" while it's on none.

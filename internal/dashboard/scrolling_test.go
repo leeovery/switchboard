@@ -25,8 +25,8 @@ func TestASessionsPageScrollsItsTurnsInTheirRows(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(160, 37)
 			f.Session = &SessionShown{Page: views.SessionPage{Accounts: []views.SessionAccount{{Account: "work"}}, Turns: make([]views.Turn, tt.turns)}}
-			if got := f.Scrolling(status.Document{}, routedAt); got != tt.want || !f.ScrollsRows() {
-				t.Errorf("its turns scroll %+v, rows at a time %t; want %+v, a row at a time", got, f.ScrollsRows(), tt.want)
+			if got := f.Scrolling(status.Document{}, routedAt); got != tt.want || !f.ScrollsRows(status.Document{}, routedAt) {
+				t.Errorf("its turns scroll %+v, rows at a time %t; want %+v, a row at a time", got, f.ScrollsRows(status.Document{}, routedAt), tt.want)
 			}
 			for y, want := range map[int]Under{23: UnderNothing, 24: UnderView, 34: UnderView, 35: UnderNothing} {
 				if got := f.Under(status.Document{}, routedAt, 10, y); got != want {

@@ -24,9 +24,9 @@ const (
 // matrix, 2a + 7 rows for a accounts and the pool; at its most, from 150
 // columns, by window, the big bars, its windows stacked as sections at the
 // full width; otherwise its least. USAGE never folds: given fewer rows than
-// its least, it scrolls within them, an account at a time. By account from
-// 150 columns, ROUTING is drawn beside its blocks, from routingAt, and
-// follows them as they scroll; a click along an account's rows, its own or
+// its least, it scrolls within them, as shown shows it. By account from 150
+// columns, ROUTING is drawn beside its blocks, from routingAt, and follows
+// them as they scroll; a click along an account's rows, its own or
 // ROUTING's beside them, moves the focus to it. ROUTING's table beside them
 // is built only as it's first drawn.
 func (f Frame) usageSection(doc status.Document, now time.Time) section {
@@ -42,16 +42,18 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 		Section: SectionUsage, least: sectionHead + views.all, most: sectionHead + views.big, aside: aside,
 		description: func() line { return f.roomLeft(doc, now) },
 		draw: func(c *canvas, body bounds) {
-			shown := views.fitted(body.rows, f.Scroll)
-			shown.drawIn(c, body)
+			shown := views.shown(body.rows, f.Scroll)
+			shown.draw(c, body)
 			if aside > 0 {
-				f.routingBeside(c, routing(), shown.beside(aside, body))
+				f.routingBeside(c.within(shown.rowsIn(body)), routing(), shown.beside(aside, body))
 			}
 		},
 		targets: func(body bounds) []Target {
-			return views.fitted(body.rows, f.Scroll).targets(body)
+			return views.shown(body.rows, f.Scroll).targets(body)
 		},
-		scrolling: views.scrolling,
+		scrolling:   views.scrolling,
+		rowsAtATime: views.whole,
+		revealing:   views.revealing,
 	}
 }
 
@@ -217,12 +219,13 @@ func (b usageBlock) enlarges() bool {
 // it's given, scrolled however far: the block; the rows it takes with its big
 // bars, and as it's laid out; how many accounts it has; and, worked out only
 // once it scrolls, the rows each account in view adds, and each mark, ▲ or
-// ▼, as of counts them.
+// ▼, as of counts them, and the block laid out whole, as paged pages it.
 type usageViews struct {
 	block    usageBlock
 	big, all int
 	accounts int
 	steps    func() (account, mark int)
+	laid     func() laid
 }
 
 // views are the block's views, laid out once as it is, and once more with
@@ -235,6 +238,7 @@ func (b usageBlock) views() usageViews {
 		v.big = b.enlarged().height()
 	}
 	v.steps = sync.OnceValues(func() (int, int) { return b.steps(all) })
+	v.laid = sync.OnceValue(func() laid { return b.lay(growing(b.width), 0) })
 	return v
 }
 
@@ -273,6 +277,59 @@ func (v usageViews) of(above, shown int) int {
 	return v.all - (v.accounts-shown)*account + marks*mark
 }
 
+// whole reports whether the block, in rows rows, is shown whole, a row at a
+// time, as paged pages it: where it doesn't fit, nor does it scrolled an
+// account at a time, an account a window in view, as leastPage has it.
+func (v usageViews) whole(rows int) bool {
+	return v.all > rows && v.leastPage() > rows
+}
+
+// leastPage is the most rows the block takes scrolled an account at a time,
+// an account in view: past the first, ▲ over it and ▼ under it, where it has
+// three accounts or more; ▼ alone with two; and with one, every row.
+func (v usageViews) leastPage() int {
+	if v.accounts < 2 {
+		return v.all
+	}
+	return v.of(min(1, v.accounts-2), 1)
+}
+
+// paged is how the block, laid out whole, pages in rows rows: its key line
+// held on their last rows, a blank row over it, but where that would leave
+// fewer than leastPaged rows over it; each window's heading, and each
+// block's name on a row of its own, shown with the first row under it, as
+// lay has them.
+func (v usageViews) paged(rows int) rowsPaged {
+	l := v.laid()
+	foot := v.all - l.end - 1
+	if rows-foot < leastPaged {
+		foot = 0
+	}
+	return rowsPaged{rows: rows, foot: foot, content: l.end, heads: l.heads, says: true}
+}
+
+// usageShown is USAGE's block as it's shown in a body's rows: scrolled an
+// account at a time, as fitted lays it out, its rows from the first to the
+// body's last; or shown whole, its rows from from up to to, as paged pages
+// them.
+type usageShown struct {
+	block    usageBlock
+	paged    rowsPaged
+	whole    bool
+	from, to int
+}
+
+// shown is the block as USAGE shows it in rows rows, scrolled offset down:
+// whole, a row at a time, where whole says so; else as fitted lays it out.
+func (v usageViews) shown(rows, offset int) usageShown {
+	if !v.whole(rows) {
+		return usageShown{block: v.fitted(rows, offset), to: rows}
+	}
+	p := v.paged(rows)
+	from, to := p.shown(offset)
+	return usageShown{block: v.block, paged: p, whole: true, from: from, to: to}
+}
+
 // fitted is the block as USAGE draws it in rows rows, scrolled offset
 // accounts' rows down: with its big bars, where they fit; else as it's laid
 // out, scrolled within the rows where it doesn't fit.
@@ -283,22 +340,49 @@ func (v usageViews) fitted(rows, offset int) usageBlock {
 	return v.scrolled(rows, offset)
 }
 
-// scrolling is how far the block scrolls in rows rows, scrolled offset
-// accounts' rows down, an account's rows at a time: no further than shows the
-// last account, a page being as many as show at the offset, taken no further
-// than it goes: more at the top or the foot, with no ▲ or ▼ by them, than
-// between; nowhere where it fits.
+// scrolling is how far the block scrolls in rows rows, scrolled offset down:
+// shown whole, a row at a time, as paged has it; else an account's rows at a
+// time, no further than shows the last account, a page being as many as show
+// at the offset, taken no further than it goes: more at the top or the foot,
+// with no ▲ or ▼ by them, than between; nowhere where it fits.
 func (v usageViews) scrolling(rows, offset int) Scrolling {
-	n := v.accounts
-	if n < 2 || v.all <= rows {
+	switch {
+	case v.whole(rows):
+		return v.paged(rows).scrolling(offset)
+	case v.all <= rows:
 		return Scrolling{}
 	}
-	last := 1
+	n, last := v.accounts, 1
 	for last < n-1 && v.of(n-last-1, last+1) <= rows {
 		last++
 	}
 	most := n - last
 	return Scrolling{Most: most, Page: v.shownFrom(rows, min(max(offset, 0), most))}
+}
+
+// revealing is how far the block, in rows rows, scrolled offset down, is
+// scrolled to show the account with the given id: shown whole, as paged
+// reveals one of its rows; else as far as it's scrolled, where that shows
+// it, else no further than it must go to. Scrolled down, a page may show
+// fewer than the one it left, once a ▲ row comes over it, so it goes on an
+// account at a time until the account shows.
+func (v usageViews) revealing(rows, offset int, id string) int {
+	if v.whole(rows) {
+		var spans []rowAt
+		for _, p := range v.block.placed() {
+			if p.id == id {
+				spans = append(spans, p)
+			}
+		}
+		return v.paged(rows).revealing(offset, spans)
+	}
+	accounts, _ := v.block.split()
+	i := slices.IndexFunc(accounts, func(r usageRow) bool { return r.id == id })
+	at := v.scrolling(rows, offset).revealing(offset, i)
+	for s := v.scrolling(rows, at); at < s.Most && i >= at+s.Page; s = v.scrolling(rows, at) {
+		at++
+	}
+	return at
 }
 
 // scrolled is the block in rows rows, scrolled offset accounts' rows down, no
@@ -334,12 +418,33 @@ func (b usageBlock) shows(above, shown int) usageBlock {
 	return b
 }
 
-// drawIn draws the block in body, its key line after a blank row, cut to
-// body's rows.
-func (b usageBlock) drawIn(c *canvas, body bounds) {
-	part := newCanvas(c.width, body.rows)
-	b.key(part, b.draw(part, 0)+1)
-	c.paste(part, 0, body.y, body.rows)
+// usageRowsOut is the form of the line saying how many of USAGE's rows are
+// out of view, where it's shown whole: "▲ 3 more above · ▼ 9 more below", in
+// text.subtle, as its accounts' are.
+var usageRowsOut = outForm{above: " above", below: " below", gap: " · ", inks: subtleOut}
+
+// draw draws the block in body, its rows shown in those rowsIn gives them:
+// shown whole, its key line on the body's last rows, where it keeps it, and
+// on the row after the rows shown, how many are out of view; else its key
+// line after a blank row, cut to the body's rows.
+func (s usageShown) draw(c *canvas, body bounds) {
+	in := c.within(s.rowsIn(body))
+	end := s.block.draw(in, body.y-s.from)
+	if !s.whole {
+		s.block.key(in, end+1)
+		return
+	}
+	if s.paged.foot > 0 {
+		s.block.key(c, body.y+body.rows-s.paged.foot)
+	}
+	s.paged.said(c, body.y, s.from, s.to, s.block.width, usageRowsOut)
+}
+
+// rowsIn are the rows of body the block's rows shown are drawn in, from its
+// first.
+func (s usageShown) rowsIn(body bounds) bounds {
+	body.rows = s.to - s.from
+	return body
 }
 
 // placed is where the block draws each of its rows in view, the accounts'
@@ -348,27 +453,27 @@ func (b usageBlock) placed() []rowAt {
 	return b.lay(growing(b.width), 0).placed
 }
 
-// beside is where the block draws its rows in body, for ROUTING to be drawn
-// beside them from column x.
-func (b usageBlock) beside(x int, body bounds) blocksBeside {
+// beside is where the block draws its rows shown in body, for ROUTING to be
+// drawn beside them from column x.
+func (s usageShown) beside(x int, body bounds) blocksBeside {
 	at := blocksBeside{x: x}
-	for _, p := range b.placed() {
-		p.y += body.y
+	for _, p := range s.block.placed() {
+		p.y += body.y - s.from
 		at.blocks = append(at.blocks, p)
 	}
 	return at
 }
 
-// targets are the block's click targets as it's drawn in body: each row of
-// an account's, across the body, which moves the focus to it.
-func (b usageBlock) targets(body bounds) []Target {
+// targets are the block's click targets as it's shown in body: each row of
+// an account's shown, across the body, which moves the focus to it.
+func (s usageShown) targets(body bounds) []Target {
 	var targets []Target
-	for _, p := range b.placed() {
+	for _, p := range s.block.placed() {
 		if p.id == "" {
 			continue
 		}
-		for y := p.y; y < min(p.y+p.rows, body.rows); y++ {
-			targets = append(targets, Target{X: body.x, Y: body.y + y, Width: body.width, On: OnAccount, Account: p.id})
+		for y := max(p.y, s.from); y < min(p.y+p.rows, s.to); y++ {
+			targets = append(targets, Target{X: body.x, Y: body.y + y - s.from, Width: body.width, On: OnAccount, Account: p.id})
 		}
 	}
 	return targets
