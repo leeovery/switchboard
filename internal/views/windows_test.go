@@ -18,9 +18,9 @@ import (
 type historyOf []readings.Reading
 
 // Tail gives a read of the readings held from start up to end, each window's
-// last from from up to start carried in, as readings.Carried has them.
+// run from from up to start carried in, as readings.CarriedRuns has them.
 func (h historyOf) Tail(from, start, end time.Time) func() []readings.Reading {
-	return func() []readings.Reading { return readings.Carried(slices.Values(h), from, start, end) }
+	return func() []readings.Reading { return readings.CarriedRuns(slices.Values(h), from, start, end) }
 }
 
 // FirstDay holds no day, as views' tests ask none.

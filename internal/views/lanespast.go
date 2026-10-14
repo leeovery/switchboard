@@ -18,13 +18,14 @@ import (
 // at the moment of each column before now's, or of every column of a day or
 // week gone, and what that was judged from: the timeline, by its span, its
 // columns and now's; the view; the readings, as heldReadings knows them; the
-// days before the readings history's keep, by their dates; the policy; and
-// each account, as pastOf knows it, in the moment's order.
+// readings history's keep, and the days before it, by their dates; the
+// policy; and each account, as pastOf knows it, in the moment's order.
 type heldPast struct {
 	start, end         time.Time
 	columns, nowColumn int
 	window             RunwayWindow
 	read               heldReadings
+	kept               time.Time
 	summarised         []string
 	policy             score.Policy
 	accounts           []pastOf
@@ -69,7 +70,7 @@ type pastOf struct {
 func (p heldPast) holds(from LanesFrom) bool {
 	tl, m := from.Timeline, from.Moment
 	if !p.start.Equal(tl.Start) || !p.end.Equal(tl.End) || p.columns != tl.Columns || p.nowColumn != tl.NowColumn() ||
-		p.window != from.Window || p.read != heldReadingsOf(from.Readings) || !slices.Equal(p.summarised, from.summarisedDays()) ||
+		p.window != from.Window || p.read != heldReadingsOf(from.Readings) || !p.kept.Equal(from.Kept) || !slices.Equal(p.summarised, from.summarisedDays()) ||
 		!p.policy.Equal(m.Policy()) || len(p.accounts) != len(m.Accounts) {
 		return false
 	}
@@ -112,7 +113,7 @@ func (l Lanes) judgePast(from LanesFrom) heldPast {
 	m, tl, then := from.Moment, from.Timeline, l.judging()
 	past := heldPast{
 		start: tl.Start, end: tl.End, columns: tl.Columns, nowColumn: tl.NowColumn(), window: from.Window,
-		read: heldReadingsOf(from.Readings), summarised: from.summarisedDays(), policy: m.Policy(),
+		read: heldReadingsOf(from.Readings), kept: from.Kept, summarised: from.summarisedDays(), policy: m.Policy(),
 	}
 	judged := max(tl.Columns, 0)
 	if now := tl.NowColumn(); now >= 0 {
@@ -126,7 +127,7 @@ func (l Lanes) judgePast(from LanesFrom) heldPast {
 		p.was = make([]status.Was, judged)
 		for c := range p.was {
 			at := tl.Moment(c)
-			p.was[c] = then(m, a, readBy(p.read, at), p.told, at)
+			p.was[c] = then(m, a, readBy(p.read, at), from.Kept, p.told, at)
 		}
 		past.accounts = append(past.accounts, p)
 	}
