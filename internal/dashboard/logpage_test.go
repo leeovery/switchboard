@@ -269,10 +269,11 @@ func TestLandingChoosesTheFirstRequestAtOrAfterAMoment(t *testing.T) {
 // unfilled, so, short of the view it filled, it reads back to fill it: as
 // the find's enter, the panel's, and esc letting the filter go each change
 // it, where the days' summaries bound it, as its page's Reach has it, the
-// Events through kinds alone reading back as on opening. One they don't
-// bound stays as it stood, reading back only as its top is reached: the
-// Requests through a filter of the failed of no session, and the Events
-// through one of an account.
+// Events through a session so bound though an account is chosen too, and
+// through kinds alone reading back as on opening. One they don't bound
+// stays as it stood, reading back only as its top is reached: the Requests
+// through a filter of the failed of no session, and the Events through one
+// of an account alone.
 func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 	const session = "d28c5e17-0000-4000-8000-000000000001"
 	src := views.LogSources{From: logDay, Now: logDayNoon}
@@ -295,6 +296,8 @@ func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 	picked, pins, failed, failedOf, worked := requests.Panel(), events.Panel(), requests.Panel(), requests.Panel(), events.Panel()
 	picked.Filter.Sessions, pins.Shows.Kinds, failed.Filter.Failed = []string{session}, []string{status.EventPin}, true
 	failedOf.Filter.Sessions, failedOf.Filter.Failed, worked.Shows.Accounts = []string{session}, true, []string{"work"}
+	workedOf := worked
+	workedOf.Shows.Sessions = []string{session}
 	tests := []struct {
 		name  string
 		page  LogPage
@@ -307,6 +310,7 @@ func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 		{name: "esc letting the filter go", page: keeping(keeping(requests.FoundOnly(session), ofSession).Filling(3).Unfiltered(), every), rows: 5, wants: true},
 		{name: "the panel's enter on the failed of a session", page: keeping(requests.Applied(failedOf), nil), rows: 4, wants: true},
 		{name: "the find's enter, on the Events", page: keeping(events.FoundOnly(session), nil), rows: 2, wants: true},
+		{name: "the Events' panel's enter on a session and an account", page: keeping(events.Applied(workedOf), nil), rows: 2, wants: true},
 		{name: "the panel's enter on the failed", page: keeping(requests.Applied(failed), nil), rows: 4},
 		{name: "the Events' panel's enter on an account", page: keeping(events.Applied(worked), nil, workAtItsCap), rows: 2},
 	}

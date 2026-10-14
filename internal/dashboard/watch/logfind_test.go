@@ -287,8 +287,10 @@ func TestAFoundSessionReadsBackNoFurtherThanItsFirstDay(t *testing.T) {
 // checks alone, the first a week back, to that day, where they stand filled,
 // short of their view, so the failed after them, which no summary bounds,
 // read back no further; and the Events, shown after a find, to the found
-// session's first day. Each day read back is read whole, so the days read
-// are counted.
+// session's first day. Shown after the Requests through that account, the
+// Events read back by their own reach, not the Requests': every kind, no
+// summary bounds them, so they read back till a pin a day fills their view.
+// Each day read back is read whole, so the days read are counted.
 func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(t *testing.T) {
 	applied := func(tick func(*views.LogFilter)) func(h *harness) {
 		return func(h *harness) {
@@ -303,6 +305,12 @@ func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(
 		}
 	}
 	checksAlone := applied(func(f *views.LogFilter) { f.Kinds = []views.RowKind{views.RowCheck} })
+	ofNoLines := applied(func(f *views.LogFilter) { f.Accounts = []string{"personal"} })
+	eventsAfterNoLines := func(h *harness) {
+		ofNoLines(h)
+		settled(h)
+		h.typed("]")
+	}
 	failedAfterChecks := func(h *harness) {
 		checksAlone(h)
 		settled(h)
@@ -321,7 +329,8 @@ func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(
 		{name: "the Requests through checks alone, none on any day", filter: checksAlone},
 		{name: "the Requests through checks alone, the first a week back", checked: 7, filter: checksAlone, reach: 7},
 		{name: "the failed after checks alone, the first a week back", checked: 7, filter: failedAfterChecks, reach: 7},
-		{name: "the Requests through an account of no lines", filter: applied(func(f *views.LogFilter) { f.Accounts = []string{"personal"} })},
+		{name: "the Requests through an account of no lines", filter: ofNoLines},
+		{name: "the Events after the Requests through an account of no lines", filter: eventsAfterNoLines, reach: 20},
 		{name: "the Events after a find", found: foundAPI, filter: func(h *harness) { h.typed("]") }, reach: 3},
 	}
 	for _, tt := range tests {
