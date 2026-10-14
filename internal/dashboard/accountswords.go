@@ -47,10 +47,11 @@ func shareNamed(v ledger.Version) string {
 	return v.Name + " share"
 }
 
-// periodParts say a row of the page's period as said says it: but where the
-// period records nothing, as on a fresh install, a dash, as noneOf has it,
-// in every row, whatever said says, as 0 requests, none hit, or $0, the plan
-// and extra usage among them.
+// periodParts say a figure of the page's period as said says it: but where
+// the period records nothing, as on a fresh install or a week's first
+// morning, a dash, as noneOf has it, whatever said says, as 0 requests, none
+// hit, or $0. Left at its last reset, of the six weeks, the plan, of the
+// config, and extra usage, live, are no figures of the period.
 func periodParts(page views.AccountsPage, said []part, k ink) []part {
 	if !page.Recorded {
 		return noneOf(noFigure.text, k)

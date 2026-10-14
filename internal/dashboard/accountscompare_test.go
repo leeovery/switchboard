@@ -652,29 +652,53 @@ func TestCompareDrawsItsHeadsAndWEEKUSEDTillItsDaysAreRead(t *testing.T) {
 	}
 }
 
-// A period with nothing recorded, as on a fresh install, says a dash in
-// every row, left at its last reset, the plan and extra usage among them,
-// as the design has it.
+// A period with nothing recorded says a dash in each of its own figures, as
+// the owner settled it: on a fresh install, and on a week's first morning
+// before any request. The plan, from the config, extra usage, live, and
+// left at its last reset, of the six weeks, are no figures of the period,
+// and say what they are: on a fresh install no week has ended yet.
 func TestAPeriodWithNothingRecordedSaysADashForEachOfItsFigures(t *testing.T) {
-	f, doc := threeCompared(t, 160, 37)
-	f.Accounts.Page.Recorded = false
-	rows := f.Draw(doc, routedAt)
-	tests := map[int]string{
+	dashes := map[int]string{
 		20: "  requests                —                                —                                —                                —",
 		21: "  sessions served         —                                —                                —                                —",
 		22: "  sessions moved          —                                —                                —                                —",
 		25: "  limits hit              —                                —                                —                                —",
 		26: "  at cap or limit         —                                —                                —                                —",
-		27: "  left at its last reset  —                                —                                —                                —",
-		30: "  plan                    —                                —                                —                                —",
-		31: "  extra usage             —                                —                                —                                —",
 		32: "  worth at API prices     —                                —                                —                                —",
 		33: "  against its price       —                                —                                —                                —",
 	}
-	for y, want := range tests {
-		if got := strings.TrimRight(rows[y], " "); got != want {
-			t.Errorf("row %d is\n%q, want\n%q", y, got, want)
-		}
+	theirOwn := map[int]string{
+		30: "  plan                    Max 20x · $200/mo                Max 20x · $200/mo                Max 20x · $200/mo                $600/mo · 3 plans",
+		31: "  extra usage             off                              off                              off                              off on all",
+	}
+	tests := []struct {
+		name string
+		page func(*views.AccountsPage)
+		left string
+	}{
+		{name: "a week's first morning", page: func(*views.AccountsPage) {},
+			left: "  left at its last reset  0% (limit Fri)                   15%                              40%                              —"},
+		{name: "a fresh install", page: func(p *views.AccountsPage) {
+			for i := range p.Rows {
+				p.Rows[i].WeekLeft, p.Rows[i].RanOut = nil, ""
+			}
+		}, left: "  left at its last reset  —                                —                                —                                —"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, doc := threeCompared(t, 160, 37)
+			f.Accounts.Page.Recorded = false
+			tt.page(f.Accounts.Page)
+			rows := f.Draw(doc, routedAt)
+			want := maps.Clone(dashes)
+			maps.Copy(want, theirOwn)
+			want[27] = tt.left
+			for y, want := range want {
+				if got := strings.TrimRight(rows[y], " "); got != want {
+					t.Errorf("row %d is\n%q, want\n%q", y, got, want)
+				}
+			}
+		})
 	}
 }
 
@@ -738,7 +762,8 @@ func TestWEEKUSEDFillsEveryAccountsWeekShownOrNot(t *testing.T) {
 // and its accounts' states counted; and the period's figures, as a look reads
 // today's days, each of an account, or all accounts', "", by its row, the
 // figures of a row one number, a version's share of use by its name, but no
-// dash or none, which says there's no figure.
+// dash or none, which says there's no figure: with nothing recorded, but
+// the plan and left at its last reset, which are no figures of the period.
 func TestComparesNumbersAreWhatALookReads(t *testing.T) {
 	f, doc := threeCompared(t, 160, 37)
 	got := f.Numbers(doc, routedAt)
@@ -785,7 +810,7 @@ func TestComparesNumbersAreWhatALookReads(t *testing.T) {
 
 	f.Accounts.Page.Recorded, f.Accounts.Page.Versions = false, nil
 	for n, said := range f.Numbers(doc, routedAt) {
-		if n.Kind == NumberPeriod {
+		if n.Kind == NumberPeriod && n.Of != "plan" && n.Of != "left at its last reset" {
 			t.Errorf("a period with nothing recorded numbers %+v, reading %q, its dash", n, said)
 		}
 	}
