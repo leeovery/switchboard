@@ -671,6 +671,22 @@ func TestWEEKUSEDsBarsEaseAsFarAsTheyHaveEased(t *testing.T) {
 	}
 }
 
+// Every configured account's week is filled, shown or scrolled out of view,
+// as the Overview's are, so a column scrolled into view while its bar eases
+// eases from where it stood, not from nothing.
+func TestWEEKUSEDFillsEveryAccountsWeekShownOrNot(t *testing.T) {
+	f, doc := tenOnCompare(t, 160, 37, 0)
+	filled := f.Filled(doc, routedAt)
+	for _, a := range tenFramed {
+		if _, ok := filled[Ref{Account: a.ID, Window: "7d"}]; !ok {
+			t.Errorf("%s's week isn't filled, want every account's, shown or not", a.ID)
+		}
+	}
+	if _, ok := filled[Ref{Window: "7d"}]; !ok || len(filled) != len(tenFramed)+1 {
+		t.Errorf("Compare fills %v, want each account's week and all accounts'", filled)
+	}
+}
+
 // What a look reads brightens as it changes: each account's week's
 // percentage, as USAGE's is numbered, and all accounts', a figure of its own,
 // and its accounts' states counted; the period's figures don't.

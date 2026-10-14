@@ -135,27 +135,40 @@ func (f Frame) compareState() []line {
 // columns are Compare's columns: each account's shown, from the first, then
 // all accounts', the last running to the frame's edge.
 func (cp compared) columns() []compareColumn {
-	accounts := cp.f.Accounts.Accounts[cp.first : cp.first+cp.shown]
-	columns := make([]compareColumn, 0, len(accounts)+1)
-	for i, configured := range accounts {
-		col := compareColumn{x: compareLabels + i*cp.colw, width: cp.colw - 1, id: configured.ID, place: cp.first + i + 1}
-		col.account, col.known = cp.m.Account(configured.ID)
-		if !col.known {
-			col.account = status.AccountNow{ID: configured.ID, Label: configured.Label, Primary: configured.Primary}
-		}
-		if cp.page != nil {
-			if j := slices.IndexFunc(cp.page.Rows, func(r views.AccountsRow) bool { return r.Totals.Account == configured.ID }); j >= 0 {
-				col.row = cp.page.Rows[j]
-			}
-		}
+	columns := make([]compareColumn, 0, cp.shown+1)
+	for i := range cp.shown {
+		col := cp.column(cp.first + i)
+		col.x = compareLabels + i*cp.colw
 		columns = append(columns, col)
 	}
-	x := compareLabels + cp.shown*cp.colw
+	return append(columns, cp.allColumn(compareLabels+cp.shown*cp.colw))
+}
+
+// column is the column of the configured account at the place given among
+// them, from 0, wherever it's shown: as the moment has it, else as the
+// config names it, and its row of the period's page.
+func (cp compared) column(i int) compareColumn {
+	configured := cp.f.Accounts.Accounts[i]
+	col := compareColumn{width: cp.colw - 1, id: configured.ID, place: i + 1}
+	col.account, col.known = cp.m.Account(configured.ID)
+	if !col.known {
+		col.account = status.AccountNow{ID: configured.ID, Label: configured.Label, Primary: configured.Primary}
+	}
+	if cp.page != nil {
+		if j := slices.IndexFunc(cp.page.Rows, func(r views.AccountsRow) bool { return r.Totals.Account == configured.ID }); j >= 0 {
+			col.row = cp.page.Rows[j]
+		}
+	}
+	return col
+}
+
+// allColumn is all accounts' column, from column x to the frame's edge.
+func (cp compared) allColumn(x int) compareColumn {
 	all := compareColumn{x: x, width: cp.f.Width - x, all: true}
 	if cp.page != nil {
 		all.row = cp.page.All
 	}
-	return append(columns, all)
+	return all
 }
 
 // ink is the ink of the column's values: all accounts' bold.
@@ -213,11 +226,17 @@ func (cp compared) targets() []Target {
 }
 
 // filled are how much of each of WEEK USED's bars Compare draws it fills, as
-// Filled has them: each account's shown, by its id and its week's key, and
-// all accounts', by the key alone; none drawn empty.
+// Filled has them: every configured account's, shown or scrolled out of
+// view, as the Overview's are, so a column scrolled into view while its bar
+// eases eases from where it stood, by its id and its week's key; and all
+// accounts', by the key alone; none drawn empty.
 func (cp compared) filled() map[Ref]float64 {
 	filled := make(map[Ref]float64)
-	for _, col := range cp.columns() {
+	columns := []compareColumn{cp.allColumn(0)}
+	for i := range cp.f.Accounts.Accounts {
+		columns = append(columns, cp.column(i))
+	}
+	for _, col := range columns {
 		if g := cp.weekGauge(col); !g.bar.empty {
 			filled[g.of] = g.bar.used
 		}
