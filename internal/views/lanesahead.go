@@ -37,13 +37,15 @@ func (s stood) holdsAt(t time.Time) bool {
 }
 
 // ahead is how an account stands from now on, as the moment has it: without
-// a usable token, or nothing known of it, all along; what holds it back at
-// now, from when the router's event of it tells, till it lifts, as its
-// Routing has it; and each window every model shares that runs out ahead,
-// as its RunsOutAhead has it.
+// a usable token, or nothing known of it, all along; each hold at now, a
+// part of its own, in the precedence Then judges by, from when the router's
+// event of it tells till it lifts: a limit holding back every request, till
+// its hold's until; its token refused, till the refusal's; and its cap, till
+// it lets go; and each window every model shares that runs out ahead, as its
+// RunsOutAhead has it.
 type ahead struct {
 	tokenless, unknown bool
-	hold               stood
+	holds              []stood
 	outs               []runOut
 }
 
@@ -66,12 +68,15 @@ func aheadOf(a status.AccountNow, w RunwayWindow) ahead {
 		h.tokenless = true
 	case status.RoutingUnreadable, status.RoutingUnread:
 		h.unknown = true
-	case status.RoutingLimited:
-		h.hold = stood{cell: CellLimited, since: limitSince(a), until: a.Routing.Back}
-	case status.RoutingRefused:
-		h.hold = stood{cell: CellRefused, since: a.RefusedSince, until: a.Refusal.Until}
-	case status.RoutingCapped:
-		h.hold = stood{cell: CellCapped, since: a.CapSince, until: a.Routing.Back}
+	}
+	if a.Held && a.Hold.Every {
+		h.holds = append(h.holds, stood{cell: CellLimited, since: limitSince(a), until: a.Hold.Until})
+	}
+	if a.TokenRefused {
+		h.holds = append(h.holds, stood{cell: CellRefused, since: a.RefusedSince, until: a.Refusal.Until})
+	}
+	if a.CapHolds {
+		h.holds = append(h.holds, stood{cell: CellCapped, since: a.CapSince, until: a.CapBack})
 	}
 	for _, win := range a.Windows {
 		if !win.Shared || !win.RunsOutAhead || win.Out.At.IsZero() {
@@ -103,10 +108,10 @@ func limitSince(a status.AccountNow) time.Time {
 
 // at is how the account stands at t, from now on: without a usable token, or
 // nothing known of it, all along, as neither has a hold or a run-out; else
-// by the precedence Then judges by, held at a limit, by the hold at now or a
-// run-out to it, its token refused, or held at its cap, by the hold at now or
-// a run-out to it; with room, running out ahead, where the view draws that;
-// else with room.
+// by the precedence Then judges by, held at a limit, by its hold at now or a
+// run-out to it, its token refused, or held at its cap, by its hold at now
+// or a run-out to it; with room, running out ahead, where the view draws
+// that; else with room.
 func (h ahead) at(t time.Time) stood {
 	switch {
 	case h.tokenless:
@@ -126,20 +131,64 @@ func (h ahead) at(t time.Time) stood {
 }
 
 // heldAt is how the account is held back as cell says at t, reporting false
-// where it isn't: by the hold at now, where it's of that cell and holds then,
-// and by each run-out to it under way then, as one, since the first of them
-// began, and until the last lifts, zero where one lifts at no known time.
+// where it isn't: by the parts of that cell holding it then, as partsAt has
+// them, as one, since the first of them began, and until the last lifts,
+// zero where one lifts at no known time.
 func (h ahead) heldAt(cell Cell, t time.Time) (stood, bool) {
+	return asOne(h.partsAt(t, func(c Cell) bool { return c == cell }))
+}
+
+// partsAt are the parts of what holds the account back at t, of the cells
+// kept: its holds at now that hold then, and each run-out to its limit or
+// its cap under way then, projected.
+func (h ahead) partsAt(t time.Time, kept func(Cell) bool) []stood {
 	var parts []stood
-	if h.hold.cell == cell && h.hold.holdsAt(t) {
-		parts = append(parts, h.hold)
-	}
-	for _, o := range h.outs {
-		if o.cell == cell && !t.Before(o.at) && (o.resets.IsZero() || t.Before(o.resets)) {
-			parts = append(parts, stood{cell: cell, since: o.at, until: o.resets, projected: true})
+	for _, p := range h.holds {
+		if kept(p.cell) && p.holdsAt(t) {
+			parts = append(parts, p)
 		}
 	}
-	return asOne(parts)
+	for _, o := range h.outs {
+		if kept(o.cell) && o.holdsAt(t) {
+			parts = append(parts, stood{cell: o.cell, since: o.at, until: o.resets, projected: true})
+		}
+	}
+	return parts
+}
+
+// holdsAt reports whether the run-out holds its account back at t: from when
+// it runs out till its window resets.
+func (o runOut) holdsAt(t time.Time) bool {
+	return !t.Before(o.at) && (o.resets.IsZero() || t.Before(o.resets))
+}
+
+// roomFrom is when the account next has room from t, as a hold lifts: once
+// no part of what holds it back, as partsAt has them, holds it then, each
+// holding on till it lifts; zero where one never does.
+func (h ahead) roomFrom(t time.Time) time.Time {
+	for !t.IsZero() {
+		lift, held := asOne(h.partsAt(t, Cell.held))
+		if !held {
+			break
+		}
+		t = lift.until
+	}
+	return t
+}
+
+// drawnFrom is when the i'th of the holds at now is first drawn, reporting
+// false where it never is: at now, or, under the holds before it, which the
+// precedence draws first, as the last of them lifts, where it holds on past
+// that.
+func (h ahead) drawnFrom(i int, now time.Time) (time.Time, bool) {
+	at := now
+	for _, p := range h.holds[:i] {
+		if p.until.IsZero() {
+			return time.Time{}, false
+		}
+		at = score.Later(at, p.until)
+	}
+	return at, h.holds[i].holdsAt(at)
 }
 
 // asOne is the parts of a hold as one, reporting false where there are none:

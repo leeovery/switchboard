@@ -90,8 +90,9 @@ const (
 // both views; just after a 5-hour reset, before the reread; a first read
 // failed, and a failed read after an earlier one; a refused token, a refusal
 // lifted early and a family's refusal; a hold with no event, probed, told by
-// the readings alone, and told by neither; the router not answering for 10
-// minutes; a pool of one, a pin naming an account at its limit, and one
+// the readings alone, and told by neither; a cap outlasting a limit and a
+// refusal; the router not answering for 10 minutes; a pool of one, a pin
+// naming an account at its limit, and one
 // account; stepped back to a day with nothing read, a day older than the
 // readings' keep, today across midnight, a 23- and a 25-hour day and a week
 // across a clock change; a 5-hour window restarted by hand; a cap turning to
@@ -100,7 +101,7 @@ const (
 func RunwayMoments() []RunwayMoment {
 	return slices.Concat(
 		weekResetBeforeRunwayRereads(), justAfterAFiveHourReset(), failedReads(), refusals(), holdsNoEventTells(), holdsEventsTell(), holdsChanging(), holdsAhead(),
-		routerSilent(), pools(), steppedBack(),
+		holdsOutlasted(), routerSilent(), pools(), steppedBack(),
 		[]RunwayMoment{tokenless(), restartedByHand(), capTurningToALimit(), twoLimitsClose(), runOutReachingTheCap(), modelsOwnLimit()},
 		framesMoments(),
 	)
@@ -516,7 +517,8 @@ const spare = "spare"
 // 14:00 till 16:30, as its week runs out, at 16:00, to its limit, one
 // stretch till its week resets, as the 5-hour view leaves out a week running
 // out, but not a week at its limit; and to its cap, its reserve 5%, the
-// limit drawn till it lifts, then the cap; its 5-hour's limit with no known
+// limit drawn till it lifts, then the cap, the limit back as the cap is; its
+// 5-hour's limit with no known
 // back, held all along; a limit naming no window from 14:12 till 15:00, its
 // 5-hour running out once it lifts, at 15:50; and its Fable week running out,
 // which holds back Fable's requests alone, not drawn.
@@ -542,7 +544,7 @@ func holdsAhead() []RunwayMoment {
 			side: {FigureCells: "room 0-1, limited 2-135", FigureStretches: "limited 14:00 – Mon 21:00 @2 2-135"},
 		}),
 		fiveHourAt("a limit holding as its week runs out to its cap", routed(at, nil, workAt, weekCapped), read(spentRead, readEach(side, at, weekCapped.Windows...)), map[string]Figures{
-			side: {FigureCells: "room 0-1, limited 2-16, capped 17-135", FigureStretches: "limited 14:00 – 16:30, as it resets @2 2-16; capped ~16:00 – Mon 21:00 @14 17-135"},
+			side: {FigureCells: "room 0-1, limited 2-16, capped 17-135", FigureStretches: "limited 14:00 – Mon 21:00 @2 2-16; capped ~16:00 – Mon 21:00 @14 17-135"},
 		}),
 		fiveHourAt("a limit with no known back", routed(at, nil, workAt, noBack), read(
 			readEach(side, onThu(13, 30, 0), window(fiveHour, 0.8, back), window(week, 0.4, mondayTen)),
@@ -560,6 +562,55 @@ func holdsAhead() []RunwayMoment {
 		}),
 		fiveHourAt("a model's own window running out", routed(at, nil, workAt, fableOut), read(readEach(side, onThu(13, 0, 0), fableOut.Windows...)), map[string]Figures{
 			side: {FigureCells: "room 0-135", FigureStretches: "", FigureRoom: "yes"},
+		}),
+	}
+}
+
+// holdsOutlasted have work's cap, its reserve 5%, outlast what holds it back
+// first, till its week resets on Monday at 21:00: its 5-hour read spent at
+// 14:00 till 15:30 as its week reaches its cap, the limit drawn till it
+// lifts, then the cap, at 14:42:07 and at 16:00:07, the limit over; and its
+// token refused till 14:52, which no event tells the start of, as its week
+// reaches its cap, the refusal drawn till it lifts, then the cap. Each
+// stretch starts as it began, its cap at 14:00 as the readings show it, and
+// is back as work next has room, on Monday.
+func holdsOutlasted() []RunwayMoment {
+	weekBack := mondayTen.Add(11 * time.Hour)
+	limited := reserving(readAccount(work, onThu(14, 0, 0), spent(fiveHour, 1, onThu(15, 30, 0)), window(week, 0.96, weekBack)), 0.05)
+	limitedRead := sorted(
+		readEach(work, onThu(12, 0, 0), window(fiveHour, 0.5, onThu(15, 30, 0)), window(week, 0.9, weekBack)),
+		readEach(work, onThu(14, 0, 0), limited.Windows...),
+		sideRead(),
+	)
+	refused := reserving(readAccount(work, onThu(14, 0, 0), window(fiveHour, 0.3, onThu(17, 0, 0)), window(week, 0.96, weekBack)), 0.05)
+	refused.Refused = status.Refusal{Until: onThu(14, 52, 0), Status: 401}
+	limitOver := fiveHourAt("a cap outlasting a limit, the limit over", routed(onThu(14, 41, 0), nil, limited, sideOn(onThu(14, 41, 0))), limitedRead, map[string]Figures{
+		work: {
+			FigureCells:     "limited 0-2, capped 3-135",
+			FigureStretches: "limited 14:00 – Mon 21:00 @0 0-2, over; capped 14:00 – Mon 21:00 @0 3-135",
+		},
+	})
+	limitOver.Now = onThu(16, 0, 7)
+	return []RunwayMoment{
+		limitOver,
+		fiveHourAt("a cap outlasting a limit", routed(onThu(14, 41, 0), nil, limited, sideOn(onThu(14, 41, 0))), limitedRead, map[string]Figures{
+			"": {FigurePool: "2 0-1, 1 2-135", FigureDips: "1 14:00 – Mon 21:00 @2 2-135"},
+			work: {
+				FigureCells:     "room 0-1, limited 2-10, capped 11-135",
+				FigureStretches: "limited 14:00 – Mon 21:00 @2 2-10; capped 14:00 – Mon 21:00 @2 11-135",
+				FigureResets:    "11 15:30 back", FigureRoom: "no",
+			},
+		}),
+		fiveHourAt("a cap outlasting a refusal", routed(onThu(14, 41, 0), nil, refused, sideOn(onThu(14, 41, 0))), sorted(
+			readEach(work, onThu(14, 0, 0), refused.Windows...),
+			sideRead(),
+		), map[string]Figures{
+			"": {FigurePool: "1 0-135", FigureDips: "1 — – Mon 21:00 @0 0-135"},
+			work: {
+				FigureCells:     "refused 0-6, capped 7-135",
+				FigureStretches: "refused — – Mon 21:00 @0 0-6; capped 14:00 – Mon 21:00 @2 7-135",
+				FigureResets:    "20 17:00", FigureRoom: "no",
+			},
 		}),
 	}
 }

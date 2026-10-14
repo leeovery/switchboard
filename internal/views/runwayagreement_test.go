@@ -19,9 +19,10 @@ import (
 // use under a name, live, is its view's window's, as usage has it; the
 // pool's lane counts the moment's pool, its room of the view's window;
 // COMING UP lists what the moment does, in its order; a stretch holding now
-// ends where the moment has room return, or, where a window runs out before
-// then, as it resets, the run-out carrying the hold on; and a run-out's
-// starts where its window runs out, as usage's out ~ has it.
+// is back as the moment has the account back from every hold, or, where a
+// window runs out before then, as it resets, the run-out carrying the hold
+// on; and a run-out's starts where its window runs out, as usage's out ~ has
+// it.
 func TestRunwaysLanesAgreeWithTheMoment(t *testing.T) {
 	for _, c := range agreementCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -36,8 +37,8 @@ func TestRunwaysLanesAgreeWithTheMoment(t *testing.T) {
 					t.Errorf("%s's use is %v, read %v; want %v, read %v, as usage has it", a.ID, lane.Use.Used, lane.Use.Read, w.Used, read(w))
 				}
 				for _, s := range lane.Stretches {
-					if back := heldTill(a, s.Cell); s.First <= now && now <= s.Last && !s.Back.Equal(back) && !carriedOn(a, back, s.Back) {
-						t.Errorf("%s's stretch holding now is back %v, want %v, as the moment has it", a.ID, s.Back, back)
+					if s.First <= now && now <= s.Last && !s.Back.Equal(a.Back) && !carriedOn(a, a.Back, s.Back) {
+						t.Errorf("%s's stretch holding now is back %v, want %v, as the moment has it", a.ID, s.Back, a.Back)
 					}
 					if s.Projected && !slices.ContainsFunc(a.Windows, func(w status.WindowNow) bool { return w.RunsOutAhead && w.Out.At.Equal(s.Start) }) {
 						t.Errorf("%s's stretch starts ~%v, where none of its windows runs out", a.ID, s.Start)
@@ -69,14 +70,7 @@ type laneCase struct {
 func agreementCases() []laneCase {
 	var cases []laneCase
 	for _, hm := range statustest.HardMoments(claude.Policy) {
-		m := hm.Doc.At(hm.Now, claude.Policy)
-		var read []readings.Reading
-		for _, a := range hm.Doc.Accounts {
-			if !a.FetchedAt.IsZero() {
-				read = append(read, readings.Of(a.ID, a.Windows, a.FetchedAt, readings.FromAnswer)...)
-			}
-		}
-		slices.SortStableFunc(read, func(a, b readings.Reading) int { return a.At.Compare(b.At) })
+		m, read := hm.Doc.At(hm.Now, claude.Policy), docReadings(hm.Doc)
 		for _, w := range []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek} {
 			from := views.LanesFrom{Moment: m, Readings: read, Timeline: views.LiveTimeline(w, hm.Now, 136), Window: w}
 			cases = append(cases, laneCase{name: hm.Name + ", the " + viewKeys[w] + " view", from: from})
@@ -88,6 +82,20 @@ func agreementCases() []laneCase {
 		}
 	}
 	return cases
+}
+
+// docReadings are the readings the document doc read, as the readings
+// history holds them, oldest first: each account's windows as read when it
+// was.
+func docReadings(doc status.Document) []readings.Reading {
+	var read []readings.Reading
+	for _, a := range doc.Accounts {
+		if !a.FetchedAt.IsZero() {
+			read = append(read, readings.Of(a.ID, a.Windows, a.FetchedAt, readings.FromAnswer)...)
+		}
+	}
+	slices.SortStableFunc(read, func(a, b readings.Reading) int { return a.At.Compare(b.At) })
+	return read
 }
 
 // viewKeys are the key of the window each view is named for.
@@ -117,15 +125,6 @@ func asRouted(a status.AccountNow) views.Cell {
 // account with a usable token.
 func read(w status.WindowNow) bool {
 	return w.Kind != status.WindowTokenless && w.Kind != status.WindowUnread
-}
-
-// heldTill is when the moment has room return to the account a, held back
-// as the cell given: its refusal's until, else its routing's back.
-func heldTill(a status.AccountNow, held views.Cell) time.Time {
-	if held == views.CellRefused {
-		return a.Refusal.Until
-	}
-	return a.Routing.Back
 }
 
 // carriedOn reports whether a window of the account a that runs out ahead,

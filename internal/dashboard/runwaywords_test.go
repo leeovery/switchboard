@@ -216,6 +216,31 @@ func TestTodaySteppedBackToSaysEachStretchAndDipOverBeforeNow(t *testing.T) {
 	}
 }
 
+// A cap outlasting what holds its account back first has words of its own,
+// after that hold's: each stretch said from its own start, and each back as
+// the account next has room, as ROUTING says it; the status the token's
+// refused with said of the refusal holding it now, though it isn't back as
+// that lifts.
+func TestAHoldOutlastedIsSaidFromItsStartAndBackAsItsAccountIs(t *testing.T) {
+	tests := []struct {
+		moment string
+		want   string
+	}{
+		{moment: "a cap outlasting a limit", want: "  at its limit 14:00  ·  back Mon 21:00  at its cap 14:00  ·  back Mon 21:00"},
+		{moment: "a cap outlasting a refusal", want: "token refused (401)  ·  back Mon 21:00  at its cap 14:00  ·  back Mon 21:00"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.moment, func(t *testing.T) {
+			f, doc, now := runwayFramed(t, tt.moment)
+			m := doc.At(now, claudeLike)
+			ln := laidLane{Lane: f.Runway.Lanes.Accounts[0], account: m.Accounts[0], row: 10}
+			if got := wordsRead(f.wordsUnder(ln, now)); got != tt.want {
+				t.Errorf("the words under work's lane say\n%q, want\n%q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTheWordsUnderALaneArePlacedFromLeftToRightDroppingWholePartsThatDontFit(t *testing.T) {
 	five := runwayLive(views.RunwayFiveHour)
 	tl := five.Timeline

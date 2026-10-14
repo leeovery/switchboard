@@ -64,7 +64,7 @@ func TestAStretchIsARunOfColumnsHeldAlike(t *testing.T) {
 	start := time.Date(2026, 10, 1, 14, 0, 0, 0, time.UTC)
 	tl := Timeline{Start: start, End: start.Add(30 * time.Minute), Columns: 3}
 	held := stood{cell: CellLimited, since: start, until: start.Add(time.Hour)}
-	got := laneStretches([]stood{held, {cell: CellRoom}, held}, tl, stood{})
+	got := laneStretches([]stood{held, {cell: CellRoom}, held}, tl, nil)
 	if len(got) != 2 || got[0].Last != 0 || got[1].First != 2 {
 		t.Errorf("the stretches are %+v, want one of column 0 and one of column 2", got)
 	}
