@@ -29,16 +29,16 @@ func (s Scrolling) clamped(offset int) int {
 }
 
 // ScrollsRows reports whether the view shown scrolls a row at a time, as
-// Runway, History's Year, Sessions' List and a session's page's turns do,
-// rather than a thing at a time: an account, as the Overview's USAGE does,
-// History's Weeks and Days, and Sessions' Switchboard, or a period, as
-// History's Tokens does.
+// History's Year, Sessions' List and a session's page's turns do, rather
+// than a thing at a time: an account, as the Overview's USAGE does,
+// History's Weeks and Days, Sessions' Switchboard and Runway's lanes, or a
+// period, as History's Tokens does.
 func (f Frame) ScrollsRows() bool {
 	if f.Session != nil {
 		return true
 	}
 	switch f.View {
-	case Overview:
+	case Overview, Runway:
 		return false
 	case History:
 		return f.History.Shown == HistoryYear
@@ -152,16 +152,6 @@ var (
 	// USAGE's and the routing card's are: all in text.subtle.
 	subtleOut = outInks{mark: dimInk, space: dimInk, count: dimInk, gap: dimInk, keys: dimInk, does: dimInk}
 )
-
-// rowsOut is how Runway says what's out of view until its stage draws it as
-// the design does: "▼ 2 more accounts below · j/k or wheel to scroll", the
-// marks, and the space after each, bold accent.key, the counts in
-// text.muted and the rest in text.subtle, cut short as words where it
-// doesn't fit, as line.fit cuts it.
-var rowsOut = outForm{
-	noun: "account", above: " above", below: " below", gap: " · ", keys: "j/k", does: " or wheel to scroll",
-	inks: outInks{mark: keyInk, space: keyInk, count: mutedInk, gap: dimInk, keys: dimInk, does: dimInk},
-}
 
 // outOfView says what's out of view where a view scrolls, above and below,
 // in the longest of forms, each shorter than the one before, that fits width

@@ -152,10 +152,11 @@ type runwayForm struct {
 
 // runwayLaid is Runway laid out on the page, for each of its drawers to draw
 // its part where it lies: from row top, its lanes from column x, its rows
-// fitted as fit has them.
+// fitted as fit has them, of the moment m, which each reads.
 type runwayLaid struct {
 	top, x int
 	fit    runwayFit
+	m      status.Moment
 }
 
 // runwayForm is the form Runway is drawn in, of doc at now: a phone's, as
@@ -167,20 +168,21 @@ func (f Frame) runwayForm(doc status.Document, now time.Time) runwayForm {
 	return f.wideRunway(doc, now)
 }
 
-// wideRunway is Runway from phoneUnder columns, as its form draws it, laid
-// out as runwayFitted fits it: the axis, the lanes and the words under
-// them, the pool's lane, the legend and COMING UP, each as its drawer has
-// it.
-func (f Frame) wideRunway(status.Document, time.Time) runwayForm {
+// wideRunway is Runway of doc at now from phoneUnder columns, as its form
+// draws it, laid out as runwayFitted fits it: the axis, the lanes and the
+// words under them, the pool's lane, the legend, COMING UP and what's out of
+// view, each as its drawer has it.
+func (f Frame) wideRunway(doc status.Document, now time.Time) runwayForm {
 	return runwayForm{
 		draw: func(c *canvas, top int) {
-			laid := runwayLaid{top: top, x: runwayLanesFrom, fit: f.runwayFitted(top)}
+			laid := runwayLaid{top: top, x: runwayLanesFrom, fit: f.runwayFitted(top), m: f.Moment(doc, now)}
 			f.runwayAxis(c, laid)
 			f.runwayLanes(c, laid)
 			f.runwayWords(c, laid)
 			f.runwayPool(c, laid)
 			f.runwayLegend(c, laid)
 			f.runwayComing(c, laid)
+			f.runwayOut(c, laid)
 		},
 		scrolling: f.runwayFitted(f.top()).scrolling,
 	}

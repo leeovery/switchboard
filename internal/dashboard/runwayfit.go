@@ -16,3 +16,7 @@ func (f Frame) runwayFitted(int) runwayFit {
 func (r runwayFit) scrolling(int) Scrolling {
 	return Scrolling{}
 }
+
+// runwayOut draws how many of Runway's lanes are out of view, as laid out:
+// nothing yet.
+func (f Frame) runwayOut(*canvas, runwayLaid) {}
