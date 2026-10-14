@@ -277,12 +277,14 @@ func TestThePanelTheDaysSessionsAndItsSummaryNameTheSameSessionsAtEachHardMoment
 	}
 }
 
-// A session the find picked joins the panel's sessions, though it has no
-// lines nor events today: of another day, as the List has it from its story
-// where the Log's read holds its lines, else as the find found it, ended at
-// its last request, its account not known; after those that haven't ended;
-// and one of today's, once.
-func TestASessionTheFindPickedJoinsThePanel(t *testing.T) {
+// A session the filter ticks joins the panel's sessions, ticked, though it
+// has no lines nor events today, as one ticked before midnight, or of
+// another day the find picked: as the List has it from its story where the
+// Log's read holds its lines; else as the find found it, ended at its last
+// request, its account not known; else its id alone. It's listed after those
+// that haven't ended, and once, as one of today's or ticked twice; and one
+// the find found that's not ticked isn't.
+func TestASessionTickedThatTodayCountsNoneOfJoinsThePanel(t *testing.T) {
 	last := local(15, 0, 0).AddDate(0, 0, -2)
 	theirs := []ledger.Line{
 		in("~/Code/api", line(older, opus, "side", "new", last.Add(-time.Hour), smallUsage)),
@@ -292,21 +294,31 @@ func TestASessionTheFindPickedJoinsThePanel(t *testing.T) {
 	l := ledgerHolding(now, slices.Concat(theirs, todays)...)
 	unread := views.ReadLogHeld(l, heldOf(todays...), ledger.Pricing, now)
 	read := unread.Back(l, heldOf(theirs...), now)
-	found := views.FoundSession{ID: older, Dir: "~/Code/api", Day: views.Today(last), Ended: true, Last: last}
+	found := []views.FoundSession{{ID: older, Dir: "~/Code/api", Day: views.Today(last), Ended: true, Last: last}}
 	tests := []struct {
-		name  string
-		read  views.LogRead
-		found []views.FoundSession
-		want  []string
+		name   string
+		read   views.LogRead
+		ticked []string
+		found  []views.FoundSession
+		want   []string
+		// ended is whether older is listed ended at its last request.
+		ended bool
 	}{
-		{name: "its day read", read: read, found: []views.FoundSession{found}, want: []string{early + " ~/Code/web work", older + " ~/Code/api side"}},
-		{name: "its day not read", read: unread, found: []views.FoundSession{found}, want: []string{early + " ~/Code/web work", older + " ~/Code/api "}},
-		{name: "one of today's", read: unread, found: []views.FoundSession{{ID: early, Day: views.Today(now)}}, want: []string{early + " ~/Code/web work"}},
+		{name: "its lines read", read: read, ticked: []string{older}, want: []string{early + " ~/Code/web work", older + " ~/Code/api side"}, ended: true},
+		{
+			name: "its lines read and found", read: read, ticked: []string{older}, found: found,
+			want: []string{early + " ~/Code/web work", older + " ~/Code/api side"}, ended: true,
+		},
+		{name: "found alone", read: unread, ticked: []string{older}, found: found, want: []string{early + " ~/Code/web work", older + " ~/Code/api "}, ended: true},
+		{name: "neither read nor found", read: unread, ticked: []string{older}, want: []string{early + " ~/Code/web work", older + "  "}},
+		{name: "ticked twice", read: read, ticked: []string{older, early, older}, want: []string{early + " ~/Code/web work", older + " ~/Code/api side"}, ended: true},
+		{name: "one of today's", read: unread, ticked: []string{early}, found: []views.FoundSession{{ID: early, Day: views.Today(now)}}, want: []string{early + " ~/Code/web work"}},
+		{name: "found, not ticked", read: read, found: found, want: []string{early + " ~/Code/web work"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			panel := views.LogSessions(views.LogSessionSources{
-				Read: tt.read, Lines: map[string]int{early: 1}, Found: tt.found, Unlisted: true, Now: now,
+				Read: tt.read, Lines: map[string]int{early: 1}, Ticked: tt.ticked, Found: tt.found, Unlisted: true, Now: now,
 			})
 			var got []string
 			for _, s := range panel {
@@ -314,8 +326,8 @@ func TestASessionTheFindPickedJoinsThePanel(t *testing.T) {
 				if s.ID != older {
 					continue
 				}
-				if doing, since := s.Doing(now); doing != views.LogEnded || !since.Equal(last) || s.Lines != 0 {
-					t.Errorf("the session found is %s since %v, %d lines today; want ended at its last request, %v, none today",
+				if doing, since := s.Doing(now); tt.ended && (doing != views.LogEnded || !since.Equal(last)) || s.Lines != 0 {
+					t.Errorf("the session ticked is %s since %v, %d lines today; want none today, ended at its last request, %v, where it's known",
 						logDoingNames[doing], since, s.Lines, last)
 				}
 			}

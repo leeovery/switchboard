@@ -1,7 +1,10 @@
 package watch
 
 import (
+	"fmt"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -11,10 +14,12 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // daysCounted is a request ledger followed as it grows, as followed notes
@@ -110,18 +115,42 @@ func TestTheLogKeepsTheDayBeforesLinesAsTheDayTurns(t *testing.T) {
 	}
 }
 
+// Away from the Log over two midnights, the tail read last on the day the
+// Log opened, the Log reads again whole every day from that one to the day
+// before today: none of those between is lost.
+func TestTheLogReadsEveryDayItWasAwayForAgain(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	l := onTheLog(h, state)
+	h.start()
+
+	h.keys(tabKey)
+	writeLines(t, state, arrived("0a000002", "work", day), arrived("0a000003", "work", 2*day-time.Minute))
+	h.clock.now = start.Add(2 * day)
+	h.read(probedWithoutTheRouter())
+	h.keys(shiftTabKey)
+	if want := []string{dayfile.DateOf(start), dayfile.DateOf(start.Add(day))}; !slices.Equal(l.days, want) {
+		t.Errorf("back on the Log two days on, the days %v were read whole, want %v", l.days, want)
+	}
+	if got, want := shownRequests(h), []string{"0a000001", "0a000002", "0a000003"}; !slices.Equal(got, want) {
+		t.Errorf("back on the Log two days on, the Requests show %v, want %v", got, want)
+	}
+}
+
 // A request that arrived at 23:59:50 and ended at 00:00:12, after the first
 // look past midnight read the day before again, has its line taken in, shown
 // or hidden: the stream told it ended, so the day it arrived on is read again
 // whole at the next look, as its line is filed under that day, which today's
-// tail never reads.
+// tail never reads; and that day's figures read again, its rule counting it.
 func TestALineOfTheDayBeforeWrittenAfterTheTurnComesAsTheStreamTellsItEnded(t *testing.T) {
 	tests := []struct {
-		name string
-		kind string
+		name     string
+		kind     string
+		requests int
 	}{
-		{name: "a request, shown", kind: ledger.KindMessage},
-		{name: "a quota check, hidden as the Log opens", kind: ledger.KindCheck},
+		{name: "a request, shown", kind: ledger.KindMessage, requests: 2},
+		{name: "a quota check, hidden as the Log opens", kind: ledger.KindCheck, requests: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -156,6 +185,9 @@ func TestALineOfTheDayBeforeWrittenAfterTheTurnComesAsTheStreamTellsItEnded(t *t
 			if got := h.model.log.read.WrittenTo(); !got.Equal(ended) {
 				t.Errorf("the Log's read holds lines written to %s, want %s, the line of the request across midnight taken in", got, ended)
 			}
+			if i := slices.IndexFunc(h.model.log.totals, func(d views.DayTotals) bool { return d.Date == yesterday }); i < 0 || h.model.log.totals[i].Requests != tt.requests {
+				t.Errorf("the figures of the day before are %+v, want them of %d requests", h.model.log.totals, tt.requests)
+			}
 		})
 	}
 }
@@ -173,6 +205,116 @@ func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 
 	if want := []string{dayfile.DateOf(past(-day)), dayfile.DateOf(past(-2 * day))}; !slices.Equal(l.days, want) {
 		t.Errorf("short of its view, the Log read back the days %v, want %v, a day at a time, no further than the oldest its keep of 2 days keeps", l.days, want)
+	}
+}
+
+// The Events read back as they want to fill their view no further than the
+// first day the router filed events on: days before show none, so a ledger
+// of quiet days is never read back through for them.
+func TestTheEventsReadBackNoFurtherThanTheRouterFiledEvents(t *testing.T) {
+	tests := []struct {
+		name  string
+		filed []time.Time
+		want  []string
+	}{
+		{name: "none filed", want: nil},
+		{name: "filed 3 days ago", filed: []time.Time{past(-3 * day)}, want: []string{dayfile.DateOf(past(-day)), dayfile.DateOf(past(-2 * day)), dayfile.DateOf(past(-3 * day))}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			var lines []ledger.Held
+			for i := range 60 {
+				lines = append(lines, arrived(fmt.Sprintf("0b%06d", i), "work", -time.Duration(60-i)*time.Second))
+			}
+			for d := 1; d <= 30; d++ {
+				lines = append(lines, arrived(fmt.Sprintf("0c%06d", d), "work", -time.Duration(d)*day))
+			}
+			writeLines(t, state, lines...)
+			for i, at := range tt.filed {
+				writeEvents(t, state, events.Line{ID: i + 1, At: at, Kind: status.EventPin, Accounts: []string{"work"}, Run: at.Add(-time.Hour)})
+			}
+			h := newHarness(t, probedWithoutTheRouter())
+			l := onTheLog(h, state)
+			h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+			h.start()
+			if len(l.days) > 0 {
+				t.Fatalf("its view filled, the Requests read back the days %v, want none", l.days)
+			}
+
+			h.typed("]")
+			if !slices.Equal(l.days, tt.want) {
+				t.Errorf("on Events, the days %v were read back, want %v", l.days, tt.want)
+			}
+		})
+	}
+}
+
+// An event the router filed after the last look at its document, as it
+// stopped or restarted, is read off its files: the next look finds the
+// router gone, or another run's document, which tells of none of it.
+func TestTheEventsReadWhatTheRouterFiledAsItStoppedOrRestarted(t *testing.T) {
+	run := past(-time.Hour)
+	tests := []struct {
+		name string
+		then func(h *harness)
+	}{
+		{name: "stopped", then: (*harness).stopRouter},
+		{name: "restarted", then: func(h *harness) {
+			h.source.health = router.Health{OK: true, PID: 2, StartedAt: past(time.Minute)}
+			h.startRouter(routerDocument(three()...))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, arrived("0a000001", "work", -time.Minute))
+			pinned := status.Event{ID: 1, At: past(-30 * time.Minute), Kind: status.EventPin, Accounts: []string{"work"}}
+			writeEvents(t, state, events.Line{Event: pinned, Run: run})
+			doc := routerDocument(three()...)
+			doc.Events = []status.Event{pinned}
+			h := routedHarness(t, doc)
+			h.source.health = router.Health{OK: true, PID: 1, StartedAt: run}
+			onTheLog(h, state)
+			h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+			h.start()
+			h.typed("]")
+
+			h.clock.now = past(2 * time.Second)
+			writeEvents(t, state, events.Line{ID: 2, At: past(time.Second), Kind: status.EventPin, Accounts: []string{"side"}, Run: run})
+			tt.then(h)
+			h.typed("R")
+			var shown []int
+			for _, e := range h.model.log.page.Events.Rows {
+				shown = append(shown, e.Key.ID)
+			}
+			if !slices.Equal(shown, []int{1, 2}) {
+				t.Errorf("the router %s, the Events show the events %v, want [1 2], the one it filed after the last look among them", tt.name, shown)
+			}
+		})
+	}
+}
+
+// writeEvents files the router's events given in the state directory given,
+// each under the day it happened on, as the router files them as they're told.
+func writeEvents(t *testing.T, state string, lines ...events.Line) {
+	t.Helper()
+	for _, line := range lines {
+		data, err := events.Marshal(line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f, err := os.OpenFile(filepath.Join(ledger.Dir(state), "events-"+dayfile.DateOf(line.At)+".jsonl"), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.Write(append(data, '\n'))
+		if closeErr := f.Close(); err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

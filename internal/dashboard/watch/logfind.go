@@ -120,15 +120,14 @@ func (m Model) foundPicked() Model {
 	return m
 }
 
-// foundSessions are the sessions the find picked that join the panel's
-// sessions, as views.LogSessions lists them, though they've no lines today:
-// the one picked last, while either table's filter keeps it.
+// foundSessions are the sessions the find picked, which tell the panel what
+// the find knows of one its filter ticks, as views.LogSessions lists them:
+// the one picked last, none before.
 func (m Model) foundSessions() []views.FoundSession {
-	s, f := m.log.find.picked, m.log.page
-	if s == nil || !slices.Contains(f.Filter.Sessions, s.ID) && !slices.Contains(f.Shows.Sessions, s.ID) {
-		return nil
+	if s := m.log.find.picked; s != nil {
+		return []views.FoundSession{*s}
 	}
-	return []views.FoundSession{*s}
+	return nil
 }
 
 // readFind has the watch, while the Log shows, pause the table shown at the

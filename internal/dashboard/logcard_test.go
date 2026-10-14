@@ -38,8 +38,7 @@ func chosenOn(p LogPage, ups, width, height int) Frame {
 func opened(f Frame) Frame {
 	chosen, _ := f.Log.ChosenRequest()
 	d, _ := chosen.Details()
-	c := LogCard{Request: &d}
-	f.Log, f.Card = f.LogFitted(c), c
+	f.Log, f.Card = f.LogFitted(LogCard{Request: &d})
 	return f
 }
 
@@ -107,6 +106,80 @@ func TestALogCardSitsUnderItsLineElseOverIt(t *testing.T) {
 			if !ok {
 				t.Errorf("the line stood on row %d, and is drawn on row %d, the card from row %d to %d; want the card %s it, the table's last row %d\n%s",
 					stood+1, of+1, top+1, foot+1, tt.want, last+1, strings.Join(textOf(rows), "\n"))
+			}
+		})
+	}
+}
+
+// grown is c, a request's card of a line just come, as its line tells of
+// the move it made and the windows its answer left: a row taller.
+func grown(c LogCard) LogCard {
+	d := *c.Request
+	cost := ledger.Picodollars(1_820_000_000_000)
+	d.Left = status.Words{{Text: "work", Kind: status.PartAccount}, {Text: ", at its cap"}}
+	d.Row.Routing = views.RoutingSaid{Cost: &cost}
+	d.Windows = []views.WindowThen{{Key: "5h", Name: "5-hour", Use: 0.09}, {Key: "7d", Name: "week", Use: 0.77}}
+	c.Request = &d
+	return c
+}
+
+// A card placed by its line keeps its place as it grows, the edge by its
+// line where it was: under its line, it grows down, and over it, up, as far
+// as the table's rows on that side, and past that its body scrolls within
+// it. At 160 × 37, the table's rows are 8 to 34, and the card grows from 20
+// rows to 21.
+func TestALogCardKeepsItsPlaceAsItGrows(t *testing.T) {
+	tests := []struct {
+		name      string
+		ups       int
+		top, foot int
+		scrolls   bool
+	}{
+		{name: "under its line on row 13, its foot on the table's last row", ups: 22, top: 14, foot: 33, scrolls: true},
+		{name: "under its line on the table's first row", ups: 27, top: 9, foot: 29},
+		{name: "over its line on the table's last row", ups: 1, top: 11, foot: 31},
+		{name: "over its line on row 29, its top on the table's first row", ups: 6, top: 7, foot: 26, scrolls: true},
+	}
+	doc := routerDoc("side", 0)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := opened(chosenOn(cardPage(40), tt.ups, 160, 37))
+			_, _, was := cardPlaced(f, f.Draw(doc, logDayNoon))
+			f.Card = grown(f.Card.(LogCard))
+			rows := f.Draw(doc, logDayNoon)
+			top, foot, of := cardPlaced(f, rows)
+			scrolls := strings.Contains(textOf(rows)[foot-1], "j k scroll")
+			if of != was || top != tt.top || foot != tt.foot || scrolls != tt.scrolls {
+				t.Errorf("grown, the card is drawn from row %d to %d, scrolling %v, its line on row %d; want from %d to %d, scrolling %v, its line still on row %d\n%s",
+					top+1, foot+1, scrolls, of+1, tt.top+1, tt.foot+1, tt.scrolls, was+1, strings.Join(textOf(rows), "\n"))
+			}
+		})
+	}
+}
+
+// As the card that lifted the table closes, the table's view comes back down
+// to end at its paused foot, the line chosen still in it; a view scrolled up
+// short of its foot, and one following, stand as they are. 40 lines in a
+// view of 27, the paused foot the 40th.
+func TestALiftedTableComesBackDownAsItsCardCloses(t *testing.T) {
+	tests := []struct {
+		name        string
+		f           Frame
+		first, last int
+	}{
+		{name: "lifted, the card under the 29th line", f: opened(chosenOn(cardPage(40), 12, 160, 37)), first: 13, last: 39},
+		{name: "scrolled up to the 10th line", f: chosenOn(cardPage(40), 31, 160, 37), first: 9, last: 35},
+		{name: "following", f: logFrameOf(cardPage(40), 160, 37), first: 13, last: 39},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows := tt.f.LogRows()
+			p := tt.f.Log.Unlifted(rows)
+			lines, s := p.lines(), p.stand()
+			first, last := p.window(lines, s, rows)
+			at, chosen := p.lit(lines, s)
+			if first != tt.first || last != tt.last || chosen && (at < first || at > last) {
+				t.Errorf("the view runs from line %d to %d, the line chosen %d; want from %d to %d, the line chosen in it", first+1, last+1, at+1, tt.first+1, tt.last+1)
 			}
 		})
 	}
@@ -243,6 +316,27 @@ func TestARequestsCardLeavesBlankWhatItsLineIsYetToGive(t *testing.T) {
 				if got[item] != want {
 					t.Errorf("%s reads %q, want %q", item, got[item], want)
 				}
+			}
+		})
+	}
+}
+
+// A request's status is bold state.destructive where views says it failed,
+// as the table has it, whatever it was answered.
+func TestARequestsCardSaysItFailedAsItsRowDoes(t *testing.T) {
+	tests := []struct {
+		name string
+		row  views.RequestRow
+		want line
+	}{
+		{name: "failed", row: views.RequestRow{Status: 500, Failed: true}, want: line{{"500", exhaustedInk}}},
+		{name: "cut off, answered 200", row: views.RequestRow{Status: 200, Failed: true}, want: line{{"200", exhaustedInk}}},
+		{name: "answered 200", row: views.RequestRow{Status: 200}, want: line{{"200", secondaryInk}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := statusSaid(tt.row); !slices.Equal(got, tt.want) {
+				t.Errorf("its status is drawn %+v, want %+v", got, tt.want)
 			}
 		})
 	}

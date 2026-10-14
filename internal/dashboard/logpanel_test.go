@@ -410,3 +410,52 @@ func TestThePanelOpensOnWhatThePageShowsAndApplyingItShowsItsPicks(t *testing.T)
 		t.Errorf("applied, the page shows %+v, want the panel's picks", applied)
 	}
 }
+
+// A session or a model the filter ticks that today counts none of, as one
+// ticked before midnight, has a tick, ticked, as views lists it, on either
+// table's panel: ticking another keeps it, and let go, it stays listed to
+// be ticked again.
+func TestWhatTheFilterTicksThatTodayCountsNoneOfHasATick(t *testing.T) {
+	const gone, old = "0ld50001", "claude-opus-4-1"
+	built := func(p LogPanel) LogPanel {
+		p.Sessions = views.LogSessions(views.LogSessionSources{
+			Lines: map[string]int{"d28c0001": 445}, Events: map[string]int{"d28c0001": 2}, Ticked: p.TickedSessions(), Unlisted: true, Now: p.Now,
+		})
+		return p
+	}
+	tickOf := func(p LogPanel, on tickOn) (tick, bool) {
+		ticks := p.sideTicks(1)
+		i := slices.IndexFunc(ticks, func(tk tick) bool { return tk.on == on })
+		if i < 0 {
+			return tick{}, false
+		}
+		return ticks[i], true
+	}
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		page := LogPage{Shown: of, Filter: views.LogFilter{Sessions: []string{gone}, Models: []string{old}}, Shows: views.EventFilter{Sessions: []string{gone}}}
+		p := page.Panel()
+		frames := framesPanel(of, 0)
+		p.Accounts, p.Lines, p.Events, p.Now = frames.Accounts, frames.Lines, frames.Events, frames.Now
+		p = built(p)
+
+		session, ok := tickOf(p, tickOn{sessionTick, gone})
+		if !ok || !session.ticked {
+			t.Fatalf("of %d, the filter ticks %s, but the panel's tick of it is %+v, listed %t", of, gone, session, ok)
+		}
+		p = built(session.toggle(p))
+		if again, ok := tickOf(p, tickOn{sessionTick, gone}); !ok || again.ticked {
+			t.Errorf("of %d, %s let go is listed %t, ticked %t; want it listed, unticked", of, gone, ok, again.ticked)
+		}
+		if of == LogEvents {
+			continue
+		}
+		model, ok := tickOf(p, tickOn{modelTick, old})
+		if !ok || !model.ticked {
+			t.Fatalf("the filter ticks %s, but the panel's tick of it is %+v, listed %t", old, model, ok)
+		}
+		haiku, _ := tickOf(p, tickOn{modelTick, "claude-haiku-4-5"})
+		if got, want := haiku.toggle(p).Filter.Models, []string{"claude-haiku-4-5", old}; !slices.Equal(got, want) {
+			t.Errorf("haiku ticked too, the filter keeps the models %q, want %q", got, want)
+		}
+	}
+}
