@@ -68,18 +68,43 @@ const (
 	askingAt    = 114
 )
 
-// The cells of a phone's turn row: its number ends before phoneNumberEnd,
-// its start from phoneStartAt, its minutes end before phoneTookEnd, the
-// mark of one going after them, and its requests end before
-// phoneRequestsEnd, " req" after them; and at the right, the accounts it
-// went to, in phoneOnCells, its worth sessionPhoneApart cells before them.
+// The cells of a phone's turn row: its number right-aligned in
+// phoneNumberCells at the least, then a blank; its start, its minutes ending
+// phoneTookAfter cells after the start does, the mark of one going after
+// them, and its requests right-aligned in phoneRequestsCells at the least, "
+// req" after them; and at the right, the accounts it went to, in
+// phoneOnCells, its worth sessionPhoneApart cells before them.
 const (
-	phoneNumberEnd   = 2
-	phoneStartAt     = 3
-	phoneTookEnd     = 13
-	phoneRequestsEnd = 18
-	phoneOnCells     = 9
+	phoneNumberCells   = 2
+	phoneTookAfter     = 10
+	phoneRequestsCells = 4
+	phoneOnCells       = 9
 )
+
+// phoneTurnCells are where a phone's turn rows set their parts: each
+// number ends before numberEnd, each start is from startAt, each turn's
+// minutes end before tookEnd, the mark of one going after them, and its
+// requests end before requestsEnd.
+type phoneTurnCells struct {
+	numberEnd, startAt, tookEnd, requestsEnd int
+}
+
+// phoneTurnCellsOf are where a phone's rows of the turns given set their
+// parts: the numbers in phoneNumberCells, or past 99 as many as the widest
+// takes, and the requests in phoneRequestsCells, or past 999 as many as the
+// most take, each part after moving on as far on every row, so each figure
+// is whole and the columns line up.
+func phoneTurnCellsOf(turns []views.Turn) phoneTurnCells {
+	number, requests := phoneNumberCells, phoneRequestsCells
+	for _, t := range turns {
+		number = max(number, len(strconv.Itoa(t.Turn)))
+		requests = max(requests, len(prose.Grouped(t.Requests)))
+	}
+	c := phoneTurnCells{numberEnd: number, startAt: number + 1}
+	c.tookEnd = c.startAt + phoneTookAfter
+	c.requestsEnd = c.tookEnd + ansi.StringWidth(prose.Ellipsis) + requests
+	return c
+}
 
 // noTurns is what TURNS says of a session whose requests name no prompt,
 // as one from before Claude Code named them.
@@ -105,15 +130,17 @@ var turnsOut = outForm{
 
 // sessionDrawn is a session's page as the frame draws it of a moment at
 // now: the page open, laid out as sessionLayout lays it out, its accounts
-// named as the Overview names them.
+// named as the Overview names them, and on a phone, its turns' rows set out
+// as phoneTurnCellsOf sets them.
 type sessionDrawn struct {
 	Frame
-	shown *SessionShown
-	page  views.SessionPage
-	m     status.Moment
-	names []accountName
-	l     sessionLayout
-	now   time.Time
+	shown      *SessionShown
+	page       views.SessionPage
+	m          status.Moment
+	names      []accountName
+	l          sessionLayout
+	phoneCells phoneTurnCells
+	now        time.Time
 }
 
 // sessionDrawn is the session's page open, as the frame draws it of doc at
@@ -122,7 +149,7 @@ func (f Frame) sessionDrawn(doc status.Document, now time.Time) sessionDrawn {
 	m := f.Moment(doc, now)
 	return sessionDrawn{
 		Frame: f, shown: f.Session, page: f.Session.Page, m: m, names: namesOf(m),
-		l: f.sessionLayout(len(f.Session.Page.Accounts)), now: now,
+		l: f.sessionLayout(len(f.Session.Page.Accounts)), phoneCells: phoneTurnCellsOf(f.Session.Page.Turns), now: now,
 	}
 }
 
@@ -563,14 +590,15 @@ func (d sessionDrawn) turnOn(accounts []string) line {
 // and the accounts it went to, lit across the row where it's chosen.
 func (d sessionDrawn) phoneTurn(c *canvas, y int, t views.Turn) {
 	took, going := t.Took(d.now)
-	c.right(phoneNumberEnd, y, line{{strconv.Itoa(t.Turn), titleInk}})
-	c.text(phoneStartAt, y, prose.TimeOfDay(d.now, t.Started), secondaryInk)
-	c.right(phoneTookEnd, y, line{{took, mutedInk}})
+	at := d.phoneCells
+	c.right(at.numberEnd, y, line{{strconv.Itoa(t.Turn), titleInk}})
+	c.text(at.startAt, y, prose.TimeOfDay(d.now, t.Started), secondaryInk)
+	c.right(at.tookEnd, y, line{{took, mutedInk}})
 	if going {
-		c.text(phoneTookEnd, y, prose.Ellipsis, mutedInk)
+		c.text(at.tookEnd, y, prose.Ellipsis, mutedInk)
 	}
-	c.right(phoneRequestsEnd, y, line{{prose.Grouped(t.Requests), mutedInk}})
-	c.text(phoneRequestsEnd, y, " req", mutedInk)
+	c.right(at.requestsEnd, y, line{{prose.Grouped(t.Requests), mutedInk}})
+	c.text(at.requestsEnd, y, " req", mutedInk)
 	on := d.Width - phoneOnCells
 	c.right(on-sessionPhoneApart, y, line{{t.Cents(), mutedInk}})
 	c.line(on, y, d.phoneOn(t.Accounts))

@@ -597,6 +597,56 @@ func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 	}
 }
 
+// manyTurns are n turns, newest first, each of nine minutes and 37 requests
+// but the newest, still going, of the requests given.
+func manyTurns(n, requests int) []views.Turn {
+	turns := make([]views.Turn, n)
+	for i := range turns {
+		turns[i] = turnRow{n - i, at(14, 29), 9, 37, nil, 0, 0, 0, 661, []string{"side"}}.turn()
+	}
+	turns[0] = turnRow{n, at(14, 29), 0, requests, nil, 0, 0, 0, 661, []string{"side"}}.turn()
+	return turns
+}
+
+// A phone's turn rows keep every figure whole: past turn 99 the numbers take
+// as many cells as the widest, and past 999 requests the counts as many as
+// the most, the columns after them moving on as far on every row, so turn 105
+// reads apart from turn 5 and the newest's … stays by its minutes.
+func TestAPhonesTurnRowsKeepEveryFigureWhole(t *testing.T) {
+	tests := []struct {
+		name            string
+		turns, requests int
+		width           int
+		want            []string
+	}{
+		{name: "105 turns at 100 columns", turns: 105, requests: 6, width: 100, want: []string{
+			"105 14:29  14m…   6 req", "104 14:29   9m   37 req", "100 14:29   9m   37 req", " 99 14:29   9m   37 req",
+		}},
+		{name: "a turn of 1,234 requests at 52 columns", turns: 13, requests: 1234, width: 52, want: []string{
+			"13 14:29  14m…1,234 req", "12 14:29   9m    37 req",
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shown := moved()
+			shown.Page.Turns, shown.Turn = manyTurns(tt.turns, tt.requests), tt.turns
+			f := pageFrame(t, shown, tt.width, 40)
+			rows := pageText(f)
+			at := f.sessionLayout(len(shown.Page.Accounts)).turnsAt
+			for _, want := range tt.want {
+				i := slices.IndexFunc(rows[at:], func(row string) bool { return strings.HasPrefix(row, want) })
+				if i < 0 {
+					t.Errorf("no turn's row starts %q among\n%s", want, strings.Join(rows[at:], "\n"))
+					continue
+				}
+				if row := rows[at+i]; !strings.HasSuffix(row, "$6.61  side") {
+					t.Errorf("the row %q ends %q, want its worth and account at the right as ever", want, row)
+				}
+			}
+		})
+	}
+}
+
 // A session's page names an account by its label wherever it names it, its
 // story among its parts, where the config gives one other than its id.
 func TestASessionsPageNamesItsAccountsByTheirLabels(t *testing.T) {
