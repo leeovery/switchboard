@@ -415,6 +415,30 @@ func TestTheWatchReadsTheReadingsTheScenarioReadsAfterItsBases(t *testing.T) {
 	}
 }
 
+// Runway's tail carries in each window's run from before its start, the
+// readings the scenario reads after its base's joining the run they carry on,
+// as readings.CarriedRuns has them: not the last alone, which would start a
+// hold begun before the tail's start at that reading.
+func TestTheWatchsTailCarriesInEachWindowsRunTheScenarioReadsOn(t *testing.T) {
+	hundredth := answer{wait: brief.wait, streams: brief.streams, chars: int(0.01 / sessionPerChar)}
+	tl, c := timelineOf(testScenario(asks(4, idDB8A, opus, hundredth), asks(8, idDB8A, opus, hundredth)), 0)
+	_, read, _ := tl.readers()
+	c.advance(10 * time.Second)
+	start := tl.base.start
+	from, end := start.Add(-time.Hour), start.Add(time.Hour)
+
+	tail := read.Tail(from, start.Add(time.Minute), end)()
+	var run []float64
+	for _, r := range tail {
+		if r.Account == "side" && r.Key == fiveHourKey && r.At.After(start) {
+			run = append(run, r.Utilization)
+		}
+	}
+	if want := []float64{.14, .15}; !slices.Equal(run, want) {
+		t.Errorf("the tail carries side's 5-hour readings since the start at %v, want %v, its run from before the tail's start", run, want)
+	}
+}
+
 // Where the router says where auto would send a session's next request, it
 // says so as its own rule chooses at each listing, the global pin counting:
 // 9c2e kept on personal, then, a pin moving running sessions to side given,
