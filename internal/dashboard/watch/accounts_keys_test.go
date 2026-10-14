@@ -45,7 +45,7 @@ func (h *harness) offKeys() []string {
 }
 
 // Accounts' key lines are the design's: Compare's ←→ and enter, faint till
-// a column is focused; Detail's list's ↑↓ and enter, faint where no session
+// a column is focused, and esc while one is; Detail's list's ↑↓ and enter, faint where no session
 // runs on the account chosen; its SESSIONS' ↑↓, ← and enter; with one
 // account, no [ ] view, ↑↓ and enter joining while sessions run on it, and
 // p pin where a pin set from the command line stands; and a phone's keeping
@@ -70,10 +70,17 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 		wantOff  []string
 	}{
 		{name: "Compare, no column focused", shown: dashboard.AccountsShown{Accounts: threeConfigured}, want: compare, wantOff: []string{"enter"}},
-		{name: "Compare, a column focused", shown: dashboard.AccountsShown{Accounts: threeConfigured, Focused: true, Focus: "side"}, want: compare},
 		{
-			name: "Compare over the last 30 days", shown: dashboard.AccountsShown{Accounts: threeConfigured, Period: views.AccountsThirtyDays, Focused: true},
-			want: "tab views   [ ] view    < > period: 30 days    ←→ account  enter its page" + ends,
+			name: "Compare, a column focused", shown: dashboard.AccountsShown{Accounts: threeConfigured, Focused: true, Focus: "side"},
+			want: head + "←→ account  enter its page  esc unfocus" + ends,
+		},
+		{
+			name: "Compare over the last 30 days", shown: dashboard.AccountsShown{Accounts: threeConfigured, Period: views.AccountsThirtyDays},
+			want: "tab views   [ ] view    < > period: 30 days    ←→ account  enter its page" + ends, wantOff: []string{"enter"},
+		},
+		{
+			name: "Compare, Detail's SESSIONS left as they were", sessions: true,
+			shown: dashboard.AccountsShown{Accounts: threeConfigured, Chosen: "work", InSessions: true}, want: compare, wantOff: []string{"enter"},
 		},
 		{name: "Detail of all accounts", sessions: true, shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail}, want: list, wantOff: []string{"enter"}},
 		{name: "Detail of an account sessions run on", sessions: true, shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail, Chosen: "work"}, want: list},
@@ -92,6 +99,7 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 		},
 		{name: "one account, none running on it", doc: routerDocument(three()[0]), shown: dashboard.AccountsShown{Accounts: one}, want: "tab views   < > period: this week    ? help  q quit"},
 		{name: "one account, pinned from the command line", doc: pinned, shown: dashboard.AccountsShown{Accounts: one}, want: "tab views   < > period: this week    p pin    ? help  q quit"},
+		{name: "a phone on Compare, a column focused", shown: dashboard.AccountsShown{Accounts: threeConfigured, Focused: true}, width: 52, want: "tab views   [ ] view   ? keys   q quit"},
 		{name: "a phone", sessions: true, shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail, Chosen: "work"}, width: 52, want: "tab views   [ ] view   ? keys   q quit"},
 		{name: "a phone of one account", doc: routerDocument(three()[0]), sessions: true, shown: dashboard.AccountsShown{Accounts: one}, width: 52, want: "tab views   ? keys   q quit"},
 	}
@@ -114,20 +122,22 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 }
 
 // Help over Detail's list lists → into the chosen account's SESSIONS, which
-// the key line leaves to help, while sessions run on it; not from SESSIONS,
-// where ← is on the line.
+// the key line leaves to help, while a session is selected there; not where
+// none runs, nor from SESSIONS, where ← is on the line.
 func TestAccountsHelpListsTheWayIntoSessionsWhereTheKeyLineDoesnt(t *testing.T) {
 	tests := []struct {
 		name       string
+		chosen     string
 		inSessions bool
 		want       []string
 	}{
-		{name: "the list", want: []string{"[ ]", "< >", "↑↓", "→", "enter"}},
-		{name: "SESSIONS", inSessions: true, want: []string{"[ ]", "< >", "↑↓", "←", "enter"}},
+		{name: "the list", chosen: "work", want: []string{"[ ]", "< >", "↑↓", "→", "enter"}},
+		{name: "the list, of an account none runs on", chosen: "side", want: []string{"[ ]", "< >", "↑↓", "enter"}},
+		{name: "SESSIONS", chosen: "work", inSessions: true, want: []string{"[ ]", "< >", "↑↓", "←", "enter"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			shown := dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail, Chosen: "work", InSessions: tt.inSessions}
+			shown := dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail, Chosen: tt.chosen, InSessions: tt.inSessions}
 			h := accountsKeysHarness(t, routerDocument(three()...), true, shown, 0)
 			if got := listedKeys(helpOver(h.model)); !containsInOrder(got, tt.want) || slices.Contains(h.listed(), "→") {
 				t.Errorf("help lists %q and the key line %q; want %q among help's alone, → off the line", got, h.listed(), tt.want)

@@ -172,6 +172,8 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 	said := accountsSaid(threeShown)
 	for _, tc := range []struct{ what, want string }{
 		{"a session served once", "each counted once, however many days and accounts it ran on"},
+		{"Compare's keys", "← and → move the focus along the columns"},
+		{"esc on Compare", "enter opens the account focused in Detail, and esc ends the focus"},
 		{"the time at cap or limit", "the time it spent at its cap or at a limit"},
 		{"left at its last reset", "what its week had left as it last reset, 100% less the peak of the week that ended last"},
 		{"worth at API prices", "what the same tokens would have cost through the API, each version at its own prices"},

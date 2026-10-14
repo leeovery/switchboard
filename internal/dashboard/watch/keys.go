@@ -125,30 +125,32 @@ func (m Model) keys() pageKeys {
 }
 
 // accountsListings are Accounts' own keys, each move with enter in a group
-// of its own: [ ] view, where there are sub-tabs; < > and the period; on
-// Compare, ←→ along the accounts, enter opening the one focused in Detail,
-// faint till one is; on Detail's list, ↑↓ through the accounts, → into the
-// chosen one's SESSIONS, which the key line leaves to help, and enter
-// opening the session selected there, faint where none runs; in its
-// SESSIONS, ↑↓ through them, ← back to the list and enter; and with one
-// account, which has no list, ↑↓ and enter while sessions run on it. A
-// phone's line keeps [ ] view alone.
+// of its own, as the facts Accounts' moves act on have them: [ ] view, where
+// there are sub-tabs; < > and the period; on Compare, ←→ along the
+// accounts, enter opening the one focused in Detail, faint till one is, and
+// esc ending the focus while there is one; on Detail's list, ↑↓ through the
+// accounts, → into the chosen one's SESSIONS, which the key line leaves to
+// help, and enter opening the session selected there, faint where none is;
+// in its SESSIONS, ↑↓ through them, ← back to the list and enter; and with
+// one account, which has no list, ↑↓ and enter while a session is selected.
+// A phone's line keeps [ ] view alone.
 func (m Model) accountsListings() []keyListing {
 	s := m.accounts.shown
 	shown := m.view == dashboard.Accounts
 	compare := shown && s.View() == dashboard.AccountsCompare
-	detail := shown && s.View() == dashboard.AccountsDetail
-	sessions := m.detailsSessions()
-	listed, inSessions := detail && !s.Alone(), sessions && (s.InSessions || s.Alone())
+	listed, alone := shown && s.View() == dashboard.AccountsDetail && !s.Alone(), shown && s.Alone()
+	selected := s.Selection(m.running(m.now())) != ""
+	inSessions := listed && s.InSessions || alone && selected
 	return []keyListing{
-		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: shown && !s.Alone(), apart: true},
+		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: shown && !alone, apart: true},
 		{Key: dashboard.Key{Key: "< >", Does: "period", State: s.Period.Name()}, works: shown, apart: true, wide: true},
 		{Key: dashboard.Key{Key: "←→", Does: "account"}, works: compare, apart: true, wide: true},
-		{Key: dashboard.Key{Key: "↑↓", Does: "account"}, works: listed && !inSessions, apart: true, wide: true},
+		{Key: dashboard.Key{Key: "↑↓", Does: "account"}, works: listed && !s.InSessions, apart: true, wide: true},
 		{Key: dashboard.Key{Key: "↑↓", Does: "session"}, works: inSessions, apart: true, wide: true},
-		{Key: dashboard.Key{Key: "→", Does: "sessions"}, works: listed && sessions && !inSessions, helpful: true},
-		{Key: dashboard.Key{Key: "←", Does: "accounts"}, works: listed && inSessions, wide: true},
-		{Key: dashboard.Key{Key: "enter", Does: "its page", Off: compare && !s.Focused || detail && !sessions}, works: compare || listed || inSessions, wide: true},
+		{Key: dashboard.Key{Key: "→", Does: "sessions"}, works: listed && !s.InSessions && selected, helpful: true},
+		{Key: dashboard.Key{Key: "←", Does: "accounts"}, works: listed && s.InSessions, wide: true},
+		{Key: dashboard.Key{Key: "enter", Does: "its page", Off: compare && !s.Focused || !compare && !selected}, works: compare || listed || inSessions, wide: true},
+		{Key: dashboard.Key{Key: "esc", Does: "unfocus"}, works: compare && s.Focused, wide: true},
 	}
 }
 

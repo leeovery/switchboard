@@ -27,8 +27,8 @@ func compareHelp() helpPart {
 		says: []line{
 			said("A column an account, numbered by its place in the config, the routing picker's key, and all accounts last; " +
 				"under each name, how the account stands with the router, in a word. `←` and `→` move the focus along the " +
-				"columns, scrolling them past as many as fit, all accounts staying put at the right, and `enter` opens the " +
-				"account focused in Detail."),
+				"columns, scrolling them past as many as fit, all accounts staying put at the right; `enter` opens the " +
+				"account focused in Detail, and `esc` ends the focus."),
 			said("WEEK USED is each account's week window as switchboard usage draws it, its cap and even pace marked, and " +
 				"always as it stands now, whatever the period. BY MODEL is each account's share of use over the period, a " +
 				"row a version, its tokens weighed as worth weighs them, so cache reads, which run to millions and cost " +
