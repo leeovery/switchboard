@@ -497,6 +497,12 @@ before each kind of event had a mark of its own, where the Log's marks give `◔
   columns 1 to 10 and 48 to 52, of `session-phone-52`.
 - **`↓ streaming`,** row 7 of `session-resumed-160`, columns 1 to 11, where the design's state for
   an answer streaming is `↓ answering`.
+- **f41a's rescore,** `rescored after 15h idle` in `session-resumed-160`, on row 7, columns 57 to
+  95, and in the move's label, row 11, columns 36 to 83: the frame says it as the design's examples
+  of a session's page do, where the design has the page say the router's reason as it is (see The
+  router's events in `docs/design.md`), and the router writes f41a's, idle from 18:04:38 to
+  09:12:15, `rescored after 15h 7m idle`. The label sits a column sooner too, as f41a's fold does
+  (see f41a's stay on side, below).
 - **The first request of a turn opened,** chosen as the turn opens, on `bg.selection`, where the
   frame lights none: row 29 of `session-turn-opened-160`.
 - **More turns than fit on a phone,** row 31 of `session-phone-52`, blank in the frame, where the
@@ -550,9 +556,6 @@ frames), which the dashboard draws as its world gives it:
   12 to 16, columns 32 to 37; side's stretch on the ribbon, its name, row 17, columns 14 to 20, and
   its end and the come-back's start, columns 32 to 37; and the fold's hours and the come-back's time
   on the axis, row 18, columns 32 to 42.
-- **f41a's rescore,** after `15h 7m` idle, from 18:04:38 to 09:12:15, as the router writes it,
-  where the frame says `15h`: row 7, columns 57 to 95, and the move's label, row 11, columns 36 to
-  83, a column sooner too.
 - **A half the generator rounds to even:** b9c4's turn 15 put out 40,500 tokens, `40k` in the frame
   and `41k` in the dashboard, row 27, columns 86 to 88, of `session-ended-160`; and f41a's turn 20
   read 16,150,000 and put out 76,500, `16.1M` and `76k` (`16.2M`, `77k`), row 27, columns 67 to 71
