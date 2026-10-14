@@ -2,9 +2,34 @@
 
 Guidance for Claude Code working in this repository.
 
-Switchboard is a local proxy that spreads Claude Code sessions across several Claude subscriptions,
-plus a terminal dashboard of their usage. The design, including what gets built when, is
-`docs/design.md`.
+Switchboard is a local router for Claude Code. It spreads sessions across several Claude
+subscriptions, records every request, and shows where the usage stands, in a terminal dashboard, in
+verbs that print JSON for agents, and through a skill that tells Claude about it.
+
+- `docs/design.md` is the design: what's built, why, the decided calls, and the backlog's index.
+- `README.md` is the user's guide; `ideas/` is the backlog, one idea a file.
+
+## How it fits together
+
+- **The request path:** `claude`, linked to switchboard, starts the real Claude Code pointed at the
+  router (`launch`). The `router` picks each request's account (`score`), swaps in its token
+  (`tokens`), replays a request a limit refuses on another account, and reads every answer's usage.
+  What's Claude's own, the paths, headers, model families and probes, sits in `claude`, behind the
+  router's seams. The router restarts in place across upgrades (`handover`).
+- **What it records,** each a file a day (`dayfile`) in the state directory: every window reading
+  that changed (`readings`), every request without its content, and each day's summary
+  (`ledger`), and the router's events (`events`). Logs go to `router.log` and `cli.log` (`logs`).
+- **Reading it back:** `status` builds the status document and its `Moment`, the one judgement of
+  every account at a moment. `views` builds each view's data from that, the router's sessions and
+  request stream, and the recorded files: one function a view, read alike by the dashboard and the
+  verbs. `prose` words every plain value.
+- **Showing it:** `dashboard` draws (Lip Gloss), `dashboard/watch` runs it (Bubble Tea), and
+  `theme` colours it. `cli` holds the commands, kept thin. `setup`, `accounts`, `service` and
+  `skill` install and manage.
+- **One owner per fact.** Each fact is worked out once, in `status` or `views`, and every tab and
+  verb reads it there, never again in a drawing package or a command. The guards hold it
+  (`status/guard_test.go`, `views/guard_test.go`, `prose/guard_test.go`, built on
+  `internal/sourcecheck`). A guard that fails is telling you where the fact belongs.
 
 ## Gates
 
@@ -22,24 +47,26 @@ go build ./...
 
 - **Go 1.27, standard library first.** A new dependency needs a stated reason in its PR. The
   expected ones: `spf13/cobra` for commands; `charm.land/bubbletea/v2` and
-  `charm.land/lipgloss/v2` for the dashboard, with `charmbracelet/colorprofile` to bring its
-  colour down to what the terminal shows, `charmbracelet/x/ansi` to measure and cut styled text,
-  and `charmbracelet/x/term` to tell a terminal and its size; and `BurntSushi/toml` for config.
-  No helper or utility libraries: no `samber/*`, no `testify`, no `lo`.
+  `charm.land/lipgloss/v2` for the dashboard, with `charmbracelet/colorprofile`,
+  `charmbracelet/x/ansi` and `charmbracelet/x/term`; and `BurntSushi/toml` for config. No helper
+  or utility libraries: no `samber/*`, no `testify`, no `lo`.
 - **Layout:** `cmd/switchboard` holds `main`. Everything else lives under `internal/`, one package
   per concern.
 - **Tests:** the standard `testing` package, table-driven where cases differ only by data, and
   isolated as Test isolation says.
 - **Errors:** wrap with `fmt.Errorf("…: %w", err)`. Handle an error once: log it or return it,
   never both.
-- **Logging:** `log/slog`.
+- **Logging:** `log/slog`, through `internal/logs`.
 - **Comments are rare and earned:** only what the code can't say, such as a non-obvious constraint,
   or something that looks wrong but was proven right (say so). Never narration.
 - **Nothing personal, ever**, in code, tests, fixtures, docs or commit messages: no real account
   emails or labels, tokens, token file paths or machine names. Use placeholders such as `work`,
-  `personal` and `test-token-work`. The repo will go public, and its history goes with it.
+  `personal` and `test-token-work`. The repo is public, and its history with it.
 - **Never log a token.** Redact `Authorization` and anything token-shaped in logs, errors and test
-  output.
+  output (`internal/redact`).
+- **Hands off the real install.** Working on the repo, never read, copy or write the real config,
+  state directory, ledger, readings or tokens, and never run the real router, dashboard or
+  `claude` to see what changed: use the capture harness below.
 
 ## Test isolation
 
@@ -49,81 +76,41 @@ notifications. Ever.
 - **Inject** what a test needs: fake upstreams with `net/http/httptest`, and runners, clocks,
   probers, a `getenv`, a home directory, a state directory with its token files, switchboard's
   bin directory, Claude Code's config directory and a `PATH`, of its own. Write files under
-  `t.TempDir()` or `os.MkdirTemp`; set variables with `t.Setenv`.
+  `t.TempDir()`; set variables with `t.Setenv`.
 - **Every package with tests** runs them through `internal/testguard`, in a `TestMain` of that one
-  statement: `func TestMain(m *testing.M) { os.Exit(testguard.Main(m)) }`. Before the tests, it:
-  - points `HOME` and XDG's directories into a throwaway root;
-  - clears the `SWITCHBOARD_`, `CLAUDE_` and `ANTHROPIC_` variables, tmux's and proxies';
-  - puts only stubs of `claude`, `osascript`, `launchctl`, `tmux` and `open` on `PATH`;
-  - lets `http.DefaultTransport`, and transports cloned from it, dial loopback, and unix
-    sockets in the temporary directory, alone: never a live router's, in the real state
-    directory.
-- **testguard fails the run, even when every test passed,** when:
-  - a stub ran, or a dial was blocked;
-  - the real switchboard config changed, its state directory appeared, or a token file in its
-    `tokens` directory appeared or changed: in the home, or where `SWITCHBOARD_CONFIG`,
-    `XDG_CONFIG_HOME` and `XDG_STATE_HOME` put them as the run began, links resolved;
-  - the dashboard's real themes directory, or a theme in it, appeared or changed: in the home, or
-    where `SWITCHBOARD_THEMES_DIR` and `XDG_CONFIG_HOME` put it as the run began, links resolved;
-  - a switchboard file in the real `~/Library/LaunchAgents` appeared or changed;
-  - switchboard's skill in Claude Code's real config directory appeared or changed: in
-    `~/.claude`, or where `CLAUDE_CONFIG_DIR` put it as the run began, links resolved;
-  - switchboard's real bin directory, which holds its `claude` link, appeared or changed: in
-    `~/.local/share/switchboard/bin`, or where `XDG_DATA_HOME` put it as the run began, links
-    resolved;
-  - anything named `claude`, a link or not, appeared or changed in a directory on the real
-    `PATH` as the run began, links resolved.
-- **testguard's own tests fail**, reading the module's source:
-  - a package with tests but without that `TestMain`, or with anything else in it;
-  - a change to the environment anywhere but `testguard`;
-  - a process started outside the runners its allow-list names, an `exec.Cmd` made directly or
-    `golang.org/x/sys/unix`'s `Exec` included;
-  - an `http.Transport` made from scratch rather than cloned from `http.DefaultTransport`, as
-    the guard sees no dial of its;
-  - code, tests included but testguard's own, that imports `os/user`, as `HomeDir` is injected,
-    or reads the environment as its package initialises, before `TestMain` runs.
-- **`scripts/test-isolated` is the test gate:** every test, race detector on, inside a macOS
-  sandbox (`scripts/isolation.sb`) that denies:
-  - the network beyond loopback;
-  - unix sockets outside the temporary directory, and in the real state directory;
-  - the router's port, 4747, either way;
-  - writes into the home directory, but Go's caches, and into the real config, themes, state and
-    bin directory, the real `prefs.json`, each theme in the themes directory, and Claude Code's
-    config directory, wherever the environment puts them, links resolved;
-  - writes into the directories on `PATH` outside the home, such as `/opt/homebrew/bin`;
-  - running the real `claude`, `osascript`, `launchctl`, `tmux` and `open`.
-- **It unsets the variables testguard clears** before anything starts, as testguard clears them
-  only once every package's init has run.
-- **Each run first proves the sandbox holds**, and `--self-check` does only that:
-  - it denies a dial off the machine, and a connect to a live unix socket outside the temporary
-    directory;
-  - it denies connecting to and binding 4747;
-  - it denies a write into the home directory, and into the real config, themes, state and bin
-    directory, the real config file and `prefs.json`, each theme, where its link leads, and
-    Claude Code's config directory, where they exist;
-  - it denies a write into each directory on `PATH` outside the home that the user can write to;
-  - it denies running each of those programs that's installed, where `PATH` finds it, links
-    resolved: the real `claude` where switchboard finds it, past switchboard's bin directory and
-    any `claude` that's a switchboard binary, such as its link;
-  - the tests start without those variables.
-- **Without the sandbox:** on macOS, without `/usr/bin/sandbox-exec`, the tests don't run; off
-  macOS, testguard alone guards them.
+  statement: `func TestMain(m *testing.M) { os.Exit(testguard.Main(m)) }`. It gives the tests a
+  throwaway home, clears the `SWITCHBOARD_`, `CLAUDE_` and `ANTHROPIC_` variables, puts only stubs
+  of `claude`, `osascript`, `launchctl`, `tmux` and `open` on `PATH`, and lets transports dial
+  loopback alone. It fails the run, even when every test passed, where a stub ran, a dial was
+  blocked, or anything real of switchboard's or Claude Code's changed.
+- **testguard's own tests read the module's source** and fail on: a package with tests but without
+  that `TestMain`; a change to the environment outside `testguard`; a process started outside its
+  allow-list; an `http.Transport` not cloned from `http.DefaultTransport`; `os/user`; or the
+  environment read as a package initialises.
+- **`scripts/test-isolated` is the test gate:** every test, race detector on, inside a macOS sandbox
+  (`scripts/isolation.sb`) that denies the network beyond loopback, the router's port 4747, writes
+  into the home and the real install, and running the real programs. Each run first proves the
+  sandbox holds (`--self-check` does only that). Without `sandbox-exec` on macOS, the tests don't
+  run.
+- **The full lists** of what each guard watches and denies are in `internal/testguard` and
+  `scripts/`: read them before changing either.
+- **A known false failure:** Claude Code's updater re-creates `~/.local/bin/claude` during long
+  runs, and testguard then fails a run whose tests all passed. If that link is its only complaint
+  and there's no `--- FAIL`, the run passed.
 - **Never loosen a guard to make a test pass.** A test that needs what a guard blocks is a finding:
   inject it instead.
 
-## Visual capture harness
+## The dashboard, by fixture
 
-The dashboard is checked against its design by a test, cell for cell, and by eye, for what a test
-can't judge. `cmd/capturetool`, a program of its own and never a switchboard command, draws a named
-fixture of the real dashboard, built through `watch.New` with every seam faked, or of `usage`'s
-printout (`internal/capture`): it never dials the router, probes, or reads or writes the real
-config, themes, state, ledger, prefs or tokens, and an import guard keeps `internal/capture` out of
-the switchboard binary. `--theme` draws it in a built-in, or a `.theme` file given by its path.
-`testdata/vhs/reference/` holds milestone 7's signed-off frames, exported from Paper, as PNGs, and
-as the text and ANSI of the generator that drew them: capture's tests hold each fixture named after
-a frame to that frame, cell for cell, passing over only the cells `testdata/vhs/README.md` lists,
-and `vhs` tapes in `testdata/vhs/` screenshot fixtures to judge by eye. The fixtures and the harness
-are permanent; the tapes and captures are scaffolding, cleared as each milestone is signed off.
-`testdata/vhs/README.md` says how. `--scenario` plays a scripted scenario through the same model in
-real time, for the README's demos: their tapes, in `demo/`, and the art they make, in `art/`, are
-permanent, and `demo/README.md` says how to record them.
+`cmd/capturetool`, a program of its own and never a switchboard command, draws a named fixture of
+the real dashboard, built with every seam faked: it never dials the router, probes, or touches the
+real install. `go run ./cmd/capturetool --fixture <name> --print --size 160x37` prints one as text
+(`--ansi` with its colour, `--theme` in another theme); `--help` lists the fixtures.
+
+- **The signed-off frames** are in `testdata/vhs/reference/`. capture's tests hold each fixture
+  named after a frame to it, cell for cell, passing over only the cells `testdata/vhs/README.md`
+  lists, and hold every view to its rows at every size.
+- **The README's demos:** `--scenario` plays a scripted scenario in real time; their tapes are in
+  `demo/` and their art in `art/`, as `demo/README.md` says.
+- **Scaffolding:** the `vhs` tapes and captures in `testdata/vhs/` are for judging a milestone by
+  eye, and are cleared once it's signed off.
