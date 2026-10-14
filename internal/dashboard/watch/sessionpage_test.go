@@ -532,7 +532,7 @@ func TestASessionsPageFollowsItsNewestTurnTillAnotherIsChosen(t *testing.T) {
 		was := m.session.shown
 		is := was
 		is.Page.Turns = slices.Insert(slices.Clone(was.Page.Turns), 0, views.Turn{Turn: len(was.Page.Turns) + 1})
-		return following(was, is, m.turnsScrolling(is, start))
+		return following(was, is, m.turnsScrolling(is))
 	}
 	if got := grown(m).Turn; got != 4 {
 		t.Errorf("its newest chosen, turn 4 came and turn %d is chosen, want 4", got)

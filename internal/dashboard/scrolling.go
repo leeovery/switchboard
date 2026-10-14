@@ -104,10 +104,25 @@ func (f Frame) KeysScroll(doc status.Document, now time.Time) bool {
 	return f.Scrolling(doc, now).Most > 0
 }
 
+// TurnsScrolling is how far the turns of the frame's session's page scroll:
+// a row a turn and its turn open's rows under its own, as turnsRows lays
+// them out, in the rows its layout gives them, of the frame's size and the
+// page alone; none without a page, or where the frame is too short for its
+// turns, as cramped says.
+func (f Frame) TurnsScrolling() Scrolling {
+	if f.Session == nil {
+		return Scrolling{}
+	}
+	l := f.sessionLayout(len(f.Session.Page.Accounts))
+	if l.chrome {
+		return Scrolling{}
+	}
+	return byRows(len(f.Session.turnsRows(l)), l.turns)
+}
+
 // scrollingAt is how far the frame's view of doc scrolls at now, scrolled to
-// each offset given: a session's page's turns, where one is open, a row a
-// turn and its turn open's rows under its own, as turnsRows lays them out,
-// in the rows its layout gives them; History's, of the ledger's days
+// each offset given: a session's page's turns, where one is open, as
+// TurnsScrolling has them; History's, of the ledger's days
 // alone, as historyScrolling says; the Overview's, as overviewScrolling
 // says, laid out once for every offset; Sessions, where its calls and lines,
 // or its plain list, don't fit; and Runway, where its lanes don't, as
@@ -115,13 +130,14 @@ func (f Frame) KeysScroll(doc status.Document, now time.Time) bool {
 // the view, as cramped says, never scrolls, nor one of a document of no
 // accounts, but History and a session's page.
 func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) Scrolling {
+	if f.Session != nil {
+		s := f.TurnsScrolling()
+		return func(int) Scrolling { return s }
+	}
 	m := f.Moment(doc, now)
 	var s Scrolling
 	switch top := f.top(); {
 	case f.cramped():
-	case f.Session != nil:
-		l := f.sessionLayout(len(f.Session.Page.Accounts))
-		s = byRows(len(f.Session.turnsRows(l)), l.turns)
 	case f.View == History:
 		return f.historyScrolling(top)
 	case len(m.Accounts) == 0:

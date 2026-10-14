@@ -87,7 +87,7 @@ func (m Model) scrollRequests(by scrollStep) Model {
 // keeps with it: of the turn open, those down to its request chosen.
 func (m Model) requestInView() Model {
 	s := *m.session
-	s.shown = choosing(s.shown, turnAt(s.shown, s.shown.Turn), m.turnsScrolling(s.shown, m.now()))
+	s.shown = choosing(s.shown, turnAt(s.shown, s.shown.Turn), m.turnsScrolling(s.shown))
 	m.session = &s
 	return m
 }

@@ -183,7 +183,7 @@ func TestATurnOpenedKeepsItsRowAndItsFirstRequestInView(t *testing.T) {
 			if tt.open {
 				shown.Turn, shown.Open, shown.Requests = 10, 10, make([]views.LogLine, 8)
 			}
-			if got := choosing(shown, 10, m.turnsScrolling(shown, start)).Scroll; got != tt.scroll {
+			if got := choosing(shown, 10, m.turnsScrolling(shown)).Scroll; got != tt.scroll {
 				t.Errorf("the turn at 10 chosen, the turns scroll %d, want %d", got, tt.scroll)
 			}
 		})
@@ -223,5 +223,23 @@ func TestATurnOpenKeepsItsRequestChosenInViewAsTheTurnsScroll(t *testing.T) {
 	bottom := slices.IndexFunc(rows[top:], func(row string) bool { return strings.Contains(row, "╰") }) + top
 	if bottom != lit-2 {
 		t.Errorf("enter placed the card on rows %d to %d, want it over the request's row %d, a row between:\n%s", top+1, bottom+1, lit+1, h.view())
+	}
+}
+
+// How far a page's turns scroll, which each key, look and stream event on
+// the page asks, is laid out of the page alone at the size drawn at, as
+// TurnsScrolling has it: nothing more of the frame is built for it.
+func TestHowFarAPagesTurnsScrollIsLaidOutOfThePageAlone(t *testing.T) {
+	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), slices.Repeat([]int{1}, 20)...))
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
+	h.openPage(idD28C)
+	shown := h.shownPage()
+	bare := dashboard.Frame{Width: 160, Height: 37, Session: &shown}
+	if got, want := h.model.turnsScrolling(shown), bare.TurnsScrolling(); got != want || want.Most == 0 {
+		t.Fatalf("the turns scroll %+v, want %+v, as the page alone lays them out, scrolling", got, want)
+	}
+	least := testing.AllocsPerRun(10, func() { bare.TurnsScrolling() })
+	if got := testing.AllocsPerRun(10, func() { h.model.turnsScrolling(shown) }); got > least {
+		t.Errorf("how far the turns scroll allocates %.0f times, want no more than the page alone laid out does, %.0f", got, least)
 	}
 }

@@ -206,7 +206,7 @@ func (m Model) relived(msg tea.Msg, now time.Time) Model {
 		was := s.shown
 		s.shown.Page, s.shown.Story = page, s.held.Story(page, live)
 		s.shown.Requests = s.held.TurnRequests(s.shown.Open, live)
-		s.shown = following(was, s.shown, m.turnsScrolling(s.shown, now))
+		s.shown = following(was, s.shown, m.turnsScrolling(s.shown))
 		m.session = &s
 	case s.shown.Page.Session == "":
 		m.session = nil
@@ -229,11 +229,9 @@ func (m Model) pageLive(id string, now time.Time) views.PageLive {
 }
 
 // turnsScrolling is how far the turns of the page shown scroll, laid out at
-// the size m draws the frame at now.
-func (m Model) turnsScrolling(shown dashboard.SessionShown, now time.Time) dashboard.Scrolling {
-	f := m.frame(now)
-	f.Session = &shown
-	return f.Scrolling(m.doc, now)
+// the size m draws at, as TurnsScrolling has it, of the page alone.
+func (m Model) turnsScrolling(shown dashboard.SessionShown) dashboard.Scrolling {
+	return dashboard.Frame{Width: m.size.Width, Height: m.size.Height, Session: &shown}.TurnsScrolling()
 }
 
 // following is the page shown, built afresh, is, as it was before, was: its
@@ -333,7 +331,7 @@ func (m Model) moveTurn(by int) Model {
 // as choosing has it.
 func (m Model) turnChosen(i int) Model {
 	s := *m.session
-	s.shown = choosing(s.shown, i, m.turnsScrolling(s.shown, m.now()))
+	s.shown = choosing(s.shown, i, m.turnsScrolling(s.shown))
 	m.session = &s
 	return m
 }
@@ -343,7 +341,7 @@ func (m Model) turnChosen(i int) Model {
 // it scrolls out.
 func (m Model) scrollTurns(by scrollStep) Model {
 	s := *m.session
-	turns := m.turnsScrolling(s.shown, m.now())
+	turns := m.turnsScrolling(s.shown)
 	s.shown.Scroll = by.from(s.shown.Scroll, turns)
 	s.shown = choosing(s.shown, inViewAt(turnAt(s.shown, s.shown.Turn), s.shown.Scroll, turns), turns)
 	m.session = &s
