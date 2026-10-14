@@ -569,6 +569,49 @@ func TestOnASessionsPageALookBrightensItsWindowsAndTheStreamNothing(t *testing.T
 	}
 }
 
+// A session's page follows the request stream as it tells of the session's
+// requests: one told sent serving the prompt of its newest turn grows that
+// turn, and one serving a new prompt starts a turn at the top; while one
+// waits for its answer, ↑ asking shows on row 6 and on its newest turn's
+// row, and it goes as the answer streams.
+func TestASessionsPageFollowsTheStream(t *testing.T) {
+	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+	h.openPage(idD28C)
+	h.settle()
+	serving := func(prompt string, e router.StreamEvent) router.StreamEvent {
+		e.Prompt, e.Class = prompt, ledger.ClassMain
+		return e
+	}
+	done := alter(told(router.StreamDone, "r3", "work", 0), func(e *router.StreamEvent) { e.Status = 200 })
+	steps := []struct {
+		name         string
+		heard        []router.StreamEvent
+		turn, newest int
+		asking       int
+		doing        string
+	}{
+		{name: "a request of the newest turn's prompt sent", heard: []router.StreamEvent{serving("prompt-2", told(router.StreamSent, "r3", "work", 0))},
+			turn: 2, newest: 2, asking: 2, doing: "↑ asking"},
+		{name: "its answer streaming", heard: []router.StreamEvent{serving("prompt-2", told(router.StreamFirst, "r3", "work", 0))},
+			turn: 2, newest: 2, doing: "↓ answering"},
+		{name: "its answer done, then a request of a new prompt sent",
+			heard: []router.StreamEvent{serving("prompt-2", done), serving("prompt-3", told(router.StreamSent, "r4", "work", 0))},
+			turn:  3, newest: 1, asking: 2, doing: "↑ asking"},
+	}
+	for _, step := range steps {
+		h.hear(step.heard...)
+		turns := h.shownPage().Page.Turns
+		if len(turns) == 0 || turns[0].Turn != step.turn || turns[0].Requests != step.newest {
+			t.Fatalf("%s, the page's newest turn is %+v, want turn %d of %d requests", step.name, turns[:min(1, len(turns))], step.turn, step.newest)
+		}
+		screen := h.view()
+		if got := strings.Count(screen, "↑ asking"); got != step.asking || !strings.Contains(screen, step.doing+"   on ") {
+			t.Errorf("%s, the page says ↑ asking %d times, and %q on row 6 %t; want %d, row 6 and the newest turn's, and %q\n%s",
+				step.name, got, step.doing, strings.Contains(screen, step.doing+"   on "), step.asking, step.doing, screen)
+		}
+	}
+}
+
 // On a session's page, a look that takes in lines raising the points of a
 // window the session took brightens them, as a number a look reads.
 func TestOnASessionsPageALookBrightensThePointsItTook(t *testing.T) {
