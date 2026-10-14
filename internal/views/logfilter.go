@@ -1,5 +1,12 @@
 package views
 
+import (
+	"cmp"
+	"maps"
+	"slices"
+	"strings"
+)
+
 // LogFilter is what the Log's Requests show, as its f panel picks it. A
 // choice ticked keeps those ticked; none ticked is every one: so the zero
 // LogFilter shows every line, and the Log opens on LogOpening's.
@@ -86,6 +93,22 @@ type LogCount struct {
 // Lines is how many of the day's lines there are: each kind's together.
 func (c LogCount) Lines() int {
 	return c.Requests + c.Checks + c.Counts
+}
+
+// ModelsListed are the models the f panel lists, by their whole ids: those
+// the day's lines asked for, the most asked first, then by id; then those
+// ticked that none asked for, as one ticked before midnight, by id, so a
+// model the filter keeps always has a tick.
+func (c LogCount) ModelsListed(ticked []string) []string {
+	asked := slices.SortedFunc(maps.Keys(c.Models), func(a, b string) int {
+		return cmp.Or(c.Models[b]-c.Models[a], strings.Compare(a, b))
+	})
+	return append(asked, notAmong(ticked, asked)...)
+}
+
+// RowKinds are the kinds of RowKind, in the panel's order.
+func RowKinds() []RowKind {
+	return slices.Clone(rowKinds[:])
 }
 
 // Hidden is how many of the day's lines the table hides.
