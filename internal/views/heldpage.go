@@ -250,7 +250,8 @@ func (h HeldPage) Page(live PageLive) (SessionPage, bool) {
 // page is the page as Page builds it, of w.
 func (w worked) page() (SessionPage, bool) {
 	h, live, by := w.h, w.live, w.by
-	if len(h.requests) == 0 && live.Routed == nil {
+	routed, running := by.routed[h.id]
+	if len(h.requests) == 0 && !running {
 		return SessionPage{}, false
 	}
 	listed := by.listed(h.id, h.story)
@@ -259,13 +260,13 @@ func (w worked) page() (SessionPage, bool) {
 		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
 		Resumed: resumedAt(w.sent), Accounts: slices.Clone(h.accounts), Moves: movesOf(h.story), Activity: listed.Activity,
 	}
-	unplaced := live.Routed != nil && by.h.unplaced(*live.Routed)
+	unplaced := running && by.h.unplaced(routed)
 	page.Turns = turnsOf(w.tallies, w.inNone, page.Runs(), unplaced)
 	page.Goes = by.goesOf(h.id, live.Stream, h.requests, w.sent)
-	if routed := live.Routed; routed != nil {
+	if running {
 		page.Pin = routed.Pin
 		if !live.Unlisted {
-			page.Auto = autoOf(*routed, page.Model)
+			page.Auto = autoOf(routed, page.Model)
 		}
 	}
 	if !page.Running && h.story.first != nil {
