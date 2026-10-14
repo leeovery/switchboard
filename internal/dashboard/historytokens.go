@@ -296,7 +296,7 @@ func (r tokensRow) ofAccount(a views.AccountTokens) tokensRow {
 // ofModel is the row, as split, of a model version, after the branch given:
 // its id, as ccusage names it, its counts and its worth.
 func (r tokensRow) ofModel(m views.ModelTokens, branch string) tokensRow {
-	r.name = []part{wordsPart(line{{branch, faintInk}, {strings.TrimPrefix(m.Model, "claude-"), secondaryInk}})}
+	r.name = []part{wordsPart(line{{branch, faintInk}, {modelNamed(m.Model), secondaryInk}})}
 	r.tokens, r.worth, r.id = m.Tokens, m.Worth, m.Model
 	return r
 }

@@ -8,7 +8,6 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -368,7 +367,7 @@ func (d sessionDrawn) models(room int) line {
 		if i > 0 {
 			next = append(next, spaces(sessionApart))
 		}
-		next = append(next, span{ledger.ShortModelID(g.Model), secondaryInk}, span{moveArrow, mutedInk}, span{named(d.m, g.Account), secondaryInk})
+		next = append(next, span{modelNamed(g.Model), secondaryInk}, span{moveArrow, mutedInk}, span{named(d.m, g.Account), secondaryInk})
 		if next.width() > room {
 			break
 		}
@@ -386,7 +385,7 @@ func (d sessionDrawn) endedModels() line {
 		if i > 0 {
 			l = append(l, span{" · ", faintInk})
 		}
-		l = append(l, span{ledger.ShortModelID(g.Model), secondaryInk})
+		l = append(l, span{modelNamed(g.Model), secondaryInk})
 	}
 	return append(l, spaces(sessionApart), span{views.KeptUntil(d.page.KeptUntil, d.now), faintInk})
 }
