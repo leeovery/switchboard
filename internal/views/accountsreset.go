@@ -78,7 +78,7 @@ func (p AccountsPage) endedSince(w status.WindowNow, own []ledger.AccountDay, no
 	if began := runBegun(w, length); p.begunSince(began, own, w.Key, length) {
 		climb.Carry(quota.Window{Key: w.Key, Utilization: highestBefore(p.days, own, w.Key, began).share(), ResetsAt: began}, p.in.Now)
 	} else {
-		climb.BeginAt(highestBefore(p.days, own, w.Key, read.ResetsAt).share())
+		climb.BeginAt(highestBefore(p.days, own, w.Key, w.Read.ResetsAt).share())
 	}
 	climb.Take(read, w.Read.At)
 	climb.End(now)
