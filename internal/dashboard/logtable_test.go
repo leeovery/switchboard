@@ -274,6 +274,63 @@ func TestPausedOnAQuietMorningTodaysFirstRowStaysBelowTheFoot(t *testing.T) {
 	}
 }
 
+// Paused and scrolled up to another session's lines, then, as lines come,
+// filtered by the panel to the session of its foot, a table whose top the
+// filter hides ends its view at its foot, rising to the line chosen where
+// that's above, rather than drawing nothing.
+func TestAPausedTableWhoseTopTheFilterHidesShowsWhatsChosen(t *testing.T) {
+	const a, b = "a0000000-0000-4000-8000-000000000001", "b0000000-0000-4000-8000-000000000002"
+	var lines []ledger.Line
+	for i := range 10 {
+		session := a
+		if i >= 6 {
+			session = b
+		}
+		lines = append(lines, askedIn(fmt.Sprint(i), session, logDay.Add(time.Duration(i)*time.Minute)))
+	}
+	src := views.LogSources{From: logDay, Now: logDayNoon}
+	tests := []struct {
+		name string
+		rows int
+		// up is how many rows ↑ moves the choice before the table scrolls.
+		up   int
+		view []string
+	}{
+		{name: "the foot chosen", rows: 4, view: []string{"09:06:00", "09:07:00", "09:08:00", "09:09:00"}},
+		{name: "a line above the foot's view chosen", rows: 2, up: 3, view: []string{"09:06:00", "09:07:00"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := times(chose(-1, tt.rows), 1+tt.up)(requestsOf(src, lines))
+			p = times(scrolled(-1, tt.rows), 8)(p)
+			if got := inView(p, tt.rows)[0]; got >= "09:06:00" {
+				t.Fatalf("scrolled up, the view starts at %s, want a's line", got)
+			}
+			came := slices.Clone(lines)
+			for i := range 10 {
+				came = append(came, askedIn(fmt.Sprint(10+i), b, logDay.Add(time.Duration(10+i)*time.Minute)))
+			}
+			panel := p.Panel()
+			panel.Filter.Sessions = []string{b}
+			p = p.Applied(panel)
+			filtered := src
+			filtered.Filter = p.Filter
+			p = requestsOf(filtered, came).withStands(p)
+			if got := inView(p, tt.rows); !slices.Equal(got, tt.view) {
+				t.Errorf("filtered to b, in view %v, want %v", got, tt.view)
+			}
+		})
+	}
+}
+
+// askedIn is a line of a request with the id given of the session given, on
+// side, arriving at the time given.
+func askedIn(id, session string, at time.Time) ledger.Line {
+	l := asked(id, at)
+	l.Session = session
+	return l
+}
+
 // A terminal too short for the table leaves its view no row, and each key
 // still moves it as the rules have it, as a view a row tall would: ↑ pauses
 // at the newest row, choosing it, k pauses with nothing chosen, g lands on
@@ -339,7 +396,8 @@ func inView(p LogPage, rows int) []string {
 	lines := p.lines()
 	first, last := p.window(lines, p.stand(), rows)
 	var view []string
-	for _, l := range lines[first : last+1] {
+	for i := first; i <= last; i++ {
+		l := lines[i]
 		if l.empty != nil {
 			view = append(view, "words")
 			continue

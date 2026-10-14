@@ -154,14 +154,14 @@ func (p LogPage) find(lines []logLine, k LogKey) (int, bool) {
 
 // window is what of lines is in view in rows rows, as s stands: following,
 // the newest rows lines; paused, from its top, but no further down than its
-// foot, or the table's words under it, while it says it has nothing today. A
-// key no longer among them, as one a filter hides, falls back to where
-// following has its view, or its foot to the last line.
+// foot, or the table's words under it, while it says it has nothing today.
+// A foot no longer among them, as one a filter hides, falls back to the last
+// line; a top, to the view ending at the foot, but rising to the line chosen
+// where that's above it.
 func (p LogPage) window(lines []logLine, s LogStand, rows int) (first, last int) {
 	last = len(lines) - 1
-	first = max(len(lines)-rows, 0)
 	if !s.paused {
-		return first, last
+		return max(len(lines)-rows, 0), last
 	}
 	if foot, ok := p.find(lines, s.foot); ok {
 		last = foot
@@ -169,9 +169,14 @@ func (p LogPage) window(lines []logLine, s LogStand, rows int) (first, last int)
 			last++
 		}
 	}
-	if top, ok := p.find(lines, s.top); ok {
-		first = min(top, last)
+	top, ok := p.find(lines, s.top)
+	if !ok {
+		top = max(last-rows+1, 0)
+		if at, chosen := p.lit(lines, s); chosen {
+			top = min(top, at)
+		}
 	}
+	first = min(top, last)
 	return first, min(last, first+rows-1)
 }
 
