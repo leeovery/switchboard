@@ -38,9 +38,9 @@ type listReadMsg struct {
 // the Switchboard, kept from the look before, as views.Patch keeps it, the
 // stubs hanging as views.StubsOf has them; the List, as the List held
 // builds it, once it's held; and the choice following its session, as
-// Following has it. A frame takes nothing in, so builds nothing, but where
-// a move the views read comes to show at it, putting its session on the
-// account it went to.
+// Following has it, kept in view where it was, as revealing has it. A frame
+// takes nothing in, so builds nothing, but where a move the views read
+// comes to show at it, putting its session on the account it went to.
 func (m Model) sessionsLooked(msg tea.Msg) Model {
 	if m.view != dashboard.Sessions || m.session != nil {
 		return m
@@ -50,6 +50,7 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 	if _, frame := msg.(frameMsg); frame && len(s.Moves) == m.sessionsTab.moves {
 		return m
 	}
+	sighted := m.sessionsTab.shown.Chosen != (dashboard.Plug{}) && chosenShows(m.frame(now), m.doc, now, m.scroll)
 	mo := m.moment(now)
 	t := m.sessionsTab
 	var held views.HeldList
@@ -62,6 +63,9 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 	t.shown = t.shown.Following(accountIDs(mo))
 	t.moves = len(s.Moves)
 	m.sessionsTab = t
+	if sighted {
+		m = m.revealing(now)
+	}
 	return m
 }
 
@@ -236,19 +240,61 @@ func accountIDs(mo status.Moment) []string {
 	return ids
 }
 
-// showSessions shows Sessions as given: another sub-tab from the view's top.
-// It keeps what the preferences keep of it, where that's changed, for the
-// next watch to open with: the sub-tab.
+// showSessions shows Sessions as given: another sub-tab from the view's top,
+// the row chosen kept in view, as revealing has it. It keeps what the
+// preferences keep of it, where that's changed, for the next watch to open
+// with: the sub-tab.
 func (m Model) showSessions(s dashboard.SessionsShown) Model {
 	was := m.sessionsTab.shown
 	if s.Shown != was.Shown {
 		m.scroll = 0
 	}
 	m.sessionsTab.shown = s
+	m = m.revealing(m.now())
 	if kept := s.Kept(); kept != was.Kept() {
 		m.keepPrefs("what Sessions shows", func(prefs *theme.Prefs) { prefs.Sessions = kept }, "sessions", kept)
 	}
 	return m
+}
+
+// revealing is m with Sessions' view scrolled no further than shows the row
+// chosen on the page m draws at now, as revealed has it: where it is, with
+// none chosen.
+func (m Model) revealing(now time.Time) Model {
+	if m.sessionsTab.shown.Chosen == (dashboard.Plug{}) {
+		return m
+	}
+	f := m.frame(now)
+	m.scroll = revealed(m.scroll, f.Scrolling(m.doc, now), func(offset int) bool { return chosenShows(f, m.doc, now, offset) })
+	return m
+}
+
+// chosenShows reports whether the row chosen on Sessions shows on the page f
+// draws of doc at now, scrolled to offset: whether a click there would land
+// on it, as Targets lays the page out, whichever form draws it.
+func chosenShows(f dashboard.Frame, doc status.Document, now time.Time, offset int) bool {
+	f.Scroll = offset
+	chosen := f.SessionsTab.Chosen
+	return slices.ContainsFunc(f.Targets(doc, now), func(t dashboard.Target) bool {
+		return t.On == dashboard.OnSession && t.Session == chosen.Session && t.Account == chosen.Account
+	})
+}
+
+// revealed is how far a view scrolled to at, scrolling as s says, is scrolled
+// to show what shows says it shows at each offset: where it is, where it
+// shows there; else at the offset nearest it that shows it, the one above
+// where two are as near; and where none does, where it is.
+func revealed(at int, s dashboard.Scrolling, shows func(offset int) bool) int {
+	from := min(max(at, 0), s.Most)
+	for d := range s.Most + 1 {
+		if up := from - d; up >= 0 && shows(up) {
+			return up
+		}
+		if down := from + d; d > 0 && down <= s.Most && shows(down) {
+			return down
+		}
+	}
+	return at
 }
 
 // sessionsClick acts on a click on Sessions, reporting false for one it

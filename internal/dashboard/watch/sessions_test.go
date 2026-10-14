@@ -212,6 +212,37 @@ func TestSessionsChoiceFollowsItsSessionAtEachLook(t *testing.T) {
 	}
 }
 
+// A view keeps the row chosen in view, scrolling no further than it must:
+// where it is, where the row shows there; else to the nearest offset that
+// shows it, up or down; and where none does, as with nothing chosen, where it
+// is, however far that is.
+func TestTheViewScrollsNoFurtherThanShowsTheRowChosen(t *testing.T) {
+	const page, most = 10, 20
+	tests := []struct {
+		name    string
+		at, row int
+		want    int
+	}{
+		{name: "in view", at: 5, row: 9, want: 5},
+		{name: "in view, at the view's foot", at: 5, row: 14, want: 5},
+		{name: "a row under the view", at: 5, row: 15, want: 6},
+		{name: "rows under the view", at: 0, row: 27, want: 18},
+		{name: "the last row, from the top", at: 0, row: 29, want: 20},
+		{name: "rows over the view", at: 12, row: 3, want: 3},
+		{name: "scrolled past where the view goes", at: 25, row: 29, want: 20},
+		{name: "a row nowhere", at: 7, row: -1, want: 7},
+		{name: "a row nowhere, past where the view goes", at: 25, row: -1, want: 25},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shows := func(offset int) bool { return tt.row >= offset && tt.row < offset+page }
+			if got := revealed(tt.at, dashboard.Scrolling{Most: most, Page: page}, shows); got != tt.want {
+				t.Errorf("revealed(%d) = %d, want %d", tt.at, got, tt.want)
+			}
+		})
+	}
+}
+
 // A click on a call chooses it, and on the one chosen, opens its session's
 // page; a click on a sub-tab shows it.
 func TestSessionsClicksChooseThenOpen(t *testing.T) {
