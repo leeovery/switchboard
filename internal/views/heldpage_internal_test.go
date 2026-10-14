@@ -64,14 +64,19 @@ func TestAHeldPageTakingOtherSessionsLinesWorksOutOnlyWhatTheyChange(t *testing.
 		return []ledger.Held{{Line: lineOf(request, "s2", account, d, used)}}
 	}
 
+	// Its answer counts no tokens and reads no windows: under the race
+	// detector, the pools reading them draw on allocate unevenly.
+	side := []ledger.Held{{
+		Request: "o1", At: at.Add(time.Second), Kind: ledger.KindMessage, Session: "s2", Model: "claude-opus-5-5", Account: "side", Status: 200, Attempts: 1, TotalMS: 4000,
+	}}
 	few, many := holding(50), holding(500)
-	elsewhere := many.Take(date, theirs("o1", "side", time.Second, "0.50"))
+	elsewhere := many.Take(date, side)
 	if elsewhere.story != many.story || &elsewhere.accounts[0] != &many.accounts[0] || elsewhere.held.under != many.held {
 		t.Errorf("taking another's line on side, the story was built afresh %t, the accounts %t, the keys held copied %t; want none of them",
 			elsewhere.story != many.story, &elsewhere.accounts[0] != &many.accounts[0], elsewhere.held.under != many.held)
 	}
-	fewer := testing.AllocsPerRun(10, func() { few.Take(date, theirs("o2", "side", time.Second, "0.50")) })
-	if got := testing.AllocsPerRun(10, func() { many.Take(date, theirs("o2", "side", time.Second, "0.50")) }); got != fewer {
+	fewer := testing.AllocsPerRun(10, func() { few.Take(date, side) })
+	if got := testing.AllocsPerRun(10, func() { many.Take(date, side) }); got != fewer {
 		t.Errorf("taking another's line on side allocates %.0f times holding 500 requests, %.0f holding 50; want as many, whatever it holds", got, fewer)
 	}
 
