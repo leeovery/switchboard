@@ -146,11 +146,11 @@ func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
 	return accountsForm{draw: d.draw, scrolling: d.scrolling, scrolls: d.scrolls, targets: d.targets, filled: d.filled}
 }
 
-// detailStacked reports whether Detail is stacked, as a phone stacks it: on a
-// phone, and where the frame is too narrow for its wide form's widest fixed
-// rows.
+// detailStacked reports whether Detail is stacked, as a phone stacks it:
+// where the frame is too narrow for its wide form's widest fixed rows, as
+// every phone's is.
 func (f Frame) detailStacked() bool {
-	return f.phone() || f.detailLayout().reach() > f.Width
+	return f.detailLayout().reach() > f.Width
 }
 
 // detailDrawnIn is the layout Detail is drawn in on the frame: a phone's
