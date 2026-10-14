@@ -118,6 +118,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		Family:     claude.Provider{}.Family,
 		Size:       size,
 		View:       f.view,
+		Log:        f.log,
 		Prices:     drawnPrices,
 		TraceScale: framesTraceScale,
 	}

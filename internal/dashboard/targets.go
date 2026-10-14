@@ -36,7 +36,8 @@ const (
 	OnStep
 	// OnKey is a key of the key line.
 	OnKey
-	// OnRow is a row of the view.
+	// OnRow is a row of the view: of the Log's table shown, a line, by its
+	// place among the table's lines.
 	OnRow
 	// OnSection is a section's heading on the Overview, or its key there,
 	// which hides it.
@@ -49,8 +50,8 @@ const (
 // Targets are the zones of the frame's page of doc at now a click acts on,
 // each over the cells it's drawn on, laid out as the page draws them: its
 // tabs; the heading row's sub-tabs, and < and > by its period or window; the
-// Overview's, as overviewTargets has them; and the key line's keys, as
-// keyTargets has them.
+// Overview's, as overviewTargets has them, and the Log's, as logTargets has
+// them; and the key line's keys, as keyTargets has them.
 func (f Frame) Targets(doc status.Document, now time.Time) []Target {
 	targets := f.tabTargets()
 	for _, p := range f.headingPieces() {
@@ -60,6 +61,9 @@ func (f Frame) Targets(doc status.Document, now time.Time) []Target {
 	}
 	if f.View == Overview && !f.cramped() {
 		targets = append(targets, f.At(doc, now).overviewTargets(doc, now)...)
+	}
+	if f.View == Log && !f.cramped() {
+		targets = append(targets, f.logTargets(now)...)
 	}
 	return append(targets, f.keyTargets()...)
 }

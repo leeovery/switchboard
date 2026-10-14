@@ -449,6 +449,12 @@ frames):
 - **Anthropic's id,** row 15 of `log-request-details-160`, columns 35 to 62, `req_011CQx…`: the
   frame cut an id longer than the column's room, and the world's, `req_011CQx4n7RkV2bW9pT3sYd6M`,
   as long as Anthropic's are, fits it whole, as the dashboard draws it.
+- **d28c's lines alone,** rows 8 to 34 of `log-requests-filtered-160`, its newest 27, from
+  `14:36:27`: the frame's generator drew them, where the world's are as d28c's page draws them, and
+  its request in flight the Overview's frames' (`14:42:06`, with no directory); the dashboard draws
+  the world's in their place. The counts are the world's, as `log-requests-160`'s: `830` of `830
+  hidden`, row 5, columns 133 to 135, is `831`; and `445` of `445 of d28c's today`, row 36,
+  columns 142 to 144, is `446`.
 - **db8a's move of 13:22:40,** row 27 of `log-events-160`, columns 88 to 160, `, its 5-hour to run
   out at 15:10   48k cached again, $0.48`: no pressure event of personal's behind the run-out fits
   in the world, as none shows among the frame's rows, and a move made afresh after 21 hours idle
@@ -649,10 +655,14 @@ its router gone at 14:40:55, as the fixture's settling finds it with `R` then. T
 `log-request-details-160`, d28c's move to side, as the Log stood at 14:32:41, `↑` to 14:31:09 and
 `↓` to the move, the table paused there; then at 14:42:07, read again with `R`, `enter`. The `f`
 panel: `log-events-filter-160`, over Events, with `]` and `f`; and `log-requests-filter-160`, over
-Requests, with `f`, then `→` and `↓` twelve times, the cursor on d28c's row. The page as stage 6
-built it, `page-log`, went with its tapes as they came to draw it. Tapes of their names screenshot
-`log-requests-160`, `log-events-160`, `log-not-live-160`, `log-event-details-160`,
-`log-request-details-160`, `log-events-filter-160` and `log-requests-filter-160`, to judge by eye.
+Requests, with `f`, then `→` and `↓` twelve times, the cursor on d28c's row. The find:
+`log-requests-filtered-160`, d28c's lines alone, found with `/ d28c` and `enter`, `worth` shown as
+its preferences keep it. The page as stage 6 built it, `page-log`, went with its tapes as they came
+to draw it. Tapes of their names screenshot `log-requests-160`, `log-events-160`,
+`log-not-live-160`, `log-event-details-160`, `log-request-details-160`, `log-events-filter-160`,
+`log-requests-filter-160` and `log-requests-filtered-160`, to judge by eye. Where no frame draws
+them, `page-log-find` draws the find open on Requests, `/ sw` typed, and `page-log-help` HELP · LOG
+over them, each with a tape of its name.
 
 ### `--theme`, and `NO_COLOR`
 
