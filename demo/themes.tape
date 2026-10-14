@@ -1,9 +1,9 @@
-# The README's themes clip: t opens the theme picker over the Accounts view,
-# and each theme the cursor reaches redraws the dashboard in it, live. It
+# The README's themes clip: t opens the theme picker over the Overview, and
+# each theme the cursor reaches redraws the dashboard in it, live. It
 # previews nord, terminal on the way past, tokyo-night and tokyo-night-day,
 # then exchange and amber, and esc puts nord back. capturetool plays the
-# themes scenario (internal/capture/scenarios.go): the routing scenario's
-# accounts, at work, at 160 × 34.
+# routing scenario (internal/capture/scenarios.go) behind it: no key pins
+# anything.
 #
 # Record it, and make art/themes.webp and art/themes.mp4:
 #   demo/record.sh themes
@@ -15,9 +15,9 @@ Set FontFamily "JetBrains Mono"
 Set FontSize 17
 Set LetterSpacing 0
 Set LineHeight 1
-# 160 × 34 cells of 10 × 22 px.
+# 160 × 37 cells of 10 × 22 px: the frames' size.
 Set Width 1660
-Set Height 792
+Set Height 858
 Set Padding 16
 Set CursorBlink false
 Set Framerate 30
@@ -25,7 +25,8 @@ Set Theme { "name": "nord", "background": "#2E3440", "foreground": "#D8DEE9", "c
 Set WaitTimeout 2m
 
 Hide
-Type "demo/out/capturetool --scenario themes"
+# In UTC, as the frames are drawn, whatever the recording machine's zone.
+Type "TZ=UTC demo/out/capturetool --scenario routing"
 Enter
 Wait+Screen /SWITCHBOARD/
 Show

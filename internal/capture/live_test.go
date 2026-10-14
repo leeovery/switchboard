@@ -11,14 +11,17 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
+// idA11C is a session a test starts, beside b3e9.
+const idA11C = "a11c5e08-2d4b-4f1a-8c3e-9b7d6a5f4e21"
+
 func TestTheRouterAnswersAsTheScenarioHasPlayedUpToItsClock(t *testing.T) {
-	s := testScenario(starts(1, idB3E9, opus, brief))
-	c := &testClock{now: s.start}
-	tl := &timeline{scenario: s, now: c.read}
+	s := testScenario(starts(1, idB3E9, opus, "~/Code/cli", brief))
+	tl, c := timelineOf(s, 0)
 
 	before, health, err := tl.Read(t.Context(), status.Read{})
 	if err != nil {
@@ -28,50 +31,48 @@ func TestTheRouterAnswersAsTheScenarioHasPlayedUpToItsClock(t *testing.T) {
 	after, again, _ := tl.Read(t.Context(), status.Read{})
 	sessions, _ := tl.Sessions(t.Context())
 
-	if before.Sessions != 5 || after.Sessions != 6 {
-		t.Errorf("the router counts %d sessions, then %d, want 5, then 6, b3e9 started", before.Sessions, after.Sessions)
+	if before.Sessions != 6 || after.Sessions != 7 {
+		t.Errorf("the router counts %d sessions, then %d, want 6, then 7, b3e9 started", before.Sessions, after.Sessions)
 	}
-	if !after.GeneratedAt.Equal(s.start.Add(2*time.Second)) || after.Events[0].Session != idB3E9 {
+	if start := tl.base.start; !after.GeneratedAt.Equal(start.Add(2*time.Second)) || after.Events[0].Session != idB3E9 {
 		t.Errorf("the document read 2s in was built at %s, its newest event %+v, want built then, telling of b3e9 starting", after.GeneratedAt, after.Events[0])
 	}
-	if after.Events[1].ID != before.Events[0].ID {
-		t.Errorf("the router numbers its events afresh, from %d to %d, want each to keep its id", before.Events[0].ID, after.Events[1].ID)
+	if after.Events[1].ID != before.Events[0].ID || after.Events[0].ID != before.Events[0].ID+1 {
+		t.Errorf("the router numbers its events %d, then %d, after %d, want each to keep its id, the new one next", after.Events[1].ID, after.Events[0].ID, before.Events[0].ID)
 	}
-	if !slices.ContainsFunc(sessions, func(l status.Session) bool { return l.ID == idB3E9 }) {
-		t.Errorf("the router lists %+v, want b3e9 among them", sessions)
+	if b3e9 := listed(t, sessions, idB3E9); b3e9.Assignments[0].Dir != "~/Code/cli" || b3e9.Assignments[0].Account != "side" {
+		t.Errorf("the router lists b3e9 as %+v, want it on side, in its directory", b3e9)
 	}
-	if !health.Same(again) || !tl.RouterAnswers(t.Context()) {
-		t.Error("read again, the router is another, or doesn't answer, want the same router throughout, answering")
+	if !health.Same(again) || !health.StartedAt.Equal(routerRun(tl.base.start)) || !tl.RouterAnswers(t.Context()) {
+		t.Error("read again, the router is another, or doesn't answer, want the same router throughout, the world's run, answering")
 	}
 }
 
 func TestOrdersAreTakenFromWhenTheyreGiven(t *testing.T) {
-	s := testScenario(starts(0.5, id9E21, sonnet, brief), starts(3, idB3E9, opus, brief))
-	c := &testClock{now: s.start}
-	tl := &timeline{scenario: s, now: c.read}
+	s := testScenario(starts(0.5, idA11C, sonnet, "~/Code/cli", brief), starts(3, idB3E9, opus, "~/Code/cli", brief))
+	tl, c := timelineOf(s, time.Second)
 
-	c.advance(time.Second)
-	if err := tl.Pin(t.Context(), []string{"work"}, false); err != nil {
+	if err := tl.Pin(t.Context(), []string{"personal"}, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := tl.PinSession(t.Context(), idC61B, "work"); err != nil {
+	if err := tl.PinSession(t.Context(), idC61B, "personal"); err != nil {
 		t.Fatal(err)
 	}
 	c.advance(3 * time.Second)
 
 	doc, _, _ := tl.Read(t.Context(), status.Read{})
-	if !doc.Pin.Has("work") || !doc.Pin.Since.Equal(s.start.Add(time.Second)) || doc.Best != "work" {
-		t.Errorf("the document's pin is %+v, its best %q, want work's, given 1s in, and work", doc.Pin, doc.Best)
+	if !doc.Pin.Has("personal") || !doc.Pin.Since.Equal(tl.base.start.Add(time.Second)) || doc.Best != "personal" {
+		t.Errorf("the document's pin is %+v, its best %q, want personal's, given 1s in, and personal", doc.Pin, doc.Best)
 	}
 	sessions, _ := tl.Sessions(t.Context())
-	if on := listed(t, sessions, id9E21).Assignments[0].Account; on != "side" {
-		t.Errorf("9e21, started before the pin, is on %s, want side, the best then", on)
+	if on := listed(t, sessions, idA11C).Assignments[0].Account; on != "side" {
+		t.Errorf("a11c, started before the pin, is on %s, want side, the best then", on)
 	}
-	if on := listed(t, sessions, idB3E9).Assignments[0].Account; on != "work" {
-		t.Errorf("b3e9, started after the pin, is on %s, want work", on)
+	if b3e9 := listed(t, sessions, idB3E9).Assignments[0]; b3e9.Account != "personal" || b3e9.Reason != status.ReasonGlobalPin {
+		t.Errorf("b3e9, started after the pin, is listed %+v, want on personal, as pinned", b3e9)
 	}
-	if c61b := listed(t, sessions, idC61B); c61b.Pin != "work" || c61b.Assignments[0].Account != "side" || c61b.Assignments[0].Pinned {
-		t.Errorf("the router lists c61b as %+v, want its own pin to work, its opus on side till its next request", c61b)
+	if c61b := listed(t, sessions, idC61B); c61b.Pin != "personal" || c61b.Assignments[0].Account != "side" || c61b.Assignments[0].Pinned {
+		t.Errorf("the router lists c61b as %+v, want its own pin to personal, its opus on side till its next request", c61b)
 	}
 	if err := tl.Unpin(t.Context()); err != nil {
 		t.Fatal(err)
@@ -81,72 +82,115 @@ func TestOrdersAreTakenFromWhenTheyreGiven(t *testing.T) {
 	}
 }
 
-func TestASessionUnpinnedOnceItsPinMovedItIsRoutedOnItsMerits(t *testing.T) {
-	s := testScenario(asks(2, idD28C, opus, brief), asks(5, idD28C, opus, brief))
-	c := &testClock{now: s.start.Add(time.Second)}
-	tl := &timeline{scenario: s, now: c.read}
+// The card's Pin and Unpin, and a session's own pin and its clearing, are
+// told of as the router tells of them, given from the dashboard; clearing
+// what was never given tells nothing.
+func TestOrdersAreToldOfAsTheRouterTellsOfThem(t *testing.T) {
+	tl, c := timelineOf(testScenario(), time.Second)
+	for _, give := range []func() error{
+		func() error { return tl.Unpin(t.Context()) },
+		func() error { return tl.UnpinSession(t.Context(), idC61B) },
+		func() error { return tl.Pin(t.Context(), []string{"side"}, true) },
+		func() error { return tl.PinSession(t.Context(), idC61B, "personal") },
+		func() error { return tl.UnpinSession(t.Context(), idC61B) },
+		func() error { return tl.Unpin(t.Context()) },
+	} {
+		if err := give(); err != nil {
+			t.Fatal(err)
+		}
+		c.advance(time.Second)
+	}
 
-	if err := tl.PinSession(t.Context(), idD28C, "side"); err != nil {
+	doc, _, _ := tl.Read(t.Context(), status.Read{})
+	var told []status.Event
+	for _, e := range doc.Events {
+		if e.ID > tl.base.events {
+			e.ID, e.At = 0, time.Time{}
+			told = append(told, e)
+		}
+	}
+	slices.Reverse(told)
+	want := []status.Event{
+		{Kind: status.EventPin, Accounts: []string{"side"}, Account: "side", Move: true, By: "dashboard"},
+		{Kind: status.EventPin, Account: "personal", Session: idC61B, By: "dashboard"},
+		{Kind: status.EventAuto, Account: "personal", Session: idC61B, By: "dashboard"},
+		{Kind: status.EventAuto, Accounts: []string{"side"}, By: "dashboard"},
+	}
+	if len(told) != len(want) {
+		t.Fatalf("the router tells of %+v, want %+v", told, want)
+	}
+	for i := range want {
+		if got := told[i]; got.Kind != want[i].Kind || !slices.Equal(got.Accounts, want[i].Accounts) || got.Account != want[i].Account ||
+			got.Move != want[i].Move || got.Session != want[i].Session || got.By != want[i].By {
+			t.Errorf("the router tells %+v, want %+v", got, want[i])
+		}
+	}
+}
+
+func TestASessionUnpinnedOnceItsPinMovedItIsRoutedOnItsMerits(t *testing.T) {
+	s := testScenario(asks(2, idDB8A, opus, brief), asks(5, idDB8A, opus, brief))
+	tl, c := timelineOf(s, time.Second)
+
+	if err := tl.PinSession(t.Context(), idDB8A, "personal"); err != nil {
 		t.Fatal(err)
 	}
 	c.advance(1500 * time.Millisecond)
 	sessions, _ := tl.Sessions(t.Context())
-	if d28c := listed(t, sessions, idD28C); d28c.Pin != "side" || d28c.Assignments[0].Account != "side" ||
-		!d28c.Assignments[0].Pinned || !d28c.Assignments[0].PinnedAt.Equal(s.start.Add(time.Second)) {
-		t.Errorf("its pin having moved it, the router lists d28c as %+v, want it on side, pinned there since 1s", d28c)
+	if db8a := listed(t, sessions, idDB8A); db8a.Pin != "personal" || db8a.Assignments[0].Account != "personal" ||
+		!db8a.Assignments[0].Pinned || !db8a.Assignments[0].PinnedAt.Equal(tl.base.start.Add(time.Second)) {
+		t.Errorf("its pin having moved it, the router lists db8a as %+v, want it on personal, pinned there since 1s", db8a)
 	}
-	if err := tl.UnpinSession(t.Context(), idD28C); err != nil {
+	if err := tl.UnpinSession(t.Context(), idDB8A); err != nil {
 		t.Fatal(err)
 	}
 	c.advance(3 * time.Second)
 
 	sessions, _ = tl.Sessions(t.Context())
-	if d28c := listed(t, sessions, idD28C); d28c.Pin != "" || d28c.Assignments[0].Account != "side" ||
-		d28c.Assignments[0].Pinned || !d28c.Assignments[0].PinnedAt.IsZero() {
-		t.Errorf("unpinned, the router lists d28c as %+v, want it on side, where its pin moved it, pinned nowhere", d28c)
+	if db8a := listed(t, sessions, idDB8A); db8a.Pin != "" || db8a.Assignments[0].Account != "personal" ||
+		db8a.Assignments[0].Pinned || !db8a.Assignments[0].PinnedAt.IsZero() {
+		t.Errorf("unpinned, the router lists db8a as %+v, want it on personal, where its pin moved it, pinned nowhere", db8a)
 	}
-	if moves := movesOf(tl, idD28C); !slices.Equal(moves, []string{"work → side, pinned"}) {
-		t.Errorf("d28c moved %q, want once, by its pin, its next request staying on side", moves)
+	if moves := movesOf(tl, idDB8A); !slices.Equal(moves, []string{"side → personal, pinned"}) {
+		t.Errorf("db8a moved %q, want once, by its pin, its next request staying on personal", moves)
 	}
 }
 
 func TestAPinThatMovesRunningSessionsMovesEachOnce(t *testing.T) {
 	s := testScenario(
-		asks(2, idD28C, opus, brief),
-		asks(3, id7F3A, haiku, brief),
-		asks(5, idD28C, opus, brief),
-		asks(7, idD28C, opus, brief),
-		asks(8, id7F3A, haiku, brief),
+		asks(2, idDB8A, opus, brief),
+		asks(3, id7F3A, sonnet, brief),
+		asks(5, idDB8A, opus, brief),
+		asks(7, idDB8A, opus, brief),
+		asks(8, id7F3A, sonnet, brief),
 	)
-	c := &testClock{now: s.start.Add(time.Second)}
-	tl := &timeline{scenario: s, now: c.read}
+	tl, c := timelineOf(s, time.Second)
 
-	if err := tl.Pin(t.Context(), []string{"side"}, true); err != nil {
+	if err := tl.Pin(t.Context(), []string{"personal"}, true); err != nil {
 		t.Fatal(err)
 	}
 	c.advance(3 * time.Second)
-	if err := tl.PinSession(t.Context(), idD28C, "work"); err != nil {
+	if err := tl.PinSession(t.Context(), idDB8A, "side"); err != nil {
 		t.Fatal(err)
 	}
 	c.advance(2 * time.Second)
-	if err := tl.UnpinSession(t.Context(), idD28C); err != nil {
+	if err := tl.UnpinSession(t.Context(), idDB8A); err != nil {
 		t.Fatal(err)
 	}
 
-	// d28c, put back on work by its own pin after the pin that moved it, stays
+	// db8a, put back on side by its own pin after the pin that moved it, stays
 	// there once that's cleared: the router moves a session once a pin.
-	if moves := movesOf(tl, idD28C); !slices.Equal(moves, []string{"work → side, moved by pin", "side → work, pinned"}) {
-		t.Errorf("d28c moved %q, want to side by the pin, back to work by its own pin, and no more", moves)
+	if moves := movesOf(tl, idDB8A); !slices.Equal(moves, []string{"side → personal, moved by pin", "personal → side, pinned"}) {
+		t.Errorf("db8a moved %q, want to personal by the pin, back to side by its own pin, and no more", moves)
 	}
-	if moves := movesOf(tl, id7F3A); !slices.Equal(moves, []string{"work → side, moved by pin"}) {
-		t.Errorf("7f3a moved %q, want to side by the pin, once", moves)
+	if moves := movesOf(tl, id7F3A); !slices.Equal(moves, []string{"side → personal, moved by pin"}) {
+		t.Errorf("7f3a moved %q, want to personal by the pin, once", moves)
 	}
 }
 
 func TestTheStreamTellsOfTheRequestsInFlightThenOfEachEventAsItsTimeComes(t *testing.T) {
-	s := testScenario(asks(1, idDB8A, sonnet, brief), asks(2, idD28C, opus, brief))
-	c := &testClock{now: s.start.Add(1500 * time.Millisecond)}
-	tl := &timeline{scenario: s, now: c.read, wait: c.wait}
+	s := testScenario(asks(1, idDB8A, opus, brief), asks(2, id7F3A, sonnet, brief))
+	tl, c := timelineOf(s, 1500*time.Millisecond)
+	tl.wait = c.wait
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
@@ -154,24 +198,36 @@ func TestTheStreamTellsOfTheRequestsInFlightThenOfEachEventAsItsTimeComes(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	var told []router.StreamEvent
-	for len(told) < 12 {
-		told = append(told, receive(t, events))
-		if e := told[len(told)-1]; e.At.After(c.read()) {
+	var joined []string
+	for range 3 {
+		e := receive(t, events)
+		if e.Kind != router.StreamInFlight {
+			t.Errorf("the stream opens telling %+v, want what's in flight", e)
+		}
+		joined = append(joined, status.ShortID(e.Session)[:4])
+	}
+	if want := []string{"c61b", "d28c", "db8a"}; !slices.Equal(joined, want) {
+		t.Errorf("the stream opens telling of %q in flight, want %q, the first sent first", joined, want)
+	}
+	start, joinedAt := tl.base.start, c.read()
+	told := tl.base.played(nil, time.Time{}).told
+	next := told[slices.IndexFunc(told, func(e router.StreamEvent) bool { return e.At.After(joinedAt) })]
+	var after []router.StreamEvent
+	for len(after) < 12 {
+		after = append(after, receive(t, events))
+		if e := after[len(after)-1]; e.At.After(c.read()) {
 			t.Errorf("the stream told %+v at %s, before its time", e, c.read())
 		}
 	}
-	if joined := told[0]; joined.Kind != router.StreamInFlight || joined.Session != idDB8A || !joined.SentAt.Equal(s.start.Add(time.Second)) {
-		t.Errorf("the stream opens telling %+v, want db8a's request in flight, sent a second in", joined)
+	if after[0] != next || c.waits()[0] != next.At.Sub(joinedAt) {
+		t.Errorf("then, having waited %v, it tells %+v, want %+v, as its time comes", c.waits(), after[0], next)
 	}
-	if first := told[1]; first.Kind != router.StreamFirst || !first.At.Equal(s.start.Add(1700*time.Millisecond)) || c.waits()[0] != 200*time.Millisecond {
-		t.Errorf("then, having waited %v, it tells %+v, want db8a's answer's first byte, 200ms on", c.waits(), first)
+	if !slices.IsSortedFunc(after, func(a, b router.StreamEvent) int { return a.At.Compare(b.At) }) {
+		t.Errorf("it tells %+v out of order, want each event as its time comes", after)
 	}
-	if !slices.IsSortedFunc(told[1:], func(a, b router.StreamEvent) int { return a.At.Compare(b.At) }) {
-		t.Errorf("it tells %+v out of order, want each event as its time comes", told)
-	}
-	if sent := told[3]; sent.Kind != router.StreamSent || sent.Session != idD28C || !sent.At.Equal(s.start.Add(2*time.Second)) {
-		t.Errorf("it tells %+v fourth, want d28c's request going out, 2s in", sent)
+	if i := slices.IndexFunc(after, func(e router.StreamEvent) bool { return e.Kind == router.StreamSent }); i < 0 ||
+		after[i].Session != id7F3A || !after[i].At.Equal(start.Add(2*time.Second)) {
+		t.Errorf("it tells %+v, want 7f3a's request going out among it, 2s in", after)
 	}
 	cancel()
 	for range events {
@@ -179,89 +235,109 @@ func TestTheStreamTellsOfTheRequestsInFlightThenOfEachEventAsItsTimeComes(t *tes
 }
 
 func TestAnOrderGivenWhileTheStreamIsOpenChangesWhatItTellsNext(t *testing.T) {
-	s := testScenario(asks(1, idD28C, opus, brief))
+	s := testScenario(asks(1, idDB8A, opus, brief))
 	held := make(chan struct{})
-	c := &testClock{now: s.start, held: held}
-	tl := &timeline{scenario: s, now: c.read, wait: c.wait}
+	tl, c := timelineOf(s, 0)
+	c.held = held
+	tl.wait = c.wait
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	events, _ := tl.Stream(ctx)
-	if err := tl.PinSession(t.Context(), idD28C, "side"); err != nil {
+	if err := tl.PinSession(t.Context(), idDB8A, "personal"); err != nil {
 		t.Fatal(err)
 	}
 	close(held)
 
-	moved, sent := receive(t, events), receive(t, events)
-	if moved.Kind != router.StreamMoved || moved.From != "work" || moved.To != "side" || moved.Reason != status.ReasonPinned {
-		t.Errorf("the stream tells %+v, want d28c moved from work to side, by its pin", moved)
+	var moved router.StreamEvent
+	for moved.Kind != router.StreamMoved {
+		moved = receive(t, events)
 	}
-	if sent.Kind != router.StreamSent || sent.Account != "side" {
-		t.Errorf("then %+v, want its request going out on side", sent)
+	if moved.Session != idDB8A || moved.From != "side" || moved.To != "personal" || moved.Reason != status.ReasonPinned {
+		t.Errorf("the stream tells %+v, want db8a moved from side to personal, by its pin", moved)
+	}
+	if sent := receive(t, events); sent.Kind != router.StreamSent || sent.Account != "personal" {
+		t.Errorf("then %+v, want its request going out on personal", sent)
 	}
 }
 
 func TestTheStreamClosesAsItsContextEnds(t *testing.T) {
-	s := testScenario()
-	tl := &timeline{scenario: s, now: (&testClock{now: s.start}).read, wait: waitFor}
+	tl, _ := timelineOf(testScenario(), 0)
+	tl.wait = waitFor
 	ctx, cancel := context.WithCancel(t.Context())
 
 	events, _ := tl.Stream(ctx)
 	cancel()
-	select {
-	case _, open := <-events:
-		if open {
-			t.Error("the stream told of something, with nothing to tell, want it closed")
+	for {
+		select {
+		case _, open := <-events:
+			if !open {
+				return
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("the stream stayed open once its context ended, want it closed")
 		}
-	case <-time.After(5 * time.Second):
-		t.Error("the stream stayed open once its context ended, want it closed")
+	}
+}
+
+// A scenario's world is built before its clock starts, so its first frame
+// reads its start, however long the world took to build.
+func TestTheClockStartsAtTheScenariosFirstFrame(t *testing.T) {
+	s := testScenario()
+	clock := &testClock{now: time.Date(2026, time.October, 14, 9, 0, 0, 0, time.UTC)}
+	worlds := s.worlds
+	s.worlds = func() accountWorlds {
+		clock.advance(time.Hour)
+		return worlds()
+	}
+
+	l := s.begun(t.Context(), clock.read)
+	if start := worldsNow().now; !l.now().Equal(start) {
+		t.Errorf("as it starts, the scenario's clock reads %s, want its start, %s, its world built before", l.now(), start)
+	}
+	clock.advance(12 * time.Second)
+	if start := worldsNow().now; !l.now().Equal(start.Add(12 * time.Second)) {
+		t.Errorf("12s in, the scenario's clock reads %s, want 12s on from its start", l.now())
 	}
 }
 
 func TestTheClockRunsFromTheScenariosStart(t *testing.T) {
-	s := testScenario()
-	clock := &testClock{now: s.start}
-	l := s.play(t.Context(), clock.since(s.start), waitFor, held, heldStream)
-
-	l = drive(l, l.Init())
-	if frame := ansi.Strip(l.View().Content); !strings.Contains(frame, "Thu 1 Oct  14:42:07") {
+	p := played(t, testScenario())
+	if frame := p.screen(); !strings.Contains(frame, "Thu 1 Oct  14:42:07") {
 		t.Fatalf("starting, it draws\n%s\nwant it drawn at once, at the scenario's start", frame)
 	}
-	clock.advance(12 * time.Second)
-	l = drive(l, nil, reached{})
-	if frame := ansi.Strip(l.View().Content); !strings.Contains(frame, "Thu 1 Oct  14:42:19") {
+	p.until(12)
+	p.l = drive(p.l, nil, reached{})
+	if frame := p.screen(); !strings.Contains(frame, "Thu 1 Oct  14:42:19") {
 		t.Errorf("12s in, it draws\n%s\nwant its clock 12s on", frame)
 	}
 }
 
 func TestKeysAreShownAsTheyrePressedTillTheyveHadTheirTime(t *testing.T) {
-	s := testScenario()
-	clock := &testClock{now: s.start}
-	l := s.play(t.Context(), clock.since(s.start), waitFor, held, heldStream)
-	l = drive(l, l.Init())
+	p := played(t, testScenario())
 
-	l = drive(l, nil, tea.KeyPressMsg{Code: tea.KeyRight}, tea.KeyPressMsg{Code: tea.KeyRight})
-	clock.advance(typedFor - time.Millisecond)
-	l = drive(l, nil, tea.KeyPressMsg{Code: 'w', Text: "w"})
-	if last := lastRow(l); !strings.HasSuffix(last, " →   →   w  ") {
+	p.press(0, tea.KeyPressMsg{Code: tea.KeyRight}, tea.KeyPressMsg{Code: tea.KeyRight})
+	p.clock.advance(typedFor - time.Millisecond)
+	p.l = drive(p.l, nil, tea.KeyPressMsg{Code: 'w', Text: "w"})
+	if last := lastRow(p.l); !strings.HasSuffix(last, " →   →   w  ") {
 		t.Errorf("the last row reads %q, want the keys pressed, in turn, at its right", last)
 	}
-	if last := lastRow(l); strings.Contains(last, "read") || !strings.Contains(last, "q quit") {
+	if last := lastRow(p.l); strings.Contains(last, "read") || !strings.Contains(last, "q quit") {
 		t.Errorf("the last row reads %q, want the key line's keys, but nothing of how long ago it was read, which the keys cut into", last)
 	}
-	clock.advance(typedFor - time.Millisecond)
-	if last := lastRow(l); !strings.HasSuffix(last, " w  ") {
+	p.clock.advance(typedFor - time.Millisecond)
+	if last := lastRow(p.l); !strings.HasSuffix(last, " w  ") {
 		t.Errorf("as w has its time, the last row reads %q, want it still shown", last)
 	}
-	clock.advance(time.Millisecond)
-	if last := lastRow(l); strings.HasSuffix(last, " w  ") {
+	p.clock.advance(time.Millisecond)
+	if last := lastRow(p.l); strings.HasSuffix(last, " w  ") {
 		t.Errorf("once the keys have had their time, the last row reads %q, want them gone", last)
 	}
 }
 
 func TestTheLatestKeysPressedAreShown(t *testing.T) {
 	var keys typed
-	at := moment(time.UTC)
+	at := localMoment()
 	for _, key := range []string{"1", "2", "3", "4", "5"} {
 		keys = keys.pressed(key, at)
 		at = at.Add(typedFor / 2)
@@ -300,19 +376,101 @@ func TestKeysAreNamedAsTheKeyLineNamesThem(t *testing.T) {
 }
 
 func TestKeycapsAreDrawnInTheThemeShown(t *testing.T) {
-	s := testScenario()
-	l := s.play(t.Context(), func() time.Duration { return 0 }, waitFor, held, heldStream)
-	l = drive(l, l.Init(), tea.KeyPressMsg{Code: 'g', Text: "g"})
+	p := played(t, testScenario())
+	p.press(0, tea.KeyPressMsg{Code: 'g', Text: "g"})
 
-	content := l.View().Content
+	content := p.l.View().Content
 	if last := content[strings.LastIndex(content, "\n")+1:]; !strings.Contains(last, "48;2;129;161;193") {
 		t.Errorf("the keycap is drawn %q, want it on nord's accent.key, the theme shown", last)
 	}
-	plain := s.WithoutColour().play(t.Context(), func() time.Duration { return 0 }, waitFor, held, heldStream)
-	plain = drive(plain, plain.Init(), tea.KeyPressMsg{Code: 'g', Text: "g"})
-	if last := lastRow(plain); !strings.HasSuffix(last, " g  ") {
+	plain := played(t, testScenario().WithoutColour())
+	plain.press(0, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	if last := lastRow(plain.l); !strings.HasSuffix(last, " g  ") {
 		t.Errorf("without colour, the last row reads %q, want the keycap all the same", last)
 	}
+}
+
+// The watch reads the readings history as the scenario has it: its base's,
+// then those its answers have read, each once it's read.
+func TestTheWatchReadsTheReadingsTheScenarioReadsAfterItsBases(t *testing.T) {
+	hundredth := answer{wait: brief.wait, streams: brief.streams, chars: int(0.01 / sessionPerChar)}
+	tl, c := timelineOf(testScenario(asks(4, idDB8A, opus, hundredth)), 0)
+	_, read, _ := tl.readers()
+	start := tl.base.start
+	from, to := start.Add(-time.Hour), start.Add(time.Hour)
+
+	before := slices.Collect(read.Between(from, to))
+	c.advance(5 * time.Second)
+	after := slices.Collect(read.Between(from, to))
+	tail := read.Tail(from, start.Add(-time.Minute), to)()
+
+	first := start.Add(4*time.Second + hundredth.wait)
+	if len(after) != len(before)+1 || !slices.Equal(after[:len(before)], before) {
+		t.Fatalf("read again, the readings are %d, want the %d before and one more", len(after), len(before))
+	}
+	for _, got := range []readings.Reading{after[len(after)-1], tail[len(tail)-1]} {
+		if got.Account != "side" || got.Key != fiveHourKey || got.Utilization != .14 || !got.At.Equal(first) {
+			t.Errorf("the last reading read is %+v, want side's 5-hour window at 14%%, as the answer's first byte came", got)
+		}
+	}
+}
+
+// Runway's tail carries in each window's run from before its start, the
+// readings the scenario reads after its base's joining the run they carry on,
+// as readings.CarriedRuns has them: not the last alone, which would start a
+// hold begun before the tail's start at that reading.
+func TestTheWatchsTailCarriesInEachWindowsRunTheScenarioReadsOn(t *testing.T) {
+	hundredth := answer{wait: brief.wait, streams: brief.streams, chars: int(0.01 / sessionPerChar)}
+	tl, c := timelineOf(testScenario(asks(4, idDB8A, opus, hundredth), asks(8, idDB8A, opus, hundredth)), 0)
+	_, read, _ := tl.readers()
+	c.advance(10 * time.Second)
+	start := tl.base.start
+	from, end := start.Add(-time.Hour), start.Add(time.Hour)
+
+	tail := read.Tail(from, start.Add(time.Minute), end)()
+	var run []float64
+	for _, r := range tail {
+		if r.Account == "side" && r.Key == fiveHourKey && r.At.After(start) {
+			run = append(run, r.Utilization)
+		}
+	}
+	if want := []float64{.14, .15}; !slices.Equal(run, want) {
+		t.Errorf("the tail carries side's 5-hour readings since the start at %v, want %v, its run from before the tail's start", run, want)
+	}
+}
+
+// Where the router says where auto would send a session's next request, it
+// says so as its own rule chooses at each listing, the global pin counting:
+// 9c2e kept on personal, then, a pin moving running sessions to side given,
+// sent there.
+func TestWhereAutoWouldSendASessionIsAsTheRouterChoosesIt(t *testing.T) {
+	b := testScenario().based()
+	at := b.start.Add(time.Second)
+	pinned := order{at: at, give: func(w *world) { w.setPin([]string{"side"}, true, at) }}
+	for _, tt := range []struct {
+		orders []order
+		want   string
+	}{
+		{want: "personal"},
+		{orders: []order{pinned}, want: "side"},
+	} {
+		p := b.played(tt.orders, at)
+		sessions := p.world.listing(at, p.told)
+		if got := listed(t, sessions, id9C2E).Assignments[0].Auto; got != tt.want {
+			t.Errorf("with %d orders, the router says auto would send 9c2e to %q, want %q", len(tt.orders), got, tt.want)
+		}
+		if got := listed(t, sessions, id41E0).Assignments[0].Auto; got != "" {
+			t.Errorf("the router says auto would send 41e0 to %q, want nothing, as its world says nothing of it", got)
+		}
+	}
+}
+
+// timelineOf is the router the scenario plays as, its base built, and its
+// clock, at the given time into it, waiting as the clock's wait does.
+func timelineOf(s Scenario, at time.Duration) (*timeline, *testClock) {
+	b := s.based()
+	c := &testClock{now: b.start.Add(at)}
+	return &timeline{base: b, now: c.read, wait: c.wait}, c
 }
 
 // heldStream is the watch's waits on the request stream as a test holds
@@ -343,6 +501,15 @@ func (c *testClock) advance(d time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.now = c.now.Add(d)
+}
+
+// set moves the clock on to t, where it's later.
+func (c *testClock) set(t time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if t.After(c.now) {
+		c.now = t
+	}
 }
 
 // since reads how long the clock has run from start, as a scenario's elapsed
@@ -384,7 +551,7 @@ func (c *testClock) waits() []time.Duration {
 func movesOf(tl *timeline, session string) []string {
 	_, orders := tl.moment()
 	var moves []string
-	for _, e := range tl.scenario.played(orders, time.Time{}).told {
+	for _, e := range tl.base.played(orders, time.Time{}).told {
 		if e.Kind == router.StreamMoved && e.Session == session {
 			moves = append(moves, e.From+" → "+e.To+", "+e.Reason)
 		}

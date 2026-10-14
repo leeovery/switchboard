@@ -860,3 +860,31 @@ func TestASessionsLinesAreReadOfItsOwnDaysAloneNewestFirst(t *testing.T) {
 		t.Errorf("Session() gave %q before it was stopped, want the newest alone", first)
 	}
 }
+
+// DaysOn gives the days asked for as Days gives them, each once, oldest
+// first, but none before the first day the ledger holds or after today's,
+// and looks at the files of those days alone, however far back they are.
+func TestAFollowerGivesTheDaysAskedForAloneAsDaysGivesThem(t *testing.T) {
+	state, dir, history := stateDirs(t)
+	dayOf := func(back int) string { return on(-back, 0, 0).Format(time.DateOnly) }
+	for back := 30; back >= 1; back-- {
+		holdLines(t, dir, dayOf(back), asked(dayOf(back), on(-back, 9, 0)))
+	}
+	holdLines(t, dir, dayOf(0), asked("today", on(0, 9, 0)))
+	summariseAt(dir, history, on(-10, 1, 10))
+	clock := &testClock{at: on(0, 12, 0)}
+	every := followerOf(state, clock, caps).Days(on(-30, 0, 0))
+	follower := followerOf(state, clock, caps)
+
+	got := follower.DaysOn([]string{dayOf(0), dayOf(20), dayOf(31), dayOf(20), dayOf(-1)})
+	want := []ledger.Summary{every[10], every[30]}
+	if !slices.Equal(fullJSON(t, got), fullJSON(t, want)) {
+		t.Errorf("DaysOn() =\n%s\nwant\n%s, 20 days back and today, as Days gives them", strings.Join(fullJSON(t, got), "\n"), strings.Join(fullJSON(t, want), "\n"))
+	}
+	if looked := follower.Followed(); !slices.Equal(looked, []string{dayOf(20), dayOf(0)}) {
+		t.Errorf("DaysOn() looked at the files of %q, want those of the days given alone", looked)
+	}
+	if got := follower.DaysOn(nil); got != nil {
+		t.Errorf("DaysOn() of no day = %+v, want none", got)
+	}
+}

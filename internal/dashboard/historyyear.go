@@ -82,16 +82,6 @@ func (y yearDrawn) wide(c *canvas, top int) {
 	y.dots(c, byMonthBarX, top+y.dotsRow())
 }
 
-// yearHeight is how many rows the Year takes, as it's laid out: none before
-// its page is built.
-func (f Frame) yearHeight() int {
-	y, ok := f.yearDrawn()
-	if !ok {
-		return 0
-	}
-	return y.height()
-}
-
 // reach is the width the Year's wide form takes, drawn to the frame's width:
 // where its widest row ends, the grid's, a number's whose length is bounded,
 // at the widest its format draws, so the form never hangs on the data, BY

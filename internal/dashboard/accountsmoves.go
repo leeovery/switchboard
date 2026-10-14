@@ -59,8 +59,12 @@ func (s AccountsShown) Moved(by int, running []string) (AccountsShown, bool) {
 // focusing is Accounts with Compare's focus moved by places along its
 // columns, its accounts' in the config's order then all accounts', no
 // further than either end: from none, → puts it on the first column shown,
-// and ← on all accounts' (settled in the plan).
+// and ← on all accounts' (settled in the plan). With no accounts, Compare
+// draws no columns, and there's none to focus.
 func (s AccountsShown) focusing(by int) (AccountsShown, bool) {
+	if len(s.Accounts) == 0 {
+		return s, false
+	}
 	columns := append(s.Accounts.IDs(), "")
 	i := slices.Index(columns, s.Focus) + by
 	switch {
@@ -78,10 +82,10 @@ func (s AccountsShown) focusing(by int) (AccountsShown, bool) {
 // FocusedOn is Accounts as a click on the heads of Compare's column of the
 // account with the given id, "" for all accounts', has it: the focus put
 // there, or where it's there already, the column opened in Detail, as Opened
-// has it; off Compare, as it is.
+// has it; off Compare, or with no accounts, as it is.
 func (s AccountsShown) FocusedOn(id string) AccountsShown {
 	switch {
-	case s.View() != AccountsCompare:
+	case s.View() != AccountsCompare, len(s.Accounts) == 0:
 	case s.Focused && s.Focus == id:
 		s, _ = s.Opened()
 	default:

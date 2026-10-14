@@ -308,15 +308,20 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 // hard moment, given the readings its document read and the holds the
 // router told of: its kind, as ROUTING's has it, and when its hold lifts.
 // When a hold began is told by the readings and the router's events each as
-// they can, so the two may differ.
+// they can, so the two may differ where the event doesn't tell; where it
+// does, Then, given it, says what the moment does, by the one rule.
 func TestThenAtNowIsHowTheMomentHasEachAccountStand(t *testing.T) {
 	for _, hm := range statustest.HardMoments(policy) {
 		t.Run(hm.Name, func(t *testing.T) {
 			m := hm.Doc.At(hm.Now, policy)
 			for i, a := range m.Accounts {
 				read := hm.Doc.Accounts[i]
-				if got, want := m.Then(a, readingsOf(read), status.Reach{}, m.Told(a.ID), m.Now), asTheMomentHasIt(a); got.Kind != want.Kind || !got.Until.Equal(want.Until) {
+				got, want := m.Then(a, readingsOf(read), status.Reach{}, m.Told(a.ID), m.Now), asTheMomentHasIt(a)
+				if got.Kind != want.Kind || !got.Until.Equal(want.Until) {
 					t.Errorf("Then(%s, Now) = %s, want %s, as the moment has it", a.ID, wasString(got), wasString(want))
+				}
+				if since := eventSince(a, got.Kind); !since.IsZero() && !got.Since.Equal(since) {
+					t.Errorf("Then(%s, Now) = %s, its hold begun as the moment's event of it has it at %s", a.ID, wasString(got), onDay(since))
 				}
 			}
 		})
@@ -333,12 +338,12 @@ func readingsOf(a status.Account) []readings.Reading {
 }
 
 // The holds the router told of, as Then takes them: a limit, as its event
-// tells, naming the windows it names, till it lifts, or till the account has
-// room again, as the router tells of a limit lifting early without bringing
-// its event's until forward; a cap alike; the refusal of its token, as its
-// event tells, whose until the router does bring forward; and a limit naming
-// no window, or a refusal, holding at Now that no event tells of, from
-// before anything.
+// tells, a span each window it names, from when the window joined it, till
+// it lifts, or till the account has room again after that, as the router
+// tells of a limit lifting early without bringing its event's until
+// forward; a cap alike; the refusal of its token, as its event tells, whose
+// until the router does bring forward; and a limit naming no window, or a
+// refusal, holding at Now that no event tells of, from before anything.
 func TestTheHoldsTheRouterToldOf(t *testing.T) {
 	unnamed := status.Event{At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "work", Until: at(1, 15, 30).UTC(), Limit: 3}
 	refused := status.Event{At: at(1, 14, 12).UTC(), Kind: status.EventRefused, Account: "work", Until: at(1, 15, 0).UTC(), Status: 401}
@@ -380,6 +385,38 @@ func TestTheHoldsTheRouterToldOf(t *testing.T) {
 			name:   "a cap, which the readings show",
 			events: []status.Event{{At: at(1, 14, 31).UTC(), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Until: at(1, 17, 10).UTC(), Reserve: 0.1}},
 			want:   []status.Span{{Kind: status.WasCapped, From: at(1, 14, 31), Until: at(1, 17, 10), Windows: []string{"5h"}}},
+		},
+		{
+			name: "a cap a window joined after it began, a span each window, from when it joined",
+			events: []status.Event{{
+				At: at(0, 10, 0).UTC(), Kind: status.EventCap, Account: "work", Windows: []string{"7d_oi", "5h"},
+				Joined: map[string]time.Time{"5h": at(1, 14, 31).UTC()}, Until: at(5, 21, 0).UTC(), Reserve: 0.1,
+			}},
+			want: []status.Span{
+				{Kind: status.WasCapped, From: at(0, 10, 0), Until: at(5, 21, 0), Windows: []string{"7d_oi"}},
+				{Kind: status.WasCapped, From: at(1, 14, 31), Until: at(5, 21, 0), Windows: []string{"5h"}},
+			},
+		},
+		{
+			name: "a cap a window joined after it began, the room after the cap began and before the window joined",
+			events: []status.Event{roomAt(12, 0), {
+				At: at(0, 10, 0).UTC(), Kind: status.EventCap, Account: "work", Windows: []string{"7d_oi", "5h"},
+				Joined: map[string]time.Time{"5h": at(1, 14, 31).UTC()}, Until: at(5, 21, 0).UTC(), Reserve: 0.1,
+			}},
+			want: []status.Span{
+				{Kind: status.WasCapped, From: at(0, 10, 0), Until: at(1, 12, 0), Windows: []string{"7d_oi"}},
+				{Kind: status.WasCapped, From: at(1, 14, 31), Until: at(5, 21, 0), Windows: []string{"5h"}},
+			},
+		},
+		{
+			name: "a cap of two windows, as an event told before events kept when each joined, each from when it began",
+			events: []status.Event{{
+				At: at(1, 13, 0).UTC(), Kind: status.EventCap, Account: "work", Windows: []string{"7d_oi", "5h"}, Until: at(5, 21, 0).UTC(), Reserve: 0.1,
+			}},
+			want: []status.Span{
+				{Kind: status.WasCapped, From: at(1, 13, 0), Until: at(5, 21, 0), Windows: []string{"7d_oi"}},
+				{Kind: status.WasCapped, From: at(1, 13, 0), Until: at(5, 21, 0), Windows: []string{"5h"}},
+			},
 		},
 		{
 			name:   "a limit naming a window holding, and one naming none holding at Now untold",
@@ -484,9 +521,12 @@ func spansString(spans []status.Span) string {
 
 // When a hold began is told by the router's event of it, as the moment has
 // it, and by the first reading of the unbroken run that shows it, as Then has
-// it: where both tell, they agree; where the event is missing, the readings
-// tell; and a hold neither tells of, as a limit naming no window untold,
-// began before anything given.
+// it of the readings alone: where both tell, they agree, and Then, given the
+// holds told, says it too; where the event is missing, the readings tell;
+// and a hold neither tells of, as a limit naming no window untold, began
+// before anything given. A hold of a window every model shares that joined
+// the event of a model's own window's hold began as it joined, not as that
+// event began, however long before.
 func TestWhenAHoldBeganByItsEventAndByItsReadings(t *testing.T) {
 	// The auto world's cap: work's 5-hour window at 95% at 14:31:03, as
 	// the router's event of it tells, and 97% at 14:40.
@@ -497,12 +537,34 @@ func TestWhenAHoldBeganByItsEventAndByItsReadings(t *testing.T) {
 		readOf(at(1, 14, 31).Add(3*time.Second), "5h", 0.95, at(1, 17, 10)),
 		readOf(at(1, 14, 40), "5h", 0.97, at(1, 17, 10)),
 	}
+	// fableCapped is work's Fable week at its reserve too, its cap's event
+	// begun as that week reached it, at fableAt, which holds back Fable's
+	// requests alone, the 5-hour joining it at 14:31:03.
+	fableCapped := with(readNow(0.97, 0.4, 0.95), reserving)
+	fableCap := func(fableAt time.Time) status.Event {
+		return status.Event{
+			At: fableAt.UTC(), Kind: status.EventCap, Account: "work", Windows: []string{"7d_oi", "5h"},
+			Joined: map[string]time.Time{"5h": capReached.At}, Until: at(5, 21, 0).UTC(), Reserve: 0.1,
+		}
+	}
 	// spent is work's 5-hour window read rejected at 14:20, the router's
 	// limit of it holding till it resets.
 	spent := with(readNow(0.2, 0.4, 0.2), func(a *status.Account) {
 		a.Windows[0].Utilization, a.Windows[0].Status = 1, quota.StatusRejected
 		a.Limit = status.Limit{ID: 4, Windows: []string{"5h"}, Until: at(1, 17, 10).UTC()}
 	})
+	spentRead := []readings.Reading{rejected(readOf(at(1, 14, 20), "5h", 1, at(1, 17, 10)))}
+	// fableSpent is work's Fable week spent since the day before, the
+	// router's limit of it holding till it resets, the 5-hour joining that
+	// limit as an answer at 14:20 named both.
+	fableSpent := with(spent, func(a *status.Account) {
+		a.Windows[2].Utilization, a.Windows[2].Status = 1, quota.StatusRejected
+		a.Limit = status.Limit{ID: 4, Windows: []string{"7d_oi", "5h"}, Until: at(5, 21, 0).UTC()}
+	})
+	fableLimit := status.Event{
+		At: at(0, 10, 0).UTC(), Kind: status.EventLimit, Account: "work", Windows: []string{"7d_oi", "5h"},
+		Joined: map[string]time.Time{"5h": at(1, 14, 20).UTC()}, Until: at(5, 21, 0).UTC(), Limit: 4,
+	}
 	unnamed := with(readNow(0.2, 0.4, 0.2), func(a *status.Account) { a.Limit = status.Limit{ID: 3, Until: at(1, 15, 30).UTC()} })
 	refused := with(readNow(0.2, 0.4, 0.2), func(a *status.Account) { a.Refused = status.Refusal{Until: at(1, 15, 0).UTC(), Status: 401} })
 	tests := []struct {
@@ -512,20 +574,32 @@ func TestWhenAHoldBeganByItsEventAndByItsReadings(t *testing.T) {
 		read    []readings.Reading
 		kind    status.WasKind
 		// event is when the hold began as the router's event tells, and
-		// reading as the readings tell: zero where they don't.
-		event, reading time.Time
+		// then as Then tells, given the holds told: zero where they don't.
+		event, then time.Time
 	}{
-		{name: "a cap, its event and its first reading agreeing", account: capping, events: []status.Event{capReached}, read: capRead, kind: status.WasCapped, event: capReached.At, reading: capReached.At},
-		{name: "a cap, its event missing", account: capping, read: capRead, kind: status.WasCapped, reading: capReached.At},
+		{name: "a cap, its event and its first reading agreeing", account: capping, events: []status.Event{capReached}, read: capRead, kind: status.WasCapped, event: capReached.At, then: capReached.At},
+		{name: "a cap, its event missing", account: capping, read: capRead, kind: status.WasCapped, then: capReached.At},
+		{
+			name: "a cap of every request joining the cap of a model's own week reached the day before", account: fableCapped,
+			events: []status.Event{fableCap(at(0, 10, 0))}, read: capRead, kind: status.WasCapped, event: capReached.At, then: capReached.At,
+		},
+		{
+			name: "a cap of every request joining the cap of a model's own week reached in the 5-hour's period", account: fableCapped,
+			events: []status.Event{fableCap(at(1, 13, 0))}, read: capRead, kind: status.WasCapped, event: capReached.At, then: capReached.At,
+		},
 		{
 			name: "a window read spent, its limit's event and its reading agreeing", account: spent,
 			events: []status.Event{{At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: at(1, 17, 10).UTC(), Limit: 4}},
-			read:   []readings.Reading{rejected(readOf(at(1, 14, 20), "5h", 1, at(1, 17, 10)))}, kind: status.WasLimited, event: at(1, 14, 20), reading: at(1, 14, 20),
+			read:   spentRead, kind: status.WasLimited, event: at(1, 14, 20), then: at(1, 14, 20),
+		},
+		{
+			name: "a window every model shares joining the limit of a model's own week reached the day before", account: fableSpent,
+			events: []status.Event{fableLimit}, read: spentRead, kind: status.WasLimited, event: at(1, 14, 20), then: at(1, 14, 20),
 		},
 		{
 			name: "a limit naming no window, as its event tells", account: unnamed,
 			events: []status.Event{{At: at(1, 14, 20).UTC(), Kind: status.EventLimit, Account: "work", Until: at(1, 15, 30).UTC(), Limit: 3}},
-			read:   []readings.Reading{readOf(at(1, 12, 20), "5h", 0.2, at(1, 17, 10))}, kind: status.WasLimited, event: at(1, 14, 20), reading: at(1, 14, 20),
+			read:   []readings.Reading{readOf(at(1, 12, 20), "5h", 0.2, at(1, 17, 10))}, kind: status.WasLimited, event: at(1, 14, 20), then: at(1, 14, 20),
 		},
 		{
 			name: "a limit naming no window, neither its event nor a reading telling", account: unnamed,
@@ -534,7 +608,7 @@ func TestWhenAHoldBeganByItsEventAndByItsReadings(t *testing.T) {
 		{
 			name: "its token refused, as its event tells", account: refused,
 			events: []status.Event{{At: at(1, 14, 12).UTC(), Kind: status.EventRefused, Account: "work", Until: at(1, 15, 0).UTC(), Status: 401}},
-			read:   []readings.Reading{readOf(at(1, 12, 20), "5h", 0.2, at(1, 17, 10))}, kind: status.WasRefused, event: at(1, 14, 12), reading: at(1, 14, 12),
+			read:   []readings.Reading{readOf(at(1, 12, 20), "5h", 0.2, at(1, 17, 10))}, kind: status.WasRefused, event: at(1, 14, 12), then: at(1, 14, 12),
 		},
 	}
 	for _, tt := range tests {
@@ -543,9 +617,102 @@ func TestWhenAHoldBeganByItsEventAndByItsReadings(t *testing.T) {
 			m := doc.At(stateNow, policy)
 			a := m.Accounts[0]
 			was := m.Then(a, tt.read, status.Reach{}, m.Told(a.ID), m.Now)
-			if was.Kind != tt.kind || !eventSince(a, tt.kind).Equal(tt.event) || !was.Since.Equal(tt.reading) {
-				t.Errorf("Then(work, Now) = %s, its event telling it began at %s; want of kind %d, as its event tells at %s, as its readings tell at %s",
-					wasString(was), onDay(eventSince(a, tt.kind)), tt.kind, onDay(tt.event), onDay(tt.reading))
+			if was.Kind != tt.kind || !eventSince(a, tt.kind).Equal(tt.event) || !was.Since.Equal(tt.then) {
+				t.Errorf("Then(work, Now) = %s, its event telling it began at %s; want of kind %d, as its event tells at %s, as Then tells at %s",
+					wasString(was), onDay(eventSince(a, tt.kind)), tt.kind, onDay(tt.event), onDay(tt.then))
+			}
+			event := eventSince(a, tt.kind)
+			if read := m.Then(a, tt.read, status.Reach{}, nil, m.Now); read.Kind == tt.kind && !read.Since.IsZero() && !event.IsZero() && !read.Since.Equal(event) {
+				t.Errorf("the readings alone tell the hold began at %s, its event at %s; want them to agree", onDay(read.Since), onDay(event))
+			}
+		})
+	}
+}
+
+// A hold of every request one window every model shares began and another
+// took over, with no room between, began as the first did, though that one
+// has reset since: as the router's event tells it, as the moment has it, and
+// as Then has it given the holds told. Where the account had room between,
+// it began as the second did. The readings alone tell the run of the window
+// holding it now, as Runway's tail carries in no other window's run.
+func TestAHoldOfEveryRequestBeganAsItsUnbrokenRunAcrossWindowsDid(t *testing.T) {
+	// The 5-hour's period before this one, which reset at 12:10, and the
+	// week's.
+	earlierReset, weekReset := at(1, 12, 10).UTC(), at(5, 21, 0).UTC()
+	capped := with(readNow(0.3, 0.95, 0.2), reserving)
+	ownCapped := with(readNow(0.3, 0.95, 0.95), reserving)
+	// spent is work's week read spent, the router's limit holding it alone.
+	spent := with(readNow(0.3, 1, 0.2), func(a *status.Account) {
+		a.Windows[1].Status = quota.StatusRejected
+		a.Limit = status.Limit{ID: 4, Windows: []string{"7d"}, Until: weekReset}
+	})
+	// reachedAt has work's 5-hour reach its reserve at reached, before its
+	// reset at 12:10, read afresh at 12:20, and the week reach it at joined.
+	reachedAt := func(reached, joined time.Time) []readings.Reading {
+		return []readings.Reading{
+			readOf(at(1, 9, 0), "5h", 0.5, earlierReset), readOf(at(1, 9, 0), "7d", 0.85, weekReset),
+			readOf(reached, "5h", 0.95, earlierReset),
+			readOf(joined, "7d", 0.95, weekReset),
+			readOf(at(1, 12, 20), "5h", 0.3, at(1, 17, 10)),
+		}
+	}
+	spentRead := []readings.Reading{
+		readOf(at(1, 9, 0), "5h", 0.5, earlierReset), readOf(at(1, 9, 0), "7d", 0.85, weekReset),
+		rejected(readOf(at(1, 10, 0), "5h", 1, earlierReset)),
+		rejected(readOf(at(1, 11, 0), "7d", 1, weekReset)),
+		readOf(at(1, 12, 20), "5h", 0.3, at(1, 17, 10)),
+	}
+	tests := []struct {
+		name    string
+		account status.Account
+		events  []status.Event
+		read    []readings.Reading
+		kind    status.WasKind
+		// want is when the hold began, as the events tell, and ownRun as the
+		// readings alone do.
+		want, ownRun time.Time
+	}{
+		{
+			name: "a cap the 5-hour began and the week took over", account: capped,
+			events: []status.Event{{
+				At: at(1, 10, 0).UTC(), Kind: status.EventCap, Account: "work", Windows: []string{"5h", "7d"},
+				Joined: map[string]time.Time{"7d": at(1, 11, 0).UTC()}, Until: weekReset, Reserve: 0.1,
+			}},
+			read: reachedAt(at(1, 10, 0), at(1, 11, 0)), kind: status.WasCapped, want: at(1, 10, 0), ownRun: at(1, 11, 0),
+		},
+		{
+			name: "a cap the 5-hour began and the week joined once the account had room again", account: ownCapped,
+			events: []status.Event{
+				{At: at(1, 12, 11).UTC(), Kind: status.EventRoom, Account: "work", Windows: []string{"5h"}},
+				{
+					At: at(0, 10, 0).UTC(), Kind: status.EventCap, Account: "work", Windows: []string{"7d_oi", "5h", "7d"},
+					Joined: map[string]time.Time{"5h": at(1, 10, 0).UTC(), "7d": at(1, 14, 0).UTC()}, Until: weekReset, Reserve: 0.1,
+				},
+			},
+			read: reachedAt(at(1, 10, 0), at(1, 14, 0)), kind: status.WasCapped, want: at(1, 14, 0), ownRun: at(1, 14, 0),
+		},
+		{
+			name: "a limit the 5-hour began and the week took over", account: spent,
+			events: []status.Event{{
+				At: at(1, 10, 0).UTC(), Kind: status.EventLimit, Account: "work", Windows: []string{"5h", "7d"},
+				Joined: map[string]time.Time{"7d": at(1, 11, 0).UTC()}, Until: weekReset, Limit: 4,
+			}},
+			read: spentRead, kind: status.WasLimited, want: at(1, 10, 0), ownRun: at(1, 11, 0),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := status.Document{GeneratedAt: stateNow.UTC(), Source: status.SourceRouter, Accounts: []status.Account{tt.account}, Events: tt.events}
+			m := doc.At(stateNow, policy)
+			a := m.Accounts[0]
+			if since := eventSince(a, tt.kind); !since.Equal(tt.want) {
+				t.Errorf("the moment has work held since %s; want %s", onDay(since), onDay(tt.want))
+			}
+			if was := m.Then(a, tt.read, status.Reach{}, m.Told(a.ID), m.Now); was.Kind != tt.kind || !was.Since.Equal(tt.want) {
+				t.Errorf("Then(work, Now), given the holds told, = %s; want of kind %d, since %s", wasString(was), tt.kind, onDay(tt.want))
+			}
+			if was := m.Then(a, tt.read, status.Reach{}, nil, m.Now); was.Kind != tt.kind || !was.Since.Equal(tt.ownRun) {
+				t.Errorf("Then(work, Now), of the readings alone, = %s; want of kind %d, since %s", wasString(was), tt.kind, onDay(tt.ownRun))
 			}
 		})
 	}

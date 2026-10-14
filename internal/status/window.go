@@ -192,3 +192,108 @@ func (s windowStates) judge(w quota.Window) judged {
 	j.room = s.doc.poolRoom(s.account, s.stood, w, s.now, s.policy)
 	return j
 }
+
+// reachedReserve are the keys of account a's windows that have reached its
+// reserve at now, in Usage's order, as the router judges them afresh at each
+// request: a window that has reset by now is none of them, though it isn't
+// read again till later. Whatever says whether its cap holds judges it so, on
+// the clock's tick, rather than as AtReserve noted it when the document was
+// built.
+func (a Account) reachedReserve(now time.Time) []string {
+	return score.AtReserve(a.Windows, a.Reserve, now)
+}
+
+// Hold is what holds an account back at its limit: the keys of the windows
+// it's at its limit in, as far as they're known, until when it is, and
+// whether it's held back from every request.
+type Hold struct {
+	Windows []string
+	// Until is when the hold lifts: zero where that's unknown. Its cap, or
+	// its token refused, can hold the account back past it, as the
+	// account's Back at a moment has it.
+	Until time.Time
+	// Every is set when it's held back from every request: at its limit in a
+	// window every model shares, or with a limit naming none.
+	Every bool
+	// limit is when the router's limit lifts, while one holds, and named the
+	// windows it names, none naming every window; spent is when each window
+	// read spent resets, by key, zero where that's unknown.
+	limit time.Time
+	named []string
+	spent map[string]time.Time
+}
+
+// Holds reports whether the hold holds the window with the given key: one it
+// names, or any, for a limit naming none, which holds every window.
+func (h Hold) Holds(key string) bool {
+	return len(h.Windows) == 0 || slices.Contains(h.Windows, key)
+}
+
+// Lifts returns when the hold lifts off the window with the given key: the
+// later of when the router's limit lifts, where it holds the window, and when
+// the window resets, where it was read spent. It's zero where that isn't
+// known, and for a window the hold doesn't hold.
+func (h Hold) Lifts(key string) time.Time {
+	reset, spent := h.spent[key]
+	limited := !h.limit.IsZero() && (len(h.named) == 0 || slices.Contains(h.named, key))
+	switch {
+	case spent && reset.IsZero():
+		return time.Time{}
+	case limited:
+		return score.Later(h.limit, reset)
+	default:
+		return reset
+	}
+}
+
+// held returns what holds the account back at its limit at now, as policy
+// says which windows every model shares, reporting false where nothing does:
+// the limit the router saw it reach, while it holds, and every window read
+// spent, until it resets, as probing reads them, those every model shares
+// first. It's back once the last of what holds it back has lifted, as the
+// router reckons it: of what holds back every request, where it's held back
+// from every request.
+func (a Account) held(now time.Time, policy score.Policy) (Hold, bool) {
+	h := Hold{spent: make(map[string]time.Time)}
+	if a.Limit.holds(now) {
+		h.limit, h.named, h.Windows = a.Limit.Until, a.Limit.Windows, slices.Clone(a.Limit.Windows)
+	}
+	unnamed := !h.limit.IsZero() && len(h.named) == 0
+	for _, w := range a.Windows {
+		if score.Project(w, now).Kind != score.Exhausted {
+			continue
+		}
+		h.spent[w.Key] = w.ResetsAt
+		if !unnamed && !slices.Contains(h.Windows, w.Key) {
+			h.Windows = append(h.Windows, w.Key)
+		}
+	}
+	if h.limit.IsZero() && len(h.spent) == 0 {
+		return Hold{}, false
+	}
+	slices.SortStableFunc(h.Windows, func(x, y string) int { return sharedFirst(policy, x, y) })
+	h.Every = unnamed || slices.ContainsFunc(h.Windows, policy.IsShared)
+	h.Until = h.back(policy)
+	return h, true
+}
+
+// back is when the account is back from the hold, as policy says which
+// windows every model shares: once the last of what holds it back has
+// lifted, of what holds back every request where the hold does; zero where
+// one of those lifts at no known time.
+func (h Hold) back(policy score.Policy) time.Time {
+	var last time.Time
+	if !h.limit.IsZero() && (!h.Every || len(h.named) == 0 || slices.ContainsFunc(h.named, policy.IsShared)) {
+		last = h.limit
+	}
+	for key, reset := range h.spent {
+		if h.Every && !policy.IsShared(key) {
+			continue
+		}
+		if reset.IsZero() {
+			return time.Time{}
+		}
+		last = score.Later(last, reset)
+	}
+	return last
+}

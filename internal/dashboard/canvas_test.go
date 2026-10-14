@@ -177,7 +177,7 @@ func TestASurfaceShowsInALookThatCantBlendUntilHalfFaded(t *testing.T) {
 }
 
 func TestWithoutColourASurfaceShowsOnlyOnBgSelectionAndThereReversed(t *testing.T) {
-	for tok := theme.TextPrimary; tok <= theme.VizSeries6; tok++ {
+	for tok := theme.TextPrimary; tok.String() != ""; tok++ {
 		c := newCanvas(4, 1)
 		c.text(0, 0, "ab", ink{})
 		c.surface(0, 0, 2, hue{token: tok})
@@ -399,6 +399,22 @@ func TestBehindACardWithoutColourThePageLosesOnlyItsBold(t *testing.T) {
 
 	if got, want := c.rows(NoColour())[0], "work  healthy"; got != want {
 		t.Errorf("drew %q, want %q: its words as they were, nothing bold", got, want)
+	}
+}
+
+// A canvas within bounds, within others, draws only where both hold: an
+// inner clip never reaches past the outer.
+func TestACanvasWithinBoundsWithinOthersDrawsOnlyWhereBothHold(t *testing.T) {
+	c := newCanvas(6, 4)
+	inner := c.within(bounds{x: 1, y: 1, width: 4, rows: 2}).within(bounds{x: 0, y: 0, width: 3, rows: 4})
+	for y := range 4 {
+		inner.text(0, y, "xxxxxx", ink{})
+	}
+	want := []string{"", " xx", " xx", ""}
+	for y, w := range want {
+		if got := rowOf(c, y); got != w {
+			t.Errorf("row %d reads %q, want %q", y+1, got, w)
+		}
 	}
 }
 

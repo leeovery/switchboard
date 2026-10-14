@@ -185,6 +185,18 @@ func alike(w Words) forms {
 	return forms{event: w, routed: w, session: w}
 }
 
+// then is each of w's forms followed by a further clause, after ", ": none
+// where a form is none, as ShortWords reads the event's in its place.
+func (w forms) then(clause Words) forms {
+	further := func(form Words) Words {
+		if form == nil {
+			return nil
+		}
+		return slices.Concat(form, Words{Plain(", ")}, clause)
+	}
+	return forms{event: further(w.event), routed: further(w.routed), session: further(w.session), short: further(w.short)}
+}
+
 // Plain is words around the accounts and times named.
 func Plain(text string) Part {
 	return Part{Text: text}
@@ -207,7 +219,7 @@ func Use(text string) Part {
 
 // readers each read a kind of reason, reporting false for any other, in the
 // order they're tried: a choice that passed an account over for pressure says
-// so after why it was made, which its words take the place of.
+// so after why it was made, as pressured reads it.
 var readers = []func(reason string, f Facts) (forms, bool){pressured, settled, rescored, movedOff, pinYields}
 
 // wordsOf is the reason's words, cleaned, as it's from elsewhere: as the
@@ -295,9 +307,12 @@ func passedOver(reason string) (base, account string, ok bool) {
 // pressured reads a reason ending ", personal under pressure", which names the
 // account the choice passed over, as "personal came under pressure, its 5-hour
 // to run out at 15:10", the time as prose.Dated says it: pressure is only
-// ever judged in the 5-hour window.
+// ever judged in the 5-hour window. Its words take the place of why the
+// choice was made, but where the session was forced off where it was, as
+// forced reads it, which they follow as a further clause: "work reached its
+// cap, personal came under pressure".
 func pressured(reason string, f Facts) (forms, bool) {
-	_, account, ok := passedOver(reason)
+	base, account, ok := passedOver(reason)
 	if !ok {
 		return forms{}, false
 	}
@@ -305,7 +320,20 @@ func pressured(reason string, f Facts) (forms, bool) {
 	if !f.Until.IsZero() {
 		w = append(w, Plain(", its 5-hour to run out at "+prose.Dated(f.Now, f.Until)))
 	}
+	if why, ok := forced(base, f); ok {
+		return why.then(w), true
+	}
 	return alike(w), true
+}
+
+// forced reads the reasons for going elsewhere than a session would, as the
+// account it's on, or its own pin's, can't take the request: a move off its
+// account, as movedOff reads it, and its pin yielding, as pinYields does.
+func forced(reason string, f Facts) (forms, bool) {
+	if w, ok := movedOff(reason, f); ok {
+		return w, true
+	}
+	return pinYields(reason, f)
 }
 
 // settled reads the reasons that are whole words of their own. Those that

@@ -107,7 +107,7 @@ func goesOrKept(p views.SessionPage, now time.Time) string {
 	}
 	goes := make([]string, len(p.Goes))
 	for i, g := range p.Goes {
-		goes[i] = ledger.ShortModelID(prose.Clean(g.Model)) + " → " + prose.Clean(g.Account)
+		goes[i] = ledger.ShortModelID(g.Model) + " → " + prose.Clean(g.Account)
 	}
 	return strings.Join(goes, "   ")
 }

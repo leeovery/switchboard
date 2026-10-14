@@ -19,37 +19,41 @@ import (
 // local days from from, today's grown at each look since and the days
 // before read back as the tables want them; the figures of those days,
 // which their rules say; how many times what it holds has changed, as
-// grown and looked change it; when each day the Requests await a line on
-// was last read for it; how far back the lines of the filter the page's
-// Reach gives reach, as the days' summaries told; the oldest day the ledger
-// keeps, and the oldest the Events read back to, none known till each is
-// said; who told the events the Events last took in, and when; when the
-// router's files are to be read again from for the events a document
-// skipped, as Skips has it, none while none did; whether a read for it is
-// under way, one at a time; whether a failure to say how far back its
-// tables read has been logged, the once; its details card, while it's
-// open; the panel of what a table shows, while f has it open; and its
-// find's walk back through the days.
+// grown and looked change it, and of those, how many times what its
+// Requests read has, as grown changes it; when each day the Requests await
+// a line on was last read for it; how far back the lines of the filter the
+// page's Reach gives reach, as the days' summaries told; the oldest day the
+// ledger keeps, and the oldest the Events read back to, none known till
+// each is said, and the date of the day both were last said on; who told
+// the events the Events last took in, and when; when the router's files are
+// to be read again from for the events a document skipped, as Skips has
+// it, none while none did; whether a read for it is under way, one at a
+// time; whether a failure to say how far back its tables read has been
+// logged, the once; its details card, while it's open; the panel of what a
+// table shows, while f has it open; and its find's walk back through the
+// days.
 type logTab struct {
-	page    dashboard.LogPage
-	built   logBuilt
-	opened  bool
-	read    views.LogRead
-	events  views.EventsRead
-	totals  []views.DayTotals
-	held    int
-	awaited awaitedReads
-	reach   keptReach
-	from    views.LedgerDay
-	oldest  views.OldestDay
-	filed   views.OldestDay
-	told    logTold
-	skipped time.Time
-	reading bool
-	warned  bool
-	card    logCarding
-	panel   dashboard.LogPanel
-	find    findWalk
+	page      dashboard.LogPage
+	built     logBuilt
+	opened    bool
+	read      views.LogRead
+	events    views.EventsRead
+	totals    []views.DayTotals
+	held      int
+	lined     int
+	awaited   awaitedReads
+	reach     keptReach
+	from      views.LedgerDay
+	oldest    views.OldestDay
+	filed     views.OldestDay
+	boundedOn string
+	told      logTold
+	skipped   time.Time
+	reading   bool
+	warned    bool
+	card      logCarding
+	panel     dashboard.LogPanel
+	find      findWalk
 }
 
 // openingLog is the Log as it first shows: its columns as the preferences
@@ -229,8 +233,10 @@ func (m Model) scrollLog(by scrollStep) Model {
 
 // logListings are the Log's own keys, in the design's order: [ ] view, in a
 // group of its own; ↑↓ choosing a request or an event, enter opening its
-// details, and paused, end following again; then f and /, a group of their
-// own while paused, / working where its find has a row, as LogFinds says.
+// details, and paused, end following again, as esc does; then f and /, a
+// group of their own while paused, / working where its find has a row, as
+// LogFinds says; and with a filter on while following, esc clearing it.
+// The key line leaves esc to help.
 func (m Model) logListings() []keyListing {
 	log, p := m.shownView() == dashboard.Log, m.log.page
 	paused := p.Paused()
@@ -240,8 +246,10 @@ func (m Model) logListings() []keyListing {
 		{Key: logOpenKey, works: log},
 		{Key: dashboard.Key{Key: "s", Does: "its session"}, works: log && p.ChosenSession() != "", wide: true},
 		{Key: logFollowKey, works: log && paused},
+		{Key: dashboard.Key{Key: "esc", Does: "follow"}, works: log && paused, helpful: true},
 		{Key: dashboard.Key{Key: "f", Does: "what it shows"}, works: log, apart: paused, wide: true},
 		{Key: dashboard.Key{Key: "/", Does: "find"}, works: log && m.logFrame().LogFinds(), wide: true},
+		{Key: dashboard.Key{Key: "esc", Does: "clear the filter"}, works: log && !paused && p.Filtered(), helpful: true},
 	}
 }
 

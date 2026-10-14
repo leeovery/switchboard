@@ -4,7 +4,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -291,7 +290,7 @@ func (p LogPanel) modelTicks() []tick {
 	ticks := make([]tick, len(every))
 	for i, m := range every {
 		ticks[i] = tick{
-			on: tickOn{modelTick, m}, name: ledger.ShortModelID(prose.Clean(m)), ticked: views.Ticks(p.Filter.Models, m),
+			on: tickOn{modelTick, m}, name: modelNamed(m), ticked: views.Ticks(p.Filter.Models, m),
 			toggle: func(p LogPanel) LogPanel { p.Filter.Models = views.Toggled(p.Filter.Models, every, m); return p },
 		}
 	}

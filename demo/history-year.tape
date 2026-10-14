@@ -1,20 +1,21 @@
-# A clip for the README's grid: side's card flipped to its sessions, as the
-# routing scenario has them once work's limit has moved its sessions there,
-# each streaming, waiting or idle, then one picked out with ↓.
+# A still for the README's dashboard tour: History's Year, drawn from the
+# fixture named after its signed-off frame: a square a day over the last 12
+# months, shaded by its requests, the year's totals beside it, and BY MONTH
+# under it, each month's worth against what the plans cost.
 #
-# Record it, and make art/flipped.webp and art/flipped.mp4:
-#   demo/record.sh flipped
+# Record it, and make art/history-year.webp:
+#   demo/record.sh history-year
 
-Output "demo/out/flipped/"
+Output "demo/out/history-year/"
 
 Set Shell "bash"
 Set FontFamily "JetBrains Mono"
 Set FontSize 17
 Set LetterSpacing 0
 Set LineHeight 1
-# 160 × 34 cells of 10 × 22 px.
+# 160 × 37 cells of 10 × 22 px: the frames' size.
 Set Width 1660
-Set Height 792
+Set Height 858
 Set Padding 16
 Set CursorBlink false
 Set Framerate 30
@@ -22,21 +23,14 @@ Set Theme { "name": "nord", "background": "#2E3440", "foreground": "#D8DEE9", "c
 Set WaitTimeout 2m
 
 Hide
-Type "demo/out/capturetool --scenario routing"
+# In UTC, as the frames are drawn, whatever the recording machine's zone.
+Type "TZ=UTC demo/out/capturetool --fixture history-year-160"
 Enter
 Wait+Screen /SWITCHBOARD/
-# Past work's limit, to the traffic on side from 24s, side's card flipped.
-Sleep 24s
-Right
-Right
-Right
-Space
-Sleep 1600ms
+Sleep 1s
 Show
 
-Sleep 1100ms
-Down
-Sleep 2000ms
+Sleep 600ms
 
 Hide
 Type "q"

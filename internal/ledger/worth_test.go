@@ -77,9 +77,7 @@ func TestEachModelIsPricedAsAnthropicsPricingPageGivesIt(t *testing.T) {
 		input, write5m, write1h, read, output float64
 	}{
 		{ids: []string{"claude-fable-5-1"}, input: 10, write5m: 12.50, write1h: 20, read: 0.25, output: 50},
-		{ids: []string{"claude-mythos-5-1"}, input: 10, write5m: 12.50, write1h: 20, read: 0.25, output: 50},
 		{ids: []string{"claude-fable-5"}, input: 10, write5m: 12.50, write1h: 20, read: 1, output: 50},
-		{ids: []string{"claude-mythos-5"}, input: 10, write5m: 12.50, write1h: 20, read: 1, output: 50},
 		{ids: []string{"claude-opus-5-5"}, input: 4, write5m: 5, write1h: 8, read: 0.20, output: 20},
 		{ids: []string{"claude-opus-5"}, input: 5, write5m: 6.25, write1h: 10, read: 0.50, output: 25},
 		{ids: []string{"claude-opus-4-8"}, input: 5, write5m: 6.25, write1h: 10, read: 0.50, output: 25},

@@ -222,7 +222,7 @@ func TestEventsTellAMoveAfterMidnightWhenThePressureToldTheDayBeforeRunsOut(t *t
 		}
 	}
 	text := `Wed 7 Oct 2026, so far
-  00:20      d28c5e17  moved  work → side  personal came under pressure, its 5-hour to run out at 01:10
+  00:20      d28c5e17  moved  work → side  work reached its cap, personal came under pressure, its 5-hour to run out at 01:10
 `
 	for _, tt := range []struct {
 		forms []printForm

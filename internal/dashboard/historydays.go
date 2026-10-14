@@ -66,8 +66,9 @@ const (
 
 // historyDays draws Days from row top: the weeks over the days, BY MODEL's
 // strips and BY ACCOUNT's, its accounts scrolled as the frame has them, and
-// the key on the view's last row; or, where nothing is recorded in its eight
-// weeks, nothing recorded yet.
+// the key on the view's last row; where it scrolls whole, every account,
+// drawn whole and scrolled by rows over the key, as paged pages it. Where
+// nothing is recorded in its eight weeks, it says so.
 func (f Frame) historyDays(c *canvas, top int) {
 	p := f.History.Days
 	if p == nil || !p.Recorded() {
@@ -75,8 +76,22 @@ func (f Frame) historyDays(c *canvas, top int) {
 		return
 	}
 	l := f.layOutDays(*p, top)
+	if l.whole {
+		body := newCanvas(f.Width, l.rows())
+		f.daysStrips(body, l)
+		f.pasteWhole(c, body, top, l.paged(f))
+	} else {
+		f.daysStrips(c, l)
+	}
+	f.daysKey(c, l)
+}
+
+// daysStrips draws Days but its key, as laid out: the weeks over the days,
+// BY MODEL's strips, and BY ACCOUNT's shown, with what's out of view.
+func (f Frame) daysStrips(c *canvas, l daysLayout) {
+	p := l.page
 	f.daysWeeks(c, l)
-	c.line(0, top+byModelRow, groupHead("BY MODEL", byModelSays, l.phone).fit(f.edge()))
+	c.line(0, l.top+byModelRow, groupHead("BY MODEL", byModelSays, l.phone).fit(f.edge()))
 	for i, s := range p.ByModel {
 		hue := familyHue(s.Of)
 		f.daysStrip(c, l, l.familyRow(i), familyDot(s.Of, secondaryInk).fit, shareOfUse(s), func(level int) ink { return stepInk(hue, level) }, s.Days)
@@ -89,14 +104,15 @@ func (f Frame) historyDays(c *canvas, top int) {
 	if above, below := from, len(p.ByAccount)-to; above+below > 0 {
 		c.line(0, l.scrollRow, outOfView(above, below, f.edge(), historyAccountsOut...))
 	}
-	f.daysKey(c, l)
 }
 
 // daysLayout is Days' page laid out in a frame: in its phone form, where
 // each strip's name takes the row over it; the row it starts at; the column
 // its days start at, and the first of the page's days it shows; the rows BY
-// ACCOUNT, its first strip and what's out of view are on, and its key's
-// first; and how far its accounts are scrolled.
+// ACCOUNT, its first strip and what's out of view are on, its key's first,
+// and how many rows the key takes; how many accounts show at once, and how
+// far they're scrolled; and whether it's laid out whole, from row 0, to
+// scroll by rows.
 type daysLayout struct {
 	page       views.DaysPage
 	phone      bool
@@ -106,7 +122,10 @@ type daysLayout struct {
 	accountsAt int
 	scrollRow  int
 	keyRow     int
+	keyRows    int
+	most       int
 	scrolled   int
+	whole      bool
 }
 
 // layOutDays lays out Days of the page given from row top: wide where it
@@ -119,20 +138,83 @@ func (f Frame) layOutDays(p views.DaysPage, top int) daysLayout {
 // form, the last three weeks, or as many as fit short of the edge, under
 // each strip's name, its key two rows; else every week from column 14
 // beside it, its key a row; the key on the view's last rows, and what's out
-// of view of BY ACCOUNT on the row over them.
+// of view of BY ACCOUNT on the row over them. On a frame shorter than
+// History's, or where BY ACCOUNT would show none of its accounts, it's laid
+// out whole, every account shown, to scroll by rows.
 func (f Frame) daysLaidOut(p views.DaysPage, top int, phone bool) daysLayout {
-	l := daysLayout{page: p, phone: phone, top: top, x: daysAt}
-	keyRows := 1
+	l := daysLayout{page: p, phone: phone, top: top, x: daysAt, keyRows: 1}
 	if l.phone {
 		weeks := min(daysPhoneWeeks, max((f.edge()+1)/weekCells, 0))
-		l.x, l.first, keyRows = 0, max(len(p.Weeks)-weeks, 0)*7, 2
+		l.x, l.first, l.keyRows = 0, max(len(p.Weeks)-weeks, 0)*7, 2
 	}
-	l.byAccount = l.familyRow(len(p.ByModel)-1) + byAccountGap
-	l.accountsAt = l.byAccount + stripStride
-	l.keyRow = top + f.viewRows() - keyRows
+	l.keyRow = top + f.viewRows() - l.keyRows
 	l.scrollRow = l.keyRow - 1
+	l.placeAccounts()
+	l.most = min(max((l.scrollRow-2-l.accountsAt)/stripStride+1, 0), daysAccounts)
+	if f.shortOfHistory() || l.most == 0 && len(p.ByAccount) > 0 {
+		l.whole, l.top = true, 0
+		l.placeAccounts()
+		l.most = len(p.ByAccount)
+		return l
+	}
 	l.scrolled = min(max(f.Scroll, 0), l.scrolling().Most)
 	return l
+}
+
+// placeAccounts places BY ACCOUNT, three rows under the last family's
+// strip, and its first strip a stride under it.
+func (l *daysLayout) placeAccounts() {
+	l.byAccount = l.familyRow(len(l.page.ByModel)-1) + byAccountGap
+	l.accountsAt = l.byAccount + stripStride
+}
+
+// rows is how many rows Days takes laid out whole, from its top: to BY
+// ACCOUNT's last strip, its days on the row under its name on a phone, or
+// to its heading, where it has none.
+func (l daysLayout) rows() int {
+	n := len(l.page.ByAccount)
+	switch {
+	case n == 0:
+		return l.byAccount + 1
+	case l.phone:
+		return l.accountRow(n-1) + 2
+	}
+	return l.accountRow(n-1) + 1
+}
+
+// paged is how Days, laid out whole, pages in the frame's view, over its
+// key, as heads holds its headings.
+func (l daysLayout) paged(f Frame) rowsPaged {
+	return f.wholePaged(l.rows(), l.keyRows, l.heads())
+}
+
+// heads are Days' headings, as it's laid out, each over the first row under
+// it: BY MODEL's and BY ACCOUNT's over their first strips, where each has
+// any; and on a phone, each strip's name over its days.
+func (l daysLayout) heads() []headed {
+	var heads []headed
+	if len(l.page.ByModel) > 0 {
+		heads = append(heads, headed{at: l.top + byModelRow, first: l.familyRow(0)})
+	}
+	for i := range l.page.ByModel {
+		heads = append(heads, l.named(l.familyRow(i))...)
+	}
+	if len(l.page.ByAccount) > 0 {
+		heads = append(heads, headed{at: l.byAccount, first: l.accountsAt})
+	}
+	for i := range l.page.ByAccount {
+		heads = append(heads, l.named(l.accountRow(i))...)
+	}
+	return heads
+}
+
+// named is the strip on row y's name over its days, on a phone, where they
+// take the row under it: none otherwise.
+func (l daysLayout) named(y int) []headed {
+	if !l.phone {
+		return nil
+	}
+	return []headed{{at: y, first: y + 1}}
 }
 
 // daysReach is the width Days' wide form of the page given takes: where its
@@ -184,11 +266,11 @@ func (l daysLayout) accountRow(i int) int {
 }
 
 // scrolling is how far BY ACCOUNT scrolls, by accounts: as many show as fit
-// over the blank row above what's out of view, at most six.
+// over the blank row above what's out of view, at most six; laid out whole,
+// every one.
 func (l daysLayout) scrolling() Scrolling {
-	fit := min(max((l.scrollRow-2-l.accountsAt)/stripStride+1, 0), daysAccounts)
 	accounts := len(l.page.ByAccount)
-	return Scrolling{Most: max(accounts-fit, 0), Page: min(fit, accounts)}
+	return Scrolling{Most: max(accounts-l.most, 0), Page: min(l.most, accounts)}
 }
 
 // shown are the accounts BY ACCOUNT shows, as far as it's scrolled, by their
@@ -197,25 +279,33 @@ func (l daysLayout) shown() (from, to int) {
 	return l.scrolled, l.scrolled + l.scrolling().Page
 }
 
-// daysScrolling is how far Days' BY ACCOUNT scrolls, by accounts: zero where
-// they fit, or there's nothing to draw.
+// daysScrolling is how far Days scrolls: laid out whole, by rows; else BY
+// ACCOUNT, by accounts; zero where they fit, or there's nothing to draw.
 func (f Frame) daysScrolling() Scrolling {
 	p := f.History.Days
 	if p == nil || !p.Recorded() || f.cramped() {
 		return Scrolling{}
 	}
-	return f.layOutDays(*p, f.top()).scrolling()
+	l := f.layOutDays(*p, f.top())
+	if l.whole {
+		return l.paged(f).scrolling(f.Scroll)
+	}
+	return l.scrolling()
 }
 
-// daysScrolls is what of Days scrolls, from row y, rows tall: BY ACCOUNT's
-// strips, from the first's to the row over what's out of view, none where
-// there's nothing to draw.
+// daysScrolls is what of Days scrolls, from row y, rows tall: laid out
+// whole, the rows over its key; else BY ACCOUNT's strips, from the first's
+// to the row over what's out of view; none where there's nothing to draw.
 func (f Frame) daysScrolls() (y, rows int) {
 	p := f.History.Days
 	if p == nil || !p.Recorded() {
 		return 0, 0
 	}
-	l := f.layOutDays(*p, f.top())
+	top := f.top()
+	l := f.layOutDays(*p, top)
+	if l.whole {
+		return top, l.paged(f).page()
+	}
 	return l.accountsAt, l.scrollRow - l.accountsAt
 }
 

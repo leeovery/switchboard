@@ -278,10 +278,12 @@ func laneStretches(stood []stood, tl Timeline, holds []stood) []LaneStretch {
 
 // begunAt has the stretch, which holds now's column, begin as the hold at now
 // of its kind, of those given, began, where that's known: as the router's
-// event of it tells, before the readings.
+// event of it tells, before the readings; but where its own first column's
+// hold began earlier, as then, as the stretch is one unbroken hold, which a
+// window can take over from another the readings alone tell no longer.
 func (s *LaneStretch) begunAt(holds []stood) {
 	for _, h := range holds {
-		if h.cell == s.Cell && !h.since.IsZero() {
+		if h.cell == s.Cell && !h.since.IsZero() && (s.Start.IsZero() || h.since.Before(s.Start)) {
 			s.Start, s.Projected = h.since, false
 		}
 	}

@@ -202,27 +202,38 @@ func (h heard) doing() Activity {
 }
 
 // hearing is what a request stream told of each session's model on each
-// account, but of Claude Code's quota checks, which are no session's work;
-// whether it's live; and each session's requests that spend quota, by its
-// id, the first sent first, as its turns count them and what names it reads
-// them.
+// account, but of Claude Code's quota checks, which are no session's work,
+// and each session's seats it told of, by its id, in the order of their
+// models' names, then their accounts'; whether it's live; each session's
+// requests that spend quota, by its id, the first sent first, as its turns
+// count them; and what those name it by, as naming.heard has it of them.
+// Nothing reading it changes what it holds, as a Hearing shares it between
+// looks.
 type hearing struct {
 	live  bool
 	seats map[seatOf]heard
+	sat   map[string][]seatOf
 	told  map[string][]Told
+	named map[string]naming
 }
 
-// hearing is what s told of each session's model on each account, and of
-// each session's requests, of those it knows, as known has them: so nothing
-// is in flight while s isn't live.
-func (s Stream) hearing() hearing {
-	h := hearing{live: s.Live, seats: make(map[seatOf]heard), told: make(map[string][]Told)}
+// hear is what s told of each session's model on each account, and of each
+// session's requests, of those it knows, as known has them: so nothing is in
+// flight while s isn't live.
+func (s Stream) hear() hearing {
+	h := hearing{
+		live: s.Live, seats: make(map[seatOf]heard), sat: make(map[string][]seatOf),
+		told: make(map[string][]Told), named: make(map[string]naming),
+	}
 	for t := range s.known() {
 		if t.countedSession() == "" {
 			continue
 		}
 		k := seatOf{session: t.Session, model: t.Model, account: t.Account}
-		got := h.seats[k]
+		got, sat := h.seats[k]
+		if !sat {
+			h.sat[t.Session] = append(h.sat[t.Session], k)
+		}
 		got.last = score.Later(got.last, t.Heard)
 		if t.InFlight() && (!got.flying || t.busierThan(got.busiest)) {
 			got.busiest, got.flying = t, true
@@ -232,8 +243,14 @@ func (s Stream) hearing() hearing {
 			h.told[t.Session] = append(h.told[t.Session], t)
 		}
 	}
-	for _, told := range h.told {
+	for _, seats := range h.sat {
+		slices.SortFunc(seats, func(x, y seatOf) int {
+			return cmp.Or(strings.Compare(x.model, y.model), strings.Compare(x.account, y.account))
+		})
+	}
+	for id, told := range h.told {
 		slices.SortFunc(told, func(a, b Told) int { return cmp.Or(a.Sent.Compare(b.Sent), strings.Compare(a.Request, b.Request)) })
+		h.named[id] = naming{}.heard(told)
 	}
 	return h
 }
@@ -273,34 +290,37 @@ func (h hearing) saw(id string, now time.Time) bool {
 	if !h.live {
 		return false
 	}
-	for k, got := range h.seats {
-		if k.session == id && (got.flying || now.Sub(got.last) <= IdleHour) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(h.sat[id], func(k seatOf) bool {
+		got := h.seats[k]
+		return got.flying || now.Sub(got.last) <= IdleHour
+	})
 }
 
 // session is what the session s is doing as a whole, as the router listed
-// it: the busiest of its models on their accounts, as seat has each, and of
-// those the stream told of that the router didn't list, as a model new to it
-// or one a move took elsewhere, in the order of their names.
+// it: the busiest of its models on every account, as at has them.
 func (h hearing) session(s status.Session) Activity {
-	activities := make([]Activity, 0, len(s.Assignments))
-	for _, a := range s.Assignments {
-		activities = append(activities, h.seat(s.ID, a))
-	}
-	var unlisted []seatOf
-	for k := range h.seats {
-		if k.session == s.ID && !slices.ContainsFunc(s.Assignments, func(a status.Assignment) bool { return a.Model == k.model && a.Account == k.account }) {
-			unlisted = append(unlisted, k)
+	return busiest(h.at(s.ID, "", s.Assignments))
+}
+
+// at is what the session with the given id's models are doing on the
+// account with the given id, or on every account, for "", as goes places
+// them: each placed there, as seat has it; then each the stream told of
+// there that goes doesn't place, as a model new to it, or one a move took
+// elsewhere, in the order of their names. It's the one rule of what a
+// session's models are doing on an account, which the List's whole session
+// and SESSIONS' row on an account alike read.
+func (h hearing) at(id, account string, goes []status.Assignment) []Activity {
+	var activities []Activity
+	for _, a := range goes {
+		if account == "" || a.Account == account {
+			activities = append(activities, h.seat(id, a))
 		}
 	}
-	slices.SortFunc(unlisted, func(x, y seatOf) int {
-		return cmp.Or(strings.Compare(x.model, y.model), strings.Compare(x.account, y.account))
-	})
-	for _, k := range unlisted {
-		activities = append(activities, h.seats[k].doing())
+	for _, k := range h.sat[id] {
+		placed := slices.ContainsFunc(goes, func(a status.Assignment) bool { return a.Model == k.model && a.Account == k.account })
+		if !placed && (account == "" || k.account == account) {
+			activities = append(activities, h.seats[k].doing())
+		}
 	}
-	return busiest(activities)
+	return activities
 }

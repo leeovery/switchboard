@@ -189,12 +189,13 @@ func (p pageKeys) listings(scrolls bool) []keyListing {
 
 // historyListings are History's own keys, each in a group of its own: [ ]
 // view; < > and the period, where the sub-tab shown has one; v and what it
-// has the sub-tab show, where it cycles anything; and with v, while the
-// Year shows one account alone, ←→ stepping between the accounts. A phone's
-// line keeps [ ] view alone.
+// has the sub-tab show, where it cycles anything the frame at the size
+// drawn at shows, as its Split has it; and with v, while the Year shows one
+// account alone, ←→ stepping between the accounts. A phone's line keeps
+// [ ] view alone.
 func (m Model) historyListings() []keyListing {
 	history, p := m.shownView() == dashboard.History, m.past.page
-	period, split := p.Period(), p.Split()
+	period, split := p.Period(), m.historySplit()
 	return []keyListing{
 		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: history, apart: true},
 		{Key: dashboard.Key{Key: "< >", Does: "period", State: period}, works: history && period != "", apart: true, wide: true},

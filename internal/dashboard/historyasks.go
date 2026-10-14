@@ -124,6 +124,36 @@ func (p HistoryPage) Split() string {
 	return ""
 }
 
+// Split is what v has History's sub-tab shown show, as HistoryPage's Split
+// names it, where v changes what the frame draws: "" for Weeks where its
+// shapes don't both take their wide form, as on a phone, whose form is
+// neither, so v has no other to change to.
+func (f Frame) Split() string {
+	if f.History.Shown == HistoryWeeks && !f.weeksCycles() {
+		return ""
+	}
+	return f.History.Split()
+}
+
+// weeksCycles reports whether v has a shape of Weeks to change to in the
+// frame: never on a phone; else either, where its page isn't built yet;
+// else where the table and the columns both take their wide form, each
+// drawn as itself, their widest rows fitting.
+func (f Frame) weeksCycles() bool {
+	p := f.History.Weeks
+	if f.phone() || p == nil {
+		return !f.phone()
+	}
+	for _, shape := range []WeeksShape{WeeksTable, WeeksColumns} {
+		shaped := f
+		shaped.History.WeeksShape = shape
+		if w := shaped.weeksDrawn(*p); w.phone || w.columns != (shape == WeeksColumns) {
+			return false
+		}
+	}
+	return true
+}
+
 // yearShown names what the Year is shown for alone: an account, as label
 // names it, or a version, by its name, as Opus 5.5, once the last 12 months
 // are read, as one kept is checked against those they used; "" for all use,

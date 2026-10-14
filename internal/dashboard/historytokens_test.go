@@ -423,14 +423,89 @@ func TestTokensScrollsAPeriodAtATime(t *testing.T) {
 	}
 }
 
-// A period taller than the view shows alone, cut short over the row saying
-// how many more are below, and never over the footnote.
-func TestAPeriodTallerThanTheViewIsCutShort(t *testing.T) {
+// The footnote keeps the view's last rows while two are left for the periods
+// over it, a period's first and the line saying what's below; where they
+// wouldn't be, on a short terminal, the narrower the sooner as it wraps, it
+// goes, rather than reach for the heads, and the periods take its rows. With
+// a row alone for them, the row shows a period, not the line.
+func TestTokensFootnoteGoesWhereItWouldLeaveThePeriodsNoRow(t *testing.T) {
+	tests := []struct {
+		width, height int
+		noted         bool
+	}{
+		{width: 160, height: 14, noted: true},
+		{width: 160, height: 13},
+		{width: 52, height: 17, noted: true},
+		{width: 52, height: 16},
+		{width: 50, height: 15},
+		{width: 40, height: 13},
+		{width: 22, height: 15},
+		{width: 160, height: 11},
+	}
+	for _, tt := range tests {
+		f := tokensFrame(tt.width, tt.height, TokensByAccount)
+		rows := tokensRowsOf(f)
+		noted := slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, "worth: ") })
+		if !strings.HasPrefix(rows[0], "week") || !strings.HasPrefix(rows[2], "28 Sep") || noted != tt.noted {
+			t.Errorf("at %d×%d, Tokens reads\n%s\nwant its heads, then 28 Sep's row, the footnote shown: %t", tt.width, tt.height, strings.Join(rows, "\n"), tt.noted)
+		}
+	}
+}
+
+// Where a period doesn't fit whole in the rows its periods have, Tokens shows
+// them a row at a time under its heads, over its footnote: the row after the
+// page says how many rows are out of view, above and below, so a period cut
+// short is never counted as shown; a period's row, or an account's, never
+// ends a page without the first row under it; and scrolled to the end, the
+// last row shows. Where every period fits, they scroll a period at a time.
+func TestTokensScrollsARowAtATimeWhereAPeriodDoesntFit(t *testing.T) {
 	f := tokensFrame(160, 20, TokensByAccountAndModel)
-	rows := tokensRowsOf(f)
-	last := len(rows) - 1
-	if !strings.HasPrefix(rows[last], "worth: ") || rows[last-1] != "" || rows[last-2] != "▼ 2 more weeks below   ·   j/k to scroll" {
-		t.Errorf("Tokens reads\n%s\nwant the period cut short over ▼ and the footnote", strings.Join(rows, "\n"))
+	tests := []struct {
+		name   string
+		scroll int
+		want   Scrolling
+		shown  []string
+		says   string
+	}{
+		{
+			name: "at the top, side left for the next page with its first version", want: Scrolling{Most: 11, Page: 6},
+			shown: []string{"28 Sep", "└ work", "  └ opus-5-5", "  └ sonnet-5-5", "└ personal", "  └ sonnet-5-5", ""},
+			says:  "▼ 12 more below   ·   j/k to scroll",
+		},
+		{
+			name: "a row down", scroll: 1, want: Scrolling{Most: 11, Page: 7},
+			shown: []string{"└ work", "  └ opus-5-5", "  └ sonnet-5-5", "└ personal", "  └ sonnet-5-5", "└ side", "  └ opus-5-5"},
+			says:  "▲ 1 more above   ·   ▼ 10 more below   ·   j/k to scroll",
+		},
+		{
+			name: "as far as it goes, the last row shown", scroll: 11, want: Scrolling{Most: 11, Page: 7},
+			shown: []string{"  └ opus-5-5", "└ side", "  └ opus-5-5", "", "14 Sep", "└ work", "  └ opus-5-5"},
+			says:  "▲ 11 more above   ·   j/k to scroll",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f.Scroll = tt.scroll
+			if got := f.Scrolling(threeRouted(), now); got != tt.want || !f.ScrollsRows(threeRouted(), now) {
+				t.Errorf("Tokens scrolls %+v, a row at a time: %t; want %+v, a row at a time", got, f.ScrollsRows(threeRouted(), now), tt.want)
+			}
+			rows := tokensRowsOf(f)
+			last := len(rows) - 1
+			if !strings.HasPrefix(rows[0], "week ") || !strings.HasPrefix(rows[last], "worth: ") || rows[last-1] != "" {
+				t.Errorf("Tokens reads\n%s\nwant its heads held at the top, and the footnote at the foot, a blank row over it", strings.Join(rows, "\n"))
+			}
+			for i, prefix := range tt.shown {
+				if row := rows[2+i]; prefix == "" && row != "" || !strings.HasPrefix(row, prefix) {
+					t.Errorf("the page's row %d reads %q, want it to start %q", i, row, prefix)
+				}
+			}
+			if says := rows[2+len(tt.shown)]; says != tt.says {
+				t.Errorf("the row after the page reads %q, want %q", says, tt.says)
+			}
+		})
+	}
+	if tall := tokensFrame(160, 37, TokensByAccountAndModel); tall.ScrollsRows(threeRouted(), now) {
+		t.Error("as tall as the frames, where every period fits, Tokens scrolls a row at a time, want a period at a time")
 	}
 }
 

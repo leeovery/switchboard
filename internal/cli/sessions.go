@@ -148,7 +148,7 @@ func sessionRow(s views.ListedSession, now time.Time) []string {
 	if !s.Started.IsZero() {
 		started = prose.Past(now, s.Started)
 	}
-	return []string{s.Mark.String(), session, orNone(prose.Clean(s.Account)), orNone(ledger.ShortModelID(prose.Clean(s.Model))),
+	return []string{s.Mark.String(), session, orNone(prose.Clean(s.Account)), orNone(ledger.ShortModelID(s.Model)),
 		s.Activity.State(now), started, prose.Grouped(s.Requests), s.Cents(), routingSaid(s.Routing)}
 }
 

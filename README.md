@@ -2,39 +2,41 @@
 
 # 🎛️ Switchboard
 
-**Your Claude usage, tracked, and routed across your subscriptions**
+**Every Claude subscription you have, behind one `claude`**
 
-A local router for Claude Code that tracks, routes and analyses
-<br>your Claude usage across one or more accounts.
+A local router for Claude Code. It spreads your sessions across your Claude subscriptions, so a limit on one
+<br>doesn't stop your work, and records every request, so you and Claude both see where your usage stands.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.27+-00ADD8.svg)](https://go.dev)
 [![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](#install)
 
-[Install](#install) · [Quick Start](#quick-start) · [How It Works](#how-it-works) · [Commands](#commands) · [Configuration](#configuration) · [Dashboard](#the-dashboard)
+[Install](#install) · [Quick Start](#quick-start) · [How It Works](#how-it-works) · [Dashboard](#the-dashboard) · [Claude](#claude-and-switchboard) · [Commands](#commands) · [Configuration](#configuration) · [Reference](#reference)
 
 <br>
 
-<img src="art/routing.webp" alt="Switchboard's dashboard routing three accounts: a new session starts on the best, work reaches its limit and its sessions re-patch to side, Runway shows when each has room, and a session is hand-patched to personal" width="840">
+<img src="art/routing.webp" alt="Switchboard's dashboard routing three accounts: the Overview's usage, routing and LATELY, a new session starting on side, then the routing card pinning new and running sessions to side, personal's two moving there" width="840">
 
 </div>
 
 ---
 
-Every Claude subscription has usage limits, per 5 hours and per week. Hit one mid-task and Claude Code stops until it resets. `/usage` says where you stand when you think to ask, but not where you're heading, when you'll run out, or when you'll have room again, and Claude can't see any of it.
-
-Run several subscriptions and there's a routine on top: watch the limits, notice one has run out, exit Claude Code, switch accounts, resume, and rebuild the prompt cache from cold. Meanwhile the weekly quota you didn't get round to before its reset is lost.
-
 ## Why Switchboard?
 
-- **Your usage, always in view.** `switchboard dashboard` keeps every window on screen: how much is left, when it runs out at your pace, when it resets, and when you'll have room again, over the day or the week, charted from a history it keeps. `switchboard usage` prints every account's windows once, dated, to hold against one printed an hour before. Both read usage off the answers your sessions already get, so looking costs next to nothing.
-- **Told in time.** Desktop notifications when a window passes a share you choose, when an account hits a limit, and when it has room again.
-- **Claude knows too.** A skill tells Claude Code about switchboard, so Claude reads every account's usage itself (`switchboard status`), looks back over your sessions, requests and days, and can plan around a limit, or pin and move sessions when you ask. Run by an agent, `status`, `usage`, `sessions`, `requests`, `history` and `events` print JSON with no flag, as anywhere their output isn't a terminal.
-- **Limits stop interrupting you.** With several subscriptions, a request that hits a limit is replayed on another account before Claude Code sees any of the answer. You get one slower turn while the cache rebuilds there, then the session carries on: no exiting, no resuming.
-- **Sessions stay put.** Prompt caches are per account, and the first turn after a move costs around 40× a warm one. A session stays on its account while its cache is warm, and moves only when it must, or once it has idled long enough that its cache is cold anyway.
-- **No quota goes to waste.** New sessions go to the account whose weekly quota would be lost soonest unused: the share left, divided by the time until it resets. Between near equals, the one whose 5-hour window resets soonest goes first, as what's left in a window at its reset is lost too.
-- **Resets come one at a time.** Priming starts the accounts' 5-hour windows at staggered times, so once all are spent, the next is back within 5 hours ÷ the number of accounts, rather than at the one reset they'd share.
-- **Never in the way.** When the router isn't running, `claude` connects directly; when switchboard can't take part at all, `claude` starts as it would without it.
+Every Claude subscription has a 5-hour limit and a weekly one, and hitting one stops Claude Code. Claude can't see them coming, and switching accounts by hand costs an exit, a resume and a cold prompt cache.
+
+- **Claude sees its own limits.** A skill lets Claude read every account's usage, pace and resets, and plan its work around them.
+- **Limits stop interrupting you.** A request that hits a limit is replayed on another account before Claude Code sees it, and the session carries on.
+- **Sessions stay put.** A session keeps its account while its prompt cache is warm, and moves only when it must.
+- **No quota goes to waste.** New sessions go to the account whose weekly quota would be lost soonest unused.
+- **Resets come one at a time.** Priming staggers the accounts' 5-hour windows, so once all are spent, the next is back soon.
+- **Every request on record.** Its session, model and account, why it went there, its tokens and timing, for a year: what your use was worth at API prices against what your plans cost, and each session's story.
+- **Your usage, always in view.** A live dashboard: what's left in each window, when it runs out at your pace, when it resets, and the year behind it.
+- **You and Claude both steer.** Pin new sessions to an account, or move running ones, from the command line, the dashboard, or by asking Claude.
+- **Told in time.** Desktop notifications when a window passes a share you choose, an account hits a limit, or has room again.
+- **Never in the way.** Without the router, `claude` connects directly; when switchboard can't take part, `claude` starts as it would without it.
+
+Routing needs two subscriptions or more. With one, Claude seeing its limits, the record of every request and the dashboard are all still there.
 
 Switchboard is built for its author's setup: macOS, Claude Code, and a Claude subscription or several. It's public because it can be, and general only where that costs nothing.
 
@@ -73,21 +75,216 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
                                       │
                                       ├─ chooses the account: sticky per session and model
                                       ├─ swaps in that account's token
-                                      └─ reads every response's usage headers
+                                      ├─ reads every response's usage headers
+                                      └─ records the request, and what the router did
 ```
 
+- **Every `claude` goes through switchboard,** which starts the real Claude Code connected to the router.
+- **The body is untouched.** Switchboard swaps in the account's token and never edits a request's body, so it stays Claude Code's own.
+- **Usage comes off real traffic.** Every answer says how full each window is, so knowing costs next to nothing.
+- **Each session gets an account,** the one whose quota most needs using, and keeps it while its cache is warm.
+- **A limit moves the session,** replaying its request on another account before Claude Code sees it.
+- **You can pin,** from the command line, the dashboard or Claude, and every pin yields at a limit.
+- **Everything is recorded:** each reading, request and event, a file a day, for the dashboard and the verbs to read back.
+- **It looks after itself,** taking up new tokens and config, and restarting in place after an upgrade.
+
+The detail of each is in [How it works, in depth](#how-it-works-in-depth), after the dashboard.
+
+## The Dashboard
+
+`switchboard dashboard` keeps every account's usage on screen, live, on six tabs, with the router's sessions, its record of every request, and a page for each session.
+
+**The Overview** is every account's windows and how the router stands with each, on one screen that never scrolls.
+
+<div align="center">
+<img src="art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then GRAPHS, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
+</div>
+
+One account: work alone on the Overview, its usage, its routing trace and LATELY; then `g` to GRAPHS, and `tab` on to Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10.
+
+It has six sections, in an order that never changes: USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY, each shown and hidden by its key, `u`, `g`, `r`, `s`, `c` and `l`, at any size, GRAPHS and SESSIONS hidden at first. Size never decides what shows, only how much room each section gets: where rows run short, sections fold to their headings, each still saying what it holds, SESSIONS first, then COMING UP and LATELY, GRAPHS and ROUTING; USAGE never folds, and with many accounts scrolls within itself. Rows to spare grow the sections shown, to their most.
+
+- **USAGE** is [`usage`](#usage)'s block, every account's windows and the pool's: the matrix from 150 columns, or given the room, the windows stacked at the full width, their bars as long; narrower, stacked as `usage` stacks them. An account out of the pool, under a pin, is faint, and the key line under the block names the marks: `┃` even pace, `╎` the cap, `◆` the primary and `▲` where new sessions go.
+- **GRAPHS** charts the focused account's use so far in each window, each chart under its window's column, from the window's start to its reset, with its cap, even pace and now. `↑` and `↓` move the focus, and USAGE lights the account with it.
+- **ROUTING** says how each account stands with the router, in words: `● under pressure · out ~16:05`, `■ limit reached · back 15:54`, `○ idle · window starts at its prime, 16:20`; `● pinned` on each account the pin names; its sessions; and its requests a minute over the last 30 minutes as a trace, with the last minute's rate. Its heading says the mode, `auto`, or `pinned to personal since 14:02   p back to auto`. Every trace on the page, a session's too, shares one scale, so any two compare.
+- **SESSIONS** lists the sessions the router has routed in the last hour, by account: each one's id, bright while it's busy; its model; when it was last seen; what it's doing, `↑ ask` or `↓ ~1.2k`; why it's on its account, as `moved from work 14:31: work reached its cap`; and its own trace.
+- **COMING UP and LATELY** sit side by side: what happens next, soonest first, as `16:30  personal's 5-hour resets  in 1h 48m`, a run-out's row in the theme's attention colour; and what the router has done, newest first, each event marked, as `14:31  ╎ work reached its cap: 3 sessions moved to side`, the sessions a limit, a cap or a refusal moved folded into its line.
+- **By account:** `b` makes USAGE a block an account, its windows as rows, with its ROUTING beside it, and the pool's block last.
+
+**Accounts** is each account in depth and every account together, in two views on sub-tabs, `[` and `]` moving between them.
+
+<div align="center">
+<img src="art/accounts-compare.webp" alt="Accounts' Compare over this week: a column each for work, personal and side and one for all accounts, each with its week used, its use by model version, its requests, sessions and moves, its limits and time at its cap, and what its plan costs against the worth of its use at API prices, 4.0× to 5.2×" width="840">
+</div>
+
+- **Compare** is a column an account and one for `all accounts`: its week as a bar, its share of use by model version, its requests, sessions served and moved, its limits hit, the time it spent at its cap or a limit and what it had left at its last reset, and its plan, its extra usage, and what the plan costs against what its use was worth at API prices. `←` and `→` move a focus along the columns, and `enter` opens the one focused in Detail.
+- **Detail** is one account, or all of them, chosen from a list at its left: its windows now, the period's requests, limits, plan, worth and extra usage, its use by model, the last six weeks a day and a week at a time, its verdict as History's Weeks gives it, its SESSIONS now, `enter` opening one's page, and its LATELY.
+- **The period:** `<` and `>` step the period both count over, today, this week, 30 days and 12 weeks, rolling, never billing months.
+
+**History** is how use has gone over time, in four views on sub-tabs, `[` and `]` moving between them.
+
+<div align="center">
+<img src="art/history-year.webp" alt="History's Year: a square a day over the last 12 months, shaded by its requests; beside it, 212,885 requests worth $24,736 at API prices against $7,200 of plans; and BY MONTH under it, each month's requests, worth, ratio, limits and use by model family" width="840">
+</div>
+
+- **Year,** the default, is a square a day over the last 12 months, a column a week, each shaded by how many requests it made, never its worth: a day with nothing on it in a shade of its own, and the active days in quarters by how much each did. Beside it, the 12 months' requests, sessions, limits hit, worth, what the plans cost and the worth against it, the busiest day and the longest run; under it, BY MONTH, a row a month, its bar its worth split by family. `v` shows one model version alone, in four steps of its own colour, or one account, `←` and `→` stepping between them; `<` and `>` step back through each calendar year the ledger holds. Shown for one version, the Year counts each of its sessions once, but for a day whose summary was written before the ledger kept a model's sessions by their ids, its lines since gone, it adds that day's count, as nothing tells those sessions from another day's.
+- **Weeks** is how full each account's own week got over eight weeks, and whether there are as many accounts as the use needs, its verdict as [`history`](#history) words it, from replaying the last 7 whole weeks with an account fewer or more; `v` draws the weeks as columns.
+- **Days** is the eight weeks a day at a time, each family's worth a day, and how much of its week each account used each day, the days it hit a 5-hour limit marked.
+- **Tokens** is ccusage's report inside switchboard, each period's tokens by kind and its worth at API prices against what its plans cost, by day, week or month with `<` and `>`, split with `v` by account, by model, by both or not at all.
+
+**Sessions** is where each session's requests are going now, in two views on sub-tabs.
+
+<div align="center">
+<img src="art/repatch.webp" alt="Sessions' Switchboard as personal reaches its limit: the 429 back red along 41e0's cord, its old cord left hanging, and personal's sessions re-patched to side" width="840">
+</div>
+
+- **The Switchboard,** the default, is a switchboard: the sessions down the left as calls, the accounts down the right as lines, and a cord from each call to its account, its requests travelling it, out as they go and back as their answers stream, a refusal bouncing back red, `✕ 429`. A session a limit moves joins its new account's group, and its old cord hangs red from the old jack, one cell shorter for each session the limit moved; a move made for any other reason hangs faint for 3 seconds. Where the cords don't fit, as on a phone, each account's line carries its sessions under it.
+- **The List** is one table of today's sessions, those running first, then those ended: each one's account, model, state, when it started, its requests and their worth at API prices, and how it came to its account.
+
+**Runway** is when each account has room, a lane each.
+
+<div align="center">
+<img src="art/runway-week.webp" alt="Runway over the week: a lane an account to next Wednesday, work at its cap till 17:10, personal's and side's weeks running out at their pace before they reset, and the pool's room under them" width="840">
+</div>
+
+In the 5-hour view, from the hour before now for 22 hours 40 minutes, or, with `<` and `>`, the week: a cell a column, room, or at its cap, or at its limit, the past dimmed, with words under a lane that say where a stretch without room starts and when it's back, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`. Under the lanes, with more than one account, the pool's: how many accounts have room, a column at a time. `←` steps back a day, or a week, and `→` forward to the live view; a step back is never kept.
+
+**The Log** is the router's traffic, as it happens and back through the days, in two tables under one tab, `[` and `]` moving between them, the newest line at the foot.
+
+<div align="center">
+<img src="art/log-requests.webp" alt="The Log's Requests, following the newest: a line a request, with its time, session and directory, model, account, status, time to first byte and in all, tokens read from the cache, written to it and put out, why its answer stopped, and a new session's routing, the requests in flight at the foot" width="840">
+</div>
+
+- **Requests** is a line for each request the router routes: when, its session, model and account, its status, how long it took, its tokens by kind, why its answer stopped, and how the router chose its account, a move's cost with it; `f` shows more columns, its worth at API prices, its input tokens, its attempts, its size, messages, tools and thinking budget, the client that sent it and the router's id for it, and Claude Code's quota checks and counts of tokens, hidden until then, as neither is work done for you.
+- **Events** is a line for each thing the router decides or notices, every move it makes with why.
+- **Its keys:** `↑` chooses a line and pauses the table, `end` follows again, `enter` opens a line's details, `s` its session's page, `f` sets what it shows, its columns and which lines, and `/` finds a session.
+
+**A session's page** follows one session through its whole life.
+
+<div align="center">
+<img src="art/session.webp" alt="A session's page for d28c in ~/Code/switchboard: its STORY of requests a minute, its move from work to side at 14:31 marked with the $1.82 its cache cost, its time and worth on each account, and its turns, the one that moved it opened into its requests" width="840">
+</div>
+
+It shows what it's doing now and where it runs; its STORY, its requests a minute from its first to now, each move marked and costed; the accounts it ran on and what it took of each; and its turns, newest first, `enter` opening one into its requests. It opens with `enter` on a session's row on Sessions, or on Accounts' Detail, with `s` on a line of the Log, and with a click on a row of the Overview's SESSIONS; `esc` goes back to the tab as it was left. While the session runs, `p` on its page pins it.
+
+**Under 100 columns,** the dashboard is a phone's.
+
+<div align="center">
+<img src="art/phone.webp" alt="The Overview in a phone's terminal, 52 columns wide" width="260">
+</div>
+
+The tabs sit on a row of their own, under the clock. The Overview's USAGE stacks its windows in short words, ROUTING and SESSIONS take two rows an account or a session, and LATELY comes under COMING UP.
+
+**Every page** is one frame: the title row, with the tabs and the clock; under it, the status line; then, on every tab but the Overview, the tab's heading row, its name and a rule; the view; and the key line last.
+
+- **The tabs:** `tab` and `shift-tab` move between six, in the title row's order: the Overview, Accounts, History, Sessions, Runway and the Log. The next dashboard opens on the tab last shown. A session's page opens over a tab, and `esc` goes back to it.
+- **The status line** says how the router stands, always, whatever a tab shows: `● healthy`; `■ the router isn't answering  ·  since 14:40:55` while its last view stays on screen; or `○ probed · router not running`; then how it routes, `auto` or `pinned to personal`, the sessions it has routed in the last hour, and where new sessions go, `new sessions → ▲ side`.
+
+It reads, and takes its keys, as [`dashboard`](#dashboard) says, and `?` on any page shows every key that works there, and what its marks mean.
+
+<div align="center">
+<img src="art/help.webp" alt="The Overview's help: every key that works there, and what its marks mean" width="840">
+</div>
+
+### Themes
+
+<div align="center">
+<img src="art/themes.webp" alt="The theme picker over the Overview, the dashboard redrawn in each theme the cursor reaches: nord, terminal, tokyo-night, tokyo-night-day, exchange and amber, then nord again" width="840">
+</div>
+
+The dashboard is drawn in a theme. Themes name colours by what they mean and how prominent they are, never by hue.
+
+- **Built in:** `nord`, the dashboard's palette from the start; `tokyo-night`, and `tokyo-night-day` for a light terminal; `amber`, an amber CRT; `exchange`, a telephone exchange's brass and walnut; and `terminal`, for a terminal with a transparent or image background, which paints no background and draws in the terminal's own sixteen colours.
+- **One, or a pair:** choose one theme for every terminal, or a pair: one for a light background and one for a dark. The dashboard asks the terminal what its background is as it starts, and takes a terminal that doesn't say for a dark one. Choosing nothing gives the pair of `tokyo-night-day` and `nord`.
+- **The picker:** in the dashboard, `t` opens a panel at the right, over the dashboard, listing every theme. `↑` and `↓` move through them, the dashboard redrawn in each as it's reached; `enter` sets the one theme; `d` and `l` set the dark and the light half of the pair, asking first, with `y` or `n`, to clear a single theme; and `esc` closes it, putting back the theme in force. A badge says what each theme fills: `●` the one theme, `● light`, `● dark`, or `● both`. A theme file that doesn't load is listed with why, such as `bad colour` or `missing tokens`, and the log has the detail.
+- **Your own:** a theme is a file named `<slug>.theme`, its slug lower-case letters, digits and hyphens, in the themes directory (see [Where things live](#where-things-live)), its top level alone; links are followed, and it's read again each time the picker opens. Each line is `key = #RRGGBB`, a line starting `#` a comment, and every key once:
+
+  ```
+  # Lake: a dark theme.
+  text.primary = #ECEFF4
+  canvas = #102030
+  ...
+  ```
+
+  It gives all 19 base tokens, `text.primary`, `text.secondary`, `text.tertiary`, `text.muted`, `text.subtle`, `text.faint`, `text.on-selection`, `accent.primary`, `accent.key`, `accent.mode`, `accent.attention`, `state.positive`, `state.destructive`, `canvas`, `bg.selection`, `bg.attention`, `bg.subtle`, `border` and `text.on-attention`, or it doesn't load. The charts' own, `viz.ramp.1` to `viz.ramp.4` (a bar's fill, first cell to last), `viz.track`, `viz.pace`, `viz.reserve`, `viz.family.1` to `viz.family.4` (the model families', Opus, Sonnet, Fable and Haiku), `viz.version.1` to `viz.version.6` (the model versions', a family's newest in its family's colour and an older one fainter) and `viz.day.0` to `viz.day.4` (History's shades of a day, from one with nothing on it to the busiest), are each worked out from those where a file leaves them out. A key switchboard doesn't know is passed over. A file can't take a built-in's slug.
+- **Kept:** the choice is kept in `prefs.json` in the state directory, which the dashboard writes and you never need to; one that can't be read is set aside as `prefs.json.corrupt-<unix time>`, and the defaults stand.
+- **The background:** the dashboard paints the theme's background on every cell, and sets the terminal's own to it, putting it back as it was when the dashboard stops: on `q`, an interrupt or a terminate signal, or a crash it catches. A terminal that didn't say what its background was is reset to its profile's own instead. [`usage`](#usage) paints none, printing into the scrollback: it asks the terminal what its background is, and takes the light or dark half of the pair by it; one theme chosen prints only on a background as dark or light as its own, else the default pair's half for that background.
+- **Fewer colours, and none:** the colours are brought down to what the terminal shows. With `NO_COLOR` set to anything, the dashboard has no colour, nor background: what colour would say, its glyphs and bold say, and `t` does nothing. `usage` has none either, there or on a terminal that shows no colour, its bars filled in `█`; printed off a terminal, as `usage --pretty` prints it, it has none unless `CLICOLOR_FORCE` asks for it.
+
+## Notifications
+
+While it runs, the router posts desktop notifications, whether or not a dashboard is open. [`[notifications]`](#notifications-keys) says which:
+
+- **Limits:** an account hits a limit. The notification waits 5 seconds for the sessions the limit moves, then tells of them together: `work · Work hit its Session limit, back at Mon 18:10 — 3 sessions moved to side · Side`.
+- **Room again:** `work · Work has room again`.
+- **Warnings:** a window passing the share given, once a reset: `work · Work: Week at 91%`.
+- **Moves**, off unless asked for: every other move, such as `session 18bb978f moved from work · Work to side · Side (rescored after 1h 2m idle)`.
+
+A limit's notification always goes out. Any other goes out only a minute or more after the last posted about its account, and is dropped otherwise. Notifications never hold a request up.
+
+The dashboard, probing without the router, posts its own, of an account with room again and a window passing the warning, unless `--no-notify`. While the router runs, the dashboard posts none, so nothing is told twice, even probing with `--probe`.
+
+## Claude and switchboard
+
+`setup` installs a Claude Code skill that tells Claude what switchboard does under `claude`, so no session needs it explained (see [`setup`](#setup)).
+
+- **Claude reads the limits itself.** `switchboard status` gives it every account's windows: how much of each is used, how fast it's going, when it runs out at that pace, and when it resets. So Claude can plan its work around them. Ask it to use what's left of a week before the week resets at 08:00 without reaching 100%, and it paces its work through the night by the rate and run-out switchboard reports. It's worth it with a single account.
+- **It looks back.** `sessions`, `requests`, `history` and `events` give it your sessions, their requests, your days and what the router did, with what each was worth.
+- **It steers when you ask.** It pins new sessions to an account with [`pin`](#pin), moves running ones there with `--move`, or pins one session alone with `--session`; inside a session, `$CLAUDE_CODE_SESSION_ID` holds its own id, and `switchboard status --session` names the account it's on.
+- **JSON without asking.** Run by an agent, `status`, `usage`, `sessions`, `requests`, `history` and `events` print JSON with no flag, as anywhere their output isn't a terminal. What each prints is built by the same code its view on the dashboard draws from, so the two never disagree, and nothing a view shows is out of Claude's reach.
+
+## How it works, in depth
+
+### Routing
+
 - **Every `claude` goes through switchboard.** `setup` puts a link named `claude` in switchboard's own bin directory, which you put on `PATH` ahead of the real one. Run by that name, switchboard starts the real Claude Code connected to the router: from a shell, a tmux pane, a script, or a tool that runs `claude -p`.
-- **A token swapped, the body untouched.** Switchboard replaces the `Authorization` header of each conversation request (`/v1/messages` and its `count_tokens`) with the chosen account's token, and never edits a request's body, so the request is still Claude Code's own, and Claude's thinking stays valid from turn to turn. It narrows the request's `Accept-Encoding` to gzip, deflate and identity, the encodings it can read a copy of the answer in, to count the answer as it streams. Everything else passes through on Claude Code's own token, as it came. Either way, every header of switchboard's own, named `X-Switchboard-…`, is taken off on the way, so the API never sees one: the pin `run --account` sets, the directory `run` names for the ledger, and any a newer `run` sends.
-- **Usage off real traffic.** Every response carries each window's utilization and reset: the 5-hour window, the weekly window every model shares, and a model's own weekly window where it has one. Only a 429 that refuses the request itself carries none. Switchboard reads them off every response, and probes an account, one request per model family, each capped at one output token, only when nothing has been read of it, a decision needs fresher numbers than traffic has given, a dashboard asks, it's due a [prime](#priming), or on the router's own [rounds](#priming): once nothing has read it in half an hour, and 5 minutes before each of its weeks resets.
-- **Choosing an account.** A new session goes to the account whose quota most needs using, among those with room in every window its model counts against: the room left in the shared weekly window, divided by the hours until it resets. So quota that resets tomorrow is used before quota that resets next week, and an account with little left scores low unless its week resets soon. Among accounts scoring at least 0.8 of the best, the one whose 5-hour window resets soonest wins, as what's left in a window at its reset is lost; with [priming](#priming), the accounts' resets are spread through the day.
-- **Pressure.** Several busy sessions on one account run its 5-hour window out together, then all move at once, each rebuilding its cache elsewhere. So the router watches each account's 5-hour window: at the rate its use rose over the last 30 minutes, or across a longer gap in its readings, spread over the gap, as use outside the router shows only when the router next reads the account, so an account gone quiet reads quiet (its use since it started, for a window with no reading from 10 minutes back), an account whose window reaches its reserve, or its limit without one or on an account pinned, before it resets is under pressure, and a new session, a request without one, or a session chosen afresh after an idle hour, because its account can't serve it or because its own pin yields, goes to the best of the others, the pin's first. Running sessions stay put, a session's own pin holds, and when every account is under pressure, it changes nothing.
-- **Sticky, for the cache.** A session is remembered by its session id and model once a request of it is answered with success, so a resumed session finds its account again, and a request under an id never used again that fails, as the quota check `claude --resume` sends as it starts can, leaves nothing behind. It stays on that account while its cache is warm, for an hour after its last request, and the account has room. Idle past the hour, its cache is cold and a move costs nothing, so it's re-scored, keeping its own account unless another beats it by 20%. A Claude Sonnet 5.5 session isn't re-scored for idling: its thinking works only on the account that produced it, and a move would lose it.
-- **Limits and replay.** A 429 that says a limit is reached is replayed on the next candidate before any of the answer reaches Claude Code, and the session moves there and stays; the account sits out of the requests the limit counts, so a limit on Fable's own week leaves its other models' sessions where they are, until the reset the 429 gives, or for five minutes when it gives none, or sooner when a request sent since shows it lifted, as after you reset a limit by hand. A 429 that's only throttling waits and retries on the same account, twice at most, as moving would throw the cache away for nothing. A 429 without usage headers says nothing of the account, but refuses the request itself, so it reaches Claude Code at once, as it came. A request the API refuses is replayed elsewhere too, and the refusal never relayed, as Claude Code drops its login on a 403. An account whose token the API refuses sits out every request for ten minutes, and one that refuses the request itself sits out that model's requests as long, unless every account the request went out on refused it, which says more of the request than of the accounts, so none sits out for it, and its session stays where it was. When no account has room, Claude Code gets a 429, as it would from one account at its limit; when every account has refused the request, a 502 that gives the API's reason and tells it not to retry.
-- **Pins.** `switchboard pin` sends new sessions to one account, or to the best of several, or moves running ones there; `pin --session` pins one running session; `switchboard run --account` pins a session as it starts. Every pin yields at a limit rather than failing. See [`pin`](#pin).
+- **A token swapped, the body untouched.** Switchboard replaces the `Authorization` header of each conversation request (`/v1/messages` and its `count_tokens`) with the chosen account's token, and never edits a request's body, so the request is still Claude Code's own, and Claude's thinking stays valid from turn to turn.
+  - It narrows the request's `Accept-Encoding` to gzip, deflate and identity, the encodings it can read a copy of the answer in, to count the answer as it streams.
+  - Everything else passes through on Claude Code's own token, as it came.
+  - Either way, every header of switchboard's own, named `X-Switchboard-…`, is taken off on the way, so the API never sees one: the pin `run --account` sets, the directory `run` names for the ledger, and any a newer `run` sends.
+- **Usage off real traffic.** Every response carries each window's utilization and reset: the 5-hour window, the weekly window every model shares, and a model's own weekly window where it has one. Only a 429 that refuses the request itself carries none. Switchboard reads them off every response, so looking costs next to nothing.
+  - It probes an account, one request per model family, each capped at one output token, only when nothing has been read of it, a decision needs fresher numbers than traffic has given, a dashboard asks, it's due a [prime](#priming), or on the router's own [rounds](#priming): once nothing has read it in half an hour, and 5 minutes before each of its weeks resets.
+- **Choosing an account.** A new session goes to the account whose quota most needs using, among those with room in every window its model counts against: the room left in the shared weekly window, divided by the hours until it resets.
+  - So quota that resets tomorrow is used before quota that resets next week, and an account with little left scores low unless its week resets soon.
+  - Among accounts scoring at least 0.8 of the best, the one whose 5-hour window resets soonest wins, as what's left in a window at its reset is lost; with [priming](#priming), the accounts' resets are spread through the day.
+- **Sticky, for the cache.** Prompt caches are per account, and the first turn after a move costs around 40× a warm one.
+  - A session is remembered by its session id and model once a request of it is answered with success, so a resumed session finds its account again, and a request under an id never used again that fails, as the quota check `claude --resume` sends as it starts can, leaves nothing behind.
+  - It stays on that account while its cache is warm, for an hour after its last request, and the account has room.
+  - Idle past the hour, its cache is cold and a move costs nothing, so it's re-scored, keeping its own account unless another beats it by 20%. A Claude Sonnet 5.5 session isn't re-scored for idling: its thinking works only on the account that produced it, and a move would lose it.
+- **Pressure.** Several busy sessions on one account run its 5-hour window out together, then all move at once, each rebuilding its cache elsewhere. So the router watches each account's 5-hour window, and steers sessions off one heading for its limit:
+  - **The rate** is how fast its use rose over the last 30 minutes, or across a longer gap in its readings, spread over the gap, as use outside the router shows only when the router next reads the account, so an account gone quiet reads quiet; for a window with no reading from 10 minutes back, it's its use since the window started.
+  - **Under pressure** is an account whose window, at that rate, reaches its reserve before it resets, or its limit, without a reserve or on an account pinned.
+  - **What moves:** a new session, a request without one, or a session chosen afresh after an idle hour, because its account can't serve it or because its own pin yields, goes to the best of the others, the pin's first. Running sessions stay put, a session's own pin holds, and when every account is under pressure, it changes nothing.
+- **Limits and refusals.**
+  - **A limit:** a 429 that says a limit is reached is replayed on the next candidate before any of the answer reaches Claude Code, and the session moves there and stays, with one slower turn while its cache rebuilds there, and no exiting or resuming. The account sits out of the requests the limit counts, so a limit on Fable's own week leaves its other models' sessions where they are, until the reset the 429 gives, or for five minutes when it gives none, or sooner when a request sent since shows it lifted, as after you reset a limit by hand.
+  - **Throttling:** a 429 that's only throttling waits and retries on the same account, twice at most, as moving would throw the cache away for nothing.
+  - **A 429 without usage headers** says nothing of the account, but refuses the request itself, so it reaches Claude Code at once, as it came.
+  - **A refusal:** a request the API refuses is replayed elsewhere too, and the refusal never relayed, as Claude Code drops its login on a 403. An account whose token the API refuses sits out every request for ten minutes, and one that refuses the request itself sits out that model's requests as long, unless every account the request went out on refused it, which says more of the request than of the accounts, so none sits out for it, and its session stays where it was.
+  - **Nowhere to go:** when no account has room, Claude Code gets a 429, as it would from one account at its limit; when every account has refused the request, a 502 that gives the API's reason and tells it not to retry.
+- **Pins.** `switchboard pin` sends new sessions to one account, or to the best of several, or moves running ones there; `pin --session` pins one running session; `switchboard run --account` pins a session as it starts. The dashboard's routing card sets the same pins, and Claude does when you ask. Every pin yields at a limit rather than failing. See [`pin`](#pin).
+
+### What it records
+
+Switchboard keeps a record of everything the router reads and does, in the state directory, so the dashboard and the verbs can look back, with or without the router. The formats are in the [Reference](#reference).
+
 - **State that outlasts restarts.** The router keeps each session's account, the pins and each account's last readings in `state.json`, so a restart doesn't scatter sessions or need a probe.
-- **A readings history.** The router appends each reading that changes how a window of an account reads, and nothing when nothing moved, to a file a day in the state directory's `history/`, kept for 400 days, or as long as [`[history]`](#history-keys) says, `forever` included: a JSON line each, `{"at", "account", "window", "utilization", "resets_at", "status", "source"}`, `source` saying whether it came off an answer, a probe or a prime, and the account by its id alone. It's there for you to look back at how the accounts were used; fields may be added to a line, never renamed. A day's file, `readings-<date>.jsonl`, is compressed to `readings-<date>.jsonl.gz`, which `gzip -dc` reads, once its day ended two days ago. As it starts, the router takes up the readings of its two newest days, so the recent rates outlast a restart. It never stands in routing's way: a line it can't write goes unwritten, logged once.
-- **A request ledger.** The router appends a line for each request it routes, as it finishes with it, whether it went upstream or the router answered it itself, to a file a day in the state directory's `ledger/`, kept for 400 days, or as long as [`[ledger]`](#ledger-keys) says, `forever` included, and never pruned before its day's summary is written: a JSON line each, `{"at", "request", "kind", "session", "dir", "model", "account", "reason", "from", "tried", "status", "canceled", "cut_off", "attempts", "first_ms", "total_ms", "agent", "betas", "prompt", "class", "agent_id", "parent_agent_id", "agent_type", "compaction", "compacted", "tool_ms", "shape", "answer", "usage", "limits"}`, `request` the router's id for it, as its routed line in the log gives it, `kind` saying whether it was a message, Claude Code's quota check or a count of tokens, `dir` the directory `run` started Claude Code in, your home shown as `~`, which `run` tells the router in a header the API never sees, and which a `claude` started within that session other than through `run` carries too, `account` the account whose answer the client got, by its id alone, `canceled` set where the client went away before the end, `cut_off` where the router cut the request off as it stopped, `prompt` to `tool_ms` what Claude Code's own headers say of the request, each left out where it sends none: the prompt it serves, by Claude Code's random id, the same on every request of one prompt, its subagents' included; its class, `main`, `subagent`, `workflow`, `compaction` or `auxiliary`; the subagent that sent it, and the one that started that, by Claude Code's ids for them, random for a subagent, from its name for a member of an agent team; the subagent's kind, a built-in agent's name, `custom`, `teammate` or `fork`, never a name you chose; what started a compaction; and how long each tool call whose result it carries ran; the agents' ids Claude Code sends the router always, and the rest as `run` has it send them, and `shape` the request's size, how many messages, system blocks and tools it carried, and those of its settings switchboard knows: `max_tokens`, `thinking`, `stream`, `tool_choice`'s type, `temperature`, `top_k`, `top_p`, `service_tier`, `output_config`'s `effort`, `speed`, `inference_geo`, and the types of `context_management`'s edits. Of the answer the client got, `answer` holds Anthropic's id for it, the model that served it, why it stopped, how many blocks of each kind it held, the tools it called, by name, and an error's type and message; `usage` its closing usage, as the API gave it, field for field; and `limits` its `anthropic-ratelimit-unified-*` headers, the prefix taken off. It keeps everything about a request but its content: never its messages, its system prompt or its tools, its metadata's ids, a setting or header the line doesn't name, or anything shaped like a token. Fields may be added to a line, never renamed. A day's file, `requests-<date>.jsonl`, is compressed to `requests-<date>.jsonl.gz` once its day ended two days ago, as the history's are. It never holds a request up: the lines wait, 8,192 at most, for a goroutine of their own to write them, and a line it can't write goes unwritten, logged once. An hour after each day ends, giving the requests still in flight then time to end, the router summarises it beside its lines, in `day-<date>.json`: `{"version", "day", "lines", "bytes", "accounts"}`, how many lines it was made from, and how large its files were then, then each account's requests by model, counted by how each went, those that went upstream but got no usage back among them, with their sessions, by their ids, and their usage summed field for field, and of the account as a whole its sessions, by their ids too, those moved onto it and off it, each window's highest use that day, its rise and its resets, with the use before each, from the history, the minutes it spent at its cap and at a limit, the limits it reached, each a window turning `rejected`, and the windows the history read in the week before. Every account the history read that day has a day of its own, whether or not it served a request, as has one whose window reset that day by the reset its last reading gave, so a week that ended on a quiet day keeps its peak; and a day the router served nothing on, but read an account, or saw a window reset, is summarised too, once the history holds the week before it, as a window already at its limit as the history began would otherwise read as one reached that day. A day that ended while the router was stopped is summarised as it starts again, before the history's readings of it can go, and a day a line comes to be filed under later, as a request in flight past that hour files one, is summarised again, knowing no less than before, though the history has since let the day's readings go, or a damaged file some of its lines, which can't be told from those filed since, so its counts are then the least there were; once its lines go, its summary is kept for good, summarised again only by a release that summarises days otherwise, from the day's readings while the history keeps them. [`requests`](#requests) and [`history`](#history) read it all back, with or without the router. Beside the lines, in `events-<date>.jsonl`, kept as long and compressed as they are, the router files its events, a JSON line for each version of one, so they outlast a restart: a session started or moved, an account under pressure, at its cap, at its limit, refused, primed or with room again, routing set by hand, a restart falling due, and its own health turning, each account by its id alone.
-- **Looking after itself.** The router takes up a change to a token file as it comes, and a token file caught empty while it's rewritten doesn't cost its account its token. Once your Mac wakes, it sends the requests it routes upstream on fresh connections, as a sleep can leave those it kept dead; probes go out on connections of their own, each given 5 seconds. The service's router restarts itself, once no request is in flight, when its config changes, `brew upgrade` replaces it or your Mac's time zone changes, so `accounts add`, an edit by hand, an upgrade and a new time zone all take effect without a command; a router started by hand with `serve` logs that a restart is due instead. It restarts in place, running its new binary in the same process and handing it the sockets it listens on, so a request made meanwhile waits a moment rather than being refused, and launchd isn't asked to start an upgraded binary afresh, which macOS has been seen to refuse, where it lets the router run it in place, as the first such upgrade showed. With many long sessions, a moment with no request in flight can be hours coming: `switchboard status` and the dashboard say while a restart is due, and `switchboard service restart` has it now. See [`serve`](#serve).
+- **A readings history.** Each reading that changes how a window of an account reads, and nothing when nothing moved, is appended to a file a day in `history/`, kept for 400 days, or as long as [`[history]`](#history-keys) says, `forever` included. It's there for you to look back at how the accounts were used.
+  - As it starts, the router takes up the readings of its two newest days, so the recent rates outlast a restart.
+  - It never stands in routing's way: a line it can't write goes unwritten, logged once.
+- **A request ledger.** A line for each request the router routes, as it finishes with it, whether it went upstream or the router answered it itself, is appended to a file a day in `ledger/`, kept for 400 days, or as long as [`[ledger]`](#ledger-keys) says, `forever` included, and never pruned before its day's summary is written.
+  - It keeps everything about a request but its content: its session, model and account, why it went there, its timing, its shape and settings, and the answer's usage, but never its messages, its system prompt or its tools.
+  - It never holds a request up: the lines wait, 8,192 at most, for a goroutine of their own to write them, and a line it can't write goes unwritten, logged once.
+  - An hour after each day ends, giving the requests still in flight then time to end, the router summarises the day beside its lines, each account's requests, sessions, moves, limits and highest use, and the summary is kept for good.
+  - [`requests`](#requests), [`history`](#history) and [`sessions`](#sessions) read it all back, with or without the router.
+- **The router's events.** Beside the ledger's lines, the router files its events, a JSON line for each version of one, so they outlast a restart: a session started or moved, an account under pressure, at its cap, at its limit, refused, primed or with room again, routing set by hand, a restart falling due, and its own health turning. [`events`](#events) reads them back.
+
+### Looking after itself
+
+- **Tokens.** The router takes up a change to a token file as it comes, and a token file caught empty while it's rewritten doesn't cost its account its token.
+- **Sleep.** Once your Mac wakes, it sends the requests it routes upstream on fresh connections, as a sleep can leave those it kept dead; probes go out on connections of their own, each given 5 seconds.
+- **Restarts.** The service's router restarts itself, once no request is in flight, when its config changes, `brew upgrade` replaces it or your Mac's time zone changes, so `accounts add`, an edit by hand, an upgrade and a new time zone all take effect without a command; a router started by hand with `serve` logs that a restart is due instead.
+  - It restarts in place, running its new binary in the same process and handing it the sockets it listens on, so a request made meanwhile waits a moment rather than being refused, and launchd isn't asked to start an upgraded binary afresh, which macOS has been seen to refuse, where it lets the router run it in place, as the first such upgrade showed.
+  - With many long sessions, a moment with no request in flight can be hours coming: `switchboard status` and the dashboard say while a restart is due, and `switchboard service restart` has it now. See [`serve`](#serve).
 
 ### The primary
 
@@ -167,7 +364,7 @@ switchboard usage [--5h] [--week] [--<model>] [--by window|account] [--probe] [-
 - **A row** an account, in the config's order: its number, its place in the config, its label, `◆` on the primary and `▲` on the account new sessions go to; the window's bar, filled along the theme's ramp, `┃` where even use would have put it by now and `╎` where its cap starts, 1 less its `reserve`; its percentage; and the first of these that holds: `limit · back 15:54` while Claude's limit holds the window; `at cap · back 17:10` once its use reaches the cap and the cap holds the account back; `out ~Sat 06:00` where it runs out before its reset, at its recent rate; `not started`, of a 5-hour window not yet started; else its allowance, what can be spent of it an hour or a day and still last to its reset, `19%/day till Sun 21:00`, or under an hour from the 5-hour window's reset, or a day from a week's, the room itself, `34% till 16:30`. An account with no usable token reads `no token`, and one nothing has been read of `not read yet`, their bars empty; one whose token is refused, or whose last read failed, shows its last reading faded, `not read since 14:20`.
 - **The pool,** wherever there's more than one account, is the room new sessions can go to, summed across the accounts in it: every account on auto, only those pinned when there's a global pin. Its row, `Σ pool`, comes last, under a rule, its words the room left in accounts' worth, `1.5 of 3 left`, and pinned, ` · pinned`, an account out of it numbered faintly.
 - **Every window shows,** used or not: a model's own window, as Fable's week, on every account, at 0% as at 40%.
-- **The width** shapes it. By window, from 150 columns the windows sit side by side, a column each, and narrower, or where a bar would be under 12 cells, as with four windows at 160 columns, they're stacked, a section each. By account, each account is a block, its windows as rows, its name beside its first bar from 110 columns, else on a line of its own above it. The header is one line from 120 columns, else two, and the key line one from 150, else two. Under 70 columns the words shorten, to `back 15:54`, `out ~Sat` and `19%/day · Sun`. A label too long for the name column is cut with `…`, never moving as `▲` moves between accounts.
+- **The width** shapes it. By window, from 150 columns the windows sit side by side, a column each, and narrower, or where a bar would be under 12 cells, as with four windows at 160 columns, they're stacked, a section each. By account, each account is a block, its windows as rows, its name beside its first bar from 110 columns, else on a line of its own above it. The header is one line from 120 columns, else two, and the key line one from 150, else two, its second naming the cap, where a bar draws one. Under 70 columns the words shorten, to `back 15:54`, `out ~Sat` and `19%/day · Sun`. A label too long for the name column is cut with `…`, never moving as `▲` moves between accounts.
 - **Colour:** it's drawn in the dashboard's theme, brought down to what the terminal shows, with no background of its own (see [Themes](#themes)). With `NO_COLOR` set, or on a terminal that shows no colour, a bar's fill is drawn in `█`, its track left as spaces, and the names and percentages keep their bold.
 
 ```bash
@@ -189,33 +386,40 @@ switchboard dashboard [interval] [--no-notify] [--probe]
 | Flag | Description |
 |---|---|
 | `--no-notify` | post none of the desktop notifications it posts while it probes without the router (see [Notifications](#notifications)) |
-| `--probe` | probe every account each interval, even while the router runs |
+| `--probe` | probe every account each interval, even while the router runs; with no router read, there's no routing card, and `p` does nothing |
 
 Reading the router, it looks at the router's view every 5 seconds, which costs nothing upstream, and every interval has the router probe the accounts it hasn't read in that time, beside the router's own [rounds](#priming), every half hour. Should the router stop answering, or a read of it fail, its last view stays on screen, the status line saying `■ the router isn't answering  ·  since 14:40:55`, until it answers again or the interval's read, or `R`, probes the accounts directly. Without the router, it probes every account every interval, sooner after a window on screen resets or an account couldn't be read, and goes back to the router once it answers.
 
 | Key | Does |
 |---|---|
-| `tab` | the next tab, in the title row's order and round: the Overview, Accounts, History, Sessions, Runway and the Log (see [The Dashboard](#the-dashboard)); `shift-tab` the one before; the next dashboard opens on it |
-| `p` | the routing card, where new sessions go: see below. With one account there's nothing to pin to, and `p` does nothing, unless a pin set with [`pin`](#pin) stands, to clear it |
+| `tab` | the next tab, in the title row's order and round: the Overview, Accounts, History, Sessions, Runway and the Log (see [The Dashboard](#the-dashboard)); `shift-tab` the one before; from a session's page, the tab after or before the one it was opened from; the next dashboard opens on it |
+| `p` | the routing card, where new sessions go, or on the page of a session that's running, where that session goes: see below. With one account there's nothing to pin to, and `p` does nothing, unless a pin set with [`pin`](#pin) stands, to clear it; nor with `--probe` |
 | `R` | refresh now: the router probes the accounts it hasn't read in the last minute, and those that can take no request however lately it read them, but for those whose 5-hour window has lapsed and that can take a request, and none twice in a minute; without it, every account is probed |
 | `t` | the theme picker: see [Themes](#themes) |
 | `u` `g` `r` `s` `c` `l` | on the Overview, show or hide a section: USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY; the next dashboard shows those shown |
 | `b` | on the Overview, group the windows by window or by account, as [`[usage] by`](#usage-keys) has them until `b` is pressed; the next dashboard groups them so |
 | `↑` `↓` | on the Overview, move the focus between the accounts, in the config's order: GRAPHS charts the account with it, and USAGE scrolls to it |
-| `[` `]` | on History, the view before or after, round: the Year, Weeks, Days and Tokens; the next dashboard opens on it |
-| `<` `>` | on History's Year, back through each calendar year the ledger holds and forward again to the last 12 months; on Tokens, the period each row is, a day, a week or a month; on Runway, the 5-hour or the week view; the next dashboard opens on Runway's |
-| `v` | on History, what the Year shows, all use, a model version or an account; Weeks' shape, a table or columns; and how Tokens splits each period, by account, by model, by both or not at all; the next dashboard shows them so |
-| `←` `→` | on History's Year, shown for one account, the account before or after, round; on Runway, back to today, then a day at a time, or to this week, then a week at a time, and on again to the live view |
-| `j`, `k`, `PgDn`, `PgUp`, the wheel | scroll the view, where it doesn't fit: a row, a page, or three rows a turn of the wheel. On the Overview, USAGE scrolls, where its accounts don't fit; and on History, the Year, where the screen is shorter than it, Weeks' accounts, Days' BY ACCOUNT, past six accounts, and Tokens' periods: USAGE, Weeks and Days an account at a time, and Tokens a period, a turn of the wheel too |
-| `?` | the page's help: every key that works on it, what each part of it shows and how to read it, and what its marks mean, in a card over the page; `j` and `k` scroll it, and `?` or `esc` closes it |
-| `esc` | close what's open, the newest first: a card, or the theme picker |
-| `q` | quit, but while a card is open, whose keys alone act; `ctrl-c` quits wherever it is |
+| `[` `]` | on Accounts, History, Sessions and the Log, the sub-tab before or after, round: Accounts' Compare and Detail, History's Year, Weeks, Days and Tokens, Sessions' Switchboard and List, and the Log's Requests and Events; the next dashboard opens on the one last shown, but for the Log's. With one account, Accounts shows Detail alone, and `[` `]` do nothing there |
+| `<` `>` | on Accounts, the period both its views count over, a shorter or a longer: today, this week, 30 days and 12 weeks; on History's Year, back through each calendar year the ledger holds and forward again to the last 12 months; on Tokens, the period each row is, a day, a week or a month; on Runway, the 5-hour or the week view; the next dashboard opens on the period or window each last showed, but for a calendar year |
+| `v` | on History, what the Year shows, all use, a model version or an account; Weeks' shape, a table or columns, where both fit; and how Tokens splits each period, by account, by model, by both or not at all; the next dashboard shows them so |
+| `←` `→` | on Accounts' Compare, the focus along the accounts' columns, scrolling them where they don't all fit; on Accounts' Detail, `→` into the chosen account's sessions and `←` back to the list; on History's Year, shown for one account, the account before or after, round; on Runway, back to today, then a day at a time, or to this week, then a week at a time, and on again to the live view |
+| `↑` `↓` | on Accounts' Detail, the account chosen in the list, `all accounts` first, or, in its sessions, the session; on Sessions, a session, a call on the Switchboard or a row on the List; on the Log, a line, `↑` from following choosing the newest and pausing, and with its details open, the line before or after; on a session's page, a turn, or with one open, a request of it |
+| `enter` | on Accounts, Sessions, the Log and a session's page, open what's chosen: from Compare, the account in Detail; a session's row, its page; a line of the Log, its details; a turn, its requests, in place, and with a turn open, the chosen request's details |
+| `end` | on the Log, follow again: the newest line at the foot, and nothing chosen |
+| `s` | on the Log, the page of the chosen line's session, but not of an account's event |
+| `g` | on the details of an event in the Log, the Requests, paused at the event's moment |
+| `f` | on the Log, what it shows: the panel, where `←` `→` move between its sides, `↑` `↓` through a side's ticks, `space` ticks the one the cursor's on, `enter` applies them, `esc` closes it unchanged, and `/` closes it for the find |
+| `/` | on the Log, find a session by the start of its id or its directory's name, today's first, then back a day at a time; `↑` `↓` and `enter` pick one, filtering both tables to it |
+| `j`, `k`, `PgDn`, `PgUp`, the wheel | scroll the view, where it doesn't fit: a row, a page, or three rows a turn of the wheel. On the Overview, USAGE scrolls, where its accounts don't fit; on Accounts, its view; on History, the Year, where the screen is shorter than it, Weeks' accounts, Days' BY ACCOUNT, past six accounts, and Tokens' periods; on Sessions, the List, and where the Switchboard draws lanes, its accounts; on Runway, its lanes; on the Log, its table; and on a session's page, its turns, or with one open, its requests: USAGE, Weeks, Days and Sessions' and Runway's lanes an account at a time, and Tokens a period, a turn of the wheel too. Where one account or one period doesn't fit, as on a short screen, and on History's Weeks and Days below 37 rows, the view scrolls whole, a row at a time, saying how many rows are out of view above and below; and where `b`, a section's key, a resize or what's read turns a view from one to the other, it goes back to its top |
+| `?` | the page's help: every key that works on it, what each part of it shows and how to read it, and what its marks mean, in a card over the page; `j` and `k` scroll it a row, `PgDn` and `PgUp` a page, and `?` or `esc` closes it |
+| `esc` | close what's open, the newest first: a card, the theme picker, the Log's panel, the Log's find, or a turn opened; else end a choice; on the Log, with a filter on and nothing open, clear it; else, on a session's page, go back to where it was opened from |
+| `q` | quit, but while a card, the Log's panel or its find is open, whose keys alone act; `ctrl-c` quits wherever it is |
 
-- **The routing card** is the only way the dashboard changes routing, and it changes nothing until `enter`. `p` opens it over the page, with nothing picked but what's set now: a row for `0 auto` and one for each account, numbered by its place in the config, with whether it's open, its 5-hour window and week, and why it's closed, as `at its cap till 17:10`, or its sessions running. `↑` and `↓` move between the rows, `space` picks the one it's on, and a number picks its row directly, `0` auto, which clears the accounts, as an account clears auto; `m` ticks moving the sessions running elsewhere there too, the card saying how many would move and what rebuilding their caches costs, `≈ $6.20`, roughly; under it, in a sentence, what the picks do. `enter` applies them, as [`pin`](#pin) does, the router's event naming the dashboard as what set it, and `esc` closes it with nothing changed. An account that can't take a session, at a limit, its token refused, or with none, can't be picked. Outside the card, the number keys and `m` do nothing, so a stray key moves no session; while the router doesn't answer, `p pin` is drawn faint, and `p` says so instead.
+- **The routing card** is the only way the dashboard changes routing, and it changes nothing until `enter`. `p` opens it over the page, with nothing picked but what's set now: a row for `0 auto` and one for each account, numbered by its place in the config, with whether it's open, its 5-hour window and week, and why it's closed, as `at its cap till 17:10`, or its sessions running. `↑` and `↓` move between the rows, `space` picks the one it's on, and a number picks its row directly, `0` auto, which clears the accounts, as an account clears auto, and `1` to `9` the first nine accounts, those past them having no number; `m` ticks moving the sessions running elsewhere there too, the card saying how many would move and what rebuilding their caches costs, `≈ $6.20`, roughly; under it, in a sentence, what the picks do. `enter` applies them, as [`pin`](#pin) does, the router's event naming the dashboard as what set it, and `esc` closes it with nothing changed. An account that can't take a session, at a limit, its token refused, or with none, can't be picked. Outside the card, the number keys and `m` do nothing, so a stray key moves no session; while the router doesn't answer, `p pin` is drawn faint, and `p` says so instead; with `--probe`, `p pin` isn't listed, and `p` opens nothing, even while the router answers. On a running session's page, `p` opens that session's own card, to pin the session to an account or back to auto, with no `m`.
 - **A card over a page,** the routing card or help, is drawn with the page faded behind it, standing still while the card is open, the card's own figures following each read.
-- **The key line,** the last row, lists the keys that work on the page: `tab views` first, then the page's own, `p pin` where a pin can be set, and `? help  q quit` last. A key that can't act now is faint, and pressed, says why in the line's place for 4 seconds. `t`, `R` and the scrolling keys work everywhere and are left to `?`. The Overview's lists its toggles, each word faint while its section is hidden, then `b by: window`, then `↑↓ focus  p pin  ? help  q quit`. On a phone, or wherever the line doesn't fit whole, `? keys` and `q quit` end it, `? keys and toggles` on the Overview, and `tab views` leads it while it fits.
-- **Clicks:** the mouse is on while it runs, so selecting text takes the terminal's modifier: Option in iTerm2 and Terminal.app, Shift in most others. A click on a tab shows it, and on a key of the key line does what the key does, a pair's, as `[ ]` or `< >`, its second's, but `p pin` and `q quit`; on History, a click on a view's name in the heading row shows it, and on the period's `<` or `>` steps it; on Runway, a click on `<` or `>` by its window moves between the views; on the Overview, a click on a section's heading hides it, and on an account's row in USAGE or ROUTING moves the focus there; the wheel scrolls what's under the pointer. No click opens the routing card or acts in it, so a stray click never moves a session.
-- **What's remembered,** in `prefs.json` in the state directory, as it changes: the theme or the pair, the tab shown, the Overview's sections shown and its `b`, and History's view, what its Year shows, Weeks' shape, and Tokens' period and split, and Runway's window, the Year showing all use again where the version or account it showed is no longer there to show. Never a focus, a card or help open, a calendar year or Runway's day or week stepped back to, or a scroll.
+- **The key line,** the last row, lists the keys that work on the page: `tab views` first, or on a session's page `esc back`, then the page's own, `p pin` where a pin can be set, and `? help  q quit` last. A key that can't act now is faint, and pressed, says why in the line's place for 4 seconds. `t`, `R` and the scrolling keys work everywhere and are left to `?`. The Overview's lists its toggles, each word faint while its section is hidden, then `b by: window`, then `↑↓ focus  p pin  ? help  q quit`. On a phone, or wherever the line doesn't fit whole, `? keys` and `q quit` end it, `? keys and toggles` on the Overview, and `tab views` leads it while it fits.
+- **Clicks:** the mouse is on while it runs, so selecting text takes the terminal's modifier: Option in iTerm2 and Terminal.app, Shift in most others. A click on a tab or a sub-tab shows it, on `<` or `>` by a period or a window steps it, and on a key of the key line does what the key does, a pair's, as `[ ]` or `< >`, its second's, but `p pin` and `q quit`; on a row that names an account, a session, a line or a turn, or a Compare column's head, it chooses it, as the arrows would, and on the one already chosen opens it, as `enter` does, but a row of the Overview's SESSIONS opens its session's page at once, an account in Detail's list opens nothing, and with a turn open, a click on a turn closes it, then chooses the one clicked, where it's another; on the Overview, a click on a section's heading hides it, and on an account's row in USAGE or ROUTING moves the focus there; on the Log, a click on `▼ 214 new` follows again, and on a tick in its `f` panel ticks it; the wheel scrolls what's under the pointer. No click opens the routing card or acts in it, so a stray click never moves a session.
+- **What's remembered,** in `prefs.json` in the state directory, as it changes: the theme or the pair, the tab shown, the Overview's sections shown and its `b`, and of each view what its keys last left, the sub-tab, the period or window and `v`'s choice: Accounts' view and period, History's view, what its Year shows, Weeks' shape, and Tokens' period and split, Sessions' view and Runway's window, and the Log's columns, the Year showing all use again where the version or account it showed is no longer there to show. Never a focus, a choice, a card or help open, a session's page, a calendar year or Runway's day or week stepped back to, the Log's filters, or a scroll.
 
 ```bash
 switchboard dashboard           # reading every 30 minutes
@@ -360,7 +564,7 @@ switchboard service status
 |---|---|
 | `--log-level <level>` | `install`: have the router log at `debug`, `info`, `warn` or `error` and above (default `$SWITCHBOARD_LOG_LEVEL`, else `info`) |
 
-- **`install`** writes `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist`, has launchd load it in place of any copy it had loaded, and waits up to 5 seconds for the router to answer. It reads the config first, as the router will, and fails on one the router couldn't serve. The LaunchAgent runs switchboard by the path you ran it by, so a Homebrew link stays the link `brew upgrade` moves on; a temporary build, such as `go run`'s, is refused. It carries `--config`, made absolute, and `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG`, `SWITCHBOARD_LOG_LEVEL` and `CLAUDE_CONFIG_DIR` where they're set, so the router finds what the CLI does. The tokens are files, so it needs nothing else of your environment. It warns when no account has a usable token; the router starts all the same, and routes as soon as a token file holds one.
+- **`install`** writes `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist`, has launchd load it in place of any copy it had loaded, and waits up to 5 seconds for the router to answer. It reads the config first, as the router will, and fails on one the router couldn't serve. The LaunchAgent runs switchboard by the path you ran it by, so a Homebrew link stays the link `brew upgrade` moves on; a temporary build, such as `go run`'s, is refused. It carries `--config`, and `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG`, `SWITCHBOARD_LOG_LEVEL` and `CLAUDE_CONFIG_DIR` where they're set, `--config`, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR` made absolute, so the router finds what the CLI does. The tokens are files, so it needs nothing else of your environment. It warns when no account has a usable token; the router starts all the same, and routes as soon as a token file holds one.
 - **`uninstall`** stops the router, and removes the LaunchAgent.
 - **`restart`** restarts the router, which reads the config and the tokens afresh. A router that's answering is asked to restart: it finishes its requests in flight first, up to 30 seconds, and 5 more for those it cuts off then to unwind, then restarts in place, as it restarts itself, and `restart` says so, `the router is finishing its requests in flight, then it restarts in place`, or, for one that can't replace itself, `…, then launchd starts it again`, then waits up to 50 seconds for the new one to answer. A router run by hand refuses, as does one whose config isn't valid, which it couldn't start again from, and `restart` says why. One from before routers restarted in place stops as at a signal, and launchd starts it again. With none answering, launchd starts the service afresh at once. It's how to have a restart the router has due, waiting for a moment with no request in flight, now, as `switchboard status` says.
 - **`status`** shows whether the LaunchAgent is installed and loaded, and the router's health.
@@ -373,13 +577,13 @@ switchboard service install --log-level debug
 switchboard service status
 ```
 
-### Troubleshooting
+### Checking in
 
 #### `status`
 
 Every account's usage as text: each window's utilization, when it resets and where it's heading; what holds an account back, such as a limit it reached or its reserve, and whether it's under pressure, with the rate it goes by (`under pressure: runs out ~18:21 at 5-hour's rate over the last 30 min, before its reset at 20:10`); the sessions routed in the last hour, a line each, with the account each of its models goes to; the priming schedule; the best account to use next; and last, where the usage came from, with the router's health, and under it, a restart the router has due, with how to have it now. It reads the router while it runs, else probes each account. When the `claude` a shell runs from `PATH` isn't switchboard, the first line says so.
 
-Where its output isn't a terminal, as in a pipe or an agent's shell, it prints the status document as JSON instead: every account's windows, each with its even pace, where even use would have put it by now, and its allowance, what can be spent of it an hour or a day and still last to its reset; the pool, the room new sessions can go to, summed across its accounts; and what's coming up, each limit or cap lifting, window running out or resetting, and prime, soonest first.
+Where its output isn't a terminal, as in a pipe or an agent's shell, it prints the status document as JSON instead: every account's windows, each with its even pace, where even use would have put it by now, and its allowance, what can be spent of it an hour or a day and still last to its reset; each account's extra usage, where the API reports it; the pool, the room new sessions can go to, summed across its accounts; and what's coming up, each limit or cap lifting, window running out or resetting, and prime, soonest first. [The status document](#the-status-document) lists its fields.
 
 ```bash
 switchboard status [--json | --pretty] [--probe] [-r]
@@ -388,7 +592,7 @@ switchboard status --session <id> [--json | --pretty]
 
 | Flag | Description |
 |---|---|
-| `--json` | print the status document as JSON, what an agent or a script reads, as it does off a terminal anyway, even on one; with `--session`, the session's every model and why it went where it did |
+| `--json` | print the status document as JSON, what an agent or a script reads, as it does off a terminal anyway, even on one; with `--session`, the session's every model and why it went where it did (see [`status --session`'s JSON](#status---sessions-json)) |
 | `--pretty` | print the text, as it does on a terminal, even off one |
 | `--probe` | probe every account, even while the router runs |
 | `-r, --refresh` | have the router first read every account it may, as [`usage -r`](#usage) does, and wait for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
@@ -423,7 +627,7 @@ switchboard logs router --path
 
 ### Looking back
 
-`requests`, `history` and `sessions` read the [request ledger](#how-it-works)'s files where they lie, and `events` the files the router keeps its events in beside them, so none needs the router, though `sessions` asks it which sessions are running where it answers. Their plain text is a first cut; agents read their JSON, which each prints wherever its output isn't a terminal.
+`requests`, `history` and `sessions` read the [request ledger](#the-request-ledger)'s files where they lie, and `events` the files the router keeps its events in beside them, so none needs the router, though `sessions` asks it which sessions are running where it answers. Their plain text is a first cut; agents read their JSON, which each prints wherever its output isn't a terminal.
 
 #### `requests`
 
@@ -438,7 +642,7 @@ switchboard requests [--session <id>] [--account <id>] [--since <when>] [--json 
 | `--session <id>` | keep that session's requests, named by its id, or as much of it as is unique among the sessions read |
 | `--account <id>` | keep that account's requests |
 | `--since <when>` | start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`) |
-| `--json` | print each line as the ledger holds it, a JSON object a line, as it does off a terminal anyway, even on one |
+| `--json` | print each line as the ledger holds it, a JSON object a line (see [The request ledger](#the-request-ledger)), as it does off a terminal anyway, even on one |
 | `--pretty` | print the text, as it does on a terminal, even off one |
 
 ```bash
@@ -452,7 +656,16 @@ The ledger's days: the last 30, unless `--since` says otherwise, a row for each 
 
 A plan's price a month, of the [`plan`](#account-keys) the config gives an account, is prorated as the dashboard prices its periods: a day at 12/365 of a month, a week at 12/52, 30 days at a month and 12 weeks at twelve weeks', a period still running priced whole, and a month or week the days asked for begin part-way through priced by its days from then. The plans' own period runs from the later of the day asked for and the first the ledger holds. An account without a `plan` has no cost and no ratio, and every account's sums those that have one.
 
-Under the days, over all of them: each account's totals, its plan and its worth against it, a column each and one for every account; each week's peaks; and whether there are as many accounts as the use needs. An account's own week runs from one reset of its week to the next, as the readings history saw them, a reset by hand among them, and its peak is the use read just before the reset that ended it. Each is placed by the date it began on: under its calendar week, from the config's [`week_starts`](#top-level-keys), where it began up to half the week in, as a Thursday is in a week from Monday, else under the next; but the week still running, its peak its highest so far, is always this week's, the reset that began it read from the week before the days asked for where it came before them. A week is short where some account hit its week's limit. Each whole week in which every account's week is known and ended is replayed with an account fewer, its peak times its plan's size shared among the rest by theirs, and with one more, of the plan most of the accounts have, every peak falling in proportion: an account without a `plan` counts as that plan, and where none has one, each counts as one. From those come the verdict, as the dashboard's History words it: `one too few`, where now is short on 4 or more of every 7 and one more would halve that; `too few`, where now is short on as many and one more wouldn't halve that, the replay saying how short one more would still leave it; else `one more than you need`, where now is short on fewer than 4 of every 7 and one fewer would be short on no more weeks, naming the one to drop, and, of three accounts or more, how many a replay without it and the next by the same rule finds; else `about right`; and each account's, over its own whole weeks, `hits its limit most weeks`, 3 or more of every 7, `plenty to spare most weeks`, 40% or more left at a reset on average, `ends most weeks with room`, `barely used`, 75% or more left, or, where the verdict is one more than you need, `could go`, no limit hit, 10% or less used, and the rest covering it. What a day never counted, as one recorded before the ledger counted resets and time at a limit, is left out, never taken for none.
+Under the days, over all of them: each account's totals, its plan and its worth against it, a column each and one for every account; each week's peaks; and whether there are as many accounts as the use needs.
+
+- **An account's own week** runs from one reset of its week to the next, as the readings history saw them, a reset by hand among them, and its peak is the use read just before the reset that ended it.
+- **Placed** by the date it began on: under its calendar week, from the config's [`week_starts`](#top-level-keys), where it began up to half the week in, as a Thursday is in a week from Monday, else under the next; but the week still running, its peak its highest so far, is always this week's, the reset that began it read from the week before the days asked for where it came before them.
+- **Short:** a week is short where some account hit its week's limit.
+- **The replay:** each whole week in which every account's week is known and ended is replayed with an account fewer, its peak times its plan's size shared among the rest by theirs, and with one more, of the plan most of the accounts have, every peak falling in proportion: an account without a `plan` counts as that plan, and where none has one, each counts as one.
+- **The verdict,** as the dashboard's History words it: `one too few`, where now is short on 4 or more of every 7 and one more would halve that; `too few`, where now is short on as many and one more wouldn't halve that, the replay saying how short one more would still leave it; else `one more than you need`, where now is short on fewer than 4 of every 7 and one fewer would be short on no more weeks, naming the one to drop, and, of three accounts or more, how many a replay without it and the next by the same rule finds; else `about right`.
+- **Each account's,** over its own whole weeks: `hits its limit most weeks`, 3 or more of every 7, `plenty to spare most weeks`, 40% or more left at a reset on average, `ends most weeks with room`, `barely used`, 75% or more left, or, where the verdict is one more than you need, `could go`, no limit hit, 10% or less used, and the rest covering it; then every account's, `room to spare together`, a quarter or more left at a reset on average across them, else `little to spare together`.
+- **Not enough weeks:** where no whole week can be judged yet, it says `Weeks: not enough weeks yet`.
+- **Never guessed:** what a day never counted, as one recorded before the ledger counted resets and time at a limit, is left out, never taken for none.
 
 `--windows` prints in their place each account's windows over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it.
 
@@ -464,7 +677,7 @@ switchboard history [--since <when>] [--windows] [--json | --pretty]
 |---|---|
 | `--since <when>` | start on the day of a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`) |
 | `--windows` | print each account's every window's readings over those days, in place of the days |
-| `--json` | print `{"prices_as_of", "days", "year", "months", "weeks", "tokens", "totals", "plans", "capacity"}`, as it does off a terminal anyway, even on one, each block over the days asked for since the ledger began, oldest first, today's last: the day the prices were read, and `prices_from_config` where the config's `[prices]` price a model or a plan; each day's summary as the ledger holds it, one of no requests, the history telling of no account that day, without `accounts`, and an account's day there where its quota checks, its counts of tokens or the history give it one, requests or none, each model's `worth` in US dollars added, `unpriced` naming what it leaves out, as `no_usage`, requests that got no usage back, and `by_family`, the day's worth by model family; `year`, each day's `requests` and the `level`, 0 to 4, it's shaded at, and the `cuts` between the levels, the active days' quarters; `months`, each month's `requests`, `worth`, `limits` reached by window, `by_family`, and its plans' `cost`, the whole month's, or its days' from the first asked for, with the worth of their accounts `against` it, a ratio, but for the month so far; `weeks`, each week's, from the day the config's `week_starts` names, Monday unless it says otherwise, each account's `peaks`, the highest use of its week and of each model's own week, as Fable's, by window, the windows whose week is still running, `open`, its peak so far, and the `limits` it reached in that week, by window, then `all` of them, each window's peak the mean of theirs; `tokens`, each week's by kind, `input`, `output`, `cache_write`, `cache_read` and `total`, its `worth`, its plans' `cost` and `against`, then `by_account`, in the config's order, and `by_model`, each version by its id, with the accounts it ran `on`, the one it was worth most on first; `totals`, each account's then `all` of them: `requests`, `sessions`, each once however many days and accounts it ran on, `moved_on` and `moved_off`, `limits` by window, `minutes_at_cap` and `minutes_at_limit`, `left_at_reset`, each window's share left at its last reset, `worth`, `by_model`, each version's `share` of use, weighed at API prices, and its `worth`, `busiest_day`, `longest_run`, the most days in a row with any request, and `partial`, naming a count some of the days never counted; `plans`, each account's `plan`, its `price` a month, what it cost over those days and `against` it, and its `worth`, then `all` of them, of those on a plan; and `capacity`, over the whole `weeks` in which every account's week is known and ended: how many were `short`, `with_one_fewer` and `with_one_more`, the `verdict`, `one too few`, `too few`, `one more than you need` or `about right`, and where it's one more than you need, the account to `drop`, and of three or more `with_two_fewer`, without it and the account whose loss then makes the fewest weeks short; and each account's `verdict`, over its own whole `weeks`, the weeks it hit its `limits` in, what it had `left_at_reset` on average and how many the rest would have been short `without_it`, then `all` of them, `room to spare together` or `little to spare together`. Every `worth` is exact, with `unpriced` beside it naming what it leaves out: the counts a usage holds that the price table can't price; `no_usage`, requests that got no usage back; and of requests it prices none of, a model it doesn't know by its id, a model it knows in a geo it doesn't price it in, as `inference_geo:eu`, and requests that named no model as `no_model`; and `worth` left out where nothing was priced, as by `sessions`; every share is exact. With `--windows`, `{"windows": [{"account", "window", "readings"}]}`, each reading `{at, utilization, resets_at, status, source}` |
+| `--json` | print the blocks as JSON, as it does off a terminal anyway, even on one: the day the prices were read, then the days' summaries, priced, then the year, months, weeks, tokens, totals, plans and capacity over them, or with `--windows`, the windows' readings. See [`history`'s JSON](#historys-json) |
 | `--pretty` | print the text, as it does on a terminal, even off one |
 
 ```bash
@@ -478,7 +691,7 @@ switchboard history --windows --since 14:00      # today's readings of every win
 
 Today's sessions: those running, the oldest started first, then those that ended today, the latest ended first. A line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering, idle or when it ended, when it started, its requests today and what they'd have cost through the API, and how it came to its account, such as `from work, at its cap` and what writing its context again there cost; then a line summing them. It reads the ledger's files, and the router's sessions where it answers; without the router, it lists today's sessions from the ledger alone, none as running, and says so.
 
-Given a session, by its id or as much of it as is unique among today's sessions, it shows that one's page: what it's doing, where it runs and why, when it started, and when it came back after an hour or more without a request; each account it ran on, with its time there, its requests, the points of each of the account's windows they took and their worth; then its turns, newest first, a turn being a prompt and every request that serves it, its subagents', compactions and side requests included, as Claude Code's own headers tell them, each with when it started and how long it took, its requests, the tools its answers called most, the tokens it read from the cache, wrote to it and put out, its worth, and the accounts its own conversation went to, as `work → side` where it moved, a subagent on another account being no move; and its totals. The points are an estimate: a window counts its account's every session, so each rise in its use between two answers is shared out among the requests that ended between them, by their tokens. A session of an earlier day is found by its whole id. Without the router, it's shown from its lines alone, as ended.
+Given a session, by its id or as much of it as is unique among today's sessions, it shows that one's page: what it's doing, where it runs and why, when it started, and when it came back after an hour or more without a request; each account it ran on, with its time there, its requests, the points of each of the account's windows they took and their worth; then its turns, newest first, a turn being a prompt and every request that serves it, its subagents', compactions and side requests included, as Claude Code's own headers tell them, each with when it started and how long it took, its requests, the tools its answers called most, the tokens it read from the cache, wrote to it and put out, its worth, and the accounts its own conversation went to, as `work → side` where it moved, a subagent on another account being no move; and its totals. The points are an estimate: a window counts its account's every session, so each rise in its use between two answers is shared out among the requests that ended between them, by their tokens. A session of an earlier day is found by its whole id. Without the router, it's shown from its lines alone, as not running: idle where its last request came within the hour, else ended.
 
 ```bash
 switchboard sessions [<id>] [--json | --pretty]
@@ -486,7 +699,7 @@ switchboard sessions [<id>] [--json | --pretty]
 
 | Flag | Description |
 |---|---|
-| `--json` | print `{"generated_at", "prices_as_of", "sessions", "today"}`, as it does off a terminal anyway, even on one: each session with its whole id, its directory, account and model, whether it's `running`, and of one running, when it was last seen, each of its models' account and why, what it's doing and its `move_cost`, what moving it now would cost; of one ended, when it `ended`; when it `started`, its `requests` today, their `worth` in US dollars and what it leaves `unpriced`, and the move that brought it to its account, as `moved`; and `today`, summing them. Given a session, its page: `session`, `dir`, `account`, `model`, `running`, `last_seen`, `models`, `state`, `move_cost` and `ended` as the list has them, its own `pin`, `started`, `resumed`, and of one ended, `kept_until`, the last day the ledger keeps the lines of its first day; `accounts`, each `{account, from, to, requests, worth, points}`, `points` by window; `moves`, each `{at, model, from, to, reason, written, cost}`; `turns`, newest first, each `{turn, started, ended, requests, tools, read, written, out, worth, accounts}`, `ended` left out of one still going; and `totals`, `{turns, requests, from_cache, worth, unpriced}`. Every `worth` is exact, and left out where nothing was priced; `unpriced` names what it leaves out as `history` names it |
+| `--json` | print the sessions, or the session's page, as JSON, as it does off a terminal anyway, even on one. See [`sessions`' JSON](#sessions-json) |
 | `--pretty` | print the text, as it does on a terminal, even off one |
 
 ```bash
@@ -507,7 +720,7 @@ switchboard events [--since <when>] [-f] [--json | --pretty]
 |---|---|
 | `--since <when>` | start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`) |
 | `-f, --follow` | then go on printing a line each time the router files one, a changed event again, whole, until interrupted |
-| `--json` | print each event as the router files it, a JSON object a line, with its `run` and `id`, as it does off a terminal anyway, even on one: of an event printed again, the last line is how it stands |
+| `--json` | print each event as the router files it, a JSON object a line, with its `run` and `id` (see [The router's events](#the-routers-events)), as it does off a terminal anyway, even on one: of an event printed again, the last line is how it stands |
 | `--pretty` | print the text, as it does on a terminal, even off one |
 
 ```bash
@@ -653,7 +866,7 @@ Which desktop notifications the router posts: see [Notifications](#notifications
 
 ### `[history]` keys
 
-How long the router keeps the readings history: see [How It Works](#how-it-works).
+How long the router keeps the readings history: see [What it records](#what-it-records).
 
 | Key | Default | Description |
 |---|---|---|
@@ -661,7 +874,7 @@ How long the router keeps the readings history: see [How It Works](#how-it-works
 
 ### `[ledger]` keys
 
-How long the router keeps the request ledger's lines: see [How It Works](#how-it-works).
+How long the router keeps the request ledger's lines: see [What it records](#what-it-records).
 
 | Key | Default | Description |
 |---|---|---|
@@ -677,7 +890,7 @@ How [`usage`](#usage) and the dashboard's Overview lay out their windows.
 
 ### `[prices]` keys
 
-Prices in place of those switchboard carries, read from Anthropic's pricing page, for [`history`](#history) and [`sessions`](#sessions) to price with. Each price is a number, `0` or more, and holds for every day alike; one left out keeps switchboard's.
+Prices in place of those switchboard carries, read from Anthropic's pricing page, for [`history`](#history), [`sessions`](#sessions) and the [dashboard](#dashboard) to price with. Each price is a number, `0` or more, and holds for every day alike; one left out keeps switchboard's.
 
 | Key | Default | Description |
 |---|---|---|
@@ -694,6 +907,10 @@ Each account's token is a file of its own, holding the token alone: `<state dir>
 
 The router reads the tokens as it starts, every account's file again every 3 seconds, and an account's file again when the API refuses the token it holds, so a changed token file needs no restart. A file found without a usable token at one look, as while it's being rewritten, keeps its account's token: only two looks in a row, 3 seconds apart, take it away. `claude` too looks again, a moment on, at the primary's file, and a pinned account's, when it finds one there but empty, before it counts it as holding none. Sessions started before a token was replaced still carry the old one, which the router routes as its account's for 7 days, and those started on the token of an account you've since removed carry that, which the router routes as the primary's for 7 days. It keeps none of these tokens, only their SHA-256 hashes.
 
+## Reference
+
+What switchboard writes, and what its verbs print, field by field. Fields may be added to any of them, never renamed, and a reader passes over those it doesn't know. Accounts appear by their ids, never a token, and by their labels only in the status document's `accounts`.
+
 ### Where things live
 
 | What | Where |
@@ -705,81 +922,186 @@ The router reads the tokens as it starts, every account's file again every 3 sec
 | The LaunchAgent | `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist` |
 | The skill | `skills/switchboard/SKILL.md` in `$CLAUDE_CONFIG_DIR`, else in `~/.claude` |
 
-## The Dashboard
+In the state directory:
 
-<div align="center">
-<img src="art/usage.webp" alt="One account's dashboard: its card's burn-down from its history and the dotted projection to where it reaches its reserve, COMING UP and RECENT beside it, a session's dot lighting as it goes to work; then its burn rate, its hourglass, its sessions, and Runway" width="840">
-</div>
+| File | Holds |
+|---|---|
+| `state.json` | the router's state that outlasts a restart: each session's account, the pins, each account's last readings, and the SHA-256 hashes of its token and of those it replaced (see [Tokens](#tokens)) |
+| `control.sock` | the router's control API, which the commands and the dashboard talk to |
+| `prefs.json` | what the dashboard remembers: see [`dashboard`](#dashboard) and [Themes](#themes) |
+| `tokens/<id>` | each account's token: see [Tokens](#tokens) |
+| `logs/` | `router.log`, `cli.log` and `launchd.log`: see [The logs](#the-logs) |
+| `history/readings-<date>.jsonl` | the [readings history](#the-readings-history), a file a day |
+| `ledger/requests-<date>.jsonl` | the [request ledger](#the-request-ledger)'s lines, a file a day |
+| `ledger/day-<date>.json` | each [day's summary](#the-days-summary) |
+| `ledger/events-<date>.jsonl` | the [router's events](#the-routers-events), a file a day |
 
-One account: its card's burn-down, and where it's heading, with COMING UP and RECENT beside it; then `g` to its burn rate and its hourglass, and `tab` past its sessions to Runway, the day ahead.
+A day's file of lines is compressed, to `<name>.jsonl.gz`, which `gzip -dc` reads, once its day ended two days ago, and kept as long as its `keep` says (see [`[history]`](#history-keys) and [`[ledger]`](#ledger-keys)), the events as long as the ledger's lines.
 
-`switchboard dashboard` draws every page in one frame: the title row, with the tabs and the clock; under it, the status line; then, on every tab but the Overview, the tab's heading row, its name and a rule; the view; and the key line last.
+### The readings history
 
-- **The tabs:** `tab` and `shift-tab` move between six, in the title row's order. The Overview, the first, every account's usage read with the router's (below). Accounts and the Log have their tabs, and draw nothing yet. History, how use has gone over time, from the ledger's days alone, so it needs no router (below). Sessions, a switchboard of where each session's requests go: the sessions as calls, the accounts as lines, and a cord from each call to its line, its requests travelling it, out as they go and back as their answers stream, a refusal bouncing back red; with LOG, what the router did and why. With one account, or where the cords don't fit, it's a plain list of each account and its sessions. And Runway, when each account has room, a lane each, over the 5-hour view, or, with `<` and `>`, the week. The next dashboard opens on the tab last shown.
-- **The status line** says how the router stands, always, whatever a tab shows: `● healthy`; `■ the router isn't answering  ·  since 14:40:55` while its last view stays on screen; or `○ probed · router not running`; then how it routes, `auto` or `pinned to personal`, the sessions it has routed in the last hour, and where new sessions go, `new sessions → ▲ side`.
-- **The Overview** is one screen that never scrolls, in six sections, in an order that never changes: USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY, each shown and hidden by its key, `u`, `g`, `r`, `s`, `c` and `l`, at any size, GRAPHS and SESSIONS hidden at first. Size never decides what shows, only how much room each section gets: where rows run short, sections fold to their headings, each still saying what it holds, SESSIONS first, then COMING UP and LATELY, GRAPHS and ROUTING; USAGE never folds, and with many accounts scrolls within itself. Rows to spare grow the sections shown, to their most.
-- **USAGE** is [`usage`](#usage)'s block, every account's windows and the pool's: the matrix from 150 columns, or given the room, the windows stacked at the full width, their bars as long; narrower, stacked as `usage` stacks them. An account out of the pool, under a pin, is faint, and the key line under the block names the marks: `┃` even pace, `╎` the cap, `◆` the primary and `▲` where new sessions go.
-- **GRAPHS** charts the focused account's use so far in each window, each chart under its window's column, from the window's start to its reset, with its cap, even pace and now. `↑` and `↓` move the focus, and USAGE lights the account with it.
-- **ROUTING** says how each account stands with the router, in words: `● under pressure · out ~16:05`, `■ limit reached · back 15:54`, `○ idle · window starts at its prime, 16:20`; `● pinned` on each account the pin names; its sessions; and its requests a minute over the last 30 minutes as a trace, with the last minute's rate. Its heading says the mode, `auto`, or `pinned to personal since 14:02   p back to auto`. Every trace on the page, a session's too, shares one scale, so any two compare.
-- **SESSIONS** lists the sessions the router has routed in the last hour, by account: each one's id, bright while it's busy; its model; when it was last seen; what it's doing, `↑ ask` or `↓ ~1.2k`; why it's on its account, as `moved from work 14:31: work reached its cap`; and its own trace.
-- **COMING UP and LATELY** sit side by side: what happens next, soonest first, as `16:30  personal's 5-hour resets  in 1h 48m`, a run-out's row in the theme's attention colour; and what the router has done, newest first, each event marked, as `14:31  ╎ work reached its cap: 3 sessions moved to side`, the sessions a limit, a cap or a refusal moved folded into its line.
-- **By account:** `b` makes USAGE a block an account, its windows as rows, with its ROUTING beside it, and the pool's block last.
-- **History** is how use has gone over time, in four views on sub-tabs, `[` and `]` moving between them. The **Year**, the default, is a square a day over the last 12 months, a column a week, each shaded by how many requests it made, never its worth: a day with nothing on it in a shade of its own, and the active days in quarters by how much each did. Beside it, the 12 months' requests, sessions, limits hit, worth, what the plans cost and the worth against it, the busiest day and the longest run; under it, BY MONTH, a row a month, its bar its worth split by family. `v` shows one model version alone, in four steps of its own colour, or one account, `←` and `→` stepping between them; `<` and `>` step back through each calendar year the ledger holds. Shown for one version, the Year counts each of its sessions once, but for a day whose summary was written before the ledger kept a model's sessions by their ids, its lines since gone, it adds that day's count, as nothing tells those sessions from another day's. **Weeks** is how full each account's own week got over eight weeks, and whether there are as many accounts as the use needs, its verdict as [`history`](#history) words it, from replaying the last 7 whole weeks with an account fewer or more; `v` draws the weeks as columns. **Days** is the eight weeks a day at a time, each family's worth a day, and how much of its week each account used each day, the days it hit a 5-hour limit marked. **Tokens** is ccusage's report inside switchboard, each period's tokens by kind and its worth at API prices against what its plans cost, by day, week or month with `<` and `>`, split with `v` by account, by model, by both or not at all.
-- **Under 100 columns,** the dashboard is a phone's: the tabs on a row of their own, under the clock. The Overview's USAGE stacks its windows in short words, ROUTING and SESSIONS take two rows an account or a session, and LATELY comes under COMING UP.
+A JSON line each, `{"at", "account", "window", "utilization", "resets_at", "status", "source"}`, in `history/readings-<date>.jsonl`:
 
-It reads, and takes its keys, as [`dashboard`](#dashboard) says.
+| Field | Is |
+|---|---|
+| `at` | when it was read |
+| `account` | the account, by its id alone |
+| `window` | the window's key, as the API gives it, such as `5h`, `7d` or `7d_oi` |
+| `utilization` | how much of the window is used, as a fraction |
+| `resets_at` | when the window resets |
+| `status` | `allowed`, `allowed_warning` or `rejected` |
+| `source` | whether it came off an `answer`, a `probe` or a `prime` |
 
-<table>
-  <tr>
-    <td align="center"><img src="art/flipped.webp" alt="Side's card flipped to its sessions, each streaming, waiting or idle, and one picked out" width="280"><br><b>A card flipped to its sessions</b></td>
-    <td align="center"><img src="art/repatch.webp" alt="Sessions as work reaches its limit: the 429 bounces back red along its cord, and work's sessions re-patch to side, LOG saying why" width="280"><br><b>Sessions, re-patched at a limit</b></td>
-    <td align="center" rowspan="2"><img src="art/phone.webp" alt="The dashboard in a phone's terminal, 52 columns wide: the heading in two lines, the cards stacked" width="200"><br><b>In a phone's terminal</b></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="art/runway-week.webp" alt="Runway over the week: personal's week reaches its reserve on Saturday, and is back as it resets on Sunday" width="280"><br><b>Runway, over the week</b></td>
-    <td align="center"><img src="art/help.webp" alt="The help over the Accounts view: every key that works, and what the glyphs mean" width="280"><br><b>Every key, and every glyph</b></td>
-  </tr>
-</table>
+### The request ledger
 
-### Themes
+A JSON line for each request the router routes, in `ledger/requests-<date>.jsonl`. It keeps everything about a request but its content: never its messages, its system prompt or its tools, its metadata's ids, a setting or header the line doesn't name, or anything shaped like a token.
 
-<div align="center">
-<img src="art/themes.webp" alt="The theme picker over the Accounts view, the dashboard redrawn in each theme the cursor reaches: nord, terminal, tokyo-night, tokyo-night-day, exchange and amber, then nord again" width="840">
-</div>
+| Field | Is |
+|---|---|
+| `at` | when the request arrived, in UTC, to the millisecond |
+| `request` | the router's id for it, as its routed line in the log gives it |
+| `kind` | `message`, Claude Code's quota `check`, or a `count` of tokens |
+| `session` | its session's id |
+| `dir` | the directory `run` started Claude Code in, your home shown as `~`, which `run` tells the router in a header the API never sees, and which a `claude` started within that session other than through `run` carries too |
+| `model` | the model it asked for |
+| `account` | the account whose answer the client got, by its id alone; left out where the router answered it itself |
+| `reason` | why it went to that account, in the words of the log's routed line |
+| `from` | the account its session was on before, where the request moved it |
+| `tried` | the accounts it went out on that couldn't serve it, in the order tried, each `{account, why}` |
+| `status` | its answer's status, `0` where it ended before one came |
+| `canceled` | set where the client went away before the end |
+| `cut_off` | set where the router cut the request off as it stopped |
+| `attempts` | how many times it went upstream, `0` where the router answered it itself |
+| `first_ms`, `total_ms` | how long after it arrived its answer's first byte passed on to the client, and its end, in milliseconds |
+| `agent` | the client's user agent |
+| `betas` | the features it asked the API for beyond its version |
+| `prompt` | the prompt it serves, by Claude Code's random id, the same on every request of one prompt, its subagents' included |
+| `class` | `main`, `subagent`, `workflow`, `compaction` or `auxiliary` |
+| `agent_id`, `parent_agent_id` | the subagent that sent it, and the one that started that, by Claude Code's ids for them, random for a subagent, from its name for a member of an agent team |
+| `agent_type` | the subagent's kind, a built-in agent's name, `custom`, `teammate` or `fork`, never a name you chose |
+| `compaction`, `compacted` | what started the compaction it is, `auto`, `manual` or `reactive`, or, on the first request after one, what started that |
+| `tool_ms` | how long each tool call whose result it carries ran, each `{tool, ms}` |
+| `shape` | the request's size in `bytes`, how many `messages`, `system` blocks and `tools` it carried, and those of its settings switchboard knows: `max_tokens`, `thinking`, `stream`, `tool_choice`'s type, `temperature`, `top_k`, `top_p`, `service_tier`, `output_config`'s `effort`, `speed`, `inference_geo`, and the types of `context_management`'s edits |
+| `answer` | of the answer the client got: Anthropic's `id` for it, the `model` that served it, why it stopped, `stop`, how many `blocks` of each kind it held, the `tools` it called, by name, and an `error`'s `type` and `message` |
+| `usage` | the answer's closing usage, as the API gave it, field for field |
+| `limits` | the answer's `anthropic-ratelimit-unified-*` headers, the prefix taken off |
 
-The dashboard is drawn in a theme. Themes name colours by what they mean and how prominent they are, never by hue.
+`prompt` to `tool_ms` are what Claude Code's own headers say of the request, each left out where it sends none: the agents' ids Claude Code sends the router always, and the rest as `run` has it send them, with `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1` (see [`claude`](#claude)).
 
-- **Built in:** `nord`, the dashboard's palette from the start; `tokyo-night`, and `tokyo-night-day` for a light terminal; `amber`, an amber CRT; `exchange`, a telephone exchange's brass and walnut; and `terminal`, for a terminal with a transparent or image background, which paints no background and draws in the terminal's own sixteen colours.
-- **One, or a pair:** choose one theme for every terminal, or a pair: one for a light background and one for a dark. The dashboard asks the terminal what its background is as it starts, and takes a terminal that doesn't say for a dark one. Choosing nothing gives the pair of `tokyo-night-day` and `nord`.
-- **The picker:** in the dashboard, `t` opens a panel at the right, over the dashboard, listing every theme. `↑` and `↓` move through them, the dashboard redrawn in each as it's reached; `enter` sets the one theme; `d` and `l` set the dark and the light half of the pair, asking first, with `y` or `n`, to clear a single theme; and `esc` closes it, putting back the theme in force. A badge says what each theme fills: `●` the one theme, `● light`, `● dark`, or `● both`. A theme file that doesn't load is listed with why, such as `bad colour` or `missing tokens`, and the log has the detail.
-- **Your own:** a theme is a file named `<slug>.theme`, its slug lower-case letters, digits and hyphens, in the themes directory (see [Where things live](#where-things-live)), its top level alone; links are followed, and it's read again each time the picker opens. Each line is `key = #RRGGBB`, a line starting `#` a comment, and every key once:
+### The day's summary
 
-  ```
-  # Lake: a dark theme.
-  text.primary = #ECEFF4
-  canvas = #102030
-  ...
-  ```
+An hour after each day ends, the router summarises it beside its lines, in `ledger/day-<date>.json`: `{"version", "day", "lines", "bytes", "accounts"}`, `lines` how many lines it was made from, and `bytes` how large its files were then. Each of `accounts` is an account's day:
 
-  It gives all 19 base tokens, `text.primary`, `text.secondary`, `text.tertiary`, `text.muted`, `text.subtle`, `text.faint`, `text.on-selection`, `accent.primary`, `accent.key`, `accent.mode`, `accent.attention`, `state.positive`, `state.destructive`, `canvas`, `bg.selection`, `bg.attention`, `bg.subtle`, `border` and `text.on-attention`, or it doesn't load. The charts' own, `viz.ramp.1` to `viz.ramp.4` (a bar's fill, first cell to last), `viz.track`, `viz.pace`, `viz.reserve`, `viz.series.1` to `viz.series.6` (the accounts' colours), `viz.family.1` to `viz.family.4` (the model families', Opus, Sonnet, Fable and Haiku), `viz.version.1` to `viz.version.6` (the model versions', a family's newest in its family's colour and an older one fainter) and `viz.day.0` to `viz.day.4` (History's shades of a day, from one with nothing on it to the busiest), are each worked out from those where a file leaves them out. A key switchboard doesn't know is passed over. A file can't take a built-in's slug.
-- **Kept:** the choice is kept in `prefs.json` in the state directory, which the dashboard writes and you never need to; one that can't be read is set aside as `prefs.json.corrupt-<unix time>`, and the defaults stand.
-- **The background:** the dashboard paints the theme's background on every cell, and sets the terminal's own to it, putting it back as it was when the dashboard stops: on `q`, an interrupt or a terminate signal, or a crash it catches. A terminal that didn't say what its background was is reset to its profile's own instead. [`usage`](#usage) paints none, printing into the scrollback: it asks the terminal what its background is, and takes the light or dark half of the pair by it; one theme chosen prints only on a background as dark or light as its own, else the default pair's half for that background.
-- **Fewer colours, and none:** the colours are brought down to what the terminal shows. With `NO_COLOR` set to anything, the dashboard has no colour, nor background: what colour would say, its glyphs and bold say, and `t` does nothing. `usage` has none either, there or on a terminal that shows no colour, its bars filled in `█`; printed off a terminal, as `usage --pretty` prints it, it has none unless `CLICOLOR_FORCE` asks for it.
+| Field | Is |
+|---|---|
+| `account` | the account, by its id alone; left out of the requests no account answered |
+| `models` | its requests by the model each asked for, each counted by how it went: `upstream`, those that went upstream, `no_usage`, those of them that got no usage back, `unsent`, those the router answered itself, `checks`, Claude Code's quota checks, and `counts`, its counts of tokens; with their `sessions` and `session_ids`, their `usage` summed field for field, and `inference_geo` where they asked for one |
+| `sessions`, `session_ids` | the sessions its requests were of, by their ids too |
+| `moved_on`, `moved_off` | the sessions its requests moved onto it, and off it |
+| `highest` | each window's highest use that day, by its key |
+| `rise` | how far each window's use rose that day, from the history |
+| `resets` | its windows' resets that day, each `{window, at, before}`, `before` the use before it |
+| `limits` | the limits it reached, each a window turning `rejected`: `{window, at, resets_at}` |
+| `minutes_at_cap`, `minutes_at_limit` | the minutes it spent at its cap, and at a limit |
+| `read_before` | the windows the history read in the week before |
 
-## Notifications
+- **Which accounts:** every account the history read that day has a day of its own, whether or not it served a request, as has one whose window reset that day by the reset its last reading gave, so a week that ended on a quiet day keeps its peak, and one read in the week before whose window ran on into the day unreset, read that day or not.
+- **Which days:** a day the router served nothing on, but read an account, or saw a window reset, is summarised too, once the history holds the week before it, as a window already at its limit as the history began would otherwise read as one reached that day. A day that ended while the router was stopped is summarised as it starts again, before the history's readings of it can go.
+- **Summarised again:** a day a line comes to be filed under later, as a request in flight past that hour files one, is summarised again, knowing no less than before, though the history has since let the day's readings go, or a damaged file some of its lines, which can't be told from those filed since, so its counts are then the least there were.
+- **Kept for good:** once its lines go, its summary is kept for good, summarised again only by a release that summarises days otherwise, from the day's readings while the history keeps them.
 
-While it runs, the router posts desktop notifications, whether or not a dashboard is open. [`[notifications]`](#notifications-keys) says which:
+### The router's events
 
-- **Limits:** an account hits a limit. The notification waits 5 seconds for the sessions the limit moves, then tells of them together: `work · Work hit its Session limit, back at Mon 18:10 — 3 sessions moved to side · Side`.
-- **Room again:** `work · Work has room again`.
-- **Warnings:** a window passing the share given, once a reset: `work · Work: Week at 91%`.
-- **Moves**, off unless asked for: every other move, such as `session 18bb978f moved from work · Work to side · Side (rescored after 1h 2m idle)`.
+A JSON line for each version of an event, in `ledger/events-<date>.jsonl`, so a reader of one that changed takes the last:
 
-A limit's notification always goes out. Any other goes out only a minute or more after the last posted about its account, and is dropped otherwise. Notifications never hold a request up.
+| Field | Is |
+|---|---|
+| `run`, `id` | when the router that told it started, and its number in that run, rising from 1 |
+| `at` | when it happened |
+| `kind` | `started`, a session first on an account; `moved`; `pressure`; `cap`, a window at its reserve; `limit`; `refused`; `primed`; `room`, an account with room again; `pin` and `auto`, routing set by hand and given back; `restart`, a restart falling due; or `health`, the router's own turning |
+| `account`, `accounts` | the account it befell, and the accounts a global pin names |
+| `session`, `model` | the session that started or moved, or whose own pin changed, and the model whose requests did |
+| `from`, `to` | the accounts a session moved from and to, `to` where the sessions a limit, a cap or a refusal moved went, when they all went to one |
+| `reason` | why: why a session went to its account, why a restart is due, or why the router turned unhealthy |
+| `windows` | the keys of the windows it's of |
+| `joined` | of a limit or a cap, when each window that came to be held by it after it began did, by its key, as the 5-hour window joining a cap of Fable's week; left out where no window joined it, and a window it leaves out was held from `at` |
+| `until`, `since` | when a limit, cap or refusal ends, or a window runs out or resets; and when a pressure's rate is measured from |
+| `count` | how many sessions a limit, a cap or a refusal moved while it held |
+| `limit` | of a limit, its identity, kept while it holds; of a move, the id of the limit's event that counts it among the sessions it moved |
+| `forced_by` | of a move, the id of the limit's, cap's or refusal's event that counts it among the sessions it moved |
+| `reserve` | of a cap, the account's reserve |
+| `status`, `family` | of a refusal, the status the API refused with, and for a request refused alone, the model family it holds back |
+| `move`, `force` | of a pin, that it moves the running sessions too, and that it cleared every session's own pin |
+| `by` | what set or cleared a pin, `cli` or `dashboard` |
 
-The dashboard, probing without the router, posts its own, of an account with room again and a window passing the warning, unless `--no-notify`. While the router runs, the dashboard posts none, so nothing is told twice, even probing with `--probe`.
+### The status document
 
-## Logs
+What [`status`](#status) and [`usage`](#usage) print as JSON: `{"generated_at", "source", "fallback", "best", "primary", "prime", "pin", "router", "restart", "sessions", "events", "pool", "coming_up", "accounts"}`. Times are in UTC, but the priming schedule's times of day, which are local; utilizations are fractions, and can pass 1. A field the router alone knows is left out of a document built by probing.
+
+| Field | Is |
+|---|---|
+| `generated_at` | when it was built |
+| `source`, `fallback` | `router`, or `probe` where it was built by probing every account, and why, where the router was asked first |
+| `best` | the account new sessions go to next |
+| `primary` | the primary's id |
+| `prime` | the priming schedule: the day, the window a prime starts, and each account's slot |
+| `pin` | the global pin: the accounts it names, since when, and whether it moved the running sessions |
+| `router`, `restart` | the router's health over the last 5 minutes, and a restart it has due |
+| `sessions`, `events` | how many sessions it has routed in the last hour, and what's happened lately, newest first |
+| `pool` | the room new sessions can go to, summed across its accounts |
+| `coming_up` | each limit or cap lifting, window running out or resetting, and prime, soonest first |
+| `accounts` | each account, in the config's order: its `id`, `label`, whether it's the `primary`, its `reserve`, whether its token is set, when it was read, and its `windows`, each with its use, reset, status, even `pace` and `allowance`; the windows `lapsed` and `at_reserve`; its `extra_usage`; what couldn't be read and why; from the router, a `limit` or refusal that holds it, its `pressure` and `rates`, and its `sessions` |
+
+### `status --session`'s JSON
+
+`{"session", "pin", "assignments", "account"}`, of one session the router has seen:
+
+- **`session`:** its whole id, and `pin`, its own pin, where it has one.
+- **`assignments`:** a model each, the one used last first: `{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}`, `auto` being the account its next request of the model would go to without a pin of its own, `in_flight` `asking` or `answering` while a request is, `yielded` set while its own pin has yielded, and `pinned_at` when it was pinned while it ran.
+- **`account`:** the account its last-used model went to, as the status document's `accounts` give each.
+
+### `history`'s JSON
+
+`{"prices_as_of", "days", "year", "months", "weeks", "tokens", "totals", "plans", "capacity"}`, each block over the days asked for since the ledger began, oldest first, today's last:
+
+- **`prices_as_of`:** the day the prices were read, and `prices_from_config` where the config's `[prices]` price a model or a plan.
+- **`days`:** each day's summary as the ledger holds it (see [The day's summary](#the-days-summary)), each model's `worth` in US dollars added, `unpriced` naming what it leaves out, as `no_usage`, requests that got no usage back, and `by_family`, the day's worth by model family. A day of no requests, the history telling of no account that day, has no `accounts`, and an account has a day there where its quota checks, its counts of tokens or the history give it one, requests or none.
+- **`year`:** each day's `requests` and the `level`, 0 to 4, it's shaded at, and the `cuts` between the levels, the active days' quarters.
+- **`months`:** each month's `requests`, `worth`, `limits` reached by window, `by_family`, and its plans' `cost`, the whole month's, or its days' from the first asked for, with the worth of their accounts `against` it, a ratio, but for the month so far.
+- **`weeks`:** each week's, from the day the config's `week_starts` names, Monday unless it says otherwise: each account's `peaks`, the highest use of its week and of each model's own week, as Fable's, by window, the windows whose week is still running, `open`, its peak so far, and the `limits` it reached in that week, by window; then `all` of them, each window's peak the mean of theirs.
+- **`tokens`:** each week's by kind, `input`, `output`, `cache_write`, `cache_read` and `total`, its `worth`, its plans' `cost` and `against`, then `by_account`, in the config's order, and `by_model`, each version by its id, with the accounts it ran `on`, the one it was worth most on first.
+- **`totals`:** each account's, then `all` of them: `requests`; `sessions`, each once however many days and accounts it ran on; `moved_on` and `moved_off`; `limits` by window; `minutes_at_cap` and `minutes_at_limit`; `left_at_reset`, each window's share left at its last reset, and `ran_out`, the day it last reached its limit in the run that reset ended, where it did; `worth`; `by_model`, each version's `share` of use, weighed at API prices, and its `worth`; `busiest_day`; `longest_run`, the most days in a row with any request; and `partial`, naming a count some of the days never counted.
+- **`plans`:** each account's `plan`, its `price` a month, what it cost over those days and `against` it, and its `worth`, then `all` of them, of those on a plan.
+- **`capacity`:** over the whole `weeks` in which every account's week is known and ended: how many were `short`, `with_one_fewer` and `with_one_more`; the `verdict`, `one too few`, `too few`, `one more than you need` or `about right`, and where it's one more than you need, the account to `drop`, and of three or more `with_two_fewer`, without it and the account whose loss then makes the fewest weeks short; and each account's `verdict`, over its own whole `weeks`, the weeks it hit its `limits` in, what it had `left_at_reset` on average and how many the rest would have been short `without_it`, then `all` of them, `room to spare together` or `little to spare together`.
+- **Worth:** every `worth` is exact, with `unpriced` beside it naming what it leaves out: the counts a usage holds that the price table can't price; `no_usage`, requests that got no usage back; and of requests it prices none of, a model it doesn't know by its id, a model it knows in a geo it doesn't price it in, as `inference_geo:eu`, and requests that named no model as `no_model`. `worth` is left out where nothing was priced, as by `sessions`. Every share is exact.
+- **With `--windows`:** `{"windows": [{"account", "window", "readings"}]}`, each reading `{at, utilization, resets_at, status, source}`.
+
+### `sessions`' JSON
+
+`{"generated_at", "prices_as_of", "sessions", "today"}`:
+
+- **`sessions`:** each session with its whole id, its directory, account and model, whether it's `running`; of one running, when it was last seen, each of its models' account and why, what it's doing and its `move_cost`, what moving it now would cost; of one ended, when it `ended`; when it `started`, its `requests` today, their `worth` in US dollars and what it leaves `unpriced`, and the move that brought it to its account, as `moved`.
+- **`today`:** summing them.
+
+Given a session, its page:
+
+- **`session`, `dir`, `account`, `model`, `running`, `last_seen`, `models`, `state`, `move_cost` and `ended`** as the list has them, its own `pin`, `started`, `resumed`, and of one ended, `kept_until`, the last day the ledger keeps the lines of its first day.
+- **`accounts`:** each `{account, from, to, requests, worth, points}`, `points` by window.
+- **`moves`:** each `{at, model, from, to, reason, written, cost}`.
+- **`turns`:** newest first, each `{turn, started, ended, requests, tools, read, written, out, worth, accounts}`, `ended` left out of one still going.
+- **`totals`:** `{turns, requests, from_cache, worth, unpriced}`.
+
+Every `worth` is exact, and left out where nothing was priced; `unpriced` names what it leaves out as `history` names it.
+
+## Troubleshooting
+
+- **Where things stand:** [`switchboard status`](#status) says how each account stands and why, the router's health, and a restart it has due; [`switchboard service status`](#service) whether the LaunchAgent is installed and loaded.
+- **Why a request went where it did:** `switchboard logs -f` follows the router's log, a line a request with its account and why; [`requests`](#requests) and [`events`](#events) look back over the days.
+- **A limit reset by hand:** `switchboard usage -r`, `status -r` or `R` on the dashboard has the router read the accounts now.
+- **Not routed:** some of what Claude Code sends never reaches the router: see [What doesn't go through the router](#what-doesnt-go-through-the-router).
+- **Round switchboard:** `switchboard run --direct` starts Claude Code on its own login, and the real `claude` runs by its path. Should the switchboard binary itself break, every `claude` breaks with it, until its directory comes off `PATH`.
+
+### The logs
 
 Logs are for working out, after the fact, why a session went to an account, why a request failed, or why the dashboard showed what it did. They're in `<state dir>/logs/`: the router writes `router.log`, every other command `cli.log`, and launchd writes the service's own output, such as a crash's, to `launchd.log`. Each record is a line of logfmt, and the router notes every request it routes, with its account and why:
 
@@ -788,7 +1110,7 @@ time=2026-09-28T14:12:00.123+01:00 level=INFO msg=routed component=router pid=42
 ```
 
 - **Level:** `SWITCHBOARD_LOG_LEVEL` is `debug`, `info`, `warn` or `error`, and `info` unless set. `serve --log-level`, and `service install --log-level`, which passes it on, override it for the router.
-- **Rotation:** a log rolls over before it would pass 10 MiB, keeping five old files.
+- **Rotation:** `router.log` and `cli.log` roll over before they'd pass 10 MiB, keeping five old files each; nothing rolls `launchd.log`, which launchd writes.
 - **Redaction:** nothing logs a token or an account's label: accounts appear by id, and anything shaped like a token is replaced with `[redacted]`.
 - **Never in the way:** no command but `serve`, at a terminal, logs to stdout or stderr, so `--json` and the dashboard stay clean, and none fails because it couldn't log.
 
@@ -806,9 +1128,9 @@ golangci-lint run ./...
 go build ./...
 ```
 
-The clips and stills in this README are recorded from scenarios played through the real dashboard, every seam faked: [demo/README.md](demo/README.md) says how to record them again.
+The clips and stills in this README are recorded from scenarios played through the real dashboard, and from the fixtures of its signed-off frames, every seam faked: [demo/README.md](demo/README.md) says how to record them again.
 
-No test touches the real network, environment, home directory, config, state, binaries or notifications. `scripts/test-isolated` runs the suite inside a macOS sandbox (`scripts/isolation.sb`) that denies it the network beyond loopback, and the router's default port, 4747; writes into the home directory but Go's caches, switchboard's real config, state and bin directories, Claude Code's config directory and the directories on `PATH`; and running the real `claude`, `osascript`, `launchctl`, `tmux` and `open`. Each run first proves the sandbox holds, and `scripts/test-isolated --self-check` does only that: among the rest, that it denies running the real `claude`, found as switchboard finds it. Every package's tests also run through `internal/testguard`, which points `HOME` and the XDG directories at a throwaway root, clears the variables that can hold a token, puts stubs on `PATH`, and fails the run when a test reaches the real system, such as a real token file appearing, changing or going, even if every test passed. A test that needs something the guards block injects it instead.
+No test touches the real network, environment, home directory, config, state, binaries or notifications. `scripts/test-isolated` runs the suite inside a macOS sandbox (`scripts/isolation.sb`) that denies it the network beyond loopback, and the router's default port, 4747; unix sockets outside the temporary directory; writes into the home directory but Go's caches, switchboard's real config, themes, state and bin directories, its `prefs.json` and themes, Claude Code's config directory and the directories on `PATH`; and running the real `claude`, `osascript`, `launchctl`, `tmux` and `open`. Each run first proves the sandbox holds, and `scripts/test-isolated --self-check` does only that: among the rest, that it denies running the real `claude`, found as switchboard finds it. Every package's tests also run through `internal/testguard`, which points `HOME` and the XDG directories at a throwaway root, clears the variables that can hold a token, puts stubs on `PATH`, and fails the run when a test reaches the real system, such as a real token file appearing, changing or going, even if every test passed. A test that needs something the guards block injects it instead.
 
 ## License
 

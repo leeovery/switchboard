@@ -405,6 +405,19 @@ func textFrom(c *canvas, x, end, y int) string {
 	return b.String()
 }
 
+// With no accounts, the Switchboard has no lines, and draws no key for
+// them: no even pace, cap or marks under nothing.
+func TestTheSwitchboardOfNoAccountsDrawsNoKey(t *testing.T) {
+	doc := routerDoc("", 0)
+	for _, width := range []int{160, 120} {
+		f := boardFrame(width, 37, Look{}, boardOf(boardLook{}), Traffic{})
+		rows := textOf(f.Draw(doc, routedAt))
+		if slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, "even pace") }) {
+			t.Errorf("at %d columns, the Switchboard of no accounts reads\n%s\nwant no key", width, strings.Join(rows, "\n"))
+		}
+	}
+}
+
 func TestACallSaysItsSessionWhatItsDoingAndWhereItCameFrom(t *testing.T) {
 	sent := routedAt.Add(-2 * time.Second)
 	tests := []struct {

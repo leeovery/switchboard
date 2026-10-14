@@ -14,16 +14,17 @@ import (
 // formCase is a sub-tab of History of a page: its frame of a terminal the
 // width given; the width its wide form takes, and the column its widest row
 // ends before, as the frame works them out, the one past the other by the
-// margin Weeks and Days keep clear; what of it its phone form and its wide
-// form draw, each drawn as that form lays it out, and its wide form drawn
-// whole on the canvas given, where the Year's isn't cut at the frame's width
-// as History's own canvas for it is.
+// margin Weeks and Days keep clear; what of it its wide form draws, and
+// what it draws where that doesn't fit, its phone form, but Weeks' columns,
+// whose table is drawn there where it fits, each drawn as that form lays it
+// out; and its wide form drawn whole on the canvas given, where the Year's
+// isn't cut at the frame's width as History's own canvas for it is.
 type formCase struct {
-	name          string
-	frame         func(t *testing.T, width int) Frame
-	reach, widest func(f Frame) int
-	phone, wide   func(f Frame) *canvas
-	whole         func(c *canvas, f Frame)
+	name           string
+	frame          func(t *testing.T, width int) Frame
+	reach, widest  func(f Frame) int
+	narrower, wide func(f Frame) *canvas
+	whole          func(c *canvas, f Frame)
 }
 
 // formCases are each sub-tab of the pages the frames draw.
@@ -70,14 +71,17 @@ func formCases() []formCase {
 		cases[i].whole = func(c *canvas, f Frame) { f.history(c, f.top()) }
 		switch {
 		case strings.HasPrefix(c.name, "the year"):
-			cases[i].reach, cases[i].widest, cases[i].phone, cases[i].wide = yearReach, yearReach, yearForm(yearDrawn.phone, byMonthPhone), yearForm(yearDrawn.wide, byMonthWide)
+			cases[i].reach, cases[i].widest, cases[i].narrower, cases[i].wide = yearReach, yearReach, yearForm(yearDrawn.phone, byMonthPhone), yearForm(yearDrawn.wide, byMonthWide)
 			cases[i].whole = func(c *canvas, f Frame) { yearOf(f, byMonthWide).wide(c, f.top()) }
 		case strings.HasPrefix(c.name, "weeks"):
-			cases[i].reach, cases[i].widest, cases[i].phone, cases[i].wide = weeksReach, weeksWidest, weeksForm(true), weeksForm(false)
+			cases[i].reach, cases[i].widest, cases[i].narrower, cases[i].wide = weeksReach, weeksWidest, weeksForm(true), weeksForm(false)
+			if strings.HasSuffix(c.name, "in columns") {
+				cases[i].narrower = weeksTableForm
+			}
 		case strings.HasPrefix(c.name, "days"):
-			cases[i].reach, cases[i].widest, cases[i].phone, cases[i].wide = daysReachOf, daysWidestOf, daysForm(true), daysForm(false)
+			cases[i].reach, cases[i].widest, cases[i].narrower, cases[i].wide = daysReachOf, daysWidestOf, daysForm(true), daysForm(false)
 		default:
-			cases[i].reach, cases[i].widest, cases[i].phone, cases[i].wide = tokensReach, tokensReach, tokensForm(phoneTokens), tokensForm(wideTokens)
+			cases[i].reach, cases[i].widest, cases[i].narrower, cases[i].wide = tokensReach, tokensReach, tokensForm(phoneTokens), tokensForm(wideTokens)
 		}
 	}
 	return cases
@@ -132,18 +136,22 @@ func weeksForm(phone bool) func(f Frame) *canvas {
 	return func(f Frame) *canvas {
 		c := newCanvas(f.Width, f.Height)
 		w := weeksDrawn{page: *f.History.Weeks, phone: phone, columns: !phone && f.History.WeeksShape == WeeksColumns, edge: f.edge()}
-		top := f.top()
-		foot := top + f.viewRows() - 1
-		switch {
-		case phone:
-			f.weeksOnAPhone(c, w, top, foot)
-		case w.columns:
-			f.weeksColumns(c, w, top, foot)
-		default:
-			f.weeksTable(c, w, top, foot)
+		foot := f.top() + f.viewRows() - 1
+		shown, above, below := f.weeksShown(w)
+		w.draw(c, f.Look, f.top(), shown)
+		w.accountsOut(c, foot-w.footRows(), above, below)
+		if !phone {
+			w.put(c, 0, foot, w.legend()...)
 		}
 		return c
 	}
+}
+
+// weeksTableForm is Weeks of the frame as a table, wide, as it's drawn where
+// its columns are chosen and don't fit, and its table does.
+func weeksTableForm(f Frame) *canvas {
+	f.History.WeeksShape = WeeksTable
+	return weeksForm(false)(f)
 }
 
 // daysReachOf and daysWidestOf are the width Days' wide form takes, and the
@@ -196,9 +204,10 @@ func drawsAsTheForm(f Frame, form *canvas) string {
 
 // Each of History's sub-tabs draws its wide form, as the design lays it out
 // at 160 columns, where the width it takes, its widest row and the margin
-// after it that Weeks and Days keep clear, fits the frame's, and its phone
-// form where it doesn't, as its wide form's parts are at fixed columns, and
-// would fall off the frame. Each fits at 160.
+// after it that Weeks and Days keep clear, fits the frame's, and where it
+// doesn't, its phone form, as its wide form's parts are at fixed columns,
+// and would fall off the frame; but Weeks' columns, whose table takes their
+// place where it fits. Each fits at 160.
 func TestEachSubTabDrawsItsWideFormWhereItsWidestRowFits(t *testing.T) {
 	for _, tt := range formCases() {
 		t.Run(tt.name, func(t *testing.T) {
@@ -211,9 +220,9 @@ func TestEachSubTabDrawsItsWideFormWhereItsWidestRowFits(t *testing.T) {
 					t.Errorf("at %d columns, its wide form isn't drawn:\n%s", wide.Width, differs)
 				}
 			}
-			phone := tt.frame(t, reach-1)
-			if differs := drawsAsTheForm(phone, tt.phone(phone)); differs != "" {
-				t.Errorf("at %d columns, its phone form isn't drawn:\n%s", phone.Width, differs)
+			narrower := tt.frame(t, reach-1)
+			if differs := drawsAsTheForm(narrower, tt.narrower(narrower)); differs != "" {
+				t.Errorf("at %d columns, the form it takes there isn't drawn:\n%s", narrower.Width, differs)
 			}
 		})
 	}
@@ -407,7 +416,7 @@ func TestAPhoneSaysWhatsOutOfViewInALineThatFits(t *testing.T) {
 		frame Frame
 		want  string
 	}{
-		{name: "weeks", frame: weeksFrame(tenWeeks(), WeeksTable, 52, 30, NoColour()), want: "▲ 2 more accounts above · ▼ 1 more account below"},
+		{name: "weeks", frame: weeksFrame(manyWeeks(18), WeeksTable, 52, 37, NoColour()), want: "▲ 2 more accounts above · ▼ 1 more account below"},
 		{name: "days", frame: days, want: "▲ 2 more accounts above · ▼ 3 more accounts below"},
 	}
 	for _, tt := range tests {

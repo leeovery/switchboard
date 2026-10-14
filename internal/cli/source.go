@@ -90,7 +90,7 @@ func (s usageSource) answers(ctx context.Context) (router.Health, status.Fallbac
 	defer cancel()
 	health, err := s.router.Health(ctx)
 	if errors.Is(err, context.DeadlineExceeded) {
-		return router.Health{}, status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within " + launch.AskTimeout.String()}, false
+		return router.Health{}, status.Fallback{Router: status.RouterUnhealthy, Reason: launch.Unanswered()}, false
 	}
 	return health, fallbackFrom(err), err == nil
 }

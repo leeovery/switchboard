@@ -1,6 +1,6 @@
 # A still for the README's grid: the routing scenario on a phone's terminal,
-# 52 × 36, under 100 columns: the cards stacked, the heading in two lines,
-# b3e9 just started on side.
+# 52 × 36, under 100 columns: the top of the Overview, the tabs on a row of
+# their own, b3e9 started on side at 2.5s and listed at the look by 5s.
 #
 # Record it, and make art/phone.webp:
 #   demo/record.sh phone
@@ -22,10 +22,11 @@ Set Theme { "name": "nord", "background": "#2E3440", "foreground": "#D8DEE9", "c
 Set WaitTimeout 2m
 
 Hide
-Type "demo/out/capturetool --scenario routing"
+# In UTC, as the frames are drawn, whatever the recording machine's zone.
+Type "TZ=UTC demo/out/capturetool --scenario routing"
 Enter
 Wait+Screen /SWITCHBOARD/
-Sleep 7s
+Sleep 6s
 Show
 
 Sleep 600ms

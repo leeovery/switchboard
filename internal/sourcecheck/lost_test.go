@@ -45,6 +45,48 @@ func TestACheckFailsWhatItCantJudge(t *testing.T) {
 	}
 }
 
+// A ban on a method that judges only what it sees passes over the method's
+// name selected from what the loader lost; one that doesn't fails it.
+func TestABanOnWhatItSeesPassesOverWhatsLost(t *testing.T) {
+	root := sourcecheck.WriteModule(t, map[string]string{
+		"go.mod": "module example.com/fixture\n",
+		"internal/drawn/drawn.go": `package drawn
+
+import (
+	"time"
+
+	"example.org/tea"
+)
+
+func said(key tea.KeyMsg, took time.Duration) []string {
+	return []string{key.String(), took.String()}
+}
+`,
+	})
+	tests := []struct {
+		name string
+		seen bool
+		want []string
+	}{
+		{name: "judging what it sees", seen: true, want: []string{"internal/drawn/drawn.go:10: banned"}},
+		{name: "failing what's lost", want: []string{
+			"internal/drawn/drawn.go:10: " + lost("key.String", "the type of key"),
+			"internal/drawn/drawn.go:10: banned",
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rule := sourcecheck.Rule{Names: sourcecheck.NamesIn("example.com/fixture"), Calls: map[string]sourcecheck.CallBan{
+				"(time.Duration).String": {Ban: sourcecheck.Ban{Says: "banned"}, Seen: tt.seen},
+			}}
+			got := sourcecheck.Check(t, root, "example.com/fixture", rule, []string{"internal/drawn"}, fixtureAllowance())
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+		})
+	}
+}
+
 // lostFixture is a module whose data package has the types a rule guards,
 // one with a field no other package reads, a function it bans, and a
 // function, a method and an interface's method taking a guarded type; and a

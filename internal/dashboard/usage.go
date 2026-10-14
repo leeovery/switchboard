@@ -371,11 +371,14 @@ func (b usageBlock) draw(c *canvas, y int) int {
 	return b.lay(c, y).end
 }
 
-// laid is the block's rows as drawn: the row after the last, and where each
-// row is.
+// laid is the block's rows as drawn: the row after the last; where each row
+// is; and its heads, each window's heading, a block's name on a row of its
+// own and the pool's rule, over the first row under each, in the order of
+// their rows.
 type laid struct {
 	end    int
 	placed []rowAt
+	heads  []headed
 }
 
 // rowAt is where the block drew a row: its account's id, "" for the pool's,
@@ -388,14 +391,17 @@ type rowAt struct {
 // lay draws the block's rows from row y, as its grouping and its width lay
 // them out: by account; else as a matrix; else its windows stacked.
 func (b usageBlock) lay(c *canvas, y int) laid {
+	var l laid
 	switch {
 	case b.by == ByAccount:
-		return b.byAccount(c, y)
+		l = b.byAccount(c, y)
 	case b.matrixed():
-		return b.matrix(c, y)
+		l = b.matrix(c, y)
 	default:
-		return b.stacked(c, y)
+		l = b.stacked(c, y)
 	}
+	slices.SortFunc(l.heads, func(a, b headed) int { return a.at - b.at })
+	return l
 }
 
 // matrixed reports whether the block, by window, draws as a matrix: from 150
@@ -443,7 +449,7 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 	for i, w := range b.windows {
 		c.line(b.names+i*group, y, line{{strings.ToUpper(w.name), dimInk}})
 	}
-	return b.each(c, 0, y+2, 2, func(r usageRow, y int) int {
+	l := b.each(c, 0, y+2, 2, func(r usageRow, y int) int {
 		c.line(0, y, r.name)
 		if b.focus != "" && r.id == b.focus {
 			c.surface(0, y, focusCells, hue{token: theme.BgSelection})
@@ -454,6 +460,8 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 		}
 		return y
 	})
+	l.heads = append(l.heads, headed{at: y, first: y + 2})
+	return l
 }
 
 // stacked draws the block's windows one under another, each a section, its
@@ -481,6 +489,8 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 			return y
 		})
 		all.placed = append(all.placed, section.placed...)
+		all.heads = append(all.heads, headed{at: y, first: y + 2})
+		all.heads = append(all.heads, section.heads...)
 		y, all.end = section.end, section.end
 	}
 	return all
@@ -515,6 +525,7 @@ func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int
 		c.line(0, next-1, line{{rule(b.width), borderInk}})
 		last = draw(*pool, next)
 		l.placed = append(l.placed, rowAt{id: pool.id, y: next, rows: last - next + 1})
+		l.heads = append(l.heads, headed{at: next - 1, first: next})
 	}
 	l.end = last + 1
 	return l
@@ -548,7 +559,7 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 	if b.accountBar > 0 {
 		end = b.routingAt() - besideCells
 	}
-	return b.each(c, 0, y, 3, func(r usageRow, y int) int {
+	l := b.each(c, 0, y, 3, func(r usageRow, y int) int {
 		c.line(0, y, r.name)
 		if b.width < wideAccounts {
 			y++
@@ -562,6 +573,12 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 		}
 		return y
 	})
+	if b.width < wideAccounts {
+		for _, p := range l.placed {
+			l.heads = append(l.heads, headed{at: p.y, first: p.y + 1})
+		}
+	}
+	return l
 }
 
 // labels are the column a block by account's window labels start at, and the

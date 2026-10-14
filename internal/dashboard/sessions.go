@@ -173,13 +173,15 @@ func (s SessionsShown) Opens() bool {
 // zones a click acts on; and how much of each bar it draws it fills, as
 // Filled has them. Each is nothing where it's nil: it draws nothing, never
 // scrolls, its view scrolls whole, nothing takes a click, and it fills no
-// bar.
+// bar. Where byRows has it, the Switchboard scrolls a row at a time, as the
+// List always does.
 type sessionsForm struct {
 	draw      func(c *canvas, top int)
 	scrolling func(offset int) Scrolling
 	scrolls   func() (x, y, width, rows int)
 	targets   func() []Target
 	filled    func() map[Ref]float64
+	byRows    bool
 }
 
 // sessionsForm is the form Sessions' view shown is drawn in, of doc at now:

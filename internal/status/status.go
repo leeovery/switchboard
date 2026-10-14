@@ -153,6 +153,13 @@ type Event struct {
 	// in, those at a cap's reserve, the one a prime started, the one under
 	// pressure, or those that held back an account that has room again.
 	Windows []string `json:"windows,omitempty"`
+	// Joined is, of a limit's or a cap's, when each of its windows that
+	// joined it after it began did, by key, as the limit, or the cap, reached
+	// again while it held came to hold it too: the account's 5-hour window
+	// joining the cap of its Fable week, say. A window it leaves out came to
+	// be held as it began, at At, as did each of an event told before events
+	// kept Joined.
+	Joined map[string]time.Time `json:"joined,omitempty"`
 	// Until is when a limit lifts, the last of a cap's windows resets, a
 	// refusal ends, a window a prime started resets, or a window under
 	// pressure runs out.

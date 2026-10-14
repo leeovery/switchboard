@@ -69,12 +69,12 @@ func TestTheTerminalThemeDrawsEveryStepInTheHueItself(t *testing.T) {
 }
 
 // A family takes its hue, Opus, Sonnet, Fable and Haiku in viz.family.1 to
-// viz.family.4; one with none of its own, as Mythos, or one the version table
-// doesn't know, text.muted.
+// viz.family.4; one with none of its own, as one the version table doesn't
+// know, text.muted.
 func TestAFamilyIsDrawnInItsHue(t *testing.T) {
 	for family, want := range map[string]theme.Token{
 		"opus": theme.VizFamily1, "sonnet": theme.VizFamily2, "fable": theme.VizFamily3, "haiku": theme.VizFamily4,
-		"mythos": theme.TextMuted, "claude-unknown-9": theme.TextMuted,
+		"claude-unknown-9": theme.TextMuted,
 	} {
 		if got := familyHue(family); got != (hue{token: want}) {
 			t.Errorf("familyHue(%q) = %+v, want %s", family, got, want)
@@ -85,8 +85,8 @@ func TestAFamilyIsDrawnInItsHue(t *testing.T) {
 // A version the version table gives a shade is drawn in it, viz.version.1 to
 // viz.version.6; an older one it gives none, as Haiku 4.5, in its family's
 // hue mixed 30% toward the canvas; one the table doesn't know, in its
-// family's hue, unmixed; and one of a family with no hue of its own, as
-// Mythos, in text.muted with it, unmixed.
+// family's hue, unmixed; and one of a family with no hue of its own, as one
+// the table doesn't know, in text.muted with it, unmixed, older or not.
 func TestAVersionIsDrawnInItsShade(t *testing.T) {
 	version := func(id string) ledger.Version {
 		v, ok := ledger.Pricing.Version(id)
@@ -106,8 +106,8 @@ func TestAVersionIsDrawnInItsShade(t *testing.T) {
 		{version: version("claude-haiku-4-5"), want: hue{token: theme.VizFamily4, fade: theme.OlderFade}},
 		{version: version("claude-opus-4-8"), want: hue{token: theme.VizFamily1, fade: theme.OlderFade}},
 		{version: ledger.Version{Name: "opus-6", Family: "opus"}, want: hue{token: theme.VizFamily1}},
-		{version: version("claude-mythos-5-1"), want: hue{token: theme.TextMuted}},
-		{version: version("claude-mythos-5"), want: hue{token: theme.TextMuted}},
+		{version: ledger.Version{Name: "unknown-9", Family: "claude-unknown-9"}, want: hue{token: theme.TextMuted}},
+		{version: ledger.Version{Name: "unknown-8", Family: "claude-unknown-8", Older: true}, want: hue{token: theme.TextMuted}},
 	}
 	for _, tt := range tests {
 		if got := versionHue(tt.version); got != tt.want {

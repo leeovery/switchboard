@@ -100,11 +100,11 @@ type AccountNow struct {
 	// that holds.
 	Routing Routing
 	// Hold is what holds it back at its limit at Now, as held has it, and
-	// Held is set where anything does. LimitHolds is set where the limit the
-	// router saw it reach holds at Now, whatever its windows read,
-	// LimitSince is when it reached it, and LimitMoved how many sessions it
-	// has moved off the account so far, each as that limit's event tells:
-	// zero where none tells.
+	// Held is set where anything does; LimitSince is when it reached what
+	// holds it, as limitSince has it: zero where nothing tells. LimitHolds is
+	// set where the limit the router saw it reach holds at Now, whatever its
+	// windows read, and LimitMoved is how many sessions that limit has moved
+	// off the account so far, as its event tells: zero where none tells.
 	Hold       Hold
 	Held       bool
 	LimitHolds bool
@@ -114,9 +114,9 @@ type AccountNow struct {
 	// whether or not the global pin spends it, as reachedReserve has them.
 	// CapHolds is set where its cap holds it back from every request at Now,
 	// as capHolds says; CapSince is when it reached its cap, as the router's
-	// event of it, which capEvent finds, tells; and CapBack is when it lets
-	// go: once the last of those windows resets. Each is zero where its cap
-	// doesn't hold, or what it says isn't known.
+	// event of it, which capEvent finds, tells, as capSince has it; and
+	// CapBack is when it lets go: once the last of those windows resets. Each
+	// is zero where its cap doesn't hold, or what it says isn't known.
 	ReachedReserve    []string
 	CapHolds          bool
 	CapSince, CapBack time.Time
@@ -220,8 +220,8 @@ type WindowNow struct {
 	ResetSinceRead, Lapsed bool
 	// Held is set where Claude's limit holds it at Now, as Kind says. Back is
 	// when room returns, as At has it, zero where that isn't known, and
-	// Since when the account reached the limit, as the router's event of it
-	// tells, zero where none tells.
+	// Since when the account reached the limit in it, as the router's event
+	// of it tells, as reachedIn has it, zero where none tells.
 	Held        bool
 	Back, Since time.Time
 	// Capped is set where its use has reached its account's cap at Now, which
@@ -498,15 +498,15 @@ func (j judgedAccount) measured() []quota.Window {
 func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowName) AccountNow {
 	d, s, a := m.doc, j.states, j.states.account
 	limit, _ := d.LimitEvent(a, m.Now)
-	capped, _ := d.capEvent(a, m.Now, m.policy)
+	capped, capTold := d.capEvent(a, m.Now, m.policy)
 	refused, _ := d.refusalEvent(a, m.Now)
 	an := AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, Elsewhere: d.elsewhere(a.ID), InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
-		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitSince: limit.At, LimitMoved: limit.Count,
-		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapSince: capped.At, CapBack: s.capBack,
+		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitMoved: limit.Count,
+		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapSince: m.ranOn(a.ID, WasCapped, s.capSince(capped, capTold)), CapBack: s.capBack,
 		RefusedSince: refused.At, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(), Back: s.back,
 		Pressure: PressureNow{Under: s.pressed, Window: a.Pressure.Window},
@@ -524,8 +524,73 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 	for i, w := range j.windows {
 		an.Windows[i] = m.windowNow(s, w, names[w.window.Key])
 	}
+	an.LimitSince = limitSince(an.Hold, an.Windows)
+	if an.Hold.Every {
+		an.LimitSince = m.ranOn(a.ID, WasLimited, an.LimitSince)
+	}
 	return an
 }
+
+// ranOn is when the hold of every request of the given kind holding the
+// account with the given id began, given that the windows holding it now
+// came to be held from from, as the holds the router told of have the run
+// of it reaching from begin, as ranFrom has it; zero where from is.
+func (m Moment) ranOn(id string, kind WasKind, from time.Time) time.Time {
+	if from.IsZero() {
+		return from
+	}
+	return ranFrom(m.Told(id), kind, m.policy.IsShared, from)
+}
+
+// limitSince is when an account held as hold has it reached what holds it,
+// its windows standing as given, as the router's events tell: as the first
+// of the windows it holds came to be held, each as the event of the limit
+// holding it tells, as reachedIn has it, as firstHeld has them; of a hold of
+// every request, those every model shares, which hold it back from every
+// request, else each it holds.
+func limitSince(hold Hold, windows []WindowNow) time.Time {
+	var since []time.Time
+	for _, w := range windows {
+		if w.Held && (w.Shared || !hold.Every) {
+			since = append(since, w.Since)
+		}
+	}
+	return firstHeld(since...)
+}
+
+// capSince is when the account, its windows standing as s has them, reached
+// the cap that holds it back from every request, as the router's event of
+// it, e, tells, where told says there's one: as the first of its windows
+// every model shares at its reserve came to be held, as e's heldFrom has
+// each, as firstHeld has them; zero where there's none.
+func (s windowStates) capSince(e Event, told bool) time.Time {
+	if !told {
+		return time.Time{}
+	}
+	var since []time.Time
+	for _, w := range s.account.Windows {
+		if s.policy.IsShared(w.Key) && slices.Contains(s.reached, w.Key) {
+			from, _ := e.heldFrom(w)
+			since = append(since, from)
+		}
+	}
+	return firstHeld(since...)
+}
+
+// firstHeld is when a hold of several parts began, given when each came to
+// be held, zero where nothing tells: the earliest, so zero where none is
+// given, or where one isn't known, as that one may have been held first.
+// It's the one rule the parts of a hold are dated by.
+func firstHeld(since ...time.Time) time.Time {
+	if len(since) == 0 {
+		return time.Time{}
+	}
+	return slices.MinFunc(since, time.Time.Compare)
+}
+
+// near is how close a window comes to where its account runs out before it's
+// said to near it: within 10 points.
+const near = 0.1
 
 // windowNow is the window judged as w, of the account whose windows stand as
 // s says, as it stands at the moment, named as given.
@@ -543,7 +608,7 @@ func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 	wn.ResetSinceRead, wn.Lapsed = w.window.ResetBy(m.Now), w.lapsed
 	wn.Held = wn.Kind == WindowLimited
 	if wn.Held {
-		wn.Back, wn.Since = wn.At, eventAt(m.doc.reachedIn(a, w.window, m.Now))
+		wn.Back, wn.Since = wn.At, m.doc.reachedIn(a, w.window, m.Now)
 	}
 	wn.Capped, wn.CappedAsRead = s.capped(key), m.doc.reserveHolds(a) && slices.Contains(a.AtReserve, key)
 	wn.RunsOut, wn.Out, wn.Projected = wn.Kind == WindowRunsOut, w.out, projected(wn.Kind, w.out.Projection)
@@ -673,25 +738,28 @@ func (m Moment) windowsShown(names map[string]WindowName) (shown, hidden []Windo
 	return shown, hidden
 }
 
-// eventAt is when the event given happened, where there is one: zero where
-// ok says there isn't.
-func eventAt(e Event, ok bool) time.Time {
+// reachedIn is when account a reached the limit that holds its window w at
+// now, as the router's event of it, as limitOf finds it, has w held, by its
+// heldFrom: zero where none tells.
+func (d Document) reachedIn(a Account, w quota.Window, now time.Time) time.Time {
+	e, ok := d.limitOf(a, w, now)
 	if !ok {
 		return time.Time{}
 	}
-	return e.At
+	from, _ := e.heldFrom(w)
+	return from
 }
 
-// reachedIn is the router's event of account a reaching the limit that holds
+// limitOf is the router's event of account a reaching the limit that holds
 // its window w at now, reporting false where none tells of it. Where the
 // account's limit holds w, it's that limit's event, as LimitEvent finds it.
 // Where the account has no such limit, as a probed document has none, or one
 // without an identity, as a router from before limits had them gives, it's
-// the newest event of the account reaching a limit naming w, or naming no
-// window, as a limit naming none holds every window, that came while w runs
-// as it does now, since it last started: an older limit's event says nothing
-// of when w reached it.
-func (d Document) reachedIn(a Account, w quota.Window, now time.Time) (Event, bool) {
+// the newest event of the account reaching a limit that has w held, as its
+// heldFrom has it, from a moment while w runs as it does now, since it last
+// started, and by now: an older limit's event says nothing of when w
+// reached it.
+func (d Document) limitOf(a Account, w quota.Window, now time.Time) (Event, bool) {
 	if l := a.Limit; l.ID != 0 && l.holds(now) && (len(l.Windows) == 0 || slices.Contains(l.Windows, w.Key)) {
 		return d.LimitEvent(a, now)
 	}
@@ -700,8 +768,8 @@ func (d Document) reachedIn(a Account, w quota.Window, now time.Time) (Event, bo
 		return Event{}, false
 	}
 	return d.newestEvent(func(e Event) bool {
-		named := len(e.Windows) == 0 || slices.Contains(e.Windows, w.Key)
-		return e.Kind == EventLimit && e.Account == a.ID && named && !e.At.Before(start) && !e.At.After(now)
+		from, held := e.heldFrom(w)
+		return e.Kind == EventLimit && e.Account == a.ID && held && !from.Before(start) && !from.After(now)
 	})
 }
 
@@ -738,6 +806,13 @@ func (d Document) capEvent(a Account, now time.Time, policy score.Policy) (Event
 		return Event{}, false
 	}
 	return e, true
+}
+
+// capHolds reports whether doc's account a's cap holds it back from every
+// request at now: a window every model shares, as policy says, has reached
+// its reserve, as reachedReserve judges, and the global pin doesn't spend it.
+func (d Document) capHolds(a Account, now time.Time, policy score.Policy) bool {
+	return d.reserveHolds(a) && slices.ContainsFunc(a.reachedReserve(now), policy.IsShared)
 }
 
 // refusalEvent is the router's event of the upstream's refusal of account

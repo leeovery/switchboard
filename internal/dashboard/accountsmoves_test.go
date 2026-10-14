@@ -175,6 +175,23 @@ func TestEscEndsComparesFocusWhereTheColumnsAre(t *testing.T) {
 	}
 }
 
+// With no accounts, Compare draws no columns, so ← and → focus none, a click
+// on all accounts' heads focuses nothing, and enter opens nothing.
+func TestComparesFocusFindsNoColumnWithNoAccounts(t *testing.T) {
+	var s AccountsShown
+	for _, by := range []int{-1, 1} {
+		if got, ok := s.Moved(by, nil); ok || got.Focused {
+			t.Errorf("Moved(%d) = %+v, %v; want no focus", by, got, ok)
+		}
+	}
+	if got := s.FocusedOn(""); got.Focused || got.Shown != AccountsCompare {
+		t.Errorf("FocusedOn(all accounts) = %+v, want no focus, on Compare", got)
+	}
+	if s.Opens(nil) {
+		t.Error("enter opens a column, want none")
+	}
+}
+
 // ↑ and ↓ on Detail choose an account in its list, all accounts first, no
 // further than either end, a choice of another account selecting its first
 // session; in its SESSIONS, and with one account, which has no list, they

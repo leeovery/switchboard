@@ -1,7 +1,6 @@
 package capture
 
 import (
-	"cmp"
 	"errors"
 	"maps"
 	"reflect"
@@ -18,7 +17,7 @@ import (
 )
 
 func TestTheRouterGivesItsDocumentWhateverIsAsked(t *testing.T) {
-	s := threeAccounts(moment(time.UTC))
+	s, now := autoRouter()
 	want := s.doc.WorkedOut(claude.Policy)
 	if want.ComingUp == nil || want.Pool.Windows == nil {
 		t.Fatalf("WorkedOut() = %+v, want what's coming up and the pool", want)
@@ -29,8 +28,8 @@ func TestTheRouterGivesItsDocumentWhateverIsAsked(t *testing.T) {
 		if err != nil || !reflect.DeepEqual(doc, want) {
 			t.Errorf("Read(%+v) = %+v, %v, want the router's document, with what's worked out of it, as the router gives it", r, doc, err)
 		}
-		if !health.OK || health.PID != routerPID || !health.StartedAt.Equal(on(s.now, 1, 12, 0)) {
-			t.Errorf("Read(%+v) says the router is %+v, want the one the fixtures have, healthy, started at noon", r, health)
+		if !health.OK || health.PID != routerPID || !health.StartedAt.Equal(routerRun(now)) {
+			t.Errorf("Read(%+v) says the router is %+v, want the one the fixtures have, healthy, started as its events' run did", r, health)
 		}
 	}
 	if err := s.Pin(t.Context(), []string{"work"}, true); err != nil {
@@ -95,9 +94,9 @@ func TestAWorldsRouterGivesItsDocumentAndListsItsSessions(t *testing.T) {
 }
 
 func TestAGoneRouterAnswersUntilItsTimeThenFailsEveryRead(t *testing.T) {
-	now := moment(time.UTC)
+	router, now := autoRouter()
 	clock := &clock{now: ago(now, readAgo)}
-	s := threeAccounts(now).goneAt(now).by(clock.read)
+	s := router.goneAt(now).by(clock.read)
 
 	if _, _, err := s.Read(t.Context(), status.Read{}); err != nil || !s.RouterAnswers(t.Context()) {
 		t.Errorf("before it's gone, Read() error = %v, RouterAnswers() = %v, want it read, and answering", err, s.RouterAnswers(t.Context()))
@@ -111,103 +110,8 @@ func TestAGoneRouterAnswersUntilItsTimeThenFailsEveryRead(t *testing.T) {
 	if s.RouterAnswers(t.Context()) {
 		t.Error("once it's gone, RouterAnswers() = true, want it not answering")
 	}
-	if _, _, err := threeAccounts(now).by(clock.read).Read(t.Context(), status.Read{}); err != nil {
+	if _, _, err := router.by(clock.read).Read(t.Context(), status.Read{}); err != nil {
 		t.Errorf("a router never gone, Read() error = %v, want it read", err)
-	}
-}
-
-func TestSessionsListTheSampleSessionsSeenLastFirst(t *testing.T) {
-	s := threeAccounts(moment(time.UTC))
-
-	sessions, err := s.Sessions(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	type placed struct{ session, family, account string }
-	var got []placed
-	for _, session := range sessions {
-		for _, a := range session.Assignments {
-			got = append(got, placed{session: session.ID[:4], family: a.Family, account: a.Account})
-		}
-	}
-	want := []placed{
-		{"c61b", "opus", "side"},
-		{"db8a", "sonnet", "work"}, {"db8a", "opus", "side"},
-		{"d28c", "opus", "work"},
-		{"41e0", "sonnet", "side"},
-		{"7f3a", "haiku", "work"},
-	}
-	if !slices.Equal(got, want) {
-		t.Errorf("sessions are %v, want %v", got, want)
-	}
-	if s.doc.Sessions != len(sessions) {
-		t.Errorf("the document counts %d sessions, want the %d listed", s.doc.Sessions, len(sessions))
-	}
-}
-
-func TestAPinnedSampleSessionHasItsOwnPin(t *testing.T) {
-	sessions, err := fiveAccounts(moment(time.UTC)).Sessions(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	i := slices.IndexFunc(sessions, func(s status.Session) bool { return s.ID == id9E21 })
-	if i < 0 {
-		t.Fatalf("no session %s among %+v", id9E21, sessions)
-	}
-	if got := sessions[i]; got.Pin != "client" || !got.Assignments[0].Pinned {
-		t.Errorf("session 9e21 is %+v, want it pinned to client by its own pin", got)
-	}
-	if got, want := sessions[i].Assignments[0].PinnedAt, on(moment(time.UTC), 1, 14, 39); !got.Equal(want) {
-		t.Errorf("session 9e21 was given its pin at %v, want %v, as it ran, as the pin's move tells", got, want)
-	}
-}
-
-func TestHistoryGivesAPointEachStepFromEachWindowsStart(t *testing.T) {
-	now := moment(time.UTC)
-	h, err := fiveAccounts(now).History(t.Context(), "5h", 30*time.Minute)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if h.Window != "5h" || h.Step != "30m0s" {
-		t.Errorf("history of %s a step of %s, want of 5h a step of 30m0s", h.Window, h.Step)
-	}
-	var ids []string
-	for _, a := range h.Accounts {
-		ids = append(ids, a.ID)
-	}
-	if want := []string{"work", "personal", "side", "client", "spare"}; !slices.Equal(ids, want) {
-		t.Errorf("history of accounts %v, want every account's, in order, %v", ids, want)
-	}
-	work := h.Accounts[0]
-	if want := on(now, 1, 12, 10); !work.Start.Equal(want) {
-		t.Errorf("work's session started at %s, want %s", work.Start, want)
-	}
-	var at []time.Time
-	for _, p := range work.Points {
-		at = append(at, p.At)
-	}
-	if want := stepsFrom(on(now, 1, 12, 10), on(now, 1, 14, 40), 30*time.Minute); !slices.EqualFunc(at, want, time.Time.Equal) {
-		t.Errorf("work's points are at %v, want %v", at, want)
-	}
-	if spare := h.Accounts[4]; !spare.Start.IsZero() || len(spare.Points) > 0 {
-		t.Errorf("spare's lapsed session has history %+v, want none", spare)
-	}
-}
-
-func TestHistoryRisesAsTheFramesChartsDo(t *testing.T) {
-	now := moment(time.UTC)
-	h, err := threeAccounts(now).History(t.Context(), "5h", time.Minute)
-	if err != nil {
-		t.Fatal(err)
-	}
-	personal := h.Accounts[1]
-	if !slices.IsSortedFunc(personal.Points, func(a, b router.HistoryPoint) int { return cmp.Compare(a.Utilization, b.Utilization) }) {
-		t.Error("personal's session's use falls, want it rising")
-	}
-	for _, p := range personal.Points {
-		if limited := on(now, 1, 14, 12); !p.At.Before(limited) && p.Utilization != 1 {
-			t.Errorf("personal's session read %v at %s, after it reached its limit at %s, want it level at its limit", p.Utilization, p.At, limited)
-		}
 	}
 }
 
@@ -239,7 +143,8 @@ func TestEveryWindowsHistoryEndsAtItsUse(t *testing.T) {
 }
 
 func TestHistoryRefusesAStepOfNothing(t *testing.T) {
-	if _, err := threeAccounts(moment(time.UTC)).History(t.Context(), "5h", 0); err == nil {
+	s, _ := autoRouter()
+	if _, err := s.History(t.Context(), "5h", 0); err == nil {
 		t.Error("History() with a step of 0 gave no error, want it refused")
 	}
 }
@@ -256,24 +161,6 @@ func TestEventsAreNumberedTheNewestFirst(t *testing.T) {
 				t.Errorf("%s: event %+v follows %+v, want each older than the last, numbered one less", f.Name, events[i], events[i-1])
 			}
 		}
-	}
-}
-
-func TestAMoveALimitForcedIsCountedInIt(t *testing.T) {
-	events := threeAccounts(moment(time.UTC)).doc.Events
-	limit := slices.IndexFunc(events, func(e status.Event) bool { return e.Kind == status.EventLimit })
-	var counted []string
-	for _, e := range events {
-		if e.Kind == status.EventMoved && e.Limit == events[limit].ID {
-			counted = append(counted, e.Session[:4])
-		}
-	}
-	if want := []string{"41e0", "db8a"}; !slices.Equal(counted, want) {
-		t.Errorf("the limit's event counts the moves of %q, want %q", counted, want)
-	}
-	moved := numbered([]status.Event{{Kind: status.EventMoved, From: "work", Limit: forced}})
-	if moved[0].Limit != 0 {
-		t.Errorf("a move forced by no limit told of is counted in event %d, want none", moved[0].Limit)
 	}
 }
 
@@ -340,7 +227,7 @@ var (
 	d28cOnSide = request{id: "00000301", session: idD28C, model: opus, account: "side"}
 )
 
-// movedAndSentAgain is the router of three at now, its stream telling of
+// movedAndSentAgain is the auto world's router at now, its stream telling of
 // d28c's request r1, sent on work 1.3s ago and refused there by work's limit
 // 1.07s ago, as the router moves d28c to side and sends it again there.
 func movedAndSentAgain(now time.Time) source {
@@ -351,7 +238,7 @@ func movedAndSentAgain(now time.Time) source {
 	moved.From, moved.To, moved.Reason = "work", "side", "moved: work hit its limit"
 	again := d28cOnSide.told(router.StreamSent, refusedAt)
 	again.Attempt = 2
-	return threeAccounts(now).telling(d28cOnWork.told(router.StreamSent, ago(now, 1300*time.Millisecond)), limited, moved, again)
+	return routerOf(worldsNow().auto(), now).telling(d28cOnWork.told(router.StreamSent, ago(now, 1300*time.Millisecond)), limited, moved, again)
 }
 
 // A source that turns stands as it did until its time, then as the next
@@ -360,11 +247,11 @@ func movedAndSentAgain(now time.Time) source {
 // though the watch opened it before, which a later look's fixture needs to
 // time what travels its cords.
 func TestASourceThatTurnsStandsAsTheNextFromItsTime(t *testing.T) {
-	now := moment(time.UTC)
+	before, now := autoRouter()
 	next := movedAndSentAgain(now)
 	next.doc.Best = "personal"
 	clock := ago(now, time.Minute)
-	s := threeAccounts(now).then(now, next).by(func() time.Time { return clock })
+	s := before.then(now, next).by(func() time.Time { return clock })
 	look := func() (string, int, []router.StreamEvent) {
 		doc, _, err := s.Read(t.Context(), status.Read{})
 		if err != nil {
@@ -384,7 +271,6 @@ func TestASourceThatTurnsStandsAsTheNextFromItsTime(t *testing.T) {
 		}
 		return doc.Best, len(listed), told
 	}
-	before := threeAccounts(now)
 	if best, listed, told := look(); best != before.doc.Best || listed != len(before.sessions) || len(told) != len(before.stream) {
 		t.Errorf("before its time, the source gives best %q, %d sessions and %d events, want its own", best, listed, len(told))
 	}
@@ -400,7 +286,7 @@ func TestASourceThatTurnsStandsAsTheNextFromItsTime(t *testing.T) {
 // it; a source no watch reads tells it all, each time. Each time, the stream
 // stays open once it has told it, telling nothing more.
 func TestAWatchJoiningTheStreamAgainIsToldOnlyWhatsStillInFlight(t *testing.T) {
-	now := moment(time.UTC)
+	now := worldsNow().now
 	opened := func(s source) []router.StreamEvent {
 		events, err := s.Stream(t.Context())
 		if err != nil {
@@ -441,7 +327,7 @@ func TestAWatchJoiningTheStreamAgainIsToldOnlyWhatsStillInFlight(t *testing.T) {
 // that told is yet to be heard, and is held after, as the stream, open,
 // tells nothing more; a stream that told nothing holds it at once.
 func TestAWatchWaitsOnTheStreamTillItHasHeardAllItTold(t *testing.T) {
-	now := moment(time.UTC)
+	now := worldsNow().now
 	read := movedAndSentAgain(now).by(func() time.Time { return now })
 	wait := func() tea.Msg { return nil }
 	waits := func() []bool {
@@ -456,7 +342,7 @@ func TestAWatchWaitsOnTheStreamTillItHasHeardAllItTold(t *testing.T) {
 	if got, want := waits(), []bool{true, false}; !slices.Equal(got, want) {
 		t.Errorf("opened again, telling what's in flight, the watch waits %v, want %v", got, want)
 	}
-	quiet := threeAccounts(now).by(func() time.Time { return now })
+	quiet := routerOf(worldsNow().auto(), now).telling().by(func() time.Time { return now })
 	if _, err := quiet.Stream(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -530,11 +416,9 @@ func TestTheAutoWorldsStreamSawC61BLastOnSide(t *testing.T) {
 	}
 }
 
-// stepsFrom are the times from first to last, a step apart.
-func stepsFrom(first, last time.Time, step time.Duration) []time.Time {
-	var steps []time.Time
-	for at := first; !at.After(last); at = at.Add(step) {
-		steps = append(steps, at)
-	}
-	return steps
+// autoRouter is the auto world's router at the worlds' moment, and the
+// moment.
+func autoRouter() (source, time.Time) {
+	worlds := worldsNow()
+	return routerOf(worlds.auto(), worlds.now), worlds.now
 }

@@ -1,8 +1,6 @@
 # Exchange: a telephone exchange's brass and walnut, dark.
 #
 # Its text on a selection is its brightest cream, as its selection is dark.
-# Its own cords' colours, as a patch bay's are: amber, blue, green, cream,
-# copper and brass, never the red a limit or a refusal is drawn in.
 
 # Text, bright to faint.
 text.primary = #F4EEDF
@@ -34,9 +32,3 @@ viz.ramp.1 = #7FB069
 viz.ramp.2 = #EDAE49
 viz.ramp.3 = #E07A3F
 viz.ramp.4 = #D1495B
-viz.series.1 = #EDAE49
-viz.series.2 = #4F86C6
-viz.series.3 = #7FB069
-viz.series.4 = #F4EEDF
-viz.series.5 = #C97B4A
-viz.series.6 = #C9A44C

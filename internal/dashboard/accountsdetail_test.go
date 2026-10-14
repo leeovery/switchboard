@@ -507,8 +507,10 @@ func TestDetailsPanelScrollsTheListHeld(t *testing.T) {
 
 // While Detail's panel scrolls, the row over the key line says, from the
 // panel's column, how many of its rows are out of view, above and below, and
-// how to scroll to them, as Compare's line says it; where it all shows, it's
-// blank. With one account, there's no list, and it says so from column 0.
+// how to scroll to them, as Compare's line says it, a heading the page
+// leaves out at its foot, with its first row, counted below; where it all
+// shows, it's blank. With one account, there's no list, and it says so from
+// column 0.
 func TestDetailSaysWhatOfItsPanelIsOutOfView(t *testing.T) {
 	doc := usageWorld(extraOff, happened(onAuto()...))
 	_, sessions, _ := overviewWorld()
@@ -518,13 +520,16 @@ func TestDetailSaysWhatOfItsPanelIsOutOfView(t *testing.T) {
 	if most < 2 {
 		t.Fatalf("at 29 rows, the panel scrolls %d rows, want it to scroll", most)
 	}
+	down := f
+	down.Scroll = 1
+	left := f.viewRows() - down.Scrolling(doc, routedAt).Page
 	tests := []struct {
 		name   string
 		scroll int
 		want   string
 	}{
 		{name: "at its top", want: fmt.Sprintf("▼ %d more below · j/k", most)},
-		{name: "a row down", scroll: 1, want: fmt.Sprintf("▲ 1 more above · ▼ %d more below · j/k", most-1)},
+		{name: "a row down", scroll: 1, want: fmt.Sprintf("▲ 1 more above · ▼ %d more below · j/k", most-1+left)},
 		{name: "at its foot", scroll: most, want: fmt.Sprintf("▲ %d more above · j/k", most)},
 	}
 	for _, tt := range tests {

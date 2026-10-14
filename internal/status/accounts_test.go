@@ -153,6 +153,18 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 			"work": {state: "● open", head: "● open"},
 			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
+		"a model's own week at its cap since the day before, the session joining it": {
+			"work": {state: "● at cap", head: "● at its cap · new sessions go elsewhere"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
+		"a model's own week at its cap since the session's period began, the session joining it": {
+			"work": {state: "● at cap", head: "● at its cap · new sessions go elsewhere"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
+		"a model's own week at its limit since the day before, the session joining it": {
+			"work": {state: "■ limit", head: "■ limit reached · new sessions go elsewhere"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
 	}
 	for _, hm := range statustest.HardMoments(policy) {
 		t.Run(hm.Name, func(t *testing.T) {

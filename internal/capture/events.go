@@ -8,10 +8,10 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// The frames' sessions beyond milestone 5's samples and those yesterday's
-// days name, each a Claude Code session's id, which the frames cut to its
-// first four characters: those that ended today or yesterday, and f41a,
-// resumed this morning.
+// The frames' sessions beyond those every world shares and those
+// yesterday's days name, each a Claude Code session's id, which the frames
+// cut to its first four characters: those that ended today or yesterday, and
+// f41a, resumed this morning.
 const (
 	id9C2E = "9c2e47b1-0d5a-4e83-b6f2-8a1c3e9d0f57"
 	id2B6D = "2b6d8e03-a4c7-4f19-9d2b-6e05c1a8f374"

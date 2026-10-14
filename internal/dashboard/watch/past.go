@@ -402,10 +402,10 @@ func (t historyTab) earliest(now time.Time) int {
 // historyKey acts on a key of History's, reporting false for a key it
 // doesn't take, or on another tab: [ and ] show the sub-tab before and
 // after, round; < and > step the period shown, where there's one, back and
-// on; v cycles what the sub-tab shown shows, where it cycles anything; and ←
-// and →, on the Year shown for one account, step to the account before and
-// after, round. A key that changes what's shown shows it as showHistory has
-// it.
+// on; v cycles what the sub-tab shown shows, where historySplit names what
+// it shows, as the key line lists v; and ← and →, on the Year shown for one
+// account, step to the account before and after, round. A key that changes
+// what's shown shows it as showHistory has it.
 func (m Model) historyKey(key string) (Model, bool) {
 	if m.shownView() != dashboard.History {
 		return m, false
@@ -421,7 +421,9 @@ func (m Model) historyKey(key string) (Model, bool) {
 	case "left", "right":
 		next, changed = p.Moved(historySteps[key])
 	case "v":
-		next, changed = p.Cycled()
+		if m.historySplit() != "" {
+			next, changed = p.Cycled()
+		}
 	default:
 		return m, false
 	}
@@ -429,6 +431,12 @@ func (m Model) historyKey(key string) (Model, bool) {
 		m = m.showHistory(next)
 	}
 	return m, true
+}
+
+// historySplit is what v has History's sub-tab shown show, at the size
+// drawn at, as the frame's Split names it: "" where v changes nothing drawn.
+func (m Model) historySplit() string {
+	return dashboard.Frame{Width: m.size.Width, Height: m.size.Height, View: dashboard.History, History: m.past.page}.Split()
 }
 
 // historySteps are the ways History's keys move: back, -1, or on, 1.

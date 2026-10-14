@@ -187,12 +187,14 @@ func listedIDs(told map[string]*story, routed map[string]status.Session) []strin
 }
 
 // lister is what the List lists each session by, beside what its requests
-// tell, as a session's page has it too: the sessions the router lists, by
-// their ids, and where their models go now, as the router lists them and the
-// request stream has moved them since; whether no router lists them; what
-// the stream told, as h hears it; and now.
+// tell, as a session's page and SESSIONS have it too: the sessions the
+// router lists, by their ids; those that run, where their models go now, as
+// the router lists them and the request stream has moved them since, in the
+// order placed has them, and by their ids; whether no router lists them;
+// what the stream told, as h hears it; and now.
 type lister struct {
 	routed   map[string]status.Session
+	running  []status.Session
 	goes     map[string][]status.Assignment
 	unlisted bool
 	h        hearing
@@ -209,7 +211,8 @@ func newLister(running []status.Session, unlisted bool, s Stream, now time.Time)
 		routed: make(map[string]status.Session, len(running)), goes: make(map[string][]status.Assignment),
 		unlisted: unlisted, h: s.hearing(), now: now,
 	}
-	for _, session := range runningNow(s.placed(running, by.h), now) {
+	by.running = runningNow(s.placed(running, by.h), now)
+	for _, session := range by.running {
 		by.goes[session.ID] = session.Assignments
 	}
 	for _, session := range running {
@@ -233,7 +236,7 @@ func (by lister) listed(id string, s *story) ListedSession {
 	if s.last != nil {
 		listed.Ended = s.last.At.UTC()
 	}
-	listed.Account, listed.Model = by.names(id, s)
+	listed.Account, listed.Model = by.names(id, s.naming)
 	if session, running := by.routed[id]; running {
 		listed.run(session, s, by.now)
 	}
@@ -255,10 +258,13 @@ func (by lister) dir(id string, s *story) string {
 }
 
 // names are the account and model naming the session with the given id, its
-// story s telling of its lines, as naming.names has them: the stream's
-// requests of it taken in, its models going where they go now.
-func (by lister) names(id string, s *story) (account, model string) {
-	return s.naming.heard(by.h.told[id]).names(by.goes[id])
+// lines naming it as lines has it, as naming.names has them: the stream's
+// requests of it taken in after them, its models going where they go now.
+// It's the one rule of which model is a session's, and where it's named on,
+// that the List, a session's page, the Log's panel, SESSIONS and the
+// Switchboard all read.
+func (by lister) names(id string, lines naming) (account, model string) {
+	return lines.with(by.h.named[id]).names(by.goes[id])
 }
 
 // activity is what the session with the given id is doing at now, its story

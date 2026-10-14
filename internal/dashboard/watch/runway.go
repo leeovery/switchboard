@@ -26,9 +26,10 @@ import (
 // it gained, and the readings of each span stepped back to before it, read
 // once and held for the run; the readings the watch read of the documents it
 // read itself; the start of the first day the history holds, as the live
-// tail last asked it, zero where it holds none; whether a look since asks
-// what the live tail gained; and whether a read of the history is under way,
-// one at a time.
+// tail last asked it, zero where it holds none, or failed to say; whether a
+// look since asks what the live tail gained; whether a read of the history
+// is under way, one at a time; and whether a failure to say where the
+// history begins has been logged, the once.
 type runwayTab struct {
 	shown   dashboard.RunwayShown
 	lanes   views.Lanes
@@ -40,6 +41,7 @@ type runwayTab struct {
 	kept    time.Time
 	due     bool
 	reading bool
+	warned  bool
 }
 
 // readingsTail is a read of the readings history over a span, as
@@ -70,13 +72,14 @@ func (s readingsSpan) is(o readingsSpan) bool {
 
 // runwayReadMsg is what a read of the readings history over the span read
 // found; where it asked, the start of the first day the history holds, zero
-// where it holds none, or failed to say; and where the ledger began, where
-// it asked that.
+// where it holds none, or failed to say, and why; and where the ledger
+// began, where it asked that.
 type runwayReadMsg struct {
 	span      readingsSpan
 	held      []readings.Reading
 	keptAsked bool
 	kept      time.Time
+	keptErr   error
 	beginning
 }
 
@@ -320,8 +323,10 @@ func (m Model) runwayDays(tl views.Timeline, now time.Time) []ledger.Summary {
 // readingsRead reads it: a span stepped back to before the live one, of a
 // day or a week gone, once, its readings held for the run; else the live
 // tail, made afresh as its span moves, as the day turns, and read at once,
-// then at each look since, as due says, for what it gained. Without a
-// reader, nothing.
+// then at each look since, as due says, for what it gained. A read of the
+// live tail asks where the history begins as its span moves, and at a look
+// while that's unknown, as on a fresh install, or after a failure to say.
+// Without a reader, nothing.
 func (m Model) readRunway() (Model, tea.Cmd) {
 	t := m.runwayTab
 	if m.view != dashboard.Runway || m.session != nil || m.cfg.Readings == nil || t.reading {
@@ -341,6 +346,9 @@ func (m Model) readRunway() (Model, tea.Cmd) {
 		read.tail, read.kept = t.live.read, m.cfg.Readings
 	case t.due:
 		read.tail, t.due = t.live.read, false
+		if t.kept.IsZero() {
+			read.kept = m.cfg.Readings
+		}
 	default:
 		return m, nil
 	}
@@ -365,7 +373,8 @@ func (r historyRead) cmd(now time.Time) tea.Cmd {
 	return func() tea.Msg {
 		msg := runwayReadMsg{span: r.span, held: r.tail()}
 		if r.kept != nil {
-			msg.keptAsked, msg.kept = true, historyKept(r.kept)
+			msg.keptAsked = true
+			msg.kept, msg.keptErr = historyKept(r.kept)
 		}
 		if r.began != nil {
 			msg.beginning = ledgerBegan(r.began, now)
@@ -375,19 +384,23 @@ func (r historyRead) cmd(now time.Time) tea.Cmd {
 }
 
 // historyKept is the start of the first day the readings history given
-// holds: zero where it holds none, or fails to say, which is logged.
-func historyKept(history views.Readings) time.Time {
+// holds: zero where it holds none, or fails to say, and why.
+func historyKept(history views.Readings) (time.Time, error) {
 	first, err := history.FirstDay()
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		logger.Warn("couldn't read where the readings history begins", "error", err)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return time.Time{}, nil
+	case err != nil:
+		return time.Time{}, err
 	}
-	return first
+	return first, nil
 }
 
 // runwayRead takes in what a read of the readings history found: the live
 // tail's, held in place of what it read last; or a span's stepped back to,
-// held for the run; the first day the history holds, where the read asked;
-// and where the ledger began, where it asked that, as History learns it.
+// held for the run; the first day the history holds, where the read asked,
+// and where it couldn't be said, logged, the first time alone; and where
+// the ledger began, where it asked that, as History learns it.
 func (m Model) runwayRead(msg runwayReadMsg) Model {
 	t := m.runwayTab
 	t.reading = false
@@ -398,6 +411,10 @@ func (m Model) runwayRead(msg runwayReadMsg) Model {
 	}
 	if msg.keptAsked {
 		t.kept = msg.kept
+	}
+	if msg.keptErr != nil && !t.warned {
+		logger.Warn("couldn't read where the readings history begins", "error", msg.keptErr)
+		t.warned = true
 	}
 	m.runwayTab = t
 	m.past = m.past.learned(msg.beginning)

@@ -90,7 +90,8 @@ func (m Model) builtLogPanel(now time.Time) Model {
 
 // panelFigures are the Log's panel p's figures made at now: today's lines
 // and events counted, those it would show through what it picks among
-// them; and today's sessions, those with lines today on Requests', those
+// them, the lines of the Requests built where it picks what the page
+// shows; and today's sessions, those with lines today on Requests', those
 // with events today on Events', each as the List has it, and those its
 // filter ticks that have none, with what the find found of them, as
 // foundSessions has it, their doing told at now.
@@ -103,11 +104,21 @@ func (m Model) panelFigures(p dashboard.LogPanel, now time.Time) dashboard.LogPa
 		p.Events = views.LogEvents(m.logEventSources(p.Shows, now)).Today
 		src.Events = p.Events.Sessions
 	} else {
-		p.Lines = views.LogRows(m.logSources(p.Filter, now)).Count(views.Today(now).Date)
+		p.Lines = m.requestsThrough(p.Filter, now).Count(views.Today(now).Date)
 		src.Lines = p.Lines.Sessions
 	}
 	p.Sessions, p.Now = views.LogSessions(src), now
 	return p
+}
+
+// requestsThrough are the Log's Requests at now through the filter given:
+// those built, where it's the page's, as requestsBuilt built them at now;
+// else made of what the Log holds.
+func (m Model) requestsThrough(filter views.LogFilter, now time.Time) views.LogTable {
+	if p := m.log.page; filter.Equal(p.Filter) {
+		return p.Requests
+	}
+	return views.LogRows(m.logSources(filter, now))
 }
 
 // logPanel is the Log's panel, as it was built last.

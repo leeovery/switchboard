@@ -14,12 +14,13 @@ import (
 type monthPart struct{ num, den int64 }
 
 // The shares of a month Accounts and History price their periods at: a day
-// 12/365 of a month, a week 12/52, 30 days or a calendar month a month, and
-// 12 weeks twelve weeks'.
+// 12/365 of a month, a week 12/52, 30 days or a calendar month a month, 12
+// weeks twelve weeks', and a year, of 365 days or 366, 12 months.
 var (
 	aWeek       = monthPart{12, 52}
 	aMonth      = monthPart{1, 1}
 	twelveWeeks = monthPart{12 * 12, 52}
+	aYear       = monthPart{12, 1}
 )
 
 // days is the share of a month n days are.

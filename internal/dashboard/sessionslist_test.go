@@ -390,6 +390,29 @@ func TestTheListScrollsUnderItsHeads(t *testing.T) {
 	}
 }
 
+// The List never ends a page on its ended rule: at 160 by 17, seven rows,
+// the page that would end on it ends over it, six rows paged, so PgDn goes
+// on from the rule, the first session ended under it.
+func TestTheListEndsNoPageOnItsEndedRule(t *testing.T) {
+	doc := framedDoc(nil, nil)
+	f := listFrame(t, 160, 17, framedList())
+	if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: 8, Page: 6}); got != want {
+		t.Errorf("unscrolled, it scrolls %+v, want %+v", got, want)
+	}
+	for scroll, rows := range map[int]map[int]string{
+		0: {7: "▸ db8a", 12: "↓ c61b", 13: ""},
+		6: {7: "  ended today", 8: "  5b19", 13: "  5e7d"},
+	} {
+		f.Scroll = scroll
+		c := f.page(doc, routedAt)
+		for y, want := range rows {
+			if got := rowOf(c, y); !strings.HasPrefix(got, want) || want == "" && got != "" {
+				t.Errorf("scrolled %d, row %d reads %q, want it to start %q", scroll, y+1, got, want)
+			}
+		}
+	}
+}
+
 // The session chosen is lit on bg.selection across the width, its glyphs
 // and their inks as they were; nothing is, with none chosen, or with the one
 // chosen scrolled out of view.

@@ -74,6 +74,7 @@ func TestParseReadsAFileAsWritten(t *testing.T) {
 		{name: "Windows line endings", text: strings.ReplaceAll(file(nil), "\n", "\r\n")},
 		{name: "a byte order mark", text: string(rune(0xFEFF)) + file(nil)},
 		{name: "a key it doesn't know, passed over", text: file(nil, "bg.hover = #123456", "glyph.tick = ✓")},
+		{name: "the cords' viz.series keys, gone, passed over unread", text: file(nil, "viz.series.1 = #81A1C1", "viz.series.6 = amber")},
 		{name: "the base tokens alone, under a comment", text: "# Lake: the base tokens alone.\n" + file(nil)},
 	}
 	for _, tt := range tests {
@@ -221,12 +222,6 @@ func TestWhatAThemeLeavesOutOfItsChartsIsWorkedOutFromTheRest(t *testing.T) {
 		{token: theme.VizPace, want: "#ECEFF4"},
 		// accent.attention.
 		{token: theme.VizReserve, want: "#EBCB8B"},
-		{token: theme.VizSeries1, want: "#81A1C1"},
-		{token: theme.VizSeries2, want: "#A7C492"},
-		{token: theme.VizSeries3, want: "#B48EAD"},
-		{token: theme.VizSeries4, want: "#88C0D0"},
-		{token: theme.VizSeries5, want: "#E5E9F0"},
-		{token: theme.VizSeries6, want: "#EBCB8B"},
 		// accent.key, accent.mode, accent.primary and text.tertiary.
 		{token: theme.VizFamily1, want: "#81A1C1"},
 		{token: theme.VizFamily2, want: "#88C0D0"},
@@ -314,33 +309,6 @@ func TestEveryRampOfShadesIsDrawnByOneRule(t *testing.T) {
 	day, _ := theme.Builtin("tokyo-night-day")
 	if got, want := day.Steps(opus), theme.Shades(day.Colour(theme.VizDay0), opus, true); got != want {
 		t.Errorf("tokyo-night-day's steps toward Opus are %v, want from its viz.day.0 toward black, %v", got, want)
-	}
-}
-
-func TestNoSeriesTakesTheDestructiveColour(t *testing.T) {
-	lake, err := theme.Parse("lake", []byte(file(nil)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for n := 1; n <= 6; n++ {
-		if lake.Series(n) == lake.Colour(theme.StateDestructive) {
-			t.Errorf("Series(%d) = state.destructive, which a limit or a refusal is drawn in", n)
-		}
-	}
-}
-
-func TestTheSeriesGoRoundAgainPastSix(t *testing.T) {
-	lake, err := theme.Parse("lake", []byte(file(nil)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for n, want := range map[int]theme.Token{1: theme.VizSeries1, 6: theme.VizSeries6, 7: theme.VizSeries1, 8: theme.VizSeries2, 13: theme.VizSeries1} {
-		if got := lake.Series(n); got != lake.Colour(want) {
-			t.Errorf("Series(%d) = %s, want %s's %s", n, hex(got), want, hex(lake.Colour(want)))
-		}
-		if got := theme.SeriesOf(n); got != want {
-			t.Errorf("SeriesOf(%d) = %s, want %s", n, got, want)
-		}
 	}
 }
 

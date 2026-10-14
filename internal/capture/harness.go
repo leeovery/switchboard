@@ -139,7 +139,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 
 // readers are what the watch of the fixture reads the request ledger, the
 // readings history and the router's events through, by now's clock: its
-// world's records, or, of a fixture over none, as milestone 5's are, none.
+// world's records, or, of a printout, which has none, none.
 func (f Fixture) readers(now func() time.Time) (views.Ledger, views.Readings, views.Events) {
 	if f.records == nil {
 		return ledger.NewEmpty(now, ledger.Caps{Shared: claude.SharedWindows}), readings.Empty{}, events.Empty{}

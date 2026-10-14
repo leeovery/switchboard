@@ -1,18 +1,17 @@
 # Switchboard — design
 
-**Status:** milestones 0 to 3, 5 and 6 are built, and this document describes the design as built,
-but for milestone 7's, which it describes as designed, ahead of its build (see Milestones).
+**Status:** milestones 0 to 3 and 5 to 7 are built, and this document describes the design as
+built (see Milestones).
 Milestones 0 to 2 built the usage dashboard (one-off, and in watch mode) and `status`, which read
 the router while it runs and probe when it doesn't; logging; the router, with its scheduler, pins,
 state, limit and refusal handling, health and desktop notifications; and launching (`run` and the
 service). Milestone 3 added token files and the `accounts` commands, `setup`, every `claude` going
 through switchboard in place of `init zsh`, the primary account and its reserve, priming the 5-hour
 windows, and the router looking after itself; Milestones lists it in full, with what its final
-review changed. Next is milestone 7 (see Milestones); milestone 4, the author's switch-over, happens
-outside this repo. The release follows milestone 3. Milestone 5 rebuilt the dashboard as its owner
+review changed. Milestone 4, the author's switch-over, happens outside this repo. The release follows milestone 3. Milestone 5 rebuilt the dashboard as its owner
 redesigned it, in three views, with themes, and with the router's history, events and request stream
 to draw them from. Milestone 6 added the request ledger, a line for each request the router routes
-and a summary of each day, with `requests` and `history` to read them back. Milestone 7 redesigns
+and a summary of each day, with `requests` and `history` to read them back. Milestone 7 redesigned
 the dashboard again, on what the ledger records: `usage` becomes a printout, `dashboard` the live
 page, in six tabs, and the data verbs give an agent everything either shows. The Dashboard section
 and The data verbs describe it.
@@ -833,9 +832,10 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
       `limits`; and `all accounts`' peaks: every account's, whatever was pinned (see History).
     - `capacity`: Weeks' verdicts over those weeks: how many were `short`, a week some account hit
       its limit, as the accounts stand, `with_one_fewer` and `with_one_more`, and the account to
-      `drop`, where Weeks names one; and each account's `verdict`, in Weeks' words, with how many
+      `drop`, where Weeks names one, with `with_two_fewer`, with three accounts or more, the weeks
+      short without it and another; and each account's `verdict`, in Weeks' words, with how many
       weeks it hit its limit, the share it had left at a reset, on average, and how many weeks the
-      rest would have been short `without_it`.
+      rest would have been short `without_it`, then every account's together, marked `all`.
   - **`history --windows`:** one object, `{"windows": [{account, window, readings}]}`, printed in
     place of the blocks (settled in the plan): each account's every window's readings over the days
     asked for, each `{at, utilization, resets_at, status, source}`, as the readings history holds
@@ -872,7 +872,8 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
       `{account, from, to, requests, worth, points}`, `from` and `to` its first and last request
       there, and `points` each window's points its requests took, by key, an estimate (see A
       session's page).
-    - `moves` are each move, `[{at, from, to, reason, written, cost}]`.
+    - `moves` are each move, `[{at, model, from, to, reason, written, cost}]`, `model` the one it
+      asked for, as a session's models are routed apart.
     - `turns` are newest first:
       `{turn, started, ended, requests, tools, read, written, out, worth, accounts}`. `tools` are
       the tools its answers called, each by name with how many times; `ended` is left out of one
@@ -3829,8 +3830,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   itself, then the hue mixed 55% toward white, or toward black on a light canvas
   (settled in the plan). The days' hue is `accent.key`, and a family's strips' its family's. A
   version the version table gives no shade, as an older one past the six, draws as its default
-  would, in its family's hue mixed 30% toward `canvas`; and a family it gives no hue of its own, as
-  Mythos, draws in `text.muted`, its versions with it (settled in the plan).
+  would, in its family's hue mixed 30% toward `canvas`; and a family it gives no hue of its own
+  draws in `text.muted`, its versions with it (settled in the plan).
 - **Files:** `<slug>.theme`, flat `key = #RRGGBB` lines, `#` starting a comment only at the start
   of a line, unquoted, a key once, unknown keys ignored, a missing base key rejecting the file; the
   slug matching `^[a-z0-9][a-z0-9-]*$`. They're read from `SWITCHBOARD_THEMES_DIR`, else
@@ -4485,11 +4486,11 @@ from the first day a router that has it runs, so nothing before then is in it.
 - **The version table,** beside the price table, names each model version as the views show it, and
   gives it its colour. A row a version, by its ids as the price table holds them: its name,
   `Opus 5.5`, `Sonnet 4.5`, `Haiku 4.5`, `Fable 5.1`; its family, as `internal/claude` reads it from
-  the id, `opus`; and its shade. Its rows go by family, Opus, Sonnet, Fable, Haiku, then Mythos, and
-  within a family newest first, by the day each launched, so `Opus 5.5` comes before `Opus 5`. The
-  first four families are drawn in `viz.family.1` to `viz.family.4`; Mythos, the price table's
-  `claude-mythos-5-1` and `claude-mythos-5`, is a fifth, with no hue of its own, drawn in
-  `text.muted` with its versions, in charts and tables alike. The table assigns `viz.version.1` to
+  the id, `opus`; and its shade. Its rows go by family, Opus, Sonnet, Fable, then Haiku, and within
+  a family newest first, by the day each launched, so `Opus 5.5` comes before `Opus 5`. The four
+  families are drawn in `viz.family.1` to `viz.family.4`; a family with no hue of its own would draw
+  in `text.muted` with its versions, in charts and tables alike. Mythos, which no subscription can
+  use, is left out of both tables (the owner, 14 Oct 2026). The table assigns `viz.version.1` to
   `viz.version.6` in its rows' order: Opus 5.5 and Opus 5, Sonnet 5.5 and Sonnet 5, Fable 5.1, and
   Haiku 5.5, which took Haiku 4.5's as it was priced on 7 Oct 2026; a release that adds a version
   assigns them afresh. A version without one draws in its family's colour, mixed 30% toward the
@@ -5302,7 +5303,9 @@ verbs).
 - **Joining:** a limit reached again while it holds joins its event, keeping its `id`, in whatever
   order the news of it comes; another limit reached meanwhile is an event of its own. A cap reached
   again while it holds, in another window, joins its own the same way, and so does a refusal of the
-  account renewed while it holds.
+  account renewed while it holds. A window that joins a limit or a cap it didn't begin with is kept
+  in the event's `joined`, by its key, with when it joined, so a hold is dated from when each of its
+  windows began holding it.
 - **Kept in files,** so the Log and `events` look back across restarts:
   `<state dir>/ledger/events-<local date>.jsonl`, 0600 in the ledger's directory, a line an event,
   as the status document gives it, with `run`: when the router that told it started, as its
@@ -5666,10 +5669,15 @@ no code left commented out. After every stage, every gate in `CLAUDE.md` passes,
     5's day, and `w` itself with it, with their fixtures and tests. Its fixtures draw `runway-*`.
 14. **The demos and the clean-up.** The README's demos and art are recorded again through capture's
     scenarios: `usage`'s, renamed `dashboard`, and `routing`, `themes`, `repatch`, `runway-week`,
-    `phone` and `help`; `flipped`, with no flip left to show, goes. `testdata/vhs/`'s milestone 5
-    tapes and captures are cleared, and `viz.series.1`–`viz.series.6` go, with the built-ins'
-    values of them. No code of milestone 5's dashboard is left but what the redesign kept (see
-    Packages).
+    `phone` and `help`; `flipped`, with no flip left to show, goes. Each is recorded at 160 × 37,
+    the frames' size; the phone's at 52 × 36. `routing` shows the Overview, then the routing card
+    picking side with `m`; `dashboard` one account's Overview, then Runway; `repatch` the
+    Switchboard as personal reaches its limit, the cords hanging; `runway-week` Runway's week;
+    `phone` the Overview at 52 × 36; `help` the Overview's help. The limit is personal's, at
+    16:05:41, as the signed-off Sessions frames draw it (the owner's call, 14 October 2026).
+    `testdata/vhs/`'s milestone 5 tapes and captures are cleared, and `viz.series.1`–`viz.series.6`
+    go, with the built-ins' values of them. No code of milestone 5's dashboard is left but what the
+    redesign kept (see Packages).
 
 Stage 1 merges and is released at once, as v0.1.3. Stages 2 to 4 merge as each is ready, with
 `usage -w` still there, so main can be released through them. Stage 2's second pull request and
@@ -5847,9 +5855,18 @@ why.
 | A reserve spent as a last resort, when no account has room outside one | next, a fast follow | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
+| A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | next, after milestone 7's release, the owner's choice on 14 October 2026 | [doctor](../ideas/2026-10-14--doctor.md) |
 | Three things the router keeps that grow without bound, each only when something rare happens | open: small fixes, any time; a restart's request stream ending before its last events fixed on 11 October 2026 | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
-| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
+| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner after milestone 7's release; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
 | Stage 3's loose ends: Weeks' headline for a set short every week, and the cleanups its reviews left | open: the cleanups any time; the headline settled by its owner on 12 October 2026; the two router tests a loaded machine failed steadied on 11 October 2026, one by a fix to the request stream's end | [stage-3-loose-ends](../ideas/2026-10-11--stage-3-loose-ends.md) |
+| Milestone 7's loose ends: the edge cases and costs its reviews left | open: any time | [milestone-7-loose-ends](../ideas/2026-10-14--milestone-7-loose-ends.md) |
+| testguard failing a run when Claude Code's updater re-creates the `claude` link to the same target | open: a small fix, any time | [testguard-relinked-claude](../ideas/2026-10-14--testguard-relinked-claude.md) |
+| A pin that ends on its own, at a time or at its account's reset | open: to settle with its owner | [pin-until](../ideas/2026-10-14--pin-until.md) |
+| A scheduled review of switchboard's records, raising what it finds as an issue or a pull request | open: to discuss with its owner | [scheduled-review](../ideas/2026-10-14--scheduled-review.md) |
+| Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
+| Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
+| Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, and onboarding | open: to discuss with its owner after milestone 7's release | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
+| Watching switchboard's CPU and memory for a week after milestone 7's release, against v0.1.6's baseline | next, after milestone 7's release, the owner's choice on 14 October 2026 | [performance-watch](../ideas/2026-10-14--performance-watch.md) |
 | Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
 | Worth past what it's counted in: a config's price, or a period's sum, too large to hold | open: a small fix, its bound to settle | [worth-range](../ideas/2026-10-09--worth-range.md) |
 | What a routed session's environment carries to a `claude` switchboard steps aside for, as one a script points at another gateway | open: a small fix, any time | [stepping-aside](../ideas/2026-10-09--stepping-aside.md) |

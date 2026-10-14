@@ -397,7 +397,7 @@ func TestAFixtureOverAWorldHandsTheWatchItsWorldsReaders(t *testing.T) {
 		lines, readings, happening int
 	}{
 		{name: "over a world", records: heldRecords(t), lines: 4, readings: 2, happening: 3},
-		{name: "over none"},
+		{name: "a printout's, over none"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

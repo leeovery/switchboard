@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"fmt"
 	"maps"
 	"reflect"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/status/statustest"
 	"github.com/leeovery/switchboard/internal/views"
@@ -78,7 +80,7 @@ func TestTheSessionsRunningAreGroupedByAccountInTheConfigsOrderTheOneSeenLastFir
 		{account: "personal", session: idler, family: "opus", seen: 9 * time.Minute, why: "started here 10:12", models: []string{"claude-opus-5-5"}},
 		{account: "side", session: asking, family: "opus", seen: time.Second, why: "moved from work 13:01: work reached its cap", models: []string{"claude-opus-5-5"}, doing: views.Asking},
 	}
-	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{})); !reflect.DeepEqual(got, want) {
+	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{}, views.HeldList{})); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
 	}
 }
@@ -94,7 +96,7 @@ func TestDetailsSessionsAreTheRowsOnTheAccountInTheirOrder(t *testing.T) {
 			seatOn("claude-haiku-4-5", "haiku", "work", status.ReasonNew, 50*time.Minute, 40*time.Minute, ""),
 		}},
 	}
-	all := views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{})
+	all := views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{}, views.HeldList{})
 	ids := func(id string) []string {
 		var got []string
 		for _, r := range views.RunningOn(all, id) {
@@ -127,30 +129,42 @@ func TestASessionsModelsOnOneAccountAreOneRowItsModelSeenLastLeading(t *testing.
 		account: "side", session: asking, family: "opus", seen: time.Minute, why: "pinned here 12:42",
 		models: []string{"claude-opus-5-5", "claude-haiku-4-5", "claude-sonnet-5-5"}, doing: views.Answering,
 	}}
-	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{})); !reflect.DeepEqual(got, want) {
+	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{}, views.HeldList{})); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
 	}
 }
 
-// On an account, a session is named by the model naming it, as the request
-// stream tells of its main thread, where that runs there, its reason with
-// it: a title seen since doesn't name it.
+// listHeldOf is the List held of the lines given, as the watch holds it, read at
+// now, of the sessions running gives, as the router lists them.
+func listHeldOf(lines []ledger.Line, running []status.Session, now time.Time) views.HeldList {
+	return views.HoldList(views.ReadList(fakeLedger{lines: lines, now: now}, running), ledger.Pricing, now)
+}
+
+// On an account, a session is named by the model naming it, as the List
+// names it, where that runs there, its reason with it: its main thread's, as
+// its lines tell of it, the request stream's taken in after them; a title
+// seen since doesn't name it, whether its lines or the stream tell of it.
 func TestASessionsRowIsNamedByItsMainThreadWhereItRunsThere(t *testing.T) {
 	sessions := []status.Session{{ID: asking, Assignments: []status.Assignment{
-		seatOn("claude-haiku-4-5", "haiku", "side", status.ReasonNew, 10*time.Minute, time.Minute, ""),
-		seatOn("claude-opus-5-5", "opus", "side", status.ReasonPinned, 30*time.Minute, 2*time.Minute, ""),
+		seatOn(haiku, "haiku", "side", status.ReasonNew, 10*time.Minute, time.Minute, ""),
+		seatOn(opus, "opus", "side", status.ReasonPinned, 30*time.Minute, 2*time.Minute, ""),
 	}}}
-	main := views.Told{Request: "r1", Session: asking, Model: "claude-opus-5-5", Account: "side", Class: "main", Sent: now.Add(-2 * time.Minute)}
+	main := views.Told{Request: "r1", Session: asking, Model: opus, Account: "side", Class: "main", Sent: now.Add(-2 * time.Minute)}
 	main.Ended, main.Heard = main.Sent.Add(10*time.Second), main.Sent.Add(10*time.Second)
-	title := views.Told{Request: "r2", Session: asking, Model: "claude-haiku-4-5", Account: "side", Class: "auxiliary", Sent: now.Add(-time.Minute)}
+	title := views.Told{Request: "r2", Session: asking, Model: haiku, Account: "side", Class: "auxiliary", Sent: now.Add(-time.Minute)}
 	title.Ended, title.Heard = title.Sent.Add(time.Second), title.Sent.Add(time.Second)
+	mainLine := filedAs("r1", took(10*time.Second, serving(p1, ledger.ClassMain, line(asking, opus, "side", status.ReasonPinned, main.Sent, hourUsage))))
+	titleLine := filedAs("r2", took(time.Second, serving(p1, "auxiliary", line(asking, haiku, "side", status.ReasonNew, title.Sent, hourUsage))))
 	tests := []struct {
-		name        string
-		told        []views.Told
-		family, why string
+		name               string
+		told               []views.Told
+		lines              []ledger.Line
+		model, family, why string
 	}{
-		{name: "its main thread's, a title seen since", told: []views.Told{main, title}, family: "opus", why: "pinned here 12:42"},
-		{name: "its model seen last there, no main request told of", told: []views.Told{title}, family: "haiku", why: "started here 13:02, the best"},
+		{name: "its main thread's, a title seen since, as the stream told", told: []views.Told{main, title}, model: opus, family: "opus", why: "pinned here 12:42"},
+		{name: "its main thread's, a title seen since, as its lines tell, nothing told", lines: []ledger.Line{mainLine, titleLine}, model: opus, family: "opus", why: "pinned here 12:42"},
+		{name: "its main thread's as its lines tell, a title told since", told: []views.Told{title}, lines: []ledger.Line{mainLine}, model: opus, family: "opus", why: "pinned here 12:42"},
+		{name: "its model seen last there, no main request told of nor lined", told: []views.Told{title}, model: haiku, family: "haiku", why: "started here 13:02, the best"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -158,9 +172,114 @@ func TestASessionsRowIsNamedByItsMainThreadWhereItRunsThere(t *testing.T) {
 			for _, r := range tt.told {
 				stream.Requests[r.Request] = r
 			}
-			rows := views.RunningOf(runningDoc().At(now, claude.Policy), sessions, stream)
-			if len(rows) != 1 || rows[0].Family != tt.family || rows[0].Why.String() != tt.why {
-				t.Errorf("RunningOf = %+v, want one row, %s, %q", rowsOf(rows), tt.family, tt.why)
+			held := listHeldOf(tt.lines, sessions, now)
+			rows := views.RunningOf(runningDoc().At(now, claude.Policy), sessions, stream, held)
+			if len(rows) != 1 || rows[0].Model != tt.model || rows[0].Family != tt.family || rows[0].Why.String() != tt.why {
+				t.Errorf("RunningOf = %+v, want one row, %s, %q", rowsOf(rows), tt.model, tt.why)
+			}
+			list := held.List(views.ListLive{Running: sessions, Stream: stream, Now: now})
+			if len(list.Sessions) != 1 || list.Sessions[0].Model != tt.model {
+				t.Errorf("the List names it %+v, want %s, as its row", list.Sessions, tt.model)
+			}
+		})
+	}
+}
+
+// A session whose main thread has waited over the IdleHour on a subagent of
+// another model is named on an account by its main thread where it goes
+// there, cold as it is, as the List names it: by its model, why it's there,
+// and the account it came from. SESSIONS draws a session where its models
+// run, though: where its main thread goes to none they run on, its row is on
+// the account its subagent runs on, named by the subagent's model, while the
+// List names it by its main thread, on the account that goes to.
+func TestASessionsRowIsNamedByItsMainThreadThoughItsColdThere(t *testing.T) {
+	const sonnet = "claude-sonnet-5-5"
+	mainAt := now.Add(-72 * time.Minute)
+	subAt := []time.Time{now.Add(-70 * time.Minute), now.Add(-30 * time.Minute), now.Add(-2 * time.Minute)}
+	tests := []struct {
+		name                           string
+		sub                            string
+		account, model, family, why    string
+		from, listedOn, listedAs, came string
+	}{
+		{
+			name: "its subagent on its main thread's account", sub: "work",
+			account: "work", model: opus, family: "opus", why: "moved from personal 12:00: personal reached its limit", from: "personal",
+			listedOn: "work", listedAs: opus, came: "personal",
+		},
+		{
+			name: "its subagent on another account: SESSIONS draws what runs where", sub: "side",
+			account: "side", model: sonnet, family: "sonnet", why: "started here 12:02, the best",
+			listedOn: "work", listedAs: opus, came: "personal",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lines := []ledger.Line{
+				filedAs("m0", took(10*time.Second, serving(p1, ledger.ClassMain, line(asking, opus, "personal", status.ReasonNew, mainAt.Add(-time.Hour), hourUsage)))),
+				filedAs("m1", took(10*time.Second, serving(p1, ledger.ClassMain, movedFrom("personal", line(asking, opus, "work", "moved: personal hit its limit", mainAt, hourUsage))))),
+			}
+			for i, at := range subAt {
+				l := filedAs(fmt.Sprintf("a%d", i), took(20*time.Second, line(asking, sonnet, tt.sub, status.ReasonNew, at, hourUsage)))
+				l.AgentID = "agent-1"
+				lines = append(lines, l)
+			}
+			sessions := []status.Session{{ID: asking, Assignments: []status.Assignment{
+				{Model: opus, Family: "opus", Account: "work", Reason: "moved: personal hit its limit", AssignedAt: mainAt, LastSeen: mainAt.Add(10 * time.Second)},
+				{Model: sonnet, Family: "sonnet", Account: tt.sub, Reason: status.ReasonNew, AssignedAt: subAt[0], LastSeen: subAt[2].Add(20 * time.Second)},
+			}}}
+			held := views.HoldList(views.ReadList(sessionsLedger(lines, now), sessions), ledger.Pricing, now)
+			m := runningDoc().At(now, claude.Policy)
+			calls := views.CallsOf(m, sessions, views.Stream{}, held)
+			if len(calls) != 1 {
+				t.Fatalf("the calls are %+v, want one", calls)
+			}
+			c := calls[0]
+			if c.Account != tt.account || c.Model != tt.model || c.Family != tt.family || c.Why.String() != tt.why || c.From != tt.from {
+				t.Errorf("its row is on %s, %s, %s, %q, from %q; want on %s, %s, %s, %q, from %q",
+					c.Account, c.Model, c.Family, c.Why, c.From, tt.account, tt.model, tt.family, tt.why, tt.from)
+			}
+			list := held.List(views.ListLive{Running: sessions, Now: now})
+			if len(list.Sessions) != 1 {
+				t.Fatalf("the List holds %+v, want one session", list.Sessions)
+			}
+			s := list.Sessions[0]
+			if s.Account != tt.listedOn || s.Model != tt.listedAs || s.Moved == nil || s.Moved.From != tt.came {
+				t.Errorf("the List names it on %s, %s, moved %+v; want on %s, %s, come from %s", s.Account, s.Model, s.Moved, tt.listedOn, tt.listedAs, tt.came)
+			}
+		})
+	}
+}
+
+// A session's row on an account does what its models there do, as the List
+// has the whole session do: those the router lists there, and those the
+// request stream told of there that it doesn't list yet, as a model new to
+// the session; but not those on another account.
+func TestASessionsRowDoesWhatItsModelsTheStreamToldOfThereDo(t *testing.T) {
+	sessions := []status.Session{{ID: asking, Assignments: []status.Assignment{
+		seatOn(opus, "opus", "side", status.ReasonNew, 30*time.Minute, 2*time.Minute, ""),
+	}}}
+	newModel := func(account string) views.Told {
+		return views.Told{Request: "r1", Session: asking, Model: haiku, Account: account, Class: "auxiliary", Sent: now.Add(-time.Second), Heard: now.Add(-time.Second)}
+	}
+	tests := []struct {
+		name      string
+		told      views.Told
+		row, list views.Doing
+	}{
+		{name: "a new model asking on its account, not listed yet", told: newModel("side"), row: views.Asking, list: views.Asking},
+		{name: "a new model asking on another account, not listed yet", told: newModel("work"), row: views.Idle, list: views.Asking},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stream := views.Stream{Live: true, Requests: map[string]views.Told{tt.told.Request: tt.told}}
+			rows := views.RunningOf(runningDoc().At(now, claude.Policy), sessions, stream, views.HeldList{})
+			list := listHeldOf(nil, sessions, now).List(views.ListLive{Running: sessions, Stream: stream, Now: now})
+			if len(rows) != 1 || rows[0].Account != "side" || rows[0].Activity.Doing != tt.row {
+				t.Errorf("RunningOf = %+v, want one row, on side, doing %d", rowsOf(rows), tt.row)
+			}
+			if len(list.Sessions) != 1 || list.Sessions[0].Activity.Doing != tt.list {
+				t.Errorf("the List has it doing %+v, want %d", list.Sessions, tt.list)
 			}
 		})
 	}
@@ -180,7 +299,7 @@ func TestASessionRunsWhereItWasRoutedWithinTheHour(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sessions := []status.Session{{ID: idler, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, tt.made, tt.seen, "")}}}
-			if got := len(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{})) == 1; got != tt.runs {
+			if got := len(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{}, views.HeldList{})) == 1; got != tt.runs {
 				t.Errorf("runs = %t, want %t", got, tt.runs)
 			}
 		})
@@ -214,7 +333,7 @@ func TestWhyASessionRunsWhereItDoes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := runningDoc()
 			doc.Events = tt.events
-			rows := views.RunningOf(doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{tt.seat}}}, views.Stream{})
+			rows := views.RunningOf(doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{tt.seat}}}, views.Stream{}, views.HeldList{})
 			if len(rows) != 1 {
 				t.Fatalf("RunningOf gave %d rows, want 1", len(rows))
 			}
@@ -253,7 +372,7 @@ func TestASessionStartedWhereNewSessionsGoIsTheBest(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rows := views.RunningOf(tt.doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{started}}}, views.Stream{})
+			rows := views.RunningOf(tt.doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{started}}}, views.Stream{}, views.HeldList{})
 			if len(rows) != 1 {
 				t.Fatalf("RunningOf gave %d rows, want 1", len(rows))
 			}
@@ -277,7 +396,7 @@ func TestASessionIsTheBestWhereTheMomentMarksItsAccountAtEachHardMoment(t *testi
 					AssignedAt: hm.Now.Add(-time.Minute), LastSeen: hm.Now,
 				}}})
 			}
-			rows := views.RunningOf(m, sessions, views.Stream{})
+			rows := views.RunningOf(m, sessions, views.Stream{}, views.HeldList{})
 			if len(rows) != len(m.Accounts) {
 				t.Fatalf("RunningOf gave %d rows, want one an account, %d", len(rows), len(m.Accounts))
 			}
@@ -287,6 +406,23 @@ func TestASessionIsTheBestWhereTheMomentMarksItsAccountAtEachHardMoment(t *testi
 				}
 			}
 		})
+	}
+}
+
+// A session the router didn't list that a move brought on is named by its
+// model's family, as the one owner of a model's family reads it, though
+// the router lists no other session of that model.
+func TestASessionAMoveBroughtOnIsNamedByItsModelsFamily(t *testing.T) {
+	sessions := []status.Session{
+		{ID: asking, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, time.Hour, time.Minute, status.Asking)}},
+	}
+	stream := views.Stream{Live: true, Moves: []views.Moved{
+		{Session: gone, Model: "claude-haiku-4-5", From: "work", To: "side", Reason: status.ReasonMovedOff + "work " + status.WhyLimit, At: now.Add(-2 * time.Second)},
+	}}
+	for _, r := range views.RunningOf(runningDoc().At(now, claude.Policy), sessions, stream, views.HeldList{}) {
+		if r.Session == gone && r.Family != "haiku" {
+			t.Errorf("the session a move brought on is named by family %q, want haiku", r.Family)
+		}
 	}
 }
 
@@ -309,7 +445,7 @@ func TestTheStreamsMovesPutTheSessionsWhereTheyWent(t *testing.T) {
 		moved(asking, "claude-opus-5-5", "personal", "side", time.Second),
 	}}
 	m := runningDoc().At(now, claude.Policy)
-	rows := views.RunningOf(m, sessions, stream)
+	rows := views.RunningOf(m, sessions, stream, views.HeldList{})
 	var got []string
 	for _, r := range rows {
 		got = append(got, r.Account+" "+r.Session[:4]+" "+r.Family)

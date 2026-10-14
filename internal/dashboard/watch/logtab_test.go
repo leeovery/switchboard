@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -25,7 +26,8 @@ import (
 
 // daysCounted is a request ledger followed as it grows, as followed notes
 // its reads of today's, which notes too the dates of the days read whole,
-// and of the first day each read of the days' summaries is from.
+// and of the days' summaries read: the first each read from a day is from,
+// and each read by its date.
 type daysCounted struct {
 	followed
 	days, summed []string
@@ -39,6 +41,11 @@ func (l *daysCounted) Day(date string) []ledger.Held {
 func (l *daysCounted) Days(from time.Time) []ledger.Summary {
 	l.summed = append(l.summed, dayfile.DateOf(from))
 	return l.Ledger.Days(from)
+}
+
+func (l *daysCounted) DaysOn(dates []string) []ledger.Summary {
+	l.summed = append(l.summed, dates...)
+	return l.Ledger.DaysOn(dates)
 }
 
 // onTheLog has h show the Log, reading the request ledger in the state
@@ -333,10 +340,11 @@ func madeAt[T any](s []T) *T {
 
 // The Log's tables are made again only as what they're made of changes: a
 // frame or the pointer moving makes neither afresh, the clock moved on a
-// tenth, a request in flight or not; the stream telling of a
-// request makes the Requests again, a look both, and the filter changing
-// the table it filters. Its panel, open, is made again as what it picks
-// changes, not as the pointer moves over it, nor its cursor.
+// tenth, a request in flight or not; the stream telling of a request makes
+// the Requests again; a look the Events, and the Requests only where the
+// ledger's tail it reads gains a line; and the filter changing the table it
+// filters. Its panel, open, is made again as what it picks changes, not as
+// the pointer moves over it, nor its cursor.
 func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
@@ -362,7 +370,11 @@ func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 	}{
 		{name: "a frame and the pointer moving", step: unmoved},
 		{name: "the stream telling of a request", step: func() { h.hear(told(router.StreamSent, "0a000003", "work", 0)) }, requests: true},
-		{name: "a look", step: func() { h.read(doc) }, requests: true, events: true},
+		{name: "a look", step: func() { h.read(doc) }, events: true},
+		{name: "a look whose tail read gains a line", step: func() {
+			writeLines(t, state, arrived("0a000004", "work", 0))
+			h.read(doc)
+		}, requests: true, events: true},
 		{name: "the panel opening", step: func() { h.typed("f") }, panel: true},
 		{name: "the pointer moving over the panel, and its cursor", step: func() {
 			unmoved()
@@ -528,6 +540,66 @@ func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 	}
 }
 
+// firstFailing is a request ledger followed as it grows, as daysCounted
+// counts its reads, whose ask of where its lines begin fails while failing
+// is set.
+type firstFailing struct {
+	*daysCounted
+	failing bool
+}
+
+func (l *firstFailing) FirstLinesDay(now time.Time) (time.Time, error) {
+	if l.failing {
+		return time.Time{}, errors.New("the ledger's first day couldn't be read")
+	}
+	return l.daysCounted.FirstLinesDay(now)
+}
+
+// The oldest day the Log reads back to is asked again as the day turns:
+// past midnight, the oldest day of the ledger's keep before it is no longer
+// kept, whether or not the router has pruned its lines yet. An ask that
+// fails is asked again at the next look, as on the first day, rather than
+// leaving the day before's oldest day kept for the rest of the day.
+func TestTheOldestDayKeptIsAskedAgainAsTheDayTurns(t *testing.T) {
+	tests := []struct {
+		name string
+		// failed is how many of the looks past midnight fail to ask, the
+		// first of them, before the last.
+		failed int
+	}{
+		{name: "its first look past midnight asking"},
+		{name: "its first look past midnight failing to ask, the next asking", failed: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			night := onTheDay(23, 50, 0)
+			writeLines(t, state,
+				arrivedAt("0a000001", night.AddDate(0, 0, -3)), arrivedAt("0a000002", night.AddDate(0, 0, -2)),
+				arrivedAt("0a000003", night.AddDate(0, 0, -1)), arrivedAt("0a000004", night),
+			)
+			h := routedHarness(t, routerDocument(three()...))
+			l := &firstFailing{daysCounted: onTheLog(h, state)}
+			h.model.cfg.Ledger = l
+			h.model.cfg.LedgerKeep = 2 * day
+			h.clock.now = night
+			h.start()
+			if got, want := h.model.log.oldest.Day.Date, dayfile.DateOf(night.AddDate(0, 0, -2)); got != want {
+				t.Fatalf("the oldest day kept is %s, want %s, its keep of 2 days back", got, want)
+			}
+
+			for i := range tt.failed + 1 {
+				l.failing = i < tt.failed
+				h.clock.now = onTheDay(24, 0, 5+i)
+				h.read(routerDocument(three()...))
+			}
+			if got, want := h.model.log.oldest.Day.Date, dayfile.DateOf(night.AddDate(0, 0, -1)); got != want {
+				t.Errorf("past midnight, the oldest day kept is %s, want %s, a day on", got, want)
+			}
+		})
+	}
+}
+
 // summariesAsked is a request ledger followed as it grows, as daysCounted
 // counts its reads, each read of its days' summaries telling, of every day,
 // as many sessions on each of its accounts as there have been reads of
@@ -539,12 +611,20 @@ type summariesAsked struct {
 }
 
 func (l *summariesAsked) Days(from time.Time) []ledger.Summary {
+	return l.told(l.daysCounted.Days(from))
+}
+
+func (l *summariesAsked) DaysOn(dates []string) []ledger.Summary {
+	return l.told(l.daysCounted.DaysOn(dates))
+}
+
+// told are the days a read of their summaries gave, as the read tells them.
+func (l *summariesAsked) told(days []ledger.Summary) []ledger.Summary {
 	l.asked++
 	ids := make([]string, l.asked)
 	for i := range ids {
 		ids[i] = fmt.Sprintf("s%d", i)
 	}
-	days := l.daysCounted.Days(from)
 	for i := range days {
 		days[i].Accounts = slices.Clone(days[i].Accounts)
 		for a := range days[i].Accounts {
@@ -925,5 +1005,46 @@ func TestTheLogsKeysWorkOnATerminalWithNoRowForItsTable(t *testing.T) {
 				t.Errorf("the table shown is %d, paused %t; want %d, paused", p.Shown, p.Paused(), tt.shown)
 			}
 		})
+	}
+}
+
+// Help lists esc where it acts on the Log, as the key line leaves it to
+// help: paused, following again, as end does; following with a filter on,
+// clearing it; and nowhere else.
+func TestTheLogsHelpListsEscWhereItActs(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -day), arrived("0a000002", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	steps := []struct {
+		name  string
+		press func()
+		want  []string
+	}{
+		{name: "following", press: func() {}},
+		{name: "paused", press: func() { h.keys(upKey) }, want: []string{"follow"}},
+		{name: "following again", press: func() { h.keys(escKey) }},
+		{name: "filtered, following", press: func() { h.typed("/", "a", "p", "i"); h.keys(enter, tea.KeyPressMsg{Code: tea.KeyEnd}) }, want: []string{"clear the filter"}},
+		{name: "filtered, paused", press: func() { h.keys(upKey) }, want: []string{"follow"}},
+	}
+	for _, step := range steps {
+		step.press()
+		var escs []string
+		for _, k := range helpOver(h.model) {
+			if k.Key == "esc" {
+				escs = append(escs, k.Does)
+			}
+		}
+		if !slices.Equal(escs, step.want) {
+			t.Errorf("%s, help lists esc for %q, want %q", step.name, escs, step.want)
+		}
+		rows := strings.Split(h.view(), "\n")
+		if line := rows[len(rows)-1]; strings.Contains(line, "esc") {
+			t.Errorf("%s, the key line reads %q, want esc left to help", step.name, line)
+		}
+	}
+	if !h.model.log.page.Filtered() {
+		t.Error("after the find landed, the Log isn't filtered")
 	}
 }

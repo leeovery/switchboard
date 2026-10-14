@@ -1203,10 +1203,15 @@ first byte. That's how a frame of motion is brought to its point in the animatio
 and holds the import guard. `internal/capture`, which it alone imports, holds the fixtures and their
 registry, `Names` and `ByName`, in `capture.go`; the sample worlds they're drawn over; the fakes
 the watch reads them through; the harness that settles a fixture at its moment and draws it; the
-scenarios; and the tests that hold the fixtures to `reference/`.
+scenarios, `routing`, `dashboard` and `repatch`, in `scenarios.go`; and the tests that hold the
+fixtures to `reference/`.
 
 `--scenario` plays a scenario through the same watch model in real time, its clock running and its
-timers firing, for the README's demos: [demo/README.md](../../demo/README.md) says how.
+timers firing, for the README's demos: [demo/README.md](../../demo/README.md) says how. A scenario
+starts from one of the fixtures' worlds, built whole before its clock starts, so its first frame
+is drawn at once; its cues, each at an offset from the start, and the orders its keys give, are
+laid over that world as they play, so the router answers, lists, pins and moves as its own rules
+have it, and nothing is ever written.
 
 A fixture is a moment of the dashboard: what the router and the files it reads give at it, the
 terminal it's drawn on, and the keys pressed once its document is read. What they give mirrors the
@@ -1216,13 +1221,12 @@ own rules, which the test holds to the frame's, cell for cell.
 
 ### Adding a fixture
 
-1. Add it to `fixtures` in `internal/capture/capture.go`, named after the frame it draws: the
-   frame's size, the world it's drawn over, and the keys that reach it. `Names` and `ByName` both
-   read that one list, and the two drawn over the worlds, built as they're asked for: a page the
-   watch draws over a world goes in `pages`, with its world and keys, and a printout of `usage` in
-   `printouts`, with how it groups the windows and which it prints, as its flags have them, and its
-   flags in `TestAPrintoutIsWhatUsagePrintsOfItsRouter`, which holds it to what `usage` prints given
-   them. Where `holds` holds part of its frame, take its stem from there.
+1. Add it to `pages` or `printouts` in `internal/capture/capture.go`, named after the frame it
+   draws: the frame's size, the world it's drawn over, and the keys that reach it. `Names` and
+   `ByName` both read the two, each fixture built as it's asked for: a page the watch draws over a
+   world goes in `pages`, with its world and keys, and a printout of `usage` in `printouts`, with
+   how it groups the windows and which it prints, as its flags have them, and its flags in
+   `TestAPrintoutIsWhatUsagePrintsOfItsRouter`, which holds it to what `usage` prints given them.
 2. Delete its stem from `owed` in `internal/capture/reference_test.go`: from then on, the test
    holds it to its frame.
 3. Where the frame drew a cell otherwise than the design says, the design holds; where its world

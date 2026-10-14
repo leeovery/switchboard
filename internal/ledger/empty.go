@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"iter"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -28,6 +29,15 @@ func (e Empty) Days(time.Time) []Summary {
 	// Span gives only dates, so Summarise can't fail.
 	today, _ := Summarise(dayfile.Span(now, now)[0], func(func(Line) bool) {}, readings.Empty{}.Between, nil, e.caps, now)
 	return []Summary{today}
+}
+
+// DaysOn returns today's summary, where today's date is among those given,
+// as Days gives it, and none of any other day.
+func (e Empty) DaysOn(dates []string) []Summary {
+	if !slices.Contains(dates, dayfile.DateOf(e.now())) {
+		return nil
+	}
+	return e.Days(e.now())
 }
 
 // Today returns no line, and the Mark it's read to, reporting afresh from the

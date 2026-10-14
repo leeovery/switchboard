@@ -235,30 +235,6 @@ func TestPastShowsMoreOfATimeTheFurtherBackItsDayIs(t *testing.T) {
 	}
 }
 
-func TestWhenShowsTheDayOnlyBeyondADay(t *testing.T) {
-	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
-	day := 24 * time.Hour
-	tests := []struct {
-		name string
-		t    time.Time
-		want string
-	}{
-		{name: "later today", t: now.Add(2 * time.Hour), want: "15:12"},
-		{name: "tomorrow, within a day", t: now.Add(14 * time.Hour), want: "03:12"},
-		{name: "earlier, within a day", t: now.Add(-20 * time.Hour), want: "17:12"},
-		{name: "a day on", t: now.Add(day), want: "Tue 13:12"},
-		{name: "days ago", t: now.Add(-3 * day), want: "Fri 13:12"},
-		{name: "in UTC, shown in now's time zone", t: now.Add(time.Hour).UTC(), want: "14:12"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := prose.When(now, tt.t); got != tt.want {
-				t.Errorf("When() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestDatedShowsTheDayOnAnyOtherDay(t *testing.T) {
 	now := time.Date(2026, 10, 1, 14, 42, 7, 0, time.FixedZone("UTC+1", 60*60))
 	tests := []struct {

@@ -93,8 +93,9 @@ const (
 // both views; just after a 5-hour reset, before the reread; a first read
 // failed, and a failed read after an earlier one; a refused token, a refusal
 // lifted early and a family's refusal; a hold with no event, probed, told by
-// the readings alone, and told by neither; a cap outlasting a limit and a
-// refusal; a hold begun before the span of the readings history the tail
+// the readings alone, and told by neither; a cap the 5-hour began and the
+// week took over, as its event tells and as the readings alone do; a cap
+// outlasting a limit and a refusal; a hold begun before the span of the readings history the tail
 // reads, and before its keep; the router not answering for 10 minutes; a
 // pool of one, a pin naming an account at its limit, and one account;
 // stepped back to a day with nothing read, a day older than the readings'
@@ -104,7 +105,7 @@ const (
 // window at its limit; and the frames' moments.
 func RunwayMoments() []RunwayMoment {
 	return slices.Concat(
-		weekResetBeforeRunwayRereads(), justAfterAFiveHourReset(), failedReads(), refusals(), holdsNoEventTells(), holdsEventsTell(), holdsChanging(), holdsAhead(),
+		weekResetBeforeRunwayRereads(), justAfterAFiveHourReset(), failedReads(), refusals(), holdsNoEventTells(), holdsEventsTell(), holdsTakenOver(), holdsChanging(), holdsAhead(),
 		holdsOutlasted(), holdsCarriedIn(), routerSilent(), pools(), steppedBack(),
 		[]RunwayMoment{tokenless(), restartedByHand(), capTurningToALimit(), twoLimitsClose(), runOutReachingTheCap(), modelsOwnLimit()},
 		framesMoments(),
@@ -504,6 +505,42 @@ func holdsEventsTell() []RunwayMoment {
 		}),
 		fiveHourAt("a limit its event tells the start of, read later", routed(onThu(14, 41, 0), []status.Event{limitEvent}, limited, sideOn(onThu(14, 41, 0))), spentRead, limitWant),
 		fiveHourAt("a limit an event naming its window tells the start of", routed(onThu(14, 41, 0), []status.Event{untold}, readAccount(work, onThu(14, 41, 0), limited.Windows...), sideOn(onThu(14, 41, 0))), spentRead, limitWant),
+	}
+}
+
+// holdsTakenOver have work, its reserve 5%, reach its cap on its 5-hour at
+// 10:00, its week joining the cap at 11:00, and the 5-hour reset at 12:00,
+// below its reserve since: one cap, unbroken since 10:00, as the router's
+// one event of it tells, though the window that began it holds it no
+// longer, its words saying 10:00 in either view; and, no event telling of
+// it, as the readings alone tell the week's own run, from 11:00.
+func holdsTakenOver() []RunwayMoment {
+	at := onThu(14, 41, 0)
+	capped := reserving(readAccount(work, at, window(fiveHour, 0.5, onThu(17, 0, 0)), window(week, 0.96, mondayTen)), 0.05)
+	capEvent := status.Event{
+		At: onThu(10, 0, 0), Kind: status.EventCap, Account: work, Windows: []string{fiveHour, week},
+		Joined: map[string]time.Time{week: onThu(11, 0, 0)}, Until: mondayTen, Reserve: 0.05,
+	}
+	read := sorted(
+		readEach(work, onThu(9, 0, 0), window(fiveHour, 0.9, onThu(12, 0, 0)), window(week, 0.9, mondayTen)),
+		readEach(work, onThu(10, 0, 0), window(fiveHour, 0.96, onThu(12, 0, 0))),
+		readEach(work, onThu(11, 0, 0), window(fiveHour, 0.97, onThu(12, 0, 0)), window(week, 0.96, mondayTen)),
+		readEach(work, onThu(13, 0, 0), window(fiveHour, 0.3, onThu(17, 0, 0))),
+		readEach(work, at, capped.Windows...),
+		sideRead(),
+	)
+	weekView := fiveHourAt("a cap the 5-hour began and the week took over, the week view", routed(at, []status.Event{capEvent}, capped, sideOn(at)), read, map[string]Figures{
+		work: {FigureCells: "blank 0-14, room 15, capped 16-92, room 93-135", FigureStretches: "capped 10:00 – Mon 10:00, as it resets @15 16-92"},
+	})
+	weekView.Window, weekView.WeekStarts = views.RunwayWeek, time.Monday
+	return []RunwayMoment{
+		fiveHourAt("a cap the 5-hour began and the week took over", routed(at, []status.Event{capEvent}, capped, sideOn(at)), read, map[string]Figures{
+			work: {FigureCells: "capped 0-135", FigureStretches: "capped 10:00 – Mon 10:00 @0 0-135"},
+		}),
+		weekView,
+		fiveHourAt("a cap the 5-hour began and the week took over, no event telling of it", routed(at, nil, capped, sideOn(at)), read, map[string]Figures{
+			work: {FigureCells: "capped 0-135", FigureStretches: "capped 11:00 – Mon 10:00 @0 0-135"},
+		}),
 	}
 }
 

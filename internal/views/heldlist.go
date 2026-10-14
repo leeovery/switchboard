@@ -266,3 +266,13 @@ func (h HeldList) storyOf(id string) *story {
 	}
 	return newStory(h.prices, h.day)
 }
+
+// namingOf is what the lines h holds of the session with the given id name
+// it by, as its story has it, whatever day h is held at: none where it holds
+// none of them.
+func (h HeldList) namingOf(id string) naming {
+	if s, ok := h.stories[id]; ok {
+		return s.naming
+	}
+	return naming{}
+}

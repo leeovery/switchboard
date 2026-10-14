@@ -120,20 +120,19 @@ func yearPeriod(year int) string {
 	return strconv.Itoa(year)
 }
 
-// history draws History's sub-tab shown from row top, once the year's days
-// are read: till then, the view is blank. The Year is drawn whole, once its
-// page is built, then as many of its rows as the view has, from as far down
-// as it's scrolled.
+// history draws History's sub-tab shown from row top, in the view's rows
+// alone, once the year's days are read: till then, the view is blank. The
+// Year is drawn whole, once its page is built, then as many of its rows as
+// the view has, from as far down as it's scrolled.
 func (f Frame) history(c *canvas, top int) {
 	if !f.History.Read {
 		return
 	}
+	c = c.within(bounds{y: top, width: f.Width, rows: f.viewRows()})
 	switch f.History.Shown {
 	case HistoryYear:
 		if y, ok := f.yearDrawn(); ok {
-			year := y.whole()
-			scrolled := byRows(year.height(), f.viewRows())
-			c.paste(year, scrolled.clamped(f.Scroll), top, scrolled.Page)
+			f.pasteWhole(c, y.whole(), top, y.paged())
 		}
 	case HistoryWeeks:
 		f.historyWeeks(c, top)
@@ -142,6 +141,64 @@ func (f Frame) history(c *canvas, top int) {
 	case HistoryTokens:
 		f.historyTokens(c, top)
 	}
+}
+
+// historyRows is how tall History's frames are: shorter, Weeks and Days
+// scroll whole, as the Year does, keeping their foot rows.
+const historyRows = 37
+
+// shortOfHistory reports whether the frame is shorter than History's
+// frames, where Weeks and Days scroll whole.
+func (f Frame) shortOfHistory() bool {
+	return f.Height < historyRows
+}
+
+// pasteWhole draws whole, a view of History drawn whole, from row top, as
+// paged pages it, scrolled as the frame has it, saying what's out of view, as
+// historyRowsOut says it, where it says.
+func (f Frame) pasteWhole(c, whole *canvas, top int, paged rowsPaged) {
+	paged.paste(c, whole, top, f.Scroll, f.edge(), historyRowsOut...)
+}
+
+// wholePaged is how a view of History drawn whole, rows tall, pages in the
+// view's rows over its foot rows, foot of them, its heads as given, saying
+// how many rows are out of view, as Weeks and Days do where they scroll
+// whole.
+func (f Frame) wholePaged(rows, foot int, heads []headed) rowsPaged {
+	return rowsPaged{rows: f.viewRows(), foot: foot, content: rows, heads: heads, says: true}
+}
+
+// paged is how the Year, drawn whole, pages in the view's rows: its
+// numbers' heading on a phone, and BY MONTH's, with their first rows, but
+// saying nothing of what's out of view, as its frames have it.
+func (y yearDrawn) paged() rowsPaged {
+	p := y.placed()
+	heads := []headed{{at: y.form.row, first: p.first}}
+	if y.form.phone {
+		heads = []headed{{at: yearPhoneNumbersRow, first: yearPhoneNumbersRow + 1}, heads[0]}
+	}
+	return rowsPaged{rows: y.viewRows(), content: y.height(), heads: heads}
+}
+
+// historyScrollsRows reports whether History's sub-tab shown scrolls a row at
+// a time: the Year; Weeks and Days where they're drawn whole, as weeksWhole
+// and layOutDays have it; and Tokens where a period doesn't fit, as byRows
+// has it.
+func (f Frame) historyScrollsRows() bool {
+	switch f.History.Shown {
+	case HistoryYear:
+		return true
+	case HistoryWeeks:
+		p := f.History.Weeks
+		return p != nil && p.Capacity.Weeks > 0 && f.weeksWhole(f.weeksDrawn(*p))
+	case HistoryDays:
+		p := f.History.Days
+		return p != nil && p.Recorded() && f.layOutDays(*p, f.top()).whole
+	case HistoryTokens:
+		placed, _ := f.tokensPlaced(f.top())
+		return placed.byRows()
+	}
+	return false
 }
 
 // phoneForm reports whether a sub-tab of History draws its phone form: on a
@@ -154,13 +211,16 @@ func (f Frame) phoneForm(reach func() int) bool {
 
 // historyScrolling is how far History's sub-tab shown, from row top,
 // scrolls, scrolled to each offset given: the Year by rows, as far as it
-// runs past the view; Weeks by accounts, and Days, within BY ACCOUNT; and
-// Tokens by periods. None scrolls before its page is built.
+// runs past the view; Weeks by accounts, and Days, within BY ACCOUNT, but
+// by rows where they're drawn whole; and Tokens by periods, or by rows where
+// a period doesn't fit. None scrolls before its page is built.
 func (f Frame) historyScrolling(top int) func(offset int) Scrolling {
 	var s Scrolling
 	switch f.History.Shown {
 	case HistoryYear:
-		s = byRows(f.yearHeight(), f.viewRows())
+		if y, ok := f.yearDrawn(); ok {
+			s = y.paged().scrolling(f.Scroll)
+		}
 	case HistoryWeeks:
 		s = f.weeksScrolling()
 	case HistoryDays:
@@ -192,6 +252,17 @@ func (f Frame) historyScrolls() (y, rows int) {
 // to scroll to them: "▼ 3 more weeks below   ·   j/k to scroll".
 func periodsOut(noun string) outForm {
 	return outForm{noun: noun, below: " below", gap: "   ·   ", keys: "j/k", does: " to scroll", inks: keyedOut}
+}
+
+// historyRowsOut are the forms of the line saying how many of a view's rows
+// are out of view, where Weeks and Days are drawn whole and Tokens scrolls a
+// row at a time, each shorter than the one before: "▲ 3 more above   ·   ▼ 12
+// more below   ·   j/k to scroll"; spaced as Compare's is, "▲ 3 more above ·
+// ▼ 12 more below · j/k"; and without how to scroll.
+var historyRowsOut = []outForm{
+	{above: " above", below: " below", gap: "   ·   ", keys: "j/k", does: " to scroll", inks: keyedOut},
+	{above: " above", below: " below", gap: " · ", keys: "j/k", inks: keyedOut},
+	{above: " above", below: " below", gap: " · ", inks: keyedOut},
 }
 
 // historyAccountsOut are the forms of the line saying how many of Weeks' and Days'

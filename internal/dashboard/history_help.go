@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -132,7 +133,7 @@ func (f Frame) yearDay(level int) line {
 // colour, in the version table's order.
 func familyBar() line {
 	var bar line
-	for _, family := range []string{"opus", "sonnet", "fable", "haiku"} {
+	for _, family := range ledger.Families() {
 		bar = append(bar, span{"▅", familyHue(family).ink()})
 	}
 	return bar

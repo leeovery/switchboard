@@ -202,6 +202,7 @@ func TestTheTrafficChangesNoNumberButByItsMoves(t *testing.T) {
 	for _, r := range []views.Told{asking, answered, lost, refused, throttled, check} {
 		f.Stream.Requests[r.Request] = r
 	}
+	f.Stream = f.Stream.HeardBy(new(views.Hearing))
 	setButItsMoves(t, "traffic", f.Traffic)
 	setButItsMoves(t, "stream", f.Stream)
 	quiet := f

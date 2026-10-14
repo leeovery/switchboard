@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -221,6 +222,53 @@ func TestHistorysPeriodsAndSplitsAsTheKeyLineNamesThem(t *testing.T) {
 	for _, tt := range tests {
 		if period, split := tt.page.Period(), tt.page.Split(); period != tt.period || split != tt.split {
 			t.Errorf("sub-tab %d's period is %q and its split %q, want %q and %q", tt.page.Shown, period, split, tt.period, tt.split)
+		}
+	}
+}
+
+// v names what it has the sub-tab shown show only where that changes what
+// the frame draws: on Weeks, where both shapes take their wide form, as the
+// columns do from 126 columns, or before its page is built; never where one
+// alone does, as the table does from 100 columns, which is drawn whichever v
+// chose, nor on a phone, whose form is neither. Tokens' splits show on a
+// phone too.
+func TestVNamesWhatItShowsOnlyWhereItChangesWhatsDrawn(t *testing.T) {
+	weeks := threeWeeks()
+	tests := []struct {
+		name  string
+		page  HistoryPage
+		width int
+		want  string
+	}{
+		{name: "Weeks' table at 160", page: HistoryPage{Shown: HistoryWeeks, Weeks: &weeks}, width: 160, want: "table"},
+		{name: "Weeks' columns at 126", page: HistoryPage{Shown: HistoryWeeks, WeeksShape: WeeksColumns, Weeks: &weeks}, width: 126, want: "columns"},
+		{name: "Weeks' table at 125", page: HistoryPage{Shown: HistoryWeeks, Weeks: &weeks}, width: 125},
+		{name: "Weeks' columns at 125", page: HistoryPage{Shown: HistoryWeeks, WeeksShape: WeeksColumns, Weeks: &weeks}, width: 125},
+		{name: "Weeks' columns at 100", page: HistoryPage{Shown: HistoryWeeks, WeeksShape: WeeksColumns, Weeks: &weeks}, width: 100},
+		{name: "Weeks on a phone of 99", page: HistoryPage{Shown: HistoryWeeks, Weeks: &weeks}, width: 99},
+		{name: "Weeks' columns on a phone", page: HistoryPage{Shown: HistoryWeeks, WeeksShape: WeeksColumns, Weeks: &weeks}, width: 52},
+		{name: "Weeks unbuilt at 160", page: HistoryPage{Shown: HistoryWeeks}, width: 160, want: "table"},
+		{name: "Weeks unbuilt on a phone", page: HistoryPage{Shown: HistoryWeeks}, width: 52},
+		{name: "Tokens on a phone", page: HistoryPage{Shown: HistoryTokens, TokensSplit: TokensByModel}, width: 52, want: "by model"},
+	}
+	for _, tt := range tests {
+		f := frameOf(tt.width, 37)
+		f.View, f.History = History, tt.page
+		if got := f.Split(); got != tt.want {
+			t.Errorf("%s, v names %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+// Where Weeks' columns don't fit but its table does, from 100 columns to
+// 125, the table is drawn whichever shape v chose, never the phone form,
+// which the frame keeps for where neither fits.
+func TestWeeksDrawsTheShapeThatFitsWhereVsDoesnt(t *testing.T) {
+	for _, width := range []int{100, 125} {
+		table := textOf(historyDrawn(weeksFrame(threeWeeks(), WeeksTable, width, 40, Look{})).rows(Look{}))
+		columns := textOf(historyDrawn(weeksFrame(threeWeeks(), WeeksColumns, width, 40, Look{})).rows(Look{}))
+		if !slices.Equal(columns, table) {
+			t.Errorf("at %d columns, Weeks with its columns chosen reads\n%s\nwant its table, as with the table chosen\n%s", width, strings.Join(columns, "\n"), strings.Join(table, "\n"))
 		}
 	}
 }

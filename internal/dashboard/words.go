@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -25,6 +26,13 @@ func name(a status.AccountNow) string {
 // and id: its label, else its id, cleaned.
 func labelled(label, id string) string {
 	return prose.Clean(cmp.Or(label, id))
+}
+
+// modelNamed is what the dashboard calls the model with the given id,
+// wherever it names one by its id: as ledger's ShortModelID has it, the id
+// cleaned, less claude-.
+func modelNamed(id string) string {
+	return ledger.ShortModelID(id)
 }
 
 // named is what the dashboard calls the account of m with the given id: its

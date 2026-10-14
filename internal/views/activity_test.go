@@ -47,7 +47,7 @@ func TestWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 				whole[s.Session] = s.Activity
 			}
 			m := hm.Doc.At(hm.Now, claude.Policy)
-			rows := views.RunningOf(m, hm.Sessions, hm.Stream)
+			rows := views.RunningOf(m, hm.Sessions, hm.Stream, listHeldOf(hm.Lines, hm.Sessions, hm.Now))
 			on := make(map[string]map[string]views.Activity)
 			for _, r := range rows {
 				if on[r.Session] == nil {

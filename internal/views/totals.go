@@ -99,11 +99,24 @@ func LimitsHit(limits map[string]int, name func(key string) string) []string {
 // the version table names it by, or its own where the table doesn't: its
 // share of use, weighed at API prices, its worth over the account's, so cache
 // reads, which run to millions and cost little, count for little, left out
-// where its worth isn't priced; and its worth.
+// where none of its worth is priced; and its worth.
 type ModelShare struct {
 	Model string   `json:"model"`
 	Share *float64 `json:"share,omitempty"`
 	Worth
+}
+
+// ShareSaid says a version's share of a row's use, as BY MODEL and history
+// say it, a whole percentage, "55%", or "<1%" where it rounds to none,
+// reporting false where it has none, as one none of whose use is priced.
+func ShareSaid(share *float64) (string, bool) {
+	switch {
+	case share == nil:
+		return "", false
+	case prose.WholePercent(*share) == 0:
+		return "<1%", true
+	}
+	return prose.Percent(*share), true
 }
 
 // accountTotalsOf are the totals over days of the accounts given, and of every
@@ -273,14 +286,15 @@ func resetWindows(days []ledger.AccountDay) []string {
 	return keys
 }
 
-// byModel is each model version's worth, and its share of the account's.
+// byModel is each model version's worth, and its share of the account's,
+// none where none of its use is priced.
 func (t *totalling) byModel() []ModelShare {
 	listed := t.models.list()
 	shares := make([]ModelShare, len(listed))
 	worth := t.amount()
 	for i, m := range listed {
 		shares[i] = ModelShare{Model: m.Model, Worth: m.Worth}
-		if m.Amount != nil && worth > 0 {
+		if m.Amount != nil && *m.Amount > 0 && worth > 0 {
 			share := float64(*m.Amount) / float64(worth)
 			shares[i].Share = &share
 		}

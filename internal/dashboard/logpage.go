@@ -4,8 +4,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/ledger"
-	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -148,17 +146,22 @@ func (p LogPage) lines() []logLine {
 }
 
 // Lined is p with the lines of both its tables, as the frame draws them,
-// made once and held, for each read of them to take while its table is the
-// one they were made of: the watch lines each page it builds, so a table is
-// made into lines once a build, not at each look at it.
+// each made once and held, for each read of them to take while its table is
+// the one they were made of: the watch lines each page it builds, so a table
+// is made into lines once a build of it, not at each look at it, nor at a
+// build of the other.
 func (p LogPage) Lined() LogPage {
-	if h := p.lined; h != nil && h.requests.of(p.Requests.Lines, p.requestsEmpty()) && h.events.of(p.Events.Lines, p.eventsEmpty()) {
-		return p
+	var h tableLines
+	if p.lined != nil {
+		h = *p.lined
 	}
-	p.lined = &tableLines{
-		requests: heldLines[views.LogLine]{made: p.Requests.Lines, empty: p.requestsEmpty(), lines: p.requestLines()},
-		events:   heldLines[views.EventsLine]{made: p.Events.Lines, empty: p.eventsEmpty(), lines: p.eventLines()},
+	if empty := p.requestsEmpty(); !h.requests.of(p.Requests.Lines, empty) {
+		h.requests = heldLines[views.LogLine]{made: p.Requests.Lines, empty: empty, lines: p.requestLines()}
 	}
+	if empty := p.eventsEmpty(); !h.events.of(p.Events.Lines, empty) {
+		h.events = heldLines[views.EventsLine]{made: p.Events.Lines, empty: empty, lines: p.eventLines()}
+	}
+	p.lined = &h
 	return p
 }
 
@@ -533,12 +536,6 @@ func (p LogPage) filterNames(name func(id string) string) logFilterNames {
 	return logFilterNames{
 		sessions: namedEach(f.Sessions, p.namedSession), accounts: namedEach(f.Accounts, name), models: namedEach(f.Models, modelNamed), failed: f.Failed,
 	}
-}
-
-// modelNamed names the model with the given id as the table does, by its id
-// less claude-.
-func modelNamed(id string) string {
-	return ledger.ShortModelID(prose.Clean(id))
 }
 
 // namedEach is each of the ids, named as name names it.

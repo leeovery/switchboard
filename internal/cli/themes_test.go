@@ -125,7 +125,7 @@ func TestDashboardOpensMilestone5sCardViewOnTheOverview(t *testing.T) {
 	run(t, deps, "dashboard")
 
 	if cfg.View != "" {
-		t.Errorf("the dashboard is given %q to open on, want no tab, for the Overview, which shows milestone 5's cards now", cfg.View)
+		t.Errorf("the dashboard is given %q to open on, want no tab, for the Overview, as milestone 5's card view, kept, names none", cfg.View)
 	}
 }
 

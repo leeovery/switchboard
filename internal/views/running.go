@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -22,10 +23,10 @@ const IdleHour = time.Hour
 type Running struct {
 	// Account is the account's id, and Session the session's.
 	Account, Session string
-	// Family is the family of its model named there, as "opus": the model
-	// naming it, as the List names it from what the request stream told,
-	// where that runs there, else its model seen last there.
-	Family string
+	// Model is the id of its model named there, and Family that model's
+	// family, as "opus": the model naming the session, as the List names it,
+	// where that goes there, running or not, else its model seen last there.
+	Model, Family string
 	// Why is why its model named there is there, in the views' words for the
 	// router's reasons, with when, as "started here 14:41, the best".
 	Why status.Words
@@ -39,18 +40,31 @@ type Running struct {
 
 // RunningOf are the sessions running on the accounts at the moment m, of
 // the sessions the router listed, as the request stream s has moved and seen
-// them since, as placed has them, those that run, as runningNow has them: a
-// row on each account their models go to that run there, as runningOn has
-// it, the accounts in the config's order, and on each, the session seen last
-// first.
-func RunningOf(m status.Moment, sessions []status.Session, s Stream) []Running {
-	h := s.hearing()
-	placed := runningNow(s.placed(sessions, h), m.Now)
+// them since, as placed has them, those that run, as runningNow has them,
+// each named as the List names it, its lines as the List held, list, holds
+// them: a row on each account their models go to that run there, as
+// runningOn has it, the accounts in the config's order, and on each, the
+// session seen last first.
+func RunningOf(m status.Moment, sessions []status.Session, s Stream, list HeldList) []Running {
+	return runningOf(m, newLister(sessions, false, s, m.Now), list)
+}
+
+// RunningCountsOf counts the sessions running on each account at the moment
+// m, of the sessions the router listed, as the request stream s has moved and
+// seen them since, as RunningCounts counts RunningOf's rows: which rows there
+// are doesn't hang on what names a session, so it reads no lines.
+func RunningCountsOf(m status.Moment, sessions []status.Session, s Stream) map[string]int {
+	return RunningCounts(RunningOf(m, sessions, s, HeldList{}))
+}
+
+// runningOf are the sessions running at the moment m, as RunningOf has
+// them, as by lists them, the List held, list, holding their lines.
+func runningOf(m status.Moment, by lister, list HeldList) []Running {
 	var running []Running
 	for _, a := range m.Accounts {
 		var on []Running
-		for _, session := range placed {
-			if r, ok := runningOn(m, session, a.ID, h); ok {
+		for _, session := range by.running {
+			if r, ok := by.runningOn(m, session, a.ID, list.namingOf(session.ID)); ok {
 				on = append(on, r)
 			}
 		}
@@ -105,29 +119,29 @@ func runningNow(sessions []status.Session, now time.Time) []status.Session {
 	})
 }
 
-// runningOn is the session s as it runs on the account with the given id at
-// the moment m, as h hears its models there, reporting false where none of
-// them runs there, as runs says: named there by the model naming it, as
-// names has it of what the stream told, where that runs there, else by its
-// model seen last there.
-func runningOn(m status.Moment, s status.Session, id string, h hearing) (Running, bool) {
+// runningOn is the session s, as by places it, as it runs on the account
+// with the given id at the moment m, reporting false where none of its
+// models runs there, as runs says: named there by the model naming it, its
+// lines naming it as lines has it, as names has it, where that goes there,
+// running or not, as the List names it by its main thread however long it
+// has waited, else by its model seen last there; and doing what its models
+// there are, as at has them.
+func (by lister) runningOn(m status.Moment, s status.Session, id string, lines naming) (Running, bool) {
 	there := slices.DeleteFunc(slices.Clone(s.Assignments), func(a status.Assignment) bool { return a.Account != id || !runs(a, m.Now) })
 	if len(there) == 0 {
 		return Running{}, false
 	}
 	slices.SortStableFunc(there, func(x, y status.Assignment) int { return y.LastSeen.Compare(x.LastSeen) })
 	named := there[0]
-	_, model := naming{}.heard(h.told[s.ID]).names(s.Assignments)
-	if i := slices.IndexFunc(there, func(a status.Assignment) bool { return a.Model == model }); i >= 0 {
-		named = there[i]
+	_, model := by.names(s.ID, lines)
+	if i := slices.IndexFunc(s.Assignments, func(a status.Assignment) bool { return a.Account == id && a.Model == model }); i >= 0 {
+		named = s.Assignments[i]
 	}
-	r := Running{Account: id, Session: s.ID, Family: named.Name(), Why: whyRunning(m, s, named)}
-	activities := make([]Activity, len(there))
-	for i, a := range there {
+	r := Running{Account: id, Session: s.ID, Model: named.Model, Family: named.Name(), Why: whyRunning(m, s.ID, named)}
+	for _, a := range there {
 		r.Models = append(r.Models, a.Model)
-		activities[i] = h.seat(s.ID, a)
 	}
-	r.Activity = busiest(activities)
+	r.Activity = busiest(by.h.at(s.ID, id, s.Assignments))
 	return r, true
 }
 
@@ -186,8 +200,8 @@ func newestMoves(moves []Moved) []Moved {
 // brought is the model the move m took to the account it went to, put there
 // as it moved: as the router listed it before it moved, of those listed in
 // sessions, its reason the router's still; or, where it didn't, as the move
-// tells of it, its family as the router names the model for any session it
-// lists.
+// tells of it, its family as ledger.FamilyOf, which the router names it by,
+// reads it.
 func brought(sessions []status.Session, m Moved) status.Assignment {
 	for _, s := range sessions {
 		if s.ID != m.Session {
@@ -200,20 +214,7 @@ func brought(sessions []status.Session, m Moved) status.Assignment {
 			}
 		}
 	}
-	return status.Assignment{Model: m.Model, Family: familyOf(sessions, m.Model), Account: m.To, AssignedAt: m.At}
-}
-
-// familyOf is the family the router names the model with the given id by,
-// as it lists any session of it in sessions: "" where it lists none.
-func familyOf(sessions []status.Session, model string) string {
-	for _, s := range sessions {
-		for _, a := range s.Assignments {
-			if a.Model == model && a.Family != "" {
-				return a.Family
-			}
-		}
-	}
-	return ""
+	return status.Assignment{Model: m.Model, Family: ledger.FamilyOf(m.Model), Account: m.To, AssignedAt: m.At}
 }
 
 // cameAt is when a session's model came to the account its assignment a
@@ -226,15 +227,16 @@ func cameAt(a status.Assignment) time.Time {
 	return a.AssignedAt
 }
 
-// whyRunning is why the session s's model is on the account its assignment
-// a gives, at the moment m, as status.RunningWords says it: since it was
-// pinned there, where it was pinned as it ran, else since it went there; from
-// the account m's newest event moving it there tells, where one does; the
-// best while that account is where new sessions go, which ▲ marks.
-func whyRunning(m status.Moment, s status.Session, a status.Assignment) status.Words {
+// whyRunning is why the model of the session with the given id is on the
+// account its assignment a gives, at the moment m, as status.RunningWords
+// says it: since it was pinned there, where it was pinned as it ran, else
+// since it went there; from the account m's newest event moving it there
+// tells, where one does; the best while that account is where new sessions
+// go, which ▲ marks.
+func whyRunning(m status.Moment, session string, a status.Assignment) status.Words {
 	facts := status.Facts{To: a.Account, At: cameAt(a), Best: a.Account == m.Next, Now: m.Now}
 	i := slices.IndexFunc(m.Events, func(e status.Event) bool {
-		return e.Kind == status.EventMoved && e.Session == s.ID && e.Model == a.Model && e.To == a.Account
+		return e.Kind == status.EventMoved && e.Session == session && e.Model == a.Model && e.To == a.Account
 	})
 	if i >= 0 {
 		facts.From = m.Events[i].From

@@ -47,6 +47,18 @@ func (n naming) heard(told []Told) naming {
 	return n
 }
 
+// with returns n, the sightings o took in after it taken in too, as see
+// would take each in turn: each of o's where it's as late as n's, or later.
+func (n naming) with(o naming) naming {
+	if o.latest.account != "" && !o.latest.at.Before(n.latest.at) {
+		n.latest = o.latest
+	}
+	if o.main.account != "" && !o.main.at.Before(n.main.at) {
+		n.main = o.main
+	}
+	return n
+}
+
 // names returns the account and model naming the session, as the List, a
 // session's page and SESSIONS name it, its models going where goes has them,
 // as the router lists them and the request stream has moved them since: its

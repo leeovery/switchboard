@@ -45,18 +45,8 @@ func Reading(now, t time.Time) string {
 	return t.In(now.Location()).Format(readingLayout)
 }
 
-// day is a day's length, as When has it.
+// day is a day's length.
 const day = 24 * time.Hour
-
-// When shows t in now's time zone: its time of day, such as "15:54", within
-// a day of now, before or after, as what's coming up or happened lately is;
-// else its weekday too, such as "Mon 21:00".
-func When(now, t time.Time) string {
-	if d := t.Sub(now); -day < d && d < day {
-		return TimeOfDay(now, t)
-	}
-	return Clock(now, t)
-}
 
 // Dated shows t in now's time zone as a card does, and as every time of an
 // event is said: its time of day, such as "16:05", on now's day; on any

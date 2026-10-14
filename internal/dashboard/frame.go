@@ -28,7 +28,7 @@ type Frame struct {
 	// the router isn't answering.
 	Failed Failure
 	// Outdated is set when the router is from before it told of events and
-	// gave its history: RECENT asks for it to be restarted.
+	// gave its history: LATELY asks for it to be restarted.
 	Outdated bool
 	// Fresh are the events looks saw newly, by id; Changed the accounts whose
 	// states looks saw change, by id, and StateChanged those whose states in
@@ -70,6 +70,9 @@ type Frame struct {
 	// requests, as the views read it, by each request's id: zero where the
 	// watch hears none.
 	Stream views.Stream
+	// HeldList is Sessions' List as the watch holds it, whose lines name the
+	// sessions running as the List names them: zero till its read lands.
+	HeldList views.HeldList
 	// Traffic is what the router's request stream tells of the sessions'
 	// requests, as Sessions' switchboard draws it, while the watch reads it:
 	// zero while it doesn't.
@@ -78,7 +81,10 @@ type Frame struct {
 	// rows; on the Overview, in accounts, USAGE's, within its section; on
 	// History, the Year in rows, Weeks in accounts, Days in accounts too,
 	// BY ACCOUNT's, within it, and Tokens in periods; and on Runway, in
-	// accounts, its lanes'. It goes no further than Scrolling says it goes.
+	// accounts, its lanes'; but in rows wherever ScrollsRows says the view
+	// scrolls a row at a time, as USAGE, Weeks, Days and Tokens do where what
+	// they show one of doesn't fit. It goes no further than Scrolling says it
+	// goes.
 	Scroll int
 	// Focus is the account the Overview's focus is on, by id, which ↑ and ↓
 	// move and GRAPHS follows: "" while it's on none.
@@ -218,13 +224,15 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 }
 
 // view draws the tab shown of doc at now from row top, where the page has
-// room for it, as cramped says: a session's page, where one is open, in its
+// room for it, as cramped says, and nowhere but between the status line and
+// the key line, as body has it: a session's page, where one is open, in its
 // place; else the tab shown: the Overview, Accounts, History, Sessions,
 // Runway or the Log.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
 	}
+	c = c.within(f.body())
 	top := f.top()
 	switch f.Shown() {
 	case SessionPage:
@@ -249,8 +257,8 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 // view, as cramped says; and while its find is open, read or not, the
 // find's line in its place, cramped or not, where LogFinds says it has the
 // row, as what's typed into it is drawn nowhere else; but none under a
-// session's page, drawn in the view's place. The views milestone 5 built
-// draw their own line there.
+// session's page, drawn in the view's place. Accounts and Sessions draw
+// their own lines there.
 func (f Frame) stateLine(c *canvas, now time.Time) {
 	if f.Shown() != Log {
 		return
@@ -305,6 +313,14 @@ func (f Frame) top() int {
 		return f.headingY()
 	}
 	return f.headingY() + f.heading().rows(f.phone()) + 1
+}
+
+// body is the rows between the status line and the key line, across the
+// frame: those a view draws in, its heading row and its state line among
+// them, as the page leaves the rest to its chrome.
+func (f Frame) body() bounds {
+	y := f.statusRow() + 1
+	return bounds{y: y, width: f.Width, rows: f.Height - 1 - y}
 }
 
 // viewRows is how many rows the view has: from its top to the row over the

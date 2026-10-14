@@ -14,17 +14,26 @@ import (
 
 // sessionsTab is what the watch holds of Sessions: what it shows, its
 // Switchboard and its List as the last look built them; the List held, as
-// views.HeldList holds it, from its first read, as Sessions first shows,
-// for the run, fed by the ledger's tail: nil till that read lands; whether
-// it's under way; when each day the List awaits a line on was last read for
-// it; and how many moves the views read as the last look built Sessions, for
-// a frame to build it afresh only as a move comes to show.
+// views.HeldList holds it, from its first read, as a view naming the
+// sessions running first shows, as namesSessions has it, for the run, fed
+// by the ledger's tail: nil till that read lands; whether it's under way;
+// when each day the List awaits a line on was last read for it; and how
+// many moves the views read as the last look built Sessions, for a frame to
+// build it afresh only as a move comes to show.
 type sessionsTab struct {
 	shown   dashboard.SessionsShown
 	held    *views.HeldList
 	reading bool
 	awaited awaitedReads
 	moves   int
+}
+
+// list is the List held: none till its first read lands.
+func (t sessionsTab) list() views.HeldList {
+	if t.held == nil {
+		return views.HeldList{}
+	}
+	return *t.held
 }
 
 // listReadMsg is the List's first read, as views.HoldList holds it.
@@ -53,9 +62,8 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 	sighted := m.sessionsTab.shown.Chosen != (dashboard.Plug{}) && chosenShows(m.frame(now), m.doc, now, m.scroll)
 	mo := m.moment(now)
 	t := m.sessionsTab
-	var held views.HeldList
+	held := t.list()
 	if t.held != nil {
-		held = *t.held
 		t.shown.List = held.List(m.listLive(now, s))
 	}
 	t.shown.Calls = views.CallsOf(mo, m.sessions, s, held)
@@ -77,14 +85,15 @@ func (m Model) listLive(now time.Time, s views.Stream) views.ListLive {
 	return views.ListLive{Running: m.sessions, Unlisted: !m.answering(), Stream: s, Now: now}
 }
 
-// readSessions has the watch read the ledger for Sessions as it wants, while
-// it shows: the List's first read, as readList reads it; and once it's held,
-// at each look, what the ledger gained since the tail's mark, as readTail
-// reads it for every reader, once no other read of the ledger is under way.
-// While nothing reads the ledger, nothing.
+// readSessions has the watch read the ledger for the List held as it wants,
+// while what it shows names the sessions running, as namesSessions has it:
+// the List's first read, as readList reads it; and once it's held, at each
+// look, what the ledger gained since the tail's mark, as readTail reads it
+// for every reader, once no other read of the ledger is under way. While
+// nothing reads the ledger, nothing.
 func (m Model) readSessions() (Model, tea.Cmd) {
 	switch t := m.sessionsTab; {
-	case m.view != dashboard.Sessions || m.cfg.Ledger == nil || t.reading:
+	case !m.namesSessions() || m.cfg.Ledger == nil || t.reading:
 		return m, nil
 	case t.held == nil:
 		return m.readList()
@@ -92,6 +101,19 @@ func (m Model) readSessions() (Model, tea.Cmd) {
 		return m, nil
 	}
 	return m.readTail(m.now())
+}
+
+// namesSessions reports whether what the watch shows names the sessions
+// running, as the List held names each: Sessions, the Overview with
+// SESSIONS shown, and Accounts' Detail.
+func (m Model) namesSessions() bool {
+	switch m.view {
+	case dashboard.Sessions:
+		return true
+	case dashboard.Overview:
+		return m.sections.Has(dashboard.SectionSessions)
+	}
+	return m.detailShown()
 }
 
 // readList reads the List, as a command, once: the sessions it lists whole,

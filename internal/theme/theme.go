@@ -51,14 +51,6 @@ const (
 	VizPace
 	// VizReserve marks where a reserve starts, and its floor.
 	VizReserve
-	// VizSeries1 to VizSeries6 are the accounts', in order, round again past
-	// six, as their cords are drawn.
-	VizSeries1
-	VizSeries2
-	VizSeries3
-	VizSeries4
-	VizSeries5
-	VizSeries6
 	// VizFamily1 to VizFamily4 are the model families' hues, in the version
 	// table's order: Opus, Sonnet, Fable, Haiku.
 	VizFamily1
@@ -84,11 +76,10 @@ const (
 )
 
 // The first and last of the base tokens, every one of which a theme file
-// gives, and how many series there are.
+// gives.
 const (
-	firstBase   = TextPrimary
-	lastBase    = TextOnAttention
-	seriesCount = int(VizSeries6-VizSeries1) + 1
+	firstBase = TextPrimary
+	lastBase  = TextOnAttention
 )
 
 // names are the tokens' keys in a .theme file.
@@ -119,12 +110,6 @@ var names = [tokens]string{
 	VizTrack:         "viz.track",
 	VizPace:          "viz.pace",
 	VizReserve:       "viz.reserve",
-	VizSeries1:       "viz.series.1",
-	VizSeries2:       "viz.series.2",
-	VizSeries3:       "viz.series.3",
-	VizSeries4:       "viz.series.4",
-	VizSeries5:       "viz.series.5",
-	VizSeries6:       "viz.series.6",
 	VizFamily1:       "viz.family.1",
 	VizFamily2:       "viz.family.2",
 	VizFamily3:       "viz.family.3",
@@ -195,18 +180,6 @@ func (t Theme) Ramp() []color.Color {
 	return []color.Color{t.colours[VizRamp1], t.colours[VizRamp2], t.colours[VizRamp3], t.colours[VizRamp4]}
 }
 
-// Series is the colour of the account in place n, counting from 1, round
-// again past six.
-func (t Theme) Series(n int) color.Color {
-	return t.colours[SeriesOf(n)]
-}
-
-// SeriesOf is the token of the account in place n, counting from 1, round
-// again past six: viz.series.1 to viz.series.6, which its cords are drawn in.
-func SeriesOf(n int) Token {
-	return VizSeries1 + Token((max(n, 1)-1)%seriesCount)
-}
-
 // Paints reports whether the theme paints its canvas: every theme but the
 // terminal's, which leaves the terminal's own background, transparent or an
 // image as it may be, and so blends nothing into it.
@@ -222,8 +195,7 @@ func (t Theme) Suits(dark bool) bool {
 }
 
 // derive works out each of the charts' tokens the theme leaves out from the
-// base tokens, so a theme without them still draws every chart. The series
-// never take state.destructive, which a limit or a refusal is drawn in.
+// base tokens, so a theme without them still draws every chart.
 func (t *Theme) derive() {
 	c := &t.colours
 	or := func(tok Token, from color.Color) {
@@ -240,9 +212,6 @@ func (t *Theme) derive() {
 	or(VizTrack, c[BgSubtle])
 	or(VizPace, c[TextPrimary])
 	or(VizReserve, c[AccentAttention])
-	for i, from := range []Token{AccentKey, StatePositive, AccentPrimary, AccentMode, TextSecondary, AccentAttention} {
-		or(VizSeries1+Token(i), c[from])
-	}
 	for i, from := range []Token{AccentKey, AccentMode, AccentPrimary, TextTertiary} {
 		or(VizFamily1+Token(i), c[from])
 	}

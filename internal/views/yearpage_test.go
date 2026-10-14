@@ -280,6 +280,33 @@ func TestACalendarYearsGridIsItsWeeksAndItsNumbersItsDays(t *testing.T) {
 	}
 }
 
+// A whole year's plans cost 12 months, a 29 February in it or not, as its
+// months' do: the last 12 months, and a calendar year.
+func TestAWholeYearsPlansCostTwelveMonths(t *testing.T) {
+	tests := []struct {
+		name string
+		now  time.Time
+		year int
+	}{
+		{name: "the last 12 months, across a 29 February", now: time.Date(2028, 3, 10, 12, 0, 0, 0, time.Local)},
+		{name: "a leap calendar year", now: time.Date(2029, 1, 10, 12, 0, 0, 0, time.Local), year: 2028},
+		{name: "a calendar year of 365 days", now: time.Date(2027, 1, 10, 12, 0, 0, 0, time.Local), year: 2026},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ask := views.YearAsk{Year: tt.year}
+			from := views.YearFrom(ask, tt.now, time.Monday)
+			days := daysTo(from.Format(time.DateOnly), tt.now, day(from.AddDate(0, 0, 7).Format(time.DateOnly), usedBy("work", sessionsOf(sent("claude-opus-5-5", 10, inputUsage), sessionA))))
+			in := input(days)
+			in.From, in.Now = from, tt.now
+			// Work's $200 and side's $20 a month.
+			if got := jsonOf(t, views.NewPast(in, days).Year(ask).Numbers.Cost); got != "2640" {
+				t.Errorf("the year's plans cost %s, want 2640, 12 months'", got)
+			}
+		})
+	}
+}
+
 // The numbers count the 12 months alone, every account's: each session once,
 // however many days and accounts it ran on; the limits by window; the worth
 // against the plans of the accounts on one known, priced a year; the
@@ -615,10 +642,10 @@ func TestTheYearIsReadFromItsGridsFirstDay(t *testing.T) {
 
 // The 12 months begin the day after today's date a year back, 1 March where
 // today is 29 February, and count from then: their requests, and their plans,
-// priced over their days, 366 of them over a 29 February; the month they
-// begin in noted from no day, the ledger having begun before it. On Monday 6
-// March 2028, weeks from Monday, they begin a day before the grid, and are
-// read from then.
+// priced as 12 months, though 366 days of them hold a 29 February; the month
+// they begin in noted from no day, the ledger having begun before it. On
+// Monday 6 March 2028, weeks from Monday, they begin a day before the grid,
+// and are read from then.
 func TestTheTwelveMonthsBeginTheDayAfterTodaysDateAYearBack(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -640,9 +667,9 @@ func TestTheTwelveMonthsBeginTheDayAfterTodaysDateAYearBack(t *testing.T) {
 			if got := page.Numbers.Requests; got != 7 {
 				t.Errorf("the 12 months' requests are %d, want 7, their first day's 5 among them", got)
 			}
-			// 366 days of the plans' $220 a month, 366 × 12/365 of it.
-			if got, want := jsonOf(t, page.Numbers.Cost), "2647.232876712328"; got != want {
-				t.Errorf("the 12 months' plans cost %s, want %s, 366 days of them", got, want)
+			// 12 months of the plans' $220 a month.
+			if got, want := jsonOf(t, page.Numbers.Cost), "2640"; got != want {
+				t.Errorf("the 12 months' plans cost %s, want %s, 12 months of them", got, want)
 			}
 			if first := page.ByMonth[0]; first.Month.Month != tt.first[:7] || first.From != "" {
 				t.Errorf("BY MONTH's first row is %s from %q, want %s noted from no day", first.Month.Month, first.From, tt.first[:7])

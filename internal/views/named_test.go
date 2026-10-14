@@ -2,6 +2,7 @@ package views_test
 
 import (
 	"maps"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -127,34 +128,78 @@ func TestASessionIsNamedByItsMainThread(t *testing.T) {
 	}
 }
 
-// At each moment the views have to get right, the List and a session's page
-// name each session alike, as the moment has it; and SESSIONS, on the
-// account the List names it on, where it runs there, names it by the family
-// of the model the List names.
+// At each moment the views have to get right, the List, a session's page
+// and the Log's panel name each session alike, as the moment has it; and on
+// the account the List names it on, where it runs there, cold as its main
+// thread may be there, SESSIONS and Detail name it by the model the List
+// names, and its family, and say why that model is there, as the List gives
+// its reason and since when, as its call on the Switchboard does, come from
+// where the List has it come from.
 func TestTheListAPageAndSESSIONSNameEachSessionAlikeAtEachHardMoment(t *testing.T) {
 	for _, hm := range viewstest.SessionMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
 			list := views.ListSessions(views.SessionSources{
 				Running: hm.Sessions, Unlisted: hm.Unlisted, Stream: hm.Stream, Ledger: fakeLedger{lines: hm.Lines, now: hm.Now}, Now: hm.Now,
 			})
-			listed := make(map[string]named)
+			listed := make(map[string]views.ListedSession)
 			for _, s := range list.Sessions {
-				listed[s.Session] = named{s.Account, s.Model}
+				listed[s.Session] = s
 			}
-			rows := views.RunningOf(hm.Doc.At(hm.Now, claude.Policy), hm.Sessions, hm.Stream)
+			panel := make(map[string]views.LogSession)
+			for _, s := range logPanelOf(hm.Lines, hm.Sessions, hm.Unlisted, hm.Stream, hm.Now) {
+				panel[s.ID] = s
+			}
+			m := hm.Doc.At(hm.Now, claude.Policy)
+			held := listHeldOf(hm.Lines, hm.Sessions, hm.Now)
+			rows, calls := views.RunningOf(m, hm.Sessions, hm.Stream, held), views.CallsOf(m, hm.Sessions, hm.Stream, held)
 			for _, id := range slices.Sorted(maps.Keys(hm.Want)) {
 				want := named{hm.Named[id].Account, hm.Named[id].Model}
-				if got := listed[id]; got != want {
+				s := listed[id]
+				if got := (named{s.Account, s.Model}); got != want {
 					t.Errorf("the List names %s %+v, want %+v", id[:4], got, want)
 				}
 				if page := momentsPage(t, hm, id); (named{page.Account, page.Model}) != want {
 					t.Errorf("its page names %s %s, %s, want %+v", id[:4], page.Account, page.Model, want)
 				}
-				i := slices.IndexFunc(rows, func(r views.Running) bool { return r.Session == id && r.Account == want.account })
-				if family := (claude.Provider{}).Family(want.model); i >= 0 && rows[i].Family != family {
-					t.Errorf("SESSIONS names %s on %s by %s, want %s's family", id[:4], want.account, rows[i].Family, want.model)
+				if logged, ok := panel[id]; ok && logged.Account != want.account {
+					t.Errorf("the Log's panel has %s on %s, want %s", id[:4], logged.Account, want.account)
 				}
+				detail := views.RunningOn(rows, want.account)
+				i := slices.IndexFunc(detail, func(r views.Running) bool { return r.Session == id })
+				j := slices.IndexFunc(calls, func(c views.Call) bool { return c.Session == id && c.Account == want.account })
+				if i < 0 || j < 0 {
+					continue
+				}
+				checkRowNamed(t, m, s, detail[i], calls[j], hm.Stream)
 			}
 		})
+	}
+}
+
+// checkRowNamed checks the session s, as the List names it, is named alike
+// at the moment m by r, its row on that account, as SESSIONS and Detail list
+// it, and by c, its call there, as the Switchboard draws it, the stream
+// given telling what it told: by its model and family; why that model is
+// there, as the List gives its reason and since when; and the account it
+// came from, as the List has it, else none, or one the stream alone told of.
+func checkRowNamed(t *testing.T, m status.Moment, s views.ListedSession, r views.Running, c views.Call, stream views.Stream) {
+	t.Helper()
+	id := s.Session[:4]
+	if !reflect.DeepEqual(c.Running, r) {
+		t.Errorf("%s's call on %s is\n%+v\nwant SESSIONS' row\n%+v", id, r.Account, c.Running, r)
+	}
+	if family := (claude.Provider{}).Family(s.Model); r.Model != s.Model || r.Family != family {
+		t.Errorf("SESSIONS names %s on %s by %s, %s; want %s, its family %s, as the List", id, r.Account, r.Model, r.Family, s.Model, family)
+	}
+	if j := slices.IndexFunc(s.Models, func(sm views.SessionModel) bool { return sm.Model == s.Model && sm.Account == s.Account }); j >= 0 {
+		if why := views.WhyRunning(m, s.Session, s.Models[j]); r.Why.String() != why.String() {
+			t.Errorf("SESSIONS says %s is on %s as %q, want %q, as the List gives %s's reason and since when", id, r.Account, r.Why, why, s.Model)
+		}
+	}
+	switch {
+	case s.Moved != nil && c.From != s.Moved.From:
+		t.Errorf("%s's call came from %q, want %q, as the List has it", id, c.From, s.Moved.From)
+	case s.Moved == nil && c.From != "" && !toldMoved(stream, s.Session, c.From, c.Account):
+		t.Errorf("%s's call came from %q, but neither its lines nor the stream tell of the move", id, c.From)
 	}
 }

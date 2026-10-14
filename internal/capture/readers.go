@@ -123,6 +123,22 @@ func (l heldLedger) Days(from time.Time) []ledger.Summary {
 	return append(days, summary)
 }
 
+// DaysOn gives the summaries of the days with the dates given, oldest
+// first, as Days gives them from the earliest.
+func (l heldLedger) DaysOn(dates []string) []ledger.Summary {
+	if len(dates) == 0 {
+		return nil
+	}
+	from, _, _ := dayfile.Day(slices.Min(dates))
+	var on []ledger.Summary
+	for _, s := range l.Days(from) {
+		if slices.Contains(dates, s.Day) {
+			on = append(on, s)
+		}
+	}
+	return on
+}
+
 // FirstDay gives the start of the first day the records hold a summary of,
 // else today's, as a Follower finds the first day its files are of.
 func (l heldLedger) FirstDay(now time.Time) (time.Time, error) {
