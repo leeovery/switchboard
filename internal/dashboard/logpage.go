@@ -476,11 +476,11 @@ func (p LogPage) heading(phone bool, width int, name func(id string) string) hea
 		return h
 	}
 	count := p.headingCount()
+	h.state = p.filterNames(name).said()
 	if phone {
 		h.right = count.phone()
 		return h
 	}
-	h.state = p.filterNames(name).said()
 	h.right = logHeadingRight(count.forms(), h.state, width-h.named(new(laying), 0, false))
 	return h
 }

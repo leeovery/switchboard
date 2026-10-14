@@ -90,6 +90,10 @@ func TestTheLogsHeadingSaysWhatTheTableHides(t *testing.T) {
 	filtered.Filter.Accounts = []string{"side"}
 	onWork := hidden
 	onWork.Filter.Accounts = []string{"work"}
+	onD28C := hidden
+	onD28C.Filter.Sessions = []string{"d28c5e17-0000-4000-8000-000000000001"}
+	onOpus := hidden
+	onOpus.Filter.Models = []string{"claude-opus-5-5"}
 	eventsFiltered := hidden.Turned(1)
 	eventsFiltered.Shows.Accounts = []string{"work"}
 	sessionsEvents := eventsOfItsSession(views.LogFilter{Accounts: []string{"work"}})
@@ -112,6 +116,10 @@ func TestTheLogsHeadingSaysWhatTheTableHides(t *testing.T) {
 			starts: "LOG    Requests  Events  [ ]   only d28c switchboard ─", ends: "─  1 today   f what it shows",
 		},
 		{name: "on a phone", page: hidden, width: 52, starts: "LOG   Requests  Events" + strings.Repeat(" ", 19), ends: "   1 hidden  f"},
+		{name: "on a phone, filtered to a session", page: onD28C, width: 52, starts: "LOG   Requests  Events    only d28c ", ends: "   1 hidden  f"},
+		{name: "on a phone, filtered to an account", page: onWork, width: 52, starts: "LOG   Requests  Events    only Work ", ends: "   1 hidden  f"},
+		{name: "on a phone, filtered to a model", page: onOpus, width: 52, starts: "LOG   Requests  Events    only opus-5-5 ", ends: "  1 hidden  f"},
+		{name: "on a phone, Events filtered", page: eventsFiltered, width: 52, starts: "LOG   Requests  Events    only Work ", ends: "   0 today  f"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
