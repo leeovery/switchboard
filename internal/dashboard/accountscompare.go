@@ -10,8 +10,6 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -45,7 +43,8 @@ var compareOut = outForm{above: " above", below: " below", gap: " · ", keys: "j
 
 // compared is Compare as a frame lays it out of a moment: the accounts its
 // columns show, from the first shown, then all accounts'; each colw cells
-// wide; and the key of the week every model shares, which WEEK USED shows.
+// wide; and the key of the accounts' own week, as the frame names it, which
+// WEEK USED shows.
 type compared struct {
 	f     Frame
 	m     status.Moment
@@ -88,7 +87,7 @@ func (f Frame) comparing(doc status.Document, now time.Time) compared {
 	shown := f.compareShows()
 	return compared{
 		f: f, m: m, now: now, page: f.Accounts.Page, first: f.compareFirst(), shown: shown,
-		colw: (f.Width - compareLabels) / (shown + 1), week: sharedWeekKey(m.Policy()),
+		colw: (f.Width - compareLabels) / (shown + 1), week: f.WeekWindow,
 	}
 }
 
@@ -133,39 +132,43 @@ func (f Frame) compareState() []line {
 	return []line{slices.Concat(moves, line{{"; all accounts stays put", faintInk}}), moves, which}
 }
 
-// sharedWeekKey is the key of the window a week long that every model
-// shares, as policy names it: the accounts' own week.
-func sharedWeekKey(policy score.Policy) string {
-	if i := slices.IndexFunc(policy.Shared, quota.WeekLong); i >= 0 {
-		return policy.Shared[i]
-	}
-	return ""
-}
-
 // columns are Compare's columns: each account's shown, from the first, then
 // all accounts', the last running to the frame's edge.
 func (cp compared) columns() []compareColumn {
-	accounts := cp.f.Accounts.Accounts[cp.first : cp.first+cp.shown]
-	columns := make([]compareColumn, 0, len(accounts)+1)
-	for i, configured := range accounts {
-		col := compareColumn{x: compareLabels + i*cp.colw, width: cp.colw - 1, id: configured.ID, place: cp.first + i + 1}
-		col.account, col.known = cp.m.Account(configured.ID)
-		if !col.known {
-			col.account = status.AccountNow{ID: configured.ID, Label: configured.Label, Primary: configured.Primary}
-		}
-		if cp.page != nil {
-			if j := slices.IndexFunc(cp.page.Rows, func(r views.AccountsRow) bool { return r.Totals.Account == configured.ID }); j >= 0 {
-				col.row = cp.page.Rows[j]
-			}
-		}
+	columns := make([]compareColumn, 0, cp.shown+1)
+	for i := range cp.shown {
+		col := cp.column(cp.first + i)
+		col.x = compareLabels + i*cp.colw
 		columns = append(columns, col)
 	}
-	x := compareLabels + cp.shown*cp.colw
+	return append(columns, cp.allColumn(compareLabels+cp.shown*cp.colw))
+}
+
+// column is the column of the configured account at the place given among
+// them, from 0, wherever it's shown: as the moment has it, else as the
+// config names it, and its row of the period's page.
+func (cp compared) column(i int) compareColumn {
+	configured := cp.f.Accounts.Accounts[i]
+	col := compareColumn{width: cp.colw - 1, id: configured.ID, place: i + 1}
+	col.account, col.known = cp.m.Account(configured.ID)
+	if !col.known {
+		col.account = status.AccountNow{ID: configured.ID, Label: configured.Label, Primary: configured.Primary}
+	}
+	if cp.page != nil {
+		if j := slices.IndexFunc(cp.page.Rows, func(r views.AccountsRow) bool { return r.Totals.Account == configured.ID }); j >= 0 {
+			col.row = cp.page.Rows[j]
+		}
+	}
+	return col
+}
+
+// allColumn is all accounts' column, from column x to the frame's edge.
+func (cp compared) allColumn(x int) compareColumn {
 	all := compareColumn{x: x, width: cp.f.Width - x, all: true}
 	if cp.page != nil {
 		all.row = cp.page.All
 	}
-	return append(columns, all)
+	return all
 }
 
 // ink is the ink of the column's values: all accounts' bold.
@@ -223,11 +226,17 @@ func (cp compared) targets() []Target {
 }
 
 // filled are how much of each of WEEK USED's bars Compare draws it fills, as
-// Filled has them: each account's shown, by its id and its week's key, and
-// all accounts', by the key alone; none drawn empty.
+// Filled has them: every configured account's, shown or scrolled out of
+// view, as the Overview's are, so a column scrolled into view while its bar
+// eases eases from where it stood, by its id and its week's key; and all
+// accounts', by the key alone; none drawn empty.
 func (cp compared) filled() map[Ref]float64 {
 	filled := make(map[Ref]float64)
-	for _, col := range cp.columns() {
+	columns := []compareColumn{cp.allColumn(0)}
+	for i := range cp.f.Accounts.Accounts {
+		columns = append(columns, cp.column(i))
+	}
+	for _, col := range columns {
 		if g := cp.weekGauge(col); !g.bar.empty {
 			filled[g.of] = g.bar.used
 		}
@@ -237,21 +246,22 @@ func (cp compared) filled() map[Ref]float64 {
 
 // heads draws the columns' heads from row top: each account's number, its
 // name and its marks, as usage names an account, but for ▲, as Accounts
-// shows no routing, and under them its state in a word, cued as it changes;
-// all accounts', 0 and its name, and its accounts' states counted; the
-// focused column's on bg.selection.
+// shows no routing, and under them its state in a word; all accounts', 0 and
+// its name, and its accounts' states counted; the focused column's on
+// bg.selection, and over it, a state cued as it changes, a warning showing
+// through the focus.
 func (cp compared) heads(c *canvas, top int, columns []compareColumn) {
 	s, head := cp.f.Accounts, cp.colw-1
 	for _, col := range columns {
 		c.line(col.x, top, cp.named(col, head))
 		stands := cp.stands(col, head)
 		c.line(col.x, top+1, stands)
-		cp.f.cueStanding(c, col.id, col.x, top+1, stands.width())
 		if s.Focused && s.Focus == col.id {
 			for y := range compareHeads - 1 {
 				c.surface(col.x, top+y, head, hue{token: theme.BgSelection})
 			}
 		}
+		cp.f.cueState(c, col.id, col.x, top+1, stands.width())
 	}
 }
 
@@ -267,16 +277,13 @@ func (cp compared) named(col compareColumn, cells int) line {
 }
 
 // stands is how the column's account stands, in the cells given: its state
-// in a word, as stateWord says it, not read where the moment doesn't have
-// it; all accounts', every account's states counted.
+// in a word, as stateWord says it, as StateInAWord has it; all accounts',
+// every configured account's states counted, as CountStatesOf counts them.
 func (cp compared) stands(col compareColumn, cells int) line {
-	switch {
-	case col.all:
-		return countedStates(status.CountStates(cp.m.Accounts), NumberAccountStates, cells)
-	case !col.known:
-		return stateWord(status.StateNotRead).fit(cells)
+	if col.all {
+		return countedStates(cp.m.CountStatesOf(cp.f.Accounts.Accounts.IDs()), NumberAccountStates, cells)
 	}
-	return stateWord(col.account.Routing.Kind.State()).fit(cells)
+	return stateWord(cp.m.StateInAWord(col.id)).fit(cells)
 }
 
 // stateWord is an account's state in a word, after its glyph, as the
@@ -473,12 +480,9 @@ func (cp compared) groups() []compareGroup {
 }
 
 // period is what a row of the period's figures says of each column, as said
-// says it, but a dash where the period records nothing.
+// says it, as periodParts has a figure of the period.
 func (cp compared) period(said func(col compareColumn) []part) func(col compareColumn) []part {
-	if cp.page.Recorded {
-		return said
-	}
-	return func(col compareColumn) []part { return noneOf(noFigure.text, col.ink()) }
+	return func(col compareColumn) []part { return periodParts(*cp.page, said(col), col.ink()) }
 }
 
 // extra is the column's extra usage, as it stands: an account's, as

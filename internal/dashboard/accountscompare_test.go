@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -193,7 +194,7 @@ var threeFramed = config.Accounts{{ID: "work"}, {ID: "personal", Primary: true},
 // accounts configured and the period's page given.
 func compareFrame(t *testing.T, configured config.Accounts, page views.AccountsPage) Frame {
 	f := frameOf(160, 37)
-	f.View, f.Look = Accounts, Screen(builtin(t, "nord"))
+	f.View, f.Look, f.WeekWindow = Accounts, Screen(builtin(t, "nord")), "7d"
 	f.Accounts = AccountsShown{Period: page.Period, Accounts: configured, Page: &page}
 	return f
 }
@@ -432,6 +433,31 @@ func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 	}
 }
 
+// All accounts' head counts the configured accounts' states, as their
+// columns stand: one the document lacks yet as not read, and one the
+// document holds and the config doesn't, not at all.
+func TestAllAccountsCountsTheConfiguredAccountsStates(t *testing.T) {
+	tests := []struct {
+		name       string
+		configured config.Accounts
+		want       string
+	}{
+		{name: "one added the document lacks", configured: append(slices.Clone(threeFramed), config.Account{ID: "added"}), want: "2 open · 1 at cap · 1 not read"},
+		{name: "one the config no longer holds", configured: threeFramed[1:], want: "2 open"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, doc := threeCompared(t, 200, 37)
+			f.Accounts.Accounts = tt.configured
+			rows := f.Draw(doc, routedAt)
+			x := columnOf(rows[6], "0 all accounts")
+			if got := strings.TrimSpace(ansi.Cut(rows[7], x, f.Width)); got != tt.want {
+				t.Errorf("all accounts' states read %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // Once ← or → has put the focus on a column, its heads are on bg.selection
 // across its width less a cell; none is before.
 func TestComparesFocusedColumnsHeadsAreSelected(t *testing.T) {
@@ -543,6 +569,32 @@ func TestCompareScrollsItsRowsUnderItsHeadsHeld(t *testing.T) {
 	}
 }
 
+// percentages match a percentage, or the dash said for none.
+var percentages = regexp.MustCompile(`\d+%|—`)
+
+// WEEK USED shows the week the frame names the accounts' own, as Accounts'
+// page reads it, whatever the policy shares: of every account, and of all
+// accounts; and nothing of a week the frame names none.
+func TestWEEKUSEDShowsTheWeekTheFrameNames(t *testing.T) {
+	tests := []struct {
+		name, week string
+		want       []string
+	}{
+		{name: "the accounts' week", week: "7d", want: []string{"34%", "66%", "78%", "59%"}},
+		{name: "Fable's week named so", week: "7d_oi", want: []string{"12%", "0%", "4%", "5%"}},
+		{name: "none named", want: []string{"—", "—", "—", "—"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, doc := threeCompared(t, 160, 37)
+			f.WeekWindow = tt.week
+			if got := percentages.FindAllString(f.Draw(doc, routedAt)[9], -1); !slices.Equal(got, tt.want) {
+				t.Errorf("WEEK USED reads %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // Before the period's days are read, Compare draws what's live alone: its
 // heads and WEEK USED.
 func TestCompareDrawsItsHeadsAndWEEKUSEDTillItsDaysAreRead(t *testing.T) {
@@ -619,6 +671,22 @@ func TestWEEKUSEDsBarsEaseAsFarAsTheyHaveEased(t *testing.T) {
 	}
 }
 
+// Every configured account's week is filled, shown or scrolled out of view,
+// as the Overview's are, so a column scrolled into view while its bar eases
+// eases from where it stood, not from nothing.
+func TestWEEKUSEDFillsEveryAccountsWeekShownOrNot(t *testing.T) {
+	f, doc := tenOnCompare(t, 160, 37, 0)
+	filled := f.Filled(doc, routedAt)
+	for _, a := range tenFramed {
+		if _, ok := filled[Ref{Account: a.ID, Window: "7d"}]; !ok {
+			t.Errorf("%s's week isn't filled, want every account's, shown or not", a.ID)
+		}
+	}
+	if _, ok := filled[Ref{Window: "7d"}]; !ok || len(filled) != len(tenFramed)+1 {
+		t.Errorf("Compare fills %v, want each account's week and all accounts'", filled)
+	}
+}
+
 // What a look reads brightens as it changes: each account's week's
 // percentage, as USAGE's is numbered, and all accounts', a figure of its own,
 // and its accounts' states counted; the period's figures don't.
@@ -639,17 +707,37 @@ func TestComparesNumbersAreWhatALookReads(t *testing.T) {
 	}
 }
 
-// An account's state is cued as it changes, as ROUTING's is.
-func TestAnAccountsStateIsCuedAsItChanges(t *testing.T) {
-	f, doc := threeCompared(t, 160, 37)
-	f.Look = Screen(builtin(t, "nord"))
-	f.Changed = map[string]float64{"work": 0.25}
-	c := f.At(doc, routedAt).page(doc, routedAt)
-	for x := 24; x < 60; x++ {
-		cued := c.at(x, 7).ink.on.token == theme.BgAttention
-		if want := x >= 26 && x < 26+ansi.StringWidth("● at cap"); cued != want {
-			t.Errorf("column %d of the states cued: %v, want %v", x, cued, want)
-		}
+// An account's state in a word is cued as it changes, and only then: a
+// change ROUTING alone sees, as a session lapsing, cues nothing here. The cue
+// shows over the focus, as a warning; and while it fades, the page settles.
+func TestAnAccountsStateIsCuedAsItsWordChanges(t *testing.T) {
+	tests := []struct {
+		name          string
+		changed, word map[string]float64
+		focused       bool
+		cued          bool
+	}{
+		{name: "its word changed", word: map[string]float64{"work": 0.25}, cued: true},
+		{name: "its word changed, its column focused", word: map[string]float64{"work": 0}, focused: true, cued: true},
+		{name: "ROUTING's state alone changed", changed: map[string]float64{"work": 0.25}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, doc := threeCompared(t, 160, 37)
+			f.Look = Screen(builtin(t, "nord"))
+			f.Changed, f.StateChanged = tt.changed, tt.word
+			f.Accounts.Focused, f.Accounts.Focus = tt.focused, "work"
+			c := f.At(doc, routedAt).page(doc, routedAt)
+			for x := 24; x < 60; x++ {
+				cued := c.at(x, 7).ink.on.token == theme.BgAttention
+				if want := tt.cued && x >= 26 && x < 26+ansi.StringWidth("● at cap"); cued != want {
+					t.Errorf("column %d of the states cued: %v, want %v", x, cued, want)
+				}
+			}
+			if settles := f.MaySettle(); settles != (len(tt.changed)+len(tt.word) > 0) {
+				t.Errorf("the page may settle: %v, want it to while a cue fades", settles)
+			}
+		})
 	}
 }
 

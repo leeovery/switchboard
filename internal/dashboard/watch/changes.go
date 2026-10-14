@@ -10,10 +10,12 @@ import (
 
 // changes is what the watch knows of the accounts' states and their
 // windows' words: where the last look read them from, and the cues on each
-// account's state and each window's words that looks saw change.
+// account's state, as ROUTING says it and in a word, as Accounts says it,
+// and on each window's words, that looks saw change.
 type changes struct {
 	from   origin
 	states cues[string, state]
+	words  cues[string, status.AccountState]
 	outs   cues[dashboard.Ref, bool]
 }
 
@@ -64,11 +66,12 @@ func (c changes) ticked(m status.Moment) changes {
 }
 
 // found takes in the accounts' states at the moment m, and whether their
-// windows' words say they run out: each account whose state differs from
-// what was found at the last look's moment is picked out from m's, and each
-// window whose words turn to out ~.
+// windows' words say they run out: each account whose state, or whose state
+// in a word, differs from what was found at the last look's moment is
+// picked out from m's, and each window whose words turn to out ~.
 func (c changes) found(m status.Moment) changes {
 	c.states = c.states.seen(statesOf(m), m.Now, func(was, is state) bool { return was != is })
+	c.words = c.words.seen(statesInAWord(m), m.Now, func(was, is status.AccountState) bool { return was != is })
 	c.outs = c.outs.seen(outsOf(m), m.Now, func(was, is bool) bool { return is && !was })
 	return c
 }
@@ -107,6 +110,17 @@ func statesOf(m status.Moment) map[string]state {
 	return states
 }
 
+// statesInAWord are the states of m's accounts in a word, by id, as
+// Accounts says them: coarser than ROUTING's, as an idle account, or one
+// held back from some models' requests alone, is open.
+func statesInAWord(m status.Moment) map[string]status.AccountState {
+	states := make(map[string]status.AccountState, len(m.Accounts))
+	for _, a := range m.Accounts {
+		states[a.ID] = a.Routing.Kind.State()
+	}
+	return states
+}
+
 // outsOf are whether the words of each window of m's accounts say that it
 // runs out, out ~…, by its account and key.
 func outsOf(m status.Moment) map[dashboard.Ref]bool {
@@ -123,6 +137,12 @@ func outsOf(m status.Moment) map[dashboard.Ref]bool {
 // faded, by its account's id, as fading says over highlightFor.
 func (c changes) faded(now time.Time) map[string]float64 {
 	return fading(c.states.since, now, highlightFor)
+}
+
+// wordFaded is how far the cue on each account's state in a word picked out
+// at now has faded, by its account's id, as fading says over highlightFor.
+func (c changes) wordFaded(now time.Time) map[string]float64 {
+	return fading(c.words.since, now, highlightFor)
 }
 
 // turnedOut is how far the cue on each window's words picked out at now has

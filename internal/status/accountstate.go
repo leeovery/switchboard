@@ -91,9 +91,40 @@ type StateCounts []StateCount
 // State has it, in AccountState's order, the states none of them is in left
 // out.
 func CountStates(accounts []AccountNow) StateCounts {
+	states := make([]AccountState, len(accounts))
+	for i, a := range accounts {
+		states[i] = a.Routing.Kind.State()
+	}
+	return counted(states)
+}
+
+// StateInAWord is the state in a word of the account at the moment with the
+// given id, as its RoutingKind's State has it: not read where the moment
+// doesn't have it, as an account the config has just gained.
+func (m Moment) StateInAWord(id string) AccountState {
+	if a, ok := m.Account(id); ok {
+		return a.Routing.Kind.State()
+	}
+	return StateNotRead
+}
+
+// CountStatesOf are the states of the accounts with the ids given counted,
+// as CountStates counts them, each as StateInAWord has it: those the config
+// has, say, whatever the moment holds.
+func (m Moment) CountStatesOf(ids []string) StateCounts {
+	states := make([]AccountState, len(ids))
+	for i, id := range ids {
+		states[i] = m.StateInAWord(id)
+	}
+	return counted(states)
+}
+
+// counted are the states given counted, in AccountState's order, the states
+// none is in left out.
+func counted(states []AccountState) StateCounts {
 	var n [StateNotRead + 1]int
-	for _, a := range accounts {
-		n[a.Routing.Kind.State()]++
+	for _, s := range states {
+		n[s]++
 	}
 	var counts StateCounts
 	for s := StateOpen; s <= StateNotRead; s++ {
