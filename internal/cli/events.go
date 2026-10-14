@@ -7,16 +7,17 @@ import (
 	"iter"
 	"os"
 	"os/signal"
+	"slices"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -104,7 +105,7 @@ func (a *app) eventsPrinter(out io.Writer, f formFlags) eventsPrinter {
 	if a.printsJSON(f, out) {
 		return eventsJSON{out: out}
 	}
-	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(claude.WindowName)}
+	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey)}
 }
 
 // eventsJSON prints each event as the router files it, a JSON object a line,
@@ -138,17 +139,25 @@ type eventsText struct {
 	now     func() time.Time
 	telling *views.Telling
 	// day is the day of the last heading printed: zero before one is. widths
-	// are the columns' as the last rows printed were aligned, which a line
-	// followed is aligned to, at the least.
+	// are the columns every row printed is aligned to: its time's as wide as
+	// prose.DatedWidth, and each as wide as the widest cell of the rows listed
+	// and followed since.
 	day    time.Time
 	widths []int
 }
 
 func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error {
-	at := func(h events.Held) time.Time { return h.At }
-	row := func(h events.Held, at time.Time) []string { return p.row(h.Line, at) }
-	table, err := writeDays(p.out, held, at, row, "events", from, now)
-	p.day, p.widths = table.day, widths(nil, table.indented()...)
+	var rows []views.EventRow
+	p.widths = []int{len(indent) + prose.DatedWidth()}
+	for h := range held {
+		r := p.telling.Row(h, now)
+		rows = append(rows, r)
+		p.widths = widths(p.widths, indented(eventRow(r, now)))
+	}
+	at := func(r views.EventRow) time.Time { return r.At }
+	row := func(r views.EventRow) []string { return eventRow(r, now) }
+	table, err := writeDays(p.out, slices.Values(rows), at, row, "events", from, now, p.widths)
+	p.day = table.day
 	return err
 }
 
@@ -157,11 +166,11 @@ func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error
 // changed event of an earlier day, brings.
 func (p *eventsText) follow(h events.Held) error {
 	now := p.now()
-	at := h.At.In(now.Location())
-	row := indented(p.row(h.Line, at))
-	if p.day.IsZero() || !(dayTable{day: p.day}).of(at) {
-		p.day = at
-		if err := (dayTable{day: at}).writeHeading(p.out, now, false); err != nil {
+	told := p.telling.Row(h, now)
+	row := indented(eventRow(told, now))
+	if p.day.IsZero() || !prose.SameDay(now, p.day, told.At) {
+		p.day = dayOf(now, told.At)
+		if err := (dayTable{day: p.day}).writeHeading(p.out, now, false); err != nil {
 			return err
 		}
 	}
@@ -169,11 +178,11 @@ func (p *eventsText) follow(h events.Held) error {
 	return writeRow(p.out, row, p.widths)
 }
 
-// row is line's row, at at: its time, its session's id cut short, its kind,
-// its account and what happened, as views.Telling tells them.
-func (p *eventsText) row(line events.Line, at time.Time) []string {
-	told := p.telling.Line(line.Event, at)
-	return []string{at.Format(time.TimeOnly), status.ShortID(status.Clean(line.Session)), told.Kind, told.Account.String(), told.What.String()}
+// eventRow is the row of the event r, at now: when it happened, as
+// prose.Dated says every time of an event, its session's id cut short, its
+// kind, its account and what happened, as views.Telling tells them.
+func eventRow(r views.EventRow, now time.Time) []string {
+	return []string{prose.Dated(now, r.At), status.ShortID(prose.Clean(r.Session)), r.Kind, r.Account.String(), r.What.String()}
 }
 
 // eventsFollower follows the router's events' files, a day's at a time, as

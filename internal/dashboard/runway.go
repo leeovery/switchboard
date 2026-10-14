@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"fmt"
 	"math"
 	"slices"
 	"strconv"
@@ -10,6 +9,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -201,7 +202,7 @@ func (f Frame) runway(c *canvas, doc status.Document, now time.Time, top int) {
 	}
 	switch {
 	case l.scrolls():
-		says := outOfView(l.hidden(offset)).fit(f.edge() - margin)
+		says := rowsOut.said(l.hidden(offset)).fit(f.edge() - margin)
 		c.line((f.Width-says.width())/2, over, says)
 		scrollbar(c, f.Width-1, l.top, l.view, l.content, offset)
 	case !l.legend:
@@ -259,7 +260,7 @@ func hours(c *canvas, tl timeline, x, y int) {
 			continue
 		}
 		c.text(x+col, y+1, "┬", borderInk)
-		label := line{{t.Format("15:04"), mutedInk}}
+		label := line{{prose.TimeOfDay(tl.now, t), mutedInk}}
 		crowded := slices.ContainsFunc(named, func(name int) bool { return max(col-name, name-col) < labelCells })
 		if hour%labels == 0 && col+label.width() <= tl.columns && !crowded {
 			c.line(x+col, y, label)
@@ -281,7 +282,7 @@ func dayNames(c *canvas, tl timeline, x, y int) []int {
 			continue
 		}
 		c.text(x+col, y+1, "┬", borderInk)
-		if name := (line{{at.Format("Mon"), strongInk}}); col+name.width() <= tl.columns {
+		if name := (line{{prose.Weekday(at.Weekday()), strongInk}}); col+name.width() <= tl.columns {
 			c.line(x+col, y, name)
 			named = append(named, col)
 		}
@@ -295,16 +296,16 @@ func dayNames(c *canvas, tl timeline, x, y int) []int {
 // midnight, and over it, the day's name, where it clears the one before and
 // fits, as midnights has them, today's picked out.
 func weekdays(c *canvas, tl timeline, x, y int) {
-	if day >= quarterCells*tl.step {
+	if quota.Day >= quarterCells*tl.step {
 		quarters(c, tl, x, y+1)
 	}
 	end := tl.start.Add(time.Duration(tl.columns) * tl.step)
-	for _, m := range midnights(tl.start, end, tl.now, tl.column, tl.columns, len("Mon")) {
+	for _, m := range midnights(tl.start, end, tl.now, tl.column, tl.columns, len(prose.Weekday(time.Monday))) {
 		c.text(x+m.col, y+1, "┬", borderInk)
 		if !m.named {
 			continue
 		}
-		name := line{{m.at.Format("Mon"), mutedInk}}
+		name := line{{prose.Weekday(m.at.Weekday()), mutedInk}}
 		if m.today {
 			name[0].ink = strongInk
 		}
@@ -389,7 +390,7 @@ func stripTone(with, n int) float64 {
 // laneLabel is what heads lane l in the labels' column: its place, dim, and
 // its account's name, cut to nameCells.
 func laneLabel(l lane) line {
-	return line{{strconv.Itoa(l.account.Place) + " ", dimInk}, {truncate(name(l.account), nameCells), titleInk}}
+	return line{{strconv.Itoa(l.account.Place) + " ", dimInk}, {prose.Cut(name(l.account), nameCells), titleInk}}
 }
 
 // badge is what lane l has at the labels' right: over the day, ▲ next on the
@@ -424,7 +425,7 @@ func weekUse(w status.WindowNow, k ink) span {
 		k = dimInk
 	}
 	k.bold = true
-	return span{status.Percent(w.Used), k}
+	return span{prose.Percent(w.Used), k}
 }
 
 // runwayLane draws lane ln, its columns cells, on c from row y as layout l
@@ -559,9 +560,9 @@ func placedTold(s stretch, tl timeline, now time.Time) []placed {
 // it: when, and where it's heading, how much it will have used by then, as
 // its Projected has it, as in "resets Mon 21:00 · 87% used by then".
 func resetSays(w status.WindowNow, now time.Time) line {
-	l := line{{"resets " + status.Dated(now, w.Next), secondaryInk}}
+	l := line{{"resets " + prose.Dated(now, w.Next), secondaryInk}}
 	if w.Projected != nil {
-		l = append(l, span{status.Separator + status.Percent(*w.Projected) + " used by then", mutedInk})
+		l = append(l, span{prose.Separator + prose.Percent(*w.Projected) + " used by then", mutedInk})
 	}
 	return l
 }
@@ -580,11 +581,11 @@ func (f Frame) allAlong(l lane, now time.Time) line {
 	case !l.known:
 		return line{{"not read yet", dimInk}}
 	case f.Span != Week && l.drained != "":
-		return line{{"room all day" + status.Separator + l.drained, dimInk}}
+		return line{{"room all day" + prose.Separator + l.drained, dimInk}}
 	case f.Span != Week:
 		return line{{"room all day", dimInk}}
 	case !next.IsZero():
-		return line{{"room all week" + status.Separator + "resets " + status.Dated(now, next), dimInk}}
+		return line{{"room all week" + prose.Separator + "resets " + prose.Dated(now, next), dimInk}}
 	default:
 		return line{{"room all week", dimInk}}
 	}
@@ -646,21 +647,12 @@ func (f Frame) legendNote(tl timeline) string {
 	dims := f.Look.blends()
 	if f.Span == Week {
 		if dims {
-			return "one column ≈ " + about(tl.step) + " · yesterday dimmed"
+			return "one column ≈ " + prose.About(tl.step) + " · yesterday dimmed"
 		}
-		return "one column ≈ " + about(tl.step)
+		return "one column ≈ " + prose.About(tl.step)
 	}
 	if dims {
 		return "past hours dimmed · labels say when, and when it's back"
 	}
 	return "labels say when, and when it's back"
-}
-
-// about says about how long d is: to the five minutes, as "75 min", under
-// two hours; else to the hour, as "6h".
-func about(d time.Duration) string {
-	if d < 2*time.Hour {
-		return fmt.Sprintf("%d min", d.Round(5*time.Minute)/time.Minute)
-	}
-	return fmt.Sprintf("%dh", d.Round(time.Hour)/time.Hour)
 }

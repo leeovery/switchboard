@@ -22,8 +22,8 @@ const (
 
 // sentAgo is a request of the session given going out on the account
 // given, ago before tracedAt.
-func sentAgo(request, session, account string, ago time.Duration) views.Sent {
-	return views.Sent{Request: request, Session: session, Account: account, At: tracedAt.Add(-ago)}
+func sentAgo(request, session, account string, ago time.Duration) views.Told {
+	return views.Told{Request: request, Session: session, Account: account, Sent: tracedAt.Add(-ago)}
 }
 
 // requestLine is the ledger's line of a message of the session given, which
@@ -136,7 +136,7 @@ func TestTheOldestCellCountsTheMinuteBeforeIt(t *testing.T) {
 	// newest's ends: its samples at 14:12:37.5, 45 and 52.5 count a request
 	// at 14:12:00, 30 minutes and 7 seconds before now; its last, at
 	// 14:13:00, a minute after it, doesn't.
-	traces := views.Traces{}.Told([]views.Sent{sentAgo("0a000001", tracedC61B, "side", 30*time.Minute+7*time.Second)}, tracedAt)
+	traces := views.Traces{}.Told([]views.Told{sentAgo("0a000001", tracedC61B, "side", 30*time.Minute+7*time.Second)}, tracedAt)
 	if got := traces.Accounts["side"].Cells(60, tracedAt)[0]; got != 0.75 {
 		t.Errorf("the oldest cell is %v, want 0.75", got)
 	}
@@ -175,23 +175,43 @@ func TestOnlyRequestsThatSpendQuotaAndWentUpstreamAreReadFromTheLines(t *testing
 	}
 }
 
+func TestOnlyRequestsThatSpendQuotaAndWentUpstreamAreCountedFromTheStream(t *testing.T) {
+	check := sentAgo("0a000002", tracedC61B, "side", 4*time.Minute)
+	check.Check = true
+	count := sentAgo("0a000003", tracedC61B, "side", 3*time.Minute)
+	count.Count = true
+	told := []views.Told{
+		sentAgo("0a000001", tracedC61B, "side", 5*time.Minute),
+		check,
+		count,
+		// Told of by an event that doesn't say it went upstream.
+		{Request: "0a000004", Session: tracedC61B, Account: "side", Heard: tracedAt},
+	}
+	traces := views.Traces{}.Told(told, tracedAt)
+	if got, want := sentTimes(traces.Accounts["side"]), []time.Duration{5 * time.Minute}; !slices.Equal(got, want) {
+		t.Errorf("side's trace counts requests sent %v ago, want %v: never a quota check, a count of tokens, or one not sent", got, want)
+	}
+}
+
 func TestARequestIsCountedOnceWhicheverTellsOfItFirst(t *testing.T) {
 	sent := sentAgo("0a000001", tracedC61B, "side", 2*time.Minute)
-	// Its line says when it arrived, a moment before it went.
+	// Its line says when it arrived, a moment before it went, and that it
+	// took 30 seconds.
 	written := requestLine("0a000001", tracedC61B, "side", 1, 2*time.Minute+200*time.Millisecond)
+	written.TotalMS = (30 * time.Second).Milliseconds()
 
 	tests := []struct {
 		name  string
 		count func() views.Traces
 	}{
 		{name: "the stream, then its line", count: func() views.Traces {
-			return views.Traces{}.Told([]views.Sent{sent}, tracedAt).Read([]ledger.Held{written}, tracedAt)
+			return views.Traces{}.Told([]views.Told{sent}, tracedAt).Read([]ledger.Held{written}, tracedAt)
 		}},
 		{name: "its line, then the stream", count: func() views.Traces {
-			return views.Traces{}.Read([]ledger.Held{written}, tracedAt).Told([]views.Sent{sent}, tracedAt)
+			return views.Traces{}.Read([]ledger.Held{written}, tracedAt).Told([]views.Told{sent}, tracedAt)
 		}},
 		{name: "the stream, twice", count: func() views.Traces {
-			return views.Traces{}.Told([]views.Sent{sent}, tracedAt).Told([]views.Sent{sent}, tracedAt)
+			return views.Traces{}.Told([]views.Told{sent}, tracedAt).Told([]views.Told{sent}, tracedAt)
 		}},
 		{name: "its line, read twice", count: func() views.Traces {
 			return views.Traces{}.Read([]ledger.Held{written, written}, tracedAt).Read([]ledger.Held{written}, tracedAt)
@@ -210,9 +230,44 @@ func TestARequestIsCountedOnceWhicheverTellsOfItFirst(t *testing.T) {
 	}
 }
 
+// A router's ids are unique only while it runs: a line and a request the
+// stream told of are one request only where the stream's went out while the
+// line's was in flight, and two lines only where they're one line; another
+// run's request under the same id counts too.
+func TestARequestUnderTheIdOfAnotherRunsCountsToo(t *testing.T) {
+	earlier := requestLine("0a000001", tracedC61B, "side", 1, 20*time.Minute)
+	earlier.TotalMS = (30 * time.Second).Milliseconds()
+	later := requestLine("0a000001", tracedC61B, "side", 1, 5*time.Minute)
+	later.TotalMS = (30 * time.Second).Milliseconds()
+	sentLater := sentAgo("0a000001", tracedC61B, "side", 5*time.Minute)
+
+	tests := []struct {
+		name  string
+		count func() views.Traces
+		want  []time.Duration
+	}{
+		{name: "an earlier run's line, then the stream's request", want: []time.Duration{20 * time.Minute, 5 * time.Minute}, count: func() views.Traces {
+			return views.Traces{}.Read([]ledger.Held{earlier}, tracedAt).Told([]views.Told{sentLater}, tracedAt)
+		}},
+		{name: "the stream's request, then an earlier run's line", want: []time.Duration{20 * time.Minute, 5 * time.Minute}, count: func() views.Traces {
+			return views.Traces{}.Told([]views.Told{sentLater}, tracedAt).Read([]ledger.Held{earlier}, tracedAt)
+		}},
+		{name: "two runs' lines", want: []time.Duration{20 * time.Minute, 5 * time.Minute}, count: func() views.Traces {
+			return views.Traces{}.Read([]ledger.Held{earlier, later}, tracedAt)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sentTimes(tt.count().Accounts["side"]); !slices.Equal(got, tt.want) {
+				t.Errorf("side's trace counts requests sent %v ago, want %v, one a run", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestARequestSentAgainOnAnotherAccountCountsThereAsItFirstWent(t *testing.T) {
-	traces := views.Traces{}.Told([]views.Sent{sentAgo("0a000001", tracedD28C, "work", 3*time.Minute)}, tracedAt)
-	traces = traces.Told([]views.Sent{sentAgo("0a000001", tracedD28C, "side", 3*time.Minute-2*time.Second)}, tracedAt)
+	traces := views.Traces{}.Told([]views.Told{sentAgo("0a000001", tracedD28C, "work", 3*time.Minute)}, tracedAt)
+	traces = traces.Told([]views.Told{sentAgo("0a000001", tracedD28C, "side", 3*time.Minute-2*time.Second)}, tracedAt)
 
 	if got := traces.Accounts["work"].Sent; len(got) != 0 {
 		t.Errorf("work, which refused it, counts the request at %v, want none", got)
@@ -224,7 +279,7 @@ func TestARequestSentAgainOnAnotherAccountCountsThereAsItFirstWent(t *testing.T)
 
 func TestASessionMovedCarriesItsWholeTraceAcrossItsAccounts(t *testing.T) {
 	traces := views.Traces{}.Read([]ledger.Held{requestLine("0a000001", tracedD28C, "work", 1, 20*time.Minute)}, tracedAt)
-	traces = traces.Told([]views.Sent{
+	traces = traces.Told([]views.Told{
 		sentAgo("0a000002", tracedD28C, "work", 12*time.Minute),
 		sentAgo("0a000003", tracedD28C, "side", 10*time.Minute),
 	}, tracedAt)
@@ -242,13 +297,13 @@ func TestASessionMovedCarriesItsWholeTraceAcrossItsAccounts(t *testing.T) {
 
 func TestRequestsBeyondWhatTheTracesReachAreLetGo(t *testing.T) {
 	traces := views.Traces{}.Read([]ledger.Held{requestLine("0a000001", tracedC61B, "side", 1, 40*time.Minute)}, tracedAt)
-	traces = traces.Told([]views.Sent{sentAgo("0a000002", tracedD28C, "work", 45*time.Minute)}, tracedAt)
+	traces = traces.Told([]views.Told{sentAgo("0a000002", tracedD28C, "work", 45*time.Minute)}, tracedAt)
 	if len(traces.Accounts) != 0 || len(traces.Sessions) != 0 {
 		t.Errorf("of requests 40 and 45 minutes old, the traces are %v and %v, want none", traces.Accounts, traces.Sessions)
 	}
 
-	traces = views.Traces{}.Told([]views.Sent{sentAgo("0a000003", tracedC61B, "side", 5*time.Minute)}, tracedAt)
-	traces = traces.Told([]views.Sent{sentAgo("0a000004", tracedC61B, "side", -35*time.Minute)}, tracedAt.Add(35*time.Minute))
+	traces = views.Traces{}.Told([]views.Told{sentAgo("0a000003", tracedC61B, "side", 5*time.Minute)}, tracedAt)
+	traces = traces.Told([]views.Told{sentAgo("0a000004", tracedC61B, "side", -35*time.Minute)}, tracedAt.Add(35*time.Minute))
 	if got := len(traces.Accounts["side"].Sent); got != 1 {
 		t.Errorf("40 minutes after a request, as another is sent, side's trace counts %d, want the new one alone", got)
 	}

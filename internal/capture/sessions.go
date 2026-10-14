@@ -110,5 +110,5 @@ func routedAfterTheLimit(now time.Time) []status.Session {
 // streaming to it now.
 func resumedRouted(now time.Time) status.Session {
 	since := clockAt(now, 0, 9, 12, 0)
-	return status.Session{ID: idF41A, Assignments: []status.Assignment{assigned(opus, "personal", "~/Code/api", status.Rescored("15h"), since, now, status.Answering)}}
+	return status.Session{ID: idF41A, Assignments: []status.Assignment{assigned(opus, "personal", "~/Code/api", status.Rescored(15*time.Hour), since, now, status.Answering)}}
 }

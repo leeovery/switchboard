@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/status/statustest"
@@ -266,7 +267,7 @@ func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
 	warned := map[string][]string{
 		"a week at its reserve when built":                           {"work · work: Week at 92%"},
 		"a week at its reserve when built, the global pin naming it": {"work · work: Week at 92%"},
-		"a limit holding":                      {"work · work: Session at 100%"},
+		"a limit holding":                      {"work · work: 5-hour at 100%"},
 		"probed, of one account, with no room": {"work · work: Week at 100%"},
 	}
 	for _, hm := range statustest.HardMoments(policy) {
@@ -279,7 +280,7 @@ func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
 				}
 				for _, w := range a.Windows {
 					if w.Used >= notifications.Warning {
-						warnings = append(warnings, a.Title()+": "+w.Label+" at "+status.Percent(w.Used))
+						warnings = append(warnings, a.Title()+": "+w.Name+" at "+prose.Percent(w.Used))
 					}
 				}
 			}

@@ -69,39 +69,6 @@ func seatedOn(sessions []status.Session, id string) []seated {
 // while a request of its is in flight.
 const busyWithin = time.Minute
 
-// activeWithin is how lately a session's model was seen on an account for it
-// to count among the account's sessions, as the router counts them: within
-// the hour its cache lasts.
-const activeWithin = time.Hour
-
-// busy are the sessions active on the account with the given id at now, as
-// active says, of those listed, as listing has them, in their order, the one
-// seen last first: each lit while any of its models is busy there, as lit
-// says.
-func (f Frame) busy(listing []status.Session, id string, now time.Time) []bool {
-	var busy []bool
-	for _, s := range listing {
-		on, lit := false, false
-		for _, a := range s.Assignments {
-			seat := seated{session: s, assignment: a}
-			if a.Account == id && f.active(seat, now) {
-				on, lit = true, lit || f.lit(seat, now)
-			}
-		}
-		if on {
-			busy = append(busy, lit)
-		}
-	}
-	return busy
-}
-
-// active reports whether the seat s counts among its account's sessions at
-// now, as the router counts them: seen there within activeWithin, as
-// lastSeen has it, or put there since, as a move the stream told of puts it.
-func (f Frame) active(s seated, now time.Time) bool {
-	return now.Sub(score.Later(f.lastSeen(s), s.assignment.AssignedAt)) <= activeWithin
-}
-
 // lit reports whether the seat s is busy at now: a request of its in flight,
 // as the request stream tells, or it was seen at work in the last minute.
 func (f Frame) lit(s seated, now time.Time) bool {
@@ -132,7 +99,7 @@ func modelColumnOf(seats []seated) int {
 // wide; and what it's doing.
 func (f Frame) seatLine(s seated, column int, now time.Time) line {
 	busy := f.lit(s, now)
-	id := span{padded(sessionID(s.session.ID), idColumn), titleInk}
+	id := span{padded(status.ShownID(s.session.ID), idColumn), titleInk}
 	if !busy {
 		id.ink = idleIDInk
 	}
@@ -192,12 +159,12 @@ func (f Frame) doing(s seated, now time.Time) doing {
 }
 
 // lapsed says how long has passed from since to now: in seconds, as "38s",
-// within a minute, and from then as seenAgo rounds it, as "9m".
+// within a minute, and from then as prose.SeenAgo rounds it, as "9m".
 func lapsed(since, now time.Time) string {
 	if d := now.Sub(since); d < time.Minute {
 		return strconv.Itoa(max(int(d/time.Second), 0)) + "s"
 	}
-	return seenAgo(now, since)
+	return prose.SeenAgo(now, since)
 }
 
 // note is what's noted under a seat's row under the panel of the account
@@ -224,13 +191,13 @@ func note(doc status.Document, id string, s seated, now time.Time) string {
 	pinned := s.assignment.Pinned || pin == id
 	switch {
 	case pinned && !s.assignment.PinnedAt.IsZero():
-		return "pinned here at " + status.Dated(now, s.assignment.PinnedAt)
+		return "pinned here at " + prose.Dated(now, s.assignment.PinnedAt)
 	case pinned:
 		return "pinned here"
 	case moved:
-		return "moved from " + docNamed(doc, move.From) + " at " + status.Dated(now, move.At)
+		return "moved from " + docNamed(doc, move.From) + " at " + prose.Dated(now, move.At)
 	default:
-		return "here since " + status.Dated(now, s.assignment.AssignedAt)
+		return "here since " + prose.Dated(now, s.assignment.AssignedAt)
 	}
 }
 
@@ -293,7 +260,7 @@ func (f Frame) unseatedBy(doc status.Document, id string, now time.Time) []chunk
 		case e.Kind == status.EventLimit && e.Account == id && e.Count > 0:
 			return limitMoved(doc, e, id, now)
 		case e.Kind == status.EventMoved && !counted(e) && e.From == id:
-			return []chunk{{text: slices.Concat(line{{sessionID(e.Session) + " moved to " + docNamed(doc, e.To) + " at " + status.Dated(now, e.At), mutedInk}}, why(doc, e.Reason))}}
+			return []chunk{{text: slices.Concat(line{{status.ShownID(e.Session) + " moved to " + docNamed(doc, e.To) + " at " + prose.Dated(now, e.At), mutedInk}}, why(doc, e.Reason))}}
 		}
 	}
 	return nil
@@ -305,7 +272,7 @@ func (f Frame) unseatedBy(doc status.Document, id string, now time.Time) []chunk
 func limitMoved(doc status.Document, e status.Event, id string, now time.Time) []chunk {
 	to := cmp.Or(movedTo(doc, e), " to other accounts")
 	return []chunk{
-		{text: line{{strconv.Itoa(e.Count) + " moved" + to + " at " + status.Dated(now, e.At) + ",", mutedInk}}},
+		{text: line{{strconv.Itoa(e.Count) + " moved" + to + " at " + prose.Dated(now, e.At) + ",", mutedInk}}},
 		{text: line{{"when " + docNamed(doc, id) + " reached its limit", mutedInk}}},
 	}
 }

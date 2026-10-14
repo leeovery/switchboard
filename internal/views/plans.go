@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -33,8 +34,8 @@ func prorate(monthly ledger.Picodollars, s monthPart) ledger.Picodollars {
 }
 
 // askedShare is the share of a month the days from the one with the date
-// from to today's, each as civil gives it, are: as Accounts prices the
-// period they make, where they make one, today, this week from the day
+// from to today's, each as dayfile.Civil gives one, are: as Accounts prices
+// the period they make, where they make one, today, this week from the day
 // weeks start on, the last 30 days or the last 12 weeks, each whole while
 // it's still running; else a day each.
 func askedShare(from, today time.Time, weekStarts time.Weekday) monthPart {
@@ -60,16 +61,16 @@ func askedShare(from, today time.Time, weekStarts time.Weekday) monthPart {
 // running is priced to its end, and the day the ledger began recording cuts
 // none short.
 func cutShort(first, last, from string, uncut monthPart) (monthPart, string) {
-	start, startOK := civil(from)
-	end, endOK := civil(last)
+	start, startOK := dayfile.Civil(from)
+	end, endOK := dayfile.Civil(last)
 	if from <= first || !startOK || !endOK {
 		return uncut, first
 	}
 	return days(int(end.Sub(start)/(24*time.Hour)) + 1), from
 }
 
-// weekOf is the first day of the week the day falls in, as civil gives it,
-// weeks starting on the day given.
+// weekOf is the first day of the week the day falls in, as dayfile.Civil
+// gives one, weeks starting on the day given.
 func weekOf(day time.Time, starts time.Weekday) time.Time {
 	return day.AddDate(0, 0, -int((7+day.Weekday()-starts)%7))
 }
@@ -143,6 +144,21 @@ type PlanCost struct {
 	Price   *ledger.Picodollars `json:"price,omitempty"`
 	Against
 	Worth
+}
+
+// Monthly is what the plan costs a month, as PerMonth says a price: "" where
+// its price isn't known.
+func (p PlanCost) Monthly() string {
+	if p.Price == nil {
+		return ""
+	}
+	return PerMonth(*p.Price)
+}
+
+// PerMonth says a plan's price a month, to the dollar, its thousands set
+// apart, as "$1,000/mo".
+func PerMonth(price ledger.Picodollars) string {
+	return price.GroupedDollars() + "/mo"
 }
 
 // plansOf are each configured account's plan over days, in the config's

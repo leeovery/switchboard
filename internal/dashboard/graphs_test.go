@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -228,7 +229,7 @@ func TestAChartsLinesTakeTheEmptyCellsTheCapsThenEvenPacesThenNows(t *testing.T)
 
 func TestAChartsAxisIsItsStartNowAndItsReset(t *testing.T) {
 	week := chart{
-		name: "WEEK", start: time.Date(2026, 9, 27, 21, 0, 0, 0, time.UTC), length: 7 * day, spanned: true,
+		name: "WEEK", start: time.Date(2026, 9, 27, 21, 0, 0, 0, time.UTC), length: 7 * quota.Day, spanned: true,
 		readings: []score.Reading{readOn(8, 0, 0.1)}, now: time.Date(2026, 10, 1, 14, 42, 0, 0, time.UTC),
 	}
 	tests := []struct {

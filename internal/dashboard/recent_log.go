@@ -3,7 +3,6 @@ package dashboard
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -29,11 +28,11 @@ func told(e status.Event, doc status.Document, now time.Time) (span, line, bool)
 	e.At = e.At.In(now.Location())
 	switch e.Kind {
 	case status.EventStarted:
-		return span{"▲", accentInk}, slices.Concat(line{{sessionID(e.Session), titleInk}, {" started on ", mutedInk}, {docNamed(doc, e.Account), strongInk}}, why(doc, e.Reason)), true
+		return span{"▲", accentInk}, slices.Concat(line{{status.ShownID(e.Session), titleInk}, {" started on ", mutedInk}, {docNamed(doc, e.Account), strongInk}}, why(doc, e.Reason)), true
 	case status.EventMoved:
 		return movedMark, moveSaid(e, doc, why(doc, e.Reason)), true
 	case status.EventRestart:
-		return span{"!", warningInk}, line{{"restart due (" + status.Clean(e.Reason) + ")", mutedInk}}, true
+		return span{"!", warningInk}, line{{"restart due (" + prose.Clean(e.Reason) + ")", mutedInk}}, true
 	case status.EventHealth:
 		if e.Reason != "" {
 			return span{"●", errorInk}, line{{because("the router turned unhealthy", e.Reason), mutedInk}}, true
@@ -74,7 +73,7 @@ var movedMark = span{"▸", dimInk}
 // moveSaid says a session's model moved, from where to where, as in "d28c
 // moved work → side", then why, as said gives it.
 func moveSaid(e status.Event, doc status.Document, said line) line {
-	return slices.Concat(line{{sessionID(e.Session), titleInk}, {" moved ", mutedInk}, {docNamed(doc, e.From), strongInk}, {" → ", mutedInk}, {docNamed(doc, e.To), strongInk}}, said)
+	return slices.Concat(line{{status.ShownID(e.Session), titleInk}, {" moved ", mutedInk}, {docNamed(doc, e.From), strongInk}, {" → ", mutedInk}, {docNamed(doc, e.To), strongInk}}, said)
 }
 
 // why says why a session went where it did, as the router's reason gives it,
@@ -121,7 +120,7 @@ func namedFirst(doc status.Document, words string) string {
 // cleaned, into what it says of the choice, and the account under pressure
 // the choice passed over, "" where it passed none.
 func passedOverIn(reason string) (said, passed string) {
-	reason = status.Clean(reason)
+	reason = prose.Clean(reason)
 	if i := strings.LastIndex(reason, ", "); i >= 0 && strings.HasSuffix(reason, passedOver) {
 		return reason[:i], reason[i+2:]
 	}
@@ -157,7 +156,7 @@ func runsOut(e status.Event, doc status.Document) line {
 		out = " reaches its reserve ~"
 	}
 	window := windowName(doc, e.Account, first(e.Windows))
-	return line{{": its " + window + out + status.When(e.At, e.Until) + " " + rate, mutedInk}}
+	return line{{": its " + window + out + prose.When(e.At, e.Until) + " " + rate, mutedInk}}
 }
 
 // reserveHeld reports whether doc's account the event e befell had its
@@ -196,7 +195,7 @@ func moves(e status.Event, doc status.Document) line {
 	if e.Count == 0 {
 		return nil
 	}
-	l := line{{"; ", mutedInk}, {status.SessionCount(e.Count), secondaryInk}, {" moved", mutedInk}}
+	l := line{{"; ", mutedInk}, {prose.SessionCount(e.Count), secondaryInk}, {" moved", mutedInk}}
 	if e.To != "" {
 		l = append(l, span{" to ", mutedInk}, span{docNamed(doc, e.To), strongInk})
 	}
@@ -215,19 +214,18 @@ func movedTo(doc status.Document, e status.Event) string {
 // refusal is what's said of the upstream refusing requests on an account,
 // after its name: its mark, a refusal of its token, which holds back every
 // request, in state.destructive, or of a model family's requests alone,
-// which hold back less, in accent.attention; what was refused, as in "was
-// refused (403, opus)"; and until when, as in " until 21:40", where the event
-// says.
+// which hold back less, in accent.attention; what was refused, as
+// status.RefusalAnswer says it, as in "was refused (403, opus)"; and until
+// when, as in " until 21:40", where the event says.
 func refusal(e status.Event) (mark span, words, until string) {
-	mark, answer := span{"■", errorInk}, strconv.Itoa(e.Status)
+	mark = span{"■", errorInk}
 	if e.Family != "" {
-		mark, answer = span{"■", warningInk}, answer+", "+status.Clean(e.Family)
+		mark = span{"■", warningInk}
 	}
 	if !e.Until.IsZero() {
-		until = " until " + status.When(e.At, e.Until)
+		until = " until " + prose.When(e.At, e.Until)
 	}
-	words = "was refused (" + answer + ")"
-	return mark, words, until
+	return mark, "was " + status.RefusalAnswer(e.Status, e.Family), until
 }
 
 // resetting says when the window a prime started resets, as in ",
@@ -236,7 +234,7 @@ func resetting(e status.Event) string {
 	if e.Until.IsZero() {
 		return ""
 	}
-	return ", resetting " + status.When(e.At, e.Until)
+	return ", resetting " + prose.When(e.At, e.Until)
 }
 
 // windowName names an account's window in a sentence, as prosed has its
@@ -247,7 +245,7 @@ func windowName(doc status.Document, account, key string) string {
 			return status.InProse(w.Label)
 		}
 	}
-	return status.Clean(key)
+	return prose.Clean(key)
 }
 
 // first is the first of keys, or "" for none.
@@ -272,12 +270,12 @@ type telling struct {
 func (f Frame) tellingsOf(events []status.Event, doc status.Document, now time.Time, tell func(status.Event, status.Document, time.Time) (span, line, bool)) []telling {
 	column := 0
 	for _, e := range events {
-		column = max(column, len(status.Dated(now, e.At)))
+		column = max(column, len(prose.Dated(now, e.At)))
 	}
 	tellings := make([]telling, len(events))
 	for i, e := range events {
 		mark, words, _ := tell(e, doc, now)
-		at := span{fmt.Sprintf("%-*s", column, status.Dated(now, e.At)) + f.timeGap(), dimInk}
+		at := span{fmt.Sprintf("%-*s", column, prose.Dated(now, e.At)) + f.timeGap(), dimInk}
 		if i == 0 {
 			at.ink = secondaryInk
 		}

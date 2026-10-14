@@ -41,8 +41,9 @@ func TestAWorthIsWrittenToTheDollar(t *testing.T) {
 	}
 }
 
-// Against its price is bold, in state.positive at 1× or more as it's
-// written, and accent.attention under; a dash where there's none.
+// Against its price is to a tenth, a half to the even one, bold, in
+// state.positive at 1× or more as it's written, and accent.attention under; a
+// dash where there's none.
 func TestAgainstItsPriceIsColouredAsItsWritten(t *testing.T) {
 	tests := []struct {
 		ratio *float64
@@ -51,6 +52,9 @@ func TestAgainstItsPriceIsColouredAsItsWritten(t *testing.T) {
 		{ratio: new(3.8166), want: line{{"3.8×", boldPositiveInk}}},
 		{ratio: new(0.96), want: line{{"1.0×", boldPositiveInk}}},
 		{ratio: new(0.94), want: line{{"0.9×", alertInk}}},
+		{ratio: new(0.25), want: line{{"0.2×", alertInk}}},
+		{ratio: new(1.25), want: line{{"1.2×", boldPositiveInk}}},
+		{ratio: new(0.75), want: line{{"0.8×", alertInk}}},
 		{want: line{noFigure}},
 	}
 	for _, tt := range tests {
@@ -68,6 +72,16 @@ func TestAShareIsAWholePercentage(t *testing.T) {
 	}
 	if got, want := shareSaid(nil, strongInk), (line{noFigure}); !slices.Equal(got, want) {
 		t.Errorf("an unknown share reads %+v, want %+v", got, want)
+	}
+}
+
+// What History says as views words it is drawn in its ink, each figure among
+// it a figure, so a wrap never breaks it, and the rest words.
+func TestWordsViewsSayAreDrawnTheirFiguresFigures(t *testing.T) {
+	got := saidParts(views.ShortOutOf(6, 7), mutedInk)
+	want := []part{wordsIn("short on ", mutedInk), figureIn("6", mutedInk), wordsIn(" of ", mutedInk), figureIn("7", mutedInk)}
+	if !slices.EqualFunc(got, want, func(a, b part) bool { return a.figure == b.figure && slices.Equal(a.said, b.said) }) {
+		t.Errorf("short on 6 of 7 is drawn as %+v, want %+v", got, want)
 	}
 }
 

@@ -2,7 +2,6 @@ package status
 
 import (
 	"fmt"
-	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,23 +14,16 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 )
 
-// Separator sets apart the parts of a line that says several things, such as
-// where the usage came from: wider than the dot within an account's title, so
-// the title reads as one part.
-const Separator = "  ·  "
-
-// Over says the span a recent rate is measured over, from since until now:
-// "last 30 min", "last 18 min" for a window without a level that far back,
-// or "last 2h" across a gap in its readings. A rate that doesn't say when
-// it's measured from, as a router from before gave it, is the half hour's.
+// Over says the span a recent rate is measured over, from since until now,
+// as prose.Over says it: "last 30 min", "last 18 min" for a window without a
+// level that far back, or "last 2h" across a gap in its readings. A rate that
+// doesn't say when it's measured from, as a router from before gave it, is
+// the half hour's.
 func Over(since, now time.Time) string {
 	if since.IsZero() {
 		since = now.Add(-score.Recent)
 	}
-	if d := now.Sub(since); d < time.Hour {
-		return fmt.Sprintf("last %d min", int(d/time.Minute))
-	}
-	return "last " + Countdown(since, now)
+	return prose.Over(now.Sub(since))
 }
 
 // notStarted is what's said of a window that has lapsed: it isn't running,
@@ -53,12 +45,12 @@ const notStarted = "not started"
 // upstream's errors, it shows cleaned.
 func (m Moment) Text(sessions ...Session) string {
 	d, now := m.doc, m.Now
-	width := labelWidth(d.Accounts)
+	width := m.nameWidth()
 	var b strings.Builder
 	for i, a := range m.Accounts {
 		j := m.judged[i]
 		m.writeAccount(&b, a, j, width)
-		writeNotes(&b, a, j.states.account, now)
+		m.writeNotes(&b, a, j.states.account)
 		b.WriteString("\n")
 	}
 	if len(sessions) > 0 {
@@ -89,32 +81,32 @@ func (m Moment) writePriming(b *strings.Builder) {
 	}
 	slots := make([]string, len(prime.Slots))
 	for i, s := range prime.Slots {
-		slots[i] = Clean(s.Account) + " at " + Clean(s.At)
+		slots[i] = prose.Clean(s.Account) + " at " + prose.Clean(s.At)
 	}
-	fmt.Fprintf(b, "priming %s: %s\n", Clean(prime.Day), prose.List(slots))
+	fmt.Fprintf(b, "priming %s: %s\n", prose.Clean(prime.Day), prose.List(slots))
 	if len(m.Coming) > 0 {
 		parts := make([]string, len(m.Coming))
 		for i, c := range m.Coming {
-			parts[i] = c.What + ": " + c.Account.Title() + ", " + Clock(m.Now, c.At)
+			parts[i] = c.What + ": " + c.Account.Title() + ", " + prose.Clock(m.Now, c.At)
 		}
-		fmt.Fprintf(b, "%s\n", strings.Join(parts, Separator))
+		fmt.Fprintf(b, "%s\n", strings.Join(parts, prose.Separator))
 	}
 }
 
 // writeNotes writes what's noted of the account a, as read, beside its usage,
-// as it stands at now as an has it: what the router saw hold it back then,
-// how its reserve stands, whether it's under pressure, and how many sessions
-// the router has sent it.
-func writeNotes(b *strings.Builder, an AccountNow, a Account, now time.Time) {
-	notes := a.heldBy(now)
+// as it stands at the moment as an has it: what the router saw hold it back
+// then, how its reserve stands, whether it's under pressure, and how many
+// sessions the router has sent it.
+func (m Moment) writeNotes(b *strings.Builder, an AccountNow, a Account) {
+	notes := a.heldBy(m.Now)
 	if said := reserved(an.ReachedReserve, an.Pinned, an.Reserve); said != "" {
 		notes = append(notes, said)
 	}
-	if pressed := pressureNote(a, an.Pressure, now); pressed != "" {
+	if pressed := m.pressureNote(a, an.Pressure); pressed != "" {
 		notes = append(notes, pressed)
 	}
 	if an.Sessions > 0 {
-		notes = append(notes, SessionCount(an.Sessions))
+		notes = append(notes, prose.SessionCount(an.Sessions))
 	}
 	for _, note := range notes {
 		fmt.Fprintf(b, "  %s\n", note)
@@ -139,7 +131,7 @@ func reserved(reached []string, pinned bool, reserve float64) string {
 	case pinned:
 		return "spending its reserve (pinned)"
 	default:
-		return "at its reserve (" + Percent(1-reserve) + ")"
+		return "at its reserve (" + prose.Percent(1-reserve) + ")"
 	}
 }
 
@@ -158,19 +150,20 @@ func pressureLine(p PressureNow, now time.Time) (string, bool) {
 	case out.At.IsZero():
 		return "under pressure", false
 	case out.Reserve:
-		return "under pressure: at its reserve ~" + TimeOfDay(now, out.At), true
+		return "under pressure: at its reserve ~" + prose.TimeOfDay(now, out.At), true
 	default:
-		return "under pressure: runs out ~" + TimeOfDay(now, out.At), true
+		return "under pressure: runs out ~" + prose.TimeOfDay(now, out.At), true
 	}
 }
 
 // pressureNote says the account a, as read, standing under pressure as p has
 // it, is under pressure, as pressureLine does, and, where that says when its
-// window runs out, why: the rate it goes by, and the reset its window runs
-// out before, as in "under pressure: runs out ~18:21 at Session's rate over
-// the last 30 min, before its reset at 20:10". It's "" while it isn't under
-// pressure.
-func pressureNote(a Account, p PressureNow, now time.Time) string {
+// window runs out, why: the rate it goes by, the window as the moment names
+// it, put as a sentence has it, and the reset its window runs out before, as
+// in "under pressure: runs out ~18:21 at 5-hour's rate over the last 30 min,
+// before its reset at 20:10". It's "" while it isn't under pressure.
+func (m Moment) pressureNote(a Account, p PressureNow) string {
+	now := m.Now
 	pressed, timed := pressureLine(p, now)
 	w, ok := a.Window(p.Window)
 	if !timed || !ok {
@@ -180,7 +173,7 @@ func pressureNote(a Account, p PressureNow, now time.Time) string {
 	if !a.Pressure.Recent {
 		over = "since it started"
 	}
-	return pressed + " at " + Clean(w.Label) + "'s rate " + over + ", before its reset at " + TimeOfDay(now, w.ResetsAt)
+	return pressed + " at " + InProse(m.NameOf(w.Key)) + "'s rate " + over + ", before its reset at " + prose.TimeOfDay(now, w.ResetsAt)
 }
 
 // Window returns the account's window with the given key, reporting false
@@ -216,7 +209,7 @@ func (d Document) origin() string {
 		if !d.Router.Healthy {
 			health = because("unhealthy", d.Router.Reason)
 		}
-		return "from the router: " + health + Separator + SessionCount(d.Sessions) + Separator + d.Routing()
+		return "from the router: " + health + prose.Separator + prose.SessionCount(d.Sessions) + prose.Separator + d.Routing()
 	}
 	switch d.Fallback.Router {
 	case RouterNotRunning:
@@ -230,7 +223,7 @@ func (d Document) origin() string {
 
 // because follows what with why, cleaned, when there's a why.
 func because(what, why string) string {
-	if why = Clean(why); why == "" {
+	if why = prose.Clean(why); why == "" {
 		return what
 	}
 	return what + ", " + why
@@ -261,7 +254,7 @@ func (d Document) destination(ids []string) string {
 func (d Document) Names(ids []string) string {
 	names := make([]string, len(ids))
 	for i, id := range ids {
-		names[i] = Clean(id)
+		names[i] = prose.Clean(id)
 		if account, ok := d.Account(id); ok {
 			names[i] = account.Title()
 		}
@@ -269,23 +262,10 @@ func (d Document) Names(ids []string) string {
 	return prose.List(names)
 }
 
-// SessionCount counts sessions in words, such as "3 sessions", "1 session" or
-// "no sessions".
-func SessionCount(n int) string {
-	switch n {
-	case 0:
-		return "no sessions"
-	case 1:
-		return "1 session"
-	default:
-		return fmt.Sprintf("%d sessions", n)
-	}
-}
-
 // Text says until when the limit holds, such as "limit until Mon 21:00", in
 // now's time zone.
 func (l Limit) Text(now time.Time) string {
-	return "limit until " + Clock(now, l.Until)
+	return "limit until " + prose.Clock(now, l.Until)
 }
 
 // Text says why the restart is due, and since when, in now's time zone, and
@@ -295,7 +275,7 @@ func (l Limit) Text(now time.Time) string {
 // cutting off requests still in flight after 30 seconds"; or, the router run
 // by hand, once it's run again.
 func (r Restart) Text(now time.Time) string {
-	due := "restart due since " + Clock(now, r.Since) + " (" + Clean(r.Reason) + ")"
+	due := "restart due since " + prose.Clock(now, r.Since) + " (" + prose.Clean(r.Reason) + ")"
 	if r.ByHand {
 		return due + ": run switchboard serve again to take it up"
 	}
@@ -306,21 +286,36 @@ func (r Restart) Text(now time.Time) string {
 // Text says how the upstream refused, and until when the refusal holds, such
 // as "refused (403, opus) until 21:40", in now's time zone.
 func (r Refusal) Text(now time.Time) string {
-	return r.Answer() + " until " + TimeOfDay(now, r.Until)
+	return r.Answer() + " until " + prose.TimeOfDay(now, r.Until)
 }
 
-// Answer says how the upstream refused, such as "refused (401)", or, refusing
-// a family's requests alone, "refused (403, opus)".
+// Answer says how the upstream refused, as RefusalAnswer says it, such as
+// "refused (401)", or, refusing a family's requests alone, "refused (403,
+// opus)".
 func (r Refusal) Answer() string {
-	answer := strconv.Itoa(r.Status)
-	if r.Family != "" {
-		answer += ", " + Clean(r.Family)
+	return RefusalAnswer(r.Status, r.Family)
+}
+
+// RefusalAnswer says how the upstream refused, with the HTTP status code
+// given, of the model family given, cleaned, where it refused that family's
+// requests alone: "refused (401)", "refused (403, opus)"; either left out
+// where it's none, and "refused" alone where both are.
+func RefusalAnswer(code int, family string) string {
+	var answer []string
+	if code != 0 {
+		answer = append(answer, strconv.Itoa(code))
 	}
-	return "refused (" + answer + ")"
+	if family = prose.Clean(family); family != "" {
+		answer = append(answer, family)
+	}
+	if len(answer) == 0 {
+		return "refused"
+	}
+	return "refused (" + strings.Join(answer, ", ") + ")"
 }
 
 // writeAccount writes the account a, judged as j, as it stands at the
-// moment: its title, marking the primary, its windows with their labels
+// moment: its title, marking the primary, its windows with their names
 // width wide, each as accountWindow has it, and whatever couldn't be read.
 func (m Moment) writeAccount(b *strings.Builder, a AccountNow, j judgedAccount, width int) {
 	title := a.Title()
@@ -332,133 +327,18 @@ func (m Moment) writeAccount(b *strings.Builder, a AccountNow, j judgedAccount, 
 		fmt.Fprintf(b, "  %s\n", m.accountWindow(a, a.Windows[i], w, width))
 	}
 	for _, f := range a.Failures {
-		fmt.Fprintf(b, "  %s offline: %s\n", Clean(f.Label), Clean(f.Error))
+		fmt.Fprintf(b, "  %s offline: %s\n", prose.Clean(f.Label), prose.Clean(f.Error))
 	}
 	if a.Error != "" {
 		fmt.Fprintf(b, "  %s\n", a.Error)
 	}
 }
 
-// Countdown says how long it is from now until t, in whole units: "5d 12h"
-// from a day away, "4h 57m" from an hour, else "7m"; "now" once t has come.
-// A second unit of zero is left off, as in "6d" and "4h".
-func Countdown(now, t time.Time) string {
-	return countdown(t.Sub(now), "%dm")
-}
-
-// countdown says how long d is as Countdown does, the minutes after hours as
-// the format given writes them.
-func countdown(d time.Duration, minutesAfterHours string) string {
-	if d <= 0 {
-		return "now"
-	}
-	hours, minutes := int(d/time.Hour), int(d%time.Hour/time.Minute)
-	switch {
-	case hours >= 24:
-		return withRest(fmt.Sprintf("%dd", hours/24), hours%24, "%dh")
-	case hours >= 1:
-		return withRest(fmt.Sprintf("%dh", hours), minutes, minutesAfterHours)
-	default:
-		return fmt.Sprintf("%dm", minutes)
-	}
-}
-
-// withRest follows a count with what's left over in the next unit down, as
-// the format given writes it, unless nothing is: "5d 12h", but "6d".
-func withRest(count string, rest int, format string) string {
-	if rest == 0 {
-		return count
-	}
-	return count + " " + fmt.Sprintf(format, rest)
-}
-
-// Clock shows t as its weekday and 24-hour time in now's time zone, such as
-// "Mon 18:10".
-func Clock(now, t time.Time) string {
-	return t.In(now.Location()).Format("Mon 15:04")
-}
-
-// TimeOfDay shows t as its 24-hour time in now's time zone, such as "13:51".
-func TimeOfDay(now, t time.Time) string {
-	return t.In(now.Location()).Format("15:04")
-}
-
-// day is a day's length, as When has it.
-const day = 24 * time.Hour
-
-// When shows t in now's time zone: its time of day, such as "15:54", within
-// a day of now, before or after, as what's coming up or happened lately is;
-// else its weekday too, such as "Mon 21:00".
-func When(now, t time.Time) string {
-	if d := t.Sub(now); -day < d && d < day {
-		return TimeOfDay(now, t)
-	}
-	return Clock(now, t)
-}
-
-// Dated shows t in now's time zone as a card does: its time of day, such as
-// "16:05", on now's day; on any other, its weekday too, such as "Fri 04:06".
-func Dated(now, t time.Time) string {
-	if t.In(now.Location()).Format(time.DateOnly) == now.Format(time.DateOnly) {
-		return TimeOfDay(now, t)
-	}
-	return Clock(now, t)
-}
-
-// Past shows t, before now, in now's time zone, by how far back its day is,
-// as when a session started: its time of day, such as "12:47", on now's day;
-// "yesterday 15:08" on the day before; its weekday too, such as "Tue 15:08",
-// within the week; else its date, such as "28 Sep 15:08".
-func Past(now, t time.Time) string {
-	t = t.In(now.Location())
-	switch days := daysBetween(t, now); {
-	case days == 0:
-		return TimeOfDay(now, t)
-	case days == 1:
-		return "yesterday " + TimeOfDay(now, t)
-	case WithinWeek(now, t):
-		return Clock(now, t)
-	}
-	return t.Format("2 Jan 15:04")
-}
-
-// WithinWeek reports whether t, before now, falls on now's day or one of the
-// six before it, in now's time zone: the days Past names by their weekday.
-func WithinWeek(now, t time.Time) bool {
-	return daysBetween(t, now) < 7
-}
-
-// daysBetween counts the days from the one t falls on to the one now does,
-// in now's time zone, however long the days between ran.
-func daysBetween(t, now time.Time) int {
-	noon := func(t time.Time) time.Time {
-		y, m, d := t.In(now.Location()).Date()
-		return time.Date(y, m, d, 12, 0, 0, 0, time.UTC)
-	}
-	return int(noon(now).Sub(noon(t)).Round(day) / day)
-}
-
-// Until counts down from now to t, as "in 1h 12m", rounded up to the whole
-// minute, so within a day it never says less time is left than is, and the
-// minutes after hours two digits, as "in 4h 08m", so a column of them reads
-// evenly; from a day out, in days and whole hours, as "in 1d 15h", the
-// minutes left off, as the frames count them: "now" once t has come.
-func Until(now, t time.Time) string {
-	left := t.Sub(now)
-	if left <= 0 {
-		return "now"
-	}
-	if up := left.Truncate(time.Minute); up < left {
-		left = up + time.Minute
-	}
-	return "in " + countdown(left, "%02dm")
-}
-
 // InProse is a window's label as a sentence has it, cleaned: one word, as
 // Session or Week, is a common noun, so lower-cased; more, as Fable week,
 // leads with a model's name, which keeps its capital.
 func InProse(label string) string {
-	label = Clean(label)
+	label = prose.Clean(label)
 	if label == "" || strings.Contains(label, " ") {
 		return label
 	}
@@ -469,20 +349,11 @@ func InProse(label string) string {
 // Short is a window's label as a narrow column has it, cleaned: a model's own
 // week, as Fable week, is its wk, and any other label as it is.
 func Short(label string) string {
-	label = Clean(label)
+	label = prose.Clean(label)
 	if before, ok := strings.CutSuffix(label, " week"); ok && before != "" {
 		return before + " wk"
 	}
 	return label
-}
-
-// Resets counts down from now to a window's reset at t: "resets in 4h 57m",
-// or "resets now" once t has come.
-func Resets(now, t time.Time) string {
-	if !t.After(now) {
-		return "resets now"
-	}
-	return "resets in " + Countdown(now, t)
 }
 
 // projection says where a window is heading, such as "on pace for 92%",
@@ -491,25 +362,14 @@ func Resets(now, t time.Time) string {
 func projection(now time.Time, p score.Projection) string {
 	switch p.Kind {
 	case score.OnPace:
-		return "on pace for " + Percent(p.AtReset)
+		return "on pace for " + prose.Percent(p.AtReset)
 	case score.RunsOut:
-		return "runs out ~" + Clock(now, p.At)
+		return "runs out ~" + prose.Clock(now, p.At)
 	case score.Exhausted:
 		return "exhausted"
 	default:
 		return ""
 	}
-}
-
-// Percent shows a utilization as a whole percentage, such as "23%".
-func Percent(utilization float64) string {
-	return strconv.Itoa(WholePercent(utilization)) + "%"
-}
-
-// WholePercent is a utilization as the whole percentage Percent shows, a half
-// rounded to the even one.
-func WholePercent(utilization float64) int {
-	return int(math.RoundToEven(utilization * 100))
 }
 
 // Title names an account by its id and label, such as "work · Work", each
@@ -520,20 +380,7 @@ func (a Account) Title() string {
 
 // title names the account with the given id and label, as Title does.
 func title(id, label string) string {
-	return Clean(id) + " · " + Clean(label)
-}
-
-// Clean makes text safe to show on one line of a terminal: control
-// characters, which would move the cursor or restyle what follows, become
-// spaces, and each run of spaces becomes one.
-func Clean(text string) string {
-	text = strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, text)
-	return strings.Join(strings.Fields(text), " ")
+	return prose.Clean(id) + " · " + prose.Clean(label)
 }
 
 // Account finds the account with the given id.
@@ -546,20 +393,21 @@ func (d Document) Account(id string) (Account, bool) {
 }
 
 // accountWindow shows account a's window, judged as w, standing at the moment
-// as wn has it, its label as read, width wide, and its use as it stands: not
-// started, and when it's primed; else with when it resets and where it's
-// heading, as windowNotes has them.
+// as wn has it, by its name at the moment, width wide, and its use as it
+// stands: not started, and when it's primed; else with when it resets and
+// where it's heading, as windowNotes has them.
 func (m Moment) accountWindow(a AccountNow, wn WindowNow, w judged, width int) string {
+	name := m.NameOf(w.window.Key)
 	if wn.Kind == WindowNotStarted {
-		return windowLine(w.window.Label, wn.Used, width, []string{notStartedNote(a.NextPrime, m.Now)})
+		return windowLine(name, wn.Used, width, []string{notStartedNote(a.NextPrime, m.Now)})
 	}
-	return windowLine(w.window.Label, wn.Used, width, windowNotes(w.stands, w.out.Heading, m.Now))
+	return windowLine(name, wn.Used, width, windowNotes(w.stands, w.out.Heading, m.Now))
 }
 
-// windowLine shows a window's label, labelWidth wide, and how much of it is
+// windowLine shows a window's name, nameWidth wide, and how much of it is
 // used, then the notes given of it.
-func windowLine(label string, used float64, labelWidth int, notes []string) string {
-	line := fmt.Sprintf("%-*s %4s", labelWidth, Clean(label), Percent(used))
+func windowLine(name string, used float64, nameWidth int, notes []string) string {
+	line := fmt.Sprintf("%-*s %4s", nameWidth, name, prose.Percent(used))
 	if len(notes) == 0 {
 		return line
 	}
@@ -574,7 +422,7 @@ func windowLine(label string, used float64, labelWidth int, notes []string) stri
 func windowNotes(stands quota.Window, heading Heading, now time.Time) []string {
 	var notes []string
 	if reset := stands.ResetsAt; !reset.IsZero() {
-		notes = append(notes, Resets(now, reset)+" · "+Clock(now, reset))
+		notes = append(notes, prose.Resets(now, reset)+" · "+prose.Clock(now, reset))
 	}
 	if heads := projection(now, heading.Projection); heads != "" {
 		if heading.Recent {
@@ -585,13 +433,13 @@ func windowNotes(stands quota.Window, heading Heading, now time.Time) []string {
 	return notes
 }
 
-// labelWidth is the length of the longest window label, which lines the
-// windows of every account up.
-func labelWidth(accounts []Account) int {
+// nameWidth is the length of the longest name of a window at the moment,
+// which lines the windows of every account up.
+func (m Moment) nameWidth() int {
 	width := 0
-	for _, account := range accounts {
+	for _, account := range m.doc.Accounts {
 		for _, w := range account.Windows {
-			width = max(width, utf8.RuneCountInString(Clean(w.Label)))
+			width = max(width, utf8.RuneCountInString(m.NameOf(w.Key)))
 		}
 	}
 	return width

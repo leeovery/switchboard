@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"cmp"
 	"maps"
 	"slices"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // How what travels the cords moves: a pulse runs along a cord in pulseFor;
@@ -23,30 +25,31 @@ const (
 	looseFor    = 3 * time.Second
 )
 
-// charsPerToken is how many of the characters the stream counts of an
-// answer make a token, as its tokens are estimated while it streams.
-const charsPerToken = 4
-
 // seenFor is how long the watch keeps when the stream last saw a seat, and a
 // move it told of that no listing of the router's sessions has shown done:
-// the router lists the sessions it has seen in the last hour, so one it
+// the router lists the sessions it has seen in the last IdleHour, so one it
 // lists after that it has seen since, as its own listing says.
-const seenFor = time.Hour
+const seenFor = views.IdleHour
 
 // traffic is what the router's request stream has told of the routed
-// requests, as the watch keeps it for the frame: what each request is doing
-// on each account it went out on; when the stream last told of each seat on
-// its account; the moves the stream told of, while they show; the account
-// the router's last listing of its sessions put each seat on, which ends
-// the re-patch of each move it shows done; and whether it's live, the
-// stream having opened since the watch last forgot what it told. Its maps
-// and moves are its own: what changes it copies them first.
+// requests, as the watch keeps it for the frame: each request it told of,
+// as the views read it, by its id; what each request is doing on each
+// account it went out on, as the cords draw it; when the stream last told of
+// each seat on its account; the moves the stream told of, while they show;
+// the account the router's last listing of its sessions put each seat on,
+// which ends the re-patch of each move it shows done; whether it's live, the
+// stream open and telling what's in flight, as the views trust it; and, the
+// stream opened again, the requests it told of in flight before, by their
+// ids, awaiting its first look, as join has it: nil while none does. Its
+// maps and moves are its own: what changes it copies them first.
 type traffic struct {
-	calls  map[callKey]call
-	seen   map[dashboard.Plug]time.Time
-	moves  []move
-	placed map[dashboard.Seat]string
-	live   bool
+	requests map[string]views.Told
+	calls    map[callKey]call
+	seen     map[dashboard.Plug]time.Time
+	moves    []move
+	placed   map[dashboard.Seat]string
+	live     bool
+	awaiting map[string]bool
 }
 
 // callKey names a request on an account it went out on: its id, and the
@@ -76,24 +79,31 @@ type call struct {
 }
 
 // move is a move the stream told of, as the frame draws it, Listed once a
-// listing of the router's sessions shows it done; and when it shows: at
-// once, or once the refusal that moved it has bounced back along its cord.
+// listing of the router's sessions shows it done; the request that moved it,
+// by its id; and when it shows: at once, or once the refusal that moved it
+// has bounced back along its cord.
 type move struct {
 	dashboard.Move
-	shows time.Time
+	request string
+	shows   time.Time
 }
 
 // took is the traffic once it has taken in the events heard, in turn, as
-// hear takes each, held saying whether a limit holds the account with the
-// given id back, each move among them done where the router's last listing
-// shows it so; tidied of what has ended by now.
+// join, tell and hear take each, held saying whether a limit holds the
+// account with the given id back, each move among them done where the
+// router's last listing shows it so; tidied of what has ended by now, as
+// tidy has it.
 func (t traffic) took(events []router.StreamEvent, held func(account string) bool, now time.Time) traffic {
-	t.calls, t.seen, t.moves = cloned(t.calls), cloned(t.seen), slices.Clone(t.moves)
+	t.requests, t.calls, t.seen, t.moves = cloned(t.requests), cloned(t.calls), cloned(t.seen), slices.Clone(t.moves)
+	t.awaiting = maps.Clone(t.awaiting)
 	for _, e := range events {
+		t.join(e)
+		t.tell(e)
 		t.hear(e, held)
 	}
 	t.moves = shownDone(t.moves, t.placed)
-	return t.tidied(now)
+	t.tidy(now)
+	return t
 }
 
 // cloned is a copy of m to change, made where m is nil.
@@ -139,6 +149,75 @@ func (t *traffic) hear(e router.StreamEvent, held func(account string) bool) {
 	case router.StreamMoved:
 		t.moved(e, held)
 	}
+}
+
+// tell takes in what the event e tells of its request, as the views read
+// it, whatever the request, Claude Code's quota check and a count of tokens
+// among them, which the views keep apart: each event names the request
+// afresh, and is when the stream last told of it, but a move, which tells
+// nothing of the request itself. Another request than the one held under
+// its id, as another says, is told of from nothing. In flight as the stream
+// opens, the request is as e has it, but for when it was first sent, where
+// that was told before; gone out again, it waits on another answer, the
+// last one's verdict, first byte and characters gone; and the rest as each
+// kind says.
+func (t *traffic) tell(e router.StreamEvent) {
+	if e.Kind == router.StreamMoved {
+		return
+	}
+	r := t.requests[e.Request]
+	if another(r, e) {
+		r = views.Told{}
+	}
+	r.Request, r.Heard, r.Account = e.Request, e.At, cmp.Or(e.Account, r.Account)
+	r.Session, r.Dir, r.Model = cmp.Or(e.Session, r.Session), cmp.Or(e.Dir, r.Dir), cmp.Or(e.Model, r.Model)
+	r.Prompt, r.Class, r.AgentID = cmp.Or(e.Prompt, r.Prompt), cmp.Or(e.Class, r.Class), cmp.Or(e.AgentID, r.AgentID)
+	r.Check, r.Count = r.Check || e.Check, r.Count || e.Count
+	switch e.Kind {
+	case router.StreamInFlight:
+		r.First, r.Chars, r.Verdict, r.Status, r.Ended, r.Lost = e.FirstAt, e.Chars, verdictOf(e.Verdict), e.Status, time.Time{}, false
+		if r.Sent.IsZero() || e.SentAt.Before(r.Sent) {
+			r.Sent = e.SentAt
+		}
+	case router.StreamSent:
+		r.First, r.Chars, r.Verdict, r.Status, r.Lost = time.Time{}, 0, 0, 0, false
+		if r.Sent.IsZero() {
+			r.Sent = e.At
+		}
+	case router.StreamFirst:
+		r.First = e.At
+	case router.StreamProgress:
+		r.Chars = max(r.Chars, e.Chars)
+	case router.StreamDone:
+		r.Ended, r.Status, r.Chars = e.At, e.Status, max(r.Chars, e.Chars)
+	case router.StreamLimited, router.StreamThrottled, router.StreamRefused:
+		r.Verdict, r.Status = verdictOf(e.Kind), e.Status
+	}
+	t.requests[e.Request] = r
+}
+
+// another reports whether e tells of another request than r, the one held
+// under its id, as a request is its id and when: a router gives each request
+// an id of its own while it runs, and tells nothing of one once it has
+// ended; of one lost, only that it's in flight still, as the stream opens
+// again, as one lost while the router ran on is told of first. Anything else
+// under its id is another run's request.
+func another(r views.Told, e router.StreamEvent) bool {
+	return !r.Ended.IsZero() || r.Lost && e.Kind != router.StreamInFlight
+}
+
+// verdictOf is the verdict an event of the stream's kind given tells of a
+// request's answer, as the views read it: none for any other kind.
+func verdictOf(kind string) views.Verdict {
+	switch kind {
+	case router.StreamLimited:
+		return views.VerdictLimited
+	case router.StreamThrottled:
+		return views.VerdictThrottled
+	case router.StreamRefused:
+		return views.VerdictRefused
+	}
+	return 0
 }
 
 // key names the request e tells of on the account it goes out on.
@@ -248,20 +327,29 @@ func (c *call) end(e router.StreamEvent) {
 func (t *traffic) moved(e router.StreamEvent, held func(account string) bool) {
 	left := t.calls[callKey{request: e.Request, account: e.From}]
 	shows := left.done(e.At)
-	t.moves = append(t.moves, move{Seat: seatTold(e), From: e.From, To: e.To, At: e.At, Reason: e.Reason, Held: left.limited || held(e.From), shows: shows})
+	t.moves = append(t.moves, move{Seat: seatTold(e), From: e.From, To: e.To, At: e.At, Reason: e.Reason, Held: left.limited || held(e.From), request: e.Request, shows: shows})
 	t.outOn(e.Request, e.To, e.At)
 	t.calls[callKey{request: e.Request, account: e.To}] = call{seat: seatTold(e), brought: true, shows: shows, ended: shows}
 }
 
-// tidied is the traffic without what has ended by now: the calls whose
-// requests ended answeredFor ago, the moves that no longer show, and when
-// the stream saw each seat, seenFor ago.
+// tidied is the traffic without what has ended by now, as tidy has it, its
+// maps and moves copied first.
 func (t traffic) tidied(now time.Time) traffic {
-	t.calls, t.seen = maps.Clone(t.calls), maps.Clone(t.seen)
+	t.requests, t.calls, t.seen, t.moves = maps.Clone(t.requests), maps.Clone(t.calls), maps.Clone(t.seen), slices.Clone(t.moves)
+	t.tidy(now)
+	return t
+}
+
+// tidy lets go of what has ended by now: the requests no longer in flight
+// that the stream told of last seenFor ago, the calls whose requests ended
+// answeredFor ago, the moves that no longer show, and when the stream saw
+// each seat, seenFor ago. It changes t's maps and moves, which must be its
+// own copies.
+func (t *traffic) tidy(now time.Time) {
+	maps.DeleteFunc(t.requests, func(_ string, r views.Told) bool { return !r.InFlight() && now.Sub(r.Heard) >= seenFor })
 	maps.DeleteFunc(t.calls, func(_ callKey, c call) bool { return c.over(now) })
 	maps.DeleteFunc(t.seen, func(_ dashboard.Plug, at time.Time) bool { return now.Sub(at) >= seenFor })
-	t.moves = slices.DeleteFunc(slices.Clone(t.moves), func(m move) bool { return m.over(now) })
-	return t
+	t.moves = slices.DeleteFunc(t.moves, func(m move) bool { return m.over(now) })
 }
 
 // over reports whether the call has nothing more to show at now: its request
@@ -278,10 +366,16 @@ func (m move) over(now time.Time) bool {
 	return m.Listed && (m.Held || now.Sub(m.shows) >= looseFor) || now.Sub(m.At) >= seenFor
 }
 
+// showsAt reports whether the move shows at now: from when it shows, until
+// it's over.
+func (m move) showsAt(now time.Time) bool {
+	return !now.Before(m.shows) && !m.over(now)
+}
+
 // at is the traffic as the frame draws it at now: live or not; what each
 // seat is doing on each account, as shown says of the calls there, and what
-// travels its cord; when the stream last saw each there; and each move once
-// it shows, but those over.
+// travels its cord; when the stream last saw each there; and each move while
+// it shows, as showsAt says.
 func (t traffic) at(now time.Time) dashboard.Traffic {
 	type keyed struct {
 		key  callKey
@@ -302,7 +396,7 @@ func (t traffic) at(now time.Time) dashboard.Traffic {
 		drawn.Calls[p] = s.call.drawn(now)
 	}
 	for _, m := range t.moves {
-		if !now.Before(m.shows) && !m.over(now) {
+		if m.showsAt(now) {
 			drawn.Moves = append(drawn.Moves, m.drawn(now))
 		}
 	}
@@ -326,7 +420,7 @@ func (c call) shownOver(other call, mine, theirs string) bool {
 }
 
 // drawn is the call as the frame draws it at now: what it's doing, its
-// tokens, estimated at charsPerToken characters a token until its closing
+// tokens, estimated at views.CharsPerToken characters a token until its closing
 // usage counts them, and what travels its cord. A pulse runs along it for
 // pulseFor: out to the jack as its request goes; back to the call as its
 // answer ends; and back, red, as its request is refused. While its answer
@@ -334,7 +428,7 @@ func (c call) shownOver(other call, mine, theirs string) bool {
 // shimmerStep.
 func (c call) drawn(now time.Time) dashboard.Call {
 	d := dashboard.Call{
-		Doing: c.doing, Since: c.since, Tokens: c.chars / charsPerToken, Exact: c.exact,
+		Doing: c.doing, Since: c.since, Tokens: c.chars / views.CharsPerToken, Exact: c.exact,
 		Status: c.status, New: c.brought && c.doing == dashboard.Asking,
 	}
 	if c.exact {
@@ -414,10 +508,144 @@ func shownDone(moves []move, placed map[dashboard.Seat]string) []move {
 }
 
 // afresh is the traffic as the watch forgets what the stream told of the
-// requests, closing it, or opening it again: no longer live, but keeping
-// when the stream last saw each seat, and the moves it told of, which hold
-// all the same until a listing of the router's sessions shows them done,
-// and where its last listing put each seat.
+// requests, their router gone, as when the stream won't open, or another
+// router answers: no longer live, each request in flight lost, as what the
+// stream tells as it opens again tells of those still in flight afresh; but
+// keeping the rest it told of, when it last saw each seat, and the moves it
+// told of, which hold all the same until a listing of the router's sessions
+// shows them done, and where its last listing put each seat.
 func (t traffic) afresh() traffic {
-	return traffic{seen: t.seen, moves: t.moves, placed: t.placed}
+	requests := make(map[string]views.Told, len(t.requests))
+	for id, r := range t.requests {
+		r.Lost = r.Ended.IsZero()
+		requests[id] = r
+	}
+	return traffic{requests: requests, seen: t.seen, moves: t.moves, placed: t.placed}
+}
+
+// unheard is the traffic once the watch no longer hears the stream, as it
+// ends or closes: no longer live, so the views go by the router's listing,
+// but keeping what it told, for its first look to settle as it opens again.
+func (t traffic) unheard() traffic {
+	t.live = false
+	return t
+}
+
+// closed is the traffic once the watch closes the stream: unheard, and what
+// each seat is doing on each account forgotten, as nothing tells of it again
+// until the stream opens, telling of the requests in flight afresh.
+func (t traffic) closed() traffic {
+	t.calls = nil
+	return t.unheard()
+}
+
+// reopened is the traffic as the stream opens again: what each seat is doing
+// on each account forgotten, as what the stream tells as it opens tells of
+// the requests in flight afresh; and the requests it told of in flight
+// before awaiting its first look, as join has it, it's live once that has
+// settled them, or at once where none was in flight.
+func (t traffic) reopened() traffic {
+	t.calls, t.awaiting = nil, nil
+	for id, r := range t.requests {
+		if !r.InFlight() {
+			continue
+		}
+		if t.awaiting == nil {
+			t.awaiting = make(map[string]bool)
+		}
+		t.awaiting[id] = true
+	}
+	t.live = t.awaiting == nil
+	return t
+}
+
+// join takes in e, the stream opened again, as its first look: a request in
+// flight as the watch joined it, told of again, awaits it no longer, and
+// once none does, it has settled them all, as settle has it; any other event
+// comes after the router has told of all those in flight as the watch
+// joined, so it settles those still awaiting it. It changes t's awaiting,
+// which must be its own copy.
+func (t *traffic) join(e router.StreamEvent) {
+	switch {
+	case t.awaiting == nil:
+	case e.Kind == router.StreamInFlight:
+		delete(t.awaiting, e.Request)
+		if len(t.awaiting) == 0 {
+			t.settle()
+		}
+	default:
+		t.settle()
+	}
+}
+
+// settle ends the stream's first look, as it opened again: each request
+// awaiting it, which it didn't tell of again, lost, as it ended untold, as
+// one cut off as its router went away does; and the traffic live from then
+// on. It changes t's requests, which must be its own copy.
+func (t *traffic) settle() {
+	for id := range t.awaiting {
+		if r, ok := t.requests[id]; ok && r.InFlight() {
+			r.Lost = true
+			t.requests[id] = r
+		}
+	}
+	t.awaiting, t.live = nil, true
+}
+
+// settled is the traffic once the stream, opened again, has told no more as
+// its first look, as settle has it, where it's still awaited.
+func (t traffic) settled() traffic {
+	if t.awaiting == nil {
+		return t
+	}
+	t.requests = maps.Clone(t.requests)
+	t.settle()
+	return t
+}
+
+// stream is the traffic as the views read it at now: live or not, the
+// requests the stream told of, and its moves that no listing of the router's
+// sessions has shown done, each while it shows, as at draws it, so a frame
+// never puts a session on an account its cords don't.
+func (t traffic) stream(now time.Time) views.Stream {
+	s := views.Stream{Live: t.live, Requests: t.requests}
+	for _, m := range t.moves {
+		if !m.Listed && m.showsAt(now) {
+			s.Moves = append(s.Moves, views.Moved{
+				Request: m.request, Session: m.Seat.Session, Model: m.Seat.Model, From: m.From, To: m.To, Reason: m.Reason, At: m.At,
+			})
+		}
+	}
+	return s
+}
+
+// sentOf are the requests the events tell of going upstream, as the traffic
+// has them, each once, in the order the events first tell of them going:
+// each as it goes out, or in flight as the stream opens; never the client's
+// quota check, or a count of tokens.
+func (t traffic) sentOf(events []router.StreamEvent) []views.Told {
+	var sent []views.Told
+	told := make(map[string]bool)
+	for _, e := range events {
+		if _, ok := sentAt(e); ok && !told[e.Request] {
+			told[e.Request] = true
+			sent = append(sent, t.requests[e.Request])
+		}
+	}
+	return sent
+}
+
+// sentAt is when the request e tells of went upstream, reporting false
+// where e tells of none going, or of the client's quota check, or a count of
+// tokens, which spend no quota.
+func sentAt(e router.StreamEvent) (time.Time, bool) {
+	switch {
+	case e.Check, e.Count:
+		return time.Time{}, false
+	case e.Kind == router.StreamSent:
+		return e.At, true
+	case e.Kind == router.StreamInFlight:
+		return e.SentAt, true
+	}
+	return time.Time{}, false
 }

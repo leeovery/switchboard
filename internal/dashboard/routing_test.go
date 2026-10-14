@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // autoRouting is the auto world ROUTING's frames draw at routedAt:
@@ -385,7 +386,7 @@ func TestAcrossAResetBetweenReadsROUTINGUSAGEAndTheRoutingCardAgree(t *testing.T
 	for _, tt := range tests {
 		routing := f.routingTableOf(doc, tt.now).accounts[0].standing.Kind == status.RoutingCapped
 		usage := strings.HasPrefix(wordsOf(windowNowOf(doc, work.ID, "5h", tt.now), tt.now).full.plain(), "at cap")
-		card := RoutingRows(doc.At(tt.now, claudeLike), nil)[1].Capped
+		card := RoutingRows(doc.At(tt.now, claudeLike), nil, views.Stream{})[1].Capped
 		if routing != tt.capped || usage != tt.capped || card != tt.capped {
 			t.Errorf("%s: ROUTING capped %t, USAGE's words %t, the routing card %t; want each %t", tt.name, routing, usage, card, tt.capped)
 		}

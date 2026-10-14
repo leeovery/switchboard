@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // chunk is a part of what a slot of the heading says, and whether it starts a
@@ -63,7 +65,7 @@ func broken(l line, widths []int) []line {
 		if i == len(widths)-1 {
 			taken = len(words)
 		}
-		lines = append(lines, line{{truncate(strings.Join(words[:taken], " "), widths[i]), l[0].ink}})
+		lines = append(lines, line{{prose.Cut(strings.Join(words[:taken], " "), widths[i]), l[0].ink}})
 		words = words[taken:]
 	}
 	return lines

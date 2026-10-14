@@ -561,8 +561,8 @@ func TestAPhonesFirstColumnOfNumbersEndsShortOfTheSecond(t *testing.T) {
 // A phone's key writes a thousand as k.
 func TestAPhonesKeyWritesAThousandAsK(t *testing.T) {
 	for n, want := range map[int]string{450: "450", 1000: "1k", 1250: "1.25k", 12000: "12k"} {
-		if got := kilo(n); got != want {
-			t.Errorf("kilo(%d) = %q, want %q", n, got, want)
+		if got := keyPhone.number(n); got != want {
+			t.Errorf("the phone key's number(%d) = %q, want %q", n, got, want)
 		}
 	}
 }

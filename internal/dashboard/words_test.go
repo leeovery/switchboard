@@ -70,13 +70,10 @@ func TestWindowsInWords(t *testing.T) {
 	}
 }
 
-func TestSpansAndSessionsInWords(t *testing.T) {
+func TestSpansInWords(t *testing.T) {
 	for since, want := range map[time.Duration]string{30 * time.Minute: "last-30-min", 18 * time.Minute: "last-18-min", 2 * time.Hour: "last-2h"} {
 		if got := lately(now.Add(-since), now); got != want {
 			t.Errorf("lately() over %v = %q, want %q", since, got, want)
 		}
-	}
-	if got := sessionID("c61b2f8d-04a7-4e93"); got != "c61b" {
-		t.Errorf("sessionID() = %q, want its first four characters", got)
 	}
 }

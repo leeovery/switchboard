@@ -8,6 +8,8 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -85,7 +87,7 @@ func (f Frame) historyDays(c *canvas, top int) {
 		f.daysStrip(c, l, l.accountRow(i), func(room int) line { return historyAccount(labelled(s.Label, s.Of), s.Primary, room) }, f.limitsHit(s), dayInk, s.Days)
 	}
 	if above, below := from, len(p.ByAccount)-to; above+below > 0 {
-		c.line(0, l.scrollRow, accountsOutOfView(above, below, f.edge()))
+		c.line(0, l.scrollRow, outOfView(above, below, f.edge(), historyAccountsOut...))
 	}
 	f.daysKey(c, l)
 }
@@ -225,7 +227,7 @@ func (f Frame) daysWeeks(c *canvas, l daysLayout) {
 	for i, week := range weeks {
 		x, this := l.x+i*weekCells, i == len(weeks)-1
 		c.line(x, l.top, fitParts(weekCells-1, figurePart(weekHead(week, this), Number{})))
-		if day, ok := civilDay(week); ok && this {
+		if day, ok := dayfile.Civil(week); ok && this {
 			initials(c, day, x, l.top+1)
 		}
 	}
@@ -235,7 +237,7 @@ func (f Frame) daysWeeks(c *canvas, l daysLayout) {
 // every swatchCells from x along row y, in text.faint.
 func initials(c *canvas, from time.Time, x, y int) {
 	for d := range 7 {
-		c.text(x+d*swatchCells, y, dayInitial(from.AddDate(0, 0, d).Weekday()), faintInk)
+		c.text(x+d*swatchCells, y, prose.WeekdayInitial(from.AddDate(0, 0, d).Weekday()), faintInk)
 	}
 }
 

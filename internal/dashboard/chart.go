@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -148,7 +150,7 @@ func (ch chart) draw(c *canvas, look Look, at bounds) {
 // text.subtle, then a space and the limit's line, faint, to the chart's
 // right.
 func (ch chart) top(c *canvas, at bounds) {
-	end := c.text(at.x, at.y, truncate(ch.name, at.width), dimInk)
+	end := c.text(at.x, at.y, prose.Cut(ch.name, at.width), dimInk)
 	if rest := at.x + at.width - end - 1; rest > 0 {
 		c.text(end, at.y, " "+strings.Repeat(limitLine, rest), faintInk)
 	}
@@ -196,13 +198,12 @@ func (ch chart) lines(c *canvas, x, floor, width, h, now int) {
 // time of day for a window of a day or less, else its day too; and now, in
 // bold, from the cell before its column, where it clears both.
 func (ch chart) axis(c *canvas, x, y, width, now int) {
-	layout := "15:04"
-	if ch.length > day {
-		layout = "Mon 15:04"
+	when := prose.TimeOfDay
+	if ch.length > quota.Day {
+		when = prose.Clock
 	}
-	loc := ch.now.Location()
-	after := c.text(x, y, ch.start.In(loc).Format(layout), faintInk)
-	reset := c.right(x+width, y, line{{ch.start.Add(ch.length).In(loc).Format(layout), faintInk}})
+	after := c.text(x, y, when(ch.now, ch.start), faintInk)
+	reset := c.right(x+width, y, line{{when(ch.now, ch.start.Add(ch.length)), faintInk}})
 	if from := x + now - 1; from > after && from+len("now") < reset {
 		c.text(from, y, "now", labelInk)
 	}
@@ -212,7 +213,7 @@ func (ch chart) axis(c *canvas, x, y, width, now int) {
 // from x along row y, cut to fit, a blank either side to set it off what it's
 // drawn over.
 func across(c *canvas, x, y, width int, text string) {
-	text = " " + truncate(text, width-2) + " "
+	text = " " + prose.Cut(text, width-2) + " "
 	c.text(x+(width-ansi.StringWidth(text))/2, y, text, dimInk)
 }
 
@@ -234,11 +235,9 @@ type midnight struct {
 // dayCells clear of the last shown, and what shows it, cells wide from its
 // column, fits within width.
 func midnights(start, end, now time.Time, column func(time.Time) int, width, cells int) []midnight {
-	loc := now.Location()
-	today := now.In(loc).Format(time.DateOnly)
 	var all []midnight
 	last := -dayCells
-	for at := range dayStarts(start.In(loc), 1) {
+	for at := range dayStarts(start.In(now.Location()), 1) {
 		col := column(at)
 		switch {
 		case !at.Before(end) || col >= width:
@@ -246,7 +245,7 @@ func midnights(start, end, now time.Time, column func(time.Time) int, width, cel
 		case col < 0:
 			continue
 		}
-		m := midnight{at: at, col: col, today: at.Format(time.DateOnly) == today, named: col-last >= dayCells && col+cells <= width}
+		m := midnight{at: at, col: col, today: prose.SameDay(now, at, now), named: col-last >= dayCells && col+cells <= width}
 		if m.named {
 			last = col
 		}

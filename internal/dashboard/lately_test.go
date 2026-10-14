@@ -60,6 +60,68 @@ func TestLATELYsMarksAreOneAKindInTheirColours(t *testing.T) {
 	}
 }
 
+// The kinds of event are one table, in the design's order, as help and the
+// Log's panel list them: each kind once, named by the word views gives it,
+// as the Log's event column and its panel name it, and meaning what the
+// panel says it is (~3013–3018), word for word; a mark a kind, but for ■,
+// which a limit and a refusal share.
+func TestTheKindsOfEventAreOneTableOfMarksWordsAndMeanings(t *testing.T) {
+	want := []struct{ word, means string }{
+		{"started", "a session first seen"},
+		{"moved", "a session moved to another account"},
+		{"pressure", "an account under pressure"},
+		{"cap", "an account at its cap"},
+		{"limit", "an account at its limit"},
+		{"refused", "an account's token refused"},
+		{"primed", "a window started early"},
+		{"open", "an account with room again"},
+		{"pin", "routing set by hand"},
+		{"auto", "routing given back to the router"},
+		{"restart", "a restart of the router falling due"},
+		{"health", "the router unhealthy, or well again"},
+	}
+	if len(eventKinds) != len(want) {
+		t.Fatalf("there are %d kinds, want %d", len(eventKinds), len(want))
+	}
+	drawnBy := make(map[span][]string)
+	for i, k := range eventKinds {
+		if word := views.KindWord(k.kind); word != want[i].word || k.means != want[i].means {
+			t.Errorf("kind %d is %q, meaning %q, want %q, meaning %q", i+1, word, k.means, want[i].word, want[i].means)
+		}
+		drawnBy[k.mark] = append(drawnBy[k.mark], k.kind)
+	}
+	closing := []string{status.EventLimit, status.EventRefused}
+	for mark, kinds := range drawnBy {
+		if shared := len(kinds) > 1; shared && (mark.text != "■" || !slices.Equal(kinds, closing)) {
+			t.Errorf("%q is drawn by %v, want a mark a kind, but for ■, a limit's and a refusal's", mark.text, kinds)
+		}
+	}
+}
+
+// Help gives each of LATELY's marks once, in the kinds' order, meaning what
+// each kind drawing it is, as the Log's panel says it: ■ a limit's and a
+// refusal's, joined.
+func TestHelpGivesEachMarkOnceMeaningWhatEachKindDrawingItIs(t *testing.T) {
+	want := []glyph{
+		{drawn: line{{"▲", accentInk}}, means: "a session first seen"},
+		{drawn: line{{"▸", keyMarkInk}}, means: "a session moved to another account"},
+		{drawn: line{{"◔", warningInk}}, means: "an account under pressure"},
+		{drawn: line{{"╎", warningInk}}, means: "an account at its cap"},
+		{drawn: line{{"■", errorInk}}, means: "an account at its limit, or an account's token refused"},
+		{drawn: line{{"◇", dimInk}}, means: "a window started early"},
+		{drawn: line{{"✓", positiveInk}}, means: "an account with room again"},
+		{drawn: line{{"●", keyMarkInk}}, means: "routing set by hand"},
+		{drawn: line{{"↩", keyMarkInk}}, means: "routing given back to the router"},
+		{drawn: line{{"!", warningInk}}, means: "a restart of the router falling due"},
+		{drawn: line{{"⊕", errorInk}}, means: "the router unhealthy, or well again"},
+	}
+	got := latelyGlyphs()
+	same := slices.EqualFunc(got, want, func(a, b glyph) bool { return slices.Equal(a.drawn, b.drawn) && a.means == b.means })
+	if !same {
+		t.Errorf("help gives LATELY's marks as %+v, want %+v", got, want)
+	}
+}
+
 func TestLATELYsLinesAreInTheirInks(t *testing.T) {
 	doc := eventsOf(
 		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventStarted, Account: "side", Session: "c61b2f8d", Reason: status.ReasonNew},
@@ -370,7 +432,7 @@ func onAuto() []status.Event {
 		[]status.Event{
 			startedAt(14, 12, "7f3a5c90", "work", status.ReasonNew),
 			primeAt(13, 50, "side"),
-			{At: routedClock(1, 13, 22), Kind: status.EventMoved, Session: "db8a71e3", From: "personal", To: "work", Reason: status.PassingOver(status.Rescored("21h 15m"), "personal")},
+			{At: routedClock(1, 13, 22), Kind: status.EventMoved, Session: "db8a71e3", From: "personal", To: "work", Reason: status.PassingOver(status.Rescored(21*time.Hour+15*time.Minute), "personal")},
 			startedAt(12, 47, "41e0b6c2", "personal", status.ReasonNew),
 			primeAt(12, 10, "work"),
 			startedAt(11, 55, "9c2e47b1", "personal", status.ReasonNew),

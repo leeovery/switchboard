@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -52,7 +53,7 @@ func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	case status.WindowCapped:
 		return heldBack("at cap", w.At, now, warningInk)
 	case status.WindowRunsOut:
-		return usageWords{full: line{{"out ~" + status.Dated(now, w.At), warningInk}}, short: line{{"out ~" + brief(now, w.At), warningInk}}}
+		return usageWords{full: line{{"out ~" + prose.Dated(now, w.At), warningInk}}, short: line{{"out ~" + prose.Brief(now, w.At), warningInk}}}
 	case status.WindowNotStarted:
 		return alike("not started", mutedInk)
 	default:
@@ -61,23 +62,24 @@ func wordsOf(w status.WindowNow, now time.Time) usageWords {
 }
 
 // lastRead shows when a reading was taken, at t, before now, in full and
-// short: within the week, as Dated and brief show a time; else by its date,
+// short: within the week, as Dated and Brief show a time; else by its date,
 // as Past shows a day over a week back, "22 Sep 14:20", and short, "22 Sep",
 // as a weekday alone would read as this week's.
 func lastRead(now, t time.Time) (full, short string) {
-	if status.WithinWeek(now, t) {
-		return status.Dated(now, t), brief(now, t)
+	if prose.WithinWeek(now, t) {
+		return prose.Dated(now, t), prose.Brief(now, t)
 	}
-	return status.Past(now, t), t.In(now.Location()).Format("2 Jan")
+	return prose.Past(now, t), prose.DayMonth(t.In(now.Location()))
 }
 
 // heldBack is the words of a window held back as what says, until back, zero
-// where that's unknown: as in "at cap · back 17:10", and short, "back 17:10".
+// where that's unknown: as in "at cap · back 17:10", and short, "back 17:10",
+// as Brief shows the time.
 func heldBack(what string, back time.Time, now time.Time, k ink) usageWords {
 	if back.IsZero() {
 		return alike(what, k)
 	}
-	return usageWords{full: line{{what + " · back " + status.Dated(now, back), k}}, short: line{{"back " + brief(now, back), k}}}
+	return usageWords{full: line{{what + " · " + status.Back(now, back), k}}, short: line{{"back " + prose.Brief(now, back), k}}}
 }
 
 // allowed is the words of a window's allowance a, to its reset: as in
@@ -88,10 +90,10 @@ func allowed(a quota.Allowance, reset time.Time, now time.Time) usageWords {
 	if a == (quota.Allowance{}) {
 		return usageWords{}
 	}
-	rate := span{status.Percent(a.Share) + perWords[a.Per], mutedInk}
+	rate := span{prose.Percent(a.Share) + perWords[a.Per], mutedInk}
 	return usageWords{
-		full:  line{rate, {" till ", dimInk}, {status.Dated(now, reset), mutedInk}},
-		short: line{rate, {" · ", dimInk}, {brief(now, reset), mutedInk}},
+		full:  line{rate, {" till ", dimInk}, {prose.Dated(now, reset), mutedInk}},
+		short: line{rate, {" · ", dimInk}, {prose.Brief(now, reset), mutedInk}},
 		leads: NumberAllowance,
 	}
 }
@@ -104,18 +106,13 @@ var perWords = map[string]string{quota.PerHour: "/h", quota.PerDay: "/day"}
 // where pinned is set, " · pinned" after.
 func poolWords(room float64, accounts int, pinned bool) usageWords {
 	l := line{
-		{tenths(room), strongInk},
+		{prose.Tenths(room), strongInk},
 		{" of " + strconv.Itoa(accounts) + " left", mutedInk},
 	}
 	if pinned {
 		l = append(l, span{" · pinned", mutedInk})
 	}
 	return usageWords{full: l, short: l, leads: NumberRoom}
-}
-
-// tenths is room, in accounts' worth, to a tenth, as in "1.5".
-func tenths(room float64) string {
-	return strconv.FormatFloat(float64(halfEven(room*10))/10, 'f', 1, 64)
 }
 
 // faint is the words in text.faint, whatever their colours, as the Overview
@@ -155,7 +152,7 @@ func (b usageBar) percentage() line {
 	var k ink
 	switch {
 	case b.empty:
-		return line{{"—", faintInk}}
+		return line{noFigure}
 	case b.out:
 		k = ink{token: theme.TextFaint, bold: true}
 	case b.stale:
@@ -163,14 +160,14 @@ func (b usageBar) percentage() line {
 	default:
 		k = usedInk(b.used, ink{token: theme.VizRamp1, bold: true})
 	}
-	return line{{status.Percent(b.used), k}}
+	return line{{prose.Percent(b.used), k}}
 }
 
 // usedInk is the ink of a share used, as usage tones it, judged on the whole
-// percentage status.Percent shows: from 90%, the ramp's last stop, from 70%,
+// percentage prose.Percent shows: from 90%, the ramp's last stop, from 70%,
 // its second, else below's.
 func usedInk(used float64, below ink) ink {
-	switch shown := status.WholePercent(used); {
+	switch shown := prose.WholePercent(used); {
 	case shown >= 90:
 		below.token = theme.VizRamp4
 	case shown >= 70:

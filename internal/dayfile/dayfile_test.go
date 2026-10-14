@@ -175,6 +175,52 @@ func TestADaysDateGivesWhenItStartsAndEnds(t *testing.T) {
 	}
 }
 
+// A date parses as a day in UTC, its midnight, whatever the local zone, the
+// one parse every reader of a date shares; and a date that isn't one is no
+// day.
+func TestADateParsesAsItsDayInUTC(t *testing.T) {
+	day, ok := Civil("2026-09-28")
+	if !ok || !day.Equal(time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC)) || day.Location() != time.UTC {
+		t.Errorf("Civil(2026-09-28) = %v, %v; want its midnight in UTC", day, ok)
+	}
+	for _, date := range []string{"2026-9-28", "2026-09-31", "2026-10", "soon", ""} {
+		if _, ok := Civil(date); ok {
+			t.Errorf("Civil(%q) reports a day, want none: it isn't a date", date)
+		}
+	}
+}
+
+// The day a time falls on is its local day, as its date gives it, a day in
+// UTC as Civil gives one, however far from UTC it was told.
+func TestTheDayATimeFallsOnIsItsLocalDay(t *testing.T) {
+	late := time.Date(2026, 9, 28, 23, 30, 0, 0, time.Local)
+	for _, at := range []time.Time{late, late.UTC(), late.In(time.FixedZone("UTC+14", 14*60*60))} {
+		if got := CivilOf(at); !got.Equal(time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC)) {
+			t.Errorf("CivilOf(%v) = %v, want 28 September in UTC", at, got)
+		}
+		if got := DateOf(at); got != "2026-09-28" {
+			t.Errorf("DateOf(%v) = %q, want 2026-09-28", at, got)
+		}
+	}
+}
+
+// A month is named as a date leads with it, and starts on its first day, a
+// day as Civil gives one.
+func TestAMonthIsNamedAsADateLeadsWithIt(t *testing.T) {
+	if got := MonthOf(time.Date(2026, 10, 31, 0, 0, 0, 0, time.UTC)); got != "2026-10" {
+		t.Errorf("MonthOf(31 October 2026) = %q, want 2026-10", got)
+	}
+	first, ok := MonthStart("2026-10")
+	if !ok || !first.Equal(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)) || first.Location() != time.UTC {
+		t.Errorf("MonthStart(2026-10) = %v, %v; want 1 October in UTC", first, ok)
+	}
+	for _, month := range []string{"2026-13", "2026-1", "2026-10-01", "Oct", ""} {
+		if _, ok := MonthStart(month); ok {
+			t.Errorf("MonthStart(%q) reports a month, want none: it isn't one", month)
+		}
+	}
+}
+
 func TestADayStartsAtItsFirstInstantWhereTheClocksGoForwardAtMidnight(t *testing.T) {
 	tests := []struct {
 		zone string

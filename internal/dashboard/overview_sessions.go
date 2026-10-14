@@ -1,11 +1,12 @@
 package dashboard
 
 import (
-	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -17,7 +18,7 @@ import (
 // what it's doing, padded, why it's there following; and the blanks why
 // leaves, at the least, before its trace.
 const (
-	runningID     = sessionShown + 2
+	runningID     = status.IDShown + 2
 	familyCells   = 7
 	seenCells     = 4
 	beforeDoing   = 3
@@ -49,29 +50,31 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 
 // running are the sessions running on doc's accounts at now, as views lists
 // them, of the router's listing as the request stream has moved and seen
-// them since.
+// them since: as holdRunning holds them, where the frame holds them of doc
+// at now, else worked out afresh.
 func (f Frame) running(doc status.Document, now time.Time) []views.Running {
-	return views.RunningOf(f.Moment(doc, now), f.seenListing())
+	if f.runs != nil && f.runs.at.Of(doc, now, f.Policy) {
+		return f.runs.list()
+	}
+	return views.RunningOf(f.Moment(doc, now), f.Sessions, f.Stream)
 }
 
-// seenListing is the listing, each of its sessions' models last seen as
-// lastSeen has it: as the router listed it, or later, as the request stream
-// told of it.
-func (f Frame) seenListing() []status.Session {
-	listing := f.listing()
-	if len(f.Traffic.Seen) == 0 {
-		return listing
-	}
-	seen := make([]status.Session, len(listing))
-	for i, s := range listing {
-		assignments := slices.Clone(s.Assignments)
-		for j, a := range assignments {
-			assignments[j].LastSeen = f.lastSeen(seated{session: s, assignment: a})
-		}
-		s.Assignments = assignments
-		seen[i] = s
-	}
-	return seen
+// runningHeld are the sessions running of a document at a moment, as
+// holdRunning holds them: listed once, the first time a section asks.
+type runningHeld struct {
+	at   *status.HeldMoment
+	list func() []views.Running
+}
+
+// holdRunning is the frame holding the sessions running on doc's accounts at
+// now, as running lists them, listed once for SESSIONS to list and ROUTING to
+// count, so the stream is heard, and the sessions placed, once a frame, and
+// the two never disagree. It holds the moment of doc at now, as At does.
+func (f Frame) holdRunning(doc status.Document, now time.Time) Frame {
+	f = f.At(doc, now)
+	of := f
+	f.runs = &runningHeld{at: f.held, list: sync.OnceValue(func() []views.Running { return of.running(doc, now) })}
+	return f
 }
 
 // runningForm is how SESSIONS draws a session running: the rows it takes;
@@ -113,9 +116,13 @@ func (f Frame) drawRunning(c *canvas, m status.Moment, running []views.Running, 
 		form.draw(c, m, r, column, y)
 	}
 	if more := len(running) - shown; more > 0 {
-		c.line(column, body.y+shown*form.rows, line{{"+" + strconv.Itoa(more) + " more", dimInk}})
+		c.line(column, body.y+shown*form.rows, outOfView(0, more, body.x+body.width-column, runningOut))
 	}
 }
+
+// runningOut is the form of the line saying how many more sessions are
+// running than SESSIONS shows, ending it, as in "+2 more".
+var runningOut = outForm{lead: "+", inks: subtleOut}
 
 // wideRunning draws the session running r on row y, of the moment m, from
 // routingRows columns: from the name column, its id, its family, when it was
@@ -123,11 +130,11 @@ func (f Frame) drawRunning(c *canvas, m status.Moment, running []views.Running, 
 // trace; then its trace, and its rate right-aligned at the last column.
 func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, column, y int) {
 	now := m.Now
-	seen := runningSeen(r.LastSeen, now)
-	doing := f.runningDoing(r)
+	seen := runningSeen(r.Activity.LastSeen, now)
+	doing := runningDoing(r.Activity)
 	c.line(column, y, line{
-		f.runningID(r, now),
-		{padded(truncate(r.Family, familyCells), familyCells), mutedInk},
+		runningIDOf(r, now),
+		{padded(prose.Cut(r.Family, familyCells), familyCells), mutedInk},
 		{strings.Repeat(" ", max(seenCells-len(seen), 0)) + seen, dimInk},
 		spaces(beforeDoing),
 		{padded(doing.text, doingCells), doing.ink},
@@ -144,72 +151,53 @@ func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, column, 
 // column and what it's doing right-aligned; on the second, why it's there,
 // from the name column.
 func (f Frame) narrowRunning(c *canvas, m status.Moment, r views.Running, column, y int) {
-	c.line(column, y, line{f.runningID(r, m.Now)})
-	c.right(f.Width, y, line{f.runningDoing(r)})
+	c.line(column, y, line{runningIDOf(r, m.Now)})
+	c.right(f.Width, y, line{runningDoing(r.Activity)})
 	c.line(column, y+1, line{{r.Why.String(), dimInk}}.fit(f.Width-column))
 }
 
-// runningID is the session running r's id, and the blanks after it: bold
-// text.primary while it's busy, with a request in flight, as the router
-// listed it or the request stream tells, or seen within busyWithin of now;
-// else text.muted.
-func (f Frame) runningID(r views.Running, now time.Time) span {
-	id := span{padded(sessionID(r.Session), runningID), mutedInk}
-	busy := r.InFlight != "" || now.Sub(r.LastSeen) < busyWithin
-	for _, model := range r.Models {
-		if c, ok := f.Traffic.call(runningPlug(r, model)); ok && c.Doing.InFlight() {
-			busy = true
-		}
-	}
-	if busy {
+// runningIDOf is the session running r's id, and the blanks after it: bold
+// text.primary while it's busy at now, as its Activity's Busy says, with a
+// request in flight or seen in the last minute; else text.muted.
+func runningIDOf(r views.Running, now time.Time) span {
+	id := span{padded(status.ShownID(r.Session), runningID), mutedInk}
+	if r.Activity.Busy(now) {
 		id.ink = titleInk
 	}
 	return id
 }
 
 // runningSeen says how long before now a session running was last seen:
-// "now" within the minute, else as seenAgo rounds it, as "9m".
+// "now" within the minute, else as prose.SeenAgo rounds it, as "9m".
 func runningSeen(seen, now time.Time) string {
 	if now.Sub(seen) < time.Minute {
 		return "now"
 	}
-	return seenAgo(now, seen)
+	return prose.SeenAgo(now, seen)
 }
 
-// runningDoing is what the session running r is doing, as the request
-// stream tells of its models, where it tells of any; else as the router
-// listed it: answering, with its tokens so far where the stream has counted
-// any, as "↓ ~1.2k", or "↓" alone; asking, "↑ ask"; else idle.
-func (f Frame) runningDoing(r views.Running) span {
-	told, asking := false, false
-	for _, model := range r.Models {
-		c, ok := f.Traffic.call(runningPlug(r, model))
-		if ok && c.Doing == Streaming {
-			return span{answered(c), doingInk}
-		}
-		told, asking = told || ok, asking || ok && c.Doing.InFlight()
-	}
-	switch {
-	case asking, !told && r.InFlight == status.Asking:
+// runningDoing is what a session running is doing, as SESSIONS says its
+// Activity: answering, with its tokens so far, as "↓ ~1.2k", or "↓" alone
+// till the stream counts any; asking, "↑ ask", as it says while throttled,
+// to be sent again; else idle, as it says while refused, having no word of
+// its own for that.
+func runningDoing(a views.Activity) span {
+	switch a.Doing {
+	case views.Answering:
+		return span{answered(a), doingInk}
+	case views.Asking, views.Throttled:
 		return span{"↑ ask", doingInk}
-	case !told && r.InFlight == status.Answering:
-		return span{"↓", doingInk}
 	}
 	return span{"idle", faintInk}
 }
 
-// answered is how much of the call's answer has streamed, as "↓ ~1.2k": "↓"
-// alone till the stream has counted any of it.
-func answered(c Call) string {
-	if c.Tokens == 0 {
+// answered is how much of an answer has streamed, as "↓ ~1.2k": "↓" alone
+// till the stream has counted any of it.
+func answered(a views.Activity) string {
+	if a.Tokens() == 0 {
 		return "↓"
 	}
-	return c.streamed()
-}
-
-// runningPlug is where the session running r's model is plugged in.
-func runningPlug(r views.Running, model string) Plug {
-	return Plug{Account: r.Account, Seat: Seat{Session: r.Session, Model: model}}
+	return "↓ ~" + prose.Tokens(a.Tokens())
 }
 
 // runningCount says how many sessions run, and how many on each of m's

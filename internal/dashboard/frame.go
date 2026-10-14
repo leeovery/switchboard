@@ -66,8 +66,13 @@ type Frame struct {
 	// none, as while probing, and each account's sessions are counted as the
 	// document counts them.
 	Sessions []status.Session
+	// Stream is what the router's request stream has told of the routed
+	// requests, as the views read it, by each request's id: zero where the
+	// watch hears none.
+	Stream views.Stream
 	// Traffic is what the router's request stream tells of the sessions'
-	// requests, while the watch reads it: zero while it doesn't.
+	// requests, as Sessions' switchboard draws it, while the watch reads it:
+	// zero while it doesn't.
 	Traffic Traffic
 	// Order is the order Sessions' calls run in, as the watch keeps it from
 	// look to look: a seat keeps its row while the router lists it there,
@@ -106,10 +111,12 @@ type Frame struct {
 
 	// held is the moment of a document as At holds it, and built the
 	// Overview's sections as Built built them, each for every look the frame,
-	// or a copy of it, takes of their document at their moment to share: nil,
-	// where each look works them out afresh.
+	// or a copy of it, takes of their document at their moment to share; and
+	// runs the sessions running, for the sections built together to share:
+	// nil, where each look works them out afresh.
 	held  *status.HeldMoment
 	built *sectionsBuilt
+	runs  *runningHeld
 }
 
 // At is the frame holding the moment of doc at now, as its Policy judges it:

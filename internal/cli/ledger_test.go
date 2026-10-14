@@ -206,12 +206,12 @@ func linesOf(written map[string]string, requests ...string) string {
 
 // todaysRequests is what requests prints of today's lines.
 const todaysRequests = `Wed 7 Oct 2026, so far
-  09:00:00  18bb2c41  claude-haiku-4-5  work  200           8 in, 1 out       640ms
+  09:00:00  18bb2c41  claude-haiku-4-5  work  200           8 in, 1 out       0.6s
   09:01:00  5b0e7c1a  claude-opus-5-5   work  200           185k in, 845 out  14.2s
-  09:01:05  5b0e9d33  claude-opus-5-5   -     429                             3ms
+  09:01:05  5b0e9d33  claude-opus-5-5   -     429                             0.0s
   10:00:00  5b0e9d33  claude-opus-5-5   side  200 canceled                    2.0s
-  11:00:00  18bb2c41  claude-opus-9     work  200           100 in, 10 out    950ms
-  12:00:00  5b0e7c1a  claude-opus-5-5   work  200                             140ms
+  11:00:00  18bb2c41  claude-opus-9     work  200           100 in, 10 out    1.0s
+  12:00:00  5b0e7c1a  claude-opus-5-5   work  200                             0.1s
 `
 
 // requestsFromThe6th is what requests prints of the 6th's lines and today's.
@@ -237,22 +237,22 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 		{name: "from the start of a day, under each day's", args: []string{"--since", "2026-10-04"}, want: everyRequest},
 		{name: "from a time today", args: []string{"--since", "10:00"}, want: `Wed 7 Oct 2026, so far
   10:00:00  5b0e9d33  claude-opus-5-5  side  200 canceled                  2.0s
-  11:00:00  18bb2c41  claude-opus-9    work  200           100 in, 10 out  950ms
-  12:00:00  5b0e7c1a  claude-opus-5-5  work  200                           140ms
+  11:00:00  18bb2c41  claude-opus-9    work  200           100 in, 10 out  1.0s
+  12:00:00  5b0e7c1a  claude-opus-5-5  work  200                           0.1s
 `},
 		{name: "from hours ago", args: []string{"--since", "3h"}, want: `Wed 7 Oct 2026, so far
-  11:00:00  18bb2c41  claude-opus-9    work  200  100 in, 10 out  950ms
-  12:00:00  5b0e7c1a  claude-opus-5-5  work  200                  140ms
+  11:00:00  18bb2c41  claude-opus-9    work  200  100 in, 10 out  1.0s
+  12:00:00  5b0e7c1a  claude-opus-5-5  work  200                  0.1s
 `},
 		{name: "from days ago", args: []string{"--since", "2d"}, want: requestsFromThe6th},
 		{name: "from the most days ago", args: []string{"--since", "106751d"}, want: everyRequest},
 		{name: "from more days ago than a duration holds", args: []string{"--since", "99999999999999999999d"}, want: everyRequest},
 		{name: "a session's, by as much of its id as is unique", args: []string{"--session", "5b0e7"}, want: `Wed 7 Oct 2026, so far
   09:01:00  5b0e7c1a  claude-opus-5-5  work  200  185k in, 845 out  14.2s
-  12:00:00  5b0e7c1a  claude-opus-5-5  work  200                    140ms
+  12:00:00  5b0e7c1a  claude-opus-5-5  work  200                    0.1s
 `},
 		{name: "a session's, by its id", args: []string{"--session", sessionB}, want: `Wed 7 Oct 2026, so far
-  09:01:05  5b0e9d33  claude-opus-5-5  -     429             3ms
+  09:01:05  5b0e9d33  claude-opus-5-5  -     429             0.0s
   10:00:00  5b0e9d33  claude-opus-5-5  side  200 canceled    2.0s
 `},
 		{name: "an account's", args: []string{"--account", "side"}, want: `Wed 7 Oct 2026, so far
@@ -260,8 +260,8 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 `},
 		{name: "an account's session's, from a day", args: []string{"--account", "work", "--session", "18bb", "--since", "2026-10-04"},
 			want: `Wed 7 Oct 2026, so far
-  09:00:00  18bb2c41  claude-haiku-4-5  work  200  8 in, 1 out     640ms
-  11:00:00  18bb2c41  claude-opus-9     work  200  100 in, 10 out  950ms
+  09:00:00  18bb2c41  claude-haiku-4-5  work  200  8 in, 1 out     0.6s
+  11:00:00  18bb2c41  claude-opus-9     work  200  100 in, 10 out  1.0s
 `},
 		{name: "none", args: []string{"--account", "nobody"}, want: "no requests since Wed 7 Oct 2026 00:00\n"},
 		{name: "a session no line is of", args: []string{"--session", "77aa"}, want: "no requests since Wed 7 Oct 2026 00:00\n"},
@@ -275,6 +275,46 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 						strings.Join(tt.args, " "), strings.Join(form.args, " "), got.stdout, got.code, got.stderr, tt.want)
 				}
 			})
+		}
+	}
+}
+
+func TestRequestsHeadsEachRequestByTheDayItFallsOnInNowsZone(t *testing.T) {
+	deps, _ := ledgerDeps(t)
+	deps.Now = func() time.Time { return ledgerNow.In(behindLocal()) }
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "the morning's, on the evening before", args: []string{"--account", "side"}, want: "Tue 6 Oct 2026\n  22:00:00  5b0e9d33"},
+		{name: "noon's, on now's day", args: []string{"--session", sessionA}, want: "\nWed 7 Oct 2026, so far\n  00:00:00  5b0e7c1a"},
+		{name: "none, since the local day's start", args: []string{"--account", "nobody"}, want: "no requests since Tue 6 Oct 2026 12:00\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := run(t, deps, append([]string{"requests", "--pretty"}, tt.args...)...)
+			if got.code != 0 || !strings.Contains(got.stdout, tt.want) {
+				t.Errorf("switchboard requests --pretty %s at %v = %+v, want it to say\n%s", strings.Join(tt.args, " "), ledgerNow.In(behindLocal()), got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTheLedgersTextCountsTokensFromTenMillionToATenthOfAMillionAndTimesAsTheLogDoes(t *testing.T) {
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
+		{At: october(7, 13, 0, 0), Request: "t1", Kind: ledger.KindMessage, Session: sessionA, Model: "claude-opus-5-5", Account: "work", Reason: "sticky",
+			Status: 200, Attempts: 1, TotalMS: 65000, Usage: json.RawMessage(`{"input_tokens":50100,"cache_read_input_tokens":16000000,"output_tokens":12345}`)},
+	}})
+	tests := []struct {
+		verb, want string
+	}{
+		{verb: "requests", want: "  work  200  16.1M in, 12k out  1m 05s\n"},
+		{verb: "history", want: "  1 request  16.1M tokens  "},
+	}
+	for _, tt := range tests {
+		if got := run(t, deps, tt.verb, "--pretty"); got.code != 0 || !strings.Contains(got.stdout, tt.want) {
+			t.Errorf("switchboard %s --pretty = %+v, want it to say %q", tt.verb, got, tt.want)
 		}
 	}
 }
@@ -325,22 +365,6 @@ func TestRequestsOfASessionReadTheLedgerOnce(t *testing.T) {
 	log := readLog(t, deps, "cli.log")
 	if n := strings.Count(log, `msg="request ledger lines unread"`); n != 1 {
 		t.Errorf("cli.log reads\n%s\nwant the line that doesn't read warned of once, as the ledger is read once, not %d times", log, n)
-	}
-}
-
-func TestHowLongARequestTookIsAsBriefAsARowHasRoomFor(t *testing.T) {
-	tests := []struct {
-		ms   int64
-		want string
-	}{
-		{ms: 0, want: "0ms"}, {ms: 999, want: "999ms"}, {ms: 1000, want: "1.0s"}, {ms: 14230, want: "14.2s"},
-		{ms: 59949, want: "59.9s"}, {ms: 59950, want: "1m0s"}, {ms: 59999, want: "1m0s"}, {ms: 60000, want: "1m0s"},
-		{ms: 60499, want: "1m0s"}, {ms: 60500, want: "1m1s"}, {ms: 3599499, want: "59m59s"}, {ms: 3599500, want: "1h0m0s"},
-	}
-	for _, tt := range tests {
-		if got := cli.Took(tt.ms); got != tt.want {
-			t.Errorf("Took(%d) = %q, want %q", tt.ms, got, tt.want)
-		}
 	}
 }
 
@@ -400,15 +424,15 @@ func TestSinceATimeTodayIsWhenTheClocksFirstReadItThatDay(t *testing.T) {
 // historyFromThe4th is what history prints of the 4th's table.
 const historyFromThe4th = `Sun 4 Oct 2026
   work  claude-opus-5-5  1 request  186k tokens  1 session  $0.08
-  work: 1 session  ·  highest: Session 50%
+  work: 1 session  ·  highest: 5-hour 50%
 
 ` + historyFromThe6th
 
 // historyFromThe6th is what history prints of the 6th's table and today's.
 const historyFromThe6th = `Tue 6 Oct 2026
   side  claude-opus-5-5  1 request  20k tokens  1 session  $0.02
-  side: 1 session  ·  1 moved on  ·  highest: Session 10%
-  work: no sessions  ·  1 moved off  ·  limits: Session at 22:14  ·  highest: Session 100%
+  side: 1 session  ·  1 moved on  ·  highest: 5-hour 10%
+  work: no sessions  ·  1 moved off  ·  limits: 5-hour at 22:14  ·  highest: 5-hour 100%
 
 ` + historyOfToday
 
@@ -418,11 +442,11 @@ const historyFromThe6th = `Tue 6 Oct 2026
 // alone, has no row.
 const historyOfToday = `Wed 7 Oct 2026, so far
   no account  claude-opus-5-5  1 request  0 tokens     1 session  $0.00
-  side        claude-opus-5-5  1 request  0 tokens     1 session  $0.00, part unpriced
+  side        claude-opus-5-5  1 request  0 tokens     1 session  $0.00+
   work        claude-opus-5-5  1 request  186k tokens  1 session  $0.08
               claude-opus-9    1 request  110 tokens   1 session  unpriced
-  side: 1 session  ·  highest: Session 10%
-  work: 2 sessions  ·  highest: Session 30%, Week 41%
+  side: 1 session  ·  highest: 5-hour 10%
+  work: 2 sessions  ·  highest: 5-hour 30%, week 41%
 `
 
 // historyPricedAt is what history prints last, the prices its worth is at.
@@ -436,22 +460,22 @@ worth is what they'd have cost through the API, at its prices as of 11 Oct 2026
 // its cap and its limit is the 6th's; the share of use is weighed at API
 // prices, so work's quota check of Haiku is under 1%.
 const historyTotalsFromThe6th = `
-Over these days           work                  side                  all accounts
-  requests                2                     2                     5
-  sessions served         2                     1                     3
-  sessions moved          1 out                 1 in                  1 move
-  limits hit              Session ×1            none                  1
-  at cap or limit         2h 10m                none                  2h 10m
-  left at its last reset  Session 0%            Session 90%           -
-  plan                    -                     -                     -
-  worth                   $0.08, part unpriced  $0.02, part unpriced  $0.09, part unpriced
-  against its price       -                     -                     -
-  busiest day             Wed 7 Oct             Tue 6 Oct             Wed 7 Oct
-  longest run             1 day                 2 days                2 days
+Over these days           work       side        all accounts
+  requests                2          2           5
+  sessions served         2          1           3
+  sessions moved          1 out      1 in        1 move
+  limits hit              5-hour ×1  none        1
+  at cap or limit         2h 10m     none        2h 10m
+  left at its last reset  5-hour 0%  5-hour 90%  -
+  plan                    -          -           -
+  worth                   $0.08+     $0.02+      $0.09+
+  against its price       -          -           -
+  busiest day             Wed 7 Oct  Tue 6 Oct   Wed 7 Oct
+  longest run             1 day      2 days      2 days
   by model
-    Opus 5.5              100%                  100%                  100%
-    Haiku 4.5             <1%                   -                     <1%
-    opus-9                -                     -                     -
+    Opus 5.5              100%       100%        100%
+    Haiku 4.5             <1%        -           <1%
+    opus-9                -          -           -
 `
 
 // The weeks history prints, from the 28th and from this week, of which the
@@ -483,41 +507,41 @@ func TestHistoryPrintsEachDayByAccountAndModel(t *testing.T) {
 		want string
 	}{
 		{name: "the last 30 days, of each day the ledger holds", want: historyFromThe4th + `
-Over these days           work                  side                  all accounts
-  requests                3                     2                     6
-  sessions served         2                     1                     3
-  sessions moved          1 out                 1 in                  1 move
-  limits hit              Session ×1            none                  1
-  at cap or limit         2h 10m                none                  2h 10m
-  left at its last reset  Session 0%            Session 90%           -
-  plan                    -                     -                     -
-  worth                   $0.16, part unpriced  $0.02, part unpriced  $0.17, part unpriced
-  against its price       -                     -                     -
-  busiest day             Wed 7 Oct             Tue 6 Oct             Wed 7 Oct
-  longest run             1 day                 2 days                2 days
+Over these days           work       side        all accounts
+  requests                3          2           6
+  sessions served         2          1           3
+  sessions moved          1 out      1 in        1 move
+  limits hit              5-hour ×1  none        1
+  at cap or limit         2h 10m     none        2h 10m
+  left at its last reset  5-hour 0%  5-hour 90%  -
+  plan                    -          -           -
+  worth                   $0.16+     $0.02+      $0.17+
+  against its price       -          -           -
+  busiest day             Wed 7 Oct  Tue 6 Oct   Wed 7 Oct
+  longest run             1 day      2 days      2 days
   by model
-    Opus 5.5              100%                  100%                  100%
-    Haiku 4.5             <1%                   -                     <1%
-    opus-9                -                     -                     -
+    Opus 5.5              100%       100%        100%
+    Haiku 4.5             <1%        -           <1%
+    opus-9                -          -           -
 ` + historyNoWeeksFromThe28th + historyPricedAt},
 		{name: "from a day", args: []string{"--since", "2026-10-06"}, want: historyFromThe6th + historyTotalsFromThe6th + historyNoWeeksThisWeek + historyPricedAt},
 		{name: "from the day of a time today", args: []string{"--since", "10:00"}, want: historyOfToday + `
-Over these days           work                  side                  all accounts
-  requests                2                     1                     4
-  sessions served         2                     1                     3
-  sessions moved          none                  none                  none
-  limits hit              none                  none                  none
-  at cap or limit         none                  none                  none
-  left at its last reset  -                     Session 90%           -
-  plan                    -                     -                     -
-  worth                   $0.08, part unpriced  $0.00, part unpriced  $0.08, part unpriced
-  against its price       -                     -                     -
-  busiest day             Wed 7 Oct             Wed 7 Oct             Wed 7 Oct
-  longest run             1 day                 1 day                 1 day
+Over these days           work       side        all accounts
+  requests                2          1           4
+  sessions served         2          1           3
+  sessions moved          none       none        none
+  limits hit              none       none        none
+  at cap or limit         none       none        none
+  left at its last reset  -          5-hour 90%  -
+  plan                    -          -           -
+  worth                   $0.08+     $0.00+      $0.08+
+  against its price       -          -           -
+  busiest day             Wed 7 Oct  Wed 7 Oct   Wed 7 Oct
+  longest run             1 day      1 day       1 day
   by model
-    Opus 5.5              100%                  -                     100%
-    Haiku 4.5             <1%                   -                     <1%
-    opus-9                -                     -                     -
+    Opus 5.5              100%       -           100%
+    Haiku 4.5             <1%        -           <1%
+    opus-9                -          -           -
 ` + historyNoWeeksThisWeek + historyPricedAt},
 		{name: "from the day of days ago", args: []string{"--since", "2d"}, want: historyFromThe6th + historyTotalsFromThe6th + historyNoWeeksThisWeek + historyPricedAt},
 	}
@@ -553,8 +577,8 @@ func TestHistoryNotesADayOfNoRequestsOnlyWhereALimitWasReachedOrAWeekReset(t *te
 		note string
 	}{
 		{name: "its highest use alone, its session reset", read: sideRead("5h", 0.2, quota.StatusAllowed)},
-		{name: "a limit reached", read: sideRead("5h", 1, quota.StatusRejected), note: "side: no sessions  ·  limits: Session at 09:00  ·  highest: Session 100%"},
-		{name: "its week reset", read: sideRead("7d", 0.64, quota.StatusAllowed), note: "side: no sessions  ·  week reset 10:00  ·  highest: Week 64%"},
+		{name: "a limit reached", read: sideRead("5h", 1, quota.StatusRejected), note: "side: no sessions  ·  limits: 5-hour at 09:00  ·  highest: 5-hour 100%"},
+		{name: "its week reset", read: sideRead("7d", 0.64, quota.StatusAllowed), note: "side: no sessions  ·  week reset 10:00  ·  highest: week 64%"},
 		{name: "a model's week reset", read: sideRead("7d_oi", 0.5, quota.StatusAllowed), note: "side: no sessions  ·  Fable week reset 10:00  ·  highest: Fable week 50%"},
 	}
 	for _, tt := range tests {

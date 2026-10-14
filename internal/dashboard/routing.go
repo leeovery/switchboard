@@ -3,10 +3,10 @@ package dashboard
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -61,23 +61,24 @@ type routingTable struct {
 }
 
 // routingTableOf is ROUTING of doc at now, as the frame draws it: each
-// account's sessions counted as the router listed them, where it listed any,
-// else as doc counts them; and its pool, and who's out of it, at now.
+// account's sessions counted as SESSIONS lists them running, as
+// views.RunningCounts counts them, where the router listed any, else as doc
+// counts them; and its pool, and who's out of it, at now.
 func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	m := f.Moment(doc, now)
 	names := overviewNames(m)
 	t := routingTable{names: nameColumn(names, f.Width), now: now}
-	var listing []status.Session
+	var running map[string]int
 	if f.Sessions != nil {
-		listing = f.listing()
+		running = views.RunningCounts(f.running(doc, now))
 	}
 	for i, a := range m.Accounts {
 		r := accountRouting{
 			id: a.ID, name: names[i].line(t.names), standing: a.Routing, pinned: a.Pinned,
 			sessions: a.Sessions, trace: f.Traces.Accounts[a.ID], faded: a.OutOfPool,
 		}
-		if listing != nil {
-			r.sessions = len(f.busy(listing, a.ID, now))
+		if running != nil {
+			r.sessions = running[a.ID]
 		}
 		t.accounts = append(t.accounts, r)
 		if a.InPool {
@@ -161,7 +162,7 @@ func routingMode(m status.Moment, alone bool) line {
 		return mode
 	}
 	if !m.Pin.Since.IsZero() {
-		mode = append(mode, span{" since " + status.Dated(m.Now, m.Pin.Since), dimInk})
+		mode = append(mode, span{" since " + prose.Dated(m.Now, m.Pin.Since), dimInk})
 	}
 	return append(mode, spaces(3), span{"p", keyInk}, span{" back to auto", faintInk})
 }
@@ -336,16 +337,15 @@ func (r accountRouting) rate(now time.Time) span {
 	return traceRate(r.trace, now, r.faded).numbered(Number{Kind: NumberRate, Account: r.id})
 }
 
-// sessionsSpan is how many sessions are on an account, as in "2 sessions"
-// or "1 session", in text.muted; "0 sessions" in text.faint.
+// sessionsSpan is how many sessions are on an account, as prose.Counted
+// counts them, as in "2 sessions" or "1 session", in text.muted; "0
+// sessions" in text.faint.
 func sessionsSpan(n int) span {
-	switch n {
-	case 0:
-		return span{"0 sessions", faintInk}
-	case 1:
-		return span{"1 session", mutedInk}
+	k := mutedInk
+	if n == 0 {
+		k = faintInk
 	}
-	return span{strconv.Itoa(n) + " sessions", mutedInk}
+	return span{prose.Counted(n, "session"), k}
 }
 
 // blocksBeside are where USAGE draws its blocks by account, for ROUTING to be

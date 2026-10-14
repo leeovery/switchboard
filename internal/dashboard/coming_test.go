@@ -6,27 +6,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
 func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
-	lapsed := readAccount("spare", quota.Window{Key: "5h", Label: "Session"}, weekOf(0.05, 6*day))
+	lapsed := readAccount("spare", quota.Window{Key: "5h", Label: "Session"}, weekOf(0.05, 6*quota.Day))
 	lapsed.Lapsed = []string{"5h"}
-	pastLimit := readAccount("over", sessionOf(0.3, time.Hour), weekOf(0.2, 3*day))
+	pastLimit := readAccount("over", sessionOf(0.3, time.Hour), weekOf(0.2, 3*quota.Day))
 	pastLimit.Limit = status.Limit{Windows: []string{"5h"}, Until: now.Add(-time.Minute)}
-	spent := readAccount("spent", sessionOf(0.2, 3*time.Hour), weekOf(0.3, 3*day), windowOf("7d_oi", "Fable week", 1, 2*day))
-	running := readAccount("client", sessionOf(0.1, 3*time.Hour), weekOf(0.7, 3*day))
-	fable := readAccount("fable", sessionOf(0.1, 2*time.Hour), weekOf(0.2, 3*day), windowOf("7d_oi", "Fable week", 1, 4*day))
-	fable.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: now.Add(4 * day)}
+	spent := readAccount("spent", sessionOf(0.2, 3*time.Hour), weekOf(0.3, 3*quota.Day), windowOf("7d_oi", "Fable week", 1, 2*quota.Day))
+	running := readAccount("client", sessionOf(0.1, 3*time.Hour), weekOf(0.7, 3*quota.Day))
+	fable := readAccount("fable", sessionOf(0.1, 2*time.Hour), weekOf(0.2, 3*quota.Day), windowOf("7d_oi", "Fable week", 1, 4*quota.Day))
+	fable.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: now.Add(4 * quota.Day)}
 	reserved := pressedAccount("work")
 	reserved.Reserve = 0.1
 	pinned := routerDoc("work", 0, reserved)
 	pinned.Pin = status.Pin{Accounts: []string{"work"}}
-	capped := readAccount("capped", sessionOf(0.2, 2*time.Hour), weekOf(0.95, 2*day))
+	capped := readAccount("capped", sessionOf(0.2, 2*time.Hour), weekOf(0.95, 2*quota.Day))
 	capped.Reserve = 0.1
-	modelCapped := readAccount("fable", sessionOf(0.2, 2*time.Hour), weekOf(0.3, 3*day), windowOf("7d_oi", "Fable week", 0.95, 2*day))
+	modelCapped := readAccount("fable", sessionOf(0.2, 2*time.Hour), weekOf(0.3, 3*quota.Day), windowOf("7d_oi", "Fable week", 0.95, 2*quota.Day))
 	modelCapped.Reserve = 0.1
 	tests := []struct {
 		name  string
@@ -113,7 +114,7 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 			doc.Prime = status.Prime{Day: "08:00-22:00", Window: "5h", Slots: tt.slots}
 			var got []string
 			for _, h := range (Frame{Policy: claudeLike}).upcoming(doc.WorkedOut(claudeLike), now) {
-				got = append(got, status.Dated(now, h.at)+" "+h.name.text+h.what)
+				got = append(got, prose.Dated(now, h.at)+" "+h.name.text+h.what)
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("upcoming() = %q, want %q", got, tt.want)
@@ -132,7 +133,7 @@ func TestCOMINGUPDrawsWhatTheDocumentGivesAfterNow(t *testing.T) {
 	}
 	var got []string
 	for _, h := range (Frame{Policy: claudeLike}).upcoming(doc, now) {
-		got = append(got, status.Dated(now, h.at)+" "+h.name.text+h.what)
+		got = append(got, prose.Dated(now, h.at)+" "+h.name.text+h.what)
 	}
 	if want := []string{"15:12 work's 5-hour resets"}; !slices.Equal(got, want) {
 		t.Errorf("upcoming() = %q, want %q: what the document gives, after now, of the kinds it knows", got, want)
@@ -140,7 +141,7 @@ func TestCOMINGUPDrawsWhatTheDocumentGivesAfterNow(t *testing.T) {
 }
 
 func TestCOMINGUPListsEverythingTheDocumentGivesWhateverItsWindow(t *testing.T) {
-	doc := routerDoc("work", 0, readAccount("work", sessionOf(0.1, 2*time.Hour), windowOf("7d_oi", "Fable week", 0, 2*day)))
+	doc := routerDoc("work", 0, readAccount("work", sessionOf(0.1, 2*time.Hour), windowOf("7d_oi", "Fable week", 0, 2*quota.Day)))
 	if windows := windowKeys(doc.At(now, claudeLike).Hidden); !slices.Equal(windows, []string{"7d_oi"}) {
 		t.Fatalf("the hidden windows = %q, want the Fable week, unused on every account", windows)
 	}
@@ -153,7 +154,7 @@ func TestCOMINGUPListsEverythingTheDocumentGivesWhateverItsWindow(t *testing.T) 
 
 	var got []string
 	for _, h := range (Frame{Policy: claudeLike}).upcoming(doc, now) {
-		got = append(got, status.Dated(now, h.at)+" "+h.name.text+h.what)
+		got = append(got, prose.Dated(now, h.at)+" "+h.name.text+h.what)
 	}
 	want := []string{
 		"14:12 work's Fable wk runs out at its pace",
@@ -177,7 +178,7 @@ func comingDrawn(f Frame, doc status.Document, now time.Time, body bounds) []str
 // comingOf is a document of the accounts work, personal and side whose
 // COMING UP is the things given.
 func comingOf(things ...status.Upcoming) status.Document {
-	doc := routerDoc("side", 0, readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 3*day)), readAccount("personal", sessionOf(0.4, 2*time.Hour), weekOf(0.6, 2*day)), readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.7, 5*day)))
+	doc := routerDoc("side", 0, readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 3*quota.Day)), readAccount("personal", sessionOf(0.4, 2*time.Hour), weekOf(0.6, 2*quota.Day)), readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.7, 5*quota.Day)))
 	doc.ComingUp = things
 	return doc
 }
@@ -258,7 +259,7 @@ func TestCOMINGUPPadsItsTimesToTheLongestOfThoseShown(t *testing.T) {
 	doc := comingOf(
 		status.Upcoming{At: now.Add(time.Hour).UTC(), Account: "personal", Kind: status.UpcomingBack},
 		status.Upcoming{At: now.Add(2 * time.Hour).UTC(), Account: "side", Kind: status.UpcomingReset, Window: "5h"},
-		status.Upcoming{At: now.Add(2 * day).UTC(), Account: "personal", Kind: status.UpcomingRunsOut, Window: "7d"},
+		status.Upcoming{At: now.Add(2 * quota.Day).UTC(), Account: "personal", Kind: status.UpcomingRunsOut, Window: "7d"},
 	)
 	f := frameOf(216, 10)
 	tests := []struct {
@@ -312,8 +313,8 @@ func TestCOMINGUPTakesItsLinesAndTwoRows(t *testing.T) {
 }
 
 func TestCOMINGUPFoldsToItsFirstLineButItsCountdownThenAnEllipsisWhereItHasMore(t *testing.T) {
-	runsOut := status.Upcoming{At: now.Add(2 * day).UTC(), Account: "personal", Kind: status.UpcomingRunsOut, Window: "7d"}
-	resets := status.Upcoming{At: now.Add(3 * day).UTC(), Account: "side", Kind: status.UpcomingReset, Window: "7d"}
+	runsOut := status.Upcoming{At: now.Add(2 * quota.Day).UTC(), Account: "personal", Kind: status.UpcomingRunsOut, Window: "7d"}
+	resets := status.Upcoming{At: now.Add(3 * quota.Day).UTC(), Account: "side", Kind: status.UpcomingReset, Window: "7d"}
 	first := line{{"~Wed 13:12  ", warningInk}, {"personal", titleInk}, {"'s week runs out at its pace", warningInk}}
 	tests := []struct {
 		name   string
@@ -357,7 +358,7 @@ func TestCOMINGUPsTimeCarriesItsWeekdayOnAnotherDayEvenWithinADay(t *testing.T) 
 		"later today":               {happening{at: now.Add(2 * time.Hour)}, "15:12"},
 		"tomorrow, within a day":    {happening{at: now.Add(22 * time.Hour)}, "Tue 11:12"},
 		"running out tomorrow":      {happening{at: now.Add(22 * time.Hour), runsOut: true}, "~Tue 11:12"},
-		"running out in a few days": {happening{at: now.Add(5 * day), runsOut: true}, "~Sat 13:12"},
+		"running out in a few days": {happening{at: now.Add(5 * quota.Day), runsOut: true}, "~Sat 13:12"},
 	}
 	for name, tt := range tests {
 		if got := tt.h.when(now); got != tt.want {

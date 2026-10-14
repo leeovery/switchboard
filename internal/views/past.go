@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -22,7 +23,7 @@ type Past struct {
 // never taken from the days, as the first held needn't be its first: its
 // Ledger goes unread, as the days are given.
 func NewPast(in HistoryInput, days []ledger.Summary) Past {
-	today := dateOf(in.Now).Format(time.DateOnly)
+	today := dayfile.DateOf(in.Now)
 	v := versions{table: in.Prices, family: in.Family}
 	return Past{in: in, days: pricedDays(days, in.Prices, today, v)}
 }
@@ -37,7 +38,7 @@ func (p Past) Since(days []ledger.Summary, now time.Time) Past {
 	if len(days) == 0 {
 		return p
 	}
-	today := dateOf(now).Format(time.DateOnly)
+	today := dayfile.DateOf(now)
 	before, _ := splitAt(p.days, days[0].Day)
 	p.days = slices.Concat(before, pricedDays(days, p.in.Prices, today, p.versions()))
 	return p
@@ -58,7 +59,7 @@ func (p Past) Year(ask YearAsk) YearPage {
 // Versions are the versions used in the last 12 months, as the Year's page of
 // them lists them for v to cycle through, without building it.
 func (p Past) Versions() []string {
-	span := yearSpanOf(0, dateOf(p.in.Now), p.in.WeekStarts)
+	span := yearSpanOf(0, dayfile.CivilOf(p.in.Now), p.in.WeekStarts)
 	return between(p.days, span.first, span.last).versions(p.versions())
 }
 
@@ -74,7 +75,7 @@ func (p Past) began() string {
 	if p.in.Began.IsZero() {
 		return ""
 	}
-	return dateOf(p.in.Began).Format(time.DateOnly)
+	return dayfile.DateOf(p.in.Began)
 }
 
 // Weeks is Weeks' page: the eight weeks to this one.

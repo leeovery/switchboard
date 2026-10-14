@@ -46,18 +46,22 @@ func overviewSessions() []status.Session {
 // routedAt: routedWorld's accounts, personal the primary, and
 // overviewSessions, the request stream telling of 41e0's answer, ~860
 // tokens so far, c61b's, ~1.2k, and d28c's opus asking.
-func overviewWorld() (status.Document, []status.Session, Traffic) {
+func overviewWorld() (status.Document, []status.Session, views.Stream) {
 	doc, _ := routedWorld(false)
 	doc.Accounts[1].Primary = true
-	plug := func(account, session, model string) Plug {
-		return Plug{Account: account, Seat: Seat{Session: session, Model: model}}
+	told := func(request, account, session, model string, heard time.Time, chars int) views.Told {
+		t := views.Told{Request: request, Session: session, Model: model, Account: account, Sent: heard.Add(-5 * time.Second), Heard: heard}
+		if chars > 0 {
+			t.First, t.Chars = t.Sent.Add(time.Second), chars
+		}
+		return t
 	}
-	traffic := Traffic{Live: true, Calls: map[Plug]Call{
-		plug("personal", id41E0, sonnet): {Doing: Streaming, Tokens: 860},
-		plug("side", idC61B, opus):       {Doing: Streaming, Tokens: 1200},
-		plug("side", idD28C, opus):       {Doing: Asking},
+	stream := views.Stream{Live: true, Requests: map[string]views.Told{
+		"r1": told("r1", "personal", id41E0, sonnet, routedAt, 860*views.CharsPerToken),
+		"r2": told("r2", "side", idC61B, opus, routedAt, 1200*views.CharsPerToken),
+		"r3": told("r3", "side", idD28C, opus, routedAt.Add(-3*time.Second), 0),
 	}}
-	return doc, overviewSessions(), traffic
+	return doc, overviewSessions(), stream
 }
 
 // sessionsDrawn are the rows the frame draws SESSIONS' body in, of doc at
@@ -70,7 +74,7 @@ func sessionsDrawn(f Frame, doc status.Document, rows int) []string {
 
 func TestSESSIONSIsDrawnAsItsFramesAre(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
-	doc, sessions, traffic := overviewWorld()
+	doc, sessions, stream := overviewWorld()
 	for _, tt := range []struct {
 		stem string
 		top  int
@@ -80,7 +84,7 @@ func TestSESSIONSIsDrawnAsItsFramesAre(t *testing.T) {
 		{stem: "overview-everything-216x106", top: 78},
 	} {
 		t.Run(tt.stem, func(t *testing.T) {
-			f := Frame{Width: 216, Height: 106, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Traffic: traffic}
+			f := Frame{Width: 216, Height: 106, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream}
 			c := newCanvas(f.Width, f.Height)
 			f.sessionsSection(doc, routedAt).draw(c, bounds{y: tt.top, width: f.Width, rows: 6})
 			// The traces and rates are the traces' own, held by their tests.
@@ -91,7 +95,7 @@ func TestSESSIONSIsDrawnAsItsFramesAre(t *testing.T) {
 }
 
 func TestSESSIONSFoldsToHowManyRunAndWhere(t *testing.T) {
-	doc, sessions, traffic := overviewWorld()
+	doc, sessions, stream := overviewWorld()
 	two := slices.Clone(sessions)
 	two[0].Assignments = append(slices.Clone(two[0].Assignments), status.Assignment{Model: haiku, Family: "haiku", Account: "personal", Reason: status.ReasonNew, AssignedAt: routedAt, LastSeen: routedAt})
 	tests := []struct {
@@ -114,7 +118,7 @@ func TestSESSIONSFoldsToHowManyRunAndWhere(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: 160, Height: 39, View: Overview, Sessions: tt.sessions, Traffic: traffic}
+			f := Frame{Width: 160, Height: 39, View: Overview, Sessions: tt.sessions, Stream: stream}
 			if got := f.sessionsSection(doc, routedAt).folded(); !slices.Equal(got, tt.want) {
 				t.Errorf("folded = %+v, want %+v", got, tt.want)
 			}
@@ -139,7 +143,7 @@ func TestSESSIONSWithNoneRunningSaysSo(t *testing.T) {
 }
 
 func TestSESSIONSShowsAsManyAsFitTheLastRowSayingHowManyMore(t *testing.T) {
-	doc, sessions, traffic := overviewWorld()
+	doc, sessions, stream := overviewWorld()
 	tests := []struct {
 		name  string
 		width int
@@ -152,7 +156,7 @@ func TestSESSIONSShowsAsManyAsFitTheLastRowSayingHowManyMore(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: 40, View: Overview, Sessions: sessions, Traffic: traffic}
+			f := Frame{Width: tt.width, Height: 40, View: Overview, Sessions: sessions, Stream: stream}
 			got := sessionsDrawn(f, doc, tt.rows)
 			for i, row := range got {
 				if !strings.HasPrefix(row, tt.want[i]) || tt.want[i] == "" && row != "" {
@@ -162,7 +166,7 @@ func TestSESSIONSShowsAsManyAsFitTheLastRowSayingHowManyMore(t *testing.T) {
 		})
 	}
 	c := newCanvas(160, 3)
-	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: sessions, Traffic: traffic}
+	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: sessions, Stream: stream}
 	f.sessionsSection(doc, routedAt).draw(c, bounds{width: 160, rows: 3})
 	if got := c.cells[2][16].ink; got != dimInk {
 		t.Errorf("+4 more drawn in %+v, want text.subtle", got)
@@ -170,9 +174,9 @@ func TestSESSIONSShowsAsManyAsFitTheLastRowSayingHowManyMore(t *testing.T) {
 }
 
 func TestUnder110ColumnsASessionTakesTwoRows(t *testing.T) {
-	doc, sessions, traffic := overviewWorld()
+	doc, sessions, stream := overviewWorld()
 	for _, width := range []int{109, 52} {
-		f := Frame{Width: width, Height: 40, View: Overview, Sessions: sessions[:2], Traffic: traffic}
+		f := Frame{Width: width, Height: 40, View: Overview, Sessions: sessions[:2], Stream: stream}
 		if got := f.sessionsSection(doc, routedAt); got.least != 6 || got.most != 6 {
 			t.Errorf("at %d columns: least %d, most %d; want two rows a session and the heading's two", width, got.least, got.most)
 		}
@@ -204,31 +208,21 @@ func TestASessionsWhyIsCutToEndBeforeItsTrace(t *testing.T) {
 }
 
 func TestASessionRunningSaysWhatItsDoing(t *testing.T) {
-	plug := Plug{Account: "side", Seat: Seat{Session: idD28C, Model: opus}}
-	other := Plug{Account: "side", Seat: Seat{Session: idD28C, Model: haiku}}
 	tests := []struct {
-		name     string
-		calls    map[Plug]Call
-		inFlight string
-		want     span
+		name string
+		a    views.Activity
+		want span
 	}{
-		{name: "answering, as the stream counts it", calls: map[Plug]Call{plug: {Doing: Streaming, Tokens: 1234}}, want: span{"↓ ~1.2k", doingInk}},
-		{name: "answering, exact", calls: map[Plug]Call{plug: {Doing: Streaming, Tokens: 1321, Exact: true}}, want: span{"↓ 1.3k", doingInk}},
-		{name: "answering, nothing counted yet", calls: map[Plug]Call{plug: {Doing: Streaming}}, want: span{"↓", doingInk}},
-		{name: "answering on one model, asking on another: answering", calls: map[Plug]Call{other: {Doing: Asking}, plug: {Doing: Streaming, Tokens: 860}}, want: span{"↓ ~860", doingInk}},
-		{name: "asking, as the stream tells", calls: map[Plug]Call{plug: {Doing: Asking}}, want: span{"↑ ask", doingInk}},
-		{name: "throttled, to be sent again: asking still", calls: map[Plug]Call{plug: {Doing: Throttled}}, want: span{"↑ ask", doingInk}},
-		{name: "its answer ended, as the stream tells, though listed answering", calls: map[Plug]Call{plug: {Doing: Answered, Tokens: 900}}, inFlight: status.Answering, want: span{"idle", faintInk}},
-		{name: "refused, as the stream tells", calls: map[Plug]Call{plug: {Doing: Refused}}, want: span{"idle", faintInk}},
-		{name: "answering, as the router listed it, the stream telling nothing", inFlight: status.Answering, want: span{"↓", doingInk}},
-		{name: "asking, as the router listed it", inFlight: status.Asking, want: span{"↑ ask", doingInk}},
-		{name: "nothing in flight", want: span{"idle", faintInk}},
+		{name: "answering, as the stream counts it", a: views.Activity{Doing: views.Answering, Chars: 4936}, want: span{"↓ ~1.2k", doingInk}},
+		{name: "answering, nothing counted yet", a: views.Activity{Doing: views.Answering}, want: span{"↓", doingInk}},
+		{name: "asking", a: views.Activity{Doing: views.Asking}, want: span{"↑ ask", doingInk}},
+		{name: "throttled, to be sent again: asking still", a: views.Activity{Doing: views.Throttled, Status: 529}, want: span{"↑ ask", doingInk}},
+		{name: "refused", a: views.Activity{Doing: views.Refused, Status: 429}, want: span{"idle", faintInk}},
+		{name: "idle", a: views.Activity{Since: routedAt}, want: span{"idle", faintInk}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Traffic: Traffic{Live: true, Calls: tt.calls}}
-			r := views.Running{Account: "side", Session: idD28C, Models: []string{opus, haiku}, InFlight: tt.inFlight}
-			if got := f.runningDoing(r); got != tt.want {
+			if got := runningDoing(tt.a); got != tt.want {
 				t.Errorf("runningDoing = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -237,31 +231,25 @@ func TestASessionRunningSaysWhatItsDoing(t *testing.T) {
 
 func TestASessionsIDIsBrightWhileItsBusy(t *testing.T) {
 	tests := []struct {
-		name     string
-		seen     time.Duration
-		inFlight string
-		call     *Call
-		busy     bool
+		name  string
+		doing views.Doing
+		seen  time.Duration
+		busy  bool
 	}{
 		{name: "seen within the minute", seen: 59 * time.Second, busy: true},
 		{name: "seen a minute ago", seen: time.Minute},
-		{name: "a request in flight, as the router listed it", seen: 9 * time.Minute, inFlight: status.Asking, busy: true},
-		{name: "a request in flight, as the stream tells", seen: 9 * time.Minute, call: &Call{Doing: Streaming}, busy: true},
-		{name: "its answer ended, as the stream tells", seen: 9 * time.Minute, call: &Call{Doing: Answered}},
+		{name: "a request in flight", doing: views.Asking, seen: 9 * time.Minute, busy: true},
+		{name: "a request refused, before it goes out again", doing: views.Refused, seen: 9 * time.Minute, busy: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var f Frame
-			if tt.call != nil {
-				f.Traffic.Calls = map[Plug]Call{{Account: "side", Seat: Seat{Session: idD28C, Model: opus}}: *tt.call}
-			}
-			r := views.Running{Account: "side", Session: idD28C, Models: []string{opus}, LastSeen: routedAt.Add(-tt.seen), InFlight: tt.inFlight}
+			r := views.Running{Account: "side", Session: idD28C, Models: []string{opus}, Activity: views.Activity{Doing: tt.doing, LastSeen: routedAt.Add(-tt.seen)}}
 			want := span{"d28c  ", mutedInk}
 			if tt.busy {
 				want.ink = titleInk
 			}
-			if got := f.runningID(r, routedAt); got != want {
-				t.Errorf("runningID = %+v, want %+v", got, want)
+			if got := runningIDOf(r, routedAt); got != want {
+				t.Errorf("runningIDOf = %+v, want %+v", got, want)
 			}
 		})
 	}
@@ -288,7 +276,7 @@ func TestASessionRunningWasLastSeenNowWithinTheMinute(t *testing.T) {
 func TestASessionSeenLongerAgoThanItsColumnHoldsIsDrawnWhole(t *testing.T) {
 	doc, _, _ := overviewWorld()
 	c := newCanvas(160, 1)
-	r := views.Running{Account: "side", Session: idD28C, Family: "opus", LastSeen: routedAt.Add(-1000 * time.Hour)}
+	r := views.Running{Account: "side", Session: idD28C, Family: "opus", Activity: views.Activity{LastSeen: routedAt.Add(-1000 * time.Hour)}}
 	f := Frame{Width: 160}
 	f.wideRunning(c, f.Moment(doc, routedAt), r, 16, 0)
 	if got := rowOf(c, 0); !strings.Contains(got, "d28c  opus   1000h   idle") {
@@ -296,13 +284,32 @@ func TestASessionSeenLongerAgoThanItsColumnHoldsIsDrawnWhole(t *testing.T) {
 	}
 }
 
+// A frame holding the sessions running lists them once, for SESSIONS to list
+// and ROUTING to count, the stream heard once a frame; a look at another
+// moment lists them afresh.
+func TestTheSessionsRunningAreListedOnceAFrame(t *testing.T) {
+	doc, sessions, _ := overviewWorld()
+	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: sessions}.holdRunning(doc, routedAt)
+	listed := f.running(doc, routedAt)
+	if len(listed) == 0 {
+		t.Fatal("no session runs, want those the router lists")
+	}
+	if again := f.running(doc, routedAt); &again[0] != &listed[0] {
+		t.Error("asked again, the frame lists the sessions running afresh, want the list it holds")
+	}
+	if later := f.running(doc, routedAt.Add(time.Minute)); len(later) > 0 && &later[0] == &listed[0] {
+		t.Error("asked of another moment, the frame gives the list it holds, want them listed afresh")
+	}
+}
+
 func TestTheStreamSeesASessionRunningLaterThanTheRouterListedIt(t *testing.T) {
 	doc, sessions, _ := overviewWorld()
 	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: sessions}
-	f.Traffic = Traffic{Live: true, Seen: map[Plug]time.Time{{Account: "side", Seat: Seat{Session: idDB8A, Model: opus}}: routedAt}}
+	answered := views.Told{Request: "r1", Session: idDB8A, Model: opus, Account: "side", Sent: routedAt.Add(-9 * time.Second), Ended: routedAt, Status: 200, Heard: routedAt}
+	f.Stream = views.Stream{Live: true, Requests: map[string]views.Told{answered.Request: answered}}
 	var order []string
 	for _, r := range f.running(doc, routedAt) {
-		order = append(order, sessionID(r.Session))
+		order = append(order, status.ShownID(r.Session))
 	}
 	if want := []string{"41e0", "9c2e", "c61b", "db8a", "d28c", "7f3a"}; !slices.Equal(order, want) {
 		t.Errorf("listed %q, want %q: db8a seen now, as the stream told, after c61b as the router lists them", order, want)

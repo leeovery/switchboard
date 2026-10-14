@@ -30,8 +30,8 @@ func TestTheWindowsShown(t *testing.T) {
 		{
 			name: "those every model shares, always, and a model's own no account uses, hidden",
 			accounts: []status.Account{
-				readAccount("work", fableOf(0, 4*day), sessionOf(0, time.Hour), weekOf(0, 4*day)),
-				readAccount("side", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0, 4*day)),
+				readAccount("work", fableOf(0, 4*quota.Day), sessionOf(0, time.Hour), weekOf(0, 4*quota.Day)),
+				readAccount("side", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0, 4*quota.Day)),
 			},
 			wantShown:  []string{"5h", "7d"},
 			wantHidden: []string{"7d_oi"},
@@ -39,16 +39,16 @@ func TestTheWindowsShown(t *testing.T) {
 		{
 			name: "a model's own one account has used",
 			accounts: []status.Account{
-				readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0, 4*day)),
-				readAccount("side", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0.04, 4*day)),
+				readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0, 4*quota.Day)),
+				readAccount("side", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0.04, 4*quota.Day)),
 			},
 			wantShown: []string{"5h", "7d", "7d_oi"},
 		},
 		{
 			name: "a model's own one account used, reset since it was read, so unused at now",
 			accounts: []status.Account{
-				readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0, 4*day)),
-				readAccount("side", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0.12, -time.Hour)),
+				readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0, 4*quota.Day)),
+				readAccount("side", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0.12, -time.Hour)),
 			},
 			wantShown:  []string{"5h", "7d"},
 			wantHidden: []string{"7d_oi"},
@@ -56,7 +56,7 @@ func TestTheWindowsShown(t *testing.T) {
 		{
 			name: "a model's own one account is heading to use",
 			accounts: []status.Account{
-				using(readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0, 4*day)), "7d_oi", 0.01),
+				using(readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0, 4*quota.Day)), "7d_oi", 0.01),
 			},
 			wantShown: []string{"5h", "7d", "7d_oi"},
 		},
@@ -76,7 +76,7 @@ func TestTheWindowsShown(t *testing.T) {
 }
 
 func TestTheLineOverTheKeyLineSaysWhichWindowsHide(t *testing.T) {
-	m := routerDoc("", 0, readAccount("work", sessionOf(0.2, time.Hour), fableOf(0, 4*day), windowOf("7d_opus", "Opus week", 0, 4*day))).At(now, claudeLike)
+	m := routerDoc("", 0, readAccount("work", sessionOf(0.2, time.Hour), fableOf(0, 4*quota.Day), windowOf("7d_opus", "Opus week", 0, 4*quota.Day))).At(now, claudeLike)
 	tests := []struct {
 		keys []string
 		want string
@@ -98,8 +98,8 @@ func TestTheLineOverTheKeyLineSaysWhichWindowsHide(t *testing.T) {
 
 func TestAWindowIsNamedAsTheMomentNamesIt(t *testing.T) {
 	m := routerDoc("", 0,
-		readAccount("work", windowOf("5h", "", 0.2, time.Hour), fableOf(0, 4*day)),
-		readAccount("side", windowOf("7d", "Week\x1b[2J", 0.3, 4*day)),
+		readAccount("work", windowOf("5h", "", 0.2, time.Hour), fableOf(0, 4*quota.Day)),
+		readAccount("side", windowOf("7d", "Week\x1b[2J", 0.3, 4*quota.Day)),
 	).At(now, claudeLike)
 	tests := []struct {
 		key  string

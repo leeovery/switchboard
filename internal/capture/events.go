@@ -54,9 +54,9 @@ const (
 )
 
 // rescoredUnderPressure is the router's reason, as its log has it, for
-// choosing afresh the account of a session that idled as long as idle says,
+// choosing afresh the account of a session that idled for as long as idle,
 // passing the account given over under pressure.
-func rescoredUnderPressure(idle, account string) string {
+func rescoredUnderPressure(idle time.Duration, account string) string {
 	return status.PassingOver(status.Rescored(idle), account)
 }
 
@@ -229,7 +229,7 @@ func (h happenings) morning(personalPrimed status.Event) []status.Event {
 		h.started(h.today(12, 2, 10), idD28C, "work", status.ReasonNew),
 		h.primed(h.today(12, 10, 0), "work", h.today(17, 10, 0)),
 		h.started(h.today(12, 47, 12), id41E0, "personal", status.ReasonNew),
-		h.moved(h.today(13, 22, 40), idDB8A, "personal", "work", rescoredUnderPressure("21h 15m", "personal")),
+		h.moved(h.today(13, 22, 40), idDB8A, "personal", "work", rescoredUnderPressure(21*time.Hour+15*time.Minute, "personal")),
 		h.primed(h.today(13, 50, 0), "side", h.today(18, 50, 0)),
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -616,7 +617,7 @@ func TestTheLayoutIsMadeAfreshAsASectionsShapeMovesNeverAsSessionsStartOrLinesCo
 
 	fabled := doc
 	fabled.Accounts = slices.Clone(doc.Accounts)
-	fabled.Accounts[2].Windows = append(slices.Clone(doc.Accounts[2].Windows), fableOf(0.1, 5*day))
+	fabled.Accounts[2].Windows = append(slices.Clone(doc.Accounts[2].Windows), fableOf(0.1, 5*quota.Day))
 	if got, want := f.LayoutOf(fabled, now), fresh.LayoutOf(fabled, now); got != want || got == f.Layout {
 		t.Errorf("as a model's own window is first read, the layout is %+v, want it made afresh, %+v", got, want)
 	}
@@ -788,8 +789,8 @@ func TestAFoldedHeadingSaysWhatItHoldsThenWhyOrThatItHasMore(t *testing.T) {
 
 func TestAFoldedSectionsHeadingSaysOnceThatThereIsNoRoomAsTheFrameAndTheDesignWordIt(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
-	doc, sessions, traffic := overviewWorld()
-	f := Frame{Width: 160, Height: 39, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Traffic: traffic, Sections: gs}
+	doc, sessions, stream := overviewWorld()
+	f := Frame{Width: 160, Height: 39, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream, Sections: gs}
 	const stem = "overview-everything-160x39"
 	heldTo(t, stem, reference(t, stem), screenOf(t, f.Draw(doc, routedAt)), region{top: 35, bottom: 35, right: 159}, shadeOf(nord.Canvas()), nil, nil)
 

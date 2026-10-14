@@ -3,10 +3,9 @@ package views
 import (
 	"strings"
 	"time"
-)
 
-// monthLayout lays out a month as a Month names it, as 2026-10.
-const monthLayout = "2006-01"
+	"github.com/leeovery/switchboard/internal/dayfile"
+)
 
 // Month is a row of BY MONTH: a calendar month's requests, what they were
 // worth, what the plans cost that month and the worth against it, the
@@ -38,7 +37,7 @@ func monthsOf(days []Day, p plans, v versions, from, today string) []Month {
 			}
 		}
 		m.ByFamily = v.byFamily(sums)
-		first, _ := civil(s.key + "-01")
+		first, _ := dayfile.MonthStart(s.key)
 		priced, at := cutShort(s.key+"-01", first.AddDate(0, 1, -1).Format(time.DateOnly), from, aMonth)
 		m.Against = p.against(accountWorths(s.days), at, priced)
 		if strings.HasPrefix(today, s.key+"-") {
@@ -71,8 +70,9 @@ func monthKey(d Day) (string, bool) {
 }
 
 // monthOf is the month the day with the date given falls in, as Month names
-// it, reporting false for a date that isn't one.
+// it, as dayfile.MonthOf gives one, reporting false for a date that isn't
+// one.
 func monthOf(date string) (string, bool) {
-	day, ok := civil(date)
-	return day.Format(monthLayout), ok
+	day, ok := dayfile.Civil(date)
+	return dayfile.MonthOf(day), ok
 }

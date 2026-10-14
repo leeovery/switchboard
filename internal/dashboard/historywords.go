@@ -1,10 +1,7 @@
 package dashboard
 
 import (
-	"fmt"
-	"math"
 	"strings"
-	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -15,80 +12,32 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// noFigure is a figure History doesn't know, or doesn't yet: a dash, in
-// text.faint.
+// noFigure is a figure the dashboard doesn't know, or doesn't yet, as
+// History's or a bar's: a dash, in text.faint.
 var noFigure = span{"—", faintInk}
 
-// History's dates: a month as views names it, as 2026-10; a week by its
-// first day, as 28 Sep; and a day, as Thu 1 Oct.
-const (
-	monthLayout = "2006-01"
-	weekLayout  = "2 Jan"
-	dayLayout   = "Mon 2 Jan"
-)
-
 // The cells the widest of a bounded figure takes, as its format draws it: a
-// day, as dayLayout writes one of two figures; a run of a year's days, a leap
-// year's whole; and a share, all of it.
+// day, as views.DateNamed names one of two figures; a run of a year's days,
+// as views.DaysInARow says it, a leap year's whole; and a share, all of it.
 var (
-	widestDay   = ansi.StringWidth(time.Date(2026, time.September, 22, 0, 0, 0, 0, time.UTC).Format(dayLayout))
-	widestRun   = ansi.StringWidth(prose.Counted(366, "day"))
-	widestShare = ansi.StringWidth(status.Percent(1))
+	widestDay   = ansi.StringWidth(views.DateNamed("2026-09-22"))
+	widestRun   = ansi.StringWidth(views.DaysInARow(366))
+	widestShare = ansi.StringWidth(prose.Percent(1))
 )
 
-// civilDay is the day with the given date, reporting false for one that
-// isn't.
-func civilDay(date string) (time.Time, bool) {
-	day, err := time.Parse(time.DateOnly, date)
-	return day, err == nil
-}
-
-// monthName is the month, as views names it, as History names it: Oct, or
-// with its year, Oct 2025; as it is where it isn't a month.
-func monthName(month string, withYear bool) string {
-	m, err := time.Parse(monthLayout, month)
-	if err != nil {
-		return month
-	}
-	if withYear {
-		return m.Format("Jan 2006")
-	}
-	return m.Format("Jan")
-}
-
-// weekHead heads a week, as Weeks and Days do, by its first day's date, as
-// 10 Aug: in text.faint, this week's bold text.secondary; as it is, cleaned,
-// where it isn't a date.
-func weekHead(date string, this bool) line {
-	k := faintInk
-	if this {
-		k = strongInk
-	}
-	if day, ok := civilDay(date); ok {
-		return line{{day.Format(weekLayout), k}}
-	}
-	return line{{status.Clean(date), k}}
-}
-
-// dayAbbreviation and dayInitial name a weekday as History does, wide and
-// on a phone or over Days' week: Mon, M.
-func dayAbbreviation(d time.Weekday) string { return d.String()[:3] }
-func dayInitial(d time.Weekday) string      { return d.String()[:1] }
-
-// worthSaid is a worth as History writes it, in the ink given: to the
-// dollar, its thousands set apart, as "$27,480"; a faint + after it where
-// part of it is unpriced, as "$184+"; unpriced where all of it is; and a
+// worthSaid is a worth as History writes it, as views.Worth.Dollars says it,
+// in the ink given: to the dollar, as "$27,480"; the mark of part of it
+// unpriced faint after it, as "$184+"; unpriced where all of it is; and a
 // dash for none.
 func worthSaid(w views.Worth, k ink) line {
-	switch {
-	case w.Amount == nil && len(w.Unpriced) > 0:
-		return line{{"unpriced", k}}
-	case w.Amount == nil:
+	said := w.Dollars()
+	if said == "" {
 		return line{noFigure}
-	case len(w.Unpriced) > 0:
-		return line{{w.Amount.GroupedDollars(), k}, {"+", faintInk}}
 	}
-	return line{{w.Amount.GroupedDollars(), k}}
+	if priced, part := strings.CutSuffix(said, views.PartUnpriced); part {
+		return line{{priced, k}, {views.PartUnpriced, faintInk}}
+	}
+	return line{{said, k}}
 }
 
 // worthPart is a worth as worthSaid writes it, as a part of a line: a
@@ -100,30 +49,38 @@ func worthPart(w views.Worth, k ink) part {
 	return figurePart(worthSaid(w, k), Number{})
 }
 
-// countedParts count n of the thing a noun names, as prose.Counted does, in
-// the ink given: the count a figure, as "1,240", and the words after it, as
-// " requests".
+// countedParts count n of the thing a noun names, as views.CountedWords
+// does, in the ink given: the count a figure, as "1,240", and the words after
+// it, as " requests".
 func countedParts(n int, noun string, k ink) []part {
-	count := prose.Grouped(n)
-	return []part{
-		figurePart(line{{count, k}}, Number{}),
-		wordsPart(line{{strings.TrimPrefix(prose.Counted(n, noun), count), k}}),
-	}
+	return saidParts(views.CountedWords(n, noun), k)
 }
 
-// againstSaid is a worth against its price, as "3.8×", bold, in
-// state.positive at 1× or more as it's written, and accent.attention under: a
-// dash where there's none.
+// saidParts are words History says, as views words them, in the ink given:
+// each figure among them a figure, the rest words.
+func saidParts(said status.Words, k ink) []part {
+	parts := make([]part, len(said))
+	for i, p := range said {
+		parts[i] = wordsIn(p.Text, k)
+		if p.Kind == status.PartFigure {
+			parts[i] = figureIn(p.Text, k)
+		}
+	}
+	return parts
+}
+
+// againstSaid is a worth against its price, as prose.Ratio writes it, as
+// "3.8×": bold, in state.positive at 1× or more as it's written, and
+// accent.attention under; a dash where there's none.
 func againstSaid(ratio *float64) line {
 	if ratio == nil {
 		return line{noFigure}
 	}
-	shown := math.Round(*ratio*10) / 10
 	k := boldPositiveInk
-	if shown < 1 {
+	if prose.NearestTenth(*ratio) < 1 {
 		k = alertInk
 	}
-	return line{{fmt.Sprintf("%.1f×", shown), k}}
+	return line{{prose.Ratio(*ratio), k}}
 }
 
 // shareSaid is a share as a whole percentage, as "21%", in the ink given: a
@@ -132,13 +89,13 @@ func shareSaid(share *float64, k ink) line {
 	if share == nil {
 		return line{noFigure}
 	}
-	return line{{status.Percent(*share), k}}
+	return line{{prose.Percent(*share), k}}
 }
 
 // familyName is a family's name as History shows it, its first letter
 // capital: Opus.
 func familyName(family string) string {
-	name := status.Clean(family)
+	name := prose.Clean(family)
 	if first, size := utf8.DecodeRuneInString(name); size > 0 {
 		name = string(unicode.ToUpper(first)) + name[size:]
 	}
@@ -160,5 +117,5 @@ func historyAccount(name string, primary bool, room int) line {
 	if primary {
 		mark = line{{" ◆", primaryInk}}
 	}
-	return append(line{{truncate(name, room-mark.width()), titleInk}}, mark...).fit(room)
+	return append(line{{prose.Cut(name, room-mark.width()), titleInk}}, mark...).fit(room)
 }

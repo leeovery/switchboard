@@ -11,8 +11,8 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/launch"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -145,7 +145,7 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount) error {
 	if taken.Kept {
 		said += ", keeping the token in " + registry.Tokens.Path(account.ID)
 	}
-	_, err = fmt.Fprintln(cmd.OutOrStdout(), said)
+	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
 }
 
@@ -168,7 +168,7 @@ func (a *app) replaceToken(cmd *cobra.Command, id string) error {
 		return err
 	}
 	warnUnchecked(cmd.ErrOrStderr(), taken)
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), "saved %s's token\n", id)
+	_, err = io.WriteString(cmd.OutOrStdout(), "saved "+id+"'s token\n")
 	return err
 }
 
@@ -193,7 +193,7 @@ func (a *app) removeAccount(cmd *cobra.Command, id string) error {
 	if removed.Primary != "" {
 		said += "\n" + primaryNow(removed.Primary, id, registry.Tokens.Read)
 	}
-	_, err = fmt.Fprintln(cmd.OutOrStdout(), said)
+	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
 }
 
@@ -255,7 +255,7 @@ func warnUnchecked(w io.Writer, taken accounts.Taken) {
 func accountRows(configured config.Accounts, readToken func(id string) (tokens.Token, error)) [][]string {
 	rows := [][]string{{"ID", "LABEL", "PRIMARY", "TOKEN"}}
 	for _, acct := range configured {
-		rows = append(rows, []string{acct.ID, status.Clean(acct.Label), primary(acct), tokenState(acct.ID, readToken)})
+		rows = append(rows, []string{acct.ID, prose.Clean(acct.Label), primary(acct), tokenState(acct.ID, readToken)})
 	}
 	return rows
 }

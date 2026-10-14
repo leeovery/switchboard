@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -120,7 +121,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: doc.Floor(a), ReserveHolds: doc.ReserveHolds(a),
 		Pinned: doc.Pin.Has(a.ID), Next: a.ID == m.Next,
 		InPool: slices.Contains(pool.Accounts, a.ID), OutOfPool: len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, a.ID),
-		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: status.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
+		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Routing: got.Routing, Hold: hold, Held: held, LimitHolds: a.Limit.Holds(now), LimitSince: got.LimitSince,
 		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapBack: capBack,
 		Refusal: refusal, TokenRefused: a.TokenRefused(now),
@@ -320,6 +321,39 @@ func TestAWindowIsNamedByItsHoursElseByItsLabelElseByItsKey(t *testing.T) {
 				t.Errorf("NameOfWindow(%q, %q) = %q, want %q", tt.key, tt.label, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAWindowNoDocumentLabelsIsNamedByTheLabelClaudeGivesItsKey(t *testing.T) {
+	tests := []struct{ key, want string }{
+		{key: "5h", want: "5-hour"},
+		{key: "1h", want: "1-hour"},
+		{key: "7d", want: "Week"},
+		{key: "7d_oi", want: "Fable week"},
+		{key: "7d_opus", want: "Opus week"},
+		{key: "90m", want: "90m"},
+		{key: "7d_new", want: "7d_new"},
+	}
+	for _, tt := range tests {
+		if got := status.NameOfKey(tt.key); got != tt.want {
+			t.Errorf("NameOfKey(%q) = %q, want %q", tt.key, got, tt.want)
+		}
+	}
+}
+
+func TestAMomentNamesAWindowAsItsAccountsDoElseByItsKey(t *testing.T) {
+	doc := routerDocOf(readAt("work", windowIn("5h", 0.2, 3*time.Hour), quota.Window{Key: "7d", Label: "Seven days", Utilization: 0.4, ResetsAt: built.Add(2 * day)}))
+	m := doc.At(built, policy)
+	for key, want := range map[string]string{"5h": "5-hour", "7d": "Seven days", "7d_opus": "Opus week", "7d_new": "7d_new"} {
+		if got := m.NameOf(key); got != want {
+			t.Errorf("NameOf(%q) = %q, want %q", key, got, want)
+		}
+	}
+	if w, ok := m.Window("7d"); !ok || w.Label != "Seven days" {
+		t.Errorf("Window(7d) = %+v, %v; want the week as its accounts label it", w, ok)
+	}
+	if _, ok := m.Window("7d_opus"); ok {
+		t.Error("Window(7d_opus) found a window none of the accounts has")
 	}
 }
 
@@ -582,7 +616,7 @@ func TestThePressureLinesTimeIsTheRoutersForAnyDocumentItBuilds(t *testing.T) {
 		if a.Pressure.Out.Reserve {
 			verb = "at its reserve"
 		}
-		if got, want := doc.Pressed(doc.Accounts[0], built, policy), "under pressure: "+verb+" ~"+status.TimeOfDay(built, stored.RunsOut); got != want {
+		if got, want := doc.Pressed(doc.Accounts[0], built, policy), "under pressure: "+verb+" ~"+prose.TimeOfDay(built, stored.RunsOut); got != want {
 			t.Fatalf("case %d: Pressed() = %q, want %q", i, got, want)
 		}
 	}

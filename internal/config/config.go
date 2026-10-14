@@ -12,6 +12,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 )
 
@@ -136,12 +137,7 @@ type Day struct {
 
 // String gives the day as [prime] does, such as 08:00-23:00.
 func (d Day) String() string {
-	return timeOfDay(d.Start) + "-" + timeOfDay(d.End)
-}
-
-// timeOfDay gives the time since midnight as HH:MM.
-func timeOfDay(since time.Duration) string {
-	return fmt.Sprintf("%02d:%02d", int(since/time.Hour), int(since%time.Hour/time.Minute))
+	return prose.ClockOf(d.Start) + "-" + prose.ClockOf(d.End)
 }
 
 // Notifications says which desktop notifications the router posts.

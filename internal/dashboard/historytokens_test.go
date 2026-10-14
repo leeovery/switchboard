@@ -452,19 +452,6 @@ func TestTokensOfNothingRecordedSaysSo(t *testing.T) {
 	}
 }
 
-// A count of tokens is in millions to one place under 100 million, then in
-// whole millions, and from a billion, in billions to two places.
-func TestTokenCounts(t *testing.T) {
-	for n, want := range map[int]string{
-		0: "0.0M", 12: "0.0M", 800_000: "0.8M", 4_249_999: "4.2M", 75_400_000: "75.4M", 99_949_999: "99.9M",
-		99_950_000: "100M", 615_000_000: "615M", 999_499_999: "999M", 999_500_000: "1.00B", 1_056_800_000: "1.06B",
-	} {
-		if got := tokenCount(n); got != want {
-			t.Errorf("%d tokens read %q, want %q", n, got, want)
-		}
-	}
-}
-
 // A row's worth, and in against its price the ratio and the price, are drawn
 // whole or as an ellipsis, never cut part-way, as $12,3… would read as a
 // smaller sum, while words may cut, unpriced among them: a phone's worth, at

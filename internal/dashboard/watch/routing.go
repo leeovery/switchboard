@@ -55,9 +55,10 @@ func (m Model) openRouting() (tea.Model, tea.Cmd) {
 	case key.Off:
 		return m.noting(status.ErrNoRouter.Error())
 	}
-	mo := m.moment(m.now())
+	now := m.now()
+	mo := m.moment(now)
 	picked := standing(mo)
-	rows := dashboard.RoutingRows(mo, m.sessions)
+	rows := dashboard.RoutingRows(mo, m.sessions, m.traffic.stream(now))
 	cursor := max(slices.IndexFunc(rows, func(row dashboard.RoutingRow) bool { return slices.Contains(picked, row.Account) }), 0)
 	m.routing = routing{card: m.routing.card + 1, cursor: cursor, priced: pricing{listing: m.routing.priced.listing}}
 	return m.cover(routingOpen), nil
@@ -117,8 +118,9 @@ func (m Model) picks(mo status.Moment) []string {
 // m ticks or clears moving the sessions running; enter applies the picks;
 // and esc closes the card, changing nothing. The rest do nothing.
 func (m Model) routingKey(key string) (tea.Model, tea.Cmd) {
-	mo := m.moment(m.now())
-	rows := dashboard.RoutingRows(mo, m.sessions)
+	now := m.now()
+	mo := m.moment(now)
+	rows := dashboard.RoutingRows(mo, m.sessions, m.traffic.stream(now))
 	r := m.routing
 	r.cursor, r.picked = min(r.cursor, len(rows)-1), m.picks(mo)
 	switch key {
@@ -216,12 +218,12 @@ func alters(picked, named, sent []string, move bool) bool {
 }
 
 // routingCard is the routing card as the picker stands, its rows read afresh
-// from the document on screen at now, with the sessions listed: those
-// picked, those of them enter leaves out of the order, as sendable says, and
-// what the order moves.
+// from the document on screen at now, with the sessions listed, as the
+// request stream has moved and seen them since: those picked, those of them
+// enter leaves out of the order, as sendable says, and what the order moves.
 func (m Model) routingCard(now time.Time) dashboard.RoutingCard {
 	r, mo := m.routing, m.moment(now)
-	rows := dashboard.RoutingRows(mo, m.sessions)
+	rows := dashboard.RoutingRows(mo, m.sessions, m.traffic.stream(now))
 	picked := m.picks(mo)
 	sent := sendable(mo, picked)
 	moving := m.moving(sent)
@@ -248,12 +250,12 @@ func (m Model) moving(sent []string) views.Moving {
 // costing has views list the sessions the router lists, pricing their
 // moves, while the routing card wants them: while it's open, m ticked, and
 // some session would move, where the sessions listed aren't placed as those
-// it last priced were, as samePlaces compares them, whatever document they
-// came with. It starts none while one runs: the sessions are listed again
-// once it lands, where they've changed since.
+// it last priced were, as views.SamePlaces compares them, whatever document
+// they came with. It starts none while one runs: the sessions are listed
+// again once it lands, where they've changed since.
 func (m Model) costing() (Model, tea.Cmd) {
 	p := m.routing.priced
-	if m.open != routingOpen || p.listing || samePlaces(m.sessions, p.of) {
+	if m.open != routingOpen || p.listing || views.SamePlaces(m.sessions, p.of) {
 		return m, nil
 	}
 	if mo := m.moment(m.now()); m.moving(sendable(mo, m.picks(mo))).Sessions == 0 {
@@ -276,28 +278,6 @@ func (m Model) costed(msg costedMsg) Model {
 		m.routing.priced.listed, m.routing.priced.of = msg.listed, msg.of
 	}
 	return m
-}
-
-// samePlaces reports whether two listings of the router's sessions place
-// them alike, as which of them a pin moves, and from where, reads them: the
-// same sessions, in whatever order, each as samePlace has it. A session busy
-// or seen again, as most are from look to look, prices its move afresh only
-// once its place changes, or the card opens again: the price of a cache that
-// runs out, or grows, while the card is open stands till then.
-func samePlaces(a, b []status.Session) bool {
-	return len(a) == len(b) && !slices.ContainsFunc(a, func(s status.Session) bool {
-		i := slices.IndexFunc(b, func(t status.Session) bool { return t.ID == s.ID })
-		return i < 0 || !samePlace(s, b[i])
-	})
-}
-
-// samePlace reports whether two listings of a session place it alike: pinned
-// alike, with the same models, each going to the same account, whichever it
-// used last.
-func samePlace(a, b status.Session) bool {
-	return a.Pin == b.Pin && len(a.Assignments) == len(b.Assignments) && !slices.ContainsFunc(a.Assignments, func(x status.Assignment) bool {
-		return !slices.ContainsFunc(b.Assignments, func(y status.Assignment) bool { return x.Model == y.Model && x.Account == y.Account })
-	})
 }
 
 // pinKey is p as the key line and help list it, and whether they list it:

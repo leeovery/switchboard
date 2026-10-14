@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -227,12 +228,12 @@ func TestOverviewHelpKeysEachMarkAsThePageDrawsIt(t *testing.T) {
 		explains(t, "ROUTING", line{pinnedSpan})
 	})
 	t.Run("what a session is doing", func(t *testing.T) {
-		explains(t, "SESSIONS", line{frameOf(160, 40).runningDoing(views.Running{InFlight: status.Asking})})
-		explains(t, "SESSIONS", line{{answered(Call{Tokens: 1200}), doingInk}})
+		explains(t, "SESSIONS", line{runningDoing(views.Activity{Doing: views.Asking})})
+		explains(t, "SESSIONS", line{{answered(views.Activity{Doing: views.Answering, Chars: 4800}), doingInk}})
 	})
 	t.Run("every event's mark", func(t *testing.T) {
-		for kind, mark := range eventMarks {
-			t.Run(kind, func(t *testing.T) { explains(t, "LATELY", line{mark}) })
+		for _, k := range eventKinds {
+			t.Run(k.kind, func(t *testing.T) { explains(t, "LATELY", line{k.mark}) })
 		}
 	})
 }
@@ -249,7 +250,7 @@ func TestOverviewHelpFitsTheCardAtEveryWidth(t *testing.T) {
 		card := overviewHelping(width, tabViews, helpQuit[0], helpQuit[1])
 		inside := card.width - 2*cardInset
 		for i, row := range card.body {
-			if row.width() > inside || strings.Contains(row.plain(), ellipsis) {
+			if row.width() > inside || strings.Contains(row.plain(), prose.Ellipsis) {
 				t.Errorf("at %d columns, help's row %d is %q, %d cells; want it whole within %d", width, i+1, row.plain(), row.width(), inside)
 			}
 		}

@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"maps"
 	"reflect"
 	"strings"
 	"testing"
@@ -45,7 +46,7 @@ type running struct {
 	seen                     time.Duration
 	why                      string
 	models                   []string
-	inFlight                 string
+	doing                    views.Doing
 }
 
 // rowsOf are RunningOf's rows, as running has them.
@@ -53,8 +54,8 @@ func rowsOf(rows []views.Running) []running {
 	got := make([]running, len(rows))
 	for i, r := range rows {
 		got[i] = running{
-			account: r.Account, session: r.Session, family: r.Family, seen: now.Sub(r.LastSeen),
-			why: r.Why.String(), models: r.Models, inFlight: r.InFlight,
+			account: r.Account, session: r.Session, family: r.Family, seen: now.Sub(r.Activity.LastSeen),
+			why: r.Why.String(), models: r.Models, doing: r.Activity.Doing,
 		}
 	}
 	return got
@@ -72,11 +73,11 @@ func TestTheSessionsRunningAreGroupedByAccountInTheConfigsOrderTheOneSeenLastFir
 	}
 	want := []running{
 		{account: "work", session: asking, family: "haiku", seen: 40 * time.Minute, why: "started here 12:22", models: []string{"claude-haiku-4-5"}},
-		{account: "personal", session: answering, family: "sonnet", why: "started here 11:12", models: []string{"claude-sonnet-5-5"}, inFlight: status.Answering},
+		{account: "personal", session: answering, family: "sonnet", why: "started here 11:12", models: []string{"claude-sonnet-5-5"}, doing: views.Answering},
 		{account: "personal", session: idler, family: "opus", seen: 9 * time.Minute, why: "started here 10:12", models: []string{"claude-opus-5-5"}},
-		{account: "side", session: asking, family: "opus", seen: time.Second, why: "moved from work 13:01: work reached its cap", models: []string{"claude-opus-5-5"}, inFlight: status.Asking},
+		{account: "side", session: asking, family: "opus", seen: time.Second, why: "moved from work 13:01: work reached its cap", models: []string{"claude-opus-5-5"}, doing: views.Asking},
 	}
-	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions)); !reflect.DeepEqual(got, want) {
+	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{})); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
 	}
 }
@@ -89,10 +90,44 @@ func TestASessionsModelsOnOneAccountAreOneRowItsModelSeenLastLeading(t *testing.
 	}}}
 	want := []running{{
 		account: "side", session: asking, family: "opus", seen: time.Minute, why: "pinned here 12:42",
-		models: []string{"claude-opus-5-5", "claude-haiku-4-5", "claude-sonnet-5-5"}, inFlight: status.Answering,
+		models: []string{"claude-opus-5-5", "claude-haiku-4-5", "claude-sonnet-5-5"}, doing: views.Answering,
 	}}
-	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions)); !reflect.DeepEqual(got, want) {
+	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{})); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
+	}
+}
+
+// On an account, a session is named by the model naming it, as the request
+// stream tells of its main thread, where that runs there, its reason with
+// it: a title seen since doesn't name it.
+func TestASessionsRowIsNamedByItsMainThreadWhereItRunsThere(t *testing.T) {
+	sessions := []status.Session{{ID: asking, Assignments: []status.Assignment{
+		seatOn("claude-haiku-4-5", "haiku", "side", status.ReasonNew, 10*time.Minute, time.Minute, ""),
+		seatOn("claude-opus-5-5", "opus", "side", status.ReasonPinned, 30*time.Minute, 2*time.Minute, ""),
+	}}}
+	main := views.Told{Request: "r1", Session: asking, Model: "claude-opus-5-5", Account: "side", Class: "main", Sent: now.Add(-2 * time.Minute)}
+	main.Ended, main.Heard = main.Sent.Add(10*time.Second), main.Sent.Add(10*time.Second)
+	title := views.Told{Request: "r2", Session: asking, Model: "claude-haiku-4-5", Account: "side", Class: "auxiliary", Sent: now.Add(-time.Minute)}
+	title.Ended, title.Heard = title.Sent.Add(time.Second), title.Sent.Add(time.Second)
+	tests := []struct {
+		name        string
+		told        []views.Told
+		family, why string
+	}{
+		{name: "its main thread's, a title seen since", told: []views.Told{main, title}, family: "opus", why: "pinned here 12:42"},
+		{name: "its model seen last there, no main request told of", told: []views.Told{title}, family: "haiku", why: "started here 13:02, the best"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stream := views.Stream{Live: true, Requests: make(map[string]views.Told)}
+			for _, r := range tt.told {
+				stream.Requests[r.Request] = r
+			}
+			rows := views.RunningOf(runningDoc().At(now, claude.Policy), sessions, stream)
+			if len(rows) != 1 || rows[0].Family != tt.family || rows[0].Why.String() != tt.why {
+				t.Errorf("RunningOf = %+v, want one row, %s, %q", rowsOf(rows), tt.family, tt.why)
+			}
+		})
 	}
 }
 
@@ -110,7 +145,7 @@ func TestASessionRunsWhereItWasRoutedWithinTheHour(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sessions := []status.Session{{ID: idler, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, tt.made, tt.seen, "")}}}
-			if got := len(views.RunningOf(runningDoc().At(now, claude.Policy), sessions)) == 1; got != tt.runs {
+			if got := len(views.RunningOf(runningDoc().At(now, claude.Policy), sessions, views.Stream{})) == 1; got != tt.runs {
 				t.Errorf("runs = %t, want %t", got, tt.runs)
 			}
 		})
@@ -144,7 +179,7 @@ func TestWhyASessionRunsWhereItDoes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := runningDoc()
 			doc.Events = tt.events
-			rows := views.RunningOf(doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{tt.seat}}})
+			rows := views.RunningOf(doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{tt.seat}}}, views.Stream{})
 			if len(rows) != 1 {
 				t.Fatalf("RunningOf gave %d rows, want 1", len(rows))
 			}
@@ -183,7 +218,7 @@ func TestASessionStartedWhereNewSessionsGoIsTheBest(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rows := views.RunningOf(tt.doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{started}}})
+			rows := views.RunningOf(tt.doc.At(now, claude.Policy), []status.Session{{ID: asking, Assignments: []status.Assignment{started}}}, views.Stream{})
 			if len(rows) != 1 {
 				t.Fatalf("RunningOf gave %d rows, want 1", len(rows))
 			}
@@ -207,7 +242,7 @@ func TestASessionIsTheBestWhereTheMomentMarksItsAccountAtEachHardMoment(t *testi
 					AssignedAt: hm.Now.Add(-time.Minute), LastSeen: hm.Now,
 				}}})
 			}
-			rows := views.RunningOf(m, sessions)
+			rows := views.RunningOf(m, sessions, views.Stream{})
 			if len(rows) != len(m.Accounts) {
 				t.Fatalf("RunningOf gave %d rows, want one an account, %d", len(rows), len(m.Accounts))
 			}
@@ -217,5 +252,40 @@ func TestASessionIsTheBestWhereTheMomentMarksItsAccountAtEachHardMoment(t *testi
 				}
 			}
 		})
+	}
+}
+
+// The stream's moves put each model the newest move of it took where it
+// went, till a listing of the router's sessions shows it done: the session
+// runs there, and nowhere it ran only by that model; one the router didn't
+// list that a move brought on runs too, named by the family the router
+// gives its model; and RunningCounts counts them as RunningOf lists them.
+func TestTheStreamsMovesPutTheSessionsWhereTheyWent(t *testing.T) {
+	sessions := []status.Session{
+		{ID: asking, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, time.Hour, time.Minute, status.Asking)}},
+		{ID: idler, Assignments: []status.Assignment{seatOn("claude-haiku-4-5", "haiku", "work", status.ReasonNew, time.Hour, 9*time.Minute, "")}},
+	}
+	moved := func(session, model, from, to string, ago time.Duration) views.Moved {
+		return views.Moved{Session: session, Model: model, From: from, To: to, Reason: status.ReasonMovedOff + from + " " + status.WhyLimit, At: now.Add(-ago)}
+	}
+	stream := views.Stream{Live: true, Moves: []views.Moved{
+		moved(asking, "claude-opus-5-5", "work", "personal", 3*time.Second),
+		moved(gone, "claude-haiku-4-5", "work", "side", 2*time.Second),
+		moved(asking, "claude-opus-5-5", "personal", "side", time.Second),
+	}}
+	m := runningDoc().At(now, claude.Policy)
+	rows := views.RunningOf(m, sessions, stream)
+	var got []string
+	for _, r := range rows {
+		got = append(got, r.Account+" "+r.Session[:4]+" "+r.Family)
+	}
+	if want := []string{"work 9c2e haiku", "side d28c opus", "side 7f3a haiku"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("RunningOf lists %q, want %q", got, want)
+	}
+	if got, want := views.RunningCounts(rows), map[string]int{"work": 1, "side": 2}; !maps.Equal(got, want) {
+		t.Errorf("RunningCounts = %v, want %v", got, want)
+	}
+	if sessions[0].Assignments[0].Account != "work" || len(sessions) != 2 {
+		t.Error("the router's listing was changed")
 	}
 }

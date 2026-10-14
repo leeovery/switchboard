@@ -1,42 +1,66 @@
 package dashboard
 
 import (
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// eventMarks are each kind of event's mark, a glyph in the colour of what it
-// tells of, as LATELY and the Log's Events share them: one a kind, but for ■,
-// which a limit and a refusal share, their words telling them apart.
-var eventMarks = map[string]span{
-	status.EventStarted:  {"▲", accentInk},
-	status.EventMoved:    {"▸", keyMarkInk},
-	status.EventPressure: {"◔", warningInk},
-	status.EventCap:      {"╎", warningInk},
-	status.EventLimit:    {"■", errorInk},
-	status.EventRefused:  {"■", errorInk},
-	status.EventPrimed:   {"◇", dimInk},
-	status.EventRoom:     {"✓", positiveInk},
-	status.EventPin:      {"●", keyMarkInk},
-	status.EventAuto:     {"↩", keyMarkInk},
-	status.EventRestart:  {"!", warningInk},
-	status.EventHealth:   {"⊕", errorInk},
+// eventKind is a kind of the router's event as the dashboard draws it: the
+// kind, as an event's Kind gives it; its mark, a glyph in the colour of what
+// it tells of, as LATELY and the Log's Events share them; and what it is, as
+// the Log's panel words it, and help after its mark. Its word, as the Log's
+// event column and its panel name it, is views.KindWord's, as events prints
+// it too.
+type eventKind struct {
+	kind  string
+	mark  span
+	means string
+}
+
+// eventKinds are the kinds of the router's events in the design's order, as
+// help and the Log's panel list them: a mark a kind, but for ■, which a limit
+// and a refusal share, their words telling them apart.
+var eventKinds = []eventKind{
+	{kind: status.EventStarted, mark: span{"▲", accentInk}, means: "a session first seen"},
+	{kind: status.EventMoved, mark: span{"▸", keyMarkInk}, means: "a session moved to another account"},
+	{kind: status.EventPressure, mark: span{"◔", warningInk}, means: "an account under pressure"},
+	{kind: status.EventCap, mark: span{"╎", warningInk}, means: "an account at its cap"},
+	{kind: status.EventLimit, mark: span{"■", errorInk}, means: "an account at its limit"},
+	{kind: status.EventRefused, mark: span{"■", errorInk}, means: "an account's token refused"},
+	{kind: status.EventPrimed, mark: span{"◇", dimInk}, means: "a window started early"},
+	{kind: status.EventRoom, mark: span{"✓", positiveInk}, means: "an account with room again"},
+	{kind: status.EventPin, mark: span{"●", keyMarkInk}, means: "routing set by hand"},
+	{kind: status.EventAuto, mark: span{"↩", keyMarkInk}, means: "routing given back to the router"},
+	{kind: status.EventRestart, mark: span{"!", warningInk}, means: "a restart of the router falling due"},
+	{kind: status.EventHealth, mark: span{"⊕", errorInk}, means: "the router unhealthy, or well again"},
 }
 
 // keyMarkInk draws a mark in accent.key, as a move's, a pin's and auto's are.
 var keyMarkInk = ink{token: theme.AccentKey}
 
-// eventMark is a sentence's mark, as eventMarks gives its kind's: but the
+// kindMark is the mark of the kind of event given, as eventKinds has it:
+// none of a kind it doesn't know.
+func kindMark(kind string) span {
+	if i := slices.IndexFunc(eventKinds, func(k eventKind) bool { return k.kind == kind }); i >= 0 {
+		return eventKinds[i].mark
+	}
+	return span{}
+}
+
+// eventMark is a sentence's mark, as kindMark gives its kind's: but the
 // router's health well again, in state.positive.
 func eventMark(s views.Sentence) span {
+	mark := kindMark(s.Kind)
 	if s.Well {
-		return span{eventMarks[s.Kind].text, positiveInk}
+		mark.ink = positiveInk
 	}
-	return eventMarks[s.Kind]
+	return mark
 }
 
 // latelySection is the Overview's LATELY of doc at now: what's happened,
@@ -108,11 +132,11 @@ func (f Frame) latelyLines(m status.Moment, sentences []views.Sentence) []line {
 	names := overviewNames(m)
 	column := 0
 	for _, s := range sentences {
-		column = max(column, len(status.Dated(m.Now, s.At)))
+		column = max(column, len(prose.Dated(m.Now, s.At)))
 	}
 	lines := make([]line, len(sentences))
 	for i, s := range sentences {
-		at := span{padded(status.Dated(m.Now, s.At), column) + afterTime, dimInk}
+		at := span{padded(prose.Dated(m.Now, s.At), column) + afterTime, dimInk}
 		if i == 0 {
 			at.ink = secondaryInk
 		}

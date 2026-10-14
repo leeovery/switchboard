@@ -69,6 +69,13 @@ func arrived(request, account string, d time.Duration) ledger.Held {
 	}
 }
 
+// took is the line, its request having taken d from when it arrived to when
+// it ended.
+func took(l ledger.Held, d time.Duration) ledger.Held {
+	l.TotalMS = d.Milliseconds()
+	return l
+}
+
 // counted are the requests the trace with the given id among traces counts,
 // each as long before the clock started as it went.
 func counted(traces map[string]views.Trace, id string) []time.Duration {
@@ -135,7 +142,7 @@ func TestTheStreamsRequestsAreCountedOnceEachWhicheverTellsOfThemFirst(t *testin
 	// joined again, and today's lines read afresh.
 	h.hear(alter(told(router.StreamDone, "0a000003", "side", 2*time.Second), func(e *router.StreamEvent) { e.Status = 200 }))
 	h.endStream()
-	l.written = append(l.written, arrived("0a000002", "work", -31*time.Second), arrived("0a000003", "side", -time.Second/5))
+	l.written = append(l.written, took(arrived("0a000002", "work", -31*time.Second), 31*time.Second), took(arrived("0a000003", "side", -time.Second/5), 2200*time.Millisecond))
 	rejoin, ok := h.pendingRejoin()
 	if !ok {
 		t.Fatal("once the stream ended, no rejoin was armed")

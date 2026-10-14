@@ -1,10 +1,12 @@
 package dashboard
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // overviewHelp are the Overview's parts as help explains them, a section
@@ -82,7 +84,7 @@ func overviewHelp() []helpPart {
 			},
 			glyphs: []glyph{
 				{drawn: line{{"↑ ask", doingInk}}, means: "asking: its request sent, its answer not begun"},
-				{drawn: line{{answered(Call{Tokens: 1200}), doingInk}}, means: "answering, its tokens so far at four characters a token"},
+				{drawn: line{{answered(views.Activity{Doing: views.Answering, Chars: 1200 * views.CharsPerToken}), doingInk}}, means: "answering, its tokens so far at four characters a token"},
 			},
 		},
 		{
@@ -126,24 +128,18 @@ func stateGlyph(kind status.RoutingKind, means string) glyph {
 	return glyph{drawn: line{{kind.Glyph(), standingLead(kind, "")[0].ink}}, means: means}
 }
 
-// latelyGlyphs are LATELY's marks, each as eventMarks has its kind's, and
-// what it tells of, in the design's order.
+// latelyGlyphs are LATELY's marks, each kind's as eventKinds has it, in its
+// order, and what it means: a mark once, meaning what each kind drawing it
+// is, joined, as "an account at its limit, or an account's token refused".
 func latelyGlyphs() []glyph {
 	var glyphs []glyph
-	for _, m := range []struct{ kind, means string }{
-		{status.EventStarted, "a session started"},
-		{status.EventMoved, "a session moved"},
-		{status.EventPressure, "an account came under pressure"},
-		{status.EventCap, "an account reached its cap"},
-		{status.EventLimit, "an account reached a limit, or was refused"},
-		{status.EventPrimed, "an account primed, its 5-hour window started"},
-		{status.EventRoom, "an account with room again"},
-		{status.EventPin, "routing pinned by hand"},
-		{status.EventAuto, "new sessions back to auto"},
-		{status.EventRestart, "a restart due"},
-		{status.EventHealth, "the router's health turned, in green once it's well again"},
-	} {
-		glyphs = append(glyphs, glyph{drawn: line{eventMarks[m.kind]}, means: m.means})
+	for _, k := range eventKinds {
+		i := slices.IndexFunc(glyphs, func(g glyph) bool { return g.drawn[0] == k.mark })
+		if i < 0 {
+			glyphs = append(glyphs, glyph{drawn: line{k.mark}, means: k.means})
+			continue
+		}
+		glyphs[i].means += ", or " + k.means
 	}
 	return glyphs
 }

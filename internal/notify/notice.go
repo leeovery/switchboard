@@ -1,6 +1,6 @@
 package notify
 
-import "github.com/leeovery/switchboard/internal/status"
+import "github.com/leeovery/switchboard/internal/prose"
 
 // Notice is a notification due. Message is what it says, naming accounts by
 // id and label; News is what happened, as the log tells it, naming them by
@@ -32,8 +32,10 @@ func Passed(before, after, warning float64) bool {
 
 // Warning is the notice of a window of the account with the given id, titled
 // as given, passing the share of its limit that's warned of: the window
-// labelled as given, saying how much of it is used, such as "Week at 91%".
-func Warning(account, title, label string, used float64) Notice {
-	news := label + " at " + status.Percent(used)
+// named as given, as status.NameOfWindow names one, as "5-hour" or "Week",
+// never by Claude's Session label, saying how much of it is used, such as
+// "Week at 91%".
+func Warning(account, title, window string, used float64) Notice {
+	news := window + " at " + prose.Percent(used)
 	return Notice{Account: account, News: news, Message: title + ": " + news}
 }

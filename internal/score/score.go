@@ -183,6 +183,9 @@ func (p Policy) Perishability(windows []quota.Window, reserve float64, now time.
 // over, when passing over those under pressure changed its choice.
 type Choice struct {
 	ID string
+	// Pinned is set where the choice is of the accounts a pin names, as
+	// PickPinned makes it.
+	Pinned bool
 	// PassedOver is the account under pressure that Pick would have chosen,
 	// or, when that one isn't, the highest scoring of those under pressure,
 	// whose score set the band the choice would have been made in. It's ""
@@ -217,6 +220,52 @@ func (p Policy) Pick(candidates []Candidate, applies func(key string) bool, pref
 		c.PassedOver, c.Pressure = passed.id, passed.pressure
 	}
 	return c, true
+}
+
+// Choose chooses the account a request chosen afresh goes to, of the
+// candidates given, as the request finds them, in the order configured: of
+// those pinned names, while one has room, as PickPinned chooses; else, as
+// though nothing were pinned, the one Pick picks of them all. It reports
+// false when none has room.
+func (p Policy) Choose(candidates []Candidate, pinned []string, applies func(key string) bool, preferred string, now time.Time) (Choice, bool) {
+	if c, ok := p.PickPinned(candidates, pinned, applies, preferred, now); ok {
+		return c, true
+	}
+	return p.Pick(candidates, applies, preferred, now)
+}
+
+// PickPinned chooses of the candidates pinned names, each one's reserve spent,
+// as a pin runs its accounts to their limits: the one Pick picks; else the
+// first, in pinned's order, with room as far as anyone knows, no window that
+// applies spent, or nothing read of it, as a pin sends requests to an account
+// whose quota can't be scored, or that nothing has been read of. Its choice
+// is Pinned. It reports false when none of them has room.
+func (p Policy) PickPinned(candidates []Candidate, pinned []string, applies func(key string) bool, preferred string, now time.Time) (Choice, bool) {
+	named := spending(candidates, pinned)
+	if c, ok := p.Pick(named, applies, preferred, now); ok {
+		c.Pinned = true
+		return c, true
+	}
+	for _, id := range pinned {
+		i := slices.IndexFunc(named, func(c Candidate) bool { return c.ID == id })
+		if i >= 0 && (len(named[i].Windows) == 0 || Available(named[i].Windows, 0, applies, now)) {
+			return Choice{ID: id, Pinned: true}, true
+		}
+	}
+	return Choice{}, false
+}
+
+// spending returns the candidates pinned names, in the candidates' order,
+// not the pin's, each with its reserve spent.
+func spending(candidates []Candidate, pinned []string) []Candidate {
+	var named []Candidate
+	for _, c := range candidates {
+		if slices.Contains(pinned, c.ID) {
+			c.Reserve = 0
+			named = append(named, c)
+		}
+	}
+	return named
 }
 
 // among are the ratings Pick chooses among: those not under pressure, or

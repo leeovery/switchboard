@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -168,9 +169,9 @@ func (s stretch) told(now time.Time) []line {
 		told[i] = line{{c.says, exhaustedInk}}
 		switch {
 		case c.then != "":
-			told[i] = append(told[i], span{status.Separator + c.then, mutedInk})
+			told[i] = append(told[i], span{prose.Separator + c.then, mutedInk})
 		case i == back && !s.until.IsZero():
-			told[i] = append(told[i], span{status.Separator + "back " + status.Dated(now, s.until), mutedInk})
+			told[i] = append(told[i], span{prose.Separator + status.Back(now, s.until), mutedInk})
 			if s.until.Equal(c.resets) {
 				told[i] = append(told[i], span{", as it resets", mutedInk})
 			}
@@ -244,7 +245,7 @@ func (f Frame) laneOf(a status.AccountNow, now time.Time) lane {
 func stateCause(a status.AccountNow) (cause, bool) {
 	switch {
 	case !a.TokenSet:
-		return cause{says: "no token", then: "switchboard accounts token " + status.Clean(a.ID)}, true
+		return cause{says: "no token", then: "switchboard accounts token " + prose.Clean(a.ID)}, true
 	case a.Error != "":
 		return cause{says: "can't read it", then: a.Error}, true
 	}
@@ -286,7 +287,7 @@ func (f Frame) causesOf(w status.WindowNow, now time.Time) []cause {
 	case w.Held:
 		says := "limit reached"
 		if !w.Since.IsZero() {
-			says += " " + status.Dated(now, w.Since)
+			says += " " + prose.Dated(now, w.Since)
 		}
 		causes = append(causes, cause{from: w.Since, until: w.Back, says: says})
 	case w.CappedAsRead:
@@ -307,7 +308,7 @@ func (f Frame) runOutSaid(w status.WindowNow, now time.Time) string {
 	if w.Out.Reserve {
 		verb = "reaches its reserve ~"
 	}
-	return f.naming(w) + verb + status.Dated(now, w.Out.At)
+	return f.naming(w) + verb + prose.Dated(now, w.Out.At)
 }
 
 // naming is how the words of what the window w holds an account back for

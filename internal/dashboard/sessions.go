@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -134,7 +135,7 @@ func (f Frame) overKeyLine(c *canvas, doc status.Document, now time.Time, top, c
 	above, below := hidden(offset, view)
 	switch note := hiddenNote(f.Moment(doc, now).Hidden); {
 	case content > view && above+below > 0:
-		says := outOfView(above, below).fit(f.edge() - margin)
+		says := rowsOut.said(above, below).fit(f.edge() - margin)
 		c.line((f.Width-says.width())/2, over, says)
 	case len(note) > 0:
 		c.right(f.edge(), over, note.fit(f.edge()-margin))
@@ -330,6 +331,41 @@ func (f Frame) groupsOf(doc status.Document) [][]callRow {
 	return groups
 }
 
+// listing is the sessions as the router listed them, the request stream's
+// moves among them, as the cords and the plain list draw them: each seat a
+// move re-patches put on the account it went to, as movedIn has it, and a
+// session the router didn't list, which a move brought on, first, as the one
+// seen last.
+func (f Frame) listing() []status.Session {
+	repatching := f.Traffic.repatching()
+	if len(repatching) == 0 {
+		return f.Sessions
+	}
+	listing := make([]status.Session, len(f.Sessions))
+	for i, s := range f.Sessions {
+		s.Assignments = slices.Clone(s.Assignments)
+		listing[i] = s
+	}
+	moves := latestMoves(repatching)
+	for _, m := range repatching {
+		if moves[m.Seat] != m {
+			continue
+		}
+		brought := f.movedIn(m).assignment
+		i := slices.IndexFunc(listing, func(s status.Session) bool { return s.ID == m.Seat.Session })
+		if i < 0 {
+			listing = slices.Insert(listing, 0, status.Session{ID: m.Seat.Session, Assignments: []status.Assignment{brought}})
+			continue
+		}
+		if j := slices.IndexFunc(listing[i].Assignments, func(a status.Assignment) bool { return a.Model == m.Seat.Model }); j >= 0 {
+			listing[i].Assignments[j] = brought
+		} else {
+			listing[i].Assignments = append(listing[i].Assignments, brought)
+		}
+	}
+	return listing
+}
+
 // movedIn is the seat the move m brought onto the account it went to, put
 // there as it moved: as the router listed it before it moved, or, where it
 // didn't, as the move tells of it, its model named as the router names it
@@ -454,7 +490,7 @@ func noCalls(doc status.Document) string {
 // model; when it was last seen; and what its request is doing, as the
 // request stream tells.
 func (f Frame) drawCall(c *canvas, doc status.Document, r callRow, now time.Time) {
-	id := sessionID(r.session.ID)
+	id := status.ShownID(r.session.ID)
 	if r.gone {
 		c.line(callsAt, r.row, line{{id, goneIDInk}, {"  ↪ moved to " + docNamed(doc, r.to), goneInk}}.fit(plugAt-callsAt))
 		return
@@ -463,12 +499,12 @@ func (f Frame) drawCall(c *canvas, doc status.Document, r callRow, now time.Time
 	if !f.lit(r.seated, now) {
 		idInk = idleIDInk
 	}
-	seen := seenAgo(now, f.lastSeen(r.seated))
+	seen := prose.SeenAgo(now, f.lastSeen(r.seated))
 	seenInk := dimInk
 	if seen == "now" {
 		seenInk = secondaryInk
 	}
-	model := truncate(r.assignment.Name(), modelColumn-2)
+	model := prose.Cut(r.assignment.Name(), modelColumn-2)
 	l := line{{padded(id, idColumn), idInk}, {padded(model, modelColumn), mutedInk}, {padded(seen, seenColumn), seenInk}}
 	if says, ok := f.activity(r.plug()); ok {
 		l = append(l, says)
@@ -508,21 +544,6 @@ func statusCode(code int) string {
 	return strconv.Itoa(code)
 }
 
-// seenAgo says how long before now a call was last seen, as its row has room
-// for: "now" within the half minute, else to the nearest minute, as "9m",
-// and from the hour, to the nearest hour, as "1h".
-func seenAgo(now, seen time.Time) string {
-	d := now.Sub(seen)
-	switch minutes := int((d + time.Minute/2) / time.Minute); {
-	case minutes < 1:
-		return "now"
-	case minutes < 60:
-		return strconv.Itoa(minutes) + "m"
-	default:
-		return strconv.Itoa(int((d+time.Hour/2)/time.Hour)) + "h"
-	}
-}
-
 // docName is name of an account of the document as read, for milestone 5's
 // views, which read the document rather than its moment, and go with it; as
 // are docNamed and docPlace of named and place.
@@ -535,7 +556,7 @@ func docNamed(doc status.Document, id string) string {
 	if a, ok := doc.Account(id); ok {
 		return docName(a)
 	}
-	return status.Clean(id)
+	return prose.Clean(id)
 }
 
 // docPlace is place of doc, as docName has it.

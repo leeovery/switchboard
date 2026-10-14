@@ -39,13 +39,6 @@ func (v view) without(ids []string) view {
 	return v
 }
 
-// within returns the view with the accounts given alone for the request to go
-// out on.
-func (v view) within(ids []string) view {
-	v.candidates = slices.DeleteFunc(slices.Clone(v.candidates), func(c score.Candidate) bool { return !slices.Contains(ids, c.ID) })
-	return v
-}
-
 // spend returns the view with the request able to spend the reserves of the
 // accounts given, as pins name them.
 func (v view) spend(ids ...string) view {
@@ -161,12 +154,20 @@ func (v view) letGo() (time.Time, bool) {
 	return soonest, held
 }
 
-// pick returns the account whose quota most needs using, of those known to
-// have room for the request, passing over those under pressure while another
-// isn't, and keeping to preferred unless another is well ahead of it. It
-// reports false when none has room.
-func (v view) pick(preferred string) (score.Choice, bool) {
-	return v.policy.Pick(v.open(), v.applies, preferred, v.now)
+// pick returns the account a request chosen afresh goes to, of those known to
+// have room for it, as score.Policy.Choose chooses: the best of those pinned
+// while one has room, else of them all, its quota most needing using, passing
+// over those under pressure while another isn't, and keeping to preferred
+// unless another is well ahead of it. It reports false when none has room.
+func (v view) pick(preferred string, pinned ...string) (score.Choice, bool) {
+	return v.policy.Choose(v.open(), pinned, v.applies, preferred, v.now)
+}
+
+// pinned returns the best of the accounts pinned, of those known to have room
+// for the request, as score.Policy.PickPinned chooses. It reports false when
+// none of them has room.
+func (v view) pinned(ids []string) (score.Choice, bool) {
+	return v.policy.PickPinned(v.open(), ids, v.applies, "", v.now)
 }
 
 // full returns the ids of the accounts whose windows as last read leave no

@@ -5,10 +5,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
-)
 
-// ellipsis marks where text was cut short, or what wasn't shown.
-const ellipsis = "…"
+	"github.com/leeovery/switchboard/internal/prose"
+)
 
 // span is a run of text in one ink.
 type span struct {
@@ -43,11 +42,25 @@ func (l line) fit(width int) line {
 	return fitParts(width, wordsPart(l))
 }
 
+// inked is the line as it's drawn, each run of one ink a span, however its
+// spans were split.
+func (l line) inked() line {
+	var runs line
+	for _, s := range l {
+		if n := len(runs); n > 0 && runs[n-1].ink == s.ink {
+			runs[n-1].text += s.text
+			continue
+		}
+		runs = append(runs, s)
+	}
+	return runs
+}
+
 // elided is the line, a figure, as an ellipsis alone, in its first span's ink
 // but as no number: the figure it stands for isn't shown, so its changes
 // can't be.
 func (l line) elided() line {
-	return line{{ellipsis, l[0].ink.unnumbered()}}
+	return line{{prose.Ellipsis, l[0].ink.unnumbered()}}
 }
 
 // part is a part of a line fitParts cuts: words, which may be cut part-way;
@@ -96,7 +109,7 @@ func fitParts(width int, parts ...part) line {
 		case !cutting || w < room:
 			kept, room = append(kept, p.drawn()...), room-w
 		case !p.figure:
-			return append(kept, span{ellipsize(p.said[0].text, room), p.said[0].ink})
+			return append(kept, span{prose.CutShort(p.said[0].text, room), p.said[0].ink})
 		case w == room:
 			return append(kept, p.drawn()...)
 		default:
@@ -270,23 +283,4 @@ func padded(text string, cells int) string {
 // rule is a horizontal border n cells long.
 func rule(n int) string {
 	return strings.Repeat("─", max(n, 0))
-}
-
-// truncate cuts text to width cells, ending it with an ellipsis where it's
-// cut.
-func truncate(text string, width int) string {
-	switch {
-	case ansi.StringWidth(text) <= width:
-		return text
-	case width < 1:
-		return ""
-	default:
-		return ellipsize(text, width)
-	}
-}
-
-// ellipsize cuts text to leave room in width cells for the ellipsis it ends
-// with.
-func ellipsize(text string, width int) string {
-	return strings.TrimRight(ansi.Truncate(text, width-ansi.StringWidth(ellipsis), ""), " ") + ellipsis
 }

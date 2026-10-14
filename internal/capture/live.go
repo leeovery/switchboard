@@ -49,7 +49,7 @@ func (s Scenario) play(ctx context.Context, elapsed func() time.Duration, wait f
 		Await:      await,
 		Interval:   interval,
 		Policy:     claude.Policy,
-		WindowName: claude.WindowName,
+		WindowName: status.NameOfKey,
 		WeekStarts: framesWeekStarts,
 		WeekWindow: claude.WeekWindow,
 		Family:     claude.Provider{}.Family,

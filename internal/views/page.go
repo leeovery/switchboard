@@ -9,6 +9,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -34,7 +35,8 @@ type SessionPage struct {
 	// the router doesn't list it.
 	Pin string `json:"pin,omitempty"`
 	// Started is when its first request came, and Resumed the latest time it
-	// came back after comeBack or more without one: zero where it never did.
+	// came back after an IdleHour or more without one: zero where it never
+	// did.
 	Started time.Time `json:"started,omitzero"`
 	Resumed time.Time `json:"resumed,omitzero"`
 	// KeptUntil is, of one ended, the date of the last day the ledger keeps
@@ -45,6 +47,9 @@ type SessionPage struct {
 	Moves     []SessionMove    `json:"moves"`
 	Turns     []Turn           `json:"turns"`
 	Totals    SessionTotals    `json:"totals"`
+	// Activity is what it's doing, as the List has it. It's the views'
+	// alone.
+	Activity Activity `json:"-"`
 }
 
 // SessionAccount is an account a session ran on: its first and last request
@@ -121,9 +126,15 @@ type PageSources struct {
 	// Routed is the session as the router lists it: nil where it doesn't, as
 	// without the router, or once the session has ended.
 	Routed *status.Session
+	// Unlisted is set where no router lists the sessions, as SessionSources'
+	// Unlisted has it.
+	Unlisted bool
 	// Read holds the session's lines, and the requests of the accounts it
 	// ran on, on its days.
 	Read SessionsRead
+	// Stream is what the request stream has told of its requests: zero
+	// where it's unheard, as by the verbs.
+	Stream Stream
 	// Prices are the price table worth is priced by.
 	Prices ledger.Table
 	// Keep is how long the ledger keeps a day's lines, as [ledger] keep
@@ -137,7 +148,7 @@ type PageSources struct {
 // first; and every request of an account on each day it read, every
 // session's, by the date of the day whose files hold it, for the points.
 type SessionsRead struct {
-	day      day
+	day      LedgerDay
 	lines    map[string][]ledger.Line
 	requests map[string][]ledger.Line
 }
@@ -147,9 +158,9 @@ type SessionsRead struct {
 // router lists them, and those with the given ids, as one given in whole,
 // of an earlier day.
 func ReadSessions(l Ledger, running []status.Session, now time.Time, ids ...string) SessionsRead {
-	read := SessionsRead{day: dayOf(now), requests: make(map[string][]ledger.Line)}
+	read := SessionsRead{day: Today(now), requests: make(map[string][]ledger.Line)}
 	read.lines = l.Sessions(append(runningIDs(running), ids...), func(date string, line ledger.Line) {
-		if line.Kind == ledger.KindMessage && line.Account != "" {
+		if line.Counted() && line.Account != "" {
 			read.requests[date] = append(read.requests[date], line)
 		}
 	})
@@ -163,7 +174,7 @@ func ReadSessions(l Ledger, running []status.Session, now time.Time, ids ...stri
 func (r SessionsRead) Named(running []status.Session) []string {
 	first := make(map[string]time.Time)
 	for id, lines := range r.lines {
-		if i := slices.IndexFunc(lines, func(l ledger.Line) bool { return isRequest(&l) && r.day.holds(l.At) }); i >= 0 {
+		if i := slices.IndexFunc(lines, func(l ledger.Line) bool { return isRequest(&l) && r.day.Holds(l.At) }); i >= 0 {
 			first[id] = lines[i].At
 		}
 	}
@@ -176,38 +187,40 @@ func (r SessionsRead) Named(running []status.Session) []string {
 	return ids
 }
 
-// comeBack is how long a session goes without a request for the next to
-// bring it back, as after an idle hour the router chooses its account
-// afresh.
-const comeBack = time.Hour
-
 // SessionPageOf builds the page of the session with the given id from src:
-// what the router says of it, where it lists it, and what every line of it
-// the ledger holds tells, whatever day each is of, with the requests of the
-// accounts it ran on, on its days, for the points it took, as src's Read
-// holds them. It reports false where the ledger holds no request of it, and
-// the router doesn't list it.
+// what the router says of it, where it lists it; what the request stream
+// told of its requests, those in flight among them; and what every line of
+// it the ledger holds tells, whatever day each is of, with the requests of
+// the accounts it ran on, on its days, for the points it took, as src's Read
+// holds them. It's listed as the List lists it; and its newest turn goes on
+// while its last answer called a tool till the session has ended, as its
+// Activity says, so with no router, while the router's own rule keeps it.
+// It reports false where the ledger holds no request of it, and the router
+// doesn't list it.
 func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
-	today := dayOf(src.Now)
-	requests := requestsOf(src.Read.lines[id], src.Prices, today.date)
+	today := Today(src.Now)
+	requests := requestsOf(src.Read.lines[id], src.Prices, today.Date)
 	if len(requests) == 0 && src.Routed == nil {
 		return SessionPage{}, false
 	}
 	s := storyOf(requests, src.Prices, today)
-	listed := listedFrom(id, s)
+	var running []status.Session
 	if src.Routed != nil {
-		listed.run(*src.Routed, s, src.Now)
+		running = []status.Session{*src.Routed}
 	}
+	by := newLister(running, src.Unlisted, src.Stream, src.Now)
+	listed := by.listed(id, s)
 	page := SessionPage{
 		Session: listed.Session, Dir: listed.Dir, Account: listed.Account, Model: listed.Model, Running: listed.Running, LastSeen: listed.LastSeen,
 		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
-		Resumed: resumedAt(requests), Accounts: accountsOf(requests), Moves: movesOf(s), Turns: turnsOf(requests, listed.Running),
+		Resumed: resumedAt(requests), Accounts: accountsOf(requests), Moves: movesOf(s),
+		Turns: turnsOf(requests, by.h.told[id], listed.Activity.Doing != Ended), Activity: listed.Activity,
 	}
 	if src.Routed != nil {
 		page.Pin = src.Routed.Pin
 	}
 	if !page.Running && s.first != nil {
-		page.KeptUntil, _ = dayfile.KeptUntil(dayOf(s.first.At).date, src.Keep)
+		page.KeptUntil, _ = dayfile.KeptUntil(Today(s.first.At).Date, src.Keep)
 	}
 	points := pointsOf(src.Read.requests, id, requests)
 	for i := range page.Accounts {
@@ -215,6 +228,25 @@ func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 	}
 	page.Totals = totalsOf(requests, len(page.Turns))
 	return page, true
+}
+
+// KeptUntil says until when the ledger keeps a day's lines, by the date of
+// the last day it keeps them, as SessionPage's KeptUntil gives it, at now:
+// "kept until 4 Nov 2027", the year named where it isn't now's, as "kept
+// until 29 Dec"; and for none, "kept for good", as the ledger keeping them
+// for good gives none.
+func KeptUntil(date string, now time.Time) string {
+	if date == "" {
+		return "kept for good"
+	}
+	until, ok := dayfile.Civil(date)
+	switch {
+	case !ok:
+		return "kept until " + prose.Clean(date)
+	case until.Year() != now.Year():
+		return "kept until " + prose.DayMonthYear(until)
+	}
+	return "kept until " + prose.DayMonth(until)
 }
 
 // request is a session's request: its line, what it would have cost through
@@ -248,11 +280,11 @@ func ended(l *ledger.Line) time.Time {
 }
 
 // resumedAt returns when requests, a session's, oldest first, last came
-// back after comeBack or more without one: zero where they never did.
+// back after an IdleHour or more without one: zero where they never did.
 func resumedAt(requests []request) time.Time {
 	var resumed time.Time
 	for i := 1; i < len(requests); i++ {
-		if requests[i].At.Sub(requests[i-1].At) >= comeBack {
+		if requests[i].At.Sub(requests[i-1].At) >= IdleHour {
 			resumed = requests[i].At.UTC()
 		}
 	}

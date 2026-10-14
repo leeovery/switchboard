@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
@@ -473,7 +475,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
-		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
+		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitSince: eventAt(d.LimitEvent(a, m.Now)),
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapBack: s.capBack, TokenRefused: s.stood.refused,
 		Idle: s.idle, NextPrime: d.primeOf(a.ID), OutOfQuota: s.stood.outOfQuota(),
@@ -583,10 +585,38 @@ func (d Document) windowNames() map[string]WindowName {
 // a day, its length, as "5-hour"; else its label, cleaned, as "Week" or
 // "Fable week", or its key where it has none.
 func NameOfWindow(key, label string) string {
-	if length, ok := quota.Length(key); ok && length%time.Hour == 0 && length < day {
+	if length, ok := quota.Length(key); ok && length%time.Hour == 0 && length < quota.Day {
 		return fmt.Sprintf("%d-hour", length/time.Hour)
 	}
-	return Clean(cmp.Or(label, key))
+	return prose.Clean(cmp.Or(label, key))
+}
+
+// NameOfKey is what the window with the given key is called where no
+// document labels it, as NameOfWindow calls it by the label Claude gives the
+// key: "5-hour", "Week" or "Fable week", or the key, cleaned, of one Claude
+// doesn't label.
+func NameOfKey(key string) string {
+	return NameOfWindow(key, claude.WindowLabel(key))
+}
+
+// Window is the window of the moment's accounts with the given key, as its
+// Shown or Hidden names it, reporting false where none of them has it.
+func (m Moment) Window(key string) (WindowName, bool) {
+	for _, windows := range [][]WindowName{m.Shown, m.Hidden} {
+		if i := slices.IndexFunc(windows, func(w WindowName) bool { return w.Key == key }); i >= 0 {
+			return windows[i], true
+		}
+	}
+	return WindowName{}, false
+}
+
+// NameOf is what the window with the given key is called at the moment, as
+// Window names it: one none of its accounts has as NameOfKey calls it.
+func (m Moment) NameOf(key string) string {
+	if w, ok := m.Window(key); ok {
+		return w.Name
+	}
+	return NameOfKey(key)
 }
 
 // windowsShown are the windows of the accounts at the moment, in quota's

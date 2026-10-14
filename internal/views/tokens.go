@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 )
@@ -43,6 +44,10 @@ type TokenWeek struct {
 	ByAccount []AccountTokens `json:"by_account,omitempty"`
 	ByModel   []ModelTokens   `json:"by_model,omitempty"`
 }
+
+// NoAccount is what a row names the account of the requests none answered,
+// whose account is "".
+const NoAccount = "no account"
 
 // AccountTokens are an account's tokens in a week, and their worth, then by
 // model version. The account is left out of those the router answered with
@@ -180,7 +185,7 @@ func weekKey(starts time.Weekday) func(Day) (string, bool) {
 // a date that isn't one.
 func weekDate(starts time.Weekday) func(date string) (string, bool) {
 	return func(date string) (string, bool) {
-		day, ok := civil(date)
+		day, ok := dayfile.Civil(date)
 		return weekOf(day, starts).Format(time.DateOnly), ok
 	}
 }

@@ -3,6 +3,7 @@ package dashboard
 import (
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -75,8 +76,8 @@ func (s standing) headed(now time.Time, tilde string, when func(now, t time.Time
 	case !ok:
 		return span{}
 	case s.w.Nearing:
-		return span{"→ " + status.Percent(share), warningInk}
+		return span{"→ " + prose.Percent(share), warningInk}
 	default:
-		return span{"→ " + status.Percent(share), mutedInk}
+		return span{"→ " + prose.Percent(share), mutedInk}
 	}
 }

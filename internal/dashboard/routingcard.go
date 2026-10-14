@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // numbered is how many accounts have a number that picks them on the routing
@@ -112,18 +114,20 @@ type Figure struct {
 }
 
 // RoutingRows are the routing card's rows of the moment m, with the sessions
-// the router listed: 0 auto's, then an account's each, in the config's
-// order, each with its state, as closedBy says, its windows' use, and its
-// sessions running.
-func RoutingRows(m status.Moment, sessions []status.Session) []RoutingRow {
+// the router listed, as the request stream s has moved and seen them since:
+// 0 auto's, then an account's each, in the config's order, each with its
+// state, as closedBy says, its windows' use, and its sessions running, as
+// views.RunningCounts counts SESSIONS' rows for ROUTING too.
+func RoutingRows(m status.Moment, sessions []status.Session, s views.Stream) []RoutingRow {
 	rows := []RoutingRow{{Key: "0", Name: "auto", Open: true, Pickable: true}}
+	running := views.RunningCounts(views.RunningOf(m, sessions, s))
 	for i, a := range m.Accounts {
 		session, _ := startedWindow(a)
 		week, _ := sharedWeek(a)
 		row := RoutingRow{
 			Account: a.ID, Name: name(a), Pickable: pickable(a),
 			Session: figureOf(session), Week: figureOf(week),
-			Running: running(sessions, a.ID, m.Now),
+			Running: running[a.ID],
 		}
 		row.Reason, row.Capped = closedBy(a, m.Now)
 		row.Open = row.Reason == ""
@@ -161,20 +165,14 @@ func closedBy(a status.AccountNow, now time.Time) (reason string, capped bool) {
 	return "", false
 }
 
-// till follows what holds an account back with when it's back, at t, as in
-// "at its cap till 17:10": what alone where that's unknown.
+// till follows what holds an account back with when it's back, at t, as
+// status.Till says it, as in "at its cap till 17:10": what alone where that's
+// unknown.
 func till(what string, t time.Time, now time.Time) string {
-	if t.IsZero() {
-		return what
+	if until := status.Till(now, t); until != "" {
+		return what + " " + until
 	}
-	return what + " till " + status.Dated(now, t)
-}
-
-// running counts the sessions listed that run on the account with the given
-// id at now, as its card on the Overview counts them, without what the
-// request stream tells.
-func running(sessions []status.Session, id string, now time.Time) int {
-	return len(Frame{}.busy(sessions, id, now))
+	return what
 }
 
 // figureOf is the use of an account's window as it stands, as usage reads it:
@@ -258,6 +256,10 @@ func atLeast(lines []line, rows int) []line {
 	return append(lines, make([]line, max(rows-len(lines), 0))...)
 }
 
+// cardOut is the form of the line saying how many of the card's rows are out
+// of view, over those shown or under them, as in "▼ 3 more".
+var cardOut = outForm{inks: subtleOut}
+
 // inView are the card's rows as they show in room lines, as choice lays each
 // out, the lines of them the cursor's row takes, and how far they're
 // scrolled: all of them where they fit; else those around the cursor, with
@@ -276,7 +278,7 @@ func (r RoutingCard) inView(phone bool, width, room int) ([]line, bodyRows, card
 	var lines []line
 	var lit bodyRows
 	if first > 0 {
-		lines = append(lines, line{{"▲ " + strconv.Itoa(first) + " more", dimInk}})
+		lines = append(lines, outOfView(first, 0, width, cardOut))
 	}
 	for i := first; i < end; i++ {
 		if i == cursor {
@@ -285,7 +287,7 @@ func (r RoutingCard) inView(phone bool, width, room int) ([]line, bodyRows, card
 		lines = append(lines, choices[i]...)
 	}
 	if end < len(choices) {
-		lines = append(lines, line{{"▼ " + strconv.Itoa(len(choices)-end) + " more", dimInk}})
+		lines = append(lines, outOfView(0, len(choices)-end, width, cardOut))
 	}
 	if first > 0 || end < len(choices) {
 		lines = atLeast(lines, room)
@@ -333,7 +335,7 @@ func fitting(heights []int, room int) int {
 // account's windows take a row of their own under it, from the state's
 // column.
 func (r RoutingCard) choice(row RoutingRow, phone bool, width int) []line {
-	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, 2), dimInk}, {truncate(row.Name, choiceState-choiceName-3), titleInk}}
+	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, 2), dimInk}, {prose.Cut(row.Name, choiceState-choiceName-3), titleInk}}
 	if row.Account == "" {
 		return []line{padTo(head, choiceState, line{{"the router chooses", mutedInk}}).fit(width)}
 	}
@@ -426,7 +428,7 @@ func (r RoutingCard) moveRow() line {
 // last apply, in red, wrapped to width cells, in the rows outcomeRoom keeps
 // for it: cut short where it's longer, as a refusal can be.
 func (r RoutingCard) outcome(width int) []line {
-	said := []line{{{status.Clean(r.Refused), errorInk}}}
+	said := []line{{{prose.Clean(r.Refused), errorInk}}}
 	if r.Refused == "" {
 		said = r.sentences()
 	}
@@ -538,7 +540,7 @@ func whenFull(picked int) string {
 func (r RoutingCard) names(ids []string) []string {
 	names := make([]string, len(ids))
 	for i, id := range ids {
-		names[i] = status.Clean(id)
+		names[i] = prose.Clean(id)
 		if j := slices.IndexFunc(r.Rows, func(row RoutingRow) bool { return row.Account == id }); j >= 0 {
 			names[i] = r.Rows[j].Name
 		}

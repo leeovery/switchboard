@@ -4,11 +4,13 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
-// Words are a reason the router gives, in the dashboard's words: in parts,
-// each account they name, and how long a session idled, a part of its own,
-// as the pages draw them apart.
+// Words are a reason the router gives, in the dashboard's words, or a phrase
+// History says: in parts, each account they name, how long a session idled
+// and each figure, a part of its own, as the pages draw them apart.
 type Words []Part
 
 // Part is a run of Words, of the kind it is.
@@ -28,6 +30,8 @@ const (
 	PartAccount
 	// PartDuration is how long a session idled.
 	PartDuration
+	// PartFigure is a figure among words, as a count of weeks.
+	PartFigure
 )
 
 // String runs the words together, as a page drawn without colour shows them.
@@ -78,12 +82,18 @@ func EventWords(reason string, f Facts) Words {
 // words reads as the router gives it, cleaned.
 func RoutingWords(reason string, f Facts) Words {
 	switch {
-	case isNew(Clean(reason)):
-		return Words{plain("new session")}
+	case isNew(prose.Clean(reason)):
+		return Words{Plain("new session")}
 	case f.From == "":
 		return nil
 	}
-	return append(Words{plain("from "), named(f.From), plain(", ")}, wordsOf(reason, f).routed...)
+	return slices.Concat(FromWords(f.From), Words{Plain(", ")}, wordsOf(reason, f).routed)
+}
+
+// FromWords are a request's move of its session, the account it left alone,
+// as a phone's Log says it: "from work", as RoutingWords starts.
+func FromWords(from string) Words {
+	return Words{Plain("from "), Named(from)}
 }
 
 // SessionWords are the reason as a session's page reads, as in "since it
@@ -94,25 +104,25 @@ func SessionWords(reason string, f Facts) Words {
 }
 
 // RunningWords are the reason as a session running reads, with when it went
-// to its account: "started here 14:41", ending ", the best" while that's where
-// new sessions go; "pinned here 14:39", its own pin; "its pin to side yields:
-// side has no room"; "moved from work 14:31: work reached its cap", the
-// account it left the reason's own where it names one; else "here since
-// 14:39: " and its words as an event reads them. Any reason not in the
-// dashboard's words reads as the router gives it, cleaned.
+// to its account, as prose.Dated says it: "started here 14:41", ending ",
+// the best" while that's where new sessions go; "pinned here 14:39", its own
+// pin; "its pin to side yields: side has no room"; "moved from work 14:31:
+// work reached its cap", the account it left the reason's own where it names
+// one; else "here since 14:39: " and its words as an event reads them. Any
+// reason not in the dashboard's words reads as the router gives it, cleaned.
 func RunningWords(reason string, f Facts) Words {
-	reason = Clean(reason)
+	reason = prose.Clean(reason)
 	at := ""
 	if !f.At.IsZero() {
-		at = " " + When(f.Now, f.At)
+		at = " " + prose.Dated(f.Now, f.At)
 	}
 	switch {
 	case isNew(reason) && f.Best:
-		return Words{plain("started here" + at + ", the best")}
+		return Words{Plain("started here" + at + ", the best")}
 	case isNew(reason):
-		return Words{plain("started here" + at)}
+		return Words{Plain("started here" + at)}
 	case reason == ReasonPinned:
-		return Words{plain("pinned here" + at)}
+		return Words{Plain("pinned here" + at)}
 	case strings.HasPrefix(reason, ReasonPinYields):
 		return EventWords(reason, f)
 	}
@@ -122,9 +132,9 @@ func RunningWords(reason string, f Facts) Words {
 	var came Words
 	switch {
 	case f.From != "":
-		came = Words{plain("moved from "), named(f.From), plain(at)}
+		came = Words{Plain("moved from "), Named(f.From), Plain(at)}
 	case at != "":
-		came = Words{plain("here since" + at)}
+		came = Words{Plain("here since" + at)}
 	}
 	switch {
 	case reason == "":
@@ -132,7 +142,7 @@ func RunningWords(reason string, f Facts) Words {
 	case came == nil:
 		return EventWords(reason, f)
 	}
-	return slices.Concat(came, Words{plain(": ")}, EventWords(reason, f))
+	return slices.Concat(came, Words{Plain(": ")}, EventWords(reason, f))
 }
 
 // forms are a reason's words in each place the dashboard says it: routed is
@@ -146,14 +156,19 @@ func alike(w Words) forms {
 	return forms{event: w, routed: w, session: w}
 }
 
-// plain is words around the accounts and times named.
-func plain(text string) Part {
+// Plain is words around the accounts and times named.
+func Plain(text string) Part {
 	return Part{Text: text}
 }
 
-// named is the account with the given id, cleaned, as it's from elsewhere.
-func named(id string) Part {
-	return Part{Text: Clean(id), Kind: PartAccount}
+// Named is the account with the given id, cleaned, as it's from elsewhere.
+func Named(id string) Part {
+	return Part{Text: prose.Clean(id), Kind: PartAccount}
+}
+
+// Figure is a figure among words, as a count.
+func Figure(text string) Part {
+	return Part{Text: text, Kind: PartFigure}
 }
 
 // readers each read a kind of reason, reporting false for any other, in the
@@ -164,13 +179,13 @@ var readers = []func(reason string, f Facts) (forms, bool){pressured, settled, r
 // wordsOf is the reason's words, cleaned, as it's from elsewhere: as the
 // router gives it where none of readers reads it.
 func wordsOf(reason string, f Facts) forms {
-	reason = Clean(reason)
+	reason = prose.Clean(reason)
 	for _, read := range readers {
 		if w, ok := read(reason, f); ok {
 			return w
 		}
 	}
-	return alike(Words{plain(reason)})
+	return alike(Words{Plain(reason)})
 }
 
 // isNew reports whether the reason, cleaned, is a new session's, whether or
@@ -199,7 +214,7 @@ func PassingOver(reason, account string) string {
 // PassedOver is the account a reason ending ", personal under pressure" says
 // the choice passed over, cleaned: "" for a reason without it.
 func PassedOver(reason string) string {
-	_, account, _ := passedOver(Clean(reason))
+	_, account, _ := passedOver(prose.Clean(reason))
 	return account
 }
 
@@ -217,15 +232,16 @@ func passedOver(reason string) (base, account string, ok bool) {
 
 // pressured reads a reason ending ", personal under pressure", which names the
 // account the choice passed over, as "personal came under pressure, its 5-hour
-// to run out at 15:10": pressure is only ever judged in the 5-hour window.
+// to run out at 15:10", the time as prose.Dated says it: pressure is only
+// ever judged in the 5-hour window.
 func pressured(reason string, f Facts) (forms, bool) {
 	_, account, ok := passedOver(reason)
 	if !ok {
 		return forms{}, false
 	}
-	w := Words{named(account), plain(" came under pressure")}
+	w := Words{Named(account), Plain(" came under pressure")}
 	if !f.Until.IsZero() {
-		w = append(w, plain(", its 5-hour to run out at "+TimeOfDay(f.Now, f.Until)))
+		w = append(w, Plain(", its 5-hour to run out at "+prose.Dated(f.Now, f.Until)))
 	}
 	return alike(w), true
 }
@@ -234,20 +250,20 @@ func pressured(reason string, f Facts) (forms, bool) {
 // move nothing are routed as the router gives them, as a request that moved
 // its session never carries them.
 func settled(reason string, f Facts) (forms, bool) {
-	given := Words{plain(reason)}
+	given := Words{Plain(reason)}
 	switch reason {
 	case ReasonNew:
-		return forms{event: Words{plain("started")}, session: Words{plain("since it started")}}, true
+		return forms{event: Words{Plain("started")}, session: Words{Plain("since it started")}}, true
 	case ReasonSticky:
-		return forms{event: Words{plain("sticky")}, routed: given, session: Words{plain("sticky")}}, true
+		return forms{event: Words{Plain("sticky")}, routed: given, session: Words{Plain("sticky")}}, true
 	case ReasonBound:
-		return forms{event: Words{plain("kept for its thinking")}, routed: given, session: Words{plain("kept for its thinking")}}, true
+		return forms{event: Words{Plain("kept for its thinking")}, routed: given, session: Words{Plain("kept for its thinking")}}, true
 	case ReasonPinned:
-		return alike(Words{plain("pinned here")}), true
+		return alike(Words{Plain("pinned here")}), true
 	case ReasonGlobalPin, ReasonMovedByPin:
 		return alike(pinnedTo(f.To)), true
 	case ReasonBack:
-		return alike(Words{plain("back where it was")}), true
+		return alike(Words{Plain("back where it was")}), true
 	}
 	return forms{}, false
 }
@@ -256,9 +272,9 @@ func settled(reason string, f Facts) (forms, bool) {
 // given.
 func pinnedTo(account string) Words {
 	if account == "" {
-		return Words{plain("pinned")}
+		return Words{Plain("pinned")}
 	}
-	return Words{plain("pinned to "), named(account)}
+	return Words{Plain("pinned to "), Named(account)}
 }
 
 // rescored reads the reason for a session that idled being chosen afresh,
@@ -266,14 +282,14 @@ func pinnedTo(account string) Words {
 // follows with what the choice found, where it's given.
 func rescored(reason string, f Facts) (forms, bool) {
 	rest, ok := strings.CutPrefix(reason, ReasonRescored)
-	idle, idled := strings.CutSuffix(rest, rescoredIdle)
-	if !ok || !idled || idle == "" {
+	idle, ends := strings.CutSuffix(rest, rescoredIdle)
+	if !ok || !ends || idle == "" {
 		return forms{}, false
 	}
-	why := Words{plain(ReasonRescored), {Text: idle, Kind: PartDuration}, plain(rescoredIdle)}
+	why := Words{Plain(ReasonRescored), {Text: idle, Kind: PartDuration}, Plain(rescoredIdle)}
 	w := alike(why)
 	if f.To != "" {
-		w.session = append(slices.Clone(why), plain(": "), named(f.To), plain(" had the most room"))
+		w.session = append(slices.Clone(why), Plain(": "), Named(f.To), Plain(" had the most room"))
 	}
 	return w, true
 }
@@ -287,6 +303,42 @@ var offWords = map[string]struct{ event, routed string }{
 	WhyNoRoom:  {event: " had no room", routed: "with no room"},
 }
 
+// Tried is an account a request went out on that couldn't serve it, and
+// why, as the router says it, as "hit its limit": as a ledger line's tried
+// gives it.
+type Tried struct {
+	Account, Why string
+}
+
+// triedWords are why a request went out again elsewhere, as the router says
+// it, in the words of a request's routing, after the account it left.
+var triedWords = map[string]string{
+	WhyLimit:   "'s limit",
+	WhyRefused: " refused it",
+}
+
+// TriedWords are the accounts a request went out on that couldn't serve it,
+// in the order tried, as its routing reads them in place of its reason's
+// words: "after work's limit", "after work refused it", and several as
+// "after work's limit, personal's limit". A why the dashboard has no words
+// for reads as the router gives it, cleaned, the account named apart all the
+// same, as "after work has a new token". None where none was tried.
+func TriedWords(tried ...Tried) Words {
+	var w Words
+	for i, t := range tried {
+		lead := ", "
+		if i == 0 {
+			lead = "after "
+		}
+		why, known := triedWords[t.Why]
+		if !known {
+			why = " " + prose.Clean(t.Why)
+		}
+		w = append(w, Plain(lead), Named(t.Account), Plain(why))
+	}
+	return w
+}
+
 // movedOff reads the reason for a move off an account that can't take the
 // request, "moved: work hit its limit", which names the account it left. A
 // why the dashboard has no words for reads as the router gives it, the
@@ -298,10 +350,10 @@ func movedOff(reason string, _ Facts) (forms, bool) {
 	}
 	said, known := offWords[why]
 	if !known {
-		return alike(Words{plain(ReasonMovedOff), named(account), plain(" " + why)}), true
+		return alike(Words{Plain(ReasonMovedOff), Named(account), Plain(" " + why)}), true
 	}
-	event := Words{named(account), plain(said.event)}
-	return forms{event: event, routed: Words{plain(said.routed)}, session: event}, true
+	event := Words{Named(account), Plain(said.event)}
+	return forms{event: event, routed: Words{Plain(said.routed)}, session: event}, true
 }
 
 // pinYields reads the reason for going elsewhere than the session's own pin
@@ -312,7 +364,7 @@ func pinYields(reason string, _ Facts) (forms, bool) {
 	if !ok {
 		return forms{}, false
 	}
-	return alike(Words{plain("its pin to "), named(account), plain(" yields: "), named(account), plain(" " + why)}), true
+	return alike(Words{Plain("its pin to "), Named(account), Plain(" yields: "), Named(account), Plain(" " + why)}), true
 }
 
 // cutAccount cuts a reason that starts as given and names an account, as

@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 func TestTextIsDrawnACellAGlyph(t *testing.T) {
@@ -296,7 +297,7 @@ func TestThePageBehindACardIsFadedAsItsFrameDrawsIt(t *testing.T) {
 	doc, sessions := routedWorld(false)
 	f := Frame{
 		Width: 160, Height: 37, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions,
-		Card: RoutingCard{Rows: RoutingRows(doc.At(routedAt, claudeLike), sessions)},
+		Card: RoutingCard{Rows: RoutingRows(doc.At(routedAt, claudeLike), sessions, views.Stream{})},
 	}
 
 	heldTo(t, "routing-auto-160", reference(t, "routing-auto-160"), screenOf(t, f.Draw(doc, routedAt)), region{top: 0, bottom: 2, left: 0, right: 159}, shadeOf(nord.Canvas()), nil, nil)
@@ -307,7 +308,7 @@ func TestEveryCellOfThePageBehindACardIsFadedAndNothingInItBold(t *testing.T) {
 	f.Look = Screen(builtin(t, "nord"))
 	doc := threeRouted()
 	page := screenOf(t, f.Draw(doc, now))
-	f.Card = RoutingCard{Rows: RoutingRows(doc.At(now, claudeLike), nil)}
+	f.Card = RoutingCard{Rows: RoutingRows(doc.At(now, claudeLike), nil, views.Stream{})}
 	behind := screenOf(t, f.Draw(doc, now))
 
 	k := f.Card.card(f)

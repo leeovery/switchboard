@@ -9,7 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -22,7 +25,8 @@ import (
 // the watch's Source, every read giving the document, and an order a key
 // gives changing nothing. Where it's gone, it stops answering then, by the
 // fixture's clock: a read fails, mid-read, from then on. Read by a watch, it
-// knows whether that watch has opened its stream before.
+// knows whether that watch has opened its stream before, and whether what
+// the stream it opened last told is yet to be heard.
 type source struct {
 	doc      status.Document
 	health   router.Health
@@ -33,6 +37,7 @@ type source struct {
 	gone     time.Time
 	clock    func() time.Time
 	joined   *atomic.Bool
+	untold   *atomic.Bool
 }
 
 // errGone is a read of the router once it has gone: it took the read, and
@@ -86,7 +91,7 @@ func (s source) goneAt(t time.Time) source {
 // by is the source as a watch reads it, by the clock given, which says
 // whether it's gone: its stream not yet opened.
 func (s source) by(clock func() time.Time) source {
-	s.clock, s.joined = clock, new(atomic.Bool)
+	s.clock, s.joined, s.untold = clock, new(atomic.Bool), new(atomic.Bool)
 	return s
 }
 
@@ -160,14 +165,14 @@ func (s source) History(_ context.Context, window string, step time.Duration) (r
 	return h, nil
 }
 
-// Stream opens the router's request stream, as GET /stream does, then ends,
-// as a router ends it: the first time the watch reading it opens it, telling
-// of the requests the fixture has in flight, and all that has befallen them;
-// each time after, only of those still in flight then, by the clock, each as
-// it stands, as a router tells a reader joining it, so what it told before,
-// a move among it, isn't told again. The watch keeps what it told until it
-// asks for it again, which a capture never has it do, as its timers never
-// fire. A source no watch reads tells all of it each time.
+// Stream opens the router's request stream, as GET /stream does, and holds
+// it open, telling nothing more, as a router does while nothing befalls its
+// requests: the first time the watch reading it opens it, telling of the
+// requests the fixture has in flight, and all that has befallen them; each
+// time after, only of those still in flight then, by the clock, each as it
+// stands, as a router tells a reader joining it, so what it told before, a
+// move among it, isn't told again. A source no watch reads tells all of it
+// each time.
 func (s source) Stream(context.Context) (<-chan router.StreamEvent, error) {
 	told := s.stream
 	if s.joined != nil && s.joined.Swap(true) {
@@ -177,8 +182,21 @@ func (s source) Stream(context.Context) (<-chan router.StreamEvent, error) {
 	for _, e := range told {
 		events <- e
 	}
-	close(events)
+	if s.untold != nil {
+		s.untold.Store(len(told) > 0)
+	}
 	return events, nil
+}
+
+// await has the watch reading the source wait on the stream it opened last
+// while what that told is yet to be heard, which the wait takes in at once,
+// and holds the wait after, as the stream, open, tells nothing more: so the
+// watch hears all it told, and listens on, never blocking the capture.
+func (s source) await(wait tea.Cmd) tea.Cmd {
+	if s.untold == nil || !s.untold.Swap(false) {
+		return nil
+	}
+	return wait
 }
 
 // telling is the source with its request stream telling of the events
@@ -217,11 +235,12 @@ func numbered(events []status.Event) []status.Event {
 
 // priming is the router's priming schedule over the samples: their resets
 // spread over 08:00-22:00, each primed daily at the time of day it's next
-// primed, in the order they fall.
+// primed, as status.Priming writes a slot's, in the order they fall.
 func priming(samples []sample) status.Prime {
 	p := status.Prime{Day: "08:00-22:00", Window: fiveHourKey}
 	for _, s := range samples {
-		p.Slots = append(p.Slots, status.Slot{Account: s.id, At: s.prime.Format("15:04"), Next: s.prime})
+		clock := time.Duration(s.prime.Hour())*time.Hour + time.Duration(s.prime.Minute())*time.Minute
+		p.Slots = append(p.Slots, status.Slot{Account: s.id, At: prose.ClockOf(clock), Next: s.prime})
 	}
 	slices.SortStableFunc(p.Slots, func(a, b status.Slot) int { return cmp.Compare(a.At, b.At) })
 	return p

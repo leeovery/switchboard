@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -134,7 +135,7 @@ func blockOf(m status.Moment, width int, look Look, by By, windows []shownWindow
 	for i, a := range m.Accounts {
 		row := usageRow{id: a.ID, name: names[i].line(b.names)}
 		if a.Reserve > 0 {
-			row.cap = name(a) + " at " + status.Percent(a.Cap)
+			row.cap = name(a) + " at " + prose.Percent(a.Cap)
 		}
 		for _, w := range b.windows {
 			row.gauges = append(row.gauges, accountGauge(a, w.key, m.Now))
@@ -170,7 +171,7 @@ func usageWindows(m status.Moment, keys []string, name func(key string) string) 
 	}
 	shown := make([]shownWindow, 0, len(keys))
 	for _, key := range keys {
-		shown = append(shown, shownWindow{key: key, name: status.Clean(name(key))})
+		shown = append(shown, shownWindow{key: key, name: prose.Clean(name(key))})
 	}
 	return shown
 }
@@ -280,7 +281,7 @@ func (n accountName) cells(label int) int {
 // line is the name, in a name column column cells wide, its label cut short
 // to keep its number, its marks and ▲'s cells.
 func (n accountName) line(column int) line {
-	label := truncate(n.label, column-nameGap-n.cells(0))
+	label := prose.Cut(n.label, column-nameGap-n.cells(0))
 	number, primary, best := dimInk, primaryInk, accentInk
 	if n.out {
 		number = faintInk
@@ -461,7 +462,7 @@ func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int
 	accounts, pool := b.split()
 	var l laid
 	if b.above > 0 {
-		c.line(x, y, outOfSight("▲", b.above))
+		c.line(x, y, outOfView(b.above, 0, b.width-x, usageOut))
 		y++
 	}
 	last, next := y, y
@@ -472,7 +473,7 @@ func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int
 	}
 	if b.below > 0 {
 		last++
-		c.line(x, last, outOfSight("▼", b.below))
+		c.line(x, last, outOfView(0, b.below, b.width-x, usageOut))
 		next = last + apart
 	}
 	last, next = last+b.spare, next+b.spare
@@ -485,11 +486,10 @@ func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int
 	return l
 }
 
-// outOfSight says how many accounts' rows are scrolled out of view, by the
-// mark given, as in "▼ 4 more accounts".
-func outOfSight(mark string, n int) line {
-	return line{{mark + " " + moreAccounts(n), dimInk}}
-}
+// usageOut is the form of the line saying how many accounts' rows are
+// scrolled out of view, over the first shown or under the last, as in "▼ 4
+// more accounts".
+var usageOut = outForm{noun: "account", inks: subtleOut}
 
 // split is the block's rows: the accounts', and the pool's, nil where it has
 // none.
@@ -523,7 +523,7 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 			if j > 0 {
 				y += 2
 			}
-			c.line(labelAt, y, line{{truncate(status.Short(b.windows[j].name), cells-1), dimInk}})
+			c.line(labelAt, y, line{{prose.Cut(status.Short(b.windows[j].name), cells-1), dimInk}})
 			b.gauge(c, g, labelAt+cells, y, bar, end)
 		}
 		return y

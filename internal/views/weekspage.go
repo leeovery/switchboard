@@ -5,7 +5,9 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // WeeksPage is Weeks as the dashboard draws it: the eight weeks to this one,
@@ -58,13 +60,25 @@ type WeekPeak struct {
 	Open  bool
 }
 
+// peakSoFar marks a peak so far, of a week still running, after it.
+const peakSoFar = "…"
+
+// Peak says a week's peak, share, as a whole percentage, as "60%"; and of a
+// week still running, open, as its peak so far, as "34%…".
+func Peak(share float64, open bool) string {
+	if open {
+		return prose.Percent(share) + peakSoFar
+	}
+	return prose.Percent(share)
+}
+
 // weeksPage is Weeks' page: the eight weeks to this one, the accounts' own
 // weeks placed under them as Weeks places them, the resets of the days
 // lookBack before them telling the week still running as they begin; and
 // the capacity verdict over those of them that are whole.
 func (p Past) weeksPage() WeeksPage {
 	in := p.in
-	today := dateOf(in.Now)
+	today := dayfile.CivilOf(in.Now)
 	this, first := weekOf(today, in.WeekStarts), weeksTo(today, in.WeekStarts, weeksShown)
 	before, days := splitAt(p.days, first.Format(time.DateOnly))
 	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
@@ -90,7 +104,7 @@ func (p Past) weeksPage() WeeksPage {
 		page.Accounts = append(page.Accounts, row)
 	}
 	page.All = WeeksRow{AccountVerdict: page.Capacity.Accounts[len(in.Accounts)], Peaks: page.peaksOf(byWeek, len(in.Accounts))}
-	page.judge(j.r, pl, today.Format(time.DateOnly))
+	page.judge(j.r, pl, dayfile.DateOf(in.Now))
 	return page
 }
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -837,5 +838,26 @@ func TestTheCardDoesntPriceMovesThatDontHappen(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The routing card counts the sessions running on each account as ROUTING
+// draws them: a session a move the stream told of took to another account
+// runs there, till a listing of the router's sessions shows it so.
+func TestTheRoutingCardCountsTheSessionsRunningAsROUTINGDrawsThem(t *testing.T) {
+	h := streamingOn(t, dashboard.Sections{})
+	h.hear(alter(told(router.StreamMoved, "r1", "side", 0), func(e *router.StreamEvent) { e.From, e.To, e.Reason = "work", "side", "pinned" }))
+	drawn := make(map[string]string)
+	for _, id := range []string{"work", "personal", "side"} {
+		drawn[id] = h.drawnNumber(dashboard.Number{Kind: dashboard.NumberSessions, Account: id})
+	}
+	if drawn["side"] != "1 session" {
+		t.Fatalf("ROUTING draws %q on side, want the session the move took there", drawn["side"])
+	}
+	h.keyed("p")
+	for _, row := range h.card().Rows[1:] {
+		if count, _, _ := strings.Cut(drawn[row.Account], " "); count != strconv.Itoa(row.Running) {
+			t.Errorf("the card counts %d running on %s, want ROUTING's %q", row.Running, row.Account, drawn[row.Account])
+		}
 	}
 }

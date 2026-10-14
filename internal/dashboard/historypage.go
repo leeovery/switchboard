@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"slices"
 	"strconv"
 	"strings"
 
@@ -188,95 +187,24 @@ func (f Frame) historyScrolls() (y, rows int) {
 	return f.top(), f.viewRows()
 }
 
-// moreBelow says how many more of a view's rows, each one of the thing noun
-// names, are out of view below, and how to scroll to them, what toScroll says
-// following j/k, "▼ 3 more weeks below   ·   j/k to scroll", cut to width
-// cells as countOutOfView cuts it.
-func moreBelow(n int, noun, toScroll string, width int) line {
-	return countOutOfView(width, span{"▼", keyMarkInk}, n, "more "+noun,
-		wordsPart(line{{" below", mutedInk}, {"   ·   ", faintInk}, {"j/k", keyInk}, {toScroll, mutedInk}}))
+// periodsOut is the form of the line saying how many more of Tokens'
+// periods, each one of the thing noun names, are out of view below, and how
+// to scroll to them: "▼ 3 more weeks below   ·   j/k to scroll".
+func periodsOut(noun string) outForm {
+	return outForm{noun: noun, below: " below", gap: "   ·   ", keys: "j/k", does: " to scroll", inks: keyedOut}
 }
 
-// accountsOutOfView says how many of a view's accounts are out of view above
-// and below, and how to scroll to them, in the longest of its forms that fits
-// width cells, as outOfViewForms lists them, each built in turn; where none
-// does, one count alone, as oneOutOfView has it.
-func accountsOutOfView(above, below, width int) line {
-	for _, form := range outOfViewForms {
-		if said := form.said(above, below); said.width() <= width {
-			return said
-		}
-	}
-	return oneOutOfView(above, below, width)
-}
-
-// oneOutOfView says, as the last of outOfViewForms does, how many accounts
-// are out of view below, where any are, else above, cut to width cells as
-// countOutOfView cuts it: below first, as what's below is what a line cut
-// short loses.
-func oneOutOfView(above, below, width int) line {
-	if below > 0 {
-		return countOutOfView(width, span{"▼", keyMarkInk}, below, "more account")
-	}
-	return countOutOfView(width, span{"▲", keyMarkInk}, above, "more account")
-}
-
-// countOutOfView says, after its mark, how many of the thing noun names are
-// out of view, n of them, then what follows, cut to width cells: the count a
-// figure, drawn whole with its mark, "▼ 12", the words after it cut; where
-// that doesn't fit, the mark alone says some are, as a count cut short
-// would say fewer.
-func countOutOfView(width int, mark span, n int, noun string, after ...part) line {
-	said := slices.Concat([]part{wordsPart(line{mark, {" ", mutedInk}})}, countedParts(n, noun, mutedInk), after)
-	if partsWidth(said[:2]) > width {
-		return line{mark}.fit(width)
-	}
-	return fitParts(width, said...)
-}
-
-// outForm is a form of the line saying what's out of view: its parts gap
-// apart; after each count, where it's out of view, where says it; and after
-// j/k, how to scroll, where it says it.
-type outForm struct {
-	gap      string
-	where    bool
-	toScroll string
-}
-
-// outOfViewForms are the forms of the line saying how many accounts are out of
-// view, each shorter than the one before: the design's, "▼ 4 more accounts
-// below   ·   j/k or the wheel to scroll them"; spaced as USAGE's scroll line
-// is, "▼ 4 more accounts below · j/k or wheel to scroll"; without how to
-// scroll; and as USAGE's rows say it, "▼ 4 more accounts".
-var outOfViewForms = []outForm{
-	{gap: "   ·   ", where: true, toScroll: " or the wheel to scroll them"},
-	{gap: " · ", where: true, toScroll: " or wheel to scroll"},
-	{gap: " · ", where: true},
-	{gap: " · "},
-}
-
-// said is what's out of view, above and below, as the form says it: each
-// count, where any is out of view there, its mark in accent.key and its
-// words in text.muted; then j/k, bold accent.key, and how to scroll.
-func (o outForm) said(above, below int) line {
-	var parts []line
-	for _, out := range []struct {
-		n           int
-		mark, where string
-	}{{above, "▲", " above"}, {below, "▼", " below"}} {
-		if out.n == 0 {
-			continue
-		}
-		words := " " + moreAccounts(out.n)
-		if o.where {
-			words += out.where
-		}
-		parts = append(parts, line{{out.mark, keyMarkInk}, {words, mutedInk}})
-	}
-	if o.toScroll != "" {
-		parts = append(parts, line{{"j/k", keyInk}, {o.toScroll, mutedInk}})
-	}
-	return joined(span{o.gap, faintInk}, parts...)
+// historyAccountsOut are the forms of the line saying how many of Weeks' and Days'
+// accounts are out of view, each shorter than the one before: the design's,
+// "▼ 4 more accounts below   ·   j/k or the wheel to scroll them"; spaced as
+// Sessions' and Runway's scroll line is, "▼ 4 more accounts below · j/k or
+// wheel to scroll"; without how to scroll; and as USAGE's rows say it, "▼ 4
+// more accounts".
+var historyAccountsOut = []outForm{
+	{noun: "account", above: " above", below: " below", gap: "   ·   ", keys: "j/k", does: " or the wheel to scroll them", inks: keyedOut},
+	{noun: "account", above: " above", below: " below", gap: " · ", keys: "j/k", does: " or wheel to scroll", inks: keyedOut},
+	{noun: "account", above: " above", below: " below", gap: " · ", inks: keyedOut},
+	{noun: "account", gap: " · ", inks: keyedOut},
 }
 
 // groupHead is a group's heading, as BY MONTH and BY MODEL, in text.subtle,

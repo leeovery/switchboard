@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -132,7 +133,7 @@ func (a *app) pinSession(ctx context.Context, client *router.Client, given, acco
 	if err != nil {
 		return "", err
 	}
-	session := "session " + status.ShortID(status.Clean(id))
+	session := "session " + status.ShortID(prose.Clean(id))
 	if isAuto(account) {
 		if _, err := client.UnpinSession(ctx, id, router.ByCLI); err != nil {
 			return "", err

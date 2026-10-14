@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
@@ -74,8 +75,8 @@ func dotted(parts ...string) string {
 // sessions go elsewhere, else when it runs out, as runOutOf has it; that it's
 // idle at now, as idleAt judges it, and when a prime starts it, where the
 // router says; and last that it's open, its week nearing its reserve, or new
-// sessions coming here. Words from elsewhere show cleaned, and times as Dated
-// shows them.
+// sessions coming here. Words from elsewhere show cleaned, and times as
+// prose.Dated shows them.
 func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
 	if tokenless, ok := a.noToken(); ok {
 		return tokenless
@@ -104,7 +105,7 @@ func (a Account) noToken() (State, bool) {
 	if a.TokenSet {
 		return State{}, false
 	}
-	return State{Condition: Tokenless, Says: "no token", Then: "switchboard accounts token " + Clean(a.ID)}, true
+	return State{Condition: Tokenless, Says: "no token", Then: "switchboard accounts token " + prose.Clean(a.ID)}, true
 }
 
 // unread is the state of account a while its usage isn't read, reporting
@@ -113,7 +114,7 @@ func (a Account) noToken() (State, bool) {
 func (a Account) unread() (State, bool) {
 	switch {
 	case a.Error != "":
-		return State{Condition: Unreadable, Says: "can't read it", Then: Clean(a.Error)}, true
+		return State{Condition: Unreadable, Says: "can't read it", Then: prose.Clean(a.Error)}, true
 	case a.FetchedAt.IsZero():
 		return State{Condition: Unread, Says: "not read yet"}, true
 	}
@@ -132,20 +133,20 @@ func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State
 	refused := a.Refused.holds(now)
 	switch {
 	case limited && held.Every:
-		then := back(now, held.Until)
+		then := Back(now, held.Until)
 		if then != "" {
-			then += ", " + Until(now, held.Until)
+			then += ", " + prose.Until(now, held.Until)
 		}
 		return State{Condition: Limited, Says: "limit reached", Then: then}, true
 	case refused && a.Refused.Family == "":
-		return State{Condition: Limited, Says: a.Refused.Answer(), Then: "until " + Dated(now, a.Refused.Until)}, true
+		return State{Condition: Limited, Says: a.Refused.Answer(), Then: "until " + prose.Dated(now, a.Refused.Until)}, true
 	case (limited || refused) && d.capHolds(a, now, policy):
 		return d.reservedState(a, d.reservedOf(a, now), now, policy), true
 	case limited:
 		says := Short(a.label(held.Windows[0])) + " limit"
-		return State{Condition: PartlyLimited, Says: says, Then: dotted(back(now, held.Until), stillComes)}, true
+		return State{Condition: PartlyLimited, Says: says, Then: dotted(Back(now, held.Until), stillComes)}, true
 	case refused:
-		return State{Condition: PartlyLimited, Says: a.Refused.Answer(), Then: dotted("until "+Dated(now, a.Refused.Until), stillComes)}, true
+		return State{Condition: PartlyLimited, Says: a.Refused.Answer(), Then: dotted("until "+prose.Dated(now, a.Refused.Until), stillComes)}, true
 	}
 	return State{}, false
 }
@@ -187,13 +188,25 @@ func (d Document) capHolds(a Account, now time.Time, policy score.Policy) bool {
 	return d.reserveHolds(a) && slices.ContainsFunc(a.reachedReserve(now), policy.IsShared)
 }
 
-// back says when an account held back at now has room again, at t, as in
-// "back 15:54": "" where that's unknown.
-func back(now, t time.Time) string {
+// Back says when an account held back at now has room again, at t, as Dated
+// shows it, as in "back 15:54": "" where that's unknown.
+func Back(now, t time.Time) string {
+	return clauseAt("back ", now, t)
+}
+
+// Till says until when what holds an account back at now holds, at t, as
+// Dated shows it, as in "till 23:58": "" where that's unknown.
+func Till(now, t time.Time) string {
+	return clauseAt("till ", now, t)
+}
+
+// clauseAt is the words given then t as Dated shows it at now: "" where t is
+// unknown.
+func clauseAt(words string, now, t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return "back " + Dated(now, t)
+	return words + prose.Dated(now, t)
 }
 
 // Hold is what holds an account back at its limit: the keys of the windows
@@ -326,9 +339,9 @@ func (d Document) pressed(a Account, now time.Time) State {
 		return s
 	}
 	if out, ok := d.runOutOf(a, w, now); ok && out.Reserve {
-		s.Then = "at its reserve ~" + Dated(now, out.At)
+		s.Then = "at its reserve ~" + prose.Dated(now, out.At)
 	} else if ok {
-		s.Then = "runs out ~" + Dated(now, out.At) + " at this pace"
+		s.Then = "runs out ~" + prose.Dated(now, out.At) + " at this pace"
 	}
 	return s
 }
@@ -343,7 +356,7 @@ func (d Document) startsAt(id string, now time.Time) string {
 	if next.IsZero() {
 		return "window starts with its next request"
 	}
-	return "window starts at its prime, " + Dated(now, next)
+	return "window starts at its prime, " + prose.Dated(now, next)
 }
 
 // open is the state of account a with room at now: once a week of it comes

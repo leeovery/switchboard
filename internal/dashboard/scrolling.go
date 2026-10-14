@@ -2,9 +2,9 @@ package dashboard
 
 import (
 	"slices"
-	"strconv"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -117,32 +117,132 @@ func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) 
 	return func(int) Scrolling { return s }
 }
 
-// outOfView says what's out of view where a view scrolls: how many more
-// accounts there are above, and below, and how to scroll to them, as in "▼ 2
-// more accounts below · j/k or wheel to scroll".
-func outOfView(above, below int) line {
-	var l line
-	for _, out := range []struct {
-		n           int
-		mark, where string
-	}{{above, "▲ ", " above"}, {below, "▼ ", " below"}} {
-		if out.n == 0 {
-			continue
-		}
-		if len(l) > 0 {
-			l = append(l, span{" · ", dimInk})
-		}
-		l = append(l, span{out.mark, keyInk}, span{moreAccounts(out.n) + out.where, mutedInk})
-	}
-	return append(l, span{" · j/k or wheel to scroll", dimInk})
+// outForm is a form of the line saying what's out of view where a view
+// scrolls: what each count leads with in place of its mark, ▲ or ▼, and the
+// space after it, as "+" in "+2 more", none where it leads with its mark;
+// the thing it counts, as "account", none where a count stands alone, as "▼
+// 3 more"; the words after a count of those above, and of those below, as "
+// above" and " below", none where it doesn't say where they are; the gap
+// between its parts; the keys that scroll the view, as "j/k", none where it
+// doesn't say, and what they do; and its inks.
+type outForm struct {
+	lead            string
+	noun            string
+	above, below    string
+	gap, keys, does string
+	inks            outInks
 }
 
-// moreAccounts counts n more accounts, as in "2 more accounts".
-func moreAccounts(n int) string {
-	if n == 1 {
-		return "1 more account"
+// outInks are the inks of a line saying what's out of view: its marks, ▲ and
+// ▼, and the space after each; its counts and where they are; the gaps
+// between its parts; its keys; and what they do.
+type outInks struct{ mark, space, count, gap, keys, does ink }
+
+var (
+	// keyedOut is how History inks its scroll lines, as the design gives
+	// them: the marks in accent.key, the words in text.muted, the gaps in
+	// text.faint, and the keys bold accent.key.
+	keyedOut = outInks{mark: keyMarkInk, space: mutedInk, count: mutedInk, gap: faintInk, keys: keyInk, does: mutedInk}
+	// subtleOut is how a scroll line among the rows it scrolls is inked, as
+	// USAGE's and the routing card's are: all in text.subtle.
+	subtleOut = outInks{mark: dimInk, space: dimInk, count: dimInk, gap: dimInk, keys: dimInk, does: dimInk}
+)
+
+// rowsOut is how Sessions and Runway say what's out of view until their
+// stages draw them as the design does: "▼ 2 more accounts below · j/k or
+// wheel to scroll", the marks, and the space after each, bold accent.key,
+// the counts in text.muted and the rest in text.subtle, cut short as words
+// where it doesn't fit, as line.fit cuts it.
+var rowsOut = outForm{
+	noun: "account", above: " above", below: " below", gap: " · ", keys: "j/k", does: " or wheel to scroll",
+	inks: outInks{mark: keyInk, space: keyInk, count: mutedInk, gap: dimInk, keys: dimInk, does: dimInk},
+}
+
+// outOfView says what's out of view where a view scrolls, above and below,
+// in the longest of forms, each shorter than the one before, that fits width
+// cells; where none does, as the last says one count alone, below where any
+// are, as what's below is what a line cut short loses, else above, cut to
+// width cells: its count a figure, drawn whole with its mark, and where that
+// doesn't fit, the mark alone, as a count cut short would say fewer. It says
+// nothing where nothing is out of view.
+func outOfView(above, below, width int, forms ...outForm) line {
+	if above+below == 0 {
+		return nil
 	}
-	return strconv.Itoa(n) + " more accounts"
+	for _, form := range forms {
+		if said := form.said(above, below); said.width() <= width {
+			return said
+		}
+	}
+	last := forms[len(forms)-1]
+	one := last.parts(0, below)
+	if below == 0 {
+		one = last.parts(above, 0)
+	}
+	if mark := one[0].said[0]; partsWidth(one[:2]) > width {
+		return line{mark}.fit(width)
+	}
+	return fitParts(width, one...)
+}
+
+// said is what's out of view, above and below, as the form says it, whole:
+// each run of one ink a span.
+func (o outForm) said(above, below int) line {
+	var said line
+	for _, p := range o.parts(above, below) {
+		said = append(said, p.drawn()...)
+	}
+	return said.inked()
+}
+
+// parts are what's out of view, above and below, as the form says it: each
+// count where any are out of view there, after its mark and a space, or the
+// form's lead, its count a figure, then where they are; then the keys that scroll the
+// view, and what they do; each part gap apart.
+func (o outForm) parts(above, below int) []part {
+	return joinedParts(span{o.gap, o.inks.gap}, o.counted("▲", above, o.above), o.counted("▼", below, o.below), o.scrolled())
+}
+
+// counted is n out of view, after the mark given and a space, or what the
+// form leads a count with instead, as the form counts them, where says where
+// they are: none where n is.
+func (o outForm) counted(mark string, n int, where string) []part {
+	if n == 0 {
+		return nil
+	}
+	k := o.inks
+	lead := line{{mark, k.mark}, {" ", k.space}}
+	if o.lead != "" {
+		lead = line{{o.lead, k.mark}}
+	}
+	counted := slices.Concat([]part{wordsPart(lead)}, moreParts(n, o.noun, k.count))
+	if where != "" {
+		counted = append(counted, wordsIn(where, k.count))
+	}
+	return counted
+}
+
+// scrolled is the keys that scroll the view and what they do, as the form
+// says them: none where it names no keys.
+func (o outForm) scrolled() []part {
+	if o.keys == "" {
+		return nil
+	}
+	scrolled := []part{wordsIn(o.keys, o.inks.keys)}
+	if o.does != "" {
+		scrolled = append(scrolled, wordsIn(o.does, o.inks.does))
+	}
+	return scrolled
+}
+
+// moreParts count n more of the thing noun names, as "4 more accounts", or
+// n more alone, as "3 more", where it names none, in the ink given: the
+// count a figure.
+func moreParts(n int, noun string, k ink) []part {
+	if noun == "" {
+		return []part{figureIn(prose.Grouped(n), k), wordsIn(" more", k)}
+	}
+	return countedParts(n, "more "+noun, k)
 }
 
 // scrollbar draws a scrollbar down column x from row y, rows tall, for

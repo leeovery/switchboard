@@ -162,7 +162,7 @@ func usageBody(f Frame, doc status.Document, at time.Time, rows int) ([]string, 
 func manyRead(n int) status.Document {
 	accounts := make([]status.Account, n)
 	for i := range accounts {
-		accounts[i] = readAccount(fmt.Sprintf("a%d", i+1), sessionOf(0.1, time.Hour), weekOf(0.2, 3*day))
+		accounts[i] = readAccount(fmt.Sprintf("a%d", i+1), sessionOf(0.1, time.Hour), weekOf(0.2, 3*quota.Day))
 	}
 	return routerDoc("a1", 0, accounts...)
 }
@@ -261,7 +261,7 @@ func TestStackedUSAGEHoldsEveryWindowsHeadingOnItsRowHoweverFarItsScrolled(t *te
 	withFable := manyRead(10)
 	for i := range withFable.Accounts {
 		a := &withFable.Accounts[i]
-		a.Windows = append(a.Windows, windowOf("7d_oi", "Fable week", 0.3, 4*day))
+		a.Windows = append(a.Windows, windowOf("7d_oi", "Fable week", 0.3, 4*quota.Day))
 	}
 	withFable = withFable.WorkedOut(claudeLike)
 	tests := []struct {
@@ -383,7 +383,7 @@ func TestUSAGEScrollsAnAccountsRowsAtATimeAPageBeingThoseShownAtItsOffset(t *tes
 func TestRevealingAnAccountInUSAGEScrollsOnlyWhereItIsntShownAndThenTillItIs(t *testing.T) {
 	accounts := make([]status.Account, 8)
 	for i := range accounts {
-		accounts[i] = readAccount(fmt.Sprintf("a%d", i+1), sessionOf(0.1, time.Hour), weekOf(0.2, 3*day), windowOf("7d_opus", "Opus", 0.3, 3*day))
+		accounts[i] = readAccount(fmt.Sprintf("a%d", i+1), sessionOf(0.1, time.Hour), weekOf(0.2, 3*quota.Day), windowOf("7d_opus", "Opus", 0.3, 3*quota.Day))
 	}
 	doc := routerDoc("a1", 0, accounts...)
 	// Stacked, under 150 columns, three windows: at the top, with no ▲ over
@@ -579,7 +579,7 @@ func trimmedLeft(rows []string) []string {
 
 func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 	one := func(reserve float64) status.Document {
-		a := readAccount("work", sessionOf(0.6, 2*time.Hour), weekOf(0.4, 3*day))
+		a := readAccount("work", sessionOf(0.6, 2*time.Hour), weekOf(0.4, 3*quota.Day))
 		a.Reserve = reserve
 		return routerDoc("work", 0, a)
 	}
@@ -617,7 +617,7 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 
 func TestAcrossAResetBetweenReadsOneAccountsRoomLeftAndROUTINGAgree(t *testing.T) {
 	// Work is at its cap in its 5-hour, read at now, which resets in an hour.
-	a := readAccount("work", sessionOf(0.9, time.Hour), weekOf(0.4, 3*day))
+	a := readAccount("work", sessionOf(0.9, time.Hour), weekOf(0.4, 3*quota.Day))
 	a.Reserve = 0.2
 	doc := routerDoc("work", 0, a)
 	reset := now.Add(time.Hour)
@@ -646,9 +646,9 @@ func TestAcrossAResetBetweenReadsOneAccountsRoomLeftAndROUTINGAgree(t *testing.T
 func TestAcrossAResetBetweenReadsThePoolsRoomAndROUTINGAgree(t *testing.T) {
 	// Work is at its cap in its 5-hour, read at now, which resets in an hour;
 	// side has half its 5-hour left.
-	work := readAccount("work", sessionOf(0.9, time.Hour), weekOf(0.4, 3*day))
+	work := readAccount("work", sessionOf(0.9, time.Hour), weekOf(0.4, 3*quota.Day))
 	work.Reserve = 0.2
-	doc := routerDoc("side", 0, work, readAccount("side", sessionOf(0.5, 3*time.Hour), weekOf(0.3, 3*day)))
+	doc := routerDoc("side", 0, work, readAccount("side", sessionOf(0.5, 3*time.Hour), weekOf(0.3, 3*quota.Day)))
 	reset := now.Add(time.Hour)
 	f := frameOf(160, 60)
 	tests := []struct {
@@ -677,9 +677,9 @@ func TestAcrossAResetBetweenReadsThePoolsRoomAndROUTINGAgree(t *testing.T) {
 func TestAcrossAResetBetweenReadsUSAGEAndROUTINGCountTheSamePool(t *testing.T) {
 	// Pinned to work and side, so personal is out of the pool. Work is at
 	// its cap in its 5-hour, read at now, which resets in an hour.
-	work := readAccount("work", sessionOf(0.9, time.Hour), weekOf(0.4, 3*day))
+	work := readAccount("work", sessionOf(0.9, time.Hour), weekOf(0.4, 3*quota.Day))
 	work.Reserve = 0.2
-	doc := routerDoc("side", 0, work, readAccount("personal", sessionOf(0.2, 2*time.Hour), weekOf(0.5, 3*day)), readAccount("side", sessionOf(0.5, 3*time.Hour), weekOf(0.3, 3*day)))
+	doc := routerDoc("side", 0, work, readAccount("personal", sessionOf(0.2, 2*time.Hour), weekOf(0.5, 3*quota.Day)), readAccount("side", sessionOf(0.5, 3*time.Hour), weekOf(0.3, 3*quota.Day)))
 	doc.Pin = status.Pin{Accounts: []string{"work", "side"}, Since: now.UTC()}
 	doc = doc.WorkedOut(claudeLike)
 	reset := now.Add(time.Hour)
@@ -1001,10 +1001,10 @@ func namedOn(c *canvas, named string) []cell {
 }
 
 func TestAnAccountOutOfThePoolIsNamedFaintWhereverTheOverviewNamesIt(t *testing.T) {
-	doc, sessions, traffic := overviewWorld()
+	doc, sessions, stream := overviewWorld()
 	doc.Pin = status.Pin{Accounts: []string{"side"}, Since: routedClock(1, 14, 2)}
 	doc = doc.WorkedOut(claudeLike)
-	f := Frame{Width: 160, Height: 40, View: Overview, Policy: claudeLike, Sessions: sessions, Traffic: traffic}
+	f := Frame{Width: 160, Height: 40, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream}
 	sections := map[string]section{"ROUTING": f.routingSection(doc, routedAt), "SESSIONS": f.sessionsSection(doc, routedAt)}
 	for name, s := range sections {
 		t.Run(name, func(t *testing.T) {

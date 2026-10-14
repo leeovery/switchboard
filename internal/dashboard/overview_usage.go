@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -120,7 +121,7 @@ func overviewNamed(m status.Moment, names []accountName, id string, k ink) span 
 	if i := place(m, id); i > 0 {
 		return span{names[i-1].label, names[i-1].inked(k)}
 	}
-	return span{status.Clean(id), k}
+	return span{prose.Clean(id), k}
 }
 
 // overviewGauge is g, an account's window or the pool's, as the Overview
@@ -180,7 +181,7 @@ func (f Frame) roomLeft(doc status.Document, now time.Time) line {
 		word   string
 	}{{session, hasSession, "5h"}, {week, hasWeek, "week"}} {
 		if w.has {
-			left := span{tenths(w.window.Room), strongInk}.numbered(Number{Kind: NumberRoom, Account: a.ID, Of: w.window.Key})
+			left := span{prose.Tenths(w.window.Room), strongInk}.numbered(Number{Kind: NumberRoom, Account: a.ID, Of: w.window.Key})
 			parts = append(parts, line{{w.word + " ", dimInk}, left, {" of 1", dimInk}})
 		}
 	}
