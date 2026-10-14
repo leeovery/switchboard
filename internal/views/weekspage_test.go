@@ -76,6 +76,21 @@ func TestWeeksPageIsTheEightWeeksToThisOneEachAccountsPeakInEach(t *testing.T) {
 	}
 }
 
+// An account that could go is judged on what it used, as the figure beside
+// the verdict says it, a whole percentage: 10.4% used is said 10%, so it
+// could go.
+func TestWeeksPageJudgesAnAccountThatCouldGoOnTheFigureBesideIt(t *testing.T) {
+	days := peaking(map[string][]float64{"work": slices.Repeat([]float64{0.5}, 7), "spare": slices.Repeat([]float64{0.104}, 7)})
+	page := weeksPageOf(days, config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "spare", Plan: "pro"}})
+	spare := page.Accounts[1]
+	if spare.Used == nil {
+		t.Fatalf("spare's use isn't given, its verdict %q", spare.Verdict)
+	}
+	if used := prose.Percent(*spare.Used); spare.Verdict != views.CouldGo || used != "10%" {
+		t.Errorf("spare's verdict = %q, having used %s; want %q, having used 10%%", spare.Verdict, used, views.CouldGo)
+	}
+}
+
 func TestWeeksPageJudgesTheLast7WholeWeeksAlone(t *testing.T) {
 	// Ten weeks, the three oldest short: of the eight, the last 7 whole
 	// weeks have none.
