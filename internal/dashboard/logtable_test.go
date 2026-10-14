@@ -7,11 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/x/ansi"
-
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
@@ -73,7 +72,8 @@ var (
 // height the design checks, the newest line is drawn at the foot of the
 // table, the last of its lines in view, as many as the view shows from
 // under its heads; the heads and the state line where they go; and nothing
-// past the last column.
+// past the last column, the table drawn on a canvas wider than the frame,
+// which drops nothing past it.
 func TestTheLogDrawsEachHardMomentAtEveryWidth(t *testing.T) {
 	for _, hm := range viewstest.LogMoments() {
 		src := views.LogSources{From: hm.From, Oldest: hm.Oldest, Stream: hm.Stream, Totals: hm.Totals, Filter: hm.Filter, Now: hm.Now}
@@ -83,13 +83,10 @@ func TestTheLogDrawsEachHardMomentAtEveryWidth(t *testing.T) {
 			for _, height := range pageHeights {
 				t.Run(fmt.Sprintf("%s at %d×%d", hm.Name, width, height), func(t *testing.T) {
 					f := logFrameOf(p, width, height)
-					rows := f.Draw(routerDoc("side", 0), hm.Now)
-					for i, row := range rows {
-						if w := ansi.StringWidth(row); w > width {
-							t.Errorf("row %d is %d cells wide, past the frame's %d", i+1, w, width)
-						}
+					if x, y, ok := pastTheLastColumn(f, hm.Now); ok {
+						t.Errorf("the table draws at column %d of row %d, past the frame's last, %d", x+1, y+1, width)
 					}
-					text := textOf(rows)
+					text := textOf(f.Draw(routerDoc("side", 0), hm.Now))
 					if heads := text[f.top()]; !strings.HasPrefix(heads, "  at ") {
 						t.Errorf("the heads' row reads %q, want the heads, from at", heads)
 					}
@@ -104,6 +101,26 @@ func TestTheLogDrawsEachHardMomentAtEveryWidth(t *testing.T) {
 			}
 		}
 	}
+}
+
+// overhang is how many columns past a frame's last the canvas the table is
+// drawn on runs, to catch what's drawn there.
+const overhang = 80
+
+// pastTheLastColumn is the first cell the Log's table, as the frame f has
+// it at now, draws past the frame's last column, drawn on a canvas running
+// overhang columns further: false where it draws none.
+func pastTheLastColumn(f Frame, now time.Time) (x, y int, ok bool) {
+	c := newCanvas(f.Width+overhang, f.Height)
+	f.log(c, routerDoc("side", 0), now, f.top())
+	for y := range f.Height {
+		for x := f.Width; x < f.Width+overhang; x++ {
+			if cell := c.at(x, y); cell != nil && strings.TrimSpace(cell.glyph) != "" {
+				return x, y, true
+			}
+		}
+	}
+	return 0, 0, false
 }
 
 // newestSaid is what the line l says, the newest of the table's, at now: a
@@ -123,7 +140,8 @@ func newestSaid(l logLine, now time.Time) string {
 
 // A request's row is drawn in the columns its layout gives it, wherever they
 // start, its mark two cells before the first: as a session's page draws a
-// turn's requests, without the session, from column 5.
+// turn's requests, without the session, from column 5. A cell longer than
+// its column is cut there, ending in an ellipsis.
 func TestARequestsRowIsDrawnInTheColumnsItsLayoutGives(t *testing.T) {
 	at := time.Date(2026, 10, 1, 14, 31, 13, 0, now.Location())
 	l := ledger.Line{
@@ -134,10 +152,15 @@ func TestARequestsRowIsDrawnInTheColumnsItsLayoutGives(t *testing.T) {
 		From: at, Now: at.Add(time.Minute), Read: views.ReadLogHeld(sessionsHeld{l}, heldOf([]ledger.Line{l}), ledger.Pricing, at.Add(time.Minute)),
 	}).Lines[0].Row
 	layout := logLayout{places: []logPlace{{column: LogAt, x: 5, width: 8}, {column: LogOn, x: 15, width: 8}, {column: LogTook, x: 25, width: 6, aligned: alignRight}}}
-	c := newCanvas(40, 1)
-	requestRow(c, 0, row, layout, func(id string) string { return strings.ToUpper(id) }, at)
-	if got, want := textOf(c.rows(Look{}))[0], "   ▸ 14:31:13  SIDE        9.3s"; got != want {
-		t.Errorf("the row reads %q, want %q", got, want)
+	for name, want := range map[string]string{
+		"SIDE":            "   ▸ 14:31:13  SIDE        9.3s",
+		"PERSONAL-BACKUP": "   ▸ 14:31:13  PERSONA…    9.3s",
+	} {
+		c := newCanvas(40, 1)
+		requestRow(c, 0, row, layout, func(string) string { return name }, at)
+		if got := textOf(c.rows(Look{}))[0]; got != want {
+			t.Errorf("named %s, the row reads %q, want %q", name, got, want)
+		}
 	}
 }
 
@@ -216,6 +239,57 @@ func TestTheLogsWindowFollowsAndPauses(t *testing.T) {
 	}
 }
 
+// Paused on a quiet morning, the table's words saying it has nothing today
+// stay in view under the paused foot, the newest row; as today's first row
+// comes and they go, it's counted under the foot, and not drawn.
+func TestPausedOnAQuietMorningTodaysFirstRowStaysBelowTheFoot(t *testing.T) {
+	yesterday := []ledger.Line{asked("1", theDayBefore), asked("2", theDayBefore.Add(time.Minute))}
+	src := views.LogSources{From: theDayBefore, Now: logDayNoon}
+	pinned := status.Event{ID: 1, At: theDayBefore.Add(time.Minute), Kind: status.EventPin, Accounts: []string{"personal"}}
+	tests := []struct {
+		name          string
+		before, after LogPage
+		paused, came  []string
+	}{
+		{
+			name: "Requests", before: requestsOf(src, yesterday), after: requestsOf(src, append(yesterday, asked("3", logDay))),
+			paused: []string{"23:50:00", "23:51:00", "words"}, came: []string{"23:50:00", "23:51:00"},
+		},
+		{
+			name: "Events", before: eventsShown(pinned), after: eventsShown(pinned, workAtItsCap),
+			paused: []string{"23:51:00", "words"}, came: []string{"23:51:00"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := tt.before.Chose(-1, 4)
+			if got := inView(p, 4); !slices.Equal(got, tt.paused) {
+				t.Errorf("paused, in view %v, want %v", got, tt.paused)
+			}
+			p = tt.after.withStands(p)
+			if got, fresh := inView(p, 4), p.fresh(p.lines(), p.stand()); !slices.Equal(got, tt.came) || fresh != 1 {
+				t.Errorf("today's first row come, in view %v, %d new; want %v, 1 new", got, fresh, tt.came)
+			}
+		})
+	}
+}
+
+// inView are the times of the lines of p's table shown in view in rows
+// rows, as timeOf has them, a table's words as "words".
+func inView(p LogPage, rows int) []string {
+	lines := p.lines()
+	first, last := p.window(lines, p.stand(), rows)
+	var view []string
+	for _, l := range lines[first : last+1] {
+		if l.empty != nil {
+			view = append(view, "words")
+			continue
+		}
+		view = append(view, timeOf(l))
+	}
+	return view
+}
+
 // asked is a line of a request with the id given of d28c's, on side,
 // arriving at the time given.
 func asked(id string, at time.Time) ledger.Line {
@@ -237,6 +311,8 @@ func timeOf(l logLine) string {
 	switch {
 	case l.row != nil:
 		return l.row.At.Format(time.TimeOnly)
+	case l.event != nil:
+		return l.event.At.Format(time.TimeOnly)
 	case l.rule != nil:
 		return "rule"
 	}

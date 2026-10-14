@@ -82,7 +82,7 @@ var (
 	// package calls none, whether or not it takes raw data.
 	readsRaw = []string{
 		"claude.LimitStatus", "claude.LimitWindows", "claude.WindowsRead",
-		"ledger.Line.Upstream",
+		"ledger.Failing", "ledger.Line.Upstream",
 		"ledger.Reply.CacheLife", "ledger.Reply.Tokens",
 		"ledger.Table.CacheWrite", "ledger.Table.Priced", "ledger.Table.Request", "ledger.Table.Rewrite",
 		"ledger.Table.Summed", "ledger.Table.Worth",
@@ -110,9 +110,9 @@ var (
 	// views declares, or the guard fails, as a ban on a name that's gone
 	// passes whatever the dashboard builds.
 	builtInTheWatch = []string{
-		"views.DaySessions", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsSince", "views.EventsTable.Details",
+		"views.DaySessions", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsRead.Refiled", "views.EventsSince", "views.EventsTable.Details",
 		"views.FindSessions", "views.LogEvents", "views.LogRead.Back", "views.LogRead.Grown", "views.LogRows", "views.LogSessions",
-		"views.ReadEvents", "views.ReadLogHeld", "views.TotalsByDay",
+		"views.ReadEvents", "views.ReadLogHeld", "views.Today", "views.TotalsByDay",
 	}
 )
 

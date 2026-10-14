@@ -3,6 +3,7 @@ package views_test
 import (
 	"iter"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -28,6 +29,10 @@ type countedEvents struct {
 func (c countedEvents) Between(from, to time.Time) iter.Seq[events.Line] {
 	*c.asked = append(*c.asked, span{from: from, to: to})
 	return c.events.Between(from, to)
+}
+
+func (c countedEvents) FirstDay() (time.Time, error) {
+	return c.events.FirstDay()
 }
 
 // eventsRead is the router's events of the moment, as the Log's Events
@@ -218,6 +223,59 @@ func TestAMoveAfterMidnightSaysWhenThePressureToldTheDayBeforeRunsOut(t *testing
 // The document's events are kept as it gives newer ones, and as a router
 // restarted gives its own, each once, by run and id, as it last stands; and
 // one that happened before the read begins is passed over.
+// filedLines are the router's files of events holding those given, each as
+// it was last filed.
+type filedLines []events.Line
+
+func (f filedLines) Between(from, to time.Time) iter.Seq[events.Line] {
+	return func(yield func(events.Line) bool) {
+		for _, l := range f {
+			if !l.At.Before(from) && l.At.Before(to) && !yield(l) {
+				return
+			}
+		}
+	}
+}
+
+func (f filedLines) FirstDay() (time.Time, error) {
+	return views.Today(f[0].At).Start, nil
+}
+
+// Refiled reads off the router's files the events that happened from the
+// moment given to the end of the day, each as the files last hold it in
+// place of the version the document gave; those before it as they were,
+// and none before the read begins.
+func TestRefiledReadsTheFilesFromTheMomentGiven(t *testing.T) {
+	run := october(7, 8, 0)
+	room := func(id int, at time.Time, account string) events.Line {
+		return events.Line{ID: id, At: at, Kind: status.EventRoom, Account: account, Run: run}
+	}
+	looked := []status.Event{room(1, october(7, 9, 0), "work").Event, room(2, october(7, 10, 0), "work").Event}
+	read := views.ReadEvents(nil, october(7, 0, 0), october(7, 10, 0)).Look(liveAt(looked, october(7, 10, 0)), run)
+	filed := filedLines{
+		room(9, october(6, 12, 0), "personal"), room(1, october(7, 9, 0), "side"), room(2, october(7, 10, 0), "side"), room(3, october(7, 10, 5), "side"),
+	}
+	tests := []struct {
+		name string
+		from time.Time
+		want []string
+	}{
+		{name: "from the last look", from: october(7, 10, 0), want: []string{"1 work", "2 side", "3 side"}},
+		{name: "from before the read begins", from: october(6, 0, 0), want: []string{"1 side", "2 side", "3 side"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, e := range read.Refiled(filed, tt.from, october(7, 11, 0)).Events() {
+				got = append(got, strconv.Itoa(e.Key.ID)+" "+e.Event.Account)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("the events read are %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTheDocumentsEventsAreKeptAsItGivesNewer(t *testing.T) {
 	first, second := october(7, 8, 0), october(7, 12, 0)
 	room := func(id int, at time.Time, account string) status.Event {
@@ -296,6 +354,33 @@ func TestAMoveEventIsOfTheMoveWhoseRequestWasInFlightAsItWasTold(t *testing.T) {
 // router tells of it.
 func moving(model, from, to string, at time.Time) status.Event {
 	return status.Event{ID: 1, At: at, Kind: status.EventMoved, Session: mover, Model: model, From: from, To: to, Reason: "moved: work is at its reserve"}
+}
+
+// A move event's row says what its move came to once the move wrote its
+// session's context again and that's priced: the tokens it wrote and what
+// that cost, exactly, as a cost; nothing before, or of any other event.
+func TestAMoveEventSaysWhatItsMoveCameToOnceItsSettled(t *testing.T) {
+	cost := ledger.Picodollars(1_820_000_000_000)
+	tests := []struct {
+		name string
+		move *views.EventMove
+		want views.RowWords
+	}{
+		{name: "another event's", move: nil},
+		{name: "a move no request wrote again after", move: &views.EventMove{Request: "0a000001", Cost: &cost}},
+		{name: "a move unpriced", move: &views.EventMove{Request: "0a000001", Written: 182_000}},
+		{
+			name: "a move settled", move: &views.EventMove{Request: "0a000001", Written: 182_000, Cost: &cost},
+			want: views.RowWords{{Text: "182k cached again, $1.82", Kind: views.RowCost}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (views.LogEvent{Move: tt.move}).MoveSaid(); !slices.Equal(got, tt.want) {
+				t.Errorf("its row says %+v of its move, want %+v", got, tt.want)
+			}
+		})
+	}
 }
 
 // A move's cost is the same wherever it's said, as its session's story

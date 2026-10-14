@@ -76,6 +76,28 @@ type DayRule struct {
 	Totals DayTotals
 }
 
+// dayRules are the figures of the days a table of the Log's spans, by date,
+// as its day rules say them.
+type dayRules map[string]DayTotals
+
+// dayRulesOf are the day rules of the days whose figures totals give.
+func dayRulesOf(totals []DayTotals) dayRules {
+	rules := make(dayRules, len(totals))
+	for _, t := range totals {
+		rules[t.Date] = t
+	}
+	return rules
+}
+
+// between is the rule where the rows of the day ended end and those of the
+// day began begin: ended's figures, none but its date where they're not
+// given.
+func (r dayRules) between(ended, began LedgerDay) *DayRule {
+	totals := r[ended.Date]
+	totals.Date = ended.Date
+	return &DayRule{Ended: ended, Began: began, Totals: totals}
+}
+
 // Awaited are the dates of the days before the day given that the table
 // holds a row on, shown or hidden, of a request whose end the stream told,
 // its line yet to come, each once: a line is filed under the day its request
@@ -179,10 +201,7 @@ func toldAlone(s Stream, lined map[string]bool) []Told {
 // with the figures of the day that ended, and each day's counts; and, where
 // first is the oldest day, or before it, the oldest day's line atop them.
 func tableOf(rows []placedRow, first LedgerDay, src LogSources) LogTable {
-	totals := make(map[string]DayTotals, len(src.Totals))
-	for _, t := range src.Totals {
-		totals[t.Date] = t
-	}
+	rules := dayRulesOf(src.Totals)
 	table := LogTable{counts: make(map[string]LogCount), ran: make(map[string][]runSpan), first: first}
 	if oldest := src.Oldest; oldest.reached(first) {
 		table.Lines = append(table.Lines, LogLine{Oldest: &oldest})
@@ -198,9 +217,7 @@ func tableOf(rows []placedRow, first LedgerDay, src LogSources) LogTable {
 			continue
 		}
 		if last != nil && last.Date != p.day.Date {
-			ended := totals[last.Date]
-			ended.Date = last.Date
-			table.Lines = append(table.Lines, LogLine{Rule: &DayRule{Ended: *last, Began: p.day, Totals: ended}})
+			table.Lines = append(table.Lines, LogLine{Rule: rules.between(*last, p.day)})
 		}
 		table.Lines = append(table.Lines, LogLine{Row: p.row, line: p.line, day: p.day})
 		last = &p.day

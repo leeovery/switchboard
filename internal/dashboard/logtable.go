@@ -239,7 +239,7 @@ func statusCell(r views.RequestRow) line {
 	if r.Stage != views.RowLined && r.Stage != views.RowEnded {
 		return nil
 	}
-	if ledger.Failing(r.Status) {
+	if r.Failed {
 		return line{{strconv.Itoa(r.Status), exhaustedInk}}
 	}
 	return line{{strconv.Itoa(r.Status), mutedInk}}
@@ -307,11 +307,16 @@ func requestWords(r views.RequestRow, column LogColumn, layout logLayout) views.
 // work, at it…  $1.82", where the words before it keep a cell and the
 // ellipsis.
 func rowWordsIn(w views.RowWords, cells int) line {
+	return costKept(rowLine(w), len(w) > 1 && w[len(w)-1].Kind == views.RowCost, cells)
+}
+
+// rowLine is the words w, each part in its kind's ink.
+func rowLine(w views.RowWords) line {
 	said := make(line, len(w))
 	for i, p := range w {
 		said[i] = span{p.Text, rowPartInks[p.Kind]}
 	}
-	return costKept(said, len(w) > 1 && w[len(w)-1].Kind == views.RowCost, cells)
+	return said
 }
 
 // costKept is said cut to cells cells: where it ends in a cost, with the

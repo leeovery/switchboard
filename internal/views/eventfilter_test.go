@@ -1,9 +1,12 @@
 package views_test
 
 import (
+	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -133,4 +136,78 @@ func sum(counts map[string]int) int {
 		n += c
 	}
 	return n
+}
+
+// The Events reach as far back as they read once their first day is the
+// first the router filed events on, or before it: the days before show none.
+// Where that day isn't known, they read none back.
+func TestTheEventsReachTheFirstDayTheRouterFiledEventsOn(t *testing.T) {
+	tests := []struct {
+		name  string
+		from  time.Time
+		filed views.OldestDay
+		want  bool
+	}{
+		{name: "after the first day filed", from: october(6, 0, 0), filed: views.OldestKept(october(5, 0, 0), 0, now)},
+		{name: "on it", from: october(5, 0, 0), filed: views.OldestKept(october(5, 0, 0), 0, now), want: true},
+		{name: "none filed, today the first", from: now, filed: views.OldestKept(time.Time{}, 0, now), want: true},
+		{name: "not known", from: october(6, 0, 0), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			table := views.LogEvents(views.LogEventSources{From: tt.from, Filed: tt.filed, Now: now})
+			if got := table.Reached(); got != tt.want {
+				t.Errorf("from %s, the Events reach as far back as they read: %v, want %v", tt.from.Format(time.DateOnly), got, tt.want)
+			}
+		})
+	}
+}
+
+// The Events' lines rule their days as the Requests' do: a row of each
+// event shown; a day's rule before the first of each day after the first
+// with one, saying the figures of the day that ended, none but its date
+// where they're not given; and, where the table reaches the oldest day the
+// ledger keeps, that day's line atop.
+func TestTheEventsLinesRuleTheirDaysAsTheRequestsDo(t *testing.T) {
+	from := october(5, 0, 0)
+	read := views.ReadEvents(nil, from, now).Look(liveAt([]status.Event{
+		{ID: 1, At: october(5, 22, 0), Kind: status.EventStarted, Account: "side", Session: older, Reason: status.ReasonNew},
+		{ID: 2, At: october(5, 23, 0), Kind: status.EventPin, Account: "work", Accounts: []string{"work"}, By: "cli"},
+		{ID: 3, At: october(6, 9, 0), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Reserve: 0.05},
+		{ID: 4, At: october(7, 9, 0), Kind: status.EventPin, Account: "side", Accounts: []string{"side"}, By: "cli"},
+	}, now), october(5, 8, 0))
+	fifth := views.DayTotals{Date: "2026-10-05", Requests: 12, Sessions: 2}
+	tests := []struct {
+		name   string
+		oldest views.OldestDay
+		want   []string
+	}{
+		{
+			name: "short of the oldest day", oldest: views.OldestKept(october(1, 0, 0), 0, now),
+			want: []string{"1", "2", "rule 2026-10-05 2026-10-06 12", "3", "rule 2026-10-06 2026-10-07 0", "4"},
+		},
+		{
+			name: "at the oldest day", oldest: views.OldestKept(from, 0, now),
+			want: []string{"oldest 2026-10-05", "1", "2", "rule 2026-10-05 2026-10-06 12", "3", "rule 2026-10-06 2026-10-07 0", "4"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			table := views.LogEvents(views.LogEventSources{From: from, Events: read, Totals: []views.DayTotals{fifth}, Oldest: tt.oldest, Now: now})
+			var got []string
+			for _, l := range table.Lines {
+				switch {
+				case l.Row != nil:
+					got = append(got, strconv.Itoa(l.Row.Key.ID))
+				case l.Rule != nil:
+					got = append(got, fmt.Sprintf("rule %s %s %d", l.Rule.Totals.Date, l.Rule.Began.Date, l.Rule.Totals.Requests))
+				default:
+					got = append(got, "oldest "+l.Oldest.Day.Date)
+				}
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("the Events' lines are %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
