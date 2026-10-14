@@ -159,28 +159,25 @@ func movedText(t views.AccountTotals) string {
 // them, joined, as "5-hour ×2 · week ×1", or for every account, how many, as
 // "3".
 func limitsText(t views.AccountTotals) string {
-	switch {
-	case len(t.Limits) == 0:
+	switch n := t.LimitCount(); {
+	case n == 0:
 		return none
 	case t.All:
-		n := 0
-		for _, hit := range t.Limits {
-			n += hit
-		}
 		return prose.Grouped(n)
 	}
-	return strings.Join(views.LimitsHit(t.Limits, status.NameOfKey), apart)
+	return strings.Join(t.LimitsHit(status.NameOfKey), apart)
 }
 
 // minutesText says how long an account spent at its cap or at a limit, as
 // "3h 10m", and that some of its days never read it, where they didn't: a
 // dash where none did.
 func minutesText(t views.AccountTotals) string {
-	if t.MinutesAtCap == nil || t.MinutesAtLimit == nil {
+	minutes, known := t.AtCapOrLimit()
+	if !known {
 		return dash
 	}
 	spent := none
-	if minutes := *t.MinutesAtCap + *t.MinutesAtLimit; minutes > 0 {
+	if minutes > 0 {
 		spent = prose.Duration(time.Duration(minutes) * time.Minute)
 	}
 	if len(t.Partial) > 0 {

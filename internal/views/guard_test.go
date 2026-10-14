@@ -123,6 +123,14 @@ var (
 		// out, as Accounts says them, whatever its period.
 		"views.AccountTotals.LeftAtReset": "views.AccountsRow.WeekLeft",
 		"views.AccountTotals.RanOut":      "views.AccountsRow.RanOut",
+		// How many limits were reached, every window's together, and each
+		// window's, as Accounts, history and the Year count and say them.
+		"views.AccountTotals.Limits": "views.AccountTotals' LimitCount and LimitsHit",
+		"views.Month.Limits":         "views.Month.LimitCount",
+		// The time spent at a cap or a limit, together, and whether it's
+		// known.
+		"views.AccountTotals.MinutesAtCap":   "views.AccountTotals.AtCapOrLimit",
+		"views.AccountTotals.MinutesAtLimit": "views.AccountTotals.AtCapOrLimit",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.
