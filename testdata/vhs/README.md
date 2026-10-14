@@ -532,9 +532,11 @@ frames):
   `accounts-detail-one-160`, after `7f3a started here`, row 29, columns 39 to 49, in
   `accounts-detail-work-160`, row 29, columns 63 to 72, in `accounts-detail-all-160`, after
   `7f3a started on work`, row 30, columns 66 to 75, and on a phone, row 37, columns 27 to 36 of
-  `accounts-phone-detail-52`; and in `accounts-detail-one-160`, the pressure event's mark, row 28,
-  column 20, `●`, drawn before each kind of event had a mark of its own, where the Log's marks give
-  `◔`, in `accent.attention`.
+  `accounts-phone-detail-52`; on a phone, row 36, columns 10 to 50 of `accounts-phone-detail-52`,
+  the frame's `reached its cap: 3 sessions moved to side`, where the dashboard tells it in its short
+  words, `at its cap: 3 moved to side`, as the Overview's LATELY does on a phone (1583); and in
+  `accounts-detail-one-160`, the pressure event's mark, row 28, column 20, `●`, drawn before each
+  kind of event had a mark of its own, where the Log's marks give `◔`, in `accent.attention`.
 - **Detail's key line** in `accounts-detail-sessions-160`, under Key lines drawn before the keys were
   swept, above.
 

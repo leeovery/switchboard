@@ -454,33 +454,29 @@ func (d detailDrawn) lately(c *canvas, y, x, words int) {
 		d.f.quietly(c, d.m, x, y, d.f.edge())
 		return
 	}
-	for i, l := range accountLatelyLines(d.m, sentences, words) {
+	for i, l := range d.f.accountLatelyLines(d.m, sentences, words) {
 		end := c.line(x, y+i, l.fit(d.f.edge()-x))
 		d.f.freshen(c, sentences[i].ID, x, y+i, end)
 	}
 }
 
 // accountLatelyLines are Detail's LATELY lines of the sentences given, at the
-// moment m: each its time, in a column as wide as the widest, in
-// text.subtle; its mark, as LATELY marks it; and its words, in text.muted,
-// each account named as the dashboard names it, cut to the cells given.
-func accountLatelyLines(m status.Moment, sentences []views.Sentence, words int) []line {
-	column := 0
-	for _, s := range sentences {
-		column = max(column, len(prose.Dated(m.Now, s.At)))
-	}
-	lines := make([]line, len(sentences))
+// moment m: each led as latelyLeads has it; then its words, as the frame
+// tells them, in text.muted, each account named as the dashboard names it,
+// cut to the cells given.
+func (f Frame) accountLatelyLines(m status.Moment, sentences []views.Sentence, words int) []line {
+	lines := latelyLeads(m, sentences)
 	for i, s := range sentences {
-		var said line
-		for _, p := range slices.Concat(s.Full.Subject, s.Full.Words, s.Full.Object, s.Full.Rest) {
+		said := f.latelySaid(s)
+		var told line
+		for _, p := range slices.Concat(said.Subject, said.Words, said.Object, said.Rest) {
 			text := p.Text
 			if p.Kind == status.PartAccount {
 				text = named(m, p.Text)
 			}
-			said = append(said, span{text, mutedInk})
+			told = append(told, span{text, mutedInk})
 		}
-		lead := line{{padded(prose.Dated(m.Now, s.At), column) + afterTime, dimInk}, eventMark(s), spaces(1)}
-		lines[i] = append(lead, said.fit(words)...)
+		lines[i] = append(lines[i], told.fit(words)...)
 	}
 	return lines
 }

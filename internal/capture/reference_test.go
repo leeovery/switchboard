@@ -852,7 +852,7 @@ var passedOver = map[string][]passing{
 	"accounts-phone-detail-52": slices.Concat(
 		[]passing{phonePeriod("this week"), blankCells(24, 50, 50), cellsOf(26, 32, 32, "●")},
 		byDays(28, 2, 13, 15, 19, 21, 28, 34, 36, 38, 43, 45, 47),
-		[]passing{blankCells(37, 27, 36), wholeRow(38, "12:10")},
+		[]passing{wordsAt(36, 10, "reached its cap: 3 sessions moved to side"), blankCells(37, 27, 36), wholeRow(38, "12:10")},
 	),
 
 	"history-year-160": slices.Concat(

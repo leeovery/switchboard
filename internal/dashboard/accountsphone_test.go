@@ -91,6 +91,10 @@ var (
 	// stackedBest is ", the best" after 7f3a's start on work's LATELY,
 	// which the frame leaves out, as startedBest has it.
 	stackedBest = spot{36, 26, 35}
+	// stackedShort is work's cap on its LATELY, which the frame tells in
+	// full, where a phone's LATELY tells it in its short words, as the
+	// Overview's does.
+	stackedShort = spot{35, 9, 49}
 )
 
 // A phone's Compare and Detail are drawn as their frames, cell for cell, in
@@ -113,7 +117,7 @@ func TestAPhonesAccountsAreDrawnAsTheirFrames(t *testing.T) {
 		},
 		{
 			stem: "accounts-phone-detail-52", height: 41, shown: AccountsDetail, chosen: "work", in: region{top: 8, bottom: 39, right: 51},
-			passed: append(stackedOlderHaiku, stackedMovedOn, stackedBest),
+			passed: append(stackedOlderHaiku, stackedMovedOn, stackedBest, stackedShort),
 		},
 	}
 	for _, tt := range tests {
@@ -560,6 +564,24 @@ func TestAPhonesCompareCutsEachFigureACellShortOfTheNext(t *testing.T) {
 	rows := textOf(phoneText(t, 52, 48, AccountsCompare, "", page, nil).Draw(phoneDoc(), routedAt))
 	if got, want := rows[29], " work        …         9           3 out"; got != want {
 		t.Errorf("work's requests are %q, want %q, 12,345,678 a cell too wide", got, want)
+	}
+}
+
+// Detail's LATELY tells an account's events in their short words on a phone,
+// as the Overview's LATELY does, and in full wider, its lines led alike.
+func TestDetailsLATELYsWordsAreShortOnAPhone(t *testing.T) {
+	tests := []struct {
+		width int
+		want  string
+	}{
+		{width: 52, want: "14:31  ╎ at its cap: 3 moved to side"},
+		{width: 100, want: "14:31  ╎ reached its cap: 3 sessions moved to side"},
+	}
+	for _, tt := range tests {
+		rows := textOf(phoneText(t, tt.width, 41, AccountsDetail, "work", phonePage(t), nil).Draw(phoneDoc(), routedAt))
+		if !slices.Contains(rows, tt.want) {
+			t.Errorf("at %d columns, Detail's LATELY doesn't tell %q:\n%s", tt.width, tt.want, strings.Join(rows, "\n"))
+		}
 	}
 }
 
