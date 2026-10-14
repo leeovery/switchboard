@@ -212,7 +212,7 @@ func TestDetailReadsTheStreamWhileItShowsAnAccountSessionsRunOn(t *testing.T) {
 		shown dashboard.AccountsShown
 		want  bool
 	}{
-		{name: "Compare", shown: dashboard.AccountsShown{}},
+		{name: "Compare, with the account sessions run on chosen in Detail", shown: dashboard.AccountsShown{Accounts: threeConfigured, Chosen: "work"}},
 		{name: "Detail of all accounts", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail}},
 		{name: "Detail of an account sessions run on", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"}, want: true},
 		{name: "Detail of an account none runs on", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "side"}},
