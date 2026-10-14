@@ -321,6 +321,27 @@ func TestARequestsCardLeavesBlankWhatItsLineIsYetToGive(t *testing.T) {
 	}
 }
 
+// A request's status is bold state.destructive where views says it failed,
+// as the table has it, whatever it was answered.
+func TestARequestsCardSaysItFailedAsItsRowDoes(t *testing.T) {
+	tests := []struct {
+		name string
+		row  views.RequestRow
+		want line
+	}{
+		{name: "failed", row: views.RequestRow{Status: 500, Failed: true}, want: line{{"500", exhaustedInk}}},
+		{name: "cut off, answered 200", row: views.RequestRow{Status: 200, Failed: true}, want: line{{"200", exhaustedInk}}},
+		{name: "answered 200", row: views.RequestRow{Status: 200}, want: line{{"200", secondaryInk}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := statusSaid(tt.row); !slices.Equal(got, tt.want) {
+				t.Errorf("its status is drawn %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
 // A request that moved its session says where from and why, and what the
 // move cost, of its worth; one that moved none says neither.
 func TestARequestsCardSaysTheMoveItMade(t *testing.T) {

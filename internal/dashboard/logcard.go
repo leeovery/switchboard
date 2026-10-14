@@ -412,15 +412,15 @@ func answeredSection(d views.RequestDetails, lined lineGives) cardSection {
 }
 
 // statusSaid is what the request was answered, once its line came or the
-// stream told its end, bold state.destructive where it failed, as the table
-// has it: blank in flight, and — where it was lost.
+// stream told its end, bold state.destructive where its row says it failed:
+// blank in flight, and — where it was lost.
 func statusSaid(r views.RequestRow) line {
 	switch {
 	case r.Stage.InFlight():
 		return nil
 	case r.Stage == views.RowLost:
 		return valued("")
-	case ledger.Failing(r.Status):
+	case r.Failed:
 		return line{{prose.Grouped(r.Status), exhaustedInk}}
 	}
 	return valued(prose.Grouped(r.Status))
