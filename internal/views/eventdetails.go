@@ -345,12 +345,13 @@ func (d detailing) windowsWords() DetailWords {
 }
 
 // capWords say a cap as its line does: "95% of its 5-hour window", its use
-// drawn as a window's is; its windows alone without a reserve.
+// as capUse has it, drawn as a window's is; its windows alone without a
+// reserve.
 func (d detailing) capWords() DetailWords {
 	if d.event.Reserve <= 0 {
 		return d.windowsWords()
 	}
-	used := 1 - d.event.Reserve
+	used := capUse(d.event)
 	return DetailWords{{Text: prose.Percent(used), Kind: DetailUse, Use: used}, {Text: " of " + its(d.fact.windows, "its window")}}
 }
 
