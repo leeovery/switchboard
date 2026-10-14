@@ -497,6 +497,19 @@ func TestALookOnAccountsBrightensTheNumbersItChanged(t *testing.T) {
 	}
 }
 
+// → puts the selection on the session it lands on, the first, and there it
+// stays as the request stream reorders SESSIONS, the one seen last first:
+// enter opens it, whatever's listed first since.
+func TestTheSelectionStaysWithItsSessionAsTheStreamReordersSESSIONS(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"})
+	h.keys(rightKey)
+	h.hear(alter(told(router.StreamSent, "r1", "work", 0), func(e *router.StreamEvent) { e.Session, e.Model = id7F3A, "claude-haiku-4-5" }))
+	h.keys(enterKey)
+	if got := h.pageOpen(); got != idD28C {
+		t.Errorf("enter opened %q's page, want d28c's, selected as → landed, though 7f3a was seen since", got)
+	}
+}
+
 // Detail's SESSIONS list the sessions as the request stream has seen them,
 // the one seen last first, and enter opens the first as they're listed.
 func TestEnterOpensTheSessionDetailListsFirstAsTheStreamHasSeenThem(t *testing.T) {

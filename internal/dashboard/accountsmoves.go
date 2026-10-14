@@ -37,8 +37,9 @@ func (s AccountsShown) Stepped(by int) (AccountsShown, bool) {
 // sessions running on the account Detail shows, by id, in its SESSIONS'
 // order: on Compare, its focus moved along its columns, as focusing has it;
 // on Detail, ↑ and ↓ taken into its SESSIONS by →, where sessions run there,
-// and back to its list by ←. It reports false where nothing changes, as with
-// one account, which has no list.
+// the selection put on the session it lands on, as Selection has it, so it
+// stays with it as they reorder; and back to its list by ←. It reports false
+// where nothing changes, as with one account, which has no list.
 func (s AccountsShown) Moved(by int, running []string) (AccountsShown, bool) {
 	switch {
 	case s.View() == AccountsCompare:
@@ -49,6 +50,9 @@ func (s AccountsShown) Moved(by int, running []string) (AccountsShown, bool) {
 	in := by > 0
 	changed := s.InSessions != in
 	s.InSessions = in
+	if in {
+		s.Selected = s.Selection(running)
+	}
 	return s, changed
 }
 
@@ -145,13 +149,16 @@ func (s AccountsShown) listed() []string {
 
 // selecting is Accounts with Detail's SESSIONS' selection moved by places
 // among the sessions running, from the one Selection has selected, no
-// further than either end.
+// further than either end, and put on its session, so it stays with it as
+// they reorder: one at an end too, as the first ↑ or ↓ with one account may
+// find it.
 func (s AccountsShown) selecting(by int, running []string) (AccountsShown, bool) {
-	was := s.Selection(running)
-	if was == "" {
+	from := s.Selection(running)
+	if from == "" {
 		return s, false
 	}
-	s.Selected = running[min(max(slices.Index(running, was)+by, 0), len(running)-1)]
+	was := s.Selected
+	s.Selected = running[min(max(slices.Index(running, from)+by, 0), len(running)-1)]
 	return s, s.Selected != was
 }
 
