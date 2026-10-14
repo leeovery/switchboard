@@ -27,6 +27,23 @@ const (
 	LittleToSpare = "little to spare together"
 )
 
+// The cuts the verdicts on an account are judged by, as Weeks gives them of
+// VerdictWeeks weeks, held in proportion to the weeks there are: it hits its
+// limit most weeks where it hit it in LimitWeeks of them or more; it has
+// plenty to spare, or is barely used, where its weeks had PlentyLeft, or
+// BarelyLeft, percent or more left at a reset, on average; and it could go
+// where it used CouldGoUsed percent or less of them, on average. Every
+// account together has room to spare where their weeks had RoomLeft percent
+// or more left.
+const (
+	VerdictWeeks = 7
+	LimitWeeks   = 3
+	PlentyLeft   = 40
+	BarelyLeft   = 75
+	CouldGoUsed  = 10
+	RoomLeft     = 25
+)
+
 // Capacity is Weeks' verdicts over the whole weeks the days span, each
 // replayed alone, as Weeks replays its last seven, those it can judge, every
 // account's week's peak known in it and its week ended: Weeks, how many there
@@ -379,7 +396,7 @@ func (r replay) together() AccountVerdict {
 	}
 	share := meanOf(rec.left, rec.weeks)
 	v.LeftAtReset, v.Verdict = &share, LittleToSpare
-	if 4*rec.left >= whole*millionths(rec.weeks) {
+	if rec.leftAtLeast(RoomLeft) {
 		v.Verdict = RoomToSpare
 	}
 	return v
@@ -414,6 +431,18 @@ func (rec *record) add(use millionths) {
 	}
 }
 
+// leftAtLeast reports whether the record's weeks had percent or more left
+// at a reset, on average.
+func (rec record) leftAtLeast(percent int) bool {
+	return 100*rec.left >= rec.ofAll(percent)
+}
+
+// ofAll is percent of every week of the record's, in hundredths of
+// millionths, as a hundred times its sums are.
+func (rec record) ofAll(percent int) millionths {
+	return millionths(percent) * whole * millionths(rec.weeks)
+}
+
 // verdict is Weeks' verdict on the record's account, spared, where the rest
 // would cover it with no more weeks short and the headline is one more than
 // you need, so it could go; none where no week knows its use. The thresholds
@@ -425,15 +454,14 @@ func (rec record) verdict(spared bool) AccountVerdict {
 	}
 	share := meanOf(rec.left, rec.weeks)
 	v.LeftAtReset = &share
-	n := millionths(rec.weeks)
 	switch {
-	case spared && rec.limits == 0 && 10*rec.used <= whole*n:
+	case spared && rec.limits == 0 && 100*rec.used <= rec.ofAll(CouldGoUsed):
 		v.Verdict = CouldGo
-	case 4*rec.left >= 3*whole*n:
+	case rec.leftAtLeast(BarelyLeft):
 		v.Verdict = BarelyUsed
-	case 7*rec.limits >= 3*rec.weeks:
+	case VerdictWeeks*rec.limits >= LimitWeeks*rec.weeks:
 		v.Verdict = HitsItsLimit
-	case 5*rec.left >= 2*whole*n:
+	case rec.leftAtLeast(PlentyLeft):
 		v.Verdict = PlentyToSpare
 	default:
 		v.Verdict = EndsWithRoom

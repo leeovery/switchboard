@@ -145,3 +145,34 @@ func TestAccountsHelpListsTheWayIntoSessionsWhereTheKeyLineDoesnt(t *testing.T) 
 		})
 	}
 }
+
+// Compare's focus keys, ←→, enter and esc, are listed where its focus is
+// drawn, wide, and on a phone, whose Compare draws none, neither in help nor
+// on the line.
+func TestAccountsListsCompareFocusKeysOnlyWhereTheFocusIsDrawn(t *testing.T) {
+	focus := []string{"←→", "enter", "esc"}
+	for _, tt := range []struct {
+		name  string
+		width int
+		want  bool
+	}{
+		{name: "wide", width: 160, want: true},
+		{name: "at the narrowest wide", width: 100, want: true},
+		{name: "a phone", width: 99},
+		{name: "a phone's narrowest", width: 52},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			shown := dashboard.AccountsShown{Accounts: threeConfigured, Focused: true, Focus: "work"}
+			h := accountsKeysHarness(t, routerDocument(three()...), false, shown, tt.width)
+			helped := listedKeys(helpOver(h.model))
+			for _, k := range focus {
+				if got := slices.Contains(helped, k); got != tt.want {
+					t.Errorf("at %d columns, help lists %q, want %s listed %v", tt.width, helped, k, tt.want)
+				}
+			}
+			if !tt.want && slices.ContainsFunc(h.listed(), func(k string) bool { return slices.Contains(focus, k) }) {
+				t.Errorf("at %d columns, the key line lists %q, want none of %q", tt.width, h.listed(), focus)
+			}
+		})
+	}
+}

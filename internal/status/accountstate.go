@@ -43,6 +43,26 @@ func (s AccountState) Word() string {
 	return ""
 }
 
+// Means is what the state in a word means, as help keys it, of every kind
+// State puts in it.
+func (s AccountState) Means() string {
+	switch s {
+	case StateOpen:
+		return "new sessions can go to it, though a limit, a refusal or its cap in a model's own window may hold back some models"
+	case StatePressure:
+		return "at its recent rate, it runs out before its window resets"
+	case StateAtCap:
+		return "at its cap, where its reserve starts: the router passes it over, unless a pin spends it"
+	case StateLimit:
+		return "a limit holds it back from every request"
+	case StateRefused:
+		return "its token was refused"
+	case StateNotRead:
+		return "its usage isn't read: it has no usable token, or its usage couldn't be read or hasn't been yet"
+	}
+	return ""
+}
+
 // Glyph is the glyph the state's word leads with: ■ held back from every
 // request by a limit or a refusal; ○ not read; and ● otherwise.
 func (s AccountState) Glyph() string {

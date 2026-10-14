@@ -131,7 +131,7 @@ func TestTheEmptyTabsListPPinOnlyWhereThereIsAPinToSet(t *testing.T) {
 		{name: "one account, pinned from the command line", doc: pinned, want: [][]string{{"tab"}, {"p"}, {"?", "q"}}},
 	}
 	for _, tt := range tests {
-		for _, view := range []dashboard.View{dashboard.Log} {
+		for _, view := range []dashboard.View{dashboard.Sessions} {
 			t.Run(tt.name+" on "+string(view), func(t *testing.T) {
 				h := routedHarness(t, tt.doc)
 				h.model.view = view
