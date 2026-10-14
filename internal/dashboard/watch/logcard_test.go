@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -29,12 +30,15 @@ func TestTheLogsDetailsCardStepsThroughTheLines(t *testing.T) {
 	if !strings.Contains(h.view(), "├ id           0a000002") {
 		t.Errorf("enter on the newest line opened\n%s\nwant its details, 0a000002's", h.view())
 	}
+	at, after := past(-5*time.Minute).In(time.Local).Format(time.TimeOnly), past(-4*time.Minute).In(time.Local).Format(time.TimeOnly)
 	h.keys(tea.KeyPressMsg{Code: tea.KeyUp})
 	if row, _, _ := h.model.log.page.Chosen(); row.Request != "0a000001" || !strings.Contains(h.view(), "├ id           0a000001") {
 		t.Errorf("after ↑, the line chosen is %s and the screen\n%s\nwant 0a000001 chosen, its details in the card", row.Request, h.view())
 	}
+	if !h.drawnLit(at) || h.drawnLit(after) {
+		t.Errorf("after ↑, the row of %s is drawn lit %v, and of %s %v; want the lit line following, to %s's", at, h.drawnLit(at), after, h.drawnLit(after), at)
+	}
 	h.keys(tea.KeyPressMsg{Code: tea.KeyEscape})
-	at := past(-5 * time.Minute).In(time.Local).Format(time.TimeOnly)
 	if got := h.logState(); h.model.open != nothingOpen || !strings.HasPrefix(got, "‖ paused at "+at) {
 		t.Errorf("after esc, the state line reads %q, want the card closed, the table paused at %s", got, at)
 	}
@@ -63,6 +67,17 @@ func TestTheWheelScrollsTheLogsCardUnderThePointer(t *testing.T) {
 	if over, want := h.model.log.card.scroll, min(wheelRows, most); off != 0 || over != want {
 		t.Errorf("a turn down off the card scrolled it %d rows, and over it %d; want none, then %d", off, over, want)
 	}
+}
+
+// drawnLit reports whether the screen draws the Log's row of the time given,
+// to the second, lit, as a terminal without colour lights it: reversed.
+func (h *harness) drawnLit(at string) bool {
+	for row := range strings.SplitSeq(h.model.View().Content, "\n") {
+		if cells := []rune(ansi.Strip(row)); len(cells) > 10 && string(cells[2:10]) == at {
+			return strings.Contains(row, "\x1b[7m")
+		}
+	}
+	return false
 }
 
 // A card that lifted the table to fit under its line, closed, leaves the
