@@ -92,50 +92,110 @@ func (h *harness) readingTheTail() tea.Cmd {
 	return read
 }
 
+// deliverHolding gives the model msgs, and whatever they send back, until
+// they're all delivered, but those hold picks, which it returns undelivered.
+func (h *harness) deliverHolding(hold func(tea.Msg) bool, msgs ...tea.Msg) []tea.Msg {
+	h.t.Helper()
+	var held []tea.Msg
+	for len(msgs) > 0 {
+		msg := msgs[0]
+		msgs = msgs[1:]
+		if hold(msg) {
+			held = append(held, msg)
+			continue
+		}
+		msgs = append(msgs, h.update(msg)...)
+	}
+	return held
+}
+
+// isTailed and isLogRead pick a read of the ledger's tail, and of the Log's
+// own, as they land.
+func isTailed(msg tea.Msg) bool {
+	_, ok := msg.(tailedMsg)
+	return ok
+}
+
+func isLogRead(msg tea.Msg) bool {
+	_, ok := msg.(logReadMsg)
+	return ok
+}
+
 // One read of today's lines at a time: a session's page asked to open while
 // a read of the ledger's tail is under way reads its lines once that lands,
-// or never, where esc dropped it meanwhile; and no read of the tail starts
-// while the page's read is under way. So the page takes in every line
-// either read.
+// or never, where esc dropped it meanwhile; no read of the tail starts while
+// the page's is under way, nor while a read of the Log's own is. So the page,
+// and the Log, take in every line either read.
 func TestASessionsPagesReadAndTheTailsReadNeverRunTogether(t *testing.T) {
-	state := t.TempDir()
-	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
-	h := routedHarness(t, routerDocument(three()...))
-	onTheLog(h, state)
-	h.start()
-
-	tail := h.readingTheTail()
-	opened, read := h.model.openSession(idD28C)
-	h.model = opened
-	h.keys(escKey)
-	h.deliver(h.run(tail)...)
-	if read != nil || h.model.session != nil {
-		t.Fatalf("asked to open while the tail's read was under way, then dropped, the page's read ran %t, and it opened %t; want neither", read != nil, h.model.session != nil)
+	onTheLogOf := func(t *testing.T) (*harness, string) {
+		state := t.TempDir()
+		writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+		h := routedHarness(t, routerDocument(three()...))
+		onTheLog(h, state)
+		h.start()
+		return h, state
 	}
 
-	tail = h.readingTheTail()
-	opened, read = h.model.openSession(idD28C)
-	h.model = opened
-	writeLines(t, state, arrived("0a000002", "side", -4*time.Minute))
-	h.deliver(h.run(tail)...)
-	if read != nil || h.model.session == nil || h.shownPage().Page.Totals.Requests != 2 {
-		t.Fatalf("asked to open while the tail's read was under way, the page's read ran beside it %t, and once it landed the page opened %t; want it open after, of both lines",
-			read != nil, h.model.session != nil)
-	}
+	t.Run("a page asked while the tail is read, dropped before it lands", func(t *testing.T) {
+		h, _ := onTheLogOf(t)
+		tail := h.readingTheTail()
+		opened, read := h.model.openSession(idD28C)
+		h.model = opened
+		h.keys(escKey)
+		h.deliver(h.run(tail)...)
+		if read != nil || h.model.session != nil {
+			t.Errorf("the page's read ran %t, and it opened %t; want neither", read != nil, h.model.session != nil)
+		}
+	})
 
-	h.keys(escKey)
-	opened, read = h.model.openSession(idD28C)
-	h.model = opened
-	writeLines(t, state, arrived("0a000003", "work", -3*time.Minute))
-	h.model.tail.due = true
-	h.update(tea.WindowSizeMsg{Width: h.model.size.Width, Height: h.model.size.Height})
-	if h.model.tail.reading {
-		t.Fatal("a look while the page's read was under way read the tail beside it, want it waiting till the page's lands")
-	}
-	h.deliver(h.run(read)...)
-	if h.model.tail.due || h.shownPage().Page.Totals.Requests != 3 {
-		t.Errorf("the page's read landed, the tail read %t, the page counting %d requests; want the tail read then, the page of all 3", !h.model.tail.due, h.shownPage().Page.Totals.Requests)
-	}
+	t.Run("a page asked while the tail is read", func(t *testing.T) {
+		h, state := onTheLogOf(t)
+		tail := h.readingTheTail()
+		opened, read := h.model.openSession(idD28C)
+		h.model = opened
+		writeLines(t, state, arrived("0a000002", "side", -4*time.Minute))
+		h.deliver(h.run(tail)...)
+		if read != nil || h.model.session == nil || h.shownPage().Page.Totals.Requests != 2 {
+			t.Errorf("the page's read ran beside the tail's %t, and once that landed the page opened %t; want it open after, of both lines", read != nil, h.model.session != nil)
+		}
+	})
+
+	t.Run("a look while a page's read is under way", func(t *testing.T) {
+		h, state := onTheLogOf(t)
+		opened, read := h.model.openSession(idD28C)
+		h.model = opened
+		writeLines(t, state, arrived("0a000002", "side", -4*time.Minute))
+		h.model.tail.due = true
+		h.update(tea.WindowSizeMsg{Width: h.model.size.Width, Height: h.model.size.Height})
+		if h.model.tail.reading {
+			t.Fatal("the tail was read beside the page's read, want it waiting till that lands")
+		}
+		h.deliver(h.run(read)...)
+		if h.model.tail.due || h.shownPage().Page.Totals.Requests != 2 {
+			t.Errorf("the page's read landed, the tail read %t, the page counting %d requests; want the tail read then, the page of both lines",
+				!h.model.tail.due, h.shownPage().Page.Totals.Requests)
+		}
+	})
+
+	t.Run("a look over the Log while a read of its own is under way", func(t *testing.T) {
+		h, state := onTheLogOf(t)
+		h.openPage(idD28C)
+		h.stopRouter()
+		refiling := h.deliverHolding(isLogRead, h.press("R")...)
+		if len(refiling) == 0 || !h.model.log.reading {
+			t.Fatal("the router gone, the Log read none of its own, want its events' files read again")
+		}
+		writeLines(t, state, arrived("0a000002", "side", -4*time.Minute))
+		tailed := h.deliverHolding(isTailed, h.press("R")...)
+		if len(tailed) > 0 {
+			t.Error("a look read the tail beside the Log's own read, want it waiting till that lands")
+		}
+		h.deliver(slices.Concat(refiling, tailed)...)
+		h.read(probedWithoutTheRouter())
+		if got, want := shownRequests(h), []string{"0a000001", "0a000002"}; !slices.Equal(got, want) || h.shownPage().Page.Totals.Requests != 2 {
+			t.Errorf("the reads landed, the Log shows %v and the page counts %d requests; want %v, and 2", got, h.shownPage().Page.Totals.Requests, want)
+		}
+	})
 }
 
 // Past midnight, a session's page takes in what its session's day before
