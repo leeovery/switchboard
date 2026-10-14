@@ -93,7 +93,7 @@ func TestAFamilyIsNamedAfterItsDot(t *testing.T) {
 		want   line
 	}{
 		{family: "opus", want: line{{"●", ink{token: theme.VizFamily1}}, {" Opus", dimInk}}},
-		{family: "mythos", want: line{{"●", ink{token: theme.TextMuted}}, {" Mythos", dimInk}}},
+		{family: "claude-unknown-9", want: line{{"●", ink{token: theme.TextMuted}}, {" Claude-unknown-9", dimInk}}},
 		{family: "\x1b[2Jécho", want: line{{"●", ink{token: theme.TextMuted}}, {" [2Jécho", dimInk}}},
 		{family: "élan", want: line{{"●", ink{token: theme.TextMuted}}, {" Élan", dimInk}}},
 	}

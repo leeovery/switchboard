@@ -393,7 +393,7 @@ func TestDaysNamesEachFamily(t *testing.T) {
 	}{
 		{family: "opus", want: line{{"●", ink{token: theme.VizFamily1}}, {" Opus", secondaryInk}}},
 		{family: "haiku", want: line{{"●", ink{token: theme.VizFamily4}}, {" Haiku", secondaryInk}}},
-		{family: "mythos", want: line{{"●", ink{token: theme.TextMuted}}, {" Mythos", secondaryInk}}},
+		{family: "claude-unknown-9", want: line{{"●", ink{token: theme.TextMuted}}, {" Claude-unknown-9", secondaryInk}}},
 	}
 	for _, tt := range tests {
 		if got := familyDot(tt.family, secondaryInk); !slices.Equal(got, tt.want) {
