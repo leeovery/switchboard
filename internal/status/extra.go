@@ -61,3 +61,15 @@ func ExtraOfAll(accounts []AccountNow) AllExtra {
 	}
 	return all
 }
+
+// ExtraOf is how the accounts at the moment with the ids given stand for
+// extra usage, taken together, as ExtraOfAll has it: those the config has,
+// whatever the moment holds, one it lacks not read, as an account the config
+// has just gained.
+func (m Moment) ExtraOf(ids []string) AllExtra {
+	accounts := make([]AccountNow, len(ids))
+	for i, id := range ids {
+		accounts[i], _ = m.Account(id)
+	}
+	return ExtraOfAll(accounts)
+}

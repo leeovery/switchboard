@@ -154,8 +154,8 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 // named lays the heading's name out from the first column of row y, then,
 // where it has them, its sub-tabs, touching, three cells on, or two where
 // it's compact, set tight or not, as the Log's and History's phone frames
-// draw them, and a cell on, [ ], but where it's compact; and returns the
-// column after them.
+// draw them, and a cell on, [ ], but where it's compact, or has one sub-tab
+// alone, with none to turn to; and returns the column after them.
 func (h heading) named(laid *laying, y int, phone bool) int {
 	x := laid.put(0, y, line{{h.name, dimInk}}, Target{})
 	if len(h.subTabs) == 0 {
@@ -169,7 +169,7 @@ func (h heading) named(laid *laying, y int, phone bool) int {
 	for i := range h.subTabs {
 		x = laid.put(x, y, h.subTab(i, phone), Target{On: OnSubTab, SubTab: i})
 	}
-	if h.compact(phone) {
+	if h.compact(phone) || len(h.subTabs) == 1 {
 		return x
 	}
 	return laid.put(x+1, y, line{{"[ ]", faintInk}}, Target{})

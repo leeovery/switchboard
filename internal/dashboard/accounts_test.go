@@ -81,9 +81,10 @@ func TestOneAccountIsShownInDetailAlone(t *testing.T) {
 }
 
 // Accounts' heading row names it and its sub-tabs, the one drawn picked out,
-// Detail alone with one account, as accounts-detail-one-160 draws it; and at
-// its right its period between < and >, which the frames draw before the
-// sweep of keys as p and the period.
+// and [ ] after them; with one account, Detail alone, with no [ ], as there's
+// no sub-tab to turn to, the rule two cells after it, where
+// accounts-detail-one-160 draws [ ]; and at its right its period between <
+// and >, which the frames draw before the sweep of keys as p and the period.
 func TestAccountsHeadingRow(t *testing.T) {
 	const named = "ACCOUNTS    Compare  Detail  [ ]  "
 	tests := []struct {
@@ -97,7 +98,7 @@ func TestAccountsHeadingRow(t *testing.T) {
 		{name: "Detail, today", shown: AccountsShown{Shown: AccountsDetail, Period: views.AccountsToday, Accounts: threeConfigured}, picked: 20, other: 11, want: named + rule(115) + "  < today >"},
 		{name: "the last 30 days", shown: AccountsShown{Period: views.AccountsThirtyDays, Accounts: threeConfigured}, picked: 11, other: 20, want: named + rule(113) + "  < 30 days >"},
 		{name: "the last 12 weeks", shown: AccountsShown{Period: views.AccountsTwelveWeeks, Accounts: threeConfigured}, picked: 11, other: 20, want: named + rule(112) + "  < 12 weeks >"},
-		{name: "one account, Detail alone", shown: AccountsShown{Accounts: threeConfigured[:1]}, picked: 11, other: -1, want: "ACCOUNTS    Detail  [ ]  " + rule(120) + "  < this week >"},
+		{name: "one account, Detail alone", shown: AccountsShown{Accounts: threeConfigured[:1]}, picked: 11, other: -1, want: "ACCOUNTS    Detail   " + rule(124) + "  < this week >"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

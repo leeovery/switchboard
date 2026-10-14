@@ -114,6 +114,8 @@ func TestNoTwoKindsOfNumberShareAValue(t *testing.T) {
 		"NumberLimitsHit":     NumberLimitsHit,
 		"NumberTokens":        NumberTokens,
 		"NumberTokensSplit":   NumberTokensSplit,
+		"NumberMoved":         NumberMoved,
+		"NumberPeriod":        NumberPeriod,
 	}
 	named := make(map[NumberKind]string)
 	for _, name := range slices.Sorted(maps.Keys(kinds)) {

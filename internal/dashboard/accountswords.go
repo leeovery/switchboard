@@ -1,10 +1,12 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -21,14 +23,34 @@ import (
 const accountsApart = " · "
 
 // noneOf is a figure Accounts has none of, as the word given says it, "—"
-// or "none", in text.faint, bold where k is.
+// or "none", in text.faint, bold where k is: words, as no figure, so it's
+// never a number, its figure appearing or going brightening nothing.
 func noneOf(word string, k ink) []part {
-	return []part{figureIn(word, boldAs(faintInk, k))}
+	return []part{wordsIn(word, boldAs(faintInk, k))}
 }
 
-// periodParts say a figure of the page's period as said says it: but where
-// the period records nothing, as on a fresh install, a dash, as noneOf has
-// it, whatever said says, as 0 requests, none hit, or $0.
+// periodNumbered are the parts of a figure of Accounts' period, of the
+// account with the id given, "" for all accounts', each figure among them
+// numbered as the one the name given names, as NumberPeriod has it: a dash
+// or none, words, never.
+func periodNumbered(parts []part, id, name string) []part {
+	numbered := slices.Clone(parts)
+	for i := range numbered {
+		numbered[i].number = Number{Kind: NumberPeriod, Account: id, Of: name}
+	}
+	return numbered
+}
+
+// shareNamed is what a version's share of use is numbered by, after its
+// name, as "Opus 5.5 share".
+func shareNamed(v ledger.Version) string {
+	return v.Name + " share"
+}
+
+// periodParts say a row of the page's period as said says it: but where the
+// period records nothing, as on a fresh install, a dash, as noneOf has it,
+// in every row, whatever said says, as 0 requests, none hit, or $0, the plan
+// and extra usage among them.
 func periodParts(page views.AccountsPage, said []part, k ink) []part {
 	if !page.Recorded {
 		return noneOf(noFigure.text, k)
@@ -189,19 +211,19 @@ func extraParts(a status.AccountNow, k ink) []part {
 	return extraSaid(status.ExtraOfAll([]status.AccountNow{a}), " · billed past its limit", "off", k)
 }
 
-// extraOfAll say every account's extra usage as Compare's VALUE does, as
-// ExtraOfAll has it: "off on all"; "on on all" where each is on, else how
-// many are, "on for 1 of 3"; a dash where none is read.
-func extraOfAll(accounts []status.AccountNow, k ink) []part {
-	return extraSaid(status.ExtraOfAll(accounts), " on all", "off on all", k)
+// extraOfAll say every account's extra usage, taken together, as Compare's
+// VALUE does: "off on all"; "on on all" where each is on, else how many are,
+// "on for 1 of 3"; a dash where none is read.
+func extraOfAll(all status.AllExtra, k ink) []part {
+	return extraSaid(all, " on all", "off on all", k)
 }
 
 // extraShort says extra usage as Detail's THIS WEEK and a phone's Detail do,
 // in text.secondary's place: of the accounts shown, an account alone or
-// every account, taken together as ExtraOfAll has it, "off"; "on" where each
-// is on, else how many are, "on for 1 of 3"; a dash where none is read.
-func extraShort(accounts []status.AccountNow) []part {
-	return extraSaid(status.ExtraOfAll(accounts), "", "off", secondaryInk)
+// every account, taken together, "off"; "on" where each is on, else how many
+// are, "on for 1 of 3"; a dash where none is read.
+func extraShort(all status.AllExtra) []part {
+	return extraSaid(all, "", "off", secondaryInk)
 }
 
 // extraSaid says extra usage as all has it: off as the words given say it,

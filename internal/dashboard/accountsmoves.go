@@ -101,6 +101,19 @@ func (s AccountsShown) Opened() (AccountsShown, bool) {
 	return s.chose(s.Focus), true
 }
 
+// Opens reports whether enter opens anything on Accounts as s shows it,
+// running being the sessions running on the account Detail shows, by id, in
+// its SESSIONS' order: on Compare, the column focused, as Opened has it; on
+// Detail, the session selected, from its list as from its SESSIONS, as
+// Selection has it. Where it doesn't, the key line draws enter faint.
+func (s AccountsShown) Opens(running []string) bool {
+	if s.View() == AccountsCompare {
+		_, opened := s.Opened()
+		return opened
+	}
+	return s.Selection(running) != ""
+}
+
 // Unfocused is Accounts with Compare's focus ended, as esc ends a choice, its
 // columns where they are (settled in the plan). It reports false where no
 // column is focused, or off Compare.
