@@ -68,7 +68,7 @@ type LogPage struct {
 // paused, which says the lines come since. filledAt is the rows of the
 // tallest view the table has filled, or reached the oldest day in, none
 // till it does: after, it reads back only as its top is reached, or,
-// following, as its view grows past them.
+// following, as its view grows past them, where its filter is bounded.
 type LogStand struct {
 	paused    bool
 	top, foot LogKey
@@ -425,9 +425,9 @@ func nextRow(lines []logLine, at, by, foot int) int {
 
 // Filling is the Log, the table shown filled at a view rows rows tall once
 // it fills it, or reaches as far back as it reads, from where it reads back
-// only as its top is reached, or following, as its view grows past them. A
-// view of no rows fills nothing, so the table fills the view it's given as
-// the terminal grows.
+// only as WantsDayBefore has a filled table read back. A view of no rows
+// fills nothing, so the table fills the view it's given as the terminal
+// grows.
 func (p LogPage) Filling(rows int) LogPage {
 	s := p.stand()
 	if s.filledAt >= rows || !p.Read {
@@ -441,15 +441,17 @@ func (p LogPage) Filling(rows int) LogPage {
 
 // WantsDayBefore reports whether the table shown, in a view rows rows tall,
 // wants the day before those it spans read: on opening, until it fills its
-// view, and following, until it fills one grown past the rows it filled;
-// and paused, its view's top at the first line held. Never once it reaches
-// as far back as it reads.
+// view, and following, until it fills one grown past the rows it filled,
+// where how far back it would read is bounded, as bounded says, so growing
+// the terminal never walks a table through every day kept; and paused, its
+// view's top at the first line held. Never once it reaches as far back as
+// it reads.
 func (p LogPage) WantsDayBefore(rows int) bool {
 	if !p.Read || p.reached() {
 		return false
 	}
 	lines, s := p.lines(), p.stand()
-	if s.filledAt == 0 || !s.paused && rows > s.filledAt {
+	if s.filledAt == 0 || !s.paused && rows > s.filledAt && p.bounded(p.Shown) {
 		return len(lines) < rows
 	}
 	first, _ := p.window(lines, s, rows)

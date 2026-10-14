@@ -227,8 +227,8 @@ func TestLandingChoosesTheFirstRequestAtOrAfterAMoment(t *testing.T) {
 // unfilled, so, short of the view it filled, it reads back to fill it: as
 // the find's enter, the panel's, and esc letting the filter go each change
 // it. One whose filter the days' summaries can't bound stays as it stood,
-// reading back only as its top is reached, or its view grows: the Requests
-// through a filter of the failed, and the Events through one of a session.
+// reading back only as its top is reached: the Requests through a filter of
+// the failed, and the Events through one of a session.
 func TestATableNewlyFilteredReadsBackToFillItsView(t *testing.T) {
 	const session = "d28c5e17-0000-4000-8000-000000000001"
 	src := views.LogSources{From: logDay, Now: logDayNoon}
@@ -334,13 +334,16 @@ func TestATableHoldingNoRowDoesntPause(t *testing.T) {
 
 // On opening, a table reads back a day at a time till it fills its view,
 // then only as its view's top, paused, reaches the first line held, or,
-// following, as its view grows past the rows it filled; never past the
-// oldest day the ledger keeps. A view of no rows fills nothing: the table
-// reads back to fill it once the terminal gives it rows.
+// following, as its view grows past the rows it filled, where its filter is
+// bounded, as the failed alone aren't; never past the oldest day the ledger
+// keeps. A view of no rows fills nothing: the table reads back to fill it
+// once the terminal gives it rows.
 func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 	src := views.LogSources{From: logDay, Now: logDayNoon}
 	oldest := src
 	oldest.Oldest = views.OldestKept(logDay, 0, logDayNoon)
+	failed := threeAsked()
+	failed.Filter.Failed = true
 	tests := []struct {
 		name string
 		page LogPage
@@ -353,6 +356,8 @@ func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 		{name: "filled again, as the view grew", page: threeAsked().Filling(1).Filling(3), rows: 3},
 		{name: "filled, the view grown, paused short of its first line", page: threeAsked().Filling(1).Scrolled(-1, 1), rows: 2},
 		{name: "filled, the view grown, paused at its first line", page: threeAsked().Filling(1).Scrolled(-1, 2), rows: 2, want: true},
+		{name: "its failed alone, filled, short again as the view grows, following", page: failed.Filling(3), rows: 10},
+		{name: "its failed alone, filled, the view grown, paused at its first line", page: failed.Filling(1).Scrolled(-1, 2), rows: 2, want: true},
 		{name: "with no rows, nothing to read", page: threeAsked().Filling(0), rows: 0},
 		{name: "opened with no rows, then given them", page: threeAsked().Filling(0), rows: 10, want: true},
 		{name: "filled, paused at its first line", page: threeAsked().Filling(3).Scrolled(-1, 2), rows: 2, want: true},
