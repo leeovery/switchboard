@@ -237,14 +237,20 @@ func inFlightAt(l *ledger.Line, at time.Time) bool {
 // models are routed apart, so another's move tells nothing of how this one
 // came there.
 func (s *story) moveOnto(model, account string) *move {
+	m := s.latestMove(model)
+	if m == nil || !s.day.Holds(m.at) || m.to != account {
+		return nil
+	}
+	return m
+}
+
+// latestMove returns the latest move of the model with the given id, of
+// whatever day: nil where it never moved.
+func (s *story) latestMove(model string) *move {
 	for i, m := range slices.Backward(s.moves) {
-		if m.model != model {
-			continue
+		if m.model == model {
+			return &s.moves[i]
 		}
-		if !s.day.Holds(m.at) || m.to != account {
-			return nil
-		}
-		return &s.moves[i]
 	}
 	return nil
 }
