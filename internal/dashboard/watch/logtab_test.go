@@ -208,6 +208,25 @@ func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 	}
 }
 
+// Opened on a terminal too short for its table, the Log reads nothing back
+// to fill a view of no rows; given rows, it reads back to fill them.
+func TestTheLogOpenedTooShortReadsBackAsItsViewGrows(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -day), arrived("0a000002", "work", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	l := onTheLog(h, state)
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 10})...)
+	h.start()
+	if len(l.days) > 0 {
+		t.Fatalf("with no row for its table, the Log read back the days %v, want none", l.days)
+	}
+
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 50})...)
+	if want := []string{dayfile.DateOf(past(-day))}; !slices.Equal(l.days, want) {
+		t.Errorf("grown, the Log read back the days %v, want %v, to fill its view", l.days, want)
+	}
+}
+
 // The Events read back as they want to fill their view no further than the
 // first day the router filed events on: days before show none, so a ledger
 // of quiet days is never read back through for them.

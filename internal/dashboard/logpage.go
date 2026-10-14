@@ -377,13 +377,14 @@ func nextRow(lines []logLine, at, by, foot int) int {
 
 // Filling is the Log, the table shown filled once it fills a view rows rows
 // tall, or reaches as far back as it reads, from where it reads back only as
-// its top is reached.
+// its top is reached. A view of no rows fills nothing, so the table fills
+// the view it's given as the terminal grows.
 func (p LogPage) Filling(rows int) LogPage {
 	s := p.stand()
 	if s.filled || !p.Read {
 		return p
 	}
-	s.filled = len(p.lines()) >= rows || p.reached()
+	s.filled = rows > 0 && len(p.lines()) >= rows || p.reached()
 	return p.standing(s)
 }
 

@@ -285,7 +285,8 @@ func TestATableHoldingNoRowDoesntPause(t *testing.T) {
 
 // On opening, a table reads back a day at a time till it fills its view,
 // then only as its view's top, paused, reaches the first line held; never
-// past the oldest day the ledger keeps.
+// past the oldest day the ledger keeps. A view of no rows fills nothing: the
+// table reads back to fill it once the terminal gives it rows.
 func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 	src := views.LogSources{From: logDay, Now: logDayNoon}
 	oldest := src
@@ -299,6 +300,8 @@ func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 		{name: "short of its view", page: threeAsked(), rows: 4, want: true},
 		{name: "its view filled", page: threeAsked().Filling(3), rows: 3},
 		{name: "filled, short again as the view grows", page: threeAsked().Filling(3), rows: 10},
+		{name: "with no rows, nothing to read", page: threeAsked().Filling(0), rows: 0},
+		{name: "opened with no rows, then given them", page: threeAsked().Filling(0), rows: 10, want: true},
 		{name: "filled, paused at its first line", page: threeAsked().Filling(3).Scrolled(-1, 2), rows: 2, want: true},
 		{name: "at the oldest day kept", page: requestsOf(oldest, nil), rows: 4},
 	}
