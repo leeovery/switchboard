@@ -236,13 +236,13 @@ func (d detailing) happened() []DetailItem {
 	switch e.Kind {
 	case status.EventStarted:
 		items.add("session", d.sessionWords())
-		items.add("model", valued(ledger.ShortModelID(prose.Clean(e.Model))))
+		items.add("model", valued(ledger.ShortModelID(e.Model)))
 		if !isNewReason(e.Reason) {
 			items.add("why", detailWords(status.EventWords(e.Reason, status.Facts{To: e.Account, Until: d.fact.runsOut, Now: d.row.At})))
 		}
 	case status.EventMoved:
 		items.add("session", d.sessionWords())
-		items.add("model", valued(ledger.ShortModelID(prose.Clean(e.Model))))
+		items.add("model", valued(ledger.ShortModelID(e.Model)))
 		items.add("from", accountWords(e.From))
 		items.add("to", accountWords(e.To))
 	case status.EventPressure:

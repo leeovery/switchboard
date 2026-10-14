@@ -29,10 +29,10 @@ func labelled(label, id string) string {
 }
 
 // modelNamed is what the dashboard calls the model with the given id,
-// wherever it names one by its id: the id less claude-, as ledger's
-// ShortModelID has it, cleaned.
+// wherever it names one by its id: as ledger's ShortModelID has it, the id
+// cleaned, less claude-.
 func modelNamed(id string) string {
-	return ledger.ShortModelID(prose.Clean(id))
+	return ledger.ShortModelID(id)
 }
 
 // named is what the dashboard calls the account of m with the given id: its
