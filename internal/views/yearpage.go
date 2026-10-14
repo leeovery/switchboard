@@ -516,7 +516,7 @@ type yearView struct {
 // totals are the shown days' totals, as Accounts counts every account's:
 // each session once, of the version shown, those of its requests.
 func (y yearView) totals() AccountTotals {
-	return accountTotalsOf(y.shown, nil, y.v).Accounts[0]
+	return accountTotalsOf(nil, y.shown, nil, y.v).Accounts[0]
 }
 
 // numbers are the period's numbers of all use, or an account's: what its

@@ -451,10 +451,10 @@ func TestAnAccountOutOfThePoolHasItsTraceAndRateFadedItsStateAsItIs(t *testing.T
 }
 
 func TestThePoolsStatesAreCountedInTheirOrderAndColours(t *testing.T) {
-	of := func(kinds ...status.RoutingKind) []accountRouting {
-		accounts := make([]accountRouting, len(kinds))
+	of := func(kinds ...status.RoutingKind) []status.AccountNow {
+		accounts := make([]status.AccountNow, len(kinds))
 		for i, k := range kinds {
-			accounts[i].standing.Kind = k
+			accounts[i].Routing.Kind = k
 		}
 		return accounts
 	}
@@ -462,7 +462,7 @@ func TestThePoolsStatesAreCountedInTheirOrderAndColours(t *testing.T) {
 	counted := func(k ink, words string) ink { return k.numbered(Number{Kind: NumberStates, Of: words}) }
 	tests := []struct {
 		name     string
-		accounts []accountRouting
+		accounts []status.AccountNow
 		width    int
 		want     line
 	}{
@@ -485,14 +485,43 @@ func TestThePoolsStatesAreCountedInTheirOrderAndColours(t *testing.T) {
 			want: line{{"3 open", counted(secondaryInk, "open")}},
 		},
 		{
-			name: "too wide: how many are open, pressure counting as open", accounts: of(status.RoutingOpen, status.RoutingPressed, status.RoutingLimited), width: 20,
-			want: line{{"2 of 3 open", counted(secondaryInk, "of 3 open")}},
+			name:     "too wide: how many are open, pressure counting as open",
+			accounts: of(status.RoutingOpen, status.RoutingNext, status.RoutingPressed, status.RoutingLimited), width: 20,
+			want: line{{"3 of 4 open", counted(secondaryInk, "of 4 open")}},
 		},
 	}
 	for _, tt := range tests {
-		if got := countedStates(tt.accounts, tt.width); !slices.Equal(got, tt.want) {
-			t.Errorf("%s: %v, want %v", tt.name, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := countedStates(status.CountStates(tt.accounts), NumberStates, tt.width); !slices.Equal(got, tt.want) {
+				t.Errorf("countedStates() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// Every account's states counted, as all accounts' head on Accounts counts
+// them, are numbers of their own, apart from the pool's, wide or too wide,
+// as all accounts is never the pool: one brightening never lights the other.
+func TestEveryAccountsStatesCountedAreNumbersApartFromThePools(t *testing.T) {
+	accounts := make([]status.AccountNow, 3)
+	for i, k := range []status.RoutingKind{status.RoutingCapped, status.RoutingOpen, status.RoutingNext} {
+		accounts[i].Routing.Kind = k
+	}
+	counted := func(k ink, words string) ink { return k.numbered(Number{Kind: NumberAccountStates, Of: words}) }
+	tests := []struct {
+		name  string
+		width int
+		want  line
+	}{
+		{name: "counted", width: 51, want: line{{"2 open", counted(secondaryInk, "open")}, {" · ", faintInk}, {"1 at cap", counted(warningInk, "at cap")}}},
+		{name: "too wide", width: 12, want: line{{"2 of 3 open", counted(secondaryInk, "of 3 open")}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := countedStates(status.CountStates(accounts), NumberAccountStates, tt.width); !slices.Equal(got, tt.want) {
+				t.Errorf("countedStates() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

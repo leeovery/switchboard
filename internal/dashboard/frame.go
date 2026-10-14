@@ -31,12 +31,14 @@ type Frame struct {
 	// gave its history: RECENT asks for it to be restarted.
 	Outdated bool
 	// Fresh are the events looks saw newly, by id; Changed the accounts whose
-	// states looks saw change, by id; and TurnedOut the windows whose words
-	// looks saw turn to out ~, by account and key: each as far as the cue on
-	// it has faded, from 0, just seen, to 1, gone.
-	Fresh     map[int]float64
-	Changed   map[string]float64
-	TurnedOut map[Ref]float64
+	// states looks saw change, by id, and StateChanged those whose states in
+	// a word, as Accounts says them, looks saw change; and TurnedOut the
+	// windows whose words looks saw turn to out ~, by account and key: each
+	// as far as the cue on it has faded, from 0, just seen, to 1, gone.
+	Fresh        map[int]float64
+	Changed      map[string]float64
+	StateChanged map[string]float64
+	TurnedOut    map[Ref]float64
 	// Trails are how the accounts' windows have been used, for the charts.
 	Trails Trails
 	// Eased are how much of each bar easing after a read it fills, by its
@@ -105,6 +107,13 @@ type Frame struct {
 	// as "5-hour" or "Fable week": nil names it by its label in the
 	// document, as status.NameOfWindow has it.
 	WindowName func(key string) string
+	// WeekWindow is the key of the window a week long every model shares,
+	// the accounts' own week, as the config names it: the week Accounts'
+	// WEEK USED shows, and its page reads the weeks of.
+	WeekWindow string
+	// Accounts is Accounts' sub-tab shown, its period, what's chosen in it,
+	// and its page.
+	Accounts AccountsShown
 	// History is History's sub-tab shown, what each of its views shows, and
 	// their pages.
 	History HistoryPage
@@ -115,12 +124,12 @@ type Frame struct {
 	Log LogPage
 
 	// held is the moment of a document as At holds it, and built the
-	// Overview's sections as Built built them, each for every look the frame,
-	// or a copy of it, takes of their document at their moment to share; and
-	// runs the sessions running, for the sections built together to share:
-	// nil, where each look works them out afresh.
+	// Overview's sections and Accounts' form as Built built them, each for
+	// every look the frame, or a copy of it, takes of their document at their
+	// moment to share; and runs the sessions running, for the sections built
+	// together to share: nil, where each look works them out afresh.
 	held  *status.HeldMoment
-	built *sectionsBuilt
+	built *viewsBuilt
 	runs  *runningHeld
 }
 
@@ -210,8 +219,8 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 
 // view draws the tab shown of doc at now from row top, where the page has
 // room for it, as cramped says: a session's page, where one is open, in its
-// place; the Overview, History, Sessions, Runway and the Log; and nothing of
-// a tab not built yet.
+// place; else the tab shown: the Overview, Accounts, History, Sessions,
+// Runway or the Log.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
@@ -222,6 +231,8 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 		f.sessionPage(c, doc, now)
 	case Overview:
 		f.overview(c, doc, now, top)
+	case Accounts:
+		f.accounts(c, doc, now, top)
 	case History:
 		f.history(c, top)
 	case Sessions:
@@ -339,9 +350,10 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 // scrolls is what of the view of doc at now scrolls, from column x along row
 // y, width cells wide and rows tall: on a session's page, where one is open,
 // its turns' rows, across the frame; on the Overview, USAGE's body, as
-// overviewScrolls has it; on History, what of its sub-tab shown does, as
-// historyScrolls has it, across the frame; on the Log, its table's lines,
-// under its heads; elsewhere, the view's rows.
+// overviewScrolls has it; on Accounts, as accountsScrolls has it; on
+// History, what of its sub-tab shown does, as historyScrolls has it, across
+// the frame; on the Log, its table's lines, under its heads; elsewhere, the
+// view's rows.
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
 	switch f.Shown() {
 	case SessionPage:
@@ -349,6 +361,8 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 		return 0, l.turnsAt, f.Width, l.turns
 	case Overview:
 		return f.overviewScrolls(doc, now)
+	case Accounts:
+		return f.accountsScrolls(doc, now)
 	case History:
 		y, rows = f.historyScrolls()
 		return 0, y, f.Width, rows
@@ -380,9 +394,15 @@ func (f Frame) cramped() bool {
 	return f.viewRows() < leastView
 }
 
-// phone reports whether the frame is a phone's: under phoneUnder columns.
+// phone reports whether the frame is a phone's, as Phone has it.
 func (f Frame) phone() bool {
-	return f.Width < phoneUnder
+	return Phone(f.Width)
+}
+
+// Phone reports whether a frame width cells wide is a phone's: under
+// phoneUnder columns.
+func Phone(width int) bool {
+	return width < phoneUnder
 }
 
 // edge is the column the frame's content ends before at the right, a margin

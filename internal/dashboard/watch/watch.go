@@ -158,6 +158,9 @@ type Config struct {
 	History  dashboard.HistoryPage
 	Log      dashboard.LogTicks
 	Prefs    Prefs
+	// AccountsShown is what the preferences keep Accounts showing, as
+	// dashboard.AccountsKept reads it, which Prefs keeps as it changes.
+	AccountsShown dashboard.AccountsShown
 	// TraceScale is the requests a minute that fill a trace's height on the
 	// Overview: 0 for the live rule, as the dashboard has it, the busiest
 	// column of every trace on the page, never less than 8.
@@ -307,8 +310,11 @@ type Model struct {
 	// the first, in the config's order, till ↑ and ↓ move it, and "" while
 	// the document has none.
 	focus string
+	// accounts is what the watch holds of Accounts: what it shows, and its
+	// page, built of the days past holds.
+	accounts accountsTab
 	// past is what the watch holds of History: its page, the ledger's days
-	// it's built of, and the reads of them.
+	// it's built of, and the reads of them, which Accounts shares.
 	past historyTab
 	// session is the session's page open, drawn in place of the view: nil
 	// while none is. opening counts the pages asked to open, each opening
@@ -409,9 +415,10 @@ func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By,
-		past: historyTab{page: cfg.History, starts: cfg.WeekStarts}, log: openingLog(cfg.Log),
+		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
+		log: openingLog(cfg.Log),
 	}
-	m.past.page.Accounts = cfg.Accounts
+	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
 	if m.after == nil {
 		m.after = after
 	}
@@ -438,9 +445,12 @@ func (m Model) Init() tea.Cmd {
 // take says, building the session's page open afresh, as relived says, and
 // closing a session's card it leaves no p for, as closing says, then has
 // the watch read the router's request stream while it wants it, and the
-// ledger's days for History, a session's page, the Log and its find as they
-// want them, the Log's page built of what it holds, and only then, price
-// the moves the routing card would make while it wants them.
+// ledger's days for History, Accounts, a session's page, the Log and its
+// find as they want them, History's and Accounts' pages built of them as
+// historyBuilt and accountsBuilt have it, Detail's selection following its
+// sessions, as followed has it, and the Log's page built of what it holds,
+// and only then, price the moves the routing card would make while it wants
+// them.
 // Then, of the page as it stands at that moment, its Overview's sections
 // built once for each to share, it keeps the Overview's layout, but for a
 // frame, which takes nothing in to lay it out afresh by; brightens the
@@ -456,6 +466,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, closed := next.(Model).relived(msg, now).closing()
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
+	tuned = tuned.historyBuilt().accountsBuilt().followed(msg)
 	tuned, paged := tuned.readPage()
 	tuned, logged := tuned.readLog()
 	tuned, found := tuned.readFind()
@@ -771,24 +782,30 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // windows are grouped, the requests its traces count and its layout as
 // kept, how far ahead Runway looks, the sessions listed, what the request
 // stream tells of their requests and the order Sessions' calls keep, how far
-// the view is scrolled, and the account the focus is on. It holds the one
-// moment of the document at now, as At has it, for its bars eased to it and
-// every look at it to share: the message's, as taking has it, where now is
-// when the message came.
+// the view is scrolled, the account the focus is on, and what Accounts, as
+// standing has it, and History show. It holds the one moment of the
+// document at now, as At has it, for its bars eased to it and every look at
+// it to share: the message's, as taking has it, where now is when the
+// message came.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
+		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Stream: m.traffic.stream(now), Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
+		WeekWindow: m.cfg.WeekWindow,
+		Accounts:   m.accounts.shown,
 		History:    m.past.page,
 		Session:    m.session.frame(),
 		Log:        m.log.page,
 	}.Holding(m.taking.moment).At(m.doc, now)
+	if m.view == dashboard.Accounts {
+		f.Accounts = m.accounts.standing(f)
+	}
 	f.Eased = m.ease.eased(f, m.doc, now)
 	return f
 }
@@ -859,7 +876,7 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 // was found. Each read starts a new chain of ticks at the pace it calls for,
 // lets a look at the router's document asked for while it was under way go
 // ahead, and as any look does, asks for the ledger's days since History's
-// were read, as readHistory reads them while History shows.
+// were read, as readHistory reads them while History or Accounts shows.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching, m.past.due, m.tail.due = false, true, true

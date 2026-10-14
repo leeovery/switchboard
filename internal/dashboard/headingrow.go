@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/theme"
@@ -23,14 +24,16 @@ var shownSubTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSubtle
 // sub-tabs, where it has them, which of them is shown, and whether a phone
 // sets them tight, as the rule Accounts and History share has it; the state
 // the screen can't otherwise show, in text.faint, a key within it in bold
-// accent.key, where there's any; and at its right, its period or window,
-// which < and > step, or another line, as the Log's count and its f.
+// accent.key, where there's any, and its shorter forms, each a clause fewer,
+// for less room; and at its right, its period or window, which < and > step,
+// or another line, as the Log's count and its f.
 type heading struct {
 	name    string
 	subTabs []string
 	shown   int
 	tight   bool
 	state   line
+	shorter []line
 	period  string
 	right   line
 }
@@ -51,11 +54,13 @@ func (p piece) target() Target {
 	return t
 }
 
-// heading is the heading row of the tab shown: History's and the Log's, as
-// their pages have them; else its name alone, as the views milestone 5
-// built and the tabs not built yet have it.
+// heading is the heading row of the tab shown: Accounts', as accountsHeading
+// has it; History's and the Log's, as their pages have them; else its name
+// alone, as the views milestone 5 built and the tabs not built yet have it.
 func (f Frame) heading() heading {
 	switch f.Shown() {
+	case Accounts:
+		return f.accountsHeading()
 	case History:
 		return f.History.heading()
 	case Log:
@@ -112,8 +117,9 @@ func (h heading) ownPeriod(phone bool) bool {
 
 // pieces are the heading's parts, laid out along row y of a frame width
 // cells wide, on a phone where phone says: its name and sub-tabs, as named
-// lays them out; then three cells on, the state, cut where the rest leaves it
-// short of room. Ending at the last column, its period between < and >, or
+// lays them out; then three cells on, the state, or the first of its shorter
+// forms that fits where the rest leaves it short of room, cut where none
+// does. Ending at the last column, its period between < and >, or
 // its line, on the row under it where ownPeriod says, and left out where it
 // doesn't fit beside the name and the sub-tabs. Between them, the rule, from
 // two cells after them, or one after the state, to two cells short of what
@@ -133,7 +139,7 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 	}
 	ruled := x + ruleGap
 	if h.state != nil {
-		ruled = laid.put(x+headingGap, y, h.state.fit(end-x-headingGap), Target{}) + 1
+		ruled = laid.put(x+headingGap, y, firstFit(end-x-headingGap, slices.Concat([]line{h.state}, h.shorter)...), Target{}) + 1
 	}
 	if !h.compact(phone) {
 		laid.put(ruled, y, line{{rule(end - ruled), borderInk}}, Target{})
@@ -148,8 +154,8 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 // named lays the heading's name out from the first column of row y, then,
 // where it has them, its sub-tabs, touching, three cells on, or two where
 // it's compact, set tight or not, as the Log's and History's phone frames
-// draw them, and a cell on, [ ], but where it's compact; and returns the
-// column after them.
+// draw them, and a cell on, [ ], but where it's compact, or has one sub-tab
+// alone, with none to turn to; and returns the column after them.
 func (h heading) named(laid *laying, y int, phone bool) int {
 	x := laid.put(0, y, line{{h.name, dimInk}}, Target{})
 	if len(h.subTabs) == 0 {
@@ -163,7 +169,7 @@ func (h heading) named(laid *laying, y int, phone bool) int {
 	for i := range h.subTabs {
 		x = laid.put(x, y, h.subTab(i, phone), Target{On: OnSubTab, SubTab: i})
 	}
-	if h.compact(phone) {
+	if h.compact(phone) || len(h.subTabs) == 1 {
 		return x
 	}
 	return laid.put(x+1, y, line{{"[ ]", faintInk}}, Target{})

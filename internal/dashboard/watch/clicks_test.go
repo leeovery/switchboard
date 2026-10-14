@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"math/rand/v2"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -354,10 +355,14 @@ func pickerOpened(t *testing.T, h *harness, keys string) *fakeThemes {
 // While the theme picker is open, a click on what the page under it gives
 // does nothing, as no key reaches past the picker: each of two on any target
 // left of the picker but a key's leaves the screen as it was, colours and
-// all, the picker open on the theme it shows, nothing kept, no card open,
-// and the Overview's focus where it was. On the Log, two clicks on a line,
-// which choose it and open its details as enter does, neither choose it nor
-// open them. No < or > by a period lies left of the picker.
+// all, the picker open on the theme it shows, nothing kept, no card open, no
+// page opened or closed, and the Overview's focus and what Accounts shows
+// where they were. On the Log, two clicks on a line, which choose it and
+// open its details as enter does, neither choose it nor open them; on
+// Accounts, two on any of its targets, its sub-tabs, Compare's columns, or
+// Detail's accounts and sessions, which focus, choose and select what they
+// land on, and open it the second time, do none of it. No < or > by a period
+// lies left of the picker.
 func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 	onPage := func(keys string) func(*testing.T) (*harness, *fakeThemes) {
 		return func(t *testing.T) (*harness, *fakeThemes) {
@@ -377,6 +382,12 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 		h, _ := historyHarness(t, dashboard.History, dashboard.HistoryPage{YearAsk: views.YearAsk{Account: "work"}})
 		h.start()
 		return h, pickerOpened(t, h, "")
+	}
+	onAccounts := func(shown dashboard.AccountsShown) func(*testing.T) (*harness, *fakeThemes) {
+		return func(t *testing.T) (*harness, *fakeThemes) {
+			h := accountsHarness(t, shown)
+			return h, pickerOpened(t, h, "")
+		}
 	}
 	onTheLogsLines := func(t *testing.T) (*harness, *fakeThemes) {
 		state := t.TempDir()
@@ -402,6 +413,36 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 		{name: "a session's row", opened: onTheOverview("s c l"), target: is(dashboard.OnSession, func(t dashboard.Target) bool { return t.Session == idD28C })},
 		{name: "a turn's row", opened: onPage(""), target: is(dashboard.OnTurn, func(t dashboard.Target) bool { return t.Turn == 2 })},
 		{name: "a request's row of the turn open", opened: onPage("enter"), target: is(dashboard.OnRequest, func(t dashboard.Target) bool { return t.Row == 1 })},
+		{
+			name:   "a sub-tab of Accounts'",
+			opened: onAccounts(dashboard.AccountsShown{}),
+			target: is(dashboard.OnSubTab, func(t dashboard.Target) bool { return t.SubTab == int(dashboard.AccountsDetail) }),
+		},
+		{
+			name:   "a column of Compare's",
+			opened: onAccounts(dashboard.AccountsShown{}),
+			target: is(dashboard.OnColumn, func(t dashboard.Target) bool { return t.Account == "personal" }),
+		},
+		{
+			name:   "Compare's focused column",
+			opened: onAccounts(dashboard.AccountsShown{Focused: true, Focus: "personal"}),
+			target: is(dashboard.OnColumn, func(t dashboard.Target) bool { return t.Account == "personal" }),
+		},
+		{
+			name:   "an account of Detail's list",
+			opened: onAccounts(dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"}),
+			target: is(dashboard.OnAccount, func(t dashboard.Target) bool { return t.Account == "personal" }),
+		},
+		{
+			name:   "a session of Detail's SESSIONS",
+			opened: onAccounts(dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"}),
+			target: is(dashboard.OnSession, func(t dashboard.Target) bool { return t.Session == id7F3A }),
+		},
+		{
+			name:   "Detail's selected session",
+			opened: onAccounts(dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work", InSessions: true, Selected: id9E21}),
+			target: is(dashboard.OnSession, func(t dashboard.Target) bool { return t.Session == id9E21 }),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -411,12 +452,16 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 				t.Fatalf("the page gives no such target left of the picker among %+v", h.targets())
 			}
 			target, screen, cursor, focus := h.targets()[i], h.model.View().Content, h.model.picker.cursor, h.model.focus
+			page, accounts := h.pageOpen(), h.model.accounts.shown
 
 			for click := range 2 {
 				h.click(target.X, target.Y)
 				if !h.model.picker.open || h.model.picker.cursor != cursor || len(themes.kept) > 0 || h.model.open != nothingOpen || h.model.focus != focus {
 					t.Fatalf("click %d on %+v left the picker open %t, its cursor on %d, kept %v, card %d open, the focus on %q; want the picker open on %d, nothing kept, no card, the focus on %q",
 						click+1, target, h.model.picker.open, h.model.picker.cursor, themes.kept, h.model.open, h.model.focus, cursor, focus)
+				}
+				if h.pageOpen() != page || !reflect.DeepEqual(h.model.accounts.shown, accounts) {
+					t.Fatalf("click %d on %+v left %q's page open, Accounts showing %+v; want %q's, Accounts showing %+v", click+1, target, h.pageOpen(), h.model.accounts.shown, page, accounts)
 				}
 				if got := h.model.View().Content; got != screen {
 					t.Fatalf("click %d on %+v changed the screen from\n%s\nto\n%s", click+1, target, ansi.Strip(screen), ansi.Strip(got))

@@ -23,9 +23,6 @@ const referenceDir = "../../testdata/vhs/reference"
 // adds its fixtures, named after the frames they draw, and takes their stems
 // from here; by stage 14 none is owed.
 var owed = []string{
-	"accounts-compare-160", "accounts-compare-bad-hour-160", "accounts-compare-month-160", "accounts-compare-ten-160",
-	"accounts-detail-all-160", "accounts-detail-limit-160", "accounts-detail-one-160", "accounts-detail-sessions-160",
-	"accounts-detail-work-160", "accounts-phone-compare-52", "accounts-phone-detail-52",
 	"runway-5-hour-160", "runway-phone-52", "runway-stepped-back-160", "runway-ten-accounts-160", "runway-week-160",
 	"sessions-list-160", "sessions-list-phone-52", "sessions-moved-160", "sessions-one-account-160", "sessions-phone-52",
 	"sessions-pinned-160", "sessions-refused-160", "sessions-switchboard-160", "sessions-ten-accounts-160",
@@ -149,10 +146,57 @@ func currentMonth(grid, september, byMonth, name int) []passing {
 	}
 }
 
-// unrouted passes over the ▲ after side, at column 6 of row n, where new
-// sessions go, which the frames mark, where History shows no routing.
-func unrouted(n int) passing {
-	return cellsOf(n, 6, 6, "▲")
+// unrouted passes over the ▲ after side, at column c of row n, where new
+// sessions go, which the frames mark, where Accounts and History show no
+// routing.
+func unrouted(n, c int) passing {
+	return cellsOf(n, c, c, "▲")
+}
+
+// inColumns passes over row n's values in Compare's columns of a frame 160
+// wide, colw cells each from column 27, all accounts' last, as reads gives
+// them in turn: each value's column but the blank before the next, and all
+// accounts' to the frame's edge, as its values may run there, reading as
+// given; "" passes over none of a column.
+func inColumns(n, colw int, reads ...string) []passing {
+	all := (160-26)/colw - 1
+	var p []passing
+	for i, r := range reads {
+		if r == "" {
+			continue
+		}
+		from, to := 27+i*colw, 25+(i+1)*colw
+		if i == all {
+			to = 160
+		}
+		p = append(p, cellsOf(n, from, to, r))
+	}
+	return p
+}
+
+// haikuInCompare passes over Haiku 4.5's cells in Compare's BY MODEL, which
+// the frames draw in its own shade, where the version table holds Haiku 5.5,
+// so the dashboard mixes 4.5's toward the canvas, as an older version's: its
+// dot, row 18, column 3, and its cells of the bars on row 12 at the columns
+// given.
+func haikuInCompare(columns ...int) []passing {
+	p := []passing{cellsOf(18, 3, 3, "●")}
+	for _, c := range columns {
+		p = append(p, blankCells(12, c, c))
+	}
+	return p
+}
+
+// byDays passes over the days of Detail's BY DAY on row n, each cells wide,
+// from each of the columns given, which the frame shades from its
+// generator's days, and marks ▪ where it has them hit a 5-hour limit, where
+// the world's records shade and mark them otherwise: blank or ▪ in the frame.
+func byDays(n, cells int, firsts ...int) []passing {
+	p := make([]passing, len(firsts))
+	for i, c := range firsts {
+		p[i] = passing{row: n, from: c, to: c + cells - 1, glyphs: "▪", orBlank: true}
+	}
+	return p
 }
 
 // squares passes over the Year's squares, ■, on row n at the columns given,
@@ -720,17 +764,96 @@ var passedOver = map[string][]passing{
 	),
 	"overview-phone-52": slices.Concat([]passing{cellsOf(25, 38, 49, sidesWeekShort)}, onAPhone(46, "0/min", "2/min", "15/min")),
 
-	"accounts-compare-160":          {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-compare-bad-hour-160": {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-compare-month-160":    {period(152, "30 days"), wholeRow(37, accountsKeys)},
-	"accounts-compare-ten-160":      {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-detail-all-160":       {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-detail-limit-160":     {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-detail-one-160":       {period(150, "this week"), cellsOf(28, 20, 20, "●"), wholeRow(37, accountsKeys)},
-	"accounts-detail-sessions-160":  {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-detail-work-160":      {period(150, "this week"), wholeRow(37, accountsKeys)},
-	"accounts-phone-compare-52":     {phonePeriod("this week")},
-	"accounts-phone-detail-52":      {phonePeriod("this week")},
+	"accounts-compare-160": slices.Concat(
+		[]passing{period(150, "this week"), unrouted(7, 100)}, haikuInCompare(83, 149),
+		inColumns(13, 33, "", "", "", "57%"), inColumns(15, 33, "", "", "", "33%"), inColumns(18, 33, "", "", "", "3%"),
+		inColumns(22, 33, "", "6", "11", "19"), inColumns(23, 33, "3 out", "1 out", "", "4 moves"),
+		inColumns(26, 33, "", "none", "", "3"), inColumns(27, 33, "", "—", "", "4h 02m"),
+		[]passing{wholeRow(37, accountsKeys)},
+	),
+	"accounts-compare-bad-hour-160": slices.Concat(
+		[]passing{period(150, "this week"), unrouted(7, 100), cellsOf(10, 47, 49, "34%"), blankCells(12, 27, 160)}, haikuInCompare(),
+		inColumns(13, 33, "55%", "29%", "82%", "57%"), inColumns(14, 33, "7%", "", "", "2%"),
+		inColumns(15, 33, "28%", "60%", "16%", "33%"), inColumns(16, 33, "3%", "7%", "", "3%"),
+		inColumns(17, 33, "5%"), inColumns(18, 33, "2%", "4%"),
+		inColumns(21, 33, "1,204", "2,330", "1,876", "5,410"), inColumns(22, 33, "9", "6", "11", "19"),
+		inColumns(23, 33, "3 out", "", "4 in", "4 moves"),
+		inColumns(26, 33, "", "5-hour ×1", "", "3"), inColumns(27, 33, "3h 10m", "—", "", "4h 02m"),
+		inColumns(33, 33, "$184", "$212", "$239", "$635"), inColumns(34, 33, "4.0×", "4.6×", "5.2×", "4.6×"),
+		[]passing{wholeRow(37, accountsKeys)},
+	),
+	"accounts-compare-month-160": slices.Concat(
+		[]passing{period(152, "30 days"), unrouted(7, 100), blankCells(12, 126, 160)}, haikuInCompare(83),
+		inColumns(13, 33, "", "", "", "54%"), inColumns(15, 33, "", "", "", "35%"), inColumns(17, 33, "", "", "", "2%"),
+		inColumns(21, 33, "5,180", "9,930", "8,050", "23,160"), inColumns(22, 33, "38", "27", "41", "71"),
+		inColumns(23, 33, "12 out", "5 out", "14 in"),
+		inColumns(26, 33, "5-hour ×9", "5-hour ×3", "5-hour ×4", "16"), inColumns(27, 33, "13h 40m", "2h 05m", "3h 10m", "18h 55m"),
+		inColumns(33, 33, "$790", "$905", "$1,020", "$2,715"), inColumns(34, 33, "4.0×", "4.5×", "5.1×", "4.5×"),
+		[]passing{wholeRow(37, accountsKeys)},
+	),
+	"accounts-compare-ten-160": slices.Concat(
+		[]passing{period(150, "this week"), unrouted(7, 72), cellsOf(8, 84, 93, "● open")}, haikuInCompare(60, 98, 117),
+		inColumns(13, 19, "", "", "", "", "", "", "53%"), inColumns(14, 19, "", "", "", "", "", "", "4%"),
+		inColumns(16, 19, "", "", "", "", "", "", "4%"), inColumns(17, 19, "", "", "", "", "", "", "1%"),
+		inColumns(21, 19, "", "", "", "", "", "", "12,598"), inColumns(22, 19, "", "6", "11", "", "", "", "51"),
+		inColumns(23, 19, "3 out", "1 out", "", "", "", "1 out", "10 moves"),
+		inColumns(26, 19, "", "none"), inColumns(27, 19, "", "—", "", "", "", "35m", "9h 57m"),
+		inColumns(28, 19, "", "", "", "22%", "", "30%"),
+		inColumns(33, 19, "", "", "", "", "", "", "$1,342"), inColumns(34, 19, "", "", "", "", "", "", "3.4×"),
+		[]passing{wholeRow(37, accountsKeys)},
+	),
+	"accounts-detail-all-160": slices.Concat(
+		[]passing{
+			period(150, "this week"), wordsAt(11, 119, "3"), unrouted(13, 9), blankCells(16, 136, 140),
+			wordsAt(17, 48, "57%"), wordsAt(17, 79, "33%"), cellsOf(17, 115, 115, "●"), wordsAt(17, 127, "3%"),
+		},
+		byDays(21, 2, 43, 45, 57, 67, 73, 77, 91, 101, 119, 121, 129, 131, 133),
+		[]passing{
+			cellsOf(24, 97, 97, "▋"), cellsOf(24, 132, 132, "▎"), wordsAt(26, 50, "30%"), blankCells(30, 66, 75),
+			wholeRow(37, accountsKeys),
+		},
+	),
+	"accounts-detail-work-160": slices.Concat(
+		[]passing{period(150, "this week"), unrouted(13, 9), blankCells(16, 139, 140), cellsOf(17, 115, 115, "●")},
+		byDays(21, 2, 37, 47, 49, 55, 57, 61, 63, 67, 83, 85, 99, 101, 111, 119, 121, 129, 131, 133),
+		[]passing{blankCells(29, 63, 72), cellsOf(30, 37, 160, "12:10"), wholeRow(37, accountsKeys)},
+	),
+	"accounts-detail-limit-160": slices.Concat(
+		[]passing{
+			period(150, "this week"), cellsOf(10, 60, 64, "┃"), wordsAt(10, 119, "2,330"), wordsAt(11, 119, "5-hour ×1"),
+			unrouted(13, 9), wordsAt(13, 119, "$212  4.6×"), blankCells(16, 37, 140), cellsOf(17, 37, 160, "● Opus 5.5 29%"),
+		},
+		byDays(21, 2, 67, 73, 101, 119, 121, 131, 133),
+		[]passing{cellsOf(30, 37, 160, "11:30"), wholeRow(37, accountsKeys)},
+	),
+	"accounts-detail-sessions-160": slices.Concat(
+		[]passing{
+			period(150, "this week"), cellsOf(7, 32, 66, "▲"), cellsOf(12, 81, 102, sidesWeek), unrouted(13, 9),
+			blankCells(16, 140, 140), cellsOf(17, 87, 87, "●"),
+		},
+		byDays(21, 2, 37, 41, 49, 59, 63, 67, 85, 99, 101, 103, 117, 119, 121, 127),
+		[]passing{wholeRow(37, accountsKeys)},
+	),
+	"accounts-detail-one-160": slices.Concat(
+		[]passing{
+			cellsOf(5, 21, 25, "[ ]"), period(150, "this week"), cellsOf(7, 8, 8, "▲"), evenPace(10, 35), wordsAt(10, 111, "1,204"), evenPace(12, 36),
+			wordsAt(13, 111, "$184  4.0×"), evenPace(14, 36), blankCells(16, 13, 143), cellsOf(17, 13, 143, "● Opus 5.5 60%"),
+		},
+		byDays(21, 3, 13, 28, 31, 35, 38, 44, 47, 53, 72, 75, 91, 94, 104, 116, 119, 126, 129, 132),
+		[]passing{cellsOf(28, 20, 20, "●"), blankCells(29, 39, 49), wholeRow(37, accountsKeys)},
+	),
+	"accounts-phone-compare-52": {
+		phonePeriod("this week"), unrouted(15, 7), blankCells(23, 33, 33), unrouted(25, 7), blankCells(27, 32, 33), wordsAt(27, 47, "57%"),
+		cellsOf(30, 36, 47, "3 out"), cellsOf(31, 24, 25, "6"), cellsOf(31, 36, 40, "1 out"), unrouted(32, 7), cellsOf(32, 24, 25, "11"),
+		cellsOf(33, 24, 25, "19"), cellsOf(33, 36, 42, "4 moves"),
+		cellsOf(37, 14, 18, "none"), cellsOf(37, 27, 32, "—"), unrouted(38, 7), wordsAt(39, 14, "3"), cellsOf(39, 27, 32, "4h 02m"),
+		unrouted(44, 7),
+	},
+	"accounts-phone-detail-52": slices.Concat(
+		[]passing{phonePeriod("this week"), blankCells(24, 50, 50), cellsOf(26, 32, 32, "●")},
+		byDays(28, 2, 13, 15, 19, 21, 28, 34, 36, 38, 43, 45, 47),
+		[]passing{blankCells(37, 27, 36), wholeRow(38, "12:10")},
+	),
 
 	"history-year-160": slices.Concat(
 		[]passing{period(145, "last 12 months")}, currentMonth(7, 111, 31, 3), yearSquares,
@@ -771,14 +894,14 @@ var passedOver = map[string][]passing{
 	),
 	"history-weeks-160": {
 		period(148, "eight weeks"),
-		cellsOf(15, 137, 137, "6"), cellsOf(16, 138, 138, "5"), unrouted(17), cellsOf(17, 139, 139, "3"),
+		cellsOf(15, 137, 137, "6"), cellsOf(16, 138, 138, "5"), unrouted(17, 6), cellsOf(17, 139, 139, "3"),
 		cellsOf(35, 57, 58, "59"),
 		historyKeys(92),
 	},
 	"history-weeks-columns-160": {
 		period(148, "eight weeks"),
 		drawnIn(8, 31, 35, "█"), cellsOf(8, 121, 142, ", each time work alone"),
-		cellsOf(15, 114, 114, "6"), drawnIn(20, 71, 75, "█"), cellsOf(21, 114, 114, "5"), unrouted(25), cellsOf(27, 114, 114, "3"),
+		cellsOf(15, 114, 114, "6"), drawnIn(20, 71, 75, "█"), cellsOf(21, 114, 114, "5"), unrouted(25, 6), cellsOf(27, 114, 114, "3"),
 		cellsOf(35, 48, 125, "100% it hit its limit"),
 		historyKeys(94),
 	},
@@ -788,7 +911,7 @@ var passedOver = map[string][]passing{
 		cellsOf(8, 150, 150, "6"),
 		cellsOf(9, 36, 42, "5% used"),
 		cellsOf(13, 42, 42, "4"), cellsOf(13, 92, 92, "4"),
-		unrouted(17),
+		unrouted(17, 6),
 		cellsOf(19, 93, 99, "5% used"),
 		cellsOf(22, 96, 114, "80% left at a reset"),
 		historyKeys(92),
@@ -796,12 +919,12 @@ var passedOver = map[string][]passing{
 	"history-days-160": slices.Concat(
 		[]passing{period(148, "eight weeks"), cellsOf(11, 138, 139, "59"), cellsOf(13, 138, 139, "37")},
 		daysStrips,
-		[]passing{cellsOf(24, 140, 140, "1"), unrouted(26), historyKeys(75)},
+		[]passing{cellsOf(24, 140, 140, "1"), unrouted(26, 6), historyKeys(75)},
 	),
 	"history-days-ten-160": slices.Concat(
 		[]passing{period(148, "eight weeks"), cellsOf(15, 139, 139, "1")},
 		daysTenStrips,
-		[]passing{cellsOf(24, 140, 140, "1"), unrouted(26), historyKeys(75)},
+		[]passing{cellsOf(24, 140, 140, "1"), unrouted(26, 6), historyKeys(75)},
 	),
 	"history-tokens-160": slices.Concat(
 		[]passing{period(152, "by week")}, byAccountFigures, []passing{cellsOf(33, 3, 41, "3 more weeks below"), historyKeys(77)},
@@ -1023,7 +1146,6 @@ func heldTabbed(tabs int, within area) partial {
 // fixtures draw them whole: the chrome of a frame of each tab but the
 // Overview's, and of Sessions on a phone.
 var holds = map[string]partial{
-	"accounts-compare-160":     heldTabbed(1, chrome),
 	"sessions-switchboard-160": heldTabbed(3, chrome),
 	"runway-5-hour-160":        heldTabbed(4, chrome),
 	"sessions-phone-52":        heldTabbed(3, phoneChrome),

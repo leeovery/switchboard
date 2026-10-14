@@ -16,10 +16,11 @@ type helping struct {
 
 // openHelp opens the page's help over it, as ? does, from its top, listing
 // the keys of the page it stands still over, so a document that lands while
-// it's open moves nothing in it.
+// it's open moves nothing in it: as its keys act at the moment ? was taken
+// in.
 func (m Model) openHelp() Model {
 	m = m.cover(helpOpen)
-	m.help = helping{over: m.keys()}
+	m.help = helping{over: m.keys(m.running(m.now()))}
 	return m
 }
 

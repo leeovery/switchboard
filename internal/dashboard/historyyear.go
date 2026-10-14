@@ -695,10 +695,7 @@ func monthAgainst(m views.MonthRow) line {
 // monthLimits says how many limits were hit in a month, in
 // state.destructive: a faint 0 for none.
 func monthLimits(m views.MonthRow) line {
-	n := 0
-	for _, hit := range m.Limits {
-		n += hit
-	}
+	n := m.LimitCount()
 	if n == 0 {
 		return line{{"0", faintInk}}
 	}
@@ -764,26 +761,44 @@ func barCells(w, largest ledger.Picodollars, most int) int {
 }
 
 // familySplit splits cells cells among the families by their worth, in their
-// order, each family's run ending where its share, and those before it, of
-// the whole rounds to, so the runs fill the cells: a family worth too little
-// for a cell has none.
+// order, as splitCells splits them: a family worth too little for a cell has
+// none.
 func familySplit(families []views.FamilyWorth, cells int) line {
-	var whole ledger.Picodollars
-	for _, f := range families {
-		whole += amountOf(f.Worth)
+	amounts := make([]ledger.Picodollars, len(families))
+	for i, f := range families {
+		amounts[i] = amountOf(f.Worth)
 	}
 	var bar line
-	var sum ledger.Picodollars
-	end := 0
-	for _, f := range families {
-		sum += amountOf(f.Worth)
-		next := int(math.RoundToEven(float64(cells) * float64(sum) / float64(whole)))
-		if next > end {
-			bar = append(bar, span{strings.Repeat("▅", next-end), familyHue(f.Family).ink()})
+	for i, n := range splitCells(amounts, cells) {
+		if n > 0 {
+			bar = append(bar, span{strings.Repeat("▅", n), familyHue(families[i].Family).ink()})
 		}
-		end = next
 	}
 	return bar
+}
+
+// splitCells splits cells cells among parts worth the amounts given, in
+// their order, each part's run ending where its share, and those before it,
+// of the whole rounds to, a half to the even one, so the runs fill the cells:
+// a part worth too little for a cell has none, and none has any where the
+// whole is worth nothing.
+func splitCells(amounts []ledger.Picodollars, cells int) []int {
+	var whole ledger.Picodollars
+	for _, a := range amounts {
+		whole += a
+	}
+	runs := make([]int, len(amounts))
+	if whole <= 0 {
+		return runs
+	}
+	var sum ledger.Picodollars
+	end := 0
+	for i, a := range amounts {
+		sum += a
+		next := int(math.RoundToEven(float64(cells) * float64(sum) / float64(whole)))
+		runs[i], end = next-end, next
+	}
+	return runs
 }
 
 // largestWorth is the most any of the months was worth.

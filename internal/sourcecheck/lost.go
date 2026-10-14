@@ -122,9 +122,10 @@ func (u unseen) function(name string, method bool) {
 
 // unseenIn are the names by which what's lost in the package pkg, in dir,
 // may break the rule: the fields of each of Fields, through any field
-// embedded in it, that pkg can read; each function of Used and of Calls
-// whose ban holds in dir; and each function and method of Owners that takes
-// one of Fields, that pkg can use, but those allowed.
+// embedded in it, that pkg can read; each function and field of Used, a
+// field selected as a method is, and each function of Calls, whose ban holds
+// in dir; and each function and method of Owners that takes one of Fields,
+// that pkg can use, but those allowed.
 func (r Rule) unseenIn(pkg *types.Package, dir string) unseen {
 	u := unseen{selected: make(map[string]bool), bare: make(map[string]bool)}
 	for name, ban := range r.Used {

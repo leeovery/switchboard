@@ -261,14 +261,19 @@ func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
 	// posted of warnings at each moment of its document, its windows read
 	// unused before.
 	roomAgain := map[string][]string{
-		"a week at its reserve when built, then reset": {"work · work has room again"},
-		"a limit holding, then lifted":                 {"work · work has room again"},
+		"a week at its reserve when built, then reset":             {"work · work has room again"},
+		"a limit holding, then lifted":                             {"work · work has room again"},
+		"a week at its limit, reset since read, before the reread": {"work · work has room again"},
 	}
 	warned := map[string][]string{
 		"a week at its reserve when built":                           {"work · work: Week at 92%"},
 		"a week at its reserve when built, the global pin naming it": {"work · work: Week at 92%"},
-		"a limit holding":                      {"work · work: 5-hour at 100%"},
-		"probed, of one account, with no room": {"work · work: Week at 100%"},
+		"a limit holding":                                                     {"work · work: 5-hour at 100%"},
+		"probed, of one account, with no room":                                {"work · work: Week at 100%"},
+		"probed, one of several at its limit":                                 {"work · work: 5-hour at 100%"},
+		"every account at its cap, none with room":                            {"work · work: Week at 92%", "side · side: 5-hour at 95%"},
+		"a model's own window at its limit, its account open to the rest":     {"work · work: Fable week at 100%"},
+		"the global pin set from the command line to an account at its limit": {"work · work: 5-hour at 100%"},
 	}
 	for _, hm := range statustest.HardMoments(policy) {
 		t.Run(hm.Name, func(t *testing.T) {

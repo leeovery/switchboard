@@ -91,14 +91,32 @@ func OutOf(n, of int) status.Words {
 // LimitHit says how many of an account's weeks it hit its limit in: "limit
 // hit 3 of 7 weeks", its counts figures.
 func LimitHit(limits, weeks int) status.Words {
-	return slices.Concat(status.Words{status.Plain("limit hit "), status.Figure(prose.Grouped(limits)), status.Plain(" of ")},
+	return limitHit(limits, " of ", weeks)
+}
+
+// LimitHitOfTheLast says how many of the last weeks an account hit its limit
+// in, as LimitHit does: "limit hit 3 of the last 7 weeks".
+func LimitHitOfTheLast(limits, weeks int) status.Words {
+	return limitHit(limits, " of the last ", weeks)
+}
+
+// limitHit says how many of the weeks judged an account hit its limit in,
+// of as given between the two counts.
+func limitHit(limits int, of string, weeks int) status.Words {
+	return slices.Concat(status.Words{status.Plain("limit hit "), status.Figure(prose.Grouped(limits)), status.Plain(of)},
 		CountedWords(weeks, "week"))
 }
 
 // LeftOnAverage says what an account's weeks left at a reset, on average, as
-// a whole percentage, a figure: "9% left at a reset, on average".
+// LeftAtAReset says it: "9% left at a reset, on average".
 func LeftOnAverage(share float64) status.Words {
-	return status.Words{status.Figure(prose.Percent(share)), status.Plain(" left at a reset, on average")}
+	return append(LeftAtAReset(share), status.Plain(", on average"))
+}
+
+// LeftAtAReset says what an account's weeks left at a reset, as a whole
+// percentage, a figure: "9% left at a reset".
+func LeftAtAReset(share float64) status.Words {
+	return status.Words{status.Figure(prose.Percent(share)), status.Plain(" left at a reset")}
 }
 
 // ToDrop says the account named is the one to drop: "side is the one to

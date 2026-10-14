@@ -30,6 +30,18 @@ const (
 	// NumberStates are how many of the pool's accounts stand as the words
 	// they're counted in say, as in "2 open".
 	NumberStates
+	// NumberAccountStates are how many of every account stand as the words
+	// they're counted in say, as all accounts' head counts them on Accounts:
+	// a figure of its own, as all accounts is never the pool.
+	NumberAccountStates
+	// NumberAllUsed is how much of a window every account has used, as all
+	// accounts' percentage on Accounts says: a figure of its own, as all
+	// accounts is never the pool.
+	NumberAllUsed
+	// NumberAllRoom is the room every account has left in a window, to each
+	// one's limit, as all accounts' words on Detail say it, as in "1.2": a
+	// figure of its own, as all accounts is never the pool.
+	NumberAllRoom
 	// NumberRouted are the sessions the router has routed in the last hour,
 	// as the status line counts them.
 	NumberRouted
@@ -55,6 +67,12 @@ const (
 	// NumberMoved are the sessions an event of the Log's Events moved, as
 	// its words count them, which Of names by the event's key.
 	NumberMoved
+	// NumberPeriod is a figure of the period Accounts counts over, a look
+	// reading today's days: of a row of Compare's groups or THIS WEEK, which
+	// Of names as its label does, as "requests", every figure of the row one
+	// number; or a version's share of use, after its name, as "Opus 5.5
+	// share". Its Account is the account's id, "" for all accounts'.
+	NumberPeriod
 	// NumberPoints are the points of an account's window a session took, on
 	// its page, as in "≈ 41", which Of names by the window's key.
 	NumberPoints

@@ -325,12 +325,12 @@ func (a Account) label(key string) string {
 }
 
 // pressed is the state of account a under pressure at now: while new sessions
-// go to another account, as next says, that they go elsewhere; else when its
-// pressure window runs out, as runOutOf has it, as in "runs out ~16:05 at this
-// pace", or, its reserve holding it back there, "at its reserve ~18:21".
+// go to another account, as elsewhere says, that they go elsewhere; else when
+// its pressure window runs out, as runOutOf has it, as in "runs out ~16:05 at
+// this pace", or, its reserve holding it back there, "at its reserve ~18:21".
 func (d Document) pressed(a Account, now time.Time) State {
 	s := State{Condition: Pressed, Says: "under pressure"}
-	if next := d.next(); next != "" && next != a.ID {
+	if d.elsewhere(a.ID) {
 		s.Then = "new sessions go elsewhere"
 		return s
 	}

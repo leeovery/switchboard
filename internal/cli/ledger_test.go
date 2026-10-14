@@ -641,9 +641,10 @@ const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","reque
 	`{"model":"claude-haiku-4-5","on":["work"],"input":8,"output":1,"cache_write":0,"cache_read":0,"total":9,"worth":0.000013},` +
 	`{"model":"claude-opus-9","on":["work"],"input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]}],` +
 	// Every account's counts the requests no account answered, and session B
-	// once, though it ran on side and on none.
+	// once, though it ran on side and on none. Work's 5-hour window ran out on
+	// the 6th, in the run its last reset ended.
 	`"totals":{"accounts":[{"account":"work","requests":3,"sessions":2,"moved_on":0,"moved_off":1,"limits":{"5h":1},"minutes_at_cap":74,"minutes_at_limit":56,` +
-	`"left_at_reset":{"5h":0},"worth":0.156765,"unpriced":["claude-opus-9"],"by_model":[{"model":"claude-opus-5-5","share":0.9999170733263164,"worth":0.156752},` +
+	`"left_at_reset":{"5h":0},"ran_out":{"5h":"2026-10-06"},"worth":0.156765,"unpriced":["claude-opus-9"],"by_model":[{"model":"claude-opus-5-5","share":0.9999170733263164,"worth":0.156752},` +
 	`{"model":"claude-haiku-4-5","share":0.00008292667368353906,"worth":0.000013},{"model":"claude-opus-9","unpriced":["claude-opus-9"]}],` +
 	`"busiest_day":"2026-10-07","longest_run":1},` +
 	`{"account":"side","requests":2,"sessions":1,"moved_on":1,"moved_off":0,"minutes_at_cap":0,"minutes_at_limit":0,"left_at_reset":{"5h":0.9},` +

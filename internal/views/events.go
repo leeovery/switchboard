@@ -315,14 +315,10 @@ func till(until, at time.Time) string {
 	return ""
 }
 
-// pinAccounts are the global pin's accounts, joined with ", ": its first,
-// as Account gives it, where it lists none.
+// pinAccounts are the global pin's accounts, as pinnedNames has them, joined
+// with ", ".
 func pinAccounts(e status.Event) status.Words {
-	names := cleaned(e.Accounts)
-	if len(names) == 0 {
-		return account(e.Account)
-	}
-	return joined(names, ", ")
+	return joined(pinnedNames(e), ", ")
 }
 
 // joined are the accounts named, run together as a list whose last is

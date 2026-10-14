@@ -119,12 +119,28 @@ var (
 		"status.EventWords": "views.SessionMove.Said",
 		// A fold's length on a story's axis, in whole hours, as "15h".
 		"prose.Hours": "views.Story.Columns",
+		// What an account's week had left as it last reset, and the day it ran
+		// out, as Accounts says them, whatever its period.
+		"views.AccountTotals.LeftAtReset": "views.AccountsRow.WeekLeft",
+		"views.AccountTotals.RanOut":      "views.AccountsRow.RanOut",
+		// How many limits were reached, every window's together, and each
+		// window's, as Accounts, history and the Year count and say them.
+		"views.AccountTotals.Limits": "views.AccountTotals' LimitCount and LimitsHit",
+		"views.Month.Limits":         "views.Month.LimitCount",
+		// The time spent at a cap or a limit, together, and whether it's
+		// known.
+		"views.AccountTotals.MinutesAtCap":   "views.AccountTotals.AtCapOrLimit",
+		"views.AccountTotals.MinutesAtLimit": "views.AccountTotals.AtCapOrLimit",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.
 	absorbedIn = map[string][]string{
 		// The verbs keep 8 characters of an id, as logs and status's text do.
 		"status.ShortID": {"internal/dashboard", "internal/dashboard/watch"},
+		// history's text and JSON give every window's, over the days asked
+		// for.
+		"views.AccountTotals.LeftAtReset": {"internal/dashboard", "internal/dashboard/watch"},
+		"views.AccountTotals.RanOut":      {"internal/dashboard", "internal/dashboard/watch"},
 	}
 	// builtInTheWatch are what the watch builds once each change, as each
 	// reads the ledger or the router's events, or places every line, for the
@@ -155,7 +171,7 @@ const (
 
 // absorbedSays says how using what's absorbed breaks the rule, and its owner.
 func absorbedSays(name, owner string) string {
-	return name + " is absorbed by " + owner + "; call " + owner + ", the rule's one owner"
+	return name + " is absorbed by " + owner + "; use " + owner + ", the rule's one owner"
 }
 
 // builtSays says how using what the watch builds breaks the rule.

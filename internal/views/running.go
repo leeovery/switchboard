@@ -59,6 +59,19 @@ func RunningOf(m status.Moment, sessions []status.Session, s Stream) []Running {
 	return running
 }
 
+// RunningOn are the sessions of running, as RunningOf lists them, running on
+// the account with the given id, in their order, the one seen last first:
+// Detail's SESSIONS, the rows RunningCounts counts of it.
+func RunningOn(running []Running, id string) []Running {
+	var on []Running
+	for _, r := range running {
+		if r.Account == id {
+			on = append(on, r)
+		}
+	}
+	return on
+}
+
 // RunningCounts counts the sessions running on each account, by the
 // account's id, as RunningOf lists them in running: a row each; none for an
 // account none runs on. They're the counts ROUTING and the routing card give,

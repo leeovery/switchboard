@@ -37,12 +37,17 @@ var heldFromEvery = []status.RoutingKind{status.RoutingTokenless, status.Routing
 // checkROUTINGAgrees checks ROUTING's table t against the moment m: each
 // account's state is the moment's, in red where it can take no request for
 // want of a token, a limit, a refused token or a first read; new sessions
-// said to come to the account ▲ marks alone; and its pin, its fade and its
-// place in the pool as the moment has them.
+// said to come to the account ▲ marks alone; its pin, its fade and its place
+// in the pool as the moment has them; and the pool's states counted, its
+// accounts' alone, as status.CountStates counts them.
 func checkROUTINGAgrees(t *testing.T, m status.Moment, table routingTable) {
 	t.Helper()
 	if len(table.accounts) != len(m.Accounts) {
 		t.Fatalf("ROUTING has %d accounts, want %d", len(table.accounts), len(m.Accounts))
+	}
+	pooled := slices.DeleteFunc(slices.Clone(m.Accounts), func(a status.AccountNow) bool { return !a.InPool })
+	if want := status.CountStates(pooled); !slices.Equal(table.states, want) {
+		t.Errorf("ROUTING counts the pool's states as %+v, want its accounts', %+v", table.states, want)
 	}
 	for i, a := range m.Accounts {
 		r := table.accounts[i]

@@ -82,6 +82,10 @@ type Routing struct {
 	Says    string
 	Clauses []string
 	Short   []string
+	// Back is when room returns to an account held back, where its clauses
+	// say so, the first of them, as in "back 15:54": zero where they don't,
+	// as where it isn't known, or the global pin spends its cap.
+	Back time.Time
 }
 
 // String is the words in full, a dot between each part, as in "at its cap ·
@@ -145,7 +149,7 @@ func (s windowStates) heldRouting() (Routing, bool) {
 	a, now, held, limited := s.account, s.now, s.stood.held, s.stood.limited
 	switch {
 	case limited && held.Every:
-		return Routing{Kind: RoutingLimited, Says: "limit reached", Clauses: backAt(now, held.Until), Short: shortBack("limit reached", now, held.Until)}, true
+		return Routing{Kind: RoutingLimited, Says: "limit reached", Clauses: backAt(now, held.Until), Short: shortBack("limit reached", now, held.Until), Back: held.Until}, true
 	case s.stood.refused:
 		answer := a.Refused.Answer()
 		return Routing{Kind: RoutingRefused, Says: answer, Clauses: []string{"its token needs renewing"}, Short: []string{answer}}, true
@@ -155,7 +159,7 @@ func (s windowStates) heldRouting() (Routing, bool) {
 		return s.cappedRouting()
 	case limited:
 		says := Short(a.label(held.Windows[0])) + " limit"
-		return Routing{Kind: RoutingModelLimited, Says: says, Clauses: append(backAt(now, held.Until), stillComes), Short: []string{says}}, true
+		return Routing{Kind: RoutingModelLimited, Says: says, Clauses: append(backAt(now, held.Until), stillComes), Short: []string{says}, Back: held.Until}, true
 	}
 	short := RefusalAnswer(a.Refused.Status, "")
 	return Routing{Kind: RoutingModelRefused, Says: a.Refused.Answer(), Clauses: []string{stillComes}, Short: []string{short}}, true
@@ -165,11 +169,12 @@ func (s windowStates) heldRouting() (Routing, bool) {
 // which windows every model shares, reporting false while no window of it
 // has reached its cap, as reachedReserve judges: at it in a window every model
 // shares, which holds it back from every request, as in "at its cap · back
-// 17:10 · new sessions go elsewhere", back as the last of those resets; else
-// in a model's own, as Fable's week, which holds back that model's requests
-// alone, as in "Fable wk at its cap · back Mon 21:00 · other models still
-// come here", of its own kind, pinned or not. The global pin naming it spends
-// its cap, so new sessions still come here.
+// 17:10 · new sessions go elsewhere", back as the last of those resets, and
+// saying new sessions go elsewhere only where they go to another account, as
+// elsewhere says; else in a model's own, as Fable's week, which holds back
+// that model's requests alone, as in "Fable wk at its cap · back Mon 21:00 ·
+// other models still come here", of its own kind, pinned or not. The global
+// pin naming it spends its cap, so new sessions still come here.
 func (s windowStates) cappedRouting() (Routing, bool) {
 	a, now, policy := s.account, s.now, s.policy
 	keys := slices.SortedStableFunc(slices.Values(s.reached), func(x, y string) int { return sharedFirst(policy, x, y) })
@@ -177,9 +182,9 @@ func (s windowStates) cappedRouting() (Routing, bool) {
 		return Routing{}, false
 	}
 	shared := policy.IsShared(keys[0])
-	kind, says, then := RoutingCapped, "at its cap", goElsewhere
+	kind, says, then := RoutingCapped, "at its cap", onlyIf(s.doc.elsewhere(a.ID), goElsewhere)
 	if !shared {
-		kind, says, then = RoutingModelCapped, Short(a.label(keys[0]))+" at its cap", stillComes
+		kind, says, then = RoutingModelCapped, Short(a.label(keys[0]))+" at its cap", []string{stillComes}
 	}
 	if s.doc.Pin.Has(a.ID) {
 		if shared {
@@ -191,7 +196,7 @@ func (s windowStates) cappedRouting() (Routing, bool) {
 	if !shared {
 		back, _ = score.LetGo(a.Windows, a.Reserve, func(key string) bool { return !policy.IsShared(key) }, now)
 	}
-	return Routing{Kind: kind, Says: says, Clauses: append(backAt(now, back), then), Short: shortBack(says, now, back)}, true
+	return Routing{Kind: kind, Says: says, Clauses: append(backAt(now, back), then...), Short: shortBack(says, now, back), Back: back}, true
 }
 
 // pressedRouting is how an account stands under pressure at now: when its
@@ -203,6 +208,14 @@ func pressedRouting(out RunOut, now time.Time) Routing {
 		r.Clauses = []string{"out ~" + prose.Dated(now, out.At)}
 	}
 	return r
+}
+
+// onlyIf is the clause given, where so, else none.
+func onlyIf(so bool, clause string) []string {
+	if !so {
+		return nil
+	}
+	return []string{clause}
 }
 
 // backAt is the clause that says when an account held back at now has room

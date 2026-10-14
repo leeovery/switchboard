@@ -121,15 +121,55 @@ func HardMoments(policy score.Policy) []HardMoment {
 		"5h": {Kind: status.WindowOpen, At: Built.Add(4 * time.Hour), Used: 0.1, Next: Built.Add(4 * time.Hour)},
 		"7d": {Kind: status.WindowOpen, At: Built.Add(5 * day), Used: 0.2, Next: Built.Add(5 * day)},
 	}}
-	limited := Router(policy, nil,
-		Routed{Account: with(readAt("work", spentIn("5h", 1, 40*time.Minute), windowIn("7d", 0.6, 3*day)), func(a *status.Account) {
-			a.Limit = status.Limit{ID: 4, Windows: []string{"5h"}, Until: Built.Add(40 * time.Minute)}
+	limitedWork := with(readAt("work", spentIn("5h", 1, 40*time.Minute), windowIn("7d", 0.6, 3*day)), func(a *status.Account) {
+		a.Limit = status.Limit{ID: 4, Windows: []string{"5h"}, Until: Built.Add(40 * time.Minute)}
+	})
+	limitedWorkEvents := []status.Event{{
+		ID: 9, At: Built.Add(-20 * time.Minute), Kind: status.EventLimit, Account: "work",
+		Windows: []string{"5h"}, Until: Built.Add(40 * time.Minute), Limit: 4,
+	}}
+	limited := Router(policy, nil, Routed{Account: limitedWork}, Routed{Account: side})
+	limited.Events = limitedWorkEvents
+	workLimited := AccountFacts{
+		Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true, LimitSince: Built.Add(-20 * time.Minute),
+		Windows: map[string]WindowFacts{
+			"5h": {
+				Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 1, Next: Built.Add(40 * time.Minute),
+				Held: true, Since: Built.Add(-20 * time.Minute),
+			},
+			"7d": {
+				Kind: status.WindowRunsOut, At: Built.Add(64 * time.Hour), Used: 0.6, Next: Built.Add(3 * day),
+				RunsOut: true, RunsOutAhead: true, Out: Built.Add(64 * time.Hour),
+			},
+		},
+	}
+	// pinnedToLimited has the global pin name work alone, set from the
+	// command line once its limit was reached, as the routing card won't.
+	pinnedToLimited := Router(policy, []string{"work"}, Routed{Account: limitedWork}, Routed{Account: side})
+	pinnedToLimited.Pin.Since, pinnedToLimited.Events = Built.Add(-5*time.Minute), limitedWorkEvents
+	// weekOut has work's week spent, the router's limit of it holding until
+	// it resets an hour after Built, its session open.
+	weekOut := Router(policy, nil,
+		Routed{Account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), spentIn("7d", 1, time.Hour)), func(a *status.Account) {
+			a.Limit = status.Limit{ID: 6, Windows: []string{"7d"}, Until: Built.Add(time.Hour)}
 		})},
 		Routed{Account: side},
 	)
-	limited.Events = []status.Event{{
-		ID: 9, At: Built.Add(-20 * time.Minute), Kind: status.EventLimit, Account: "work",
-		Windows: []string{"5h"}, Until: Built.Add(40 * time.Minute), Limit: 4,
+	weekOut.Events = []status.Event{{
+		ID: 10, At: Built.Add(-2 * day), Kind: status.EventLimit, Account: "work",
+		Windows: []string{"7d"}, Until: Built.Add(time.Hour), Limit: 6,
+	}}
+	// fableOut has work's Fable week spent, the router's limit of it holding
+	// until it resets, its windows every model shares open.
+	fableOut := Router(policy, nil,
+		Routed{Account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.4, 3*day), spentIn("7d_oi", 1, 2*day)), func(a *status.Account) {
+			a.Limit = status.Limit{ID: 7, Windows: []string{"7d_oi"}, Until: Built.Add(2 * day)}
+		})},
+		Routed{Account: side},
+	)
+	fableOut.Events = []status.Event{{
+		ID: 11, At: Built.Add(-3 * time.Hour), Kind: status.EventLimit, Account: "work",
+		Windows: []string{"7d_oi"}, Until: Built.Add(2 * day), Limit: 7,
 	}}
 	// unnamed has work held back by a limit naming no window, and changed as
 	// change changes it, beside other, the global pin naming those pinned.
@@ -159,12 +199,20 @@ func HardMoments(policy score.Policy) []HardMoment {
 			},
 		},
 	}
+	cappedWork := with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.92, time.Hour)), reserving)
+	workCapped := AccountFacts{Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Windows: map[string]WindowFacts{
+		"5h": {Kind: status.WindowOpen, At: Built.Add(3 * time.Hour), Used: 0.3, Next: Built.Add(3 * time.Hour)},
+		"7d": {Kind: status.WindowCapped, At: Built.Add(time.Hour), Used: 0.92, Next: Built.Add(time.Hour), Capped: true, CappedAsRead: true},
+	}}
 	capped := func(pinned []string) status.Document {
-		return Router(policy, pinned,
-			Routed{Account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.92, time.Hour)), reserving)},
-			Routed{Account: side},
-		)
+		return Router(policy, pinned, Routed{Account: cappedWork}, Routed{Account: side})
 	}
+	// everyCapped has side's session at its reserve beside work's week, so no
+	// account has room outside its reserve, which the router never spends.
+	everyCapped := Router(policy, nil,
+		Routed{Account: cappedWork},
+		Routed{Account: with(readAt("side", windowIn("5h", 0.95, 4*time.Hour), windowIn("7d", 0.2, 5*day)), reserving)},
+	)
 	lapsed := Router(policy, nil,
 		Routed{Account: with(readAt("work", windowIn("5h", 0.5, -time.Hour), windowIn("7d", 0.3, 3*day)), readEarlier(Built.Add(-6*time.Hour)))},
 		Routed{Account: side},
@@ -262,13 +310,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 		},
 		{
 			Name: "a week at its reserve when built", Doc: capped(nil), Now: Built.Add(10 * time.Minute),
-			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
-				"work": {Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Windows: map[string]WindowFacts{
-					"5h": {Kind: status.WindowOpen, At: Built.Add(3 * time.Hour), Used: 0.3, Next: Built.Add(3 * time.Hour)},
-					"7d": {Kind: status.WindowCapped, At: Built.Add(time.Hour), Used: 0.92, Next: Built.Add(time.Hour), Capped: true, CappedAsRead: true},
-				}},
-				"side": sideOpen,
-			}},
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{"work": workCapped, "side": sideOpen}},
 		},
 		{
 			Name: "a week at its reserve when built, then reset", Doc: capped(nil), Now: Built.Add(time.Hour + time.Minute),
@@ -288,6 +330,16 @@ func HardMoments(policy score.Policy) []HardMoment {
 					"7d": {Kind: status.WindowOpen, At: Built.Add(time.Hour), Used: 0.92, Next: Built.Add(time.Hour)},
 				}},
 				"side": {Routing: status.RoutingOpen, CanRise: true, Windows: sideOpen.Windows},
+			}},
+		},
+		{
+			Name: "every account at its cap, none with room", Doc: everyCapped, Now: Built.Add(10 * time.Minute),
+			Want: Facts{Accounts: map[string]AccountFacts{
+				"work": workCapped,
+				"side": {Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Windows: map[string]WindowFacts{
+					"5h": {Kind: status.WindowCapped, At: Built.Add(4 * time.Hour), Used: 0.95, Next: Built.Add(4 * time.Hour), Capped: true, CappedAsRead: true},
+					"7d": sideOpen.Windows["7d"],
+				}},
 			}},
 		},
 		{
@@ -313,22 +365,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 		},
 		{
 			Name: "a limit holding", Doc: limited, Now: Built.Add(10 * time.Minute),
-			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
-				"work": {
-					Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true, LimitSince: Built.Add(-20 * time.Minute),
-					Windows: map[string]WindowFacts{
-						"5h": {
-							Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 1, Next: Built.Add(40 * time.Minute),
-							Held: true, Since: Built.Add(-20 * time.Minute),
-						},
-						"7d": {
-							Kind: status.WindowRunsOut, At: Built.Add(64 * time.Hour), Used: 0.6, Next: Built.Add(3 * day),
-							RunsOut: true, RunsOutAhead: true, Out: Built.Add(64 * time.Hour),
-						},
-					},
-				},
-				"side": sideOpen,
-			}},
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{"work": workLimited, "side": sideOpen}},
 		},
 		{
 			Name: "a limit holding, then lifted", Doc: limited, Now: Built.Add(41 * time.Minute),
@@ -437,6 +474,70 @@ func HardMoments(policy score.Policy) []HardMoment {
 				}},
 			}},
 		},
+		{
+			// Where new sessions go is the router's to say, and it isn't
+			// running: no account is ▲.
+			Name: "probed, one of several at its limit",
+			Doc:  Probed(policy, readAt("work", spentIn("5h", 1, 40*time.Minute), windowIn("7d", 0.6, 3*day)), side),
+			Now:  Built.Add(time.Minute),
+			Want: Facts{Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingLimited, Held: true, OutOfQuota: true, Windows: map[string]WindowFacts{
+					"5h": {Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 1, Next: Built.Add(40 * time.Minute), Held: true},
+					"7d": workLimited.Windows["7d"],
+				}},
+				"side": {Routing: status.RoutingOpen, CanRise: true, Windows: sideOpen.Windows},
+			}},
+		},
+		{
+			// The limit lifts as the week resets: every fact of it changes
+			// on the tick after, before the router reads it again.
+			Name: "a week at its limit, reset since read, before the reread", Doc: weekOut, Now: Built.Add(time.Hour + 5*time.Second),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingOpen, CanRise: true, Windows: map[string]WindowFacts{
+					"5h": {Kind: status.WindowOpen, At: Built.Add(3 * time.Hour), Used: 0.3, Next: Built.Add(3 * time.Hour)},
+					"7d": {Kind: status.WindowOpen, At: Built.Add(time.Hour + 7*day), Next: Built.Add(time.Hour + 7*day), ResetSinceRead: true},
+				}},
+				"side": sideOpen,
+			}},
+		},
+		{
+			// Work's week has more left to use a day till it resets than
+			// side's, so new sessions go to it.
+			Name: "a model's own window at its limit, its account open to the rest", Doc: fableOut, Now: Built.Add(10 * time.Minute),
+			Want: Facts{Next: "work", Accounts: map[string]AccountFacts{
+				"work": {
+					Routing: status.RoutingModelLimited, Held: true, CanRise: true, LimitHolds: true, LimitSince: Built.Add(-3 * time.Hour),
+					Windows: map[string]WindowFacts{
+						"5h": {Kind: status.WindowOpen, At: Built.Add(3 * time.Hour), Used: 0.3, Next: Built.Add(3 * time.Hour)},
+						"7d": {Kind: status.WindowOpen, At: Built.Add(3 * day), Used: 0.4, Next: Built.Add(3 * day)},
+						"7d_oi": {
+							Kind: status.WindowLimited, At: Built.Add(2 * day), Used: 1, Next: Built.Add(2 * day),
+							Held: true, Since: Built.Add(-3 * time.Hour),
+						},
+					},
+				},
+				"side": {Routing: status.RoutingOpen, CanRise: true, Windows: sideOpen.Windows},
+			}},
+		},
+		{
+			Name: "the global pin set from the command line to an account at its limit", Doc: pinnedToLimited, Now: Built.Add(10 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{"work": workLimited, "side": sideOpen}},
+		},
+		{
+			Name: "the global pin naming one account, a pool of one",
+			Doc: Router(policy, []string{"side"},
+				Routed{Account: readAt("work", windowIn("5h", 0.4, 2*time.Hour), windowIn("7d", 0.5, 2*day))},
+				Routed{Account: side},
+			),
+			Now: Built.Add(10 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingOpen, CanRise: true, Windows: map[string]WindowFacts{
+					"5h": {Kind: status.WindowOpen, At: Built.Add(2 * time.Hour), Used: 0.4, Next: Built.Add(2 * time.Hour)},
+					"7d": {Kind: status.WindowOpen, At: Built.Add(2 * day), Used: 0.5, Next: Built.Add(2 * day)},
+				}},
+				"side": sideOpen,
+			}},
+		},
 	}
 	for i := range moments {
 		moments[i].Doc = moments[i].Doc.WorkedOut(policy)
@@ -511,7 +612,7 @@ func Probed(policy score.Policy, accounts ...status.Account) status.Document {
 }
 
 // labels are the windows' labels, by key.
-var labels = map[string]string{"5h": "Session", "7d": "Week"}
+var labels = map[string]string{"5h": "Session", "7d": "Week", "7d_oi": "Fable week"}
 
 // windowIn is the window with the given key, used so far, resetting resetsIn
 // after Built.

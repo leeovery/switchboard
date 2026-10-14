@@ -99,18 +99,23 @@ func TestTheOverviewNamesEachNumberItDrawsByWhatItIs(t *testing.T) {
 // kind never brightens as another's changes.
 func TestNoTwoKindsOfNumberShareAValue(t *testing.T) {
 	kinds := map[string]NumberKind{
-		"NumberUsed":        NumberUsed,
-		"NumberAllowance":   NumberAllowance,
-		"NumberRoom":        NumberRoom,
-		"NumberSessions":    NumberSessions,
-		"NumberRate":        NumberRate,
-		"NumberStates":      NumberStates,
-		"NumberRouted":      NumberRouted,
-		"NumberYear":        NumberYear,
-		"NumberShareOfUse":  NumberShareOfUse,
-		"NumberLimitsHit":   NumberLimitsHit,
-		"NumberTokens":      NumberTokens,
-		"NumberTokensSplit": NumberTokensSplit,
+		"NumberUsed":          NumberUsed,
+		"NumberAllowance":     NumberAllowance,
+		"NumberRoom":          NumberRoom,
+		"NumberSessions":      NumberSessions,
+		"NumberRate":          NumberRate,
+		"NumberStates":        NumberStates,
+		"NumberAccountStates": NumberAccountStates,
+		"NumberAllUsed":       NumberAllUsed,
+		"NumberAllRoom":       NumberAllRoom,
+		"NumberRouted":        NumberRouted,
+		"NumberYear":          NumberYear,
+		"NumberShareOfUse":    NumberShareOfUse,
+		"NumberLimitsHit":     NumberLimitsHit,
+		"NumberTokens":        NumberTokens,
+		"NumberTokensSplit":   NumberTokensSplit,
+		"NumberMoved":         NumberMoved,
+		"NumberPeriod":        NumberPeriod,
 	}
 	named := make(map[NumberKind]string)
 	for _, name := range slices.Sorted(maps.Keys(kinds)) {

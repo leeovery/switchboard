@@ -17,15 +17,25 @@ import (
 
 // historyTab is what the watch holds of History: the page its tab draws, the
 // sub-tab shown built of the days held; the days of the last 12 months, read
-// once a run, as History is first shown, and of the earliest calendar year
-// the Year steps back to that they don't reach, each brought up to today at
-// each look since; the day the ledger began, where it tells it, and whether
-// a failure to has been logged, the once; the day weeks start on; and the
-// reads of the ledger asked for, one under way at a time, and whether a look
-// since the last asks for the days since.
+// once a run, as History or Accounts is first shown, and of the earliest
+// calendar year the Year steps back to that they don't reach, each brought
+// up to today at each look since; the day the ledger began, where it tells
+// it, and whether a failure to has been logged, the once; the day weeks
+// start on; and the reads of the ledger asked for, one under way at a time,
+// and whether a look since the last asks for the days since. held counts the
+// changes to the last 12 months' days held, as each read and look brings
+// them, for Accounts' page to be built afresh of them; and behind is set
+// while the page lags the days held, as a look while History doesn't show
+// leaves it, for historyBuilt to build it afresh once History shows. weeks
+// is Weeks' page as built, where the page shows it, which the page holds
+// stood at a moment, and what it was stood at, as weeksStood stands it.
 type historyTab struct {
 	page       dashboard.HistoryPage
+	weeks      *views.WeeksPage
+	at         *stoodAt
 	last, back heldDays
+	held       int
+	behind     bool
 	began      time.Time
 	warned     bool
 	starts     time.Weekday
@@ -81,21 +91,24 @@ type beginning struct {
 	err   error
 }
 
-// readHistory has the watch read the ledger's days for History while it's
-// shown, as it wants them, one read at a time, what's wanted meanwhile
-// waiting for it to land: the last 12 months, once a run, as History is
-// first shown; a calendar year the Year steps back to that the days held
-// don't reach; and the days since those held were read to, once a look
-// since the last asks.
+// readHistory has the watch read the ledger's days for History and
+// Accounts while either is shown, as they want them, one read at a time,
+// what's wanted meanwhile waiting for it to land, the two sharing every read
+// and the days it holds: the last 12 months, once a run, as either is first
+// shown; while History shows, a calendar year the Year steps back to that
+// the days held don't reach; and the days since those held were read to,
+// once a look since the last asks.
 func (m Model) readHistory() (Model, tea.Cmd) {
-	if m.view != dashboard.History || m.past.reading || m.cfg.Ledger == nil {
+	history := m.view == dashboard.History
+	shown := history || m.view == dashboard.Accounts
+	if !shown || m.past.reading || m.cfg.Ledger == nil {
 		return m, nil
 	}
 	now, year := m.now(), m.past.page.YearAsk.Year
 	switch _, reached := m.past.reaching(year); {
 	case !m.past.last.held():
 		return m.readYear(0, now)
-	case m.past.page.Shown == dashboard.HistoryYear && !reached:
+	case history && m.past.page.Shown == dashboard.HistoryYear && !reached:
 		return m.readYear(year, now)
 	case m.past.due:
 		return m.readSince(now)
@@ -206,7 +219,7 @@ func (m Model) yearRead(msg yearReadMsg) Model {
 	if msg.back {
 		t.back = msg.days
 	} else {
-		t.last = msg.days
+		t.last, t.held = msg.days, t.held+1
 		t.page = t.checked()
 	}
 	m.past = t.learned(msg.beginning).built()
@@ -246,9 +259,12 @@ func (t historyTab) checked() dashboard.HistoryPage {
 
 // sinceRead takes in the days read since those held were read to, and where
 // the ledger began, where the read learned it, but those of a read another
-// overtook: the page drawn before the days and after, at the one moment,
-// now, both knowing where the ledger began, each number on it the days
-// change brightens, as changed has it, as a look's changes do.
+// overtook. While History or Accounts shows, its page is drawn before the
+// days and after, at the one moment, now, History's both knowing where the
+// ledger began, Accounts' built as accountsBuilt builds it, each number on
+// it the days change brightening, as changed has it, as a look's changes
+// do; else History's page is left behind the days, as since leaves it, for
+// historyBuilt to build once History shows.
 func (m Model) sinceRead(msg sinceMsg) Model {
 	if msg.asked != m.past.asked {
 		return m
@@ -256,39 +272,84 @@ func (m Model) sinceRead(msg sinceMsg) Model {
 	m.past = m.past.learned(msg.beginning)
 	m.past.reading = false
 	now := m.now()
-	was := m
-	was.past = m.past.since(nil, now, now)
-	m.past = m.past.since(msg.days, msg.at, now)
+	var was Model
+	switch m.view {
+	case dashboard.History:
+		was = m
+		was.past = m.past.since(nil, now, now).built()
+		m.past = m.past.since(msg.days, msg.at, now).built()
+	case dashboard.Accounts:
+		was = m.accountsBuilt()
+		m.past = m.past.since(msg.days, msg.at, now)
+		m = m.accountsBuilt()
+	default:
+		m.past = m.past.since(msg.days, msg.at, now)
+		return m
+	}
 	m.numbers = m.numbers.changed(was.numbersDrawn(now), m.numbersDrawn(now), now)
 	return m
 }
 
-// since is the tab at now, the days given, read at at, in place of those
-// each year held held of them, as Past.Since has it, its page built afresh.
+// since is the tab at now, the days given, read at at, as the read was asked,
+// before the ledger summarised them, so they hold nothing they're taken to
+// hold of what came after, in place of those each year held held of them, as
+// Past.Since has it, its page behind them.
 func (t historyTab) since(days []ledger.Summary, at, now time.Time) historyTab {
+	t.held, t.behind = t.held+1, true
 	for _, d := range []*heldDays{&t.last, &t.back} {
 		if !d.held() {
 			continue
 		}
-		d.past = d.past.Since(days, now)
+		d.past = d.past.Since(days, at).Since(nil, now)
 		if len(days) > 0 {
 			d.to = at
 		}
 	}
-	return t.built()
+	return t
+}
+
+// historyBuilt is m with History's page built afresh of the days held, while
+// History shows, where a look left it behind them: as History shows again
+// after a look on Accounts; its Weeks stood as weeksStood stands it.
+func (m Model) historyBuilt() Model {
+	if m.view == dashboard.History && m.past.behind {
+		m.past = m.past.built()
+	}
+	return m.weeksStood()
+}
+
+// weeksStood is m with History's Weeks, while it shows, stood at the moment
+// of the message taken in, as views.WeeksPage.At stands it, where it's built
+// afresh, the document or the policy is another, or the page stands
+// otherwise since, as its Until has it: as Accounts' page is, so the two
+// tell the accounts' weeks alike, never a frame at a time.
+func (m Model) weeksStood() Model {
+	if m.view != dashboard.History || m.past.weeks == nil {
+		return m
+	}
+	now := m.now()
+	if !m.past.at.holds(m.doc, now, m.cfg.Policy) {
+		mo := m.moment(now)
+		m.past.page.Weeks = new(m.past.weeks.At(mo))
+		m.past.at = stoodTill(mo, m.past.weeks.Until(mo))
+	}
+	return m
 }
 
 // built is the tab, the page of the sub-tab shown built afresh of the days
 // held, those of the rest let go: none before the last 12 months are read,
-// and of the Year, none while the days of the year it shows are.
+// and of the Year, none while the days of the year it shows are. Weeks'
+// page is held as built, for weeksStood to stand.
 func (t historyTab) built() historyTab {
+	t.behind, t.weeks, t.at = false, nil, nil
 	p := t.page
 	p.Year, p.Weeks, p.Days, p.Tokens = nil, nil, nil, nil
 	p.Read = t.last.held()
 	switch past := t.last.past; {
 	case !p.Read:
 	case p.Shown == dashboard.HistoryWeeks:
-		p.Weeks = new(past.Weeks())
+		t.weeks = new(past.Weeks())
+		p.Weeks = t.weeks
 	case p.Shown == dashboard.HistoryDays:
 		p.Days = new(past.Days())
 	case p.Shown == dashboard.HistoryTokens:

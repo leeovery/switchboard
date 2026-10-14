@@ -44,9 +44,38 @@ func (s Said) String() string {
 // counted, a move showing alone only where the line it's folded into isn't
 // among those shown.
 func Lately(m status.Moment, n int) []Sentence {
+	return toldFrom(m, n, overview)
+}
+
+// side is a side LATELY tells events from: tells reports whether it tells of
+// an event at all, and tell tells one it does, its facts given, in full and
+// short, with the kind its mark is drawn for.
+type side struct {
+	tells func(e status.Event) bool
+	tell  func(t latelyTeller, e status.Event, f eventFact) (kind string, full, short Said)
+}
+
+// overview is the Overview's side: every event of the kinds LATELY tells
+// of, each as its kind's teller tells it.
+var overview = side{
+	tells: func(e status.Event) bool {
+		_, ok := latelyTellers[e.Kind]
+		return ok
+	},
+	tell: func(t latelyTeller, e status.Event, f eventFact) (string, Said, Said) {
+		full, short := latelyTellers[e.Kind](t, e, f)
+		return e.Kind, full, short
+	},
+}
+
+// toldFrom are the events of the document m is a moment of that from tells
+// of, as it tells them at m's Now, the newest first, n at most, the sessions
+// a limit, a cap or a refusal moved folded into its line, as Lately has
+// them.
+func toldFrom(m status.Moment, n int, from side) []Sentence {
 	var told []status.Event
 	for _, e := range m.Events {
-		if _, ok := latelyTellers[e.Kind]; ok {
+		if from.tells(e) {
 			told = append(told, e)
 		}
 	}
@@ -54,8 +83,8 @@ func Lately(m status.Moment, n int) []Sentence {
 	shown := unfolded(told, n)
 	sentences := make([]Sentence, len(shown))
 	for i, e := range shown {
-		full, short := latelyTellers[e.Kind](t, e, facts[e.ID])
-		sentences[i] = Sentence{ID: e.ID, At: e.At, Kind: e.Kind, Well: wellAgain(e), Full: full, Short: short}
+		kind, full, short := from.tell(t, e, facts[e.ID])
+		sentences[i] = Sentence{ID: e.ID, At: e.At, Kind: kind, Well: wellAgain(e), Full: full, Short: short}
 	}
 	return sentences
 }
@@ -126,11 +155,11 @@ var latelyTellers = map[string]func(t latelyTeller, e status.Event, f eventFact)
 	status.EventStarted:  latelyTeller.started,
 	status.EventMoved:    latelyTeller.moved,
 	status.EventPressure: latelyTeller.pressured,
-	status.EventCap:      latelyTeller.capped,
-	status.EventLimit:    latelyTeller.limited,
-	status.EventRefused:  latelyTeller.refused,
-	status.EventPrimed:   latelyTeller.primed,
-	status.EventRoom:     latelyTeller.opened,
+	status.EventCap:      latelyTeller.held,
+	status.EventLimit:    latelyTeller.held,
+	status.EventRefused:  latelyTeller.held,
+	status.EventPrimed:   latelyTeller.befallen,
+	status.EventRoom:     latelyTeller.befallen,
 	status.EventPin:      latelyTeller.pinned,
 	status.EventAuto:     latelyTeller.unpinned,
 	status.EventRestart:  latelyTeller.restarting,
@@ -141,14 +170,20 @@ var latelyTellers = map[string]func(t latelyTeller, e status.Event, f eventFact)
 // where it wasn't on the router's best: ", as pinned" where a pin sent it,
 // else the reason in the views' words, as ": personal came under pressure".
 func (t latelyTeller) started(e status.Event, f eventFact) (Said, Said) {
-	s := Said{Subject: session(e.Session), Words: clause(" started on "), Object: account(e.Account), Rest: t.startedWhy(e, f)}
+	s := Said{Subject: session(e.Session), Words: clause(" started on "), Object: account(e.Account), Rest: t.startedWhy(e, f, false)}
 	return s, s
 }
 
-// startedWhy says why a session started where it did, as started has it.
-func (t latelyTeller) startedWhy(e status.Event, f eventFact) status.Words {
+// startedWhy says why a session started where it did, as started has it:
+// on the router's best, as a new session's reason says it did, nothing, or
+// ", the best" where saysBest says to, the event's own fact whatever the
+// best is since.
+func (t latelyTeller) startedWhy(e status.Event, f eventFact, saysBest bool) status.Words {
 	switch prose.Clean(e.Reason) {
 	case "", status.ReasonNew:
+		if saysBest {
+			return clause(", the best")
+		}
 		return nil
 	case status.ReasonPinned, status.ReasonGlobalPin:
 		return clause(", as pinned")
@@ -186,44 +221,51 @@ func (t latelyTeller) pressured(e status.Event, f eventFact) (Said, Said) {
 	return full, short
 }
 
-// capped tells of an account reaching its cap: "work reached its cap", or
-// short, "work at its cap", and the sessions it moved.
-func (latelyTeller) capped(e status.Event, f eventFact) (Said, Said) {
-	return heldBack(e, f, " reached its cap", false), heldBack(e, f, " at its cap", true)
+// held tells of a cap, a limit or a refusal holding an account back, its
+// name first, then what befell it, as befell says: "work reached its cap",
+// or short, "work at its cap"; "personal reached its 5-hour limit", or
+// "personal at its limit"; "work refused (401)"; and the sessions it moved,
+// as heldBack has them.
+func (latelyTeller) held(e status.Event, f eventFact) (Said, Said) {
+	full, short := befell(e, f)
+	return heldBack(account(e.Account), e, f, " "+full, false), heldBack(account(e.Account), e, f, " "+short, true)
 }
 
-// limited tells of an account reaching its limit, in the windows it names:
-// "personal reached its 5-hour limit", or short, "personal at its limit", and
-// the sessions it moved.
-func (latelyTeller) limited(e status.Event, f eventFact) (Said, Said) {
-	return heldBack(e, f, " reached its "+prose.ListOf(f.windows, "limit"), false), heldBack(e, f, " at its limit", true)
+// befallen tells of a prime or room again befalling an account, its name
+// first, then what befell it, as befell says: "side primed: its 5-hour
+// window started", or short, "side primed"; "work open again: its 5-hour
+// window reset", or short, "work open again".
+func (latelyTeller) befallen(e status.Event, f eventFact) (Said, Said) {
+	full, short := befell(e, f)
+	return Said{Subject: account(e.Account), Words: clause(" " + full)}, Said{Subject: account(e.Account), Words: clause(" " + short)}
 }
 
-// refused tells of the upstream refusing an account's requests, and its
-// answer, as status.RefusalAnswer says it: "work refused (401)", or of a
-// model family's alone, "work refused (403, opus)"; and the sessions it
-// moved.
-func (latelyTeller) refused(e status.Event, f eventFact) (Said, Said) {
-	what := " " + status.RefusalAnswer(e.Status, e.Family)
-	return heldBack(e, f, what, false), heldBack(e, f, what, true)
-}
-
-// primed tells of a prime starting an account's window: "side primed: its
-// 5-hour window started", or short, "side primed".
-func (latelyTeller) primed(e status.Event, f eventFact) (Said, Said) {
-	full := Said{Subject: account(e.Account), Words: clause(" primed: " + its(f.windows, "its window") + " started")}
-	return full, Said{Subject: account(e.Account), Words: clause(" primed")}
-}
-
-// opened tells of an account with room again, and the windows that held it
-// back resetting, where it names them: "work open again: its 5-hour window
-// reset", or short, "work open again".
-func (latelyTeller) opened(e status.Event, f eventFact) (Said, Said) {
-	short := Said{Subject: account(e.Account), Words: clause(" open again")}
-	if len(f.windows) == 0 {
-		return short, short
+// befell says what befell an account, of an event of a kind that befalls
+// one, in full and short: "reached its cap" and "at its cap"; "reached its
+// 5-hour limit", in the windows it names, and "at its limit"; the upstream's
+// answer, as status.RefusalAnswer says it, "refused (401)", or of a model
+// family's alone, "refused (403, opus)"; "primed: its 5-hour window
+// started", the windows the prime started, and "primed"; and "open again:
+// its 5-hour window reset", where it names the windows that held it back,
+// and "open again". It's nothing of any other kind.
+func befell(e status.Event, f eventFact) (full, short string) {
+	switch e.Kind {
+	case status.EventCap:
+		return "reached its cap", "at its cap"
+	case status.EventLimit:
+		return "reached its " + prose.ListOf(f.windows, "limit"), "at its limit"
+	case status.EventRefused:
+		answer := status.RefusalAnswer(e.Status, e.Family)
+		return answer, answer
+	case status.EventPrimed:
+		return "primed: " + its(f.windows, "its window") + " started", "primed"
+	case status.EventRoom:
+		if len(f.windows) == 0 {
+			return "open again", "open again"
+		}
+		return "open again: " + its(f.windows, "") + " reset", "open again"
 	}
-	return Said{Subject: account(e.Account), Words: clause(" open again: " + its(f.windows, "") + " reset")}, short
+	return "", ""
 }
 
 // pinned tells of routing set by hand: the global pin, "pin set by hand: new
@@ -282,13 +324,13 @@ func (t latelyTeller) facts(f eventFact, from, to string) status.Facts {
 }
 
 // heldBack is the line of an account a cap, a limit or a refusal held back,
-// its name, then what befell it, as in " reached its cap", and after that the
-// sessions the event moved, as its facts f count them, where it moved any: in
-// full, as in ": 3 sessions moved to side", the count its object; short, as
-// in ": 3 moved to side"; and where they went to several accounts, "moved to
-// other accounts".
-func heldBack(e status.Event, f eventFact, what string, short bool) Said {
-	s := Said{Subject: account(e.Account), Words: clause(what)}
+// subject naming it, then what befell it, as in " reached its cap", and after
+// that the sessions the event moved, as its facts f count them, where it
+// moved any: in full, as in ": 3 sessions moved to side", the count its
+// object; short, as in ": 3 moved to side"; and where they went to several
+// accounts, "moved to other accounts".
+func heldBack(subject status.Words, e status.Event, f eventFact, what string, short bool) Said {
+	s := Said{Subject: subject, Words: clause(what)}
 	if f.moved == 0 {
 		return s
 	}
@@ -317,15 +359,19 @@ func atAccount(words status.Words) (before, account, after status.Words) {
 	return words[:i], words[i : i+1], words[i+1:]
 }
 
-// pinnedTo are the accounts the global pin names, as English runs them
-// together, "personal and side": its first, as Account gives it, where it
-// lists none.
+// pinnedTo are the accounts the global pin names, as pinnedNames has them,
+// as English runs them together, "personal and side".
 func pinnedTo(e status.Event) status.Words {
-	names := cleaned(e.Accounts)
-	if len(names) == 0 {
-		return account(e.Account)
+	return joined(pinnedNames(e), prose.And)
+}
+
+// pinnedNames are the accounts the global pin names, cleaned: its first, as
+// Account gives it, where it lists none.
+func pinnedNames(e status.Event) []string {
+	if names := cleaned(e.Accounts); len(names) > 0 {
+		return names
 	}
-	return joined(names, prose.And)
+	return cleaned([]string{e.Account})
 }
 
 // session is the session with the given id, named as status.ShownID names

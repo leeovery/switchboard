@@ -66,6 +66,38 @@ func TestAStateALookSeesChangeIsPickedOutFadingBack(t *testing.T) {
 	}
 }
 
+// worded are the ids of the accounts whose states in a word are picked out
+// at now.
+func (h *harness) worded() []string {
+	return slices.Sorted(maps.Keys(h.model.changes.wordFaded(h.clock.now)))
+}
+
+// An account's state in a word, as Accounts says it, is picked out only
+// where it turns: a session lapsing on the clock turns ROUTING's state to
+// idle, but the account is open in a word still; reaching its cap turns
+// both.
+func TestAnAccountsStateInAWordIsPickedOutOnlyWhereItTurns(t *testing.T) {
+	h := newHarness(t, document(account("work", "Work", session(0.4, 10*time.Second), week(0.5)), three()[1]))
+	h.start()
+	h.tickUntil(start.Add(11 * time.Second))
+	if routing, worded := h.changed(), h.worded(); !slices.Equal(routing, []string{"work"}) || len(worded) > 0 {
+		t.Errorf("as work's session lapsed, picked out %v in ROUTING and %v in a word, want work and none", routing, worded)
+	}
+
+	capped := three()
+	capped[0] = reserving(account("work", "Work", session(0.97, 3*time.Hour), week(0.5)), 0.05)
+	h = routedHarness(t, routerDocument(three()...))
+	h.start()
+	h.startRouter(routerDocument(capped...))
+	h.tickUntilAsked()
+	if routing, worded := h.changed(), h.worded(); !slices.Equal(routing, []string{"work"}) || !slices.Equal(worded, []string{"work"}) {
+		t.Errorf("as work reached its cap, picked out %v in ROUTING and %v in a word, want work in both", routing, worded)
+	}
+	if drawn := slices.Sorted(maps.Keys(h.model.frame(h.clock.now).StateChanged)); !slices.Equal(drawn, []string{"work"}) {
+		t.Errorf("the frame cues %v's states in a word, want work's", drawn)
+	}
+}
+
 func TestAStateTheClockChangesIsPickedOutAsItTicks(t *testing.T) {
 	spent := session(1, 10*time.Second)
 	spent.Status = quota.StatusRejected

@@ -50,11 +50,12 @@ func (f Frame) travel(doc status.Document, now time.Time) Motion {
 // MaySettle reports whether anything the frame's page draws may be
 // settling: a number brightening, as its Brightened says; a bar easing, as
 // its Eased says; or a cue fading back, on an event fresh, as its Fresh
-// says, an account's state changed, as its Changed says, or a window's words
-// turned to out ~, as its TurnedOut says. Where nothing may, what moves on
-// screen needs none of the page drawn.
+// says, an account's state changed, as its Changed says, or in a word, as
+// its StateChanged says, or a window's words turned to out ~, as its
+// TurnedOut says. Where nothing may, what moves on screen needs none of the
+// page drawn.
 func (f Frame) MaySettle() bool {
-	return len(f.Brightened)+len(f.Eased)+len(f.Fresh)+len(f.Changed)+len(f.TurnedOut) > 0
+	return len(f.Brightened)+len(f.Eased)+len(f.Fresh)+len(f.Changed)+len(f.StateChanged)+len(f.TurnedOut) > 0
 }
 
 // Filled are how much of each bar the frame's view draws of doc at now it
@@ -63,13 +64,16 @@ func (f Frame) MaySettle() bool {
 // moment of doc at now, as At holds it: each account's window as it stands
 // at now, which reads empty once it has reset since it was read; on the
 // Overview, as USAGE draws them, and the pool's at now, but none of a bar
-// USAGE draws empty, which has nothing to ease; on Sessions, as its panels
-// draw them, but none of a window a panel draws without a bar; and none on a
-// view that draws no bar, nor under a session's page, which draws none.
+// USAGE draws empty, which has nothing to ease; on Accounts, as
+// accountsFilled has them; on Sessions, as its panels draw them, but none of
+// a window a panel draws without a bar; and none on a view that draws no
+// bar, nor under a session's page, which draws none.
 func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
 	switch f.Shown() {
 	case Overview:
 		return overviewFilled(f.Moment(doc, now))
+	case Accounts:
+		return f.accountsFilled(doc, now)
 	case Sessions:
 		return sessionsFilled(f.Moment(doc, now))
 	}

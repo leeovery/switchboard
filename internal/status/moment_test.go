@@ -119,9 +119,9 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 	want := status.AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: doc.Floor(a), ReserveHolds: doc.ReserveHolds(a),
-		Pinned: doc.Pin.Has(a.ID), Next: a.ID == m.Next,
+		Pinned: doc.Pin.Has(a.ID), Next: a.ID == m.Next, Elsewhere: m.Next != "" && a.ID != m.Next,
 		InPool: slices.Contains(pool.Accounts, a.ID), OutOfPool: len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, a.ID),
-		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
+		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions, Extra: a.Extra,
 		Routing: got.Routing, Hold: hold, Held: held, LimitHolds: a.Limit.Holds(now), LimitSince: got.LimitSince,
 		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapBack: capBack,
 		Refusal: refusal, TokenRefused: a.TokenRefused(now),
@@ -144,8 +144,8 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 	return status.AccountNow{
 		ID: a.ID, Label: a.Label, Place: a.Place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: a.Cap, Floor: a.Floor, ReserveHolds: a.ReserveHolds,
-		Pinned: a.Pinned, Next: a.Next, InPool: a.InPool, OutOfPool: a.OutOfPool,
-		TokenSet: a.TokenSet, Read: a.Read, ReadAt: a.ReadAt, Error: a.Error, Failures: a.Failures, Sessions: a.Sessions,
+		Pinned: a.Pinned, Next: a.Next, Elsewhere: a.Elsewhere, InPool: a.InPool, OutOfPool: a.OutOfPool,
+		TokenSet: a.TokenSet, Read: a.Read, ReadAt: a.ReadAt, Error: a.Error, Failures: a.Failures, Sessions: a.Sessions, Extra: a.Extra,
 		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitHolds: a.LimitHolds, LimitSince: a.LimitSince,
 		ReachedReserve: a.ReachedReserve, CapHolds: a.CapHolds, CapBack: a.CapBack,
 		Refusal: a.Refusal, TokenRefused: a.TokenRefused, Pressure: a.Pressure,

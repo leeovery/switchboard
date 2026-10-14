@@ -52,10 +52,11 @@ type accountRouting struct {
 
 // routingTable is ROUTING of a document at a moment: each account's, in the
 // config's order; the name column their states start at; the pool's
-// accounts', where it has a pool; and the moment.
+// accounts', where it has a pool, and their states counted; and the moment.
 type routingTable struct {
 	accounts []accountRouting
 	pool     []accountRouting
+	states   status.StateCounts
 	names    int
 	now      time.Time
 }
@@ -63,7 +64,8 @@ type routingTable struct {
 // routingTableOf is ROUTING of doc at now, as the frame draws it: each
 // account's sessions counted as SESSIONS lists them running, as
 // views.RunningCounts counts them, where the router listed any, else as doc
-// counts them; and its pool, and who's out of it, at now.
+// counts them; and its pool, who's out of it, and its accounts' states
+// counted, as status.CountStates counts them, at now.
 func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	m := f.Moment(doc, now)
 	names := overviewNames(m)
@@ -72,6 +74,7 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	if f.Sessions != nil {
 		running = views.RunningCounts(f.running(doc, now))
 	}
+	var pooled []status.AccountNow
 	for i, a := range m.Accounts {
 		r := accountRouting{
 			id: a.ID, name: names[i].line(t.names), standing: a.Routing, pinned: a.Pinned,
@@ -82,9 +85,10 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 		}
 		t.accounts = append(t.accounts, r)
 		if a.InPool {
-			t.pool = append(t.pool, r)
+			t.pool, pooled = append(t.pool, r), append(pooled, a)
 		}
 	}
+	t.states = status.CountStates(pooled)
 	return t
 }
 
@@ -390,7 +394,7 @@ func (f Frame) besideAccount(c *canvas, t routingTable, r accountRouting, x int,
 // rows given, as routingBeside has them, each of the pool's accounts' rows
 // of t: its trace only where it has its row.
 func (f Frame) besidePool(c *canvas, t routingTable, x int, rows []int) {
-	c.line(x, rows[0], countedStates(t.pool, f.Width-wordsGap-x))
+	c.line(x, rows[0], countedStates(t.states, NumberStates, f.Width-wordsGap-x))
 	c.line(x, rows[1], line{sessionsSpan(summedSessions(t.pool)).numbered(Number{Kind: NumberSessions})})
 	if len(rows) < 3 {
 		return
@@ -438,56 +442,42 @@ func besideSessions(r accountRouting) line {
 	return line{pinnedSpan, {"  ·  ", faintInk}, r.sessionsCounted()}
 }
 
-// countedWords are the words the pool's accounts' states are counted in, in
-// their order, each in its state's colour, and the kinds each counts: an
-// account held back from some models' requests alone, by a limit, a refusal
-// or its cap in a model's own window, is open to the rest.
-var countedWords = []struct {
-	word  string
-	ink   ink
-	kinds []status.RoutingKind
-}{
-	{"open", secondaryInk, []status.RoutingKind{status.RoutingOpen, status.RoutingNext, status.RoutingIdle, status.RoutingModelLimited, status.RoutingModelRefused, status.RoutingModelCapped}},
-	{"pressure", warningInk, []status.RoutingKind{status.RoutingPressed}},
-	{"at cap", warningInk, []status.RoutingKind{status.RoutingCapped, status.RoutingCappedPinned}},
-	{"limit", errorInk, []status.RoutingKind{status.RoutingLimited}},
-	{"refused", errorInk, []status.RoutingKind{status.RoutingRefused}},
-	{"not read", dimInk, []status.RoutingKind{status.RoutingUnread, status.RoutingUnreadable, status.RoutingTokenless}},
-}
-
-// countedStates are the accounts' states counted, as in "2 open · 1 at cap",
-// in countedWords' order, each count in its state's colour, a dot in
+// countedStates are accounts' states counted, as in "2 open · 1 at cap", in
+// their order, each count in its state's colour, as stateInk has it, a dot in
 // text.faint between them; where that's wider than width cells, how many are
-// open, pressure counting as open, as in "8 of 10 open", in text.secondary.
-func countedStates(accounts []accountRouting, width int) line {
+// open, as OpenOf has it, as in "8 of 10 open", in text.secondary. Each is
+// numbered as the kind given: the pool's states, or every account's.
+func countedStates(counts status.StateCounts, kind NumberKind, width int) line {
 	var counted line
-	for _, w := range countedWords {
-		if n := counting(accounts, w.kinds); n > 0 {
-			counted = joined(span{" · ", faintInk}, counted, line{statesCounted(n, w.word, w.ink)})
-		}
+	for _, c := range counts {
+		counted = joined(span{" · ", faintInk}, counted, line{statesCounted(c.N, c.State.Word(), stateInk(c.State), kind)})
 	}
 	if counted.width() <= width {
 		return counted
 	}
-	open := counting(accounts, slices.Concat(countedWords[0].kinds, []status.RoutingKind{status.RoutingPressed}))
-	return line{statesCounted(open, fmt.Sprintf("of %d open", len(accounts)), secondaryInk)}.fit(width)
+	open, of := counts.OpenOf()
+	return line{statesCounted(open, fmt.Sprintf("of %d open", of), secondaryInk, kind)}.fit(width)
 }
 
-// statesCounted is n of the pool's accounts counted in the words given, in
-// k, as in "2 open", numbered as the pool's states counted in those words.
-func statesCounted(n int, words string, k ink) span {
-	return span{fmt.Sprintf("%d %s", n, words), k}.numbered(Number{Kind: NumberStates, Of: words})
-}
-
-// counting is how many of the accounts stand as one of the kinds given.
-func counting(accounts []accountRouting, kinds []status.RoutingKind) int {
-	n := 0
-	for _, r := range accounts {
-		if slices.Contains(kinds, r.standing.Kind) {
-			n++
-		}
+// stateInk is the colour an account's state in a word is counted in: open in
+// text.secondary; pressure and at cap in accent.attention; limit and refused
+// in state.destructive; and not read in text.subtle.
+func stateInk(s status.AccountState) ink {
+	switch s {
+	case status.StatePressure, status.StateAtCap:
+		return warningInk
+	case status.StateLimit, status.StateRefused:
+		return errorInk
+	case status.StateNotRead:
+		return dimInk
 	}
-	return n
+	return secondaryInk
+}
+
+// statesCounted is n accounts counted in the words given, in k, as in "2
+// open", numbered as the kind given of states counted in those words.
+func statesCounted(n int, words string, k ink, kind NumberKind) span {
+	return span{fmt.Sprintf("%d %s", n, words), k}.numbered(Number{Kind: kind, Of: words})
 }
 
 // summedSessions are the sessions on the accounts, summed.
