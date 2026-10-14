@@ -53,10 +53,10 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 // on its page, it acts as clickTurn has it, and on a request's row of its
 // turn open, as clickRequest has it; and on a line of the Log's table, it
 // chooses it, as clickedLine has it. Nothing else on the page takes a click
-// yet. While the theme picker is open, a click on what the picker holds, as
-// pickerHolds has it, does nothing.
+// yet. While the theme picker is open, a click on what it doesn't take, as
+// pickerTakes has it, does nothing.
 func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
-	if m.picker.open && pickerHolds(t.On) {
+	if m.picker.open && !pickerTakes(t.On) {
 		return m, nil
 	}
 	switch t.On {
@@ -90,17 +90,13 @@ func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// pickerHolds reports whether a click on a target of the kind given does
-// nothing while the theme picker is open, as the keys it stands for go to
-// the picker then: a tab, as tab does; a session's row, which opens its page
-// as enter would; and a turn's row on its page, or a request's of its turn
-// open, which choose and open them as ↑↓ and enter do.
-func pickerHolds(on dashboard.Clicked) bool {
-	switch on {
-	case dashboard.OnTab, dashboard.OnSession, dashboard.OnTurn, dashboard.OnRequest:
-		return true
-	}
-	return false
+// pickerTakes reports whether a click on a target of the kind given acts
+// while the theme picker is open: a key's alone, as the key line lists the
+// picker's keys then, and the press a click on a key stands for goes to the
+// picker, as every key does. A click on anything else would act on the page
+// under the picker, where no key reaches.
+func pickerTakes(on dashboard.Clicked) bool {
+	return on == dashboard.OnKey
 }
 
 // clickedLine acts on a click on the line of the Log's table shown at the
