@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/ledger"
 )
 
 // AccountsPage is Accounts as the dashboard draws it, Compare and Detail
@@ -27,6 +28,10 @@ type AccountsPage struct {
 	// every account's.
 	Rows []AccountsRow
 	All  AccountsRow
+	// Versions are the model versions any account used in the period, in
+	// the version table's order, as every account's ByModel lists them, each
+	// as named names it.
+	Versions []ledger.Version
 
 	// in and days are what the six weeks are worked out from, for At to
 	// work them out afresh: the input the page was built of, and the days
@@ -94,6 +99,7 @@ func (p Past) Accounts(period AccountsPeriod) AccountsPage {
 	}
 	all := len(in.Accounts)
 	page.All = AccountsRow{Totals: totals.Accounts[all], Plan: costs[all]}
+	page.Versions = p.versions().named(page.All.Totals.ByModel)
 	page.Recorded = page.All.Totals.recorded()
 	page.byDay()
 	page.weeked(in, weeks)
@@ -184,4 +190,19 @@ func (p AccountsPage) Ends() (most, least AccountsRow, ok bool) {
 		}
 	}
 	return most, least, ok
+}
+
+// named are the versions of the shares given, in their order, each as the
+// version table names and shades it; or, one it doesn't name, by the id its
+// share gives it, claude- taken off, and its family, as familyOf reads it.
+func (v versions) named(shares []ModelShare) []ledger.Version {
+	named := make([]ledger.Version, len(shares))
+	for i, s := range shares {
+		version, ok := v.table.Version(s.Model)
+		if !ok {
+			version = ledger.Version{IDs: []string{s.Model}, Name: ledger.ShortModelID(s.Model), Family: v.familyOf(s.Model)}
+		}
+		named[i] = version
+	}
+	return named
 }
