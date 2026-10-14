@@ -176,3 +176,40 @@ func TestAccountsListsCompareFocusKeysOnlyWhereTheFocusIsDrawn(t *testing.T) {
 		})
 	}
 }
+
+// enter is drawn faint on the key line exactly where pressing it opens
+// nothing, both as Opens says: on Compare, with no column focused and with
+// one; on Detail, of all accounts, of an account none runs on, and of one
+// sessions run on, from its list and from its SESSIONS; and with one
+// account, sessions running on it.
+func TestEnterIsFaintExactlyWhereItOpensNothing(t *testing.T) {
+	tests := []struct {
+		name  string
+		shown dashboard.AccountsShown
+		alone bool
+	}{
+		{name: "Compare, no column focused"},
+		{name: "Compare, a column focused", shown: dashboard.AccountsShown{Focused: true, Focus: "side"}},
+		{name: "Detail of all accounts", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail}},
+		{name: "Detail of an account none runs on", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "side"}},
+		{name: "Detail's list, sessions running", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"}},
+		{name: "Detail's SESSIONS", shown: dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work", InSessions: true}},
+		{name: "one account, sessions running on it", alone: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := accountsHarness(t, tt.shown)
+			if tt.alone {
+				h.model.accounts.shown.Accounts = config.Accounts{{ID: "work"}}
+			}
+			if !slices.Contains(h.listed(), "enter") {
+				t.Fatalf("the key line lists %q, want enter", h.listed())
+			}
+			faint, was := slices.Contains(h.offKeys(), "enter"), h.model.accounts.shown.View()
+			h.keys(enterKey)
+			if opened := h.model.session != nil || h.model.accounts.shown.View() != was; opened == faint {
+				t.Errorf("enter drawn faint %v, and pressed, opened %v; want it faint exactly where it opens nothing", faint, opened)
+			}
+		})
+	}
+}

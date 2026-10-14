@@ -152,7 +152,8 @@ func (m Model) accountsListings() []keyListing {
 	shown := m.view == dashboard.Accounts
 	compare := m.comparing()
 	listed, alone := shown && s.View() == dashboard.AccountsDetail && !s.Alone(), shown && s.Alone()
-	selected := s.Selection(m.running(m.now())) != ""
+	running := m.running(m.now())
+	selected := s.Selection(running) != ""
 	inSessions := listed && s.InSessions || alone && selected
 	return []keyListing{
 		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: shown && !alone, apart: true},
@@ -162,7 +163,7 @@ func (m Model) accountsListings() []keyListing {
 		{Key: dashboard.Key{Key: "↑↓", Does: "session"}, works: inSessions, apart: true, wide: true},
 		{Key: dashboard.Key{Key: "→", Does: "sessions"}, works: listed && !s.InSessions && selected, helpful: true},
 		{Key: dashboard.Key{Key: "←", Does: "accounts"}, works: listed && s.InSessions, wide: true},
-		{Key: dashboard.Key{Key: "enter", Does: "its page", Off: compare && !s.Focused || !compare && !selected}, works: compare || listed || inSessions, wide: true},
+		{Key: dashboard.Key{Key: "enter", Does: "its page", Off: !s.Opens(running)}, works: compare || listed || inSessions, wide: true},
 		{Key: dashboard.Key{Key: "esc", Does: "unfocus"}, works: compare && s.Focused, wide: true},
 	}
 }

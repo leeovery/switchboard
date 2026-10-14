@@ -128,6 +128,36 @@ func TestEnterOpensComparesFocusedColumnInDetail(t *testing.T) {
 	}
 }
 
+// enter opens something where Compare has a column focused, or Detail a
+// session selected, from its list as from its SESSIONS, with one account too;
+// else nothing.
+func TestEnterOpensWhereAColumnIsFocusedOrASessionSelected(t *testing.T) {
+	tests := []struct {
+		name    string
+		shown   AccountsShown
+		running []string
+		want    bool
+	}{
+		{name: "Compare, no column focused", shown: AccountsShown{Accounts: threeConfigured}},
+		{name: "Compare, a column focused", shown: AccountsShown{Accounts: threeConfigured, Focused: true, Focus: "side"}, want: true},
+		{name: "Compare, sessions running on the account Detail chose", shown: AccountsShown{Accounts: threeConfigured, Chosen: "work"}, running: workRunning},
+		{name: "Detail of all accounts", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}},
+		{name: "Detail's list, sessions running", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Chosen: "work"}, running: workRunning, want: true},
+		{name: "Detail's SESSIONS", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Chosen: "work", InSessions: true}, running: workRunning, want: true},
+		{name: "Detail of an account none runs on", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Chosen: "side"}},
+		{name: "Detail, focused on Compare before", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Focused: true, Chosen: "side"}},
+		{name: "one account, sessions running", shown: AccountsShown{Accounts: threeConfigured[:1]}, running: workRunning, want: true},
+		{name: "one account, none running", shown: AccountsShown{Accounts: threeConfigured[:1]}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.shown.Opens(tt.running); got != tt.want {
+				t.Errorf("Opens(%q) = %v, want %v", tt.running, got, tt.want)
+			}
+		})
+	}
+}
+
 // esc ends Compare's focus, its columns staying where they are; with no
 // column focused, or on Detail, it does nothing.
 func TestEscEndsComparesFocusWhereTheColumnsAre(t *testing.T) {

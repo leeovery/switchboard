@@ -206,24 +206,24 @@ func (m Model) focusless(key string) bool {
 }
 
 // entered is m with enter pressed on Accounts, running being the sessions
-// running on the account Detail shows, by id, in its SESSIONS' order: on
-// Compare, the column focused opened in Detail, as Opened has it; on Detail,
-// from its list as from its SESSIONS, the page of the session selected, as
-// Selection has it, opened as openSession opens it. Where there's nothing to
-// open, as the key line draws enter faint, it says why in the key line's
-// place, as unopened has it.
+// running on the account Detail shows, by id, in its SESSIONS' order: where
+// Opens says there's nothing to open, as the key line draws enter faint, it
+// says why in the key line's place, as unopened has it; else on Compare, the
+// column focused opened in Detail, as Opened has it, and on Detail, from its
+// list as from its SESSIONS, the page of the session selected, as Selection
+// has it, opened as openSession opens it.
 func (m Model) entered(running []string) (Model, tea.Cmd) {
 	s := m.accounts.shown
+	if !s.Opens(running) {
+		if why := unopened(s); why != "" {
+			return m.noting(why)
+		}
+		return m, nil
+	}
 	if next, opened := s.Opened(); opened {
 		return m.showAccounts(next), nil
 	}
-	if id := s.Selection(running); id != "" {
-		return m.openSession(id)
-	}
-	if why := unopened(s); why != "" {
-		return m.noting(why)
-	}
-	return m, nil
+	return m.openSession(s.Selection(running))
 }
 
 // unopened is why enter opens nothing on Accounts as s shows it, where it
