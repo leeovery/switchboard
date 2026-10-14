@@ -375,8 +375,8 @@ func TestThePoolsWordsSayEachDip(t *testing.T) {
 			want: []phraseRead{{29, "2 of 3 with room till 17:10"}},
 		},
 		{
-			name:  "over, on today stepped back to, said; the dip under way too close, of the same count, two cells after, as one under way joins none",
-			shown: today, pool: views.Pool{Of: 3, Dips: []views.Dip{{Steps: []views.Step{stepAt(2, routedClock(1, 9, 0), routedClock(1, 10, 0), 51, 56)}, Column: 51, First: 51, Last: 56, Over: true}, {Steps: []views.Step{stepAt(2, capped, routedClock(1, 17, 10), 82, 97)}, Column: 82, First: 82, Last: 97}}},
+			name:  "on today stepped back to, one before now's column; the dip under way too close, of the same count, two cells after, as one under way joins none",
+			shown: today, pool: views.Pool{Of: 3, Dips: []views.Dip{{Steps: []views.Step{stepAt(2, routedClock(1, 9, 0), routedClock(1, 10, 0), 51, 56)}, Column: 51, First: 51, Last: 56}, {Steps: []views.Step{stepAt(2, capped, routedClock(1, 17, 10), 82, 97)}, Column: 82, First: 82, Last: 97}}},
 			from: 24, edge: 160,
 			want: []phraseRead{{75, "2 of 3 with room 09:00 – 10:00"}, {107, "2 of 3 with room till 17:10"}},
 		},

@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -33,9 +35,9 @@ func runwayShowing(r RunwayShown) Frame {
 
 // stretchOf is a stretch held as cell over the columns from first to last of
 // the timeline tl, from start, zero for one from before the timeline, back at
-// back, its words from the column its start falls in.
+// back, its words from the column its start falls in, not over.
 func stretchOf(tl views.Timeline, cell views.Cell, start, back time.Time, first, last int) views.LaneStretch {
-	s := views.LaneStretch{Cell: cell, Start: start, Back: back, Column: first, First: first, Last: last, Over: last < tl.NowColumn()}
+	s := views.LaneStretch{Cell: cell, Start: start, Back: back, Column: first, First: first, Last: last}
 	if !start.IsZero() {
 		s.Column = max(tl.Column(start), 0)
 	}
@@ -73,9 +75,6 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 	limited.AsItResets = true
 	refused := stretchOf(tl, views.CellRefused, routedClock(1, 14, 12), routedClock(1, 15, 0), 3, 7)
 	refusing := status.AccountNow{ID: "work", Read: true, TokenRefused: true, Refusal: status.Refusal{Until: routedClock(1, 15, 0), Status: 401}}
-	today := runwayBack(views.RunwayFiveHour, civilDay(10, 1))
-	refusedEarlier := stretchOf(today.Timeline, views.CellRefused, routedClock(1, 9, 0), routedClock(1, 9, 30), 51, 53)
-	refusedEarlier.Over = false
 	weekOut := stretchOf(week.Timeline, views.CellLimited, routedClock(3, 6, 0), routedClock(4, 2, 0), 51, 66)
 	weekOut.Projected, weekOut.AsItResets = true, true
 	tests := []struct {
@@ -123,10 +122,6 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 			want: "token refused 14:12  ·  back 15:00", inks: []ink{exhaustedInk, mutedInk},
 		},
 		{
-			name: "its token refused earlier, while another refusal holds it", shown: today, stretch: refusedEarlier, account: &refusing,
-			want: "token refused 09:00  ·  back 09:30", inks: []ink{exhaustedInk, mutedInk},
-		},
-		{
 			name: "without a token", shown: five, stretch: stretchOf(tl, views.CellTokenless, time.Time{}, time.Time{}, 0, 135),
 			want: "no token", inks: []ink{exhaustedInk},
 		},
@@ -156,6 +151,96 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 	}
 }
 
+// Today stepped back to is drawn as a day stepped back to, its lanes and its
+// pool's as views build them from the readings and the router's events: the
+// words under a lane say each stretch it held, those over before now's
+// column among them, the status its token was refused with only of the
+// refusal holding it now; and the pool's words say each dip.
+func TestTodaySteppedBackToSaysEachStretchAndDipOverBeforeNow(t *testing.T) {
+	at := func(hour, minute int) time.Time { return routedClock(1, hour, minute) }
+	week := routedClock(4, 21, 0)
+	fiveHour := func(used float64, resets time.Time, st quota.Status) quota.Window {
+		return quota.Window{Key: "5h", Utilization: used, ResetsAt: resets, Status: st}
+	}
+	read := func(id string, when time.Time, windows ...quota.Window) []readings.Reading {
+		return readings.Of(id, windows, when, readings.FromAnswer)
+	}
+	weekOf := quota.Window{Key: "7d", Utilization: 0.3, ResetsAt: week}
+	open := []quota.Window{fiveHour(0.2, at(15, 0), ""), weekOf}
+	doc := func(work status.Account, events ...status.Event) status.Document {
+		work.ID, work.TokenSet, work.FetchedAt, work.Windows = "work", true, routedAt.Add(-time.Minute), open
+		return status.Document{GeneratedAt: routedAt, Source: status.SourceRouter, Events: events, Accounts: []status.Account{
+			work, {ID: "side", TokenSet: true, FetchedAt: routedAt.Add(-time.Minute), Windows: open},
+		}}.WorkedOut(claudeLike)
+	}
+	both := slices.Concat(read("work", at(8, 0), fiveHour(0.5, at(10, 0), ""), weekOf), read("side", at(8, 0), open...))
+	refused := func(id int, from, until time.Time) status.Event {
+		return status.Event{ID: id, At: from, Kind: status.EventRefused, Account: "work", Until: until, Status: 401}
+	}
+	tests := []struct {
+		name  string
+		doc   status.Document
+		read  []readings.Reading
+		words string
+		pool  []phraseRead
+	}{
+		{
+			name:  "at its limit this morning, room since",
+			doc:   doc(status.Account{}),
+			read:  slices.Concat(both, read("work", at(9, 0), fiveHour(1, at(10, 0), quota.StatusRejected)), read("work", at(10, 5), open...)),
+			words: strings.Repeat(" ", 51) + "at its limit 09:00  ·  back 10:00",
+			pool:  []phraseRead{{24 + 51, "1 of 2 with room 09:00 – 10:00"}},
+		},
+		{
+			name:  "its token refused this morning, and again now",
+			doc:   doc(status.Account{Refused: status.Refusal{Until: at(15, 0), Status: 401}}, refused(2, at(14, 12), at(15, 0)), refused(1, at(9, 0), at(9, 30))),
+			read:  both,
+			words: strings.Repeat(" ", 51) + "token refused 09:00  ·  back 09:30  token refused (401) 14:12  ·  back 15:00",
+			pool:  []phraseRead{{24 + 51, "1 of 2 with room 09:00 – 09:30"}, {24 + 83, "1 of 2 with room till 15:00"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shown := runwayBack(views.RunwayFiveHour, civilDay(10, 1))
+			m := tt.doc.At(routedAt, claudeLike)
+			l := views.Lanes{}.Look(views.LanesFrom{Moment: m, Readings: tt.read, Timeline: shown.Timeline, Window: shown.Window})
+			shown.Lanes = &l
+			ln := laidLane{Lane: l.Accounts[0], account: m.Accounts[0], row: 10}
+			if got := wordsRead(runwayShowing(shown).wordsUnder(ln, routedAt)); got != tt.words {
+				t.Errorf("the words under work's lane say\n%q, want\n%q", got, tt.words)
+			}
+			if got := phrasesRead(shown.poolPhrases(l.Pool, routedAt, 24, 24, 160)); !slices.Equal(got, tt.pool) {
+				t.Errorf("the pool's words say %v, want %v", got, tt.pool)
+			}
+		})
+	}
+}
+
+// A cap outlasting what holds its account back first has words of its own,
+// after that hold's: each stretch said from its own start, and each back as
+// the account next has room, as ROUTING says it; the status the token's
+// refused with said of the refusal holding it now, though it isn't back as
+// that lifts.
+func TestAHoldOutlastedIsSaidFromItsStartAndBackAsItsAccountIs(t *testing.T) {
+	tests := []struct {
+		moment string
+		want   string
+	}{
+		{moment: "a cap outlasting a limit", want: "  at its limit 14:00  ·  back Mon 21:00  at its cap 14:00  ·  back Mon 21:00"},
+		{moment: "a cap outlasting a refusal", want: "token refused (401)  ·  back Mon 21:00  at its cap 14:00  ·  back Mon 21:00"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.moment, func(t *testing.T) {
+			f, doc, now := runwayFramed(t, tt.moment)
+			m := doc.At(now, claudeLike)
+			ln := laidLane{Lane: f.Runway.Lanes.Accounts[0], account: m.Accounts[0], row: 10}
+			if got := wordsRead(f.wordsUnder(ln, now)); got != tt.want {
+				t.Errorf("the words under work's lane say\n%q, want\n%q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTheWordsUnderALaneArePlacedFromLeftToRightDroppingWholePartsThatDontFit(t *testing.T) {
 	five := runwayLive(views.RunwayFiveHour)
 	tl := five.Timeline
@@ -164,6 +249,8 @@ func TestTheWordsUnderALaneArePlacedFromLeftToRightDroppingWholePartsThatDontFit
 		s.AsItResets = cell == views.CellCapped
 		return s
 	}
+	over := at(views.CellLimited, routedClock(1, 13, 40), routedClock(1, 14, 0), 0, 1)
+	over.Over = true
 	tests := []struct {
 		name      string
 		stretches []views.LaneStretch
@@ -171,7 +258,7 @@ func TestTheWordsUnderALaneArePlacedFromLeftToRightDroppingWholePartsThatDontFit
 	}{
 		{
 			name:      "one over, before now's column, not said",
-			stretches: []views.LaneStretch{at(views.CellLimited, routedClock(1, 13, 40), routedClock(1, 14, 0), 0, 1), at(views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 5, 20)},
+			stretches: []views.LaneStretch{over, at(views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 5, 20)},
 			want:      "     at its cap 14:31  ·  back 17:10, as its 5-hour resets",
 		},
 		{

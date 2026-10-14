@@ -74,11 +74,23 @@ func (p heldPast) holds(from LanesFrom) bool {
 		return false
 	}
 	for i, a := range m.Accounts {
-		if !p.accounts[i].of(a, m.Told(a.ID)) {
+		if !p.accounts[i].of(a, from.told(a.ID)) {
 			return false
 		}
 	}
 	return true
+}
+
+// told are the holds of the account with the given id the router told of
+// that the readings can't show, as the moment's Told has them, where the
+// timeline holds now; on a day or a week gone, those its events tell alone,
+// as one no event tells, from before anything, is known only to hold now.
+func (from LanesFrom) told(id string) []status.Span {
+	told := from.Moment.Told(id)
+	if from.Timeline.NowColumn() >= 0 {
+		return told
+	}
+	return slices.DeleteFunc(told, func(s status.Span) bool { return s.From.IsZero() })
 }
 
 // of reports whether the past is the account a's, the router having told of
@@ -108,7 +120,7 @@ func (l Lanes) judgePast(from LanesFrom) heldPast {
 	}
 	read, key := from.readingsAll(), from.viewKey()
 	for _, a := range m.Accounts {
-		p := pastOf{id: a.ID, tokenSet: a.TokenSet, reserve: a.Reserve, reserveHolds: a.ReserveHolds, told: m.Told(a.ID)}
+		p := pastOf{id: a.ID, tokenSet: a.TokenSet, reserve: a.Reserve, reserveHolds: a.ReserveHolds, told: from.told(a.ID)}
 		p.read = slices.DeleteFunc(slices.Clone(read), func(r readings.Reading) bool { return r.Account != a.ID })
 		p.resets = resetsRead(p.read, key)
 		p.was = make([]status.Was, judged)

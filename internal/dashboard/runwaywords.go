@@ -105,12 +105,12 @@ func (f Frame) phrasesOf(ln laidLane, against time.Time) []phrase {
 
 // stretchParts are what's said of the stretch s without room of the account
 // a, times told against the time given: what holds it back, from when where
-// that's known, as headOf words it; then, muted, when it's back, where
-// that's known, as "  ·  back 17:10"; and of a stretch whose head says so,
-// where it's back as the view's window resets, that it is, as ", as its
-// 5-hour resets".
+// that's known, as headOf words it, of the timeline shown; then, muted, when
+// it's back, where that's known, as "  ·  back 17:10"; and of a stretch whose
+// head says so, where it's back as the view's window resets, that it is, as
+// ", as its 5-hour resets".
 func (f Frame) stretchParts(s views.LaneStretch, a status.AccountNow, against time.Time) []line {
-	head, k, resets := headOf(s, a, against)
+	head, k, resets := headOf(s, a, f.Runway.Timeline.NowColumn(), against)
 	parts := []line{{{head, k}}}
 	if s.Back.IsZero() {
 		return parts
@@ -123,17 +123,17 @@ func (f Frame) stretchParts(s views.LaneStretch, a status.AccountNow, against ti
 }
 
 // headOf is what's said first of the stretch s without room of the account
-// a, times told against the time given, in its ink, and whether its back is
-// said to be as the view's window resets, where it is: at its cap, as "at its
-// cap 14:31", or a run-out reaching it, as "reaches its cap ~15:45 at its
-// pace"; a run-out reaching its limit, as "runs out ~16:05 at its pace"; each
-// bold in accent.attention, and each back as the window resets, as each
-// ends then. At its limit, as "at its limit 13:58"; its token refused, as
-// "token refused (401) 14:12", the status the refusal holding it gave; or
-// without a token, "no token"; each bold in state.destructive, and none back
-// as the window resets, as each lifts whenever it does. A start no one told
-// leaves its time unsaid.
-func headOf(s views.LaneStretch, a status.AccountNow, against time.Time) (string, ink, bool) {
+// a, now's column now, times told against the time given, in its ink, and
+// whether its back is said to be as the view's window resets, where it is:
+// at its cap, as "at its cap 14:31", or a run-out reaching it, as "reaches
+// its cap ~15:45 at its pace"; a run-out reaching its limit, as "runs out
+// ~16:05 at its pace"; each bold in accent.attention, and each back as the
+// window resets, as each ends then. At its limit, as "at its limit 13:58";
+// its token refused, as "token refused (401) 14:12", the status the refusal
+// holding it gave, as refusedWith has it; or without a token, "no token";
+// each bold in state.destructive, and none back as the window resets, as
+// each lifts whenever it does. A start no one told leaves its time unsaid.
+func headOf(s views.LaneStretch, a status.AccountNow, now int, against time.Time) (string, ink, bool) {
 	when := ""
 	if !s.Start.IsZero() {
 		when = " " + prose.Dated(against, s.Start)
@@ -151,17 +151,17 @@ func headOf(s views.LaneStretch, a status.AccountNow, against time.Time) (string
 	case s.Cell == views.CellLimited:
 		return "at its limit" + when, exhaustedInk, false
 	case s.Cell == views.CellRefused:
-		return "token refused" + refusedWith(s, a) + when, exhaustedInk, false
+		return "token refused" + refusedWith(s, a, now) + when, exhaustedInk, false
 	}
 	return "no token", exhaustedInk, false
 }
 
 // refusedWith is the status the upstream refused the account a's token with,
 // as " (401)", where the stretch s is the refusal holding it at the moment,
-// as it lifts at the refusal's until: none of a refusal gone, whose status
-// the moment no longer holds, nor of one given none.
-func refusedWith(s views.LaneStretch, a status.AccountNow) string {
-	if !a.TokenRefused || a.Refusal.Status == 0 || !s.Back.Equal(a.Refusal.Until) {
+// as it reaches now's column, now, or past it: none of a refusal gone, whose
+// status the moment no longer holds, nor of one given none.
+func refusedWith(s views.LaneStretch, a status.AccountNow, now int) string {
+	if !a.TokenRefused || a.Refusal.Status == 0 || now < 0 || s.Last < now {
 		return ""
 	}
 	return " (" + strconv.Itoa(a.Refusal.Status) + ")"

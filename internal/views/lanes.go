@@ -102,7 +102,8 @@ func (c Cell) held() bool {
 }
 
 // Reset is a reset of the view's window in an account's lane, as │ marks it:
-// its column; when; and Back, set where a stretch without room ends at it.
+// its column; when; and Back, set where a stretch without room ends at it, as
+// its own hold lifts then, though another may hold the account on.
 type Reset struct {
 	Column int
 	At     time.Time
@@ -123,15 +124,16 @@ type LaneStretch struct {
 	// Projected is set where a run-out projects it, as ~ says.
 	Start     time.Time
 	Projected bool
-	// Back is when room returns, zero where that isn't known, and AsItResets
-	// is set where that's as the view's window resets.
+	// Back is when room returns, zero where that isn't known: past its own
+	// hold's lift where another holds the account on, as backWithRoom has
+	// it. AsItResets is set where that's as the view's window resets.
 	Back       time.Time
 	AsItResets bool
 	// Column is where its words start: the column its start falls in, the
 	// first, of a start before the timeline, and First, of one not known.
 	Column, First, Last int
-	// Over is set where it ended before now's column, as a live view
-	// doesn't say.
+	// Over is set where it's over, as the timeline's over has it, so not
+	// said.
 	Over bool
 }
 
@@ -183,13 +185,12 @@ func (l Lanes) judging() judge {
 }
 
 // laneOf is the account a's lane, as Lane has it, its past as past holds it,
-// the rest as the moment has it stand and heading.
+// the rest as the moment has it stand and heading. Its resets are marked
+// where a stretch's own hold lifts, before each stretch is back as its
+// account next has room.
 func (from LanesFrom) laneOf(a status.AccountNow, past pastOf, then judge) Lane {
 	tl := from.Timeline
-	h := aheadOf(a, from.Window)
-	if h.hold.since.IsZero() {
-		h.hold.since = from.readSince(a, past, then, h.hold.cell)
-	}
+	h := from.sinceRead(aheadOf(a, from.Window), a, past, then)
 	stood := make([]stood, max(tl.Columns, 0))
 	for c := range stood {
 		if c < len(past.was) {
@@ -198,39 +199,48 @@ func (from LanesFrom) laneOf(a status.AccountNow, past pastOf, then judge) Lane 
 			stood[c] = h.at(tl.Moment(c))
 		}
 	}
-	lane := Lane{ID: a.ID, Cells: make([]Cell, len(stood)), Stretches: laneStretches(stood, tl, h.hold), Use: from.useOf(a)}
+	lane := Lane{ID: a.ID, Cells: make([]Cell, len(stood)), Stretches: laneStretches(stood, tl, h.holds), Use: from.useOf(a)}
 	for c, s := range stood {
 		lane.Cells[c] = s.cell
 	}
+	lane.Resets = from.marked(a, lane.Stretches)
+	lane.Stretches = backWithRoom(lane.Stretches, h, tl.NowColumn())
 	resets := from.resetsKnown(a, past)
 	for i, s := range lane.Stretches {
 		lane.Stretches[i].AsItResets = !s.Back.IsZero() && slices.ContainsFunc(resets, s.Back.Equal)
 	}
-	lane.Resets = from.marked(a, lane.Stretches)
 	lane.Room = roomThrough(lane.Cells[from.saysFrom():])
 	return lane
 }
 
-// readSince is when the hold at now holding the account a back, as the cell
-// given, began, as then finds its readings, as its past holds them, show it,
-// where it judges it held alike at now; zero where nothing holds it at now,
-// or the timeline has no now.
-func (from LanesFrom) readSince(a status.AccountNow, past pastOf, then judge, held Cell) time.Time {
-	if !held.held() || from.Timeline.NowColumn() < 0 {
-		return time.Time{}
+// sinceRead is h, each of its holds whose start no event tells begun as then
+// finds the account a's readings, as its past holds them, show it, where the
+// timeline holds now: as then judges the account stood as the hold is first
+// drawn, as drawnFrom has it, where it judges it held alike then. A hold
+// under another is so begun as the readings will have it once its columns
+// are past.
+func (from LanesFrom) sinceRead(h ahead, a status.AccountNow, past pastOf, then judge) ahead {
+	if from.Timeline.NowColumn() < 0 {
+		return h
 	}
-	if was := then(from.Moment, a, past.read, past.told, from.Timeline.Now); wasCells[was.Kind] == held {
-		return was.Since
+	for i, p := range h.holds {
+		at, drawn := h.drawnFrom(i, from.Timeline.Now)
+		if !p.since.IsZero() || !drawn {
+			continue
+		}
+		if was := then(from.Moment, a, past.read, past.told, at); wasCells[was.Kind] == p.cell {
+			h.holds[i].since = was.Since
+		}
 	}
-	return time.Time{}
+	return h
 }
 
 // laneStretches are the stretches without room the columns, standing as stood,
 // draw, in order: each run of columns held back alike, the hold of one
-// holding on, as its until says, at the next's moment; its start that of its
-// first column, but where it holds now's, where the hold at now, given, is
-// of its kind, that hold's, where that's known.
-func laneStretches(stood []stood, tl Timeline, hold stood) []LaneStretch {
+// holding on, as its until says, at the next's moment, back as it lifts; its
+// start that of its first column, but where it holds now's, as begunAt has
+// it of the holds at now given.
+func laneStretches(stood []stood, tl Timeline, holds []stood) []LaneStretch {
 	var stretches []LaneStretch
 	now := tl.NowColumn()
 	for c, s := range stood {
@@ -242,18 +252,52 @@ func laneStretches(stood []stood, tl Timeline, hold stood) []LaneStretch {
 		} else {
 			stretches = append(stretches, LaneStretch{Cell: s.cell, Start: s.since, Projected: s.projected, Back: s.until, First: c, Last: c})
 		}
-		if last := &stretches[len(stretches)-1]; c == now && hold.cell == s.cell && !hold.since.IsZero() {
-			last.Start, last.Projected = hold.since, false
+		if c == now {
+			stretches[len(stretches)-1].begunAt(holds)
 		}
 	}
 	for i := range stretches {
 		s := &stretches[i]
-		s.Column, s.Over = s.First, s.Last < now
+		s.Column, s.Over = s.First, tl.over(s.Last)
 		if !s.Start.IsZero() {
 			s.Column = max(tl.Column(s.Start), 0)
 		}
 	}
 	return stretches
+}
+
+// begunAt has the stretch, which holds now's column, begin as the hold at now
+// of its kind, of those given, began, where that's known: as the router's
+// event of it tells, before the readings.
+func (s *LaneStretch) begunAt(holds []stood) {
+	for _, h := range holds {
+		if h.cell == s.Cell && !h.since.IsZero() {
+			s.Start, s.Projected = h.since, false
+		}
+	}
+}
+
+// backWithRoom are the stretches given, in order, each back as its account
+// next has room, as ROUTING's back says: one reaching now's column, now, or
+// past it, as the account standing from now on as h has it is, from when its
+// own hold lifts, whether or not a column draws what holds it on; and one
+// before, as the next is, where that holds it on, as heldOnBy says.
+func backWithRoom(stretches []LaneStretch, h ahead, now int) []LaneStretch {
+	for i := len(stretches) - 1; i >= 0; i-- {
+		if s := &stretches[i]; now >= 0 && s.Last >= now {
+			s.Back = h.roomFrom(s.Back)
+		} else if i+1 < len(stretches) && s.heldOnBy(stretches[i+1]) {
+			s.Back = stretches[i+1].Back
+		}
+	}
+	return stretches
+}
+
+// heldOnBy reports whether the stretch next holds the stretch's account on
+// past its own hold's lift: it's in the column after the stretch's last,
+// and began by then.
+func (s LaneStretch) heldOnBy(next LaneStretch) bool {
+	return next.First == s.Last+1 && !s.Back.IsZero() && !next.Start.After(s.Back)
 }
 
 // holdsOn reports whether the stretch, its last column before c, holds on

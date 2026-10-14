@@ -28,8 +28,8 @@ type PoolColumn struct {
 // Dip is a run of the pool's columns where fewer than all its accounts have
 // room, those known, from First to Last: each step of its count, in order;
 // Column, where its words start, the column its first step's start falls
-// in; Over, set where it ended before now's column, as a live view doesn't
-// say; and Ahead, set where it begins after now's.
+// in; Over, set where it's over, as the timeline's over has it, so not said;
+// and Ahead, set where it begins after now's column.
 type Dip struct {
 	Steps               []Step
 	Column, First, Last int
@@ -104,7 +104,7 @@ func (p Pool) dipsOver(members []Lane, tl Timeline) []Dip {
 		if start := d.Steps[0].From.At; !start.IsZero() {
 			d.Column = max(tl.Column(start), 0)
 		}
-		d.Over, d.Ahead = d.Last < now, now >= 0 && d.First > now
+		d.Over, d.Ahead = tl.over(d.Last), now >= 0 && d.First > now
 	}
 	return dips
 }
