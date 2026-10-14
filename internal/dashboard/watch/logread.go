@@ -70,7 +70,7 @@ func (m Model) readLog() (Model, tea.Cmd) {
 	}
 	now := m.now()
 	m = m.builtLog(now)
-	if m.tail.reading || m.log.reading {
+	if m.tail.busy() || m.log.reading {
 		return m, nil
 	}
 	switch {
@@ -138,18 +138,6 @@ func (m Model) readRefiled(now time.Time) (Model, tea.Cmd) {
 	}
 }
 
-// readTail reads what the ledger gained since the tail's mark, at now, and
-// grows the Log's read by it, as logFold has it.
-func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
-	r, mark := m.logReaders(), m.tail.mark
-	fold := m.logFold(now)
-	m.tail, m.log.reading = m.tail.asking(), true
-	return m, func() tea.Msg {
-		lines, next, _ := r.ledger.Today(mark)
-		return tailedMsg{mark: next, day: views.Today(now), log: fold.grown(r, lines, now)}
-	}
-}
-
 // logFold is what a read of the ledger's tail does for the Log, as it
 // stands as the read is asked: grows its read by the lines the ledger
 // gained, and by those of the days before today it reads again whole, late,
@@ -174,13 +162,14 @@ func (m Model) logFold(now time.Time) logFold {
 	return logFold{read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), from: m.log.from, asks: !m.log.bounded()}
 }
 
-// grown is the Log grown, through r, at now, by lines, the ledger's gain
-// since the tail's mark, as the fold says.
-func (f logFold) grown(r logReaders, lines []ledger.Held, now time.Time) *logGrown {
+// grown is the Log grown, through r, at now, by what a read of the tail
+// read: the ledger's gain since the tail's mark, and the late days' lines,
+// as the fold says.
+func (f logFold) grown(r logReaders, read tailLines, now time.Time) *logGrown {
 	l := r.ledger
-	g := logGrown{read: f.read.Grown(l, lines, now)}
+	g := logGrown{read: f.read.Grown(l, read.gained, now)}
 	for _, date := range f.late {
-		g.read = g.read.Back(l, l.Day(date), now)
+		g.read = g.read.Back(l, read.days[date], now)
 	}
 	if len(f.late) > 0 {
 		g.totals = views.TotalsByDay(l, f.from.Start, now, r.prices)
@@ -240,16 +229,6 @@ func keptFrom(first time.Time, err error, keep time.Duration, now time.Time) (*v
 	}
 	oldest := views.OldestKept(first, keep, now)
 	return &oldest, nil
-}
-
-// tailed takes in what a read of the ledger's tail found: the tail read to
-// its mark, and the Log grown by it, where it was read for the Log.
-func (m Model) tailed(msg tailedMsg) Model {
-	m.tail = m.tail.read(msg.tailRead)
-	if msg.log != nil {
-		m.log = m.log.grown(*msg.log)
-	}
-	return m
 }
 
 // logRead takes in what a read for the Log of its own found: the tail read
