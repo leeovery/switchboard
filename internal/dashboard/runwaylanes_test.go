@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"image/color"
 	"slices"
 	"testing"
@@ -35,7 +36,7 @@ func TestALaneDrawsEachColumnAsItsAccountStoodThen(t *testing.T) {
 		token theme.Token
 		bold  bool
 	}{
-		{name: "nothing known, blank", look: nord, cell: views.CellUnknown, glyph: " "},
+		{name: "nothing known, left blank", look: nord, cell: views.CellUnknown, glyph: " "},
 		{name: "with room", look: nord, cell: views.CellRoom, glyph: "▆", token: theme.VizRamp1},
 		{name: "running out at its pace", look: nord, cell: views.CellRunsOut, glyph: "▆", token: theme.AccentAttention},
 		{name: "at its cap", look: nord, cell: views.CellCapped, glyph: "─", token: theme.AccentAttention},
@@ -52,10 +53,11 @@ func TestALaneDrawsEachColumnAsItsAccountStoodThen(t *testing.T) {
 			f := runwayShowing(runwayLive(views.RunwayFiveHour))
 			f.Look = tt.look
 			ln := laneWith()
-			ln.Cells = laneCells(views.CellRoom, views.CellRoom, views.CellRoom, views.CellRoom, views.CellRoom, views.CellRoom, views.CellRoom, tt.cell)
-			got := drawnLane(f, ln).at(runwayLanesFrom+7, 10)
-			if got.glyph != tt.glyph || tt.glyph != " " && (got.ink.token != tt.token || got.ink.bold != tt.bold) {
-				t.Errorf("column 7 is %q in %v, want %q in %v, bold %t", got.glyph, got.ink, tt.glyph, tt.token, tt.bold)
+			ln.Cells = laneCells(views.CellRoom, views.CellRoom, views.CellRoom, tt.cell)
+			got := drawnLane(f, ln).at(runwayLanesFrom+3, 10)
+			blank := tt.glyph == " " && got.ink != ink{}
+			if got.glyph != tt.glyph || blank || tt.glyph != " " && (got.ink.token != tt.token || got.ink.bold != tt.bold) {
+				t.Errorf("column 3 is %q in %v, want %q in %v, bold %t", got.glyph, got.ink, tt.glyph, tt.token, tt.bold)
 			}
 		})
 	}
@@ -197,6 +199,10 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 			},
 			head: "2 perso… ◆", use: "5-hour 100%", useInks: []ink{dimInk, {token: theme.VizRamp4, bold: true}},
 		},
+		{
+			name: "on a phone's label column, short where the blank before the lane leaves too few cells", x: phoneRunwayLanesFrom,
+			lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Unread: true}}}, head: "1 work", use: "not read", useInks: []ink{dimInk},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -287,6 +293,29 @@ func TestNowsColumnIsPickedOutDownToThePoolsWords(t *testing.T) {
 				t.Errorf("the column after now's is on %v, want the canvas", got)
 			}
 		})
+	}
+}
+
+// Runway's lanes are the lanes' accounts the moment has, in the lanes'
+// order, each with its account as the moment has it and its name as the
+// moment numbers it, the whole name faint where the pool leaves it out; none
+// before the watch builds them.
+func TestRunwaysLanesAreItsAccountsInTheLanesOrder(t *testing.T) {
+	m := status.Moment{Accounts: []status.AccountNow{
+		{ID: "work", Label: "work"}, {ID: "personal", Label: "personal", OutOfPool: true}, {ID: "side", Label: "side"},
+	}}
+	f := runwayShowing(runwayLive(views.RunwayFiveHour))
+	if lanes := f.lanesOf(m); lanes != nil {
+		t.Errorf("before the lanes are built, Runway has %d lanes, want none", len(lanes))
+	}
+	f.Runway.Lanes = &views.Lanes{Accounts: []views.Lane{{ID: "side"}, {ID: "gone"}, {ID: "personal"}, {ID: "work"}}}
+	var got []string
+	for _, ln := range f.lanesOf(m) {
+		got = append(got, fmt.Sprintf("%s %s %s faint %t row %d", ln.ID, ln.account.ID, ln.name.line(runwayLanesFrom).plain(), ln.name.faint, ln.row))
+	}
+	want := []string{"side side 3 side faint false row -1", "personal personal 2 personal faint true row -1", "work work 1 work faint false row -1"}
+	if !slices.Equal(got, want) {
+		t.Errorf("Runway's lanes are\n%q, want\n%q", got, want)
 	}
 }
 

@@ -73,6 +73,9 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 	limited.AsItResets = true
 	refused := stretchOf(tl, views.CellRefused, routedClock(1, 14, 12), routedClock(1, 15, 0), 3, 7)
 	refusing := status.AccountNow{ID: "work", Read: true, TokenRefused: true, Refusal: status.Refusal{Until: routedClock(1, 15, 0), Status: 401}}
+	today := runwayBack(views.RunwayFiveHour, civilDay(10, 1))
+	refusedEarlier := stretchOf(today.Timeline, views.CellRefused, routedClock(1, 9, 0), routedClock(1, 9, 30), 51, 53)
+	refusedEarlier.Over = false
 	weekOut := stretchOf(week.Timeline, views.CellLimited, routedClock(3, 6, 0), routedClock(4, 2, 0), 51, 66)
 	weekOut.Projected, weekOut.AsItResets = true, true
 	tests := []struct {
@@ -118,6 +121,10 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 		{
 			name: "its token refused, a refusal since gone", shown: five, stretch: refused,
 			want: "token refused 14:12  ·  back 15:00", inks: []ink{exhaustedInk, mutedInk},
+		},
+		{
+			name: "its token refused earlier, while another refusal holds it", shown: today, stretch: refusedEarlier, account: &refusing,
+			want: "token refused 09:00  ·  back 09:30", inks: []ink{exhaustedInk, mutedInk},
 		},
 		{
 			name: "without a token", shown: five, stretch: stretchOf(tl, views.CellTokenless, time.Time{}, time.Time{}, 0, 135),
@@ -234,8 +241,8 @@ func TestTheWeekViewSaysWhenAWeekResetsEndingAtItsMarkWhereThatClearsTheWordsBef
 		},
 		{
 			name: "a reset a stretch ends at, unsaid, as the stretch's words say it", shown: week,
-			lane: withResets(laneWith(stretchOf(tl, views.CellLimited, routedClock(3, 6, 0), routedClock(4, 21, 0), 51, 81)), views.Reset{Column: 82, At: routedClock(4, 21, 0), Back: true}),
-			want: strings.Repeat(" ", 51) + "at its limit Sat 06:00  ·  back Sun 21:00",
+			lane: withResets(laneWith(stretchOf(tl, views.CellLimited, time.Time{}, routedClock(4, 21, 0), 0, 81)), views.Reset{Column: 82, At: routedClock(4, 21, 0), Back: true}),
+			want: "at its limit  ·  back Sun 21:00",
 		},
 		{
 			name: "in the 5-hour view, never", shown: runwayLive(views.RunwayFiveHour),
@@ -283,6 +290,11 @@ func TestALaneWithNothingElseToSaySaysWhatItHas(t *testing.T) {
 			want: "can't read it: HTTP 529 · Overloaded", ink: dimInk,
 		},
 		{name: "a day gone that read nothing of it", shown: runwayBack(views.RunwayFiveHour, wednesday), lane: unknown, want: "nothing read that day", ink: faintInk},
+		{
+			name: "a day gone that read nothing of it, not why it can't be read now", shown: runwayBack(views.RunwayFiveHour, wednesday), lane: unreadable,
+			want: "nothing read that day", ink: faintInk,
+		},
+		{name: "today stepped back to, not read yet, nothing", shown: runwayBack(views.RunwayFiveHour, civilDay(10, 1)), lane: unknown, want: ""},
 		{name: "a week gone that read nothing of it", shown: runwayBack(views.RunwayWeek, civilDay(9, 21)), lane: unknown, want: "nothing read that week", ink: faintInk},
 	}
 	for _, tt := range tests {
@@ -340,6 +352,8 @@ func TestALanesWordsAreCuedAsItsAccountNewlyStandsSo(t *testing.T) {
 	runsOut := laneWith(out)
 	runsOut.Cells = slices.Repeat([]views.Cell{views.CellRunsOut}, 136)
 	runsOut.account.Windows = []status.WindowNow{{Key: "5h", Shared: true}, {Key: "7d_oi"}}
+	cappedSharing := capped
+	cappedSharing.account.Windows = runsOut.account.Windows
 	tests := []struct {
 		name      string
 		lane      laidLane
@@ -352,7 +366,7 @@ func TestALanesWordsAreCuedAsItsAccountNewlyStandsSo(t *testing.T) {
 		{name: "newly changed, with room at now", lane: laneWith(), changed: map[string]float64{"work": 0.25}},
 		{name: "its window newly running out", lane: runsOut, turnedOut: map[Ref]float64{{Account: "work", Window: "5h"}: 0.5}, want: 0.5, cued: true},
 		{name: "a model's own window newly running out", lane: runsOut, turnedOut: map[Ref]float64{{Account: "work", Window: "7d_oi"}: 0.5}},
-		{name: "its window newly running out, where the lane draws none", lane: capped, turnedOut: map[Ref]float64{{Account: "work", Window: "5h"}: 0.5}},
+		{name: "its window newly running out, where the lane draws none", lane: cappedSharing, turnedOut: map[Ref]float64{{Account: "work", Window: "5h"}: 0.5}},
 		{name: "another account newly at its cap", lane: capped, changed: map[string]float64{"side": 0.25}},
 	}
 	for _, tt := range tests {

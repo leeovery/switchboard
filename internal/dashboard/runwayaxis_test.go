@@ -134,6 +134,41 @@ func TestTheWeeksAxisPicksOutTodayWhereTheTimelineHasANow(t *testing.T) {
 	}
 }
 
+// The week's axis ticks each day's quarters where a day spans 12 columns,
+// and names each day where it clears the name before by five cells.
+func TestTheWeeksAxisTicksQuartersAndNamesDaysAsTheWidthAllows(t *testing.T) {
+	tests := []struct {
+		name        string
+		columns     int
+		names, rule string
+	}{
+		{
+			name: "a day 12 columns, its quarters ticked", columns: 84,
+			names: "    Thu         Fri         Sat         Sun         Mon         Tue         Wed",
+			rule:  " ╵  ┬  ╵  ╵  ╵  ┬  ╵  ╵  ╵  ┬  ╵  ╵  ╵  ┬  ╵  ╵  ╵  ┬  ╵  ╵  ╵  ┬  ╵  ╵  ╵  ┬  ╵  ╵",
+		},
+		{
+			name: "a day 8 columns, its quarters not", columns: 56,
+			names: "   Thu     Fri     Sat     Sun     Mon     Tue     Wed",
+			rule:  "   ┬       ┬       ┬       ┬       ┬       ┬       ┬",
+		},
+		{
+			name: "a day under 4 columns, a name where it clears the one before", columns: 26,
+			names: " Thu    Sat     Mon    Wed",
+			rule:  " ┬   ┬  ┬   ┬   ┬   ┬  ┬",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newCanvas(tt.columns, 2)
+			weekdays(c, views.LiveTimeline(views.RunwayWeek, routedAt, tt.columns), 0, 0)
+			if names, rule := textAt(c, 0, 0, tt.columns), textAt(c, 0, 1, tt.columns); names != tt.names || rule != tt.rule {
+				t.Errorf("the week's axis reads\n%q\n%q, want\n%q\n%q", names, rule, tt.names, tt.rule)
+			}
+		})
+	}
+}
+
 func TestTheWeeksAxisTicksTheQuartersOfItsFirstDayToo(t *testing.T) {
 	tl := views.LiveTimeline(views.RunwayWeek, now, 136)
 	c := newCanvas(140, 2)
