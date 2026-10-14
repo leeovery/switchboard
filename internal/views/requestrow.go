@@ -135,6 +135,22 @@ func (s RowStage) InFlight() bool {
 	return s == RowAsking || s == RowAnswering
 }
 
+// Live is the row r as it's drawn at now, s being what the stream tells
+// then: while it's in flight, how long it has taken since it was sent, and
+// answering, its characters so far, as s counts them; else r as its table
+// built it. Its table is built again only as its stage changes, as
+// Told.SameRow has it, so a row drawn at each frame counts on between.
+func (r RequestRow) Live(s Stream, now time.Time) RequestRow {
+	if !r.Stage.InFlight() {
+		return r
+	}
+	r.Took = since(r.At, now)
+	if t, ok := s.Requests[r.Request]; ok && r.Stage == RowAnswering {
+		r.Chars = t.doing().Chars
+	}
+	return r
+}
+
 // RowMark is a row's mark.
 type RowMark int
 

@@ -111,8 +111,8 @@ var (
 	// passes whatever the dashboard builds.
 	builtInTheWatch = []string{
 		"views.DaySessions", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsRead.Refiled", "views.EventsRead.Skips",
-		"views.EventsSince", "views.EventsTable.Details", "views.FindSessions", "views.LogEvents", "views.LogRead.Grown",
-		"views.LogRows", "views.LogSessions", "views.ReadEvents", "views.ReadLogHeld", "views.Today", "views.TotalsOn",
+		"views.EventsRead.Took", "views.EventsSince", "views.EventsTable.Details", "views.FindSessions", "views.LogEvents", "views.LogFilter.KeptFrom",
+		"views.LogRead.Grown", "views.LogRows", "views.LogSessions", "views.ReadEvents", "views.ReadLogHeld", "views.Today", "views.TotalsOn",
 	}
 )
 

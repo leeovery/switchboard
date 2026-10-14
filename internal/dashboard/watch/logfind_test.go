@@ -143,9 +143,10 @@ func TestTheFindDropsASummariesReadOfAnEarlierOpening(t *testing.T) {
 }
 
 // enter on a session of an earlier day filters both tables to it, the
-// tables reading back to its day, then pauses at its newest line, chosen,
-// the panel listing it among today's sessions, ticked; but with the filter
-// let go on the way, they read back no further, and nothing pauses.
+// tables reading back to its day, how far its lines reach read from the
+// days' summaries first, then pauses at its newest line, chosen, the panel
+// listing it among today's sessions, ticked; but with the filter let go on
+// the way, they read back no further, and nothing pauses.
 func TestEnterOnAnEarlierDaysSessionShowsItsLinesAlonePausedAtItsNewest(t *testing.T) {
 	state := t.TempDir()
 	var today []ledger.Held
@@ -162,7 +163,10 @@ func TestEnterOnAnEarlierDaysSessionShowsItsLinesAlonePausedAtItsNewest(t *testi
 	}
 
 	h.typed("/", "a", "p", "i")
-	reading := h.update(enter)
+	var reading []tea.Msg
+	for _, reach := range h.update(enter) {
+		reading = append(reading, h.update(reach)...)
+	}
 	h.keys(escape)
 	h.deliver(reading...)
 	if got, want := h.model.log.from.Date, dayfile.DateOf(past(-day)); got != want || h.model.log.page.Paused() {
@@ -225,6 +229,54 @@ func TestEnterOnARunningSessionReadsBackItsEarlierLinesToFillTheView(t *testing.
 	}
 }
 
+// A session found, its lines fewer than the view, reads back no further
+// than the days' summaries say its lines reach: to its first day, every day
+// after it read, as the tables hold every day from the first they span; not
+// to the oldest day the ledger keeps.
+func TestAFoundSessionReadsBackNoFurtherThanItsFirstDay(t *testing.T) {
+	tests := []struct {
+		name  string
+		ran   []int
+		reach int
+	}{
+		{name: "api ran the two days before today", ran: []int{1, 2}, reach: 2},
+		{name: "api ran first six days before today", ran: []int{2, 6}, reach: 6},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			var lines []ledger.Held
+			for i := range 60 {
+				lines = append(lines, ranIn(fmt.Sprintf("0c%06d", i), webSession, "~/Code/web", -time.Duration(70-i)*time.Minute))
+			}
+			for d := 1; d <= 30; d++ {
+				for i := range 20 {
+					lines = append(lines, ranIn(fmt.Sprintf("0d%02d%04d", d, i), webSession, "~/Code/web", -time.Duration(d)*day+time.Duration(i)*time.Minute))
+				}
+			}
+			for _, d := range tt.ran {
+				lines = append(lines, ranIn(fmt.Sprintf("0b%06d", d), apiSession, "~/Code/api", -time.Duration(d)*day+time.Hour))
+			}
+			lines = append(lines, ranIn("0b100001", apiSession, "~/Code/api", -5*time.Minute), ranIn("0b100002", apiSession, "~/Code/api", -4*time.Minute))
+			writeLines(t, state, lines...)
+			h := newHarness(t, probedWithoutTheRouter())
+			l := onTheLog(h, state)
+			h.start()
+			h.typed("/", "a", "p", "i")
+			found := len(l.days)
+
+			h.keys(enter)
+			var want []string
+			for d := 1; d <= tt.reach; d++ {
+				want = append(want, dayfile.DateOf(past(-time.Duration(d)*day)))
+			}
+			if got := l.days[found:]; !slices.Equal(got, want) {
+				t.Errorf("found api, the Log read back the days %v, want %v: to api's first day, and no further", got, want)
+			}
+		})
+	}
+}
+
 // esc on the Log, the newest first: closes the find; follows again where
 // the table is paused; then lets the filter go, as the find set it.
 func TestEscOnTheLogClosesTheFindThenFollowsThenLetsTheFilterGo(t *testing.T) {
@@ -262,6 +314,33 @@ func TestEscOnTheLogClosesTheFindThenFollowsThenLetsTheFilterGo(t *testing.T) {
 	}
 }
 
+// On a terminal too short for the Log's table, as on any, / opens the find,
+// its line drawn in the state line's row, what's typed shown, q among it:
+// the page otherwise its title row, its status line and its key line alone.
+func TestTheFindOnACrampedTerminalDrawsItsLine(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 150, Height: 10})...)
+	h.start()
+	h.typed("/", "a", "p", "q")
+
+	if !h.model.finding() {
+		t.Fatal("/ then a, p and q on a cramped terminal, the find isn't open")
+	}
+	rows := strings.Split(h.view(), "\n")
+	if got := strings.TrimSpace(rows[len(rows)-2]); !strings.HasPrefix(got, "/ apq▏") {
+		t.Errorf("/ then a, p and q on a cramped terminal, the state line's row reads %q, want the find's line, / apq▏", got)
+	}
+	_, statusRow := h.drawnAt("router not running")
+	for y := statusRow + 1; y < len(rows)-2; y++ {
+		if strings.TrimSpace(rows[y]) != "" {
+			t.Errorf("cramped, the find open, row %d reads %q, want it blank, as the view's rows are", y, rows[y])
+		}
+	}
+}
+
 // / before the Log's first read lands opens the find, its line drawn in the
 // state line's row as the design has / open it, what's typed shown as it's
 // typed, finding none of today's sessions till the read counts them; and it
@@ -271,14 +350,7 @@ func TestTheFindDrawsItsLineBeforeTheLogsFirstReadLands(t *testing.T) {
 	writeLines(t, state, ranIn("0a000001", idD28C, "~/Code/web", -time.Minute))
 	h := newHarness(t, probedWithoutTheRouter())
 	onTheLog(h, state)
-	var unread []tea.Msg
-	for msgs := h.init(); len(msgs) > 0; msgs = msgs[1:] {
-		if _, ok := msgs[0].(logReadMsg); ok {
-			unread = append(unread, msgs[0])
-			continue
-		}
-		msgs = append(msgs, h.update(msgs[0])...)
-	}
+	unread := h.holdingReads(h.init()...)
 	if len(unread) == 0 || h.model.log.page.Read {
 		t.Fatal("the Log's first read landed, want it held")
 	}

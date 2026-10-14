@@ -87,23 +87,32 @@ func TestTheFindsLineIsInkedAsThePageInksIt(t *testing.T) {
 	}
 }
 
-// While the find is open, its line takes the state line's place; closed,
-// the state line is drawn.
+// While the find is open, its line takes the state line's place, on a
+// terminal too short for the view as on any, where the row's under the
+// status line; closed, the state line is drawn, where the view is.
 func TestTheFindsLineTakesTheStateLinesPlace(t *testing.T) {
 	for _, tt := range []struct {
-		name string
-		page LogPage
-		want string
+		name   string
+		page   LogPage
+		height int
+		want   string
 	}{
-		{name: "open", page: findingThree(""), want: "/ api▏   7f3a api  today"},
-		{name: "closed", page: threeAsked(), want: "● following"},
+		{name: "open", page: findingThree(""), height: 24, want: "/ api▏   7f3a api  today"},
+		{name: "closed", page: threeAsked(), height: 24, want: "● following"},
+		{name: "open, cramped", page: findingThree(""), height: 10, want: "/ api▏   7f3a api  today"},
+		{name: "closed, cramped", page: threeAsked(), height: 10},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			text := textOf(logFrameOf(tt.page, 160, 24).Draw(routerDoc("side", 0), logDayNoon))
-			if got := text[22]; !strings.HasPrefix(got, tt.want) {
+			text := textOf(logFrameOf(tt.page, 160, tt.height).Draw(routerDoc("side", 0), logDayNoon))
+			got := text[tt.height-2]
+			if tt.want == "" && strings.TrimSpace(got) != "" || !strings.HasPrefix(got, tt.want) {
 				t.Errorf("the state line's row reads %q, want it to start %q", got, tt.want)
 			}
 		})
+	}
+	text := textOf(logFrameOf(findingThree(""), 160, 4).Draw(routerDoc("side", 0), logDayNoon))
+	if slices.ContainsFunc(text, func(row string) bool { return strings.Contains(row, "/ api▏") }) {
+		t.Errorf("no row under the status line, the find's line is drawn over the page:\n%s", strings.Join(text, "\n"))
 	}
 }
 

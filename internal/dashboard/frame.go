@@ -227,20 +227,22 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	}
 }
 
-// stateLine draws the view's state line, over the key line, as told at now,
-// where the page has room for the view, as cramped says: the Log's, once
-// its first read lands; or while its find is open, read or not, the find's
-// line in its place. The views milestone 5 built draw their own line there.
+// stateLine draws the view's state line, over the key line, as told at now:
+// the Log's, once its first read lands, where the page has room for the
+// view, as cramped says; and while its find is open, read or not, the
+// find's line in its place, cramped or not, where the row's under the
+// status line, as what's typed into it is drawn nowhere else. The views
+// milestone 5 built draw their own line there.
 func (f Frame) stateLine(c *canvas, now time.Time) {
-	if f.cramped() || f.View != Log {
+	if f.View != Log {
 		return
 	}
 	y := f.Height - underView
-	if found, ok := f.Log.findLine(f.Width); ok {
+	if found, ok := f.Log.findLine(f.Width); ok && y > f.statusRow() {
 		c.line(0, y, found)
 		return
 	}
-	if f.Log.Read {
+	if f.Log.Read && !f.cramped() {
 		c.line(0, y, f.Log.state(f.LogRows()).line(f.Width, now))
 	}
 }
@@ -335,7 +337,8 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 
 // cramped reports whether the terminal is too short for the page's fixed
 // rows and leastView of the view's: the page is then its title row, its
-// status line and its key line alone.
+// status line and its key line alone, but for the Log's find's line while
+// it's open, as stateLine has it.
 func (f Frame) cramped() bool {
 	return f.viewRows() < leastView
 }

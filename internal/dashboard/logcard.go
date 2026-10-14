@@ -62,10 +62,16 @@ func (f Frame) logCardForm() cardForm {
 // is. Placed, it keeps the edge by its line where it was as it grows, as far
 // as the table's rows on that side, so its line never moves under it; its
 // body scrolls within it past the rows it has. Its line, wherever it's in
-// view, is left bright as the page fades behind it.
+// view, is left bright as the page fades behind it. A request in flight's
+// is as it stands at the moment drawn, as its row is.
 func (c LogCard) card(f Frame) Card {
 	form := f.logCardForm()
 	m := f.heldMoment()
+	if c.Request != nil {
+		d := *c.Request
+		d.Row = d.Row.Live(f.Log.Stream, m.Now)
+		c.Request = &d
+	}
 	body := c.body(form, m)
 	h := len(body) + chrome(true)
 	k := Card{titled: c.title(m), width: form.width}
