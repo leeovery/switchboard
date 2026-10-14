@@ -49,15 +49,16 @@ func TestHelpOverASessionsPageListsItsKeysNotItsTabs(t *testing.T) {
 	}
 }
 
-// ? on a session's page opens its help, whatever tab it's open over.
+// ? on a session's page opens its help, explaining its STORY first,
+// whatever tab it's open over.
 func TestQuestionMarkOnASessionsPageOpensItsHelp(t *testing.T) {
 	for _, over := range []dashboard.View{dashboard.Overview, dashboard.Log} {
 		t.Run(string(over), func(t *testing.T) {
 			h := sessionPaged(t, "")
 			h.model.view = over
 			h.keyed("?")
-			if !h.inHelp() || !strings.Contains(h.view(), "─ HELP · SESSION ") {
-				t.Errorf("after ? on a session's page over %s, the screen is\n%s\nwant HELP · SESSION over it", over, h.view())
+			if screen := h.view(); !h.inHelp() || !strings.Contains(screen, "─ HELP · SESSION ") || !strings.Contains(screen, "│  STORY ") {
+				t.Errorf("after ? on a session's page over %s, the screen is\n%s\nwant HELP · SESSION over it, explaining its STORY", over, screen)
 			}
 		})
 	}
