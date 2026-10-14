@@ -12,8 +12,8 @@ import (
 // thousand, as "5.4k", and whole under a million, as "958k"; in millions to a
 // tenth under a billion, as "5.7M" or "16.1M"; then in billions to a tenth
 // under ten billion, as "1.5B", and whole past them, as "12B". Each form is
-// for what rounds to it, so 9,960 is "10k", and 999,500 is "1.0M", a half
-// rounded up.
+// for what rounds to it, so 9,960 is "10k", 999,500 is "1.0M" and
+// 999,950,000 is "1.0B", a half rounded up.
 func Tokens(n int) string {
 	switch {
 	case n < 1000:
@@ -22,7 +22,7 @@ func Tokens(n int) string {
 		return inTenths(rounded(n, 100), "k")
 	case rounded(n, 1000) < 1000:
 		return strconv.Itoa(rounded(n, 1000)) + "k"
-	case rounded(n, 1_000_000) < 1000:
+	case rounded(n, 100_000) < 10_000:
 		return inTenths(rounded(n, 100_000), "M")
 	case rounded(n, 100_000_000) < 100:
 		return inTenths(rounded(n, 100_000_000), "B")
