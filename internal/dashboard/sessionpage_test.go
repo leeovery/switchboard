@@ -669,6 +669,19 @@ func TestTURNSSaysWhyASessionHasNoTurns(t *testing.T) {
 	}
 }
 
+// Row 7 draws nothing at its right where the document lacks the account the
+// session runs on, as one the config has since dropped: its models alone,
+// with the whole row to them.
+func TestRow7DrawsNoWindowsOfAnAccountTheDocumentLacks(t *testing.T) {
+	shown := moved()
+	shown.Page.Account = "gone"
+	shown.Page.Goes = []views.SessionModel{{Model: opus, Account: "gone"}, {Model: haiku, Account: "gone"}}
+	f := pageFrame(t, shown, 160, 37)
+	if got := pageText(f)[f.sessionLayout(len(shown.Page.Accounts)).now+1]; got != "opus-5-5 → gone   haiku-4-5 → gone" {
+		t.Errorf("row 7 reads %q, want its models alone", got)
+	}
+}
+
 // A phone's two rows of now say a pin's move as its views do, short, the
 // second cut with … to leave how it has run whole at its right: its own pin
 // moving it, and its pin yielding, which the hard moments don't hold.
