@@ -223,6 +223,33 @@ func TestEscOnTheLogDropsAPageAskedToOpenAsTheLogTakesIt(t *testing.T) {
 	}
 }
 
+// A session's page that opens over the Log while its find is open takes the
+// keys and the key line, drawn in the Log's place: the find waits under it as
+// it was, for esc to come back to.
+func TestASessionsPageOpenOverTheLogsFindTakesItsKeys(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	next, read := h.model.openSession(idD28C)
+	h.model = next
+	h.typed("/", "a")
+	h.deliver(h.run(read)...)
+	if h.model.session == nil {
+		t.Fatal("the page's read landed and opened nothing, want its page open")
+	}
+
+	h.typed("j")
+	if typed, listed := h.model.log.page.Finding.Typed, h.listed(); typed != "a" || len(listed) == 0 || listed[0] != "esc" {
+		t.Errorf("j pressed on the page, the find holds %q, the key line lists %q; want the find as it was, a, the page's line, esc first", typed, listed)
+	}
+	h.keys(escKey)
+	if f := h.model.log.page.Finding; h.model.session != nil || !f.Open || f.Typed != "a" {
+		t.Errorf("esc pressed, a page open %t, the find open %t holding %q; want the page closed, the find open as it was, a", h.model.session != nil, f.Open, f.Typed)
+	}
+}
+
 // A session's page leaves as its keys and clicks have it: esc goes back to
 // the tab it was opened over, as it was left; tab and shift-tab, and a click
 // on a tab, go to that tab from its top.
