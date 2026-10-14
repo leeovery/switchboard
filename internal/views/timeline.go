@@ -68,11 +68,11 @@ func Stepped(w RunwayWindow, day, now time.Time, starts time.Weekday, columns in
 	if day.IsZero() {
 		return LiveTimeline(w, now, columns)
 	}
-	first, days := day, 1
+	start, days := dayStartOf(day, now.Location()), 1
 	if w == RunwayWeek {
-		first, days = weekOf(day, starts), 7
+		start, days = WeekStart(start, starts), 7
 	}
-	start := dayStartOf(first, now.Location())
+	first := civilOf(start)
 	tl := Timeline{Start: start, End: dayfile.DayStart(start, days), Columns: columns, first: first, last: first.AddDate(0, 0, days-1)}
 	if tl.holds(now) {
 		tl.Now = now

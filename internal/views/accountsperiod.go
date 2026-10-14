@@ -93,8 +93,11 @@ func (p AccountsPeriod) stepped(by int) (AccountsPeriod, bool) {
 }
 
 // From is when the period begins at now, weeks starting on the day given: at
-// the start of its first local day.
+// the start of its first local day, this week's where WeekStart has it.
 func (p AccountsPeriod) From(now time.Time, starts time.Weekday) time.Time {
+	if p == AccountsThisWeek {
+		return WeekStart(now.Local(), starts)
+	}
 	start, _, _ := dayfile.Day(p.first(dayfile.CivilOf(now), starts).Format(time.DateOnly))
 	return start
 }
