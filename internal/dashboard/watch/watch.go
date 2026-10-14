@@ -305,8 +305,9 @@ type Model struct {
 	layout dashboard.Layout
 	// scroll is how many rows the view shown is scrolled down by, where it
 	// doesn't fit, or on the Overview, how many accounts USAGE is, within its
-	// section.
+	// section; and counts what it counted, as rescrolled noted it.
 	scroll int
+	counts scrollUnit
 	// focus is the account the Overview's focus is on, which GRAPHS follows:
 	// the first, in the config's order, till ↑ and ↓ move it, and "" while
 	// the document has none.
@@ -464,8 +465,10 @@ func (m Model) Init() tea.Cmd {
 // built of what it holds, and only
 // then, price the moves the routing card would make while it wants them.
 // Then, of the page as it stands at that moment, its Overview's sections
-// built once for each to share, it keeps the Overview's layout, but for a
-// frame, which takes nothing in to lay it out afresh by; brightens the
+// built once for each to share, it keeps the Overview's layout, and takes
+// the view back to its top where what its scroll counts changed, as
+// rescrolled has it, but for a frame, which takes nothing in to lay it out
+// afresh by, nor changes what it counts; brightens the
 // numbers what the stream told changed, as compared has it; and only then,
 // so the screen and its frames see the layout the page will draw and the
 // numbers it brightens, shows the page, drawing frames while anything on it
@@ -488,6 +491,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	page := tuned.frame(now).Built(tuned.doc, now)
 	if _, frame := msg.(frameMsg); !frame {
 		tuned = tuned.keepLayout(page, now)
+		tuned, page = tuned.rescrolled(page, now)
 	}
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
@@ -512,6 +516,44 @@ type taking struct {
 func (m Model) keepLayout(page dashboard.Frame, now time.Time) Model {
 	m.layout = page.LayoutOf(m.doc, now)
 	return m
+}
+
+// scrollUnit is what the view's scroll counts, as the watch noted it last:
+// things, as USAGE's accounts, or rows; or nothing noted, at the view's top.
+type scrollUnit int
+
+const (
+	unnoted scrollUnit = iota
+	countsThings
+	countsRows
+)
+
+// rescrolled is m, and page, built at now, with the view scrolled back to
+// its top where what its scroll counts has changed since the last message
+// noted it: rows where it counted things, or things where it counted rows,
+// as b, a section's key, a resize or a read can change it; so an offset is
+// never read in the other's unit, the view going back to its top, its page
+// built afresh, as History's does on any change. At its top, an offset
+// reads alike in either, so nothing is noted there. A session's page open
+// over the tab scrolls its own, leaving the tab's as it is.
+func (m Model) rescrolled(page dashboard.Frame, now time.Time) (Model, dashboard.Frame) {
+	switch {
+	case m.session != nil:
+		return m, page
+	case m.scroll == 0:
+		m.counts = unnoted
+		return m, page
+	}
+	counts := countsThings
+	if m.laidOut(page, now).ScrollsRows(m.doc, now) {
+		counts = countsRows
+	}
+	if m.counts != unnoted && counts != m.counts {
+		m.scroll, m.counts = 0, unnoted
+		return m, m.frame(now).Built(m.doc, now)
+	}
+	m.counts = counts
+	return m, page
 }
 
 // laidOut is page, built at now, as the model stands since: its Overview

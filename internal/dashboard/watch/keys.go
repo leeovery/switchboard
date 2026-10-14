@@ -195,8 +195,7 @@ func (p pageKeys) listings(scrolls bool) []keyListing {
 // [ ] view alone.
 func (m Model) historyListings() []keyListing {
 	history, p := m.shownView() == dashboard.History, m.past.page
-	f := dashboard.Frame{Width: m.size.Width, Height: m.size.Height, View: dashboard.History, History: p}
-	period, split := p.Period(), f.Split()
+	period, split := p.Period(), m.historySplit()
 	return []keyListing{
 		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: history, apart: true},
 		{Key: dashboard.Key{Key: "< >", Does: "period", State: period}, works: history && period != "", apart: true, wide: true},

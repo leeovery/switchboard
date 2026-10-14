@@ -269,6 +269,10 @@ var (
 	// them: words in capitals, as 5-HOUR, BY ACCOUNT, or the matrix's heads,
 	// and a note after them, as "share of use".
 	headingText = regexp.MustCompile(`^[A-Z0-9-]*[A-Z]{2}[A-Z0-9-]*( +[A-Z0-9][A-Z0-9-]*)*( {2,}[a-z(].*)?$`)
+	// ruledText is a heading in words ruled to the view's edge, as the
+	// List's ended today, or Detail's the last six weeks, ruled from its
+	// left too.
+	ruledText = regexp.MustCompile(`^(┄+ )?[a-z][a-z ]*[a-z] +(─+|┄+)$`)
 	// outLine is a line saying how much of a view is out of view.
 	outLine = regexp.MustCompile(`[▲▼] [0-9,]+ more`)
 )
@@ -282,15 +286,16 @@ func panelOf(row string) string {
 	return row
 }
 
-// headingAlone is the row of the page drawing a heading with nothing under
-// it before what ends its view: a line saying what's out of view, a
-// section's rule, USAGE's key line, or the key line; -1 where none does. A
-// heading on its view's first row has no row over it to end a page on, and
-// one drawn on a bar, as BY MODEL's is, heads the bar.
+// headingAlone is the row of the page drawing a heading, in capitals or
+// ruled, with nothing under it before what ends its view: a line saying
+// what's out of view, a section's rule, USAGE's key line, the List's today
+// line, or the key line; -1 where none does. A heading on its view's first
+// row has no row over it to end a page on, and one drawn on a bar, as BY
+// MODEL's is, heads the bar.
 func headingAlone(p paged, chrome int) int {
 	for y := chrome + 2; y < len(p.rows)-1; y++ {
 		text := strings.TrimSpace(panelOf(p.rows[y]))
-		if !headingText.MatchString(text) || strings.Contains(text, "─") {
+		if !ruledText.MatchString(text) && (!headingText.MatchString(text) || strings.Contains(text, "─")) {
 			continue
 		}
 		if viewsFirst(p.rows, y, chrome) || headsARow(p.rows, y) || onABar(p, y) {
@@ -319,14 +324,15 @@ func viewsFirst(rows []string, y, chrome int) bool {
 
 // headsARow reports whether a row under row y is drawn on before what ends
 // its view, as headingAlone has it: the row a line saying what lies below is
-// on, a section's rule, USAGE's key line, or the key line.
+// on, a section's rule, USAGE's key line, the List's today line, or the key
+// line.
 func headsARow(rows []string, y int) bool {
 	for _, row := range rows[y+1 : len(rows)-1] {
 		text := strings.TrimSpace(panelOf(row))
 		switch {
 		case text == "":
 			continue
-		case strings.Contains(outLine.FindString(text), "▼"), strings.Contains(text, "─"), strings.HasPrefix(text, "┃ even pace"):
+		case strings.Contains(outLine.FindString(text), "▼"), strings.Contains(text, "─"), strings.HasPrefix(text, "┃ even pace"), strings.HasPrefix(text, "today  "):
 			return false
 		}
 		return true

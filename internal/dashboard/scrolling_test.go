@@ -129,3 +129,33 @@ func TestOutOfViewSaysNothingWhereNothingIsOutOfView(t *testing.T) {
 		}
 	}
 }
+
+// A view paged a row at a time reaches every row it draws, a heading marked
+// over nothing at its end included: such a heading has no row to be shown
+// with, so the last page keeps it rather than ending over it, and over every
+// heading whose first row it is.
+func TestAHeadingOverNothingAtTheEndLeavesNoRowOutOfReach(t *testing.T) {
+	tests := []struct {
+		name  string
+		paged rowsPaged
+	}{
+		{name: "a heading over nothing, under a heading it's the first row of", paged: rowsPaged{rows: 13, content: 24, heads: []headed{{at: 19, first: 22}, {at: 22, first: 24}}}},
+		{name: "a heading over nothing, its first row past the end", paged: rowsPaged{rows: 6, content: 10, heads: []headed{{at: 2, first: 3}, {at: 8, first: 11}}}},
+		{name: "with a foot and a line", paged: rowsPaged{rows: 9, foot: 2, content: 20, heads: []headed{{at: 15, first: 17}, {at: 17, first: 20}}, says: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := tt.paged
+			reached := make([]bool, p.content)
+			for offset := range p.scrolling(0).Most + 1 {
+				from, to := p.shown(offset)
+				for y := from; y < to; y++ {
+					reached[y] = true
+				}
+			}
+			if y := slices.Index(reached, false); y >= 0 {
+				t.Errorf("%+v leaves row %d out of reach at every offset", p, y)
+			}
+		})
+	}
+}

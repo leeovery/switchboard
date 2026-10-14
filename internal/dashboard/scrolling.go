@@ -71,11 +71,12 @@ func (p rowsPaged) shown(offset int) (from, to int) {
 }
 
 // end is the row after the last shown from row from: a page on, or the
-// content's end, but over a heading whose first row that leaves out.
+// content's end, but over a heading whose first row that leaves out, where
+// it has one.
 func (p rowsPaged) end(from int) int {
 	to := min(from+p.page(), p.content)
 	for _, h := range slices.Backward(p.heads) {
-		if from < h.at && h.at < to && h.first >= to {
+		if from < h.at && h.at < to && h.first >= to && h.first < p.content {
 			to = h.at
 		}
 	}
