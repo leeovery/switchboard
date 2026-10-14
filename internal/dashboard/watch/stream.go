@@ -146,10 +146,10 @@ func (s streaming) end() {
 // today's lines told of for the traces, and listens to it, what it draws
 // live; and what the ledger gained is due to be read, so the Log fills the
 // gap from it as it joins, the lines of the requests that ended untold
-// meanwhile taking their rows over. Otherwise the watch forgets what it told before of the requests, as
-// afresh has it, their router gone. From a router from before it, the watch
-// goes without it until another router answers; else it asks for it again,
-// later each time it fails in a row.
+// meanwhile taking their rows over. Otherwise the watch forgets what it told
+// before of the requests, as afresh has it, their router gone. From a router
+// from before it, the watch goes without it until another router answers;
+// else it asks for it again, later each time it fails in a row.
 func (m Model) opened(msg streamOpenedMsg) (Model, tea.Cmd) {
 	if msg.gen != m.stream.gen {
 		return m, nil

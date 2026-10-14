@@ -533,14 +533,18 @@ func kindsNamed(kinds []views.RowKind) string {
 // model by its id less claude-.
 func (p LogPage) filterNames(name func(id string) string) logFilterNames {
 	if p.Shown == LogEvents {
-		return logFilterNames{sessions: namedEach(p.Shows.Sessions, p.sessionNamed), accounts: namedEach(p.Shows.Accounts, name)}
+		return logFilterNames{sessions: namedEach(p.Shows.Sessions, p.namedSession), accounts: namedEach(p.Shows.Accounts, name)}
 	}
 	f := p.Filter
-	names := logFilterNames{sessions: namedEach(f.Sessions, p.sessionNamed), accounts: namedEach(f.Accounts, name), failed: f.Failed}
-	for _, m := range f.Models {
-		names.models = append(names.models, ledger.ShortModelID(prose.Clean(m)))
+	return logFilterNames{
+		sessions: namedEach(f.Sessions, p.namedSession), accounts: namedEach(f.Accounts, name), models: namedEach(f.Models, modelNamed), failed: f.Failed,
 	}
-	return names
+}
+
+// modelNamed names the model with the given id as the table does, by its id
+// less claude-.
+func modelNamed(id string) string {
+	return ledger.ShortModelID(prose.Clean(id))
 }
 
 // namedEach is each of the ids, named as name names it.
@@ -552,9 +556,9 @@ func namedEach(ids []string, name func(id string) string) []string {
 	return named
 }
 
-// sessionNamed names the session with the given id as sessionNamed does,
+// namedSession names the session with the given id as sessionNamed does,
 // by its directory as dirOf finds it.
-func (p LogPage) sessionNamed(id string) string {
+func (p LogPage) namedSession(id string) string {
 	return sessionNamed(id, p.dirOf(id))
 }
 
