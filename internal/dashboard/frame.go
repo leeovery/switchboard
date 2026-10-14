@@ -19,12 +19,9 @@ const (
 
 // Frame is the dashboard drawn from the document, the clock, and what the
 // watch knows besides: full screen, as a watch draws it, its title row, its
-// heading, the view shown and its footer; or printed once, as usage prints
-// it, without its footer.
+// heading, the view shown and its footer.
 type Frame struct {
-	// Width and Height are the terminal's, in cells. A frame printed once
-	// has no height to fit, zero: it's as tall as it needs, its cards at
-	// their richest, and never scrolls.
+	// Width and Height are the terminal's, in cells.
 	Width, Height int
 	Look          Look
 	// Views are the views there are, in the order tab moves through them,
@@ -104,13 +101,9 @@ type Frame struct {
 // Countdowns run from now, and times show in now's time zone.
 func (f Frame) Draw(doc status.Document, now time.Time) []string {
 	c := newCanvas(f.Width, f.Height)
-	switch {
-	case f.printed():
-		c = growing(f.Width)
-		f.view(c, doc, now, f.above(c, doc, now))
-	case f.short(doc, now):
+	if f.short(doc, now) {
 		f.list(c, doc, now)
-	default:
+	} else {
 		f.view(c, doc, now, f.above(c, doc, now))
 		f.footer(c, doc, f.Height-1)
 	}
@@ -132,12 +125,12 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time, top int) {
 	}
 }
 
-// short reports whether the frame of doc at now, full screen, showing the
-// Accounts view, is too short for its title row, its heading, a row of
-// cards at their sparest, and the line over its footer and its footer.
-// Sessions and Runway keep to the rows they have.
+// short reports whether the frame of doc at now, showing the Accounts view,
+// is too short for its title row, its heading, a row of cards at their
+// sparest, and the line over its footer and its footer. Sessions and Runway
+// keep to the rows they have.
 func (f Frame) short(doc status.Document, now time.Time) bool {
-	if f.printed() || f.View != Accounts {
+	if f.View != Accounts {
 		return false
 	}
 	g := f.gridOf(len(doc.Accounts), len(shownWindows(doc, now, f.Policy)))
@@ -180,11 +173,6 @@ func (f Frame) above(c *canvas, doc status.Document, now time.Time) int {
 // out without drawing it.
 func (f Frame) top(doc status.Document) int {
 	return f.titleRows() + 1 + f.headingRows(len(doc.Accounts)) + 1
-}
-
-// printed reports whether the frame is printed once, with no height to fit.
-func (f Frame) printed() bool {
-	return f.Height == 0
 }
 
 // phone reports whether the frame is a phone's: under phoneUnder columns.

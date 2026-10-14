@@ -1,45 +1,83 @@
 package dashboard
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// Snapshot is what the dashboard is drawn from, read once, as usage reads it
-// to print the dashboard: the document; the sessions the router lists, for
-// the cards' dots; the windows' history, for the charts; and whether the
-// router is from before it gave its history and told of events.
-type Snapshot struct {
-	Doc      status.Document
-	Sessions []status.Session
-	History  History
-	Outdated bool
-}
+// By is how the printout groups the windows: by window, each window's
+// accounts under it, or by account, each account's windows under it.
+type By int
 
-// Printout is the dashboard as usage prints it into the scrollback, once: the
-// Accounts view, as wide as the terminal, every card at its fullest, without
-// the footer.
+const (
+	ByWindow By = iota
+	ByAccount
+)
+
+// The printout's header: the fewest columns it takes one line at, narrower
+// taking two; and on one line, the fewest cells between when the document was
+// read and the status.
+const (
+	oneLineHeader = 120
+	headerGap     = 2
+)
+
+// Printout is every account's windows as usage prints them into the
+// scrollback, once, from the status document alone.
 type Printout struct {
 	// Width is the terminal's, in cells.
 	Width int
 	Look  Look
-	// Featured is which window every card features, and Chart the style
-	// every card draws it in, as the preferences keep them.
-	Featured Feature
-	Chart    Chart
-	// Policy is the provider's say in which windows every model shares, which
-	// a session's 5-hour window is, and which its week.
+	By    By
+	// Windows are the windows' keys to print, each once, in Claude's order;
+	// none prints every one.
+	Windows []string
+	// Policy is the provider's say in which windows every model shares,
+	// which print whatever is read, so every account keeps its rows before
+	// any is.
 	Policy score.Policy
+	// Name names a window by its key, as "5-hour" or "Fable week"; where
+	// it's nil, a window is named by its label in the document.
+	Name func(key string) string
 }
 
-// Draw draws the printout of snap at now: a string for each of its rows.
-// Countdowns run from now, and times show in now's time zone.
-func (p Printout) Draw(snap Snapshot, now time.Time) []string {
-	return Frame{
-		Width: p.Width, Look: p.Look, View: Accounts,
-		Outdated: snap.Outdated, History: snap.History, Featured: p.Featured, Chart: p.Chart,
-		Sessions: snap.Sessions, Policy: p.Policy,
-	}.Draw(snap.Doc, now)
+// Draw draws the printout of doc at now: a string for each of its rows, as
+// tall as it is, from the header to the key line, with no blank row before or
+// after. Under the header, after a blank line, or by account two, is the
+// usage block, then a blank line and its key line.
+func (p Printout) Draw(doc status.Document, now time.Time) []string {
+	c := growing(p.Width)
+	y := p.header(c, doc, now) + 2
+	if p.By == ByAccount {
+		y++
+	}
+	block := newUsageBlock(doc, now, p.Width, p.Look, p.By, usageWindows(doc, p.Windows, p.Policy.Shared, p.Name))
+	block.key(c, block.draw(c, y)+1)
+	return c.rows(p.Look)
+}
+
+// header draws the printout's header of doc at now, and returns its last
+// row: the badge and when doc was read, then the status line, its mode shown
+// only while the router has a global pin. From 120 columns it's one line, the
+// status ending at the last column; narrower, two, the status from column 0
+// after a blank line. The status shortens to fit, as a phone's does; the
+// badge's line leaves off the date, as a phone's title row does, then the
+// badge, before it's cut.
+func (p Printout) header(c *canvas, doc status.Document, now time.Time) int {
+	at := doc.GeneratedAt.In(now.Location())
+	gap, clock := line{spaces(2)}, line{{at.Format("15:04"), titleInk}}
+	end := c.line(0, 0, firstFit(p.Width,
+		slices.Concat(pill, gap, line{{at.Format("Mon 2 Jan  15:04"), titleInk}}),
+		slices.Concat(pill, gap, clock),
+		clock))
+	s := newStatusLine(doc)
+	if p.Width >= oneLineHeader {
+		c.right(p.Width, 0, s.fit(p.Width-end-headerGap))
+		return 0
+	}
+	c.line(0, 2, s.fit(p.Width))
+	return 2
 }

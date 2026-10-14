@@ -80,8 +80,8 @@ type Deps struct {
 	// verb prints its form for a person on one, and its JSON elsewhere.
 	Terminal func(out io.Writer) bool
 	// Background asks the terminal out is what its background is, as
-	// TerminalBackground does: nil where it doesn't say. usage prints the
-	// dashboard in the theme for it.
+	// TerminalBackground does: nil where it doesn't say. usage prints its
+	// windows in the theme for it.
 	Background func(out io.Writer) color.Color
 	// GOOS is the operating system, as runtime.GOOS names it, and UID the
 	// user's id: the token files must be theirs.
@@ -128,7 +128,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
 	root.SetFlagErrorFunc(hideTokens)
-	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newStatusCommand(a), newUsageCommand(a), newRequestsCommand(a),
+	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newStatusCommand(a), newUsageCommand(a), newDashboardCommand(a), newRequestsCommand(a),
 		newHistoryCommand(a), newSessionsCommand(a), newEventsCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a), newRunCommand(a),
 		newServiceCommand(a), newVersionCommand())
 	return root
@@ -330,14 +330,15 @@ func (a *app) configFile() (string, error) {
 
 // collect loads the config and reads the status document status and usage
 // print, as r asks, from the source that decides where it comes from,
-// probing alone when probe says so.
-func (a *app) collect(ctx context.Context, probe bool, r status.Read) (status.Document, error) {
+// probing alone when probe says so. It gives the config too, as usage lays
+// its printout out as the config says.
+func (a *app) collect(ctx context.Context, probe bool, r status.Read) (*config.Config, status.Document, error) {
 	cfg, err := a.loadConfig()
 	if err != nil {
-		return status.Document{}, err
+		return nil, status.Document{}, err
 	}
 	doc, _, err := a.source(cfg, probe).Read(ctx, r)
-	return doc, err
+	return cfg, doc, err
 }
 
 // source returns where the status document is read for the config given: the

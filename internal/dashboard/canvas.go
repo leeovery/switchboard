@@ -10,7 +10,7 @@ import (
 // ink, which the views draw into at the cells they choose, as the frames
 // signed off for it were drawn, and which draws itself in a look a row at a
 // time. What's drawn past its edges isn't drawn, but for one that grows,
-// which takes in the rows drawn past its foot, as a frame printed once has no
+// which takes in the rows drawn past its foot, as usage's printout has no
 // height to fit.
 type canvas struct {
 	width int

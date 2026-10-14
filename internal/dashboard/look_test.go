@@ -18,9 +18,6 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// nordCanvas is Nord's canvas as a background's SGR parameters.
-const nordCanvas = "48;2;46;52;64"
-
 // now is the clock every frame is drawn at: a Monday, 13:12 an hour east of
 // UTC.
 var now = time.Date(2026, 9, 28, 13, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
@@ -56,8 +53,7 @@ func threeAccounts() status.Document {
 }
 
 // frames are frames of threeAccounts the tests draw, as text alone: full
-// screen, at a size each, Runway over the day and the week among them, and
-// printed once, as usage prints it, without the tabs, at a width each.
+// screen, at a size each, Runway over the day and the week among them.
 func frames() map[string]dashboard.Frame {
 	frame := func(width, height int) dashboard.Frame {
 		return dashboard.Frame{
@@ -70,13 +66,9 @@ func frames() map[string]dashboard.Frame {
 		f.View, f.Span = dashboard.Runway, span
 		return f
 	}
-	printed := func(width int) dashboard.Frame {
-		return dashboard.Frame{Width: width, View: dashboard.Accounts, Policy: claude}
-	}
 	return map[string]dashboard.Frame{
 		"wide": frame(160, 40), "two rows": frame(120, 50), "short, scrolling": frame(160, 20), "phone": frame(52, 36),
 		"runway, the day": runway(dashboard.Day), "runway, the week": runway(dashboard.Week),
-		"printed": printed(160), "printed narrow": printed(80),
 	}
 }
 
@@ -89,9 +81,6 @@ func drawn(f dashboard.Frame, look dashboard.Look) []string {
 func TestAFrameFullScreenPaintsTheCanvasOnEveryCell(t *testing.T) {
 	nord := builtin(t, "nord")
 	for name, f := range frames() {
-		if f.Height == 0 {
-			continue
-		}
 		t.Run(name, func(t *testing.T) {
 			unpainted := trimmed(ansi.Strip(strings.Join(drawn(f, dashboard.Print(nord, nil)), "\n")))
 			for i, row := range drawn(f, dashboard.Screen(nord)) {
@@ -103,22 +92,6 @@ func TestAFrameFullScreenPaintsTheCanvasOnEveryCell(t *testing.T) {
 				}
 				for _, run := range offCanvas(row) {
 					t.Errorf("row %d has %q off the canvas", i+1, run)
-				}
-			}
-		})
-	}
-}
-
-func TestAFramePrintedPaintsNoCanvas(t *testing.T) {
-	look := dashboard.Print(builtin(t, "nord"), color.White)
-	for _, name := range []string{"printed", "printed narrow"} {
-		t.Run(name, func(t *testing.T) {
-			for i, row := range drawn(frames()[name], look) {
-				if strings.Contains(row, nordCanvas) {
-					t.Errorf("row %d paints the canvas:\n%q\nwant the terminal's own background left as it is", i+1, row)
-				}
-				if text := ansi.Strip(row); strings.TrimRight(text, " ") != text {
-					t.Errorf("row %d reads %q, want it to end at its last glyph", i+1, text)
 				}
 			}
 		})
@@ -287,11 +260,9 @@ func TestTextFromElsewhereShowsItsControlCharactersAsSpaces(t *testing.T) {
 	probed.Source, probed.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterUnhealthy, Reason: "the router answered\x07\n404"}
 	for name, doc := range map[string]status.Document{"from the router": doc, "probing past it": probed} {
 		t.Run(name, func(t *testing.T) {
-			for _, f := range []dashboard.Frame{frames()["wide"], frames()["printed"]} {
-				frame := strings.Join(f.Draw(doc, now), "\n")
-				if strings.ContainsAny(frame, "\x1b\t\r\a") {
-					t.Errorf("drew %q, want no control characters from the document", frame)
-				}
+			frame := strings.Join(frames()["wide"].Draw(doc, now), "\n")
+			if strings.ContainsAny(frame, "\x1b\t\r\a") {
+				t.Errorf("drew %q, want no control characters from the document", frame)
 			}
 		})
 	}
@@ -299,6 +270,45 @@ func TestTextFromElsewhereShowsItsControlCharactersAsSpaces(t *testing.T) {
 	for _, want := range []string{"Work [31m team", "HTTP 500 · bad gateway", "7 of [31m", "the 9 failed"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("drew\n%s\nwant it to say %q, its control characters as spaces", frame, want)
+		}
+	}
+}
+
+func TestTextFromElsewherePrintsItsControlCharactersAsSpaces(t *testing.T) {
+	doc := threeAccounts()
+	doc.Accounts[0].Label = "Work\x1b[31m\ateam"
+	doc.Accounts[2].Windows[2].Label = "Fable\x1b\aOI"
+	doc.Router = status.Health{Reason: "7 of\x1b[31m the 9\afailed"}
+	doc.Restart = status.Restart{Reason: "config\x1b[2J\achanged", Since: now.Add(-time.Hour).UTC()}
+	doc.Pin = status.Pin{Accounts: []string{"work", "gone\x1b[1m\aaway"}}
+	probed := threeAccounts()
+	probed.Accounts[1].Label = "Personal\x1b[31m\aplan"
+	probed.Source, probed.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterUnhealthy, Reason: "the router\x1b[31m\aanswered 404"}
+	tests := []struct {
+		name string
+		doc  status.Document
+		// want is in lower case, as by window the windows' names are in capitals.
+		want []string
+	}{
+		{name: "from the router", doc: doc, want: []string{"work [31m team", "fable oi", "config [2j changed", "gone [1m away"}},
+		{name: "probing past it", doc: probed, want: []string{"personal [31m plan", "the router [31m answered 404"}},
+	}
+	for _, tt := range tests {
+		for _, p := range []dashboard.Printout{{Width: 160}, {Width: 160, By: dashboard.ByAccount}, {Width: 80}} {
+			t.Run(fmt.Sprintf("%s, %d columns, by %d", tt.name, p.Width, p.By), func(t *testing.T) {
+				printed := strings.Join(p.Draw(tt.doc, now), "\n")
+				if strings.ContainsAny(printed, "\x1b\a") {
+					t.Errorf("printed %q, want no control characters from the document", printed)
+				}
+				if p.Width < 160 {
+					return
+				}
+				for _, want := range tt.want {
+					if !strings.Contains(strings.ToLower(printed), want) {
+						t.Errorf("printed\n%s\nwant it to say %q, its control characters as spaces", printed, want)
+					}
+				}
+			})
 		}
 	}
 }

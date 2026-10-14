@@ -54,6 +54,9 @@ keep = "30d"
 [ledger]
 keep = "120d"
 
+[usage]
+by = "account"
+
 [prices.plans]
 max5x = 90
 pro   = 0
@@ -81,6 +84,7 @@ output = 12.5
 		Notifications: config.Notifications{Room: true, Warning: 0.75, Moves: true},
 		History:       config.History{Keep: 30 * 24 * time.Hour},
 		Ledger:        config.Ledger{Keep: 120 * 24 * time.Hour},
+		Usage:         config.Usage{By: config.ByAccount},
 		Prices: config.Prices{
 			Plans: map[string]float64{"max5x": 90, "pro": 0},
 			Models: map[string]config.ModelPrices{
@@ -119,6 +123,7 @@ label = "Personal"
 		Notifications: config.Notifications{Limits: true, Room: true, Warning: 0.9},
 		History:       config.History{Keep: 400 * 24 * time.Hour},
 		Ledger:        config.Ledger{Keep: 400 * 24 * time.Hour},
+		Usage:         config.Usage{By: config.ByWindow},
 	}
 
 	got, err := config.Load(path)
@@ -270,6 +275,53 @@ func TestLoadTheDayTheWeeksStartOn(t *testing.T) {
 				t.Errorf("Load() starts the weeks on %v, want %v", cfg.WeekStarts, tt.want)
 			}
 		})
+	}
+}
+
+func TestLoadTheLayoutUsageOpensWith(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   config.Layout
+	}{
+		{name: "by window, without one given", want: config.ByWindow},
+		{name: "by window, without one given in [usage]", config: "[usage]\n", want: config.ByWindow},
+		{name: "by window, given", config: "[usage]\nby = \"window\"\n", want: config.ByWindow},
+		{name: "by account, given", config: "[usage]\nby = \"account\"\n", want: config.ByAccount},
+		{name: "by account, given in any case", config: "[usage]\nby = \"Account\"\n", want: config.ByAccount},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.Load(writeConfig(t, accountTOML("work")+"\n"+tt.config))
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.Usage.By != tt.want {
+				t.Errorf("Load() lays usage out by %q, want %q", cfg.Usage.By, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseLayoutReadsEachLayoutByItsNameAloneInAnyCase(t *testing.T) {
+	tests := []struct {
+		given string
+		want  config.Layout
+		ok    bool
+	}{
+		{given: "window", want: config.ByWindow, ok: true},
+		{given: "account", want: config.ByAccount, ok: true},
+		{given: "Window", want: config.ByWindow, ok: true},
+		{given: "ACCOUNT", want: config.ByAccount, ok: true},
+		{given: ""},
+		{given: "accounts"},
+		{given: " window"},
+		{given: "matrix"},
+	}
+	for _, tt := range tests {
+		if got, ok := config.ParseLayout(tt.given); got != tt.want || ok != tt.ok {
+			t.Errorf("ParseLayout(%q) = %q, %v, want %q, %v", tt.given, got, ok, tt.want, tt.ok)
+		}
 	}
 }
 
@@ -556,6 +608,7 @@ func TestLoadUndecodableFile(t *testing.T) {
 		{name: "a keep as a number", config: "history = { keep = 14 }\n"},
 		{name: "the ledger's keep as a number", config: "ledger = { keep = 90 }\n"},
 		{name: "the week's start as a number", config: "week_starts = 1\n"},
+		{name: "the layout as a number", config: "usage = { by = 1 }\n"},
 		{name: "a plan as a number", config: "account = [{ id = \"work\", plan = 5 }]\n"},
 		{name: "a plan's price in words", config: "prices = { plans = { max5x = \"ninety\" } }\n"},
 		{name: "a model's price in words", config: "prices = { models = { claude-opus-5-5 = { input = \"cheap\" } } }\n"},
@@ -595,6 +648,9 @@ func TestLoadReportsProblems(t *testing.T) {
 	}
 	weekStarts := func(given string) string {
 		return fmt.Sprintf("week_starts %q: must be a day of the week, by its name in English, such as monday", given)
+	}
+	by := func(given string) string {
+		return fmt.Sprintf("usage.by %q: must be window, the accounts compared a window at a time, or account, each account's windows together", given)
 	}
 	plan := func(account, given string) string {
 		return fmt.Sprintf("account %q: plan %q: must be pro, max5x or max20x, the plan the account's subscription is on", account, given)
@@ -646,6 +702,11 @@ func TestLoadReportsProblems(t *testing.T) {
 			name:   "unknown ledger key",
 			config: "[ledger]\nkeep = \"90d\"\nsummaries = \"400d\"\n" + work,
 			want:   []string{`unknown key "ledger.summaries"`},
+		},
+		{
+			name:   "unknown usage key",
+			config: work + "\n[usage]\nby = \"window\"\nwindows = [\"5h\"]\n",
+			want:   []string{`unknown key "usage.windows"`},
 		},
 		{
 			name:   "the token variable of a config from before token files, once however many accounts give one",
@@ -733,6 +794,9 @@ func TestLoadReportsProblems(t *testing.T) {
 		{name: "a week starting on a day in another language", config: "week_starts = \"lundi\"\n" + work, want: []string{weekStarts("lundi")}},
 		{name: "a week starting on a day's number", config: "week_starts = \"1\"\n" + work, want: []string{weekStarts("1")}},
 		{name: "a week starting on a day with a space", config: "week_starts = \" monday\"\n" + work, want: []string{weekStarts(" monday")}},
+		{name: "a layout of several", config: work + "\n[usage]\nby = \"windows\"\n", want: []string{by("windows")}},
+		{name: "a layout usage has none of", config: work + "\n[usage]\nby = \"matrix\"\n", want: []string{by("matrix")}},
+		{name: "a layout given empty", config: work + "\n[usage]\nby = \"\"\n", want: []string{by("")}},
 		{name: "a plan the table doesn't know", config: work + "plan = \"max10x\"\n", want: []string{plan("work", "max10x")}},
 		{name: "a plan in another case", config: work + "plan = \"Max5x\"\n", want: []string{plan("work", "Max5x")}},
 		{name: "a plan by the name it's shown by", config: work + accountTOML("side") + "plan = \"Max 20x\"\n", want: []string{plan("side", "Max 20x")}},
@@ -963,6 +1027,7 @@ func TestLoadReportsProblems(t *testing.T) {
 				"\n[notifications]\nwarning = 1\n" +
 				"\n[history]\nkeep = \"7d\"\n" +
 				"\n[ledger]\nkeep = \"1y\"\n" +
+				"\n[usage]\nby = \"model\"\n" +
 				"\n[prices.plans]\nmax5x = -90\n" +
 				"\n[prices.models.claude-opus-5-5]\ninput = -3.2\n",
 			want: []string{
@@ -980,6 +1045,7 @@ func TestLoadReportsProblems(t *testing.T) {
 				"notifications.warning 1: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none",
 				keep("history.keep", "7d", "400d"),
 				keep("ledger.keep", "1y", "400d"),
+				by("model"),
 				planPrice("max5x", "-90"),
 				modelPrice("claude-opus-5-5.input", "-3.2"),
 			},
@@ -1021,6 +1087,7 @@ func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 		"\n[prime]\nday = \""+tokenShaped+"\"\n"+
 		"\n[history]\nkeep = \""+tokenShaped+"\"\n"+
 		"\n[ledger]\nkeep = \""+tokenShaped+"\"\n"+
+		"\n[usage]\nby = \""+tokenShaped+"\"\n"+
 		"\n[prices.plans]\n"+tokenShaped+" = 1\n"+
 		"\n[prices.models."+tokenShaped+"]\ninput = -1\n"+tokenShaped+" = 1\n")
 
@@ -1035,6 +1102,7 @@ func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 		`prime.day "[redacted]": must be two times of day, HH:MM, joined by -, such as 08:00-23:00`,
 		`history.keep "[redacted]": must be a whole number of days from 8d, a week and a day, or forever, such as 400d`,
 		`ledger.keep "[redacted]": must be a whole number of days from 8d, a week and a day, or forever, such as 400d`,
+		`usage.by "[redacted]": must be window, the accounts compared a window at a time, or account, each account's windows together`,
 		`unknown key "prices.plans.[redacted]"`,
 		`prices.models.[redacted].input "-1": must be a number, 0 or more: the price in US dollars a million tokens`,
 	}

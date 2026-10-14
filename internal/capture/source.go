@@ -50,8 +50,21 @@ func newSource(now time.Time, samples []sample, best string, events ...status.Ev
 		doc.Accounts = append(doc.Accounts, s.account(now))
 	}
 	doc.Primary = status.PrimaryOf(doc.Accounts)
-	health := router.Health{OK: true, PID: routerPID, StartedAt: on(now, 1, 12, 0)}
-	return source{doc: doc, health: health, sessions: sessions, trails: trailsOf(samples, now), now: now}
+	return source{doc: doc, health: startedAtNoon(now), sessions: sessions, trails: trailsOf(samples, now), now: now}
+}
+
+// routerOf is the router of the world w at now, as usage reads it: its status
+// document and its health check's answer, started at noon. It lists no
+// sessions, keeps no history and tells nothing on its stream, as usage reads
+// none of them.
+func routerOf(w accountWorld, now time.Time) source {
+	return source{doc: w.document(now), health: startedAtNoon(now), now: now}
+}
+
+// startedAtNoon is the health check's answer of the fixtures' router, started
+// at noon on the frames' day, in now's time zone: healthy.
+func startedAtNoon(now time.Time) router.Health {
+	return router.Health{OK: true, PID: routerPID, StartedAt: on(now, 1, 12, 0)}
 }
 
 // Read reads the router's document, whatever the read asks, with what's

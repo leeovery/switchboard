@@ -90,6 +90,17 @@ func (l line) fitWhole(width int) line {
 	return l[:min(len(l), 1)].fit(width)
 }
 
+// firstFit is the first of forms, each shorter than the one before, that fits
+// in width cells; where none does, the last, cut short.
+func firstFit(width int, forms ...line) line {
+	for _, l := range forms {
+		if l.width() <= width {
+			return l
+		}
+	}
+	return forms[len(forms)-1].fit(width)
+}
+
 // spread puts left and right at either end of width cells, cutting left to
 // keep a space between them.
 func spread(left, right line, width int) line {

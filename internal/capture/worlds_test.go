@@ -27,11 +27,9 @@ func recorded(w accountWorld) recordedWorld {
 	return recordedWorld{accountWorld: w, records: worldsNow().recordsOf(w)}
 }
 
-// The accounts' worlds at the frames' moment, and the auto world and the
-// ten's with their records, each built once for the tests, as building the
-// year and its days takes a while.
+// The auto world and the ten's with their records, each built once for the
+// tests, as building the year's days takes a while.
 var (
-	worldsNow = sync.OnceValue(func() accountWorlds { return newAccountWorlds(localMoment()) })
 	autoWorld = sync.OnceValue(func() recordedWorld { return recorded(worldsNow().auto()) })
 	tenWorld  = sync.OnceValue(func() recordedWorld { return recorded(worldsNow().many(10)) })
 )

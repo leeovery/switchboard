@@ -199,9 +199,9 @@ func (t *Theme) derive() {
 		c[VizRamp3] = Mix(c[AccentAttention], c[StateDestructive], 0.5)
 	}
 	or(VizRamp4, c[StateDestructive])
-	or(VizTrack, c[Border])
+	or(VizTrack, c[BgSubtle])
 	or(VizPace, c[TextPrimary])
-	or(VizReserve, c[AccentKey])
+	or(VizReserve, c[AccentAttention])
 	for i, from := range []Token{AccentKey, StatePositive, AccentPrimary, AccentMode, TextSecondary, AccentAttention} {
 		or(VizSeries1+Token(i), c[from])
 	}

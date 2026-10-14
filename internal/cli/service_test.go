@@ -411,11 +411,15 @@ func (s *serviceSetup) checkPlist(t *testing.T, parts ...string) {
 // run: bootstrapping the service loads it, and starts srv's router when
 // starts is set; kickstarting it starts the router; booting it out forgets
 // it; and printing it succeeds. While it isn't loaded, anything but
-// bootstrapping it exits 113, as printing it does in launchctl.
+// bootstrapping it exits 113, as printing it does in launchctl. With probed
+// set, a router it starts has probed every account it has a token for before
+// launchctl returns, so what's read of the router next reads those probes,
+// rather than racing them.
 type fakeLaunchd struct {
 	t      *testing.T
 	srv    *serveSetup
 	starts bool
+	probed bool
 	loaded bool
 	calls  [][]string
 }
@@ -426,16 +430,24 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 	case args[0] == "bootstrap":
 		f.loaded = true
 		if f.starts {
-			f.srv.start(f.t)
+			f.start()
 		}
 	case !f.loaded:
 		return []byte("Could not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
 	case args[0] == "bootout":
 		f.loaded = false
 	case args[0] == "kickstart":
-		f.srv.start(f.t)
+		f.start()
 	}
 	return nil, nil
+}
+
+// start starts srv's router, and with probed set, waits for its probes.
+func (f *fakeLaunchd) start() {
+	f.srv.start(f.t)
+	if f.probed {
+		f.srv.waitForProbes(f.t)
+	}
 }
 
 // exitStatus is a program's exit with a status other than 0, as

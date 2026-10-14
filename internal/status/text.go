@@ -2,6 +2,7 @@ package status
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -396,10 +397,16 @@ func Past(now, t time.Time) string {
 		return TimeOfDay(now, t)
 	case days == 1:
 		return "yesterday " + TimeOfDay(now, t)
-	case days < 7:
+	case WithinWeek(now, t):
 		return Clock(now, t)
 	}
 	return t.Format("2 Jan 15:04")
+}
+
+// WithinWeek reports whether t, before now, falls on now's day or one of the
+// six before it, in now's time zone: the days Past names by their weekday.
+func WithinWeek(now, t time.Time) bool {
+	return daysBetween(t, now) < 7
 }
 
 // daysBetween counts the days from the one t falls on to the one now does,
@@ -469,7 +476,13 @@ func Projection(now time.Time, p score.Projection) string {
 
 // Percent shows a utilization as a whole percentage, such as "23%".
 func Percent(utilization float64) string {
-	return fmt.Sprintf("%.0f%%", utilization*100)
+	return strconv.Itoa(WholePercent(utilization)) + "%"
+}
+
+// WholePercent is a utilization as the whole percentage Percent shows, a half
+// rounded to the even one.
+func WholePercent(utilization float64) int {
+	return int(math.RoundToEven(utilization * 100))
 }
 
 // Title names an account by its id and label, such as "work · Work", each

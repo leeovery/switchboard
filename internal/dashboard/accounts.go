@@ -51,7 +51,8 @@ func (f Frame) accounts(c *canvas, doc status.Document, now time.Time, top int) 
 	area := newCanvas(f.Width, l.content)
 	f.grid(area, doc, now, faces, l, labelWidth(doc, shown))
 	c.paste(area, offset, top, l.view)
-	key, over := f.foot(f.stripsUnder(c, l.strips, top+l.view), l.key)
+	f.stripsUnder(c, l.strips, top+l.view)
+	key, over := f.foot()
 	if len(faces) == 0 || over < top {
 		return
 	}
@@ -68,28 +69,18 @@ func (f Frame) accounts(c *canvas, doc status.Document, now time.Time, top int) 
 	c.right(f.edge(), over, f.unseen(doc, now, l.key).fit(f.edge()-margin))
 }
 
-// foot is where the key line goes, and the line over the footer, under
-// strips that end before row y, the key line showing as key says: full
-// screen, the key line over the line over the footer, over the footer;
-// printed once, without a footer, each after a blank row, the key line
-// first.
-func (f Frame) foot(y int, key bool) (keyRow, over int) {
-	switch {
-	case !f.printed():
-		return f.Height - 3, f.Height - 2
-	case key:
-		return y + 1, y + 3
-	default:
-		return y + 1, y + 1
-	}
+// foot is where the key line, or Runway's legend, goes, over the line over
+// the footer, and where that line goes, over the footer.
+func (f Frame) foot() (keyRow, over int) {
+	return f.Height - 3, f.Height - 2
 }
 
 // unseen is what the line over the footer says of what the cards don't show,
-// where they fit: which windows hide from every card, and, full screen,
-// where the key line doesn't show as key says, that the key's behind ?.
+// where they fit: which windows hide from every card, and, where the key
+// line doesn't show as key says, that the key's behind ?.
 func (f Frame) unseen(doc status.Document, now time.Time, key bool) line {
 	note := hiddenNote(doc, hiddenWindows(doc, now, f.Policy))
-	if key || f.printed() {
+	if key {
 		return note
 	}
 	return together([]chunk{{text: note}, {text: forTheKey}}, "   ·   ")
@@ -116,19 +107,15 @@ func (f Frame) grid(c *canvas, doc status.Document, now time.Time, faces []face,
 
 // stripsUnder draws the strips under the cards, from row y, each after a
 // blank row, as many lines of each as it shows, and as fit over the line
-// over the footer, and returns the row after the last drawn. Their lines
-// start in a column, after the widest of their labels, but on a phone,
-// where they have none.
-func (f Frame) stripsUnder(c *canvas, strips []strip, y int) int {
+// over the footer. Their lines start in a column, after the widest of their
+// labels, but on a phone, where they have none.
+func (f Frame) stripsUnder(c *canvas, strips []strip, y int) {
 	x := margin
 	if !f.phone() {
 		x = f.labelled(strips)
 	}
 	for _, s := range strips {
-		n := s.lines
-		if !f.printed() {
-			n = min(n, f.Height-2-y-1)
-		}
+		n := min(s.lines, f.Height-2-y-1)
 		if n < 1 {
 			break
 		}
@@ -139,7 +126,6 @@ func (f Frame) stripsUnder(c *canvas, strips []strip, y int) int {
 		s.draw(c, x, y, n)
 		y += n
 	}
-	return y
 }
 
 // labelled is the column the lines under the cards start in: labelGap cells

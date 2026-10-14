@@ -65,7 +65,7 @@ switchboard service install (or switchboard serve).
 			if session != "" {
 				return a.sessionStatus(cmd.Context(), out, session, form.json)
 			}
-			doc, err := a.collect(cmd.Context(), probe, readOnce(refresh))
+			_, doc, err := a.collect(cmd.Context(), probe, readOnce(refresh))
 			if err != nil {
 				return err
 			}

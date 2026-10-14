@@ -109,6 +109,9 @@ type ink struct {
 	// canvas.
 	on   hue
 	bold bool
+	// dim draws it faint where the look can't fade it, as a look that blends
+	// nothing draws what the others fade, such as a stale reading's bar.
+	dim bool
 }
 
 // hue is a colour as an ink has one: a token's, or a bar's ramp's at a place
@@ -172,10 +175,11 @@ func (l Look) render(text string, k ink) string {
 	return style.Render(text)
 }
 
-// faint reports whether the look draws the ink faint, in the terminal's own
-// foreground, as its theme draws the ink's token.
+// faint reports whether the look draws the ink faint: in the terminal's own
+// foreground, as its theme draws the ink's token; or dim, where the look
+// can't fade it.
 func (l Look) faint(k ink) bool {
-	return l.coloured && !k.ramp && l.theme.Faint(k.token)
+	return l.coloured && (!k.ramp && l.theme.Faint(k.token) || k.dim && !l.blends())
 }
 
 // reversed reports whether the look draws the ink's surface by swapping the

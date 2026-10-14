@@ -30,9 +30,6 @@ func TestTheTitleRow(t *testing.T) {
 			"",
 			"  Accounts  Sessions  Runway" + blanks(18) + "tab ⇥",
 		}, wantRows: 3},
-		{name: "no views, as printed once, no tabs", width: 160, want: []string{
-			"  SWITCHBOARD" + blanks(126) + "Mon 28 Sep  13:12:00",
-		}, wantRows: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

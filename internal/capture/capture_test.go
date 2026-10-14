@@ -40,20 +40,63 @@ func TestNamesNameEveryFixtureOnceSorted(t *testing.T) {
 }
 
 func TestTwoFixturesOfANamePanicNamingIt(t *testing.T) {
-	all := []Fixture{{Name: "accounts-1"}, {Name: "accounts-3"}, {Name: "accounts-1", Size: wide(10)}}
+	tests := []struct {
+		name    string
+		watched []Fixture
+		printed []printout
+	}{
+		{name: "two the watch draws", watched: []Fixture{{Name: "accounts-1"}, {Name: "accounts-3"}, {Name: "accounts-1", Size: wide(10)}}},
+		{name: "one the watch draws, and a printout", watched: []Fixture{{Name: "accounts-1"}}, printed: []printout{{name: "usage-160"}, {name: "accounts-1"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, want := panicked(t, func() { setOf(tt.watched, tt.printed, worldsNow) }), `capture: two fixtures named "accounts-1"`; got != want {
+				t.Errorf("setOf panicked with %q, want %q", got, want)
+			}
+		})
+	}
+}
 
-	if got, want := panicked(t, func() { setOf(all) }), `capture: two fixtures named "accounts-1"`; got != want {
-		t.Errorf("setOf panicked with %q, want %q", got, want)
+func TestOnlyAPrintoutBuildsTheWorlds(t *testing.T) {
+	built := 0
+	set := setOf(fixtures(time.UTC), printouts, func() accountWorlds {
+		built++
+		return worldsNow()
+	})
+
+	if names := set.names(); !slices.Contains(names, "usage-160") || !slices.Contains(names, "accounts-3") {
+		t.Fatalf("names() = %v, want usage-160 and accounts-3 among them", names)
+	}
+	if _, err := set.named("accounts-3"); err != nil {
+		t.Fatal(err)
+	}
+	if built != 0 {
+		t.Errorf("having listed the fixtures and asked for one the watch draws, the worlds were built %d times, want none", built)
+	}
+	if _, err := set.named("usage-160"); err != nil {
+		t.Fatal(err)
+	}
+	if built != 1 {
+		t.Errorf("having asked for a printout, the worlds were built %d times, want once", built)
+	}
+	if _, err := set.named("usage-160"); err != nil {
+		t.Fatal(err)
+	}
+	if built != 1 {
+		t.Errorf("having asked for a printout twice, the worlds were built %d times, want once: it's built the first time", built)
 	}
 }
 
 func TestAFixtureChangedChangesNoOtherCallers(t *testing.T) {
-	f := fixture(t, "accounts-3-week")
-	keys, size := slices.Clone(f.keys), f.Size
-	f.keys[0], f.Size = tea.KeyPressMsg{Code: '2', Text: "2"}, wide(10)
+	f, p := fixture(t, "accounts-3-week"), fixture(t, "usage-5h-160")
+	keys, size, windows := slices.Clone(f.keys), f.Size, slices.Clone(p.windows)
+	f.keys[0], f.Size, p.windows[0] = tea.KeyPressMsg{Code: '2', Text: "2"}, wide(10), accountKey
 
 	if got := fixture(t, "accounts-3-week"); !reflect.DeepEqual(got.keys, keys) || got.Size != size {
 		t.Errorf("having changed one caller's, another's keys are %v at %v, want %v at %v", got.keys, got.Size, keys, size)
+	}
+	if got := fixture(t, "usage-5h-160").windows; !slices.Equal(got, windows) {
+		t.Errorf("having changed one caller's, another's windows are %v, want %v", got, windows)
 	}
 }
 
@@ -104,7 +147,7 @@ func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if f.records != nil {
+			if inTheMachinesZone(f) {
 				drawnInTheMachinesZone(t, name, append([]zonedSet{utc}, others...))
 				return
 			}
@@ -128,7 +171,15 @@ func askedIn(zone *time.Location) zonedSet {
 	return zonedSet{zone: zone, set: fixturesIn(zone)}
 }
 
-// drawnInTheMachinesZone checks the fixture over records with the given name,
+// inTheMachinesZone reports whether f is to be built and drawn in the
+// machine's own zone, time.Local itself, as a fixture over a world is: over
+// its records, or, as usage's printouts are, its document alone. One over
+// milestone 5's samples is drawn in a zone whose clocks never change.
+func inTheMachinesZone(f Fixture) bool {
+	return f.records != nil || f.now.Location() == time.Local
+}
+
+// drawnInTheMachinesZone checks the fixture over a world with the given name,
 // asked for in each zone given, is drawn as when asked for in the machine's,
 // at the frames' moment there. The ledger and the views split its days in
 // time.Local, which a test can't change in process: its zone is varied by
@@ -144,10 +195,10 @@ func drawnInTheMachinesZone(t *testing.T, name string, asked []zonedSet) {
 			t.Fatal(err)
 		}
 		if f.now.Location() != time.Local || !f.now.Equal(localMoment()) {
-			t.Errorf("%s, over records, asked for in %s, is drawn at %s, want the frames' moment in the machine's zone", name, a.zone, f.now)
+			t.Errorf("%s, over a world, asked for in %s, is drawn at %s, want the frames' moment in the machine's zone", name, a.zone, f.now)
 		}
 		if drawn := f.Frame(f.Size); drawn != mine {
-			t.Errorf("%s, over records, asked for in %s, is drawn\n%s\nwant it as asked for in the machine's zone\n%s", name, a.zone, drawn, mine)
+			t.Errorf("%s, over a world, asked for in %s, is drawn\n%s\nwant it as asked for in the machine's zone\n%s", name, a.zone, drawn, mine)
 		}
 	}
 }
@@ -419,12 +470,19 @@ var everyKey = []tea.KeyPressMsg{
 // TestNoFixtureChartStyleKeyOrWidthPanics draws every fixture at every width
 // from 1 to 240, at its height, so with their -rate and -hourglass fixtures,
 // the cards of three, four and eight accounts draw each chart style at every
-// width; then from each fixture, every key in turn, at every fourth width.
+// width; then from each fixture, every key in turn, at every fourth width. A
+// printout, which takes no keys, is drawn as tall as it is.
 func TestNoFixtureChartStyleKeyOrWidthPanics(t *testing.T) {
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			f := fixture(t, name)
+			if f.Printout {
+				for width := 1; width <= 240; width++ {
+					printedAt(t, f, width)
+				}
+				return
+			}
 			m := f.settle(f.Size)
 			for width := 1; width <= 240; width++ {
 				m = drawnAt(t, m, watch.Size{Width: width, Height: f.Size.Height})
@@ -453,6 +511,18 @@ func drawnAt(t *testing.T, m watch.Model, size watch.Size, keys ...tea.KeyPressM
 	m = deliver(m, tea.WindowSizeMsg{Width: size.Width, Height: size.Height})
 	m.View()
 	return m
+}
+
+// printedAt draws the printout f on a terminal as wide as given, failing the
+// test where drawing panics.
+func printedAt(t *testing.T, f Fixture, width int) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("at %d columns: panicked: %v", width, r)
+		}
+	}()
+	f.Frame(watch.Size{Width: width})
 }
 
 func TestAFixturesModelStartsWhereItsFrameIs(t *testing.T) {

@@ -3,9 +3,9 @@
 Records the animated clips and stills in the project README, `art/*.webp`, by playing scripted
 scenarios through the real dashboard: `cmd/capturetool --scenario`, the visual capture harness's
 tool (see `testdata/vhs/README.md`), builds the dashboard's watch model through `watch.New`, as
-`usage -w` does, with every seam faked. It never dials the router, probes, touches the network, or
-reads or writes the real config, themes, state, prefs or tokens, so nothing needs a container, and
-it's safe to record beside a live router.
+`switchboard dashboard` does, with every seam faked. It never dials the router, probes, touches the
+network, or reads or writes the real config, themes, state, prefs or tokens, so nothing needs a
+container, and it's safe to record beside a live router.
 
 ```bash
 demo/record.sh                # every tape: record it, then make its art

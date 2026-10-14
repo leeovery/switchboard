@@ -106,20 +106,13 @@ func (l layout) scrolls() bool {
 // over grow the strips, in turn, to their every line, then show the key
 // line, with the blank over it, where its line fits the width. Where not even
 // the sparest cards fit, they scroll between the heading and the strips, a
-// line each. Printed, with no height to fit, the cards are at their richest,
-// the strips whole, and the key shows where its line fits.
+// line each.
 func (f Frame) layOut(doc status.Document, now time.Time, shown, top int) layout {
 	l := layout{grid: f.gridOf(len(doc.Accounts), shown)}
 	l.strips = f.strips(doc, now, l.grid)
 	tries := densities
 	if len(doc.Accounts) == 1 {
 		tries = slices.Concat([]density{{fullCard, wideChart}}, densities)
-	}
-	if f.printed() {
-		l.density, l.key = tries[0], f.keyFits(l.strips)
-		l.content = l.rows(l.density)
-		l.view = l.content
-		return l
 	}
 	room := f.Height - 2 - top
 	under := 2 * len(l.strips)
@@ -167,13 +160,13 @@ type Scrolling struct {
 // Scrolling is how far the frame's view of doc scrolls at now: the Accounts
 // view, where not even its sparest cards fit; Sessions, where its calls and
 // lines, or its plain list, don't; and Runway, where its lanes don't, as
-// runwayRows counts them. A frame printed once never scrolls, nor one too
-// short for any card, as short says.
+// runwayRows counts them. A frame too short for any card, as short says,
+// never scrolls.
 func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 	if l, ok := f.cardsOf(doc, now); ok {
 		return Scrolling{Most: l.content - l.view, Page: l.view}
 	}
-	if f.printed() || len(doc.Accounts) == 0 || f.short(doc, now) {
+	if len(doc.Accounts) == 0 || f.short(doc, now) {
 		return Scrolling{}
 	}
 	top := f.top(doc)
@@ -189,12 +182,12 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 	}
 }
 
-// cardsOf is the Accounts view of doc at now as the frame lays it out full
-// screen, under its title and heading, reporting false for a frame that
-// shows no cards that move, scroll or take the focus: one printed once, of
-// another view, or too short for any card, as short says.
+// cardsOf is the Accounts view of doc at now as the frame lays it out, under
+// its title and heading, reporting false for a frame that shows no cards
+// that move, scroll or take the focus: one of another view, or too short for
+// any card, as short says.
 func (f Frame) cardsOf(doc status.Document, now time.Time) (layout, bool) {
-	if f.View != Accounts || f.printed() || f.short(doc, now) {
+	if f.View != Accounts || f.short(doc, now) {
 		return layout{}, false
 	}
 	return f.layOut(doc, now, len(shownWindows(doc, now, f.Policy)), f.top(doc)), true

@@ -98,19 +98,15 @@ func (f Frame) layOutRunway(doc status.Document, now time.Time, top int) runwayL
 		l.cells = append(l.cells, ln.cells(l.timeline))
 	}
 	l.content, l.view = f.runwayRows(len(l.lanes), top)
-	l.legend = (f.printed() || l.content+2 <= f.Height-2-l.top) && f.legendFits(l.timeline)
+	l.legend = l.content+2 <= f.Height-2-l.top && f.legendFits(l.timeline)
 	return l
 }
 
 // runwayRows are how many rows n accounts' lanes take, content, and how many
 // of them show at once under the heading, which ends at row top, view: fewer
-// where they don't fit over the line over the footer, and all of them,
-// printed once, where there's no height to fit.
+// where they don't fit over the line over the footer.
 func (f Frame) runwayRows(n, top int) (content, view int) {
 	content = max(n*(laneRows+laneGap)-laneGap, 0)
-	if f.printed() {
-		return content, content
-	}
 	return content, min(content, max(f.Height-2-top-lanesFrom, 0))
 }
 
@@ -179,7 +175,7 @@ func (f Frame) runway(c *canvas, doc status.Document, now time.Time, top int) {
 			c.surface(l.x+col, y, 1, hue{token: theme.BgSubtle})
 		}
 	}
-	legend, over := f.foot(l.top+l.view, l.legend)
+	legend, over := f.foot()
 	if l.legend {
 		c.line(margin, legend, f.legend(l.timeline))
 	}
