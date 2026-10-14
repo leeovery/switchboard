@@ -70,7 +70,7 @@ func (c LogCard) card(f Frame) Card {
 	h := len(body) + chrome(true)
 	k := Card{titled: c.title(m), width: form.width}
 	room := f.bodyRoom(2, true)
-	if y, ok := f.logLitRow(); ok {
+	if y, ok := f.cardLine(); ok {
 		k.of = &ofLine{row: y}
 		if from, to, up, placed := f.logCardSpan(y, cmp.Or(c.Placed, h)); placed {
 			rows := min(h, to-from+1)
@@ -83,7 +83,7 @@ func (c LogCard) card(f Frame) Card {
 	shown := min(max(room, 0), len(body))
 	from := min(max(c.Scroll, 0), len(body)-shown)
 	k.body, k.scroll = body[from:from+shown], cardScroll{above: from, below: len(body) - from - shown}
-	k.keys = c.keys(form.content, k.scroll != cardScroll{})
+	k.keys = c.keys(form.content, k.scroll != cardScroll{}, f.Session == nil)
 	return k
 }
 
@@ -170,17 +170,18 @@ func (c LogCard) Session() string {
 
 // keys are the card's keys, as its keys row lists them in content cells:
 // ↑↓ stepping, an event's g, s where the line is of a session, as Session
-// has it, j k where its body scrolls, and esc. Where they don't fit, ↑↓ says
-// what it steps to as the key line does, then the keys leave from the first,
-// esc staying.
-func (c LogCard) keys(content int, scrolls bool) []Key {
+// has it, but where sessions says s opens none, as over that session's own
+// page (call 63), j k where its body scrolls, and esc. Where they don't fit,
+// ↑↓ says what it steps to as the key line does, then the keys leave from
+// the first, esc staying.
+func (c LogCard) keys(content int, scrolls, sessions bool) []Key {
 	noun := "request"
 	var middle []Key
 	if c.Event != nil {
 		noun = "event"
 		middle = append(middle, Key{Key: "g", Does: "in Requests"})
 	}
-	if c.Session() != "" {
+	if c.Session() != "" && sessions {
 		middle = append(middle, Key{Key: "s", Does: "its session"})
 	}
 	if scrolls {
@@ -679,13 +680,33 @@ func (f Frame) logLitRow() (int, bool) {
 	return top + at - first, true
 }
 
-// logCardSpan is the rows a card placed rows tall by the Log's line on row
-// y sits within: under its line, a row between, from there to the table's
-// last row, where it fits there, growing down; else over it, a row between,
-// from the table's first row to there, growing up. It's false where it fits
+// cardLine is the row the line the details card is of is drawn on: on a
+// session's page, where one is open, its turn open's request chosen, as
+// turnLitRow has it; else the Log's line chosen, as logLitRow has it.
+func (f Frame) cardLine() (int, bool) {
+	if f.Session != nil {
+		return f.turnLitRow()
+	}
+	return f.logLitRow()
+}
+
+// cardRows are the rows a details card placed by its line sits within: on a
+// session's page, where one is open, as turnCardRows has them; else the
+// Log's table's.
+func (f Frame) cardRows() (first, last int) {
+	if f.Session != nil {
+		return f.turnCardRows()
+	}
+	return f.logTableRows()
+}
+
+// logCardSpan is the rows a card placed rows tall by its line on row y sits
+// within: under its line, a row between, from there to the last of the rows
+// cardRows gives, where it fits there, growing down; else over it, a row
+// between, from their first to there, growing up. It's false where it fits
 // on neither side.
 func (f Frame) logCardSpan(y, placed int) (from, to int, up, ok bool) {
-	first, last := f.logTableRows()
+	first, last := f.cardRows()
 	switch {
 	case y+1+placed <= last:
 		return y + 2, last, false, true
@@ -701,13 +722,15 @@ func (f Frame) logCardSpan(y, placed int) (from, to int, up, ok bool) {
 // until c fits under it, its bottom edge on the table's last row, any rows
 // past the paused foot left blank under it; as it stands where c fits by
 // its line already, or where the table hasn't the rows for c under a line
-// on its first row, as c is then centred over the page.
+// on its first row, as c is then centred over the page. Over a session's
+// page, c is of a request of its turn open, by cardLine, and the Log stands
+// as it is, as the page's turns lift for no card.
 func (f Frame) LogFitted(c LogCard) (LogPage, LogCard) {
-	y, ok := f.logLitRow()
+	y, ok := f.cardLine()
 	c.Placed = len(c.body(f.logCardForm(), f.heldMoment())) + chrome(true)
-	first, last := f.logTableRows()
+	first, last := f.cardRows()
 	to := last - 1 - c.Placed
-	if _, _, _, fits := f.logCardSpan(y, c.Placed); !ok || fits || to < first {
+	if _, _, _, fits := f.logCardSpan(y, c.Placed); !ok || fits || to < first || f.Session != nil {
 		return f.Log, c
 	}
 	return f.Log.lifted(y-first, to-first, f.LogRows()), c

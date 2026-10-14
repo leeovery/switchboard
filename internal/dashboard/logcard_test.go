@@ -458,9 +458,10 @@ func TestAnEventsCardSaysHowItsAccountStoodThen(t *testing.T) {
 }
 
 // A card's keys: ↑↓ stepping, an event's g, s where its line is of a
-// session, as the request counts toward it, j k where its body scrolls, and
-// esc. Where they don't fit, ↑↓ says what it steps to as the key line does;
-// then they leave from the first, esc staying.
+// session, as the request counts toward it, but over that session's own
+// page (call 63), j k where its body scrolls, and esc. Where they don't fit,
+// ↑↓ says what it steps to as the key line does; then they leave from the
+// first, esc staying.
 func TestALogCardsKeysFitItsContent(t *testing.T) {
 	session := "d28c5e17-0000-4000-8000-000000000001"
 	request := LogCard{Request: &views.RequestDetails{Row: views.RequestRow{Session: session}}}
@@ -469,9 +470,11 @@ func TestALogCardsKeysFitItsContent(t *testing.T) {
 		card    LogCard
 		content int
 		scrolls bool
+		paged   bool
 		want    string
 	}{
 		{name: "a request of a session", card: request, content: 122, want: "↑↓ previous/next request   s its session   esc close"},
+		{name: "a request over its session's page", card: request, content: 122, paged: true, want: "↑↓ previous/next request   esc close"},
 		{name: "a request of none", card: LogCard{Request: &views.RequestDetails{}}, content: 122, want: "↑↓ previous/next request   esc close"},
 		{name: "a quota check, of no session", card: LogCard{Request: &views.RequestDetails{Row: views.RequestRow{Session: session, Kind: views.RowCheck}}}, content: 122,
 			want: "↑↓ previous/next request   esc close"},
@@ -485,7 +488,7 @@ func TestALogCardsKeysFitItsContent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := keyRow(tt.card.keys(tt.content, tt.scrolls)).plain(); got != tt.want {
+			if got := keyRow(tt.card.keys(tt.content, tt.scrolls, !tt.paged)).plain(); got != tt.want {
 				t.Errorf("the keys read %q, want %q", got, tt.want)
 			}
 		})

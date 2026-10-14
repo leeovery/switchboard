@@ -98,12 +98,16 @@ func TestEachScrollLineTheDesignGivesIsAFormOfOutOfView(t *testing.T) {
 			want: line{{"▼ 2 more below · j/k", subtle}},
 		},
 		{
-			name: "a session's turns", below: 3, forms: []outForm{{noun: "turn", gap: "   ·   ", keys: "j/k", does: " to scroll", inks: page}},
+			name: "a session's turns", below: 3, forms: []outForm{turnsOut},
 			want: line{{"▼", key}, {" 3 more turns   ·   ", words}, {"j/k", keys}, {" to scroll", words}},
 		},
 		{
-			name: "a turn's requests", below: 32, forms: []outForm{{below: " of its requests", gap: "   ·   ", keys: "j/k", does: " through them", inks: page}},
+			name: "a turn's requests", below: 32, forms: []outForm{requestsOut},
 			want: line{{"▼", key}, {" 32 more of its requests   ·   ", words}, {"j/k", keys}, {" through them", words}},
+		},
+		{
+			name: "a turn's requests, either way", above: 2, below: 1, forms: []outForm{requestsOut},
+			want: line{{"▲", key}, {" 2 more of its requests   ·   ", words}, {"▼", key}, {" 1 more of its requests   ·   ", words}, {"j/k", keys}, {" through them", words}},
 		},
 		{
 			name: "the Log's sessions to pick from", below: 8, forms: []outForm{{below: " today", gap: "   ", keys: "/", does: " finds one from another day", inks: page}},

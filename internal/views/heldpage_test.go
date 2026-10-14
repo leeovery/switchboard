@@ -160,7 +160,7 @@ func TestATurnOpenedIsTheFramesRowsOfItsRequests(t *testing.T) {
 	at := local(14, 42, 7)
 	l := summarisedLedger(lines)
 	l.now = at
-	rows := views.HoldPage(paged, views.ReadSessions(l, nil, at, paged), ledger.Pricing, kept90, at).TurnRequests(1, views.PageLive{Unlisted: true, Now: at})
+	rows := turnRowsOf(views.HoldPage(paged, views.ReadSessions(l, nil, at, paged), ledger.Pricing, kept90, at).TurnRequests(1, views.PageLive{Unlisted: true, Now: at}))
 	want := []turnRow{
 		{local(14, 29, 4), opus, "work", 200, sec(8), sec(112), 176_000, 2100, 1300, "tool_use", "Bash"},
 		{local(14, 30, 42), opus, "work", 200, sec(9), sec(124), 181_000, 2400, 1100, "tool_use", "Bash"},
@@ -181,12 +181,21 @@ func TestATurnOpenedIsTheFramesRowsOfItsRequests(t *testing.T) {
 	}
 }
 
-// A turn opened shows its requests oldest first, each the Log's row of it
-// with no mark: by its line, the one that wrote the context again on the
-// account it moved to saying so, and where it moved from and what that
-// cost; one sent again after a limit, as tried; a 429 every account
-// refused, failed; and one in flight, as the stream tells it. Another
-// turn's requests are none of them.
+// turnRowsOf are the rows of a turn's Log lines given.
+func turnRowsOf(lines []views.LogLine) []views.RequestRow {
+	rows := make([]views.RequestRow, len(lines))
+	for i, l := range lines {
+		rows[i] = l.Row
+	}
+	return rows
+}
+
+// A turn opened shows its requests oldest first, each the Log's line of it
+// with no mark, its details the Log's: by its line, the one that wrote the
+// context again on the account it moved to saying so, and where it moved
+// from and what that cost; one sent again after a limit, as tried; a 429
+// every account refused, failed; and one in flight, as the stream tells it.
+// Another turn's requests are none of them.
 func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 	main := func(id, account string, at time.Time) ledger.Line {
 		return filedAs(id, took(10*time.Second, serving(p1, ledger.ClassMain, line(paged, opus, account, "sticky", at, hourUsage))))
@@ -209,12 +218,14 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 	l := summarisedLedger(lines)
 	held := views.HoldPage(paged, views.ReadSessions(l, nil, now, paged), ledger.Pricing, kept90, now)
 	stream := heard(toldOf("r8", p1, ledger.ClassMain, opus, "side", local(13, 10, 0)))
-	rows := held.TurnRequests(1, views.PageLive{Now: now, Stream: stream})
-	logged := logRowsByID(views.LogRows(views.LogSources{
+	turn := held.TurnRequests(1, views.PageLive{Now: now, Stream: stream})
+	table := views.LogRows(views.LogSources{
 		From: now, Read: views.ReadLogHeld(l, heldOf(lines...), ledger.Pricing, now), Stream: stream, Now: now,
-	}))
+	})
+	logged := logRowsByID(table)
 	var ids []string
-	for _, r := range rows {
+	for _, line := range turn {
+		r := line.Row
 		ids = append(ids, r.Request)
 		if r.Mark != views.NoMark {
 			t.Errorf("%s has mark %q, want none", r.Request, r.Mark)
@@ -224,7 +235,14 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 		if !reflect.DeepEqual(r, want) {
 			t.Errorf("%s's row is\n%+v\nwant the Log's, but for its mark,\n%+v", r.Request, r, want)
 		}
+		got, _ := line.Details()
+		details := logDetailsOf(t, table, r.Request)
+		details.Row.Mark = views.NoMark
+		if !reflect.DeepEqual(got, details) {
+			t.Errorf("%s's details are\n%+v\nwant the Log's, but for its mark,\n%+v", r.Request, got, details)
+		}
 	}
+	rows := turnRowsOf(turn)
 	if want := []string{"r1", "r2", "r3", "r4", "r6", "r7", "r8"}; !slices.Equal(ids, want) {
 		t.Fatalf("turn 1's requests are %v, want %v, oldest first, turn 2's none of them", ids, want)
 	}
@@ -244,6 +262,20 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 	if got := held.TurnRequests(3, views.PageLive{Now: now}); got != nil {
 		t.Errorf("TurnRequests(3) = %+v, want none, the session having two turns", got)
 	}
+}
+
+// logDetailsOf are the details of the request with the given id, as the
+// Log's table holds its line, failing the test where it holds none.
+func logDetailsOf(t *testing.T, table views.LogTable, id string) views.RequestDetails {
+	t.Helper()
+	for _, l := range table.Lines {
+		if l.IsRow() && l.Row.Request == id {
+			d, _ := l.Details()
+			return d
+		}
+	}
+	t.Fatalf("the Log holds no line of %s", id)
+	return views.RequestDetails{}
 }
 
 // logRowsByID are the rows the Log's table holds, by their requests' ids.
