@@ -237,21 +237,22 @@ func (cp compared) filled() map[Ref]float64 {
 
 // heads draws the columns' heads from row top: each account's number, its
 // name and its marks, as usage names an account, but for ▲, as Accounts
-// shows no routing, and under them its state in a word, cued as it changes;
-// all accounts', 0 and its name, and its accounts' states counted; the
-// focused column's on bg.selection.
+// shows no routing, and under them its state in a word; all accounts', 0 and
+// its name, and its accounts' states counted; the focused column's on
+// bg.selection, and over it, a state cued as it changes, a warning showing
+// through the focus.
 func (cp compared) heads(c *canvas, top int, columns []compareColumn) {
 	s, head := cp.f.Accounts, cp.colw-1
 	for _, col := range columns {
 		c.line(col.x, top, cp.named(col, head))
 		stands := cp.stands(col, head)
 		c.line(col.x, top+1, stands)
-		cp.f.cueState(c, col.id, col.x, top+1, stands.width())
 		if s.Focused && s.Focus == col.id {
 			for y := range compareHeads - 1 {
 				c.surface(col.x, top+y, head, hue{token: theme.BgSelection})
 			}
 		}
+		cp.f.cueState(c, col.id, col.x, top+1, stands.width())
 	}
 }
 

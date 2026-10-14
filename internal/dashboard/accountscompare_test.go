@@ -650,6 +650,7 @@ func TestAnAccountsStateIsCuedAsItsWordChanges(t *testing.T) {
 		cued          bool
 	}{
 		{name: "its word changed", word: map[string]float64{"work": 0.25}, cued: true},
+		{name: "its word changed, its column focused", word: map[string]float64{"work": 0}, focused: true, cued: true},
 		{name: "ROUTING's state alone changed", changed: map[string]float64{"work": 0.25}},
 	}
 	for _, tt := range tests {
