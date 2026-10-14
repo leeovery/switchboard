@@ -4,11 +4,14 @@ import (
 	"cmp"
 	"go/ast"
 	"go/types"
+	"path"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/sourcecheck"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // These tests read the module's source, so a view can't work out a fact of a
@@ -174,6 +177,45 @@ func TestTheMomentGuardFindsWhatItGuardsAgainst(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
+}
+
+// How an account stood at a moment gone is worked out by status, for a view
+// to draw the past by: Then takes none of the wire's types, so a view calls
+// it without callsAllowed naming it.
+func TestAViewMayAskHowAnAccountStoodThen(t *testing.T) {
+	then := reflect.TypeOf(status.Moment.Then)
+	for i := range then.NumIn() {
+		if wire := wireTypeIn(then.In(i)); wire != "" {
+			t.Errorf("Then takes the wire's %s, as its argument %d; want none, so a view may call it", wire, i)
+		}
+	}
+}
+
+// wireTypeIn names the one of wireTypes t is, or holds as the guard looks
+// for one, through pointers, slices, arrays, maps, channels and functions,
+// but never a struct's fields: "" where it's none.
+func wireTypeIn(t reflect.Type) string {
+	if name := path.Base(t.PkgPath()) + "." + t.Name(); t.Name() != "" && slices.Contains(wireTypes, name) {
+		return name
+	}
+	switch t.Kind() {
+	case reflect.Pointer, reflect.Slice, reflect.Array, reflect.Chan:
+		return wireTypeIn(t.Elem())
+	case reflect.Map:
+		return cmp.Or(wireTypeIn(t.Key()), wireTypeIn(t.Elem()))
+	case reflect.Func:
+		for p := range t.Ins() {
+			if wire := wireTypeIn(p); wire != "" {
+				return wire
+			}
+		}
+		for p := range t.Outs() {
+			if wire := wireTypeIn(p); wire != "" {
+				return wire
+			}
+		}
+	}
+	return ""
 }
 
 func TestALookWorksOutOneMoment(t *testing.T) {
