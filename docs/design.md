@@ -2606,12 +2606,17 @@ kept for good (settled in the plan; see The request ledger).
   | Room, but it runs out at its pace before its window resets | `▆` | `accent.attention` |
   | At its cap | `─` | `accent.attention` |
   | At its limit | `─` | `state.destructive` |
+  | Its token refused, from the refusal to its until | `─` | `state.destructive` |
 
   Every window that every model shares counts, but the 5-hour view leaves out a week running out:
   its lane is room until the week's limit. `│` in `text.subtle` marks where the view's window
   resets, on now's column or after it: each account's 5-hour window's reset in the 5-hour view, its
   week's in the week view. An account without a usable token has no room all along, and one not read
-  yet is left blank (settled in the plan).
+  yet is left blank (settled in the plan). An account whose first read failed is left blank, as not
+  read yet: its label says `not read yet`, and from column 24, in `text.subtle`,
+  `can't read it: HTTP 529 · Overloaded` (the owner's call, 13 October 2026). An account whose
+  token is refused has the windows' use under its name faded as stale (the owner's call, 13 October
+  2026).
 
 **The words under a lane** say where each stretch without room starts, from its column, 24 at the
 least, or two cells after the words before:
@@ -2619,7 +2624,9 @@ least, or two cells after the words before:
 - at a cap: `at its cap 14:31` bold `accent.attention`, then `  ·  back 17:10` in `text.muted`;
 - running out ahead: `runs out ~16:05 at its pace` bold `accent.attention`, then `  ·  back 16:55`
   in `text.muted`;
-- at a limit: `at its limit 13:58` bold `state.destructive`, then `  ·  back 15:30` in `text.muted`.
+- at a limit: `at its limit 13:58` bold `state.destructive`, then `  ·  back 15:30` in `text.muted`;
+- its token refused: `token refused (401) 14:12  ·  back 15:00` (the owner's call, 13 October
+  2026).
 
 `, as its 5-hour resets`, or `, as its week resets`, follows a cap's or a run-out's `back …` where
 its stretch ends as the view's window resets; a limit's `back …` takes none. In the week view, an
@@ -2776,11 +2783,20 @@ stepping back and how far it reaches, the minutes a column, and COMING UP.
 
 **What it reads.**
 
-- **Room, a cap and a limit:** the status document's windows, their `utilization`, `resets_at` and
-  `status`, and the account's `at_reserve` (see The status document), at each look. The `now`
-  column, the clock and the countdowns move every second.
-- **When a limit or a cap began:** the router's `limit` and `cap` events' `at`
-  (settled in the plan). A hold whose start isn't known runs from before the timeline.
+- **Now and what's ahead:** the status document's windows, their `utilization`, `resets_at` and
+  `status`, and the account's `at_reserve` (see The status document), at each look: now's column
+  and every column after it. The `now` column, the clock and the countdowns move every second.
+- **The past,** every column before now's, live or stepped back to, by one rule: the readings
+  history, each column by the last reading of each of its account's windows by the column's
+  middle. A window whose reset that reading gives has passed by then counts as reset, at 0%; one
+  read `rejected` is at its limit until that reset; a cap is drawn from the reserve the config
+  gives now, as the readings keep none. A column with no reading of its account by then is left
+  blank, as one not read yet (the owner's call, from his report on v0.1.6; 14 October 2026).
+- **When a limit, a cap or a refusal began:** the router's `limit`, `cap` and `refused` events'
+  `at`; where no event tells it, the first reading that shows it; a hold whose start neither tells
+  runs from before the timeline (the owner's call, 14 October 2026).
+- **While the router doesn't answer, or the dashboard probes,** the documents it reads join the
+  history, a reading of each window at each look (the owner's call, 14 October 2026).
 - **A run-out, `~16:05`:** the projection, as `usage` projects (see `usage`, the printout).
 - **COMING UP:** the same, soonest first, as the Overview's COMING UP reads it.
 - **The pool:** its accounts, every one on auto, or those the `pin` names.
