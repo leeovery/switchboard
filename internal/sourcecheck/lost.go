@@ -124,7 +124,7 @@ func (u unseen) function(name string, method bool) {
 // may break the rule: the fields of each of Fields, through any field
 // embedded in it, that pkg can read; each function and field of Used, a
 // field selected as a method is, and each function of Calls, whose ban holds
-// in dir; and each function and method of Owners that takes one of Fields,
+// in dir, but where it judges only what it sees; and each function and method of Owners that takes one of Fields,
 // that pkg can use, but those allowed.
 func (r Rule) unseenIn(pkg *types.Package, dir string) unseen {
 	u := unseen{selected: make(map[string]bool), bare: make(map[string]bool)}
@@ -134,7 +134,7 @@ func (r Rule) unseenIn(pkg *types.Package, dir string) unseen {
 		}
 	}
 	for name, ban := range r.Calls {
-		if ban.holdsIn(dir) {
+		if ban.holdsIn(dir) && !ban.Seen {
 			u.function(name, strings.HasPrefix(name, "("))
 		}
 	}
