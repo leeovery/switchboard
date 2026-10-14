@@ -13,23 +13,35 @@ import (
 )
 
 // At is the page as it stands at the moment m, of the document of its
-// accounts: where what m reads of an account's week has it reset since the
-// page's days were read, at its Now, as the watch builds the page afresh as
-// they land, and the days don't hold that reset yet, its weeks are worked out
-// at m's Now as though they held it, as the ledger files it once it reads
-// them again, so its left at its last reset, its peaks and its verdict
-// change on the second WEEK USED reads none, and stay so. Once the days hold
-// it, it isn't counted again. The rest stands as it was built.
+// accounts: its weeks as the days stand at m, as Past's filedAt files them,
+// so its left at its last reset, its peaks and its verdict change on the
+// second WEEK USED reads none, and stay so, as Weeks' do. The rest stands as
+// it was built.
 func (p AccountsPage) At(m status.Moment) AccountsPage {
-	resets := p.unfiled(m)
-	if len(resets) == 0 {
+	stood, ok := Past{in: p.in, days: p.days}.filedAt(m)
+	if !ok {
 		return p
 	}
-	in := p.in
-	in.Now = m.Now
 	p.Rows = slices.Clone(p.Rows)
-	p.weeked(in, filedIn(p.days, resets))
+	p.weeked(stood.in, stood.days)
 	return p
+}
+
+// filedAt is the Past as it stands at the moment m, of the document of its
+// accounts, reporting false where it stands as it is: where what m reads of
+// an account's week has it reset since the days were read, at the Past's
+// Now, as the watch builds its pages afresh as they land, and the days don't
+// hold that reset yet, it's filed among them, as the ledger files it once it
+// reads them again, and the Past is at m's Now. Once the days hold it, it
+// isn't filed again. Every page that tells the accounts' weeks stands so, so
+// each tells them alike.
+func (p Past) filedAt(m status.Moment) (Past, bool) {
+	resets := p.unfiled(m)
+	if len(resets) == 0 {
+		return p, false
+	}
+	p.in.Now, p.days = m.Now, filedIn(p.days, resets)
+	return p, true
 }
 
 // accountReset is a reset of the window of the account with the given id.
@@ -38,10 +50,10 @@ type accountReset struct {
 	reset   ledger.Reset
 }
 
-// unfiled are the resets of the page's accounts' own weeks, the week window
-// alone, as the page's weeks are of it alone, that the ledger files of what m
-// reads and the page's days don't hold, as endedSince has them.
-func (p AccountsPage) unfiled(m status.Moment) []accountReset {
+// unfiled are the resets of the configured accounts' own weeks, the week
+// window alone, as the weeks the views tell are of it alone, that the ledger
+// files of what m reads and the days don't hold, as endedSince has them.
+func (p Past) unfiled(m status.Moment) []accountReset {
 	var resets []accountReset
 	for _, a := range m.Accounts {
 		w, read := a.Window(p.in.WeekWindow)
@@ -56,7 +68,7 @@ func (p AccountsPage) unfiled(m status.Moment) []accountReset {
 }
 
 // endedSince are the resets of the window w of an account, whose days are
-// own, a day each of the page's, that the ledger files of its readings since
+// own, a day each of the Past's, that the ledger files of its readings since
 // the days were read, to now, as its Climb files them: the days' last reading
 // of the window first, as the run it read stood as they were read, at its
 // highest use; then w's reading, at the time it was read. The days' run is
@@ -68,7 +80,7 @@ func (p AccountsPage) unfiled(m status.Moment) []accountReset {
 // that read nothing, and of one that lapsed, its own long since. None are
 // filed where the days hold a reset since w was read, as they've read past
 // the run it reads.
-func (p AccountsPage) endedSince(w status.WindowNow, own []ledger.AccountDay, now time.Time) []ledger.Reset {
+func (p Past) endedSince(w status.WindowNow, own []ledger.AccountDay, now time.Time) []ledger.Reset {
 	length, ok := quota.Length(w.Key)
 	if !ok || resetAfter(own, w.Key, w.Read.At) {
 		return nil
@@ -96,12 +108,12 @@ func runBegun(w status.WindowNow, length time.Duration) time.Time {
 }
 
 // begunSince reports whether a run of the window with the given key, length
-// long, that began at began, did so after the page's days were read, at its
+// long, that began at began, did so after the Past's days were read, at its
 // Now, and they hold no reset that began it: none of the window since half
 // its length before it, as the days file the reset that began a run at its
 // start as Claude gives it, to the second or so, and the one before came a
 // whole length before.
-func (p AccountsPage) begunSince(began time.Time, own []ledger.AccountDay, key string, length time.Duration) bool {
+func (p Past) begunSince(began time.Time, own []ledger.AccountDay, key string, length time.Duration) bool {
 	return began.After(p.in.Now) && !resetAfter(own, key, began.Add(-length/2))
 }
 

@@ -37,11 +37,17 @@ func accountsAt(am viewstest.AccountsMoment) (views.AccountsPage, status.Moment)
 }
 
 // builtOf is Accounts' page of the moment am's days, for its period, built
-// as they were read, at its DaysRead, else its Now.
+// as they were read, as pastOf has them.
 func builtOf(am viewstest.AccountsMoment) views.AccountsPage {
+	return pastOf(am).Accounts(am.Period)
+}
+
+// pastOf is the Past of the moment am's days, as they were read, at its
+// DaysRead, else its Now.
+func pastOf(am viewstest.AccountsMoment) views.Past {
 	in := accountsIn(am)
 	in.Now = cmp.Or(am.DaysRead, am.Now)
-	return views.NewPast(in, am.Days).Accounts(am.Period)
+	return views.NewPast(in, am.Days)
 }
 
 // rowOf is the page's row of the account with the given id, or every

@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"strconv"
@@ -192,25 +193,8 @@ func TestTheFrameNamesTheAccountsWeekAsTheConfigDoes(t *testing.T) {
 // views.AccountsPage.At has it, while the page as built of the days, which
 // don't hold the reset yet, stands as it was.
 func TestEachLookStandsAccountsPageAtItsMoment(t *testing.T) {
-	moments := viewstest.AccountsMoments()
-	i := slices.IndexFunc(moments, func(mo viewstest.AccountsMoment) bool {
-		return mo.Name == "a week reset at 21:00, at 21:00:01, before the router reads it again"
-	})
-	if i < 0 {
-		t.Fatal("no moment of a week reset before the reread")
-	}
-	mo := moments[i]
-	h := &harness{t: t, clock: &fakeClock{now: mo.Now}, source: &fakeSource{doc: probedWithoutTheRouter()}, notifier: &fakeNotifier{}}
-	h.source.router = &mo.Doc
-	days := make(map[string]ledger.Summary)
-	for _, d := range mo.Days {
-		days[d.Day] = d
-	}
-	l := &daysLedger{Empty: h.emptyLedger(), clock: h.clock, first: mo.Days[0].Day, days: days}
-	cfg := h.config(Size{Width: 160, Height: 37})
-	cfg.Ledger, cfg.Prices, cfg.Accounts, cfg.WeekStarts, cfg.WeekWindow, cfg.Policy = l, ledger.Pricing, mo.Accounts, mo.WeekStarts, claude.WeekWindow, claude.Policy
-	cfg.View = dashboard.Accounts
-	h.model = New(t.Context(), cfg)
+	mo := resetBeforeTheReread(t)
+	h := momentHarness(t, mo, dashboard.Accounts)
 	h.start()
 
 	built := h.model.accounts.page
@@ -224,6 +208,91 @@ func TestEachLookStandsAccountsPageAtItsMoment(t *testing.T) {
 	if leftOf(built.Rows[0]) == leftOf(drawn.Rows[0]) {
 		t.Errorf("work's left at its last reset is built %s, as drawn, want the page as built of the days to stand", leftOf(built.Rows[0]))
 	}
+}
+
+// History's Weeks is stood at each look's moment, as Accounts' page is: a
+// week reset before the router reads it again closes that week in both, so
+// each account's peaks over Accounts' six weeks, and its verdict, and every
+// account's, are drawn alike on each.
+func TestHistorysWeeksTellTheAccountsWeeksAsAccountsAtTheMoment(t *testing.T) {
+	mo := resetBeforeTheReread(t)
+	h := momentHarness(t, mo, dashboard.History)
+	h.start()
+	weeks := h.model.frame(mo.Now).History.Weeks
+	h.keys(shiftTabKey)
+	page := h.model.frame(mo.Now).Accounts.Page
+	if weeks == nil || page == nil {
+		t.Fatalf("Weeks is %v drawn, Accounts' page %v; want both", weeks, page)
+	}
+	shown := len(weeks.Weeks) - len(page.Weeks)
+	rows := append(slices.Clone(weeks.Accounts), weeks.All)
+	for i, row := range append(slices.Clone(page.Rows), page.All) {
+		if got, want := rows[i].Peaks[shown:], row.Peaks; !reflect.DeepEqual(got, want) {
+			t.Errorf("row %d's peaks are drawn %v on Weeks, %v on Accounts", i, peaksOf(got), peaksOf(want))
+		}
+		if got, want := rows[i].AccountVerdict, row.Verdict; !reflect.DeepEqual(got, want) {
+			t.Errorf("row %d's verdict is drawn %s on Weeks, %s on Accounts", i, verdictSaid(got), verdictSaid(want))
+		}
+	}
+}
+
+// resetBeforeTheReread is the moment of a week reset at 21:00, at 21:00:01,
+// before the router reads it again.
+func resetBeforeTheReread(t *testing.T) viewstest.AccountsMoment {
+	t.Helper()
+	moments := viewstest.AccountsMoments()
+	i := slices.IndexFunc(moments, func(mo viewstest.AccountsMoment) bool {
+		return mo.Name == "a week reset at 21:00, at 21:00:01, before the router reads it again"
+	})
+	if i < 0 {
+		t.Fatal("no moment of a week reset before the reread")
+	}
+	return moments[i]
+}
+
+// momentHarness is a harness of a watch opening on the view given, at the
+// moment mo, of its document, its accounts and its days, History on Weeks.
+func momentHarness(t *testing.T, mo viewstest.AccountsMoment, opening dashboard.View) *harness {
+	t.Helper()
+	h := &harness{t: t, clock: &fakeClock{now: mo.Now}, source: &fakeSource{doc: probedWithoutTheRouter()}, notifier: &fakeNotifier{}}
+	h.source.router = &mo.Doc
+	days := make(map[string]ledger.Summary)
+	for _, d := range mo.Days {
+		days[d.Day] = d
+	}
+	l := &daysLedger{Empty: h.emptyLedger(), clock: h.clock, first: mo.Days[0].Day, days: days}
+	cfg := h.config(Size{Width: 160, Height: 37})
+	cfg.Ledger, cfg.Prices, cfg.Accounts, cfg.WeekStarts, cfg.WeekWindow, cfg.Policy = l, ledger.Pricing, mo.Accounts, mo.WeekStarts, claude.WeekWindow, claude.Policy
+	cfg.View, cfg.History = opening, dashboard.HistoryPage{Shown: dashboard.HistoryWeeks}
+	h.model = New(t.Context(), cfg)
+	return h
+}
+
+// peaksOf are peaks as whole percentages, "—" where one isn't known, and …
+// after a week's still running.
+func peaksOf(peaks []views.WeekPeak) []string {
+	read := make([]string, len(peaks))
+	for i, p := range peaks {
+		read[i] = "—"
+		if p.Share != nil {
+			read[i] = views.Peak(*p.Share, p.Open)
+		}
+	}
+	return read
+}
+
+// verdictSaid says a verdict, its limits over its weeks, the share left on
+// average and the weeks short without its account, where known, as "hits
+// its limit most weeks 3/7 19% short 2".
+func verdictSaid(v views.AccountVerdict) string {
+	said := fmt.Sprintf("%s %d/%d", v.Verdict, v.Limits, v.Weeks)
+	if v.LeftAtReset != nil {
+		said += " " + prose.Percent(*v.LeftAtReset)
+	}
+	if v.WithoutIt != nil {
+		said += fmt.Sprintf(" short %d", *v.WithoutIt)
+	}
+	return said
 }
 
 // leftOf is what a row's week left at its last reset, as a whole percentage,

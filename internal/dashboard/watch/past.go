@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -26,9 +27,13 @@ import (
 // changes to the last 12 months' days held, as each read and look brings
 // them, for Accounts' page to be built afresh of them; and behind is set
 // while the page lags the days held, as a look while History doesn't show
-// leaves it, for historyBuilt to build it afresh once History shows.
+// leaves it, for historyBuilt to build it afresh once History shows. weeks
+// is Weeks' page as built, where the page shows it, which the page holds
+// stood at a moment, and at the moment, as weeksStood stands it.
 type historyTab struct {
 	page       dashboard.HistoryPage
+	weeks      *views.WeeksPage
+	at         *status.HeldMoment
 	last, back heldDays
 	held       int
 	behind     bool
@@ -304,26 +309,44 @@ func (t historyTab) since(days []ledger.Summary, at, now time.Time) historyTab {
 
 // historyBuilt is m with History's page built afresh of the days held, while
 // History shows, where a look left it behind them: as History shows again
-// after a look on Accounts.
+// after a look on Accounts; its Weeks stood as weeksStood stands it.
 func (m Model) historyBuilt() Model {
 	if m.view == dashboard.History && m.past.behind {
 		m.past = m.past.built()
+	}
+	return m.weeksStood()
+}
+
+// weeksStood is m with History's Weeks, while it shows, stood at the moment
+// of the message taken in, as views.WeeksPage.At stands it, where it's built
+// afresh or was stood at another: once a message, for every frame of it to
+// read, as Accounts' page is, so the two tell the accounts' weeks alike.
+func (m Model) weeksStood() Model {
+	if m.view != dashboard.History || m.past.weeks == nil {
+		return m
+	}
+	now := m.now()
+	if !m.past.at.Of(m.doc, now, m.cfg.Policy) {
+		mo := m.moment(now)
+		m.past.page.Weeks, m.past.at = new(m.past.weeks.At(mo)), mo.Held()
 	}
 	return m
 }
 
 // built is the tab, the page of the sub-tab shown built afresh of the days
 // held, those of the rest let go: none before the last 12 months are read,
-// and of the Year, none while the days of the year it shows are.
+// and of the Year, none while the days of the year it shows are. Weeks'
+// page is held as built, for weeksStood to stand.
 func (t historyTab) built() historyTab {
-	t.behind = false
+	t.behind, t.weeks, t.at = false, nil, nil
 	p := t.page
 	p.Year, p.Weeks, p.Days, p.Tokens = nil, nil, nil, nil
 	p.Read = t.last.held()
 	switch past := t.last.past; {
 	case !p.Read:
 	case p.Shown == dashboard.HistoryWeeks:
-		p.Weeks = new(past.Weeks())
+		t.weeks = new(past.Weeks())
+		p.Weeks = t.weeks
 	case p.Shown == dashboard.HistoryDays:
 		p.Days = new(past.Days())
 	case p.Shown == dashboard.HistoryTokens:

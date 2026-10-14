@@ -34,6 +34,10 @@ type AccountsMoment struct {
 	Doc      status.Document
 	Now      time.Time
 	DaysRead time.Time
+	// Held are the days the ledger holds at Now, as history reads them,
+	// today's as far as it has gone, where Days, read before, don't hold
+	// what it has filed since: nil where they do.
+	Held []ledger.Summary
 	// Period is the period Accounts is shown over.
 	Period views.AccountsPeriod
 	// Sessions are those the router lists, and Stream what the request
@@ -169,7 +173,7 @@ func weekResetBeforeTheReread() []AccountsMoment {
 		},
 		{
 			Name: "a week reset at 21:00, at 21:00:01, before the router reads it again", Accounts: accounts, WeekStarts: time.Monday,
-			Days: before, Doc: readBefore, Now: in2026(time.October, 5, 21, 0, 1), Page: sixWeeks, Want: afterTheReset,
+			Days: before, Doc: readBefore, Now: in2026(time.October, 5, 21, 0, 1), Held: mondayWeeks(true), Page: sixWeeks, Want: afterTheReset,
 		},
 		{
 			Name: "a week reset at 21:00, reread at 21:00:30, the reset filed", Accounts: accounts, WeekStarts: time.Monday,
@@ -178,7 +182,7 @@ func weekResetBeforeTheReread() []AccountsMoment {
 		{
 			Name: "a week reset at 21:00, reread at 21:00:30, the days read before it", Accounts: accounts, WeekStarts: time.Monday,
 			Days: before, Doc: readAgain, Now: in2026(time.October, 5, 21, 0, 31), DaysRead: in2026(time.October, 5, 20, 58, 0),
-			Page: sixWeeks, Want: afterTheReset,
+			Held: mondayWeeks(true), Page: sixWeeks, Want: afterTheReset,
 		},
 	}
 }
