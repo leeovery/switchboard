@@ -144,6 +144,36 @@ func TestTheLogReadsEveryDayItWasAwayForAgain(t *testing.T) {
 	}
 }
 
+// The router drops a reader that falls behind: the Log fills the gap from
+// the ledger as the stream joins again, so a request that ended while it was
+// away shows as its line has it, never lost, with no look between.
+func TestARejoinedStreamFillsTheGapFromTheLedger(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	h.hear(told(router.StreamSent, "0a000002", "work", 0))
+
+	h.endStream()
+	writeLines(t, state, took(arrived("0a000002", "work", 0), 2*time.Second))
+	rejoin, _ := h.pendingRejoin()
+	h.fire(rejoin)
+	joining, ok := h.pending(joinedMsg{gen: h.model.stream.gen})
+	if !ok {
+		t.Fatal("the stream opened again, nothing waits for its first look")
+	}
+	h.fire(joining)
+
+	i := slices.IndexFunc(h.model.log.page.Requests.Lines, func(l views.LogLine) bool { return l.IsRow() && l.Row.Request == "0a000002" })
+	if i < 0 {
+		t.Fatalf("the Requests show %v, want 0a000002 among them", shownRequests(h))
+	}
+	if row := h.model.log.page.Requests.Lines[i].Row; row.Stage != views.RowLined || row.Failed {
+		t.Errorf("the stream joined again, 0a000002, which ended while it was away, is %+v, want it as its line has it", row)
+	}
+}
+
 // A request that arrived at 23:59:50 and ended at 00:00:12, after the first
 // look past midnight read the day before again, has its line taken in, shown
 // or hidden: the stream told it ended, so the day it arrived on is read again
