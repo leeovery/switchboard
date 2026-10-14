@@ -218,6 +218,10 @@ One account: work alone on the Overview, its usage, its routing trace and LATELY
 - **Detail** is one account, or all of them, chosen from a list at its left: its windows now, the period's requests, limits, plan, worth and extra usage, its use by model, the last six weeks a day and a week at a time, its verdict as History's Weeks gives it, its SESSIONS now, `enter` opening one's page, and its LATELY.
 - **The period:** `<` and `>` step the period both count over, today, this week, 30 days and 12 weeks, rolling, never billing months.
 
+<div align="center">
+<img src="art/accounts-compare.webp" alt="Accounts' Compare over this week: a column each for work, personal and side and one for all accounts, each with its week used, its use by model version, its requests, sessions and moves, its limits and time at its cap, and what its plan costs against the worth of its use at API prices, 4.0× to 5.2×" width="840">
+</div>
+
 **History** is how use has gone over time, in four views on sub-tabs, `[` and `]` moving between them.
 
 - **Year,** the default, is a square a day over the last 12 months, a column a week, each shaded by how many requests it made, never its worth: a day with nothing on it in a shade of its own, and the active days in quarters by how much each did. Beside it, the 12 months' requests, sessions, limits hit, worth, what the plans cost and the worth against it, the busiest day and the longest run; under it, BY MONTH, a row a month, its bar its worth split by family. `v` shows one model version alone, in four steps of its own colour, or one account, `←` and `→` stepping between them; `<` and `>` step back through each calendar year the ledger holds. Shown for one version, the Year counts each of its sessions once, but for a day whose summary was written before the ledger kept a model's sessions by their ids, its lines since gone, it adds that day's count, as nothing tells those sessions from another day's.
@@ -225,12 +229,24 @@ One account: work alone on the Overview, its usage, its routing trace and LATELY
 - **Days** is the eight weeks a day at a time, each family's worth a day, and how much of its week each account used each day, the days it hit a 5-hour limit marked.
 - **Tokens** is ccusage's report inside switchboard, each period's tokens by kind and its worth at API prices against what its plans cost, by day, week or month with `<` and `>`, split with `v` by account, by model, by both or not at all.
 
+<div align="center">
+<img src="art/history-year.webp" alt="History's Year: a square a day over the last 12 months, shaded by its requests; beside it, 212,885 requests worth $24,736 at API prices against $7,200 of plans; and BY MONTH under it, each month's requests, worth, ratio, limits and use by model family" width="840">
+</div>
+
 **Sessions** is where each session's requests are going now, in two views on sub-tabs.
 
 - **The Switchboard,** the default, is a switchboard: the sessions down the left as calls, the accounts down the right as lines, and a cord from each call to its account, its requests travelling it, out as they go and back as their answers stream, a refusal bouncing back red, `✕ 429`. A session a limit moves joins its new account's group, and its old cord hangs red from the old jack, one cell shorter for each session the limit moved; a move made for any other reason hangs faint for 3 seconds. Where the cords don't fit, as on a phone, each account's line carries its sessions under it.
 - **The List** is one table of today's sessions, those running first, then those ended: each one's account, model, state, when it started, its requests and their worth at API prices, and how it came to its account.
 
+<div align="center">
+<img src="art/repatch.webp" alt="Sessions' Switchboard as personal reaches its limit: the 429 back red along 41e0's cord, its old cord left hanging, and personal's sessions re-patched to side" width="840">
+</div>
+
 **Runway** is when each account has room, a lane each, in the 5-hour view, from the hour before now for 22 hours 40 minutes, or, with `<` and `>`, the week: a cell a column, room, or at its cap, or at its limit, the past dimmed, with words under a lane that say where a stretch without room starts and when it's back, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`. Under the lanes, with more than one account, the pool's: how many accounts have room, a column at a time. `←` steps back a day, or a week, and `→` forward to the live view; a step back is never kept.
+
+<div align="center">
+<img src="art/runway-week.webp" alt="Runway over the week: a lane an account to next Wednesday, work at its cap till 17:10, personal's and side's weeks running out at their pace before they reset, and the pool's room under them" width="840">
+</div>
 
 **The Log** is the router's traffic, as it happens and back through the days, in two tables under one tab, `[` and `]` moving between them, the newest line at the foot.
 
@@ -238,22 +254,27 @@ One account: work alone on the Overview, its usage, its routing trace and LATELY
 - **Events** is a line for each thing the router decides or notices, every move it makes with why.
 - **Its keys:** `↑` chooses a line and pauses the table, `end` follows again, `enter` opens a line's details, `s` its session's page, `f` sets what it shows, its columns and which lines, and `/` finds a session.
 
+<div align="center">
+<img src="art/log-requests.webp" alt="The Log's Requests, following the newest: a line a request, with its time, session and directory, model, account, status, time to first byte and in all, tokens read from the cache, written to it and put out, why its answer stopped, and a new session's routing, the requests in flight at the foot" width="840">
+</div>
+
 **A session's page** follows one session through its whole life: what it's doing now and where it runs; its STORY, its requests a minute from its first to now, each move marked and costed; the accounts it ran on and what it took of each; and its turns, newest first, `enter` opening one into its requests. It opens with `enter` on a session's row on Sessions, or on Accounts' Detail, with `s` on a line of the Log, and with a click on a row of the Overview's SESSIONS; `esc` goes back to the tab as it was left. While the session runs, `p` on its page pins it.
+
+<div align="center">
+<img src="art/session.webp" alt="A session's page for d28c in ~/Code/switchboard: its STORY of requests a minute, its move from work to side at 14:31 marked with the $1.82 its cache cost, its time and worth on each account, and its turns, the one that moved it opened into its requests" width="840">
+</div>
 
 **Under 100 columns,** the dashboard is a phone's: the tabs on a row of their own, under the clock. The Overview's USAGE stacks its windows in short words, ROUTING and SESSIONS take two rows an account or a session, and LATELY comes under COMING UP.
 
-It reads, and takes its keys, as [`dashboard`](#dashboard) says.
+<div align="center">
+<img src="art/phone.webp" alt="The Overview in a phone's terminal, 52 columns wide" width="260">
+</div>
 
-<table>
-  <tr>
-    <td align="center"><img src="art/repatch.webp" alt="Sessions' Switchboard as personal reaches its limit: the 429 back red along 41e0's cord, its old cord left hanging, and personal's sessions re-patched to side" width="280"><br><b>Sessions, re-patched at a limit</b></td>
-    <td align="center"><img src="art/runway-week.webp" alt="Runway over the week: a lane an account to next Wednesday, work at its cap till 17:10, personal's and side's weeks running out at their pace before they reset, and the pool's room under them" width="280"><br><b>Runway, over the week</b></td>
-    <td align="center" rowspan="2"><img src="art/phone.webp" alt="The Overview in a phone's terminal, 52 columns wide" width="200"><br><b>In a phone's terminal</b></td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2"><img src="art/help.webp" alt="The Overview's help: every key that works there, and what its marks mean" width="280"><br><b>Every key, and every glyph</b></td>
-  </tr>
-</table>
+It reads, and takes its keys, as [`dashboard`](#dashboard) says, and `?` on any page shows every key that works there, and what its marks mean.
+
+<div align="center">
+<img src="art/help.webp" alt="The Overview's help: every key that works there, and what its marks mean" width="840">
+</div>
 
 ### Themes
 
@@ -1083,7 +1104,7 @@ golangci-lint run ./...
 go build ./...
 ```
 
-The clips and stills in this README are recorded from scenarios played through the real dashboard, every seam faked: [demo/README.md](demo/README.md) says how to record them again.
+The clips and stills in this README are recorded from scenarios played through the real dashboard, and from the fixtures of its signed-off frames, every seam faked: [demo/README.md](demo/README.md) says how to record them again.
 
 No test touches the real network, environment, home directory, config, state, binaries or notifications. `scripts/test-isolated` runs the suite inside a macOS sandbox (`scripts/isolation.sb`) that denies it the network beyond loopback, and the router's default port, 4747; unix sockets outside the temporary directory; writes into the home directory but Go's caches, switchboard's real config, themes, state and bin directories, its `prefs.json` and themes, Claude Code's config directory and the directories on `PATH`; and running the real `claude`, `osascript`, `launchctl`, `tmux` and `open`. Each run first proves the sandbox holds, and `scripts/test-isolated --self-check` does only that: among the rest, that it denies running the real `claude`, found as switchboard finds it. Every package's tests also run through `internal/testguard`, which points `HOME` and the XDG directories at a throwaway root, clears the variables that can hold a token, puts stubs on `PATH`, and fails the run when a test reaches the real system, such as a real token file appearing, changing or going, even if every test passed. A test that needs something the guards block injects it instead.
 

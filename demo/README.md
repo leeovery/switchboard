@@ -1,8 +1,9 @@
 # The README's demos
 
 Records the animated clips and stills in the project README, `art/*.webp`, by playing scripted
-scenarios through the real dashboard: `cmd/capturetool --scenario`, the visual capture harness's
-tool (see `testdata/vhs/README.md`), builds the dashboard's watch model through `watch.New`, as
+scenarios through the real dashboard, or drawing the fixtures named after its signed-off frames:
+`cmd/capturetool --scenario` and `--fixture`, the visual capture harness's tool (see
+`testdata/vhs/README.md`), build the dashboard's watch model through `watch.New`, as
 `switchboard dashboard` does, with every seam faked. It never dials the router, probes, touches the
 network, or reads or writes the real config, themes, state, prefs or tokens, so nothing needs a
 container, and it's safe to record beside a live router.
@@ -23,6 +24,10 @@ demo/record.sh routing help   # the tapes named
 | `runway-week` | `routing` | 160 × 37 | `art/runway-week.webp`, a still: Runway over the week |
 | `phone` | `routing` | 52 × 36 | `art/phone.webp`, a still: the Overview at 52 × 36 |
 | `help` | `routing` | 160 × 37 | `art/help.webp`, a still: the Overview's help |
+| `accounts-compare` | fixture `accounts-compare-160` | 160 × 37 | `art/accounts-compare.webp`, a still: Accounts' Compare over this week |
+| `history-year` | fixture `history-year-160` | 160 × 37 | `art/history-year.webp`, a still: History's Year |
+| `log-requests` | fixture `log-requests-160` | 160 × 37 | `art/log-requests.webp`, a still: the Log's Requests |
+| `session` | fixture `session-turn-opened-160` | 160 × 37 | `art/session.webp`, a still: a session's page, a turn opened into its requests |
 
 ## The scenarios
 
@@ -57,7 +62,10 @@ and tell the router's `pin` and `auto` events, as the router does for a pin set 
 
 A scenario's own requests write no ledger line and no line of the events file: they reach the
 dashboard through the request stream, the readings and the document's events. The world's lines
-stand as they were, and the Log and a session's page, which read lines, are in no demo.
+stand as they were, so the Log and a session's page, which read lines, are in no scenario's
+tape: their stills, with Accounts' Compare and History's Year, draw the fixtures named after the
+signed-off frames, `capturetool --fixture`, as capture's tests hold them to the frames. A
+fixture is a moment whose timers never fire, so its tape waits for the screen, then shows it.
 
 The dashboard runs as it does live: its clock reads the scenario's start as it starts and runs on
 in real time, and its timers fire, so bars ease, pulses travel the cords and highlights fade. A
