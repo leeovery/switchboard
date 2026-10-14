@@ -404,9 +404,9 @@ func TestTheRouterSummarisesItsLedgersDaysWithItsReadingsHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"version":3,"day":"` + date + `","lines":1,"bytes":{"plain":` + strconv.Itoa(len(kept[lines])) + `,"compressed":0},` +
-		`"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,` +
-		`"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":10,"output_tokens":20}}],"sessions":1,"session_ids":["` + sessionID + `"],` +
+	want := `{"version":4,"day":"` + date + `","lines":1,"bytes":{"plain":` + strconv.Itoa(len(kept[lines])) + `,"compressed":0},` +
+		`"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,` +
+		`"sessions":1,"session_ids":["` + sessionID + `"],"usage":{"input_tokens":10,"output_tokens":20}}],"sessions":1,"session_ids":["` + sessionID + `"],` +
 		`"moved_on":0,"moved_off":0,"highest":{"5h":0.4},"rise":{"5h":0.4},` +
 		`"resets":[{"window":"5h","at":"` + noon.Add(5*time.Hour).UTC().Format(time.RFC3339) + `","before":0.4}],` +
 		`"minutes_at_cap":300,"minutes_at_limit":0}]}` + "\n"

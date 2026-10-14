@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 )
 
@@ -64,6 +66,7 @@ type Config struct {
 	Notifications Notifications
 	History       History
 	Ledger        Ledger
+	Usage         Usage
 	// Prices are the config's prices in place of those switchboard carries.
 	Prices Prices
 }
@@ -134,12 +137,7 @@ type Day struct {
 
 // String gives the day as [prime] does, such as 08:00-23:00.
 func (d Day) String() string {
-	return timeOfDay(d.Start) + "-" + timeOfDay(d.End)
-}
-
-// timeOfDay gives the time since midnight as HH:MM.
-func timeOfDay(since time.Duration) string {
-	return fmt.Sprintf("%02d:%02d", int(since/time.Hour), int(since%time.Hour/time.Minute))
+	return prose.ClockOf(d.Start) + "-" + prose.ClockOf(d.End)
 }
 
 // Notifications says which desktop notifications the router posts.
@@ -175,6 +173,34 @@ type Ledger struct {
 	Keep time.Duration
 }
 
+// Usage says how usage and the dashboard lay out the accounts' windows.
+type Usage struct {
+	// By is the layout they open with: the config's, else ByWindow.
+	By Layout
+}
+
+// Layout is how the accounts' windows are laid out, as [usage] by and usage
+// --by name it.
+type Layout string
+
+const (
+	// ByWindow compares the accounts a window at a time.
+	ByWindow Layout = "window"
+	// ByAccount puts each account's windows together.
+	ByAccount Layout = "account"
+)
+
+// ParseLayout reads a layout by its name, window or account, in any case,
+// reporting false for any other text.
+func ParseLayout(given string) (Layout, bool) {
+	for _, layout := range []Layout{ByWindow, ByAccount} {
+		if strings.EqualFold(given, string(layout)) {
+			return layout, true
+		}
+	}
+	return "", false
+}
+
 // file is the config file as it's written, before its defaults are filled in.
 type file struct {
 	Listen        string        `toml:"listen"`
@@ -185,6 +211,7 @@ type file struct {
 	Notifications Notifications `toml:"notifications"`
 	History       fileKeep      `toml:"history"`
 	Ledger        fileKeep      `toml:"ledger"`
+	Usage         fileUsage     `toml:"usage"`
 	Prices        Prices        `toml:"prices"`
 }
 
@@ -207,6 +234,12 @@ type filePrime struct {
 type fileKeep struct {
 	// Keep is nil when the table doesn't give one.
 	Keep *string `toml:"keep"`
+}
+
+// fileUsage is the [usage] table as it's written.
+type fileUsage struct {
+	// By is nil when the table doesn't give one.
+	By *string `toml:"by"`
 }
 
 // Load reads the config file at path, validates it and fills in its defaults.
@@ -264,6 +297,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 	day, dayErr := ParseDay(f.Prime.Day)
 	historyKeep, historyErr := parseKeep("history.keep", f.History.Keep, DefaultHistoryKeep)
 	ledgerKeep, ledgerErr := parseKeep("ledger.keep", f.Ledger.Keep, DefaultLedgerKeep)
+	by, byErr := parseUsageBy(f.Usage.By)
 	err := errors.Join(
 		checkKeys(undecoded),
 		checkListen(f.Listen),
@@ -274,6 +308,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		checkWarning(f.Notifications.Warning),
 		historyErr,
 		ledgerErr,
+		byErr,
 		checkPrices(f.Prices),
 	)
 	if err != nil {
@@ -288,6 +323,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		Notifications: f.Notifications,
 		History:       History{Keep: historyKeep},
 		Ledger:        Ledger{Keep: ledgerKeep},
+		Usage:         Usage{By: by},
 		Prices:        f.Prices,
 	}, nil
 }

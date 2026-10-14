@@ -1,9 +1,11 @@
 package views
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -12,12 +14,13 @@ import (
 type monthPart struct{ num, den int64 }
 
 // The shares of a month Accounts and History price their periods at: a day
-// 12/365 of a month, a week 12/52, 30 days or a calendar month a month, and
-// 12 weeks twelve weeks'.
+// 12/365 of a month, a week 12/52, 30 days or a calendar month a month, 12
+// weeks twelve weeks', and a year, of 365 days or 366, 12 months.
 var (
 	aWeek       = monthPart{12, 52}
 	aMonth      = monthPart{1, 1}
 	twelveWeeks = monthPart{12 * 12, 52}
+	aYear       = monthPart{12, 1}
 )
 
 // days is the share of a month n days are.
@@ -33,21 +36,16 @@ func prorate(monthly ledger.Picodollars, s monthPart) ledger.Picodollars {
 }
 
 // askedShare is the share of a month the days from the one with the date
-// from to today's, each as civil gives it, are: as Accounts prices the
-// period they make, where they make one, today, this week from the day
-// weeks start on, the last 30 days or the last 12 weeks, each whole while
-// it's still running; else a day each.
+// from to today's, each as dayfile.Civil gives one, are, asked for from it:
+// as Accounts prices the period they make, where they make one, whole while
+// it's still running, the longest where two begin on the one day, as this
+// week does with today on the week's first, Accounts' own to begin with;
+// else a day each.
 func askedShare(from, today time.Time, weekStarts time.Weekday) monthPart {
-	week := weekOf(today, weekStarts)
-	switch {
-	case from.Equal(today):
-		return days(1)
-	case from.Equal(week):
-		return aWeek
-	case from.Equal(today.AddDate(0, 0, -29)):
-		return aMonth
-	case from.Equal(week.AddDate(0, 0, -7*11)):
-		return twelveWeeks
+	for _, p := range slices.Backward(accountsPeriods) {
+		if from.Equal(p.first(today, weekStarts)) {
+			return p.share()
+		}
 	}
 	return days(int(today.Sub(from)/(24*time.Hour)) + 1)
 }
@@ -60,16 +58,16 @@ func askedShare(from, today time.Time, weekStarts time.Weekday) monthPart {
 // running is priced to its end, and the day the ledger began recording cuts
 // none short.
 func cutShort(first, last, from string, uncut monthPart) (monthPart, string) {
-	start, startOK := civil(from)
-	end, endOK := civil(last)
+	start, startOK := dayfile.Civil(from)
+	end, endOK := dayfile.Civil(last)
 	if from <= first || !startOK || !endOK {
 		return uncut, first
 	}
 	return days(int(end.Sub(start)/(24*time.Hour)) + 1), from
 }
 
-// weekOf is the first day of the week the day falls in, as civil gives it,
-// weeks starting on the day given.
+// weekOf is the first day of the week the day falls in, as dayfile.Civil
+// gives one, weeks starting on the day given.
 func weekOf(day time.Time, starts time.Weekday) time.Time {
 	return day.AddDate(0, 0, -int((7+day.Weekday()-starts)%7))
 }
@@ -143,6 +141,21 @@ type PlanCost struct {
 	Price   *ledger.Picodollars `json:"price,omitempty"`
 	Against
 	Worth
+}
+
+// Monthly is what the plan costs a month, as PerMonth says a price: "" where
+// its price isn't known.
+func (p PlanCost) Monthly() string {
+	if p.Price == nil {
+		return ""
+	}
+	return PerMonth(*p.Price)
+}
+
+// PerMonth says a plan's price a month, to the dollar, its thousands set
+// apart, as "$1,000/mo".
+func PerMonth(price ledger.Picodollars) string {
+	return price.GroupedDollars() + "/mo"
 }
 
 // plansOf are each configured account's plan over days, in the config's

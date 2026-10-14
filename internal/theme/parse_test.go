@@ -74,6 +74,7 @@ func TestParseReadsAFileAsWritten(t *testing.T) {
 		{name: "Windows line endings", text: strings.ReplaceAll(file(nil), "\n", "\r\n")},
 		{name: "a byte order mark", text: string(rune(0xFEFF)) + file(nil)},
 		{name: "a key it doesn't know, passed over", text: file(nil, "bg.hover = #123456", "glyph.tick = ✓")},
+		{name: "the cords' viz.series keys, gone, passed over unread", text: file(nil, "viz.series.1 = #81A1C1", "viz.series.6 = amber")},
 		{name: "the base tokens alone, under a comment", text: "# Lake: the base tokens alone.\n" + file(nil)},
 	}
 	for _, tt := range tests {
@@ -216,15 +217,31 @@ func TestWhatAThemeLeavesOutOfItsChartsIsWorkedOutFromTheRest(t *testing.T) {
 		// Halfway from accent.attention, #EBCB8B, to state.destructive, #DD8188.
 		{token: theme.VizRamp3, want: "#E4A68A"},
 		{token: theme.VizRamp4, want: "#DD8188"},
-		{token: theme.VizTrack, want: "#4C566A"},
+		// bg.subtle.
+		{token: theme.VizTrack, want: "#3B4252"},
 		{token: theme.VizPace, want: "#ECEFF4"},
-		{token: theme.VizReserve, want: "#81A1C1"},
-		{token: theme.VizSeries1, want: "#81A1C1"},
-		{token: theme.VizSeries2, want: "#A7C492"},
-		{token: theme.VizSeries3, want: "#B48EAD"},
-		{token: theme.VizSeries4, want: "#88C0D0"},
-		{token: theme.VizSeries5, want: "#E5E9F0"},
-		{token: theme.VizSeries6, want: "#EBCB8B"},
+		// accent.attention.
+		{token: theme.VizReserve, want: "#EBCB8B"},
+		// accent.key, accent.mode, accent.primary and text.tertiary.
+		{token: theme.VizFamily1, want: "#81A1C1"},
+		{token: theme.VizFamily2, want: "#88C0D0"},
+		{token: theme.VizFamily3, want: "#B48EAD"},
+		{token: theme.VizFamily4, want: "#D8DEE9"},
+		// A family's newest version in its hue, an older one its hue mixed
+		// 30% toward the canvas, #2E3440.
+		{token: theme.VizVersion1, want: "#81A1C1"},
+		{token: theme.VizVersion2, want: "#68809A"},
+		{token: theme.VizVersion3, want: "#88C0D0"},
+		{token: theme.VizVersion4, want: "#6D96A5"},
+		{token: theme.VizVersion5, want: "#B48EAD"},
+		{token: theme.VizVersion6, want: "#D8DEE9"},
+		// bg.subtle, then 40% and 70% of the way to accent.key, accent.key,
+		// and accent.key 55% toward white.
+		{token: theme.VizDay0, want: "#3B4252"},
+		{token: theme.VizDay1, want: "#57687E"},
+		{token: theme.VizDay2, want: "#6C85A0"},
+		{token: theme.VizDay3, want: "#81A1C1"},
+		{token: theme.VizDay4, want: "#C6D5E3"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.token.String(), func(t *testing.T) {
@@ -242,30 +259,56 @@ func TestWhatAThemeLeavesOutOfItsChartsIsWorkedOutFromTheRest(t *testing.T) {
 	}
 }
 
-func TestNoSeriesTakesTheDestructiveColour(t *testing.T) {
-	lake, err := theme.Parse("lake", []byte(file(nil)))
+// A version's and a day's shades are worked out from what the file gives:
+// its family's hue, the empty day's shade, and the canvas.
+func TestTheShadesFollowWhatAThemeGives(t *testing.T) {
+	lake, err := theme.Parse("lake", []byte(file(nil, "viz.family.1 = #5E81AC", "viz.day.0 = #102030")))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for n := 1; n <= 6; n++ {
-		if lake.Series(n) == lake.Colour(theme.StateDestructive) {
-			t.Errorf("Series(%d) = state.destructive, which a limit or a refusal is drawn in", n)
+	for tok, want := range map[theme.Token]string{
+		theme.VizVersion1: "#5E81AC",
+		// #5E81AC 30% toward the canvas, #2E3440.
+		theme.VizVersion2: "#506A8C",
+		// 40% and 70% of the way from #102030 to accent.key, #81A1C1.
+		theme.VizDay1: "#3D546A",
+		theme.VizDay2: "#5F7A96",
+	} {
+		if got := hex(lake.Colour(tok)); got != want {
+			t.Errorf("%s = %s, want %s", tok, got, want)
 		}
 	}
 }
 
-func TestTheSeriesGoRoundAgainPastSix(t *testing.T) {
-	lake, err := theme.Parse("lake", []byte(file(nil)))
-	if err != nil {
-		t.Fatal(err)
+// Every ramp of shades is drawn by one rule: from its base, 40% and then 70%
+// of the way to its hue, the hue itself, then the hue mixed 55% toward white,
+// as nord's frame of the Year filtered to Opus 5.5 draws them; or toward black
+// on a light canvas. A theme's ramps start from its viz.day.0, on its canvas.
+func TestEveryRampOfShadesIsDrawnByOneRule(t *testing.T) {
+	base, opus := color.RGBA{R: 0x3B, G: 0x42, B: 0x52, A: 0xff}, color.RGBA{R: 0x5E, G: 0x81, B: 0xAC, A: 0xff}
+	tests := []struct {
+		light bool
+		want  [4]string
+	}{
+		{want: [4]string{"#495B76", "#546E91", "#5E81AC", "#B7C6DA"}},
+		{light: true, want: [4]string{"#495B76", "#546E91", "#5E81AC", "#2A3A4D"}},
 	}
-	for n, want := range map[int]theme.Token{1: theme.VizSeries1, 6: theme.VizSeries6, 7: theme.VizSeries1, 8: theme.VizSeries2, 13: theme.VizSeries1} {
-		if got := lake.Series(n); got != lake.Colour(want) {
-			t.Errorf("Series(%d) = %s, want %s's %s", n, hex(got), want, hex(lake.Colour(want)))
+	for _, tt := range tests {
+		var got [4]string
+		for i, c := range theme.Shades(base, opus, tt.light) {
+			got[i] = hex(c)
 		}
-		if got := theme.SeriesOf(n); got != want {
-			t.Errorf("SeriesOf(%d) = %s, want %s", n, got, want)
+		if got != tt.want {
+			t.Errorf("Shades(#3B4252, #5E81AC, light: %v) = %q, want %q", tt.light, got, tt.want)
 		}
+	}
+	nord, _ := theme.Builtin("nord")
+	if got, want := nord.Steps(opus), theme.Shades(base, opus, false); got != want {
+		t.Errorf("nord's steps toward Opus are %v, want from its viz.day.0 toward white, %v", got, want)
+	}
+	day, _ := theme.Builtin("tokyo-night-day")
+	if got, want := day.Steps(opus), theme.Shades(day.Colour(theme.VizDay0), opus, true); got != want {
+		t.Errorf("tokyo-night-day's steps toward Opus are %v, want from its viz.day.0 toward black, %v", got, want)
 	}
 }
 
@@ -301,7 +344,7 @@ func TestValidSlug(t *testing.T) {
 // token is the token a .theme file's key names.
 func token(t *testing.T, key string) theme.Token {
 	t.Helper()
-	for tok := theme.TextPrimary; tok <= theme.VizSeries6; tok++ {
+	for tok := theme.TextPrimary; tok.String() != ""; tok++ {
 		if tok.String() == key {
 			return tok
 		}

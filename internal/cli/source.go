@@ -14,7 +14,7 @@ import (
 )
 
 // readOnce is what status and usage ask of the source they read, reading
-// once: with --refresh, the read the dashboard's r asks for, else the
+// once: with --refresh, the read the dashboard's R asks for, else the
 // document as it stands.
 func readOnce(refresh bool) status.Read {
 	if refresh {
@@ -90,7 +90,7 @@ func (s usageSource) answers(ctx context.Context) (router.Health, status.Fallbac
 	defer cancel()
 	health, err := s.router.Health(ctx)
 	if errors.Is(err, context.DeadlineExceeded) {
-		return router.Health{}, status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within " + launch.AskTimeout.String()}, false
+		return router.Health{}, status.Fallback{Router: status.RouterUnhealthy, Reason: launch.Unanswered()}, false
 	}
 	return health, fallbackFrom(err), err == nil
 }

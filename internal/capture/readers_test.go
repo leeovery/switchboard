@@ -2,6 +2,8 @@ package capture
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"iter"
 	"log/slog"
 	"os"
@@ -16,6 +18,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // readersNow is when the readers' tests read: the frames' moment, in the
@@ -149,6 +152,29 @@ func TestTheRecordsLedgerGivesTheDaysBeforeTodaysAsHeldAndTodaysSummarised(t *te
 	}
 }
 
+// The records' ledger begins on the first day it holds a summary of, else
+// today, as Days gives them.
+func TestTheRecordsLedgerBeginsOnTheFirstDayItGives(t *testing.T) {
+	r := heldRecords(t)
+	l, _, _ := r.readers(func() time.Time { return readersNow })
+	start, ok := l.(views.LedgerStart)
+	if !ok {
+		t.Fatal("the records' ledger doesn't tell where it begins, want it to, as a Follower does")
+	}
+	for _, tt := range []struct {
+		days []ledger.Summary
+		want time.Time
+	}{
+		{want: dayfile.DayStart(readersNow, 0)},
+		{days: []ledger.Summary{{Version: 4, Day: dayfile.DateOf(readersAt(-2, 12, 0, 0))}, {Version: 4, Day: dayfile.DateOf(readersAt(-1, 12, 0, 0))}}, want: dayfile.DayStart(readersNow, -2)},
+	} {
+		r.days = tt.days
+		if got, err := start.FirstDay(readersNow); err != nil || !got.Equal(tt.want) {
+			t.Errorf("of %d days, FirstDay() = %v, %v; want %v", len(tt.days), got, err, tt.want)
+		}
+	}
+}
+
 func TestTheRecordsLedgerSummarisesTodayAsAFollowerOfItsFilesDoes(t *testing.T) {
 	r := heldRecords(t)
 	now := func() time.Time { return readersNow }
@@ -185,6 +211,58 @@ func TestTheRecordsLedgerGivesTodaysLinesOldestFirstAndAfreshAsAFollowerDoes(t *
 	if !afresh || !slices.Equal(requestsOf(again), requestsOf(got)) {
 		t.Errorf("Today(its mark) = %v (afresh %t), want every one of today's lines again, afresh, as a ledger.Mark is the ledger's to make",
 			requestsOf(again), afresh)
+	}
+}
+
+func TestTheRecordsLedgerGivesADaysLinesOldestFirstAsAFollowerDoes(t *testing.T) {
+	r := heldRecords(t)
+	now := func() time.Time { return readersNow }
+	l, _, _ := r.readers(now)
+	follower := fileLedger(t, r, now)
+	for days := -3; days <= 1; days++ {
+		date := dayfile.DateOf(readersAt(days, 12, 0, 0))
+		got, want := l.Day(date), follower.Day(date)
+		if !slices.Equal(requestsOf(got), requestsOf(want)) {
+			t.Errorf("Day(%s) gave %v, want %v, as a Follower gives them", date, requestsOf(got), requestsOf(want))
+		}
+		for i := range min(len(got), len(want)) {
+			if string(got[i].JSON) != string(want[i].JSON) {
+				t.Errorf("Day(%s)'s line %s holds %s, want its JSON as written, %s", date, got[i].Request, got[i].JSON, want[i].JSON)
+			}
+		}
+	}
+	if got := requestsOf(l.Day(dayfile.DateOf(readersNow))); !slices.Equal(got, []string{"r6", "r5", "r7", "r8"}) {
+		t.Errorf("Day(today) gave %v, want today's lines to now, oldest first", got)
+	}
+}
+
+func TestTheRecordsLedgerTellsTheFirstDayOfItsLinesAsAFollowerDoes(t *testing.T) {
+	writtenLate := filedOf([]ledger.Held{
+		heldLine(t, "r2", sessionBoth, ledger.KindMessage, readersAt(-1, 0, 0, 5)),
+		heldLine(t, "r1", sessionAsked, ledger.KindMessage, readersAt(-2, 23, 59, 50)),
+	})
+	tests := []struct {
+		name  string
+		lines []filed
+		at    time.Time
+		want  time.Time
+	}{
+		{name: "before any line arrived, which holds none", at: readersAt(-2, 8, 0, 0)},
+		{name: "once lines of several days arrived", at: readersNow, want: dayfile.DayStart(readersNow, -2)},
+		{name: "the oldest day's line written after a newer day's, as one asked before midnight answered after", lines: writtenLate, at: readersNow, want: dayfile.DayStart(readersNow, -2)},
+	}
+	for _, tt := range tests {
+		r := heldRecords(t)
+		if tt.lines != nil {
+			r.lines = tt.lines
+		}
+		now := func() time.Time { return tt.at }
+		l, _, _ := r.readers(now)
+		got, err := l.FirstLinesDay(tt.at)
+		want, wantErr := fileLedger(t, r, now).FirstLinesDay(tt.at)
+		if !got.Equal(tt.want) || !got.Equal(want) || errors.Is(err, fs.ErrNotExist) != tt.want.IsZero() || errors.Is(err, fs.ErrNotExist) != errors.Is(wantErr, fs.ErrNotExist) {
+			t.Errorf("%s: FirstLinesDay() = %v, %v; want %v, and a Follower of its files gives %v, %v", tt.name, got, err, tt.want, want, wantErr)
+		}
 	}
 }
 
@@ -267,6 +345,28 @@ func TestTheRecordsReadingsAreThoseReadInTheSpanByNowInTheOrderRead(t *testing.T
 	}
 }
 
+// The records' readings history begins on the day of the first reading read
+// by now, as a Reader's begins on its oldest file's: none before one is.
+func TestTheRecordsReadingsBeginOnTheDayOfTheFirstReadByNow(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		now  time.Time
+		want time.Time
+	}{
+		{name: "before the first is read", now: readersAt(0, 7, 0, 0)},
+		{name: "once it's read", now: readersAt(0, 8, 0, 0), want: dayfile.DayStart(readersNow, 0)},
+		{name: "a day on", now: readersAt(1, 9, 0, 0), want: dayfile.DayStart(readersNow, 0)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, read, _ := heldRecords(t).readers(func() time.Time { return tt.now })
+			got, err := read.FirstDay()
+			if tt.want.IsZero() != errors.Is(err, fs.ErrNotExist) || !got.Equal(tt.want) {
+				t.Errorf("FirstDay() = %v, %v; want %v", got, err, tt.want)
+			}
+		})
+	}
+}
+
 func TestTheRecordsEventsAreTheirLastVersionsOldestFirstAsAReaderGivesThem(t *testing.T) {
 	r := heldRecords(t)
 	_, _, happened := r.readers(func() time.Time { return readersNow })
@@ -297,7 +397,7 @@ func TestAFixtureOverAWorldHandsTheWatchItsWorldsReaders(t *testing.T) {
 		lines, readings, happening int
 	}{
 		{name: "over a world", records: heldRecords(t), lines: 4, readings: 2, happening: 3},
-		{name: "over none"},
+		{name: "a printout's, over none"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

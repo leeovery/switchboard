@@ -1,20 +1,25 @@
 package cli_test
 
 import (
+	"fmt"
 	"image/color"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // lakeTheme is a theme file of Nord's base tokens, its canvas its own.
@@ -42,12 +47,12 @@ text.on-attention = #ECEFF4
 // truecolour is an environment whose terminal shows every colour.
 var truecolour = map[string]string{"CLICOLOR_FORCE": "1", "TERM": "xterm-256color", "COLORTERM": "truecolor"}
 
-func TestUsageWatchIsDrawnInTheThemesChosen(t *testing.T) {
+func TestDashboardIsDrawnInTheThemesChosen(t *testing.T) {
 	deps := statusDeps(t, fakeClaudeAPI(t), nil)
 	writePrefs(t, deps, `{"theme_light": "lake", "theme_dark": "amber"}`)
 	writeTheme(t, themesDir(t, deps), "lake", lakeTheme)
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 
 	if want := (theme.Choice{Light: "lake", Dark: "amber"}); cfg.Choice != want {
 		t.Errorf("choice = %+v, want %+v, as prefs.json keeps it", cfg.Choice, want)
@@ -70,11 +75,11 @@ func TestUsageWatchIsDrawnInTheThemesChosen(t *testing.T) {
 	}
 }
 
-func TestTheWatchsThemesKeepAChoiceAsItStandsNow(t *testing.T) {
+func TestTheDashboardsThemesKeepAChoiceAsItStandsNow(t *testing.T) {
 	deps := statusDeps(t, fakeClaudeAPI(t), nil)
 	writePrefs(t, deps, `{"theme_light": "exchange", "view": "accounts"}`)
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 	writePrefs(t, deps, `{"theme_light": "tokyo-night", "view": "accounts"}`)
 
 	if got, want := cfg.Themes.Chosen(), (theme.Choice{Light: "tokyo-night"}); got != want {
@@ -90,68 +95,245 @@ func TestTheWatchsThemesKeepAChoiceAsItStandsNow(t *testing.T) {
 	}
 }
 
-func TestUsageWatchOpensOnTheViewKept(t *testing.T) {
+func TestDashboardOpensOnTheTabKept(t *testing.T) {
 	for _, env := range []map[string]string{nil, {"NO_COLOR": "1"}} {
 		deps := statusDeps(t, fakeClaudeAPI(t), env)
-		writePrefs(t, deps, `{"theme": "amber", "view": "accounts"}`)
+		writePrefs(t, deps, `{"theme": "amber", "tab": "accounts"}`)
 		cfg := recordWatch(t, &deps)
-		run(t, deps, "usage", "--watch")
+		run(t, deps, "dashboard")
 
 		if cfg.View != dashboard.Accounts {
-			t.Errorf("with %v, the watch opens on %q, want the view prefs.json keeps", env, cfg.View)
+			t.Errorf("with %v, the dashboard opens on %q, want the tab prefs.json keeps", env, cfg.View)
 		}
 		if cfg.Prefs == nil {
-			t.Fatalf("with %v, the watch has nowhere to keep the view shown", env)
+			t.Fatalf("with %v, the dashboard has nowhere to keep the tab shown", env)
 		}
-		if err := cfg.Prefs.Update(func(p *theme.Prefs) { p.View = "sessions" }); err != nil {
+		if err := cfg.Prefs.Update(func(p *theme.Prefs) { p.Tab = "sessions" }); err != nil {
 			t.Fatalf("Update() error = %v", err)
 		}
 		data, err := os.ReadFile(filepath.Join(stateDir(t, deps), "prefs.json"))
-		if err != nil || !strings.Contains(string(data), `"view": "sessions"`) || !strings.Contains(string(data), `"theme": "amber"`) {
-			t.Errorf("with %v, prefs.json holds %s, %v; want the view kept beside the theme", env, data, err)
+		if err != nil || !strings.Contains(string(data), `"tab": "sessions"`) || !strings.Contains(string(data), `"theme": "amber"`) {
+			t.Errorf("with %v, prefs.json holds %s, %v; want the tab kept beside the theme", env, data, err)
 		}
 	}
 }
 
-func TestUsageWatchFeaturesTheWindowKept(t *testing.T) {
+func TestDashboardOpensMilestone5sCardViewOnTheOverview(t *testing.T) {
 	deps := statusDeps(t, fakeClaudeAPI(t), nil)
-	writePrefs(t, deps, `{"view": "accounts", "featured": "7d"}`)
+	writePrefs(t, deps, `{"theme": "amber", "view": "accounts"}`)
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 
-	if cfg.Featured != "7d" {
-		t.Errorf("the watch's cards feature %q, want the week prefs.json keeps", cfg.Featured)
+	if cfg.View != "" {
+		t.Errorf("the dashboard is given %q to open on, want no tab, for the Overview, as milestone 5's card view, kept, names none", cfg.View)
 	}
 }
 
-func TestUsageWatchDrawsTheChartKept(t *testing.T) {
-	deps := statusDeps(t, fakeClaudeAPI(t), nil)
-	writePrefs(t, deps, `{"view": "accounts", "chart": "hourglass"}`)
-	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+func TestDashboardShowsTheOverviewsSectionsKept(t *testing.T) {
+	tests := []struct {
+		name, prefs string
+		want        []string
+	}{
+		{name: "none kept: those shown at first", prefs: `{"tab": "overview"}`, want: []string{"usage", "routing", "coming", "lately"}},
+		{name: "those kept", prefs: `{"sections": ["graphs", "usage"]}`, want: []string{"usage", "graphs"}},
+		{name: "none shown, kept as none", prefs: `{"sections": []}`, want: []string{}},
+		{name: "one a later switchboard names passed over", prefs: `{"sections": ["usage", "a-later-section"]}`, want: []string{"usage"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
 
-	if cfg.Chart != dashboard.Hourglass {
-		t.Errorf("the watch's cards draw %q, want the hourglass prefs.json keeps", cfg.Chart)
+			if got := cfg.Sections.Names(); !slices.Equal(got, tt.want) {
+				t.Errorf("the dashboard opens showing %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
-func TestUsageWatchFindsThemesWhereSwitchboardThemesDirSays(t *testing.T) {
+func TestDashboardGroupsTheOverviewsWindowsAsKeptElseAsConfigured(t *testing.T) {
+	tests := []struct {
+		name, prefs string
+		// layout is [usage] by in the config, "" for none.
+		layout string
+		want   dashboard.By
+	}{
+		{name: "neither saying: by window", prefs: `{}`, want: dashboard.ByWindow},
+		{name: "as the config says", prefs: `{}`, layout: "account", want: dashboard.ByAccount},
+		{name: "as kept", prefs: `{"by": "account"}`, want: dashboard.ByAccount},
+		{name: "as kept, over the config", prefs: `{"by": "window"}`, layout: "account", want: dashboard.ByWindow},
+		{name: "one kept it doesn't know: as the config says", prefs: `{"by": "a-later-grouping"}`, layout: "account", want: dashboard.ByAccount},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := fakeClaudeAPI(t)
+			text := fmt.Sprintf("upstream = %q\n", upstream) + threeAccounts
+			if tt.layout != "" {
+				text += "\n[usage]\nby = \"" + tt.layout + "\"\n"
+			}
+			deps := statusDeps(t, upstream, map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, text)})
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			if cfg.By != tt.want {
+				t.Errorf("the dashboard groups the Overview's windows by %v, want %v", cfg.By, tt.want)
+			}
+		})
+	}
+}
+
+// History opens on what prefs.json keeps of its views, the Year's account
+// among those the config gives; none kept, as it opens at first.
+func TestDashboardShowsHistoryAsKept(t *testing.T) {
+	kept := `{"history": {"view": "tokens", "year": "side", "weeks": "columns", "tokens": {"period": "month", "split": "model"}}}`
+	tests := []struct {
+		name, prefs string
+		want        dashboard.HistoryPage
+	}{
+		{name: "none kept", prefs: `{}`},
+		{
+			name: "as kept", prefs: kept,
+			want: dashboard.HistoryPage{
+				Shown: dashboard.HistoryTokens, YearAsk: views.YearAsk{Account: "side"}, WeeksShape: dashboard.WeeksColumns,
+				TokensAsk: views.TokensAsk{Period: views.TokensByMonth}, TokensSplit: dashboard.TokensByModel,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := fakeClaudeAPI(t)
+			deps := statusDeps(t, upstream, map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, fmt.Sprintf("upstream = %q\n", upstream)+threeAccounts)})
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			got := cfg.History
+			if got.Shown != tt.want.Shown || got.YearAsk != tt.want.YearAsk || got.WeeksShape != tt.want.WeeksShape ||
+				got.TokensAsk != tt.want.TokensAsk || got.TokensSplit != tt.want.TokensSplit {
+				t.Errorf("the dashboard opens History on %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// Accounts opens on the sub-tab and the period prefs.json keeps; none kept,
+// as it opens at first: Compare, this week.
+func TestDashboardShowsAccountsAsKept(t *testing.T) {
+	tests := []struct {
+		name, prefs string
+		wantView    dashboard.AccountsView
+		wantPeriod  views.AccountsPeriod
+	}{
+		{name: "none kept", prefs: `{}`},
+		{name: "as kept", prefs: `{"accounts": {"view": "detail", "period": "12-weeks"}}`, wantView: dashboard.AccountsDetail, wantPeriod: views.AccountsTwelveWeeks},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			if got := cfg.AccountsShown; got.Shown != tt.wantView || got.Period != tt.wantPeriod {
+				t.Errorf("the dashboard opens Accounts on %+v, want %d over %q", got, tt.wantView, tt.wantPeriod)
+			}
+		})
+	}
+}
+
+// Sessions opens on the sub-tab prefs.json keeps; none kept, as it opens at
+// first: the Switchboard.
+func TestDashboardShowsSessionsAsKept(t *testing.T) {
+	tests := []struct {
+		name, prefs string
+		want        dashboard.SessionsView
+	}{
+		{name: "none kept", prefs: `{}`},
+		{name: "as kept", prefs: `{"sessions": {"view": "list"}}`, want: dashboard.SessionsList},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			if got := cfg.SessionsShown.Shown; got != tt.want {
+				t.Errorf("the dashboard opens Sessions on %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// The Log shows the columns prefs.json keeps shown; none kept, those shown
+// at first.
+func TestDashboardShowsTheLogsColumnsAsKept(t *testing.T) {
+	tests := []struct {
+		name, prefs string
+		want        dashboard.LogTicks
+	}{
+		{name: "none kept", prefs: `{}`},
+		{name: "as kept", prefs: `{"log": {"columns": ["session", "worth"]}}`, want: dashboard.LogKept(theme.LogPrefs{Columns: []string{"session", "worth"}})},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			if cfg.Log != tt.want {
+				t.Errorf("the dashboard shows the Log's columns %+v, want %+v", cfg.Log, tt.want)
+			}
+		})
+	}
+}
+
+// The Log's oldest day is as [ledger] keep says: 400 days where it doesn't
+// say, and forever as dayfile.Forever.
+func TestDashboardKeepsTheLedgerAsTheConfigSays(t *testing.T) {
+	tests := []struct {
+		name, ledger string
+		want         time.Duration
+	}{
+		{name: "not said", want: config.DefaultLedgerKeep},
+		{name: "30 days", ledger: "\n[ledger]\nkeep = \"30d\"\n", want: 30 * 24 * time.Hour},
+		{name: "forever", ledger: "\n[ledger]\nkeep = \"forever\"\n", want: dayfile.Forever},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := fakeClaudeAPI(t)
+			deps := statusDeps(t, upstream, map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, fmt.Sprintf("upstream = %q\n", upstream)+threeAccounts+tt.ledger)})
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			if cfg.LedgerKeep != tt.want {
+				t.Errorf("the dashboard keeps the ledger %v, want %v", cfg.LedgerKeep, tt.want)
+			}
+		})
+	}
+}
+
+func TestDashboardFindsThemesWhereSwitchboardThemesDirSays(t *testing.T) {
 	dotfiles := t.TempDir()
 	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_THEMES_DIR": dotfiles})
 	writeTheme(t, dotfiles, "lake", lakeTheme)
 	writePrefs(t, deps, `{"theme": "lake"}`)
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 
 	if cfg.Pair.Dark.Slug != "lake" {
 		t.Errorf("drawn in %s, want lake, from $SWITCHBOARD_THEMES_DIR", cfg.Pair.Dark.Slug)
 	}
 }
 
-func TestUsageWatchUnderNoColourHasNoThemes(t *testing.T) {
+func TestDashboardUnderNoColourHasNoThemes(t *testing.T) {
 	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"NO_COLOR": "yes"})
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 
 	if cfg.Themes != nil {
 		t.Error("under NO_COLOR, the dashboard has themes, want none: no colour, and t doing nothing")
@@ -162,7 +344,7 @@ func TestACorruptPreferencesFileLeavesTheDefaults(t *testing.T) {
 	deps := statusDeps(t, fakeClaudeAPI(t), nil)
 	writePrefs(t, deps, `{"theme": `)
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 
 	if cfg.Choice != (theme.Choice{}) || cfg.Pair.Dark.Slug != theme.DefaultDark {
 		t.Errorf("choice = %+v, drawn in %s on a dark terminal; want the defaults", cfg.Choice, cfg.Pair.Dark.Slug)
@@ -234,6 +416,27 @@ func TestUsageUnderNoColourAsksTheTerminalNothing(t *testing.T) {
 
 	if got.code != 0 || strings.Contains(got.stdout, "\x1b[38;") || !strings.Contains(got.stdout, "\x1b[1m") {
 		t.Errorf("switchboard usage under NO_COLOR = %+v, want no colour, but bold", got)
+	}
+}
+
+func TestUsageOnATerminalThatShowsNoColourIsPrintedAsUnderNoColour(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+	}{
+		{name: "a dumb terminal", env: map[string]string{"TTY_FORCE": "1", "TERM": "dumb"}},
+		{name: "a terminal that names no kind", env: map[string]string{"TTY_FORCE": "1"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			noColour := maps.Clone(tt.env)
+			noColour["NO_COLOR"] = "1"
+
+			got := run(t, goldenDeps(t, tt.env), "usage")
+			if want := run(t, goldenDeps(t, noColour), "usage"); got.code != 0 || got != want {
+				t.Errorf("switchboard usage =\n%+v\nwant what it prints under NO_COLOR\n%+v", got, want)
+			}
+		})
 	}
 }
 

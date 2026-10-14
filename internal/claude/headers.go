@@ -1,7 +1,6 @@
 package claude
 
 import (
-	"fmt"
 	"math"
 	"net/http"
 	"regexp"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // limitsPrefix begins the name of each of the usage headers, lowercased.
@@ -69,6 +69,36 @@ func LimitWindows(limits map[string]string) []quota.Window {
 	}
 	quota.Sort(windows)
 	return windows
+}
+
+// WindowRead is a window as a past answer read it: its key; its share used;
+// when it resets, zero where the answer didn't say; and how far it held its
+// account back.
+type WindowRead struct {
+	Key    string
+	Use    float64
+	Resets time.Time
+	Held   score.Hold
+}
+
+// WindowsRead returns the windows a request ledger's line gives in its
+// limits, as LimitWindows reads them, in its order, each as WindowRead has
+// it: how far it held its account back as score.HoldOf judges it, the
+// account's reserve the one given.
+func WindowsRead(limits map[string]string, reserve float64) []WindowRead {
+	var read []WindowRead
+	for _, w := range LimitWindows(limits) {
+		read = append(read, WindowRead{Key: w.Key, Use: w.Utilization, Resets: w.ResetsAt, Held: score.HoldOf(w, reserve)})
+	}
+	return read
+}
+
+// LimitStatus returns the status a request ledger's line gives in its limits,
+// the answer's usage headers as limitsOf kept them: the API's verdict on the
+// request across every window, as the overall status gave it, "" where the
+// answer gave none.
+func LimitStatus(limits map[string]string) quota.Status {
+	return quota.Status(limits[strings.TrimPrefix(overallStatus, limitsPrefix)])
 }
 
 // limitsOf returns each of the usage headers h holds, by its name lowercased,
@@ -198,14 +228,4 @@ func WindowLabel(key string) string {
 		return label
 	}
 	return key
-}
-
-// WindowName names the window Claude reports by the key given, as the views
-// name it: one of whole hours, under a day, by them, as "5-hour", and any
-// other as WindowLabel labels it, as "Week" or "Fable week".
-func WindowName(key string) string {
-	if length, ok := quota.Length(key); ok && length >= time.Hour && length%time.Hour == 0 && length < 24*time.Hour {
-		return fmt.Sprintf("%d-hour", length/time.Hour)
-	}
-	return WindowLabel(key)
 }

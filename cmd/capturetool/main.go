@@ -12,12 +12,12 @@
 //
 // Usage:
 //
-//	capturetool --fixture accounts-3          full screen, at the terminal's size
-//	capturetool --fixture accounts-3 --print  its frame as text, at its own size
-//	capturetool --fixture accounts-3 --print --ansi --size 120x40
-//	capturetool --fixture accounts-3 --theme amber
-//	capturetool --fixture accounts-3 --theme ~/themes/lake.theme
-//	capturetool --scenario routing            played full screen, in real time
+//	capturetool --fixture overview-default-160          full screen, at the terminal's size
+//	capturetool --fixture overview-default-160 --print  its frame as text, at its own size
+//	capturetool --fixture overview-default-160 --print --ansi --size 120x40
+//	capturetool --fixture overview-default-160 --theme amber
+//	capturetool --fixture overview-default-160 --theme ~/themes/lake.theme
+//	capturetool --scenario routing                      played full screen, in real time
 package main
 
 import (

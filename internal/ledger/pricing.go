@@ -21,13 +21,12 @@ import "slices"
 // Beside the models, it prices the plans a subscription is on, a month, in US
 // dollars, each at the price it launched at, unchanged since: Pro on 7
 // September 2023, and the two Max plans on 9 April 2025. And it names the
-// models' versions, a row each, by family, Opus, Sonnet, Fable, Haiku, then
-// Mythos, and within a family newest first, by the day each launched.
+// models' versions, a row each, by family, in the order Families gives,
+// Opus, Sonnet, Fable, then Haiku, and within a family newest first, by the
+// day each launched.
 var Pricing = Table{AsOf: "2026-10-11", Plans: plans, Versions: versions, Models: []Model{
 	priced("2026-09-01", 10, 12.50, 20, 0.25, 50, usOnly, "claude-fable-5-1"),
-	priced("2026-09-01", 10, 12.50, 20, 0.25, 50, usOnly, "claude-mythos-5-1"),
 	priced("2026-06-09", 10, 12.50, 20, 1, 50, usOnly, "claude-fable-5"),
-	priced("2026-06-09", 10, 12.50, 20, 1, 50, usOnly, "claude-mythos-5"),
 	priced("2026-09-22", 4, 5, 8, 0.20, 20, usOnly, "claude-opus-5-5"),
 	priced("2026-07-24", 5, 6.25, 10, 0.50, 25, usOnly, "claude-opus-5"),
 	priced("2026-05-28", 5, 6.25, 10, 0.50, 25, usOnly, "claude-opus-4-8"),
@@ -50,24 +49,22 @@ var plans = []Plan{
 }
 
 // versions are the version table's rows.
-var versions = []Version{
-	version("Opus 5.5", "opus", "claude-opus-5-5"),
-	version("Opus 5", "opus", "claude-opus-5"),
-	version("Opus 4.8", "opus", "claude-opus-4-8"),
-	version("Opus 4.7", "opus", "claude-opus-4-7"),
-	version("Opus 4.6", "opus", "claude-opus-4-6"),
-	version("Opus 4.5", "opus", "claude-opus-4-5-20251101", "claude-opus-4-5"),
-	version("Sonnet 5.5", "sonnet", "claude-sonnet-5-5"),
-	version("Sonnet 5", "sonnet", "claude-sonnet-5"),
-	version("Sonnet 4.6", "sonnet", "claude-sonnet-4-6"),
-	version("Sonnet 4.5", "sonnet", "claude-sonnet-4-5-20250929", "claude-sonnet-4-5"),
-	version("Fable 5.1", "fable", "claude-fable-5-1"),
-	version("Fable 5", "fable", "claude-fable-5"),
-	version("Haiku 5.5", "haiku", "claude-haiku-5-5"),
-	version("Haiku 4.5", "haiku", "claude-haiku-4-5-20251001", "claude-haiku-4-5"),
-	version("Mythos 5.1", "mythos", "claude-mythos-5-1"),
-	version("Mythos 5", "mythos", "claude-mythos-5"),
-}
+var versions = shaded([]Version{
+	version("Opus 5.5", "claude-opus-5-5"),
+	version("Opus 5", "claude-opus-5"),
+	version("Opus 4.8", "claude-opus-4-8"),
+	version("Opus 4.7", "claude-opus-4-7"),
+	version("Opus 4.6", "claude-opus-4-6"),
+	version("Opus 4.5", "claude-opus-4-5-20251101", "claude-opus-4-5"),
+	version("Sonnet 5.5", "claude-sonnet-5-5"),
+	version("Sonnet 5", "claude-sonnet-5"),
+	version("Sonnet 4.6", "claude-sonnet-4-6"),
+	version("Sonnet 4.5", "claude-sonnet-4-5-20250929", "claude-sonnet-4-5"),
+	version("Fable 5.1", "claude-fable-5-1"),
+	version("Fable 5", "claude-fable-5"),
+	version("Haiku 5.5", "claude-haiku-5-5"),
+	version("Haiku 4.5", "claude-haiku-4-5-20251001", "claude-haiku-4-5"),
+})
 
 const (
 	// usOnly is what a token costs where a request asks for US-only
@@ -112,7 +109,7 @@ func plan(id, name string, size int, from string, monthly float64) Plan {
 }
 
 // version is the version the ids given name, shown as name, of the family
-// given.
-func version(name, family string, ids ...string) Version {
-	return Version{IDs: ids, Name: name, Family: family}
+// its first id names, as FamilyOf reads it.
+func version(name string, ids ...string) Version {
+	return Version{IDs: ids, Name: name, Family: FamilyOf(ids[0])}
 }

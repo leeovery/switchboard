@@ -17,7 +17,11 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -25,9 +29,10 @@ import (
 // workAtStatus is work's status, as status prints it from fakeClaudeAPI's
 // probes.
 const workAtStatus = `work · Work (primary)
-  Session     23%  resets in 4h 58m · Mon 18:10
-  Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~Mon 18:01
+  5-hour      23%  resets in 4h 58m · Mon 18:10
+  Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~Mon 14:34
   Fable week 100%  resets in 5d 11h · Sun 01:10 · exhausted
+  limit until Sun 01:10
 `
 
 // othersAtStatus is how status prints personal and side from fakeClaudeAPI's
@@ -105,7 +110,6 @@ func TestStatusProbesPastARouterThatDoesntAnswer(t *testing.T) {
 
 	got := run(t, srv.deps, "status", "--pretty")
 	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + `
-best next: work · Work
 probed directly: the router is unhealthy, no answer within 500ms
 `}
 	if got != want {
@@ -122,7 +126,6 @@ func TestStatusProbesAsAsked(t *testing.T) {
 
 	got := run(t, srv.deps, "status", "--pretty", "--probe")
 	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + `
-best next: work · Work
 probed directly
 `}
 	if got != want {
@@ -135,26 +138,41 @@ probed directly
 }
 
 func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
-	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	api := newClaudeAPI(t)
+	srv := newServeSetup(t, api.URL, nil)
 	onATerminal.on(&srv.deps)
 	// A token for personal, as goldenDeps gives it.
 	writeToken(t, srv.deps, "personal", "test-token-personal")
 	routing(t, srv)
 
-	got := run(t, srv.deps, "usage")
-	if got.code != 0 || got.stderr != "" {
-		t.Fatalf("switchboard usage = %+v, want exit status 0 and nothing on stderr", got)
+	tests := []struct {
+		args   []string
+		probes bool
+		// status is the printout's status line, and next the account new
+		// sessions go to, which carries ▲: none probed, as where they go is
+		// the router's to say, and it's pinned to Side.
+		status, next string
+	}{
+		{status: "● healthy  ·  pinned to Side  ·  1 session  ·  new sessions → ▲ Side", next: "Side"},
+		{args: []string{"--probe"}, probes: true, status: "○ probed, as asked"},
 	}
-	const golden = "usage-router.golden"
-	if *update {
-		writeGolden(t, golden, got.stdout)
-	}
-	if want := readGolden(t, golden); got.stdout != want {
-		t.Errorf("switchboard usage printed\n%s\nwant (testdata/%s; run with -update to accept it)\n%s", got.stdout, golden, want)
-	}
-	probed := run(t, srv.deps, "usage", "--probe")
-	if !strings.Contains(probed.stdout, "○ probing, as asked") || strings.Contains(probed.stdout, "healthy") || strings.Contains(probed.stdout, "pinned") {
-		t.Errorf("switchboard usage --probe printed\n%s\nwant the accounts probed, as asked, saying nothing of the router", probed.stdout)
+	for _, tt := range tests {
+		before := len(api.questions())
+		got := run(t, srv.deps, append([]string{"usage"}, tt.args...)...)
+		printed := ansi.Strip(got.stdout)
+		if got.code != 0 || got.stderr != "" || !strings.HasPrefix(printed, "\n SWITCHBOARD ") || !strings.Contains(printed, "\n"+tt.status+"\n") {
+			t.Errorf("switchboard usage %s = %+v, want exit status 0, nothing on stderr, and the printout after a blank line, its status %q",
+				strings.Join(tt.args, " "), got, tt.status)
+		}
+		if probed := len(api.questions()) > before; probed != tt.probes {
+			t.Errorf("switchboard usage %s probed the accounts: %v, want %v", strings.Join(tt.args, " "), probed, tt.probes)
+		}
+		for _, label := range []string{"Work", "Personal", "Side"} {
+			row := printedRow(got.stdout, "5-HOUR", label)
+			if marked := strings.Contains(row, "▲"); marked != (label == tt.next) {
+				t.Errorf("switchboard usage %s printed %s's row as %q, marked ▲: %v, want ▲ on %q alone", strings.Join(tt.args, " "), label, row, marked, tt.next)
+			}
+		}
 	}
 }
 
@@ -217,22 +235,23 @@ func TestUsageRefreshHasTheRouterReadWhatItHasntInAMinute(t *testing.T) {
 		// Two minutes on each time, every account last read over a minute
 		// ago, and last probed, work's session reads as used a point more.
 		later.Store(int64(i+1) * int64(2*time.Minute))
-		api.readSessionAs(fmt.Sprintf("0.%d", 31+i))
+		used := fmt.Sprintf("0.%d", 31+i)
+		api.readSessionAs(used)
 		asked := len(api.questions())
 		got := run(t, srv.deps, args...)
-		if got.code != 0 || got.stderr != "" || !strings.Contains(got.stdout, "● healthy") {
-			t.Fatalf("switchboard %s = %+v, want exit status 0 and the router's dashboard", strings.Join(args, " "), got)
+		if got.code != 0 || got.stderr != "" {
+			t.Fatalf("switchboard %s = %+v, want exit status 0 and nothing on stderr", strings.Join(args, " "), got)
 		}
 		refreshed := len(api.questions()) > asked
 		if want := len(args) > 1; refreshed != want {
 			t.Errorf("after switchboard %s, the router probed = %v, want %v", strings.Join(args, " "), refreshed, want)
 		}
-		shown := "23%"
+		shown := " 23% "
 		if refreshed {
-			shown = fmt.Sprintf("%d%%", 31+i)
+			shown = fmt.Sprintf(" %d%% ", 31+i)
 		}
-		if !strings.Contains(got.stdout, "Session") || !strings.Contains(got.stdout, shown) {
-			t.Errorf("switchboard %s printed\n%s\nwant work's session at %s, as the router last read it", strings.Join(args, " "), got.stdout, shown)
+		if row := printedRow(got.stdout, "5-HOUR", "Work"); !strings.Contains(row, shown) {
+			t.Errorf("switchboard %s printed work's 5-hour window as %q, want it at%s as the router last read it", strings.Join(args, " "), row, shown)
 		}
 	}
 }
@@ -253,25 +272,30 @@ func TestUsageRefreshSeesALimitResetByHand(t *testing.T) {
 	later.Store(int64(5 * time.Hour))
 	api.limitWeek(false)
 
-	// Work's limit holds it back from every request: its Fable week's, the
-	// fake API's, holds back that model's alone.
-	const limited = "■ limit reached · "
-	if got := run(t, srv.deps, "usage"); !strings.Contains(got.stdout, limited) {
-		t.Fatalf("switchboard usage printed\n%s\nwant work's limit, which the router hasn't read since", got.stdout)
+	// Work's limit, of its week, holds it back from every request: its Fable
+	// week's, the fake API's, holds back that model's alone.
+	const limited = "limit · back Fri 21:00"
+	got := run(t, srv.deps, "usage")
+	if row := printedRow(got.stdout, "WEEK", "Work"); got.code != 0 || !strings.HasSuffix(row, limited) {
+		t.Fatalf("switchboard usage = %+v, printing work's week as %q; want it to end %q, the limit the router hasn't read since", got, row, limited)
 	}
-	got := run(t, srv.deps, "usage", "--refresh")
-	if got.code != 0 || !strings.Contains(got.stdout, "● healthy") || strings.Contains(got.stdout, limited) {
-		t.Errorf("switchboard usage --refresh = %+v, want the router's dashboard, work's limit lifted: its probe, though its session has lapsed, read the reset", got)
+	got = run(t, srv.deps, "usage", "--refresh")
+	if row := printedRow(got.stdout, "WEEK", "Work"); got.code != 0 || strings.Contains(row, "limit") || !strings.Contains(row, " 93% ") {
+		t.Errorf("switchboard usage --refresh = %+v, printing work's week as %q; want it at 93%%, its limit lifted: its probe, though its session has lapsed, read the reset",
+			got, row)
 	}
 }
 
-func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
+func TestDashboardReadsTheRouterWhileItRuns(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	stop := srv.start(t)
 	srv.waitForProbes(t)
 	cfg := recordWatch(t, &srv.deps)
-	run(t, srv.deps, "usage", "--watch")
+	run(t, srv.deps, "dashboard")
 
+	if cfg.ProbeOnly {
+		t.Error("the watch is told it probes as asked, want it reading the router")
+	}
 	for _, r := range []status.Read{{Refresh: 30 * time.Minute, Probe: true}, {Probe: true}, {Refresh: 30 * time.Minute}} {
 		doc, health, err := cfg.Source.Read(t.Context(), r)
 		if err != nil || doc.Source != status.SourceRouter {
@@ -329,12 +353,12 @@ func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 	}
 }
 
-func TestUsageWatchPinsOneSessionAsPinSessionDoes(t *testing.T) {
+func TestDashboardPinsOneSessionAsPinSessionDoes(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	stop := srv.start(t)
 	srv.route(t, sessionOne, "claude-haiku-4-5-20251001")
 	cfg := recordWatch(t, &srv.deps)
-	run(t, srv.deps, "usage", "--watch")
+	run(t, srv.deps, "dashboard")
 
 	if err := cfg.Source.PinSession(t.Context(), sessionOne, "side"); err != nil {
 		t.Fatalf("PinSession() error = %v", err)
@@ -371,11 +395,137 @@ func TestUsageWatchPinsOneSessionAsPinSessionDoes(t *testing.T) {
 	}
 }
 
-func TestUsageWatchProbesAsAsked(t *testing.T) {
+func TestTheRoutingCardsOrdersReachTheRouter(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.start(t)
+	srv.waitForProbes(t)
+	cfg := recordWatch(t, &srv.deps)
+	run(t, srv.deps, "dashboard")
+	m := watching(t, *cfg)
+
+	// Personal, the second, has no token, so its number picks nothing.
+	m = pressed(m, "p", "2", "3", "m", "enter")
+	if got, want := srv.status(t).Pin, (status.Pin{Accounts: []string{"side"}, Since: testNow, Move: true}); !reflect.DeepEqual(got, want) {
+		t.Errorf("once p 2 3 m enter were pressed, the router's pin = %+v, want %+v", got, want)
+	}
+	if e := srv.told(t); e.Kind != status.EventPin || !e.Move || e.By != "dashboard" {
+		t.Errorf("once pinned, the router told of %+v, want a pin moving the sessions running, by the dashboard", e)
+	}
+
+	pressed(m, "p", "0", "enter")
+	if got := srv.status(t).Pin; !got.IsZero() {
+		t.Errorf("once p 0 enter were pressed, the router's pin = %+v, want none", got)
+	}
+	if e := srv.told(t); e.Kind != status.EventAuto || e.By != "dashboard" {
+		t.Errorf("once unpinned, the router told of %+v, want an auto by the dashboard", e)
+	}
+}
+
+// A session's page, opened by a click on its row in the Overview's SESSIONS,
+// pins the session alone through its card, as p, its account's number and
+// enter pick it, the router's pin for new sessions untouched.
+func TestASessionsPageOpenedByAClickPinsItAlone(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"NO_COLOR": "1"})
+	srv.start(t)
+	srv.waitForProbes(t)
+	srv.route(t, sessionOne, "claude-haiku-4-5-20251001")
+	cfg := recordWatch(t, &srv.deps)
+	run(t, srv.deps, "dashboard")
+	m := delivered(watching(t, *cfg), tea.WindowSizeMsg{Width: 160, Height: 50})
+
+	// SESSIONS shown, COMING UP and LATELY hidden, so it has room.
+	m = pressed(m, "s", "c", "l")
+	x, y, ok := drawnAt(m, sessionOne[:4])
+	if !ok {
+		t.Fatalf("the screen is\n%s\nwant SESSIONS showing %s", ansi.Strip(m.View().Content), sessionOne[:4])
+	}
+	m = delivered(m, tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+	// Personal, the second, has no token, so side is the third.
+	pressed(m, "p", "3", "enter")
+
+	if got := srv.session(t, sessionOne).Pin; got != "side" {
+		t.Errorf("once p 3 enter were pressed on its page, the session's own pin = %q, want side", got)
+	}
+	if e := srv.told(t); e.Kind != status.EventPin || e.Session != sessionOne || e.By != "dashboard" {
+		t.Errorf("once pinned, the router told of %+v, want the session's pin by the dashboard", e)
+	}
+	if got := srv.status(t).Pin; !got.IsZero() {
+		t.Errorf("the router's pin = %+v, want none: a session's pin is its own", got)
+	}
+}
+
+// drawnAt is where the screen m shows has the text given first: its column
+// and row, reporting false where it has none.
+func drawnAt(m watch.Model, text string) (x, y int, ok bool) {
+	for y, row := range strings.Split(ansi.Strip(m.View().Content), "\n") {
+		if before, _, found := strings.Cut(row, text); found {
+			return ansi.StringWidth(before), y, true
+		}
+	}
+	return 0, 0, false
+}
+
+// watching is the watch dashboard runs, as Watch was given cfg, started and
+// its first read taken: its timers, and its waits on the request stream,
+// held, so nothing it does waits.
+func watching(t *testing.T, cfg watch.Config) watch.Model {
+	t.Helper()
+	cfg.After = func(time.Duration, tea.Msg) tea.Cmd { return nil }
+	cfg.Await = func(tea.Cmd) tea.Cmd { return nil }
+	m := watch.New(t.Context(), cfg)
+	return delivered(m, sent(m.Init())...)
+}
+
+// pressed presses the keys given, in turn, as the terminal sends them.
+func pressed(m watch.Model, keys ...string) watch.Model {
+	for _, k := range keys {
+		key := tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
+		if k == "enter" {
+			key = tea.KeyPressMsg{Code: tea.KeyEnter}
+		}
+		m = delivered(m, key)
+	}
+	return m
+}
+
+// delivered gives the model each message, and each that the commands it
+// returns send back, until none is left, as Bubble Tea would, but at once.
+func delivered(m watch.Model, msgs ...tea.Msg) watch.Model {
+	for len(msgs) > 0 {
+		next, cmd := m.Update(msgs[0])
+		m = next.(watch.Model)
+		msgs = append(msgs[1:], sent(cmd)...)
+	}
+	return m
+}
+
+// sent runs cmd, and every command it batches, returning what they send back.
+func sent(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	switch msg := cmd().(type) {
+	case nil:
+		return nil
+	case tea.BatchMsg:
+		var msgs []tea.Msg
+		for _, c := range msg {
+			msgs = append(msgs, sent(c)...)
+		}
+		return msgs
+	default:
+		return []tea.Msg{msg}
+	}
+}
+
+func TestDashboardProbesAsAsked(t *testing.T) {
 	srv := routingSetup(t)
 	cfg := recordWatch(t, &srv.deps)
-	run(t, srv.deps, "usage", "--watch", "--probe")
+	run(t, srv.deps, "dashboard", "--probe")
 
+	if !cfg.ProbeOnly {
+		t.Error("the watch isn't told it probes as asked, want it told: there's no router for a failed read to have lost")
+	}
 	doc, _, err := cfg.Source.Read(t.Context(), status.Read{Refresh: 30 * time.Minute, Probe: true})
 	if err != nil || doc.Source != status.SourceProbe || doc.Fallback != (status.Fallback{}) {
 		t.Errorf("Read() = %+v, %v, want one probed, as asked, while the router runs", doc, err)
@@ -385,11 +535,11 @@ func TestUsageWatchProbesAsAsked(t *testing.T) {
 	}
 }
 
-func TestUsageWatchProbingAsAskedAsksAfterTheRouter(t *testing.T) {
+func TestDashboardProbingAsAskedAsksAfterTheRouter(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	stop := srv.start(t)
 	cfg := recordWatch(t, &srv.deps)
-	run(t, srv.deps, "usage", "--watch", "--probe")
+	run(t, srv.deps, "dashboard", "--probe")
 
 	if !cfg.Source.RouterAnswers(t.Context()) {
 		t.Error("RouterAnswers() = false while the router runs, want true: it posts the notifications")

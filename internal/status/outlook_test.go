@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -354,6 +356,70 @@ func TestThePool(t *testing.T) {
 	}
 }
 
+func TestAnAccountsRoomIsWhatThePoolCountsOfIt(t *testing.T) {
+	work := with(readAt("work", windowIn("5h", 0.4, 3*time.Hour), windowIn("7d", 0.5, 2*day)), reserving)
+	side := readAt("side", windowIn("5h", 0.2, time.Hour), windowIn("7d", 0.1, 6*day), windowIn("7d_oi", 0.3, 6*day))
+	limited := with(readAt("personal", spentIn("5h", 1, time.Hour), windowIn("7d", 0.3, 2*day)), func(a *status.Account) {
+		a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
+	})
+	for _, doc := range []status.Document{
+		routerDocOf(work, side),
+		routerDocOf(work, limited, side),
+		pinnedTo(routerDocOf(work, limited, side), "work", "side"),
+	} {
+		doc = doc.WorkedOut(policy)
+		m := doc.At(built, policy)
+		if got, want := m.Pool(), poolNowOf(doc.Pool); !reflect.DeepEqual(got, want) {
+			t.Errorf("of %q, the pool at when the document was built is %+v, want %+v, as the document has it", doc.Pool.Accounts, got, want)
+		}
+		for _, w := range doc.Pool.Windows {
+			var summed float64
+			for _, id := range doc.Pool.Accounts {
+				summed += roomOf(m, id, w.Key)
+			}
+			if math.Abs(summed-w.Room) > 1e-9 {
+				t.Errorf("of %q, the pool's %s room is %v, where its accounts' rooms sum to %v", doc.Pool.Accounts, w.Key, w.Room, summed)
+			}
+		}
+	}
+	alone := routerDocOf(work).WorkedOut(policy).At(built, policy)
+	tests := []struct {
+		key  string
+		want float64
+		ok   bool
+	}{
+		{key: "5h", want: 0.5, ok: true},
+		{key: "7d", want: 0.4, ok: true},
+		{key: "7d_oi"},
+	}
+	for _, tt := range tests {
+		a, _ := alone.Account("work")
+		if w, ok := a.Window(tt.key); math.Abs(w.Room-tt.want) > 1e-9 || ok != tt.ok {
+			t.Errorf("alone, with no pool, work's %s room is %v, %v; want %v, %v, to its cap", tt.key, w.Room, ok, tt.want, tt.ok)
+		}
+	}
+}
+
+// The pool judged at now paces its windows as they stand then, as of when
+// the document was read, as each account's are: on the tick after work's
+// session resets, before it's read again, the session has lapsed, and the
+// pool's session paces side's alone, not the pace the document worked out of
+// work's at its end.
+func TestThePoolJudgedAtNowPacesTheWindowsRunningThen(t *testing.T) {
+	work := readAt("work", windowIn("5h", 0.4, time.Hour), windowIn("7d", 0.5, 2*day))
+	side := readAt("side", windowIn("5h", 0.2, 3*time.Hour), windowIn("7d", 0.1, 6*day))
+	doc := routerDocOf(work, side).WorkedOut(policy)
+
+	got := poolNowLines(doc.At(built.Add(time.Hour+time.Second), policy).Pool())
+	want := []string{
+		"5h: room 1.8, used 0.1, pace 0.4",
+		"7d: room 1.4, used 0.3, pace 0.428571",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("the pool's windows are %q, want %q", got, want)
+	}
+}
+
 func TestThePoolsWindowsAreAListEvenOfNone(t *testing.T) {
 	doc := routerDocOf(status.Account{ID: "work", Label: "work", TokenSet: true}, status.Account{ID: "side", Label: "side", TokenSet: true})
 	got, err := json.Marshal(doc.WorkedOut(policy))
@@ -370,6 +436,35 @@ func poolLines(p status.Pool) []string {
 		lines = append(lines, fmt.Sprintf("%s %s: room %.6g, used %.6g, pace %s", w.Key, w.Label, w.Room, w.Used, paceOf(w.Pace)))
 	}
 	return lines
+}
+
+// poolNowLines shows each of a moment's pool's windows: its key, room, use
+// and even pace.
+func poolNowLines(p status.PoolNow) []string {
+	var lines []string
+	for _, w := range p.Windows {
+		lines = append(lines, fmt.Sprintf("%s: room %.6g, used %.6g, pace %s", w.Key, w.Room, w.Used, paceOf(w.Pace)))
+	}
+	return lines
+}
+
+// poolNowOf is the document's pool p as a moment has its own: its windows by
+// their keys, as a moment names its windows apart.
+func poolNowOf(p status.Pool) status.PoolNow {
+	now := status.PoolNow{Accounts: p.Accounts, Pinned: p.Pinned}
+	for _, w := range p.Windows {
+		now.Windows = append(now.Windows, status.PoolWindowNow{Key: w.Key, Room: w.Room, Used: w.Used, Pace: w.Pace})
+	}
+	return now
+}
+
+// roomOf is the room the account of m with the given id has left at m in its
+// window with the given key, as the pool counts it: none where it has no such
+// window.
+func roomOf(m status.Moment, id, key string) float64 {
+	a, _ := m.Account(id)
+	w, _ := a.Window(key)
+	return w.Room
 }
 
 func TestWhatsComingUp(t *testing.T) {
@@ -434,6 +529,29 @@ func TestWhatsComingUp(t *testing.T) {
 			want: []status.Upcoming{reset("work", "5h", time.Hour), back("work", "", 2*day, true)},
 		},
 		{
+			name: "a limit and a cap: back once both have lifted, the limit last",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.5, 3*time.Hour), windowIn("7d", 0.95, time.Hour)), func(a *status.Account) {
+				a.Reserve, a.Limit = 0.1, status.Limit{Until: built.Add(2 * time.Hour)}
+			})),
+			want: []status.Upcoming{reset("work", "7d", time.Hour), back("work", "", 2*time.Hour, false), reset("work", "5h", 3*time.Hour)},
+		},
+		{
+			name: "a limit and its token refused: back once both have lifted, the refusal last, from its limit",
+			doc: routerDocOf(with(readAt("work", spentIn("5h", 1, time.Hour), windowIn("7d", 0.3, 3*day)), func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
+				a.Refused = status.Refusal{Until: built.Add(90 * time.Minute), Status: 401}
+			})),
+			want: []status.Upcoming{reset("work", "5h", time.Hour), back("work", "", 90*time.Minute, false), reset("work", "7d", 3*day)},
+		},
+		{
+			name: "a cap and its token refused: back once both have lifted, the refusal last, from its cap",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.2, 2*time.Hour), windowIn("7d", 0.95, time.Hour)), func(a *status.Account) {
+				a.Reserve = 0.1
+				a.Refused = status.Refusal{Until: built.Add(90 * time.Minute), Status: 401}
+			})),
+			want: []status.Upcoming{reset("work", "7d", time.Hour), back("work", "", 90*time.Minute, true), reset("work", "5h", 2*time.Hour)},
+		},
+		{
 			name: "a cap on a model's own week lifting, named",
 			doc:  routerDocOf(with(readAt("fable", windowIn("5h", 0.2, 2*time.Hour), windowIn("7d", 0.3, 3*day), windowIn("7d_oi", 0.95, 2*day)), reserving)),
 			want: []status.Upcoming{reset("fable", "5h", 2*time.Hour), back("fable", "7d_oi", 2*day, true), reset("fable", "7d", 3*day)},
@@ -476,6 +594,13 @@ func TestWhatsComingUp(t *testing.T) {
 			name: "no run-out while its token is refused",
 			doc: routerDocOf(with(pressed, func(a *status.Account) {
 				a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401}
+			})),
+			want: []status.Upcoming{reset("work", "5h", 4*time.Hour), reset("work", "7d", 3*day)},
+		},
+		{
+			name: "no run-out of a window last read before a read that failed, which runs out nowhere",
+			doc: routerDocOf(with(pressed, func(a *status.Account) {
+				a.FetchedAt, a.Error = built.Add(-20*time.Minute), "HTTP 529 · Overloaded"
 			})),
 			want: []status.Upcoming{reset("work", "5h", 4*time.Hour), reset("work", "7d", 3*day)},
 		},
@@ -603,6 +728,23 @@ func TestAnAccountWorkedOutAloneIsAsTheDocumentWorkedOutHasIt(t *testing.T) {
 	}
 	if got, ok := doc.AccountWorkedOut("spare", policy); ok {
 		t.Errorf("AccountWorkedOut(\"spare\") = %+v, true, want none: the document has no such account", got)
+	}
+}
+
+// The JSON of a document worked out is held to the bytes status --json gave
+// before the read model: its pool and what's coming up most of all, which
+// WorkedOut works out as a view does at the moment it was built.
+func TestADocumentWorkedOutGivesTheJSONItAlwaysHas(t *testing.T) {
+	want, err := os.ReadFile(filepath.Join("testdata", "worked-out.golden"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := json.MarshalIndent(fullDocument().WorkedOut(policy), "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(got)+"\n", string(want); got != want {
+		t.Errorf("worked out, the document as JSON is\n%s\nwant\n%s", got, want)
 	}
 }
 

@@ -1,24 +1,23 @@
 // Package watch keeps the dashboard on screen. While the router answers, it
 // reads the router's status document every few seconds, and its history with
-// each full read, picks out the events each look finds new, and takes keys
-// that tell the router where to send sessions, leaving desktop notifications
-// to the router. While it doesn't, it probes every account as each read falls
-// due, keeps the readings it sees for the charts, and posts its own
-// notifications, as the config asks, when an account has room again or a
-// window passes the warning. Probing as asked while the router answers, it
-// leaves them to the router all the same. It redraws as the clock moves, every
-// second, and eases each bar to its new reading. Beyond its log, the model
-// does no I/O of its own: it's handed its source, its clock, its notifier,
-// where it keeps its preferences, and the readers of the request ledger, the
-// readings history and the router's events, so tests drive it as a terminal
-// would.
+// each full read, picks out the events each look finds new, and takes the
+// routing card's orders of where to send sessions, leaving desktop
+// notifications to the router. While it doesn't, it probes every account as
+// each read falls due, keeps the readings it sees for the charts, and posts
+// its own notifications, as the config asks, when an account has room again
+// or a window passes the warning. Probing as asked while the router answers,
+// it leaves them to the router all the same. It redraws as the clock moves,
+// every second, and eases each bar to its new reading. Beyond its log, the
+// model does no I/O of its own: it's handed its source, its clock, its
+// notifier, where it keeps its preferences, and the readers of the request
+// ledger, the readings history and the router's events, so tests drive it as
+// a terminal would.
 package watch
 
 import (
 	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -28,8 +27,10 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -92,8 +93,12 @@ type Notifier interface {
 
 // Config is what a watch is given.
 type Config struct {
-	Source   Source
-	Notifier Notifier
+	Source Source
+	// ProbeOnly is set where the source probes every account as asked, as
+	// --probe has it, never reading the router's document: there's no router
+	// for a read that fails to have lost.
+	ProbeOnly bool
+	Notifier  Notifier
 	// Notifications says which notifications the dashboard posts while it
 	// probes without the router: room again, and a window passing the
 	// warning. The others are the router's alone, as only it sees limits
@@ -116,6 +121,19 @@ type Config struct {
 	// Policy is the provider's say in which windows leave an account without
 	// room.
 	Policy score.Policy
+	// WindowName names a window by its key wherever the Overview names one,
+	// as "5-hour" or "Fable week": nil names it by its label in the
+	// document.
+	WindowName func(key string) string
+	// Accounts are the configured accounts, whose plans History prices its
+	// worth against, and WeekStarts the day its calendar weeks start on.
+	Accounts   config.Accounts
+	WeekStarts time.Weekday
+	// WeekWindow is the key of the window a week long every model shares,
+	// the accounts' own weeks, which History's Weeks counts; and Family reads
+	// a model's family from its id, for one the version table doesn't name.
+	WeekWindow string
+	Family     func(model string) string
 	// Size is what to draw at until the terminal gives its size, and in place
 	// of a width or height it gives as zero, which means it doesn't know.
 	Size Size
@@ -127,20 +145,49 @@ type Config struct {
 	// keeps the user's pick: nil draws the dashboard without colour, as
 	// NO_COLOR asks, and leaves t doing nothing.
 	Themes Themes
-	// View is the view the preferences kept, which the watch opens on where
-	// it's one there is, Featured the window they keep the cards featuring,
-	// and Chart the style they keep the cards drawing it in; Prefs keeps
-	// each as it changes: nil keeps nothing.
+	// View is the tab the preferences kept, which the watch opens on where
+	// it's one there is; Sections the Overview's sections they keep shown;
+	// By how they keep its windows grouped, else as the config's [usage] by
+	// has it; History what they keep History's views showing, as
+	// dashboard.HistoryKept reads it; and Log the Log's columns they keep
+	// shown, as dashboard.LogKept reads them. Prefs keeps each as it
+	// changes: nil keeps nothing.
 	View     dashboard.View
-	Featured dashboard.Feature
-	Chart    dashboard.Chart
+	Sections dashboard.Sections
+	By       dashboard.By
+	History  dashboard.HistoryPage
+	Log      dashboard.LogTicks
 	Prefs    Prefs
+	// AccountsShown is what the preferences keep Accounts showing, as
+	// dashboard.AccountsKept reads it, SessionsShown Sessions, as
+	// dashboard.SessionsKept reads it, and RunwayShown Runway, as
+	// dashboard.RunwayKept reads it, which Prefs keeps as each changes.
+	AccountsShown dashboard.AccountsShown
+	SessionsShown dashboard.SessionsShown
+	RunwayShown   dashboard.RunwayShown
+	// TraceScale is the requests a minute that fill a trace's height on the
+	// Overview: 0 for the live rule, as the dashboard has it, the busiest
+	// column of every trace on the page, never less than 8.
+	TraceScale float64
 	// Ledger, Readings and Events read the request ledger, the readings
 	// history and the router's events where they lie: the watch opens none
 	// of their files itself.
 	Ledger   views.Ledger
 	Readings views.Readings
 	Events   views.Events
+	// LedgerKeep is how long the ledger keeps a day's lines, as [ledger]
+	// keep gives it, which says the Log's oldest day, as views.OldestKept
+	// reads it, and to when an ended session's page says its lines are kept,
+	// as views.HoldPage reads it: dayfile.Forever keeps them for good, and
+	// none, as a Config that doesn't say, config.DefaultLedgerKeep, as the
+	// router keeps them.
+	LedgerKeep time.Duration
+	// Prices are the price table a move's cost is worked out at, the
+	// config's prices in place of any of the table's.
+	Prices ledger.Table
+	// Home is the user's home directory, which a session's page shows a
+	// directory under as ~: "" shows it whole.
+	Home string
 }
 
 // Size is a terminal's size in cells.
@@ -165,26 +212,35 @@ type Model struct {
 	// known.
 	size Size
 
-	doc status.Document
+	// doc is the document on screen, and asRead what the watch reads of it
+	// as it was read.
+	doc    status.Document
+	asRead asRead
+	// taking is the message Update is taking in, while it takes it: zero
+	// outside Update.
+	taking taking
 	// updated is when doc arrived: zero until one has.
 	updated time.Time
 	// plan is when the next reads are due, and what they ask for.
 	plan plan
-	// fetching is set while a read is under way, and loud while the footer
-	// tells of it.
-	fetching, loud bool
+	// fetching is set while a read is under way.
+	fetching bool
 	// again asks for a look at the router's document as soon as the read
 	// under way lands.
 	again bool
-	// failed says why the last read failed, if it did.
-	failed string
-	// lost is when the router stopped answering, while the dashboard has
-	// probed since, or shows its last document.
+	// lost is when the router was first found not answering, while the
+	// dashboard shows its last document, or has read nothing since: zero once
+	// a read lands.
 	lost time.Time
+	// failed is why the last read failed, while it's the last: "" once one
+	// lands, and for a look that found the router gone.
+	failed string
 
-	// ordering is set while the router carries out an order a key gave.
+	// ordering is set while the router carries out an order the routing
+	// card gave.
 	ordering bool
-	// note says what the last key did, till noteUntil.
+	// note says what the last key did, till noteUntil: zero while it's held
+	// for a card covering the page, as noting holds it.
 	note      string
 	noteUntil time.Time
 
@@ -209,46 +265,136 @@ type Model struct {
 	backdrop backdrop
 	picker   picker
 
-	// views are the views there are, in tab's order, and view the one shown.
-	views []dashboard.View
-	view  dashboard.View
+	// view is the tab shown.
+	view dashboard.View
 	// news is what the looks have seen of the router's events, and changes
-	// of the cards' states.
+	// of the accounts' states; numbers what reads and the request stream
+	// changed of the numbers on the page.
 	news    news
 	changes changes
+	numbers numbers
 	// history is how the accounts' windows have been used, and trails the
 	// charts' share of it, of the document on screen.
 	history history
-	trails  dashboard.History
+	trails  dashboard.Trails
 	// sessions are the sessions the router listed with the document on
-	// screen, for the cards' dots and Sessions' calls: nil where it listed
-	// none. listedBy is the router that listed them, as its health check
-	// said; and order is the order Sessions' calls ran in as they were
-	// listed, which they keep from look to look.
+	// screen, for the sessions running and Sessions' calls: nil where it
+	// listed none; and listedBy is the router that listed them, as its health
+	// check said.
 	sessions []status.Session
 	listedBy router.Health
-	order    dashboard.Order
-	// stream is the watch's hold on the router's request stream, and traffic
-	// what the stream has told of the routed requests.
+	// stream is the watch's hold on the router's request stream, traffic
+	// what the stream has told of the routed requests, and traces the
+	// requests the Overview's traces count, of today's lines and the stream.
 	stream  streaming
 	traffic traffic
-	// featured is which window every card features, chart the style every
-	// card draws it in, and span how far ahead Runway looks.
-	featured dashboard.Feature
-	chart    dashboard.Chart
-	span     dashboard.Span
-	// scroll is how many rows the view shown is scrolled down by, where its
-	// cards, or its lanes, don't fit.
+	traces  views.Traces
+	// toldBefore is what the stream had told before the message taken in
+	// told what can change a number the page draws, for compared to compare
+	// the numbers drawn of it with those drawn since: nil where it told
+	// nothing that can.
+	toldBefore *toldSoFar
+	// sections are the Overview's sections shown, and by how its windows are
+	// grouped.
+	sections dashboard.Sections
+	by       dashboard.By
+	// layout is the Overview's layout as it was last made, kept from look to
+	// look, as keepLayout keeps it, so it changes only on an input the page
+	// acts on, a key, a click or the wheel, a resize, or a section's shape
+	// changing.
+	layout dashboard.Layout
+	// scroll is how many rows the view shown is scrolled down by, where it
+	// doesn't fit, or on the Overview, how many accounts USAGE is, within its
+	// section; and counts what it counted, as rescrolled noted it.
 	scroll int
-	// focus is the account whose card has the focus, "" while none has it;
-	// flipped are the accounts whose cards are flipped, by id, a set no
-	// model changes once it's made; and selected is the session picked out
-	// on the back of the card with the focus, zero while none is.
-	focus    string
-	flipped  map[string]bool
-	selected dashboard.Seat
-	// helping is set while the help is open over the view.
-	helping bool
+	counts scrollUnit
+	// focus is the account the Overview's focus is on, which GRAPHS follows:
+	// the first, in the config's order, till ↑ and ↓ move it, and "" while
+	// the document has none.
+	focus string
+	// accounts is what the watch holds of Accounts: what it shows, and its
+	// page, built of the days past holds.
+	accounts accountsTab
+	// past is what the watch holds of History: its page, the ledger's days
+	// it's built of, and the reads of them, which Accounts shares.
+	past historyTab
+	// sessionsTab is what the watch holds of Sessions: what it shows, its
+	// Switchboard and its List as the last look built them, and the List
+	// held, fed by the ledger's tail.
+	sessionsTab sessionsTab
+	// runwayTab is what the watch holds of Runway: what it shows, its lanes
+	// as the last look built them, and the readings history's tail they're
+	// judged by.
+	runwayTab runwayTab
+	// session is the session's page open, drawn in place of the view: nil
+	// while none is. opening counts the pages asked to open, each opening
+	// once its read lands, but one asked for before the last; and pending is
+	// the id of the last, while its read waits for the ledger's tail's.
+	session *sessionShown
+	opening int
+	pending string
+	// log is what the watch holds of the Log, and tail today's lines of the
+	// ledger as its readers follow them.
+	log  logTab
+	tail ledgerTail
+
+	// open is the card open over the page, if any: the routing card, its
+	// picker as routing holds it, or help, scrolled as help holds it. page is
+	// the page as it stood when the card opened, which stands still behind
+	// it.
+	open    opened
+	routing routing
+	help    helping
+	page    frozen
+
+	// shown is what render made of the screen once the last message was
+	// taken in.
+	shown shown
+}
+
+// shown is the screen as the last message left it, for View to show, and
+// what moves on it, which has frames drawn: the live page, its sections built
+// once at the moment the message was taken in, as at says, which View draws
+// at that moment; and where render drew it, to know what moves, as drawn
+// says, the view drawn, which View shows rather than drawing it again.
+// Behind a card, and on a screen blank till the terminal says what its
+// background is, there's no page, and View draws the screen itself.
+type shown struct {
+	page   *dashboard.Frame
+	at     time.Time
+	moving dashboard.Motion
+	view   tea.View
+	drawn  bool
+}
+
+// opened is which card is open over the page.
+type opened int
+
+const (
+	// nothingOpen is no card: the page is live.
+	nothingOpen opened = iota
+	// routingOpen is the routing card.
+	routingOpen
+	// helpOpen is the page's help.
+	helpOpen
+	// logCardOpen is the details of the Log's line chosen, and logPanelOpen
+	// the panel of what its table shows.
+	logCardOpen
+	logPanelOpen
+	// turnCardOpen is the Log's details of the request chosen of a session's
+	// turn open, over its page.
+	turnCardOpen
+)
+
+// frozen is the page as it stood when a card opened over it, or the Log's
+// details last stepped to another line, the table scrolling as the lit line
+// follows: its frame and the document it was drawn of, at the moment it was
+// drawn. Only its size and its look follow the terminal's while the card is
+// open, so nothing behind the card moves, the clock included, but at a key.
+type frozen struct {
+	frame dashboard.Frame
+	doc   status.Document
+	at    time.Time
 }
 
 // fetchedMsg is what a read that asked for read found, and which router gave
@@ -276,11 +422,14 @@ type frameMsg struct {
 // New returns a model that reads cfg's source at once, and whenever a read
 // falls due after, under ctx.
 func New(ctx context.Context, cfg Config) Model {
-	views := dashboard.Views()
 	m := Model{
-		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true, loud: true,
-		choice: cfg.Choice, pair: cfg.Pair, views: views, view: opening(cfg.View, views), featured: cfg.Featured, chart: cfg.Chart,
+		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
+		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By,
+		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
+		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
+		traffic: traffic{heard: new(views.Hearing)},
 	}
+	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
 	if m.after == nil {
 		m.after = after
 	}
@@ -303,28 +452,177 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// Update takes in a message, as take says, then has the watch read the
-// router's request stream while it wants it, and only then, and draw frames
-// while anything on screen moves. The view is drawn again after each, which
-// is all a note's lapsing asks.
+// Update takes in a message, at the one time it came, as taking has it, as
+// take says, building the session's page open afresh, as relived says, and
+// closing a session's card it leaves no p for, as closing says, then has
+// the watch read the router's request stream while it wants it, and the
+// ledger's days for History, Accounts, a session's page, the Log and its
+// find, and Sessions, as they want them, History's and Accounts' pages built
+// of them as historyBuilt and accountsBuilt have it, Detail's selection
+// following its sessions, as followed has it, Sessions and Runway built at
+// the look, as sessionsLooked and runwayLooked have it, the readings
+// history's tail read for Runway, as readRunway has it, and the Log's page
+// built of what it holds, and only
+// then, price the moves the routing card would make while it wants them.
+// Then, of the page as it stands at that moment, its Overview's sections
+// built once for each to share, it keeps the Overview's layout, and takes
+// the view back to its top where what its scroll counts changed, as
+// rescrolled has it, but for a frame, which takes nothing in to lay it out
+// afresh by, nor changes what it counts; brightens the
+// numbers what the stream told changed, as compared has it; and only then,
+// so the screen and its frames see the layout the page will draw and the
+// numbers it brightens, shows the page, drawing frames while anything on it
+// moves. The view is drawn again after each, which is all a note's lapsing
+// asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	now := m.now()
+	m.taking = taking{at: now, moment: m.doc.HoldAt(now, m.cfg.Policy)}
 	next, cmd := m.take(msg)
-	tuned, stream := next.(Model).tune()
-	tuned, frames := tuned.startFrames(tuned.now())
-	return tuned, tea.Batch(cmd, stream, frames)
+	tuned, closed := next.(Model).relived(msg, now).closing()
+	tuned, stream := tuned.tune()
+	tuned, past := tuned.readHistory()
+	tuned = tuned.historyBuilt().accountsBuilt().followed(msg).sessionsLooked(msg).runwayLooked(msg)
+	tuned, paged := tuned.readPage()
+	tuned, logged := tuned.readLog()
+	tuned, found := tuned.readFind()
+	tuned, listed := tuned.readSessions()
+	tuned, ran := tuned.readRunway()
+	tuned, costs := tuned.costing()
+	page := tuned.frame(now).Built(tuned.doc, now)
+	if _, frame := msg.(frameMsg); !frame {
+		tuned = tuned.keepLayout(page, now)
+		tuned, page = tuned.rescrolled(page, now)
+	}
+	tuned = tuned.compared(page, now)
+	tuned, frames := tuned.startFrames(page, now)
+	tuned.taking = taking{}
+	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, costs, frames)
 }
 
-// take takes in a message: a key, the wheel, a resize, the terminal's
-// background, the themes listed for the picker, or the choice kept as it
-// stands, a read, the router's history, the router carrying out an order,
-// the request stream opening, telling of requests or falling due to be asked
-// for again, a tick or a frame.
+// taking is a message as Update takes it in: when it came, which every look
+// within it reads as now, as now has it, so they're all of one moment; and
+// the moment of the document on screen then, worked out the first time a
+// look asks, for every look at it then to share, as frame and moment have
+// it, the document a read finds taking it over.
+type taking struct {
+	at     time.Time
+	moment *status.HeldMoment
+}
+
+// keepLayout keeps the Overview's layout as page, built at now, lays it out,
+// for the looks after: as it was kept, but laid out afresh where an input
+// the page acts on let it go, as acting does, on a resize, or as a section's
+// shape changes, as LayoutOf has it.
+func (m Model) keepLayout(page dashboard.Frame, now time.Time) Model {
+	m.layout = page.LayoutOf(m.doc, now)
+	return m
+}
+
+// scrollUnit is what the view's scroll counts, as the watch noted it last:
+// things, as USAGE's accounts, or rows; or nothing noted, at the view's top.
+type scrollUnit int
+
+const (
+	unnoted scrollUnit = iota
+	countsThings
+	countsRows
+)
+
+// rescrolled is m, and page, built at now, with the view scrolled back to
+// its top where what its scroll counts has changed since the last message
+// noted it: rows where it counted things, or things where it counted rows,
+// as b, a section's key, a resize or a read can change it; so an offset is
+// never read in the other's unit, the view going back to its top, its page
+// built afresh, as History's does on any change. At its top, an offset
+// reads alike in either, so nothing is noted there. A session's page open
+// over the tab scrolls its own, leaving the tab's as it is.
+func (m Model) rescrolled(page dashboard.Frame, now time.Time) (Model, dashboard.Frame) {
+	switch {
+	case m.session != nil:
+		return m, page
+	case m.scroll == 0:
+		m.counts = unnoted
+		return m, page
+	}
+	counts := countsThings
+	if m.laidOut(page, now).ScrollsRows(m.doc, now) {
+		counts = countsRows
+	}
+	if m.counts != unnoted && counts != m.counts {
+		m.scroll, m.counts = 0, unnoted
+		return m, m.frame(now).Built(m.doc, now)
+	}
+	m.counts = counts
+	return m, page
+}
+
+// laidOut is page, built at now, as the model stands since: its Overview
+// laid out as kept, and its numbers as bright as they are at now, neither of
+// which its sections draw.
+func (m Model) laidOut(page dashboard.Frame, now time.Time) dashboard.Frame {
+	page.Layout, page.Brightened = m.layout, m.numbers.brightened(now)
+	return page
+}
+
+// acting is m as the page acts on an input, its Overview's layout let go,
+// to be laid out afresh: whichever input asks, a key, a click or the wheel,
+// so the page is laid out alike whichever way it's asked.
+func (m Model) acting() Model {
+	m.layout = dashboard.Layout{}
+	return m
+}
+
+// shownOf is the screen page, built at now, shows, for View to draw: the
+// live page as the model stands since; but no page behind a card, nor on a
+// screen blank till the terminal says what its background is.
+func (m Model) shownOf(page dashboard.Frame, now time.Time) shown {
+	if m.open != nothingOpen || m.blank() {
+		return shown{}
+	}
+	live := m.laidOut(page, now)
+	return shown{page: &live, at: now}
+}
+
+// shownPage is the live page shown, as it's drawn: its key line listing the
+// keys that work on it as the message was taken in.
+func (m Model) shownPage() dashboard.Frame {
+	page := *m.shown.page
+	page.KeyLine = m.keyLine(page, m.shown.at)
+	return page
+}
+
+// render works out what moves on the page shown, for frames to be drawn
+// while anything does. Where anything it draws may be settling, it draws the
+// screen once to know, and keeps it for View to show; else what moves needs
+// no drawing, and View draws the page. Nothing moves where there's no page.
+func (m Model) render() Model {
+	switch page, at := m.shown.page, m.shown.at; {
+	case page == nil:
+	case !page.MaySettle():
+		m.shown.moving = page.Motion(m.doc, at)
+	default:
+		live := m.shownPage()
+		lines, moving := live.Rendered(m.doc, at)
+		m.shown.view, m.shown.moving, m.shown.drawn = m.viewOf(lines, live.Look), moving, true
+	}
+	return m
+}
+
+// take takes in a message: a key, a click, the wheel, a resize, the
+// terminal's background, the themes listed for the picker, or the choice
+// kept as it stands, a read, the router's history, the ledger's days read
+// for History, the router carrying out an order, the sessions listed to
+// price the routing card's moves, the request stream opening, telling of
+// requests or falling due to be asked for again, a tick, a frame, or a
+// session's page read.
 func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m.resized(msg)
 	case tea.KeyPressMsg:
 		return m.pressed(msg)
+	case tea.MouseClickMsg:
+		return m.clicked(msg)
 	case tea.MouseWheelMsg:
 		return m.wheeled(msg), nil
 	case tea.BackgroundColorMsg:
@@ -341,80 +639,240 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.fetched(msg)
 	case historyMsg:
 		m.history = m.history.answered(msg)
-		m.trails = m.history.drawn(m.doc)
+		m.trails = m.history.drawn(m.moment(m.now()))
 		return m, nil
+	case filedMsg:
+		m.history = m.history.filedAs(msg)
+		m.trails = m.history.drawn(m.moment(m.now()))
+		return m, nil
+	case yearReadMsg:
+		return m.yearRead(msg), nil
+	case sinceMsg:
+		return m.sinceRead(msg), nil
+	case tailedMsg:
+		return m.tailed(msg), nil
+	case logReadMsg:
+		return m.logRead(msg), nil
+	case findReadMsg:
+		return m.findRead(msg), nil
+	case reachMsg:
+		return m.reachRead(msg), nil
 	case orderedMsg:
 		return m.ordered(msg)
+	case costedMsg:
+		return m.costed(msg), nil
 	case streamOpenedMsg:
 		return m.opened(msg)
 	case streamHeardMsg:
 		return m.heard(msg)
 	case rejoinMsg:
 		return m.rejoined(msg), nil
+	case joinedMsg:
+		return m.joinedBy(msg), nil
 	case tickMsg:
 		return m.ticked(msg)
 	case frameMsg:
 		return m.framed(msg), nil
+	case sessionReadMsg:
+		return m.sessionRead(msg), nil
+	case listReadMsg:
+		return m.listRead(msg), nil
+	case runwayReadMsg:
+		return m.runwayRead(msg), nil
 	}
 	return m, nil
 }
 
-// View draws the dashboard full screen, as the document stands at the clock's
-// time, its bars easing to its readings, the help over its middle and the
-// theme picker over its right while they're open. In colour, it's drawn once
-// the terminal has said what its background is, or had its time to, so it
-// never shows one theme then another: in the theme shown, its canvas painted
-// on every cell, and set as the terminal's background too, as background
-// says. While the cards scroll, it asks for the wheel, which takes the
-// terminal's own selecting with the mouse, so it asks for it then alone.
+// View draws the dashboard full screen as the last message left it: as
+// render drew it, where it did; else its live page, at the moment the
+// message was taken in, its sections as they were built then; else, as
+// behind a card, as screen has it at the clock's time. In colour, it's drawn
+// once the terminal has said what its background is, or had its time to, so
+// it never shows one theme then another.
 func (m Model) View() tea.View {
+	switch {
+	case m.shown.drawn:
+		return m.shown.view
+	case m.shown.page != nil:
+		live := m.shownPage()
+		return m.viewOf(live.Draw(m.doc, m.shown.at), live.Look)
+	case m.blank():
+		return blankView()
+	}
+	f, doc, at := m.screen(m.now())
+	return m.viewOf(f.Draw(doc, at), f.Look)
+}
+
+// blank reports whether the screen is blank: in colour, till the terminal
+// has said what its background is, or had its time to.
+func (m Model) blank() bool {
+	return m.coloured() && !m.backdrop.settled
+}
+
+// blankView is the screen full and blank.
+func blankView() tea.View {
 	v := tea.NewView("")
 	v.AltScreen = true
-	if m.coloured() && !m.backdrop.settled {
-		return v
-	}
-	now := m.now()
-	f := m.frame(now)
-	f.Keys = m.keys()
-	if m.helping {
-		f.Help = m.helpKeys()
-	}
-	lines := f.Draw(m.doc, now)
-	if m.picker.open {
-		lines = m.picker.drawn(m.choice).Over(lines, m.size.Width, f.Look)
-	}
-	v.SetContent(strings.Join(lines, "\n"))
-	v.BackgroundColor = m.background(f.Look)
-	if f.Scrolling(m.doc, now).Most > 0 {
-		v.MouseMode = tea.MouseModeCellMotion
-	}
 	return v
 }
 
-// frame is the dashboard's frame as the model stands at now, but for the
-// keys its footer lists: at the size drawn at, in the look, showing the view
-// shown, with what the watch knows of the router, its events and its
-// history, the window the cards feature and the style they draw it in, how
-// far ahead Runway looks, the sessions listed, what the request stream tells
-// of their requests and the order Sessions' calls keep, how far the view is
-// scrolled, the card with the focus, the cards flipped and the session
-// picked out, the keys that work on a card's sessions, the note a key left,
-// and how reading goes.
-func (m Model) frame(now time.Time) dashboard.Frame {
-	return dashboard.Frame{
-		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
-		Views: m.views, View: m.view,
-		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), History: m.trails, Eased: m.eased(now),
-		Featured: m.featured, Chart: m.chart, Span: m.span,
-		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
-		Focus: m.focus, Flipped: m.flipped, Selected: m.selected, Patch: m.patch(),
-		Note: m.noted(now), Status: m.status(now),
-		Policy: m.cfg.Policy,
+// viewOf is the screen of the lines drawn in look, full, the theme picker
+// over its right while it's open: in the theme shown, its canvas painted on
+// every cell, and set as the terminal's background too, as background says.
+// The mouse is on while it runs, for clicks and the wheel, so the terminal's
+// own selecting takes its modifier.
+func (m Model) viewOf(lines []string, look dashboard.Look) tea.View {
+	if m.picker.open {
+		lines = m.picker.drawn(m.choice).Over(lines, m.size.Width, look)
 	}
+	v := blankView()
+	v.SetContent(strings.Join(lines, "\n"))
+	v.BackgroundColor = m.background(look)
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
+}
+
+// pressed acts on a key: ctrl+c quits, whatever's open. While a card is
+// open, its keys alone act, as routingKey, helpKey, logCardKey, logPanelKey
+// and turnCardKey take them, as do the find's while the Log's is open. Else q
+// quits; while the theme picker is open, it takes every other key; and
+// otherwise p opens the routing card, ? opens the page's help, R refreshes,
+// and the rest are a session's page's, while one is open, as sessionKey
+// takes them, else the page's, as pageKey takes them.
+func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch k := key.String(); {
+	case k == "ctrl+c":
+		return m, tea.Quit
+	case m.open == routingOpen:
+		return m.routingKey(k)
+	case m.open == helpOpen:
+		return m.helpKey(k)
+	case m.open == logCardOpen:
+		return m.logCardKey(k)
+	case m.open == logPanelOpen:
+		return m.logPanelKey(k)
+	case m.open == turnCardOpen:
+		return m.turnCardKey(k)
+	case m.finding():
+		return m.logFindKey(k)
+	case k == "q":
+		return m, tea.Quit
+	case m.picker.open:
+		return m.pickerKey(k)
+	case k == "p":
+		return m.openRouting()
+	case k == "?":
+		return m.openHelp(), nil
+	case k == "R":
+		return m.refresh()
+	case m.shownView() == dashboard.SessionPage:
+		return m.sessionKey(key)
+	}
+	return m.pageKey(key)
+}
+
+// refresh reads now, as R asks: having the router refresh what it hasn't
+// read in the last minute, and what can take no request, or probing when it
+// doesn't answer.
+func (m Model) refresh() (Model, tea.Cmd) {
+	logger.Debug("refresh key pressed", "already_reading", m.fetching)
+	return m.read(status.Fresh())
+}
+
+// screen is what's on screen at now: the frame drawn, and the document and
+// the moment it's drawn of. With a card open, it's the page frozen as the
+// card opened, at the size drawn at now and in the look as it stands, the
+// card over it; else the page as the model stands at now, its key line
+// listing the keys that work.
+func (m Model) screen(now time.Time) (dashboard.Frame, status.Document, time.Time) {
+	if m.open == nothingOpen {
+		return m.live(now), m.doc, now
+	}
+	f := m.page.frame
+	f.Width, f.Height, f.Look = m.size.Width, m.size.Height, m.look()
+	f.Card = m.card(now)
+	return f, m.page.doc, m.page.at
+}
+
+// live is the page as the model stands at now: its frame, its key line
+// listing the keys that work.
+func (m Model) live(now time.Time) dashboard.Frame {
+	f := m.frame(now)
+	f.KeyLine = m.keyLine(f, now)
+	return f
+}
+
+// card is the card open over the page, as the model stands at now: the
+// routing card, its figures read afresh; the Log's details or its panel; the
+// Log's details of a session's turn open's request; or help.
+func (m Model) card(now time.Time) dashboard.Opened {
+	switch m.open {
+	case routingOpen:
+		return m.routingCard(now)
+	case logCardOpen:
+		return m.logCardAt(now)
+	case logPanelOpen:
+		return m.logPanel(now)
+	case turnCardOpen:
+		return m.turnCardAt(now)
+	}
+	return m.helpCard()
+}
+
+// cover opens the card given over the page, which stands still behind it as
+// it stands now, dropping a session's page asked to open, as unasked has it,
+// so no card opens over one page to stand over another.
+func (m Model) cover(card opened) Model {
+	now := m.now()
+	m.open, m.page = card, frozen{frame: m.live(now), doc: m.doc, at: now}
+	return m.unasked()
+}
+
+// uncover closes the card open over the page, which is live again, and
+// starts the time of a note held while it was covered, as seen has it.
+func (m Model) uncover() (Model, tea.Cmd) {
+	m.open, m.page = nothingOpen, frozen{}
+	return m.seen()
+}
+
+// frame is the dashboard's frame as the model stands at now, but for its key
+// line and any card over it: at the size drawn at, in the look, showing the
+// tab shown, with what the watch knows of the router, its events and its
+// history, the numbers brightening, the Overview's sections shown, how its
+// windows are grouped, the requests its traces count and its layout as
+// kept, what Runway shows, the sessions listed, what the request stream
+// tells of their requests, the List held, whose lines name them, how far the
+// view is scrolled, the account the focus is on, and what Accounts, as
+// standing has it, and History show.
+// It holds the one moment of the document at now, as At has it, for its
+// bars eased to it and every look at it to share: the message's, as taking
+// has it, where now is when the message came.
+func (m Model) frame(now time.Time) dashboard.Frame {
+	f := dashboard.Frame{
+		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
+		View: m.view,
+		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
+		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
+		Sessions: m.sessions, Stream: m.traffic.stream(now), HeldList: m.sessionsTab.list(), Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
+		Focus:      m.focus,
+		Policy:     m.cfg.Policy,
+		WindowName: m.cfg.WindowName,
+		WeekWindow: m.cfg.WeekWindow,
+		Accounts:   m.accounts.shown,
+		Runway:     m.runwayTab.shown,
+		History:    m.past.page,
+		Session:    m.session.frame(),
+		Log:        m.log.page,
+	}.Holding(m.taking.moment).At(m.doc, now)
+	if m.view == dashboard.Accounts {
+		f.Accounts = m.accounts.standing(f)
+	}
+	f.Eased = m.ease.eased(f, m.doc, now)
+	return f
 }
 
 // resized takes in the size the terminal gives, keeping the size drawn at for
-// a width or height it gives as zero, and closes the theme picker should it
+// a width or height it gives as zero; and closes the theme picker should it
 // no longer fit.
 func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	given := Size{Width: msg.Width, Height: msg.Height}
@@ -435,25 +893,26 @@ func (m Model) read(r status.Read) (Model, tea.Cmd) {
 	if m.fetching {
 		return m, nil
 	}
-	m.fetching, m.loud = true, full(r)
+	m.fetching = true
 	return m, m.fetch(r)
 }
 
-// fetch reads the source as r asks, as fetchFrom reads it.
+// fetch reads the source as r asks, as fetchFrom reads it, asked now.
 func (m Model) fetch(r status.Read) tea.Cmd {
-	ctx, source := m.ctx, m.cfg.Source
+	ctx, source, policy, asked := m.ctx, m.cfg.Source, m.cfg.Policy, m.now()
 	return func() tea.Msg {
-		return fetchFrom(ctx, source, r)
+		return fetchFrom(ctx, source, r, policy, asked)
 	}
 }
 
-// fetchFrom reads the source as r asks, and from a router, the sessions it
-// lists, for the cards' dots and Sessions' calls: a router that can't list
-// them leaves them out.
-func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
+// fetchFrom reads the source as r asks, and from a router, as the moment of
+// what it read as it was asked says, as policy judges it, the sessions it
+// lists, for the sessions running and Sessions' calls: a router that can't
+// list them leaves them out.
+func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.Policy, asked time.Time) fetchedMsg {
 	doc, from, err := source.Read(ctx, r)
 	msg := fetchedMsg{read: r, doc: doc, router: from, err: err}
-	if err != nil || !routed(doc) {
+	if err != nil || !doc.At(asked, policy).Routed {
 		return msg
 	}
 	sessions, err := source.Sessions(ctx)
@@ -466,27 +925,42 @@ func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 }
 
 // fetched takes in a read: the document to show from now on, or why there's
-// none, and plans the next read by it. A question after the router, or a
-// look at its document, that found it gone only notes the router lost, as
-// lose does. Each read starts a new chain of ticks at the pace it calls for,
-// and lets a look at the router's document asked for while it was under way
-// go ahead.
+// none, and plans the next read by it. A read that fails notes why, and the
+// router lost, as lose does. Before any document, from a source that asks the
+// router first, as awaitsRouter has it, the status line says the latest
+// read's news either way: a question after the router, or a look at its
+// document, that found it gone has no why of its own, and clears the last
+// read's, the status line saying the router isn't answering, since it was
+// first found gone; and a read that failed for a reason of its own has the
+// status line say that reason, as lostShown has it. Elsewhere a read that
+// found the router gone leaves the last read's why standing, as nothing new
+// was found. Each read starts a new chain of ticks at the pace it calls for,
+// lets a look at the router's document asked for while it was under way go
+// ahead, and as any look does, asks for the ledger's days since History's
+// were read, as readHistory reads them while History or Accounts shows, and
+// what the readings history gained, as readRunway reads it while Runway
+// shows.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
-	m.fetching, m.loud = false, false
+	m.fetching, m.past.due, m.tail.due, m.runwayTab.due = false, true, true, true
 	var shown tea.Cmd
 	switch {
 	case errors.Is(msg.err, status.ErrNoRouter):
 		m.plan = m.plan.missed(now)
+		if m.awaitsRouter() {
+			m.failed = ""
+		}
 		m = m.lose(now)
 	case msg.err != nil:
-		m.failed = msg.err.Error()
 		m.plan = m.plan.failed(m.doc, now)
+		m.failed = redact.Text(msg.err.Error())
 		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
+		m = m.lose(now)
 	default:
-		m.plan = m.plan.landed(msg.read, msg.doc, now)
-		m, shown = m.show(msg, now)
-		logRead(msg, m.plan.due)
+		look := msg.doc.At(now, m.cfg.Policy)
+		m.plan = m.plan.landed(msg.read, msg.doc, look.Routed, now)
+		m, shown = m.show(msg, look)
+		logRead(msg, look, m.plan.due)
 	}
 	m.chain++
 	var again tea.Cmd
@@ -498,117 +972,144 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 }
 
 // logRead notes a read: where it came from, the accounts it read and those it
-// couldn't, and when the next full read is due. A look at the router's
-// document as it stands, every few seconds, is noted only at debug.
-func logRead(msg fetchedMsg, next time.Time) {
+// couldn't, as look has them, and when the next full read is due. A look at
+// the router's document as it stands, every few seconds, is noted only at
+// debug.
+func logRead(msg fetchedMsg, look status.Moment, next time.Time) {
 	var read, failed []string
-	for _, a := range msg.doc.Accounts {
-		if wasRead(a) {
+	for _, a := range look.Accounts {
+		if a.Read {
 			read = append(read, a.ID)
 		} else {
 			failed = append(failed, a.ID)
 		}
 	}
 	level := slog.LevelInfo
-	if routed(msg.doc) && msg.read.Refresh == 0 {
+	if look.Routed && msg.read.Refresh == 0 {
 		level = slog.LevelDebug
 	}
-	logger.Log(context.Background(), level, "usage read", "source", msg.doc.Source,
+	logger.Log(context.Background(), level, "usage read", "source", sourceOf(look),
 		"read", strings.Join(read, ","), "failed", strings.Join(failed, ","), "next", next)
 }
 
-// show puts the document a read found at now on screen, with the sessions
-// the router listed, Sessions' calls keeping the order they ran in, each
-// move they show done no longer re-patching them; or where it couldn't list
-// them, those it listed last, while the router that listed them answers, as
-// a router restarted or replaced lists its own; and none while probing. It
-// posts what the change calls for, unless the router is there to post its
-// own, as nothing is to be told twice; follows the router as it goes and
-// comes back; notes the events new to it, and the readings it gives; asks
+// show puts the document a read found on screen, as look has it at its moment,
+// which every look at it within the message shares, as taking has it, with
+// the sessions the router listed, each move they show done no longer telling
+// the views where its session is; or where it couldn't list them, those it
+// listed last, while the router that listed them answers, as a router
+// restarted or replaced lists its own; and none while probing. It posts what
+// the change calls for, unless the router is there to post its own, as
+// nothing is to be told twice; follows the router as it goes and comes back;
+// notes the events new to it, and the readings it gives; asks
 // the router for its history with a full read, and as the router answers
-// again, or another router does, as one restarted; keeps the focus, the
-// cards flipped and the selection where they still are; and eases the bars
-// to it from where they stand.
-func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
-	doc := msg.doc
+// again, or another router does, as one restarted, or probing, reads the
+// readings history's files with the first full read since probing began; keeps
+// the focus where its account still is, else puts it on the first; eases the
+// bars to it from where they stand; has Runway see it, as runwaySaw has it;
+// and brightens each number on the page it changed.
+func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
+	doc, now, read := msg.doc, look.Now, originOf(look, msg.router)
+	was := m.numbersDrawn(now)
 	var post, asked tea.Cmd
-	if !routed(doc) {
-		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy, m.cfg.Notifications), probedAsAsked(doc))
+	if !look.Routed {
+		post = m.post(m.readings.alerts(look, read, m.cfg.Notifications), probedAsAsked(look))
 	}
-	ask := routed(doc) && (full(msg.read) || !m.answering() || m.news.another(msg.router))
-	if routed(doc) {
+	ask := look.Routed && (full(msg.read) || !m.answering() || m.news.another(msg.router))
+	if look.Routed {
 		m = m.answeredAgain(msg.router)
+		m.history.filedSince = false
 	}
-	m.readings = m.readings.with(doc, now)
-	m = m.follow(doc, now)
-	m.news = m.news.looked(doc, msg.router, now)
-	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
-	m.history = m.history.saw(doc)
-	m.ease = easing{from: utilizations(m.shown(now)), start: now}
-	m.doc, m.updated, m.failed = doc, now, ""
+	m.readings = m.readings.with(look, read)
+	m = m.follow(look)
+	m.news = m.news.looked(look, msg.router)
+	m.changes = m.changes.looked(look, msg.router)
+	m.history = m.history.saw(look)
+	m.ease = easing{from: m.ease.standing(m.frame(now), m.doc, now), start: now}
+	m.doc, m.asRead, m.taking.moment, m.updated, m.failed = doc, asReadOf(look), look.Held(), now, ""
 	switch {
-	case msg.listed || !routed(doc):
-		m.order = m.frame(now).OrderOf(doc)
+	case msg.listed || !look.Routed:
 		m.sessions, m.listedBy = msg.sessions, msg.router
 		m.traffic = m.traffic.listedAs(msg.sessions)
 	case !msg.router.Same(m.listedBy):
 		m.sessions = nil
 	}
-	m = m.stillThere()
-	m.trails = m.history.drawn(doc)
-	if ask {
-		m, asked = m.askHistory(doc)
+	m = m.stillThere(look)
+	m.trails = m.history.drawn(look)
+	m = m.lookedLog(look, msg.router).runwaySaw(look)
+	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), read, now)
+	switch {
+	case ask:
+		m, asked = m.askHistory(look)
+	case !look.Routed && full(msg.read) && !m.history.filedSince:
+		m, asked = m.readFiled(look)
 	}
 	return m, tea.Batch(post, asked)
 }
 
-// follow notes where doc, read at now, came from, against where the document
-// on screen did: the router lost when it stops answering, unless a look lost
-// it first, and found again.
-func (m Model) follow(doc status.Document, now time.Time) Model {
-	switch was, is := m.routed(), routed(doc); {
+// follow notes where the document look is a moment of came from, against
+// where the document on screen did, as the router stops answering or answers
+// again; and, a document having landed from whatever source, that the router
+// is lost no more.
+func (m Model) follow(look status.Moment) Model {
+	switch was, is := m.routed(), look.Routed; {
 	case was && !is:
-		m.lost = cmp.Or(m.lost, now)
-		logger.Warn("the router stopped answering; probing directly", "router", doc.Fallback.Router, "reason", doc.Fallback.Reason)
+		logger.Warn("the router stopped answering; probing directly", "router", look.Fallback.Router, "reason", look.Fallback.Reason)
 	case is && (!was || !m.lost.IsZero()):
-		m.lost = time.Time{}
 		logger.Info("reading the router")
 	}
+	m.lost = time.Time{}
 	return m
 }
 
-// lose notes a look at the router's document, at now, finding the router
-// gone: its document stays on screen, the footer saying since when there's
-// been no router, until it answers again, or a full read probes.
+// lose notes a read at now that failed, as the router not answering it:
+// while its document is on screen, which stays there, the status line
+// saying since when the router hasn't answered, until a read lands, as a read
+// then asks the router first, failing only where it doesn't answer; and
+// before any document, the status line saying that alone, unless the source
+// probes as asked, with no router to lose, or a read has failed for a reason
+// of its own, as a probe can, which the status line says instead. A read that
+// fails while probing says nothing of the router: the status line says why
+// it failed.
 func (m Model) lose(now time.Time) Model {
-	if !m.routed() || !m.lost.IsZero() {
+	switch {
+	case !m.lost.IsZero():
+		return m
+	case m.routed():
+		logger.Warn("the router stopped answering; showing its last document")
+	case m.awaitsRouter() && m.failed == "":
+		logger.Warn("the router isn't answering, and nothing has been read")
+	default:
 		return m
 	}
 	m.lost = now
-	logger.Warn("the router stopped answering; showing its last document")
 	return m
 }
 
-// shown is the document as its bars stand at now, part way along their
-// easing.
-func (m Model) shown(now time.Time) status.Document {
-	return m.ease.apply(m.doc, now)
+// lostShown is when the router was lost, for the status line: zero before
+// any document while the latest read failed for a reason of its own, which
+// the status line says instead, keeping when the router was first found gone
+// for a later read that finds it gone again.
+func (m Model) lostShown() time.Time {
+	if m.awaitsRouter() && m.failed != "" {
+		return time.Time{}
+	}
+	return m.lost
 }
 
-// eased are how much of each window the bars fill at now, by its account
-// and key, while they ease to the document's readings: nil once they're
-// there.
-func (m Model) eased(now time.Time) map[dashboard.Ref]float64 {
-	if m.ease.done(now) || !m.ease.moves(m.doc) {
-		return nil
+// awaitsRouter reports whether nothing has been read, from a source that asks
+// the router first: a read that then finds the router gone has the status
+// line say it isn't answering.
+func (m Model) awaitsRouter() bool {
+	return m.updated.IsZero() && !m.cfg.ProbeOnly
+}
+
+// failure is why the last read failed, and when the next is due, for the
+// status line: zero where it didn't fail.
+func (m Model) failure() dashboard.Failure {
+	if m.failed == "" {
+		return dashboard.Failure{}
 	}
-	eased := make(map[dashboard.Ref]float64)
-	for _, a := range m.shown(now).Accounts {
-		for _, w := range a.Windows {
-			eased[dashboard.Ref{Account: a.ID, Window: w.Key}] = w.Utilization
-		}
-	}
-	return eased
+	return dashboard.Failure{Reason: m.failed, Next: m.plan.due}
 }
 
 // ticked reads again once a read is due. Every tick redraws, as every message
@@ -619,7 +1120,7 @@ func (m Model) ticked(msg tickMsg) (tea.Model, tea.Cmd) {
 	}
 	now := m.now()
 	m.traffic = m.traffic.tidied(now)
-	m.changes = m.changes.ticked(m.doc, now, m.cfg.Policy)
+	m.changes = m.changes.ticked(m.moment(now))
 	var read tea.Cmd
 	if r, ok := m.plan.at(now, m.routed()); ok {
 		m, read = m.read(r)
@@ -646,14 +1147,17 @@ func (m Model) armTick(now time.Time) tea.Cmd {
 // behind the timer that brings it, has turned over.
 const stepSlack = time.Millisecond
 
-// startFrames arms the next frame, while anything on screen moves at now,
-// as nextFrame has it, unless the one armed already comes as soon. One armed
-// to come within frameEvery stands without asking nextFrame, which lays a
-// whole frame out.
-func (m Model) startFrames(now time.Time) (Model, tea.Cmd) {
+// startFrames shows the screen of page, built at now, as shownOf has it, in
+// place of whatever a message before left, and arms the next frame, while
+// anything on screen moves at now, as nextFrame has it once render has worked
+// out what does, unless the one armed already comes as soon, as one armed to
+// come within frameEvery does, which asks nothing of render.
+func (m Model) startFrames(page dashboard.Frame, now time.Time) (Model, tea.Cmd) {
+	m.shown = m.shownOf(page, now)
 	if m.framing && !m.frameDue.After(now.Add(frameEvery)) {
 		return m, nil
 	}
+	m = m.render()
 	next, moving := m.nextFrame(now)
 	if !moving || m.framing && !m.frameDue.After(now.Add(next)) {
 		return m, nil
@@ -675,30 +1179,25 @@ func (m Model) framed(msg frameMsg) Model {
 }
 
 // nextFrame is how long after now what moves on screen next changes, and
-// whether anything does: frameEvery while anything moves frame by frame, a
-// bar easing to its reading, the highlight on an event, or on a card's
-// state, fading back, or what travels the cords, as Motion says; else as
-// soon as the shimmer down a cord steps on, or the sand in a card's
-// hourglass falls a grain, on the clock's steps of each, or a move yet to
-// show re-patches Sessions' calls. The cards' backs and Sessions' plain list
-// are drawn again as the stream tells of more, and as the clock ticks.
+// whether anything does: nothing while a card is open, as the page behind it
+// stands still; else frameEvery while anything moves frame by frame on the
+// screen render drew at now: what travels the cords it draws, or on the
+// page, a bar easing to its reading, or a number brightened, or the cue on
+// an event, an account's state or a window's words, fading back; else as
+// soon as the shimmer down a cord steps on, on the clock's steps of it, or,
+// on Sessions with no session's page over it, a move yet to show shows,
+// putting its session on its new account.
 func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
-	f := m.frame(now)
-	if m.helping {
-		f.Help = m.helpKeys()
-	}
-	moving := f.Motion(m.doc, now)
-	if moving.Smooth || m.ease.moves(m.doc) && !m.ease.done(now) || m.news.faded(now) != nil || m.changes.faded(now) != nil {
-		return frameEvery, true
-	}
 	var next []time.Duration
-	if moving.Shimmer {
+	switch moving := m.shown.moving; {
+	case m.open != nothingOpen:
+		return 0, false
+	case moving.Smooth:
+		return frameEvery, true
+	case moving.Shimmer:
 		next = append(next, untilStep(now, shimmerStep)+stepSlack)
 	}
-	if moving.Falling {
-		next = append(next, untilStep(now, dashboard.FallStep)+stepSlack)
-	}
-	if shows, ok := m.traffic.showing(now); ok && m.view == dashboard.Sessions {
+	if shows, ok := m.traffic.showing(now); ok && m.view == dashboard.Sessions && m.session == nil {
 		next = append(next, shows.Sub(now)+stepSlack)
 	}
 	if len(next) == 0 {
@@ -739,37 +1238,6 @@ func (m Model) post(alerts []notify.Notice, asked bool) tea.Cmd {
 	}
 }
 
-// status says how reading goes, at the footer's right: that the first read,
-// or a full read, is under way; why the last read failed, and when the next
-// is due; since when there's been no router, while its last document stays
-// on screen; or how long ago the document was read, and, while it's probed,
-// when it will be next.
-func (m Model) status(now time.Time) string {
-	switch {
-	case m.fetching && m.updated.IsZero():
-		return "reading usage…"
-	case m.fetching && m.loud:
-		return "refreshing…"
-	case m.failed != "":
-		return "couldn't read usage: " + m.failed + " · next " + status.TimeOfDay(now, m.plan.due)
-	case m.routed() && !m.lost.IsZero():
-		return "no router since " + status.TimeOfDay(now, m.lost)
-	case m.routed():
-		return "read " + ago(now, m.updated)
-	default:
-		return "read " + ago(now, m.updated) + " · next " + status.TimeOfDay(now, m.plan.due)
-	}
-}
-
-// ago says how long before now t was: in seconds, such as "4s ago", within a
-// minute, and from then as status.Countdown counts, such as "2m ago".
-func ago(now, t time.Time) string {
-	if d := now.Sub(t); d < time.Minute {
-		return fmt.Sprintf("%ds ago", max(int(d/time.Second), 0))
-	}
-	return status.Countdown(t, now) + " ago"
-}
-
 // noted is what the last key did, while that's news at now: "" once it isn't.
 func (m Model) noted(now time.Time) string {
 	if now.Before(m.noteUntil) {
@@ -780,23 +1248,51 @@ func (m Model) noted(now time.Time) string {
 
 // routed reports whether the document on screen is the router's.
 func (m Model) routed() bool {
-	return routed(m.doc)
+	return m.asRead.routed
 }
 
-// routed reports whether doc is the router's.
-func routed(doc status.Document) bool {
-	return doc.Source == status.SourceRouter
+// asRead is what the watch reads of a document as it was read, which holds
+// whatever the time: whether it's the router's, how many accounts it has,
+// and whether a pin stands.
+type asRead struct {
+	routed   bool
+	accounts int
+	pinned   bool
 }
 
-// probedAsAsked reports whether doc was built by probing as asked, rather
-// than for want of the router, which may be running all the same: one probed
-// for want of it says why.
-func probedAsAsked(doc status.Document) bool {
-	return !routed(doc) && doc.Fallback == (status.Fallback{})
+// asReadOf is what the watch reads of the document look is a moment of, as
+// it was read.
+func asReadOf(look status.Moment) asRead {
+	return asRead{routed: look.Routed, accounts: len(look.Accounts), pinned: !look.Pin.IsZero()}
 }
 
-// now reads the wall clock without its monotonic reading, which stops while a
-// Mac sleeps: kept, it would put every deadline off by the time spent asleep.
+// probedAsAsked reports whether the document look is a moment of was built by
+// probing as asked, rather than for want of the router, which may be running
+// all the same: one probed for want of it says why.
+func probedAsAsked(look status.Moment) bool {
+	return !look.Routed && look.Fallback == (status.Fallback{})
+}
+
+// sourceOf names where the document look is a moment of came from, as its log
+// says: the router, probing, or "" before any document.
+func sourceOf(look status.Moment) string {
+	switch {
+	case look.Routed:
+		return status.SourceRouter
+	case look.Probed:
+		return status.SourceProbe
+	default:
+		return ""
+	}
+}
+
+// now is the time the message Update is taking in came, as taking has it;
+// else it reads the wall clock without its monotonic reading, which stops
+// while a Mac sleeps: kept, it would put every deadline off by the time spent
+// asleep.
 func (m Model) now() time.Time {
+	if !m.taking.at.IsZero() {
+		return m.taking.at
+	}
 	return m.cfg.Now().Round(0)
 }

@@ -26,6 +26,27 @@ func marked(w status.Words) string {
 	return b.String()
 }
 
+// Words are built of plain words, as they are, accounts named, each by its
+// id, cleaned, as it's from elsewhere, figures, and a window's use.
+func TestWordsAreBuiltOfPlainWordsAccountsNamedAndFigures(t *testing.T) {
+	tests := []struct {
+		name string
+		part status.Part
+		want status.Part
+	}{
+		{name: "plain words", part: status.Plain(" moved to "), want: status.Part{Text: " moved to "}},
+		{name: "an account", part: status.Named("side"), want: status.Part{Text: "side", Kind: status.PartAccount}},
+		{name: "an account named from elsewhere", part: status.Named("si\x1b[2Jde"), want: status.Part{Text: "si [2Jde", Kind: status.PartAccount}},
+		{name: "a figure", part: status.Figure("7"), want: status.Part{Text: "7", Kind: status.PartFigure}},
+		{name: "a window's use", part: status.Use("95%"), want: status.Part{Text: "95%", Kind: status.PartUse}},
+	}
+	for _, tt := range tests {
+		if tt.part != tt.want {
+			t.Errorf("%s: %+v, want %+v", tt.name, tt.part, tt.want)
+		}
+	}
+}
+
 func TestReasonWords(t *testing.T) {
 	now := time.Date(2026, 10, 9, 13, 2, 0, 0, time.FixedZone("UTC+1", 60*60))
 	pressure := status.Facts{Until: time.Date(2026, 10, 9, 14, 10, 0, 0, time.UTC), Now: now}
@@ -147,12 +168,52 @@ func TestReasonWords(t *testing.T) {
 			session: "[personal] came under pressure, its 5-hour to run out at 15:10",
 		},
 		{
+			name:    "a new session that passed an account over for pressure, which runs out on another day, as Dated says it",
+			reason:  "new, personal under pressure",
+			facts:   status.Facts{Until: time.Date(2026, 10, 9, 23, 30, 0, 0, time.UTC), Now: now},
+			event:   "[personal] came under pressure, its 5-hour to run out at Sat 00:30",
+			routing: "new session",
+			session: "[personal] came under pressure, its 5-hour to run out at Sat 00:30",
+		},
+		{
 			name:    "a move that passed an account over for pressure, when it runs out unknown",
 			reason:  "rescored after 12h 14m idle, personal under pressure",
 			facts:   status.Facts{From: "side", To: "work"},
 			event:   "[personal] came under pressure",
 			routing: "from [side], [personal] came under pressure",
 			session: "[personal] came under pressure",
+		},
+		{
+			name:    "a move off an account at its reserve that passed an account over for pressure: why it moved, then the pressure",
+			reason:  "moved: work is at its reserve, personal under pressure",
+			facts:   status.Facts{From: "work", To: "side", Until: pressure.Until, Now: now},
+			event:   "[work] reached its cap, [personal] came under pressure, its 5-hour to run out at 15:10",
+			routing: "from [work], at its cap, [personal] came under pressure, its 5-hour to run out at 15:10",
+			session: "[work] reached its cap, [personal] came under pressure, its 5-hour to run out at 15:10",
+		},
+		{
+			name:    "a move off an account at its limit that passed an account over for pressure, when it runs out unknown",
+			reason:  "moved: work hit its limit, personal under pressure",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "[work] reached its limit, [personal] came under pressure",
+			routing: "from [work], at its limit, [personal] came under pressure",
+			session: "[work] reached its limit, [personal] came under pressure",
+		},
+		{
+			name:    "a move off an account for a why the dashboard has no words for that passed an account over for pressure",
+			reason:  "moved: work was throttled, personal under pressure",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "moved: [work] was throttled, [personal] came under pressure",
+			routing: "from [work], moved: [work] was throttled, [personal] came under pressure",
+			session: "moved: [work] was throttled, [personal] came under pressure",
+		},
+		{
+			name:    "a session's own pin yielding that passed an account over for pressure: why it yielded, then the pressure",
+			reason:  "pin yields: side has no room, personal under pressure",
+			facts:   status.Facts{From: "side", To: "work"},
+			event:   "its pin to [side] yields: [side] has no room, [personal] came under pressure",
+			routing: "from [side], its pin to [side] yields: [side] has no room, [personal] came under pressure",
+			session: "its pin to [side] yields: [side] has no room, [personal] came under pressure",
 		},
 		{
 			name:    "a choice that passed an account over for pressure but didn't move its session",
@@ -252,6 +313,14 @@ func TestReasonWords(t *testing.T) {
 			session: "pinned to [side]",
 		},
 		{
+			name:    "a new session, an account it left given all the same: none it left",
+			reason:  "new",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "started",
+			routing: "new session",
+			session: "since it started",
+		},
+		{
 			name:    "a new session's reason from elsewhere, cleaned",
 			reason:  "new\n",
 			event:   "started",
@@ -267,10 +336,113 @@ func TestReasonWords(t *testing.T) {
 			if got := marked(status.RoutingWords(tt.reason, tt.facts)); got != tt.routing {
 				t.Errorf("RoutingWords(%q) = %q, want %q", tt.reason, got, tt.routing)
 			}
+			left, moved := strings.CutPrefix(tt.routing, "from ")
+			if got := marked(status.LeftWords(tt.reason, tt.facts)); !moved && got != "" || moved && got != left {
+				t.Errorf("LeftWords(%q) = %q, want %q's after its \"from \", none where it starts otherwise", tt.reason, got, tt.routing)
+			}
 			if got := marked(status.SessionWords(tt.reason, tt.facts)); got != tt.session {
 				t.Errorf("SessionWords(%q) = %q, want %q", tt.reason, got, tt.session)
 			}
 		})
+	}
+}
+
+// A phone says why a forced move came without the account it left, which
+// it says apart; every other reason as an event reads it.
+func TestShortWordsSayAForcedMovesWhyWithoutItsAccount(t *testing.T) {
+	tests := []struct {
+		reason string
+		facts  status.Facts
+		want   string
+	}{
+		{reason: status.ReasonMovedOff + "work " + status.WhyReserve, want: "its cap"},
+		{reason: status.ReasonMovedOff + "work " + status.WhyLimit, want: "its limit"},
+		{reason: status.ReasonMovedOff + "work " + status.WhyRefused, want: "refused"},
+		{reason: status.ReasonMovedOff + "work " + status.WhyNoRoom, want: "no room"},
+		{reason: status.ReasonMovedOff + "work has a new token", want: "moved: [work] has a new token"},
+		{reason: status.PassingOver(status.ReasonMovedOff+"work "+status.WhyReserve, "personal"), want: "its cap, [personal] came under pressure"},
+		{reason: status.PassingOver(status.ReasonMovedOff+"work "+status.WhyLimit, "personal"), want: "its limit, [personal] came under pressure"},
+		{reason: status.PassingOver(status.ReasonPinYields+"side has no room", "personal"), want: "its pin to [side] yields: [side] has no room, [personal] came under pressure"},
+		{reason: status.Rescored(15*time.Hour + 7*time.Minute), facts: status.Facts{To: "personal"}, want: "rescored after {15h 7m} idle"},
+		{reason: status.ReasonPinned, want: "pinned here"},
+		{reason: status.ReasonMovedByPin, facts: status.Facts{From: "work", To: "side"}, want: "pinned to [side]"},
+		{reason: status.ReasonPinYields + "side has no room", want: "its pin to [side] yields: [side] has no room"},
+		{reason: status.ReasonSticky, want: "sticky"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.reason, func(t *testing.T) {
+			if got := marked(status.ShortWords(tt.reason, tt.facts)); got != tt.want {
+				t.Errorf("ShortWords(%q) = %q, want %q", tt.reason, got, tt.want)
+			}
+		})
+	}
+}
+
+// A move off an account names the account it left; a new session's reason,
+// sticky and kept for its thinking move nothing, the last two keeping it
+// where it was; and every other reason names none and moves its session.
+func TestAReasonSaysWhetherItMovedTheSessionAndFromWhere(t *testing.T) {
+	tests := []struct {
+		reason        string
+		from          string
+		nothing, kept bool
+	}{
+		{reason: status.ReasonMovedOff + "work " + status.WhyLimit, from: "work"},
+		{reason: status.ReasonMovedOff + "work\x1b" + status.WhyReserve, from: "work"},
+		{reason: status.ReasonNew, nothing: true},
+		{reason: status.PassingOver(status.ReasonNew, "personal"), nothing: true},
+		{reason: status.ReasonSticky, nothing: true, kept: true},
+		{reason: status.ReasonBound, nothing: true, kept: true},
+		{reason: status.ReasonBound + "\x07", nothing: true, kept: true},
+		{reason: status.ReasonPinned},
+		{reason: status.ReasonMovedByPin},
+		{reason: status.Rescored(time.Hour)},
+		{reason: status.ReasonPinYields + "side has no room"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.reason, func(t *testing.T) {
+			if got := status.MovedFrom(tt.reason); got != tt.from {
+				t.Errorf("MovedFrom(%q) = %q, want %q", tt.reason, got, tt.from)
+			}
+			if got := status.MovedNothing(tt.reason); got != tt.nothing {
+				t.Errorf("MovedNothing(%q) = %t, want %t", tt.reason, got, tt.nothing)
+			}
+			if got := status.Kept(tt.reason); got != tt.kept {
+				t.Errorf("Kept(%q) = %t, want %t", tt.reason, got, tt.kept)
+			}
+		})
+	}
+}
+
+func TestTriedWordsSayWhereARequestWentOutBeforeItWentAgainElsewhere(t *testing.T) {
+	tests := []struct {
+		name  string
+		tried []status.Tried
+		want  string
+	}{
+		{name: "none tried"},
+		{name: "after a limit", tried: []status.Tried{{Account: "work", Why: status.WhyLimit}}, want: "after [work]'s limit"},
+		{name: "after a refusal", tried: []status.Tried{{Account: "work", Why: status.WhyRefused}}, want: "after [work] refused it"},
+		{
+			name:  "after two, in the order tried",
+			tried: []status.Tried{{Account: "work", Why: status.WhyLimit}, {Account: "personal", Why: status.WhyRefused}},
+			want:  "after [work]'s limit, [personal] refused it",
+		},
+		{name: "a why the dashboard has no words for, as the router gives it", tried: []status.Tried{{Account: "work", Why: "has a new token"}},
+			want: "after [work] has a new token"},
+		{name: "from elsewhere, cleaned", tried: []status.Tried{{Account: "work\x07", Why: "has a\tnew token"}}, want: "after [work] has a new token"},
+	}
+	for _, tt := range tests {
+		if got := marked(status.TriedWords(tt.tried...)); got != tt.want {
+			t.Errorf("%s: TriedWords(%v) = %q, want %q", tt.name, tt.tried, got, tt.want)
+		}
+	}
+}
+
+func TestFromWordsAreHowRoutingWordsStart(t *testing.T) {
+	from := marked(status.FromWords("work\x07"))
+	if routing := marked(status.RoutingWords("moved: work hit its limit", status.Facts{From: "work"})); from != "from [work]" || !strings.HasPrefix(routing, from+", ") {
+		t.Errorf("FromWords(work) = %q, and RoutingWords %q, want \"from [work]\", as the routing words start", from, routing)
 	}
 }
 
@@ -281,16 +453,60 @@ func TestWordsString(t *testing.T) {
 	}
 }
 
-func TestRescored(t *testing.T) {
-	if got, want := status.Rescored("15h"), "rescored after 15h idle"; got != want {
-		t.Errorf("Rescored(15h) = %q, want %q", got, want)
+// rescoredFiled are reasons for sessions rescored after they idled, as the
+// build before Rescored took a duration filed them, which ledgers and events
+// files keep: how long each idled, the reason filed, and the span its words
+// read in it.
+var rescoredFiled = []struct {
+	name        string
+	idle        time.Duration
+	filed, span string
+}{
+	{name: "less than none", idle: -time.Minute, filed: "rescored after now idle", span: "now"},
+	{name: "none", idle: 0, filed: "rescored after now idle", span: "now"},
+	{name: "under a minute", idle: 59 * time.Second, filed: "rescored after 0m idle", span: "0m"},
+	{name: "a minute", idle: time.Minute, filed: "rescored after 1m idle", span: "1m"},
+	{name: "just under an hour, cut to the minute", idle: time.Hour - time.Second, filed: "rescored after 59m idle", span: "59m"},
+	{name: "an hour", idle: time.Hour, filed: "rescored after 1h idle", span: "1h"},
+	{name: "an hour, and seconds too few for a minute", idle: time.Hour + 59*time.Second, filed: "rescored after 1h idle", span: "1h"},
+	{name: "just past an hour, its minutes unpadded", idle: time.Hour + time.Minute, filed: "rescored after 1h 1m idle", span: "1h 1m"},
+	{name: "hours and minutes", idle: 12*time.Hour + 14*time.Minute, filed: "rescored after 12h 14m idle", span: "12h 14m"},
+	{name: "whole hours", idle: 15 * time.Hour, filed: "rescored after 15h idle", span: "15h"},
+	{name: "just under a day", idle: 24*time.Hour - time.Second, filed: "rescored after 23h 59m idle", span: "23h 59m"},
+	{name: "a day", idle: 24 * time.Hour, filed: "rescored after 1d idle", span: "1d"},
+	{name: "a day, and minutes too few for an hour", idle: 24*time.Hour + 59*time.Minute, filed: "rescored after 1d idle", span: "1d"},
+	{name: "just past a day", idle: 25 * time.Hour, filed: "rescored after 1d 1h idle", span: "1d 1h"},
+	{name: "days and hours, cut to the hour", idle: 5*24*time.Hour + 12*time.Hour + 59*time.Minute, filed: "rescored after 5d 12h idle", span: "5d 12h"},
+	{name: "hundreds of days", idle: 400 * 24 * time.Hour, filed: "rescored after 400d idle", span: "400d"},
+}
+
+func TestARescoredReasonFilesHowLongItsSessionIdledAsReasonsAlwaysHave(t *testing.T) {
+	for _, tt := range rescoredFiled {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.Rescored(tt.idle); got != tt.filed {
+				t.Errorf("Rescored(%v) = %q, want %q", tt.idle, got, tt.filed)
+			}
+		})
+	}
+}
+
+func TestARescoredReasonReadsBackItsIdleSpanFiledBeforeOrSince(t *testing.T) {
+	for _, tt := range rescoredFiled {
+		t.Run(tt.name, func(t *testing.T) {
+			want := "rescored after {" + tt.span + "} idle"
+			for _, reason := range []string{tt.filed, status.Rescored(tt.idle)} {
+				if got := marked(status.EventWords(reason, status.Facts{})); got != want {
+					t.Errorf("EventWords(%q) = %q, want %q", reason, got, want)
+				}
+			}
+		})
 	}
 }
 
 func TestPassingOverEndsAReasonAsPassedOverReadsIt(t *testing.T) {
 	tests := []struct{ reason, account, want string }{
 		{reason: status.ReasonNew, account: "personal", want: "new, personal under pressure"},
-		{reason: status.Rescored("15h"), account: "work", want: "rescored after 15h idle, work under pressure"},
+		{reason: status.Rescored(15 * time.Hour), account: "work", want: "rescored after 15h idle, work under pressure"},
 	}
 	for _, tt := range tests {
 		got := status.PassingOver(tt.reason, tt.account)
@@ -316,5 +532,40 @@ func TestPassedOverIsTheAccountUnderPressureAChoicePassedOver(t *testing.T) {
 		if got := status.PassedOver(tt.reason); got != tt.want {
 			t.Errorf("PassedOver(%q) = %q, want %q", tt.reason, got, tt.want)
 		}
+	}
+}
+
+func TestRunningWordsSayWhyASessionIsOnItsAccountAndSinceWhen(t *testing.T) {
+	now := time.Date(2026, 10, 1, 14, 42, 7, 0, time.FixedZone("UTC+1", 60*60))
+	at := time.Date(2026, 10, 1, 13, 31, 13, 0, time.UTC)
+	tests := []struct {
+		name   string
+		reason string
+		facts  status.Facts
+		want   string
+	}{
+		{name: "a new session", reason: status.ReasonNew, facts: status.Facts{At: at, Now: now}, want: "started here 14:31"},
+		{name: "a new session on the account new sessions still go to", reason: status.ReasonNew, facts: status.Facts{At: at, Best: true, Now: now}, want: "started here 14:31, the best"},
+		{name: "a new session that passed an account over: started, all the same", reason: "new, personal under pressure", facts: status.Facts{At: at, Now: now}, want: "started here 14:31"},
+		{name: "its own pin, never the best", reason: status.ReasonPinned, facts: status.Facts{At: at, Best: true, Now: now}, want: "pinned here 14:31"},
+		{name: "a move off an account at its reserve, the account it left the reason's", reason: "moved: work is at its reserve", facts: status.Facts{To: "side", At: at, Now: now}, want: "moved from [work] 14:31: [work] reached its cap"},
+		{name: "a move off an account at its reserve that passed an account over for pressure: why it moved, then the pressure", reason: "moved: work is at its reserve, personal under pressure", facts: status.Facts{To: "side", At: at, Now: now}, want: "moved from [work] 14:31: [work] reached its cap, [personal] came under pressure"},
+		{name: "its pin yielding that passed an account over for pressure: why it yielded, then the pressure", reason: "pin yields: side has no room, personal under pressure", facts: status.Facts{At: at, Now: now}, want: "its pin to [side] yields: [side] has no room, [personal] came under pressure"},
+		{name: "a move by the global pin, the account it left the event's", reason: status.ReasonMovedByPin, facts: status.Facts{From: "work", To: "side", At: at, Now: now}, want: "moved from [work] 14:31: pinned to [side]"},
+		{name: "its pin yielding: no when", reason: "pin yields: side has no room", facts: status.Facts{At: at, Now: now}, want: "its pin to [side] yields: [side] has no room"},
+		{name: "chosen afresh under the global pin, from nowhere told", reason: status.ReasonGlobalPin, facts: status.Facts{To: "side", At: at, Now: now}, want: "here since 14:31: pinned to [side]"},
+		{name: "a reason from a later router, cleaned", reason: "balanced\x1b", facts: status.Facts{At: at, Now: now}, want: "here since 14:31: balanced"},
+		{name: "no reason", facts: status.Facts{At: at, Now: now}, want: "here since 14:31"},
+		{name: "no reason, from an account told", facts: status.Facts{From: "work", At: at, Now: now}, want: "moved from [work] 14:31"},
+		{name: "when unknown: unsaid", reason: status.ReasonGlobalPin, facts: status.Facts{To: "side", Now: now}, want: "pinned to [side]"},
+		{name: "on another day: its weekday too", reason: status.ReasonNew, facts: status.Facts{At: at.Add(-48 * time.Hour), Now: now}, want: "started here Tue 14:31"},
+		{name: "yesterday, within a day: its weekday too, as Dated says it", reason: status.ReasonNew, facts: status.Facts{At: at.Add(-16 * time.Hour), Now: now}, want: "started here Wed 22:31"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := marked(status.RunningWords(tt.reason, tt.facts)); got != tt.want {
+				t.Errorf("RunningWords(%q) = %q, want %q", tt.reason, got, tt.want)
+			}
+		})
 	}
 }

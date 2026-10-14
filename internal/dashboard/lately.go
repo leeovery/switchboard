@@ -2,204 +2,228 @@ package dashboard
 
 import (
 	"slices"
+	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
-// latelyLabel is the label of what a card's back says has befallen its
-// account lately.
-const latelyLabel = "LATELY"
-
-// lateLine is a line of a card's LATELY: the event it tells of, by id, when
-// that happened, its mark, its words, and what follows them where there's
-// room for that whole. Of a move a limit counts, limit is that limit's
-// event's id; and counts is set on the line that counts the sessions the
-// limit it tells of moved.
-type lateLine struct {
-	id     int
-	at     time.Time
-	mark   span
-	words  string
-	more   line
-	limit  int
-	counts bool
+// eventKind is a kind of the router's event as the dashboard draws it: the
+// kind, as an event's Kind gives it; its mark, a glyph in the colour of what
+// it tells of, as LATELY and the Log's Events share them; and what it is, as
+// the Log's panel words it, and help after its mark. Its word, as the Log's
+// event column and its panel name it, is views.KindWord's, as events prints
+// it too.
+type eventKind struct {
+	kind  string
+	mark  span
+	means string
 }
 
-// lately draws the card fc's LATELY on its back, under what's drawn above
-// it, which ends before row y, and over the keys on row foot, from x, width
-// cells wide: a blank row, its label, and under it as many of what has
-// befallen its account lately as fit with a blank row left over the keys,
-// the newest first, as newest picks them, each picked out while it's fresh;
-// where there's room for one at least.
-func (f Frame) lately(c *canvas, fc face, now time.Time, x, y, width, foot int) {
-	lines := newest(fc.lately, max(foot-y-3, 0), lateLine.counted, lateLine.counting)
-	if len(lines) == 0 {
+// eventKinds are the kinds of the router's events in the design's order, as
+// help and the Log's panel list them: a mark a kind, but for ■, which a limit
+// and a refusal share, their words telling them apart.
+var eventKinds = []eventKind{
+	{kind: status.EventStarted, mark: span{"▲", accentInk}, means: "a session first seen"},
+	{kind: status.EventMoved, mark: span{"▸", keyMarkInk}, means: "a session moved to another account"},
+	{kind: status.EventPressure, mark: span{"◔", warningInk}, means: "an account under pressure"},
+	{kind: status.EventCap, mark: span{"╎", warningInk}, means: "an account at its cap"},
+	{kind: status.EventLimit, mark: span{"■", errorInk}, means: "an account at its limit"},
+	{kind: status.EventRefused, mark: span{"■", errorInk}, means: "an account's token refused"},
+	{kind: status.EventPrimed, mark: span{"◇", dimInk}, means: "a window started early"},
+	{kind: status.EventRoom, mark: span{"✓", positiveInk}, means: "an account with room again"},
+	{kind: status.EventPin, mark: span{"●", keyMarkInk}, means: "routing set by hand"},
+	{kind: status.EventAuto, mark: span{"↩", keyMarkInk}, means: "routing given back to the router"},
+	{kind: status.EventRestart, mark: span{"!", warningInk}, means: "a restart of the router falling due"},
+	{kind: status.EventHealth, mark: span{"⊕", errorInk}, means: "the router unhealthy, or well again"},
+}
+
+// keyMarkInk draws a mark in accent.key, as a move's, a pin's and auto's are.
+var keyMarkInk = ink{token: theme.AccentKey}
+
+// kindMark is the mark of the kind of event given, as eventKinds has it:
+// none of a kind it doesn't know.
+func kindMark(kind string) span {
+	if i := slices.IndexFunc(eventKinds, func(k eventKind) bool { return k.kind == kind }); i >= 0 {
+		return eventKinds[i].mark
+	}
+	return span{}
+}
+
+// eventMark is the mark of an event of the kind given, as LATELY and the
+// Log's Events draw it: its kind's, as kindMark gives it, but the router's
+// health well again, as well says, in state.positive.
+func eventMark(kind string, well bool) span {
+	mark := kindMark(kind)
+	if well {
+		mark.ink = positiveInk
+	}
+	return mark
+}
+
+// latelySection is the Overview's LATELY of doc at now: what's happened,
+// newest first, as many of its sentences as it has, leastLines of them at its
+// least, or a line saying why it has none; folded, its first, as it's drawn.
+// Its sentences are told only as its draw, its fold, or a layout made
+// afresh asks for them, as latelyTelling tells them.
+func (f Frame) latelySection(doc status.Document, now time.Time) section {
+	m := f.Moment(doc, now)
+	told := latelyTelling(m)
+	return section{
+		Section: SectionLately, least: linesRows(0),
+		lines: func() int { return len(told(mostLines)) },
+		draw: func(c *canvas, body bounds) {
+			f.drawLately(c, m, told(body.rows), body)
+		},
+		folded: func() line {
+			first := f.latelyLines(m, told(1))
+			if len(first) == 0 {
+				return f.quiet(m)
+			}
+			return first[0]
+		},
+	}
+}
+
+// latelyTelling tells LATELY's sentences of the moment m in n lines,
+// mostLines at most, each n told once: those it has in mostLines, where
+// they're told and all fit; else told for n, as a move folded into a line
+// that doesn't show then shows alone, so the first n of them aren't always
+// them.
+func latelyTelling(m status.Moment) func(n int) []views.Sentence {
+	var mu sync.Mutex
+	told := make(map[int][]views.Sentence)
+	return func(n int) []views.Sentence {
+		mu.Lock()
+		defer mu.Unlock()
+		n = min(n, mostLines)
+		if all, ok := told[mostLines]; ok && len(all) <= n {
+			return all
+		}
+		if _, ok := told[n]; !ok {
+			told[n] = views.Lately(m, n)
+		}
+		return told[n]
+	}
+}
+
+// drawLately draws the sentences given, those body has rows for, a line each
+// from its top, each picked out while it's fresh; or, where there are none,
+// why LATELY has none, of the document as m has it.
+func (f Frame) drawLately(c *canvas, m status.Moment, sentences []views.Sentence, body bounds) {
+	end := body.x + body.width
+	if len(sentences) == 0 {
+		f.quietly(c, m, body.x, body.y, end)
 		return
 	}
-	c.line(x, y+1, line{{latelyLabel, labelInk}})
-	column := 0
-	for _, l := range lines {
-		column = max(column, len(status.Dated(now, l.at)))
+	for i, l := range f.latelyLines(m, sentences) {
+		c.line(body.x, body.y+i, l.fit(body.width))
+		f.freshen(c, sentences[i].ID, body.x, body.y+i, end)
 	}
-	for i, l := range lines {
-		row := y + 2 + i
-		said := line{{padded(status.Dated(now, l.at), column) + "  ", dimInk}, l.mark, spaces(1), {l.words, mutedInk}}
-		if whole := slices.Concat(said, l.more); whole.width() <= width {
-			said = whole
+}
+
+// quiet is what LATELY says where it lists no events, of the document as m
+// has it: that the router isn't running, or answering as it should, while
+// probing for want of it; that probing as asked reads none; that the router,
+// from before it told of events, wants restarting; or that it has told of
+// none lately. It's nil while nothing has been read.
+func (f Frame) quiet(m status.Moment) line {
+	switch {
+	case m.Routed && f.Outdated:
+		return line{{"restart the router for recent events", dimInk}}
+	case m.Routed:
+		return line{{"nothing lately", dimInk}}
+	case !m.Probed:
+		return nil
+	case m.Fallback.Router == status.RouterNotRunning:
+		return line{{"the router isn't running", dimInk}}
+	case m.Fallback.Router == status.RouterUnhealthy:
+		return line{{"the router isn't answering", dimInk}}
+	default:
+		return line{{"none while probing, as asked", dimInk}}
+	}
+}
+
+// quietly draws why LATELY lists no events, of the document as m has
+// it, from x along row y until the column end, where it says, and returns
+// the lines it drew.
+func (f Frame) quietly(c *canvas, m status.Moment, x, y, end int) int {
+	quiet := f.quiet(m)
+	if quiet == nil {
+		return 0
+	}
+	c.line(x, y, quiet.fit(end-x))
+	return 1
+}
+
+// freshen picks out the row of the event with the given id, from x along
+// row y until the column end, while it's fresh: cued, its cue fading back.
+func (f Frame) freshen(c *canvas, id, x, y, end int) {
+	if fade, ok := f.Fresh[id]; ok {
+		cue(c, f.Look, x, y, end-x, fade)
+	}
+}
+
+// latelyLines are the sentences given as LATELY's lines at m's moment: each
+// led as latelyLeads has it, the first's time in text.secondary; then its
+// words, as the frame tells them, as saidLine draws them.
+func (f Frame) latelyLines(m status.Moment, sentences []views.Sentence) []line {
+	names := overviewNames(m)
+	lines := latelyLeads(m, sentences)
+	for i, s := range sentences {
+		if i == 0 {
+			lines[i][0].ink = secondaryInk
 		}
-		c.line(x, row, said.fit(width))
-		f.freshen(c, l.id, x-padding, row, x+width+padding)
-	}
-}
-
-// counted is the id of the limit's event that counts the move the line tells
-// of, zero for a line of anything else.
-func (l lateLine) counted() int {
-	return l.limit
-}
-
-// counting is the id of the limit's event whose moves the line counts, zero
-// for a line that counts none.
-func (l lateLine) counting() int {
-	if l.counts {
-		return l.id
-	}
-	return 0
-}
-
-// latelies are what each account's LATELY tells of, by its id, of doc's
-// events, the newest first, times in now's time zone, as toldLately tells
-// each: the events taken in once, for every account at once.
-func latelies(doc status.Document, now time.Time) map[string][]lateLine {
-	arrived := arrivals(doc)
-	lines := make(map[string][]lateLine)
-	for _, e := range doc.Events {
-		e.At = e.At.In(now.Location())
-		for _, l := range toldLately(e, doc, arrived) {
-			lines[l.account] = append(lines[l.account], l.lateLine)
-		}
+		lines[i] = append(lines[i], saidLine(m, names, f.latelySaid(s))...)
 	}
 	return lines
 }
 
-// toldTo is a line of LATELY and the account whose card tells it.
-type toldTo struct {
-	account string
-	lateLine
+// latelyLeads are the leads of LATELY's lines, the Overview's and Detail's
+// alike, of the sentences given at m's moment: each its time, in a column as
+// wide as the widest, in text.subtle; then its mark.
+func latelyLeads(m status.Moment, sentences []views.Sentence) []line {
+	column := 0
+	for _, s := range sentences {
+		column = max(column, len(prose.Dated(m.Now, s.At)))
+	}
+	leads := make([]line, len(sentences))
+	for i, s := range sentences {
+		leads[i] = line{{padded(prose.Dated(m.Now, s.At), column) + afterTime, dimInk}, eventMark(s.Kind, s.Well), spaces(1)}
+	}
+	return leads
 }
 
-// toldLately is what LATELY tells of an event, a line each thing it tells,
-// each on the card of the account it befell, from that account's side, its
-// name left out: what befell it, as aside tells it, as RECENT tells it after
-// its name; a session starting there; a limit it reached, then the sessions
-// that limit moved; a session moving off it and onto another; and sessions
-// another's limit moved to it, as arrived counts them. A move a limit counts
-// is marked so. It's nothing of a kind LATELY doesn't tell of.
-func toldLately(e status.Event, doc status.Document, arrived map[int]map[string][]string) []toldTo {
-	tell := func(account string, mark span, words string, more line) toldTo {
-		return toldTo{account: account, id: e.ID, at: e.At, mark: mark, words: words, more: more}
+// latelySaid are a sentence's words as the Overview's LATELY tells them on
+// the frame: short on a phone. Detail's tells them in full, as
+// accountLatelyLines has them.
+func (f Frame) latelySaid(s views.Sentence) views.Said {
+	if f.phone() {
+		return s.Short
 	}
-	switch e.Kind {
-	case status.EventMoved:
-		off := tell(e.From, movedMark, sessionID(e.Session)+" moved to "+named(doc, e.To), why(doc, e.Reason))
-		on := tell(e.To, movedMark, sessionID(e.Session)+" moved here from "+named(doc, e.From), why(doc, e.Reason))
-		off.limit, on.limit = e.Limit, e.Limit
-		return []toldTo{off, on}
-	case status.EventStarted:
-		return []toldTo{tell(e.Account, span{"▲", accentInk}, sessionID(e.Session)+" started here", why(doc, e.Reason))}
-	case status.EventLimit:
-		mark, gist, _, _ := aside(e, doc)
-		told := []toldTo{tell(e.Account, mark, gist, nil)}
-		if e.Count > 0 {
-			moved := tell(e.Account, movedMark, status.SessionCount(e.Count)+" moved"+movedTo(doc, e), nil)
-			moved.counts = true
-			told = append(told, moved)
-		}
-		for _, a := range doc.Accounts {
-			if n := arrivedAt(e, a.ID, arrived); n > 0 && a.ID != e.Account {
-				here := tell(a.ID, movedMark, status.SessionCount(n)+" arrived from "+named(doc, e.Account), nil)
-				here.counts = true
-				told = append(told, here)
+	return s.Full
+}
+
+// saidLine is a sentence's words as LATELY draws them: its subject in bold
+// text.primary, its object in bold text.secondary, and its other words in
+// text.muted, each account it names named as names, overviewNames' of m, have
+// it.
+func saidLine(m status.Moment, names []accountName, s views.Said) line {
+	var l line
+	for _, part := range []struct {
+		words status.Words
+		ink   ink
+	}{{s.Subject, titleInk}, {s.Words, mutedInk}, {s.Object, strongInk}, {s.Rest, mutedInk}} {
+		for _, p := range part.words {
+			said := span{p.Text, part.ink}
+			if p.Kind == status.PartAccount {
+				said = overviewNamed(m, names, p.Text, part.ink)
 			}
-		}
-		return told
-	}
-	if mark, gist, tail, ok := aside(e, doc); ok {
-		return []toldTo{tell(e.Account, mark, gist, tail)}
-	}
-	return nil
-}
-
-// arrivedAt counts the sessions the limit e moved to the account with the
-// given id: every one it moved, where they all went there; else, where they
-// went to several, those arrived says went there.
-func arrivedAt(e status.Event, id string, arrived map[int]map[string][]string) int {
-	switch {
-	case e.To == id:
-		return e.Count
-	case e.To != "":
-		return 0
-	default:
-		return len(arrived[e.ID][id])
-	}
-}
-
-// arrivals are the sessions the moves of doc's events that a limit counts
-// took to each account, by the limit's event's id, then by the account's id,
-// each session once, however many of its models moved.
-func arrivals(doc status.Document) map[int]map[string][]string {
-	arrived := make(map[int]map[string][]string)
-	for _, m := range doc.Events {
-		if m.Kind != status.EventMoved || m.Limit == 0 {
-			continue
-		}
-		if arrived[m.Limit] == nil {
-			arrived[m.Limit] = make(map[string][]string)
-		}
-		if !slices.Contains(arrived[m.Limit][m.To], m.Session) {
-			arrived[m.Limit][m.To] = append(arrived[m.Limit][m.To], m.Session)
+			l = append(l, said)
 		}
 	}
-	return arrived
-}
-
-// movedTo says where the sessions a limit moved went, where they all went to
-// one account, as in " to side": nothing where they didn't.
-func movedTo(doc status.Document, e status.Event) string {
-	if e.To == "" {
-		return ""
-	}
-	return " to " + named(doc, e.To)
-}
-
-// newest are as many of items as n allows, in their order, the newest
-// first, but a move a limit counts, as counted says, while a line counting
-// that limit's moves, as counting says, is among them: a move whose limit's
-// line doesn't show, as it's too old to, shows itself.
-func newest[T any](items []T, n int, counted, counting func(T) int) []T {
-	shows := make(map[int]bool)
-	for {
-		var kept []T
-		told := make(map[int]bool)
-		for _, item := range items {
-			if len(kept) == n {
-				break
-			}
-			if limit := counted(item); limit != 0 && !shows[limit] {
-				continue
-			}
-			kept = append(kept, item)
-			told[counting(item)] = true
-		}
-		more := false
-		for _, item := range items {
-			if limit := counted(item); limit != 0 && !shows[limit] && !told[limit] {
-				shows[limit], more = true, true
-			}
-		}
-		if !more {
-			return kept
-		}
-	}
+	return l
 }

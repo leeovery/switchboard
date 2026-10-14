@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/router"
@@ -72,6 +73,39 @@ func TestAnEventNewerThanTheLastLookSawIsPickedOutFadingBack(t *testing.T) {
 	}
 }
 
+func TestAFreshEventsCueDrawsFramesOnlyOnScreen(t *testing.T) {
+	tests := []struct {
+		name   string
+		height int
+		keys   []string
+		frames bool
+	}{
+		{name: "its row on screen, in LATELY", height: 60, frames: true},
+		{name: "LATELY folded to its heading", height: 26},
+		{name: "its row under help's card", height: 60, keys: []string{"?"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, withEvents(2, 1))
+			h.update(tea.WindowSizeMsg{Width: 160, Height: tt.height})
+			h.start()
+			h.settle()
+			for _, key := range tt.keys {
+				h.deliver(h.press(key)...)
+			}
+
+			h.startRouter(withEvents(3, 2, 1))
+			h.tickUntilAsked()
+			if got := h.fresh(); !slices.Equal(got, []int{3}) {
+				t.Fatalf("picked out %v, want the event new to the look, 3", got)
+			}
+			if _, framing := h.pendingFrame(); framing != tt.frames {
+				t.Errorf("a frame is armed: %t, want %t", framing, tt.frames)
+			}
+		})
+	}
+}
+
 func TestEveryEventOfAnotherRouterIsNew(t *testing.T) {
 	started := start.Add(-time.Hour).UTC()
 	tests := []struct {
@@ -103,7 +137,7 @@ func TestAProbeBetweenLooksAtOneRouterForgetsNothingSeen(t *testing.T) {
 	h := routedHarness(t, withEvents(2, 1))
 	h.start()
 	h.stopRouter()
-	h.deliver(h.press("r")...)
+	h.deliver(h.press("R")...)
 
 	h.startRouter(withEvents(3, 2, 1))
 	h.tickUntilAsked()
@@ -125,6 +159,7 @@ func TestAFreshEventIsPickedOutOnScreen(t *testing.T) {
 		t.Errorf("the new event's row is %q, want it on bg.attention", row)
 	}
 	h.clock.now = h.clock.now.Add(highlightFor)
+	h.redraw()
 	if row := rowWith(h.model.View().Content, "13:05"); strings.Contains(row, attention) {
 		t.Errorf("once its time is over, the new event's row is %q, want it back on the canvas", row)
 	}

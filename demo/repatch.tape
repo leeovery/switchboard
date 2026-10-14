@@ -1,7 +1,9 @@
-# A clip for the README's grid: Sessions as work reaches its limit in the
-# routing scenario, at 12s: the 429 bouncing back red along its cord, the
-# call re-patched to side, and work's other sessions following with their
-# next requests, LOG saying why.
+# A clip for the README's grid: Sessions' Switchboard as personal reaches its
+# limit. capturetool plays the repatch scenario (internal/capture/scenarios.go)
+# from 16:05:26: 41e0's request reaches personal's limit at 14.5s, refused at
+# 14.8s, the 429 bouncing back red along its cord, and goes on to side, its
+# old cord hanging red from personal's jack at the look by 20s; 9c2e asks at
+# 21s and follows it, the second cord hanging, a cell shorter, by 25s.
 #
 # Record it, and make art/repatch.webp and art/repatch.mp4:
 #   demo/record.sh repatch
@@ -13,9 +15,9 @@ Set FontFamily "JetBrains Mono"
 Set FontSize 17
 Set LetterSpacing 0
 Set LineHeight 1
-# 160 × 34 cells of 10 × 22 px.
+# 160 × 37 cells of 10 × 22 px: the frames' size.
 Set Width 1660
-Set Height 792
+Set Height 858
 Set Padding 16
 Set CursorBlink false
 Set Framerate 30
@@ -23,15 +25,19 @@ Set Theme { "name": "nord", "background": "#2E3440", "foreground": "#D8DEE9", "c
 Set WaitTimeout 2m
 
 Hide
-Type "demo/out/capturetool --scenario routing"
+# In UTC, as the frames are drawn, whatever the recording machine's zone.
+Type "TZ=UTC demo/out/capturetool --scenario repatch"
 Enter
 Wait+Screen /SWITCHBOARD/
-Sleep 7s
+# Sessions, the Switchboard, its keycaps gone by 2s.
 Tab
-Sleep 3600ms
+Tab
+Tab
+Sleep 2s
 Show
 
-Sleep 6s
+# Hidden at 27s, the second cord hanging since the look by 25s.
+Sleep 25s
 
 Hide
 Type "q"

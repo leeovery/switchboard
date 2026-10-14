@@ -8,24 +8,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 // usageWords are how a world's document reads at the frames' moment, as the
 // usage block draws it: each account's windows, their use and even pace in
-// whole percent, then where they run out, or their allowance; the pool's
-// windows, their bars' use and the room left; and what's coming up.
+// whole percent, then where they run out, as the moment has it, or their
+// allowance; the pool's windows, their bars' use and the room left; and
+// what's coming up.
 func usageWords(doc status.Document, now time.Time) []string {
+	m := doc.At(now, claude.Policy)
 	var words []string
 	for _, a := range doc.Accounts {
+		at, _ := m.Account(a.ID)
 		for _, w := range a.Windows {
 			line := fmt.Sprintf("%s %s %d%%", a.ID, w.Key, percent(w.Utilization))
 			if w.Pace != nil {
 				line += fmt.Sprintf(" pace %d%%", percent(*w.Pace))
 			}
-			if out, ok := doc.RunsOut(a, w, now); ok {
-				line += " out " + out.At.In(now.Location()).Format("Mon 15:04")
+			if stands, _ := at.Window(w.Key); !stands.Out.At.IsZero() {
+				line += " out " + stands.Out.At.In(now.Location()).Format("Mon 15:04")
 			} else if w.Allowance.Per != "" {
 				line += fmt.Sprintf(" %d%%/%s", percent(w.Allowance.Share), w.Allowance.Per)
 			}
@@ -171,12 +175,24 @@ func TestTheWorldsRouterStandsAsTheFramesDrawIt(t *testing.T) {
 			}
 		}},
 		{name: "work alone", world: worlds.one(), sessions: 5},
+		{name: "work alone, its afternoon told", world: worlds.oneLately(), sessions: 3, check: func(t *testing.T, doc status.Document) {
+			pressed := doc.Events[0]
+			if work, _ := doc.Account("work"); !work.Pressure.Under || !pressed.Until.Equal(work.Pressure.RunsOut) {
+				t.Errorf("work came under pressure running out %s, and stands %+v, want it under pressure, running out then", pressed.Until, work.Pressure)
+			}
+		}},
+		{name: "f41a resumed", world: worlds.resumed(), sessions: 6},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := tt.world.document(worlds.now)
 			if doc.Sessions != tt.sessions {
 				t.Errorf("the router has sent %d sessions in the last hour, want %d", doc.Sessions, tt.sessions)
+			}
+			for _, a := range doc.Accounts {
+				if a.Extra != extraOff {
+					t.Errorf("%s's extra usage reads %+v, want it off, as the frames draw every account's", a.ID, a.Extra)
+				}
 			}
 			if !doc.GeneratedAt.Equal(worlds.now.Add(-readAgo).UTC()) {
 				t.Errorf("the document was read at %s, want %s before the moment", doc.GeneratedAt, readAgo)
@@ -220,26 +236,53 @@ func TestAnAccountReadLongAgoIsWorkedOutFromItsReadingsToThen(t *testing.T) {
 	}
 }
 
-// A world's accounts are its own: changing them changes no other's, nor the
-// ten the frames number.
+// A world's accounts are its own: changing them changes no other's, the same
+// world's asked for again included, nor the ten the frames number.
 func TestAWorldsAccountsAreItsOwn(t *testing.T) {
 	worlds := worldsNow()
 	numbered := slices.Clone(tenAccounts)
 	t.Cleanup(func() { copy(tenAccounts, numbered) })
 	tests := []struct {
 		name  string
-		world accountWorld
+		world func() accountWorld
 	}{
-		{name: "work alone", world: worlds.one()},
-		{name: "auto", world: worlds.auto()},
-		{name: "six accounts", world: worlds.many(6)},
-		{name: "ten accounts", world: worlds.many(10)},
+		{name: "work alone", world: worlds.one},
+		{name: "auto", world: worlds.auto},
+		{name: "six accounts", world: func() accountWorld { return worlds.many(6) }},
+		{name: "ten accounts", world: func() accountWorld { return worlds.many(10) }},
 	}
 	for _, tt := range tests {
-		tt.world.accounts[0].Label = "changed"
+		tt.world().accounts[0].Label = "changed"
 		if !reflect.DeepEqual(tenAccounts, numbered) {
 			t.Errorf("changing the accounts of %s changed the ten the frames number, to %+v", tt.name, tenAccounts)
 			copy(tenAccounts, numbered)
+		}
+		if again := tt.world().accounts; !reflect.DeepEqual(again, firstAccounts(len(again))) {
+			t.Errorf("changing the accounts of %s changed them as it's asked for again, to %+v", tt.name, again)
+		}
+	}
+}
+
+// The worlds build each world once, as it's first asked for, and its records
+// once, as they're first asked for, however many fixtures are drawn over it.
+func TestTheWorldsKeepEachWorldAndItsRecords(t *testing.T) {
+	worlds, built := worldsNow(), 0
+	counted := func() accountWorld {
+		return worlds.kept("counted", func() accountWorld {
+			built++
+			return accountWorld{accounts: firstAccounts(1)}
+		})
+	}
+	first, second := counted(), counted()
+	if built != 1 {
+		t.Errorf("a world asked for twice was built %d times, want once", built)
+	}
+	if first.records() != second.records() {
+		t.Error("a world asked for twice has records built twice, want them built once")
+	}
+	for _, name := range []string{"overview-default-160", "routing-auto-160"} {
+		if f := fixture(t, name); f.records != worlds.auto().records() {
+			t.Errorf("%s, over the auto world, has records built of their own, want the world's", name)
 		}
 	}
 }

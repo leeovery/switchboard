@@ -47,9 +47,10 @@ for name in "$@"; do
   w="${size%,*}" h="${size#*,}"
 
   # The cursor's layer over the text's, on a margin of the screen's own
-  # canvas, its top-left pixel's, which the theme picker changes as it goes.
+  # canvas, which the theme picker changes as it goes: its top-right pixel's,
+  # above the clock, as the title's badge paints the top-left.
   ffmpeg -v error -y -framerate "$fps" -i "$src/frame-text-%05d.png" -framerate "$fps" -i "$src/frame-cursor-%05d.png" \
-    -filter_complex "[0][1]overlay=format=rgb,split[screen][corner];[corner]crop=1:1:0:0,scale=$((w + 2 * pad)):$((h + 2 * pad)):flags=neighbor[margin];[margin][screen]overlay=$pad:$pad:format=rgb" \
+    -filter_complex "[0][1]overlay=format=rgb,split[screen][corner];[corner]crop=1:1:$((w - 1)):0,scale=$((w + 2 * pad)):$((h + 2 * pad)):flags=neighbor[margin];[margin][screen]overlay=$pad:$pad:format=rgb" \
     -pix_fmt rgb24 "$frames/f%05d.png"
 
   echo "==> $name"

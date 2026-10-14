@@ -205,6 +205,9 @@ type Router struct {
 	accounts accounts
 	state    *state
 	sessions *sessions
+	// scheduler is the proxy's chooser, which also says where it would send
+	// each session's next request, as the sessions are listed.
+	scheduler *scheduler
 	// recent keeps the router's newest events, and emit tells each of them
 	// to whatever hears them.
 	recent *recent
@@ -282,19 +285,20 @@ func New(cfg Config) (*Router, error) {
 		health.wake()
 	}}
 	return &Router{
-		cfg:      cfg,
-		upstream: upstream,
-		accounts: accounts,
-		state:    state,
-		sessions: sessions,
-		recent:   recent,
-		emit:     emit,
-		stream:   stream,
-		file:     newStateFile(cfg.Now, changes, sessions, accounts, state),
-		history:  history,
-		ledger:   requests,
-		probes:   probes,
-		health:   health,
+		cfg:       cfg,
+		upstream:  upstream,
+		accounts:  accounts,
+		state:     state,
+		sessions:  sessions,
+		scheduler: scheduler,
+		recent:    recent,
+		emit:      emit,
+		stream:    stream,
+		file:      newStateFile(cfg.Now, changes, sessions, accounts, state),
+		history:   history,
+		ledger:    requests,
+		probes:    probes,
+		health:    health,
 		proxy: &proxy{
 			upstream:       upstream,
 			transport:      transport,

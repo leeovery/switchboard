@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -99,20 +100,11 @@ func (s *scheduler) Forget(req Request) (string, bool) {
 }
 
 // decide chooses on what's known now, and returns the situation the choice
-// was made in: the request pinned as its session's own pin has it, a pin given
-// while the session runs passing over the one it was launched with.
+// was made in, as situation builds it.
 func (s *scheduler) decide(req Request) (decision, situation) {
 	now := s.now()
 	found := s.sessions.lookup(req.key())
-	on := situation{
-		req:      req,
-		now:      now,
-		current:  found.current,
-		assigned: found.assigned,
-		pin:      found.global,
-		accounts: s.view(req, now),
-	}
-	on.req.Pin, on.pinnedAt = found.pin(req.Pin)
+	on := found.situation(req, now, s.view(req, now))
 	return decide(on), on
 }
 
@@ -147,6 +139,35 @@ func (d decision) changes(was decision) []any {
 	return attrs
 }
 
+// auto returns the account the next request of model, of the session with the
+// given id, would go out on at now were the session to have no pin of its own,
+// as decide chooses it: the router's own rule for the session, which keeps it
+// where it runs while that account has room and a move would cost it
+// something. It chooses on what's known, probing no account and noting
+// nothing in the log. It returns "" where it can't say: the session has no
+// assignment for the model, or no account has room for the request, which
+// would have the accounts probed again before it went out, if only for the
+// upstream to refuse it.
+func (s *scheduler) auto(id, model string, now time.Time) string {
+	return s.autoOn(id, model, now, func() view { return s.state.glance(model, now) })
+}
+
+// autoOn is auto, the accounts as glance gives them, glanced at only where
+// the session has an assignment for the model.
+func (s *scheduler) autoOn(id, model string, now time.Time, glance func() view) string {
+	req := Request{Session: id, Model: model, Bound: s.sessions.bound(model)}
+	found := s.sessions.lookup(req.key())
+	if !found.assigned {
+		return ""
+	}
+	found.given = false
+	d := decide(found.situation(req, now, glance()))
+	if d.noRoom {
+		return ""
+	}
+	return d.account
+}
+
 // view is what a choice for req knows at now: an account the request has
 // been tried on has no room for it.
 func (s *scheduler) view(req Request, now time.Time) view {
@@ -158,7 +179,7 @@ func (s *scheduler) view(req Request, now time.Time) view {
 // being used at, and when, at that rate, it runs out, which comes before it
 // resets.
 func notePressure(req Request, d decision) {
-	logger.Info("passed over under pressure", "id", req.ID, "account", d.passedOver, "rate", status.Percent(d.pressure.Rate)+" an hour",
+	logger.Info("passed over under pressure", "id", req.ID, "account", d.passedOver, "rate", prose.Percent(d.pressure.Rate)+" an hour",
 		"runs_out", d.pressure.RunsOut, "chosen", d.account)
 }
 

@@ -35,8 +35,10 @@ import (
 )
 
 const (
-	// dateLayout is the layout of a day's date in its files' names.
-	dateLayout = time.DateOnly
+	// dateLayout is the layout of a day's date in its files' names; and
+	// monthLayout, of the month a day falls in, as a date's leads with it.
+	dateLayout  = time.DateOnly
+	monthLayout = "2006-01"
 	// compressAfter is how many days after its day ends a day's file is
 	// compressed, as doneWith counts them: today's and yesterday's never
 	// are, so lines are appended to plain files, and read back from them, in
@@ -95,7 +97,34 @@ func (l Lines) Add(at time.Time, line []byte) {
 // DateOf is the date of the local day t falls on, as the files' names give
 // it.
 func DateOf(t time.Time) string {
-	return t.Local().Format(dateLayout)
+	return CivilOf(t).Format(dateLayout)
+}
+
+// Civil is the day with the given date, as the files' names give it, as a
+// date in UTC, where every date has its midnight and its 24 hours, for
+// counting days and naming them. It reports false for a date that isn't one.
+func Civil(date string) (time.Time, bool) {
+	day, err := time.Parse(dateLayout, date)
+	return day, err == nil
+}
+
+// CivilOf is the local day t falls on, as Civil gives a day.
+func CivilOf(t time.Time) time.Time {
+	y, m, d := t.Local().Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
+// MonthOf is the month the day, as Civil gives one, falls in, as a date
+// leads with it, as 2026-10.
+func MonthOf(day time.Time) string {
+	return day.Format(monthLayout)
+}
+
+// MonthStart is the first day of the month given as MonthOf gives one, as
+// Civil gives a day. It reports false for a month that isn't one.
+func MonthStart(month string) (time.Time, bool) {
+	first, err := time.Parse(monthLayout, month)
+	return first, err == nil
 }
 
 // Day returns when the local day with the given date, as the files' names
@@ -108,9 +137,8 @@ func Day(date string) (start, end time.Time, ok bool) {
 // dayIn returns when the day with the given date starts and ends in loc, as
 // Day says.
 func dayIn(date string, loc *time.Location) (start, end time.Time, ok bool) {
-	// UTC has every date's midnight, so the date parses there as itself.
-	day, err := time.Parse(dateLayout, date)
-	if err != nil {
+	day, ok := Civil(date)
+	if !ok {
 		return time.Time{}, time.Time{}, false
 	}
 	y, m, d := day.Date()
@@ -355,12 +383,19 @@ func doneWith(day time.Time) time.Time {
 // clocks change between, so always at a day's start. Part of a day counts as
 // a whole one, so the files are never kept less than keep.
 func pastKeeping(day time.Time, keep time.Duration) time.Time {
+	return DayStart(endOf(day), keptDays(keep))
+}
+
+// keptDays are how many days after a day ends its files are kept, kept as
+// long as keep says, as pastKeeping counts them: part of a day counts as a
+// whole one.
+func keptDays(keep time.Duration) int {
 	const whole = 24 * time.Hour
 	days := keep / whole
 	if keep%whole > 0 {
 		days++
 	}
-	return DayStart(endOf(day), int(days))
+	return int(days)
 }
 
 // KeptUntil returns the date of the last local day the files of the local day
@@ -380,6 +415,24 @@ func keptUntilIn(date string, keep time.Duration, loc *time.Location) (string, b
 		return "", false
 	}
 	return pastKeeping(day, keep).Add(-time.Nanosecond).In(loc).Format(dateLayout), true
+}
+
+// OldestKept returns when the oldest local day whose files are kept at now
+// starts, kept as long as keep says: the day whose files KeptUntil keeps
+// until now's, so a prune at now leaves its files, and removes those of the
+// days before it. It reports false where keep is Forever, which keeps every
+// day's.
+func OldestKept(now time.Time, keep time.Duration) (time.Time, bool) {
+	return oldestKeptIn(now, keep, time.Local)
+}
+
+// oldestKeptIn returns when the oldest day in loc whose files are kept at now
+// starts, as OldestKept says.
+func oldestKeptIn(now time.Time, keep time.Duration, loc *time.Location) (time.Time, bool) {
+	if keep == Forever {
+		return time.Time{}, false
+	}
+	return DayStart(now.In(loc), -keptDays(keep)), true
 }
 
 // compress moves the lines of the plain file of the local day with the given

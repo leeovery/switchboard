@@ -1,0 +1,164 @@
+package watch
+
+import (
+	"unicode/utf8"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/leeovery/switchboard/internal/dashboard"
+)
+
+// clicked acts on a click of the left button, as what it lands on, of the
+// targets the page on screen gives, says: as clickedOn has it. While the
+// Log's panel is open, a click on a tick ticks it; while another card is, a
+// click does nothing, as its keys alone act; and on the theme picker,
+// nothing, as it takes keys alone.
+func (m Model) clicked(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
+	click := msg.Mouse()
+	switch {
+	case click.Button != tea.MouseLeft || m.onPicker(click.X):
+		return m, nil
+	case m.open == logPanelOpen:
+		return m.clickedLogPanel(click.X, click.Y), nil
+	case m.open != nothingOpen:
+		return m, nil
+	}
+	f, doc, at := m.screen(m.now())
+	t, ok := targetAt(f.Targets(doc, at), click.X, click.Y)
+	if !ok {
+		return m, nil
+	}
+	return m.clickedOn(t)
+}
+
+// targetAt is the target of those given that takes in the cell at x along
+// row y, reporting false where none does.
+func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
+	for _, t := range targets {
+		if t.Y == y && t.X <= x && x < t.X+t.Width {
+			return t, true
+		}
+	}
+	return dashboard.Target{}, false
+}
+
+// clickedOn does what a click on the target does, which is what its key
+// does, the page acting as acting has it: on Accounts and Sessions, as
+// accountsClick and sessionsClick have it; on a tab, it shows it, as showTab
+// has it; on a sub-tab, it shows it, as showSubTab has it, or the Log's; on <
+// or > by a period or Runway's window, it presses it; on a key of the key
+// line, it presses it, as pressOf says, as on the Log's ▼ N new, which
+// presses end; on an Overview's section's heading, it hides the section, as
+// its key does; on an account's row there, it moves the focus to it, as
+// focusOn has it; on a session's row, it opens its page, as openSession has
+// it; on a turn's row on its page, it acts as clickTurn has it, and on a
+// request's row of its turn open, as clickRequest has it; and on a line of
+// the Log's table, it chooses it, as clickedLine has it. Nothing else on the
+// page takes a click yet. While the theme picker is open, a click on what it
+// doesn't take, as pickerTakes has it, does nothing.
+func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
+	if m.picker.open && !pickerTakes(t.On) {
+		return m, nil
+	}
+	if next, cmd, ok := m.accountsClick(t); ok {
+		return next, cmd
+	}
+	if next, cmd, ok := m.sessionsClick(t); ok {
+		return next, cmd
+	}
+	switch t.On {
+	case dashboard.OnTab:
+		return m.acting().showTab(t.Tab), nil
+	case dashboard.OnSubTab:
+		if m.shownView() == dashboard.Log {
+			m.log.page = m.log.page.Showing(dashboard.LogView(t.SubTab))
+			return m, nil
+		}
+		return m.acting().showSubTab(t.SubTab), nil
+	case dashboard.OnStep:
+		return m.pressed(stepPress(t.Step))
+	case dashboard.OnKey:
+		if press, ok := pressOf(t.Key); ok {
+			return m.pressed(press)
+		}
+	case dashboard.OnSection:
+		return m.acting().toggle(t.Section), nil
+	case dashboard.OnAccount:
+		return m.acting().focusOn(t.Account), nil
+	case dashboard.OnSession:
+		return m.openSession(t.Session)
+	case dashboard.OnTurn:
+		return m.clickTurn(t.Turn)
+	case dashboard.OnRequest:
+		return m.clickRequest(t.Row)
+	case dashboard.OnRow:
+		return m.clickedLine(t.Row)
+	}
+	return m, nil
+}
+
+// pickerTakes reports whether a click on a target of the kind given acts
+// while the theme picker is open: a key's alone, as the key line lists the
+// picker's keys then, and the press a click on a key stands for goes to the
+// picker, as every key does. A click on anything else would act on the page
+// under the picker, where no key reaches.
+func pickerTakes(on dashboard.Clicked) bool {
+	return on == dashboard.OnKey
+}
+
+// clickedLine acts on a click on the line of the Log's table shown at the
+// place given among its lines: on the line chosen, it opens its details, as
+// enter does; on another row, it chooses it, pausing the table where it
+// follows, as ChoseLine has it.
+func (m Model) clickedLine(at int) (tea.Model, tea.Cmd) {
+	if m.log.page.Lit(at) {
+		return m.openLogCard()
+	}
+	m.log.page = m.log.page.ChoseLine(at, m.logRows())
+	return m, nil
+}
+
+// onPicker reports whether the column x is on the theme picker, while it's
+// open over the page's right.
+func (m Model) onPicker(x int) bool {
+	return m.picker.open && x >= m.size.Width-dashboard.PickerWidth(m.size.Width)
+}
+
+// namedPresses are the presses of the keys the key line names by a word or
+// by a pair. A pair, which moves either way, is pressed as the way on: ↓, ],
+// > and →.
+var namedPresses = map[string]tea.KeyPressMsg{
+	"tab":   {Code: tea.KeyTab},
+	"enter": {Code: tea.KeyEnter},
+	"esc":   {Code: tea.KeyEscape},
+	"end":   {Code: tea.KeyEnd},
+	"↑↓":    {Code: tea.KeyDown},
+	"[ ]":   {Code: ']', Text: "]"},
+	"< >":   {Code: '>', Text: ">"},
+	"←→":    {Code: tea.KeyRight},
+}
+
+// stepPress is the press of the key that steps a period, or Runway's
+// window, the way given, as a click on < or > by it does: < back, for -1,
+// and > on.
+func stepPress(way int) tea.KeyPressMsg {
+	if way < 0 {
+		return tea.KeyPressMsg{Code: '<', Text: "<"}
+	}
+	return namedPresses["< >"]
+}
+
+// pressOf is the key press a click on a key of the key line, named as the
+// line names it, is taken as, reporting false for a name that's no key. The
+// key line gives p and q no target, so a stray click neither routes nor
+// quits.
+func pressOf(name string) (tea.KeyPressMsg, bool) {
+	if press, ok := namedPresses[name]; ok {
+		return press, true
+	}
+	r, size := utf8.DecodeRuneInString(name)
+	if size == 0 || size != len(name) {
+		return tea.KeyPressMsg{}, false
+	}
+	return tea.KeyPressMsg{Code: r, Text: name}, true
+}

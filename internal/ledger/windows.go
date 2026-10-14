@@ -243,6 +243,13 @@ func (c *Climb) Rise() float64 {
 	return c.rise
 }
 
+// Resets returns the resets that ended the window's runs, in the order they
+// came, as a day's summary files them: those that read above nothing, each
+// with the highest use of the run it ended.
+func (c *Climb) Resets() []Reset {
+	return slices.Clone(c.resets)
+}
+
 // reset notes the window's reset at at, the highest use of the run it ended
 // before it, and ends that run, the next beginning at nothing. A run that
 // never read above nothing, the use carried into it included, notes none:
@@ -321,36 +328,11 @@ func byWhen(a, b Reset) int {
 	return cmp.Or(a.At.Compare(b.At), strings.Compare(a.Window, b.Window))
 }
 
-// hold is how far a reading of a window holds its account back.
-type hold int
-
-const (
-	// open holds it back at nothing.
-	open hold = iota
-	// capped is the window at or past the account's cap, short of its limit,
-	// as score.HeldByReserve says.
-	capped
-	// limited is the window refused, or used up, as score.Spent says.
-	limited
-)
-
-// holdOf returns how far w, a reading of a window of an account whose
-// reserve is the one given, holds the account back.
-func holdOf(w quota.Window, reserve float64) hold {
-	switch {
-	case score.Spent(w):
-		return limited
-	case score.HeldByReserve(w, reserve):
-		return capped
-	}
-	return open
-}
-
 // edge is where a reading of a window comes to hold its account back, or
 // stops: n is 1 at the one, -1 at the other.
 type edge struct {
 	at   time.Time
-	hold hold
+	hold score.Hold
 	n    int
 }
 
@@ -367,34 +349,34 @@ func minutesAt(windows map[string]*windowDay, reserve float64, shared []string) 
 			continue
 		}
 		for _, s := range d.stood {
-			if h := holdOf(s.window, reserve); h != open {
+			if h := score.HoldOf(s.window, reserve); h != score.NotHeld {
 				edges = append(edges, edge{at: s.from, hold: h, n: 1}, edge{at: s.to, hold: h, n: -1})
 			}
 		}
 	}
 	// Edges at one time, in whatever order, have no time between them.
 	slices.SortFunc(edges, func(a, b edge) int { return a.at.Compare(b.at) })
-	var holding [limited + 1]int
-	var held [limited + 1]time.Duration
+	var holding [score.HeldAtLimit + 1]int
+	var held [score.HeldAtLimit + 1]time.Duration
 	for i, e := range edges {
 		if i > 0 {
 			held[heldMost(holding)] += e.at.Sub(edges[i-1].at)
 		}
 		holding[e.hold] += e.n
 	}
-	return wholeMinutes(held[capped]), wholeMinutes(held[limited])
+	return wholeMinutes(held[score.HeldAtCap]), wholeMinutes(held[score.HeldAtLimit])
 }
 
 // heldMost returns the most any window holds an account back, holding
 // counting the windows that hold it back as far as each hold.
-func heldMost(holding [limited + 1]int) hold {
+func heldMost(holding [score.HeldAtLimit + 1]int) score.Hold {
 	switch {
-	case holding[limited] > 0:
-		return limited
-	case holding[capped] > 0:
-		return capped
+	case holding[score.HeldAtLimit] > 0:
+		return score.HeldAtLimit
+	case holding[score.HeldAtCap] > 0:
+		return score.HeldAtCap
 	}
-	return open
+	return score.NotHeld
 }
 
 // wholeMinutes returns d in minutes, rounded to the nearest.

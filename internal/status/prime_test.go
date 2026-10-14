@@ -105,11 +105,11 @@ func TestComing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{Source: status.SourceRouter, Prime: tt.prime, Accounts: tt.accounts}
 			var got []string
-			for _, c := range doc.Coming(now) {
+			for _, c := range doc.At(now, policy).Coming {
 				got = append(got, c.What+" "+c.Account.ID+" "+c.At.Sub(now).String())
 			}
 			if !slices.Equal(got, tt.want) {
-				t.Errorf("Coming() = %q, want %q", got, tt.want)
+				t.Errorf("Coming = %q, want %q", got, tt.want)
 			}
 		})
 	}

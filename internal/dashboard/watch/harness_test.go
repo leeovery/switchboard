@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -72,11 +73,19 @@ func newHarness(t *testing.T, doc status.Document) *harness {
 func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
 	t.Helper()
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: doc}, notifier: &fakeNotifier{}}
-	h.model = New(t.Context(), Config{
+	h.model = New(t.Context(), h.config(size))
+	return h
+}
+
+// config is the watch's config the harness's models are made of, drawing
+// at size till the terminal gives its own, reading an empty ledger, and a
+// model's family and an account's week as Claude's are read.
+func (h *harness) config(size Size) Config {
+	return Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Await: h.await,
 		Interval: interval, Policy: policy, Size: size, Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
-	})
-	return h
+		Family: claude.Provider{}.Family, WeekWindow: claude.WeekWindow,
+	}
 }
 
 // arm records a timer instead of starting one.
@@ -158,6 +167,22 @@ func (h *harness) deliver(msgs ...tea.Msg) {
 	}
 }
 
+// holdingReads delivers msgs and all they send back, as deliver does, but
+// for the Log's reads of its own, which it holds back undelivered, as reads
+// still under way, and returns.
+func (h *harness) holdingReads(msgs ...tea.Msg) []tea.Msg {
+	h.t.Helper()
+	var held []tea.Msg
+	for ; len(msgs) > 0; msgs = msgs[1:] {
+		if _, ok := msgs[0].(logReadMsg); ok {
+			held = append(held, msgs[0])
+			continue
+		}
+		msgs = append(msgs, h.update(msgs[0])...)
+	}
+	return held
+}
+
 // run runs cmd and every command it batches, returning what they send back.
 func (h *harness) run(cmd tea.Cmd) []tea.Msg {
 	if cmd == nil {
@@ -186,11 +211,11 @@ func (h *harness) press(key string) []tea.Msg {
 	return h.update(tea.KeyPressMsg{Code: []rune(key)[0], Text: key})
 }
 
-// read has the source read doc from now on, and reads it with r.
+// read has the source read doc from now on, and reads it with R.
 func (h *harness) read(doc status.Document) {
 	h.t.Helper()
 	h.source.doc = doc
-	h.deliver(h.press("r")...)
+	h.deliver(h.press("R")...)
 }
 
 // fire moves the clock to when tm is due, and delivers it.
@@ -274,32 +299,31 @@ func (h *harness) pendingFrame() (*timer, bool) {
 	return nil, false
 }
 
-// pendingFrames are the frames armed and not yet fired, the soonest due
-// first.
-func (h *harness) pendingFrames() []*timer {
-	var frames []*timer
-	for _, tm := range h.timers {
-		if _, ok := tm.msg.(frameMsg); ok && !tm.fired {
-			frames = append(frames, tm)
-		}
-	}
-	slices.SortStableFunc(frames, func(a, b *timer) int { return a.due.Compare(b.due) })
-	return frames
-}
+// nudgeMsg is a message the model takes in doing nothing with it, as Bubble
+// Tea passes on many.
+type nudgeMsg struct{}
 
-// framesUntil fires the frames armed, the soonest due first, as timers fire,
-// until none is due by t.
-func (h *harness) framesUntil(t time.Time) {
+// redraw has the screen drawn as the model stands at the clock's time, as
+// Bubble Tea draws it after any message: the clock moved by hand moves
+// nothing on screen till one comes.
+func (h *harness) redraw() {
 	h.t.Helper()
-	for frames := h.pendingFrames(); len(frames) > 0 && !frames[0].due.After(t); frames = h.pendingFrames() {
-		h.fire(frames[0])
-	}
+	h.update(nudgeMsg{})
 }
 
 // settle fires frames until the bars have eased to their readings.
 func (h *harness) settle() {
 	h.t.Helper()
 	for tm, ok := h.pendingFrame(); ok; tm, ok = h.pendingFrame() {
+		h.fire(tm)
+	}
+}
+
+// framesUntil fires the frames armed, each in turn, until the next is due
+// after t, or none is armed.
+func (h *harness) framesUntil(t time.Time) {
+	h.t.Helper()
+	for tm, ok := h.pendingFrame(); ok && !tm.due.After(t); tm, ok = h.pendingFrame() {
 		h.fire(tm)
 	}
 }
@@ -340,15 +364,42 @@ func (h *harness) view() string {
 	return ansi.Strip(h.model.View().Content)
 }
 
-// footer is the screen's last line, without its margins, its keys and what's
-// at its right set apart by a dot each, as in "a auto · q quit · read 0s
-// ago".
-func (h *harness) footer() string {
+// keyLine is the screen's last row, the key line, without its margins, its
+// keys set apart by a dot each, as in "tab views · ? help · q quit".
+func (h *harness) keyLine() string {
 	lines := strings.Split(h.view(), "\n")
 	return strings.Join(gaps.Split(strings.TrimSpace(lines[len(lines)-1]), -1), " · ")
 }
 
-// gaps are the blanks between the parts of the footer.
+// listed are the keys of the model's key line as it stands, in order.
+func (h *harness) listed() []string {
+	var keys []string
+	for _, group := range h.model.live(h.clock.now).KeyLine.Groups {
+		keys = append(keys, listedKeys(group)...)
+	}
+	return keys
+}
+
+// grouped are the model's key line's groups as it stands, each key with its
+// word, as in "tab views".
+func (h *harness) grouped() [][]string {
+	var groups [][]string
+	for _, group := range h.model.live(h.clock.now).KeyLine.Groups {
+		var keys []string
+		for _, k := range group {
+			keys = append(keys, k.Key+" "+k.Does)
+		}
+		groups = append(groups, keys)
+	}
+	return groups
+}
+
+// nextRead is when the next full read is due, to the minute, as in "13:42".
+func (h *harness) nextRead() string {
+	return h.model.plan.due.In(start.Location()).Format("15:04")
+}
+
+// gaps are the blanks between the keys of the key line.
 var gaps = regexp.MustCompile(` {2,}`)
 
 // fakeClock tells the time the test sets.
@@ -570,11 +621,6 @@ func reserving(a status.Account, reserve float64) status.Account {
 // unreadable is an account whose token the API refused.
 func unreadable(id, label string) status.Account {
 	return status.Account{ID: id, Label: label, TokenSet: true, Error: "HTTP 401 · Invalid bearer token"}
-}
-
-// tokenless is an account without a usable token.
-func tokenless(id, label string) status.Account {
-	return status.Account{ID: id, Label: label, Error: "token missing: write it to tokens/" + id}
 }
 
 // partlyRead is an account whose Fable window couldn't be read.

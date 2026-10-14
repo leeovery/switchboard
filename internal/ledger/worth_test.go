@@ -77,9 +77,7 @@ func TestEachModelIsPricedAsAnthropicsPricingPageGivesIt(t *testing.T) {
 		input, write5m, write1h, read, output float64
 	}{
 		{ids: []string{"claude-fable-5-1"}, input: 10, write5m: 12.50, write1h: 20, read: 0.25, output: 50},
-		{ids: []string{"claude-mythos-5-1"}, input: 10, write5m: 12.50, write1h: 20, read: 0.25, output: 50},
 		{ids: []string{"claude-fable-5"}, input: 10, write5m: 12.50, write1h: 20, read: 1, output: 50},
-		{ids: []string{"claude-mythos-5"}, input: 10, write5m: 12.50, write1h: 20, read: 1, output: 50},
 		{ids: []string{"claude-opus-5-5"}, input: 4, write5m: 5, write1h: 8, read: 0.20, output: 20},
 		{ids: []string{"claude-opus-5"}, input: 5, write5m: 6.25, write1h: 10, read: 0.50, output: 25},
 		{ids: []string{"claude-opus-4-8"}, input: 5, write5m: 6.25, write1h: 10, read: 0.50, output: 25},
@@ -283,24 +281,26 @@ func TestWhatThePricesCantPriceIsLeftUnpricedNotGuessed(t *testing.T) {
 
 func TestAnAmountIsShownToTheCentOrTheDollarAndGivenInDollarsExactly(t *testing.T) {
 	tests := []struct {
-		amount         ledger.Picodollars
-		cents, dollars string
-		json           string
+		amount                  ledger.Picodollars
+		cents, dollars, grouped string
+		json                    string
 	}{
-		{amount: 0, cents: "$0.00", dollars: "$0", json: "0"},
-		{amount: 1, cents: "$0.00", dollars: "$0", json: "0.000000000001"},
-		{amount: dollars(0.004999), cents: "$0.00", dollars: "$0", json: "0.004999"},
-		{amount: dollars(0.005), cents: "$0.01", dollars: "$0", json: "0.005"},
-		{amount: dollars(46.153846), cents: "$46.15", dollars: "$46", json: "46.153846"},
-		{amount: dollars(412.532118), cents: "$412.53", dollars: "$413", json: "412.532118"},
-		{amount: dollars(12), cents: "$12.00", dollars: "$12", json: "12"},
-		{amount: -dollars(1.5), cents: "-$1.50", dollars: "-$2", json: "-1.5"},
+		{amount: 0, cents: "$0.00", dollars: "$0", grouped: "$0", json: "0"},
+		{amount: 1, cents: "$0.00", dollars: "$0", grouped: "$0", json: "0.000000000001"},
+		{amount: dollars(0.004999), cents: "$0.00", dollars: "$0", grouped: "$0", json: "0.004999"},
+		{amount: dollars(0.005), cents: "$0.01", dollars: "$0", grouped: "$0", json: "0.005"},
+		{amount: dollars(46.153846), cents: "$46.15", dollars: "$46", grouped: "$46", json: "46.153846"},
+		{amount: dollars(412.532118), cents: "$412.53", dollars: "$413", grouped: "$413", json: "412.532118"},
+		{amount: dollars(12), cents: "$12.00", dollars: "$12", grouped: "$12", json: "12"},
+		{amount: dollars(27479.5), cents: "$27479.50", dollars: "$27480", grouped: "$27,480", json: "27479.5"},
+		{amount: -dollars(1.5), cents: "-$1.50", dollars: "-$2", grouped: "-$2", json: "-1.5"},
+		{amount: -dollars(1234.4), cents: "-$1234.40", dollars: "-$1234", grouped: "-$1,234", json: "-1234.4"},
 	}
 	for _, tt := range tests {
 		got, err := json.Marshal(tt.amount)
-		if tt.amount.Cents() != tt.cents || tt.amount.Dollars() != tt.dollars || err != nil || string(got) != tt.json {
-			t.Errorf("%d picodollars shows as %s and %s and is given as %s (%v), want %s, %s and %s",
-				tt.amount, tt.amount.Cents(), tt.amount.Dollars(), got, err, tt.cents, tt.dollars, tt.json)
+		if tt.amount.Cents() != tt.cents || tt.amount.Dollars() != tt.dollars || tt.amount.GroupedDollars() != tt.grouped || err != nil || string(got) != tt.json {
+			t.Errorf("%d picodollars shows as %s, %s and %s and is given as %s (%v), want %s, %s, %s and %s",
+				tt.amount, tt.amount.Cents(), tt.amount.Dollars(), tt.amount.GroupedDollars(), got, err, tt.cents, tt.dollars, tt.grouped, tt.json)
 		}
 	}
 }
@@ -377,8 +377,13 @@ func TestARequestThatWentUpstreamWithoutUsageIsUnpricedNeverFree(t *testing.T) {
 		{name: "one whose answer gave its usage", edit: func(*ledger.Line) {}, want: ledger.Worth{Cost: dollars(10*4e-6 + 20*20e-6)}},
 		{name: "one cut short", edit: func(l *ledger.Line) { l.Usage, l.CutOff = nil, true }, want: ledger.Worth{Unpriced: []string{"no_usage"}}},
 		{name: "one the API answered with an error", edit: func(l *ledger.Line) { l.Usage, l.Status = nil, 529 }, want: ledger.Worth{Unpriced: []string{"no_usage"}}},
+		{name: "a line of no kind cut short, as the summary tallies it upstream", edit: func(l *ledger.Line) { l.Usage, l.Kind, l.CutOff = nil, "", true },
+			want: ledger.Worth{Unpriced: []string{"no_usage"}}},
+		{name: "a kind a later router adds, cut short", edit: func(l *ledger.Line) { l.Usage, l.Kind, l.CutOff = nil, "batch", true },
+			want: ledger.Worth{Unpriced: []string{"no_usage"}}},
 		{name: "one the router answered itself", edit: func(l *ledger.Line) { l.Usage, l.Attempts, l.Status = nil, 0, 429 }},
 		{name: "a count of tokens, which spends nothing", edit: func(l *ledger.Line) { l.Usage, l.Kind = nil, ledger.KindCount }},
+		{name: "the client's quota check", edit: func(l *ledger.Line) { l.Usage, l.Kind = nil, ledger.KindCheck }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

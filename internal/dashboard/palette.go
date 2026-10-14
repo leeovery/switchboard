@@ -3,6 +3,7 @@ package dashboard
 import (
 	"image/color"
 	"math"
+	"unique"
 
 	"charm.land/lipgloss/v2"
 
@@ -12,8 +13,8 @@ import (
 // Look is how a frame is drawn: in a theme's colours, with its blends worked
 // out against the colour beneath them, and its canvas painted on every cell
 // where the dashboard fills the screen; or, as NO_COLOR asks, without colour,
-// state told by its glyphs and bold. The zero Look draws text alone, without
-// escapes.
+// state told by its glyphs and bold, and a selected row in reverse video. The
+// zero Look draws text alone, without escapes.
 type Look struct {
 	theme theme.Theme
 	// ground is what blends are worked out against: the canvas the look
@@ -42,7 +43,8 @@ func Print(t theme.Theme, background color.Color) Look {
 	return Look{theme: t, ground: background, styled: true, coloured: true}
 }
 
-// NoColour is the look NO_COLOR asks for: no canvas and no colour, bold alone.
+// NoColour is the look NO_COLOR asks for: no canvas and no colour, bold and a
+// selected row's reverse video alone.
 func NoColour() Look {
 	return Look{styled: true}
 }
@@ -97,62 +99,84 @@ type ink struct {
 	// faint, as a short bar's empty cells are.
 	fade float64
 	// glow blends the colour so far toward text.primary, from 0, all the
-	// colour, to 1, all text.primary: a cord lit by what travels it.
+	// colour, to 1, all text.primary: a cord lit by what travels it, or a
+	// number brightened as it changes.
 	glow float64
 	// ramp marks a bar's filled cell, coloured by where it sits along the
 	// bar, at, from 0 at its first cell to 1 at its last, rather than by a
 	// token.
 	ramp bool
 	at   float64
+	// step draws it at a step of its colour's ramp of shades, 1 to 4, from
+	// viz.day.0 toward it, as a family's strips are: 0 for the colour itself.
+	step int
 	// on is the surface it's drawn on, such as a selected row's, or a bar's
 	// projection under the cell its fill ends in: the zero hue for the
 	// canvas.
 	on   hue
 	bold bool
+	// dim draws it faint where the look can't fade it, as a look that blends
+	// nothing draws what the others fade, such as a stale reading's bar.
+	dim bool
+	// behind marks a cell of the page behind a card: its colours, as its own
+	// fade and glow leave them, and its surface's, faded behindFade more into
+	// the colour beneath; or, in a look that blends nothing, faint, on no
+	// surface.
+	behind bool
+	// mark is what of the page a span in the ink draws that moves as it
+	// changes, where it draws any, as a number the page brightens: the
+	// canvas notes it on the cells it draws the span in, and leaves it out of
+	// their ink. It's held by its handle, a word, as every cell of every
+	// frame has an ink.
+	mark unique.Handle[mark]
 }
 
+// behindFade is how far the page behind a card fades into the colour
+// beneath: it keeps a fifth of its colour.
+const behindFade = 0.8
+
 // hue is a colour as an ink has one: a token's, or a bar's ramp's at a place
-// along it, faded so far into the colour beneath. The zero hue is no colour.
+// along it, faded so far into the colour beneath, then taken to a step of its
+// ramp of shades. The zero hue is no colour.
 type hue struct {
 	token theme.Token
 	ramp  bool
 	at    float64
 	fade  float64
+	step  int
 }
 
 // hue is the ink's own colour, as a hue.
 func (k ink) hue() hue {
-	return hue{token: k.token, ramp: k.ramp, at: k.at, fade: k.fade}
+	return hue{token: k.token, ramp: k.ramp, at: k.at, fade: k.fade, step: k.step}
 }
 
 var (
-	textInk       = ink{token: theme.TextTertiary}
-	dimInk        = ink{token: theme.TextSubtle}
-	nameInk       = ink{token: theme.AccentMode, bold: true}
-	accentInk     = ink{token: theme.AccentMode}
-	borderInk     = ink{token: theme.Border}
-	bestBorderInk = ink{token: theme.AccentMode}
-	focusInk      = ink{token: theme.AccentKey}
-	titleInk      = ink{token: theme.TextPrimary, bold: true}
-	badgeInk      = ink{token: theme.AccentMode, bold: true}
-	pinBadgeInk   = ink{token: theme.AccentPrimary, bold: true}
-	primaryInk    = ink{token: theme.TextTertiary}
-	trackInk      = ink{token: theme.VizTrack}
-	paceInk       = ink{token: theme.VizPace}
-	reserveInk    = ink{token: theme.VizReserve}
-	warningInk    = ink{token: theme.AccentAttention}
-	alertInk      = ink{token: theme.AccentAttention, bold: true}
-	errorInk      = ink{token: theme.StateDestructive}
-	exhaustedInk  = ink{token: theme.StateDestructive, bold: true}
-	labelInk      = ink{token: theme.TextSubtle, bold: true}
-	mutedInk      = ink{token: theme.TextMuted}
-	secondaryInk  = ink{token: theme.TextSecondary}
-	strongInk     = ink{token: theme.TextSecondary, bold: true}
-	faintInk      = ink{token: theme.TextFaint}
-	positiveInk   = ink{token: theme.StatePositive}
-	primedInk     = ink{token: theme.AccentPrimary}
-	keyInk        = ink{token: theme.AccentKey, bold: true}
-	noteInk       = ink{token: theme.TextSecondary}
+	dimInk       = ink{token: theme.TextSubtle}
+	nameInk      = ink{token: theme.AccentMode, bold: true}
+	accentInk    = ink{token: theme.AccentMode}
+	borderInk    = ink{token: theme.Border}
+	titleInk     = ink{token: theme.TextPrimary, bold: true}
+	primaryInk   = ink{token: theme.TextTertiary}
+	trackInk     = ink{token: theme.VizTrack}
+	paceInk      = ink{token: theme.VizPace}
+	reserveInk   = ink{token: theme.VizReserve}
+	warningInk   = ink{token: theme.AccentAttention}
+	alertInk     = ink{token: theme.AccentAttention, bold: true}
+	errorInk     = ink{token: theme.StateDestructive}
+	exhaustedInk = ink{token: theme.StateDestructive, bold: true}
+	labelInk     = ink{token: theme.TextSubtle, bold: true}
+	mutedInk     = ink{token: theme.TextMuted}
+	secondaryInk = ink{token: theme.TextSecondary}
+	strongInk    = ink{token: theme.TextSecondary, bold: true}
+	faintInk     = ink{token: theme.TextFaint}
+	positiveInk  = ink{token: theme.StatePositive}
+	keyInk       = ink{token: theme.AccentKey, bold: true}
+	noteInk      = ink{token: theme.TextSecondary}
+
+	// boldPositiveInk is what's gone well, as alertInk is what hasn't: a
+	// worth against its price at 1× or more, and a verdict of enough.
+	boldPositiveInk = ink{token: theme.StatePositive, bold: true}
 )
 
 // render draws text in the ink, as the look draws it.
@@ -172,28 +196,49 @@ func (l Look) render(text string, k ink) string {
 	return style.Render(text)
 }
 
-// faint reports whether the look draws the ink faint, in the terminal's own
-// foreground, as its theme draws the ink's token.
+// faint reports whether the look draws the ink faint: in the terminal's own
+// foreground, as its theme draws the ink's token; or dim, or behind a card,
+// where the look can't fade it.
 func (l Look) faint(k ink) bool {
-	return l.coloured && !k.ramp && l.theme.Faint(k.token)
+	return l.coloured && (!k.ramp && l.theme.Faint(k.token) || (k.dim || k.behind) && !l.blends())
 }
 
 // reversed reports whether the look draws the ink's surface by swapping the
-// terminal's own foreground and background, as its theme draws the
-// surface's token: until it's faded halfway, as a look that blends nothing
-// shows a surface.
+// terminal's own foreground and background, as it reverses the surface's
+// token: until it's faded halfway, as a look that blends nothing shows a
+// surface, and never behind a card.
 func (l Look) reversed(k ink) bool {
-	return l.coloured && !k.on.ramp && l.theme.Reversed(k.on.token) && k.on.fade < 0.5
+	return !k.on.ramp && l.reverses(k.on.token) && k.on.fade < 0.5 && !k.behind
 }
 
-// colour is the ink's colour in the look, glowing and faded as the ink says:
-// nil without colour.
+// reverses reports whether the look draws the surface tok by swapping the
+// terminal's own foreground and background: as its theme draws it, or,
+// without colour, a selected row's, as the terminal theme draws it.
+func (l Look) reverses(tok theme.Token) bool {
+	if !l.coloured {
+		return l.styled && tok == theme.BgSelection
+	}
+	return l.theme.Reversed(tok)
+}
+
+// colour is the ink's colour in the look, glowing, faded and stepped as the
+// ink says, then veiled behind a card: nil without colour.
 func (l Look) colour(k ink) color.Color {
 	if !l.coloured {
 		return nil
 	}
 	h := k.hue()
-	return l.faded(l.glowing(l.unfaded(h), k.glow), h.fade)
+	return l.veiled(l.stepped(l.faded(l.glowing(l.unfaded(h), k.glow), h.fade), h.step), k)
+}
+
+// veiled is c, a colour of the ink k as finally drawn, faded behindFade into
+// the colour beneath where k is of the page behind a card: as it is
+// otherwise, and in a look that blends nothing.
+func (l Look) veiled(c color.Color, k ink) color.Color {
+	if !k.behind {
+		return c
+	}
+	return l.faded(c, behindFade)
 }
 
 // glowing is c blended amount toward text.primary, as a lit cord glows: in a
@@ -230,15 +275,16 @@ func (l Look) faded(c color.Color, amount float64) color.Color {
 }
 
 // surface is the colour the ink is drawn on in the look: its own surface's,
-// faded as the ink says, else the canvas, where the look paints it. In a
-// look that blends nothing, a surface shows until it's faded halfway.
+// faded and stepped as the ink says, then veiled behind a card, else the
+// canvas, where the look paints it. In a look that blends nothing, a surface
+// shows until it's faded halfway, and never behind a card.
 func (l Look) surface(k ink) color.Color {
 	if !l.coloured {
 		return l.Canvas()
 	}
 	on := l.unfaded(k.on)
-	if on == nil || (k.on.fade >= 0.5 && !l.blends()) {
+	if on == nil || (k.on.fade >= 0.5 || k.behind) && !l.blends() {
 		return l.Canvas()
 	}
-	return l.faded(on, k.on.fade)
+	return l.veiled(l.stepped(l.faded(on, k.on.fade), k.on.step), k)
 }

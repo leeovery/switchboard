@@ -25,9 +25,10 @@ func TestStatus(t *testing.T) {
 			got := form.run(t, deps, "status")
 			want := result{
 				stdout: `work · Work (primary)
-  Session     23%  resets in 4h 58m · Mon 18:10
-  Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~Mon 18:01
+  5-hour      23%  resets in 4h 58m · Mon 18:10
+  Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~Mon 14:34
   Fable week 100%  resets in 5d 11h · Sun 01:10 · exhausted
+  limit until Sun 01:10
 
 personal · Personal
   token missing: write it to ` + tokenPath(t, deps, "personal") + `
@@ -35,7 +36,6 @@ personal · Personal
 side · Side
   HTTP 401 · Invalid bearer token
 
-best next: work · Work
 probed directly: the router isn't running
 `,
 				code: 0,

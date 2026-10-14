@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 )
 
 // claudeLike judges windows as Claude's are judged: the session and the week
@@ -42,7 +44,7 @@ func readAccount(id string, windows ...quota.Window) status.Account {
 func limitedAccount(id string) status.Account {
 	session := sessionOf(1, time.Hour)
 	session.Status = quota.StatusRejected
-	a := readAccount(id, session, weekOf(0.89, 3*day))
+	a := readAccount(id, session, weekOf(0.89, 3*quota.Day))
 	a.Limit = status.Limit{Windows: []string{"5h"}, Until: session.ResetsAt}
 	return a
 }
@@ -50,7 +52,7 @@ func limitedAccount(id string) status.Account {
 // pressedAccount is an account whose session runs out at its last half
 // hour's rate before it resets: under pressure.
 func pressedAccount(id string) status.Account {
-	a := readAccount(id, sessionOf(0.58, 3*time.Hour), weekOf(0.34, 4*day))
+	a := readAccount(id, sessionOf(0.58, 3*time.Hour), weekOf(0.34, 4*quota.Day))
 	rate := 0.42 / 1.5
 	a.Rates = []status.Rate{{Window: "5h", Rate: rate, Since: now.Add(-score.Recent).UTC()}}
 	a.Pressure = status.Pressure{Window: "5h", Rate: rate, Recent: true, Since: now.Add(-score.Recent).UTC(), RunsOut: now.Add(90 * time.Minute).UTC(), Under: true}
@@ -61,7 +63,7 @@ func pressedAccount(id string) status.Account {
 // frames have them: work under pressure, personal at its limit, and side,
 // where new sessions go.
 func threeRouted() status.Document {
-	return routerDoc("side", 5, pressedAccount("work"), limitedAccount("personal"), readAccount("side", sessionOf(0.12, 4*time.Hour), weekOf(0.33, 5*day)))
+	return routerDoc("side", 5, pressedAccount("work"), limitedAccount("personal"), readAccount("side", sessionOf(0.12, 4*time.Hour), weekOf(0.33, 5*quota.Day)))
 }
 
 // routerDoc is the healthy router's document of the accounts, with as many
@@ -83,12 +85,12 @@ func probed(accounts ...status.Account) status.Document {
 	}.WorkedOut(claudeLike)
 }
 
-// frameOf is a frame of a terminal the size given, as text alone, listing a
-// and q, and saying it was read 4s ago.
+// frameOf is a frame of a terminal the size given, as text alone, showing
+// the Overview, its key line listing tab, ? and q.
 func frameOf(width, height int) Frame {
 	return Frame{
-		Width: width, Height: height, Views: Views(), View: Accounts, Policy: claudeLike,
-		Keys: []Key{{Key: "a", Does: "auto"}, {Key: "q", Does: "quit", Always: true}}, Status: "read 4s ago",
+		Width: width, Height: height, View: Overview, Policy: claudeLike,
+		KeyLine: KeyLine{Groups: [][]Key{{{Key: "tab", Does: "views"}}, {{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}}}, Lead: 3},
 	}
 }
 
@@ -116,12 +118,12 @@ func TestAFrameFitsEveryWidth(t *testing.T) {
 		"nothing yet": {},
 	}
 	for name, doc := range docs {
-		for _, style := range charts {
-			t.Run(name+", "+style.Name(), func(t *testing.T) {
+		for _, view := range Views() {
+			t.Run(name+", "+view.Title(), func(t *testing.T) {
 				for width := 1; width <= 200; width++ {
 					for _, height := range []int{1, 3, 8, 40} {
 						f := frameOf(width, height)
-						f.Chart = style
+						f.View = view
 						rows := f.Draw(doc, now)
 						if len(rows) != height {
 							t.Errorf("at %d×%d, drew %d rows", width, height, len(rows))
@@ -138,68 +140,223 @@ func TestAFrameFitsEveryWidth(t *testing.T) {
 	}
 }
 
-func TestAFrameDrawsTheTitleTheHeadingTheViewAndTheFooter(t *testing.T) {
-	rows := frameOf(160, 40).Draw(threeRouted(), now)
+func TestThePageDrawsEachPartOnItsRow(t *testing.T) {
+	tests := []struct {
+		name  string
+		width int
+		view  View
+		// tabs, status and heading are the rows the tabs, the status line
+		// and the heading row are on, heading -1 where there's none; top is
+		// the row the view starts at, and first what it draws there.
+		tabs, status, heading, top int
+		first                      string
+	}{
+		{name: "the Overview, whose sections head themselves", width: 160, view: Overview, status: 2, heading: -1, top: 4, first: "USAGE"},
+		{name: "the Log", width: 160, view: Log, status: 2, heading: 4, top: 6, first: "  at        session"},
+		{name: "the Overview on a phone", width: 52, view: Overview, tabs: 1, status: 3, heading: -1, top: 5, first: "USAGE"},
+		{name: "the Log on a phone", width: 52, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at       session"},
+		{name: "a phone of 99 columns", width: 99, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at       session"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(tt.width, 40)
+			f.View, f.Log.Read = tt.view, true
+			rows := textOf(f.Draw(runwayThree(), now))
 
-	if !strings.HasPrefix(rows[0], "  SWITCHBOARD    Accounts ") {
-		t.Errorf("row 1 = %q, want the title row", rows[0])
-	}
-	if !strings.HasPrefix(rows[2], " ROUTER                   NEW SESSIONS GO TO") {
-		t.Errorf("row 3 = %q, want the heading's labels", rows[2])
-	}
-	recent := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, " RECENT") })
-	if recent < 0 || rows[recent-1] != "" || strings.TrimSpace(rows[recent-2]) == "" {
-		t.Errorf("rows are\n%s\nwant RECENT a blank row under the cards", strings.Join(rows, "\n"))
-	}
-	if got, want := rows[39], " a auto   q quit"; !strings.HasPrefix(got, want) || !strings.HasSuffix(got, "read 4s ago") {
-		t.Errorf("the last row = %q, want the footer", got)
+			if !strings.HasPrefix(rows[0], " SWITCHBOARD ") || !strings.Contains(rows[tt.tabs], " Overview ") {
+				t.Errorf("rows 1 and %d read\n%s\n%s\nwant the title row and its tabs", tt.tabs+1, rows[0], rows[tt.tabs])
+			}
+			if !strings.HasPrefix(rows[tt.status], "● healthy") {
+				t.Errorf("row %d reads %q, want the status line", tt.status+1, rows[tt.status])
+			}
+			if tt.heading >= 0 && !strings.HasPrefix(rows[tt.heading], strings.ToUpper(tt.view.Title())+"  ") {
+				t.Errorf("row %d reads %q, want the heading row", tt.heading+1, rows[tt.heading])
+			}
+			if !strings.HasPrefix(rows[tt.top], tt.first) {
+				t.Errorf("row %d reads %q, want the view's first row, %q", tt.top+1, rows[tt.top], tt.first)
+			}
+			for y := tt.tabs + 1; y < tt.top; y++ {
+				if y != tt.status && y != tt.heading && rows[y] != "" {
+					t.Errorf("row %d reads %q, want it blank", y+1, rows[y])
+				}
+			}
+			if got, want := strings.TrimSpace(rows[39]), "tab views   ? help  q quit"; got != want {
+				t.Errorf("the last row reads %q, want the key line, %q", got, want)
+			}
+		})
 	}
 }
 
-func TestOneAccountUnder150ColumnsHasCOMINGUPUnderItsCardBeforeRECENT(t *testing.T) {
-	doc := routerDoc("work", 3, pressedAccount("work"))
-	doc.Events = []status.Event{{ID: 1, At: now.Add(-4 * time.Minute).UTC(), Kind: status.EventRoom, Account: "work"}}
-	rows := frameOf(149, 40).Draw(doc, now)
-
-	coming := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, " COMING UP") })
-	recent := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, " RECENT") })
-	if coming < 0 || recent < coming {
-		t.Fatalf("rows are\n%s\nwant COMING UP, then RECENT", strings.Join(rows, "\n"))
+func TestATerminalTooShortForTheViewDrawsTheTitleRowTheStatusLineAndTheKeyLineAlone(t *testing.T) {
+	tests := []struct {
+		name  string
+		width int
+		view  View
+		// least is the fewest rows the view is drawn in: the page's fixed
+		// rows and three of the view's.
+		least int
+	}{
+		{name: "the Overview", width: 160, view: Overview, least: 9},
+		{name: "a tab with a heading row", width: 160, view: Log, least: 11},
+		{name: "the Overview on a phone", width: 52, view: Overview, least: 10},
+		{name: "a phone's tab with a heading row", width: 52, view: Log, least: 12},
 	}
-	if got, want := rows[coming], " COMING UP   14:42      work runs out at its pace"; !strings.HasPrefix(got, want) {
-		t.Errorf("COMING UP reads %q, want %q, the strips' lines in one column", got, want)
-	}
-	if got, want := rows[recent], " RECENT      13:08  ● work has room again"; got != want {
-		t.Errorf("RECENT reads %q, want %q", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(tt.width, tt.least-1)
+			f.View, f.Log.Read = tt.view, true
+			for y, row := range textOf(f.Draw(threeRouted(), now)) {
+				switch {
+				case y < f.titleRows():
+					if row == "" {
+						t.Errorf("a row short, row %d is blank, want the title row", y+1)
+					}
+				case y == f.statusRow():
+					if !strings.HasPrefix(row, "● healthy") {
+						t.Errorf("a row short, row %d reads %q, want the status line", y+1, row)
+					}
+				case y == f.Height-1:
+					if !strings.HasSuffix(row, "q quit") {
+						t.Errorf("a row short, the last row reads %q, want the key line", row)
+					}
+				case row != "":
+					t.Errorf("a row short, row %d reads %q, want it blank: no heading row and no view", y+1, row)
+				}
+			}
+			if got := f.Scrolling(threeRouted(), now); got != (Scrolling{}) {
+				t.Errorf("a row short, the view scrolls %+v, want it not to, as it isn't drawn", got)
+			}
+			f.Height = tt.least
+			if rows := textOf(f.Draw(threeRouted(), now)); rows[f.top()] == "" {
+				t.Errorf("at %d rows, drew\n%s\nwant the view from row %d", tt.least, strings.Join(rows, "\n"), f.top()+1)
+			}
+		})
 	}
 }
 
-func TestTheLineOverTheFooterSaysWhichWindowsHideFromEveryCard(t *testing.T) {
-	doc := threeRouted()
-	for i := range doc.Accounts {
-		doc.Accounts[i].Windows = append(doc.Accounts[i].Windows, windowOf("7d_oi", "Fable week", 0, 4*day))
+func TestATerminalOfAFewRowsDrawsWhatFits(t *testing.T) {
+	tests := []struct {
+		width, height int
+		want          []string
+	}{
+		{width: 160, height: 1, want: []string{"title"}},
+		{width: 160, height: 2, want: []string{"title", "keys"}},
+		{width: 160, height: 3, want: []string{"title", "", "keys"}},
+		{width: 160, height: 4, want: []string{"title", "", "status", "keys"}},
+		{width: 52, height: 2, want: []string{"title", "tabs"}},
+		{width: 52, height: 3, want: []string{"title", "tabs", "keys"}},
+		{width: 52, height: 4, want: []string{"title", "tabs", "", "keys"}},
+		{width: 52, height: 5, want: []string{"title", "tabs", "", "status", "keys"}},
 	}
-	rows := frameOf(160, 40).Draw(doc, now)
-
-	if got, want := rows[38], "Fable wk hidden: unused on every account"; !strings.HasSuffix(got, want) {
-		t.Errorf("row 39 = %q, want it to end %q", got, want)
-	}
-	if strings.Contains(strings.Join(rows[:38], "\n"), "Fable wk ") {
-		t.Errorf("rows are\n%s\nwant Fable's week on no card", strings.Join(rows, "\n"))
-	}
-	if rows := frameOf(160, 40).Draw(threeRouted(), now); strings.TrimSpace(rows[38]) != "" {
-		t.Errorf("without a window hidden, row 39 = %q, want it blank", rows[38])
-	}
-}
-
-func TestAViewNotBuiltDrawsNothing(t *testing.T) {
-	f := frameOf(160, 40)
-	f.View = "a-later-view"
-	rows := f.Draw(threeRouted(), now)
-
-	for i, row := range rows[7:39] {
-		if row != "" {
-			t.Errorf("row %d = %q, want nothing drawn of a view not built", i+8, row)
+	for _, tt := range tests {
+		rows := textOf(frameOf(tt.width, tt.height).Draw(threeRouted(), now))
+		got := make([]string, len(rows))
+		for i, row := range rows {
+			switch {
+			case strings.HasPrefix(row, " SWITCHBOARD"):
+				got[i] = "title"
+			case strings.HasPrefix(row, " Overview"):
+				got[i] = "tabs"
+			case strings.HasPrefix(row, "● healthy"):
+				got[i] = "status"
+			case strings.HasSuffix(row, "q quit"):
+				got[i] = "keys"
+			default:
+				got[i] = row
+			}
 		}
+		if !slices.Equal(got, tt.want) {
+			t.Errorf("at %d×%d, drew %q, want %q", tt.width, tt.height, got, tt.want)
+		}
+	}
+}
+
+func TestATabNotBuiltDrawsItsHeadingRowAloneAndHelpExplainsNothing(t *testing.T) {
+	for _, v := range []View{"a-later-view"} {
+		f := frameOf(160, 40)
+		f.View = v
+		rows := f.Draw(threeRouted(), now)
+
+		name := strings.ToUpper(v.Title())
+		if got, want := rows[4], name+"  "+rule(158-len(name)); got != want {
+			t.Errorf("on %s, row 5 reads %q, want its heading row, %q", v, got, want)
+		}
+		for i, row := range rows[5:39] {
+			if row != "" {
+				t.Errorf("on %s, row %d = %q, want nothing drawn of a tab not built", v, i+6, row)
+			}
+		}
+		if parts := f.helpParts(); parts != nil {
+			t.Errorf("on %s, help explains %v, want nothing", v, parts)
+		}
+	}
+}
+
+// twoWithRoom is the healthy router's document of work and side, both with
+// room, read a minute before threeRouted: another document, whose pool isn't
+// threeRouted's.
+func twoWithRoom() status.Document {
+	doc := routerDoc("work", 2, readAccount("work", sessionOf(0.5, 2*time.Hour), weekOf(0.2, 3*quota.Day)), readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.4, 5*quota.Day)))
+	doc.GeneratedAt = now.Add(-time.Minute).UTC()
+	return doc
+}
+
+func TestAFrameAtOneDocumentReadsAnothersMomentAfresh(t *testing.T) {
+	other := twoWithRoom()
+	want := other.At(now, claudeLike).Pool()
+	if first := threeRouted().At(now, claudeLike).Pool(); slices.Equal(first.Accounts, want.Accounts) {
+		t.Fatalf("both documents pool %v, want pools that differ", want.Accounts)
+	}
+	if got := frameOf(160, 40).At(threeRouted(), now).Moment(other, now).Pool(); !slices.Equal(got.Accounts, want.Accounts) {
+		t.Errorf("held at one document, the pool of another at the same moment is of %v, want its own, of %v", got.Accounts, want.Accounts)
+	}
+}
+
+// A frame holding a document's moment, and the Overview's sections built of
+// it, draws every row just as one that works the moment out afresh for every
+// look draws it, at each hard moment, on every tab, as wide as the frames
+// and as narrow as a phone: holding it changes how often it's worked out,
+// never what's drawn.
+func TestAHeldFrameDrawsWhatOneWorkingItsMomentOutAfreshDoes(t *testing.T) {
+	for _, hm := range statustest.HardMoments(claudeLike) {
+		for _, v := range Views() {
+			for _, size := range [][2]int{{160, 40}, {52, 36}} {
+				f := frameOf(size[0], size[1])
+				f.View = v
+				held := f.At(hm.Doc, hm.Now).Built(hm.Doc, hm.Now)
+				got, want := held.Draw(hm.Doc, hm.Now), f.finish(f.page(hm.Doc, hm.Now)).rows(f.Look)
+				if !slices.Equal(got, want) {
+					t.Errorf("%s, %s at %d×%d: held, it draws\n%s\nwant, afresh\n%s", hm.Name, v.Title(), size[0], size[1], strings.Join(got, "\n"), strings.Join(want, "\n"))
+				}
+			}
+		}
+	}
+}
+
+// A frame holds the one moment of a document for every look a copy of it
+// takes of that document at that moment, as its Policy judged it: a copy
+// whose Policy has changed since, or a frame given a moment another policy
+// judged, works the moment out afresh, by its own Policy. Here the two
+// policies judge work's cap, and so the pool's 5-hour room, apart.
+func TestAFrameKeepsAMomentItHoldsOnlyWhereItsPolicyJudgedIt(t *testing.T) {
+	capped := readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.95, 3*quota.Day))
+	capped.Reserve = 0.1
+	doc := routerDoc("side", 0, capped, readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.4, 5*quota.Day)))
+	unjudged := frameOf(160, 40)
+	unjudged.Policy = score.Policy{}
+	judged, afresh := frameOf(160, 40).Filled(doc, now), unjudged.Filled(doc, now)
+	if maps.Equal(afresh, judged) {
+		t.Fatalf("both policies fill the bars %v, want fills that differ", judged)
+	}
+	held := frameOf(160, 40).At(doc, now)
+	held.Policy = score.Policy{}
+	if got := held.Filled(doc, now); !maps.Equal(got, afresh) {
+		t.Errorf("a copy of a frame held at doc, its Policy changed since, fills the bars %v, want them afresh, by its own Policy, %v", got, afresh)
+	}
+	if got := unjudged.Holding(doc.HoldAt(now, claudeLike)).At(doc, now).Filled(doc, now); !maps.Equal(got, afresh) {
+		t.Errorf("a frame given a moment another policy judged fills the bars %v, want them by its own Policy, %v", got, afresh)
+	}
+	if got := frameOf(160, 40).Holding(doc.HoldAt(now, claudeLike)).At(doc, now).Filled(doc, now); !maps.Equal(got, judged) {
+		t.Errorf("a frame given a moment its Policy judged fills the bars %v, want them as that moment has them, %v", got, judged)
 	}
 }

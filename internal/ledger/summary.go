@@ -25,7 +25,8 @@ const (
 	// each account's session ids, rises, resets and minutes at its cap and at
 	// a limit. Version 3 gives a day of no requests the accounts the readings
 	// history tells of, as any day's, and climbs each window as Climb does.
-	summaryVersion = 3
+	// Version 4 adds each model's session ids.
+	summaryVersion = 4
 	// readingsBefore is how far before a day the readings that say the use
 	// each window began it at are looked for: a week, the longest a window
 	// runs, so a window read before then has reset since.
@@ -93,10 +94,11 @@ type AccountDay struct {
 	// Models are the account's requests by the model each asked for, in the
 	// order of their names.
 	Models []ModelDay `json:"models,omitempty"`
-	// Sessions counts the sessions its requests were of, as counted says,
-	// and SessionIDs are their ids, in order, each once, so a span of days,
-	// or every account, counts a session once. MovedOn and MovedOff count
-	// those its requests moved onto it, and off it.
+	// Sessions counts the sessions its requests were of, as
+	// Line.CountedSession says, and SessionIDs are their ids, in order, each
+	// once, so a span of days, or every account, counts a session once.
+	// MovedOn and MovedOff count those its requests moved onto it, and off
+	// it.
 	Sessions   int      `json:"sessions"`
 	SessionIDs []string `json:"session_ids,omitzero"`
 	MovedOn    int      `json:"moved_on"`
@@ -123,8 +125,38 @@ type AccountDay struct {
 	ReadBefore []string `json:"read_before,omitempty"`
 }
 
+// Unnamed is how many of the sessions the account's day counts it doesn't
+// name by their ids, those it might be of beyond those it names: every one,
+// of a day summarised before version 2, which named none; none, of one that
+// names them all, or that counts none, as an account the readings history
+// alone tells of.
+func (a AccountDay) Unnamed() int {
+	return unnamed(a.Sessions, a.SessionIDs)
+}
+
+// unnamed is how many of the sessions counted the ids given don't name.
+func unnamed(sessions int, ids []string) int {
+	return max(sessions-len(ids), 0)
+}
+
+// Unnamed is how many of the sessions its accounts' days count they don't
+// name, as AccountDay.Unnamed says: a day with any might be of any session.
+func (s Summary) Unnamed() int {
+	n := 0
+	for _, a := range s.Accounts {
+		n += a.Unnamed()
+	}
+	return n
+}
+
 // ModelDay is a model's day on an account: its requests, by how each went,
 // the sessions they were of, and their usage.
+//
+// SessionIDs, which version 4 added, is nil where the model's sessions were
+// never named: in a summary of an older version; of a model a summary made
+// since kept as one of those gave it; and where a summary made since, of a
+// day one of those summarised, found the ids of fewer than it counted, as
+// knowing says. A summary of version 4 gives none as empty.
 type ModelDay struct {
 	// Model is the model the requests asked for, left out of those whose
 	// bodies couldn't be read, and InferenceGeo where they asked for their
@@ -143,8 +175,12 @@ type ModelDay struct {
 	Unsent   int `json:"unsent"`
 	Checks   int `json:"checks"`
 	Counts   int `json:"counts"`
-	// Sessions counts the sessions the requests were of, as counted says.
-	Sessions int `json:"sessions"`
+	// Sessions counts the sessions the requests were of, as
+	// Line.CountedSession says, and SessionIDs are their ids, in order, each
+	// once, so a span of days, or every account, counts a model's session
+	// once.
+	Sessions   int      `json:"sessions"`
+	SessionIDs []string `json:"session_ids,omitzero"`
 	// Usage is the requests' usage, summed field for field as the API gives
 	// it, an object's fields within it, and a list's objects by their types,
 	// as an answer's iterations give theirs: what isn't a count, as the
@@ -158,6 +194,14 @@ type ModelDay struct {
 // never among them.
 func (m ModelDay) Requests() int {
 	return m.Upstream + m.Unsent
+}
+
+// Unnamed is how many of the sessions the model's day counts it doesn't name
+// by their ids, as AccountDay.Unnamed says of an account's: every one, where
+// its sessions were never named, as ModelDay says; none, of one that names
+// them all.
+func (m ModelDay) Unnamed() int {
+	return unnamed(m.Sessions, m.SessionIDs)
 }
 
 // Tokens returns the tokens the requests' usage counts, summed.
@@ -516,7 +560,7 @@ func (a *accountTally) model(key modelKey) *modelTally {
 func (t tally) line(l *Line) {
 	a := t.account(l.Account)
 	a.model(keyOf(l)).line(l)
-	a.sessions.add(l.counted())
+	a.sessions.add(l.CountedSession())
 	if l.From != "" {
 		a.movedOn.add(l.Session)
 		t.account(l.From).movedOff.add(l.Session)
@@ -524,14 +568,16 @@ func (t tally) line(l *Line) {
 }
 
 // line tallies one of the day's lines of the model's requests on the
-// account.
+// account: a check and a count as such, sent on or not; one that went
+// upstream, as Upstream says, as upstream, and where its answer gave no usage,
+// as unmetered says, as that too; and the rest as unsent.
 func (m *modelTally) line(l *Line) {
 	switch {
 	case l.Kind == KindCheck:
 		m.day.Checks++
 	case l.Kind == KindCount:
 		m.day.Counts++
-	case l.Attempts > 0:
+	case l.Upstream():
 		m.day.Upstream++
 		if l.unmetered() {
 			m.day.NoUsage++
@@ -539,18 +585,8 @@ func (m *modelTally) line(l *Line) {
 	default:
 		m.day.Unsent++
 	}
-	m.sessions.add(l.counted())
+	m.sessions.add(l.CountedSession())
 	m.usage.add(l.Usage)
-}
-
-// counted is the session the line's request counts toward: none for a quota
-// check, which Claude Code sends as it resumes a session under an id it
-// never uses again.
-func (l *Line) counted() string {
-	if l.Kind == KindCheck {
-		return ""
-	}
-	return l.Session
 }
 
 // readings tallies each window's highest use on the day that starts at start,
@@ -715,7 +751,7 @@ func byModel(a, b modelKey) int {
 // summary returns the model's day on the account.
 func (m *modelTally) summary() ModelDay {
 	day := m.day
-	day.Sessions = len(m.sessions)
+	day.Sessions, day.SessionIDs = len(m.sessions), m.sessions.ids()
 	if len(m.usage) > 0 {
 		// A map of counts and maps of them always marshals.
 		day.Usage, _ = json.Marshal(m.usage)

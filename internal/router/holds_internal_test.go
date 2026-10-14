@@ -48,7 +48,10 @@ func TestACapReachedAgainInAnotherWindowJoinsItWhileItHolds(t *testing.T) {
 	k.reads(0.95, 0.5)
 	k.after(time.Minute)
 	k.reads(0.95, 0.95)
-	reached := status.Event{ID: 1, At: start, Kind: status.EventCap, Account: "work", Windows: []string{"5h", "7d"}, Until: weekEnds, Reserve: 0.1}
+	reached := status.Event{
+		ID: 1, At: start, Kind: status.EventCap, Account: "work", Windows: []string{"5h", "7d"},
+		Joined: map[string]time.Time{"7d": start.Add(time.Minute)}, Until: weekEnds, Reserve: 0.1,
+	}
 	k.expect(reached)
 
 	// The session resets, and the next reaches its reserve, while the week
@@ -57,6 +60,30 @@ func TestACapReachedAgainInAnotherWindowJoinsItWhileItHolds(t *testing.T) {
 	k.look()
 	k.readsUntil(0.95, nextSession, 0.95)
 	k.expect(reached)
+}
+
+// A cap first reached in a model's own window, Fable's week, which holds
+// back Fable's requests alone, keeps its event while that week stays at its
+// reserve, and the 5-hour, reaching its reserve later, which holds back
+// every request from then, joins it then, so its cap is dated from then.
+func TestACapOfEveryRequestJoiningACapOfAModelsOwnWindowJoinsItThen(t *testing.T) {
+	k := newTelling(t)
+	read := func(session, fable float64) {
+		k.r.state.record("work", []quota.Window{
+			{Key: "5h", Label: "Session", Utilization: session, ResetsAt: sessionEnds, Status: quota.StatusAllowed},
+			{Key: "7d", Label: "Week", Utilization: 0.5, ResetsAt: weekEnds, Status: quota.StatusAllowed},
+			{Key: "7d_oi", Label: "Fable week", Utilization: fable, ResetsAt: weekEnds, Status: quota.StatusAllowed},
+		}, k.r.state.mark())
+		k.look()
+	}
+	read(0.2, 0.5)
+	read(0.2, 0.95)
+	k.after(90 * time.Minute)
+	read(0.95, 0.95)
+	k.expect(status.Event{
+		ID: 1, At: start, Kind: status.EventCap, Account: "work", Windows: []string{"7d_oi", "5h"},
+		Joined: map[string]time.Time{"5h": start.Add(90 * time.Minute)}, Until: weekEnds, Reserve: 0.1,
+	})
 }
 
 func TestACapEndsAsItsWindowsResetAndIsToldAgainOnceReachedAgain(t *testing.T) {

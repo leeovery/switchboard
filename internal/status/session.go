@@ -2,16 +2,23 @@ package status
 
 import (
 	"cmp"
+	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
-// idShown is how much of a session's id people are shown: enough to tell the
-// sessions of a day apart at a glance.
-const idShown = 8
+const (
+	// idShort is how much of a session's id logs, status's text and the
+	// verbs show: enough to tell the sessions of a day apart at a glance.
+	idShort = 8
+	// IDShown is how much of a session's id the dashboard names it by: its
+	// first 4 characters.
+	IDShown = 4
+)
 
 // The reasons the router gives for where a session's requests go, as an
 // Assignment's Reason and an Event's give them, that the dashboard reads
@@ -51,9 +58,40 @@ const (
 const rescoredIdle = " idle"
 
 // Rescored is the reason for choosing afresh the account of a session that
-// idled for as long as idle says, as in "rescored after 15h idle".
-func Rescored(idle string) string {
-	return ReasonRescored + idle + rescoredIdle
+// idled for as long as idle, as in "rescored after 15h idle", the span as
+// idled says it.
+func Rescored(idle time.Duration) string {
+	return ReasonRescored + idled(idle) + rescoredIdle
+}
+
+// idled says how long a session idled, as the reason Rescored gives files it:
+// in whole units, "5d 12h" from a day, "4h 57m" from an hour, else "7m", a
+// second unit of zero left off, as in "6d" and "4h"; "now" for no time at
+// all. The ledger and the router's events keep the reason, which its words
+// read back, so the form is the reason's own, held apart from every form a
+// span is shown in: changed, it would file reasons that read apart from those
+// filed before.
+func idled(d time.Duration) string {
+	hours, minutes := int(d/time.Hour), int(d%time.Hour/time.Minute)
+	switch {
+	case d <= 0:
+		return "now"
+	case hours >= 24:
+		return idledIn(hours/24, "d", hours%24, "h")
+	case hours >= 1:
+		return idledIn(hours, "h", minutes, "m")
+	}
+	return strconv.Itoa(minutes) + "m"
+}
+
+// idledIn says a count of a unit, then what's left over of the next unit
+// down, unless nothing is: "5d 12h", but "6d".
+func idledIn(count int, unit string, rest int, restUnit string) string {
+	said := strconv.Itoa(count) + unit
+	if rest == 0 {
+		return said
+	}
+	return said + " " + strconv.Itoa(rest) + restUnit
 }
 
 // Why an account can't take a request, as the reasons for leaving it, after
@@ -101,6 +139,12 @@ type Assignment struct {
 	// requests against windows.
 	Family  string `json:"family,omitempty"`
 	Account string `json:"account"`
+	// Auto is the account the session's next request of the model would go
+	// to were the session to have no pin of its own, as the router's own
+	// rule chooses it, the global pin counting: "" where the router can't
+	// say, as where no account has room for the request, and from a router
+	// from before it said.
+	Auto string `json:"auto,omitempty"`
 	// Dir is the directory the session's last request of the model to name
 	// one was started in, as the request ledger gives it: "" while none has.
 	Dir string `json:"dir,omitempty"`
@@ -123,10 +167,39 @@ type Assignment struct {
 	LastSeen   time.Time `json:"last_seen"`
 }
 
-// ShortID cuts a session's id to as much as people are shown of it, such as
-// 0b5c6f2e.
+// ShortID cuts a session's id to as much as logs, status's text and the verbs
+// show of it, such as 0b5c6f2e.
 func ShortID(id string) string {
-	return prose.Truncate(id, idShown)
+	return prose.Truncate(id, idShort)
+}
+
+// ShownID is a session's id as the dashboard names a session by it, cleaned:
+// its first IDShown characters, such as d28c.
+func ShownID(id string) string {
+	return prose.Truncate(prose.Clean(id), IDShown)
+}
+
+// DirName names the directory a session was started in, cleaned, as the
+// dashboard names a session by it: its last part, cut with an ellipsis to the
+// cells given, keeping its start, as "switchboard" or "switchboa…"; "" for
+// none.
+func DirName(dir string, cells int) string {
+	if dir = prose.Clean(dir); dir == "" {
+		return ""
+	}
+	return prose.Cut(path.Base(dir), cells)
+}
+
+// DirPath shows the directory a session was started in, cleaned, as a
+// session's page heads it: whole, the home directory given as ~, as
+// "~/Code/switchboard", and where it's longer than the cells given, cut from
+// its start with an ellipsis, keeping its name; "" for none.
+func DirPath(dir, home string, cells int) string {
+	dir, home = prose.Clean(dir), strings.TrimSuffix(prose.Clean(home), "/")
+	if rest, ok := strings.CutPrefix(dir, home); home != "" && ok && (rest == "" || rest[0] == '/') {
+		dir = "~" + rest
+	}
+	return prose.CutFront(dir, cells)
 }
 
 // Line says where the session's requests go, as status lists the router's
@@ -135,14 +208,14 @@ func ShortID(id string) string {
 // "0b5c6f2e  opus and haiku on work  ·  pinned to work  ·  seen 2m ago". What
 // came from elsewhere shows cleaned.
 func (s Session) Line(now time.Time) string {
-	parts := []string{ShortID(Clean(s.ID)) + "  " + s.where()}
+	parts := []string{ShortID(prose.Clean(s.ID)) + "  " + s.where()}
 	if s.Pin != "" {
-		parts = append(parts, "pinned to "+Clean(s.Pin))
+		parts = append(parts, "pinned to "+prose.Clean(s.Pin))
 	}
 	if len(s.Assignments) > 0 {
 		parts = append(parts, "seen "+ago(now, s.Assignments[0].LastSeen))
 	}
-	return strings.Join(parts, Separator)
+	return strings.Join(parts, prose.Separator)
 }
 
 // where says which account each of the session's models goes to, those on
@@ -152,7 +225,7 @@ func (s Session) where() string {
 	byAccount := s.ByAccount()
 	on := make([]string, len(byAccount))
 	for i, models := range byAccount {
-		on[i] = prose.List(models.Names) + " on " + Clean(models.Account)
+		on[i] = prose.List(models.Names) + " on " + prose.Clean(models.Account)
 	}
 	return strings.Join(on, ", ")
 }
@@ -162,6 +235,13 @@ func (s Session) where() string {
 type Models struct {
 	Account string
 	Names   []string
+}
+
+// AccountID is the id of the account the session's last-used model went to,
+// as the router answered for the session: "" where it lists sessions, rather
+// than answering for one.
+func (s Session) AccountID() string {
+	return s.Account.ID
 }
 
 // ByAccount groups the session's models by the account their requests go
@@ -184,7 +264,7 @@ func (s Session) ByAccount() []Models {
 // Name names the assignment's model as briefly as tells it apart, cleaned: by
 // its family, such as opus, else by its id.
 func (a Assignment) Name() string {
-	return cmp.Or(Clean(a.Family), Clean(a.Model), "unknown model")
+	return cmp.Or(prose.Clean(a.Family), prose.Clean(a.Model), "unknown model")
 }
 
 // ago says how long before now t was, such as "2m ago", or "just now" within
@@ -193,5 +273,5 @@ func ago(now, t time.Time) string {
 	if now.Sub(t) < time.Minute {
 		return "just now"
 	}
-	return Countdown(t, now) + " ago"
+	return prose.Countdown(t, now) + " ago"
 }

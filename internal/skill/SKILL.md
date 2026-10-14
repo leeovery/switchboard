@@ -4,7 +4,7 @@ description: Switchboard spreads Claude Code sessions across several Claude subs
 ---
 
 <!-- switchboard writes this file, and replaces it, edits and all, with each new version. -->
-<!-- switchboard skill version: 9 -->
+<!-- switchboard skill version: 10 -->
 
 `claude` runs through switchboard, a local router that spreads Claude Code sessions across several
 Claude subscriptions, which it calls accounts.
@@ -44,9 +44,9 @@ prints the bare account id there too, for a statusline, and JSON only with `--js
   `switchboard events`, the router's events, a JSON object a line: sessions started and moved,
   limits, caps, refusals, primes and pins. `--since` reaches back to a day, a time today or a while
   ago: `2026-10-01`, `14:00`, `2d`.
-- `switchboard usage` prints the user's dashboard once, and `switchboard usage -w` keeps it live.
-  Point the user to them when they want to look; read `status` yourself, as it gives what they
-  show.
+- `switchboard usage` is the user's printout of every account's windows, and `switchboard dashboard`
+  their live dashboard. Point the user to them when they want to look, rather than running them;
+  read `status` yourself, as it gives what they show.
 - To steer sessions, run `switchboard pin <account>`, which sends new sessions to that account, or
   `switchboard pin <account> <account>...`, which sends them to the best of those accounts until
   every one of them is out, and only then to the others. Add `--move` to move running sessions

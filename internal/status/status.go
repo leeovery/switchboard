@@ -153,6 +153,13 @@ type Event struct {
 	// in, those at a cap's reserve, the one a prime started, the one under
 	// pressure, or those that held back an account that has room again.
 	Windows []string `json:"windows,omitempty"`
+	// Joined is, of a limit's or a cap's, when each of its windows that
+	// joined it after it began did, by key, as the limit, or the cap, reached
+	// again while it held came to hold it too: the account's 5-hour window
+	// joining the cap of its Fable week, say. A window it leaves out came to
+	// be held as it began, at At, as did each of an event told before events
+	// kept Joined.
+	Joined map[string]time.Time `json:"joined,omitempty"`
 	// Until is when a limit lifts, the last of a cap's windows resets, a
 	// refusal ends, a window a prime started resets, or a window under
 	// pressure runs out.
@@ -352,8 +359,8 @@ type Limit struct {
 	Until   time.Time `json:"until"`
 }
 
-// Holds reports whether the limit still holds at now.
-func (l Limit) Holds(now time.Time) bool {
+// holds reports whether the limit still holds at now.
+func (l Limit) holds(now time.Time) bool {
 	return l.Until.After(now)
 }
 
@@ -367,8 +374,8 @@ type Refusal struct {
 	Family string    `json:"family,omitempty"`
 }
 
-// Holds reports whether the refusal still holds at now.
-func (r Refusal) Holds(now time.Time) bool {
+// holds reports whether the refusal still holds at now.
+func (r Refusal) holds(now time.Time) bool {
 	return r.Until.After(now)
 }
 
@@ -419,13 +426,13 @@ type Pressure struct {
 	Under bool `json:"under,omitempty"`
 }
 
-// PressureOf is how an account's pressure window, as policy names it, stands
+// pressureOf is how an account's pressure window, as policy names it, stands
 // at now, as the router gives it, the account being c, its rate the pace its
 // window is used at: when, at that rate, the window reaches where c's room
 // ends, at c's reserve; and whether that's before it resets while the
 // account can take a request of some model at that reserve, as takes reports,
 // asked only then.
-func PressureOf(policy score.Policy, pace score.Pace, c score.Candidate, takes func(reserve float64) bool, now time.Time) Pressure {
+func pressureOf(policy score.Policy, pace score.Pace, c score.Candidate, takes func(reserve float64) bool, now time.Time) Pressure {
 	p := policy.PressureOf(c, now)
 	return Pressure{
 		Window: policy.Pressure, Rate: pace.Rate, Recent: pace.Recent, Since: pace.Since.UTC(),
@@ -482,7 +489,7 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 	doc := Document{
 		GeneratedAt: now.UTC(),
 		Source:      SourceProbe,
-		Best:        Best(c.Policy, statuses, nil, now),
+		Best:        ProbedBest(c.Policy, statuses, now),
 		Primary:     PrimaryOf(statuses),
 		Accounts:    statuses,
 	}
@@ -519,13 +526,13 @@ type Heading struct {
 	Since  time.Time
 }
 
-// Project says where the account's window w is heading at now: at the pace
+// project says where the account's window w is heading at now: at the pace
 // its use since it started sets, or at the rate the router saw it used over
 // the last half hour, where it has that rate, when that has it run out
 // sooner, as score.Sooner judges, so a burst of use shows before the average
 // catches up with it. The window the router watches for pressure always goes
 // at that recent rate, so it heads where the router judges it to.
-func (a Account) Project(w quota.Window, now time.Time) Heading {
+func (a Account) project(w quota.Window, now time.Time) Heading {
 	average := Heading{Projection: score.Project(w, now)}
 	rate, ok := a.rate(w.Key)
 	if !ok {
@@ -547,15 +554,15 @@ type RunOut struct {
 	Heading
 }
 
-// Project says where doc's account a's window w is heading at now: as the
-// account's Project says, from when the document was read, as readAt has it,
+// project says where doc's account a's window w is heading at now: as the
+// account's project says, from when the document was read, as readAt has it,
 // so it stays put while the document does rather than moving with the clock;
 // and nowhere once the window has reset since.
-func (d Document) Project(a Account, w quota.Window, now time.Time) Heading {
+func (d Document) project(a Account, w quota.Window, now time.Time) Heading {
 	if w.ResetBy(now) {
 		return Heading{}
 	}
-	return a.Project(w, d.readAt(now))
+	return a.project(w, d.readAt(now))
 }
 
 // readAt is when doc was read, which its projections go from, as the
@@ -564,22 +571,27 @@ func (d Document) readAt(now time.Time) time.Time {
 	return cmp.Or(d.GeneratedAt, now)
 }
 
-// RunsOut says where the account a's window w runs out at now, as the
+// runOutOf says where the account a's window w runs out at now, as the
 // router's pressure judges it and the dashboard shows it, reporting false
-// where it doesn't before it resets: where its use, heading as doc's Project
+// where it doesn't before it resets: where its use, heading as doc's project
 // says, reaches its floor, which is its reserve, where that would hold the
-// account back, as ReserveHolds says, else its limit.
-func (d Document) RunsOut(a Account, w quota.Window, now time.Time) (RunOut, bool) {
-	out := RunOut{Heading: d.Project(a, w, now), Reserve: d.ReserveHolds(a)}
-	var ok bool
-	out.At, ok = score.Reaches(w, out.Projection, d.Floor(a), d.readAt(now))
+// account back, as reserveHolds says, else its limit. A run-out the clock has
+// reached, as of a document left on screen while the router doesn't answer,
+// is past, not to come: there's none, and nowhere it heads.
+func (d Document) runOutOf(a Account, w quota.Window, now time.Time) (RunOut, bool) {
+	out := RunOut{Heading: d.project(a, w, now), Reserve: d.reserveHolds(a)}
+	at, ok := score.Reaches(w, out.Projection, d.floor(a), d.readAt(now))
+	if ok && !at.After(now) {
+		return RunOut{}, false
+	}
+	out.At = at
 	return out, ok
 }
 
-// ReserveHolds reports whether the account's reserve holds it back once its
+// reserveHolds reports whether the account's reserve holds it back once its
 // use reaches it: it has one, and the global pin doesn't name it, as a pin
 // spends it.
-func (d Document) ReserveHolds(a Account) bool {
+func (d Document) reserveHolds(a Account) bool {
 	return a.Reserve > 0 && !d.Pin.Has(a.ID)
 }
 
@@ -593,10 +605,13 @@ func (a Account) rate(key string) (Rate, bool) {
 	return a.Rates[i], true
 }
 
-// HasLapsed reports whether the account's window w has lapsed, and reads
-// empty until a request starts it.
-func (a Account) HasLapsed(w quota.Window) bool {
-	return slices.Contains(a.Lapsed, w.Key)
+// underPressure reports whether the account is under pressure at now: the
+// router found it so as it read it, and its pressure window hasn't reset
+// since, as the router, judging pressure afresh, finds none in a window that
+// has.
+func (a Account) underPressure(now time.Time) bool {
+	w, _ := a.Window(a.Pressure.Window)
+	return a.Pressure.Under && !w.ResetBy(now)
 }
 
 // PrimaryOf returns the id of the primary among accounts, or "" when none is
@@ -627,86 +642,58 @@ func (c Collector) probe(ctx context.Context, account *Account, token tokens.Tok
 	}
 }
 
-// Best is the account of those given that a new session goes to, as the
-// router chooses one for a request of any model, as choose says. It's empty
-// when none can take one.
+// Best is the account of those given that a new session goes to, the global
+// pin naming those pinned: the router's choice afresh, as
+// score.Policy.Choose makes it, for a new session's request that only what
+// holds back every model holds back, counting the windows every model shares,
+// of the accounts with a usable token that aren't shut, each judged for
+// pressure at the rate the router saw its pressure window used, as its
+// Pressure gives it. It's empty when none can take one.
 func Best(policy score.Policy, accounts []Account, pinned []string, now time.Time) string {
-	best, _ := choose(policy, accounts, pinned, now)
-	return best
+	return best(policy, accounts, pinned, now, func(a Account) float64 { return a.Pressure.Rate })
 }
 
-// Choosable are the ids of the accounts of those given that a new session
-// could go to, in their order: those Best is chosen among, as choose says.
-func Choosable(policy score.Policy, accounts []Account, pinned []string, now time.Time) []string {
-	_, among := choose(policy, accounts, pinned, now)
-	return among
+// ProbedBest is Best of the accounts probing read, nothing pinned, as probing
+// doesn't know the pin: each judged for pressure at the pace its reading alone
+// gives, as a router that had read it only so would judge it.
+func ProbedBest(policy score.Policy, accounts []Account, now time.Time) string {
+	return best(policy, accounts, nil, now, func(a Account) float64 { return a.readPace(policy, now) })
 }
 
-// choose is the account of those given that a new session goes to, as the
-// router chooses one for a request of any model, and the accounts it's
-// chosen among, of those not shut: of those pinned, while one can take the
-// request, as choosePinned says; else of them all, as pick says, leaving each
-// one's reserve unused. It's "" and none when none can take one.
-func choose(policy score.Policy, accounts []Account, pinned []string, now time.Time) (string, []string) {
-	open := slices.DeleteFunc(slices.Clone(accounts), func(a Account) bool { return a.Shut(now, policy) })
-	if best, among, ok := choosePinned(policy, open, pinned, now); ok {
-		return best, among
+// best is Best, each account judged for pressure at the rate rate gives it.
+func best(policy score.Policy, accounts []Account, pinned []string, now time.Time, rate func(Account) float64) string {
+	var candidates []score.Candidate
+	for _, a := range accounts {
+		if a.TokenSet && !a.Shut(now, policy) {
+			candidates = append(candidates, score.Candidate{ID: a.ID, Windows: a.Windows, Reserve: a.Reserve, Rate: rate(a)})
+		}
 	}
-	return pick(policy, open, now)
+	c, _ := policy.Choose(candidates, pinned, policy.IsShared, "", now)
+	return c.ID
+}
+
+// readPace is how fast the account's pressure window, as policy names it, is
+// being used at now, as its reading alone says: its use since it started, as
+// score.PaceOf has it without a trail, or 0 where that can't be said.
+func (a Account) readPace(policy score.Policy, now time.Time) float64 {
+	w, ok := a.Window(policy.Pressure)
+	if !ok {
+		return 0
+	}
+	pace, _ := score.PaceOf(w, nil, now)
+	return pace.Rate
 }
 
 // Shut reports whether the account can take no request of any model at
 // now, whatever its windows read: its token refused, or a limit holding back
 // every request, as policy says which windows every model shares.
 func (a Account) Shut(now time.Time, policy score.Policy) bool {
-	limited := a.Limit.Holds(now) && (len(a.Limit.Windows) == 0 || slices.ContainsFunc(a.Limit.Windows, policy.IsShared))
-	return limited || a.TokenRefused(now)
+	limited := a.Limit.holds(now) && (len(a.Limit.Windows) == 0 || slices.ContainsFunc(a.Limit.Windows, policy.IsShared))
+	return limited || a.tokenRefused(now)
 }
 
-// TokenRefused reports whether the upstream refuses the account's token at
+// tokenRefused reports whether the upstream refuses the account's token at
 // now, holding back every request, rather than a model family's alone.
-func (a Account) TokenRefused(now time.Time) bool {
-	return a.Refused.Holds(now) && a.Refused.Family == ""
-}
-
-// choosePinned is the account of those given, pinned and with a usable
-// token, that a new session goes to, as the router chooses one, and those
-// it's chosen among: the one policy picks, spending each one's reserve, as a
-// pin spends it, as pick says; else the first with room, of those with room,
-// as a pin sends requests to an account whose quota can't be scored, or that
-// nothing has been read of. It reports false when none of them has room.
-func choosePinned(policy score.Policy, accounts []Account, pinned []string, now time.Time) (string, []string, bool) {
-	var spending []Account
-	for _, a := range accounts {
-		if a.TokenSet && slices.Contains(pinned, a.ID) {
-			a.Reserve = 0
-			spending = append(spending, a)
-		}
-	}
-	if id, among := pick(policy, spending, now); id != "" {
-		return id, among, true
-	}
-	var room []string
-	for _, a := range spending {
-		if len(a.Windows) == 0 || score.Available(a.Windows, 0, policy.IsShared, now) {
-			room = append(room, a.ID)
-		}
-	}
-	if len(room) == 0 {
-		return "", nil, false
-	}
-	return room[0], room, true
-}
-
-// pick is the account of those given that policy picks for a request of any
-// model, leaving each one's reserve unused, and passing over those under
-// pressure at the rates the router saw, and those it picks among, as
-// policy's Among says; "" and none when none can take one.
-func pick(policy score.Policy, accounts []Account, now time.Time) (string, []string) {
-	candidates := make([]score.Candidate, len(accounts))
-	for i, account := range accounts {
-		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows, Reserve: account.Reserve, Rate: account.Pressure.Rate}
-	}
-	c, _ := policy.Pick(candidates, policy.IsShared, "", now)
-	return c.ID, policy.Among(candidates, policy.IsShared, now)
+func (a Account) tokenRefused(now time.Time) bool {
+	return a.Refused.holds(now) && a.Refused.Family == ""
 }

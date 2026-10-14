@@ -1,499 +1,329 @@
 package watch
 
 import (
-	"context"
 	"slices"
-	"strconv"
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/status"
 )
 
-const (
-	// pinnable is how many accounts have a key that pins new sessions to
-	// them, or unpins them: the first nine.
-	pinnable = 9
-	// noteFor is how long the footer says what a key did.
-	noteFor = 4 * time.Second
-)
-
-// orderedMsg is how an order a key gave went.
-type orderedMsg struct {
-	order order
-	err   error
-}
-
-// order is what a key tells the router: send new sessions to the best of
-// accounts, and with move, running ones on another account too; with no
-// accounts, route every session on its merits again; or, of one session
-// alone, send it to the account to, or with none, clear its own pin.
-type order struct {
-	accounts []string
-	move     bool
-	// session is the id of the session the order is of alone, "" for an
-	// order of every session, and to the id of the account it sends it to.
-	session, to string
-	// done says what the order did, for the footer.
-	done string
-}
-
-// routing is the order to route every session on its merits again.
-var routing = order{done: "routing automatically"}
-
-// give has the source carry the order out.
-func (o order) give(ctx context.Context, s Source) error {
-	switch {
-	case o.session != "" && o.to != "":
-		return s.PinSession(ctx, o.session, o.to)
-	case o.session != "":
-		return s.UnpinSession(ctx, o.session)
-	case len(o.accounts) == 0:
-		return s.Unpin(ctx)
-	default:
-		return s.Pin(ctx, o.accounts, o.move)
+// pageKey acts on a key of the page, as pressed hands it on: j, k, PgDn and
+// PgUp scroll the view where it doesn't fit, as scrollView has it; and the
+// rest each as acting has the page act: on the Overview, u, g, r, s, c and l
+// show and hide its sections, b switches how its windows are grouped, and ↑
+// and ↓ move the focus, as overviewKey says; on Accounts, its keys act as
+// accountsKey says; on History, [ ], < >, v and ← → act as historyKey says;
+// on Sessions, its keys act as sessionsKey says; on Runway, < > and ← → act
+// as runwayKey says; on the Log, [ ], ↑ ↓, end, esc, enter, s, f and / act
+// as logKey says; tab and shift-tab show the next tab and the one before, as
+// turn has it; and t opens the theme picker. esc, whatever the page does
+// with it, drops a session's page asked to
+// open, as unasked has it. The rest do nothing: the number keys and m among
+// them, which act in the routing card alone.
+func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	k := key.String()
+	if k == "esc" {
+		m = m.unasked()
 	}
-}
-
-// log notes how the order went, naming the accounts by their ids alone, and
-// a session by its id cut short, as the router logs it.
-func (o order) log(err error) {
-	if o.session != "" {
-		o.logSession(err)
-		return
+	if by, ok := scrollKey(k); ok {
+		return m.scrollView(by), nil
 	}
-	accounts := strings.Join(o.accounts, ",")
-	switch {
-	case err != nil:
-		logger.Warn("the router didn't take an order", "accounts", accounts, "move", o.move, "error", err)
-	case len(o.accounts) == 0:
-		logger.Info("unpinned")
-	default:
-		logger.Info("pinned", "accounts", accounts, "move", o.move)
-	}
-}
-
-// logSession notes how an order of one session went: the session, and the
-// account it sends it to, where it sends it to one.
-func (o order) logSession(err error) {
-	attrs := []any{"session", status.ShortID(o.session)}
-	if o.to != "" {
-		attrs = append(attrs, "account", o.to)
-	}
-	switch {
-	case err != nil:
-		logger.Warn("the router didn't take an order", append(attrs, "error", err)...)
-	case o.to != "":
-		logger.Info("pinned a session", attrs...)
-	default:
-		logger.Info("unpinned a session", attrs...)
-	}
-}
-
-// pressed acts on a key: q or ctrl+c quits, whatever's open; while the theme
-// picker or the help is open, it takes every other key. Otherwise, j, k,
-// PgDn and PgUp scroll the view where it doesn't fit; the arrows, space, s
-// and esc act on the cards, as cardKey says; ? opens the help; tab and
-// shift-tab show the next view and the one before, r reads now, having the
-// router refresh what it hasn't read in the last minute, and what can take
-// no request, or probing when it doesn't answer; t opens the theme picker;
-// w has the cards feature the next window, or in Runway, switches between
-// the day and the week; and g has the cards draw their charts in the next
-// style.
-// While the router answers, of more than one account, 1–9 pin new sessions
-// to the account in that place, as configured, beside those pinned already,
-// or unpin it; a routes every session on its merits again; and m moves
-// running sessions to the accounts pinned. With a session picked out on a
-// card's back, a digit pins it to the account in that place, and a clears
-// its own pin. With one account, there's no other to send them to, and they
-// do nothing.
-func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch k := key.String(); {
-	case k == "q" || k == "Q" || k == "ctrl+c":
-		return m, tea.Quit
-	case m.picker.open:
-		return m.pickerKey(k)
-	case m.helping:
-		return m.helpKey(k), nil
-	}
-	if rows, ok := m.scrollKey(key.String()); ok {
-		return m.scrollBy(rows), nil
-	}
-	if next, ok := m.cardKey(key.String()); ok {
+	afresh := m.acting()
+	if next, ok := afresh.overviewKey(k); ok {
 		return next, nil
 	}
-	switch k := key.String(); k {
-	case "?":
-		m.helping = true
-		return m, nil
+	if next, cmd, ok := afresh.accountsKey(k); ok {
+		return next, cmd
+	}
+	if next, ok := afresh.historyKey(k); ok {
+		return next, nil
+	}
+	if next, cmd, ok := afresh.sessionsKey(k); ok {
+		return next, cmd
+	}
+	if next, ok := afresh.runwayKey(k); ok {
+		return next, nil
+	}
+	if next, cmd, ok := afresh.logKey(k); ok {
+		return next, cmd
+	}
+	switch k {
 	case "tab":
-		return m.turn(1)
+		return afresh.turn(1)
 	case "shift+tab":
-		return m.turn(-1)
-	case "r", "R":
-		logger.Debug("refresh key pressed", "already_reading", m.fetching)
-		return m.read(status.Fresh())
-	case "t", "T":
-		return m.openPicker()
-	case "w", "W":
-		return m.nextWindow()
-	case "g", "G":
-		return m.nextChart(), nil
-	case "a", "A":
-		switch {
-		case m.single():
-			return m, nil
-		case m.selecting():
-			return m.unpinSession()
-		}
-		return m.command(routing)
-	case "m", "M":
-		if m.single() {
-			return m, nil
-		}
-		return m.move()
-	default:
-		switch n, ok := place(k); {
-		case !ok || m.single():
-		case m.selecting():
-			return m.pinSession(n)
-		default:
-			return m.toggle(n)
-		}
+		return afresh.turn(-1)
+	case "t":
+		return afresh.openPicker()
 	}
 	return m, nil
 }
 
-// single reports whether the document on screen is of one account, so
-// there's none other to send sessions to.
-func (m Model) single() bool {
-	return len(m.doc.Accounts) == 1
+// overviewKey acts on a key of the Overview's, reporting false for a key it
+// doesn't take, or on another tab: a section's key shows or hides it, as
+// toggle has it; b switches how its windows are grouped, as regroup has it;
+// and ↑ and ↓ move the focus, as moveFocus has it.
+func (m Model) overviewKey(key string) (Model, bool) {
+	if m.shownView() != dashboard.Overview {
+		return m, false
+	}
+	if section, ok := dashboard.SectionKeyed(key); ok {
+		return m.toggle(section), true
+	}
+	switch key {
+	case "b":
+		return m.regroup(), true
+	case "up":
+		return m.moveFocus(-1), true
+	case "down":
+		return m.moveFocus(1), true
+	}
+	return m, false
 }
 
-// place is the place a digit key names, from 1 to pinnable.
-func place(key string) (int, bool) {
-	if len(key) != 1 || key[0] < '1' || key[0] > '0'+pinnable {
-		return 0, false
-	}
-	return int(key[0] - '0'), true
+// keyListing is a key of the page's own, as the key line and help list it:
+// the key, worded as they list it; whether it works where it is; whether the
+// key line leaves it to help; whether it leads the key line, in tab views'
+// place, as esc back leads a session's page's; whether the key line sets it
+// with p, ? and q, rather than among the page's own; whether it sets it
+// apart from the keys before it, in a group of its own; whether a phone's
+// line leaves it to help, keeping it to a line wider than a phone's; and the
+// word a phone's line gives it, where that's another, as enter's open.
+type keyListing struct {
+	dashboard.Key
+	works, helpful, leads, withEnds, apart, wide bool
+	phoneDoes                                    string
 }
 
-// toggle has the router pin new sessions to the account in place n, counting
-// from 1 in the order they're configured, beside the accounts pinned already;
-// or, when it's one of them, unpin it, routing every session automatically
-// again once none is left.
-func (m Model) toggle(n int) (Model, tea.Cmd) {
-	if n > len(m.doc.Accounts) {
-		return m, nil
-	}
-	pinned := toggled(m.doc, m.doc.Accounts[n-1].ID)
-	if len(pinned) == 0 {
-		return m.command(routing)
-	}
-	return m.command(order{accounts: pinned, done: "new sessions go to " + m.doc.Destination(pinned)})
+// pageKeys is what lists the page's keys, as it stands, but for whether its
+// view scrolls, which follows the size it's drawn at: its own keys but those
+// that scroll it, as keys has them; whether it's the Overview, whose key
+// line sets its groups apart as keyLine has it; whether it lists those that
+// scroll it always, as the Overview and the Log do; p, and whether it's
+// listed, as pinKey has it; and whether the dashboard is drawn in colour.
+type pageKeys struct {
+	own           []keyListing
+	overview      bool
+	scrollsAlways bool
+	pin           dashboard.Key
+	pinned        bool
+	coloured      bool
 }
 
-// pinSession has the router send every request of the session picked out to
-// the account in place n, counting from 1 in the order they're configured,
-// from its next request on, as pin --session does.
-func (m Model) pinSession(n int) (Model, tea.Cmd) {
-	if n > len(m.doc.Accounts) {
-		return m, nil
+// keys is what lists the page's keys as m stands, its own but those that
+// scroll it in the design's order: on the Overview, its toggles, each word
+// faint where its section is hidden; b, its word saying how the windows are
+// grouped; and with more than one account, ↑↓, which the key line sets with
+// p, ? and q; and Accounts', History's, Sessions', Runway's and the Log's,
+// as accountsListings, historyListings, sessionsListings, runwayListings and
+// logListings have them, Detail's SESSIONS listing the sessions running
+// given. A session's page lists its own, as sessionKeys has them, in place
+// of its tab's.
+func (m Model) keys(running []string) pageKeys {
+	shown := m.shownView()
+	if shown == dashboard.SessionPage {
+		return m.sessionKeys()
 	}
-	to := m.doc.Accounts[n-1].ID
-	return m.command(order{
-		session: m.selected.Session, to: to,
-		done: m.selected.Shown() + " goes to " + m.doc.Names([]string{to}) + " from its next request",
+	overview := shown == dashboard.Overview
+	var own []keyListing
+	for _, s := range dashboard.EverySection() {
+		own = append(own, keyListing{Key: dashboard.Key{Key: s.Key(), Does: s.Word(), Hidden: !m.sections.Has(s)}, works: overview})
+	}
+	own = append(own,
+		keyListing{Key: dashboard.Key{Key: "b", Does: "by", State: string(layoutOf(m.by))}, works: overview},
+		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && m.asRead.accounts > 1, withEnds: true},
+	)
+	pin, pinned := m.pinKey()
+	own = slices.Concat(own, m.accountsListings(running), m.historyListings(), m.sessionsListings(), m.runwayListings(), m.logListings())
+	scrollsAlways := overview || shown == dashboard.Log
+	return pageKeys{own: own, overview: overview, scrollsAlways: scrollsAlways, pin: pin, pinned: pinned, coloured: m.coloured()}
+}
+
+// accountsListings are Accounts' own keys, each move with enter in a group
+// of its own, as the facts Accounts' moves act on have them, Detail's
+// SESSIONS listing the sessions running given: [ ] view, where
+// there are sub-tabs; < > and the period; on Compare, ←→ along the
+// accounts, enter opening the one focused in Detail, faint till one is, and
+// esc ending the focus while there is one, none of them on a phone, whose
+// Compare draws no focus; on Detail's list, ↑↓ through the accounts, → into
+// the chosen one's SESSIONS, which the key line leaves to help, and enter
+// opening the session selected there, faint where none is; in its SESSIONS,
+// ↑↓ through them, ← back to the list and enter; and with one account, which
+// has no list, ↑↓ and enter while a session is selected. A phone's line
+// keeps [ ] view alone.
+func (m Model) accountsListings(running []string) []keyListing {
+	s := m.accounts.shown
+	shown := m.shownView() == dashboard.Accounts
+	compare := m.comparing()
+	listed, alone := shown && s.View() == dashboard.AccountsDetail && !s.Alone(), shown && s.Alone()
+	selected := s.Selection(running) != ""
+	inSessions := listed && s.InSessions || alone && selected
+	return []keyListing{
+		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: shown && !alone, apart: true},
+		{Key: dashboard.Key{Key: "< >", Does: "period", State: s.Period.Name()}, works: shown, apart: true, wide: true},
+		{Key: dashboard.Key{Key: "←→", Does: "account"}, works: compare, apart: true, wide: true},
+		{Key: dashboard.Key{Key: "↑↓", Does: "account"}, works: listed && !s.InSessions, apart: true, wide: true},
+		{Key: dashboard.Key{Key: "↑↓", Does: "session"}, works: inSessions, apart: true, wide: true},
+		{Key: dashboard.Key{Key: "→", Does: "sessions"}, works: listed && !s.InSessions && selected, helpful: true},
+		{Key: dashboard.Key{Key: "←", Does: "accounts"}, works: listed && s.InSessions, wide: true},
+		{Key: dashboard.Key{Key: "enter", Does: "its page", Off: !s.Opens(running)}, works: compare || listed || inSessions, wide: true},
+		{Key: dashboard.Key{Key: "esc", Does: "unfocus"}, works: compare && s.Focused, wide: true},
+	}
+}
+
+// listings are the page's own keys, where its view scrolls or not, in the
+// design's order: those that don't scroll it, as keys has them; then j and k,
+// PgUp and PgDn, and the wheel, which the key line leaves to help, where the
+// view scrolls, and on the Overview always, as USAGE scrolls once its
+// accounts outgrow it, as on the Log, whose tables scroll back through the
+// days.
+func (p pageKeys) listings(scrolls bool) []keyListing {
+	scrolls = scrolls || p.scrollsAlways
+	return slices.Concat(p.own, []keyListing{
+		{Key: dashboard.Key{Key: "j k", Does: "scroll"}, works: scrolls, helpful: true},
+		{Key: dashboard.Key{Key: "PgUp PgDn", Does: "page"}, works: scrolls, helpful: true},
+		{Key: dashboard.Key{Key: "wheel", Does: "scroll"}, works: scrolls, helpful: true},
 	})
 }
 
-// unpinSession has the router clear the own pin of the session picked out,
-// routing it on its merits from its next request on, as pin auto --session
-// does.
-func (m Model) unpinSession() (Model, tea.Cmd) {
-	return m.command(order{session: m.selected.Session, done: m.selected.Shown() + " is routed automatically from its next request"})
-}
-
-// toggled returns the ids of the accounts doc's pin names that stay pinned,
-// as stays says, in the order configured, with the account with the given id
-// put in when the pin doesn't name it, and taken out when it does. The one
-// put in is put in whether it has a token or not, so the router says why it
-// can't be pinned.
-func toggled(doc status.Document, id string) []string {
-	var ids []string
-	for _, a := range doc.Accounts {
-		if a.ID == id && !doc.Pin.Has(id) || a.ID != id && stays(doc, a) {
-			ids = append(ids, a.ID)
-		}
-	}
-	return ids
-}
-
-// staying returns the ids of the accounts doc's pin names that stay pinned,
-// as stays says, in the order configured.
-func staying(doc status.Document) []string {
-	var ids []string
-	for _, a := range doc.Accounts {
-		if stays(doc, a) {
-			ids = append(ids, a.ID)
-		}
-	}
-	return ids
-}
-
-// stays reports whether the account a stays pinned in an order a key gives:
-// doc's pin names it, and it has a usable token, as doc shows. The router
-// refuses a pin naming any account without one, as one that lost its token
-// since it was pinned.
-func stays(doc status.Document, a status.Account) bool {
-	return doc.Pin.Has(a.ID) && a.TokenSet
-}
-
-// move has the router move running sessions to the accounts pinned that have
-// a usable token, or says there's none to move them to.
-func (m Model) move() (Model, tea.Cmd) {
-	switch pinned := staying(m.doc); {
-	case !m.answering():
-		return m.unanswered()
-	case m.doc.Pin.IsZero():
-		return m.noting("nothing's pinned to move sessions to: pin an account with " + places(len(m.doc.Accounts)))
-	case len(pinned) == 0:
-		return m.noting("no account pinned has a usable token to move sessions to: pin another with " + places(len(m.doc.Accounts)))
-	default:
-		return m.command(order{accounts: pinned, move: true, done: "running sessions move to " + m.doc.Destination(pinned)})
+// historyListings are History's own keys, each in a group of its own: [ ]
+// view; < > and the period, where the sub-tab shown has one; v and what it
+// has the sub-tab show, where it cycles anything the frame at the size
+// drawn at shows, as its Split has it; and with v, while the Year shows one
+// account alone, ←→ stepping between the accounts. A phone's line keeps
+// [ ] view alone.
+func (m Model) historyListings() []keyListing {
+	history, p := m.shownView() == dashboard.History, m.past.page
+	period, split := p.Period(), m.historySplit()
+	return []keyListing{
+		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: history, apart: true},
+		{Key: dashboard.Key{Key: "< >", Does: "period", State: period}, works: history && period != "", apart: true, wide: true},
+		{Key: dashboard.Key{Key: "v", Does: "split", State: split}, works: history && split != "", apart: true, wide: true},
+		{Key: dashboard.Key{Key: "←→", Does: "account"}, works: history && p.Shown == dashboard.HistoryYear && p.YearAsk.Account != "", wide: true},
 	}
 }
 
-// command has the router carry out an order, while the router answers and
-// isn't still carrying out the last. Once it has, the footer says what the
-// order did, or why it couldn't, and the router's document is read again.
-func (m Model) command(o order) (Model, tea.Cmd) {
-	switch {
-	case !m.answering():
-		return m.unanswered()
-	case m.ordering:
-		return m, nil
-	}
-	m.ordering = true
-	ctx, source := m.ctx, m.cfg.Source
-	return m, func() tea.Msg {
-		return orderedMsg{order: o, err: o.give(ctx, source)}
-	}
-}
-
-// ordered takes in how an order went: the footer says, and the router's
-// document is read again to show what it did.
-func (m Model) ordered(msg orderedMsg) (tea.Model, tea.Cmd) {
-	m.ordering = false
-	msg.order.log(msg.err)
-	note := msg.order.done
-	if msg.err != nil {
-		note = msg.err.Error()
-	}
-	m, lapse := m.noting(note)
-	m, read := m.reread()
-	return m, tea.Batch(lapse, read)
-}
-
-// noting has the footer say note for noteFor, and returns what redraws it
-// once that's passed.
-func (m Model) noting(note string) (Model, tea.Cmd) {
-	m.note, m.noteUntil = note, m.now().Add(noteFor)
-	return m, m.after(noteFor, noteMsg{})
-}
-
-// noteMsg wakes the model to redraw once a note has had its time.
-type noteMsg struct{}
-
-// reread looks at the router's document again as soon as it can, while the
-// dashboard reads the router: now, or once the read under way lands, as that
-// one may have been read before what prompts this.
-func (m Model) reread() (Model, tea.Cmd) {
-	switch {
-	case !m.routed():
-		return m, nil
-	case m.fetching:
-		m.again = true
-		return m, nil
-	default:
-		return m.read(status.Read{})
-	}
-}
-
-// answering reports whether the dashboard reads the router, and the router
-// answered the last look at its document: the keys that give it orders work
-// only then.
-func (m Model) answering() bool {
-	return m.routed() && m.lost.IsZero()
-}
-
-// unanswered is what a key that gives the router an order does while the
-// router can't take it: it says the router isn't answering while the
-// router's last document is on screen, and does nothing while the dashboard
-// probes.
-func (m Model) unanswered() (Model, tea.Cmd) {
-	if !m.routed() {
-		return m, nil
-	}
-	return m.noting(status.ErrNoRouter.Error())
-}
-
-// keyListing is a key as the model stands, as the footer and the help list it:
-// what the footer says it does, in a word or two, "" for a key it leaves
-// behind ?, and what the help says, at more length; whether the footer
-// lists it wherever there's room; and whether it works there, and so is
-// listed at all.
-type keyListing struct {
-	key, footer, help string
-	always, works     bool
-}
-
-// listings are every key there is, as m stands, in the design's order, so
-// the footer comes out as the design has it once every key works: tab,
-// while there's another view to move to; w, as wKey says; in the Accounts
-// view, the arrows and space, s, and g; j and k, where the view scrolls;
-// while the router answers, of more than one account, the digits of their
-// places, a and m; r; t, in colour; and ? and q, always. The footer leaves
-// s, j and k, r and t behind ?. With a session picked out, the keys are as
-// picking says; and while the theme picker is open, they're its own alone.
-func (m Model) listings() []keyListing {
+// keyLine is the key line as m stands at now, under its page drawn as f:
+// while the theme picker is open, its keys alone, then q quit, a phone's line
+// as a wide one; while the Log's find is open, its keys alone, as q types;
+// else tab views, or the page's own keys that lead in its place, KeysAfter
+// cells after them, as esc back does on a session's page, then the page's
+// own keys that work, in their groups, those it leaves to help aside, then p
+// pin where a pin can be set, and ? help and q quit last; and the note a key
+// left in their place, while that's news. Most pages set p pin apart, a
+// phone's line keeping the page's own keys between those that lead and ?
+// and q quit, but those it leaves to a wider line, or on the Log and
+// Sessions, with no session's page open over it, those logPhoneKeys and
+// sessionsPhoneKeys keep; the Overview sets ↑↓ focus, p pin, ? help and q
+// quit as a group of their own, overviewApart after its toggles, which a
+// phone's line leaves to help. Each key works as the page drawn as f has
+// it, at now, the moment it was drawn at.
+func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	if m.picker.open {
-		return m.picker.keys()
+		return dashboard.KeyLine{Groups: [][]dashboard.Key{m.picker.keys(), {dashboard.Quit}}, Lead: dashboard.KeysAfter, Note: m.noted(now)}
 	}
-	cards, scrolled := m.view == dashboard.Accounts, m.scrolled()
-	listed := []keyListing{
-		{key: "tab", footer: "views", help: "the next view; shift-tab, the one before", works: len(m.views) > 1},
-		m.wKey(),
-		{key: "←→", footer: "focus", help: "move the focus; ↑↓ between rows, over a flipped card's sessions first", works: cards},
-		{key: "space", footer: "flip", help: "flip the card with the focus to its sessions, or back", works: cards},
-		{key: "s", help: "flip every card, or back", works: cards},
-		{key: "g", footer: "chart", help: "cycle the chart every card draws: burn-down, burn rate, hourglass; now " + m.chart.Name(), works: cards},
-		{key: "j k", help: "scroll " + scrolled + "; PgUp and PgDn a page, or the wheel", works: m.scrolling().Most > 0},
-		{key: places(len(m.doc.Accounts)), footer: "pin", help: "toggle the account in that place in the pin", works: m.orders()},
-		{key: "a", footer: "auto", help: "route automatically again", works: m.orders()},
-		{key: "m", footer: "move", help: "move running sessions to the pinned accounts", works: m.orders()},
-		{key: "r", help: "refresh", works: true},
-		{key: "t", help: "the theme picker", works: m.coloured()},
-		{key: "?", footer: "keys", help: "these keys, and the key to the glyphs", always: true, works: true},
-		{key: "q", footer: "quit", help: "quit", always: true, works: true},
+	if m.finding() {
+		return dashboard.KeyLine{Groups: [][]dashboard.Key{findKeys()}, Note: m.noted(now)}
 	}
-	if m.selecting() {
-		return m.picking(listed)
+	keys := m.keys(m.runningIn(f, now))
+	page := grouped(keys.listings(f.KeysScroll(m.doc, now)))
+	lead, apart := []dashboard.Key{tabViews}, 3
+	if page.lead != nil {
+		lead, apart = page.lead, dashboard.KeysAfter
 	}
-	return listed
-}
-
-// scrolled is what j and k scroll in the view shown: Sessions' calls and
-// lines, Runway's lanes, or the cards.
-func (m Model) scrolled() string {
-	switch m.view {
+	l := dashboard.KeyLine{Groups: append([][]dashboard.Key{lead}, page.groups...), Lead: apart, PhoneHelp: "keys", Note: m.noted(now)}
+	if keys.overview {
+		ends := page.ends
+		if keys.pinned {
+			ends = append(ends, keys.pin)
+		}
+		l.Lead, l.After, l.PhoneHelp = overviewApart, overviewApart, "keys and toggles"
+		l.Groups = append(l.Groups, append(ends, helpKey, dashboard.Quit))
+		return l
+	}
+	l.Phone = page.phone
+	switch m.shownView() {
+	case dashboard.Log:
+		l.Phone = m.logPhoneKeys()
 	case dashboard.Sessions:
-		return "the calls and lines"
-	case dashboard.Runway:
-		return "the lanes"
-	default:
-		return "the cards"
+		l.Phone = m.sessionsPhoneKeys()
 	}
+	if keys.pinned {
+		l.Groups = append(l.Groups, []dashboard.Key{keys.pin})
+	}
+	l.Groups = append(l.Groups, []dashboard.Key{helpKey, dashboard.Quit})
+	return l
 }
 
-// wKey is w as the view shown has it: in Runway, switching between the day
-// and the week, the footer saying which it shows; in Accounts, once a
-// document has been read, as it does nothing before, cycling the window
-// every card features, the footer saying which; and elsewhere, nothing.
-func (m Model) wKey() keyListing {
-	if m.view == dashboard.Runway {
-		span := m.span.Name()
-		return keyListing{key: "w", footer: "window: " + span, help: "switch between the day and the week, now the " + span, works: true}
-	}
-	window := m.featured.Name(m.doc, m.now(), m.cfg.Policy)
-	return keyListing{key: "w", footer: "window: " + window, help: "cycle the window every card features, now " + window, works: m.view == dashboard.Accounts && !m.updated.IsZero()}
+// lineKeys are the page's own keys as the key line sets them: in their
+// groups; those that lead it, in tab views' place; those a phone's line
+// keeps, as it words them; and those it sets with p, ? and q.
+type lineKeys struct {
+	groups            [][]dashboard.Key
+	lead, phone, ends []dashboard.Key
 }
 
-// picking are the keys there are with a session picked out: first those that
-// act on it, which the footer lists alone, as the design has them, ↑↓ to
-// pick out another, the digits to move it and a to clear its own pin while
-// they work, space to flip its card back and esc to end the selection; then
-// the rest of listed, each left behind ?.
-func (m Model) picking(listed []keyListing) []keyListing {
-	id := m.selected.Shown()
-	keys := []keyListing{
-		{key: "↑↓", footer: "select", help: "pick out the session above or below, then the card past them", works: true},
-		{key: places(len(m.doc.Accounts)), footer: "move " + id + " to that account", help: "pin " + id + " to the account in that place, every model of it", works: m.orders()},
-		{key: "a", help: "clear " + id + "'s own pin, routing it automatically again", works: m.orders()},
-		{key: "space", footer: "flip back", help: "flip the card back", works: true},
-		{key: "esc", footer: "done", help: "end the selection", works: true},
-	}
-	for _, l := range listed {
-		if !slices.ContainsFunc(keys, func(k keyListing) bool { return k.key == l.key }) {
-			l.footer, l.always = "", false
-			keys = append(keys, l)
+// grouped are the keys listed that work, as the key line sets them, those it
+// leaves to help aside: each with those before it, but one set apart, which
+// starts a group of its own, and those that lead it.
+func grouped(listed []keyListing) lineKeys {
+	var keys lineKeys
+	for _, k := range listed {
+		switch {
+		case !k.works || k.helpful:
+		case k.leads:
+			keys.lead = append(keys.lead, k.Key)
+		case k.withEnds:
+			keys.ends = append(keys.ends, k.Key)
+		default:
+			if k.apart || len(keys.groups) == 0 {
+				keys.groups = append(keys.groups, nil)
+			}
+			keys.groups[len(keys.groups)-1] = append(keys.groups[len(keys.groups)-1], k.Key)
+			if !k.wide {
+				keys.phone = append(keys.phone, k.phoned())
+			}
 		}
 	}
 	return keys
 }
 
-// patch are the keys that work on the sessions on a flipped card's back, as
-// the back lists them: where there's another account to move one to, ↑↓ to
-// pick one out, and while the router answers, the digits to move it.
-func (m Model) patch() []dashboard.Key {
-	if m.single() {
-		return nil
+// phoned is the key as a phone's line words it.
+func (k keyListing) phoned() dashboard.Key {
+	if k.phoneDoes != "" {
+		k.Does = k.phoneDoes
 	}
-	keys := []dashboard.Key{{Key: "↑↓", Does: "select"}}
-	if m.orders() {
-		keys = append(keys, dashboard.Key{Key: places(len(m.doc.Accounts)), Does: "move it"})
-	}
-	return keys
+	return k.Key
 }
 
-// keys are the keys the footer lists, as listings has them: those that work
-// where they are, but those it leaves behind ?.
-func (m Model) keys() []dashboard.Key {
-	var keys []dashboard.Key
-	for _, l := range m.listings() {
-		if l.works && l.footer != "" {
-			keys = append(keys, dashboard.Key{Key: l.key, Does: l.footer, Always: l.always})
+// tabViews and helpKey are tab and ?, which show the next tab and open the
+// page's help, as the key line and help list them.
+var (
+	tabViews = dashboard.Key{Key: "tab", Does: "views"}
+	helpKey  = dashboard.Key{Key: "?", Does: "help"}
+)
+
+// overviewApart is how many blank cells the Overview's key line sets each of
+// its groups apart by, tab views among them.
+const overviewApart = 5
+
+// helpKeys are the keys help lists, where the page's view scrolls or not,
+// worded as the key line words them: tab; every key of the page's own that
+// works, those the key line leaves to help among them; p, where a pin can be
+// set; t, in colour; and R, ? and q.
+func (p pageKeys) helpKeys(scrolls bool) []dashboard.Key {
+	keys := []dashboard.Key{tabViews}
+	for _, k := range p.listings(scrolls) {
+		if k.works {
+			keys = append(keys, k.Key)
 		}
 	}
-	return keys
-}
-
-// helpKeys are the keys the help lists, as listings has them: every key that
-// works where it is, and what it does, at more length than the footer says.
-func (m Model) helpKeys() []dashboard.Key {
-	var keys []dashboard.Key
-	for _, l := range m.listings() {
-		if l.works {
-			keys = append(keys, dashboard.Key{Key: l.key, Does: l.help})
-		}
+	if p.pinned {
+		keys = append(keys, p.pin)
 	}
-	return keys
-}
-
-// helpKey acts on a key while the help is open, which takes every key but
-// those that quit: ? and esc close it, and the rest do nothing.
-func (m Model) helpKey(key string) Model {
-	if key == "?" || key == "esc" {
-		m.helping = false
+	if p.coloured {
+		keys = append(keys, dashboard.Key{Key: "t", Does: "themes"})
 	}
-	return m
-}
-
-// orders reports whether the keys that give the router orders work: while the
-// router answers, of more than one account.
-func (m Model) orders() bool {
-	return m.answering() && !m.single()
-}
-
-// places names the keys of the first n accounts' places, of the first nine:
-// "1", or "1-3".
-func places(n int) string {
-	n = min(n, pinnable)
-	if n == 1 {
-		return "1"
-	}
-	return "1-" + strconv.Itoa(n)
+	return append(keys, dashboard.Key{Key: "R", Does: "refresh"}, helpKey, dashboard.Quit)
 }

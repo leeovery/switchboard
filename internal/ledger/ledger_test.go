@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -266,6 +267,124 @@ func TestAModelsDaysRequestsAreItsMessagesAlone(t *testing.T) {
 	for _, tt := range tests {
 		if got := tt.day.Requests(); got != tt.want {
 			t.Errorf("of %s, a model's day's Requests() = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestARequestIsCountedWhateverItsKindButACheckOrACount(t *testing.T) {
+	tests := []struct {
+		name     string
+		kind     string
+		attempts int
+		want     bool
+	}{
+		{name: "a message sent upstream", kind: ledger.KindMessage, attempts: 1, want: true},
+		{name: "a message the router answered itself", kind: ledger.KindMessage, want: true},
+		{name: "the client's quota check", kind: ledger.KindCheck, attempts: 1},
+		{name: "a count of tokens", kind: ledger.KindCount, attempts: 1},
+		{name: "a line of no kind, which the router never writes", attempts: 1, want: true},
+		{name: "a kind a later router adds", kind: "batch", want: true},
+	}
+	for _, tt := range tests {
+		if got := (&ledger.Line{Kind: tt.kind, Attempts: tt.attempts}).Counted(); got != tt.want {
+			t.Errorf("%s: Counted() = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestADaysSummaryCountsTheRequestsCountedCounts(t *testing.T) {
+	lines := []ledger.Line{asked("1", on(0, 9, 0)), asked("2", on(0, 9, 1)), asked("3", on(0, 9, 2)), asked("4", on(0, 9, 3)), asked("5", on(0, 9, 4)), asked("6", on(0, 9, 5))}
+	lines[1].Attempts, lines[1].Status = 0, 529
+	lines[2].Kind = ledger.KindCheck
+	lines[3].Kind = ledger.KindCount
+	lines[4].Kind = ""
+	lines[5].Kind = "batch"
+	s, err := ledger.Summarise(date, slices.Values(lines), noReadings.of, nil, caps, dayDone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	summed, counted := 0, 0
+	for _, a := range s.Accounts {
+		for _, m := range a.Models {
+			summed += m.Requests()
+		}
+	}
+	for _, l := range lines {
+		if l.Counted() {
+			counted++
+		}
+	}
+	if summed != counted || counted != 4 {
+		t.Errorf("the day's summary counts %d requests and Counted %d, want both 4: the messages upstream and unsent, and the lines of no kind or a later one", summed, counted)
+	}
+}
+
+func TestALineCountsTowardItsSessionUnlessItsAQuotaCheck(t *testing.T) {
+	tests := []struct {
+		name, kind, session string
+		want                string
+	}{
+		{name: "a message of a session", kind: ledger.KindMessage, session: "one", want: "one"},
+		{name: "a count of tokens, which Counted counts among no requests", kind: ledger.KindCount, session: "one", want: "one"},
+		{name: "a line of no kind", session: "one", want: "one"},
+		{name: "the client's quota check, of a session it never uses again", kind: ledger.KindCheck, session: "one"},
+		{name: "a message of no session", kind: ledger.KindMessage},
+	}
+	for _, tt := range tests {
+		if got := (&ledger.Line{Kind: tt.kind, Session: tt.session}).CountedSession(); got != tt.want {
+			t.Errorf("%s: CountedSession() = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestADaysSummaryNamesTheSessionsCountedSessionSays(t *testing.T) {
+	lines := []ledger.Line{askedBy("1", "one", on(0, 9, 0)), askedBy("2", "checked", on(0, 9, 1)), askedBy("3", "counted", on(0, 9, 2)), askedBy("4", "", on(0, 9, 3))}
+	lines[1].Kind = ledger.KindCheck
+	lines[2].Kind = ledger.KindCount
+	s, err := ledger.Summarise(date, slices.Values(lines), noReadings.of, nil, caps, dayDone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var named, modelNamed, counted []string
+	for _, a := range s.Accounts {
+		named = append(named, a.SessionIDs...)
+		for _, m := range a.Models {
+			modelNamed = append(modelNamed, m.SessionIDs...)
+		}
+	}
+	for _, l := range lines {
+		if id := l.CountedSession(); id != "" {
+			counted = append(counted, id)
+		}
+	}
+	slices.Sort(counted)
+	if !slices.Equal(named, counted) || !slices.Equal(modelNamed, counted) {
+		t.Errorf("the day's summary names sessions %q, its model %q, and CountedSession %q, want all three the same", named, modelNamed, counted)
+	}
+}
+
+func TestARequestFailedWhereItWasAnswered400OrOverOrNothing(t *testing.T) {
+	tests := []struct {
+		name string
+		line ledger.Line
+		want bool
+	}{
+		{name: "answered", line: ledger.Line{Status: 200}},
+		{name: "answered short of 400", line: ledger.Line{Status: 399}},
+		{name: "answered 400", line: ledger.Line{Status: 400}, want: true},
+		{name: "a 429 every account refused, passed on", line: ledger.Line{Status: 429, Tried: []ledger.Tried{{Account: "work", Why: "hit its limit"}}}, want: true},
+		{name: "the upstream overloaded", line: ledger.Line{Status: 529}, want: true},
+		{name: "cut off before an answer", line: ledger.Line{CutOff: true}, want: true},
+		{name: "given up before an answer", line: ledger.Line{Canceled: true}, want: true},
+		{name: "given up while it was answered", line: ledger.Line{Status: 200, Canceled: true}},
+		{name: "cut off while it was answered", line: ledger.Line{Status: 200, CutOff: true}},
+	}
+	for _, tt := range tests {
+		if got := tt.line.Failed(); got != tt.want {
+			t.Errorf("%s: Failed() = %v, want %v", tt.name, got, tt.want)
+		}
+		if got := ledger.Failing(tt.line.Status); got != tt.want {
+			t.Errorf("%s: Failing(%d) = %v, want %v, as the line's status alone says", tt.name, tt.line.Status, got, tt.want)
 		}
 	}
 }

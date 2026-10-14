@@ -3,6 +3,7 @@ package status_test
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -22,7 +23,7 @@ func TestText(t *testing.T) {
 		want string
 	}{
 		{
-			name: "windows heading every way, and the account to use next",
+			name: "windows heading every way, probed: no account to use next, where new sessions go being the router's to say",
 			doc: status.Document{
 				GeneratedAt: now.UTC(),
 				Source:      status.SourceProbe,
@@ -50,15 +51,16 @@ func TestText(t *testing.T) {
 				},
 			},
 			want: `work · Work
-  Session     23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  5-hour      23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
   Week        93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54
   Fable offline: HTTP 529 · Overloaded
 
 side · Side
-  Session    100%  resets now · Mon 14:00
+  5-hour       0%  not started
   Fable week 104%  resets in 7m · Mon 14:19 · exhausted
   30d          5%
   burst      100%  exhausted
+  limit reached
 
 personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
@@ -66,16 +68,31 @@ personal · Personal
 spare · Spare
   HTTP 401 · Invalid bearer token
 
-best next: work · Work
 probed directly
 `,
 		},
 		{
-			name: "no account to use next",
+			name: "the router's, no account to use next, as none has room",
+			doc: status.Document{
+				GeneratedAt: now.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true},
+				Accounts: []status.Account{personal, {ID: "spare", Label: "Spare", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"}},
+			},
+			want: `personal · Personal
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
+
+spare · Spare
+  HTTP 401 · Invalid bearer token
+
+from the router: healthy  ·  no sessions  ·  routing automatically
+`,
+		},
+		{
+			name: "probed, a lone account to use next, whatever its room, as ▲ marks it",
 			doc:  status.Document{GeneratedAt: now.UTC(), Source: status.SourceProbe, Accounts: []status.Account{personal}},
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+best next: personal · Personal
 probed directly
 `,
 		},
@@ -107,12 +124,12 @@ probed directly
 				},
 			},
 			want: `work · Work
-  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
-  Week     40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
+  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  Week    40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
   2 sessions
 
 side · Side
-  Session  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33
+  5-hour  60%  resets in 2h 58m · Mon 17:10
   limit until Mon 21:00
   1 session
 
@@ -149,17 +166,17 @@ from the router: healthy  ·  3 sessions  ·  pinned to side · Side
 				},
 			},
 			want: `work · Work
-  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
   refused (401) until 14:20
 
 side · Side
-  Session 100%  resets in 6h 48m · Mon 21:00 · exhausted
+  5-hour 100%  resets in 6h 48m · Mon 21:00 · exhausted
   limit until Mon 21:00
   refused (403, opus) until 14:21
   1 session
 
 spare · Spare
-  Session  50%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 16:14
+  5-hour  50%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 16:14
 
 from the router: healthy  ·  no sessions  ·  routing automatically
 `,
@@ -183,8 +200,8 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 				},
 			},
 			want: `work · Work
-  Session   0%  not started
-  Week     40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
+  5-hour   0%  not started
+  Week    40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
 
 best next: work · Work
 from the router: healthy  ·  no sessions  ·  routing automatically
@@ -217,11 +234,11 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 				},
 			},
 			want: `work · Work
-  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
-  Week     40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
+  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  Week    40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
 
 side · Side
-  Session   0%  not started · next prime Mon 14:17
+  5-hour   0%  not started · next prime Mon 14:17
 
 priming 08:00-23:00: work at 04:10 and side at 06:40
 next reset: work · Work, Mon 17:10  ·  next prime: side · Side, Mon 14:17
@@ -242,6 +259,7 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 			want: `side · Side
   HTTP 401 · Invalid bearer token
 
+best next: side · Side
 from the router: unhealthy, 6 of the 8 requests in the last 5 minutes failed  ·  no sessions  ·  routing automatically
 `,
 		},
@@ -257,6 +275,7 @@ from the router: unhealthy, 6 of the 8 requests in the last 5 minutes failed  ·
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+best next: personal · Personal
 from the router: healthy  ·  no sessions  ·  routing automatically
 restart due since Mon 13:12 (upgraded), once no request is in flight (3 now): switchboard service restart restarts it now, cutting off requests still in flight after 30 seconds
 `,
@@ -272,6 +291,7 @@ restart due since Mon 13:12 (upgraded), once no request is in flight (3 now): sw
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+best next: personal · Personal
 probed directly: the router isn't running
 `,
 		},
@@ -286,6 +306,7 @@ probed directly: the router isn't running
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+best next: personal · Personal
 probed directly: the router is unhealthy, no answer within 500ms
 `,
 		},
@@ -297,7 +318,7 @@ probed directly: the router is unhealthy, no answer within 500ms
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.doc.Text(now); got != tt.want {
+			if got := tt.doc.At(now, policy).Text(); got != tt.want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, tt.want)
 			}
 		})
@@ -322,17 +343,21 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 	tests := []struct {
 		name string
 		pin  status.Pin
-		// work are the lines status gives work beside its usage.
-		work string
+		// week is work's week's line, at its cap, which it runs out nowhere
+		// past, unless the pin spends its reserve; and work are the lines
+		// status gives work beside its usage.
+		week, work string
 	}{
 		{
 			name: "at its reserve",
 			pin:  status.Pin{Accounts: []string{"side"}, Since: now.UTC().Add(-time.Hour)},
+			week: "  Week    93%  resets in 5d 11h · Sun 02:10\n",
 			work: "  limit until Mon 21:00\n  at its reserve (90%)\n  2 sessions\n",
 		},
 		{
 			name: "spending its reserve, pinned",
 			pin:  status.Pin{Accounts: []string{"work"}, Since: now.UTC().Add(-time.Hour)},
+			week: "  Week    93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54\n",
 			work: "  limit until Mon 21:00\n  spending its reserve (pinned)\n  2 sessions\n",
 		},
 	}
@@ -348,14 +373,14 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 				Accounts:    []status.Account{work, side},
 			}
 			want := "work · Work (primary)\n" +
-				"  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%\n" +
-				"  Week     93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54\n" +
+				"  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%\n" +
+				tt.week +
 				tt.work + "\n" +
 				"side · Side\n" +
-				"  Session  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +
+				"  5-hour  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +
 				"\n" +
 				"from the router: healthy  ·  2 sessions  ·  " + doc.Routing() + "\n"
-			if got := doc.Text(now); got != want {
+			if got := doc.At(now, policy).Text(); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
@@ -374,16 +399,17 @@ func TestTextKeepsItsWordsForAModelsOwnWindowAtItsReserve(t *testing.T) {
 	}
 	doc := status.Document{GeneratedAt: now.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: []status.Account{work}}
 
-	if got := doc.Text(now); !strings.Contains(got, "\n  at its reserve (90%)\n") || strings.Contains(got, "other models") {
-		t.Errorf("Text() =\n%s\nwant it to say \"at its reserve (90%%)\" as it always has, as the card alone names the window", got)
-	}
-	if got := doc.StateOf(work, now, policy); got.Says != "Fable wk at its reserve (90%)" {
-		t.Errorf("StateOf() says %q, want the card to name the window", got.Says)
+	if got := doc.At(now, policy).Text(); !strings.Contains(got, "\n  at its reserve (90%)\n") || strings.Contains(got, "other models") {
+		t.Errorf("Text() =\n%s\nwant it to say \"at its reserve (90%%)\" as it always has, naming no window", got)
 	}
 }
 
 func TestReserved(t *testing.T) {
-	atReserve := status.Account{ID: "work", Label: "Work", Reserve: 0.15, AtReserve: []string{"5h"}}
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC)
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.85, ResetsAt: now.Add(time.Hour)}
+	atReserve := status.Account{ID: "work", Label: "Work", Reserve: 0.15, Windows: []quota.Window{session}}
+	reset := atReserve
+	reset.Windows = []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.85, ResetsAt: now}}
 	tests := []struct {
 		name    string
 		account status.Account
@@ -397,11 +423,12 @@ func TestReserved(t *testing.T) {
 		{name: "spent by the global pin, among others", account: atReserve, pin: []string{"work", "side"}, want: "spending its reserve (pinned)"},
 		{name: "short of its reserve", account: status.Account{ID: "work", Label: "Work", Reserve: 0.15}},
 		{name: "short of its reserve, pinned", account: status.Account{ID: "work", Label: "Work", Reserve: 0.15}, pin: []string{"work"}},
+		{name: "its window reset since it was read", account: reset},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{Pin: status.Pin{Accounts: tt.pin}, Accounts: []status.Account{tt.account}}
-			if got := doc.Reserved(tt.account); got != tt.want {
+			if got := doc.Reserved(tt.account, now); got != tt.want {
 				t.Errorf("Reserved() = %q, want %q", got, tt.want)
 			}
 		})
@@ -410,7 +437,14 @@ func TestReserved(t *testing.T) {
 
 func TestPressed(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
-	under := status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 17, 21, 0, 0, time.UTC), Under: true}
+	// The session, 40% used, resets at 18:12, having started at 13:12: at its
+	// rate over the last half hour, 30% an hour, it runs out at 16:12, and a
+	// reserve of a tenth is reached at 15:52.
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)}
+	pressed := status.Account{
+		ID: "work", Windows: []quota.Window{session}, Rates: []status.Rate{{Window: "5h", Rate: 0.3}},
+		Pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 15, 12, 0, 0, time.UTC), Under: true},
+	}
 	tests := []struct {
 		name    string
 		account status.Account
@@ -418,21 +452,39 @@ func TestPressed(t *testing.T) {
 		pin  []string
 		want string
 	}{
-		{name: "running out", account: status.Account{ID: "work", Pressure: under}, want: "under pressure: runs out ~18:21"},
-		{name: "reaching its reserve", account: status.Account{ID: "work", Reserve: 0.1, Pressure: under}, want: "under pressure: at its reserve ~18:21"},
-		{name: "running out, its reserve spent by the global pin", account: status.Account{ID: "work", Reserve: 0.1, Pressure: under}, pin: []string{"work"}, want: "under pressure: runs out ~18:21"},
-		{name: "running out after its reset", account: status.Account{ID: "work", Pressure: status.Pressure{Window: "5h", Rate: 0.1, RunsOut: under.RunsOut}}},
+		{name: "running out", account: pressed, want: "under pressure: runs out ~16:12"},
+		{name: "reaching its reserve", account: with(pressed, reserving), want: "under pressure: at its reserve ~15:52"},
+		{name: "running out, its reserve spent by the global pin", account: with(pressed, reserving), pin: []string{"work"}, want: "under pressure: runs out ~16:12"},
+		{
+			name:    "when its window runs out, whatever time the router gave",
+			account: with(pressed, func(a *status.Account) { a.Pressure.RunsOut = time.Date(2026, 9, 28, 17, 21, 0, 0, time.UTC) }),
+			want:    "under pressure: runs out ~16:12",
+		},
+		{
+			name:    "under pressure as the router says, its window not running out before it resets at the rate it goes by",
+			account: with(pressed, func(a *status.Account) { a.Rates = []status.Rate{{Window: "5h", Rate: 0.05}} }),
+			want:    "under pressure",
+		},
+		{name: "running out after its reset", account: with(pressed, func(a *status.Account) { a.Pressure.Under = false })},
+		{
+			name: "its window reset since it was read, before it's read again",
+			account: with(pressed, func(a *status.Account) {
+				a.Windows = []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: now.Add(-time.Second).UTC()}}
+			}),
+		},
 		{name: "its pace unknown", account: status.Account{ID: "work"}},
 		{
-			name:    "held back from one model's requests, under pressure as the router says",
-			account: status.Account{ID: "work", Pressure: under, Refused: status.Refusal{Until: now.Add(time.Minute), Status: 403, Family: "opus"}},
-			want:    "under pressure: runs out ~18:21",
+			name: "held back from one model's requests, under pressure as the router says",
+			account: with(pressed, func(a *status.Account) {
+				a.Refused = status.Refusal{Until: now.Add(time.Minute), Status: 403, Family: "opus"}
+			}),
+			want: "under pressure: runs out ~16:12",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{Pin: status.Pin{Accounts: tt.pin}, Accounts: []status.Account{tt.account}}
-			if got := doc.Pressed(tt.account, now); got != tt.want {
+			if got := doc.Pressed(tt.account, now, policy); got != tt.want {
 				t.Errorf("Pressed() = %q, want %q", got, tt.want)
 			}
 		})
@@ -458,7 +510,7 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 			name:     "at its rate over the last half hour",
 			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
 			heading:  "runs out ~Mon 15:32 at its rate over the last 30 min",
-			notes:    "  under pressure: runs out ~15:32 at Session's rate over the last 30 min, before its reset at 17:10\n",
+			notes:    "  under pressure: runs out ~15:32 at 5-hour's rate over the last 30 min, before its reset at 17:10\n",
 		},
 		{
 			name: "at its rate over the 18 minutes it's measured over",
@@ -467,20 +519,26 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 				RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true,
 			},
 			heading: "runs out ~Mon 15:32 at its rate over the last 18 min",
-			notes:   "  under pressure: runs out ~15:32 at Session's rate over the last 18 min, before its reset at 17:10\n",
+			notes:   "  under pressure: runs out ~15:32 at 5-hour's rate over the last 18 min, before its reset at 17:10\n",
 		},
 		{
 			name:     "at its rate since it started",
 			pressure: status.Pressure{Window: "5h", Rate: 0.6 / (2*time.Hour + 2*time.Minute).Hours(), RunsOut: time.Date(2026, 9, 28, 14, 33, 20, 0, time.UTC), Under: true},
 			heading:  "runs out ~Mon 15:33",
-			notes:    "  under pressure: runs out ~15:33 at Session's rate since it started, before its reset at 17:10\n",
+			notes:    "  under pressure: runs out ~15:33 at 5-hour's rate since it started, before its reset at 17:10\n",
 		},
 		{
 			name:     "reaching its reserve",
 			reserve:  0.1,
 			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC), Under: true},
-			heading:  "runs out ~Mon 15:32 at its rate over the last 30 min",
-			notes:    "  under pressure: at its reserve ~15:12 at Session's rate over the last 30 min, before its reset at 17:10\n",
+			heading:  "runs out ~Mon 15:12 at its rate over the last 30 min",
+			notes:    "  under pressure: at its reserve ~15:12 at 5-hour's rate over the last 30 min, before its reset at 17:10\n",
+		},
+		{
+			name:     "under pressure as the router says, its window not running out before it resets at the rate it goes by: nothing of why",
+			pressure: status.Pressure{Window: "5h", Rate: 0.05, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
+			heading:  "on pace for 75% at its rate over the last 30 min",
+			notes:    "  under pressure\n",
 		},
 		{
 			name:     "not under pressure",
@@ -506,13 +564,141 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 				}},
 			}
 			want := "work · Work\n" +
-				"  Session  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
+				"  5-hour  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
 				tt.notes + "\n" +
+				"best next: work · Work\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
-			if got := doc.Text(now); got != want {
+			if got := doc.At(now, policy).Text(); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
+	}
+}
+
+// status judges a session at now, as the dashboard does: read running and
+// under pressure, on the tick after it resets, before it's read again, it's
+// empty and not started, and nothing says it's under pressure.
+func TestTextSaysASessionThatResetSinceItWasReadHasntStarted(t *testing.T) {
+	read := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	reset := time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)
+	doc := status.Document{
+		GeneratedAt: read.UTC(),
+		Source:      status.SourceRouter,
+		Router:      status.Health{Healthy: true},
+		Accounts: []status.Account{{
+			ID: "work", Label: "Work", TokenSet: true, FetchedAt: read.UTC(),
+			Windows:  []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: reset}},
+			Pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
+		}},
+	}
+	want := "work · Work\n" +
+		"  5-hour   0%  not started\n" +
+		"\n" +
+		"best next: work · Work\n" +
+		"from the router: healthy  ·  no sessions  ·  routing automatically\n"
+	if got := doc.At(reset.Add(time.Second).In(read.Location()), policy).Text(); got != want {
+		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
+	}
+}
+
+// status says a window hasn't started where the dashboard draws it so, as
+// WindowStates stand it, in ROUTING's order: read running, on the tick after
+// its session resets, before it's read again, an account the router's limit
+// holds in its session has it held, and one whose token is refused has it
+// stale, each reading empty, with no reset, as it has lapsed, as the router's
+// next document has it; while one whose last read failed, nothing read since
+// the reset, has it not started.
+func TestTextSaysASessionLapsedAtNowHasntStartedUnlessALimitOrARefusalComesFirst(t *testing.T) {
+	read := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	reset := time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)
+	now := reset.Add(time.Second).In(read.Location())
+	tests := []struct {
+		name   string
+		change func(*status.Account)
+		want   string
+	}{
+		{
+			name: "held by the router's limit",
+			change: func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"5h"}, Until: reset.Add(40 * time.Minute)}
+			},
+			want: "  5-hour   0%\n  limit until Mon 17:50\n",
+		},
+		{
+			name:   "its last read failed",
+			change: func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" },
+			want:   "  5-hour   0%  not started\n  HTTP 529 · Overloaded\n",
+		},
+		{
+			name:   "its token refused",
+			change: func(a *status.Account) { a.Refused = status.Refusal{Until: reset.Add(time.Hour), Status: 401} },
+			want:   "  5-hour   0%\n  refused (401) until 18:10\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := status.Account{
+				ID: "work", Label: "Work", TokenSet: true, FetchedAt: read.UTC(),
+				Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.97, ResetsAt: reset}},
+			}
+			tt.change(&a)
+			doc := status.Document{GeneratedAt: read.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: []status.Account{a}}
+			want := "work · Work\n" + tt.want + "\n" +
+				"best next: work · Work\n" +
+				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
+			if got := doc.At(now, policy).Text(); got != want {
+				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
+			}
+		})
+	}
+}
+
+// status gives a window's reset as it stands at now, beside its use: work,
+// its token refused, has its week, read before it reset and not read since,
+// empty, and resetting next a week on, not at the reset already past.
+func TestTextGivesAWeekResetSinceItWasReadItsNextReset(t *testing.T) {
+	read := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	reset := read.Add(time.Hour)
+	doc := status.Document{
+		GeneratedAt: read.UTC(),
+		Source:      status.SourceRouter,
+		Router:      status.Health{Healthy: true},
+		Accounts: []status.Account{{
+			ID: "work", Label: "Work", TokenSet: true, FetchedAt: read.UTC(),
+			Windows: []quota.Window{{Key: "7d", Label: "Week", Utilization: 0.6, ResetsAt: reset.UTC()}},
+			Refused: status.Refusal{Until: reset.Add(time.Hour).UTC(), Status: 401},
+		}},
+	}
+	want := "work · Work\n" +
+		"  Week   0%  resets in 6d 23h · Mon 15:12\n" +
+		"  refused (401) until 16:12\n"
+	if got := doc.At(reset.Add(time.Second), policy).Text(); !strings.HasPrefix(got, want) {
+		t.Errorf("Text() =\n%s\nwant it to start\n%s", got, want)
+	}
+}
+
+// status says a session the router notes has lapsed hasn't started, and when
+// it's primed, though the account's last probe failed: the router doesn't
+// probe a lapsed account, so its error stands until the prime, and nothing has
+// been read since the session reset.
+func TestTextSaysASessionNotedLapsedHasntStartedThoughItsProbeFailed(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	doc := status.Document{
+		GeneratedAt: now.UTC(),
+		Source:      status.SourceRouter,
+		Router:      status.Health{Healthy: true},
+		Prime:       status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "16:20", Next: time.Date(2026, 9, 28, 15, 20, 0, 0, time.UTC)}}},
+		Accounts: []status.Account{{
+			ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.Add(-2 * time.Hour).UTC(), Error: "HTTP 529 · Overloaded",
+			Windows: []quota.Window{{Key: "5h", Label: "Session"}},
+			Lapsed:  []string{"5h"},
+		}},
+	}
+	want := "work · Work\n" +
+		"  5-hour   0%  not started · next prime Mon 16:20\n" +
+		"  HTTP 529 · Overloaded\n"
+	if got := doc.At(now, policy).Text(); !strings.HasPrefix(got, want) {
+		t.Errorf("Text() =\n%s\nwant it to start\n%s", got, want)
 	}
 }
 
@@ -549,8 +735,9 @@ func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
 			}
 			want := "work · Work\n" +
 				"  Week  99%  resets in 4d · Fri 14:12 · " + tt.heading + "\n\n" +
+				"best next: work · Work\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
-			if got := doc.Text(now); got != want {
+			if got := doc.At(now, policy).Text(); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
@@ -599,10 +786,10 @@ sessions
 best next: work · Work
 from the router: healthy  ·  2 sessions  ·  routing automatically
 `
-	if got := doc.Text(now, sessions...); got != want {
+	if got := doc.At(now, policy).Text(sessions...); got != want {
 		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 	}
-	if got, without := doc.Text(now, []status.Session{}...), doc.Text(now); got != without || strings.Contains(got, "sessions\n  ") {
+	if got, without := doc.At(now, policy).Text([]status.Session{}...), doc.At(now, policy).Text(); got != without || strings.Contains(got, "sessions\n  ") {
 		t.Errorf("Text() given no sessions =\n%s\nwant it as without them, listing none\n%s", got, without)
 	}
 }
@@ -702,13 +889,76 @@ func TestShortID(t *testing.T) {
 	}
 }
 
+func TestTheDashboardNamesASessionByTheFirstFourCharactersOfItsID(t *testing.T) {
+	for id, want := range map[string]string{
+		"c61b2f8d-04a7-4e93": "c61b",
+		"c61b":               "c61b",
+		"ab":                 "ab",
+		"\x1b[2Jc61b2f8d":    "[2Jc",
+		"éé☃☃d":              "éé☃☃",
+		"":                   "",
+	} {
+		if got := status.ShownID(id); got != want {
+			t.Errorf("ShownID(%q) = %q, want %q", id, got, want)
+		}
+	}
+}
+
+func TestASessionsDirectoryIsNamedByItsLastPartCutKeepingItsStart(t *testing.T) {
+	tests := []struct {
+		dir   string
+		cells int
+		want  string
+	}{
+		{dir: "/Users/someone/Code/switchboard", cells: 12, want: "switchboard"},
+		{dir: "/Users/someone/Code/switchboard-dashboard", cells: 12, want: "switchboard…"},
+		{dir: "/Users/someone/Code/switchboard-dashboard", cells: 11, want: "switchboar…"},
+		{dir: "/Users/someone/Code/switchboard/", cells: 12, want: "switchboard"},
+		{dir: "/Users/someone/Code/コードの部屋", cells: 12, want: "コードの部屋"},
+		{dir: "/Users/someone/Code/コードの部屋です", cells: 12, want: "コードの部…"},
+		{dir: "/Users/someone/Code/switch\x1b[2Jboard", cells: 20, want: "switch [2Jboard"},
+		{dir: "/", cells: 12, want: "/"},
+		{dir: "", cells: 12, want: ""},
+	}
+	for _, tt := range tests {
+		if got := status.DirName(tt.dir, tt.cells); got != tt.want {
+			t.Errorf("DirName(%q, %d) = %q, want %q", tt.dir, tt.cells, got, tt.want)
+		}
+	}
+}
+
+func TestASessionsDirectoryIsShownWholeTheHomeAsATildeCutFromItsStart(t *testing.T) {
+	const home = "/Users/someone"
+	tests := []struct {
+		name, dir, home string
+		cells           int
+		want            string
+	}{
+		{name: "under the home", dir: "/Users/someone/Code/switchboard", home: home, cells: 40, want: "~/Code/switchboard"},
+		{name: "the home itself", dir: "/Users/someone", home: home, cells: 40, want: "~"},
+		{name: "the home given with a slash", dir: "/Users/someone/Code", home: home + "/", cells: 40, want: "~/Code"},
+		{name: "a home the directory only starts like", dir: "/Users/someone2/Code", home: home, cells: 40, want: "/Users/someone2/Code"},
+		{name: "outside the home", dir: "/opt/work/switchboard", home: home, cells: 40, want: "/opt/work/switchboard"},
+		{name: "no home known", dir: "/Users/someone/Code", home: "", cells: 40, want: "/Users/someone/Code"},
+		{name: "long, cut from its start keeping its name", dir: "/Users/someone/Code/clients/switchboard", home: home, cells: 13, want: "…/switchboard"},
+		{name: "none", dir: "", home: home, cells: 40, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.DirPath(tt.dir, tt.home, tt.cells); got != tt.want {
+				t.Errorf("DirPath(%q, %q, %d) = %q, want %q", tt.dir, tt.home, tt.cells, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC)
 	// clear clears the screen, as a terminal shown it takes it.
 	const clear = "\x1b[2J"
 	work := status.Account{
-		ID: "work", Label: "Work" + clear, TokenSet: true,
-		Windows:  []quota.Window{{Key: "5h", Label: "Session" + clear, Utilization: 0.23}},
+		ID: "work", Label: "Work" + clear, TokenSet: true, FetchedAt: now.Add(-time.Minute),
+		Windows:  []quota.Window{{Key: "7d", Label: "Week" + clear, Utilization: 0.23}},
 		Failures: []quota.Failure{{Label: "Fable" + clear, Window: "7d_oi", Error: "HTTP 529 · " + clear + "Overloaded"}},
 		Error:    "HTTP 401 · " + clear + "Invalid bearer token",
 	}
@@ -723,7 +973,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 		Pin:      status.Pin{Accounts: []string{"gone" + clear}},
 		Router:   status.Health{Reason: clear + "6 of the 8 requests in the last 5 minutes failed"},
 		Accounts: []status.Account{work},
-	}.Text(now, running)
+	}.At(now, policy).Text(running)
 	shown := map[string]string{
 		"the router's document, and its sessions": routers,
 		"a session, as its line reads":            running.Line(now),
@@ -731,7 +981,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 			Source:   status.SourceProbe,
 			Fallback: status.Fallback{Router: status.RouterUnhealthy, Reason: "answered " + clear},
 			Accounts: []status.Account{work},
-		}.Text(now),
+		}.At(now, policy).Text(),
 	}
 	for name, text := range shown {
 		if strings.ContainsFunc(text, func(r rune) bool { return unicode.IsControl(r) && r != '\n' }) {
@@ -739,7 +989,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 		}
 	}
 	want := "work · Work [2J\n" +
-		"  Session [2J  23%\n" +
+		"  Week [2J  23%\n" +
 		"  Fable [2J offline: HTTP 529 · [2JOverloaded\n" +
 		"  HTTP 401 · [2JInvalid bearer token\n"
 	if !strings.HasPrefix(routers, want) {
@@ -747,40 +997,6 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 	}
 	if got, want := running.Line(now), "0b5c [2J  next [2J on work [2J  ·  pinned to side [2J  ·  seen just now"; got != want {
 		t.Errorf("Line() = %q, want %q", got, want)
-	}
-}
-
-func TestClean(t *testing.T) {
-	tests := []struct {
-		text string
-		want string
-	}{
-		{text: "Work", want: "Work"},
-		{text: "  Work \t team\n", want: "Work team"},
-		{text: "Work\x1b[31m team\a", want: "Work [31m team"},
-		{text: "\x1b]0;a title\a", want: "]0;a title"},
-	}
-	for _, tt := range tests {
-		if got := status.Clean(tt.text); got != tt.want {
-			t.Errorf("Clean(%q) = %q, want %q", tt.text, got, tt.want)
-		}
-	}
-}
-
-func TestSessionCount(t *testing.T) {
-	tests := []struct {
-		n    int
-		want string
-	}{
-		{n: 0, want: "no sessions"},
-		{n: 1, want: "1 session"},
-		{n: 2, want: "2 sessions"},
-		{n: 12, want: "12 sessions"},
-	}
-	for _, tt := range tests {
-		if got := status.SessionCount(tt.n); got != tt.want {
-			t.Errorf("SessionCount(%d) = %q, want %q", tt.n, got, tt.want)
-		}
 	}
 }
 
@@ -819,7 +1035,7 @@ func TestDestination(t *testing.T) {
 		{ids: []string{"gone\x07"}, want: "gone"},
 	}
 	for _, tt := range tests {
-		if got := doc.Destination(tt.ids); got != tt.want {
+		if got := doc.At(built, policy).Destination(tt.ids); got != tt.want {
 			t.Errorf("Destination(%q) = %q, want %q", tt.ids, got, tt.want)
 		}
 	}
@@ -865,6 +1081,59 @@ func TestRestart(t *testing.T) {
 	}
 }
 
+// A refusal's answer is the one form whoever tells of it: its status code,
+// then the family refused alone, cleaned, either left out where it's none.
+func TestARefusalsAnswerIsItsCodeThenItsFamily(t *testing.T) {
+	tests := []struct {
+		name   string
+		code   int
+		family string
+		want   string
+	}{
+		{name: "its token", code: 401, want: "refused (401)"},
+		{name: "a family's requests", code: 403, family: "opus", want: "refused (403, opus)"},
+		{name: "a family named from elsewhere, cleaned", code: 403, family: "claude-x\x1b[2J", want: "refused (403, claude-x [2J)"},
+		{name: "a family that cleans to nothing", code: 403, family: "\x1b", want: "refused (403)"},
+		{name: "a family, no code", family: "opus", want: "refused (opus)"},
+		{name: "neither", want: "refused"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.RefusalAnswer(tt.code, tt.family); got != tt.want {
+				t.Errorf("RefusalAnswer(%d, %q) = %q, want %q", tt.code, tt.family, got, tt.want)
+			}
+			if got := (status.Refusal{Status: tt.code, Family: tt.family}).Answer(); got != tt.want {
+				t.Errorf("Refusal.Answer() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// When an account's back, and till when what holds it holds, are said as
+// Dated shows a time, in now's time zone; neither where it's unknown.
+func TestBackAndTillSayATimeAsDatedShowsIt(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name       string
+		at         time.Time
+		back, till string
+	}{
+		{name: "today", at: time.Date(2026, 9, 28, 14, 54, 0, 0, time.UTC), back: "back 15:54", till: "till 15:54"},
+		{name: "another day", at: time.Date(2026, 9, 30, 19, 0, 0, 0, time.UTC), back: "back Wed 20:00", till: "till Wed 20:00"},
+		{name: "unknown", back: "", till: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.Back(now, tt.at); got != tt.back {
+				t.Errorf("Back() = %q, want %q", got, tt.back)
+			}
+			if got := status.Till(now, tt.at); got != tt.till {
+				t.Errorf("Till() = %q, want %q", got, tt.till)
+			}
+		})
+	}
+}
+
 func TestRefusal(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	until := time.Date(2026, 9, 28, 13, 20, 0, 0, time.UTC)
@@ -902,12 +1171,92 @@ func TestRefusal(t *testing.T) {
 	}
 }
 
+// status's text says a limit holding an account back as the moment's hold
+// has it, whatever the router's limit says, or where there's none, as
+// probing reads it: of one holding back every request, until the account's
+// back from every hold, its cap and its token's refusal too; of one holding
+// back some models' alone, until it lifts; and that it's reached alone where
+// that isn't known.
+func TestTextSaysALimitTillTheAccountsBack(t *testing.T) {
+	now := built.In(time.FixedZone("UTC+1", 60*60))
+	routerLimit := func(windows ...string) func(*status.Account) {
+		return func(a *status.Account) {
+			a.Limit = status.Limit{ID: 4, Windows: windows, Until: built.Add(40 * time.Minute)}
+		}
+	}
+	refused := func(a *status.Account) { a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401} }
+	tests := []struct {
+		name string
+		doc  status.Document
+		// want are the lines the text gives work of what holds it back.
+		want []string
+	}{
+		{
+			name: "the router's limit, till it lifts",
+			doc:  routerDocOf(with(readAt("work", spentIn("5h", 1, 40*time.Minute), windowIn("7d", 0.3, 3*day)), routerLimit("5h"))),
+			want: []string{"limit until Mon 14:52"},
+		},
+		{
+			name: "a limit, its cap holding it back longer: till its cap lets it go",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.5, 3*time.Hour), windowIn("7d", 0.85, 70*time.Minute)), func(a *status.Account) {
+				a.Reserve = 0.2
+				routerLimit()(a)
+			})),
+			want: []string{"limit until Mon 15:22"},
+		},
+		{
+			name: "a limit, its token refused longer: till the refusal ends",
+			doc:  routerDocOf(with(with(readAt("work", spentIn("5h", 1, 40*time.Minute), windowIn("7d", 0.3, 3*day)), routerLimit("5h")), refused)),
+			want: []string{"limit until Mon 15:12", "refused (401) until 15:12"},
+		},
+		{
+			name: "the router's limit, its week read spent too: till the week resets",
+			doc:  routerDocOf(with(readAt("work", spentIn("5h", 1, 40*time.Minute), spentIn("7d", 1, 2*day)), routerLimit("5h"))),
+			want: []string{"limit until Wed 14:12"},
+		},
+		{
+			name: "probed, its week read spent: till it resets",
+			doc:  status.Document{GeneratedAt: built, Source: status.SourceProbe, Accounts: []status.Account{readAt("work", windowIn("5h", 0.3, 3*time.Hour), spentIn("7d", 1, 2*day))}},
+			want: []string{"limit until Wed 14:12"},
+		},
+		{
+			name: "a model's own week at its limit, its cap holding back the rest longer: till the limit lifts",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.95, 3*day), spentIn("7d_oi", 1, 2*day)), func(a *status.Account) {
+				a.Reserve = 0.1
+				routerLimit("7d_oi")(a)
+			})),
+			want: []string{"limit until Wed 14:12"},
+		},
+		{
+			name: "its session read spent, when it resets not known",
+			doc:  routerDocOf(readAt("work", quota.Window{Key: "5h", Label: "Session", Utilization: 1, Status: quota.StatusRejected}, windowIn("7d", 0.3, 3*day))),
+			want: []string{"limit reached"},
+		},
+		{
+			name: "the router's limit lifted",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.3, 3*time.Hour)), func(a *status.Account) {
+				a.Limit = status.Limit{Until: built.Add(-time.Minute)}
+			})),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, l := range textOf(tt.doc.At(now, policy))["work"] {
+				if strings.HasPrefix(l, "limit ") || strings.HasPrefix(l, "refused ") {
+					got = append(got, l)
+				}
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("the text says %q of what holds work back, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestLimit(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	limit := status.Limit{Windows: []string{"5h"}, Until: time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC)}
-	if got, want := limit.Text(now), "limit until Mon 21:00"; got != want {
-		t.Errorf("Text() = %q, want %q, in now's time zone", got, want)
-	}
 	for _, tt := range []struct {
 		at   time.Time
 		want bool
@@ -948,207 +1297,39 @@ func TestOver(t *testing.T) {
 	}
 }
 
+// status's text says where a window is heading as its moment has it: where
+// it runs out at Now, at its Out, as runOutOf owns it, so where its cap
+// starts where its reserve holds, its projection short of its limit; else
+// where its projection has it, but never that it runs out, as of a window
+// held, stale, at its cap, not started, or whose run-out the clock has
+// reached, whatever its projection says.
 func TestProjection(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	out := time.Date(2026, 10, 2, 18, 40, 0, 0, time.UTC)
+	heading := func(p score.Projection) status.Heading { return status.Heading{Projection: p} }
+	runsOut := heading(score.Projection{Kind: score.RunsOut, At: out})
 	tests := []struct {
-		name       string
-		projection score.Projection
-		want       string
+		name   string
+		window status.WindowNow
+		want   string
 	}{
-		{name: "on pace", projection: score.Projection{Kind: score.OnPace, AtReset: 0.92}, want: "on pace for 92%"},
-		{name: "on pace, having used nothing", projection: score.Projection{Kind: score.OnPace}, want: "on pace for 0%"},
-		{name: "runs out, in now's time zone", projection: score.Projection{Kind: score.RunsOut, At: time.Date(2026, 10, 2, 18, 40, 0, 0, time.UTC)}, want: "runs out ~Fri 19:40"},
-		{name: "exhausted", projection: score.Projection{Kind: score.Exhausted, At: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)}, want: "exhausted"},
-		{name: "exhausted, back at an unknown time", projection: score.Projection{Kind: score.Exhausted}, want: "exhausted"},
-		{name: "nothing to say", projection: score.Projection{}, want: ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := status.Projection(now, tt.projection); got != tt.want {
-				t.Errorf("Projection(%+v) = %q, want %q", tt.projection, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestCountdown(t *testing.T) {
-	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
-	tests := []struct {
-		name  string
-		until time.Duration
-		want  string
-	}{
-		{name: "past", until: -time.Minute, want: "now"},
-		{name: "due", until: 0, want: "now"},
-		{name: "under a minute", until: 30 * time.Second, want: "0m"},
-		{name: "minutes, rounded down", until: 7*time.Minute + 59*time.Second, want: "7m"},
-		{name: "just under an hour", until: time.Hour - time.Second, want: "59m"},
-		{name: "an hour", until: time.Hour, want: "1h"},
-		{name: "an hour, and seconds too few for a minute", until: time.Hour + 59*time.Second, want: "1h"},
-		{name: "just past an hour", until: time.Hour + time.Minute, want: "1h 1m"},
-		{name: "whole hours", until: 4 * time.Hour, want: "4h"},
-		{name: "hours and minutes", until: 4*time.Hour + 57*time.Minute + 30*time.Second, want: "4h 57m"},
-		{name: "just under a day", until: 24*time.Hour - time.Second, want: "23h 59m"},
-		{name: "a day", until: 24 * time.Hour, want: "1d"},
-		{name: "a day, and minutes too few for an hour", until: 24*time.Hour + 59*time.Minute, want: "1d"},
-		{name: "just past a day", until: 25 * time.Hour, want: "1d 1h"},
-		{name: "whole days", until: 6 * 24 * time.Hour, want: "6d"},
-		{name: "days and hours, rounded down", until: 5*24*time.Hour + 12*time.Hour + 59*time.Minute, want: "5d 12h"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := status.Countdown(now, now.Add(tt.until)); got != tt.want {
-				t.Errorf("Countdown(now, now+%v) = %q, want %q", tt.until, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestResets(t *testing.T) {
-	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
-	tests := []struct {
-		name  string
-		until time.Duration
-		want  string
-	}{
-		{name: "past", until: -time.Minute, want: "resets now"},
-		{name: "due", until: 0, want: "resets now"},
-		{name: "minutes", until: 7 * time.Minute, want: "resets in 7m"},
-		{name: "days and hours", until: 5*24*time.Hour + 12*time.Hour, want: "resets in 5d 12h"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := status.Resets(now, now.Add(tt.until)); got != tt.want {
-				t.Errorf("Resets(now, now+%v) = %q, want %q", tt.until, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestPercent(t *testing.T) {
-	tests := []struct {
-		utilization float64
-		want        string
-	}{
-		{utilization: 0, want: "0%"},
-		{utilization: 0.004, want: "0%"},
-		{utilization: 0.23, want: "23%"},
-		{utilization: 0.996, want: "100%"},
-		{utilization: 1.04, want: "104%"},
-	}
-	for _, tt := range tests {
-		if got := status.Percent(tt.utilization); got != tt.want {
-			t.Errorf("Percent(%v) = %q, want %q", tt.utilization, got, tt.want)
-		}
-	}
-}
-
-func TestClock(t *testing.T) {
-	utc := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
-	tests := []struct {
-		name          string
-		now, time     time.Time
-		want, wantDay string
-	}{
-		{name: "afternoon", now: utc, time: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC), want: "Mon 18:10", wantDay: "18:10"},
-		{name: "just after midnight", now: utc, time: time.Date(2026, 10, 4, 0, 5, 0, 0, time.UTC), want: "Sun 00:05", wantDay: "00:05"},
+		{name: "on pace", window: status.WindowNow{Out: status.RunOut{Heading: heading(score.Projection{Kind: score.OnPace, AtReset: 0.92})}}, want: "on pace for 92%"},
+		{name: "on pace, having used nothing", window: status.WindowNow{Out: status.RunOut{Heading: heading(score.Projection{Kind: score.OnPace})}}, want: "on pace for 0%"},
+		{name: "running out, in now's time zone", window: status.WindowNow{RunsOut: true, Out: status.RunOut{At: out, Heading: runsOut}}, want: "runs out ~Fri 19:40"},
 		{
-			name:    "in now's time zone",
-			now:     utc.In(time.FixedZone("UTC-7", -7*60*60)),
-			time:    time.Date(2026, 9, 29, 6, 30, 0, 0, time.UTC),
-			want:    "Mon 23:30",
-			wantDay: "23:30",
+			name:   "running out where its cap starts, its projection short of its limit",
+			window: status.WindowNow{RunsOut: true, Out: status.RunOut{At: out, Reserve: true, Heading: heading(score.Projection{Kind: score.OnPace, AtReset: 0.95})}},
+			want:   "runs out ~Fri 19:40",
 		},
+		{name: "its projection running out, the window not, as one held, stale or at its cap", window: status.WindowNow{Out: status.RunOut{Heading: runsOut}}, want: ""},
+		{name: "exhausted", window: status.WindowNow{Out: status.RunOut{Heading: heading(score.Projection{Kind: score.Exhausted, At: out})}}, want: "exhausted"},
+		{name: "exhausted, back at an unknown time", window: status.WindowNow{Out: status.RunOut{Heading: heading(score.Projection{Kind: score.Exhausted})}}, want: "exhausted"},
+		{name: "nothing to say", want: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := status.Clock(tt.now, tt.time); got != tt.want {
-				t.Errorf("Clock(%v, %v) = %q, want %q", tt.now, tt.time, got, tt.want)
-			}
-			if got := status.TimeOfDay(tt.now, tt.time); got != tt.wantDay {
-				t.Errorf("TimeOfDay(%v, %v) = %q, want %q", tt.now, tt.time, got, tt.wantDay)
-			}
-		})
-	}
-}
-
-func TestPastShowsMoreOfATimeTheFurtherBackItsDayIs(t *testing.T) {
-	// Wednesday 7 October, 01:30, an hour ahead of UTC.
-	now := time.Date(2026, 10, 7, 1, 30, 0, 0, time.FixedZone("UTC+1", 60*60))
-	tests := []struct {
-		name string
-		t    time.Time
-		want string
-	}{
-		{name: "today", t: now.Add(-time.Hour), want: "00:30"},
-		{name: "yesterday, within a day", t: now.Add(-2 * time.Hour), want: "yesterday 23:30"},
-		{name: "yesterday, in now's time zone", t: time.Date(2026, 10, 6, 0, 0, 0, 0, time.UTC), want: "yesterday 01:00"},
-		{name: "within the week", t: time.Date(2026, 10, 1, 14, 8, 0, 0, time.UTC), want: "Thu 15:08"},
-		{name: "a week back", t: time.Date(2026, 9, 30, 14, 8, 0, 0, time.UTC), want: "30 Sep 15:08"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := status.Past(now, tt.t); got != tt.want {
-				t.Errorf("Past() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestWhenShowsTheDayOnlyBeyondADay(t *testing.T) {
-	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
-	day := 24 * time.Hour
-	tests := []struct {
-		name string
-		t    time.Time
-		want string
-	}{
-		{name: "later today", t: now.Add(2 * time.Hour), want: "15:12"},
-		{name: "tomorrow, within a day", t: now.Add(14 * time.Hour), want: "03:12"},
-		{name: "earlier, within a day", t: now.Add(-20 * time.Hour), want: "17:12"},
-		{name: "a day on", t: now.Add(day), want: "Tue 13:12"},
-		{name: "days ago", t: now.Add(-3 * day), want: "Fri 13:12"},
-		{name: "in UTC, shown in now's time zone", t: now.Add(time.Hour).UTC(), want: "14:12"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := status.When(now, tt.t); got != tt.want {
-				t.Errorf("When() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-	for _, tt := range []struct {
-		t    time.Time
-		want string
-	}{
-		{t: now.Add(71*time.Minute + 53*time.Second), want: "in 1h 11m"},
-		{t: now, want: "now"},
-		{t: now.Add(-3 * time.Minute), want: "now"},
-	} {
-		if got := status.Until(now, tt.t); got != tt.want {
-			t.Errorf("Until(%s) = %q, want %q", tt.t.Sub(now), got, tt.want)
-		}
-	}
-}
-
-func TestDatedShowsTheDayOnAnyOtherDay(t *testing.T) {
-	now := time.Date(2026, 10, 1, 14, 42, 7, 0, time.FixedZone("UTC+1", 60*60))
-	tests := []struct {
-		name string
-		t    time.Time
-		want string
-	}{
-		{name: "later today", t: now.Add(81 * time.Minute), want: "16:03"},
-		{name: "earlier today", t: now.Add(-30 * time.Minute), want: "14:12"},
-		{name: "tomorrow, within a day", t: now.Add(13*time.Hour + 24*time.Minute), want: "Fri 04:06"},
-		{name: "yesterday, within a day", t: now.Add(-15 * time.Hour), want: "Wed 23:42"},
-		{name: "in UTC, today in now's time zone", t: time.Date(2026, 10, 1, 22, 30, 0, 0, time.UTC), want: "23:30"},
-		{name: "in UTC, tomorrow in now's time zone", t: time.Date(2026, 10, 1, 23, 30, 0, 0, time.UTC), want: "Fri 00:30"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := status.Dated(now, tt.t); got != tt.want {
-				t.Errorf("Dated() = %q, want %q", got, tt.want)
+			if got := status.Projection(now, tt.window); got != tt.want {
+				t.Errorf("Projection(%+v) = %q, want %q", tt.window, got, tt.want)
 			}
 		})
 	}

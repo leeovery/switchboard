@@ -4,34 +4,19 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 func TestAWindowIsNamedByItsLabelOrElseItsKey(t *testing.T) {
 	for key, want := range map[string]string{"5h": "Session", "7d": "Week", "7d_oi": "Fable week", "7d_new": "7d_new"} {
 		if got := claude.WindowLabel(key); got != want {
 			t.Errorf("WindowLabel(%q) = %q, want %q", key, got, want)
-		}
-	}
-}
-
-func TestAWindowIsNamedByItsHoursOrElseItsLabel(t *testing.T) {
-	tests := []struct{ key, want string }{
-		{key: "5h", want: "5-hour"},
-		{key: "1h", want: "1-hour"},
-		{key: "7d", want: "Week"},
-		{key: "7d_oi", want: "Fable week"},
-		{key: "7d_opus", want: "Opus week"},
-		{key: "90m", want: "90m"},
-		{key: "7d_new", want: "7d_new"},
-	}
-	for _, tt := range tests {
-		if got := claude.WindowName(tt.key); got != tt.want {
-			t.Errorf("WindowName(%q) = %q, want %q", tt.key, got, tt.want)
 		}
 	}
 }
@@ -314,6 +299,69 @@ func TestALedgerLinesLimitsGiveTheWindowsItsAnswersHeadersDid(t *testing.T) {
 	}
 	if got := claude.LimitWindows(nil); got != nil {
 		t.Errorf("LimitWindows(nil) = %+v, want none", got)
+	}
+}
+
+// A ledger line's limits give each window as its answer read it, in
+// LimitWindows' order: its key, its use, its reset, zero where the answer
+// didn't say, and how far it held its account back, its reserve the one
+// given.
+func TestALedgerLinesLimitsGiveEachWindowAsItsAnswerReadIt(t *testing.T) {
+	resets := time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)
+	fiveHour := func(use, status string) map[string]string {
+		return map[string]string{"5h-utilization": use, "5h-reset": "1790619000", "5h-status": status}
+	}
+	tests := []struct {
+		name   string
+		limits map[string]string
+		want   []claude.WindowRead
+	}{
+		{name: "under both its cap and its limit", limits: fiveHour("0.5", "allowed"),
+			want: []claude.WindowRead{{Key: "5h", Use: 0.5, Resets: resets, Held: score.NotHeld}}},
+		{name: "at its reserve", limits: fiveHour("0.95", "allowed"),
+			want: []claude.WindowRead{{Key: "5h", Use: 0.95, Resets: resets, Held: score.HeldAtCap}}},
+		{name: "spent", limits: fiveHour("1.0", "allowed"),
+			want: []claude.WindowRead{{Key: "5h", Use: 1, Resets: resets, Held: score.HeldAtLimit}}},
+		{name: "refused short of its cap", limits: fiveHour("0.6", "rejected"),
+			want: []claude.WindowRead{{Key: "5h", Use: 0.6, Resets: resets, Held: score.HeldAtLimit}}},
+		{name: "with no reset", limits: map[string]string{"7d-utilization": "0.97"},
+			want: []claude.WindowRead{{Key: "7d", Use: 0.97, Held: score.HeldAtCap}}},
+		{name: "two windows, each judged", limits: map[string]string{"7d-utilization": "0.3", "5h-utilization": "0.96", "5h-reset": "1790619000"},
+			want: []claude.WindowRead{{Key: "5h", Use: 0.96, Resets: resets, Held: score.HeldAtCap}, {Key: "7d", Use: 0.3, Held: score.NotHeld}}},
+		{name: "none"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := claude.WindowsRead(tt.limits, 0.05); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("WindowsRead(%v, 0.05) =\n%+v\nwant\n%+v", tt.limits, got, tt.want)
+			}
+		})
+	}
+}
+
+// A ledger line's limits, as Count keeps them off its answer's headers, give
+// the answer's status as the overall status gave it: none where it gave
+// none, a window's own status not the answer's.
+func TestALedgerLinesLimitsGiveTheStatusItsAnswersHeadersDid(t *testing.T) {
+	tests := []struct {
+		name   string
+		header http.Header
+		want   quota.Status
+	}{
+		{name: "allowed", header: header("anthropic-ratelimit-unified-status", "allowed"), want: quota.StatusAllowed},
+		{name: "near a limit, beside a window's own", want: quota.StatusAllowedWarning,
+			header: header("anthropic-ratelimit-unified-status", "allowed_warning", "anthropic-ratelimit-unified-5h-status", "allowed")},
+		{name: "rejected", header: header("anthropic-ratelimit-unified-status", "rejected"), want: quota.StatusRejected},
+		{name: "a window's alone", header: header("anthropic-ratelimit-unified-5h-status", "rejected")},
+		{name: "none", header: header()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, reply := (claude.Provider{}).Count(tt.header, strings.NewReader(""), func(int) {})
+			if got := claude.LimitStatus(reply.Limits); got != tt.want {
+				t.Errorf("LimitStatus(%v) = %q, want %q", reply.Limits, got, tt.want)
+			}
+		})
 	}
 }
 

@@ -10,7 +10,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -30,14 +29,15 @@ type standing struct {
 	held                  []string
 }
 
-// windowLabel names the account's window with the given key by its label, or
-// by its key when it hasn't been read.
-func (s standing) windowLabel(key string) string {
-	i := slices.IndexFunc(s.Windows, func(w quota.Window) bool { return w.Key == key })
-	if i < 0 {
-		return key
+// windowName names the account's window with the given key as a sentence
+// has it, as LATELY does, by status.NameOfWindow, as "5-hour" or "week": by
+// its label as read, or as status.NameOfKey names it where it hasn't been
+// read.
+func (s standing) windowName(key string) string {
+	if w, ok := s.Window(key); ok {
+		return status.InProse(status.NameOfWindow(key, w.Label))
 	}
-	return s.Windows[i].Label
+	return status.InProse(status.NameOfKey(key))
 }
 
 // standings are the accounts with a token, as they stand.
@@ -189,10 +189,10 @@ func (g *gathering) notice(accounts standings, now time.Time) notify.Notice {
 	limited, _ := accounts.of(g.Account)
 	text := limitText{moved: len(g.sessions), to: g.to, full: accounts.fullBut(g.Account)}
 	for _, key := range g.Windows {
-		text.windows = append(text.windows, limited.windowLabel(key))
+		text.windows = append(text.windows, limited.windowName(key))
 	}
 	if g.Until.After(now) {
-		text.back = status.Clock(now, g.Until)
+		text.back = prose.Clock(now, g.Until)
 	}
 	message := func() string { return accounts.title(g.Account) + " " + text.say(accounts.title) }
 	if utf8.RuneCountInString(message()) > maxMessage {
@@ -203,7 +203,7 @@ func (g *gathering) notice(accounts standings, now time.Time) notify.Notice {
 
 // limitText is what a limit's notification says after naming the account.
 type limitText struct {
-	// windows are the labels of the windows the limit was reached in.
+	// windows are the names of the windows the limit was reached in.
 	windows []string
 	// back is when the account has room again, such as "Mon 21:00", or "" to
 	// leave it unsaid.
@@ -216,11 +216,11 @@ type limitText struct {
 	full bool
 }
 
-// say words the text, naming accounts as name does: "hit its Session limit,
+// say words the text, naming accounts as name does: "hit its 5-hour limit,
 // back at Mon 21:00 — 3 sessions moved to 1 · one".
 func (t limitText) say(name func(id string) string) string {
 	var b strings.Builder
-	b.WriteString("hit its " + limitIn(t.windows))
+	b.WriteString("hit its " + prose.ListOf(t.windows, "limit"))
 	if t.back != "" {
 		b.WriteString(", back at " + t.back)
 	}
@@ -230,7 +230,7 @@ func (t limitText) say(name func(id string) string) string {
 		for i, id := range t.to {
 			to[i] = name(id)
 		}
-		fmt.Fprintf(&b, " — %s moved to %s", status.SessionCount(t.moved), prose.List(to))
+		fmt.Fprintf(&b, " — %s moved to %s", prose.SessionCount(t.moved), prose.List(to))
 	case t.full:
 		b.WriteString(" — no other account has room")
 	}
@@ -244,17 +244,4 @@ func moveNotice(e Moved, accounts standings) notify.Notice {
 		return fmt.Sprintf("session %s moved from %s to %s (%s)", status.ShortID(e.Session), name(e.From), name(e.To), e.Reason)
 	}
 	return notify.Notice{Account: e.From, News: say(byID), Message: say(accounts.title)}
-}
-
-// limitIn names the limit reached in the windows with the given labels, such
-// as "Session limit" or "Session and Week limits", or "limit" with none.
-func limitIn(labels []string) string {
-	switch len(labels) {
-	case 0:
-		return "limit"
-	case 1:
-		return labels[0] + " limit"
-	default:
-		return prose.List(labels) + " limits"
-	}
 }

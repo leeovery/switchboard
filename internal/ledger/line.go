@@ -194,11 +194,55 @@ type Reply struct {
 	Limits map[string]string `json:"limits,omitempty"`
 }
 
-// unmetered reports whether the line's request, one that spends quota, went
-// upstream, but its answer gave no usage, as one cut short or an error gives
+// Upstream reports whether the line's request went upstream, as a day's
+// summary tallies it and the traces count it: one Counted counts, the router
+// having sent it on at least once rather than answering it itself.
+func (l *Line) Upstream() bool {
+	return l.Counted() && l.Attempts > 0
+}
+
+// Counted reports whether the line's request is one every view and command
+// counts among the requests, as a day's summary does: one that spends quota,
+// upstream or answered by the router itself, of whatever kind but a quota
+// check or a count of tokens, which spend nothing and are counted apart. The
+// router has always written a kind, so it differs from being a message only
+// for a line without one, or of a kind a later router adds.
+func (l *Line) Counted() bool {
+	return l.Kind != KindCheck && l.Kind != KindCount
+}
+
+// CountedSession is the session the line's request counts toward, as a
+// day's summary counts and names its sessions: none for a quota check, which
+// Claude Code sends as it resumes a session under an id it never uses again.
+// A count of tokens counts toward its session, though Counted counts it
+// among no requests.
+func (l *Line) CountedSession() string {
+	if l.Kind == KindCheck {
+		return ""
+	}
+	return l.Session
+}
+
+// Failed reports whether the line's request failed, as the views show it:
+// answered 400 or over, as a 429 every account refused is passed on; or
+// answered nothing, as one cut off or given up, its status 0.
+func (l *Line) Failed() bool {
+	return Failing(l.Status)
+}
+
+// Failing reports whether a request answered with the status given failed,
+// as Line.Failed says of a line's: one the request stream told of the end
+// of, its line yet to come, is judged by the status its client was answered,
+// 0 where its client went first.
+func Failing(status int) bool {
+	return status == 0 || status >= 400
+}
+
+// unmetered reports whether the line's request went upstream, as Upstream
+// says, but its answer gave no usage, as one cut short or an error gives
 // none: what it spent is unknown, which is never taken for none.
 func (l *Line) unmetered() bool {
-	return l.Kind == KindMessage && l.Attempts > 0 && len(l.Usage) == 0
+	return l.Upstream() && len(l.Usage) == 0
 }
 
 // Tokens returns the tokens the reply's usage counts, reporting false where

@@ -2,6 +2,8 @@ package events
 
 import (
 	"cmp"
+	"fmt"
+	"io/fs"
 	"iter"
 	"log/slog"
 	"slices"
@@ -57,6 +59,21 @@ func (r *Reader) Between(from, to time.Time) iter.Seq[Line] {
 // Between does, each with its last version's JSON, as it was filed.
 func (r *Reader) HeldBetween(from, to time.Time) iter.Seq[Held] {
 	return r.HeldTailing(from, to, Tailed{})
+}
+
+// FirstDay returns the start of the first local day the files hold events
+// of, by the dates their names give. It fails with fs.ErrNotExist where
+// they hold none.
+func (r *Reader) FirstDay() (time.Time, error) {
+	dates, err := r.files.All()
+	switch {
+	case err != nil:
+		return time.Time{}, fmt.Errorf("list the router's events: %w", err)
+	case len(dates) == 0:
+		return time.Time{}, fs.ErrNotExist
+	}
+	start, _, _ := dayfile.Day(dates[0])
+	return start, nil
 }
 
 // Tailed is a local day whose lines are read by a tail of its files, as a
@@ -194,4 +211,9 @@ type Empty struct{}
 // Between returns no event.
 func (Empty) Between(time.Time, time.Time) iter.Seq[Line] {
 	return func(func(Line) bool) {}
+}
+
+// FirstDay fails with fs.ErrNotExist: there's no day of events.
+func (Empty) FirstDay() (time.Time, error) {
+	return time.Time{}, fs.ErrNotExist
 }

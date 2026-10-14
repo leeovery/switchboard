@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
-	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -78,12 +76,14 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, asJSON bool) 
 	if err != nil {
 		return err
 	}
+	running, unlisted := a.routedSessions(ctx, errOut, "listing today's sessions from the ledger alone, none as running")
 	now := a.Now()
 	list := views.ListSessions(views.SessionSources{
-		Running: a.routedSessions(ctx, errOut, "listing today's sessions from the ledger alone, none as running"),
-		Ledger:  readers.ledger,
-		Prices:  pricing(cfg),
-		Now:     now,
+		Running:  running,
+		Unlisted: unlisted,
+		Ledger:   readers.ledger,
+		Prices:   pricing(cfg),
+		Now:      now,
 	})
 	if asJSON {
 		return writeJSON(out, list)
@@ -91,10 +91,10 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, asJSON bool) 
 	return writeSessions(out, list, now)
 }
 
-// routedSessions returns the sessions the router lists, telling errOut where
-// it can't ask them, and what it does instead, as what's printed is then the
-// ledger's alone.
-func (a *app) routedSessions(ctx context.Context, errOut io.Writer, instead string) []status.Session {
+// routedSessions returns the sessions the router lists, and whether no
+// router lists them, as it can't be asked, telling errOut so, and what it
+// does instead, as what's printed is then the ledger's alone.
+func (a *app) routedSessions(ctx context.Context, errOut io.Writer, instead string) (sessions []status.Session, unlisted bool) {
 	sessions, err := a.routerSessions(ctx)
 	switch {
 	case errors.Is(err, router.ErrNotRunning):
@@ -102,7 +102,7 @@ func (a *app) routedSessions(ctx context.Context, errOut io.Writer, instead stri
 	case err != nil:
 		launch.Warn(errOut, "couldn't ask the router its sessions", err, instead)
 	}
-	return sessions
+	return sessions, err != nil
 }
 
 func (a *app) routerSessions(ctx context.Context) ([]status.Session, error) {
@@ -130,8 +130,8 @@ func writeSessions(out io.Writer, list views.SessionList, now time.Time) error {
 	if err := writeTable(out, rows); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintf(out, "\ntoday  %s%s%s%s%s at API prices\n", status.SessionCount(list.Today.Sessions), status.Separator,
-		prose.Counted(list.Today.Requests, "request"), status.Separator, worthSaid(list.Today.Worth))
+	_, err := fmt.Fprintf(out, "\ntoday  %s%s%s%s%s at API prices\n", prose.SessionCount(list.Today.Sessions), prose.Separator,
+		prose.Counted(list.Today.Requests, "request"), prose.Separator, list.Today.Cents())
 	return err
 }
 
@@ -140,91 +140,26 @@ func writeSessions(out io.Writer, list views.SessionList, now time.Time) error {
 // when it started; its requests today, and their worth; and how it came to
 // its account.
 func sessionRow(s views.ListedSession, now time.Time) []string {
-	session := status.ShortID(status.Clean(s.Session))
+	session := status.ShortID(prose.Clean(s.Session))
 	if s.Dir != "" {
-		session += " " + status.Clean(s.Dir)
+		session += " " + prose.Clean(s.Dir)
 	}
 	started := "-"
 	if !s.Started.IsZero() {
-		started = status.Past(now, s.Started)
+		started = prose.Past(now, s.Started)
 	}
-	return []string{mark(s), session, orNone(status.Clean(s.Account)), orNone(ledger.ShortModelID(status.Clean(s.Model))),
-		doing(s.State, s.Running, s.LastSeen, s.Ended, now), started, prose.Grouped(s.Requests), worthSaid(s.Worth), routing(s, now)}
+	return []string{s.Mark.String(), session, orNone(prose.Clean(s.Account)), orNone(ledger.ShortModelID(s.Model)),
+		s.Activity.State(now), started, prose.Grouped(s.Requests), s.Cents(), routingSaid(s.Routing)}
 }
 
-// mark is the mark a session's row starts with, the first that applies: ↑
-// while it asks, ↓ while it's answered, ▸ where a move brought it to the
-// account it's on; else none.
-func mark(s views.ListedSession) string {
-	switch {
-	case s.State == status.Asking:
-		return "↑"
-	case s.State == status.Answering:
-		return "↓"
-	case s.Moved != nil:
-		return "▸"
+// routingSaid says how a session came to the account it's on, as its
+// routing has it: its words, as "from work, at its cap", or "pinned here";
+// and what writing its context again there cost, where that's known, as
+// views.Worth says it to the cent, as "$1.82" or "<$0.01".
+func routingSaid(r views.RoutingSaid) string {
+	said := r.Words.String()
+	if r.Cost != nil {
+		said += "  " + views.Worth{Amount: r.Cost}.Cents()
 	}
-	return ""
-}
-
-// doing says what a session is doing at now, as its state, whether it's
-// running, when the router last saw it and when it ended say: asking or
-// answering; idle, for as long as it has been since the router last saw it;
-// or when it ended.
-func doing(state string, running bool, lastSeen, ended, now time.Time) string {
-	switch {
-	case state != "":
-		return state
-	case !running:
-		return "ended " + status.Past(now, ended)
-	case lastSeen.IsZero():
-		return "idle"
-	}
-	return "idle " + span(lastSeen, now)
-}
-
-// span says how long it's been from since to now, as briefly as a row has
-// room for: in seconds under a minute, as "34s", else as a countdown says it,
-// as "9m" or "1h 5m".
-func span(since, now time.Time) string {
-	if d := now.Sub(since); d < time.Minute {
-		return strconv.Itoa(int(max(d, 0)/time.Second)) + "s"
-	}
-	return status.Countdown(since, now)
-}
-
-// worthSaid says what requests were worth, to the cent, as "$17.86", "+"
-// after it where it leaves anything unpriced, and "unpriced" where it prices
-// none of them: "$0.00" where there were none.
-func worthSaid(w views.Worth) string {
-	var amount ledger.Picodollars
-	if w.Amount != nil {
-		amount = *w.Amount
-	}
-	switch {
-	case len(w.Unpriced) == 0:
-		return amount.Cents()
-	case w.Amount == nil:
-		return "unpriced"
-	}
-	return amount.Cents() + "+"
-}
-
-// routing says how a session came to the account it's on, in the routing
-// words: the move that brought it, as "from work, at its cap", and what
-// writing its context again there cost, where that's known, as "$1.82";
-// "pinned here" for one its own pin put there; else nothing, as it started
-// there.
-func routing(s views.ListedSession, now time.Time) string {
-	if m := s.Moved; m != nil {
-		said := status.RoutingWords(m.Reason, status.Facts{From: m.From, To: s.Account, Now: now}).String()
-		if m.Cost != nil {
-			said += "  " + m.Cost.Cents()
-		}
-		return said
-	}
-	if slices.ContainsFunc(s.Models, func(m views.SessionModel) bool { return m.Account == s.Account && m.Reason == status.ReasonPinned }) {
-		return "pinned here"
-	}
-	return ""
+	return said
 }

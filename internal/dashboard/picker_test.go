@@ -66,10 +66,10 @@ func TestThePickerIsDrawnOverTheRightOfTheScreen(t *testing.T) {
 		"view                                              │   tokyo-night-day    ● light",
 		"view                                              │",
 		"view                                              │ ────────────────────────────",
-		"view                                              │ ⏎    set theme",
-		"view                                              │ d    set as dark",
-		"view                                              │ l    set as light",
-		"view                                              │ esc  close",
+		"view                                              │ enter set theme",
+		"view                                              │ d set as dark",
+		"view                                              │ l set as light",
+		"view                                              │ esc close",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("the screen reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -81,7 +81,7 @@ func TestThePickersQuestionTakesThePlaceOfItsKeys(t *testing.T) {
 
 	got := strings.Join(text(p.Over(blankScreen(80, 16, ""), 80, dashboard.Screen(builtin(t, "nord")))), "\n")
 
-	for _, want := range []string{"│ clear amber?  y / n", "│ y    confirm", "│ n    cancel"} {
+	for _, want := range []string{"│ clear amber?  y / n", "│ y confirm", "│ n cancel"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the screen reads\n%s\nwant %q", got, want)
 		}
@@ -155,6 +155,17 @@ func TestThePickerPaintsItsSelectedRow(t *testing.T) {
 	for i, line := range lines {
 		if got := ansi.StringWidth(line); got != 80 {
 			t.Errorf("line %d is %d cells wide, want the screen's 80", i, got)
+		}
+	}
+}
+
+func TestWithoutColourThePickersSelectedRowIsReversed(t *testing.T) {
+	p := dashboard.Picker{Rows: themes, Cursor: 3}
+	lines := p.Over(blankScreen(80, 16, ""), 80, dashboard.NoColour())
+
+	for i, line := range lines {
+		if got, want := strings.Contains(line, "\x1b[7m"), i == 6; got != want {
+			t.Errorf("line %d, %q, is reversed: %v, want %v, the selected row's alone", i, line, got, want)
 		}
 	}
 }

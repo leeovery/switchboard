@@ -1,250 +1,221 @@
 package dashboard
 
 import (
-	"strconv"
+	"strings"
 	"time"
 
-	"github.com/charmbracelet/x/ansi"
-
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
+
+// AccountsView is one of Accounts' views, its sub-tabs: Compare, the
+// default, and Detail.
+type AccountsView int
 
 const (
-	// recentLines are the most lines RECENT takes.
-	recentLines = 4
-	// labelGap is the blank cells after the widest of the labels under the
-	// cards.
-	labelGap = 3
-	// recentLabel is RECENT's label, which the labels under the cards line
-	// up with wherever RECENT is.
-	recentLabel = "RECENT"
+	// AccountsCompare sets the accounts side by side, a column each, with
+	// all accounts last.
+	AccountsCompare AccountsView = iota
+	// AccountsDetail shows one account in full, or all of them, chosen from
+	// a list.
+	AccountsDetail
 )
 
-var (
-	// thumbInk is the part of a scrollbar its view shows, and railInk its
-	// track.
-	thumbInk = ink{token: theme.TextMuted}
-	railInk  = ink{token: theme.TextFaint}
-)
+// accountsViews are Accounts' sub-tabs' names, in the heading row's order.
+var accountsViews = []string{"Compare", "Detail"}
 
-// strip is a strip of the view under its cards: its label, how many lines
-// it takes, at most until it's laid out, then as many as it shows, and what
-// draws n of them from x along row y.
-type strip struct {
-	label string
-	lines int
-	draw  func(c *canvas, x, y, n int)
+// AccountsShown is Accounts as the watch gives it: the sub-tab shown and the
+// period both count over, which the preferences keep; Compare's focus and
+// the columns it shows; Detail's choice, its list's scroll, and the session
+// selected in its SESSIONS, which hold for the run alone; and the period's
+// page, built of the ledger's days.
+type AccountsShown struct {
+	// Shown is the sub-tab shown, as View has it, and Period the period
+	// both count over.
+	Shown  AccountsView
+	Period views.AccountsPeriod
+	// Accounts are the configured accounts, in the config's order: Compare's
+	// columns and Detail's list.
+	Accounts config.Accounts
+	// Focused is set once ← or → has put Compare's focus on a column, and
+	// Focus is its account, by id, "" for all accounts; First is the place
+	// among the accounts of the first Compare shows, as its columns scroll
+	// with the focus.
+	Focused bool
+	Focus   string
+	First   int
+	// Chosen is the account Detail's list has chosen, by id, "" for all
+	// accounts, as it opens; and ListScroll how many of its rows are
+	// scrolled out of view above, as the list scrolls with the choice.
+	Chosen     string
+	ListScroll int
+	// InSessions is set while ↑ and ↓ move through Detail's SESSIONS, → having
+	// taken them there from the list; and Selected is the session selected
+	// there, by id, "" for the first.
+	InSessions bool
+	Selected   string
+	// Page is the period's page, stood at the moment drawn, as
+	// views.AccountsPage.At stands it: nil till the days are read.
+	Page *views.AccountsPage
 }
 
-// accounts draws the Accounts view from row top, laid out as the layout
-// rules have it: its accounts' cards, scrolled where they don't fit, a
-// scrollbar beside them, and RECENT in their grid's empty cell, or with one
-// account, COMING UP and RECENT in a column beside its card; under them,
-// their strips, each after a blank row, its label at its left, but on a
-// phone; then, where there are cards for it to explain, the key line, where
-// it shows; and the line over the footer.
+// AccountsKept is Accounts as the preferences kept it: the sub-tab and the
+// period, each by its name. What names neither, as a later build's, shows
+// as Accounts opens: Compare, this week.
+func AccountsKept(kept theme.AccountsPrefs) AccountsShown {
+	s := AccountsShown{Shown: AccountsView(placeAmong(kept.View, lowerNames(accountsViews)))}
+	if period := views.AccountsPeriod(kept.Period); period.Known() {
+		s.Period = period
+	}
+	return s
+}
+
+// Kept is what the preferences keep of Accounts, as AccountsKept reads it:
+// the sub-tab shown and the period, never what's chosen.
+func (s AccountsShown) Kept() theme.AccountsPrefs {
+	return theme.AccountsPrefs{View: lowerNames(accountsViews)[s.Shown], Period: string(s.Period)}
+}
+
+// Alone reports whether there's one account, which all accounts would only
+// repeat: Compare goes, Detail showing it.
+func (s AccountsShown) Alone() bool {
+	return len(s.Accounts) == 1
+}
+
+// View is the sub-tab drawn: Shown, but Detail where there's one account.
+func (s AccountsShown) View() AccountsView {
+	if s.Alone() {
+		return AccountsDetail
+	}
+	return s.Shown
+}
+
+// Account is the account Detail shows, by id: the one there is, where
+// there's one; else Chosen, "" for all accounts.
+func (s AccountsShown) Account() string {
+	if s.Alone() {
+		return s.Accounts[0].ID
+	}
+	return s.Chosen
+}
+
+// heading is Accounts' heading row: its name and its sub-tabs, the one drawn
+// picked out, set tight on a phone, as the rule Accounts and History share
+// has them, Detail alone where there's one account; and at its right, the
+// period between < and >.
+func (s AccountsShown) heading() heading {
+	h := heading{name: strings.ToUpper(Accounts.Title()), subTabs: accountsViews, shown: int(s.View()), tight: true, period: s.Period.Name()}
+	if s.Alone() {
+		h.subTabs, h.shown = accountsViews[AccountsDetail:], 0
+	}
+	return h
+}
+
+// accountsHeading is the frame's heading row on Accounts, as its heading has
+// it, and after [ ], on Compare, which of its accounts it shows, in the forms
+// compareState says it in.
+func (f Frame) accountsHeading() heading {
+	h := f.Accounts.heading()
+	if f.Accounts.View() != AccountsCompare {
+		return h
+	}
+	if forms := f.compareState(); len(forms) > 0 {
+		h.state, h.shorter = forms[0], forms[1:]
+	}
+	return h
+}
+
+// cueState picks out width cells from x along row y, the state in a word of
+// the account with the given id, as Accounts says it, while it's newly
+// changed, as far faded back as the frame's StateChanged says, as cue picks
+// them out: never for a change ROUTING alone sees, as an open account going
+// idle.
+func (f Frame) cueState(c *canvas, id string, x, y, width int) {
+	if fade, ok := f.StateChanged[id]; ok {
+		cue(c, f.Look, x, y, width, fade)
+	}
+}
+
+// accountsForm is Accounts' view shown as its form draws it: what it draws
+// from row top; how far it scrolls, scrolled to each offset; what of it
+// scrolls, from column x along row y, width cells wide and rows tall; the
+// zones a click acts on; and how much of each bar it draws it fills, as
+// Filled has them. Each is nothing where it's nil: it draws nothing, never
+// scrolls, its view scrolls whole, nothing takes a click, and it fills no
+// bar.
+type accountsForm struct {
+	draw      func(c *canvas, top int)
+	scrolling func(offset int) Scrolling
+	scrolls   func() (x, y, width, rows int)
+	targets   func() []Target
+	filled    func() map[Ref]float64
+}
+
+// accountsForm is the form Accounts' view shown is drawn in, of doc at now:
+// as Built built it, where it built it of doc at now, else afresh.
+func (f Frame) accountsForm(doc status.Document, now time.Time) accountsForm {
+	if f.built != nil && f.built.at.Of(doc, now, f.Policy) {
+		return f.built.accounts()
+	}
+	return f.buildAccountsForm(doc, now)
+}
+
+// buildAccountsForm builds the form Accounts' view shown is drawn in, of doc
+// at now: a phone's, as phoneAccounts has it; else Compare's, as compareForm
+// has it, or Detail's, as detailForm has it.
+func (f Frame) buildAccountsForm(doc status.Document, now time.Time) accountsForm {
+	switch {
+	case f.phone():
+		return f.phoneAccounts(doc, now)
+	case f.Accounts.View() == AccountsCompare:
+		return f.compareForm(doc, now)
+	}
+	return f.detailForm(doc, now)
+}
+
+// accounts draws Accounts' view shown of doc at now from row top, as its
+// form draws it.
 func (f Frame) accounts(c *canvas, doc status.Document, now time.Time, top int) {
-	faces, shown := f.faces(doc, now)
-	l := f.layOut(doc, now, len(shown), top)
-	offset := f.scrolled(l)
-	area := newCanvas(f.Width, l.content)
-	f.grid(area, doc, now, faces, l, labelWidth(doc, shown))
-	c.paste(area, offset, top, l.view)
-	key, over := f.foot(f.stripsUnder(c, l.strips, top+l.view), l.key)
-	if len(faces) == 0 || over < top {
-		return
-	}
-	if l.key {
-		c.line(margin, key, f.keyLine(l.strips))
-	}
-	if l.scrolls() {
-		above, below := l.hidden(len(faces), offset)
-		says := outOfView(above, below).fit(f.edge() - margin)
-		c.line((f.Width-says.width())/2, over, says)
-		scrollbar(c, f.Width-1, top, l.view, l.content, offset)
-		return
-	}
-	c.right(f.edge(), over, f.unseen(doc, now, l.key).fit(f.edge()-margin))
-}
-
-// foot is where the key line goes, and the line over the footer, under
-// strips that end before row y, the key line showing as key says: full
-// screen, the key line over the line over the footer, over the footer;
-// printed once, without a footer, each after a blank row, the key line
-// first.
-func (f Frame) foot(y int, key bool) (keyRow, over int) {
-	switch {
-	case !f.printed():
-		return f.Height - 3, f.Height - 2
-	case key:
-		return y + 1, y + 3
-	default:
-		return y + 1, y + 1
+	if form := f.accountsForm(doc, now); form.draw != nil {
+		form.draw(c, top)
 	}
 }
 
-// unseen is what the line over the footer says of what the cards don't show,
-// where they fit: which windows hide from every card, and, full screen,
-// where the key line doesn't show as key says, that the key's behind ?.
-func (f Frame) unseen(doc status.Document, now time.Time, key bool) line {
-	note := hiddenNote(doc, hiddenWindows(doc, now, f.Policy))
-	if key || f.printed() {
-		return note
+// accountsScrolling is how far Accounts' view shown of doc at now scrolls,
+// scrolled to each offset given, as its form says: nowhere where it doesn't
+// say.
+func (f Frame) accountsScrolling(doc status.Document, now time.Time) func(offset int) Scrolling {
+	if form := f.accountsForm(doc, now); form.scrolling != nil {
+		return form.scrolling
 	}
-	return together([]chunk{{text: note}, {text: forTheKey}}, "   ·   ")
+	return func(int) Scrolling { return Scrolling{} }
 }
 
-// grid draws the faces' cards on c, laid out as l has them, from its top:
-// their labels labelled cells wide, RECENT in the first empty cell of the
-// last row, and with one account, COMING UP and RECENT in a column beside
-// its card.
-func (f Frame) grid(c *canvas, doc status.Document, now time.Time, faces []face, l layout, labelled int) {
-	height := l.density.rows(l.bars)
-	for i, fc := range faces {
-		x, y := l.at(i, l.density)
-		f.card(c, doc, fc, now, x, y, l.width, l.density, l.bars, labelled)
+// accountsScrolls is what of Accounts' view shown of doc at now scrolls, as
+// its form says: else the view's rows, across the frame.
+func (f Frame) accountsScrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
+	if form := f.accountsForm(doc, now); form.scrolls != nil {
+		return form.scrolls()
 	}
-	switch {
-	case l.beside:
-		f.column(c, doc, now, margin+l.width+cardGutter+1, 0, height, l.density.offset(chartRows, l.bars))
-	case l.cell:
-		x, y := l.at(len(faces), l.density)
-		f.recentCell(c, doc, now, x, y, l.width, height)
-	}
+	return 0, f.top(), f.Width, f.viewRows()
 }
 
-// stripsUnder draws the strips under the cards, from row y, each after a
-// blank row, as many lines of each as it shows, and as fit over the line
-// over the footer, and returns the row after the last drawn. Their lines
-// start in a column, after the widest of their labels, but on a phone,
-// where they have none.
-func (f Frame) stripsUnder(c *canvas, strips []strip, y int) int {
-	x := margin
-	if !f.phone() {
-		x = f.labelled(strips)
+// accountsTargets are the zones of Accounts' view shown of doc at now a
+// click acts on, as its form lays them out.
+func (f Frame) accountsTargets(doc status.Document, now time.Time) []Target {
+	if form := f.accountsForm(doc, now); form.targets != nil {
+		return form.targets()
 	}
-	for _, s := range strips {
-		n := s.lines
-		if !f.printed() {
-			n = min(n, f.Height-2-y-1)
-		}
-		if n < 1 {
-			break
-		}
-		y++
-		if !f.phone() {
-			c.line(margin, y, line{{s.label, labelInk}})
-		}
-		s.draw(c, x, y, n)
-		y += n
-	}
-	return y
+	return nil
 }
 
-// labelled is the column the lines under the cards start in: labelGap cells
-// after the widest of the strips' labels, and RECENT's, so they line up with
-// RECENT wherever it is.
-func (f Frame) labelled(strips []strip) int {
-	widest := ansi.StringWidth(recentLabel)
-	for _, s := range strips {
-		widest = max(widest, ansi.StringWidth(s.label))
+// accountsFilled are how much of each bar Accounts' view shown of doc at now
+// draws it fills, as Filled has them, as its form says.
+func (f Frame) accountsFilled(doc status.Document, now time.Time) map[Ref]float64 {
+	if form := f.accountsForm(doc, now); form.filled != nil {
+		return form.filled()
 	}
-	return margin + widest + labelGap
-}
-
-// strips are the strips under the cards of doc at now, in the grid g: with
-// one account, but one with a column beside its card, COMING UP, where
-// anything is; and RECENT, while there's something to say of what's
-// happened, where it has neither that column nor an empty cell of the grid.
-func (f Frame) strips(doc status.Document, now time.Time, g grid) []strip {
-	if g.beside {
-		return nil
-	}
-	var strips []strip
-	if len(doc.Accounts) == 1 {
-		if things := upcoming(doc, now, f.Policy); len(things) > 0 {
-			draw := func(c *canvas, x, y, n int) { f.comingLines(c, things, now, x, y, n) }
-			strips = append(strips, strip{label: "COMING UP", lines: min(len(things), comingThings), draw: draw})
-		}
-	}
-	if n := f.recentCount(doc, now, recentLines); n > 0 && !g.cell {
-		draw := func(c *canvas, x, y, n int) { f.recentStrip(c, doc, now, x, y, f.edge(), n) }
-		strips = append(strips, strip{label: recentLabel, lines: n, draw: draw})
-	}
-	return strips
-}
-
-// recentCell draws RECENT in an empty cell of the grid, width cells wide and
-// height tall from x along row y: its label a row down and a cell in, and
-// under it as many of its lines as fit over the cell's foot, recentLines at
-// most.
-func (f Frame) recentCell(c *canvas, doc status.Document, now time.Time, x, y, width, height int) {
-	c.line(x+1, y+1, line{{recentLabel, labelInk}})
-	f.recentStrip(c, doc, now, x+1, y+2, x+width, min(recentLines, height-3))
-}
-
-// column draws COMING UP and RECENT in a column beside one account's card,
-// from x along row y to the frame's edge, as tall as the card, height rows,
-// whose chart starts chart rows down: COMING UP from the card's top, and
-// under it, a blank row after it, RECENT, its lines level with the card's
-// chart where COMING UP leaves room.
-func (f Frame) column(c *canvas, doc status.Document, now time.Time, x, y, height, chart int) {
-	c.line(x, y, line{{"COMING UP", labelInk}})
-	things := upcoming(doc, now, f.Policy)
-	n := min(len(things), comingThings, height-1)
-	f.comingLines(c, things, now, x, y+1, n)
-	at := max(y+n+2, y+chart-1)
-	if at >= y+height {
-		return
-	}
-	c.line(x, at, line{{recentLabel, labelInk}})
-	f.recentColumn(c, doc, now, x, at+1, y+height)
-}
-
-// outOfView says what's out of view where the cards scroll: how many more
-// accounts there are above, and below, and how to scroll to them, as in "▼ 2
-// more accounts below · j/k or wheel to scroll".
-func outOfView(above, below int) line {
-	var l line
-	for _, out := range []struct {
-		n           int
-		mark, where string
-	}{{above, "▲ ", " above"}, {below, "▼ ", " below"}} {
-		if out.n == 0 {
-			continue
-		}
-		if len(l) > 0 {
-			l = append(l, span{" · ", dimInk})
-		}
-		l = append(l, span{out.mark, keyInk}, span{moreAccounts(out.n) + out.where, mutedInk})
-	}
-	return append(l, span{" · j/k or wheel to scroll", dimInk})
-}
-
-// moreAccounts counts n more accounts, as in "2 more accounts".
-func moreAccounts(n int) string {
-	if n == 1 {
-		return "1 more account"
-	}
-	return strconv.Itoa(n) + " more accounts"
-}
-
-// scrollbar draws a scrollbar down column x from row y, rows tall, for
-// content rows that scroll, shown from the row offset: ┃ the part shown,
-// as long as the share it shows, on a │ track, the whole of it.
-func scrollbar(c *canvas, x, y, rows, content, offset int) {
-	if rows < 1 || content <= rows {
-		return
-	}
-	thumb := max(1, rows*rows/content)
-	most := content - rows
-	start := (offset*(rows-thumb) + most/2) / most
-	for i := range rows {
-		if i >= start && i < start+thumb {
-			c.text(x, y+i, "┃", thumbInk)
-		} else {
-			c.text(x, y+i, "│", railInk)
-		}
-	}
+	return nil
 }

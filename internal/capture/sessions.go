@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
@@ -23,20 +24,46 @@ func assigned(model, account, dir, reason string, since, seen time.Time, inFligh
 // 9m; on side c61b, opus, answering, started at 14:41, and, each moved from
 // work as it reached its cap at 14:31, d28c, opus, asking, its haiku going to
 // side too, 7f3a, sonnet, idle 1m, and db8a, opus, idle 4m; each in its
-// directory (log1.DIRS).
+// directory (log1.DIRS). Those with a request in flight were last seen as
+// it was sent, as the stream tells of it. Of 9c2e, whose card the frames
+// draw, it says where auto would send it.
 func routedSessions(now time.Time) []status.Session {
 	at := func(hour, minute, second int) time.Time { return clockAt(now, 0, hour, minute, second) }
 	return []status.Session{
 		{ID: idD28C, Assignments: []status.Assignment{
-			assigned(opus, "side", "~/Code/switchboard", reasonCapped, at(14, 31, 13), now, status.Asking),
+			assigned(opus, "side", "~/Code/switchboard", reasonCapped, at(14, 31, 13), ago(now, sentD28C), status.Asking),
 			assigned(haikuShort, "side", "~/Code/switchboard", status.ReasonNew, at(14, 31, 44), at(14, 31, 44), ""),
 		}},
-		{ID: idC61B, Assignments: []status.Assignment{assigned(opus, "side", "~/Code/mobile", status.ReasonNew, at(14, 41, 11), now, status.Answering)}},
-		{ID: id41E0, Assignments: []status.Assignment{assigned(sonnet, "personal", "~/Code/docs", status.ReasonNew, at(12, 47, 12), now, status.Answering)}},
+		{ID: idC61B, Assignments: []status.Assignment{assigned(opus, "side", "~/Code/mobile", status.ReasonNew, at(14, 41, 11), ago(now, sentC61B), status.Answering)}},
+		{ID: id41E0, Assignments: []status.Assignment{assigned(sonnet, "personal", "~/Code/docs", status.ReasonNew, at(12, 47, 12), ago(now, sent41E0), status.Answering)}},
 		{ID: id7F3A, Assignments: []status.Assignment{assigned(sonnet, "side", "~/Code/api", reasonCapped, at(14, 31, 20), ago(now, time.Minute), "")}},
 		{ID: idDB8A, Assignments: []status.Assignment{assigned(opus, "side", "~/Code/infra", reasonCapped, at(14, 31, 40), ago(now, 4*time.Minute), "")}},
-		{ID: id9C2E, Assignments: []status.Assignment{assigned(opus, "personal", "~/Code/website", status.ReasonNew, at(11, 55, 31), at(14, 33, 7), "")}},
+		{ID: id9C2E, Assignments: []status.Assignment{keptWhereItRuns(assigned(opus, "personal", "~/Code/website", status.ReasonNew, at(11, 55, 31), at(14, 33, 7), ""))}},
 	}
+}
+
+// keptWhereItRuns is the assignment a, saying auto would send its session's
+// next request where it runs, as the router's own rule keeps a session while
+// its account has room and its cache there is warm.
+func keptWhereItRuns(a status.Assignment) status.Assignment {
+	a.Auto = a.Account
+	return a
+}
+
+// routedPastPersonalsLimit are the sessions the router lists at now in
+// routing's world of a limit: routedSessions, but for personal's, 41e0 and
+// 9c2e, moved to side as personal reached its limit at 14:12.
+func routedPastPersonalsLimit(now time.Time) []status.Session {
+	limited := clockAt(now, 0, 14, 12, 0)
+	sessions := routedSessions(now)
+	for _, s := range sessions {
+		for i, a := range s.Assignments {
+			if a.Account == "personal" {
+				s.Assignments[i] = assigned(a.Model, "side", a.Dir, reasonLimited, limited, a.LastSeen, a.InFlight)
+			}
+		}
+	}
+	return sessions
 }
 
 // listedSessions are the sessions the router lists at now, Thursday's
@@ -89,9 +116,18 @@ func routedAfterTheLimit(now time.Time) []status.Session {
 }
 
 // resumedRouted is f41a as the router lists it in its page's world: on
-// personal since 09:12, rescored there after 15 hours idle, an answer
-// streaming to it now.
+// personal since 09:12, rescored there after its idle, an answer streaming
+// to it now.
 func resumedRouted(now time.Time) status.Session {
 	since := clockAt(now, 0, 9, 12, 0)
-	return status.Session{ID: idF41A, Assignments: []status.Assignment{assigned(opus, "personal", "~/Code/api", status.Rescored("15h"), since, now, status.Answering)}}
+	return status.Session{ID: idF41A, Assignments: []status.Assignment{assigned(opus, "personal", "~/Code/api", rescoredF41A, since, now, status.Answering)}}
+}
+
+// routedResumed are the sessions the router lists in f41a's page's world:
+// routedSessions, but f41a in 9c2e's place.
+func routedResumed(now time.Time) []status.Session {
+	sessions := routedSessions(now)
+	i := slices.IndexFunc(sessions, func(s status.Session) bool { return s.ID == id9C2E })
+	sessions[i] = resumedRouted(now)
+	return sessions
 }

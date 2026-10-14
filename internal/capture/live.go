@@ -3,6 +3,7 @@ package capture
 import (
 	"context"
 	"image/color"
+	"iter"
 	"slices"
 	"strings"
 	"sync"
@@ -14,46 +15,64 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
-	"github.com/leeovery/switchboard/internal/events"
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // Model is the scenario as Bubble Tea plays it, full screen in a terminal of
-// whatever size, in real time from now: its clock reading the scenario's
-// start as it starts, and running on from there; its router telling of what
-// its cues have it do as each comes, and taking the orders keys give; the
-// watch's timers running, so bars ease, pulses travel the cords, sand falls
-// and highlights fade; and each key shown as it's pressed, so a recording
-// shows what was typed.
+// whatever size, in real time from its first frame: its world built first,
+// then its clock reading the scenario's start as it starts, and running on
+// from there; its router telling of what its cues have it do as each comes,
+// and taking the orders keys give; the watch's timers running, so bars ease,
+// pulses travel the cords and highlights fade; and each key shown as it's
+// pressed, so a recording shows what was typed.
 func (s Scenario) Model() tea.Model {
-	began := time.Now()
-	return s.play(func() time.Duration { return time.Since(began) }, waitFor, nil)
+	return s.begun(context.Background(), time.Now)
 }
 
-// play is the scenario as Bubble Tea plays it, elapsed saying how long it has
-// been playing, wait waiting for a while to pass as it plays, and after the
-// watch's timers: nil runs them on the clock.
-func (s Scenario) play(elapsed func() time.Duration, wait func(context.Context, time.Duration) bool, after func(time.Duration, tea.Msg) tea.Cmd) live {
-	now := func() time.Time { return s.start.Add(elapsed()) }
-	t := &timeline{scenario: s, now: now, wait: wait}
+// begun is the scenario as Bubble Tea plays it, until ctx ends: its base
+// built, then its clock started, reading the scenario's start as clock reads
+// then, and running on as clock does, so a year of readings taking a while
+// to build delays the first frame, not the cues.
+func (s Scenario) begun(ctx context.Context, clock func() time.Time) live {
+	b := s.based()
+	began := clock()
+	return s.play(ctx, b, func() time.Duration { return clock().Sub(began) }, waitFor, nil, nil)
+}
+
+// play is the scenario of the base given as Bubble Tea plays it, until ctx
+// ends, elapsed saying how long it has been playing, wait waiting for a
+// while to pass as it plays, after the watch's timers, and await its waits
+// on the request stream: nil runs the timers on the clock, and the waits as
+// any command is run. The watch is configured as a fixture's is, its world's
+// accounts and records with it, but for the traces' scale, which scales as a
+// real run's does.
+func (s Scenario) play(ctx context.Context, b *base, elapsed func() time.Duration, wait func(context.Context, time.Duration) bool, after func(time.Duration, tea.Msg) tea.Cmd, await func(tea.Cmd) tea.Cmd) live {
+	now := func() time.Time { return b.start.Add(elapsed()) }
+	t := &timeline{base: b, now: now, wait: wait}
 	cfg := watch.Config{
-		Source:   t,
-		Notifier: quiet{},
-		Now:      now,
-		After:    after,
-		Interval: interval,
-		Policy:   claude.Policy,
-		Size:     s.Size,
-		Ledger:   ledger.NewEmpty(now, ledger.Caps{Shared: claude.SharedWindows}),
-		Readings: readings.Empty{},
-		Events:   events.Empty{},
+		Source:     t,
+		Notifier:   quiet{},
+		Now:        now,
+		After:      after,
+		Await:      await,
+		Interval:   interval,
+		Policy:     claude.Policy,
+		WindowName: status.NameOfKey,
+		Accounts:   b.world.accounts,
+		WeekStarts: framesWeekStarts,
+		WeekWindow: claude.WeekWindow,
+		Family:     claude.Provider{}.Family,
+		Size:       s.Size,
+		Prices:     drawnPrices,
+		LedgerKeep: framesKeep,
 	}
+	cfg.Ledger, cfg.Readings, cfg.Events = t.readers()
 	dressed(&cfg, s.theme, s.colourless)
-	return live{Model: watch.New(context.Background(), cfg), now: now, after: after, theme: s.theme, coloured: !s.colourless}
+	return live{Model: watch.New(ctx, cfg), now: now, after: after, theme: s.theme, coloured: !s.colourless}
 }
 
 // waitFor waits for d to pass, reporting false where ctx ends first.
@@ -69,11 +88,12 @@ func waitFor(ctx context.Context, d time.Duration) bool {
 }
 
 // timeline is the router a scenario plays as, in real time: the watch's
-// Source, answering each read as the scenario has played up to then, its
-// request stream telling of each event as its time comes, and the orders
-// keys give played in from when they're given. It's safe for concurrent use.
+// Source, answering each read as the scenario has played over its base up
+// to then, its request stream telling of each event as its time comes, and
+// the orders keys give played in from when they're given. It's safe for
+// concurrent use.
 type timeline struct {
-	scenario Scenario
+	base *base
 	// now reads the scenario's clock, and wait waits for a while to pass on
 	// it, reporting false where the context given ends first.
 	now  func() time.Time
@@ -93,25 +113,32 @@ func (t *timeline) moment() (time.Time, []order) {
 	return t.now(), slices.Clone(t.orders)
 }
 
-// at is the router as the scenario has it now.
-func (t *timeline) at() source {
+// playedNow is the scenario played up to now, and now.
+func (t *timeline) playedNow() (playing, time.Time) {
 	now, orders := t.moment()
-	return t.scenario.played(orders, now).world.source(now)
+	return t.base.played(orders, now), now
 }
 
-// Read reads the router's document as it stands now, whatever the read asks.
-func (t *timeline) Read(ctx context.Context, r status.Read) (status.Document, router.Health, error) {
-	return t.at().Read(ctx, r)
+// Read reads the router's document as it stands now, whatever the read asks,
+// and says it's the router the world's run is of.
+func (t *timeline) Read(context.Context, status.Read) (status.Document, router.Health, error) {
+	p, now := t.playedNow()
+	return p.world.document(now), startedAt(routerRun(t.base.start)), nil
 }
 
 // Sessions lists the sessions as the router has them now.
-func (t *timeline) Sessions(ctx context.Context) ([]status.Session, error) {
-	return t.at().Sessions(ctx)
+func (t *timeline) Sessions(context.Context) ([]status.Session, error) {
+	p, now := t.playedNow()
+	return p.world.listing(now, p.told), nil
 }
 
-// History answers as GET /history does, now.
+// History answers as GET /history does, now, from the readings the windows
+// as they run have had.
 func (t *timeline) History(ctx context.Context, window string, step time.Duration) (router.History, error) {
-	return t.at().History(ctx, window, step)
+	p, now := t.playedNow()
+	w := p.world.accountsAt(now)
+	doc := w.document(now)
+	return source{doc: doc, trails: w.trails(doc, now), now: now}.History(ctx, window, step)
 }
 
 // RouterAnswers reports that the router answers, as it always does.
@@ -122,33 +149,26 @@ func (t *timeline) RouterAnswers(context.Context) bool {
 // Pin has new sessions go to the best of the accounts given from now, which
 // a pin that moves running sessions moves them to on their next requests.
 func (t *timeline) Pin(_ context.Context, accounts []string, move bool) error {
-	t.give(func(w *world, at time.Time) {
-		w.pin = status.Pin{Accounts: slices.Clone(accounts), Since: at, Move: move}
-	})
+	t.give(func(w *world, at time.Time) { w.setPin(accounts, move, at) })
 	return nil
 }
 
 // Unpin has every session routed on its merits from now.
 func (t *timeline) Unpin(context.Context) error {
-	t.give(func(w *world, _ time.Time) { w.pin = status.Pin{} })
+	t.give(func(w *world, at time.Time) { w.unpin(at) })
 	return nil
 }
 
 // PinSession gives the session its own pin to the account from now, which
 // moves it there on its next request.
 func (t *timeline) PinSession(_ context.Context, session, account string) error {
-	t.give(func(w *world, at time.Time) {
-		if w.pins == nil {
-			w.pins = make(map[string]ownPin)
-		}
-		w.pins[session] = ownPin{account: account, at: at}
-	})
+	t.give(func(w *world, at time.Time) { w.pinSession(session, account, at) })
 	return nil
 }
 
 // UnpinSession clears the session's own pin from now.
 func (t *timeline) UnpinSession(_ context.Context, session string) error {
-	t.give(func(w *world, _ time.Time) { delete(w.pins, session) })
+	t.give(func(w *world, at time.Time) { w.unpinSession(session, at) })
 	return nil
 }
 
@@ -167,7 +187,7 @@ func (t *timeline) give(change func(w *world, at time.Time)) {
 // event as its time comes, until ctx ends, when it closes.
 func (t *timeline) Stream(ctx context.Context) (<-chan router.StreamEvent, error) {
 	joined, orders := t.moment()
-	inFlight := flying(t.scenario.played(orders, time.Time{}).told, joined)
+	inFlight := flying(t.base.played(orders, time.Time{}).told, joined)
 	events := make(chan router.StreamEvent, len(inFlight))
 	for _, e := range inFlight {
 		events <- e
@@ -183,7 +203,7 @@ func (t *timeline) feed(ctx context.Context, events chan<- router.StreamEvent, f
 	defer close(events)
 	for {
 		now, orders := t.moment()
-		told := t.scenario.played(orders, time.Time{}).told
+		told := t.base.played(orders, time.Time{}).told
 		next := slices.IndexFunc(told, func(e router.StreamEvent) bool { return e.At.After(from) })
 		if next < 0 {
 			<-ctx.Done()
@@ -193,7 +213,7 @@ func (t *timeline) feed(ctx context.Context, events chan<- router.StreamEvent, f
 			return
 		}
 		now, orders = t.moment()
-		for _, e := range t.scenario.played(orders, time.Time{}).told {
+		for _, e := range t.base.played(orders, time.Time{}).told {
 			if !e.At.After(from) || e.At.After(now) {
 				continue
 			}
@@ -207,8 +227,57 @@ func (t *timeline) feed(ctx context.Context, events chan<- router.StreamEvent, f
 	}
 }
 
+// readers are what the watch reads the request ledger, the readings history
+// and the router's events through, by the scenario's clock: its base's
+// records, as a fixture's watch reads them, and the readings the scenario
+// has read since, after them. A scenario's requests write no line to the
+// ledger, nor its router any to the events' files: they reach the dashboard
+// through the request stream, the readings they read and the document's
+// events.
+func (t *timeline) readers() (views.Ledger, views.Readings, views.Events) {
+	ledger, _, events := t.base.records.readers(t.now)
+	read := playedReadings{records: t.base.records, now: t.now, since: func() history {
+		p, _ := t.playedNow()
+		return p.world.readings.read
+	}}
+	return ledger, read, events
+}
+
+// playedReadings reads the readings history as a readings.Reader reads its
+// files, by the scenario's clock: the base's records', then those since,
+// which come after every one of them.
+type playedReadings struct {
+	heldReadings
+	since func() history
+}
+
+// Between gives the readings of times from from up to to read by now, in the
+// order they were read.
+func (p playedReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
+	return func(yield func(readings.Reading) bool) {
+		for r := range p.heldReadings.Between(from, to) {
+			if !yield(r) {
+				return
+			}
+		}
+		now := p.now()
+		for r := range p.since().Between(from, to) {
+			if r.At.After(now) || !yield(r) {
+				return
+			}
+		}
+	}
+}
+
+// Tail gives a read of the readings from start up to end read by now, each
+// window's run from from up to start carried in, as readings.CarriedRuns has
+// them.
+func (p playedReadings) Tail(from, start, end time.Time) func() []readings.Reading {
+	return func() []readings.Reading { return readings.CarriedRuns(p.Between(from, end), from, start, end) }
+}
+
 // live is a watch playing a scenario, as Bubble Tea runs it, and the keys
-// pressed lately, drawn over its footer, so a recording shows what was typed.
+// pressed lately, drawn over its key line, so a recording shows what was typed.
 type live struct {
 	watch.Model
 	now   func() time.Time
@@ -236,7 +305,7 @@ const mostTyped = 4
 // typedMsg wakes the model to redraw once the keys typed have had their time.
 type typedMsg struct{}
 
-// Init starts the watch, as usage -w does, and in colour, answers its
+// Init starts the watch, as dashboard does, and in colour, answers its
 // question of the terminal's background at once, as a tape's terminal would,
 // so it's drawn from the start.
 func (l live) Init() tea.Cmd {
@@ -301,7 +370,7 @@ func (t typed) shown(now time.Time) []string {
 	return t.keys
 }
 
-// keyName is a key as the dashboard's footer names it.
+// keyName is a key as the dashboard's key line names it.
 func keyName(key tea.KeyPressMsg) string {
 	name := key.String()
 	switch name {
@@ -313,8 +382,6 @@ func keyName(key tea.KeyPressMsg) string {
 		return "←"
 	case "right":
 		return "→"
-	case "enter":
-		return "⏎"
 	case "shift+tab":
 		return "shift-tab"
 	case "pgup":
@@ -326,7 +393,7 @@ func keyName(key tea.KeyPressMsg) string {
 }
 
 // keycaps draws keys as keycaps over the right of line, the screen's last
-// row, a cell apart, and a cell in from its edge, clearing what of the footer
+// row, a cell apart, and a cell in from its edge, clearing what of the key line
 // they'd cut into back to the two spaces that set its groups apart: in the
 // theme the screen is drawn in, as its canvas says, or where it paints none,
 // in reverse.

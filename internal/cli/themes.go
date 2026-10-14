@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"image/color"
 	"io"
 
 	"github.com/charmbracelet/colorprofile"
@@ -84,21 +83,18 @@ func (a *app) noColour() bool {
 	return a.Getenv("NO_COLOR") != ""
 }
 
-// printLook is how usage prints the dashboard into the scrollback, on out,
-// which shows the colours its profile says: under NO_COLOR, without colour;
-// else, of the themes, in the one chosen for the terminal's background, as
-// the terminal says it is when asked, where out shows colour, its blends
-// worked out against it, and no canvas painted. As it paints none, one theme
-// chosen is printed only on a background as dark, or as light, as its own:
-// on another, the default pair's half for that background is.
+// printLook is how usage prints its windows into the scrollback, on out,
+// which shows the colours its profile says: under NO_COLOR, or where out
+// shows no colour, without colour; else, of the themes, in the one chosen for
+// the terminal's background, as the terminal says it is when asked, its
+// blends worked out against it, and no canvas painted. As it paints none, one
+// theme chosen is printed only on a background as dark, or as light, as its
+// own: on another, the default pair's half for that background is.
 func (a *app) printLook(out io.Writer, shows colorprofile.Profile, t themes, chosen theme.Choice) dashboard.Look {
-	if a.noColour() {
+	if a.noColour() || shows <= colorprofile.ASCII {
 		return dashboard.NoColour()
 	}
-	var background color.Color
-	if shows > colorprofile.ASCII {
-		background = a.Background(out)
-	}
+	background := a.Background(out)
 	dark := theme.Dark(background)
 	in := t.library.Pair(chosen).For(dark)
 	if chosen.IsOne() && !in.Suits(dark) {

@@ -1,18 +1,17 @@
 # Switchboard — design
 
-**Status:** milestones 0 to 3, 5 and 6 are built, and this document describes the design as built,
-but for milestone 7's, which it describes as designed, ahead of its build (see Milestones).
+**Status:** milestones 0 to 3 and 5 to 7 are built, and this document describes the design as
+built (see Milestones).
 Milestones 0 to 2 built the usage dashboard (one-off, and in watch mode) and `status`, which read
 the router while it runs and probe when it doesn't; logging; the router, with its scheduler, pins,
 state, limit and refusal handling, health and desktop notifications; and launching (`run` and the
 service). Milestone 3 added token files and the `accounts` commands, `setup`, every `claude` going
 through switchboard in place of `init zsh`, the primary account and its reserve, priming the 5-hour
 windows, and the router looking after itself; Milestones lists it in full, with what its final
-review changed. Next is milestone 7 (see Milestones); milestone 4, the author's switch-over, happens
-outside this repo. The release follows milestone 3. Milestone 5 rebuilt the dashboard as its owner
+review changed. Milestone 4, the author's switch-over, happens outside this repo. The release follows milestone 3. Milestone 5 rebuilt the dashboard as its owner
 redesigned it, in three views, with themes, and with the router's history, events and request stream
 to draw them from. Milestone 6 added the request ledger, a line for each request the router routes
-and a summary of each day, with `requests` and `history` to read them back. Milestone 7 redesigns
+and a summary of each day, with `requests` and `history` to read them back. Milestone 7 redesigned
 the dashboard again, on what the ledger records: `usage` becomes a printout, `dashboard` the live
 page, in six tabs, and the data verbs give an agent everything either shows. The Dashboard section
 and The data verbs describe it.
@@ -725,7 +724,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, and every interval has the router read the accounts it hasn't read in that time (see Live updates): 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. Without the router, or with `--probe`, it probes every account instead, each interval. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
 | `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
-| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts and History count, each account's plan and its worth against it, each week's peaks, Weeks' verdicts on the accounts (see Accounts, History), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"prices_as_of": "2026-10-07", "days": [{"version": 3, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
+| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts and History count, each account's plan and its worth against it, each week's peaks, Weeks' verdicts on the accounts (see Accounts, History), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"prices_as_of": "2026-10-07", "days": [{"version": 4, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
 | `sessions [<id>] [--json \| --pretty]` | Today's sessions, as Sessions' List has them: those running, the oldest started first, then those that ended today, the latest ended first, a line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering or idle since it was last seen, or when it ended, when it started, its requests and their worth today, and how it came to its account; then a line summing them. `<id>`, a session's id or as much of it as is unique among the sessions read, as `requests --session` takes it, prints that session as its page has it: where it runs and why, each account it ran on, its turns, newest first, and its totals (see A session's page). Its JSON: see The data verbs. It reads the ledger's files, and the router's sessions where it answers |
 | `events [--since <when>] [-f] [--json \| --pretty]` | The router's events, as the Log's Events have them (see The Log): today's, unless `--since` reaches further back, as `requests` takes it, oldest first, under the day each happened on, a line each, each event once, as it last stood, with the time, the session, if any, cut short, the kind, the account, and what happened. `-f`, `--follow` then prints a line each time the router files one, a changed event again, until interrupted, as `logs --follow` follows a log. Its JSON: see The data verbs. It reads the events' files, which outlast a restart (see The router's events), so it needs no router |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
@@ -833,9 +832,10 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
       `limits`; and `all accounts`' peaks: every account's, whatever was pinned (see History).
     - `capacity`: Weeks' verdicts over those weeks: how many were `short`, a week some account hit
       its limit, as the accounts stand, `with_one_fewer` and `with_one_more`, and the account to
-      `drop`, where Weeks names one; and each account's `verdict`, in Weeks' words, with how many
+      `drop`, where Weeks names one, with `with_two_fewer`, with three accounts or more, the weeks
+      short without it and another; and each account's `verdict`, in Weeks' words, with how many
       weeks it hit its limit, the share it had left at a reset, on average, and how many weeks the
-      rest would have been short `without_it`.
+      rest would have been short `without_it`, then every account's together, marked `all`.
   - **`history --windows`:** one object, `{"windows": [{account, window, readings}]}`, printed in
     place of the blocks (settled in the plan): each account's every window's readings over the days
     asked for, each `{at, utilization, resets_at, status, source}`, as the readings history holds
@@ -872,7 +872,8 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
       `{account, from, to, requests, worth, points}`, `from` and `to` its first and last request
       there, and `points` each window's points its requests took, by key, an estimate (see A
       session's page).
-    - `moves` are each move, `[{at, from, to, reason, written, cost}]`.
+    - `moves` are each move, `[{at, model, from, to, reason, written, cost}]`, `model` the one it
+      asked for, as a session's models are routed apart.
     - `turns` are newest first:
       `{turn, started, ended, requests, tools, read, written, out, worth, accounts}`. `tools` are
       the tools its answers called, each by name with how many times; `ended` is left out of one
@@ -1316,7 +1317,7 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   `runs out ~Mon 17:25 at its rate over the last 30 min`, `over the last 18 min` for a window with
   no level from before the half hour, or `over the last 2h` across a gap in its readings; and its
   pressure line adds the rate it goes by and the reset it runs out before,
-  `under pressure: runs out ~18:21 at Session's rate over the last 30 min, before its reset at
+  `under pressure: runs out ~18:21 at 5-hour's rate over the last 30 min, before its reset at
   20:10`, or where its reserve would hold it back, `under pressure: at its reserve ~18:21 at …`.
 - **A window reset by hand** before its reset time, as claude.ai's banked reset does, dropping its
   use but keeping its reset (see Observed), has effectively started again: the router reads it with
@@ -1365,7 +1366,7 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   with it, plus a gap of two cells; at least 14 cells, or 12 under 80 columns, and at most 24, or 16
   under 80. The bars give up the cells. One column serves every section that names accounts.
 - **A longer label is cut** with `…` to fit, its number and marks kept, and the cells for `▲` kept
-  too, so a label never changes when `▲` moves: `2 someone.else@exam… ◆`. Labels are free text, and
+  too, so a label never changes when `▲` moves: `2 someone.else@ex… ◆`. Labels are free text, and
   an email address is the common long one.
 
 **Colour.** The printout is drawn in the theme's colours and brought down to what the terminal shows
@@ -1676,8 +1677,9 @@ row and the key line. The planner:
 3. **While anything is folded, nothing grows,** and the rows over stay empty at the foot.
 4. **Rows to spare,** while nothing is folded, go in turn: to GRAPHS, a row at a time to 19; to
    USAGE's big bars, if they fit; to ROUTING's two rows of trace, if they fit; then to COMING UP and
-   LATELY, a line at a time to 12. GRAPHS comes before the big bars, so that a taller terminal never
-   shrinks anything.
+   LATELY, a line at a time to 12. GRAPHS comes before the big bars, so that GRAPHS never shrinks as
+   they come; at a few heights, one row more brings the big bars or ROUTING's trace in, and ROUTING,
+   or COMING UP and LATELY, give up rows to make room.
 5. **Past every most,** the rest is empty at the foot, the key line on the last row.
 6. **The layout changes only on a key or a resize,** never on its own. SESSIONS keeps the rows it
    was given: more sessions than fit show as many as fit, the last row saying `+2 more`
@@ -1969,8 +1971,11 @@ days' `resets` give them: a week's peak is the use read just before its reset, t
 highest use so far, and `left at its last reset` 100% less the peak of the week that ended last. BY
 DAY is each day's `rise` of the week window. Days before today are read once and kept; today's lines
 are read as they're added, from where the last read ended. An account added part-way through a
-period shows what was recorded of it, priced against the whole period; a period with nothing
-recorded, as on a fresh install, shows `—` in every row (settled in the plan).
+period shows what was recorded of it, priced against the whole period. A period with nothing
+recorded, as on a fresh install or a week's first morning before any request, shows `—` in each
+of its own figures: requests, sessions, moves, limits, time at cap or limit, worth and the like.
+`left at its last reset`, of the six weeks, `plan`, from the config, and `extra usage`, live, are
+no figures of the period, and show as they are (the owner's decision, 14 Oct 2026).
 
 ### History
 
@@ -2072,7 +2077,9 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
 - **The capacity verdict** leads, rows 6 to 8:
   - The headline, bold: `<n> is one more than you need`, in `state.positive`, where one fewer would
     be short on no more weeks than now, as `ten is one more than you need`; `<n> is one too few`, in
-    `accent.attention`, where now is short on 4 or more of the 7 and one more would halve that; else
+    `accent.attention`, where now is short on 4 or more of the 7 and one more would halve that;
+    `<n> is too few`, in `accent.attention`, where now is short on 4 or more of the 7 and one more
+    wouldn't halve that, the row under it saying how short one more would still be; else
     `<n> is about right`, in `state.positive`, as `three is about right`. The count is a word to
     ten, then figures (settled in the plan).
   - Then `as now: ` and how many of the last 7 whole weeks were short, and who was short each time,
@@ -2496,7 +2503,9 @@ rows run from row 7 (settled in the plan):
 **Other states.**
 
 - **The router not answering:** the status line says so (see The page); the Switchboard draws from
-  the last document, nothing travelling, and `p pin` is faint (settled in the plan).
+  the last document, nothing travelling, and `p pin` is faint (settled in the plan). The
+  Switchboard, the List and a session's page all draw the last listing's running sessions, their
+  idle times counting on (the owner's call, 14 October 2026).
 - **A look that can't blend,** the terminal's own colours or `NO_COLOR` (see Themes): an idle cord
   is drawn light, `─ ┐ │ └`, and a glow of 0.5 or more as `text.primary`. A light theme's glows and
   dimming are mixed against its own canvas (settled in the plan).
@@ -2603,12 +2612,17 @@ kept for good (settled in the plan; see The request ledger).
   | Room, but it runs out at its pace before its window resets | `▆` | `accent.attention` |
   | At its cap | `─` | `accent.attention` |
   | At its limit | `─` | `state.destructive` |
+  | Its token refused, from the refusal to its until | `─` | `state.destructive` |
 
   Every window that every model shares counts, but the 5-hour view leaves out a week running out:
   its lane is room until the week's limit. `│` in `text.subtle` marks where the view's window
   resets, on now's column or after it: each account's 5-hour window's reset in the 5-hour view, its
   week's in the week view. An account without a usable token has no room all along, and one not read
-  yet is left blank (settled in the plan).
+  yet is left blank (settled in the plan). An account whose first read failed is left blank, as not
+  read yet: its label says `not read yet`, and from column 24, in `text.subtle`,
+  `can't read it: HTTP 529 · Overloaded` (the owner's call, 13 October 2026). An account whose
+  token is refused has the windows' use under its name faded as stale (the owner's call, 13 October
+  2026).
 
 **The words under a lane** say where each stretch without room starts, from its column, 24 at the
 least, or two cells after the words before:
@@ -2616,7 +2630,9 @@ least, or two cells after the words before:
 - at a cap: `at its cap 14:31` bold `accent.attention`, then `  ·  back 17:10` in `text.muted`;
 - running out ahead: `runs out ~16:05 at its pace` bold `accent.attention`, then `  ·  back 16:55`
   in `text.muted`;
-- at a limit: `at its limit 13:58` bold `state.destructive`, then `  ·  back 15:30` in `text.muted`.
+- at a limit: `at its limit 13:58` bold `state.destructive`, then `  ·  back 15:30` in `text.muted`;
+- its token refused: `token refused (401) 14:12  ·  back 15:00` (the owner's call, 13 October
+  2026).
 
 `, as its 5-hour resets`, or `, as its week resets`, follows a cap's or a run-out's `back …` where
 its stretch ends as the view's window resets; a limit's `back …` takes none. In the week view, an
@@ -2773,11 +2789,20 @@ stepping back and how far it reaches, the minutes a column, and COMING UP.
 
 **What it reads.**
 
-- **Room, a cap and a limit:** the status document's windows, their `utilization`, `resets_at` and
-  `status`, and the account's `at_reserve` (see The status document), at each look. The `now`
-  column, the clock and the countdowns move every second.
-- **When a limit or a cap began:** the router's `limit` and `cap` events' `at`
-  (settled in the plan). A hold whose start isn't known runs from before the timeline.
+- **Now and what's ahead:** the status document's windows, their `utilization`, `resets_at` and
+  `status`, and the account's `at_reserve` (see The status document), at each look: now's column
+  and every column after it. The `now` column, the clock and the countdowns move every second.
+- **The past,** every column before now's, live or stepped back to, by one rule: the readings
+  history, each column by the last reading of each of its account's windows by the column's
+  middle. A window whose reset that reading gives has passed by then counts as reset, at 0%; one
+  read `rejected` is at its limit until that reset; a cap is drawn from the reserve the config
+  gives now, as the readings keep none. A column with no reading of its account by then is left
+  blank, as one not read yet (the owner's call, from his report on v0.1.6; 14 October 2026).
+- **When a limit, a cap or a refusal began:** the router's `limit`, `cap` and `refused` events'
+  `at`; where no event tells it, the first reading that shows it; a hold whose start neither tells
+  runs from before the timeline (the owner's call, 14 October 2026).
+- **While the router doesn't answer, or the dashboard probes,** the documents it reads join the
+  history, a reading of each window at each look (the owner's call, 14 October 2026).
 - **A run-out, `~16:05`:** the projection, as `usage` projects (see `usage`, the printout).
 - **COMING UP:** the same, soonest first, as the Overview's COMING UP reads it.
 - **The pool:** its accounts, every one on auto, or those the `pin` names.
@@ -3137,9 +3162,13 @@ the width, the table scrolling to keep it in view, and from following, `↑` cho
 and pausing there (settled in the plan); `enter` opens its details, and `esc` closes them; `end`
 follows again, the newest line at the foot and nothing chosen; `s` opens the chosen line's session's
 page, and `esc` there comes back to the Log as it was, paused at its line; `f` opens the panel; `/`
-finds a session by its id or its directory, today's or any day's the ledger keeps, through the days'
-session ids, the table then showing its lines alone, headed `only <id> <name>`, and the panel
-listing it among today's sessions, ticked (settled in the plan; see The request ledger); `p` opens
+opens a find line in the state line's row, `/ api▏`, which finds a session by its id's start or by
+its directory's name, today's sessions first, then back a day at a time through the days the ledger
+keeps; `↑↓` and `enter` pick among the sessions it matches, and `enter` filters both tables to the
+one picked, its lines alone, headed `only <id> <name>`, paused at its newest line where it has
+ended, the panel listing it among today's sessions, ticked; `esc` cancels the find, and with a
+filter on and nothing open, `esc` clears the filter (the owner's call, 13 October 2026; see The
+request ledger); `p` opens
 new sessions' routing picker, whatever line is chosen, as the page decides which picker (see Routing
 by hand); `?` help for this page, `HELP · LOG`, listing every key first, `t`, `R` and `j`/`k` among
 them, then explaining the marks, the columns, the kinds, why checks and counts are hidden, worth at
@@ -3268,7 +3297,10 @@ ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`.
 - **The columns** (rows 11 to 15): its first minute at column 0 and now, or its end, at column 159,
   the minutes shared out evenly but for folds: `(minutes − folded) ÷ (160 − 5 × folds)` a column, so
   a minute a column for a session of 160 minutes, and a younger one never more than a column a
-  minute, drawn from the left, its axis ending at its newest minute (settled in the plan). Each
+  minute, drawn from the left, its axis ending at its newest minute (settled in the plan). A
+  column's span is that share exactly, never rounded to whole minutes, so the story always fills
+  the width: past 160 minutes every column's span grows a little each minute, and a peak can drift
+  between neighbouring columns as it does (the owner's call, 13 October 2026). Each
   column is the mean requests a minute over the minutes it stands for, a request counting in the
   minute it arrived. Five rows tall, filled `round(rate ÷ scale × 40)` eighths, halves to even, as
   the Overview's traces are drawn: full cells are background and the top cell an eighth block, in
@@ -3315,8 +3347,9 @@ first ran on them:
 - at column 0, the account's number in config order, as the Overview numbers it, in `text.subtle`,
   and a space; then its name bold `text.primary` and its marks;
 - at 14, its time there, from its first request on it to its last, in `text.secondary`: `12:02 –
-  14:31`, `14:31 – now`; with its day where the session spans more than one: `yesterday 16:40 –
-  18:05`, `today 09:12 – now`;
+  14:31`, `14:31 – now`; with its day where the session spans more than one, or began before today,
+  as an undated time reads as today's: `yesterday 16:40 – 18:05`, `today 09:12 – now`,
+  `yesterday 13:20 – 16:02` (settled in the plan);
 - at 40, its requests in `text.muted`: `404 requests`;
 - at 56, what it took of the account's windows, the points bold `text.primary` and the rest
   `text.muted`: `≈ 41 points of its 5-hour · 6 of its week`, a model's own window it used adding
@@ -3324,7 +3357,9 @@ first ran on them:
 - right-aligned to the last column, its worth at API prices, in `text.secondary`: `$41.06`.
 - **A turn that moved splits** between the two, each request counted on the account that answered
   it, the context written again on the account it moved to. The rows' requests and worth add up to
-  TURNS', each rounded on its own, so the rows can come a cent apart from it. Back on an account it
+  TURNS', each rounded on its own, so the rows can come a cent apart from it; a request the router
+  answered itself, as when no account has room, no account answered, so TURNS' alone counts it
+  (settled in the plan). Back on an account it
   left, it keeps one row an account, spanning its first request there to its last
   (settled in the plan).
 - **≈ points:** a window counts its account's whole use, every session's, so a session's share is
@@ -3567,7 +3602,10 @@ routing.
    reason or its sessions.
    - **`0 auto` first,** `0` in `text.subtle` and `auto` in bold `text.primary`, its description in
      `text.muted`: `the router chooses`; on a session's card, `the router chooses: side for now`,
-     the account auto would send it to, bold `text.primary`. Picking `auto` clears the accounts;
+     the account auto would send it to, bold `text.primary`: where the router's own rule for a
+     session of no pin of its own would send its next request, which keeps it where it runs while
+     that account has room and its cache is worth keeping, named by the router in its listing of
+     the sessions (the owner's call, 13 October 2026). Picking `auto` clears the accounts;
      picking an account clears `auto`; nothing picked is auto.
    - **Then each account,** numbered by its place in the config, `1 ` in `text.subtle`, its name in
      bold `text.primary`.
@@ -3607,7 +3645,8 @@ routing.
    On a session's card, `pick` for `tick`, and no `m`; the numbers named are the accounts there are,
    `0-3` for three, and `0-9` past nine.
 
-**Its keys,** while it's open, alone: `↑` and `↓` move between its rows; `space` picks the row it's
+**Its keys,** while it's open, alone: `↑` and `↓` move between its rows, the row the cursor's on
+lit on `bg.selection` always, as the Log's `f` panel lights its row; `space` picks the row it's
 on; a number picks its row directly, `0` auto; `m` ticks or clears moving the sessions running, on
 new sessions' card; `enter` applies and closes it; `esc` closes it and changes nothing. A number
 past the accounts there are does nothing. Past nine accounts, an account is picked with `↑↓` and
@@ -3680,7 +3719,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `R` | Everywhere | Refresh (see Live updates) |
 | `?` | Everywhere | Help for the page shown; `?` or `esc` closes it |
 | `q` | Everywhere | Quit |
-| `esc` | Everywhere | Close what's open, the newest first: a card, the theme picker, the Log's panel, a turn opened; else end a choice (settled in the plan); else, on a session's page, go back where it was opened from |
+| `esc` | Everywhere | Close what's open, the newest first: a card, the theme picker, the Log's panel, the Log's find, a turn opened; else end a choice (settled in the plan); on the Log, with a filter on and nothing open, clear the filter (the owner's call, 13 October 2026); else, on a session's page, go back where it was opened from |
 | `j` `k`, PgUp, PgDn, the wheel | Wherever something scrolls (settled in the plan) | Scroll |
 | `u` `g` `r` `s` `c` `l` | Overview | Show or hide USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP, LATELY |
 | `b` | Overview | By window, or by account |
@@ -3700,7 +3739,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `s` | The Log | The chosen line's session's page; not on an account's event |
 | `g` | The Log, an event's details | Requests, paused at the event's moment |
 | `f` | The Log | What it shows: the panel |
-| `/` | The Log | Find a session, today's or another day's |
+| `/` | The Log | Find a session by its id's start or its directory's name, today's first, then back a day at a time; `↑↓` and `enter` pick one, filtering both tables to it |
 | `↑` `↓` | A session's page | Choose a turn; with one open, a request of it |
 | `enter` | Accounts, Sessions, the Log, a session's page | Open what's chosen: from Compare, the account in Detail; a session's row, its page; a line of the Log, its details; a turn, its requests, in place |
 | `↑` `↓`, `space`, `0`–`9`, `m`, `enter`, `esc` | The routing card | Move, pick, pick by number (`0` auto; past nine accounts, those from 10 on by `↑↓` and `space` alone), move the sessions running too, apply, cancel (see Routing by hand) |
@@ -3791,8 +3830,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   itself, then the hue mixed 55% toward white, or toward black on a light canvas
   (settled in the plan). The days' hue is `accent.key`, and a family's strips' its family's. A
   version the version table gives no shade, as an older one past the six, draws as its default
-  would, in its family's hue mixed 30% toward `canvas`; and a family it gives no hue of its own, as
-  Mythos, draws in `text.muted`, its versions with it (settled in the plan).
+  would, in its family's hue mixed 30% toward `canvas`; and a family it gives no hue of its own
+  draws in `text.muted`, its versions with it (settled in the plan).
 - **Files:** `<slug>.theme`, flat `key = #RRGGBB` lines, `#` starting a comment only at the start
   of a line, unquoted, a key once, unknown keys ignored, a missing base key rejecting the file; the
   slug matching `^[a-z0-9][a-z0-9-]*$`. They're read from `SWITCHBOARD_THEMES_DIR`, else
@@ -3866,8 +3905,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
 - **Fewer colours:** the frame is drawn in the theme's colours and brought down to what the
   terminal shows by `colorprofile`. With `NO_COLOR` set, there's no canvas and no colour: state is
   told by its glyphs and bold, a bar's fill is drawn in `█` and the eighth blocks, as `usage`, the
-  printout says, a day's shade by a glyph's density, as the `terminal` theme draws it, and `t` does
-  nothing.
+  printout says, a day's shade by a glyph's density, as the `terminal` theme draws it, a row on
+  `bg.selection` in reverse video, as the `terminal` theme draws it, and `t` does nothing.
 
 ### Live updates
 
@@ -4194,14 +4233,15 @@ from the first day a router that has it runs, so nothing before then is in it.
   yesterday. Its object:
 
   ```json
-  {"version": 3, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": [{"account": "work", "models": [{"model": "claude-opus-5-5", "upstream": 412, "no_usage": 2, "unsent": 0, "checks": 3, "counts": 9, "sessions": 6, "usage": {"cache_creation": {"ephemeral_1h_input_tokens": 1180240, "ephemeral_5m_input_tokens": 0}, "cache_creation_input_tokens": 1180240, "cache_read_input_tokens": 61204410, "input_tokens": 8812, "output_tokens": 402113, "server_tool_use": {"web_search_requests": 4}}}], "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "moved_on": 2, "moved_off": 1, "highest": {"5h": 1, "7d": 0.41}, "rise": {"5h": 2.03, "7d": 0.12}, "resets": [{"window": "5h", "at": "2026-10-05T07:10:00Z", "before": 0.35}, {"window": "5h", "at": "2026-10-05T12:10:00Z", "before": 0.58}, {"window": "5h", "at": "2026-10-05T17:10:00Z", "before": 1}], "limits": [{"window": "5h", "at": "2026-10-05T14:37:12Z", "resets_at": "2026-10-05T17:10:00Z"}], "minutes_at_cap": 0, "minutes_at_limit": 153, "read_before": ["5h", "7d"]}]}
+  {"version": 4, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": [{"account": "work", "models": [{"model": "claude-opus-5-5", "upstream": 412, "no_usage": 2, "unsent": 0, "checks": 3, "counts": 9, "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "usage": {"cache_creation": {"ephemeral_1h_input_tokens": 1180240, "ephemeral_5m_input_tokens": 0}, "cache_creation_input_tokens": 1180240, "cache_read_input_tokens": 61204410, "input_tokens": 8812, "output_tokens": 402113, "server_tool_use": {"web_search_requests": 4}}}], "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "moved_on": 2, "moved_off": 1, "highest": {"5h": 1, "7d": 0.41}, "rise": {"5h": 2.03, "7d": 0.12}, "resets": [{"window": "5h", "at": "2026-10-05T07:10:00Z", "before": 0.35}, {"window": "5h", "at": "2026-10-05T12:10:00Z", "before": 0.58}, {"window": "5h", "at": "2026-10-05T17:10:00Z", "before": 1}], "limits": [{"window": "5h", "at": "2026-10-05T14:37:12Z", "resets_at": "2026-10-05T17:10:00Z"}], "minutes_at_cap": 0, "minutes_at_limit": 153, "read_before": ["5h", "7d"]}]}
   ```
 
-  - `version`: the summaries' version: 3 since milestone 7's stage 3, which gives every day the
-    accounts the readings history tells of, a day of no requests among them, and climbs each
-    window by one rule, a reading of a run that has reset since, read late, kept out of its rise
-    (see `rise`); 2 since milestone 7, which added `session_ids`, `rise`, `resets`,
-    `minutes_at_cap` and `minutes_at_limit`; and 1 before it. A release that summarises a day
+  - `version`: the summaries' version: 4 since milestone 7's stage 8, which added each model's
+    `session_ids`; 3 since milestone 7's stage 3, which gives every day the accounts the readings
+    history tells of, a day of no requests among them, and climbs each window by one rule, a
+    reading of a run that has reset since, read late, kept out of its rise (see `rise`); 2 since
+    milestone 7, which added each account's `session_ids`, `rise`, `resets`, `minutes_at_cap` and
+    `minutes_at_limit`; and 1 before it. A release that summarises a day
     otherwise, or keeps more of it, writes another, so the summaries written before it can be told:
     a day whose summary is of an older version is read, and summarised again from its lines and its
     readings while either is kept, once, on the first round under the new version, as the round's
@@ -4218,14 +4258,15 @@ from the first day a router that has it runs, so nothing before then is in it.
     reader that meets an older version's summary, its lines kept, summarises the day from its
     lines, as it does today's; and one whose lines are gone it takes as it stands, whatever its
     version, as only the router writes summaries again, a reader knowing of the rest what they
-    never counted, rather than taking it for none. Versions 2 and 3 only add fields, and accounts,
-    so a release from before one reads a summary of
+    never counted, rather than taking it for none. Versions 2, 3 and 4 only add fields, and
+    accounts, so a release from before one reads a summary of
     it as one of its own, passing over what it doesn't know, and keeps those fields when it marks
     the summary afresh; where it summarises the day again, as lines come to be filed under it, it
     writes its own version, which the next release to run summarises again while the day's lines
     are kept. Of a summary of version 1 whose lines are gone, a reader counts its accounts'
     `sessions` as distinct, as the nearest there is, and takes its rises, resets and minutes as
-    never read, never as none.
+    never read, never as none; and of one before version 4 whose lines are gone, a reader adds its
+    models' `sessions` as they stand, their ids never named, as they can't be counted distinct.
   - `day`: the local date the day's lines are filed under.
   - `lines`: how many of the day's lines it was made from, those that didn't read as a line among
     them, which are warned of as it's made: what the summary is checked against, as below.
@@ -4249,7 +4290,9 @@ from the first day a router that has it runs, so nothing before then is in it.
     Worth); `unsent` counts those the router answered itself, never sending them; `checks` counts
     Claude Code's quota checks, and `counts` the counts of tokens, however each went; `sessions`
     counts the sessions they were of, but for the checks', as Claude Code sends one as it resumes a
-    session under an id it never uses again; and `usage` is their usage summed, field for field as
+    session under an id it never uses again, and since version 4 `session_ids` names them, in
+    order, each once, as the account's does, so one version's sessions over a span of days count
+    each once; and `usage` is their usage summed, field for field as
     the API gives it, an object's fields within it, and the objects of a list that give their
     types, as an answer's `iterations` do, within it by their types, what isn't a count, as the
     service tier, left out. A model's requests that asked for an inference geo, as their shapes'
@@ -4315,12 +4358,13 @@ from the first day a router that has it runs, so nothing before then is in it.
   summaries', fewer than there were. Its `lines` are as many as the more of the two were made
   from, and never fewer than its requests, as those of lines lost count among them. Each window's
   highest use is the one before's where that's higher, and the limits and the `read_before` the
-  one before held are among its own. Its `session_ids` are its own and the one before's together;
-  each window's rise, and each of its minutes, are the one before's where that's more; and the
-  resets the one before held are among its own, a reset being the same where its window and the
-  time it reset are, its `before` the higher of the two. Where the one before never named its
-  sessions, as one of version 1, the ids are named only where they number as many as it counted,
-  else left unnamed, as which they were is unknown. The readings history prunes the readings of a
+  one before held are among its own. Its `session_ids`, an account's and a model's alike, are its
+  own and the one before's together; each window's rise, and each of its minutes, are the one
+  before's where that's more; and the resets the one before held are among its own, a reset being
+  the same where its window and the time it reset are, its `before` the higher of the two. Where
+  the one before never named an account's sessions, as one of version 1, or a model's, as one
+  before version 4, the ids are named only where they number as many as it counted, else left
+  unnamed, as which they were is unknown. The readings history prunes the readings of a
   day past its own keep, whatever the ledger's, and a clock moved can leave it short of them, so
   what the readings gave can't be had again from them: a limit whose window has no reading before
   it, in the day or the week before, which a summary takes for one reached, is its own only where
@@ -4442,15 +4486,15 @@ from the first day a router that has it runs, so nothing before then is in it.
 - **The version table,** beside the price table, names each model version as the views show it, and
   gives it its colour. A row a version, by its ids as the price table holds them: its name,
   `Opus 5.5`, `Sonnet 4.5`, `Haiku 4.5`, `Fable 5.1`; its family, as `internal/claude` reads it from
-  the id, `opus`; and its shade. Its rows go by family, Opus, Sonnet, Fable, Haiku, then Mythos, and
-  within a family newest first, by the day each launched, so `Opus 5.5` comes before `Opus 5`. The
-  first four families are drawn in `viz.family.1` to `viz.family.4`; Mythos, the price table's
-  `claude-mythos-5-1` and `claude-mythos-5`, is a fifth, with no hue of its own, drawn in
-  `text.muted` with its versions, in charts and tables alike. The table assigns `viz.version.1` to
+  the id, `opus`; and its shade. Its rows go by family, Opus, Sonnet, Fable, then Haiku, and within
+  a family newest first, by the day each launched, so `Opus 5.5` comes before `Opus 5`. The four
+  families are drawn in `viz.family.1` to `viz.family.4`; a family with no hue of its own would draw
+  in `text.muted` with its versions, in charts and tables alike. Mythos, which no subscription can
+  use, is left out of both tables (the owner, 14 Oct 2026). The table assigns `viz.version.1` to
   `viz.version.6` in its rows' order: Opus 5.5 and Opus 5, Sonnet 5.5 and Sonnet 5, Fable 5.1, and
-  Haiku 4.5; a release that adds a version assigns them afresh. A version without one draws in its
-  family's colour, mixed 30% toward the canvas when it's older than the family's newest (see
-  Themes). A version the table doesn't name is shown by its id, `claude-` taken off, `opus-6`, in
+  Haiku 5.5, which took Haiku 4.5's as it was priced on 7 Oct 2026; a release that adds a version
+  assigns them afresh. A version without one draws in its family's colour, mixed 30% toward the
+  canvas when it's older than the family's newest (see Themes). A version the table doesn't name is shown by its id, `claude-` taken off, `opus-6`, in
   its family's colour, or in `text.muted` where its family has none. Tables name versions; charts
   keep to families.
 - **Requests,** wherever a view or a command counts them, are a summary's `upstream` and `unsent`
@@ -4778,7 +4822,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; and `?`'s help for each page |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, the families', versions' and days' shades among them, picking the light or dark half by the terminal's background, and the preferences file |
-| `internal/capture` | The capture harness's fixtures, a fixture a signed-off frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, its fake router read as `usage` reads one, through `watch.Once`, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens. Imported by `cmd/capturetool` alone |
+| `internal/capture` | The capture harness's fixtures, a fixture a signed-off frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, from its fake router's status document, read as `usage` reads the router's, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens. Imported by `cmd/capturetool` alone |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, keeping the readings history, in the lines `internal/readings` owns, each routed request's line handed to the request ledger, and the readings it summarises its days with, the router's health, the events it emits, filed through `internal/events` so they outlast a restart, and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
@@ -5147,12 +5191,12 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 |---|---|
 | `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that answers `ok` and gives `listen`, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all |
 | `GET /status` | The status document, as `status --json` prints it: see below |
-| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
+| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `0 auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
-| `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, closes it at once, as stopping does |
+| `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, closes it at once, as stopping does |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks every interval, and a minute after a window on screen resets |
 | `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, and while its config file doesn't make a valid config, which it couldn't start again from |
 
@@ -5259,7 +5303,9 @@ verbs).
 - **Joining:** a limit reached again while it holds joins its event, keeping its `id`, in whatever
   order the news of it comes; another limit reached meanwhile is an event of its own. A cap reached
   again while it holds, in another window, joins its own the same way, and so does a refusal of the
-  account renewed while it holds.
+  account renewed while it holds. A window that joins a limit or a cap it didn't begin with is kept
+  in the event's `joined`, by its key, with when it joined, so a hold is dated from when each of its
+  windows began holding it.
 - **Kept in files,** so the Log and `events` look back across restarts:
   `<state dir>/ledger/events-<local date>.jsonl`, 0600 in the ledger's directory, a line an event,
   as the status document gives it, with `run`: when the router that told it started, as its
@@ -5623,10 +5669,15 @@ no code left commented out. After every stage, every gate in `CLAUDE.md` passes,
     5's day, and `w` itself with it, with their fixtures and tests. Its fixtures draw `runway-*`.
 14. **The demos and the clean-up.** The README's demos and art are recorded again through capture's
     scenarios: `usage`'s, renamed `dashboard`, and `routing`, `themes`, `repatch`, `runway-week`,
-    `phone` and `help`; `flipped`, with no flip left to show, goes. `testdata/vhs/`'s milestone 5
-    tapes and captures are cleared, and `viz.series.1`–`viz.series.6` go, with the built-ins'
-    values of them. No code of milestone 5's dashboard is left but what the redesign kept (see
-    Packages).
+    `phone` and `help`; `flipped`, with no flip left to show, goes. Each is recorded at 160 × 37,
+    the frames' size; the phone's at 52 × 36. `routing` shows the Overview, then the routing card
+    picking side with `m`; `dashboard` one account's Overview, then Runway; `repatch` the
+    Switchboard as personal reaches its limit, the cords hanging; `runway-week` Runway's week;
+    `phone` the Overview at 52 × 36; `help` the Overview's help. The limit is personal's, at
+    16:05:41, as the signed-off Sessions frames draw it (the owner's call, 14 October 2026).
+    `testdata/vhs/`'s milestone 5 tapes and captures are cleared, and `viz.series.1`–`viz.series.6`
+    go, with the built-ins' values of them. No code of milestone 5's dashboard is left but what the
+    redesign kept (see Packages).
 
 Stage 1 merges and is released at once, as v0.1.3. Stages 2 to 4 merge as each is ready, with
 `usage -w` still there, so main can be released through them. Stage 2's second pull request and
@@ -5804,9 +5855,18 @@ why.
 | A reserve spent as a last resort, when no account has room outside one | next, a fast follow | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
+| A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | next, after milestone 7's release, the owner's choice on 14 October 2026 | [doctor](../ideas/2026-10-14--doctor.md) |
 | Three things the router keeps that grow without bound, each only when something rare happens | open: small fixes, any time; a restart's request stream ending before its last events fixed on 11 October 2026 | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
-| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
-| Stage 3's loose ends: Weeks' headline for a set short every week, and the cleanups its reviews left | open: the cleanups any time, the headline to settle with its owner; the two router tests a loaded machine failed steadied on 11 October 2026, one by a fix to the request stream's end | [stage-3-loose-ends](../ideas/2026-10-11--stage-3-loose-ends.md) |
+| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner after milestone 7's release; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
+| Stage 3's loose ends: Weeks' headline for a set short every week, and the cleanups its reviews left | open: the cleanups any time; the headline settled by its owner on 12 October 2026; the two router tests a loaded machine failed steadied on 11 October 2026, one by a fix to the request stream's end | [stage-3-loose-ends](../ideas/2026-10-11--stage-3-loose-ends.md) |
+| Milestone 7's loose ends: the edge cases and costs its reviews left | open: any time | [milestone-7-loose-ends](../ideas/2026-10-14--milestone-7-loose-ends.md) |
+| testguard failing a run when Claude Code's updater re-creates the `claude` link to the same target | open: a small fix, any time | [testguard-relinked-claude](../ideas/2026-10-14--testguard-relinked-claude.md) |
+| A pin that ends on its own, at a time or at its account's reset | open: to settle with its owner | [pin-until](../ideas/2026-10-14--pin-until.md) |
+| A scheduled review of switchboard's records, raising what it finds as an issue or a pull request | open: to discuss with its owner | [scheduled-review](../ideas/2026-10-14--scheduled-review.md) |
+| Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
+| Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
+| Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, and onboarding | open: to discuss with its owner after milestone 7's release | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
+| Watching switchboard's CPU and memory for a week after milestone 7's release, against v0.1.6's baseline | next, after milestone 7's release, the owner's choice on 14 October 2026 | [performance-watch](../ideas/2026-10-14--performance-watch.md) |
 | Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
 | Worth past what it's counted in: a config's price, or a period's sum, too large to hold | open: a small fix, its bound to settle | [worth-range](../ideas/2026-10-09--worth-range.md) |
 | What a routed session's environment carries to a `claude` switchboard steps aside for, as one a script points at another gateway | open: a small fix, any time | [stepping-aside](../ideas/2026-10-09--stepping-aside.md) |

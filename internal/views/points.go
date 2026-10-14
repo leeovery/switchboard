@@ -1,40 +1,72 @@
 package views
 
 import (
-	"math"
 	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
-// pointsOf returns the points of the windows of the accounts requests, the
-// session's with the given id, oldest first, went to that the session took,
-// by account, then by window key, in whole points, an estimate: a window
-// counts its account's whole use, every session's, so each rise in it is
-// shared out by tokens, as sharesOf says, among the requests of the account
-// on the days the session made requests on, as byDate holds every account's
-// requests by the date of the day whose files hold them. The rises between
-// two days apart, with a day between them the session made no request on,
-// are none of its: the requests of that day go uncounted. A window the
-// account's lines never read has no points.
-func pointsOf(byDate map[string][]ledger.Line, id string, requests []request) map[string]map[string]int {
+// pointsOver is what a session's points are taken over: the accounts its
+// requests went to, and the dates of the days it made requests on, oldest
+// first, as daysOf has them.
+type pointsOver struct {
+	accounts map[string]bool
+	days     []string
+}
+
+// pointsOverOf is what the points of a session are taken over, its
+// requests, oldest first, being requests, and days the dates of the days it
+// made requests on.
+func pointsOverOf(requests []request, days []string) pointsOver {
 	accounts := make(map[string]bool)
 	for _, r := range requests {
 		if r.Account != "" {
 			accounts[r.Account] = true
 		}
 	}
+	return pointsOver{accounts: accounts, days: days}
+}
+
+// counts reports whether a, an answer of the day with the given date, counts
+// toward the session's points: of one of its accounts, on one of its days.
+func (o pointsOver) counts(date string, a answered) bool {
+	return o.accounts[a.account] && slices.Contains(o.days, date)
+}
+
+// withDay is o with the day of the given date among its days, where answers,
+// the day's, hold one of the session's own.
+func (o pointsOver) withDay(date string, answers []answered) pointsOver {
+	i, found := slices.BinarySearch(o.days, date)
+	if !found && slices.ContainsFunc(answers, func(a answered) bool { return a.ours }) {
+		o.days = slices.Insert(slices.Clip(o.days), i, date)
+	}
+	return o
+}
+
+// pointsOf returns the points of the windows of the accounts the session's
+// requests went to that the session took, by account, then by window key, in
+// whole points, as prose.WholePercent rounds a share, an estimate: a window
+// counts its account's whole use, every session's, so each rise in it is
+// shared out by tokens, as sharesOf says, among the requests of the account
+// on the days the session made requests on, as over has them, answers
+// holding every account's requests of those days, answered, by the date of
+// the day whose files hold them. The rises between two days apart, with a
+// day between them the session made no request on, are none of its: the
+// requests of that day go uncounted. A window the account's lines never read
+// has no points.
+func pointsOf(answers map[string][]answered, over pointsOver) map[string]map[string]int {
 	taken := make(map[string]map[string]float64)
-	for _, run := range runsOf(daysOf(byDate, id)) {
+	for _, run := range runsOf(over.days) {
 		byAccount := make(map[string][]answered)
 		for _, date := range run {
-			for i := range byDate[date] {
-				if l := &byDate[date][i]; accounts[l.Account] {
-					byAccount[l.Account] = append(byAccount[l.Account], answeredOf(l, id))
+			for _, a := range answers[date] {
+				if over.accounts[a.account] {
+					byAccount[a.account] = append(byAccount[a.account], a)
 				}
 			}
 		}
@@ -44,18 +76,31 @@ func pointsOf(byDate map[string][]ledger.Line, id string, requests []request) ma
 	for account, shares := range taken {
 		points[account] = make(map[string]int, len(shares))
 		for key, share := range shares {
-			points[account][key] = int(math.Round(share * 100))
+			points[account][key] = prose.WholePercent(share)
 		}
 	}
 	return points
 }
 
-// daysOf returns the dates of the days byDate holds a request of the session
-// with the given id on, oldest first.
-func daysOf(byDate map[string][]ledger.Line, id string) []string {
-	var dates []string
+// answersOf returns every account's requests byDate holds, by the date of
+// the day whose files hold them, each answered as answeredOf has it, those
+// of the session with the given id its own.
+func answersOf(byDate map[string][]ledger.Line, id string) map[string][]answered {
+	answers := make(map[string][]answered, len(byDate))
 	for date, lines := range byDate {
-		if slices.ContainsFunc(lines, func(l ledger.Line) bool { return l.Session == id }) {
+		for i := range lines {
+			answers[date] = append(answers[date], answeredOf(&lines[i], id))
+		}
+	}
+	return answers
+}
+
+// daysOf returns the dates of the days answers holds a request of the
+// session's own on, oldest first.
+func daysOf(answers map[string][]answered) []string {
+	var dates []string
+	for date, held := range answers {
+		if slices.ContainsFunc(held, func(a answered) bool { return a.ours }) {
 			dates = append(dates, date)
 		}
 	}
@@ -76,7 +121,7 @@ func runsOf(dates []string) [][]string {
 
 func nextDate(date string) string {
 	_, end, _ := dayfile.Day(date)
-	return dayOf(end).date
+	return Today(end).Date
 }
 
 // share adds to taken, by account, then by window key, the session's share
@@ -94,11 +139,12 @@ func share(taken map[string]map[string]float64, answers map[string][]answered) {
 }
 
 // answered is a request of an account, as the rises in its windows' use are
-// shared out: when its answer's headers came, reading its windows, and when
-// it ended; its tokens, every kind counted alike; its model; whether it's of
-// the session whose share is taken; and the windows its answer's limits
-// read.
+// shared out: the account; when its answer's headers came, reading its
+// windows, and when it ended; its tokens, every kind counted alike; its
+// model; whether it's of the session whose share is taken; and the windows
+// its answer's limits read.
 type answered struct {
+	account   string
 	read, end time.Time
 	tokens    int64
 	model     string
@@ -112,6 +158,7 @@ type answered struct {
 func answeredOf(l *ledger.Line, id string) answered {
 	t, _ := l.Tokens()
 	a := answered{
+		account: l.Account,
 		end:     ended(l),
 		tokens:  int64(t.Input + t.Output + t.CacheRead + t.CacheWrite),
 		model:   l.Model,

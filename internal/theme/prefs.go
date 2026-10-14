@@ -18,19 +18,86 @@ import (
 const prefsName = "prefs.json"
 
 // Prefs are the dashboard's preferences, which it keeps as they change, and
-// the user never needs to write: the themes it's drawn in, the view it
-// shows, the window its cards feature, and the style they draw it in.
+// the user never needs to write: the themes it's drawn in, the tab it
+// shows, the Overview's sections shown, how its windows are grouped, what
+// Accounts, History's views, Sessions and Runway show, and the Log's columns.
 type Prefs struct {
 	Choice
-	// View names the view shown, such as "accounts", for a watch to open on:
-	// "" for the default.
+	// Tab names the tab shown, one of overview, accounts, history, sessions,
+	// runway and log, for a watch to open on: "" for the default, the
+	// Overview, as one it doesn't name reads. Milestone 5 kept its card view
+	// under "view", as "accounts", which isn't today's Accounts: a file of
+	// then is read as having no tab, its "view" kept as a key these don't
+	// know.
+	Tab string `json:"tab,omitempty"`
+	// Sections name the Overview's sections shown, of usage, graphs,
+	// routing, sessions, coming and lately: nil, as a file without them
+	// reads, for those shown at first, and none, kept as [], for none.
+	Sections []string `json:"sections,omitzero"`
+	// By names how the Overview's windows are grouped, window or account, as
+	// b last left it: "" for the config's [usage] by.
+	By string `json:"by,omitempty"`
+	// Accounts is what Accounts shows, as its keys last left it.
+	Accounts AccountsPrefs `json:"accounts,omitzero"`
+	// History is what History's views show, as their keys last left them.
+	History HistoryPrefs `json:"history,omitzero"`
+	// Sessions is what Sessions shows, as its keys last left it.
+	Sessions SessionsPrefs `json:"sessions,omitzero"`
+	// Runway is what Runway shows, as its keys last left it.
+	Runway RunwayPrefs `json:"runway,omitzero"`
+	// Log is what the Log shows, as its f panel last left it.
+	Log LogPrefs `json:"log,omitzero"`
+}
+
+// LogPrefs are what the Log shows: Columns, the names of the columns its
+// Requests show, at aside, which always shows: nil, as a file without them
+// reads, for those shown at first, and none, kept as [], for at alone. A
+// name the dashboard doesn't know, as a later build's column, shows nothing.
+type LogPrefs struct {
+	Columns []string `json:"columns,omitzero"`
+}
+
+// AccountsPrefs are what Accounts shows, each by its name: the view shown,
+// compare or detail; and the period both count over, today, "" for this
+// week, 30-days or 12-weeks. A name the dashboard doesn't know reads as the
+// default. What's chosen in a view is the run's alone.
+type AccountsPrefs struct {
+	View   string `json:"view,omitempty"`
+	Period string `json:"period,omitempty"`
+}
+
+// SessionsPrefs are what Sessions shows, by its name: the view shown,
+// switchboard or list. A name the dashboard doesn't know reads as the
+// default, the Switchboard. What's chosen in a view is the run's alone.
+type SessionsPrefs struct {
 	View string `json:"view,omitempty"`
-	// Featured is the key of the window every card features, such as "7d":
-	// "" for each card's own, as auto chooses it.
-	Featured string `json:"featured,omitempty"`
-	// Chart names the style every card draws its chart in, such as
-	// "hourglass": "" for the default, a burn-down.
-	Chart string `json:"chart,omitempty"`
+}
+
+// RunwayPrefs are what Runway shows, by its name: the window its view is
+// named for, week, or "" for the 5-hour. A name the dashboard doesn't know
+// reads as the 5-hour. A day or week stepped back to is the run's alone.
+type RunwayPrefs struct {
+	Window string `json:"window,omitempty"`
+}
+
+// HistoryPrefs are what History's views show, each by its name: the view
+// shown, of year, weeks, days and tokens; what the Year shows, all for all
+// use, a model version by its name, as Opus 5.5, or an account by its id;
+// Weeks' shape, table or columns; and Tokens' period and split. A name the
+// dashboard doesn't know reads as the default, as does a version or an
+// account no longer there to show.
+type HistoryPrefs struct {
+	View   string      `json:"view,omitempty"`
+	Year   string      `json:"year,omitempty"`
+	Weeks  string      `json:"weeks,omitempty"`
+	Tokens TokensPrefs `json:"tokens,omitzero"`
+}
+
+// TokensPrefs are how History's Tokens shows its periods: Period, day, week
+// or month; and Split, account, model, account+model or none.
+type TokensPrefs struct {
+	Period string `json:"period,omitempty"`
+	Split  string `json:"split,omitempty"`
 }
 
 // PrefsFile is the preferences file, prefs.json in the state directory,

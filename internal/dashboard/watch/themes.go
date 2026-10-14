@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -28,7 +28,7 @@ type Themes interface {
 	Keep(change func(theme.Choice) theme.Choice) (theme.Choice, error)
 }
 
-// tooSmall is what the footer says where the theme picker doesn't fit.
+// tooSmall is what the key line says where the theme picker doesn't fit.
 const tooSmall = "the terminal's too small for the theme picker"
 
 // unansweredMsg says the terminal has had its time to say what its
@@ -260,10 +260,14 @@ func (m Model) openPicker() (Model, tea.Cmd) {
 
 // listed opens the picker on the themes listed, the theme in force found
 // again among them, and the cursor on it: on a terminal now too small for
-// it, it says so instead.
+// it, it says so instead; and with a card opened over the page since t was
+// pressed, it stays shut, as the card's keys alone act.
 func (m Model) listed(msg listedMsg) (Model, tea.Cmd) {
 	m.picker.opening = false
-	if !dashboard.PickerFits(m.size.Width, m.size.Height) {
+	switch {
+	case m.open != nothingOpen:
+		return m, nil
+	case !dashboard.PickerFits(m.size.Width, m.size.Height):
 		return m.noting(tooSmall)
 	}
 	m.pair = msg.listing.Pair(m.choice)
@@ -446,7 +450,7 @@ func (p picker) drawn(choice theme.Choice) dashboard.Picker {
 		d.Note = "can't read the themes directory"
 	}
 	for _, row := range p.rows {
-		r := dashboard.PickerRow{Name: status.Clean(row.Name)}
+		r := dashboard.PickerRow{Name: prose.Clean(row.Name)}
 		if row.Slug != "" {
 			r.Badge = choice.Badge(row.Slug)
 		}
@@ -456,31 +460,23 @@ func (p picker) drawn(choice theme.Choice) dashboard.Picker {
 		d.Rows = append(d.Rows, r)
 	}
 	if p.asking != (pick{}) {
-		d.Clearing = status.Clean(choice.Theme)
+		d.Clearing = prose.Clean(choice.Theme)
 	}
 	return d
 }
 
-// keys are the keys there are while the picker is open, which takes every
-// key but q: while it asks its question, y and n; else the arrows, through
-// the themes, enter, d and l, to set one, and esc, to close it; then q.
-func (p picker) keys() []keyListing {
-	keys := []keyListing{
-		{key: "↑↓", footer: "preview", help: "move through the themes, the dashboard drawn in each"},
-		{key: "⏎", footer: "set theme", help: "set the theme as the one theme"},
-		{key: "d", footer: "set as dark", help: "set the theme as the dark half of the pair"},
-		{key: "l", footer: "set as light", help: "set the theme as the light half of the pair"},
-		{key: "esc", footer: "close", help: "close the picker, putting back the theme in force"},
-	}
+// keys are the picker's own keys, as the key line lists them while it's
+// open: while it asks its question, y and n; else the arrows, through the
+// themes, enter, d and l, to set one, and esc, to close it.
+func (p picker) keys() []dashboard.Key {
 	if p.asking != (pick{}) {
-		keys = []keyListing{
-			{key: "y", footer: "confirm", help: "clear the one theme, and set the half"},
-			{key: "n", footer: "cancel", help: "keep the one theme"},
-		}
+		return []dashboard.Key{{Key: "y", Does: "confirm"}, {Key: "n", Does: "cancel"}}
 	}
-	keys = append(keys, keyListing{key: "q", footer: "quit", help: "quit", always: true})
-	for i := range keys {
-		keys[i].works = true
+	return []dashboard.Key{
+		{Key: "↑↓", Does: "preview"},
+		{Key: "enter", Does: "set theme"},
+		{Key: "d", Does: "set as dark"},
+		{Key: "l", Does: "set as light"},
+		{Key: "esc", Does: "close"},
 	}
-	return keys
 }

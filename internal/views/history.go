@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -32,6 +33,10 @@ type HistoryInput struct {
 	// From is when the days asked for start, and Now the time now: they're
 	// the local days from From's to today's, those the ledger holds.
 	From, Now time.Time
+	// Began is the start of the ledger's first day, as LedgerStart tells it,
+	// for a Past to take as the day the ledger began recording: zero where
+	// it's unknown.
+	Began time.Time
 	// Prices price the days' requests, at today's prices, and the plans, and
 	// name the models' versions and families.
 	Prices ledger.Table
@@ -47,6 +52,10 @@ type HistoryInput struct {
 	// Family reads a model's family from its id, as internal/claude does,
 	// for a model the version table doesn't name.
 	Family func(model string) string
+	// read is when a Past's days were read, as it takes them: its Now as
+	// NewPast takes them, and as Since takes those it's given; never moved
+	// on as it's taken to a later Now alone.
+	read time.Time
 }
 
 // lookBack is how many days before the first asked for the ledger's days are
@@ -54,30 +63,38 @@ type HistoryInput struct {
 // running as the days asked for begin is known by the reset that began it.
 const lookBack = 7
 
-// NewHistory builds the History of the days in asks for. The plans are
-// priced from the later of the day asked for and the first day the ledger
-// holds.
+// NewHistory builds the History of the days in asks for, its plans priced
+// as plansPriced prices them.
 func NewHistory(in HistoryInput) History {
-	from, to := dateOf(in.From), dateOf(in.Now)
+	from, to := dayfile.CivilOf(in.From), dayfile.CivilOf(in.Now)
 	asked, today := from.Format(time.DateOnly), to.Format(time.DateOnly)
 	v := versions{table: in.Prices, family: in.Family}
 	p := plans{accounts: in.Accounts, table: in.Prices}
 	before, days := splitAt(pricedDays(in.Ledger.Days(in.From.AddDate(0, 0, -lookBack)), in.Prices, today, v), asked)
 	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
-	priced := from
-	if first, ok := firstDay(days); ok && first.After(from) {
-		priced = first
-	}
+	priced, share := plansPriced(in, from, to, days)
 	return History{
 		Days:     days,
 		Year:     yearOf(days),
 		Months:   monthsOf(days, p, v, asked, today),
 		Weeks:    weeksOf(placed, in.Accounts),
 		Tokens:   tokensOf(days, p, v, asked, in.WeekStarts),
-		Totals:   accountTotalsOf(days, in.Accounts, v),
-		Plans:    plansOf(days, p, priced.Format(time.DateOnly), askedShare(priced, to, in.WeekStarts)),
+		Totals:   accountTotalsOf(before, days, in.Accounts, v),
+		Plans:    plansOf(days, p, priced.Format(time.DateOnly), share),
 		Capacity: capacityOf(placed, wholeWeek(days, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
 	}
+}
+
+// plansPriced is the day the plans over in's days, from the day from to
+// today, each as dayfile.Civil gives one, are priced from, and the share of
+// a month they cost: from the later of from and the first of days, as
+// askedShare prices the days from then.
+func plansPriced(in HistoryInput, from, today time.Time, days []Day) (time.Time, monthPart) {
+	priced := from
+	if first, ok := firstDay(days); ok && first.After(from) {
+		priced = first
+	}
+	return priced, askedShare(priced, today, in.WeekStarts)
 }
 
 // splitAt splits days, in order, at the one with the given date: those
@@ -90,13 +107,13 @@ func splitAt(days []Day, date string) (before, from []Day) {
 	return days[:i], days[i:]
 }
 
-// firstDay is the first of days, as civil gives it, reporting false where
-// there's none, or its date isn't one.
+// firstDay is the first of days, as dayfile.Civil gives one, reporting false
+// where there's none, or its date isn't one.
 func firstDay(days []Day) (time.Time, bool) {
 	if len(days) == 0 {
 		return time.Time{}, false
 	}
-	return civil(days[0].Day)
+	return dayfile.Civil(days[0].Day)
 }
 
 // wholeWeek reports whether a calendar week, by its first day's date, is
@@ -132,16 +149,20 @@ type FamilyWorth struct {
 func pricedDays(summaries []ledger.Summary, prices ledger.Table, today string, v versions) []Day {
 	days := make([]Day, len(summaries))
 	for i, s := range summaries {
-		priced := prices.Priced(s, today)
-		sums := familySums{}
-		for _, a := range priced.Accounts {
-			for _, m := range a.Models {
-				sums.addModel(v, m)
-			}
-		}
-		days[i] = Day{Priced: priced, ByFamily: v.byFamily(sums)}
+		days[i] = v.day(prices.Priced(s, today))
 	}
 	return days
+}
+
+// day is the priced summary as a Day, with its worth by family.
+func (v versions) day(priced ledger.Priced) Day {
+	sums := familySums{}
+	for _, a := range priced.Accounts {
+		for _, m := range a.Models {
+			sums.addModel(v, m)
+		}
+	}
+	return Day{Priced: priced, ByFamily: v.byFamily(sums)}
 }
 
 // requests counts the day's requests, every account's.
@@ -209,7 +230,7 @@ func (v versions) familyOf(model string) string {
 }
 
 // familyRank places a family as the version table orders them: Opus,
-// Sonnet, Fable, Haiku, then Mythos, those it doesn't know after.
+// Sonnet, Fable, then Haiku, those it doesn't know after.
 func (v versions) familyRank(family string) int {
 	i := slices.IndexFunc(v.table.Versions, func(version ledger.Version) bool { return version.Family == family })
 	if i < 0 {
@@ -264,18 +285,4 @@ func spansOf(days []Day, key func(Day) (string, bool)) []span {
 		}
 	}
 	return spans
-}
-
-// civil is the local day with the given date as a date in UTC, where every
-// date has its midnight and its 24 hours, for counting days. It reports
-// false for a date that isn't one.
-func civil(date string) (time.Time, bool) {
-	day, err := time.Parse(time.DateOnly, date)
-	return day, err == nil
-}
-
-// dateOf is the local day t falls on, as civil gives it.
-func dateOf(t time.Time) time.Time {
-	y, m, d := t.Local().Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }

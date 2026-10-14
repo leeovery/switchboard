@@ -67,10 +67,71 @@ func (w *Worth) unprice(names ...string) {
 	}
 }
 
+// How a worth is said where it isn't all priced: PartUnpriced after the
+// priced part's, where part of it is unpriced; and unpriced where none of it
+// is priced.
+const (
+	PartUnpriced = "+"
+	unpriced     = "unpriced"
+)
+
+// underACent is a worth more than nothing that rounds to nothing, to the
+// cent, so it reads as more.
+const underACent = "<$0.01"
+
+// noCents is a worth of nothing, to the cent.
+var noCents = ledger.Picodollars(0).Cents()
+
+// Cents is the worth to the cent, as a request's, a turn's or a session's is
+// said, the Log's rule: "$0.15"; "<$0.01" where it's more than nothing but
+// under half a cent, which would read as nothing; "unpriced" where none of it
+// is priced; and PartUnpriced after it where part of it is, as "$17.86+".
+// Nothing at all is "$0.00".
+func (w Worth) Cents() string {
+	if w.Amount == nil && len(w.Unpriced) > 0 {
+		return unpriced
+	}
+	amount := w.amount()
+	said := amount.Cents()
+	if amount > 0 && said == noCents {
+		said = underACent
+	}
+	if len(w.Unpriced) > 0 {
+		said += PartUnpriced
+	}
+	return said
+}
+
+// Dollars is the worth to the dollar, as History says it, its thousands set
+// apart, as "$27,480"; PartUnpriced after it where part of it is unpriced, as
+// "$184+"; "unpriced" where none of it is priced; and "" where there's none.
+func (w Worth) Dollars() string {
+	switch {
+	case w.Amount == nil && len(w.Unpriced) > 0:
+		return unpriced
+	case w.Amount == nil:
+		return ""
+	case len(w.Unpriced) > 0:
+		return w.Amount.GroupedDollars() + PartUnpriced
+	}
+	return w.Amount.GroupedDollars()
+}
+
 // amount is what the priced requests cost: none where none was priced.
 func (w Worth) amount() ledger.Picodollars {
 	if w.Amount == nil {
 		return 0
 	}
 	return *w.Amount
+}
+
+// shareOf is part's share of whole, as a family's worth of every family's,
+// or a version's of all use's: none where none of part is priced, or whole
+// is worth nothing.
+func shareOf(part Worth, whole ledger.Picodollars) *float64 {
+	if part.Amount == nil || whole <= 0 {
+		return nil
+	}
+	share := float64(*part.Amount) / float64(whole)
+	return &share
 }

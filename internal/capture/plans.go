@@ -91,18 +91,24 @@ func endedPlan(now time.Time) sessionPlan {
 
 // resumedPlan is f41a as its page draws it (session2.RESUMED,
 // session_final.RESUMED): in ~/Code/api, yesterday from 16:40 on side, idle
-// from 18:05, then today from 09:12 on personal, rescored after 15 hours
-// idle, its cache gone, its 21 turns sampled from seed 3, an answer streaming
-// in its newest, to a request out since 14:41:47.
+// from 18:05, then today from 09:12 on personal, rescored after its idle, its
+// cache gone, its 21 turns sampled from seed 3, an answer streaming in its
+// newest, to a request out since 14:41:47.
 func resumedPlan(now time.Time) sessionPlan {
 	return sessionPlan{
 		id: idF41A, dir: "~/Code/api", start: clockAt(now, -1, 16, 40, 0),
 		turns: turnsFrom([][2]int{{0, 85}, {992, 1322}}, 3),
 		stays: []stay{{"side", 0}, {"personal", 992}},
-		moves: []movePlan{{minute: 992, written: 96_000, reason: status.Rescored("15h")}},
+		moves: []movePlan{{minute: 992, written: 96_000, reason: rescoredF41A}},
 		asked: clockAt(now, 0, 14, 41, 47),
 	}
 }
+
+// rescoredF41A is why f41a went to personal as it came back, as the router
+// writes it: rescored after its idle from its last request yesterday, at
+// 18:04:38, to its first today, at 09:12:15, where the frame, rounding it,
+// says 15h.
+var rescoredF41A = status.Rescored(15*time.Hour + 7*time.Minute)
 
 // heldAsWritten is the lines as the ledger holds them, each with its JSON as it's
 // written.

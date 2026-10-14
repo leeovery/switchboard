@@ -39,15 +39,10 @@ func (s Summary) made(lines int, held *Summary) Summary {
 }
 
 // knowing returns a, an account's day summarised afresh, knowing no less
-// than held, its day as summarised before, as Summary.knowing says. Where
-// held never named its sessions, as one of version 1, and the ids a gives
-// number fewer than held counted, it names none still, as which they were
-// is unknown.
+// than held, its day as summarised before, as Summary.knowing says, its
+// sessions named as named says.
 func (a AccountDay) knowing(held AccountDay) AccountDay {
-	a.SessionIDs = together(a.SessionIDs, held.SessionIDs)
-	if held.SessionIDs == nil && len(a.SessionIDs) < held.Sessions {
-		a.SessionIDs = nil
-	}
+	a.SessionIDs = named(a.SessionIDs, held.SessionIDs, held.Sessions)
 	a.Sessions = max(a.Sessions, held.Sessions, len(a.SessionIDs))
 	a.MovedOn, a.MovedOff = max(a.MovedOn, held.MovedOn), max(a.MovedOff, held.MovedOff)
 	a.Highest, a.Rise = higher(a.Highest, held.Highest), higher(a.Rise, held.Rise)
@@ -62,6 +57,19 @@ func (a AccountDay) knowing(held AccountDay) AccountDay {
 	a.ReadBefore = together(a.ReadBefore, held.ReadBefore)
 	a.Models = knowingAll(a.Models, held.Models, ModelDay.key, ModelDay.knowing, byModel)
 	return a
+}
+
+// named returns ids, the sessions a day summarised afresh names, and held,
+// those its summary before named, together, as together gives them: none
+// where held never named the sessions it counted, as a summary of an older
+// version, and the ids together number fewer than it counted, counted, as
+// which they were is unknown.
+func named(ids, held []string, counted int) []string {
+	ids = together(ids, held)
+	if held == nil && len(ids) < counted {
+		return nil
+	}
+	return ids
 }
 
 // together returns the ids of ids and held together, in order, each once:
@@ -124,10 +132,12 @@ func more(n, held *int) *int {
 
 // knowing returns m, a model's day on an account summarised afresh, knowing
 // no less than held, its day as summarised before: each count held's where
-// that's more, its usage's among them.
+// that's more, its usage's among them, and its sessions named as named says.
 func (m ModelDay) knowing(held ModelDay) ModelDay {
 	m.Upstream, m.NoUsage, m.Unsent = max(m.Upstream, held.Upstream), max(m.NoUsage, held.NoUsage), max(m.Unsent, held.Unsent)
-	m.Checks, m.Counts, m.Sessions = max(m.Checks, held.Checks), max(m.Counts, held.Counts), max(m.Sessions, held.Sessions)
+	m.Checks, m.Counts = max(m.Checks, held.Checks), max(m.Counts, held.Counts)
+	m.SessionIDs = named(m.SessionIDs, held.SessionIDs, held.Sessions)
+	m.Sessions = max(m.Sessions, held.Sessions, len(m.SessionIDs))
 	usage, heldUsage := make(counts), make(counts)
 	usage.add(m.Usage)
 	heldUsage.add(held.Usage)

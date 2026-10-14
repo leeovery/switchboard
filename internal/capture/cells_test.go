@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
@@ -395,7 +394,7 @@ func TestParseRefusesWhatItWouldReadOtherwiseThanATerminal(t *testing.T) {
 }
 
 func TestEveryFixturesFrameParsesToItsPlainText(t *testing.T) {
-	utc := fixturesIn(time.UTC)
+	utc := local()
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
 			frame := frameOf(t, utc, name)

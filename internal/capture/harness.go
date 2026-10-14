@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"cmp"
 	"context"
 	"image/color"
 	"strings"
@@ -14,13 +15,30 @@ import (
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// interval is how often a watch reads in full when usage -w isn't told
+// interval is how often a watch reads in full when dashboard isn't told
 // otherwise.
 const interval = 30 * time.Minute
+
+// framesTraceScale is the requests a minute that fill a trace's height in the
+// frames, which pin it, where the live page scales as its rule says; and
+// storyScale, a session's story's, which its frames pin at 8.
+const (
+	framesTraceScale = 16
+	storyScale       = 8
+)
+
+// framesKeep is how long the frames' ledger keeps a day's lines: [ledger]
+// keep at 90 days.
+const framesKeep = 90 * 24 * time.Hour
+
+// framesWeekStarts is the day the frames' calendar weeks start on, as their
+// worlds' config sets it.
+const framesWeekStarts = time.Monday
 
 // Frame draws the fixture as a terminal of the given size shows it: a line
 // for each of its rows, styled as the dashboard draws them, each ending in a
@@ -46,36 +64,73 @@ func (f Fixture) Model() tea.Model {
 }
 
 // settle builds the dashboard's watch model of the fixture, as watch.New
-// builds it for usage -w, on a terminal of the given size, and brings it to
+// builds it for dashboard, on a terminal of the given size, and brings it to
 // the fixture's moment: its first read lands readAgo before, the terminal
-// says what its background is, then the clock reads the moment, and the
-// fixture's keys are pressed. Its timers never fire, so nothing moves from
-// there but what a key does.
+// says what its background is, then the clock reads the moment, which the
+// screen is drawn at, and the fixture's keys are pressed. A router that
+// stops answering before the moment is read last readAgo before it goes,
+// and found gone as it goes, by R. A fixture with keys pressed before its
+// moment is read first readAgo before those, which are pressed then; then
+// at its moment, read again, by R, so what its ledger has gained since is
+// read. Its timers never fire, so nothing moves from there but what a key
+// does.
 func (f Fixture) settle(size watch.Size) watch.Model {
-	clock := &clock{now: ago(f.now, readAgo)}
+	gone := f.router.gone
+	read := !gone.IsZero() && gone.Before(f.now)
+	clock := &clock{now: ago(f.now, readAgo+f.before.by)}
+	if read {
+		clock.now = ago(gone, readAgo)
+	}
 	m := watch.New(context.Background(), f.config(size, clock.read))
 	m = deliver(m, run(m.Init())...)
 	if !f.colourless {
 		m = deliver(m, tea.BackgroundColorMsg{Color: terminalBackground})
 	}
+	if read {
+		clock.now = gone
+		m = deliver(m, keysOf("R")[0])
+	}
+	if len(f.before.keys) > 0 {
+		clock.now = ago(f.now, f.before.by)
+		m = pressed(deliver(m, reached{}), f.before.keys)
+		clock.now = f.now
+		m = deliver(m, keysOf("R")[0])
+	}
 	clock.now = f.now
-	for _, key := range f.keys {
+	return pressed(deliver(m, reached{}), f.keys)
+}
+
+// pressed is the model with the keys given pressed, in turn.
+func pressed(m watch.Model, keys []tea.KeyPressMsg) watch.Model {
+	for _, key := range keys {
 		m = deliver(m, key)
 	}
 	return m
 }
 
 // config configures the watch of the fixture on a terminal of the given size,
-// by now's clock, as usage -w configures it, its seams the fixture's.
+// by now's clock, as dashboard configures it, its seams the fixture's.
 func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
+	source := f.router.by(now)
 	cfg := watch.Config{
-		Source:   f.router,
-		Notifier: quiet{},
-		Now:      now,
-		After:    held,
-		Interval: interval,
-		Policy:   claude.Policy,
-		Size:     size,
+		Source:     source,
+		Notifier:   quiet{},
+		Now:        now,
+		After:      held,
+		Await:      source.await,
+		Interval:   interval,
+		Policy:     claude.Policy,
+		WindowName: status.NameOfKey,
+		Accounts:   f.accounts,
+		WeekStarts: framesWeekStarts,
+		WeekWindow: claude.WeekWindow,
+		Family:     claude.Provider{}.Family,
+		Size:       size,
+		View:       f.view,
+		Log:        f.log,
+		Prices:     drawnPrices,
+		TraceScale: cmp.Or(f.scale, framesTraceScale),
+		LedgerKeep: framesKeep,
 	}
 	cfg.Ledger, cfg.Readings, cfg.Events = f.readers(now)
 	dressed(&cfg, f.theme, f.colourless)
@@ -84,7 +139,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 
 // readers are what the watch of the fixture reads the request ledger, the
 // readings history and the router's events through, by now's clock: its
-// world's records, or, of a fixture over none, as milestone 5's are, none.
+// world's records, or, of a printout, which has none, none.
 func (f Fixture) readers(now func() time.Time) (views.Ledger, views.Readings, views.Events) {
 	if f.records == nil {
 		return ledger.NewEmpty(now, ledger.Caps{Shared: claude.SharedWindows}), readings.Empty{}, events.Empty{}
@@ -203,6 +258,11 @@ type quiet struct{}
 func (quiet) Notify(string) error {
 	return nil
 }
+
+// reached is the clock reaching a fixture's moment: the watch takes it in as
+// any message, doing nothing with it but drawing its screen there afresh,
+// as a tick would.
+type reached struct{}
 
 // settled is a watch model brought to its fixture's moment, as Bubble Tea
 // runs it: starting it reads nothing, its first read taken already.

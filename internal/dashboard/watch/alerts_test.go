@@ -9,7 +9,11 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
 )
 
 func TestNotifications(t *testing.T) {
@@ -22,6 +26,10 @@ func TestNotifications(t *testing.T) {
 		return document(account("work", "Work", session(0.02, 5*time.Hour), week(weekUsed)))
 	}
 	unread := document(unreadable("work", "Work"))
+	// pastTheWarning has the week read at 95%, resetting three minutes after
+	// the clock starts: read again, it's still that reading, of the week
+	// before its reset, as the router keeps it until the account is read again.
+	pastTheWarning := document(account("work", "Work", session(0.02, 5*time.Hour), window("7d", "Week", 0.95, 3*time.Minute)))
 	tests := []struct {
 		name string
 		// reads are read in turn, five minutes apart.
@@ -96,6 +104,23 @@ func TestNotifications(t *testing.T) {
 			want:  []string{"work · Work: Week at 91%", "work · Work: Week at 92%"},
 		},
 		{
+			name: "a window passing 90% in the period after it reset, read before at more, which counts from empty",
+			reads: []status.Document{
+				document(account("work", "Work", session(0.02, 5*time.Hour), window("7d", "Week", 0.95, 3*time.Minute))),
+				room(0.92),
+			},
+			want: []string{"work · Work: Week at 92%"},
+		},
+		{
+			name:  "a window read past 90% whose reset has passed, fetched again and again before it's read again: nothing, as it stands empty",
+			reads: []status.Document{pastTheWarning, pastTheWarning, pastTheWarning, pastTheWarning},
+		},
+		{
+			name:  "a window read past 90% whose reset has passed, then read again passing 90%: once",
+			reads: []status.Document{pastTheWarning, pastTheWarning, pastTheWarning, room(0.92), room(0.93)},
+			want:  []string{"work · Work: Week at 92%"},
+		},
+		{
 			name: "a window new to the account",
 			reads: []status.Document{
 				room(0.5),
@@ -147,6 +172,188 @@ func TestNotifications(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRoomAgainIsAnAccountsQuotaBack(t *testing.T) {
+	withRoom := account("work", "Work", session(0.2, 5*time.Hour), week(0.5))
+	routedWithRoom := builtBy(status.SourceRouter, withRoom)
+	spentSession := account("work", "Work", refused(session(1, 3*time.Minute)), week(0.5))
+	pinned := builtBy(status.SourceRouter, reserving(account("work", "Work", session(0.95, 3*time.Minute), week(0.5)), 0.1))
+	pinned.Pin = status.Pin{Accounts: []string{"work"}, Since: start.UTC()}
+	tests := []struct {
+		name string
+		// last is the document the account was last read in, as the clock
+		// starts, and this the one it's read in five minutes later, by the
+		// same router.
+		last, this status.Document
+		want       bool
+	}{
+		{
+			name: "after a limit holding back every request",
+			last: builtBy(status.SourceRouter, limitedTo(withRoom, 3*time.Minute)), this: routedWithRoom, want: true,
+		},
+		{
+			name: "after a limit holding back a model's requests alone",
+			last: builtBy(status.SourceRouter, limitedTo(account("work", "Work", session(0.2, 5*time.Hour), week(0.5), fableWeek(0.5)), 3*time.Minute, "7d_oi")),
+			this: routedWithRoom,
+		},
+		{
+			name: "after its token refused, which isn't quota",
+			last: builtBy(status.SourceRouter, tokenRefused(withRoom, 3*time.Minute)), this: routedWithRoom,
+		},
+		{
+			name: "after its token refused and a window every model shares spent, both past",
+			last: builtBy(status.SourceRouter, tokenRefused(spentSession, 3*time.Minute)), this: routedWithRoom, want: true,
+		},
+		{
+			name: "after a window every model shares spent, its token refused since",
+			last: builtBy(status.SourceRouter, spentSession), this: builtBy(status.SourceRouter, tokenRefused(withRoom, time.Hour)),
+		},
+		{name: "after its reserve, which the global pin spent", last: pinned, this: routedWithRoom},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := alertsOf(tt.last.At(start, policy), tt.this.At(start.Add(5*time.Minute), policy), notifications); slices.Contains(got, "work · Work has room again") != tt.want {
+				t.Errorf("posted %q, want room again %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// A look from another source than the last compares with none: probing
+// can't see the limit the router saw, nor say how a reading of the router's
+// has changed. Its own readings compare from then on.
+func TestNothingIsPostedAcrossAChangeOfSource(t *testing.T) {
+	probed := func(weekUsed float64) status.Document {
+		doc := document(account("work", "Work", session(0.2, 5*time.Hour), week(weekUsed)))
+		doc.Fallback = status.Fallback{Router: status.RouterNotRunning}
+		return doc
+	}
+	h := routedHarness(t, routerDocument(limitedTo(account("work", "Work", session(0.2, 5*time.Hour), week(0.85)), time.Hour)))
+	h.start()
+
+	h.stopRouter()
+	h.clock.now = h.clock.now.Add(5 * time.Minute)
+	h.read(probed(0.91))
+	if len(h.notifier.posted) > 0 {
+		t.Errorf("probed after the router's limit, posted %q; want nothing, as the limit still holds, and probing has no reading of its own to compare with", h.notifier.posted)
+	}
+	h.clock.now = h.clock.now.Add(5 * time.Minute)
+	h.read(probed(0.93))
+	h.clock.now = h.clock.now.Add(5 * time.Minute)
+	h.read(probed(0.5))
+	h.clock.now = h.clock.now.Add(5 * time.Minute)
+	h.read(probed(0.92))
+	if want := []string{"work · Work: Week at 92%"}; !slices.Equal(h.notifier.posted, want) {
+		t.Errorf("probed again and again, posted %q; want %q, probing's readings compared with its own", h.notifier.posted, want)
+	}
+}
+
+// alertsOf are what's posted of this, a look that follows on from last, the
+// look that last read each account, as alerts has it.
+func alertsOf(last, this status.Moment, settings config.Notifications) []string {
+	return messagesOf(lastReads{}.with(last, originOf(last, router.Health{})).alerts(this, originOf(this, router.Health{}), settings))
+}
+
+func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
+	// roomAgain is what's posted at each moment of its document, read as
+	// built, then fetched again with nothing read since; warned is what's
+	// posted of warnings at each moment of its document, its windows read
+	// unused before.
+	roomAgain := map[string][]string{
+		"a week at its reserve when built, then reset":             {"work · work has room again"},
+		"a limit holding, then lifted":                             {"work · work has room again"},
+		"a week at its limit, reset since read, before the reread": {"work · work has room again"},
+	}
+	warned := map[string][]string{
+		"a week at its reserve when built":                           {"work · work: Week at 92%"},
+		"a week at its reserve when built, the global pin naming it": {"work · work: Week at 92%"},
+		"a limit holding":                                                                        {"work · work: 5-hour at 100%"},
+		"probed, of one account, with no room":                                                   {"work · work: Week at 100%"},
+		"probed, one of several at its limit":                                                    {"work · work: 5-hour at 100%"},
+		"every account at its cap, none with room":                                               {"work · work: Week at 92%", "side · side: 5-hour at 95%"},
+		"a model's own window at its limit, its account open to the rest":                        {"work · work: Fable week at 100%"},
+		"the global pin set from the command line to an account at its limit":                    {"work · work: 5-hour at 100%"},
+		"a model's own week at its cap since the day before, the session joining it":             {"work · work: 5-hour at 95%", "work · work: Fable week at 95%"},
+		"a model's own week at its cap since the session's period began, the session joining it": {"work · work: 5-hour at 95%", "work · work: Fable week at 95%"},
+		"a model's own week at its limit since the day before, the session joining it":           {"work · work: 5-hour at 100%", "work · work: Fable week at 100%"},
+	}
+	for _, hm := range statustest.HardMoments(policy) {
+		t.Run(hm.Name, func(t *testing.T) {
+			read, look := hm.Doc.At(statustest.Built, policy), hm.Doc.At(hm.Now, policy)
+			var back, warnings []string
+			for _, a := range look.Accounts {
+				if was, _ := read.Account(a.ID); was.OutOfQuota && a.CanRise {
+					back = append(back, a.Title()+" has room again")
+				}
+				for _, w := range a.Windows {
+					if w.Used >= notifications.Warning {
+						warnings = append(warnings, a.Title()+": "+w.Name+" at "+prose.Percent(w.Used))
+					}
+				}
+			}
+
+			fetched := alertsOf(read, look, notifications)
+			if !slices.Equal(fetched, back) || !slices.Equal(back, roomAgain[hm.Name]) {
+				t.Errorf("fetched again with nothing read since, posted %q; want %q, as the moments say, which is %q",
+					fetched, back, roomAgain[hm.Name])
+			}
+			warnOnly := config.Notifications{Warning: notifications.Warning}
+			fresh := alertsOf(unused(hm.Doc).At(statustest.Built, policy), look, warnOnly)
+			if !slices.Equal(fresh, warnings) || !slices.Equal(warnings, warned[hm.Name]) {
+				t.Errorf("read from unused, posted %q; want %q, as the moment says, which is %q", fresh, warnings, warned[hm.Name])
+			}
+		})
+	}
+}
+
+// builtBy is the document source builds as the clock starts of the accounts
+// given, each as it stands then, as AsOf has it.
+func builtBy(source string, accounts ...status.Account) status.Document {
+	doc := status.Document{GeneratedAt: start.UTC(), Source: source}
+	if source == status.SourceRouter {
+		doc.Router = status.Health{Healthy: true}
+	}
+	for _, a := range accounts {
+		doc.Accounts = append(doc.Accounts, a.AsOf(policy, start))
+	}
+	return doc
+}
+
+// limitedTo is a held back by the router's limit in the windows given, until
+// lifts after the clock starts.
+func limitedTo(a status.Account, lifts time.Duration, windows ...string) status.Account {
+	a.Limit = status.Limit{ID: 4, Windows: windows, Until: start.Add(lifts).UTC()}
+	return a
+}
+
+// tokenRefused is a whose token the upstream refuses, until lifts after the
+// clock starts.
+func tokenRefused(a status.Account, lifts time.Duration) status.Account {
+	a.Refused = status.Refusal{Until: start.Add(lifts).UTC(), Status: 401}
+	return a
+}
+
+// unused is doc with each of its accounts' windows read unused.
+func unused(doc status.Document) status.Document {
+	doc.Accounts = slices.Clone(doc.Accounts)
+	for i, a := range doc.Accounts {
+		a.Windows = slices.Clone(a.Windows)
+		for j := range a.Windows {
+			a.Windows[j].Utilization, a.Windows[j].Status = 0, ""
+		}
+		doc.Accounts[i] = a
+	}
+	return doc
+}
+
+// messagesOf are what the notices say, in turn.
+func messagesOf(notices []notify.Notice) []string {
+	var messages []string
+	for _, n := range notices {
+		messages = append(messages, n.Message)
+	}
+	return messages
 }
 
 func TestNotificationsAsTheConfigSays(t *testing.T) {
@@ -212,8 +419,8 @@ func TestFailedNotificationsGoOnlyToTheLog(t *testing.T) {
 	if want := []string{"work · Work: Week at 91%"}; !slices.Equal(h.notifier.posted, want) {
 		t.Errorf("posted %q, want %q", h.notifier.posted, want)
 	}
-	if got, want := h.footer(), probingKeys+" · read 0s ago · next 13:50"; got != want {
-		t.Errorf("footer = %q, want %q: a failed notification changes nothing on screen", got, want)
+	if got, want := h.keyLine(), oneKeys; got != want {
+		t.Errorf("the key line reads %q, want %q: a failed notification changes nothing on screen", got, want)
 	}
 	want := []string{"level=WARN", `msg="notification failed" component=watch`, "account=work", `news="Week at 91%"`, `error="post notification: exit status 1"`}
 	if !log.Has(want...) {

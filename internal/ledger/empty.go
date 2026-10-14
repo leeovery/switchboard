@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"iter"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -30,10 +31,30 @@ func (e Empty) Days(time.Time) []Summary {
 	return []Summary{today}
 }
 
+// DaysOn returns today's summary, where today's date is among those given,
+// as Days gives it, and none of any other day.
+func (e Empty) DaysOn(dates []string) []Summary {
+	if !slices.Contains(dates, dayfile.DateOf(e.now())) {
+		return nil
+	}
+	return e.Days(e.now())
+}
+
 // Today returns no line, and the Mark it's read to, reporting afresh from the
 // zero Mark alone, as a Follower does where today's lines begin to be given.
 func (Empty) Today(mark Mark) (lines []Held, next Mark, afresh bool) {
 	return nil, Mark{gen: 1}, mark == Mark{}
+}
+
+// Day returns no line, whatever the day.
+func (Empty) Day(string) []Held {
+	return nil
+}
+
+// FirstLinesDay fails with fs.ErrNotExist, as the ledger holds no day's
+// lines.
+func (Empty) FirstLinesDay(time.Time) (time.Time, error) {
+	return time.Time{}, errNoLines
 }
 
 // Session returns no line.

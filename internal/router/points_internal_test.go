@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 )
@@ -354,11 +355,19 @@ func at13(minute int) time.Time {
 	return time.Date(2026, 9, 28, 13, minute, 0, 0, time.UTC)
 }
 
-// writeLines appends lines to the plain files of the history h, each to its
+// writeLines appends read to the plain files of the history h, each to its
 // local day's, as the router does.
-func writeLines(t *testing.T, h *history, lines ...readings.Reading) {
+func writeLines(t *testing.T, h *history, read ...readings.Reading) {
 	t.Helper()
-	if err := h.files.Append(h.lines(lines)); err != nil {
+	lines := make(dayfile.Lines)
+	for _, r := range read {
+		line, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines.Add(r.At, line)
+	}
+	if err := h.files.Append(lines); err != nil {
 		t.Fatal(err)
 	}
 }

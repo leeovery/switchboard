@@ -65,8 +65,9 @@ func withUse(days []ledger.AccountDay, id string, use accountDay) []ledger.Accou
 
 // modelsOf are an account's day's requests by the model each asked for, in
 // the order of their names: each version's share of the day's worth, and of
-// its requests, sent upstream, of every session of the day; the worth of a
-// version too little used for a request the most used one's.
+// its requests, sent upstream, of the day's first sessions, by their ids, one
+// a request at most; the worth of a version too little used for a request the
+// most used one's.
 func modelsOf(use accountDay) []ledger.ModelDay {
 	versions := ids(use.versions)
 	counts := apportion(use.requests, weightsOf(indexes(len(versions)), func(i int) float64 { return use.versions[versions[i]] }))
@@ -83,7 +84,8 @@ func modelsOf(use accountDay) []ledger.ModelDay {
 	var models []ledger.ModelDay
 	for i, v := range versions {
 		if counts[i] > 0 {
-			models = append(models, ledger.ModelDay{Model: v, Upstream: counts[i], Sessions: min(len(use.sessions), counts[i]), Usage: usageWorth(worths[i])})
+			of := slices.Clone(use.sessions[:min(len(use.sessions), counts[i])])
+			models = append(models, ledger.ModelDay{Model: v, Upstream: counts[i], Sessions: len(of), SessionIDs: of, Usage: usageWorth(worths[i])})
 		}
 	}
 	slices.SortFunc(models, func(a, b ledger.ModelDay) int { return cmp.Compare(a.Model, b.Model) })

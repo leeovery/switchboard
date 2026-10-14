@@ -2,83 +2,109 @@ package watch
 
 import (
 	"maps"
-	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/notify"
-	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// reading is an account as it was last read, and when.
-type reading struct {
-	account status.Account
-	at      time.Time
+// lastReads are the looks that last read each account, by its id, each at
+// the moment it was taken, and shared by every account it last read, and
+// where the last look read its document from. A look is compared with them
+// rather than with the look before it, so an account that couldn't be read
+// for a while is compared with how it last stood.
+type lastReads struct {
+	from  origin
+	looks map[string]*status.Moment
 }
 
-// lastReads are each account as it was last read, by id. A new document is
-// compared with them rather than with the document before it, so an account
-// that couldn't be read for a while is compared with how it last stood.
-type lastReads map[string]reading
-
-// alerts are the notifications doc, read at now, calls for, of those settings
-// asks for: each account that had no room under the windows every model
-// shares and now has some, and each window that has passed the warning. An
-// account is only compared with an earlier reading, so the first document
-// calls for none.
-func (r lastReads) alerts(doc status.Document, now time.Time, policy score.Policy, settings config.Notifications) []notify.Notice {
+// alerts are the notifications look, read from read, calls for, of those
+// settings asks for: each account that has room again since it was last
+// read, as roomAgain has it, and each window that has passed the warning, as
+// passed has it. An account is only compared with an earlier reading, so the
+// first look calls for none; nor does a look that doesn't follow on from the
+// last, as follows says, as a reading from elsewhere, as the router's limit
+// that probing can't see, says nothing of how this one has changed. The
+// warnings take each last look to look's moment once, for every account it
+// last read to share, and none where settings warn of none.
+func (r lastReads) alerts(look status.Moment, read origin, settings config.Notifications) []notify.Notice {
+	if !read.follows(r.from) {
+		return nil
+	}
+	warns, then := notify.Warns(settings.Warning), takenTo(look.Now)
 	var alerts []notify.Notice
-	for _, a := range doc.Accounts {
-		last, ok := r[a.ID]
-		if !ok || !wasRead(a) {
+	for _, a := range look.Accounts {
+		last, ok := r.looks[a.ID]
+		if !ok || !a.Read {
 			continue
 		}
-		if settings.Room && roomAgain(last, reading{account: a, at: now}, policy) {
-			alerts = append(alerts, notify.RoomAgain(a))
+		if settings.Room && roomAgain(*last, a) {
+			alerts = append(alerts, notify.RoomAgain(a.ID, a.Title()))
 		}
-		for _, w := range passed(last.account.Windows, a.Windows, settings.Warning) {
-			alerts = append(alerts, notify.Warning(a, w))
+		if !warns {
+			continue
+		}
+		for _, w := range passed(then(last), a, settings.Warning) {
+			alerts = append(alerts, notify.Warning(a.ID, a.Title(), w.Name, w.Used))
 		}
 	}
 	return alerts
 }
 
-// with returns the readings updated with each account doc read at now.
-func (r lastReads) with(doc status.Document, now time.Time) lastReads {
-	updated := make(lastReads, len(r))
-	maps.Copy(updated, r)
-	for _, a := range doc.Accounts {
-		if wasRead(a) {
-			updated[a.ID] = reading{account: a, at: now}
+// takenTo takes a look to the moment now, as At has it: each look once, the
+// first time it's asked, as it's asked again for every account it last read.
+func takenTo(now time.Time) func(look *status.Moment) status.Moment {
+	taken := make(map[*status.Moment]status.Moment)
+	return func(look *status.Moment) status.Moment {
+		m, ok := taken[look]
+		if !ok {
+			m = look.At(now)
+			taken[look] = m
+		}
+		return m
+	}
+}
+
+// with returns the readings updated with each account look reads, look read
+// from read: those before are kept only where it follows on from them, as
+// follows says, and otherwise they start afresh from it.
+func (r lastReads) with(look status.Moment, read origin) lastReads {
+	updated := lastReads{from: read, looks: make(map[string]*status.Moment)}
+	if read.follows(r.from) {
+		maps.Copy(updated.looks, r.looks)
+	}
+	for _, a := range look.Accounts {
+		if a.Read {
+			updated.looks[a.ID] = &look
 		}
 	}
 	return updated
 }
 
-// wasRead reports whether an account's usage was read: a reading always has
-// windows.
-func wasRead(a status.Account) bool {
-	return len(a.Windows) > 0
+// roomAgain reports whether account a, as a look has it, has room again
+// since last, the look that last read it: its quota had run out then, and it
+// can take a request now, its token not refused. A refusal isn't quota, so
+// one lifting is no news. Each look is judged at its own moment: judged now,
+// a window spent then that has since reset would count as having had room,
+// and the account's return would pass unannounced.
+func roomAgain(last status.Moment, a status.AccountNow) bool {
+	was, _ := last.Account(a.ID)
+	return was.OutOfQuota && a.CanRise
 }
 
-// roomAgain reports whether an account had no room under the policy's shared
-// windows at its last reading, its reserve left unused, and has at this one.
-// Each reading is judged at the time it was taken: judged now, a window
-// exhausted then that has since reset would count as having had room, and the
-// account's return would pass unannounced.
-func roomAgain(last, this reading, policy score.Policy) bool {
-	return !score.Available(last.account.Windows, last.account.Reserve, policy.IsShared, last.at) &&
-		score.Available(this.account.Windows, this.account.Reserve, policy.IsShared, this.at)
-}
-
-// passed lists the windows in after that have passed warning since before.
-func passed(before, after []quota.Window, warning float64) []quota.Window {
-	var up []quota.Window
-	for _, w := range after {
-		i := slices.IndexFunc(before, func(b quota.Window) bool { return b.Key == w.Key })
-		if i >= 0 && notify.Passed(before[i].Utilization, w.Utilization, warning) {
+// passed lists the windows of account a, as a look has it, that have passed
+// warning since then, the look that last read it, taken to the same moment:
+// each window, in both, as it stands at that moment, so one that has reset
+// since either was read counts from empty. Passing warning in its period
+// after the reset is news, however much of the period before it had used; a
+// reading still of the period before, as one taken before the window is read
+// again carries, is none.
+func passed(then status.Moment, a status.AccountNow, warning float64) []status.WindowNow {
+	was, _ := then.Account(a.ID)
+	var up []status.WindowNow
+	for _, w := range a.Windows {
+		if before, ok := was.Window(w.Key); ok && notify.Passed(before.Used, w.Used, warning) {
 			up = append(up, w)
 		}
 	}

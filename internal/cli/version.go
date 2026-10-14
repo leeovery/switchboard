@@ -1,19 +1,18 @@
 package cli
 
 import (
-	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 )
 
-func newVersionCommand() *cobra.Command {
+func newVersionCommand(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the version, as --version does",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			root := cmd.Root()
-			_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s version %s\n", root.DisplayName(), root.Version)
+			_, err := io.WriteString(cmd.OutOrStdout(), cmd.Root().DisplayName()+" version "+a.Version+"\n")
 			return err
 		},
 	}

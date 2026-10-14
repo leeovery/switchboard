@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -44,8 +45,6 @@ const (
 	pickerChrome = 2
 	// cursorColumn is the cells the cursor's bar takes before each name.
 	cursorColumn = 2
-	// keyColumn is the cells a key takes before what it does.
-	keyColumn = 5
 	// nameFloor is the fewest cells a theme's name is cut to, however much
 	// its row's badge and problem take.
 	nameFloor = 4
@@ -54,8 +53,8 @@ const (
 // The keys the picker takes, and what each does: those it always takes, and
 // those that answer its question.
 var (
-	pickerKeys = [][2]string{{"⏎", "set theme"}, {"d", "set as dark"}, {"l", "set as light"}, {"esc", "close"}}
-	answerKeys = [][2]string{{"y", "confirm"}, {"n", "cancel"}}
+	pickerKeys = []Key{{Key: "enter", Does: "set theme"}, {Key: "d", Does: "set as dark"}, {Key: "l", Does: "set as light"}, {Key: "esc", Does: "close"}}
+	answerKeys = []Key{{Key: "y", Does: "confirm"}, {Key: "n", Does: "cancel"}}
 )
 
 // pickerHead is the picker's rows over the themes: a blank one, its name,
@@ -145,7 +144,7 @@ func (p Picker) foot(inner int) []line {
 	switch {
 	case p.Clearing != "":
 		const ask, answers = "clear ", "?  y / n"
-		name := truncate(p.Clearing, max(inner-ansi.StringWidth(ask+answers), nameFloor))
+		name := prose.Cut(p.Clearing, max(inner-ansi.StringWidth(ask+answers), nameFloor))
 		message = line{{ask + name + answers, ink{token: theme.TextSecondary}}}
 		keys = answerKeys
 	case p.Note != "":
@@ -153,8 +152,7 @@ func (p Picker) foot(inner int) []line {
 	}
 	foot := []line{message, {{rule(inner), borderInk}}}
 	for _, k := range keys {
-		key := k[0] + strings.Repeat(" ", keyColumn-ansi.StringWidth(k[0]))
-		foot = append(foot, line{{key, ink{token: theme.AccentKey}}, {k[1], ink{token: theme.TextMuted}}})
+		foot = append(foot, k.words())
 	}
 	return foot
 }
@@ -173,7 +171,7 @@ func (r PickerRow) line(inner int, on hue) line {
 	}
 	tail := r.tail(inner, on)
 	room := inner - cursorColumn - tail.width()
-	label := truncate(r.Name, max(room, nameFloor))
+	label := prose.Cut(r.Name, max(room, nameFloor))
 	gap := span{strings.Repeat(" ", max(room-ansi.StringWidth(label), 0)), ink{on: on}}
 	return append(line{bar, {label, name}, gap}, tail...)
 }

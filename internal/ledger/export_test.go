@@ -1,5 +1,10 @@
 package ledger
 
+import (
+	"maps"
+	"slices"
+)
+
 // SetLooked has a round call looked with the date of each day it summarises
 // once it has looked at the day's files, before it reads them, for tests of
 // what comes between the two.
@@ -17,4 +22,12 @@ func (r *Reader) SetHistory(history History) {
 // it, for tests of how it's asked.
 func (f *Follower) SetHistory(history History) {
 	f.days.history = history
+}
+
+// Followed returns the dates of the days the follower has looked at the
+// files of, sorted, for tests of how far a read reaches.
+func (f *Follower) Followed() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Sorted(maps.Keys(f.followed))
 }

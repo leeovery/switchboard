@@ -5,237 +5,235 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
-	"github.com/leeovery/switchboard/internal/notify"
-	"github.com/leeovery/switchboard/internal/redact"
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 const (
-	// defaultWidth and defaultHeight are the size the dashboard is drawn at
-	// when neither the terminal nor the environment gives it.
+	// defaultWidth and defaultHeight are the size usage and the dashboard
+	// are drawn at when neither the terminal nor the environment gives it.
 	defaultWidth  = 80
 	defaultHeight = 24
-	// defaultInterval is how often --watch reads usage in full unless told
-	// otherwise.
-	defaultInterval = 30 * time.Minute
-	// minInterval is the shortest interval --watch takes: a full read can
-	// probe every account, once for each model family.
-	minInterval = 5 * time.Minute
 )
 
-// usageOptions are the usage command's flags, and the interval --watch takes.
+// usageOptions are the usage command's flags. Their zero value prints every
+// window, laid out as the config says.
 type usageOptions struct {
-	watch    bool
-	noNotify bool
-	probe    bool
-	refresh  bool
-	form     formFlags
-	interval time.Duration
+	probe   bool
+	refresh bool
+	by      layoutFlag
+	windows windowFlags
+	form    formFlags
 }
 
 func newUsageCommand(a *app) *cobra.Command {
 	var opts usageOptions
 	cmd := &cobra.Command{
-		Use:   "usage [--watch [interval]] [--no-notify] [--probe] [--refresh] [--json | --pretty]",
-		Short: "Show every account's usage as a dashboard",
-		Long: `Show every account's usage as a dashboard: the router's, while it runs, with
-its sessions and pin, else read by probing each account, as --probe does
-whether the router runs or not.
+		Use:   "usage [--5h] [--week] [--<model>] [--by window|account] [--probe] [-r] [--json | --pretty]",
+		Short: "Print every account's windows as they stand",
+		Long: `Print every account's windows as they stand, once, into the scrollback, with
+the time they were read, to hold against one printed earlier: the router's,
+while it answers, else read by probing each account, as --probe does whether
+the router runs or not.
 
-On a terminal, usage prints the dashboard once. Anywhere else, as in a pipe
-or an agent's shell, it prints the status document as JSON in its place, as
-status --json prints it, read as its flags say. --json prints the JSON, and
---pretty the dashboard, wherever stdout is: off a terminal, without colour,
-as wide as $COLUMNS says, else 80 columns. --watch needs a terminal, and
-takes no --json.
+--by lays the windows out by window, the accounts compared a window at a
+time, or by account, each account's windows together, over the config's
+[usage] by; by window where neither says. --5h, --week, and a flag for each
+model's own window, named for its model, as --fable is for Fable's week,
+print the windows given alone, in Claude's order. One that no account
+reports fails, naming those there are.
+
+On a terminal, usage prints the windows. Anywhere else, as in a pipe or an
+agent's shell, it prints the status document as JSON in their place, as
+status --json prints it, read as its flags say: --by and the window flags
+shape the windows printed alone. --json prints the JSON, and --pretty the
+windows, wherever stdout is: off a terminal, without colour, as wide as
+$COLUMNS says, else 80 columns.
 
 With --refresh, the router first reads every account it may, as the
-dashboard's r has it do: each it hasn't read in the last minute, and each that
+dashboard's R has it do: each it hasn't read in the last minute, and each that
 can take no request anyway, however lately it read it, as while a limit holds
 back its every request, or a window every model shares reads spent. It passes
 over one whose 5-hour window has lapsed, which a probe would start, unless it
 can take no request anyway, and one it probed in the last minute. It waits for
-those reads, ten seconds at most, then shows them, so once a limit is reset by
-hand, the router sees it. Without the router, or with --probe, every account
-is probed anyway, so --refresh changes nothing. It reads once, so it takes no
---watch: in a watch, r refreshes.
+those reads, ten seconds at most, then prints them, so once a limit is reset
+by hand, the router sees it. Without the router, or with --probe, every
+account is probed anyway, so --refresh changes nothing.
 
-With --watch the dashboard stays on screen. It reads the router's usage every
-few seconds, and every interval has the router probe the accounts it hasn't
-read in that time: 30m unless given, and 5m at the least. Give it as a
-duration, such as 15m or 1h, or as a number of minutes. Should the router
-stop answering, its last document stays on screen until it answers again, or
-the next full read, or r, probes the accounts instead. Without the router it
-probes every account every interval, sooner for a window that resets or an
-account that couldn't be read, and reads the router again once it's back.
-
-Keys: r refresh, t the theme picker, w the window every card features (auto,
-for each its own, then the 5-hour window, the week, and any other in use),
-g the chart every card draws of it (burn-down, burn rate, hourglass),
-j, k, PgDn, PgUp and the wheel scroll the cards where they don't all fit,
-? every key and what the glyphs mean, q quit. While it reads the router, and
-the router answers, of more than one account, 1-9 pin new sessions to the
-account in that place, beside those pinned already, or unpin it, a routes
-every session automatically again, and m moves running sessions to the
-pinned accounts. While the router runs, it
-posts the desktop notifications, --probe or not; without it, the dashboard
-posts its own of an account with room again and a window passing the warning,
-as the config's [notifications] asks, unless --no-notify.
-
-The dashboard is drawn in the theme chosen in the picker, or the pair of
-tokyo-night-day for a light terminal and nord for a dark one, which the
-terminal is asked. Themes of your own are <slug>.theme files in
-$SWITCHBOARD_THEMES_DIR, else $XDG_CONFIG_HOME/switchboard/themes, else
-~/.config/switchboard/themes. NO_COLOR draws it without colour. Off a
-terminal, as --pretty prints it, it has none either, unless CLICOLOR_FORCE
-asks for it.`,
-		Args: opts.parseArgs,
+The windows are printed in the theme chosen in the dashboard's picker, or the
+pair of tokyo-night-day for a light terminal and nord for a dark one, which
+the terminal is asked, on the terminal's own background. NO_COLOR, or a
+terminal that shows no colour, prints them without colour. Off a terminal, as
+--pretty prints them, they have none either, unless CLICOLOR_FORCE asks for
+it.`,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			switch out := cmd.OutOrStdout(); {
-			case opts.watch:
-				return a.watchUsage(cmd.Context(), out, opts)
-			case a.printsJSON(opts.form, out):
+			out := cmd.OutOrStdout()
+			if a.printsJSON(opts.form, out) {
 				return a.printDocument(cmd.Context(), out, opts)
-			default:
-				return a.printUsage(cmd.Context(), out, opts)
 			}
+			return a.printUsage(cmd.Context(), out, opts)
 		},
 	}
-	cmd.Flags().BoolVarP(&opts.watch, "watch", "w", false, "stay on screen, reading usage every interval")
-	cmd.Flags().BoolVar(&opts.noNotify, "no-notify", false, "with --watch, post no desktop notifications")
+	opts.windows = addWindowFlags(cmd)
+	cmd.Flags().Var(&opts.by, "by", "lay the windows out by window or by account, over the config's [usage] by")
 	cmd.Flags().BoolVar(&opts.probe, "probe", false, "probe every account, even while the router runs")
-	cmd.Flags().BoolVarP(&opts.refresh, "refresh", "r", false, "have the router read every account it may first, as the dashboard's r does")
+	cmd.Flags().BoolVarP(&opts.refresh, "refresh", "r", false, "have the router read every account it may first, as the dashboard's R does")
 	opts.form.add(cmd)
 	return cmd
 }
 
-// parseArgs reads the interval, which only --watch takes, and refuses
-// --refresh and --json with --watch.
-func (o *usageOptions) parseArgs(_ *cobra.Command, args []string) error {
-	switch {
-	case o.refresh && o.watch:
-		return errors.New("--refresh reads once, so it takes no --watch: in a watch, r refreshes")
-	case o.form.json && o.watch:
-		return errors.New("--json prints the status document once, so it takes no --watch")
-	case len(args) > 0 && !o.watch:
-		return fmt.Errorf("unexpected argument %q: only --watch takes an interval", redact.Text(args[0]))
-	case len(args) > 1:
-		return fmt.Errorf("--watch takes one interval, not %d", len(args))
-	case len(args) == 1:
-		var err error
-		o.interval, err = parseInterval(args[0])
-		return err
-	default:
-		o.interval = defaultInterval
-		return nil
-	}
-}
-
-// parseInterval reads a watch interval: a duration such as 15m or 1h, or a
-// bare number of minutes.
-func parseInterval(s string) (time.Duration, error) {
-	interval, err := time.ParseDuration(s)
-	if err != nil {
-		interval, err = time.ParseDuration(s + "m")
-	}
-	switch {
-	case err != nil:
-		return 0, fmt.Errorf("invalid interval %q: give a duration, such as 15m or 1h, or a number of minutes", redact.Text(s))
-	case interval < minInterval:
-		return 0, fmt.Errorf("interval %s is too short: the shortest is %dm", s, minInterval/time.Minute)
-	}
-	return interval, nil
-}
-
-// printUsage prints the dashboard once, read as opts say: probing alone with
-// --probe, and having the router refresh first with --refresh; from the
-// router, with its sessions and its history. It's the Accounts view, as wide
-// as the terminal, every card at its fullest, in the theme the preferences
-// keep, featuring the window they keep, its chart in the style they keep.
+// printUsage prints every account's windows once, a blank line first, read
+// as opts say: probing alone with --probe, and having the router refresh
+// first with --refresh. It reads the status document alone, as status does,
+// and prints the windows opts give, laid out as they say, else as the config
+// does, as wide as the terminal, in the theme the preferences keep.
 func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) error {
-	cfg, err := a.loadConfig()
+	cfg, doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
 	if err != nil {
 		return err
 	}
-	snap, err := watch.Once(ctx, a.source(cfg, opts.probe), readOnce(opts.refresh))
+	m := doc.At(a.Now(), claude.Policy)
+	windows, err := opts.windows.keys(m)
 	if err != nil {
 		return err
 	}
-	// The frame is drawn in full colour; the writer brings it down to what
+	// The printout is drawn in full colour; the writer brings it down to what
 	// the terminal shows, which is none when it isn't one.
 	colors := colorprofile.NewWriter(out, a.Environ())
 	t := a.themes()
-	kept, width := t.kept(), a.terminalWidth(out)
+	width := a.terminalWidth(out)
 	rows := dashboard.Printout{
-		Width: width, Look: a.printLook(out, colors.Profile, t, kept.Choice),
-		Featured: dashboard.Feature(kept.Featured), Chart: dashboard.Chart(kept.Chart), Policy: claude.Policy,
-	}.Draw(snap, a.Now())
-	logger.Debug("drew the dashboard", "width", width, "colors", colors.Profile.String())
-	_, err = io.WriteString(colors, strings.Join(rows, "\n")+"\n")
+		Width:   width,
+		Look:    a.printLook(out, colors.Profile, t, t.kept().Choice),
+		By:      opts.by.or(cfg.Usage.By),
+		Windows: windows,
+		Name:    status.NameOfKey,
+	}.Draw(m)
+	logger.Debug("drew the printout", "width", width, "colors", colors.Profile.String())
+	_, err = io.WriteString(colors, "\n"+strings.Join(rows, "\n")+"\n")
 	return err
 }
 
 // printDocument prints the status document once, read as opts say, as
 // status --json prints it: what usage prints with --json, or where stdout
 // isn't a terminal, as for an agent or a pipe, which want data rather than a
-// dashboard's boxes and bars.
+// printout's bars.
 func (a *app) printDocument(ctx context.Context, out io.Writer, opts usageOptions) error {
-	doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
+	_, doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
 	if err != nil {
 		return err
 	}
 	return writeJSON(out, doc)
 }
 
-// watchUsage keeps the dashboard on screen, reading usage as each read falls
-// due, until the user quits.
-func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) error {
-	cfg, err := a.loadConfig()
-	if err != nil {
-		return err
+// layoutFlag is --by: the layout given, or "" where none is.
+type layoutFlag config.Layout
+
+func (l *layoutFlag) String() string {
+	return string(*l)
+}
+
+// Set takes a layout by its name. Cobra quotes what it was given in refusing
+// it, which hideTokens hides where it's shaped like a token.
+func (l *layoutFlag) Set(given string) error {
+	layout, ok := config.ParseLayout(given)
+	if !ok {
+		return errors.New("must be window or account")
 	}
-	notifier := a.Notifier
-	if opts.noNotify {
-		notifier = notify.Off{}
+	*l = layoutFlag(layout)
+	return nil
+}
+
+func (l *layoutFlag) Type() string {
+	return "window|account"
+}
+
+// or is the layout given, else the config's, as the printout draws it.
+func (l *layoutFlag) or(configured config.Layout) dashboard.By {
+	if *l != "" {
+		configured = config.Layout(*l)
 	}
-	t := a.themes()
-	kept := t.kept()
-	wc := watch.Config{
-		Source:        a.source(cfg, opts.probe),
-		Notifier:      notifier,
-		Notifications: cfg.Notifications,
-		Now:           a.Now,
-		Interval:      opts.interval,
-		Policy:        claude.Policy,
-		Size:          a.environSize(),
-		View:          dashboard.View(kept.View),
-		Featured:      dashboard.Feature(kept.Featured),
-		Chart:         dashboard.Chart(kept.Chart),
+	if configured == config.ByAccount {
+		return dashboard.ByAccount
 	}
-	a.readers(&wc, cfg)
-	if t.prefs != nil {
-		wc.Prefs = t.prefs
+	return dashboard.ByWindow
+}
+
+// windowFlag is one of usage's flags that print a window alone: --5h, --week,
+// or one for a model's own window, named for its model, as --fable.
+type windowFlag struct {
+	name, key string
+	// what names the window in a sentence, as "the Fable week".
+	what  string
+	given bool
+}
+
+// windowFlags are usage's window flags, in Claude's order.
+type windowFlags []*windowFlag
+
+// addWindowFlags registers usage's window flags on cmd, and returns them:
+// --5h, --week, and one for each model's own window internal/claude knows,
+// so each is known as the command line is parsed.
+func addWindowFlags(cmd *cobra.Command) windowFlags {
+	flags := windowFlags{
+		{name: "5h", key: claude.FiveHourWindow, what: "the " + status.NameOfKey(claude.FiveHourWindow) + " window"},
+		{name: "week", key: claude.WeekWindow, what: "the week"},
 	}
-	if !a.noColour() {
-		wc.Choice = kept.Choice
-		wc.Pair = t.library.Pair(wc.Choice)
-		wc.Themes = t
+	for _, w := range claude.ModelWindows() {
+		flags = append(flags, &windowFlag{name: strings.ToLower(w.Name), key: w.Key, what: "the " + status.NameOfKey(w.Key)})
 	}
-	err = a.Watch(ctx, wc, out, a.Environ())
-	if errors.Is(err, watch.ErrNotTerminal) {
-		return errors.New("--watch needs a terminal, and stdout isn't one")
+	slices.SortStableFunc(flags, func(a, b *windowFlag) int { return quota.CompareKeys(a.key, b.key) })
+	for _, f := range flags {
+		cmd.Flags().BoolVar(&f.given, f.name, false, "print "+f.what+" alone, or with the others given")
 	}
-	return err
+	return flags
+}
+
+// keys returns the keys of the windows given, in Claude's order: none where
+// none is, which prints every window. It fails for a window the printout of
+// the moment m wouldn't show, as dashboard.UsageWindows has them, naming
+// those it would by their flags.
+func (ws windowFlags) keys(m status.Moment) ([]string, error) {
+	reported := make(map[string]bool)
+	for _, key := range dashboard.UsageWindows(m) {
+		reported[key] = true
+	}
+	var keys []string
+	for _, f := range ws {
+		switch {
+		case !f.given:
+		case !reported[f.key]:
+			return nil, ws.unreported(f, reported)
+		default:
+			keys = append(keys, f.key)
+		}
+	}
+	return keys, nil
+}
+
+// unreported is the error of the window flag f, for a window no account
+// reports, naming the flags of those reported.
+func (ws windowFlags) unreported(f *windowFlag, reported map[string]bool) error {
+	var there []string
+	for _, w := range ws {
+		if reported[w.key] {
+			there = append(there, "--"+w.name)
+		}
+	}
+	return fmt.Errorf("no account reports %s: give %s", f.what, strings.Join(there, " or "))
 }
 
 // IsTerminal reports whether out is a terminal: Deps.Terminal, for the

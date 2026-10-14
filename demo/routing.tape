@@ -2,11 +2,11 @@
 # routing scenario (internal/capture/scenarios.go) through the real dashboard,
 # in real time, with every seam faked; the keys below are timed to its cues.
 #
-# Accounts: a new session starts on side, the best. Sessions: requests travel
-# the cords, then work reaches its limit at 12s, the 429 bouncing back red, and
-# its sessions re-patch to side, LOG saying why. Runway: the day, then w, the
-# week. Accounts again: side's card flipped to its sessions, one picked out
-# and hand-patched to personal with 2, which it goes to with its next request.
+# The Overview of the auto world at 14:42:07: work at its cap, personal and
+# side, side the best; ROUTING auto, its traces; COMING UP and LATELY. b3e9
+# starts on side at 2.5s. Then the routing card: p, 3 for side, m for new and
+# running sessions, enter; personal's 41e0 and 9c2e move to side with their
+# next requests, at 17s and 21s.
 #
 # Record it, and make art/routing.webp and art/routing.mp4:
 #   demo/record.sh routing
@@ -18,9 +18,9 @@ Set FontFamily "JetBrains Mono"
 Set FontSize 17
 Set LetterSpacing 0
 Set LineHeight 1
-# 160 × 34 cells of 10 × 22 px.
+# 160 × 37 cells of 10 × 22 px: the frames' size.
 Set Width 1660
-Set Height 792
+Set Height 858
 Set Padding 16
 Set CursorBlink false
 Set Framerate 30
@@ -28,40 +28,27 @@ Set Theme { "name": "nord", "background": "#2E3440", "foreground": "#D8DEE9", "c
 Set WaitTimeout 2m
 
 Hide
-Type "demo/out/capturetool --scenario routing"
+# In UTC, as the frames are drawn, whatever the recording machine's zone.
+Type "TZ=UTC demo/out/capturetool --scenario routing"
 Enter
 Wait+Screen /SWITCHBOARD/
 Show
 
-# Accounts: b3e9 starts on side at 2.5s, and shows at the next look.
-Sleep 8s
-Tab
-# Sessions: pulses out, answers shimmering back; work's limit at 12s.
-Sleep 9300ms
-Tab
-# Runway, over the day, then the week.
-Sleep 3s
-Type "w"
-Sleep 3200ms
-Tab
-# Accounts: the focus across to side, its card flipped, a session picked out
-# and pinned to personal, which it goes to with its next request; then esc,
-# done with it.
+# b3e9 starts on side at 2.5s, and shows at the look by 5s.
+Sleep 9s
+# The routing card.
+Type "p"
 Sleep 1500ms
-Right
-Sleep 400ms
-Right
-Sleep 400ms
-Right
-Sleep 800ms
-Space
-Sleep 1200ms
-Down
-Sleep 1200ms
-Type "2"
-Sleep 4600ms
-Escape
+# side picked.
+Type "3"
 Sleep 1500ms
+# New and running sessions: the card counts 41e0 and 9c2e to move, at a cost.
+Type "m"
+Sleep 2500ms
+# Pinned to side at 14.5s; 41e0 asks at 17s, 9c2e at 21s, each moving there,
+# shown at the looks by 20s and 25s; hidden at 27s.
+Enter
+Sleep 12500ms
 
 Hide
 Type "q"

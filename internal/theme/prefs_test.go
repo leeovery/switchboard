@@ -3,6 +3,7 @@ package theme_test
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -20,13 +21,13 @@ func TestThePreferencesAreWrittenWholeAndReadBack(t *testing.T) {
 	state := filepath.Join(t.TempDir(), "state")
 	prefs := theme.NewPrefsFile(state, clock)
 
-	if got := prefs.Read(); got != (theme.Prefs{}) {
+	if got := prefs.Read(); !reflect.DeepEqual(got, theme.Prefs{}) {
 		t.Errorf("Read() without a file = %+v, want the defaults", got)
 	}
 	if err := prefs.Update(func(p *theme.Prefs) { p.Choice = theme.Choice{Light: "exchange", Dark: "amber"} }); err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{Light: "exchange", Dark: "amber"}); got != want {
+	if got, want := prefs.Read(), (theme.Prefs{Light: "exchange", Dark: "amber"}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
 	data, err := os.ReadFile(filepath.Join(state, "prefs.json"))
@@ -69,72 +70,219 @@ func TestUpdateKeepsWhatAnotherDashboardWroteSince(t *testing.T) {
 	}
 }
 
-func TestTheViewShownIsKeptBesideTheThemes(t *testing.T) {
+func TestTheTabShownIsKeptBesideTheThemes(t *testing.T) {
 	state := t.TempDir()
 	prefs := theme.NewPrefsFile(state, clock)
 	if err := prefs.Update(func(p *theme.Prefs) { p.Choice = theme.One("amber") }); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := prefs.Update(func(p *theme.Prefs) { p.View = "accounts" }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "accounts" }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), View: "accounts"}); got != want {
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Tab: "accounts"}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
 	data, err := os.ReadFile(filepath.Join(state, "prefs.json"))
-	if err != nil || !strings.Contains(string(data), `"view": "accounts"`) {
-		t.Errorf("prefs.json holds %s, %v; want the view kept", data, err)
+	if err != nil || !strings.Contains(string(data), `"tab": "accounts"`) {
+		t.Errorf("prefs.json holds %s, %v; want the tab kept", data, err)
 	}
 }
 
-func TestTheFeaturedWindowIsKeptBesideTheView(t *testing.T) {
+func TestTheOverviewsSectionsAndGroupingAreKeptBesideTheTab(t *testing.T) {
 	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
 	prefs := theme.NewPrefsFile(state, clock)
-	if err := prefs.Update(func(p *theme.Prefs) { p.View = "accounts" }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "overview" }); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := prefs.Update(func(p *theme.Prefs) { p.Featured = "7d" }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Sections, p.By = []string{"usage", "graphs"}, "account" }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{View: "accounts", Featured: "7d"}); got != want {
+	if got, want := prefs.Read(), (theme.Prefs{Tab: "overview", Sections: []string{"usage", "graphs"}, By: "account"}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
-	data, err := os.ReadFile(filepath.Join(state, "prefs.json"))
-	if err != nil || !strings.Contains(string(data), `"featured": "7d"`) {
-		t.Errorf("prefs.json holds %s, %v; want the featured window kept", data, err)
+	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), "\"sections\": [\n    \"usage\",\n    \"graphs\"\n  ]") || !strings.Contains(string(data), `"by": "account"`) {
+		t.Errorf("prefs.json holds %s, %v; want the sections shown and their grouping kept", data, err)
 	}
-	if err := prefs.Update(func(p *theme.Prefs) { p.Featured = "" }); err != nil {
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Sections = []string{} }); err != nil {
 		t.Fatal(err)
 	}
-	if data, err := os.ReadFile(filepath.Join(state, "prefs.json")); err != nil || strings.Contains(string(data), "featured") {
-		t.Errorf("prefs.json holds %s, %v; want auto, the default, left out", data, err)
+	if got := prefs.Read().Sections; got == nil || len(got) > 0 {
+		t.Errorf("Read().Sections = %#v, want none shown, kept apart from the defaults", got)
+	}
+	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), `"sections": []`) {
+		t.Errorf("prefs.json holds %s, %v; want none shown kept as []", data, err)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Sections, p.By = nil, "" }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "sections") || strings.Contains(string(data), `"by"`) {
+		t.Errorf("prefs.json holds %s, %v; want the defaults left out", data, err)
 	}
 }
 
-func TestTheChartStyleIsKeptBesideTheFeaturedWindow(t *testing.T) {
+// What Accounts shows is kept under a key of its own, the view and the
+// period by name, beside the rest and the keys of another build, and left
+// out where none is made, as this week is.
+func TestAccountsViewAndPeriodAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
 	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "pane": {"split": 0.5}}`)
 	prefs := theme.NewPrefsFile(state, clock)
-	if err := prefs.Update(func(p *theme.Prefs) { p.Featured = "7d" }); err != nil {
-		t.Fatal(err)
-	}
+	accounts := theme.AccountsPrefs{View: "detail", Period: "30-days"}
 
-	if err := prefs.Update(func(p *theme.Prefs) { p.Chart = "hourglass" }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Accounts = accounts }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{Featured: "7d", Chart: "hourglass"}); got != want {
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Accounts: accounts}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
-	data, err := os.ReadFile(filepath.Join(state, "prefs.json"))
-	if err != nil || !strings.Contains(string(data), `"chart": "hourglass"`) {
-		t.Errorf("prefs.json holds %s, %v; want the chart style kept", data, err)
+	data, err := os.ReadFile(path)
+	want := "{\n  \"accounts\": {\n    \"view\": \"detail\",\n    \"period\": \"30-days\"\n  },\n" +
+		"  \"pane\": {\n    \"split\": 0.5\n  },\n  \"theme\": \"amber\"\n}\n"
+	if err != nil || string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
 	}
-	if err := prefs.Update(func(p *theme.Prefs) { p.Chart = "" }); err != nil {
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Accounts = theme.AccountsPrefs{} }); err != nil {
 		t.Fatal(err)
 	}
-	if data, err := os.ReadFile(filepath.Join(state, "prefs.json")); err != nil || strings.Contains(string(data), "chart") {
-		t.Errorf("prefs.json holds %s, %v; want burn-down, the default, left out", data, err)
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "accounts") {
+		t.Errorf("prefs.json holds %s, %v; want no choice of Accounts' kept", data, err)
+	}
+}
+
+// What Sessions shows is kept under a key of its own, the view by name,
+// beside the rest and the keys of another build, and left out where none is
+// made, as the Switchboard is.
+func TestSessionsViewIsKeptUnderAKeyOfItsOwn(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "pane": {"split": 0.5}}`)
+	prefs := theme.NewPrefsFile(state, clock)
+	sessions := theme.SessionsPrefs{View: "list"}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Sessions = sessions }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Sessions: sessions}); !reflect.DeepEqual(got, want) {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(path)
+	want := "{\n  \"pane\": {\n    \"split\": 0.5\n  },\n  \"sessions\": {\n    \"view\": \"list\"\n  },\n  \"theme\": \"amber\"\n}\n"
+	if err != nil || string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Sessions = theme.SessionsPrefs{} }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "sessions") {
+		t.Errorf("prefs.json holds %s, %v; want no choice of Sessions' kept", data, err)
+	}
+}
+
+// Runway's window is kept under a key of its own, by name, beside the rest
+// and the keys of another build, and left out where none is made, as the
+// 5-hour is.
+func TestRunwaysWindowIsKeptUnderAKeyOfItsOwn(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "pane": {"split": 0.5}}`)
+	prefs := theme.NewPrefsFile(state, clock)
+	runway := theme.RunwayPrefs{Window: "week"}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Runway = runway }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Runway: runway}); !reflect.DeepEqual(got, want) {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(path)
+	want := "{\n  \"pane\": {\n    \"split\": 0.5\n  },\n  \"runway\": {\n    \"window\": \"week\"\n  },\n  \"theme\": \"amber\"\n}\n"
+	if err != nil || string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Runway = theme.RunwayPrefs{} }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "runway") {
+		t.Errorf("prefs.json holds %s, %v; want no window of Runway's kept", data, err)
+	}
+}
+
+// What History's views show is kept under a key of its own, each choice by
+// its name, beside the rest and the keys of another build, and left out
+// where none is made.
+func TestHistorysViewsAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "pane": {"split": 0.5}}`)
+	prefs := theme.NewPrefsFile(state, clock)
+	history := theme.HistoryPrefs{View: "tokens", Year: "Opus 5.5", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "month", Split: "account+model"}}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.History = history }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), History: history}); !reflect.DeepEqual(got, want) {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(path)
+	want := "{\n  \"history\": {\n    \"view\": \"tokens\",\n    \"year\": \"Opus 5.5\",\n    \"weeks\": \"columns\",\n" +
+		"    \"tokens\": {\n      \"period\": \"month\",\n      \"split\": \"account+model\"\n    }\n  },\n" +
+		"  \"pane\": {\n    \"split\": 0.5\n  },\n  \"theme\": \"amber\"\n}\n"
+	if err != nil || string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.History = theme.HistoryPrefs{} }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "history") {
+		t.Errorf("prefs.json holds %s, %v; want no choice of History's kept", data, err)
+	}
+}
+
+// The Log's columns are kept under a key of their own, by name, beside the
+// rest and the keys of another build: none shown kept as [], apart from the
+// defaults, which are left out.
+func TestTheLogsColumnsAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "pane": {"split": 0.5}}`)
+	prefs := theme.NewPrefsFile(state, clock)
+	log := theme.LogPrefs{Columns: []string{"session", "worth", "request id"}}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Log = log }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Log: log}); !reflect.DeepEqual(got, want) {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(path)
+	want := "{\n  \"log\": {\n    \"columns\": [\n      \"session\",\n      \"worth\",\n      \"request id\"\n    ]\n  },\n" +
+		"  \"pane\": {\n    \"split\": 0.5\n  },\n  \"theme\": \"amber\"\n}\n"
+	if err != nil || string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Log = theme.LogPrefs{Columns: []string{}} }); err != nil {
+		t.Fatal(err)
+	}
+	if got := prefs.Read().Log.Columns; got == nil || len(got) > 0 {
+		t.Errorf("Read().Log.Columns = %#v, want none shown, kept apart from the defaults", got)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Log = theme.LogPrefs{} }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "log") {
+		t.Errorf("prefs.json holds %s, %v; want the Log's defaults left out", data, err)
 	}
 }
 
@@ -153,7 +301,7 @@ func TestACorruptPreferencesFileIsSetAsideAndTheDefaultsStand(t *testing.T) {
 			path := filepath.Join(state, "prefs.json")
 			write(t, path, tt.content)
 
-			if got := theme.NewPrefsFile(state, clock).Read(); got != (theme.Prefs{}) {
+			if got := theme.NewPrefsFile(state, clock).Read(); !reflect.DeepEqual(got, theme.Prefs{}) {
 				t.Errorf("Read() = %+v, want the defaults", got)
 			}
 			aside := path + ".corrupt-1790933400"
@@ -177,7 +325,7 @@ func TestACorruptPreferencesFileLinkedElsewhereIsSetAsideWhereItLeads(t *testing
 	write(t, kept, "{\"theme\": ")
 	symlink(t, kept, link)
 
-	if got := theme.NewPrefsFile(state, clock).Read(); got != (theme.Prefs{}) {
+	if got := theme.NewPrefsFile(state, clock).Read(); !reflect.DeepEqual(got, theme.Prefs{}) {
 		t.Errorf("Read() = %+v, want the defaults", got)
 	}
 	aside := kept + ".corrupt-1790933400"
@@ -192,24 +340,42 @@ func TestACorruptPreferencesFileLinkedElsewhereIsSetAsideWhereItLeads(t *testing
 	}
 }
 
-func TestUpdateKeepsTheKeysOfANewerBuild(t *testing.T) {
+func TestUpdateKeepsTheKeysOfAnOlderOrANewerBuild(t *testing.T) {
 	state := t.TempDir()
 	path := filepath.Join(state, "prefs.json")
-	write(t, path, `{"theme": "amber", "featured": "7d", "lens": "wide", "pane": {"split": 0.5}}`)
+	write(t, path, `{"theme": "amber", "featured": "7d", "chart": "hourglass", "lens": "wide", "pane": {"split": 0.5}}`)
 	prefs := theme.NewPrefsFile(state, clock)
 
-	if err := prefs.Update(func(p *theme.Prefs) { p.View, p.Featured = "accounts", "" }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "accounts" }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), View: "accounts"}); got != want {
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Tab: "accounts"}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{\n  \"lens\": \"wide\",\n  \"pane\": {\n    \"split\": 0.5\n  },\n  \"theme\": \"amber\",\n  \"view\": \"accounts\"\n}\n"
+	want := "{\n  \"chart\": \"hourglass\",\n  \"featured\": \"7d\",\n  \"lens\": \"wide\",\n  \"pane\": {\n    \"split\": 0.5\n  },\n  \"tab\": \"accounts\",\n  \"theme\": \"amber\"\n}\n"
 	if string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+}
+
+func TestMilestone5sCardViewKeptAsTheViewIsNoTab(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "view": "accounts"}`)
+	prefs := theme.NewPrefsFile(state, clock)
+
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber")}); !reflect.DeepEqual(got, want) {
+		t.Errorf("Read() = %+v, want %+v: no tab, for the Overview, as milestone 5's card view, kept, names none", got, want)
+	}
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "runway" }); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if want := "{\n  \"tab\": \"runway\",\n  \"theme\": \"amber\",\n  \"view\": \"accounts\"\n}\n"; err != nil || string(data) != want {
 		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
 	}
 }
@@ -221,7 +387,7 @@ func TestAPreferencesFileThatCantBeReadLeavesTheDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := theme.NewPrefsFile(state, clock).Read(); got != (theme.Prefs{}) {
+	if got := theme.NewPrefsFile(state, clock).Read(); !reflect.DeepEqual(got, theme.Prefs{}) {
 		t.Errorf("Read() = %+v, want the defaults", got)
 	}
 	if _, err := os.Stat(filepath.Join(state, "prefs.json")); err != nil {

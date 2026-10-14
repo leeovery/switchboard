@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -36,7 +37,7 @@ func TestTheScreenWaitsForTheTerminalToSayWhatItsBackgroundIs(t *testing.T) {
 		t.Fatalf("no wait armed for the terminal to say its background in %v", theme.AnswerWithin)
 	}
 	h.deliver(tea.BackgroundColorMsg{Color: darkBackground})
-	if got := h.view(); !strings.Contains(got, "╭─ 1 Work ") {
+	if got := h.view(); !strings.Contains(got, "USAGE") {
 		t.Errorf("once the terminal says its background, the screen is\n%s\nwant the dashboard", got)
 	}
 }
@@ -254,18 +255,18 @@ func TestNoColour(t *testing.T) {
 func TestTOpensThePickerOverTheView(t *testing.T) {
 	h, themes := settledThemedHarness(t, theme.Choice{})
 
-	if strings.Contains(h.footer(), "t themes") {
-		t.Errorf("the footer reads %q, want t left for the help to list", h.footer())
+	if strings.Contains(h.keyLine(), "t themes") {
+		t.Errorf("the key line reads %q, want t left for the help to list", h.keyLine())
 	}
 	h.typed("t")
 
 	view := h.view()
-	for _, want := range []string{"│ Themes", "│ ▌ nord", "● dark", "● light", "│ ⏎    set theme", "broken"} {
+	for _, want := range []string{"│ Themes", "│ ▌ nord", "● dark", "● light", "│ enter set theme", "broken"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("with the picker open, the screen reads\n%s\nwant %q", view, want)
 		}
 	}
-	if !strings.Contains(view, "╭─ 1 Work ") {
+	if !strings.Contains(view, "USAGE") {
 		t.Errorf("with the picker open, the screen reads\n%s\nwant the view beside it", view)
 	}
 	h.typed("esc")
@@ -360,7 +361,7 @@ func TestAHalfOverOneThemeAsksFirst(t *testing.T) {
 			h.typed("down")
 			h.typed("l")
 
-			if view := h.view(); !strings.Contains(view, "clear amber?  y / n") || !strings.Contains(view, "y    confirm") {
+			if view := h.view(); !strings.Contains(view, "clear amber?  y / n") || !strings.Contains(view, "│ y confirm") {
 				t.Errorf("setting a half over one theme, the screen reads\n%s\nwant it to ask first", view)
 			}
 			for _, key := range tt.answers {
@@ -500,19 +501,23 @@ func TestThePickerReadsAndKeepsOutsideUpdate(t *testing.T) {
 	}
 }
 
-func TestWhileThePickerIsOpenTheFooterListsItsKeysAlone(t *testing.T) {
+func TestWhileThePickerIsOpenTheKeyLineListsItsKeysAlone(t *testing.T) {
 	h, _ := settledThemedHarness(t, theme.One("amber"))
 	h.typed("t")
-	if got, want := listedKeys(h.model.keys()), []string{"↑↓", "⏎", "d", "l", "esc", "q"}; !slices.Equal(got, want) {
-		t.Errorf("with the picker open, the footer lists %q, want the picker's keys alone, %q", got, want)
+	if got, want := h.grouped(), [][]string{{"↑↓ preview", "enter set theme", "d set as dark", "l set as light", "esc close"}, {"q quit"}}; !slices.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("with the picker open, the key line lists %q, want the picker's keys alone, enter by its name, then q, %q", got, want)
+	}
+	if l := h.model.live(h.clock.now).KeyLine; l.Lead != dashboard.KeysAfter || l.Phone != nil || l.PhoneHelp != "" {
+		t.Errorf("with the picker open, q quit is %d cells after the picker's keys, a phone keeping %q, ? saying %q; want %d, as after any group, and a phone's line as a wide one's",
+			l.Lead, listedKeys(l.Phone), l.PhoneHelp, dashboard.KeysAfter)
 	}
 	h.typed("down", "l")
-	if got, want := listedKeys(h.model.keys()), []string{"y", "n", "q"}; !slices.Equal(got, want) {
-		t.Errorf("with the picker asking, the footer lists %q, want its answers alone, %q", got, want)
+	if got, want := h.grouped(), [][]string{{"y confirm", "n cancel"}, {"q quit"}}; !slices.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("with the picker asking, the key line lists %q, want its answers alone, then q, %q", got, want)
 	}
 	h.typed("n", "esc")
-	if got := listedKeys(h.model.keys()); !slices.Contains(got, "?") {
-		t.Errorf("the picker closed, the footer lists %q, want the dashboard's keys back", got)
+	if got := h.listed(); !slices.Contains(got, "?") {
+		t.Errorf("the picker closed, the key line lists %q, want the dashboard's keys back", got)
 	}
 }
 
@@ -538,7 +543,7 @@ func TestThePickerNeedsRoom(t *testing.T) {
 		h.update(size)
 		h.typed("t")
 		if h.model.picker.open || h.model.note != tooSmall {
-			t.Errorf("at %d×%d, t opened the picker: %v, the footer saying %q; want it closed, saying %q", size.Width, size.Height, h.model.picker.open, h.model.note, tooSmall)
+			t.Errorf("at %d×%d, t opened the picker: %v, the key line saying %q; want it closed, saying %q", size.Width, size.Height, h.model.picker.open, h.model.note, tooSmall)
 		}
 	}
 
@@ -546,9 +551,9 @@ func TestThePickerNeedsRoom(t *testing.T) {
 	h.typed("t")
 	h.typed("down")
 	h.update(tea.WindowSizeMsg{Width: 150, Height: 8})
-	if h.model.picker.open || h.drawnIn() != "nord" || !strings.Contains(h.footer(), tooSmall) {
-		t.Errorf("shrunk too short, the picker is open: %v, the screen in %s, the footer reading %q; want it closed, the theme in force put back, saying why",
-			h.model.picker.open, h.drawnIn(), h.footer())
+	if h.model.picker.open || h.drawnIn() != "nord" || !strings.Contains(h.keyLine(), tooSmall) {
+		t.Errorf("shrunk too short, the picker is open: %v, the screen in %s, the key line reading %q; want it closed, the theme in force put back, saying why",
+			h.model.picker.open, h.drawnIn(), h.keyLine())
 	}
 }
 
@@ -591,7 +596,7 @@ func themedHarness(t *testing.T, choice theme.Choice) (*harness, *fakeThemes) {
 	themes := &fakeThemes{listing: listing(), choice: choice}
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: calm()}, notifier: &fakeNotifier{}}
 	h.model = New(t.Context(), Config{
-		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Interval: interval, Policy: policy,
+		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Await: h.await, Interval: interval, Policy: policy,
 		Size: Size{Width: 150, Height: 50}, Choice: choice, Pair: themes.listing.Pair(choice), Themes: themes,
 		Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
 	})

@@ -8,6 +8,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -110,19 +111,28 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			// more, those four are still short, which isn't half. Short every
 			// week, the set has no account to spare, though one fewer is no
 			// worse.
-			name: "short every week, one more short on 4 of 7: about right, none to drop", accounts: workAndSide,
+			name: "short every week, one more short on 4 of 7: too few, none to drop", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {2, 2, 2, 2, 1, 1, 1}, "side": {0, 0, 0, 0, 0, 0, 0}},
-			want: `{"weeks":7,"short":7,"with_one_fewer":7,"with_one_more":4,"verdict":"about right","accounts":[` +
+			want: `{"weeks":7,"short":7,"with_one_fewer":7,"with_one_more":4,"verdict":"too few","accounts":[` +
 				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":7,"left_at_reset":0,"without_it":7},` +
 				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":7},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":7,"left_at_reset":0.5}]}`,
 		},
 		{
 			// Short on 4 of 7, the design's short, and one more would leave
-			// 3, which doesn't halve it: about right, and still none to drop.
-			name: "short on 4 of 7, one more not halving it: about right, none to drop", accounts: workAndSide,
+			// 3, which doesn't halve it: too few, and still none to drop.
+			name: "short on 4 of 7, one more not halving it: too few, none to drop", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {2, 2, 2, 1, 0.5, 0.5, 0.5}, "side": {0, 0, 0, 0, 0, 0, 0}},
-			want: `{"weeks":7,"short":4,"with_one_fewer":4,"with_one_more":3,"verdict":"about right","accounts":[` +
+			want: `{"weeks":7,"short":4,"with_one_fewer":4,"with_one_more":3,"verdict":"too few","accounts":[` +
+				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.21428571428571427,"without_it":4},` +
+				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":4},` +
+				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":4,"left_at_reset":0.6071428571428571}]}`,
+		},
+		{
+			// Short on 4 of 7, and one more would leave 2, exactly half.
+			name: "short on 4 of 7, one more halving it: one too few", accounts: workAndSide,
+			peaks: map[string][]float64{"work": {2, 2, 1, 1, 0.5, 0.5, 0.5}, "side": {0, 0, 0, 0, 0, 0, 0}},
+			want: `{"weeks":7,"short":4,"with_one_fewer":4,"with_one_more":2,"verdict":"one too few","accounts":[` +
 				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.21428571428571427,"without_it":4},` +
 				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":4},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":4,"left_at_reset":0.6071428571428571}]}`,
@@ -179,6 +189,40 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			in.Accounts = tt.accounts
 			if got := jsonOf(t, views.NewHistory(in).Capacity); got != tt.want {
 				t.Errorf("the capacity is\n%s\nwant\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
+// Each verdict is judged on what its account's weeks left at a reset, on
+// average, as the figure beside it says it, a whole percentage, so a figure
+// at a cut never sits beside the verdict for under it.
+func TestAVerdictIsJudgedOnTheFigureBesideIt(t *testing.T) {
+	sevenOf := func(peak float64) []float64 { return slices.Repeat([]float64{peak}, 7) }
+	tests := []struct {
+		name     string
+		accounts config.Accounts
+		peaks    map[string][]float64
+		account  string
+		verdict  string
+		left     string
+	}{
+		{name: "39.6% left, said 40%: plenty to spare", accounts: workAlone, peaks: map[string][]float64{"work": sevenOf(0.604)}, account: "work", verdict: views.PlentyToSpare, left: "40%"},
+		{name: "39.4% left, said 39%: ends with room", accounts: workAlone, peaks: map[string][]float64{"work": sevenOf(0.606)}, account: "work", verdict: views.EndsWithRoom, left: "39%"},
+		{name: "74.6% left, said 75%: barely used", accounts: workAlone, peaks: map[string][]float64{"work": sevenOf(0.254)}, account: "work", verdict: views.BarelyUsed, left: "75%"},
+		{name: "24.6% left together, said 25%: room to spare", accounts: workAlone, peaks: map[string][]float64{"work": sevenOf(0.754)}, verdict: views.RoomToSpare, left: "25%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := input(peaking(tt.peaks))
+			in.Accounts = tt.accounts
+			accounts := views.NewHistory(in).Capacity.Accounts
+			i := slices.IndexFunc(accounts, func(v views.AccountVerdict) bool { return v.Account == tt.account })
+			if i < 0 || accounts[i].LeftAtReset == nil {
+				t.Fatalf("no verdict on %q with its share left in %+v", tt.account, accounts)
+			}
+			if v := accounts[i]; v.Verdict != tt.verdict || prose.Percent(*v.LeftAtReset) != tt.left {
+				t.Errorf("%q's verdict = %q, %s left; want %q, %s left", tt.account, v.Verdict, prose.Percent(*v.LeftAtReset), tt.verdict, tt.left)
 			}
 		})
 	}

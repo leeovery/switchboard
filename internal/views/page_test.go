@@ -522,6 +522,7 @@ func TestOneEndedIsKeptUntilTheLastDayItsFirstDaysLinesAre(t *testing.T) {
 	}{
 		{name: "ended, kept 90 days", keep: 90 * 24 * time.Hour, want: "2027-01-04"},
 		{name: "ended, kept for good", keep: dayfile.Forever},
+		{name: "ended, kept as a config that doesn't say keeps it, 400 days", want: "2027-11-10"},
 		{name: "running", keep: 90 * 24 * time.Hour, running: true},
 	}
 	for _, tt := range tests {
@@ -539,6 +540,20 @@ func TestOneEndedIsKeptUntilTheLastDayItsFirstDaysLinesAre(t *testing.T) {
 	}
 }
 
+func TestKeptUntilSaysTheLastDayKeptItsYearNamedWhereItIsntNows(t *testing.T) {
+	now := time.Date(2026, 10, 13, 9, 0, 0, 0, time.FixedZone("UTC+1", 60*60))
+	for date, want := range map[string]string{
+		"2027-11-04": "kept until 4 Nov 2027",
+		"2026-12-29": "kept until 29 Dec",
+		"":           "kept for good",
+		"someday":    "kept until someday",
+	} {
+		if got := views.KeptUntil(date, now); got != want {
+			t.Errorf("KeptUntil(%q) = %q, want %q", date, got, want)
+		}
+	}
+}
+
 func TestEachMoveSaysWhatItWroteAndWhatThatCostWhereTheCacheWouldntHaveRunOut(t *testing.T) {
 	lines := []ledger.Line{
 		line(paged, opus, "work", "new", local(9, 0, 0), hourUsage),
@@ -546,7 +561,7 @@ func TestEachMoveSaysWhatItWroteAndWhatThatCostWhereTheCacheWouldntHaveRunOut(t 
 		movedFrom("side", line(paged, opus, "work", "rescored after 2h 30m idle", local(12, 0, 0), hourUsage)),
 	}
 	want := []views.SessionMove{
-		{At: utc(local(9, 30, 0)), Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Written: 1000, Cost: cost(hourWrite)},
+		{At: utc(local(9, 30, 0)), Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Written: 1000, Cost: cost(hourWrite), Rewrote: true},
 		{At: utc(local(12, 0, 0)), Model: opus, From: "side", To: "work", Reason: "rescored after 2h 30m idle", Written: 1000},
 	}
 	if got := pageOf(t, lines, nil).Moves; !reflect.DeepEqual(got, want) {
@@ -663,6 +678,8 @@ func TestAMovesCostIsItsConversationsFirstRequestOnTheAccountItMovedTo(t *testin
 	}
 }
 
+// What the router lists joins what its lines tell: its turn goes on, as
+// the router lists a request of it in flight that no line places.
 func TestTheRoutersSayJoinsWhatItsLinesTell(t *testing.T) {
 	lines := []ledger.Line{
 		in("~/Code/api", serving(p1, ledger.ClassMain, line(paged, opus, "work", "new", local(13, 0, 0), hourUsage))),
@@ -680,10 +697,12 @@ func TestTheRoutersSayJoinsWhatItsLinesTell(t *testing.T) {
 			{Account: "work", From: utc(local(13, 0, 0)), To: utc(local(13, 0, 0)), Requests: 1, Worth: priced(hourWorth)},
 			{Account: "side", From: utc(local(13, 5, 0)), To: utc(local(13, 5, 0)), Requests: 1, Worth: priced(hourWorth)},
 		},
-		Moves: []views.SessionMove{{At: utc(local(13, 5, 0)), Model: opus, From: "work", To: "side", Reason: "pinned", Written: 1000, Cost: cost(hourWrite)}},
-		Turns: []views.Turn{{Turn: 1, Started: utc(local(13, 0, 0)), Ended: utc(local(13, 5, 0)), Requests: 2, Tools: []views.ToolCalls{},
+		Moves: []views.SessionMove{{At: utc(local(13, 5, 0)), Model: opus, From: "work", To: "side", Reason: "pinned", Written: 1000, Cost: cost(hourWrite), Rewrote: true}},
+		Turns: []views.Turn{{Turn: 1, Started: utc(local(13, 0, 0)), Requests: 2, Tools: []views.ToolCalls{},
 			Read: 200000, Written: 2000, Out: 1000, Worth: priced(2 * hourWorth), Accounts: []string{"work", "side"}}},
-		Totals: views.SessionTotals{Turns: 1, Requests: 2, FromCache: 200000.0 / (2 * 101010), Worth: priced(2 * hourWorth)},
+		Totals:   views.SessionTotals{Turns: 1, Requests: 2, FromCache: 200000.0 / (2 * 101010), Worth: priced(2 * hourWorth)},
+		Activity: views.Activity{Doing: views.Asking, Since: utc(local(13, 11, 0)), LastSeen: utc(local(13, 11, 0))},
+		Goes:     []views.SessionModel{{Model: opus, Account: "side", Reason: "pinned"}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		gotJSON, _ := json.MarshalIndent(got, "", "  ")
@@ -696,7 +715,8 @@ func TestASessionTheRouterListsIsOneWithoutLines(t *testing.T) {
 	got, ok := views.SessionPageOf(paged, views.PageSources{Routed: runningOn("side"), Read: readOf(fakeLedger{now: now}, runningOn("side")),
 		Prices: ledger.Pricing, Now: now})
 	want := views.SessionPage{Session: paged, Account: "side", Model: opus, Running: true, LastSeen: utc(now), Models: []views.SessionModel{{Model: opus, Account: "side", Reason: "sticky"}},
-		Accounts: []views.SessionAccount{}, Moves: []views.SessionMove{}, Turns: []views.Turn{}}
+		Accounts: []views.SessionAccount{}, Moves: []views.SessionMove{}, Turns: []views.Turn{}, Activity: views.Activity{Since: utc(now), LastSeen: utc(now)},
+		Goes: []views.SessionModel{{Model: opus, Account: "side", Reason: "sticky"}}}
 	if !ok || !reflect.DeepEqual(got, want) {
 		t.Errorf("SessionPageOf() = %+v, %v, want %+v, true", got, ok, want)
 	}

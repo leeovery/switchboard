@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -107,7 +108,7 @@ func (h *happening) changes(now time.Time) bool {
 // event is the happening as the status document gives it, a copy.
 func (h happening) event() status.Event {
 	e := h.Event
-	e.Windows, e.Accounts = slices.Clone(e.Windows), slices.Clone(e.Accounts)
+	e.Windows, e.Accounts, e.Joined = slices.Clone(e.Windows), slices.Clone(e.Accounts), maps.Clone(e.Joined)
 	return e
 }
 
@@ -262,7 +263,7 @@ func (r *recent) look() {
 	now := r.now()
 	pin := r.sessions.globalPin()
 	heard := r.newest()
-	accounts, _ := r.state.statuses(now, pin.Accounts)
+	accounts := r.state.statuses(now, pin.Accounts)
 	news := r.news(accounts, r.state.standings(now))
 	r.change(func() {
 		for _, e := range news {

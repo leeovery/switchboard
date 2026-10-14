@@ -2,10 +2,12 @@ package views_test
 
 import (
 	"encoding/json"
+	"io/fs"
 	"iter"
 	"maps"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,6 +127,10 @@ func (f fakeLedger) Days(time.Time) []ledger.Summary {
 	return f.summaries
 }
 
+func (f fakeLedger) DaysOn(dates []string) []ledger.Summary {
+	return slices.DeleteFunc(slices.Clone(f.summaries), func(s ledger.Summary) bool { return !slices.Contains(dates, s.Day) })
+}
+
 func (f fakeLedger) Today(ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
 	start := dayfile.DayStart(f.now, 0)
 	var today []ledger.Held
@@ -134,6 +140,27 @@ func (f fakeLedger) Today(ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
 		}
 	}
 	return today, ledger.Mark{}, true
+}
+
+// Day reads as a Follower does: the lines that arrived on the day by now,
+// oldest first.
+func (f fakeLedger) Day(date string) []ledger.Held {
+	var day []ledger.Held
+	for _, l := range f.lines {
+		if dayfile.DateOf(l.At) == date && !l.At.After(f.now) {
+			day = append(day, ledger.Held{Line: l})
+		}
+	}
+	return day
+}
+
+// FirstLinesDay reads as a Follower does: the start of the day its oldest
+// line arrived on, failing where it holds none.
+func (f fakeLedger) FirstLinesDay(time.Time) (time.Time, error) {
+	if len(f.lines) == 0 {
+		return time.Time{}, fs.ErrNotExist
+	}
+	return dayfile.DayStart(f.lines[0].At, 0), nil
 }
 
 func (f fakeLedger) Session(id string) iter.Seq[ledger.Held] {
@@ -228,6 +255,12 @@ var routed = []status.Session{
 	{ID: quiet, Assignments: []status.Assignment{{Model: "claude-sonnet-5-5", Account: "side", Reason: "new", LastSeen: october(7, 12, 40)}}},
 }
 
+// routingSaid is the routing of a move for the reason given, from the
+// account given to the one given, that cost what's given.
+func routingSaid(reason, from, to string, c *ledger.Picodollars) views.RoutingSaid {
+	return views.RoutingSaid{Words: status.RoutingWords(reason, status.Facts{From: from, To: to}), From: from, Cost: c}
+}
+
 // utc is t in UTC, as the List gives its times.
 func utc(t time.Time) time.Time {
 	return t.UTC()
@@ -242,6 +275,8 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 			// lately the router saw it.
 			Models:  []views.SessionModel{{Model: opus, Account: "work", Reason: "sticky"}},
 			Started: utc(october(6, 22, 0)), Requests: 1, Worth: priced(hourWorth),
+			// Idle since the router saw it, later than its line's end.
+			Activity: views.Activity{Since: utc(october(7, 13, 10)), LastSeen: utc(october(7, 13, 10))},
 		},
 		{
 			Session: mover, Dir: "~/Code/cli", Account: "side", Model: opus, Running: true, LastSeen: utc(october(7, 13, 11)),
@@ -250,19 +285,27 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 				{Model: haiku, Account: "work", Reason: "sticky"},
 			},
 			State: status.Answering, MoveCost: cost(hourRewrite), Started: utc(october(7, 10, 0)), Requests: 4, Worth: priced(3*hourWorth + smallWorth),
-			Moved: &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "moved: work hit its limit", Cost: cost(hourWrite)},
+			Moved:    &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "moved: work hit its limit", Cost: cost(hourWrite)},
+			Activity: views.Activity{Doing: views.Answering, Since: utc(october(7, 13, 11)), LastSeen: utc(october(7, 13, 11))},
+			// Answering outranks its move, which its routing says all the same.
+			Mark:    views.MarkAnswering,
+			Routing: routingSaid("moved: work hit its limit", "work", "side", cost(hourWrite)),
 		},
 		{
 			Session: quiet, Account: "side", Model: "claude-sonnet-5-5", Running: true, LastSeen: utc(october(7, 12, 40)),
-			Models: []views.SessionModel{{Model: "claude-sonnet-5-5", Account: "side", Reason: "new"}},
+			Models:   []views.SessionModel{{Model: "claude-sonnet-5-5", Account: "side", Reason: "new"}},
+			Activity: views.Activity{Since: utc(october(7, 12, 40)), LastSeen: utc(october(7, 12, 40))},
 		},
 		{
 			Session: rescored, Account: "side", Model: opus, Ended: utc(october(7, 12, 0)), Started: utc(october(7, 9, 0)), Requests: 2, Worth: priced(2 * hourWorth),
-			Moved: &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "rescored after 3h idle"},
+			Moved:    &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "rescored after 3h idle"},
+			Activity: views.Activity{Doing: views.Ended, Since: utc(october(7, 12, 0)), LastSeen: utc(october(7, 12, 0))},
+			Mark:     views.MarkMoved, Routing: routingSaid("rescored after 3h idle", "work", "side", nil),
 		},
 		{
 			Session: early, Dir: "~/Code/web", Account: "work", Model: opus, Ended: utc(october(7, 11, 0)), Started: utc(october(7, 8, 0)),
 			Requests: 3, Worth: priced(hourWorth, "claude-opus-9", "no_usage"),
+			Activity: views.Activity{Doing: views.Ended, Since: utc(october(7, 11, 0)), LastSeen: utc(october(7, 11, 0))},
 		},
 	}, Today: views.SessionsToday{Sessions: 5, Requests: 10, Worth: priced(5*hourWorth+smallWorth+2*hourWorth, "claude-opus-9", "no_usage")}}
 	assertList(t, got, want)
@@ -625,7 +668,7 @@ func TestASessionsDirectoryIsTheRoutersElseItsLines(t *testing.T) {
 		want        string
 	}{
 		{name: "the router's, of the model used last that names one", assignments: []status.Assignment{
-			{Model: opus, Account: "work"}, {Model: haiku, Account: "work", Dir: "~/Code/new"},
+			{Model: opus, Account: "work", LastSeen: now}, {Model: haiku, Account: "work", Dir: "~/Code/new", LastSeen: now},
 		}, want: "~/Code/new"},
 		{name: "the router's, of the model seen most lately that names one, whatever its order", assignments: []status.Assignment{
 			{Model: opus, Account: "work", Dir: "~/Code/first", LastSeen: october(7, 12, 0)},
@@ -675,14 +718,24 @@ func TestASessionsStateIsItsBusiestModels(t *testing.T) {
 	}
 }
 
-// assertList fails the test where got isn't want, showing each as JSON.
+// assertList fails the test where got isn't want, showing each as JSON, and
+// what each's sessions are doing, which the JSON leaves out.
 func assertList(t *testing.T, got, want views.SessionList) {
 	t.Helper()
 	if !reflect.DeepEqual(got, want) {
 		gotJSON, _ := json.MarshalIndent(got, "", "  ")
 		wantJSON, _ := json.MarshalIndent(want, "", "  ")
-		t.Errorf("the List is\n%s\nwant\n%s", gotJSON, wantJSON)
+		t.Errorf("the List is\n%s\ndoing\n%s\nwant\n%s\ndoing\n%s", gotJSON, doingOf(got), wantJSON, doingOf(want))
 	}
+}
+
+// doingOf says what each of the List's sessions is doing, by its id.
+func doingOf(list views.SessionList) string {
+	var says []string
+	for _, s := range list.Sessions {
+		says = append(says, status.ShortID(s.Session)+": "+said(s.Activity))
+	}
+	return strings.Join(says, "\n")
 }
 
 // amount shows a cost, or none.

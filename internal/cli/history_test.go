@@ -21,18 +21,28 @@ import (
 // limit in the week of the 14th.
 func weeksDeps(t *testing.T) cli.Deps {
 	t.Helper()
-	deps, _ := ledgerDeps(t)
-	peaks := []struct {
-		day        int
-		month      time.Month
-		work, side float64
-	}{
+	return mondaysDeps(t, []mondayPeaks{
 		{day: 14, month: time.September, work: 0.7, side: 0.4},
 		{day: 21, month: time.September, work: 1, side: 0.2},
 		{day: 28, month: time.September, work: 0.6, side: 0.3},
 		{day: 5, month: time.October, work: 0.5, side: 0.1},
-	}
-	for _, p := range peaks {
+	})
+}
+
+// mondayPeaks are work's and side's peaks of the weeks ending as their weeks
+// reset at 00:30 on a Monday, by its day of the month.
+type mondayPeaks struct {
+	day        int
+	month      time.Month
+	work, side float64
+}
+
+// mondaysDeps are ledgerDeps whose ledger also holds the summaries of the
+// Mondays given, of no requests, on which work's and side's weeks reset.
+func mondaysDeps(t *testing.T, mondays []mondayPeaks) cli.Deps {
+	t.Helper()
+	deps, _ := ledgerDeps(t)
+	for _, p := range mondays {
 		at := time.Date(2026, p.month, p.day, 0, 30, 0, 0, time.Local)
 		date := at.Format(time.DateOnly)
 		reset := func(id string, before float64) ledger.AccountDay {
@@ -74,6 +84,31 @@ Weeks: two is one more than you need
 	got := run(t, deps, "history", "--pretty", "--since", "2026-09-14")
 	if !strings.HasSuffix(got.stdout, want) || got.code != 0 {
 		t.Errorf("switchboard history --since 2026-09-14 printed\n%s(%d, %s)\nwant it to end\n%s", got.stdout, got.code, got.stderr, want)
+	}
+}
+
+func TestHistorySaysTooFewWhereOneMoreWouldStillLeaveWeeksShort(t *testing.T) {
+	// Work's week peaked at twice its room each week from the 7th: with one
+	// more account every peak falls by a third, still over its room.
+	deps := mondaysDeps(t, []mondayPeaks{
+		{day: 7, month: time.September, work: 0.5, side: 0.1},
+		{day: 14, month: time.September, work: 2, side: 0.1},
+		{day: 21, month: time.September, work: 2, side: 0.1},
+		{day: 28, month: time.September, work: 2, side: 0.1},
+		{day: 5, month: time.October, work: 2, side: 0.1},
+	})
+
+	text := run(t, deps, "history", "--pretty", "--since", "2026-09-07")
+	want := "\nWeeks: two is too few\n  as now: short on 4 of 4 weeks  ·  with one fewer: short on 4  ·  with one more: short on 4\n"
+	if !strings.Contains(text.stdout, want) || text.code != 0 {
+		t.Errorf("switchboard history --since 2026-09-07 printed\n%s(%d, %s)\nwant it to say\n%s", text.stdout, text.code, text.stderr, want)
+	}
+	got := run(t, deps, "history", "--json", "--since", "2026-09-07")
+	var doc struct {
+		Capacity views.Capacity `json:"capacity"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 || doc.Capacity.Verdict != "too few" {
+		t.Errorf("switchboard history --json gives the verdict %q (%v, %d), want too few", doc.Capacity.Verdict, err, got.code)
 	}
 }
 
@@ -137,7 +172,7 @@ func TestHistoryJSONGivesEachWeeksPeaksAndTheCapacity(t *testing.T) {
 // work's 5-hour window reaching its limit, and its week, then side's 5-hour
 // window, each a reading at a time, the configured accounts in the config's
 // order.
-const windowsFromThe6th = `work  Session
+const windowsFromThe6th = `work  5-hour
   Tue 6 Oct 21:00  90%   resets Tue 6 Oct 23:10  allowed   answer
   Tue 6 Oct 22:14  100%  resets Tue 6 Oct 23:10  rejected  answer
   Wed 7 Oct 09:00  30%   resets Wed 7 Oct 14:00  allowed   answer
@@ -145,7 +180,7 @@ const windowsFromThe6th = `work  Session
 work  Week
   Wed 7 Oct 09:00  41%  resets Mon 12 Oct 10:00  allowed  answer
 
-side  Session
+side  5-hour
   Tue 6 Oct 22:15  10%  resets Wed 7 Oct 03:15  allowed  answer
   Wed 7 Oct 10:00  5%   resets Wed 7 Oct 15:00  allowed  answer
 `
@@ -158,13 +193,13 @@ func TestHistoryWindowsPrintsEachAccountsWindowsReadings(t *testing.T) {
 		want string
 	}{
 		{name: "from a day", args: []string{"--since", "2026-10-06"}, want: windowsFromThe6th},
-		{name: "from the day of a time today, whatever the time", args: []string{"--since", "10:00"}, want: `work  Session
+		{name: "from the day of a time today, whatever the time", args: []string{"--since", "10:00"}, want: `work  5-hour
   Wed 7 Oct 09:00  30%  resets Wed 7 Oct 14:00  allowed  answer
 
 work  Week
   Wed 7 Oct 09:00  41%  resets Mon 12 Oct 10:00  allowed  answer
 
-side  Session
+side  5-hour
   Wed 7 Oct 10:00  5%  resets Wed 7 Oct 15:00  allowed  answer
 `},
 	}
@@ -273,7 +308,7 @@ func TestHistoryOfDaysWithoutRequestsSaysSoThenNotesTheirLimitsAndWeeksReset(t *
 			name: "a check and a count, work's session reaching its limit", today: []ledger.Line{worksCheck, worksCount},
 			read: append(slices.Clone(fixtureReadings), readings.Reading{At: october(7, 9, 30, 0), Account: "work", Key: "5h", Utilization: 1,
 				ResetsAt: october(7, 14, 0, 0), Status: quota.StatusRejected}),
-			want: none + "\nWed 7 Oct 2026, so far\n  work: 1 session  ·  limits: Session at 09:30  ·  highest: Session 100%, Week 41%\n",
+			want: none + "\nWed 7 Oct 2026, so far\n  work: 1 session  ·  limits: 5-hour at 09:30  ·  highest: 5-hour 100%, week 41%\n",
 		},
 	}
 	for _, tt := range tests {
@@ -290,7 +325,7 @@ func TestHistoryNotesAnAccountThatServedNoRequestOnlyWhereALimitWasReachedOrAWee
 	// Work's request of claude-opus-9, side serving none, its windows read.
 	worksRequest := fixtureLines["2026-10-07"][4]
 	const busy = "Wed 7 Oct 2026, so far\n  work  claude-opus-9  1 request  110 tokens  1 session  unpriced\n"
-	const works = "  work: 1 session  ·  highest: Session 30%, Week 41%\n\n"
+	const works = "  work: 1 session  ·  highest: 5-hour 30%, week 41%\n\n"
 	tests := []struct {
 		name string
 		read []readings.Reading
@@ -301,7 +336,7 @@ func TestHistoryNotesAnAccountThatServedNoRequestOnlyWhereALimitWasReachedOrAWee
 			name: "a limit reached",
 			read: append(slices.Clone(fixtureReadings), readings.Reading{At: october(7, 10, 30, 0), Account: "side", Key: "5h", Utilization: 1,
 				ResetsAt: october(7, 15, 0, 0), Status: quota.StatusRejected}),
-			want: busy + "  side: no sessions  ·  limits: Session at 10:30  ·  highest: Session 100%\n" + works,
+			want: busy + "  side: no sessions  ·  limits: 5-hour at 10:30  ·  highest: 5-hour 100%\n" + works,
 		},
 	}
 	for _, tt := range tests {
@@ -404,6 +439,119 @@ func TestHistorysTotalsSetTheirThousandsApart(t *testing.T) {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("history printed\n%s\nwant it to say %q", out.String(), want)
 		}
+	}
+}
+
+func TestHistorysTotalsSayTheirFiguresAsTheDashboardDoes(t *testing.T) {
+	dollars := func(cents int64) *ledger.Picodollars {
+		p := ledger.Picodollars(cents * 10_000_000_000)
+		return &p
+	}
+	tests := []struct {
+		name   string
+		totals views.AccountTotals
+		plan   views.PlanCost
+		want   string
+	}{
+		{name: "worth under half a cent, as more than none", totals: views.AccountTotals{Amount: new(ledger.Picodollars(4_000_000_000))},
+			want: "  worth                   <$0.01\n"},
+		{name: "worth part unpriced", totals: views.AccountTotals{Amount: dollars(150), Unpriced: []string{"no_usage"}},
+			want: "  worth                   $1.50+\n"},
+		{name: "the plan's price a month, its thousands set apart", plan: views.PlanCost{Plan: "max20x", Price: dollars(100_000)},
+			want: "  plan                    Max 20x · $1,000/mo\n"},
+		{name: "against its price to a tenth, a half rounded to the even one", plan: views.PlanCost{Cost: dollars(4600), Ratio: new(3.85)},
+			want: "  against its price       3.8× its $46\n"},
+		{name: "against a price of thousands, set apart", plan: views.PlanCost{Cost: dollars(138_000), Ratio: new(1.0)},
+			want: "  against its price       1.0× its $1,380\n"},
+		{name: "each window left at its reset named as status names it", totals: views.AccountTotals{LeftAtReset: map[string]float64{"5h": 0, "7d": 0.59}},
+			want: "  left at its last reset  5-hour 0% · week 59%\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.totals.Account, tt.plan.Account = "work", "work"
+			history := views.History{Days: aDayOfARequest, Totals: views.Totals{Accounts: []views.AccountTotals{tt.totals}}, Plans: []views.PlanCost{tt.plan}}
+
+			var out bytes.Buffer
+			if err := cli.WriteHistory(&out, history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), tt.want) {
+				t.Errorf("history printed\n%s(%v)\nwant it to say\n%s", out.String(), err, tt.want)
+			}
+		})
+	}
+}
+
+func TestHistorysTotalsOfEveryAccountCountTheirLimitsAndMovesWithTheirThousandsApart(t *testing.T) {
+	all := views.AccountTotals{All: true, MovedOn: 1240, Limits: map[string]int{"5h": 1200, "7d": 34}}
+	work := views.AccountTotals{Account: "work", MovedOn: 1240, MovedOff: 1100}
+	history := views.History{Days: aDayOfARequest, Totals: views.Totals{Accounts: []views.AccountTotals{work, all}}}
+
+	var out bytes.Buffer
+	if err := cli.WriteHistory(&out, history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"  sessions moved          1,240 in · 1,100 out  1,240 moves\n", "  limits hit              none                  1,234\n"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("history printed\n%s\nwant it to say %q", out.String(), want)
+		}
+	}
+}
+
+func TestHistorysDayOfAModelThatSpentNothingSaysNoWorthAsTheTotalsDo(t *testing.T) {
+	// The ledger prices none of a model it doesn't know that spent nothing,
+	// and names nothing unpriced: its worth is none, not unknown.
+	day := []views.Day{{Version: 2, Day: "2026-10-07", Accounts: []ledger.PricedAccount{
+		{Account: "work", Sessions: 1, Models: []ledger.PricedModel{{Model: "claude-opus-9", Upstream: 1, Sessions: 1}}},
+	}}}
+
+	var out bytes.Buffer
+	const want = "  work  claude-opus-9  1 request  0 tokens  1 session  -\n"
+	if err := cli.WriteHistory(&out, views.History{Days: day}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), want) {
+		t.Errorf("history printed\n%s(%v)\nwant it to say\n%s", out.String(), err, want)
+	}
+}
+
+func TestHistorysDayCountsABillionTokensInBillions(t *testing.T) {
+	day := []views.Day{{Version: 2, Day: "2026-10-07", Accounts: []ledger.PricedAccount{
+		{Account: "work", Sessions: 1, Models: []ledger.PricedModel{{Model: "claude-opus-9", Upstream: 1, Sessions: 1,
+			Usage: json.RawMessage(`{"input_tokens":1000000000,"cache_read_input_tokens":500000000}`)}}},
+	}}}
+
+	var out bytes.Buffer
+	const want = "  work  claude-opus-9  1 request  1.5B tokens  1 session"
+	if err := cli.WriteHistory(&out, views.History{Days: day}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), want) {
+		t.Errorf("history printed\n%s(%v)\nwant it to say\n%s", out.String(), err, want)
+	}
+}
+
+// behindLocal is a time zone twelve hours behind local time at ledgerNow, in
+// which each local midnight falls at noon the day before.
+func behindLocal() *time.Location {
+	_, offset := ledgerNow.Zone()
+	return time.FixedZone("behind", offset-12*60*60)
+}
+
+func TestHistoryNamesEachDayByItsLocalDateWhateverZoneNowIsIn(t *testing.T) {
+	var out bytes.Buffer
+	if err := cli.WriteHistory(&out, views.History{Days: aDayOfARequest}, ledger.Pricing, october(5, 0, 0, 0), ledgerNow.In(behindLocal())); err != nil ||
+		!strings.HasPrefix(out.String(), "Wed 7 Oct 2026, so far\n") {
+		t.Errorf("history at %v printed\n%s(%v)\nwant today's table headed Wed 7 Oct 2026, so far", ledgerNow.In(behindLocal()), out.String(), err)
+	}
+}
+
+func TestHistorySaysItHasNoRequestsSinceTheLocalDayItStartsWhateverZoneNowIsIn(t *testing.T) {
+	var out bytes.Buffer
+	const want = "no requests since Mon 5 Oct 2026\n"
+	if err := cli.WriteHistory(&out, views.History{}, ledger.Pricing, october(5, 0, 0, 0), ledgerNow.In(behindLocal())); err != nil || out.String() != want {
+		t.Errorf("history at %v printed\n%s(%v)\nwant\n%s", ledgerNow.In(behindLocal()), out.String(), err, want)
+	}
+}
+
+func TestHistoryWindowsSaysItHasNoReadingsSinceTheLocalDayItStartsWhateverZoneNowIsIn(t *testing.T) {
+	deps := testDeps(nil, t.TempDir())
+	deps.Now = func() time.Time { return ledgerNow.In(behindLocal()) }
+	configure(t, deps)
+	const want = "no readings since Tue 8 Sep 2026\n"
+	if got := run(t, deps, "history", "--windows", "--pretty"); got != (result{stdout: want}) {
+		t.Errorf("switchboard history --windows --pretty at %v = %+v, want it to print\n%s", ledgerNow.In(behindLocal()), got, want)
 	}
 }
 
