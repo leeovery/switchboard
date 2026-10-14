@@ -17,21 +17,22 @@ import (
 // shows, the ledger's lines read for its Requests and the router's events
 // for its Events, over the local days from from, today's grown at each look
 // since and the days before read back as the tables want them; the figures
-// of those days, which their rules say; the oldest day the ledger keeps,
-// and the oldest the Events read back to, none known till each is said; who
-// told the events the Events last took in, and when; when the router's files
-// are to be read again from for the events a document skipped, as Skips has
-// it, none while none did; whether a read for it is under way, one at a
-// time; whether a failure to say how far back its tables read has been
-// logged, the once; its details card, while it's open; the panel of what a
-// table shows, while f has it open; and its find's walk back through the
-// days.
+// of those days, which their rules say; when each day the Requests await a
+// line on was last read for it; the oldest day the ledger keeps, and the
+// oldest the Events read back to, none known till each is said; who told
+// the events the Events last took in, and when; when the router's files are
+// to be read again from for the events a document skipped, as Skips has it,
+// none while none did; whether a read for it is under way, one at a time;
+// whether a failure to say how far back its tables read has been logged,
+// the once; its details card, while it's open; the panel of what a table
+// shows, while f has it open; and its find's walk back through the days.
 type logTab struct {
 	page    dashboard.LogPage
 	opened  bool
 	read    views.LogRead
 	events  views.EventsRead
 	totals  []views.DayTotals
+	awaited awaitedReads
 	from    views.LedgerDay
 	oldest  views.OldestDay
 	filed   views.OldestDay

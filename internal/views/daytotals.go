@@ -1,6 +1,7 @@
 package views
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -26,16 +27,35 @@ type DayTotals struct {
 // its lines as it's read. Each is worked out as History's totals are, priced
 // at the prices of now's day.
 func TotalsByDay(days LedgerDays, from, now time.Time, prices ledger.Table) []DayTotals {
+	return pricedTotals(days.Days(from), now, prices, func(string) bool { return true })
+}
+
+// TotalsOn are the figures of the local days with the dates given, oldest
+// first, as TotalsByDay has them, the ledger's days read from the earliest,
+// the days given alone priced: none of a date it holds no day of.
+func TotalsOn(days LedgerDays, dates []string, now time.Time, prices ledger.Table) []DayTotals {
+	if len(dates) == 0 {
+		return nil
+	}
+	return pricedTotals(days.Days(dayOf(slices.Min(dates)).Start), now, prices, func(date string) bool { return slices.Contains(dates, date) })
+}
+
+// pricedTotals are the figures of the days summaries are of that given says,
+// oldest first, as TotalsByDay has them.
+func pricedTotals(summaries []ledger.Summary, now time.Time, prices ledger.Table, given func(date string) bool) []DayTotals {
 	today, v := Today(now).Date, versions{table: prices}
-	summaries := days.Days(from)
-	totals := make([]DayTotals, len(summaries))
-	for i, s := range summaries {
+	var totals []DayTotals
+	for _, s := range summaries {
+		if !given(s.Day) {
+			continue
+		}
 		// With no account configured, every account's totals are the only ones.
 		all := accountTotalsOf([]Day{{Priced: prices.Priced(s, today)}}, nil, v).Accounts[0]
-		totals[i] = DayTotals{Date: s.Day, Requests: all.Requests, Sessions: all.Sessions, Worth: all.Worth}
+		t := DayTotals{Date: s.Day, Requests: all.Requests, Sessions: all.Sessions, Worth: all.Worth}
 		for _, n := range all.Limits {
-			totals[i].Limits += n
+			t.Limits += n
 		}
+		totals = append(totals, t)
 	}
 	return totals
 }

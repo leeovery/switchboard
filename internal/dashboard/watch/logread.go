@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"slices"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -160,11 +161,12 @@ func (m Model) refiledFrom(from, now time.Time) (Model, tea.Cmd) {
 }
 
 // readTail reads what the ledger gained since the tail's mark, at now, and
-// grows the Log's read by it, as logFold has it.
+// grows the Log's read by it, as logFold has it, noting the days awaiting a
+// line it reads.
 func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	r, mark := m.logReaders(), m.tail.mark
 	fold := m.logFold(now)
-	m.tail, m.log.reading = m.tail.asking(), true
+	m.tail, m.log.reading, m.log.awaited = m.tail.asking(), true, fold.awaited
 	return m, func() tea.Msg {
 		lines, next, _ := r.ledger.Today(mark)
 		return tailedMsg{mark: next, day: views.Today(now), log: fold.grown(r, lines, now)}
@@ -175,41 +177,98 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 // stands as the read is asked: grows its read by the lines the ledger
 // gained, and by those of the days before today it reads again whole, late,
 // as the tail followed them no further, or the line of a request across
-// midnight comes on its day after the day turned; where it reads any so,
-// reads again the figures of the days its tables span, from from; and where
-// how far back they read isn't known, asks it again.
+// midnight could have come on its day after the day turned; reads again the
+// figures of those days alone; and where how far back they read isn't
+// known, asks it again. Awaited is when each day awaiting a line was last
+// read for it, as the read leaves it.
 type logFold struct {
-	read views.LogRead
-	late []string
-	from views.LedgerDay
-	asks bool
+	read    views.LogRead
+	late    []string
+	awaited awaitedReads
+	asks    bool
 }
 
 // logFold is what a read of the ledger's tail at now does for the Log: its
 // late days those the tail missed, as missed has them, and those before
 // today the Requests await a line on, shown or hidden, as their Awaited has
-// them, each once, the oldest first.
+// them, whose lines could have come since they were last read, as due has
+// them; each once, the oldest first.
 func (m Model) logFold(now time.Time) logFold {
 	today := views.Today(now)
-	late := slices.Concat(m.log.page.Requests.Awaited(today), m.tail.missed(today))
-	return logFold{read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), from: m.log.from, asks: !m.log.bounded()}
+	due, awaited := m.log.awaited.due(m.log.page.Requests.Awaited(today), m.logStream(now), now)
+	late := slices.Concat(due, m.tail.missed(today))
+	return logFold{read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), awaited: awaited, asks: !m.log.bounded()}
 }
 
 // grown is the Log grown, through r, at now, by lines, the ledger's gain
 // since the tail's mark, as the fold says.
 func (f logFold) grown(r logReaders, lines []ledger.Held, now time.Time) *logGrown {
 	l := r.ledger
-	g := logGrown{read: f.read.Grown(l, lines, now)}
+	g := logGrown{read: f.read.Grown(l, lines, now), totals: views.TotalsOn(l, f.late, now, r.prices)}
 	for _, date := range f.late {
 		g.read = g.read.Back(l, l.Day(date), now)
-	}
-	if len(f.late) > 0 {
-		g.totals = views.TotalsByDay(l, f.from.Start, now, r.prices)
 	}
 	if f.asks {
 		g.logBounds = r.bounds(now)
 	}
 	return &g
+}
+
+// awaitedReads are when each day the Requests await a line on was last read
+// whole for it, by the day's date.
+type awaitedReads map[string]time.Time
+
+// awaitedEvery is how long a day awaiting a line goes unread while none of
+// the requests filed on it ends: the router writes a request's line moments
+// after the stream tells it ended, so the read at the look after nearly
+// always finds it, and this bounds the wait for one written later.
+const awaitedEvery = time.Minute
+
+// due are those of the dates given, of the days awaiting a line, to be read
+// whole at now, s being what the stream tells: each one a request filed on
+// ended since it was last read for it, as Told.FiledOn files it, or read
+// for it awaitedEvery ago or more; and r as it'll stand, those due read at
+// now, those no longer awaited let go.
+func (r awaitedReads) due(dates []string, s views.Stream, now time.Time) ([]string, awaitedReads) {
+	next := make(awaitedReads, len(dates))
+	var due []string
+	for _, date := range dates {
+		read := r[date]
+		if now.Sub(read) >= awaitedEvery || endedSince(s, date, read) {
+			due, read = append(due, date), now
+		}
+		next[date] = read
+	}
+	return due, next
+}
+
+// endedSince reports whether s told a request filed on the day with the
+// given date, as Told.FiledOn files it, ended after since.
+func endedSince(s views.Stream, date string, since time.Time) bool {
+	for _, t := range s.Requests {
+		if day, ok := t.FiledOn(); ok && day.Date == date && t.Ended.After(since) {
+			return true
+		}
+	}
+	return false
+}
+
+// foldedTotals are the figures held with those read folded in, oldest
+// first: each read in place of the one held of its day, where there's one.
+func foldedTotals(held, read []views.DayTotals) []views.DayTotals {
+	if len(read) == 0 {
+		return held
+	}
+	folded := slices.Clone(held)
+	for _, t := range read {
+		i, found := slices.BinarySearchFunc(folded, t.Date, func(d views.DayTotals, date string) int { return strings.Compare(d.Date, date) })
+		if found {
+			folded[i] = t
+		} else {
+			folded = slices.Insert(folded, i, t)
+		}
+	}
+	return folded
 }
 
 // readBack reads the day before those the Log's tables span, at now, as the
@@ -288,9 +347,10 @@ func (m Model) logRead(msg logReadMsg) Model {
 	return m
 }
 
-// grown is the Log grown as g says, its read no longer under way: where
-// how far back its tables read couldn't be said, logged, the first time
-// alone, as each read after asks again.
+// grown is the Log grown as g says, its read no longer under way, the
+// figures of the days read folded into those held: where how far back its
+// tables read couldn't be said, logged, the first time alone, as each read
+// after asks again.
 func (t logTab) grown(g logGrown) logTab {
 	t.reading, t.read = false, g.read
 	if g.events != nil {
@@ -299,9 +359,7 @@ func (t logTab) grown(g logGrown) logTab {
 	if !g.from.Start.IsZero() {
 		t.from = g.from
 	}
-	if g.totals != nil {
-		t.totals = g.totals
-	}
+	t.totals = foldedTotals(t.totals, g.totals)
 	if g.oldest != nil {
 		t.oldest = *g.oldest
 	}

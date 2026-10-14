@@ -23,15 +23,21 @@ import (
 )
 
 // daysCounted is a request ledger followed as it grows, as followed notes
-// its reads of today's, which notes too the dates of the days read whole.
+// its reads of today's, which notes too the dates of the days read whole,
+// and of the first day each read of the days' summaries is from.
 type daysCounted struct {
 	followed
-	days []string
+	days, summed []string
 }
 
 func (l *daysCounted) Day(date string) []ledger.Held {
 	l.days = append(l.days, date)
 	return l.Ledger.Day(date)
+}
+
+func (l *daysCounted) Days(from time.Time) []ledger.Summary {
+	l.summed = append(l.summed, dayfile.DateOf(from))
+	return l.Ledger.Days(from)
 }
 
 // onTheLog has h show the Log, reading the request ledger in the state
@@ -225,6 +231,102 @@ func TestALineOfARequestSentJustAfterMidnightComesOnTheDayItArrived(t *testing.T
 	}
 	if got := h.model.log.read.WrittenTo(); !got.Equal(ended) {
 		t.Errorf("the Log's read holds lines written to %s, want %s, the line of the request sent after midnight taken in", got, ended)
+	}
+}
+
+// A day awaiting a line is read whole again only as its line could have
+// come: at the look after a request whose line is filed on it ended, then
+// once a minute while none comes, as for one written late; never at every
+// look. Its figures alone are read again, the ledger's days read from it,
+// not from the first the tables span.
+func TestADayAwaitingALineIsReadAgainOnlyAsItsLineCouldHaveCome(t *testing.T) {
+	state := t.TempDir()
+	twoBefore := onTheDay(23, 50, 0).AddDate(0, 0, -1)
+	writeLines(t, state, arrivedAt("0a000001", twoBefore), arrivedAt("0a000002", onTheDay(23, 50, 0)))
+	h := routedHarness(t, routerDocument(three()...))
+	l := onTheLog(h, state)
+	h.clock.now = onTheDay(24, 0, 30)
+	h.start()
+	if h.model.log.from.Date != dayfile.DateOf(twoBefore) {
+		t.Fatalf("the Log spans from %s as it opens, want %s, the first day the ledger keeps", h.model.log.from.Date, dayfile.DateOf(twoBefore))
+	}
+
+	at := func(kind, request string, when time.Time) router.StreamEvent {
+		return alter(told(kind, request, "work", 0), func(e *router.StreamEvent) { e.At = when.UTC() })
+	}
+	ended := func(request string, when time.Time) router.StreamEvent {
+		return alter(at(router.StreamDone, request, when), func(e *router.StreamEvent) { e.Status = 200 })
+	}
+	sent := onTheDay(23, 59, 50)
+	h.hear(at(router.StreamSent, "0a000003", sent), at(router.StreamSent, "0a000004", sent))
+	opened, summed := len(l.days), len(l.summed)
+	yesterday := dayfile.DateOf(sent)
+	steps := []struct {
+		name     string
+		ends     string
+		from, to time.Time
+		readings int
+	}{
+		{name: "the looks after the first ended", ends: "0a000003", from: onTheDay(24, 0, 45), to: onTheDay(24, 1, 10), readings: 1},
+		{name: "the look after the second ended", ends: "0a000004", from: onTheDay(24, 1, 15), to: onTheDay(24, 1, 15), readings: 2},
+		{name: "the looks of the minute after", from: onTheDay(24, 1, 20), to: onTheDay(24, 2, 10), readings: 2},
+		{name: "a minute on", from: onTheDay(24, 2, 15), to: onTheDay(24, 2, 15), readings: 3},
+	}
+	for _, s := range steps {
+		if s.ends != "" {
+			h.hear(ended(s.ends, s.from.Add(-3*time.Second)))
+		}
+		for h.clock.now = s.from; !h.clock.now.After(s.to); h.clock.now = h.clock.now.Add(lookEvery) {
+			h.read(routerDocument(three()...))
+		}
+		if got := l.days[opened:]; !slices.Equal(got, slices.Repeat([]string{yesterday}, s.readings)) {
+			t.Errorf("after %s, the days %v were read whole, want the day before %d times", s.name, got, s.readings)
+		}
+	}
+	for _, from := range l.summed[summed:] {
+		if from != yesterday {
+			t.Errorf("the days' summaries were read from %v, want from the day before alone", l.summed[summed:])
+			break
+		}
+	}
+}
+
+// The figures of the days read are folded into those held by their dates,
+// the oldest first, each in place of the one held of its day, those held
+// left as they were.
+func TestTheFiguresReadAreFoldedIntoThoseHeldByTheirDays(t *testing.T) {
+	counted := func(totals []views.DayTotals) []string {
+		var dated []string
+		for _, d := range totals {
+			dated = append(dated, fmt.Sprintf("%s %d", d.Date, d.Requests))
+		}
+		return dated
+	}
+	day := func(date string, requests int) views.DayTotals {
+		return views.DayTotals{Date: date, Requests: requests}
+	}
+	held := []views.DayTotals{day("2026-09-26", 1), day("2026-09-28", 1)}
+	tests := []struct {
+		name string
+		read []views.DayTotals
+		want []string
+	}{
+		{name: "none read", want: []string{"2026-09-26 1", "2026-09-28 1"}},
+		{name: "a day held, read again", read: []views.DayTotals{day("2026-09-28", 2)}, want: []string{"2026-09-26 1", "2026-09-28 2"}},
+		{
+			name: "days before, between and after", read: []views.DayTotals{day("2026-09-25", 3), day("2026-09-27", 3), day("2026-09-29", 3)},
+			want: []string{"2026-09-25 3", "2026-09-26 1", "2026-09-27 3", "2026-09-28 1", "2026-09-29 3"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := counted(foldedTotals(held, tt.read)); !slices.Equal(got, tt.want) {
+				t.Errorf("folded, the figures are %v, want %v", got, tt.want)
+			}
+			if got := counted(held); !slices.Equal(got, []string{"2026-09-26 1", "2026-09-28 1"}) {
+				t.Errorf("the figures held became %v, want them left as they were", got)
+			}
+		})
 	}
 }
 
