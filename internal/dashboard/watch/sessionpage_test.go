@@ -11,6 +11,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
@@ -282,6 +283,44 @@ func TestASessionsPageLeavesForTheTabItWasOpenedOverOrAnother(t *testing.T) {
 			if got.session != nil || got.view != tt.view || got.scroll != tt.scroll || got.focus != "side" {
 				t.Errorf("a page open %v, on %s scrolled %d, the focus on %q; want the page closed, on %s scrolled %d, the focus kept",
 					got.session != nil, got.view, got.scroll, got.focus, tt.view, tt.scroll)
+			}
+		})
+	}
+}
+
+// The number keys and m, outside the session's card, and the keys of the tab
+// a session's page is open over do nothing on the page: it reads as it did,
+// with nothing open over it, and esc comes back to its tab as it was left.
+func TestTheNumberKeysMAndItsTabsOwnKeysDoNothingOnASessionsPage(t *testing.T) {
+	end, left := tea.KeyPressMsg{Code: tea.KeyEnd}, tea.KeyPressMsg{Code: tea.KeyLeft}
+	tests := []struct {
+		over dashboard.View
+		keys string
+		also []tea.KeyPressMsg
+	}{
+		{over: dashboard.Overview, keys: "u g r s c l b"},
+		{over: dashboard.Log, keys: "] f / s", also: []tea.KeyPressMsg{end}},
+		{over: dashboard.History, keys: "] < v", also: []tea.KeyPressMsg{left}},
+		{over: dashboard.Runway, keys: "w"},
+	}
+	screenOf := func(m Model) string { return ansi.Strip(m.View().Content) }
+	for _, tt := range tests {
+		t.Run(string(tt.over), func(t *testing.T) {
+			h := sessionPaged(t, "")
+			h.model.view = tt.over
+			h.deliver(h.update(tea.WindowSizeMsg{Width: h.model.size.Width, Height: h.model.size.Height})...)
+			page, tab := h.view(), screenOf(h.model.closeSession())
+
+			h.keyed("0 1 2 3 m " + tt.keys)
+			h.keys(tt.also...)
+			if h.model.open != nothingOpen || h.model.finding() || h.model.picker.open {
+				t.Errorf("after the keys, a card is open %v, the find %v, the picker %v; want nothing open", h.model.open != nothingOpen, h.model.finding(), h.model.picker.open)
+			}
+			if got := h.view(); got != page {
+				t.Errorf("after the keys, the page reads\n%s\nwant it as it was\n%s", got, page)
+			}
+			if got := screenOf(h.model.closeSession()); got != tab {
+				t.Errorf("after the keys, esc comes back to\n%s\nwant %s as it was left\n%s", got, tt.over, tab)
 			}
 		})
 	}
