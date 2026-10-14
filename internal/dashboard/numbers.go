@@ -34,6 +34,10 @@ const (
 	// they're counted in say, as all accounts' head counts them on Accounts:
 	// a figure of its own, as all accounts is never the pool.
 	NumberAccountStates
+	// NumberAllUsed is how much of a window every account has used, as all
+	// accounts' percentage on Accounts says: a figure of its own, as all
+	// accounts is never the pool.
+	NumberAllUsed
 	// NumberRouted are the sessions the router has routed in the last hour,
 	// as the status line counts them.
 	NumberRouted

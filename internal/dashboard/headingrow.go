@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/theme"
@@ -23,14 +24,16 @@ var shownSubTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSubtle
 // sub-tabs, where it has them, which of them is shown, and whether a phone
 // sets them tight, as the rule Accounts and History share has it; the state
 // the screen can't otherwise show, in text.faint, a key within it in bold
-// accent.key, where there's any; and at its right, its period or window,
-// which < and > step, or another line, as the Log's count and its f.
+// accent.key, where there's any, and its shorter forms, each a clause fewer,
+// for less room; and at its right, its period or window, which < and > step,
+// or another line, as the Log's count and its f.
 type heading struct {
 	name    string
 	subTabs []string
 	shown   int
 	tight   bool
 	state   line
+	shorter []line
 	period  string
 	right   line
 }
@@ -113,8 +116,9 @@ func (h heading) ownPeriod(phone bool) bool {
 
 // pieces are the heading's parts, laid out along row y of a frame width
 // cells wide, on a phone where phone says: its name and sub-tabs, as named
-// lays them out; then three cells on, the state, cut where the rest leaves it
-// short of room. Ending at the last column, its period between < and >, or
+// lays them out; then three cells on, the state, or the first of its shorter
+// forms that fits where the rest leaves it short of room, cut where none
+// does. Ending at the last column, its period between < and >, or
 // its line, on the row under it where ownPeriod says, and left out where it
 // doesn't fit beside the name and the sub-tabs. Between them, the rule, from
 // two cells after them, or one after the state, to two cells short of what
@@ -134,7 +138,7 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 	}
 	ruled := x + ruleGap
 	if h.state != nil {
-		ruled = laid.put(x+headingGap, y, h.state.fit(end-x-headingGap), Target{}) + 1
+		ruled = laid.put(x+headingGap, y, firstFit(end-x-headingGap, slices.Concat([]line{h.state}, h.shorter)...), Target{}) + 1
 	}
 	if !h.compact(phone) {
 		laid.put(ruled, y, line{{rule(end - ruled), borderInk}}, Target{})

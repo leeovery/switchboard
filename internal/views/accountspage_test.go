@@ -119,6 +119,30 @@ func TestEachRowCarriesItsAccountsLabel(t *testing.T) {
 	}
 }
 
+// The versions any account used in the period are listed in the version
+// table's order, each as the table names and shades it, its ids with it, so
+// each row's shares can be found by it; one the table doesn't name, by its
+// id and its family alone.
+func TestThePeriodsVersionsAreTheTablesInItsOrder(t *testing.T) {
+	days := daysFrom("2026-10-05", day("2026-10-06",
+		account("side", sent("claude-haiku-4-5", 1, inputUsage), sent("claude-opus-9", 1, inputUsage)),
+		account("work", sent("claude-opus-5-5", 1, inputUsage)),
+	))
+	page := accountsPageOf(days, workAndSide)
+	var got []string
+	for _, v := range page.Versions {
+		got = append(got, fmt.Sprintf("%s/%s/%d/%s", v.Name, v.Family, v.Shade, strings.Join(v.IDs, ",")))
+	}
+	want := []string{
+		"Opus 5.5/opus/1/claude-opus-5-5",
+		"Haiku 4.5/haiku/0/claude-haiku-4-5-20251001,claude-haiku-4-5",
+		"opus-9/opus/0/claude-opus-9",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("the period's versions are %q, want %q", got, want)
+	}
+}
+
 // Where one account's weeks are known, it ends weeks with both the most and
 // the least left; where none's are, none does.
 func TestTheEndsOfOneAccountsWeeksAreItsOwn(t *testing.T) {
