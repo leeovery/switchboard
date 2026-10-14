@@ -339,11 +339,7 @@ func TestAccountsKeysTurnTheSubTabAndStepThePeriodKeptAsTheyChange(t *testing.T)
 // enter opens the account focused in Detail, from its top.
 func TestComparesFocusMovesAlongItsColumnsAndEnterOpensItInDetail(t *testing.T) {
 	h := accountsHarness(t, dashboard.AccountsShown{})
-	ten := make(config.Accounts, 10)
-	for i := range ten {
-		ten[i] = config.Account{ID: "acct-" + strconv.Itoa(i+1)}
-	}
-	h.model.accounts.shown.Accounts = ten
+	h.model.accounts.shown.Accounts = tenAccounts()
 	h.keys(enterKey)
 	if s := h.model.accounts.shown; s.View() != dashboard.AccountsCompare || s.Focused {
 		t.Fatalf("enter with nothing focused showed %d, focused %v; want Compare, unfocused", s.View(), s.Focused)
@@ -379,11 +375,7 @@ func TestEscEndsComparesFocus(t *testing.T) {
 // showing, show acct-4 to acct-7 at 122, four showing, as the heading says.
 func TestAResizeKeepsComparesFocusInView(t *testing.T) {
 	h := accountsHarness(t, dashboard.AccountsShown{})
-	ten := make(config.Accounts, 10)
-	for i := range ten {
-		ten[i] = config.Account{ID: "acct-" + strconv.Itoa(i+1)}
-	}
-	h.model.accounts.shown.Accounts = ten
+	h.model.accounts.shown.Accounts = tenAccounts()
 	h.keys(slices.Repeat([]tea.KeyPressMsg{rightKey}, 7)...)
 	h.update(tea.WindowSizeMsg{Width: 122, Height: 37})
 	var columns []string
@@ -395,6 +387,39 @@ func TestAResizeKeepsComparesFocusInView(t *testing.T) {
 	heading := strings.Split(h.view(), "\n")[4]
 	if want := []string{"acct-4", "acct-5", "acct-6", "acct-7", ""}; !slices.Equal(columns, want) || !strings.Contains(heading, "accounts 4–7 of 10") {
 		t.Errorf("at 122 columns, focused on acct-7, Compare draws the columns %q under %q; want %q, accounts 4–7 of 10", columns, heading, want)
+	}
+}
+
+// tenAccounts are ten accounts, acct-1 to acct-10, in the config's order.
+func tenAccounts() config.Accounts {
+	ten := make(config.Accounts, 10)
+	for i := range ten {
+		ten[i] = config.Account{ID: "acct-" + strconv.Itoa(i+1)}
+	}
+	return ten
+}
+
+// Detail's list scrolls to show the account chosen no further than it must,
+// from where it was left: of ten accounts at 24 rows, acct-10 chosen then
+// acct-9, the list shows the accounts it showed with acct-10 chosen.
+func TestDetailsListStaysScrolledWhereItWasLeft(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail})
+	h.model.accounts.shown.Accounts = tenAccounts()
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 24})
+	listed := func() []string {
+		var ids []string
+		for _, t := range h.targets() {
+			if t.On == dashboard.OnAccount && t.Account != "" {
+				ids = append(ids, t.Account)
+			}
+		}
+		return ids
+	}
+	h.keys(slices.Repeat([]tea.KeyPressMsg{downKey}, 10)...)
+	last := listed()
+	h.keys(upKey)
+	if got := listed(); h.model.accounts.shown.Chosen != "acct-9" || !slices.Equal(got, last) || !slices.Contains(last, "acct-10") || len(last) == 10 {
+		t.Errorf("acct-9 chosen after acct-10, chosen %q, the list shows %q; want the accounts shown with acct-10 chosen, %q, fewer than ten", h.model.accounts.shown.Chosen, got, last)
 	}
 }
 

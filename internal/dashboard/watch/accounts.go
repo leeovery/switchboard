@@ -62,29 +62,32 @@ func (m Model) accountsBuilt() Model {
 }
 
 // standing is Accounts as the frame f shows it: its page as accountsBuilt
-// last stood it, none till the days are read; and Compare's columns
-// scrolled to show its focus at f's size, as CompareFirst has them, from as
-// far along as they were left, so a frame narrower than the one they were
-// scrolled in still shows it.
+// last stood it, none till the days are read; Compare's columns scrolled to
+// show its focus at f's size, as CompareFirst has them, and Detail's list
+// to show the account it shows, as DetailListScroll has it, each from as far
+// along as it was left, so a frame smaller than the one it was scrolled in
+// still shows it.
 func (t accountsTab) standing(f dashboard.Frame) dashboard.AccountsShown {
 	s := t.shown
 	s.Page = t.stood
-	s.First = f.CompareFirst(s.Focus)
+	s.First, s.ListScroll = f.CompareFirst(s.Focus), f.DetailListScroll(s.Account())
 	return s
 }
 
 // showAccounts shows Accounts as given: another sub-tab or period from the
-// view's top; Compare's columns as far along as the frame scrolls them to
-// show its focus, as standing has them. It keeps what the preferences keep
-// of it, where that's changed, for the next watch to open with: the sub-tab
-// and the period, its page built afresh as accountsBuilt has it.
+// view's top; Compare's columns and Detail's list as far along as the frame
+// scrolls them to show the focus and the account shown, as standing has
+// them. It keeps what the preferences keep of it, where that's changed, for
+// the next watch to open with: the sub-tab and the period, its page built
+// afresh as accountsBuilt has it.
 func (m Model) showAccounts(s dashboard.AccountsShown) Model {
 	was := m.accounts.shown
 	if s.View() != was.View() || s.Period != was.Period {
 		m.scroll = 0
 	}
 	m.accounts.shown = s
-	m.accounts.shown.First = m.frame(m.now()).Accounts.First
+	drawn := m.frame(m.now()).Accounts
+	m.accounts.shown.First, m.accounts.shown.ListScroll = drawn.First, drawn.ListScroll
 	if kept := s.Kept(); kept != was.Kept() {
 		m.keepPrefs("what Accounts shows", func(prefs *theme.Prefs) { prefs.Accounts = kept }, "accounts", kept)
 	}
