@@ -581,8 +581,8 @@ func TestDetailWhileProbingHasNoSESSIONSAndAQuietLATELY(t *testing.T) {
 
 // Until the period's page is read, Detail draws the moment's parts alone:
 // its head, USAGE and LATELY, where each stands once it's read. Read on a
-// fresh install, recording nothing, THIS WEEK's figures of the period are a
-// dash, its plan named still.
+// fresh install, recording nothing, every row of THIS WEEK is a dash, its
+// plan and extra use among them.
 func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 	doc := usageWorld(extraOff, happened(onAuto()...))
 	fresh := detailsPage(t)
@@ -600,8 +600,8 @@ func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 			t.Errorf("unread, %s is on row %d, want %d, where it stands once read", part, rowWith(unread, part), rowWith(read, part))
 		}
 	}
-	for label, want := range map[string]string{"requests": "—", "limits": "—", "worth": "—", "plan": "Max 20x"} {
-		y := rowWith(onFresh, label+"  ")
+	for label, want := range map[string]string{"requests": "—", "limits": "—", "plan": "—", "worth": "—", "extra use": "—"} {
+		y := rowWith(onFresh, padded(label, thisWeekLabels))
 		if y < 0 {
 			t.Fatalf("no %s in THIS WEEK", label)
 		}

@@ -652,9 +652,9 @@ func TestCompareDrawsItsHeadsAndWEEKUSEDTillItsDaysAreRead(t *testing.T) {
 	}
 }
 
-// A period with nothing recorded, as on a fresh install, says a dash for
-// each of its figures; what isn't the period's, left at its last reset, the
-// plan and extra usage, stands.
+// A period with nothing recorded, as on a fresh install, says a dash in
+// every row, left at its last reset, the plan and extra usage among them,
+// as the design has it.
 func TestAPeriodWithNothingRecordedSaysADashForEachOfItsFigures(t *testing.T) {
 	f, doc := threeCompared(t, 160, 37)
 	f.Accounts.Page.Recorded = false
@@ -665,9 +665,9 @@ func TestAPeriodWithNothingRecordedSaysADashForEachOfItsFigures(t *testing.T) {
 		22: "  sessions moved          —                                —                                —                                —",
 		25: "  limits hit              —                                —                                —                                —",
 		26: "  at cap or limit         —                                —                                —                                —",
-		27: "  left at its last reset  0% (limit Fri)                   15%                              40%                              —",
-		30: "  plan                    Max 20x · $200/mo                Max 20x · $200/mo                Max 20x · $200/mo                $600/mo · 3 plans",
-		31: "  extra usage             off                              off                              off                              off on all",
+		27: "  left at its last reset  —                                —                                —                                —",
+		30: "  plan                    —                                —                                —                                —",
+		31: "  extra usage             —                                —                                —                                —",
 		32: "  worth at API prices     —                                —                                —                                —",
 		33: "  against its price       —                                —                                —                                —",
 	}

@@ -26,9 +26,10 @@ func noneOf(word string, k ink) []part {
 	return []part{figureIn(word, boldAs(faintInk, k))}
 }
 
-// periodParts say a figure of the page's period as said says it: but where
-// the period records nothing, as on a fresh install, a dash, as noneOf has
-// it, whatever said says, as 0 requests, none hit, or $0.
+// periodParts say a row of the page's period as said says it: but where the
+// period records nothing, as on a fresh install, a dash, as noneOf has it,
+// in every row, whatever said says, as 0 requests, none hit, or $0, the plan
+// and extra usage among them.
 func periodParts(page views.AccountsPage, said []part, k ink) []part {
 	if !page.Recorded {
 		return noneOf(noFigure.text, k)
