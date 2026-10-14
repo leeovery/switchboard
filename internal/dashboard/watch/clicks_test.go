@@ -335,6 +335,77 @@ func TestWhileThePickerIsOpenAClickActsAsItsKeysAlone(t *testing.T) {
 	}
 }
 
+// pickerOpened is h in colour, its terminal's background dark, with the
+// keys given pressed, as keyed presses them, then the theme picker opened and
+// moved down a theme, which it shows, failing the test where it doesn't open.
+func pickerOpened(t *testing.T, h *harness, keys string) *fakeThemes {
+	t.Helper()
+	themes := &fakeThemes{listing: listing(), choice: theme.One("nord")}
+	h.model.cfg.Themes = themes
+	h.answer(darkBackground)
+	h.keyed(keys + " t down")
+	if !h.model.picker.open {
+		t.Fatalf("t opened no theme picker:\n%s", h.view())
+	}
+	return themes
+}
+
+// While the theme picker is open over a session's page, a click on a turn's
+// row or a request's does nothing, as enter and ↑↓ go to the picker: on the
+// turn chosen, it neither opens it nor sets the theme the picker shows.
+func TestWhileThePickerIsOpenAClickOnASessionsPageDoesNothing(t *testing.T) {
+	tests := []struct {
+		name string
+		// keys are those pressed on the page before the picker opens, and
+		// on what the click lands on, its turn and its request's row.
+		keys      string
+		on        dashboard.Clicked
+		turn, row int
+	}{
+		{name: "the turn chosen", on: dashboard.OnTurn, turn: 3},
+		{name: "another turn", on: dashboard.OnTurn, turn: 2},
+		{name: "a request of the turn open", keys: "enter", on: dashboard.OnRequest, row: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lines := slices.Concat(promptedLines(2, start.Add(-30*time.Minute)), turnsOfRequests(start.Add(-20*time.Minute), 0, 0, 3))
+			h, _ := pageHarness(t, lines)
+			h.openPage(idD28C)
+			themes := pickerOpened(t, h, tt.keys)
+			was, cursor := h.shownPage(), h.model.picker.cursor
+			i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == tt.on && t.Turn == tt.turn && t.Row == tt.row })
+			if i < 0 {
+				t.Fatalf("the page gives no target of %v, turn %d, row %d, among %+v", tt.on, tt.turn, tt.row, h.targets())
+			}
+
+			h.clickOn(h.targets()[i])
+			got := h.shownPage()
+			if !h.model.picker.open || h.model.picker.cursor != cursor || len(themes.kept) > 0 || h.model.open != nothingOpen {
+				t.Errorf("the click left the picker open %t, its cursor on %d, kept %v, card %d open; want the picker open on %d, nothing kept, no card",
+					h.model.picker.open, h.model.picker.cursor, themes.kept, h.model.open, cursor)
+			}
+			if got.Turn != was.Turn || got.Open != was.Open || got.Request != was.Request {
+				t.Errorf("the click chose turn %d, opened %d, request %d; want turn %d, opened %d, request %d, as they were",
+					got.Turn, got.Open, got.Request, was.Turn, was.Open, was.Request)
+			}
+		})
+	}
+}
+
+// While the theme picker is open, a click on a session's row in SESSIONS
+// opens no page of it under the picker.
+func TestWhileThePickerIsOpenAClickOnASessionOpensNoPage(t *testing.T) {
+	h, l := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+	pickerOpened(t, h, "s c l")
+	opening := h.model.opening
+
+	h.deliver(h.update(h.sessionClick(idD28C))...)
+	if h.model.session != nil || h.model.opening != opening || h.model.pending != "" || len(l.asked) > 0 || !h.model.picker.open {
+		t.Errorf("the click opened a page %t, asked %d, %q pending, the ledger read %d times, the picker open %t; want nothing asked, the picker open",
+			h.model.session != nil, h.model.opening-opening, h.model.pending, len(l.asked), h.model.picker.open)
+	}
+}
+
 func TestShowingSessionsAsAnAnswerStreamsDrawsItsFrames(t *testing.T) {
 	h := streamingOn(t, dashboard.Sections{})
 	h.settle()

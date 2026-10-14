@@ -44,23 +44,23 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 
 // clickedOn does what a click on the target does, which is what its key
 // does, the page acting as acting has it: on a tab, it shows it, as showTab
-// has it, unless the theme picker is open, as the tab key does nothing then;
-// on a sub-tab, it shows it, as showSubTab has it, or the Log's; on < or >
-// by a period, it presses it; on a key of the key line, it presses it, as
-// pressOf says, as on the Log's ▼ N new, which presses end; on an
+// has it; on a sub-tab, it shows it, as showSubTab has it, or the Log's; on
+// < or > by a period, it presses it; on a key of the key line, it presses
+// it, as pressOf says, as on the Log's ▼ N new, which presses end; on an
 // Overview's section's heading, it hides the section, as its key does; on
 // an account's row there, it moves the focus to it, as focusOn has it; on a
 // session's row, it opens its page, as openSession has it; on a turn's row
 // on its page, it acts as clickTurn has it, and on a request's row of its
 // turn open, as clickRequest has it; and on a line of the Log's table, it
 // chooses it, as clickedLine has it. Nothing else on the page takes a click
-// yet.
+// yet. While the theme picker is open, a click on what the picker holds, as
+// pickerHolds has it, does nothing.
 func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
+	if m.picker.open && pickerHolds(t.On) {
+		return m, nil
+	}
 	switch t.On {
 	case dashboard.OnTab:
-		if m.picker.open {
-			return m, nil
-		}
 		return m.acting().showTab(t.Tab), nil
 	case dashboard.OnSubTab:
 		if m.view == dashboard.Log {
@@ -88,6 +88,19 @@ func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 		return m.clickedLine(t.Row)
 	}
 	return m, nil
+}
+
+// pickerHolds reports whether a click on a target of the kind given does
+// nothing while the theme picker is open, as the keys it stands for go to
+// the picker then: a tab, as tab does; a session's row, which opens its page
+// as enter would; and a turn's row on its page, or a request's of its turn
+// open, which choose and open them as ↑↓ and enter do.
+func pickerHolds(on dashboard.Clicked) bool {
+	switch on {
+	case dashboard.OnTab, dashboard.OnSession, dashboard.OnTurn, dashboard.OnRequest:
+		return true
+	}
+	return false
 }
 
 // clickedLine acts on a click on the line of the Log's table shown at the
