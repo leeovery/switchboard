@@ -31,10 +31,12 @@ type logGrown struct {
 
 // logBounds are how far back the Log's tables read, where a read asked: the
 // oldest day the ledger keeps, and the oldest the Events read back to; none
-// of either where it couldn't be said, and why.
+// of either where it couldn't be said, and why; and the date of the day it
+// asked on.
 type logBounds struct {
 	oldest, filed *views.OldestDay
 	err           error
+	asked         string
 }
 
 // logReaders are what the Log reads, as the watch's config gives them: the
@@ -175,7 +177,7 @@ func (m Model) refiledFrom(from, now time.Time) (Model, tea.Cmd) {
 // as the tail followed them no further, or the line of a request across
 // midnight could have come on its day after the day turned; reads again the
 // figures of those days alone; and where how far back they read isn't
-// known, asks it again. Awaited is when each day awaiting a line was last
+// known today, as bounded has it, asks it again. Awaited is when each day awaiting a line was last
 // read for it, as the read leaves it.
 type logFold struct {
 	read    views.LogRead
@@ -193,7 +195,7 @@ func (m Model) logFold(now time.Time) logFold {
 	today := views.Today(now)
 	due, awaited := m.log.awaited.due(m.log.page.Requests.Awaited(today), m.logStream(now), now)
 	late := slices.Concat(due, m.tail.missed(today))
-	return logFold{read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), awaited: awaited, asks: !m.log.bounded()}
+	return logFold{read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), awaited: awaited, asks: !m.log.bounded(today.Date)}
 }
 
 // grown is the Log grown, through r, at now, by what a read of the tail
@@ -297,7 +299,7 @@ func (r logReaders) bounds(now time.Time) logBounds {
 	if r.filed != nil {
 		filed, filedErr = r.filed.FirstDay()
 	}
-	var b logBounds
+	b := logBounds{asked: views.Today(now).Date}
 	b.oldest, linesErr = keptFrom(lines, linesErr, r.keep, now)
 	b.filed, filedErr = keptFrom(filed, filedErr, r.keep, now)
 	b.err = errors.Join(linesErr, filedErr)
@@ -359,6 +361,9 @@ func (t logTab) grown(g logGrown) logTab {
 	if g.filed != nil {
 		t.filed = *g.filed
 	}
+	if g.asked != "" {
+		t.boundedOn = g.asked
+	}
 	if g.err != nil && !t.warned {
 		logger.Warn("couldn't read where the request ledger's lines, or the router's events, begin", "error", g.err)
 		t.warned = true
@@ -366,7 +371,9 @@ func (t logTab) grown(g logGrown) logTab {
 	return t
 }
 
-// bounded reports whether the Log knows how far back its tables read.
-func (t logTab) bounded() bool {
-	return t.oldest.Day.Date != "" && t.filed.Day.Date != ""
+// bounded reports whether the Log knows how far back its tables read on
+// the day with the date given: as it asked that day, as the oldest day kept
+// moves on with each.
+func (t logTab) bounded(today string) bool {
+	return t.oldest.Day.Date != "" && t.filed.Day.Date != "" && t.boundedOn == today
 }

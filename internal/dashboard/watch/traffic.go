@@ -2,6 +2,7 @@ package watch
 
 import (
 	"cmp"
+	"iter"
 	"maps"
 	"slices"
 	"time"
@@ -40,18 +41,31 @@ const seenFor = views.IdleHour
 // no longer read it; whether it's live, the stream open and telling what's
 // in flight, as the views trust it; and, the stream opened again, the
 // requests it told of in flight before, by their ids, awaiting its first
-// look, as join has it: nil while none does; and what hears the views'
-// stream of it once as what it told changes, rather than at each frame,
-// shared by every copy: nil where each look hears it afresh. Its maps and
-// moves are its own: what changes it copies them first.
+// look, as join has it: nil while none does; when tidy is next due to let
+// go of something of its requests, calls and moves; how many times its
+// requests have changed, and how many of those changes changed a request's
+// row, as views.Told.SameRow compares it, so what's made of them is made
+// again only as they change; and what hears the views' stream of it once as
+// what it told changes, rather than at each frame, shared by every copy: nil
+// where each look hears it afresh. Its maps and moves are its own: what
+// changes it copies them first, so its requests are another map whenever
+// anything in them changes, as the Hearing reads a change by.
 type traffic struct {
-	requests map[string]views.Told
-	calls    map[callKey]call
-	moves    []move
-	placed   map[seat]string
-	live     bool
-	awaiting map[string]bool
-	heard    *views.Hearing
+	requests            map[string]views.Told
+	calls               map[callKey]call
+	moves               []move
+	placed              map[seat]string
+	live                bool
+	awaiting            map[string]bool
+	due                 dues
+	changes, rowChanges int
+	heard               *views.Hearing
+}
+
+// dues are when tidy next lets go of something of a traffic's requests, of
+// its calls and of its moves: each zero where it has nothing yet to end.
+type dues struct {
+	requests, calls, moves time.Time
 }
 
 // seat is a session's requests of one model, each by its id.
@@ -110,6 +124,7 @@ func (t traffic) took(events []router.StreamEvent, held func(account string) boo
 		t.hear(e, held)
 	}
 	t.moves = shownDone(t.moves, t.placed)
+	t.due = t.dues()
 	t.tidy(now)
 	return t
 }
@@ -166,7 +181,8 @@ func (t *traffic) tell(e router.StreamEvent) {
 	if e.Kind == router.StreamMoved {
 		return
 	}
-	r := t.requests[e.Request]
+	before, had := t.requests[e.Request]
+	r := before
 	if another(r, e) {
 		r = views.Told{}
 	}
@@ -195,6 +211,16 @@ func (t *traffic) tell(e router.StreamEvent) {
 		r.Verdict, r.Status = verdictOf(e.Kind), e.Status
 	}
 	t.requests[e.Request] = r
+	t.changed(!had || !before.SameRow(r))
+}
+
+// changed counts a change to the traffic's requests, that changed a
+// request's row where row is set.
+func (t *traffic) changed(row bool) {
+	t.changes++
+	if row {
+		t.rowChanges++
+	}
 }
 
 // another reports whether e tells of another request than r, the one held
@@ -342,35 +368,96 @@ func (t traffic) showing(now time.Time) (time.Time, bool) {
 	return next, !next.IsZero()
 }
 
-// tidied is the traffic without what has ended by now, as tidy has it, its
-// maps and moves copied first.
+// tidied is the traffic without what has ended by now, as tidy has it, each
+// of its maps and moves copied first where tidy is due to let go of any of
+// it: none where nothing is due, however much it keeps.
 func (t traffic) tidied(now time.Time) traffic {
-	t.requests, t.calls, t.moves = maps.Clone(t.requests), maps.Clone(t.calls), slices.Clone(t.moves)
+	if reached(t.due.requests, now) {
+		t.requests = maps.Clone(t.requests)
+	}
+	if reached(t.due.calls, now) {
+		t.calls = maps.Clone(t.calls)
+	}
+	if reached(t.due.moves, now) {
+		t.moves = slices.Clone(t.moves)
+	}
 	t.tidy(now)
 	return t
 }
 
-// tidy lets go of what has ended by now: the requests no longer in flight
-// that the stream told of last seenFor ago, the calls with nothing more to
-// show, as over has it, and the moves told of seenFor ago. It changes t's
-// maps and moves, which must be its own copies.
+// tidy lets go of what has ended by now, as due says it's due to: the
+// requests no longer in flight that the stream told of last seenFor ago,
+// the calls with nothing more to show, and the moves told of seenFor ago,
+// as toldGoes and each's goes have it. It changes those of t's maps and moves due, which
+// must be its own copies, and leaves the rest be.
 func (t *traffic) tidy(now time.Time) {
-	maps.DeleteFunc(t.requests, func(_ string, r views.Told) bool { return !r.InFlight() && now.Sub(r.Heard) >= seenFor })
-	maps.DeleteFunc(t.calls, func(_ callKey, c call) bool { return c.over(now) })
-	t.moves = slices.DeleteFunc(t.moves, func(m move) bool { return m.over(now) })
+	if reached(t.due.requests, now) {
+		n := len(t.requests)
+		maps.DeleteFunc(t.requests, func(_ string, r views.Told) bool { return reached(toldGoes(r), now) })
+		if len(t.requests) < n {
+			t.changed(true)
+		}
+		t.due.requests = soonest(maps.Values(t.requests), toldGoes)
+	}
+	if reached(t.due.calls, now) {
+		maps.DeleteFunc(t.calls, func(_ callKey, c call) bool { return c.over(now) })
+		t.due.calls = soonest(maps.Values(t.calls), call.goes)
+	}
+	if reached(t.due.moves, now) {
+		t.moves = slices.DeleteFunc(t.moves, func(m move) bool { return m.over(now) })
+		t.due.moves = soonest(slices.Values(t.moves), move.goes)
+	}
 }
 
-// over reports whether the call has nothing more to show at now: done with
-// there, and, answered, its pulse home since.
+// dues are when tidy is next due to let go of something of the traffic's
+// requests, calls and moves.
+func (t traffic) dues() dues {
+	return dues{
+		requests: soonest(maps.Values(t.requests), toldGoes),
+		calls:    soonest(maps.Values(t.calls), call.goes),
+		moves:    soonest(slices.Values(t.moves), move.goes),
+	}
+}
+
+// toldGoes is when the request r is let go of: seenFor after the stream
+// last told of it, once it's no longer in flight; zero while it is.
+func toldGoes(r views.Told) time.Time {
+	if r.InFlight() {
+		return time.Time{}
+	}
+	return r.Heard.Add(seenFor)
+}
+
+// soonest is the soonest any of those given goes, as goes says, zero where
+// none of them goes yet.
+func soonest[T any](all iter.Seq[T], goes func(T) time.Time) time.Time {
+	var first time.Time
+	for v := range all {
+		if at := goes(v); !at.IsZero() && (first.IsZero() || at.Before(first)) {
+			first = at
+		}
+	}
+	return first
+}
+
+// reached reports whether now has reached at, never where at is zero.
+func reached(at, now time.Time) bool {
+	return !at.IsZero() && !now.Before(at)
+}
+
+// over reports whether the call has nothing more to show at now, as goes has
+// it.
 func (c call) over(now time.Time) bool {
-	if c.ended.IsZero() {
-		return false
+	return reached(c.goes(), now)
+}
+
+// goes is when the call has nothing more to show: once done with there,
+// and, answered, its pulse home since; zero while it's not done with.
+func (c call) goes() time.Time {
+	if c.ended.IsZero() || c.doing != dashboard.Answered {
+		return c.ended
 	}
-	home := c.ended
-	if c.doing == dashboard.Answered {
-		home = home.Add(pulseFor)
-	}
-	return !now.Before(home)
+	return c.ended.Add(pulseFor)
 }
 
 // shown reports whether the call shows at now: with more to show, and,
@@ -384,7 +471,12 @@ func (c call) shown(now time.Time) bool {
 // listing of the router's sessions has shown it done and its cord, held or
 // faded, no longer hangs, until a line of the model's own takes over.
 func (m move) over(now time.Time) bool {
-	return now.Sub(m.at) >= seenFor
+	return reached(m.goes(), now)
+}
+
+// goes is when the move is let go of, as over has it.
+func (m move) goes() time.Time {
+	return m.at.Add(seenFor)
 }
 
 // showsAt reports whether the move shows at now: from when it shows, until
@@ -522,11 +614,18 @@ func shownDone(moves []move, placed map[seat]string) []move {
 // its last listing put each seat.
 func (t traffic) afresh() traffic {
 	requests := make(map[string]views.Told, len(t.requests))
+	lost := false
 	for id, r := range t.requests {
 		r.Lost = r.Ended.IsZero()
+		lost = lost || r.Lost != t.requests[id].Lost
 		requests[id] = r
 	}
-	return traffic{requests: requests, moves: t.moves, placed: t.placed, heard: t.heard}
+	forgot := traffic{requests: requests, moves: t.moves, placed: t.placed, changes: t.changes, rowChanges: t.rowChanges, heard: t.heard}
+	if lost {
+		forgot.changed(true)
+	}
+	forgot.due = forgot.dues()
+	return forgot
 }
 
 // unheard is the traffic once the watch no longer hears the stream, as it
@@ -593,6 +692,7 @@ func (t *traffic) settle() {
 		if r, ok := t.requests[id]; ok && r.InFlight() {
 			r.Lost = true
 			t.requests[id] = r
+			t.changed(true)
 		}
 	}
 	t.awaiting, t.live = nil, true
@@ -606,6 +706,7 @@ func (t traffic) settled() traffic {
 	}
 	t.requests = maps.Clone(t.requests)
 	t.settle()
+	t.due.requests = t.dues().requests
 	return t
 }
 

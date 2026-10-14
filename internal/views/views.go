@@ -35,6 +35,7 @@ type LedgerStart interface {
 // grows, as a ledger.Follower does.
 type Ledger interface {
 	LedgerDays
+	LedgerDates
 	// Today gives today's lines read since mark, and the Mark they're read
 	// to, reporting afresh where they're every one of today's, for those
 	// read before to be let go of.

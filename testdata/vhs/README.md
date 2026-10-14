@@ -1221,13 +1221,12 @@ own rules, which the test holds to the frame's, cell for cell.
 
 ### Adding a fixture
 
-1. Add it to `fixtures` in `internal/capture/capture.go`, named after the frame it draws: the
-   frame's size, the world it's drawn over, and the keys that reach it. `Names` and `ByName` both
-   read that one list, and the two drawn over the worlds, built as they're asked for: a page the
-   watch draws over a world goes in `pages`, with its world and keys, and a printout of `usage` in
-   `printouts`, with how it groups the windows and which it prints, as its flags have them, and its
-   flags in `TestAPrintoutIsWhatUsagePrintsOfItsRouter`, which holds it to what `usage` prints given
-   them. Where `holds` holds part of its frame, take its stem from there.
+1. Add it to `pages` or `printouts` in `internal/capture/capture.go`, named after the frame it
+   draws: the frame's size, the world it's drawn over, and the keys that reach it. `Names` and
+   `ByName` both read the two, each fixture built as it's asked for: a page the watch draws over a
+   world goes in `pages`, with its world and keys, and a printout of `usage` in `printouts`, with
+   how it groups the windows and which it prints, as its flags have them, and its flags in
+   `TestAPrintoutIsWhatUsagePrintsOfItsRouter`, which holds it to what `usage` prints given them.
 2. Delete its stem from `owed` in `internal/capture/reference_test.go`: from then on, the test
    holds it to its frame.
 3. Where the frame drew a cell otherwise than the design says, the design holds; where its world

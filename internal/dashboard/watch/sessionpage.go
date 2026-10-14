@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"maps"
 	"slices"
 	"time"
 
@@ -240,7 +241,8 @@ type pageBasis struct {
 // same reports whether b is o, the page made of one as of the other.
 func (b *pageBasis) same(o pageBasis) bool {
 	return b != nil && b.taken == o.taken && sameSlice(b.listed, o.listed) && b.unlisted == o.unlisted &&
-		toldBy(b.told).same(toldBy(o.told)) && slices.Equal(b.told.Moves, o.told.Moves) && b.open == o.open && b.at.Equal(o.at)
+		b.told.Live == o.told.Live && maps.Equal(b.told.Requests, o.told.Requests) && slices.Equal(b.told.Moves, o.told.Moves) &&
+		b.open == o.open && b.at.Equal(o.at)
 }
 
 // pageBasis is what the session's page open is made of, of live, what it's

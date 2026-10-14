@@ -161,16 +161,49 @@ func (f *Follower) Days(from time.Time) []Summary {
 	return summaries
 }
 
+// DaysOn returns the summaries of the local days with the dates given,
+// oldest first, each once, as Days gives them from the earliest: none of a
+// date Days gives none of, before the first day the ledger holds or after
+// today's. Only those days' files are looked at, however long ago they
+// were.
+func (f *Follower) DaysOn(dates []string) []Summary {
+	wanted := slices.Compact(slices.Sorted(slices.Values(dates)))
+	if len(wanted) == 0 {
+		return nil
+	}
+	from, _, ok := dayfile.Day(wanted[0])
+	if !ok {
+		return nil
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := f.now()
+	reachOf := f.days.reaching(func() ([]string, error) { return f.readingsDates(now) }, &f.unlisted)
+	first, today := dayfile.DateOf(f.start(from, now)), dayfile.DateOf(now)
+	var summaries []Summary
+	for _, date := range wanted {
+		if date >= first && date <= today {
+			summaries = append(summaries, f.summaryOf(date, now, reachOf))
+		}
+	}
+	return summaries
+}
+
 // dates returns the dates of the local days from from's to today's that a
-// read of the ledger's days gives, at now, as start says, the first day the
-// ledger holds as firstDay gives it: today's alone, without a look at the
-// ledger, where from is today.
+// read of the ledger's days gives, at now, from where start says.
 func (f *Follower) dates(from, now time.Time) []string {
+	return dayfile.Span(f.start(from, now), now)
+}
+
+// start returns where a read of the ledger's days from from on, at now,
+// starts, as days.start says, the first day the ledger holds as firstDay
+// gives it: now, without a look at the ledger, where from is today.
+func (f *Follower) start(from, now time.Time) time.Time {
 	if dayfile.DayStart(from.Local(), 0).Equal(dayfile.DayStart(now.Local(), 0)) {
-		return dayfile.Span(now, now)
+		return now
 	}
 	first, err := f.firstDay(now)
-	return dayfile.Span(f.days.startFrom(first, err, from, now), now)
+	return f.days.startFrom(first, err, from, now)
 }
 
 // summaryOf returns the summary of the local day with the given date, as

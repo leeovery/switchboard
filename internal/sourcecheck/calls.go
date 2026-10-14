@@ -21,6 +21,11 @@ type CallBan struct {
 	// argument it can't judge, as the type checker lost its type to a
 	// package the loader stubs: nil where it judged them all.
 	Breaks func(call *ast.CallExpr, info *types.Info) (breaks bool, lost ast.Expr)
+	// Seen has the ban judge only the calls of the function the type
+	// checker sees: its name selected from what the loader lost isn't taken
+	// for it, as a ban on a method as common as String would otherwise fail
+	// that of every value a stubbed package gives.
+	Seen bool
 }
 
 // judge is how the call breaks the rule, by its arguments, as Breaks judges

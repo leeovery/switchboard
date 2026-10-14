@@ -194,12 +194,11 @@ type Reply struct {
 	Limits map[string]string `json:"limits,omitempty"`
 }
 
-// Upstream reports whether the line's request is one that spends quota and
-// went upstream: a message, never the client's quota check or a count of
-// tokens, the router having sent it on at least once rather than answering
-// it itself.
+// Upstream reports whether the line's request went upstream, as a day's
+// summary tallies it and the traces count it: one Counted counts, the router
+// having sent it on at least once rather than answering it itself.
 func (l *Line) Upstream() bool {
-	return l.Kind == KindMessage && l.Attempts > 0
+	return l.Counted() && l.Attempts > 0
 }
 
 // Counted reports whether the line's request is one every view and command
@@ -239,17 +238,11 @@ func Failing(status int) bool {
 	return status == 0 || status >= 400
 }
 
-// sentOn reports whether the line's request went upstream as a day's summary
-// tallies it: one Counted counts, the router having sent it on at least once.
-func (l *Line) sentOn() bool {
-	return l.Counted() && l.Attempts > 0
-}
-
-// unmetered reports whether the line's request went upstream, as sentOn
+// unmetered reports whether the line's request went upstream, as Upstream
 // says, but its answer gave no usage, as one cut short or an error gives
 // none: what it spent is unknown, which is never taken for none.
 func (l *Line) unmetered() bool {
-	return l.sentOn() && len(l.Usage) == 0
+	return l.Upstream() && len(l.Usage) == 0
 }
 
 // Tokens returns the tokens the reply's usage counts, reporting false where

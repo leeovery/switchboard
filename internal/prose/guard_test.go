@@ -12,7 +12,12 @@ import (
 // These tests read the module's source, so a package can't word a plain
 // value for itself, rather than through prose, where each form has one owner
 // and is changed once, without failing here: a time by a layout of its own, a
-// span, a float or money by fmt, a float by strconv, or text cut short.
+// span, a float or money by fmt, a span or a time as Go's String does, a
+// float by strconv, or text cut short. A printer is judged by the static
+// types of what it's given, so a value boxed in an any, or spread as
+// args..., passes it unseen; and a String by the type it's called on where
+// the loader sees it, so one called on a value it lost to a package it
+// stubs passes unseen too, as String is every such value's.
 
 // tellingPackages are the packages that tell people what they show, by
 // directory from the module's root: each words a time, a span, a float and
@@ -47,6 +52,11 @@ var wordingAllowed = []string{
 	// A name, not a span: a window of whole hours, called by its length as
 	// "5-hour" wherever a window's named, its hours a count.
 	"internal/status/moment.go:NameOfWindow",
+	// The wire's, not words: a step asked for in GET /history's query, and
+	// a most age in POST /refresh's body, as the router parses each with
+	// time.ParseDuration.
+	"internal/router/client.go:Client.History",
+	"internal/router/client.go:Client.Refresh",
 }
 
 // What breaks the rule, each by its full name, its package's path then, of a
@@ -70,6 +80,9 @@ var (
 	floatWorders = []string{"strconv.AppendFloat", "strconv.FormatFloat"}
 	// cutters are ansi's, which cut text short whatever they're given.
 	cutters = []string{"github.com/charmbracelet/x/ansi.Truncate", "github.com/charmbracelet/x/ansi.TruncateLeft"}
+	// goWorders are the plain values' own String methods, which word them
+	// as Go does.
+	goWorders = []string{"(time.Duration).String", "(time.Time).String"}
 )
 
 // money is the module's money, by its path under the module's, which words
@@ -82,6 +95,7 @@ const (
 	operandFix = "word it with prose's spans or figures, or with Picodollars' own methods"
 	floatFix   = "word it with prose's figures"
 	cutFix     = "cut it with prose.Cut, CutShort or CutFront"
+	goFix      = "word it with prose's spans or times"
 	allowedFix = "remove it from wordingAllowed in internal/prose/guard_test.go"
 )
 
@@ -103,6 +117,10 @@ func cutSays(name string) string {
 	return name + " cuts text short; " + cutFix
 }
 
+func goSays(name string) string {
+	return name + " words a span or a time as Go does; " + goFix
+}
+
 func TestPlainValuesAreWordedByProseAlone(t *testing.T) {
 	root := sourcecheck.ModuleRoot(t)
 	sourcecheck.ReportEach(t, wordingBreaches(t, root, sourcecheck.ModulePath(t, root), wordingAllowed))
@@ -111,8 +129,8 @@ func TestPlainValuesAreWordedByProseAlone(t *testing.T) {
 // wordingBreaches are where the non-test files of the packages of the module
 // at root with the given path, but prose's, break the rule, but in the files
 // and functions allowed: in tellingPackages, each time worded by a constant
-// layout but a key, and each fmt printer given a plain value or money; and
-// in every package, each float worded by strconv, and each text cut by
+// layout but a key, each fmt printer given a plain value or money, and each
+// span or time worded by its own String; and in every package, each float worded by strconv, and each text cut by
 // ansi. Each is found used as a value too, as what it's given then can't be
 // judged. Then each file or function allowed that's gone, or keeps the rule.
 func wordingBreaches(t *testing.T, root, module string, allowed []string) []string {
@@ -139,6 +157,9 @@ func wordingRule(module string) sourcecheck.Rule {
 	for _, name := range cutters {
 		calls[name] = sourcecheck.CallBan{Says: cutSays(name)}
 	}
+	for _, name := range goWorders {
+		calls[name] = sourcecheck.CallBan{Says: goSays(name), In: tellingPackages, Seen: true}
+	}
 	return sourcecheck.Rule{Names: sourcecheck.NamesIn(module), Calls: calls}
 }
 
@@ -158,6 +179,7 @@ func TestTheWordingGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/config/config.go:10: " + floatSays("strconv.FormatFloat"),
 		"internal/dashboard/times.go:7: " + layoutSays("(time.Time).Format"),
 		"internal/dashboard/times.go:8: " + layoutSays("(time.Time).AppendFormat"),
+		"internal/dashboard/times.go:12: " + goSays("(time.Time).String"),
 		"internal/dashboard/values.go:14: " + operandSays("fmt.Fprintf"),
 		"internal/dashboard/values.go:16: " + operandSays("fmt.Sprintf"),
 		"internal/dashboard/values.go:17: " + operandSays("fmt.Sprint"),
@@ -167,6 +189,7 @@ func TestTheWordingGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/dashboard/values.go:23: " + cutSays("github.com/charmbracelet/x/ansi.Truncate"),
 		"internal/dashboard/values.go:24: " + cutSays("github.com/charmbracelet/x/ansi.TruncateLeft"),
 		"internal/dashboard/values.go:25: " + operandSays("fmt.Sprint"),
+		"internal/dashboard/values.go:26: " + goSays("(time.Duration).String"),
 		"internal/dashboard/allowed.go:kept: wordingAllowed allows it, but it keeps the rule; " + allowedFix,
 	}
 	if !slices.Equal(got, want) {
@@ -214,6 +237,7 @@ func times(now time.Time, layout string) []any {
 		now.Format(time.DateOnly),
 		now.Format(time.RFC3339),
 		now.Format(layout),
+		now.String(),
 	}
 }
 `,
@@ -242,6 +266,7 @@ func values(w io.Writer, took time.Duration, share float32, rate float64, worth 
 		ansi.Truncate("text", 2, ""),
 		ansi.TruncateLeft("text", 2, ""),
 		fmt.Sprint,
+		took.String(),
 	}
 }
 `,
@@ -268,7 +293,7 @@ import (
 )
 
 func said(now time.Time, took time.Duration, price float64) []any {
-	return []any{now.Format("15:04"), fmt.Sprint(took), strconv.FormatFloat(price, 'g', -1, 64)}
+	return []any{now.Format("15:04"), fmt.Sprint(took), strconv.FormatFloat(price, 'g', -1, 64), took.String(), now.String()}
 }
 `,
 }

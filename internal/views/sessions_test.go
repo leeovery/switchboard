@@ -127,6 +127,10 @@ func (f fakeLedger) Days(time.Time) []ledger.Summary {
 	return f.summaries
 }
 
+func (f fakeLedger) DaysOn(dates []string) []ledger.Summary {
+	return slices.DeleteFunc(slices.Clone(f.summaries), func(s ledger.Summary) bool { return !slices.Contains(dates, s.Day) })
+}
+
 func (f fakeLedger) Today(ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
 	start := dayfile.DayStart(f.now, 0)
 	var today []ledger.Held

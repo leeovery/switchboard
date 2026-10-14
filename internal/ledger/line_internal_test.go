@@ -38,7 +38,7 @@ func TestALineIsCutToWhatTheLedgerHolds(t *testing.T) {
 	}
 }
 
-func TestARequestUpstreamIsAMessageTheRouterSentOn(t *testing.T) {
+func TestARequestUpstreamIsOneCountedTheRouterSentOn(t *testing.T) {
 	tests := []struct {
 		name     string
 		kind     string
@@ -50,12 +50,19 @@ func TestARequestUpstreamIsAMessageTheRouterSentOn(t *testing.T) {
 		{name: "a message the router answered itself", kind: KindMessage},
 		{name: "the client's quota check", kind: KindCheck, attempts: 1},
 		{name: "a count of tokens", kind: KindCount, attempts: 1},
-		{name: "a line of no kind, which the router never writes", attempts: 1},
-		{name: "a kind a later router adds", kind: "batch", attempts: 1},
+		{name: "a line of no kind, which the router never writes", attempts: 1, want: true},
+		{name: "a kind a later router adds", kind: "batch", attempts: 1, want: true},
+		{name: "a kind a later router adds, answered by the router itself", kind: "batch"},
 	}
 	for _, tt := range tests {
-		if got := (&Line{Kind: tt.kind, Attempts: tt.attempts}).Upstream(); got != tt.want {
+		l := &Line{Kind: tt.kind, Attempts: tt.attempts}
+		if got := l.Upstream(); got != tt.want {
 			t.Errorf("%s: Upstream() = %v, want %v", tt.name, got, tt.want)
+		}
+		day := make(tally)
+		day.line(l)
+		if got := day.account("").model(keyOf(l)).day.Upstream == 1; got != tt.want {
+			t.Errorf("%s: a day's summary tallies it upstream = %v, want %v, as Upstream says", tt.name, got, tt.want)
 		}
 	}
 }
