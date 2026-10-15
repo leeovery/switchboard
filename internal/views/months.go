@@ -25,12 +25,12 @@ func (m Month) LimitCount() int {
 	return limitCount(m.Limits)
 }
 
-// monthsOf are BY MONTH's rows over days, asked for from the day with the
+// monthsOf are BY MONTH's rows over days, counted from the day with the
 // date from, a month each. A month costs its plans' monthly prices whole, as
-// of its first day, the month the ledger began part-way through among them,
-// but for one the days asked for begin part-way through, as cutShort says;
-// the month so far, that of the day with the date today, has no ratio, as
-// it's still running.
+// of its first day, but for the one the days counted begin part-way through,
+// as the month a young ledger began in, as pricedOver prices it; the month
+// so far, that of the day with the date today, has no ratio, as it's still
+// running.
 func monthsOf(days []Day, p plans, v versions, from, today string) []Month {
 	months := []Month{}
 	for _, s := range spansOf(days, monthKey) {
@@ -44,8 +44,7 @@ func monthsOf(days []Day, p plans, v versions, from, today string) []Month {
 		}
 		m.ByFamily = v.byFamily(sums)
 		first, _ := dayfile.MonthStart(s.key)
-		priced, at := cutShort(s.key+"-01", first.AddDate(0, 1, -1).Format(time.DateOnly), from, aMonth)
-		m.Against = p.against(accountWorths(s.days), at, priced)
+		m.Against = p.against(accountWorths(s.days), pricedOver(s.key+"-01", first.AddDate(0, 1, -1).Format(time.DateOnly), from, aMonth))
 		if strings.HasPrefix(today, s.key+"-") {
 			m.Ratio = nil
 		}

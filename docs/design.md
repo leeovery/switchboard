@@ -724,7 +724,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, and every interval has the router read the accounts it hasn't read in that time (see Live updates): 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. Without the router, or with `--probe`, it probes every account instead, each interval. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
 | `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
-| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts and History count, each account's plan and its worth against it, each week's peaks, Weeks' verdicts on the accounts (see Accounts, History), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"prices_as_of": "2026-10-07", "days": [{"version": 4, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
+| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts and History count, each account's plan and its worth against it, each week's peaks, Weeks' verdicts on the accounts (see Accounts, History), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"prices_as_of": "2026-10-07", "days": [{"version": 5, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
 | `sessions [<id>] [--json \| --pretty]` | Today's sessions, as Sessions' List has them: those running, the oldest started first, then those that ended today, the latest ended first, a line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering or idle since it was last seen, or when it ended, when it started, its requests and their worth today, and how it came to its account; then a line summing them. `<id>`, a session's id or as much of it as is unique among the sessions read, as `requests --session` takes it, prints that session as its page has it: where it runs and why, each account it ran on, its turns, newest first, and its totals (see A session's page). Its JSON: see The data verbs. It reads the ledger's files, and the router's sessions where it answers |
 | `events [--since <when>] [-f] [--json \| --pretty]` | The router's events, as the Log's Events have them (see The Log): today's, unless `--since` reaches further back, as `requests` takes it, oldest first, under the day each happened on, a line each, each event once, as it last stood, with the time, the session, if any, cut short, the kind, the account, and what happened. `-f`, `--follow` then prints a line each time the router files one, a changed event again, until interrupted, as `logs --follow` follows a log. Its JSON: see The data verbs. It reads the events' files, which outlast a restart (see The router's events), so it needs no router |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
@@ -824,9 +824,12 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
       at API prices, and its `worth`; and `busiest_day` and `longest_run`: as Accounts and History
       count them (see Accounts, History).
     - `plans`: each account's `plan` (see Config) and its `price` a month, from the dated table
-      (see The request ledger), with what it cost over those days, `cost`, prorated, and the
-      worth `against` it, a ratio; left out of an account whose plan isn't known. An entry for all
-      accounts sums them.
+      (see The request ledger), with what it cost over those days, `cost`, prorated, from the
+      ledger's first day where it began after the first asked for, and the worth `against` it, a
+      ratio; left out of an account whose plan isn't known. An entry for all accounts sums them,
+      over the accounts whose plans are known alone, and says how many those are of how many
+      accounts there are, `"plans": {"known": 2, "of": 3}`, as each of `months`' and `tokens`'
+      against its price does too (the owner's call, 15 October 2026).
     - `weeks`: each week those days span, from the day `week_starts` names: each account's
       `peaks`, its own week's highest use of each window, placed as Weeks places it, and its
       `limits`; and `all accounts`' peaks: every account's, whatever was pinned (see History).
@@ -1767,12 +1770,19 @@ holds.
   millions and cost little, count for little.
 - **Against its price:** worth over what the plans cost for the same period, a plan's monthly price
   prorated, a day being 12/365 of a month (settled in the plan), a week 12/52 of a month, 30 days a
-  month and 12 weeks twelve weeks' (settled in the plan), and a period so far priced whole. It reads
-  `4.0×`, bold, in `state.positive` at 1× or more and `accent.attention` under, then ` its $46 week`
-  in `text.subtle`, the price to the dollar. A plan's price is the price table's, or the config's
-  (see Config). An account without a `plan` shows `—` for it and no ratio, and `all accounts` sums
-  the plans it knows, `$400/mo · 2 of 3 plans`, its ratio counting only their accounts' worth
-  (settled in the plan).
+  month and 12 weeks twelve weeks' (settled in the plan), and a period so far priced whole. A period
+  the ledger began part-way through, as a fresh install's week, is priced from the ledger's first
+  day, a day each to the period's end, or today's for today and 30 days, as `history` and History
+  price it, as there's no worth for the days before to set against it (the owner's call, 15 October
+  2026): Max 20x's week from a Wednesday costs $33, not its whole week's $46. It reads `4.0×`, bold,
+  in `state.positive` at 1× or more and `accent.attention` under, then ` its $46 week` in
+  `text.subtle`, the price to the dollar. A plan's price is the price table's, or the config's (see
+  Config). An account without a `plan` shows `—` for it and no ratio, and `all accounts` sums the
+  plans it knows, `$400/mo · 2 of 3 plans`, its ratio counting only their accounts' worth (settled
+  in the plan), and saying so, where any account's plan isn't known: ` · 2 of 3 plans known` after
+  its price, in `text.subtle`, `4.4× its $92 week · 2 of 3 plans known`, as the worth beside it is
+  every account's (the owner's call, 15 October 2026); where that doesn't fit its column, as
+  Compare's at 160 with three accounts, `known` goes, `· 2 of 3 plans`.
 - **Periods are rolling,** never billing months, as switchboard knows no renewal date: today, from
   midnight; this week, from its first day, as `week_starts` sets it (see Config); 30 days, today and
   the 29 before it; and 12 weeks, this week and the 11 before it, `<` and `>` stepping through them
@@ -1869,7 +1879,8 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
   full words (see `usage`, the printout). For `all accounts`, every account's window together, its
   words its room, `1.2 of 3 left`.
 - **THIS WEEK,** on USAGE's row, rows 8 to 13, so its last row is level with the last window's:
-  `requests`, `limits`, `plan`, `worth` with its ratio, `$184  4.0×`, and `extra use`, labels 10
+  `requests`, `limits`, `plan`, `worth` with its ratio, `$184  4.0×`, `all accounts`' saying it's
+  over the plans known where any isn't, `$635  4.3× · 2 of 3 plans known`, and `extra use`, labels 10
   wide in `text.subtle`; for `all accounts`, `limits` is how many and `plan` the plans summed,
   `$600/mo`. It starts at the fifth week's column of BY DAY below, `cx + 4 × step`, column 108. Its
   title names the period: `THIS WEEK`, or `LAST 30 DAYS`.
@@ -2023,16 +2034,20 @@ section holds.
   wide in `text.subtle` and values in `text.secondary`: `requests`, `236,410`; `sessions`, `1,688`,
   each counted once; `limits hit`, `5-hour ×402`, in `state.destructive`, those of more than one
   window joined by ` · `, `5-hour ×402 · week ×3` (settled in the plan); `worth`, `$27,480`;
-  `plans cost`, `$7,200`, the plans' monthly prices over the months; `against it`, `3.8×`, bold, in
-  `state.positive` at 1× or more and `accent.attention` under; `busiest day`, the day of the most
-  requests, `Tue 22 Sep`; and `longest run`, the most days in a row with any request, `58 days`.
+  `plans cost`, `$7,200`, the plans' monthly prices over the months, from the ledger's first day
+  where it began part-way through them, as Against its price prices a young ledger's period (see
+  Accounts); `against it`, `3.8×`, bold, in `state.positive` at 1× or more and `accent.attention`
+  under; `busiest day`, the day of the most requests, `Tue 22 Sep`; and `longest run`, the most days
+  in a row with any request, `58 days`.
 - **BY MONTH,** row 17, `worth at API prices; against what the plans cost that month` after it in
   `text.faint`. On row 18, its columns' heads in `text.subtle`: `requests` at 14, `worth` at 26,
   `against` at 38, `limits` at 48 and `by model` at 60. From row 19, a row a month, oldest first,
   its name at column 2, the first with its year, `Oct 2025`, the current month's bold; values in
-  `text.secondary`; `against` bold, coloured as against its price is, and `—` in `text.faint` for
-  the month so far; `limits` in `state.destructive`. At column 60, a bar as long as the month's
-  worth against the largest month's, 30 cells at most and 1 at least, split by family, each cell `▅`
+  `text.secondary`; `against` bold, coloured as against its price is, the month the ledger began
+  recording in priced from its first day, as the numbers price it (the owner's call, 15 October
+  2026), and `—` in `text.faint` for the month so far; `limits` in `state.destructive`. At column
+  60, a bar as long as the month's worth against the largest month's, 30 cells at most and 1 at
+  least, split by family, each cell `▅`
   in its family's colour, or in `text.muted` for a family with no colour of its own, as one the
   version table doesn't know (settled in the plan), so bars on neighbouring rows don't merge; two
   cells after a part month's bar, `so far`, or `from the 16th` for the month the ledger began
@@ -2181,7 +2196,9 @@ account.
   `28 Sep`, by day its day, `Thu 1 Oct`, and by month its month, `Oct 2026` (settled in the plan),
   this week as any other, bold `text.primary`; how many model versions it used, `6 models`, in
   `text.muted`; its counts and worth, bold `text.primary`; and against its price,
-  `4.6× its $138 week`.
+  `4.6× its $138 week`, the period a young ledger began in priced from its first day, and over the
+  plans known where any account's isn't, `4.4× its $92 week · 2 of 3 plans known`, as Accounts says
+  it (the owner's call, 15 October 2026).
 - **`v` splits each period:** **by account,** the default, a row each, `└ ` in `text.faint` and the
   account in `text.secondary` at 0, its versions' count at 14 in `text.subtle`, and its counts and
   worth in `text.muted`; **by model,** a row each version, `└ opus-5-5`, its id without `claude-`,
@@ -2893,7 +2910,9 @@ foot. The Log is drawn in the Paper file *Switchboard · Session and Log*, on it
   A move, on the request that moved: `from ` in `text.muted`, the account it left in
   `text.secondary`, why in `text.muted` (`, at its cap`), two spaces, and in `accent.attention` what
   writing its context again is worth, `from work, at its cap  $1.82`: its cache write, priced
-  exactly, so with no `≈`. A session's first request: `new session` in `text.muted`.
+  exactly, so with no `≈`, and `unpriced` where the price table can't price its model, as a
+  session's page says it, never left unsaid (the owner's call, 15 October 2026). A session's first
+  request: `new session` in `text.muted`.
 - **`worth`,** 6 wide, right-aligned, off until `f` shows it: what the request would have cost
   through the API, `$0.15`, `<$0.01` under half a cent, `unpriced` for a model the price table
   doesn't know, in `text.muted`. Shown, it goes between `out` and `stopped`, moving the two after it
@@ -2916,7 +2935,8 @@ foot. The Log is drawn in the Paper file *Switchboard · Session and Log*, on it
   in `text.muted`.
 - **Hidden until shown:** Claude Code's quota checks and its token counts, the ledger's kinds
   `check` and `count`. The heading counts them, and `f` shows them: then each has `·` in
-  `text.faint` for a mark, `stopped` blank, and its tokens as they are (settled in the plan).
+  `text.faint` for a mark, `stopped` blank, and its tokens as they are (settled in the plan); a
+  check is worth nothing, `$0.00`, whatever it spent, as no view prices it (see Worth).
 - **Requests no frame draws:** one sent again after a limit has its `tried` in `routing`
   (`after work's limit`); one every account refused, its 429 passed on, reads as failed; one
   answered by the router itself has no `first`; one cut off or given up, `status` 0, reads as
@@ -2962,7 +2982,7 @@ filling in as its line comes (settled in the plan).
   | 19 | `<ACCOUNT>'S WINDOWS AFTER IT` | from `limits`, as the answer left them: `5-hour` and `week`, each use bold in its level's colour (see `usage`, the printout), and a model's window where the answer gave it; `status` |
   | 69 | `ASKED` | `model`; `size`, `shape.bytes` (`482 KB`); `messages`, `system` (`3 blocks`) and `tools`, `shape`'s counts; `max_tokens`; `thinking`, its budget; `effort`, `output_config`'s; `stream`, `yes` or `no` |
   | 94 | `ANSWERED` | `status`; `model`, `answer.model`, the one that served it; `first byte`, `first_ms`; `ended`, `total_ms`; `stopped`, `answer.stop` and its tools as the table words them; `blocks`, `answer.blocks` (`2 thinking, 1 text, 1 tool use`) |
-  | 94 | `TOKENS` | `in`, `usage.input_tokens`; `from cache`, the cache reads; `cached`, the cache writes, bold `accent.attention` where the request moved its session, then their lifetime in `text.muted` (` for an hour`, ` for 5 minutes`, from `usage.cache_creation`); `out`; `worth`, bold `text.secondary`, then ` at API prices` in `text.muted`; `the move`, its cache write priced, bold `accent.attention`, then ` of it` in `text.muted` |
+  | 94 | `TOKENS` | `in`, `usage.input_tokens`; `from cache`, the cache reads; `cached`, the cache writes, bold `accent.attention` where the request moved its session, then their lifetime in `text.muted` (` for an hour`, ` for 5 minutes`, from `usage.cache_creation`); `out`; `worth`, bold `text.secondary`, then ` at API prices` in `text.muted`; `the move`, its cache write priced, bold `accent.attention`, then ` of it` in `text.muted`, or `unpriced` alone where the price table can't price it (the owner's call, 15 October 2026) |
 
   `from` in `ROUTED`, and `the move`, belong to a request that moved its session, and are left
   out of any other, which makes its card a row shorter.
@@ -2982,9 +3002,11 @@ filling in as its line comes (settled in the plan).
   - `WORK THEN`: `5-hour` and `week`, each bold in its level's colour; `resets`, `17:10`;
     `sessions`, `3 on it`;
   - `WHAT FOLLOWED`: a row each session it moved, named by its id, `moved to side` and three
-    spaces then what writing its context again was worth, in `accent.attention`; `new sessions`,
-    `go elsewhere till 17:10`; `in all`, the moves' sum, bold `accent.attention`, then ` to cache
-    them again` in `text.muted`.
+    spaces then what writing its context again was worth, in `accent.attention`, `unpriced` where
+    the price table can't price it; `new sessions`, `go elsewhere till 17:10`; `in all`, the moves'
+    sum, bold `accent.attention`, `+` after it where some are unpriced, as a worth part unpriced
+    reads, `$3.64+`, and `unpriced` where all are, then ` to cache them again` in `text.muted`. A
+    move's own card says `request`, `cached again` and `the move`, its cost, or `unpriced`.
 - **The card's keys,** on its last row but one, right-aligned two cells in from its edge, three
   spaces apart, each key bold `accent.key` and its words in `text.muted`:
   - a request's: `↑↓ previous/next request   s its session   esc close`;
@@ -3072,7 +3094,7 @@ wide; `event` from 31, 8 wide; `account` from 41, 16 wide; and `what happened` f
 | Mark | `event` | `account` | `what happened` |
 |---|---|---|---|
 | `▲` `accent.mode` | `started` | where it started | nothing |
-| `▸` `accent.key` | `moved` | `work → side` | why, in the views' words: `work reached its cap`, `personal reached its limit`, `personal came under pressure, its 5-hour to run out at 15:10`, `pinned to side`, `rescored after 15h idle` (settled in the plan); and where it wrote its context again, three spaces and `182k cached again, $1.82`, in `accent.attention` |
+| `▸` `accent.key` | `moved` | `work → side` | why, in the views' words: `work reached its cap`, `personal reached its limit`, `personal came under pressure, its 5-hour to run out at 15:10`, `pinned to side`, `rescored after 15h idle` (settled in the plan); and where it wrote its context again, three spaces and `182k cached again, $1.82`, in `accent.attention`, or `182k cached again, unpriced` where the price table can't price it, as a session's page says it (the owner's call, 15 October 2026) |
 | `◔` `accent.attention` | `pressure` | the account | `its 5-hour to run out at 16:05` (settled in the plan) |
 | `╎` `accent.attention` | `cap` | the account | `95% of its 5-hour window: its 3 sessions move to side as their next requests come` |
 | `■` `state.destructive` | `limit` | the account | `its 5-hour window, till 23:58: its session moves to side` |
@@ -3317,7 +3339,8 @@ ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`.
     cap → side`, `rescored after 15h idle → personal`;
   - where the move cost something, ` · `, the tokens it wrote again bold `accent.attention`
     (`182k`), ` cached again, `, and their worth at API prices, bold `accent.attention` (`$1.82`):
-    its request's cache write, priced;
+    its request's cache write, priced; `unpriced` in its place, in `text.muted`, where the price
+    table can't price it, as the Log says it too;
   - two spaces, its time in `accent.attention` (`14:31`), a space, and the marker.
   - With no room at the marker's left, the label starts two cells to its right, the time first:
     `┊ 09:12  rescored after 15h idle → personal`.
@@ -3357,11 +3380,16 @@ first ran on them:
 - right-aligned to the last column, its worth at API prices, in `text.secondary`: `$41.06`.
 - **A turn that moved splits** between the two, each request counted on the account that answered
   it, the context written again on the account it moved to. The rows' requests and worth add up to
-  TURNS', each rounded on its own, so the rows can come a cent apart from it; a request the router
+  TURNS', the worths to the cent too: TURNS' total is their sum worked out once, exactly, then
+  rounded to the cent, and each row's is the cents its running sum, the rows above it with it, comes
+  to, less those of the sum before it, as a stacked bar shares its cells among its parts (see
+  History's BY MONTH). So a row can say a cent off what it would alone: f41a's `$14.08` on side and
+  `$114.11` on personal, which alone would be `$114.10`, add up to TURNS' `$128.19` (the owner's
+  call, 15 October 2026). A row's worth said elsewhere, as a turn's, or the Log's requests', is
+  rounded on its own, so the same requests can read a cent apart there. A request the router
   answered itself, as when no account has room, no account answered, so TURNS' alone counts it
-  (settled in the plan). Back on an account it
-  left, it keeps one row an account, spanning its first request there to its last
-  (settled in the plan).
+  (settled in the plan). Back on an account it left, it keeps one row an account, spanning its
+  first request there to its last (settled in the plan).
 - **≈ points:** a window counts its account's whole use, every session's, so a session's share is
   judged by its tokens. For each account and window, each rise in the window's use from one answer
   to the next, as their lines' `limits` give it, is shared out among the requests that ended between
@@ -4233,10 +4261,12 @@ from the first day a router that has it runs, so nothing before then is in it.
   yesterday. Its object:
 
   ```json
-  {"version": 4, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": [{"account": "work", "models": [{"model": "claude-opus-5-5", "upstream": 412, "no_usage": 2, "unsent": 0, "checks": 3, "counts": 9, "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "usage": {"cache_creation": {"ephemeral_1h_input_tokens": 1180240, "ephemeral_5m_input_tokens": 0}, "cache_creation_input_tokens": 1180240, "cache_read_input_tokens": 61204410, "input_tokens": 8812, "output_tokens": 402113, "server_tool_use": {"web_search_requests": 4}}}], "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "moved_on": 2, "moved_off": 1, "highest": {"5h": 1, "7d": 0.41}, "rise": {"5h": 2.03, "7d": 0.12}, "resets": [{"window": "5h", "at": "2026-10-05T07:10:00Z", "before": 0.35}, {"window": "5h", "at": "2026-10-05T12:10:00Z", "before": 0.58}, {"window": "5h", "at": "2026-10-05T17:10:00Z", "before": 1}], "limits": [{"window": "5h", "at": "2026-10-05T14:37:12Z", "resets_at": "2026-10-05T17:10:00Z"}], "minutes_at_cap": 0, "minutes_at_limit": 153, "read_before": ["5h", "7d"]}]}
+  {"version": 5, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": [{"account": "work", "models": [{"model": "claude-opus-5-5", "upstream": 412, "no_usage": 2, "unsent": 0, "checks": 3, "counts": 9, "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "usage": {"cache_creation": {"ephemeral_1h_input_tokens": 1180240, "ephemeral_5m_input_tokens": 0}, "cache_creation_input_tokens": 1180240, "cache_read_input_tokens": 61204410, "input_tokens": 8812, "output_tokens": 402113, "server_tool_use": {"web_search_requests": 4}}}], "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "moved_on": 2, "moved_off": 1, "highest": {"5h": 1, "7d": 0.41}, "rise": {"5h": 2.03, "7d": 0.12}, "resets": [{"window": "5h", "at": "2026-10-05T07:10:00Z", "before": 0.35}, {"window": "5h", "at": "2026-10-05T12:10:00Z", "before": 0.58}, {"window": "5h", "at": "2026-10-05T17:10:00Z", "before": 1}], "limits": [{"window": "5h", "at": "2026-10-05T14:37:12Z", "resets_at": "2026-10-05T17:10:00Z"}], "minutes_at_cap": 0, "minutes_at_limit": 153, "read_before": ["5h", "7d"]}]}
   ```
 
-  - `version`: the summaries' version: 4 since milestone 7's stage 8, which added each model's
+  - `version`: the summaries' version: 5 since the loose ends after milestone 7, which leaves Claude
+    Code's quota checks' usage out of each model's `usage`, as nothing prices it (see Worth; the
+    owner's call, 15 October 2026); 4 since milestone 7's stage 8, which added each model's
     `session_ids`; 3 since milestone 7's stage 3, which gives every day the accounts the readings
     history tells of, a day of no requests among them, and climbs each window by one rule, a
     reading of a run that has reset since, read late, kept out of its rise (see `rise`); 2 since
@@ -4254,12 +4284,15 @@ from the first day a router that has it runs, so nothing before then is in it.
     reading read late, in their rises, resets and limits, which version 3's rule for the climb
     would count otherwise: a summary written again knows no less, as what it held can't always be
     had again, and righting what it may have over-counted has more ways to lose what it counted
-    right. Version 3 stands for that rule and for every account read, for the days it summarises. A
+    right. Version 3 stands for that rule and for every account read, for the days it summarises.
+    So, too, a day summarised before version 5 keeps its quota checks' usage in its models' when
+    it's summarised again, as a summary written again knows no less, and its worth prices it: a few
+    tokens a day, a fraction of a cent, where the views over its lines leave it out. A
     reader that meets an older version's summary, its lines kept, summarises the day from its
     lines, as it does today's; and one whose lines are gone it takes as it stands, whatever its
     version, as only the router writes summaries again, a reader knowing of the rest what they
     never counted, rather than taking it for none. Versions 2, 3 and 4 only add fields, and
-    accounts, so a release from before one reads a summary of
+    accounts, and 5 leaves out what nothing prices, so a release from before one reads a summary of
     it as one of its own, passing over what it doesn't know, and keeps those fields when it marks
     the summary afresh; where it summarises the day again, as lines come to be filed under it, it
     writes its own version, which the next release to run summarises again while the day's lines
@@ -4295,7 +4328,8 @@ from the first day a router that has it runs, so nothing before then is in it.
     each once; and `usage` is their usage summed, field for field as
     the API gives it, an object's fields within it, and the objects of a list that give their
     types, as an answer's `iterations` do, within it by their types, what isn't a count, as the
-    service tier, left out. A model's requests that asked for an inference geo, as their shapes'
+    service tier, left out, and since version 5 the checks' usage left out with it, as nothing
+    prices it (see Worth). A model's requests that asked for an inference geo, as their shapes'
     `inference_geo` gives it, are a day of their own, after its others, naming it in
     `inference_geo`, as US-only inference costs more (see Worth): the usage summed keeps no text,
     so couldn't tell them apart, and a day of the requests Claude Code sends, which ask for none,
@@ -4463,6 +4497,10 @@ from the first day a router that has it runs, so nothing before then is in it.
   - A request that went upstream and spends quota, but whose answer gave no usage, as one
     canceled, cut off or an error gives none, spent what can't be known: the worth names it
     unpriced, as `no_usage`, a request's own or a summary's model's day's, never priced as free.
+  - Claude Code's quota check is worth nothing, whatever it spent, in every view and every
+    summary, as it isn't work done for the session, as the Log's hiding it says: its usage is
+    priced by none, and a summary leaves it out (see `version`; the owner's call, 15 October
+    2026). Its tokens are shown as they are where the check is.
   - Every request the router routes runs at standard speed and the standard service tier, so the
     table holds no other prices: fast mode never reaches the router (see What doesn't go through
     the router), and a subscription's requests are served at the standard tier.

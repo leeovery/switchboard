@@ -49,7 +49,7 @@ func writeTotals(out io.Writer, totals views.Totals, plans []views.PlanCost, pri
 		{label: "limits hit", of: func(t views.AccountTotals, _ views.PlanCost) string { return limitsText(t) }},
 		{label: "at cap or limit", of: func(t views.AccountTotals, _ views.PlanCost) string { return minutesText(t) }},
 		{label: "left at its last reset", of: func(t views.AccountTotals, _ views.PlanCost) string { return leftText(t.LeftAtReset) }},
-		{label: "plan", of: func(_ views.AccountTotals, p views.PlanCost) string { return planText(p, plans, prices) }},
+		{label: "plan", of: func(_ views.AccountTotals, p views.PlanCost) string { return planText(p, prices) }},
 		{label: "worth", of: func(t views.AccountTotals, _ views.PlanCost) string { return worthText(t.Worth) }},
 		{label: "against its price", of: func(_ views.AccountTotals, p views.PlanCost) string { return againstText(p.Against) }},
 		{label: "busiest day", of: func(t views.AccountTotals, _ views.PlanCost) string { return orNone(views.DateNamed(t.BusiestDay)) }},
@@ -203,7 +203,7 @@ func leftText(left map[string]float64) string {
 // $200/mo", or of every account's, the plans' prices summed and how many of
 // the accounts, of plans, are on one known, as "$220/mo · 2 of 3 plans": a
 // dash where none is known.
-func planText(p views.PlanCost, plans []views.PlanCost, prices ledger.Table) string {
+func planText(p views.PlanCost, prices ledger.Table) string {
 	monthly := p.Monthly()
 	switch {
 	case monthly == "":
@@ -211,20 +211,10 @@ func planText(p views.PlanCost, plans []views.PlanCost, prices ledger.Table) str
 	case !p.All:
 		plan, _ := prices.Plan(p.Plan)
 		return prose.Clean(plan.Name) + apart + monthly
+	case p.Plans.Known < p.Plans.Of:
+		return monthly + apart + prose.Grouped(p.Plans.Known) + " of " + prose.Counted(p.Plans.Of, "plan")
 	}
-	known, accounts := 0, 0
-	for _, each := range plans {
-		if !each.All {
-			accounts++
-		}
-		if !each.All && each.Plan != "" {
-			known++
-		}
-	}
-	if known < accounts {
-		return monthly + apart + prose.Grouped(known) + " of " + prose.Counted(accounts, "plan")
-	}
-	return monthly + apart + prose.Counted(known, "plan")
+	return monthly + apart + prose.Counted(p.Plans.Known, "plan")
 }
 
 // worthText says what requests were worth, as views.Worth says it to the
@@ -237,12 +227,18 @@ func worthText(w views.Worth) string {
 }
 
 // againstText says the worth against what the plans cost, as "4.0× its
-// $46": a dash where no plan is known, or it cost nothing.
+// $46", then, of every account's where some plans aren't known, over how
+// many of them it is, as views.PlansKnown says it: "4.4× its $92 · 2 of 3
+// plans known". It's a dash where no plan is known, or they cost nothing.
 func againstText(a views.Against) string {
 	if a.Ratio == nil || a.Cost == nil {
 		return dash
 	}
-	return prose.Ratio(*a.Ratio) + " its " + a.Cost.GroupedDollars()
+	said := prose.Ratio(*a.Ratio) + " its " + a.Cost.GroupedDollars()
+	if known := a.Plans.Said(); known != "" {
+		said += apart + known
+	}
+	return said
 }
 
 // writeWeeks writes each week's peaks, a column a week, by its first day, a

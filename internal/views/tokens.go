@@ -73,7 +73,7 @@ type ModelTokens struct {
 	Worth
 }
 
-// tokensOf are Tokens' rows over days, asked for from the day with the date
+// tokensOf are Tokens' rows over days, counted from the day with the date
 // from, a calendar week each, weeks starting on the day given, as
 // tokenPeriodsOf gives them.
 func tokensOf(days []Day, p plans, v versions, from string, weekStarts time.Weekday) []TokenWeek {
@@ -85,18 +85,17 @@ func tokensOf(days []Day, p plans, v versions, from string, weekStarts time.Week
 	return weeks
 }
 
-// tokenPeriodsOf are Tokens' rows over days, asked for from the day with the
+// tokenPeriodsOf are Tokens' rows over days, counted from the day with the
 // date from, a period each, as the shape given makes them, oldest first,
 // each costing its plans its share of a month as of its first day, the
-// period so far whole, but for one the days asked for begin part-way
-// through, as cutShort says.
+// period so far whole, but for the one the days counted begin part-way
+// through, as the one a young ledger began in, as pricedOver prices it.
 func tokenPeriodsOf(days []Day, p plans, v versions, from string, by periodShape) []TokenPeriod {
 	periods := []TokenPeriod{}
 	for _, s := range spansOf(days, by.key) {
 		period := tokenPeriodOf(s, p, v)
 		first, last := by.dates(s.key)
-		priced, at := cutShort(first, last, from, by.share)
-		period.Against = p.against(accountWorths(s.days), at, priced)
+		period.Against = p.against(accountWorths(s.days), pricedOver(first, last, from, by.share))
 		periods = append(periods, period)
 	}
 	return periods

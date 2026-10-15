@@ -843,7 +843,7 @@ var passedOver = map[string][]passing{
 		[]passing{wholeRow(37, accountsKeys)},
 	),
 	"accounts-compare-ten-160": slices.Concat(
-		[]passing{period(150, "this week"), unrouted(7, 72)}, haikuInCompare(60, 98, 117),
+		[]passing{period(150, "this week"), unrouted(7, 72), blankCells(12, 40, 40)}, haikuInCompare(60, 98, 117),
 		inColumns(13, 19, "", "", "", "", "", "", "53%"), inColumns(14, 19, "", "", "", "", "", "", "4%"),
 		inColumns(16, 19, "", "", "", "", "", "", "4%"), inColumns(17, 19, "", "", "", "", "", "", "1%"),
 		inColumns(21, 19, "", "", "", "", "", "", "12,598"), inColumns(22, 19, "", "6", "11", "", "", "", "51"),
@@ -1058,7 +1058,7 @@ var passedOver = map[string][]passing{
 			drawnIn(15, 32, 37, eighths+"╱┊"), drawnIn(16, 32, 37, eighths+"╱┊"),
 			cellsOf(17, 14, 20, "─ side"), cellsOf(17, 32, 37, "─┤"), cellsOf(18, 32, 42, "15h  09:12"),
 			wordsAt(20, 33, "18:05"), wordsAt(20, 57, "≈ 18 points of its 5-hour · 3 of its week"),
-			wordsAt(21, 57, "≈ 31 points of its 5-hour · 9 of its week"),
+			wordsAt(21, 57, "≈ 31 points of its 5-hour · 9 of its week"), wordsAt(21, 154, "$114.10"),
 			wordsAt(23, 123, "97%"), wordsAt(27, 67, "16.1M"), wordsAt(27, 86, "76k"), wordsAt(33, 67, "14.2M"),
 		},
 		resumedStory,

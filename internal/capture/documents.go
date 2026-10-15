@@ -362,6 +362,15 @@ func (a accountWorlds) auto() accountWorld {
 	})
 }
 
+// sidesPlanUnknown is the auto world with side on no plan the config names,
+// so every account's worth against the plans is over work's and personal's
+// alone, 2 of the 3.
+func (a accountWorlds) sidesPlanUnknown() accountWorld {
+	w := a.auto()
+	w.accounts[2].Plan = ""
+	return w
+}
+
 // pinned is the auto world's accounts, read as it reads them, with new
 // sessions pinned to personal since 14:02, three of the sessions on it, the
 // router telling of it as happenings' pinnedToPersonal has it.

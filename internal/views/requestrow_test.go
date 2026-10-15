@@ -17,6 +17,12 @@ func withID(id string, l ledger.Line) ledger.Line {
 	return l
 }
 
+// unknownModel is l asking for a model the price table doesn't know.
+func unknownModel(l ledger.Line) ledger.Line {
+	l.Model = "claude-opus-9"
+	return l
+}
+
 // rowWords runs a row's words together, each part's kind marked, so a test
 // sees both what they say and how each is drawn: what's named in brackets,
 // what stands between in braces, what a request in flight is doing in angle
@@ -51,8 +57,8 @@ func routingWords(r views.RoutingSaid) string {
 		}
 		b.WriteString(p.Text)
 	}
-	if r.Cost != nil {
-		b.WriteString("  " + r.Cost.Cents())
+	if cost := r.CostSaid(); cost != "" {
+		b.WriteString("  " + cost)
 	}
 	return b.String()
 }
@@ -408,6 +414,28 @@ func TestARowsRoutingSaysHowTheRouterChoseItsAccount(t *testing.T) {
 	}
 }
 
+// A request's routing says what writing its session's context again cost,
+// two cells after its words, as a cost: exactly, unpriced where the price
+// table can't price it, as a session's page says it; nothing where nothing
+// was written again.
+func TestARowsRoutingSaysWhatItsMoveCostOrThatItsUnpriced(t *testing.T) {
+	words, cost := status.RoutingWords("moved: work is at its reserve", status.Facts{From: "work", To: "side"}), ledger.Picodollars(1_820_000_000_000)
+	tests := []struct {
+		name    string
+		routing views.RoutingSaid
+		want    string
+	}{
+		{name: "priced", routing: views.RoutingSaid{Words: words, Cost: &cost, Rewrote: true}, want: "from [work], at its cap  ($1.82)"},
+		{name: "unpriced", routing: views.RoutingSaid{Words: words, Rewrote: true}, want: "from [work], at its cap  (unpriced)"},
+		{name: "not written again", routing: views.RoutingSaid{Words: words}, want: "from [work], at its cap"},
+	}
+	for _, tt := range tests {
+		if got := rowWords(tt.routing.Said()); got != tt.want {
+			t.Errorf("%s: its routing says %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
 func TestAMovesCostIsOnTheRequestThatMovedAsTheStorySettlesIt(t *testing.T) {
 	conversation := func(id, account, reason string, at time.Time) ledger.Line {
 		return withID(id, serving(p1, ledger.ClassMain, line(paged, opus, account, reason, at, hourUsage)))
@@ -426,6 +454,14 @@ func TestAMovesCostIsOnTheRequestThatMovedAsTheStorySettlesIt(t *testing.T) {
 			name:  "a main request that moved, warm: its own write",
 			lines: []ledger.Line{conversation("r1", "work", "new", local(10, 0, 0)), movedFrom("work", conversation("r2", "side", "moved: work is at its reserve", local(10, 30, 0)))},
 			want:  map[string]string{"r1": "new session", "r2": "from [work], at its cap  " + cost(hourWrite).Cents() + " rewrote"},
+		},
+		{
+			name: "a main request that moved on a model the price table can't price, warm: its write unpriced, never left unsaid",
+			lines: []ledger.Line{
+				unknownModel(conversation("r1", "work", "new", local(10, 0, 0))),
+				unknownModel(movedFrom("work", conversation("r2", "side", "moved: work is at its reserve", local(10, 30, 0)))),
+			},
+			want: map[string]string{"r1": "new session", "r2": "from [work], at its cap  unpriced rewrote"},
 		},
 		{
 			name:  "a side request that moved, then the next main request: the move's cost on the side request, the write on the main",

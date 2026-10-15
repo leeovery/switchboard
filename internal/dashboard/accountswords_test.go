@@ -86,7 +86,19 @@ func framedPage(rows ...accountsFramed) views.AccountsPage {
 		page.Rows = append(page.Rows, f.row())
 	}
 	page.All = rows[len(rows)-1].row()
+	countPlans(&page)
 	return page
+}
+
+// countPlans counts the plans known of the page's accounts on every
+// account's row, as the views count them.
+func countPlans(page *views.AccountsPage) {
+	page.All.Plan.Plans = views.PlansKnown{Of: len(page.Rows)}
+	for _, row := range page.Rows {
+		if row.Plan.Plan != "" {
+			page.All.Plan.Plans.Known++
+		}
+	}
 }
 
 // figureInk is the ink of an account's figures in Compare, every account's
@@ -135,7 +147,7 @@ func TestComparesFiguresAreItsFramesCells(t *testing.T) {
 			figureAt{x, 27, 32, leftParts(row, k)},
 			figureAt{x, 30, 32, planParts(page, row, k)},
 			figureAt{x, 32, 32, worthParts(row, k)},
-			figureAt{x, 33, 32, againstParts(page, row)},
+			figureAt{x, 33, 32, againstParts(page, row, 32)},
 		)
 	}
 	heldToFigures(t, "accounts-compare-160", 160, 37, figures)
@@ -189,7 +201,7 @@ func TestDetailsThisWeekAndVerdictAreItsFramesCells(t *testing.T) {
 			heldToFigures(t, tt.stem, 160, 37, []figureAt{
 				{tt.x, 10, 160 - tt.x, limitsParts(tt.row.Totals, status.NameOfKey, secondaryInk)},
 				{tt.x, 11, 160 - tt.x, planNamed(tt.row, secondaryInk)},
-				{tt.x, 12, 160 - tt.x, worthAgainst(tt.row, secondaryInk)},
+				{tt.x, 12, 160 - tt.x, worthAgainst(tt.row, secondaryInk, 160-tt.x)},
 				{tt.cx, 25, 160 - tt.cx, verdictParts(tt.page, tt.row)},
 			})
 		})
@@ -253,10 +265,20 @@ func TestAccountsFiguresSayEachForm(t *testing.T) {
 			want: line{{"$600/mo", strongInk}, {" · 2 of 3 plans", dimInk}}},
 		{name: "a plan not known, by its name", parts: planNamed(twoOfThree.Rows[2], k), want: line{{"—", faintInk}}},
 		{name: "a plan not known, by its price", parts: planPriced(twoOfThree.Rows[2], k), want: line{{"—", faintInk}}},
-		{name: "no ratio against a plan not known", parts: againstParts(twoOfThree, twoOfThree.Rows[2]), want: line{{"—", faintInk}}},
+		{name: "no ratio against a plan not known", parts: againstParts(twoOfThree, twoOfThree.Rows[2], 200), want: line{{"—", faintInk}}},
+		{name: "every account's ratio, over the plans known", parts: againstParts(twoOfThree, twoOfThree.All, 200),
+			want: line{{"4.6×", boldPositiveInk}, {" its $138 week · 2 of 3 plans known", dimInk}}},
+		{name: "every account's ratio, over the plans known, short where that doesn't fit", parts: againstParts(twoOfThree, twoOfThree.All, 34),
+			want: line{{"4.6×", boldPositiveInk}, {" its $138 week · 2 of 3 plans", dimInk}}},
+		{name: "every account's ratio, every plan known", parts: againstParts(framedPage(framedWork, framedAll), framedAll.row(), 200),
+			want: line{{"4.6×", boldPositiveInk}, {" its $138 week", dimInk}}},
 		{name: "no ratio, short", parts: againstShort(twoOfThree.Rows[2]), want: line{{"—", faintInk}}},
-		{name: "a worth without a plan known", parts: worthAgainst(twoOfThree.Rows[2], k), want: line{{"$12", k}}},
-		{name: "a ratio under 1×", parts: againstParts(twoOfThree, accountsFramed{id: "spare", worth: 20, ratio: 0.4, planKnown: true}.row()),
+		{name: "a worth without a plan known", parts: worthAgainst(twoOfThree.Rows[2], k, 200), want: line{{"$12", k}}},
+		{name: "every account's worth, its ratio over the plans known", parts: worthAgainst(twoOfThree.All, k, 200),
+			want: line{{"$635  ", k}, {"4.6×", boldPositiveInk}, {" · 2 of 3 plans known", dimInk}}},
+		{name: "every account's worth, its ratio over the plans known, short where that doesn't fit", parts: worthAgainst(twoOfThree.All, k, 30),
+			want: line{{"$635  ", k}, {"4.6×", boldPositiveInk}, {" · 2 of 3 plans", dimInk}}},
+		{name: "a ratio under 1×", parts: againstParts(twoOfThree, accountsFramed{id: "spare", worth: 20, ratio: 0.4, planKnown: true}.row(), 200),
 			want: line{{"0.4×", alertInk}, {" its $46 week", dimInk}}},
 	}
 	for _, tt := range tests {

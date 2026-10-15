@@ -541,28 +541,25 @@ func (y yearView) versionNumbers(first string) YearNumbers {
 }
 
 // against is what the shown accounts' plans cost over the period, and the
-// worth against it: 12 months, its days 365 or 366, where the ledger began
-// by its first day; else a day each from the day it began to its end; none
-// where it began after it.
+// worth against it, as pricedOver prices it from the first day counted: 12
+// months, its days 365 or 366, where the ledger began by its first day;
+// else a day each from the day it began to its end; none where it began
+// after it.
 func (y yearView) against() Against {
-	from := max(y.span.first, y.began)
-	start, _ := dayfile.Civil(from)
-	end, _ := dayfile.Civil(y.span.end)
-	if end.Before(start) {
-		return Against{}
-	}
-	priced := aYear
-	if from != y.span.first {
-		priced = days(int(end.Sub(start)/(24*time.Hour)) + 1)
-	}
-	return y.plans.against(accountWorths(y.shown), from, priced)
+	return y.plans.against(accountWorths(y.shown), pricedOver(y.span.first, y.span.end, y.counted(), aYear))
+}
+
+// counted is the date of the first day of the period counted: the later of
+// its first and the day the ledger began, where it's told.
+func (y yearView) counted() string {
+	return max(y.span.first, y.began)
 }
 
 // months are BY MONTH's rows of all use, or an account's: each against what
 // the plans shown cost that month, as monthsOf prices it, the period's first
-// month from its first day.
+// month, and the one the ledger began in, from the first day counted.
 func (y yearView) months() []MonthRow {
-	months := monthsOf(y.shown, y.plans, y.v, y.span.first, y.span.today)
+	months := monthsOf(y.shown, y.plans, y.v, y.counted(), y.span.today)
 	rows := make([]MonthRow, len(months))
 	for i, m := range months {
 		rows[i] = MonthRow{Month: m, From: y.span.partWay(m.Month, y.began), SoFar: y.span.running(m.Month)}
@@ -579,7 +576,7 @@ func (y yearView) versionMonths(first string) []MonthRow {
 		whole[s.key] = yearDays(s.days).worth().amount()
 	}
 	var rows []MonthRow
-	for _, m := range monthsOf(y.shown, plans{}, y.v, y.span.first, y.span.today) {
+	for _, m := range monthsOf(y.shown, plans{}, y.v, y.counted(), y.span.today) {
 		if m.Requests > 0 {
 			rows = append(rows, MonthRow{Month: m, Share: shareOf(m.Worth, whole[m.Month]), From: y.span.partWay(m.Month, first), SoFar: y.span.running(m.Month)})
 		}
@@ -592,7 +589,7 @@ func (y yearView) versionMonths(first string) []MonthRow {
 // was, and the version of its family, the one given, most used then: nil
 // where it was used from the first month held.
 func (y yearView) before(first, family string) *MonthsBefore {
-	from, _ := monthOf(max(y.span.first, y.began))
+	from, _ := monthOf(y.counted())
 	to, _ := monthOf(y.span.last)
 	if first != "" {
 		usedIn, _ := monthOf(first)

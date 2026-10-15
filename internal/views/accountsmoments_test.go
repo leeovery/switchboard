@@ -19,11 +19,11 @@ import (
 )
 
 // accountsIn is what Accounts' page is built of at the moment am: its days,
-// asked for from the first, by the built-in price table, its accounts'
-// weeks Claude's.
+// asked for from the first, where the ledger began, as the watch learns it,
+// by the built-in price table, its accounts' weeks Claude's.
 func accountsIn(am viewstest.AccountsMoment) views.HistoryInput {
 	return views.HistoryInput{
-		Ledger: ledgerOf(am.Days), From: on(am.Days[0].Day), Now: am.Now, Prices: ledger.Pricing,
+		Ledger: ledgerOf(am.Days), From: on(am.Days[0].Day), Began: on(am.Days[0].Day), Now: am.Now, Prices: ledger.Pricing,
 		Accounts: am.Accounts, WeekStarts: am.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
 	}
 }

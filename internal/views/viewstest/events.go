@@ -148,6 +148,7 @@ func EventMoments() []EventMoment {
 		movedTwiceAlike(),
 		capMovingOneTwice(),
 		sideMoveSettled(),
+		unpricedMove(),
 		coldMove(),
 		capCounting(),
 		capDetails(),

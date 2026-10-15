@@ -392,9 +392,10 @@ func allGauge(m status.Moment, key string) gauge {
 func (d detailDrawn) thisWeek(c *canvas, y int) {
 	x := d.l.thisWeekAt()
 	c.line(x, y, line{{d.page.Period.Title(), dimInk}})
-	for i, item := range d.thisWeekItems() {
+	cells := d.f.edge() - x - thisWeekLabels
+	for i, item := range d.thisWeekItems(cells) {
 		c.line(x, y+1+i, line{{padded(item.label, thisWeekLabels), dimInk}})
-		c.line(x+thisWeekLabels, y+1+i, fitParts(d.f.edge()-x-thisWeekLabels, periodNumbered(item.parts, d.id, item.label)...))
+		c.line(x+thisWeekLabels, y+1+i, fitParts(cells, periodNumbered(item.parts, d.id, item.label)...))
 	}
 }
 
@@ -407,16 +408,16 @@ type thisWeekItem struct {
 // thisWeekItems are THIS WEEK's items, as the words of Accounts say them, in
 // text.secondary: the requests; the limits, by window, or all accounts' how
 // many; the plan, by its name, or all accounts' summed; the worth, with its
-// ratio; and the extra usage of the accounts shown. Each of the period's
-// figures is as periodParts says it, a dash where the period records
-// nothing; the plan and extra use are none of them.
-func (d detailDrawn) thisWeekItems() []thisWeekItem {
+// ratio, in the cells given; and the extra usage of the accounts shown. Each
+// of the period's figures is as periodParts says it, a dash where the period
+// records nothing; the plan and extra use are none of them.
+func (d detailDrawn) thisWeekItems(cells int) []thisWeekItem {
 	totals, page := d.row.Totals, *d.page
 	return []thisWeekItem{
 		{"requests", periodParts(page, []part{figureIn(prose.Grouped(totals.Requests), secondaryInk)}, secondaryInk)},
 		{"limits", periodParts(page, limitsParts(totals, d.f.windowNamer(d.m), secondaryInk), secondaryInk)},
 		{"plan", planNamed(d.row, secondaryInk)},
-		{"worth", periodParts(page, worthAgainst(d.row, secondaryInk), secondaryInk)},
+		{"worth", periodParts(page, worthAgainst(d.row, secondaryInk, cells), secondaryInk)},
 		{"extra use", extraShort(d.extra())},
 	}
 }

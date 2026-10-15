@@ -78,7 +78,7 @@ var fixtureLines = map[string][]ledger.Line{
 
 // heldSummary is the summary the ledger holds of the 4th, as the router wrote
 // it.
-const heldSummary = `{"version":4,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,` +
+const heldSummary = `{"version":5,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,` +
 	`"checks":0,"counts":0,"sessions":1,"session_ids":["` + sessionA + `"],"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},` +
 	`"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,"input_tokens":12,"output_tokens":845}}],"sessions":1,` +
 	`"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0}]}`
@@ -458,7 +458,8 @@ worth is what they'd have cost through the API, at its prices as of 11 Oct 2026
 // today: work's requests are its messages; side's session moved onto it is
 // one of every account's moves; side's limit is work's alone; work's time at
 // its cap and its limit is the 6th's; the share of use is weighed at API
-// prices, so work's quota check of Haiku is under 1%.
+// prices, so Haiku, of work's quota check alone, which is worth nothing, has
+// none.
 const historyTotalsFromThe6th = `
 Over these days           work       side        all accounts
   requests                2          2           5
@@ -474,7 +475,7 @@ Over these days           work       side        all accounts
   longest run             1 day      2 days      2 days
   by model
     Opus 5.5              100%       100%        100%
-    Haiku 4.5             <1%        -           <1%
+    Haiku 4.5             -          -           -
     opus-9                -          -           -
 `
 
@@ -521,7 +522,7 @@ Over these days           work       side        all accounts
   longest run             1 day      2 days      2 days
   by model
     Opus 5.5              100%       100%        100%
-    Haiku 4.5             <1%        -           <1%
+    Haiku 4.5             -          -           -
     opus-9                -          -           -
 ` + historyNoWeeksFromThe28th + historyPricedAt},
 		{name: "from a day", args: []string{"--since", "2026-10-06"}, want: historyFromThe6th + historyTotalsFromThe6th + historyNoWeeksThisWeek + historyPricedAt},
@@ -540,7 +541,7 @@ Over these days           work       side        all accounts
   longest run             1 day      1 day       1 day
   by model
     Opus 5.5              100%       -           100%
-    Haiku 4.5             <1%        -           <1%
+    Haiku 4.5             -          -           -
     opus-9                -          -           -
 ` + historyNoWeeksThisWeek + historyPricedAt},
 		{name: "from the day of days ago", args: []string{"--since", "2d"}, want: historyFromThe6th + historyTotalsFromThe6th + historyNoWeeksThisWeek + historyPricedAt},
@@ -619,18 +620,18 @@ func TestHistoryNotesADayOfNoRequestsOnlyWhereALimitWasReachedOrAWeekReset(t *te
 // work's limit of the 6th is in the calendar week it was reached in.
 const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","requests":1,"level":3},{"day":"2026-10-05","requests":0,"level":0},` +
 	`{"day":"2026-10-06","requests":1,"level":3},{"day":"2026-10-07","requests":4,"level":4}]},` +
-	`"months":[{"month":"2026-10","requests":6,"worth":0.171785,"unpriced":["claude-opus-9","no_usage"],"limits":{"5h":1},` +
-	`"by_family":[{"family":"opus","worth":0.171772,"unpriced":["claude-opus-9","no_usage"]},{"family":"haiku","worth":0.000013}]}],` +
+	`"months":[{"month":"2026-10","requests":6,"worth":0.171772,"unpriced":["claude-opus-9","no_usage"],"plans":{"known":0,"of":2},"limits":{"5h":1},` +
+	`"by_family":[{"family":"opus","worth":0.171772,"unpriced":["claude-opus-9","no_usage"]},{"family":"haiku","worth":0}]}],` +
 	`"weeks":[{"week":"2026-09-28","accounts":[{"account":"work"},{"account":"side"},{"all":true}]},` +
 	`{"week":"2026-10-05","accounts":[{"account":"work","limits":{"5h":1}},{"account":"side"},{"all":true}]}],` +
-	`"tokens":[{"week":"2026-09-28","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376,` +
+	`"tokens":[{"week":"2026-09-28","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376,"plans":{"known":0,"of":2},` +
 	`"by_account":[{"account":"work","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376,` +
 	`"by_model":[{"model":"claude-opus-5-5","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]}],` +
 	`"by_model":[{"model":"claude-opus-5-5","on":["work"],"input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]},` +
-	`{"week":"2026-10-05","input":125,"output":906,"cache_write":3120,"cache_read":202340,"total":206491,"worth":0.093409,"unpriced":["claude-opus-9","no_usage"],` +
-	`"by_account":[{"account":"work","input":120,"output":856,"cache_write":3120,"cache_read":182340,"total":186436,"worth":0.078389,"unpriced":["claude-opus-9"],` +
+	`{"week":"2026-10-05","input":117,"output":905,"cache_write":3120,"cache_read":202340,"total":206482,"worth":0.093396,"unpriced":["claude-opus-9","no_usage"],"plans":{"known":0,"of":2},` +
+	`"by_account":[{"account":"work","input":112,"output":855,"cache_write":3120,"cache_read":182340,"total":186427,"worth":0.078376,"unpriced":["claude-opus-9"],` +
 	`"by_model":[{"model":"claude-opus-5-5","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376},` +
-	`{"model":"claude-haiku-4-5","input":8,"output":1,"cache_write":0,"cache_read":0,"total":9,"worth":0.000013},` +
+	`{"model":"claude-haiku-4-5","input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0},` +
 	`{"model":"claude-opus-9","input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]},` +
 	`{"account":"side","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"],` +
 	`"by_model":[{"model":"claude-opus-5-5","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"]}]},` +
@@ -638,23 +639,23 @@ const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","reque
 	`"by_model":[{"model":"claude-opus-5-5","input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0}]}],` +
 	`"by_model":[{"model":"claude-opus-5-5","on":["work","side"],"input":17,"output":895,"cache_write":3120,"cache_read":202340,"total":206372,` +
 	`"worth":0.093396,"unpriced":["no_usage"]},` +
-	`{"model":"claude-haiku-4-5","on":["work"],"input":8,"output":1,"cache_write":0,"cache_read":0,"total":9,"worth":0.000013},` +
+	`{"model":"claude-haiku-4-5","on":["work"],"input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0},` +
 	`{"model":"claude-opus-9","on":["work"],"input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]}],` +
 	// Every account's counts the requests no account answered, and session B
 	// once, though it ran on side and on none. Work's 5-hour window ran out on
 	// the 6th, in the run its last reset ended.
 	`"totals":{"accounts":[{"account":"work","requests":3,"sessions":2,"moved_on":0,"moved_off":1,"limits":{"5h":1},"minutes_at_cap":74,"minutes_at_limit":56,` +
-	`"left_at_reset":{"5h":0},"ran_out":{"5h":"2026-10-06"},"worth":0.156765,"unpriced":["claude-opus-9"],"by_model":[{"model":"claude-opus-5-5","share":0.9999170733263164,"worth":0.156752},` +
-	`{"model":"claude-haiku-4-5","share":0.00008292667368353906,"worth":0.000013},{"model":"claude-opus-9","unpriced":["claude-opus-9"]}],` +
+	`"left_at_reset":{"5h":0},"ran_out":{"5h":"2026-10-06"},"worth":0.156752,"unpriced":["claude-opus-9"],"by_model":[{"model":"claude-opus-5-5","share":1,"worth":0.156752},` +
+	`{"model":"claude-haiku-4-5","worth":0},{"model":"claude-opus-9","unpriced":["claude-opus-9"]}],` +
 	`"busiest_day":"2026-10-07","longest_run":1},` +
 	`{"account":"side","requests":2,"sessions":1,"moved_on":1,"moved_off":0,"minutes_at_cap":0,"minutes_at_limit":0,"left_at_reset":{"5h":0.9},` +
 	`"worth":0.01502,"unpriced":["no_usage"],"by_model":[{"model":"claude-opus-5-5","share":1,"worth":0.01502,"unpriced":["no_usage"]}],` +
 	`"busiest_day":"2026-10-06","longest_run":2},` +
 	`{"all":true,"requests":6,"sessions":3,"moved_on":1,"moved_off":1,"limits":{"5h":1},"minutes_at_cap":74,"minutes_at_limit":56,` +
-	`"worth":0.171785,"unpriced":["claude-opus-9","no_usage"],"by_model":[{"model":"claude-opus-5-5","share":0.9999243240096632,"worth":0.171772,"unpriced":["no_usage"]},` +
-	`{"model":"claude-haiku-4-5","share":0.00007567599033675815,"worth":0.000013},{"model":"claude-opus-9","unpriced":["claude-opus-9"]}],` +
+	`"worth":0.171772,"unpriced":["claude-opus-9","no_usage"],"by_model":[{"model":"claude-opus-5-5","share":1,"worth":0.171772,"unpriced":["no_usage"]},` +
+	`{"model":"claude-haiku-4-5","worth":0},{"model":"claude-opus-9","unpriced":["claude-opus-9"]}],` +
 	`"busiest_day":"2026-10-07","longest_run":2}]},` +
-	`"plans":[{"account":"work","worth":0.156765,"unpriced":["claude-opus-9"]},{"account":"side","worth":0.01502,"unpriced":["no_usage"]},{"all":true}],` +
+	`"plans":[{"account":"work","worth":0.156752,"unpriced":["claude-opus-9"]},{"account":"side","worth":0.01502,"unpriced":["no_usage"]},{"all":true,"plans":{"known":0,"of":2}}],` +
 	`"capacity":{"weeks":0,"short":0,"with_one_fewer":0,"with_one_more":0,"accounts":[` +
 	`{"account":"work","weeks":0,"limits":0,"without_it":0},{"account":"side","weeks":0,"limits":0,"without_it":0},{"all":true,"weeks":0,"limits":0}]}`
 
@@ -664,13 +665,13 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 	want := `{"prices_as_of":"2026-10-11","days":[` +
-		`{"version":4,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
+		`{"version":5,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
 		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"session_ids":["` + sessionA + `"],` +
 		`"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}],"by_family":[{"family":"opus","worth":0.078376}]},` +
-		`{"version":4,"day":"2026-10-05","lines":0},` +
-		`{"version":4,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
+		`{"version":5,"day":"2026-10-05","lines":0},` +
+		`{"version":5,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
 		`"highest":{"5h":0.1},"rise":{"5h":0.1},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"session_ids":["` + sessionB + `"],` +
 		`"usage":{"cache_read_input_tokens":20000,` +
@@ -681,7 +682,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`"resets":[{"window":"5h","at":"` + at(limit.ResetsAt) + `","before":1}],` +
 		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56}],` +
 		`"by_family":[{"family":"opus","worth":0.01502}]},` +
-		`{"version":4,"day":"2026-10-07","lines":6,"accounts":[` +
+		`{"version":5,"day":"2026-10-07","lines":6,"accounts":[` +
 		// The requests no account answered, of no window the readings
 		// history held.
 		`{"sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,` +
@@ -692,8 +693,8 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`"worth":0,"unpriced":["no_usage"]}]},` +
 		`{"account":"work","sessions":2,"session_ids":["` + sessionC + `","` + sessionA + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.3,"7d":0.41},` +
 		`"rise":{"5h":0.3,"7d":0},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"read_before":["5h"],"models":[` +
-		`{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,"sessions":0,"session_ids":[],` +
-		`"usage":{"input_tokens":8,"output_tokens":1},"worth":0.000013},` +
+		// Work's quota check, whose usage is left out, so it's worth nothing.
+		`{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,"sessions":0,"session_ids":[],"worth":0},` +
 		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":1,"sessions":1,"session_ids":["` + sessionA + `"],` +
 		`"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376},` +
@@ -701,7 +702,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`"usage":{"input_tokens":100,"output_tokens":10},"unpriced":["claude-opus-9"]}]}],` +
 		// Of Opus, claude-opus-9, which the price table doesn't know, and
 		// side's request that gave no usage are unpriced.
-		`"by_family":[{"family":"opus","worth":0.078376,"unpriced":["claude-opus-9","no_usage"]},{"family":"haiku","worth":0.000013}]}],` +
+		`"by_family":[{"family":"opus","worth":0.078376,"unpriced":["claude-opus-9","no_usage"]},{"family":"haiku","worth":0}]}],` +
 		historyBlocks + `}`
 	for _, form := range jsonForms() {
 		t.Run(form.name, func(t *testing.T) {
@@ -743,12 +744,13 @@ func TestHistoryJSONPricesThePlansAndStartsTheWeeksAsTheConfigSays(t *testing.T)
 	if want := []string{"2026-10-04"}; !slices.Equal(weeks, want) {
 		t.Errorf("switchboard history --json gives the weeks %q, want %q: the 4th to today, a week from Sunday", weeks, want)
 	}
-	// Asked for the last 30 days, of a ledger begun on Sunday the 4th, this
-	// week's first day, the plans are priced from then, this week so far,
-	// whole: work's costs its week, and side's isn't known.
-	want := `[{"account":"work","plan":"max20x","price":200,"cost":46.153846153846,"against":0.0033965750000000115,"worth":0.156765,"unpriced":["claude-opus-9"]},` +
+	// Asked for the last 30 days, of a ledger begun on Sunday the 4th, the
+	// plans are priced from then to today, 4 days at 12/365 of a month:
+	// work's costs them, and side's isn't known, so every account's worth
+	// against them is over 1 of the 2 plans.
+	want := `[{"account":"work","plan":"max20x","price":200,"cost":26.301369863014,"against":0.005959841666666598,"worth":0.156752,"unpriced":["claude-opus-9"]},` +
 		`{"account":"side","worth":0.01502,"unpriced":["no_usage"]},` +
-		`{"all":true,"price":200,"cost":46.153846153846,"against":0.0033965750000000115,"worth":0.156765,"unpriced":["claude-opus-9"]}]`
+		`{"all":true,"price":200,"cost":26.301369863014,"against":0.005959841666666598,"plans":{"known":1,"of":2},"worth":0.156752,"unpriced":["claude-opus-9"]}]`
 	var plans bytes.Buffer
 	if err := json.Compact(&plans, doc.Plans); err != nil || plans.String() != want {
 		t.Errorf("switchboard history --json gives the plans\n%s (%v)\nwant\n%s", plans.String(), err, want)
@@ -959,7 +961,7 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 		}
 		days = append(days, compact.String())
 	}
-	if want := []string{`{"version":4,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
+	if want := []string{`{"version":5,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
 		t.Errorf("switchboard history --json printed the days\n%s\nwant today's alone, of no requests: there's no ledger to hold a day before it", strings.Join(days, "\n"))
 	}
 }

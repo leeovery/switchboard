@@ -245,6 +245,17 @@ func (l *Line) unmetered() bool {
 	return l.Upstream() && len(l.Usage) == 0
 }
 
+// worthUsage is the usage of the line's request that worth prices, as a
+// day's summary sums it: its answer's whole usage, but none of a quota
+// check's, which isn't work done for the session, as the Log's hiding checks
+// says, so nothing prices it.
+func (l *Line) worthUsage() json.RawMessage {
+	if l.Kind == KindCheck {
+		return nil
+	}
+	return l.Usage
+}
+
 // Tokens returns the tokens the reply's usage counts, reporting false where
 // the answer gave none.
 func (r Reply) Tokens() (quota.Tokens, bool) {

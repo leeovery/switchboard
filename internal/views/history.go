@@ -64,7 +64,8 @@ type HistoryInput struct {
 const lookBack = 7
 
 // NewHistory builds the History of the days in asks for, its plans priced
-// as plansPriced prices them.
+// over the period they make, as askedPeriod has it, from the first counted,
+// as countedFrom has it.
 func NewHistory(in HistoryInput) History {
 	from, to := dayfile.CivilOf(in.From), dayfile.CivilOf(in.Now)
 	asked, today := from.Format(time.DateOnly), to.Format(time.DateOnly)
@@ -72,29 +73,29 @@ func NewHistory(in HistoryInput) History {
 	p := plans{accounts: in.Accounts, table: in.Prices}
 	before, days := splitAt(pricedDays(in.Ledger.Days(in.From.AddDate(0, 0, -lookBack)), in.Prices, today, v), asked)
 	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
-	priced, share := plansPriced(in, from, to, days)
+	counted := countedFrom(asked, days)
+	last, whole := askedPeriod(from, to, in.WeekStarts)
 	return History{
 		Days:     days,
 		Year:     yearOf(days),
-		Months:   monthsOf(days, p, v, asked, today),
+		Months:   monthsOf(days, p, v, counted, today),
 		Weeks:    weeksOf(placed, in.Accounts),
-		Tokens:   tokensOf(days, p, v, asked, in.WeekStarts),
+		Tokens:   tokensOf(days, p, v, counted, in.WeekStarts),
 		Totals:   accountTotalsOf(before, days, in.Accounts, v),
-		Plans:    plansOf(days, p, priced.Format(time.DateOnly), share),
+		Plans:    plansOf(days, p, pricedOver(asked, last.Format(time.DateOnly), counted, whole)),
 		Capacity: capacityOf(placed, wholeWeek(days, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
 	}
 }
 
-// plansPriced is the day the plans over in's days, from the day from to
-// today, each as dayfile.Civil gives one, are priced from, and the share of
-// a month they cost: from the later of from and the first of days, as
-// askedShare prices the days from then.
-func plansPriced(in HistoryInput, from, today time.Time, days []Day) (time.Time, monthPart) {
-	priced := from
-	if first, ok := firstDay(days); ok && first.After(from) {
-		priced = first
+// countedFrom is the date of the first day counted of the days asked for
+// from the one with the date asked, days being those of them the ledger
+// gives: the later of it and the first the ledger holds, as the ledger gives
+// every day from the later of the two.
+func countedFrom(asked string, days []Day) string {
+	if len(days) == 0 {
+		return asked
 	}
-	return priced, askedShare(priced, today, in.WeekStarts)
+	return max(asked, days[0].Day)
 }
 
 // splitAt splits days, in order, at the one with the given date: those
@@ -105,15 +106,6 @@ func splitAt(days []Day, date string) (before, from []Day) {
 		return days, nil
 	}
 	return days[:i], days[i:]
-}
-
-// firstDay is the first of days, as dayfile.Civil gives one, reporting false
-// where there's none, or its date isn't one.
-func firstDay(days []Day) (time.Time, bool) {
-	if len(days) == 0 {
-		return time.Time{}, false
-	}
-	return dayfile.Civil(days[0].Day)
 }
 
 // wholeWeek reports whether a calendar week, by its first day's date, is

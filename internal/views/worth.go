@@ -79,27 +79,62 @@ const (
 // cent, so it reads as more.
 const underACent = "<$0.01"
 
-// noCents is a worth of nothing, to the cent.
-var noCents = ledger.Picodollars(0).Cents()
-
 // Cents is the worth to the cent, as a request's, a turn's or a session's is
 // said, the Log's rule: "$0.15"; "<$0.01" where it's more than nothing but
 // under half a cent, which would read as nothing; "unpriced" where none of it
 // is priced; and PartUnpriced after it where part of it is, as "$17.86+".
 // Nothing at all is "$0.00".
 func (w Worth) Cents() string {
+	return w.centsAt(w.amount().ToTheCent())
+}
+
+// centsAt says the worth as Cents does, its amount to the cent the one
+// given, as a part's is where its rounding is reconciled to a whole's, as
+// toTheCent reconciles it: "<$0.01" where that's none but the worth is more.
+func (w Worth) centsAt(rounded ledger.Picodollars) string {
 	if w.Amount == nil && len(w.Unpriced) > 0 {
 		return unpriced
 	}
-	amount := w.amount()
-	said := amount.Cents()
-	if amount > 0 && said == noCents {
+	said := rounded.Cents()
+	if w.amount() > 0 && rounded == 0 {
 		said = underACent
 	}
 	if len(w.Unpriced) > 0 {
 		said += PartUnpriced
 	}
 	return said
+}
+
+// toTheCent are the amounts given, parts of a whole, each to the cent, so
+// together they're the whole to the cent, as Cents says it: each is the
+// cents its running sum through it comes to, less those the sum before it
+// does, as a stacked bar shares its cells among its parts. A part can so
+// come a cent off what it'd be to the cent alone, never under nothing.
+func toTheCent(amounts []ledger.Picodollars) []ledger.Picodollars {
+	rounded := make([]ledger.Picodollars, len(amounts))
+	var sum, before ledger.Picodollars
+	for i, a := range amounts {
+		sum += a
+		through := sum.ToTheCent()
+		rounded[i], before = through-before, through
+	}
+	return rounded
+}
+
+// rewriteSaid says what writing a moved session's context again on the
+// account it moved to cost, its cache write, exactly, as Cents says it,
+// "$1.82"; "unpriced" where the context was written again, as rewrote says,
+// but the price table can't price it, cost nil; and "" where it wasn't, as
+// no request has yet, or the cache would have run out anyway. It's every
+// view's saying of a move's cost.
+func rewriteSaid(rewrote bool, cost *ledger.Picodollars) string {
+	switch {
+	case cost != nil:
+		return Worth{Amount: cost}.Cents()
+	case rewrote:
+		return unpriced
+	}
+	return ""
 }
 
 // Dollars is the worth to the dollar, as History says it, its thousands set

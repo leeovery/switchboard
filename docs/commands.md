@@ -656,8 +656,9 @@ These rules hold for what's counted:
 
 - **Requests are messages:** those that went upstream, and those the router answered itself.
 - **Quota checks and token counts** are never among the requests, nor make a row of their own.
-  Claude Code sends them, and they spend next to nothing. Their tokens and worth are counted,
-  though.
+  Claude Code sends them, and they spend next to nothing. A quota check is worth nothing either,
+  as it isn't work done for you, so its tokens are left out of the day's. A day summarised before
+  this rule keeps the few its checks spent.
 - **Today** is summed up from its lines, as far as it has gone.
 - **A model the price table doesn't know** shows as unpriced, never free.
 
@@ -676,9 +677,11 @@ a month. `history` prorates it as the dashboard prices its periods:
 - A period still running is priced whole.
 - A month or week that the days asked for begin part-way through is priced by its days from then.
 - The plans' own period runs from the later of the day asked for and the first day the ledger
-  holds.
-- An account without a `plan` has no cost and no ratio. Every account's sums are those of the
-  accounts that have one.
+  holds, as the dashboard prices it: there's no worth before the ledger began to set against it.
+- An account without a `plan` has no cost and no ratio. Every account's plan, cost and ratio are
+  those of the accounts that have one, while the worth above them is every account's. So where
+  an account's plan isn't known, every account's ratio says how many plans it's over: `4.4× its
+  $92 · 2 of 3 plans known`.
 
 #### Over all the days
 

@@ -30,7 +30,7 @@ const (
 	saturdaysSplits = `"by_account":[{"account":"work",` + saturdaysTokens + `,"by_model":[{"model":"claude-opus-5-5",` + saturdaysTokens + `}]}],` +
 		`"by_model":[{"model":"claude-opus-5-5","on":["work"],` + saturdaysTokens + `}]`
 	mondaysRows = `"input":2000005,"output":7,"cache_write":0,"cache_read":0,"total":2000012,"worth":2,"unpriced":["claude-opus-9"],` +
-		`"cost":50.769230769231,"against":0.03939393939393922,` +
+		`"cost":50.769230769231,"against":0.03939393939393922,"plans":{"known":2,"of":3},` +
 		`"by_account":[{"account":"work","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1,` +
 		`"by_model":[{"model":"claude-haiku-4-5","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1}]},` +
 		`{"account":"side","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1,` +
@@ -50,33 +50,37 @@ func TestTokensIsEachWeeksTokensByKindAccountAndModel(t *testing.T) {
 		want       string
 	}{
 		{
-			// Work's and side's plans, $200 and $20 a month, cost 12/52 of
-			// it a week, this week's whole, spare's not known.
-			name: "the empty ledger: this week, whole", days: daysFrom("2026-10-07"),
-			want: `[{"week":"2026-10-05","input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"cost":50.769230769231,"against":0}]`,
+			// Work's and side's plans, $200 and $20 a month, cost 12/365 of
+			// it a day, this week's from the ledger's first day, today, to
+			// its end, 5 days, spare's not known.
+			name: "the empty ledger: this week from its first day", days: daysFrom("2026-10-07"),
+			want: `[{"week":"2026-10-05","input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"cost":36.164383561644,"against":0,` +
+				`"plans":{"known":2,"of":3}}]`,
 		},
 		{
-			// Claude Haiku 4.5's ids are one version, by its alias; checks'
-			// and counts' tokens are among the week's, as ccusage counts
-			// them; and against the plans counts work's and side's worth
-			// alone.
+			// Claude Haiku 4.5's ids are one version, by its alias; a
+			// summary's checks and counts add no tokens; against the plans
+			// counts work's and side's worth alone; and the week the ledger
+			// began in, on the Saturday, costs its 2 days.
 			name: "across a week's end, weeks from Monday",
 			days: acrossTheWeeksEnd,
-			want: `[{"week":"2026-09-28",` + saturdaysTokens + `,"cost":50.769230769231,"against":0.14969696969696902,` + saturdaysSplits + `},` +
-				`{"week":"2026-10-05",` + mondaysRows + `}]`,
+			want: `[{"week":"2026-09-28",` + saturdaysTokens + `,"cost":14.465753424658,"against":0.525378787878771,"plans":{"known":2,"of":3},` +
+				saturdaysSplits + `},{"week":"2026-10-05",` + mondaysRows + `}]`,
 		},
 		{
+			// The week the ledger began in, from Sunday, costs its last day.
 			name:       "weeks from the day the config starts them on",
 			days:       acrossTheWeeksEnd,
 			weekStarts: new(time.Sunday),
-			want: `[{"week":"2026-09-27",` + saturdaysTokens + `,"cost":50.769230769231,"against":0.14969696969696902,` + saturdaysSplits + `},` +
-				`{"week":"2026-10-04",` + mondaysRows + `}]`,
+			want: `[{"week":"2026-09-27",` + saturdaysTokens + `,"cost":7.232876712328,"against":1.0507575757576872,"plans":{"known":2,"of":3},` +
+				saturdaysSplits + `},{"week":"2026-10-04",` + mondaysRows + `}]`,
 		},
 		{
 			name:   "at the config's price of a plan",
 			days:   daysFrom("2026-10-07", day("2026-10-07", account("work", sent("claude-opus-5-5", 1, inputUsage)))),
 			prices: config.Prices{Plans: map[string]float64{"max20x": 32, "pro": 20}},
-			want: `[{"week":"2026-10-05","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":4,"cost":12,"against":0.3333333333333333,` +
+			want: `[{"week":"2026-10-05","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":4,"cost":8.54794520548,` +
+				`"against":0.467948717948688,"plans":{"known":2,"of":3},` +
 				`"by_account":[{"account":"work","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":4,` +
 				`"by_model":[{"model":"claude-opus-5-5","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":4}]}],` +
 				`"by_model":[{"model":"claude-opus-5-5","on":["work"],"input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":4}]}]`,
