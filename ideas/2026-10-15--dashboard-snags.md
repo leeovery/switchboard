@@ -93,6 +93,10 @@ Agreed with the owner, 15 October 2026, from text frames, to build after the sna
   open its page, with nothing on screen meanwhile. Show that something is under way wherever a
   step takes long enough to be noticed.
 
+- **The Log takes three or four seconds to open the first time** after the dashboard starts, on
+  the iPad and the Mac alike; going back to it later, it's there at once. The owner isn't sure the
+  Log keeps updating while he's away from it: check it does.
+
 ## Works well
 
 Opening a session's page, stepping through its turns, `enter` into a turn's requests, and `enter`
