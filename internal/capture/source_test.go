@@ -18,7 +18,7 @@ import (
 
 func TestTheRouterGivesItsDocumentWhateverIsAsked(t *testing.T) {
 	s, now := autoRouter()
-	want := s.doc.WorkedOut(claude.Policy)
+	want := s.doc.WorkedOut(claude.Policy())
 	if want.ComingUp == nil || want.Pool.Windows == nil {
 		t.Fatalf("WorkedOut() = %+v, want what's coming up and the pool", want)
 	}
@@ -120,7 +120,7 @@ func TestAGoneRouterAnswersUntilItsTimeThenFailsEveryRead(t *testing.T) {
 // ChartSpan has it.
 func TestEveryWindowsHistoryEndsAtItsUse(t *testing.T) {
 	for _, f := range []Fixture{fixture(t, "overview-default-160")} {
-		for _, a := range f.router.doc.At(f.router.doc.GeneratedAt, claude.Policy).Accounts {
+		for _, a := range f.router.doc.At(f.router.doc.GeneratedAt, claude.Policy()).Accounts {
 			for _, w := range a.Windows {
 				if start, _, ok := dashboard.ChartSpan(w); !ok || w.Read.At.Before(start) {
 					continue

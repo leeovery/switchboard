@@ -123,7 +123,7 @@ func (a *app) pinning(ctx context.Context, client *router.Client, accounts []str
 	if err != nil {
 		return "", err
 	}
-	return forced(pinned(doc.At(a.Now(), claude.Policy)), opts.force), nil
+	return forced(pinned(doc.At(a.Now(), claude.Policy())), opts.force), nil
 }
 
 // pinSession pins the session given, by as much of its id as is unique, to

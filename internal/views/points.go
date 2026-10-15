@@ -211,7 +211,7 @@ func windowsRead(requests []answered) map[string]*windowShare {
 		for _, reading := range r.windows {
 			w, ok := windows[reading.Key]
 			if !ok {
-				w = &windowShare{climb: ledger.NewClimb(reading.Key, nil), shared: slices.Contains(claude.SharedWindows, reading.Key),
+				w = &windowShare{climb: ledger.NewClimb(reading.Key, nil), shared: slices.Contains(claude.SharedWindows(), reading.Key),
 					models: make(map[string]bool)}
 				windows[reading.Key] = w
 			}

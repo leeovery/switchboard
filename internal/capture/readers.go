@@ -37,7 +37,7 @@ type records struct {
 // the sessions' world holds, or the world's own lines in their place, and
 // the router's events.
 func (a accountWorlds) recordsOf(w accountWorld) *records {
-	r := &records{days: a.year.summaries(w.history, w.accounts), readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows)}
+	r := &records{days: a.year.summaries(w.history, w.accounts), readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows())}
 	if w.traffic {
 		r.lines, r.events = a.traffic()
 	}

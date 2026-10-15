@@ -144,14 +144,14 @@ func readEach(id string, at time.Time, windows ...quota.Window) []readings.Readi
 func routed(at time.Time, events []status.Event, accounts ...status.Account) status.Document {
 	doc := readDoc(at, accounts...)
 	doc.Events = numbered(events...)
-	return doc.WorkedOut(claude.Policy)
+	return doc.WorkedOut(claude.Policy())
 }
 
 // pinned is doc with the global pin naming the accounts given, set at at,
 // worked out again.
 func pinned(doc status.Document, at time.Time, ids ...string) status.Document {
 	doc.Pin = status.Pin{Accounts: ids, Since: at}
-	return doc.WorkedOut(claude.Policy)
+	return doc.WorkedOut(claude.Policy())
 }
 
 // reserving is a with a reserve of the share given.
@@ -387,7 +387,7 @@ func holdsNoEventTells() []RunwayMoment {
 	back := onThu(15, 30, 0)
 	probe := status.Document{GeneratedAt: onThu(14, 41, 0), Source: status.SourceProbe, Fallback: status.Fallback{Router: status.RouterNotRunning}}
 	probed := readAccount(work, onThu(14, 41, 0), spent(fiveHour, 1, back), window(week, 0.5, mondayTen))
-	probe.Accounts = []status.Account{probed.AsOf(claude.Policy, probe.GeneratedAt), sideOn(onThu(14, 41, 0)).AsOf(claude.Policy, probe.GeneratedAt)}
+	probe.Accounts = []status.Account{probed.AsOf(claude.Policy(), probe.GeneratedAt), sideOn(onThu(14, 41, 0)).AsOf(claude.Policy(), probe.GeneratedAt)}
 	probe.Best = side
 	team := readAccount("team", onThu(14, 41, 0), spent(fiveHour, 1, back), window(week, 0.4, mondayTen))
 	unnamed := readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.5, onThu(16, 30, 0)), window(week, 0.5, mondayTen))
@@ -409,7 +409,7 @@ func holdsNoEventTells() []RunwayMoment {
 		weekBefore = append(weekBefore, readEach(work, at, window(fiveHour, 0.2, at.Add(3*time.Hour)), window(week, 0.2, mondayTen))...)
 	}
 	return []RunwayMoment{
-		fiveHourAt("a hold no event tells of, probed", probe.WorkedOut(claude.Policy), sorted(
+		fiveHourAt("a hold no event tells of, probed", probe.WorkedOut(claude.Policy()), sorted(
 			readEach(work, onThu(13, 30, 0), window(fiveHour, 0.8, back), window(week, 0.5, mondayTen)),
 			readEach(work, onThu(14, 5, 0), spent(fiveHour, 1, back)),
 			readEach(work, onThu(14, 41, 0), probed.Windows...),
@@ -580,9 +580,9 @@ func holdsChanging() []RunwayMoment {
 func probedAt(at time.Time, accounts ...status.Account) status.Document {
 	doc := status.Document{GeneratedAt: at, Source: status.SourceProbe, Fallback: status.Fallback{Router: status.RouterNotRunning}, Best: side}
 	for _, a := range append(accounts, sideOn(at)) {
-		doc.Accounts = append(doc.Accounts, a.AsOf(claude.Policy, at))
+		doc.Accounts = append(doc.Accounts, a.AsOf(claude.Policy(), at))
 	}
-	return doc.WorkedOut(claude.Policy)
+	return doc.WorkedOut(claude.Policy())
 }
 
 // tokenless has work and spare without a usable token, work read before it

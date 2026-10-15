@@ -72,7 +72,7 @@ switchboard service install (or switchboard serve).
 			if a.printsJSON(form, out) {
 				return writeJSON(out, doc)
 			}
-			m := doc.At(a.Now(), claude.Policy)
+			m := doc.At(a.Now(), claude.Policy())
 			_, err = io.WriteString(out, a.unrouted()+m.Text(a.running(cmd.Context(), m)...))
 			return err
 		},

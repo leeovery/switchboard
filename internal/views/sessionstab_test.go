@@ -60,7 +60,7 @@ func walk(t *testing.T, sm viewstest.SessionsMoment) []walked {
 		if len(found) > 0 {
 			held = held.Found(views.ReadListOf(sessionsLedger(look.Lines, look.Now), found...))
 		}
-		m := look.Doc.At(look.Now, claude.Policy)
+		m := look.Doc.At(look.Now, claude.Policy())
 		calls := views.CallsOf(m, views.ListLive{Running: look.Sessions, Unlisted: look.Unlisted, Stream: look.Stream}, held)
 		board = views.Patch(board, calls, views.StubsOf(m))
 		walks = append(walks, walked{look: look, m: m, held: held, found: found, calls: calls, board: board})

@@ -140,7 +140,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Notifications: cfg.Notifications,
 		Now:           a.Now,
 		Interval:      opts.interval,
-		Policy:        claude.Policy,
+		Policy:        claude.Policy(),
 		WindowName:    status.NameOfKey,
 		Accounts:      cfg.Accounts,
 		WeekStarts:    cfg.WeekStarts,

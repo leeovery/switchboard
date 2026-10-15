@@ -24,7 +24,7 @@ func latelyOf(events ...status.Event) status.Document {
 // lately are doc's events as LATELY tells them at now, n at most, as Lately
 // has them of its moment then.
 func lately(doc status.Document, now time.Time, n int) []views.Sentence {
-	return views.Lately(doc.At(now, claude.Policy), n)
+	return views.Lately(doc.At(now, claude.Policy()), n)
 }
 
 // sentenceOf is the one sentence LATELY tells of e, told at now.

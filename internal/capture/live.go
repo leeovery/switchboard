@@ -60,7 +60,7 @@ func (s Scenario) play(ctx context.Context, b *base, elapsed func() time.Duratio
 		After:      after,
 		Await:      await,
 		Interval:   interval,
-		Policy:     claude.Policy,
+		Policy:     claude.Policy(),
 		WindowName: status.NameOfKey,
 		Accounts:   b.world.accounts,
 		WeekStarts: framesWeekStarts,

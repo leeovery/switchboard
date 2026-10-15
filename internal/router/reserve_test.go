@@ -101,7 +101,7 @@ func TestAPinSpendsItsAccountsReserve(t *testing.T) {
 		t.Errorf("under a pin to work, a new session went to %s, want work", got)
 	}
 	doc := r.rt.Status()
-	said := doc.At(doc.GeneratedAt, claude.Policy).Text()
+	said := doc.At(doc.GeneratedAt, claude.Policy()).Text()
 	if !slices.ContainsFunc(strings.Split(said, "\n\n"), func(account string) bool {
 		return strings.Contains(account, "work · ") && strings.Contains(account, "\n  spending its reserve (pinned)\n")
 	}) {

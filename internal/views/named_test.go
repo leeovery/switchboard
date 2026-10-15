@@ -149,7 +149,7 @@ func TestTheListAPageAndSESSIONSNameEachSessionAlikeAtEachHardMoment(t *testing.
 			for _, s := range logPanelOf(hm.Lines, hm.Sessions, hm.Unlisted, hm.Stream, hm.Now) {
 				panel[s.ID] = s
 			}
-			m := hm.Doc.At(hm.Now, claude.Policy)
+			m := hm.Doc.At(hm.Now, claude.Policy())
 			held := listHeldOf(hm.Lines, hm.Sessions, hm.Now)
 			rows, calls := views.RunningOf(m, views.ListLive{Running: hm.Sessions, Unlisted: hm.Unlisted, Stream: hm.Stream}, held), views.CallsOf(m, views.ListLive{Running: hm.Sessions, Unlisted: hm.Unlisted, Stream: hm.Stream}, held)
 			for _, id := range slices.Sorted(maps.Keys(hm.Want)) {

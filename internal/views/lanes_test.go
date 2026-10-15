@@ -122,7 +122,7 @@ func reserveOf(doc status.Document, id string, reserve float64) status.Document 
 			doc.Accounts[i].Reserve = reserve
 		}
 	}
-	return doc.WorkedOut(claude.Policy)
+	return doc.WorkedOut(claude.Policy())
 }
 
 // withEvent is the document doc, the router telling of the event e too, newest.

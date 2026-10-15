@@ -46,7 +46,7 @@ func TestWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 			for _, s := range list.Sessions {
 				whole[s.Session] = s.Activity
 			}
-			m := hm.Doc.At(hm.Now, claude.Policy)
+			m := hm.Doc.At(hm.Now, claude.Policy())
 			rows := views.RunningOf(m, views.ListLive{Running: hm.Sessions, Unlisted: hm.Unlisted, Stream: hm.Stream}, listHeldOf(hm.Lines, hm.Sessions, hm.Now))
 			on := make(map[string]map[string]views.Activity)
 			for _, r := range rows {
@@ -219,7 +219,7 @@ func TestWhatsInFlightAsLastKnownIsSaidAsItWasNeverAtWorkNow(t *testing.T) {
 func TestWhatTheLastListingHadInFlightIsAsLastKnownWhileNoRouterListsTheSessions(t *testing.T) {
 	routed := status.Session{ID: asking, Assignments: []status.Assignment{seatOn(opus, "opus", "side", status.ReasonNew, 3*time.Minute, time.Minute, status.Answering)}}
 	listing := []status.Session{routed}
-	m := runningDoc().At(now, claude.Policy)
+	m := runningDoc().At(now, claude.Policy())
 	for _, unlisted := range []bool{false, true} {
 		t.Run(fmt.Sprintf("unlisted %t", unlisted), func(t *testing.T) {
 			live := views.ListLive{Running: listing, Unlisted: unlisted, Now: now}
