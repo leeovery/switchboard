@@ -20,6 +20,22 @@ that's jumped out at me", then a few nitpicks, "no doubt I'll find others".
   out and was content ("that makes sense, I guess"); unshifted `,` `.` as the same keys is a
   possible ease, not asked for.
 
+## The Overview
+
+- **The focus bar stops short of a long name.** While GRAPHS shows, the focused account's number
+  and name are lit on `bg.selection` for their first 12 cells, as the design says, a width written
+  for names like `work`; a longer name is lit partway (`1 me@leeove` of `1 me@leeovery.com ◆`).
+  Light the whole name column, as USAGE fits it to the names.
+
+## Charts
+
+- **Every account's burn-down, back.** The owner grew to like v0.1.6's burn-down charts: every
+  account's 5-hour window and week on screen at once, drawn as what's left falling. v0.2.0's
+  GRAPHS (`g`) draws one account at a time, the one the focus is on, as use rising, a burn-up; and
+  by account (`b`), USAGE's blocks push GRAPHS below the fold, so the owner found them only with
+  USAGE hidden. The ask: a place to see every account's charts at once, and the burn-down's way
+  round. Where, and which way round, isn't decided.
+
 ## Anywhere slow
 
 - **Nothing says a page is loading.** `enter` on a session in Detail takes about two seconds to
