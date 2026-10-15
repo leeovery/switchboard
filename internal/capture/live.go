@@ -269,11 +269,10 @@ func (p playedReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
 	}
 }
 
-// Tail gives a read of the readings from start up to end read by now, each
-// window's run from from up to start carried in, as readings.CarriedRuns has
+// Tail gives a read of the readings read by now, as readings.TailOf reads
 // them.
 func (p playedReadings) Tail(from, start, end time.Time) func() []readings.Reading {
-	return func() []readings.Reading { return readings.CarriedRuns(p.Between(from, end), from, start, end) }
+	return readings.TailOf(p.Between, from, start, end)
 }
 
 // live is a watch playing a scenario, as Bubble Tea runs it, and the keys

@@ -18,6 +18,15 @@ func CarriedRuns(read iter.Seq[Reading], from, start, end time.Time) []Reading {
 	return carriedBy(read, span{from: from, start: start, end: end}, newRunRead)
 }
 
+// TailOf returns a read of the readings between gives, as Reader's Tail
+// reads them from the files: from start up to end, each window's run from
+// from up to start carried in, as CarriedRuns has them. Each call reads them
+// whole: it's for a reader that holds the history's readings itself, whose
+// Between is between.
+func TailOf(between func(from, to time.Time) iter.Seq[Reading], from, start, end time.Time) func() []Reading {
+	return func() []Reading { return CarriedRuns(between(from, end), from, start, end) }
+}
+
 // newRunsDay returns the readings history in files of the local day that
 // starts at start and ends at end, and each window's run from from up to its
 // start, as runRead keeps it, none read yet.
