@@ -54,9 +54,15 @@ that's jumped out at me", then a few nitpicks, "no doubt I'll find others".
   GRAPHS (`g`) draws one account at a time, the one the focus is on, as use rising, a burn-up; and
   by account (`b`), USAGE's blocks push GRAPHS below the fold, so the owner found them only with
   USAGE hidden. The ask: a place to see every account's charts at once, and the burn-down's way
-  round. The owner's call, 15 October 2026: GRAPHS burns down, replacing the burn-up, "you start
-  with 100% ... and you run out", while USAGE's bars still fill with use; the pool's chart below
-  answers "across the board", and every account at once waits until that's been used.
+  round. The owner's calls, 15 October 2026: GRAPHS keeps its burn-up and gains a burn-down, a
+  key flicking between them in the same structure ("some people like burning up, some people like
+  burning down"); a burn-down draws where it's heading, faint, at the projection Runway's words go
+  by, so the two never disagree; and every account's burn-down at once is wanted back. v0.1.6 had
+  it: a card an account, each drawing its featured window's burn-down with its dotted projection,
+  `w` featuring the week on every card at once. Where it goes now is open: the owner floated a
+  view of Runway's, every account on one time axis, the Overview staying as it is.
+- **By account, GRAPHS has no room.** With `b`, USAGE's blocks take the rows GRAPHS would have,
+  and GRAPHS says `no room at 50 rows` in a near full-screen terminal on a 16-inch MacBook Pro.
 - **The pool, chosen for GRAPHS.** `↑` `↓` stop at the last account; the owner wants `↓` to go on
   to `Σ pool` and GRAPHS to chart the pool across the board. The accounts' windows start and reset
   at different times, so the pool's charts need a time axis of their own. Agreed with the owner,
