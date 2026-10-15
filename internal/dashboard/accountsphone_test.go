@@ -277,6 +277,35 @@ func TestAPhonesDetailOfAllAccounts(t *testing.T) {
 	}
 }
 
+// Where an account's plan isn't known, a phone's against it, on Compare, and
+// against, on Detail, 15 cells from column 36 at 52 columns, say every
+// account's ratio over the plans known, compact, the plans known over the
+// accounts: "4.6× · 2/3"; with every plan known, the ratio alone (the
+// owner's call, 15 October 2026).
+func TestAPhonesAgainstSaysTheRatioOverThePlansKnownCompact(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		known views.PlansKnown
+		want  string
+	}{
+		{name: "a plan not known", known: views.PlansKnown{Known: 2, Of: 3}, want: "4.6× · 2/3"},
+		{name: "every plan known", known: views.PlansKnown{Known: 3, Of: 3}, want: "4.6×"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			page := phonePage(t)
+			page.All.Plan.Plans = tt.known
+			compare := textOf(phoneText(t, 52, 60, AccountsCompare, "", page, nil).Draw(phoneDoc(), routedAt))
+			if want := " all         $600/mo      $635      " + tt.want; !slices.Contains(compare, want) {
+				t.Errorf("Compare reads\n%s\nwant a row %q", strings.Join(compare, "\n"), want)
+			}
+			detail := textOf(phoneText(t, 52, 60, AccountsDetail, "", page, nil).Draw(phoneDoc(), routedAt))
+			if want := "plan      $600/mo         against   " + tt.want; detail[21] != want {
+				t.Errorf("Detail's row 21 is %q, want %q", detail[21], want)
+			}
+		})
+	}
+}
+
 // All accounts' Detail on a phone counts the configured accounts' states:
 // one the document lacks yet as not read, and one the document holds and the
 // config doesn't, not at all.

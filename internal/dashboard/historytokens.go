@@ -403,29 +403,28 @@ func againstItsPrice(a views.Against, unit string, cells int) []part {
 
 // knownParts say, after a ratio of every account's, that it's over the plans
 // known, where some accounts' plans aren't, as views.PlansKnown says it, in
-// text.subtle: in full where the cells given hold it, " · 2 of 3 plans
-// known", else short, " · 2 of 3 plans". They're none where every plan is
+// text.subtle, in the longest of knownForms' forms the cells given hold: in
+// full, " · 2 of 3 plans known", short, " · 2 of 3 plans", or compact, " ·
+// 2/3". They're none where none fits, the ratio alone, or every plan is
 // known.
 func knownParts(k views.PlansKnown, cells int) []part {
-	forms := knownForms(k)
-	if len(forms) == 0 {
-		return nil
+	for _, said := range knownForms(k) {
+		if ansi.StringWidth(said) <= cells {
+			return []part{wordsIn(said, dimInk)}
+		}
 	}
-	said := forms[0]
-	if ansi.StringWidth(said) > cells {
-		said = forms[1]
-	}
-	return []part{wordsIn(said, dimInk)}
+	return nil
 }
 
 // knownForms are the forms a ratio of every account's says, after it, that
 // it's over the plans known, as views.PlansKnown says it, longest first: "
-// · 2 of 3 plans known", " · 2 of 3 plans"; none where every plan is known.
+// · 2 of 3 plans known", " · 2 of 3 plans", " · 2/3"; none where every plan
+// is known.
 func knownForms(k views.PlansKnown) []string {
 	if k.Said() == "" {
 		return nil
 	}
-	return []string{accountsApart + k.Said(), accountsApart + k.SaidShort()}
+	return []string{accountsApart + k.Said(), accountsApart + k.SaidShort(), accountsApart + k.SaidCompact()}
 }
 
 // tokensPlaced is how Tokens' periods fit in the rows they have, from row

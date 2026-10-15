@@ -413,7 +413,8 @@ func (y yearDrawn) figures() []yearFigure {
 // againstFigure is the worth against what the plans cost, as againstSaid
 // says it, then, where some accounts' plans aren't known, that it's over
 // those known, as knownForms says it, in text.subtle: "3.8× · 2 of 3 plans
-// known"; its shorter forms that short, then the ratio alone.
+// known"; its shorter forms that short, then compact, "3.8× · 2/3", then the
+// ratio alone.
 func againstFigure(a views.Against) yearFigure {
 	figure := yearFigure{label: "against it", short: "against", value: againstSaid(a.Ratio), changes: true}
 	if a.Ratio == nil {
@@ -644,7 +645,8 @@ func (y yearDrawn) barHead() string {
 // every account's use where some plans aren't known, that each month's
 // against is over those known, once for the table, in the longest of
 // knownForms' forms that fits the frame, else none: "... the plans cost
-// that month · 2 of 3 plans known". byMonthReach leaves those words out, so
+// that month · 2 of 3 plans known", "· 2 of 3 plans" or "· 2/3".
+// byMonthReach leaves those words out, so
 // the form never hangs on the plans.
 func (y yearDrawn) byMonthHead(phone bool) line {
 	head := groupHead("BY MONTH", y.byMonthSays(), phone)

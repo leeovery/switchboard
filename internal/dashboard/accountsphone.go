@@ -248,7 +248,7 @@ func (cp compared) turnedGroups() []turnedGroup {
 		{name: "VALUE", columns: []turnedColumn{
 			{turnedAt, "plan", func(col compareColumn) []part { return planPriced(col.row, col.ink()) }},
 			{26, "worth", cp.period(func(col compareColumn) []part { return worthParts(col.row, col.ink()) })},
-			{36, "against it", cp.period(func(col compareColumn) []part { return againstShort(col.row) })},
+			{36, "against it", cp.period(func(col compareColumn) []part { return againstOnPhone(col.row) })},
 		}},
 	}
 }
@@ -403,7 +403,7 @@ func (s stacked) thisWeekItems() [][]thisWeekItem {
 		{
 			{"worth", periodParts(page, worthParts(s.row, secondaryInk), secondaryInk)},
 			{"extra use", extraShort(s.extra())},
-			{"against", periodParts(page, againstShort(s.row), secondaryInk)},
+			{"against", periodParts(page, againstOnPhone(s.row), secondaryInk)},
 		},
 	}
 }

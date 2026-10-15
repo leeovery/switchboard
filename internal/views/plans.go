@@ -126,6 +126,16 @@ func (k PlansKnown) SaidShort() string {
 	return k.Words().String()
 }
 
+// SaidCompact says it as SaidShort does, compact, for where neither form
+// fits, as a phone's against it: the plans known over the accounts, "2/3";
+// "" where every one is known, or none is.
+func (k PlansKnown) SaidCompact() string {
+	if k.SaidShort() == "" {
+		return ""
+	}
+	return prose.Grouped(k.Known) + "/" + prose.Grouped(k.Of)
+}
+
 // Words say how many plans every account's plan sums, as it says them
 // after its price, the counts its figures: "3 plans" where every one is
 // known, else of how many, "2 of 3 plans"; none where none is.
