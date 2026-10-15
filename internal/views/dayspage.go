@@ -159,7 +159,7 @@ func (w weekDays) addModel(families map[string]*familyDays, v versions, i int, m
 		f.worth[i] += *m.Worth
 	}
 	f.sum.addModel(m)
-	f.used = f.used || m.Requests() > 0
+	f.used = f.used || used(m.ModelDay)
 }
 
 // byAccount are BY ACCOUNT's strips: a configured account each, in the

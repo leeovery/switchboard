@@ -305,6 +305,25 @@ func TestAnAmountIsShownToTheCentOrTheDollarAndGivenInDollarsExactly(t *testing.
 	}
 }
 
+func TestAnAmountToTheCentIsWhatCentsShows(t *testing.T) {
+	tests := []struct {
+		amount, want ledger.Picodollars
+	}{
+		{amount: 0, want: 0},
+		{amount: 1, want: 0},
+		{amount: dollars(0.004999), want: 0},
+		{amount: dollars(0.005), want: dollars(0.01)},
+		{amount: dollars(46.153846), want: dollars(46.15)},
+		{amount: -dollars(0.005), want: -dollars(0.01)},
+		{amount: -dollars(1.5), want: -dollars(1.5)},
+	}
+	for _, tt := range tests {
+		if got := tt.amount.ToTheCent(); got != tt.want || got.Cents() != tt.amount.Cents() {
+			t.Errorf("%d picodollars to the cent is %d, shown as %s; want %d, as %s", tt.amount, got, got.Cents(), tt.want, tt.amount.Cents())
+		}
+	}
+}
+
 func TestASummaryIsPricedModelByModel(t *testing.T) {
 	summary := ledger.Summary{Version: 1, Day: date, Lines: 9, Accounts: []ledger.AccountDay{
 		{Account: "work", Sessions: 2, Models: []ledger.ModelDay{
@@ -391,6 +410,31 @@ func TestARequestThatWentUpstreamWithoutUsageIsUnpricedNeverFree(t *testing.T) {
 			tt.edit(&line)
 			if got, ok := ledger.Pricing.Request(&line, today); !ok || got.Cost != tt.want.Cost || !slices.Equal(got.Unpriced, tt.want.Unpriced) {
 				t.Errorf("Request() = %+v, %v, want %+v", got, ok, tt.want)
+			}
+		})
+	}
+}
+
+func TestAQuotaCheckIsWorthNothingWhateverItSpent(t *testing.T) {
+	tests := []struct {
+		name string
+		edit func(l *ledger.Line)
+	}{
+		{name: "of a model the table prices", edit: func(*ledger.Line) {}},
+		{name: "of a model the table doesn't know", edit: func(l *ledger.Line) { l.Model = "claude-opus-9" }},
+		{name: "in a geo the table doesn't price its model in", edit: func(l *ledger.Line) { l.Model, l.Shape.InferenceGeo = "claude-haiku-4-5", "us" }},
+		{name: "without usage", edit: func(l *ledger.Line) { l.Usage, l.CutOff = nil, true }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			check := asked("1", on(0, 9, 0))
+			check.Kind = ledger.KindCheck
+			tt.edit(&check)
+			if got, _ := ledger.Pricing.Request(&check, today); got.Cost != 0 || len(got.Unpriced) > 0 {
+				t.Errorf("Request() = %+v, want nothing: a check isn't work done for the session", got)
+			}
+			if got, _ := ledger.Pricing.Summed(&check, today); got.Cost != 0 || len(got.Unpriced) > 0 {
+				t.Errorf("Summed() = %+v, want nothing added, nor named unpriced", got)
 			}
 		})
 	}

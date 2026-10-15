@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -277,6 +278,66 @@ func TestASessionsTimeOnEachAccountIsItsStay(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A session's rows say their worth to the cent, each part of TURNS' total,
+// their rounding reconciled so they add up to it, cent for cent: each the
+// cents the running sum through it comes to, less those before it, so a row
+// can say a cent off what it'd say alone, and more than nothing that comes
+// to none reads <$0.01. What's unpriced reads as it would alone.
+func TestASessionsRowsWorthAddsUpToTURNSTotal(t *testing.T) {
+	// worth is a worth of the millionths of a dollar given, unpriced as
+	// given, and of none priced where they're fewer than none.
+	worth := func(millionths int64, unpriced ...string) views.Worth {
+		w := views.Worth{Unpriced: unpriced}
+		if millionths >= 0 {
+			w.Amount = new(ledger.Picodollars(millionths * 1_000_000))
+		}
+		return w
+	}
+	tests := []struct {
+		name   string
+		worths []views.Worth
+		total  views.Worth
+		want   []string
+	}{
+		{name: "two half cents, a cent", worths: []views.Worth{worth(5000), worth(5000)}, total: worth(10_000), want: []string{"$0.01", "<$0.01"}},
+		{name: "three under half a cent, a cent", worths: []views.Worth{worth(3500), worth(3500), worth(3500)}, total: worth(10_500),
+			want: []string{"<$0.01", "$0.01", "<$0.01"}},
+		{name: "one a cent short of what it'd say alone", worths: []views.Worth{worth(1_006_000, "claude-opus-9"), worth(2_006_000)},
+			total: worth(3_012_000, "claude-opus-9"), want: []string{"$1.01+", "$2.00"}},
+		{name: "one wholly unpriced", worths: []views.Worth{worth(1_234_000), worth(-1, "claude-opus-9")}, total: worth(1_234_000, "claude-opus-9"),
+			want: []string{"$1.23", "unpriced"}},
+		{name: "each as it'd say alone", worths: []views.Worth{worth(41_060_000), worth(3_200_000)}, total: worth(44_260_000), want: []string{"$41.06", "$3.20"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := views.SessionPage{Activity: views.Activity{Doing: views.Ended}, Totals: views.SessionTotals{Worth: tt.total}}
+			for i, w := range tt.worths {
+				p.Accounts = append(p.Accounts, views.SessionAccount{Account: fmt.Sprint("account-", i), Worth: w})
+			}
+			var got []string
+			for _, s := range p.Stays(now) {
+				got = append(got, s.Cents())
+			}
+			if !slices.Equal(got, tt.want) || centsOf(got) != centsOf([]string{p.Totals.Cents()}) {
+				t.Errorf("the rows say %q, TURNS' total %s; want %q, adding up to it", got, p.Totals.Cents(), tt.want)
+			}
+		})
+	}
+}
+
+// centsOf adds up worths said to the cent, as "$1.23", "$1.23+", "<$0.01" or
+// "unpriced", the last two none, in cents.
+func centsOf(said []string) int {
+	sum := 0
+	for _, s := range said {
+		var dollars, cents int
+		if _, err := fmt.Sscanf(strings.TrimSuffix(s, views.PartUnpriced), "$%d.%d", &dollars, &cents); err == nil {
+			sum += 100*dollars + cents
+		}
+	}
+	return sum
 }
 
 // A turn took the minutes from the one it started in to the one it ended

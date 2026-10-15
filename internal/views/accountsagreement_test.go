@@ -1,11 +1,14 @@
 package views_test
 
 import (
+	"io/fs"
+	"maps"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
@@ -17,30 +20,80 @@ import (
 // account and of every account: its requests, its limits, its sessions
 // served and its worth among them, each window's last run, told from the
 // days before the period too, and what its plan cost over the period and
-// its worth against it. Where the ledger began part-way through the period,
-// history prices the plans from its first day, as it prices the days asked
-// for from before it, and Accounts the whole period: history's cost less.
+// its worth against it, the ledger begun part-way through the period or
+// not, as both price a young ledger's plans from its first day.
 func TestAccountsTotalsAndPlansAreHistorysOverThePeriod(t *testing.T) {
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
 			page, _ := accountsAt(am)
-			from := am.Period.From(am.Now, am.WeekStarts)
-			history := historySince(am, from)
+			history := historySince(am, am.Period.From(am.Now, am.WeekStarts))
 			rows := append(slices.Clone(page.Rows), page.All)
 			if len(rows) != len(history.Totals.Accounts) || len(rows) != len(history.Plans) {
 				t.Fatalf("the page has %d rows, history %d totals and %d plans", len(rows), len(history.Totals.Accounts), len(history.Plans))
 			}
-			partWay := on(am.Days[0].Day).After(from)
 			for i, row := range rows {
 				if got, want := jsonOf(t, row.Totals), jsonOf(t, history.Totals.Accounts[i]); got != want {
 					t.Errorf("row %d counts\n%s\nhistory counts\n%s", i, got, want)
 				}
-				switch got, want := jsonOf(t, row.Plan), jsonOf(t, history.Plans[i]); {
-				case !partWay && got != want:
+				if got, want := jsonOf(t, row.Plan), jsonOf(t, history.Plans[i]); got != want {
 					t.Errorf("row %d's plan is\n%s\nhistory's\n%s", i, got, want)
-				case partWay && row.Plan.Cost != nil && (history.Plans[i].Cost == nil || *history.Plans[i].Cost >= *row.Plan.Cost):
-					t.Errorf("the ledger begun part-way through the period, row %d's plan is\n%s\nhistory's\n%s\nwant history's cost less", i, got, want)
 				}
+			}
+		})
+	}
+}
+
+// A young ledger's plans are priced from its first day, whatever the period
+// it began in, on Accounts, history and the Tokens row of the week alike: of
+// work's Max 20x and side's Pro, $220 a month, from a Wednesday, this week's
+// 5 days at 12/365 of a month to its end, the last 30 days' and the last 12
+// weeks' the days to today and to this week's end; and from the period's
+// first day, whole. A ledger that holds no day yet, as on a fresh install,
+// begins today, as ledger.Begins tells the dashboard and a read of its days
+// alike: this week's 3 days from the Friday.
+func TestAYoungLedgersPlansArePricedFromItsFirstDayEverywhere(t *testing.T) {
+	friday := on("2026-10-09").Add(15 * time.Hour)
+	tests := []struct {
+		name  string
+		began string
+		// empty is a ledger holding no day, its days those a read of it
+		// gives, where it begins as ledger.Begins says.
+		empty  bool
+		period views.AccountsPeriod
+		want   string
+	}{
+		{name: "this week, the ledger holding no day yet", began: "2026-10-09", empty: true, period: views.AccountsThisWeek,
+			want: "21.698630136986"},
+		{name: "this week, begun on its Wednesday", began: "2026-10-07", period: views.AccountsThisWeek, want: "36.164383561644"},
+		{name: "this week, begun on its first day, whole", began: "2026-10-05", period: views.AccountsThisWeek, want: "50.769230769231"},
+		{name: "today, begun today, whole", began: "2026-10-09", period: views.AccountsToday, want: "7.232876712328"},
+		{name: "the last 30 days, begun on the Wednesday, its 3 days to today", began: "2026-10-07", period: views.AccountsThirtyDays,
+			want: "21.698630136986"},
+		{name: "the last 12 weeks, begun a month before, its days to this week's end", began: "2026-09-09", period: views.AccountsTwelveWeeks,
+			want: "238.684931506849"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			days := daysTo(tt.began, friday, day(tt.began, account("work", sent("claude-opus-5-5", 1, inputUsage))))
+			began := on(tt.began)
+			if tt.empty {
+				days = daysTo(tt.began, friday)
+				began, _, _ = ledger.Begins(time.Time{}, fs.ErrNotExist, friday)
+			}
+			in := input(days)
+			in.Now, in.Began = friday, began
+			in.From = tt.period.From(friday, in.WeekStarts)
+			got := map[string]string{
+				"Accounts": jsonOf(t, views.NewPast(in, days).Accounts(tt.period).All.Plan.Cost),
+				"history":  jsonOf(t, views.NewHistory(in).Plans[len(in.Accounts)].Cost),
+			}
+			want := map[string]string{"Accounts": tt.want, "history": tt.want}
+			if tt.period == views.AccountsThisWeek {
+				tokens := views.NewHistory(in).Tokens
+				got["Tokens"], want["Tokens"] = jsonOf(t, tokens[len(tokens)-1].Cost), tt.want
+			}
+			if !maps.Equal(got, want) {
+				t.Errorf("the ledger begun %s, the plans cost %v, want %v", tt.began, got, want)
 			}
 		})
 	}

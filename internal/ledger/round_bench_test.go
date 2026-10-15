@@ -112,9 +112,8 @@ func BenchmarkSummarisingAYearOfHeavyDaysAgain(b *testing.B) {
 }
 
 // olderSummaries returns what writes the summaries the ledger in dir holds
-// back as the release before version 4 wrote them, whole and marked: of
-// version 3, its models' sessions never named, and stamped a second sooner,
-// as that release stamped them.
+// back as the release before version 5 wrote them, whole and marked: of
+// version 4, and stamped a second sooner, as that release stamped them.
 func olderSummaries(b *testing.B, dir string) (write func()) {
 	b.Helper()
 	paths, err := filepath.Glob(filepath.Join(dir, "day-*.json"))
@@ -140,12 +139,7 @@ func olderSummaries(b *testing.B, dir string) (write func()) {
 		if err := json.Unmarshal(data, &s); err != nil {
 			b.Fatal(err)
 		}
-		s.Version = 3
-		for _, a := range s.Accounts {
-			for i := range a.Models {
-				a.Models[i].SessionIDs = nil
-			}
-		}
+		s.Version = 4
 		if data, err = json.Marshal(s); err != nil {
 			b.Fatal(err)
 		}

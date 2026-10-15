@@ -183,7 +183,8 @@ Compare has a column for each account, and one for `all accounts`. Each column s
 - its limits hit
 - the time it spent at its cap or a limit, and what it had left at its last reset
 - its plan and its extra usage
-- what the plan costs against what its use was worth at API prices.
+- what the plan costs against what its use was worth at API prices. Where an account has no
+  `plan`, `all accounts` says how many of the plans it knows, as its worth is every account's.
 
 `←` and `→` move a focus along the columns, scrolling them where they don't all fit. `enter`
 opens the focused account in Detail.
@@ -432,7 +433,8 @@ The page shows:
 
 - what the session is doing now, and where it runs
 - its STORY: its requests a minute, from its first to now, with each move marked and costed
-- the accounts it ran on, and what it took of each
+- the accounts it ran on, and what it took of each, their worth adding up to its turns', to the
+  cent
 - its turns, newest first.
 
 To open a session's page, do one of these:

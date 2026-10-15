@@ -138,7 +138,7 @@ func writeSessions(out io.Writer, list views.SessionList, now time.Time) error {
 // sessionRow is a session's row: its mark; its id cut short and its
 // directory; the account it's on, and its model; what it's doing, at now;
 // when it started; its requests today, and their worth; and how it came to
-// its account.
+// its account, as the Log's routing says it, "from work, at its cap  $1.82".
 func sessionRow(s views.ListedSession, now time.Time) []string {
 	session := status.ShortID(prose.Clean(s.Session))
 	if s.Dir != "" {
@@ -149,17 +149,5 @@ func sessionRow(s views.ListedSession, now time.Time) []string {
 		started = prose.Past(now, s.Started)
 	}
 	return []string{s.Mark.String(), session, orNone(prose.Clean(s.Account)), orNone(ledger.ShortModelID(s.Model)),
-		s.Activity.State(now), started, prose.Grouped(s.Requests), s.Cents(), routingSaid(s.Routing)}
-}
-
-// routingSaid says how a session came to the account it's on, as its
-// routing has it: its words, as "from work, at its cap", or "pinned here";
-// and what writing its context again there cost, where that's known, as
-// views.Worth says it to the cent, as "$1.82" or "<$0.01".
-func routingSaid(r views.RoutingSaid) string {
-	said := r.Words.String()
-	if r.Cost != nil {
-		said += "  " + views.Worth{Amount: r.Cost}.Cents()
-	}
-	return said
+		s.Activity.State(now), started, prose.Grouped(s.Requests), s.Cents(), s.Routing.Said().String()}
 }

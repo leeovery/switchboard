@@ -14,11 +14,20 @@ import (
 // account it moved to, the tokens it wrote, and what that cost. Written is
 // zero, and Cost nil, while no request has, and where the cache would have
 // run out anyway; Cost is nil, too, where the price table can't price it.
+// Rewrote is set where one has, priced or not.
 type EventMove struct {
 	Request string
 	At      time.Time
 	Written int
 	Cost    *ledger.Picodollars
+	Rewrote bool
+}
+
+// CostSaid says what writing the session's context again cost, exactly,
+// "$1.82", or "unpriced" where the price table can't price it: "" while no
+// request has written it, or none will.
+func (m EventMove) CostSaid() string {
+	return rewriteSaid(m.Rewrote, m.Cost)
 }
 
 // moveOf is the move the move event e tells of, as the story s of its
@@ -50,8 +59,8 @@ func eventMove(m *move) *EventMove {
 	if m == nil {
 		return nil
 	}
-	made := &EventMove{Request: m.by.Request, At: m.at, Cost: m.cost}
-	if m.rewrote != nil {
+	made := &EventMove{Request: m.by.Request, At: m.at, Cost: m.cost, Rewrote: m.rewrote != nil}
+	if made.Rewrote {
 		made.Written = m.written
 	}
 	return made

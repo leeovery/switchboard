@@ -73,7 +73,7 @@ type ModelTokens struct {
 	Worth
 }
 
-// tokensOf are Tokens' rows over days, asked for from the day with the date
+// tokensOf are Tokens' rows over days, counted from the day with the date
 // from, a calendar week each, weeks starting on the day given, as
 // tokenPeriodsOf gives them.
 func tokensOf(days []Day, p plans, v versions, from string, weekStarts time.Weekday) []TokenWeek {
@@ -85,18 +85,17 @@ func tokensOf(days []Day, p plans, v versions, from string, weekStarts time.Week
 	return weeks
 }
 
-// tokenPeriodsOf are Tokens' rows over days, asked for from the day with the
+// tokenPeriodsOf are Tokens' rows over days, counted from the day with the
 // date from, a period each, as the shape given makes them, oldest first,
 // each costing its plans its share of a month as of its first day, the
-// period so far whole, but for one the days asked for begin part-way
-// through, as cutShort says.
+// period so far whole, but for the one the days counted begin part-way
+// through, as the one a young ledger began in, as pricedOver prices it.
 func tokenPeriodsOf(days []Day, p plans, v versions, from string, by periodShape) []TokenPeriod {
 	periods := []TokenPeriod{}
 	for _, s := range spansOf(days, by.key) {
 		period := tokenPeriodOf(s, p, v)
 		first, last := by.dates(s.key)
-		priced, at := cutShort(first, last, from, by.share)
-		period.Against = p.against(accountWorths(s.days), at, priced)
+		period.Against = p.against(accountWorths(s.days), pricedOver(first, last, from, by.share))
 		periods = append(periods, period)
 	}
 	return periods
@@ -105,25 +104,25 @@ func tokenPeriodsOf(days []Day, p plans, v versions, from string, by periodShape
 // tokenPeriodOf is the period the span's days make: their tokens and worth,
 // by account, in the config's order, those it doesn't configure after, and
 // by model version, and how many versions they were of. An account whose
-// days hold no model's, as one whose windows were read but that wasn't used,
-// has none.
+// days hold no model used, as used says, as one whose windows were read but
+// that wasn't used, or that sent quota checks alone, has none.
 func tokenPeriodOf(s span, p plans, v versions) TokenPeriod {
 	period := TokenPeriod{First: s.key}
 	models, accounts := modelTally{}, accountTally{}
 	for _, d := range s.days {
 		for _, a := range d.Accounts {
-			if len(a.Models) == 0 {
-				continue
-			}
-			account := accounts.of(a.Account)
 			for _, m := range a.Models {
 				tokens := m.Tokens()
 				period.count(tokens)
 				period.addModel(m)
+				models.add(v, m, tokens, a.Account)
+				if !used(m.ModelDay) {
+					continue
+				}
+				account := accounts.of(a.Account)
 				account.count(tokens)
 				account.addModel(m)
 				account.models.add(v, m, tokens, "")
-				models.add(v, m, tokens, a.Account)
 			}
 		}
 	}
@@ -206,9 +205,9 @@ type rankedModel struct {
 // add adds a model's day, its tokens given, to its version's, and what it
 // was worth on the account it ran on, where one's given, to the version's
 // there: none of the requests whose bodies couldn't be read, which name no
-// model, and so spent nothing.
+// model, and so spent nothing, nor of a model not used, as used says.
 func (t modelTally) add(v versions, m ledger.PricedModel, tokens quota.Tokens, account string) {
-	if m.Model == "" {
+	if m.Model == "" || !used(m.ModelDay) {
 		return
 	}
 	id, rank := v.of(m.Model)

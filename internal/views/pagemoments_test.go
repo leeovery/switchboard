@@ -130,6 +130,26 @@ func TestASessionsPageAgreesWithTheListSessionsAndTheTracesAtEachHardMoment(t *t
 	}
 }
 
+// At each hard moment, each session's rows' worths, as they say them to the
+// cent, add up to TURNS' total, as it says it.
+func TestASessionsRowsAddUpToTURNSTotalAtEachHardMoment(t *testing.T) {
+	for _, hm := range viewstest.SessionMoments() {
+		t.Run(hm.Name, func(t *testing.T) {
+			for _, id := range slices.Sorted(maps.Keys(hm.Page)) {
+				held, live := momentsHeld(hm, id)
+				page, _ := held.Page(live)
+				var said []string
+				for _, s := range page.Stays(hm.Now) {
+					said = append(said, s.Cents())
+				}
+				if centsOf(said) != centsOf([]string{page.Totals.Cents()}) {
+					t.Errorf("%s's rows say %q, TURNS' total %s", id[:4], said, page.Totals.Cents())
+				}
+			}
+		})
+	}
+}
+
 // routerAnswered counts the requests of the session with the given id at
 // the moment hm that the router answered itself, sending them to no account.
 func routerAnswered(hm viewstest.SessionMoment, id string) int {

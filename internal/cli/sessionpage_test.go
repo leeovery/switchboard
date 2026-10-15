@@ -103,13 +103,15 @@ func pageDeps(t *testing.T, routed bool) cli.Deps {
 	return deps
 }
 
-// pageText is what sessions prints of paging's page, the router listing it.
+// pageText is what sessions prints of paging's page, the router listing it:
+// its rows' worths add up to TURNS' $0.15, side's a cent under what it'd
+// say alone.
 const pageText = `session 5e6f9d33  ~/Code/web
 ↓ answering  ·  on side since 09:12, rescored after 15h 7m idle: side had the most room  ·  started yesterday 16:40 · resumed 09:12
 opus-5-5 → side   haiku-4-5 → work
 
 work  yesterday 16:40 – today 09:13  3 requests  ≈ 4 points of its 5-hour · 1 of its week  $0.08
-side  today 09:12 – now              2 requests  ≈ 2 points of its 5-hour                  $0.08
+side  today 09:12 – now              2 requests  ≈ 2 points of its 5-hour                  $0.07
 
 2 turns  ·  5 requests  ·  99% from cache  ·  $0.15 at API prices
 #  started          took   requests  tools                      read  written  out   worth  on
@@ -197,7 +199,7 @@ ended 09:20  ·  ran on work, then side from today 09:12: rescored after 15h 7m 
 kept until 10 Nov 2027
 
 work  yesterday 16:40 – today 09:13  3 requests  ≈ 4 points of its 5-hour · 1 of its week  $0.08
-side  today 09:12 – 09:20            2 requests  ≈ 2 points of its 5-hour                  $0.08
+side  today 09:12 – 09:20            2 requests  ≈ 2 points of its 5-hour                  $0.07
 
 2 turns  ·  5 requests  ·  99% from cache  ·  $0.15 at API prices
 #  started          took  requests  tools                      read  written  out   worth  on
@@ -375,7 +377,9 @@ func TestTheAccountARunningSessionIsOnNowIsItsLatestRequests(t *testing.T) {
 		{Model: "claude-opus-5-5", Account: "side", Reason: "rescored after 1h idle", LastSeen: october(7, 13, 11, 0).UTC()},
 	}}})
 	got := run(t, deps, "sessions", paging, "--pretty")
-	const want = "\nwork  12:00 – now    2 requests    $0.08\nside  12:05 – 12:05  1 request     $0.04\n"
+	// Its rows add up to TURNS' $0.11, side's a cent under what it'd say
+	// alone.
+	const want = "\nwork  12:00 – now    2 requests    $0.08\nside  12:05 – 12:05  1 request     $0.03\n"
 	if got.code != 0 || !strings.Contains(got.stdout, want) {
 		t.Errorf("switchboard sessions %s --pretty = %+v, want its accounts' rows\n%s", paging, got, want)
 	}

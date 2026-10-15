@@ -343,13 +343,13 @@ func TestTheTurnChosensColumnsAreLit(t *testing.T) {
 
 // movesStory is a story 160 minutes old, a minute a column from 12:00, its
 // session moved at its cap at each time given, from work to side, then on to
-// personal.
+// personal, its cache run out by each, so none cost anything.
 func movesStory(at ...time.Time) views.Story {
 	s := views.Story{Start: storyAt(8, 12, 0, 0), End: storyAt(8, 14, 40, 30), Sent: minutely(storyAt(8, 12, 0, 0), storyAt(8, 14, 40, 0))}
 	accounts := []string{"work", "side", "personal"}
 	for i, t := range at {
 		s.Moves = append(s.Moves, capMove(accounts[i], accounts[i+1], t, 182_000, 182))
-		s.Moves[i].Rewrote = false
+		s.Moves[i].Rewrote, s.Moves[i].Cost = false, nil
 	}
 	return s
 }

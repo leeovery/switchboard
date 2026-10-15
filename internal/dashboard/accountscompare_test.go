@@ -84,6 +84,7 @@ func comparedPage(period views.AccountsPeriod, versions []ledger.Version, rows .
 		page.Rows = append(page.Rows, f.row())
 	}
 	page.All = rows[len(rows)-1].row()
+	countPlans(&page)
 	return page
 }
 

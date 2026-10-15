@@ -169,7 +169,8 @@ Each entry in `models` counts its requests by how they went:
 - `upstream`: those that went upstream.
 - `no_usage`: those of them that got no usage back.
 - `unsent`: those the router answered itself.
-- `checks`: Claude Code's quota checks.
+- `checks`: Claude Code's quota checks. Their usage is left out of the model's `usage`, as they
+  aren't work done for you, so nothing prices them.
 - `counts`: Claude Code's counts of tokens.
 
 Each entry also has the requests' `sessions` and `session_ids`, their `usage` summed field for
@@ -333,7 +334,8 @@ added:
 - Each model's `worth`, in US dollars.
 - `unpriced`, naming what the worth leaves out, such as `no_usage`, requests that got no usage
   back.
-- `by_family`: the day's worth by model family.
+- `by_family`: the day's worth by model family, of the models used: none of quota checks or counts
+  of tokens alone.
 
 A day of no requests, where the history tells of no account that day, has no `accounts`. An account
 has a day there where its quota checks, its counts of tokens or the history give it one, with
@@ -352,9 +354,11 @@ Each month's:
 - `limits` reached, by window.
 - `by_family`.
 - `cost`: the cost of the month's plans. It's the whole month's, or, where the days asked for begin
-  part-way through the month, its days' from the first asked for.
+  part-way through the month, its days' from the first asked for, or from the ledger's first day
+  where it began later.
 - `against`: the worth of the month's accounts against that cost, as a ratio. The month so far has
   none.
+- `plans`: how many accounts' plans are `known`, of how many there are, as in `plans` below.
 
 ### `weeks`
 
@@ -374,10 +378,12 @@ peaks.
 Each week's tokens:
 
 - By kind: `input`, `output`, `cache_write`, `cache_read` and `total`.
-- The week's `worth`, its plans' `cost`, and `against`.
+- The week's `worth`, its plans' `cost`, `against`, and how many `plans` are known, as in `plans`
+  below.
 - `by_account`, in the config's order.
 - `by_model`, each model version by its id, with the accounts it ran `on`, the account it was worth
-  most on first.
+  most on first. A model of quota checks or counts of tokens alone, which wasn't used, is in neither,
+  nor is an account that sent them alone.
 
 ### `totals`
 
@@ -392,7 +398,8 @@ Each account's totals, then `all`, for every account together:
 - `ran_out`: the day the window last reached its limit in the run that its last reset ended, where
   it did.
 - `worth`.
-- `by_model`: each model version's `share` of use, weighed at API prices, and its `worth`.
+- `by_model`: each model version's `share` of use, weighed at API prices, and its `worth`, of the
+  versions used alone.
 - `busiest_day`.
 - `longest_run`: the most days in a row with any request.
 - `partial`: naming a count that some of the days never counted.
@@ -402,10 +409,14 @@ Each account's totals, then `all`, for every account together:
 Each account's:
 
 - `plan`, and its `price` a month.
-- What the plan cost over those days, and the account's worth `against` it.
+- What the plan cost over those days, `cost`, and the account's worth `against` it. Where the
+  ledger began after the first day asked for, the plan is priced from the ledger's first day, as
+  there's no worth before it to set against it.
 - The account's `worth`.
 
-Then `all`, for every account on a plan together.
+Then `all`, for every account on a plan together, with `plans`: how many accounts' plans are
+`known`, of how many accounts there are, as `{"known": 2, "of": 3}`. Its cost, and the worth
+against it, are those of the accounts whose plans are known alone.
 
 ### `capacity`
 

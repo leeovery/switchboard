@@ -574,7 +574,12 @@ which the dashboard draws as its world gives it:
   not summed from its rows: BY MODEL's `53%`, `4%`, `4%` and `1%`, rows 13, 14, 16 and 17, the
   world's 55%, 3%, 2% and 2%; and `12,598` requests, `51` sessions served, `10 moves`, `9h 57m` at cap
   or limit, `$1,342` and `3.4×`, rows 21 to 23, 27, 33 and 34, the world's 11,698, 53, 5, 13h 31m,
-  $1,310 and 3.3×.
+  $1,310 and 3.3×. Work's bar, row 12, column 40, Sonnet 5.5's last cell in the frame, drawn in
+  Sonnet 5's shade: the world's week is its shares, 55%, 7%, 28% and 3%, to a picodollar's
+  rounding, so Opus 5.5, Opus 5 and Sonnet 5.5 end at half a cell, and that rounding decides which
+  of Sonnet 5.5 and Sonnet 5 has the cell. It tipped once quota checks were worth nothing (the
+  owner's call, 15 October 2026), their tenth of a cent of Haiku 4.5 moving from today's lines to
+  the days before.
 - **The 30 days,** typed, in `accounts-compare-month-160`: each column's requests, sessions served,
   moves, limits hit, time at cap or limit, worth and against its price, rows 21 to 23, 26, 27, 33
   and 34, from column 27, but all accounts' `31 moves`, which the world gives; and all accounts' BY
@@ -723,6 +728,10 @@ which the dashboard draws as its world gives it:
 - **Where auto would send it,** `: side for now`, row 17, columns 77 to 94 of
   `routing-session-160`: the frame predates the owner's call, and the router names where it would
   send it, its own rule keeping 9c2e where it runs, so the dashboard draws `: personal for now`.
+- **f41a's worth on personal,** `$114.10`, row 21, columns 154 to 160 of `session-resumed-160`: the
+  frame rounds each stay's worth on its own, so its rows come to `$128.18`, a cent short of TURNS'
+  `$128.19`; the frame predates the owner's call (15 October 2026) that the rows add up to TURNS'
+  total, so the dashboard draws `$114.11`.
 - **The key lines** of `session-phone-52` and `session-turn-opened-160`, under Key lines drawn before
   the keys were swept, above.
 
@@ -742,8 +751,8 @@ frames), which the dashboard draws as its world gives it:
   row 20 of `session-quiet-160`; on a phone, rows 19 and 20, from column 12, of `session-phone-52`.
 - **d28c's stays,** its work's ending `14:31`, row 20, columns 23 to 27, where its last request
   there came at 14:30, and their worth, `$41.06` and `$7.14`, rows 20 and 21, columns 155 to 160 and
-  156 to 160, which the world gives `$41.09` and `$7.12`; on a phone, rows 19 and 20, columns 47 to
-  52 and 48 to 52.
+  156 to 160, which the world gives `$41.09` and `$7.11`, adding up to TURNS' `$48.20`; on a phone,
+  rows 19 and 20, columns 47 to 52 and 48 to 52.
 - **b9c4's end,** `18:47`, at the start of row 7, columns 17 to 21, and on row 21, columns 33 to 37,
   and how long it ran, `5h 27m`, row 7, columns 155 to 160, where its last request came at 18:46,
   in the 11 minutes its last turn took from 18:36; its stay on work ending `16:02`, row 20, columns

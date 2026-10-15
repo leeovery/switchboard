@@ -43,19 +43,28 @@ func detailsSaid(d views.EventDetails) viewstest.Details {
 	}
 	if f := d.Followed; f != nil {
 		for _, m := range f.Moves {
-			said.Followed = append(said.Followed, status.ShownID(m.Session)+": to "+m.To+" "+costSaid(movedCost(m.Move)))
+			said.Followed = append(said.Followed, status.ShownID(m.Session)+": to "+m.To+" "+moveCostSaid(m.Move))
 		}
 		if !f.Till.IsZero() {
 			said.Followed = append(said.Followed, "new sessions: "+strings.TrimSpace(f.Family+" till "+prose.Dated(at, f.Till)))
 		}
-		if f.InAll != nil {
-			said.Followed = append(said.Followed, "in all: "+f.InAll.Cents())
+		if inAll := f.InAllSaid(); inAll != "" {
+			said.Followed = append(said.Followed, "in all: "+inAll)
 		}
 		if m := f.Move; m != nil {
-			said.Followed = append(said.Followed, "request: "+m.Request, "cached again: "+strconv.Itoa(m.Written), "the move: "+costSaid(m.Cost))
+			said.Followed = append(said.Followed, "request: "+m.Request, "cached again: "+strconv.Itoa(m.Written), "the move: "+moveCostSaid(m))
 		}
 	}
 	return said
+}
+
+// moveCostSaid says what a move came to, as its CostSaid says it: "none"
+// where it says nothing, or no line tells of the move.
+func moveCostSaid(m *views.EventMove) string {
+	if m == nil || m.CostSaid() == "" {
+		return "none"
+	}
+	return m.CostSaid()
 }
 
 // movedCost is what a move came to: none where no line tells of it.

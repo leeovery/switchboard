@@ -66,7 +66,7 @@ func (u weekUse) beforeToday() (int, float64) {
 // but their side requests, of Haiku 4.5; and none of the seven accounts the
 // frames of six and ten add.
 var weekUses = map[string]weekUse{
-	"work":     {requests: 1204, worth: 184, today: weekToday{592, map[string]float64{opus55: 57.036, haiku45: 0.041}}},
+	"work":     {requests: 1204, worth: 184, today: weekToday{592, map[string]float64{opus55: 57.036, haiku45: 0.040}}},
 	"personal": {requests: 2330, worth: 212, today: weekToday{463, map[string]float64{opus55: 48.097, haiku45: 0.030}}},
 	"side":     {requests: 1876, worth: 239, today: weekToday{184, map[string]float64{opus55: 20.717, haiku45: 0.025}}},
 	"client":   {requests: 1410, worth: 151},

@@ -244,8 +244,14 @@ func (cols tokensColumns) draw(c *canvas, y int, r tokensRow) {
 	}
 	c.line(cols.worth, y, fitParts(cols.worthCells(), r.numbered("worth", worthPart(r.worth, r.ink))...))
 	if cols.against > 0 && r.against != nil {
-		c.line(cols.against, y, fitParts(cols.width-cols.against, r.numbered("against", r.against...)...))
+		c.line(cols.against, y, fitParts(cols.againstCells(), r.numbered("against", r.against...)...))
 	}
+}
+
+// againstCells is how many cells a row's against its price has: to the
+// frame's width.
+func (cols tokensColumns) againstCells() int {
+	return cols.width - cols.against
 }
 
 // nameCells is how many cells what names a row has: to a cell before the
@@ -289,7 +295,7 @@ func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
 	split := tokensRow{ink: mutedInk, lit: t.SoFar, split: true}
 	rows := []tokensRow{{
 		name: []part{figureIn(periodName(t.First, f.History.TokensAsk.Period), titleInk)}, of: countedParts(t.Versions, "model", mutedInk), ofIs: "models",
-		tokens: t.Tokens, worth: t.Worth, ink: titleInk, against: againstItsPrice(t.Against, f.History.TokensAsk.Period.Name()), lit: t.SoFar,
+		tokens: t.Tokens, worth: t.Worth, ink: titleInk, against: againstItsPrice(t.Against, f.History.TokensAsk.Period.Name(), f.tokensColumns().againstCells()), lit: t.SoFar,
 	}}
 	switch f.History.TokensSplit {
 	case TokensByAccount:
@@ -379,17 +385,47 @@ func periodName(first string, period views.TokensPeriod) string {
 // againstItsPrice is a period's worth against what the plans cost over it,
 // as againstSaid writes it, then the price, the period named by unit:
 // "4.6× its $138 week", the ratio and the price its figures, the rest its
-// words. It's a dash where no plan is known, or they cost nothing.
-func againstItsPrice(a views.Against, unit string) []part {
+// words; then, of every account's, as knownParts says it in the cells given
+// that are left: "4.4× its $92 week · 2 of 3 plans known". It's a dash where
+// no plan is known, or they cost nothing.
+func againstItsPrice(a views.Against, unit string, cells int) []part {
 	if a.Ratio == nil || a.Cost == nil {
 		return []part{figurePart(line{noFigure}, Number{})}
 	}
-	return []part{
+	said := []part{
 		figurePart(againstSaid(a.Ratio), Number{}),
 		wordsPart(line{{" its ", dimInk}}),
 		figurePart(line{{a.Cost.GroupedDollars(), dimInk}}, Number{}),
 		wordsPart(line{{" " + unit, dimInk}}),
 	}
+	return append(said, knownParts(a.Plans, cells-partsWidth(said))...)
+}
+
+// knownParts say, after a ratio of every account's, that it's over the plans
+// known, where some accounts' plans aren't, as views.PlansKnown says it, in
+// text.subtle: in full where the cells given hold it, " · 2 of 3 plans
+// known", else short, " · 2 of 3 plans". They're none where every plan is
+// known.
+func knownParts(k views.PlansKnown, cells int) []part {
+	forms := knownForms(k)
+	if len(forms) == 0 {
+		return nil
+	}
+	said := forms[0]
+	if ansi.StringWidth(said) > cells {
+		said = forms[1]
+	}
+	return []part{wordsIn(said, dimInk)}
+}
+
+// knownForms are the forms a ratio of every account's says, after it, that
+// it's over the plans known, as views.PlansKnown says it, longest first: "
+// · 2 of 3 plans known", " · 2 of 3 plans"; none where every plan is known.
+func knownForms(k views.PlansKnown) []string {
+	if k.Said() == "" {
+		return nil
+	}
+	return []string{accountsApart + k.Said(), accountsApart + k.SaidShort()}
 }
 
 // tokensPlaced is how Tokens' periods fit in the rows they have, from row

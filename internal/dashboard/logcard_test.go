@@ -366,9 +366,12 @@ func TestARequestsCardSaysItFailedAsItsRowDoes(t *testing.T) {
 }
 
 // A request that moved its session says where from and why, and what the
-// move cost, of its worth; one that moved none says neither.
+// move cost, of its worth, or unpriced where the price table can't price it;
+// one that moved none says neither.
 func TestARequestsCardSaysTheMoveItMade(t *testing.T) {
 	moved := movedRequest()
+	unpriced := moved
+	unpriced.Row.Routing = views.RoutingSaid{Rewrote: true}
 	stayed := moved
 	stayed.Left = nil
 	for _, tt := range []struct {
@@ -377,6 +380,8 @@ func TestARequestsCardSaysTheMoveItMade(t *testing.T) {
 		want map[string]string
 	}{
 		{name: "moved", d: moved, want: map[string]string{"ROUTED from": "work, at its cap", "TOKENS the move": "$1.82 of it"}},
+		{name: "moved, on a model the price table can't price", d: unpriced,
+			want: map[string]string{"ROUTED from": "work, at its cap", "TOKENS the move": "unpriced"}},
 		{name: "stayed", d: stayed},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -436,12 +441,30 @@ func TestAnEventsCardSaysWhatFollowed(t *testing.T) {
 			"├ new sessions go elsewhere till 17:10",
 			"└ in all       $1.82 to cache them again",
 		}},
+		{name: "a limit's moves, one written again on a model the price table can't price", followed: &views.Followed{
+			Moves: []views.FollowedMove{
+				{Session: d28c, To: "side", Move: &views.EventMove{Cost: cents(182), Rewrote: true}},
+				{Session: f7a3, To: "side", Move: &views.EventMove{Rewrote: true}},
+			},
+			InAll: cents(182), Unpriced: 1,
+		}, want: []string{
+			"WHAT FOLLOWED",
+			"├ d28c         moved to side   $1.82",
+			"├ 7f3a         moved to side   unpriced",
+			"└ in all       $1.82+ to cache them again",
+		}},
+		{name: "a limit's moves, each unpriced", followed: &views.Followed{
+			Moves: []views.FollowedMove{{Session: d28c, To: "side", Move: &views.EventMove{Rewrote: true}}}, Unpriced: 1,
+		}, want: []string{"WHAT FOLLOWED", "├ d28c         moved to side   unpriced", "└ in all       unpriced to cache them again"}},
 		{name: "a family's refusal, till the next day", followed: &views.Followed{
 			Till: time.Date(2026, 10, 2, 1, 15, 0, 0, now.Location()), Family: "opus",
 		}, want: []string{"WHAT FOLLOWED", "└ opus         go elsewhere till Fri 01:15"}},
 		{name: "a move", followed: &views.Followed{
 			Move: &views.EventMove{Request: "3f2a91c4", Written: 182_004, Cost: cents(182)},
 		}, want: []string{"WHAT FOLLOWED", "├ request      3f2a91c4", "├ cached again 182,004", "└ the move     $1.82"}},
+		{name: "a move written again on a model the price table can't price", followed: &views.Followed{
+			Move: &views.EventMove{Request: "3f2a91c4", Written: 182_004, Rewrote: true},
+		}, want: []string{"WHAT FOLLOWED", "├ request      3f2a91c4", "├ cached again 182,004", "└ the move     unpriced"}},
 		{name: "nothing"},
 	}
 	for _, tt := range tests {

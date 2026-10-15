@@ -145,11 +145,10 @@ func (d days) lines(dates []string, within, take func(Held) bool, args ...any) {
 }
 
 // start returns where a read of the ledger's days from from on, at now,
-// starts: at the start of the first day the ledger holds, as first gives it,
-// where that's after from, as no day before it holds anything; but at now,
-// where the ledger holds none, or none before tomorrow, so today alone is
-// read; and at from where the ledger can't be looked at to tell, which is
-// warned of.
+// starts: where the ledger begins, as Begins says, where that's after from,
+// as no day before it holds anything, so a ledger that holds no day before
+// tomorrow reads today's alone; and at from where the ledger can't be looked
+// at to tell, which is warned of.
 func (d days) start(from, now time.Time) time.Time {
 	first, err := d.first()
 	return d.startFrom(first, err, from, now)
@@ -159,18 +158,33 @@ func (d days) start(from, now time.Time) time.Time {
 // starts, as start says, the first day the ledger holds as first and err,
 // first's failure, give it.
 func (d days) startFrom(first time.Time, err error, from, now time.Time) time.Time {
+	began, _, err := Begins(first, err, now)
 	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return now
 	case err != nil:
 		d.logger.Warn("can't read the request ledger", "dir", d.files.Dir, "error", err)
 		return from
-	case first.After(now):
-		return now
-	case first.After(from):
-		return first
+	case began.After(from):
+		return began
 	}
 	return from
+}
+
+// Begins returns where the ledger begins, at now, the first day it holds as
+// first and err, its failure, give it, as FirstDay gives them: the start of
+// that day; but where it holds none, or none before tomorrow, the start of
+// now's day, as a read of its days then reads today's alone, none reporting
+// it holds none yet, for a reader that holds where it began to ask again;
+// failing, but for holding none, where it can't be looked at to tell. It's
+// where every reader of the ledger, its days and their plans' prices alike,
+// takes it to begin.
+func Begins(first time.Time, err error, now time.Time) (began time.Time, none bool, failed error) {
+	switch {
+	case errors.Is(err, fs.ErrNotExist), err == nil && first.After(now):
+		return dayfile.DayStart(now.Local(), 0), true, nil
+	case err != nil:
+		return time.Time{}, false, err
+	}
+	return first, false, nil
 }
 
 // first returns the start of the first local day the ledger holds, as listed

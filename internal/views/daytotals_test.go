@@ -174,3 +174,42 @@ func TestADaysTotalsAreHistorysOfTheDayAlone(t *testing.T) {
 		})
 	}
 }
+
+// At each hard moment, the rows of a day whose lines the ledger keeps are
+// worth its totals' worth, summed, every kind of row shown: a quota check
+// worth nothing in either, whatever it spent, so a day of checks alone is
+// worth nothing.
+func TestADaysRowsInTheLogAreWorthItsTotals(t *testing.T) {
+	for _, hm := range viewstest.DayMoments() {
+		t.Run(hm.Name, func(t *testing.T) {
+			rows := make(map[string]*ledger.Picodollars)
+			for _, l := range hm.Lines {
+				rows[dayfile.DateOf(l.At)] = nil
+			}
+			for _, l := range views.LogRows(views.LogSources{From: hm.From, Now: hm.Now, Read: logRead(hm.Now, hm.Lines...)}).Lines {
+				if l.Rule != nil || l.Oldest != nil || l.Row.Worth.Amount == nil {
+					continue
+				}
+				date, sum := dayfile.DateOf(l.Row.At), *l.Row.Worth.Amount
+				if before := rows[date]; before != nil {
+					sum += *before
+				}
+				rows[date] = &sum
+			}
+			for _, d := range views.TotalsOn(ledgerIn(t, hm), dayfile.Span(hm.From, hm.Now), hm.Now, ledger.Pricing) {
+				worth, kept := rows[d.Date]
+				if kept && !sameFigures(viewstest.DayFigures{Worth: worth}, viewstest.DayFigures{Worth: d.Amount}) {
+					t.Errorf("%s's rows are worth %s, its totals %s", d.Date, picodollarsRead(worth), picodollarsRead(d.Amount))
+				}
+			}
+		})
+	}
+}
+
+// picodollarsRead reads a sum to the cent, "none" where there's none.
+func picodollarsRead(p *ledger.Picodollars) string {
+	if p == nil {
+		return "none"
+	}
+	return p.Cents()
+}

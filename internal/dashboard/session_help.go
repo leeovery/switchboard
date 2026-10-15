@@ -27,9 +27,9 @@ func sessionHelp() []helpPart {
 					" requests a minute, so a quiet session isn't magnified."),
 				said("A move is marked where it came, its label saying what moved the session and where to. Moving, a session " +
 					"writes its conversation into the new account's cache, about as many tokens as its last request sent, as no " +
-					"account reads another's: the label says how many it cached again, and their worth at API prices. A move after " +
-					"the session idled longer than its cache lasts, an hour, or five minutes for five-minute writes, says no cost, " +
-					"as it would have written them again anyway."),
+					"account reads another's: the label says how many it cached again, and their worth at API prices, or unpriced " +
+					"where the table doesn't know the model. A move after the session idled longer than its cache lasts, an hour, " +
+					"or five minutes for five-minute writes, says no cost, as it would have written them again anyway."),
 				said("A gap of an hour or more without a request folds into five columns, its length in whole hours on the axis, " +
 					"then the time the session came back. Under the columns, a stretch for each time on an account."),
 			},
@@ -50,7 +50,8 @@ func sessionHelp() []helpPart {
 					"between the two, of whichever session, by their tokens, every kind counted alike. A session's points are its " +
 					"requests' shares summed, in whole points of the window, a reset starting it afresh."),
 				said("Worth is what the same requests would cost through the API, at today's prices from the price table: never " +
-					"what's billed. A model the table doesn't know is unpriced, never free, and a sum that leaves one out ends in +."),
+					"what's billed. A model the table doesn't know is unpriced, never free, and a sum that leaves one out ends in +. " +
+					"Each row's is rounded so the rows add up to the cent to the turns' total, as each priced alone may not."),
 			},
 		},
 		{

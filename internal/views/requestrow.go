@@ -244,19 +244,29 @@ type RoutingSaid struct {
 	// Cost is what writing the session's context again on the account it
 	// moved to cost, as its story settles a move: nil where it moved none,
 	// that isn't known, or its cache would have run out anyway. It's paid,
-	// so it's said exactly, with no ≈.
-	Cost *ledger.Picodollars
+	// so it's said exactly, with no ≈. Rewrote is set where the context was
+	// written again, priced or not, as SessionMove's is.
+	Cost    *ledger.Picodollars
+	Rewrote bool
 }
 
 // Said is how the router chose, as the Log's routing says it: its words,
-// each account named; then, where the move it made is costed, two cells on,
-// what writing the session's context again cost, exactly, as RowCost.
+// each account named; then, where the move it made wrote the session's
+// context again, two cells on, what that cost, as CostSaid says it, as
+// RowCost.
 func (s RoutingSaid) Said() RowWords {
 	w := rowWordsOf(s.Words)
-	if s.Cost != nil {
-		w = append(w, RowPart{Text: "  "}, RowPart{Text: Worth{Amount: s.Cost}.Cents(), Kind: RowCost})
+	if cost := s.CostSaid(); cost != "" {
+		w = append(w, RowPart{Text: "  "}, RowPart{Text: cost, Kind: RowCost})
 	}
 	return w
+}
+
+// CostSaid says what writing the session's context again cost, exactly,
+// "$1.82", or "unpriced" where the price table can't price it: "" where the
+// move made none, or there was none.
+func (s RoutingSaid) CostSaid() string {
+	return rewriteSaid(s.Rewrote, s.Cost)
 }
 
 // routingOf is how the router chose the account of the request l, as its
@@ -280,7 +290,7 @@ func routingOf(l *ledger.Line, first bool, made *move) RoutingSaid {
 		said.Words = newSession()
 	}
 	if made != nil {
-		said.Cost = made.cost
+		said.Cost, said.Rewrote = made.cost, made.rewrote != nil
 	}
 	return said
 }

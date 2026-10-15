@@ -2,12 +2,14 @@ package views_test
 
 import (
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -39,7 +41,7 @@ func TestPlansAreEachAccountsPlanAndTheWorthAgainstIt(t *testing.T) {
 			days: sinceJuly,
 			want: `[{"account":"work","plan":"max20x","price":200,"cost":200,"against":0.02,"worth":4,"unpriced":["claude-opus-9"]},` +
 				`{"account":"side","plan":"pro","price":20,"cost":20,"against":0.1,"worth":2},{"account":"spare","worth":1},` +
-				`{"all":true,"price":220,"cost":220,"against":0.02727272727272727,"worth":6,"unpriced":["claude-opus-9"]}]`,
+				`{"all":true,"price":220,"cost":220,"against":0.02727272727272727,"plans":{"known":2,"of":3},"worth":6,"unpriced":["claude-opus-9"]}]`,
 		},
 		{
 			// Begun today, the ledger prices the plans from today, a day's
@@ -48,7 +50,7 @@ func TestPlansAreEachAccountsPlanAndTheWorthAgainstIt(t *testing.T) {
 			days: []ledger.Summary{day("2026-10-07")},
 			want: `[{"account":"work","plan":"max20x","price":200,"cost":6.575342465753,"against":0},` +
 				`{"account":"side","plan":"pro","price":20,"cost":0.657534246575,"against":0},` +
-				`{"account":"spare"},{"all":true,"price":220,"cost":7.232876712328,"against":0}]`,
+				`{"account":"spare"},{"all":true,"price":220,"cost":7.232876712328,"against":0,"plans":{"known":2,"of":3}}]`,
 		},
 		{
 			name:   "at the config's price of a plan",
@@ -56,13 +58,13 @@ func TestPlansAreEachAccountsPlanAndTheWorthAgainstIt(t *testing.T) {
 			prices: config.Prices{Plans: map[string]float64{"max20x": 160}},
 			want: `[{"account":"work","plan":"max20x","price":160,"cost":160,"against":0.025,"worth":4,"unpriced":["claude-opus-9"]},` +
 				`{"account":"side","plan":"pro","price":20,"cost":20,"against":0.1,"worth":2},{"account":"spare","worth":1},` +
-				`{"all":true,"price":180,"cost":180,"against":0.03333333333333333,"worth":6,"unpriced":["claude-opus-9"]}]`,
+				`{"all":true,"price":180,"cost":180,"against":0.03333333333333333,"plans":{"known":2,"of":3},"worth":6,"unpriced":["claude-opus-9"]}]`,
 		},
 		{
 			name:     "with no account on a plan known",
 			days:     sinceJuly,
 			accounts: config.Accounts{{ID: "work"}, {ID: "side"}},
-			want:     `[{"account":"work","worth":4,"unpriced":["claude-opus-9"]},{"account":"side","worth":2},{"all":true}]`,
+			want:     `[{"account":"work","worth":4,"unpriced":["claude-opus-9"]},{"account":"side","worth":2},{"all":true,"plans":{"known":0,"of":2}}]`,
 		},
 	}
 	for _, tt := range tests {
@@ -203,6 +205,43 @@ func TestAMonthOrWeekTheDaysAskedForBeginPartWayThroughCostsItsDays(t *testing.T
 			}
 			if got := strings.Join(weeks, " "); got != tt.weeks {
 				t.Errorf("from %s, the weeks cost %s, want %s", tt.from, got, tt.weeks)
+			}
+		})
+	}
+}
+
+// How many plans every account's plan sums is said once, by PlansKnown, for
+// every view and verb: after its price, "3 plans", or of how many, "2 of 3
+// plans", the counts its figures; and after its ratio, where some aren't
+// known, "2 of 3 plans known", or short, "2 of 3 plans".
+func TestThePlansKnownAreSaidOnceForEveryViewAndVerb(t *testing.T) {
+	tests := []struct {
+		name               string
+		known              views.PlansKnown
+		words, said, short string
+		figures            []string
+	}{
+		{name: "some not known", known: views.PlansKnown{Known: 2, Of: 3},
+			words: "2 of 3 plans", said: "2 of 3 plans known", short: "2 of 3 plans", figures: []string{"2", "3"}},
+		{name: "every one known", known: views.PlansKnown{Known: 3, Of: 3}, words: "3 plans", figures: []string{"3"}},
+		{name: "one account's own", known: views.PlansKnown{Known: 1, Of: 1}, words: "1 plan", figures: []string{"1"}},
+		{name: "none known", known: views.PlansKnown{Of: 3}},
+		{name: "a thousand and more, set apart", known: views.PlansKnown{Known: 1200, Of: 1300},
+			words: "1,200 of 1,300 plans", said: "1,200 of 1,300 plans known", short: "1,200 of 1,300 plans",
+			figures: []string{"1,200", "1,300"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			words := tt.known.Words()
+			var figures []string
+			for _, w := range words {
+				if w.Kind == status.PartFigure {
+					figures = append(figures, w.Text)
+				}
+			}
+			got := []string{words.String(), tt.known.Said(), tt.known.SaidShort()}
+			if want := []string{tt.words, tt.said, tt.short}; !slices.Equal(got, want) || !slices.Equal(figures, tt.figures) {
+				t.Errorf("%+v says %q, its figures %q; want %q, %q", tt.known, got, figures, want, tt.figures)
 			}
 		})
 	}

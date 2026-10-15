@@ -118,8 +118,10 @@ type Followed struct {
 	Till   time.Time
 	Family string
 	// InAll is what the moves cost together, as their rows say each: nil
-	// where no move's cost is known.
-	InAll *ledger.Picodollars
+	// where no move's cost is known. Unpriced counts those of them that
+	// wrote their sessions' context again that the price table can't price.
+	InAll    *ledger.Picodollars
+	Unpriced int
 	// Move is a move's own move, as its row says it: nil for any other
 	// event.
 	Move *EventMove
@@ -566,11 +568,30 @@ func (d detailing) followed() *Followed {
 			continue
 		}
 		f.Moves = append(f.Moves, FollowedMove{Key: e.row.Key, Session: e.event.Session, To: e.event.To, Move: e.row.Move})
-		if e.row.Move != nil && e.row.Move.Cost != nil {
-			f.InAll = summedCost(f.InAll, *e.row.Move.Cost)
+		switch m := e.row.Move; {
+		case m != nil && m.Cost != nil:
+			f.InAll = summedCost(f.InAll, *m.Cost)
+		case m != nil && m.Rewrote:
+			f.Unpriced++
 		}
 	}
 	return f
+}
+
+// InAllSaid says what the moves cost together, as Worth.Cents says a sum:
+// "$3.64"; PartUnpriced after it where the price table can't price some that
+// wrote their sessions' context again, "$3.64+"; "unpriced" where it can
+// price none of them; and "" where none wrote it again.
+func (f Followed) InAllSaid() string {
+	switch {
+	case f.InAll == nil && f.Unpriced > 0:
+		return unpriced
+	case f.InAll == nil:
+		return ""
+	case f.Unpriced > 0:
+		return Worth{Amount: f.InAll}.Cents() + PartUnpriced
+	}
+	return Worth{Amount: f.InAll}.Cents()
 }
 
 // summedCost is sum with c added: c where sum is nil.
