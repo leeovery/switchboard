@@ -539,9 +539,10 @@ func sessionsScrolled(n, selected int) (first, shown int) {
 // accent.key, where it's selected; ● in state.positive while it's busy, or
 // ○ in text.subtle; its id, bold, text.primary while busy, else text.muted;
 // two cells on, its model's family, padded, in text.secondary; what it's
-// doing, padded, bold accent.mode while busy, else text.subtle; and when it
-// was last seen, right-aligned, in text.subtle. The one selected is picked
-// out from a cell before it, sessionLit cells.
+// doing, padded, bold accent.mode while busy, else text.subtle, as asKnown
+// inks it as last known; and when it was last seen, right-aligned, in
+// text.subtle. The one selected is picked out from a cell before it,
+// sessionLit cells.
 func (d detailDrawn) session(c *canvas, r views.Running, x, y int, selected bool) {
 	now := d.m.Now
 	busy := r.Activity.Busy(now)
@@ -553,7 +554,7 @@ func (d detailDrawn) session(c *canvas, r views.Running, x, y int, selected bool
 	c.line(x+2, y, line{
 		dot, spaces(1), id, spaces(2),
 		{padded(prose.Cut(r.Family, 8), 8), secondaryInk},
-		{padded(r.Activity.Short(), 9), doing},
+		{padded(r.Activity.Short(), 9), asKnown(r.Activity, doing)},
 		{fmt.Sprintf("%3s", seen), dimInk},
 	})
 	if selected {

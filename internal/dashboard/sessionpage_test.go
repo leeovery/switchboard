@@ -472,19 +472,26 @@ func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 // What the session's doing leads row 6, bold, in its own ink; and while a
 // request of it waits for its answer, asking, or throttled or refused, to go
 // out again, the newest turn's row ends in ↑ asking at 114 (call 50), but
-// never while its answer streams, or it idles.
+// never while its answer streams, or it idles. What's in flight as last
+// known, the router not answering, is said as it was, in text.subtle, not
+// bold: leading row 6, and ending the newest turn's row where it waited.
 func TestTheNewestTurnAsksWhileTheSessionWaits(t *testing.T) {
 	tests := []struct {
-		name   string
-		doing  views.Activity
-		said   string
-		ink    ink
-		asking bool
+		name     string
+		doing    views.Activity
+		said     string
+		ink      ink
+		asking   bool
+		askingIn ink
 	}{
-		{name: "asking", doing: views.Activity{Doing: views.Asking}, said: "↑ asking", ink: keyInk, asking: true},
-		{name: "throttled", doing: views.Activity{Doing: views.Throttled, Status: 429}, said: "… 429", ink: labelInk, asking: true},
-		{name: "refused", doing: views.Activity{Doing: views.Refused, Status: 403}, said: "✕ 403", ink: exhaustedInk, asking: true},
+		{name: "asking", doing: views.Activity{Doing: views.Asking}, said: "↑ asking", ink: keyInk, asking: true, askingIn: keyInk},
+		{name: "throttled", doing: views.Activity{Doing: views.Throttled, Status: 429}, said: "… 429", ink: labelInk, asking: true, askingIn: keyInk},
+		{name: "refused", doing: views.Activity{Doing: views.Refused, Status: 403}, said: "✕ 403", ink: exhaustedInk, asking: true, askingIn: keyInk},
 		{name: "answering", doing: views.Activity{Doing: views.Answering}, said: "↓ answering", ink: keyInk},
+		{name: "asking as last known", doing: views.Activity{Doing: views.Asking, Stale: true}, said: "↑ asking", ink: dimInk, asking: true, askingIn: dimInk},
+		{name: "throttled as last known", doing: views.Activity{Doing: views.Throttled, Status: 429, Stale: true}, said: "… 429", ink: dimInk, asking: true, askingIn: dimInk},
+		{name: "refused as last known", doing: views.Activity{Doing: views.Refused, Status: 403, Stale: true}, said: "✕ 403", ink: dimInk, asking: true, askingIn: dimInk},
+		{name: "answering as last known", doing: views.Activity{Doing: views.Answering, Stale: true}, said: "↓ answering", ink: dimInk},
 		{name: "idle", doing: views.Activity{Since: sessionNow.Add(-9 * time.Minute)}, said: "idle 9m", ink: idleInk},
 		{name: "ended", doing: views.Activity{Doing: views.Ended, Since: at(14, 0)}, said: "ended 14:00", ink: strongInk},
 	}
@@ -497,8 +504,8 @@ func TestTheNewestTurnAsksWhileTheSessionWaits(t *testing.T) {
 				t.Errorf("row 7 reads %q in %+v, want it to lead with %q in %+v", got, c.cells[6][0].ink, tt.said, tt.ink)
 			}
 			asking := strings.TrimSpace(string([]rune(rowOf(c, 25) + strings.Repeat(" ", c.width))[askingAt:]))
-			if tt.asking != (asking == "↑ asking") || tt.asking && c.cells[25][askingAt].ink != keyInk {
-				t.Errorf("the newest turn's row ends %q in %+v, want ↑ asking in %+v: %t", asking, c.cells[25][askingAt].ink, keyInk, tt.asking)
+			if tt.asking != (asking == "↑ asking") || tt.asking && c.cells[25][askingAt].ink != tt.askingIn {
+				t.Errorf("the newest turn's row ends %q in %+v, want ↑ asking in %+v: %t", asking, c.cells[25][askingAt].ink, tt.askingIn, tt.asking)
 			}
 			for y := 26; y < 35; y++ {
 				if strings.Contains(rowOf(c, y), "asking") {

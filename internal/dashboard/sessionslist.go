@@ -234,10 +234,15 @@ func (l listed) drawLine(c *canvas, y int, ll listLine) {
 }
 
 // row draws the session's row along row y: its mark, bold, at column 0, as
-// the Log's; each column's words, cut to its cells; lit across the width
-// where it's chosen.
+// the Log's, but a mark of what's in flight as last known, as asKnown has
+// it; each column's words, cut to its cells; lit across the width where it's
+// chosen.
 func (l listed) row(c *canvas, y int, s views.ListedSession) {
-	c.line(0, y, line{{s.Mark.String(), rowMarkInks[s.Mark]}})
+	mark := rowMarkInks[s.Mark]
+	if s.Mark == views.MarkAsking || s.Mark == views.MarkAnswering {
+		mark = asKnown(s.Activity, mark)
+	}
+	c.line(0, y, line{{s.Mark.String(), mark}})
 	for _, col := range l.columns {
 		l.cell(c, y, col, col.says(l, s, col.width).fit(col.width))
 	}
@@ -304,9 +309,10 @@ var listStateInks = map[views.Doing]ink{
 	views.Idle: mutedInk, views.Ended: mutedInk,
 }
 
-// stateSays is what it's doing at now, as its Activity's State says it.
+// stateSays is what it's doing at now, as its Activity's State says it, as
+// last known where asKnown says.
 func stateSays(l listed, s views.ListedSession, _ int) line {
-	return line{{s.Activity.State(l.now), listStateInks[s.Activity.Doing]}}
+	return line{{s.Activity.State(l.now), asKnown(s.Activity, listStateInks[s.Activity.Doing])}}
 }
 
 // startedSays is when its first request came, as prose.Past says it, in

@@ -180,7 +180,7 @@ func weekUsedRead(m status.Moment, id string) string {
 // as Detail's SESSIONS lists them, by their shown ids.
 func runningRead(m status.Moment, am viewstest.AccountsMoment, id string) string {
 	var ids []string
-	for _, r := range views.RunningOn(views.RunningOf(m, am.Sessions, am.Stream, views.HeldList{}), id) {
+	for _, r := range views.RunningOn(views.RunningOf(m, views.ListLive{Running: am.Sessions, Stream: am.Stream}, views.HeldList{}), id) {
 		ids = append(ids, status.ShownID(r.Session))
 	}
 	return strings.Join(ids, " ")

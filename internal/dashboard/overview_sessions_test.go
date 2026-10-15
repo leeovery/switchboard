@@ -260,6 +260,10 @@ func TestASessionRunningSaysWhatItsDoing(t *testing.T) {
 		{name: "refused at a limit, before it goes out again elsewhere: idle, as it has no word of its own", a: views.Activity{Doing: views.Refused, Status: 429}, want: span{"idle", faintInk}},
 		{name: "refused by a 403: idle", a: views.Activity{Doing: views.Refused, Status: 403}, want: span{"idle", faintInk}},
 		{name: "idle", a: views.Activity{Since: routedAt}, want: span{"idle", faintInk}},
+		{name: "answering as last known, the router not answering: as it was, dimmed", a: views.Activity{Doing: views.Answering, Chars: 4936, Stale: true}, want: span{"↓ ~1.2k", dimInk}},
+		{name: "asking as last known: as it was, dimmed", a: views.Activity{Doing: views.Asking, Stale: true}, want: span{"↑ ask", dimInk}},
+		{name: "throttled as last known: as it was, dimmed", a: views.Activity{Doing: views.Throttled, Status: 529, Stale: true}, want: span{"↑ ask", dimInk}},
+		{name: "refused as last known: SESSIONS' word for it, as it was, dimmed", a: views.Activity{Doing: views.Refused, Status: 429, Stale: true}, want: span{"idle", dimInk}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -340,6 +344,32 @@ func TestTheSessionsRunningAreListedOnceAFrame(t *testing.T) {
 	}
 	if later := f.running(doc, routedAt.Add(time.Minute)); len(later) > 0 && &later[0] == &listed[0] {
 		t.Error("asked of another moment, the frame gives the list it holds, want them listed afresh")
+	}
+}
+
+// While no router lists the sessions, what its last listing had in flight
+// is as last known, as SESSIONS, ROUTING's counts and Detail list the
+// sessions running: never at work; while one does, at work. It's the
+// watch's one value of it, Unlisted, they read, never when the status line
+// says the router was lost, which is zero while a read failed for a reason
+// of its own.
+func TestWhileNoRouterListsTheSessionsWhatsInFlightIsAsLastKnown(t *testing.T) {
+	doc, sessions, _ := overviewWorld()
+	for _, tt := range []struct {
+		unlisted bool
+		lost     time.Time
+	}{
+		{unlisted: false},
+		{unlisted: true, lost: routedAt.Add(-time.Minute)},
+		{unlisted: true},
+	} {
+		f := Frame{Width: 160, Height: 40, View: Overview, Sessions: sessions, Unlisted: tt.unlisted, Lost: tt.lost}
+		for _, r := range f.running(doc, routedAt) {
+			if r.Activity.InFlight() && (r.Activity.Stale != tt.unlisted || r.Activity.Works() == r.Activity.Stale) {
+				t.Errorf("unlisted %t, lost %t, %s is in flight, as last known %t, at work %t; want as last known %t, and at work only where it isn't",
+					tt.unlisted, !tt.lost.IsZero(), status.ShownID(r.Session), r.Activity.Stale, r.Activity.Works(), tt.unlisted)
+			}
+		}
 	}
 }
 

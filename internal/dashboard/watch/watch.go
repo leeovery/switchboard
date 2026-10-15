@@ -853,7 +853,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		View: m.view,
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
-		Sessions: m.sessions, Stream: m.traffic.stream(now), HeldList: m.sessionsTab.list(), Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
+		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), HeldList: m.sessionsTab.list(), Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,

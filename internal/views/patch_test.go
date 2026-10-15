@@ -3,6 +3,7 @@ package views_test
 import (
 	"fmt"
 	"maps"
+	"math/rand/v2"
 	"slices"
 	"strings"
 	"testing"
@@ -96,13 +97,31 @@ func TestThePatchKeepsWhoSitsWhereFromLookToLook(t *testing.T) {
 			want: "personal: 41e0@0 9c2e@1 f41a@2 5b19@3 | side: c61b@0 d28c@1",
 		},
 		{
-			name: "a group closes up over a session gone, its jack free for the next to join",
+			name: "a group closes up over a session gone, its jack free for the next to join, the jacks kept in the calls' order",
 			looks: []patchLook{
 				{calls: scene},
 				{calls: slices.Concat(group("personal", s9c2e), group("side", sc61b, sd28c))},
 				{calls: slices.Concat(group("personal", s9c2e, sf41a), group("side", sc61b, sd28c))},
 			},
-			want: "personal: 9c2e@1 f41a@0 | side: c61b@0 d28c@1",
+			want: "personal: 9c2e@0 f41a@1 | side: c61b@0 d28c@1",
+		},
+		{
+			name: "a session joining takes a jack above the calls kept, and they each move on to the next jack held",
+			looks: []patchLook{
+				{calls: group("personal", s41e0, s9c2e, sc61b)},
+				{calls: group("personal", s9c2e, sc61b)},
+				{calls: group("personal", s9c2e, sc61b, sf41a)},
+			},
+			want: "personal: 9c2e@0 c61b@1 f41a@2 | side:",
+		},
+		{
+			name: "a session joining below a stub keeps the calls' order about it, the stub where it hangs",
+			looks: []patchLook{
+				{calls: group("personal", s5b19, s41e0, s9c2e)},
+				{calls: slices.Concat(group("personal", s5b19, s9c2e), group("side", s41e0)), stubs: map[string]int{"personal": 1}},
+				{calls: slices.Concat(group("personal", s9c2e, sf41a), group("side", s41e0)), stubs: map[string]int{"personal": 1}},
+			},
+			want: "personal: 9c2e@0 f41a@2 ╌1 | side: 41e0@0",
 		},
 		{
 			name: "a move no limit counts brings a session to its new group's foot, and hangs no stub",
@@ -179,6 +198,31 @@ func TestThePatchKeepsWhoSitsWhereFromLookToLook(t *testing.T) {
 				t.Errorf("the board is\n%s\nwant\n%s", got, tt.want)
 			}
 		})
+	}
+}
+
+// However sessions come, go and move, and stubs hang and go, each line's
+// calls hold its jacks in their order, top to bottom, so no two of its cords
+// cross: a cord runs along its call's row, then down to its jack, and a call
+// below another on a jack above that one's would cross its cord.
+func TestEachLinesJacksAreInItsCallsOrder(t *testing.T) {
+	sessions := []string{s41e0, s9c2e, sc61b, sd28c, sf41a, s5b19}
+	accounts := []string{"personal", "side"}
+	r := rand.New(rand.NewPCG(1, 2))
+	var p views.Patched
+	for look := range 400 {
+		var calls []views.Call
+		for _, s := range sessions {
+			if r.IntN(3) > 0 {
+				calls = append(calls, views.Call{Account: accounts[r.IntN(2)], Session: s})
+			}
+		}
+		p = views.Patch(p, calls, map[string]int{"personal": r.IntN(3)})
+		for _, a := range accounts {
+			if l := p.Line(a); !slices.IsSortedFunc(l.Calls, func(x, y views.Plugged) int { return x.Jack - y.Jack }) {
+				t.Fatalf("look %d: %s's line is %+v, want its jacks in its calls' order", look, a, l.Calls)
+			}
+		}
 	}
 }
 

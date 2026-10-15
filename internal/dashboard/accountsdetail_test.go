@@ -1032,3 +1032,30 @@ func TestDetailCuesAStateNewlyChangedAndAFreshLine(t *testing.T) {
 		}
 	}
 }
+
+// A session in flight as last known, the router not answering, is said in
+// SESSIONS as it was, in text.subtle and not bold, its ○ at rest.
+func TestDetailsSESSIONSSaysWhatsInFlightAsLastKnownAsItWas(t *testing.T) {
+	const doingAt = 18
+	draw := func(a views.Activity) *canvas {
+		c := newCanvas(40, 1)
+		detailDrawn{m: status.Moment{Now: routedAt}}.session(c, views.Running{Session: idD28C, Family: "opus", Activity: a}, 0, 0, false)
+		return c
+	}
+	for _, doing := range []views.Doing{views.Asking, views.Answering, views.Throttled, views.Refused} {
+		live := views.Activity{Doing: doing, Status: 429, Chars: 4936, LastSeen: routedAt.Add(-time.Hour)}
+		stale := live
+		stale.Stale = true
+		said := live.Short()
+		c := draw(stale)
+		if got, known := glyphsAt(c, doingAt, 0, len([]rune(said))), glyphsAt(draw(live), doingAt, 0, len([]rune(said))); got != said || known != said {
+			t.Errorf("doing %d, SESSIONS reads %q as last known and %q as known, want %q, as it was", doing, got, known, said)
+		}
+		if got := c.at(doingAt, 0).ink; got != dimInk {
+			t.Errorf("doing %d, as last known, it's in %+v, want %+v", doing, got, dimInk)
+		}
+		if got, known := glyphsAt(c, 2, 0, 1), glyphsAt(draw(live), 2, 0, 1); got != "○" || known != "●" {
+			t.Errorf("doing %d, its dot is %q as last known and %q as known, want ○, at rest, and ●", doing, got, known)
+		}
+	}
+}

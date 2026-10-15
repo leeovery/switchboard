@@ -2304,8 +2304,12 @@ edge.
   `╎ cap: work at 95%`, `◆ primary` and `▲ new sessions go here`, four spaces apart. Where a line of
   it would pass the last column, it starts at column 0.
 - **The jacks,** a jack on each row of a line, at column 84: `○` in `text.faint` where no cord ends,
-  `◉` in its cord's colour where one does. A session takes the jack it holds, or its line's first
-  free one, in group order. A line with more sessions than rows grows a row for each more.
+  `◉` in its cord's colour where one does. A session joining a line takes its first free jack, and
+  the line's sessions hold the jacks they take in the order of their calls, top to bottom, so no
+  two of an account's cords cross: each keeps its jack, unless one joining takes a jack above it,
+  when each call whose jack is below it moves up a jack held, the first into the jack taken, and
+  the one joining, at the foot, ends on the line's last jack held (the owner's call, 15 October
+  2026). A line with more sessions than rows grows a row for each more.
 - **The cords:** from the plug, `━` along the call's row, `┓` turning down at its bend, `┃` down,
   `┗` turning along at the jack's row, and `━` along to the jack, `◉`; a call on its jack's row runs
   straight. A cord's colour says what's happening, never which account, as ten accounts would run
@@ -2345,7 +2349,7 @@ only for what moves on screen, never for a cord scrolled away or under `?`.
   cord, plus 2, divides by 4.
 
 **Moves.** The session's row leaves its group, which closes up at once, and joins its new account's
-group at the foot, `↑ asking  ▸ from personal`, its cord to the first free jack there.
+group at the foot, `↑ asking  ▸ from personal`, its cord to a jack there, as The jacks say.
 
 - **Where a limit forced the move,** the old cord hangs from its old jack while the limit holds: `╌`
   in `state.destructive`, to the jack's left, 7 cells, then 6 for a second session, each a cell
@@ -2381,7 +2385,15 @@ two blank rows, the key on the next two, and the row over the key line:
    cells, a cell and its percentage; and 21 cells after it, the state words (settled in the plan).
 5. Step 4's lines, scrolling, the calls with them, as Accounts scrolls (see Accounts): the key gives
    way, and the row over the key line says what's out of view, right-aligned: `▼ 3 more accounts`
-   (settled in the plan).
+   (settled in the plan). An account's rows run from its first, its line's row or its group's
+   first, whichever is higher, to its line's last, its calls among them; each account's start
+   below the last of the one above, its group moving down to clear it, and the scroll reads the
+   same rows. It scrolls an account at a time and shows whole accounts alone, so paging never cuts
+   a call: scrolled down, the view's first row says how many accounts are above, right-aligned,
+   `▲ 2 more accounts`, and the row over the key line how many below it doesn't show. Where an
+   account's rows don't fit the view, under that first row where any are above, it scrolls a row
+   at a time instead, the row over the key line saying how many rows are out of view,
+   `▲ 3 more above · ▼ 12 more below`, so every call can be reached.
 
 Where no line grows past its rows and no group of calls moves its line down, each row so taken being
 one fewer, steps 1 to 4 hold 3, 5, 12 and 25 accounts at 160 by 37. Where the lines are narrower
@@ -2485,10 +2497,14 @@ rows run from row 7 (settled in the plan):
 | A phone | `↑↓ session   enter open   [ ] view   ? keys   q quit` |
 
 - `[` and `]` switch between Switchboard and List.
-- `↑` and `↓` choose a session, a call on the Switchboard or a row on the List, on `bg.selection`
-  across the width, its cord unchanged. Nothing is chosen until they're pressed; the choice follows
-  its session from look to look, and `esc` ends it. A session with a row in two groups is chosen on
-  either (settled in the plan).
+- `↑` and `↓` choose a session, a call on the Switchboard or a row on the List, on `bg.selection`:
+  a row on the List, or a session's row in lanes, across the width; a call over its own columns
+  alone, from the row's first through its id, name, state and `from`, to the cell before its plug,
+  its cord and whatever its row runs on to, a line's bars among them, unchanged (the owner's call,
+  15 October 2026). Nothing is chosen until they're pressed; the choice follows its session from
+  look to look, and `esc` ends it, which help lists as `esc deselect` (the owner's call, 15 October
+  2026). A session with a row in two groups is chosen on either (settled in the plan). Where the
+  call or row chosen is out of view, the view scrolls no further than shows it.
 - `enter` opens the chosen session's page (see A session's page), the tab staying lit, and `esc`
   comes back. An ended session's page is as ended, with no `p` (settled in the plan).
 - `p` opens new sessions' picker, whatever is chosen (see Routing by hand); a session's own routing
@@ -2505,7 +2521,14 @@ rows run from row 7 (settled in the plan):
 - **The router not answering:** the status line says so (see The page); the Switchboard draws from
   the last document, nothing travelling, and `p pin` is faint (settled in the plan). The
   Switchboard, the List and a session's page all draw the last listing's running sessions, their
-  idle times counting on (the owner's call, 14 October 2026).
+  idle times counting on (the owner's call, 14 October 2026). What that listing had in flight,
+  asking, answering, a refusal or a 429 sent again, is shown as last known, as stale data is (see
+  What moves), never as happening now, as it may have ended since. Everywhere it's said, SESSIONS
+  on the Overview and Detail, the Log's panel, a session's newest turn and row 6 of its page, the
+  Switchboard and the List, it's said in the words it was, in `text.subtle`, not bold, as a stale
+  reading's words are, its mark on the List too; never said idle where it wasn't; and never as at
+  work now: its id isn't bold, its cord is at rest, and it's counted busy only as it was seen in
+  the last minute, never for what's in flight. It's live again as the router answers.
 - **A look that can't blend,** the terminal's own colours or `NO_COLOR` (see Themes): an idle cord
   is drawn light, `─ ┐ │ └`, and a glow of 0.5 or more as `text.primary`. A light theme's glows and
   dimming are mixed against its own canvas (settled in the plan).

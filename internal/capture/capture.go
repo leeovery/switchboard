@@ -338,7 +338,10 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // shift-tab, so its stream opens afresh: of ten accounts, of work alone, and
 // pinned to personal and side, looked at a minute before; and at personal's
 // limit, refused at 16:05:41, and moved at 16:05:42, looked at at 14:42:07.
-// Where no frame draws it, to judge by eye: the Switchboard at 120 × 30.
+// Where no frame draws it, to judge by eye: the Switchboard at 120 × 30;
+// with ↓ four times, d28c chosen, its call lit to its plug; at 160 × 14, its
+// lines scrolling, ↓ six times scrolling to db8a; and the router gone, R
+// having found it so, what was in flight said as last known.
 // Then Runway's frames, each reached from the Overview with tab four times:
 // the 5-hour view, wide and on a phone; the week, with >; Wednesday, ← twice,
 // today and the day before; all over the auto world; and the 5-hour view of
@@ -441,6 +444,9 @@ var pages = []page{
 		looked: &looked{after: movedAfter, listed: inTheFramesOrder(sceneSessions)},
 	},
 	{name: "page-sessions-120x30", size: watch.Size{Width: 120, Height: 30}, world: accountWorlds.scene, keys: toSessions()},
+	{name: "page-sessions-chosen", size: wide(37), world: accountWorlds.scene, keys: append(toSessions(), repeated(downKey, 4)...)},
+	{name: "page-sessions-short", size: wide(14), world: accountWorlds.scene, keys: append(toSessions(), repeated(downKey, 6)...)},
+	{name: "page-sessions-not-answering", size: wide(37), world: accountWorlds.scene, keys: toSessions("R"), gone: true},
 	{name: "runway-5-hour-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway(">")},
 	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(), leftKey, leftKey)},

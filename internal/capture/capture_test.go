@@ -278,6 +278,9 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		{name: "page-routing-phone", want: []string{"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "The 4 sessions running elsewhere move there", "Rebuilding their caches costs ≈ $"}},
 		{name: "page-help-scrolled", want: []string{"─ HELP · OVERVIEW ", "│  USAGE"}, wantNoneOf: []string{"t themes"}},
 		{name: "page-not-answering", want: []string{"■ the router isn't answering  ·  since 14:42:07  ·  auto  ·  6 sessions"}},
+		{name: "page-sessions-chosen", want: []string{"d28c switchboard  ↑ asking     ▸ from work      ●"}},
+		{name: "page-sessions-short", want: []string{"▲ 2 more accounts", "3 side ▲", "db8a infra"}, wantNoneOf: []string{"1 work", "41e0 docs"}},
+		{name: "page-sessions-not-answering", want: []string{"■ the router isn't answering", "c61b mobile       ↓ answering"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -151,7 +151,7 @@ func TestTheListAPageAndSESSIONSNameEachSessionAlikeAtEachHardMoment(t *testing.
 			}
 			m := hm.Doc.At(hm.Now, claude.Policy)
 			held := listHeldOf(hm.Lines, hm.Sessions, hm.Now)
-			rows, calls := views.RunningOf(m, hm.Sessions, hm.Stream, held), views.CallsOf(m, hm.Sessions, hm.Stream, held)
+			rows, calls := views.RunningOf(m, views.ListLive{Running: hm.Sessions, Unlisted: hm.Unlisted, Stream: hm.Stream}, held), views.CallsOf(m, views.ListLive{Running: hm.Sessions, Unlisted: hm.Unlisted, Stream: hm.Stream}, held)
 			for _, id := range slices.Sorted(maps.Keys(hm.Want)) {
 				want := named{hm.Named[id].Account, hm.Named[id].Model}
 				s := listed[id]

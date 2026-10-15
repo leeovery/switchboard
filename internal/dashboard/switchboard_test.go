@@ -47,6 +47,12 @@ func inFlight(d views.Doing, sent time.Time, status int) views.Activity {
 	return views.Activity{Doing: d, Since: sent, LastSeen: sent, Status: status}
 }
 
+// lastKnown is a, as last known, the router no longer answering.
+func lastKnown(a views.Activity) views.Activity {
+	a.Stale = true
+	return a
+}
+
 // boardLook is a look at the Switchboard: the calls the watch built at it,
 // and the stubs each account's limit hangs, by its id.
 type boardLook struct {
@@ -444,6 +450,26 @@ func TestACallSaysItsSessionWhatItsDoingAndWhereItCameFrom(t *testing.T) {
 			want: "c61b mobile       … 429                         ", id: titleInk, doing: dimInk,
 		},
 		{
+			name: "answering as last known, the router not answering: as it was, in text.subtle, its id at rest",
+			call: boardCall(idC61B, "side", "~/Code/mobile", lastKnown(inFlight(views.Answering, sent, 0)), ""),
+			want: "c61b mobile       ↓ answering                   ", id: mutedInk, doing: dimInk,
+		},
+		{
+			name: "asking as last known: as it was, in text.subtle, its id at rest",
+			call: boardCall(idC61B, "side", "~/Code/mobile", lastKnown(inFlight(views.Asking, sent, 0)), ""),
+			want: "c61b mobile       ↑ asking                      ", id: mutedInk, doing: dimInk,
+		},
+		{
+			name: "throttled as last known: as it was, in text.subtle, its id at rest",
+			call: boardCall(idC61B, "side", "~/Code/mobile", lastKnown(inFlight(views.Throttled, sent, 429)), ""),
+			want: "c61b mobile       … 429                         ", id: mutedInk, doing: dimInk,
+		},
+		{
+			name: "refused as last known: as it was, in text.subtle, its id at rest",
+			call: boardCall(idC61B, "side", "~/Code/mobile", lastKnown(inFlight(views.Refused, sent, 429)), ""),
+			want: "c61b mobile       ✕ 429                         ", id: mutedInk, doing: dimInk,
+		},
+		{
 			name: "idle, as the dashboard writes spans", call: boardCall(id9C2E, "side", "~/Code/website", idleSince(routedAt.Add(-65*time.Second)), ""),
 			want: "9c2e website      idle 1m                       ", id: mutedInk, doing: faintInk,
 		},
@@ -469,6 +495,9 @@ func TestACallSaysItsSessionWhatItsDoingAndWhereItCameFrom(t *testing.T) {
 			}
 			if got := c.at(48, 6).glyph; got != plugGlyph {
 				t.Errorf("its plug, at 48, is %q, want %s", got, plugGlyph)
+			}
+			if got, want := c.at(49, 6).ink, cordInk(tt.id == titleInk); got != want {
+				t.Errorf("its cord is in %+v, want %+v, lit while its id is bold, else at rest", got, want)
 			}
 			for _, at := range []struct {
 				what string
@@ -649,26 +678,33 @@ func TestALooseCordHangsFromTheJackItsSessionLeftFading(t *testing.T) {
 	}
 }
 
-// The call chosen is picked out on bg.selection across the width, its glyphs
-// and colours as they are, its cord's too; no other row is.
-func TestTheCallChosenIsPickedOutAcrossTheWidth(t *testing.T) {
-	f := sceneFrame(160, 37, Look{})
-	f.SessionsTab.Chosen = Plug{Session: idD28C, Account: "side"}
-	c := f.page(usageWorld(), routedAt)
-	unchosen := sceneFrame(160, 37, Look{}).page(usageWorld(), routedAt)
+// The call chosen is picked out on bg.selection over its own columns alone,
+// from the row's first to the one before its plug, their glyphs and colours
+// as they are; its plug, its cord, and the line and bars its row runs on to
+// are drawn as they are unchosen, as is every other row: work's week and
+// Fable week bars, on d28c's and 7f3a's rows, keep their colours. At every
+// width the cords draw at, the plug moves, and the choice with it.
+func TestTheCallChosenIsPickedOutOverItsOwnColumnsAlone(t *testing.T) {
 	selection := hue{token: theme.BgSelection}
-	for y := 6; y < 12; y++ {
-		for x := range 160 {
-			got, was := c.at(x, y), unchosen.at(x, y)
-			if y != 10 && got.ink.on != was.ink.on {
-				t.Fatalf("row %d, column %d, is on %+v, want only the chosen row picked out", y+1, x+1, got.ink.on)
-			}
-			if y != 10 {
-				continue
-			}
-			was.ink.on = selection
-			if got.glyph != was.glyph || got.ink != was.ink {
-				t.Fatalf("the chosen row's column %d is %q in %+v, want %q in %+v, on bg.selection", x+1, got.glyph, got.ink, was.glyph, was.ink)
+	for _, width := range []int{100, 129, 160, 200} {
+		for _, chosen := range []Plug{{Session: idD28C, Account: "side"}, {Session: id7F3A, Account: "side"}} {
+			f := sceneFrame(width, 37, Look{})
+			f.SessionsTab.Chosen = chosen
+			c := f.page(usageWorld(), routedAt)
+			unchosen := sceneFrame(width, 37, Look{}).page(usageWorld(), routedAt)
+			laid := f.switchboardLaid(usageWorld(), routedAt)
+			i := slices.IndexFunc(laid.calls, func(lc laidCall) bool { return lc.session == chosen.Session })
+			row, plug := f.top()+laid.calls[i].cord.from, laid.columns.plug
+			for y := f.top(); y < f.top()+24; y++ {
+				for x := range width {
+					got, was := c.at(x, y), unchosen.at(x, y)
+					if y == row && x < plug {
+						was.ink.on = selection
+					}
+					if got.glyph != was.glyph || got.ink != was.ink {
+						t.Fatalf("at %d, %s chosen, row %d, column %d is %q in %+v, want %q in %+v", width, status.ShownID(chosen.Session), y+1, x+1, got.glyph, got.ink, was.glyph, was.ink)
+					}
+				}
 			}
 		}
 	}

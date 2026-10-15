@@ -35,6 +35,12 @@ type Activity struct {
 	// LastSeen is when the router, or the stream, last saw it at work, or,
 	// of a session's, its last request came, as its line gives it.
 	LastSeen time.Time
+	// Stale is set where a request of it is in flight as last known, as
+	// the router last listed it before it stopped answering: it may have
+	// ended since. It's said in the words it was, as Said, State, Short and
+	// WaitingSaid say it whether or not it's set, but never as at work now,
+	// as Works and Busy have it.
+	Stale bool
 }
 
 // Doing is what a session is doing, or its models on an account.
@@ -82,23 +88,31 @@ func (a Activity) InFlight() bool {
 	return a.Doing != Idle && a.Doing != Ended
 }
 
+// flying reports whether a request of it is in flight now: in flight, and
+// not as last known.
+func (a Activity) flying() bool {
+	return a.InFlight() && !a.Stale
+}
+
 // Busy reports whether it's busy at now, as the Overview's SESSIONS and
-// Accounts' Detail say it: with a request in flight, or seen at work in the
-// last minute.
+// Accounts' Detail say it: with a request in flight now, as flying has it,
+// or seen at work in the last minute.
 func (a Activity) Busy(now time.Time) bool {
-	return a.InFlight() || now.Sub(a.LastSeen) < busyWithin
+	return a.flying() || now.Sub(a.LastSeen) < busyWithin
 }
 
 // Works reports whether it works, as Sessions' Switchboard says it: while it
 // asks, while it's answering, and while a request of its is throttled or
-// refused, to be sent again, on its account or elsewhere.
+// refused, to be sent again, on its account or elsewhere; never as last
+// known, as flying has it.
 func (a Activity) Works() bool {
-	return a.InFlight()
+	return a.flying()
 }
 
 // Underway reports whether a request of it is under way on its account, as
 // the Overview's SESSIONS says it: asking, answering, or throttled, to go out
-// again there; not refused, before it goes out again elsewhere.
+// again there; not refused, before it goes out again elsewhere. As last
+// known, it's under way as it was.
 func (a Activity) Underway() bool {
 	return a.Doing == Asking || a.Doing == Answering || a.Doing == Throttled
 }
