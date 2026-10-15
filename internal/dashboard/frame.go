@@ -66,6 +66,9 @@ type Frame struct {
 	// none, as while probing, and each account's sessions are counted as the
 	// document counts them.
 	Sessions []status.Session
+	// Unlisted is set while no router lists the sessions, Sessions its last
+	// listing, as the watch has it of Sessions' tab as well.
+	Unlisted bool
 	// Stream is what the router's request stream has told of the routed
 	// requests, as the views read it, by each request's id: zero where the
 	// watch hears none.

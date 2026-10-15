@@ -207,9 +207,50 @@ func TestChoosingACallScrollsTheSwitchboardToIt(t *testing.T) {
 	}
 }
 
+// Where every account's lines fit the view, though not all at once, ↓ and ↑
+// on the Switchboard scroll it an account at a time to the call they choose:
+// ten accounts, two calls each, through every call, down and back up.
+func TestChoosingACallScrollsTheSwitchboardAnAccountAtATimeToIt(t *testing.T) {
+	var accounts []status.Account
+	for i := range 10 {
+		id := fmt.Sprintf("acct-%d", i+1)
+		accounts = append(accounts, account(id, id, session(0.25, 3*time.Hour), week(0.5)))
+	}
+	h := routedHarness(t, routerDocument(accounts...))
+	for i, a := range accounts {
+		for j := range 2 {
+			h.source.sessions = append(h.source.sessions, sessionOn(fmt.Sprintf("%02x%02x0000-0000-4000-8000-000000000000", i, j), opus, a.ID, time.Duration(2*i+j+1)*time.Second))
+		}
+	}
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 20})
+	h.start()
+	h.keys(toSessions...)
+	if f, doc, at := h.model.screen(h.clock.now); f.ScrollsRows(doc, at) {
+		t.Fatal("the Switchboard scrolls a row at a time, want it an account at a time, every account's lines fitting the view")
+	}
+	shows := func() bool {
+		chosen := h.model.sessionsTab.shown.Chosen
+		return slices.ContainsFunc(h.targets(), func(t dashboard.Target) bool {
+			return t.On == dashboard.OnSession && t.Session == chosen.Session && t.Account == chosen.Account
+		})
+	}
+	furthest := 0
+	for _, key := range append(slices.Repeat([]tea.KeyPressMsg{downKey}, 20), slices.Repeat([]tea.KeyPressMsg{upKey}, 19)...) {
+		h.keys(key)
+		if !shows() {
+			t.Fatalf("%s chose %+v, the view scrolled %d, want it scrolled to show it", key, h.model.sessionsTab.shown.Chosen, h.model.scroll)
+		}
+		furthest = max(furthest, h.model.scroll)
+	}
+	if furthest == 0 {
+		t.Error("the view never scrolled, want the accounts past its foot to have scrolled it")
+	}
+}
+
 // While the router doesn't answer, the Switchboard's calls are its last
 // listing's, what they had in flight as last known, never at work; and
-// once it answers again, as it lists them.
+// once it answers again, as it lists them. The frame every other view's
+// sessions are listed of is unlisted by the one value the calls are.
 func TestWhileTheRouterIsSilentACallsRequestInFlightIsAsLastKnown(t *testing.T) {
 	h := streamingHarness(t)
 	h.source.sessions[0].Assignments[0].InFlight = status.Answering
@@ -219,7 +260,11 @@ func TestWhileTheRouterIsSilentACallsRequestInFlightIsAsLastKnown(t *testing.T) 
 		if i < 0 {
 			t.Fatal("d28c has no call, want the one its last listing gives")
 		}
-		return h.model.sessionsTab.shown.Calls[i].Activity
+		a := h.model.sessionsTab.shown.Calls[i].Activity
+		if unlisted := h.model.frame(h.clock.now).Unlisted; unlisted != a.Stale {
+			t.Errorf("the frame is unlisted %t, want %t, as d28c's call is as last known", unlisted, a.Stale)
+		}
+		return a
 	}
 	if a := d28c(); a.Doing != views.Answering || a.Stale || !a.Works() {
 		t.Fatalf("the router answering, d28c is %+v, want it answering, at work", a)

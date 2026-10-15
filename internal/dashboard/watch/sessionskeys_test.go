@@ -101,9 +101,9 @@ func TestSessionsKeyLinesAreTheDesigns(t *testing.T) {
 	}
 }
 
-// Help lists esc deselect while a session is chosen, on both
-// sub-tabs, as the key line leaves it to help; with none chosen, or once esc
-// ends the choice, it lists none.
+// Help lists esc deselect while a session is chosen, on both sub-tabs, as
+// the key line leaves it to help; with none chosen, or once esc deselects,
+// it lists none.
 func TestSessionsHelpListsEscWhileASessionIsChosen(t *testing.T) {
 	for _, shown := range []dashboard.SessionsView{dashboard.SessionsSwitchboard, dashboard.SessionsList} {
 		h := sessionsKeysHarness(t, routerDocument(three()...), shown, 160)
@@ -126,7 +126,7 @@ func TestSessionsHelpListsEscWhileASessionIsChosen(t *testing.T) {
 }
 
 // enter is drawn faint exactly where pressing it opens nothing, as Opens
-// says, on both sub-tabs: with nothing chosen, and once esc ends the choice,
+// says, on both sub-tabs: with nothing chosen, and once esc deselects,
 // where pressed, it says why in the key line's place; with a session chosen,
 // it opens its page.
 func TestSessionsEnterIsFaintExactlyWhereItOpensNothing(t *testing.T) {

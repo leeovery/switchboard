@@ -67,13 +67,15 @@ func StubsOf(m status.Moment) map[string]int {
 // new to it, or one a move brings, joins the foot, in calls' order, taking
 // the line's first free jack. The calls then hold the jacks they take in
 // their order, top to bottom, so no two of a line's cords cross: each keeps
-// its jack where a new call's falls below it, and where it falls above, the
-// calls under it each move on to the next jack held. A stub hangs from a
-// jack a session that moved elsewhere left, the jacks the last to leave left
-// taken first, else from the line's first free jack, once the sessions new
-// to it have taken theirs; a jack a stub hangs from is never free, and the
-// stubs go as the limit lifts. At the first look, kept is the zero Patched,
-// so every call joins in calls' order, the one seen last first.
+// its jack where a new call's falls below it, and where it falls above,
+// each call whose jack is under it moves up a jack held, the first into the
+// free jack, and the new call, at the foot, takes the line's last jack held.
+// A stub hangs from a jack a session that moved elsewhere left, the jacks
+// the last to leave left taken first, else from the line's first free jack,
+// once the sessions new to it have taken theirs; a jack a stub hangs from is
+// never free, and the stubs go as the limit lifts. At the first look, kept
+// is the zero Patched, so every call joins in calls' order, the one seen
+// last first.
 func Patch(kept Patched, calls []Call, stubs map[string]int) Patched {
 	on := make(map[string][]string)
 	goes := make(map[string][]string)

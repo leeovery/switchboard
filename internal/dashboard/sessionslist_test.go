@@ -195,6 +195,7 @@ func TestTheListsStateIsInkedByWhatItsDoing(t *testing.T) {
 		{name: "asking as last known", doing: stale(asking), said: "asking", ink: dimInk, mark: views.MarkAsking},
 		{name: "answering as last known", doing: stale(answering), said: "answering", ink: dimInk, mark: views.MarkAnswering},
 		{name: "refused as last known", doing: stale(views.Activity{Doing: views.Refused, Status: 429}), said: "✕ 429", ink: dimInk},
+		{name: "throttled as last known", doing: stale(views.Activity{Doing: views.Throttled, Status: 429}), said: "… 429", ink: dimInk},
 		{name: "refused", doing: views.Activity{Doing: views.Refused, Status: 429}, said: "✕ 429", ink: exhaustedInk},
 		{name: "throttled", doing: views.Activity{Doing: views.Throttled, Status: 429}, said: "… 429", ink: dimInk},
 		{name: "idle", doing: idleFor(34 * time.Second), said: "idle 34s", ink: mutedInk},

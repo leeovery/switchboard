@@ -302,8 +302,8 @@ reason hangs faint for 3 seconds.
 Where the cords don't fit, as on a phone, each account's line carries its sessions under it.
 
 While the router isn't answering, the Switchboard and the List show the sessions it last listed.
-What one was doing then, such as `↓ answering`, stays as it was but faint, as it may have ended
-since.
+What one was doing then, such as `↓ answering`, stays as it was but faint, here and on every other
+tab, as it may have ended since.
 
 ### The List
 

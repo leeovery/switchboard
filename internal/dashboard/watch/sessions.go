@@ -82,7 +82,13 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 // them, as the Switchboard draws them then; whether it doesn't; and what the
 // request stream told, s.
 func (m Model) listLive(now time.Time, s views.Stream) views.ListLive {
-	return views.ListLive{Running: m.sessions, Unlisted: !m.answering(), Stream: s, Now: now}
+	return views.ListLive{Running: m.sessions, Unlisted: m.unlisted(), Stream: s, Now: now}
+}
+
+// unlisted reports whether no router lists the sessions, those the watch
+// holds its last listing: the one value every view's sessions are listed by.
+func (m Model) unlisted() bool {
+	return !m.answering()
 }
 
 // readSessions has the watch read the ledger for the List held as it wants,
@@ -221,7 +227,7 @@ var sessionsSteps = map[string]int{"[": -1, "]": 1, "up": -1, "down": 1}
 // ] turn the sub-tab, as Turned has it; ↑ and ↓ choose a row, as Choosing
 // has it; enter opens the page of the session chosen, as openSession opens
 // it, and while none is, as the key line draws it faint, says why in the key
-// line's place; and esc ends the choice, as Unchosen has it. A key that
+// line's place; and esc deselects, as Unchosen has it. A key that
 // changes what's shown shows it as showSessions has it.
 func (m Model) sessionsKey(key string) (Model, tea.Cmd, bool) {
 	if m.view != dashboard.Sessions {

@@ -180,25 +180,33 @@ func TestASessionWorksWhileItAsksAnswersIsThrottledOrRefused(t *testing.T) {
 }
 
 // What's in flight as last known, the router no longer answering, is never
-// at work now: it neither works, nor is under way, nor waits, and is busy
-// only where it was seen in the last minute; said all the same as it was.
-func TestWhatsInFlightAsLastKnownIsNeverAtWorkNow(t *testing.T) {
+// at work now: it doesn't work, and is busy only where it was seen in the
+// last minute. It's said in the words it was, every way a view says it:
+// under way and waiting as it was, and never idle.
+func TestWhatsInFlightAsLastKnownIsSaidAsItWasNeverAtWorkNow(t *testing.T) {
 	for doing, name := range doingNames {
-		known := views.Activity{Doing: doing, LastSeen: now.Add(-time.Hour)}
+		known := views.Activity{Doing: doing, Status: 429, Chars: 4936, LastSeen: now.Add(-time.Hour)}
 		if !known.InFlight() {
 			continue
 		}
 		t.Run(name, func(t *testing.T) {
 			stale := known
 			stale.Stale = true
-			if stale.Works() || stale.Underway() || stale.Waiting() || stale.Busy(now) {
-				t.Errorf("as last known, it works %t, is under way %t, waits %t, is busy %t; want none", stale.Works(), stale.Underway(), stale.Waiting(), stale.Busy(now))
+			if stale.Works() || stale.Busy(now) {
+				t.Errorf("as last known, it works %t, is busy %t; want neither", stale.Works(), stale.Busy(now))
 			}
 			if stale.LastSeen = now; !stale.Busy(now) {
 				t.Error("as last known, seen now, it isn't busy; want it busy, seen in the last minute")
 			}
-			if got, want := stale.Said(now), known.Said(now); got != want {
-				t.Errorf("as last known, it says %q, want %q, as it was", got, want)
+			said := func(a views.Activity) []string {
+				return []string{a.Said(now), a.State(now), a.Short(), a.WaitingSaid(), fmt.Sprint(a.Underway(), a.Waiting())}
+			}
+			if got, want := said(stale), said(known); !slices.Equal(got, want) {
+				t.Errorf("as last known, it's said %q, want %q, as it was", got, want)
+			}
+			panel := views.LogSession{Activity: stale}
+			if doing, _ := panel.Doing(now.Add(time.Hour)); doing == views.LogIdle {
+				t.Error("as last known, the Log's panel says it idle, want it said as it was")
 			}
 		})
 	}

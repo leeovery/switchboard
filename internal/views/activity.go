@@ -37,8 +37,9 @@ type Activity struct {
 	LastSeen time.Time
 	// Stale is set where a request of it is in flight as last known, as
 	// the router last listed it before it stopped answering: it may have
-	// ended since. It's said as it was, never as at work now, as Works,
-	// Busy, Underway and Waiting have it.
+	// ended since. It's said in the words it was, as Said, State, Short and
+	// WaitingSaid say it whether or not it's set, but never as at work now,
+	// as Works and Busy have it.
 	Stale bool
 }
 
@@ -110,10 +111,10 @@ func (a Activity) Works() bool {
 
 // Underway reports whether a request of it is under way on its account, as
 // the Overview's SESSIONS says it: asking, answering, or throttled, to go out
-// again there; not refused, before it goes out again elsewhere; nor as last
-// known.
+// again there; not refused, before it goes out again elsewhere. As last
+// known, it's under way as it was.
 func (a Activity) Underway() bool {
-	return !a.Stale && (a.Doing == Asking || a.Doing == Answering || a.Doing == Throttled)
+	return a.Doing == Asking || a.Doing == Answering || a.Doing == Throttled
 }
 
 // Tokens are how many tokens its answer has streamed so far, while it's

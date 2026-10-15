@@ -284,6 +284,21 @@ func TestUnder126ColumnsThePanelShowsOneSideAtATime(t *testing.T) {
 // The panel's last line says what it would show: of Requests, how many of
 // today's lines in how many columns; of Events, all of today's events, or
 // how many of them, or that there are none yet, in text.faint.
+// A session's row says it asking in accent.key, and as last known, the
+// router not answering, as it was, in asKnown's dimmed ink.
+func TestAPanelRowSaysWhatsInFlightAsLastKnownAsItWas(t *testing.T) {
+	for _, doing := range []views.Doing{views.Asking, views.Throttled, views.Refused} {
+		live := views.Activity{Doing: doing, Status: 429, LastSeen: routedAt}
+		stale := live
+		stale.Stale = true
+		for a, want := range map[views.Activity]span{live: {"asking", doingInk}, stale: {"asking", dimInk}} {
+			if got := sessionDoing(views.LogSession{Activity: a, Started: routedAt.Add(-time.Hour)}, routedAt); got != want {
+				t.Errorf("doing %d, as last known %t, the row says %+v, want %+v", doing, a.Stale, got, want)
+			}
+		}
+	}
+}
+
 func TestThePanelSaysWhatItWouldShow(t *testing.T) {
 	some := framesPanel(LogEvents, 0)
 	some.Events.Shown = 12

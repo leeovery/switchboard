@@ -455,6 +455,16 @@ func TestACallSaysItsSessionWhatItsDoingAndWhereItCameFrom(t *testing.T) {
 			want: "c61b mobile       ↓ answering                   ", id: mutedInk, doing: dimInk,
 		},
 		{
+			name: "asking as last known: as it was, in text.subtle, its id at rest",
+			call: boardCall(idC61B, "side", "~/Code/mobile", lastKnown(inFlight(views.Asking, sent, 0)), ""),
+			want: "c61b mobile       ↑ asking                      ", id: mutedInk, doing: dimInk,
+		},
+		{
+			name: "throttled as last known: as it was, in text.subtle, its id at rest",
+			call: boardCall(idC61B, "side", "~/Code/mobile", lastKnown(inFlight(views.Throttled, sent, 429)), ""),
+			want: "c61b mobile       … 429                         ", id: mutedInk, doing: dimInk,
+		},
+		{
 			name: "refused as last known: as it was, in text.subtle, its id at rest",
 			call: boardCall(idC61B, "side", "~/Code/mobile", lastKnown(inFlight(views.Refused, sent, 429)), ""),
 			want: "c61b mobile       ✕ 429                         ", id: mutedInk, doing: dimInk,
