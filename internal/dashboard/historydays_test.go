@@ -249,7 +249,7 @@ func TestDaysByAccountScrollsPastSixAccounts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := daysFrame(t, daysWorld(tt.accounts...), 160, tt.height)
 			f.Scroll = tt.scroll
-			if got := f.daysScrolling(); got != tt.want {
+			if got := f.daysScrolling(f.Scroll); got != tt.want {
 				t.Errorf("it scrolls %+v, want %+v", got, tt.want)
 			}
 			rows := textOf(historyDrawn(f).rows(f.Look))
@@ -319,7 +319,7 @@ func TestDaysScrollsWholeWhereItsFramesDontFit(t *testing.T) {
 				says   string
 			}{{0, tt.top, tt.below}, {tt.top.Most, tt.end, tt.above}} {
 				f.Scroll = at.scroll
-				if got := f.daysScrolling(); got != at.want || !f.ScrollsRows(status.Document{}, now) {
+				if got := f.daysScrolling(f.Scroll); got != at.want || !f.ScrollsRows(status.Document{}, now) {
 					t.Errorf("scrolled %d, it scrolls %+v, a row at a time: %t; want %+v, a row at a time", at.scroll, got, f.ScrollsRows(status.Document{}, now), at.want)
 				}
 				view := textOf(historyDrawn(f).rows(Look{}))[f.top() : f.top()+f.viewRows()]

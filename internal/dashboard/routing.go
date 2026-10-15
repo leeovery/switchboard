@@ -211,7 +211,8 @@ func (f Frame) accountRows(i, a int, body bounds) []int {
 // row y, its trace rows tall: its number, name and marks; its state from the
 // name column, its words cut by whole clauses to end wordsGap cells short of
 // ● pinned, where it shows, else of its sessions; its sessions; and its
-// trace, its rate right-aligned at the last column on its last row.
+// trace, its rate right-aligned at the last column uncovered on its last
+// row, as uncoveredEdge has it.
 func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows int) {
 	c.line(0, y, r.name)
 	end := sessionsAt
@@ -222,7 +223,7 @@ func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows 
 	f.drawStanding(c, r, t.names, y, end-wordsGap-t.names, false)
 	c.line(sessionsAt, y, line{r.sessionsCounted()})
 	f.drawTrace(c, r.trace, t.now, bounds{x: traceFrom, y: y, width: f.accountTraceCells(t.names), rows: rows}, r.faded)
-	c.right(f.Width, y+rows-1, line{r.rate(t.now)})
+	c.right(f.uncoveredEdge(), y+rows-1, line{r.rate(t.now)})
 }
 
 // narrowRouting draws account r's two rows of ROUTING under routingRows
@@ -239,7 +240,7 @@ func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int)
 	}
 	f.drawStanding(c, r, t.names, y, end-wordsGap-t.names, true)
 	f.drawTrace(c, r.trace, t.now, bounds{x: t.names, y: y + 1, width: f.accountTraceCells(t.names), rows: 1}, r.faded)
-	c.right(f.Width, y+1, line{r.sessionsCounted(), spaces(2), r.rate(t.now)})
+	c.right(f.uncoveredEdge(), y+1, line{r.sessionsCounted(), spaces(2), r.rate(t.now)})
 }
 
 // drawStanding draws how account r stands from x along row y, its words, or
@@ -403,7 +404,7 @@ func (f Frame) besideAccount(c *canvas, t routingTable, r accountRouting, x int,
 		return
 	}
 	f.drawTrace(c, r.trace, t.now, f.besideTrace(x, rows[2]), r.faded)
-	c.right(f.Width, rows[2], line{r.rate(t.now)})
+	c.right(f.uncoveredEdge(), rows[2], line{r.rate(t.now)})
 }
 
 // besidePool draws the pool's lines beside its block from column x, on the
@@ -418,7 +419,7 @@ func (f Frame) besidePool(c *canvas, t routingTable, x int, rows []int) {
 	trace := f.besideTrace(x, rows[2])
 	pool := summed(tracesOf(t.pool), func(tr views.Trace) []float64 { return tr.Cells(trace.width, t.now) })
 	f.drawCells(c, pool, trace, false)
-	c.right(f.Width, rows[2], line{rateOf(summedRate(t.pool, t.now), false).numbered(Number{Kind: NumberRate})})
+	c.right(f.uncoveredEdge(), rows[2], line{rateOf(summedRate(t.pool, t.now), false).numbered(Number{Kind: NumberRate})})
 }
 
 // tracesOf are the accounts' traces, in their order.

@@ -1434,8 +1434,10 @@ title row and the status line say what the header would. By window:
 
 Then, as only the Overview has them:
 
-- **The focused account,** while GRAPHS shows, has the first 12 cells of its number and name on
-  `bg.selection` in the matrix.
+- **The focused account,** while GRAPHS shows, has its whole name column on `bg.selection` in the
+  matrix, its number, name and marks, as wide as the column is fitted to the names, but the gap
+  before the bars: 14 cells with the sample's 16-cell column, and a long name lit whole however
+  far the column widens for it (the owner's call, 15 October 2026).
 - **An account out of the pool,** where the global pin names others, is faint wherever the page
   names it, rather than struck through, as not every terminal draws strikethrough: its number, name
   and marks in `text.faint`; in USAGE, its bars faded as a stale reading's are, keeping 35% of their
@@ -1700,8 +1702,9 @@ then the toggles as the key line words them (settled in the plan).
 
 **`?` help**, `HELP · OVERVIEW`, lists every key first, the toggles, `b`, `↑↓`, `p`, `t`, `R` and
 `j`/`k` among them; then it explains each section, what it shows and why it's where it is; USAGE's
-marks, the levels' colours, the allowance and `out ~…`, the pool against `all accounts`; GRAPHS'
-lines; the modes and how each routes; ROUTING's states and the traces' scale; what a session is
+marks, the levels' colours, the allowance and `out ~…`, the pool against `all accounts`, and how
+it scrolls, an account at a time or a row at a time, going back to its top as `b`, a section's key
+or a resize turns it from one to the other; GRAPHS' lines; the modes and how each routes; ROUTING's states and the traces' scale; what a session is
 doing; and LATELY's marks.
 
 ### Accounts
@@ -1848,13 +1851,21 @@ holds.
 **Detail** shows one account in full, or all of them, chosen from a list at its left. The panel's
 top half is now and the period; a rule, `the last six weeks`, heads the rest.
 
-- **The list,** columns 0 to 19, a chooser and nothing else: from row 6, 2 rows apart and from
-  column 1, `0 all accounts`, `0` in `text.subtle` and the name bold `text.secondary`, then each
-  account's number, name and marks, and at column 15 its state's dot or square, in its state's
-  colour. The chosen row is `bg.selection` across columns 0 to 16. Two rows under the last,
+- **The list,** columns 0 to 19 with the sample's names, a chooser and nothing else: from row 6, 2
+  rows apart and from column 1, `0 all accounts`, `0` in `text.subtle` and the name bold
+  `text.secondary`, then each account's number, name and marks, and at column 15 its state's dot or
+  square, in its state's colour. The chosen row is `bg.selection` across columns 0 to 16 while the
+  focus is on the list, and bold, unlit, while it's on SESSIONS. Two rows under the last,
   `↑↓ choose`, `↑↓` bold `accent.key` and `choose` in `text.subtle`. A `│` in `border` at column 20,
   rows 6 to 32, or 33 with sessions; the panel starts at column 24. More accounts than it holds
   scroll with the choice (settled in the plan).
+- **The list's name column fits the names,** as USAGE's does (see `usage`, the printout): the widest
+  number, label and `◆`, with no cells kept for `▲`, which the list doesn't draw, and a gap of two
+  cells; at least 14 cells and at most 24. The dot, the lit row, the `│` and the panel move right
+  with it, the panel's parts keeping their widths, and the list gives way first: it widens only
+  into the cells the frame has past the panel's widest rows, 141 columns with the least column, a
+  long label cut with `…` to what's left: from 151 columns the column takes all 24 cells it may
+  (the owner's call, 15 October 2026).
 - **The panel's head,** row 6: the account's number, name and marks, three spaces, then its state in
   ROUTING's words without its `back …` time, saying where new sessions go (see The Overview): `● at
   its cap · new sessions go elsewhere`, `■ limit reached · new sessions go elsewhere`, `■ refused
@@ -1911,7 +1922,10 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
   `text.primary` while busy and `text.muted` while idle; two spaces and the model, padded to 8, in
   `text.secondary`; what it's doing, padded to 9, bold `accent.mode` while busy and `text.subtle`
   while idle; and when it was last seen, right-aligned in 3, in `text.subtle`. The selected row is
-  `bg.selection` from a cell before it to 42 cells on. On row 33, two cells in,
+  `bg.selection` from a cell before it to 42 cells on while the focus is on SESSIONS, and bold,
+  unlit, while it's on the list, so the one place lit is where `↑` `↓` act; `SESSIONS` is bold
+  `text.primary` while the focus is there, and `text.subtle` while it isn't (the owner's call, 15
+  October 2026). On row 33, two cells in,
   `enter opens d28c's page`, `enter` bold `accent.key` and the rest `text.muted` (see A session's
   page). `→` takes the selection from the list into them, and `←` back; there `↑` `↓` select a
   session, and `enter` opens its page; more sessions than rows 28 to 31 hold end with `+2 more`
@@ -2061,6 +2075,11 @@ section holds.
 - **`<` and `>`** step from the last 12 months back through each calendar year the ledger holds, and
   forward again: a year's grid runs from the week of 1 January to the week of 31 December, the days
   outside it left out, and its numbers are headed by the year, `2025` (settled in the plan).
+- **Shorter than the Year,** the view scrolls whole, the grid, the key, the numbers and BY MONTH
+  together, a row at a time, and the row over the key line says what's out of view,
+  `▲ 3 more above   ·   ▼ 10 more below   ·   j/k to scroll`, shorter where the width is, as Tokens
+  says it where a period doesn't fit; a Year that fits says nothing (the owner's call, 15 October
+  2026).
 - **On a phone:** under the period's row, the latest 22 weeks that fit, from column 4 under their
   months' names, `M`, `W` and `F` at column 0; a blank row, and the key cut short,
   `■ 0 ■ <450 ■ 450–750 ■ 750–1k ■ >1k  requests a day`; a blank row, `LAST 12 MONTHS` and its
@@ -2223,7 +2242,10 @@ the wheel among them; then it explains each part in turn: the five shades, each 
 active days, and that the Year counts requests; BY MONTH's bars and against what the plans cost;
 what a week's peak is, what short means, how the replay estimates a week with an account fewer or
 more, and what each verdict means; Days' two scales and its red `▪`; and Tokens' columns, as
-ccusage's, and the price table's date.
+ccusage's, and the price table's date. With them, how each view scrolls: the Year a row at a time,
+saying what's out of view; Weeks and Days an account at a time, or a row at a time where they're
+drawn whole; Tokens a period at a time, or a row at a time where a period doesn't fit; and that a
+view goes back to its top as its scroll turns from one to the other.
 
 **Its figures,** every one from the ledger's days (see The request ledger), read with no router:
 requests a day, by version and by account; sessions, the distinct ids of the days' `session_ids`;
@@ -3704,7 +3726,9 @@ right-aligned on its name's row, cut with `…` where they must; the key row kee
 
 **More accounts than fit:** the card is at most the page's height less 4 rows; past that, its
 accounts scroll within it, the row it's on kept in view, `▼ 3 more` under the last row shown and
-`▲ 2 more` over the first while some are above (settled in the plan).
+`▲ 2 more` over the first while some are above (settled in the plan). On a terminal too short for
+even that, the card is never taller than the page: its keys keep their rows at its foot, and its
+body is cut above them, as every card keeps its keys.
 
 ### Keys
 
@@ -3873,7 +3897,9 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   `● light`, `● dark` or `● both`. Setting one theme clears the pair, and setting a half of the pair
   clears the one theme, asking `y`/`n` first. Each is set in the choice as it's kept now, as another
   dashboard may have changed it since the picker opened, and `y`/`n` is asked only where one theme
-  is kept. While the picker is open, the key line lists its keys alone.
+  is kept. While the picker is open, the key line lists its keys alone, and a trace it would cover,
+  as ROUTING's and SESSIONS', drops its oldest minutes instead, its end and its `/min` rate kept
+  left of the picker, so a busy account's trace still reads now.
 - **The preferences file:** `<state dir>/prefs.json`, which the dashboard writes and the user never
   needs to: the theme or the pair, and what the dashboard's keys choose that it keeps (see The
   page). It's written whole, as `state.json` is, in the state directory as it changes as the

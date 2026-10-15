@@ -169,15 +169,16 @@ func (f Frame) wholePaged(rows, foot int, heads []headed) rowsPaged {
 }
 
 // paged is how the Year, drawn whole, pages in the view's rows: its
-// numbers' heading on a phone, and BY MONTH's, with their first rows, but
-// saying nothing of what's out of view, as its frames have it.
+// numbers' heading on a phone, and BY MONTH's, with their first rows; and
+// where it doesn't fit, its last row saying how many rows are out of view,
+// as Weeks and Days say it where they're drawn whole.
 func (y yearDrawn) paged() rowsPaged {
 	p := y.placed()
 	heads := []headed{{at: y.form.row, first: p.first}}
 	if y.form.phone {
 		heads = []headed{{at: yearPhoneNumbersRow, first: yearPhoneNumbersRow + 1}, heads[0]}
 	}
-	return rowsPaged{rows: y.viewRows(), content: y.height(), heads: heads}
+	return rowsPaged{rows: y.viewRows(), content: y.height(), heads: heads, says: true}
 }
 
 // historyScrollsRows reports whether History's sub-tab shown scrolls a row at
@@ -215,20 +216,19 @@ func (f Frame) phoneForm(reach func() int) bool {
 // by rows where they're drawn whole; and Tokens by periods, or by rows where
 // a period doesn't fit. None scrolls before its page is built.
 func (f Frame) historyScrolling(top int) func(offset int) Scrolling {
-	var s Scrolling
 	switch f.History.Shown {
 	case HistoryYear:
 		if y, ok := f.yearDrawn(); ok {
-			s = y.paged().scrolling(f.Scroll)
+			return y.paged().scrolling
 		}
 	case HistoryWeeks:
-		s = f.weeksScrolling()
+		return f.weeksScrolling
 	case HistoryDays:
-		s = f.daysScrolling()
+		return f.daysScrolling
 	case HistoryTokens:
 		return f.tokensScrolling(top)
 	}
-	return func(int) Scrolling { return s }
+	return func(int) Scrolling { return Scrolling{} }
 }
 
 // historyScrolls is what of History's sub-tab shown scrolls, from row y,

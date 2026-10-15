@@ -140,12 +140,19 @@ func (s AccountsShown) Choosing(by int, running []string) (AccountsShown, bool) 
 	switch {
 	case s.View() != AccountsDetail:
 		return s, false
-	case s.InSessions || s.Alone():
+	case s.sessionsFocused():
 		return s.selecting(by, running)
 	}
 	listed := s.listed()
 	chosen := listed[min(max(slices.Index(listed, s.Chosen)+by, 0), len(listed)-1)]
 	return s.chose(chosen), chosen != s.Chosen
+}
+
+// sessionsFocused reports whether Detail's SESSIONS holds the focus, ↑ and ↓
+// selecting its sessions rather than choosing in its list: → having taken
+// them there, or with one account, which has no list.
+func (s AccountsShown) sessionsFocused() bool {
+	return s.InSessions || s.Alone()
 }
 
 // ChosenOn is Accounts with Detail's list's choice on the account with the

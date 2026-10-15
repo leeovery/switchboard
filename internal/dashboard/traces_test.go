@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -219,6 +221,56 @@ func TestAFramesTracesDrawItsRequestsAMinuteToItsScale(t *testing.T) {
 				t.Errorf("%s: %s's last row ends %q, its last cell %+v; want %q in %+v", tt.name, a.ID, got[len(got)-8:], *end, rate.text, rate.ink)
 			}
 		}
+	}
+}
+
+// Under a slide-over, as the theme picker covers the page's right, a trace
+// ends as far short of it as it would of the edge, its oldest columns
+// dropped, as many as it covers, its newest kept, and its rate right-aligned
+// at the slide-over's edge: in ROUTING, wide and narrow, beside USAGE's
+// blocks, the pool's among them, and in SESSIONS. The scale is the busiest
+// of the columns that show: side's newest, 16, and the pool's, 18, the
+// older bursts on two accounts at once, 24 a session and 30 the pool,
+// dropped under it.
+func TestATraceUnderASlideOverKeepsNowsEndAndItsRate(t *testing.T) {
+	doc, listed, traces := tracedWorld()
+	tests := []struct {
+		name  string
+		width int
+		shown Sections
+		by    By
+		scale float64
+	}{
+		{name: "ROUTING, two rows an account", width: 160, shown: SectionsNamed([]string{"routing"}), scale: 16},
+		{name: "ROUTING under 110 columns", width: 109, shown: SectionsNamed([]string{"routing"}), scale: 16},
+		{name: "beside USAGE's blocks", width: 160, shown: SectionsNamed([]string{"usage", "routing"}), by: ByAccount, scale: 18},
+		{name: "SESSIONS", width: 160, shown: SectionsNamed([]string{"sessions"}), scale: 16},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(tt.width, 60)
+			f.Sections, f.By, f.Sessions, f.Traces = tt.shown, tt.by, listed, traces
+			covered := f
+			covered.Covered = PickerWidth(tt.width)
+			whole, under := f.overviewDrawn(doc, routedAt), covered.overviewDrawn(doc, routedAt)
+			if len(*under.traces) == 0 || len(*under.traces) != len(*whole.traces) {
+				t.Fatalf("it draws %d traces under the slide-over, want as many as without it, %d", len(*under.traces), len(*whole.traces))
+			}
+			edge := tt.width - covered.Covered
+			for i, w := range *whole.traces {
+				u := (*under.traces)[i]
+				if u.at.x != w.at.x || u.at.width != w.at.width-covered.Covered || !slices.Equal(u.cells, w.cells[covered.Covered:]) {
+					t.Errorf("trace %d is %d cells from column %d, %v; want its newest %d of %v, from column %d", i, u.at.width, u.at.x, u.cells, w.at.width-covered.Covered, w.cells, w.at.x)
+				}
+				rate := rowOf(under, u.at.y+u.at.rows-1)
+				if !strings.HasSuffix(rate, "/min") || ansi.StringWidth(rate) != edge {
+					t.Errorf("trace %d's last row reads %q, want its rate ending at the slide-over's edge, column %d", i, rate, edge)
+				}
+			}
+			if got := covered.traceScale(*under.traces); got != tt.scale {
+				t.Errorf("scaled to %v, want %v, the busiest of the columns that show", got, tt.scale)
+			}
+		})
 	}
 }
 

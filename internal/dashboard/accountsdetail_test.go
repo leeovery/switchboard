@@ -21,6 +21,10 @@ import (
 // and side.
 var framedAccounts = config.Accounts{{ID: "work"}, {ID: "personal"}, {ID: "side"}}
 
+// leastList is Detail's layout with its list as its frames draw it, its
+// names in the fewest cells the name column takes.
+var leastList = listedIn(leastNames)
+
 // detailFramed is a row of Detail's frames, as compareFramed has it, with
 // its six weeks' days, as levels, a digit a day, a week a word, and those to
 // come "-", and the days it hit a 5-hour limit, "x", and its six weeks'
@@ -196,7 +200,13 @@ var (
 	// the frames draw in Haiku's own shade, where the version table holds
 	// Haiku 5.5, so Haiku 4.5 is older, mixed toward the canvas, as
 	// Compare's olderHaiku.
-	olderHaikus = map[string][]spot{
+	// sessionsFocused are where the frame of side's SESSIONS, the focus in
+	// them, lights side's row in the list and heads SESSIONS in text.subtle,
+	// where the row the focus has left keeps its choice in bold, unlit, and
+	// SESSIONS, holding it, is headed in bold text.primary (the owner's call,
+	// 15 October 2026).
+	sessionsFocused = []spot{{12, 0, 16}, {27, 24, 31}}
+	olderHaikus     = map[string][]spot{
 		"all":      {{15, 137, 139}, {16, 114, 114}},
 		"work":     {{15, 138, 139}, {16, 114, 114}},
 		"limit":    {{15, 136, 139}, {16, 85, 85}},
@@ -239,7 +249,7 @@ func TestDetailIsDrawnAsItsFrames(t *testing.T) {
 		},
 		{
 			stem: "accounts-detail-sessions-160", doc: auto, configured: framedAccounts, chosen: "side", picks: idD28C, page: page, sessions: sessions,
-			passed: slices.Concat([]spot{sidesMark, markedHead["sessions"], sidesWeekWords}, olderHaikus["sessions"]),
+			passed: slices.Concat([]spot{sidesMark, markedHead["sessions"], sidesWeekWords}, sessionsFocused, olderHaikus["sessions"]),
 		},
 		{
 			stem: "accounts-detail-one-160", doc: aloneDoc(), configured: framedAccounts[:1], page: alonePage(t),
@@ -304,11 +314,11 @@ func TestDetailsSESSIONSScrollWithTheSessionSelected(t *testing.T) {
 					if id := status.ShownID(running[tt.first+i].Session); !strings.Contains(string(row), " "+id+"  ") {
 						t.Errorf("SESSIONS' row %d reads %q, want %s", i+1, string(row), id)
 					}
-					if selected := tt.first+i == tt.selected; (row[listPanelAt] == '▸') != selected {
+					if selected := tt.first+i == tt.selected; (row[leastList.panel] == '▸') != selected {
 						t.Errorf("SESSIONS' row %d reads %q, want ▸ %t", i+1, string(row), selected)
 					}
-				case !strings.HasPrefix(string(row[listPanelAt+enterIn:]), tt.more):
-					t.Errorf("SESSIONS' row %d reads %q, want %q from column %d", i+1, string(row), tt.more, listPanelAt+enterIn)
+				case !strings.HasPrefix(string(row[leastList.panel+enterIn:]), tt.more):
+					t.Errorf("SESSIONS' row %d reads %q, want %q from column %d", i+1, string(row), tt.more, leastList.panel+enterIn)
 				}
 			}
 			if want := "enter opens " + status.ShownID(picked) + "'s page"; !strings.Contains(rows[heading+enterUnder], want) {
@@ -332,8 +342,8 @@ func TestDetailsLATELYBesideSESSIONSCutsItsWords(t *testing.T) {
 		x, under int
 		words    int
 	}{
-		{name: "beside SESSIONS", sessions: sessions, x: listPanelAt + latelyBeside, under: 1, words: latelyWords},
-		{name: "alone", x: listPanelAt + panelCX, words: 160 - margin - listPanelAt - panelCX - ansi.StringWidth("14:31  ▸ ")},
+		{name: "beside SESSIONS", sessions: sessions, x: leastList.panel + latelyBeside, under: 1, words: latelyWords},
+		{name: "alone", x: leastList.panel + panelCX, words: 160 - margin - leastList.panel - panelCX - ansi.StringWidth("14:31  ▸ ")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -366,11 +376,70 @@ func TestDetailsSESSIONSAlwaysHasOneSelected(t *testing.T) {
 			first := views.RunningOn(f.running(doc, routedAt), "side")[0].Session
 			rows := textOf(f.Draw(doc, routedAt))
 			heading := rowWith(rows, "SESSIONS")
-			if row := []rune(rows[heading+1]); row[listPanelAt] != '▸' || !strings.Contains(string(row), status.ShownID(first)) {
+			if row := []rune(rows[heading+1]); row[leastList.panel] != '▸' || !strings.Contains(string(row), status.ShownID(first)) {
 				t.Errorf("SESSIONS' first row reads %q, want ▸ before %s", string(row), status.ShownID(first))
 			}
 			if want := "enter opens " + status.ShownID(first) + "'s page"; !strings.Contains(rows[heading+enterUnder], want) {
 				t.Errorf("SESSIONS' enter line reads %q, want %q", rows[heading+enterUnder], want)
+			}
+		})
+	}
+}
+
+// Detail shows where the focus is: the chosen row is lit on bg.selection in
+// the part that holds it alone, the list or SESSIONS, the other's chosen row
+// bold, unlit, its colours kept; and SESSIONS is headed in bold
+// text.primary while it holds it, else text.subtle. With one account, which
+// has no list, SESSIONS holds it.
+func TestDetailLightsTheChosenRowWhereTheFocusIs(t *testing.T) {
+	_, sessions, _ := overviewWorld()
+	doc := usageWorld(extraOff)
+	selection := hue{token: theme.BgSelection}
+	tests := []struct {
+		name       string
+		configured config.Accounts
+		selected   string
+		inSessions bool
+	}{
+		{name: "the list holding the focus", configured: framedAccounts},
+		{name: "SESSIONS holding it, → having taken it there", configured: framedAccounts, selected: idD28C, inSessions: true},
+		{name: "one account, SESSIONS holding it", configured: config.Accounts{{ID: "side"}}, inSessions: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := detailFrame(Look{}, tt.configured, "side", tt.selected, nil, sessions)
+			c := newCanvas(f.Width, f.Height)
+			f.accounts(c, doc, routedAt, f.top())
+			rows, l := textOf(c.rows(Look{})), f.detailLayout()
+			var lit []int
+			for y := range f.Height {
+				for x := range f.Width {
+					if c.at(x, y).ink.on == selection {
+						lit = append(lit, y)
+						break
+					}
+				}
+			}
+			heading, chosen := rowWith(rows, "SESSIONS"), rowWith(rows, "▸ ●")
+			want := []int{chosen}
+			if !tt.inSessions {
+				want = []int{f.top() + 3*listApart}
+			}
+			if !slices.Equal(lit, want) {
+				t.Errorf("rows %v are lit, want %v alone, the chosen row of the part holding the focus", lit, want)
+			}
+			if session := c.at(l.panel+2, chosen); !tt.inSessions && !session.ink.bold {
+				t.Errorf("the session selected, its focus left, reads %+v, want it bold", *session)
+			}
+			if side := c.at(listAt, f.top()+3*listApart); l.list && tt.inSessions && !side.ink.bold {
+				t.Errorf("side's row in the list, its focus left, reads %+v, want it bold", *side)
+			}
+			head, wantHead := c.at(l.panel, heading).ink, dimInk
+			if tt.inSessions {
+				wantHead = titleInk
+			}
+			if head != wantHead {
+				t.Errorf("SESSIONS is headed in %+v, want %+v", head, wantHead)
 			}
 		})
 	}
@@ -468,7 +537,7 @@ func TestDetailListsAnAccountTheDocumentLacksAsNotRead(t *testing.T) {
 // listCells are the list's cells of a row, trimmed.
 func listCells(row string) string {
 	cells := []rune(row)
-	return strings.TrimSpace(string(cells[:min(len(cells), listRuleAt)]))
+	return strings.TrimSpace(string(cells[:min(len(cells), leastList.ruleAt())]))
 }
 
 // Detail's panel scrolls by rows past the view's foot, the list held beside
@@ -492,16 +561,16 @@ func TestDetailsPanelScrollsTheListHeld(t *testing.T) {
 		t.Errorf("scrolled, the list's top row reads %q, want all accounts", got)
 	}
 	for y := top; y < top+f.viewRows(); y++ {
-		if cells := []rune(rows[y]); len(cells) <= listRuleAt || cells[listRuleAt] != '│' {
-			t.Errorf("scrolled, row %d reads %q, want │ at %d", y, rows[y], listRuleAt)
+		if cells := []rune(rows[y]); len(cells) <= leastList.ruleAt() || cells[leastList.ruleAt()] != '│' {
+			t.Errorf("scrolled, row %d reads %q, want │ at %d", y, rows[y], leastList.ruleAt())
 		}
 		if got, want := panelCells(rows[y]), panelCells(panel[y+scrolling.Most]); got != want {
 			t.Errorf("scrolled %d, the panel's row %d reads %q, want %q", scrolling.Most, y, got, want)
 		}
 	}
 	x, y, width, shown := f.scrolls(doc, routedAt)
-	if x != listPanelAt || y != top || width != f.Width-listPanelAt || shown != f.viewRows() {
-		t.Errorf("scrolls() = %d, %d, %d, %d, want the panel's columns, from %d, and the view's rows", x, y, width, shown, listPanelAt)
+	if x != leastList.panel || y != top || width != f.Width-leastList.panel || shown != f.viewRows() {
+		t.Errorf("scrolls() = %d, %d, %d, %d, want the panel's columns, from %d, and the view's rows", x, y, width, shown, leastList.panel)
 	}
 }
 
@@ -544,7 +613,7 @@ func TestDetailSaysWhatOfItsPanelIsOutOfView(t *testing.T) {
 			if got := listCells(rows[y]); got != "" {
 				t.Errorf("the row over the key line reads %q under the list, want it blank, the list all shown", got)
 			}
-			if got := c.at(listPanelAt, y).ink; got != keyMarkInk {
+			if got := c.at(leastList.panel, y).ink; got != keyMarkInk {
 				t.Errorf("the line's mark is in %+v, want %+v, as Compare's", got, keyMarkInk)
 			}
 		})
@@ -654,7 +723,7 @@ func TestDetailsUSAGECuesAWindowsWordsAsTheyTurnOut(t *testing.T) {
 // panelCells are the panel's cells of a row, trimmed.
 func panelCells(row string) string {
 	cells := []rune(row)
-	return strings.TrimRight(string(cells[min(len(cells), listPanelAt):]), " ")
+	return strings.TrimRight(string(cells[min(len(cells), leastList.panel):]), " ")
 }
 
 // A click on a row of Detail's list chooses its account, all accounts' by
@@ -667,9 +736,9 @@ func TestDetailsTargetsAreItsListsRowsAndItsSessions(t *testing.T) {
 	f := detailFrame(Look{}, framedAccounts, "side", "", page, sessions)
 	running := views.RunningOn(f.running(doc, routedAt), "side")
 	top := f.top()
-	listed := []Target{{X: 0, Y: top, Width: listLit, On: OnAccount}}
+	listed := []Target{{X: 0, Y: top, Width: leastList.lit(), On: OnAccount}}
 	for i, a := range framedAccounts {
-		listed = append(listed, Target{X: 0, Y: top + (i+1)*listApart, Width: listLit, On: OnAccount, Account: a.ID})
+		listed = append(listed, Target{X: 0, Y: top + (i+1)*listApart, Width: leastList.lit(), On: OnAccount, Account: a.ID})
 	}
 	sessionsAt := top + rowWith(textOf(f.Draw(doc, routedAt))[top:], "SESSIONS") + 1
 	tests := []struct {
@@ -698,7 +767,7 @@ func TestDetailsTargetsAreItsListsRowsAndItsSessions(t *testing.T) {
 func sessionsFrom(running []views.Running, y, first int) []Target {
 	var targets []Target
 	for i, r := range running[first:min(len(running), first+sessionRows)] {
-		targets = append(targets, Target{X: listPanelAt - 1, Y: y + i, Width: sessionLit, On: OnSession, Session: r.Session})
+		targets = append(targets, Target{X: leastList.panel - 1, Y: y + i, Width: sessionLit, On: OnSession, Session: r.Session})
 	}
 	return targets
 }
@@ -752,7 +821,7 @@ func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 		if y < 0 {
 			t.Fatalf("no %s in THIS WEEK", label)
 		}
-		thisWeek := []rune(onFresh[y])[detailLayout{list: true, panel: listPanelAt, into: panelCX, dw: 2, gap: 4}.thisWeekAt()+thisWeekLabels:]
+		thisWeek := []rune(onFresh[y])[leastList.thisWeekAt()+thisWeekLabels:]
 		if got := strings.TrimSpace(string(thisWeek)); got != want {
 			t.Errorf("with nothing recorded, THIS WEEK's %s reads %q, want %q", label, got, want)
 		}
@@ -815,6 +884,57 @@ func TestDetailDrawsWideWhereItsWidestRowsFit(t *testing.T) {
 			}
 			if slices.Equal(got, formDrawn(f, accountsForm{draw: f.detailDrawn(tt.doc, routedAt, l).draw})) {
 				t.Errorf("at %d columns, its wide form is drawn", f.Width)
+			}
+		})
+	}
+}
+
+// Detail's list fits its name column to the names by the rule USAGE fits
+// its own by, nameColumn: the widest, number, label and ◆, and a gap, at
+// least 14 cells and at most 24, its dots, its light, its │ and the panel
+// moving over with it. Where the frame hasn't the cells to spare past the
+// panel's widest rows, the list gives way first, its names cut, down to the
+// least, the panel keeping its width.
+func TestDetailsListFitsItsNameColumnToTheNames(t *testing.T) {
+	const long, longest = "personal-account", "personal-account-of-many-letters"
+	tests := []struct {
+		name         string
+		width        int
+		label        string
+		names        int
+		listed, head string
+	}{
+		{name: "the frames' names", width: 160, names: 14, listed: "2 personal ◆", head: "2 personal ◆"},
+		{name: "a long name, room to spare", width: 200, label: long, names: 22, listed: "2 personal-account ◆", head: "2 personal-account ◆"},
+		{name: "a long name at the frames' width", width: 160, label: long, names: 22, listed: "2 personal-account ◆", head: "2 personal-account ◆"},
+		{name: "a long name, 4 cells to spare", width: 145, label: long, names: 18, listed: "2 personal-ac… ◆", head: "2 personal-account ◆"},
+		{name: "a long name, no cells to spare", width: 141, label: long, names: 14, listed: "2 persona… ◆", head: "2 personal-account ◆"},
+		{name: "a name past the most", width: 200, label: longest, names: 24, listed: "2 personal-account-… ◆", head: "2 " + longest + " ◆"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configured := slices.Clone(framedAccounts)
+			configured[1].Label, configured[1].Primary = tt.label, true
+			doc := usageWorld(extraOff, func(d *status.Document) { d.Accounts[1].Label = tt.label })
+			f := detailFrame(Look{}, configured, "personal", "", detailsPage(t), nil)
+			f.Width = tt.width
+			l := f.detailLayout()
+			if l.names != tt.names || l.reach() > tt.width {
+				t.Fatalf("its list's name column is %d cells, its wide form %d columns, want %d cells, within the frame's %d", l.names, l.reach(), tt.names, tt.width)
+			}
+			if want := listedIn(tt.names); l != want {
+				t.Errorf("it's laid out %+v, want %+v: the dots, the light, the │ and the panel past the name column", l, want)
+			}
+			rows := accountsDrawn(f, doc)
+			personal := []rune(rows[f.top()+2*listApart])
+			if got := strings.TrimSpace(string(personal[:l.dotAt()])); got != tt.listed {
+				t.Errorf("personal's row in the list reads %q, want %q", got, tt.listed)
+			}
+			if got := string(personal[l.ruleAt()]); got != "│" {
+				t.Errorf("personal's row reads %q at column %d, want the list's │", got, l.ruleAt())
+			}
+			if got := string([]rune(rows[f.top()])[l.panel:]); !strings.HasPrefix(got, tt.head) {
+				t.Errorf("the panel's head reads %q from column %d, want it to start %q", got, l.panel, tt.head)
 			}
 		})
 	}
@@ -1010,7 +1130,7 @@ func TestDetailCuesAStateNewlyChangedAndAFreshLine(t *testing.T) {
 	}{
 		{name: "the head's state", c: c, x: state, y: 0, fade: 0.25},
 		{name: "LATELY's first line", c: c, x: d.l.cx(), y: lately, fade: 0.5},
-		{name: "work's glyph in the list, chosen", c: list, x: listDotAt, y: listApart, fade: 0.25},
+		{name: "work's glyph in the list, chosen", c: list, x: leastList.dotAt(), y: listApart, fade: 0.25},
 	}
 	for _, tt := range tests {
 		if got := tt.c.at(tt.x, tt.y).ink.on; got != (hue{token: theme.BgAttention, fade: tt.fade}) {
@@ -1025,7 +1145,7 @@ func TestDetailCuesAStateNewlyChangedAndAFreshLine(t *testing.T) {
 		{name: "LATELY's second line", c: c, x: d.l.cx(), y: lately + 1},
 		{name: "the head's name", c: c, x: d.l.panel, y: 0},
 		{name: "the cell before the head's state", c: c, x: state - 1, y: 0},
-		{name: "personal's glyph, its routing alone changed", c: list, x: listDotAt, y: 2 * listApart},
+		{name: "personal's glyph, its routing alone changed", c: list, x: leastList.dotAt(), y: 2 * listApart},
 	} {
 		if got := unchanged.c.at(unchanged.x, unchanged.y).ink.on; got.token == theme.BgAttention {
 			t.Errorf("%s is on %+v, want it not cued", unchanged.name, got)

@@ -67,6 +67,25 @@ func TestDashboard(t *testing.T) {
 	}
 }
 
+// The dashboard's help tells every page's keys, as the dashboard's own help
+// lists them, each page's on a paragraph of its own, each key whole.
+func TestDashboardHelpTellsEveryPagesKeys(t *testing.T) {
+	got := run(t, testDeps(nil, t.TempDir()), "dashboard", "--help")
+	help := strings.Join(strings.Fields(got.stdout), " ")
+	if got.code != 0 {
+		t.Fatalf("switchboard dashboard --help = %+v, want it to succeed", got)
+	}
+	for _, p := range watch.EveryPagesKeys() {
+		told := make([]string, len(p.Keys))
+		for i, k := range p.Keys {
+			told[i] = k.Key + " " + k.Does
+		}
+		if want := p.Page + ": " + strings.Join(told, ", "); !strings.Contains(help, want) {
+			t.Errorf("switchboard dashboard --help reads\n%s\nwant it to tell %q", got.stdout, want)
+		}
+	}
+}
+
 func TestDashboardNotifiesAsTheConfigSays(t *testing.T) {
 	tests := []struct {
 		name  string

@@ -582,6 +582,34 @@ func TestRowsPastTheCardsRoomScrollTheCursorsKeptInView(t *testing.T) {
 	}
 }
 
+// On a terminal shorter than the card, it keeps its foot: its keys on its
+// last row but one, and its foot on the page's last row, its body cut above
+// them, the cursor's row among those it shows.
+func TestTheRoutingCardKeepsItsKeysOnATerminalShorterThanIt(t *testing.T) {
+	for _, height := range []int{12, 14, 16, 18} {
+		t.Run(fmt.Sprintf("%d rows", height), func(t *testing.T) {
+			f := Frame{Width: 160, Height: height}
+			r := routedCard(func(r *RoutingCard) { r.Cursor = 1 })
+			c := newCanvas(f.Width, f.Height)
+			r.card(f).draw(c)
+			rows := textOf(c.rows(Look{}))
+			_, top, _, h := r.card(f).box(f.Width, f.Height)
+			if top < 0 || top+h > f.Height {
+				t.Fatalf("the card takes rows %d to %d, want it within the page's %d", top+1, top+h, f.Height)
+			}
+			if keys := rows[top+h-2]; !strings.Contains(keys, "enter apply   esc cancel") {
+				t.Errorf("its last row but one reads %q, want its keys", keys)
+			}
+			if foot := strings.TrimSpace(rows[top+h-1]); !strings.HasPrefix(foot, "╰") || !strings.HasSuffix(foot, "╯") {
+				t.Errorf("its last row reads %q, want its foot", foot)
+			}
+			if rowWith(rows, "1 work") < 0 {
+				t.Errorf("the card reads\n%s\nwant the cursor's row, work's, among those it shows", strings.Join(rows, "\n"))
+			}
+		})
+	}
+}
+
 func TestTheRowsInViewKeepTheCursorsAndRoomForWhatsOutOfView(t *testing.T) {
 	// As a phone lays them out: auto's row a line, each account's two.
 	phone := []int{1, 2, 2, 2, 2}

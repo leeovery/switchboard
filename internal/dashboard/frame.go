@@ -17,7 +17,13 @@ const phoneUnder = 100
 type Frame struct {
 	// Width and Height are the terminal's, in cells.
 	Width, Height int
-	Look          Look
+	// Covered is how many cells at the frame's right a slide-over covers, as
+	// the theme picker does while it's open, the page drawn whole under it:
+	// each trace, running to the right edge, drops as many of its oldest
+	// minutes and its rate ends short of it, so now's end and the rate stay
+	// in view, as uncovered and uncoveredEdge have it.
+	Covered int
+	Look    Look
 	// View is the tab shown.
 	View View
 	// Lost is when the router stopped answering, while its last document

@@ -843,7 +843,8 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // kept, what Runway shows, the sessions listed, what the request stream
 // tells of their requests, the List held, whose lines name them, how far the
 // view is scrolled, the account the focus is on, and what Accounts, as
-// standing has it, and History show.
+// standing has it, and History show; and while the theme picker is open,
+// the cells it covers at the right, so the traces keep now's end in view.
 // It holds the one moment of the document at now, as At has it, for its
 // bars eased to it and every look at it to share: the message's, as taking
 // has it, where now is when the message came.
@@ -866,6 +867,9 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 	}.Holding(m.taking.moment).At(m.doc, now)
 	if m.view == dashboard.Accounts {
 		f.Accounts = m.accounts.standing(f)
+	}
+	if m.picker.open {
+		f.Covered = dashboard.PickerWidth(m.size.Width)
 	}
 	f.Eased = m.ease.eased(f, m.doc, now)
 	return f

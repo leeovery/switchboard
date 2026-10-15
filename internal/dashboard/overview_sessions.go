@@ -153,7 +153,8 @@ var runningOut = outForm{lead: "+", inks: subtleOut}
 // wideRunning draws the session running r on row y, of the moment m, from
 // routingRows columns: from the name column, its id, its family, when it was
 // last seen, what it's doing, and why it's there, cut to end before its
-// trace; then its trace, and its rate right-aligned at the last column.
+// trace; then its trace, and its rate right-aligned at the last column
+// uncovered, as uncoveredEdge has it.
 func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, column, y int) {
 	now := m.Now
 	seen := runningSeen(r.Activity.LastSeen, now)
@@ -169,7 +170,7 @@ func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, column, 
 	c.line(why, y, line{{r.Why.String(), dimInk}}.fit(traceFrom-beforeTraceAt-why))
 	faded, t := outOfPool(m, r.Account), f.Traces.Sessions[r.Session]
 	f.drawTrace(c, t, now, bounds{x: traceFrom, y: y, width: f.wideTraceCells(), rows: 1}, faded)
-	c.right(f.Width, y, line{traceRate(t, now, faded).numbered(Number{Kind: NumberRate, Account: r.Account, Of: r.Session})})
+	c.right(f.uncoveredEdge(), y, line{traceRate(t, now, faded).numbered(Number{Kind: NumberRate, Account: r.Account, Of: r.Session})})
 }
 
 // narrowRunning draws the session running r on rows y and y + 1, of the
