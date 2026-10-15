@@ -219,11 +219,11 @@ func runwayFramedAt(t *testing.T, name string, width, height int) (Frame, status
 	rm := moments[i]
 	doc := rm.Doc
 	doc.Best = "side"
-	m := doc.At(rm.Now, claude.Policy)
+	m := doc.At(rm.Now, claude.Policy())
 	tl := views.Stepped(rm.Window, rm.Day, rm.Now, rm.WeekStarts, RunwayColumns(width))
 	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Readings: rm.Readings, Days: filed(rm.Days), Kept: rm.Kept, Timeline: tl, Window: rm.Window})
 	f := Frame{
-		Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claude.Policy,
+		Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claude.Policy(),
 		Runway: RunwayShown{Window: rm.Window, Back: rm.Day, Timeline: tl, Lanes: &lanes, Coming: views.RunwayComing(m, rm.Window)},
 	}
 	return f, doc, rm.Now

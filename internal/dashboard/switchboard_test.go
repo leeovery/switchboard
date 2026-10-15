@@ -32,7 +32,7 @@ const (
 // on the account given, in the directory given, doing what a says, and come
 // from the account from, "" where no move brought it.
 func boardCall(session, account, dir string, a views.Activity, from string) views.Call {
-	return views.Call{Account: account, Session: session, Family: "opus", Models: []string{opus}, Activity: a, Dir: dir, From: from}
+	return views.Call{Account: account, Session: session, Family: "opus", Activity: a, Dir: dir, From: from}
 }
 
 // idleSince is a session idle since the time given, its last answer ended

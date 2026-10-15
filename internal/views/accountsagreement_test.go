@@ -148,7 +148,7 @@ func TestEveryAccountsSessionsServedAreNoMoreThanTheAccountsSummed(t *testing.T)
 func TestDetailsSessionsAreRunningOfsOnTheAccountAndROUTINGsCount(t *testing.T) {
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
-			m := am.Doc.At(am.Now, claude.Policy)
+			m := am.Doc.At(am.Now, claude.Policy())
 			running := views.RunningOf(m, views.ListLive{Running: am.Sessions, Stream: am.Stream}, views.HeldList{})
 			counts := views.RunningCounts(running)
 			var all []views.Running
@@ -172,7 +172,7 @@ func TestDetailsSessionsAreRunningOfsOnTheAccountAndROUTINGsCount(t *testing.T) 
 func TestDetailsLATELYTellsOnlyEventsLATELYTells(t *testing.T) {
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
-			m := am.Doc.At(am.Now, claude.Policy)
+			m := am.Doc.At(am.Now, claude.Policy())
 			told := make(map[int]bool)
 			for _, s := range views.Lately(m, len(m.Events)) {
 				told[s.ID] = true

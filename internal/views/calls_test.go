@@ -84,7 +84,7 @@ func TestACallCameFromWhereItsNamedModelsLatestMoveLeft(t *testing.T) {
 			stream := views.Stream{Live: true, Moves: tt.moves}
 			held := views.HoldList(views.ReadList(sessionsLedger(tt.lines, now), tt.running), ledger.Pricing, now)
 			got := make(map[string]string)
-			for _, c := range views.CallsOf(doc.At(now, claude.Policy), views.ListLive{Running: tt.running, Stream: stream}, held) {
+			for _, c := range views.CallsOf(doc.At(now, claude.Policy()), views.ListLive{Running: tt.running, Stream: stream}, held) {
 				got[c.Account] = c.From
 			}
 			if !maps.Equal(got, tt.want) {

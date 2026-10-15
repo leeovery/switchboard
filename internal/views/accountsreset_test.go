@@ -142,7 +142,7 @@ func weekRisenToday(am viewstest.AccountsMoment, id string, more float64) viewst
 func TestAPageBuiltAfterItsDaysWereReadFoldsAResetSinceAsOneBuiltAsTheyLanded(t *testing.T) {
 	am := accountsMoment(t, rereadUnfiled)
 	want, _ := accountsAt(accountsMoment(t, onceItsReFiled))
-	got := pastOf(am).Since(nil, am.Now).Accounts(am.Period).At(am.Doc.At(am.Now, claude.Policy))
+	got := pastOf(am).Since(nil, am.Now).Accounts(am.Period).At(am.Doc.At(am.Now, claude.Policy()))
 	if weeksSaid(got) != weeksSaid(want) {
 		t.Errorf("built at %v of days read at %v, the weeks say\n%s\nwant them as once the reset is filed\n%s",
 			am.Now.Format(time.TimeOnly), am.DaysRead.Format(time.TimeOnly), weeksSaid(got), weeksSaid(want))
@@ -233,7 +233,7 @@ func withoutWeekResets(am viewstest.AccountsMoment, id, from string) viewstest.A
 func TestAWeekResetBeforeTheRereadOfNothingReadIsntFoldedIn(t *testing.T) {
 	am := weekHighestAtMost(weekReadAs(accountsMoment(t, beforeTheRead), "work", 0), "work", "2026-09-29", 0)
 	built := views.NewPast(accountsIn(am), am.Days).Accounts(am.Period)
-	if stood := built.At(am.Doc.At(am.Now, claude.Policy)); weeksSaid(stood) != weeksSaid(built) {
+	if stood := built.At(am.Doc.At(am.Now, claude.Policy())); weeksSaid(stood) != weeksSaid(built) {
 		t.Errorf("standing the page at a reset of nothing read, its weeks say\n%s\nwant them as built\n%s", weeksSaid(stood), weeksSaid(built))
 	}
 }
@@ -252,7 +252,7 @@ func TestAWeekBegunWithNoResetTheDaysHoldEndsNoneBeforeIt(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			am := accountsMoment(t, name)
 			built := builtOf(am)
-			if stood := built.At(am.Doc.At(am.Now, claude.Policy)); weeksSaid(stood) != weeksSaid(built) {
+			if stood := built.At(am.Doc.At(am.Now, claude.Policy())); weeksSaid(stood) != weeksSaid(built) {
 				t.Errorf("standing the page, its weeks say\n%s\nwant them as built\n%s", weeksSaid(stood), weeksSaid(built))
 			}
 		})
@@ -306,7 +306,7 @@ func TestStandingThePageAtAResetLeavesTheBuiltPageAndThePeriodAsTheyWere(t *test
 	am := accountsMoment(t, beforeTheRead)
 	built := views.NewPast(accountsIn(am), am.Days).Accounts(am.Period)
 	was := weeksSaid(built)
-	stood := built.At(am.Doc.At(am.Now, claude.Policy))
+	stood := built.At(am.Doc.At(am.Now, claude.Policy()))
 
 	if weeksSaid(built) != was {
 		t.Errorf("standing the page changed the page it stood: its weeks say\n%s\nwant\n%s", weeksSaid(built), was)
@@ -330,7 +330,7 @@ func TestAResetOfAWindowButTheAccountsWeekLeavesThePageAsBuilt(t *testing.T) {
 	fable := quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 0.5, ResetsAt: am.Now.Add(-15 * time.Second)}
 	am = withWindow(am, "work", fable)
 	built := views.NewPast(accountsIn(am), am.Days).Accounts(am.Period)
-	if stood := built.At(am.Doc.At(am.Now, claude.Policy)); &stood.Rows[0] != &built.Rows[0] {
+	if stood := built.At(am.Doc.At(am.Now, claude.Policy())); &stood.Rows[0] != &built.Rows[0] {
 		t.Errorf("standing the page at Fable's week reset worked its rows out again, want the page as built")
 	}
 }
@@ -355,14 +355,14 @@ func TestAPageStandsAlikeTillUntil(t *testing.T) {
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
 			page, weeks := builtOf(am), pastOf(am).Weeks()
-			m := am.Doc.At(am.Now, claude.Policy)
+			m := am.Doc.At(am.Now, claude.Policy())
 			until := page.Until(m)
 			if got := weeks.Until(m); !got.Equal(until) || !until.After(am.Now) {
 				t.Fatalf("Weeks stands till %v, Accounts' page till %v, want them alike, after %v", got, until, am.Now)
 			}
 			stood, stoodWeeks := page.At(m), weeks.At(m)
 			for _, at := range []time.Time{am.Now.Add(until.Sub(am.Now) / 2), until.Add(-time.Millisecond)} {
-				later := am.Doc.At(at, claude.Policy)
+				later := am.Doc.At(at, claude.Policy())
 				if got := page.At(later); weeksSaid(got) != weeksSaid(stood) {
 					t.Errorf("at %v, before %v, Accounts' page stands\n%s\nwant as at %v\n%s", at, until, weeksSaid(got), am.Now, weeksSaid(stood))
 				}
@@ -373,11 +373,11 @@ func TestAPageStandsAlikeTillUntil(t *testing.T) {
 		})
 	}
 	am := accountsMoment(t, aSecondBefore)
-	page, m := builtOf(am), am.Doc.At(am.Now, claude.Policy)
+	page, m := builtOf(am), am.Doc.At(am.Now, claude.Policy())
 	if until, want := page.Until(m), am.Now.Add(time.Second); !until.Equal(want) {
 		t.Fatalf("a second before work's week resets, the page stands till %v, want %v", until, want)
 	}
-	if after := page.At(am.Doc.At(am.Now.Add(2*time.Second), claude.Policy)); weeksSaid(after) == weeksSaid(page.At(m)) {
+	if after := page.At(am.Doc.At(am.Now.Add(2*time.Second), claude.Policy())); weeksSaid(after) == weeksSaid(page.At(m)) {
 		t.Errorf("past work's week's reset, the page stands as it did before it, want the week closed")
 	}
 }

@@ -23,7 +23,7 @@ type toldLine struct {
 func accountLately(doc status.Document, id, best string) []toldLine {
 	doc.Best = best
 	var told []toldLine
-	for _, s := range views.AccountLately(doc.At(at(16, 0), claude.Policy), id, 12) {
+	for _, s := range views.AccountLately(doc.At(at(16, 0), claude.Policy()), id, 12) {
 		told = append(told, toldLine{kind: s.Kind, full: s.Full.String(), short: s.Short.String()})
 	}
 	return told
@@ -176,7 +176,7 @@ func TestDetailsLATELYTellsTheAccountsLastNNewestFirst(t *testing.T) {
 	doc := heldBackAt(status.EventCap, false)
 	doc.Events = append(doc.Events, status.Event{ID: 22, Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}})
 	var got []int
-	for _, s := range views.AccountLately(doc.At(at(16, 0), claude.Policy), "side", 2) {
+	for _, s := range views.AccountLately(doc.At(at(16, 0), claude.Policy()), "side", 2) {
 		got = append(got, s.ID)
 	}
 	if want := []int{28, heldLine}; !slices.Equal(got, want) {

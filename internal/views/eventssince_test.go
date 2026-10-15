@@ -45,7 +45,7 @@ func filedIn(t *testing.T, hm viewstest.EventMoment) views.Events {
 // liveAt is the moment of the router's document at now, giving the events
 // live, the newest first.
 func liveAt(live []status.Event, now time.Time) status.Moment {
-	return status.Document{Source: status.SourceRouter, Events: live}.At(now, claude.Policy)
+	return status.Document{Source: status.SourceRouter, Events: live}.At(now, claude.Policy())
 }
 
 // asFiled are the events given as the router files them, a line each, by

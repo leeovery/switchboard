@@ -50,7 +50,8 @@ func TestNoViewDrawsOnThePagesChromeOrCountsAccountsItCantShow(t *testing.T) {
 					chrome = 4
 				}
 				for _, height := range sweptHeights {
-					rows := plainRows(m, width, height)
+					sized := deliver(m, tea.WindowSizeMsg{Width: width, Height: height})
+					rows := plainOf(sized.View().Content, height)
 					for y := range chrome {
 						if rows[y] != tall[y] {
 							t.Errorf("at %d×%d, row %d reads\n%q\nwant it as at %d rows\n%q", width, height, y+1, rows[y], tallest, tall[y])
@@ -62,8 +63,8 @@ func TestNoViewDrawsOnThePagesChromeOrCountsAccountsItCantShow(t *testing.T) {
 					if !showsAnAccountItCounts(rows, names) {
 						t.Errorf("at %d×%d, the view counts accounts out of view and shows none:\n%s", width, height, strings.Join(rows, "\n"))
 					}
-					scrolled := deliver(m, tea.WindowSizeMsg{Width: width, Height: height}, keysOf("j")[0])
-					if rows := plainRows(scrolled, width, height); !showsAnAccountItCounts(rows, names) {
+					scrolled := deliver(sized, keysOf("j")[0])
+					if rows := plainOf(scrolled.View().Content, height); !showsAnAccountItCounts(rows, names) {
 						t.Errorf("at %d×%d, scrolled a row, the view counts accounts out of view and shows none:\n%s", width, height, strings.Join(rows, "\n"))
 					}
 				}

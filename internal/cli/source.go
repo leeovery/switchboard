@@ -80,7 +80,7 @@ func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (sta
 		return status.Document{}, router.Health{}, fallbackFrom(err), false
 	}
 	logger.Debug("read the router", "refresh", refresh, "healthy", doc.Router.Healthy)
-	return doc.WorkedOut(claude.Policy), health, status.Fallback{}, true
+	return doc.WorkedOut(claude.Policy()), health, status.Fallback{}, true
 }
 
 // answers asks the router's health check, giving it launch.AskTimeout, as
@@ -215,7 +215,7 @@ func (s probeSource) Fetch(ctx context.Context) (status.Document, error) {
 	version := s.deps.ClaudeVersion()
 	collector := status.Collector{
 		Prober: &claude.Prober{Upstream: s.upstream, Version: version},
-		Policy: claude.Policy,
+		Policy: claude.Policy(),
 		Prime:  s.prime,
 		Token:  s.readToken,
 		Now:    s.deps.Now,

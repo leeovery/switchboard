@@ -105,7 +105,7 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	if err != nil {
 		return err
 	}
-	m := doc.At(a.Now(), claude.Policy)
+	m := doc.At(a.Now(), claude.Policy())
 	windows, err := opts.windows.keys(m)
 	if err != nil {
 		return err

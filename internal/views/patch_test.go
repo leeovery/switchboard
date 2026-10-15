@@ -304,7 +304,7 @@ func TestEachLineHangsAStubForEachSessionItsLimitMoved(t *testing.T) {
 		{name: "two moved", hm: "a limit moving a second session, at its next request", want: map[string]int{"work": 2}},
 		{name: "a limit naming no window, moving none", hm: "a limit naming no window holding", want: map[string]int{}},
 	}
-	moments := statustest.HardMoments(claude.Policy)
+	moments := statustest.HardMoments(claude.Policy())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			i := slices.IndexFunc(moments, func(hm statustest.HardMoment) bool { return hm.Name == tt.hm })
@@ -312,7 +312,7 @@ func TestEachLineHangsAStubForEachSessionItsLimitMoved(t *testing.T) {
 				t.Fatalf("no hard moment %q", tt.hm)
 			}
 			hm := moments[i]
-			if got := views.StubsOf(hm.Doc.At(hm.Now, claude.Policy)); !maps.Equal(got, tt.want) {
+			if got := views.StubsOf(hm.Doc.At(hm.Now, claude.Policy())); !maps.Equal(got, tt.want) {
 				t.Errorf("StubsOf(%s) = %v, want %v", tt.hm, got, tt.want)
 			}
 		})

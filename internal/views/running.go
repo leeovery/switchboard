@@ -30,9 +30,6 @@ type Running struct {
 	// Why is why its model named there is there, in the views' words for the
 	// router's reasons, with when, as "started here 14:41, the best".
 	Why status.Words
-	// Models are its models whose requests go there, the one seen last
-	// first.
-	Models []string
 	// Activity is what its models there are doing, the busiest of them, and
 	// when it was last seen at work there.
 	Activity Activity
@@ -133,18 +130,15 @@ func (by lister) runningOn(m status.Moment, s status.Session, id string, lines n
 	if len(there) == 0 {
 		return Running{}, false
 	}
-	slices.SortStableFunc(there, func(x, y status.Assignment) int { return y.LastSeen.Compare(x.LastSeen) })
-	named := there[0]
+	named := slices.MaxFunc(there, func(x, y status.Assignment) int { return x.LastSeen.Compare(y.LastSeen) })
 	_, model := by.names(s.ID, lines)
 	if i := slices.IndexFunc(s.Assignments, func(a status.Assignment) bool { return a.Account == id && a.Model == model }); i >= 0 {
 		named = s.Assignments[i]
 	}
-	r := Running{Account: id, Session: s.ID, Model: named.Model, Family: named.Name(), Why: whyRunning(m, s.ID, named)}
-	for _, a := range there {
-		r.Models = append(r.Models, a.Model)
-	}
-	r.Activity = by.known(busiest(by.h.at(s.ID, id, s.Assignments)))
-	return r, true
+	return Running{
+		Account: id, Session: s.ID, Model: named.Model, Family: named.Name(), Why: whyRunning(m, s.ID, named),
+		Activity: by.known(busiest(by.h.at(s.ID, id, s.Assignments))),
+	}, true
 }
 
 // placed are the sessions the router listed, as the stream s has moved them

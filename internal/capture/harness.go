@@ -119,7 +119,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		After:      held,
 		Await:      source.await,
 		Interval:   interval,
-		Policy:     claude.Policy,
+		Policy:     claude.Policy(),
 		WindowName: status.NameOfKey,
 		Accounts:   f.accounts,
 		WeekStarts: framesWeekStarts,
@@ -142,7 +142,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 // world's records, or, of a printout, which has none, none.
 func (f Fixture) readers(now func() time.Time) (views.Ledger, views.Readings, views.Events) {
 	if f.records == nil {
-		return ledger.NewEmpty(now, ledger.Caps{Shared: claude.SharedWindows}), readings.Empty{}, events.Empty{}
+		return ledger.NewEmpty(now, ledger.Caps{Shared: claude.SharedWindows()}), readings.Empty{}, events.Empty{}
 	}
 	return f.records.readers(now)
 }

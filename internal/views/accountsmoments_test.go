@@ -32,7 +32,7 @@ func accountsIn(am viewstest.AccountsMoment) views.HistoryInput {
 // of the moment's days, for its period, as they were read, then stood at its
 // moment; and the moment.
 func accountsAt(am viewstest.AccountsMoment) (views.AccountsPage, status.Moment) {
-	m := am.Doc.At(am.Now, claude.Policy)
+	m := am.Doc.At(am.Now, claude.Policy())
 	return builtOf(am).At(m), m
 }
 

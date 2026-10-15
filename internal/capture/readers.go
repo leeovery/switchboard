@@ -37,7 +37,7 @@ type records struct {
 // the sessions' world holds, or the world's own lines in their place, and
 // the router's events.
 func (a accountWorlds) recordsOf(w accountWorld) *records {
-	r := &records{days: a.year.summaries(w.history, w.accounts), readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows)}
+	r := &records{days: a.year.summaries(w.history, w.accounts), readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows())}
 	if w.traffic {
 		r.lines, r.events = a.traffic()
 	}
@@ -304,11 +304,10 @@ func (h heldReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
 	}
 }
 
-// Tail gives a read of the readings from start up to end read by now, each
-// window's run from from up to start carried in, as readings.CarriedRuns has
+// Tail gives a read of the readings read by now, as readings.TailOf reads
 // them: each call reads them whole, as they're held, not filed.
 func (h heldReadings) Tail(from, start, end time.Time) func() []readings.Reading {
-	return func() []readings.Reading { return readings.CarriedRuns(h.Between(from, end), from, start, end) }
+	return readings.TailOf(h.Between, from, start, end)
 }
 
 // FirstDay gives the start of the local day of the first reading read by

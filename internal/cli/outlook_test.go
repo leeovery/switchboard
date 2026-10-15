@@ -31,7 +31,7 @@ func TestStatusWorksOutWhatARouterFromBeforeDoesntGive(t *testing.T) {
 			}},
 		},
 	}
-	want := given.WorkedOut(claude.Policy)
+	want := given.WorkedOut(claude.Policy())
 	if want.ComingUp == nil || want.Pool.Windows == nil {
 		t.Fatalf("WorkedOut() = %+v, want what's coming up and the pool", want)
 	}

@@ -288,7 +288,7 @@ func TestASessionsIDIsBrightWhileItsBusy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := views.Running{Account: "side", Session: idD28C, Models: []string{opus}, Activity: views.Activity{Doing: tt.doing, LastSeen: routedAt.Add(-tt.seen)}}
+			r := views.Running{Account: "side", Session: idD28C, Activity: views.Activity{Doing: tt.doing, LastSeen: routedAt.Add(-tt.seen)}}
 			want := span{"d28c  ", mutedInk}
 			if tt.busy {
 				want.ink = titleInk

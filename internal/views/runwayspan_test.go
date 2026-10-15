@@ -62,9 +62,9 @@ type spanCase struct {
 // Runway has to get right, as it's shown.
 func spanCases() []spanCase {
 	var cases []spanCase
-	for _, hm := range statustest.HardMoments(claude.Policy) {
+	for _, hm := range statustest.HardMoments(claude.Policy()) {
 		for _, w := range []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek} {
-			from := views.LanesFrom{Moment: hm.Doc.At(hm.Now, claude.Policy), Timeline: views.LiveTimeline(w, hm.Now, 136), Window: w}
+			from := views.LanesFrom{Moment: hm.Doc.At(hm.Now, claude.Policy()), Timeline: views.LiveTimeline(w, hm.Now, 136), Window: w}
 			cases = append(cases, spanCase{name: fmt.Sprintf("%s, the %s view", hm.Name, viewKeys[w]), from: from, read: docReadings(hm.Doc)})
 		}
 	}

@@ -8,9 +8,9 @@ import (
 	"cmp"
 	"maps"
 	"math"
-	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -185,21 +185,29 @@ type Tokens struct {
 	CacheWrite int `json:"cache_write"`
 }
 
-var lengthPattern = regexp.MustCompile(`^([1-9][0-9]*)([hd])(?:_|$)`)
-
 // Length returns how long the window named key lasts, read from the "<n>h" or
 // "<n>d" that makes up the key or leads it before an underscore: "5h" is five
-// hours and "7d_oi" seven days. It reports false for any other key.
+// hours and "7d_oi" seven days. It reports false for any other key, n written
+// with a leading zero among them. It reads the key by hand, as a pattern took
+// most of the time a look at the past spends judging its readings.
 func Length(key string) (time.Duration, bool) {
-	m := lengthPattern.FindStringSubmatch(key)
-	if m == nil {
+	digits := strings.IndexFunc(key, func(r rune) bool { return r < '0' || r > '9' })
+	if digits <= 0 || key[0] == '0' {
 		return 0, false
 	}
-	unit := time.Hour
-	if m[2] == "d" {
+	var unit time.Duration
+	switch key[digits] {
+	case 'h':
+		unit = time.Hour
+	case 'd':
 		unit = Day
+	default:
+		return 0, false
 	}
-	n, err := strconv.ParseInt(m[1], 10, 64)
+	if rest := key[digits+1:]; rest != "" && rest[0] != '_' {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(key[:digits], 10, 64)
 	if err != nil || n > int64(math.MaxInt64/unit) {
 		return 0, false
 	}

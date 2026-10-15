@@ -1206,7 +1206,6 @@ func TestEveryFramesANSIParsesToItsText(t *testing.T) {
 }
 
 func TestEveryFixtureNamedAfterAFrameDrawsItCellForCell(t *testing.T) {
-	utc := local()
 	canvas := rgb(terminalBackground.R, terminalBackground.G, terminalBackground.B)
 	names := Names()
 	for _, stem := range stems(t) {
@@ -1214,10 +1213,11 @@ func TestEveryFixtureNamedAfterAFrameDrawsItCellForCell(t *testing.T) {
 			continue
 		}
 		t.Run(stem, func(t *testing.T) {
+			t.Parallel()
 			frame, _ := reference(t, stem)
 			// A fixture over records is drawn in time.Local whatever the zone
 			// asked, as fixtures builds it.
-			drawn, err := parse(frameOf(t, utc, stem))
+			drawn, err := parse(frameOf(t, stem))
 			if err != nil {
 				t.Fatalf("parsing what %s draws: %v", stem, err)
 			}

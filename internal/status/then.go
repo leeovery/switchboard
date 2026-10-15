@@ -424,9 +424,11 @@ func (w windowRead) readAgain(window quota.Window, at time.Time, reach Reach, re
 // that edge, or when isn't known, so the run may have begun before anything
 // read tells.
 func (w windowRead) untold(window quota.Window, at time.Time, reach Reach) bool {
-	began, _, spanned := window.Span()
 	for i, edge := range reach.edges() {
-		if !edge.IsZero() && !at.Before(edge) && !w.reached[i] && (!spanned || began.Before(edge)) {
+		if edge.IsZero() || at.Before(edge) || w.reached[i] {
+			continue
+		}
+		if began, _, spanned := window.Span(); !spanned || began.Before(edge) {
 			return true
 		}
 	}
