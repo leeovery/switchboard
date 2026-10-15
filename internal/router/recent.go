@@ -91,6 +91,10 @@ type happening struct {
 	requests []refusedUntil
 	waits    awaiting
 	marked   bool
+	// lifted is set on a limit's event once the limit lifts early: a
+	// lifted limit's identity is never reached again, so news of it reached
+	// that's heard after is from before the lift, and never holds it on.
+	lifted bool
 }
 
 // mark marks the happening as changed, for it to be filed again once the
@@ -134,6 +138,8 @@ func (r *recent) take(e Event, now time.Time) {
 		r.moved(e, now)
 	case Refused:
 		r.refused(e, now)
+	case LimitLifted:
+		r.limitLifted(e, now)
 	case RefusalLifted:
 		r.lifted(e, now)
 	case HealthChanged:

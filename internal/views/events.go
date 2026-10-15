@@ -163,7 +163,8 @@ func loggedPressure(e status.Event, f eventFact, at time.Time) (status.Words, st
 }
 
 // loggedCap tells of an account reaching its cap: "95% of its 5-hour
-// window", the use a window's, and the sessions it moved, as they move.
+// window", the use a window's, in the windows it began with, and the
+// sessions it moved, as they move.
 func loggedCap(e status.Event, f eventFact, _ time.Time) (status.Words, status.Words) {
 	what := clause(its(f.windows, "its window"))
 	if e.Reserve > 0 {
@@ -179,7 +180,7 @@ func capUse(e status.Event) float64 {
 }
 
 // loggedLimit tells of an account reaching its limit: "its 5-hour window,
-// till 23:58", and the sessions it moved.
+// till 23:58", in the windows it began with, and the sessions it moved.
 func loggedLimit(e status.Event, f eventFact, at time.Time) (status.Words, status.Words) {
 	what := its(f.windows, "its limit") + till(e.Until, at)
 	return account(e.Account), append(clause(what), moving(f, false)...)

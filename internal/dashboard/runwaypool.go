@@ -40,12 +40,18 @@ func (f Frame) runwayPool(c *canvas, laid runwayLaid) {
 // column, as fillUp fills a column: each as high as the share of the pool's
 // accounts with room at the column's moment, of its rows, in eighths of a
 // cell, in the colour usage gives the pool's use, the share without room,
-// faded as the past is before now's column. A column where none has room is
-// left blank, as is one where none of their states is known, as none of them
-// counts with room.
+// faded as the past is before now's column. A column where none has room,
+// of those whose state is known, is ─ on its lower row, as a lane draws one
+// held back from every request, faded as the past is likewise; one where
+// none's state is known is left blank.
 func (f Frame) poolColumns(c *canvas, laid runwayLaid, pool views.Pool) {
 	now, floor := f.Runway.Timeline.NowColumn(), laid.fit.pool+runwayPoolRows-1
 	for i, col := range pool.Columns {
+		if col.Known && col.With == 0 {
+			mark := f.Look.laneMark(views.CellLimited)
+			c.text(laid.x+i, floor, mark.text, laneInk(mark.ink, i < now, 0))
+			continue
+		}
 		share := float64(col.With) / float64(pool.Of)
 		tone := usedInk(1-share, ink{token: theme.VizRamp1})
 		if i < now {

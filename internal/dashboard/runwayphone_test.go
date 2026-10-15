@@ -17,7 +17,7 @@ import (
 // design has bg.subtle (D4).
 func TestRunwayOnAPhoneIsDrawnAsItsFrame(t *testing.T) {
 	f, doc, now := runwayFramedAt(t, "the auto world's 5-hour view", 52, 33)
-	drawn, frame := screenOf(t, f.Draw(doc, now)), reference(t, "runway-phone-52")
+	drawn, frame := screenOf(t, f.Draw(doc, now)), redrawn(reference(t, "runway-phone-52"), '▆', '█', roomRowsPhone...)
 	heldTo(t, "runway-phone-52", frame, drawn, region{top: 4, bottom: 31, right: 51}, shadeOf(f.Look.Canvas()), []spot{{20, 15, 15}}, nil)
 }
 
@@ -37,17 +37,17 @@ func TestOnAPhoneTheLegendsKeysThenWhatAColumnIsTakeALineEach(t *testing.T) {
 		{
 			name: "the frame's, at 52", shown: phoneRunwayLive(views.RunwayFiveHour, 52), width: 52,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellCapped}, Resets: true},
-			want:  []string{"▆ room    ─ at its cap    │ its 5-hour resets", "a column ≈ 36 minutes · the past dimmed"},
+			want:  []string{"█ room    ─ at its cap    │ its 5-hour resets", "a column ≈ 36 minutes · the past dimmed"},
 		},
 		{
 			name: "one key, that would fit beside what a column is", shown: phoneRunwayLive(views.RunwayFiveHour, 52), width: 52,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom}},
-			want:  []string{"▆ room", "a column ≈ 36 minutes · the past dimmed"},
+			want:  []string{"█ room", "a column ≈ 36 minutes · the past dimmed"},
 		},
 		{
 			name: "every key, wrapped whole", shown: phoneRunwayLive(views.RunwayFiveHour, 52), width: 52, drawn: everyCell,
 			want: []string{
-				"▆ room    ▆ room, but it runs out at its pace", "─ at its cap    ─ at its limit    ─ token refused",
+				"█ room    █ room, but it runs out at its pace", "─ at its cap    ─ at its limit    ─ token refused",
 				"─ no token    │ its 5-hour resets", "a column ≈ 36 minutes · the past dimmed",
 			},
 		},
@@ -55,13 +55,13 @@ func TestOnAPhoneTheLegendsKeysThenWhatAColumnIsTakeALineEach(t *testing.T) {
 			name: "today stepped back to, what a column is wrapped at its parts", width: 52,
 			shown: RunwayShown{Back: civilDay(10, 1), Timeline: views.Stepped(views.RunwayFiveHour, civilDay(10, 1), routedAt, time.Monday, RunwayColumns(52))},
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom}},
-			want:  []string{"▆ room", "a column ≈ 38 minutes · the past dimmed", "under each name, the day's highest"},
+			want:  []string{"█ room", "a column ≈ 38 minutes · the past dimmed", "under each name, the day's highest"},
 		},
 		{
 			name: "a week gone, at 99", width: 99,
 			shown: RunwayShown{Window: views.RunwayWeek, Back: civilDay(9, 21), Timeline: views.Stepped(views.RunwayWeek, civilDay(9, 21), routedAt, time.Monday, RunwayColumns(99))},
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom}},
-			want:  []string{"▆ room", "a column ≈ 119 minutes · under each name, the week's highest"},
+			want:  []string{"█ room", "a column ≈ 119 minutes · under each name, the week's highest"},
 		},
 	}
 	for _, tt := range tests {

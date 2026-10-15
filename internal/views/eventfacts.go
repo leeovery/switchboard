@@ -12,9 +12,9 @@ import (
 // first, as they're told: when an account a reason passed over under
 // pressure runs out, as its latest pressure event before said; the sessions
 // a limit, a cap or a refusal moved, counted, and where to; and the windows
-// each event names, each named by its key as name names it. Its zero value
-// names a window as status.NameOfKey does. eventFacts aren't safe for
-// concurrent use.
+// each event began with, and those that joined it since, with when, each
+// named by its key as name names it. Its zero value names a window as
+// status.NameOfKey does. eventFacts aren't safe for concurrent use.
 type eventFacts struct {
 	name func(key string) string
 	// runsOut is when each account the run's pressure events told of runs
@@ -35,14 +35,33 @@ type eventFact struct {
 	// "" where they went to several, or it moved none.
 	moved int
 	to    string
-	// windows are the windows the event names, in its order, each as a
-	// sentence has it, as "5-hour", "week" or "Fable week".
+	// windows are the windows the event began with, in its order, each as
+	// a sentence has it, as "5-hour", "week" or "Fable week": those it names
+	// but those that joined it after it began, as a limit's or a cap's can,
+	// which joined has, so what's said of it at its start is what held then.
 	windows []string
+	// joined are the windows that joined the event after it began, in its
+	// order, each named as windows are, with when it joined.
+	joined []joinedWindow
+}
+
+// joinedWindow is a window that joined an event after it began, named as a
+// sentence has it, and when it joined.
+type joinedWindow struct {
+	name string
+	at   time.Time
 }
 
 // take takes in e, the next event of the run, and returns its facts.
 func (f *eventFacts) take(e status.Event) eventFact {
-	fact := eventFact{runsOut: f.passedOver(e), windows: f.named(e.Windows)}
+	fact := eventFact{runsOut: f.passedOver(e)}
+	for _, key := range e.Windows {
+		if at, ok := e.Joined[key]; ok {
+			fact.joined = append(fact.joined, joinedWindow{name: f.windowOf(key), at: at})
+		} else {
+			fact.windows = append(fact.windows, f.windowOf(key))
+		}
+	}
 	switch e.Kind {
 	case status.EventLimit, status.EventCap, status.EventRefused:
 		fact.moved, fact.to = e.Count, e.To
@@ -75,19 +94,6 @@ func (f *eventFacts) pressed(e status.Event) {
 		f.runsOut = make(map[string]time.Time)
 	}
 	f.runsOut[prose.Clean(e.Account)] = e.Until
-}
-
-// named names the windows with the given keys, as windowOf names each:
-// none for none.
-func (f *eventFacts) named(keys []string) []string {
-	if len(keys) == 0 {
-		return nil
-	}
-	names := make([]string, len(keys))
-	for i, key := range keys {
-		names[i] = f.windowOf(key)
-	}
-	return names
 }
 
 // windowOf names the window with the given key as a sentence has it, as

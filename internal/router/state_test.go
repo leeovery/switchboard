@@ -341,40 +341,64 @@ func TestAReadingAsHighArrivingLateLiftsNoLimit(t *testing.T) {
 	}
 }
 
+// A limit lifts on the answer to a request sent since it was set, and the
+// answer tells of it lifting early, the news of it, where it was in force
+// as it lifted: not of one that had ended by then.
 func TestALimitLiftsOnlyOnTheAnswerToARequestSentSinceItWasSet(t *testing.T) {
-	admitted := func(s *state, sent moment) { s.admitted("work", sent) }
+	admitted := func(s *state, sent moment) (LimitLifted, bool) { return s.admitted("work", sent) }
 	// readRoom reads work's Fable week with room, which the 429 that set the
 	// limit didn't read.
-	readRoom := func(s *state, sent moment) { s.record("work", []quota.Window{fableWeek}, sent) }
+	readRoom := func(s *state, sent moment) (LimitLifted, bool) {
+		return s.record("work", []quota.Window{fableWeek}, sent)
+	}
+	// probeRoom has a probe read it so, answered with success.
+	probeRoom := func(s *state, sent moment) (LimitLifted, bool) {
+		taken := s.recordProbe("work", quota.Probe{Windows: []quota.Window{fableWeek}, Admitted: true}, nil, sent, readings.FromProbe)
+		return taken.lifted, taken.liftedEarly
+	}
+	until := start.Add(72 * time.Hour)
 	tests := []struct {
 		name string
 		// reached are the windows the limit was reached in.
 		reached []string
-		// answer answers a request on work, sent at sent.
-		answer func(s *state, sent moment)
+		// answer answers a request on work, sent at sent, at.
+		answer func(s *state, sent moment) (LimitLifted, bool)
+		at     time.Time
 		// since is set when the request was sent after the limit was set.
 		since      bool
 		wantLifted bool
+		// wantTold is set where the answer tells of it lifting early.
+		wantTold bool
 	}{
-		{name: "a success since, of a limit in no window named", answer: admitted, since: true, wantLifted: true},
+		{name: "a success since, of a limit in no window named", answer: admitted, since: true, wantLifted: true, wantTold: true},
 		{name: "a success sent before, of a limit in no window named", answer: admitted},
 		{name: "a success since, of a limit in a window named", reached: []string{"7d_oi"}, answer: admitted, since: true},
-		{name: "a reading with room since, of a limit in a window named", reached: []string{"7d_oi"}, answer: readRoom, since: true, wantLifted: true},
+		{name: "a reading with room since, of a limit in a window named", reached: []string{"7d_oi"}, answer: readRoom, since: true, wantLifted: true, wantTold: true},
 		{name: "a reading with room sent before, of a limit in a window named", reached: []string{"7d_oi"}, answer: readRoom},
+		{name: "a probe's reading with room since", reached: []string{"7d_oi"}, answer: probeRoom, since: true, wantLifted: true, wantTold: true},
+		{name: "a probe answered with success since", answer: probeRoom, since: true, wantLifted: true, wantTold: true},
+		{name: "a reading with room since, of a limit that had ended", reached: []string{"7d_oi"}, answer: readRoom, at: until, since: true, wantLifted: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newTestState(&testClock{now: start})
+			clock := &testClock{now: start}
+			s := newTestState(clock)
 			s.record("work", []quota.Window{session, week, fableWeek}, s.mark())
 			sent := s.mark()
-			s.limit("work", tt.reached, start.Add(72*time.Hour), s.mark())
+			s.limit("work", tt.reached, until, s.mark())
 			if tt.since {
 				sent = s.mark()
 			}
+			if !tt.at.IsZero() {
+				clock.now = tt.at
+			}
 
-			tt.answer(s, sent)
+			news, told := tt.answer(s, sent)
 			if lifted := !s.usage["work"].limited.inForce(start); lifted != tt.wantLifted {
 				t.Errorf("the limit lifted = %v, want %v", lifted, tt.wantLifted)
+			}
+			if want := (LimitLifted{Account: "work", Limit: 1}); told != tt.wantTold || told && news != want {
+				t.Errorf("the answer tells of %+v: %v, want %v, of %+v", news, told, tt.wantTold, want)
 			}
 		})
 	}

@@ -67,9 +67,12 @@ func (from LanesFrom) resetsKnown(a status.AccountNow, past pastOf) []time.Time 
 }
 
 // marked are the resets of the view's window the account a's lane marks, in
-// order, Back set where one of its stretches ends at it: its next, as the
-// moment has the window, and, stepped back, those the days shown saw, as
-// their summaries have them, each where the timeline holds it.
+// order, Back set where one of its stretches ends at it, as its own hold
+// lifts, its Back before backWithRoom carries it on to the room after: where
+// a stretch of a run lifts, as its Ends says, and where one alone is back.
+// They're its next, as the moment has the window, and, stepped back, those
+// the days shown saw, as their summaries have them, each where the timeline
+// holds it.
 func (from LanesFrom) marked(a status.AccountNow, stretches []LaneStretch) []Reset {
 	tl, key := from.Timeline, from.viewKey()
 	var at []time.Time

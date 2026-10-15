@@ -20,9 +20,9 @@ import (
 // reading gained, now's column moved on, the other view, the readings
 // history's keep moved, past a day shown or not, or the readings the watch
 // read itself begun, as each tells whether a hold read first from it began
-// before, a reserve changed, or another hold told of, judges it all again. A hold at now whose start no event tells is
-// judged at now, at each look, as its readings tell it; one whose event
-// tells it, or on a day gone, isn't.
+// before, a reserve changed, or another hold told of, judges it all again.
+// A hold at now whose start no event tells is judged at now, at each look,
+// as its readings tell it; one whose event tells it, or on a day gone, isn't.
 func TestALookJudgesThePastOnceWhileWhatItsJudgedFromStands(t *testing.T) {
 	auto := runwayMoment(t, "the auto world's 5-hour view")
 	team := runwayMoment(t, "a hold no event tells of, the router's")
@@ -135,4 +135,27 @@ func withEvent(doc status.Document, e status.Event) status.Document {
 func inWeek(rm viewstest.RunwayMoment) viewstest.RunwayMoment {
 	rm.Window = views.RunwayWeek
 	return rm
+}
+
+// A stretch is said to end as its own hold lifts where the stretch after it
+// holds its account on, else as room returns, where either is known.
+func TestAStretchEndsAsItLiftsOfARunElseAsItsBack(t *testing.T) {
+	lifts, back := time.Date(2026, 10, 1, 19, 0, 0, 0, time.UTC), time.Date(2026, 10, 5, 21, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name      string
+		stretch   views.LaneStretch
+		want      time.Time
+		wantLifts bool
+	}{
+		{name: "the last of a run, or alone", stretch: views.LaneStretch{Back: back}, want: back},
+		{name: "one of a run but the last", stretch: views.LaneStretch{Back: back, Lifts: lifts}, want: lifts, wantLifts: true},
+		{name: "back at no time known", stretch: views.LaneStretch{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, lifts := tt.stretch.Ends(); !got.Equal(tt.want) || lifts != tt.wantLifts {
+				t.Errorf("it ends %v, lifting %v; want %v, lifting %v", got, lifts, tt.want, tt.wantLifts)
+			}
+		})
+	}
 }

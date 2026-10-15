@@ -1593,6 +1593,8 @@ LATELY under it, each the full width, in their short words.
   - a limit lifting, `personal back from its limit`, or a model's own,
     `back from its Fable wk limit`;
   - a cap lifting, as the capped window resets, `work back from its cap`;
+  - a refused token's refusal ending, where it holds the account back past its limit or its cap,
+    `work back from its refused token`;
   - a window running out before its reset, by its projection, the 5-hour window at its recent rate
     whenever there is one (see `usage`, the printout): the 5-hour window unnamed, `work runs out at
     its pace`, another named, `personal's week runs out at its pace`, or where the cap would hold
@@ -1626,7 +1628,9 @@ LATELY under it, each the full width, in their short words.
   apart; the Log's Events mark each kind the same (see The Log). The sessions a limit, a cap or a
   refusal moved fold into its line, counted, as its event's `count` and `to` give them; a move shows
   alone only where the line it's folded into isn't among those shown. On a phone the words are
-  short: `work at its cap: 3 moved to side`.
+  short: `work at its cap: 3 moved to side`. A limit's or a cap's line names the windows it began
+  with, as it began: `work reached its Fable week limit`, a 5-hour that joined it later left to the
+  Log's card (the owner's call, 15 October 2026).
 
 **By account** (`b`) pivots the page; `[usage] by` sets its default (see The page, "What's
 remembered").
@@ -2656,13 +2660,16 @@ kept for good (settled in the plan; see The request ledger).
 
   | State | Glyph | Colour |
   |---|---|---|
-  | Room | `▆` | The ramp's first stop |
-  | Room, but it runs out at its pace before its window resets | `▆` | `accent.attention` |
+  | Room | `█` | The ramp's first stop |
+  | Room, but it runs out at its pace before its window resets | `█` | `accent.attention` |
   | At its cap | `─` | `accent.attention` |
   | At its limit | `─` | `state.destructive` |
   | Its token refused, from the refusal to its until | `─` | `state.destructive` |
 
-  Every window that every model shares counts, but the 5-hour view leaves out a week running out:
+  Room fills its cell whole, as `usage`'s bars do, so a held column's `─` meets it at its middle
+  and a reset's `│` at its top and bottom, where the frames draw `▆`, the lower three quarters of a
+  cell. Every window that every model shares counts, but the 5-hour view leaves out a week running
+  out:
   its lane is room until the week's limit. `│` in `text.subtle` marks where the view's window
   resets, on now's column or after it: each account's 5-hour window's reset in the 5-hour view, its
   week's in the week view. An account without a usable token has no room all along, and one not read
@@ -2682,13 +2689,18 @@ least, or two cells after the words before:
 - its token refused: `token refused (401) 14:12  ·  back 15:00` (the owner's call, 13 October
   2026).
 
-`, as its 5-hour resets`, or `, as its week resets`, follows a cap's or a run-out's `back …` where
-its stretch ends as the view's window resets; a limit's `back …` takes none. In the week view, an
-account whose week reaches no limit says `resets Sun 21:00` in `text.muted`, ending at the reset's
-`│`, where that clears the words before. Else a lane says `room all day`, or `room all week`, in
-`text.subtle`, from the cell after now's column. Words that don't fit drop whole parts from the end,
-`, as its 5-hour resets` first. A stretch already over, or one that starts past the view, isn't
-said.
+Where one hold runs straight into the next, the stretch after it beginning by the time it lifts,
+the earlier stretch says when its own hold lifts, `  ·  lifts 19:00`, and only the last says
+`back`, when room returns: `at its limit 14:00  ·  lifts 19:00  at its cap 14:00  ·  back Mon
+21:00`, in place of `back Mon 21:00` on both (the owner's call, 15 October 2026).
+
+`, as its 5-hour resets`, or `, as its week resets`, follows a cap's or a run-out's `back …` or
+`lifts …` where that time is as the view's window resets, a reset made by hand among them; a limit's
+takes none. In the week view, an account whose week reaches no limit says `resets Sun 21:00` in
+`text.muted`, ending at the reset's `│`, where that clears the words before. Else a lane says `room
+all day`, or `room all week`, in `text.subtle`, from the cell after now's column. Words that don't
+fit drop whole parts from the end, `, as its 5-hour resets` first. A stretch already over, or one
+that starts past the view, isn't said.
 
 **The pool's lane** sits under the lanes, under the pool's rule, one unbroken `─` in `border` across
 the whole row, as `usage` draws it: with three rows an account, the rule takes the last account's
@@ -2699,7 +2711,9 @@ blank row; with two, it takes a row of its own.
   top cell part-filled, as GRAPHS draws its columns (see The Overview). They're coloured as `usage`
   colours the pool's use, `1 − with room ÷ accounts`: green under 70%, yellow from 70% and red from
   90%; the past dimmed. An account at its cap or its limit counts without room; one running out at
-  its pace has room until it does.
+  its pace has room until it does. A column where none has room is `─` in `state.destructive` along
+  its lower row, as a lane at its limit draws it, the past dimmed alike; one where no account's
+  state is known is blank.
 - **`Σ pool`** on its second row: `Σ` in `text.subtle` in the numbers' column, and `pool` in
   `text.secondary`.
 - **Its room,** on the row under it, from column 2, the pool's room in the view's window, in
@@ -2726,7 +2740,7 @@ blank row; with two, it takes a row of its own.
   its lane not (settled in the plan).
 
 **The legend,** on the row after the pool's words and a blank row, from column 0, keys only what the
-view draws, four spaces apart: `▆` and ` room`; `▆` in `accent.attention` and
+view draws, four spaces apart: `█` and ` room`; `█` in `accent.attention` and
 ` room, but it runs out at its pace`; `─` in `accent.attention` and ` at its cap`; `─` in
 `state.destructive` and ` at its limit`; and `│` and ` its 5-hour resets`, or ` its week resets`;
 each glyph in its colour, its words in `text.muted`. Four spaces on, in `text.subtle`, a column's
@@ -2744,8 +2758,8 @@ longest, in `text.secondary`; two spaces, the account bold `text.primary` and wh
 `text.subtle`; a run-out's row all `accent.attention`, its time and countdown included. Its lines
 are the accounts' spans and resets, soonest first:
 
-- an account back from its cap or its limit, where one holds it now:
-  `17:10  work back from its cap`;
+- an account back from its cap, its limit or its refused token, where one holds it now, as the
+  last of them to lift: `17:10  work back from its cap`;
 - a window running out at its pace: `~16:05  lab's 5-hour runs out at its pace`;
 - each other reset of the view's window, where its `│` stands: `16:30  personal's 5-hour resets`.
 
@@ -2841,14 +2855,22 @@ stepping back and how far it reaches, the minutes a column, and COMING UP.
   `status`, and the account's `at_reserve` (see The status document), at each look: now's column
   and every column after it. The `now` column, the clock and the countdowns move every second.
 - **The past,** every column before now's, live or stepped back to, by one rule: the readings
-  history, each column by the last reading of each of its account's windows by the column's
-  middle. A window whose reset that reading gives has passed by then counts as reset, at 0%; one
-  read `rejected` is at its limit until that reset; a cap is drawn from the reserve the config
-  gives now, as the readings keep none. A column with no reading of its account by then is left
-  blank, as one not read yet (the owner's call, from his report on v0.1.6; 14 October 2026).
+  history, each column by the last reading of each of its account's windows by the column's middle.
+  A window whose reset that reading gives has passed by then counts as reset, at 0%; one read
+  `rejected` is at its limit until that reset, or until a later reading before it no longer shows
+  it, as one of a window reset by hand doesn't, the hold lifting as the router read the window start
+  again (see A window reset by hand), which marks a reset there; a cap is drawn from the reserve the
+  config gives now, as the readings keep none, and lifts alike. A column with no reading of its
+  account by then is left blank, as one not read yet (the owner's call, from his report on v0.1.6;
+  14 October 2026).
 - **When a limit, a cap or a refusal began:** the router's `limit`, `cap` and `refused` events'
   `at`; where no event tells it, the first reading that shows it; a hold whose start neither tells
-  runs from before the timeline (the owner's call, 14 October 2026).
+  runs from before the timeline (the owner's call, 14 October 2026). A limit or a cap one window
+  began and another took over, held unbroken, began as the first did, told or read. The readings
+  tell such a run as far back as they reach: one that began before them tells no start, and one
+  whose earlier window's run they don't hold, as the live views read the readings history from the
+  day before now's, carrying in only each window's last run from before then, is dated from the
+  run they do.
 - **While the router doesn't answer, or the dashboard probes,** the documents it reads join the
   history, a reading of each window at each look (the owner's call, 14 October 2026).
 - **A run-out, `~16:05`:** the projection, as `usage` projects (see `usage`, the printout).
@@ -3025,8 +3047,11 @@ filling in as its line comes (settled in the plan).
   the first request at or after it; `sessions` in the account's section counts those whose lines
   went out on it in the hour before (settled in the plan). A cap's, work's here:
   - `WHAT HAPPENED`: `event`, `work reached its cap`; `its cap`, `95%` of its window, bold in its
-    level's colour, then ` of its 5-hour window`; `known from`, the request whose answer first read
-    the window at its cap, `7f3a's request at 14:30:51`;
+    level's colour, then ` of its 5-hour window`, the windows it began with; `and`, a row each
+    window that joined it later, the window, ` · joined ` in `text.muted` and when,
+    `week · joined 16:02`, as a limit's card has them after its `its limit` (the owner's call, 15
+    October 2026); `known from`, the request whose answer first read the window at its cap,
+    `7f3a's request at 14:30:51`;
   - `WORK THEN`: `5-hour` and `week`, each bold in its level's colour; `resets`, `17:10`;
     `sessions`, `3 on it`;
   - `WHAT FOLLOWED`: a row each session it moved, named by its id, `moved to side` and three
@@ -3132,6 +3157,8 @@ wide; `event` from 31, 8 wide; `account` from 41, 16 wide; and `what happened` f
 | `!` `accent.attention` | `restart` | blank | `due: the config changed`, `due: switchboard upgraded`, `due: the time zone changed` (settled in the plan) |
 | `⊕` `state.destructive`, or `state.positive` well again | `health` | blank | `unhealthy: <its reason>`, or `healthy again` (settled in the plan) |
 
+- **The windows a limit or a cap began with:** its `what happened` names those alone, as LATELY's
+  line does, a window that joined it later listed in its card (the owner's call, 15 October 2026).
 - **A mark a kind:** the marks are LATELY's (see The Overview) and the Log's own, each a cell wide
   in JetBrains Mono, regular and bold, one a kind but for `■`: a limit and a token refused both
   close their account, as ROUTING marks them, and their words tell them apart. `✕` is a single
@@ -5279,7 +5306,7 @@ probing.
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
 | `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
 | `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first: `{key, label, room, used, pace}`, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one whose token is refused, or that hasn't been read; `used` what its bar fills to, `1 − room ÷` its accounts; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
-| `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap}]`, `kind` one of `back` (the account has room again: its limit lifting, or, with `cap` set, the window at its cap resetting; `window` set where a limit holds back only a model's requests, as a model's own week's), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
+| `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
 | `accounts` | Every configured account, in the config's order, as below |
 
 Each account:
@@ -5330,8 +5357,10 @@ verbs).
     they went to when they all went to one, left out when they went to several. It holds while
     `at_reserve` names a window of it.
   - `limit`: with `limit`, the limit's identity, which the account's `limit` gives as its `id`
-    while it holds; `windows` the windows named as reached, and `until` when it lifts; and `count`
-    and `to`, as a cap's are.
+    while it holds; `windows` the windows named as reached, and `until` when it lifts, brought
+    forward should it lift early, as a refusal's is, whether or not the account has room then: its
+    cap or a refused token can hold it on, so no `room` event tells the lift, and the next limit is
+    dated from its own start; and `count` and `to`, as a cap's are.
   - `moved`: a session's requests of a model moving to another account: `session` and `model`;
     `from`, `to` and `reason`; `limit`, the id of the limit's event, for a move that limit forced,
     holding the session's request back; and `forced_by`, the id of the event whose moves it counts
@@ -5355,7 +5384,9 @@ verbs).
   - `restart`: one falling due: `reason` why, as the status document's `restart` gives it.
   - `health`: the router's health turning: `reason` as it turns unhealthy, none as it's well again.
 - **Joining:** a limit reached again while it holds joins its event, keeping its `id`, in whatever
-  order the news of it comes; another limit reached meanwhile is an event of its own. A cap reached
+  order the news of it comes, unless it has lifted early: a lifted limit's `id` is never reached
+  again, so news of it reached that comes after the lift is from before it, and leaves the event as
+  the lift left it. Another limit reached meanwhile is an event of its own. A cap reached
   again while it holds, in another window, joins its own the same way, and so does a refusal of the
   account renewed while it holds. A window that joins a limit or a cap it didn't begin with is kept
   in the event's `joined`, by its key, with when it joined, so a hold is dated from when each of its
@@ -5365,9 +5396,9 @@ verbs).
   as the status document gives it, with `run`: when the router that told it started, as its
   `GET /health` gives `started_at`, so the ids of two runs are told apart. Each version of an event
   is appended, a line each, filed under the local day it's written on, with its `run` and `id`: one
-  that changes after it's told, as one joined, one counting a move, or a refusal lifting early, is
-  appended again, whole, as it then stands. An event changes for 8 days at most after it began, as a
-  week's limit ends by its reset.
+  that changes after it's told, as one joined, one counting a move, or a limit or a refusal lifting
+  early, is appended again, whole, as it then stands. An event changes for 8 days at most after it
+  began, as a week's limit ends by its reset.
   - `internal/events` writes them through `internal/dayfile`, on a queue of 1,024 lines and a
     goroutine of its own, so filing never holds the router up: a line past the queue's end is
     dropped, logged once until the queue catches up, and a write that fails is logged once until

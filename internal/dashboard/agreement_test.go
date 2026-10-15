@@ -183,8 +183,9 @@ func (d drawn) place(a status.AccountNow) int {
 
 // back is when each view says account a is back, where ROUTING says a limit
 // or its cap holds it back from every request until a time it knows:
-// ROUTING, and Runway's lane, in the words of the stretch holding it at now,
-// as "back 17:10". Where a window running out before then carries the hold
+// ROUTING, and Runway's lane, in the words of the run of stretches holding it
+// at now, its last's, as "back 17:10", those before it saying when they lift
+// alone. Where a window running out before then carries the hold
 // on to the window's reset, Runway says it's back then, as ROUTING doesn't,
 // so Runway is left out. A hold on some models' requests alone, which no
 // lane draws, and a refused token, of which ROUTING says no back and Runway
@@ -201,9 +202,21 @@ func (d drawn) back(a status.AccountNow) []viewSays {
 	}
 	runway := "not held at now"
 	if ln := d.lane(a, views.RunwayFiveHour); ln.heldAt(d.runway[views.RunwayFiveHour].Runway.Timeline.NowColumn()) {
-		runway = backSaid(cmp.Or(append(d.runwaySays(a, views.RunwayFiveHour), "")...))
+		runway = runBack(d.runwaySays(a, views.RunwayFiveHour))
 	}
 	return append(says, viewSays{"Runway", runway})
+}
+
+// runBack is when the first run of stretches the phrases given say is back,
+// as backSaid has it of the first phrase that says so: "no back" where none
+// does.
+func runBack(phrases []string) string {
+	for _, p := range phrases {
+		if said := backSaid(p); said != "no back" {
+			return said
+		}
+	}
+	return "no back"
 }
 
 // backSaid is when the words given first say something's back, as "back

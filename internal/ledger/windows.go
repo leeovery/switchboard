@@ -171,10 +171,10 @@ func (c *Climb) Carry(w quota.Window, at time.Time) {
 
 // Take takes w, the window's next reading, read at at, and returns how far it
 // climbed the window's use above its highest since its run began: a reset
-// between the reading before and w, as resetBetween tells it, ending that
-// run, the next beginning at nothing. It reports false, taking nothing toward
-// the climb, of a reading that says nothing of the run since: one past its
-// own reset as it was read, as an answer that came late gives, the window
+// between the reading before and w, as score.ResetBetween tells it, ending
+// that run, the next beginning at nothing. It reports false, taking nothing
+// toward the climb, of a reading that says nothing of the run since: one past
+// its own reset as it was read, as an answer that came late gives, the window
 // having started afresh since; or one whose reset is earlier than the latest
 // read, a reading of an earlier run read late, as readLate takes it.
 func (c *Climb) Take(w quota.Window, at time.Time) (float64, bool) {
@@ -202,7 +202,7 @@ func (c *Climb) take(w quota.Window, at time.Time) (float64, taking) {
 		return 0, late
 	}
 	if c.read {
-		if reset, ok := resetBetween(c.last, w, at); ok {
+		if reset, ok := score.ResetBetween(c.last, w, at); ok {
 			c.reset(reset)
 		}
 	}
@@ -261,26 +261,6 @@ func (c *Climb) reset(at time.Time) {
 		c.ended = append(c.ended, c.last.ResetsAt)
 	}
 	c.top = 0
-}
-
-// resetBetween returns when a window read was reset before w, the next
-// reading of it, read at at, reporting false where the two tell of no reset:
-// w shows it reset by hand, as score.ResetByHand says, at at; was's reset had
-// passed by at, w being of another window, or of none, at was's reset; or w's
-// reset is later than was's, which hadn't come, the window having started
-// again before it, at at.
-func resetBetween(was, w quota.Window, at time.Time) (time.Time, bool) {
-	switch {
-	case score.ResetByHand(was, w):
-		return at, true
-	case was.ResetsAt.IsZero() || w.ResetsAt.Equal(was.ResetsAt):
-		return time.Time{}, false
-	case was.ResetBy(at):
-		return was.ResetsAt, true
-	case w.ResetsAt.After(was.ResetsAt):
-		return at, true
-	}
-	return time.Time{}, false
 }
 
 // beganAt returns the use a window first read as w on the day that starts at
