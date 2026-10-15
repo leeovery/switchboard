@@ -5,6 +5,21 @@ after the release beside milestone 7's loose ends (`2026-10-14--milestone-7-loos
 owner, on 15 October 2026: "It is really good ... There's literally only one thing at the moment
 that's jumped out at me", then a few nitpicks, "no doubt I'll find others".
 
+## A smaller screen
+
+Seen on an iPad over Mosh, the Overview in a phone's layout (under 100 columns), USAGE alone with
+COMING UP and LATELY, by window. "Maybe we've got the UI a little wrong on this screen size": to
+come back to after the patch.
+
+- **USAGE scrolls as several boxes at once.** The windows stack, 5-HOUR, WEEK and FABLE WEEK, each
+  with its accounts and its pool; with four accounts each block shows two, `2 more accounts`, and
+  scrolling moves every block's accounts together while each pool stays put outside them. It reads
+  as three linked scrolling boxes. Scrolling USAGE whole, as the views scrolled whole do, may read
+  better.
+- **The blank rows between the blocks differ:** two after the 5-hour's and the week's pools, one
+  after Fable week's before the key; and the sections below are cramped while every one shows.
+- **The Log is slow to open** there, beside Detail's `enter` (see Anywhere slow).
+
 ## Accounts' Detail
 
 - **The account list cuts names it has room for.** In a near full-screen terminal on a 16-inch
