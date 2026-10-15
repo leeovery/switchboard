@@ -342,6 +342,10 @@ which the dashboard draws as its world gives it:
   COMING UP's and LATELY's names in their colours: in `overview-pinned-160`, `work` at columns 8 to
   11 and 92 to 95 of row 34, and `side` at 134 to 137 of row 34 and 8 to 11 of row 35; in
   `overview-bad-hour-160`, `work` at 92 to 95 of row 34.
+- **The focused account lit across its whole name column,** where the frames light its first 12
+  cells: work's row, row 9, columns 13 and 14, of `overview-everything-160x39` and
+  `overview-sessions-graphs-216`, the dashboard lighting 14 cells of the sample's 16-cell column,
+  all but the gap before the bars (the owner's call, 15 October 2026).
 
 **The Overview, and the page behind the routing card, where their worlds give otherwise** (see What
 the worlds give otherwise than the frames), which the dashboard draws as its world gives it:
@@ -534,6 +538,11 @@ frames):
   `◔`, in `accent.attention`.
 - **Detail's key line** in `accounts-detail-sessions-160`, under Key lines drawn before the keys were
   swept, above.
+- **The chosen rows, lit where the focus is,** in `accounts-detail-sessions-160`, whose fixture
+  reaches SESSIONS: the list's chosen row, side's, row 13, columns 1 to 17, which the frame lights,
+  bold and unlit, `▸` in bold `accent.key` at column 1, and `SESSIONS`, row 28, columns 25 to 32,
+  which the frame draws in `text.subtle`, bold `text.primary`, as the focus is on the sessions (the
+  owner's call, 15 October 2026).
 
 **Accounts, where its worlds give otherwise** (see What the worlds give otherwise than the frames),
 which the dashboard draws as its world gives it:
@@ -951,6 +960,15 @@ costs; `page-help-scrolled`, the help over the Overview on a terminal 16 rows ta
 three rows with `j`; and `page-not-answering`, the auto world's router gone as `R` reads it, the
 status line saying so and since when, and `p pin` faint on the key line. Each is drawn over the
 auto world, its records and the sessions its router lists.
+
+Where no frame draws them, these draw a page shorter or otherwise than the frames, to judge by eye
+with `--print`, each over the auto world: `page-year-160x24`, the Year at 160 × 24, reached with
+`tab` twice, scrolled down three rows with `j`, its last row saying what's out of view;
+`page-routing-160x16`, the routing card as `p` opens it on a terminal 16 rows tall, shorter than
+the card, its keys kept at its foot; and Detail with each part holding the focus, opening on
+Accounts with `]` and `↓` three times to side: `page-detail-list-focus`, the list's row lit and
+d28c's bold, and `page-detail-sessions-focus`, with `→` and `↓` into side's SESSIONS, d28c's row
+lit and the list's bold, `▸` before it.
 
 Stage 9's, `log-*`, draw the Log's frames, the Log reached from the Overview with `shift-tab`:
 `log-requests-160` and, on a phone, `log-requests-phone-52`, as it opens, on Requests;

@@ -1,8 +1,11 @@
 package dashboard
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 func TestACardIsAsWideAsItWantsWithACellEitherSideAtLeast(t *testing.T) {
@@ -25,15 +28,16 @@ func TestACardIsAsWideAsItWantsWithACellEitherSideAtLeast(t *testing.T) {
 	}
 }
 
-// laidCard is a card of a body of the lines given, with keys or none, as
-// wide as the routing card.
+// laidCard is a card of a body of the lines given, with keys or none, its
+// cursor on the rows given, as wide as the routing card.
 type laidCard struct {
 	body []line
 	keys []Key
+	lit  bodyRows
 }
 
 func (k laidCard) card(f Frame) Card {
-	return Card{title: "ROUTING · NEW SESSIONS", width: f.cardWidth(routingWidth), body: k.body, keys: k.keys}
+	return Card{title: "ROUTING · NEW SESSIONS", width: f.cardWidth(routingWidth), body: k.body, keys: k.keys, lit: k.lit}
 }
 
 func TestACardIsDrawnCentredOverThePage(t *testing.T) {
@@ -118,17 +122,36 @@ func TestACardWithAsMuchBodyAsItHasRoomForTakesAllButTheRowsSpare(t *testing.T) 
 	}
 }
 
-func TestACardTallerThanThePageShowsItsTopAndCutsItsFoot(t *testing.T) {
+// A card whose body is taller than the page has room for is as tall as the
+// page: its title in its top edge on the first row, its keys and its foot on
+// the last two, and its body cut above them, its rows from its top as many
+// as fit, the cursor's light with them, never over its keys.
+func TestACardTallerThanThePageKeepsItsKeysAndCutsItsBody(t *testing.T) {
 	f := frameOf(160, 12)
-	f.Card = laidCard{body: make([]line, 13), keys: []Key{{Key: "esc", Does: "cancel"}}}
-	rows := f.Draw(threeRouted(), now)
+	body := make([]line, 13)
+	for i := range body {
+		body[i] = line{{fmt.Sprintf("row %d", i+1), secondaryInk}}
+	}
+	f.Card = laidCard{body: body, keys: []Key{{Key: "esc", Does: "cancel"}}, lit: bodyRows{first: 6, n: 2}}
+	c := newCanvas(f.Width, f.Height)
+	f.Card.card(f).draw(c)
+	rows := textOf(c.rows(Look{}))
 
 	if got := string([]rune(rows[0])[39:66]); got != "╭─ ROUTING · NEW SESSIONS ─" {
 		t.Errorf("row 1 reads %q, want the card's top edge, its title in it", rows[0])
 	}
-	for i, row := range rows {
-		if strings.ContainsAny(row, "╰╯") {
-			t.Errorf("row %d reads %q, want the card's foot cut, below the page", i+1, row)
+	if got := strings.TrimSpace(string([]rune(rows[2])[42:])); !strings.HasPrefix(got, "row 1") {
+		t.Errorf("row 3 reads %q, want the body's first row", rows[2])
+	}
+	if got := strings.TrimSpace(string([]rune(rows[8])[42:])); !strings.HasPrefix(got, "row 7") {
+		t.Errorf("row 9 reads %q, want the last of the body's rows that fit, row 7", rows[8])
+	}
+	if !strings.Contains(rows[10], "esc cancel") || !strings.HasPrefix(strings.TrimSpace(rows[11]), "╰") {
+		t.Errorf("its last rows read %q and %q, want its keys and its foot", rows[10], rows[11])
+	}
+	for y := range f.Height {
+		if lit := c.at(60, y).ink.on == (hue{token: theme.BgSelection}); lit != (y == 8) {
+			t.Errorf("row %d is lit: %v, want the cursor's rows lit only where they show, row 9", y+1, lit)
 		}
 	}
 }

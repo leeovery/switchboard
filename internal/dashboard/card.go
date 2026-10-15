@@ -124,16 +124,16 @@ func (f Frame) CardScrolling() Scrolling {
 		return Scrolling{}
 	}
 	card := f.Card.card(f)
-	return Scrolling{Most: card.scroll.above + card.scroll.below, Page: len(card.body)}
+	return Scrolling{Most: card.scroll.above + card.scroll.below, Page: len(card.shown(f.Height))}
 }
 
 // box is the cells the card takes on a page width × height, its edges
 // included: from x along row y, w cells across and h down, centred across
 // the page; down it, where it sits by the line it's of, from the row it's
-// placed at; else centred down it, or, taller than the page, from its top,
-// so its title shows and its foot is cut.
+// placed at; else centred down it, but never taller than the page, as
+// shown has it.
 func (k Card) box(width, height int) (x, y, w, h int) {
-	h = len(k.body) + chrome(len(k.keys) > 0)
+	h = len(k.shown(height)) + chrome(len(k.keys) > 0)
 	y = max((height-h)/2, 0)
 	if k.of != nil && k.of.placed {
 		y = k.of.top
@@ -141,9 +141,18 @@ func (k Card) box(width, height int) (x, y, w, h int) {
 	return (width - k.width) / 2, y, k.width, h
 }
 
+// shown are the lines of the card's body it shows on a page height rows
+// tall: every one, where they fit; else those from its top that fit over its
+// keys and its foot, which a card keeps, so a card taller than the page has
+// its body cut, never its keys.
+func (k Card) shown(height int) []line {
+	return k.body[:min(len(k.body), max(height-chrome(len(k.keys) > 0), 0))]
+}
+
 // draw draws the card over what's drawn on c, in its box, the cells inside
-// its line blank. Its lit rows are on bg.selection over the cells they
-// light, as bodyRows has them, a cell clear of its line either side.
+// its line blank, its body as much as it shows. Its lit rows shown are on
+// bg.selection over the cells they light, as bodyRows has them, a cell clear
+// of its line either side.
 func (k Card) draw(c *canvas) {
 	keys := len(k.keys) > 0
 	x, y, _, height := k.box(c.width, c.height())
@@ -158,15 +167,16 @@ func (k Card) draw(c *canvas) {
 	for row := 1; row < height-1; row++ {
 		c.text(x, y+row, "│"+strings.Repeat(" ", inside)+"│", dimInk)
 	}
-	for i, l := range k.body {
+	shown := k.shown(c.height())
+	for i, l := range shown {
 		c.line(x+cardInset, y+2+i, l.fit(content))
 	}
 	from, cells := k.lit.x, k.lit.cells
 	if cells == 0 {
 		from, cells = 0, content+2
 	}
-	for i := range k.lit.n {
-		c.surface(x+cardInset-1+from, y+2+k.lit.first+i, cells, hue{token: theme.BgSelection})
+	for row := k.lit.first; row < min(k.lit.first+k.lit.n, len(shown)); row++ {
+		c.surface(x+cardInset-1+from, y+2+row, cells, hue{token: theme.BgSelection})
 	}
 	if keys {
 		c.right(x+k.width-cardInset, y+height-2, keyRow(k.keys).fit(content))

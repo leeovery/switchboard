@@ -190,17 +190,18 @@ func (w weeksDrawn) widest() int {
 	return end
 }
 
-// weeksScrolling is how far Weeks scrolls, as the frame draws it: by rows,
-// where it scrolls whole; else in accounts, zero where they fit, as they
-// always do before its page is built or a whole week recorded.
-func (f Frame) weeksScrolling() Scrolling {
+// weeksScrolling is how far Weeks scrolls, as the frame draws it, scrolled
+// offset down: by rows, where it scrolls whole; else in accounts, zero where
+// they fit, as they always do before its page is built or a whole week
+// recorded.
+func (f Frame) weeksScrolling(offset int) Scrolling {
 	p := f.History.Weeks
 	if p == nil || p.Capacity.Weeks == 0 || f.cramped() {
 		return Scrolling{}
 	}
 	w := f.weeksDrawn(*p)
 	if f.weeksWhole(w) {
-		return f.weeksPaged(w).scrolling(f.Scroll)
+		return f.weeksPaged(w).scrolling(offset)
 	}
 	page := f.weeksPage(w)
 	return Scrolling{Most: max(len(p.Accounts)-page, 0), Page: page}

@@ -735,6 +735,23 @@ var (
 	)
 )
 
+// focusedName passes over the last two cells of the focused account's name
+// column on row n of the matrix, which the frames leave unlit, lighting its
+// first 12 cells, where the dashboard lights the whole column but the gap
+// before the bars, 14 of the sample's 16 (the owner's call, 15 October
+// 2026).
+func focusedName(n int) passing {
+	return blankCells(n, 13, 14)
+}
+
+// sessionsFocused passes over side's row in Detail's list, row 13, which the
+// frame lights while the focus is in SESSIONS, where the dashboard keeps its
+// choice in bold, unlit, ▸ before it, as the focus has left the list; and
+// SESSIONS' heading, row 28, which the frame heads in text.subtle, where the dashboard
+// heads it in bold text.primary, as it holds the focus (the owner's call,
+// 15 October 2026).
+var sessionsFocused = []passing{cellsOf(13, 1, 17, "3 side"), cellsOf(28, 25, 32, "SESSIONS")}
+
 // passedOver is, by stem, the rows and cells each frame drew otherwise than
 // the design says, or than its world gives, which testdata/vhs/README.md
 // lists, with what the dashboard draws in their place.
@@ -769,7 +786,7 @@ var passedOver = map[string][]passing{
 	),
 	"overview-usage-alone-160": slices.Concat(matrix160, []passing{wholeRow(37, overviewKeys)}),
 	"overview-everything-160x39": slices.Concat(
-		matrix160, charted(22, 26, 17, 37), charted(25, 26, 68, 87), charted(26, 26, 118, 136),
+		matrix160, []passing{focusedName(9)}, charted(22, 26, 17, 37), charted(25, 26, 68, 87), charted(26, 26, 118, 136),
 		oneHigh(31, 160, "0/min", "2/min", "15/min"), []passing{cellsOf(37, 117, 120, "side"), wholeRow(39, overviewKeys)},
 	),
 	"overview-six-accounts-160": slices.Concat(
@@ -802,7 +819,7 @@ var passedOver = map[string][]passing{
 		comingLines(67, 97, comingUp216[:2]...), []passing{wholeRow(70, overviewKeys)},
 	),
 	"overview-sessions-graphs-216": slices.Concat(
-		[]passing{cellsOf(13, 126, 146, sidesWeek)},
+		[]passing{focusedName(9), cellsOf(13, 126, 146, sidesWeek)},
 		charted(23, 40, 17, 47), pastNow(23, 40, 50), []passing{cellsOf(41, 48, 51, "now")}, charted(34, 40, 87, 117), charted(38, 40, 158, 184),
 		twoHigh(45, 216, 93, "0/min", "2/min", "15/min"), oneHigh(57, 216, "1/min", "0/min", "9/min", "5/min", "0/min", "0/min"),
 		[]passing{wholeRow(70, overviewKeys)},
@@ -883,7 +900,7 @@ var passedOver = map[string][]passing{
 			blankCells(16, 140, 140), cellsOf(17, 87, 87, "●"),
 		},
 		byDays(21, 2, 37, 41, 49, 59, 63, 67, 85, 99, 101, 103, 117, 119, 121, 127),
-		[]passing{wholeRow(37, accountsKeys)},
+		sessionsFocused, []passing{wholeRow(37, accountsKeys)},
 	),
 	"accounts-detail-one-160": slices.Concat(
 		[]passing{

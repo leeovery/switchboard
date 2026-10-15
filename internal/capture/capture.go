@@ -304,14 +304,17 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // the Overview with tab twice, then the keys to its view: the Year, and
 // filtered to Opus 5.5; Weeks, its table and its columns, and of ten
 // accounts; Days, and of ten; Tokens by account, and by model; and the Year
-// on a phone. Then the page as stage 6 builds it, over the auto world, where
-// no frame draws it, to judge by eye: the routing card over the Overview, two
-// accounts picked and m ticked, at 160×40, and on a phone, one picked and m
-// ticked; the router gone, R having found it so, the status line saying
-// since when and p pin faint; and the Overview's help on a short terminal,
-// scrolled down three rows. Then the Log's frames, each reached from the
-// Overview with shift-tab: Events, with ]; Requests as it opens; the router
-// gone, over the world of the Log not live; Requests on a phone; an event's
+// on a phone; and where no frame draws it, to judge by eye, the Year at
+// 160×24, scrolled down three rows with j. Then the page as stage 6 builds
+// it, over the auto world, where no frame draws it, to judge by eye: the
+// routing card over the Overview, two accounts picked and m ticked, at
+// 160×40, and on a phone, one picked and m ticked; and as it opens at
+// 160×16, shorter than it, its keys kept; the router gone, R having found it
+// so, the status line saying since when and p pin faint; and the Overview's
+// help on a short terminal, scrolled down three rows. Then the Log's frames,
+// each reached from the Overview with shift-tab: Events, with ]; Requests
+// as it opens; the router gone, over the world of the Log not live;
+// Requests on a phone; an event's
 // details, the cap's, ↑ five times on Events and enter; a request's, d28c's
 // move, ↑ to 14:31:09 and ↓ to it as the Log stood at 14:32:41, the table
 // paused there, then enter at the moment, what came since read; the f
@@ -327,10 +330,12 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // each reached from the Overview with tab: Compare as it opens, over the
 // auto world, ten accounts' and the bad hour's, and with >, the last 30
 // days; Detail with ], all accounts chosen, ↓ to work, and over the bad
-// hour's world, ↓ twice to personal; side's SESSIONS, d28c selected, opening
-// on Accounts, so the stream first opens there, telling each request in
-// flight as it went; Detail alone, over work alone's world; and on a phone,
-// Compare, and Detail of work. Then Sessions' frames, each reached from the
+// hour's world, ↓ twice to personal; where no frame draws them, to judge by
+// eye, side chosen as Detail opens on Accounts, its list holding the focus,
+// and → and ↓ into its SESSIONS, d28c selected; side's SESSIONS, d28c
+// selected, opening on Accounts, so the stream first opens there, telling
+// each request in flight as it went; Detail alone, over work alone's
+// world; and on a phone, Compare, and Detail of work. Then Sessions' frames, each reached from the
 // Overview with tab three times: the Switchboard and, with ], the List, over
 // the scene's world, wide and on a phone; and, each as a later look has it,
 // the Switchboard kept from a look before its moment that saw its sessions
@@ -374,8 +379,10 @@ var pages = []page{
 	{name: "history-tokens-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]")},
 	{name: "history-tokens-models-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]", "v")},
 	{name: "history-phone-year-52", size: watch.Size{Width: 52, Height: 35}, world: accountWorlds.auto, keys: toHistory()},
+	{name: "page-year-160x24", size: wide(24), world: accountWorlds.auto, keys: toHistory("j", "j", "j")},
 	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: keysOf("p", "2", "3", "m")},
 	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
+	{name: "page-routing-160x16", size: wide(16), world: accountWorlds.auto, keys: keysOf("p")},
 	{name: "page-not-answering", size: wide(37), world: accountWorlds.auto, keys: keysOf("R"), gone: true},
 	{name: "page-help-scrolled", size: wide(16), world: accountWorlds.auto, keys: keysOf("?", "j", "j", "j")},
 	{name: "log-events-160", size: wide(37), world: accountWorlds.auto, keys: toLog("]")},
@@ -414,6 +421,14 @@ var pages = []page{
 	{name: "accounts-detail-limit-160", size: wide(37), world: accountWorlds.badHour, keys: toDetail(downKey, downKey)},
 	{
 		name: "accounts-detail-sessions-160", size: wide(37), world: accountWorlds.auto, view: dashboard.Accounts,
+		keys: slices.Concat(keysOf("]"), repeated(downKey, 3), []tea.KeyPressMsg{rightKey, downKey}),
+	},
+	{
+		name: "page-detail-list-focus", size: wide(37), world: accountWorlds.auto, view: dashboard.Accounts,
+		keys: slices.Concat(keysOf("]"), repeated(downKey, 3)),
+	},
+	{
+		name: "page-detail-sessions-focus", size: wide(37), world: accountWorlds.auto, view: dashboard.Accounts,
 		keys: slices.Concat(keysOf("]"), repeated(downKey, 3), []tea.KeyPressMsg{rightKey, downKey}),
 	},
 	{name: "accounts-detail-one-160", size: wide(37), world: accountWorlds.oneLately, keys: toAccounts()},

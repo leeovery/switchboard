@@ -206,6 +206,10 @@ In Detail:
 - `→` moves into the chosen account's sessions, and `←` goes back to the list.
 - In the sessions, `↑` and `↓` choose a session, and `enter` opens its page.
 
+The chosen row is lit only where `↑` and `↓` act, in the list or in the sessions. The other's chosen
+row stays bold, marked `▸`, and `SESSIONS` is bright while you're in them. The list widens to fit
+the accounts' names where the screen has room, as USAGE's name column does.
+
 ### The period
 
 `<` and `>` step to a shorter or a longer period, which both views count over. The periods are
@@ -617,8 +621,8 @@ USAGE, Weeks, Days, the Switchboard on Sessions, and the lanes on Runway scroll 
 time. Tokens scrolls a period at a time. A turn of the wheel scrolls the same.
 
 Where one account or one period doesn't fit, as on a short screen, the view scrolls whole, a row at
-a time. It does the same on History's Weeks and Days below 37 rows. It then says how many rows are
-out of view above and below.
+a time. It does the same on History's Weeks and Days below 37 rows, and the Year always scrolls
+so. It then says how many rows are out of view above and below.
 
 When `b`, a section's key, a resize or what's read turns a view from one kind of scrolling to the
 other, the view goes back to its top.
@@ -796,6 +800,10 @@ dark one.
 - `d` and `l` set the dark and the light half of the pair. If a single theme is set, they ask first,
   with `y` or `n`, whether to clear it.
 - `esc` closes the picker, putting back the theme in force.
+
+While the picker is open, a trace it would cover, in ROUTING or SESSIONS, drops its oldest minutes
+instead, so it keeps now and its rate in view. On a narrow screen, where the picker covers the whole
+trace, the trace stays under it.
 
 A badge says what each theme fills:
 

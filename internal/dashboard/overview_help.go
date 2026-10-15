@@ -27,7 +27,8 @@ func overviewHelp() []helpPart {
 					"when pinned, each to its cap; all accounts, on Accounts and History, counts every account, to its limit. An account out " +
 					"of the pool is faint."),
 				said("`b` groups the windows by account instead, a block an account, ROUTING beside each. With more accounts than fit, USAGE " +
-					"scrolls within itself, an account at a time, or a row at a time where not even one account a window fits."),
+					"scrolls within itself, an account at a time, or a row at a time where not even one account a window fits; turned " +
+					"from one to the other, as `b`, a section's key or a resize can turn it, it goes back to its top."),
 			},
 			glyphs: []glyph{
 				{drawn: line{{paceMark, paceInk}}, means: "even pace: where you would be now, used evenly"},

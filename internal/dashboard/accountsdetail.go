@@ -15,15 +15,15 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// Detail's list's columns: its rows from listAt; the chosen row lit across
-// listLit cells from column 0; each account's state's dot or square at
-// listDotAt; its │ at listRuleAt; and the panel beside it from listPanelAt.
+// Detail's list's columns: its rows from listAt, each account's name in the
+// name column nameColumn fits to the names, and after it its state's dot or
+// square; then, as many cells past the dot as given, the end of the chosen
+// row's light, from column 0; the list's │; and the panel beside it.
 const (
-	listAt      = 1
-	listLit     = 17
-	listDotAt   = 15
-	listRuleAt  = 20
-	listPanelAt = 24
+	listAt       = 1
+	litPastDot   = 2
+	rulePastDot  = 5
+	panelPastDot = 9
 )
 
 // Detail's list's rows: an account's listApart rows from the one before,
@@ -81,25 +81,66 @@ const (
 const sixWeeks = 6
 
 // detailLayout is Detail laid out wide, or on a phone, as stackLayout: with
-// its list at its left, the panel beside it, or without, the panel alone,
-// across the frame; how far into the panel BY MODEL, BY DAY and WEEKS start;
-// and its panel's days' cells, the cells between its weeks, and USAGE's
-// bars' cells.
+// its list at its left, its name column names cells wide, the panel beside
+// it, or without, the panel alone, across the frame; how far into the panel
+// BY MODEL, BY DAY and WEEKS start; and its panel's days' cells, the cells
+// between its weeks, and USAGE's bars' cells.
 type detailLayout struct {
 	list         bool
+	names        int
 	panel, into  int
 	dw, gap, bar int
 }
 
 // detailLayout is Detail's wide layout, as its accounts have it: the list and
 // the panel beside it, its days 2 cells and its weeks 4 apart, its bars 40
-// wide; or with one account, the panel alone from column 0, the stack grown
-// into the width, its days 3 cells and its weeks 1 apart, its bars 50 wide.
+// wide, the list's name column as wide as listNames fits it, but no wider
+// than the frame has cells to spare past the panel's widest fixed rows,
+// which keep their width; or with one account, the panel alone from column
+// 0, the stack grown into the width, its days 3 cells and its weeks 1 apart,
+// its bars 50 wide.
 func (f Frame) detailLayout() detailLayout {
 	if f.Accounts.Alone() {
 		return detailLayout{into: panelCX, dw: 3, gap: 1, bar: 50}
 	}
-	return detailLayout{list: true, panel: listPanelAt, into: panelCX, dw: 2, gap: 4, bar: 40}
+	least := listedIn(leastNames)
+	return listedIn(min(f.listNames(), leastNames+max(f.Width-least.reach(), 0)))
+}
+
+// listedIn is Detail's wide layout with its list, its name column names
+// cells wide.
+func listedIn(names int) detailLayout {
+	l := detailLayout{list: true, names: names, into: panelCX, dw: 2, gap: 4, bar: 40}
+	l.panel = l.dotAt() + panelPastDot
+	return l
+}
+
+// listNames is the cells of the name column Detail's list fits its accounts'
+// names to, as nameColumn fits USAGE's: the widest, number, label and ◆, and
+// a gap, within its least and its most.
+func (f Frame) listNames() int {
+	configured := f.Accounts.Accounts
+	digits := len(strconv.Itoa(len(configured)))
+	names := make([]accountName, len(configured))
+	for i, a := range configured {
+		names[i] = listName(status.AccountNow{ID: a.ID, Label: a.Label, Primary: a.Primary, Place: i + 1}, digits)
+	}
+	return nameColumn(names, f.Width)
+}
+
+// dotAt is the column of each account's state's dot or square in the list.
+func (l detailLayout) dotAt() int {
+	return listAt + l.names
+}
+
+// lit is how many cells of the list's chosen row are lit, from column 0.
+func (l detailLayout) lit() int {
+	return l.dotAt() + litPastDot
+}
+
+// ruleAt is the column of the list's │.
+func (l detailLayout) ruleAt() int {
+	return l.dotAt() + rulePastDot
 }
 
 // cx is the column BY MODEL, BY DAY and WEEKS start at.
@@ -246,9 +287,9 @@ func (d detailDrawn) draw(c *canvas, top int) {
 	if !d.l.list {
 		return
 	}
-	d.list(c.within(bounds{y: top, width: listRuleAt + 1, rows: rows}), top, rows)
+	d.list(c.within(bounds{y: top, width: d.l.ruleAt() + 1, rows: rows}), top, rows)
 	first, shown := d.listShown()
-	c.line(listAt, y, outOfView(first, len(d.f.Accounts.Accounts)-first-shown, listRuleAt-listAt, listOut...))
+	c.line(listAt, y, outOfView(first, len(d.f.Accounts.Accounts)-first-shown, d.l.ruleAt()-listAt, listOut...))
 }
 
 // scrolling is how far Detail's panel scrolls, by rows, scrolled offset
@@ -488,14 +529,15 @@ func accountLatelyLines(m status.Moment, sentences []views.Sentence, words int) 
 	return lines
 }
 
-// sessions draws SESSIONS from row y: its heading, and now, in text.faint;
-// from the row under it, the sessions running on the account, as many as
-// sessionRows show, scrolled with the one selected, as sessionsScrolled has
-// them, the last row saying how many more there are where more are below;
-// and enterUnder rows under the heading, two cells in, what enter opens.
+// sessions draws SESSIONS from row y: its heading, as panelHeading has it
+// while SESSIONS holds the focus or not, and now, in text.faint; from the
+// row under it, the sessions running on the account, as many as sessionRows
+// show, scrolled with the one selected, as sessionsScrolled has them, the
+// last row saying how many more there are where more are below; and
+// enterUnder rows under the heading, two cells in, what enter opens.
 func (d detailDrawn) sessions(c *canvas, y int) {
 	x := d.l.panel
-	c.line(x, y, line{{"SESSIONS", dimInk}, {"  now", faintInk}})
+	c.line(x, y, line{panelHeading("SESSIONS", d.f.Accounts.sessionsFocused()), {"  now", faintInk}})
 	c.heading(y, y+1)
 	selected := d.selected()
 	first, shown := sessionsScrolled(len(d.running), selected)
@@ -542,7 +584,8 @@ func sessionsScrolled(n, selected int) (first, shown int) {
 // doing, padded, bold accent.mode while busy, else text.subtle, as asKnown
 // inks it as last known; and when it was last seen, right-aligned, in
 // text.subtle. The one selected is picked out from a cell before it,
-// sessionLit cells.
+// sessionLit cells, as chosenRow picks it out while SESSIONS holds the
+// focus or not.
 func (d detailDrawn) session(c *canvas, r views.Running, x, y int, selected bool) {
 	now := d.m.Now
 	busy := r.Activity.Busy(now)
@@ -559,17 +602,40 @@ func (d detailDrawn) session(c *canvas, r views.Running, x, y int, selected bool
 	})
 	if selected {
 		c.line(x, y, line{{"▸", keyInk}})
-		c.surface(x-1, y, sessionLit, hue{token: theme.BgSelection})
+		chosenRow(c, x-1, y, sessionLit, d.f.Accounts.sessionsFocused())
 	}
+}
+
+// panelHeading is the heading of a part of Detail that holds a choice, as
+// SESSIONS does: bold text.primary while it holds the focus, else
+// text.subtle, as every heading of Accounts is.
+func panelHeading(name string, focused bool) span {
+	if focused {
+		return span{name, titleInk}
+	}
+	return span{name, dimInk}
+}
+
+// chosenRow picks out the chosen row of a part of Detail that holds a
+// choice, its list or SESSIONS, across width cells from x along row y: on
+// bg.selection while its part holds the focus; else bold, its colours kept,
+// so it still reads as chosen while the other's row is lit.
+func chosenRow(c *canvas, x, y, width int, focused bool) {
+	if focused {
+		c.surface(x, y, width, hue{token: theme.BgSelection})
+		return
+	}
+	c.emboldened(x, y, width)
 }
 
 // list draws Detail's list from row top, rows tall, as listShown scrolls it:
 // 0 all accounts, then each configured account shown, listApart rows apart,
 // as configuredNow has it, its number, name and marks, as listName has them,
-// and at listDotAt its state's glyph, as StateInAWord and stateMark have it,
-// cued over the row's light while it's newly changed, as cueState has it;
-// the chosen row lit; ↑↓ choose chooseUnder rows under the last; and the │
-// beside them, to the panel's foot.
+// in the name column, and after it its state's glyph, as StateInAWord and
+// stateMark have it, cued over the row's light while it's newly changed, as
+// cueState has it; the chosen row picked out, as listRow has it; ↑↓ choose
+// chooseUnder rows under the last; and the │ beside them, to the panel's
+// foot.
 func (d detailDrawn) list(c *canvas, top, rows int) {
 	configured := d.f.Accounts.Accounts
 	digits := len(strconv.Itoa(len(configured)))
@@ -579,23 +645,31 @@ func (d detailDrawn) list(c *canvas, top, rows int) {
 	for i, a := range configured[first : first+shown] {
 		y += listApart
 		now, _ := configuredNow(d.m, a, first+i+1)
-		c.line(listDotAt, y, line{stateMark(d.m.StateInAWord(a.ID))})
-		d.listRow(c, y, listName(now, digits).fitted(listDotAt-listAt), a.ID == d.id)
-		d.f.cueState(c, a.ID, listDotAt, y, 1)
+		c.line(d.l.dotAt(), y, line{stateMark(d.m.StateInAWord(a.ID))})
+		d.listRow(c, y, listName(now, digits).fitted(d.l.names), a.ID == d.id)
+		d.f.cueState(c, a.ID, d.l.dotAt(), y, 1)
 	}
 	c.line(listAt, y+chooseUnder, line{{"↑↓", keyInk}, {" choose", dimInk}})
 	for row := range min(d.ruleRows(), rows) {
-		c.line(listRuleAt, top+row, line{{"│", borderInk}})
+		c.line(d.l.ruleAt(), top+row, line{{"│", borderInk}})
 	}
 }
 
-// listRow draws a row of the list along row y, named as given, lit where
-// it's the one chosen, over what's drawn of it already.
+// listRow draws a row of the list along row y, named as given, picked out
+// where it's the one chosen, over what's drawn of it already, as chosenRow
+// picks it out while the list holds the focus or not; and while it doesn't,
+// ▸ in bold accent.key before it, in the cell before its number, as SESSIONS
+// marks its chosen row, as bold alone barely shows on a bold name.
 func (d detailDrawn) listRow(c *canvas, y int, name line, chosen bool) {
 	c.line(listAt, y, name)
-	if chosen {
-		c.surface(0, y, listLit, hue{token: theme.BgSelection})
+	if !chosen {
+		return
 	}
+	focused := !d.f.Accounts.sessionsFocused()
+	if !focused {
+		c.line(listAt-1, y, line{{"▸", keyInk}})
+	}
+	chosenRow(c, 0, y, d.l.lit(), focused)
 }
 
 // ruleRows are the rows the list's │ runs down: to the row over SESSIONS'
@@ -637,9 +711,9 @@ func (f Frame) DetailListScroll(id string) int {
 
 // listName is account a's name as Detail's list and head name it: its
 // number, right-aligned in the digits given, its label and ◆ on the primary,
-// with no ▲, as Accounts shows no routing.
+// unrouted, as Accounts shows no routing.
 func listName(a status.AccountNow, digits int) accountName {
-	return accountName{number: fmt.Sprintf("%*d", digits, a.Place), label: name(a), primary: a.Primary}
+	return accountName{number: fmt.Sprintf("%*d", digits, a.Place), label: name(a), primary: a.Primary, unrouted: true}
 }
 
 // allAccountsName is all accounts as Detail's list and head name it: 0,
@@ -662,10 +736,10 @@ func (d detailDrawn) listTargets() []Target {
 		return nil
 	}
 	top := d.f.top()
-	targets := []Target{{X: 0, Y: top, Width: listLit, On: OnAccount}}
+	targets := []Target{{X: 0, Y: top, Width: d.l.lit(), On: OnAccount}}
 	first, shown := d.listShown()
 	for i, a := range d.f.Accounts.Accounts[first : first+shown] {
-		targets = append(targets, Target{X: 0, Y: top + (i+1)*listApart, Width: listLit, On: OnAccount, Account: a.ID})
+		targets = append(targets, Target{X: 0, Y: top + (i+1)*listApart, Width: d.l.lit(), On: OnAccount, Account: a.ID})
 	}
 	return targets
 }

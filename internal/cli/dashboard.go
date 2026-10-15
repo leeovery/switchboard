@@ -53,33 +53,19 @@ instead. Without the router it probes every account every interval, sooner
 for a window that resets or an account that couldn't be read, and reads the
 router again once it's back.
 
-Keys: tab and shift-tab move between its tabs, the Overview, Accounts,
-History, Sessions, Runway and the Log. On the Overview, u, g, r, s, c and l
-show and hide its sections, USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and
-LATELY; b groups its windows by window or by account, as the config's
-[usage] by has them until b is pressed; and ↑ and ↓ move the focus between
-the accounts, which GRAPHS follows. The sections shown and b are kept for
-the next dashboard to open with. On History, [ and ] move between its views,
-the Year, Weeks, Days and Tokens; < and > step the Year back through each
-calendar year the ledger holds and forward again, and Tokens' periods
-between a day, a week and a month; v cycles what the Year shows, all use, a
-model version or an account, Weeks' shape, and how Tokens splits each
-period; and ← and → step the Year shown for one account between the
-accounts. Each is kept for the next dashboard, but a calendar year stepped
-back to. On Runway, < and > move between the 5-hour and the week views, kept
-for the next dashboard; ← steps back to today, then a day at a time, or to
-this week, then a week at a time, and → on again to the live view. j, k,
-PgDn, PgUp and the wheel scroll the view where it doesn't fit: on the
-Overview, USAGE, where its accounts don't, and on History, the Year, Weeks'
-accounts, Days' BY ACCOUNT and Tokens' periods. p opens the routing card,
-which picks the accounts new sessions go to and changes nothing until
-enter; ? the page's help; esc closes either, or the theme picker. R
-refreshes, t opens the theme picker, q quits, and ctrl-c quits wherever it
-is. A click on a tab shows it; on a key of the key line, does what the key
-does, but p and q; on History, on a view's name shows it, and on < or > by
-its period steps it; on Runway, on < or > by its window, moves between the
-views; and on the Overview, on a section's heading hides it, and on an
-account's row moves the focus there.
+Keys: tab and shift-tab move between its tabs, and ctrl-c quits wherever it
+is. The rest are each page's, as its ? help lists them:
+
+` + dashboardKeys() + `
+
+The Overview's sections and b are kept for the next dashboard to open with,
+as is the view each tab shows, its period, window or columns, but a calendar
+year stepped back to. esc closes the routing card, help or the theme picker.
+A click on a tab shows it; on a key of the key line, does what the key does,
+but p and q; on History, on a view's name shows it, and on < or > by its
+period steps it; on Runway, on < or > by its window, moves between the views;
+and on the Overview, on a section's heading hides it, and on an account's row
+moves the focus there.
 
 While the router runs, it posts the desktop notifications, --probe or not;
 without it, the dashboard posts its own of an account with room again and a
