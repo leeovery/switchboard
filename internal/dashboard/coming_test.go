@@ -29,6 +29,16 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 	capped.Reserve = 0.1
 	modelCapped := readAccount("fable", sessionOf(0.2, 2*time.Hour), weekOf(0.3, 3*quota.Day), windowOf("7d_oi", "Fable week", 0.95, 2*quota.Day))
 	modelCapped.Reserve = 0.1
+	// refusedAt is an account at its limit till now and limit, holding back
+	// its every request, its token refused till now and refused.
+	refusedAt := func(limit, refused time.Duration) status.Account {
+		a := readAccount("held", sessionOf(0.3, 3*time.Hour), weekOf(0.3, 3*quota.Day))
+		a.Limit = status.Limit{ID: 1, Until: now.Add(limit)}
+		a.Refused = status.Refusal{Until: now.Add(refused), Status: 401}
+		return a
+	}
+	cappedRefused := capped
+	cappedRefused.Refused = status.Refusal{Until: now.Add(10 * time.Minute), Status: 401}
 	tests := []struct {
 		name  string
 		doc   status.Document
@@ -106,6 +116,26 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 			name: "an account back from the cap on a model's own week",
 			doc:  routerDoc("fable", 0, modelCapped),
 			want: []string{"15:12 fable's 5-hour resets", "Wed 13:12 fable back from its Fable wk cap", "Thu 13:12 fable's week resets"},
+		},
+		{
+			name: "an account at its limit, its token refused till after it lifts, back from the refusal",
+			doc:  routerDoc("held", 0, refusedAt(5*time.Minute, 10*time.Minute)),
+			want: []string{"13:22 held back from its refused token", "16:12 held's 5-hour resets", "Thu 13:12 held's week resets"},
+		},
+		{
+			name: "an account at its limit, its token refused till before it lifts, back from the limit",
+			doc:  routerDoc("held", 0, refusedAt(time.Hour, 10*time.Minute)),
+			want: []string{"14:12 held back from its limit", "16:12 held's 5-hour resets", "Thu 13:12 held's week resets"},
+		},
+		{
+			name: "an account at its limit, its token refused till it lifts, back from the limit",
+			doc:  routerDoc("held", 0, refusedAt(10*time.Minute, 10*time.Minute)),
+			want: []string{"13:22 held back from its limit", "16:12 held's 5-hour resets", "Thu 13:12 held's week resets"},
+		},
+		{
+			name: "an account at its cap, its token refused till before it lets go, back from the cap",
+			doc:  routerDoc("capped", 0, cappedRefused),
+			want: []string{"15:12 capped's 5-hour resets", "Wed 13:12 capped back from its cap"},
 		},
 	}
 	for _, tt := range tests {

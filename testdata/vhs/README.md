@@ -100,7 +100,10 @@ frame, with the cells `cells_test.go` reads and compares:
 - **The cells passed over** are `passedOver`, by stem: a row, or a row's cells from one column to
   another, each with what the frame's `.txt` reads there: the words it starts with; or blank; or,
   where the frame draws a trace or a chart from data no world gives, those glyphs alone, a chart's
-  lines among them. A test checks each, as it checks that this file names every stem in it.
+  lines among them. A test checks each, as it checks that this file names every stem in it. A
+  passing can instead redraw a glyph, where the design has since drawn it otherwise: its row is
+  held to the frame as though the frame drew the new glyph for the old, each cell's colours and
+  weight as the frame has them, and the frame must draw the old glyph there.
 
 ## The cells passed over
 
@@ -634,6 +637,16 @@ frames), which the dashboard draws as its world gives it:
   the dashboard leaves it blank.
 
 **Runway, where its frames and the design part** (see Runway in `docs/design.md`):
+
+- **Room, the full cell.** The frames draw a lane's room `▆`, the lower three quarters of a cell,
+  so a held column's `─` meets it above its middle and a reset's `│` stands taller than it; the
+  design has since drawn it `█`, the full cell, the legend's swatches with it. Each of these rows
+  is held to its frame with its `▆` read as `█`, its colours and weight as the frame has them:
+  rows 11, 14 and 17, the lanes, and 24, the legend, of `runway-5-hour-160`, `runway-week-160` and
+  `runway-stepped-back-160`; rows 10, 12, 14, 16, 18, 20, 22, 24, 26 and 28, the lanes, and 34,
+  the legend, of `runway-ten-accounts-160`; and rows 12, 15 and 18, the lanes, and 25, the legend,
+  of `runway-phone-52`. The pool's part-filled `▆`, on rows of their own, stay as the frames draw
+  them.
 
 - **The pool's part-filled cell in now's column,** which the frames draw on the canvas, where the
   design puts now's column's `bg.subtle` behind the gradient's empty part: row 20, column 31 of

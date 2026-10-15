@@ -227,7 +227,7 @@ event can change, so when you read one that changed, take its last version.
 | `reason` | Why: why a session went to its account, why a restart is due, or why the router turned unhealthy. |
 | `windows` | The keys of the windows the event is of. |
 | `joined` | On a limit or a cap, when each window that came to be held by it after it began did so, by the window's key. See below. |
-| `until` | When a limit, cap or refusal ends, or a window runs out or resets. |
+| `until` | When a limit, cap or refusal ends, or a window runs out or resets. A limit or a refusal that lifts early has it brought forward to the lift. |
 | `since` | When a pressure's rate is measured from. |
 | `count` | How many sessions a limit, a cap or a refusal moved while it held. |
 | `limit` | On a limit, its identity, kept while it holds. On a move, the id of the limit's event that counts the move among the sessions it moved. |
@@ -280,7 +280,7 @@ no window joined. A window that `joined` leaves out was held from `at`.
 | `sessions` | How many sessions the router has routed in the last hour. |
 | `events` | What's happened lately, newest first. |
 | `pool` | The room new sessions can go to, summed across the pool's accounts. |
-| `coming_up` | Each limit or cap lifting, window running out or resetting, and prime, soonest first. |
+| `coming_up` | Each limit, cap or refused token lifting, window running out or resetting, and prime, soonest first. |
 | `accounts` | Each account, in the config's order. See below. |
 
 Each entry in `accounts` holds these:

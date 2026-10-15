@@ -13,9 +13,10 @@ import (
 // The glyphs a lane draws: a column where its account has room, whether it
 // runs out at its pace or not, as its colour tells, or where the look has
 // no colour, runsOutCell; one where it has none; and where the view's window
-// resets.
+// resets. Room fills the cell whole, so a held column's ─ meets it at its
+// middle and a reset's │ at its top and bottom.
 const (
-	roomCell    = "▆"
+	roomCell    = "█"
 	runsOutCell = "▒"
 	heldCell    = "─"
 	resetCell   = "│"
@@ -94,8 +95,8 @@ func (f Frame) drawLane(c *canvas, ln laidLane, x int) {
 }
 
 // laneMark is a column of a lane where its account stands as c, as the lane
-// draws it in the look: room, ▆ in the ramp's first colour; room that runs
-// out at its pace, ▆ in accent.attention, or without colour, runsOutCell;
+// draws it in the look: room, █ in the ramp's first colour; room that runs
+// out at its pace, █ in accent.attention, or without colour, runsOutCell;
 // at its cap, ─ in accent.attention; and held back from every request, at
 // its limit, its token refused or without a usable token, ─ in
 // state.destructive, bold without colour, so it tells from a cap. Nothing

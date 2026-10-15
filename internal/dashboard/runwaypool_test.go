@@ -49,8 +49,9 @@ func stepAt(with int, from, until time.Time, first, last int) views.Step {
 // full cells a background, the top cell part-filled, as GRAPHS fills its
 // columns; coloured as usage colours the pool's use, the share without
 // room, its ramp's first stop under 70%, its second from 70%, its last from
-// 90%; and blank where none of its accounts' states is known, or none has
-// room.
+// 90%; ─ in state.destructive on its lower row where none of its accounts
+// has room, as a lane held back from every request is drawn; and blank where
+// none of their states is known.
 func TestThePoolsColumnsAreAsHighAsTheShareOfItsAccountsWithRoom(t *testing.T) {
 	full := func(tok theme.Token) seenCell { return seenCell{" ", ink{on: hue{token: tok}}} }
 	part := func(glyph string, tok theme.Token) seenCell { return seenCell{glyph, ink{token: tok}} }
@@ -67,7 +68,7 @@ func TestThePoolsColumnsAreAsHighAsTheShareOfItsAccountsWithRoom(t *testing.T) {
 		{name: "eight of ten", col: views.PoolColumn{With: 8, Known: true}, of: 10, top: part("▅", theme.VizRamp1), bottom: full(theme.VizRamp1)},
 		{name: "three of ten, 70% without", col: views.PoolColumn{With: 3, Known: true}, of: 10, top: blankCell, bottom: part("▅", theme.VizRamp2)},
 		{name: "one of ten, 90% without", col: views.PoolColumn{With: 1, Known: true}, of: 10, top: blankCell, bottom: part("▂", theme.VizRamp4)},
-		{name: "none of three", col: views.PoolColumn{Known: true}, of: 3, top: blankCell, bottom: blankCell},
+		{name: "none of three", col: views.PoolColumn{Known: true}, of: 3, top: blankCell, bottom: seenCell{"─", errorInk}},
 		{name: "none known", col: views.PoolColumn{}, of: 3, top: blankCell, bottom: blankCell},
 	}
 	for _, tt := range tests {
@@ -137,6 +138,38 @@ func TestThePoolsPastIsDimmed(t *testing.T) {
 	}
 	if got, want := mixed(t, pastFade, theme.VizRamp1), "#637262"; got != want {
 		t.Errorf("the past's green is %s, want %s, as the frames dim it", got, want)
+	}
+}
+
+// A column of the pool's where none of its accounts has room is dimmed
+// before now's column as the past is, and where the look has no colour, its
+// ─ is bold, as a lane's held back from every request is.
+func TestThePoolsColumnsWithNoRoomAreDrawnAsALanesHeldBack(t *testing.T) {
+	doc := runwayDoc(3)
+	columns := slices.Repeat([]views.PoolColumn{{Known: true}}, RunwayColumns(160))
+	shown := poolShown(doc, views.Pool{Of: 3, Key: "5h", Columns: columns})
+	now := shown.Timeline.NowColumn()
+	tests := []struct {
+		name   string
+		look   func(t *testing.T) Look
+		column int
+		want   seenCell
+	}{
+		{name: "before now's column", look: func(t *testing.T) Look { return Screen(builtin(t, "nord")) }, column: now - 1, want: seenCell{"─", ink{token: errorInk.token, fade: pastFade}}},
+		{name: "after now's column", look: func(t *testing.T) Look { return Screen(builtin(t, "nord")) }, column: now + 1, want: seenCell{"─", errorInk}},
+		{name: "without colour", look: func(*testing.T) Look { return NoColour() }, column: now + 1, want: seenCell{"─", exhaustedInk}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, top := poolDrawn(shown, doc, tt.look(t))
+			x := runwayLanesFrom + tt.column
+			if got := cellAt(c, x, top+1); got != tt.want {
+				t.Errorf("column %d's lower cell is %+v, want %+v", tt.column, got, tt.want)
+			}
+			if got := cellAt(c, x, top); got != blankCell {
+				t.Errorf("column %d's upper cell is %+v, want it blank", tt.column, got)
+			}
+		})
 	}
 }
 

@@ -87,6 +87,8 @@ func TestLATELYTellsEachKindOfEventInItsSentence(t *testing.T) {
 			full: "personal reached its 5-hour and week limits", short: "personal at its limit", subject: "personal"},
 		{name: "a limit in a model's own week", event: status.Event{Kind: status.EventLimit, Account: "personal", Windows: []string{"7d_oi"}},
 			full: "personal reached its Fable week limit", short: "personal at its limit", subject: "personal"},
+		{name: "a limit a window joined after it began, named by those it began with", event: status.Event{Kind: status.EventLimit, Account: "personal", Windows: []string{"7d_oi", "5h"}, Joined: map[string]time.Time{"5h": at(14, 0)}},
+			full: "personal reached its Fable week limit", short: "personal at its limit", subject: "personal"},
 		{name: "a limit naming no window", event: status.Event{Kind: status.EventLimit, Account: "personal"},
 			full: "personal reached its limit", short: "personal at its limit", subject: "personal"},
 		{name: "a token refused, moving sessions", event: status.Event{Kind: status.EventRefused, Account: "work", Status: 401, Count: 2, To: "side"},

@@ -37,8 +37,8 @@ func TestALaneDrawsEachColumnAsItsAccountStoodThen(t *testing.T) {
 		bold  bool
 	}{
 		{name: "nothing known, left blank", look: nord, cell: views.CellUnknown, glyph: " "},
-		{name: "with room", look: nord, cell: views.CellRoom, glyph: "▆", token: theme.VizRamp1},
-		{name: "running out at its pace", look: nord, cell: views.CellRunsOut, glyph: "▆", token: theme.AccentAttention},
+		{name: "with room", look: nord, cell: views.CellRoom, glyph: "█", token: theme.VizRamp1},
+		{name: "running out at its pace", look: nord, cell: views.CellRunsOut, glyph: "█", token: theme.AccentAttention},
 		{name: "at its cap", look: nord, cell: views.CellCapped, glyph: "─", token: theme.AccentAttention},
 		{name: "at its limit", look: nord, cell: views.CellLimited, glyph: "─", token: theme.StateDestructive},
 		{name: "its token refused", look: nord, cell: views.CellRefused, glyph: "─", token: theme.StateDestructive},
@@ -142,8 +142,8 @@ func TestALaneMarksEachResetOfTheViewsWindowItHas(t *testing.T) {
 			t.Errorf("column %d is %q in %s, want │ in %s, dimmed before now's column", tt.col, got.glyph, shadeOf(nord.colour(got.ink)), shadeOf(tt.want))
 		}
 	}
-	if got := c.at(runwayLanesFrom+4, 10).glyph; got != "▆" {
-		t.Errorf("column 4, which marks no reset, is %q, want ▆", got)
+	if got := c.at(runwayLanesFrom+4, 10).glyph; got != "█" {
+		t.Errorf("column 4, which marks no reset, is %q, want █", got)
 	}
 }
 

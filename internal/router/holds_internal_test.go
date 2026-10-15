@@ -248,6 +248,34 @@ func TestARefusalRenewedWhileItHoldsJoinsItsEvent(t *testing.T) {
 	}
 }
 
+// A limit lifting early, as a reading shows it, ends its event at the lift,
+// filed again as it then stands, whatever else holds the account back; one
+// that had ended, or another limit's lifting, changes nothing.
+func TestALimitLiftedEarlyEndsItsEventThen(t *testing.T) {
+	until := start.Add(time.Hour)
+	tests := []struct {
+		name string
+		// after is how long after start the lifting comes, of the limit
+		// with the identity limit.
+		after time.Duration
+		limit int
+		want  time.Time
+	}{
+		{name: "as it lifts", after: 10 * time.Minute, limit: 1, want: start.Add(10 * time.Minute)},
+		{name: "but another limit's lifting", after: 10 * time.Minute, limit: 2, want: until},
+		{name: "but once it has ended", after: 2 * time.Hour, limit: 1, want: until},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := newTelling(t)
+			k.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: until, Limit: 1})
+			k.after(tt.after)
+			k.hear(LimitLifted{Account: "work", Limit: tt.limit})
+			k.expect(status.Event{ID: 1, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: tt.want, Limit: 1})
+		})
+	}
+}
+
 func TestARefusalCountsTheSessionsItMoved(t *testing.T) {
 	until := start.Add(refusedFor)
 	token := Refused{Account: "work", Status: http.StatusUnauthorized, Until: until, Request: someRequest}

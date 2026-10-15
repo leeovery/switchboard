@@ -251,8 +251,10 @@ func (d detailing) happened() []DetailItem {
 		items.add("rate since", d.timeWords(e.Since))
 	case status.EventCap:
 		items.add("its cap", d.capWords())
+		d.joinedItems(&items)
 	case status.EventLimit:
 		items.add("its limit", d.windowsWords())
+		d.joinedItems(&items)
 		items.add("till", d.timeWords(e.Until))
 	case status.EventRefused:
 		if e.Status != 0 {
@@ -334,11 +336,19 @@ func (d detailing) sessionWords() DetailWords {
 	return w
 }
 
-// windowsWords name the windows the event names, as its line does: "its
-// 5-hour window", or "its 5-hour and week windows"; none where it names
+// windowsWords name the windows the event began with, as its line does:
+// "its 5-hour window", or "its 5-hour and week windows"; none where it names
 // none.
 func (d detailing) windowsWords() DetailWords {
 	return valued(its(d.fact.windows, ""))
+}
+
+// joinedItems add an item to items for each window that joined the event
+// after it began, in its order, named "and": "5-hour · joined 14:00".
+func (d detailing) joinedItems(items *itemList) {
+	for _, w := range d.fact.joined {
+		items.add("and", slices.Concat(valued(w.name), saidWords(" · joined "), d.timeWords(w.at)))
+	}
 }
 
 // capWords say a cap as its line does: "95% of its 5-hour window", its use

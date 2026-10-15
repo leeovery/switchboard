@@ -136,6 +136,9 @@ func stretchesSaid(stretches []views.LaneStretch, now time.Time) string {
 	said := make([]string, len(stretches))
 	for i, s := range stretches {
 		said[i] = fmt.Sprintf("%s %s – %s", cellWords[s.Cell], edgeSaid(s.Start, s.Projected, now), timeSaid(s.Back, now))
+		if !s.Lifts.IsZero() {
+			said[i] += ", lifts " + timeSaid(s.Lifts, now)
+		}
 		if s.AsItResets {
 			said[i] += ", as it resets"
 		}

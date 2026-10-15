@@ -332,10 +332,12 @@ Runway has two windows, and `<` and `>` switch between them:
 Each column of a lane is one cell, showing room, at its cap, or at its limit. The past is dimmed.
 
 Words under a lane say where a stretch without room starts and when the account is back. For
-example, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`.
+example, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`. Where one hold runs
+straight into another, the first says when it lifts, and only the last says when the account is
+back: `at its limit 14:00  ·  lifts 19:00  at its cap 14:00  ·  back Mon 21:00`.
 
 With more than one account, the pool's lane sits under the others. It shows how many accounts have
-room, a column at a time.
+room, a column at a time, and draws a line, as a lane at its limit does, where none has.
 
 To look back:
 

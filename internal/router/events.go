@@ -8,9 +8,9 @@ import (
 )
 
 // Event is news from the router that something outside it may want to act
-// on, such as by notifying the user: SessionStarted, LimitReached, Moved,
-// Refused, RefusalLifted, HealthChanged, Primed, RestartDue, Pinned or
-// Unpinned. Config.Events hears each as it happens.
+// on, such as by notifying the user: SessionStarted, LimitReached,
+// LimitLifted, Moved, Refused, RefusalLifted, HealthChanged, Primed,
+// RestartDue, Pinned or Unpinned. Config.Events hears each as it happens.
 type Event interface {
 	event()
 }
@@ -39,6 +39,15 @@ type LimitReached struct {
 	Until   time.Time
 	Limit   int
 	Again   bool
+}
+
+// LimitLifted is the limit an account reached lifting on Account before its
+// time, Limit its identity, as LimitReached gave it: the answer to a request
+// sent since, or a probe, read each window it was reached in with room, or,
+// of a limit reached in none named, the account took a request.
+type LimitLifted struct {
+	Account string
+	Limit   int
 }
 
 // Moved is a session's requests of a model moving to another account, and
@@ -148,6 +157,7 @@ type Unpinned struct {
 
 func (SessionStarted) event() {}
 func (LimitReached) event()   {}
+func (LimitLifted) event()    {}
 func (Moved) event()          {}
 func (Refused) event()        {}
 func (RefusalLifted) event()  {}

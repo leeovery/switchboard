@@ -477,6 +477,11 @@ func TestWhatsComingUp(t *testing.T) {
 	back := func(id, key string, in time.Duration, capped bool) status.Upcoming {
 		return status.Upcoming{At: built.Add(in), Account: id, Kind: status.UpcomingBack, Window: key, Cap: capped}
 	}
+	// backFromRefusal is the account with the given id back in that long
+	// from the refusal of its token, the last of its holds to lift.
+	backFromRefusal := func(id string, in time.Duration) status.Upcoming {
+		return status.Upcoming{At: built.Add(in), Account: id, Kind: status.UpcomingBack, Refused: true}
+	}
 	runsOut := func(id, key string, in time.Duration, capped bool) status.Upcoming {
 		return status.Upcoming{At: built.Add(in), Account: id, Kind: status.UpcomingRunsOut, Window: key, Cap: capped}
 	}
@@ -536,20 +541,28 @@ func TestWhatsComingUp(t *testing.T) {
 			want: []status.Upcoming{reset("work", "7d", time.Hour), back("work", "", 2*time.Hour, false), reset("work", "5h", 3*time.Hour)},
 		},
 		{
-			name: "a limit and its token refused: back once both have lifted, the refusal last, from its limit",
+			name: "a limit and its token refused: back once both have lifted, the refusal last, from the refusal",
 			doc: routerDocOf(with(readAt("work", spentIn("5h", 1, time.Hour), windowIn("7d", 0.3, 3*day)), func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
 				a.Refused = status.Refusal{Until: built.Add(90 * time.Minute), Status: 401}
 			})),
-			want: []status.Upcoming{reset("work", "5h", time.Hour), back("work", "", 90*time.Minute, false), reset("work", "7d", 3*day)},
+			want: []status.Upcoming{reset("work", "5h", time.Hour), backFromRefusal("work", 90*time.Minute), reset("work", "7d", 3*day)},
 		},
 		{
-			name: "a cap and its token refused: back once both have lifted, the refusal last, from its cap",
+			name: "a cap and its token refused: back once both have lifted, the refusal last, from the refusal",
 			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.2, 2*time.Hour), windowIn("7d", 0.95, time.Hour)), func(a *status.Account) {
 				a.Reserve = 0.1
 				a.Refused = status.Refusal{Until: built.Add(90 * time.Minute), Status: 401}
 			})),
-			want: []status.Upcoming{reset("work", "7d", time.Hour), back("work", "", 90*time.Minute, true), reset("work", "5h", 2*time.Hour)},
+			want: []status.Upcoming{reset("work", "7d", time.Hour), backFromRefusal("work", 90*time.Minute), reset("work", "5h", 2*time.Hour)},
+		},
+		{
+			name: "a cap and its token refused: back once both have lifted, the cap last, from its cap",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.2, 2*time.Hour), windowIn("7d", 0.95, time.Hour)), func(a *status.Account) {
+				a.Reserve = 0.1
+				a.Refused = status.Refusal{Until: built.Add(30 * time.Minute), Status: 401}
+			})),
+			want: []status.Upcoming{back("work", "", time.Hour, true), reset("work", "5h", 2*time.Hour)},
 		},
 		{
 			name: "a cap on a model's own week lifting, named",

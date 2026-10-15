@@ -134,6 +134,8 @@ func (r *recent) take(e Event, now time.Time) {
 		r.moved(e, now)
 	case Refused:
 		r.refused(e, now)
+	case LimitLifted:
+		r.limitLifted(e, now)
 	case RefusalLifted:
 		r.lifted(e, now)
 	case HealthChanged:

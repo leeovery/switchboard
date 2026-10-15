@@ -71,14 +71,14 @@ func TestRunwayHelpLeavesThePoolOutWithOneAccount(t *testing.T) {
 }
 
 // Each mark of a lane is explained once, drawn as a lane draws it in each
-// look: in colour, room and a run-out alike ▆, by their colours, and a cap
+// look: in colour, room and a run-out alike █, by their colours, and a cap
 // and a hold alike ─; without colour, a run-out ▒ and a hold bold, so each
 // tells from the other by its glyph or its weight.
 func TestRunwayHelpDrawsEachMarkAsALaneDrawsIt(t *testing.T) {
-	room := line{{"▆", ink{token: theme.VizRamp1}}}
+	room := line{{"█", ink{token: theme.VizRamp1}}}
 	capped := line{{"─", ink{token: theme.AccentAttention}}}
 	reset := line{{"│", ink{token: theme.TextSubtle}}}
-	coloured := []line{room, {{"▆", ink{token: theme.AccentAttention}}}, capped, {{"─", ink{token: theme.StateDestructive}}}, reset}
+	coloured := []line{room, {{"█", ink{token: theme.AccentAttention}}}, capped, {{"─", ink{token: theme.StateDestructive}}}, reset}
 	tests := []struct {
 		name string
 		look Look
@@ -145,13 +145,15 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the use under a name", "its use of the view's window"},
 		{"a stale account", "not read since 14:20"},
 		{"a refused token's use faded", "and the use of one whose token is refused"},
-		{"a back as the view's window resets", "A cap's or a run-out's back adds as its 5-hour resets"},
+		{"a run of stretches", "a stretch says lifts 19:00, when its own hold lifts, and only the last says back"},
+		{"a time as the view's window resets", "A cap's or a run-out's time adds as its 5-hour resets"},
 		{"a projection", "~ marking a time projected at its pace"},
 		{"the past from the readings history", "from the readings history, each by the last reading of each window"},
 		{"a column not read", "A column with no reading of its account by then is blank"},
 		{"a reserve set now redraws past caps", "change a reserve, and the caps of days gone are drawn again by it"},
 		{"the lanes scrolling", "the lanes scroll with j and k"},
 		{"the pool's columns", "filled to how many of the pool's accounts have room then"},
+		{"the pool's columns at none", "where none has room, ─ along its foot, as a lane at its limit draws it"},
 		{"what counts without room", "An account at its cap or its limit counts without room"},
 		{"the pool's accounts", "The pool is every account on auto, and the pin's while one holds"},
 		{"a dip under way", "8 of 10 with room till 15:30"},
