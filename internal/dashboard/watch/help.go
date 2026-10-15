@@ -49,28 +49,35 @@ func (m Model) helpCard() dashboard.Help {
 	return dashboard.Help{Keys: m.helpKeys(), Scroll: m.help.scroll}
 }
 
-// sessionKeys is what lists a session's page's keys, as m stands, in the
-// design's order: esc, back where the page was opened from, or with a turn
-// open, closing it; ↑↓ through its turns, or the open turn's requests; enter
-// opening the turn chosen into its requests, or the request chosen; and p,
-// as pinKey has it. Its scroll keys follow, where they scroll its turns, or
-// the open turn's requests, as KeysScroll has it, as listings has them.
-// While it loads, esc alone.
+// sessionKeys is what lists a session's page's keys, as m stands, as
+// sessionListings has them, with a turn open or not; and p, as pinKey has
+// it. Its scroll keys follow, where they scroll its turns, or the open
+// turn's requests, as KeysScroll has it, as listings has them. While it
+// loads, esc alone.
 func (m Model) sessionKeys() pageKeys {
-	esc, move, enter := dashboard.Key{Key: "esc", Does: "back"}, dashboard.Key{Key: "↑↓", Does: "turn"}, dashboard.Key{Key: "enter", Does: "its requests"}
 	if m.session.shown.Loading {
-		return pageKeys{own: []keyListing{{Key: esc, works: true, leads: true}}, coloured: m.coloured()}
-	}
-	if m.session.shown.Open != 0 {
-		esc.Does, move.Does, enter.Does = "close", "request", "open"
+		return pageKeys{own: sessionListings(false)[:1], coloured: m.coloured()}
 	}
 	pin, pinned := m.pinKey()
 	return pageKeys{
-		own:      []keyListing{{Key: esc, works: true, leads: true}, {Key: move, works: true, apart: true}, {Key: enter, works: true, phoneDoes: "open"}},
+		own:      sessionListings(m.session.shown.Open != 0),
 		pin:      pin,
 		pinned:   pinned,
 		coloured: m.coloured(),
 	}
+}
+
+// sessionListings are a session's page's own keys, with a turn open or not,
+// in the design's order: esc, back where the page was opened from, or with a
+// turn open, closing it; ↑↓ through its turns, or the open turn's requests;
+// and enter opening the turn chosen into its requests, or the request
+// chosen.
+func sessionListings(open bool) []keyListing {
+	esc, move, enter := dashboard.Key{Key: "esc", Does: "back"}, dashboard.Key{Key: "↑↓", Does: "turn"}, dashboard.Key{Key: "enter", Does: "its requests"}
+	if open {
+		esc.Does, move.Does, enter.Does = "close", "request", "open"
+	}
+	return []keyListing{{Key: esc, works: true, leads: true}, {Key: move, works: true, apart: true}, {Key: enter, works: true, phoneDoes: "open"}}
 }
 
 // helpKeys are the keys help lists, those of the page it stands still over,

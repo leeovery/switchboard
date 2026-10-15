@@ -5,6 +5,21 @@ after the release beside milestone 7's loose ends (`2026-10-14--milestone-7-loos
 owner, on 15 October 2026: "It is really good ... There's literally only one thing at the moment
 that's jumped out at me", then a few nitpicks, "no doubt I'll find others".
 
+## A smaller screen
+
+Seen on an iPad over Mosh, the Overview in a phone's layout (under 100 columns), USAGE alone with
+COMING UP and LATELY, by window. "Maybe we've got the UI a little wrong on this screen size": to
+come back to after the patch.
+
+- **USAGE scrolls as several boxes at once.** The windows stack, 5-HOUR, WEEK and FABLE WEEK, each
+  with its accounts and its pool; with four accounts each block shows two, `2 more accounts`, and
+  scrolling moves every block's accounts together while each pool stays put outside them. It reads
+  as three linked scrolling boxes. Scrolling USAGE whole, as the views scrolled whole do, may read
+  better.
+- **The blank rows between the blocks differ:** two after the 5-hour's and the week's pools, one
+  after Fable week's before the key; and the sections below are cramped while every one shows.
+- **The Log is slow to open** there, beside Detail's `enter` (see Anywhere slow).
+
 ## Accounts' Detail
 
 - **The account list cuts names it has room for.** In a near full-screen terminal on a 16-inch
@@ -49,33 +64,38 @@ that's jumped out at me", then a few nitpicks, "no doubt I'll find others".
 
 ## Charts
 
-- **Every account's burn-down, back.** The owner grew to like v0.1.6's burn-down charts: every
-  account's 5-hour window and week on screen at once, drawn as what's left falling. v0.2.0's
-  GRAPHS (`g`) draws one account at a time, the one the focus is on, as use rising, a burn-up; and
-  by account (`b`), USAGE's blocks push GRAPHS below the fold, so the owner found them only with
-  USAGE hidden. The ask: a place to see every account's charts at once, and the burn-down's way
-  round. The owner's calls, 15 October 2026: GRAPHS keeps its burn-up and gains a burn-down, a
-  key flicking between them in the same structure ("some people like burning up, some people like
-  burning down"); a burn-down draws where it's heading, faint, at the projection Runway's words go
-  by, so the two never disagree; and every account's burn-down at once is wanted back. v0.1.6 had
-  it: a card an account, each drawing its featured window's burn-down with its dotted projection,
-  `w` featuring the week on every card at once. Where it goes now is open: the owner floated a
-  view of Runway's, every account on one time axis, the Overview staying as it is.
-- **By account, GRAPHS has no room.** With `b`, USAGE's blocks take the rows GRAPHS would have,
-  and GRAPHS says `no room at 50 rows` in a near full-screen terminal on a 16-inch MacBook Pro.
-- **The pool, chosen for GRAPHS.** `↑` `↓` stop at the last account; the owner wants `↓` to go on
-  to `Σ pool` and GRAPHS to chart the pool across the board. The accounts' windows start and reset
-  at different times, so the pool's charts need a time axis of their own. Agreed with the owner,
-  15 October 2026: the pool's room at each moment, the sum of what each account has left to its
-  cap, back from now over a window's length, each account's reset a step up marked `│`, no even
-  pace. Whether a burn-down draws where it's heading is open (see the projection, in the design's
-  Running out).
+Agreed with the owner, 15 October 2026, from text frames, to build after the snags:
+
+- **A burn-down beside the burn-up.** `v` flips GRAPHS between them while GRAPHS shows, kept in
+  the preferences; the structure is the same. The burn-up stays as built. The burn-down is drawn as
+  v0.1.6 drew it: the room left as a level falling from full at the window's start, its colour
+  running from the ramp's first stop to its last as it falls; now's line; where it's heading, a
+  braille dotted line from the level now at the projection Runway's words go by, to `✕` on the
+  floor where it runs out, else to the room left at its reset; the cap, where the account has one,
+  as a faint braille line along its floor; held at its limit, a line along the floor in
+  `state.destructive` till it lifts. No even-pace line: drawn a row at a time it reads as a
+  staircase (the owner: "I actually preferred how the previous released version did it").
+- **By account, every account's charts beside its bars.** With `b`, GRAPHS draws each account's
+  windows' charts to the right of its block, so it needs no rows of its own (today it says
+  `no room at 50 rows` in a near full-screen terminal on a 16-inch MacBook Pro) and every account
+  shows at once, as v0.1.6's cards did. While they show, ROUTING goes back to its own section; no
+  focus by account. Narrower, it charts the windows that fit, about 26 columns each, then falls
+  back to the focused account's charts as by window.
+- **The pool's charts,** by account beside `Σ pool`: the pool's room at each moment, the sum of
+  what each account has left to its cap, back from now over a window's length, each account's reset
+  a step up. By window, `↑` `↓` stay on the accounts.
+- **No chart view on Runway:** by account covers every account at once; a shared time axis is all
+  it would add.
 
 ## Anywhere slow
 
 - **Nothing says a page is loading.** `enter` on a session in Detail takes about two seconds to
   open its page, with nothing on screen meanwhile. Show that something is under way wherever a
   step takes long enough to be noticed.
+
+- **The Log takes three or four seconds to open the first time** after the dashboard starts;
+  going back to it later, it's there at once. The owner isn't sure the
+  Log keeps updating while he's away from it: check it does.
 
 ## Works well
 

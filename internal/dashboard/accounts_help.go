@@ -70,7 +70,8 @@ func (f Frame) valueHelp() helpPart {
 	}
 	if !f.Accounts.Alone() {
 		plans = " An account without a plan has none, and all accounts sums the plans it knows, its ratio counting only " +
-			"their accounts' worth."
+			"their accounts' worth and saying how many plans it knows where it doesn't know them all, as the worth " +
+			"beside it is every account's."
 		shared = ", Compare and Detail sharing the period."
 	}
 	more, less := 4.0, 0.6
@@ -83,8 +84,8 @@ func (f Frame) valueHelp() helpPart {
 				"all of it."),
 			said("Against its price is that worth over what the plans cost over the same period, a plan's price a month " +
 				"prorated: a day 12/365 of a month, a week 12/52, 30 days a month, and 12 weeks twelve weeks', a period still " +
-				"running priced whole." + plans + " An account added part-way shows what was recorded of it, priced " +
-				"against the whole period."),
+				"running priced whole, and one the ledger began part-way through priced from its first day." + plans +
+				" An account added part-way shows what was recorded of it, priced against the whole period."),
 			said("Extra usage is on where Claude bills past the plan's limit, and off where the limit holds."),
 			said("The periods are rolling, never billing months, as switchboard knows no renewal date: `<` and `>` step " +
 				"through today, this week, the last 30 days and the last 12 weeks" + shared),

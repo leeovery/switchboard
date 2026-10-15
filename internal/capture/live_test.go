@@ -417,7 +417,7 @@ func TestTheWatchReadsTheReadingsTheScenarioReadsAfterItsBases(t *testing.T) {
 
 // Runway's tail carries in each window's run from before its start, the
 // readings the scenario reads after its base's joining the run they carry on,
-// as readings.CarriedRuns has them: not the last alone, which would start a
+// as readings.TailOf reads them: not the last alone, which would start a
 // hold begun before the tail's start at that reading.
 func TestTheWatchsTailCarriesInEachWindowsRunTheScenarioReadsOn(t *testing.T) {
 	hundredth := answer{wait: brief.wait, streams: brief.streams, chars: int(0.01 / sessionPerChar)}

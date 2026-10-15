@@ -17,7 +17,13 @@ const phoneUnder = 100
 type Frame struct {
 	// Width and Height are the terminal's, in cells.
 	Width, Height int
-	Look          Look
+	// Covered is how many cells at the frame's right a slide-over covers, as
+	// the theme picker does while it's open, the page drawn whole under it:
+	// each trace, running to the right edge, drops as many of its oldest
+	// minutes and its rate ends short of it, so now's end and the rate stay
+	// in view, where the trace keeps a cell beside it, as covered has it.
+	Covered int
+	Look    Look
 	// View is the tab shown.
 	View View
 	// Lost is when the router stopped answering, while its last document
@@ -66,6 +72,9 @@ type Frame struct {
 	// none, as while probing, and each account's sessions are counted as the
 	// document counts them.
 	Sessions []status.Session
+	// Unlisted is set while no router lists the sessions, Sessions its last
+	// listing, as the watch has it of Sessions' tab as well.
+	Unlisted bool
 	// Stream is what the router's request stream has told of the routed
 	// requests, as the views read it, by each request's id: zero where the
 	// watch hears none.

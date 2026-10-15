@@ -28,7 +28,7 @@ func TestRunwaysComingUpIsTheMomentsBacksAndItsViewsWindows(t *testing.T) {
 	modelsResets := status.Upcoming{At: at(70), Account: "side", Kind: status.UpcomingReset, Window: "7d_oi"}
 	capBack := status.Upcoming{At: at(80), Account: "side", Kind: status.UpcomingBack, Cap: true}
 
-	m := status.Document{Source: status.SourceRouter, GeneratedAt: statustest.Built}.At(statustest.Built, claude.Policy)
+	m := status.Document{Source: status.SourceRouter, GeneratedAt: statustest.Built}.At(statustest.Built, claude.Policy())
 	m.ComingUp = []status.Upcoming{back, modelsBack, runsOut, resets, prime, weekRunsOut, weekResets, modelsResets, capBack}
 	tests := []struct {
 		name   string

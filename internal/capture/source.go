@@ -124,7 +124,7 @@ func (s source) Read(context.Context, status.Read) (status.Document, router.Heal
 	if s.isGone() {
 		return status.Document{}, router.Health{}, errGone
 	}
-	return s.doc.WorkedOut(claude.Policy), s.health, nil
+	return s.doc.WorkedOut(claude.Policy()), s.health, nil
 }
 
 // Pin takes the order, and changes nothing.

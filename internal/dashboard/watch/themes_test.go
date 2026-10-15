@@ -276,6 +276,23 @@ func TestTOpensThePickerOverTheView(t *testing.T) {
 	}
 }
 
+// While the picker is open, the page under it is told the cells it covers,
+// so its traces keep now's end and their rates beside it; closed, none.
+func TestThePageIsToldWhatThePickerCovers(t *testing.T) {
+	h, _ := settledThemedHarness(t, theme.Choice{})
+	if got := h.model.frame(h.model.now()).Covered; got != 0 {
+		t.Errorf("with the picker closed, the page is covered %d cells, want none", got)
+	}
+	h.typed("t")
+	if got, want := h.model.frame(h.model.now()).Covered, dashboard.PickerWidth(h.model.size.Width); got != want {
+		t.Errorf("with the picker open, the page is covered %d cells, want the picker's %d", got, want)
+	}
+	h.typed("esc")
+	if got := h.model.frame(h.model.now()).Covered; got != 0 {
+		t.Errorf("with the picker closed again, the page is covered %d cells, want none", got)
+	}
+}
+
 func TestThePickerShowsEachThemeAsTheCursorReachesIt(t *testing.T) {
 	h, themes := settledThemedHarness(t, theme.Choice{})
 	h.typed("t")

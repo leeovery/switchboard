@@ -23,6 +23,8 @@ func (f Frame) historyHelp() []helpPart {
 					"each did, on one scale for everything shown together, the key giving each quarter's bounds."),
 				said("`v` shows one model version alone, in four steps of its own colour, or one account, `←` and `→` stepping " +
 					"between the accounts; the shades, their key and the numbers re-scale to what's shown."),
+				said("On a screen shorter than it, the Year scrolls a row at a time, its last row saying how many rows are out " +
+					"of view above and below."),
 			},
 			glyphs: shadesHelp(f.yearDay),
 		},
@@ -33,7 +35,9 @@ func (f Frame) historyHelp() []helpPart {
 					"and the limits reached. Against is bold, in the theme's positive colour at 1× or more, the plans more than " +
 					"paid for, and its attention colour under. A bar is a month's worth against the largest month's, split by " +
 					"family, each in its colour, as the dots under the bars name them. The month still running says so far after " +
-					"its bar, and the month the ledger began recording in the day it began, as from the 16th."),
+					"its bar, and the month the ledger began recording in the day it began, as from the 16th, its plans priced " +
+					"from then. Where some accounts' plans aren't known, against is over those known, as the heading says, " +
+					"with the worth of their accounts alone."),
 			},
 			glyphs: []glyph{
 				{drawn: familyBar(), means: "a month's worth, by family"},
@@ -56,6 +60,7 @@ func (f Frame) historyHelp() []helpPart {
 					"would still be; else " + views.AboutRight + "."),
 				said("An account's: " + accountVerdictsMean()),
 				said("`v` draws each week as a column filled to its peak, each row in the bar's colour at its height."),
+				said(historyScrollsSaid("More accounts than fit scroll an account at a time")),
 			},
 			glyphs: []glyph{
 				{drawn: line{{"100%", exhaustedInk}}, means: "it hit its limit"},
@@ -71,6 +76,7 @@ func (f Frame) historyHelp() []helpPart {
 					"MODEL is each family's worth a day at API prices, every account's, in four steps of the family's colour, " +
 					"every family on one scale, and its share of the eight weeks' worth. BY ACCOUNT is how much of its week each " +
 					"account used each day, in the five shades, every account on one scale, and the 5-hour limits it hit."),
+				said(historyScrollsSaid("Past six accounts, BY ACCOUNT scrolls an account at a time")),
 			},
 			glyphs: []glyph{
 				{drawn: f.swatch(dayInk(2), 2, true), means: daysLimitNote},
@@ -83,12 +89,24 @@ func (f Frame) historyHelp() []helpPart {
 				said("Tokens by period, as ccusage reports them, split by what ccusage can't split by: the account. Its columns " +
 					"are ccusage's: input; output; cache write, both lifetimes' writes together; cache read; and total, the " +
 					"four kinds. Worth is what the same tokens would cost through the API, at the price table's prices as of " +
-					"the date the footnote gives, and against its price, that worth over what the period's plans cost."),
+					"the date the footnote gives, and against its price, that worth over what the period's plans cost, over " +
+					"the plans known where some aren't, as it says. A model of quota checks alone wasn't used, so has no row."),
 				said("`v` splits each period by account, by model, each version at its own price, by both, or not at all, and " +
 					"`<` and `>` make the periods days, weeks or months."),
+				said("The periods scroll a period at a time, or a row at a time where one doesn't fit; turned from one to the " +
+					"other, as a resize or what's read can turn them, they go back to their top."),
 			},
 		},
 	}
+}
+
+// historyScrollsSaid says how Weeks or Days scrolls, as help says it: as
+// scrolls says, an account at a time, but on a screen shorter than History's
+// frames the whole view a row at a time, back at its top as a resize or
+// what's read turns it from one to the other.
+func historyScrollsSaid(scrolls string) string {
+	return fmt.Sprintf("%s; on a screen shorter than %d rows, the whole view scrolls a row at a time instead, and turned "+
+		"from one to the other, as a resize or what's read can turn it, it goes back to its top.", scrolls, historyRows)
 }
 
 // accountVerdictsMean says what each of Weeks' verdicts on an account means,

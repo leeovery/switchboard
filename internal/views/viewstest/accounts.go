@@ -652,7 +652,7 @@ func (f filing) summaries(first, last time.Time) []ledger.Summary {
 func readDoc(at time.Time, accounts ...status.Account) status.Document {
 	doc := status.Document{Source: status.SourceRouter, GeneratedAt: at, Router: status.Health{Healthy: true}}
 	for _, a := range accounts {
-		doc.Accounts = append(doc.Accounts, a.AsOf(claude.Policy, at))
+		doc.Accounts = append(doc.Accounts, a.AsOf(claude.Policy(), at))
 	}
 	if len(accounts) > 0 {
 		doc.Best = accounts[0].ID

@@ -28,7 +28,8 @@ type probes struct {
 	prober Prober
 	state  *state
 	now    func() time.Time
-	// emit hears of each prime that starts its window.
+	// emit hears of each prime that starts its window, and each limit a
+	// probe's reading lifts early.
 	emit func(Event)
 	// ctx ends when the router stops, cutting short the probes under way.
 	ctx    context.Context
@@ -220,7 +221,8 @@ func (p *probes) stop() {
 	p.wg.Wait()
 }
 
-// probe reads an account's usage, as r, and notes how that went.
+// probe reads an account's usage, as r, and notes how that went, telling of
+// the account's limit lifting early where its reading shows it.
 func (p *probes) probe(a account, r *run) {
 	// sent is marked before the token is read, so a token the account takes up
 	// after the read is marked after sent, and recordProbe judges this probe
@@ -232,8 +234,11 @@ func (p *probes) probe(a account, r *run) {
 		// Stopped mid-probe: its failure says nothing of the account.
 		return
 	}
-	tokenBefore := p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
-	p.told(r)(a, went{probed: probed, err: err, at: at, took: took, tokenBefore: tokenBefore})
+	taken := p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
+	if taken.liftedEarly {
+		p.emit(taken.lifted)
+	}
+	p.told(r)(a, went{probed: probed, err: err, at: at, took: took, tokenBefore: taken.tokenBefore})
 }
 
 // logProbe logs how a probe of an account went: one that failed on the token

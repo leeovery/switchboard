@@ -81,6 +81,13 @@ func (p Past) began() string {
 	return dayfile.DateOf(p.in.Began)
 }
 
+// counted is the date of the first day the Past counts of the days from the
+// one with the date first: the later of it and the day the ledger began,
+// where the input tells it.
+func (p Past) counted(first string) string {
+	return max(first, p.began())
+}
+
 // Summaries are the summaries of the days the Past holds from first to last,
 // each as dayfile.Civil gives a day, oldest first, as the ledger gave them:
 // what Runway's lanes read of the days a timeline stepped back to shows, and

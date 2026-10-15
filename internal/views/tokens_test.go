@@ -30,7 +30,7 @@ const (
 	saturdaysSplits = `"by_account":[{"account":"work",` + saturdaysTokens + `,"by_model":[{"model":"claude-opus-5-5",` + saturdaysTokens + `}]}],` +
 		`"by_model":[{"model":"claude-opus-5-5","on":["work"],` + saturdaysTokens + `}]`
 	mondaysRows = `"input":2000005,"output":7,"cache_write":0,"cache_read":0,"total":2000012,"worth":2,"unpriced":["claude-opus-9"],` +
-		`"cost":50.769230769231,"against":0.03939393939393922,` +
+		`"cost":50.769230769231,"against":0.03939393939393922,"plans":{"known":2,"of":3},` +
 		`"by_account":[{"account":"work","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1,` +
 		`"by_model":[{"model":"claude-haiku-4-5","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1}]},` +
 		`{"account":"side","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":1,` +
@@ -50,33 +50,37 @@ func TestTokensIsEachWeeksTokensByKindAccountAndModel(t *testing.T) {
 		want       string
 	}{
 		{
-			// Work's and side's plans, $200 and $20 a month, cost 12/52 of
-			// it a week, this week's whole, spare's not known.
-			name: "the empty ledger: this week, whole", days: daysFrom("2026-10-07"),
-			want: `[{"week":"2026-10-05","input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"cost":50.769230769231,"against":0}]`,
+			// Work's and side's plans, $200 and $20 a month, cost 12/365 of
+			// it a day, this week's from the ledger's first day, today, to
+			// its end, 5 days, spare's not known.
+			name: "the empty ledger: this week from its first day", days: daysFrom("2026-10-07"),
+			want: `[{"week":"2026-10-05","input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"cost":36.164383561644,"against":0,` +
+				`"plans":{"known":2,"of":3}}]`,
 		},
 		{
-			// Claude Haiku 4.5's ids are one version, by its alias; checks'
-			// and counts' tokens are among the week's, as ccusage counts
-			// them; and against the plans counts work's and side's worth
-			// alone.
+			// Claude Haiku 4.5's ids are one version, by its alias; a
+			// summary's checks and counts add no tokens; against the plans
+			// counts work's and side's worth alone; and the week the ledger
+			// began in, on the Saturday, costs its 2 days.
 			name: "across a week's end, weeks from Monday",
 			days: acrossTheWeeksEnd,
-			want: `[{"week":"2026-09-28",` + saturdaysTokens + `,"cost":50.769230769231,"against":0.14969696969696902,` + saturdaysSplits + `},` +
-				`{"week":"2026-10-05",` + mondaysRows + `}]`,
+			want: `[{"week":"2026-09-28",` + saturdaysTokens + `,"cost":14.465753424658,"against":0.525378787878771,"plans":{"known":2,"of":3},` +
+				saturdaysSplits + `},{"week":"2026-10-05",` + mondaysRows + `}]`,
 		},
 		{
+			// The week the ledger began in, from Sunday, costs its last day.
 			name:       "weeks from the day the config starts them on",
 			days:       acrossTheWeeksEnd,
 			weekStarts: new(time.Sunday),
-			want: `[{"week":"2026-09-27",` + saturdaysTokens + `,"cost":50.769230769231,"against":0.14969696969696902,` + saturdaysSplits + `},` +
-				`{"week":"2026-10-04",` + mondaysRows + `}]`,
+			want: `[{"week":"2026-09-27",` + saturdaysTokens + `,"cost":7.232876712328,"against":1.0507575757576872,"plans":{"known":2,"of":3},` +
+				saturdaysSplits + `},{"week":"2026-10-04",` + mondaysRows + `}]`,
 		},
 		{
 			name:   "at the config's price of a plan",
 			days:   daysFrom("2026-10-07", day("2026-10-07", account("work", sent("claude-opus-5-5", 1, inputUsage)))),
 			prices: config.Prices{Plans: map[string]float64{"max20x": 32, "pro": 20}},
-			want: `[{"week":"2026-10-05","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":4,"cost":12,"against":0.3333333333333333,` +
+			want: `[{"week":"2026-10-05","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":4,"cost":8.54794520548,` +
+				`"against":0.467948717948688,"plans":{"known":2,"of":3},` +
 				`"by_account":[{"account":"work","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":4,` +
 				`"by_model":[{"model":"claude-opus-5-5","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":4}]}],` +
 				`"by_model":[{"model":"claude-opus-5-5","on":["work"],"input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":4}]}]`,
@@ -94,6 +98,83 @@ func TestTokensIsEachWeeksTokensByKindAccountAndModel(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A model whose days hold Claude Code's quota checks or counts of tokens
+// alone wasn't used: no list of the models, versions or families used names
+// it, nor of the accounts that used them an account that sent them alone,
+// and no count of the versions counts it. Today, work used Opus 5.5 and
+// checked its quota with Haiku 4.5, and spare only checked its.
+func TestAModelOfQuotaChecksAloneIsListedNowhere(t *testing.T) {
+	checks := ledger.ModelDay{Model: "claude-haiku-4-5", Checks: 2, Counts: 1}
+	days := daysFrom("2026-10-07", day("2026-10-07",
+		account("spare", checks), account("work", sent("claude-opus-5-5", 1, inputUsage), checks)))
+	in := input(days)
+	history, past := views.NewHistory(in), views.NewPast(in, days)
+	tokens := past.Tokens(views.TokensAsk{}).Periods[0]
+	totals := history.Totals.Accounts
+
+	got := map[string][]string{
+		"Tokens' models":            modelsOf(tokens.ByModel),
+		"Tokens' accounts":          accountsOf(tokens.ByAccount),
+		"history's tokens' models":  modelsOf(history.Tokens[0].ByModel),
+		"work's models by share":    sharedModelsOf(totals[0].ByModel),
+		"every account's by share":  sharedModelsOf(totals[len(totals)-1].ByModel),
+		"the day's families":        familiesOf(history.Days[0].ByFamily),
+		"the month's families":      familiesOf(history.Months[0].ByFamily),
+		"the Year's versions":       past.Versions(),
+		"the Year's versions, by v": past.Year(views.YearAsk{}).Versions,
+	}
+	want := map[string][]string{
+		"Tokens' models": {"claude-opus-5-5"}, "Tokens' accounts": {"work"}, "history's tokens' models": {"claude-opus-5-5"},
+		"work's models by share": {"claude-opus-5-5"}, "every account's by share": {"claude-opus-5-5"},
+		"the day's families": {"opus"}, "the month's families": {"opus"},
+		"the Year's versions": {"Opus 5.5"}, "the Year's versions, by v": {"Opus 5.5"},
+	}
+	for list, w := range want {
+		if !slices.Equal(got[list], w) {
+			t.Errorf("%s are %q, want %q", list, got[list], w)
+		}
+	}
+	if tokens.Versions != 1 {
+		t.Errorf("Tokens counts %d models, want 1", tokens.Versions)
+	}
+}
+
+// modelsOf are the models of the rows given, by their ids.
+func modelsOf(rows []views.ModelTokens) []string {
+	var models []string
+	for _, r := range rows {
+		models = append(models, r.Model)
+	}
+	return models
+}
+
+// accountsOf are the accounts of the rows given, by their ids.
+func accountsOf(rows []views.AccountTokens) []string {
+	var accounts []string
+	for _, r := range rows {
+		accounts = append(accounts, r.Account)
+	}
+	return accounts
+}
+
+// sharedModelsOf are the models of the shares given, by their ids.
+func sharedModelsOf(shares []views.ModelShare) []string {
+	var models []string
+	for _, s := range shares {
+		models = append(models, s.Model)
+	}
+	return models
+}
+
+// familiesOf are the families of the worths given, by their names.
+func familiesOf(worths []views.FamilyWorth) []string {
+	var families []string
+	for _, w := range worths {
+		families = append(families, w.Family)
+	}
+	return families
 }
 
 func TestTokensListNoAccountWhoseDaysHoldNoModels(t *testing.T) {

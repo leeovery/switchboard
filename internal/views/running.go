@@ -30,23 +30,22 @@ type Running struct {
 	// Why is why its model named there is there, in the views' words for the
 	// router's reasons, with when, as "started here 14:41, the best".
 	Why status.Words
-	// Models are its models whose requests go there, the one seen last
-	// first.
-	Models []string
 	// Activity is what its models there are doing, the busiest of them, and
 	// when it was last seen at work there.
 	Activity Activity
 }
 
 // RunningOf are the sessions running on the accounts at the moment m, of
-// the sessions the router listed, as the request stream s has moved and seen
-// them since, as placed has them, those that run, as runningNow has them,
-// each named as the List names it, its lines as the List held, list, holds
-// them: a row on each account their models go to that run there, as
-// runningOn has it, the accounts in the config's order, and on each, the
-// session seen last first.
-func RunningOf(m status.Moment, sessions []status.Session, s Stream, list HeldList) []Running {
-	return runningOf(m, newLister(sessions, false, s, m.Now), list)
+// the sessions live gives the router listing, at m's Now, as the request
+// stream it gives has moved and seen them since, as placed has them, those
+// that run, as runningNow has them, each named as the List names it, its
+// lines as the List held, list, holds them: a row on each account their
+// models go to that run there, as runningOn has it, the accounts in the
+// config's order, and on each, the session seen last first. What each is
+// doing is as last known where live says no router lists them, as known
+// has it.
+func RunningOf(m status.Moment, live ListLive, list HeldList) []Running {
+	return runningOf(m, newLister(live.Running, live.Unlisted, live.Stream, m.Now), list)
 }
 
 // RunningCountsOf counts the sessions running on each account at the moment
@@ -54,7 +53,7 @@ func RunningOf(m status.Moment, sessions []status.Session, s Stream, list HeldLi
 // seen them since, as RunningCounts counts RunningOf's rows: which rows there
 // are doesn't hang on what names a session, so it reads no lines.
 func RunningCountsOf(m status.Moment, sessions []status.Session, s Stream) map[string]int {
-	return RunningCounts(RunningOf(m, sessions, s, HeldList{}))
+	return RunningCounts(RunningOf(m, ListLive{Running: sessions, Stream: s}, HeldList{}))
 }
 
 // runningOf are the sessions running at the moment m, as RunningOf has
@@ -143,18 +142,15 @@ func (by lister) runningOn(m status.Moment, s status.Session, id string, lines n
 	if len(there) == 0 {
 		return Running{}, false
 	}
-	slices.SortStableFunc(there, func(x, y status.Assignment) int { return y.LastSeen.Compare(x.LastSeen) })
-	named := there[0]
+	named := slices.MaxFunc(there, func(x, y status.Assignment) int { return x.LastSeen.Compare(y.LastSeen) })
 	_, model := by.names(s.ID, lines)
 	if i := slices.IndexFunc(s.Assignments, func(a status.Assignment) bool { return a.Account == id && a.Model == model }); i >= 0 {
 		named = s.Assignments[i]
 	}
-	r := Running{Account: id, Session: s.ID, Model: named.Model, Family: named.Name(), Why: whyRunning(m, s.ID, named)}
-	for _, a := range there {
-		r.Models = append(r.Models, a.Model)
-	}
-	r.Activity = busiest(by.h.at(s.ID, id, s.Assignments))
-	return r, true
+	return Running{
+		Account: id, Session: s.ID, Model: named.Model, Family: named.Name(), Why: whyRunning(m, s.ID, named),
+		Activity: by.known(busiest(by.h.at(s.ID, id, s.Assignments))),
+	}, true
 }
 
 // placed are the sessions the router listed, as the stream s has moved them

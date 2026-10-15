@@ -183,7 +183,8 @@ Compare has a column for each account, and one for `all accounts`. Each column s
 - its limits hit
 - the time it spent at its cap or a limit, and what it had left at its last reset
 - its plan and its extra usage
-- what the plan costs against what its use was worth at API prices.
+- what the plan costs against what its use was worth at API prices. Where an account has no
+  `plan`, `all accounts` says how many of the plans it knows, as its worth is every account's.
 
 `←` and `→` move a focus along the columns, scrolling them where they don't all fit. `enter`
 opens the focused account in Detail.
@@ -205,6 +206,10 @@ In Detail:
 - `↑` and `↓` choose the account in the list, `all accounts` first.
 - `→` moves into the chosen account's sessions, and `←` goes back to the list.
 - In the sessions, `↑` and `↓` choose a session, and `enter` opens its page.
+
+The chosen row is lit only where `↑` and `↓` act, in the list or in the sessions. The other's chosen
+row stays bold, marked `▸`, and `SESSIONS` is bright while you're in them. The list widens to fit
+the accounts' names where the screen has room, as USAGE's name column does.
 
 ### The period
 
@@ -301,6 +306,10 @@ reason hangs faint for 3 seconds.
 
 Where the cords don't fit, as on a phone, each account's line carries its sessions under it.
 
+While the router isn't answering, the Switchboard and the List show the sessions it last listed.
+What one was doing then, such as `↓ answering`, stays as it was but faint, here and on every other
+tab, as it may have ended since.
+
 ### The List
 
 The List is one table of today's sessions: those running first, then those ended. Each row shows
@@ -313,8 +322,10 @@ the session's:
 
 ### Keys on Sessions
 
-- `↑` and `↓` choose a session: a call on the Switchboard, or a row on the List.
+- `↑` and `↓` choose a session: a call on the Switchboard, or a row on the List. Where it's out of
+  view, the view scrolls to it.
 - `enter` opens the chosen session's page.
+- `esc` deselects it.
 
 ## Runway
 
@@ -332,10 +343,12 @@ Runway has two windows, and `<` and `>` switch between them:
 Each column of a lane is one cell, showing room, at its cap, or at its limit. The past is dimmed.
 
 Words under a lane say where a stretch without room starts and when the account is back. For
-example, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`.
+example, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`. Where one hold runs
+straight into another, the first says when it lifts, and only the last says when the account is
+back: `at its limit 14:00  ·  lifts 19:00  at its cap 14:00  ·  back Mon 21:00`.
 
 With more than one account, the pool's lane sits under the others. It shows how many accounts have
-room, a column at a time.
+room, a column at a time, and draws a line, as a lane at its limit does, where none has.
 
 To look back:
 
@@ -420,7 +433,8 @@ The page shows:
 
 - what the session is doing now, and where it runs
 - its STORY: its requests a minute, from its first to now, with each move marked and costed
-- the accounts it ran on, and what it took of each
+- the accounts it ran on, and what it took of each, their worth adding up to its turns', to the
+  cent
 - its turns, newest first.
 
 To open a session's page, do one of these:
@@ -611,17 +625,17 @@ What scrolls on each page:
 - **Accounts:** its view.
 - **History:** the Year, where the screen is shorter than it; Weeks' accounts; Days' BY ACCOUNT,
   past six accounts; and Tokens' periods.
-- **Sessions:** the List, and the Switchboard's accounts where it draws lanes.
+- **Sessions:** the List, and the Switchboard's accounts where they don't fit.
 - **Runway:** its lanes.
 - **The Log:** its table.
 - **A session's page:** its turns, or with a turn open, the turn's requests.
 
-USAGE, Weeks, Days, and the lanes on Sessions and Runway scroll an account at a time. Tokens
-scrolls a period at a time. A turn of the wheel scrolls the same.
+USAGE, Weeks, Days, the Switchboard on Sessions, and the lanes on Runway scroll an account at a
+time. Tokens scrolls a period at a time. A turn of the wheel scrolls the same.
 
 Where one account or one period doesn't fit, as on a short screen, the view scrolls whole, a row at
-a time. It does the same on History's Weeks and Days below 37 rows. It then says how many rows are
-out of view above and below.
+a time. It does the same on History's Weeks and Days below 37 rows, and the Year always scrolls
+so. It then says how many rows are out of view above and below.
 
 When `b`, a section's key, a resize or what's read turns a view from one kind of scrolling to the
 other, the view goes back to its top.
@@ -799,6 +813,10 @@ dark one.
 - `d` and `l` set the dark and the light half of the pair. If a single theme is set, they ask first,
   with `y` or `n`, whether to clear it.
 - `esc` closes the picker, putting back the theme in force.
+
+While the picker is open, a trace it would cover, in ROUTING or SESSIONS, drops its oldest minutes
+instead, so it keeps now and its rate in view. On a narrow screen, where the picker covers the whole
+trace, the trace stays under it.
 
 A badge says what each theme fills:
 

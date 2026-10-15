@@ -33,6 +33,11 @@ type passing struct {
 	// that has none of its height in a row.
 	glyphs  string
 	orBlank bool
+	// was and is, where they're given, are a glyph the frame draws over the
+	// span and the one the design has since drawn in its place: the span's
+	// cells are held to the frame as though it drew is for was, their
+	// colours and weight as it has them, rather than passed over.
+	was, is rune
 }
 
 // holds reports whether text, what the frame reads over the passing's span,
@@ -40,6 +45,8 @@ type passing struct {
 func (p passing) holds(text string) bool {
 	got := strings.TrimSpace(text)
 	switch {
+	case p.was != 0:
+		return strings.ContainsRune(got, p.was)
 	case p.glyphs != "":
 		return (got != "" || p.orBlank) && !strings.ContainsFunc(got, func(r rune) bool { return r != ' ' && !strings.ContainsRune(p.glyphs, r) })
 	case p.reads == "":
@@ -51,6 +58,8 @@ func (p passing) holds(text string) bool {
 // want says what the passing says the frame reads, as a failure gives it.
 func (p passing) want() string {
 	switch {
+	case p.was != 0:
+		return fmt.Sprintf("%q among its glyphs", p.was)
 	case p.glyphs != "" && p.orBlank:
 		return fmt.Sprintf("only %q, or blanks", p.glyphs)
 	case p.glyphs != "":
@@ -706,6 +715,19 @@ func c61bsFifth(n, requests, worth int) []passing {
 	return passings
 }
 
+// roomOf holds the rows given, each a Runway lane's or its legend's, to the
+// frame with its room drawn █, the full cell, where the frame draws ▆, the
+// lower three quarters of one, as the design has drawn a lane's room since
+// it was signed off, so a held column's ─ meets it at its middle and a
+// reset's │ at its top and bottom.
+func roomOf(rows ...int) []passing {
+	passings := make([]passing, len(rows))
+	for i, n := range rows {
+		passings[i] = passing{row: n, was: '▆', is: '█'}
+	}
+	return passings
+}
+
 // partFilled passes over the pool's part-filled cell in Runway's now column,
 // row n, column c, which the frame draws on the canvas, where the design has
 // the gradient's empty part on now's bg.subtle.
@@ -734,6 +756,23 @@ var (
 		comingLines(30, 72, "~Sat 06:00", "Sun 02:00", "Sun 21:00", "Mon 10:00", ""),
 	)
 )
+
+// focusedName passes over the last two cells of the focused account's name
+// column on row n of the matrix, which the frames leave unlit, lighting its
+// first 12 cells, where the dashboard lights the whole column but the gap
+// before the bars, 14 of the sample's 16 (the owner's call, 15 October
+// 2026).
+func focusedName(n int) passing {
+	return blankCells(n, 13, 14)
+}
+
+// sessionsFocused passes over side's row in Detail's list, row 13, which the
+// frame lights while the focus is in SESSIONS, where the dashboard keeps its
+// choice in bold, unlit, ▸ before it, as the focus has left the list; and
+// SESSIONS' heading, row 28, which the frame heads in text.subtle, where the dashboard
+// heads it in bold text.primary, as it holds the focus (the owner's call,
+// 15 October 2026).
+var sessionsFocused = []passing{cellsOf(13, 1, 17, "3 side"), cellsOf(28, 25, 32, "SESSIONS")}
 
 // passedOver is, by stem, the rows and cells each frame drew otherwise than
 // the design says, or than its world gives, which testdata/vhs/README.md
@@ -769,7 +808,7 @@ var passedOver = map[string][]passing{
 	),
 	"overview-usage-alone-160": slices.Concat(matrix160, []passing{wholeRow(37, overviewKeys)}),
 	"overview-everything-160x39": slices.Concat(
-		matrix160, charted(22, 26, 17, 37), charted(25, 26, 68, 87), charted(26, 26, 118, 136),
+		matrix160, []passing{focusedName(9)}, charted(22, 26, 17, 37), charted(25, 26, 68, 87), charted(26, 26, 118, 136),
 		oneHigh(31, 160, "0/min", "2/min", "15/min"), []passing{cellsOf(37, 117, 120, "side"), wholeRow(39, overviewKeys)},
 	),
 	"overview-six-accounts-160": slices.Concat(
@@ -802,7 +841,7 @@ var passedOver = map[string][]passing{
 		comingLines(67, 97, comingUp216[:2]...), []passing{wholeRow(70, overviewKeys)},
 	),
 	"overview-sessions-graphs-216": slices.Concat(
-		[]passing{cellsOf(13, 126, 146, sidesWeek)},
+		[]passing{focusedName(9), cellsOf(13, 126, 146, sidesWeek)},
 		charted(23, 40, 17, 47), pastNow(23, 40, 50), []passing{cellsOf(41, 48, 51, "now")}, charted(34, 40, 87, 117), charted(38, 40, 158, 184),
 		twoHigh(45, 216, 93, "0/min", "2/min", "15/min"), oneHigh(57, 216, "1/min", "0/min", "9/min", "5/min", "0/min", "0/min"),
 		[]passing{wholeRow(70, overviewKeys)},
@@ -843,7 +882,7 @@ var passedOver = map[string][]passing{
 		[]passing{wholeRow(37, accountsKeys)},
 	),
 	"accounts-compare-ten-160": slices.Concat(
-		[]passing{period(150, "this week"), unrouted(7, 72)}, haikuInCompare(60, 98, 117),
+		[]passing{period(150, "this week"), unrouted(7, 72), blankCells(12, 40, 40)}, haikuInCompare(60, 98, 117),
 		inColumns(13, 19, "", "", "", "", "", "", "53%"), inColumns(14, 19, "", "", "", "", "", "", "4%"),
 		inColumns(16, 19, "", "", "", "", "", "", "4%"), inColumns(17, 19, "", "", "", "", "", "", "1%"),
 		inColumns(21, 19, "", "", "", "", "", "", "12,598"), inColumns(22, 19, "", "6", "11", "", "", "", "51"),
@@ -883,7 +922,7 @@ var passedOver = map[string][]passing{
 			blankCells(16, 140, 140), cellsOf(17, 87, 87, "●"),
 		},
 		byDays(21, 2, 37, 41, 49, 59, 63, 67, 85, 99, 101, 103, 117, 119, 121, 127),
-		[]passing{wholeRow(37, accountsKeys)},
+		sessionsFocused, []passing{wholeRow(37, accountsKeys)},
 	),
 	"accounts-detail-one-160": slices.Concat(
 		[]passing{
@@ -1058,7 +1097,7 @@ var passedOver = map[string][]passing{
 			drawnIn(15, 32, 37, eighths+"╱┊"), drawnIn(16, 32, 37, eighths+"╱┊"),
 			cellsOf(17, 14, 20, "─ side"), cellsOf(17, 32, 37, "─┤"), cellsOf(18, 32, 42, "15h  09:12"),
 			wordsAt(20, 33, "18:05"), wordsAt(20, 57, "≈ 18 points of its 5-hour · 3 of its week"),
-			wordsAt(21, 57, "≈ 31 points of its 5-hour · 9 of its week"),
+			wordsAt(21, 57, "≈ 31 points of its 5-hour · 9 of its week"), wordsAt(21, 154, "$114.10"),
 			wordsAt(23, 123, "97%"), wordsAt(27, 67, "16.1M"), wordsAt(27, 86, "76k"), wordsAt(33, 67, "14.2M"),
 		},
 		resumedStory,
@@ -1094,10 +1133,11 @@ var passedOver = map[string][]passing{
 		cellsOf(7, 94, 96, "▲"), cellsOf(16, 110, 144, "▲ new sessions go here"),
 		wholeRow(37, "tab views   [ ] view    ↑↓ session  enter its page    p pin"),
 	},
-	"runway-5-hour-160":       {partFilled(20, 31)},
-	"runway-week-160":         slices.Concat(weeksTicks, sidesWeekOnRunway, []passing{partFilled(20, 44)}),
-	"runway-ten-accounts-160": {cellsOf(20, 39, 39, "─"), partFilled(31, 31), drawnIn(31, 39, 39, eighths)},
-	"runway-phone-52":         {partFilled(21, 16), wholeRow(33, "< > window   ←→ day   ? keys")},
+	"runway-5-hour-160":       slices.Concat(roomOf(11, 14, 17, 24), []passing{partFilled(20, 31)}),
+	"runway-week-160":         slices.Concat(roomOf(11, 14, 17, 24), weeksTicks, sidesWeekOnRunway, []passing{partFilled(20, 44)}),
+	"runway-stepped-back-160": roomOf(11, 14, 17, 24),
+	"runway-ten-accounts-160": slices.Concat(roomOf(10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 34), []passing{cellsOf(20, 39, 39, "─"), partFilled(31, 31), drawnIn(31, 39, 39, eighths)}),
+	"runway-phone-52":         slices.Concat(roomOf(12, 15, 18, 25), []passing{partFilled(21, 16), wholeRow(33, "< > window   ←→ day   ? keys")}),
 }
 
 func TestReferenceKeepsEachFrameAsTextANSIAndPNG(t *testing.T) {
@@ -1166,7 +1206,6 @@ func TestEveryFramesANSIParsesToItsText(t *testing.T) {
 }
 
 func TestEveryFixtureNamedAfterAFrameDrawsItCellForCell(t *testing.T) {
-	utc := local()
 	canvas := rgb(terminalBackground.R, terminalBackground.G, terminalBackground.B)
 	names := Names()
 	for _, stem := range stems(t) {
@@ -1174,14 +1213,13 @@ func TestEveryFixtureNamedAfterAFrameDrawsItCellForCell(t *testing.T) {
 			continue
 		}
 		t.Run(stem, func(t *testing.T) {
+			t.Parallel()
 			frame, _ := reference(t, stem)
-			// A fixture over records is drawn in time.Local whatever the zone
-			// asked, as fixtures builds it.
-			drawn, err := parse(frameOf(t, utc, stem))
+			drawn, err := parse(frameOf(t, stem))
 			if err != nil {
 				t.Fatalf("parsing what %s draws: %v", stem, err)
 			}
-			diffs, err := compare(frame, drawn, canvas, spans(passedOver[stem]))
+			diffs, err := compare(redrawn(frame, passedOver[stem]), drawn, canvas, spans(passedOver[stem]))
 			if err != nil {
 				t.Fatalf("%s: %v", stem, err)
 			}
@@ -1231,6 +1269,8 @@ func TestAPassingHoldsTheFrameToWhatItSaysItReads(t *testing.T) {
 		{name: "a story's columns", passing: storyColumns(1, 1, 1, 2, 3)[0], text: "▂┊▅", want: true},
 		{name: "a story's columns, none of their height in the row", passing: storyColumns(1, 1, 1, 2, 3)[0], text: "   ", want: true},
 		{name: "words where it says a story's columns", passing: storyColumns(1, 1, 1, 2, 3)[0], text: "14:31"},
+		{name: "a lane's room, its holds and its reset", passing: roomOf(1)[0], text: " 1 work   ▆▆──│▆", want: true},
+		{name: "a lane drawn without the room it redraws", passing: roomOf(1)[0], text: " 1 work   ───│──"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1238,6 +1278,32 @@ func TestAPassingHoldsTheFrameToWhatItSaysItReads(t *testing.T) {
 				t.Errorf("a passing that wants it %s holds %q: %v, want %v", tt.passing.want(), tt.text, got, tt.want)
 			}
 		})
+	}
+}
+
+// A passing that redraws a glyph holds its row to the frame as though the
+// frame drew the new glyph for the old, the cell's colours and weight as the
+// frame has them, every other glyph and every other row as it drew them,
+// the frame itself untouched; and it passes no cell over.
+func TestARedrawingPassingHoldsItsCellsAsThoughTheFrameDrewItsGlyph(t *testing.T) {
+	green := pen{fg: rgb(0x8f, 0xbc, 0xbb), bold: true}
+	frame := grid{
+		{{glyph: '▆', pen: green}, {glyph: '─', pen: green}},
+		{{glyph: '▆', pen: green}},
+	}
+	passings := roomOf(1)
+	want := grid{
+		{{glyph: '█', pen: green}, {glyph: '─', pen: green}},
+		{{glyph: '▆', pen: green}},
+	}
+	if got := redrawn(frame, passings); !slices.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("redrawn, the frame reads %v, want %v", got, want)
+	}
+	if frame[0][0].glyph != '▆' {
+		t.Error("redrawing changed the frame itself")
+	}
+	if got := spans(passings); len(got) > 0 {
+		t.Errorf("a redrawing passing passes over %v, want nothing", got)
 	}
 }
 
@@ -1304,13 +1370,37 @@ func sizeOf(t *testing.T, stem string) (width, height int) {
 	return width, 0
 }
 
-// spans are the spans the passings given pass over.
+// spans are the spans the passings given pass over, those that redraw a
+// glyph aside.
 func spans(passings []passing) []span {
 	var s []span
 	for _, p := range passings {
-		s = append(s, p.span)
+		if p.was == 0 {
+			s = append(s, p.span)
+		}
 	}
 	return s
+}
+
+// redrawn is g as the passings given that redraw a glyph have it: each cell
+// of their spans drawn in their was drawn in their is instead, its colours
+// and weight as g has them.
+func redrawn(g grid, passings []passing) grid {
+	cells := make(grid, len(g))
+	for r, row := range g {
+		cells[r] = slices.Clone(row)
+	}
+	for _, p := range passings {
+		if p.was == 0 || !within(p.span, g) {
+			continue
+		}
+		for c := range cells[p.row-1] {
+			if p.covers(p.row, c+1) && cells[p.row-1][c].glyph == p.was {
+				cells[p.row-1][c].glyph = p.is
+			}
+		}
+	}
+	return cells
 }
 
 // within reports whether s is a span of g's cells: its row one of g's, and

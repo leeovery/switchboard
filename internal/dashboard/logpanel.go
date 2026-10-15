@@ -398,12 +398,12 @@ func (p LogPanel) named(id string) string {
 }
 
 // sessionDoing is what a session's row says it's doing at now, as its Doing
-// has it: asking in accent.key; started, idle or ended, and when, in
-// text.muted; nothing while it's busy.
+// has it: asking in accent.key, or as last known as asKnown inks it;
+// started, idle or ended, and when, in text.muted; nothing while it's busy.
 func sessionDoing(s views.LogSession, now time.Time) span {
 	switch doing, since := s.Doing(now); doing {
 	case views.LogAsking:
-		return span{"asking", doingInk}
+		return span{"asking", asKnown(s.Activity, doingInk)}
 	case views.LogStarted:
 		return span{"started " + prose.TimeOfDay(now, since), mutedInk}
 	case views.LogIdle:

@@ -94,9 +94,10 @@ func (t comingTeller) happenings(coming []status.Upcoming) []happening {
 
 // happening is what doc's COMING UP says comes of u: its account back from
 // its limit, as in "back from its limit", or from one of some models alone,
-// named by its window, as in "back from its Fable wk limit", or from its
-// cap; a window running out, as runningOut says; a window resetting, as in
-// "'s 5-hour resets"; or its being primed. It reports false for a kind it
+// named by its window, as in "back from its Fable wk limit", from its cap,
+// or from the refusal of its token, as in "back from its refused token"; a
+// window running out, as runningOut says; a window resetting, as in "'s
+// 5-hour resets"; or its being primed. It reports false for a kind it
 // doesn't tell of, as one from a later router.
 func (t comingTeller) happening(u status.Upcoming) (happening, bool) {
 	h := happening{at: u.At, name: overviewNamed(t.moment, t.names, u.Account, titleInk)}
@@ -115,12 +116,15 @@ func (t comingTeller) happening(u status.Upcoming) (happening, bool) {
 	return h, true
 }
 
-// holder names what held back the account u is back from: its cap, or its
-// limit, each named by the window that held back some models' requests
-// alone, as in "Fable wk cap".
+// holder names what held back the account u is back from: the refusal of
+// its token, as "refused token"; or its cap, or its limit, each named by the
+// window that held back some models' requests alone, as in "Fable wk cap".
 func (t comingTeller) holder(u status.Upcoming) string {
 	what := "limit"
-	if u.Cap {
+	switch {
+	case u.Refused:
+		return "refused token"
+	case u.Cap:
 		what = "cap"
 	}
 	if u.Window == "" {

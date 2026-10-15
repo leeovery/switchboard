@@ -15,13 +15,16 @@ import (
 )
 
 // What Runway's lanes say is the same whatever span of the readings history
-// Runway's tail reads, so long as it covers the timeline: at every hard
-// moment, live in either view, and at every moment Runway has to get right,
-// each figure of the lanes judged by what a tail reads, as the watch's does,
-// from the timeline's start, from the start of its day, and from three days
-// before, each window's run before it carried in from a week before, is that
-// of the lanes judged by every reading up to the tail's end, a week on from
-// now's day.
+// Runway's tail reads, so long as it covers the timeline's days, as the
+// watch's tail does: at every hard moment, live in either view, and at every
+// moment Runway has to get right, each figure of the lanes judged by what a
+// tail reads, as the watch's does, from the start of the timeline's first
+// day, and from three days before, each window's run before it carried in
+// from a week before, is that of the lanes judged by every reading up to the
+// tail's end, a week on from now's day. A tail from the timeline's own start
+// would carry in each window's last run before it alone, and not the run of
+// another window that began a hold one carried in took over, which the
+// readings tell where they hold it.
 func TestRunwaysLanesAreTheSameWhateverSpanTheTailReads(t *testing.T) {
 	for _, c := range spanCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -30,7 +33,7 @@ func TestRunwaysLanesAreTheSameWhateverSpanTheTailReads(t *testing.T) {
 			every := c.from
 			every.Readings = tailRead(c.read, time.Time{}, end)
 			want := runwayFigures(views.Lanes{}.Look(every), every)
-			for _, start := range slices.CompactFunc([]time.Time{tl.Start, dayfile.DayStart(tl.Start, 0), dayfile.DayStart(tl.Start, -3)}, time.Time.Equal) {
+			for _, start := range []time.Time{dayfile.DayStart(tl.Start, 0), dayfile.DayStart(tl.Start, -3)} {
 				cut := c.from
 				cut.Readings = tailRead(c.read, start, end)
 				got := runwayFigures(views.Lanes{}.Look(cut), cut)
@@ -59,9 +62,9 @@ type spanCase struct {
 // Runway has to get right, as it's shown.
 func spanCases() []spanCase {
 	var cases []spanCase
-	for _, hm := range statustest.HardMoments(claude.Policy) {
+	for _, hm := range statustest.HardMoments(claude.Policy()) {
 		for _, w := range []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek} {
-			from := views.LanesFrom{Moment: hm.Doc.At(hm.Now, claude.Policy), Timeline: views.LiveTimeline(w, hm.Now, 136), Window: w}
+			from := views.LanesFrom{Moment: hm.Doc.At(hm.Now, claude.Policy()), Timeline: views.LiveTimeline(w, hm.Now, 136), Window: w}
 			cases = append(cases, spanCase{name: fmt.Sprintf("%s, the %s view", hm.Name, viewKeys[w]), from: from, read: docReadings(hm.Doc)})
 		}
 	}

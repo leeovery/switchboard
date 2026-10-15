@@ -70,13 +70,13 @@ func (w accountWorld) document(now time.Time) status.Document {
 		st := w.account(a, held[a.ID], at)
 		doc.Accounts = append(doc.Accounts, st)
 		doc.Sessions += st.Sessions
-		if !st.Shut(at, claude.Policy) {
+		if !st.Shut(at, claude.Policy()) {
 			open = append(open, st)
 		}
 	}
-	doc.Best = cmp.Or(w.best, status.Best(claude.Policy, open, w.pin.Accounts, at))
+	doc.Best = cmp.Or(w.best, status.Best(claude.Policy(), open, w.pin.Accounts, at))
 	doc.Primary = status.PrimaryOf(doc.Accounts)
-	return doc.WorkedOut(claude.Policy)
+	return doc.WorkedOut(claude.Policy())
 }
 
 // extraOff is extra usage as the provider gives it of an account that has
@@ -94,7 +94,7 @@ func (w accountWorld) account(a config.Account, h history, at time.Time) status.
 	held := h.before(read)
 	latest := held.windows(claude.WindowLabel)
 	st.Windows, st.Extra = latest, extraOff
-	st = st.AsOf(claude.Policy, at)
+	st = st.AsOf(claude.Policy(), at)
 	st.Limit, st.Refused, st.Sessions = w.limits[a.ID], w.refused[a.ID], w.sessions[a.ID]
 	trails := held.trails()
 	st.Rates = status.RatesOf(latest, trails, at)
@@ -165,8 +165,8 @@ func (h history) trails() map[string][]score.Reading {
 // as last read latest, as the router gives it, as status.PressureFrom says: at
 // its pace over its trail, and, pinned, spending its reserve.
 func pressureOf(st status.Account, latest []quota.Window, trails map[string][]score.Reading, pinned bool, at time.Time) status.Pressure {
-	return status.PressureFrom(claude.Policy, status.Pressing{
-		ID: st.ID, Reserve: st.Reserve, Latest: latest, Trails: trails, Spent: pinned, Shut: st.Shut(at, claude.Policy),
+	return status.PressureFrom(claude.Policy(), status.Pressing{
+		ID: st.ID, Reserve: st.Reserve, Latest: latest, Trails: trails, Spent: pinned, Shut: st.Shut(at, claude.Policy()),
 	}, at)
 }
 
@@ -360,6 +360,15 @@ func (a accountWorlds) auto() accountWorld {
 			routed: routedSessions, events: autoEvents(a.now), stream: inFlight(a.now), traffic: true,
 		}
 	})
+}
+
+// sidesPlanUnknown is the auto world with side on no plan the config names,
+// so every account's worth against the plans is over work's and personal's
+// alone, 2 of the 3.
+func (a accountWorlds) sidesPlanUnknown() accountWorld {
+	w := a.auto()
+	w.accounts[2].Plan = ""
+	return w
 }
 
 // pinned is the auto world's accounts, read as it reads them, with new

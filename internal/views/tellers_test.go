@@ -76,7 +76,7 @@ func TestTheLogAndLATELYSayTheSameFactsOfTheSameEvents(t *testing.T) {
 	saidByBoth := make(map[string]bool)
 	for _, hm := range viewstest.EventMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
-			m := status.Document{Source: status.SourceRouter, Events: hm.Live}.At(hm.Now, claude.Policy)
+			m := status.Document{Source: status.SourceRouter, Events: hm.Live}.At(hm.Now, claude.Policy())
 			telling := views.NewTelling(m.NameOf)
 			logged := make(map[int]string)
 			for _, e := range slices.Backward(hm.Live) {

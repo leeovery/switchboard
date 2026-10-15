@@ -277,6 +277,37 @@ func TestResetByHand(t *testing.T) {
 	}
 }
 
+// A window resets between two readings of it where the later shows it reset
+// by hand, at the later's reading; where the earlier's reset had passed by
+// then, at that reset; and where the later's reset is later than the
+// earlier's, which hadn't come, at the later's reading. A reading after none,
+// or a window running on, tells of none.
+func TestWhenAWindowResetBetweenTwoReadings(t *testing.T) {
+	held := session(0.3, time.Hour)
+	later := now.Add(10 * time.Minute)
+	tests := []struct {
+		name   string
+		was, w quota.Window
+		at     time.Time
+		want   time.Time
+	}{
+		{name: "reset by hand", was: held, w: session(0.05, time.Hour), at: later, want: later},
+		{name: "past its reset", was: held, w: session(0.1, -10*time.Minute), at: now.Add(5 * time.Hour), want: held.ResetsAt},
+		{name: "started again before its reset", was: held, w: session(0.05, 0), at: later, want: later},
+		{name: "running on", was: held, w: session(0.35, time.Hour), at: later},
+		{name: "a dip that's noise", was: held, w: session(0.25, time.Hour), at: later},
+		{name: "after no reading", w: held, at: later},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := score.ResetBetween(tt.was, tt.w, tt.at)
+			if ok != !tt.want.IsZero() || !got.Equal(tt.want) {
+				t.Errorf("ResetBetween = %v, %v; want %v", got, ok, tt.want)
+			}
+		})
+	}
+}
+
 // A reading holds its account back at its cap from the use its reserve
 // leaves, allowing for rounding, short of its limit; and at its limit used
 // up or refused, whatever its use. Without a reserve, it has no cap.

@@ -25,8 +25,11 @@ const (
 	// each account's session ids, rises, resets and minutes at its cap and at
 	// a limit. Version 3 gives a day of no requests the accounts the readings
 	// history tells of, as any day's, and climbs each window as Climb does.
-	// Version 4 adds each model's session ids.
-	summaryVersion = 4
+	// Version 4 adds each model's session ids. Version 5 leaves quota
+	// checks' usage out of a model's, as worthUsage does, so nothing prices
+	// it: a day summarised before it keeps theirs when summarised again, as
+	// a summary written again knows no less.
+	summaryVersion = 5
 	// readingsBefore is how far before a day the readings that say the use
 	// each window began it at are looked for: a week, the longest a window
 	// runs, so a window read before then has reset since.
@@ -184,7 +187,8 @@ type ModelDay struct {
 	// Usage is the requests' usage, summed field for field as the API gives
 	// it, an object's fields within it, and a list's objects by their types,
 	// as an answer's iterations give theirs: what isn't a count, as the
-	// service tier, is left out.
+	// service tier, is left out, and so, since version 5, is the checks'
+	// usage, which nothing prices.
 	Usage json.RawMessage `json:"usage,omitempty"`
 }
 
@@ -570,7 +574,8 @@ func (t tally) line(l *Line) {
 // line tallies one of the day's lines of the model's requests on the
 // account: a check and a count as such, sent on or not; one that went
 // upstream, as Upstream says, as upstream, and where its answer gave no usage,
-// as unmetered says, as that too; and the rest as unsent.
+// as unmetered says, as that too; and the rest as unsent. Its usage is summed
+// as worthUsage gives it, none of a check's.
 func (m *modelTally) line(l *Line) {
 	switch {
 	case l.Kind == KindCheck:
@@ -586,7 +591,7 @@ func (m *modelTally) line(l *Line) {
 		m.day.Unsent++
 	}
 	m.sessions.add(l.CountedSession())
-	m.usage.add(l.Usage)
+	m.usage.add(l.worthUsage())
 }
 
 // readings tallies each window's highest use on the day that starts at start,

@@ -125,17 +125,48 @@ func (f Frame) drawTrace(c *canvas, t views.Trace, now time.Time, at bounds, fad
 }
 
 // drawCells draws a trace's cells, each its requests a minute, in the bounds
-// given, a column a cell, the newest at the right; faded where its account is
-// out of the pool. Where c holds its traces, it's painted once every trace
-// on it is drawn, at the scale they share; else it's painted now, at the
-// frame's TraceScale, or leastScale where it pins none.
+// given, a column a cell, the newest at the right, as many as show beside
+// what a slide-over covers, as uncovered has them; faded where its account
+// is out of the pool. Where c holds its traces, it's painted once every
+// trace on it is drawn, at the scale they share; else it's painted now, at
+// the frame's TraceScale, or leastScale where it pins none.
 func (f Frame) drawCells(c *canvas, cells []float64, at bounds, faded bool) {
-	t := tracing{on: c, cells: cells[:min(len(cells), max(at.width, 0))], at: at, faded: faded}
+	shown, at := f.uncovered(cells[:min(len(cells), max(at.width, 0))], at)
+	t := tracing{on: c, cells: shown, at: at, faded: faded}
 	if c.traces == nil {
 		f.paintTrace(t, f.traceScale(nil))
 		return
 	}
 	*c.traces = append(*c.traces, t)
+}
+
+// uncovered are a trace's cells, a column each in the bounds given, and the
+// bounds they take, beside what a slide-over covers of the frame: as many of
+// its oldest dropped as covered has it, so it ends as far short of the
+// slide-over as it would of the edge, now's end in view.
+func (f Frame) uncovered(cells []float64, at bounds) ([]float64, bounds) {
+	drop := min(f.covered(at), len(cells))
+	at.width -= drop
+	return cells[drop:], at
+}
+
+// covered is how many cells a trace in the bounds given, running to the
+// frame's edge, gives up to what a slide-over covers: as many as it covers,
+// where the trace keeps a cell beside it; else none, the trace and its rate
+// keeping their place under it, so its rate, which ends as many cells short
+// of the edge as the trace gives up, never lands on the words before it.
+func (f Frame) covered(at bounds) int {
+	if covers := max(f.Covered, 0); at.width > covers {
+		return covers
+	}
+	return 0
+}
+
+// rateEdge is the column after the last of the trace's rate, the trace in
+// the bounds given: the frame's edge, less what the trace gives up to a
+// slide-over, as covered has it.
+func (f Frame) rateEdge(trace bounds) int {
+	return f.Width - f.covered(trace)
 }
 
 // paintTrace paints the trace t, scale requests a minute filling its rows:

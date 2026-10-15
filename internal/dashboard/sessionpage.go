@@ -289,7 +289,8 @@ func (d sessionDrawn) leftOf(c *canvas, y int, right line) int {
 
 // doing is what the session's doing, as its page says it, bold: asking or
 // answering in accent.key, refused in state.destructive, throttled in
-// text.subtle, idle in text.faint, and ended in text.secondary.
+// text.subtle, idle in text.faint, and ended in text.secondary; but what's
+// in flight as last known as asKnown has it.
 func (d sessionDrawn) doing() line {
 	a := d.page.Activity
 	k := idleInk
@@ -303,7 +304,7 @@ func (d sessionDrawn) doing() line {
 	case views.Ended:
 		k = strongInk
 	}
-	return line{{a.Said(d.now), k}}
+	return line{{a.Said(d.now), asKnown(a, k)}}
 }
 
 // started says when the session started and how it has run since, as row
@@ -561,7 +562,7 @@ func (d sessionDrawn) turn(c *canvas, y int, t views.Turn, newest bool) {
 		c.emboldened(0, y, chosenCells)
 	}
 	if said := d.page.Activity.WaitingSaid(); newest && said != "" {
-		c.text(askingAt, y, said, keyInk)
+		c.text(askingAt, y, said, asKnown(d.page.Activity, keyInk))
 	}
 }
 

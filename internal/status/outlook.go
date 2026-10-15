@@ -36,8 +36,9 @@ type PoolWindow struct {
 
 // The kinds of thing coming up, as an Upcoming's Kind says.
 const (
-	// UpcomingBack is an account having room again: its limit lifting, or,
-	// with Cap, the window at its cap resetting.
+	// UpcomingBack is an account having room again: its limit lifting; with
+	// Cap, the window at its cap resetting; or, with Refused, the refusal of
+	// its token ending, where that lifts last.
 	UpcomingBack = "back"
 	// UpcomingRunsOut is a window running out before it resets: at its
 	// account's cap, with Cap, else at its limit.
@@ -61,8 +62,10 @@ type Upcoming struct {
 	// for a prime.
 	Window string `json:"window,omitempty"`
 	// Cap is set where it's the account's cap, rather than its limit, that
-	// it's back from or runs out at.
-	Cap bool `json:"cap,omitempty"`
+	// it's back from or runs out at; and Refused where it's back from the
+	// refusal of its token, which lifts after its limit and its cap.
+	Cap     bool `json:"cap,omitempty"`
+	Refused bool `json:"refused,omitempty"`
 }
 
 // WorkedOut is the document with what's worked out of it as of when it was
@@ -221,25 +224,44 @@ func (s standing) shut() bool {
 	return s.outOfQuota() || s.refused
 }
 
+// lastHold is which of the holds that keep an account from new work lifts
+// last, so it's back from that one: a limit holding back its every request,
+// its cap, or the refusal of its token.
+type lastHold int
+
+const (
+	lastLimit lastHold = iota
+	lastCap
+	lastRefusal
+)
+
 // back is when the account is back from every hold that keeps it from new
 // work: once the last lifts of a limit holding back its every request, as
 // held has it, its cap, at capBack, and the refusal of its token, at
 // refused, each where it holds; zero where none does, or one of them lifts
-// at no known time. capLast is set where its cap lifts after any such limit,
-// so it's its cap, of its quota's holds, it's back from.
-func (s standing) back(capBack, refused time.Time) (back time.Time, capLast bool) {
+// at no known time. last is the hold it's back from, the last to lift: its
+// cap where that lifts after any such limit, and the refusal of its token
+// where that lifts after both; where two lift together, a hold of its quota
+// before the refusal, and its limit before its cap.
+func (s standing) back(capBack, refused time.Time) (back time.Time, last lastHold) {
 	var lifts []time.Time
+	var quotaBack time.Time
 	if s.every() {
-		lifts = append(lifts, s.held.Until)
+		lifts, quotaBack = append(lifts, s.held.Until), s.held.Until
 	}
 	if s.capped {
 		lifts = append(lifts, capBack)
-		capLast = !s.every() || capBack.After(s.held.Until)
+		if !s.every() || capBack.After(s.held.Until) {
+			last, quotaBack = lastCap, capBack
+		}
 	}
 	if s.refused {
 		lifts = append(lifts, refused)
+		if !s.outOfQuota() || refused.After(quotaBack) {
+			last = lastRefusal
+		}
 	}
-	return lastLift(lifts), capLast
+	return lastLift(lifts), last
 }
 
 // lastLift is when the last of the lifts given comes: zero where there are
@@ -447,14 +469,15 @@ func (d Document) backsOfModels(j judgedAccount) []Upcoming {
 
 // backFromEvery is when the account judged as j, held back from every
 // request by a limit or its cap, has room again: once it's back, as its
-// moment's Back has it, Cap set where its cap is the last of its quota's
-// holds to lift; none where that isn't known.
+// moment's Back has it, from the last of its holds to lift, Cap set where
+// that's its cap, and Refused where it's the refusal of its token; none
+// where that isn't known.
 func (j judgedAccount) backFromEvery() []Upcoming {
 	s := j.states
 	if s.back.IsZero() {
 		return nil
 	}
-	return []Upcoming{{At: s.back, Account: s.account.ID, Kind: UpcomingBack, Cap: s.capLast}}
+	return []Upcoming{{At: s.back, Account: s.account.ID, Kind: UpcomingBack, Cap: s.last == lastCap, Refused: s.last == lastRefusal}}
 }
 
 // runningOut is the windows of the account judged as j running out before

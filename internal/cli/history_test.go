@@ -409,9 +409,11 @@ func TestHistorysTextOfBlocksNotBuiltAsHistoryBuildsThemWritesWhatTheyGive(t *te
 func TestHistorysTextCountsOneAsOne(t *testing.T) {
 	price := ledger.Picodollars(200_000_000_000_000)
 	history := views.History{
-		Days:     aDayOfARequest,
-		Totals:   views.Totals{Accounts: []views.AccountTotals{{Account: "work", LongestRun: 1}, {All: true, LongestRun: 1}}},
-		Plans:    []views.PlanCost{{Account: "work", Plan: "max20x", Price: &price}, {All: true, Price: &price}},
+		Days:   aDayOfARequest,
+		Totals: views.Totals{Accounts: []views.AccountTotals{{Account: "work", LongestRun: 1}, {All: true, LongestRun: 1}}},
+		Plans: []views.PlanCost{
+			{Account: "work", Plan: "max20x", Price: &price}, {All: true, Price: &price, Plans: views.PlansKnown{Known: 1, Of: 1}},
+		},
 		Capacity: views.Capacity{Weeks: 1, Verdict: "about right", Accounts: []views.AccountVerdict{{Account: "work", Verdict: "hits its limit most weeks", Weeks: 1, Limits: 1, LeftAtReset: new(0.0)}}},
 	}
 
@@ -474,6 +476,39 @@ func TestHistorysTotalsSayTheirFiguresAsTheDashboardDoes(t *testing.T) {
 			var out bytes.Buffer
 			if err := cli.WriteHistory(&out, history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), tt.want) {
 				t.Errorf("history printed\n%s(%v)\nwant it to say\n%s", out.String(), err, tt.want)
+			}
+		})
+	}
+}
+
+// Every account's plan says how many of the accounts' plans are known where
+// some aren't, and its worth against them that it's over those alone, as the
+// dashboard says them.
+func TestHistorysTotalsOfEveryAccountSayHowManyPlansAreKnown(t *testing.T) {
+	price, cost := ledger.Picodollars(220_000_000_000_000), ledger.Picodollars(92_000_000_000_000)
+	tests := []struct {
+		name  string
+		known views.PlansKnown
+		want  []string
+	}{
+		{name: "2 of 3", known: views.PlansKnown{Known: 2, Of: 3},
+			want: []string{"  $220/mo · 2 of 3 plans\n", "  4.4× its $92 · 2 of 3 plans known\n"}},
+		{name: "every one", known: views.PlansKnown{Known: 3, Of: 3}, want: []string{"  $220/mo · 3 plans\n", "  4.4× its $92\n"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			all := views.PlanCost{All: true, Price: &price, Cost: &cost, Ratio: new(4.4), Plans: tt.known}
+			history := views.History{Days: aDayOfARequest, Totals: views.Totals{Accounts: []views.AccountTotals{{Account: "work"}, {All: true}}},
+				Plans: []views.PlanCost{{Account: "work"}, all}}
+
+			var out bytes.Buffer
+			if err := cli.WriteHistory(&out, history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(out.String(), want) {
+					t.Errorf("history printed\n%s\nwant it to say %q", out.String(), want)
+				}
 			}
 		})
 	}

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -69,14 +70,14 @@ func (m SessionMove) Said(form MoveForm) status.Words {
 	if last := len(said) - 1; last < 0 || said[last] != status.Named(m.To) {
 		said = slices.Concat(said, status.Words{status.Plain(" → "), status.Named(m.To)})
 	}
-	if !m.Rewrote {
+	cost := rewriteSaid(m.Rewrote, m.Cost)
+	switch {
+	case cost == "":
 		return said
+	case m.Cost == nil:
+		return slices.Concat(said, worth, status.Words{status.Plain(cost)})
 	}
-	cost := status.Plain(unpriced)
-	if m.Cost != nil {
-		cost = status.Figure(Worth{Amount: m.Cost}.Cents())
-	}
-	return slices.Concat(said, worth, status.Words{cost})
+	return slices.Concat(said, worth, status.Words{status.Figure(cost)})
 }
 
 // WhereSaid is where a session runs and why, at a moment, as its page says
@@ -239,6 +240,15 @@ type Stay struct {
 	// Said is its time there, as prose.Stint says it: "12:02 – 14:31",
 	// "today 09:12 – now".
 	Said string
+	// cents is its worth to the cent, as Cents says it.
+	cents ledger.Picodollars
+}
+
+// Cents is its worth to the cent as its row says it, as Worth's Cents says
+// it, but in its stead: its rounding reconciled to the session's, as
+// toTheCent reconciles it, so the rows add up to TURNS' total, cent for cent.
+func (s Stay) Cents() string {
+	return s.centsAt(s.cents)
 }
 
 // Stays are the accounts the session ran on, in the order it first did,
@@ -255,13 +265,18 @@ func (p SessionPage) Stays(now time.Time) []Stay {
 	first := slices.MinFunc(p.Accounts, func(a, b SessionAccount) int { return a.From.Compare(b.From) }).From
 	last := slices.MaxFunc(p.Accounts, func(a, b SessionAccount) int { return a.To.Compare(b.To) })
 	dated := !prose.SameDay(now, first, now)
+	amounts := make([]ledger.Picodollars, len(p.Accounts))
+	for i, a := range p.Accounts {
+		amounts[i] = a.amount()
+	}
+	cents := toTheCent(amounts)
 	stays := make([]Stay, len(p.Accounts))
 	for i, a := range p.Accounts {
 		to := a.To
 		if p.Runs() && a.Account == last.Account {
 			to = time.Time{}
 		}
-		stays[i] = Stay{SessionAccount: a, Said: prose.Stint(now, a.From, to, dated)}
+		stays[i] = Stay{SessionAccount: a, Said: prose.Stint(now, a.From, to, dated), cents: cents[i]}
 	}
 	return stays
 }

@@ -19,7 +19,7 @@ import (
 // allowance; the pool's windows, their bars' use and the room left; and
 // what's coming up.
 func usageWords(doc status.Document, now time.Time) []string {
-	m := doc.At(now, claude.Policy)
+	m := doc.At(now, claude.Policy())
 	var words []string
 	for _, a := range doc.Accounts {
 		at, _ := m.Account(a.ID)

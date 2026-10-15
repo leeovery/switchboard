@@ -423,7 +423,7 @@ func TestEachFrameReadsTheStreamAsTheViewsLastHeardIt(t *testing.T) {
 	now := h.clock.now
 	f, mo := h.model.frame(now), h.model.moment(now)
 	look := func(s views.Stream) float64 {
-		return testing.AllocsPerRun(10, func() { views.RunningOf(mo, f.Sessions, s, f.HeldList) })
+		return testing.AllocsPerRun(10, func() { views.RunningOf(mo, views.ListLive{Running: f.Sessions, Stream: s}, f.HeldList) })
 	}
 	if heard, afresh := look(f.Stream), look(views.Stream{Live: f.Stream.Live, Requests: f.Stream.Requests, Moves: f.Stream.Moves}); heard >= afresh {
 		t.Errorf("a look at the frame's stream allocates %.0f times, one at it heard afresh %.0f: the frame's is heard again at each look", heard, afresh)
@@ -500,7 +500,7 @@ func runningOnWorkHeard(s views.Stream, at time.Time) []views.Running {
 		return status.Assignment{Model: model, Family: strings.Split(model, "-")[1], Account: "work", Reason: "new", AssignedAt: at.Add(-2 * time.Hour), LastSeen: at.Add(-ago)}
 	}
 	listed := []status.Session{{ID: idD28C, Assignments: []status.Assignment{seen(opus, time.Minute), seen(haiku, 2*time.Minute)}}}
-	return views.RunningOf(routerDocument(three()...).At(at, policy), listed, s, views.HeldList{})
+	return views.RunningOf(routerDocument(three()...).At(at, policy), views.ListLive{Running: listed, Stream: s}, views.HeldList{})
 }
 
 // sameMap reports whether a and b are the very same map, not alike ones.
@@ -513,7 +513,7 @@ func sameMap[K comparable, V any](a, b map[K]V) bool {
 func d28cRunning(t *testing.T, h *harness, now time.Time) views.Running {
 	t.Helper()
 	f := h.model.frame(now)
-	running := views.RunningOf(h.model.moment(now), f.Sessions, f.Stream, f.HeldList)
+	running := views.RunningOf(h.model.moment(now), views.ListLive{Running: f.Sessions, Stream: f.Stream}, f.HeldList)
 	i := slices.IndexFunc(running, func(r views.Running) bool { return r.Session == idD28C && r.Account == "work" })
 	if i < 0 {
 		t.Fatalf("the views run %+v, want d28c on work", running)

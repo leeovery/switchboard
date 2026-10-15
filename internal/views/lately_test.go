@@ -24,7 +24,7 @@ func latelyOf(events ...status.Event) status.Document {
 // lately are doc's events as LATELY tells them at now, n at most, as Lately
 // has them of its moment then.
 func lately(doc status.Document, now time.Time, n int) []views.Sentence {
-	return views.Lately(doc.At(now, claude.Policy), n)
+	return views.Lately(doc.At(now, claude.Policy()), n)
 }
 
 // sentenceOf is the one sentence LATELY tells of e, told at now.
@@ -86,6 +86,8 @@ func TestLATELYTellsEachKindOfEventInItsSentence(t *testing.T) {
 		{name: "a limit in two windows", event: status.Event{Kind: status.EventLimit, Account: "personal", Windows: []string{"5h", "7d"}},
 			full: "personal reached its 5-hour and week limits", short: "personal at its limit", subject: "personal"},
 		{name: "a limit in a model's own week", event: status.Event{Kind: status.EventLimit, Account: "personal", Windows: []string{"7d_oi"}},
+			full: "personal reached its Fable week limit", short: "personal at its limit", subject: "personal"},
+		{name: "a limit a window joined after it began, named by those it began with", event: status.Event{Kind: status.EventLimit, Account: "personal", Windows: []string{"7d_oi", "5h"}, Joined: map[string]time.Time{"5h": at(14, 0)}},
 			full: "personal reached its Fable week limit", short: "personal at its limit", subject: "personal"},
 		{name: "a limit naming no window", event: status.Event{Kind: status.EventLimit, Account: "personal"},
 			full: "personal reached its limit", short: "personal at its limit", subject: "personal"},

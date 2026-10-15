@@ -1,8 +1,6 @@
 package watch
 
 import (
-	"errors"
-	"io/fs"
 	"slices"
 	"time"
 
@@ -20,7 +18,8 @@ import (
 // once a run, as History or Accounts is first shown, and of the earliest
 // calendar year the Year steps back to that they don't reach, each brought
 // up to today at each look since; the day the ledger began, where it tells
-// it, and whether a failure to has been logged, the once; the day weeks
+// it, and whether that's today's as it holds no day yet, beganNone, and
+// whether a failure to has been logged, the once; the day weeks
 // start on; and the reads of the ledger asked for, one under way at a time,
 // and whether a look since the last asks for the days since. held counts the
 // changes to the last 12 months' days held, as each read and look brings
@@ -37,6 +36,7 @@ type historyTab struct {
 	held       int
 	behind     bool
 	began      time.Time
+	beganNone  bool
 	warned     bool
 	starts     time.Weekday
 	asked      int
@@ -84,10 +84,12 @@ type sinceMsg struct {
 }
 
 // beginning is where the ledger began, as a read asked it: the start of its
-// first day, as LedgerStart tells it, zero where it doesn't, or wasn't
-// asked; and why it failed to say, where it did.
+// first day, as ledgerBegan tells it, zero where it doesn't, or wasn't
+// asked; whether it holds no day yet, none, so begins with today; and why
+// it failed to say, where it did.
 type beginning struct {
 	began time.Time
+	none  bool
 	err   error
 }
 
@@ -155,28 +157,26 @@ func (m Model) readYear(year int, now time.Time) (Model, tea.Cmd) {
 }
 
 // beganAsked is what a read of the ledger asks where it began, as
-// ledgerBegan asks it: while that's unknown, as on a fresh install, or after
-// a failure to say, the ledger, where it's a LedgerStart; else nil, not
-// asking.
+// ledgerBegan asks it: while that's unknown, after a failure to say, or
+// while the ledger holds no day, as on a fresh install, so begins with
+// today, whichever that is, the ledger, where it's a LedgerStart; else nil,
+// not asking.
 func (t historyTab) beganAsked(l views.Ledger) views.LedgerStart {
 	start, ok := l.(views.LedgerStart)
-	if !ok || !t.began.IsZero() {
+	if !ok || !t.began.IsZero() && !t.beganNone {
 		return nil
 	}
 	return start
 }
 
-// ledgerBegan is where the ledger began, at now, as it tells it: the start
-// of its first day; zero where it holds nothing, or fails to say, and why.
+// ledgerBegan is where the ledger began, at now, as it tells it and
+// ledger.Begins takes it, as a read of its days does: the start of its first
+// day, or of now's where it holds none yet, saying so; zero where it fails
+// to say, and why.
 func ledgerBegan(start views.LedgerStart, now time.Time) beginning {
 	first, err := start.FirstDay(now)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return beginning{}
-	case err != nil:
-		return beginning{err: err}
-	}
-	return beginning{began: first}
+	began, none, err := ledger.Begins(first, err, now)
+	return beginning{began: began, none: none, err: err}
 }
 
 // readSince reads the days since those held were read to, from the start of
@@ -243,7 +243,7 @@ func (t historyTab) learned(b beginning) historyTab {
 	if b.began.IsZero() {
 		return t
 	}
-	t.began = b.began
+	t.began, t.beganNone = b.began, b.none
 	for _, d := range []*heldDays{&t.last, &t.back} {
 		if d.held() {
 			d.past = d.past.Begun(b.began)

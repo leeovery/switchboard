@@ -290,14 +290,23 @@ func (by lister) activity(id string, s *story) Activity {
 	session.ID = id
 	a := by.h.session(session).inUTC()
 	if s.last == nil {
-		return a
+		return by.known(a)
 	}
 	last := s.last.At.UTC()
 	a = a.with(Activity{Since: ended(s.last).UTC(), LastSeen: last})
 	if listed || by.h.saw(id, by.now) || by.unlisted && by.now.Before(lapsed(last)) {
-		return a
+		return by.known(a)
 	}
 	return Activity{Doing: Ended, Since: last, LastSeen: last}
+}
+
+// known is a, as last known where no router lists the sessions, as while it
+// doesn't answer: a request of it in flight then Stale. It's the one rule of
+// what's in flight being as last known, which the List, a session's page,
+// SESSIONS, Detail and the Switchboard all read.
+func (by lister) known(a Activity) Activity {
+	a.Stale = by.unlisted && a.InFlight()
+	return a
 }
 
 // run has the session running, as the router says of it at now: its models;

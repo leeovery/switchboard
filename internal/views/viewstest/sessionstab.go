@@ -81,8 +81,8 @@ type SessionsLook struct {
 	// account, as "41e0 personal": what it's doing, as Activity.Said says it,
 	// and where it came from, as "↑ asking ▸ from personal"; its directory,
 	// or "no dir"; and whether it works, its id bold and its cord lit, or
-	// rests, " · " between, as "↑ asking ▸ from personal · ~/Code/docs ·
-	// works".
+	// rests, or what it's doing is as last known, as Activity.Stale has it,
+	// " · " between, as "↑ asking ▸ from personal · ~/Code/docs · works".
 	Calls map[string]string
 	// List is the List's sessions in its order, each its shown id, its
 	// state, as Activity.State says it, when it started, as prose.Past says
@@ -729,11 +729,12 @@ func acrossTheNight() SessionsMoment {
 
 // theRouterSilent is the 14:42:07 scene's running sessions, then the router
 // not answering for ten minutes, each drawn from its last listing, idle
-// counting on; then restarted, the stream it told forgotten, each where it
-// sat, d28c's haiku listed on work, cold since 12:40; then not answering
-// again, 9c2e past its hour, ended by its lines, d28c's opus warm still, its
-// cold haiku listed with it, as the router lists a session; and past every
-// session's hour, when its last listing runs none.
+// counting on, what was in flight as last known; then restarted, the stream
+// it told forgotten, each where it sat, d28c's haiku listed on work, cold
+// since 12:40; then not answering again, 9c2e past its hour, ended by its
+// lines, d28c's opus warm still, its cold haiku listed with it, as the router
+// lists a session; and past every session's hour, when its last listing runs
+// none.
 func theRouterSilent() SessionsMoment {
 	first, silent, back := At(14, 42, 7), At(14, 52, 7), At(14, 52, 30)
 	again, past := At(15, 40, 0), back.Add(70*time.Minute)
@@ -775,8 +776,8 @@ func theRouterSilent() SessionsMoment {
 			Calls: map[string]string{
 				"41e0 personal": "idle 10m · ~/Code/docs · rests",
 				"9c2e personal": "idle 19m · ~/Code/website · rests",
-				"c61b side":     "↓ answering · ~/Code/mobile · works",
-				"d28c side":     "↑ asking ▸ from work · ~/Code/switchboard · works",
+				"c61b side":     "↓ answering · ~/Code/mobile · as last known",
+				"d28c side":     "↑ asking ▸ from work · ~/Code/switchboard · as last known",
 			},
 		},
 		{
@@ -907,7 +908,8 @@ func oneAccountEight() SessionsMoment {
 
 // joiningAndEnding is three on side; f41a joining at the foot; d28c ending
 // an hour after its last request, side closing up, its jack freed; 5b19
-// joining on that jack, at the foot; and d28c asking again, at the foot, and
+// joining at the foot, taking that jack, 7f3a and f41a each moving on to the
+// next jack held so no cords cross; and d28c asking again, at the foot, and
 // back in its place by its start among the List's running.
 func joiningAndEnding() SessionsMoment {
 	const took = 10 * time.Second
@@ -964,7 +966,7 @@ func joiningAndEnding() SessionsMoment {
 			Sessions: []status.Session{
 				seen(id5B19, At(16, 10, 25), status.Asking), seen(IDF41A, At(16, 9, 30), ""), seen(C61B, At(16, 9, 0), ""), seen(ID7F3A, At(16, 8, 0), ""),
 			},
-			Board: map[string]string{side: "c61b@0 7f3a@2 f41a@3 5b19@1"},
+			Board: map[string]string{side: "c61b@0 7f3a@1 f41a@2 5b19@3"},
 			Calls: map[string]string{
 				"c61b side": "idle 1m · ~/Code/api · rests", "7f3a side": "idle 2m · ~/Code/api · rests", "f41a side": "idle 1m · ~/Code/api · rests",
 				"5b19 side": "↑ asking · ~/Code/api · works",
@@ -977,7 +979,7 @@ func joiningAndEnding() SessionsMoment {
 				seen(D28C, At(16, 10, 58), status.Asking), seen(id5B19, At(16, 10, 25), status.Asking), seen(IDF41A, At(16, 9, 30), ""),
 				seen(C61B, At(16, 9, 0), ""), seen(ID7F3A, At(16, 8, 0), ""),
 			},
-			Board: map[string]string{side: "c61b@0 7f3a@2 f41a@3 5b19@1 d28c@4"},
+			Board: map[string]string{side: "c61b@0 7f3a@1 f41a@2 5b19@3 d28c@4"},
 			Calls: map[string]string{
 				"c61b side": "idle 2m · ~/Code/api · rests", "7f3a side": "idle 3m · ~/Code/api · rests", "f41a side": "idle 1m · ~/Code/api · rests",
 				"5b19 side": "↑ asking · ~/Code/api · works", "d28c side": "↑ asking · ~/Code/api · works",

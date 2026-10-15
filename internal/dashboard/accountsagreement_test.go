@@ -105,11 +105,13 @@ func headSays(d detailDrawn) string {
 	return said
 }
 
-// listSays is the glyph Detail's list draws beside account a.
+// listSays is the glyph Detail's list draws beside account a, laid out with
+// its list, as with more than one account, its names fitted.
 func listSays(d detailDrawn, a status.AccountNow) string {
+	d.l = listedIn(d.f.listNames())
 	c := growing(d.f.Width)
 	d.list(c, 0, d.f.viewRows())
-	return string([]rune(textOf(c.rows(Look{}))[a.Place*listApart])[listDotAt])
+	return string([]rune(textOf(c.rows(Look{}))[a.Place*listApart])[d.l.dotAt()])
 }
 
 // gaugeSays is what a gauge says of its window: the share its bar fills,

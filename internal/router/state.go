@@ -275,16 +275,21 @@ func (s *state) mark() moment {
 
 // record takes in a reading of an account's windows, off the answer to a
 // request sent at sent. Each window is merged with the reading of its key
-// before it, and the account's other windows stand.
-func (s *state) record(id string, windows []quota.Window, sent moment) {
+// before it, and the account's other windows stand. It returns the news of
+// the account's limit lifting early, as the reading shows it lifted,
+// reporting false where it lifted none, as liftedSince says.
+func (s *state) record(id string, windows []quota.Window, sent moment) (LimitLifted, bool) {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	changed, took := s.usage[id].take(windows, at, sent, s.mark())
+	u := s.usage[id]
+	was := u.limited
+	changed, took := u.take(windows, at, sent, s.mark())
 	if took {
 		s.readOff()
 	}
 	s.history(readings.Of(id, changed, at, readings.FromAnswer))
+	return u.liftedSince(id, was, at)
 }
 
 // recordExtra takes in an account's extra usage, off the answer to a request
@@ -309,42 +314,57 @@ func (u *usage) takeExtra(extra quota.ExtraUsage, sent moment) bool {
 }
 
 // admitted notes that the upstream answered a request on the account, sent
-// at sent, with success, which lifts the account's limit as admits says.
-func (s *state) admitted(id string, sent moment) {
+// at sent, with success, which lifts the account's limit as admits says, and
+// returns the news of it lifting early, reporting false where it lifted
+// none, as liftedSince says.
+func (s *state) admitted(id string, sent moment) (LimitLifted, bool) {
+	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].admitted(sent)
+	u := s.usage[id]
+	was := u.limited
+	u.admitted(sent)
+	return u.liftedSince(id, was, at)
+}
+
+// liftedSince returns the news of was, the limit the account with the given
+// id reached last as it stood before what was taken in at now, lifting early
+// then: it was in force, and the account holds it no longer. It reports false
+// where it didn't, as of a limit that had ended by then.
+func (u *usage) liftedSince(id string, was limit, now time.Time) (LimitLifted, bool) {
+	return LimitLifted{Account: id, Limit: was.id}, was.inForce(now) && u.limited.id != was.id
 }
 
 // recordProbe takes in what probing an account, from sent on, found, as a
 // prime or not, as from says: its usage, its extra usage among it, and which
 // models reported each window, and whether a request of it was answered with
-// success, or why it read nothing. It reports whether the probe went out on
-// the token before, sent before the account last went out on another, as
-// tokenReplaced marks it: of one of those, it takes in what it read alone,
-// the subscription's usage, which reads the same on either token, and when it
-// ended, for a prime's verdict, but not why it read nothing, what it couldn't
-// read, or the backoff its end would start. Its reading stamps the account
-// read, and clears its probes' error and backoff, as any reading does: none
-// can have come since the account took up its token, as its probes go out
-// one at a time.
-func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) bool {
+// success, or why it read nothing; and returns what it took in, as probeTaken
+// has it. It tells whether the probe went out on the token before, sent
+// before the account last went out on another, as tokenReplaced marks it: of
+// one of those, it takes in what it read alone, the subscription's usage,
+// which reads the same on either token, and when it ended, for a prime's
+// verdict, but not why it read nothing, what it couldn't read, or the backoff
+// its end would start. Its reading stamps the account read, and clears its
+// probes' error and backoff, as any reading does: none can have come since
+// the account took up its token, as its probes go out one at a time.
+func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) probeTaken {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
-	tokenBefore := sent < u.afresh
+	taken := probeTaken{tokenBefore: sent < u.afresh}
 	if err != nil {
-		if !tokenBefore {
+		if !taken.tokenBefore {
 			u.probed, u.ended, u.probeErr = at, at, err.Error()
 			u.misses++
 		}
-		return tokenBefore
+		return taken
 	}
 	u.ended = at
-	if !tokenBefore {
+	if !taken.tokenBefore {
 		u.probed, u.failures = at, slices.Clone(probed.Failures)
 	}
+	was := u.limited
 	if probed.Admitted {
 		u.admitted(sent)
 	}
@@ -359,7 +379,16 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	if news {
 		s.changed()
 	}
-	return tokenBefore
+	taken.lifted, taken.liftedEarly = u.liftedSince(id, was, at)
+	return taken
+}
+
+// probeTaken is what a probe's reading took in, as recordProbe has it:
+// whether the probe went out on the token before; and the news of the
+// account's limit lifting early, where liftedEarly says it did.
+type probeTaken struct {
+	tokenBefore, liftedEarly bool
+	lifted                   LimitLifted
 }
 
 // learn notes that the response to a request for model reported windows:

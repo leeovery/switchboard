@@ -44,6 +44,13 @@ func stretchOf(tl views.Timeline, cell views.Cell, start, back time.Time, first,
 	return s
 }
 
+// heldOn is the stretch s held on by the stretch after it: lifting as it
+// was back, the run back at back.
+func heldOn(s views.LaneStretch, back time.Time) views.LaneStretch {
+	s.Lifts, s.Back = s.Back, back
+	return s
+}
+
 // laneWith is work's lane, read, with room but for the stretches given.
 func laneWith(stretches ...views.LaneStretch) laidLane {
 	return laidLane{ID: "work", Cells: make([]views.Cell, 136), Stretches: stretches, account: status.AccountNow{ID: "work", Read: true}, row: 10}
@@ -104,6 +111,14 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 		{
 			name: "at its limit, its back never as its window resets", shown: five, stretch: limited,
 			want: "at its limit 13:58  ·  back 15:30", inks: []ink{exhaustedInk, mutedInk},
+		},
+		{
+			name: "at its limit, held on by the stretch after it, lifting", shown: five, stretch: heldOn(limited, routedClock(4, 21, 0)),
+			want: "at its limit 13:58  ·  lifts 15:30", inks: []ink{exhaustedInk, mutedInk},
+		},
+		{
+			name: "at its cap, held on by the stretch after it, lifting as its 5-hour resets", shown: five, stretch: heldOn(capped, routedClock(4, 21, 0)),
+			want: "at its cap 14:31  ·  lifts 17:10, as its 5-hour resets", inks: []ink{alertInk, mutedInk, mutedInk},
 		},
 		{
 			name: "at its limit from before the timeline", shown: five, stretch: stretchOf(tl, views.CellLimited, time.Time{}, routedClock(1, 15, 30), 0, 10),
@@ -217,17 +232,17 @@ func TestTodaySteppedBackToSaysEachStretchAndDipOverBeforeNow(t *testing.T) {
 }
 
 // A cap outlasting what holds its account back first has words of its own,
-// after that hold's: each stretch said from its own start, and each back as
-// the account next has room, as ROUTING says it; the status the token's
-// refused with said of the refusal holding it now, though it isn't back as
-// that lifts.
-func TestAHoldOutlastedIsSaidFromItsStartAndBackAsItsAccountIs(t *testing.T) {
+// after that hold's: each stretch said from its own start; the hold it
+// outlasts said to lift as it does, and the cap alone, the run's last, back
+// as the account next has room, as ROUTING says it; the status the token's
+// refused with said of the refusal holding it now.
+func TestAHoldOutlastedIsSaidFromItsStartAndOnlyTheLastIsBack(t *testing.T) {
 	tests := []struct {
 		moment string
 		want   string
 	}{
-		{moment: "a cap outlasting a limit", want: "  at its limit 14:00  ·  back Mon 21:00  at its cap 14:00  ·  back Mon 21:00"},
-		{moment: "a cap outlasting a refusal", want: "token refused (401)  ·  back Mon 21:00  at its cap 14:00  ·  back Mon 21:00"},
+		{moment: "a cap outlasting a limit", want: "  at its limit 14:00  ·  lifts 15:30  at its cap 14:00  ·  back Mon 21:00"},
+		{moment: "a cap outlasting a refusal", want: "token refused (401)  ·  lifts 14:52  at its cap 14:00  ·  back Mon 21:00"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.moment, func(t *testing.T) {

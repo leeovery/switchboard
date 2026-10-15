@@ -361,7 +361,7 @@ func momentHarness(t *testing.T, mo viewstest.AccountsMoment, opening dashboard.
 	}
 	l := &daysLedger{Empty: h.emptyLedger(), clock: h.clock, first: mo.Days[0].Day, days: days}
 	cfg := h.config(Size{Width: 160, Height: 37})
-	cfg.Ledger, cfg.Prices, cfg.Accounts, cfg.WeekStarts, cfg.WeekWindow, cfg.Policy = l, ledger.Pricing, mo.Accounts, mo.WeekStarts, claude.WeekWindow, claude.Policy
+	cfg.Ledger, cfg.Prices, cfg.Accounts, cfg.WeekStarts, cfg.WeekWindow, cfg.Policy = l, ledger.Pricing, mo.Accounts, mo.WeekStarts, claude.WeekWindow, claude.Policy()
 	cfg.View, cfg.History = opening, dashboard.HistoryPage{Shown: dashboard.HistoryWeeks}
 	h.model = New(t.Context(), cfg)
 	return h

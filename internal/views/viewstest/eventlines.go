@@ -219,6 +219,42 @@ func sideMoveSettled() EventMoment {
 	return m
 }
 
+// unpricedMove is work's cap moving d28c, on a model the price table doesn't
+// know, off to side, its cache warm: writing its context again on side is
+// unpriced, and said so, never left unsaid, of the move and in all on the
+// cap's card.
+func unpricedMove() EventMoment {
+	run := localOn(7, 8, 0)
+	cap := status.Event{ID: 1, At: localOn(7, 14, 29), Kind: status.EventCap, Account: work, Windows: []string{fiveHour}, Until: localOn(7, 17, 0), Reserve: 0.05}
+	d0 := unpriced(asked("d0", D28C, work, status.ReasonNew, localOn(7, 14, 0)))
+	d1 := unpriced(writing(1_000_000, movedOff(work, asked("d1", D28C, side, capped(work), localOn(7, 14, 30)))))
+	move := counted(movedAfter(2, d1, work, capped(work)), cap)
+	m := toldAll("a move on a model the price table can't price, counted by work's cap", run, localOn(7, 0, 0), localOn(7, 14, 40), counting(cap, 1, side), move)
+	m.Lines = []ledger.Line{d0, d1}
+	m.Facts = map[Key]Facts{keyOf(run, cap): {Moved: 1, To: side, Windows: fiveHourNamed}}
+	m.Moves = map[Key]Move{keyOf(run, move): {Request: "d1", Written: 1_000_000}}
+	m.Details = map[Key]Details{
+		keyOf(run, cap): {
+			Headline: "work reached its cap",
+			Happened: []string{"event: work reached its cap", "its cap: 95% of its 5-hour window"},
+			Then:     []string{"account: work", "resets: 17:00", "sessions: 1"},
+			Followed: []string{"d28c: to side unpriced", "new sessions: till 17:00", "in all: unpriced"},
+		},
+		keyOf(run, move): {
+			Headline: "work reached its cap",
+			Happened: []string{"event: work reached its cap", "session: d28c switchboard", "model: opus-9", "from: work", "to: side"},
+			Followed: []string{"request: d1", "cached again: 1000000", "the move: unpriced"},
+		},
+	}
+	return m
+}
+
+// unpriced returns l, asking for a model the price table doesn't know.
+func unpriced(l ledger.Line) ledger.Line {
+	l.Model = "claude-opus-9"
+	return l
+}
+
 // coldMove is c61b moved off work two hours after its last request, its
 // cache run out an hour since: writing its context again cost nothing
 // staying wouldn't have.

@@ -83,9 +83,10 @@ func wanting(wanted map[string]bool, ids []string) map[string]bool {
 // namingBefore returns the dates of the local days before the one with the
 // given date whose summaries, as Days gives them at now, name any of the
 // sessions wanted among theirs, or might, as Follower.names tells without the
-// readings history: none, and no summary read, where none is wanted. It gives
-// none where the ledger holds no day, or can't be looked at to tell, which is
-// warned of.
+// readings history: none, and no summary read, where none is wanted. It reads
+// from where the ledger begins, as Begins says, so it gives none before today
+// where the ledger holds no day; and none where it can't be looked at to
+// tell, which is warned of.
 func (f *Follower) namingBefore(date string, wanted map[string]bool, now time.Time) []string {
 	if len(wanted) == 0 {
 		return nil
@@ -93,15 +94,14 @@ func (f *Follower) namingBefore(date string, wanted map[string]bool, now time.Ti
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	first, err := f.firstDay(now)
+	began, _, err := Begins(first, err, now)
 	if err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			f.days.logger.Warn("can't read the request ledger", "dir", f.days.files.Dir, "error", err)
-		}
+		f.days.logger.Warn("can't read the request ledger", "dir", f.days.files.Dir, "error", err)
 		return nil
 	}
 	before, _, _ := dayfile.Day(date)
 	var dates []string
-	for _, d := range dayfile.Span(first, dayfile.DayStart(before, -1)) {
+	for _, d := range dayfile.Span(began, dayfile.DayStart(before, -1)) {
 		if f.names(d, wanted) {
 			dates = append(dates, d)
 		}

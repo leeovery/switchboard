@@ -242,9 +242,9 @@ func (latelyTeller) befallen(e status.Event, f eventFact) (Said, Said) {
 
 // befell says what befell an account, of an event of a kind that befalls
 // one, in full and short: "reached its cap" and "at its cap"; "reached its
-// 5-hour limit", in the windows it names, and "at its limit"; the upstream's
-// answer, as status.RefusalAnswer says it, "refused (401)", or of a model
-// family's alone, "refused (403, opus)"; "primed: its 5-hour window
+// 5-hour limit", in the windows it began with, and "at its limit"; the
+// upstream's answer, as status.RefusalAnswer says it, "refused (401)", or of
+// a model family's alone, "refused (403, opus)"; "primed: its 5-hour window
 // started", the windows the prime started, and "primed"; and "open again:
 // its 5-hour window reset", where it names the windows that held it back,
 // and "open again". It's nothing of any other kind.

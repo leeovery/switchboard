@@ -9,7 +9,8 @@ import (
 // and Detail alike, as < and > step it: today, from midnight; this week, as
 // it opens, from the day weeks start on; the last 30 days, today and the 29
 // before it; or the last 12 weeks, this week and the 11 before it. Each is
-// rolling, never a billing month, and priced whole while it's still running.
+// rolling, never a billing month, and priced whole while it's still running,
+// but from its first day where the ledger began part-way through it.
 type AccountsPeriod string
 
 const (
@@ -102,6 +103,18 @@ func (p AccountsPeriod) first(today time.Time, starts time.Weekday) time.Time {
 		return weeksTo(today, starts, 12)
 	}
 	return weekOf(today, starts)
+}
+
+// last is the period's last day, today being the day given, as
+// dayfile.Civil gives a day, weeks starting on the day given: today, of
+// today and the last 30 days; this week's last, of this week and the last
+// 12 weeks, as a period still running is priced to its end.
+func (p AccountsPeriod) last(today time.Time, starts time.Weekday) time.Time {
+	switch p {
+	case AccountsToday, AccountsThirtyDays:
+		return today
+	}
+	return weekOf(today, starts).AddDate(0, 0, 6)
 }
 
 // share is the share of a month the plans cost over the period, whole.

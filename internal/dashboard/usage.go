@@ -54,9 +54,6 @@ const (
 	// mark's, a space and its glyph, as ▲ is kept on every account.
 	nameGap   = 2
 	markCells = 2
-	// focusCells are the cells of the focused account's number and name the
-	// Overview's matrix picks out.
-	focusCells = 12
 )
 
 // usageBlock is every account's windows, and the pool's, as usage prints them
@@ -252,14 +249,16 @@ func (b usageBlock) caps(bar int) line {
 // number, its place in the config, right-aligned, faint where it's out of the
 // pool; its label; and its marks, ◆ on the primary and ▲ on the account new
 // sessions go to. A faint one, as the Overview names an account out of the
-// pool, has its label and marks faint too.
+// pool, has its label and marks faint too. An unrouted one is named where
+// nothing is routed, as on Accounts, so it never carries ▲.
 type accountName struct {
-	number  string
-	label   string
-	primary bool
-	best    bool
-	out     bool
-	faint   bool
+	number   string
+	label    string
+	primary  bool
+	best     bool
+	out      bool
+	faint    bool
+	unrouted bool
 }
 
 // namesOf are the names of m's accounts, in the config's order, numbered
@@ -277,9 +276,13 @@ func namesOf(m status.Moment) []accountName {
 }
 
 // cells are the cells the name takes in the name column, its label whole:
-// its number, its label and its marks, ▲'s kept on an account without it.
+// its number, its label and its marks, ▲'s kept on an account without it,
+// but where the name is unrouted.
 func (n accountName) cells(label int) int {
-	cells := len(n.number) + 1 + label + markCells
+	cells := len(n.number) + 1 + label
+	if !n.unrouted {
+		cells += markCells
+	}
 	if n.primary {
 		cells += markCells
 	}
@@ -342,11 +345,16 @@ func (n accountName) inked(k ink) ink {
 	return k
 }
 
+// leastNames are the fewest cells the name column takes from roomyNames
+// columns.
+const leastNames = 14
+
 // nameColumn is the cells of the name column of a block width columns wide:
 // the widest of the names, and a gap, at least 14 cells, or 12 under 80
-// columns, and at most 24, or 16 under 80.
+// columns, and at most 24, or 16 under 80. Accounts' Detail fits its list
+// to the names by it too.
 func nameColumn(names []accountName, width int) int {
-	least, most := 14, 24
+	least, most := leastNames, 24
 	if width < roomyNames {
 		least, most = 12, 16
 	}
@@ -452,7 +460,7 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 	l := b.each(c, 0, y+2, 2, func(r usageRow, y int) int {
 		c.line(0, y, r.name)
 		if b.focus != "" && r.id == b.focus {
-			c.surface(0, y, focusCells, hue{token: theme.BgSelection})
+			c.surface(0, y, b.focusCells(), hue{token: theme.BgSelection})
 		}
 		for i, g := range r.gauges {
 			next := b.names + (i+1)*group
@@ -462,6 +470,13 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 	})
 	l.heads = append(l.heads, headed{at: y, first: y + 2})
 	return l
+}
+
+// focusCells are the cells of the focused account's row the Overview's
+// matrix picks out: its whole name column, its number, name and marks, as
+// nameColumn fits it to the names, but the gap before the bars.
+func (b usageBlock) focusCells() int {
+	return b.names - nameGap
 }
 
 // stacked draws the block's windows one under another, each a section, its

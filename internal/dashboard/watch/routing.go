@@ -357,7 +357,8 @@ func (m Model) costed(msg costedMsg) Model {
 // reading no router to pin through, whether one answers or not. It's faint
 // while the router doesn't answer, as p then opens nothing.
 func (m Model) pinKey() (dashboard.Key, bool) {
-	key := dashboard.Key{Key: "p", Does: "pin", Off: !m.answering()}
+	key := pinWord
+	key.Off = !m.answering()
 	switch {
 	case m.cfg.ProbeOnly:
 		return key, false

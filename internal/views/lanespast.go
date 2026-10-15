@@ -3,7 +3,6 @@ package views
 import (
 	"maps"
 	"slices"
-	"sort"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -114,7 +113,8 @@ func sameSpan(a, b status.Span) bool {
 
 // judgePast is the past of the timeline given, as heldPast has it, each
 // account at each column's moment as l judges it stood, by its readings, the
-// days before the readings history's keep standing for theirs.
+// days before the readings history's keep standing for theirs: every one of
+// them, as those after a moment tell when a hold then lifted.
 func (l Lanes) judgePast(from LanesFrom) heldPast {
 	m, tl, then := from.Moment, from.Timeline, l.judging()
 	past := heldPast{
@@ -129,32 +129,15 @@ func (l Lanes) judgePast(from LanesFrom) heldPast {
 	for _, a := range m.Accounts {
 		p := pastOf{id: a.ID, tokenSet: a.TokenSet, reserve: a.Reserve, reserveHolds: a.ReserveHolds, told: from.told(a.ID)}
 		p.read = slices.DeleteFunc(slices.Clone(read), func(r readings.Reading) bool { return r.Account != a.ID })
-		p.resets = resetsRead(p.read, key)
+		p.resets = status.ResetsRead(p.read, key)
 		p.was = make([]status.Was, judged)
 		for c := range p.was {
 			at := tl.Moment(c)
-			p.was[c] = then(m, a, readBy(p.read, at), past.reach, p.told, at)
+			p.was[c] = then(m, a, p.read, past.reach, p.told, at)
 		}
 		past.accounts = append(past.accounts, p)
 	}
 	return past
-}
-
-// readBy are the readings of those given, oldest first, read by t.
-func readBy(read []readings.Reading, t time.Time) []readings.Reading {
-	return read[:sort.Search(len(read), func(i int) bool { return read[i].At.After(t) })]
-}
-
-// resetsRead are the resets of the window with the given key the readings
-// given give, each as read.
-func resetsRead(read []readings.Reading, key string) []time.Time {
-	var resets []time.Time
-	for _, r := range read {
-		if r.Key == key && !r.ResetsAt.IsZero() {
-			resets = append(resets, r.ResetsAt)
-		}
-	}
-	return resets
 }
 
 // readingsAll are the readings the past is judged by, each account's oldest

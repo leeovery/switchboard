@@ -139,10 +139,11 @@ func (m Moment) Told(id string) []Span {
 // toldBy are the holds of the account with the given id that the router's
 // events tell, as the document gives them, newest first: each limit, and
 // each cap, as its holds have it, a span each window it names, till its
-// until, or the account's room after the span's start, as roomAfter has it,
-// where that comes first, as the router keeps a limit's until as it lifts
-// early and tells of the room instead; and each refusal of its token, till
-// its until, which the router brings forward as a refusal lifts early.
+// until, which the router brings forward as a limit lifts early, or the
+// account's room after the span's start, as roomAfter has it, where that
+// comes first, as a router from before kept a limit's until as it lifted
+// early, telling of the room alone; and each refusal of its token, till its
+// until, which the router brings forward as a refusal lifts early.
 func (d Document) toldBy(id string) []Span {
 	var told []Span
 	for _, e := range d.Events {
@@ -206,20 +207,21 @@ func untold(told []Span, s Span, now time.Time) []Span {
 // reserve; and room. Of a hold, Since is when the first part of what holds
 // it at t began: a told hold's From; of a window's, the router's event of
 // it, as reachedAt finds it, else the first reading, of those given, of the
-// unbroken run of the window's readings that shows it, a limit's or a cap's
-// then begun as the run of the holds told reaching back from it did, as
-// ranFrom has it; and Until is when the last part lifts, zero where one
-// lifts at no known time.
+// unbroken run of the window's readings that shows it; a limit's or a cap's
+// then begun as the run of the holds reaching back from it did, told of or
+// read, as ranBack has it. Until is when the last part lifts, zero where one
+// lifts at no known time: a told hold's Until; a window's at its reset, or
+// sooner, where a reading of it after t, before that reset, no longer shows
+// it, as a reset made by hand starts the window again, as liftedBy has it.
 // A run begun at either edge of what the readings reach tells no start, as
-// Reach says. The readings alone tell a window's own run, not one across
-// windows, as Runway's tail carries in each window's own run alone.
+// Reach says.
 func (m Moment) Then(a AccountNow, read []readings.Reading, reach Reach, told []Span, t time.Time) Was {
 	if !a.TokenSet {
 		return Was{Kind: WasTokenless}
 	}
 	windows := m.readBy(a, read, reach, t)
 	if was, ok := heldAs(WasLimited, slices.Concat(toldAt(told, WasLimited, t), shownAt(windows, told, WasLimited, t))); ok {
-		was.Since = ranFrom(told, WasLimited, m.policy.IsShared, was.Since)
+		was.Since = m.ranBack(a, read, reach, told, WasLimited, was.Since)
 		return was
 	}
 	if was, ok := heldAs(WasRefused, toldAt(told, WasRefused, t)); ok {
@@ -229,10 +231,34 @@ func (m Moment) Then(a AccountNow, read []readings.Reading, reach Reach, told []
 		return Was{Kind: WasUnread}
 	}
 	if was, ok := heldAs(WasCapped, shownAt(windows, told, WasCapped, t)); ok && a.ReserveHolds {
-		was.Since = ranFrom(told, WasCapped, m.policy.IsShared, was.Since)
+		was.Since = m.ranBack(a, read, reach, told, WasCapped, was.Since)
 		return was
 	}
 	return Was{Kind: WasRoom}
+}
+
+// ranBack is when the unbroken run of the holds of every request of the
+// given kind, WasLimited or WasCapped, that holds the account a at from
+// began: from, but where such a hold began before it and held on past it, as
+// one window can take over a hold another began; and so on back. Such a hold
+// is told of, as ranFrom has it, or shown by the readings given of a window
+// every model shares, by then, as shownAt has them, those given reaching back
+// as reach says: so the readings tell a run across windows as far as they
+// reach, and not a part of it the window that began it read before the
+// readings given. Zero stays zero, and so does a run reaching back to a hold
+// whose start nothing tells.
+func (m Moment) ranBack(a AccountNow, read []readings.Reading, reach Reach, told []Span, kind WasKind, from time.Time) time.Time {
+	for !from.IsZero() {
+		began := ranFrom(told, kind, m.policy.IsShared, from)
+		for _, p := range shownAt(m.readBy(a, read, reach, from), told, kind, from) {
+			began = firstHeld(began, p.from)
+		}
+		if !began.Before(from) {
+			break
+		}
+		from = began
+	}
+	return from
 }
 
 // Reach is how far back what the readings Then is given read reaches, each
@@ -264,25 +290,111 @@ type windowRead struct {
 }
 
 // run is an unbroken run of a window's readings that shows a hold: whether
-// there's one, and when it began, zero where the readings don't tell.
+// there's one, and when it began, zero where the readings don't tell; and
+// when it lifted before the window's reset, as liftedBy has it, zero where
+// no reading after the moment it's had by shows it did.
 type run struct {
-	shown bool
-	from  time.Time
+	shown        bool
+	from, lifted time.Time
 }
 
 // readBy are the windows of the account a that the moment's policy says
-// every model shares, by key, each as its readings of those given, by t,
-// have it, its cap where its reserve, as configured now, starts, the
-// readings reaching back as reach says.
+// every model shares, by key, each as its readings of those given, oldest
+// first, by t, have it, its cap where its reserve, as configured now, starts,
+// the readings reaching back as reach says; each run of them lifted early as
+// those given after t show, as readAfter has it, read only while one could
+// still lift, as liftable says.
 func (m Moment) readBy(a AccountNow, read []readings.Reading, reach Reach, t time.Time) map[string]windowRead {
 	windows := make(map[string]windowRead)
 	for _, r := range read {
-		if r.Account != a.ID || !m.policy.IsShared(r.Key) || r.At.After(t) {
+		if r.Account != a.ID || !m.policy.IsShared(r.Key) {
 			continue
 		}
-		windows[r.Key] = windows[r.Key].readAgain(r.Window(), r.At, reach, a.Reserve)
+		if !r.At.After(t) {
+			windows[r.Key] = windows[r.Key].readAgain(r.Window(), r.At, reach, a.Reserve)
+			continue
+		}
+		if !anyLiftable(windows, r.At) {
+			break
+		}
+		if w := windows[r.Key]; w.liftable(r.At) {
+			windows[r.Key] = w.readAfter(r.Window(), r.At, a.Reserve)
+		}
 	}
 	return windows
+}
+
+// anyLiftable reports whether a reading at at could still lift a run of any
+// of the windows given early, as liftable says.
+func anyLiftable(windows map[string]windowRead, at time.Time) bool {
+	for _, w := range windows {
+		if w.liftable(at) {
+			return true
+		}
+	}
+	return false
+}
+
+// liftable reports whether a reading of the window w at at could still lift
+// one of its runs early, as liftedBy has it: one shown and not lifted, w's
+// last reset not passed by then.
+func (w windowRead) liftable(at time.Time) bool {
+	return !w.last.ResetBy(at) && (w.spent.unlifted() || w.capped.unlifted())
+}
+
+// readAfter is the window w, read again at at as window, after the moment
+// it's had by, its account's reserve given: each of its runs lifted early,
+// as liftedBy has it, the run that reads it spent where the reading holds
+// the account back short of that, and the run that reads it at its cap where
+// the reading holds it back at neither, as score.HoldOf has it: a cap turned
+// to a limit hasn't lifted.
+func (w windowRead) readAfter(window quota.Window, at time.Time, reserve float64) windowRead {
+	hold := score.HoldOf(window, reserve)
+	w.spent = w.spent.liftedBy(w.last, hold >= score.HeldAtLimit, at)
+	w.capped = w.capped.liftedBy(w.last, hold >= score.HeldAtCap, at)
+	return w
+}
+
+// liftedBy is the run r, of the window last read as last, read again at at,
+// after the moment it's had by, as a reading that holds the account back as
+// the run does, or not: lifted then, where it hadn't, and the reading, before
+// last's reset, doesn't, as one of a window reset by hand doesn't, the window
+// started again as the router read it; as it was otherwise, its hold lifting
+// at the window's reset at the latest.
+func (r run) liftedBy(last quota.Window, holds bool, at time.Time) run {
+	if r.unlifted() && !holds && !last.ResetBy(at) {
+		r.lifted = at
+	}
+	return r
+}
+
+// unlifted reports whether the run shows a hold that hasn't lifted early.
+func (r run) unlifted() bool {
+	return r.shown && r.lifted.IsZero()
+}
+
+// ResetsRead are the resets of the window with the given key that the
+// readings given, of an account, oldest first, give: each as read; and each
+// between two readings, as score.ResetBetween tells it, as a day's summary
+// keeps it: a reset made by hand among them, at the reading that shows it,
+// as a hold on the window lifts then, as Then has it.
+func ResetsRead(read []readings.Reading, key string) []time.Time {
+	var resets []time.Time
+	var was quota.Window
+	for _, r := range read {
+		if r.Key != key {
+			continue
+		}
+		w := r.Window()
+		if !w.ResetsAt.IsZero() {
+			resets = append(resets, w.ResetsAt)
+		}
+		if at, ok := score.ResetBetween(was, w, r.At); ok {
+			resets = append(resets, at)
+		}
+		was = w
+	}
+	return resets
 }
 
 // readAgain is the window w, read again at at as window, the readings
@@ -312,9 +424,11 @@ func (w windowRead) readAgain(window quota.Window, at time.Time, reach Reach, re
 // that edge, or when isn't known, so the run may have begun before anything
 // read tells.
 func (w windowRead) untold(window quota.Window, at time.Time, reach Reach) bool {
-	began, _, spanned := window.Span()
 	for i, edge := range reach.edges() {
-		if !edge.IsZero() && !at.Before(edge) && !w.reached[i] && (!spanned || began.Before(edge)) {
+		if edge.IsZero() || at.Before(edge) || w.reached[i] {
+			continue
+		}
+		if began, _, spanned := window.Span(); !spanned || began.Before(edge) {
 			return true
 		}
 	}
@@ -338,7 +452,7 @@ func (r run) joined(ranOn, shows bool, begun time.Time) run {
 // heldAt is the part of a hold of the given kind, WasLimited or WasCapped,
 // the window's readings show at t, reporting false where they show none then,
 // as where its reset has passed: from when the run of them showing it began,
-// till its reset.
+// till it lifted early, as liftedBy has it, else till its reset.
 func (w windowRead) heldAt(kind WasKind, t time.Time) (part, bool) {
 	r := w.spent
 	if kind == WasCapped {
@@ -347,7 +461,11 @@ func (w windowRead) heldAt(kind WasKind, t time.Time) (part, bool) {
 	if !r.shown || w.last.ResetBy(t) {
 		return part{}, false
 	}
-	return part{from: r.from, until: w.last.ResetsAt}, true
+	until := w.last.ResetsAt
+	if !r.lifted.IsZero() {
+		until = r.lifted
+	}
+	return part{from: r.from, until: until}, true
 }
 
 // part is a part of what holds an account back at a moment: from when it

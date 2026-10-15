@@ -83,10 +83,11 @@ const (
 // Doing is what the panel's doing column says of the session at now, the
 // first that holds: asking, while a request of it waits, as Activity.Waiting
 // says; started, while its first request came within the busy minute;
-// nothing, while it's busy, as Activity.Busy says; idle; or ended. since is
-// when it started, when it was last at work, idle, or when its last request
-// came, ended: zero for the others. It's said at the moment it's drawn, as
-// idle comes once the busy minute has passed, with nothing read.
+// nothing, while it's busy, as Activity.Busy says, or in flight as last
+// known, as it was; idle; or ended. since is when it started, when it was
+// last at work, idle, or when its last request came, ended: zero for the
+// others. It's said at the moment it's drawn, as idle comes once the busy
+// minute has passed, with nothing read.
 func (s LogSession) Doing(now time.Time) (doing LogDoing, since time.Time) {
 	a := s.Activity
 	switch {
@@ -94,7 +95,7 @@ func (s LogSession) Doing(now time.Time) (doing LogDoing, since time.Time) {
 		return LogAsking, time.Time{}
 	case !s.Started.IsZero() && now.Sub(s.Started) < busyWithin:
 		return LogStarted, s.Started
-	case a.Busy(now):
+	case a.Busy(now) || a.InFlight():
 		return LogBusy, time.Time{}
 	case a.Doing == Ended:
 		return LogEnded, a.Since

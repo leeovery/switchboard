@@ -153,7 +153,7 @@ func (s SessionsShown) ChosenOn(row Plug) SessionsShown {
 	return s
 }
 
-// Unchosen is Sessions with no row chosen, as esc ends the choice, reporting
+// Unchosen is Sessions with no row chosen, as esc deselects, reporting
 // false where none was.
 func (s SessionsShown) Unchosen() (SessionsShown, bool) {
 	was := s.Chosen

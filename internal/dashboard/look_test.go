@@ -59,7 +59,7 @@ func threeAccounts() status.Document {
 // let go by its move from personal, fading.
 func onTheBoard() (dashboard.SessionsShown, dashboard.Traffic) {
 	call := func(session, account string, a views.Activity, from string) views.Call {
-		return views.Call{Account: account, Session: session, Models: []string{"claude-opus-5-5"}, Activity: a, Dir: "~/Code/" + session, From: from}
+		return views.Call{Account: account, Session: session, Activity: a, Dir: "~/Code/" + session, From: from}
 	}
 	asked := now.Add(-2 * time.Second)
 	gone := []views.Call{call("7f3a", "personal", views.Activity{Since: asked, LastSeen: asked}, "")}

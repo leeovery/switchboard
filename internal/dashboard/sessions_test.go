@@ -211,7 +211,7 @@ func TestSessionsChoiceFollowsItsSessionFromLookToLook(t *testing.T) {
 	}
 }
 
-// esc ends the choice, reporting a change only where there was one; enter
+// esc deselects, reporting a change only where there was one; enter
 // opens a page only while a row is chosen; a click chooses the row it's on.
 func TestSessionsChoiceEndsOpensAndIsClicked(t *testing.T) {
 	s := sessionsOnTheBoard(SessionsSwitchboard)

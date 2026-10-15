@@ -116,6 +116,7 @@ func TestAReadingShowingRoomLiftsALimitEarly(t *testing.T) {
 		t.Errorf("once a probe read work's session afresh, a new session went to %s, want work", got)
 	}
 	checkLimit(t, r.rt, "work", status.Limit{})
+	checkLiftedAt(t, r, "work", 1, now.Add(31*time.Minute))
 }
 
 func TestAResetMadeByHandIsSeenOnceTheRouterRefreshes(t *testing.T) {
@@ -255,8 +256,11 @@ func TestALimitReachedInNoWindowNamedLiftsOnceAProbeSinceIsTaken(t *testing.T) {
 		// admitted is set when the probe is answered with success.
 		admitted  bool
 		wantLimit status.Limit
+		// liftedAt is when the limit's event holds till, as it lifts: zero
+		// where it doesn't.
+		liftedAt time.Time
 	}{
-		{name: "a probe answered with success", admitted: true},
+		{name: "a probe answered with success", admitted: true, liftedAt: now.Add(2 * time.Minute)},
 		{name: "a probe answered with the limit", wantLimit: status.Limit{ID: 1, Until: now.Add(2 * time.Hour)}},
 	}
 	for _, tt := range tests {
@@ -280,6 +284,7 @@ func TestALimitReachedInNoWindowNamedLiftsOnceAProbeSinceIsTaken(t *testing.T) {
 				t.Fatal("work wasn't probed, want it probed: it can take no request, and nothing has been read of it for longer than the refresh asks")
 			}
 			checkLimit(t, r.rt, "work", tt.wantLimit)
+			checkLiftedAt(t, r, "work", 1, tt.liftedAt)
 		})
 	}
 }
@@ -310,6 +315,37 @@ func TestALimitReachedInNoWindowNamedLiftsOnceARequestSentSinceIsTaken(t *testin
 	}
 	checkLimit(t, r.rt, "work", status.Limit{})
 	checkLimit(t, r.rt, "side", status.Limit{ID: 2, Until: until})
+	checkLiftedAt(t, r, "work", 1, now)
+	checkLiftedAt(t, r, "side", 2, time.Time{})
+}
+
+// A limit that lifts early while the account's cap holds it back has its
+// event end at the lift all the same, though the account has no room, so no
+// room is told: the next limit the account reaches is dated from its own
+// start, not from this one's.
+func TestALimitLiftedEarlyWhileItsCapHoldsEndsItsEventThen(t *testing.T) {
+	r := newRouted(t, func(cfg *router.Config) { cfg.Accounts[0].Reserve = 0.1 })
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	shortSpent := quota.Window{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: now.Add(30 * time.Minute), Status: quota.StatusRejected}
+	r.api.script(workToken, rejectedUntil(now.Add(2*time.Hour), shortSpent, weekOf(0.5, 24*time.Hour)))
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
+	}
+
+	// Its session resets, and the next is at its reserve as a probe reads it,
+	// so its cap holds it back as the limit lifts.
+	r.clock.advance(31 * time.Minute)
+	capped := quota.Window{Key: "5h", Label: "Session", Utilization: 0.95, ResetsAt: now.Add(5*time.Hour + 30*time.Minute), Status: quota.StatusAllowed}
+	r.readsAs(workToken, capped, weekOf(0.5, 24*time.Hour))
+	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), time.Minute); err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+	if work, _ := r.rt.Status().Account("work"); !slices.Equal(work.AtReserve, []string{"5h"}) {
+		t.Fatalf("work is at its reserve in %v, want its session's: its cap holds it back", work.AtReserve)
+	}
+	checkLimit(t, r.rt, "work", status.Limit{})
+	checkLiftedAt(t, r, "work", 1, now.Add(31*time.Minute))
 }
 
 func TestAProbeAnsweredWithTheLimitKeepsItsBar(t *testing.T) {
@@ -413,6 +449,32 @@ func checkLapsed(t *testing.T, rt *router.Router, id string) {
 	t.Helper()
 	if got, _ := rt.Status().Account(id); !slices.Contains(got.Lapsed, "5h") {
 		t.Fatalf("%s's lapsed windows are %q, want its session among them", id, got.Lapsed)
+	}
+}
+
+// checkLiftedAt checks that the router told of the limit with the given
+// identity lifting early on the account with the given id, once, and that
+// its event holds till then, at, as the status document gives it; or, where
+// at is zero, that it told of no such lifting.
+func checkLiftedAt(t *testing.T, r *routed, id string, limit int, at time.Time) {
+	t.Helper()
+	lifted := router.LimitLifted{Account: id, Limit: limit}
+	told := slices.IndexFunc(r.events.heard(), func(e router.Event) bool { return e == router.Event(lifted) })
+	if at.IsZero() {
+		if told >= 0 {
+			t.Errorf("the router told of %+v, want it not lifted early", lifted)
+		}
+		return
+	}
+	if told < 0 {
+		t.Errorf("the router told of no %+v, want it lifted early", lifted)
+	}
+	i := slices.IndexFunc(r.rt.Status().Events, func(e status.Event) bool { return e.Kind == status.EventLimit && e.Limit == limit })
+	if i < 0 {
+		t.Fatalf("the status document has no event of limit %d", limit)
+	}
+	if got := r.rt.Status().Events[i].Until; !got.Equal(at) {
+		t.Errorf("limit %d's event holds till %v, want %v, as it lifted", limit, got, at)
 	}
 }
 

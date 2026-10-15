@@ -442,8 +442,9 @@ func moving(model, from, to string, at time.Time) status.Event {
 }
 
 // A move event's row says what its move came to once the move wrote its
-// session's context again and that's priced: the tokens it wrote and what
-// that cost, exactly, as a cost; nothing before, or of any other event.
+// session's context again: the tokens it wrote and what that cost, exactly,
+// or unpriced where the price table can't price it, as a session's page
+// says it, as a cost; nothing before, or of any other event.
 func TestAMoveEventSaysWhatItsMoveCameToOnceItsSettled(t *testing.T) {
 	cost := ledger.Picodollars(1_820_000_000_000)
 	tests := []struct {
@@ -452,11 +453,14 @@ func TestAMoveEventSaysWhatItsMoveCameToOnceItsSettled(t *testing.T) {
 		want views.RowWords
 	}{
 		{name: "another event's", move: nil},
-		{name: "a move no request wrote again after", move: &views.EventMove{Request: "0a000001", Cost: &cost}},
-		{name: "a move unpriced", move: &views.EventMove{Request: "0a000001", Written: 182_000}},
+		{name: "a move no request wrote again after", move: &views.EventMove{Request: "0a000001"}},
 		{
-			name: "a move settled", move: &views.EventMove{Request: "0a000001", Written: 182_000, Cost: &cost},
+			name: "a move settled", move: &views.EventMove{Request: "0a000001", Written: 182_000, Cost: &cost, Rewrote: true},
 			want: views.RowWords{{Text: "182k cached again, $1.82", Kind: views.RowCost}},
+		},
+		{
+			name: "a move settled on a model the price table can't price", move: &views.EventMove{Request: "0a000001", Written: 182_000, Rewrote: true},
+			want: views.RowWords{{Text: "182k cached again, unpriced", Kind: views.RowCost}},
 		},
 	}
 	for _, tt := range tests {
@@ -469,11 +473,12 @@ func TestAMoveEventSaysWhatItsMoveCameToOnceItsSettled(t *testing.T) {
 }
 
 // A move's cost is the same wherever it's said, as its session's story
-// settles it, at each hard moment: the Log's Events row of its event, the
-// row of the request that made it in the Log's Requests, the List's move
-// that brought its session to the account it's on, where that's the one,
-// and the card of the limit, the cap or the refusal that counted it, whose
-// `in all` is the sum of its moves' rows'.
+// settles it, at each hard moment, unpriced alike where the price table
+// can't price it: the Log's Events row of its event, the row of the request
+// that made it in the Log's Requests, the List's move that brought its
+// session to the account it's on, where that's the one, and the card of the
+// limit, the cap or the refusal that counted it, whose `in all` is the sum
+// of its moves' rows'.
 func TestAMovesCostIsTheSameInItsEventsRowItsRequestsRowAndTheList(t *testing.T) {
 	compared := make(map[string]int)
 	for _, hm := range viewstest.EventMoments() {
@@ -494,16 +499,16 @@ func TestAMovesCostIsTheSameInItsEventsRowItsRequestsRowAndTheList(t *testing.T)
 				for _, l := range requests.Lines {
 					if l.Rule == nil && l.Row.Request == row.Move.Request {
 						compared["request"]++
-						if !sameCost(l.Row.Routing.Cost, row.Move.Cost) {
-							t.Errorf("event %d's move cost %s, but its request %s's routing says %s", row.Key.ID, costSaid(row.Move.Cost), l.Row.Request, costSaid(l.Row.Routing.Cost))
+						if !sameCost(l.Row.Routing.Cost, row.Move.Cost) || l.Row.Routing.CostSaid() != row.Move.CostSaid() {
+							t.Errorf("event %d's move cost %q, but its request %s's routing says %q", row.Key.ID, row.Move.CostSaid(), l.Row.Request, l.Row.Routing.CostSaid())
 						}
 					}
 				}
 				for _, s := range list.Sessions {
 					if s.Session == row.Session && s.Moved != nil && s.Moved.At.Equal(row.Move.At) {
 						compared["list"]++
-						if !sameCost(s.Moved.Cost, row.Move.Cost) {
-							t.Errorf("event %d's move cost %s, but the List's says %s", row.Key.ID, costSaid(row.Move.Cost), costSaid(s.Moved.Cost))
+						if !sameCost(s.Moved.Cost, row.Move.Cost) || s.Routing.CostSaid() != row.Move.CostSaid() {
+							t.Errorf("event %d's move cost %q, but the List's says %q", row.Key.ID, row.Move.CostSaid(), s.Routing.CostSaid())
 						}
 					}
 				}
@@ -534,18 +539,22 @@ func cardsAgree(t *testing.T, table views.EventsTable, rows []views.LogEvent, re
 			continue
 		}
 		var inAll *ledger.Picodollars
+		unpriced := 0
 		for _, m := range d.Followed.Moves {
 			held++
-			if !sameCost(movedCost(m.Move), movedCost(moved[m.Key])) {
+			if !sameCost(movedCost(m.Move), movedCost(moved[m.Key])) || moveCostSaid(m.Move) != moveCostSaid(moved[m.Key]) {
 				t.Errorf("event %d's card says its move %d cost %s, but the move's row says %s",
-					row.Key.ID, m.Key.ID, costSaid(movedCost(m.Move)), costSaid(movedCost(moved[m.Key])))
+					row.Key.ID, m.Key.ID, moveCostSaid(m.Move), moveCostSaid(moved[m.Key]))
 			}
 			if c := movedCost(moved[m.Key]); c != nil {
 				inAll = new(*c + costOr(inAll))
+			} else if moveCostSaid(moved[m.Key]) != "none" {
+				unpriced++
 			}
 		}
-		if !sameCost(d.Followed.InAll, inAll) {
-			t.Errorf("event %d's card says its moves cost %s in all, but their rows sum to %s", row.Key.ID, costSaid(d.Followed.InAll), costSaid(inAll))
+		if !sameCost(d.Followed.InAll, inAll) || d.Followed.Unpriced != unpriced {
+			t.Errorf("event %d's card says its moves cost %s in all, %d unpriced, but their rows sum to %s, %d unpriced",
+				row.Key.ID, costSaid(d.Followed.InAll), d.Followed.Unpriced, costSaid(inAll), unpriced)
 		}
 	}
 	return held

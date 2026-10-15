@@ -169,9 +169,17 @@ func TestThePinsMarkNeverDrawsOverALinesMeterOrItsFirstWords(t *testing.T) {
 				continue
 			}
 			d := f.linesDrawn(f.Moment(doc, routedAt), laid)
-			c := f.page(doc, routedAt)
-			for _, ln := range laid.lines {
-				y, at := f.top()+ln.top, d.x()+d.column+oneRowBar+1
+			if f.sessionsForm(doc, routedAt).byRows {
+				t.Fatalf("at %d×%d, the Switchboard scrolls a row at a time, want an account at a time", width, height)
+			}
+			for i, ln := range laid.lines {
+				y := f.top() + ln.top
+				if laid.step == compactedStep {
+					f.Scroll = min(i, f.Scrolling(doc, routedAt).Most)
+					y += min(f.Scroll, 1) - laid.lines[f.Scroll].first
+				}
+				c := f.page(doc, routedAt)
+				at := d.x() + d.column + oneRowBar + 1
 				if got := textFrom(c, at, at+percentCells, y); !strings.HasSuffix(got, "%") {
 					t.Errorf("at %d×%d, %s's percentage reads %q, want it whole", width, height, ln.account, got)
 				}

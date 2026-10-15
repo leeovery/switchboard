@@ -57,6 +57,7 @@ func DayMoments() []DayMoment {
 		summarisedDay(on),
 		unsummarisedToday(on),
 		linelessDay(on),
+		checksAloneDay(on),
 		outdatedSummary(on),
 		acrossMidnightDay(on),
 		fallingBackDay(),
@@ -65,9 +66,10 @@ func DayMoments() []DayMoment {
 
 // summarisedDay is 6 October as the router summarised it, its lines pruned
 // since, so its summary alone tells of it: three requests on work and side,
-// a session on both, a quota check, which isn't a request, and one no
-// account had room for, which the router answered itself; and the limits the
-// readings history told of, two of them in the 5-hour window.
+// a session on both, a quota check, which isn't a request and is worth
+// nothing, whatever it spent, and one no account had room for, which the
+// router answered itself; and the limits the readings history told of, two
+// of them in the 5-hour window.
 func summarisedDay(on func(day, hour, minute int) time.Time) DayMoment {
 	pruned := []ledger.Line{
 		request("r1", "s1", work, opus, on(6, 10, 0)),
@@ -114,6 +116,18 @@ func linelessDay(on func(day, hour, minute int) time.Time) DayMoment {
 			{Date: "2026-10-06"},
 			{Date: "2026-10-07", Requests: 1, Sessions: 1, Worth: worth(1)},
 		},
+	}
+}
+
+// checksAloneDay is today with Claude Code's quota checks alone, as it
+// resumed two sessions that went no further: no request, no session, and
+// worth nothing, whatever the checks spent.
+func checksAloneDay(on func(day, hour, minute int) time.Time) DayMoment {
+	return DayMoment{
+		Name:  "a day of quota checks alone",
+		Lines: []ledger.Line{checked("k1", "s1", work, on(7, 9, 0)), checked("k2", "s2", side, on(7, 9, 5))},
+		From:  on(7, 0, 0), Now: on(7, 10, 0),
+		Want: []DayFigures{{Date: "2026-10-07", Worth: worth(0)}},
 	}
 }
 
@@ -181,10 +195,11 @@ func request(id, session, account, model string, at time.Time) ledger.Line {
 }
 
 // checked is Claude Code's quota check, of the session given, on the account
-// given, at at: never a request.
+// given, at at: never a request. It spends a million tokens of input, as no
+// check does, so what it spent would show in a worth that priced it.
 func checked(id, session, account string, at time.Time) ledger.Line {
 	return ledger.Line{At: at, Request: id, Kind: ledger.KindCheck, Session: session, Model: haiku, Account: account,
-		Reason: "new", Status: 200, Attempts: 1, TotalMS: 300}
+		Reason: "new", Status: 200, Attempts: 1, TotalMS: 300, Usage: json.RawMessage(aMillionIn)}
 }
 
 // unsent is a request of the session given that no account had room for,

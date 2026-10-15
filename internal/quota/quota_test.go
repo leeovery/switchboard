@@ -3,8 +3,11 @@ package quota_test
 import (
 	"cmp"
 	"encoding/json"
+	"math"
 	"reflect"
+	"regexp"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -75,6 +78,12 @@ func TestLength(t *testing.T) {
 		{key: "_7d", wantOK: false},
 		{key: "9999999999999999999999d", wantOK: false},
 		{key: "3000000h", wantOK: false},
+		{key: "7d_", want: 7 * 24 * time.Hour, wantOK: true},
+		{key: "05h", wantOK: false},
+		{key: "+5h", wantOK: false},
+		{key: "5", wantOK: false},
+		{key: "5h_oi_2", want: 5 * time.Hour, wantOK: true},
+		{key: "5é", wantOK: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
@@ -84,6 +93,33 @@ func TestLength(t *testing.T) {
 			}
 		})
 	}
+}
+
+// lengthKey is the shape of a key Length reads a length from, as a pattern:
+// n with no leading zero, then h or d, then the key's end or an underscore.
+var lengthKey = regexp.MustCompile(`^([1-9][0-9]*)([hd])(?:_|$)`)
+
+// Length reads a length from a key of lengthKey's shape, n of whose unit
+// fits a time.Duration, and from no other.
+func FuzzLengthReadsAKeyOfItsShapeAlone(f *testing.F) {
+	for _, key := range []string{"5h", "7d_oi", "12h_burst", "0h", "05h", "+5h", "5h30m", "_7d", "9999999999999999999999d", "3000000h", "5é", ""} {
+		f.Add(key)
+	}
+	f.Fuzz(func(t *testing.T, key string) {
+		got, ok := quota.Length(key)
+		m := lengthKey.FindStringSubmatch(key)
+		if m == nil {
+			if ok {
+				t.Errorf("Length(%q) = %v, true, want false: the key isn't of the shape", key, got)
+			}
+			return
+		}
+		n, err := strconv.ParseInt(m[1], 10, 64)
+		unit := map[string]time.Duration{"h": time.Hour, "d": quota.Day}[m[2]]
+		if fits := err == nil && n <= math.MaxInt64/int64(unit); ok != fits || ok && got != time.Duration(n)*unit {
+			t.Errorf("Length(%q) = %v, %v, want %v of %v, %v", key, got, ok, n, unit, fits)
+		}
+	})
 }
 
 func TestWindowSpan(t *testing.T) {
