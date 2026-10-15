@@ -216,7 +216,11 @@ func TestForgettingWhatTheStreamToldLosesTheRequestsInFlightTillItTellsOfThemAga
 	}
 }
 
-func TestTheRequestsNoLongerInFlightGoSeenForAfterTheStreamLastToldOfThem(t *testing.T) {
+// A request the stream told of that ended is let go lineWithin after the
+// stream last told of it, its line in the watch's hands by then; one lost,
+// seenFor after, as one cut off may have no line; and one in flight never,
+// however long.
+func TestTheRequestsNoLongerInFlightGoOnceTheirLinesCouldHaveCome(t *testing.T) {
 	tr := traffic{live: true}.took([]router.StreamEvent{
 		told(router.StreamSent, "lost", "work", 0),
 		told(router.StreamSent, "flying", "work", 0),
@@ -235,11 +239,20 @@ func TestTheRequestsNoLongerInFlightGoSeenForAfterTheStreamLastToldOfThem(t *tes
 		slices.Sort(ids)
 		return ids
 	}
-	if got, want := kept(past(seenFor)), []string{"done", "flying"}; !slices.Equal(got, want) {
-		t.Errorf("seenFor after the lost one was last told of, the requests kept are %q, want %q", got, want)
+	steps := []struct {
+		name string
+		at   time.Time
+		want []string
+	}{
+		{name: "just short of lineWithin after the one done ended", at: past(2*time.Second + lineWithin - time.Nanosecond), want: []string{"done", "flying", "lost"}},
+		{name: "lineWithin after the one done ended", at: past(2*time.Second + lineWithin), want: []string{"flying", "lost"}},
+		{name: "just short of seenFor after the lost one was last told of", at: past(seenFor - time.Nanosecond), want: []string{"flying", "lost"}},
+		{name: "seenFor after the lost one was last told of", at: past(seenFor), want: []string{"flying"}},
 	}
-	if got, want := kept(past(seenFor+2*time.Second)), []string{"flying"}; !slices.Equal(got, want) {
-		t.Errorf("seenFor after the last ended, the requests kept are %q, want %q: the one in flight, however long", got, want)
+	for _, s := range steps {
+		if got := kept(s.at); !slices.Equal(got, s.want) {
+			t.Errorf("%s, the requests kept are %q, want %q", s.name, got, s.want)
+		}
 	}
 }
 

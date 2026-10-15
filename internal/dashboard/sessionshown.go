@@ -6,8 +6,8 @@ import "github.com/leeovery/switchboard/internal/views"
 // view it was opened from: the page and its story, as the views build them;
 // the turn chosen, and the turn open, with its requests' rows and the
 // request chosen among them; how far its turns, and the open turn's
-// requests, are scrolled; p, as the key line lists it; and the home its
-// directory is shown under.
+// requests, are scrolled; p, as the key line lists it; the home its
+// directory is shown under; and whether it's loading.
 type SessionShown struct {
 	Page  views.SessionPage
 	Story views.Story
@@ -30,4 +30,8 @@ type SessionShown struct {
 	// Home is the home directory, which the heading shows the session's
 	// directory under as ~: "" shows it whole.
 	Home string
+	// Loading is set while its lines are being read, asked to open, its page
+	// knowing no more than views.AskedPage gives: its heading alone is drawn,
+	// saying so.
+	Loading bool
 }

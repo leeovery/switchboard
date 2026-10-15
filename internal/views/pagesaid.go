@@ -274,6 +274,15 @@ func (p SessionPage) Runs() bool {
 	return p.Activity.Doing != Ended
 }
 
+// Live is the page p as it's drawn, the stream s telling what it holds of
+// its request answering: what that answer has streamed counting on, as a
+// row in flight's does, so a page is built again only as what it's built of
+// changes, not as an answer streams on.
+func (p SessionPage) Live(s Stream) SessionPage {
+	p.Activity = p.Activity.live(s)
+	return p
+}
+
 // Took says how long the turn took, at now, as its row's took says it: the
 // minutes from the one it started in to the one it ended in, both counted,
 // as prose.Minutes says them, as "9m"; and of one still going, to the one

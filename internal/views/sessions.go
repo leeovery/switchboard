@@ -250,9 +250,18 @@ func (by lister) listed(id string, s *story) ListedSession {
 // model seen most lately that names one; else as its lines last name it; ""
 // where neither names one.
 func (by lister) dir(id string, s *story) string {
-	named := slices.DeleteFunc(slices.Clone(by.routed[id].Assignments), func(a status.Assignment) bool { return a.Dir == "" })
+	if dir := routedDir(by.routed[id]); dir != "" {
+		return dir
+	}
+	return s.dir
+}
+
+// routedDir is the directory the session s runs in as the router lists it:
+// of its model seen most lately that names one; "" where none does.
+func routedDir(s status.Session) string {
+	named := slices.DeleteFunc(slices.Clone(s.Assignments), func(a status.Assignment) bool { return a.Dir == "" })
 	if len(named) == 0 {
-		return s.dir
+		return ""
 	}
 	return slices.MaxFunc(named, func(a, b status.Assignment) int { return a.LastSeen.Compare(b.LastSeen) }).Dir
 }
@@ -285,7 +294,7 @@ func (by lister) activity(id string, s *story) Activity {
 	}
 	last := s.last.At.UTC()
 	a = a.with(Activity{Since: ended(s.last).UTC(), LastSeen: last})
-	if listed || by.h.saw(id, by.now) || by.unlisted && by.now.Sub(last) <= IdleHour {
+	if listed || by.h.saw(id, by.now) || by.unlisted && by.now.Before(lapsed(last)) {
 		return a
 	}
 	return Activity{Doing: Ended, Since: last, LastSeen: last}

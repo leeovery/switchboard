@@ -59,7 +59,9 @@ type LogPage struct {
 	// AtReach is set where Reach bounds the table shown and the tables span
 	// from as far back as the lines of the filter it gives reach, as the
 	// days' summaries told: to the earliest day that may hold one, or where
-	// none may. The table fills its view no further back.
+	// none may; or, of the Events through some kinds or accounts, as far back
+	// as the router filed one, or where it filed none, as the watch reads its
+	// files. The table fills its view no further back.
 	AtReach bool
 	Finding LogFinding
 	lined   *tableLines

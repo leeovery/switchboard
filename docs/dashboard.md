@@ -432,6 +432,9 @@ To open a session's page, do one of these:
 A session's page opens over a tab. `esc` goes back to where you opened it from, with the tab as you
 left it.
 
+A session that has run for weeks takes a moment to read. While it does, the page shows its heading
+with `loading…` after it, and `esc` goes back.
+
 Keys on a session's page:
 
 | Key | Does |
@@ -464,6 +467,9 @@ Every page is one frame. From top to bottom, it has:
 3. On every tab but the Overview, the tab's heading row: its name and a rule.
 4. The view.
 5. The key line. See [The key line](#the-key-line).
+
+When a tab reads a lot, as Sessions or the Log first showing a long ledger, its heading row says
+`loading…` until the read lands. A quick read says nothing.
 
 ### The tabs
 

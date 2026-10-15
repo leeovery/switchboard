@@ -10,13 +10,28 @@ import (
 )
 
 // logBuilt is what each of the Log's builds was last made of, none where
-// it's not been made: its Requests, its Events, and while it's open, its
-// panel. None is made again till what it's made of changes, so a frame, a
-// tick or the pointer moving makes nothing afresh.
+// it's not been made: its Requests' lines, its Requests, its Events, and
+// while it's open, its panel. None is made again till what it's made of
+// changes, so a frame, a tick or the pointer moving makes nothing afresh.
 type logBuilt struct {
+	lines    *linesBasis
 	requests *requestsBasis
 	events   *eventsBasis
 	panel    *panelBasis
+}
+
+// linesBasis is what the Log's Requests' lines are made of, as
+// views.LogLinesOf makes them: as requestsBasis has it, but nothing the
+// stream told, which places a line once alone, as it's first taken in.
+type linesBasis struct {
+	lined  int
+	filter views.LogFilter
+	day    string
+}
+
+// same reports whether b is o, the lines made of one as of the other.
+func (b *linesBasis) same(o linesBasis) bool {
+	return b != nil && b.lined == o.lined && b.filter.Equal(o.filter) && b.day == o.day
 }
 
 // requestsBasis is what the Log's Requests are made of: the lines and
@@ -53,10 +68,15 @@ func (b *eventsBasis) same(o eventsBasis) bool {
 }
 
 // panelBasis is what the Log's panel's figures are made of: what the Log
-// holds, as held counts its changes; what the stream told; the table it's
-// of, what it picks and the sessions it ticks; the sessions the router
-// lists, as the look that listed them gave them, and the one the find
-// picked; and the minute, which its sessions' doing is told at.
+// holds of the table it's of, as lined counts the changes to its lines, of
+// Requests', and held every change, of Events'; what the stream told of
+// the requests' rows, as logTold gives it and sameRows compares it, which
+// says what its sessions are doing, an answer streaming on saying nothing
+// more; the table it's of, what it picks and the sessions it ticks; the
+// sessions the router lists, kept and compared as views.KeptListings and
+// views.SameListings have them, so a look listing them the same makes
+// nothing afresh, and the one the find picked; and the minute, which its
+// sessions' doing is told at.
 type panelBasis struct {
 	held   int
 	told   streamTold
@@ -72,18 +92,20 @@ type panelBasis struct {
 // same reports whether b is o, the panel's figures made of one as of the
 // other.
 func (b *panelBasis) same(o panelBasis) bool {
-	return b != nil && b.held == o.held && b.told.same(o.told) && b.of == o.of && b.filter.Equal(o.filter) && b.shows.Equal(o.shows) &&
-		slices.Equal(b.ticked, o.ticked) && sameSlice(b.listed, o.listed) && b.found == o.found && b.minute.Equal(o.minute)
+	return b != nil && b.held == o.held && b.told.sameRows(o.told) && b.of == o.of && b.filter.Equal(o.filter) && b.shows.Equal(o.shows) &&
+		slices.Equal(b.ticked, o.ticked) && views.SameListings(b.listed, o.listed) && b.found == o.found && b.minute.Equal(o.minute)
 }
 
-// streamTold is what the stream told, as a build of the Log's reads it, as
-// logStream gives it: whether the router answers, the Log reading nothing
-// of the stream while it doesn't; whether it's live; and how many times the
-// requests it told of have changed, and their rows, as the traffic counts
-// them, so comparing two costs nothing of the requests themselves.
+// streamTold is what the stream told of the requests' rows, as a build of
+// the Log's reads it, as logStream gives it: whether the router answers,
+// the Log reading nothing of the stream while it doesn't; whether it's
+// live; and how many times the requests' rows have changed, as the traffic
+// counts them, so comparing two costs nothing of the requests themselves.
+// What's told as an answer streams on is none of it: a row in flight draws
+// that as it's drawn.
 type streamTold struct {
-	answering, live     bool
-	changes, rowChanges int
+	answering, live bool
+	rowChanges      int
 }
 
 // logTold is what the stream tells a build of the Log's.
@@ -92,25 +114,19 @@ func (m Model) logTold() streamTold {
 		return streamTold{}
 	}
 	t := m.traffic
-	return streamTold{answering: true, live: t.live, changes: t.changes, rowChanges: t.rowChanges}
-}
-
-// same reports whether s tells what o does.
-func (s streamTold) same(o streamTold) bool {
-	return s == o
+	return streamTold{answering: true, live: t.live, rowChanges: t.rowChanges}
 }
 
 // sameRows reports whether s tells what o does of the requests' rows, as
 // views.Told.SameRow compares each.
 func (s streamTold) sameRows(o streamTold) bool {
-	s.changes, o.changes = 0, 0
 	return s == o
 }
 
-// sameSlice reports whether a and b are the very same slice: as long, and
-// of the same elements, not alike ones.
-func sameSlice[T any](a, b []T) bool {
-	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
+// linesBasis is what the Log's Requests' lines are made of at now, through
+// the filter given.
+func (m Model) linesBasis(filter views.LogFilter, now time.Time) linesBasis {
+	return linesBasis{lined: m.log.lined, filter: filter, day: views.Today(now).Date}
 }
 
 // requestsBasis is what the Log's Requests are made of at now, through the
@@ -127,8 +143,12 @@ func (m Model) eventsBasis(shows views.EventFilter, now time.Time) eventsBasis {
 
 // panelBasis is what the Log's panel p's figures are made of at now.
 func (m Model) panelBasis(p dashboard.LogPanel, now time.Time) panelBasis {
+	held := m.log.lined
+	if p.Of == dashboard.LogEvents {
+		held = m.log.held
+	}
 	return panelBasis{
-		held: m.log.held, told: m.logTold(), of: p.Of, filter: p.Filter, shows: p.Shows, ticked: p.TickedSessions(),
-		listed: m.sessions, found: m.log.find.picked, minute: now.Truncate(time.Minute),
+		held: held, told: m.logTold(), of: p.Of, filter: p.Filter, shows: p.Shows, ticked: p.TickedSessions(),
+		listed: views.KeptListings(m.sessions), found: m.log.find.picked, minute: now.Truncate(time.Minute),
 	}
 }

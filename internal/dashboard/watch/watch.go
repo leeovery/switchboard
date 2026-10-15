@@ -326,13 +326,19 @@ type Model struct {
 	// as the last look built them, and the readings history's tail they're
 	// judged by.
 	runwayTab runwayTab
-	// session is the session's page open, drawn in place of the view: nil
-	// while none is. opening counts the pages asked to open, each opening
-	// once its read lands, but one asked for before the last; and pending is
-	// the id of the last, while its read waits for the ledger's tail's.
+	// session is the session's page open, drawn in place of the view, or
+	// loading, as pageLoading has it: nil while none is. opening counts the
+	// pages asked to open, each opening once its read lands, but one asked
+	// for before the last; arrived is the last of them whose read landed;
+	// and pending is the id of the last, while its read waits for the
+	// ledger's tail's.
 	session *sessionShown
 	opening int
+	arrived int
 	pending string
+	// waiting is the tab shown as it waits on a read of what it draws, as
+	// waited notes it, for its heading to say it's loading.
+	waiting waiting
 	// log is what the watch holds of the Log, and tail today's lines of the
 	// ledger as its readers follow them.
 	log  logTab
@@ -488,6 +494,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, listed := tuned.readSessions()
 	tuned, ran := tuned.readRunway()
 	tuned, costs := tuned.costing()
+	tuned, waits := tuned.waited(now)
 	page := tuned.frame(now).Built(tuned.doc, now)
 	if _, frame := msg.(frameMsg); !frame {
 		tuned = tuned.keepLayout(page, now)
@@ -496,7 +503,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, costs, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, costs, waits, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look
@@ -657,6 +664,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.findRead(msg), nil
 	case reachMsg:
 		return m.reachRead(msg), nil
+	case filedReachMsg:
+		return m.filedReachRead(msg), nil
 	case orderedMsg:
 		return m.ordered(msg)
 	case costedMsg:
@@ -675,6 +684,10 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.framed(msg), nil
 	case sessionReadMsg:
 		return m.sessionRead(msg), nil
+	case pageLoadingMsg:
+		return m.pageLoading(msg), nil
+	case loadingMsg:
+		return m, nil
 	case listReadMsg:
 		return m.listRead(msg), nil
 	case runwayReadMsg:
@@ -862,6 +875,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Runway:     m.runwayTab.shown,
 		History:    m.past.page,
 		Session:    m.session.frame(),
+		Loading:    m.loading(now),
 		Log:        m.log.page,
 	}.Holding(m.taking.moment).At(m.doc, now)
 	if m.view == dashboard.Accounts {

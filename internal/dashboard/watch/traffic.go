@@ -26,11 +26,20 @@ const (
 	looseFor    = 3 * time.Second
 )
 
-// seenFor is how long the watch keeps a request the stream told of that's
-// no longer in flight, and a move it told of: the router lists the sessions
-// it has seen in the last IdleHour, so one it lists after that it has seen
-// since, as its own listing says.
+// seenFor is how long the watch keeps a move the stream told of, and a
+// request it told of that was lost: the router lists the sessions it has
+// seen in the last IdleHour, so one it lists after that it has seen since,
+// as its own listing says.
 const seenFor = views.IdleHour
+
+// lineWithin is how long after the stream last told of a request that
+// ended its line is in the watch's hands, at the latest, the views taking
+// the request from its line from then on: the router writes it moments
+// after the request ends, held up only while its ledger makes its round;
+// today's lines are read at each look, and a day before today's awaiting a
+// line at the look after a request filed on it ends, then each
+// awaitedEvery. Twice awaitedEvery bounds it, with room to spare.
+const lineWithin = 2 * awaitedEvery
 
 // traffic is what the router's request stream has told of the routed
 // requests, as the watch keeps it for the frame: each request it told of,
@@ -386,9 +395,9 @@ func (t traffic) tidied(now time.Time) traffic {
 }
 
 // tidy lets go of what has ended by now, as due says it's due to: the
-// requests no longer in flight that the stream told of last seenFor ago,
-// the calls with nothing more to show, and the moves told of seenFor ago,
-// as toldGoes and each's goes have it. It changes those of t's maps and moves due, which
+// requests no longer in flight whose time is up, the calls with nothing
+// more to show, and the moves told of seenFor ago, as toldGoes and each's
+// goes have it. It changes those of t's maps and moves due, which
 // must be its own copies, and leaves the rest be.
 func (t *traffic) tidy(now time.Time) {
 	if reached(t.due.requests, now) {
@@ -419,13 +428,18 @@ func (t traffic) dues() dues {
 	}
 }
 
-// toldGoes is when the request r is let go of: seenFor after the stream
-// last told of it, once it's no longer in flight; zero while it is.
+// toldGoes is when the request r is let go of, after the stream last told
+// of it: lineWithin after, once it has ended, its line read by then; seenFor
+// after, once it's lost, as one cut off may have none; never while it's in
+// flight, zero.
 func toldGoes(r views.Told) time.Time {
-	if r.InFlight() {
+	switch {
+	case r.InFlight():
 		return time.Time{}
+	case r.Lost:
+		return r.Heard.Add(seenFor)
 	}
-	return r.Heard.Add(seenFor)
+	return r.Heard.Add(lineWithin)
 }
 
 // soonest is the soonest any of those given goes, as goes says, zero where

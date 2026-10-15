@@ -68,6 +68,9 @@ type Fixture struct {
 	// frame pins them otherwise than the frames' usual, as a session's story's
 	// frames do: zero for the usual.
 	scale float64
+	// loading has its last key's reads still under way, what they're for
+	// saying it's loading, as underWay has them.
+	loading bool
 	// records are what its world's readers serve the watch, and accounts
 	// its world's, as configured, whose plans History prices against: a
 	// printout has neither, and a watch drawn of it reads none.
@@ -252,6 +255,7 @@ type page struct {
 	view    dashboard.View
 	log     dashboard.LogTicks
 	scale   float64
+	loading bool
 	looked  *looked
 }
 
@@ -289,7 +293,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: now, router: router, keys: slices.Clone(p.keys), before: p.before,
-		theme: framesTheme(), records: w.records(), accounts: w.accounts, view: p.view, log: p.log, scale: p.scale,
+		theme: framesTheme(), records: w.records(), accounts: w.accounts, view: p.view, log: p.log, scale: p.scale, loading: p.loading,
 	}
 }
 
@@ -323,9 +327,10 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // frames, each reached through the Log, its story's scale pinned at 8: d28c's
 // page, and on a phone; 9c2e's; b9c4's, ended yesterday; f41a's, over its
 // world, come back this morning; d28c's with ↓ to turn 12 and enter; and
-// the routing card over 9c2e's page, with p and 3. Then Accounts' frames,
-// each reached from the Overview with tab: Compare as it opens, over the
-// auto world, ten accounts' and the bad hour's, and with >, the last 30
+// the routing card over 9c2e's page, with p and 3. Where no frame draws it,
+// to judge by eye: d28c's page loading, its read under way. Then Accounts'
+// frames, each reached from the Overview with tab: Compare as it opens, over
+// the auto world, ten accounts' and the bad hour's, and with >, the last 30
 // days; Detail with ], all accounts chosen, ↓ to work, and over the bad
 // hour's world, ↓ twice to personal; side's SESSIONS, d28c selected, opening
 // on Accounts, so the stream first opens there, telling each request in
@@ -402,6 +407,7 @@ var pages = []page{
 	{name: "session-turn-opened-160", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c", downKey, enterKey), scale: storyScale},
 	{name: "session-phone-52", size: watch.Size{Width: 52, Height: 32}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
 	{name: "routing-session-160", size: wide(37), world: accountWorlds.auto, keys: toSession("9c2e", keysOf("p", "3")...), scale: storyScale},
+	{name: "page-session-loading", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale, loading: true},
 	{name: "accounts-compare-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts()},
 	{name: "accounts-compare-month-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts(">")},
 	{name: "accounts-compare-ten-160", size: wide(37), world: manyAccounts(10), keys: toAccounts()},

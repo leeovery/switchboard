@@ -55,8 +55,12 @@ func (m Model) helpCard() dashboard.Help {
 // opening the turn chosen into its requests, or the request chosen; and p,
 // as pinKey has it. Its scroll keys follow, where they scroll its turns, or
 // the open turn's requests, as KeysScroll has it, as listings has them.
+// While it loads, esc alone.
 func (m Model) sessionKeys() pageKeys {
 	esc, move, enter := dashboard.Key{Key: "esc", Does: "back"}, dashboard.Key{Key: "↑↓", Does: "turn"}, dashboard.Key{Key: "enter", Does: "its requests"}
+	if m.session.shown.Loading {
+		return pageKeys{own: []keyListing{{Key: esc, works: true, leads: true}}, coloured: m.coloured()}
+	}
 	if m.session.shown.Open != 0 {
 		esc.Does, move.Does, enter.Does = "close", "request", "open"
 	}

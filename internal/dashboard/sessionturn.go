@@ -172,7 +172,7 @@ func (d sessionDrawn) foot(c *canvas, y int) {
 }
 
 // turnsIn counts the turns' own rows among rows.
-func turnsIn(rows []pageRow) int {
+func turnsIn(rows []turnsRow) int {
 	n := 0
 	for _, r := range rows {
 		if r.kind == aTurn {

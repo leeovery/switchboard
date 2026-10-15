@@ -11,7 +11,7 @@ import (
 
 // busyHour is the traffic of a busy hour's requests, n of them, d28c's on
 // work, the last answered at now and each before it a second earlier, as
-// the traffic keeps them for seenFor.
+// the traffic keeps them, those ended within lineWithin.
 func busyHour(n int, now time.Time) traffic {
 	events := make([]router.StreamEvent, 0, 2*n)
 	for i := range n {
@@ -23,28 +23,36 @@ func busyHour(n int, now time.Time) traffic {
 	return traffic{live: true}.took(events, heldNowhere, now)
 }
 
-// A tick with nothing of the traffic's ended seenFor ago copies nothing of
-// it, however many requests it keeps; once the oldest has, it's let go.
+// However busy the hour, the traffic keeps only the requests that ended
+// within lineWithin, the views taking the rest from their lines, so what a
+// tick letting go of one copies is a few minutes' requests, never the
+// hour's; a tick with nothing of it to let go copies nothing; and once the
+// oldest kept is due, it's let go alone.
 func TestATickWithNothingToLetGoCopiesNothing(t *testing.T) {
 	now := past(2 * time.Hour)
 	tr := busyHour(3600, now)
 
+	if got, want := len(tr.requests), int(lineWithin/time.Second); got != want {
+		t.Errorf("an hour of a request a second, the traffic keeps %d, want %d, those ended within lineWithin", got, want)
+	}
 	if allocs := testing.AllocsPerRun(10, func() { tr.tidied(now.Add(pulseFor / 2)) }); allocs > 0 {
 		t.Errorf("a tick with nothing to let go allocates %.0f times, want none", allocs)
 	}
-	oldest := now.Add(seenFor - 3599*time.Second)
-	if _, ok := toldOf(tr.tidied(oldest.Add(-time.Millisecond)), "00000000"); !ok {
-		t.Error("just short of seenFor after the oldest ended, it's let go, want it kept")
+	first := 3600 - int(lineWithin/time.Second)
+	oldest, next := fmt.Sprintf("%08x", first), fmt.Sprintf("%08x", first+1)
+	due := now.Add(time.Second)
+	if _, ok := toldOf(tr.tidied(due.Add(-time.Millisecond)), oldest); !ok {
+		t.Error("just short of lineWithin after the oldest kept ended, it's let go, want it kept")
 	}
-	tidied := tr.tidied(oldest)
-	if _, ok := toldOf(tidied, "00000000"); ok {
-		t.Error("seenFor after the oldest ended, it's kept, want it let go")
+	tidied := tr.tidied(due)
+	if _, ok := toldOf(tidied, oldest); ok {
+		t.Error("lineWithin after the oldest kept ended, it's kept, want it let go")
 	}
-	if _, ok := toldOf(tr, "00000000"); !ok {
+	if _, ok := toldOf(tr, oldest); !ok {
 		t.Error("tidied, the traffic it was tidied from lost the oldest, want its requests its own")
 	}
-	if _, ok := toldOf(tidied, "00000001"); !ok {
-		t.Error("seenFor after the oldest ended, the next is let go too, want it kept, ended a second later")
+	if _, ok := toldOf(tidied, next); !ok {
+		t.Error("lineWithin after the oldest kept ended, the next is let go too, want it kept, ended a second later")
 	}
 }
 
@@ -91,9 +99,9 @@ func TestATickLetsGoEachOfACallARequestAndAMoveAsItsDue(t *testing.T) {
 	if len(home.moves) != 1 || !slices.Equal(ids(home), []string{"r1"}) {
 		t.Errorf("r1's answer home, the moves are %+v and the requests %q, want the move and r1 kept", home.moves, ids(home))
 	}
-	ended := home.tidied(past(time.Second + seenFor))
+	ended := home.tidied(past(time.Second + lineWithin))
 	if len(ended.moves) != 1 || len(ids(ended)) > 0 {
-		t.Errorf("seenFor after r1 ended, the moves are %+v and the requests %q, want the move kept and r1 let go", ended.moves, ids(ended))
+		t.Errorf("lineWithin after r1 ended, the moves are %+v and the requests %q, want the move kept and r1 let go", ended.moves, ids(ended))
 	}
 	if moved := ended.tidied(past(2*time.Second + seenFor)); len(moved.moves) > 0 {
 		t.Errorf("seenFor after the move, the moves are %+v, want none", moved.moves)
@@ -131,7 +139,7 @@ func TestTheTrafficCountsTheChangesToItsRequestsAndTheirRows(t *testing.T) {
 		{name: "lost as the stream is forgotten", from: sent, to: sent.afresh(), changes: true, rows: true},
 		{name: "lost as the stream opens again without it", from: sent, to: sent.reopened().settled(), changes: true, rows: true},
 		{name: "a tick with nothing to let go", from: done, to: done.tidied(past(2 * time.Second))},
-		{name: "let go", from: done, to: done.tidied(past(time.Second + seenFor)), changes: true, rows: true},
+		{name: "let go", from: done, to: done.tidied(past(time.Second + lineWithin)), changes: true, rows: true},
 	}
 	for _, s := range steps {
 		changes, rows := s.to.changes != s.from.changes, s.to.rowChanges != s.from.rowChanges

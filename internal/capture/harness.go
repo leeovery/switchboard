@@ -73,7 +73,8 @@ func (f Fixture) Model() tea.Model {
 // moment is read first readAgo before those, which are pressed then; then
 // at its moment, read again, by R, so what its ledger has gained since is
 // read. Its timers never fire, so nothing moves from there but what a key
-// does.
+// does; but a fixture of a page loading has its last key's reads still under
+// way, as underWay has them.
 func (f Fixture) settle(size watch.Size) watch.Model {
 	gone := f.router.gone
 	read := !gone.IsZero() && gone.Before(f.now)
@@ -97,7 +98,26 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 		m = deliver(m, keysOf("R")[0])
 	}
 	clock.now = f.now
-	return pressed(deliver(m, reached{}), f.keys)
+	m = deliver(m, reached{})
+	if f.loading && len(f.keys) > 0 {
+		last := len(f.keys) - 1
+		return underWay(pressed(m, f.keys[:last]), f.keys[last])
+	}
+	return pressed(m, f.keys)
+}
+
+// underWay is the model with key pressed, every read it asks for still under
+// way, never landing, and what's shown having waited on them long enough to
+// say it's loading, as loadingHeld fires its timers.
+func underWay(m watch.Model, key tea.KeyPressMsg) watch.Model {
+	next, cmd := m.Update(key)
+	m = next.(watch.Model)
+	for _, msg := range run(cmd) {
+		if f, ok := msg.(fired); ok {
+			m = deliver(m, f.msg)
+		}
+	}
+	return m
 }
 
 // pressed is the model with the keys given pressed, in turn.
@@ -116,7 +136,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		Source:     source,
 		Notifier:   quiet{},
 		Now:        now,
-		After:      held,
+		After:      f.timers(),
 		Await:      source.await,
 		Interval:   interval,
 		Policy:     claude.Policy,
@@ -239,6 +259,31 @@ func run(cmd tea.Cmd) []tea.Msg {
 // clock never moves on from the moment drawn, and nothing redraws itself.
 func held(time.Duration, tea.Msg) tea.Cmd {
 	return nil
+}
+
+// timers are the watch's timers as the fixture keeps them: held, but of a
+// page loading, as loadingHeld has them.
+func (f Fixture) timers() func(time.Duration, tea.Msg) tea.Cmd {
+	if f.loading {
+		return loadingHeld
+	}
+	return held
+}
+
+// loadingHeld is the watch's timers as a fixture of a page loading keeps
+// them: what's shown having waited watch.LoadingAfter fires at once, as
+// fired, which underWay delivers, the watch taking in nothing of it
+// otherwise; the rest are held.
+func loadingHeld(d time.Duration, msg tea.Msg) tea.Cmd {
+	if d != watch.LoadingAfter {
+		return nil
+	}
+	return func() tea.Msg { return fired{msg: msg} }
+}
+
+// fired is a timer's message, as loadingHeld fires it.
+type fired struct {
+	msg tea.Msg
 }
 
 // clock is a fixture's clock, which stands still where it's set.

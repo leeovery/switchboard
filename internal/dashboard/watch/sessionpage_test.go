@@ -17,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -33,6 +34,10 @@ type pageLedger struct {
 func (l *pageLedger) Sessions(ids []string, _ func(string, ledger.Line)) map[string][]ledger.Line {
 	l.asked = append(l.asked, slices.Clone(ids))
 	return l.lines
+}
+
+func (l *pageLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+	return l.Sessions(ids, take)
 }
 
 // promptedLines are idD28C's lines of n turns on work, a prompt each, the
@@ -426,17 +431,24 @@ func TestASessionsPageReadsTheStreamWhileTheRouterAnswers(t *testing.T) {
 }
 
 // Open, a session's page is built afresh at each look, of the router's
-// listing then, and at each tick, its story running to the clock's time;
-// one the router lists no longer stays open, saying it ended, its story
-// ending at its last request.
+// listing then, and as a tick turns the minute, its story running to the
+// clock's time, a tick within the minute building nothing again; one the
+// router lists no longer stays open, saying it ended, its story ending at
+// its last request.
 func TestASessionsPageFollowsEachLookAndTickAndStaysOnceItEnds(t *testing.T) {
 	lines := promptedLines(3, start.Add(-30*time.Minute))
 	h, _ := pageHarness(t, lines)
 	h.openPage(idD28C)
 
+	opened := h.shownPage().Story
+	minute := opened.End.Truncate(time.Minute).Add(time.Minute)
+	h.tickUntil(minute.Add(-time.Nanosecond))
+	if story := h.shownPage().Story; !story.End.Equal(opened.End) {
+		t.Errorf("ticks on within the minute, the story ends at %s, want it as it was built, at %s", story.End, opened.End)
+	}
 	h.fire(h.lastTick())
 	if story := h.shownPage().Story; story.Ended || !story.End.Equal(h.clock.now) {
-		t.Errorf("a tick on, the story ends at %s, over %t; want it running to the tick, %s", story.End, story.Ended, h.clock.now)
+		t.Errorf("a tick turning the minute, the story ends at %s, over %t; want it running to the tick, %s", story.End, story.Ended, h.clock.now)
 	}
 
 	h.source.sessions[0] = sessionOn(idD28C, opus, "side", time.Second)
@@ -622,13 +634,7 @@ func TestASessionsPageIsBuiltAgainOnlyAsWhatItsBuiltOfChanges(t *testing.T) {
 	h.openPage(idD28C)
 	h.settle()
 	h.keys(enterKey)
-	built := func() [3]any {
-		s := h.shownPage()
-		if len(s.Page.Turns) == 0 || len(s.Story.Sent) == 0 || len(s.Requests) == 0 {
-			t.Fatalf("the page has %d turns, its story %d requests sent, its turn open %d requests; want some of each", len(s.Page.Turns), len(s.Story.Sent), len(s.Requests))
-		}
-		return [3]any{&s.Page.Turns[0], &s.Story.Sent[0], &s.Requests[0]}
-	}
+	built := h.pageBuilt
 	another := func(request string) router.StreamEvent {
 		return alter(told(router.StreamSent, request, "work", 0), func(e *router.StreamEvent) { e.Session = id7F3A })
 	}
@@ -653,12 +659,13 @@ func TestASessionsPageIsBuiltAgainOnlyAsWhatItsBuiltOfChanges(t *testing.T) {
 	}
 }
 
-// A session's page is made to the tenth of a second while a request of it is
-// in flight, as its turn open's row of it counts how long it's taken to a
-// tenth, and to the second while none is: a tenth on, what the stream tells
-// of another session builds the page afresh, that row a tenth further on,
-// only while one of its own is in flight.
-func TestASessionsPageIsMadeToTheTenthWhileARequestOfItIsInFlight(t *testing.T) {
+// A session's page is built as what it shows changes, and drawn as it stands
+// at each moment: while a request of it answers, the clock running on
+// within the minute, and its answer streaming on, build none of it again,
+// while its turn open's row of that request counts how long it's taken, and
+// row 6 what its answer has streamed, on as they're drawn; the minute
+// turning builds it afresh.
+func TestASessionsPageIsBuiltAsWhatItShowsChangesAndDrawnAsItStands(t *testing.T) {
 	serving := func(e router.StreamEvent) router.StreamEvent {
 		e.Prompt, e.Class = "prompt-2", ledger.ClassMain
 		return e
@@ -666,46 +673,44 @@ func TestASessionsPageIsMadeToTheTenthWhileARequestOfItIsInFlight(t *testing.T) 
 	another := func(request string) router.StreamEvent {
 		return alter(told(router.StreamSent, request, "work", 0), func(e *router.StreamEvent) { e.Session = id7F3A })
 	}
-	done := alter(told(router.StreamDone, "r3", "work", 0), func(e *router.StreamEvent) { e.Status = 200 })
-	tests := []struct {
-		name  string
-		heard []router.StreamEvent
-		tenth bool
-		grew  time.Duration
-	}{
-		{name: "a request of it in flight", heard: []router.StreamEvent{serving(told(router.StreamSent, "r3", "work", 0))}, tenth: true, grew: time.Second / 10},
-		{name: "none in flight", heard: []router.StreamEvent{serving(told(router.StreamSent, "r3", "work", 0)), serving(done)}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
-			h.openPage(idD28C)
-			h.settle()
-			h.keys(enterKey)
-			h.hear(tt.heard...)
-			r3 := func() (*views.LogLine, time.Duration) {
-				requests := h.shownPage().Requests
-				i := slices.IndexFunc(requests, func(l views.LogLine) bool { return l.Row.Request == "r3" })
-				if i < 0 || requests[i].Row.Took == nil {
-					t.Fatalf("the turn open has no row of r3 saying how long it's taken among %d", len(requests))
-				}
-				return &requests[i], *requests[i].Row.Took
-			}
-			h.clock.now = h.clock.now.Truncate(time.Second).Add(time.Second + 200*time.Millisecond)
-			h.hear(another("o1"))
-			was, wasTook := r3()
+	h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+	h.openPage(idD28C)
+	h.settle()
+	h.keys(enterKey)
+	h.clock.now = start.Add(time.Second)
+	h.hear(serving(told(router.StreamSent, "r3", "work", 0)), serving(told(router.StreamFirst, "r3", "work", 0)))
+	was := h.pageBuilt()
 
-			h.clock.now = h.clock.now.Add(time.Second / 10)
-			h.hear(another("o2"))
-			is, took := r3()
-			if built := is != was; built != tt.tenth {
-				t.Errorf("a tenth on, 7f3a's request built d28c's page afresh %t, want %t", built, tt.tenth)
-			}
-			if grew := took - wasTook; grew != tt.grew {
-				t.Errorf("a tenth on, r3's row says it took %s more, want %s", grew, tt.grew)
-			}
-		})
+	h.clock.now = start.Add(1100 * time.Millisecond)
+	h.hear(another("o1"))
+	if took := prose.Seconds(1100 * time.Millisecond); h.pageBuilt() != was || !strings.Contains(h.view(), took) {
+		t.Errorf("a tenth on, the page was built again %t, r3's row drawn taking %s %t; want it as built, the row counting on\n%s",
+			h.pageBuilt() != was, took, strings.Contains(h.view(), took), h.view())
 	}
+	h.clock.now = start.Add(1200 * time.Millisecond)
+	h.hear(alter(serving(told(router.StreamProgress, "r3", "work", 0)), func(e *router.StreamEvent) { e.Chars = 4936 }))
+	doing := views.Activity{Doing: views.Answering, Chars: 4936}.Said(h.clock.now)
+	if h.pageBuilt() != was || !strings.Contains(h.view(), doing+"   on ") {
+		t.Errorf("its answer streaming on, the page was built again %t, row 6 saying %q %t; want it as built, row 6 counting on\n%s",
+			h.pageBuilt() != was, doing, strings.Contains(h.view(), doing+"   on "), h.view())
+	}
+	h.clock.now = start.Add(time.Minute)
+	h.hear(another("o2"))
+	if h.pageBuilt() == was {
+		t.Errorf("the minute turned, and the page wasn't built afresh")
+	}
+}
+
+// pageBuilt is the newest turn, the first request sent of the story, and
+// the first request of the turn open of the session's page open, each where
+// it's held, so a page built afresh is told from one as it was.
+func (h *harness) pageBuilt() [3]any {
+	h.t.Helper()
+	s := h.shownPage()
+	if len(s.Page.Turns) == 0 || len(s.Story.Sent) == 0 || len(s.Requests) == 0 {
+		h.t.Fatalf("the page has %d turns, its story %d requests sent, its turn open %d requests; want some of each", len(s.Page.Turns), len(s.Story.Sent), len(s.Requests))
+	}
+	return [3]any{&s.Page.Turns[0], &s.Story.Sent[0], &s.Requests[0]}
 }
 
 // On a session's page, a look that takes in lines raising the points of a

@@ -23,6 +23,9 @@ type Activity struct {
 	// Chars counts the characters its answer has streamed so far, while
 	// it's Answering: zero till the stream counts any.
 	Chars int
+	// answer is the request whose answer Chars counts, as the stream told
+	// of it: "" where none did.
+	answer string
 	// Status is the answer that refused or throttled its request, while
 	// it's Refused or Throttled.
 	Status int
@@ -109,6 +112,16 @@ func (a Activity) Tokens() int {
 	return a.Chars / CharsPerToken
 }
 
+// live is a as it's drawn, s telling what it holds of the request
+// answering: the characters its answer has streamed counting on, as a row
+// in flight's do, as RequestRow.Live has them.
+func (a Activity) live(s Stream) Activity {
+	if t, ok := s.Requests[a.answer]; ok && a.Doing == Answering {
+		a.Chars = t.doing().Chars
+	}
+	return a
+}
+
 // inUTC is a, its times in UTC, as the List gives its times.
 func (a Activity) inUTC() Activity {
 	a.Since, a.LastSeen = a.Since.UTC(), a.LastSeen.UTC()
@@ -158,7 +171,7 @@ func (t Told) doing() Activity {
 	case t.Verdict == VerdictLimited || t.Verdict == VerdictRefused:
 		a.Doing, a.Status = Refused, t.Status
 	case !t.First.IsZero():
-		a.Doing, a.Chars = Answering, t.Chars
+		a.Doing, a.Chars, a.answer = Answering, t.Chars, t.Request
 	case t.Verdict == VerdictThrottled:
 		a.Doing, a.Status = Throttled, t.Status
 	}
@@ -292,7 +305,7 @@ func (h hearing) saw(id string, now time.Time) bool {
 	}
 	return slices.ContainsFunc(h.sat[id], func(k seatOf) bool {
 		got := h.seats[k]
-		return got.flying || now.Sub(got.last) <= IdleHour
+		return got.flying || now.Before(lapsed(got.last))
 	})
 }
 

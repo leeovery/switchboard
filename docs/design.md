@@ -1054,6 +1054,12 @@ heading there, ending in `esc back` (see A session's page). From column 0:
   everywhere, as the accounts Compare shows of more than fit, a filter on History or the Log, or
   Runway's day stepped back (`Wed 30 Sep`). No description follows a name: the tab and the sub-tab
   name the view, and `?` explains it.
+- **A read under way** that's taken longer than 150 ms, as a tab's first read of a long ledger or
+  the Log reading back a day: `loading…` in `text.subtle` after the page's name, and nothing else
+  moves till it lands; one that lands sooner draws nothing more, so nothing flashes (the owner's
+  call, 15 October 2026). It takes the state's place, first in it, three spaces before the rest,
+  and stays where the state is cut to fit, as it's the one thing there the screen can't otherwise
+  show (settled in the plan).
 - **A rule** of `─` in `border`, from two cells after `[ ]`, or after the name where there are no
   sub-tabs, or one after the state, to two cells short of what sits at the right, or to the last
   column where nothing does.
@@ -3238,6 +3244,12 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   Overview). `esc` goes back to where it was opened from, as it was left. The tab it was opened from
   stays lit, and `tab` and `shift-tab` leave the page for the tab after or before it, as The page
   says (settled in the plan).
+- **While it loads:** its own days' lines are read off the screen, so `enter` answers at once.
+  Where they take longer than 150 ms, the page opens on its heading alone, `loading…` after it as
+  The page says, its key line `esc back` alone, till they land; where they land sooner, it opens
+  whole, nothing drawn between (the owner's call, 15 October 2026). `esc`, `tab` or `shift-tab`
+  while it loads leaves it, and the read's lines, landing after, open nothing (settled in the
+  plan).
 - **Named by its directory:** a session is named by the directory switchboard's own `claude` was
   started in, as `run` tells the router and the ledger keeps it (`dir`), and has no title. Nothing
   is read from Claude Code's own files, whose form is Claude Code's to change. A session with no
@@ -3257,7 +3269,8 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
 dashboard shows ids, bold `text.primary`; three spaces; its directory's last part, bold
 `text.primary`; two spaces; the directory as the ledger holds it, the home as `~`
 (`~/Code/switchboard`), in `text.faint`; one space; a rule of `─` in `border`; two spaces; and,
-ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`.
+ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`. While it loads,
+three spaces and `loading…` in `text.subtle` go before the rule (settled in the plan).
 
 **Now** (rows 6 and 7).
 
@@ -3968,6 +3981,21 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   router from before the stream has none, and the dashboard stops asking until another router
   answers: its pages draw the sessions as each look reads them, with nothing in flight and no
   requests travelling.
+- **What the stream told is kept** till the ledger's line takes its place: a request in flight
+  for as long as it is; one that ended, two minutes after the stream last told of it, as the
+  router writes its line moments after it ends, held up only while the ledger makes its round, and
+  the dashboard reads today's lines at each look, and a day before today's awaiting a line each
+  minute; one lost, as one cut off may have no line, an hour (settled in the plan). So what the
+  stream holds is what's in flight and the last two minutes', never the hour's, and letting go of
+  it copies no more.
+- **Built as it changes:** each view's data is built again only as what it's made of changes,
+  and what's built is drawn at each tick: a session's page as a look, a request or a full read
+  changes what it shows, or as the clock turns what it says, as at the minute, a seat's lapse or a
+  cache going cold; never at each tenth of a second, nor as an answer streams on, which its rows
+  count as they're drawn. The Log places each line once, as its read grows, and a change to a
+  request's row builds its row alone, never the table again; its panel builds its figures as the
+  table it's of, the stream's rows or the sessions listed change, never at each look (settled in
+  the plan).
 - **The traces and a session's story:** the Overview's traces take their last 30 minutes from
   today's lines once, as the Overview is first shown or the stream is joined again, and a session's
   story its life from its own days' lines, as its page opens; then each counts the requests the
@@ -3988,6 +4016,12 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     page shows.
   - **A period, or a day stepped back to,** as Accounts', History's and Runway's are, is read once
     as it's shown, then held; History's year is a year of summaries, read once a run.
+  - **The Log's Events through some kinds,** which no summary tells the days of, read back no
+    further than the earliest of them the router filed: its files of events are read for it first,
+    the oldest first and no further than that event, as they're far smaller than the ledger's days
+    (settled in the plan).
+  - **Every read off the screen:** a read whose size grows with what's kept runs off the screen's
+    update, and says `loading…` once it's taken 150 ms (see The page).
   - So what a look costs grows with what the page shows, never with what's kept: each cost is
     measured against a year of heavy use before milestone 7's release (see Milestones).
 - **Events:** live, the status document's `events`, the newest 50, read at each look, each new one

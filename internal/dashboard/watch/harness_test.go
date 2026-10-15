@@ -42,7 +42,7 @@ const day = 24 * time.Hour
 // until the test fires it, and each wait on the request stream until the
 // test has the stream tell something.
 type harness struct {
-	t        *testing.T
+	t        testing.TB
 	model    Model
 	clock    *fakeClock
 	source   *fakeSource
@@ -61,7 +61,7 @@ type timer struct {
 
 // newHarness is a model of a source that reads doc, in a terminal 150 cells
 // wide and 50 lines tall. It hasn't started.
-func newHarness(t *testing.T, doc status.Document) *harness {
+func newHarness(t testing.TB, doc status.Document) *harness {
 	t.Helper()
 	h := unsizedHarness(t, doc, Size{Width: 80, Height: 24})
 	h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
@@ -70,7 +70,7 @@ func newHarness(t *testing.T, doc status.Document) *harness {
 
 // unsizedHarness is a model of a source that reads doc, in a terminal that
 // hasn't given its size, so it draws at size. It hasn't started.
-func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
+func unsizedHarness(t testing.TB, doc status.Document, size Size) *harness {
 	t.Helper()
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: doc}, notifier: &fakeNotifier{}}
 	h.model = New(t.Context(), h.config(size))
@@ -499,7 +499,7 @@ func (s *fakeSource) Stream(ctx context.Context) (<-chan router.StreamEvent, err
 
 // lastStream is the request stream opened last, failing the test where none
 // was.
-func (s *fakeSource) lastStream(t *testing.T) chan router.StreamEvent {
+func (s *fakeSource) lastStream(t testing.TB) chan router.StreamEvent {
 	t.Helper()
 	if len(s.streams) == 0 {
 		t.Fatal("the request stream was never opened")
@@ -661,7 +661,7 @@ func probedWithoutTheRouter() status.Document {
 // routedHarness is a model of a source whose router answers with doc, in a
 // terminal 150 cells wide and 50 lines tall. Without the router, the source
 // probes as the router isn't running. It hasn't started.
-func routedHarness(t *testing.T, doc status.Document) *harness {
+func routedHarness(t testing.TB, doc status.Document) *harness {
 	t.Helper()
 	h := newHarness(t, probedWithoutTheRouter())
 	h.source.router = &doc

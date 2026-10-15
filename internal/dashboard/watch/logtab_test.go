@@ -344,13 +344,16 @@ func madeAt[T any](s []T) *T {
 // the Requests again; a look the Events, and the Requests only where the
 // ledger's tail it reads gains a line; and the filter changing the table it
 // filters. Its panel, open, is made again as what it picks changes, not as
-// the pointer moves over it, nor its cursor.
+// the pointer moves over it, nor its cursor; and of the Requests, as a
+// line comes, not at a look listing the sessions alike and gaining none,
+// nor as an answer streams on.
 func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
 	doc := routerDocument(three()...)
 	doc.Events = []status.Event{{ID: 1, At: past(-time.Minute), Kind: status.EventPin, Accounts: []string{"personal"}}}
 	h := routedHarness(t, doc)
+	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", time.Second)}
 	onTheLog(h, state)
 	h.start()
 
@@ -380,6 +383,17 @@ func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 			unmoved()
 			h.keys(tea.KeyPressMsg{Code: tea.KeyRight})
 		}},
+		{name: "a look under the panel, listing the sessions alike, its tail gaining nothing", step: func() {
+			h.source.sessions = slices.Clone(h.source.sessions)
+			h.tickUntilAsked()
+		}, events: true},
+		{name: "an answer streaming on under the panel", step: func() {
+			h.hear(alter(told(router.StreamProgress, "0a000003", "work", time.Second), func(e *router.StreamEvent) { e.Chars = 400 }))
+		}},
+		{name: "a look under the panel whose tail read gains a line", step: func() {
+			writeLines(t, state, arrived("0a000005", "work", 0))
+			h.tickUntilAsked()
+		}, requests: true, events: true, panel: true},
 		{name: "a tick on the panel", step: func() { h.keys(spaceKey) }, panel: true},
 		{name: "what the panel picks applied", step: func() { h.keys(enter) }, requests: true},
 	}

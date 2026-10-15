@@ -2,6 +2,7 @@ package views
 
 import (
 	"iter"
+	"maps"
 	"slices"
 	"time"
 
@@ -23,8 +24,9 @@ type Stream struct {
 	// opens until the watch forgets what it told.
 	Live bool
 	// Requests are the requests it told of, by their ids: each in flight;
-	// and each it told of last within the hour a session runs for unseen,
-	// ended or lost.
+	// each ended, till its line has surely come, which tells of it from then
+	// on; and each lost, as one cut off may have no line, while it told of
+	// it last within the hour a session runs for unseen.
 	Requests map[string]Told
 	// Moves are the moves it told of within the hour a session runs for
 	// unseen, the oldest first, each once it shows, a listing of the
@@ -111,6 +113,14 @@ type Moved struct {
 	From, To, Reason        string
 	At                      time.Time
 	Listed                  bool
+}
+
+// SameRows reports whether s tells what o does of every request's row, as
+// SameRow compares each, and of every move, and is as live: what a page
+// built of one is built of the other, a request's answer streaming on aside,
+// as its row counts on as it's drawn.
+func (s Stream) SameRows(o Stream) bool {
+	return s.Live == o.Live && slices.Equal(s.Moves, o.Moves) && maps.EqualFunc(s.Requests, o.Requests, Told.SameRow)
 }
 
 // SameRow reports whether t tells what o does of its request's row as its

@@ -126,6 +126,9 @@ type Frame struct {
 	// Session is the session's page open, drawn in place of the view: nil
 	// while none is.
 	Session *SessionShown
+	// Loading is set while the tab shown has waited on a read of what it
+	// draws long enough to say so: its heading row says loading….
+	Loading bool
 	// Log is the Log's sub-tab shown, its tables and how each stands.
 	Log LogPage
 

@@ -16,6 +16,171 @@ import (
 // pageOf keeps them.
 const kept90 = 90 * 24 * time.Hour
 
+// A held page says a take changed its page where a line it takes in is the
+// session's, or moves its points, being of an account it ran on, on a day
+// it ran there, or the date rolls it on; and that none did where every line
+// was held already, or none is the session's or moves its points.
+func TestAHeldPageSaysWhetherATakeChangedItsPage(t *testing.T) {
+	fiveHour := local(15, 0, 0)
+	ours := limited(filedAs("p1", serving(p1, ledger.ClassMain, line(paged, opus, "work", "sticky", local(11, 0, 0), hourUsage))), "5h", "0.10", fiveHour)
+	noon := local(12, 0, 0)
+	held := views.HoldPage(paged, views.ReadSessions(fakeLedger{now: noon, lines: []ledger.Line{ours}}, nil, noon, paged), ledger.Pricing, kept90, noon)
+	tests := []struct {
+		name, date string
+		lines      []ledger.Line
+		want       bool
+	}{
+		{name: "nothing new", date: "2026-10-07"},
+		{name: "a line held already", date: "2026-10-07", lines: []ledger.Line{ours}},
+		{name: "a line of its own", date: "2026-10-07", want: true,
+			lines: []ledger.Line{limited(filedAs("p2", serving(p1, ledger.ClassMain, line(paged, opus, "work", "sticky", local(12, 10, 0), hourUsage))), "5h", "0.15", fiveHour)}},
+		{name: "another's on an account it ran on", date: "2026-10-07", want: true,
+			lines: []ledger.Line{limited(filedAs("o1", line(other, opus, "work", "sticky", local(12, 5, 0), hourUsage)), "5h", "0.20", fiveHour)}},
+		{name: "another's on an account it never ran on", date: "2026-10-07",
+			lines: []ledger.Line{limited(filedAs("o2", line(other, opus, "side", "sticky", local(12, 5, 0), hourUsage)), "5h", "0.20", fiveHour)}},
+		{name: "nothing new on the day after", date: "2026-10-08", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, got := held.Took(tt.date, heldOf(tt.lines...)); got != tt.want {
+				t.Errorf("taking in %d lines on %s, the page changed %t, want %t", len(tt.lines), tt.date, got, tt.want)
+			}
+		})
+	}
+}
+
+// What a page is built of beside its lines builds the same page, but for
+// the clock, where the router lists the session alike, in a listing of its
+// own or not, and the stream tells the same rows, an answer streaming on
+// among them; it builds another where the listing moves a model, or sees it
+// later, or pins it, or none lists it, or no router lists the sessions, or
+// a request's row moves on. Kept, it's its own: the listing it was read from
+// changed in place changes not it.
+func TestWhatAPageIsBuiltOfIsTheSameAsItListsAndTellsTheSameRows(t *testing.T) {
+	answering := toldOf("r1", p1, ledger.ClassMain, opus, "side", now.Add(-10*time.Second))
+	answering.First = now.Add(-5 * time.Second)
+	was := views.PageLive{Routed: runningOn("side"), Stream: heard(answering), Now: now}
+	changed := func(change func(l *views.PageLive)) views.PageLive {
+		l := was.Kept()
+		change(&l)
+		return l
+	}
+	tests := []struct {
+		name string
+		is   views.PageLive
+		same bool
+	}{
+		{name: "listed alike, a listing of its own", is: views.PageLive{Routed: runningOn("side"), Stream: heard(answering), Now: now.Add(time.Second)}, same: true},
+		{name: "its answer streaming on", same: true, is: changed(func(l *views.PageLive) {
+			streamed := answering
+			streamed.Chars, streamed.Heard = 4000, now
+			l.Stream = heard(streamed)
+		})},
+		{name: "a model moved", is: changed(func(l *views.PageLive) { l.Routed.Assignments[0].Account = "work" })},
+		{name: "seen later", is: changed(func(l *views.PageLive) { l.Routed.Assignments[0].LastSeen = now.Add(time.Second) })},
+		{name: "pinned", is: changed(func(l *views.PageLive) { l.Routed.Pin = "side" })},
+		{name: "listed no longer", is: changed(func(l *views.PageLive) { l.Routed = nil })},
+		{name: "no router listing the sessions", is: changed(func(l *views.PageLive) { l.Unlisted = true })},
+		{name: "its request's row moving on", is: changed(func(l *views.PageLive) { l.Stream = heard(endedAt(now, answering)) })},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := was.Same(tt.is); got != tt.same {
+				t.Errorf("the page built of it is the same %t, want %t", got, tt.same)
+			}
+		})
+	}
+	listing := runningOn("side")
+	kept := views.PageLive{Routed: listing}.Kept()
+	listing.Assignments[0].Account = "work"
+	if !kept.Same(views.PageLive{Routed: runningOn("side")}) {
+		t.Errorf("kept, the listing it was read from moved in place, and what's kept moved with it")
+	}
+}
+
+// A page built stands, by the clock alone, until the next minute, as its
+// story steps on a minute at a time and its words count whole minutes; or
+// sooner, until the first moment the clock changes it: as its model stops
+// running on its account, an idle hour after the router last saw it there;
+// as, no router listing the sessions, its last request lapses; as the
+// stream last told of it an idle hour since; or as its cache runs out, a
+// move no longer costing a write. Built at any moment before that, it's the
+// page built now.
+func TestABuiltPageStandsUntilTheClockWouldChangeIt(t *testing.T) {
+	soon := now.Add(20 * time.Second)
+	long := []ledger.Line{filedAs("r1", mainOn(p1, local(11, 0, 0), "end_turn"))}
+	listedAt := func(seen time.Time) *status.Session {
+		s := runningOn("side")
+		s.Assignments[0].LastSeen = seen
+		return s
+	}
+	fiveMinutes := filedAs("r2", stopped("end_turn", took(time.Minute, serving(p1, ledger.ClassMain, line(paged, opus, "side", "sticky", soon.Add(-6*time.Minute), fiveMinuteUsage)))))
+	told := heard(endedAt(soon.Add(-views.IdleHour), toldOf("r3", p1, ledger.ClassMain, opus, "side", soon.Add(-views.IdleHour-time.Minute))))
+	tests := []struct {
+		name  string
+		lines []ledger.Line
+		live  views.PageLive
+		want  time.Time
+	}{
+		{name: "nothing changing it sooner", lines: long, live: views.PageLive{Routed: listedAt(now)}, want: local(13, 13, 0)},
+		{name: "its model stopping running", lines: long, live: views.PageLive{Routed: listedAt(soon.Add(-views.IdleHour))}, want: soon.Add(time.Nanosecond)},
+		{name: "no router listing it, its last request lapsing", lines: []ledger.Line{filedAs("r1", mainOn(p1, soon.Add(-views.IdleHour), "end_turn"))},
+			live: views.PageLive{Unlisted: true}, want: soon.Add(time.Nanosecond)},
+		{name: "the stream's sight of it lapsing", lines: long, live: views.PageLive{Stream: told}, want: soon.Add(time.Nanosecond)},
+		{name: "its cache running out", lines: append(slices.Clone(long), fiveMinutes), live: views.PageLive{Routed: listedAt(now)}, want: soon.Add(time.Nanosecond)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(tt.lines), nil, now, paged), ledger.Pricing, kept90, now)
+			at := func(when time.Time) views.SessionPage {
+				live := tt.live
+				live.Now = when
+				page, ok := held.Page(live)
+				if !ok {
+					t.Fatalf("at %s, the page held built no page", when)
+				}
+				return page
+			}
+			live := tt.live
+			live.Now = now
+			built, ok := held.Build(0, live)
+			if !ok || !built.Until.Equal(tt.want) {
+				t.Fatalf("built at %s, the page stands until %s, want %s", now, built.Until, tt.want)
+			}
+			if before := at(tt.want.Add(-time.Nanosecond)); !reflect.DeepEqual(before, built.Page) {
+				t.Errorf("built just before %s, the page is\n%+v\nwant it as built at %s\n%+v", tt.want, before, now, built.Page)
+			}
+			if tt.want.Second() != 0 && reflect.DeepEqual(at(tt.want), built.Page) {
+				t.Errorf("built at %s, the page is as built at %s, want it changed", tt.want, now)
+			}
+		})
+	}
+}
+
+// A page built as its request answers counts what the answer has streamed
+// on as it's drawn, of the stream as it stands, as a row in flight does,
+// while what it was built of tells the same rows: an answer streaming on
+// builds no page again.
+func TestAPageCountsItsAnswerOnAsItsDrawn(t *testing.T) {
+	answering := toldOf("r2", p1, ledger.ClassMain, opus, "side", now.Add(-10*time.Second))
+	answering.First, answering.Chars = now.Add(-5*time.Second), 400
+	lines := []ledger.Line{filedAs("r1", mainOn(p1, local(11, 0, 0), "end_turn"))}
+	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
+	was := heard(answering)
+	built, ok := held.Build(0, views.PageLive{Routed: runningOn("side"), Stream: was, Now: now})
+	if !ok || built.Page.Activity.Doing != views.Answering || built.Page.Activity.Tokens() != 100 {
+		t.Fatalf("built as it answers, the page is doing %+v, want answering, ~100 tokens", built.Page.Activity)
+	}
+	answering.Chars, answering.Heard = 4000, now
+	is := heard(answering)
+	if !is.SameRows(was) {
+		t.Errorf("an answer streaming on tells other rows, want the same")
+	}
+	if got := built.Page.Live(is).Activity; got.Doing != views.Answering || got.Tokens() != 1000 {
+		t.Errorf("drawn as the stream stands, the page is doing %+v, want answering, ~1000 tokens", got)
+	}
+}
+
 // A page held at noon, then fed the lines its day gained since, the
 // session's and another's on its accounts, one it held already among them,
 // is the page built whole of every line at once.
@@ -70,7 +235,7 @@ func TestAPageItsStoryAndItsTurnsRequestsAreBuiltTogetherOfOneWorking(t *testing
 	if !ok {
 		t.Fatal("the page held built no page")
 	}
-	want := views.BuiltPage{Page: page, Story: held.Story(page, live), Requests: held.TurnRequests(2, live)}
+	want := views.BuiltPage{Page: page, Story: held.Story(page, live), Requests: held.TurnRequests(2, live), Until: now.Truncate(time.Minute).Add(time.Minute)}
 	if len(want.Requests) != 2 {
 		t.Fatalf("turn 2 has %d requests, want r3 and r4", len(want.Requests))
 	}

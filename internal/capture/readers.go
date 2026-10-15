@@ -231,6 +231,18 @@ func (l heldLedger) Session(id string) iter.Seq[ledger.Held] {
 // each line of every day read, with the day's date, those either side of
 // today's and today's first.
 func (l heldLedger) Sessions(ids []string, take func(date string, line ledger.Line)) map[string][]ledger.Line {
+	return l.sessions(ids, true, take)
+}
+
+// SessionsOf gives the lines of the sessions with the given ids alone, as
+// Sessions gives them, but none of today's others, as a Follower reads them.
+func (l heldLedger) SessionsOf(ids []string, take func(date string, line ledger.Line)) map[string][]ledger.Line {
+	return l.sessions(ids, false, take)
+}
+
+// sessions gives the lines of the sessions with the given ids, and where
+// todays is set, of today's, as Sessions gives them.
+func (l heldLedger) sessions(ids []string, todays bool, take func(date string, line ledger.Line)) map[string][]ledger.Line {
 	now := l.now()
 	lines := l.arrived(now)
 	near := dayfile.Dates(now, now)
@@ -240,7 +252,7 @@ func (l heldLedger) Sessions(ids []string, take func(date string, line ledger.Li
 		wanted[id] = true
 	}
 	for _, f := range lines {
-		if slices.Contains(near, f.date) && f.Kind == ledger.KindMessage && f.Session != "" && !f.At.Before(start) {
+		if todays && slices.Contains(near, f.date) && f.Kind == ledger.KindMessage && f.Session != "" && !f.At.Before(start) {
 			wanted[f.Session] = true
 		}
 	}

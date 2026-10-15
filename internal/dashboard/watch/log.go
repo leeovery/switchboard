@@ -33,27 +33,29 @@ import (
 // table shows, while f has it open; and its find's walk back through the
 // days.
 type logTab struct {
-	page      dashboard.LogPage
-	built     logBuilt
-	opened    bool
-	read      views.LogRead
-	events    views.EventsRead
-	totals    []views.DayTotals
-	held      int
-	lined     int
-	awaited   awaitedReads
-	reach     keptReach
-	from      views.LedgerDay
-	oldest    views.OldestDay
-	filed     views.OldestDay
-	boundedOn string
-	told      logTold
-	skipped   time.Time
-	reading   bool
-	warned    bool
-	card      logCarding
-	panel     dashboard.LogPanel
-	find      findWalk
+	page       dashboard.LogPage
+	lines      views.LogLines
+	built      logBuilt
+	opened     bool
+	read       views.LogRead
+	events     views.EventsRead
+	totals     []views.DayTotals
+	held       int
+	lined      int
+	awaited    awaitedReads
+	reach      keptReach
+	filedReach filedReach
+	from       views.LedgerDay
+	oldest     views.OldestDay
+	filed      views.OldestDay
+	boundedOn  string
+	told       logTold
+	skipped    time.Time
+	reading    bool
+	warned     bool
+	card       logCarding
+	panel      dashboard.LogPanel
+	find       findWalk
 }
 
 // openingLog is the Log as it first shows: its columns as the preferences
@@ -91,13 +93,20 @@ func (m Model) builtLog(now time.Time) Model {
 }
 
 // requestsBuilt is m with the Log's Requests built at now of what it holds,
-// shown or hidden: of the lines read and, while the router answers, what the
-// stream tells of those in flight, as its filter has them, made again only
-// as what they're made of changes, as logBuilt has it.
+// shown or hidden: of the lines read, placed and tabled as views.LogLinesOf
+// has them, each where it was placed before; and, while the router answers,
+// the rows of what the stream tells of those whose lines are yet to come,
+// taken in among them as views.LogLines' Rows has it; each as its filter
+// has them, and made again only as what it's made of changes, as logBuilt
+// has it, so what the stream tells builds nothing of the lines afresh.
 func (m Model) requestsBuilt(now time.Time) Model {
 	p := &m.log.page
+	src := m.logSources(p.Filter, now)
+	if basis := m.linesBasis(p.Filter, now); !m.log.built.lines.same(basis) {
+		m.log.lines, m.log.built.lines = views.LogLinesOf(m.log.lines, src), &basis
+	}
 	if basis := m.requestsBasis(p.Filter, now); !m.log.built.requests.same(basis) {
-		p.Requests, m.log.built.requests = views.LogRows(m.logSources(p.Filter, now)), &basis
+		p.Requests, m.log.built.requests = m.log.lines.Rows(src), &basis
 	}
 	return m
 }

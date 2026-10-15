@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -54,10 +55,41 @@ func (p piece) target() Target {
 	return t
 }
 
-// heading is the heading row of the tab shown: Accounts', as accountsHeading
-// has it; History's, Sessions', Runway's and the Log's, as theirs have them;
-// else its name alone.
+// loadingWord is what a heading says while what its page shows is being
+// read.
+const loadingWord = "loading" + prose.Ellipsis
+
+// heading is the heading row of the tab shown, as tabHeading has it, saying
+// it's loading, as loading has it, while the frame says so.
 func (f Frame) heading() heading {
+	h := f.tabHeading()
+	if f.Loading {
+		h = h.loading()
+	}
+	return h
+}
+
+// loading is h saying its page is loading: loading…, in text.subtle,
+// leading what it says of its state, three cells before it, in each of its
+// forms, and alone, for the least room.
+func (h heading) loading() heading {
+	said := line{{loadingWord, dimInk}}
+	if h.state == nil {
+		h.state = said
+		return h
+	}
+	shorter := make([]line, 0, len(h.shorter)+1)
+	for _, s := range h.shorter {
+		shorter = append(shorter, slices.Concat(said, line{spaces(headingGap)}, s))
+	}
+	h.state, h.shorter = slices.Concat(said, line{spaces(headingGap)}, h.state), append(shorter, said)
+	return h
+}
+
+// tabHeading is the heading row of the tab shown: Accounts', as
+// accountsHeading has it; History's, Sessions', Runway's and the Log's, as
+// theirs have them; else its name alone.
+func (f Frame) tabHeading() heading {
 	switch f.Shown() {
 	case Accounts:
 		return f.accountsHeading()

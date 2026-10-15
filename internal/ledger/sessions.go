@@ -23,17 +23,42 @@ import (
 // line read that arrived by now, of whichever session, with the date of the
 // day whose files hold it.
 func (f *Follower) Sessions(ids []string, take func(date string, l Line)) map[string][]Line {
+	read, near := f.readNear(take)
+	return f.readNaming(read, near, read.today(dayfile.DayStart(read.now.Local(), 0)), ids)
+}
+
+// SessionsOf returns the lines of the sessions with the given ids alone, as
+// Sessions reads them, but none of today's others: the files of today and
+// of the days either side of it, then those of the days before them whose
+// summaries name one of them, or might, so a session that ran today for
+// weeks has none of its days read for another's. take, where it's given, is
+// handed each line read, as Sessions hands it.
+func (f *Follower) SessionsOf(ids []string, take func(date string, l Line)) map[string][]Line {
+	read, near := f.readNear(take)
+	return f.readNaming(read, near, make(map[string]bool), ids)
+}
+
+// readNear reads the files of today and of the days either side of it,
+// every session's, as Sessions reads them, returning the read and those
+// days' dates, oldest first.
+func (f *Follower) readNear(take func(date string, l Line)) (*sessionsRead, []string) {
 	now := f.now()
-	read := sessionsRead{take: take, now: now, held: make(map[string][]filed)}
+	read := &sessionsRead{take: take, now: now, held: make(map[string][]filed)}
 	near := dayfile.Dates(now, now)
 	for _, date := range near {
 		read.day(f, date, nil)
 	}
-	wanted := read.today(dayfile.DayStart(now.Local(), 0))
+	return read, near
+}
+
+// readNaming returns the lines read holds of the sessions wanted and those
+// with the given ids, once it has read the files of the days before near
+// whose summaries name any of them, or might, as namingBefore finds them.
+func (f *Follower) readNaming(read *sessionsRead, near []string, wanted map[string]bool, ids []string) map[string][]Line {
 	for _, id := range ids {
 		wanted[id] = true
 	}
-	for _, date := range f.namingBefore(near[0], wanted, now) {
+	for _, date := range f.namingBefore(near[0], wanted, read.now) {
 		read.day(f, date, wanted)
 	}
 	return read.of(wanted)
