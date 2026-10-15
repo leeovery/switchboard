@@ -472,7 +472,9 @@ func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 // What the session's doing leads row 6, bold, in its own ink; and while a
 // request of it waits for its answer, asking, or throttled or refused, to go
 // out again, the newest turn's row ends in ↑ asking at 114 (call 50), but
-// never while its answer streams, or it idles.
+// never while its answer streams, or it idles. What's in flight as last
+// known, the router not answering, leads row 6 as it was, in text.subtle,
+// not bold, and no turn says it asks.
 func TestTheNewestTurnAsksWhileTheSessionWaits(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -485,6 +487,8 @@ func TestTheNewestTurnAsksWhileTheSessionWaits(t *testing.T) {
 		{name: "throttled", doing: views.Activity{Doing: views.Throttled, Status: 429}, said: "… 429", ink: labelInk, asking: true},
 		{name: "refused", doing: views.Activity{Doing: views.Refused, Status: 403}, said: "✕ 403", ink: exhaustedInk, asking: true},
 		{name: "answering", doing: views.Activity{Doing: views.Answering}, said: "↓ answering", ink: keyInk},
+		{name: "asking as last known", doing: views.Activity{Doing: views.Asking, Stale: true}, said: "↑ asking", ink: dimInk},
+		{name: "answering as last known", doing: views.Activity{Doing: views.Answering, Stale: true}, said: "↓ answering", ink: dimInk},
 		{name: "idle", doing: views.Activity{Since: sessionNow.Add(-9 * time.Minute)}, said: "idle 9m", ink: idleInk},
 		{name: "ended", doing: views.Activity{Doing: views.Ended, Since: at(14, 0)}, said: "ended 14:00", ink: strongInk},
 	}

@@ -42,7 +42,7 @@ func BenchmarkRunningOfAnHoursStream(b *testing.B) {
 	m := runningDoc().At(now, claude.Policy)
 	b.ReportAllocs()
 	for b.Loop() {
-		views.RunningOf(m, sessions, s, views.HeldList{})
+		views.RunningOf(m, views.ListLive{Running: sessions, Stream: s}, views.HeldList{})
 	}
 }
 
@@ -55,7 +55,7 @@ func TestAFrameOfAnHoursStreamCostsWhatOneOfAMinutesDoes(t *testing.T) {
 	m := runningDoc().At(now, claude.Policy)
 	frame := func(requests int) (allocs float64, bytes uint64) {
 		sessions, s := anHoursStream(10, requests)
-		drawn := func() { views.RunningOf(m, sessions, s, views.HeldList{}) }
+		drawn := func() { views.RunningOf(m, views.ListLive{Running: sessions, Stream: s}, views.HeldList{}) }
 		return testing.AllocsPerRun(20, drawn), bytesPerRun(20, drawn)
 	}
 	hour, hourBytes := frame(600)
@@ -87,7 +87,7 @@ func TestAStreamHeardOnceIsHeardAgainAsWhatItToldChanges(t *testing.T) {
 	sessions := []status.Session{{ID: asking, Assignments: []status.Assignment{seatOn(opus, "opus", "side", status.ReasonNew, 30*time.Minute, time.Minute, "")}}}
 	m := runningDoc().At(now, claude.Policy)
 	doing := func(s views.Stream) views.Doing {
-		rows := views.RunningOf(m, sessions, s, views.HeldList{})
+		rows := views.RunningOf(m, views.ListLive{Running: sessions, Stream: s}, views.HeldList{})
 		if len(rows) != 1 {
 			t.Fatalf("RunningOf gave %d rows, want 1", len(rows))
 		}

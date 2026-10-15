@@ -301,6 +301,10 @@ reason hangs faint for 3 seconds.
 
 Where the cords don't fit, as on a phone, each account's line carries its sessions under it.
 
+While the router isn't answering, the Switchboard and the List show the sessions it last listed.
+What one was doing then, such as `↓ answering`, stays as it was but faint, as it may have ended
+since.
+
 ### The List
 
 The List is one table of today's sessions: those running first, then those ended. Each row shows
@@ -313,8 +317,10 @@ the session's:
 
 ### Keys on Sessions
 
-- `↑` and `↓` choose a session: a call on the Switchboard, or a row on the List.
+- `↑` and `↓` choose a session: a call on the Switchboard, or a row on the List. Where it's out of
+  view, the view scrolls to it.
 - `enter` opens the chosen session's page.
+- `esc` deselects it.
 
 ## Runway
 
@@ -602,13 +608,13 @@ What scrolls on each page:
 - **Accounts:** its view.
 - **History:** the Year, where the screen is shorter than it; Weeks' accounts; Days' BY ACCOUNT,
   past six accounts; and Tokens' periods.
-- **Sessions:** the List, and the Switchboard's accounts where it draws lanes.
+- **Sessions:** the List, and the Switchboard's accounts where they don't fit.
 - **Runway:** its lanes.
 - **The Log:** its table.
 - **A session's page:** its turns, or with a turn open, the turn's requests.
 
-USAGE, Weeks, Days, and the lanes on Sessions and Runway scroll an account at a time. Tokens
-scrolls a period at a time. A turn of the wheel scrolls the same.
+USAGE, Weeks, Days, the Switchboard on Sessions, and the lanes on Runway scroll an account at a
+time. Tokens scrolls a period at a time. A turn of the wheel scrolls the same.
 
 Where one account or one period doesn't fit, as on a short screen, the view scrolls whole, a row at
 a time. It does the same on History's Weeks and Days below 37 rows. It then says how many rows are

@@ -260,6 +260,7 @@ func TestASessionRunningSaysWhatItsDoing(t *testing.T) {
 		{name: "refused at a limit, before it goes out again elsewhere: idle, as it has no word of its own", a: views.Activity{Doing: views.Refused, Status: 429}, want: span{"idle", faintInk}},
 		{name: "refused by a 403: idle", a: views.Activity{Doing: views.Refused, Status: 403}, want: span{"idle", faintInk}},
 		{name: "idle", a: views.Activity{Since: routedAt}, want: span{"idle", faintInk}},
+		{name: "answering as last known, the router not answering: faint", a: views.Activity{Doing: views.Answering, Chars: 4936, Stale: true}, want: span{"↓ ~1.2k", faintInk}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -340,6 +341,22 @@ func TestTheSessionsRunningAreListedOnceAFrame(t *testing.T) {
 	}
 	if later := f.running(doc, routedAt.Add(time.Minute)); len(later) > 0 && &later[0] == &listed[0] {
 		t.Error("asked of another moment, the frame gives the list it holds, want them listed afresh")
+	}
+}
+
+// While the router doesn't answer, what its last listing had in flight is
+// as last known, as SESSIONS, ROUTING's counts and Detail list the sessions
+// running: never under way, its row faint; while it answers, under way.
+func TestWhileTheRouterIsLostWhatsInFlightIsAsLastKnown(t *testing.T) {
+	doc, sessions, _ := overviewWorld()
+	for _, lost := range []time.Time{{}, routedAt.Add(-time.Minute)} {
+		f := Frame{Width: 160, Height: 40, View: Overview, Sessions: sessions, Lost: lost}
+		for _, r := range f.running(doc, routedAt) {
+			if r.Activity.InFlight() && (r.Activity.Stale != !lost.IsZero() || r.Activity.Underway() == r.Activity.Stale) {
+				t.Errorf("lost %t, %s is in flight, as last known %t, under way %t; want as last known %t, and under way only where it isn't",
+					!lost.IsZero(), status.ShownID(r.Session), r.Activity.Stale, r.Activity.Underway(), !lost.IsZero())
+			}
+		}
 	}
 }
 

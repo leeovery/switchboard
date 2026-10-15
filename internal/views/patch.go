@@ -17,14 +17,14 @@ type Patched struct {
 }
 
 // PatchedLine is an account's line as the patch keeps it: its calls, top to
-// bottom, each on its jack; the jacks its stubs hang from, the first hung
-// first, as each is a cell shorter than the one before; and the sessions
-// that moved elsewhere, each on the jack it left, the last to leave last,
-// that nothing has taken since, the jack a cord a move let go hangs loose
-// from. A stub the line's limit counts later hangs from the jack its session
-// left, as the request stream may tell of the move before the router's
-// document counts it. Jacks are counted down the line from its first, 0; one
-// past its rows grows it.
+// bottom, each on its jack, their jacks in their order; the jacks its stubs
+// hang from, the first hung first, as each is a cell shorter than the one
+// before; and the sessions that moved elsewhere, each on the jack it left,
+// the last to leave last, that nothing has taken since, the jack a cord a
+// move let go hangs loose from. A stub the line's limit counts later hangs
+// from the jack its session left, as the request stream may tell of the move
+// before the router's document counts it. Jacks are counted down the line
+// from its first, 0; one past its rows grows it.
 type PatchedLine struct {
 	Calls []Plugged
 	Stubs []int
@@ -62,15 +62,18 @@ func StubsOf(m status.Moment) map[string]int {
 
 // Patch is the board kept, as a look finds the calls, as CallsOf has them,
 // in RunningOf's order, and each line's stubs, by its account's id, as
-// StubsOf has them. Each line's calls keep their places and their jacks,
-// those whose sessions no longer run on it gone, those below closing up; and
-// a session new to it, or one a move brings, joins the foot, in calls'
-// order, plugged into the line's first free jack. A stub hangs from a jack a
-// session that moved elsewhere left, the jacks the last to leave left taken
-// first, else from the line's first free jack, once the sessions new to it
-// have taken theirs; a jack a stub hangs from is never free, and the stubs
-// go as the limit lifts. At the first look, kept is the zero Patched, so
-// every call joins in calls' order, the one seen last first.
+// StubsOf has them. Each line's calls keep their places, those whose
+// sessions no longer run on it gone, those below closing up; and a session
+// new to it, or one a move brings, joins the foot, in calls' order, taking
+// the line's first free jack. The calls then hold the jacks they take in
+// their order, top to bottom, so no two of a line's cords cross: each keeps
+// its jack where a new call's falls below it, and where it falls above, the
+// calls under it each move on to the next jack held. A stub hangs from a
+// jack a session that moved elsewhere left, the jacks the last to leave left
+// taken first, else from the line's first free jack, once the sessions new
+// to it have taken theirs; a jack a stub hangs from is never free, and the
+// stubs go as the limit lifts. At the first look, kept is the zero Patched,
+// so every call joins in calls' order, the one seen last first.
 func Patch(kept Patched, calls []Call, stubs map[string]int) Patched {
 	on := make(map[string][]string)
 	goes := make(map[string][]string)
@@ -118,6 +121,7 @@ func (l PatchedLine) patched(on []string, stubs int, elsewhere func(session stri
 			next.Calls = append(next.Calls, Plugged{Session: session, Jack: next.free()})
 		}
 	}
+	next.inOrder()
 	for len(next.Stubs) < stubs {
 		next.Stubs = append(next.Stubs, next.free())
 	}
@@ -125,6 +129,19 @@ func (l PatchedLine) patched(on []string, stubs int, elsewhere func(session stri
 		return next.taken(c.Jack) || slices.ContainsFunc(next.Calls, func(on Plugged) bool { return on.Session == c.Session })
 	})
 	return next
+}
+
+// inOrder has the line's calls hold the jacks they're plugged into in their
+// order, top to bottom: the first the least.
+func (l PatchedLine) inOrder() {
+	jacks := make([]int, len(l.Calls))
+	for i, c := range l.Calls {
+		jacks[i] = c.Jack
+	}
+	slices.Sort(jacks)
+	for i := range l.Calls {
+		l.Calls[i].Jack = jacks[i]
+	}
 }
 
 // free is the line's first jack no call is plugged into, nor stub hangs

@@ -61,7 +61,7 @@ func walk(t *testing.T, sm viewstest.SessionsMoment) []walked {
 			held = held.Found(views.ReadListOf(sessionsLedger(look.Lines, look.Now), found...))
 		}
 		m := look.Doc.At(look.Now, claude.Policy)
-		calls := views.CallsOf(m, look.Sessions, look.Stream, held)
+		calls := views.CallsOf(m, views.ListLive{Running: look.Sessions, Unlisted: look.Unlisted, Stream: look.Stream}, held)
 		board = views.Patch(board, calls, views.StubsOf(m))
 		walks = append(walks, walked{look: look, m: m, held: held, found: found, calls: calls, board: board})
 	}
@@ -105,7 +105,10 @@ func callSaid(c views.Call, now time.Time) string {
 		said += " ▸ from " + c.From
 	}
 	works := "rests"
-	if c.Activity.Works() {
+	switch {
+	case c.Activity.Stale:
+		works = "as last known"
+	case c.Activity.Works():
 		works = "works"
 	}
 	return said + " · " + cmp.Or(c.Dir, "no dir") + " · " + works
@@ -216,7 +219,7 @@ func TestTheListHeldIsTheListBuiltAfreshOfTheSameLinesAtEveryLook(t *testing.T) 
 // disagree; and each line holds a call for each row ROUTING counts.
 func TestTheCallsAreRunningOfsRowsAndTheBoardROUTINGsCounts(t *testing.T) {
 	eachLook(t, func(t *testing.T, w walked) {
-		running := views.RunningOf(w.m, w.look.Sessions, w.look.Stream, w.held)
+		running := views.RunningOf(w.m, views.ListLive{Running: w.look.Sessions, Unlisted: w.look.Unlisted, Stream: w.look.Stream}, w.held)
 		var rows []views.Running
 		for _, c := range w.calls {
 			rows = append(rows, c.Running)
@@ -283,9 +286,9 @@ func TestTheListAndTheCallsAgreeOnTheSessionsRunning(t *testing.T) {
 }
 
 // Each session the List lists runs on its page as it does on the List, and
-// as the Switchboard has a call of it, and is doing what the List says,
-// whether the router lists it, or, while it doesn't answer, its last
-// listing did, however long ago.
+// as the Switchboard has a call of it, and is doing what the List says, as
+// last known where the List says so, whether the router lists it, or, while
+// it doesn't answer, its last listing did, however long ago.
 func TestASessionsPageRunsAsTheListAndTheSwitchboardHaveIt(t *testing.T) {
 	eachLook(t, func(t *testing.T, w walked) {
 		for _, s := range w.held.List(liveOf(w.look)).Sessions {
@@ -293,9 +296,9 @@ func TestASessionsPageRunsAsTheListAndTheSwitchboardHaveIt(t *testing.T) {
 			live := views.PageLive{Routed: views.Routed(w.look.Sessions, s.Session), Unlisted: w.look.Unlisted, Stream: w.look.Stream, Now: w.look.Now}
 			page, ok := views.HoldPage(s.Session, read, ledger.Pricing, 0, w.look.Now).Page(live)
 			called := slices.ContainsFunc(w.calls, func(c views.Call) bool { return c.Session == s.Session })
-			if !ok || page.Running != s.Running || page.Running != called || page.Activity.Doing != s.Activity.Doing {
-				t.Errorf("%s's page (%t) runs %t, doing %d; want it running %t, as the List has it, and %t, as the Switchboard calls it, doing %d",
-					status.ShownID(s.Session), ok, page.Running, page.Activity.Doing, s.Running, called, s.Activity.Doing)
+			if !ok || page.Running != s.Running || page.Running != called || page.Activity.Doing != s.Activity.Doing || page.Activity.Stale != s.Activity.Stale {
+				t.Errorf("%s's page (%t) runs %t, doing %d, as last known %t; want it running %t, as the List has it, and %t, as the Switchboard calls it, doing %d, as last known %t",
+					status.ShownID(s.Session), ok, page.Running, page.Activity.Doing, page.Activity.Stale, s.Running, called, s.Activity.Doing, s.Activity.Stale)
 			}
 		}
 	})

@@ -99,7 +99,7 @@ func TestASessionsPageAgreesWithTheListSessionsAndTheTracesAtEachHardMoment(t *t
 				Running: hm.Sessions, Unlisted: hm.Unlisted, Stream: hm.Stream,
 				Ledger: fakeLedger{lines: hm.Lines, now: hm.Now}, Prices: ledger.Pricing, Now: hm.Now,
 			})
-			rows := views.RunningOf(hm.Doc.At(hm.Now, claude.Policy), hm.Sessions, hm.Stream, listHeldOf(hm.Lines, hm.Sessions, hm.Now))
+			rows := views.RunningOf(hm.Doc.At(hm.Now, claude.Policy), views.ListLive{Running: hm.Sessions, Unlisted: hm.Unlisted, Stream: hm.Stream}, listHeldOf(hm.Lines, hm.Sessions, hm.Now))
 			for _, listed := range list.Sessions {
 				held, live := momentsHeld(hm, listed.Session)
 				page, _ := held.Page(live)

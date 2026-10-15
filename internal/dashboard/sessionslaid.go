@@ -166,7 +166,9 @@ type boardLayout struct {
 // row, grown a row for each jack plugged past its own; the first of its
 // account's rows, its group's first call's or its own, whichever is higher,
 // which it scrolls from; and the stubs hanging from its jacks. Its group
-// starts on groupStart, where it has one.
+// starts on groupStart, where it has one. Its account's rows run from first
+// to its own last, as end has it, as each of its calls sits on its jack's
+// row or above it.
 type laidLine struct {
 	account    string
 	patched    views.PatchedLine
@@ -174,6 +176,16 @@ type laidLine struct {
 	first      int
 	stubs      []laidStub
 	groupStart int
+}
+
+// end is the row after its account's last: its own last's.
+func (ln laidLine) end() int {
+	return ln.top + ln.rows
+}
+
+// tall is how many rows its account takes, from its first to its last.
+func (ln laidLine) tall() int {
+	return ln.end() - ln.first
 }
 
 // laidStub is a cord a limit let go, hanging from the jack on row: cells
@@ -211,14 +223,15 @@ const compactedStep = 5
 // row after each group, an empty group taking none. It takes the first
 // compaction step whose lines end boardKeyGap blank rows and the key's
 // boardKeyRows above the view's last row, else step 5, step 4's lines
-// scrolling with no key. Each line follows the one before at its step's gap,
-// or lower, to meet its group, so every cord runs right, then down; and grows
-// a row for each jack its calls and stubs plug past its rows. Bent cords turn
-// down in the order of their jacks' rows, then their calls', the first at
-// the bends' room's last column, each next bendsApart further left, or 2, or
-// 1, where the room holds them no further apart. It draws lanes in place of
-// cords where no part has more to give, as under 100 columns, and wherever
-// the bent cords outnumber the bends' room's columns.
+// scrolling with no key, each account's group starting below the line
+// above, as layLines has it. Each line follows the one before at its step's
+// gap, or lower, to meet its group, so every cord runs right, then down; and
+// grows a row for each jack its calls and stubs plug past its rows. Bent
+// cords turn down in the order of their jacks' rows, then their calls', the
+// first at the bends' room's last column, each next bendsApart further left,
+// or 2, or 1, where the room holds them no further apart. It draws lanes in
+// place of cords where no part has more to give, as under 100 columns, and
+// wherever the bent cords outnumber the bends' room's columns.
 func sessionsLaid(width, rows int, patched views.Patched, lines boardLines) boardLayout {
 	k := boardColumnsOf(width)
 	l := boardLayout{columns: k, lanes: k.room < leastRoom, keyAt: -1}
@@ -234,29 +247,32 @@ func sessionsLaid(width, rows int, patched views.Patched, lines boardLines) boar
 }
 
 // layLines lays out the calls and the lines at l's step, and the rows they
-// take.
+// take: each group of calls from the row after the group above's blank row,
+// and each line from its step's gap after the line above, or lower, as laid
+// has it. At step 5, where the lines scroll an account at a time, a group
+// starts no higher than the row after the line above, so each account's
+// rows, from its first to its line's last, as laidLine has them, start
+// below the account above's.
 func (l *boardLayout) layLines(patched views.Patched, lines boardLines) {
 	l.calls, l.lines = nil, nil
-	row := 0
+	group, next, end := 0, 0, 0
 	for _, account := range lines.accounts {
 		p := patched.Line(account)
-		l.lines = append(l.lines, laidLine{account: account, patched: p, groupStart: row})
-		for _, c := range p.Calls {
-			l.calls = append(l.calls, laidCall{session: c.Session, account: account, cord: cord{plug: l.columns.plug, from: row}})
-			row++
+		if l.step == compactedStep {
+			group = max(group, end)
+		}
+		ln := laidLine{account: account, patched: p, groupStart: group}
+		for i, c := range p.Calls {
+			l.calls = append(l.calls, laidCall{session: c.Session, account: account, cord: cord{plug: l.columns.plug, from: group + i}})
 		}
 		if len(p.Calls) > 0 {
-			row++
+			group += len(p.Calls) + 1
 		}
+		end = ln.laid(l.step, lines.windows, next)
+		next = end + l.gapAfter()
+		l.lines = append(l.lines, ln)
 	}
-	next := 0
-	for i := range l.lines {
-		next = l.lines[i].laid(l.step, lines.windows, next) + l.gapAfter()
-	}
-	l.rows = 0
-	if n := len(l.lines); n > 0 {
-		l.rows = l.lines[n-1].top + l.lines[n-1].rows
-	}
+	l.rows = end
 	l.plugged()
 }
 

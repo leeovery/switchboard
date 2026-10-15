@@ -175,6 +175,68 @@ func TestSessionsKeysChooseOpenAndTurn(t *testing.T) {
 	}
 }
 
+// ↓ and ↑ on the Switchboard each scroll it to the call they choose, where
+// it's out of view: through every call, down and back up, in a terminal
+// short enough that its lines scroll, with personal's calls above its line
+// and twenty on side, more than the view holds at once.
+func TestChoosingACallScrollsTheSwitchboardToIt(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "personal", time.Second), sessionOn(id7F3A, opus, "personal", 2*time.Second)}
+	for i := range 20 {
+		h.source.sessions = append(h.source.sessions, sessionOn(fmt.Sprintf("%04x0000-0000-4000-8000-000000000000", i), opus, "side", time.Duration(i+3)*time.Second))
+	}
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 14})
+	h.start()
+	h.keys(toSessions...)
+	shows := func() bool {
+		chosen := h.model.sessionsTab.shown.Chosen
+		return slices.ContainsFunc(h.targets(), func(t dashboard.Target) bool {
+			return t.On == dashboard.OnSession && t.Session == chosen.Session && t.Account == chosen.Account
+		})
+	}
+	furthest := 0
+	for _, key := range append(slices.Repeat([]tea.KeyPressMsg{downKey}, 22), slices.Repeat([]tea.KeyPressMsg{upKey}, 21)...) {
+		h.keys(key)
+		if !shows() {
+			t.Fatalf("%s chose %+v, the view scrolled %d, want it scrolled to show it", key, h.model.sessionsTab.shown.Chosen, h.model.scroll)
+		}
+		furthest = max(furthest, h.model.scroll)
+	}
+	if furthest == 0 {
+		t.Error("the view never scrolled, want the calls past its foot to have scrolled it")
+	}
+}
+
+// While the router doesn't answer, the Switchboard's calls are its last
+// listing's, what they had in flight as last known, never at work; and
+// once it answers again, as it lists them.
+func TestWhileTheRouterIsSilentACallsRequestInFlightIsAsLastKnown(t *testing.T) {
+	h := streamingHarness(t)
+	h.source.sessions[0].Assignments[0].InFlight = status.Answering
+	h.keys(toSessions...)
+	d28c := func() views.Activity {
+		i := slices.IndexFunc(h.model.sessionsTab.shown.Calls, func(c views.Call) bool { return c.Session == idD28C })
+		if i < 0 {
+			t.Fatal("d28c has no call, want the one its last listing gives")
+		}
+		return h.model.sessionsTab.shown.Calls[i].Activity
+	}
+	if a := d28c(); a.Doing != views.Answering || a.Stale || !a.Works() {
+		t.Fatalf("the router answering, d28c is %+v, want it answering, at work", a)
+	}
+	h.stopRouter()
+	h.tickUntilAsked()
+	if a := d28c(); a.Doing != views.Answering || !a.Stale || a.Works() {
+		t.Errorf("the router silent, d28c is %+v, want it answering as last known, not at work", a)
+	}
+	h.startRouter(routerDocument(three()...))
+	h.source.sessions[0].Assignments[0].InFlight = ""
+	h.tickUntilAsked()
+	if a := d28c(); a.Doing != views.Idle || a.Stale {
+		t.Errorf("the router answering again, d28c is %+v, want it idle as listed", a)
+	}
+}
+
 // The choice follows its session from look to look: on the Switchboard, to
 // its row on another account as the router lists it there, and ended once
 // the router lists it no more, but kept while the router doesn't answer, as

@@ -176,16 +176,25 @@ func TestTheListsColumnsByWidth(t *testing.T) {
 // What a session is doing is said as its Activity's State says it, in its
 // ink: asking and answering bold accent.key; a refusal bold
 // state.destructive; throttled text.subtle, as the Switchboard has it; idle
-// and ended text.muted.
+// and ended text.muted; and what's in flight as last known, the router not
+// answering, as it was, in text.subtle, not bold, its mark too.
 func TestTheListsStateIsInkedByWhatItsDoing(t *testing.T) {
+	stale := func(a views.Activity) views.Activity {
+		a.Stale = true
+		return a
+	}
 	tests := []struct {
 		name  string
 		doing views.Activity
 		said  string
 		ink   ink
+		mark  views.RowMark
 	}{
-		{name: "asking", doing: asking, said: "asking", ink: keyInk},
-		{name: "answering", doing: answering, said: "answering", ink: keyInk},
+		{name: "asking", doing: asking, said: "asking", ink: keyInk, mark: views.MarkAsking},
+		{name: "answering", doing: answering, said: "answering", ink: keyInk, mark: views.MarkAnswering},
+		{name: "asking as last known", doing: stale(asking), said: "asking", ink: dimInk, mark: views.MarkAsking},
+		{name: "answering as last known", doing: stale(answering), said: "answering", ink: dimInk, mark: views.MarkAnswering},
+		{name: "refused as last known", doing: stale(views.Activity{Doing: views.Refused, Status: 429}), said: "✕ 429", ink: dimInk},
 		{name: "refused", doing: views.Activity{Doing: views.Refused, Status: 429}, said: "✕ 429", ink: exhaustedInk},
 		{name: "throttled", doing: views.Activity{Doing: views.Throttled, Status: 429}, said: "… 429", ink: dimInk},
 		{name: "idle", doing: idleFor(34 * time.Second), said: "idle 34s", ink: mutedInk},
@@ -195,6 +204,9 @@ func TestTheListsStateIsInkedByWhatItsDoing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := d28cMoved
 			s.doing = tt.doing
+			if tt.mark != views.NoMark {
+				s.mark = tt.mark
+			}
 			f := listFrame(t, 160, 37, listOf(s))
 			c := f.page(framedDoc(nil, nil), routedAt)
 			y := rowSaying(c, 2, "d28c")
@@ -203,6 +215,9 @@ func TestTheListsStateIsInkedByWhatItsDoing(t *testing.T) {
 			}
 			if got := c.at(42, y).ink; got != tt.ink {
 				t.Errorf("its state is in %+v, want %+v", got, tt.ink)
+			}
+			if mark := c.at(0, y); tt.mark != views.NoMark && (mark.glyph != tt.mark.String() || mark.ink != tt.ink) {
+				t.Errorf("its mark is %q in %+v, want %q in %+v", mark.glyph, mark.ink, tt.mark, tt.ink)
 			}
 		})
 	}

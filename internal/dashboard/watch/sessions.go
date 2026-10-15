@@ -66,7 +66,7 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 	if t.held != nil {
 		t.shown.List = held.List(m.listLive(now, s))
 	}
-	t.shown.Calls = views.CallsOf(mo, m.sessions, s, held)
+	t.shown.Calls = views.CallsOf(mo, m.listLive(now, s), held)
 	t.shown.Patched = views.Patch(t.shown.Patched, t.shown.Calls, views.StubsOf(mo))
 	t.shown = t.shown.Following(accountIDs(mo))
 	t.moves = len(s.Moves)

@@ -101,7 +101,7 @@ func TestSessionsKeyLinesAreTheDesigns(t *testing.T) {
 	}
 }
 
-// Help lists esc, ending the choice, while a session is chosen, on both
+// Help lists esc deselect while a session is chosen, on both
 // sub-tabs, as the key line leaves it to help; with none chosen, or once esc
 // ends the choice, it lists none.
 func TestSessionsHelpListsEscWhileASessionIsChosen(t *testing.T) {
@@ -117,9 +117,9 @@ func TestSessionsHelpListsEscWhileASessionIsChosen(t *testing.T) {
 			{name: "the choice ended", do: func() { h.keys(escKey) }},
 		} {
 			step.do()
-			got := slices.ContainsFunc(helpOver(h.model), func(k dashboard.Key) bool { return k == dashboard.Key{Key: "esc", Does: "end the choice"} })
+			got := slices.ContainsFunc(helpOver(h.model), func(k dashboard.Key) bool { return k == dashboard.Key{Key: "esc", Does: "deselect"} })
 			if got != step.want {
-				t.Errorf("on the %s, %s, help lists esc end the choice: %t, want %t", []string{"Switchboard", "List"}[shown], step.name, got, step.want)
+				t.Errorf("on the %s, %s, help lists esc deselect: %t, want %t", []string{"Switchboard", "List"}[shown], step.name, got, step.want)
 			}
 		}
 	}
