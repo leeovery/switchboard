@@ -2528,7 +2528,8 @@ rows run from row 7 (settled in the plan):
   Switchboard and the List, it's said in the words it was, in `text.subtle`, not bold, as a stale
   reading's words are, its mark on the List too; never said idle where it wasn't; and never as at
   work now: its id isn't bold, its cord is at rest, and it's counted busy only as it was seen in
-  the last minute, never for what's in flight. It's live again as the router answers.
+  the last minute, never for what's in flight. It's live again as the router answers (the owner's
+  call, 15 October 2026).
 - **A look that can't blend,** the terminal's own colours or `NO_COLOR` (see Themes): an idle cord
   is drawn light, `─ ┐ │ └`, and a glow of 0.5 or more as `text.primary`. A light theme's glows and
   dimming are mixed against its own canvas (settled in the plan).
