@@ -3,6 +3,7 @@ package ledger_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"maps"
 	"os"
@@ -743,6 +744,44 @@ func TestSessionsReadsTodaysAndThoseAskedForEachAsSessionReadsOne(t *testing.T) 
 	wantTaken := map[string]string{"1": "2026-10-03", "2": "2026-10-03", "3": "2026-10-04", "4": date, "5": date, "6": date, "7": "2026-10-06", "9": "2026-10-07"}
 	if !maps.Equal(taken, wantTaken) {
 		t.Errorf("Sessions() handed take %v, want each line read that arrived by now once, with its file's date %v", taken, wantTaken)
+	}
+}
+
+// A read of sessions reads their days side by side, but takes in what each
+// read as one read after another would: take is handed the lines of each
+// day in the order its files hold them, the days oldest first, and a
+// session's lines arriving at once come in that order, whichever day's read
+// ends first.
+func TestSessionsOfTakesInTheDaysItReadsSideBySideOldestFirst(t *testing.T) {
+	state, dir, history := stateDirs(t)
+	same := on(-2, 9, 0)
+	var want []string
+	for back := 6; back >= 0; back-- {
+		day := on(-back, 0, 0).Format(time.DateOnly)
+		lines := make([]ledger.Line, 5)
+		for i := range lines {
+			request := fmt.Sprintf("%d-%d", 6-back, i)
+			lines[i], want = askedBy(request, "one", on(-back, 9, i)), append(want, request)
+		}
+		if back == 2 {
+			lines[4].At = same
+		}
+		if back == 1 {
+			lines[0].At = same
+		}
+		holdLines(t, dir, day, lines...)
+	}
+	summariseAt(dir, history, on(0, 1, 10))
+	follower := followerOf(state, &testClock{at: on(0, 12, 0)}, caps)
+
+	var taken []string
+	got := follower.SessionsOf([]string{"one"}, func(_ string, l ledger.Line) { taken = append(taken, l.Request) })
+	if !slices.Equal(taken, want) {
+		t.Errorf("SessionsOf() handed take %q, want each day's lines in its files' order, the days oldest first, %q", taken, want)
+	}
+	held := requestsOf(got["one"])
+	if i := slices.Index(held, "4-4"); i < 0 || i+1 == len(held) || held[i+1] != "5-0" {
+		t.Errorf("SessionsOf() gave the session's requests %q, want 4-4 and 5-0, arriving at once, in their days' order", held)
 	}
 }
 

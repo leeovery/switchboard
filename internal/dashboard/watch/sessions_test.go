@@ -400,6 +400,11 @@ func (l *sessionsCounted) Sessions(ids []string, take func(string, ledger.Line))
 	return l.Ledger.Sessions(ids, take)
 }
 
+func (l *sessionsCounted) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+	l.asked = append(l.asked, slices.Clone(ids))
+	return l.Ledger.SessionsOf(ids, take)
+}
+
 func (l *sessionsCounted) Session(id string) iter.Seq[ledger.Held] {
 	l.alone = append(l.alone, id)
 	return l.Ledger.Session(id)

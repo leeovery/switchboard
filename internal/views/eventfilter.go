@@ -2,6 +2,7 @@ package views
 
 import (
 	"slices"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -46,6 +47,32 @@ func (f EventFilter) Keeps(e LogEvent) bool {
 // window reset.
 func (f EventFilter) Reach() (LogFilter, bool) {
 	return LogFilter{Sessions: f.Sessions}, len(f.Sessions) > 0
+}
+
+// Bounds reports whether f keeps the events of some kinds, or naming some
+// accounts, alone: whose days, as no summary tells them, the events' files
+// are read for, as FiledFrom reads them, to bound how far back the Events
+// read through f to fill their view.
+func (f EventFilter) Bounds() bool {
+	return len(f.Kinds) > 0 || len(f.Accounts) > 0
+}
+
+// FiledFrom is the date of the local day of the earliest event the router
+// filed from from up to to that f keeps by its kind and the accounts it
+// names, as Keeps has it, of every session, as Reach bounds those: "" where
+// it filed none. It reads the files the oldest first, and no further than
+// the first such event.
+func (f EventFilter) FiledFrom(filed Events, from, to time.Time) string {
+	if filed == nil {
+		return ""
+	}
+	f.Sessions = nil
+	for line := range filed.Between(from, to) {
+		if f.Keeps(LogEvent{Kind: line.Kind, Session: line.Session, Accounts: namedAccounts(line.Event)}) {
+			return Today(line.At).Date
+		}
+	}
+	return ""
 }
 
 // EventCount is what today's events count: every one, and those the filter

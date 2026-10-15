@@ -1,23 +1,23 @@
 package watch
 
 import (
-	"maps"
 	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
 // sessionShown is what the watch holds of a session's page while it's open:
 // the session's id; its page as its lines build it, held between looks, as
 // views.HeldPage holds it, and how many reads of the ledger's tail have
-// grown it; when each day it awaits a line on was last read for it; the
+// changed it; when each day it awaits a line on was last read for it; the
 // page as the frame shows it, built afresh of what's held as relived builds
-// it, and what it was last built of, none before it's built; and the Log's
+// it, what it was last built of, none before it's built, and until when
+// that stands by the clock, as views.BuiltPage's Until has it; and the Log's
 // details card over it, while it's open.
 type sessionShown struct {
 	id      string
@@ -26,6 +26,7 @@ type sessionShown struct {
 	awaited awaitedReads
 	shown   dashboard.SessionShown
 	built   *pageBasis
+	until   time.Time
 	card    turnCarding
 }
 
@@ -49,10 +50,12 @@ func (s *sessionShown) frame() *dashboard.SessionShown {
 
 // openSession opens the page of the session with the given id, as a click on
 // its row does, once its lines are read, as readAsked reads them: till then
-// the tab it opens over shows, and acts, as it is.
+// the tab it opens over shows, and acts, as it is, but where they've taken
+// LoadingAfter, when the page shows loading, as pageLoading has it.
 func (m Model) openSession(id string) (Model, tea.Cmd) {
 	m.opening, m.pending = m.opening+1, id
-	return m.readAsked()
+	m, read := m.readAsked()
+	return m, tea.Batch(read, m.after(LoadingAfter, pageLoadingMsg{asked: m.opening, id: id}))
 }
 
 // readAsked reads the lines of the page asked to open last, as readSession
@@ -81,18 +84,20 @@ func (m Model) readSession(asked int, id string) tea.Cmd {
 	return func() tea.Msg {
 		var read views.SessionsRead
 		if l != nil {
-			read = views.ReadSessions(l, nil, now, id)
+			read = views.ReadSession(l, now, id)
 		}
 		return sessionReadMsg{asked: asked, id: id, held: views.HoldPage(id, read, prices, keep, now)}
 	}
 }
 
 // sessionRead takes in a page's read, the tail's reads no longer held off
-// by it, which opens it, but one of an open asked for before the last, or
-// dropped since, as unasked has it: the page is built as relived builds it,
-// its directory shown under the home the watch is given.
+// by it, which opens it, in place of its page loading, but one of an open
+// asked for before the last, or dropped since, as unasked has it: the page
+// is built as relived builds it, its directory shown under the home the
+// watch is given.
 func (m Model) sessionRead(msg sessionReadMsg) Model {
 	m.tail = m.tail.wholeLanded()
+	m.arrived = max(m.arrived, msg.asked)
 	if msg.asked == m.opening {
 		m.session = &sessionShown{id: msg.id, held: msg.held, shown: dashboard.SessionShown{Home: m.cfg.Home}}
 	}
@@ -128,10 +133,12 @@ type pageFold struct {
 }
 
 // pageTaken is the page held of the session with the given id, as a read
-// of the ledger's tail grew it.
+// of the ledger's tail grew it, and whether that changed its page, as
+// views.HeldPage's Took has it.
 type pageTaken struct {
-	id   string
-	held views.HeldPage
+	id      string
+	held    views.HeldPage
+	changed bool
 }
 
 // pageFold is what a read of the ledger's tail at now does for the session's
@@ -142,7 +149,7 @@ type pageTaken struct {
 // are; each once, the oldest first.
 func (m Model) pageFold(now time.Time) *pageFold {
 	s := m.session
-	if s == nil {
+	if s == nil || s.shown.Loading {
 		return nil
 	}
 	live := m.pageLive(s.id, now)
@@ -167,18 +174,24 @@ func (m Model) pageAwaiting(f *pageFold) Model {
 // taken is the page held grown by what a read of the ledger's tail on the
 // day given read, as the fold says.
 func (f pageFold) taken(read tailLines, today views.LedgerDay) *pageTaken {
-	held := f.held
-	for _, date := range f.late {
-		held = held.Take(date, read.days[date])
+	t := pageTaken{id: f.id, held: f.held}
+	took := func(date string, lines []ledger.Held) {
+		var changed bool
+		t.held, changed = t.held.Took(date, lines)
+		t.changed = t.changed || changed
 	}
-	return &pageTaken{id: f.id, held: held.Take(today.Date, read.gained)}
+	for _, date := range f.late {
+		took(date, read.days[date])
+	}
+	took(today.Date, read.gained)
+	return &t
 }
 
 // pageTook is m with the page held as a read of the ledger's tail grew it,
 // where the session's page open is still of its session: one closed since
-// takes nothing in. Its page is built afresh, and each number on it the
-// lines taken in change brightens, as a look's changes do: the points of the
-// windows the session took, which only its lines move.
+// takes nothing in. Its page is built afresh where they changed it, and each
+// number on it the lines taken in change brightens, as a look's changes do:
+// the points of the windows the session took, which only its lines move.
 func (m Model) pageTook(t pageTaken) Model {
 	if m.session == nil || m.session.id != t.id {
 		return m
@@ -186,7 +199,10 @@ func (m Model) pageTook(t pageTaken) Model {
 	now := m.now()
 	was := m.numbersDrawn(now)
 	s := *m.session
-	s.held, s.taken = t.held, s.taken+1
+	s.held = t.held
+	if t.changed {
+		s.taken++
+	}
 	m.session = &s
 	m = m.relived(t, now)
 	m.numbers = m.numbers.changed(was, m.numbersDrawn(now), now)
@@ -197,18 +213,20 @@ func (m Model) pageTook(t pageTaken) Model {
 // frame, which takes nothing in: of what it holds of the session's lines, of
 // the router's listing of it, as pageLive has it, and of what the request
 // stream told, as the views build it, its turn open's requests among it,
-// made again only as what it's made of changes, as pageBasis has it; its
-// turn chosen as following has it. A page that can't be built, of no
-// request and listed by no router, stays as it was last built, and doesn't
-// open where it never was.
+// made again only as what it's made of changes, as pageBasis has it, or as
+// the clock reaches when it was built until; its turn chosen as following
+// has it. What streams on between, a row in flight and the answer it's
+// doing, is drawn as it stands at each frame. A page that can't be built, of
+// no request and listed by no router, stays as it was last built, and
+// doesn't open where it never was. One loading has nothing to build yet.
 func (m Model) relived(msg tea.Msg, now time.Time) Model {
-	if _, frame := msg.(frameMsg); frame || m.session == nil {
+	if _, frame := msg.(frameMsg); frame || m.session == nil || m.session.shown.Loading {
 		return m
 	}
 	s := *m.session
 	live := m.pageLive(s.id, now)
 	live.Stream = live.Stream.Of(s.id)
-	if basis := m.pageBasis(live); !s.built.same(basis) {
+	if basis := m.pageBasis(live); !s.built.same(basis) || !now.Before(s.until) {
 		built, ok := s.held.Build(s.shown.Open, live)
 		if !ok && s.shown.Page.Session == "" {
 			m.session = nil
@@ -217,7 +235,7 @@ func (m Model) relived(msg tea.Msg, now time.Time) Model {
 		if ok {
 			s.shown.Page, s.shown.Story, s.shown.Requests = built.Page, built.Story, built.Requests
 		}
-		s.built = &basis
+		s.built, s.until = &basis, built.Until
 	}
 	s.shown = following(m.session.shown, s.shown, m.turnsScrolling(s.shown))
 	m.session = &s
@@ -225,53 +243,25 @@ func (m Model) relived(msg tea.Msg, now time.Time) Model {
 }
 
 // pageBasis is what a session's page is made of: the lines it holds, as
-// taken counts the reads of the ledger's tail that grew them; the router's
-// listing of the sessions, as the look that listed them gave them; whether
-// no router lists them; what the stream told of the session alone; its turn
-// open; and the moment, as pageAt has it.
+// taken counts the reads of the ledger's tail that changed its page; what
+// it's built of beside them, as views.PageLive's Same compares it, kept as
+// Kept keeps it; and its turn open.
 type pageBasis struct {
-	taken    int
-	listed   []status.Session
-	unlisted bool
-	told     views.Stream
-	open     int
-	at       time.Time
+	taken int
+	live  views.PageLive
+	open  int
 }
 
 // same reports whether b is o, the page made of one as of the other.
 func (b *pageBasis) same(o pageBasis) bool {
-	return b != nil && b.taken == o.taken && sameSlice(b.listed, o.listed) && b.unlisted == o.unlisted &&
-		b.told.Live == o.told.Live && maps.Equal(b.told.Requests, o.told.Requests) && slices.Equal(b.told.Moves, o.told.Moves) &&
-		b.open == o.open && b.at.Equal(o.at)
+	return b != nil && b.taken == o.taken && b.live.Same(o.live) && b.open == o.open
 }
 
 // pageBasis is what the session's page open is made of, of live, what it's
 // built of beside its lines.
 func (m Model) pageBasis(live views.PageLive) pageBasis {
 	s := m.session
-	return pageBasis{taken: s.taken, listed: m.sessions, unlisted: live.Unlisted, told: live.Stream, open: s.shown.Open, at: pageAt(live.Stream, live.Now)}
-}
-
-// pageAt is the moment a session's page is made at, at now, s being what the
-// stream tells of the session: to a tenth of a second while a request of it
-// s tells of is in flight, its turn open's row of it counting how long it's
-// taken, to a tenth; else the second, as its story runs to now while it
-// runs.
-func pageAt(s views.Stream, now time.Time) time.Time {
-	if s.Live && anyInFlight(s.Requests) {
-		return now.Truncate(time.Second / 10)
-	}
-	return now.Truncate(time.Second)
-}
-
-// anyInFlight reports whether any of the requests told of is in flight.
-func anyInFlight(requests map[string]views.Told) bool {
-	for _, t := range requests {
-		if t.InFlight() {
-			return true
-		}
-	}
-	return false
+	return pageBasis{taken: s.taken, live: live.Kept(), open: s.shown.Open}
 }
 
 // pageLive is what a session's page is built of at now beside its lines, as
@@ -331,8 +321,11 @@ func choosing(shown dashboard.SessionShown, i int, s dashboard.Scrolling) dashbo
 // as moveTurn has it; enter opens the turn chosen, as openTurn has it; j,
 // k, PgDn and PgUp scroll the turns, or the turn open's requests, as
 // scrollSession has it; and t opens the theme picker. The rest do nothing,
-// the tab's own keys among them.
+// the tab's own keys among them. While it loads, its keys are loadingKey's.
 func (m Model) sessionKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.session.shown.Loading {
+		return m.loadingKey(key)
+	}
 	k := key.String()
 	if by, ok := scrollKey(k); ok {
 		return m.scrollSession(by), nil
@@ -353,6 +346,22 @@ func (m Model) sessionKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.moveTurn(1), nil
 	case "enter":
 		return m.openTurn(), nil
+	case "t":
+		return m.openPicker()
+	}
+	return m, nil
+}
+
+// loadingKey acts on a key while a session's page loads: esc goes back where
+// it was opened from, dropping its read, as closeSession has it; tab and
+// shift-tab leave it for the tab after or before, as pageKey has them; and t
+// opens the theme picker. The rest do nothing till it's loaded.
+func (m Model) loadingKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch key.String() {
+	case "esc":
+		return m.closeSession(), nil
+	case "tab", "shift+tab":
+		return m.pageKey(key)
 	case "t":
 		return m.openPicker()
 	}

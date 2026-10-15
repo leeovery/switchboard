@@ -176,13 +176,45 @@ type SessionsRead struct {
 // router lists them, and those with the given ids, as one given in whole,
 // of an earlier day.
 func ReadSessions(l Ledger, running []status.Session, now time.Time, ids ...string) SessionsRead {
-	read := SessionsRead{day: Today(now), requests: make(map[string][]ledger.Line)}
-	read.lines = l.Sessions(append(runningIDs(running), ids...), func(date string, line ledger.Line) {
-		if line.Counted() && line.Account != "" {
-			read.requests[date] = append(read.requests[date], line)
-		}
-	})
+	read := sessionsReadAt(now)
+	read.lines = l.Sessions(append(runningIDs(running), ids...), read.take)
 	return read
+}
+
+// ReadSession reads, through l, at now, the session with the given id
+// alone, as its page reads it once its id is known whole: as ReadSessions
+// reads it, but through the ledger's SessionsOf, so none of today's other
+// sessions' days is read for it.
+func ReadSession(l LedgerSessions, now time.Time, id string) SessionsRead {
+	read := sessionsReadAt(now)
+	read.lines = l.SessionsOf([]string{id}, read.take)
+	return read
+}
+
+// AskedPage is the page of the session with the given id as it's drawn
+// asked to open, while its lines are read: its id, and its directory as the
+// router lists it, of the sessions running given, as dir has it of a
+// session it lists, none where it doesn't list it; nothing else is known
+// till its lines are.
+func AskedPage(id string, running []status.Session) SessionPage {
+	page := SessionPage{Session: id}
+	if s := Routed(running, id); s != nil {
+		page.Dir = routedDir(*s)
+	}
+	return page
+}
+
+// sessionsReadAt is a read at now, holding nothing yet.
+func sessionsReadAt(now time.Time) SessionsRead {
+	return SessionsRead{day: Today(now), requests: make(map[string][]ledger.Line)}
+}
+
+// take holds the line given, of the day with the given date, where it's a
+// request of an account's, for the points.
+func (r SessionsRead) take(date string, line ledger.Line) {
+	if line.Counted() && line.Account != "" {
+		r.requests[date] = append(r.requests[date], line)
+	}
 }
 
 // Named returns the ids of the sessions one is named among, by as much of its

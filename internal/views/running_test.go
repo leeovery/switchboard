@@ -283,6 +283,41 @@ func TestASessionsRowDoesWhatItsModelsTheStreamToldOfThereDo(t *testing.T) {
 	}
 }
 
+// A session's row is seen as late as the stream last told of a request of
+// its model there, and idle since, whether the stream holds the request
+// still or it has gone, its line read, as Seen keeps its seat's sight: an
+// answer sent seven minutes ago, as the router lists it seen, and ended three
+// minutes ago, is idle three minutes either way. A seat seen of another
+// account's says nothing of this one.
+func TestASessionsRowIsSeenAsLateAsItsSeatWasWhetherItsRequestIsHeldOrGone(t *testing.T) {
+	sessions := []status.Session{{ID: idler, Assignments: []status.Assignment{
+		seatOn(opus, "opus", "work", status.ReasonNew, 30*time.Minute, 7*time.Minute, ""),
+	}}}
+	ended := views.Told{Request: "r1", Session: idler, Model: opus, Account: "work", Sent: now.Add(-7 * time.Minute), Ended: now.Add(-3 * time.Minute), Status: 200, Heard: now.Add(-3 * time.Minute)}
+	seat, _ := ended.Seat()
+	tests := []struct {
+		name   string
+		stream views.Stream
+		seen   time.Duration
+	}{
+		{name: "its request held", stream: views.Stream{Live: true, Requests: map[string]views.Told{"r1": ended}}, seen: 3 * time.Minute},
+		{name: "its request gone, its seat seen", stream: views.Stream{Live: true, Seen: map[views.Seat]time.Time{seat: ended.Heard}}, seen: 3 * time.Minute},
+		{name: "another account's seat seen", stream: views.Stream{Live: true, Seen: map[views.Seat]time.Time{{Session: idler, Model: opus, Account: "side"}: ended.Heard}}, seen: 7 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows := views.RunningOf(runningDoc().At(now, claude.Policy()), views.ListLive{Running: sessions, Stream: tt.stream}, views.HeldList{})
+			i := slices.IndexFunc(rows, func(r views.Running) bool { return r.Account == "work" })
+			if i < 0 {
+				t.Fatalf("RunningOf = %+v, want a row on work", rowsOf(rows))
+			}
+			if got := rowsOf(rows)[i]; got.seen != tt.seen || got.doing != views.Idle || !rows[i].Activity.Since.Equal(now.Add(-tt.seen)) {
+				t.Errorf("the row on work is %+v, idle since %s, want it seen %s ago, idle since then", got, rows[i].Activity.Since, tt.seen)
+			}
+		})
+	}
+}
+
 func TestASessionRunsWhereItWasRoutedWithinTheHour(t *testing.T) {
 	tests := []struct {
 		name       string

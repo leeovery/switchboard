@@ -52,8 +52,12 @@ func (m Model) helpCard() dashboard.Help {
 // sessionKeys is what lists a session's page's keys, as m stands, as
 // sessionListings has them, with a turn open or not; and p, as pinKey has
 // it. Its scroll keys follow, where they scroll its turns, or the open
-// turn's requests, as KeysScroll has it, as listings has them.
+// turn's requests, as KeysScroll has it, as listings has them. While it
+// loads, esc alone.
 func (m Model) sessionKeys() pageKeys {
+	if m.session.shown.Loading {
+		return pageKeys{own: sessionListings(false)[:1], coloured: m.coloured()}
+	}
 	pin, pinned := m.pinKey()
 	return pageKeys{
 		own:      sessionListings(m.session.shown.Open != 0),

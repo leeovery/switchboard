@@ -81,8 +81,9 @@ func (p LogPage) refiltered(tables ...LogView) LogPage {
 // filter changes, or, following, as its view grows: where the days'
 // summaries bound how far back it reads through its filter, as reach has
 // it; and the Events through a filter choosing no account, as on opening,
-// every day back to the oldest they read, as no summary tells the days of
-// an event's kind.
+// every day back to the oldest they read, or, through some kinds, as far
+// back as AtReach says the router filed one, as no summary tells the days
+// of an event's kind.
 func (p LogPage) refills(v LogView) bool {
 	if _, ok := p.reach(v); ok {
 		return true

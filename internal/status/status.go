@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -194,6 +195,17 @@ type Event struct {
 	// By says who set or cleared a pin, such as "cli": "" where what did
 	// didn't say.
 	By string `json:"by,omitempty"`
+}
+
+// Same reports whether e tells what o does, field for field, times as the
+// same instants: a version of an event the router tells again unchanged is
+// the same, so what's built of the one stands for the other.
+func (e Event) Same(o Event) bool {
+	return e.ID == o.ID && e.At.Equal(o.At) && e.Kind == o.Kind && e.Account == o.Account && slices.Equal(e.Accounts, o.Accounts) &&
+		e.Session == o.Session && e.Model == o.Model && e.From == o.From && e.To == o.To && e.Reason == o.Reason &&
+		slices.Equal(e.Windows, o.Windows) && maps.EqualFunc(e.Joined, o.Joined, time.Time.Equal) && e.Until.Equal(o.Until) &&
+		e.Since.Equal(o.Since) && e.Count == o.Count && e.Limit == o.Limit && e.ForcedBy == o.ForcedBy && e.Reserve == o.Reserve &&
+		e.Status == o.Status && e.Family == o.Family && e.Move == o.Move && e.Force == o.Force && e.By == o.By
 }
 
 // Fallback is why a document was built by probing though the router was

@@ -96,15 +96,34 @@ func (r EventsRead) Back(filed Events, first time.Time) EventsFiled {
 // held, as the router holds it now: those that happened before r begins
 // passed over.
 func (r EventsRead) Look(m status.Moment, run time.Time) EventsRead {
-	looked := r.clone()
-	looked.newest, looked.looked = EventKey{Run: run}, true
+	looked, _ := r.Looked(m, run)
+	return looked
+}
+
+// Looked is r with the events the status document m is a moment of gives
+// taken in, as Look has it, reporting whether what it holds changed by them:
+// false where each it gives is held already as it gives it, as status.Event
+// Same has it, so what's built of r before stands, and r's events are its
+// own still.
+func (r EventsRead) Looked(m status.Moment, run time.Time) (EventsRead, bool) {
+	newest := EventKey{Run: run}
+	var fresh []Event
 	for _, e := range m.Events {
-		looked.newest.ID = max(looked.newest.ID, e.ID)
-		if !e.At.Before(r.since) {
-			looked.hold(Event{Key: EventKey{Run: run, ID: e.ID}, Event: e})
+		newest.ID = max(newest.ID, e.ID)
+		given := Event{Key: EventKey{Run: run, ID: e.ID}, Event: e}
+		if held, ok := r.held[given.Key.same()]; !e.At.Before(r.since) && (!ok || !held.Event.Same(e)) {
+			fresh = append(fresh, given)
 		}
 	}
-	return looked
+	looked := r
+	if len(fresh) > 0 {
+		looked = r.clone()
+		for _, e := range fresh {
+			looked.hold(e)
+		}
+	}
+	looked.newest, looked.looked = newest, true
+	return looked, len(fresh) > 0
 }
 
 // Skips reports whether the status document m is a moment of, told by the

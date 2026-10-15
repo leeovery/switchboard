@@ -66,3 +66,8 @@ func (Empty) Session(string) iter.Seq[Held] {
 func (Empty) Sessions([]string, func(string, Line)) map[string][]Line {
 	return map[string][]Line{}
 }
+
+// SessionsOf returns no session's lines, and hands take none.
+func (Empty) SessionsOf([]string, func(string, Line)) map[string][]Line {
+	return map[string][]Line{}
+}

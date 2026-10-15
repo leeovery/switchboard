@@ -60,6 +60,27 @@ type PageLive struct {
 	Now      time.Time
 }
 
+// Kept is l with the listing of the session its own, so what changes the
+// router's listing it was read from in place changes not l.
+func (l PageLive) Kept() PageLive {
+	if l.Routed != nil {
+		routed := keptListing(*l.Routed)
+		l.Routed = &routed
+	}
+	return l
+}
+
+// Same reports whether a page built of l, of the same lines, is the page
+// built of o, but for the clock, as BuiltPage's Until has it, and what a
+// request's answer has streamed, as SessionPage's Live has it: the router
+// lists the session alike, as sameListing has it, or neither lists it; it's
+// alike whether a router lists the sessions; and the stream tells the same
+// rows, as Stream's SameRows has them. A look listing the session the same
+// builds no page again.
+func (l PageLive) Same(o PageLive) bool {
+	return sameListing(l.Routed, o.Routed) && l.Unlisted == o.Unlisted && l.Stream.SameRows(o.Stream)
+}
+
 // HoldPage holds the page of the session with the given id, of what read
 // holds of it, and of the accounts it ran on, at now: its requests priced by
 // prices at the day now falls on, and keep the ledger's [ledger] keep, as
@@ -116,6 +137,15 @@ func (h HeldPage) pointed() HeldPage {
 // rolls it back. It's h itself where none is new and the date is no later
 // than its day.
 func (h HeldPage) Take(date string, lines []ledger.Held) HeldPage {
+	h, _ = h.Took(date, lines)
+	return h
+}
+
+// Took is h with the lines given taken in, as Take has it, reporting whether
+// its page changed by them: false where none of them is of the session, nor
+// moves its points, and the date doesn't roll it on, so a page built of it
+// before stands.
+func (h HeldPage) Took(date string, lines []ledger.Held) (HeldPage, bool) {
 	var gained []ledger.Line
 	for _, l := range lines {
 		if k, ok := keyOf(&l.Line); !ok || !holds(h.held, k) {
@@ -124,7 +154,7 @@ func (h HeldPage) Take(date string, lines []ledger.Held) HeldPage {
 	}
 	rolls := date > h.day.Date
 	if len(gained) == 0 && !rolls {
-		return h
+		return h, false
 	}
 	if rolls {
 		h = h.on(dayOf(date))
@@ -148,11 +178,11 @@ func (h HeldPage) Take(date string, lines []ledger.Held) HeldPage {
 	case len(mine) > 0 || rolls:
 		h.requests = inArrival(h.requests, requestsOf(mine, h.prices, h.day.Date))
 		h.over = h.over.withDay(date, answers)
-		return h.built()
+		return h.built(), true
 	case counts:
-		return h.pointed()
+		return h.pointed(), true
 	}
-	return h
+	return h, false
 }
 
 // inArrival returns held, a session's requests oldest first, with those
@@ -187,25 +217,64 @@ func (h HeldPage) on(day LedgerDay) HeldPage {
 }
 
 // BuiltPage is a session's page as Build builds it: the page; its story;
-// and the requests of its turn open, none where none is.
+// the requests of its turn open, none where none is; and until when it
+// stands by the clock, as Until has it.
 type BuiltPage struct {
 	Page     SessionPage
 	Story    Story
 	Requests []LogLine
+	// Until is the first moment a page built of the same would be built
+	// otherwise, by the clock alone: the next minute, as its story steps on
+	// a minute at a time, and its words count whole minutes; or sooner, as a
+	// model of a session running stops running, as stops has it, as the
+	// stream's sight of the session lapses, as saw has it, or, with no router
+	// listing the sessions, its last request does, as activity ends it, or as
+	// its cache runs out, which a move no longer costs, as moveCost has it. A
+	// request's row in flight counts on as it's drawn, as RequestRow.Live has
+	// it.
+	Until time.Time
 }
 
 // Build is the page of the session h holds, as Page builds it, with its
 // story, as Story tells it, and the requests of its turn numbered open, as
 // TurnRequests has them, none where open is 0, all three of one working of
-// what h holds and what live gives, as worked has it: reporting false where
-// Page does.
+// what h holds and what live gives, as worked has it, and until when it
+// stands, as BuiltPage's Until has it: reporting false where Page does,
+// with until when that stands.
 func (h HeldPage) Build(open int, live PageLive) (BuiltPage, bool) {
 	w := h.worked(live)
 	page, ok := w.page()
 	if !ok {
-		return BuiltPage{}, false
+		return BuiltPage{Until: w.until()}, false
 	}
-	return BuiltPage{Page: page, Story: w.story(page), Requests: w.turnRequests(open)}, true
+	return BuiltPage{Page: page, Story: w.story(page), Requests: w.turnRequests(open), Until: w.until()}, true
+}
+
+// until is when a page built of w stands otherwise by the clock alone, as
+// BuiltPage's Until has it.
+func (w worked) until() time.Time {
+	now := w.live.Now
+	until := now.Truncate(time.Minute).Add(time.Minute)
+	sooner := func(at time.Time) {
+		if at.After(now) && at.Before(until) {
+			until = at
+		}
+	}
+	for _, s := range w.by.running {
+		for _, a := range s.Assignments {
+			sooner(stops(a))
+		}
+	}
+	for _, k := range w.by.h.sat[w.h.id] {
+		sooner(lapsed(w.by.h.seats[k].last))
+	}
+	if last := w.h.story.last; w.by.unlisted && last != nil {
+		sooner(lapsed(last.At))
+	}
+	if _, _, cold := w.h.story.moving(); !cold.IsZero() {
+		sooner(cold)
+	}
+	return until
 }
 
 // worked is what a page of the session h holds is built of, worked out
@@ -311,15 +380,25 @@ func (w worked) turnRequests(n int) []LogLine {
 // Told.FiledOn has it, the stream having told its end, its line yet to
 // come, as its row's stage says, each once, the oldest first: a later day's
 // tail of the ledger never reads it, as the Log's Requests await theirs.
-// None is awaited of a request the stream told no sending of.
+// None is awaited of a request the stream told no sending of. The session's
+// requests are gone through only where the stream told of one so ended, as
+// it's asked at every look, and one is so only about midnight.
 func (h HeldPage) Awaited(live PageLive) []string {
 	today := Today(live.Now)
-	var dates []string
-	for _, s := range sentOf(h.requests, live.Stream.hearing().told[h.id]) {
-		if s.told == nil || toldRow(*s.told, live.Now).Stage != RowEnded {
-			continue
+	awaits := func(t *Told) (LedgerDay, bool) {
+		if t == nil || toldRow(*t, live.Now).Stage != RowEnded {
+			return LedgerDay{}, false
 		}
-		if day, ok := s.told.FiledOn(); ok && day.Start.Before(today.Start) && !slices.Contains(dates, day.Date) {
+		day, ok := t.FiledOn()
+		return day, ok && day.Start.Before(today.Start)
+	}
+	told := live.Stream.hearing().told[h.id]
+	if !slices.ContainsFunc(told, func(t Told) bool { _, ok := awaits(&t); return ok }) {
+		return nil
+	}
+	var dates []string
+	for _, s := range sentOf(h.requests, told) {
+		if day, ok := awaits(s.told); ok && !slices.Contains(dates, day.Date) {
 			dates = append(dates, day.Date)
 		}
 	}
@@ -340,7 +419,7 @@ func (h HeldPage) Unread(missed []string) []string {
 // from before it.
 func (h hearing) unplaced(s status.Session) bool {
 	return slices.ContainsFunc(s.Assignments, func(a status.Assignment) bool {
-		_, told := h.seats[seatOf{session: s.ID, model: a.Model, account: a.Account}]
+		_, told := h.seats[Seat{Session: s.ID, Model: a.Model, Account: a.Account}]
 		return a.InFlight != "" && (!h.live || !told)
 	})
 }
