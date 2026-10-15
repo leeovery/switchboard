@@ -35,6 +35,18 @@ that's jumped out at me", then a few nitpicks, "no doubt I'll find others".
   paints over their fill (the first account's 5-hour bar lost its colours under `57ad`'s row).
   Light the call's own columns alone, its id, name, state and `from`, up to where its cord begins.
 
+## Runway
+
+- **The pool's lane draws nothing where no account has room.** Each account's lane draws `─` in
+  `state.destructive` while it's at its limit, but the pool's columns are as high as the share with
+  room, so where none has room (`0 till Sun 02:00`) the lane is blank. Draw the pool's lane at none
+  as a lane at its limit draws it.
+- **The lines miss the bars' middle, and the reset mark overshoots them.** A lane's bars are `▆`,
+  the lower three quarters of a cell, while its `─` sits at the cell's middle and its `│` spans the
+  cell whole: a cap's or a limit's line meets the bar above its middle, and the reset's `│` stands
+  taller than the bar beside it. The owner wants the line to meet the bar's middle and the `│` to
+  meet its top and bottom. One way: draw the bars the full cell, as USAGE draws its bars.
+
 ## Charts
 
 - **Every account's burn-down, back.** The owner grew to like v0.1.6's burn-down charts: every
