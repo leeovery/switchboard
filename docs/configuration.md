@@ -1,0 +1,304 @@
+# Configuration
+
+Switchboard reads its settings from one TOML file, the config. `setup` writes it when you set
+switchboard up, and the `accounts` commands edit it. You can edit it by hand too.
+
+Switchboard looks for the config in the first of these places that's set:
+
+1. `$SWITCHBOARD_CONFIG`
+2. `$XDG_CONFIG_HOME/switchboard/config.toml`
+3. `~/.config/switchboard/config.toml`
+
+To use another file for one command, pass `--config <file>`.
+
+## Contents
+
+- [Example](#example)
+- [How switchboard reads the config](#how-switchboard-reads-the-config)
+- [Top-level keys](#top-level-keys)
+- [`[[account]]` keys](#account-keys)
+- [`[prime]` keys](#prime-keys)
+- [`[notifications]` keys](#notifications-keys)
+- [`[history]` keys](#history-keys)
+- [`[ledger]` keys](#ledger-keys)
+- [`[usage]` keys](#usage-keys)
+- [`[prices]` keys](#prices-keys)
+- [Tokens](#tokens)
+- [Notifications](#notifications)
+
+## Example
+
+```toml
+week_starts = "monday"  # optional: the day calendar weeks start on
+
+[[account]]
+id      = "work"        # for good: letters, digits, '-' and '_'; its token is tokens/work
+label   = "Work"
+primary = true          # the account the browser and the Claude apps are signed into
+reserve = 0.1           # optional, on any account: the share of every window the router leaves unused
+plan    = "max20x"      # optional, on any account: its plan, pro, max5x or max20x
+
+[[account]]
+id    = "personal"
+label = "Personal"
+plan  = "max5x"
+
+[[account]]
+id    = "side"
+label = "Side"
+
+[prime]
+day = "08:00-23:00"     # your day, in local time: priming spreads the 5-hour resets over it
+
+[notifications]         # optional: these are the defaults
+limits  = true
+room    = true
+warning = 0.9
+moves   = false
+
+[history]               # optional: this is the default
+keep = "400d"
+
+[ledger]                # optional: this is the default
+keep = "400d"
+
+[usage]                 # optional: this is the default
+by = "window"
+
+[prices.plans]          # optional: a plan's price, in US dollars a month, in place of switchboard's
+max5x = 90
+
+[prices.models.claude-opus-5-5]   # optional: a model's prices, in US dollars a million tokens
+input          = 3.2
+output         = 16
+cache_read     = 0.16
+cache_write_5m = 4
+cache_write_1h = 6.4
+```
+
+## How switchboard reads the config
+
+- **Account order:** The accounts keep the order they have in the file. Switchboard shows them in
+  that order everywhere, and [priming](how-it-works.md#priming) gives them their slots in that
+  order.
+- **Errors:** An unknown key is an error. When the file parses, switchboard reports every problem
+  in it at once.
+- **Tokens in errors:** No error quotes a token pasted into the config, even when the file fails to
+  parse. The token shows as `[redacted]`, or not at all.
+
+## Top-level keys
+
+| Key | Default | Description |
+|---|---|---|
+| `listen` | `127.0.0.1:4747` | The proxy's address, as `host:port`. |
+| `upstream` | `https://api.anthropic.com` | The API's base URL. |
+| `week_starts` | `monday` | The day calendar weeks start on, as [`history`](commands.md#history) counts them. |
+
+- **`listen`:** The host must be a loopback IP address: `127.0.0.1`, or `::1` written as
+  `[::1]:4747`. It can never be a name, such as `localhost`.
+- **`upstream`:** The URL must use `https`, unless its host is a loopback IP address.
+- **`week_starts`:** Give a day of the week by its name in English, in any case, such as `monday`
+  or `Sunday`. An account's own week resets when Anthropic resets it, and never moves with
+  `week_starts`.
+
+## `[[account]]` keys
+
+The config has one `[[account]]` table for each subscription, and at least one.
+
+| Key | Default | Description |
+|---|---|---|
+| `id` | Required | The account's permanent name. It's also the name of the account's token file. |
+| `label` | The id | What the account is shown as. It can't hold anything shaped like a token. |
+| `primary` | The first account | Marks the account the browser and the Claude apps are signed into: [the primary](how-it-works.md#the-primary). At most one account can set it. |
+| `reserve` | `0` | The share of every window the router leaves unused: `0`, or more than `0` and less than `1`. See [Reserves](how-it-works.md#reserves). |
+| `plan` | None (unknown) | The plan the account's subscription is on: `pro`, `max5x` or `max20x`. |
+
+An `id` must follow these rules:
+
+- It starts with a letter or digit, followed by letters, digits, `-` and `_`.
+- It's unique, ignoring case, because macOS gives `work` and `Work` one token file.
+- It isn't `auto`.
+- It holds nothing shaped like a token.
+
+Switchboard can't read an account's plan from Anthropic, so `plan` is the only way it knows the
+plan. Switchboard uses the plan in two places:
+
+- It compares what the plan costs with what the account's use was worth at API prices.
+- It sizes the account in [`history`](commands.md#history)'s replay of a week.
+
+Without a `plan`, the account's plan shows as `-`, and nothing is priced against it.
+
+## `[prime]` keys
+
+| Key | Default | Description |
+|---|---|---|
+| `day` | None (priming off) | Your day, as `HH:MM-HH:MM` in local time. [Priming](how-it-works.md#priming) spreads the 5-hour resets over it. |
+
+An end time before the start time means the day runs past midnight.
+
+## `[notifications]` keys
+
+These keys choose which desktop notifications the router posts. See
+[Notifications](#notifications).
+
+| Key | Default | Description |
+|---|---|---|
+| `limits` | `true` | An account hits a limit, and the sessions the limit moved. |
+| `room` | `true` | An account has room again. |
+| `warning` | `0.9` | A window passes this share of its limit. `0` turns the warning off. |
+| `moves` | `false` | Every other session move, such as after an idle hour or by a pin. |
+
+## `[history]` keys
+
+This key sets how long the router keeps the readings history. See
+[What it records](how-it-works.md#what-it-records).
+
+| Key | Default | Description |
+|---|---|---|
+| `keep` | `400d` | How long to keep a day's file once the day has ended. |
+
+`keep` takes one of these values:
+
+- A whole number of days, written `<n>d`, of `8d` (a week and a day) or more.
+- `forever`, which never removes a file.
+
+## `[ledger]` keys
+
+This key sets how long the router keeps the request ledger's lines. See
+[What it records](how-it-works.md#what-it-records).
+
+| Key | Default | Description |
+|---|---|---|
+| `keep` | `400d` | How long to keep a day's file of lines once the day has ended. |
+
+`keep` takes one of these values:
+
+- A whole number of days, written `<n>d`, of `8d` (a week and a day) or more.
+- `forever`, which never removes a file.
+
+The day's summary is kept for good, whatever `keep` says.
+
+## `[usage]` keys
+
+This key sets how [`usage`](commands.md#usage) and the dashboard's [**Overview**](dashboard.md#overview)
+lay out the windows.
+
+| Key | Default | Description |
+|---|---|---|
+| `by` | `window` | `window` or `account`. |
+
+- **`window`:** Compares the accounts one window at a time.
+- **`account`:** Shows each account's windows together.
+
+To override `by` for one printout, run `usage --by`. Pressing `b` in the dashboard overrides it for
+good.
+
+## `[prices]` keys
+
+Switchboard carries its own prices, read from Anthropic's pricing page. These keys set prices in
+their place, for [`history`](commands.md#history), [`sessions`](commands.md#sessions) and the
+[dashboard](dashboard.md) to price with.
+
+- Each price is a number, `0` or more.
+- Each price holds for every day alike.
+- A price you leave out keeps switchboard's.
+
+| Key | Default | Description |
+|---|---|---|
+| `[prices.plans]` | Switchboard's prices | A plan's price in US dollars a month, under the plan's name: `pro`, `max5x` or `max20x`. |
+| `[prices.models.<id>]` | Switchboard's prices | A model's prices in US dollars a million tokens, one for each kind of token. |
+
+Name a model by its id as the API names it, such as `claude-opus-5-5`. The kinds of token are
+`input`, `output`, `cache_read`, `cache_write_5m` and `cache_write_1h`.
+
+For a model that switchboard doesn't know:
+
+- Switchboard prices it only when you give all five prices. It then prices the model's web
+  searches at switchboard's price, and leaves the model's US-only inference unpriced.
+- When you give fewer than five, the model stays unpriced, and the log says so.
+
+A plan name or a kind of token that switchboard doesn't know is an error, as any unknown key is.
+
+## Tokens
+
+Each account's token lives in a file of its own, `<state dir>/tokens/<id>`, such as
+`~/.local/state/switchboard/tokens/work`. The file holds the token alone, and whitespace around the
+token is ignored. Switchboard reads no token from the environment.
+
+### Token file permissions
+
+The token file must be yours, and no one else can read or write it (`chmod 600`). Otherwise, the
+account counts as having no token, and `accounts` and `status` say why and how to fix it.
+
+Switchboard keeps the `tokens` directory at `0700` when it writes there. The router also sets the
+directory to `0700` as it starts.
+
+### Writing token files
+
+`setup`, `accounts add` and `accounts token` write token files. Anything else can write them too,
+such as a secrets manager's file export or a dotfiles step. The best way is to write a temporary
+file beside the token file, then rename it into place, as switchboard does.
+
+A token file can be a link to a file kept elsewhere. Switchboard writes a token through the link,
+to the file it leads to.
+
+If an account's token file already holds a usable token, switchboard adds the account without
+asking for a token.
+
+### When switchboard reads token files
+
+A changed token file needs no restart. The router reads the token files at these times:
+
+- When it starts.
+- Every 3 seconds, for every account's file.
+- When the API refuses an account's token, for that account's file.
+
+A file found without a usable token at one look, such as while it's being rewritten, keeps the
+account's token. Only two looks in a row, 3 seconds apart, take the token away.
+
+`claude` also looks twice. If it finds the primary's token file, or a pinned account's, present but
+empty, it looks again a moment later before it counts the file as holding no token.
+
+### Replaced and removed tokens
+
+Running sessions keep the token they started with:
+
+- Sessions started before a token was replaced still carry the old token. The router routes them as
+  that account's sessions for 7 days.
+- Sessions started on the token of an account you've since removed carry that token. The router
+  routes them as the primary's sessions for 7 days.
+
+The router keeps none of these tokens, only their SHA-256 hashes.
+
+## Notifications
+
+While the router runs, it posts desktop notifications, whether or not a dashboard is open. The
+[`[notifications]` keys](#notifications-keys) choose which kinds it posts:
+
+- **Limits:** An account hits a limit. The notification waits 5 seconds for the sessions the limit
+  moves, then tells of them together, such as
+  `work · Work hit its Session limit, back at Mon 18:10 — 3 sessions moved to side · Side`.
+- **Room again:** An account has room again, such as `work · Work has room again`.
+- **Warnings:** A window passes the share set in `warning`. It's posted once until the
+  window resets, such as
+  `work · Work: Week at 91%`.
+- **Moves:** Every other move, such as
+  `session 18bb978f moved from work · Work to side · Side (rescored after 1h 2m idle)`. These are
+  off unless you turn them on.
+
+### How often notifications go out
+
+A limit's notification always goes out. Any other notification goes out only when a minute or more
+has passed since the last one posted about its account. Otherwise, it's dropped.
+
+Notifications never hold a request up.
+
+### Notifications from the dashboard
+
+When the dashboard probes without the router, it posts its own notifications for these:
+
+- An account with room again.
+- A window passing the warning.
+
+To stop them, pass `--no-notify` to `dashboard`. While the router runs, the dashboard posts none,
+even when it probes with `--probe`, so you never get the same notification twice.

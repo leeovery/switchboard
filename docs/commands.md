@@ -1,0 +1,985 @@
+# Commands
+
+This page describes every switchboard command: what it does, its flags, and what it prints.
+
+| Group | Command | What it does |
+|---|---|---|
+| [Everyday](#everyday) | [`usage`](#usage) | Prints every account's windows as they stand. |
+| | [`dashboard`](#dashboard) | Shows every account's usage full screen, on six tabs. |
+| | [`pin`](#pin) | Tells the router where to send sessions. |
+| | [`claude`](#claude) | Starts the real Claude Code through the router. |
+| [Setting up](#setting-up) | [`setup`](#setup) | Walks you through setting switchboard up. |
+| | [`accounts`](#accounts) | Lists, adds and removes accounts, and replaces their tokens. |
+| | [`service`](#service) | Manages the LaunchAgent that keeps the router running. |
+| [Checking in](#checking-in) | [`status`](#status) | Prints every account's usage as text, or the status document as JSON. |
+| | [`logs`](#logs) | Shows the last lines of the router's log or the CLI's. |
+| [Looking back](#looking-back) | [`requests`](#requests) | Lists the request ledger's requests. |
+| | [`history`](#history) | Sums up the ledger's days, priced, and judges whether you have enough accounts. |
+| | [`sessions`](#sessions) | Lists today's sessions, or shows one session's page. |
+| | [`events`](#events) | Lists what the router decided and noticed. |
+| [Plumbing](#plumbing) | [`run`](#run) | Starts Claude Code through the router: what `claude` runs. |
+| | [`serve`](#serve) | Runs the router in the foreground. |
+| [Help and version](#help-and-version) | [`help`](#help) | Lists the commands, or shows one command's help. |
+| | [`version`](#version) | Prints switchboard's version. |
+
+## Flags every command takes
+
+Every command takes these flags.
+
+| Flag | What it does |
+|---|---|
+| `--config <file>` | Use `<file>` as the config file, in place of the one switchboard finds. See [Configuration](configuration.md). |
+| `-h`, `--help` | Show the command's help. |
+
+To print the version, run `switchboard --version`, `switchboard -v` or [`switchboard version`](#version).
+
+A command that needs the router fails without it, and says how to start it.
+
+If you paste a token by mistake, what you see depends on where it went:
+
+- Where an account's id or a session's id goes, no command repeats it, nor does a command in
+  refusing an argument or a flag's value. It shows as `[redacted]`.
+- Where a command goes, as `switchboard <token>`, or as `help`'s topic, as
+  `switchboard help <token>`, it's repeated as given, in saying there's no such command or topic.
+
+## Everyday
+
+### `usage`
+
+`usage` prints every account's windows as they stand, once, into the scrollback, with the time
+they were read. You can hold it against one printed an hour before.
+
+```bash
+switchboard usage [--5h] [--week] [--<model>] [--by window|account] [--probe] [-r] [--json | --pretty]
+```
+
+| Flag | What it does |
+|---|---|
+| `--5h`, `--week` | Print that window alone, with the header and the key line. Given together, they print the windows given, in Claude's order: the 5-hour window, the week, then each model's own. |
+| `--<model>` | Print a model's own window, as `--week` does the week. There's a flag for each model with a window of its own, named for it: `--fable` is for Fable's week. A flag for a window no account reports fails, naming the windows there are. |
+| `--by window\|account` | Lay the windows out by window, comparing the accounts one window at a time, or by account, keeping each account's windows together. Overrides [`[usage] by`](configuration.md#usage-keys). Where neither says, it's by window. |
+| `--probe` | Probe every account, even while the router runs. |
+| `-r`, `--refresh` | Have the router first read every account it may, as the dashboard's `R` does, and wait for it, ten seconds at most. Without the router, or with `--probe`, every account is probed anyway. |
+| `--json` | Print the status document as JSON, even on a terminal. It does so off a terminal anyway. The window flags and `--by` shape the printout alone: the JSON is the whole document whatever they say. |
+| `--pretty` | Print the bars, even off a terminal, as it does on one. Off a terminal, the bars have no colour unless `CLICOLOR_FORCE` asks for it, and they're as wide as `COLUMNS` says, else 80 columns. |
+
+`usage` reads the router's status document while the router answers. Otherwise, it probes each
+account.
+
+When its output isn't a terminal, such as in a pipe or an agent's shell, `usage` prints the
+status document as JSON instead, as [`status --json`](#status) does, read as its flags say.
+
+#### What it prints
+
+From the top, `usage` prints:
+
+1. A header, with when it read and the router's status, such as
+   `● healthy  ·  6 sessions  ·  new sessions → ▲ side`. While a global pin holds, the header adds
+   `pinned to personal`.
+2. A bar for every window of each account.
+3. The pool, last.
+4. A key line saying what the marks mean.
+
+Each row is an account, in the config's order. A row shows these parts:
+
+| Part | What it shows |
+|---|---|
+| Number | The account's place in the config. |
+| Label | The account's label, with `◆` on the primary and `▲` on the account new sessions go to. |
+| Bar | The window's use, filled along the theme's ramp. `┃` marks where even use would have put it by now. `╎` marks where the account's cap starts: 1 less its `reserve`. |
+| Percentage | How much of the window is used. |
+| Words | The first of the states in the next table that holds. |
+
+| Words | When they show |
+|---|---|
+| `limit · back 15:54` | Claude's limit holds the window. |
+| `at cap · back 17:10` | The window's use has reached the cap, and the cap holds the account back. |
+| `out ~Sat 06:00` | The window runs out before its reset, at its recent rate. |
+| `not started` | A 5-hour window hasn't started yet. |
+| `19%/day till Sun 21:00` | Otherwise, the window's allowance: what can be spent of it an hour or a day and still last to its reset. |
+| `34% till 16:30` | In place of the allowance, under an hour from the 5-hour window's reset, or under a day from a week's reset: the room itself. |
+
+Some accounts can't show a reading:
+
+- An account with no usable token reads `no token`, and its bars are empty.
+- An account nothing has been read of reads `not read yet`, and its bars are empty.
+- An account whose token is refused, or whose last read failed, shows its last reading faded, as
+  `not read since 14:20`.
+
+**The pool** is the room new sessions can go to, summed across the accounts in it. It holds
+every account on auto, or, when there's a global pin, only the accounts pinned. `usage` shows the
+pool wherever there's more than one account:
+
+- The pool's row, `Σ pool`, comes last, under a rule.
+- Its words are the room left, in accounts' worth, such as `1.5 of 3 left`. When pinned, they add
+  ` · pinned`.
+- An account outside the pool has its number drawn faintly.
+
+**Every window shows,** used or not. A model's own window, such as Fable's week, shows on every
+account, at 0% as at 40%.
+
+**The width** shapes the layout:
+
+- **By window:** from 150 columns, the windows sit side by side, a column each. Narrower, or
+  where a bar would be under 12 cells, as with four windows at 160 columns, they're stacked, a
+  section each.
+- **By account:** each account is a block, with its windows as rows. From 110 columns, the
+  account's name sits beside its first bar. Narrower, it's on a line of its own above it.
+- **The header** is one line from 120 columns, else two.
+- **The key line** is one line from 150 columns, else two. The second line names the cap, where a
+  bar draws one.
+- **Under 70 columns,** the words shorten, to `back 15:54`, `out ~Sat` and `19%/day · Sun`.
+- **A label too long** for the name column is cut with `…`. It never moves as `▲` moves between
+  accounts.
+
+**Colour:** `usage` draws in the dashboard's theme, brought down to what the terminal shows, with
+no background of its own. See [Themes](dashboard.md#themes). With `NO_COLOR` set, or on a terminal
+that shows no colour, a bar's fill is drawn in `█` and its track left as spaces. The names and
+percentages keep their bold.
+
+Examples:
+
+```bash
+switchboard usage                  # every window, every account
+switchboard usage --5h             # the 5-hour window alone
+switchboard usage --by account     # each account's windows together
+switchboard usage --probe          # read every account from the API, whatever the router says
+switchboard usage -r               # have the router read every account it may first, as after a reset made by hand
+```
+
+### `dashboard`
+
+`dashboard` shows every account's usage full screen, on six tabs, until you press `q`. For its
+flags, keys and tabs, see [Dashboard](dashboard.md).
+
+### `pin`
+
+`pin` tells the router where to send sessions. It needs the router.
+
+```bash
+switchboard pin <account>... [--move] [--force]
+switchboard pin auto [--force]
+switchboard pin <account>|auto --session <id>
+```
+
+| Flag | What it does |
+|---|---|
+| `--move` | Move running sessions on other accounts there too, each on its next request, at the cost of a cache rebuild each. Not with `auto`. |
+| `--force` | Clear every session's own pin too, including the one `run --account` gave it. |
+| `--session <id>` | Pin one running session alone to one account, from its next request, in place of any pin it had. Takes neither `--move` nor `--force`. |
+
+`pin <account>...` sends every new session, and any other session whose account is chosen afresh,
+to the accounts given while one of them has room. With one account, sessions go to it. With
+several, they go to the best of them, as the router would choose were they the only accounts.
+
+- A pin replaces any pin before it.
+- When none of the accounts pinned has room, the router chooses among every account as though
+  nothing were pinned.
+- `pin auto` goes back to routing.
+
+| Command | New sessions | Running sessions |
+|---|---|---|
+| `pin work` | go to `work` | stay where they are while their caches are warm and their accounts have room |
+| `pin work --move` | go to `work` | move to `work` on their next request, except those with a pin of their own |
+| `pin work --move --force` | go to `work` | all move to `work`, their own pins cleared |
+| `pin work side` | go to the best of `work` and `side` | stay where they are while their caches are warm and their accounts have room |
+| `pin work side --move` | go to the best of `work` and `side` | those on neither move to the best of them on their next request, except those with a pin of their own |
+| `pin auto` | routed | stay where they are while their caches are warm and their accounts have room |
+| `pin auto --force` | routed | as `pin auto`, their own pins cleared |
+| `pin work --session 18bb978f` | unaffected | that session moves to `work` on its next request, and stays pinned there |
+| `pin auto --session 18bb978f` | unaffected | that session's own pin is cleared, and it's routed like any other |
+
+Pins follow these rules:
+
+- A session's own pin beats the global one.
+- Every pin yields at a limit. A pinned session that hits one moves by the usual rules, rather than
+  failing.
+- A pin spends the reserves of the accounts it names, and no other account's. See
+  [Reserves](how-it-works.md#reserves).
+
+**Pinning several accounts** sets an order to use them up in. With `pin work side`, `work` and
+`side` take the new sessions, the better of the two first, until both are out. Only then does
+anything go to the rest.
+
+For example, say two accounts have a weekly reset banked on claude.ai and a third hasn't. Pin the
+two, let them run out, and reset them by hand. The router sees a reset the next time it reads the
+account, which happens:
+
+- on its own rounds, within half an hour;
+- before a choice it makes afresh, once its reading is 15 minutes old; or
+- at once, with `switchboard usage -r` or `R` on the dashboard. These probe an account that can
+  take no request however lately the router read it, unless the router probed the account in the
+  last minute.
+
+**To name a session,** give its id, or as much of it as is unique among the sessions routed in the
+last hour. To find a session's id:
+
+- `switchboard status` lists the sessions.
+- Claude Code's `/status` shows a session's own.
+- Inside a session, `$CLAUDE_CODE_SESSION_ID` holds it.
+
+Examples:
+
+```bash
+switchboard pin side                  # new sessions go to side
+switchboard pin side --move           # and running ones move there too
+switchboard pin work side             # new sessions go to the better of work and side
+switchboard pin auto --force          # back to routing, every session's own pin cleared
+switchboard pin work --session 18bb   # one session, by the start of its id
+```
+
+### `claude`
+
+Once `setup` has linked it, `claude` is switchboard, and starts the real Claude Code connected to
+the router.
+
+```bash
+claude [<claude args>]
+```
+
+The link is a link named `claude` in switchboard's bin directory, ahead of the real `claude` on
+`PATH`. Run by that name, switchboard hands Claude Code every argument, so `claude --help` is
+Claude Code's.
+
+The real `claude` is the first `claude` on `PATH`, else where its installers put it, that doesn't
+start switchboard again. Switchboard passes over its own link, any other build of switchboard, and
+a wrapper named `claude` that `exec`s switchboard.
+
+How `claude` starts depends on the router and your environment:
+
+- **Routed.** When the router answers healthy within half a second, Claude Code starts with
+  `ANTHROPIC_BASE_URL` pointing at the router. It gets the primary's token, or, while that isn't
+  usable, the token of the first account whose token is. The router chooses an account for each
+  request. Claude Code also gets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, unless your environment sets
+  it already. With it, Claude Code tells the router what it tells the API of each request, such as
+  the prompt the request serves, for the request ledger.
+- **Direct.** When the router isn't running, or isn't healthy, Claude Code connects straight to the
+  API. It uses the primary's token, or, while that isn't usable, the token of the first account
+  whose token is. A line on stderr says so:
+  `switchboard: the router isn't running — connecting directly on work · Work`.
+- **Without switchboard.** When switchboard can't take part at all, such as when it can't read its
+  config or no account has a usable token, `claude` starts as if switchboard weren't there. A line
+  on stderr says why:
+  `switchboard: couldn't read the config (…) — starting claude without it`.
+- **With an API key.** When `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` is set, Claude Code may
+  use that key rather than an account's token, and its requests would go unrouted, billed to the
+  key. So `claude` starts as if switchboard weren't there, and says so:
+  `switchboard: ANTHROPIC_API_KEY is set, so Claude Code uses it — starting claude without switchboard`.
+- **Local subcommands** go straight to Claude Code, untouched and without a word: `setup-token`,
+  `update`, `upgrade`, `install`, `doctor`, `mcp`, `plugin`, `plugins`, `auth`, `import`,
+  `project`, `auto-mode` and `gateway`. Only the first argument counts, so `claude -p doctor` is a
+  prompt.
+
+There are two ways round switchboard:
+
+- `switchboard run --direct` starts Claude Code on its own login.
+- The real `claude`, run by its path.
+
+If the switchboard binary itself breaks, every `claude` breaks with it, until switchboard's bin
+directory comes off `PATH`.
+
+Switchboard defines no per-account launchers. To make one, alias
+`switchboard run --account <id> --`.
+
+Examples:
+
+```bash
+claude                                             # routed
+claude --resume                                    # the session finds its account again
+claude doctor                                      # a local subcommand: straight to Claude Code
+alias cxside='switchboard run --account side --'   # a launcher pinned to side
+```
+
+## Setting up
+
+### `setup`
+
+`setup` walks you through setting switchboard up, or what's left of it.
+
+```bash
+switchboard setup
+```
+
+Each step says what's done already, and does only what isn't, so `setup` is safe to run again. It
+asks as it goes, a line at a time, so it needs a terminal. Without one, it lists what takes each
+step alone: a command where there is one, and for the skill, `setup` alone.
+
+`setup` stops at a step that fails, at an interrupt, or when its input ends. Run it again to carry
+on from there.
+
+The steps are:
+
+1. **Accounts.** Lists the accounts, each with whether its token is usable, and asks for a missing
+   token. Pressing Enter leaves it for later. Offers to add accounts, one at a time, asking each
+   one's id, label and token. With no accounts configured, it asks for the first straight away.
+   With more than one and none marked, it asks which is the primary.
+2. **Priming.** With no day set, asks for one, as `HH:MM-HH:MM`, and writes it to `[prime]`.
+   Pressing Enter leaves priming off.
+3. **The service.** Installs the LaunchAgent when it isn't installed or loaded, or when it runs
+   another switchboard than the one `setup` runs as. Restarts the router only when it doesn't
+   answer. The router takes up `setup`'s changes to the config and the tokens itself.
+4. **The `claude` link.** Makes `claude` in switchboard's bin directory, leading to the switchboard
+   `setup` was run by. The bin directory is `$XDG_DATA_HOME/switchboard/bin`, else
+   `~/.local/share/switchboard/bin`. Then `setup` checks the directory is on `PATH` ahead of the
+   real `claude`. When it isn't, `setup` gives the one line to add to your shell's startup file,
+   after anything else there that changes `PATH`:
+
+   ```bash
+   export PATH="$HOME/.local/share/switchboard/bin:$PATH"
+   ```
+
+   `setup` never edits the file itself. Run again, in a new terminal, it checks it.
+5. **The skill.** Writes a Claude Code skill, or brings it up to date. The skill tells Claude what
+   switchboard does under `claude`, so no session needs it explained. It's
+   `skills/switchboard/SKILL.md` in `~/.claude`, or in `$CLAUDE_CONFIG_DIR`. Switchboard owns the
+   file. When a new switchboard brings a new version of it, `setup`, and the router as it starts,
+   replace it, edits and all. Otherwise, they leave it be.
+6. **Usage.** Prints [`usage`](#usage): every account's windows as they stand.
+
+`setup` refuses a switchboard that won't last, such as `go run`'s, because the service and the link
+both run the switchboard `setup` was run by.
+
+`setup` asks for tokens where they don't show as they're pasted. It never takes one pasted where
+it would show.
+
+### `accounts`
+
+`accounts` lists the accounts, in config order. Its subcommands add an account, replace an
+account's token, and remove an account.
+
+```bash
+switchboard accounts
+switchboard accounts add <id> [--label <label>] [--primary]
+switchboard accounts token <id>
+switchboard accounts remove <id>
+```
+
+| Flag | What it does |
+|---|---|
+| `--label <label>` | `add`: show the account as `<label>`. Default: the id. |
+| `--primary` | `add`: make the account the primary, the account the browser and the Claude apps use. |
+
+For each account, `switchboard accounts` shows:
+
+- its id and label;
+- whether it's the primary; and
+- whether its token file holds a token switchboard can use, or, if not, why not and what would put
+  it right.
+
+The subcommands do the following:
+
+- **`add`** registers an account, as an `[[account]]` table in the config, making the config if
+  there's none.
+  - The id names the account for good, and names its token file. It takes letters, digits, `-` and
+    `_`.
+  - When the account's token file holds no usable token, `add` takes one, and writes it over
+    whatever the file held.
+  - An id or a `--label` that holds anything shaped like a token is refused, before `add` asks for
+    the token.
+- **`token`** replaces an account's token.
+- **`remove`** removes an account's table from the config, with the comments directly above it,
+  and deletes its token file.
+  - Of a token file that's a link, it deletes the link alone, and leaves the file it leads to.
+  - The only account can't be removed.
+  - Removing the primary says which account is the primary now: the one marked
+    `primary = true`, else the first.
+  - Every session holds the primary's token. Sessions running on a removed account's token stay
+    routed, as the primary's, for a week from when the router takes the change up, while the
+    primary has a usable token. `remove` says when the primary has none.
+
+**Tokens.** At a terminal, `add` and `token` ask for the token, which doesn't show as it's pasted.
+Otherwise, they read it from stdin. To make a token, run `claude setup-token` while signed in to
+that subscription.
+
+`add` and `token` check the token with the API before they save it:
+
+- A token the API refuses isn't saved.
+- A token the API doesn't answer for is saved, with a warning.
+- An interrupt while they wait for the token saves nothing.
+
+**The config** is edited as text, keeping its comments and layout. A config that's a link is
+written through, to where it leads. The router takes the change up itself: the service's router
+restarts to read it, and one started by hand with `serve` logs that a restart is due. See
+[`serve`](#serve).
+
+Examples:
+
+```bash
+switchboard accounts add work --label Work --primary
+switchboard accounts add side --label Side
+pbpaste | switchboard accounts token side
+switchboard accounts remove side
+```
+
+### `service`
+
+`service` manages the LaunchAgent that keeps the router running. launchd starts
+`switchboard serve` now, at every login, and again whenever it stops. `setup` installs it.
+
+```bash
+switchboard service install [--log-level <level>]
+switchboard service uninstall
+switchboard service restart
+switchboard service status
+```
+
+| Flag | What it does |
+|---|---|
+| `--log-level <level>` | `install`: have the router log at `debug`, `info`, `warn` or `error` and above. Default: `$SWITCHBOARD_LOG_LEVEL`, else `info`. |
+
+#### `service install`
+
+`install` writes `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist`. It has launchd load
+the file in place of any copy launchd had loaded, and waits up to 5 seconds for the router to
+answer.
+
+- **The config.** `install` reads the config first, as the router will, and fails on one the
+  router couldn't serve.
+- **The binary.** The LaunchAgent runs switchboard by the path you ran it by, so a Homebrew link
+  stays the link `brew upgrade` moves on. A temporary build, such as `go run`'s, is refused.
+- **The environment.** The LaunchAgent carries `--config`, and these variables where they're set:
+  `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG`, `SWITCHBOARD_LOG_LEVEL` and
+  `CLAUDE_CONFIG_DIR`. It makes `--config`, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`
+  absolute, so the router finds what the CLI does. The tokens are files, so the router needs
+  nothing else of your environment.
+- **The tokens.** `install` warns when no account has a usable token. The router starts all the
+  same, and routes as soon as a token file holds one.
+
+#### `service restart`
+
+`restart` restarts the router, which reads the config and the tokens afresh. What happens depends
+on the router:
+
+| The router | What `restart` does |
+|---|---|
+| Answering | Asks the router to restart. The router finishes its requests in flight first, for up to 30 seconds, then gives those it cuts off 5 more to unwind. Then it restarts in place, as it restarts itself. |
+| Answering, but can't replace itself | Asks the router to restart, as above, and launchd starts it again. |
+| Run by hand | The router refuses, and `restart` says why. |
+| Answering, with a config that isn't valid | The router refuses, as it couldn't start again from that config, and `restart` says why. |
+| From before routers restarted in place | The router stops as at a signal, and launchd starts it again. |
+| Not answering | launchd starts the service afresh at once. |
+
+When the router restarts, `restart` says so,
+`the router is finishing its requests in flight, then it restarts in place`, or, for a router that
+can't replace itself, `…, then launchd starts it again`. Then it waits up to 50 seconds for the new
+router to answer.
+
+When the router has a restart due, it waits for a moment with no request in flight. To have the
+restart now, run `switchboard service restart`, as `switchboard status` says.
+
+#### `service uninstall` and `service status`
+
+- **`uninstall`** stops the router, and removes the LaunchAgent.
+- **`status`** shows whether the LaunchAgent is installed and loaded, and the router's health.
+
+When the router doesn't answer in time, `install` and `restart` fail, with the LaunchAgent left in
+place. They point to `switchboard logs router` and `launchd.log` for why.
+
+Examples:
+
+```bash
+switchboard service install
+switchboard service install --log-level debug
+switchboard service status
+```
+
+## Checking in
+
+### `status`
+
+`status` prints every account's usage as text. Off a terminal, it prints the status document as
+JSON instead.
+
+```bash
+switchboard status [--json | --pretty] [--probe] [-r]
+switchboard status --session <id> [--json | --pretty]
+```
+
+| Flag | What it does |
+|---|---|
+| `--json` | Print the status document as JSON, what an agent or a script reads, even on a terminal. It does so off a terminal anyway. With `--session`, it prints the session's every model and why it went where it did. See [`status --session`'s JSON](reference.md#status---sessions-json). |
+| `--pretty` | Print the text, even off a terminal, as it does on one. |
+| `--probe` | Probe every account, even while the router runs. |
+| `-r`, `--refresh` | Have the router first read every account it may, as [`usage -r`](#usage) does, and wait for it, ten seconds at most. Without the router, or with `--probe`, every account is probed anyway. |
+| `--session <id>` | Print the id of the account the router sends that session's requests to: the one its last-used model went to, as a statusline asks. It does so on a terminal or off one. It needs the router, and takes no `--probe` or `--refresh`. |
+
+`status` reads the router while it runs. Otherwise, it probes each account. When the `claude` a
+shell runs from `PATH` isn't switchboard, the first line says so.
+
+The text shows, in order:
+
+- each window's utilization, when it resets and where it's heading;
+- what holds an account back, such as a limit it reached or its reserve;
+- whether an account is under pressure, with the rate it goes by, such as
+  `under pressure: runs out ~18:21 at 5-hour's rate over the last 30 min, before its reset at 20:10`;
+- the sessions routed in the last hour, a line each, with the account each of the session's models
+  goes to;
+- the priming schedule;
+- the best account to use next; and
+- last, where the usage came from, with the router's health. Under it comes a restart the router
+  has due, if any, with how to have it now.
+
+When its output isn't a terminal, such as in a pipe or an agent's shell, `status` prints the status
+document as JSON instead. The document holds:
+
+- every account's windows, each with its even pace, where even use would have put it by now, and
+  its allowance, what can be spent of it an hour or a day and still last to its reset;
+- each account's extra usage, where the API reports it;
+- the pool: the room new sessions can go to, summed across its accounts; and
+- what's coming up, soonest first: each limit or cap lifting, window running out or resetting, and
+  prime.
+
+[The status document](reference.md#the-status-document) lists its fields.
+
+Examples:
+
+```bash
+switchboard status
+switchboard status --json | jq '.accounts[] | {id, windows}'
+switchboard status --json -r   # have the router read every account it may first, as after a reset made by hand
+switchboard status --session "$CLAUDE_CODE_SESSION_ID"   # inside a session: the account it's on, such as work
+```
+
+### `logs`
+
+`logs` shows the last lines of a log: the router's, or the one every other command shares. Without
+a log named, it shows the router's once the router has logged, else the CLI's.
+
+```bash
+switchboard logs [router|cli] [-n <lines>] [-f] [--path]
+```
+
+| Flag | What it does |
+|---|---|
+| `-n`, `--lines <n>` | Show the last `n` lines. Default: 50. When the log is shorter, it reaches into the rolled-over file. |
+| `-f`, `--follow` | Go on printing lines as they're logged, across rotations, until interrupted. |
+| `--path` | Print the log's path, and nothing else. |
+
+Examples:
+
+```bash
+switchboard logs -f              # follow the router: a line per request, with its account and why
+switchboard logs cli -n 200
+switchboard logs router --path
+```
+
+## Looking back
+
+These commands read what switchboard has recorded:
+
+- `requests`, `history` and `sessions` read the
+  [request ledger](reference.md#the-request-ledger)'s files where they lie.
+- `events` reads the files the router keeps its events in, beside the ledger's.
+
+So none of them needs the router, though `sessions` asks the router which sessions are running,
+where it answers.
+
+Their plain text is a first cut. Agents read their JSON, which each command prints wherever its
+output isn't a terminal.
+
+### `requests`
+
+`requests` lists the ledger's requests: today's, unless `--since` reaches further back.
+
+```bash
+switchboard requests [--session <id>] [--account <id>] [--since <when>] [--json | --pretty]
+```
+
+| Flag | What it does |
+|---|---|
+| `--session <id>` | Keep that session's requests. Name the session by its id, or as much of it as is unique among the sessions read. |
+| `--account <id>` | Keep that account's requests. |
+| `--since <when>` | Start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
+| `--json` | Print each line as the ledger holds it, a JSON object a line, even on a terminal. It does so off a terminal anyway. See [The request ledger](reference.md#the-request-ledger). |
+| `--pretty` | Print the text, even off a terminal, as it does on one. |
+
+The requests are listed oldest first, under the day each arrived on. Each request gets a line,
+with these fields:
+
+| Field | What it shows |
+|---|---|
+| Time | When the request arrived. |
+| Session | The session's id, cut short. |
+| Model | The model. |
+| Account | The account. |
+| Status | The status. |
+| Tokens | The tokens in and out. |
+| Duration | How long the request took. |
+
+Examples:
+
+```bash
+switchboard requests --since 14:00
+switchboard requests --session 18bb --json | jq '.usage'
+```
+
+### `history`
+
+`history` sums up the ledger's days, prices them, and judges whether you have as many accounts as
+your use needs. It covers the last 30 days, unless `--since` says otherwise.
+
+```bash
+switchboard history [--since <when>] [--windows] [--json | --pretty]
+```
+
+| Flag | What it does |
+|---|---|
+| `--since <when>` | Start on the day of `<when>`: a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
+| `--windows` | Print each account's every window's readings over those days, in place of the days. |
+| `--json` | Print the blocks as JSON, even on a terminal. It does so off a terminal anyway. The JSON holds the day the prices were read, then the days' summaries, priced, then the year, months, weeks, tokens, totals, plans and capacity over them. With `--windows`, it holds the windows' readings. See [`history`'s JSON](reference.md#historys-json). |
+| `--pretty` | Print the text, even off a terminal, as it does on one. |
+
+#### The days
+
+Each day has a row for each account and model, with these columns:
+
+| Column | What it shows |
+|---|---|
+| Requests | The requests the account served with the model. |
+| Tokens | Their tokens. |
+| Sessions | Their sessions. |
+| Worth | What they'd have cost through the API. Switchboard prices them at the prices it carries, read from Anthropic's pricing page, or at the config's, in [`[prices]`](configuration.md#prices-keys). |
+
+Under the rows come each account's notes for the day:
+
+- its sessions;
+- its moves;
+- the limits it reached;
+- the weeks it reset, as `week reset 10:00`; and
+- its windows' highest use.
+
+An account that served no request that day gets notes only where it reached a limit or one of its
+weeks reset. Where none of the days has requests, `history` says so, then shows those notes alone,
+without the totals under them.
+
+These rules hold for what's counted:
+
+- **Requests are messages:** those that went upstream, and those the router answered itself.
+- **Quota checks and token counts** are never among the requests, nor make a row of their own.
+  Claude Code sends them, and they spend next to nothing. Their tokens and worth are counted,
+  though.
+- **Today** is summed up from its lines, as far as it has gone.
+- **A model the price table doesn't know** shows as unpriced, never free.
+
+#### Plan prices
+
+Each account's plan, the [`plan`](configuration.md#account-keys) the config gives it, has a price
+a month. `history` prorates it as the dashboard prices its periods:
+
+| Period | Priced at |
+|---|---|
+| A day | 12/365 of a month |
+| A week | 12/52 of a month |
+| 30 days | a month |
+| 12 weeks | twelve weeks' price |
+
+- A period still running is priced whole.
+- A month or week that the days asked for begin part-way through is priced by its days from then.
+- The plans' own period runs from the later of the day asked for and the first day the ledger
+  holds.
+- An account without a `plan` has no cost and no ratio. Every account's sums are those of the
+  accounts that have one.
+
+#### Over all the days
+
+Under the days, `history` shows, over all of them:
+
+- each account's totals, its plan and its worth against it, a column each, and one column for every
+  account;
+- each week's peaks; and
+- whether there are as many accounts as the use needs.
+
+To judge whether there are enough accounts, `history` works with weeks as follows:
+
+- **An account's own week** runs from one reset of the account's week to the next, as the readings
+  history saw them, a reset by hand among them. Its peak is the use read just before the reset
+  that ended it.
+- **Placing a week:** an account's week is placed by the date it began on. It goes under its
+  calendar week, from the config's [`week_starts`](configuration.md#top-level-keys), where it began
+  up to half the week in, as a Thursday is in a week from Monday. Otherwise, it goes under the next
+  calendar week.
+- **The week still running** is always this week's, and its peak is its highest so far. Where the
+  reset that began it came before the days asked for, it's read from the week before them.
+- **A short week** is one in which some account hit its week's limit.
+- **The replay:** each whole week, in which every account's week is known and ended, is replayed
+  twice:
+  - With an account fewer. The dropped account's peak, times its plan's size, is shared among the
+    rest by their plans' sizes.
+  - With one more account, of the plan most of the accounts have. Every peak falls in proportion.
+
+  In the replay, an account without a `plan` counts as the plan most of the accounts have. Where
+  no account has one, each counts as one.
+
+The verdict, as the dashboard's [History](dashboard.md#history) words it, is the first of these
+that holds:
+
+| Verdict | When |
+|---|---|
+| `one too few` | Now is short on 4 or more of every 7 weeks, and one more account would halve that. |
+| `too few` | Now is short on as many, and one more account wouldn't halve that. The replay says how short one more would still leave it. |
+| `one more than you need` | Now is short on fewer than 4 of every 7 weeks, and one account fewer would be short on no more weeks. It names the account to drop, and, of three accounts or more, how many a replay without it and the next by the same rule finds. |
+| `about right` | None of the above holds. |
+
+Each account also gets a verdict, over its own whole weeks:
+
+| Account verdict | When |
+|---|---|
+| `hits its limit most weeks` | It hit its limit in 3 or more of every 7 weeks. |
+| `plenty to spare most weeks` | It had 40% or more left at a reset, on average. |
+| `ends most weeks with room` | None of the others holds. |
+| `barely used` | It had 75% or more left at a reset, on average. |
+| `could go` | The verdict is `one more than you need`, the account hit no limit, used 10% or less, and the rest cover it. |
+
+Then every account together gets one:
+
+| Verdict on every account | When |
+|---|---|
+| `room to spare together` | A quarter or more was left at a reset, on average across them. |
+| `little to spare together` | Otherwise. |
+
+Two more rules hold:
+
+- **Not enough weeks:** where no whole week can be judged yet, `history` says
+  `Weeks: not enough weeks yet`.
+- **Never guessed:** what a day never counted is left out, never taken for none. One example is a
+  day recorded before the ledger counted resets and time at a limit.
+
+#### Windows
+
+`--windows` prints, in place of the days, each account's windows over those days. Each time a
+window's use, its reset or its status changed, it prints a line, as the readings history holds it.
+
+Examples:
+
+```bash
+switchboard history --since 7d
+switchboard history --json | jq '.days[-1]'      # today's, as far as it has gone
+switchboard history --json | jq '.capacity'      # whether there are as many accounts as the use needs
+switchboard history --windows --since 14:00      # today's readings of every window
+```
+
+### `sessions`
+
+`sessions` lists today's sessions. Given a session, it shows that session's page.
+
+```bash
+switchboard sessions [<id>] [--json | --pretty]
+```
+
+| Flag | What it does |
+|---|---|
+| `--json` | Print the sessions, or the session's page, as JSON, even on a terminal. It does so off a terminal anyway. See [`sessions`' JSON](reference.md#sessions-json). |
+| `--pretty` | Print the text, even off a terminal, as it does on one. |
+
+#### Today's sessions
+
+`sessions` lists those running first, the oldest started first. Then come those that ended today,
+the latest ended first. Each session gets a line, with these fields:
+
+| Field | What it shows |
+|---|---|
+| Id | The session's id, cut short. |
+| Directory | The session's directory. |
+| Account | The account the session is on. |
+| Model | The session's model. |
+| Doing | What it's doing: asking, answering, idle, or when it ended. |
+| Started | When it started. |
+| Requests | Its requests today. |
+| Worth | What they'd have cost through the API. |
+| How it came | How it came to its account, such as `from work, at its cap`, and what writing its context again there cost. |
+
+A last line sums them up.
+
+`sessions` reads the ledger's files, and the router's sessions where the router answers. Without
+the router, it lists today's sessions from the ledger alone, none as running, and says so.
+
+#### A session's page
+
+To show a session's page, name it by its id, or as much of it as is unique among today's sessions.
+A session of an earlier day is found by its whole id.
+
+The page shows:
+
+- **The session:** what it's doing, where it runs and why, when it started, and when it came back
+  after an hour or more without a request.
+- **Each account it ran on:** its time there, its requests, the points of each of the account's
+  windows they took, and their worth.
+- **Its turns,** newest first. A turn is a prompt and every request that serves it, including its
+  subagents', compactions and side requests, as Claude Code's own headers tell them.
+- **Its totals.**
+
+Each turn shows:
+
+- when it started and how long it took;
+- its requests;
+- the tools its answers called most;
+- the tokens it read from the cache, wrote to it, and put out;
+- its worth; and
+- the accounts its own conversation went to, as `work → side` where it moved. A subagent on
+  another account is no move.
+
+The points are an estimate. A window counts every session of its account, so each rise in the
+window's use between two answers is shared out among the requests that ended between them, by
+their tokens.
+
+Without the router, the page is shown from the session's lines alone, as not running. The session
+shows as idle where its last request came within the hour, else as ended.
+
+Examples:
+
+```bash
+switchboard sessions
+switchboard sessions --json | jq '.sessions[] | select(.running)'   # those running now
+switchboard sessions 5b0e --json | jq '.turns[0]'                    # its newest turn
+```
+
+### `events`
+
+`events` lists what the router decided and noticed: today's, unless `--since` reaches further back.
+
+```bash
+switchboard events [--since <when>] [-f] [--json | --pretty]
+```
+
+| Flag | What it does |
+|---|---|
+| `--since <when>` | Start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
+| `-f`, `--follow` | Then go on printing a line each time the router files one, until interrupted. A changed event is printed again, whole. |
+| `--json` | Print each event as the router files it, a JSON object a line, with its `run` and `id`, even on a terminal. It does so off a terminal anyway. Of an event printed again, the last line is how it stands. See [The router's events](reference.md#the-routers-events). |
+| `--pretty` | Print the text, even off a terminal, as it does on one. |
+
+The events cover:
+
+- sessions started and moved;
+- accounts under pressure, at their caps and limits, refused, primed, and open again;
+- pins set and cleared;
+- restarts falling due; and
+- the router's health.
+
+They're listed oldest first, under the day each happened on. Each event shows once, as it last
+stood, on a line with these fields:
+
+| Field | What it shows |
+|---|---|
+| Time | When it happened. |
+| Session | The session's id, cut short, if the event is of one. |
+| Kind | The kind of event. |
+| Account | The account. |
+| What happened | What happened. |
+
+The events' files outlast a restart, so `events` looks back across restarts.
+
+Examples:
+
+```bash
+switchboard events --since 2d
+switchboard events -f --json | jq 'select(.kind == "limit")'
+```
+
+## Plumbing
+
+### `run`
+
+`run` starts Claude Code through the router. It's what `claude` runs. Claude Code's own arguments
+go after `--`.
+
+```bash
+switchboard run [--account <id>] [--direct] [-- <claude args>]
+```
+
+| Flag | What it does |
+|---|---|
+| `--account <id>` | Pin the session's conversation to account `<id>`, which must be configured and have a usable token. |
+| `--direct` | Start Claude Code on its own login, without the router or a token, for what needs the login. Not with `--account`. |
+
+`--account` pins the session's conversation to an account while that account can take it. Claude
+Code's own token stays the primary's, or is `--account`'s while the primary's isn't usable. Without
+the router, Claude Code connects directly on `--account`'s token.
+
+Examples:
+
+```bash
+switchboard run -- --resume
+switchboard run --account side -- -p "tidy the changelog"
+switchboard run --direct
+```
+
+### `serve`
+
+`serve` runs the router in the foreground, until interrupted or terminated. The service normally
+runs it.
+
+```bash
+switchboard serve [--log-level <level>]
+```
+
+| Flag | What it does |
+|---|---|
+| `--log-level <level>` | Log at `debug`, `info`, `warn` or `error` and above. Overrides `SWITCHBOARD_LOG_LEVEL`. |
+
+The router serves two things:
+
+- the proxy, on `listen`; and
+- its control API, on a unix socket in the state directory.
+
+It logs to the router's log, and to the terminal when it runs in one. A second router fails while
+one is running.
+
+#### Starting
+
+The router starts even when no account has a usable token, warning in its log that nothing will be
+routed until one has. As it starts, it:
+
+- makes the `tokens`, `history` and `ledger` directories private;
+- takes up the readings its history holds, so the recent rates it judges pressure by carry on from
+  before; and
+- brings the skill up to date.
+
+#### Token changes
+
+Every 3 seconds, the router reads the token files again, and takes up what's changed in place:
+
+- An account goes out on the token its file holds now.
+- An account without a usable token gains the one its file comes to hold.
+- An account whose file holds no token it can use, at two looks in a row, has nothing to send on
+  until a token is back.
+
+A single look finding no token, as when a file is caught while it's rewritten, keeps the account's
+token.
+
+#### Restarting in place
+
+The router also watches:
+
+- its config file, following links;
+- the binary it was started as: the Homebrew link the service runs; and
+- `/etc/localtime`, which says the Mac's time zone.
+
+The service's router restarts when the config changes into one that's valid, when an upgrade leads
+the link to another binary, or when the time zone changes. To restart, it:
+
+1. Waits for a moment with no request in flight.
+2. Saves its state.
+3. Replaces itself in place with the binary the link leads to, handing it the sockets it listens on.
+
+Some cases go differently:
+
+- **A config that isn't valid** is logged, and the router carries on as it was.
+- **A binary that isn't there,** as for a moment while `brew upgrade` moves the link on, is tried
+  again for a couple of seconds. If replacing itself still fails, the router exits, and launchd
+  starts it again.
+- **Told to stop** while it finishes its requests to restart, the router stops then and there.
+- **Run by hand,** the router logs, once, that a restart is due, and `switchboard status` says to
+  run `serve` again.
+
+## Help and version
+
+### `help`
+
+`switchboard help` lists the commands, and `switchboard help <command>` shows one command's help.
+
+Every command also takes `-h` and `--help`. `claude --help` is Claude Code's own.
+
+### `version`
+
+`version` prints switchboard's version. `switchboard --version` and `switchboard -v` do the same.

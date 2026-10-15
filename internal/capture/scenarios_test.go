@@ -39,12 +39,32 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 		// not are what it no longer shows by then.
 		not []string
 	}
+	shiftTab := []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}
 	tests := []struct {
 		tape, scenario string
 		size           watch.Size
 		keys           []press
 		shows          []shows
 	}{
+		{
+			tape: "tour", scenario: "routing", size: wide(37),
+			keys: []press{
+				{4.5, shiftTab}, {7.4, []tea.KeyPressMsg{upKey}}, {8.1, keysOf("s")},
+				{11.6, shiftTab}, {14.6, shiftTab}, {18.6, shiftTab},
+				{21.6, shiftTab}, {24.6, shiftTab},
+			},
+			shows: []shows{
+				{at: 0, says: []string{"auto  ·  6 sessions  ·  new sessions → ▲ side", "ROUTING   auto"}},
+				{at: 7.3, says: []string{"Requests", "● following"}},
+				{at: 8.5, says: []string{"SESSION   ", "esc back"}},
+				{at: 11.5, says: []string{"SESSION   ", "esc back"}},
+				{at: 14.5, says: []string{"RUNWAY", "< 5-hour >"}},
+				{at: 18.5, says: []string{"SESSIONS    Switchboard"}},
+				{at: 21.5, says: []string{"HISTORY    Year"}},
+				{at: 24.5, says: []string{"ACCOUNTS    Compare"}},
+				{at: 27, says: []string{"7 sessions", "ROUTING   auto", "▲ b3e9 started on side"}},
+			},
+		},
 		{
 			tape: "routing", scenario: "routing", size: wide(37),
 			keys: []press{{9, keysOf("p")}, {10.5, keysOf("3")}, {12, keysOf("m")}, {14.5, []tea.KeyPressMsg{enterKey}}},
@@ -90,6 +110,11 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 				{at: 1.5, says: []string{"tokyo-night-day"}},
 				{at: 9.5, says: []string{"ROUTING   auto"}, not: []string{"tokyo-night-day"}},
 			},
+		},
+		{
+			tape: "theme-picker", scenario: "routing", size: wide(37),
+			keys:  []press{{3, keysOf("t")}, {3.3, repeated(downKey, 3)}},
+			shows: []shows{{at: 5, says: []string{"│ ▌ tokyo-night-day", "│   nord                     ●", "ROUTING   auto"}}},
 		},
 		{
 			tape: "runway-week", scenario: "routing", size: wide(37),

@@ -7,7 +7,7 @@ subscriptions, records every request, and shows where the usage stands, in a ter
 verbs that print JSON for agents, and through a skill that tells Claude about it.
 
 - `docs/design.md` is the design: what's built, why, the decided calls, and the backlog's index.
-- `README.md` is the user's guide; `ideas/` is the backlog, one idea a file.
+- `README.md` is the front page, and `docs/` the user's guide beside the design: the dashboard, how it works, commands, configuration, reference and troubleshooting. `ideas/` is the backlog, one idea a file.
 
 ## How it fits together
 

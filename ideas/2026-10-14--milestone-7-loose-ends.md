@@ -39,6 +39,9 @@ holding the release for, gathered here. Each is an edge case or a cost with no w
   another took over from the window holding it now: the readings tell each window's own run alone.
 - `switchboard dashboard --help`'s keys paragraph leaves out the keys of Accounts, Sessions, the
   Log and a session's page; the dashboard's own help has them all.
+- With the theme picker open, the page narrows and ROUTING's traces keep their oldest minutes,
+  dropping the newest and the `/min` rate, so a busy account's trace can read empty. A narrower
+  trace should drop its oldest minutes. Seen in `art/theme-picker.webp` and `art/themes.webp`.
 
 ## Costs
 

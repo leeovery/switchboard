@@ -17,7 +17,8 @@ demo/record.sh routing help   # the tapes named
 
 | Tape | Scenario | Size | Art |
 |---|---|---|---|
-| `routing` | `routing` | 160 × 37 | `art/routing.webp`, `.mp4`: the README's lead, the Overview, then the routing card pinning new and running sessions to side |
+| `tour` | `routing` | 160 × 37 | `art/tour.webp`, `.mp4`: the README's lead: a tour of the dashboard's pages |
+| `routing` | `routing` | 160 × 37 | `art/routing.webp`, `.mp4`: the routing card in `docs/dashboard.md`, the Overview, then the card pinning new and running sessions to side |
 | `dashboard` | `dashboard` | 160 × 37 | `art/dashboard.webp`, `.mp4`: one account's Overview, its GRAPHS, then Runway |
 | `themes` | `routing` | 160 × 37 | `art/themes.webp`, `.mp4`: the theme picker, previewing the built-ins over the Overview |
 | `repatch` | `repatch` | 160 × 37 | `art/repatch.webp`, `.mp4`: Sessions as personal reaches its limit |
@@ -28,6 +29,9 @@ demo/record.sh routing help   # the tapes named
 | `history-year` | fixture `history-year-160` | 160 × 37 | `art/history-year.webp`, a still: History's Year |
 | `log-requests` | fixture `log-requests-160` | 160 × 37 | `art/log-requests.webp`, a still: the Log's Requests |
 | `session` | fixture `session-turn-opened-160` | 160 × 37 | `art/session.webp`, a still: a session's page, a turn opened into its requests |
+| `overview` | fixture `overview-default-160` | 160 × 37 | `art/overview.webp`, a still: the Overview |
+| `sessions` | fixture `sessions-switchboard-160` | 160 × 37 | `art/sessions.webp`, a still: Sessions' Switchboard |
+| `theme-picker` | `routing` | 160 × 37 | `art/theme-picker.webp`, a still: the theme picker over the Overview, previewing tokyo-night-day |
 
 ## The scenarios
 
@@ -37,10 +41,11 @@ a time, each at its offset in seconds from the start. The world has the accounts
 readings, today's requests, the router's events, the sessions routed with their directories and
 the requests in flight, so a demo draws what the frames do. There are three: `routing`, the auto
 world from 14:42:07, three accounts routed among; `dashboard`, work alone; and `repatch`, the
-limit's world from 16:05:26, personal about to reach its limit. The themes tape and the stills
-play `routing`. The world is built before the clock starts, so a cue at 2.5 seconds plays 2.5
-seconds after the tape's first frame. A cue names its session and model, and how its answer comes:
-`brief`, `steady`, `long` or `lengthy`, from a short reply soon to a long one streaming a while.
+limit's world from 16:05:26, personal about to reach its limit. The tour, the themes tape and the
+stills not drawn from a fixture play `routing`. The world is built before the clock starts, so a
+cue at 2.5 seconds plays 2.5 seconds after the tape's first frame. A cue names its session and
+model, and how its answer comes: `brief`, `steady`, `long` or `lengthy`, from a short reply soon
+to a long one streaming a while.
 
 ```go
 starts(2.5, idB3E9, opus, "~/Code/cli", long), // routing: a new session in ~/Code/cli, sent where new sessions go
@@ -62,10 +67,15 @@ and tell the router's `pin` and `auto` events, as the router does for a pin set 
 
 A scenario's own requests write no ledger line and no line of the events file: they reach the
 dashboard through the request stream, the readings and the document's events. The world's lines
-stand as they were, so the Log and a session's page, which read lines, are in no scenario's
-tape: their stills, with Accounts' Compare and History's Year, draw the fixtures named after the
-signed-off frames, `capturetool --fixture`, as capture's tests hold them to the frames. A
-fixture is a moment whose timers never fire, so its tape waits for the screen, then shows it.
+stand as they were, so the Log draws the scenario's requests from the stream alone, without the
+tokens and tools a line would give them, and a session's page draws the world's turns. The tour
+shows the two first, while the stream the Overview holds open has told of every request: a page
+without it, such as Accounts', History's or Runway's, lets the stream go, and a request that ends
+meanwhile, its line never coming, the Log and a session's page draw as lost, `no answer: the
+router went away`, once it opens again. Their stills, with Accounts' Compare and History's Year,
+draw the fixtures named after the signed-off frames, `capturetool --fixture`, as capture's tests
+hold them to the frames. A fixture is a moment whose timers never fire, so its tape waits for the
+screen, then shows it.
 
 The dashboard runs as it does live: its clock reads the scenario's start as it starts and runs on
 in real time, and its timers fire, so bars ease, pulses travel the cords and highlights fade. A

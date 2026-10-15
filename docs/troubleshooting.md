@@ -1,0 +1,49 @@
+# Troubleshooting
+
+This page shows where to look when switchboard doesn't do what you expect, and how to read its logs.
+
+## Where to start
+
+- **Where things stand:** to see how each account stands and why, the router's health, and any
+  restart the router has due, run [`switchboard status`](commands.md#status). To see whether the
+  LaunchAgent is installed and loaded, run [`switchboard service status`](commands.md#service).
+- **Why a request went where it did:** to follow the router's log, run `switchboard logs -f`. The log
+  has a line for each request, with its account and why it went there. To look back over the days,
+  use [`requests`](commands.md#requests) and [`events`](commands.md#events).
+- **A limit reset by hand:** to have the router read the accounts now, run `switchboard usage -r` or
+  `status -r`, or press `R` on the dashboard.
+- **Not routed:** some of what Claude Code sends never reaches the router. See
+  [What doesn't go through the router](how-it-works.md#what-doesnt-go-through-the-router).
+- **Getting round switchboard:** to start Claude Code on its own login, run
+  `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
+  breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`.
+
+## The logs
+
+The logs are for working out, after the fact, why a session went to an account, why a request
+failed, or why the dashboard showed what it did. They're in `<state dir>/logs/`:
+
+| File | What writes it |
+|---|---|
+| `router.log` | The router. |
+| `cli.log` | Every other command. |
+| `launchd.log` | launchd, with the service's own output, such as a crash's. |
+
+Each record is a line of logfmt. The router notes every request it routes, with its account and why
+it went there:
+
+```
+time=2026-09-28T14:12:00.123+01:00 level=INFO msg=routed component=router pid=4242 id=5f3a9c2e session=18bb978f model=claude-opus-5-5 account=side reason="moved: work hit its limit" status=200 attempts=2 duration=9.412s
+```
+
+- **Level:** `SWITCHBOARD_LOG_LEVEL` is `debug`, `info`, `warn` or `error`, and is `info` unless
+  set. For the router, `serve --log-level` overrides it, and so does `service install --log-level`,
+  which passes it on.
+- **Rotation:** `router.log` and `cli.log` roll over before they'd pass 10 MiB, and each keeps five
+  old files. Nothing rolls `launchd.log`, which launchd writes.
+- **Redaction:** nothing logs a token or an account's label. Accounts appear by id, and anything
+  shaped like a token is replaced with `[redacted]`.
+- **Never in the way:** no command logs to stdout or stderr, except `serve` at a terminal. So
+  `--json` and the dashboard stay clean. No command fails because it couldn't log.
+
+To print and follow the logs, use [`switchboard logs`](commands.md#logs).
