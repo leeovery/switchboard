@@ -54,11 +54,16 @@ that's jumped out at me", then a few nitpicks, "no doubt I'll find others".
   GRAPHS (`g`) draws one account at a time, the one the focus is on, as use rising, a burn-up; and
   by account (`b`), USAGE's blocks push GRAPHS below the fold, so the owner found them only with
   USAGE hidden. The ask: a place to see every account's charts at once, and the burn-down's way
-  round. Where, and which way round, isn't decided.
+  round. The owner's call, 15 October 2026: GRAPHS burns down, replacing the burn-up, "you start
+  with 100% ... and you run out", while USAGE's bars still fill with use; the pool's chart below
+  answers "across the board", and every account at once waits until that's been used.
 - **The pool, chosen for GRAPHS.** `↑` `↓` stop at the last account; the owner wants `↓` to go on
   to `Σ pool` and GRAPHS to chart the pool across the board. The accounts' windows start and reset
-  at different times, so the pool's charts need a time axis of their own, settled with the
-  burn-down's.
+  at different times, so the pool's charts need a time axis of their own. Agreed with the owner,
+  15 October 2026: the pool's room at each moment, the sum of what each account has left to its
+  cap, back from now over a window's length, each account's reset a step up marked `│`, no even
+  pace. Whether a burn-down draws where it's heading is open (see the projection, in the design's
+  Running out).
 
 ## Anywhere slow
 
