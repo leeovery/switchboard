@@ -1702,10 +1702,10 @@ then the toggles as the key line words them (settled in the plan).
 
 **`?` help**, `HELP · OVERVIEW`, lists every key first, the toggles, `b`, `↑↓`, `p`, `t`, `R` and
 `j`/`k` among them; then it explains each section, what it shows and why it's where it is; USAGE's
-marks, the levels' colours, the allowance and `out ~…`, the pool against `all accounts`, and how
-it scrolls, an account at a time or a row at a time, going back to its top as `b`, a section's key
-or a resize turns it from one to the other; GRAPHS' lines; the modes and how each routes; ROUTING's states and the traces' scale; what a session is
-doing; and LATELY's marks.
+marks, the levels' colours, the allowance and `out ~…`, the pool against `all accounts`, and how it
+scrolls, an account at a time or a row at a time, going back to its top as `b`, a section's key or a
+resize turns it from one to the other; GRAPHS' lines; the modes and how each routes; ROUTING's
+states and the traces' scale; what a session is doing; and LATELY's marks.
 
 ### Accounts
 
@@ -1855,7 +1855,9 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
   rows apart and from column 1, `0 all accounts`, `0` in `text.subtle` and the name bold
   `text.secondary`, then each account's number, name and marks, and at column 15 its state's dot or
   square, in its state's colour. The chosen row is `bg.selection` across columns 0 to 16 while the
-  focus is on the list, and bold, unlit, while it's on SESSIONS. Two rows under the last,
+  focus is on the list, and bold, unlit, while it's on SESSIONS, `▸` in bold `accent.key` at
+  column 0 before it, as SESSIONS marks its chosen row, bold alone barely showing on a bold name
+  (the owner's call, 15 October 2026). Two rows under the last,
   `↑↓ choose`, `↑↓` bold `accent.key` and `choose` in `text.subtle`. A `│` in `border` at column 20,
   rows 6 to 32, or 33 with sessions; the panel starts at column 24. More accounts than it holds
   scroll with the choice (settled in the plan).
@@ -3899,7 +3901,9 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   dashboard may have changed it since the picker opened, and `y`/`n` is asked only where one theme
   is kept. While the picker is open, the key line lists its keys alone, and a trace it would cover,
   as ROUTING's and SESSIONS', drops its oldest minutes instead, its end and its `/min` rate kept
-  left of the picker, so a busy account's trace still reads now.
+  left of the picker, so a busy account's trace still reads now. A trace the picker would cover
+  whole, on a narrower page, keeps its place under it, its rate with it, so a rate never lands on
+  the words before its trace.
 - **The preferences file:** `<state dir>/prefs.json`, which the dashboard writes and the user never
   needs to: the theme or the pair, and what the dashboard's keys choose that it keeps (see The
   page). It's written whole, as `state.json` is, in the state directory as it changes as the

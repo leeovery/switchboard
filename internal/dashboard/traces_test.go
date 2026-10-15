@@ -274,6 +274,49 @@ func TestATraceUnderASlideOverKeepsNowsEndAndItsRate(t *testing.T) {
 	}
 }
 
+// A trace left no cell beside the slide-over keeps its place under it, and
+// so does its rate, which never moves onto the words before the trace: on
+// every row, what's drawn left of a trace's start, or the whole row where
+// none starts, is as it's drawn without the slide-over, from 100 to 130
+// columns, ROUTING a row an account, and with SESSIONS, at an ordinary
+// height, and ROUTING alone at a tall one.
+func TestARateNeverMovesOntoTheWordsBeforeItsTrace(t *testing.T) {
+	doc, listed, traces := tracedWorld()
+	for _, tc := range []struct {
+		name   string
+		height int
+		shown  Sections
+	}{
+		{name: "ROUTING and SESSIONS", height: 37, shown: SectionsNamed([]string{"usage", "routing", "sessions"})},
+		{name: "ROUTING alone", height: 60, shown: SectionsNamed([]string{"routing"})},
+	} {
+		for width := 100; width <= 130; width++ {
+			t.Run(fmt.Sprintf("%s at %d columns", tc.name, width), func(t *testing.T) {
+				f := frameOf(width, tc.height)
+				f.Sections, f.Sessions, f.Traces = tc.shown, listed, traces
+				covered := f
+				covered.Covered = PickerWidth(width)
+				whole, under := f.overviewDrawn(doc, routedAt), covered.overviewDrawn(doc, routedAt)
+				starts := map[int]int{}
+				for _, tr := range *under.traces {
+					for y := tr.at.y; y < tr.at.y+tr.at.rows; y++ {
+						starts[y] = tr.at.x
+					}
+				}
+				for y := range whole.height() {
+					before := width
+					if x, ok := starts[y]; ok {
+						before = x
+					}
+					if got, want := ansi.Truncate(rowOf(under, y), before, ""), ansi.Truncate(rowOf(whole, y), before, ""); got != want {
+						t.Errorf("row %d reads %q before column %d under the slide-over, want %q", y, got, before, want)
+					}
+				}
+			})
+		}
+	}
+}
+
 // pageScale is the scale the traces share on the Overview of doc at
 // routedAt, as f draws it.
 func pageScale(f Frame, doc status.Document) float64 {

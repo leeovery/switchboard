@@ -631,10 +631,10 @@ func chosenRow(c *canvas, x, y, width int, focused bool) {
 // 0 all accounts, then each configured account shown, listApart rows apart,
 // as configuredNow has it, its number, name and marks, as listName has them,
 // in the name column, and after it its state's glyph, as StateInAWord and
-// stateMark have it,
-// cued over the row's light while it's newly changed, as cueState has it;
-// the chosen row lit; ↑↓ choose chooseUnder rows under the last; and the │
-// beside them, to the panel's foot.
+// stateMark have it, cued over the row's light while it's newly changed, as
+// cueState has it; the chosen row picked out, as listRow has it; ↑↓ choose
+// chooseUnder rows under the last; and the │ beside them, to the panel's
+// foot.
 func (d detailDrawn) list(c *canvas, top, rows int) {
 	configured := d.f.Accounts.Accounts
 	digits := len(strconv.Itoa(len(configured)))
@@ -656,12 +656,19 @@ func (d detailDrawn) list(c *canvas, top, rows int) {
 
 // listRow draws a row of the list along row y, named as given, picked out
 // where it's the one chosen, over what's drawn of it already, as chosenRow
-// picks it out while the list holds the focus or not.
+// picks it out while the list holds the focus or not; and while it doesn't,
+// ▸ in bold accent.key before it, in the cell before its number, as SESSIONS
+// marks its chosen row, as bold alone barely shows on a bold name.
 func (d detailDrawn) listRow(c *canvas, y int, name line, chosen bool) {
 	c.line(listAt, y, name)
-	if chosen {
-		chosenRow(c, 0, y, d.l.lit(), !d.f.Accounts.sessionsFocused())
+	if !chosen {
+		return
 	}
+	focused := !d.f.Accounts.sessionsFocused()
+	if !focused {
+		c.line(listAt-1, y, line{{"▸", keyInk}})
+	}
+	chosenRow(c, 0, y, d.l.lit(), focused)
 }
 
 // ruleRows are the rows the list's │ runs down: to the row over SESSIONS'

@@ -140,20 +140,33 @@ func (f Frame) drawCells(c *canvas, cells []float64, at bounds, faded bool) {
 	*c.traces = append(*c.traces, t)
 }
 
-// uncovered are a trace's cells, a column each in the bounds given, as many
-// as show beside what a slide-over covers of the frame, and the bounds they
-// take: as many of its oldest dropped as it covers, so it ends as far short
-// of the slide-over as it would of the edge, now's end in view.
+// uncovered are a trace's cells, a column each in the bounds given, and the
+// bounds they take, beside what a slide-over covers of the frame: as many of
+// its oldest dropped as covered has it, so it ends as far short of the
+// slide-over as it would of the edge, now's end in view.
 func (f Frame) uncovered(cells []float64, at bounds) ([]float64, bounds) {
-	drop := min(max(f.Covered, 0), len(cells))
+	drop := min(f.covered(at), len(cells))
 	at.width -= drop
 	return cells[drop:], at
 }
 
-// uncoveredEdge is the column after the last of the frame's that shows
-// beside what a slide-over covers, where a trace's rate ends.
-func (f Frame) uncoveredEdge() int {
-	return f.Width - max(f.Covered, 0)
+// covered is how many cells a trace in the bounds given, running to the
+// frame's edge, gives up to what a slide-over covers: as many as it covers,
+// where the trace keeps a cell beside it; else none, the trace and its rate
+// keeping their place under it, so its rate, which ends as many cells short
+// of the edge as the trace gives up, never lands on the words before it.
+func (f Frame) covered(at bounds) int {
+	if covers := max(f.Covered, 0); at.width > covers {
+		return covers
+	}
+	return 0
+}
+
+// rateEdge is the column after the last of the trace's rate, the trace in
+// the bounds given: the frame's edge, less what the trace gives up to a
+// slide-over, as covered has it.
+func (f Frame) rateEdge(trace bounds) int {
+	return f.Width - f.covered(trace)
 }
 
 // paintTrace paints the trace t, scale requests a minute filling its rows:

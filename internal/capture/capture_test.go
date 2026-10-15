@@ -281,7 +281,7 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		{name: "page-year-160x24", want: []string{"  Feb ", "▲ 3 more above   ·   ▼ 10 more below   ·   j/k to scroll"}},
 		{name: "page-routing-160x16", want: []string{"╭─ ROUTING · NEW SESSIONS ─", "■ 0 auto", "enter apply   esc cancel  │", "╰────"}},
 		{name: "page-detail-list-focus", want: []string{"SESSIONS  now", "▸ ● c61b", "enter opens c61b's page", "↑↓ account  enter its page"}},
-		{name: "page-detail-sessions-focus", want: []string{"SESSIONS  now", "▸ ● d28c", "enter opens d28c's page", "↑↓ session  ← accounts  enter its page"}},
+		{name: "page-detail-sessions-focus", want: []string{"▸3 side", "SESSIONS  now", "▸ ● d28c", "enter opens d28c's page", "↑↓ session  ← accounts  enter its page"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

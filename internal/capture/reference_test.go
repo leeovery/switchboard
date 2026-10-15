@@ -746,8 +746,8 @@ func focusedName(n int) passing {
 
 // sessionsFocused passes over side's row in Detail's list, row 13, which the
 // frame lights while the focus is in SESSIONS, where the dashboard keeps its
-// choice in bold, unlit, as the focus has left the list; and SESSIONS'
-// heading, row 28, which the frame heads in text.subtle, where the dashboard
+// choice in bold, unlit, ▸ before it, as the focus has left the list; and
+// SESSIONS' heading, row 28, which the frame heads in text.subtle, where the dashboard
 // heads it in bold text.primary, as it holds the focus (the owner's call,
 // 15 October 2026).
 var sessionsFocused = []passing{cellsOf(13, 1, 17, "3 side"), cellsOf(28, 25, 32, "SESSIONS")}

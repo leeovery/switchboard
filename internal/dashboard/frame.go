@@ -21,7 +21,7 @@ type Frame struct {
 	// the theme picker does while it's open, the page drawn whole under it:
 	// each trace, running to the right edge, drops as many of its oldest
 	// minutes and its rate ends short of it, so now's end and the rate stay
-	// in view, as uncovered and uncoveredEdge have it.
+	// in view, where the trace keeps a cell beside it, as covered has it.
 	Covered int
 	Look    Look
 	// View is the tab shown.

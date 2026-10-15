@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
@@ -60,18 +58,14 @@ is. The rest are each page's, as its ? help lists them:
 
 ` + dashboardKeys() + `
 
-The Overview's sections and how b groups its windows, by window or by
-account, as the config's [usage] by has them until b is pressed, are kept
-for the next dashboard to open with, as is the view each tab shows, its
-period, window or columns, but a calendar year stepped back to. The scroll
-keys scroll a view where it doesn't fit, as its help says. p opens the
-routing card, which picks the accounts new sessions go to and changes
-nothing until enter; ? the page's help; esc closes either, or the theme
-picker. A click on a tab shows it; on a key of the key line, does what the
-key does, but p and q; on History, on a view's name shows it, and on < or >
-by its period steps it; on Runway, on < or > by its window, moves between
-the views; and on the Overview, on a section's heading hides it, and on an
-account's row moves the focus there.
+The Overview's sections and b are kept for the next dashboard to open with,
+as is the view each tab shows, its period, window or columns, but a calendar
+year stepped back to. esc closes the routing card, help or the theme picker.
+A click on a tab shows it; on a key of the key line, does what the key does,
+but p and q; on History, on a view's name shows it, and on < or > by its
+period steps it; on Runway, on < or > by its window, moves between the views;
+and on the Overview, on a section's heading hides it, and on an account's row
+moves the focus there.
 
 While the router runs, it posts the desktop notifications, --probe or not;
 without it, the dashboard posts its own of an account with room again and a
@@ -122,31 +116,6 @@ func parseInterval(s string) (time.Duration, error) {
 		return 0, fmt.Errorf("interval %s is too short: the shortest is %dm", s, minInterval/time.Minute)
 	}
 	return interval, nil
-}
-
-// keysColumns is the width the dashboard's help wraps its keys to.
-const keysColumns = 78
-
-// dashboardKeys are the dashboard's keys, a page's to a paragraph, as the
-// watch lists them for its help, so the two never drift: each page's name,
-// then its keys, each by its key and what it does, kept whole on a line.
-func dashboardKeys() string {
-	var pages []string
-	for _, p := range watch.EveryPagesKeys() {
-		line, lines := "  "+p.Page+":", []string(nil)
-		for i, k := range p.Keys {
-			told := " " + k.Key + " " + k.Does
-			if i < len(p.Keys)-1 {
-				told += ","
-			}
-			if utf8.RuneCountInString(line+told) > keysColumns {
-				lines, line = append(lines, line), "   "
-			}
-			line += told
-		}
-		pages = append(pages, strings.Join(append(lines, line), "\n"))
-	}
-	return strings.Join(pages, "\n")
 }
 
 // dashboard keeps the dashboard on screen, reading usage as each read falls

@@ -202,9 +202,9 @@ var (
 	// Compare's olderHaiku.
 	// sessionsFocused are where the frame of side's SESSIONS, the focus in
 	// them, lights side's row in the list and heads SESSIONS in text.subtle,
-	// where the row the focus has left keeps its choice in bold, unlit, and
-	// SESSIONS, holding it, is headed in bold text.primary (the owner's call,
-	// 15 October 2026).
+	// where the row the focus has left keeps its choice in bold, unlit, ▸
+	// before it, and SESSIONS, holding it, is headed in bold text.primary
+	// (the owner's call, 15 October 2026).
 	sessionsFocused = []spot{{12, 0, 16}, {27, 24, 31}}
 	olderHaikus     = map[string][]spot{
 		"all":      {{15, 137, 139}, {16, 114, 114}},
@@ -433,6 +433,15 @@ func TestDetailLightsTheChosenRowWhereTheFocusIs(t *testing.T) {
 			}
 			if side := c.at(listAt, f.top()+3*listApart); l.list && tt.inSessions && !side.ink.bold {
 				t.Errorf("side's row in the list, its focus left, reads %+v, want it bold", *side)
+			}
+			if l.list {
+				mark, want := c.at(listAt-1, f.top()+3*listApart), " "
+				if tt.inSessions {
+					want = "▸"
+				}
+				if mark.glyph != want || tt.inSessions && (mark.ink.token != keyInk.token || !mark.ink.bold) {
+					t.Errorf("before side's row in the list is %+v, want %q, ▸ bold accent.key alone while its focus is left", *mark, want)
+				}
 			}
 			head, wantHead := c.at(l.panel, heading).ink, dimInk
 			if tt.inSessions {

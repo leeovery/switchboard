@@ -86,6 +86,34 @@ func TestDashboardHelpTellsEveryPagesKeys(t *testing.T) {
 	}
 }
 
+// Under a page's keys, the dashboard's help says what those do whose words
+// don't say it, and that t and p work only where they apply.
+func TestDashboardHelpSaysWhatTheKeysWordsDont(t *testing.T) {
+	got := run(t, testDeps(nil, t.TempDir()), "dashboard", "--help")
+	help := strings.Join(strings.Fields(got.stdout), " ")
+	tests := []struct{ page, next, says string }{
+		{page: "every page", next: "Overview:", says: "t and p work where they apply: t not under NO_COLOR, and p neither with one account"},
+		{page: "every page", next: "Overview:", says: "nor with --probe"},
+		{page: "every page", next: "Overview:", says: "j, k, PgDn, PgUp and the wheel scroll a view where it doesn't fit: the Overview's USAGE"},
+		{page: "Overview", next: "Accounts:", says: "b groups the windows by window or by account"},
+		{page: "Accounts", next: "History:", says: "< and > step the period both views count over"},
+		{page: "History", next: "Sessions:", says: "< and > step the Year back through each calendar year the ledger holds"},
+		{page: "History", next: "Sessions:", says: "Tokens' periods between a day, a week and a month"},
+		{page: "History", next: "Sessions:", says: "v cycles what the Year shows, all use, a model version or an account"},
+		{page: "History", next: "Sessions:", says: "←→ steps the Year shown for one account between the accounts"},
+		{page: "Runway", next: "Log:", says: "← steps back to today, then a day at a time, or to this week, then a week at a time, and → on again to the live view"},
+		{page: "Log", next: "a session's page:", says: "/ finds a session by its id's start or its directory's name"},
+		{page: "a session's page", next: "The Overview's sections", says: "esc goes back where the page was opened from"},
+	}
+	for _, tt := range tests {
+		from := strings.Index(help, " "+tt.page+": ")
+		under, _, _ := strings.Cut(help[max(from, 0):], " "+tt.next)
+		if from < 0 || !strings.Contains(under, tt.says) {
+			t.Errorf("switchboard dashboard --help reads\n%s\nwant it to say %q under %s's keys", got.stdout, tt.says, tt.page)
+		}
+	}
+}
+
 func TestDashboardNotifiesAsTheConfigSays(t *testing.T) {
 	tests := []struct {
 		name  string

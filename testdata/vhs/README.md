@@ -540,8 +540,9 @@ frames):
   swept, above.
 - **The chosen rows, lit where the focus is,** in `accounts-detail-sessions-160`, whose fixture
   reaches SESSIONS: the list's chosen row, side's, row 13, columns 1 to 17, which the frame lights,
-  bold and unlit, and `SESSIONS`, row 28, columns 25 to 32, which the frame draws in `text.subtle`,
-  bold `text.primary`, as the focus is on the sessions (the owner's call, 15 October 2026).
+  bold and unlit, `▸` in bold `accent.key` at column 1, and `SESSIONS`, row 28, columns 25 to 32,
+  which the frame draws in `text.subtle`, bold `text.primary`, as the focus is on the sessions (the
+  owner's call, 15 October 2026).
 
 **Accounts, where its worlds give otherwise** (see What the worlds give otherwise than the frames),
 which the dashboard draws as its world gives it:
@@ -967,7 +968,7 @@ with `--print`, each over the auto world: `page-year-160x24`, the Year at 160 ×
 the card, its keys kept at its foot; and Detail with each part holding the focus, opening on
 Accounts with `]` and `↓` three times to side: `page-detail-list-focus`, the list's row lit and
 d28c's bold, and `page-detail-sessions-focus`, with `→` and `↓` into side's SESSIONS, d28c's row
-lit and the list's bold.
+lit and the list's bold, `▸` before it.
 
 Stage 9's, `log-*`, draw the Log's frames, the Log reached from the Overview with `shift-tab`:
 `log-requests-160` and, on a phone, `log-requests-phone-52`, as it opens, on Requests;
