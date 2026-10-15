@@ -33,7 +33,9 @@ verbs that print JSON for agents, and through a skill that tells Claude about it
 
 ## Gates
 
-Run all of these before reporting work done. Each must pass clean.
+Run all of these before reporting work done. Each must pass clean. `scripts/gate` runs them all, and
+records a clean tree that passes: run it before merging or pushing to main, so a release finds the
+record and doesn't run them again (`scripts/gated`, mint's `pre_tag`).
 
 ```bash
 gofmt -l .               # must print nothing

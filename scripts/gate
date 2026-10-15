@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+#
+# Runs every gate CLAUDE.md lists, in its order, stopping at the first that
+# fails: gofmt, go vet, scripts/test-isolated, golangci-lint and go build.
+# When every one passes on a checkout that was clean as they began and still
+# is, nothing changed and nothing untracked but what git ignores, the tree
+# they passed on is recorded in the git common directory, at
+# switchboard/gated, one hash a line, shared by every worktree. scripts/gated,
+# the release's gate, reads it to pass a tree already gated. A checkout with
+# changes runs the gates all the same, but records nothing: its tree isn't
+# the one they checked.
+set -euo pipefail
+
+repo=$(cd "$(dirname "$0")/.." && pwd -P)
+cd "$repo"
+
+record=$(git rev-parse --path-format=absolute --git-common-dir)/switchboard/gated
+
+# clean reports whether the checkout has no changes, untracked files
+# included, ignored ones not.
+clean() {
+	[ -z "$(git status --porcelain)" ]
+}
+
+# run runs a gate, and on its failure says so and exits with its status.
+run() {
+	local status=0
+	echo "gate: $*"
+	"$@" || status=$?
+	if [ "$status" != 0 ]; then
+		echo "gate: $* failed, so nothing is recorded" >&2
+		exit "$status"
+	fi
+}
+
+tree=$(git rev-parse 'HEAD^{tree}')
+began_clean=true
+clean || began_clean=false
+
+echo "gate: gofmt -l ."
+if ! unformatted=$(gofmt -l .); then
+	echo "gate: gofmt -l . failed, so nothing is recorded" >&2
+	exit 1
+fi
+if [ -n "$unformatted" ]; then
+	printf '%s\n' "$unformatted" >&2
+	echo "gate: gofmt -l . lists files it would change, so nothing is recorded" >&2
+	exit 1
+fi
+run go vet ./...
+run scripts/test-isolated
+run golangci-lint run ./...
+run go build ./...
+
+short=$(git rev-parse --short "$tree")
+if [ "$began_clean" = false ]; then
+	echo "gate: every gate passed, but nothing is recorded: the checkout had changes as they began"
+elif ! clean || [ "$(git rev-parse 'HEAD^{tree}')" != "$tree" ]; then
+	echo "gate: every gate passed, but nothing is recorded: the checkout changed while they ran"
+else
+	mkdir -p "$(dirname "$record")"
+	if ! grep -qxF "$tree" "$record" 2>/dev/null; then
+		printf '%s\n' "$tree" >>"$record"
+	fi
+	echo "gate: every gate passed on tree $short, recorded"
+fi

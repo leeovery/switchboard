@@ -5878,7 +5878,6 @@ why.
 | Detail's token line: an account's tokens, and the share read from the cache, on Accounts' Detail, a key from History's Tokens for it | later, after milestone 7 | [detail-token-line](../ideas/2026-10-08--detail-token-line.md) |
 | History's Days in strips per model version, beside its strips per family | later, after milestone 7 | [days-strips-per-version](../ideas/2026-10-08--days-strips-per-version.md) |
 | TOON for the data verbs' long tables, beside their JSON | later, after milestone 7 | [toon-tables](../ideas/2026-10-08--toon-tables.md) |
-| A faster gate before a release's tag | later, once the redesign ships | [faster-release-gate](../ideas/2026-10-08--faster-release-gate.md) |
 | Spending extra usage: a way to say carry on, and be billed, once every account is at its limit | later | [spending-extra-usage](../ideas/2026-10-08--spending-extra-usage.md) |
 | A notice when a session moves, through a hook | deferred | [move-notice](../ideas/2026-09-30--move-notice.md) |
 | Other agents than Claude Code | deferred | [other-agents](../ideas/2026-09-30--other-agents.md) |

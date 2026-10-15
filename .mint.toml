@@ -22,11 +22,9 @@ diff_exclude = [
 
 [release.hooks]
 # No CI job runs the tests before a tag (release.yml only builds on the tag
-# push), so gate the release here, in order, after the notes and before the
-# irreversible tag + push. The tests run isolated, as CLAUDE.md requires.
-pre_tag = [
-    'go build ./...',
-    'go vet ./...',
-    'scripts/test-isolated',
-    'golangci-lint run ./...',
-]
+# push), so gate the release here, after the notes and before the
+# irreversible tag + push. scripts/gated passes at once a commit whose tree
+# scripts/gate recorded as passing every gate, or one that changes only docs
+# and the like since such a tree; anything else runs every gate in full,
+# the tests isolated, as CLAUDE.md requires.
+pre_tag = ['scripts/gated']
