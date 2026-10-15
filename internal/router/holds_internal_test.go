@@ -250,7 +250,9 @@ func TestARefusalRenewedWhileItHoldsJoinsItsEvent(t *testing.T) {
 
 // A limit lifting early, as a reading shows it, ends its event at the lift,
 // filed again as it then stands, whatever else holds the account back; one
-// that had ended, or another limit's lifting, changes nothing.
+// that had ended, or another limit's lifting, changes nothing. News of the
+// limit reached heard after its lift, from before it, as a lifted limit's
+// identity is never reached again, leaves the event as the lift left it.
 func TestALimitLiftedEarlyEndsItsEventThen(t *testing.T) {
 	until := start.Add(time.Hour)
 	tests := []struct {
@@ -274,6 +276,15 @@ func TestALimitLiftedEarlyEndsItsEventThen(t *testing.T) {
 			k.expect(status.Event{ID: 1, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: tt.want, Limit: 1})
 		})
 	}
+	t.Run("its reach heard after its lift", func(t *testing.T) {
+		k := newTelling(t)
+		k.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: until, Limit: 1})
+		k.after(10 * time.Minute)
+		k.hear(LimitLifted{Account: "work", Limit: 1})
+		k.after(time.Second)
+		k.hear(LimitReached{Account: "work", Windows: []string{"5h", "7d"}, Until: until, Limit: 1, Again: true})
+		k.expect(status.Event{ID: 1, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: start.Add(10 * time.Minute), Limit: 1})
+	})
 }
 
 func TestARefusalCountsTheSessionsItMoved(t *testing.T) {

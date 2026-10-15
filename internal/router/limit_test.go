@@ -452,8 +452,6 @@ func checkLapsed(t *testing.T, rt *router.Router, id string) {
 	}
 }
 
-// checkLimit checks the router's status document gives the account with the
-// given id the limit want, none when it's zero.
 // checkLiftedAt checks that the router told of the limit with the given
 // identity lifting early on the account with the given id, once, and that
 // its event holds till then, at, as the status document gives it; or, where
@@ -480,6 +478,8 @@ func checkLiftedAt(t *testing.T, r *routed, id string, limit int, at time.Time) 
 	}
 }
 
+// checkLimit checks the router's status document gives the account with the
+// given id the limit want, none when it's zero.
 func checkLimit(t *testing.T, rt *router.Router, id string, want status.Limit) {
 	t.Helper()
 	if got, _ := rt.Status().Account(id); !reflect.DeepEqual(got.Limit, want) {

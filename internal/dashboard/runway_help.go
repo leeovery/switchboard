@@ -145,10 +145,11 @@ func runwayComingHelp() helpPart {
 	return helpPart{
 		heading: SectionComing.heading(),
 		says: []line{
-			said("What happens next, soonest first, as the Overview's COMING UP has it: an account back from its cap or its limit, " +
-				"a window running out at its pace, ~ marking it projected, and each other reset of the view's window, where its │ " +
-				"stands. The 5-hour view lists the 5-hour windows'; the week view adds each week's run-out and reset. No prime is " +
-				"listed. As rows run short, it folds to its heading, which names the soonest; stepped back, there's none."),
+			said("What happens next, soonest first, as the Overview's COMING UP has it: an account back from its cap, its limit or " +
+				"its refused token, whichever lifts last, a window running out at its pace, ~ marking it projected, and each " +
+				"other reset of the view's window, where its │ stands. The 5-hour view lists the 5-hour windows'; the week view " +
+				"adds each week's run-out and reset. No prime is listed. As rows run short, it folds to its heading, which names " +
+				"the soonest; stepped back, there's none."),
 		},
 	}
 }

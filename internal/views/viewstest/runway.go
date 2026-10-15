@@ -107,6 +107,7 @@ func RunwayMoments() []RunwayMoment {
 	return slices.Concat(
 		weekResetBeforeRunwayRereads(), justAfterAFiveHourReset(), failedReads(), refusals(), holdsNoEventTells(), holdsEventsTell(), holdsTakenOver(), holdsChanging(), holdsAhead(),
 		holdsOutlasted(), holdsCarriedIn(), routerSilent(), pools(), steppedBack(), liftedByHand(),
+		[]RunwayMoment{liftedAsTheWeekResets()},
 		[]RunwayMoment{tokenless(), restartedByHand(), capTurningToALimit(), twoLimitsClose(), runOutReachingTheCap(), modelsOwnLimit()},
 		framesMoments(),
 	)
@@ -1039,6 +1040,40 @@ func capTurningToALimit() RunwayMoment {
 				FigureResets: "17 Wed 03:00, 97 Wed 17:10 back", FigureUse: "5h highest 100%",
 			},
 		},
+	}
+}
+
+// liftedAsTheWeekResets is the week from Monday 21 September stepped back
+// to: work, its reserve 5%, at its cap from Friday at 12:00 till its week
+// resets on Saturday at 21:00, its 5-hour at its limit from Saturday at 20:00
+// till Sunday at 01:00 holding it on past the cap's lift. The cap's stretch
+// lifts as the week resets, which its │ marks as a stretch's end, so the
+// reset isn't said again; the limit's is back as its own hold lifts.
+func liftedAsTheWeekResets() RunwayMoment {
+	in := func(day, hour, minute int) time.Time {
+		return time.Date(2026, time.September, day, hour, minute, 0, 0, time.UTC)
+	}
+	weekReset := in(26, 21, 0)
+	workAt := reserving(readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.6, onThu(17, 10, 0)), window(week, 0.34, mondayTen)), 0.05)
+	return RunwayMoment{
+		Name: "stepped back to a cap lifting as its week resets, a limit holding it on", Now: thursday,
+		Doc: routed(onThu(14, 41, 0), nil, workAt, sideOn(onThu(14, 41, 0))),
+		Readings: sorted(
+			readEach(work, in(24, 12, 0), window(fiveHour, 0.1, in(24, 17, 0)), window(week, 0.5, weekReset)),
+			readEach(work, in(25, 12, 0), window(fiveHour, 0.3, in(25, 17, 0)), window(week, 0.96, weekReset)),
+			readEach(work, in(26, 20, 0), spent(fiveHour, 1, in(27, 1, 0)), window(week, 0.97, weekReset)),
+			readEach(work, in(26, 21, 30), window(week, 0.01, weekReset.AddDate(0, 0, 7))),
+			readEach(work, in(27, 1, 30), window(fiveHour, 0.05, in(27, 6, 30))),
+		),
+		Days: []ledger.Summary{{Version: 2, Day: "2026-09-26", Accounts: []ledger.AccountDay{{
+			Account: work, Highest: map[string]float64{fiveHour: 1, week: 0.97},
+			Resets: []ledger.Reset{{Window: week, At: weekReset, Before: 0.97}},
+		}}}},
+		Window: views.RunwayWeek, Day: civilDay(2026, time.September, 24), WeekStarts: time.Monday, Columns: lanes,
+		Want: map[string]Figures{work: {
+			FigureStretches: "capped Fri 12:00 – Sun 01:00, lifts Sat 21:00, as it resets @87 87-112; limited Sat 20:00 – Sun 01:00 @113 113-116",
+			FigureResets:    "114 Sat 21:00 back",
+		}},
 	}
 }
 

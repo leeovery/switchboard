@@ -36,12 +36,16 @@ type awaiting struct {
 // reached keeps a limit an account reached at now, by the limit's identity,
 // whatever order its news comes in, as the news of a limit can come after
 // the news of it reached again: one whose event is kept, and can change,
-// joins it, and one newer than every limit heard of the account is news of
-// its own, which counts the moves it forced that came first. One heard of
-// before, whose event is no longer kept, or can't change, is dropped.
+// joins it, but where the limit has lifted early, as the news of it reached
+// is then from before the lift; and one newer than every limit heard of the
+// account is news of its own, which counts the moves it forced that came
+// first. One heard of before, whose event is no longer kept, or can't
+// change, is dropped.
 func (r *recent) reached(e LimitReached, now time.Time) {
 	if h, ok := r.limitEvent(e.Limit, now); ok {
-		r.join(h, e.Windows, e.Until, now)
+		if !h.lifted {
+			r.join(h, e.Windows, e.Until, now)
+		}
 		return
 	}
 	if e.Limit <= r.limits[e.Account] {
@@ -70,9 +74,12 @@ func (r *recent) refused(e Refused, now time.Time) {
 }
 
 // limitLifted ends early, at now, the event of the limit a lifting tells
-// of, by its identity, while it's kept and can change, as liftedAt says.
+// of, by its identity, while it's kept and can change, as liftedAt says,
+// and marks it lifted, so no news of the limit reached heard after holds it
+// on.
 func (r *recent) limitLifted(e LimitLifted, now time.Time) {
 	if h, ok := r.limitEvent(e.Limit, now); ok {
+		h.lifted = true
 		h.liftedAt(now)
 	}
 }

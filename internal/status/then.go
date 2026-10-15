@@ -375,12 +375,12 @@ func (r run) unlifted() bool {
 
 // ResetsRead are the resets of the window with the given key that the
 // readings given, of an account, oldest first, give: each as read; and each
-// reset by hand they show, as score.ResetByHand has it, at the reading that
-// shows it, as the window started again then, as a day's summary keeps it
-// and as a hold on it lifts then, as Then has it.
+// between two readings, as score.ResetBetween tells it, as a day's summary
+// keeps it: a reset made by hand among them, at the reading that shows it,
+// as a hold on the window lifts then, as Then has it.
 func ResetsRead(read []readings.Reading, key string) []time.Time {
 	var resets []time.Time
-	var before quota.Window
+	var was quota.Window
 	for _, r := range read {
 		if r.Key != key {
 			continue
@@ -389,10 +389,10 @@ func ResetsRead(read []readings.Reading, key string) []time.Time {
 		if !w.ResetsAt.IsZero() {
 			resets = append(resets, w.ResetsAt)
 		}
-		if score.ResetByHand(before, w) {
-			resets = append(resets, r.At)
+		if at, ok := score.ResetBetween(was, w, r.At); ok {
+			resets = append(resets, at)
 		}
-		before = w
+		was = w
 	}
 	return resets
 }

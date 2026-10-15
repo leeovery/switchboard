@@ -221,3 +221,24 @@ const handReset = 0.10
 func ResetByHand(held, kept quota.Window) bool {
 	return kept.ResetsAt.Equal(held.ResetsAt) && held.Utilization-kept.Utilization >= handReset-Tolerance
 }
+
+// ResetBetween returns when a window read as was reset before w, the next
+// reading of it, read at at, reporting false where the two tell of no reset:
+// w shows it reset by hand, as ResetByHand says, at at; was's reset had
+// passed by at, w being of another window, or of none, at was's reset; or
+// w's reset is later than was's, which hadn't come, the window having
+// started again before it, at at. It's the one rule a day's summary and
+// Runway's resets both take a reset between readings by.
+func ResetBetween(was, w quota.Window, at time.Time) (time.Time, bool) {
+	switch {
+	case ResetByHand(was, w):
+		return at, true
+	case was.ResetsAt.IsZero() || w.ResetsAt.Equal(was.ResetsAt):
+		return time.Time{}, false
+	case was.ResetBy(at):
+		return was.ResetsAt, true
+	case w.ResetsAt.After(was.ResetsAt):
+		return at, true
+	}
+	return time.Time{}, false
+}

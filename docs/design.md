@@ -5330,7 +5330,9 @@ verbs).
   - `restart`: one falling due: `reason` why, as the status document's `restart` gives it.
   - `health`: the router's health turning: `reason` as it turns unhealthy, none as it's well again.
 - **Joining:** a limit reached again while it holds joins its event, keeping its `id`, in whatever
-  order the news of it comes; another limit reached meanwhile is an event of its own. A cap reached
+  order the news of it comes, unless it has lifted early: a lifted limit's `id` is never reached
+  again, so news of it reached that comes after the lift is from before it, and leaves the event as
+  the lift left it. Another limit reached meanwhile is an event of its own. A cap reached
   again while it holds, in another window, joins its own the same way, and so does a refusal of the
   account renewed while it holds. A window that joins a limit or a cap it didn't begin with is kept
   in the event's `joined`, by its key, with when it joined, so a hold is dated from when each of its

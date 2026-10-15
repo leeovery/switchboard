@@ -646,7 +646,9 @@ frames), which the dashboard draws as its world gives it:
   `runway-stepped-back-160`; rows 10, 12, 14, 16, 18, 20, 22, 24, 26 and 28, the lanes, and 34,
   the legend, of `runway-ten-accounts-160`; and rows 12, 15 and 18, the lanes, and 25, the legend,
   of `runway-phone-52`. The pool's part-filled `▆`, on rows of their own, stay as the frames draw
-  them.
+  them. The dashboard's own frame tests read the same rows the same way, through a `redrawn` of
+  their own in `internal/dashboard/reference_test.go`, as they read the frames apart from
+  capture's.
 
 - **The pool's part-filled cell in now's column,** which the frames draw on the canvas, where the
   design puts now's column's `bg.subtle` behind the gradient's empty part: row 20, column 31 of

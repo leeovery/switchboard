@@ -168,7 +168,7 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"past the readings' keep", "draws its lanes from its summary's limits and resets alone"},
 		{"a day stepped back to", "no now, nothing dimmed, no COMING UP and no room line"},
 		{"a step back never kept", "a step back never is, so Runway opens live"},
-		{"COMING UP's lines", "an account back from its cap or its limit"},
+		{"COMING UP's lines", "an account back from its cap, its limit or its refused token, whichever lifts last"},
 		{"COMING UP in the week", "the week view adds each week's run-out and reset"},
 		{"no prime", "No prime is listed"},
 	} {
