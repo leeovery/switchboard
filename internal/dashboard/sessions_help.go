@@ -50,7 +50,8 @@ func (f Frame) sessionsHelp() []helpPart {
 					"moment, fading."),
 				said("Where the terminal hasn't the width for the cords, as on a phone, the Switchboard draws lanes instead: each " +
 					"account's line with its sessions under it, a session's words bold while it works. Where they don't all fit, " +
-					"they scroll an account at a time, or a row at a time where an account's lane doesn't fit."),
+					"they scroll an account at a time, or a row at a time where an account's lane doesn't fit; turned from one to the " +
+					"other, as a resize or what's read can turn them, they go back to their top."),
 			},
 			glyphs: []glyph{
 				{drawn: line{{plugGlyph + strings.Repeat(heavyCord.along, 2) + pluggedJack, cordInk(true)}}, means: "a session's cord"},
@@ -69,7 +70,8 @@ func (f Frame) sessionsHelp() []helpPart {
 					"Where the row is short, the mark gives way to the account's first words."),
 				said("As rows run short, the lines compact as the Overview's sections fold: no blank rows within a line, then two " +
 					"rows a line, then one, and past that they scroll, the calls with them: an account at a time, each shown whole, " +
-					"or a row at a time where an account doesn't fit."),
+					"or a row at a time where an account doesn't fit; turned from one to the other, as a resize or what's read can turn " +
+					"them, they go back to their top."),
 			},
 		},
 		{

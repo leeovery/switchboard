@@ -170,8 +170,9 @@ func TestHistoryHelpSaysWhatItsFiguresAre(t *testing.T) {
 
 // Help says how each view whose scroll can count rows or things scrolls,
 // and that it goes back to its top as its scroll turns from one to the
-// other: the Overview's USAGE, History's Weeks, Days and Tokens; and that
-// the Year, a row at a time, says what's out of view.
+// other: the Overview's USAGE, History's Weeks, Days and Tokens, and
+// Sessions' lanes and lines; and that the Year, a row at a time, says
+// what's out of view.
 func TestHelpSaysAViewGoesBackToItsTopAsItsScrollTurns(t *testing.T) {
 	saying := func(parts []helpPart, heading string) string {
 		i := slices.IndexFunc(parts, func(p helpPart) bool { return p.heading == heading })
@@ -185,11 +186,14 @@ func TestHelpSaysAViewGoesBackToItsTopAsItsScrollTurns(t *testing.T) {
 		return strings.Join(said, " ")
 	}
 	history := Frame{View: History}.historyHelp()
+	sessions := Frame{View: Sessions}.sessionsHelp()
 	tests := []struct {
 		heading, said string
 		want          []string
 	}{
-		{heading: "USAGE", said: saying(overviewHelp(), SectionUsage.heading()), want: []string{"an account at a time, or a row at a time", "it goes back to its top"}},
+		{heading: "USAGE", said: saying(overviewHelp(), SectionUsage.heading()), want: []string{"an account at a time, or a row at a time", "what's read can turn it", "it goes back to its top"}},
+		{heading: "CORDS", said: saying(sessions, "CORDS"), want: []string{"an account at a time, or a row at a time", "they go back to their top"}},
+		{heading: "LINES", said: saying(sessions, "LINES"), want: []string{"an account at a time, each shown whole", "they go back to their top"}},
 		{heading: "YEAR", said: saying(history, "YEAR"), want: []string{"scrolls a row at a time", "how many rows are out of view above and below"}},
 		{heading: "WEEKS", said: saying(history, "WEEKS"), want: []string{"an account at a time", "shorter than 37 rows", "it goes back to its top"}},
 		{heading: "DAYS", said: saying(history, "DAYS"), want: []string{"BY ACCOUNT scrolls an account at a time", "shorter than 37 rows", "it goes back to its top"}},

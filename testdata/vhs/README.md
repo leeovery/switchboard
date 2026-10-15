@@ -982,7 +982,7 @@ with `--print`, each over the auto world: `page-year-160x24`, the Year at 160 ×
 `page-routing-160x16`, the routing card as `p` opens it on a terminal 16 rows tall, shorter than
 the card, its keys kept at its foot; and Detail with each part holding the focus, opening on
 Accounts with `]` and `↓` three times to side: `page-detail-list-focus`, the list's row lit and
-d28c's bold, and `page-detail-sessions-focus`, with `→` and `↓` into side's SESSIONS, d28c's row
+c61b's bold, and `page-detail-sessions-focus`, with `→` and `↓` into side's SESSIONS, d28c's row
 lit and the list's bold, `▸` before it.
 
 Stage 9's, `log-*`, draw the Log's frames, the Log reached from the Overview with `shift-tab`:
