@@ -1774,15 +1774,18 @@ holds.
   the ledger began part-way through, as a fresh install's week, is priced from the ledger's first
   day, a day each to the period's end, or today's for today and 30 days, as `history` and History
   price it, as there's no worth for the days before to set against it (the owner's call, 15 October
-  2026): Max 20x's week from a Wednesday costs $33, not its whole week's $46. It reads `4.0×`, bold,
-  in `state.positive` at 1× or more and `accent.attention` under, then ` its $46 week` in
-  `text.subtle`, the price to the dollar. A plan's price is the price table's, or the config's (see
+  2026): Max 20x's week from a Wednesday costs $33, not its whole week's $46. A ledger that holds no
+  day yet begins today, for its plans' prices as for a read of its days, and the dashboard asks
+  again where it began till it holds one. It reads `4.0×`, bold, in `state.positive` at 1× or more
+  and `accent.attention` under, then ` its $46 week` in `text.subtle`, the price to the dollar. A
+  plan's price is the price table's, or the config's (see
   Config). An account without a `plan` shows `—` for it and no ratio, and `all accounts` sums the
   plans it knows, `$400/mo · 2 of 3 plans`, its ratio counting only their accounts' worth (settled
   in the plan), and saying so, where any account's plan isn't known: ` · 2 of 3 plans known` after
   its price, in `text.subtle`, `4.4× its $92 week · 2 of 3 plans known`, as the worth beside it is
   every account's (the owner's call, 15 October 2026); where that doesn't fit its column, as
-  Compare's at 160 with three accounts, `known` goes, `· 2 of 3 plans`.
+  Compare's at 160 with three accounts, `known` goes, `· 2 of 3 plans`. A phone's `against it` and
+  `against`, 15 cells from column 36, hold neither, so say the ratio alone.
 - **Periods are rolling,** never billing months, as switchboard knows no renewal date: today, from
   midnight; this week, from its first day, as `week_starts` sets it (see Config); 30 days, today and
   the 29 before it; and 12 weeks, this week and the 11 before it, `<` and `>` stepping through them
@@ -2037,11 +2040,16 @@ section holds.
   `plans cost`, `$7,200`, the plans' monthly prices over the months, from the ledger's first day
   where it began part-way through them, as Against its price prices a young ledger's period (see
   Accounts); `against it`, `3.8×`, bold, in `state.positive` at 1× or more and `accent.attention`
-  under; `busiest day`, the day of the most requests, `Tue 22 Sep`; and `longest run`, the most days
-  in a row with any request, `58 days`.
+  under, then, where any account's plan isn't known, ` · 2 of 3 plans known` in `text.subtle`, as
+  Against its price says it, ` · 2 of 3 plans` where that doesn't fit, and the ratio alone where
+  neither does; `busiest day`, the day of the most requests, `Tue 22 Sep`; and `longest run`, the
+  most days in a row with any request, `58 days`.
 - **BY MONTH,** row 17, `worth at API prices; against what the plans cost that month` after it in
-  `text.faint`. On row 18, its columns' heads in `text.subtle`: `requests` at 14, `worth` at 26,
-  `against` at 38, `limits` at 48 and `by model` at 60. From row 19, a row a month, oldest first,
+  `text.faint`, and, where any account's plan isn't known, ` · 2 of 3 plans known` after that, once
+  for the table, short where only that fits, `· 2 of 3 plans`, and none where neither does, left
+  out of the room the Year's form takes. On row 18, its columns' heads in `text.subtle`: `requests`
+  at 14, `worth` at 26, `against` at 38, `limits` at 48 and `by model` at 60. From row 19, a row a
+  month, oldest first,
   its name at column 2, the first with its year, `Oct 2025`, the current month's bold; values in
   `text.secondary`; `against` bold, coloured as against its price is, the month the ledger began
   recording in priced from its first day, as the numbers price it (the owner's call, 15 October
@@ -4500,7 +4508,11 @@ from the first day a router that has it runs, so nothing before then is in it.
   - Claude Code's quota check is worth nothing, whatever it spent, in every view and every
     summary, as it isn't work done for the session, as the Log's hiding it says: its usage is
     priced by none, and a summary leaves it out (see `version`; the owner's call, 15 October
-    2026). Its tokens are shown as they are where the check is.
+    2026). Its tokens are shown as they are where the check is. A model whose day on an account
+    holds quota checks or counts of tokens alone wasn't used: no list of the models, versions or
+    families used names it, nor counts it, as BY MODEL, Tokens, the Year's `v` and `history` list
+    them, nor lists among Tokens' accounts one that sent them alone. A day summarised before
+    version 5 keeps its checks' few tokens, priced, in its sums alone.
   - Every request the router routes runs at standard speed and the standard service tier, so the
     table holds no other prices: fast mode never reaches the router (see What doesn't go through
     the router), and a subscription's requests are served at the standard tier.

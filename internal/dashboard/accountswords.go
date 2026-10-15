@@ -164,9 +164,9 @@ func leftShort(row views.AccountsRow, k ink) []part {
 // planParts say an account's plan as Compare's VALUE does, by its name, then
 // its price a month, in text.subtle: "Max 20x · $200/mo"; of every
 // account's, the known plans' prices summed, then how many plans that is,
-// "$600/mo · 3 plans", or of how many, "$400/mo · 2 of 3 plans"; a dash
-// where none is known.
-func planParts(page views.AccountsPage, row views.AccountsRow, k ink) []part {
+// as views.PlansKnown words it, "$600/mo · 3 plans", or of how many,
+// "$400/mo · 2 of 3 plans"; a dash where none is known.
+func planParts(row views.AccountsRow, k ink) []part {
 	said := planNamed(row, k)
 	switch {
 	case row.Plan.Price == nil:
@@ -174,12 +174,7 @@ func planParts(page views.AccountsPage, row views.AccountsRow, k ink) []part {
 	case !row.Plan.All:
 		return append(said, wordsIn(accountsApart, dimInk), figureIn(row.Plan.Monthly(), dimInk))
 	}
-	said = append(said, wordsIn(accountsApart, dimInk))
-	known, of := page.PlansKnown()
-	if known < of {
-		said = append(said, figureIn(prose.Grouped(known), dimInk), wordsIn(" of ", dimInk))
-	}
-	return append(said, countedParts(of, "plan", dimInk)...)
+	return append(append(said, wordsIn(accountsApart, dimInk)), saidParts(row.Plan.Plans.Words(), dimInk)...)
 }
 
 // planNamed says an account's plan as Detail's THIS WEEK does, by its name

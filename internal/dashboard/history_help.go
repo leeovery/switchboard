@@ -34,7 +34,8 @@ func (f Frame) historyHelp() []helpPart {
 					"paid for, and its attention colour under. A bar is a month's worth against the largest month's, split by " +
 					"family, each in its colour, as the dots under the bars name them. The month still running says so far after " +
 					"its bar, and the month the ledger began recording in the day it began, as from the 16th, its plans priced " +
-					"from then."),
+					"from then. Where some accounts' plans aren't known, against is over those known, as the heading says, " +
+					"with the worth of their accounts alone."),
 			},
 			glyphs: []glyph{
 				{drawn: familyBar(), means: "a month's worth, by family"},
@@ -84,7 +85,8 @@ func (f Frame) historyHelp() []helpPart {
 				said("Tokens by period, as ccusage reports them, split by what ccusage can't split by: the account. Its columns " +
 					"are ccusage's: input; output; cache write, both lifetimes' writes together; cache read; and total, the " +
 					"four kinds. Worth is what the same tokens would cost through the API, at the price table's prices as of " +
-					"the date the footnote gives, and against its price, that worth over what the period's plans cost."),
+					"the date the footnote gives, and against its price, that worth over what the period's plans cost, over " +
+					"the plans known where some aren't, as it says. A model of quota checks alone wasn't used, so has no row."),
 				said("`v` splits each period by account, by model, each version at its own price, by both, or not at all, and " +
 					"`<` and `>` make the periods days, weeks or months."),
 			},

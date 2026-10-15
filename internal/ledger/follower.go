@@ -678,18 +678,15 @@ func (f *Follower) Session(id string) iter.Seq[Held] {
 
 // linesDates returns the dates of the local days whose files Reader.Lines
 // reads of every line, at now, as dayfile.Dates gives them: from the day
-// before the first the ledger holds, as firstDay gives it, to the day after
+// before the one the ledger begins on, as Begins says, to the day after
 // today's; or the days either side of today's, and today's, where the ledger
-// holds none before tomorrow, or can't be looked at to tell, which is warned
-// of.
+// can't be looked at to tell, which is warned of.
 func (f *Follower) linesDates(now time.Time) []string {
 	first, err := f.firstDay(now)
-	start := now
-	switch {
-	case err == nil && !first.After(now):
-		start = first
-	case err != nil && !errors.Is(err, fs.ErrNotExist):
+	start, _, err := Begins(first, err, now)
+	if err != nil {
 		f.days.logger.Warn("can't read the request ledger", "dir", f.days.files.Dir, "error", err)
+		start = now
 	}
 	return dayfile.Dates(start, now)
 }

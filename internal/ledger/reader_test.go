@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -240,21 +242,31 @@ func TestADayIsReadWithItsReadingsWhereTheReadingsHistoryCantBeListed(t *testing
 	}
 }
 
-func TestDaysStartAtTheFirstTheLedgerHolds(t *testing.T) {
+// A read of the ledger's days, a Reader's and a Follower's alike, starts
+// where the ledger begins, as Begins tells every reader of it, Accounts
+// pricing its plans from there too: at its first day, or today's where it
+// holds none before tomorrow, saying it holds none; or at the day asked
+// for, where that's later.
+func TestDaysStartWhereTheLedgerBegins(t *testing.T) {
 	today := on(2, 12, 0)
 	tests := []struct {
 		name string
 		// lay lays the ledger out in dir.
 		lay  func(t *testing.T, dir string)
 		from time.Time
+		// began and none are where the ledger begins, and whether it holds
+		// none yet.
+		began string
+		none  bool
 		// want are the dates of the days given.
 		want []string
 	}{
 		{
-			name: "its first file of lines's, from a day before",
-			lay:  func(t *testing.T, dir string) { holdLines(t, dir, "2026-10-06", asked("1", on(1, 9, 0))) },
-			from: on(-30, 0, 0),
-			want: []string{"2026-10-06", "2026-10-07"},
+			name:  "its first file of lines's, from a day before",
+			lay:   func(t *testing.T, dir string) { holdLines(t, dir, "2026-10-06", asked("1", on(1, 9, 0))) },
+			from:  on(-30, 0, 0),
+			began: "2026-10-06",
+			want:  []string{"2026-10-06", "2026-10-07"},
 		},
 		{
 			name: "its first summary's, the lines of its day pruned",
@@ -262,25 +274,29 @@ func TestDaysStartAtTheFirstTheLedgerHolds(t *testing.T) {
 				writeFile(t, dir, "day-2026-10-04.json", []byte(summaryOf("2026-10-04", 1, 1, windowsRead{})+"\n"))
 				holdLines(t, dir, "2026-10-06", asked("1", on(1, 9, 0)))
 			},
-			from: on(-30, 0, 0),
-			want: []string{"2026-10-04", date, "2026-10-06", "2026-10-07"},
+			from:  on(-30, 0, 0),
+			began: "2026-10-04",
+			want:  []string{"2026-10-04", date, "2026-10-06", "2026-10-07"},
 		},
 		{
-			name: "the day asked for, after the ledger's first",
-			lay:  func(t *testing.T, dir string) { holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0))) },
-			from: on(1, 15, 0),
-			want: []string{"2026-10-06", "2026-10-07"},
+			name:  "the day asked for, after the ledger's first",
+			lay:   func(t *testing.T, dir string) { holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0))) },
+			from:  on(1, 15, 0),
+			began: "2026-10-04",
+			want:  []string{"2026-10-06", "2026-10-07"},
 		},
 		{
-			name: "today alone, the ledger holding no day",
-			lay:  func(t *testing.T, dir string) { writeFile(t, dir, "notes.txt", nil) },
-			from: on(-30, 0, 0),
+			name:  "today alone, the ledger holding no day",
+			lay:   func(t *testing.T, dir string) { writeFile(t, dir, "notes.txt", nil) },
+			from:  on(-30, 0, 0),
+			began: "2026-10-07", none: true,
 			want: []string{"2026-10-07"},
 		},
 		{
-			name: "today alone, the ledger holding none before the day after tomorrow, as a clock once set ahead names one",
-			lay:  func(t *testing.T, dir string) { holdLines(t, dir, "2026-10-09", asked("1", on(4, 9, 0))) },
-			from: on(-30, 0, 0),
+			name:  "today alone, the ledger holding none before the day after tomorrow, as a clock once set ahead names one",
+			lay:   func(t *testing.T, dir string) { holdLines(t, dir, "2026-10-09", asked("1", on(4, 9, 0))) },
+			from:  on(-30, 0, 0),
+			began: "2026-10-07", none: true,
 			want: []string{"2026-10-07"},
 		},
 	}
@@ -288,15 +304,34 @@ func TestDaysStartAtTheFirstTheLedgerHolds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			state, dir, _ := stateDirs(t)
 			tt.lay(t, dir)
+			follower := followerOf(state, &testClock{at: today}, caps)
 
-			var got []string
-			for _, s := range readerAt(state, today).Days(tt.from) {
-				got = append(got, s.Day)
+			first, err := follower.FirstDay(today)
+			began, none, err := ledger.Begins(first, err, today)
+			if want, _, _ := dayfile.Day(tt.began); err != nil || !began.Equal(want) || none != tt.none {
+				t.Errorf("the ledger begins %v, holding none %t, failing %v; want %v, %t", began, none, err, want, tt.none)
 			}
-			if !slices.Equal(got, tt.want) {
-				t.Errorf("Days() are of %q, want %q", got, tt.want)
+			for name, days := range map[string][]ledger.Summary{
+				"Reader": readerAt(state, today).Days(tt.from), "Follower": follower.Days(tt.from),
+			} {
+				var got []string
+				for _, s := range days {
+					got = append(got, s.Day)
+				}
+				if !slices.Equal(got, tt.want) {
+					t.Errorf("a %s's Days() are of %q, want %q", name, got, tt.want)
+				}
 			}
 		})
+	}
+}
+
+// Where the ledger can't be looked at to tell where it begins, Begins fails
+// as it did, but for its holding none.
+func TestALedgerThatCantBeLookedAtBeginsNowhere(t *testing.T) {
+	failed := errors.New("too many open files")
+	if began, none, err := ledger.Begins(time.Time{}, failed, on(0, 12, 0)); !errors.Is(err, failed) || !began.IsZero() || none {
+		t.Errorf("Begins() = %v, %t, %v; want it failing as the ledger did", began, none, err)
 	}
 }
 

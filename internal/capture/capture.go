@@ -363,6 +363,7 @@ var pages = []page{
 	{name: "routing-limit-160", size: wide(37), world: accountWorlds.limit, keys: keysOf("p", "3")},
 	{name: "history-year-160", size: wide(37), world: accountWorlds.auto, keys: toHistory()},
 	{name: "history-year-opus-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("v")},
+	{name: "history-year-plan-unknown-160", size: wide(37), world: accountWorlds.sidesPlanUnknown, keys: toHistory()},
 	{name: "history-weeks-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]")},
 	{name: "history-weeks-columns-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "v")},
 	{name: "history-weeks-ten-160", size: wide(37), world: manyAccounts(10), keys: toHistory("]")},

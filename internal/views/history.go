@@ -157,6 +157,17 @@ func (v versions) day(priced ledger.Priced) Day {
 	return Day{Priced: priced, ByFamily: v.byFamily(sums)}
 }
 
+// used reports whether a model's day on an account holds a request counted,
+// as every list and count of the models used takes it: a message, upstream
+// or answered by the router itself. A model whose day holds Claude Code's
+// quota checks or counts of tokens alone wasn't used, as neither is work
+// done for you: no view lists it, nor counts it among the versions. Its
+// checks' few tokens on a day summarised before version 5, which priced
+// them, are counted in the day's sums alone.
+func used(m ledger.ModelDay) bool {
+	return m.Requests() > 0
+}
+
 // requests counts the day's requests, every account's.
 func (d Day) requests() int {
 	n := 0
@@ -195,9 +206,9 @@ func (s familySums) add(family string, w Worth) {
 
 // addModel adds what a model's day was worth to its family's: none of the
 // requests whose bodies couldn't be read, which name no model, and so spent
-// nothing.
+// nothing, nor of a model not used, as used says.
 func (s familySums) addModel(v versions, m ledger.PricedModel) {
-	if m.Model == "" {
+	if m.Model == "" || !used(m.ModelDay) {
 		return
 	}
 	var w Worth

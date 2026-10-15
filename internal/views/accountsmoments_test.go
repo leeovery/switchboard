@@ -106,7 +106,7 @@ func rowFigures(t *testing.T, am viewstest.AccountsMoment, page views.AccountsPa
 		f[viewstest.FigurePartial] = "partial"
 	}
 	if id == "" {
-		known, of := page.PlansKnown()
+		known, of := page.All.Plan.Plans.Known, page.All.Plan.Plans.Of
 		f[viewstest.FigurePlansOf] = fmt.Sprintf("%d of %d", known, of)
 		most, least, _ := page.Ends()
 		f[viewstest.FigureMostLeft], f[viewstest.FigureLeastLeft] = most.Totals.Account, least.Totals.Account

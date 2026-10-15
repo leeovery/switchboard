@@ -386,7 +386,7 @@ func (f yearFilter) account(a ledger.PricedAccount) (ledger.PricedAccount, bool)
 	}
 	kept := ledger.PricedAccount{Account: a.Account}
 	for _, m := range a.Models {
-		if m.Model == "" || f.v.table.VersionName(m.Model) != f.Version {
+		if m.Model == "" || !used(m.ModelDay) || f.v.table.VersionName(m.Model) != f.Version {
 			continue
 		}
 		kept.Models = append(kept.Models, m)
@@ -491,7 +491,7 @@ func (days yearDays) firstUsed() string {
 func (days yearDays) versions(v versions) []string {
 	ranks := make(map[string]int)
 	for _, m := range days.models() {
-		if m.Model != "" && m.Requests() > 0 {
+		if m.Model != "" && used(m.ModelDay) {
 			_, rank := v.of(m.Model)
 			ranks[v.table.VersionName(m.Model)] = rank
 		}
@@ -613,7 +613,7 @@ func (y yearView) then(first, family string) string {
 		}
 		for _, m := range (yearDays{d}).models() {
 			name := y.v.table.VersionName(m.Model)
-			if m.Model == "" || name == y.ask.Version || y.v.familyOf(m.Model) != family || m.Requests() == 0 {
+			if m.Model == "" || name == y.ask.Version || y.v.familyOf(m.Model) != family || !used(m.ModelDay) {
 				continue
 			}
 			requests[name] += m.Requests()

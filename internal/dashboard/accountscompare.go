@@ -471,7 +471,7 @@ func (cp compared) groups() []compareGroup {
 			{"left at its last reset", func(col compareColumn) []part { return leftParts(col.row, col.ink()) }},
 		}},
 		{name: "VALUE", rows: []compareRow{
-			{"plan", func(col compareColumn) []part { return planParts(page, col.row, col.ink()) }},
+			{"plan", func(col compareColumn) []part { return planParts(col.row, col.ink()) }},
 			{"extra usage", cp.extra},
 			{"worth at API prices", cp.period(func(col compareColumn) []part { return worthParts(col.row, col.ink()) })},
 			{"against its price", cp.period(func(col compareColumn) []part { return againstParts(page, col.row, col.width) })},

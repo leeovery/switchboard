@@ -167,12 +167,6 @@ func (page *AccountsPage) weeked(in HistoryInput, days []Day) {
 	page.All.Peaks, page.All.Verdict = weeks.All.Peaks[shown:], weeks.All.AccountVerdict
 }
 
-// PlansKnown counts the configured accounts whose plans are known, those
-// every account's plan sums, of all of them, as in "2 of 3 plans".
-func (p AccountsPage) PlansKnown() (known, of int) {
-	return p.All.Plan.Plans.Known, p.All.Plan.Plans.Of
-}
-
 // Ends are the accounts whose weeks end with the most left at a reset, on
 // average, and with the least, as Detail's verdict on every account names
 // them: of those whose verdict knows it, the first configured of any that

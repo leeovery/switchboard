@@ -100,6 +100,83 @@ func TestTokensIsEachWeeksTokensByKindAccountAndModel(t *testing.T) {
 	}
 }
 
+// A model whose days hold Claude Code's quota checks or counts of tokens
+// alone wasn't used: no list of the models, versions or families used names
+// it, nor of the accounts that used them an account that sent them alone,
+// and no count of the versions counts it. Today, work used Opus 5.5 and
+// checked its quota with Haiku 4.5, and spare only checked its.
+func TestAModelOfQuotaChecksAloneIsListedNowhere(t *testing.T) {
+	checks := ledger.ModelDay{Model: "claude-haiku-4-5", Checks: 2, Counts: 1}
+	days := daysFrom("2026-10-07", day("2026-10-07",
+		account("spare", checks), account("work", sent("claude-opus-5-5", 1, inputUsage), checks)))
+	in := input(days)
+	history, past := views.NewHistory(in), views.NewPast(in, days)
+	tokens := past.Tokens(views.TokensAsk{}).Periods[0]
+	totals := history.Totals.Accounts
+
+	got := map[string][]string{
+		"Tokens' models":            modelsOf(tokens.ByModel),
+		"Tokens' accounts":          accountsOf(tokens.ByAccount),
+		"history's tokens' models":  modelsOf(history.Tokens[0].ByModel),
+		"work's models by share":    sharedModelsOf(totals[0].ByModel),
+		"every account's by share":  sharedModelsOf(totals[len(totals)-1].ByModel),
+		"the day's families":        familiesOf(history.Days[0].ByFamily),
+		"the month's families":      familiesOf(history.Months[0].ByFamily),
+		"the Year's versions":       past.Versions(),
+		"the Year's versions, by v": past.Year(views.YearAsk{}).Versions,
+	}
+	want := map[string][]string{
+		"Tokens' models": {"claude-opus-5-5"}, "Tokens' accounts": {"work"}, "history's tokens' models": {"claude-opus-5-5"},
+		"work's models by share": {"claude-opus-5-5"}, "every account's by share": {"claude-opus-5-5"},
+		"the day's families": {"opus"}, "the month's families": {"opus"},
+		"the Year's versions": {"Opus 5.5"}, "the Year's versions, by v": {"Opus 5.5"},
+	}
+	for list, w := range want {
+		if !slices.Equal(got[list], w) {
+			t.Errorf("%s are %q, want %q", list, got[list], w)
+		}
+	}
+	if tokens.Versions != 1 {
+		t.Errorf("Tokens counts %d models, want 1", tokens.Versions)
+	}
+}
+
+// modelsOf are the models of the rows given, by their ids.
+func modelsOf(rows []views.ModelTokens) []string {
+	var models []string
+	for _, r := range rows {
+		models = append(models, r.Model)
+	}
+	return models
+}
+
+// accountsOf are the accounts of the rows given, by their ids.
+func accountsOf(rows []views.AccountTokens) []string {
+	var accounts []string
+	for _, r := range rows {
+		accounts = append(accounts, r.Account)
+	}
+	return accounts
+}
+
+// sharedModelsOf are the models of the shares given, by their ids.
+func sharedModelsOf(shares []views.ModelShare) []string {
+	var models []string
+	for _, s := range shares {
+		models = append(models, s.Model)
+	}
+	return models
+}
+
+// familiesOf are the families of the worths given, by their names.
+func familiesOf(worths []views.FamilyWorth) []string {
+	var families []string
+	for _, w := range worths {
+		families = append(families, w.Family)
+	}
+	return families
+}
+
 func TestTokensListNoAccountWhoseDaysHoldNoModels(t *testing.T) {
 	// Side's windows were read today, but it wasn't used.
 	days := daysFrom("2026-10-07", day("2026-10-07",

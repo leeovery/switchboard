@@ -200,8 +200,8 @@ func leftText(left map[string]float64) string {
 }
 
 // planText says an account's plan and its price a month, as "Max 20x ·
-// $200/mo", or of every account's, the plans' prices summed and how many of
-// the accounts, of plans, are on one known, as "$220/mo · 2 of 3 plans": a
+// $200/mo", or of every account's, the plans' prices summed and how many
+// plans that is, as views.PlansKnown words it, "$220/mo · 2 of 3 plans": a
 // dash where none is known.
 func planText(p views.PlanCost, prices ledger.Table) string {
 	monthly := p.Monthly()
@@ -211,10 +211,8 @@ func planText(p views.PlanCost, prices ledger.Table) string {
 	case !p.All:
 		plan, _ := prices.Plan(p.Plan)
 		return prose.Clean(plan.Name) + apart + monthly
-	case p.Plans.Known < p.Plans.Of:
-		return monthly + apart + prose.Grouped(p.Plans.Known) + " of " + prose.Counted(p.Plans.Of, "plan")
 	}
-	return monthly + apart + prose.Counted(p.Plans.Known, "plan")
+	return monthly + apart + p.Plans.Words().String()
 }
 
 // worthText says what requests were worth, as views.Worth says it to the

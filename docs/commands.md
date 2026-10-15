@@ -658,7 +658,8 @@ These rules hold for what's counted:
 - **Quota checks and token counts** are never among the requests, nor make a row of their own.
   Claude Code sends them, and they spend next to nothing. A quota check is worth nothing either,
   as it isn't work done for you, so its tokens are left out of the day's. A day summarised before
-  this rule keeps the few its checks spent.
+  this rule keeps the few its checks spent. A model only they named wasn't used, so it's in no list
+  of the models, versions or families, nor counted among them.
 - **Today** is summed up from its lines, as far as it has gone.
 - **A model the price table doesn't know** shows as unpriced, never free.
 

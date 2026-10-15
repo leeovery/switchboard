@@ -265,37 +265,57 @@ func (l freshLedger) FirstDay(time.Time) (time.Time, error) {
 	return start, nil
 }
 
-// History opened on an empty ledger, as on a fresh install, learns where the
-// ledger began from the read that first finds a request recorded: BY MONTH's
-// month says it's from that day, and the plans are priced from it, not over
-// the 12 months.
-func TestHistoryOpenedOnAnEmptyLedgerLearnsWhereItBeganOnceARequestLands(t *testing.T) {
+// History opened on an empty ledger, as on a fresh install, takes it to
+// begin today, as a read of its days does, so the Year and Accounts price
+// the plans from today, as history does, not over the 12 months or the week;
+// and, asking again while the ledger holds no day, learns where it began
+// from the read that first finds a request recorded, the day after: BY
+// MONTH's month says it's from that day, and the plans are priced from it.
+func TestHistoryOpenedOnAnEmptyLedgerBeginsTodayTillARequestLands(t *testing.T) {
 	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
 	today := dayfile.DateOf(start)
 	l.first = today
 	h.model.cfg.Ledger = freshLedger{l}
 	h.model.cfg.Accounts = config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "personal", Plan: "max5x"}}
 	h.start()
-	if h.model.past.page.Year == nil || !h.model.past.began.IsZero() {
-		t.Fatalf("History opened on an empty ledger, the Year drawn %v, the ledger begun %s; want it drawn, where it began unknown",
+	if h.model.past.page.Year == nil || !h.model.past.began.Equal(todayStart) {
+		t.Fatalf("History opened on an empty ledger, the Year drawn %v, the ledger begun %s; want it drawn, begun today",
 			h.model.past.page.Year != nil, h.model.past.began)
 	}
+	pricedFromItsBeginning(t, h, h.clock.now, todayStart, []ledger.Summary{{Day: today}})
 
-	l.days[today] = requested(today, 10)
+	tomorrowStart := dayfile.DayStart(start.Local(), 1)
+	tomorrow := dayfile.DateOf(tomorrowStart)
+	l.first, l.days[tomorrow] = tomorrow, requested(tomorrow, 10)
+	h.lastTick().due = tomorrowStart.Add(time.Hour)
 	now := h.tickUntilAsked()
-	page := h.model.past.page.Year
-	months := page.ByMonth
-	if i := slices.IndexFunc(months, func(m views.MonthRow) bool { return m.Month.Month == today[:7] }); i < 0 || months[i].From != today {
-		t.Errorf("BY MONTH is %+v, want %s from the %s", months, today[:7], today)
+	if !h.model.past.began.Equal(tomorrowStart) {
+		t.Fatalf("once a request lands the day after, the ledger is taken to begin %s, want %s", h.model.past.began, tomorrowStart)
 	}
+	months := h.model.past.page.Year.ByMonth
+	if i := slices.IndexFunc(months, func(m views.MonthRow) bool { return m.Month.Month == tomorrow[:7] }); i < 0 || months[i].From != tomorrow {
+		t.Errorf("BY MONTH is %+v, want %s from the %s", months, tomorrow[:7], tomorrow)
+	}
+	pricedFromItsBeginning(t, h, now, tomorrowStart, []ledger.Summary{requested(tomorrow, 10)})
+}
+
+// pricedFromItsBeginning fails the test where the Year's numbers and
+// Accounts' this week the watch holds don't price the plans as the days
+// given, read at now, do of a ledger begun at began.
+func pricedFromItsBeginning(t *testing.T, h *harness, now, began time.Time, days []ledger.Summary) {
+	t.Helper()
 	in := views.HistoryInput{
-		From: yearFrom, Now: now, Began: todayStart, Prices: ledger.Pricing, Accounts: h.model.cfg.Accounts,
+		From: yearFrom, Now: now, Began: began, Prices: ledger.Pricing, Accounts: h.model.cfg.Accounts,
 		WeekStarts: time.Monday, WeekWindow: "7d",
 	}
-	want := views.NewPast(in, []ledger.Summary{requested(today, 10)}).Year(views.YearAsk{}).Numbers
-	if got := page.Numbers; got.Cost == nil || want.Cost == nil || *got.Cost != *want.Cost || got.Ratio == nil || *got.Ratio != *want.Ratio {
-		t.Errorf("the plans cost %v, against it %v; want %v and %v, priced from today",
-			deref(got.Cost), deref(got.Ratio), deref(want.Cost), deref(want.Ratio))
+	past := views.NewPast(in, days)
+	want := past.Year(views.YearAsk{}).Numbers
+	if got := h.model.past.page.Year.Numbers; got.Cost == nil || want.Cost == nil || *got.Cost != *want.Cost {
+		t.Errorf("the Year's plans cost %v, want %v, priced from %s", deref(got.Cost), deref(want.Cost), began)
+	}
+	got, wantWeek := h.model.past.last.past.Accounts(views.AccountsThisWeek).All.Plan.Cost, past.Accounts(views.AccountsThisWeek).All.Plan.Cost
+	if got == nil || wantWeek == nil || *got != *wantWeek {
+		t.Errorf("Accounts' plans cost %v this week, want %v, priced from %s", deref(got), deref(wantWeek), began)
 	}
 }
 

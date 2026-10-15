@@ -8,6 +8,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // monthPart is a part of a month, num over den: what a plan costs over a period,
@@ -122,7 +123,20 @@ func (k PlansKnown) SaidShort() string {
 	if k.Known == 0 || k.Known >= k.Of {
 		return ""
 	}
-	return prose.Grouped(k.Known) + " of " + prose.Counted(k.Of, "plan")
+	return k.Words().String()
+}
+
+// Words say how many plans every account's plan sums, as it says them
+// after its price, the counts its figures: "3 plans" where every one is
+// known, else of how many, "2 of 3 plans"; none where none is.
+func (k PlansKnown) Words() status.Words {
+	switch {
+	case k.Known == 0:
+		return nil
+	case k.Known < k.Of:
+		return slices.Concat(status.Words{status.Figure(prose.Grouped(k.Known)), status.Plain(" of ")}, CountedWords(k.Of, "plan"))
+	}
+	return CountedWords(k.Known, "plan")
 }
 
 // against is worth against cost.

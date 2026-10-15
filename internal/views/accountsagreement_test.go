@@ -1,12 +1,14 @@
 package views_test
 
 import (
+	"io/fs"
 	"maps"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
@@ -46,15 +48,22 @@ func TestAccountsTotalsAndPlansAreHistorysOverThePeriod(t *testing.T) {
 // work's Max 20x and side's Pro, $220 a month, from a Wednesday, this week's
 // 5 days at 12/365 of a month to its end, the last 30 days' and the last 12
 // weeks' the days to today and to this week's end; and from the period's
-// first day, whole.
+// first day, whole. A ledger that holds no day yet, as on a fresh install,
+// begins today, as ledger.Begins tells the dashboard and a read of its days
+// alike: this week's 3 days from the Friday.
 func TestAYoungLedgersPlansArePricedFromItsFirstDayEverywhere(t *testing.T) {
 	friday := on("2026-10-09").Add(15 * time.Hour)
 	tests := []struct {
-		name   string
-		began  string
+		name  string
+		began string
+		// empty is a ledger holding no day, its days those a read of it
+		// gives, where it begins as ledger.Begins says.
+		empty  bool
 		period views.AccountsPeriod
 		want   string
 	}{
+		{name: "this week, the ledger holding no day yet", began: "2026-10-09", empty: true, period: views.AccountsThisWeek,
+			want: "21.698630136986"},
 		{name: "this week, begun on its Wednesday", began: "2026-10-07", period: views.AccountsThisWeek, want: "36.164383561644"},
 		{name: "this week, begun on its first day, whole", began: "2026-10-05", period: views.AccountsThisWeek, want: "50.769230769231"},
 		{name: "today, begun today, whole", began: "2026-10-09", period: views.AccountsToday, want: "7.232876712328"},
@@ -66,8 +75,13 @@ func TestAYoungLedgersPlansArePricedFromItsFirstDayEverywhere(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			days := daysTo(tt.began, friday, day(tt.began, account("work", sent("claude-opus-5-5", 1, inputUsage))))
+			began := on(tt.began)
+			if tt.empty {
+				days = daysTo(tt.began, friday)
+				began, _, _ = ledger.Begins(time.Time{}, fs.ErrNotExist, friday)
+			}
 			in := input(days)
-			in.Now, in.Began = friday, on(tt.began)
+			in.Now, in.Began = friday, began
 			in.From = tt.period.From(friday, in.WeekStarts)
 			got := map[string]string{
 				"Accounts": jsonOf(t, views.NewPast(in, days).Accounts(tt.period).All.Plan.Cost),

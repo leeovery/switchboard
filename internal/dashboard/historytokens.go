@@ -407,14 +407,25 @@ func againstItsPrice(a views.Against, unit string, cells int) []part {
 // known", else short, " · 2 of 3 plans". They're none where every plan is
 // known.
 func knownParts(k views.PlansKnown, cells int) []part {
+	forms := knownForms(k)
+	if len(forms) == 0 {
+		return nil
+	}
+	said := forms[0]
+	if ansi.StringWidth(said) > cells {
+		said = forms[1]
+	}
+	return []part{wordsIn(said, dimInk)}
+}
+
+// knownForms are the forms a ratio of every account's says, after it, that
+// it's over the plans known, as views.PlansKnown says it, longest first: "
+// · 2 of 3 plans known", " · 2 of 3 plans"; none where every plan is known.
+func knownForms(k views.PlansKnown) []string {
 	if k.Said() == "" {
 		return nil
 	}
-	said := accountsApart + k.Said()
-	if ansi.StringWidth(said) > cells {
-		said = accountsApart + k.SaidShort()
-	}
-	return []part{wordsIn(said, dimInk)}
+	return []string{accountsApart + k.Said(), accountsApart + k.SaidShort()}
 }
 
 // tokensPlaced is how Tokens' periods fit in the rows they have, from row

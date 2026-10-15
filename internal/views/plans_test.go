@@ -2,12 +2,14 @@ package views_test
 
 import (
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -203,6 +205,43 @@ func TestAMonthOrWeekTheDaysAskedForBeginPartWayThroughCostsItsDays(t *testing.T
 			}
 			if got := strings.Join(weeks, " "); got != tt.weeks {
 				t.Errorf("from %s, the weeks cost %s, want %s", tt.from, got, tt.weeks)
+			}
+		})
+	}
+}
+
+// How many plans every account's plan sums is said once, by PlansKnown, for
+// every view and verb: after its price, "3 plans", or of how many, "2 of 3
+// plans", the counts its figures; and after its ratio, where some aren't
+// known, "2 of 3 plans known", or short, "2 of 3 plans".
+func TestThePlansKnownAreSaidOnceForEveryViewAndVerb(t *testing.T) {
+	tests := []struct {
+		name               string
+		known              views.PlansKnown
+		words, said, short string
+		figures            []string
+	}{
+		{name: "some not known", known: views.PlansKnown{Known: 2, Of: 3},
+			words: "2 of 3 plans", said: "2 of 3 plans known", short: "2 of 3 plans", figures: []string{"2", "3"}},
+		{name: "every one known", known: views.PlansKnown{Known: 3, Of: 3}, words: "3 plans", figures: []string{"3"}},
+		{name: "one account's own", known: views.PlansKnown{Known: 1, Of: 1}, words: "1 plan", figures: []string{"1"}},
+		{name: "none known", known: views.PlansKnown{Of: 3}},
+		{name: "a thousand and more, set apart", known: views.PlansKnown{Known: 1200, Of: 1300},
+			words: "1,200 of 1,300 plans", said: "1,200 of 1,300 plans known", short: "1,200 of 1,300 plans",
+			figures: []string{"1,200", "1,300"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			words := tt.known.Words()
+			var figures []string
+			for _, w := range words {
+				if w.Kind == status.PartFigure {
+					figures = append(figures, w.Text)
+				}
+			}
+			got := []string{words.String(), tt.known.Said(), tt.known.SaidShort()}
+			if want := []string{tt.words, tt.said, tt.short}; !slices.Equal(got, want) || !slices.Equal(figures, tt.figures) {
+				t.Errorf("%+v says %q, its figures %q; want %q, %q", tt.known, got, figures, want, tt.figures)
 			}
 		})
 	}

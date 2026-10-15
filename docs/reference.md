@@ -334,7 +334,8 @@ added:
 - Each model's `worth`, in US dollars.
 - `unpriced`, naming what the worth leaves out, such as `no_usage`, requests that got no usage
   back.
-- `by_family`: the day's worth by model family.
+- `by_family`: the day's worth by model family, of the models used: none of quota checks or counts
+  of tokens alone.
 
 A day of no requests, where the history tells of no account that day, has no `accounts`. An account
 has a day there where its quota checks, its counts of tokens or the history give it one, with
@@ -381,7 +382,8 @@ Each week's tokens:
   below.
 - `by_account`, in the config's order.
 - `by_model`, each model version by its id, with the accounts it ran `on`, the account it was worth
-  most on first.
+  most on first. A model of quota checks or counts of tokens alone, which wasn't used, is in neither,
+  nor is an account that sent them alone.
 
 ### `totals`
 
@@ -396,7 +398,8 @@ Each account's totals, then `all`, for every account together:
 - `ran_out`: the day the window last reached its limit in the run that its last reset ended, where
   it did.
 - `worth`.
-- `by_model`: each model version's `share` of use, weighed at API prices, and its `worth`.
+- `by_model`: each model version's `share` of use, weighed at API prices, and its `worth`, of the
+  versions used alone.
 - `busiest_day`.
 - `longest_run`: the most days in a row with any request.
 - `partial`: naming a count that some of the days never counted.
