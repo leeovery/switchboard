@@ -196,21 +196,33 @@ func LogLinesOf(was LogLines, src LogSources) LogLines {
 
 // Rows are the Log's Requests of src, as LogRows has them: the lines' as l
 // holds them, and in among them, the rows of the requests src's stream told
-// of whose lines src's Read doesn't hold, as toldAlone has them, each after
-// the lines' placed alike, as taken in builds them.
+// of that they show, as toldAlone has them, each after the lines' placed
+// alike, as taken in builds them.
 func (l LogLines) Rows(src LogSources) LogTable {
 	var told []placedRow
-	for _, t := range toldAlone(src.Stream, src.Read) {
+	for _, t := range toldAlone(src.Stream, src.Read, l.table.first) {
 		filed, _ := t.FiledOn()
-		p := placedRow{row: toldRow(t, src.Now), day: Today(t.Sent), filed: filed, place: t.Sent}
-		if !p.day.Start.Before(l.table.first.Start) {
-			told = append(told, p)
-		}
+		told = append(told, placedRow{row: toldRow(t, src.Now), day: toldOn(t), filed: filed, place: t.Sent})
 	}
 	if len(told) == 0 {
 		return l.table
 	}
 	return l.table.taken(told, src)
+}
+
+// ShowsTold reports whether the Log's Requests, over the days from the local
+// day first, show the row the stream told of the request t, as Rows takes it
+// in among the lines: one it told the sending of, its line not among those r
+// holds, as holdsLineOf has it, sent on a day they span, as toldOn places
+// it.
+func (r LogRead) ShowsTold(t Told, first LedgerDay) bool {
+	return !t.Sent.IsZero() && !r.holdsLineOf(t) && !toldOn(t).Start.Before(first.Start)
+}
+
+// toldOn is the local day the row the stream told of the request t is
+// placed on till its line comes: the day it was sent on.
+func toldOn(t Told) LedgerDay {
+	return Today(t.Sent)
 }
 
 // compare orders the row p against a row placed at place on the local day
@@ -283,13 +295,13 @@ func (t *LogTable) hold(p placedRow) {
 }
 
 // toldAlone are the requests the stream told of that it knows, as known has
-// them, whose lines read doesn't hold, as holdsLineOf has it, but those it
-// told no sending of, which have no place, by when they were sent, then
-// their ids.
-func toldAlone(s Stream, read LogRead) []Told {
+// them, whose rows the Log's Requests over the days from first show, read
+// holding none of their lines, as ShowsTold has it, by when they were sent,
+// then their ids.
+func toldAlone(s Stream, read LogRead, first LedgerDay) []Told {
 	var alone []Told
 	for t := range s.known() {
-		if !t.Sent.IsZero() && !read.holdsLineOf(t) {
+		if read.ShowsTold(t, first) {
 			alone = append(alone, t)
 		}
 	}

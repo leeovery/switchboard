@@ -137,7 +137,9 @@ type filed struct {
 // holds.
 func (r *sessionsRead) days(f *Follower, dates []string, keep map[string]bool) {
 	// running holds a place for each read under way, as many as Go runs at
-	// once: more would gain nothing, and hold more days in memory at once.
+	// once, as more would gain nothing. It bounds the reads, not what's held:
+	// a day read waits in its channel, its lines held, till the days before
+	// it are taken in, so a slow day holds those read after it.
 	running := make(chan struct{}, runtime.GOMAXPROCS(0))
 	read := make([]chan []Line, len(dates))
 	var reads sync.WaitGroup

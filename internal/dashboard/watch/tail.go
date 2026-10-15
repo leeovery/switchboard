@@ -140,7 +140,7 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	m = m.pageAwaiting(page).listAwaiting(list)
 	late := lateDays(log, page, list)
 	if log != nil {
-		log.late = slices.DeleteFunc(slices.Clone(late), func(date string) bool { return date < m.log.from.Date })
+		log.late = m.log.spanned(late)
 	}
 	if page != nil {
 		page.late = late
@@ -211,8 +211,8 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 
 // tailed takes in what a read of the ledger's tail found: the tail read to
 // its mark; each reader grown by it, where it was read for one, as
-// logGrown, pageTaken and listTaken have them; and then the requests the
-// stream told of whose lines it read let go, as lined has it.
+// logGrown, pageTaken and listTaken have them; and the lines it read of the
+// requests the stream told of held, as lined has it, for letGo.
 func (m Model) tailed(msg tailedMsg) Model {
 	m.tail = m.tail.read(msg.tailRead)
 	if msg.log != nil {
@@ -224,18 +224,27 @@ func (m Model) tailed(msg tailedMsg) Model {
 	if msg.list != nil {
 		m = m.listTook(*msg.list)
 	}
-	return m.lined(msg.lines.all()...)
+	m.traffic = m.traffic.lined(msg.lines.all()...)
+	return m
 }
 
-// lined is m with the requests the stream told of whose lines are among
-// those given let go, as the traffic's lined has it, once the Log, opened,
-// has placed the lines it holds, as linesPlaced has it, while the stream
-// still tells when each was sent: so a row stays where it sat in flight as
-// its line takes over.
-func (m Model) lined(lines ...[]ledger.Held) Model {
+// letGo is m with the requests the stream told of let go whose lines a read
+// of the ledger's tail has read, once no longer in flight, as the traffic's
+// letGo has it, each reader having taken the line in as it folded the read:
+// but for one whose row the Log, opened, shows without its line, as
+// views.LogRead's ShowsTold has it, the line filed on a day before those it
+// spans, kept till it reads back to that day, as awaitsBefore has it. The
+// Log places the lines it holds first, as linesPlaced has it, while the
+// stream still tells when each was sent, so a row stays where it sat in
+// flight as its line takes over.
+func (m Model) letGo() Model {
+	if !m.traffic.holdsLines() {
+		return m
+	}
 	if m.log.opened {
 		m = m.linesPlaced(m.now())
 	}
-	m.traffic = m.traffic.lined(lines...)
+	log := m.log
+	m.traffic = m.traffic.letGo(func(r views.Told) bool { return log.opened && log.read.ShowsTold(r, log.from) })
 	return m
 }

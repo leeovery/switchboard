@@ -3018,11 +3018,13 @@ foot. The Log is drawn in the Paper file *Switchboard · Session and Log*, on it
   failed, 400 and over; `▸` in `accent.key`, it moved its session (its line has a `from`); `▲` in
   `accent.mode`, a session's first request; none on a request that stayed and succeeded.
 - **In flight,** a request sits where it arrived, as the request stream tells it, and fills in where
-  it is as its line is written, so lines never move. `status`, `read`, `written` and `out` are
-  blank, the stream giving a request's tokens only as it ends, and `first` blank while it asks;
-  `took` counts, in `accent.key`; `stopped` says `asking`, bold `accent.key`, or `answering`, bold
-  `accent.key`, then ` · ` and its characters so far in thousands to one place, `5.1k characters`,
-  in `text.muted`.
+  it is as its line is written, so lines never move. A row is placed by when the stream told it was
+  sent only while the stream holds its request: one whose line the Log first reads after the
+  stream has let it go sits where its line says it arrived, a moment earlier (settled in the plan).
+  `status`, `read`, `written` and `out` are blank, the stream giving a request's tokens only as it
+  ends, and `first` blank while it asks; `took` counts, in `accent.key`; `stopped` says `asking`,
+  bold `accent.key`, or `answering`, bold `accent.key`, then ` · ` and its characters so far in
+  thousands to one place, `5.1k characters`, in `text.muted`.
 - **Hidden until shown:** Claude Code's quota checks and its token counts, the ledger's kinds
   `check` and `count`. The heading counts them, and `f` shows them: then each has `·` in
   `text.faint` for a mark, `stopped` blank, and its tokens as they are (settled in the plan); a
@@ -4110,13 +4112,18 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   for as long as it is; one that ended, till a read of the ledger's tail reads its line, as the
   router writes it moments after it ends, held up only while the ledger makes its round, never let
   go sooner on time alone; and one lost, as one cut off may have no line, or one ended whose line no
-  read finds, with no ledger to read or none written, an hour, the most any is kept. While it holds
-  one whose line is to come, the tail is read at each look, whatever tab shows. Each seat's last
-  sight, its session on a model and an account, is kept apart for the hour, so letting a request go
-  never moves when its seat was last seen, as `idle` counts it (settled in the plan). So what the
-  stream holds is what's in flight and what awaits its line, never the hour's: a batch the stream
-  tells copies its requests whole, by choice, as they're tens, never thousands, and a map changed
-  in place, weighed against it, was left unbuilt (settled in the plan).
+  read finds, with no ledger to read or none written, an hour. The router writes a line moments
+  after it tells the request's end, so a read can find the line before the stream's telling of the
+  end reaches the dashboard: a request goes once both have come, in either order, or once its line
+  is read and it's lost. None goes till every reader that shows its row has taken its line in:
+  where the Log shows the row of one sent just after midnight, its line filed on the day before, a
+  day its tables don't span, it reads back to that day, and the request is kept till it has. While
+  it holds one whose line is to come, the tail is read at each look, whatever tab shows. Each
+  seat's last sight, its session on a model and an account, is kept apart for the hour, so letting
+  a request go never moves when its seat was last seen, as `idle` counts it (settled in the plan).
+  So what the stream holds is what's in flight and what awaits its line, never the hour's: a batch
+  the stream tells copies its requests whole, by choice, as they're tens, never thousands, and a
+  map changed in place, weighed against it, was left unbuilt (settled in the plan).
 - **Built as it changes:** each view's data is built again only as what it's made of changes,
   and what's built is drawn at each tick: a session's page as a look, a request or a full read
   changes what it shows, or as the clock turns what it says, as at the minute, a seat's lapse or a

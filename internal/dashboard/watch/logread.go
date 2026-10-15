@@ -93,7 +93,8 @@ type logReadMsg struct {
 // and the page have it, the days' summaries read first where it wants them,
 // and of the Events through some kinds or accounts, the router's files, as
 // wantsFiledReach has it; or as the event its details card is open on does,
-// or the find's pick, of an earlier day, as reaching has it.
+// or the find's pick, of an earlier day, as reaching has it, or a row its
+// Requests show awaits a line filed on it, as awaitsBefore has it.
 func (m Model) readLog() (Model, tea.Cmd) {
 	if m.view != dashboard.Log || m.cfg.Ledger == nil {
 		return m, nil
@@ -116,7 +117,7 @@ func (m Model) readLog() (Model, tea.Cmd) {
 		return m.readReach()
 	case m.log.wantsFiledReach(m.logRows()):
 		return m.readFiledReach()
-	case m.log.wantsDayBefore(m.logRows()), m.log.wantsFactsBack(), m.reaching():
+	case m.log.wantsDayBefore(m.logRows()), m.log.wantsFactsBack(), m.reaching(), m.log.awaitsBefore():
 		return m.readBack(now)
 	}
 	return m, nil
@@ -211,12 +212,28 @@ type logFold struct {
 // late days those the tail missed, as missed has them, and those before
 // today the Requests await a line on, shown or hidden, as their Awaited has
 // them, whose lines could have come since they were last read, as due has
-// them; each once, the oldest first.
+// them; each once, the oldest first, and none before the first day its
+// tables span, as spanned has it, which a read back reads, as awaitsBefore
+// has it.
 func (m Model) logFold(now time.Time) logFold {
 	today := views.Today(now)
-	due, awaited := m.log.awaited.due(m.log.page.Requests.Awaited(today), m.logStream(now), now)
-	late := slices.Concat(due, m.tail.missed(today))
+	due, awaited := m.log.awaited.due(m.log.spanned(m.log.page.Requests.Awaited(today)), m.logStream(now), now)
+	late := m.log.spanned(slices.Concat(due, m.tail.missed(today)))
 	return logFold{read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), awaited: awaited, asks: !m.log.bounded(today.Date)}
+}
+
+// spanned are those of the dates given of the days the Log's tables span.
+func (t logTab) spanned(dates []string) []string {
+	return slices.DeleteFunc(slices.Clone(dates), func(date string) bool { return date < t.from.Date })
+}
+
+// awaitsBefore reports whether a row the Log's Requests show awaits a line
+// filed on a day before the first they span, as their Awaited has it, as a
+// request sent just after midnight that arrived before it is filed on the
+// day before: they read back to it, to take the line in as it comes, so the
+// request's row is never let go of untaken, as letGo has it.
+func (t logTab) awaitsBefore() bool {
+	return len(t.page.Requests.Awaited(t.from)) > 0
 }
 
 // grown is the Log grown, through r, at now, by what a read of the tail
@@ -347,15 +364,14 @@ func keptFrom(first time.Time, err error, keep time.Duration, now time.Time) (*v
 // screen while the router answers: as it first shows, as no look took them
 // in before it opened; and since, as the router holds them, in place of the
 // versions the read found on its files; then the tail read to where it read
-// today's lines, where it read them for it, the requests the stream told of
-// whose lines it read let go, as lined has it.
+// today's lines, where it read them for it, and the lines it read of the
+// requests the stream told of held, as lined has it, for letGo.
 func (m Model) logRead(msg logReadMsg) Model {
 	m.log = m.log.grown(msg.grown)
 	m.log.opened = true
 	m.log = m.log.looked(m.moment(m.now()), m.news.router, m.answering())
 	if msg.tail != nil {
-		m.tail = m.tail.read(*msg.tail)
-		m = m.lined(msg.lined)
+		m.tail, m.traffic = m.tail.read(*msg.tail), m.traffic.lined(msg.lined)
 	}
 	return m
 }

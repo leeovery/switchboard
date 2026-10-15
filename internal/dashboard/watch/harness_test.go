@@ -124,12 +124,31 @@ func (h *harness) endStream() {
 // sends back.
 func (h *harness) heard() {
 	h.t.Helper()
+	h.deliver(h.waited()...)
+}
+
+// hearHoldingReads has the request stream tell of events, as hear does, but
+// holds back the Log's reads of its own, as holdingReads does, and returns
+// them.
+func (h *harness) hearHoldingReads(events ...router.StreamEvent) []tea.Msg {
+	h.t.Helper()
+	stream := h.source.lastStream(h.t)
+	for _, e := range events {
+		stream <- e
+	}
+	return h.holdingReads(h.waited()...)
+}
+
+// waited runs the wait on the request stream held last, returning what it
+// sends back, undelivered.
+func (h *harness) waited() []tea.Msg {
+	h.t.Helper()
 	if len(h.waits) == 0 {
 		h.t.Fatal("the model isn't waiting on the request stream")
 	}
 	wait := h.waits[len(h.waits)-1]
 	h.waits = h.waits[:len(h.waits)-1]
-	h.deliver(h.run(wait)...)
+	return h.run(wait)
 }
 
 // listening reports whether the model holds a wait on the request stream.

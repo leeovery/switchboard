@@ -243,13 +243,19 @@ func TestTheRequestsNoLongerInFlightGoSeenForAfterTheStreamLastToldOfThem(t *tes
 	}
 }
 
+// keptNone is what keeps a request whose line is read for no reader.
+func keptNone(views.Told) bool {
+	return false
+}
+
 // A request the stream told of goes as soon as a read of the ledger's tail
 // reads its line, which tells of it from then on, however soon after it
 // ended, its seat seen as late as the stream last told of it, so its
 // session's idle counts from its end still: but not one in flight, nor one
 // whose id a line of another request has, as a router gives an id again
-// once its run has ended. Where it reads none of them, the traffic is as
-// it was; where it does, its requests are another map.
+// once its run has ended, nor one a reader keeps for its line. Where it
+// reads none of them, the traffic is as it was; where it does, its
+// requests are another map.
 func TestARequestGoesOnceAReadOfTheTailReadsItsLine(t *testing.T) {
 	tr := traffic{live: true}.took([]router.StreamEvent{
 		told(router.StreamSent, "done", "work", 0),
@@ -264,10 +270,13 @@ func TestARequestGoesOnceAReadOfTheTailReadsItsLine(t *testing.T) {
 		took(arrived("again", "work", -time.Hour), time.Second),
 	}
 
-	if unread := tr.lined([]ledger.Held{arrived("other", "work", 0)}); !sameMap(unread.requests, tr.requests) || unread.changes != tr.changes {
+	if unread := tr.lined([]ledger.Held{arrived("other", "work", 0)}).letGo(keptNone); !sameMap(unread.requests, tr.requests) || unread.changes != tr.changes {
 		t.Error("a read of no line of a request told of changed the traffic, want it as it was")
 	}
-	lined := tr.lined(read)
+	if kept := tr.lined(read).letGo(func(views.Told) bool { return true }); !sameMap(kept.requests, tr.requests) {
+		t.Errorf("its line read, but kept for a reader, the requests kept are %q, want every one", ids(kept))
+	}
+	lined := tr.lined(read).letGo(keptNone)
 	if got, want := ids(lined), []string{"again", "flying"}; !slices.Equal(got, want) {
 		t.Errorf("its line read, the requests kept are %q, want %q", got, want)
 	}

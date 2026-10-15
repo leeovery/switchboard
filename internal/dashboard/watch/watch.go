@@ -459,32 +459,33 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update takes in a message, at the one time it came, as taking has it, as
-// take says, building the session's page open afresh, as relived says, and
-// closing a session's card it leaves no p for, as closing says, then has
-// the watch read the router's request stream while it wants it, and the
-// ledger's days for History, Accounts, a session's page, the Log and its
-// find, and Sessions, as they want them, History's and Accounts' pages built
-// of them as historyBuilt and accountsBuilt have it, Detail's selection
-// following its sessions, as followed has it, Sessions and Runway built at
-// the look, as sessionsLooked and runwayLooked have it, the readings
-// history's tail read for Runway, as readRunway has it, the ledger's tail
-// followed whatever shows, as followTail has it, and the Log's page built
-// of what it holds, and only then, price the moves the routing card would
-// make while it wants them. Then, of the page as it stands at that moment, its Overview's sections
+// take says, letting go the requests the stream told of whose lines its
+// readers have taken in, as letGo has it, building the session's page open
+// afresh, as relived says, and closing a session's card it leaves no p for,
+// as closing says, then has the watch read the router's request stream
+// while it wants it, and the ledger's days for History, Accounts, a
+// session's page, the Log and its find, and Sessions, as they want them,
+// History's and Accounts' pages built of them as historyBuilt and
+// accountsBuilt have it, Detail's selection following its sessions, as
+// followed has it, Sessions and Runway built at the look, as sessionsLooked
+// and runwayLooked have it, the readings history's tail read for Runway, as
+// readRunway has it, the ledger's tail followed whatever shows, as
+// followTail has it, and the Log's page built of what it holds, and only
+// then, price the moves the routing card would make while it wants them.
+// Then, of the page as it stands at that moment, its Overview's sections
 // built once for each to share, it keeps the Overview's layout, and takes
 // the view back to its top where what its scroll counts changed, as
 // rescrolled has it, but for a frame, which takes nothing in to lay it out
-// afresh by, nor changes what it counts; brightens the
-// numbers what the stream told changed, as compared has it; and only then,
-// so the screen and its frames see the layout the page will draw and the
-// numbers it brightens, shows the page, drawing frames while anything on it
-// moves. The view is drawn again after each, which is all a note's lapsing
-// asks.
+// afresh by, nor changes what it counts; brightens the numbers what the
+// stream told changed, as compared has it; and only then, so the screen and
+// its frames see the layout the page will draw and the numbers it
+// brightens, shows the page, drawing frames while anything on it moves. The
+// view is drawn again after each, which is all a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.taking = taking{at: now, moment: m.doc.HoldAt(now, m.cfg.Policy)}
 	next, cmd := m.take(msg)
-	tuned, closed := next.(Model).relived(msg, now).closing()
+	tuned, closed := next.(Model).letGo().relived(msg, now).closing()
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
 	tuned = tuned.historyBuilt().accountsBuilt().followed(msg).sessionsLooked(msg).runwayLooked(msg)

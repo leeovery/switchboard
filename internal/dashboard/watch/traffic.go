@@ -28,15 +28,17 @@ const (
 )
 
 // seenFor is how long the watch keeps a move the stream told of, a request
-// it told of whose line no read of the ledger's tail has read, and when it
-// last saw each seat whose requests have gone: the router lists the
-// sessions it has seen in the last IdleHour, so one it lists after that it
-// has seen since, as its own listing says.
+// it told of no longer in flight whose line no read of the ledger's tail has
+// read, and when it last saw each seat whose requests have gone: the router
+// lists the sessions it has seen in the last IdleHour, so one it lists after
+// that it has seen since, as its own listing says.
 const seenFor = views.IdleHour
 
 // traffic is what the router's request stream has told of the routed
 // requests, as the watch keeps it for the frame: each request it told of,
-// as the views read it, by its id, till its line is read, as lined has it;
+// as the views read it, by its id, till its line is read and taken in, as
+// letGo has it; the line a read of the ledger's tail has read of each it
+// still keeps, by its request's id, as lined holds it, in flight or not;
 // when it last told of each seat whose requests have gone so, for seenFor;
 // what each request is doing on each account it went out on, as the cords
 // draw it; the moves the stream told of, for seenFor; the account the
@@ -58,6 +60,7 @@ const seenFor = views.IdleHour
 // flight and what awaits its line, tens, not the hour's.
 type traffic struct {
 	requests            map[string]views.Told
+	lines               map[string]ledger.Line
 	seen                map[views.Seat]time.Time
 	calls               map[callKey]call
 	moves               []move
@@ -399,17 +402,16 @@ func (t traffic) tidied(now time.Time) traffic {
 // tidy lets go of what has ended by now, as due says it's due to: the
 // requests no longer in flight whose time is up, the seats seen seenFor
 // ago, the calls with nothing more to show, and the moves told of seenFor
-// ago, as toldGoes, seenGoes and each's goes have it. It changes those of
-// t's maps and moves due, which must be its own copies, and leaves the rest
-// be.
+// ago, as goes, seenGoes and each's goes have it. It changes those of t's
+// maps and moves due, which must be its own copies, and leaves the rest be.
 func (t *traffic) tidy(now time.Time) {
 	if reached(t.due.requests, now) {
 		n := len(t.requests)
-		maps.DeleteFunc(t.requests, func(_ string, r views.Told) bool { return reached(toldGoes(r), now) })
+		maps.DeleteFunc(t.requests, func(_ string, r views.Told) bool { return reached(t.goes(r), now) })
 		if len(t.requests) < n {
 			t.changed(true)
 		}
-		t.due.requests = soonest(maps.Values(t.requests), toldGoes)
+		t.due.requests = soonest(maps.Values(t.requests), t.goes)
 	}
 	if reached(t.due.seen, now) {
 		n := len(t.seen)
@@ -433,23 +435,32 @@ func (t *traffic) tidy(now time.Time) {
 // requests, calls and moves.
 func (t traffic) dues() dues {
 	return dues{
-		requests: soonest(maps.Values(t.requests), toldGoes),
+		requests: soonest(maps.Values(t.requests), t.goes),
 		seen:     soonest(maps.Values(t.seen), seenGoes),
 		calls:    soonest(maps.Values(t.calls), call.goes),
 		moves:    soonest(slices.Values(t.moves), move.goes),
 	}
 }
 
-// toldGoes is when the request r is let go of by the clock, after the stream
+// goes is when the request r is let go of by the clock, after the stream
 // last told of it: seenFor after, once it's no longer in flight, where no
-// read of the ledger's tail has read its line before then, as lined lets it
-// go, as one cut off may have no line, nor one whose router went before
-// writing it; never while it's in flight, zero.
-func toldGoes(r views.Told) time.Time {
-	if r.InFlight() {
+// read of the ledger's tail has read its line before then, as one cut off
+// may have no line, nor one whose router went before writing it; never
+// while it's in flight, nor once its line is read, zero, as letGo lets it
+// go once its readers have taken its line in.
+func (t traffic) goes(r views.Told) time.Time {
+	if _, read := t.lineOf(r); read || r.InFlight() {
 		return time.Time{}
 	}
 	return r.Heard.Add(seenFor)
+}
+
+// lineOf is the line of the request r a read of the ledger's tail has read,
+// as lined holds it, reporting false where none has: none of another
+// request told of since under its id.
+func (t traffic) lineOf(r views.Told) (ledger.Line, bool) {
+	l, ok := t.lines[r.Request]
+	return l, ok && r.FiledAs(&l)
 }
 
 // seenGoes is when a seat seen at at, its requests gone, is let go of.
@@ -458,41 +469,83 @@ func seenGoes(at time.Time) time.Time {
 }
 
 // lined is the traffic once a read of the ledger's tail has read the lines
-// given, every reader that folds it taking them in, so each view tells of
-// their requests from their lines: each request it told of, no longer in
-// flight, whose line is among them, as Told.FiledAs has it, let go, its seat
-// seen as late as the stream last told of it, as views.Stream's Seen keeps
-// it. It's t itself where none is.
+// given, every reader that folds it taking them in: the line of each
+// request it told of among them, as Told.FiledAs has it, held, for letGo to
+// let the request go by, in flight or not, as the router writes a line
+// moments after it tells the request's end, so a read can find the line
+// before the stream's telling of the end comes. It's t itself where none
+// is.
 func (t traffic) lined(lines ...[]ledger.Held) traffic {
-	var gone []views.Told
+	held := false
 	for _, read := range lines {
 		for i := range read {
 			l := &read[i].Line
-			if r, ok := t.requests[l.Request]; ok && !r.InFlight() && r.FiledAs(l) {
-				gone = append(gone, r)
+			if r, ok := t.requests[l.Request]; ok && r.FiledAs(l) {
+				if !held {
+					t.lines, held = cloned(t.lines), true
+				}
+				t.lines[l.Request] = *l
 			}
 		}
+	}
+	if held {
+		t.due = t.dues()
+	}
+	return t
+}
+
+// letGo is the traffic with each request it told of let go that's no longer
+// in flight, whose line a read of the ledger's tail has read, as lined holds
+// it, so each view tells of it from its line, its seat seen as late as the
+// stream last told of it, as views.Stream's Seen keeps it: but for those
+// kept says a reader shows the row of without its line, which await it.
+// The line held of one gone, or of another told of since under its id, goes
+// too. It's t itself where nothing goes.
+func (t traffic) letGo(kept func(views.Told) bool) traffic {
+	var gone, stale []string
+	for id := range t.lines {
+		r, ok := t.requests[id]
+		switch _, read := t.lineOf(r); {
+		case !ok || !read:
+			stale = append(stale, id)
+		case !r.InFlight() && !kept(r):
+			gone = append(gone, id)
+		}
+	}
+	if len(gone)+len(stale) == 0 {
+		return t
+	}
+	t.lines = maps.Clone(t.lines)
+	for _, id := range stale {
+		delete(t.lines, id)
 	}
 	if len(gone) == 0 {
 		return t
 	}
 	t.requests, t.seen = maps.Clone(t.requests), cloned(t.seen)
-	for _, r := range gone {
-		if seat, ok := r.Seat(); ok {
-			t.seen[seat] = score.Later(t.seen[seat], r.Heard)
+	for _, id := range gone {
+		if seat, ok := t.requests[id].Seat(); ok {
+			t.seen[seat] = score.Later(t.seen[seat], t.requests[id].Heard)
 		}
-		delete(t.requests, r.Request)
+		delete(t.requests, id)
+		delete(t.lines, id)
 	}
 	t.changed(true)
 	t.due = t.dues()
 	return t
 }
 
+// holdsLines reports whether a read of the ledger's tail has read the line
+// of a request the traffic keeps, as lined holds it, for letGo to let go.
+func (t traffic) holdsLines() bool {
+	return len(t.lines) > 0
+}
+
 // awaitsLines reports whether the stream told of a request no longer in
 // flight whose line no read of the ledger's tail has read yet.
 func (t traffic) awaitsLines() bool {
 	for _, r := range t.requests {
-		if !r.InFlight() {
+		if _, read := t.lineOf(r); !read && !r.InFlight() {
 			return true
 		}
 	}
@@ -691,7 +744,7 @@ func (t traffic) afresh() traffic {
 		lost = lost || r.Lost != t.requests[id].Lost
 		requests[id] = r
 	}
-	forgot := traffic{requests: requests, seen: t.seen, moves: t.moves, placed: t.placed, changes: t.changes, rowChanges: t.rowChanges, heard: t.heard}
+	forgot := traffic{requests: requests, lines: t.lines, seen: t.seen, moves: t.moves, placed: t.placed, changes: t.changes, rowChanges: t.rowChanges, heard: t.heard}
 	if lost {
 		forgot.changed(true)
 	}
