@@ -48,7 +48,6 @@ type running struct {
 	account, session, family string
 	seen                     time.Duration
 	why                      string
-	models                   []string
 	doing                    views.Doing
 }
 
@@ -58,7 +57,7 @@ func rowsOf(rows []views.Running) []running {
 	for i, r := range rows {
 		got[i] = running{
 			account: r.Account, session: r.Session, family: r.Family, seen: now.Sub(r.Activity.LastSeen),
-			why: r.Why.String(), models: r.Models, doing: r.Activity.Doing,
+			why: r.Why.String(), doing: r.Activity.Doing,
 		}
 	}
 	return got
@@ -75,10 +74,10 @@ func TestTheSessionsRunningAreGroupedByAccountInTheConfigsOrderTheOneSeenLastFir
 		{ID: gone, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "work", status.ReasonNew, 3*time.Hour, 61*time.Minute, "")}},
 	}
 	want := []running{
-		{account: "work", session: asking, family: "haiku", seen: 40 * time.Minute, why: "started here 12:22", models: []string{"claude-haiku-4-5"}},
-		{account: "personal", session: answering, family: "sonnet", why: "started here 11:12", models: []string{"claude-sonnet-5-5"}, doing: views.Answering},
-		{account: "personal", session: idler, family: "opus", seen: 9 * time.Minute, why: "started here 10:12", models: []string{"claude-opus-5-5"}},
-		{account: "side", session: asking, family: "opus", seen: time.Second, why: "moved from work 13:01: work reached its cap", models: []string{"claude-opus-5-5"}, doing: views.Asking},
+		{account: "work", session: asking, family: "haiku", seen: 40 * time.Minute, why: "started here 12:22"},
+		{account: "personal", session: answering, family: "sonnet", why: "started here 11:12", doing: views.Answering},
+		{account: "personal", session: idler, family: "opus", seen: 9 * time.Minute, why: "started here 10:12"},
+		{account: "side", session: asking, family: "opus", seen: time.Second, why: "moved from work 13:01: work reached its cap", doing: views.Asking},
 	}
 	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy()), views.ListLive{Running: sessions, Stream: views.Stream{}}, views.HeldList{})); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
@@ -126,8 +125,7 @@ func TestASessionsModelsOnOneAccountAreOneRowItsModelSeenLastLeading(t *testing.
 		seatOn("claude-sonnet-5-5", "sonnet", "side", status.ReasonNew, 20*time.Minute, 3*time.Minute, status.Answering),
 	}}}
 	want := []running{{
-		account: "side", session: asking, family: "opus", seen: time.Minute, why: "pinned here 12:42",
-		models: []string{"claude-opus-5-5", "claude-haiku-4-5", "claude-sonnet-5-5"}, doing: views.Answering,
+		account: "side", session: asking, family: "opus", seen: time.Minute, why: "pinned here 12:42", doing: views.Answering,
 	}}
 	if got := rowsOf(views.RunningOf(runningDoc().At(now, claude.Policy()), views.ListLive{Running: sessions, Stream: views.Stream{}}, views.HeldList{})); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningOf =\n  %+v\nwant\n  %+v", got, want)
