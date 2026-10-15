@@ -133,7 +133,8 @@ func TestFramesAreDeterministic(t *testing.T) {
 	again := setOf(overWorlds(), sync.OnceValue(func() accountWorlds { return newAccountWorlds(localMoment()) }))
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
-			first, second := frameOf(t, local(), name), frameOf(t, again, name)
+			t.Parallel()
+			first, second := frameOf(t, name), drawnFrom(t, again, name)
 			if first != second {
 				t.Errorf("two frames of %s differ:\n%s\nthen\n%s", name, first, second)
 			}
@@ -163,7 +164,7 @@ func framesMoment(stem string) time.Time {
 }
 
 func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
-	frame := ansi.Strip(frameOf(t, local(), "overview-default-160"))
+	frame := ansi.Strip(frameOf(t, "overview-default-160"))
 
 	for _, want := range []string{
 		// The clock the frames read.
@@ -288,7 +289,7 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			frame := ansi.Strip(frameOf(t, local(), tt.name))
+			frame := ansi.Strip(frameOf(t, tt.name))
 			for _, want := range tt.want {
 				if !strings.Contains(frame, want) {
 					t.Errorf("the frame\n%s\nhas no %q", frame, want)
@@ -304,7 +305,7 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 }
 
 func TestTheRouterGoneHasPPinFaint(t *testing.T) {
-	g, err := parse(frameOf(t, local(), "page-not-answering"))
+	g, err := parse(frameOf(t, "page-not-answering"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -427,9 +428,32 @@ func fixture(t *testing.T, name string) Fixture {
 	return f
 }
 
-// frameOf is the frame of the set's fixture with the given name, at its own
-// size.
-func frameOf(t *testing.T, set fixtureSet, name string) string {
+// frames are the frames of the fixtures drawn in the local time zone, by
+// name, each drawn as frameOf draws it, the first time a test asks for it.
+var frames sync.Map
+
+// frameOf is the frame of the fixture with the given name, drawn in the
+// local time zone, at its own size: drawn once, as several tests hold the
+// same frame, and drawing one takes a while.
+func frameOf(t *testing.T, name string) string {
+	t.Helper()
+	draw, _ := frames.LoadOrStore(name, sync.OnceValues(func() (string, error) {
+		f, err := ByName(name)
+		if err != nil {
+			return "", err
+		}
+		return f.Frame(f.Size), nil
+	}))
+	frame, err := draw.(func() (string, error))()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return frame
+}
+
+// drawnFrom is the frame of the set's fixture with the given name, at its
+// own size, drawn afresh.
+func drawnFrom(t *testing.T, set fixtureSet, name string) string {
 	t.Helper()
 	f, err := set.named(name)
 	if err != nil {
