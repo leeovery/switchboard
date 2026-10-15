@@ -27,6 +27,14 @@ that's jumped out at me", then a few nitpicks, "no doubt I'll find others".
   for names like `work`; a longer name is lit partway (`1 me@leeove` of `1 me@leeovery.com ◆`).
   Light the whole name column, as USAGE fits it to the names.
 
+## Sessions
+
+- **A chosen call is lit across the whole page.** On the Switchboard, `↑` `↓` light the chosen
+  call on `bg.selection` across the width, as the design says, a rule that suits the List; there it
+  runs on over the cords and the accounts' side, and where the row meets an account's bars it
+  paints over their fill (the first account's 5-hour bar lost its colours under `57ad`'s row).
+  Light the call's own columns alone, its id, name, state and `from`, up to where its cord begins.
+
 ## Charts
 
 - **Every account's burn-down, back.** The owner grew to like v0.1.6's burn-down charts: every
