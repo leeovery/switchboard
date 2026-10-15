@@ -578,7 +578,7 @@ func TestUSAGEShownWholeTargetsAndHasROUTINGBesideTheRowsItShows(t *testing.T) {
 		t.Errorf("scrolled 4 rows, USAGE's targets are\n%+v\nwant\n%+v", got, want)
 	}
 	rows, _ := usageBody(f, usageWorld(), now, 12)
-	at := f.overviewBlock(usageWorld(), now).routingAt()
+	at := f.overviewBlock(usageWorld(), now).besideAt()
 	beside := func(y int) string { return strings.TrimSpace(rows[y][min(len(rows[y]), at):]) }
 	if !strings.Contains(rows[3], "2 personal") || beside(3) == "" {
 		t.Errorf("scrolled 4 rows, personal's first row reads %q, want ROUTING's state beside it", rows[3])
@@ -1043,8 +1043,8 @@ func TestByAccountUSAGEsBarsLeaveROUTINGItsRoomBesideThem(t *testing.T) {
 			f := frameOf(tt.width, 60)
 			f.By = ByAccount
 			b := f.overviewBlock(tt.doc, printNow)
-			if b.names != tt.names || b.accountBar != tt.bar || (tt.bar > 0 && b.routingAt() != tt.routing) {
-				t.Errorf("its name column %d, bars %d and ROUTING at %d; want %d, %d and %d", b.names, b.accountBar, b.routingAt(), tt.names, tt.bar, tt.routing)
+			if b.names != tt.names || b.accountBar != tt.bar || (tt.bar > 0 && b.besideAt() != tt.routing) {
+				t.Errorf("its name column %d, bars %d and ROUTING at %d; want %d, %d and %d", b.names, b.accountBar, b.besideAt(), tt.names, tt.bar, tt.routing)
 			}
 			if tt.bar > 0 {
 				rows, _ := usageBody(f, tt.doc, printNow, 30)
@@ -1064,7 +1064,7 @@ func TestByAccountUSAGEsWordsEndBeforeTheGapBeforeROUTINGBesideThem(t *testing.T
 	f := frameOf(160, 60)
 	f.By = ByAccount
 	b := f.overviewBlock(stale, printNow)
-	words, gap := b.names+windowLabelCells+b.accountBar+afterBar, b.routingAt()-besideCells
+	words, gap := b.names+windowLabelCells+b.accountBar+afterBar, b.besideAt()-besideCells
 	rows, _ := usageBody(f, stale, printNow, 30)
 	if got := strings.TrimRight(colAt(rows[0], words, gap-words), " "); got != "read Wed" {
 		t.Errorf("work's stale 5-hour reads %q from column %d, want %q, short, as in full it'd run into the gap before ROUTING", got, words, "read Wed")
@@ -1102,7 +1102,7 @@ func TestROUTINGBesideUSAGEsBlocksIsDrawnAsTheOverviewsFrameIs(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
 	f := Frame{
 		Width: 160, Height: 42, Look: nord, View: Overview, Policy: claudeLike, By: ByAccount,
-		Sections: Sections{}.Toggled(SectionGraphs).Toggled(SectionSessions),
+		Sections: Sections{}.Toggled(SectionSessions),
 		Sessions: sessionsRunning(map[string]int{"personal": 2, "side": 4}),
 	}
 	frame, drawn := reference(t, "overview-by-account-160"), screenOf(t, f.Draw(usageWorld(), routedAt))
@@ -1123,7 +1123,7 @@ func TestROUTINGBesideUSAGEsBlocksFollowsThemAsTheyScroll(t *testing.T) {
 	}
 	f := frameOf(160, 60)
 	f.By, f.Scroll = ByAccount, 2
-	x := f.overviewBlock(doc, now).routingAt()
+	x := f.overviewBlock(doc, now).besideAt()
 	rows, _ := usageBody(f, doc, now, 22)
 	beside := make([]string, len(rows))
 	for i, row := range rows {
@@ -1141,7 +1141,7 @@ func TestROUTINGBesideBlocksOfOneWindowLeavesTheirTracesOff(t *testing.T) {
 	doc := routerDoc("a1", 0, readAccount("a1", sessionOf(0.1, time.Hour)), readAccount("a2", sessionOf(0.2, time.Hour)))
 	f := frameOf(160, 40)
 	f.By, f.Policy.Shared = ByAccount, []string{"5h"}
-	x := f.overviewBlock(doc, now).routingAt()
+	x := f.overviewBlock(doc, now).besideAt()
 	rows, _ := usageBody(f, doc, now, 10)
 	want := map[int]string{0: "● open · new sessions come here", 1: "0 sessions", 2: "", 3: "● open", 4: "0 sessions", 6: "2 open", 7: "0 sessions"}
 	for y, w := range want {

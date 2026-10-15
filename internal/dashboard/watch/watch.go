@@ -148,13 +148,15 @@ type Config struct {
 	// View is the tab the preferences kept, which the watch opens on where
 	// it's one there is; Sections the Overview's sections they keep shown;
 	// By how they keep its windows grouped, else as the config's [usage] by
-	// has it; History what they keep History's views showing, as
-	// dashboard.HistoryKept reads it; and Log the Log's columns they keep
-	// shown, as dashboard.LogKept reads them. Prefs keeps each as it
-	// changes: nil keeps nothing.
+	// has it; Burn the chart they keep GRAPHS drawing, as
+	// dashboard.BurnKept reads it; History what they keep History's views
+	// showing, as dashboard.HistoryKept reads it; and Log the Log's columns
+	// they keep shown, as dashboard.LogKept reads them. Prefs keeps each as
+	// it changes: nil keeps nothing.
 	View     dashboard.View
 	Sections dashboard.Sections
 	By       dashboard.By
+	Burn     dashboard.Burn
 	History  dashboard.HistoryPage
 	Log      dashboard.LogTicks
 	Prefs    Prefs
@@ -294,10 +296,11 @@ type Model struct {
 	// the numbers drawn of it with those drawn since: nil where it told
 	// nothing that can.
 	toldBefore *toldSoFar
-	// sections are the Overview's sections shown, and by how its windows are
-	// grouped.
+	// sections are the Overview's sections shown, by how its windows are
+	// grouped, and burn the chart GRAPHS draws.
 	sections dashboard.Sections
 	by       dashboard.By
+	burn     dashboard.Burn
 	// layout is the Overview's layout as it was last made, kept from look to
 	// look, as keepLayout keeps it, so it changes only on an input the page
 	// acts on, a key, a click or the wheel, a resize, or a section's shape
@@ -424,7 +427,7 @@ type frameMsg struct {
 func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
-		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By,
+		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, burn: cfg.Burn,
 		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 		traffic: traffic{heard: new(views.Hearing)},
@@ -839,12 +842,13 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // line and any card over it: at the size drawn at, in the look, showing the
 // tab shown, with what the watch knows of the router, its events and its
 // history, the numbers brightening, the Overview's sections shown, how its
-// windows are grouped, the requests its traces count and its layout as
-// kept, what Runway shows, the sessions listed, what the request stream
-// tells of their requests, the List held, whose lines name them, how far the
-// view is scrolled, the account the focus is on, and what Accounts, as
-// standing has it, and History show; and while the theme picker is open,
-// the cells it covers at the right, so the traces keep now's end in view.
+// windows are grouped, the chart GRAPHS draws, the requests its traces count
+// and its layout as kept, what Runway shows, the sessions listed, what the
+// request stream tells of their requests, the List held, whose lines name
+// them, how far the view is scrolled, the account the focus is on, and what
+// Accounts, as standing has it, and History show; and while the theme picker
+// is open, the cells it covers at the right, so the traces keep now's end in
+// view.
 // It holds the one moment of the document at now, as At has it, for its
 // bars eased to it and every look at it to share: the message's, as taking
 // has it, where now is when the message came.
@@ -853,7 +857,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
-		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
+		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Burn: m.burn, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
 		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), HeldList: m.sessionsTab.list(), Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,

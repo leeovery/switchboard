@@ -280,7 +280,7 @@ func cardStands(r RoutingRow) string {
 // window a request starts, ROUTING where it says the account's idle.
 func (d drawn) running(a status.AccountNow, w status.WindowNow) []viewSays {
 	chart := "running"
-	if !chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now).spanned {
+	if !chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now, BurnUp).spanned {
 		chart = "not started"
 	}
 	says := []viewSays{{"GRAPHS", chart}}
@@ -367,7 +367,8 @@ func staleness(stale bool) string {
 }
 
 // runsOut is where each view says account a's window w runs out, as "out ~"
-// and when, or "nowhere": USAGE's words; COMING UP, of an account that could
+// and when, or "nowhere": USAGE's words; GRAPHS' burn-down, where it draws
+// ✕; COMING UP, of an account that could
 // take a request as the document was built, as it gates those that couldn't
 // (D3); ROUTING's pressure, of the pressure window while it says the
 // account's under pressure, but of one stale, as the router's pressure goes
@@ -383,6 +384,11 @@ func (d drawn) runsOut(a status.AccountNow, w status.WindowNow) []viewSays {
 		}
 		says = append(says, viewSays{"USAGE", usage})
 	}
+	burnDown := "nowhere"
+	if ch := chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now, BurnDown); !ch.course.out.IsZero() {
+		burnDown = "out ~" + prose.Dated(d.now, ch.course.out)
+	}
+	says = append(says, viewSays{"GRAPHS", burnDown})
 	if built, _ := d.moment.At(d.moment.ReadAt).Account(a.ID); built.CanRise {
 		says = append(says, viewSays{"COMING UP", d.comingOut(a, w)})
 	}
@@ -444,7 +450,7 @@ func (d drawn) comingOut(a status.AccountNow, w status.WindowNow) string {
 // window resets.
 func (d drawn) resets(a status.AccountNow, w status.WindowNow) []viewSays {
 	var says []viewSays
-	if ch := chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now); ch.spanned {
+	if ch := chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now, BurnUp); ch.spanned {
 		says = append(says, viewSays{"GRAPHS", prose.Dated(d.now, ch.start.Add(ch.length))})
 	}
 	for i, u := range d.moment.ComingUp {

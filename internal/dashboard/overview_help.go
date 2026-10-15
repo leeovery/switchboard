@@ -26,7 +26,8 @@ func overviewHelp() []helpPart {
 				said("Σ pool is the room new sessions can go to now, in accounts' worth: every account's on auto, the pinned accounts' alone " +
 					"when pinned, each to its cap; all accounts, on Accounts and History, counts every account, to its limit. An account out " +
 					"of the pool is faint."),
-				said("`b` groups the windows by account instead, a block an account, ROUTING beside each. With more accounts than fit, USAGE " +
+				said("`b` groups the windows by account instead, a block an account, ROUTING beside each, or while GRAPHS shows, its charts. " +
+					"With more accounts than fit, USAGE " +
 					"scrolls within itself, an account at a time, or a row at a time where not even one account a window fits; turned " +
 					"from one to the other, as `b`, a section's key, a resize or what's read can turn it, it goes back to its top."),
 			},
@@ -41,14 +42,24 @@ func overviewHelp() []helpPart {
 			heading: SectionGraphs.heading(),
 			says: []line{
 				said("The focused account's use so far in each window, each chart under its window's column in USAGE: a column a cell from " +
-					"the window's start to its reset, filled to the use read at its time, and nothing past now. `↑` and `↓` move the focus " +
-					"through the accounts, in the config's order, and USAGE lights the one focused."),
+					"the window's start to its reset, drawn to now. `↑` and `↓` move the focus through the accounts, in the config's order, " +
+					"and USAGE lights the one focused."),
+				said("`v` flips every chart between two. The burn-up fills to the use read at its time, against even pace. The burn-down is " +
+					"the room left, falling from full as the window's used, then where it's heading, at the pace Runway's words go by: to ✕ " +
+					"where it runs out, else to the room it leaves at its reset."),
+				said("By account, from 150 columns, every account's charts sit beside its block, as many of its windows as fit, so no " +
+					"account is focused, and ROUTING takes rows of its own under USAGE; narrower, and on a phone, GRAPHS charts the focused " +
+					"account, as by window."),
 			},
 			glyphs: []glyph{
-				{drawn: line{{paceDot, dimInk}}, means: "even pace: a line to measure by, not a forecast"},
-				{drawn: line{{capLine, reserveInk}}, means: "the cap"},
-				{drawn: line{{limitLine, faintInk}}, means: "the limit, along the chart's top"},
+				{drawn: line{{paceDot, dimInk}}, means: "even pace, on the burn-up: a line to measure by, not a forecast"},
+				{drawn: line{{capLine, reserveInk}}, means: "the cap, on the burn-up"},
+				{drawn: line{{limitLine, faintInk}}, means: "along the chart's top: the limit, on the burn-up; full, on the burn-down"},
 				{drawn: line{{nowLine, faintInk}}, means: "now"},
+				{drawn: line{{headingKey, dimInk}}, means: "where the window's heading, on the burn-down"},
+				{drawn: line{{outMark, outInk}}, means: "where it runs out, on the burn-down's floor: the cap's, where that holds the account back"},
+				{drawn: line{{capKey, capDotInk}}, means: "the cap, on the burn-down"},
+				{drawn: line{{floorLine, errorInk}}, means: "no room left: at the limit, and on along the floor till it lifts"},
 			},
 		},
 		{

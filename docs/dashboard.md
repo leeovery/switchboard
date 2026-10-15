@@ -94,12 +94,21 @@ The key line under the block names the marks:
 
 ### GRAPHS
 
-GRAPHS charts the focused account's use so far in each window.
+GRAPHS charts the focused account's windows, one chart a window, each under its window's column
+and running from the window's start to its reset. `v` flips between two charts, and the dashboard
+remembers which:
 
-- Each chart sits under its window's column.
-- Each chart runs from the window's start to its reset, and shows the window's cap, even pace and
-  now.
-- `↑` and `↓` move the focus between accounts. USAGE lights the focused account.
+- **The burn-up** fills with the use so far, and shows the window's cap, even pace and now.
+- **The burn-down** falls from full as the room is used. A dotted line heads on from now at the
+  window's pace: to a `✕` on the floor where the window runs out, or to the room it will have left
+  at its reset. The cap is a faint dotted line along its floor, and a window held at its limit
+  draws a line along the floor until it lifts.
+
+`↑` and `↓` move the focus between accounts. USAGE lights the focused account.
+
+By account, from 150 columns, GRAPHS draws every account's charts beside its block instead, as
+many of its windows as fit, and there's no focus to move. Narrower, and on a phone, it charts the
+focused account under USAGE.
 
 <div align="center">
 <img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then GRAPHS, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
@@ -153,7 +162,8 @@ COMING UP and LATELY sit side by side.
 ### By account
 
 `b` makes USAGE one block for each account, with the account's windows as rows and its ROUTING
-beside it. The pool's block comes last.
+beside it. The pool's block comes last. While GRAPHS shows, from 150 columns, each account's charts
+sit beside its block instead, and ROUTING is a section of its own again.
 
 ### Keys on the Overview
 
@@ -161,7 +171,8 @@ beside it. The pool's block comes last.
 |---|---|
 | `u` `g` `r` `s` `c` `l` | Shows or hides a section: USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY. |
 | `b` | Groups the windows by window or by account. Until you press `b`, the grouping follows [`[usage] by`](configuration.md#usage-keys). |
-| `↑` `↓` | Moves the focus between the accounts, in the config's order. GRAPHS charts the focused account, and USAGE scrolls to it. |
+| `v` | While GRAPHS shows, flips it between the burn-up and the burn-down. |
+| `↑` `↓` | Moves the focus between the accounts, in the config's order. GRAPHS charts the focused account, and USAGE scrolls to it. While GRAPHS charts every account beside USAGE, there's no focus to move. |
 
 ## Accounts
 
@@ -705,7 +716,8 @@ place, for 4 seconds.
 `t`, `R` and the scrolling keys work everywhere, and are left to `?`.
 
 The Overview's key line lists its section toggles, each word faint while its section is hidden.
-Then come `b by: window`, and `↑↓ focus  p pin  ? help  q quit`.
+Then come `b by: window`, `v chart: burn-up` while GRAPHS shows, and
+`↑↓ focus  p pin  ? help  q quit`.
 
 On a phone, or wherever the line doesn't fit whole:
 
@@ -748,7 +760,7 @@ It remembers:
 
 - the theme, or the pair
 - the tab shown
-- the Overview's sections shown, and its `b` grouping
+- the Overview's sections shown, its `b` grouping, and the chart `v` has GRAPHS draw
 - Accounts' view and period
 - History's view, what its Year shows, Weeks' shape, and Tokens' period and split
 - Sessions' view

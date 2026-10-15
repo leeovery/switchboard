@@ -57,10 +57,12 @@ type Frame struct {
 	// faded back.
 	Brightened map[Number]float64
 	// Sections are the Overview's sections shown, as u, g, r, s, c and l
-	// show and hide them, and By how its windows are grouped, as b switches
-	// it: by window, or by account.
+	// show and hide them; By how its windows are grouped, as b switches it:
+	// by window, or by account; and Burn the chart GRAPHS draws, as v flips
+	// it: the burn-up, or the burn-down.
 	Sections Sections
 	By       By
+	Burn     Burn
 	// Traces are the requests the Overview's traces draw, by account and by
 	// session, as the watch counts them; and TraceScale the requests a
 	// minute that fill a trace's height, 0 for the live rule, the busiest
