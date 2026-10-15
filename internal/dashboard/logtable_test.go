@@ -19,6 +19,12 @@ import (
 // a ledger holding them alone does.
 type sessionsHeld []ledger.Line
 
+// SessionsOf reads as Sessions does: the sessions of the lines given are
+// all there are.
+func (s sessionsHeld) SessionsOf(ids []string, take func(date string, l ledger.Line)) map[string][]ledger.Line {
+	return s.Sessions(ids, take)
+}
+
 func (s sessionsHeld) Sessions(_ []string, take func(date string, l ledger.Line)) map[string][]ledger.Line {
 	got := make(map[string][]ledger.Line)
 	for _, l := range s {

@@ -118,7 +118,8 @@ func (m Model) requestsThrough(filter views.LogFilter, now time.Time) views.LogT
 	if p := m.log.page; filter.Equal(p.Filter) {
 		return p.Requests
 	}
-	return views.LogRows(m.logSources(filter, now))
+	src := m.logSources(filter, now)
+	return views.LogLinesOf(m.log.lines, src).Rows(src)
 }
 
 // logPanel is the Log's panel, as it was built last.

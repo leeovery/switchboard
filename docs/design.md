@@ -1057,6 +1057,15 @@ heading there, ending in `esc back` (see A session's page). From column 0:
   everywhere, as the accounts Compare shows of more than fit, a filter on History or the Log, or
   Runway's day stepped back (`Wed 30 Sep`). No description follows a name: the tab and the sub-tab
   name the view, and `?` explains it.
+- **A read under way** that's taken longer than 150 ms, as a tab's first read of a long ledger or
+  the Log reading back a day: `loading…` in `text.subtle` after the page's name, and nothing else
+  moves till it lands; one that lands sooner draws nothing more, so nothing flashes (the owner's
+  call, 15 October 2026). It takes the state's place, first in it, three spaces before the rest,
+  and stays where the state is cut to fit, as it's the one thing there the screen can't otherwise
+  show. What waits on another read says so alike: the Log shown first behind another read of the
+  ledger, and Accounts' Detail of an account sessions run on, the Overview's SESSIONS and Sessions
+  till the List's first read lands, as it names their sessions; the Overview, which has no heading
+  row, in SESSIONS' heading, as its description (settled in the plan).
 - **A rule** of `─` in `border`, from two cells after `[ ]`, or after the name where there are no
   sub-tabs, or one after the state, to two cells short of what sits at the right, or to the last
   column where nothing does.
@@ -1646,6 +1655,9 @@ account in the config's order, a session whose models go to two accounts on each
 - **Its own trace** at column 92, one row, on the shared scale, and its rate right-aligned at the
   last column. No blank rows between sessions; with none running, `no sessions running` in
   `text.faint` (settled in the plan).
+- **While what names them is read,** as the List's first read takes 150 ms or longer, the heading
+  says `loading…` in `text.subtle` as its description, till it lands (settled in the plan; see The
+  page).
 - **A click on a row opens its session's page** (see A session's page): `↑` and `↓` stay on the
   account focus GRAPHS follows, so no key here opens one.
 - **Under 110 columns, and on a phone,** a session takes two rows: the account's number and name at
@@ -1866,8 +1878,10 @@ holds.
   in the plan), and saying so, where any account's plan isn't known: ` · 2 of 3 plans known` after
   its price, in `text.subtle`, `4.4× its $92 week · 2 of 3 plans known`, as the worth beside it is
   every account's (the owner's call, 15 October 2026); where that doesn't fit its column, as
-  Compare's at 160 with three accounts, `known` goes, `· 2 of 3 plans`. A phone's `against it` and
-  `against`, 15 cells from column 36, hold neither, so say the ratio alone.
+  Compare's at 160 with three accounts, `known` goes, `· 2 of 3 plans`; and where neither fits,
+  compact, the plans known over the accounts, `· 2/3`, before the ratio alone. A phone's `against
+  it` and `against`, on Compare and Detail, 15 cells from column 36, say it compact, `4.4× · 2/3`,
+  and the ratio alone with every plan known (the owner's call, 15 October 2026).
 - **Periods are rolling,** never billing months, as switchboard knows no renewal date: today, from
   midnight; this week, from its first day, as `week_starts` sets it (see Config); 30 days, today and
   the 29 before it; and 12 weeks, this week and the 11 before it, `<` and `>` stepping through them
@@ -2136,16 +2150,16 @@ section holds.
   where it began part-way through them, as Against its price prices a young ledger's period (see
   Accounts); `against it`, `3.8×`, bold, in `state.positive` at 1× or more and `accent.attention`
   under, then, where any account's plan isn't known, ` · 2 of 3 plans known` in `text.subtle`, as
-  Against its price says it, ` · 2 of 3 plans` where that doesn't fit, and the ratio alone where
-  neither does; `busiest day`, the day of the most requests, `Tue 22 Sep`; and `longest run`, the
-  most days in a row with any request, `58 days`.
+  Against its price says it, ` · 2 of 3 plans` where that doesn't fit, ` · 2/3` where neither does,
+  and the ratio alone where none does; `busiest day`, the day of the most requests, `Tue 22 Sep`;
+  and `longest run`, the most days in a row with any request, `58 days`.
 - **BY MONTH,** row 17, `worth at API prices; against what the plans cost that month` after it in
   `text.faint`, and, where any account's plan isn't known, ` · 2 of 3 plans known` after that, once
-  for the table, short where only that fits, `· 2 of 3 plans`, and none where neither does, left
-  out of the room the Year's form takes. On row 18, its columns' heads in `text.subtle`: `requests`
-  at 14, `worth` at 26, `against` at 38, `limits` at 48 and `by model` at 60. From row 19, a row a
-  month, oldest first,
-  its name at column 2, the first with its year, `Oct 2025`, the current month's bold; values in
+  for the table, short where only that fits, `· 2 of 3 plans`, compact where only that does,
+  `· 2/3`, and none where none does, left out of the room the Year's form takes. On row 18, its
+  columns' heads in `text.subtle`: `requests` at 14, `worth` at 26, `against` at 38, `limits` at 48
+  and `by model` at 60. From row 19, a row a month, oldest first, its name at column 2, the first
+  with its year, `Oct 2025`, the current month's bold; values in
   `text.secondary`; `against` bold, coloured as against its price is, the month the ledger began
   recording in priced from its first day, as the numbers price it (the owner's call, 15 October
   2026), and `—` in `text.faint` for the month so far; `limits` in `state.destructive`. At column
@@ -3081,11 +3095,13 @@ foot. The Log is drawn in the Paper file *Switchboard · Session and Log*, on it
   failed, 400 and over; `▸` in `accent.key`, it moved its session (its line has a `from`); `▲` in
   `accent.mode`, a session's first request; none on a request that stayed and succeeded.
 - **In flight,** a request sits where it arrived, as the request stream tells it, and fills in where
-  it is as its line is written, so lines never move. `status`, `read`, `written` and `out` are
-  blank, the stream giving a request's tokens only as it ends, and `first` blank while it asks;
-  `took` counts, in `accent.key`; `stopped` says `asking`, bold `accent.key`, or `answering`, bold
-  `accent.key`, then ` · ` and its characters so far in thousands to one place, `5.1k characters`,
-  in `text.muted`.
+  it is as its line is written, so lines never move. A row is placed by when the stream told it was
+  sent only while the stream holds its request: one whose line the Log first reads after the
+  stream has let it go sits where its line says it arrived, a moment earlier (settled in the plan).
+  `status`, `read`, `written` and `out` are blank, the stream giving a request's tokens only as it
+  ends, and `first` blank while it asks; `took` counts, in `accent.key`; `stopped` says `asking`,
+  bold `accent.key`, or `answering`, bold `accent.key`, then ` · ` and its characters so far in
+  thousands to one place, `5.1k characters`, in `text.muted`.
 - **Hidden until shown:** Claude Code's quota checks and its token counts, the ledger's kinds
   `check` and `count`. The heading counts them, and `f` shows them: then each has `·` in
   `text.faint` for a mark, `stopped` blank, and its tokens as they are (settled in the plan); a
@@ -3418,6 +3434,12 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   Overview). `esc` goes back to where it was opened from, as it was left. The tab it was opened from
   stays lit, and `tab` and `shift-tab` leave the page for the tab after or before it, as The page
   says (settled in the plan).
+- **While it loads:** its own days' lines are read off the screen, so `enter` answers at once.
+  Where they take longer than 150 ms, the page opens on its heading alone, `loading…` after it as
+  The page says, its key line `esc back` alone, till they land; where they land sooner, it opens
+  whole, nothing drawn between (the owner's call, 15 October 2026). `esc`, `tab` or `shift-tab`
+  while it loads leaves it, and the read's lines, landing after, open nothing (settled in the
+  plan).
 - **Named by its directory:** a session is named by the directory switchboard's own `claude` was
   started in, as `run` tells the router and the ledger keeps it (`dir`), and has no title. Nothing
   is read from Claude Code's own files, whose form is Claude Code's to change. A session with no
@@ -3437,7 +3459,9 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
 dashboard shows ids, bold `text.primary`; three spaces; its directory's last part, bold
 `text.primary`; two spaces; the directory as the ledger holds it, the home as `~`
 (`~/Code/switchboard`), in `text.faint`; one space; a rule of `─` in `border`; two spaces; and,
-ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`.
+ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`. While it loads,
+three spaces and `loading…` in `text.subtle` go before the rule; on a phone, two, as its parts are
+spaced there (settled in the plan).
 
 **Now** (rows 6 and 7).
 
@@ -3654,7 +3678,8 @@ moving down.
 
 - **Rows 0, 1 and 3:** the title, the tabs and the status line, as every page's phone has them.
 - **Row 5, the heading:** `SESSION` in `text.subtle`, two spaces, the id and the directory's name,
-  bold `text.primary`, two spaces apart; `esc back` at the right. No path and no rule.
+  bold `text.primary`, two spaces apart, and while it loads, two spaces and `loading…`; `esc back`
+  at the right. No path and no rule.
 - **Rows 7 and 8:** `↑ asking  on side ▲ since 14:31`, coloured as row 6 is; then `moved from work:
   its cap` in `text.muted`, `work` in `text.secondary`, and at the right `2h 40m` in
   `text.secondary`. No models and no windows.
@@ -4162,6 +4187,33 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   router from before the stream has none, and the dashboard stops asking until another router
   answers: its pages draw the sessions as each look reads them, with nothing in flight and no
   requests travelling.
+- **What the stream told is kept** till the ledger's line takes its place: a request in flight
+  for as long as it is; one that ended, till a read of the ledger's tail reads its line, as the
+  router writes it moments after it ends, held up only while the ledger makes its round, never let
+  go sooner on time alone; and one lost, as one cut off may have no line, or one ended whose line no
+  read finds, with no ledger to read or none written, an hour. The router writes a line moments
+  after it tells the request's end, so a read can find the line before the stream's telling of the
+  end reaches the dashboard: a request goes once both have come, in either order, or once its line
+  is read and it's lost. None goes till every reader that shows its row has taken its line in:
+  where the Log shows the row of one sent just after midnight, its line filed on the day before, a
+  day its tables don't span, it reads back to that day, and the request is kept till it has. While
+  it holds one whose line is to come, the tail is read at each look, whatever tab shows. Each
+  seat's last sight, its session on a model and an account, is kept apart for the hour, so letting
+  a request go never moves when its seat was last seen, as `idle` counts it (settled in the plan).
+  So what the stream holds is what's in flight and what awaits its line, never the hour's: a batch
+  the stream tells copies its requests whole, by choice, as they're tens, never thousands, and a
+  map changed in place, weighed against it, was left unbuilt (settled in the plan).
+- **Built as it changes:** each view's data is built again only as what it's made of changes,
+  and what's built is drawn at each tick: a session's page as a look, a request or a full read
+  changes what it shows, or as the clock turns what it says, as at the minute, a seat's lapse or a
+  cache going cold; never at each tenth of a second, nor as an answer streams on, which its rows
+  count as they're drawn. The Log places and tables each line once, as its read grows; a change to
+  the stream's rows, those of requests whose lines are yet to come, builds those rows alone and
+  takes them in among the lines tabled, copying the lines held and laying the day rules between
+  them again, never placing or tabling a line afresh. Its Events are built again as a look tells of
+  an event anew, or of one otherwise, or as a line comes, as a move's cost is its session's story,
+  never at a look telling what the last told; its panel builds its figures as the table it's of,
+  the stream's rows or the sessions listed change, never at each look (settled in the plan).
 - **The traces and a session's story:** the Overview's traces take their last 30 minutes from
   today's lines once, as the Overview is first shown or the stream is joined again, and a session's
   story its life from its own days' lines, as its page opens; then each counts the requests the
@@ -4173,15 +4225,32 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   - **Today's lines** are read once, as a page first needs them, then tailed: each look reads only
     what the day's file gained since the last read ended, so a look costs what the day gained,
     never the day. A file found replaced, or shorter than where the last read ended, is read again
-    from its start (settled in the plan).
+    from its start. The tail is read at each look whatever tab shows, while a reader holds today's
+    lines, as the Log once shown, the List once read and a session's page open do, or the stream
+    awaits a line, so each keeps up while another tab shows; and a line one read finds, of today or
+    of a day before read again whole, every reader takes in (settled in the plan).
   - **A past day's summary** is read once and held for the run, until its stamp or its sizes change
     (see The request ledger). **Today's** is a running tally of the lines tailed, never summarised
     afresh at a look (settled in the plan).
   - **A session's days** are those the summaries name it in, by their session ids (see The request
     ledger), so a session's page reads its own days' lines alone, newest first, as far back as the
-    page shows.
+    page shows. The days of a read of sessions are read side by side, each taken in as one after
+    another would be; and a read of a few, as the Log's, reads the lines of others for their
+    session alone (settled in the plan).
+  - **The Log's first read** is today's lines, the events from today, and every line of the
+    sessions today's lines are of, whatever day it's of: a row's story is told from its session's
+    whole life, as whether it's the session's first request, and whether a move wrote its context
+    again, need the last request of its thread, however long before, and a move of an earlier day
+    still unsettled. So a session that ran every day of four weeks has its four weeks read as the
+    Log first shows, `loading…` while they are; never again (settled in the plan).
   - **A period, or a day stepped back to,** as Accounts', History's and Runway's are, is read once
     as it's shown, then held; History's year is a year of summaries, read once a run.
+  - **The Log's Events through some kinds,** which no summary tells the days of, read back no
+    further than the earliest of them the router filed: its files of events are read for it first,
+    the oldest first and no further than that event, as they're far smaller than the ledger's days
+    (settled in the plan).
+  - **Every read off the screen:** a read whose size grows with what's kept runs off the screen's
+    update, and says `loading…` once it's taken 150 ms (see The page).
   - So what a look costs grows with what the page shows, never with what's kept: each cost is
     measured against a year of heavy use before milestone 7's release (see Milestones).
 - **Events:** live, the status document's `events`, the newest 50, read at each look, each new one
@@ -6080,7 +6149,7 @@ why.
 | Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | next, after milestone 7's release: the owner, 15 October 2026 | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
 | Watching switchboard's CPU and memory for a week after milestone 7's release, against v0.1.6's baseline | next, after milestone 7's release, the owner's choice on 14 October 2026 | [performance-watch](../ideas/2026-10-14--performance-watch.md) |
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
-| Snags the owner meets using v0.2.0's dashboard, gathered as found | next, with milestone 7's loose ends | [dashboard-snags](../ideas/2026-10-15--dashboard-snags.md) |
+| Snags the owner meets using v0.2.0's dashboard, gathered as found | open: a smaller screen's layout, to come back to; the rest fixed in the patch after v0.2.0, 15 October 2026 | [dashboard-snags](../ideas/2026-10-15--dashboard-snags.md) |
 | Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
 | Worth past what it's counted in: a config's price, or a period's sum, too large to hold | open: a small fix, its bound to settle | [worth-range](../ideas/2026-10-09--worth-range.md) |
 | What a routed session's environment carries to a `claude` switchboard steps aside for, as one a script points at another gateway | open: a small fix, any time | [stepping-aside](../ideas/2026-10-09--stepping-aside.md) |

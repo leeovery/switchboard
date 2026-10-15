@@ -100,9 +100,21 @@ func RunningCounts(running []Running) map[string]int {
 
 // runs reports whether a session's model, as it's placed in a, runs on the
 // account it goes to at now: it was seen there, or put there, within the
-// IdleHour.
+// IdleHour, so before it stops.
 func runs(a status.Assignment, now time.Time) bool {
-	return now.Sub(score.Later(a.LastSeen, a.AssignedAt)) <= IdleHour
+	return now.Before(stops(a))
+}
+
+// stops is the first moment a session's model, as it's placed in a, no
+// longer runs on the account it goes to, as lapsed has it of when it was seen
+// there, or put there.
+func stops(a status.Assignment) time.Time {
+	return lapsed(score.Later(a.LastSeen, a.AssignedAt))
+}
+
+// lapsed is the first moment more than an IdleHour has passed since at.
+func lapsed(at time.Time) time.Time {
+	return at.Add(IdleHour + time.Nanosecond)
 }
 
 // runningNow are the sessions given, as a listing of the router's places
@@ -170,7 +182,7 @@ func (s Stream) placed(sessions []status.Session, h hearing) []status.Session {
 	}
 	for _, session := range placed {
 		for i, a := range session.Assignments {
-			session.Assignments[i].LastSeen = score.Later(a.LastSeen, h.seats[seatOf{session: session.ID, model: a.Model, account: a.Account}].last)
+			session.Assignments[i].LastSeen = score.Later(a.LastSeen, h.seats[Seat{Session: session.ID, Model: a.Model, Account: a.Account}].last)
 		}
 	}
 	return placed

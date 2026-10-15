@@ -71,6 +71,10 @@ type LedgerSessions interface {
 	// read once; and hands take, where it's given, each line it reads, of
 	// whichever session, with the date of the day whose files hold it.
 	Sessions(ids []string, take func(date string, l ledger.Line)) map[string][]ledger.Line
+	// SessionsOf gives the lines of the sessions with the given ids alone,
+	// as Sessions gives them, but none of today's others, so none of their
+	// days is read; and hands take each line it reads, as Sessions does.
+	SessionsOf(ids []string, take func(date string, l ledger.Line)) map[string][]ledger.Line
 }
 
 // Readings reads the readings history where it lies, with no router, as a

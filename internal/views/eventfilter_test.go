@@ -2,12 +2,14 @@ package views_test
 
 import (
 	"fmt"
+	"iter"
 	"maps"
 	"slices"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
@@ -158,6 +160,72 @@ func TestTheEventsReachTheFirstDayTheRouterFiledEventsOn(t *testing.T) {
 			table := views.LogEvents(views.LogEventSources{From: tt.from, Filed: tt.filed, Now: now})
 			if got := table.Reached(); got != tt.want {
 				t.Errorf("from %s, the Events reach as far back as they read: %v, want %v", tt.from.Format(time.DateOnly), got, tt.want)
+			}
+		})
+	}
+}
+
+// handedOn are the router's files of events holding those given, as
+// filedLines has them, counting the events they hand on.
+type handedOn struct {
+	filedLines
+	handed *int
+}
+
+func (f handedOn) Between(from, to time.Time) iter.Seq[events.Line] {
+	return func(yield func(events.Line) bool) {
+		for l := range f.filedLines.Between(from, to) {
+			*f.handed++
+			if !yield(l) {
+				return
+			}
+		}
+	}
+}
+
+// A filter of the Events' kinds and accounts reaches back to the day of the
+// earliest event the router filed that it keeps, of every session, as Reach
+// bounds those, the files read the oldest first and no further than that
+// event; none where it filed none, or where there are no files. Only kinds
+// or accounts ticked bound it so.
+func TestAnEventFilterReachesTheEarliestEventItKeepsAsTheRouterFiledIt(t *testing.T) {
+	filed := filedLines{
+		{ID: 1, At: october(3, 9, 0), Kind: status.EventPin, Accounts: []string{"work"}},
+		{ID: 2, At: october(4, 9, 0), Kind: status.EventLimit, Account: "personal", Session: older},
+		{ID: 3, At: october(5, 23, 30), Kind: status.EventMoved, From: "work", To: "side", Session: older},
+		{ID: 4, At: october(6, 9, 0), Kind: status.EventLimit, Account: "side"},
+	}
+	tests := []struct {
+		name    string
+		shows   views.EventFilter
+		unfiled bool
+		bounds  bool
+		want    string
+		handed  int
+	}{
+		{name: "a kind", shows: views.EventFilter{Kinds: []string{status.EventLimit}}, bounds: true, want: "2026-10-04", handed: 2},
+		{name: "an account a move names", shows: views.EventFilter{Accounts: []string{"side"}}, bounds: true, want: "2026-10-05", handed: 3},
+		{name: "a kind and an account", shows: views.EventFilter{Kinds: []string{status.EventLimit}, Accounts: []string{"side"}}, bounds: true, want: "2026-10-06", handed: 4},
+		{name: "a kind, of a session of none", shows: views.EventFilter{Kinds: []string{status.EventLimit}, Sessions: []string{mover}}, bounds: true, want: "2026-10-04", handed: 2},
+		{name: "a kind none was filed of", shows: views.EventFilter{Kinds: []string{status.EventCap}}, bounds: true, handed: 4},
+		{name: "no files", shows: views.EventFilter{Kinds: []string{status.EventLimit}}, unfiled: true, bounds: true},
+		{name: "a session alone", shows: views.EventFilter{Sessions: []string{older}}, want: "2026-10-03", handed: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handed := 0
+			var files views.Events
+			if !tt.unfiled {
+				files = handedOn{filedLines: filed, handed: &handed}
+			}
+			if got := tt.shows.Bounds(); got != tt.bounds {
+				t.Errorf("the filter bounds the Events by the files: %t, want %t", got, tt.bounds)
+			}
+			if got := tt.shows.FiledFrom(files, october(1, 0, 0), now); got != tt.want {
+				t.Errorf("the events it keeps reach %q, want %q", got, tt.want)
+			}
+			if handed != tt.handed {
+				t.Errorf("the files handed on %d events, want %d", handed, tt.handed)
 			}
 		})
 	}

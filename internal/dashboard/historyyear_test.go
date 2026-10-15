@@ -644,9 +644,10 @@ func TestAPhonesGridShowsTheLatestWeeksThatFit(t *testing.T) {
 }
 
 // Every account's against it, over the plans known where some aren't, says
-// so in the room it has: in full, short, or the ratio alone, never cut; and
-// BY MONTH says it once for the table, after what it shows, wide where it
-// fits, never of a version's months, whose worth is against no plan.
+// so in the room it has: in full, short, compact, or the ratio alone, never
+// cut; and BY MONTH says it once for the table, after what it shows, wide
+// where it fits, never of a version's months, whose worth is against no
+// plan.
 func TestTheYearsAgainstOverThePlansKnownSaysSoInTheRoomItHas(t *testing.T) {
 	someKnown := views.Against{Ratio: new(3.8), Cost: usd(7200), Plans: views.PlansKnown{Known: 2, Of: 3}}
 	tests := []struct {
@@ -657,7 +658,8 @@ func TestTheYearsAgainstOverThePlansKnownSaysSoInTheRoomItHas(t *testing.T) {
 	}{
 		{name: "in full", against: someKnown, width: 60, want: "against it   3.8× · 2 of 3 plans known"},
 		{name: "short", against: someKnown, width: 37, want: "against it   3.8× · 2 of 3 plans"},
-		{name: "the ratio alone", against: someKnown, width: 31, want: "against it   3.8×"},
+		{name: "compact", against: someKnown, width: 31, want: "against it   3.8× · 2/3"},
+		{name: "the ratio alone", against: someKnown, width: 22, want: "against it   3.8×"},
 		{name: "every plan known", against: views.Against{Ratio: new(3.8), Cost: usd(7200), Plans: views.PlansKnown{Known: 3, Of: 3}},
 			width: 60, want: "against it   3.8×"},
 	}
@@ -680,7 +682,9 @@ func TestTheYearsAgainstOverThePlansKnownSaysSoInTheRoomItHas(t *testing.T) {
 			want: "BY MONTH  worth at API prices; against what the plans cost that month · 2 of 3 plans known"},
 		{name: "BY MONTH, short", width: 86, page: plainYear,
 			want: "BY MONTH  worth at API prices; against what the plans cost that month · 2 of 3 plans"},
-		{name: "BY MONTH, without room", width: 80, page: plainYear, want: "BY MONTH  worth at API prices; against what the plans cost that month"},
+		{name: "BY MONTH, compact", width: 80, page: plainYear,
+			want: "BY MONTH  worth at API prices; against what the plans cost that month · 2/3"},
+		{name: "BY MONTH, without room", width: 74, page: plainYear, want: "BY MONTH  worth at API prices; against what the plans cost that month"},
 		{name: "a version's months", width: 160, ask: views.YearAsk{Version: "Opus 5.5"}, page: opusYear,
 			want: "BY MONTH  Opus 5.5 only: its worth at API prices, and its share of the month"},
 	}

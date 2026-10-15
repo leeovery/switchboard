@@ -250,10 +250,22 @@ func againstParts(page views.AccountsPage, row views.AccountsRow, cells int) []p
 	return againstItsPrice(row.Plan.Against, page.Period.Unit(), cells)
 }
 
-// againstShort says an account's worth against its plan's price as a phone's
-// VALUE does, the ratio alone, as againstSaid says it: "4.0×".
+// againstShort says an account's worth against its plan's price by the
+// ratio alone, as againstSaid says it: "4.0×".
 func againstShort(row views.AccountsRow) []part {
 	return []part{figurePart(againstSaid(row.Plan.Ratio), Number{})}
+}
+
+// againstOnPhone says an account's worth against its plan's price as a
+// phone's against it and against do, as againstShort says it, then, of
+// every account's where some plans aren't known, over those known, compact,
+// as views.PlansKnown says it, in text.subtle: "4.4× · 2/3".
+func againstOnPhone(row views.AccountsRow) []part {
+	said := againstShort(row)
+	if compact := row.Plan.Plans.SaidCompact(); row.Plan.Ratio != nil && compact != "" {
+		said = append(said, wordsIn(accountsApart+compact, dimInk))
+	}
+	return said
 }
 
 // worthAgainst say an account's worth as Detail's THIS WEEK does, as

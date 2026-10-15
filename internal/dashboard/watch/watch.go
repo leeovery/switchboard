@@ -331,13 +331,19 @@ type Model struct {
 	// as the last look built them, and the readings history's tail they're
 	// judged by.
 	runwayTab runwayTab
-	// session is the session's page open, drawn in place of the view: nil
-	// while none is. opening counts the pages asked to open, each opening
-	// once its read lands, but one asked for before the last; and pending is
-	// the id of the last, while its read waits for the ledger's tail's.
+	// session is the session's page open, drawn in place of the view, or
+	// loading, as pageLoading has it: nil while none is. opening counts the
+	// pages asked to open, each opening once its read lands, but one asked
+	// for before the last; arrived is the last of them whose read landed;
+	// and pending is the id of the last, while its read waits for the
+	// ledger's tail's.
 	session *sessionShown
 	opening int
+	arrived int
 	pending string
+	// waiting is the tab shown as it waits on a read of what it draws, as
+	// waited notes it, for its heading to say it's loading.
+	waiting waiting
 	// log is what the watch holds of the Log, and tail today's lines of the
 	// ledger as its readers follow them.
 	log  logTab
@@ -458,32 +464,33 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update takes in a message, at the one time it came, as taking has it, as
-// take says, building the session's page open afresh, as relived says, and
-// closing a session's card it leaves no p for, as closing says, then has
-// the watch read the router's request stream while it wants it, and the
-// ledger's days for History, Accounts, a session's page, the Log and its
-// find, and Sessions, as they want them, History's and Accounts' pages built
-// of them as historyBuilt and accountsBuilt have it, Detail's selection
-// following its sessions, as followed has it, Sessions and Runway built at
-// the look, as sessionsLooked and runwayLooked have it, the readings
-// history's tail read for Runway, as readRunway has it, and the Log's page
-// built of what it holds, and only
+// take says, letting go the requests the stream told of whose lines its
+// readers have taken in, as letGo has it, building the session's page open
+// afresh, as relived says, and closing a session's card it leaves no p for,
+// as closing says, then has the watch read the router's request stream
+// while it wants it, and the ledger's days for History, Accounts, a
+// session's page, the Log and its find, and Sessions, as they want them,
+// History's and Accounts' pages built of them as historyBuilt and
+// accountsBuilt have it, Detail's selection following its sessions, as
+// followed has it, Sessions and Runway built at the look, as sessionsLooked
+// and runwayLooked have it, the readings history's tail read for Runway, as
+// readRunway has it, the ledger's tail followed whatever shows, as
+// followTail has it, and the Log's page built of what it holds, and only
 // then, price the moves the routing card would make while it wants them.
 // Then, of the page as it stands at that moment, its Overview's sections
 // built once for each to share, it keeps the Overview's layout, and takes
 // the view back to its top where what its scroll counts changed, as
 // rescrolled has it, but for a frame, which takes nothing in to lay it out
-// afresh by, nor changes what it counts; brightens the
-// numbers what the stream told changed, as compared has it; and only then,
-// so the screen and its frames see the layout the page will draw and the
-// numbers it brightens, shows the page, drawing frames while anything on it
-// moves. The view is drawn again after each, which is all a note's lapsing
-// asks.
+// afresh by, nor changes what it counts; brightens the numbers what the
+// stream told changed, as compared has it; and only then, so the screen and
+// its frames see the layout the page will draw and the numbers it
+// brightens, shows the page, drawing frames while anything on it moves. The
+// view is drawn again after each, which is all a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.taking = taking{at: now, moment: m.doc.HoldAt(now, m.cfg.Policy)}
 	next, cmd := m.take(msg)
-	tuned, closed := next.(Model).relived(msg, now).closing()
+	tuned, closed := next.(Model).letGo().relived(msg, now).closing()
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
 	tuned = tuned.historyBuilt().accountsBuilt().followed(msg).sessionsLooked(msg).runwayLooked(msg)
@@ -492,7 +499,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, found := tuned.readFind()
 	tuned, listed := tuned.readSessions()
 	tuned, ran := tuned.readRunway()
+	tuned, tailing := tuned.followTail()
 	tuned, costs := tuned.costing()
+	tuned, waits := tuned.waited(now)
 	page := tuned.frame(now).Built(tuned.doc, now)
 	if _, frame := msg.(frameMsg); !frame {
 		tuned = tuned.keepLayout(page, now)
@@ -501,7 +510,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, costs, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, tailing, costs, waits, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look
@@ -660,6 +669,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.findRead(msg), nil
 	case reachMsg:
 		return m.reachRead(msg), nil
+	case filedReachMsg:
+		return m.filedReachRead(msg), nil
 	case orderedMsg:
 		return m.ordered(msg)
 	case costedMsg:
@@ -678,6 +689,10 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.framed(msg), nil
 	case sessionReadMsg:
 		return m.sessionRead(msg), nil
+	case pageLoadingMsg:
+		return m.pageLoading(msg), nil
+	case loadingMsg:
+		return m, nil
 	case listReadMsg:
 		return m.listRead(msg), nil
 	case runwayReadMsg:
@@ -867,6 +882,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Runway:     m.runwayTab.shown,
 		History:    m.past.page,
 		Session:    m.session.frame(),
+		Loading:    m.loading(now),
 		Log:        m.log.page,
 	}.Holding(m.taking.moment).At(m.doc, now)
 	if m.view == dashboard.Accounts {
