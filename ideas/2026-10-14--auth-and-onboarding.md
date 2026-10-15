@@ -39,3 +39,23 @@ from install to routed in moments.
 
 To settle with the owner: whether switchboard takes logins at all, or recommends setup tokens and
 helps make them; and what `setup` asks, detects and does for one account and for several.
+
+## Each account's plan
+
+Nothing asks for an account's plan: `plan` is an optional config key, so most people will have
+none, and see `-` for the plan and no worth against it on Accounts, History and in `history`.
+
+- Switchboard can't read the plan. Responses tell each window's use and reset, never the plan or
+  the size of a limit, and a setup token is refused by the profile endpoint that knows it (403).
+- A login (OAuth), where Claude Code reads the plan, might be allowed to: to check, if switchboard
+  takes logins.
+- Otherwise `setup` should ask for each account's plan as it adds the account, and say what it's
+  used for.
+
+## Managing accounts after setup
+
+Adding, updating and removing accounts should be as easy as setting up: changing an account's
+label, plan, primary or reserve, replacing its token, adding one or taking one away, without
+editing the config by hand. `accounts add`, `accounts token` and `accounts remove` exist; nothing
+updates an account. Raised by the owner on 15 October 2026, who wants this, and `setup` asking
+for the plan, to follow milestone 7's release: "users wouldn't know to put that in".

@@ -4,6 +4,44 @@ Milestone 7, the dashboard's redesign, went through a review of each pull reques
 and of the whole release, several rounds each. What those reviews found and left, as not worth
 holding the release for, gathered here. Each is an edge case or a cost with no wrong answer.
 
+## The owner's calls, to build
+
+Decided by the owner on 15 October 2026, going through the calls made in the build. Each goes into
+the design as it's built.
+
+- **A young ledger's plans are priced from its first day, everywhere.** The period or month the
+  ledger began in is charged only for the days it holds, on Accounts and the Year's BY MONTH as
+  `history` and the Year's numbers already do: there's no worth for the days before, so charging
+  for them understates the ratio. Every later period is whole either way. Today Accounts prices a
+  fresh install's week whole ($46 for Max 20x) while `history` prices it from the install day
+  ($33 from a Wednesday), and the Year's numbers come to $1,490 beside BY MONTH's $1,760 for a
+  ledger begun on 16 March.
+- **The all-accounts ratio says it's over the known plans,** where an account's plan isn't known:
+  `4.4× its $92 week · 2 of 3 plans known`. The worth beside it stays every account's. The same
+  words go on `history`'s totals and Tokens' rows. Today the worth counts every account and the
+  ratio only those with a plan, so the two don't divide.
+- **Help says `esc deselect`** on Sessions with a session chosen, in place of `esc end the choice`.
+- **The Log says `unpriced`** where a move's context was written again on a model the price table
+  can't price, as the session's page does (`· 182k cached again, unpriced`); today the Log says
+  nothing of the cost there.
+- **Back-to-back holds on Runway:** the earlier stretch says when it lifts, and only the last says
+  `back`: `at its limit 14:00 · lifts 19:00   at its cap 14:00 · back Mon 21:00`, in place of
+  `back Mon 21:00` on both.
+- **An event's headline names the windows it began with:** `work reached its Fable week limit` at
+  09:00, and the event's details list a window that joined later with its time, `5-hour · joined
+  14:00`. Today the headline names the joined window too, as though reached at the event's start.
+- **Cords never cross within an account** on Sessions' Switchboard: each account's jacks take the
+  order of its calls. Today, where the two orders differ, one cord bends across another. If the
+  design's patch rules don't allow it, back to the owner with why.
+- **History's Year scrolls whole where it doesn't fit,** and says what's out of view, as every other
+  view does. Today a short terminal shows BY MONTH's first rows and cuts the rest, with no line and
+  no scrolling: at 160×24, October to December, the other nine months out of reach. Its signed-off
+  frames fit at their sizes, so they don't change.
+- **Quota checks are left out of worth everywhere.** The day's summary prices their usage while the
+  views over a session's lines don't, a fraction of a cent a day apart, seen only in the JSON's
+  exact worth. Checks aren't work done for you, as the Log's hiding them says, so no view prices
+  them.
+
 ## On screen
 
 - `↓ answering` stays frozen while the router is silent, until it's heard from again.
