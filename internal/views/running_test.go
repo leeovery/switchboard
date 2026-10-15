@@ -118,7 +118,7 @@ func TestDetailsSessionsAreTheRowsOnTheAccountInTheirOrder(t *testing.T) {
 	}
 }
 
-func TestASessionsModelsOnOneAccountAreOneRowItsModelSeenLastLeading(t *testing.T) {
+func TestASessionsModelsOnOneAccountAreOneRowNamedByItsModelSeenLast(t *testing.T) {
 	sessions := []status.Session{{ID: asking, Assignments: []status.Assignment{
 		seatOn("claude-haiku-4-5", "haiku", "side", status.ReasonNew, 10*time.Minute, 2*time.Minute, status.Asking),
 		seatOn("claude-opus-5-5", "opus", "side", status.ReasonPinned, 30*time.Minute, time.Minute, ""),
