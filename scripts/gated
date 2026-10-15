@@ -3,8 +3,8 @@
 # The release's gate, mint's pre_tag: passes the commit at HEAD when
 # scripts/gate has recorded its tree as passing every gate, or the tree of a
 # commit before it from which only inert paths have changed: the README,
-# CLAUDE.md and CHANGELOG.md at the root, and docs/, ideas/ and art/, which
-# no gate reads. Anything else, testdata/vhs/README.md and the skill's
+# CLAUDE.md, CHANGELOG.md and .mint.toml at the root, and docs/, ideas/ and art/,
+# which no gate reads. Anything else, testdata/vhs/README.md and the skill's
 # SKILL.md among them, is read by a test or built in. The walk back, along
 # first parents, stops at a commit that changes anything else, at a merge, at
 # the first commit, or after 50 commits, and then the gates run in full,
@@ -22,7 +22,7 @@ bound=50
 # path with unusual characters, which then matches none of these.
 inert() {
 	case $1 in
-	README.md | CLAUDE.md | CHANGELOG.md | docs/* | ideas/* | art/*) return 0 ;;
+	README.md | CLAUDE.md | CHANGELOG.md | .mint.toml | docs/* | ideas/* | art/*) return 0 ;;
 	esac
 	return 1
 }

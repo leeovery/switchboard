@@ -20,6 +20,37 @@ diff_exclude = [
     '**/testdata/**',
 ]
 
+[release]
+# v0.2.0's notes, written by hand as its diff is past what the AI takes;
+# used by `mint release --no-ai`, and removed once it's out.
+fallback = '''
+The dashboard, redesigned to be read at a glance: six tabs, each account's usage and routing on one screen, every request on record, and a page for each session.
+
+✨ Added
+- `switchboard dashboard` is a command of its own, on six tabs: the Overview, Accounts, History, Sessions, Runway and the Log.
+- The Overview shows every account's windows, how the router stands with each, its sessions, what's coming up and what it did lately, in sections you show and hide.
+- Accounts compares every account side by side for a period, and shows one in depth: its windows, use by model, the last six weeks, and its plan against what its use was worth.
+- History shows the last 12 months a day at a time, each account's weeks, each day's use, and tokens by day, week or month, as ccusage does.
+- Sessions draws each session corded to the account it runs on, its requests travelling the cord, and lists today's sessions.
+- Runway shows when each account has room, over the next day or the week, and steps back through past days and weeks.
+- The Log shows every request and every router decision as they happen, with a details card, a filter and a find, and looks back through earlier days.
+- A session's page tells one session's story: its requests over time, each move and what it cost, the accounts it ran on, and its turns.
+- Routing from the dashboard goes through one picker, `p`, and every pin waits for you to confirm it.
+- `?` on any page shows every key that works there; the mouse picks tabs, rows and keys.
+- Under 100 columns the dashboard takes a phone's layout.
+- `usage` prints a redesigned block, by window or with `[usage] by = "account"`.
+- The router's events record when each window joined a limit or a cap, and a session's moves name their model.
+
+🔧 Changed
+- Every view and every JSON verb reads the same judgement of each account, so the dashboard, `status`, `sessions` and `history` always agree.
+- The README is a short front page with a tour of the dashboard; the depth moved to `docs/`.
+
+🐛 Fixed
+- A new session's account is chosen again once the probes it waited on land, so it never goes out on readings older than a probe that just came in.
+- An account at its weekly limit no longer records a false 5-hour reset at every probe.
+- A clock change no longer moves when a day's files are kept and compressed.
+'''
+
 [release.hooks]
 # No CI job runs the tests before a tag (release.yml only builds on the tag
 # push), so gate the release here, after the notes and before the
