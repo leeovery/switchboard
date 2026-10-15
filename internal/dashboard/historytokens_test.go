@@ -607,6 +607,10 @@ func TestAgainstItsPriceAsTokensWritesIt(t *testing.T) {
 			want: append(said(span{"4.4×", boldPositiveInk}, "$92", "week"), wordsIn(" · 2 of 3 plans known", dimInk))},
 		{name: "every account's, over the plans known, short where that doesn't fit", got: againstItsPrice(knownOf(againstAt(4.4, 92), 2, 3), "week", 37),
 			want: append(said(span{"4.4×", boldPositiveInk}, "$92", "week"), wordsIn(" · 2 of 3 plans", dimInk))},
+		{name: "every account's, over the plans known, compact where neither fits", got: againstItsPrice(knownOf(againstAt(4.4, 92), 2, 3), "week", 30),
+			want: append(said(span{"4.4×", boldPositiveInk}, "$92", "week"), wordsIn(" · 2/3", dimInk))},
+		{name: "every account's, over the plans known, the ratio alone where none fits", got: againstItsPrice(knownOf(againstAt(4.4, 92), 2, 3), "week", 22),
+			want: said(span{"4.4×", boldPositiveInk}, "$92", "week")},
 		{name: "every account's, every plan known", got: againstItsPrice(knownOf(againstAt(4.4, 92), 3, 3), "week", 54),
 			want: said(span{"4.4×", boldPositiveInk}, "$92", "week")},
 	}

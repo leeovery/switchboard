@@ -437,6 +437,8 @@ var pages = []page{
 	{name: "accounts-detail-one-160", size: wide(37), world: accountWorlds.oneLately, keys: toAccounts()},
 	{name: "accounts-phone-compare-52", size: watch.Size{Width: 52, Height: 48}, world: accountWorlds.auto, keys: toAccounts()},
 	{name: "accounts-phone-detail-52", size: watch.Size{Width: 52, Height: 41}, world: accountWorlds.auto, keys: toDetail(downKey)},
+	{name: "accounts-phone-compare-plan-unknown-52", size: watch.Size{Width: 52, Height: 48}, world: accountWorlds.sidesPlanUnknown, keys: toAccounts()},
+	{name: "accounts-phone-detail-plan-unknown-52", size: watch.Size{Width: 52, Height: 41}, world: accountWorlds.sidesPlanUnknown, keys: toDetail()},
 	{name: "sessions-switchboard-160", size: wide(37), world: accountWorlds.scene, keys: toSessions()},
 	{name: "sessions-list-160", size: wide(37), world: accountWorlds.scene, keys: toSessions("]")},
 	{name: "sessions-phone-52", size: phone(33), world: accountWorlds.scene, keys: toSessions()},

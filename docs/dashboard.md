@@ -468,6 +468,8 @@ Under 100 columns, the dashboard lays itself out for a phone.
 - The Overview's USAGE stacks its windows in short words.
 - ROUTING takes two rows for each account, and SESSIONS two rows for each session.
 - LATELY comes under COMING UP.
+- Accounts' `against it` and `against` give `all accounts`' ratio alone, but where an account has
+  no `plan`, they add how many of the plans it's over, compact: `4.4× · 2/3`.
 
 ## Every page
 

@@ -1791,8 +1791,10 @@ holds.
   in the plan), and saying so, where any account's plan isn't known: ` · 2 of 3 plans known` after
   its price, in `text.subtle`, `4.4× its $92 week · 2 of 3 plans known`, as the worth beside it is
   every account's (the owner's call, 15 October 2026); where that doesn't fit its column, as
-  Compare's at 160 with three accounts, `known` goes, `· 2 of 3 plans`. A phone's `against it` and
-  `against`, 15 cells from column 36, hold neither, so say the ratio alone.
+  Compare's at 160 with three accounts, `known` goes, `· 2 of 3 plans`; and where neither fits,
+  compact, the plans known over the accounts, `· 2/3`, before the ratio alone. A phone's `against
+  it` and `against`, on Compare and Detail, 15 cells from column 36, say it compact, `4.4× · 2/3`,
+  and the ratio alone with every plan known (the owner's call, 15 October 2026).
 - **Periods are rolling,** never billing months, as switchboard knows no renewal date: today, from
   midnight; this week, from its first day, as `week_starts` sets it (see Config); 30 days, today and
   the 29 before it; and 12 weeks, this week and the 11 before it, `<` and `>` stepping through them
@@ -2061,16 +2063,16 @@ section holds.
   where it began part-way through them, as Against its price prices a young ledger's period (see
   Accounts); `against it`, `3.8×`, bold, in `state.positive` at 1× or more and `accent.attention`
   under, then, where any account's plan isn't known, ` · 2 of 3 plans known` in `text.subtle`, as
-  Against its price says it, ` · 2 of 3 plans` where that doesn't fit, and the ratio alone where
-  neither does; `busiest day`, the day of the most requests, `Tue 22 Sep`; and `longest run`, the
-  most days in a row with any request, `58 days`.
+  Against its price says it, ` · 2 of 3 plans` where that doesn't fit, ` · 2/3` where neither does,
+  and the ratio alone where none does; `busiest day`, the day of the most requests, `Tue 22 Sep`;
+  and `longest run`, the most days in a row with any request, `58 days`.
 - **BY MONTH,** row 17, `worth at API prices; against what the plans cost that month` after it in
   `text.faint`, and, where any account's plan isn't known, ` · 2 of 3 plans known` after that, once
-  for the table, short where only that fits, `· 2 of 3 plans`, and none where neither does, left
-  out of the room the Year's form takes. On row 18, its columns' heads in `text.subtle`: `requests`
-  at 14, `worth` at 26, `against` at 38, `limits` at 48 and `by model` at 60. From row 19, a row a
-  month, oldest first,
-  its name at column 2, the first with its year, `Oct 2025`, the current month's bold; values in
+  for the table, short where only that fits, `· 2 of 3 plans`, compact where only that does,
+  `· 2/3`, and none where none does, left out of the room the Year's form takes. On row 18, its
+  columns' heads in `text.subtle`: `requests` at 14, `worth` at 26, `against` at 38, `limits` at 48
+  and `by model` at 60. From row 19, a row a month, oldest first, its name at column 2, the first
+  with its year, `Oct 2025`, the current month's bold; values in
   `text.secondary`; `against` bold, coloured as against its price is, the month the ledger began
   recording in priced from its first day, as the numbers price it (the owner's call, 15 October
   2026), and `—` in `text.faint` for the month so far; `limits` in `state.destructive`. At column
