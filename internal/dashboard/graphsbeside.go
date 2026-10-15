@@ -48,21 +48,22 @@ func (f Frame) besideUsage(doc status.Document, now time.Time) func(c *canvas, a
 	return nil
 }
 
-// chartsBeside draws each account's charts of doc at m's moment beside its
-// block by account, as at says the blocks lie, from its column to the
-// frame's edge: of its windows, in USAGE's order, as many as fit, as
-// besideFit has them, side by side, each as wide as they share the room,
-// besideGap cells apart; each from the block's first row to the row after its
-// last, its axis on that row, so a block of three windows has four rows of
-// chart. Nothing is drawn beside the pool's block.
+// besideChart is a chart GRAPHS draws beside a block of USAGE's by account:
+// an account's window's, or the pool's.
+type besideChart interface {
+	draw(c *canvas, look Look, at bounds)
+}
+
+// chartsBeside draws the charts of doc at m's moment beside each block of
+// USAGE's by account, as at says the blocks lie, from its column to the
+// frame's edge, as chartsOfBlock has them: as many as fit, as besideFit has
+// them, side by side, each as wide as they share the room, besideGap cells
+// apart; each from the block's first row to the row after its last, its axis
+// on that row, so a block of three windows has four rows of chart.
 func (f Frame) chartsBeside(c *canvas, doc status.Document, m status.Moment, at blocksBeside) {
 	room := f.edge() - at.x
 	for _, block := range at.blocks {
-		a, ok := m.Account(block.id)
-		if !ok {
-			continue
-		}
-		charts := f.chartsOf(doc, m.Now, a)
+		charts := f.chartsOfBlock(doc, m, block.id)
 		n := besideFit(len(charts), room)
 		if n == 0 {
 			continue
@@ -72,6 +73,26 @@ func (f Frame) chartsBeside(c *canvas, doc status.Document, m status.Moment, at 
 			ch.draw(c, f.Look, bounds{x: at.x + i*(width+besideGap), y: block.y, width: width, rows: block.rows + 1})
 		}
 	}
+}
+
+// chartsOfBlock are the charts of doc at m's moment beside the block of the
+// account with the given id, in USAGE's order: its windows', as chartsOf has
+// them; or beside the pool's, its id "", the pool's, as poolChartsOf has
+// them.
+func (f Frame) chartsOfBlock(doc status.Document, m status.Moment, id string) []besideChart {
+	var charts []besideChart
+	if id == "" {
+		for _, ch := range f.poolChartsOf(doc, m) {
+			charts = append(charts, ch)
+		}
+		return charts
+	}
+	if a, ok := m.Account(id); ok {
+		for _, ch := range f.chartsOf(doc, m.Now, a) {
+			charts = append(charts, ch)
+		}
+	}
+	return charts
 }
 
 // besideFit is how many of k charts fit side by side in room cells, each

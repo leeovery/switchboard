@@ -41,6 +41,9 @@ func TestTheViewsAgreeAtEachHardMoment(t *testing.T) {
 					agree(t, of+" resets", d.resets(a, w))
 				}
 			}
+			for _, w := range d.moment.Pool().Windows {
+				agree(t, "the pool's "+w.Key+" is used", d.poolUsed(w.Key))
+			}
 		})
 	}
 }
@@ -61,10 +64,10 @@ func agree(t *testing.T, fact string, says []viewSays) {
 }
 
 // drawn are the views of a document at a moment, each as it's drawn: USAGE,
-// ROUTING, the routing card, COMING UP, the status line, and Runway's live
-// views, the 5-hour's and the week's; and the moment, which says which
-// accounts and windows there are, and which account and window each thing
-// COMING UP says is of, in its order.
+// ROUTING, the routing card, COMING UP, the status line, Runway's live
+// views, the 5-hour's and the week's, and the pool's charts; and the
+// moment, which says which accounts and windows there are, and which account
+// and window each thing COMING UP says is of, in its order.
 type drawn struct {
 	now        time.Time
 	moment     status.Moment
@@ -74,6 +77,7 @@ type drawn struct {
 	coming     []happening
 	statusLine statusLine
 	runway     map[views.RunwayWindow]Frame
+	poolCharts []poolChart
 }
 
 // drawnAt is each view of doc at now, as a frame as wide as the frames draws
@@ -91,6 +95,7 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 		coming:     f.upcoming(doc, now),
 		statusLine: f.pageStatus(doc, now),
 		runway:     make(map[views.RunwayWindow]Frame),
+		poolCharts: f.poolChartsOf(doc, m),
 	}
 	if len(d.coming) != len(m.ComingUp) {
 		t.Fatalf("COMING UP says %d things, want the moment's %d", len(d.coming), len(m.ComingUp))
@@ -326,6 +331,28 @@ func (d drawn) used(a status.AccountNow, w status.WindowNow) []viewSays {
 			card = prose.Percent(f.Used)
 		}
 		says = append(says, viewSays{"the routing card", card})
+	}
+	return says
+}
+
+// poolUsed is how much of the pool's window with the given key each view
+// says is used: USAGE's Σ pool bar, and the pool's chart of it at now, its
+// last column.
+func (d drawn) poolUsed(key string) []viewSays {
+	var says []viewSays
+	if n := len(d.usage.rows); n > 0 && d.usage.rows[n-1].pool {
+		if j := slices.IndexFunc(d.usage.windows, func(w shownWindow) bool { return w.key == key }); j >= 0 {
+			says = append(says, viewSays{"USAGE's Σ pool", prose.Percent(d.usage.rows[n-1].gauges[j].bar.used)})
+		}
+	}
+	for _, pc := range d.poolCharts {
+		if pc.room.Key != key {
+			continue
+		}
+		if room := pc.room.Room(25); room.Of > 0 {
+			last := room.Columns[len(room.Columns)-1]
+			says = append(says, viewSays{"the pool's chart", prose.Percent(1 - last.Room/float64(room.Of))})
+		}
 	}
 	return says
 }

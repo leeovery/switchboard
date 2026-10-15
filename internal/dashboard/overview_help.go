@@ -50,6 +50,8 @@ func overviewHelp() []helpPart {
 				said("By account, from 150 columns, every account's charts sit beside its block, as many of its windows as fit, so no " +
 					"account is focused, and ROUTING takes rows of its own under USAGE; narrower, and on a phone, GRAPHS charts the focused " +
 					"account, as by window."),
+				said("Beside Σ pool, the pool's charts are its room over each window's length back to now: what its accounts had left, " +
+					"each to its cap, summed, each one's reset a step up."),
 			},
 			glyphs: []glyph{
 				{drawn: line{{paceDot, dimInk}}, means: "even pace, on the burn-up: a line to measure by, not a forecast"},

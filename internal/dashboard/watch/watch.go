@@ -275,10 +275,12 @@ type Model struct {
 	news    news
 	changes changes
 	numbers numbers
-	// history is how the accounts' windows have been used, and trails the
-	// charts' share of it, of the document on screen.
+	// history is how the accounts' windows have been used, and trails and
+	// pooled the charts' share of it, of the document on screen, as charted
+	// has them.
 	history history
 	trails  dashboard.Trails
+	pooled  dashboard.PoolTrails
 	// sessions are the sessions the router listed with the document on
 	// screen, for the sessions running and Sessions' calls: nil where it
 	// listed none; and listedBy is the router that listed them, as its health
@@ -642,12 +644,10 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.fetched(msg)
 	case historyMsg:
 		m.history = m.history.answered(msg)
-		m.trails = m.history.drawn(m.moment(m.now()))
-		return m, nil
+		return m.charted(m.moment(m.now())), nil
 	case filedMsg:
 		m.history = m.history.filedAs(msg)
-		m.trails = m.history.drawn(m.moment(m.now()))
-		return m, nil
+		return m.charted(m.moment(m.now())), nil
 	case yearReadMsg:
 		return m.yearRead(msg), nil
 	case sinceMsg:
@@ -856,7 +856,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
+		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, PoolTrails: m.pooled,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Burn: m.burn, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
 		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), HeldList: m.sessionsTab.list(), Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
 		Focus:      m.focus,
@@ -1042,7 +1042,7 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 		m.sessions = nil
 	}
 	m = m.stillThere(look)
-	m.trails = m.history.drawn(look)
+	m = m.charted(look)
 	m = m.lookedLog(look, msg.router).runwaySaw(look)
 	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), read, now)
 	switch {

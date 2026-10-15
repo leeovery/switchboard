@@ -63,9 +63,9 @@ func (h Health) Same(o Health) bool {
 }
 
 // History is what GET /history answers: every account's use of a window over
-// its current length, from the readings history and the readings since, a
-// point each step from when the window started, which the dashboard's charts
-// draw.
+// its length back from now, from the readings history and the readings since,
+// a point each step, which the dashboard's charts draw: each account's from
+// when its window started, and the pool's all of it.
 type History struct {
 	// Window is the key of the window asked for, and Step the step between
 	// points, as asked.
@@ -75,21 +75,25 @@ type History struct {
 	Accounts []AccountHistory `json:"accounts"`
 }
 
-// AccountHistory is an account's use of a window over its current length, as
-// GET /history gives it.
+// AccountHistory is an account's use of a window over its length back from
+// now, as GET /history gives it.
 type AccountHistory struct {
 	ID string `json:"id"`
 	// Start is when the account's window, as it runs now, started: zero when
 	// it can't be placed as running now, as when it hasn't been read, has
-	// lapsed, or has reset since it was read, and then it has no points.
+	// lapsed, or has reset since it was read.
 	Start time.Time `json:"start,omitzero"`
-	// Points are the window's use a step apart from Start until now, but for
-	// those before it was first read.
+	// Points are the window's use a step apart over its length back from now:
+	// from Start, as it has run since, and a step apart back from Start, or
+	// where it has none, from the length back, as the windows before it ran;
+	// but for those before it was first read. A router from before they went
+	// back past Start gives those from Start alone, and none where it has
+	// none.
 	Points []HistoryPoint `json:"points,omitempty"`
 }
 
 // HistoryPoint is a window's use at a time: as it was last read at or before
-// it.
+// it, none once its reset had passed.
 type HistoryPoint struct {
 	At          time.Time `json:"at"`
 	Utilization float64   `json:"utilization"`
@@ -325,7 +329,7 @@ func historyAsked(req *http.Request) (historyAsk, error) {
 		return historyAsk{}, fmt.Errorf("step %s is too short for window %s: its whole length would take more than %d steps, so give %v or more",
 			asked, redact.Text(window), maxPoints, leastStep(length))
 	}
-	return historyAsk{window: window, step: step, asked: asked}, nil
+	return historyAsk{window: window, length: length, step: step, asked: asked}, nil
 }
 
 // refresh probes the accounts nothing has been read of for longer than age,

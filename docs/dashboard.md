@@ -107,8 +107,10 @@ remembers which:
 `↑` and `↓` move the focus between accounts. USAGE lights the focused account.
 
 By account, from 150 columns, GRAPHS draws every account's charts beside its block instead, as
-many of its windows as fit, and there's no focus to move. Narrower, and on a phone, it charts the
-focused account under USAGE.
+many of its windows as fit, and there's no focus to move. Beside `Σ pool`, the pool's charts show
+the room its accounts had left over each window's length back to now, each to its cap, summed.
+Each account's reset shows as a step up. Narrower, and on a phone, GRAPHS charts the focused
+account under USAGE.
 
 <div align="center">
 <img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then GRAPHS, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
@@ -163,7 +165,8 @@ COMING UP and LATELY sit side by side.
 
 `b` makes USAGE one block for each account, with the account's windows as rows and its ROUTING
 beside it. The pool's block comes last. While GRAPHS shows, from 150 columns, each account's charts
-sit beside its block instead, and ROUTING is a section of its own again.
+sit beside its block instead, the pool's beside the pool's, and ROUTING is a section of its own
+again.
 
 ### Keys on the Overview
 

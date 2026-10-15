@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // Trails are how the accounts' windows have been used, which GRAPHS draws
@@ -20,3 +21,9 @@ type Ref struct {
 type Trail struct {
 	Readings []score.Reading
 }
+
+// PoolTrails are how the accounts' windows have been used over each one's
+// length back from now, which the pool's charts draw from, as
+// views.PoolRoomFrom reads them: each window's readings, the oldest first,
+// by its account's id and its key.
+type PoolTrails map[Ref][]views.WindowReading

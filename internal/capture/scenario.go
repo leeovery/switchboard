@@ -82,8 +82,8 @@ func ScenarioNamed(name string) (Scenario, error) {
 // base is a scenario's world as it starts, built once, before its clock
 // starts, as a year of readings takes a while: the world, kept, and its
 // records, which are read in place as the scenario plays, never copied; the
-// start; each of its windows as it runs then, the readings of it since it
-// started and the last of them, which are all a document of it reads; the
+// start; the readings of its windows a document of it and its router's
+// history read, as windowsAsTheyRun has them, and the last of each; the
 // sessions it lists then, and their own pins; what its request stream had
 // told by then; the account it names the best; and the cues, the scenario's
 // and those that land what was in flight as it started. How many sessions
@@ -130,7 +130,7 @@ func (s Scenario) based() *base {
 		world: w, records: w.records(), start: start, best: doc.Best, sessions: doc.Sessions,
 		stream: slices.DeleteFunc(slices.Clone(w.stream), func(e router.StreamEvent) bool { return e.At.After(start) }),
 	}
-	b.current, b.latest = windowsAsTheyRun(w.history)
+	b.current, b.latest = windowsAsTheyRun(w.history, start)
 	if w.routed != nil {
 		b.listed = w.routed(start)
 	}
@@ -160,22 +160,36 @@ func (s Scenario) based() *base {
 	return b
 }
 
-// windowsAsTheyRun are the readings of each window of h as it runs at the end of h,
-// in the order they were read, and the last of each, by the window: what a
-// document reads of a window, its trail starting afresh at each reset, as
-// score.Noted has it.
-func windowsAsTheyRun(h history) (history, map[windowOf]readings.Reading) {
+// windowsAsTheyRun are the readings of h a scenario's router reads as it
+// plays from start, in the order they were read: each window's as it runs at
+// the end of h, what a document reads of it, its trail starting afresh at
+// each reset, as score.Noted has it; and each window's over the longest
+// window's length back from start, the last before then carried in, what GET
+// /history gives. And the last of each, by the window.
+func windowsAsTheyRun(h history, start time.Time) (history, map[windowOf]readings.Reading) {
 	latest := make(map[windowOf]readings.Reading)
+	var longest time.Duration
 	for _, r := range h {
 		latest[windowOf{account: r.Account, key: r.Key}] = r
-	}
-	var running history
-	for _, r := range h {
-		if r.ResetsAt.Equal(latest[windowOf{account: r.Account, key: r.Key}].ResetsAt) {
-			running = append(running, r)
+		if length, ok := quota.Length(r.Key); ok {
+			longest = max(longest, length)
 		}
 	}
-	return running, latest
+	from := start.Add(-longest)
+	carried := make(map[windowOf]int)
+	for i, r := range h {
+		if r.At.Before(from) {
+			carried[windowOf{account: r.Account, key: r.Key}] = i
+		}
+	}
+	var read history
+	for i, r := range h {
+		w := windowOf{account: r.Account, key: r.Key}
+		if last, ok := carried[w]; r.ResetsAt.Equal(latest[w].ResetsAt) || !r.At.Before(from) || ok && i == last {
+			read = append(read, r)
+		}
+	}
+	return read, latest
 }
 
 // requestNumber is the router's request id as the number it counts from, as

@@ -168,7 +168,7 @@ type plot struct {
 // across the chart's middle row, over what it crosses; one whose span isn't
 // known has its top row alone, and that word.
 func (ch chart) draw(c *canvas, look Look, at bounds) {
-	ch.top(c, at)
+	chartTop(c, at, ch.name)
 	h := at.rows - 2
 	if h < 1 || at.width < 1 {
 		return
@@ -199,11 +199,11 @@ func (ch chart) burnUp(c *canvas, look Look, p plot) {
 	ch.lines(c, p.x, p.floor, p.width, p.h, p.now)
 }
 
-// top draws the chart's top row in the bounds given: its window's name in
-// text.subtle, then a space and the limit's line, faint, to the chart's
-// right.
-func (ch chart) top(c *canvas, at bounds) {
-	end := c.text(at.x, at.y, prose.Cut(ch.name, at.width), dimInk)
+// chartTop draws a chart's top row in the bounds given: its window's name,
+// as given, in text.subtle, then a space and the limit's line, faint, to
+// the chart's right.
+func chartTop(c *canvas, at bounds, name string) {
+	end := c.text(at.x, at.y, prose.Cut(name, at.width), dimInk)
 	if rest := at.x + at.width - end - 1; rest > 0 {
 		c.text(end, at.y, " "+strings.Repeat(limitLine, rest), faintInk)
 	}

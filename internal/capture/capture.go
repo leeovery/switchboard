@@ -302,10 +302,11 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // judge by eye, GRAPHS' burn-down, with v, GRAPHS and SESSIONS shown; by
 // account with GRAPHS at 160 × 37, and its burn-down at 220 × 50; by
 // account at 140 × 48, GRAPHS falling back to the focused account's charts,
-// ROUTING, COMING UP and LATELY hidden; and the burn-down on a phone, USAGE
-// and GRAPHS alone; and the routing card opened on auto, with two picked,
-// with one picked and m ticked, and over routing's world of a limit, with
-// side picked. History's frames, each reached from
+// ROUTING, COMING UP and LATELY hidden; the pool's charts beside Σ pool by
+// account, the burn-down at 160 × 37 and the burn-up at 220 × 50; and the
+// burn-down on a phone, USAGE and GRAPHS alone; and the routing card opened
+// on auto, with two picked, with one picked and m ticked, and over routing's
+// world of a limit, with side picked. History's frames, each reached from
 // the Overview with tab twice, then the keys to its view: the Year, and
 // filtered to Opus 5.5; Weeks, its table and its columns, and of ten
 // accounts; Days, and of ten; Tokens by account, and by model; and the Year
@@ -374,6 +375,8 @@ var pages = []page{
 	{name: "overview-by-account-graphs-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("b", "g")},
 	{name: "overview-by-account-burn-down-220x50", size: watch.Size{Width: 220, Height: 50}, world: accountWorlds.auto, keys: keysOf("b", "g", "v")},
 	{name: "overview-by-account-graphs-140", size: watch.Size{Width: 140, Height: 48}, world: accountWorlds.auto, keys: keysOf("b", "g", "r", "c", "l")},
+	{name: "overview-pool-burn-down-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("b", "g", "v")},
+	{name: "overview-pool-220x50", size: watch.Size{Width: 220, Height: 50}, world: accountWorlds.auto, keys: keysOf("b", "g")},
 	{name: "overview-phone-burn-down-52", size: watch.Size{Width: 52, Height: 72}, world: accountWorlds.auto, keys: keysOf("g", "v", "r", "c", "l")},
 	{name: "routing-auto-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p")},
 	{name: "routing-two-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "3")},

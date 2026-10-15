@@ -211,10 +211,10 @@ func (c *Client) Restart(ctx context.Context) (Restart, error) {
 }
 
 // History asks for every account's use of the window with the given key over
-// its current length, a point each step, from the readings history and the
-// readings since. It fails, saying why, when the router refuses what's asked,
-// and with ErrNoHistory when it can't be asked, as a router from before GET
-// /history can't.
+// its length back from now, a point each step, from the readings history and
+// the readings since, as History has it. It fails, saying why, when the
+// router refuses what's asked, and with ErrNoHistory when it can't be asked,
+// as a router from before GET /history can't.
 func (c *Client) History(ctx context.Context, window string, step time.Duration) (History, error) {
 	var h History
 	query := url.Values{"window": {window}, "step": {step.String()}}
