@@ -7,7 +7,8 @@
 # state, preferences and bin directory, or Claude Code's config directory,
 # wherever they are, nor a theme wherever its link leads, nor the directories
 # on PATH, and none of the real programs tests must never run.
-# Arguments go on to go test, as in: scripts/test-isolated -run TestStatus
+# Arguments go on to go test, as in: scripts/test-isolated -run TestStatus;
+# packages named, as ./internal/views/..., are run in place of every package.
 #
 # The variables that can hold real tokens, or lead to the real tmux server or
 # a proxy, are unset before anything runs. Each run first proves the sandbox
@@ -21,6 +22,14 @@ repo=$(cd "$(dirname "$0")/.." && pwd -P)
 # Under the race detector on a busy machine, the dashboard's watch tests take
 # longer than go test's default of ten minutes. A -timeout given overrides it.
 limit=30m
+
+# packages is every package, unless the arguments name some, as ./internal/views/...
+packages=./...
+for arg in "$@"; do
+	case $arg in
+	./*) packages= ;;
+	esac
+done
 
 # unseen reports whether the variable named is one no test may see: one that
 # configures switchboard, Claude Code or the Anthropic API, and can hold a
@@ -108,7 +117,7 @@ if [ "$(uname -s)" != Darwin ]; then
 	fi
 	echo "test-isolated: warning: there's no sandbox off macOS, so the tests run outside one, guarded by testguard alone" >&2
 	cd "$repo"
-	exec go test -race -count=1 -timeout "$limit" "$@" ./...
+	exec go test -race -count=1 -timeout "$limit" "$@" ${packages:+"$packages"}
 fi
 sandbox_exec=/usr/bin/sandbox-exec
 if [ ! -x "$sandbox_exec" ]; then
@@ -390,4 +399,4 @@ if ! self_check >/dev/null; then
 	exit 1
 fi
 cd "$repo"
-sandboxed go test -race -count=1 -timeout "$limit" "$@" ./...
+sandboxed go test -race -count=1 -timeout "$limit" "$@" ${packages:+"$packages"}
