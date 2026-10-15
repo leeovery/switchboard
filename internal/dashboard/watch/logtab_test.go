@@ -236,6 +236,120 @@ func TestALineOfTheDayBeforeWrittenAfterTheTurnComesAsTheStreamTellsItEnded(t *t
 	}
 }
 
+// A request in flight across midnight, whose line is written to the day it
+// arrived on after a look past midnight on the Log read that day again, has
+// its line taken in while the Overview shows as it does at first, ROUTING
+// hearing the stream and SESSIONS hidden, so folding no tail of its own:
+// the stream keeps the request, ended, till a read of the ledger's tail
+// reads its line, and the tail is followed at each look whatever shows, the
+// Log awaiting its line on the day before. Back on the Log ten minutes on,
+// its row is its line's, and the stream has let it go.
+func TestALineOfTheDayBeforeComesWhileAnotherTabShows(t *testing.T) {
+	state := t.TempDir()
+	night := onTheDay(23, 59, 30)
+	writeLines(t, state, arrivedAt("0a000001", night.Add(-10*time.Minute)))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.clock.now = night
+	h.start()
+
+	arrival := night.Add(20 * time.Second)
+	at := func(kind string, when time.Time) router.StreamEvent {
+		return alter(told(kind, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = when.UTC() })
+	}
+	h.hear(at(router.StreamSent, arrival.Add(100*time.Millisecond)))
+	h.clock.now = night.Add(35 * time.Second)
+	h.read(routerDocument(three()...))
+	h.keys(tabKey)
+	if h.model.view != dashboard.Overview {
+		t.Fatalf("tab from the Log shows %s, want the Overview", h.model.view)
+	}
+
+	line := took(arrivedAt("0a000002", arrival), 22*time.Second)
+	writeLines(t, state, line)
+	ended := line.At.Add(22 * time.Second)
+	h.hear(alter(at(router.StreamDone, ended), func(e *router.StreamEvent) { e.Status = 200 }))
+	h.tickUntil(night.Add(10 * time.Minute))
+	h.keys(shiftTabKey)
+
+	if got := h.model.log.read.WrittenTo(); !got.Equal(ended) {
+		t.Errorf("back on the Log, its read holds lines written to %s, want %s, the line of the request across midnight taken in", got, ended)
+	}
+	if _, ok := toldOf(h.model.traffic, "0a000002"); ok {
+		t.Error("its line read, the stream keeps the request still, want it let go")
+	}
+}
+
+// A request's row stays where it sat in flight as its line takes over,
+// though its line arrived a moment before it was sent and another's line
+// lies between: the stream lets it go only once the Log has placed its line
+// where the stream told it was sent.
+func TestARowStaysWhereItSatInFlightAsTheStreamLetsItsRequestGo(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, took(arrived("0a000002", "work", 200*time.Millisecond), time.Second))
+	doc := routerDocument(three()...)
+	h := routedHarness(t, doc)
+	onTheLog(h, state)
+	h.clock.now = past(3 * time.Second)
+	h.start()
+	h.hear(told(router.StreamSent, "0a000001", "work", 500*time.Millisecond),
+		alter(told(router.StreamDone, "0a000001", "work", 2*time.Second), func(e *router.StreamEvent) { e.Status = 200 }))
+	want := []string{"0a000002", "0a000001"}
+	if got := shownRequests(h); !slices.Equal(got, want) {
+		t.Fatalf("0a000001 ended, its line unread, the Log shows %q, want %q", got, want)
+	}
+
+	writeLines(t, state, took(arrived("0a000001", "work", 0), 2*time.Second))
+	h.read(doc)
+	if _, ok := toldOf(h.model.traffic, "0a000001"); ok {
+		t.Fatal("its line read, the stream keeps 0a000001 still, want it let go")
+	}
+	if got := shownRequests(h); !slices.Equal(got, want) {
+		t.Errorf("0a000001's line read, the Log shows %q, want %q, its row where it sat in flight", got, want)
+	}
+}
+
+// The Log keeps up while another tab shows: ten minutes on History, the
+// requests that came meanwhile, their lines written, and the events the
+// router told of, are on the Log as it shows again, before any read lands.
+func TestTheLogKeepsUpWhileAnotherTabShows(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000000", "work", -time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	h.keys(shiftTabKey, shiftTabKey, shiftTabKey)
+	if h.model.view != dashboard.History {
+		t.Fatalf("shift-tab three times from the Log shows %s, want History", h.model.view)
+	}
+
+	doc := routerDocument(three()...)
+	want := []string{"0a000000"}
+	for i := range 10 {
+		sent := time.Duration(i+1) * time.Minute
+		id := fmt.Sprintf("0a%06d", i+1)
+		writeLines(t, state, took(arrived(id, "work", sent), 20*time.Second))
+		doc.Events = append(doc.Events, status.Event{ID: i + 1, At: past(sent), Kind: status.EventPin, Accounts: []string{"side"}})
+		h.startRouter(doc)
+		h.clock.now = past(sent + 30*time.Second)
+		h.read(doc)
+		want = append(want, id)
+	}
+	h.update(tabKey)
+	h.update(tabKey)
+	h.update(tabKey)
+
+	if h.model.view != dashboard.Log {
+		t.Fatalf("tab three times from History shows %s, want the Log", h.model.view)
+	}
+	if got := shownRequests(h); !slices.Equal(got, want) {
+		t.Errorf("back on the Log, before any read lands, the Requests show %v, want %v", got, want)
+	}
+	if got := len(h.model.log.page.Events.Rows); got != 10 {
+		t.Errorf("back on the Log, before any read lands, the Events show %d, want the 10 the router told of", got)
+	}
+}
+
 // A request that arrived at 23:59:58 and first went upstream at 00:00:01
 // has its line filed under the day it arrived on, written after the turn:
 // the stream tells no arrival, so the Log awaits its line on the day before
@@ -341,9 +455,10 @@ func madeAt[T any](s []T) *T {
 // The Log's tables are made again only as what they're made of changes: a
 // frame or the pointer moving makes neither afresh, the clock moved on a
 // tenth, a request in flight or not; the stream telling of a request makes
-// the Requests again; a look the Events, and the Requests only where the
-// ledger's tail it reads gains a line; and the filter changing the table it
-// filters. Its panel, open, is made again as what it picks changes, not as
+// the Requests again; a look the Events only where it tells of an event
+// anew, not where it tells of those it told before alike; a look whose read
+// of the ledger's tail gains a line both, as a move's cost on the Events is
+// its session's story; and the filter changing the table it filters. Its panel, open, is made again as what it picks changes, not as
 // the pointer moves over it, nor its cursor; and of the Requests, as a
 // line comes, not at a look listing the sessions alike and gaining none,
 // nor as an answer streams on.
@@ -373,7 +488,12 @@ func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 	}{
 		{name: "a frame and the pointer moving", step: unmoved},
 		{name: "the stream telling of a request", step: func() { h.hear(told(router.StreamSent, "0a000003", "work", 0)) }, requests: true},
-		{name: "a look", step: func() { h.read(doc) }, events: true},
+		{name: "a look, the router telling of the events it told of before", step: func() { h.read(doc) }},
+		{name: "a look telling of an event", step: func() {
+			doc.Events = append(slices.Clone(doc.Events), status.Event{ID: 2, At: past(0), Kind: status.EventPin, Accounts: []string{"side"}})
+			h.startRouter(doc)
+			h.read(doc)
+		}, events: true},
 		{name: "a look whose tail read gains a line", step: func() {
 			writeLines(t, state, arrived("0a000004", "work", 0))
 			h.read(doc)
@@ -386,7 +506,7 @@ func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 		{name: "a look under the panel, listing the sessions alike, its tail gaining nothing", step: func() {
 			h.source.sessions = slices.Clone(h.source.sessions)
 			h.tickUntilAsked()
-		}, events: true},
+		}},
 		{name: "an answer streaming on under the panel", step: func() {
 			h.hear(alter(told(router.StreamProgress, "0a000003", "work", time.Second), func(e *router.StreamEvent) { e.Chars = 400 }))
 		}},

@@ -172,9 +172,17 @@ func (h *harness) deliver(msgs ...tea.Msg) {
 // still under way, and returns.
 func (h *harness) holdingReads(msgs ...tea.Msg) []tea.Msg {
 	h.t.Helper()
+	return holdingBack[logReadMsg](h, msgs...)
+}
+
+// holdingBack delivers msgs and all they send back, as deliver does, but
+// for those of type T, which it holds back undelivered, as reads still
+// under way, and returns.
+func holdingBack[T tea.Msg](h *harness, msgs ...tea.Msg) []tea.Msg {
+	h.t.Helper()
 	var held []tea.Msg
 	for ; len(msgs) > 0; msgs = msgs[1:] {
-		if _, ok := msgs[0].(logReadMsg); ok {
+		if _, ok := msgs[0].(T); ok {
 			held = append(held, msgs[0])
 			continue
 		}

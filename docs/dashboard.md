@@ -469,7 +469,10 @@ Every page is one frame. From top to bottom, it has:
 5. The key line. See [The key line](#the-key-line).
 
 When a tab reads a lot, as Sessions or the Log first showing a long ledger, its heading row says
-`loading…` until the read lands. A quick read says nothing.
+`loading…` until the read lands. On the Overview, which has no heading row, SESSIONS' heading says
+it. A quick read says nothing. Once the Log, Sessions' List or a session's page has read the
+ledger, it keeps reading what the ledger gains while another tab shows, so it's up to date when you
+come back to it.
 
 ### The tabs
 

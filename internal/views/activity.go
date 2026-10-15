@@ -188,11 +188,6 @@ func (t Told) busierThan(u Told) bool {
 	) > 0
 }
 
-// seatOf names a session's model on an account.
-type seatOf struct {
-	session, model, account string
-}
-
 // heard is what the request stream told of a session's model's requests on
 // an account: the busiest of them in flight, as busierThan has it, where
 // flying says any is; and when it last told of any, as one ended, or as it
@@ -224,41 +219,41 @@ func (h heard) doing() Activity {
 // looks.
 type hearing struct {
 	live  bool
-	seats map[seatOf]heard
-	sat   map[string][]seatOf
+	seats map[Seat]heard
+	sat   map[string][]Seat
 	told  map[string][]Told
 	named map[string]naming
 }
 
 // hear is what s told of each session's model on each account, and of each
 // session's requests, of those it knows, as known has them: so nothing is in
-// flight while s isn't live.
+// flight while s isn't live. A seat whose requests have gone, their lines
+// read, is seen as late as s says it was, as though they hadn't.
 func (s Stream) hear() hearing {
 	h := hearing{
-		live: s.Live, seats: make(map[seatOf]heard), sat: make(map[string][]seatOf),
+		live: s.Live, seats: make(map[Seat]heard), sat: make(map[string][]Seat),
 		told: make(map[string][]Told), named: make(map[string]naming),
 	}
 	for t := range s.known() {
-		if t.countedSession() == "" {
+		seat, ok := t.Seat()
+		if !ok {
 			continue
 		}
-		k := seatOf{session: t.Session, model: t.Model, account: t.Account}
-		got, sat := h.seats[k]
-		if !sat {
-			h.sat[t.Session] = append(h.sat[t.Session], k)
-		}
-		got.last = score.Later(got.last, t.Heard)
+		got := h.seen(seat, t.Heard)
 		if t.InFlight() && (!got.flying || t.busierThan(got.busiest)) {
 			got.busiest, got.flying = t, true
 		}
-		h.seats[k] = got
+		h.seats[seat] = got
 		if t.Spends() {
 			h.told[t.Session] = append(h.told[t.Session], t)
 		}
 	}
+	for seat, at := range s.Seen {
+		h.seats[seat] = h.seen(seat, at)
+	}
 	for _, seats := range h.sat {
-		slices.SortFunc(seats, func(x, y seatOf) int {
-			return cmp.Or(strings.Compare(x.model, y.model), strings.Compare(x.account, y.account))
+		slices.SortFunc(seats, func(x, y Seat) int {
+			return cmp.Or(strings.Compare(x.Model, y.Model), strings.Compare(x.Account, y.Account))
 		})
 	}
 	for id, told := range h.told {
@@ -268,6 +263,17 @@ func (s Stream) hear() hearing {
 	return h
 }
 
+// seen is what h holds of the seat given, seen at at, as late as it was
+// already: noted among its session's seats where it's the first.
+func (h hearing) seen(seat Seat, at time.Time) heard {
+	got, sat := h.seats[seat]
+	if !sat {
+		h.sat[seat.Session] = append(h.sat[seat.Session], seat)
+	}
+	got.last = score.Later(got.last, at)
+	return got
+}
+
 // seat is what the session with the given id's model is doing on its
 // account, as the router listed it in a: what the stream tells of its
 // requests there, while it's live and has told of any, in flight, ended or
@@ -275,7 +281,7 @@ func (s Stream) hear() hearing {
 // say when they're all in. It's seen as late as either saw it, and idle
 // since then.
 func (h hearing) seat(session string, a status.Assignment) Activity {
-	got, told := h.seats[seatOf{session: session, model: a.Model, account: a.Account}]
+	got, told := h.seats[Seat{Session: session, Model: a.Model, Account: a.Account}]
 	listed := Activity{Since: a.LastSeen, LastSeen: a.LastSeen}
 	if h.live && told {
 		return listed.with(got.doing())
@@ -303,7 +309,7 @@ func (h hearing) saw(id string, now time.Time) bool {
 	if !h.live {
 		return false
 	}
-	return slices.ContainsFunc(h.sat[id], func(k seatOf) bool {
+	return slices.ContainsFunc(h.sat[id], func(k Seat) bool {
 		got := h.seats[k]
 		return got.flying || now.Before(lapsed(got.last))
 	})
@@ -330,8 +336,8 @@ func (h hearing) at(id, account string, goes []status.Assignment) []Activity {
 		}
 	}
 	for _, k := range h.sat[id] {
-		placed := slices.ContainsFunc(goes, func(a status.Assignment) bool { return a.Model == k.model && a.Account == k.account })
-		if !placed && (account == "" || k.account == account) {
+		placed := slices.ContainsFunc(goes, func(a status.Assignment) bool { return a.Model == k.Model && a.Account == k.Account })
+		if !placed && (account == "" || k.Account == account) {
 			activities = append(activities, h.seats[k].doing())
 		}
 	}

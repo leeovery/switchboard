@@ -276,7 +276,8 @@ func writeDay(tb testing.TB, dir, name string, data []byte, compressed bool) {
 // BenchmarkTheBusyDashboard times the dashboard on a busy world, as
 // newBusyWorld writes it, as its user meets it: enter on a session in
 // Accounts' Detail till its page shows its lines, of the session that ran
-// every day of the four weeks, and of one that ran the last three; a look at
+// every day of the four weeks, and of one that ran the last three; the Log
+// shown the first time, till its first read lands; a look at
 // the router's document with that page open, and with the Log shown; a batch
 // of the request stream's events, an answer of the session's streaming on,
 // with the page open and on the Log, the stream having told of the hour's
@@ -295,6 +296,18 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 			}
 		})
 	}
+	b.Run("opening the Log", func(b *testing.B) {
+		h := w.harness(b)
+		on := h.model
+		for b.Loop() {
+			h.model, h.timers, h.waits = on, nil, nil
+			h.model.view = dashboard.Log
+			h.deliver(h.update(nudgeMsg{})...)
+			if !h.model.log.opened {
+				b.Fatal("the Log didn't open")
+			}
+		}
+	})
 	page := w.onDetail(b, w.longest())
 	page.entered(w.longest())
 	page.hearHour(w)

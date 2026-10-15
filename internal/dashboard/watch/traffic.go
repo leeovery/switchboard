@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -26,41 +27,38 @@ const (
 	looseFor    = 3 * time.Second
 )
 
-// seenFor is how long the watch keeps a move the stream told of, and a
-// request it told of that was lost: the router lists the sessions it has
-// seen in the last IdleHour, so one it lists after that it has seen since,
-// as its own listing says.
+// seenFor is how long the watch keeps a move the stream told of, a request
+// it told of whose line no read of the ledger's tail has read, and when it
+// last saw each seat whose requests have gone: the router lists the
+// sessions it has seen in the last IdleHour, so one it lists after that it
+// has seen since, as its own listing says.
 const seenFor = views.IdleHour
-
-// lineWithin is how long after the stream last told of a request that
-// ended its line is in the watch's hands, at the latest, the views taking
-// the request from its line from then on: the router writes it moments
-// after the request ends, held up only while its ledger makes its round;
-// today's lines are read at each look, and a day before today's awaiting a
-// line at the look after a request filed on it ends, then each
-// awaitedEvery. Twice awaitedEvery bounds it, with room to spare.
-const lineWithin = 2 * awaitedEvery
 
 // traffic is what the router's request stream has told of the routed
 // requests, as the watch keeps it for the frame: each request it told of,
-// as the views read it, by its id; what each request is doing on each
-// account it went out on, as the cords draw it; the moves the stream told
-// of, for seenFor; the account the router's last listing of its
-// sessions put each seat on, which shows each move there done, so the views
-// no longer read it; whether it's live, the stream open and telling what's
-// in flight, as the views trust it; and, the stream opened again, the
-// requests it told of in flight before, by their ids, awaiting its first
-// look, as join has it: nil while none does; when tidy is next due to let
-// go of something of its requests, calls and moves; how many times its
-// requests have changed, and how many of those changes changed a request's
-// row, as views.Told.SameRow compares it, so what's made of them is made
-// again only as they change; and what hears the views' stream of it once as
-// what it told changes, rather than at each frame, shared by every copy: nil
-// where each look hears it afresh. Its maps and moves are its own: what
-// changes it copies them first, so its requests are another map whenever
-// anything in them changes, as the Hearing reads a change by.
+// as the views read it, by its id, till its line is read, as lined has it;
+// when it last told of each seat whose requests have gone so, for seenFor;
+// what each request is doing on each account it went out on, as the cords
+// draw it; the moves the stream told of, for seenFor; the account the
+// router's last listing of its sessions put each seat on, which shows each
+// move there done, so the views no longer read it; whether it's live, the
+// stream open and telling what's in flight, as the views trust it; and,
+// the stream opened again, the requests it told of in flight before, by
+// their ids, awaiting its first look, as join has it: nil while none does;
+// when tidy is next due to let go of something of its requests, seats
+// seen, calls and moves; how many
+// times its requests have changed, and how many of those changes changed a
+// request's row, as views.Told.SameRow compares it, so what's made of them
+// is made again only as they change; and what hears the views' stream of it
+// once as what it told changes, rather than at each frame, shared by every
+// copy: nil where each look hears it afresh. Its maps and moves are its own:
+// what changes it copies them first, so its requests and seats seen are
+// another map whenever anything in them changes, as the Hearing reads a
+// change by. A batch copies its requests whole, by choice: they're what's in
+// flight and what awaits its line, tens, not the hour's.
 type traffic struct {
 	requests            map[string]views.Told
+	seen                map[views.Seat]time.Time
 	calls               map[callKey]call
 	moves               []move
 	placed              map[seat]string
@@ -72,9 +70,10 @@ type traffic struct {
 }
 
 // dues are when tidy next lets go of something of a traffic's requests, of
-// its calls and of its moves: each zero where it has nothing yet to end.
+// its seats seen, of its calls and of its moves: each zero where it has
+// nothing yet to end.
 type dues struct {
-	requests, calls, moves time.Time
+	requests, seen, calls, moves time.Time
 }
 
 // seat is a session's requests of one model, each by its id.
@@ -384,6 +383,9 @@ func (t traffic) tidied(now time.Time) traffic {
 	if reached(t.due.requests, now) {
 		t.requests = maps.Clone(t.requests)
 	}
+	if reached(t.due.seen, now) {
+		t.seen = maps.Clone(t.seen)
+	}
 	if reached(t.due.calls, now) {
 		t.calls = maps.Clone(t.calls)
 	}
@@ -395,10 +397,11 @@ func (t traffic) tidied(now time.Time) traffic {
 }
 
 // tidy lets go of what has ended by now, as due says it's due to: the
-// requests no longer in flight whose time is up, the calls with nothing
-// more to show, and the moves told of seenFor ago, as toldGoes and each's
-// goes have it. It changes those of t's maps and moves due, which
-// must be its own copies, and leaves the rest be.
+// requests no longer in flight whose time is up, the seats seen seenFor
+// ago, the calls with nothing more to show, and the moves told of seenFor
+// ago, as toldGoes, seenGoes and each's goes have it. It changes those of
+// t's maps and moves due, which must be its own copies, and leaves the rest
+// be.
 func (t *traffic) tidy(now time.Time) {
 	if reached(t.due.requests, now) {
 		n := len(t.requests)
@@ -407,6 +410,14 @@ func (t *traffic) tidy(now time.Time) {
 			t.changed(true)
 		}
 		t.due.requests = soonest(maps.Values(t.requests), toldGoes)
+	}
+	if reached(t.due.seen, now) {
+		n := len(t.seen)
+		maps.DeleteFunc(t.seen, func(_ views.Seat, at time.Time) bool { return reached(seenGoes(at), now) })
+		if len(t.seen) < n {
+			t.changed(true)
+		}
+		t.due.seen = soonest(maps.Values(t.seen), seenGoes)
 	}
 	if reached(t.due.calls, now) {
 		maps.DeleteFunc(t.calls, func(_ callKey, c call) bool { return c.over(now) })
@@ -423,23 +434,69 @@ func (t *traffic) tidy(now time.Time) {
 func (t traffic) dues() dues {
 	return dues{
 		requests: soonest(maps.Values(t.requests), toldGoes),
+		seen:     soonest(maps.Values(t.seen), seenGoes),
 		calls:    soonest(maps.Values(t.calls), call.goes),
 		moves:    soonest(slices.Values(t.moves), move.goes),
 	}
 }
 
-// toldGoes is when the request r is let go of, after the stream last told
-// of it: lineWithin after, once it has ended, its line read by then; seenFor
-// after, once it's lost, as one cut off may have none; never while it's in
-// flight, zero.
+// toldGoes is when the request r is let go of by the clock, after the stream
+// last told of it: seenFor after, once it's no longer in flight, where no
+// read of the ledger's tail has read its line before then, as lined lets it
+// go, as one cut off may have no line, nor one whose router went before
+// writing it; never while it's in flight, zero.
 func toldGoes(r views.Told) time.Time {
-	switch {
-	case r.InFlight():
+	if r.InFlight() {
 		return time.Time{}
-	case r.Lost:
-		return r.Heard.Add(seenFor)
 	}
-	return r.Heard.Add(lineWithin)
+	return r.Heard.Add(seenFor)
+}
+
+// seenGoes is when a seat seen at at, its requests gone, is let go of.
+func seenGoes(at time.Time) time.Time {
+	return at.Add(seenFor)
+}
+
+// lined is the traffic once a read of the ledger's tail has read the lines
+// given, every reader that folds it taking them in, so each view tells of
+// their requests from their lines: each request it told of, no longer in
+// flight, whose line is among them, as Told.FiledAs has it, let go, its seat
+// seen as late as the stream last told of it, as views.Stream's Seen keeps
+// it. It's t itself where none is.
+func (t traffic) lined(lines ...[]ledger.Held) traffic {
+	var gone []views.Told
+	for _, read := range lines {
+		for i := range read {
+			l := &read[i].Line
+			if r, ok := t.requests[l.Request]; ok && !r.InFlight() && r.FiledAs(l) {
+				gone = append(gone, r)
+			}
+		}
+	}
+	if len(gone) == 0 {
+		return t
+	}
+	t.requests, t.seen = maps.Clone(t.requests), cloned(t.seen)
+	for _, r := range gone {
+		if seat, ok := r.Seat(); ok {
+			t.seen[seat] = score.Later(t.seen[seat], r.Heard)
+		}
+		delete(t.requests, r.Request)
+	}
+	t.changed(true)
+	t.due = t.dues()
+	return t
+}
+
+// awaitsLines reports whether the stream told of a request no longer in
+// flight whose line no read of the ledger's tail has read yet.
+func (t traffic) awaitsLines() bool {
+	for _, r := range t.requests {
+		if !r.InFlight() {
+			return true
+		}
+	}
+	return false
 }
 
 // soonest is the soonest any of those given goes, as goes says, zero where
@@ -634,7 +691,7 @@ func (t traffic) afresh() traffic {
 		lost = lost || r.Lost != t.requests[id].Lost
 		requests[id] = r
 	}
-	forgot := traffic{requests: requests, moves: t.moves, placed: t.placed, changes: t.changes, rowChanges: t.rowChanges, heard: t.heard}
+	forgot := traffic{requests: requests, seen: t.seen, moves: t.moves, placed: t.placed, changes: t.changes, rowChanges: t.rowChanges, heard: t.heard}
 	if lost {
 		forgot.changed(true)
 	}
@@ -730,7 +787,7 @@ func (t traffic) settled() traffic {
 // and whether a listing of the router's sessions has shown it done; heard
 // as the traffic hears it.
 func (t traffic) stream(now time.Time) views.Stream {
-	s := views.Stream{Live: t.live, Requests: t.requests}.HeardBy(t.heard)
+	s := views.Stream{Live: t.live, Requests: t.requests, Seen: t.seen}.HeardBy(t.heard)
 	for _, m := range t.moves {
 		if m.showsAt(now) {
 			s.Moves = append(s.Moves, views.Moved{

@@ -1059,7 +1059,10 @@ heading there, ending in `esc back` (see A session's page). From column 0:
   moves till it lands; one that lands sooner draws nothing more, so nothing flashes (the owner's
   call, 15 October 2026). It takes the state's place, first in it, three spaces before the rest,
   and stays where the state is cut to fit, as it's the one thing there the screen can't otherwise
-  show (settled in the plan).
+  show. What waits on another read says so alike: the Log shown first behind another read of the
+  ledger, and Accounts' Detail of an account sessions run on, the Overview's SESSIONS and Sessions
+  till the List's first read lands, as it names their sessions; the Overview, which has no heading
+  row, in SESSIONS' heading, as its description (settled in the plan).
 - **A rule** of `─` in `border`, from two cells after `[ ]`, or after the name where there are no
   sub-tabs, or one after the state, to two cells short of what sits at the right, or to the last
   column where nothing does.
@@ -1578,6 +1581,9 @@ account in the config's order, a session whose models go to two accounts on each
 - **Its own trace** at column 92, one row, on the shared scale, and its rate right-aligned at the
   last column. No blank rows between sessions; with none running, `no sessions running` in
   `text.faint` (settled in the plan).
+- **While what names them is read,** as the List's first read takes 150 ms or longer, the heading
+  says `loading…` in `text.subtle` as its description, till it lands (settled in the plan; see The
+  page).
 - **A click on a row opens its session's page** (see A session's page): `↑` and `↓` stay on the
   account focus GRAPHS follows, so no key here opens one.
 - **Under 110 columns, and on a phone,** a session takes two rows: the account's number and name at
@@ -3270,7 +3276,8 @@ dashboard shows ids, bold `text.primary`; three spaces; its directory's last par
 `text.primary`; two spaces; the directory as the ledger holds it, the home as `~`
 (`~/Code/switchboard`), in `text.faint`; one space; a rule of `─` in `border`; two spaces; and,
 ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`. While it loads,
-three spaces and `loading…` in `text.subtle` go before the rule (settled in the plan).
+three spaces and `loading…` in `text.subtle` go before the rule; on a phone, two, as its parts are
+spaced there (settled in the plan).
 
 **Now** (rows 6 and 7).
 
@@ -3481,7 +3488,8 @@ moving down.
 
 - **Rows 0, 1 and 3:** the title, the tabs and the status line, as every page's phone has them.
 - **Row 5, the heading:** `SESSION` in `text.subtle`, two spaces, the id and the directory's name,
-  bold `text.primary`, two spaces apart; `esc back` at the right. No path and no rule.
+  bold `text.primary`, two spaces apart, and while it loads, two spaces and `loading…`; `esc back`
+  at the right. No path and no rule.
 - **Rows 7 and 8:** `↑ asking  on side ▲ since 14:31`, coloured as row 6 is; then `moved from work:
   its cap` in `text.muted`, `work` in `text.secondary`, and at the right `2h 40m` in
   `text.secondary`. No models and no windows.
@@ -3982,20 +3990,27 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   answers: its pages draw the sessions as each look reads them, with nothing in flight and no
   requests travelling.
 - **What the stream told is kept** till the ledger's line takes its place: a request in flight
-  for as long as it is; one that ended, two minutes after the stream last told of it, as the
-  router writes its line moments after it ends, held up only while the ledger makes its round, and
-  the dashboard reads today's lines at each look, and a day before today's awaiting a line each
-  minute; one lost, as one cut off may have no line, an hour (settled in the plan). So what the
-  stream holds is what's in flight and the last two minutes', never the hour's, and letting go of
-  it copies no more.
+  for as long as it is; one that ended, till a read of the ledger's tail reads its line, as the
+  router writes it moments after it ends, held up only while the ledger makes its round, never let
+  go sooner on time alone; and one lost, as one cut off may have no line, or one ended whose line no
+  read finds, with no ledger to read or none written, an hour, the most any is kept. While it holds
+  one whose line is to come, the tail is read at each look, whatever tab shows. Each seat's last
+  sight, its session on a model and an account, is kept apart for the hour, so letting a request go
+  never moves when its seat was last seen, as `idle` counts it (settled in the plan). So what the
+  stream holds is what's in flight and what awaits its line, never the hour's: a batch the stream
+  tells copies its requests whole, by choice, as they're tens, never thousands, and a map changed
+  in place, weighed against it, was left unbuilt (settled in the plan).
 - **Built as it changes:** each view's data is built again only as what it's made of changes,
   and what's built is drawn at each tick: a session's page as a look, a request or a full read
   changes what it shows, or as the clock turns what it says, as at the minute, a seat's lapse or a
   cache going cold; never at each tenth of a second, nor as an answer streams on, which its rows
-  count as they're drawn. The Log places each line once, as its read grows, and a change to a
-  request's row builds its row alone, never the table again; its panel builds its figures as the
-  table it's of, the stream's rows or the sessions listed change, never at each look (settled in
-  the plan).
+  count as they're drawn. The Log places and tables each line once, as its read grows; a change to
+  the stream's rows, those of requests whose lines are yet to come, builds those rows alone and
+  takes them in among the lines tabled, copying the lines held and laying the day rules between
+  them again, never placing or tabling a line afresh. Its Events are built again as a look tells of
+  an event anew, or of one otherwise, or as a line comes, as a move's cost is its session's story,
+  never at a look telling what the last told; its panel builds its figures as the table it's of,
+  the stream's rows or the sessions listed change, never at each look (settled in the plan).
 - **The traces and a session's story:** the Overview's traces take their last 30 minutes from
   today's lines once, as the Overview is first shown or the stream is joined again, and a session's
   story its life from its own days' lines, as its page opens; then each counts the requests the
@@ -4007,13 +4022,24 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   - **Today's lines** are read once, as a page first needs them, then tailed: each look reads only
     what the day's file gained since the last read ended, so a look costs what the day gained,
     never the day. A file found replaced, or shorter than where the last read ended, is read again
-    from its start (settled in the plan).
+    from its start. The tail is read at each look whatever tab shows, while a reader holds today's
+    lines, as the Log once shown, the List once read and a session's page open do, or the stream
+    awaits a line, so each keeps up while another tab shows; and a line one read finds, of today or
+    of a day before read again whole, every reader takes in (settled in the plan).
   - **A past day's summary** is read once and held for the run, until its stamp or its sizes change
     (see The request ledger). **Today's** is a running tally of the lines tailed, never summarised
     afresh at a look (settled in the plan).
   - **A session's days** are those the summaries name it in, by their session ids (see The request
     ledger), so a session's page reads its own days' lines alone, newest first, as far back as the
-    page shows.
+    page shows. The days of a read of sessions are read side by side, each taken in as one after
+    another would be; and a read of a few, as the Log's, reads the lines of others for their
+    session alone (settled in the plan).
+  - **The Log's first read** is today's lines, the events from today, and every line of the
+    sessions today's lines are of, whatever day it's of: a row's story is told from its session's
+    whole life, as whether it's the session's first request, and whether a move wrote its context
+    again, need the last request of its thread, however long before, and a move of an earlier day
+    still unsettled. So a session that ran every day of four weeks has its four weeks read as the
+    Log first shows, `loading…` while they are; never again (settled in the plan).
   - **A period, or a day stepped back to,** as Accounts', History's and Runway's are, is read once
     as it's shown, then held; History's year is a year of summaries, read once a run.
   - **The Log's Events through some kinds,** which no summary tells the days of, read back no

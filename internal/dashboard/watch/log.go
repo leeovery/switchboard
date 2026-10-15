@@ -100,13 +100,22 @@ func (m Model) builtLog(now time.Time) Model {
 // has them, and made again only as what it's made of changes, as logBuilt
 // has it, so what the stream tells builds nothing of the lines afresh.
 func (m Model) requestsBuilt(now time.Time) Model {
+	m = m.linesPlaced(now)
 	p := &m.log.page
-	src := m.logSources(p.Filter, now)
-	if basis := m.linesBasis(p.Filter, now); !m.log.built.lines.same(basis) {
-		m.log.lines, m.log.built.lines = views.LogLinesOf(m.log.lines, src), &basis
-	}
 	if basis := m.requestsBasis(p.Filter, now); !m.log.built.requests.same(basis) {
-		p.Requests, m.log.built.requests = m.log.lines.Rows(src), &basis
+		p.Requests, m.log.built.requests = m.log.lines.Rows(m.logSources(p.Filter, now)), &basis
+	}
+	return m
+}
+
+// linesPlaced is m with the Log's lines placed and tabled at now, as
+// views.LogLinesOf has them, each where it was placed before, those it
+// hasn't placed where the stream tells their requests were sent: only as
+// they, or the filter, change.
+func (m Model) linesPlaced(now time.Time) Model {
+	filter := m.log.page.Filter
+	if basis := m.linesBasis(filter, now); !m.log.built.lines.same(basis) {
+		m.log.lines, m.log.built.lines = views.LogLinesOf(m.log.lines, m.logSources(filter, now)), &basis
 	}
 	return m
 }
@@ -157,7 +166,11 @@ func (t logTab) looked(look status.Moment, from router.Health, answering bool) l
 	if t.events.Skips(look, from.StartedAt) && t.skipped.IsZero() {
 		t.skipped = cmp.Or(t.told.at, t.events.Since())
 	}
-	t.events, t.held = t.events.Look(look, from.StartedAt), t.held+1
+	events, changed := t.events.Looked(look, from.StartedAt)
+	t.events = events
+	if changed {
+		t.held++
+	}
 	if t.told.at.IsZero() || t.told.run.Equal(from.StartedAt) {
 		t.told = logTold{run: from.StartedAt, at: look.ReadAt}
 	}

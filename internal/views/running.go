@@ -186,7 +186,7 @@ func (s Stream) placed(sessions []status.Session, h hearing) []status.Session {
 	}
 	for _, session := range placed {
 		for i, a := range session.Assignments {
-			session.Assignments[i].LastSeen = score.Later(a.LastSeen, h.seats[seatOf{session: session.ID, model: a.Model, account: a.Account}].last)
+			session.Assignments[i].LastSeen = score.Later(a.LastSeen, h.seats[Seat{Session: session.ID, Model: a.Model, Account: a.Account}].last)
 		}
 	}
 	return placed

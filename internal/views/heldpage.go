@@ -419,7 +419,7 @@ func (h HeldPage) Unread(missed []string) []string {
 // from before it.
 func (h hearing) unplaced(s status.Session) bool {
 	return slices.ContainsFunc(s.Assignments, func(a status.Assignment) bool {
-		_, told := h.seats[seatOf{session: s.ID, model: a.Model, account: a.Account}]
+		_, told := h.seats[Seat{Session: s.ID, Model: a.Model, Account: a.Account}]
 		return a.InFlight != "" && (!h.live || !told)
 	})
 }

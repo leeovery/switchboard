@@ -24,10 +24,15 @@ type Stream struct {
 	// opens until the watch forgets what it told.
 	Live bool
 	// Requests are the requests it told of, by their ids: each in flight;
-	// each ended, till its line has surely come, which tells of it from then
-	// on; and each lost, as one cut off may have no line, while it told of
-	// it last within the hour a session runs for unseen.
+	// each ended or lost, till a read of the ledger's tail has read its line,
+	// which tells of it from then on, or, as one cut off may have none, while
+	// it told of it last within the hour a session runs for unseen.
 	Requests map[string]Told
+	// Seen are when it last told of a request of each seat whose requests it
+	// told of have gone, their lines read, while that was within the hour a
+	// session runs for unseen: so a request going as its line takes over
+	// never changes when its seat was last seen, nor since when it's idle.
+	Seen map[Seat]time.Time
 	// Moves are the moves it told of within the hour a session runs for
 	// unseen, the oldest first, each once it shows, a listing of the
 	// router's sessions showing it done or not: what brought a model where
@@ -116,11 +121,25 @@ type Moved struct {
 }
 
 // SameRows reports whether s tells what o does of every request's row, as
-// SameRow compares each, and of every move, and is as live: what a page
-// built of one is built of the other, a request's answer streaming on aside,
-// as its row counts on as it's drawn.
+// SameRow compares each, of every move, and of when each seat was last seen,
+// and is as live: what a page built of one is built of the other, a
+// request's answer streaming on aside, as its row counts on as it's drawn.
 func (s Stream) SameRows(o Stream) bool {
-	return s.Live == o.Live && slices.Equal(s.Moves, o.Moves) && maps.EqualFunc(s.Requests, o.Requests, Told.SameRow)
+	return s.Live == o.Live && slices.Equal(s.Moves, o.Moves) && maps.EqualFunc(s.Requests, o.Requests, Told.SameRow) && maps.Equal(s.Seen, o.Seen)
+}
+
+// Seat is a session's requests of one model on an account, as the stream
+// tells of them: what a session's model is doing there.
+type Seat struct {
+	Session, Model, Account string
+}
+
+// Seat is the seat t is a request of, reporting false for one of no
+// session's, as Claude Code's quota check is: the seat whose last sight a
+// view reads it for.
+func (t Told) Seat() (Seat, bool) {
+	session := t.countedSession()
+	return Seat{Session: session, Model: t.Model, Account: t.Account}, session != ""
 }
 
 // SameRow reports whether t tells what o does of its request's row as its
@@ -174,16 +193,16 @@ func (t Told) FiledOn() (LedgerDay, bool) {
 	return Today(t.Sent.Add(-arrivesWithin)), true
 }
 
-// filedAs reports whether l is the request's line: the same request, as
+// FiledAs reports whether l is the request's line: the same request, as
 // sameRequest has it, by when it first went upstream.
-func (t Told) filedAs(l *ledger.Line) bool {
+func (t Told) FiledAs(l *ledger.Line) bool {
 	return sameRequest(l, t.Request, t.Sent)
 }
 
 // Of is what s told of the session with the given id alone: its requests,
-// its moves, and whether s is live. Its page is built of it as of s whole,
-// none of another session's telling of it, so what changes it alone builds
-// the page again.
+// its moves, when its seats were last seen, and whether s is live. Its page
+// is built of it as of s whole, none of another session's telling of it, so
+// what changes it alone builds the page again.
 func (s Stream) Of(session string) Stream {
 	of := Stream{Live: s.Live}
 	for id, t := range s.Requests {
@@ -194,6 +213,15 @@ func (s Stream) Of(session string) Stream {
 			of.Requests = make(map[string]Told)
 		}
 		of.Requests[id] = t
+	}
+	for k, at := range s.Seen {
+		if k.Session != session {
+			continue
+		}
+		if of.Seen == nil {
+			of.Seen = make(map[Seat]time.Time)
+		}
+		of.Seen[k] = at
 	}
 	for _, m := range s.Moves {
 		if m.Session == session {
@@ -221,12 +249,12 @@ func (s Stream) known() iter.Seq[Told] {
 }
 
 // sentOf is when the request whose line l is went upstream, as s told,
-// reporting false where s told of no such request, as filedAs has it. A
+// reporting false where s told of no such request, as FiledAs has it. A
 // request's sending, once told, stands whatever s knows of it now, as known
 // has it, so a row stays where it sat in flight as its line fills it in.
 func (s Stream) sentOf(l *ledger.Line) (time.Time, bool) {
 	t, told := s.Requests[l.Request]
-	if !told || !t.filedAs(l) {
+	if !told || !t.FiledAs(l) {
 		return time.Time{}, false
 	}
 	return t.Sent, true

@@ -147,7 +147,7 @@ func counting(held map[string][]counted, sent []upstream, from time.Time) map[st
 
 // same reports whether a and b, each counted as the request with the given
 // id, are one request: where a line told of either, as sameRequest has it,
-// the other arriving, or first going upstream, as filedAs has it, while that
+// the other arriving, or first going upstream, as FiledAs has it, while that
 // line's was in flight; else, the stream alone telling of both, by the id, as
 // it tells of one request under it.
 func same(id string, a, b counted) bool {

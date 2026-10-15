@@ -178,9 +178,9 @@ func (r LogRead) unheld(held []ledger.Held) []ledger.Line {
 }
 
 // holdsLineOf reports whether r holds the line of the request t among the
-// table's, as t.filedAs knows it.
+// table's, as t.FiledAs knows it.
 func (r LogRead) holdsLineOf(t Told) bool {
-	return slices.ContainsFunc(r.held[t.Request], func(at int) bool { return t.filedAs(&r.lines[at].line) })
+	return slices.ContainsFunc(r.held[t.Request], func(at int) bool { return t.FiledAs(&r.lines[at].line) })
 }
 
 // holds reports whether r holds the line l among the table's.

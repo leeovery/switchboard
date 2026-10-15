@@ -467,10 +467,10 @@ func (m Model) Init() tea.Cmd {
 // of them as historyBuilt and accountsBuilt have it, Detail's selection
 // following its sessions, as followed has it, Sessions and Runway built at
 // the look, as sessionsLooked and runwayLooked have it, the readings
-// history's tail read for Runway, as readRunway has it, and the Log's page
-// built of what it holds, and only
-// then, price the moves the routing card would make while it wants them.
-// Then, of the page as it stands at that moment, its Overview's sections
+// history's tail read for Runway, as readRunway has it, the ledger's tail
+// followed whatever shows, as followTail has it, and the Log's page built
+// of what it holds, and only then, price the moves the routing card would
+// make while it wants them. Then, of the page as it stands at that moment, its Overview's sections
 // built once for each to share, it keeps the Overview's layout, and takes
 // the view back to its top where what its scroll counts changed, as
 // rescrolled has it, but for a frame, which takes nothing in to lay it out
@@ -493,6 +493,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, found := tuned.readFind()
 	tuned, listed := tuned.readSessions()
 	tuned, ran := tuned.readRunway()
+	tuned, tailing := tuned.followTail()
 	tuned, costs := tuned.costing()
 	tuned, waits := tuned.waited(now)
 	page := tuned.frame(now).Built(tuned.doc, now)
@@ -503,7 +504,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, costs, waits, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, tailing, costs, waits, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look

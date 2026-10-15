@@ -34,11 +34,19 @@ var doingInk = ink{token: theme.AccentKey}
 // running, a row on each account a session's models go to, or a row saying
 // none is, at its least and its most alike; under routingRows columns, and
 // on a phone, two rows a session. A click on a session's row opens its page.
+// Its heading says loading…, in text.subtle, while the frame says so, as
+// what names its sessions is read.
 func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 	running := f.running(doc, now)
 	rows := sectionHead + max(len(running)*f.runningForm().rows, 1)
 	return section{
 		Section: SectionSessions, least: rows, most: rows,
+		description: func() line {
+			if !f.Loading {
+				return nil
+			}
+			return line{{loadingWord, dimInk}}
+		},
 		draw: func(c *canvas, body bounds) {
 			f.drawRunning(c, f.Moment(doc, now), running, body)
 		},

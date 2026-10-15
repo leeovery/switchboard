@@ -11,6 +11,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
@@ -336,6 +338,33 @@ func TestWhatTheStreamSawOfASessionOutlastsItsAnswer(t *testing.T) {
 	h.tickUntil(past(90*time.Second + pulseFor + time.Second))
 	if want := "d28c  opus    now "; !strings.Contains(h.view(), want) {
 		t.Errorf("once its 90-second answer is done with, the screen is\n%s\nwant d28c seen now, as the stream saw it as its answer ended, %q", h.view(), want)
+	}
+}
+
+// d28c's answer, sent as the router listed it seen and ended four minutes
+// on, is let go once a read of the ledger's tail reads its line, its line
+// telling of it from then on; and SESSIONS has d28c idle three minutes
+// three minutes after it ended, as the stream saw it end, not seven, as the
+// router last saw it routed.
+func TestASessionsIdleCountsFromItsAnswersEndOnceItsLineTakesOver(t *testing.T) {
+	state := t.TempDir()
+	h := routedHarness(t, routerDocument(three()...))
+	h.model.sections = dashboard.Sections{}.Toggled(dashboard.SectionRouting).Toggled(dashboard.SectionSessions)
+	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
+	h.model.cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 40})...)
+	h.start()
+	h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamFirst, "r1", "work", time.Second))
+	h.tickUntil(past(4 * time.Minute))
+	h.hear(alter(told(router.StreamDone, "r1", "work", 4*time.Minute), func(e *router.StreamEvent) { e.Status = 200 }))
+	writeLines(t, state, took(arrived("r1", "work", 0), 4*time.Minute))
+
+	h.tickUntil(past(7 * time.Minute))
+	if _, ok := toldOf(h.model.traffic, "r1"); ok {
+		t.Error("its line read, r1 is kept, want it let go")
+	}
+	if want := "d28c  opus     3m   idle"; !strings.Contains(h.view(), want) {
+		t.Errorf("three minutes after d28c's answer ended, the screen is\n%s\nwant %q", h.view(), want)
 	}
 }
 

@@ -137,7 +137,7 @@ type placedRow struct {
 }
 
 // LogRows builds the Log's Requests from src: a row of each request, once:
-// from its line, where it has come, as filedAs knows it; else from what the
+// from its line, where it has come, as FiledAs knows it; else from what the
 // stream told of it, in flight, ended or lost, as LogLinesOf places and
 // tables the lines and Rows takes the stream's rows in among them. A
 // request the router answers itself is never on the stream, so its row

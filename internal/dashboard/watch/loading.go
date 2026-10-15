@@ -32,21 +32,38 @@ type pageLoadingMsg struct {
 }
 
 // awaiting reports whether the tab shown waits on a read of the files it's
-// drawn of: Accounts and History on the ledger's days, Sessions on its
-// List, Runway on the readings history, and the Log on its lines and
-// events. A session's page says its own, as pageLoading has it.
+// drawn of: Accounts and History on the ledger's days, and Detail's
+// SESSIONS, of an account sessions run on, on the List held, as the
+// Overview's SESSIONS and Sessions do, which names their sessions, till its
+// first read lands, as listAwaited has it; Runway on the readings history;
+// and the Log on its lines and events, from as it first shows till its
+// first read lands, whether or not that read has begun, as it waits for
+// another read of the ledger to land first. A session's page says its own,
+// as pageLoading has it.
 func (m Model) awaiting() bool {
 	switch m.shownView() {
-	case dashboard.Accounts, dashboard.History:
+	case dashboard.Overview:
+		return m.sections.Has(dashboard.SectionSessions) && m.listAwaited()
+	case dashboard.Accounts:
+		return m.past.reading || m.detailsSessions() && m.listAwaited()
+	case dashboard.History:
 		return m.past.reading
 	case dashboard.Sessions:
-		return m.sessionsTab.reading
+		return m.listAwaited()
 	case dashboard.Runway:
 		return m.runwayTab.reading
 	case dashboard.Log:
-		return m.log.reading
+		return m.log.reading || m.cfg.Ledger != nil && !m.log.opened
 	}
 	return false
+}
+
+// listAwaited reports whether the List held, which names the sessions
+// running, is awaited: the ledger read, and its first read yet to land,
+// whether or not it has begun, as it waits for a read of the tail to land
+// first.
+func (m Model) listAwaited() bool {
+	return m.cfg.Ledger != nil && m.sessionsTab.held == nil
 }
 
 // waited is m noting, at now, when the tab shown began to wait on a read,

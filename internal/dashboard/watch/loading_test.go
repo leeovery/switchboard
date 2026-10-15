@@ -10,7 +10,9 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // loadingSaid is what a page says while it loads.
@@ -203,5 +205,77 @@ func TestATabSaysItsLoadingWhileItsReadTakesAWhile(t *testing.T) {
 				t.Errorf("its read landed, the heading reads %q, want nothing of loading", got)
 			}
 		})
+	}
+}
+
+// What names the sessions running waits on the List held: Accounts' Detail
+// of an account sessions run on, and the Overview's SESSIONS, say loading…
+// while its first read takes LoadingAfter or longer, Detail in its heading
+// row and the Overview, which has none, in SESSIONS' heading, till it lands.
+func TestWhatNamesTheSessionsRunningSaysItsLoadingTillTheListLands(t *testing.T) {
+	tests := []struct {
+		name  string
+		shown func(h *harness)
+		// said is what the row saying it's loading reads.
+		said string
+	}{
+		{name: "the Overview's SESSIONS", shown: func(h *harness) {
+			h.model.sections = dashboard.Sections{}.Toggled(dashboard.SectionSessions)
+		}, said: "SESSIONS   " + loadingSaid},
+		{name: "Accounts' Detail of an account sessions run on", shown: func(h *harness) {
+			h.model.view = dashboard.Accounts
+			h.model.accounts.shown = dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail, Chosen: "work"}
+		}, said: "Detail  [ ]   " + loadingSaid},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(three()...))
+			h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
+			h.model.cfg.Ledger = ledger.NewFollower(t.TempDir(), h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+			tt.shown(h)
+			unread := holdingBack[listReadMsg](h, h.init()...)
+			loading, ok := h.pending(loadingMsg{})
+			if len(unread) == 0 || !ok {
+				t.Fatalf("the List's first read held back %d, its loading armed %t; want the read held, its loading armed", len(unread), ok)
+			}
+			h.fire(loading)
+			if !strings.Contains(h.view(), tt.said) {
+				t.Errorf("%s on, the List unread, the screen is\n%s\nwant %q", LoadingAfter, h.view(), tt.said)
+			}
+			h.deliver(unread...)
+			if strings.Contains(h.view(), loadingSaid) {
+				t.Errorf("the List read, the screen is\n%s\nwant nothing of loading", h.view())
+			}
+		})
+	}
+}
+
+// The Log shown the first time while another read of the ledger is under
+// way, which its own waits for, says loading… once LoadingAfter has passed,
+// as its own read under way would, till its own lands.
+func TestTheLogShownBehindAnotherReadSaysItsLoading(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
+	h.model.cfg.Ledger = ledger.NewFollower(t.TempDir(), h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	h.model.sections = dashboard.Sections{}.Toggled(dashboard.SectionSessions)
+	list := holdingBack[listReadMsg](h, h.init()...)
+	if len(list) == 0 {
+		t.Fatal("no read of the List is under way")
+	}
+	unread := holdingBack[listReadMsg](h, h.update(shiftTabKey)...)
+	if h.model.view != dashboard.Log || h.model.log.reading || len(unread) > 0 {
+		t.Fatalf("shift-tab from the Overview shows %s, its read under way %t, want the Log, its read waiting on the List's", h.model.view, h.model.log.reading)
+	}
+	loading, ok := h.pending(loadingMsg{})
+	if !ok {
+		t.Fatal("the Log shown waiting on another read armed no loading")
+	}
+	h.fire(loading)
+	if got := h.row(4); !strings.Contains(got, loadingSaid) {
+		t.Errorf("%s on, its read waiting, the Log's heading reads %q, want it saying loading…", LoadingAfter, got)
+	}
+	h.deliver(list...)
+	if got := h.row(4); !h.model.log.opened || strings.Contains(got, loadingSaid) {
+		t.Errorf("the List's read landed, and the Log's own after it, the Log opened %t, its heading reading %q, want it open, saying nothing of loading", h.model.log.opened, got)
 	}
 }

@@ -216,11 +216,7 @@ func TestForgettingWhatTheStreamToldLosesTheRequestsInFlightTillItTellsOfThemAga
 	}
 }
 
-// A request the stream told of that ended is let go lineWithin after the
-// stream last told of it, its line in the watch's hands by then; one lost,
-// seenFor after, as one cut off may have no line; and one in flight never,
-// however long.
-func TestTheRequestsNoLongerInFlightGoOnceTheirLinesCouldHaveCome(t *testing.T) {
+func TestTheRequestsNoLongerInFlightGoSeenForAfterTheStreamLastToldOfThem(t *testing.T) {
 	tr := traffic{live: true}.took([]router.StreamEvent{
 		told(router.StreamSent, "lost", "work", 0),
 		told(router.StreamSent, "flying", "work", 0),
@@ -239,20 +235,53 @@ func TestTheRequestsNoLongerInFlightGoOnceTheirLinesCouldHaveCome(t *testing.T) 
 		slices.Sort(ids)
 		return ids
 	}
-	steps := []struct {
-		name string
-		at   time.Time
-		want []string
-	}{
-		{name: "just short of lineWithin after the one done ended", at: past(2*time.Second + lineWithin - time.Nanosecond), want: []string{"done", "flying", "lost"}},
-		{name: "lineWithin after the one done ended", at: past(2*time.Second + lineWithin), want: []string{"flying", "lost"}},
-		{name: "just short of seenFor after the lost one was last told of", at: past(seenFor - time.Nanosecond), want: []string{"flying", "lost"}},
-		{name: "seenFor after the lost one was last told of", at: past(seenFor), want: []string{"flying"}},
+	if got, want := kept(past(seenFor)), []string{"done", "flying"}; !slices.Equal(got, want) {
+		t.Errorf("seenFor after the lost one was last told of, the requests kept are %q, want %q", got, want)
 	}
-	for _, s := range steps {
-		if got := kept(s.at); !slices.Equal(got, s.want) {
-			t.Errorf("%s, the requests kept are %q, want %q", s.name, got, s.want)
-		}
+	if got, want := kept(past(seenFor+2*time.Second)), []string{"flying"}; !slices.Equal(got, want) {
+		t.Errorf("seenFor after the last ended, the requests kept are %q, want %q: the one in flight, however long", got, want)
+	}
+}
+
+// A request the stream told of goes as soon as a read of the ledger's tail
+// reads its line, which tells of it from then on, however soon after it
+// ended, its seat seen as late as the stream last told of it, so its
+// session's idle counts from its end still: but not one in flight, nor one
+// whose id a line of another request has, as a router gives an id again
+// once its run has ended. Where it reads none of them, the traffic is as
+// it was; where it does, its requests are another map.
+func TestARequestGoesOnceAReadOfTheTailReadsItsLine(t *testing.T) {
+	tr := traffic{live: true}.took([]router.StreamEvent{
+		told(router.StreamSent, "done", "work", 0),
+		alter(told(router.StreamDone, "done", "work", 4*time.Minute), func(e *router.StreamEvent) { e.Status = 200 }),
+		told(router.StreamSent, "flying", "work", time.Minute),
+		told(router.StreamSent, "again", "work", 2*time.Minute),
+		alter(told(router.StreamDone, "again", "work", 3*time.Minute), func(e *router.StreamEvent) { e.Status = 200 }),
+	}, heldNowhere, past(4*time.Minute))
+	read := []ledger.Held{
+		took(arrived("done", "work", 0), 4*time.Minute),
+		arrived("flying", "work", time.Minute),
+		took(arrived("again", "work", -time.Hour), time.Second),
+	}
+
+	if unread := tr.lined([]ledger.Held{arrived("other", "work", 0)}); !sameMap(unread.requests, tr.requests) || unread.changes != tr.changes {
+		t.Error("a read of no line of a request told of changed the traffic, want it as it was")
+	}
+	lined := tr.lined(read)
+	if got, want := ids(lined), []string{"again", "flying"}; !slices.Equal(got, want) {
+		t.Errorf("its line read, the requests kept are %q, want %q", got, want)
+	}
+	if got, want := lined.stream(past(5*time.Minute)).Seen, map[views.Seat]time.Time{{Session: idD28C, Model: opus, Account: "work"}: past(4 * time.Minute)}; !maps.Equal(got, want) {
+		t.Errorf("its line read, the seats seen are %v, want %v, as the stream last told of done", got, want)
+	}
+	if _, ok := toldOf(tr, "done"); !ok {
+		t.Error("lined, the traffic it was lined from lost done, want its requests its own")
+	}
+	if lined.rowChanges == tr.rowChanges {
+		t.Error("its line read, the traffic counts no change to its rows, want one")
+	}
+	if seen := lined.tidied(past(4*time.Minute + seenFor)).stream(past(4*time.Minute + seenFor)).Seen; len(seen) > 0 {
+		t.Errorf("seenFor after done ended, the seats seen are %v, want none", seen)
 	}
 }
 
