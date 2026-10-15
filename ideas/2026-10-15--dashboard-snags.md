@@ -55,6 +55,10 @@ that's jumped out at me", then a few nitpicks, "no doubt I'll find others".
   by account (`b`), USAGE's blocks push GRAPHS below the fold, so the owner found them only with
   USAGE hidden. The ask: a place to see every account's charts at once, and the burn-down's way
   round. Where, and which way round, isn't decided.
+- **The pool, chosen for GRAPHS.** `↑` `↓` stop at the last account; the owner wants `↓` to go on
+  to `Σ pool` and GRAPHS to chart the pool across the board. The accounts' windows start and reset
+  at different times, so the pool's charts need a time axis of their own, settled with the
+  burn-down's.
 
 ## Anywhere slow
 
