@@ -83,9 +83,12 @@ five-hour limit."
   its own falls under the same toggle, in every graph; separating them later stays simple. It may
   apply in many places.
 - **One window's pool read 1% used while all four of its accounts read 0%** (the Overview by
-  window). Check whether the pool and its accounts round differently, or whether something is
-  counted that shouldn't be: the owner wondered about quota checks, which were to be left out
-  everywhere. If it isn't rounding, it's a bug.
+  window). Not a bug, nor rounding, nor quota checks: it's the 5% reserve on one account. The pool
+  counts each account's room to its cap (design.md:957–961, :1349–1354; status `poolWindow`,
+  `PoolUsed`, outlook.go:361–389), so a reserve reads as used: 1 − 3.95 ÷ 4 = 1.25%, shown 1%, and
+  the pool runs 1.25 points over its accounts' mean at every level. To decide, if it's unwanted: the
+  pool's percentage as its accounts' mean use, its room to their caps kept in its words; or the
+  bar marked as counting reserves.
 
 ## Loading
 
